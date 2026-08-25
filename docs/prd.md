@@ -106,6 +106,20 @@ creates an independent complete copy. Neither operation waits for AW-05 Pi
 native JSONL tree support. See
 [`session-fork-product-adaptation.md`](./specs/session-fork-product-adaptation.md).
 
+### 4.1.1 Conversation multi-pane workspace (P1)
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| CW-01 | General Conversation may show 1/2/4/8 independent Chat panes in one Desktop window | P1 |
+| CW-02 | Focused pane supports split right/down, close, maximize, directional focus, and resize by keyboard and visible controls | P1 |
+| CW-03 | Pane geometry is device-local; sessions, Runs, transcripts, and prompts remain Host-owned | P0 |
+| CW-04 | Project Agent keeps the single-stage workbench; it is not admitted into Chat panes | P0 |
+| CW-05 | Every visible pane remains live remotely through one bounded, deduplicated subscription set | P1 |
+
+The accepted behavior and keyboard contract are specified in
+[`conversation-multi-pane-workspace.md`](./specs/conversation-multi-pane-workspace.md)
+and ADR 0063.
+
 ### 4.2 Skills panel (P0)
 
 | ID | Requirement | Priority |

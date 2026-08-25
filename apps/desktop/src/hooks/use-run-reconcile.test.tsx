@@ -80,36 +80,62 @@ function terminalRun(): ExecutionRunRecord {
   };
 }
 
+type ProbeProps = {
+  activeSessionId: string | null;
+  activeRunId: string | null;
+  runLive: boolean;
+  hostReady?: boolean;
+  catchUpEpoch?: number;
+};
+
 function mountProbe(
   hostClient: HostClient,
   dispatch: (action: ChatUiAction) => void,
-  props: {
-    activeSessionId: string | null;
-    activeRunId: string | null;
-    runLive: boolean;
-    hostReady?: boolean;
-    catchUpEpoch?: number;
-  },
-): { root: Root; container: HTMLElement } {
+  props: ProbeProps,
+): {
+  root: Root;
+  container: HTMLElement;
+  rerender: (next: ProbeProps) => void;
+} {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root = createRoot(container);
-  function Probe(): null {
+  function Probe(probeProps: ProbeProps): null {
     useRunReconcile({
       hostClient,
       dispatch,
-      activeSessionId: props.activeSessionId,
-      activeRunId: props.activeRunId,
-      runLive: props.runLive,
-      ...(props.hostReady === undefined ? {} : { hostReady: props.hostReady }),
-      ...(props.catchUpEpoch === undefined ? {} : { catchUpEpoch: props.catchUpEpoch }),
+      activeSessionId: probeProps.activeSessionId,
+      activeRunId: probeProps.activeRunId,
+      runLive: probeProps.runLive,
+      ...(probeProps.hostReady === undefined ? {} : { hostReady: probeProps.hostReady }),
+      ...(probeProps.catchUpEpoch === undefined ? {} : { catchUpEpoch: probeProps.catchUpEpoch }),
     });
     return null;
   }
   act(() => {
-    root.render(<Probe />);
+    root.render(<Probe {...props} />);
   });
-  return { root, container };
+  return {
+    root,
+    container,
+    rerender: (next) => {
+      act(() => {
+        root.render(<Probe {...next} />);
+      });
+    },
+  };
+}
+
+async function waitForAdmission(actions: ChatUiAction[], admission: 'ready' | 'unknown'): Promise<void> {
+  await act(async () => {
+    await vi.waitFor(() => {
+      expect(
+        actions.some(
+          (action) => action.type === 'foreground/admission' && action.admission === admission,
+        ),
+      ).toBe(true);
+    });
+  });
 }
 
 describe('useRunReconcile', () => {
@@ -123,6 +149,9 @@ describe('useRunReconcile', () => {
       activeRunId: 'run-1',
       runLive: true,
     });
+    await waitForAdmission(actions, 'ready');
+    fake.requests.length = 0;
+    const actionCountAfterAdmit = actions.length;
 
     await act(async () => {
       fake.emitGap();
@@ -132,7 +161,7 @@ describe('useRunReconcile', () => {
       'session/foreground-run',
       'session/messages',
     ]);
-    expect(actions.map((action) => action.type)).toEqual([
+    expect(actions.slice(actionCountAfterAdmit).map((action) => action.type)).toEqual([
       'session/load-messages',
       'run/terminal',
     ]);
@@ -152,12 +181,14 @@ describe('useRunReconcile', () => {
       activeRunId: null,
       runLive: true,
     });
+    await waitForAdmission(actions, 'ready');
+    const actionCountAfterAdmit = actions.length;
 
     await act(async () => {
       fake.emitGap();
     });
 
-    expect(actions.map((action) => action.type)).toEqual([
+    expect(actions.slice(actionCountAfterAdmit).map((action) => action.type)).toEqual([
       'session/load-messages',
       'run/stale-clear',
     ]);
@@ -172,12 +203,16 @@ describe('useRunReconcile', () => {
       kind: 'run',
       run: { ...runningBase, status: 'running' },
     });
-    const dispatch = vi.fn();
+    const actions: ChatUiAction[] = [];
+    const dispatch = vi.fn((action: ChatUiAction) => actions.push(action));
     const { root, container } = mountProbe(fake as unknown as HostClient, dispatch, {
       activeSessionId: 'session-1',
       activeRunId: 'run-1',
       runLive: true,
     });
+    await waitForAdmission(actions, 'ready');
+    fake.requests.length = 0;
+    dispatch.mockClear();
 
     await act(async () => {
       fake.emitGap();
@@ -192,12 +227,17 @@ describe('useRunReconcile', () => {
   it('reconciles on window focus but stays quiet when no run is live', async () => {
     const fake = new FakeHostClient();
     fake.scriptForegroundRun({ kind: 'run', run: null });
-    const dispatch = vi.fn();
+    const actions: ChatUiAction[] = [];
+    const dispatch = (action: ChatUiAction): void => {
+      actions.push(action);
+    };
     const { root, container } = mountProbe(fake as unknown as HostClient, dispatch, {
       activeSessionId: 'session-1',
       activeRunId: null,
       runLive: false,
     });
+    await waitForAdmission(actions, 'ready');
+    fake.requests.length = 0;
 
     await act(async () => {
       window.dispatchEvent(new Event('focus'));
@@ -223,18 +263,13 @@ describe('useRunReconcile', () => {
 
     await act(async () => {
       await vi.waitFor(() => {
-        expect(fake.requests.length).toBeGreaterThan(0);
+        expect(actions.some((action) => action.type === 'run/terminal')).toBe(true);
       });
     });
 
-    expect(fake.requests.map((command) => command.type)).toEqual([
-      'session/foreground-run',
-      'session/messages',
-    ]);
-    expect(actions.map((action) => action.type)).toEqual([
-      'session/load-messages',
-      'run/terminal',
-    ]);
+    expect(fake.requests.map((command) => command.type)).toContain('session/messages');
+    expect(actions.map((action) => action.type)).toContain('session/load-messages');
+    expect(actions.map((action) => action.type)).toContain('run/terminal');
     root.unmount();
     container.remove();
   });
@@ -260,6 +295,57 @@ describe('useRunReconcile', () => {
 
     expect(fake.requests.map((command) => command.type)).toContain('session/messages');
     expect(actions.map((action) => action.type)).toContain('session/load-messages');
+    root.unmount();
+    container.remove();
+  });
+
+  it('leaves admission unknown when session/foreground-run fails', async () => {
+    const fake = new FakeHostClient();
+    fake.scriptForegroundRun({ kind: 'fail' });
+    const actions: ChatUiAction[] = [];
+    const { root, container } = mountProbe(fake as unknown as HostClient, (action) => {
+      actions.push(action);
+    }, {
+      activeSessionId: 'session-1',
+      activeRunId: null,
+      runLive: false,
+    });
+    await waitForAdmission(actions, 'unknown');
+    expect(
+      actions.filter((action) => action.type === 'foreground/admission').map((action) =>
+        action.type === 'foreground/admission' ? action.admission : undefined,
+      ),
+    ).toEqual(['reconciling', 'unknown']);
+    root.unmount();
+    container.remove();
+  });
+
+  it('re-admits when hostReady becomes true after a not-ready gap', async () => {
+    const fake = new FakeHostClient();
+    fake.scriptForegroundRun({ kind: 'fail' });
+    const actions: ChatUiAction[] = [];
+    const props = {
+      activeSessionId: 'session-1',
+      activeRunId: null,
+      runLive: false,
+      hostReady: false,
+    };
+    const { root, container, rerender } = mountProbe(
+      fake as unknown as HostClient,
+      (action) => {
+        actions.push(action);
+      },
+      props,
+    );
+    await waitForAdmission(actions, 'unknown');
+    fake.scriptForegroundRun({ kind: 'run', run: null });
+    rerender({ ...props, hostReady: true });
+    await waitForAdmission(actions, 'ready');
+    expect(
+      actions
+        .filter((action) => action.type === 'foreground/admission')
+        .map((action) => (action.type === 'foreground/admission' ? action.admission : undefined)),
+    ).toEqual(['reconciling', 'unknown', 'reconciling', 'ready']);
     root.unmount();
     container.remove();
   });

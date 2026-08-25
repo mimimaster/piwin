@@ -4,7 +4,11 @@
  * No FS I/O here — host/CLI write the returned content.
  */
 
-import type { SessionTranscriptMessage, SessionToolCardView } from '@piwin/contracts';
+import {
+  isHealthSensitiveToolResult,
+  type SessionTranscriptMessage,
+  type SessionToolCardView,
+} from '@piwin/contracts';
 
 export type SessionExportFormat = 'md' | 'html';
 
@@ -28,6 +32,9 @@ export type ExportTranscriptResult = {
 
 /** Placeholder used when `redactTools` is enabled. */
 export const TOOL_OUTPUT_REDACTED_PLACEHOLDER = '[tool output redacted]';
+
+/** Health tool output is omitted from exports even when other tools are kept. */
+export const HEALTH_TOOL_OUTPUT_OMITTED_PLACEHOLDER = '[Apple Health summary omitted]';
 
 /**
  * Convert product transcript messages to Markdown or HTML.
@@ -152,13 +159,23 @@ function renderMarkdownMessage(message: SessionTranscriptMessage, redactTools: b
   return lines;
 }
 
+function exportedToolOutput(tool: SessionToolCardView, redactTools: boolean): string {
+  if (redactTools) {
+    return TOOL_OUTPUT_REDACTED_PLACEHOLDER;
+  }
+  if (isHealthSensitiveToolResult(tool.presentation)) {
+    return HEALTH_TOOL_OUTPUT_OMITTED_PLACEHOLDER;
+  }
+  return tool.output ?? '';
+}
+
 function renderToolMarkdown(tool: SessionToolCardView, redactTools: boolean): string[] {
   const lines: string[] = [];
   lines.push(`##### \`${tool.toolName}\` (${tool.status})`);
   lines.push('');
   lines.push(`- call id: \`${tool.toolCallId}\``);
   lines.push('');
-  const output = redactTools ? TOOL_OUTPUT_REDACTED_PLACEHOLDER : (tool.output ?? '');
+  const output = exportedToolOutput(tool, redactTools);
   lines.push('```');
   lines.push(output);
   lines.push('```');
@@ -239,7 +256,7 @@ function renderHtmlMessage(message: SessionTranscriptMessage, redactTools: boole
   if (message.tools && message.tools.length > 0) {
     parts.push('<h3>Tools</h3>');
     for (const tool of message.tools) {
-      const output = redactTools ? TOOL_OUTPUT_REDACTED_PLACEHOLDER : tool.output;
+      const output = exportedToolOutput(tool, redactTools);
       parts.push(
         '<div class="tool">',
         `<div><code>${escapeHtml(tool.toolName)}</code> (${escapeHtml(tool.status)})</div>`,

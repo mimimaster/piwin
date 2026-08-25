@@ -4,7 +4,11 @@ import type { DraftSessionItemUi } from './draft-session';
 import { createSessionListScopeState, setSessionListScopeMeta } from './session-list-scope';
 import { buildSidebarTreeRows, sidebarTreeRowKey, type SidebarTreeRow } from './sidebar-tree-rows';
 
-function session(id: string, name: string, extras: Partial<SessionListItemUi> = {}): SessionListItemUi {
+function session(
+  id: string,
+  name: string,
+  extras: Partial<SessionListItemUi> = {},
+): SessionListItemUi {
   return { id, name, ...extras };
 }
 
@@ -25,6 +29,7 @@ function kinds(rows: SidebarTreeRow[]): string[] {
     if (row.kind === 'section-header') return `header:${row.sectionId}`;
     if (row.kind === 'project-folder') return `folder:${row.projectPath}:${row.collapsed}`;
     if (row.kind === 'session') return `session:${row.session.id}`;
+    if (row.kind === 'project-show-more') return `show-more:${row.projectPath}:${row.batchSize}`;
     if (row.kind === 'empty-hint') return `empty:${row.scope.kind}`;
     return `truncation:${row.hiddenCount}`;
   });
@@ -93,6 +98,66 @@ describe('buildSidebarTreeRows', () => {
     ]);
   });
 
+  it('shows project sessions five at a time with an independent disclosure row', () => {
+    const projectSessions = Array.from({ length: 13 }, (_, index) =>
+      session(`p-${index + 1}`, `Project ${index + 1}`, {
+        updatedAt: new Date(Date.UTC(2026, 7, 13 - index)).toISOString(),
+      }),
+    );
+    const baseInput = {
+      recentProjects: [{ path: '/a' }, { path: '/b' }],
+      projectSessionsByPath: {
+        '/a': projectSessions,
+        '/b': projectSessions.slice(0, 7).map((item) => ({ ...item, id: `b-${item.id}` })),
+      },
+      generalSessions: [],
+      sessionSearch: '',
+      sessionListOrder: 'updated' as const,
+      projectsSectionExpanded: true,
+      conversationsSectionExpanded: false,
+      collapsedProjects: {},
+      sessionListScopes: createSessionListScopeState(),
+    };
+
+    const initial = buildSidebarTreeRows(baseInput);
+    expect(initial.filter((row) => row.kind === 'session')).toHaveLength(10);
+    expect(kinds(initial)).toContain('show-more:/a:5');
+    expect(kinds(initial)).toContain('show-more:/b:2');
+
+    const expanded = buildSidebarTreeRows({
+      ...baseInput,
+      projectSessionVisibleCounts: { '/a': 10 },
+    });
+    const projectAIds = expanded.flatMap((row) =>
+      row.kind === 'session' && row.scope.kind === 'project' && row.scope.projectPath === '/a'
+        ? [row.session.id]
+        : [],
+    );
+    expect(projectAIds).toHaveLength(10);
+    expect(kinds(expanded)).toContain('show-more:/a:3');
+    expect(kinds(expanded)).toContain('show-more:/b:2');
+  });
+
+  it('does not hide project search results behind progressive disclosure', () => {
+    const projectSessions = Array.from({ length: 8 }, (_, index) =>
+      session(`match-${index}`, `Match ${index}`),
+    );
+    const rows = buildSidebarTreeRows({
+      recentProjects: [{ path: '/search' }],
+      projectSessionsByPath: { '/search': projectSessions },
+      generalSessions: [],
+      sessionSearch: 'match',
+      sessionListOrder: 'updated',
+      projectsSectionExpanded: true,
+      conversationsSectionExpanded: false,
+      collapsedProjects: {},
+      sessionListScopes: createSessionListScopeState(),
+    });
+
+    expect(rows.filter((row) => row.kind === 'session')).toHaveLength(8);
+    expect(rows.some((row) => row.kind === 'project-show-more')).toBe(false);
+  });
+
   it('merges drafts first without duplicating durable ids', () => {
     const rows = buildSidebarTreeRows({
       recentProjects: [],
@@ -138,9 +203,11 @@ describe('buildSidebarTreeRows', () => {
       collapsedProjects: {},
       sessionListScopes: createSessionListScopeState(),
     });
-    expect(
-      updated.filter((row) => row.kind === 'session').map((row) => row.session.id),
-    ).toEqual(['p', 'a', 'z']);
+    expect(updated.filter((row) => row.kind === 'session').map((row) => row.session.id)).toEqual([
+      'p',
+      'a',
+      'z',
+    ]);
 
     const renamed = sessions.map((item) =>
       item.id === 'z' ? { ...item, name: 'AAA Zulu' } : item,
@@ -162,10 +229,14 @@ describe('buildSidebarTreeRows', () => {
   });
 
   it('filters drafts locally during search and suppresses truncation hints', () => {
-    const scopes = setSessionListScopeMeta(createSessionListScopeState(), { kind: 'general' }, {
-      totalCount: 80,
-      truncated: true,
-    });
+    const scopes = setSessionListScopeMeta(
+      createSessionListScopeState(),
+      { kind: 'general' },
+      {
+        totalCount: 80,
+        truncated: true,
+      },
+    );
     const rows = buildSidebarTreeRows({
       recentProjects: [],
       projectSessionsByPath: {},
@@ -218,10 +289,14 @@ describe('buildSidebarTreeRows', () => {
   });
 
   it('reduces the truncation hint after an out-of-bound active upsert', () => {
-    const scopes = setSessionListScopeMeta(createSessionListScopeState(), { kind: 'general' }, {
-      totalCount: 2005,
-      truncated: true,
-    });
+    const scopes = setSessionListScopeMeta(
+      createSessionListScopeState(),
+      { kind: 'general' },
+      {
+        totalCount: 2005,
+        truncated: true,
+      },
+    );
     const resident = Array.from({ length: 2000 }, (_, index) =>
       session(`row-${index}`, `Row ${index}`),
     );

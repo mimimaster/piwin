@@ -421,16 +421,7 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
                   <DeferredChangesPanel
                     projectPath={projectPath}
                     request={requestGit as never}
-                    onOpenFile={(absolutePath, relativePath) => {
-                      // Workspace files open beside the file rail only — never the chat stage.
-                      handleOpenDocument(
-                        {
-                          title: relativePath.split(/[\\/]/).pop() || relativePath,
-                          path: absolutePath,
-                        },
-                        'inspector',
-                      );
-                    }}
+                    locale={locale}
                   />
                 }
                 gitContent={

@@ -108,12 +108,17 @@ describe('side-chat contracts', () => {
         relativePath: 'src',
         label: 'src/',
       },
+      {
+        kind: 'connected-source',
+        source: 'apple-health',
+        label: 'Apple Health',
+      },
     ];
     for (const ref of refs) {
       expect(ref.kind).toEqual(expect.any(String));
       expect(ref.label).toEqual(expect.any(String));
     }
-    expect(refs).toHaveLength(8);
+    expect(refs).toHaveLength(9);
   });
 
   it('treats main refs as valid prompt context refs (handoff path)', () => {

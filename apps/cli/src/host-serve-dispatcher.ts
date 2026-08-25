@@ -2,7 +2,7 @@
  * ADR 0015 host serve dispatcher: control lane bypasses serial work.
  * ADR 0027: transport-agnostic — takes a `send` function, not a JsonlWriter.
  */
-import type { HostCommand, HostResponse, HostServerMessage } from '@piwin/contracts';
+import type { HostCommand, HostCommandRequest, HostResponse, HostServerMessage } from '@piwin/contracts';
 import { formatHostError } from '@piwin/contracts';
 import type { HostRuntime } from '@piwin/host-runtime';
 import { classifyHostServeCommand } from './host-serve-command-lane.js';
@@ -15,10 +15,14 @@ export type HostServeDispatcherOptions = {
   send: HostServeSend;
   /** Timeout for non-prompt request handling. Prompt is quick-ack after ADR 0015. */
   commandTimeoutMs?: number;
+  admit?: (
+    request: HostCommandRequest,
+    execute: () => Promise<HostResponse>,
+  ) => Promise<HostResponse>;
 };
 
 export type HostServeDispatcher = {
-  dispatch: (command: HostCommand) => void;
+  dispatch: (command: HostCommand | HostCommandRequest) => void;
   /** Stop accepting commands and await every queued or active command. */
   drain: () => Promise<void>;
 };
@@ -56,19 +60,22 @@ export function createHostServeDispatcher(
   let acceptingCommands = true;
   let drainPromise: Promise<void> | undefined;
 
-  function dispatch(command: HostCommand): void {
+  function dispatch(command: HostCommand | HostCommandRequest): void {
     if (!acceptingCommands) {
       return;
     }
-    const lane = classifyHostServeCommand(command);
-    const commandDeadlineMs = commandTimeoutMs(command, timeoutMs);
+    const request = toHostCommandRequest(command);
+    const lane = classifyHostServeCommand(request.command);
+    const commandDeadlineMs = commandTimeoutMs(request.command, timeoutMs);
     if (lane === 'control' || lane === 'concurrent') {
-      void trackCommand(runCommand(options.runtime, options.send, command, commandDeadlineMs));
+      void trackCommand(
+        runCommand(options.runtime, options.send, request, commandDeadlineMs, options.admit),
+      );
       return;
     }
     serializedChain = trackCommand(
       serializedChain.then(() =>
-        runCommand(options.runtime, options.send, command, commandDeadlineMs),
+        runCommand(options.runtime, options.send, request, commandDeadlineMs, options.admit),
       ),
     );
   }
@@ -102,16 +109,20 @@ export function createHostServeDispatcher(
 async function runCommand(
   runtime: HostRuntime,
   send: HostServeSend,
-  command: HostCommand,
+  request: HostCommandRequest,
   timeoutMs: number | undefined,
+  admit:
+    | ((request: HostCommandRequest, execute: () => Promise<HostResponse>) => Promise<HostResponse>)
+    | undefined,
 ): Promise<void> {
+  const command = request.command;
   const commandId = typeof command.id === 'string' ? command.id : undefined;
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   try {
-    const response: HostResponse =
+    const execute = (): Promise<HostResponse> =>
       timeoutMs === undefined
-        ? await runtime.handleCommand(command)
-        : await Promise.race([
+        ? runtime.handleCommand(command)
+        : Promise.race([
             runtime.handleCommand(command),
             new Promise<never>((_resolve, reject) => {
               timeoutId = setTimeout(() => {
@@ -120,6 +131,7 @@ async function runCommand(
               timeoutId.unref();
             }),
           ]);
+    const response: HostResponse = admit === undefined ? await execute() : await admit(request, execute);
     await send(response);
   } catch (error) {
     const failure: HostServerMessage = {
@@ -135,4 +147,20 @@ async function runCommand(
       clearTimeout(timeoutId);
     }
   }
+}
+
+function toHostCommandRequest(value: HostCommand | HostCommandRequest): HostCommandRequest {
+  if (isHostCommandRequest(value)) {
+    return value;
+  }
+  return { command: value };
+}
+
+function isHostCommandRequest(value: HostCommand | HostCommandRequest): value is HostCommandRequest {
+  return (
+    'command' in value &&
+    typeof value.command === 'object' &&
+    value.command !== null &&
+    typeof value.command.type === 'string'
+  );
 }

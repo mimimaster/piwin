@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeDiffLineNumbers } from './diff-line-numbers';
+import { computeDiffLineNumbers, computeOmittedLineCounts } from './diff-line-numbers';
 import { parseUnifiedDiff } from './diff-view';
 
 describe('computeDiffLineNumbers', () => {
@@ -64,5 +64,20 @@ describe('computeDiffLineNumbers', () => {
     expect(nums[4]).toEqual({ old: 10, new: 10 });
     expect(nums[5]).toEqual({ old: 11, new: null });
     expect(nums[6]).toEqual({ old: null, new: 11 });
+  });
+});
+
+describe('computeOmittedLineCounts', () => {
+  it('counts unchanged lines before and between hunks', () => {
+    const patch = ['@@ -3,2 +3,2 @@', ' a', ' b', '@@ -10,2 +10,2 @@', ' c', ' d'].join('\n');
+    const counts = computeOmittedLineCounts(parseUnifiedDiff(patch));
+
+    expect(counts[0]).toBe(2);
+    expect(counts[3]).toBe(5);
+  });
+
+  it('does not invent omitted lines for a new file hunk', () => {
+    const patch = ['@@ -0,0 +1,2 @@', '+a', '+b'].join('\n');
+    expect(computeOmittedLineCounts(parseUnifiedDiff(patch))[0]).toBe(0);
   });
 });

@@ -14,6 +14,7 @@ import type { AttachmentContentKind } from './attachment.js';
 import type { AgentModeId, PermissionPreset } from './permission.js';
 import type { CreateSessionOptions, NativeContextEntry } from './session-seed.js';
 import type { SearchEvidence } from './web.js';
+import type { HealthToolCardSummary } from './apple-health.js';
 
 export type HostMode = 'sdk' | 'rpc';
 
@@ -403,17 +404,27 @@ export type AgentEventEnvelope = {
 };
 
 /** Host-normalized tool presentation for UI cards (Desktop must not re-infer semantics). */
-export type ToolKind =
-  | 'filesystem'
-  | 'shell'
-  | 'git'
-  | 'web'
-  | 'mcp'
-  | 'process'
-  | 'image'
-  | 'video'
-  | 'subagent'
-  | 'other';
+export const TOOL_KINDS = [
+  'filesystem',
+  'shell',
+  'git',
+  'web',
+  'mcp',
+  'process',
+  'image',
+  'video',
+  'subagent',
+  'health',
+  'other',
+] as const;
+
+export type ToolKind = (typeof TOOL_KINDS)[number];
+
+const TOOL_KIND_SET: ReadonlySet<string> = new Set(TOOL_KINDS);
+
+export function isToolKind(value: unknown): value is ToolKind {
+  return typeof value === 'string' && TOOL_KIND_SET.has(value);
+}
 
 export type ToolOutputView = {
   text: string;
@@ -453,6 +464,10 @@ export type ToolPresentation = {
   actionVerb?: string;
   lineRange?: string;
   countTag?: string;
+  /** Bounded Health card projection when kind is health. */
+  health?: HealthToolCardSummary;
+  /** Copied from ToolResult.details so secondary ingest can skip Health. */
+  sensitivity?: 'health';
 };
 
 export type AgentEvent =

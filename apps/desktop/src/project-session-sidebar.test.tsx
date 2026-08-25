@@ -93,20 +93,30 @@ function renderSidebar(props: Partial<ProjectSessionSidebarProps> = {}): {
 }
 
 describe('ProjectSessionSidebar resident session lists', () => {
-  it('renders the full resident project list without disclosure or lazy controls', () => {
+  it('reveals resident project sessions five at a time', () => {
     const sessions = createMockSessions(13);
     const { container } = renderSidebar({
       filteredSessions: sessions,
     });
 
-    const sessionItems = container.querySelectorAll('[data-testid="session-item"]');
-    expect(sessionItems.length).toBe(13);
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(5);
+    const showMore = container.querySelector<HTMLButtonElement>(
+      '[data-testid="project-session-show-more"]',
+    );
+    expect(showMore?.textContent).toBe('Show more');
+    expect(showMore?.getAttribute('aria-label')).toBe('Show 5 more sessions');
+
+    act(() => showMore?.click());
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(10);
+
+    act(() =>
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="project-session-show-more"]')
+        ?.click(),
+    );
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(13);
     expect(container.textContent).toContain('Session Item 13');
-    expect(container.querySelector('[data-testid="project-session-pager"]')).toBeNull();
-    expect(container.querySelector('.session-page-row')).toBeNull();
-    expect(container.querySelector('[data-testid="see-all-btn"]')).toBeNull();
-    expect(container.querySelector('[data-testid="session-lazy-next"]')).toBeNull();
-    expect(container.querySelector('[data-testid="load-more-project-sessions"]')).toBeNull();
+    expect(container.querySelector('[data-testid="project-session-show-more"]')).toBeNull();
   });
 
   it('displays a small project list without page controls', () => {
@@ -117,14 +127,25 @@ describe('ProjectSessionSidebar resident session lists', () => {
 
     const sessionItems = container.querySelectorAll('[data-testid="session-item"]');
     expect(sessionItems.length).toBe(5);
-    expect(container.querySelector('[data-testid="project-session-pager"]')).toBeNull();
+    expect(container.querySelector('[data-testid="project-session-show-more"]')).toBeNull();
   });
 
   it('uses Chinese sidebar labels when the display locale is zh-CN', () => {
-    const { container } = renderSidebar({ locale: 'zh-CN' });
+    const { container } = renderSidebar({
+      locale: 'zh-CN',
+      filteredSessions: createMockSessions(6),
+    });
 
     expect(container.textContent).toContain('项目');
     expect(container.textContent).toContain('会话');
+    expect(container.querySelector('[data-testid="project-session-show-more"]')?.textContent).toBe(
+      '显示更多',
+    );
+    expect(
+      container
+        .querySelector('[data-testid="project-session-show-more"]')
+        ?.getAttribute('aria-label'),
+    ).toBe('再显示 1 个会话');
     expect(
       container.querySelector('[data-testid="display-options-btn"]')?.getAttribute('aria-label'),
     ).toBe('显示选项');
@@ -197,6 +218,20 @@ describe('ProjectSessionSidebar resident session lists', () => {
     container.remove();
   });
 
+  it('labels general-scope creation as New Chat', () => {
+    const { container, root } = renderSidebar({ generalActive: true });
+
+    expect(container.querySelector('[data-testid="new-session-btn"]')?.textContent).toContain(
+      'New Chat',
+    );
+    expect(
+      container.querySelector('[data-testid="general-workspace-btn"]')?.getAttribute('aria-label'),
+    ).toBe('New Chat');
+
+    act(() => root.unmount());
+    container.remove();
+  });
+
   it('renders every project without a separate all-projects row', () => {
     const projects = createMockProjects(8);
     const { container } = renderSidebar({
@@ -244,8 +279,8 @@ describe('ProjectSessionSidebar resident session lists', () => {
       generalSessions: createMockSessions(8),
     });
 
-    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(16);
-    expect(container.querySelector('[data-testid="project-session-pager"]')).toBeNull();
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(13);
+    expect(container.querySelector('[data-testid="project-session-show-more"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="general-session-pager"]')).toBeNull();
   });
 });
@@ -669,6 +704,58 @@ describe('ProjectSessionSidebar project row behavior', () => {
     expect(names.some((n) => n.includes('Project C Chat'))).toBe(true);
   });
 
+  it('expands project session groups independently', () => {
+    const projects = createMockProjects(2);
+    const { container } = renderSidebar({
+      recentProjects: projects,
+      projectPath: projects[0]?.path ?? null,
+      filteredSessions: createMockSessions(8),
+      projectSessionsByPath: {
+        [projects[1]!.path]: createMockSessions(8).map((session) => ({
+          ...session,
+          id: `other-${session.id}`,
+          name: `Other ${session.name}`,
+        })),
+      },
+    });
+
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(10);
+    const showMoreButtons = container.querySelectorAll<HTMLButtonElement>(
+      '[data-testid="project-session-show-more"]',
+    );
+    expect(showMoreButtons).toHaveLength(2);
+
+    act(() => showMoreButtons[0]?.click());
+
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(13);
+    expect(container.querySelectorAll('[data-testid="project-session-show-more"]')).toHaveLength(1);
+    expect(container.textContent).toContain('Session Item 8');
+    expect(container.textContent).not.toContain('Other Session Item 8');
+  });
+
+  it('returns a project to five visible sessions after it is folded and reopened', () => {
+    const { container } = renderSidebar({
+      filteredSessions: createMockSessions(8),
+    });
+
+    act(() =>
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="project-session-show-more"]')
+        ?.click(),
+    );
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(8);
+
+    const foldToggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="project-fold-toggle"]',
+    );
+    act(() => foldToggle?.click());
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(0);
+
+    act(() => foldToggle?.click());
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(5);
+    expect(container.querySelector('[data-testid="project-session-show-more"]')).not.toBeNull();
+  });
+
   it('collapses one project without hiding other project sessions', () => {
     const projects = createMockProjects(2);
     const firstProjectSessions = createMockSessions(1);
@@ -791,7 +878,8 @@ describe('ProjectSessionSidebar virtualization gate', () => {
     const sessions = createMockSessions(1_035);
     const onResume = vi.fn();
     const { container } = renderSidebar({
-      filteredSessions: sessions,
+      filteredSessions: [],
+      generalSessions: sessions,
       onResumeSession: onResume,
     });
 
@@ -809,7 +897,11 @@ describe('ProjectSessionSidebar virtualization gate', () => {
     expect(tree).not.toBeNull();
     act(() => {
       if (tree) {
-        Object.defineProperty(tree, 'scrollTop', { configurable: true, value: 40_000, writable: true });
+        Object.defineProperty(tree, 'scrollTop', {
+          configurable: true,
+          value: 40_000,
+          writable: true,
+        });
         tree.dispatchEvent(new Event('scroll'));
       }
     });
@@ -835,7 +927,9 @@ describe('ProjectSessionSidebar virtualization gate', () => {
     });
     expect(onResume).toHaveBeenCalledWith('session-1');
 
-    const search = container.querySelector<HTMLInputElement>('input[type="search"], input[data-testid="session-search-input"]');
+    const search = container.querySelector<HTMLInputElement>(
+      'input[type="search"], input[data-testid="session-search-input"]',
+    );
     if (search) {
       act(() => {
         search.focus();

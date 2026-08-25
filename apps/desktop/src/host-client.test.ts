@@ -30,23 +30,46 @@ describe('HostClient', () => {
     invokeMock.mockResolvedValue(unhandledResponse);
     const client = new HostClient({ transport: 'live' });
 
-    const response = await client.request({
-      type: 'session/abort',
-      sessionId: 'session-1',
-      runId: 'run-1',
-    });
+    const response = await client.request(
+      {
+        type: 'session/abort',
+        sessionId: 'session-1',
+        runId: 'run-1',
+      },
+      { idempotencyKey: 'gesture-abort-1' },
+    );
 
     expect(response).toEqual(unhandledResponse);
     expect(invokeMock).toHaveBeenCalledTimes(1);
     expect(invokeMock).toHaveBeenCalledWith('host_request', {
       command: {
-        id: 'ui-1',
-        type: 'session/abort',
-        sessionId: 'session-1',
-        runId: 'run-1',
+        v: 1,
+        command: {
+          id: 'ui-1',
+          type: 'session/abort',
+          sessionId: 'session-1',
+          runId: 'run-1',
+        },
+        idempotencyKey: 'gesture-abort-1',
+        clientPrincipalId: expect.any(String),
       },
       timeoutMs: 5_000,
     });
+  });
+
+  it('does not mint an idempotency key when the live caller omits one', async () => {
+    const client = new HostClient({ transport: 'live' });
+    const response = await client.request({
+      type: 'session/abort',
+      sessionId: 'session-1',
+      runId: 'run-1',
+    });
+    expect(response).toMatchObject({
+      success: false,
+      error: 'idempotency-key-required',
+      problem: { code: 'idempotency-key-required' },
+    });
+    expect(invokeMock).not.toHaveBeenCalled();
   });
 
   it('does not impose an acknowledgement timeout on model-backed compaction', async () => {
@@ -68,9 +91,13 @@ describe('HostClient', () => {
     expect(response).toEqual(compactResponse);
     expect(invokeMock).toHaveBeenCalledWith('host_request', {
       command: {
-        id: 'ui-1',
-        type: 'session/compact',
-        sessionId: 'session-1',
+        v: 1,
+        command: {
+          id: 'ui-1',
+          type: 'session/compact',
+          sessionId: 'session-1',
+        },
+        clientPrincipalId: expect.any(String),
       },
       timeoutMs: 0,
     });
@@ -279,6 +306,7 @@ describe('HostClient', () => {
       remoteTarget: { endpoint: 'ws://127.0.0.1:8787' },
     });
     expect(client.getTransport()).toBe('remote');
+    expect(client.getRemoteTarget()).toEqual({ endpoint: 'ws://127.0.0.1:8787' });
     expect(client.supportsForegroundAdmission()).toBe(false);
     const response = await client.request({ type: 'host/ping' });
     expect(response.success).toBe(false);

@@ -54,6 +54,8 @@ export type ToolExposureInput = {
   flashcardsEnabled?: boolean;
   imageGenerationEnabled?: boolean;
   videoGenerationEnabled?: boolean;
+  /** Root-session Apple Health tool; never enabled for child ceilings. */
+  deviceHealth?: boolean;
 };
 
 /** Pi built-in tool names mapped from product capabilities (filesystem/shell). */
@@ -78,6 +80,7 @@ export const FAMILY_PI_BUILTIN_TOOLS: Readonly<Record<SessionToolFamily, readonl
   toolbox: [],
   'image-generation': [],
   'video-generation': [],
+  'device-health': [],
 };
 
 /**
@@ -134,8 +137,7 @@ export function resolveToolPolicyDetails(input: ToolExposureInput): ResolvedTool
   // the toolbox shell is registered even if no dedicated MCP tool exists, and
   // when there are currently zero enabled servers.
   const mcpCatalogAvailable = input.availableFamilies
-    ? input.availableFamilies.has('mcp') ||
-      (input.mcp && input.availableFamilies.has('toolbox'))
+    ? input.availableFamilies.has('mcp') || (input.mcp && input.availableFamilies.has('toolbox'))
     : input.availability.mcpEnabledServerIds.length > 0;
   if (input.mcp && hasMcp && mcpCatalogAvailable) {
     enabledFamilies.add('mcp');
@@ -209,12 +211,14 @@ export function resolveToolPolicyDetails(input: ToolExposureInput): ResolvedTool
   if ((input.planning ?? false) && hasPlanning) {
     enabledFamilies.add('planning');
   }
+  if (input.deviceHealth === true && capabilities === undefined) {
+    enabledFamilies.add('device-health');
+  }
 
   const effectiveFamilies = input.availableFamilies
     ? [...enabledFamilies].filter(
         (family) =>
           input.availableFamilies?.has(family) === true ||
-          family === 'artifact' ||
           (family === 'mcp' && input.mcp && input.availableFamilies?.has('toolbox') === true),
       )
     : [...enabledFamilies];

@@ -1,8 +1,8 @@
 /**
  * Workbench composition root: shell chrome + host/session owners + slot tree.
  */
-import { useEffect, useReducer, useRef, useState } from 'react';
-import type { ThemeManifest } from '@piwin/contracts';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { formatError, type ThemeManifest } from '@piwin/contracts';
 import { chatUiReducer, createInitialChatUiState } from './chat-reducer';
 import { useWorkbenchHostClient } from './use-workbench-host-client';
 import { MediaPreviewReadProvider } from './media-preview-read-context';
@@ -26,6 +26,16 @@ import { WorkbenchKnowledgeStage } from './workbench-knowledge-stage';
 import { WorkbenchOverlays, WorkbenchSettingsOverlay } from './workbench-overlays';
 import { WorkbenchSidebar } from './workbench-sidebar';
 import { WorkbenchStatusBar } from './workbench-status-bar';
+import { ConversationPaneWorkspace } from './conversation-pane-workspace';
+import {
+  useConversationPaneLayout,
+  useConversationPaneSubscriptions,
+} from './use-conversation-pane-layout';
+import { sessionCreateInputForTransport } from './remote-session-hydrate';
+import { createGestureIdempotencyKey } from './gesture-idempotency';
+import { pushError } from './notification-queue';
+import { WorkbenchSubpageStage } from './workbench-subpage-stage';
+import { insetComposerText } from './workbench-chrome-assembly';
 
 export type AppProps = {
   /** Resolved active manifest owned by DesktopThemeRoot. */
@@ -59,6 +69,12 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     setRightPanelView,
     knowledgeOpen,
     setKnowledgeOpen,
+    activeSubPage,
+    setActiveSubPage,
+    openImages,
+    openVideos,
+    openFlashcards,
+    closeSubPage,
     handleOpenCardsPanel,
     sessionListChrome,
     sessionListQuery,
@@ -69,7 +85,6 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     appShellStyle,
     desktopLocale,
     foregroundReplaceConfirm,
-    plusMenu,
   } = chrome;
   const {
     sessionSearch,
@@ -105,8 +120,6 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     terminalRecentDirs,
     handleTerminalCwdChange,
   } = terminal;
-  const { menuSkills, menuMcp } = plusMenu;
-
   const model = useWorkbenchAppModel({
     hostClient,
     state,
@@ -186,8 +199,6 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     effectiveRunMode,
     handleSettingsSaved,
     handleSettingsPreferencesChange,
-    selectedModelLabel,
-    selectedModelContextWindow,
     currentPromptModelRef,
     composer,
     setComposer,
@@ -219,7 +230,6 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     historyViewActive,
     visibleTranscriptMessages,
     visibleRunRecordsById,
-    contextUsagePercent,
     lastUserMessage,
     lastUserMessageId,
     activeSessionName,
@@ -250,341 +260,429 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     composer.trim().length > 0 ||
     pendingAttachments.length > 0;
 
+  const conversationPanesEnabled = state.activeScope.kind === 'general';
+  const conversationPaneController = useConversationPaneLayout({
+    enabled: conversationPanesEnabled,
+    primarySessionId: conversationPanesEnabled ? state.activeSessionId : null,
+  });
+  useConversationPaneSubscriptions({
+    hostClient,
+    activeSessionId: state.activeSessionId,
+    paneLayout: conversationPaneController.layout,
+    panesEnabled: conversationPanesEnabled,
+  });
+  const handleCreatePaneConversation = useCallback(async (): Promise<string | null> => {
+    try {
+      const response = await hostClient.request(
+        {
+          type: 'session/create',
+          input: sessionCreateInputForTransport(hostClient.getTransport(), {
+            useGeneral: true,
+            ...(currentPromptModelRef ? { model: currentPromptModelRef } : {}),
+          }),
+        },
+        { idempotencyKey: createGestureIdempotencyKey() },
+      );
+      if (!response.success) {
+        dispatchNotification(pushError(response.error));
+        return null;
+      }
+      const sessionId = (response.data as { sessionId?: unknown } | undefined)?.sessionId;
+      if (typeof sessionId !== 'string' || sessionId.length === 0) {
+        dispatchNotification(pushError('Host returned an invalid Conversation id'));
+        return null;
+      }
+      return sessionId;
+    } catch (error) {
+      dispatchNotification(pushError(formatError(error)));
+      return null;
+    }
+  }, [currentPromptModelRef, dispatchNotification, hostClient]);
+
   return (
     <DesktopLocaleProvider locale={desktopLocale} onLocaleChange={handleLocaleChange}>
       <LocalFileActionsProvider request={(command) => hostClient.request(command)}>
-      <MediaPreviewReadProvider sessionId={state.activeSessionId} readMedia={readTranscriptMedia}>
-      <DesktopContextMenuProvider value={desktopContextMenuValue}>
-      <SubagentInspectorProvider toggle={subagentInspectorToggle} panel={subagentInspectorPanel}>
-        <div
-          className={`app-shell workbench${rightPanelOpen ? ' has-right-panel' : ''}${navDrawerOpen ? ' nav-open' : ''}${settingsOpen ? ' settings-open' : ''}${knowledgeOpen ? ' knowledge-open' : ''}${rightPanelResize.isResizing || sidebarResize.isResizing ? ' is-resizing-panels' : ''}`}
-          style={appShellStyle}
-          data-testid="app-shell"
-          data-layout={layoutMode}
-          data-right={rightPanelOpen ? 'expanded' : 'collapsed'}
-          data-settings-open={settingsOpen ? 'true' : 'false'}
-          data-knowledge-open={knowledgeOpen ? 'true' : 'false'}
-        >
-          <WorkspaceShell
-            workspaceClassName={settingsOpen || knowledgeOpen ? 'settings-workspace-suspended' : undefined}
-            sidebar={
-              <WorkbenchSidebar
-                state={state}
-                hostClient={hostClient}
-                hostStatus={hostStatus}
-                recentProjects={recentProjects}
-                filteredSessions={filteredSessions}
-                filteredGeneralSessions={filteredGeneralSessions}
-                sessionGroups={sessionGroups}
-                sessionListOrder={sessionListOrder}
-                onSessionListOrderChange={handleSessionListOrderChange}
-                sessionSearch={sessionSearch}
-                onSessionSearchChange={setSessionSearch}
-                showArchivedSessions={showArchivedSessions}
-                setShowArchivedSessions={setShowArchivedSessions}
-                hydrateSessions={hydrateSessions}
-                settingsOpen={settingsOpen}
+        <MediaPreviewReadProvider sessionId={state.activeSessionId} readMedia={readTranscriptMedia}>
+          <DesktopContextMenuProvider value={desktopContextMenuValue}>
+            <SubagentInspectorProvider
+              toggle={subagentInspectorToggle}
+              panel={subagentInspectorPanel}
+            >
+              <div
+                className={`app-shell workbench${rightPanelOpen ? ' has-right-panel' : ''}${navDrawerOpen ? ' nav-open' : ''}${settingsOpen ? ' settings-open' : ''}${knowledgeOpen ? ' knowledge-open' : ''}${rightPanelResize.isResizing || sidebarResize.isResizing ? ' is-resizing-panels' : ''}`}
+                style={appShellStyle}
+                data-testid="app-shell"
+                data-layout={layoutMode}
+                data-right={rightPanelOpen ? 'expanded' : 'collapsed'}
+                data-settings-open={settingsOpen ? 'true' : 'false'}
+                data-knowledge-open={knowledgeOpen ? 'true' : 'false'}
+              >
+                <WorkspaceShell
+                  workspaceClassName={
+                    settingsOpen || knowledgeOpen ? 'settings-workspace-suspended' : undefined
+                  }
+                  sidebar={
+                    <WorkbenchSidebar
+                      state={state}
+                      hostClient={hostClient}
+                      hostStatus={hostStatus}
+                      recentProjects={recentProjects}
+                      filteredSessions={filteredSessions}
+                      filteredGeneralSessions={filteredGeneralSessions}
+                      sessionGroups={sessionGroups}
+                      sessionListOrder={sessionListOrder}
+                      onSessionListOrderChange={handleSessionListOrderChange}
+                      sessionSearch={sessionSearch}
+                      onSessionSearchChange={setSessionSearch}
+                      showArchivedSessions={showArchivedSessions}
+                      setShowArchivedSessions={setShowArchivedSessions}
+                      hydrateSessions={hydrateSessions}
+                      settingsOpen={settingsOpen}
+                      activeSubPage={activeSubPage}
+                      onOpenImages={openImages}
+                      onOpenVideos={openVideos}
+                      onOpenFlashcards={openFlashcards}
+                      knowledgeOpen={knowledgeOpen}
+                      setKnowledgeOpen={setKnowledgeOpen}
+                      onOpenWorkspace={handleOpenWorkspaceClick}
+                      onOpenProject={handleOpenProject}
+                      onRemoveProject={handleRemoveProjectFromSidebar}
+                      onNewSession={(options) => {
+                        setActiveSubPage(null);
+                        return handleStartNewSession(options);
+                      }}
+                      onResumeSession={(sessionId) => {
+                        setActiveSubPage(null);
+                        return handleResumeSession(sessionId);
+                      }}
+                      onResumeDraft={(draftId) => {
+                        setActiveSubPage(null);
+                        return handleResumeDraft(draftId);
+                      }}
+                      draftSessions={draftSessions}
+                      activeDraftId={activeDraftId}
+                      sessionMenu={sessionMenu}
+                      onOpenSessionMenu={openSessionMenu}
+                      onSessionMenuAction={handleSessionMenuAction}
+                      onRequestDeleteSession={requestDeleteSession}
+                      openSettingsSection={openSettingsSection}
+                      dispatch={dispatch}
+                      isOverlayPresentation={isOverlayPresentation}
+                      locale={desktopLocale}
+                      sidebarResize={sidebarResize}
+                      backendServiceSessionIds={backendServiceSessionIds}
+                      shell={shell}
+                    />
+                  }
+                  titlebar={
+                    <WorkbenchContextBar
+                      state={state}
+                      recentProjects={recentProjects}
+                      activeSessionName={activeSessionName}
+                      activeSessionOrigin={activeSessionOrigin}
+                      sessionLineage={sessionLineage}
+                      runStatus={runStatus}
+                      lastUserMessage={lastUserMessage}
+                      effectiveRunMode={effectiveRunMode}
+                      locale={desktopLocale}
+                      appearanceMode={activeTheme.mode === 'light' ? 'light' : 'dark'}
+                      sessionsExpanded={navDrawerOpen}
+                      workPanelOpen={rightPanelOpen}
+                      rightPanelTab={rightPanelTab}
+                      shell={shell}
+                      onStop={handleAbort}
+                      onCancelCompact={handleCompactAbort}
+                      onOpenInspector={openRightTab}
+                      openSettingsSection={openSettingsSection}
+                      onToggleAppearance={handleToggleAppearance}
+                      onResumeSession={handleResumeSession}
+                      onRetryLastUser={branchResend}
+                    />
+                  }
+                  chatColumnClassName={
+                    [
+                      composerLayoutMode === 'centered' ? 'chat-column-empty' : '',
+                      activeTheme.visualStyle === 'ink-wash' ? 'theme-visual-ink-wash' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ') || undefined
+                  }
+                  renderStage={(primaryPane) => {
+                    if (conversationPanesEnabled) {
+                      return (
+                        <ConversationPaneWorkspace
+                          controller={conversationPaneController}
+                          primaryPane={primaryPane}
+                          primarySessionName={
+                            activeSessionName ||
+                            (desktopLocale === 'zh-CN' ? '新 Chat' : 'New Chat')
+                          }
+                          sessions={state.generalSessions}
+                          hostClient={hostClient}
+                          activeTheme={activeTheme}
+                          artifactThemeKey={artifactThemeKey}
+                          readMedia={readTranscriptMedia}
+                          locale={desktopLocale}
+                          keyboardEnabled={!settingsOpen && !knowledgeOpen && !activeSubPage}
+                          onCreateConversation={handleCreatePaneConversation}
+                        />
+                      );
+                    }
+                    return primaryPane;
+                  }}
+                  transcript={
+                    <WorkbenchTranscript
+                      locale={desktopLocale}
+                      hostClient={hostClient}
+                      state={state}
+                      dispatch={dispatch}
+                      visibleMessages={visibleTranscriptMessages}
+                      visibleRunRecordsById={visibleRunRecordsById}
+                      historyViewActive={historyViewActive}
+                      activitySignal={activitySignal}
+                      transcriptHistoryLoading={transcriptHistoryLoading}
+                      lastUserMessageId={lastUserMessageId}
+                      composerCard={composerCard}
+                      config={config}
+                      preferences={preferences}
+                      sessionPlan={sessionPlan}
+                      currentPromptModel={currentPromptModelRef}
+                      modelOptions={modelOptions}
+                      requestKnowledgeCenter={requestKnowledgeCenter}
+                      resolveFlashcards={resolveConversationFlashcards}
+                      requestGit={requestGit}
+                      editingMessageId={editingMessageId}
+                      activeTheme={activeTheme}
+                      artifactThemeKey={artifactThemeKey}
+                      assemblySummariesByRunId={assemblySummariesByRunId}
+                      sessionLineage={sessionLineage}
+                      forkCountsByMessageId={forkCountsByMessageId}
+                      branchPoints={branchPoints}
+                      onJumpToHistoryAnchor={handleJumpToHistoryAnchor}
+                      onReturnToLatest={handleReturnToLiveTranscript}
+                      onLoadOlder={handleLoadOlderTranscript}
+                      onOpenReview={() => openRightTab('review')}
+                      onPermission={handlePermission}
+                      onInspectSubagent={handleInspectSubagent}
+                      onEdit={setEditingMessageId}
+                      onCancelEdit={handleCancelMessageEdit}
+                      onEditResend={handleEditAndResendMessage}
+                      onRetry={handleRetryMessage}
+                      onBranchResend={branchResend}
+                      onSwitchBranch={switchBranch}
+                      onInterventionEdit={handleInterventionEdit}
+                      onInterventionCancel={handleInterventionCancel}
+                      onFeedback={handleMessageFeedback}
+                      onArtifactAction={handleArtifactAction}
+                      onOpenArtifactCanvas={handleOpenArtifactCanvas}
+                      onOpenDocument={handleOpenDocument}
+                      onOpenDiff={handleOpenDiff}
+                      onPlanExecute={handlePlanExecute}
+                      onPlanAbort={handlePlanAbort}
+                      onGenerateWalkthrough={handleGenerateWalkthrough}
+                      onCancelWalkthrough={handleCancelWalkthrough}
+                      onForkFromMessage={handleForkSession}
+                      onOpenSession={handleResumeSession}
+                      onCompactAbort={handleCompactAbort}
+                    />
+                  }
+                  permissionBar={
+                    <WorkbenchPermissionBar
+                      state={state}
+                      extensionUiRequest={extensionUiRequest}
+                      onPermission={handlePermission}
+                      onExtensionUiResolve={handleExtensionUiResolve}
+                    />
+                  }
+                  composerDock={
+                    <WorkbenchComposerColumn
+                      state={state}
+                      activeTheme={activeTheme}
+                      activeSessionName={activeSessionName}
+                      composerCard={composerCard}
+                      onTrustProject={handleTrustProject}
+                      onUnarchiveSession={(sessionId) =>
+                        void handleSessionMenuAction(sessionId, 'unarchive')
+                      }
+                      onNewSession={handleStartNewSession}
+                    />
+                  }
+                  statusBar={
+                    <WorkbenchStatusBar
+                      streaming={state.streaming}
+                      runStartedAt={state.activeRunStartedAt}
+                      error={state.error}
+                      terminalAttention={terminalAttention}
+                      contextUsage={state.contextUsage}
+                      locale={desktopLocale}
+                    />
+                  }
+                  rightPanel={
+                    <WorkbenchInspector
+                      showOverlayScrim={showOverlayScrim}
+                      shell={shell}
+                      rightPanelOpen={rightPanelOpen}
+                      rightPanelTab={rightPanelTab}
+                      rightPanelResize={rightPanelResize}
+                      isOverlayPresentation={isOverlayPresentation}
+                      runningJobCount={jobs.length}
+                      terminalAttention={terminalAttention}
+                      onTerminalAttentionClear={() => setTerminalAttention(false)}
+                      onViewChange={setRightPanelView}
+                      locale={desktopLocale}
+                      activeTheme={activeTheme}
+                      onToggleAppearance={handleToggleAppearance}
+                      openSettingsSection={openSettingsSection}
+                      hostClient={hostClient}
+                      requestNotesPanel={requestNotesPanel}
+                      requestCardsPanel={requestCardsPanel}
+                      requestFileTree={requestFileTree}
+                      requestGit={requestGit}
+                      requestPty={requestPty}
+                      projectPath={state.projectPath}
+                      projectTrusted={state.projectTrusted}
+                      activeSessionId={state.activeSessionId}
+                      walkthroughsByMessageId={state.walkthroughsByMessageId}
+                      addContextRef={addContextRef}
+                      dispatchNotification={dispatchNotification}
+                      handleSend={handleSend}
+                      setComposer={setComposer}
+                      artifactTarget={artifactCanvas.activeTarget}
+                      artifactThemeKey={artifactThemeKey}
+                      {...(config?.artifact?.maxBytes !== undefined
+                        ? { artifactMaxBytes: config.artifact.maxBytes }
+                        : {})}
+                      addWebElement={addWebElement}
+                      inspectorDiff={inspectorFileDiff.diff}
+                      activeMedia={activeMedia}
+                      activeDocument={activeDocument}
+                      sessionDocuments={sessionDocuments}
+                      handleOpenDocument={handleOpenDocument}
+                      handleCommentLine={handleCommentLine}
+                      activeComments={activeComments}
+                      handleAddDocComment={handleAddDocComment}
+                      handleEditDocComment={handleEditDocComment}
+                      handleDeleteDocComment={handleDeleteDocComment}
+                      sessionPlan={sessionPlan}
+                      ptyOutput={ptyOutput}
+                      setPtyOutput={setPtyOutput}
+                      terminalCwd={terminalCwd}
+                      handleTerminalCwdChange={handleTerminalCwdChange}
+                      terminalRecentDirs={terminalRecentDirs}
+                      branchPoints={branchPoints}
+                      onSwitchBranch={switchBranch}
+                      streaming={state.streaming}
+                    />
+                  }
+                />
+
+                {foregroundReplaceConfirm.dialog}
+
+                <WorkbenchOverlays
+                  state={state}
+                  hostClient={hostClient}
+                  locale={desktopLocale}
+                  projectInput={projectInput}
+                  setProjectInput={setProjectInput}
+                  projectPickerOpen={projectPickerOpen}
+                  setProjectPickerOpen={setProjectPickerOpen}
+                  onOpenProject={handleOpenProject}
+                  onBrowseProject={handleBrowseProject}
+                  onTrustProject={handleTrustProject}
+                  sessionMenu={sessionMenu}
+                  closeSessionMenu={closeSessionMenu}
+                  onSessionMenuAction={handleSessionMenuAction}
+                  requestDeleteSession={requestDeleteSession}
+                  requestContinueInProject={requestContinueInProject}
+                  renameDraft={renameDraft}
+                  setRenameDraft={setRenameDraft}
+                  onRenameSession={handleRenameSession}
+                  onPermission={handlePermission}
+                  deleteConfirm={deleteConfirm}
+                  deleteBusy={deleteBusy}
+                  closeDeleteConfirm={closeDeleteConfirm}
+                  runDeleteConfirm={runDeleteConfirm}
+                  confirmDeleteSession={confirmDeleteSession}
+                  continueInProject={continueInProject}
+                  continueInProjectBusy={continueInProjectBusy}
+                  closeContinueInProject={closeContinueInProject}
+                  runContinueInProject={runContinueInProject}
+                  onContinueSessionInProject={handleContinueSessionInProject}
+                  recentProjects={recentProjects}
+                  commandPaletteOpen={commandPaletteOpen}
+                  setCommandPaletteOpen={shell.setCommandPaletteOpen}
+                  onRunCommand={handleDesktopCommand}
+                  coldRestorePrompt={coldRestorePrompt}
+                  clearColdRestorePrompt={clearColdRestorePrompt}
+                  confirmColdRestore={confirmColdRestore}
+                  pendingTruncate={pendingTruncate}
+                  cancelTruncateAfter={cancelTruncateAfter}
+                  confirmTruncateAfter={confirmTruncateAfter}
+                  pendingSwitchConfirm={pendingSwitchConfirm}
+                  cancelSwitchBranch={cancelSwitchBranch}
+                  confirmSwitchBranch={confirmSwitchBranch}
+                />
+              </div>
+              <WorkbenchSubpageStage
+                activeSubPage={activeSubPage}
+                locale={desktopLocale}
+                onClose={closeSubPage}
+                onSendToChat={(text) => {
+                  closeSubPage();
+                  setComposer((prev) => insetComposerText(prev, text));
+                  window.setTimeout(() => {
+                    document
+                      .querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]')
+                      ?.focus();
+                  }, 50);
+                }}
+                requestFlashcards={(command) => hostClient.request(command)}
+              />
+              <WorkbenchKnowledgeStage
                 knowledgeOpen={knowledgeOpen}
-                setKnowledgeOpen={setKnowledgeOpen}
-                onOpenWorkspace={handleOpenWorkspaceClick}
-                onOpenProject={handleOpenProject}
-                onRemoveProject={handleRemoveProjectFromSidebar}
-                onNewSession={handleStartNewSession}
-                onResumeSession={handleResumeSession}
-                onResumeDraft={handleResumeDraft}
-                draftSessions={draftSessions}
-                activeDraftId={activeDraftId}
-                sessionMenu={sessionMenu}
-                onOpenSessionMenu={openSessionMenu}
-                onSessionMenuAction={handleSessionMenuAction}
-                onRequestDeleteSession={requestDeleteSession}
-                openSettingsSection={openSettingsSection}
-                dispatch={dispatch}
-                isOverlayPresentation={isOverlayPresentation}
                 locale={desktopLocale}
-                sidebarResize={sidebarResize}
-                backendServiceSessionIds={backendServiceSessionIds}
-                shell={shell}
-              />
-            }
-            titlebar={
-              <WorkbenchContextBar
-                state={state}
-                recentProjects={recentProjects}
-                activeSessionName={activeSessionName}
-                activeSessionOrigin={activeSessionOrigin}
-                sessionLineage={sessionLineage}
-                runStatus={runStatus}
-                lastUserMessage={lastUserMessage}
-                effectiveRunMode={effectiveRunMode}
-                locale={desktopLocale}
-                appearanceMode={activeTheme.mode === 'light' ? 'light' : 'dark'}
-                sessionsExpanded={navDrawerOpen}
-                workPanelOpen={rightPanelOpen}
-                rightPanelTab={rightPanelTab}
-                shell={shell}
-                onStop={handleAbort}
-                onCancelCompact={handleCompactAbort}
-                onOpenInspector={openRightTab}
-                openSettingsSection={openSettingsSection}
-                onToggleAppearance={handleToggleAppearance}
-                onResumeSession={handleResumeSession}
-                onRetryLastUser={branchResend}
-              />
-            }
-            chatColumnClassName={
-              [
-                composerLayoutMode === 'centered' ? 'chat-column-empty' : '',
-                activeTheme.visualStyle === 'ink-wash' ? 'theme-visual-ink-wash' : '',
-              ]
-                .filter(Boolean)
-                .join(' ') || undefined
-            }
-            transcript={
-              <WorkbenchTranscript
-                locale={desktopLocale}
-                hostClient={hostClient}
-                state={state}
-                dispatch={dispatch}
-                visibleMessages={visibleTranscriptMessages}
-                visibleRunRecordsById={visibleRunRecordsById}
-                historyViewActive={historyViewActive}
-                activitySignal={activitySignal}
-                transcriptHistoryLoading={transcriptHistoryLoading}
-                lastUserMessageId={lastUserMessageId}
-                composerCard={composerCard}
-                config={config}
-                preferences={preferences}
-                sessionPlan={sessionPlan}
-                currentPromptModel={currentPromptModelRef}
-                modelOptions={modelOptions}
-                requestKnowledgeCenter={requestKnowledgeCenter}
-                resolveFlashcards={resolveConversationFlashcards}
-                requestGit={requestGit}
-                editingMessageId={editingMessageId}
-                activeTheme={activeTheme}
-                artifactThemeKey={artifactThemeKey}
-                assemblySummariesByRunId={assemblySummariesByRunId}
-                sessionLineage={sessionLineage}
-                forkCountsByMessageId={forkCountsByMessageId}
-                branchPoints={branchPoints}
-                onJumpToHistoryAnchor={handleJumpToHistoryAnchor}
-                onReturnToLatest={handleReturnToLiveTranscript}
-                onLoadOlder={handleLoadOlderTranscript}
-                onOpenReview={() => openRightTab('review')}
-                onPermission={handlePermission}
-                onInspectSubagent={handleInspectSubagent}
-                onEdit={setEditingMessageId}
-                onCancelEdit={handleCancelMessageEdit}
-                onEditResend={handleEditAndResendMessage}
-                onRetry={handleRetryMessage}
-                onBranchResend={branchResend}
-                onSwitchBranch={switchBranch}
-                onInterventionEdit={handleInterventionEdit}
-                onInterventionCancel={handleInterventionCancel}
-                onFeedback={handleMessageFeedback}
-                onArtifactAction={handleArtifactAction}
-                onOpenArtifactCanvas={handleOpenArtifactCanvas}
-                onOpenDocument={handleOpenDocument}
-                onOpenDiff={handleOpenDiff}
-                onPlanExecute={handlePlanExecute}
-                onPlanAbort={handlePlanAbort}
-                onGenerateWalkthrough={handleGenerateWalkthrough}
-                onCancelWalkthrough={handleCancelWalkthrough}
-                onForkFromMessage={handleForkSession}
-                onOpenSession={handleResumeSession}
-                onCompactAbort={handleCompactAbort}
-              />
-            }
-            permissionBar={
-              <WorkbenchPermissionBar
-                state={state}
-                extensionUiRequest={extensionUiRequest}
-                onPermission={handlePermission}
-                onExtensionUiResolve={handleExtensionUiResolve}
-              />
-            }
-            composerDock={
-              <WorkbenchComposerColumn
-                state={state}
-                activeTheme={activeTheme}
-                activeSessionName={activeSessionName}
-                composerCard={composerCard}
-                onTrustProject={handleTrustProject}
-                onUnarchiveSession={(sessionId) =>
-                  void handleSessionMenuAction(sessionId, 'unarchive')
-                }
-                onNewSession={handleStartNewSession}
-              />
-            }
-            statusBar={
-              <WorkbenchStatusBar
-                modelLabel={selectedModelLabel}
-                streaming={state.streaming}
-                error={state.error}
-                terminalAttention={terminalAttention}
-                isConversationSession={state.activeScope.kind === 'general'}
-                skillsCount={menuSkills.filter((s) => s.enabled).length}
-                mcpCount={menuMcp.filter((m) => m.running).length}
-                contextUsagePercent={contextUsagePercent}
-                contextUsage={state.contextUsage}
-                modelContextWindow={selectedModelContextWindow}
-                openSettingsSection={openSettingsSection}
-                locale={desktopLocale}
-              />
-            }
-            rightPanel={
-              <WorkbenchInspector
-                showOverlayScrim={showOverlayScrim}
-                shell={shell}
-                rightPanelOpen={rightPanelOpen}
-                rightPanelTab={rightPanelTab}
-                rightPanelResize={rightPanelResize}
-                isOverlayPresentation={isOverlayPresentation}
-                runningJobCount={jobs.length}
-                terminalAttention={terminalAttention}
-                onTerminalAttentionClear={() => setTerminalAttention(false)}
-                onViewChange={setRightPanelView}
-                locale={desktopLocale}
-                activeTheme={activeTheme}
-                onToggleAppearance={handleToggleAppearance}
-                openSettingsSection={openSettingsSection}
-                hostClient={hostClient}
-                requestNotesPanel={requestNotesPanel}
-                requestCardsPanel={requestCardsPanel}
-                requestFileTree={requestFileTree}
-                requestGit={requestGit}
-                requestPty={requestPty}
                 projectPath={state.projectPath}
-                projectTrusted={state.projectTrusted}
-                activeSessionId={state.activeSessionId}
-                walkthroughsByMessageId={state.walkthroughsByMessageId}
-                addContextRef={addContextRef}
-                dispatchNotification={dispatchNotification}
-                handleSend={handleSend}
+                recentProjects={recentProjects}
+                request={requestKnowledgeCenter}
+                onOpenSession={handleResumeSession}
+                onOpenCardsPanel={handleOpenCardsPanel}
+                onConfigureEmbedding={() => {
+                  setKnowledgeOpen(false);
+                  openSettingsSection('knowledge');
+                }}
+                setKnowledgeOpen={setKnowledgeOpen}
                 setComposer={setComposer}
-                artifactTarget={artifactCanvas.activeTarget}
-                artifactThemeKey={artifactThemeKey}
-                {...(config?.artifact?.maxBytes !== undefined
-                  ? { artifactMaxBytes: config.artifact.maxBytes }
-                  : {})}
-                addWebElement={addWebElement}
-                inspectorDiff={inspectorFileDiff.diff}
-                activeMedia={activeMedia}
-                activeDocument={activeDocument}
-                sessionDocuments={sessionDocuments}
-                handleOpenDocument={handleOpenDocument}
-                handleCommentLine={handleCommentLine}
-                activeComments={activeComments}
-                handleAddDocComment={handleAddDocComment}
-                handleEditDocComment={handleEditDocComment}
-                handleDeleteDocComment={handleDeleteDocComment}
-                sessionPlan={sessionPlan}
-                ptyOutput={ptyOutput}
-                setPtyOutput={setPtyOutput}
-                terminalCwd={terminalCwd}
-                handleTerminalCwdChange={handleTerminalCwdChange}
-                terminalRecentDirs={terminalRecentDirs}
-                branchPoints={branchPoints}
-                onSwitchBranch={switchBranch}
-                streaming={state.streaming}
               />
-            }
-          />
-
-          {foregroundReplaceConfirm.dialog}
-
-          <WorkbenchOverlays
-            state={state}
-            hostClient={hostClient}
-            locale={desktopLocale}
-            projectInput={projectInput}
-            setProjectInput={setProjectInput}
-            projectPickerOpen={projectPickerOpen}
-            setProjectPickerOpen={setProjectPickerOpen}
-            onOpenProject={handleOpenProject}
-            onBrowseProject={handleBrowseProject}
-            onTrustProject={handleTrustProject}
-            sessionMenu={sessionMenu}
-            closeSessionMenu={closeSessionMenu}
-            onSessionMenuAction={handleSessionMenuAction}
-            requestDeleteSession={requestDeleteSession}
-            requestContinueInProject={requestContinueInProject}
-            renameDraft={renameDraft}
-            setRenameDraft={setRenameDraft}
-            onRenameSession={handleRenameSession}
-            onPermission={handlePermission}
-            deleteConfirm={deleteConfirm}
-            deleteBusy={deleteBusy}
-            closeDeleteConfirm={closeDeleteConfirm}
-            runDeleteConfirm={runDeleteConfirm}
-            confirmDeleteSession={confirmDeleteSession}
-            continueInProject={continueInProject}
-            continueInProjectBusy={continueInProjectBusy}
-            closeContinueInProject={closeContinueInProject}
-            runContinueInProject={runContinueInProject}
-            onContinueSessionInProject={handleContinueSessionInProject}
-            recentProjects={recentProjects}
-            commandPaletteOpen={commandPaletteOpen}
-            setCommandPaletteOpen={shell.setCommandPaletteOpen}
-            onRunCommand={handleDesktopCommand}
-            coldRestorePrompt={coldRestorePrompt}
-            clearColdRestorePrompt={clearColdRestorePrompt}
-            confirmColdRestore={confirmColdRestore}
-            pendingTruncate={pendingTruncate}
-            cancelTruncateAfter={cancelTruncateAfter}
-            confirmTruncateAfter={confirmTruncateAfter}
-            pendingSwitchConfirm={pendingSwitchConfirm}
-            cancelSwitchBranch={cancelSwitchBranch}
-            confirmSwitchBranch={confirmSwitchBranch}
-          />
-
-        </div>
-        <WorkbenchKnowledgeStage
-          knowledgeOpen={knowledgeOpen}
-          locale={desktopLocale}
-          projectPath={state.projectPath}
-          recentProjects={recentProjects}
-          request={requestKnowledgeCenter}
-          onOpenSession={handleResumeSession}
-          onOpenCardsPanel={handleOpenCardsPanel}
-          onConfigureEmbedding={() => {
-            setKnowledgeOpen(false);
-            openSettingsSection('knowledge');
-          }}
-          setKnowledgeOpen={setKnowledgeOpen}
-          setComposer={setComposer}
-        />
-        <WorkbenchSettingsOverlay
-          settingsOpen={settingsOpen}
-          locale={desktopLocale}
-          hostStatus={hostStatus}
-          hostClient={hostClient}
-          requestConfig={requestConfig}
-          preferences={preferences}
-          activeTheme={activeTheme}
-          onPreferencesChange={handleSettingsPreferencesChange}
-          settingsSection={settingsSection}
-          onSettingsSectionChange={shell.setSettingsSection}
-          state={state}
-          requestSkills={requestSkills}
-          requestMcp={requestMcp}
-          requestExtensions={requestExtensions}
-          requestPlugins={requestPlugins}
-          requestPrompts={requestPrompts}
-          requestPet={requestPet}
-          requestAutomation={requestAutomation}
-          requestSubAgent={requestSubAgent}
-          onOpenSubagentSession={handleSettingsOpenSubagentSession}
-          onThemeApplied={onThemeApplied}
-          onPetActiveChanged={setActivePet}
-          onCloseSettings={shell.closeSettings}
-          onSettingsSaved={handleSettingsSaved}
-          config={config}
-        />
-      </SubagentInspectorProvider>
-      </DesktopContextMenuProvider>
-      </MediaPreviewReadProvider>
+              <WorkbenchSettingsOverlay
+                settingsOpen={settingsOpen}
+                locale={desktopLocale}
+                hostStatus={hostStatus}
+                hostClient={hostClient}
+                requestConfig={requestConfig}
+                preferences={preferences}
+                activeTheme={activeTheme}
+                onPreferencesChange={handleSettingsPreferencesChange}
+                settingsSection={settingsSection}
+                onSettingsSectionChange={shell.setSettingsSection}
+                state={state}
+                requestSkills={requestSkills}
+                requestMcp={requestMcp}
+                requestExtensions={requestExtensions}
+                requestPlugins={requestPlugins}
+                requestPrompts={requestPrompts}
+                requestPet={requestPet}
+                requestAutomation={requestAutomation}
+                requestSubAgent={requestSubAgent}
+                onOpenSubagentSession={handleSettingsOpenSubagentSession}
+                onThemeApplied={onThemeApplied}
+                onPetActiveChanged={setActivePet}
+                onCloseSettings={shell.closeSettings}
+                onSettingsSaved={handleSettingsSaved}
+                config={config}
+              />
+            </SubagentInspectorProvider>
+          </DesktopContextMenuProvider>
+        </MediaPreviewReadProvider>
       </LocalFileActionsProvider>
     </DesktopLocaleProvider>
   );

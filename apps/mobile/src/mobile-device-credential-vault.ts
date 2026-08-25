@@ -6,6 +6,53 @@ export type MobileDeviceCredentialVault = {
   clear(endpoint: string): Promise<void>;
 };
 
+const MOBILE_CREDENTIAL_READ_TIMEOUT_MS = 1_500;
+
+/**
+ * A missing native credential must not prevent an anonymous loopback Host connection.
+ * Keychain availability is optional for the first connection, especially in Simulator.
+ */
+export function readMobileDeviceCredential(
+  vault: MobileDeviceCredentialVault,
+  endpoint: string,
+): Promise<TrustedDeviceCredential | undefined> {
+  return new Promise<TrustedDeviceCredential | undefined>((resolve) => {
+    let settled = false;
+    const finish = (credential: TrustedDeviceCredential | undefined): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      resolve(credential);
+    };
+    const timeout = setTimeout(() => {
+      if (settled) {
+        return;
+      }
+      console.warn('[piwin-mobile] device credential read timed out; continuing without it');
+      finish(undefined);
+    }, MOBILE_CREDENTIAL_READ_TIMEOUT_MS);
+
+    try {
+      void vault.read(endpoint).then(
+        (credential) => {
+          clearTimeout(timeout);
+          finish(credential);
+        },
+        () => {
+          clearTimeout(timeout);
+          console.warn('[piwin-mobile] device credential read failed; continuing without it');
+          finish(undefined);
+        },
+      );
+    } catch {
+      clearTimeout(timeout);
+      console.warn('[piwin-mobile] device credential read failed; continuing without it');
+      finish(undefined);
+    }
+  });
+}
+
 type InvokeFn = (command: string, args: Record<string, unknown>) => Promise<unknown>;
 
 /**

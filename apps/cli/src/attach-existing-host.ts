@@ -1,7 +1,8 @@
-import { randomUUID } from 'node:crypto';
 import { HostClient } from '@piwin/host-client';
+import { getPiwinRoot } from '@piwin/host-runtime';
 import { WebSocketHostTransport } from '@piwin/host-transport';
 import { createNodeHostWebSocket } from './node-host-websocket.js';
+import { readCliClientPrincipalId } from './cli-client-principal.js';
 
 export type CliHostAttachTarget = {
   endpoint: string;
@@ -34,7 +35,18 @@ function isCliHostEndpoint(endpoint: string): boolean {
   }
 }
 
-export async function connectCliAttachedHost(target: CliHostAttachTarget): Promise<HostClient> {
+export async function resolveCliAttachedClientId(
+  endpoint: string,
+  piwinRoot?: string,
+): Promise<string> {
+  return readCliClientPrincipalId(piwinRoot ?? getPiwinRoot(), endpoint);
+}
+
+export async function connectCliAttachedHost(
+  target: CliHostAttachTarget,
+  piwinRoot?: string,
+): Promise<HostClient> {
+  const clientId = await resolveCliAttachedClientId(target.endpoint, piwinRoot);
   const transport = new WebSocketHostTransport({
     endpoint: target.endpoint,
     autoReconnect: false,
@@ -42,7 +54,7 @@ export async function connectCliAttachedHost(target: CliHostAttachTarget): Promi
   });
   const client = new HostClient({
     transport,
-    clientId: `cli-${randomUUID()}`,
+    clientId,
     clientType: 'cli',
     clientVersion: '0.0.0',
     capabilities: {

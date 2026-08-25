@@ -78,7 +78,7 @@ import { SteerQueue, type SteerQueueMessage } from './steer-queue';
 import { ActiveJobsStrip } from './active-jobs-strip';
 import { useSpeechInput } from './hooks/use-speech-input.js';
 import { PromptHistoryMenu } from './prompt-history-menu';
-import { ComposerPausedActions, ComposerStreamingInterrupt } from './composer-run-actions';
+import { ComposerPausedActions, ComposerStreamingPause } from './composer-run-actions';
 import {
   loadPromptHistoryFromStorage,
   mergePromptHistory,
@@ -112,7 +112,7 @@ export type ComposerDockProps = {
   projectTrusted: boolean;
   activeSessionId: string | null;
   streaming: boolean;
-  runPhase: 'idle' | 'streaming' | 'aborting';
+  runPhase: 'idle' | 'streaming' | 'pausing' | 'aborting';
   compacting: boolean;
   composer: string;
   onComposerChange: (value: string) => void;
@@ -165,9 +165,13 @@ export type ComposerDockProps = {
   onPaste: (event: ClipboardEvent<HTMLTextAreaElement>) => void;
   onDrop: (event: DragEvent<HTMLElement>) => void;
   onSend: () => void;
+  /** Save the active turn as a resumable Host checkpoint. */
+  onPause: () => void;
   /** Interrupt the active run (irreversible cancel). Same path as Esc / stop-run. */
   onAbort: () => void;
-  /** Resume from a Host pause checkpoint (CLI/advanced path), not a live interrupt. */
+  /** Host-owned admission. Run mutations stay off while unknown or reconciling. */
+  mutationsEnabled?: boolean;
+  /** Resume from a Host pause checkpoint. */
   onResume?: () => void;
   /** True when the Host run terminal is a resumable pause checkpoint. */
   paused?: boolean;
@@ -217,6 +221,8 @@ export type ComposerDockProps = {
   onOpenProject?: ((path: string) => void) | undefined;
   /** True when Desktop is attached to a saved standalone Host. */
   runtimeRemoteConnected?: boolean;
+  /** Hostname:port of the attached Host, when known. */
+  runtimeRemoteHostLabel?: string;
   onSelectLocalRuntime?: () => void;
   onSelectAttachRuntime?: () => void;
   /** Open Knowledge Center overlay from plus menu or UI. */
@@ -273,7 +279,10 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   const agentModeDefinition = getAgentMode(props.agentMode);
   const isPaused = props.paused === true;
   const isStreamingRun =
-    props.streaming || props.runPhase === 'streaming' || props.runPhase === 'aborting';
+    props.streaming ||
+    props.runPhase === 'streaming' ||
+    props.runPhase === 'pausing' ||
+    props.runPhase === 'aborting';
   const extensionUiRequest = props.extensionUiRequest ?? null;
   const isExtensionUiActive = extensionUiRequest !== null;
   const isExtensionUiInput = extensionUiRequest?.kind === 'input';
@@ -898,15 +907,17 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       activeSessionId={props.activeSessionId}
       onAbort={props.onAbort}
       {...(props.onResume ? { onResume: props.onResume } : {})}
+      {...(props.mutationsEnabled === undefined ? {} : { mutationsEnabled: props.mutationsEnabled })}
     />
   );
 
-  const renderStreamingInterrupt = (): ReactElement => (
-    <ComposerStreamingInterrupt
+  const renderStreamingPause = (): ReactElement => (
+    <ComposerStreamingPause
       copy={copy}
       activeSessionId={props.activeSessionId}
       runPhase={props.runPhase}
-      onAbort={props.onAbort}
+      onPause={props.onPause}
+      {...(props.mutationsEnabled === undefined ? {} : { mutationsEnabled: props.mutationsEnabled })}
     />
   );
 
@@ -1198,7 +1209,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
             locale={locale === 'en' ? 'en' : 'zh-CN'}
           />
 
-          {/* Send / Pause / Stop */}
+          {/* Send / Pause / resume-or-discard */}
           <div className="composer-v2-action-slot">
             {isPaused ? (
               renderPausedActions()
@@ -1211,7 +1222,9 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
                         type="button"
                         className="composer-v2-text-btn"
                         data-testid="steer-btn"
-                        disabled={props.runPhase === 'aborting'}
+                        disabled={
+                          props.runPhase === 'pausing' || props.runPhase === 'aborting'
+                        }
                         onClick={triggerSteer}
                         aria-label={copy.sendSteerMessage}
                         title={copy.sendSteerHint}
@@ -1223,7 +1236,13 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
                       type="button"
                       className="composer-v2-send-btn is-queue"
                       data-testid="send-btn"
-                      disabled={!props.onFollowUp || !canQueueStreamingText}
+                      disabled={
+                        !props.onFollowUp ||
+                        !canQueueStreamingText ||
+                        props.runPhase === 'pausing' ||
+                        props.runPhase === 'aborting' ||
+                        props.mutationsEnabled === false
+                      }
                       onClick={triggerFollowUp}
                       aria-label={copy.queueFollowUp}
                       title={copy.queueFollowUpHint}
@@ -1232,7 +1251,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
                     </button>
                   </>
                 ) : null}
-                {renderStreamingInterrupt()}
+                {renderStreamingPause()}
               </div>
             ) : onlyFailedAttachments ? (
               <button
@@ -1250,7 +1269,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
                 type="button"
                 className="composer-v2-send-btn"
                 data-testid="send-btn"
-                disabled={!hasContent}
+                disabled={!hasContent || props.mutationsEnabled === false}
                 onClick={triggerSend}
                 aria-label={copy.send}
                 title={copy.sendShortcut}
@@ -1321,7 +1340,10 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
 
 export function ComposerDock(props: ComposerDockProps): ReactElement {
   const isStreamingRun =
-    props.streaming || props.runPhase === 'streaming' || props.runPhase === 'aborting';
+    props.streaming ||
+    props.runPhase === 'streaming' ||
+    props.runPhase === 'pausing' ||
+    props.runPhase === 'aborting';
   const hasSteerQueue = (props.steerQueueMessages?.length ?? 0) > 0;
   return (
     <footer
@@ -1359,6 +1381,9 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
           ) : null}
           <RuntimeTargetChip
             {...(props.runtimeRemoteConnected === true ? { remoteConnected: true } : {})}
+            {...(props.runtimeRemoteHostLabel
+              ? { hostLabel: props.runtimeRemoteHostLabel }
+              : {})}
             {...(props.onSelectLocalRuntime ? { onSelectLocal: props.onSelectLocalRuntime } : {})}
             {...(props.onSelectAttachRuntime
               ? { onSelectAttach: props.onSelectAttachRuntime }

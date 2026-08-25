@@ -1,4 +1,9 @@
 import type {
+  ClientToolCancelFrame,
+  ClientToolCapabilitiesFrame,
+  ClientToolCapabilityAdvertisement,
+  ClientToolRequestFrame,
+  ClientToolResultFrame,
   HostClientHello,
   HostClientSubscriptions,
   HostClientCapabilities,
@@ -10,6 +15,7 @@ import type {
   HostPushFrame,
   HostResponse,
   HostSnapshotFrame,
+  HostSubscriptionsAppliedFrame,
   HostWireErrorCode,
   HostWireMessage,
   TrustedDeviceCredential,
@@ -21,6 +27,19 @@ import {
   remoteHostSupportsCommand,
 } from '@piwin/contracts';
 import type { HostTransport, HostTransportState } from '@piwin/host-transport';
+import {
+  addCommandId,
+  countAdmissionKeys,
+  createMemoryLastSeqStore,
+  createRequestId,
+  getSmallestPendingSeq,
+  isValidHydrationFrame,
+  isValidPushBatch,
+  normalizeSubscriptions,
+  omitClientTools,
+  readLastSeq,
+  toError,
+} from './host-client-helpers.js';
 
 export type HostClientState =
   | { kind: 'idle' }
@@ -39,6 +58,10 @@ export type HostClientBatchListener = (frame: HostPushBatchFrame) => void;
 export type HostClientSnapshotListener = (snapshot: HostSnapshotFrame) => void;
 
 export type HostClientHydrationListener = (hydration: HostHydrationFrame) => void;
+
+export type HostClientToolRequestListener = (frame: ClientToolRequestFrame) => void;
+
+export type HostClientToolCancelListener = (frame: ClientToolCancelFrame) => void;
 
 export type HostClientLastSeqStore = {
   read(): number;
@@ -113,8 +136,17 @@ export class HostClient {
     | undefined;
   private readonly lastSeqStore: HostClientLastSeqStore;
   private readonly cursorStore: HostClientCursorStore | undefined;
-  private readonly capabilities: HostClientCapabilities;
-  private readonly subscriptions: HostClientSubscriptions | undefined;
+  private capabilities: HostClientCapabilities;
+  private subscriptions: HostClientSubscriptions | undefined;
+  private subscriptionRevision = 0;
+  private readonly pendingSubscriptionUpdates = new Map<
+    string,
+    {
+      resolve: (frame: HostSubscriptionsAppliedFrame) => void;
+      reject: (error: Error) => void;
+      timer: ReturnType<typeof setTimeout>;
+    }
+  >();
   private readonly requestTimeoutMs: number;
   private readonly pendingRequests = new Map<string, PendingRequest>();
   private readonly stateListeners = new Set<HostClientStateListener>();
@@ -122,6 +154,8 @@ export class HostClient {
   private readonly batchListeners = new Set<HostClientBatchListener>();
   private readonly snapshotListeners = new Set<HostClientSnapshotListener>();
   private readonly hydrationListeners = new Set<HostClientHydrationListener>();
+  private readonly clientToolRequestListeners = new Set<HostClientToolRequestListener>();
+  private readonly clientToolCancelListeners = new Set<HostClientToolCancelListener>();
   private readonly pendingPushes = new Map<number, HostPushFrame>();
   private readonly unsubscribeTransport: () => void;
   private readonly unsubscribeTransportState: () => void;
@@ -184,6 +218,10 @@ export class HostClient {
     return this.state;
   }
 
+  public getClientId(): string {
+    return this.clientId;
+  }
+
   public getHostHello(): HostHello | undefined {
     return this.hostHello;
   }
@@ -229,6 +267,41 @@ export class HostClient {
     return () => this.hydrationListeners.delete(listener);
   }
 
+  public subscribeClientToolRequests(listener: HostClientToolRequestListener): () => void {
+    this.clientToolRequestListeners.add(listener);
+    return () => this.clientToolRequestListeners.delete(listener);
+  }
+
+  public subscribeClientToolCancellations(listener: HostClientToolCancelListener): () => void {
+    this.clientToolCancelListeners.add(listener);
+    return () => this.clientToolCancelListeners.delete(listener);
+  }
+
+  public supportsClientToolRequests(): boolean {
+    return this.hostHello?.capabilities.clientToolRequests === true;
+  }
+
+  public sendClientToolResult(frame: ClientToolResultFrame): void {
+    this.assertClientToolOutboundReady();
+    this.transport.send(frame);
+  }
+
+  public replaceClientToolCapabilities(
+    capabilities: readonly ClientToolCapabilityAdvertisement[],
+  ): void {
+    this.assertClientToolOutboundReady();
+    const frame: ClientToolCapabilitiesFrame = {
+      type: 'client-tool/capabilities',
+      capabilities,
+      sentAt: new Date().toISOString(),
+    };
+    this.capabilities =
+      capabilities.length === 0
+        ? omitClientTools(this.capabilities)
+        : { ...this.capabilities, clientTools: capabilities };
+    this.transport.send(frame);
+  }
+
   public async connect(): Promise<HostHello> {
     this.assertNotDisposed();
     this.publishState({ kind: 'connecting' });
@@ -258,12 +331,19 @@ export class HostClient {
     }
 
     this.disposed = true;
+    this.clientToolRequestListeners.clear();
+    this.clientToolCancelListeners.clear();
     this.unsubscribeTransport();
     this.unsubscribeTransportState();
     for (const [requestId, pending] of this.pendingRequests) {
       clearTimeout(pending.timer);
       pending.reject(new Error('Host client closed'));
       this.pendingRequests.delete(requestId);
+    }
+    for (const [requestId, pending] of this.pendingSubscriptionUpdates) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error('Host client closed'));
+      this.pendingSubscriptionUpdates.delete(requestId);
     }
     await this.transport.close();
     this.publishState({ kind: 'disconnected' });
@@ -318,6 +398,35 @@ export class HostClient {
   public requestReplay(): void {
     this.assertNotDisposed();
     this.sendReplayRequest();
+  }
+
+  public updateSubscriptions(sessionIds: string[]): Promise<HostSubscriptionsAppliedFrame> {
+    this.assertNotDisposed();
+    const normalized = normalizeSubscriptions({ sessionIds });
+    this.subscriptions = normalized;
+    this.subscriptionRevision += 1;
+    const requestId = createRequestId('sub');
+    const frame = {
+      type: 'client/subscriptions' as const,
+      requestId,
+      revision: this.subscriptionRevision,
+      subscriptions: normalized ?? { sessionIds: [] },
+    };
+    const timeoutMs = this.requestTimeoutMs;
+    return new Promise<HostSubscriptionsAppliedFrame>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingSubscriptionUpdates.delete(requestId);
+        reject(new Error('Host subscription update timed out'));
+      }, timeoutMs);
+      this.pendingSubscriptionUpdates.set(requestId, { resolve, reject, timer });
+      try {
+        this.transport.send(frame);
+      } catch (error) {
+        clearTimeout(timer);
+        this.pendingSubscriptionUpdates.delete(requestId);
+        reject(toError(error, 'Unable to send Host subscription update'));
+      }
+    });
   }
 
   /**
@@ -392,6 +501,22 @@ export class HostClient {
   }
 
   private handleMessage(message: HostWireMessage): void {
+    if (message.type === 'client-tool/request') {
+      for (const listener of this.clientToolRequestListeners) {
+        listener(message);
+      }
+      return;
+    }
+    if (message.type === 'client-tool/cancel') {
+      for (const listener of this.clientToolCancelListeners) {
+        listener(message);
+      }
+      return;
+    }
+    if (message.type === 'client-tool/result' || message.type === 'client-tool/capabilities') {
+      return;
+    }
+
     if (message.type === 'host/hello') {
       const hostChanged =
         this.hostInstanceId !== undefined && this.hostInstanceId !== message.hostInstanceId;
@@ -507,6 +632,17 @@ export class HostClient {
       this.replayRequestId = undefined;
       this.persistCursor();
       this.publishState({ kind: 'ready' });
+      return;
+    }
+
+    if (message.type === 'subscriptions/applied') {
+      const pending = this.pendingSubscriptionUpdates.get(message.requestId);
+      if (pending === undefined) {
+        return;
+      }
+      clearTimeout(pending.timer);
+      this.pendingSubscriptionUpdates.delete(message.requestId);
+      pending.resolve(message);
       return;
     }
 
@@ -686,6 +822,16 @@ export class HostClient {
     this.persistCursor();
   }
 
+  private assertClientToolOutboundReady(): void {
+    this.assertNotDisposed();
+    if (this.state.kind !== 'ready' || this.hostHello?.authenticated !== true) {
+      throw new Error('Client tool frames require an authenticated ready Host connection');
+    }
+    if (this.hostHello.capabilities.clientToolRequests !== true) {
+      throw new Error('This Host does not support client-tool requests');
+    }
+  }
+
   private persistCursor(): void {
     // Always keep Transport's reconnect hello in sync with the in-memory cursor,
     // even when durable stores fail (quota / private mode).
@@ -728,6 +874,11 @@ export class HostClient {
       pending.reject(new Error(reason));
       this.pendingRequests.delete(requestId);
     }
+    for (const [requestId, pending] of this.pendingSubscriptionUpdates) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error(reason));
+      this.pendingSubscriptionUpdates.delete(requestId);
+    }
   }
 
   private publishState(state: HostClientState): void {
@@ -742,121 +893,4 @@ export class HostClient {
       throw new Error('Host client has been closed');
     }
   }
-}
-
-function addCommandId(command: HostCommand, requestId: string): HostCommand {
-  if (command.id !== undefined) {
-    return command;
-  }
-  return { ...command, id: requestId } as HostCommand;
-}
-
-function createRequestId(prefix: string): string {
-  const cryptoObject = (
-    globalThis as unknown as {
-      crypto?: { randomUUID?: () => string };
-    }
-  ).crypto;
-  if (cryptoObject?.randomUUID !== undefined) {
-    return `${prefix}-${cryptoObject.randomUUID()}`;
-  }
-
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-}
-
-function createMemoryLastSeqStore(): HostClientLastSeqStore {
-  let value = 0;
-  return {
-    read: () => value,
-    write: (nextValue) => {
-      value = nextValue;
-    },
-  };
-}
-
-function readLastSeq(store: HostClientLastSeqStore): number {
-  const value = store.read();
-  return Number.isSafeInteger(value) && value >= 0 ? value : 0;
-}
-
-function isValidPushBatch(frame: HostPushBatchFrame): boolean {
-  if (!Number.isSafeInteger(frame.afterSeq) || frame.afterSeq < 0) return false;
-  if (!Number.isSafeInteger(frame.throughSeq) || frame.throughSeq < frame.afterSeq) return false;
-  if (frame.hostInstanceId.trim().length === 0) return false;
-
-  let previousSeq = frame.afterSeq;
-  for (const item of frame.items) {
-    if (
-      !Number.isSafeInteger(item.seq) ||
-      item.seq <= previousSeq ||
-      item.seq > frame.throughSeq ||
-      item.eventId.trim().length === 0
-    ) {
-      return false;
-    }
-    if (item.push.seq !== undefined && item.push.seq !== item.seq) return false;
-    if (item.push.eventId !== undefined && item.push.eventId !== item.eventId) return false;
-    previousSeq = item.seq;
-  }
-  return true;
-}
-
-function isValidHydrationFrame(frame: HostHydrationFrame): boolean {
-  const snapshot = frame.snapshot;
-  return (
-    (frame.reason === 'replay-too-old' ||
-      frame.reason === 'host-instance-changed' ||
-      frame.reason === 'requested') &&
-    snapshot.snapshotId.trim().length > 0 &&
-    snapshot.hostInstanceId.trim().length > 0 &&
-    Number.isSafeInteger(snapshot.snapshotSeq) &&
-    snapshot.snapshotSeq >= 0 &&
-    Array.isArray(snapshot.sessions) &&
-    typeof snapshot.messagesBySession === 'object' &&
-    snapshot.messagesBySession !== null &&
-    Array.isArray(snapshot.truncatedSessionIds)
-  );
-}
-
-function countAdmissionKeys(options: HostClientOptions): number {
-  return (
-    Number(options.authToken !== undefined && options.authToken.length > 0) +
-    Number(options.pairingToken !== undefined && options.pairingToken.trim().length > 0) +
-    Number(options.deviceCredential !== undefined)
-  );
-}
-
-function normalizeSubscriptions(
-  subscriptions: HostClientSubscriptions | undefined,
-): HostClientSubscriptions | undefined {
-  const sessionIds = subscriptions?.sessionIds;
-  if (!Array.isArray(sessionIds)) return undefined;
-  const normalized: string[] = [];
-  const seen = new Set<string>();
-  for (const sessionId of sessionIds) {
-    if (
-      typeof sessionId !== 'string' ||
-      sessionId.trim().length === 0 ||
-      sessionId.length > 256 ||
-      seen.has(sessionId)
-    ) {
-      continue;
-    }
-    normalized.push(sessionId);
-    seen.add(sessionId);
-    if (normalized.length >= 4) break;
-  }
-  return normalized.length === 0 ? undefined : { sessionIds: normalized };
-}
-
-function getSmallestPendingSeq(pendingPushes: Map<number, HostPushFrame>): number {
-  let smallest = Number.MAX_SAFE_INTEGER;
-  for (const sequence of pendingPushes.keys()) {
-    smallest = Math.min(smallest, sequence);
-  }
-  return smallest === Number.MAX_SAFE_INTEGER ? 0 : smallest;
-}
-
-function toError(error: unknown, fallback: string): Error {
-  return error instanceof Error ? error : new Error(fallback);
 }

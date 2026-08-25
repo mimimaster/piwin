@@ -10,6 +10,7 @@ import { App } from './App';
 import { AppErrorBoundary } from './AppErrorBoundary';
 import { ArtifactGallery } from './e2e/artifact-gallery';
 import { PrimitiveGallery } from './e2e/primitive-gallery';
+import { TurnTelemetryFixture } from './e2e/turn-telemetry-fixture.js';
 import {
   buildAppearanceTheme,
   applyAppearanceToDocument,
@@ -17,11 +18,7 @@ import {
   resolveDesktopAppearance,
   resolveSystemThemeMode,
 } from './appearance-tokens';
-import {
-  isDocumentThemeId,
-  rememberAppliedTheme,
-  resolveStartupAppearance,
-} from './theme-startup';
+import { isDocumentThemeId, rememberAppliedTheme, resolveStartupAppearance } from './theme-startup';
 import { loadDesktopPreferences } from './ui-preferences';
 
 /**
@@ -31,6 +28,7 @@ import { loadDesktopPreferences } from './ui-preferences';
  */
 const E2E_PRIMITIVE_GALLERY_HASH = '#/e2e/primitives';
 const E2E_ARTIFACT_GALLERY_HASH = '#/e2e/artifacts';
+const E2E_TURN_TELEMETRY_HASH = '#/e2e/turn-telemetry';
 
 function isE2eFixtureRoute(prefix: string): boolean {
   if (import.meta.env.VITE_PIWIN_E2E_FIXTURES !== 'true' || typeof window === 'undefined') {
@@ -46,6 +44,14 @@ function isPrimitiveGalleryRoute(): boolean {
 
 function isArtifactGalleryRoute(): boolean {
   return isE2eFixtureRoute(E2E_ARTIFACT_GALLERY_HASH);
+}
+
+function isTurnTelemetryFixtureRoute(): boolean {
+  return (
+    import.meta.env.VITE_PIWIN_E2E_FIXTURES === 'true' &&
+    typeof window !== 'undefined' &&
+    window.location.hash === E2E_TURN_TELEMETRY_HASH
+  );
 }
 
 export function DesktopThemeRoot() {
@@ -99,7 +105,9 @@ export function DesktopThemeRoot() {
   return (
     <PiwinUiProvider manifest={activeTheme}>
       <AppErrorBoundary>
-        {isPrimitiveGalleryRoute() ? (
+        {isTurnTelemetryFixtureRoute() ? (
+          <TurnTelemetryFixture onApplyTheme={applyResolvedTheme} />
+        ) : isPrimitiveGalleryRoute() ? (
           <PrimitiveGallery onApplyTheme={applyResolvedTheme} />
         ) : isArtifactGalleryRoute() ? (
           <ArtifactGallery />

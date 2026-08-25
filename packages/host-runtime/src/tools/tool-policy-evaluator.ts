@@ -269,5 +269,7 @@ export function evaluateHostToolDomainPolicy(input: {
     case 'toolbox:route':
     case 'mcp:trusted':
       return { decision: 'deny', reason: 'unclassified-side-effect' };
+    case 'device:health-read':
+      return { decision: 'allow', reason: 'client-device-consent-enforced' };
   }
 }

@@ -7,11 +7,7 @@ import { describe, expect, it, afterEach } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import {
-  RightPanel,
-  selectMountedRightPanelTabs,
-  type RightPanelTab,
-} from './right-panel';
+import { RightPanel, selectMountedRightPanelTabs, type RightPanelTab } from './right-panel';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { RIGHT_PANEL_STATE_STORAGE_KEY, writeStoredRightPanelState } from './right-panel-memory';
 
@@ -150,6 +146,39 @@ describe('RightPanel multi-tab', () => {
     expect(panel?.getAttribute('data-view')).toBe('detail');
     expect(container.querySelector('[data-testid="right-panel-open-tab-terminal"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="terminal-body"]')).not.toBeNull();
+  });
+
+  it('prioritizes an explicit Canvas reveal over a stored tab when expanding', () => {
+    writeStoredRightPanelState({ openTabs: ['terminal'], activeTab: 'terminal' });
+    const rendered = renderPanel({ open: false, activeTab: null });
+    root = rendered.root;
+    container = rendered.container;
+
+    act(() => {
+      root?.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <RightPanel
+            open
+            onOpen={() => {}}
+            onClose={() => {}}
+            activeTab="canvas"
+            onTabChange={() => {}}
+            panelWidthPx={560}
+            isResizing={false}
+            onResizePointerDown={() => {}}
+            onResizeReset={() => {}}
+            filesContent={<div data-testid="files-body">files</div>}
+            terminalContent={<div data-testid="terminal-body">terminal</div>}
+            reviewContent={<div data-testid="review-body">review</div>}
+            canvasContent={<div data-testid="canvas-body">canvas</div>}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="right-panel-open-tab-terminal"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="right-panel-open-tab-canvas"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="canvas-body"]')).not.toBeNull();
   });
 
   it('adds another tab from the + picker without dropping the first', () => {
@@ -310,7 +339,9 @@ describe('RightPanel multi-tab', () => {
     root = rendered.root;
     container = rendered.container;
 
-    const expandBtn = container.querySelector<HTMLButtonElement>('[data-testid="right-panel-expand-btn"]');
+    const expandBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="right-panel-expand-btn"]',
+    );
     expect(expandBtn).not.toBeNull();
     act(() => {
       expandBtn?.click();

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import type {
   ActivitySummaryItem,
+  ClientToolRequestFrame,
   ConfiguredChatModel,
   MediaAttachmentRef,
   ModelRef,
@@ -10,17 +11,57 @@ import type {
   ThinkingLevel,
   TrustedDeviceCredential,
 } from '@piwin/contracts';
-import { HostClient, type HostClientState } from '@piwin/host-client';
+import {
+  applyForegroundRunResponse,
+  applyHostPushToForeground,
+  foregroundMutationsEnabled,
+  HostClient,
+  initialForegroundRunState,
+  knownForegroundRunId,
+  reduceForegroundRun,
+  type ForegroundRunState,
+  type HostClientState,
+} from '@piwin/host-client';
+import {
+  healthConsentScopeKey,
+  type ClientToolPreferenceStore,
+  type HealthForegroundUseMode,
+} from '../client-tools/client-tool-preferences.js';
+import type { MobileClientToolConsentDecision } from '../client-tools/mobile-client-tool-runtime.js';
+import { MobileClientToolRuntime } from '../client-tools/mobile-client-tool-runtime.js';
+import {
+  advertiseMobileHealthRuntime,
+  attachMobileClientToolRuntime,
+  buildMobileHelloCapabilities,
+  createLocalClientToolPreferenceStore,
+  healthExecutorUsable,
+  readHealthConnectedSetting,
+  resolveMobileHealthDeviceId,
+  shouldAdvertiseHealthOnHello,
+  shouldIncludeAppleHealthOnSend,
+  writeForegroundUseMode,
+  writeHealthConnectedSetting,
+} from '../client-tools/mobile-health-session.js';
+import {
+  healthkitIsAvailable,
+  healthkitRequestReadAuthorization,
+} from '../health/native-healthkit.js';
 import {
   createMobileHostClient,
   getDefaultHostEndpoint,
 } from '../mobile-host-connection.js';
 import {
-  createMemoryMobileDeviceCredentialVault,
-  createTauriMobileDeviceCredentialVault,
+  readMobileDeviceCredential,
   isNativeTauriRuntime,
   type MobileDeviceCredentialVault,
 } from '../mobile-device-credential-vault.js';
+import {
+  createMobileVault,
+  disposeClient,
+  isRecord,
+  readFileAsBase64,
+  toError,
+} from '../mobile-host-helpers.js';
 import {
   applyConfiguredModels,
   applyHostStatus,
@@ -31,7 +72,14 @@ import {
   readRunId,
   readSessions,
 } from '../mobile-host-readers.js';
-import { buildMobileSessionPrompt, readMobilePromptFailure } from '../mobile-prompt-send.js';
+import {
+  createMobileIdempotencyKey,
+  executeMobileMutation,
+  nextMobileSendIntent,
+  readMobilePromptFailure,
+  buildMobileAbortCommand,
+  buildMobilePermissionResolveCommand,
+} from '../mobile-prompt-send.js';
 import {
   ACTIVITY_SUMMARY_REFRESH_DEBOUNCE_MS,
   requestActivitySummary,
@@ -78,7 +126,9 @@ export function useMobileHost() {
   const [activeSessionId, setActiveSessionId] = useState<string | undefined>();
   const [messages, setMessages] = useState<MobileTranscriptMessage[]>([]);
   const [composerText, setComposerText] = useState('');
-  const [activeRunId, setActiveRunId] = useState<string | undefined>();
+  const [foreground, setForeground] = useState<ForegroundRunState>(initialForegroundRunState);
+  const activeRunId = knownForegroundRunId(foreground);
+  const mutationsEnabled = foregroundMutationsEnabled(foreground);
   const [pausedCheckpointId, setPausedCheckpointId] = useState<string | undefined>();
   const [permissionRequest, setPermissionRequest] = useState<RemotePermissionRequest | undefined>();
   const [attachments, setAttachments] = useState<MobileMediaAttachment[]>([]);
@@ -93,19 +143,33 @@ export function useMobileHost() {
   const [defaultModelId, setDefaultModelId] = useState<string | undefined>();
   const [activityItems, setActivityItems] = useState<ActivitySummaryItem[]>([]);
   const [artifactEnabled, setArtifactEnabled] = useState(true);
+  const [healthNativeAvailable, setHealthNativeAvailable] = useState(false);
+  const [healthConnected, setHealthConnected] = useState(readHealthConnectedSetting);
+  const [healthUseMode, setHealthUseMode] = useState<HealthForegroundUseMode>('ask-every-time');
+  const [includeAppleHealth, setIncludeAppleHealth] = useState(false);
+  const [hostSupportsClientTools, setHostSupportsClientTools] = useState(false);
+  const [healthConsentRequest, setHealthConsentRequest] = useState<ClientToolRequestFrame | undefined>();
+  const [healthAlwaysAllowUnlocked, setHealthAlwaysAllowUnlocked] = useState(false);
 
   const clientRef = useRef<HostClient | undefined>(undefined);
   const activeSessionRef = useRef<string | undefined>(undefined);
+  const selectionGenerationRef = useRef(0);
   const initialConnectInFlightRef = useRef(false);
   const unsubscribeRef = useRef<Array<() => void>>([]);
   const vaultRef = useRef<MobileDeviceCredentialVault>(createMobileVault());
   const deviceCredentialRef = useRef<TrustedDeviceCredential | undefined>(undefined);
   const activityRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const healthRuntimeRef = useRef<MobileClientToolRuntime | undefined>(undefined);
+  const healthPreferencesRef = useRef<ClientToolPreferenceStore>(createLocalClientToolPreferenceStore());
+  const healthScopeKeyRef = useRef<string | undefined>(undefined);
+  const healthConsentResolverRef = useRef<
+    ((decision: MobileClientToolConsentDecision) => void) | undefined
+  >(undefined);
 
   useEffect(() => {
     void handleConnect();
     return () => {
-      disposeClient(clientRef, unsubscribeRef, activityRefreshTimerRef);
+      disposeClient(clientRef, unsubscribeRef, activityRefreshTimerRef, healthRuntimeRef);
     };
   }, []);
 
@@ -115,6 +179,24 @@ export function useMobileHost() {
       return;
     }
     setActivityItems(summary.items);
+  };
+
+  const beginSessionForeground = async (client: HostClient, sessionId: string): Promise<void> => {
+    const generation = selectionGenerationRef.current + 1;
+    selectionGenerationRef.current = generation;
+    setForeground(reduceForegroundRun(initialForegroundRunState(), { type: 'begin-reconcile', generation }, sessionId));
+    if (typeof client.updateSubscriptions === 'function') {
+      try {
+        await client.updateSubscriptions([sessionId]);
+      } catch {
+        // Subscriptions are best-effort; foreground-run still gates Send.
+      }
+    }
+    const response = await client.request({ type: 'session/foreground-run', sessionId });
+    if (clientRef.current !== client || activeSessionRef.current !== sessionId) {
+      return;
+    }
+    setForeground((current) => applyForegroundRunResponse(current, response, generation, sessionId));
   };
 
   const scheduleActivityRefresh = (client: HostClient): void => {
@@ -170,6 +252,9 @@ export function useMobileHost() {
           setMessages(readSessionMessages(resumeResponse));
           setPausedCheckpointId(readPauseCheckpointId(resumeResponse.data));
         }
+        if (clientRef.current === client) {
+          await beginSessionForeground(client, targetSessionId);
+        }
       }
     } catch (error) {
       if (clientRef.current === client) {
@@ -192,7 +277,7 @@ export function useMobileHost() {
       return;
     }
 
-    disposeClient(clientRef, unsubscribeRef, activityRefreshTimerRef);
+    disposeClient(clientRef, unsubscribeRef, activityRefreshTimerRef, healthRuntimeRef);
     setErrorMessage(undefined);
     setPendingReplaceRunId(undefined);
     setHostStatus(undefined);
@@ -203,32 +288,52 @@ export function useMobileHost() {
     setActiveSessionId(undefined);
     activeSessionRef.current = undefined;
     setMessages([]);
-    setActiveRunId(undefined);
+    setForeground(initialForegroundRunState());
     setPausedCheckpointId(undefined);
     setAttachments([]);
 
     if (deviceCredentialRef.current === undefined) {
-      deviceCredentialRef.current = await vaultRef.current.read(normalizedEndpoint);
+      deviceCredentialRef.current = await readMobileDeviceCredential(
+        vaultRef.current,
+        normalizedEndpoint,
+      );
     }
 
-    const client = createMobileHostClient(normalizedEndpoint, {
-      ...(pairing.length > 0
-        ? { pairingToken: pairing, deviceName: MOBILE_DEVICE_NAME }
-        : door.length > 0
-          ? { authToken: door }
-          : deviceCredentialRef.current !== undefined
-            ? { deviceCredential: deviceCredentialRef.current }
-            : {}),
-      onIssuedDeviceCredential: async (issued) => {
-        deviceCredentialRef.current = issued;
-        try {
-          await vaultRef.current.write(normalizedEndpoint, issued);
-          setCredentialPersistError(false);
-        } catch {
-          setCredentialPersistError(true);
-        }
-      },
+    const nativeAvailable = await healthkitIsAvailable();
+    setHealthNativeAvailable(nativeAvailable);
+    const production = import.meta.env.PROD === true;
+    const allowFakeHealth = import.meta.env.DEV === true;
+    const connectedSetting = readHealthConnectedSetting();
+    setHealthConnected(connectedSetting);
+    const advertiseHealth = shouldAdvertiseHealthOnHello({
+      healthConnected: connectedSetting,
+      nativeAvailable,
+      production,
+      allowFake: allowFakeHealth,
     });
+
+    const client = createMobileHostClient(
+      normalizedEndpoint,
+      {
+        ...(pairing.length > 0
+          ? { pairingToken: pairing, deviceName: MOBILE_DEVICE_NAME }
+          : door.length > 0
+            ? { authToken: door }
+            : deviceCredentialRef.current !== undefined
+              ? { deviceCredential: deviceCredentialRef.current }
+              : {}),
+        onIssuedDeviceCredential: async (issued) => {
+          deviceCredentialRef.current = issued;
+          try {
+            await vaultRef.current.write(normalizedEndpoint, issued);
+            setCredentialPersistError(false);
+          } catch {
+            setCredentialPersistError(true);
+          }
+        },
+      },
+      buildMobileHelloCapabilities({ advertiseHealth }),
+    );
     clientRef.current = client;
     initialConnectInFlightRef.current = true;
     unsubscribeRef.current.push(
@@ -245,9 +350,11 @@ export function useMobileHost() {
           push,
           activeSessionRef,
           setMessages,
-          setActiveRunId,
           setPausedCheckpointId,
           setPermissionRequest,
+        );
+        setForeground((current) =>
+          applyHostPushToForeground(current, push, activeSessionRef.current),
         );
         if (shouldRefreshActivitySummary(push)) {
           scheduleActivityRefresh(client);
@@ -269,6 +376,40 @@ export function useMobileHost() {
         setErrorMessage('Host 实例标识与配对码不一致。设备凭证仍然有效；若连错机器请重新扫码。');
       }
       await refreshRemoteReadModel(client);
+      const hello = client.getHostHello();
+      const pairedDeviceId = deviceCredentialRef.current?.deviceId ?? hello?.deviceId;
+      const resolvedDeviceId = resolveMobileHealthDeviceId({
+        ...(pairedDeviceId === undefined ? {} : { deviceId: pairedDeviceId }),
+        clientId: client.getClientId(),
+      });
+      healthScopeKeyRef.current = await healthConsentScopeKey(normalizedEndpoint, resolvedDeviceId);
+      const grant = healthPreferencesRef.current.read(healthScopeKeyRef.current);
+      if (grant !== undefined) {
+        setHealthUseMode(grant.mode);
+        setHealthAlwaysAllowUnlocked(grant.alwaysAllowUnlocked);
+      }
+      setHostSupportsClientTools(client.supportsClientToolRequests());
+      healthRuntimeRef.current = attachMobileClientToolRuntime({
+        client,
+        endpoint: normalizedEndpoint,
+        deviceId: resolvedDeviceId,
+        preferences: healthPreferencesRef.current,
+        healthEnabled: advertiseHealth && grant?.mode !== 'off',
+        nativeHealthAvailable: nativeAvailable,
+        production,
+        allowFakeHealth,
+        requestConsent: (request) => {
+          const scopeKey = healthScopeKeyRef.current;
+          const stored =
+            scopeKey === undefined ? undefined : healthPreferencesRef.current.read(scopeKey);
+          setHealthAlwaysAllowUnlocked(stored?.alwaysAllowUnlocked === true);
+          return new Promise<MobileClientToolConsentDecision>((resolve) => {
+            healthConsentResolverRef.current = resolve;
+            setHealthConsentRequest(request);
+          });
+        },
+      });
+      await advertiseMobileHealthRuntime(healthRuntimeRef.current);
     } catch (error) {
       setErrorMessage(toError(error, '连接 Host 失败。').message);
     } finally {
@@ -286,7 +427,11 @@ export function useMobileHost() {
     deviceCredentialRef.current = undefined;
     setCredentialPersistError(false);
     setPendingReplaceRunId(undefined);
-    disposeClient(clientRef, unsubscribeRef, activityRefreshTimerRef);
+    disposeClient(clientRef, unsubscribeRef, activityRefreshTimerRef, healthRuntimeRef);
+    setHostSupportsClientTools(false);
+    setHealthConsentRequest(undefined);
+    healthConsentResolverRef.current = undefined;
+    healthScopeKeyRef.current = undefined;
     setConnectionState({ kind: 'disconnected' });
     setHostStatus(undefined);
     setArtifactEnabled(true);
@@ -296,7 +441,7 @@ export function useMobileHost() {
     setActiveSessionId(undefined);
     activeSessionRef.current = undefined;
     setMessages([]);
-    setActiveRunId(undefined);
+    setForeground(initialForegroundRunState());
     setPausedCheckpointId(undefined);
     setPermissionRequest(undefined);
     setAttachments([]);
@@ -323,7 +468,6 @@ export function useMobileHost() {
     }
     activeSessionRef.current = sessionId;
     setActiveSessionId(sessionId);
-    setActiveRunId(undefined);
     setPausedCheckpointId(undefined);
     setPermissionRequest(undefined);
     setAttachments([]);
@@ -334,10 +478,12 @@ export function useMobileHost() {
       if (resumeResponse.success) {
         setMessages(readSessionMessages(resumeResponse));
         setPausedCheckpointId(readPauseCheckpointId(resumeResponse.data));
+        await beginSessionForeground(client, sessionId);
         return;
       }
       const messagesResponse = await client.request({ type: 'session/messages', sessionId });
       setMessages(readSessionMessages(messagesResponse));
+      await beginSessionForeground(client, sessionId);
     } catch (error) {
       setErrorMessage(toError(error, '读取会话消息失败。').message);
     }
@@ -349,15 +495,19 @@ export function useMobileHost() {
       return undefined;
     }
     try {
-      const response = await client.request({
-        type: 'session/create',
-        input: {
-          sessionName: 'Mobile session',
-          ...(projectId === undefined || projectId.length === 0
-            ? { scope: { kind: 'general' as const } }
-            : { projectId }),
+      const response = await executeMobileMutation(
+        (command, options) => client.request(command, options),
+        {
+          type: 'session/create',
+          input: {
+            sessionName: 'Mobile session',
+            ...(projectId === undefined || projectId.length === 0
+              ? { scope: { kind: 'general' as const } }
+              : { projectId }),
+          },
         },
-      });
+        createMobileIdempotencyKey(),
+      );
       if (
         !response.success ||
         !isRecord(response.data) ||
@@ -440,36 +590,79 @@ export function useMobileHost() {
       text?: string;
     },
     replaceRunId?: string,
+    queueAgainstRunId?: string,
   ): Promise<void> => {
     const client = clientRef.current;
     const sessionId = activeSessionRef.current;
     const text = (turn?.text ?? composerText).trim();
-    if (client === undefined || sessionId === undefined || (text.length === 0 && attachments.length === 0) || isSending) {
+    if (
+      client === undefined ||
+      sessionId === undefined ||
+      (text.length === 0 && attachments.length === 0) ||
+      isSending ||
+      (!mutationsEnabled && replaceRunId === undefined)
+    ) {
       return;
     }
     setIsSending(true);
     setErrorMessage(undefined);
     try {
       if (pausedCheckpointId !== undefined) {
-        const clearPause = await client.request({
-          type: 'session/abort',
-          sessionId,
-        });
+        const runId = knownForegroundRunId(foreground);
+        if (runId === undefined) {
+          setErrorMessage('无法在未确认的 Run 上清除暂停。');
+          return;
+        }
+        const clearPause = await executeMobileMutation(
+          (command, options) => client.request(command, options),
+          buildMobileAbortCommand(sessionId, runId),
+          createMobileIdempotencyKey(),
+        );
         if (!clearPause.success) {
           setErrorMessage(clearPause.error);
           return;
         }
         setPausedCheckpointId(undefined);
       }
-      const response = await client.request(
-        buildMobileSessionPrompt({
-          sessionId,
-          text,
-          ...(attachments.length === 0 ? {} : { attachments }),
-          ...(turn?.model ? { model: turn.model } : {}),
-          ...(turn?.thinkingLevel ? { thinkingLevel: turn.thinkingLevel } : {}),
-          ...(replaceRunId === undefined ? {} : { replaceRunId }),
-        }),
+      const intentForeground: ForegroundRunState =
+        queueAgainstRunId === undefined
+          ? foreground
+          : {
+              kind: 'active',
+              generation: foreground.kind === 'unknown' ? 0 : foreground.generation,
+              runId: queueAgainstRunId,
+              status: 'running',
+            };
+      const intent = nextMobileSendIntent({
+        sessionId,
+        text,
+        foreground: intentForeground,
+        ...(attachments.length === 0 ? {} : { attachments }),
+        ...(turn?.model ? { model: turn.model } : {}),
+        ...(turn?.thinkingLevel ? { thinkingLevel: turn.thinkingLevel } : {}),
+        ...(replaceRunId === undefined ? {} : { replaceRunId }),
+        ...(shouldIncludeAppleHealthOnSend({
+          healthEnabled:
+            healthConnected &&
+            healthUseMode !== 'off' &&
+            hostSupportsClientTools &&
+            healthExecutorUsable({
+              nativeAvailable: healthNativeAvailable,
+              production: import.meta.env.PROD === true,
+              allowFake: import.meta.env.DEV === true,
+            }),
+          includeAppleHealth,
+        })
+          ? { includeAppleHealth: true }
+          : {}),
+      });
+      if (intent.kind === 'disabled') {
+        return;
+      }
+      const response = await executeMobileMutation(
+        (command, options) => client.request(command, options),
+        intent.command,
+        createMobileIdempotencyKey(),
       );
       if (!response.success) {
         const failure = readMobilePromptFailure(response);
@@ -482,7 +675,24 @@ export function useMobileHost() {
       }
       setPendingReplaceRunId(undefined);
       const runId = readRunId(response.data);
-      setActiveRunId(runId);
+      if (runId !== undefined) {
+        setForeground((current) =>
+          applyHostPushToForeground(
+            current,
+            {
+              type: 'run/updated',
+              run: {
+                runId,
+                kind: 'session-turn',
+                status: 'running',
+                rootRunId: runId,
+                sessionId,
+              },
+            },
+            sessionId,
+          ),
+        );
+      }
       setComposerText('');
       setAttachments([]);
       const messagesResponse = await client.request({ type: 'session/messages', sessionId });
@@ -497,27 +707,36 @@ export function useMobileHost() {
     }
   };
 
+  const handleQueueAndSend = async (): Promise<void> => {
+    const runId = pendingReplaceRunId;
+    if (runId === undefined) {
+      return;
+    }
+    setPendingReplaceRunId(undefined);
+    await handleSend(undefined, undefined, runId);
+  };
+
+  const handleDismissBusy = (): void => {
+    setPendingReplaceRunId(undefined);
+    setErrorMessage(undefined);
+  };
+
   const handleAbort = async (target?: { sessionId: string; runId?: string }): Promise<void> => {
     const client = clientRef.current;
     const sessionId = target?.sessionId ?? activeSessionRef.current;
     const runId = target === undefined ? activeRunId : target.runId;
-    if (client === undefined || sessionId === undefined) {
+    if (client === undefined || sessionId === undefined || runId === undefined || !mutationsEnabled) {
       return;
     }
     try {
-      const response = await client.request({
-        type: 'session/abort',
-        sessionId,
-        ...(runId === undefined ? {} : { runId }),
-      });
+      const response = await executeMobileMutation(
+        (command, options) => client.request(command, options),
+        buildMobileAbortCommand(sessionId, runId),
+        createMobileIdempotencyKey(),
+      );
       if (!response.success) {
         setErrorMessage(response.error);
         return;
-      }
-      if (runId === undefined && response.data && isRecord(response.data)) {
-        if (response.data.reason === 'no-active-run') {
-          setPausedCheckpointId(undefined);
-        }
       }
       void refreshActivitySummary(client);
     } catch (error) {
@@ -595,12 +814,11 @@ export function useMobileHost() {
     setIsResolvingPermission(true);
     setErrorMessage(undefined);
     try {
-      const response = await client.request({
-        type: 'permission/resolve',
-        requestId: resolvedRequestId,
-        decision,
-        rememberScope: 'once',
-      });
+      const response = await executeMobileMutation(
+        (command, options) => client.request(command, options),
+        buildMobilePermissionResolveCommand(resolvedRequestId, decision),
+        createMobileIdempotencyKey(),
+      );
       if (!response.success) {
         setErrorMessage(response.error);
         return;
@@ -618,6 +836,82 @@ export function useMobileHost() {
 
   const removeAttachment = (id: string) => {
     setAttachments((current) => current.filter((item) => item.id !== id));
+  };
+
+  const healthEnabled =
+    healthConnected &&
+    healthUseMode !== 'off' &&
+    hostSupportsClientTools &&
+    healthExecutorUsable({
+      nativeAvailable: healthNativeAvailable,
+      production: import.meta.env.PROD === true,
+      allowFake: import.meta.env.DEV === true,
+    });
+
+  const handleConnectAppleHealth = async (): Promise<void> => {
+    const runtime = healthRuntimeRef.current;
+    if (runtime === undefined || clientRef.current === undefined) {
+      return;
+    }
+    if (healthNativeAvailable) {
+      try {
+        await healthkitRequestReadAuthorization();
+      } catch (error) {
+        setErrorMessage(toError(error, 'Apple Health 授权失败。').message);
+        return;
+      }
+    } else if (import.meta.env.PROD === true) {
+      setErrorMessage('当前设备不支持 Apple Health。');
+      return;
+    }
+    writeHealthConnectedSetting(true);
+    setHealthConnected(true);
+    if (healthUseMode === 'off') {
+      setHealthUseMode('ask-every-time');
+      const scopeKey = healthScopeKeyRef.current;
+      if (scopeKey !== undefined) {
+        writeForegroundUseMode(healthPreferencesRef.current, scopeKey, 'ask-every-time');
+      }
+    }
+    runtime.setHealthEnabled(true);
+    await advertiseMobileHealthRuntime(runtime);
+  };
+
+  const handleDisconnectAppleHealth = async (): Promise<void> => {
+    const runtime = healthRuntimeRef.current;
+    writeHealthConnectedSetting(false);
+    setHealthConnected(false);
+    setIncludeAppleHealth(false);
+    if (runtime !== undefined) {
+      runtime.setHealthEnabled(false);
+      await advertiseMobileHealthRuntime(runtime);
+    }
+    const scopeKey = healthScopeKeyRef.current;
+    if (scopeKey !== undefined) {
+      healthPreferencesRef.current.clear(scopeKey);
+    }
+    setHealthUseMode('ask-every-time');
+  };
+
+  const handleChangeHealthUseMode = (mode: HealthForegroundUseMode): void => {
+    setHealthUseMode(mode);
+    const scopeKey = healthScopeKeyRef.current;
+    if (scopeKey !== undefined) {
+      writeForegroundUseMode(healthPreferencesRef.current, scopeKey, mode);
+    }
+    const runtime = healthRuntimeRef.current;
+    if (runtime === undefined) {
+      return;
+    }
+    runtime.setHealthEnabled(mode !== 'off' && healthConnected);
+    void advertiseMobileHealthRuntime(runtime);
+  };
+
+  const resolveHealthConsent = (decision: MobileClientToolConsentDecision): void => {
+    const resolve = healthConsentResolverRef.current;
+    healthConsentResolverRef.current = undefined;
+    setHealthConsentRequest(undefined);
+    resolve?.(decision);
   };
 
   return {
@@ -640,6 +934,7 @@ export function useMobileHost() {
     composerText,
     setComposerText,
     activeRunId,
+    mutationsEnabled,
     pausedCheckpointId,
     permissionRequest,
     attachments,
@@ -670,66 +965,26 @@ export function useMobileHost() {
     handleRenameSession,
     handleDeleteSession,
     handleSend,
+    handleQueueAndSend,
+    handleDismissBusy,
     handleAbort,
     handleFileSelected,
     handleResolvePermission,
+    healthEnabled,
+    healthAvailable: hostSupportsClientTools && healthExecutorUsable({
+      nativeAvailable: healthNativeAvailable,
+      production: import.meta.env.PROD === true,
+      allowFake: import.meta.env.DEV === true,
+    }),
+    healthConnected,
+    healthUseMode,
+    includeAppleHealth,
+    setIncludeAppleHealth,
+    healthConsentRequest,
+    healthAlwaysAllowUnlocked,
+    handleConnectAppleHealth,
+    handleDisconnectAppleHealth,
+    handleChangeHealthUseMode,
+    resolveHealthConsent,
   };
-}
-
-function createMobileVault(): MobileDeviceCredentialVault {
-  if (!isNativeTauriRuntime()) {
-    return createMemoryMobileDeviceCredentialVault();
-  }
-  return createTauriMobileDeviceCredentialVault(async (command, args) => {
-    const { invoke } = await import('@tauri-apps/api/core');
-    return invoke(command, args);
-  });
-}
-
-function disposeClient(
-  clientRef: { current: HostClient | undefined },
-  unsubscribeRef: { current: Array<() => void> },
-  activityRefreshTimerRef?: { current: ReturnType<typeof setTimeout> | undefined },
-): void {
-  if (activityRefreshTimerRef?.current !== undefined) {
-    clearTimeout(activityRefreshTimerRef.current);
-    activityRefreshTimerRef.current = undefined;
-  }
-  for (const unsubscribe of unsubscribeRef.current) {
-    unsubscribe();
-  }
-  unsubscribeRef.current = [];
-  const client = clientRef.current;
-  clientRef.current = undefined;
-  if (client !== undefined) {
-    void client.close();
-  }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-function toError(error: unknown, fallback: string = '未知错误'): Error {
-  return error instanceof Error ? error : new Error(fallback);
-}
-
-function readFileAsBase64(file: File): Promise<string> {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result !== 'string') {
-        reject(new Error('Unable to read selected image'));
-        return;
-      }
-      const separatorIndex = reader.result.indexOf(',');
-      if (separatorIndex < 0) {
-        reject(new Error('Selected image has an invalid data URL'));
-        return;
-      }
-      resolve(reader.result.slice(separatorIndex + 1));
-    };
-    reader.onerror = () => reject(reader.error ?? new Error('Unable to read selected image'));
-    reader.readAsDataURL(file);
-  });
 }

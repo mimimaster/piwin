@@ -1,0 +1,585 @@
+/* Region: Flashcards workspace page (workspace-subpages/FlashcardsWorkspaceView).
+   Review-first layout: compact overview rail + immersive flip-card review or
+   library rows. Deck tokens only; colors come from theme/apply-appearance.ts. */
+
+.fcws-stage {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--layer-settings);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: var(--surface-1);
+  animation: deck-fade-in var(--t-2) var(--ease-out);
+}
+
+.fcws-title-badge {
+  background: color-mix(in srgb, var(--mint) 14%, transparent);
+  color: var(--mint);
+}
+
+/* ── Overview rail ─────────────────────────────────────────────────── */
+.fcws-overview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.fcws-overview-due {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: var(--s-2);
+  padding: var(--s-4);
+  background: var(--surface-3);
+  border-radius: var(--r-card);
+}
+
+.fcws-overview-num {
+  font-family: var(--font-mono, monospace);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text-3);
+}
+
+.fcws-overview-due.is-active .fcws-overview-num {
+  color: var(--ember);
+}
+
+.fcws-overview-cap {
+  font-size: var(--fs-chrome);
+  color: var(--text-3);
+}
+
+.fcws-overview-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--s-1);
+  font-size: var(--fs-chrome);
+  color: var(--text-3);
+}
+
+.fcws-overview-row strong {
+  font-family: var(--font-mono, monospace);
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+/* ── Deck list ─────────────────────────────────────────────────────── */
+.fcws-deck-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fcws-deck-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border: none;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--fs-chrome);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--t-1) var(--ease-out), color var(--t-1) var(--ease-out);
+}
+
+.fcws-deck-row:hover {
+  background: var(--hover);
+  color: var(--text-1);
+}
+
+.fcws-deck-row.active {
+  background: var(--iris-wash);
+  color: var(--iris);
+  font-weight: 600;
+}
+
+.fcws-deck-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fcws-deck-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-shrink: 0;
+}
+
+.fcws-deck-due {
+  font-style: normal;
+  font-family: var(--font-mono, monospace);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  color: var(--ember);
+}
+
+.fcws-deck-count {
+  min-width: 22px;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  color: var(--text-4);
+  font-family: var(--font-mono, monospace);
+  font-size: var(--fs-micro);
+  text-align: center;
+}
+
+/* ── Canvas toolbar ────────────────────────────────────────────────── */
+.fcws-canvas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.fcws-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.fcws-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  max-width: 220px;
+  height: var(--h-xs);
+  padding: 0 var(--s-3);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-size: var(--fs-micro);
+  cursor: pointer;
+  transition: all var(--t-1) var(--ease-out);
+}
+
+.fcws-filter-chip:hover {
+  color: var(--coral);
+  border-color: var(--coral);
+}
+
+/* ── Review surface ────────────────────────────────────────────────── */
+.fcws-review-surface {
+  flex: 1;
+  width: 100%;
+  max-width: 660px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-4);
+  padding-top: var(--s-5);
+}
+
+.fcws-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s-9);
+  color: var(--text-3);
+}
+
+.fcws-progress-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+}
+
+.fcws-progress-count {
+  font-family: var(--font-mono, monospace);
+  font-weight: 600;
+}
+
+.fcws-new-badge {
+  padding: 1px 8px;
+  border-radius: var(--r-pill);
+  background: var(--sky);
+  color: var(--surface-1);
+  font-weight: 700;
+}
+
+.fcws-kbd-hints {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.fcws-kbd-hints kbd,
+.fcws-rate-btn kbd,
+.fcws-start-hero kbd {
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  padding: 1px 5px;
+  border: 1px solid var(--line-2);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--surface-3);
+  color: var(--text-2);
+}
+
+.fcws-progress-track {
+  width: 100%;
+  height: 3px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.fcws-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--iris-fill);
+  transition: width 320ms var(--ease-out);
+}
+
+/* ── Flip card scene ───────────────────────────────────────────────── */
+.fcws-scene {
+  perspective: 1200px;
+  width: 100%;
+  cursor: pointer;
+}
+
+.fcws-flipper {
+  position: relative;
+  width: 100%;
+  min-height: 300px;
+  transform-style: preserve-3d;
+  transition: transform 480ms var(--ease-out);
+}
+
+.fcws-flipper.is-flipped {
+  transform: rotateY(180deg);
+}
+
+.fcws-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-6);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-panel);
+  background: var(--surface-1);
+  box-shadow: var(--elev-2);
+  backface-visibility: hidden;
+}
+
+.fcws-face-front {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.fcws-face-back {
+  transform: rotateY(180deg);
+}
+
+.fcws-face-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  align-self: flex-start;
+  padding: 2px 10px;
+  border-radius: var(--r-pill);
+  background: var(--iris-wash);
+  color: var(--iris);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+}
+
+.fcws-face-back .fcws-face-tag.is-answer {
+  background: color-mix(in srgb, var(--mint) 13%, transparent);
+  color: var(--mint);
+}
+
+.fcws-face-text {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--text-1);
+  white-space: pre-wrap;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.fcws-face-hint {
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fcws-flipper {
+    transition: none;
+  }
+}
+
+/* ── Rating bar ────────────────────────────────────────────────────── */
+.fcws-rate-bar {
+  display: flex;
+  gap: var(--s-3);
+  width: 100%;
+}
+
+.fcws-rate-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-1);
+  padding: var(--s-3);
+  border: 1px solid var(--line-1);
+  border-bottom-width: 2px;
+  border-radius: var(--r-control);
+  background: var(--surface-1);
+  color: var(--text-2);
+  font-size: var(--fs-chrome);
+  cursor: pointer;
+  transition: all var(--t-1) var(--ease-out);
+}
+
+.fcws-rate-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--elev-2);
+  color: var(--text-1);
+}
+
+.fcws-rate-btn.tone-again { border-bottom-color: var(--coral); }
+.fcws-rate-btn.tone-hard { border-bottom-color: var(--amber); }
+.fcws-rate-btn.tone-good { border-bottom-color: var(--iris); }
+.fcws-rate-btn.tone-easy { border-bottom-color: var(--mint); }
+
+.fcws-rate-btn.tone-again:hover { background: color-mix(in srgb, var(--coral) 8%, var(--surface-1)); }
+.fcws-rate-btn.tone-hard:hover { background: color-mix(in srgb, var(--amber) 9%, var(--surface-1)); }
+.fcws-rate-btn.tone-good:hover { background: var(--iris-wash); }
+.fcws-rate-btn.tone-easy:hover { background: color-mix(in srgb, var(--mint) 9%, var(--surface-1)); }
+
+/* ── Start hero / empty states ─────────────────────────────────────── */
+.fcws-start-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-3);
+  text-align: center;
+  padding: var(--s-9) 0;
+}
+
+.fcws-start-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--r-card);
+  background: var(--ember-wash);
+  color: var(--ember);
+}
+
+.fcws-start-hero h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.fcws-start-hero p {
+  margin: 0;
+  max-width: 380px;
+  font-size: var(--fs-chrome);
+  color: var(--text-3);
+  line-height: 1.55;
+}
+
+.fcws-empty-visual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--r-card);
+  background: color-mix(in srgb, var(--mint) 12%, transparent);
+  color: var(--mint);
+}
+
+.fcws-empty-actions {
+  display: flex;
+  gap: var(--s-2);
+}
+
+/* ── Library ───────────────────────────────────────────────────────── */
+.fcws-library {
+  flex: 1;
+  min-height: 0;
+}
+
+.fcws-card-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.fcws-card-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-4);
+  padding: var(--s-4);
+  background: var(--surface-1);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-card);
+  box-shadow: var(--elev-1);
+  transition: box-shadow var(--t-1) var(--ease-out), border-color var(--t-1) var(--ease-out);
+}
+
+.fcws-card-row:hover {
+  border-color: var(--line-2);
+  box-shadow: var(--elev-2);
+}
+
+.fcws-card-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.fcws-card-deck {
+  align-self: flex-start;
+  padding: 1px 8px;
+  border-radius: var(--r-pill);
+  background: var(--iris-wash);
+  color: var(--iris);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+}
+
+.fcws-card-front {
+  margin: 0;
+  font-size: var(--fs-chrome);
+  font-weight: 600;
+  color: var(--text-1);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.fcws-card-back {
+  margin: 0;
+  font-size: var(--fs-chrome);
+  color: var(--text-3);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.fcws-card-row-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--s-2);
+  flex-shrink: 0;
+}
+
+.fcws-state-badge {
+  padding: 1px 8px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  white-space: nowrap;
+}
+
+.fcws-state-badge.is-due {
+  background: var(--ember-wash);
+  color: var(--ember);
+  font-weight: 600;
+}
+
+.fcws-card-delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--text-4);
+  cursor: pointer;
+  transition: all var(--t-1) var(--ease-out);
+}
+
+.fcws-card-delete:hover {
+  background: var(--ember-wash);
+  color: var(--coral);
+}
+
+/* ── Dialogs (ui-kit Dialog contentClassName="fcws-dialog") ────────── */
+.fcws-dialog {
+  width: min(520px, 92vw);
+}
+
+.fcws-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-6);
+}
+
+.fcws-dialog-body h3 {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.fcws-dialog-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.fcws-dialog-field > span {
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-4);
+}
+
+.fcws-generate-hint {
+  margin: 0;
+  font-size: var(--fs-chrome);
+  color: var(--text-3);
+  line-height: 1.55;
+}
+
+.fcws-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+}

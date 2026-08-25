@@ -1,6 +1,7 @@
 import { useState, type ReactElement } from 'react';
 import { IconClose, IconCheck, IconCopy } from '@piwin/ui-kit';
 import { useHaptics } from '../../hooks/use-haptics.js';
+import { MobileLayer } from '../../mobile-portal.js';
 import type { MobileTranscriptMessage } from '../../hooks/use-mobile-host.js';
 
 export type MobileShareModalProps = {
@@ -35,10 +36,6 @@ export function MobileShareModal({
   const [copied, setCopied] = useState(false);
   const [shared, setShared] = useState(false);
   const haptics = useHaptics();
-
-  if (!isOpen) {
-    return null;
-  }
 
   const markdownContent = formatSessionAsMarkdown(sessionTitle, messages);
 
@@ -83,8 +80,8 @@ export function MobileShareModal({
   };
 
   return (
-    <div className="mobile-modal-overlay" onClick={onClose} role="dialog" aria-modal="true">
-      <div className="mobile-share-sheet" onClick={(e) => e.stopPropagation()}>
+    <MobileLayer isOpen={isOpen} onClose={onClose} overlayClassName="mobile-modal-overlay">
+      <div className="mobile-share-sheet">
         {/* Header */}
         <div className="mobile-sheet-header">
           <div className="mobile-sheet-title-group">
@@ -145,6 +142,6 @@ export function MobileShareModal({
           </button>
         </div>
       </div>
-    </div>
+    </MobileLayer>
   );
 }

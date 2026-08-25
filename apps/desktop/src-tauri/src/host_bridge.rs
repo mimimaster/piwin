@@ -726,15 +726,7 @@ pub fn host_request_blocking(
     }
 
     let mut command = command;
-    let id = command
-        .get("id")
-        .and_then(|value| value.as_str())
-        .map(|value| value.to_string())
-        .unwrap_or_else(|| format!("tauri-{}", REQUEST_SEQ.fetch_add(1, Ordering::Relaxed)));
-
-    if let Some(object) = command.as_object_mut() {
-        object.insert("id".to_string(), Value::String(id.clone()));
-    }
+    let id = assign_host_request_id(&mut command);
 
     let (tx, rx) = std::sync::mpsc::channel::<Value>();
     {
@@ -791,6 +783,38 @@ pub fn host_request_blocking(
             }
         }
     }
+}
+
+/// Preserve a versioned local envelope (`v`, `command`, `idempotencyKey`)
+/// unchanged except for assigning `command.id` used by the pending map.
+fn assign_host_request_id(command: &mut Value) -> String {
+    let inner_command = command
+        .get("v")
+        .and_then(|value| value.as_u64())
+        .filter(|version| *version == 1)
+        .and_then(|_| command.get("command"))
+        .cloned();
+    if let Some(Value::Object(mut inner)) = inner_command {
+        let request_id = inner
+            .get("id")
+            .and_then(|value| value.as_str())
+            .map(|value| value.to_string())
+            .unwrap_or_else(|| format!("tauri-{}", REQUEST_SEQ.fetch_add(1, Ordering::Relaxed)));
+        inner.insert("id".to_string(), Value::String(request_id.clone()));
+        if let Some(object) = command.as_object_mut() {
+            object.insert("command".to_string(), Value::Object(inner));
+        }
+        return request_id;
+    }
+    let request_id = command
+        .get("id")
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| format!("tauri-{}", REQUEST_SEQ.fetch_add(1, Ordering::Relaxed)));
+    if let Some(object) = command.as_object_mut() {
+        object.insert("id".to_string(), Value::String(request_id.clone()));
+    }
+    request_id
 }
 
 fn resolve_host_request_timeout(timeout_ms: Option<u64>) -> Option<Duration> {
@@ -992,6 +1016,22 @@ mod tests {
             host_push_event_name(&serde_json::json!({"type": "event"})),
             Some("host-message")
         );
+    }
+
+    #[test]
+    fn assign_host_request_id_keeps_envelope_identity_fields() {
+        let mut envelope = serde_json::json!({
+            "v": 1,
+            "command": { "type": "session/abort", "sessionId": "s1", "id": "ui-9" },
+            "idempotencyKey": "gesture-1",
+            "clientPrincipalId": "desktop-1"
+        });
+        let id = assign_host_request_id(&mut envelope);
+        assert_eq!(id, "ui-9");
+        assert_eq!(envelope["idempotencyKey"], "gesture-1");
+        assert_eq!(envelope["clientPrincipalId"], "desktop-1");
+        assert_eq!(envelope["command"]["id"], "ui-9");
+        assert_eq!(envelope["command"]["type"], "session/abort");
     }
 
     #[test]

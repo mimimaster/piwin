@@ -3,11 +3,14 @@
  */
 import { useCallback, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import type {
+  ExecutionRunRecord,
   ModelRef,
   PermissionDecision,
   PermissionRememberScope,
   SessionListData,
   SessionListOrder,
+  SessionPauseAcceptedData,
+  SessionResumeRunAcceptedData,
   SessionScope,
   SessionStorageInfo,
   SessionSummary,
@@ -23,6 +26,7 @@ import {
   SESSION_TRANSCRIPT_WINDOW_DEFAULT_AFTER_ITEMS,
   SESSION_TRANSCRIPT_WINDOW_DEFAULT_BEFORE_ITEMS,
   SESSION_USER_MESSAGE_INDEX_DEFAULT_TICKS,
+  formatError,
 } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
 import type { ChatUiAction, ChatUiState, SessionListItemUi } from '../chat-reducer';
@@ -53,6 +57,7 @@ import {
 } from '../remote-session-hydrate';
 import { isWorkbenchHostTeardownError } from '../workbench-host-teardown.js';
 import { shouldBlockRemoteHostGesture } from '../host-reconnect-gate.js';
+import { desktopForegroundMutationsEnabled } from '../foreground-admission.js';
 import { hostFailureNotice, hostReconnectNotice } from '../host-problem-copy.js';
 import { useDesktopLocale } from '../desktop-locale-context';
 import { findAdjacentSessionId } from '../session-navigation';
@@ -783,10 +788,13 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         if (thinkingLevel) {
           createInput.thinkingLevel = thinkingLevel;
         }
-        const created = await hostClient.request({
-          type: 'session/create',
-          input: createInput,
-        });
+        const created = await hostClient.request(
+          {
+            type: 'session/create',
+            input: createInput,
+          },
+          { idempotencyKey: createGestureIdempotencyKey() },
+        );
         if (!created.success) {
           dispatchNotification(pushError(created.error));
           return null;
@@ -1430,8 +1438,160 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     ],
   );
 
+  const handlePause = useCallback(async (): Promise<void> => {
+    const sessionId = state.activeSessionId;
+    if (
+      !sessionId ||
+      state.runPhase === 'pausing' ||
+      state.runPhase === 'aborting' ||
+      (state.activeRunId === null && !state.streaming)
+    ) {
+      return;
+    }
+    if (!desktopForegroundMutationsEnabled(state)) {
+      return;
+    }
+    if (shouldBlockRemoteHostGesture(hostClient)) {
+      dispatchNotification(pushInfo(hostReconnectNotice(locale)));
+      return;
+    }
+
+    dispatch({ type: 'run/pausing' });
+    try {
+      let runId = state.activeRunId;
+      if (runId === null) {
+        const foregroundResponse = await hostClient.request({
+          type: 'session/foreground-run',
+          sessionId,
+        });
+        if (!foregroundResponse.success) {
+          dispatch({ type: 'run/pause-failed' });
+          dispatchNotification(pushError(hostFailureNotice(foregroundResponse, locale)));
+          return;
+        }
+        const foregroundRun = (
+          foregroundResponse.data as { run?: ExecutionRunRecord | null } | undefined
+        )?.run;
+        if (!foregroundRun) {
+          dispatch({ type: 'run/stale-clear', sessionId });
+          return;
+        }
+        runId = foregroundRun.runId;
+      }
+
+      const response = await hostClient.request(
+        { type: 'session/pause', sessionId, runId },
+        { idempotencyKey: createGestureIdempotencyKey() },
+      );
+      if (!response.success) {
+        dispatch({ type: 'run/pause-failed' });
+        dispatchNotification(pushError(hostFailureNotice(response, locale)));
+        return;
+      }
+      const data = response.data as SessionPauseAcceptedData | undefined;
+      if (data?.reason === 'run-mismatch') {
+        dispatch({ type: 'run/pause-failed' });
+        dispatchNotification(
+          pushError(
+            locale === 'zh-CN'
+              ? '暂停失败：当前运行已经变化，请重试。'
+              : 'Pause failed because the active run changed. Try again.',
+          ),
+        );
+        return;
+      }
+      if (data?.reason === 'no-active-run') {
+        dispatch({ type: 'run/stale-clear', sessionId });
+        return;
+      }
+      if (data?.state !== 'pausing' && data?.state !== 'paused') {
+        dispatch({ type: 'run/pause-failed' });
+        dispatchNotification(
+          pushError(
+            locale === 'zh-CN'
+              ? 'Host 未确认暂停请求，请重试。'
+              : 'The Host did not confirm the pause request. Try again.',
+          ),
+        );
+      }
+    } catch (error) {
+      dispatch({ type: 'run/pause-failed' });
+      dispatchNotification(pushError(formatError(error)));
+    }
+  }, [
+    dispatch,
+    dispatchNotification,
+    hostClient,
+    locale,
+    state.activeRunId,
+    state.activeSessionId,
+    state.foregroundAdmission,
+    state.runPhase,
+    state.streaming,
+  ]);
+
+  const handleResumeRun = useCallback(async (): Promise<void> => {
+    const sessionId = state.activeSessionId;
+    if (!sessionId || state.runTerminal.kind !== 'paused' || state.runPhase !== 'idle') {
+      return;
+    }
+    if (!desktopForegroundMutationsEnabled(state)) {
+      return;
+    }
+    if (shouldBlockRemoteHostGesture(hostClient)) {
+      dispatchNotification(pushInfo(hostReconnectNotice(locale)));
+      return;
+    }
+    try {
+      const response = await hostClient.request(
+        {
+          type: 'session/resume-run',
+          sessionId,
+          ...(state.runTerminal.checkpointId
+            ? { checkpointId: state.runTerminal.checkpointId }
+            : {}),
+        },
+        { idempotencyKey: createGestureIdempotencyKey() },
+      );
+      if (!response.success) {
+        dispatchNotification(pushError(hostFailureNotice(response, locale)));
+        return;
+      }
+      const data = response.data as SessionResumeRunAcceptedData | undefined;
+      if (!data?.runId) {
+        dispatchNotification(
+          pushError(
+            locale === 'zh-CN'
+              ? 'Host 未确认继续运行，请重试。'
+              : 'The Host did not confirm the resumed run. Try again.',
+          ),
+        );
+        return;
+      }
+      dispatch({ type: 'run/accepted', runId: data.runId, acceptedAt: data.acceptedAt });
+    } catch (error) {
+      dispatchNotification(pushError(formatError(error)));
+    }
+  }, [
+    dispatch,
+    dispatchNotification,
+    hostClient,
+    locale,
+    state.activeSessionId,
+    state.foregroundAdmission,
+    state.runPhase,
+    state.runTerminal,
+  ]);
+
   const handleAbort = useCallback(async (): Promise<void> => {
-    if (!state.activeSessionId || state.runPhase === 'aborting') {
+    if (
+      !state.activeSessionId ||
+      state.runPhase === 'pausing' ||
+      state.runPhase === 'aborting'
+    ) {
+      return;
+    }
+    if (!desktopForegroundMutationsEnabled(state)) {
       return;
     }
     if (shouldBlockRemoteHostGesture(hostClient)) {
@@ -1474,6 +1634,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     locale,
     state.activeRunId,
     state.activeSessionId,
+    state.foregroundAdmission,
     state.runPhase,
     state.streaming,
   ]);
@@ -1576,6 +1737,8 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     handleContinueSessionInProject,
     handleForkSession,
     handleSessionMenuAction,
+    handlePause,
+    handleResumeRun,
     handleAbort,
     handleCompact,
     handleCompactAbort,

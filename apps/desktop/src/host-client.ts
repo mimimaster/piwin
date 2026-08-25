@@ -12,11 +12,12 @@ import type {
 } from '@piwin/contracts';
 import {
   formatError,
+  HOST_COMMAND_REQUEST_ENVELOPE_VERSION,
   isLocalMobileAccessCommandType,
   remoteCommandRequiresIdempotencyKey,
   remoteHostSupportsCommand,
 } from '@piwin/contracts';
-import { createGestureIdempotencyKey } from './gesture-idempotency.js';
+import { readDesktopClientPrincipalId } from './desktop-client-principal.js';
 import { MOBILE_ACCESS_SIDECAR_ONLY_ERROR } from './mobile-access-local';
 import type { MockHostBackend } from './host-client-mock';
 import {
@@ -205,6 +206,10 @@ export class HostClient {
     return this.transport;
   }
 
+  getRemoteTarget(): DesktopRemoteHostTarget | undefined {
+    return this.remoteTarget;
+  }
+
   getRemoteCapabilities(): RemoteCapabilitySummary | undefined {
     return this.remoteCapabilities;
   }
@@ -220,6 +225,15 @@ export class HostClient {
   /** Local JSONL / mock may always send. Remote requires hello.foregroundRunAdmission. */
   supportsForegroundAdmission(): boolean {
     return this.transport !== 'remote' || this.remoteCapabilities?.foregroundRunAdmission === true;
+  }
+
+  updateSubscriptions(sessionIds: string[]): Promise<void> {
+    if (this.transport !== 'remote') {
+      return Promise.resolve();
+    }
+    return this.getOrCreateRemoteClient()
+      .updateSubscriptions(sessionIds)
+      .then(() => undefined);
   }
 
   isReady(): boolean {
@@ -457,13 +471,22 @@ export class HostClient {
   ): Promise<HostResponse> {
     const id = command.id ?? `ui-${++this.requestCounter}`;
     const withId = { ...command, id };
-    const idempotencyKey =
-      options.idempotencyKey?.trim() ||
-      (this.transport === 'remote' &&
+    const idempotencyKey = options.idempotencyKey?.trim() || undefined;
+    if (
+      (this.transport === 'remote' || this.transport === 'live') &&
       !isLocalMobileAccessCommandType(command.type) &&
-      remoteCommandRequiresIdempotencyKey(command.type)
-        ? createGestureIdempotencyKey()
-        : undefined);
+      remoteCommandRequiresIdempotencyKey(command.type) &&
+      (idempotencyKey === undefined || idempotencyKey.length === 0)
+    ) {
+      return {
+        type: 'response',
+        command: command.type,
+        success: false,
+        error: 'idempotency-key-required',
+        problem: { code: 'idempotency-key-required' },
+        id,
+      };
+    }
 
     if (isLocalMobileAccessCommandType(command.type) && this.transport !== 'live') {
       return {
@@ -498,7 +521,10 @@ export class HostClient {
 
     // Return host errors unchanged. Retrying after a string-matched error can
     // repeat state mutations or control commands against a restarted sidecar.
-    return this.requestFromLiveHost(withId);
+    return this.requestFromLiveHost(
+      withId,
+      idempotencyKey === undefined ? {} : { idempotencyKey },
+    );
   }
 
   private async connectRemoteTransport(): Promise<void> {
@@ -727,11 +753,18 @@ export class HostClient {
 
   private async requestFromLiveHost(
     command: HostCommand | LocalMobileAccessCommand,
+    options: { idempotencyKey?: string } = {},
   ): Promise<HostResponse> {
     try {
       const { invoke } = await import('@tauri-apps/api/core');
-      const response = (await invoke('host_request', {
+      const envelope = {
+        v: HOST_COMMAND_REQUEST_ENVELOPE_VERSION,
         command,
+        ...(options.idempotencyKey === undefined ? {} : { idempotencyKey: options.idempotencyKey }),
+        clientPrincipalId: readDesktopClientPrincipalId(),
+      };
+      const response = (await invoke('host_request', {
+        command: envelope,
         timeoutMs: getHostRequestTimeoutMs(command),
       })) as HostResponse;
       return response;

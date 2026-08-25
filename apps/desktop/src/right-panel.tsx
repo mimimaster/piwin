@@ -133,7 +133,9 @@ export function RightPanel(props: RightPanelProps): ReactElement {
     props.onViewChange?.(openTabs.length > 0 ? 'detail' : 'home');
   }, [openTabs, props.activeTab, props.onViewChange]);
 
-  // Panel just opened: restore storage, or open the shell-requested tab once.
+  // Panel just opened: an explicit shell request wins over stored navigation.
+  // This matters for agent-triggered Canvas/Browser reveals while the panel is
+  // collapsed; restoring an old tab first can race the controlled active tab.
   useEffect(() => {
     const wasOpen = previousOpenRef.current;
     previousOpenRef.current = props.open;
@@ -141,6 +143,15 @@ export function RightPanel(props: RightPanelProps): ReactElement {
       return;
     }
     const stored = readStoredRightPanelState();
+    const requested = props.activeTab;
+    if (requested != null) {
+      setOpenTabs((current) => {
+        const base = current.length > 0 ? current : stored.openTabs;
+        return base.includes(requested) ? base : [...base, requested];
+      });
+      setPickerOpen(false);
+      return;
+    }
     if (stored.openTabs.length > 0) {
       setOpenTabs(stored.openTabs);
       setPickerOpen(false);
@@ -148,12 +159,6 @@ export function RightPanel(props: RightPanelProps): ReactElement {
         props.onTabChange(stored.activeTab);
       }
       return;
-    }
-    // First open this session: only open a tab if the shell explicitly requests one.
-    const requested = props.activeTab;
-    if (requested != null) {
-      setOpenTabs([requested]);
-      setPickerOpen(false);
     }
   }, [props.open, props.activeTab, props.onTabChange]);
 

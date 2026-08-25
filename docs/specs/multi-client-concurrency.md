@@ -47,7 +47,7 @@ Rules:
 - Completed results replay. Keys live for the Host process. New `hostInstanceId` drops the table.
 - Changing intent (if-idle prompt → queued-turn, or → replace-run) is a new gesture and a new key.
 
-**Current hole:** `@piwin/host-client` mints a new `idempotencyKey` on every `request()` unless the caller passes one (`packages/host-client/src/host-client.ts`). A timeout + retry duplicates mutations. Callers must pass a stable key; Desktop remote send/apply/resolve/delete must do so. Do not mint a key inside `request()` for mutations once callers are required to supply one (fail the request if missing on remote).
+**Idempotency admission (resolved):** `@piwin/host-client.request` does not mint keys. Required mutations without a caller-owned `idempotencyKey` fail with `idempotency-key-required` before Host admission. Gesture retry reuses a frozen `HostRequestAttempt`. Host keeps completed keys for the process lifetime (`hostInstanceId`); overload is `idempotency-registry-capacity` with no silent eviction. Local JSONL uses the same registry through a versioned request envelope.
 
 ---
 
@@ -318,7 +318,16 @@ On hello / replay-too-old, before the shell enables mutation controls:
 
 Unsubscribed sessions: no full transcript. Index + inbox-class events only.
 
-A slow client’s push queue is bounded (ADR 0038). Agent execution does not wait on client liveness.
+Clients that advertise `liveSubscriptions` receive high-rate session pushes
+only for a bounded subscribed set (default: the active session; maximum eight
+ids, matching one Desktop Conversation pane workspace). Global and inbox pushes always pass. `throughSeq` still advances across
+filtered records. Clients that omit the capability keep full fan-out.
+
+Minimum compatible shell: any client that sends `client/subscriptions` must
+speak protocol v1 with `liveSubscriptions: true`. Older shells keep working
+until that capability is retired.
+
+A slow client’s push queue is bounded (ADR 0038). Agent execution does not wait on client liveness. Disconnecting a slow consumer does not stop the Run or other shells.
 
 Composer drafts, scroll position, and open panel are not Host state.
 
@@ -339,6 +348,8 @@ Composer drafts, scroll position, and open panel are not Host state.
 | `todo-revision-conflict` | `todo.conflict` | reload / overwrite |
 | `session-busy` | `session.bodyBusy` | wait / force where allowed |
 | `idempotency-conflict` | `request.duplicateKey` | developer-facing; do not retry blindly |
+| `idempotency-key-required` | `request.keyRequired` | caller must own a gesture key |
+| `idempotency-registry-capacity` | `request.registryFull` | wait / do not mint a new key by eviction |
 
 Desktop locale files own the strings. CLI prints the same keys’ English fallback.
 

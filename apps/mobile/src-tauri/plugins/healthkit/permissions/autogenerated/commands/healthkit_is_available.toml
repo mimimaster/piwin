@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-healthkit-is-available"
+description = "Enables the healthkit_is_available command without any pre-configured scope."
+commands.allow = ["healthkit_is_available"]
+
+[[permission]]
+identifier = "deny-healthkit-is-available"
+description = "Denies the healthkit_is_available command without any pre-configured scope."
+commands.deny = ["healthkit_is_available"]

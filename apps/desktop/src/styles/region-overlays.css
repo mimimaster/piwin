@@ -32,6 +32,18 @@
   animation: deck-rise var(--t-4) var(--ease-spring);
 }
 
+.ui-dialog-content {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  z-index: calc(var(--layer-dialog) + 1);
+  animation: deck-modal-rise var(--t-4) var(--ease-spring);
+}
+
 .modal h3 {
   margin: 0 0 var(--s-5);
   font-size: var(--fs-title);
@@ -69,12 +81,6 @@
   border-radius: var(--r-chip);
   cursor: pointer;
   accent-color: var(--iris);
-}
-
-.ui-dialog-content {
-  /* Appearance/centering moved to @piwin/ui-kit/styles.css; desktop only
-     assigns the overlay layer. */
-  z-index: calc(var(--layer-dialog) + 1);
 }
 
 /* ── Checkpoint revert modal ──────────────────────────────────────────── */

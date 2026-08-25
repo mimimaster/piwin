@@ -1,0 +1,285 @@
+/* ═══════════════════════════════════════════════════════════════
+   Piwin Mobile — Layout, Viewport, and Navigation Top Bar
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-capsule: 28px;
+  --radius-full: 9999px;
+
+  --motion-quick: 140ms;
+  --motion-smooth: 240ms;
+  --motion-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+
+  font-family: var(--font-sans);
+  background: var(--void);
+  color: var(--text-1);
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--void);
+  color: var(--text-1);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  min-width: 320px;
+  background: var(--bg-gradient);
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+/* ── App Shell Container ── */
+.mobile-shell {
+  --mobile-top-bar-offset: calc(env(safe-area-inset-top, 0px) + 50px);
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  overflow: hidden;
+  position: relative;
+  background: var(--void);
+}
+
+.mobile-view-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ── Modern Top Navigation Bar (Adaptive Notch & Island) ── */
+.mobile-top-bar {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-left: 12px;
+  padding-right: 12px;
+  padding-bottom: 8px;
+  background: var(--header-bg);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border-bottom: 1px solid var(--line-1);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.02);
+  position: relative;
+  z-index: 60;
+  flex-shrink: 0;
+}
+
+.mobile-top-bar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  width: 100%;
+}
+
+.mobile-top-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  border: none;
+  background: transparent;
+  color: var(--text-1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--motion-quick) var(--motion-ease);
+  position: relative;
+}
+
+.mobile-top-btn:active {
+  transform: scale(0.92);
+  background: var(--surface-control);
+  color: var(--iris);
+}
+
+.mobile-top-btn-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--ember);
+  box-shadow: 0 0 6px var(--ember);
+  animation: emberPulse 2.4s infinite ease-in-out;
+}
+
+.mobile-top-center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+  padding: 0 6px;
+}
+
+/* Model & Reasoning Pill Button */
+.mobile-session-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 230px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: var(--radius-full);
+  background: var(--surface-3);
+  box-shadow: var(--elev-1);
+  border: 1px solid var(--line-2);
+  color: var(--text-1);
+  cursor: pointer;
+  transition: all var(--motion-quick) var(--motion-ease);
+}
+
+.mobile-session-pill-btn:active {
+  transform: scale(0.96);
+  background: var(--surface-4);
+  border-color: var(--iris);
+}
+
+.mobile-pill-spark {
+  color: var(--iris);
+  flex-shrink: 0;
+}
+
+.mobile-pill-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-pill-thinking-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--iris-soft);
+  color: var(--iris);
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+}
+
+.mobile-pill-chevron {
+  font-size: 10px;
+  color: var(--text-3);
+  margin-top: -1px;
+  flex-shrink: 0;
+}
+
+.mobile-top-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mobile-top-status-dot-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  border: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.mobile-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+}
+
+.mobile-status-dot.online {
+  background: var(--mint);
+  box-shadow: 0 0 8px var(--mint);
+  animation: breath 2.4s infinite ease-in-out;
+}
+
+.mobile-status-dot.offline {
+  background: var(--amber);
+}
+
+.mobile-status-dot.error {
+  background: var(--coral);
+}
+
+/* Secondary Context Bar (Project & Branch Chip) */
+.mobile-context-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 14px;
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--line-1);
+  font-size: 11px;
+  color: var(--text-2);
+}
+
+.mobile-context-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.mobile-context-project-tag {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+}
+
+.mobile-context-project-name {
+  font-weight: 600;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-context-branch-tag {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--surface-3);
+  border: 1px solid var(--line-2);
+  color: var(--text-2);
+}

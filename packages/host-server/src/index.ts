@@ -1,4 +1,5 @@
 export * from './host-server.js';
+export * from './host-command-idempotency-registry.js';
 export * from './host-egress-hub.js';
 export * from './host-egress-channel.js';
 export * from './host-replay-journal.js';
@@ -10,3 +11,8 @@ export * from './host-hello-auth.js';
 export * from './pairing-qr.js';
 export * from './mobile-access-controller.js';
 export * from './host-connection-lifecycle.js';
+export * from './device-capability-store.js';
+export * from './device-capability-registry.js';
+export * from './device-tool-broker.js';
+export * from './client-tool-frame-router.js';
+export * from './create-device-tool-broker.js';

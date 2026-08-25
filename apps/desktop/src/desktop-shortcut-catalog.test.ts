@@ -32,7 +32,24 @@ describe('desktop-shortcut-catalog', () => {
     for (const entry of entries) {
       expect(entry.chord.length).toBeGreaterThan(0);
       expect(splitShortcutChord(entry.chord).length).toBeGreaterThan(0);
+      if (entry.pcChord) {
+        expect(splitShortcutChord(entry.pcChord).length).toBeGreaterThan(0);
+      }
     }
+  });
+
+  it('uses a distinct PC resize chord instead of displaying Ctrl twice', () => {
+    const resize = listShortcutCatalogEntries().find((entry) => entry.id === 'pane-resize');
+    if (!resize?.pcChord) {
+      throw new Error('pane-resize shortcut missing');
+    }
+    expect(resize.pcChord).toBe('⇧⌥⌘Arrow');
+    expect(formatShortcutChordTokens(resize.pcChord, 'pc')).toEqual([
+      'Shift',
+      'Alt',
+      'Ctrl',
+      'Arrow',
+    ]);
   });
 
   it('keeps group ids unique and recommended first', () => {

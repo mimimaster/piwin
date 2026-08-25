@@ -14,8 +14,6 @@ export type UseArtifactCanvasResult = {
   activeTarget: ArtifactCanvasTarget | null;
   /** Replace the active target. Opening another Canvas replaces the first. */
   openTarget: (target: ArtifactCanvasTarget) => void;
-  /** Drop the active target (e.g. user closes the Canvas tab). */
-  clearTarget: () => void;
 };
 
 /**
@@ -41,9 +39,5 @@ export function useArtifactCanvas(activeSessionId: string | null): UseArtifactCa
     setActiveTarget(target);
   }, []);
 
-  const clearTarget = useCallback((): void => {
-    setActiveTarget(null);
-  }, []);
-
-  return { activeTarget, openTarget, clearTarget };
+  return { activeTarget, openTarget };
 }

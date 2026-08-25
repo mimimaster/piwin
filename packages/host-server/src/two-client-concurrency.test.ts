@@ -149,10 +149,13 @@ describe('§15 two-client concurrency', () => {
 
   async function createSession(client: TestClient, name: string): Promise<string> {
     const created = requireSuccess(
-      await client.client.request({
-        type: 'session/create',
-        input: { scope: { kind: 'general' }, sessionName: name },
-      }),
+      await client.client.request(
+        {
+          type: 'session/create',
+          input: { scope: { kind: 'general' }, sessionName: name },
+        },
+        { idempotencyKey: `create-${name}-${randomUUID()}` },
+      ),
       'session/create',
     );
     return (created.data as { sessionId: string }).sessionId;

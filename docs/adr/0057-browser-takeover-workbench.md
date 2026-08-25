@@ -125,7 +125,9 @@ Do not grow the session file past the 1000-line cap.
 ## Consequences
 
 - Desktop panel becomes an interactive surface; CLI still has tools + lock
-  and no visual panel (intentional degradation, ADR 0020).
+  and no visual panel (intentional degradation, ADR 0020). When the agent
+  acquires the workbench (`browser/controller` owner `agent`) or navigates,
+  Desktop opens the right-sidebar Browser tab so the mirror is visible.
 - Screencast at ~15 fps is more IPC than 4 fps screenshots. Cap dimension and
   quality; drop frames if the panel is hidden; ack CDP frames or Chrome stops.
 - Models that ignore `browser-user-has-control` will retry and fail until the

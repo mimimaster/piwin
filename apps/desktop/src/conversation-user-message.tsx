@@ -14,7 +14,8 @@ export const USER_MESSAGE_COLLAPSE_THRESHOLD = 78;
 export type UserMessageContentProps = {
   message: ChatMessageUi;
   streaming?: boolean;
-  onRetry: (messageId: string) => void;
+  /** Omit in compact/read-only transcript surfaces that do not own edit state. */
+  onRetry?: (messageId: string) => void;
   branchSwitcher?: ReactNode;
   onInterventionEdit?: (messageId: string) => void;
   onInterventionCancel?: (messageId: string) => void | Promise<void>;
@@ -202,21 +203,23 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
                     <IconEdit />
                   </button>
                 ) : null}
-                <button
-                  type="button"
-                  className="user-msg-btn"
-                  onClick={() => props.onRetry(message.id)}
-                  disabled={
-                    props.streaming ||
-                    interventionStatus === 'pending' ||
-                    interventionStatus === 'applying'
-                  }
-                  title={isChinese ? '编辑此轮' : 'Edit this turn'}
-                  aria-label={isChinese ? '编辑此轮' : 'Edit this turn'}
-                  data-testid="message-revert-btn"
-                >
-                  <IconRevert />
-                </button>
+                {props.onRetry ? (
+                  <button
+                    type="button"
+                    className="user-msg-btn"
+                    onClick={() => props.onRetry?.(message.id)}
+                    disabled={
+                      props.streaming ||
+                      interventionStatus === 'pending' ||
+                      interventionStatus === 'applying'
+                    }
+                    title={isChinese ? '编辑此轮' : 'Edit this turn'}
+                    aria-label={isChinese ? '编辑此轮' : 'Edit this turn'}
+                    data-testid="message-revert-btn"
+                  >
+                    <IconRevert />
+                  </button>
+                ) : null}
               </div>
               {props.branchSwitcher}
               {formattedTime ? (
@@ -324,21 +327,23 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
             <IconEdit />
           </button>
         ) : null}
-        <button
-          type="button"
-          className="user-msg-btn"
-          onClick={() => props.onRetry(message.id)}
-          disabled={
-            props.streaming ||
-            interventionStatus === 'pending' ||
-            interventionStatus === 'applying'
-          }
-          title={isChinese ? '编辑此轮' : 'Edit this turn'}
-          aria-label={isChinese ? '编辑此轮' : 'Edit this turn'}
-          data-testid="message-revert-btn"
-        >
-          <IconRevert />
-        </button>
+        {props.onRetry ? (
+          <button
+            type="button"
+            className="user-msg-btn"
+            onClick={() => props.onRetry?.(message.id)}
+            disabled={
+              props.streaming ||
+              interventionStatus === 'pending' ||
+              interventionStatus === 'applying'
+            }
+            title={isChinese ? '编辑此轮' : 'Edit this turn'}
+            aria-label={isChinese ? '编辑此轮' : 'Edit this turn'}
+            data-testid="message-revert-btn"
+          >
+            <IconRevert />
+          </button>
+        ) : null}
         {props.branchSwitcher}
       </div>
     </div>

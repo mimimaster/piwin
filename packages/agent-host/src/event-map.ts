@@ -2,7 +2,6 @@ import type {
   AgentEvent,
   AgentEventEnvelope,
   AgentMessageRole,
-  MediaAttachmentRef,
   ToolPresentation,
 } from '@piwin/contracts';
 import { mapUsageSnapshot } from './usage-map.js';
@@ -12,6 +11,17 @@ import {
   buildToolPresentation,
   resolvePresentedToolInvocation,
 } from './tool-presentation.js';
+import {
+  extractToolResultAttachments,
+  extractToolResultHealthDetails,
+  extractToolResultText,
+} from './tool-result-extract.js';
+
+export {
+  extractToolResultAttachments,
+  extractToolResultHealthDetails,
+  extractToolResultText,
+} from './tool-result-extract.js';
 
 /**
  * Wrapped event with an envelope for idempotent delivery.
@@ -596,6 +606,7 @@ export function mapPiSessionEvent(
       // summaries; Desktop merge also preserves start-time summary as a backstop.
       const args = readToolCallArgs(event);
       const invocation = resolvePresentedToolInvocation(toolName, args);
+      const healthFields = extractToolResultHealthDetails(result?.details ?? event.details);
       const presentation = buildToolPresentation({
         toolName: invocation.effectiveToolName,
         isError,
@@ -605,6 +616,8 @@ export function mapPiSessionEvent(
           : {}),
         ...(outputText !== undefined ? { outputText } : {}),
         ...(exitCode !== undefined ? { exitCode } : {}),
+        ...(healthFields.health !== undefined ? { health: healthFields.health } : {}),
+        ...(healthFields.sensitivity !== undefined ? { sensitivity: healthFields.sensitivity } : {}),
       });
       const attachments = extractToolResultAttachments(result?.details ?? event.details);
       const responseMessageId = resolveResponseMessageId(
@@ -877,81 +890,6 @@ function extractAssistantMessageSnapshot(value: unknown): AssistantMessageSnapsh
     thinking: thinkingParts.join(''),
   } satisfies AssistantMessageSnapshot;
   return snapshot.text.length > 0 || snapshot.thinking.length > 0 ? snapshot : null;
-}
-
-/**
- * Extract display/model text from a Pi tool result payload.
- *
- * Pi `tool_execution_end.result` is `AgentToolResult`:
- * `{ content: Array<{ type: 'text', text: string } | ImageContent>, details }`.
- * Also accepts a plain string (legacy / host-normalized shapes).
- */
-export function extractToolResultText(value: unknown): string | undefined {
-  if (typeof value === 'string') {
-    return value.length > 0 ? value : undefined;
-  }
-  const record = asRecord(value);
-  if (!record) {
-    return undefined;
-  }
-  const content = record.content;
-  if (Array.isArray(content)) {
-    const parts: string[] = [];
-    for (const item of content) {
-      const part = asRecord(item);
-      if (!part) {
-        continue;
-      }
-      if (part.type === 'text' && typeof part.text === 'string' && part.text.length > 0) {
-        parts.push(part.text);
-      }
-    }
-    if (parts.length > 0) {
-      return parts.join('\n');
-    }
-  }
-  // Some adapters put the whole payload under `text`.
-  const directText = readString(record.text);
-  if (directText) {
-    return directText;
-  }
-  return undefined;
-}
-
-/**
- * Extract displayable media outputs from a Host tool's structured details.
- * The path is still checked again by the Desktop media URL resolver before it
- * becomes an image source, so arbitrary tool details cannot bypass that gate.
- */
-export function extractToolResultAttachments(value: unknown): MediaAttachmentRef[] | undefined {
-  const record = asRecord(value);
-  const rawAttachments = record?.attachments;
-  if (!Array.isArray(rawAttachments)) {
-    return undefined;
-  }
-
-  const attachments = rawAttachments.filter(isMediaAttachmentRef);
-  return attachments.length > 0 ? attachments : undefined;
-}
-
-function isMediaAttachmentRef(value: unknown): value is MediaAttachmentRef {
-  const record = asRecord(value);
-  if (!record) {
-    return false;
-  }
-  return (
-    typeof record.id === 'string' &&
-    record.kind === 'media' &&
-    typeof record.path === 'string' &&
-    typeof record.mimeType === 'string' &&
-    typeof record.byteSize === 'number' &&
-    Number.isFinite(record.byteSize) &&
-    record.byteSize >= 0 &&
-    (record.source === 'paste' ||
-      record.source === 'drop' ||
-      record.source === 'file-picker' ||
-      record.source === 'generated')
-  );
 }
 
 function readNumber(value: unknown): number | undefined {

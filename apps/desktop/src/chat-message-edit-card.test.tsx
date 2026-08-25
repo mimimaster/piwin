@@ -43,6 +43,7 @@ const composerCard: ComposerDockProps = {
   onPaste: vi.fn(),
   onDrop: vi.fn(),
   onSend: vi.fn(),
+  onPause: vi.fn(),
   onAbort: vi.fn(),
   onCompact: vi.fn(),
   contextUsage: null,

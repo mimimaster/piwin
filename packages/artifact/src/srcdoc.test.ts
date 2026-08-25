@@ -102,6 +102,25 @@ describe('buildHtmlArtifactSrcdoc', () => {
     );
   });
 
+  it('hosts a full document in a stable Inline viewport without size messages', () => {
+    const modelSource =
+      '<!DOCTYPE html><html><head><title>Ink</title></head><body><main style="height:100vh">Workspace</main></body></html>';
+    const { srcdoc } = buildHtmlArtifactSrcdoc({
+      source: modelSource,
+      channelId: 'inline-viewport-document',
+      surface: 'inline',
+      layout: 'inline-viewport',
+      documentKind: 'document',
+    });
+
+    expect(srcdoc.match(/<html\b/gi)).toHaveLength(1);
+    expect(srcdoc).toContain('overflow-y: auto !important');
+    expect(srcdoc).toContain('height: 100% !important');
+    expect(srcdoc).not.toContain('<div class="piwin-artifact-root">');
+    expect(srcdoc).not.toContain('window.ResizeObserver');
+    expect(srcdoc).not.toContain(ARTIFACT_BRIDGE_SIZE_TYPE);
+  });
+
   it('preserves a full document for Canvas and omits height measurement', () => {
     const modelSource =
       '<!DOCTYPE html><html class="app"><head><title>Ink</title></head><body data-app="ink"><main>Workspace</main></body></html>';

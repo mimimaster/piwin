@@ -238,6 +238,7 @@ than one shell to the same sessions, Runs, Jobs, MCP supervisor, and data root.
 | M8.6 | Private multi-client smoke | fake/runtime-port smoke covers two clients, safe reads, push and reconnect replay; real two-shell prompt smoke remains | partial |
 | M8.7 | Optional Gateway/tunnel | relay is transport-only, redacts secrets, and is not required for Tailscale/private LAN | planned |
 | M8.8 | Mobile/Web shell spike | client shell consumes Host protocol after M8.6; no independent Agent loop | in progress — real status/list/chat slice |
+| M8.9 | Conversation multi-pane live set (ADR 0063) | Desktop general scope has device-local 1/2/4/8 panes; one deduplicated remote subscription keeps all visible Chats live; Project Agent remains single-stage | done |
 
 ---
 

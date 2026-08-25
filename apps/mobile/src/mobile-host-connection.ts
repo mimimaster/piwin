@@ -1,4 +1,8 @@
-import type { RemoteHostStatusData, TrustedDeviceCredential } from '@piwin/contracts';
+import type {
+  HostClientCapabilities,
+  RemoteHostStatusData,
+  TrustedDeviceCredential,
+} from '@piwin/contracts';
 import {
   HostClient,
   type HostClientCursor,
@@ -19,7 +23,11 @@ export type MobileHostAdmission = {
   onIssuedDeviceCredential?: (credential: TrustedDeviceCredential) => Promise<void> | void;
 };
 
-export function createMobileHostClient(endpoint: string, admission: MobileHostAdmission = {}): HostClient {
+export function createMobileHostClient(
+  endpoint: string,
+  admission: MobileHostAdmission = {},
+  capabilities?: HostClientCapabilities,
+): HostClient {
   const storageSuffix = encodeURIComponent(endpoint.trim());
   const transport = new WebSocketHostTransport({
     endpoint,
@@ -44,6 +52,7 @@ export function createMobileHostClient(endpoint: string, admission: MobileHostAd
       : { onIssuedDeviceCredential: admission.onIssuedDeviceCredential }),
     lastSeqStore: createLocalStorageLastSeqStore(`${LAST_SEQ_KEY}.${storageSuffix}`),
     cursorStore: createLocalStorageCursorStore(`${CURSOR_KEY}.${storageSuffix}`),
+    ...(capabilities === undefined ? {} : { capabilities }),
   });
 }
 

@@ -1,0 +1,231 @@
+/* ═══════════════════════════════════════════════════════════════
+   Piwin Mobile — Floating Capsule Composer & Quick Actions
+   ═══════════════════════════════════════════════════════════════ */
+
+.modern-composer-dock {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  z-index: 40;
+}
+
+.modern-composer-wrapper {
+  position: relative;
+  padding: 8px 12px max(24px, env(safe-area-inset-bottom, 24px), var(--keyboard-inset, 0px));
+  background: linear-gradient(180deg, transparent 0%, var(--surface-2) 60%);
+  pointer-events: none;
+}
+
+/* Attachments Shelf */
+.modern-composer-attachment-bar {
+  display: flex;
+  gap: 8px;
+  padding-bottom: 8px;
+  overflow-x: auto;
+  pointer-events: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.modern-attachment-thumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--surface-3);
+  border: 1px solid var(--line-2);
+  box-shadow: var(--elev-1);
+  border-radius: var(--radius-full);
+  font-size: 11.5px;
+  color: var(--text-1);
+}
+
+.modern-attachment-del {
+  background: transparent;
+  border: none;
+  color: var(--text-3);
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.modern-attachment-del:active {
+  color: var(--coral);
+}
+
+/* Main Composer Capsule */
+.modern-composer-capsule {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 6px 8px 6px 10px;
+  border-radius: var(--radius-capsule);
+  background: var(--composer-bg);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid var(--line-2);
+  box-shadow: var(--elev-3);
+  pointer-events: auto;
+}
+
+.modern-composer-attach-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-bottom: 1px;
+  transition: all var(--motion-quick) var(--motion-ease);
+}
+
+.modern-composer-attach-btn:active {
+  transform: scale(0.92);
+  color: var(--text-1);
+  background: var(--surface-control);
+}
+
+.modern-file-input-hidden {
+  display: none;
+}
+
+/* Auto-grow Textarea */
+.modern-composer-textarea {
+  flex: 1;
+  min-height: 24px;
+  max-height: 120px;
+  padding: 6px 4px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text-1);
+  font-size: 16px;
+  line-height: 1.45;
+  resize: none;
+}
+
+.modern-composer-textarea::placeholder {
+  color: var(--text-3);
+}
+
+/* Action Buttons (Send / Stop / Mic) */
+.modern-composer-action-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all var(--motion-quick) var(--motion-ease);
+  margin-bottom: 1px;
+}
+
+.modern-composer-action-btn.send-disabled {
+  background: var(--surface-control);
+  color: var(--text-3);
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.modern-composer-action-btn.send-active {
+  background: var(--iris-gradient);
+  color: #ffffff;
+  box-shadow: var(--iris-glow);
+}
+
+.modern-composer-action-btn.send-active:active {
+  transform: scale(0.92);
+}
+
+.modern-composer-action-btn.stop-active {
+  background: var(--coral);
+  color: #ffffff;
+  box-shadow: 0 0 12px var(--coral-soft);
+  animation: breath 1.8s infinite ease-in-out;
+}
+
+.modern-composer-action-btn.stop-active:active {
+  transform: scale(0.92);
+}
+
+.modern-composer-action-btn.mic-idle {
+  width: 44px;
+  height: 44px;
+  background: var(--surface-control);
+  color: var(--text-1);
+  touch-action: none;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+.modern-composer-action-btn.mic-idle:active {
+  transform: scale(0.9);
+  background: var(--surface-control-hover);
+  color: var(--iris);
+}
+
+.modern-composer-action-btn.mic-listening {
+  background: var(--coral);
+  color: #ffffff;
+  box-shadow: 0 0 14px rgba(255, 95, 86, 0.6);
+  animation: breath 1.2s infinite ease-in-out;
+  touch-action: none;
+}
+
+/* Hold To Talk Banner */
+.hold-to-talk-overlay {
+  pointer-events: none;
+  margin: 0 2px 8px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: var(--surface-3);
+  border: 1px solid var(--line-2);
+  box-shadow: var(--elev-2);
+}
+
+.hold-to-talk-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.hold-to-talk-transcript {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+/* Health Context Chip */
+.modern-composer-health-chip {
+  flex-shrink: 0;
+  height: 28px;
+  margin-bottom: 4px;
+  padding: 0 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--line-2);
+  background: var(--surface-control);
+  color: var(--text-2);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--motion-quick);
+}
+
+.modern-composer-health-chip.is-active {
+  color: #ffffff;
+  border-color: var(--iris);
+  background: var(--iris-gradient);
+  box-shadow: var(--iris-glow);
+}

@@ -1,4 +1,5 @@
 mod credential_store;
+mod webview_chrome;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -8,6 +9,7 @@ pub fn run() {
     #[cfg(mobile)]
     {
         builder = builder.plugin(tauri_plugin_barcode_scanner::init());
+        builder = builder.plugin(tauri_plugin_piwin_healthkit::init());
     }
 
     builder = builder.plugin(
@@ -17,6 +19,10 @@ pub fn run() {
     );
 
     builder
+        .setup(|app| {
+            webview_chrome::install(app);
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             credential_store::mobile_credential_read,
             credential_store::mobile_credential_write,

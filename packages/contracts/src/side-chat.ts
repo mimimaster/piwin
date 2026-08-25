@@ -8,6 +8,7 @@
  */
 
 import type { SessionSummary } from './host.js';
+import type { ConnectedSourceContextRef } from './apple-health.js';
 
 /** Product relation binding a side chat to its source main session (§7.1). */
 export type SideChatRelation = {
@@ -102,7 +103,8 @@ export type MainContextRef =
       label: string;
     }
   | SelectionContextRef
-  | FolderContextRef;
+  | FolderContextRef
+  | ConnectedSourceContextRef;
 
 /** Ref referencing a side chat response for handoff back to the main Composer. */
 export type SideChatOnlyContextRef = {

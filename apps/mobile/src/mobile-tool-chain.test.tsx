@@ -7,6 +7,7 @@ import { MobileToolCallCard } from './components/chat/MobileToolCallCard.js';
 import { MobileToolChain } from './components/chat/MobileToolChain.js';
 import { MobileMessageItem } from './components/chat/MobileMessageItem.js';
 import { MOBILE_THEME } from './mobile-theme.js';
+import { handleRemotePush, type MobileTranscriptMessage } from './mobile-transcript.js';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -156,7 +157,94 @@ describe('Mobile Tool Call Chain & Execution Cards', () => {
       );
     });
     expect(container.textContent).toContain('Landing');
-    expect(container.querySelector('.artifact-preview-btn')).not.toBeNull();
+    expect(container.textContent).not.toContain('<section><h1>Hi</h1></section>');
+    expect(container.querySelector('[data-testid="mobile-artifact-stage"]')).not.toBeNull();
+    expect(container.querySelector('iframe')).not.toBeNull();
+  });
+
+  it('renders HealthToolCard from live tool/end presentation', () => {
+    let messages: MobileTranscriptMessage[] = [];
+    const setMessages = (
+      update: MobileTranscriptMessage[] | ((current: MobileTranscriptMessage[]) => MobileTranscriptMessage[]),
+    ) => {
+      messages = typeof update === 'function' ? update(messages) : update;
+    };
+    const activeSessionRef = { current: 'session-1' };
+    const noop = () => undefined;
+    handleRemotePush(
+      {
+        type: 'event',
+        sessionId: 'session-1',
+        event: { type: 'message/start', messageId: 'msg-h', role: 'assistant' },
+      },
+      activeSessionRef,
+      setMessages,
+      noop,
+      noop,
+    );
+    handleRemotePush(
+      {
+        type: 'event',
+        sessionId: 'session-1',
+        event: {
+          type: 'tool/start',
+          toolCallId: 'health-1',
+          toolName: 'health_read_context',
+          responseMessageId: 'msg-h',
+          presentation: {
+            kind: 'health',
+            title: '读取 Apple Health',
+            health: {
+              metrics: ['steps'],
+              periodLabel: '今天',
+              status: 'waiting-for-phone',
+            },
+          },
+        },
+      },
+      activeSessionRef,
+      setMessages,
+      noop,
+      noop,
+    );
+    handleRemotePush(
+      {
+        type: 'event',
+        sessionId: 'session-1',
+        event: {
+          type: 'tool/end',
+          toolCallId: 'health-1',
+          isError: false,
+          responseMessageId: 'msg-h',
+          presentation: {
+            kind: 'health',
+            title: '读取 Apple Health',
+            health: {
+              metrics: ['steps'],
+              periodLabel: '今天',
+              status: 'completed',
+              freshnessLabel: '08:42',
+            },
+          },
+        },
+      },
+      activeSessionRef,
+      setMessages,
+      noop,
+      noop,
+    );
+    const tool = messages[0]?.toolCalls?.[0];
+    expect(tool?.presentation?.kind).toBe('health');
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={MOBILE_THEME}>
+          <MobileToolCallCard tool={tool!} />
+        </PiwinUiProvider>,
+      );
+    });
+    expect(container.querySelector('[data-testid="health-tool-card"]')).not.toBeNull();
+    expect(container.textContent).toContain('已完成');
+    expect(container.textContent).not.toContain('schemaVersion');
   });
 
   it('capability off: completed html fence stays source-only', () => {

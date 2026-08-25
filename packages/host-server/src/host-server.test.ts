@@ -579,6 +579,7 @@ describe('HostServer', () => {
       encodeHostWireMessage({
         type: 'command',
         requestId: 'create-project',
+        idempotencyKey: 'create-project-1',
         command: {
           type: 'session/create',
           input: {
@@ -597,6 +598,7 @@ describe('HostServer', () => {
       encodeHostWireMessage({
         type: 'command',
         requestId: 'create-path-rejected',
+        idempotencyKey: 'create-path-1',
         command: {
           type: 'session/create',
           input: {

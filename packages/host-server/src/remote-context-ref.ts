@@ -65,6 +65,8 @@ export function isSafeRemoteContextRef(ref: PromptContextRef): boolean {
         ref.title.length <= MAX_LABEL_CHARS &&
         ref.detail.length <= MAX_SNAPSHOT_CHARS
       );
+    case 'connected-source':
+      return ref.source === 'apple-health' && ref.label === 'Apple Health';
     default:
       return false;
   }

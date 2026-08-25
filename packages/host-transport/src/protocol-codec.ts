@@ -1,4 +1,5 @@
 import type {
+  ClientToolWireFrame,
   HostCommandFrame,
   HostErrorFrame,
   HostHello,
@@ -10,6 +11,11 @@ import type {
   HostResponseFrame,
   HostSnapshotFrame,
   HostWireMessage,
+} from '@piwin/contracts';
+import {
+  clientToolFrameByteCap,
+  parseClientToolCapabilityAdvertisements,
+  parseClientToolWireFrame,
 } from '@piwin/contracts';
 
 const HOST_WIRE_TYPES = new Set<HostWireMessage['type']>([
@@ -24,6 +30,12 @@ const HOST_WIRE_TYPES = new Set<HostWireMessage['type']>([
   'snapshot',
   'hydration',
   'error',
+  'client/subscriptions',
+  'subscriptions/applied',
+  'client-tool/request',
+  'client-tool/result',
+  'client-tool/cancel',
+  'client-tool/capabilities',
 ]);
 
 export const HOST_WIRE_HARD_FRAME_BYTES = 1_048_576;
@@ -42,6 +54,13 @@ export function encodeHostWireMessage(message: HostWireMessage): string {
     throw new HostProtocolError('Host wire message cannot be encoded');
   }
   assertWithinFrameCap(encoded);
+  assertClientToolFrameCap(message.type, encoded);
+  if (isClientToolWireType(message.type)) {
+    const parsed = parseClientToolWireFrame(message);
+    if (!parsed.ok) {
+      throw new HostProtocolError(parsed.reason);
+    }
+  }
 
   return encoded;
 }
@@ -65,6 +84,14 @@ export function decodeHostWireMessage(serialized: string): HostWireMessage {
 
   validateRequiredFields(parsed);
   assertWithinFrameCap(serialized);
+  assertClientToolFrameCap(parsed.type, serialized);
+  if (isClientToolWireType(parsed.type)) {
+    const parsedFrame = parseClientToolWireFrame(parsed);
+    if (!parsedFrame.ok) {
+      throw new HostProtocolError(parsedFrame.reason);
+    }
+    return parsedFrame.value;
+  }
   return parsed as HostWireMessage;
 }
 
@@ -76,12 +103,29 @@ function validateRequiredFields(message: Record<string, unknown>): void {
       messageType === 'command' ||
       messageType === 'response' ||
       messageType === 'replay' ||
-      messageType === 'replay/done') &&
+      messageType === 'replay/done' ||
+      messageType === 'client/subscriptions' ||
+      messageType === 'subscriptions/applied') &&
     typeof message.requestId !== 'string' &&
     messageType !== 'client/hello' &&
     messageType !== 'host/hello'
   ) {
     throw new HostProtocolError(`${messageType} requires requestId`);
+  }
+
+  if (messageType === 'client/subscriptions' || messageType === 'subscriptions/applied') {
+    if (typeof message.revision !== 'number' || !Number.isSafeInteger(message.revision) || message.revision < 0) {
+      throw new HostProtocolError(`${messageType} requires a non-negative revision`);
+    }
+  }
+  if (messageType === 'client/subscriptions' && !isRecord(message.subscriptions)) {
+    throw new HostProtocolError('client/subscriptions requires subscriptions');
+  }
+  if (
+    messageType === 'subscriptions/applied' &&
+    (typeof message.fenceSeq !== 'number' || !Number.isSafeInteger(message.fenceSeq) || message.fenceSeq < 0)
+  ) {
+    throw new HostProtocolError('subscriptions/applied requires fenceSeq');
   }
 
   if (messageType === 'command' && !isRecord(message.command)) {
@@ -112,6 +156,14 @@ function validateRequiredFields(message: Record<string, unknown>): void {
 
   if (messageType === 'hydration') {
     validateHydration(message);
+  }
+
+  if (messageType === 'client/hello') {
+    validateClientHelloCapabilities(message);
+  }
+
+  if (messageType === 'host/hello') {
+    validateHostHelloCapabilities(message);
   }
 }
 
@@ -195,6 +247,53 @@ function isSafeSeq(value: unknown): value is number {
 function assertWithinFrameCap(serialized: string): void {
   if (new TextEncoder().encode(serialized).byteLength > HOST_WIRE_HARD_FRAME_BYTES) {
     throw new HostProtocolError(`Host wire frame exceeds ${HOST_WIRE_HARD_FRAME_BYTES} bytes`);
+  }
+}
+
+function assertClientToolFrameCap(type: unknown, serialized: string): void {
+  if (!isClientToolWireType(type)) {
+    return;
+  }
+  const cap = clientToolFrameByteCap(type);
+  if (new TextEncoder().encode(serialized).byteLength > cap) {
+    throw new HostProtocolError(`client-tool frame exceeds ${cap} bytes`);
+  }
+}
+
+function isClientToolWireType(type: unknown): type is ClientToolWireFrame['type'] {
+  return (
+    type === 'client-tool/request' ||
+    type === 'client-tool/result' ||
+    type === 'client-tool/cancel' ||
+    type === 'client-tool/capabilities'
+  );
+}
+
+function validateClientHelloCapabilities(message: Record<string, unknown>): void {
+  if (message.capabilities === undefined) {
+    return;
+  }
+  if (!isRecord(message.capabilities)) {
+    throw new HostProtocolError('client/hello capabilities must be an object');
+  }
+  if (message.capabilities.clientTools === undefined) {
+    return;
+  }
+  const parsed = parseClientToolCapabilityAdvertisements(message.capabilities.clientTools);
+  if (!parsed.ok) {
+    throw new HostProtocolError(parsed.reason);
+  }
+}
+
+function validateHostHelloCapabilities(message: Record<string, unknown>): void {
+  if (!isRecord(message.capabilities)) {
+    return;
+  }
+  if (
+    message.capabilities.clientToolRequests !== undefined &&
+    typeof message.capabilities.clientToolRequests !== 'boolean'
+  ) {
+    throw new HostProtocolError('host/hello clientToolRequests must be boolean');
   }
 }
 

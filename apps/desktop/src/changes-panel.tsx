@@ -1,13 +1,14 @@
 /**
- * Uncommitted file list — VS Code SCM style.
- * Selecting a file delegates to the shared workspace file preview instead of
- * maintaining a second diff/document surface inside the Changes tab.
+ * Uncommitted file list & in-tab review — VS Code / Cursor SCM style.
+ * Selecting a file switches into in-tab diff review without opening a separate Document tab.
  */
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 import type { GitDiffSummary, GitStatusSnapshot, HostResponse } from '@piwin/contracts';
-import { Button, Notice } from '@piwin/ui-kit';
+import { Button, FileTypeIcon, Notice } from '@piwin/ui-kit';
 import { IconRefresh } from './shell-icons';
 import { useConfirmDialog } from './use-confirm-dialog';
+import { formatDisplayPathParts } from './truncate-relative-path';
+import { ChangeFileReview } from './change-file-review';
 
 type GitReadRequest =
   | { type: 'git/status'; projectPath: string }
@@ -25,12 +26,17 @@ type GitReadRequest =
   | {
       type: 'git/unstage';
       input: { projectPath: string; paths: string[] };
+    }
+  | {
+      type: 'git/commit';
+      input: { projectPath: string; message: string; allTracked?: boolean };
     };
 
 export type ChangesPanelProps = {
   projectPath: string | null;
   request: (command: GitReadRequest) => Promise<HostResponse>;
-  /** Open a changed file through the shared workspace file-preview flow. */
+  locale?: 'zh-CN' | 'en' | undefined;
+  /** @deprecated Kept for backwards compatibility; file clicks now review within the Changes tab. */
   onOpenFile?: (absolutePath: string, relativePath: string) => void;
 };
 
@@ -64,10 +70,13 @@ function statusShort(status: string): string {
 
 export function ChangesPanel(props: ChangesPanelProps): ReactElement {
   const confirmDialog = useConfirmDialog();
+  const locale = props.locale ?? 'zh-CN';
   const [snapshot, setSnapshot] = useState<GitStatusSnapshot | null>(null);
   const [diff, setDiff] = useState<GitDiffSummary | null>(null);
   const [checkedPaths, setCheckedPaths] = useState<string[]>([]);
   const [activePath, setActivePath] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'list' | 'file'>('list');
+  const [commitMessage, setCommitMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -79,6 +88,7 @@ export function ChangesPanel(props: ChangesPanelProps): ReactElement {
       setDiff(null);
       setError(null);
       setActivePath(null);
+      setViewMode('list');
       return;
     }
     setLoading(true);
@@ -109,9 +119,17 @@ export function ChangesPanel(props: ChangesPanelProps): ReactElement {
       if (current && nextStatus.changedFiles.some((file) => file.path === current)) {
         return current;
       }
-      return nextStatus.changedFiles[0]?.path ?? null;
+      const fallback = nextStatus.changedFiles[0]?.path ?? null;
+      if (!fallback) {
+        setViewMode('list');
+      }
+      return fallback;
     });
-  }, [props]);
+    // Depend on the fields, not the props object: the parent re-renders on
+    // every composer keystroke, and a new props identity here used to re-run
+    // this effect per keystroke — flashing "Loading", spamming git requests,
+    // and shaking the open right panel.
+  }, [props.projectPath, props.request]);
 
   useEffect(() => {
     void reload();
@@ -140,6 +158,13 @@ export function ChangesPanel(props: ChangesPanelProps): ReactElement {
     });
   }, [snapshot, diff]);
 
+  const activeRow = useMemo(
+    () => rows.find((r) => r.path === activePath),
+    [rows, activePath],
+  );
+
+  const stagedCount = useMemo(() => rows.filter((r) => r.staged).length, [rows]);
+
   function toggleChecked(filePath: string): void {
     setCheckedPaths((current) =>
       current.includes(filePath)
@@ -156,13 +181,13 @@ export function ChangesPanel(props: ChangesPanelProps): ReactElement {
     const label =
       paths.length === 0
         ? kind === 'stage'
-          ? 'Stage ALL changes?'
-          : 'Unstage ALL staged changes?'
-        : `${kind === 'stage' ? 'Stage' : 'Unstage'} ${paths.length} path(s)?`;
+          ? locale === 'zh-CN' ? '暂存所有变更？' : 'Stage ALL changes?'
+          : locale === 'zh-CN' ? '取消暂存所有已暂存文件？' : 'Unstage ALL staged changes?'
+        : `${kind === 'stage' ? (locale === 'zh-CN' ? '暂存' : 'Stage') : (locale === 'zh-CN' ? '取消暂存' : 'Unstage')} ${paths.length} ${locale === 'zh-CN' ? '个文件' : 'path(s)'}?`;
     const ok = await confirmDialog.confirm({
-      title: kind === 'stage' ? 'Stage changes?' : 'Unstage changes?',
+      title: kind === 'stage' ? (locale === 'zh-CN' ? '暂存变更？' : 'Stage changes?') : (locale === 'zh-CN' ? '取消暂存？' : 'Unstage changes?'),
       description: label,
-      confirmLabel: kind === 'stage' ? 'Stage' : 'Unstage',
+      confirmLabel: kind === 'stage' ? (locale === 'zh-CN' ? '暂存' : 'Stage') : (locale === 'zh-CN' ? '取消暂存' : 'Unstage'),
       tone: 'default',
     });
     if (!ok) {
@@ -180,16 +205,38 @@ export function ChangesPanel(props: ChangesPanelProps): ReactElement {
       setError(response.error);
       return;
     }
-    setInfo(kind === 'stage' ? 'Staged' : 'Unstaged');
+    setInfo(kind === 'stage' ? (locale === 'zh-CN' ? '已暂存' : 'Staged') : (locale === 'zh-CN' ? '已取消暂存' : 'Unstaged'));
     await reload();
   }
 
-  function absolutePathFor(relativePath: string): string {
-    if (!props.projectPath) {
-      return relativePath;
+  async function runCommit(): Promise<void> {
+    if (!props.projectPath || !commitMessage.trim()) {
+      return;
     }
-    const projectPath = props.projectPath.replace(/[\\/]+$/, '');
-    return `${projectPath}/${relativePath}`;
+    const ok = await confirmDialog.confirm({
+      title: locale === 'zh-CN' ? '确认提交' : 'Confirm commit',
+      description: commitMessage.trim(),
+      confirmLabel: locale === 'zh-CN' ? '提交' : 'Commit',
+      tone: 'default',
+    });
+    if (!ok) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setInfo(null);
+    const response = await props.request({
+      type: 'git/commit',
+      input: { projectPath: props.projectPath, message: commitMessage.trim() },
+    });
+    setBusy(false);
+    if (!response.success) {
+      setError(response.error);
+      return;
+    }
+    setCommitMessage('');
+    setInfo(locale === 'zh-CN' ? '已提交' : 'Committed');
+    await reload();
   }
 
   if (!props.projectPath) {
@@ -197,7 +244,29 @@ export function ChangesPanel(props: ChangesPanelProps): ReactElement {
       <>
         {confirmDialog.dialog}
         <div className="changes-panel" data-testid="changes-panel">
-          <div className="right-panel-empty muted">Open a project to see file changes.</div>
+          <div className="right-panel-empty muted">
+            {locale === 'zh-CN' ? '打开项目查看文件变更' : 'Open a project to see file changes.'}
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  if (viewMode === 'file' && activePath) {
+    return (
+      <>
+        {confirmDialog.dialog}
+        <div className="changes-panel changes-panel-file" data-testid="changes-panel">
+          <ChangeFileReview
+            projectPath={props.projectPath}
+            relativePath={activePath}
+            status={activeRow?.status}
+            additions={activeRow?.additions}
+            deletions={activeRow?.deletions}
+            request={props.request}
+            locale={props.locale}
+            onBack={() => setViewMode('list')}
+          />
         </div>
       </>
     );
@@ -209,6 +278,10 @@ export function ChangesPanel(props: ChangesPanelProps): ReactElement {
       : (snapshot.branch.currentBranch ?? 'unknown')
     : '…';
 
+  const branchUpstream = snapshot?.branch?.upstreamBranch
+    ? ` · ${snapshot.branch.upstreamBranch} ↑${snapshot.branch.ahead} ↓${snapshot.branch.behind}`
+    : '';
+
   return (
     <>
       {confirmDialog.dialog}
@@ -216,10 +289,13 @@ export function ChangesPanel(props: ChangesPanelProps): ReactElement {
         <div className="changes-list-pane">
           <div className="changes-toolbar">
             <div className="changes-toolbar-heading">
-              <strong>Uncommitted changes</strong>
-              <div className="changes-branch muted" title={branchLabel}>
-                <span className="changes-branch-dot" aria-hidden />
-                {branchLabel}
+              <strong>{locale === 'zh-CN' ? '未提交变更' : 'Uncommitted changes'}</strong>
+              <div className="changes-branch muted" title={branchLabel + branchUpstream}>
+                <span
+                  className={snapshot?.branch?.dirty ? 'changes-branch-dot dirty' : 'changes-branch-dot'}
+                  aria-hidden
+                />
+                {branchLabel}{branchUpstream}
               </div>
             </div>
             <button
@@ -227,8 +303,8 @@ export function ChangesPanel(props: ChangesPanelProps): ReactElement {
               className="changes-icon-button"
               disabled={loading || busy}
               onClick={() => void reload()}
-              title="Refresh changes"
-              aria-label="Refresh changes"
+              title={locale === 'zh-CN' ? '刷新变更' : 'Refresh changes'}
+              aria-label={locale === 'zh-CN' ? '刷新变更' : 'Refresh changes'}
             >
               <IconRefresh />
             </button>
@@ -238,10 +314,12 @@ export function ChangesPanel(props: ChangesPanelProps): ReactElement {
           {info ? <Notice tone="info">{info}</Notice> : null}
 
           {!snapshot?.repository.isRepository ? (
-            <div className="right-panel-empty muted">Not a git repository.</div>
+            <div className="right-panel-empty muted">
+              {locale === 'zh-CN' ? '非 Git 仓库' : 'Not a git repository.'}
+            </div>
           ) : rows.length === 0 ? (
             <div className="right-panel-empty muted" data-testid="changes-clean">
-              Working tree clean
+              {locale === 'zh-CN' ? '工作区干净' : 'Working tree clean'}
               {diff ? (
                 <div className="changes-totals muted">
                   +{diff.totalAdditions} / −{diff.totalDeletions}
@@ -251,55 +329,114 @@ export function ChangesPanel(props: ChangesPanelProps): ReactElement {
           ) : (
             <>
               <div className="changes-totals muted" data-testid="changes-count">
-                {rows.length} file{rows.length === 1 ? '' : 's'}
+                {rows.length} {locale === 'zh-CN' ? '个文件' : (rows.length === 1 ? 'file' : 'files')}
                 {diff ? ` · +${diff.totalAdditions} −${diff.totalDeletions}` : ''}
               </div>
               <ul className="changes-list" data-testid="changes-list">
-                {rows.map((row) => (
-                  <li key={row.path}>
-                    <div
-                      className={activePath === row.path ? 'changes-row selected' : 'changes-row'}
-                      data-testid="changes-row"
-                    >
-                      <input
-                        type="checkbox"
-                        className="changes-check"
-                        checked={checkedPaths.includes(row.path)}
-                        onChange={() => toggleChecked(row.path)}
-                        aria-label={`Select ${row.path} for stage`}
-                        onClick={(event) => event.stopPropagation()}
-                      />
-                      <button
-                        type="button"
-                        className="changes-row-main"
-                        onClick={() => {
-                          setActivePath(row.path);
-                          props.onOpenFile?.(absolutePathFor(row.path), row.path);
-                        }}
+                {rows.map((row) => {
+                  const parts = formatDisplayPathParts(row.path, props.projectPath);
+                  return (
+                    <li key={row.path}>
+                      <div
+                        className={activePath === row.path ? 'changes-row selected' : 'changes-row'}
+                        data-testid="changes-row"
                       >
-                        <span className={`changes-code status-${row.status}`}>
-                          {statusShort(row.status)}
-                        </span>
-                        <span className="changes-path" title={row.path}>
-                          {row.path}
-                        </span>
-                        <span className="changes-stats">
-                          {row.additions > 0 ? <span className="add">+{row.additions}</span> : null}
-                          {row.deletions > 0 ? <span className="del">−{row.deletions}</span> : null}
-                        </span>
-                        {row.staged ? <span className="changes-chip">S</span> : null}
-                      </button>
-                    </div>
-                  </li>
-                ))}
+                        <input
+                          type="checkbox"
+                          className="changes-check"
+                          checked={checkedPaths.includes(row.path)}
+                          onChange={() => toggleChecked(row.path)}
+                          aria-label={`Select ${row.path} for stage`}
+                          onClick={(event) => event.stopPropagation()}
+                        />
+                        <button
+                          type="button"
+                          className="changes-row-main"
+                          onClick={() => {
+                            setActivePath(row.path);
+                            setViewMode('file');
+                          }}
+                        >
+                          <FileTypeIcon filePathOrExt={row.path} className="changes-row-icon" />
+                          <span className={`changes-code status-${row.status}`}>
+                            {statusShort(row.status)}
+                          </span>
+                          <span className="changes-path" title={row.path}>
+                            {parts.dirPath ? (
+                              <span className="changes-path-dir">{parts.dirPath}</span>
+                            ) : null}
+                            <span className="changes-path-file">{parts.fileName}</span>
+                          </span>
+                          <span className="changes-stats">
+                            {row.additions > 0 ? (
+                              <span className="add">+{row.additions}</span>
+                            ) : null}
+                            {row.deletions > 0 ? (
+                              <span className="del">−{row.deletions}</span>
+                            ) : null}
+                          </span>
+                          {row.staged ? <span className="changes-chip" title="staged">S</span> : null}
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
-              <div className="changes-actions">
-                <Button size="compact" disabled={busy} onClick={() => void runStage('stage')}>
-                  Stage {checkedPaths.length > 0 ? 'selected' : 'all'}
-                </Button>
-                <Button size="compact" disabled={busy} onClick={() => void runStage('unstage')}>
-                  Unstage {checkedPaths.length > 0 ? 'selected' : 'all'}
-                </Button>
+
+              {/* Integrated Commit & Stage Bar */}
+              <div className="changes-commit-bar" data-testid="changes-commit-bar">
+                <div className="changes-commit-hint">
+                  <span>
+                    {locale === 'zh-CN' ? '已暂存 ' : 'Staged '}
+                    <b>{stagedCount}</b> / {rows.length} {locale === 'zh-CN' ? '个文件' : 'files'}
+                  </span>
+                  <div className="changes-stage-links">
+                    <button
+                      type="button"
+                      className="changes-link-btn"
+                      disabled={busy}
+                      onClick={() => void runStage('stage')}
+                    >
+                      {locale === 'zh-CN'
+                        ? (checkedPaths.length > 0 ? '暂存选中' : '全部暂存')
+                        : (checkedPaths.length > 0 ? 'Stage selected' : 'Stage all')}
+                    </button>
+                    <button
+                      type="button"
+                      className="changes-link-btn"
+                      disabled={busy || stagedCount === 0}
+                      onClick={() => void runStage('unstage')}
+                    >
+                      {locale === 'zh-CN'
+                        ? (checkedPaths.length > 0 ? '取消暂存' : '全取消')
+                        : (checkedPaths.length > 0 ? 'Unstage selected' : 'Unstage all')}
+                    </button>
+                  </div>
+                </div>
+                <div className="changes-commit-line">
+                  <input
+                    type="text"
+                    className="changes-commit-input"
+                    value={commitMessage}
+                    onChange={(e) => setCommitMessage(e.target.value)}
+                    placeholder={locale === 'zh-CN' ? '输入提交信息…' : 'Commit message…'}
+                    data-testid="changes-commit-message"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && commitMessage.trim() && stagedCount > 0 && !busy) {
+                        void runCommit();
+                      }
+                    }}
+                  />
+                  <Button
+                    size="compact"
+                    variant="primary"
+                    disabled={busy || !commitMessage.trim() || stagedCount === 0}
+                    onClick={() => void runCommit()}
+                    data-testid="changes-commit-btn"
+                  >
+                    {locale === 'zh-CN' ? '提交' : 'Commit'}
+                  </Button>
+                </div>
               </div>
             </>
           )}

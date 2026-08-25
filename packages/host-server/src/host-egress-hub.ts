@@ -7,6 +7,7 @@ import type {
   PushSink,
 } from '@piwin/contracts';
 import { classifyHostPush, type HostDeliveryKey, type HostPushPolicy } from '@piwin/host-transport';
+import type { LiveSessionFilter } from '@piwin/host-transport';
 import { HostEgressChannel, type HostEgressRecord } from './host-egress-channel.js';
 import type { HostEgressClientStats, HostEgressStats } from './host-egress-metrics.js';
 import { HostReplayJournal } from './host-replay-journal.js';
@@ -25,6 +26,7 @@ export type HostEgressHubOptions = {
   maxPendingDiagnosticItems?: number;
   maxPendingDiagnosticBytes?: number;
   onError?: (error: Error) => void;
+  onCanonicalIngest?: (push: HostPush) => void;
 };
 
 export type HostEgressClientOptions = {
@@ -39,6 +41,7 @@ export type HostEgressClientOptions = {
   sendBatchNow?: (frame: HostPushBatchFrame) => void;
   supportsBatch?: boolean;
   closeSlowConsumer?: (reason: string) => void;
+  liveFilter?: LiveSessionFilter;
 };
 
 type PendingRecord = {
@@ -79,6 +82,8 @@ export class HostEgressHub {
   private flushTimer: ReturnType<typeof setTimeout> | undefined;
   private detachRuntimeSink: (() => void) | undefined;
   private disposed = false;
+  private readonly ingestListeners = new Set<(push: HostPush) => void>();
+  private readonly onCanonicalIngest: ((push: HostPush) => void) | undefined;
 
   public constructor(options: HostEgressHubOptions) {
     const hostInstanceId = options.hostInstanceId ?? randomUUID();
@@ -112,6 +117,12 @@ export class HostEgressHub {
       throw new Error('Host egress pending budgets must be greater than zero');
     }
     this.onError = options.onError ?? (() => undefined);
+    this.onCanonicalIngest = options.onCanonicalIngest;
+  }
+
+  public subscribeIngest(listener: (push: HostPush) => void): () => void {
+    this.ingestListeners.add(listener);
+    return () => this.ingestListeners.delete(listener);
   }
 
   public getHostInstanceId(): string {
@@ -171,6 +182,7 @@ export class HostEgressHub {
         ? { maxQueueBytes: this.maxClientQueueBytes }
         : { maxQueueBytes: options.maxQueueBytes }),
       ...(this.maxFrameBytes === undefined ? {} : { maxFrameBytes: this.maxFrameBytes }),
+      ...(options.liveFilter === undefined ? {} : { liveFilter: options.liveFilter }),
       send: (message) => {
         if (options.send !== undefined) {
           options.send(message as HostPushFrame | HostPushBatchFrame);
@@ -444,6 +456,14 @@ export class HostEgressHub {
       (this.canonicalByPolicy.get(pending.policy.kind) ?? 0) + 1,
     );
     this.journal.append(sequence);
+    this.onCanonicalIngest?.(pending.push);
+    for (const listener of this.ingestListeners) {
+      try {
+        listener(pending.push);
+      } catch (error) {
+        this.onError(error instanceof Error ? error : new Error('Host ingest listener failed'));
+      }
+    }
     for (const [id, client] of this.clients) {
       try {
         client.offer(record);

@@ -35,7 +35,7 @@ function createController(runtime = new FakeRuntime()) {
 }
 
 describe('MobileAccessController', () => {
-  it('starts, mints pairing codes, and rotates hostInstanceId across stop/start', async () => {
+  it('starts, mints pairing codes, and keeps hostInstanceId across stop/start', async () => {
     const { controller, runtime } = createController();
     try {
       const started = await controller.handle({
@@ -78,8 +78,7 @@ describe('MobileAccessController', () => {
         throw new Error(restarted.error);
       }
       const restartedId = (restarted.data as { hostInstanceId?: string }).hostInstanceId;
-      expect(restartedId).toBeTruthy();
-      expect(restartedId).not.toBe(instanceId);
+      expect(restartedId).toBe(instanceId);
       expect(runtime.commands).toEqual([]);
     } finally {
       await controller.dispose();

@@ -3,15 +3,10 @@ import { IconSpark, IconCopy, IconCheck } from '@piwin/ui-kit';
 import { MobileMarkdown } from './MobileMarkdown.js';
 import { MobileThinkingBlock } from './MobileThinkingBlock.js';
 import { MobileToolChain } from './MobileToolChain.js';
-import { MobileArtifactCard } from './MobileArtifactCard.js';
-import { MobileArtifactSheet } from '../modals/MobileArtifactSheet.js';
+import { MobileArtifactPending, MobileArtifactStage } from './MobileArtifactStage.js';
 import { useHaptics } from '../../hooks/use-haptics.js';
 import { useTts } from '../../hooks/use-tts.js';
-import {
-  collectMobileArtifacts,
-  mobileArtifactBlockedCopy,
-  mobileArtifactSrcdoc,
-} from '../../mobile-artifact-preview.js';
+import { partitionMobileTranscript } from '../../mobile-transcript-segments.js';
 import type { MobileTranscriptMessage } from '../../hooks/use-mobile-host.js';
 
 type MobileMessageItemProps = {
@@ -37,15 +32,18 @@ export function MobileMessageItem({
 
   const hasTools = Boolean(toolCalls && toolCalls.length > 0);
   const hasThinking = Boolean(thinking && thinking.trim().length > 0);
-  const artifacts = useMemo(
-    () =>
-      isAssistant && !isStreaming ? collectMobileArtifacts(message.text, htmlUiModeEnabled) : [],
-    [htmlUiModeEnabled, isAssistant, isStreaming, message.text],
-  );
-  const [openArtifactId, setOpenArtifactId] = useState<string | undefined>();
-  const openArtifact = artifacts.find((item) => item.id === openArtifactId);
+  const segments = useMemo(() => {
+    if (!isAssistant) {
+      return [];
+    }
+    if (!htmlUiModeEnabled) {
+      return message.text.trim().length > 0
+        ? [{ kind: 'markdown' as const, text: message.text }]
+        : [];
+    }
+    return partitionMobileTranscript(message.text, isStreaming);
+  }, [htmlUiModeEnabled, isAssistant, isStreaming, message.text]);
 
-  // Filter out empty non-streaming message turns
   if (text.length === 0 && !isStreaming && !hasThinking && !hasTools) {
     return null;
   }
@@ -57,7 +55,7 @@ export function MobileMessageItem({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // ignore
+      // clipboard is best-effort on WKWebView
     }
   };
 
@@ -69,14 +67,15 @@ export function MobileMessageItem({
   return (
     <article className={`modern-chat-turn ${message.role} ${isStreaming ? 'is-streaming' : ''}`}>
       {isUser ? (
-        // ── User Message Turn ──
         <div className="modern-user-bubble-wrapper">
           <div className="modern-user-bubble">
             {message.attachments && message.attachments.length > 0 ? (
               <div className="modern-user-attachments-grid">
                 {message.attachments.map((att) => (
                   <div key={att.id} className="modern-user-attachment-chip">
-                    <span className="att-icon">🖼️</span>
+                    <span className="att-icon" aria-hidden="true">
+                      🖼️
+                    </span>
                     <span className="att-name">{att.name ?? '图片附件'}</span>
                   </div>
                 ))}
@@ -86,7 +85,6 @@ export function MobileMessageItem({
           </div>
         </div>
       ) : (
-        // ── Assistant / System Message Turn ──
         <div className="modern-assistant-turn-wrapper">
           <div className="modern-assistant-header">
             <div className="modern-agent-badge">
@@ -120,7 +118,9 @@ export function MobileMessageItem({
                           <span className="tts-bar b3" />
                         </span>
                       ) : (
-                        <span className="tts-icon">🔊</span>
+                        <span className="tts-icon" aria-hidden="true">
+                          🔊
+                        </span>
                       )}
                     </button>
                   ) : null}
@@ -138,49 +138,38 @@ export function MobileMessageItem({
             </div>
           </div>
 
-          {/* 1. Thinking Block */}
-          {hasThinking ? (
+          {hasThinking && thinking ? (
             <MobileThinkingBlock
-              thinking={thinking!}
+              thinking={thinking}
               isStreaming={isStreaming && text.length === 0 && !hasTools}
             />
           ) : null}
 
-          {/* 2. Tool Call Execution Chain */}
-          {hasTools ? (
-            <MobileToolChain tools={toolCalls} isStreaming={isStreaming} />
-          ) : null}
+          {hasTools ? <MobileToolChain tools={toolCalls} isStreaming={isStreaming} /> : null}
 
-          {/* 3. Assistant Markdown Stream */}
-          {text.length > 0 || (isStreaming && !hasTools && !hasThinking) ? (
+          {segments.length > 0 || (isStreaming && !hasTools && !hasThinking) ? (
             <div className="modern-assistant-content">
-              <MobileMarkdown
-                content={message.text || (isStreaming ? '…' : '')}
-                isStreaming={isStreaming}
-              />
+              {segments.length === 0 ? (
+                <MobileMarkdown content={isStreaming ? '…' : ''} isStreaming={isStreaming} />
+              ) : (
+                segments.map((segment, index) => {
+                  if (segment.kind === 'markdown') {
+                    return (
+                      <MobileMarkdown
+                        key={`md-${index}`}
+                        content={segment.text}
+                        isStreaming={isStreaming}
+                      />
+                    );
+                  }
+                  if (segment.kind === 'artifact-pending') {
+                    return <MobileArtifactPending key={`pending-${index}`} title={segment.title} />;
+                  }
+                  return <MobileArtifactStage key={segment.preview.id} preview={segment.preview} />;
+                })
+              )}
             </div>
           ) : null}
-
-          {artifacts.map((item) => (
-            <MobileArtifactCard
-              key={item.id}
-              title={item.title}
-              language={item.language}
-              onOpenPreview={() => setOpenArtifactId(item.id)}
-            />
-          ))}
-
-          <MobileArtifactSheet
-            isOpen={openArtifact !== undefined}
-            onClose={() => setOpenArtifactId(undefined)}
-            title={openArtifact?.title}
-            srcdoc={openArtifact ? mobileArtifactSrcdoc(openArtifact.plan) : undefined}
-            blockedReason={
-              openArtifact?.plan.kind === 'blocked'
-                ? mobileArtifactBlockedCopy(openArtifact.plan.reason)
-                : undefined
-            }
-          />
         </div>
       )}
     </article>

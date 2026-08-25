@@ -198,6 +198,26 @@ describe('chatUiReducer', () => {
     expect(state.completedAttentionSessionIds).toEqual({});
   });
 
+  it('does not clear an active Host run on message/end without runId', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, { type: 'run/updated', run: makeRun('run-1') });
+    expect(state.activeRunId).toBe('run-1');
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: { type: 'message/start', messageId: 'a1', role: 'assistant' },
+    });
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: { type: 'message/end', messageId: 'a1' },
+    });
+    expect(state.activeRunId).toBe('run-1');
+    expect(state.streaming).toBe(true);
+    expect(state.runPhase).toBe('streaming');
+  });
+
   it('projects live native search evidence onto the assistant message', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
@@ -565,6 +585,36 @@ describe('chatUiReducer', () => {
     expect(state.streaming).toBe(false);
   });
 
+  it('keeps a Host-confirmed foreground run live when transcript hydration races it', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, {
+      type: 'run/updated',
+      run: makeRun('run-live', { phase: 'waiting-first-token' }),
+    });
+
+    state = chatUiReducer(state, {
+      type: 'session/load-messages',
+      sessionId: 's1',
+      messages: [
+        {
+          id: 'user-1',
+          role: 'user',
+          text: 'still working',
+          createdAt: '2026-08-25T00:00:00.000Z',
+          status: 'done',
+        },
+      ],
+      live: true,
+    });
+
+    expect(state.activeRunId).toBe('run-live');
+    expect(state.runPhase).toBe('streaming');
+    expect(state.streaming).toBe(true);
+    expect(state.activeRunPhase).toBe('waiting-first-token');
+    expect(state.workingSessionIds).toEqual({ s1: true });
+  });
+
   it('cold resume keeps previous rows while awaiting and ignores stream until load-messages', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
@@ -711,6 +761,26 @@ describe('chatUiReducer', () => {
     expect(state.activeRunId).toBeNull();
     expect(state.activeRunPhase).toBeNull();
     expect(state.activeRunStartedAt).toBeNull();
+  });
+
+  it('does not let a superseded cancelling run/updated clobber a newer Run', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, { type: 'run/updated', run: makeRun('run-old') });
+    state = chatUiReducer(state, { type: 'run/updated', run: makeRun('run-new') });
+    expect(state.activeRunId).toBe('run-new');
+    state = chatUiReducer(state, {
+      type: 'run/updated',
+      run: makeRun('run-old', { status: 'cancelling' }),
+    });
+    expect(state.activeRunId).toBe('run-new');
+    expect(state.streaming).toBe(true);
+    state = chatUiReducer(state, {
+      type: 'run/terminal',
+      run: makeRun('run-old', { status: 'cancelled', endedAt: '2026-07-24T00:00:02.000Z' }),
+    });
+    expect(state.activeRunId).toBe('run-new');
+    expect(state.runRecordsById['run-old']?.outcome).toBe('cancelled');
   });
 
   it('deduplicates equal or older Run revisions while preserving terminal delivery', () => {
@@ -1109,6 +1179,32 @@ describe('chatUiReducer', () => {
     expect(state.runPhase).toBe('aborting');
     state = chatUiReducer(state, { type: 'run/abort-failed' });
     expect(state.runPhase).toBe('streaming');
+    expect(state.streaming).toBe(true);
+  });
+
+  it('shows pause progress and re-enables Pause when the request fails', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, { type: 'user/send', text: 'go' });
+    state = chatUiReducer(state, { type: 'run/pausing' });
+    expect(state.runPhase).toBe('pausing');
+    expect(state.streaming).toBe(true);
+
+    state = chatUiReducer(state, { type: 'run/pause-failed' });
+    expect(state.runPhase).toBe('streaming');
+    expect(state.streaming).toBe(true);
+  });
+
+  it('projects the Host pausing phase into the live Pause control', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, { type: 'run/accepted', runId: 'run-1' });
+    state = chatUiReducer(state, {
+      type: 'run/updated',
+      run: makeRun('run-1', { status: 'cancelling', phase: 'pausing' }),
+    });
+
+    expect(state.runPhase).toBe('pausing');
     expect(state.streaming).toBe(true);
   });
 

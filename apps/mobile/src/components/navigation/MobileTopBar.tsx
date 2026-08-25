@@ -1,12 +1,15 @@
 import type { ReactElement } from 'react';
 import type { HostClientState } from '@piwin/host-client';
+import type { ThinkingLevel } from '@piwin/contracts';
 import { IconMenuList, IconPlus, IconSpark } from '@piwin/ui-kit';
 
 export type MobileTopBarProps = {
   sessionTitle?: string | undefined;
   projectName?: string | undefined;
   activeModelName?: string | undefined;
+  thinkingLevel?: ThinkingLevel | undefined;
   connectionState: HostClientState;
+  activeRunCount?: number | undefined;
   onToggleSidebar: () => void;
   onOpenModelPicker?: () => void;
   onNewChat: () => void;
@@ -17,13 +20,16 @@ export function MobileTopBar({
   sessionTitle,
   projectName,
   activeModelName,
+  thinkingLevel,
   connectionState,
+  activeRunCount = 0,
   onToggleSidebar,
   onOpenModelPicker,
   onNewChat,
   onOpenSettings,
 }: MobileTopBarProps): ReactElement {
   const isConnected = connectionState.kind === 'ready';
+  const showThinkingBadge = thinkingLevel !== undefined && thinkingLevel !== 'off';
 
   return (
     <header className="mobile-top-bar">
@@ -36,6 +42,7 @@ export function MobileTopBar({
           aria-label="打开会话与导航侧边栏"
         >
           <IconMenuList size={22} />
+          {activeRunCount > 0 ? <span className="mobile-top-btn-badge" /> : null}
         </button>
 
         {/* Center: Title / Model Pill */}
@@ -50,6 +57,9 @@ export function MobileTopBar({
             <span className="mobile-pill-title">
               {activeModelName || sessionTitle || (projectName ? `${projectName} · 对话` : 'Piwin Agent')}
             </span>
+            {showThinkingBadge ? (
+              <span className="mobile-pill-thinking-badge">{thinkingLevel.toUpperCase()}</span>
+            ) : null}
             <span className="mobile-pill-chevron">▾</span>
           </button>
         </div>
@@ -62,7 +72,11 @@ export function MobileTopBar({
             onClick={onOpenSettings}
             aria-label="Host 连接状态与设置"
           >
-            <span className={`mobile-status-dot ${isConnected ? 'online' : 'offline'}`} />
+            <span
+              className={`mobile-status-dot ${
+                isConnected ? 'online' : connectionState.kind === 'error' ? 'error' : 'offline'
+              }`}
+            />
           </button>
 
           <button

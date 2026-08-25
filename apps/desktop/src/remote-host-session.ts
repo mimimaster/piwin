@@ -28,6 +28,7 @@ export const DESKTOP_REMOTE_HOST_CLIENT_CAPABILITIES: HostClientCapabilities = {
   cursorBatches: true,
   boundedReplay: true,
   hydration: false,
+  liveSubscriptions: true,
 };
 
 const TARGET_KEY = 'piwin.desktop.remote-host-target';
@@ -159,6 +160,22 @@ export function isDesktopRemoteHostEndpoint(endpoint: string): boolean {
     return url.protocol === 'ws:' || url.protocol === 'wss:';
   } catch {
     return false;
+  }
+}
+
+/** Compact chip label for an attached Host: `hostname` or `hostname:port`. */
+export function formatDesktopRemoteHostDisplay(endpoint: string): string | undefined {
+  try {
+    const url = new URL(endpoint);
+    const hostname = url.hostname.trim();
+    if (hostname.length === 0) {
+      return undefined;
+    }
+    const host =
+      hostname.includes(':') && !hostname.startsWith('[') ? `[${hostname}]` : hostname;
+    return url.port.length > 0 ? `${host}:${url.port}` : host;
+  } catch {
+    return undefined;
   }
 }
 

@@ -1,0 +1,15 @@
+[package]
+name = "tauri-plugin-piwin-healthkit"
+version = "0.0.0"
+description = "Read-only Apple HealthKit plugin for Piwin Mobile"
+authors = ["piwin"]
+edition = "2021"
+links = "tauri-plugin-piwin-healthkit"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", default-features = false, features = [] }
+
+[build-dependencies]
+tauri-plugin = { version = "2", features = ["build"] }

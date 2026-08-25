@@ -8,7 +8,9 @@ import type {
   SideChatOpenData,
   SideChatSyncData,
 } from '@piwin/contracts';
+import { createAttachedCliCommandHandler } from './cli-host.js';
 import {
+  bindSideChatHostClient,
   formatSideChatListRow,
   formatSideChatListTable,
   runSideChatList,
@@ -45,10 +47,12 @@ function makeSessionSummary(overrides: Partial<SessionSummary> = {}): SessionSum
 }
 
 function createMockClient(
-  handler: (command: HostCommand) => HostResponse,
+  handler: (command: HostCommand, options?: { idempotencyKey?: string }) => HostResponse,
 ): SideChatHostClient {
   return {
-    handleCommand: vi.fn(async (command: HostCommand) => handler(command)),
+    handleCommand: vi.fn(async (command: HostCommand, options?: { idempotencyKey?: string }) =>
+      handler(command, options),
+    ),
     onPush: vi.fn(() => () => {}),
     dispose: vi.fn(async () => undefined),
   };
@@ -266,7 +270,9 @@ describe('runSideChatSend', () => {
         type: 'session/prompt',
         sessionId: 'side-001',
         input: { text: 'hello side chat' },
+        foreground: { kind: 'if-idle' },
       }),
+      expect.objectContaining({ idempotencyKey: expect.any(String) }),
     );
     // Streaming deltas should have been logged.
     expect(logs.some((line) => line.includes('Hello '))).toBe(true);
@@ -280,6 +286,94 @@ describe('runSideChatSend', () => {
     await expect(
       runSideChatSend(client, 'missing', 'text', () => {}, { timeoutMs: 1000 }),
     ).rejects.toThrow('session not found');
+  });
+
+  it('forwards the caller-owned key through the attached CLI host bind', async () => {
+    const sent: Array<{ type: string; key?: string }> = [];
+    const host = {
+      handleCommand: createAttachedCliCommandHandler(async (command, options) => {
+        sent.push({
+          type: command.type,
+          ...(options?.idempotencyKey === undefined ? {} : { key: options.idempotencyKey }),
+        });
+        return okResponse({ sessionId: 'side-001' });
+      }),
+      dispose: async () => undefined,
+    };
+    const pushHandlers = new Set<(message: HostPush) => void>();
+    const client = bindSideChatHostClient(host, pushHandlers);
+    const sending = runSideChatSend(client, 'side-001', 'hello side chat', () => undefined, {
+      timeoutMs: 2000,
+    });
+    queueMicrotask(() => {
+      for (const handler of pushHandlers) {
+        handler({
+          type: 'run/terminal',
+          run: {
+            sessionId: 'side-001',
+            runId: 'r1',
+            status: 'completed',
+            phase: 'terminal',
+            terminalCode: 'completed',
+          } as never,
+        });
+      }
+    });
+    await sending;
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.type).toBe('session/prompt');
+    expect(sent[0]?.key).toEqual(expect.any(String));
+    expect(sent[0]?.key?.length).toBeGreaterThan(0);
+  });
+
+  it('includes foreground admission on the attached prompt command', async () => {
+    let prompted: HostCommand | undefined;
+    const host = {
+      handleCommand: createAttachedCliCommandHandler(async (command) => {
+        prompted = command;
+        return okResponse({ sessionId: 'side-001' });
+      }),
+      dispose: async () => undefined,
+    };
+    const pushHandlers = new Set<(message: HostPush) => void>();
+    const client = bindSideChatHostClient(host, pushHandlers);
+    const sending = runSideChatSend(client, 'side-001', 'hello', () => undefined, {
+      timeoutMs: 2000,
+    });
+    queueMicrotask(() => {
+      for (const handler of pushHandlers) {
+        handler({
+          type: 'run/terminal',
+          run: {
+            sessionId: 'side-001',
+            runId: 'r1',
+            status: 'completed',
+            phase: 'terminal',
+            terminalCode: 'completed',
+          } as never,
+        });
+      }
+    });
+    await sending;
+    expect(prompted).toMatchObject({
+      type: 'session/prompt',
+      foreground: { kind: 'if-idle' },
+    });
+  });
+
+  it('fails attached side-chat send when the host bind drops the key', async () => {
+    const host = {
+      handleCommand: createAttachedCliCommandHandler(async () => okResponse({ sessionId: 'side-001' })),
+      dispose: async () => undefined,
+    };
+    const dropBind: SideChatHostClient = {
+      handleCommand: (command) => host.handleCommand(command),
+      onPush: () => () => undefined,
+      dispose: () => host.dispose(),
+    };
+    await expect(
+      runSideChatSend(dropBind, 'side-001', 'hello', () => undefined, { timeoutMs: 200 }),
+    ).rejects.toThrow('idempotency-key-required');
   });
 });
 

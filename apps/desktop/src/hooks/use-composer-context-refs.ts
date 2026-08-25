@@ -54,6 +54,8 @@ export function contextRefKey(ref: PromptContextRef): string {
       return `main-message:${ref.sourceSessionId}:${ref.messageId}`;
     case 'side-chat-message':
       return `side-chat-message:${ref.sideChatSessionId}:${ref.messageId}`;
+    case 'connected-source':
+      return `connected-source:${ref.source}`;
     default: {
       const exhaustive: never = ref;
       return `unknown:${JSON.stringify(exhaustive)}`;
@@ -82,6 +84,8 @@ export function labelForContextRef(ref: PromptContextRef): string {
       return 'Message';
     case 'side-chat-message':
       return 'Side chat';
+    case 'connected-source':
+      return ref.label;
     default: {
       const exhaustive: never = ref;
       return String(exhaustive);

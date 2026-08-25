@@ -1,14 +1,19 @@
 import { useState, useEffect, type ReactElement } from 'react';
 import type { ConfiguredChatModel, ModelRef, ThinkingLevel } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
+import { useKeyboardInset } from './hooks/use-keyboard-inset.js';
+import { MobilePortal } from './mobile-portal.js';
 import { MobileTopBar } from './components/navigation/MobileTopBar.js';
 import { MobileSidebarDrawer } from './components/navigation/MobileSidebarDrawer.js';
 import { SettingsModal } from './components/modals/SettingsModal.js';
 import { InboxModal } from './components/modals/InboxModal.js';
 import { ModelPickerModal } from './components/modals/ModelPickerModal.js';
 import { MobileShareModal } from './components/modals/MobileShareModal.js';
+import { ProjectFilesSheet } from './components/modals/ProjectFilesSheet.js';
+import { SkillsInspectorSheet } from './components/modals/SkillsInspectorSheet.js';
 import { ConnectionSurface } from './surfaces/connection/ConnectionSurface.js';
 import { ConversationSurface } from './surfaces/conversation/ConversationSurface.js';
+import { HealthConsentSheet } from './health/HealthConsentSheet.js';
 import { useMobileHost } from './hooks/use-mobile-host.js';
 import { useTheme } from './hooks/use-theme.js';
 import { readMobileOverlayHash, setMobileOverlayHash } from './mobile-overlay-hash.js';
@@ -27,6 +32,7 @@ export function App(): ReactElement {
   const [selectedModelId, setSelectedModelId] = useState<string | undefined>();
   const [selectedThinkingLevel, setSelectedThinkingLevel] = useState<ThinkingLevel | undefined>();
   const [showConnectionConfig, setShowConnectionConfig] = useState(false);
+  useKeyboardInset();
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -138,7 +144,9 @@ export function App(): ReactElement {
               sessionTitle={activeSession?.name}
               projectName={activeProject}
               activeModelName={modelDisplayName(selectedModel)}
+              thinkingLevel={selectedThinkingLevel}
               connectionState={host.connectionState}
+              activeRunCount={host.activityItems.length}
               onToggleSidebar={() => setMobileOverlayHash('#sidebar')}
               onOpenModelPicker={() => setMobileOverlayHash('#model-picker')}
               onNewChat={() => {
@@ -177,6 +185,12 @@ export function App(): ReactElement {
               projectName={activeProject}
               errorMessage={host.errorMessage}
               pendingReplaceRunId={host.pendingReplaceRunId}
+              mutationsEnabled={host.mutationsEnabled}
+              onQueueAndSend={() => void host.handleQueueAndSend()}
+              onDismissBusy={host.handleDismissBusy}
+              healthEnabled={host.healthEnabled}
+              includeAppleHealth={host.includeAppleHealth}
+              onToggleAppleHealth={() => host.setIncludeAppleHealth((value) => !value)}
               onReplaceAndSend={() => {
                 if (host.pendingReplaceRunId === undefined) {
                   return;
@@ -214,6 +228,8 @@ export function App(): ReactElement {
               }}
               onOpenSettings={() => setMobileOverlayHash('#settings')}
               onOpenInbox={() => setMobileOverlayHash('#inbox')}
+              onOpenFiles={() => setMobileOverlayHash('#files')}
+              onOpenSkills={() => setMobileOverlayHash('#skills')}
               onOpenShare={() => setMobileOverlayHash('#share')}
               activeRunCount={host.activityItems.length}
               endpoint={host.endpoint}
@@ -232,6 +248,11 @@ export function App(): ReactElement {
               onSelectTheme={setThemeMode}
               onDisconnect={() => void host.handleDisconnect()}
               onOpenConnection={() => setShowConnectionConfig(true)}
+              healthAvailable={host.healthAvailable}
+              healthUseMode={host.healthUseMode}
+              onChangeHealthUseMode={host.handleChangeHealthUseMode}
+              onConnectHealth={() => void host.handleConnectAppleHealth()}
+              onDisconnectHealth={() => void host.handleDisconnectAppleHealth()}
             />
 
             <InboxModal
@@ -251,6 +272,20 @@ export function App(): ReactElement {
               onNavigateToSession={(sessionId) => {
                 void host.handleSelectSession(sessionId);
               }}
+            />
+
+            <ProjectFilesSheet
+              isOpen={overlayHash === '#files'}
+              onClose={closeOverlay}
+              projects={host.projects}
+              activeProjectId={activeSession?.projectId}
+              activeProjectName={activeProject}
+            />
+
+            <SkillsInspectorSheet
+              isOpen={overlayHash === '#skills'}
+              onClose={closeOverlay}
+              endpoint={host.endpoint}
             />
 
             <ModelPickerModal
@@ -279,6 +314,19 @@ export function App(): ReactElement {
               sessionTitle={activeSession?.name}
               messages={host.messages}
             />
+
+            {host.healthConsentRequest !== undefined ? (
+              <MobilePortal>
+                <div className="mobile-modal-overlay">
+                  <HealthConsentSheet
+                    request={host.healthConsentRequest}
+                    hostLabel={host.endpoint || '当前 Host'}
+                    onDecide={host.resolveHealthConsent}
+                    alwaysAllowUnlocked={host.healthAlwaysAllowUnlocked}
+                  />
+                </div>
+              </MobilePortal>
+            ) : null}
           </div>
         )}
       </main>

@@ -21,6 +21,25 @@ export type DiffLineNumbers = {
 
 const HUNK_HEADER = /^@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@/;
 
+type DiffHunkRange = {
+  oldStart: number;
+  oldCount: number;
+  newStart: number;
+  newCount: number;
+};
+
+function parseHunkRange(text: string): DiffHunkRange | null {
+  const match = HUNK_HEADER.exec(text);
+  if (!match) return null;
+
+  return {
+    oldStart: Number(match[1]),
+    oldCount: match[2] === undefined ? 1 : Number(match[2]),
+    newStart: Number(match[3]),
+    newCount: match[4] === undefined ? 1 : Number(match[4]),
+  };
+}
+
 export function computeDiffLineNumbers(lines: ParsedDiffLine[]): DiffLineNumbers[] {
   let oldLine = 0;
   let newLine = 0;
@@ -28,14 +47,14 @@ export function computeDiffLineNumbers(lines: ParsedDiffLine[]): DiffLineNumbers
 
   for (const line of lines) {
     if (line.kind === 'hunk') {
-      const match = HUNK_HEADER.exec(line.text);
-      if (match) {
+      const range = parseHunkRange(line.text);
+      if (range) {
         // Hunk start lines are 1-based; the header reports the first line
         // number of the hunk. Counters begin at start (the next context/del
         // line maps to that number), so set to start - 1 and let the per-line
         // increment land on the correct value.
-        oldLine = (Number(match[1]) || 1) - 1;
-        newLine = (Number(match[3]) || 1) - 1;
+        oldLine = range.oldStart - 1;
+        newLine = range.newStart - 1;
       }
       out.push({ old: null, new: null });
       continue;
@@ -69,4 +88,30 @@ export function computeDiffLineNumbers(lines: ParsedDiffLine[]): DiffLineNumbers
   }
 
   return out;
+}
+
+/**
+ * Return the unchanged lines omitted before each hunk header.
+ *
+ * Git emits only a small amount of context around a change. The distance
+ * between adjacent hunk ranges is therefore the exact amount of unchanged
+ * source hidden by the patch, and is equal on the old and new sides.
+ */
+export function computeOmittedLineCounts(lines: ParsedDiffLine[]): Array<number | null> {
+  let previousRange: DiffHunkRange | null = null;
+
+  return lines.map((line) => {
+    if (line.kind !== 'hunk') return null;
+
+    const range = parseHunkRange(line.text);
+    if (!range) return null;
+
+    const previousOldEnd = previousRange ? previousRange.oldStart + previousRange.oldCount : 1;
+    const previousNewEnd = previousRange ? previousRange.newStart + previousRange.newCount : 1;
+    const oldGap = range.oldStart - previousOldEnd;
+    const newGap = range.newStart - previousNewEnd;
+    previousRange = range;
+
+    return Math.max(0, Math.min(oldGap, newGap));
+  });
 }

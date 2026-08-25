@@ -813,6 +813,23 @@ textarea:focus {
 .piwin-button--danger {
   color: var(--coral);
 }
+.piwin-button:disabled,
+.piwin-button[data-disabled='true'] {
+  color: var(--text-4) !important;
+  background: var(--surface-2) !important;
+  border-color: var(--line-1) !important;
+  cursor: not-allowed;
+  box-shadow: none !important;
+}
+.piwin-button:disabled .mantine-Button-label,
+.piwin-button[data-disabled='true'] .mantine-Button-label {
+  color: var(--text-4) !important;
+}
+.piwin-button:disabled svg,
+.piwin-button[data-disabled='true'] svg {
+  color: var(--text-4) !important;
+  stroke: currentColor;
+}
 
 /* ── Mantine bridge ───────────────────────────────────────────────────
    Mantine variables inherit validated Deck tokens, never hard-coded feature

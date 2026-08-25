@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, type Dispatch } from 'react';
 import type { ExecutionRunRecord, SessionTranscriptMessage } from '@piwin/contracts';
+import { isRunActive } from '@piwin/contracts';
 import type { HostClient } from '../host-client.js';
 import type { ChatUiAction } from '../chat-reducer.js';
 import { planRunReconcile } from '../run-reconcile.js';
@@ -10,7 +11,7 @@ export type UseRunReconcileArgs = {
   activeSessionId: string | null;
   /** Run id the UI currently attributes its live state to (may be null). */
   activeRunId: string | null;
-  /** True while the UI believes a run is live (streaming or aborting). */
+  /** True while the UI believes a run is live, including control transitions. */
   runLive: boolean;
   /** Re-ask Host after a remote socket comes back. */
   hostReady?: boolean;
@@ -108,6 +109,39 @@ export function useRunReconcile(args: UseRunReconcileArgs): void {
     await loadTranscript(sessionId);
   }, [loadTranscript, reconcileLive]);
 
+  const selectionGenerationRef = useRef(0);
+  const admitSelectedSession = useCallback(
+    (sessionId: string, generation: number): void => {
+      dispatch({ type: 'foreground/admission', admission: 'reconciling' });
+      if (hostClient.supportsCommand?.('session/foreground-run') === false) {
+        dispatch({ type: 'foreground/admission', admission: 'ready' });
+        return;
+      }
+      void hostClient
+        .request({ type: 'session/foreground-run', sessionId })
+        .then((response) => {
+          if (selectionGenerationRef.current !== generation || sessionRef.current !== sessionId) {
+            return;
+          }
+          if (!response.success) {
+            dispatch({ type: 'foreground/admission', admission: 'unknown' });
+            return;
+          }
+          const run =
+            (response.data as { run?: ExecutionRunRecord | null } | undefined)?.run ?? null;
+          if (run && isRunActive(run.status)) {
+            dispatch({ type: 'run/updated', run });
+          }
+          dispatch({ type: 'foreground/admission', admission: 'ready' });
+        })
+        .catch(() => {
+          if (selectionGenerationRef.current === generation && sessionRef.current === sessionId) {
+            dispatch({ type: 'foreground/admission', admission: 'unknown' });
+          }
+        });
+    },
+    [dispatch, hostClient],
+  );
   const reconcilingRef = useRef(false);
   const rerunLiveRef = useRef(false);
   const rerunCatchUpRef = useRef(false);
@@ -149,6 +183,17 @@ export function useRunReconcile(args: UseRunReconcileArgs): void {
   }, [hostClient, schedule]);
 
   useEffect(() => {
+    const sessionId = args.activeSessionId;
+    if (!sessionId) {
+      dispatch({ type: 'foreground/admission', admission: 'unknown' });
+      return;
+    }
+    const generation = selectionGenerationRef.current + 1;
+    selectionGenerationRef.current = generation;
+    admitSelectedSession(sessionId, generation);
+  }, [admitSelectedSession, args.activeSessionId, dispatch]);
+
+  useEffect(() => {
     const handleFocus = (): void => schedule('live');
     const handleVisibility = (): void => {
       if (document.visibilityState === 'visible') {
@@ -168,7 +213,14 @@ export function useRunReconcile(args: UseRunReconcileArgs): void {
       return;
     }
     schedule('catch-up');
-  }, [args.hostReady, schedule]);
+    const sessionId = sessionRef.current;
+    if (!sessionId) {
+      return;
+    }
+    const generation = selectionGenerationRef.current + 1;
+    selectionGenerationRef.current = generation;
+    admitSelectedSession(sessionId, generation);
+  }, [admitSelectedSession, args.hostReady, schedule]);
 
   useEffect(() => {
     if (args.catchUpEpoch === undefined || args.catchUpEpoch === 0) {

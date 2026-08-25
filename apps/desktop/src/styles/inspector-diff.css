@@ -150,6 +150,12 @@
   padding: 0 var(--s-2) 0 0;
 }
 
+.changes-row-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
 .changes-check {
   flex-shrink: 0;
   accent-color: var(--iris);
@@ -160,6 +166,7 @@
   font-size: var(--fs-micro);
   font-weight: 700;
   color: var(--text-4);
+  flex-shrink: 0;
 }
 
 .changes-code.status-modified {
@@ -177,12 +184,29 @@
 }
 
 .changes-path {
+  display: inline-flex;
+  align-items: center;
   min-width: 0;
+  flex: 1;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--font-mono);
   font-size: var(--fs-micro);
+}
+
+.changes-path-dir {
+  color: var(--text-4);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.changes-path-file {
+  color: var(--text-1);
+  font-weight: 550;
+  flex-shrink: 0;
 }
 
 .changes-stats {
@@ -191,6 +215,7 @@
   font-family: var(--font-mono);
   font-size: var(--fs-micro);
   font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
 }
 
 .changes-stats .add {
@@ -207,6 +232,7 @@
   border-radius: var(--r-chip);
   background: var(--iris-wash);
   color: var(--iris-lift);
+  flex-shrink: 0;
 }
 
 .changes-actions {
@@ -216,6 +242,164 @@
   padding: var(--s-4) var(--s-5);
   border-top: 1px solid var(--line-1);
   flex-shrink: 0;
+}
+
+/* ── Changes in-tab file review ───────────────────────────────────── */
+
+.changes-panel-file {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.change-file-review {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.change-file-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  min-height: var(--h-lg);
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--line-1);
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.change-file-header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+  flex: 1;
+}
+
+.change-file-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.change-file-path-group {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--fs-chrome);
+}
+
+.change-file-path-dir {
+  color: var(--text-4);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.change-file-path-name {
+  color: var(--text-1);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.change-file-stats {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.change-file-stats .add {
+  color: var(--mint);
+}
+
+.change-file-stats .del {
+  color: var(--coral);
+}
+
+.change-file-status-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-chip);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: var(--tracking-micro);
+  flex-shrink: 0;
+}
+
+.change-file-status-badge.status-added,
+.change-file-status-badge.status-untracked {
+  color: var(--mint);
+  background: color-mix(in srgb, var(--mint) 14%, transparent);
+}
+
+.change-file-status-badge.status-deleted {
+  color: var(--coral);
+  background: color-mix(in srgb, var(--coral) 14%, transparent);
+}
+
+.change-file-status-badge.status-modified {
+  color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 14%, transparent);
+}
+
+.change-file-status-badge.status-renamed {
+  color: var(--sky);
+  background: color-mix(in srgb, var(--sky) 14%, transparent);
+}
+
+.change-file-status-badge.status-conflicted {
+  color: var(--coral);
+  background: color-mix(in srgb, var(--coral) 14%, transparent);
+}
+
+.change-file-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-shrink: 0;
+}
+
+.change-file-review-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--void);
+}
+
+.change-file-review-body > .diff-view {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.change-file-state-message {
+  display: grid;
+  place-items: center;
+  padding: var(--s-8);
+  font-size: var(--fs-chrome);
+}
+
+.change-file-state-error {
+  padding: var(--s-4);
 }
 
 /* ── Diff view ────────────────────────────────────────────────────── */
@@ -354,25 +538,19 @@
 .diff-gutter {
   width: 14px;
   flex-shrink: 0;
+  margin-right: var(--s-3);
+  border-right: 1px solid var(--line-1);
   color: var(--text-4);
 }
 
 .diff-lineno {
-  width: 3ch;
+  width: 4ch;
   flex-shrink: 0;
   text-align: right;
-  padding-right: var(--s-3);
+  padding-right: var(--s-4);
   color: var(--text-4);
   font-variant-numeric: tabular-nums;
   user-select: none;
-}
-
-.diff-lineno.old {
-  padding-right: var(--s-2);
-}
-
-.diff-lineno.new {
-  padding-right: var(--s-4);
 }
 
 .diff-text {
@@ -390,10 +568,34 @@
   color: var(--text-1);
 }
 
-.diff-line.kind-hunk,
 .diff-line.kind-meta {
   color: var(--text-4);
   background: var(--hover);
+}
+
+.diff-line.kind-hunk {
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 28px;
+  padding-block: var(--s-2);
+  border-block: 1px solid var(--line-1);
+  color: var(--text-3);
+  background: var(--hover);
+  font-family: var(--font);
+  font-size: var(--fs-micro);
+  line-height: 1;
+}
+
+.diff-hunk-marker {
+  width: calc(4ch + 14px + var(--s-4));
+  flex-shrink: 0;
+  text-align: right;
+  color: var(--text-4);
+  user-select: none;
+}
+
+.diff-hunk-summary {
+  padding-right: var(--s-4);
 }
 
 .diff-line.kind-empty {
@@ -486,4 +688,83 @@
 .diff-review-badge.rejected {
   color: var(--coral);
   background: color-mix(in srgb, var(--coral) 14%, transparent);
+}
+
+/* ── Changes Panel Commit Bar ───────────────────────────────────────── */
+
+.changes-commit-bar {
+  border-top: 1px solid var(--line-1);
+  padding: var(--s-3) var(--s-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  flex-shrink: 0;
+  background: var(--surface-1);
+}
+
+.changes-commit-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+}
+
+.changes-commit-hint b {
+  color: var(--text-1);
+  font-weight: 600;
+}
+
+.changes-stage-links {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.changes-link-btn {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-family: var(--font);
+  font-size: var(--fs-micro);
+  color: var(--iris);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.changes-link-btn:disabled {
+  color: var(--text-4);
+  cursor: default;
+  text-decoration: none;
+}
+
+.changes-commit-line {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.changes-commit-input {
+  flex: 1;
+  min-width: 0;
+  height: var(--h-sm);
+  padding: 0 var(--s-3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-control);
+  background: var(--surface-2);
+  color: var(--text-1);
+  font-family: var(--font);
+  font-size: var(--fs-chrome);
+  box-sizing: border-box;
+}
+
+.changes-commit-input::placeholder {
+  color: var(--text-4);
+}
+
+.changes-commit-input:focus {
+  outline: none;
+  border-color: var(--iris);
+  box-shadow: 0 0 0 2px var(--iris-wash);
 }

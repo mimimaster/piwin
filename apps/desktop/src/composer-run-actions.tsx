@@ -1,14 +1,14 @@
-/**
- * One Stop control while a run is live. Click sends session/abort immediately.
- * The button greys only to ignore a second click until Host answers.
- */
+/** Run controls shared by the live and checkpoint-resting composer states. */
 import type { ReactElement } from 'react';
-import { IconSend, IconStop } from './shell-icons';
+import { IconPause, IconSend, IconStop } from './shell-icons';
 
 export type ComposerRunActionCopy = {
+  pause: string;
+  pausing: string;
   stop: string;
   stopping: string;
-  continueRun?: string;
+  continueRun: string;
+  discardPause: string;
 };
 
 /** Shown only when Host already projected a paused checkpoint (not the live interrupt). */
@@ -17,6 +17,7 @@ export function ComposerPausedActions(props: {
   activeSessionId: string | null;
   onResume?: () => void;
   onAbort: () => void;
+  mutationsEnabled?: boolean;
 }): ReactElement {
   return (
     <div className="composer-v2-action-group">
@@ -24,10 +25,10 @@ export function ComposerPausedActions(props: {
         type="button"
         className="composer-v2-send-btn"
         data-testid="resume-run-btn"
-        disabled={!props.activeSessionId || !props.onResume}
+        disabled={!props.activeSessionId || !props.onResume || props.mutationsEnabled === false}
         onClick={props.onResume}
-        aria-label={props.copy.continueRun ?? 'Resume'}
-        title={props.copy.continueRun ?? 'Resume'}
+        aria-label={props.copy.continueRun}
+        title={props.copy.continueRun}
       >
         <IconSend />
       </button>
@@ -36,10 +37,10 @@ export function ComposerPausedActions(props: {
         className="composer-v2-stop-btn is-running"
         data-testid="discard-pause-btn"
         data-action="stop"
-        disabled={!props.activeSessionId}
+        disabled={!props.activeSessionId || props.mutationsEnabled === false}
         onClick={props.onAbort}
-        aria-label={props.copy.stop}
-        title={props.copy.stop}
+        aria-label={props.copy.discardPause}
+        title={props.copy.discardPause}
       >
         <IconStop />
       </button>
@@ -47,25 +48,33 @@ export function ComposerPausedActions(props: {
   );
 }
 
-export function ComposerStreamingInterrupt(props: {
+export function ComposerStreamingPause(props: {
   copy: ComposerRunActionCopy;
   activeSessionId: string | null;
-  runPhase: 'idle' | 'streaming' | 'aborting';
-  onAbort: () => void;
+  runPhase: 'idle' | 'streaming' | 'pausing' | 'aborting';
+  onPause: () => void;
+  mutationsEnabled?: boolean;
 }): ReactElement {
+  const isPausing = props.runPhase === 'pausing';
   const isAborting = props.runPhase === 'aborting';
+  const isControlPending = isPausing || isAborting;
+  const label = isAborting
+    ? props.copy.stopping
+    : isPausing
+      ? props.copy.pausing
+      : props.copy.pause;
   return (
     <button
       type="button"
-      className="composer-v2-stop-btn is-running"
-      data-testid="stop-btn"
-      data-action="stop"
-      disabled={!props.activeSessionId || isAborting}
-      onClick={props.onAbort}
-      aria-label={isAborting ? props.copy.stopping : props.copy.stop}
-      title={isAborting ? props.copy.stopping : props.copy.stop}
+      className="composer-v2-stop-btn is-running is-pause"
+      data-testid="pause-btn"
+      data-action="pause"
+      disabled={!props.activeSessionId || isControlPending || props.mutationsEnabled === false}
+      onClick={props.onPause}
+      aria-label={label}
+      title={label}
     >
-      <IconStop />
+      <IconPause />
     </button>
   );
 }

@@ -62,6 +62,7 @@ export const HOST_TOOL_PERMISSION_ACTIONS = [
   'artifact:instructions',
   'toolbox:route',
   'mcp:trusted',
+  'device:health-read',
 ] as const;
 
 export type HostToolPermissionAction = (typeof HOST_TOOL_PERMISSION_ACTIONS)[number];

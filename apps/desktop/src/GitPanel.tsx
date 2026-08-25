@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import type {
   GitCommitGraph,
   GitCommitGraphNode,
-  GitDiffSummary,
   GitMutationResult,
   GitStatusSnapshot,
   HostResponse,
 } from '@piwin/contracts';
-import { Button, Field, Notice } from '@piwin/ui-kit';
+import { Button, Notice } from '@piwin/ui-kit';
+import { IconArrowFork, IconRefresh } from './shell-icons';
 import { useConfirmDialog } from './use-confirm-dialog';
 
 type GitRequest =
@@ -31,20 +31,41 @@ export type GitPanelProps = {
   request: (command: GitRequest) => Promise<HostResponse>;
   onClose?: () => void;
   variant?: 'drawer' | 'embedded';
+  locale?: 'zh-CN' | 'en';
 };
 
+function formatRelativeTime(iso: string, locale: string = 'zh-CN'): string {
+  try {
+    const diffMs = Date.now() - new Date(iso).getTime();
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHour = Math.floor(diffMin / 60);
+    const diffDay = Math.floor(diffHour / 24);
+    if (diffDay > 30) {
+      return new Date(iso).toLocaleDateString(locale === 'zh-CN' ? 'zh-CN' : 'en-US', {
+        month: 'short',
+        day: 'numeric',
+      });
+    }
+    if (diffDay > 0) return locale === 'zh-CN' ? `${diffDay} 天前` : `${diffDay}d ago`;
+    if (diffHour > 0) return locale === 'zh-CN' ? `${diffHour} 小时前` : `${diffHour}h ago`;
+    if (diffMin > 0) return locale === 'zh-CN' ? `${diffMin} 分钟前` : `${diffMin}m ago`;
+    return locale === 'zh-CN' ? '刚刚' : 'just now';
+  } catch {
+    return iso.slice(0, 10);
+  }
+}
+
 /**
- * Git panel: read models + policy-gated writes.
- * Distinct from agent session tree. No force-push / hard reset.
+ * Git / History panel — VS Code / Cursor style timeline & branch management.
  */
-export function GitPanel(props: GitPanelProps) {
+export function GitPanel(props: GitPanelProps): ReactElement {
   const confirmDialog = useConfirmDialog();
+  const locale = props.locale ?? 'zh-CN';
   const [status, setStatus] = useState<GitStatusSnapshot | null>(null);
-  const [diff, setDiff] = useState<GitDiffSummary | null>(null);
   const [graph, setGraph] = useState<GitCommitGraph | null>(null);
   const [selectedHash, setSelectedHash] = useState<string | null>(null);
-  const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
-  const [commitMessage, setCommitMessage] = useState('');
+  const [activeForm, setActiveForm] = useState<'none' | 'new-branch' | 'checkout'>('none');
   const [branchName, setBranchName] = useState('');
   const [checkoutRef, setCheckoutRef] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -54,15 +75,14 @@ export function GitPanel(props: GitPanelProps) {
 
   const reload = useCallback(async () => {
     if (!props.projectPath) {
-      setError('Open a project first');
+      setError(locale === 'zh-CN' ? '请先打开项目' : 'Open a project first');
       return;
     }
     setLoading(true);
     setError(null);
     const path = props.projectPath;
-    const [statusResponse, diffResponse, graphResponse] = await Promise.all([
+    const [statusResponse, graphResponse] = await Promise.all([
       props.request({ type: 'git/status', projectPath: path }),
-      props.request({ type: 'git/diff-summary', projectPath: path }),
       props.request({ type: 'git/log-graph', projectPath: path, limit: 30 }),
     ]);
     setLoading(false);
@@ -70,48 +90,28 @@ export function GitPanel(props: GitPanelProps) {
       setError(statusResponse.error);
       return;
     }
-    if (!diffResponse.success) {
-      setError(diffResponse.error);
-      return;
-    }
     if (!graphResponse.success) {
       setError(graphResponse.error);
       return;
     }
     const nextStatus = (statusResponse.data as { snapshot: GitStatusSnapshot }).snapshot;
-    const nextDiff = (diffResponse.data as { summary: GitDiffSummary }).summary;
     const nextGraph = (graphResponse.data as { graph: GitCommitGraph }).graph;
     setStatus(nextStatus);
-    setDiff(nextDiff);
     setGraph(nextGraph);
-    setSelectedHash(nextGraph.nodes[0]?.hash ?? null);
-    setSelectedPaths((current) =>
-      current.filter((pathValue) =>
-        nextStatus.changedFiles.some((file) => file.path === pathValue),
-      ),
+    setSelectedHash((prev) =>
+      prev && nextGraph.nodes.some((n) => n.hash === prev) ? prev : (nextGraph.nodes[0]?.hash ?? null),
     );
-  }, [props]);
+  }, [props.projectPath, props.request, locale]);
 
   useEffect(() => {
     void reload();
   }, [reload]);
 
-  function togglePath(pathValue: string): void {
-    setSelectedPaths((current) =>
-      current.includes(pathValue)
-        ? current.filter((item) => item !== pathValue)
-        : [...current, pathValue],
-    );
-  }
-
-  async function runMutation(
-    command: GitRequest,
-    confirmText: string,
-  ): Promise<void> {
+  async function runMutation(command: GitRequest, confirmText: string): Promise<void> {
     const ok = await confirmDialog.confirm({
-      title: 'Confirm git action',
+      title: locale === 'zh-CN' ? '确认 Git 操作' : 'Confirm git action',
       description: confirmText,
-      confirmLabel: 'Continue',
+      confirmLabel: locale === 'zh-CN' ? '继续' : 'Continue',
       tone: 'default',
     });
     if (!ok) {
@@ -128,281 +128,264 @@ export function GitPanel(props: GitPanelProps) {
     }
     const result = (response.data as { result?: GitMutationResult } | undefined)?.result;
     setInfo(result?.message ?? 'ok');
+    setActiveForm('none');
+    setBranchName('');
+    setCheckoutRef('');
     await reload();
   }
 
   const selected: GitCommitGraphNode | null =
-    graph?.nodes.find((node) => node.hash === selectedHash) ?? null;
+    graph?.nodes.find((node) => node.hash === selectedHash) ?? graph?.nodes[0] ?? null;
   const projectPath = props.projectPath;
-
   const embedded = props.variant === 'embedded';
+
+  const branchLabel = status?.branch
+    ? status.branch.isDetached
+      ? `detached @ ${status.branch.headCommit?.slice(0, 7) ?? '?'}`
+      : (status.branch.currentBranch ?? 'unknown')
+    : '…';
+
+  const upstreamInfo = status?.branch?.upstreamBranch
+    ? `${status.branch.upstreamBranch} (↑${status.branch.ahead} ↓${status.branch.behind})`
+    : null;
 
   return (
     <>
-    {confirmDialog.dialog}
-    <div className={embedded ? 'embedded-panel git-panel' : 'modal-backdrop'}>
-      <div className={embedded ? 'embedded-body git-panel-body' : 'modal settings-modal git-panel'}>
-        {embedded ? null : <h3>Git</h3>}
-        {embedded ? null : (
-        <p className="muted">
-          Status / diff / graph are read-only models. Writes (stage/commit/branch) require explicit
-          confirm. No force-push or hard reset.
-        </p>
-        )}
-        {loading ? <p className="muted">Loading git…</p> : null}
-        {error ? <Notice tone="error">{error}</Notice> : null}
-        {info ? <Notice tone="info">{info}</Notice> : null}
+      {confirmDialog.dialog}
+      <div className={embedded ? 'git-panel-embedded' : 'modal-backdrop'}>
+        <div className={embedded ? 'git-panel-embedded-body' : 'modal settings-modal git-panel'}>
+          {embedded ? null : <h3>{locale === 'zh-CN' ? 'Git 历史与分支' : 'Git History & Branches'}</h3>}
 
-        {!status?.repository.isRepository ? (
-          <p className="muted">Not a git repository (or git unavailable).</p>
-        ) : (
-          <>
-            <section className="git-section">
-              <h4>Branch</h4>
-              <ul className="muted list">
-                <li>
-                  root: <code>{status.repository.rootPath}</code>
-                </li>
-                <li>
-                  branch:{' '}
-                  {status.branch?.isDetached
-                    ? `detached @ ${status.branch.headCommit?.slice(0, 7) ?? '?'}`
-                    : status.branch?.currentBranch ?? '(unknown)'}
-                </li>
-                <li>
-                  tracking:{' '}
-                  {status.branch?.upstreamBranch
-                    ? `${status.branch.upstreamBranch} (↑${status.branch.ahead} ↓${status.branch.behind})`
-                    : 'none'}
-                </li>
-                <li>dirty: {status.branch?.dirty ? 'yes' : 'no'}</li>
-              </ul>
-            </section>
+          {error ? <Notice tone="error">{error}</Notice> : null}
+          {info ? <Notice tone="info">{info}</Notice> : null}
 
-            <section className="git-section">
-              <h4>Changed files</h4>
-              {status.changedFiles.length === 0 ? (
-                <p className="muted">Working tree clean</p>
-              ) : (
-                <ul className="ext-list compact">
-                  {status.changedFiles.map((file) => (
-                    <li key={`${file.status}:${file.path}`} className="ext-list-item">
-                      <label className="ext-list-main git-file-row">
-                        <input
-                          type="checkbox"
-                          checked={selectedPaths.includes(file.path)}
-                          onChange={() => togglePath(file.path)}
-                        />
-                        <span className="pill">{file.status}</span>
-                        {file.staged ? <span className="pill">staged</span> : null}
-                        {file.unstaged ? <span className="pill">unstaged</span> : null}
-                        <code className="git-path">{file.path}</code>
-                      </label>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <div className="row-actions" style={{ marginTop: 8 }}>
-                <Button
-                  disabled={busy || !projectPath}
-                  onClick={() =>
-                    void runMutation(
-                      {
-                        type: 'git/stage',
-                        input: { projectPath: projectPath!, paths: selectedPaths },
-                      },
-                      selectedPaths.length === 0
-                        ? 'Stage ALL changes in this repository?'
-                        : `Stage ${selectedPaths.length} selected path(s)?`,
-                    )
-                  }
-                >
-                  Stage {selectedPaths.length > 0 ? 'selected' : 'all'}
-                </Button>
-                <Button
-                  disabled={busy || !projectPath}
-                  onClick={() =>
-                    void runMutation(
-                      {
-                        type: 'git/unstage',
-                        input: { projectPath: projectPath!, paths: selectedPaths },
-                      },
-                      selectedPaths.length === 0
-                        ? 'Unstage ALL staged changes?'
-                        : `Unstage ${selectedPaths.length} selected path(s)?`,
-                    )
-                  }
-                >
-                  Unstage {selectedPaths.length > 0 ? 'selected' : 'all'}
-                </Button>
-              </div>
-            </section>
-
-            <section className="git-section">
-              <h4>Commit</h4>
-              <Field label="Commit message" required>
-                <textarea
-                  rows={3}
-                  value={commitMessage}
-                  onChange={(event) => setCommitMessage(event.target.value)}
-                  placeholder="Summarize the staged changes"
-                  data-testid="git-commit-message"
-                />
-              </Field>
-              <Button
-                variant="primary"
-                disabled={busy || !projectPath || !commitMessage.trim()}
-                onClick={() =>
-                  void runMutation(
-                    {
-                      type: 'git/commit',
-                      input: { projectPath: projectPath!, message: commitMessage },
-                    },
-                    `Create commit with message:\n\n${commitMessage.trim()}`,
-                  ).then(() => setCommitMessage(''))
-                }
-              >
-                Commit staged
-              </Button>
-            </section>
-
-            <section className="git-section">
-              <h4>Branch / checkout</h4>
-              <Field label="New branch name">
-                <input
-                  value={branchName}
-                  onChange={(event) => setBranchName(event.target.value)}
-                  placeholder="feature/my-change"
-                  data-testid="git-branch-name"
-                />
-              </Field>
-              <div className="row-actions">
-                <Button
-                  disabled={busy || !projectPath || !branchName.trim()}
-                  onClick={() =>
-                    void runMutation(
-                      {
-                        type: 'git/branch-create',
-                        input: {
-                          projectPath: projectPath!,
-                          name: branchName.trim(),
-                          checkout: true,
-                        },
-                      },
-                      `Create and checkout branch "${branchName.trim()}"?`,
-                    ).then(() => setBranchName(''))
-                  }
-                >
-                  Create+checkout
-                </Button>
-              </div>
-              <Field label="Checkout ref" description="Branch name or commit ref">
-                <input
-                  value={checkoutRef}
-                  onChange={(event) => setCheckoutRef(event.target.value)}
-                  placeholder="main"
-                  data-testid="git-checkout-ref"
-                />
-              </Field>
-              <div className="row-actions">
-                <Button
-                  disabled={busy || !projectPath || !checkoutRef.trim()}
-                  onClick={() =>
-                    void runMutation(
-                      {
-                        type: 'git/checkout',
-                        input: { projectPath: projectPath!, ref: checkoutRef.trim() },
-                      },
-                      `Checkout "${checkoutRef.trim()}"? Uncommitted changes may block this.`,
-                    )
-                  }
-                >
-                  Checkout
-                </Button>
-              </div>
-            </section>
-
-            <section className="git-section">
-              <h4>
-                Diff summary
-                {diff
-                  ? ` (+${diff.totalAdditions} / -${diff.totalDeletions}${diff.truncated ? ', truncated' : ''})`
-                  : ''}
-              </h4>
-              {!diff || diff.files.length === 0 ? (
-                <p className="muted">No numstat changes vs HEAD</p>
-              ) : (
-                <ul className="ext-list compact">
-                  {diff.files.map((file) => (
-                    <li key={file.path} className="ext-list-item">
-                      <div className="ext-list-main">
-                        <code className="git-path">{file.path}</code>
-                        <span className="muted">
-                          +{file.additions} / -{file.deletions}
-                        </span>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-
-            <section className="git-section git-graph-section">
-              <h4>Commit graph (not session tree)</h4>
-              <div className="git-graph-layout">
-                <ul className="ext-list compact git-graph-list">
-                  {(graph?.nodes ?? []).map((node) => (
-                    <li key={node.hash}>
-                      <button
-                        type="button"
-                        className={
-                          selectedHash === node.hash ? 'session-item active' : 'session-item'
-                        }
-                        onClick={() => setSelectedHash(node.hash)}
-                      >
-                        <code>{node.shortHash}</code> {node.subject}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                <div className="git-commit-detail">
-                  {selected ? (
-                    <>
-                      <div>
-                        <strong>{selected.subject}</strong>
-                      </div>
-                      <div className="muted">
-                        {selected.shortHash} · {selected.authorName}
-                      </div>
-                      <div className="muted">{selected.authorDateIso}</div>
-                      <div className="muted">
-                        parents:{' '}
-                        {selected.parentHashes.length === 0
-                          ? '(root)'
-                          : selected.parentHashes.map((hash) => hash.slice(0, 7)).join(', ')}
-                      </div>
-                    </>
-                  ) : (
-                    <p className="muted">Select a commit</p>
-                  )}
+          {!status?.repository.isRepository ? (
+            <div className="right-panel-empty muted">
+              {locale === 'zh-CN' ? '非 Git 仓库' : 'Not a git repository.'}
+            </div>
+          ) : loading && !graph ? (
+            <div className="git-skeleton" aria-hidden>
+              <div className="git-skeleton-bar" style={{ width: '60%' }} />
+              <div className="git-skeleton-bar" style={{ width: '85%' }} />
+              <div className="git-skeleton-bar" style={{ width: '70%' }} />
+            </div>
+          ) : (
+            <>
+              {/* Branch Header Strip */}
+              <div className="git-branch-strip" title={status.repository.rootPath}>
+                <div className="git-branch-main">
+                  <span
+                    className={status.branch?.dirty ? 'git-branch-dot dirty' : 'git-branch-dot'}
+                    aria-hidden
+                  />
+                  <strong className="git-branch-name">{branchLabel}</strong>
+                  {upstreamInfo ? <span className="git-branch-up">{upstreamInfo}</span> : null}
+                </div>
+                <div className="git-branch-actions">
+                  <button
+                    type="button"
+                    className={`git-strip-btn${activeForm === 'new-branch' ? ' active' : ''}`}
+                    onClick={() =>
+                      setActiveForm((cur) => (cur === 'new-branch' ? 'none' : 'new-branch'))
+                    }
+                    title={locale === 'zh-CN' ? '新建分支' : 'New branch'}
+                    aria-label={locale === 'zh-CN' ? '新建分支' : 'New branch'}
+                  >
+                    <IconArrowFork />
+                  </button>
+                  <button
+                    type="button"
+                    className={`git-strip-btn${activeForm === 'checkout' ? ' active' : ''}`}
+                    onClick={() =>
+                      setActiveForm((cur) => (cur === 'checkout' ? 'none' : 'checkout'))
+                    }
+                    title={locale === 'zh-CN' ? '切换分支或提交' : 'Checkout ref'}
+                    aria-label={locale === 'zh-CN' ? '切换分支或提交' : 'Checkout ref'}
+                  >
+                    ⤹
+                  </button>
+                  <button
+                    type="button"
+                    className="git-strip-btn"
+                    disabled={loading || busy}
+                    onClick={() => void reload()}
+                    title={locale === 'zh-CN' ? '刷新' : 'Refresh'}
+                    aria-label={locale === 'zh-CN' ? '刷新' : 'Refresh'}
+                  >
+                    <IconRefresh />
+                  </button>
                 </div>
               </div>
-            </section>
-          </>
-        )}
 
-        <div className={embedded ? 'drawer-actions' : 'modal-actions'}>
-          <Button onClick={() => void reload()} disabled={loading}>
-            Refresh
-          </Button>
+              {/* Collapsible Action Forms */}
+              {activeForm === 'new-branch' ? (
+                <div className="git-inline-form">
+                  <input
+                    type="text"
+                    className="git-inline-input"
+                    value={branchName}
+                    onChange={(e) => setBranchName(e.target.value)}
+                    placeholder={locale === 'zh-CN' ? '新分支名称 (如 feature/x)' : 'New branch name'}
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && branchName.trim() && projectPath) {
+                        void runMutation(
+                          {
+                            type: 'git/branch-create',
+                            input: {
+                              projectPath,
+                              name: branchName.trim(),
+                              checkout: true,
+                            },
+                          },
+                          `创建并切换到分支 "${branchName.trim()}"?`,
+                        );
+                      } else if (e.key === 'Escape') {
+                        setActiveForm('none');
+                      }
+                    }}
+                  />
+                  <Button
+                    size="compact"
+                    variant="primary"
+                    disabled={busy || !projectPath || !branchName.trim()}
+                    onClick={() =>
+                      void runMutation(
+                        {
+                          type: 'git/branch-create',
+                          input: {
+                            projectPath: projectPath!,
+                            name: branchName.trim(),
+                            checkout: true,
+                          },
+                        },
+                        `创建并切换到分支 "${branchName.trim()}"?`,
+                      )
+                    }
+                  >
+                    {locale === 'zh-CN' ? '创建并切换' : 'Create'}
+                  </Button>
+                  <Button size="compact" onClick={() => setActiveForm('none')}>
+                    {locale === 'zh-CN' ? '取消' : 'Cancel'}
+                  </Button>
+                </div>
+              ) : null}
+
+              {activeForm === 'checkout' ? (
+                <div className="git-inline-form">
+                  <input
+                    type="text"
+                    className="git-inline-input"
+                    value={checkoutRef}
+                    onChange={(e) => setCheckoutRef(e.target.value)}
+                    placeholder={locale === 'zh-CN' ? '分支名或提交 Hash' : 'Branch or commit ref'}
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && checkoutRef.trim() && projectPath) {
+                        void runMutation(
+                          {
+                            type: 'git/checkout',
+                            input: { projectPath, ref: checkoutRef.trim() },
+                          },
+                          `切换到 "${checkoutRef.trim()}"?`,
+                        );
+                      } else if (e.key === 'Escape') {
+                        setActiveForm('none');
+                      }
+                    }}
+                  />
+                  <Button
+                    size="compact"
+                    variant="primary"
+                    disabled={busy || !projectPath || !checkoutRef.trim()}
+                    onClick={() =>
+                      void runMutation(
+                        {
+                          type: 'git/checkout',
+                          input: { projectPath: projectPath!, ref: checkoutRef.trim() },
+                        },
+                        `切换到 "${checkoutRef.trim()}"?`,
+                      )
+                    }
+                  >
+                    {locale === 'zh-CN' ? '切换' : 'Checkout'}
+                  </Button>
+                  <Button size="compact" onClick={() => setActiveForm('none')}>
+                    {locale === 'zh-CN' ? '取消' : 'Cancel'}
+                  </Button>
+                </div>
+              ) : null}
+
+              {/* Commit Timeline Section */}
+              <div className="git-timeline-section">
+                <div className="git-section-title">
+                  {locale === 'zh-CN' ? '最近提交' : 'Recent Commits'}
+                </div>
+                <div className="git-timeline-scroll">
+                  <ul className="git-timeline" data-testid="git-timeline">
+                    {(graph?.nodes ?? []).map((node) => {
+                      const isHead = node.hash === status.branch?.headCommit;
+                      const isSelected = (selectedHash ?? graph?.nodes[0]?.hash) === node.hash;
+                      return (
+                        <li
+                          key={node.hash}
+                          className={`git-tl-item${isHead ? ' head' : ''}${isSelected ? ' sel' : ''}`}
+                        >
+                          <button
+                            type="button"
+                            className="git-tl-btn"
+                            onClick={() => setSelectedHash(node.hash)}
+                          >
+                            <span className="git-tl-node" aria-hidden />
+                            <code className="git-tl-hash">{node.shortHash}</code>
+                            <span className="git-tl-subject" title={node.subject}>
+                              {node.subject}
+                            </span>
+                            {isHead ? <span className="git-tl-tag">HEAD</span> : null}
+                            <span className="git-tl-when">
+                              {formatRelativeTime(node.authorDateIso, locale)}
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+
+                {/* Selected Commit Detail Inset Card */}
+                {selected ? (
+                  <div className="git-commit-card" data-testid="git-commit-card">
+                    <div className="git-commit-subject">{selected.subject}</div>
+                    <div className="git-commit-meta">
+                      <code>{selected.shortHash}</code> · {selected.authorName} ·{' '}
+                      {formatRelativeTime(selected.authorDateIso, locale)}
+                    </div>
+                    {selected.parentHashes.length > 0 ? (
+                      <div className="git-commit-parents">
+                        parents:{' '}
+                        {selected.parentHashes.map((h) => (
+                          <code key={h}>{h.slice(0, 7)}</code>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            </>
+          )}
+
           {embedded ? null : (
-            <Button variant="primary" onClick={() => props.onClose?.()}>
-              Close
-            </Button>
+            <div className="modal-actions" style={{ marginTop: 16 }}>
+              <Button onClick={() => void reload()} disabled={loading}>
+                {locale === 'zh-CN' ? '刷新' : 'Refresh'}
+              </Button>
+              <Button variant="primary" onClick={() => props.onClose?.()}>
+                {locale === 'zh-CN' ? '关闭' : 'Close'}
+              </Button>
+            </div>
           )}
         </div>
       </div>
-    </div>
     </>
   );
 }

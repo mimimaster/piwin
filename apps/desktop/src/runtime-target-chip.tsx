@@ -1,6 +1,7 @@
 /**
- * Local / Remote Host runtime-target chip (D-CTX-01b).
- * Local stays available to switch back to the sidecar. Attach opens the
+ * Local sidecar vs attached Host (D-CTX-01b).
+ * This is not a cloud product: the second target is a Host already running
+ * on another machine. Local stays available to switch back. Attach opens the
  * connect wall (stops the local Host when leaving the workbench).
  */
 import type { ReactElement } from 'react';
@@ -8,11 +9,13 @@ import { DropdownMenu, DropdownMenuItem } from '@piwin/ui-kit';
 import { getDesktopCopy } from './desktop-locale';
 import { useDesktopLocale } from './desktop-locale-context';
 import { isDesktopShellOnlyBuild } from './desktop-shell-build';
-import { IconChevronDown, IconCloud, IconLaptop } from './shell-icons';
+import { IconChevronDown, IconLaptop, IconServer } from './shell-icons';
 
 export type RuntimeTargetChipProps = {
   /** True when Desktop is attached to a saved standalone Host. */
   remoteConnected?: boolean;
+  /** Hostname:port of the attached Host, when known. */
+  hostLabel?: string;
   onSelectLocal?: () => void;
   /** Leave the local sidecar and open the attach connect wall. */
   onSelectAttach?: () => void;
@@ -23,10 +26,11 @@ export function RuntimeTargetChip(props: RuntimeTargetChipProps): ReactElement {
   const copy = getDesktopCopy(locale).composer;
   const shellOnly = isDesktopShellOnlyBuild();
   const remoteConnected = props.remoteConnected === true;
-  const activeLabel = remoteConnected ? copy.runtimeCloudLabel : copy.runtimeLocalLabel;
-  const activeTooltip = remoteConnected
-    ? copy.runtimeCloudConnectedTooltip
-    : copy.runtimeLocalTooltip;
+  const hostLabel = props.hostLabel?.trim() ?? '';
+  const attachedLabel = hostLabel.length > 0 ? hostLabel : copy.runtimeAttachedLabel;
+  const attachedTooltip = copy.runtimeAttachedTooltip(hostLabel.length > 0 ? hostLabel : null);
+  const activeLabel = remoteConnected ? attachedLabel : copy.runtimeLocalLabel;
+  const activeTooltip = remoteConnected ? attachedTooltip : copy.runtimeLocalTooltip;
 
   return (
     <DropdownMenu
@@ -45,7 +49,7 @@ export function RuntimeTargetChip(props: RuntimeTargetChipProps): ReactElement {
           aria-label={activeTooltip}
         >
           {remoteConnected ? (
-            <IconCloud width={13} height={13} className="composer-context-link-icon" />
+            <IconServer width={13} height={13} className="composer-context-link-icon" />
           ) : (
             <IconLaptop width={13} height={13} className="composer-context-link-icon" />
           )}
@@ -75,38 +79,26 @@ export function RuntimeTargetChip(props: RuntimeTargetChipProps): ReactElement {
           </span>
         </span>
       </DropdownMenuItem>
-      {shellOnly ? null : (
-      <DropdownMenuItem
-        disabled={remoteConnected}
-        testId="composer-runtime-attach-item"
-        onSelect={() => {
-          props.onSelectAttach?.();
-        }}
-      >
-        <span className="composer-context-menu-row">
-          <IconCloud width={13} height={13} />
-          <span>{copy.runtimeAttachAction}</span>
-        </span>
-      </DropdownMenuItem>
-      )}
-      <DropdownMenuItem disabled={!remoteConnected} testId="composer-runtime-remote-item">
-        <span
-          className={`composer-context-menu-row${remoteConnected ? '' : ' is-muted'}`}
-          title={
-            remoteConnected
-              ? copy.runtimeCloudConnectedTooltip
-              : copy.runtimeCloudDisconnectedTooltip
-          }
+      {remoteConnected ? (
+        <DropdownMenuItem disabled testId="composer-runtime-remote-item">
+          <span className="composer-context-menu-row" title={attachedTooltip}>
+            <IconServer width={13} height={13} />
+            <span>{`● ${attachedLabel}`}</span>
+          </span>
+        </DropdownMenuItem>
+      ) : shellOnly ? null : (
+        <DropdownMenuItem
+          testId="composer-runtime-attach-item"
+          onSelect={() => {
+            props.onSelectAttach?.();
+          }}
         >
-          <IconCloud width={13} height={13} />
-          <span>{remoteConnected ? `● ${copy.runtimeCloudLabel}` : copy.runtimeCloudLabel}</span>
-          {!remoteConnected ? (
-            <span className="composer-context-menu-hint">
-              {copy.runtimeCloudDisconnectedTooltip}
-            </span>
-          ) : null}
-        </span>
-      </DropdownMenuItem>
+          <span className="composer-context-menu-row">
+            <IconServer width={13} height={13} />
+            <span>{copy.runtimeAttachAction}</span>
+          </span>
+        </DropdownMenuItem>
+      )}
     </DropdownMenu>
   );
 }

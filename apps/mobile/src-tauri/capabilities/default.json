@@ -8,6 +8,7 @@
     "barcode-scanner:default",
     "allow-mobile-credential-read",
     "allow-mobile-credential-write",
-    "allow-mobile-credential-clear"
+    "allow-mobile-credential-clear",
+    "piwin-healthkit:default"
   ]
 }

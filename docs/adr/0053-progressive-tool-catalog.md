@@ -11,7 +11,7 @@
 
 The model-visible tool surface had two low-frequency shells:
 
-- `piwin_toolbox` — Host process/browser/notes/flashcards/image/video, `describe`/`call`, target enum, no search
+- `piwin_toolbox` — Host process/notes/flashcards/image/video, `describe`/`call`, target enum, no search
 - `mcp_gateway` — MCP only, `search`/`describe`/`call`/`status`
 
 Gateway-first exposure (ADR 0014 / 0033) still holds: adding MCP servers must not dump every schema into `tools[]`. The failure was the *ritual*: two wrappers, MCP search without inline schemas, and a Host enum that could not name MCP selectors. Prompt Cache still requires a stable `tools` prefix per generation. Pi does not expose Anthropic `defer_loading` or Kimi-style mid-turn tool injection.

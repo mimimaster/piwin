@@ -346,7 +346,7 @@ export type SessionLiveContext = {
    * Late events/tools are rejected and the next prompt activates a fresh runtime.
    */
   quarantineSessionRuntime: (sessionId: string, runId: string) => void;
-  /** Test seam; production uses the bounded default below. */
+  /** Test seam for Stop/Pause cleanup; production uses the bounded default. */
   abortCleanupTimeoutMs?: number;
   reloadRuntime: (request: {
     sessionId: string;

@@ -11,147 +11,323 @@
 .flashcards-panel-container {
   display: flex;
   flex-direction: column;
-  gap: var(--s-5);
+  gap: var(--s-4);
 }
+
+/* ── Top Toolbar Card ─────────────────────────────────────────────── */
 
 .flashcards-toolbar-card {
   background: var(--surface-2);
   border: 0;
-  border-radius: var(--r-panel);
-  padding: var(--s-5);
+  border-radius: var(--r-card);
+  padding: var(--s-4);
   display: flex;
   flex-direction: column;
-  gap: var(--s-4);
-  box-shadow: var(--elev-1);
+  gap: var(--s-3);
+  box-shadow: var(--elev-1), inset 0 0 0 1px var(--line-1);
 }
 
-.flashcards-toolbar-left {
+.flashcards-toolbar-top {
   display: flex;
   align-items: center;
-  gap: var(--s-4);
+  justify-content: space-between;
+  gap: var(--s-3);
+  flex-wrap: wrap;
 }
 
-.flashcards-deck-select-label {
+.flashcards-deck-picker {
   display: flex;
   align-items: center;
-  gap: var(--s-4);
-  font-size: var(--fs-chrome);
-  color: var(--text-1);
-  font-weight: 500;
+  gap: var(--s-2);
+  background: var(--void);
+  border-radius: var(--r-control);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  padding: 0 var(--s-3);
+  height: var(--h-md);
+  color: var(--text-2);
+  transition: box-shadow var(--t-1) var(--ease-out);
+}
+
+.flashcards-deck-picker:focus-within {
+  box-shadow: inset 0 0 0 1px var(--iris);
+}
+
+.flashcards-deck-icon {
+  font-size: 15px;
+  color: var(--iris-lift);
+  flex-shrink: 0;
 }
 
 .flashcards-deck-select {
-  background: var(--void);
-  box-shadow: inset 0 0 0 1px var(--line-1);
-  color: var(--text-1);
+  background: transparent;
   border: 0;
-  border-radius: var(--r-control);
-  padding: var(--s-3) var(--s-4);
+  color: var(--text-1);
   font-size: var(--fs-chrome);
+  font-weight: 500;
+  outline: none;
+  padding-right: var(--s-1);
+  cursor: pointer;
+}
+
+.flashcards-deck-select option {
+  background: var(--surface-1);
+  color: var(--text-1);
 }
 
 .flashcards-toolbar-actions {
   display: flex;
   align-items: center;
-  gap: var(--s-4);
+  gap: var(--s-2);
   flex-wrap: wrap;
 }
+
+.flashcards-toolbar-actions .piwin-button:disabled {
+  color: var(--text-3) !important;
+  background: var(--surface-1) !important;
+  box-shadow: inset 0 0 0 1px var(--line-1) !important;
+  opacity: 0.75;
+}
+
+.flashcards-toolbar-actions .piwin-button:disabled .mantine-Button-label,
+.flashcards-toolbar-actions .piwin-button:disabled span {
+  color: var(--text-3) !important;
+}
+
+.flashcards-toolbar-actions .piwin-button:disabled svg {
+  color: var(--text-4) !important;
+}
+
+.flashcards-btn-icon {
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  margin-right: var(--s-2);
+}
+
+/* ── Stats & Algorithm Strip ──────────────────────────────────────── */
 
 .flashcards-stats-strip {
   display: flex;
   align-items: center;
   gap: var(--s-4);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line-1);
   font-size: var(--fs-micro);
-  color: var(--text-4);
-  padding-top: var(--s-4);
-  border-top: 1px dashed var(--line-1);
+  color: var(--text-3);
+  flex-wrap: wrap;
 }
+
+.flashcards-stat-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.flashcards-stat-label {
+  font-weight: 500;
+  color: var(--text-3);
+}
+
+.flashcards-stat-value {
+  font-weight: 700;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.flashcards-stat-value.is-due {
+  color: var(--amber);
+  background: var(--amber-wash);
+  padding: 1px 6px;
+  border-radius: var(--r-chip);
+}
+
+.flashcards-stat-divider {
+  width: 1px;
+  height: 12px;
+  background: var(--line-1);
+}
+
+.flashcards-algorithm-tag {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-micro);
+  color: var(--iris-lift);
+  font-weight: 600;
+  background: var(--iris-wash);
+  padding: 2px 8px;
+  border-radius: var(--r-chip);
+}
+
+.flashcards-algo-icon {
+  font-size: 12px;
+}
+
+/* ── Status Banners ────────────────────────────────────────────────── */
+
+.flashcards-status-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-control);
+  font-size: var(--fs-chrome);
+  line-height: var(--lh-normal);
+}
+
+.flashcards-status-banner.is-error {
+  background: color-mix(in srgb, var(--coral) 12%, transparent);
+  color: var(--coral);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--coral) 30%, transparent);
+}
+
+.flashcards-status-banner.is-info {
+  background: color-mix(in srgb, var(--mint) 12%, transparent);
+  color: var(--mint);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mint) 30%, transparent);
+}
+
+.flashcards-status-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+/* ── Review Stage ─────────────────────────────────────────────────── */
 
 .flashcards-review-stage {
   background: var(--surface-2);
   border: 0;
   border-radius: var(--r-panel);
-  padding: var(--s-7);
-  box-shadow: var(--elev-2);
+  padding: var(--s-6);
+  box-shadow: var(--elev-2), inset 0 0 0 1px var(--line-1);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
 }
 
 .flashcards-review-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--s-5);
-  margin-bottom: var(--s-6);
-  padding-bottom: var(--s-5);
-  border-bottom: 1px solid var(--line-1);
+  gap: var(--s-4);
+  flex-wrap: wrap;
 }
 
 .flashcards-review-progress {
   display: flex;
   align-items: center;
-  gap: var(--s-4);
+  gap: var(--s-3);
 }
 
 .flashcards-progress-badge {
-  padding: 3px var(--s-4);
+  padding: 2px var(--s-3);
   background: var(--iris-wash);
   color: var(--iris-lift);
-  border-radius: var(--r-control);
-  font-size: var(--fs-chrome);
+  border-radius: var(--r-chip);
+  font-size: var(--fs-micro);
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .flashcards-new-badge {
-  padding: 3px var(--s-4);
+  padding: 2px var(--s-3);
   background: color-mix(in srgb, var(--mint) 18%, transparent);
   color: var(--mint);
-  border-radius: var(--r-control);
+  border-radius: var(--r-chip);
   font-size: var(--fs-micro);
   font-weight: 600;
 }
 
 .flashcards-deck-tag {
-  font-size: var(--fs-chrome);
-  color: var(--text-4);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+  font-weight: 500;
+}
+
+.flashcards-deck-tag-icon {
+  font-size: 13px;
+  color: var(--iris-lift);
 }
 
 .flashcards-keyboard-hints {
   font-size: var(--fs-micro);
   color: var(--text-4);
   display: flex;
-  gap: var(--s-3);
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.flashcards-kbd-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.flashcards-review-stage kbd,
+.flashcards-btn-kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-family: inherit;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--text-2);
+  background: var(--void);
+  border-radius: var(--r-chip);
+  box-shadow: inset 0 0 0 1px var(--line-2), 0 1px 0 var(--line-2);
+}
+
+.flashcards-progress-bar-track {
+  width: 100%;
+  height: 4px;
+  background: var(--void);
+  border-radius: var(--r-chip);
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--line-1);
+}
+
+.flashcards-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--iris), var(--mint));
+  border-radius: var(--r-chip);
+  transition: width var(--t-3) var(--ease-out);
 }
 
 .flashcards-card-box {
   background: var(--void);
   box-shadow: inset 0 0 0 1px var(--line-1);
   border-radius: var(--r-card);
-  padding: var(--s-7);
-  min-height: 180px;
+  padding: var(--s-6);
+  min-height: 200px;
   display: flex;
   flex-direction: column;
   gap: var(--s-6);
-  margin-bottom: var(--s-7);
 }
 
 .flashcards-question-side,
 .flashcards-answer-side {
   display: flex;
   align-items: flex-start;
-  gap: var(--s-5);
+  gap: var(--s-4);
 }
 
 .flashcards-box-side-tag {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border-radius: var(--r-chip);
   background: var(--iris-wash);
   color: var(--iris-lift);
   font-size: var(--fs-micro);
   font-weight: 700;
   flex-shrink: 0;
+  margin-top: 2px;
 }
 
 .flashcards-box-side-tag.is-answer {
@@ -163,40 +339,190 @@
   font-size: var(--fs-title);
   line-height: var(--lh-relaxed);
   color: var(--text-1);
+  flex: 1;
+  word-break: break-word;
 }
 
 .flashcards-box-source-quote {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  background: var(--surface-1);
+  border-radius: var(--r-control);
+  border-left: 2px solid var(--mint);
+  color: var(--text-3);
   font-size: var(--fs-chrome);
-  color: var(--text-4);
   font-style: italic;
-  margin: var(--s-3) 0 0 34px;
+}
+
+.flashcards-box-source-quote p {
+  margin: 0;
+}
+
+.flashcards-quote-icon {
+  font-size: 14px;
+  color: var(--mint);
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
 .flashcards-review-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--s-5);
-}
-
-.flashcards-rate-group {
-  display: flex;
   gap: var(--s-4);
   flex-wrap: wrap;
 }
 
-.flashcards-empty-card {
-  background: var(--surface-2);
-  border: 1px dashed var(--line-2);
-  border-radius: var(--r-panel);
-  padding: var(--s-9) var(--s-6);
-  text-align: center;
+.flashcards-reveal-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
 }
+
+.flashcards-btn-kbd {
+  margin-left: var(--s-2);
+}
+
+.flashcards-rate-group {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--s-3);
+  flex: 1;
+  max-width: 480px;
+}
+
+.flashcards-rate-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: var(--s-3) var(--s-2);
+  border-radius: var(--r-control);
+  border: 0;
+  background: var(--void);
+  cursor: pointer;
+  transition: all var(--t-1) var(--ease-out);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+}
+
+.flashcards-rate-btn:focus-visible {
+  outline: 2px solid var(--iris);
+  outline-offset: 1px;
+}
+
+.flashcards-rate-btn.tone-again:hover {
+  background: color-mix(in srgb, var(--coral) 14%, var(--void));
+  box-shadow: inset 0 0 0 1px var(--coral);
+}
+.flashcards-rate-btn.tone-again .flashcards-rate-label {
+  color: var(--coral);
+}
+
+.flashcards-rate-btn.tone-hard:hover {
+  background: color-mix(in srgb, var(--amber) 14%, var(--void));
+  box-shadow: inset 0 0 0 1px var(--amber);
+}
+.flashcards-rate-btn.tone-hard .flashcards-rate-label {
+  color: var(--amber);
+}
+
+.flashcards-rate-btn.tone-good:hover {
+  background: color-mix(in srgb, var(--mint) 14%, var(--void));
+  box-shadow: inset 0 0 0 1px var(--mint);
+}
+.flashcards-rate-btn.tone-good .flashcards-rate-label {
+  color: var(--mint);
+}
+
+.flashcards-rate-btn.tone-easy:hover {
+  background: color-mix(in srgb, var(--iris) 14%, var(--void));
+  box-shadow: inset 0 0 0 1px var(--iris);
+}
+.flashcards-rate-btn.tone-easy .flashcards-rate-label {
+  color: var(--iris-lift);
+}
+
+.flashcards-rate-label {
+  font-size: var(--fs-chrome);
+  font-weight: 600;
+}
+
+.flashcards-rate-kbd {
+  font-size: 10px;
+  padding: 1px 5px;
+  background: var(--surface-1);
+  color: var(--text-2);
+  border-radius: var(--r-chip);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+
+.flashcards-exit-btn {
+  margin-left: auto;
+}
+
+/* ── Empty State Card ─────────────────────────────────────────────── */
+
+.flashcards-empty-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: var(--surface-2);
+  border-radius: var(--r-panel);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  padding: var(--s-9) var(--s-6);
+  margin: var(--s-2) 0;
+}
+
+.flashcards-empty-icon-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--iris-wash);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--s-4);
+  color: var(--iris-lift);
+}
+
+.flashcards-empty-icon {
+  font-size: 24px;
+}
+
+.flashcards-empty-title {
+  margin: 0 0 var(--s-2);
+  font-size: var(--fs-title);
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.flashcards-empty-desc {
+  margin: 0;
+  max-width: 360px;
+  font-size: var(--fs-chrome);
+  color: var(--text-3);
+  line-height: var(--lh-relaxed);
+}
+
+.flashcards-loading-hint {
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+  text-align: center;
+  padding: var(--s-6);
+}
+
+/* ── Browse Grid / List View ──────────────────────────────────────── */
 
 .flashcards-card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: var(--s-5);
+  gap: var(--s-4);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -206,11 +532,11 @@
   background: var(--surface-2);
   border: 0;
   border-radius: var(--r-card);
-  padding: var(--s-5);
+  padding: var(--s-4);
   display: flex;
   flex-direction: column;
-  gap: var(--s-4);
-  box-shadow: var(--elev-1);
+  gap: var(--s-3);
+  box-shadow: var(--elev-1), inset 0 0 0 1px var(--line-1);
   transition:
     box-shadow var(--t-1) var(--ease-out),
     transform var(--t-1) var(--ease-out);
@@ -219,7 +545,7 @@
 .flashcards-grid-item:hover {
   box-shadow:
     var(--elev-2),
-    inset 0 0 0 1px color-mix(in srgb, var(--iris) 30%, transparent);
+    inset 0 0 0 1px color-mix(in srgb, var(--iris) 40%, transparent);
   transform: translateY(-1px);
 }
 
@@ -234,30 +560,98 @@
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--line-1);
-  padding-bottom: var(--s-3);
+  padding-bottom: var(--s-2);
 }
 
 .flashcards-item-deck {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: var(--fs-micro);
   font-weight: 600;
   color: var(--iris-lift);
 }
 
+.flashcards-item-deck-icon {
+  font-size: 13px;
+}
+
 .flashcards-item-card-actions {
   display: flex;
   align-items: center;
-  gap: var(--s-2);
+  gap: 4px;
+}
+
+.flashcards-action-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-control);
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: all var(--t-1) var(--ease-out);
+  font-size: 14px;
+}
+
+.flashcards-action-icon-btn:hover {
+  background: var(--surface-3);
+  color: var(--text-1);
+}
+
+.flashcards-action-icon-btn.is-danger:hover {
+  background: color-mix(in srgb, var(--coral) 18%, transparent);
+  color: var(--coral);
+}
+
+.flashcards-action-icon-btn:focus-visible {
+  outline: 2px solid var(--iris);
+  outline-offset: 1px;
 }
 
 .flashcards-item-body {
   display: flex;
   flex-direction: column;
-  gap: var(--s-3);
+  gap: var(--s-2);
+  flex: 1;
+}
+
+.flashcards-item-qa-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+}
+
+.flashcards-qa-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--r-chip);
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.flashcards-qa-tag.is-q {
+  background: var(--iris-wash);
+  color: var(--iris-lift);
+}
+
+.flashcards-qa-tag.is-a {
+  background: color-mix(in srgb, var(--mint) 18%, transparent);
+  color: var(--mint);
 }
 
 .flashcards-item-front {
   margin: 0;
-  font-size: var(--fs-body);
+  font-size: var(--fs-chrome);
+  font-weight: 600;
   color: var(--text-1);
   line-height: var(--lh-normal);
 }
@@ -265,13 +659,44 @@
 .flashcards-item-back {
   margin: 0;
   font-size: var(--fs-chrome);
-  color: var(--text-4);
+  color: var(--text-3);
   line-height: var(--lh-normal);
 }
 
 .flashcards-item-footer {
   margin-top: auto;
-  padding-top: var(--s-3);
+  padding-top: var(--s-2);
   border-top: 1px dashed var(--line-1);
   cursor: pointer;
+}
+
+.flashcards-source-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+  transition: color var(--t-1) var(--ease-out);
+  max-width: 100%;
+}
+
+.flashcards-source-badge:hover {
+  color: var(--iris-lift);
+}
+
+.flashcards-source-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flashcards-source-icon {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.flashcards-source-arrow {
+  font-size: 11px;
+  flex-shrink: 0;
+  margin-left: 2px;
 }

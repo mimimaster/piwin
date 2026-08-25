@@ -2,10 +2,7 @@ import type { SessionListOrder, SessionScope } from '@piwin/contracts';
 import type { SessionListItemUi } from './chat-reducer';
 import type { DraftSessionItemUi } from './draft-session';
 import { draftSessionMatchesQuery, sortDraftSessions } from './draft-session';
-import {
-  hiddenSessionCount,
-  type SessionListScopeState,
-} from './session-list-scope';
+import { hiddenSessionCount, type SessionListScopeState } from './session-list-scope';
 import { sessionScopeKey } from './session-scope-key';
 
 export type SidebarTreeRow =
@@ -17,8 +14,18 @@ export type SidebarTreeRow =
       session: SessionListItemUi | DraftSessionItemUi;
       key: string;
     }
+  | {
+      kind: 'project-show-more';
+      projectPath: string;
+      batchSize: number;
+      nextVisibleCount: number;
+      key: string;
+    }
   | { kind: 'empty-hint'; scope: SessionScope; key: string }
   | { kind: 'truncation-hint'; scope: SessionScope; hiddenCount: number; key: string };
+
+export const DEFAULT_PROJECT_SESSION_VISIBLE_COUNT = 5;
+export const PROJECT_SESSION_VISIBLE_INCREMENT = 5;
 
 export type SidebarProjectRef = {
   path: string;
@@ -34,6 +41,7 @@ export type SidebarTreeRowsInput = {
   projectsSectionExpanded: boolean;
   conversationsSectionExpanded: boolean;
   collapsedProjects: Record<string, boolean>;
+  projectSessionVisibleCounts?: Readonly<Record<string, number>>;
   sessionListScopes: SessionListScopeState;
   activeProjectPath?: string | null;
   activeProjectSessions?: SessionListItemUi[];
@@ -67,8 +75,32 @@ export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRo
         input.activeProjectPath === project.path && input.activeProjectSessions !== undefined
           ? input.activeProjectSessions
           : (input.projectSessionsByPath[project.path] ?? []);
-      const merged = mergeScopeRows(scope, drafts, hostSessions, input.sessionSearch, input.sessionListOrder);
-      rows.push(...merged);
+      const merged = mergeScopeRows(
+        scope,
+        drafts,
+        hostSessions,
+        input.sessionSearch,
+        input.sessionListOrder,
+      );
+      const visibleCount = Math.max(
+        input.projectSessionVisibleCounts?.[project.path] ?? DEFAULT_PROJECT_SESSION_VISIBLE_COUNT,
+        DEFAULT_PROJECT_SESSION_VISIBLE_COUNT,
+      );
+      const visible = searching ? merged : merged.slice(0, visibleCount);
+      rows.push(...visible);
+      if (!searching && visible.length < merged.length) {
+        const batchSize = Math.min(
+          PROJECT_SESSION_VISIBLE_INCREMENT,
+          merged.length - visible.length,
+        );
+        rows.push({
+          kind: 'project-show-more',
+          projectPath: project.path,
+          batchSize,
+          nextVisibleCount: visible.length + batchSize,
+          key: `project-show-more:${project.path}`,
+        });
+      }
       appendScopeHints(rows, {
         scope,
         merged,
@@ -115,7 +147,9 @@ function mergeScopeRows(
   order: SessionListOrder,
 ): Extract<SidebarTreeRow, { kind: 'session' }>[] {
   const scopeDrafts = sortDraftSessions(
-    drafts.filter((draft) => sameScope(draft.scope, scope) && draftSessionMatchesQuery(draft, sessionSearch)),
+    drafts.filter(
+      (draft) => sameScope(draft.scope, scope) && draftSessionMatchesQuery(draft, sessionSearch),
+    ),
   );
   const durableIds = new Set(sessions.map((session) => session.id));
   const uniqueDrafts = scopeDrafts.filter((draft) => !durableIds.has(draft.id));

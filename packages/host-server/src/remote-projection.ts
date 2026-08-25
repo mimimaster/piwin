@@ -246,6 +246,7 @@ export function createRemoteCapabilities(
     foregroundRunAdmission: true,
     logicalProjectRefs: true,
     activityHydration: true,
+    liveSubscriptions: true,
   };
 }
 

@@ -1,7 +1,11 @@
+import { randomUUID } from 'node:crypto';
 import type { HostCommand, HostResponse, PromptInput, QueuedTurnRecord } from '@piwin/contracts';
 
 export type SessionQueueHostClient = {
-  handleCommand: (command: HostCommand) => Promise<HostResponse>;
+  handleCommand: (
+    command: HostCommand,
+    options?: { idempotencyKey?: string },
+  ) => Promise<HostResponse>;
 };
 
 type QueueListData = {
@@ -86,17 +90,20 @@ export async function runSessionReplaceRun(
   text: string,
   ids: { queuedTurnId: string; userMessageId: string },
 ): Promise<QueuedTurnRecord> {
-  const response = await client.handleCommand({
-    type: 'session/replace-run',
-    sessionId,
-    runId,
-    queuedTurnId: ids.queuedTurnId,
-    userMessageId: ids.userMessageId,
-    input: {
-      text,
-      clientMessageId: ids.userMessageId,
+  const response = await client.handleCommand(
+    {
+      type: 'session/replace-run',
+      sessionId,
+      runId,
+      queuedTurnId: ids.queuedTurnId,
+      userMessageId: ids.userMessageId,
+      input: {
+        text,
+        clientMessageId: ids.userMessageId,
+      },
     },
-  });
+    { idempotencyKey: crypto.randomUUID() },
+  );
   return requireQueuedTurn(response, 'session/replace-run');
 }
 

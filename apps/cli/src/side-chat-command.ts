@@ -12,6 +12,7 @@
  * Host commands as the main chat flow — side chats are regular product
  * sessions with a read-only tool profile and inherited context.
  */
+import { randomUUID } from 'node:crypto';
 import type {
   HostCommand,
   HostPush,
@@ -31,10 +32,39 @@ import type {
  * WalkthroughHostClient — kept separate for clarity and future divergence.
  */
 export type SideChatHostClient = {
-  handleCommand: (command: HostCommand) => Promise<HostResponse>;
+  handleCommand: (
+    command: HostCommand,
+    options?: { idempotencyKey?: string },
+  ) => Promise<HostResponse>;
   onPush: (handler: (message: HostPush) => void) => () => void;
   dispose: () => Promise<void>;
 };
+
+export type SideChatHostHandle = {
+  handleCommand: SideChatHostClient['handleCommand'];
+  dispose: () => Promise<void>;
+};
+
+/**
+ * Keep caller-owned request options (idempotencyKey) on the Host handle.
+ * `(command) => host.handleCommand(command)` drops the key and attached
+ * `session/prompt` then fails with idempotency-key-required.
+ */
+export function bindSideChatHostClient(
+  host: SideChatHostHandle,
+  pushHandlers: Set<(message: HostPush) => void>,
+): SideChatHostClient {
+  return {
+    handleCommand: (command, options) => host.handleCommand(command, options),
+    onPush: (handler) => {
+      pushHandlers.add(handler);
+      return () => {
+        pushHandlers.delete(handler);
+      };
+    },
+    dispose: () => host.dispose(),
+  };
+}
 
 /* ------------------------------------------------------------------ */
 /* Output formatting (pure, unit-tested)                               */
@@ -162,11 +192,15 @@ export async function runSideChatSend(
   const timeoutMs = options?.timeoutMs ?? 120_000;
   const waiter = waitForSideChatRun(client, sideChatSessionId, timeoutMs, log);
   try {
-    const response = await client.handleCommand({
-      type: 'session/prompt',
-      sessionId: sideChatSessionId,
-      input: { text },
-    });
+    const response = await client.handleCommand(
+      {
+        type: 'session/prompt',
+        sessionId: sideChatSessionId,
+        input: { text },
+        foreground: { kind: 'if-idle' },
+      },
+      { idempotencyKey: randomUUID() },
+    );
     if (!response.success) {
       throw new Error(response.error);
     }

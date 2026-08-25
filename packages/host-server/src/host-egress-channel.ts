@@ -4,7 +4,8 @@ import type {
   HostSequencedPush,
   HostWireMessage,
 } from '@piwin/contracts';
-import type { HostPushPolicy } from '@piwin/host-transport';
+import type { HostPushPolicy, LiveSessionFilter } from '@piwin/host-transport';
+import { classifyHostPushAudience, hostPushPassesLiveFilter } from '@piwin/host-transport';
 import type { HostEgressClientStats } from './host-egress-metrics.js';
 
 export type HostEgressRecord = {
@@ -26,6 +27,7 @@ export type HostEgressChannelOptions = {
   send: (message: HostWireMessage) => void;
   canSend?: () => boolean;
   onSlowConsumer?: (reason: string) => void;
+  liveFilter?: LiveSessionFilter;
   schedule?: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
 };
 
@@ -72,6 +74,8 @@ export class HostEgressChannel {
   private diagnosticsEvicted = 0;
   private oversizedItems = 0;
   private slowConsumerDisconnects = 0;
+  private filteredItems = 0;
+  private liveFilter: LiveSessionFilter;
 
   public constructor(options: HostEgressChannelOptions) {
     this.id = options.id;
@@ -85,6 +89,7 @@ export class HostEgressChannel {
     this.send = options.send;
     this.canSend = options.canSend ?? (() => true);
     this.onSlowConsumer = options.onSlowConsumer ?? (() => undefined);
+    this.liveFilter = options.liveFilter ?? 'all';
     this.schedule = options.schedule ?? ((callback, delayMs) => setTimeout(callback, delayMs));
     this.lastSentSeq = options.initialSeq ?? 0;
     if (
@@ -147,6 +152,8 @@ export class HostEgressChannel {
       diagnosticsEvicted: this.diagnosticsEvicted,
       oversizedItems: this.oversizedItems,
       slowConsumerDisconnects: this.slowConsumerDisconnects,
+      filteredItems: this.filteredItems,
+      subscriptionCount: this.liveFilter === 'all' ? 0 : this.liveFilter.sessionIds.size,
       closed: this.closed,
     };
   }
@@ -159,6 +166,14 @@ export class HostEgressChannel {
     }
   }
 
+  public setLiveFilter(filter: LiveSessionFilter): void {
+    this.liveFilter = filter;
+  }
+
+  public getLiveFilter(): LiveSessionFilter {
+    return this.liveFilter;
+  }
+
   public flushNow(): void {
     this.flushControl();
     this.flushData();
@@ -167,6 +182,10 @@ export class HostEgressChannel {
   public offer(record: HostEgressRecord): void {
     if (this.closed) return;
     if (record.sequence.seq <= this.lastSentSeq) return;
+    if (!this.passesLiveFilter(record)) {
+      this.filteredItems += 1;
+      return;
+    }
     if (record.encodedBytes > this.maxFrameBytes) {
       this.oversizedItems += 1;
       if (record.policy.kind === 'append' || record.policy.kind === 'control') {
@@ -233,7 +252,14 @@ export class HostEgressChannel {
     if (!this.paused) {
       this.flushData();
     }
-    const replayRecords = records.filter((record) => record.sequence.seq > this.lastSentSeq);
+    const replayRecords = records.filter((record) => {
+      if (record.sequence.seq <= this.lastSentSeq) return false;
+      if (!this.passesLiveFilter(record)) {
+        this.filteredItems += 1;
+        return false;
+      }
+      return true;
+    });
     if (replayRecords.length === 0) return;
     if (!this.canSend()) {
       for (const record of replayRecords) {
@@ -443,6 +469,13 @@ export class HostEgressChannel {
     this.queuedBytes -= removed.encodedBytes;
     this.diagnosticsEvicted += 1;
     return true;
+  }
+
+  private passesLiveFilter(record: HostEgressRecord): boolean {
+    return hostPushPassesLiveFilter(
+      classifyHostPushAudience(record.sequence.push),
+      this.liveFilter,
+    );
   }
 
   private recordSend(

@@ -15,6 +15,7 @@ import {
   formatMobileFlashcardResult,
   resolveMobileFlashcardDisplay,
 } from '../../mobile-flashcard-result.js';
+import { HealthToolCard } from '../../health/HealthToolCard.js';
 
 export type MobileToolCallCardProps = {
   tool: MobileToolCall;
@@ -73,6 +74,9 @@ export function MobileToolCallCard({
   defaultExpanded = false,
 }: MobileToolCallCardProps): ReactElement {
   const [expanded, setExpanded] = useState(defaultExpanded || tool.status === 'running');
+  if (tool.presentation?.kind === 'health') {
+    return <HealthToolCard presentation={tool.presentation} toolStatus={tool.status} />;
+  }
   const [copied, setCopied] = useState(false);
 
   const ToolIcon = resolveToolIcon(tool.name);

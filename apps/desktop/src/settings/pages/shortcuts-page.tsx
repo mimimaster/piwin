@@ -10,8 +10,10 @@ import {
 } from '../../desktop-shortcut-catalog';
 import { useDesktopLocale } from '../../desktop-locale-context';
 
-function ShortcutKeycaps(props: { chord: string }): ReactElement {
-  const tokens = formatShortcutChordTokens(props.chord, detectShortcutDisplayPlatform());
+function ShortcutKeycaps(props: { chord: string; pcChord?: string }): ReactElement {
+  const platform = detectShortcutDisplayPlatform();
+  const chord = platform === 'pc' && props.pcChord ? props.pcChord : props.chord;
+  const tokens = formatShortcutChordTokens(chord, platform);
   return (
     <span className="shortcut-keycaps" aria-label={tokens.join(' + ')}>
       {tokens.map((token, tokenIndex) => (
@@ -51,7 +53,10 @@ export function ShortcutsPage(): ReactElement {
                     <span className="shortcuts-row-title">
                       {isChinese ? entry.titleZh : entry.titleEn}
                     </span>
-                    <ShortcutKeycaps chord={entry.chord} />
+                    <ShortcutKeycaps
+                      chord={entry.chord}
+                      {...(entry.pcChord ? { pcChord: entry.pcChord } : {})}
+                    />
                   </li>
                 ))}
               </ul>
@@ -61,8 +66,8 @@ export function ShortcutsPage(): ReactElement {
 
         <p className="shortcuts-footnote muted">
           {isChinese
-            ? 'Windows / Linux 上 ⌘ 显示为 Ctrl。在输入框中输入时，除命令面板与停止运行外，其余快捷键不会触发。'
-            : 'On Windows / Linux, ⌘ is shown as Ctrl. While typing in a field, only the command palette and Stop Run fire.'}
+            ? 'Windows / Linux 上 ⌘ 显示为 Ctrl。Chat 分窗快捷键在输入框中也会触发；其余操作快捷键仍会避开输入。'
+            : 'On Windows / Linux, ⌘ is shown as Ctrl. Chat pane shortcuts also work while typing; other action shortcuts still avoid text fields.'}
         </p>
       </div>
     </div>

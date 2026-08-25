@@ -79,6 +79,11 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
     }
   }, [rightPanelOpen, shell]);
   const [knowledgeOpen, setKnowledgeOpen] = useState(false);
+  const [activeSubPage, setActiveSubPage] = useState<'chat' | 'images' | 'videos' | 'flashcards' | null>(null);
+  const openImages = useCallback(() => setActiveSubPage('images'), []);
+  const openVideos = useCallback(() => setActiveSubPage('videos'), []);
+  const openFlashcards = useCallback(() => setActiveSubPage('flashcards'), []);
+  const closeSubPage = useCallback(() => setActiveSubPage(null), []);
   const handleOpenCardsPanel = useCallback(() => {
     shell.openInspector('cards');
   }, [shell]);
@@ -210,6 +215,12 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
     revealDocPreview,
     knowledgeOpen,
     setKnowledgeOpen,
+    activeSubPage,
+    setActiveSubPage,
+    openImages,
+    openVideos,
+    openFlashcards,
+    closeSubPage,
     handleOpenCardsPanel,
     handleOpenKnowledge,
     sessionListChrome,

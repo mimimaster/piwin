@@ -21,6 +21,7 @@ describe('classifyToolKind', () => {
     expect(classifyToolKind('github.search')).toBe('mcp');
     expect(classifyToolKind('image_gen')).toBe('image');
     expect(classifyToolKind('piwin_subagent_run')).toBe('subagent');
+    expect(classifyToolKind('health_read_context')).toBe('health');
     expect(classifyToolKind('mystery_tool')).toBe('other');
     // Must not treat a random name containing "file" as filesystem.
     expect(classifyToolKind('profile_loader')).toBe('other');
@@ -84,6 +85,37 @@ describe('resolvePresentedToolInvocation', () => {
 });
 
 describe('buildToolPresentation', () => {
+  it('copies Health card details onto the presentation', () => {
+    const presentation = buildToolPresentation({
+      toolName: 'health_read_context',
+      sensitivity: 'health',
+      health: {
+        metrics: ['steps'],
+        periodLabel: '今天',
+        status: 'completed',
+      },
+    });
+    expect(presentation.kind).toBe('health');
+    expect(presentation.sensitivity).toBe('health');
+    expect(presentation.health).toEqual({
+      metrics: ['steps'],
+      periodLabel: '今天',
+      status: 'completed',
+    });
+  });
+
+  it('defaults live health_read_context start cards to waiting-for-phone', () => {
+    const presentation = buildToolPresentation({
+      toolName: 'health_read_context',
+      args: { metrics: ['sleep-duration'], range: { preset: 'last-7-days' } },
+    });
+    expect(presentation.health).toEqual({
+      metrics: ['sleep-duration'],
+      periodLabel: '近 7 天',
+      status: 'waiting-for-phone',
+    });
+  });
+
   it('builds a typed delegation presentation from the task', () => {
     expect(
       buildToolPresentation({

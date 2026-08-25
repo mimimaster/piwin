@@ -4,6 +4,8 @@ export type MobileOverlayHash =
   | '#settings'
   | '#inbox'
   | '#share'
+  | '#files'
+  | '#skills'
   | '#model-picker';
 
 export function readMobileOverlayHash(hash = window.location.hash): MobileOverlayHash {
@@ -12,6 +14,8 @@ export function readMobileOverlayHash(hash = window.location.hash): MobileOverla
   if (normalized === '#settings') return '#settings';
   if (normalized === '#inbox') return '#inbox';
   if (normalized === '#share') return '#share';
+  if (normalized === '#files') return '#files';
+  if (normalized === '#skills') return '#skills';
   if (normalized === '#model-picker' || normalized === '#model') return '#model-picker';
   return '';
 }

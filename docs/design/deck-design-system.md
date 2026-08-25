@@ -196,10 +196,10 @@ All motion collapses to `0.001ms` under `prefers-reduced-motion: reduce`.
 
 ```text
 ┌──┬─────────────┬───────────────────────────────┬──────────────┐
-│  │             │  titleband  · run state       │  tabs        │
-│R │  project    ├───────────────────────────────┤              │
-│A │  search     │                               │  inspector   │
-│I │  ───────    │        transcript             │  body        │
+│  │ ⬤⬤⬤  ⊟ ← →  │  title · run state    theme   │  tabs        │ ← titleband overlays
+│R │  project    │                               │              │   the columns' top
+│A │  search     │                               │  inspector   │   strip; columns run
+│I │  ───────    │        transcript             │  body        │   to the window top
 │L │  ACTIVE     │        (measure 720)          │              │
 │  │  ├─ session │                               │              │
 │  │  ├─ session ├───────────────────────────────┤              │
@@ -212,14 +212,34 @@ All motion collapses to `0.001ms` under `prefers-reduced-motion: reduce`.
 
 Changes from the current three-column grid:
 
-1. **A persistent 46px rail** carries top-level navigation (sessions, files, knowledge,
+1. **The titleband overlays the columns' top strip** rather than taking a grid row above
+   them. The deck has no top inset, so every column runs to the window top and the 7px gap
+   between them reads as one continuous seam from the top edge to the bottom — three
+   columns, not a band stacked on three columns. The band itself has no fill, no radius and
+   no elevation, so the window controls land on the sidebar's surface and the title lands
+   on the stage's, each column's own colour showing through behind its own chrome.
+
+   The geometry is forced, not stylistic. macOS pins the Overlay traffic lights to a fixed
+   offset from the *window* top and `trafficLightPosition` is not honoured by the current
+   tao build (verified: `y` 18 and 21 both render a centre 15.75px down). A row inset from
+   the window top can never reach that line, so `--titleband-height` is twice the lights'
+   centre offset and the band is flush with the window top.
+
+   Two consequences worth keeping: the window controls are a single DOM node that never
+   migrates between columns as the sidebar opens and closes, and the title's leading edge
+   is held to the sidebar's live width so it starts at the stage column's edge instead of
+   straddling the seam. Panels are square at the top for the same reason — macOS's own
+   corner rounding is the only rounding that belongs at the window edge.
+2. **A persistent 46px rail** carries top-level navigation (sessions, files, knowledge,
    skills, settings). The sidebar can now collapse to zero without losing navigation —
    today collapsing it strands the user.
-2. **Panels float** with 7px gaps over `--void`, instead of sitting flush with hairline
+3. **Panels float** with 7px gaps over `--void`, instead of sitting flush with hairline
    dividers.
-3. **The status strip lives inside the stage card**, not as a full-window bar. Status is
-   about the session, so it belongs to the session's surface.
-4. **The composer is elevation 3 inside the stage**, over a gradient fade, rather than a
+4. **Turn telemetry lives inside the stage card**, immediately below the composer rather
+   than as a full-window bar. It is content-width, appears only for a live Run or measured
+   usage, and uses the shared Pulse / Clock / Arrow / Database outline language. Model and
+   context controls stay in the composer and are never duplicated in telemetry.
+5. **The composer is elevation 3 inside the stage**, over a gradient fade, rather than a
    bordered card flush to the bottom.
 
 ### Sidebar thread line

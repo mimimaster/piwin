@@ -51,6 +51,8 @@ export function slimToolPresentation(
   if (presentation.lineRange !== undefined) slim.lineRange = presentation.lineRange;
   if (presentation.countTag !== undefined) slim.countTag = presentation.countTag;
   if (presentation.flashcard !== undefined) slim.flashcard = presentation.flashcard;
+  if (presentation.health !== undefined) slim.health = presentation.health;
+  if (presentation.sensitivity !== undefined) slim.sensitivity = presentation.sensitivity;
   if (isPreservedToolOutput(presentation.title, presentation.routedToolName)) {
     if (presentation.output !== undefined) {
       slim.output = presentation.output;

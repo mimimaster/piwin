@@ -430,7 +430,9 @@ export async function handleSessionLiveCommand(
       const indexPath = getPiwinSessionIndexPath(rootDir);
       let existing = await getSessionRecord(indexPath, command.sessionId);
       if (!existing) {
-        return fail(requestId, 'session/resume', `Unknown session: ${command.sessionId}`);
+        return fail(requestId, 'session/resume', `Unknown session: ${command.sessionId}`, {
+          code: 'session-not-found',
+        });
       }
       const rejectedResume = rejectUnavailableSessionBody(
         requestId,

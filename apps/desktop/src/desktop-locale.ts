@@ -91,6 +91,9 @@ export type DesktopCopy = {
     switchToLightTheme: string;
   };
   sidebar: {
+    images: string;
+    videos: string;
+    flashcards: string;
     archived: string;
     working: string;
     backendServiceActive: string;
@@ -191,6 +194,10 @@ export type DesktopCopy = {
     cancelQueuedEdit: string;
     steerQueuedMessage: string;
     removeQueuedMessage: string;
+    pause: string;
+    pausing: string;
+    continueRun: string;
+    discardPause: string;
     stop: string;
     stopping: string;
     stopJob: string;
@@ -217,9 +224,8 @@ export type DesktopCopy = {
     runtimeTargetGroupLabel: string;
     runtimeLocalLabel: string;
     runtimeLocalTooltip: string;
-    runtimeCloudLabel: string;
-    runtimeCloudDisconnectedTooltip: string;
-    runtimeCloudConnectedTooltip: string;
+    runtimeAttachedLabel: string;
+    runtimeAttachedTooltip: (host: string | null) => string;
     runtimeAttachAction: string;
     foregroundReplaceTitle: string;
     foregroundReplaceDescription: string;
@@ -588,7 +594,8 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       chooseAttach: '连接已有 Host',
       connectTitle: '连接 Host',
       connectDescription: '先起好 Host，再填地址。连上之前不会在本机再起一份。',
-      rootLockNote: '同一份数据根一次只能有一个 Host。本机 sidecar 和独立 Host 不能同时开。第二个进程会启动失败。',
+      rootLockNote:
+        '同一份数据根一次只能有一个 Host。本机 sidecar 和独立 Host 不能同时开。第二个进程会启动失败。',
     },
     mobileAccess: {
       title: '手机接入',
@@ -642,6 +649,9 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       switchToLightTheme: '切换到浅色主题',
     },
     sidebar: {
+      images: '图片',
+      videos: '视频',
+      flashcards: '闪卡',
       archived: '已归档',
       working: '会话正在工作',
       backendServiceActive: '后台服务运行中',
@@ -745,6 +755,10 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       cancelQueuedEdit: '取消编辑',
       steerQueuedMessage: '改为调整当前任务（当前步骤完成后应用）',
       removeQueuedMessage: '移除后续消息',
+      pause: '暂停',
+      pausing: '正在暂停…',
+      continueRun: '继续运行',
+      discardPause: '丢弃暂停',
       stop: '停止',
       stopping: '正在停止…',
       stopJob: '停止程序',
@@ -773,9 +787,9 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       runtimeTargetGroupLabel: '运行位置',
       runtimeLocalLabel: '本机',
       runtimeLocalTooltip: '在本机运行（This Mac）',
-      runtimeCloudLabel: '远程 Host',
-      runtimeCloudDisconnectedTooltip: '未连接到远程 Host',
-      runtimeCloudConnectedTooltip: '在远程 Host 运行',
+      runtimeAttachedLabel: '已连接的 Host',
+      runtimeAttachedTooltip: (host) =>
+        host ? `会话在 ${host} 的 Host 上运行` : '会话在已连接的 Host 上运行',
       runtimeAttachAction: '连接已有 Host',
       foregroundReplaceTitle: '会话正在处理',
       foregroundReplaceDescription: '另一端正在处理这个会话，发送会中断当前任务',
@@ -914,7 +928,8 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       noDevices: 'No paired devices yet',
       revoke: 'Revoke',
       lastSeen: (at) => `Last seen: ${at}`,
-      sidecarOnly: 'Phone access is only available on this Mac’s sidecar. Choose “Use this Mac” first.',
+      sidecarOnly:
+        'Phone access is only available on this Mac’s sidecar. Choose “Use this Mac” first.',
       invalidAdvertised: 'Enter a ws:// or wss:// URL',
       pairingExpires: (at) => `Pairing code expires ${at}`,
     },
@@ -953,6 +968,9 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       switchToLightTheme: 'Switch to light theme',
     },
     sidebar: {
+      images: 'Images',
+      videos: 'Videos',
+      flashcards: 'Flashcards',
       archived: 'Archived',
       working: 'Session is working',
       backendServiceActive: 'Backend service is active',
@@ -1060,6 +1078,10 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       cancelQueuedEdit: 'Cancel queued message edit',
       steerQueuedMessage: 'Adjust current run after this step',
       removeQueuedMessage: 'Remove queued message',
+      pause: 'Pause',
+      pausing: 'Pausing…',
+      continueRun: 'Continue run',
+      discardPause: 'Discard pause',
       stop: 'Stop',
       stopping: 'Stopping…',
       stopJob: 'Stop program',
@@ -1088,9 +1110,9 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       runtimeTargetGroupLabel: 'Run location',
       runtimeLocalLabel: 'This Mac',
       runtimeLocalTooltip: 'This Mac (local)',
-      runtimeCloudLabel: 'Remote Host',
-      runtimeCloudDisconnectedTooltip: 'Not connected to a remote Host',
-      runtimeCloudConnectedTooltip: 'Run on a remote Host',
+      runtimeAttachedLabel: 'Attached Host',
+      runtimeAttachedTooltip: (host) =>
+        host ? `Running on the Host at ${host}` : 'Running on an attached Host',
       runtimeAttachAction: 'Attach to existing Host',
       foregroundReplaceTitle: 'Session is busy',
       foregroundReplaceDescription:

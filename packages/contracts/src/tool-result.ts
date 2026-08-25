@@ -1,4 +1,5 @@
 import type { MediaAttachmentRef } from './host.js';
+import type { HealthToolCardSummary } from './apple-health.js';
 
 /**
  * Stable result contract for Host-owned Agent tools.
@@ -18,7 +19,27 @@ export type ToolResultDetails = Record<string, unknown> & {
   runId?: string;
   /** Durable media outputs that the product UI may render as attachments. */
   attachments?: MediaAttachmentRef[];
+  /** Marks model-visible health summaries so memory/Notes/RAG skip them. */
+  sensitivity?: 'health';
+  /** Stable detailed reason for a mapped client-tool outcome. */
+  reason?: string;
+  /** Bounded Health card projection — never a second full series. */
+  health?: HealthToolCardSummary;
 };
+
+/**
+ * Health tool results stay in the originating session transcript. Secondary
+ * ingest (Notes, flashcards, walkthrough evidence, exports, RAG) must skip
+ * them unless a later user-initiated destination shows the scope.
+ */
+export function isHealthSensitiveToolResult(
+  source: { sensitivity?: string; kind?: string } | undefined,
+): boolean {
+  if (source === undefined) {
+    return false;
+  }
+  return source.sensitivity === 'health' || source.kind === 'health';
+}
 
 /** One raster image the next model turn may see. Raw base64, no data: prefix. */
 export type ToolResultImage = {

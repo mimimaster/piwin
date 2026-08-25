@@ -70,9 +70,9 @@ function contextRefChipTitle(item: { ref: PromptContextRef; label?: string | und
   const { ref } = item;
   const label =
     item.label ||
-    ('label' in ref && typeof ref.label === 'string'
+    (typeof ref.label === 'string' && ref.label.length > 0
       ? ref.label
-      : 'relativePath' in ref && typeof ref.relativePath === 'string'
+      : ref.kind === 'file' || ref.kind === 'folder'
         ? ref.relativePath
         : '');
   if (ref.kind === 'error' && ref.detail.trim().length > 0) {
