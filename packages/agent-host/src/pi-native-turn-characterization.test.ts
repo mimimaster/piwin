@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import type { AgentEvent } from '@piwin/contracts';
+import type { AgentEvent, AgentPromptOutcome } from '@piwin/contracts';
 import type { BackendSessionHandle } from './backends/pi-session-backend.js';
 import { createPiSessionEventMapper } from './event-map.js';
 import {
@@ -13,12 +13,12 @@ import {
 const fixtureDir = join(dirname(fileURLToPath(import.meta.url)), 'fixtures/model-stream');
 
 type PromptReturn = ReturnType<BackendSessionHandle['prompt']>;
-type CurrentPromptIsVoid = PromptReturn extends Promise<void> ? true : false;
-const currentPromptIsVoid: CurrentPromptIsVoid = true;
+type CurrentPromptReturnsOutcome = PromptReturn extends Promise<AgentPromptOutcome> ? true : false;
+const currentPromptReturnsOutcome: CurrentPromptReturnsOutcome = true;
 
 describe('Pi native turn characterization (current 0.84.2 mapping)', () => {
-  it('keeps SessionHandle.prompt as Promise<void>', () => {
-    expect(currentPromptIsVoid).toBe(true);
+  it('returns AgentPromptOutcome from BackendSessionHandle.prompt', () => {
+    expect(currentPromptReturnsOutcome).toBe(true);
   });
 
   it('maps a clean text stop without inventing an error', () => {

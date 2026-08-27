@@ -100,7 +100,7 @@ function makePreparedTask(input: {
       runtimeGenerationId: input.runtimeGenerationId,
       capabilitySnapshot,
     },
-    preparedPrompt: { text: input.task.task },
+    preparedPrompt: { text: input.task.task, runId: `run-${input.childSessionId}` },
     providers: [
       {
         providerId: 'test-provider',

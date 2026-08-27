@@ -15,6 +15,7 @@ import type { AgentModeId, PermissionPreset } from './permission.js';
 import type { CreateSessionOptions, NativeContextEntry } from './session-seed.js';
 import type { SearchEvidence } from './web.js';
 import type { HealthToolCardSummary } from './apple-health.js';
+import type { AgentPromptOutcome } from './agent-prompt-outcome.js';
 
 export type HostMode = 'sdk' | 'rpc';
 
@@ -569,7 +570,14 @@ export type AgentEvent =
       fileOps?: CompactionFileOps;
       runId?: string;
     }
-  | { type: 'error'; message: string; retriable?: boolean; runId?: string }
+  | {
+      type: 'error';
+      message: string;
+      retriable?: boolean;
+      runId?: string;
+      /** Structured failure. Legacy frames omit it and decode to unknown-agent-failure. */
+      failure?: import('./agent-failure.js').AgentFailure;
+    }
   /** CE-OBS: mapped from Pi contextUsage / assistant usage. */
   | { type: 'usage/update'; sessionId: string; usage: ContextUsageSnapshot }
   /** CE-MEM-05 optional silent extract progress. */
@@ -594,7 +602,7 @@ export type SessionCompactResult = {
 
 export interface SessionHandle {
   readonly id: string;
-  prompt(input: PromptInput): Promise<void>;
+  prompt(input: PromptInput): Promise<AgentPromptOutcome>;
   steer(message: string): Promise<void>;
   followUp(message: string): Promise<void>;
   /** Arm a literal instruction for this exact active Run's next safe checkpoint. */

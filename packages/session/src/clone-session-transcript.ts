@@ -97,6 +97,7 @@ export function cloneTranscriptMessage(
   if (message.thinkingEndedAt) next.thinkingEndedAt = message.thinkingEndedAt;
   if (message.outcome) next.outcome = message.outcome;
   if (message.terminalMessage) next.terminalMessage = message.terminalMessage;
+  if (message.failure !== undefined) next.failure = message.failure;
   if (message.model) next.model = message.model;
   if (message.subagentActivity) next.subagentActivity = { ...message.subagentActivity };
   return next;

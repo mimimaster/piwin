@@ -13,6 +13,7 @@
 
 import type {
   AgentEvent,
+  AgentPromptOutcome,
   BackendPreparedPrompt,
   BackendSessionBlueprint,
   ExtensionUiPort,
@@ -32,7 +33,7 @@ import type { SerializableProviderRuntime } from '../rpc/serializable-blueprint.
  */
 export type BackendSessionHandle = {
   id: string;
-  prompt(prepared: BackendPreparedPrompt): Promise<void>;
+  prompt(prepared: BackendPreparedPrompt): Promise<AgentPromptOutcome>;
   steer(message: string): Promise<void>;
   followUp(message: string): Promise<void>;
   armRunIntervention?(intervention: BackendRunIntervention): Promise<void>;

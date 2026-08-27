@@ -1,4 +1,6 @@
 import type { SessionRunPhase } from './host.js';
+import type { AgentFailure } from './agent-failure.js';
+import type { AgentPromptOutcome } from './agent-prompt-outcome.js';
 
 /**
  * CE-RUN: structured concurrency run contracts (runtime-refactor Phase 2).
@@ -12,20 +14,11 @@ import type { SessionRunPhase } from './host.js';
 
 /** Kind of execution run. */
 export type ExecutionRunKind =
-  | 'session-turn'
-  | 'plan-execution'
-  | 'subagent-batch'
-  | 'subagent-task';
+  'session-turn' | 'plan-execution' | 'subagent-batch' | 'subagent-task';
 
 /** Run lifecycle status. Terminal states are immutable. */
 export type ExecutionRunStatus =
-  | 'queued'
-  | 'running'
-  | 'cancelling'
-  | 'completed'
-  | 'failed'
-  | 'cancelled'
-  | 'interrupted';
+  'queued' | 'running' | 'cancelling' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
 
 /** Immutable run record. */
 export type ExecutionRunRecord = {
@@ -54,6 +47,10 @@ export type ExecutionRunRecord = {
   endedAt?: string;
   terminalCode?: string;
   error?: string;
+  /** Native Agent stop reason recorded from the prompt outcome. */
+  agentStopReason?: AgentPromptOutcome['stopReason'];
+  /** Structured Agent failure when the Run ended from a failed prompt outcome. */
+  failure?: AgentFailure;
 };
 
 /** Run push variants for HostPush. */

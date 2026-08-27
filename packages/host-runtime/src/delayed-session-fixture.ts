@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import type {
-  AgentEvent,
-  AgentMessageView,
+import {
+  ABORTED_PROMPT_OUTCOME,
+  COMPLETED_STOP_OUTCOME,
+  type AgentEvent,
+  type AgentMessageView,
   PromptInput,
   SessionCompactResult,
   SessionHandle,
@@ -70,9 +72,7 @@ export type DelayedSessionOptions = {
  *
  * The fixture does not require a real provider, API key, or network access.
  */
-export function createDelayedSessionHandle(
-  options: DelayedSessionOptions = {},
-): SessionHandle & {
+export function createDelayedSessionHandle(options: DelayedSessionOptions = {}): SessionHandle & {
   /** Resolves when the current prompt() call has fully settled. */
   promptSettled: Promise<void>;
   /** True after abort() has been called. */
@@ -148,7 +148,7 @@ export function createDelayedSessionHandle(
       return emittedDeltaCount;
     },
 
-    async prompt(promptInput: PromptInput): Promise<void> {
+    async prompt(promptInput: PromptInput) {
       aborted = false;
       abortRequested = false;
       emittedDeltaCount = 0;
@@ -178,7 +178,7 @@ export function createDelayedSessionHandle(
       // Phase: first token delay (simulates model connect + waiting for first token).
       if (await interruptibleDelay(delays.firstTokenMs)) {
         finishAborted(assistantMessageId);
-        return;
+        return ABORTED_PROMPT_OUTCOME;
       }
 
       // Optional tool call before text streaming.
@@ -190,13 +190,13 @@ export function createDelayedSessionHandle(
         const toolCallId = randomUUID();
         if (await interruptibleDelay(delays.toolStartMs)) {
           finishAborted(assistantMessageId);
-          return;
+          return ABORTED_PROMPT_OUTCOME;
         }
         emit({ type: 'tool/start', toolCallId, toolName: 'delayed_fixture_tool' });
         if (await interruptibleDelay(delays.toolDurationMs)) {
           emit({ type: 'tool/end', toolCallId, isError: true });
           finishAborted(assistantMessageId);
-          return;
+          return ABORTED_PROMPT_OUTCOME;
         }
         if (toolOutputBytes === 0) {
           emit({ type: 'tool/update', toolCallId, delta: 'fixture tool output' });
@@ -221,7 +221,7 @@ export function createDelayedSessionHandle(
       for (let index = 0; index < chunkCount; index += 1) {
         if (aborted) {
           finishAborted(assistantMessageId, assembled);
-          return;
+          return ABORTED_PROMPT_OUTCOME;
         }
         const chunk = chunkText(index);
         assembled += chunk;
@@ -231,7 +231,7 @@ export function createDelayedSessionHandle(
         if (index < chunkCount - 1) {
           if (await interruptibleDelay(delays.tokenIntervalMs)) {
             finishAborted(assistantMessageId, assembled);
-            return;
+            return ABORTED_PROMPT_OUTCOME;
           }
         }
       }
@@ -242,7 +242,7 @@ export function createDelayedSessionHandle(
           await delay(50);
         }
         finishAborted(assistantMessageId, assembled);
-        return;
+        return ABORTED_PROMPT_OUTCOME;
       }
 
       // Normal completion.
@@ -252,6 +252,7 @@ export function createDelayedSessionHandle(
       }
       emit({ type: 'message/end', messageId: assistantMessageId });
       settlePrompt();
+      return COMPLETED_STOP_OUTCOME;
     },
 
     async steer(message: string): Promise<void> {

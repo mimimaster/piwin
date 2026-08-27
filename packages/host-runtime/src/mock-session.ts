@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import type {
-  AgentEvent,
-  AgentMessageView,
+import {
+  ABORTED_PROMPT_OUTCOME,
+  COMPLETED_STOP_OUTCOME,
+  type AgentEvent,
+  type AgentMessageView,
   BackendRunIntervention,
   BackendRunInterventionEvent,
   BackendRunInterventionEventResult,
@@ -194,7 +196,7 @@ export function createMockSessionHandle(input: CreateMockSessionOptions): Sessio
 
   return {
     id: sessionId,
-    async prompt(promptInput: PromptInput): Promise<void> {
+    async prompt(promptInput: PromptInput) {
       aborted = false;
       try {
         const userMessageId = randomUUID();
@@ -217,7 +219,7 @@ export function createMockSessionHandle(input: CreateMockSessionOptions): Sessio
         emit({ type: 'message/end', messageId: userMessageId });
 
         if (aborted) {
-          return;
+          return ABORTED_PROMPT_OUTCOME;
         }
 
         const locationLabel = resolveMockLocationLabel(input);
@@ -248,7 +250,7 @@ export function createMockSessionHandle(input: CreateMockSessionOptions): Sessio
               sessionId,
               messageId: assistantMessageId,
             });
-            return;
+            return ABORTED_PROMPT_OUTCOME;
           }
           assembled += chunk;
           emit({ type: 'message/text_delta', messageId: assistantMessageId, delta: chunk });
@@ -264,7 +266,7 @@ export function createMockSessionHandle(input: CreateMockSessionOptions): Sessio
             existing.text = assembled;
           }
           emit({ type: 'session/aborted', sessionId, messageId: assistantMessageId });
-          return;
+          return ABORTED_PROMPT_OUTCOME;
         }
 
         emit({ type: 'message/end', messageId: assistantMessageId });
@@ -296,6 +298,7 @@ export function createMockSessionHandle(input: CreateMockSessionOptions): Sessio
       } finally {
         await expireStagedInterventions();
       }
+      return COMPLETED_STOP_OUTCOME;
     },
     async steer(message: string): Promise<void> {
       emit({

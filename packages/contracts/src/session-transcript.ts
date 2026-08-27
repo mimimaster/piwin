@@ -13,6 +13,7 @@ import type { PromptContextRef } from './side-chat.js';
 import type { QueuedTurnStatus } from './queued-turn.js';
 import type { RunInterventionStatus } from './run-intervention.js';
 import type { ReplyWriterAttribution } from './reply-writer.js';
+import type { AgentFailure } from './agent-failure.js';
 
 /**
  * Reserved generation namespace for legacy transcript rows (ADR 0040 §9).
@@ -67,6 +68,8 @@ export type SessionTranscriptMessage = {
   thinkingEndedAt?: string;
   outcome?: SessionRunOutcome;
   terminalMessage?: string;
+  /** Structured Agent failure for a terminal assistant row; null clears a prior value. */
+  failure?: AgentFailure | null;
   thinking?: string;
   tools?: SessionToolCardView[];
   searchEvidence?: SearchEvidence;

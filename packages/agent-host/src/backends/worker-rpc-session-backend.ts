@@ -111,8 +111,8 @@ export class WorkerSessionBackend implements PiSessionBackend {
       // a different internal id; that translation stays inside this backend.
       id: input.blueprint.sessionId,
       async prompt(preparedPrompt) {
-        await client.prompt(created.sessionId, preparedPrompt.text, {
-          ...(preparedPrompt.runId ? { runId: preparedPrompt.runId } : {}),
+        return client.prompt(created.sessionId, preparedPrompt.text, {
+          runId: preparedPrompt.runId,
           ...(preparedPrompt.images && preparedPrompt.images.length > 0
             ? {
                 images: preparedPrompt.images.map((image) => ({

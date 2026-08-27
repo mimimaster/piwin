@@ -4,9 +4,10 @@
  * ADR 0040 §7: full transcripts are never retained inside the shell — model
  * history is loaded transiently and stays bounded by buildProductHistoryContext.
  */
-import type {
-  AgentEvent,
-  AgentMessageView,
+import {
+  ABORTED_PROMPT_OUTCOME,
+  type AgentEvent,
+  type AgentMessageView,
   BackendRunInterventionEvent,
   BackendRunInterventionEventResult,
   CreateSessionInput,
@@ -32,9 +33,7 @@ export type ProductShellSessionOptions = {
   createLiveSession: (input: CreateSessionInput) => Promise<SessionHandle>;
 };
 
-export function createProductShellSession(
-  options: ProductShellSessionOptions,
-): SessionHandle {
+export function createProductShellSession(options: ProductShellSessionOptions): SessionHandle {
   const listeners = new Set<Listener>();
   const interventionListeners = new Set<InterventionListener>();
   let live: SessionHandle | null = null;
@@ -108,14 +107,14 @@ export function createProductShellSession(
 
   return {
     id: options.sessionId,
-    async prompt(input: PromptInput): Promise<void> {
+    async prompt(input: PromptInput) {
       aborted = false;
       const handle = await ensureLive();
       if (aborted) {
         await handle.abort();
-        return;
+        return ABORTED_PROMPT_OUTCOME;
       }
-      await handle.prompt(input);
+      return handle.prompt(input);
     },
     async steer(message: string): Promise<void> {
       const handle = await ensureLive();

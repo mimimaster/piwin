@@ -7,6 +7,7 @@ import type {
   PromptInput,
   SessionHandle,
 } from '@piwin/contracts';
+import { COMPLETED_STOP_OUTCOME } from '@piwin/contracts';
 import { createProductShellSession } from './product-shell-session.js';
 
 function createFakeLiveSession(): SessionHandle & {
@@ -21,8 +22,8 @@ function createFakeLiveSession(): SessionHandle & {
   >();
   return {
     id: 'live-inner',
-    async prompt(_input: PromptInput): Promise<void> {
-      // no-op
+    async prompt(_input: PromptInput) {
+      return COMPLETED_STOP_OUTCOME;
     },
     async steer(): Promise<void> {},
     async followUp(): Promise<void> {},

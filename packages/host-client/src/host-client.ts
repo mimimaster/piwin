@@ -23,6 +23,7 @@ import type {
 import {
   HOST_PROTOCOL_VERSION,
   isTrustedDeviceCredential,
+  normalizeDecodedAgentEvent,
   remoteCommandRequiresIdempotencyKey,
   remoteHostSupportsCommand,
 } from '@piwin/contracts';
@@ -132,8 +133,7 @@ export class HostClient {
   private deviceCredential: TrustedDeviceCredential | undefined;
   private readonly deviceName: string | undefined;
   private readonly onIssuedDeviceCredential:
-    | ((credential: TrustedDeviceCredential) => Promise<void> | void)
-    | undefined;
+    ((credential: TrustedDeviceCredential) => Promise<void> | void) | undefined;
   private readonly lastSeqStore: HostClientLastSeqStore;
   private readonly cursorStore: HostClientCursorStore | undefined;
   private capabilities: HostClientCapabilities;
@@ -183,7 +183,10 @@ export class HostClient {
     if (admissionKeys > 1) {
       throw new Error('Host client must present exactly one admission key');
     }
-    if (options.deviceCredential !== undefined && !isTrustedDeviceCredential(options.deviceCredential)) {
+    if (
+      options.deviceCredential !== undefined &&
+      !isTrustedDeviceCredential(options.deviceCredential)
+    ) {
       throw new Error('Host client device credential is invalid');
     }
     this.authToken = options.authToken;
@@ -758,8 +761,10 @@ export class HostClient {
 
   private applyPush(frame: HostPushFrame): boolean {
     try {
+      const push = normalizeHostPushFailures(frame.push);
+      const normalizedFrame = push === frame.push ? frame : { ...frame, push };
       for (const listener of this.pushListeners) {
-        listener(frame.push, frame);
+        listener(normalizedFrame.push, normalizedFrame);
       }
     } catch (error) {
       this.publishState({ kind: 'error', reason: toError(error, 'Host push failed').message });
@@ -908,4 +913,12 @@ export class HostClient {
       throw new Error('Host client has been closed');
     }
   }
+}
+
+function normalizeHostPushFailures(push: HostPush): HostPush {
+  if (push.type !== 'event' && push.type !== 'subagent/stream') {
+    return push;
+  }
+  const event = normalizeDecodedAgentEvent(push.event);
+  return event === push.event ? push : { ...push, event };
 }

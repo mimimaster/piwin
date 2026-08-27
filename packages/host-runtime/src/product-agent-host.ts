@@ -504,9 +504,12 @@ function createProductSessionHandle(
     async prompt(input: PromptInput) {
       const images = await loadPromptImages(input.attachments);
       const runId = getCurrentRunId?.();
-      await backendHandle.prompt({
+      if (runId === undefined) {
+        throw new Error('foreground backend prompt requires runId');
+      }
+      return backendHandle.prompt({
         text: input.text,
-        ...(runId ? { runId } : {}),
+        runId,
         ...(images.length > 0
           ? {
               images: images.map((image) => ({
