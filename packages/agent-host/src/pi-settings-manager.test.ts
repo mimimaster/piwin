@@ -15,7 +15,7 @@ type SettingsManagerLike = {
 };
 
 describe('createPiwinSettingsManager', () => {
-  it('preserves native settings while disabling implicit provider retries', () => {
+  it('passes native retry settings through without a product override', () => {
     const nativeManager: SettingsManagerLike = {
       getRetryEnabled: vi.fn(() => true),
       getRetrySettings: vi.fn(() => ({
@@ -35,13 +35,14 @@ describe('createPiwinSettingsManager', () => {
     ) as SettingsManagerLike;
 
     expect(create).toHaveBeenCalledWith('/tmp/project', '/tmp/agent');
-    expect(manager.getRetryEnabled()).toBe(false);
+    expect(manager).toBe(nativeManager);
+    expect(manager.getRetryEnabled()).toBe(true);
     expect(manager.getRetrySettings()).toEqual({
-      enabled: false,
-      maxRetries: 0,
+      enabled: true,
+      maxRetries: 3,
       baseDelayMs: 2000,
     });
-    expect(manager.getProviderRetrySettings()).toEqual({ maxRetries: 0, timeoutMs: 5000 });
+    expect(manager.getProviderRetrySettings()).toEqual({ maxRetries: 2, timeoutMs: 5000 });
     expect(manager.getTheme()).toBe('dark');
   });
 });

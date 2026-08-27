@@ -13,6 +13,7 @@ import {
 } from './message-event-map.js';
 import { buildNativeContextEvent } from './native-context-event-map.js';
 import { mapCompactionEndEvent } from './compaction-event-map.js';
+import { mapPiAutoRetryEvent } from './model-retry-event-map.js';
 import { readNestedId, readNestedRole, readRole, readString } from './pi-event-read.js';
 import {
   enrichMappedToolEvent,
@@ -230,6 +231,9 @@ export function mapPiSessionEvent(
       return mapToolExecutionUpdateEvent(event, activeMessageId, lastAssistantMessageId);
     case 'tool_execution_end':
       return mapToolExecutionEndEvent(event, activeMessageId, lastAssistantMessageId);
+    case 'auto_retry_start':
+    case 'auto_retry_end':
+      return mapPiAutoRetryEvent(event);
     case 'compaction_start':
       return [{ type: 'compaction/start' }];
     case 'compaction_end':

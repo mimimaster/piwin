@@ -294,7 +294,11 @@ export class RunRegistry {
   }
 
   /** Update the normalized phase of a non-terminal Run. */
-  updatePhase(runId: string, phase: SessionRunPhase, detail?: string): ExecutionRunRecord | undefined {
+  updatePhase(
+    runId: string,
+    phase: SessionRunPhase,
+    detail?: string,
+  ): ExecutionRunRecord | undefined {
     const node = this.nodes.get(runId);
     if (!node || isRunTerminal(node.record.status)) return undefined;
 
@@ -347,6 +351,11 @@ export class RunRegistry {
       case 'permission/request':
         nextPhase = 'waiting-permission';
         break;
+      case 'model/retry':
+        if (event.phase !== 'finished') {
+          nextPhase = 'connecting-model';
+        }
+        break;
       case 'error': {
         const message = event.message.trim();
         if (message.length > 0) {
@@ -394,10 +403,7 @@ export class RunRegistry {
   }
 
   /** Attach a durable checkpoint reference to a non-terminal run. */
-  attachResumeCheckpoint(
-    runId: string,
-    checkpointId: string,
-  ): ExecutionRunRecord | undefined {
+  attachResumeCheckpoint(runId: string, checkpointId: string): ExecutionRunRecord | undefined {
     const node = this.nodes.get(runId);
     if (!node || isRunTerminal(node.record.status)) return undefined;
     if (node.record.resumeCheckpointId === checkpointId) return { ...node.record };

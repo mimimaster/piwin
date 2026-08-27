@@ -124,7 +124,13 @@ export function classifyHostPush(push: HostPushVariant): HostPushPolicy {
       return control([]);
     case 'agent/context-summary':
       return projection(
-        deliveryKey('session', push.sessionId, 'model-context', push.runId, String(push.requestOrdinal)),
+        deliveryKey(
+          'session',
+          push.sessionId,
+          'model-context',
+          push.runId,
+          String(push.requestOrdinal),
+        ),
         push.runId,
       );
     case 'job/started':
@@ -143,31 +149,34 @@ export function classifyHostPush(push: HostPushVariant): HostPushPolicy {
       return projection(deliveryKey('run', push.run.runId), push.run.runId);
     case 'run/intervention-updated':
       return projection(
-        deliveryKey('run', push.intervention.runId, 'intervention', push.intervention.interventionId),
+        deliveryKey(
+          'run',
+          push.intervention.runId,
+          'intervention',
+          push.intervention.interventionId,
+        ),
         push.intervention.runId,
       );
     case 'session/branch-updated':
       // Latest-wins leaf pointer: a newer push fully supersedes older ones.
       return projection(deliveryKey('session', push.sessionId, 'branch'));
-    case 'session/queued-turn-updated':
-      {
-        const key = deliveryKey(
-          'session',
-          push.queuedTurn.sessionId,
-          'queued-turn',
-          push.queuedTurn.queuedTurnId,
-        );
-        // A started queued turn is emitted after its new Run has been
-        // admitted. It must precede that Run's first events, so do not use
-        // startedRunId as a barrier here. Only a pending Replace projection
-        // may use its old target Run to flush the latest queue state before
-        // that target's terminal barrier.
-        const runId =
-          push.queuedTurn.status === 'pending' ? push.queuedTurn.replaceRunId : undefined;
-        return push.queuedTurn.status === 'pending' || push.queuedTurn.status === 'starting'
-          ? projection(key, runId)
-          : control([key], runId);
-      }
+    case 'session/queued-turn-updated': {
+      const key = deliveryKey(
+        'session',
+        push.queuedTurn.sessionId,
+        'queued-turn',
+        push.queuedTurn.queuedTurnId,
+      );
+      // A started queued turn is emitted after its new Run has been
+      // admitted. It must precede that Run's first events, so do not use
+      // startedRunId as a barrier here. Only a pending Replace projection
+      // may use its old target Run to flush the latest queue state before
+      // that target's terminal barrier.
+      const runId = push.queuedTurn.status === 'pending' ? push.queuedTurn.replaceRunId : undefined;
+      return push.queuedTurn.status === 'pending' || push.queuedTurn.status === 'starting'
+        ? projection(key, runId)
+        : control([key], runId);
+    }
     case 'run/terminal':
       return control([deliveryKey('run', push.run.runId)], push.run.runId);
     case 'doccards/index-progress':
@@ -240,6 +249,8 @@ function classifyAgentEvent(scope: HostDeliveryKey, event: AgentEvent): HostPush
     case 'permission/request':
     case 'permission/resolved':
       return control([], runId);
+    case 'model/retry':
+      return projection(deliveryKey(...scope, 'run', runPart, 'model-retry'), runId);
     case 'compaction/start':
     case 'compaction/end':
       return control([deliveryKey(...scope, 'lifecycle')], runId);

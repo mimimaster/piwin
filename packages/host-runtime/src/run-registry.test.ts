@@ -45,7 +45,11 @@ describe('RunRegistry.create()', () => {
   it('inherits rootRunId from parent when parent exists', () => {
     const reg = makeRegistry();
     const parent = reg.create({ kind: 'session-turn', sessionId: 'sess-1' });
-    const child = reg.create({ kind: 'subagent-batch', sessionId: 'sess-1', parentRunId: parent.runId });
+    const child = reg.create({
+      kind: 'subagent-batch',
+      sessionId: 'sess-1',
+      parentRunId: parent.runId,
+    });
     expect(child.rootRunId).toBe(parent.runId);
     expect(child.parentRunId).toBe(parent.runId);
   });
@@ -53,7 +57,11 @@ describe('RunRegistry.create()', () => {
   it('inherits rootRunId transitively from grandparent', () => {
     const reg = makeRegistry();
     const root = reg.create({ kind: 'session-turn', sessionId: 'sess-1' });
-    const mid = reg.create({ kind: 'subagent-batch', sessionId: 'sess-1', parentRunId: root.runId });
+    const mid = reg.create({
+      kind: 'subagent-batch',
+      sessionId: 'sess-1',
+      parentRunId: root.runId,
+    });
     const leaf = reg.create({ kind: 'subagent-task', sessionId: 'sess-1', parentRunId: mid.runId });
     expect(leaf.rootRunId).toBe(root.runId);
   });
@@ -75,7 +83,11 @@ describe('RunRegistry.create()', () => {
   it('registers child in parent children set', () => {
     const reg = makeRegistry();
     const parent = reg.create({ kind: 'session-turn', sessionId: 'sess-1' });
-    const child = reg.create({ kind: 'subagent-batch', sessionId: 'sess-1', parentRunId: parent.runId });
+    const child = reg.create({
+      kind: 'subagent-batch',
+      sessionId: 'sess-1',
+      parentRunId: parent.runId,
+    });
     expect(reg.getChildren(parent.runId)).toEqual([child.runId]);
   });
 
@@ -259,6 +271,39 @@ describe('RunRegistry semantic AgentEvent publication', () => {
     expect(updates).toHaveLength(1);
   });
 
+  it('projects native retry activity as a non-terminal connecting-model phase', () => {
+    const updates: ExecutionRunRecord[] = [];
+    const reg = new RunRegistry({
+      createId: makeIdGen(),
+      onRunUpdated: (record) => updates.push(record),
+    });
+    const run = reg.create({ kind: 'session-turn', sessionId: 'sess-retry' });
+    reg.start(run.runId);
+    updates.length = 0;
+
+    const waiting = reg.noteAgentEvent(run.runId, {
+      type: 'model/retry',
+      phase: 'waiting',
+      attempt: 1,
+      maxAttempts: 3,
+      delayMs: 200,
+      runId: run.runId,
+    });
+    expect(waiting?.status).toBe('running');
+    expect(waiting?.phase).toBe('connecting-model');
+    expect(updates).toHaveLength(1);
+
+    const finished = reg.noteAgentEvent(run.runId, {
+      type: 'model/retry',
+      phase: 'finished',
+      attempt: 1,
+      runId: run.runId,
+    });
+    expect(finished?.status).toBe('running');
+    expect(finished?.phase).toBe('connecting-model');
+    expect(reg.get(run.runId)?.status).toBe('running');
+  });
+
   it('remembers upstream agent error text for silent-completion terminalization', () => {
     const reg = new RunRegistry({ createId: makeIdGen() });
     const run = reg.create({ kind: 'session-turn', sessionId: 'sess-error' });
@@ -403,7 +448,11 @@ describe('RunRegistry SC-09: parent-child join', () => {
   it('parent cannot terminate while child is non-terminal', () => {
     const reg = makeRegistry();
     const parent = reg.create({ kind: 'session-turn', sessionId: 'sess-1' });
-    const child = reg.create({ kind: 'subagent-batch', sessionId: 'sess-1', parentRunId: parent.runId });
+    const child = reg.create({
+      kind: 'subagent-batch',
+      sessionId: 'sess-1',
+      parentRunId: parent.runId,
+    });
     reg.start(parent.runId);
     reg.start(child.runId);
 
@@ -415,7 +464,11 @@ describe('RunRegistry SC-09: parent-child join', () => {
   it('parent can terminate after child terminates', () => {
     const reg = makeRegistry();
     const parent = reg.create({ kind: 'session-turn', sessionId: 'sess-1' });
-    const child = reg.create({ kind: 'subagent-batch', sessionId: 'sess-1', parentRunId: parent.runId });
+    const child = reg.create({
+      kind: 'subagent-batch',
+      sessionId: 'sess-1',
+      parentRunId: parent.runId,
+    });
     reg.start(parent.runId);
     reg.start(child.runId);
 
@@ -429,7 +482,11 @@ describe('RunRegistry SC-09: parent-child join', () => {
   it('parent cannot terminate while grandchild is non-terminal', () => {
     const reg = makeRegistry();
     const root = reg.create({ kind: 'session-turn', sessionId: 'sess-1' });
-    const mid = reg.create({ kind: 'subagent-batch', sessionId: 'sess-1', parentRunId: root.runId });
+    const mid = reg.create({
+      kind: 'subagent-batch',
+      sessionId: 'sess-1',
+      parentRunId: root.runId,
+    });
     const leaf = reg.create({ kind: 'subagent-task', sessionId: 'sess-1', parentRunId: mid.runId });
     reg.start(root.runId);
     reg.start(mid.runId);
@@ -469,8 +526,16 @@ describe('RunRegistry.cancelRun()', () => {
   it('requests cancellation for target and descendants without auto-terminalizing', () => {
     const reg = makeRegistry();
     const parent = reg.create({ kind: 'session-turn', sessionId: 'sess-1' });
-    const child1 = reg.create({ kind: 'subagent-batch', sessionId: 'sess-1', parentRunId: parent.runId });
-    const child2 = reg.create({ kind: 'subagent-batch', sessionId: 'sess-1', parentRunId: parent.runId });
+    const child1 = reg.create({
+      kind: 'subagent-batch',
+      sessionId: 'sess-1',
+      parentRunId: parent.runId,
+    });
+    const child2 = reg.create({
+      kind: 'subagent-batch',
+      sessionId: 'sess-1',
+      parentRunId: parent.runId,
+    });
     reg.start(parent.runId);
     reg.start(child1.runId);
     reg.start(child2.runId);
@@ -495,7 +560,11 @@ describe('RunRegistry.cancelRun()', () => {
   it('closes admission for the entire subtree', () => {
     const reg = makeRegistry();
     const parent = reg.create({ kind: 'session-turn', sessionId: 'sess-1' });
-    const child = reg.create({ kind: 'subagent-batch', sessionId: 'sess-1', parentRunId: parent.runId });
+    const child = reg.create({
+      kind: 'subagent-batch',
+      sessionId: 'sess-1',
+      parentRunId: parent.runId,
+    });
     reg.start(parent.runId);
     reg.start(child.runId);
 
@@ -511,7 +580,11 @@ describe('RunRegistry.cancelRun()', () => {
   it('aborts AbortSignals for cancelled runs', () => {
     const reg = makeRegistry();
     const parent = reg.create({ kind: 'session-turn', sessionId: 'sess-1' });
-    const child = reg.create({ kind: 'subagent-batch', sessionId: 'sess-1', parentRunId: parent.runId });
+    const child = reg.create({
+      kind: 'subagent-batch',
+      sessionId: 'sess-1',
+      parentRunId: parent.runId,
+    });
     reg.start(parent.runId);
     reg.start(child.runId);
 
@@ -623,7 +696,11 @@ describe('RunRegistry.closeAdmission()', () => {
   it('prevents new children from being added', () => {
     const reg = makeRegistry();
     const parent = reg.create({ kind: 'session-turn', sessionId: 'sess-1' });
-    const child1 = reg.create({ kind: 'subagent-batch', sessionId: 'sess-1', parentRunId: parent.runId });
+    const child1 = reg.create({
+      kind: 'subagent-batch',
+      sessionId: 'sess-1',
+      parentRunId: parent.runId,
+    });
     expect(reg.getChildren(parent.runId)).toEqual([child1.runId]);
 
     reg.closeAdmission(parent.runId);
@@ -736,8 +813,16 @@ describe('RunRegistry.getChildren()', () => {
   it('returns direct child run IDs', () => {
     const reg = makeRegistry();
     const parent = reg.create({ kind: 'session-turn', sessionId: 'sess-1' });
-    const child1 = reg.create({ kind: 'subagent-batch', sessionId: 'sess-1', parentRunId: parent.runId });
-    const child2 = reg.create({ kind: 'subagent-batch', sessionId: 'sess-1', parentRunId: parent.runId });
+    const child1 = reg.create({
+      kind: 'subagent-batch',
+      sessionId: 'sess-1',
+      parentRunId: parent.runId,
+    });
+    const child2 = reg.create({
+      kind: 'subagent-batch',
+      sessionId: 'sess-1',
+      parentRunId: parent.runId,
+    });
     // grandchild — should NOT appear in parent's children.
     reg.create({ kind: 'subagent-task', sessionId: 'sess-1', parentRunId: child1.runId });
 
@@ -793,8 +878,16 @@ describe('RunRegistry cascading join', () => {
   it('parent remains cancelling until its owner explicitly terminates it', () => {
     const reg = makeRegistry();
     const parent = reg.create({ kind: 'session-turn', sessionId: 'sess-1' });
-    const child1 = reg.create({ kind: 'subagent-batch', sessionId: 'sess-1', parentRunId: parent.runId });
-    const child2 = reg.create({ kind: 'subagent-batch', sessionId: 'sess-1', parentRunId: parent.runId });
+    const child1 = reg.create({
+      kind: 'subagent-batch',
+      sessionId: 'sess-1',
+      parentRunId: parent.runId,
+    });
+    const child2 = reg.create({
+      kind: 'subagent-batch',
+      sessionId: 'sess-1',
+      parentRunId: parent.runId,
+    });
     reg.start(parent.runId);
     reg.start(child1.runId);
     reg.start(child2.runId);
@@ -814,9 +907,21 @@ describe('RunRegistry cascading join', () => {
   it('parent in cancelling state waits for non-leaf children to terminate', () => {
     const reg = makeRegistry();
     const root = reg.create({ kind: 'session-turn', sessionId: 'sess-1' });
-    const mid = reg.create({ kind: 'subagent-batch', sessionId: 'sess-1', parentRunId: root.runId });
-    const leaf1 = reg.create({ kind: 'subagent-task', sessionId: 'sess-1', parentRunId: mid.runId });
-    const leaf2 = reg.create({ kind: 'subagent-task', sessionId: 'sess-1', parentRunId: mid.runId });
+    const mid = reg.create({
+      kind: 'subagent-batch',
+      sessionId: 'sess-1',
+      parentRunId: root.runId,
+    });
+    const leaf1 = reg.create({
+      kind: 'subagent-task',
+      sessionId: 'sess-1',
+      parentRunId: mid.runId,
+    });
+    const leaf2 = reg.create({
+      kind: 'subagent-task',
+      sessionId: 'sess-1',
+      parentRunId: mid.runId,
+    });
     reg.start(root.runId);
     reg.start(mid.runId);
     reg.start(leaf1.runId);
@@ -840,7 +945,11 @@ describe('RunRegistry cascading join', () => {
   it('join() on parent resolves only after explicit parent termination', async () => {
     const reg = makeRegistry();
     const parent = reg.create({ kind: 'session-turn', sessionId: 'sess-1' });
-    const child = reg.create({ kind: 'subagent-batch', sessionId: 'sess-1', parentRunId: parent.runId });
+    const child = reg.create({
+      kind: 'subagent-batch',
+      sessionId: 'sess-1',
+      parentRunId: parent.runId,
+    });
     reg.start(parent.runId);
     reg.start(child.runId);
 
@@ -874,12 +983,32 @@ describe('RunRegistry deep tree cancellation', () => {
     // Level 0: batch (root)
     const batch = reg.create({ kind: 'subagent-batch', sessionId: 'sess-1' });
     // Level 1: tasks
-    const task1 = reg.create({ kind: 'subagent-task', sessionId: 'sess-1', parentRunId: batch.runId });
-    const task2 = reg.create({ kind: 'subagent-task', sessionId: 'sess-1', parentRunId: batch.runId });
+    const task1 = reg.create({
+      kind: 'subagent-task',
+      sessionId: 'sess-1',
+      parentRunId: batch.runId,
+    });
+    const task2 = reg.create({
+      kind: 'subagent-task',
+      sessionId: 'sess-1',
+      parentRunId: batch.runId,
+    });
     // Level 2: subtasks
-    const subtask1a = reg.create({ kind: 'session-turn', sessionId: 'sess-1', parentRunId: task1.runId });
-    const subtask1b = reg.create({ kind: 'session-turn', sessionId: 'sess-1', parentRunId: task1.runId });
-    const subtask2a = reg.create({ kind: 'session-turn', sessionId: 'sess-1', parentRunId: task2.runId });
+    const subtask1a = reg.create({
+      kind: 'session-turn',
+      sessionId: 'sess-1',
+      parentRunId: task1.runId,
+    });
+    const subtask1b = reg.create({
+      kind: 'session-turn',
+      sessionId: 'sess-1',
+      parentRunId: task1.runId,
+    });
+    const subtask2a = reg.create({
+      kind: 'session-turn',
+      sessionId: 'sess-1',
+      parentRunId: task2.runId,
+    });
 
     reg.start(batch.runId);
     reg.start(task1.runId);
@@ -892,12 +1021,26 @@ describe('RunRegistry deep tree cancellation', () => {
 
     // All 6 runs should await owner acknowledgement.
     expect(result.requestedRunIds).toHaveLength(6);
-    for (const id of [batch.runId, task1.runId, task2.runId, subtask1a.runId, subtask1b.runId, subtask2a.runId]) {
+    for (const id of [
+      batch.runId,
+      task1.runId,
+      task2.runId,
+      subtask1a.runId,
+      subtask1b.runId,
+      subtask2a.runId,
+    ]) {
       expect(reg.get(id)?.status).toBe('cancelling');
     }
 
     // All signals should be aborted.
-    for (const id of [batch.runId, task1.runId, task2.runId, subtask1a.runId, subtask1b.runId, subtask2a.runId]) {
+    for (const id of [
+      batch.runId,
+      task1.runId,
+      task2.runId,
+      subtask1a.runId,
+      subtask1b.runId,
+      subtask2a.runId,
+    ]) {
       expect(reg.getSignal(id)?.aborted).toBe(true);
     }
 
@@ -913,10 +1056,26 @@ describe('RunRegistry deep tree cancellation', () => {
   it('cancels a 3-level tree when some descendants are already terminal', () => {
     const reg = makeRegistry();
     const batch = reg.create({ kind: 'subagent-batch', sessionId: 'sess-1' });
-    const task1 = reg.create({ kind: 'subagent-task', sessionId: 'sess-1', parentRunId: batch.runId });
-    const task2 = reg.create({ kind: 'subagent-task', sessionId: 'sess-1', parentRunId: batch.runId });
-    const subtask1 = reg.create({ kind: 'session-turn', sessionId: 'sess-1', parentRunId: task1.runId });
-    const subtask2 = reg.create({ kind: 'session-turn', sessionId: 'sess-1', parentRunId: task2.runId });
+    const task1 = reg.create({
+      kind: 'subagent-task',
+      sessionId: 'sess-1',
+      parentRunId: batch.runId,
+    });
+    const task2 = reg.create({
+      kind: 'subagent-task',
+      sessionId: 'sess-1',
+      parentRunId: batch.runId,
+    });
+    const subtask1 = reg.create({
+      kind: 'session-turn',
+      sessionId: 'sess-1',
+      parentRunId: task1.runId,
+    });
+    const subtask2 = reg.create({
+      kind: 'session-turn',
+      sessionId: 'sess-1',
+      parentRunId: task2.runId,
+    });
 
     reg.start(batch.runId);
     reg.start(task1.runId);

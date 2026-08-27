@@ -124,6 +124,43 @@ describe('pi-prompt-outcome-tracker', () => {
     expect(tracker.finalize()).toEqual({ status: 'completed', stopReason: 'handled' });
   });
 
+  it('returns the last failed attempt when native retry budget is exhausted', () => {
+    const tracker = createPiPromptOutcomeTracker();
+    tracker.observe({ type: 'agent_start' });
+    tracker.observe({
+      type: 'message_end',
+      message: {
+        role: 'assistant',
+        stopReason: 'error',
+        errorMessage: 'Stream ended without finish_reason',
+      },
+    });
+    tracker.observe({ type: 'auto_retry_start', attempt: 1 });
+    tracker.observe({
+      type: 'message_end',
+      message: {
+        role: 'assistant',
+        stopReason: 'error',
+        errorMessage: 'Stream ended without finish_reason',
+      },
+    });
+    tracker.observe({ type: 'auto_retry_end', attempt: 1, success: false });
+    tracker.observe({
+      type: 'agent_end',
+      messages: [
+        {
+          role: 'assistant',
+          stopReason: 'error',
+          errorMessage: 'Stream ended without finish_reason',
+        },
+      ],
+    });
+    expect(tracker.finalize()).toMatchObject({
+      status: 'failed',
+      failure: { code: 'model-stream-missing-finish' },
+    });
+  });
+
   it('returns a terminating toolUse stop as completed', () => {
     const tracker = createPiPromptOutcomeTracker();
     tracker.observe({ type: 'agent_start' });

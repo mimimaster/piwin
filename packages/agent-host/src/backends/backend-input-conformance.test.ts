@@ -135,6 +135,7 @@ function createPiModuleForTest(): {
         create: vi.fn(() => ({
           getRetryEnabled: () => true,
           getRetrySettings: () => ({ enabled: true, maxRetries: 3, baseDelayMs: 2000 }),
+          getProviderRetrySettings: () => ({ maxRetries: 2, timeoutMs: 5000 }),
         })),
       },
     },
@@ -183,9 +184,9 @@ describe('backend input conformance', () => {
       getRetrySettings: () => { maxRetries: number };
       getProviderRetrySettings: () => { maxRetries: number };
     };
-    expect(sdkSettings.getRetryEnabled()).toBe(false);
-    expect(sdkSettings.getRetrySettings().maxRetries).toBe(0);
-    expect(sdkSettings.getProviderRetrySettings().maxRetries).toBe(0);
+    expect(sdkSettings.getRetryEnabled()).toBe(true);
+    expect(sdkSettings.getRetrySettings().maxRetries).toBe(3);
+    expect(sdkSettings.getProviderRetrySettings().maxRetries).toBe(2);
     const sdkTools = sdkOptions.customTools as PiBackendCustomToolDefinition[];
     const serializableBlueprint = projectBackendBlueprintForWorker(
       createBackendBlueprint([descriptor]),
