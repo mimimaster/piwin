@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { AgentEvent, AgentEventEnvelope, BackendRunInterventionEvent } from '@piwin/contracts';
+import type { AgentEvent, BackendRunInterventionEvent } from '@piwin/contracts';
 import type { PiBackendCustomToolDefinition } from '../backends/pi-backend-tool-adapter.js';
 import type {
   WorkerEvent,
@@ -43,16 +43,13 @@ const normalizedMessageId = normalizeGenerationMessageId(frameContext, 'm1');
 
 function fakeMapper() {
   return {
-    map: (raw: unknown): Array<{ event: AgentEvent; envelope: AgentEventEnvelope }> => [
+    map: (raw: unknown): AgentEvent[] => [
       {
         // The mock Pi session emits `{ type: 'text', text: '...' }`; map it to
         // a valid AgentEvent (message/text_snapshot) with the extracted text.
-        event: {
-          type: 'message/text_snapshot',
-          messageId: 'm1',
-          text: (raw as { text?: string } | null)?.text ?? String(raw),
-        },
-        envelope: { eventId: 'evt-1', sequence: 1 },
+        type: 'message/text_snapshot',
+        messageId: 'm1',
+        text: (raw as { text?: string } | null)?.text ?? String(raw),
       },
     ],
   };
@@ -614,15 +611,12 @@ describe('WorkerSessionRuntime', () => {
       sendFrame: (frame) => frames.push(frame),
       createPiSession: async () => createMockPiSession(),
       eventMapper: {
-        map: (): Array<{ event: AgentEvent; envelope: AgentEventEnvelope }> => [
+        map: (): AgentEvent[] => [
           {
-            event: {
-              type: 'message/text_snapshot',
-              messageId: 'm1',
-              text: 'mismatch',
-              runId: 'other-run',
-            },
-            envelope: { eventId: 'evt-mismatch', sequence: 1 },
+            type: 'message/text_snapshot',
+            messageId: 'm1',
+            text: 'mismatch',
+            runId: 'other-run',
           },
         ],
       },

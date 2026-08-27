@@ -377,10 +377,6 @@ export type SessionRunTerminalCode =
   | 'cancelled'
   | 'paused'
   | 'job-cleanup-failed'
-  | 'model-connect-timeout'
-  | 'model-first-token-timeout'
-  | 'model-turn-timeout'
-  | 'mcp-timeout'
   | 'host-shutdown'
   | 'runtime-memory-pressure';
 

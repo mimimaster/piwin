@@ -5,13 +5,7 @@
  * HostRuntime live in @piwin/host-runtime. This package exposes only the
  * backend contracts and Pi/worker adapters needed by that composition root.
  */
-export {
-  mapPiSessionEvent,
-  createEventEnvelopeGenerator,
-  wrapEvent,
-  wrapEvents,
-} from './event-map.js';
-export type { WrappedAgentEvent } from './event-map.js';
+export { mapPiSessionEvent } from './event-map.js';
 export {
   normalizeGenerationMessageId,
   normalizeGenerationToolCallId,

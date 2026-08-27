@@ -2,15 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import type { AgentEvent } from '@piwin/contracts';
-import {
-  createEventEnvelopeGenerator,
-  createPiSessionEventMapper,
-  mapCompactionEndEvent,
-  mapPiSessionEvent,
-  wrapEvent,
-  wrapEvents,
-} from './event-map.js';
+import { createPiSessionEventMapper, mapCompactionEndEvent, mapPiSessionEvent } from './event-map.js';
 
 const fixtureDir = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
 
@@ -62,7 +54,7 @@ describe('mapPiSessionEvent', () => {
           ],
         },
       })
-      .map((wrapped) => wrapped.event);
+      ;
 
     expect(events.slice(0, 4)).toEqual([
       { type: 'message/start', messageId: 'm-final', role: 'assistant' },
@@ -87,7 +79,7 @@ describe('mapPiSessionEvent', () => {
 
   it('does not append a message_end thinking snapshot after live thinking_delta', () => {
     const mapper = createPiSessionEventMapper();
-    const unwrap = (raw: unknown) => mapper.map(raw).map((wrapped) => wrapped.event);
+    const unwrap = (raw: unknown) => mapper.map(raw);
 
     unwrap({ type: 'message_start', messageId: 'm-live-think', role: 'assistant' });
     unwrap({
@@ -132,7 +124,7 @@ describe('mapPiSessionEvent', () => {
           errorMessage: '400: model_not_found',
         },
       })
-      .map((wrapped) => wrapped.event);
+      ;
 
     expect(events.slice(0, 2)).toEqual([
       { type: 'message/end', messageId: 'm-failed' },
@@ -191,7 +183,7 @@ describe('mapPiSessionEvent', () => {
           },
         ],
       })
-      .map((wrapped) => wrapped.event);
+      ;
 
     expect(events.filter((event) => event.type === 'error')).toEqual([
       { type: 'error', message: '401: Invalid Authentication' },
@@ -211,7 +203,7 @@ describe('mapPiSessionEvent', () => {
           errorMessage: '429: rate limited',
         },
       })
-      .map((wrapped) => wrapped.event);
+      ;
     const second = mapper
       .map({
         type: 'agent_end',
@@ -225,7 +217,7 @@ describe('mapPiSessionEvent', () => {
           },
         ],
       })
-      .map((wrapped) => wrapped.event);
+      ;
 
     expect(first.filter((event) => event.type === 'error')).toHaveLength(1);
     expect(second.filter((event) => event.type === 'error')).toHaveLength(0);
@@ -248,21 +240,19 @@ describe('mapPiSessionEvent', () => {
           },
         ],
       })
-      .map((wrapped) => wrapped.event);
+      ;
 
     expect(
       mapper.map({ type: 'auto_retry_start', attempt: 1, delayMs: 250, maxAttempts: 3 }),
     ).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          event: {
-            type: 'model/retry',
-            phase: 'waiting',
-            attempt: 1,
-            maxAttempts: 3,
-            delayMs: 250,
-          },
-        }),
+        {
+          type: 'model/retry',
+          phase: 'waiting',
+          attempt: 1,
+          maxAttempts: 3,
+          delayMs: 250,
+        },
       ]),
     );
     mapper.map({ type: 'agent_start' });
@@ -278,16 +268,14 @@ describe('mapPiSessionEvent', () => {
           },
         ],
       })
-      .map((wrapped) => wrapped.event);
+      ;
 
     expect(firstAttempt.filter((event) => event.type === 'error')).toHaveLength(1);
     expect(retryAttempt.filter((event) => event.type === 'error')).toHaveLength(0);
 
     expect(mapper.map({ type: 'auto_retry_end', attempt: 1, success: false })).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          event: { type: 'model/retry', phase: 'finished', attempt: 1 },
-        }),
+        { type: 'model/retry', phase: 'finished', attempt: 1 },
       ]),
     );
     mapper.map({ type: 'agent_start' });
@@ -303,7 +291,7 @@ describe('mapPiSessionEvent', () => {
           },
         ],
       })
-      .map((wrapped) => wrapped.event);
+      ;
 
     expect(nextPrompt.filter((event) => event.type === 'error')).toHaveLength(1);
   });
@@ -360,7 +348,7 @@ describe('mapPiSessionEvent', () => {
 
   it('deduplicates streamed and final native evidence per message', () => {
     const mapper = createPiSessionEventMapper();
-    const unwrap = (raw: unknown) => mapper.map(raw).map((wrapped) => wrapped.event);
+    const unwrap = (raw: unknown) => mapper.map(raw);
 
     expect(unwrap({ type: 'message_start', messageId: 'm-native', role: 'assistant' })).toEqual([
       { type: 'message/start', messageId: 'm-native', role: 'assistant' },
@@ -436,7 +424,7 @@ describe('mapPiSessionEvent', () => {
 
   it('keeps separate SDK messages distinct when Pi omits message ids', () => {
     const mapper = createPiSessionEventMapper();
-    const unwrap = (raw: unknown) => mapper.map(raw).map((w) => w.event);
+    const unwrap = (raw: unknown) => mapper.map(raw);
     const firstMessage = [
       ...unwrap({ type: 'message_start', role: 'assistant' }),
       ...unwrap({
@@ -474,7 +462,7 @@ describe('mapPiSessionEvent', () => {
 
   it('keeps tool events attached to the Assistant response after message_end', () => {
     const mapper = createPiSessionEventMapper();
-    const unwrap = (raw: unknown) => mapper.map(raw).map((wrapped) => wrapped.event);
+    const unwrap = (raw: unknown) => mapper.map(raw);
 
     unwrap({ type: 'message_start', messageId: 'assistant-step-1', role: 'assistant' });
     unwrap({ type: 'message_end', messageId: 'assistant-step-1' });
@@ -507,7 +495,7 @@ describe('mapPiSessionEvent', () => {
 
   it('keeps sequential tools on one Assistant response across tool-result lifecycles', () => {
     const mapper = createPiSessionEventMapper();
-    const unwrap = (raw: unknown) => mapper.map(raw).map((wrapped) => wrapped.event);
+    const unwrap = (raw: unknown) => mapper.map(raw);
 
     const assistantStart = unwrap({
       type: 'message_start',
@@ -620,7 +608,7 @@ describe('mapPiSessionEvent', () => {
 
   it('keeps routed semantics and prompt summary through update and end', () => {
     const mapper = createPiSessionEventMapper();
-    const unwrap = (raw: unknown) => mapper.map(raw).map((wrapped) => wrapped.event);
+    const unwrap = (raw: unknown) => mapper.map(raw);
     const start = unwrap({
       type: 'tool_execution_start',
       toolCallId: 'call-routed-lifecycle',
@@ -695,7 +683,7 @@ describe('mapPiSessionEvent', () => {
         toolName: 'piwin_toolbox',
         isError: true,
       })
-      .map((wrapped) => wrapped.event);
+      ;
     expect(end).toMatchObject({
       type: 'tool/end',
       isError: true,
@@ -745,7 +733,7 @@ describe('mapPiSessionEvent', () => {
         isError: true,
         output: 'aborted',
       })
-      .map((wrapped) => wrapped.event);
+      ;
     expect(end).toMatchObject({ presentation: { kind: 'other', title: 'piwin_toolbox' } });
   });
 
@@ -1059,69 +1047,10 @@ describe('mapCompactionEndEvent fixtures', () => {
   });
 });
 
-describe('C1: createEventEnvelopeGenerator', () => {
-  it('produces monotonically increasing sequence numbers', () => {
-    const gen = createEventEnvelopeGenerator('run-1');
-    const e1 = gen.next();
-    const e2 = gen.next();
-    const e3 = gen.next();
-    expect(e1.sequence).toBe(1);
-    expect(e2.sequence).toBe(2);
-    expect(e3.sequence).toBe(3);
-    expect(e1.runId).toBe('run-1');
-    expect(e2.runId).toBe('run-1');
-    expect(e3.runId).toBe('run-1');
-  });
-
-  it('produces unique eventIds per call', () => {
-    const gen = createEventEnvelopeGenerator();
-    const e1 = gen.next();
-    const e2 = gen.next();
-    expect(e1.eventId).not.toBe(e2.eventId);
-  });
-
-  it('allows per-call runId override', () => {
-    const gen = createEventEnvelopeGenerator('default-run');
-    const e1 = gen.next('override-run');
-    expect(e1.runId).toBe('override-run');
-    const e2 = gen.next();
-    expect(e2.runId).toBe('default-run');
-  });
-});
-
-describe('C1: wrapEvent and wrapEvents', () => {
-  it('wraps a single event with an envelope', () => {
-    const gen = createEventEnvelopeGenerator('run-a');
-    const event = { type: 'message/text_delta' as const, messageId: 'm1', delta: 'hello' };
-    const wrapped = wrapEvent(event, gen);
-    expect(wrapped.event).toBe(event);
-    expect(wrapped.envelope.sequence).toBe(1);
-    expect(wrapped.envelope.runId).toBe('run-a');
-  });
-
-  it('wraps multiple events with sequential envelopes', () => {
-    const gen = createEventEnvelopeGenerator('run-b');
-    const events: AgentEvent[] = [
-      { type: 'message/start', messageId: 'm1', role: 'assistant' },
-      { type: 'message/text_delta', messageId: 'm1', delta: 'hi' },
-      { type: 'message/end', messageId: 'm1' },
-    ];
-    const wrapped = wrapEvents(events, gen);
-    expect(wrapped).toHaveLength(3);
-    const w0 = wrapped[0]!;
-    const w1 = wrapped[1]!;
-    const w2 = wrapped[2]!;
-    expect(w0.envelope.sequence).toBe(1);
-    expect(w0.event.type).toBe('message/start');
-    expect(w1.envelope.sequence).toBe(2);
-    expect(w1.event.type).toBe('message/text_delta');
-    expect(w2.envelope.sequence).toBe(3);
-    expect(w2.event.type).toBe('message/end');
-  });
-
+describe('createPiSessionEventMapper native context', () => {
   it('emits message/native_context after assistant and toolResult message_end', () => {
     const mapper = createPiSessionEventMapper();
-    const unwrap = (raw: unknown) => mapper.map(raw).map((wrapped) => wrapped.event);
+    const unwrap = (raw: unknown) => mapper.map(raw);
 
     unwrap({ type: 'message_start', message: { id: 'pa-1', role: 'assistant' } });
     const assistantEnd = unwrap({
@@ -1168,7 +1097,7 @@ describe('C1: wrapEvent and wrapEvents', () => {
 
   it('marks oversized native payload truncated without payload body', () => {
     const mapper = createPiSessionEventMapper();
-    const unwrap = (raw: unknown) => mapper.map(raw).map((wrapped) => wrapped.event);
+    const unwrap = (raw: unknown) => mapper.map(raw);
     unwrap({ type: 'message_start', message: { id: 'pa-2', role: 'assistant' } });
     const events = unwrap({
       type: 'message_end',
@@ -1190,7 +1119,7 @@ describe('C1: wrapEvent and wrapEvents', () => {
 
   it('does not emit native context for user message_end or payload-less ends', () => {
     const mapper = createPiSessionEventMapper();
-    const unwrap = (raw: unknown) => mapper.map(raw).map((wrapped) => wrapped.event);
+    const unwrap = (raw: unknown) => mapper.map(raw);
     unwrap({ type: 'message_start', message: { id: 'pu-1', role: 'user' } });
     const userEvents = unwrap({
       type: 'message_end',
@@ -1203,17 +1132,13 @@ describe('C1: wrapEvent and wrapEvents', () => {
     expect(bareEnd.some((event) => event.type === 'message/native_context')).toBe(false);
   });
 
-  it('createsPiSessionEventMapper returns wrapped events with envelopes', () => {
+  it('returns plain Agent events without Host envelopes', () => {
     const mapper = createPiSessionEventMapper();
     const rawEvents = mapper.map({
       type: 'message_start',
       messageId: 'm1',
       role: 'assistant',
     });
-    expect(rawEvents).toHaveLength(1);
-    const first = rawEvents[0]!;
-    expect(first.event.type).toBe('message/start');
-    expect(first.envelope.sequence).toBe(1);
-    expect(first.envelope.eventId).toBeTruthy();
+    expect(rawEvents).toEqual([{ type: 'message/start', messageId: 'm1', role: 'assistant' }]);
   });
 });

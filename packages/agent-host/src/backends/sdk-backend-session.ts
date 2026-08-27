@@ -356,7 +356,7 @@ function wrapBackendPiSession(
       return piSession.subscribe((rawEvent) => {
         for (const mappedEvent of eventMapper.map(rawEvent)) {
           const stamped = stampPublishedAgentEvent(
-            normalizeAgentEventIds(mappedEvent.event, {
+            normalizeAgentEventIds(mappedEvent, {
               sessionId: input.blueprint.sessionId,
               runtimeGenerationId: input.blueprint.runtimeGenerationId,
             }),

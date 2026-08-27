@@ -11,7 +11,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type {
   AgentEvent,
-  AgentEventEnvelope,
   HostToolExecutionContext,
   HostToolRegistration,
   ToolResult,
@@ -90,7 +89,7 @@ function blueprintWithTools(toolNames: string[]): SerializableBlueprint {
 
 function fakeMapper() {
   return {
-    map: (): Array<{ event: AgentEvent; envelope: AgentEventEnvelope }> => [],
+    map: (): AgentEvent[] => [],
   };
 }
 

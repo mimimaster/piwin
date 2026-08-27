@@ -631,7 +631,7 @@ export class WorkerSessionRuntime {
     context: WorkerFrameContext,
   ): void {
     const unsubscribe = handle.subscribe((raw) => {
-      for (const wrapped of this.eventMapper.map(raw)) {
+      for (const mapped of this.eventMapper.map(raw)) {
         const eventContext: WorkerFrameContext = {
           sessionId,
           runtimeGenerationId: context.runtimeGenerationId,
@@ -640,7 +640,7 @@ export class WorkerSessionRuntime {
         const publishRunId = runtimeSession?.activeRunId ?? runtimeSession?.trailingRunId;
         if (publishRunId !== undefined) eventContext.runId = publishRunId;
         const event = stampPublishedAgentEvent(
-          normalizeAgentEventIds(wrapped.event, {
+          normalizeAgentEventIds(mapped, {
             sessionId,
             runtimeGenerationId: context.runtimeGenerationId,
           }),
@@ -809,5 +809,5 @@ function sameFrameContext(left: WorkerFrameContext, right: WorkerFrameContext): 
 
 /** Map a single raw Pi event to a normalized AgentEvent (test helper). */
 export function mapSinglePiEvent(mapper: PiSessionEventMapper, raw: unknown): AgentEvent[] {
-  return mapper.map(raw).map((wrapped) => wrapped.event);
+  return mapper.map(raw);
 }

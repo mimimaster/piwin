@@ -90,8 +90,8 @@ describe('Pi native turn characterization (current 0.84.2 mapping)', () => {
       timeoutMs: 0,
       prompt: async () => {
         for (const raw of loadFixture('provider-error.json')) {
-          for (const wrapped of mapper.map(raw)) {
-            events.push(wrapped.event);
+          for (const event of mapper.map(raw)) {
+            events.push(event);
           }
         }
         promptResolved = true;
@@ -132,7 +132,7 @@ describe('Pi native turn characterization (current 0.84.2 mapping)', () => {
 
 function replayFixture(name: string): AgentEvent[] {
   const mapper = createPiSessionEventMapper();
-  return loadFixture(name).flatMap((raw) => mapper.map(raw).map((wrapped) => wrapped.event));
+  return loadFixture(name).flatMap((raw) => mapper.map(raw));
 }
 
 function loadFixture(name: string): unknown[] {

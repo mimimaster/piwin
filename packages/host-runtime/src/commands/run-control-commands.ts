@@ -281,7 +281,7 @@ async function abortAndTerminalizeRun(
     await context.terminateRun(
       sessionId,
       runId,
-      abortTerminalOutcome(code),
+      'cancelled',
       code,
       timeoutMessage,
       mergeTerminateOptions(extras, { skipJobCleanup: true }),
@@ -300,19 +300,7 @@ async function abortAndTerminalizeRun(
       });
     }
   }
-  await context.terminateRun(sessionId, runId, abortTerminalOutcome(code), code, message, extras);
-}
-
-function abortTerminalOutcome(code: RunTerminalCode): 'cancelled' | 'failed' {
-  if (
-    code === 'model-turn-timeout' ||
-    code === 'model-connect-timeout' ||
-    code === 'model-first-token-timeout' ||
-    code === 'mcp-timeout'
-  ) {
-    return 'failed';
-  }
-  return 'cancelled';
+  await context.terminateRun(sessionId, runId, 'cancelled', code, message, extras);
 }
 
 /** Persist the partial transcript before publishing the paused terminal. */
