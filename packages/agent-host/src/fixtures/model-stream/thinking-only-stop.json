@@ -1,0 +1,29 @@
+[
+  { "type": "agent_start" },
+  { "type": "message_start", "messageId": "m-think", "role": "assistant" },
+  {
+    "type": "message_update",
+    "messageId": "m-think",
+    "assistantMessageEvent": { "type": "thinking_delta", "delta": "weighing a short plan" }
+  },
+  {
+    "type": "message_end",
+    "messageId": "m-think",
+    "message": {
+      "role": "assistant",
+      "content": [{ "type": "thinking", "thinking": "weighing a short plan" }],
+      "stopReason": "stop"
+    }
+  },
+  {
+    "type": "agent_end",
+    "sessionId": "s-think",
+    "messages": [
+      {
+        "role": "assistant",
+        "content": [{ "type": "thinking", "thinking": "weighing a short plan" }],
+        "stopReason": "stop"
+      }
+    ]
+  }
+]

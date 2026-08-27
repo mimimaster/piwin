@@ -1,0 +1,29 @@
+[
+  { "type": "agent_start" },
+  { "type": "message_start", "messageId": "m-text", "role": "assistant" },
+  {
+    "type": "message_update",
+    "messageId": "m-text",
+    "assistantMessageEvent": { "type": "text_delta", "delta": "Done." }
+  },
+  {
+    "type": "message_end",
+    "messageId": "m-text",
+    "message": {
+      "role": "assistant",
+      "content": [{ "type": "text", "text": "Done." }],
+      "stopReason": "stop"
+    }
+  },
+  {
+    "type": "agent_end",
+    "sessionId": "s-text",
+    "messages": [
+      {
+        "role": "assistant",
+        "content": [{ "type": "text", "text": "Done." }],
+        "stopReason": "stop"
+      }
+    ]
+  }
+]
