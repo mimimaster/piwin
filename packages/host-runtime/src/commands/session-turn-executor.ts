@@ -184,7 +184,7 @@ export async function executeSessionTurn(input: {
 
     if (command.input.source !== 'resume') {
       try {
-        await context.touchSession(command.sessionId, command.input.text);
+        await context.touchSession(command.sessionId, promptInput.text || command.input.text);
       } catch (error) {
         const message = formatError(error);
         context.push({

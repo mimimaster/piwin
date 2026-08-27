@@ -232,6 +232,25 @@ function collectPreparedAttachmentContributions(
   });
 }
 
+function promptInputFromStoredUser(
+  stored: SessionTranscriptMessage,
+  commandInput: PromptInput,
+): PromptInput {
+  const next: PromptInput = { ...commandInput, text: stored.text };
+  delete next.clientMessageId;
+  if (stored.attachments && stored.attachments.length > 0) {
+    next.attachments = [...stored.attachments];
+  } else {
+    delete next.attachments;
+  }
+  if (stored.contextRefs && stored.contextRefs.length > 0) {
+    next.contextRefs = stored.contextRefs.map((ref) => ({ ...ref }));
+  } else {
+    delete next.contextRefs;
+  }
+  return next;
+}
+
 export async function preparePromptInput(
   context: SessionLiveContext,
   command: PromptCommand,
@@ -246,7 +265,20 @@ export async function preparePromptInput(
   // Stamp a stable clientMessageId so the assembly capsule can bind to the
   // exact product user row after reload.
   let userMessageId: string | undefined;
-  if (command.input.source === 'queued-turn') {
+  // Retry reuses the stored user row (ADR 0064). Client text is ignored so a
+  // stale or empty payload cannot drift the prompt away from what is stored.
+  const retryUserMessageId = command.input.retryUserMessageId?.trim();
+  let promptSource = command.input;
+  if (retryUserMessageId) {
+    const stored = await context.getTranscriptStore(command.sessionId).then((store) =>
+      store.getMessage(retryUserMessageId),
+    );
+    if (stored === undefined || stored.role !== 'user') {
+      throw new Error(`retry-target-not-found: ${retryUserMessageId}`);
+    }
+    userMessageId = retryUserMessageId;
+    promptSource = promptInputFromStoredUser(stored, command.input);
+  } else if (command.input.source === 'queued-turn') {
     userMessageId = command.input.clientMessageId?.trim() || undefined;
   } else if (command.input.source !== 'resume') {
     userMessageId = command.input.clientMessageId?.trim() || randomUUID();
@@ -267,7 +299,7 @@ export async function preparePromptInput(
   throwIfPromptPreparationAborted(context, run.runId);
 
   const hasImage =
-    command.input.attachments?.some(
+    promptSource.attachments?.some(
       (item) =>
         item.kind === 'media' &&
         (item.contentKind === 'image' ||
@@ -282,7 +314,7 @@ export async function preparePromptInput(
   // the same object when there are no attachments; mutating that would poison
   // command.input (transcript path, touchSession preview, last-prompt text).
   const preparedFromHost = await context.buildModelPromptInput(
-    command.input,
+    promptSource,
     context.getRunSignal(run.runId),
   );
   const promptInput: PromptInput = {
@@ -294,9 +326,9 @@ export async function preparePromptInput(
     kind: 'user',
     label: 'User',
     trustOrigin: 'user',
-    text: command.input.text,
+    text: promptSource.text,
   });
-  collectPreparedAttachmentContributions(assembly, command.input, preparedFromHost);
+  collectPreparedAttachmentContributions(assembly, promptSource, preparedFromHost);
   throwIfPromptPreparationAborted(context, run.runId);
 
   // CHT-303: conversations never delegate. Agent sessions still honor an
@@ -355,11 +387,11 @@ export async function preparePromptInput(
   // SIDE §8.2: resolve handoff context refs (side-chat-message / main-message
   // / file / diff / terminal-output / error) into the model prompt without
   // mutating the recorded user transcript.
-  if (command.input.contextRefs && command.input.contextRefs.length > 0) {
+  if (promptSource.contextRefs && promptSource.contextRefs.length > 0) {
     try {
       const resolvedContext = await resolvePromptContextRefs(
         createResolveRefsDeps(context),
-        command.input.contextRefs,
+        promptSource.contextRefs,
       );
       if (resolvedContext) {
         promptInput.text = `${resolvedContext}\n\n${promptInput.text}`;
@@ -392,7 +424,7 @@ export async function preparePromptInput(
 
   // ADR 0026: concisePrompt injection retired with walkthrough generation.
   throwIfPromptPreparationAborted(context, run.runId);
-  context.sessionLastPromptText.set(command.sessionId, command.input.text);
+  context.sessionLastPromptText.set(command.sessionId, promptSource.text);
   if (command.input.model) {
     context.sessionModels.set(command.sessionId, command.input.model);
     // Persist the composer model on the session index so resume/open restores
