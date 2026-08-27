@@ -1,0 +1,541 @@
+/**
+ * Extracted from HostRuntime. Behavior is unchanged; HostRuntime remains
+ * the composition root and calls these functions with a kernel view of `this`.
+ */
+
+import { randomUUID } from 'node:crypto';
+import { access } from 'node:fs/promises';
+import { join } from 'node:path';
+import { formatError } from '@piwin/contracts';
+import { scanSkills } from '@piwin/skills';
+import { removeWorktree, runGitCommand } from '@piwin/git';
+
+import { getSessionRecord, upsertSessionRecord, createSubagentRunStore } from '@piwin/session';
+import type { SessionIndexRecord } from '@piwin/contracts';
+import { loadPiwinConfig } from './config-store.js';
+import { getPiwinGeneralWorkspacePath, getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
+import { indexRecordToSummary } from './session-summary-map.js';
+import { SubagentOrchestrator } from './subagent-orchestrator.js';
+import { planSubagentSpawn } from './subagent-lifecycle-service.js';
+import { reconcileSubagentBatchStatusAfterWorktreeAction } from './subagent-batch-status.js';
+import {
+  invocationActivityForResult,
+  invocationStatusForResult,
+} from './subagent-invocation-state.js';
+import type { SubagentRunSeam } from './subagent-run-tool.js';
+import type {
+  SubagentBatchRequest,
+  SubagentBatchResult,
+  SubagentTaskSpec,
+  SubagentTaskResult,
+  SubagentWorkspaceLease,
+} from '@piwin/contracts';
+
+import type { HostRuntimeKernel } from './host-runtime-kernel.js';
+
+export function getSubagentSeam(
+  deps: HostRuntimeKernel,
+  sessionId: string,
+): SubagentRunSeam | undefined {
+  if (!deps.subagentOrchestrator) return undefined;
+  const activeRunId = deps.runExecutionContext.getStore();
+  if (activeRunId && deps.runDelegationModes.get(activeRunId) === 'disabled') {
+    return undefined;
+  }
+  const orchestrator = deps.subagentOrchestrator;
+
+  return {
+    spawn: async (input) => {
+      // No batch may start until ownership-fenced startup reconciliation
+      // has repaired persisted runs (no replay; projections only).
+      await deps.whenSubagentStartupRecoveryReady();
+      const parentRunId = deps.runExecutionContext.getStore();
+      if (parentRunId && deps.runDelegationModes.get(parentRunId) === 'disabled') {
+        throw new Error(
+          'subagent-delegation-disabled: model-facing delegation is disabled for this turn',
+        );
+      }
+      const activeScheme = parentRunId ? deps.runOrchestrationSchemes.get(parentRunId) : undefined;
+      // ORCH §8.4: scheme ceilings gate concurrent scouts for this parent turn.
+      // Unbound (Off) runs skip the gate entirely.
+      const admission = await deps.schemeAdmissionGate.acquire(parentRunId, input.signal);
+      const releaseAdmission = (): void => {
+        admission?.release();
+      };
+      try {
+        if (input.signal?.aborted) {
+          throw new Error('aborted before subagent spawn');
+        }
+        const { applySchemeToSubagentSpawnInput } = await import('@piwin/contracts');
+        const schemeSpawn = applySchemeToSubagentSpawnInput(activeScheme, {
+          ...(input.role ? { role: input.role } : {}),
+          ...(input.profileId ? { profileId: input.profileId } : {}),
+          ...(input.model ? { model: input.model } : {}),
+          ...(input.thinkingLevel ? { thinkingLevel: input.thinkingLevel } : {}),
+        });
+        // ORCH-V2: spawn-before unavailability → do not open a child session.
+        if (schemeSpawn.fallback) {
+          const reason = schemeSpawn.fallback.reason;
+          const roleLabel = schemeSpawn.fallback.role;
+          if (schemeSpawn.fallback.kind === 'none') {
+            throw new Error(`subagent role "${roleLabel}" unavailable (fallback=none): ${reason}`);
+          }
+          throw new Error(
+            `subagent-unavailable-fallback-main: role "${roleLabel}" unavailable (${reason}). ` +
+              'Complete this subtask in the main session yourself; keep context pollution minimal.',
+          );
+        }
+        // Soft-generic / member isolation: prefer member isolation; generic scouts default readonly.
+        let mode = input.mode;
+        if (schemeSpawn.isolation) {
+          mode = schemeSpawn.isolation;
+        } else if (activeScheme && !activeScheme.exposeSpawnMetadata) {
+          mode = 'readonly';
+        }
+        const resolvedModel = schemeSpawn.model;
+        const allowInputModel =
+          Boolean(input.model) &&
+          (!activeScheme || activeScheme.exposeSpawnMetadata) &&
+          !schemeSpawn.clearedModel &&
+          !resolvedModel;
+        // One model tool call = one task; turn-scoped gate limits parallel calls.
+        const preparedRequest = await deps.prepareSubagentBatch({
+          parentSessionId: sessionId,
+          tasks: [
+            {
+              id: randomUUID(),
+              parentSessionId: sessionId,
+              invocationId: input.invocationId,
+              parentRunId: input.parentRunId,
+              ...(input.parentToolCallId ? { parentToolCallId: input.parentToolCallId } : {}),
+              task: input.task,
+              ...(mode ? { isolationOverride: mode } : {}),
+              ...(input.applyPolicy ? { applyPolicy: input.applyPolicy } : {}),
+              ...(input.sessionName ? { sessionName: input.sessionName } : {}),
+              ...(schemeSpawn.role ? { role: schemeSpawn.role } : {}),
+              ...(schemeSpawn.profileId ? { profileId: schemeSpawn.profileId } : {}),
+              ...(schemeSpawn.reportContract ? { reportContract: schemeSpawn.reportContract } : {}),
+              ...(resolvedModel
+                ? { model: resolvedModel }
+                : allowInputModel && input.model
+                  ? { model: input.model }
+                  : {}),
+              ...(schemeSpawn.thinkingLevel ? { thinkingLevel: schemeSpawn.thinkingLevel } : {}),
+            },
+          ],
+          maxConcurrency: 1,
+        });
+        const handle = orchestrator.startBatch(preparedRequest, parentRunId);
+        const cancelBatch = (): void => {
+          void orchestrator.cancelBatch(handle.runId).catch(() => {
+            // The batch completion is still owned by the orchestrator; the
+            // model-facing tool only needs the abort request to be durable.
+          });
+        };
+        if (input.signal?.aborted) {
+          cancelBatch();
+        } else if (input.signal) {
+          input.signal.addEventListener('abort', cancelBatch, { once: true });
+        }
+        let result: SubagentBatchResult;
+        try {
+          result = await handle.completion;
+        } finally {
+          if (input.signal) {
+            input.signal.removeEventListener('abort', cancelBatch);
+          }
+        }
+        const taskResult = result.results[0];
+        const childSessionId = taskResult?.childSessionId ?? '';
+        if (taskResult && childSessionId) {
+          deps.subagentTaskResults.set(childSessionId, taskResult);
+        }
+        if (!childSessionId) {
+          if (taskResult?.error) {
+            throw new Error(taskResult.error);
+          }
+          throw new Error(`subagent batch ${result.status} without a child session result`);
+        }
+        if (!taskResult) {
+          throw new Error(`subagent batch ${result.status} did not return its task result`);
+        }
+        return {
+          childSessionId,
+          batchStatus: result.status,
+          executionStatus: taskResult.executionStatus,
+          integrationStatus: taskResult.integrationStatus,
+          ...(taskResult.error ? { error: taskResult.error } : {}),
+          ...(taskResult.worktreePath ? { worktreePath: taskResult.worktreePath } : {}),
+        };
+      } finally {
+        releaseAdmission();
+      }
+    },
+    merge: async (childSessionId) => {
+      const result = deps.subagentTaskResults.get(childSessionId);
+      if (!result) {
+        throw new Error(`subagent result not found: ${childSessionId}`);
+      }
+      const messageId = randomUUID();
+      const alreadyMerged = await deps.persistSubagentMerge(
+        sessionId,
+        childSessionId,
+        result,
+        messageId,
+      );
+      if (!alreadyMerged) {
+        deps.push({
+          type: 'subagent/merged',
+          parentSessionId: sessionId,
+          childSessionId,
+          messageId,
+        });
+      }
+      return {
+        ...(result.summaryPreview ? { summaryPreview: result.summaryPreview } : {}),
+        alreadyMerged,
+      };
+    },
+  };
+}
+
+export async function prepareSubagentBatch(
+  deps: HostRuntimeKernel,
+  request: SubagentBatchRequest,
+): Promise<SubagentBatchRequest> {
+  const rootDir = getPiwinRoot(deps.options.piwinRoot);
+  const config = await loadPiwinConfig(deps.options.piwinRoot);
+  const parentRecord = await getSessionRecord(
+    getPiwinSessionIndexPath(rootDir),
+    request.parentSessionId,
+  );
+  const projectPath =
+    deps.sessionProjects.get(request.parentSessionId) ??
+    parentRecord?.workingDirectory ??
+    parentRecord?.projectPath ??
+    getPiwinGeneralWorkspacePath(rootDir);
+  const parentModel = deps.sessionModels.get(request.parentSessionId) ?? parentRecord?.model;
+  const enabledSkillIds = (
+    await scanSkills({
+      piwinRoot: rootDir,
+      projectPath,
+      ...(config.skills ? { skillsConfig: config.skills } : {}),
+    })
+  )
+    .filter((skill) => skill.enabled)
+    .map((skill) => skill.id);
+
+  const tasks = request.tasks.map((task) => {
+    const planned = planSubagentSpawn({
+      config,
+      request: {
+        parentSessionId: request.parentSessionId,
+        task: task.task,
+        ...(task.sessionName ? { sessionName: task.sessionName } : {}),
+        selector: {
+          ...(task.profileId ? { profileId: task.profileId } : {}),
+          ...(task.model ? { model: task.model } : {}),
+          ...(task.thinkingLevel ? { thinkingLevel: task.thinkingLevel } : {}),
+        },
+        ...(task.role ? { role: task.role } : {}),
+        ...(task.isolationOverride ? { mode: task.isolationOverride } : {}),
+        ...(task.applyPolicy ? { applyPolicy: task.applyPolicy } : {}),
+        ...(task.allowedOutputPaths ? { allowedOutputPaths: [...task.allowedOutputPaths] } : {}),
+        ...(task.retainWorktree !== undefined ? { retainWorktree: task.retainWorktree } : {}),
+      },
+      parentDepth: parentRecord?.depth ?? 0,
+      parentKind: parentRecord?.kind,
+      workingDirectory: projectPath,
+      enabledSkillIds,
+    });
+    if ('error' in planned) {
+      throw new Error(`subagent task ${task.id}: ${planned.error}`);
+    }
+    const model = planned.snapshot.model ?? parentModel;
+    return {
+      ...task,
+      ...(task.role ? { role: task.role } : {}),
+      ...(planned.snapshot.profileId ? { profileId: planned.snapshot.profileId } : {}),
+      ...(model ? { model } : {}),
+      ...(planned.snapshot.thinkingLevel ? { thinkingLevel: planned.snapshot.thinkingLevel } : {}),
+      isolationOverride: planned.snapshot.isolation,
+      ...(planned.spawnOptions.applyPolicy
+        ? { applyPolicy: planned.spawnOptions.applyPolicy }
+        : {}),
+      ...(planned.spawnOptions.retainWorktree !== undefined
+        ? { retainWorktree: planned.spawnOptions.retainWorktree }
+        : {}),
+      ...(planned.snapshot.capabilities
+        ? { capabilities: [...planned.snapshot.capabilities] }
+        : {}),
+      ...(planned.snapshot.skillIds ? { skillIds: [...planned.snapshot.skillIds] } : {}),
+    };
+  });
+  return { ...request, tasks };
+}
+
+export async function continueSubagentChild(
+  deps: HostRuntimeKernel,
+  orchestrator: SubagentOrchestrator,
+  childSessionId: string,
+  text: string,
+): Promise<{ runId: string }> {
+  const rootDir = getPiwinRoot(deps.options.piwinRoot);
+  const indexPath = getPiwinSessionIndexPath(rootDir);
+  const child = await getSessionRecord(indexPath, childSessionId);
+  if (!child || child.kind !== 'subagent' || !child.parentSessionId) {
+    throw new Error(`subagent child session not found: ${childSessionId}`);
+  }
+  if (
+    child.subagentStatus === 'running' ||
+    child.subagentLifecycle?.executionStatus === 'queued' ||
+    child.subagentLifecycle?.executionStatus === 'running'
+  ) {
+    throw new Error('subagent is still running; wait for it to finish before continuing');
+  }
+  const runtime = child.subagentRuntime;
+  if (!runtime) {
+    throw new Error('subagent runtime snapshot is unavailable; open a new delegated task');
+  }
+  const parent = await getSessionRecord(indexPath, child.parentSessionId);
+  if (!parent) {
+    throw new Error(`subagent parent session not found: ${child.parentSessionId}`);
+  }
+
+  const mode = child.subagentMode ?? runtime.isolation;
+  const parentScope =
+    parent.scope ??
+    (parent.projectPath
+      ? ({ kind: 'project', projectPath: parent.projectPath } as const)
+      : ({ kind: 'general' } as const));
+  const continuationWorkspaceLease =
+    mode === 'worktree'
+      ? await deps.resolveRetainedSubagentWorktreeLease(child)
+      : {
+          mode: 'readonly' as const,
+          cwd: child.workingDirectory ?? runtime.workingDirectory,
+          parentRepoPath:
+            parentScope.kind === 'project'
+              ? parentScope.projectPath
+              : getPiwinGeneralWorkspacePath(rootDir),
+        };
+  const task: SubagentTaskSpec = {
+    id: randomUUID(),
+    parentSessionId: child.parentSessionId,
+    task: text,
+    continuationSessionId: child.id,
+    continuationWorkspaceLease,
+    sessionName: child.name ?? `subagent-${child.id.slice(0, 8)}`,
+    ...(runtime.profileId ? { profileId: runtime.profileId } : {}),
+    ...(runtime.model ? { model: runtime.model } : {}),
+    ...(runtime.thinkingLevel ? { thinkingLevel: runtime.thinkingLevel } : {}),
+    ...(runtime.capabilities ? { capabilities: [...runtime.capabilities] } : {}),
+    ...(runtime.skillIds ? { skillIds: [...runtime.skillIds] } : {}),
+    isolationOverride: mode,
+    applyPolicy: 'none',
+    retainWorktree: mode === 'worktree',
+    ...(child.subagentAllowedOutputPaths
+      ? { allowedOutputPaths: [...child.subagentAllowedOutputPaths] }
+      : {}),
+  };
+  const handle = orchestrator.startBatch({
+    parentSessionId: child.parentSessionId,
+    tasks: [task],
+    maxConcurrency: 1,
+    failurePolicy: 'continue',
+  });
+  void handle.completion.catch((error: unknown) => {
+    deps.push({
+      type: 'host/log',
+      level: 'warn',
+      message: `subagent continuation failed: ${formatError(error)}`,
+    });
+  });
+  return { runId: handle.runId };
+}
+
+export async function resolveRetainedSubagentWorktreeLease(
+  deps: HostRuntimeKernel,
+  child: import('@piwin/contracts').SessionIndexRecord,
+): Promise<Extract<SubagentWorkspaceLease, { mode: 'worktree' }>> {
+  const integrationStatus = child.subagentLifecycle?.integrationStatus;
+  if (
+    !child.worktreePath ||
+    (integrationStatus !== 'retained' &&
+      integrationStatus !== 'conflict' &&
+      integrationStatus !== 'failed')
+  ) {
+    throw new Error(
+      'subagent worktree is no longer retained; start a new isolated task to continue',
+    );
+  }
+  await access(child.worktreePath).catch(() => {
+    throw new Error('subagent worktree no longer exists; start a new isolated task to continue');
+  });
+  const rootDir = getPiwinRoot(deps.options.piwinRoot);
+  const manifests = await createSubagentRunStore({
+    runsDir: join(rootDir, 'subagent-runs'),
+  }).listManifests();
+  const matchingLease = manifests
+    .flatMap((manifest) =>
+      manifest.tasks.flatMap((task) => {
+        const result = manifest.results[task.id];
+        const lease = manifest.leases[task.id];
+        return result?.childSessionId === child.id && lease?.mode === 'worktree' ? [lease] : [];
+      }),
+    )
+    .reverse()
+    .find((lease) => lease.worktreePath === child.worktreePath);
+  if (!matchingLease) {
+    throw new Error(
+      'subagent worktree lease is unavailable; start a new isolated task to continue',
+    );
+  }
+  const insideWorktree = await runGitCommand({
+    cwd: matchingLease.worktreePath,
+    args: ['rev-parse', '--is-inside-work-tree'],
+  });
+  if (insideWorktree.stdout.trim() !== 'true') {
+    throw new Error('subagent worktree is invalid; start a new isolated task to continue');
+  }
+  return matchingLease;
+}
+
+export async function actOnSubagentWorktree(
+  deps: HostRuntimeKernel,
+  childSessionId: string,
+  action: 'apply' | 'retain' | 'discard',
+): Promise<{ integrationStatus: import('@piwin/contracts').SubagentIntegrationStatus }> {
+  const coordinator = deps.subagentIntegrationCoordinator;
+  if (!coordinator) {
+    throw new Error('subagent worktree integration is not available');
+  }
+  const rootDir = getPiwinRoot(deps.options.piwinRoot);
+  const indexPath = getPiwinSessionIndexPath(rootDir);
+  const child = await getSessionRecord(indexPath, childSessionId);
+  if (!child || child.kind !== 'subagent' || !child.parentSessionId) {
+    throw new Error(`subagent child session not found: ${childSessionId}`);
+  }
+  if (
+    child.subagentStatus === 'running' ||
+    child.subagentLifecycle?.executionStatus === 'queued' ||
+    child.subagentLifecycle?.executionStatus === 'running'
+  ) {
+    throw new Error('subagent is still running; wait for it to finish before handling changes');
+  }
+
+  const lease = await deps.resolveRetainedSubagentWorktreeLease(child);
+  const runStore = createSubagentRunStore({ runsDir: join(rootDir, 'subagent-runs') });
+  const manifests = await runStore.listManifests();
+  const retainedTask = manifests
+    .flatMap((manifest) =>
+      manifest.tasks.flatMap((task) => {
+        const result = manifest.results[task.id];
+        const taskLease = manifest.leases[task.id];
+        return result?.childSessionId === childSessionId &&
+          taskLease?.mode === 'worktree' &&
+          taskLease.worktreePath === lease.worktreePath
+          ? [{ manifest, task, result }]
+          : [];
+      }),
+    )
+    .reverse()[0];
+  if (!retainedTask) {
+    throw new Error('subagent worktree result is unavailable; start a new isolated task');
+  }
+
+  let result: SubagentTaskResult;
+  if (action === 'apply') {
+    result = await coordinator.integrate(retainedTask.result, lease);
+  } else if (action === 'discard') {
+    await removeWorktree({
+      projectPath: lease.parentRepoPath,
+      worktreePath: lease.worktreePath,
+      force: true,
+      worktreeBranch: lease.worktreeBranch,
+    });
+    const { worktreePath: _discardedWorktreePath, ...resultWithoutWorktree } = retainedTask.result;
+    result = {
+      ...resultWithoutWorktree,
+      integrationStatus: 'discarded',
+    };
+  } else {
+    await coordinator.retain(lease.worktreePath, 'retained by user');
+    result = { ...retainedTask.result, integrationStatus: 'retained' };
+  }
+
+  await runStore.recordResult(retainedTask.manifest.runId, retainedTask.task.id, result);
+  await deps.persistSubagentTaskResult(child.parentSessionId, result);
+  const refreshedManifest = await runStore.loadManifest(retainedTask.manifest.runId);
+  if (refreshedManifest) {
+    const results = Object.values(refreshedManifest.results);
+    const nextStatus = reconcileSubagentBatchStatusAfterWorktreeAction(
+      refreshedManifest.status,
+      results,
+    );
+    if (nextStatus !== refreshedManifest.status) {
+      await runStore.setStatus(refreshedManifest.runId, nextStatus);
+    }
+    const invocation = Object.values(refreshedManifest.invocations).find(
+      (candidate) => candidate.taskId === retainedTask.task.id,
+    );
+    if (invocation) {
+      const updatedInvocation = {
+        ...invocation,
+        status: invocationStatusForResult(result),
+        activity: invocationActivityForResult(result),
+        revision: invocation.revision + 1,
+        updatedAt: new Date().toISOString(),
+      };
+      await runStore.recordInvocation(refreshedManifest.runId, updatedInvocation);
+      deps.push({
+        type: 'subagent/invocation-updated',
+        parentSessionId: child.parentSessionId,
+        invocation: updatedInvocation,
+      });
+    }
+    deps.push({
+      type: 'subagent/task-updated',
+      runId: refreshedManifest.runId,
+      parentSessionId: child.parentSessionId,
+      result,
+    });
+    deps.push({
+      type: 'subagent/batch-updated',
+      runId: refreshedManifest.runId,
+      parentSessionId: child.parentSessionId,
+      result: {
+        runId: refreshedManifest.runId,
+        status: nextStatus,
+        results,
+      },
+    });
+  }
+
+  const updated = await getSessionRecord(indexPath, childSessionId);
+  if (updated) {
+    const worktreeStillExists = await access(lease.worktreePath)
+      .then(() => true)
+      .catch(() => false);
+    if (
+      result.integrationStatus === 'discarded' ||
+      (result.integrationStatus === 'applied' && !worktreeStillExists)
+    ) {
+      delete updated.worktreePath;
+      delete updated.worktreeBranch;
+    }
+    updated.subagentLifecycle = {
+      executionStatus: updated.subagentLifecycle?.executionStatus ?? result.executionStatus,
+      summaryStatus: updated.subagentLifecycle?.summaryStatus ?? result.summaryStatus,
+      integrationStatus: result.integrationStatus,
+    };
+    updated.updatedAt = new Date().toISOString();
+    await upsertSessionRecord(indexPath, updated);
+    deps.push({
+      type: 'subagent/updated',
+      parentSessionId: child.parentSessionId,
+      child: indexRecordToSummary(updated),
+    });
+  }
+  return { integrationStatus: result.integrationStatus };
+}
