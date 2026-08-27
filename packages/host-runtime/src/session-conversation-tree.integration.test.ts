@@ -176,6 +176,157 @@ describe('conversation tree over host commands (ADR 0055)', () => {
       await runtime.dispose();
     }
   });
+
+  it('retries the same user row as answer versions (ADR 0064)', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-conversation-retry-'));
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+    });
+    try {
+      const created = await runtime.handleCommand({
+        type: 'session/create',
+        input: { projectPath: '/project', sessionName: 'Retry' },
+      });
+      expect(created.success).toBe(true);
+      if (!created.success) throw new Error(created.error);
+      const sessionId = (created.data as { sessionId: string }).sessionId;
+
+      await promptAndSettle(runtime, sessionId, 'same question');
+      const afterFirst = await waitForMessages(
+        runtime,
+        sessionId,
+        (messages) => doneAssistants(messages) >= 1,
+      );
+      const user = afterFirst[0];
+      if (user === undefined || user.role !== 'user') {
+        throw new Error('user turn missing');
+      }
+      expect(afterFirst.filter((message) => message.role === 'user')).toHaveLength(1);
+
+      await waitForNoForegroundRun(runtime, sessionId);
+      const kept = await runtime.handleCommand({
+        type: 'session/prompt',
+        sessionId,
+        input: { text: '', retryUserMessageId: user.id, keepPreviousAttempt: true },
+      });
+      expect(kept.success, kept.success ? '' : kept.error).toBe(true);
+      const afterKeep = await waitForMessages(
+        runtime,
+        sessionId,
+        (messages) =>
+          messages.filter((message) => message.role === 'user').length === 1 &&
+          doneAssistants(messages) >= 1,
+      );
+      expect(afterKeep.filter((message) => message.role === 'user')).toHaveLength(1);
+      expect(afterKeep.some((message) => message.id === user.id)).toBe(true);
+
+      const listed = await runtime.handleCommand({
+        type: 'session/branch-list',
+        sessionId,
+      });
+      expect(listed.success).toBe(true);
+      if (!listed.success) throw new Error(listed.error);
+      const keepPoints = (listed.data as SessionBranchListData).branchPoints;
+      expect(keepPoints).toHaveLength(1);
+      expect(keepPoints[0]?.anchorMessageId).toBe(user.id);
+      expect(keepPoints[0]?.siblings).toHaveLength(2);
+      expect(keepPoints[0]?.siblings.every((sibling) => sibling.role === 'assistant')).toBe(true);
+
+      await waitForNoForegroundRun(runtime, sessionId);
+      const missing = await runtime.handleCommand({
+        type: 'session/prompt',
+        sessionId,
+        input: { text: '', retryUserMessageId: 'msg-does-not-exist' },
+      });
+      expect(missing.success).toBe(false);
+      if (missing.success) throw new Error('expected failure');
+      expect(missing.error).toContain('retry-target-not-found');
+
+      const assistantId = afterKeep.find((message) => message.role === 'assistant')?.id ?? '';
+      const assistantTarget = await runtime.handleCommand({
+        type: 'session/prompt',
+        sessionId,
+        input: { text: '', retryUserMessageId: assistantId },
+      });
+      expect(assistantTarget.success).toBe(false);
+      if (assistantTarget.success) throw new Error('expected failure');
+      expect(assistantTarget.error).toContain('retry-target-not-user');
+
+      const conflict = await runtime.handleCommand({
+        type: 'session/prompt',
+        sessionId,
+        input: {
+          text: 'nope',
+          retryUserMessageId: user.id,
+          branchFromMessageId: user.id,
+        },
+      });
+      expect(conflict.success).toBe(false);
+      if (conflict.success) throw new Error('expected failure');
+      expect(conflict.error).toContain('retry-and-branch-conflict');
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it('discards the failed attempt on retry so no fork is left', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-conversation-retry-discard-'));
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+    });
+    try {
+      const created = await runtime.handleCommand({
+        type: 'session/create',
+        input: { projectPath: '/project', sessionName: 'RetryDiscard' },
+      });
+      expect(created.success).toBe(true);
+      if (!created.success) throw new Error(created.error);
+      const sessionId = (created.data as { sessionId: string }).sessionId;
+
+      await promptAndSettle(runtime, sessionId, 'same question');
+      const afterFirst = await waitForMessages(
+        runtime,
+        sessionId,
+        (messages) => doneAssistants(messages) >= 1,
+      );
+      const user = afterFirst[0];
+      const firstAssistant = afterFirst[1];
+      if (user === undefined || user.role !== 'user' || firstAssistant === undefined) {
+        throw new Error('first turn missing');
+      }
+
+      await waitForNoForegroundRun(runtime, sessionId);
+      const discarded = await runtime.handleCommand({
+        type: 'session/prompt',
+        sessionId,
+        input: { text: '', retryUserMessageId: user.id },
+      });
+      expect(discarded.success, discarded.success ? '' : discarded.error).toBe(true);
+      const afterDiscard = await waitForMessages(
+        runtime,
+        sessionId,
+        (messages) =>
+          messages.filter((message) => message.role === 'user').length === 1 &&
+          doneAssistants(messages) >= 1 &&
+          messages.some((message) => message.role === 'assistant' && message.id !== firstAssistant.id),
+      );
+      expect(afterDiscard.filter((message) => message.role === 'user')).toHaveLength(1);
+      expect(afterDiscard.some((message) => message.id === firstAssistant.id)).toBe(false);
+      const listed = await runtime.handleCommand({
+        type: 'session/branch-list',
+        sessionId,
+      });
+      expect(listed.success).toBe(true);
+      if (!listed.success) throw new Error(listed.error);
+      expect((listed.data as SessionBranchListData).branchPoints).toHaveLength(0);
+    } finally {
+      await runtime.dispose();
+    }
+  });
 });
 
 async function promptAndSettle(
