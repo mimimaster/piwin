@@ -1255,7 +1255,7 @@ describe('ChatThread render isolation (E1)', () => {
     expect(waitingLine?.textContent).toContain('Connecting to model…');
   });
 
-  it('renders time display, copy button, and revert button on user messages', async () => {
+  it('renders time display, copy button, and edit button on user messages', async () => {
     const onRetrySpy = vi.fn();
     const onFeedbackSpy = vi.fn();
     const userMsg: ChatMessageUi = {
@@ -1300,14 +1300,13 @@ describe('ChatThread render isolation (E1)', () => {
     ) as HTMLButtonElement;
     expect(copyBtn).not.toBeNull();
 
-    const revertBtn = container.querySelector(
-      '[data-testid="message-revert-btn"]',
+    const editBtn = container.querySelector(
+      '[data-testid="message-edit-btn"]',
     ) as HTMLButtonElement;
-    expect(revertBtn).not.toBeNull();
+    expect(editBtn).not.toBeNull();
 
-    // Revert button click triggers onRetry with message id
     act(() => {
-      revertBtn.click();
+      editBtn.click();
     });
     expect(onRetrySpy).toHaveBeenCalledWith('msg-u1');
   });
@@ -1320,6 +1319,7 @@ describe('ChatThread render isolation (E1)', () => {
       siblings: [
         {
           headMessageId: 'msg-u1',
+          role: 'user',
           preview: 'first',
           leafPreview: 'first',
           messageCount: 1,
@@ -1328,6 +1328,7 @@ describe('ChatThread render isolation (E1)', () => {
         },
         {
           headMessageId: 'msg-u1-b',
+          role: 'user',
           preview: 'second',
           leafPreview: 'second',
           messageCount: 1,
@@ -2374,6 +2375,7 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
       model: { protocol: 'openai-compatible', providerId: 'cpa', modelId: 'grok-4.6' },
     };
     renderConversation([userMessage, first, second, finalReply], {
+      onRetryTurn: vi.fn(),
       onBranchResend: vi.fn(),
       onForkFromMessage: vi.fn(),
     });
@@ -2672,8 +2674,8 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
     expect(avatar?.textContent).toBe('我');
   });
 
-  it('provides regenerate button on latest assistant response that branches the preceding user message', () => {
-    const onBranchResend = vi.fn();
+  it('provides regenerate button on latest assistant response that retries the preceding user message', () => {
+    const onRetryTurn = vi.fn();
     const u1 = createUserMessage('u-1', 'hello to retry');
     const a1: ChatMessageUi = {
       id: 'a-1',
@@ -2685,7 +2687,7 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
       status: 'done',
     };
 
-    renderConversation([u1, a1], { onBranchResend });
+    renderConversation([u1, a1], { onRetryTurn });
 
     const regenerateBtn = container.querySelector('[data-testid="response-regenerate-btn"]') as HTMLButtonElement | null;
     expect(regenerateBtn).not.toBeNull();
@@ -2694,7 +2696,79 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
       regenerateBtn?.click();
     });
 
-    expect(onBranchResend).toHaveBeenCalledWith('u-1', 'hello to retry');
+    expect(onRetryTurn).toHaveBeenCalledWith('u-1', { keepPrevious: true });
+  });
+
+  it('retries a failed turn without keeping the previous attempt', () => {
+    const onRetryTurn = vi.fn();
+    const u1 = createUserMessage('u-1', 'hello to retry');
+    const a1: ChatMessageUi = {
+      id: 'a-1',
+      role: 'assistant',
+      text: '',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'error',
+      error: 'Request was aborted',
+    };
+
+    renderConversation([u1, a1], { onRetryTurn, lastUserMessageId: 'u-1' });
+
+    const retryBtn = container.querySelector('[data-testid="turn-error-retry-btn"]') as HTMLButtonElement | null;
+    expect(retryBtn).not.toBeNull();
+
+    act(() => {
+      retryBtn?.click();
+    });
+
+    expect(onRetryTurn).toHaveBeenCalledWith('u-1', { keepPrevious: false });
+  });
+
+  it('renders the answer-version switcher on the active assistant sibling', () => {
+    const onSwitchBranch = vi.fn();
+    const u1 = createUserMessage('u-1', 'same question');
+    const a2: ChatMessageUi = {
+      id: 'a-2',
+      role: 'assistant',
+      text: 'second answer',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+    };
+    const point: TranscriptBranchPoint = {
+      anchorMessageId: 'u-1',
+      activeIndex: 1,
+      siblings: [
+        {
+          headMessageId: 'a-1',
+          role: 'assistant',
+          preview: 'first answer',
+          leafPreview: 'first answer',
+          messageCount: 1,
+          writesWorkspace: false,
+          updatedAt: '2026-08-21T00:00:00.000Z',
+        },
+        {
+          headMessageId: 'a-2',
+          role: 'assistant',
+          preview: 'second answer',
+          leafPreview: 'second answer',
+          messageCount: 1,
+          writesWorkspace: false,
+          updatedAt: '2026-08-21T00:01:00.000Z',
+        },
+      ],
+    };
+
+    renderConversation([u1, a2], { branchPoints: [point], onSwitchBranch });
+    expect(container.querySelector('[data-testid="message-branch-label"]')?.textContent).toBe('2/2');
+
+    act(() => {
+      (container.querySelector('[data-testid="message-branch-prev"]') as HTMLButtonElement | null)?.click();
+    });
+    expect(onSwitchBranch).toHaveBeenCalledWith('a-1');
   });
 
   it('does NOT render conversation header in project mode and keeps TurnWorkDetails', () => {

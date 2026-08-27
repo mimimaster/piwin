@@ -17,6 +17,7 @@ const point: TranscriptBranchPoint = {
   siblings: [
     {
       headMessageId: 'u2-a',
+      role: 'user',
       preview: 'original ask',
       leafPreview: 'original reply',
       messageCount: 4,
@@ -25,6 +26,7 @@ const point: TranscriptBranchPoint = {
     },
     {
       headMessageId: 'u2-b',
+      role: 'user',
       preview: 'reworded ask',
       leafPreview: 'alternative reply',
       messageCount: 2,
@@ -90,7 +92,7 @@ describe('ConversationTreeHeaderPopover', () => {
 
     const popover = document.querySelector('[data-testid="session-tree-popover"]');
     expect(popover?.textContent).toContain('0 branches');
-    expect(popover?.textContent).toContain('No branches yet');
+    expect(popover?.textContent).toContain('Edit a sent prompt');
     expect(popover?.textContent).not.toContain('Fork Chat');
     expect(document.querySelector('[data-testid="branch-points-empty"]')).toBeTruthy();
   });
@@ -122,5 +124,31 @@ describe('ConversationTreeHeaderPopover', () => {
       items[1]?.click();
     });
     expect(onSwitch).toHaveBeenCalledWith('u2-b');
+  });
+
+  it('does not count answer versions in the header badge', () => {
+    const answers: TranscriptBranchPoint = {
+      ...point,
+      anchorMessageId: 'u1',
+      siblings: point.siblings.map((sibling, index) => ({
+        ...sibling,
+        headMessageId: `a${String(index + 1)}`,
+        role: 'assistant' as const,
+      })),
+    };
+    const rendered = renderPopover(
+      <ConversationTreeHeaderPopover
+        branchPoints={[answers]}
+        onSwitch={() => undefined}
+        locale="en"
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-testid="context-session-tree-btn"]',
+    );
+    expect(trigger?.textContent).toContain('0');
+    expect(trigger?.getAttribute('data-has-branches')).toBe('false');
   });
 });

@@ -11,6 +11,7 @@ import type {
 import type { ChatMessageUi } from '../chat-reducer.js';
 import {
   buildBranchPromptInput,
+  buildRetryPromptInput,
   isBranchPromptCommand,
   useBranchActions,
   type UseBranchActionsArgs,
@@ -113,6 +114,143 @@ describe('buildBranchPromptInput', () => {
       permissionPreset: 'ask',
     });
     expect(input.permissionPreset).toBe('ask');
+  });
+});
+
+describe('buildRetryPromptInput', () => {
+  it('retries the user row without text or a new client id', () => {
+    const input = buildRetryPromptInput({
+      retryUserMessageId: 'u2',
+      keepPrevious: true,
+      agentMode: 'agent',
+      selectedModelKey: 'openai::gpt',
+      modelOptions: [
+        {
+          providerId: 'openai',
+          protocol: 'openai-compatible',
+          modelId: 'gpt',
+          label: 'GPT',
+        },
+      ],
+    });
+    expect(input.retryUserMessageId).toBe('u2');
+    expect(input.keepPreviousAttempt).toBe(true);
+    expect(input.text).toBe('');
+    expect(input.clientMessageId).toBeUndefined();
+    expect(input.branchFromMessageId).toBeUndefined();
+  });
+});
+
+describe('retryTurn', () => {
+  it('does not dispatch an optimistic user bubble', async () => {
+    const originalMessage: ChatMessageUi = {
+      id: 'u1',
+      role: 'user',
+      text: 'original text',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+    };
+    const sent: HostCommand[] = [];
+    const dispatch = vi.fn();
+    const hostClient = {
+      request: async (command: HostCommand): Promise<HostResponse> => {
+        sent.push(command);
+        if (command.type === 'session/prompt') {
+          return response({ runId: 'run-1' });
+        }
+        return response({ sessionId: 's1', branchPoints: [] });
+      },
+      subscribe: () => () => undefined,
+    };
+    const actions = renderBranchActions(hostClient, {
+      visibleMessages: [originalMessage],
+      dispatch,
+    });
+
+    await act(async () => {
+      await actions.current?.retryTurn('u1', { keepPrevious: false });
+    });
+
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'session/branch-switched', clipAfterMessageId: 'u1' }),
+    );
+    expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'user/send' }));
+    const promptCommand = sent.find(
+      (command): command is Extract<HostCommand, { type: 'session/prompt' }> =>
+        command.type === 'session/prompt',
+    );
+    expect(promptCommand?.input.retryUserMessageId).toBe('u1');
+    expect(promptCommand?.input.branchFromMessageId).toBeUndefined();
+    expect(promptCommand?.input.text).toBe('');
+  });
+
+  it('opens the write-discard card, then retries with confirm', async () => {
+    const originalMessage: ChatMessageUi = {
+      id: 'u1',
+      role: 'user',
+      text: 'original text',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+    };
+    const sent: HostCommand[] = [];
+    const dispatch = vi.fn();
+    const hostClient = {
+      request: async (command: HostCommand): Promise<HostResponse> => {
+        sent.push(command);
+        if (command.type === 'session/prompt' && command.confirm !== true) {
+          return {
+            id: 'r1',
+            type: 'response',
+            command: 'session/prompt',
+            success: false,
+            error: 'retry-discards-writes: src/app.ts',
+            problem: {
+              code: 'retry-discards-writes',
+              data: { files: ['src/app.ts'], hasUnknownWrites: false },
+            },
+          };
+        }
+        if (command.type === 'session/prompt') {
+          return response({ runId: 'run-2' });
+        }
+        return response({ messages: [originalMessage] });
+      },
+      subscribe: () => () => undefined,
+    };
+    const actions = renderBranchActions(hostClient, {
+      visibleMessages: [originalMessage],
+      dispatch,
+    });
+
+    await act(async () => {
+      await actions.current?.retryTurn('u1', { keepPrevious: false });
+    });
+    expect(actions.current?.pendingRetryDiscard).toEqual({
+      userMessageId: 'u1',
+      keepPrevious: false,
+      offPathWrites: { files: ['src/app.ts'], hasUnknownWrites: false },
+    });
+    expect(dispatch).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'session/branch-switched', clipAfterMessageId: 'u1' }),
+    );
+
+    await act(async () => {
+      actions.current?.confirmRetryDiscard();
+    });
+    const confirmed = sent.filter(
+      (command): command is Extract<HostCommand, { type: 'session/prompt' }> =>
+        command.type === 'session/prompt',
+    ).at(-1);
+    expect(confirmed?.confirm).toBe(true);
+    expect(confirmed?.input.retryUserMessageId).toBe('u1');
+    expect(actions.current?.pendingRetryDiscard).toBeNull();
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'session/branch-switched', clipAfterMessageId: 'u1' }),
+    );
   });
 });
 

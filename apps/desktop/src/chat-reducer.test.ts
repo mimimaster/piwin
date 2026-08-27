@@ -2499,6 +2499,36 @@ describe('chatUiReducer', () => {
     expect(state.messages.map((message) => message.id)).toEqual(['u1', 'a1']);
   });
 
+  it('session/branch-switched clips after the target, keeping that row', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, {
+      type: 'session/load-messages',
+      sessionId: 's1',
+      messages: [
+        {
+          id: 'u1',
+          role: 'user',
+          text: 'one',
+          createdAt: '2026-07-21T00:00:00.000Z',
+          status: 'done',
+        },
+        {
+          id: 'a1',
+          role: 'assistant',
+          text: 'two',
+          createdAt: '2026-07-21T00:00:01.000Z',
+          status: 'done',
+        },
+      ],
+    });
+    state = chatUiReducer(state, {
+      type: 'session/branch-switched',
+      sessionId: 's1',
+      clipAfterMessageId: 'u1',
+    });
+    expect(state.messages.map((message) => message.id)).toEqual(['u1']);
+  });
+
   it('prepends an older transcript page without replacing the active tail', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, { type: 'session/set', sessionId: 'paged-session' });

@@ -55,7 +55,7 @@ export type WorkbenchContextBarProps = {
   openSettingsSection: (section: ShellSettingsSection) => void;
   onToggleAppearance: () => void;
   onResumeSession: (sessionId: string) => void | Promise<void>;
-  onRetryLastUser: (messageId: string, text: string) => void | Promise<void>;
+  onRetryLastUser: (messageId: string) => void | Promise<void>;
 };
 
 export function WorkbenchContextBar(props: WorkbenchContextBarProps): ReactElement {
@@ -130,7 +130,7 @@ export function WorkbenchContextBar(props: WorkbenchContextBarProps): ReactEleme
       {...(lastUserMessage
         ? {
             onRetry: () => {
-              void onRetryLastUser(lastUserMessage.id, lastUserMessage.text);
+              void onRetryLastUser(lastUserMessage.id);
             },
           }
         : {})}

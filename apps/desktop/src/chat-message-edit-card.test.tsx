@@ -125,4 +125,38 @@ describe('MessageEditCard carry-through send', () => {
     });
     expect(onResend).not.toHaveBeenCalled();
   });
+
+  it('labels unchanged current-turn send as Retry', () => {
+    const rendered = renderCard(
+      <MessageEditCard
+        messageId="u1"
+        initialText="same turn"
+        composerCard={composerCard}
+        currentTurn
+        onCancel={vi.fn()}
+        onResend={vi.fn()}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+    const sendBtn = container.querySelector<HTMLButtonElement>('[data-testid="send-btn"]');
+    expect(sendBtn?.getAttribute('aria-label')).toBe('Retry');
+  });
+
+  it('labels an older unchanged send as a new version', () => {
+    const rendered = renderCard(
+      <MessageEditCard
+        messageId="u1"
+        initialText="same turn"
+        composerCard={composerCard}
+        currentTurn={false}
+        onCancel={vi.fn()}
+        onResend={vi.fn()}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+    const sendBtn = container.querySelector<HTMLButtonElement>('[data-testid="send-btn"]');
+    expect(sendBtn?.getAttribute('aria-label')).toBe('Send new version');
+  });
 });

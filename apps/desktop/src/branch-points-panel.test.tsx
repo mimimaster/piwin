@@ -13,6 +13,7 @@ const point: TranscriptBranchPoint = {
   siblings: [
     {
       headMessageId: 'u2-a',
+      role: 'user',
       preview: 'original ask',
       leafPreview: 'original reply',
       messageCount: 4,
@@ -21,6 +22,7 @@ const point: TranscriptBranchPoint = {
     },
     {
       headMessageId: 'u2-b',
+      role: 'user',
       preview: 'reworded ask',
       leafPreview: 'alternative reply',
       messageCount: 2,
@@ -56,7 +58,7 @@ describe('BranchPointsPanel', () => {
   it('tells the user how to branch when none exist yet', () => {
     render(<BranchPointsPanel branchPoints={[]} onSwitch={vi.fn()} locale="en" />);
     const empty = container.querySelector('[data-testid="branch-points-empty"]');
-    expect(empty?.textContent).toContain('Edit a sent message');
+    expect(empty?.textContent).toContain('Edit a sent prompt');
     expect(container.querySelector('[data-testid="branch-point-item"]')).toBeNull();
   });
 
@@ -82,6 +84,38 @@ describe('BranchPointsPanel', () => {
       items[1]?.click();
     });
     expect(onSwitch).toHaveBeenCalledWith('u2-b');
+  });
+
+  it('labels answer versions instead of prompt forks', () => {
+    const answers: TranscriptBranchPoint = {
+      anchorMessageId: 'u1',
+      promptPreview: 'same question',
+      activeIndex: 1,
+      siblings: [
+        {
+          headMessageId: 'a1',
+          role: 'assistant',
+          preview: 'first answer',
+          leafPreview: 'first answer',
+          messageCount: 1,
+          writesWorkspace: false,
+          updatedAt: '2026-08-21T00:00:00.000Z',
+        },
+        {
+          headMessageId: 'a1b',
+          role: 'assistant',
+          preview: 'second answer',
+          leafPreview: 'second answer',
+          messageCount: 1,
+          writesWorkspace: false,
+          updatedAt: '2026-08-21T00:01:00.000Z',
+        },
+      ],
+    };
+    render(<BranchPointsPanel branchPoints={[answers]} onSwitch={vi.fn()} locale="en" />);
+    expect(container.textContent).toContain('2 answer versions');
+    expect(container.textContent).not.toContain('Reworded');
+    expect(container.textContent).not.toContain('Fork 1');
   });
 
   it('blocks switching while a run holds the session', () => {

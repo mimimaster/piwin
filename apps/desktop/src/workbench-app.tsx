@@ -189,12 +189,16 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     branchPoints,
     switchBranch,
     branchResend,
+    retryTurn,
     pendingTruncate,
     confirmTruncateAfter,
     cancelTruncateAfter,
     pendingSwitchConfirm,
     confirmSwitchBranch,
     cancelSwitchBranch,
+    pendingRetryDiscard,
+    confirmRetryDiscard,
+    cancelRetryDiscard,
     handleSessionListOrderChange,
     handleSettingsOpenSubagentSession,
     recentProjects,
@@ -403,7 +407,9 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       openSettingsSection={openSettingsSection}
                       onToggleAppearance={handleToggleAppearance}
                       onResumeSession={handleResumeSession}
-                      onRetryLastUser={branchResend}
+                      onRetryLastUser={(messageId) => {
+                        void retryTurn(messageId, { keepPrevious: false });
+                      }}
                     />
                   }
                   chatColumnClassName={
@@ -479,6 +485,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       onCancelEdit={handleCancelMessageEdit}
                       onEditResend={handleEditAndResendMessage}
                       onRetry={handleRetryMessage}
+                      onRetryTurn={retryTurn}
                       onBranchResend={branchResend}
                       onSwitchBranch={switchBranch}
                       onInterventionEdit={handleInterventionEdit}
@@ -631,6 +638,9 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                   pendingSwitchConfirm={pendingSwitchConfirm}
                   cancelSwitchBranch={cancelSwitchBranch}
                   confirmSwitchBranch={confirmSwitchBranch}
+                  pendingRetryDiscard={pendingRetryDiscard}
+                  cancelRetryDiscard={cancelRetryDiscard}
+                  confirmRetryDiscard={confirmRetryDiscard}
                 />
               </div>
               <WorkbenchSubpageStage

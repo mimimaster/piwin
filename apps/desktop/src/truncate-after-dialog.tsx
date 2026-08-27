@@ -1,6 +1,6 @@
 /**
- * Explicit subtree delete confirmation (ADR 0055). Daily edit/regenerate
- * branches instead; this dialog is the only Desktop path to truncate-from.
+ * Explicit subtree delete confirmation (ADR 0055 / 0064). The only
+ * Desktop path named Revert — daily retry/regenerate never truncate.
  */
 import { Button, Dialog } from '@piwin/ui-kit';
 import type { ReactElement } from 'react';
@@ -19,7 +19,7 @@ export function TruncateAfterDialog(props: TruncateAfterDialogProps): ReactEleme
   const isChinese = props.locale !== 'en';
   return (
     <Dialog
-      label={isChinese ? '删除此处及之后的消息？' : 'Delete this message and everything after it?'}
+      label={isChinese ? '回到此处？' : 'Revert to here?'}
       open
       onOpenChange={(open) => {
         if (!open) {
@@ -30,12 +30,12 @@ export function TruncateAfterDialog(props: TruncateAfterDialogProps): ReactEleme
     >
       <div className="revert-modal-content">
         <h3 className="revert-modal-title">
-          {isChinese ? '删除此处及之后的消息？' : 'Delete this message and everything after it?'}
+          {isChinese ? '回到此处？' : 'Revert to here?'}
         </h3>
         <p className="revert-modal-subtitle muted">
           {isChinese
-            ? '此分支上的后续消息会从对话里移除。磁盘上的文件改动不会撤销。'
-            : 'Later messages on this branch will be removed from this chat. File changes on disk are not undone.'}
+            ? '这条之后的所有消息会被删除，不可恢复。磁盘上的文件改动不会撤销。'
+            : 'Every message after this one will be deleted and cannot be restored. File changes on disk are not undone.'}
         </p>
         <div className="revert-modal-footer">
           <div className="modal-actions">

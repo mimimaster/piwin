@@ -316,10 +316,6 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
   );
 
   useEffect(() => {
-    if (agentMode === 'plan' || agentMode === 'ask') {
-      setAgentMode('agent');
-      return;
-    }
     if (agentMode === 'goal' && !goalExtensionEnabled) {
       setAgentMode('agent');
     }

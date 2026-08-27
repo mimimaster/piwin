@@ -10,7 +10,11 @@ import type {
   TranscriptBranchSibling,
   WorkspaceWrites,
 } from '@piwin/contracts';
-import { collectOffPathWorkspaceWrites, workspaceWritesFromMessage } from '@piwin/contracts';
+import {
+  collectOffPathWorkspaceWrites,
+  collectWorkspaceWritesFromMessages,
+  workspaceWritesFromMessage,
+} from '@piwin/contracts';
 
 export type MockTranscriptTreeHost = {
   transcript: SessionTranscriptMessage[];
@@ -205,6 +209,7 @@ function siblingStats(
   }
   return {
     headMessageId: sibling.id,
+    role: sibling.role === 'user' ? 'user' : 'assistant',
     preview: sibling.text.slice(0, previewChars),
     leafPreview: (leaf?.text ?? '').slice(0, previewChars),
     messageCount: rows.length,
@@ -273,4 +278,48 @@ function cloneTranscriptMessage(message: SessionTranscriptMessage): SessionTrans
   }
   if (message.contextRefs) next.contextRefs = [...message.contextRefs];
   return next;
+}
+
+export function applyMockRetryPrompt(
+  session: MockTranscriptTreeHost,
+  input: {
+    retryUserMessageId: string;
+    keepPrevious: boolean;
+    confirm: boolean;
+  },
+):
+  | { ok: true; user: SessionTranscriptMessage }
+  | { ok: false; error: string; writes?: WorkspaceWrites } {
+  const target = session.transcript.find((message) => message.id === input.retryUserMessageId);
+  if (target === undefined) {
+    return { ok: false, error: `retry-target-not-found: ${input.retryUserMessageId}` };
+  }
+  if (target.role !== 'user') {
+    return { ok: false, error: `retry-target-not-user: ${input.retryUserMessageId}` };
+  }
+  ensureMockTree(session);
+  const path = visibleMockTranscript(session);
+  const index = path.findIndex((message) => message.id === target.id);
+  if (index === -1) {
+    return { ok: false, error: `retry-target-off-path: ${input.retryUserMessageId}` };
+  }
+  const after = path.slice(index + 1);
+  if (!input.keepPrevious) {
+    const writes = collectWorkspaceWritesFromMessages(
+      after.filter((message) => message.role === 'assistant'),
+    );
+    if (writes !== null && !input.confirm) {
+      return {
+        ok: false,
+        error: `retry-discards-writes: ${writes.files.join(', ')}`,
+        writes,
+      };
+    }
+    const firstChild = after[0];
+    if (firstChild !== undefined) {
+      truncateMockSubtree(session, firstChild.id);
+    }
+  }
+  rebaseMockLeaf(session, target.id);
+  return { ok: true, user: target };
 }

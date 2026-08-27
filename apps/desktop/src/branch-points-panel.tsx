@@ -9,7 +9,7 @@
  */
 
 import type { ReactElement } from 'react';
-import type { TranscriptBranchPoint } from '@piwin/contracts';
+import { isAnswerVariantPoint, type TranscriptBranchPoint } from '@piwin/contracts';
 import { IconCheck, IconFileDiff } from './shell-icons';
 import type { DesktopLocale } from './desktop-locale';
 import { formatTimestamp } from './format-timestamp';
@@ -30,8 +30,8 @@ export function BranchPointsPanel(props: BranchPointsPanelProps): ReactElement {
       <div className="branch-points-panel" data-testid="branch-points-panel">
         <p className="right-panel-empty muted" data-testid="branch-points-empty">
           {isZh
-            ? '当前还没有分岔。编辑已发送的消息再发送，或点再生成，就会在这条会话里分叉；原来的后续会留下来。主对话区始终只显示当前这一路。'
-            : 'No branches yet. Edit a sent message and send it again, or regenerate: the conversation forks in place and the previous continuation is kept. The transcript always shows the active path.'}
+            ? '改写某一轮的提问后发送，会在这里留下一个分叉。主对话区始终只显示当前这一路。'
+            : 'Edit a sent prompt and change the text, then send: a fork appears here. The transcript always shows the active path.'}
         </p>
       </div>
     );
@@ -41,6 +41,7 @@ export function BranchPointsPanel(props: BranchPointsPanelProps): ReactElement {
     <div className="branch-points-panel" data-testid="branch-points-panel">
       {props.branchPoints.map((point, pointIndex) => {
         const sharedPrompt = point.promptPreview ?? point.siblings[0]?.preview ?? '';
+        const answerVariants = isAnswerVariantPoint(point);
         return (
           <section
             className="branch-point-group"
@@ -58,9 +59,13 @@ export function BranchPointsPanel(props: BranchPointsPanelProps): ReactElement {
                 </span>
               </div>
               <div className="branch-point-caption muted">
-                {isZh
-                  ? `分叉点 ${String(pointIndex + 1)} · ${String(point.siblings.length)} 条分支`
-                  : `Fork ${String(pointIndex + 1)} · ${String(point.siblings.length)} branches`}
+                {answerVariants
+                  ? isZh
+                    ? `${String(point.siblings.length)} 个回答版本`
+                    : `${String(point.siblings.length)} answer versions`
+                  : isZh
+                    ? `分叉点 ${String(pointIndex + 1)} · ${String(point.siblings.length)} 条分支`
+                    : `Fork ${String(pointIndex + 1)} · ${String(point.siblings.length)} branches`}
               </div>
             </div>
 
@@ -78,6 +83,7 @@ export function BranchPointsPanel(props: BranchPointsPanelProps): ReactElement {
                   .join(' · ');
 
                 const isReworded =
+                  !answerVariants &&
                   sharedPrompt.trim().length > 0 &&
                   sibling.preview.trim().length > 0 &&
                   sibling.preview.trim() !== sharedPrompt.trim();
