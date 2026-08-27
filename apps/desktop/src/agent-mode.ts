@@ -47,32 +47,8 @@ export const AGENT_MODES: readonly AgentModeDefinition[] = [
   },
 ] as const;
 
-/** Retired composer modes. Lookup-only so a leftover session chip can dismiss. */
-const LEGACY_AGENT_MODES: readonly AgentModeDefinition[] = [
-  {
-    id: 'plan',
-    label: 'Plan',
-    title: 'Plan Mode',
-    description: 'Generate an implementation plan',
-    systemPreamble: AGENT_MODE_SYSTEM_PREAMBLES.plan,
-    placeholder: 'Describe what you want planned…',
-  },
-  {
-    id: 'ask',
-    label: 'Ask',
-    title: 'Ask',
-    description: 'Answer questions without making changes',
-    systemPreamble: AGENT_MODE_SYSTEM_PREAMBLES.ask,
-    placeholder: 'Ask anything about this project…',
-  },
-];
-
 export function getAgentMode(modeId: AgentModeId): AgentModeDefinition {
-  return (
-    AGENT_MODES.find((mode) => mode.id === modeId) ??
-    LEGACY_AGENT_MODES.find((mode) => mode.id === modeId) ??
-    AGENT_MODES[0]!
-  );
+  return AGENT_MODES.find((mode) => mode.id === modeId) ?? AGENT_MODES[0]!;
 }
 
 /**

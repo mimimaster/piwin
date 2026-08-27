@@ -50,7 +50,7 @@ export type SandboxProfileName = 'read-only' | 'workspace' | 'none';
  * Used by {@link resolvePreset} (legacy Plan/Ask floor) and
  * {@link mergeAgentModeIntoPrompt}.
  */
-export type AgentModeId = 'agent' | 'plan' | 'ask' | 'goal';
+export type AgentModeId = 'agent' | 'goal';
 
 const DEFAULT_AGENT_MODE_RULES = [
   "- **Pragmatic Delivery**: Satisfy the user's stated goal with the minimal correct change; produce clear evidence of what was verified.",
@@ -85,21 +85,6 @@ export const AGENT_MODE_SYSTEM_PREAMBLES: Readonly<Record<AgentModeId, string>> 
     'Operating contract for this turn:',
     ...DEFAULT_AGENT_MODE_RULES,
   ].join('\n'),
-  plan: [
-    '[piwin-prompt-meta kind="mode:plan" version="4" applies="plan-mode"]',
-    'You are in Plan Mode.',
-    '- **Goal**: Research the repo and persist a decision-complete SessionPlan via `piwin_plan_create`.',
-    '- **Read-Only**: Explore (read/search) only. Do NOT edit or mutate project files.',
-    '- **Proactive Discovery**: Discover repo context yourself; ask only questions that alter the technical plan.',
-    '- **Durable Artifact**: Stop once `piwin_plan_create` succeeds; never substitute a prose-only plan.',
-  ].join('\n'),
-  ask: [
-    '[piwin-prompt-meta kind="mode:ask" version="3" applies="ask-mode"]',
-    'You are in Ask Mode.',
-    '- **Goal**: Provide accurate answers and explanations about the codebase, citing file paths where helpful.',
-    '- **Read-Only**: Do NOT modify files or run mutating commands.',
-    '- **Boundary**: Stop at explanation. If implementation is required, state so and prompt the user to switch to Agent mode.',
-  ].join('\n'),
   goal: [
     '[piwin-prompt-meta kind="mode:goal" version="2" applies="goal-mode"]',
     'You are in Goal Mode (Autonomous Goal Execution Loop).',
@@ -113,8 +98,8 @@ export const AGENT_MODE_SYSTEM_PREAMBLES: Readonly<Record<AgentModeId, string>> 
 
 /** Normalize optional mode id; unknown / empty → agent. */
 export function normalizeAgentModeId(modeId: string | undefined | null): AgentModeId {
-  if (modeId === 'plan' || modeId === 'ask' || modeId === 'goal' || modeId === 'agent') {
-    return modeId;
+  if (modeId === 'goal') {
+    return 'goal';
   }
   return 'agent';
 }
@@ -231,16 +216,8 @@ export type ResolvedPreset = {
  */
 export function resolvePreset(
   preset: PermissionPreset,
-  agentMode: AgentModeId = 'agent',
+  _agentMode: AgentModeId = 'agent',
 ): ResolvedPreset {
-  // Soft floor: Plan/Ask agent modes raise read-only even under Auto.
-  // YOLO under Plan/Ask is allowed (locked decision) — UI warns, host does not hard-block.
-  if (agentMode === 'plan' || agentMode === 'ask') {
-    if (preset === 'yolo') {
-      return { mode: 'bypass', sandbox: 'none' };
-    }
-    return { mode: 'ask-all', sandbox: 'read-only' };
-  }
   switch (preset) {
     case 'ask':
       return { mode: 'ask-all', sandbox: 'workspace' };
