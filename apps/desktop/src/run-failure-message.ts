@@ -1,3 +1,4 @@
+import type { AgentFailure } from '@piwin/contracts';
 import type { ChatMessageUi } from './chat-reducer';
 
 /**
@@ -14,6 +15,7 @@ export function markLatestAssistantFailure(
   errorMessage: string,
   includeStreamingFallback: boolean,
   preserveExistingError = false,
+  extras?: { failure?: AgentFailure; stampStatus?: boolean },
 ): { messages: ChatMessageUi[]; stamped: boolean } {
   const messagesWithFailedTools = messages.map(markRunningToolsAsFailed);
   let targetIndex = -1;
@@ -41,8 +43,9 @@ export function markLatestAssistantFailure(
       index === targetIndex
         ? {
             ...message,
-            status: 'error' as const,
+            ...(extras?.stampStatus === false ? {} : { status: 'error' as const }),
             error: preserveExistingError ? (message.error ?? errorMessage) : errorMessage,
+            ...(extras?.failure === undefined ? {} : { failure: extras.failure }),
           }
         : message,
     ),

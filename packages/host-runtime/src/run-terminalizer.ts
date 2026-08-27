@@ -129,6 +129,7 @@ export async function terminateHostRun(
               ? 'run-cancelling'
               : 'run-ended',
         ...(effectiveMessage !== undefined ? { terminalMessage: effectiveMessage } : {}),
+        ...(options?.failure === undefined ? {} : { failure: options.failure }),
       }),
     );
     for (const intervention of finalized.expired) {

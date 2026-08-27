@@ -90,6 +90,7 @@ export type TranscriptStoreMessageInput = {
     thinkingEndedAt?: string;
     outcome?: SessionTranscriptMessage['outcome'];
     terminalMessage?: string;
+    failure?: SessionTranscriptMessage['failure'];
     subagentActivity?: SessionTranscriptMessage['subagentActivity'];
     searchEvidence?: SessionTranscriptMessage['searchEvidence'];
     instructionDelivery?: SessionTranscriptMessage['instructionDelivery'];
@@ -222,6 +223,7 @@ export type SessionTranscriptStore = {
     updatedAt: string;
     outcome: SessionRunOutcome;
     terminalMessage?: string;
+    failure?: SessionTranscriptMessage['failure'];
   }): Promise<SessionTranscriptMessage[]>;
   /** Read one row by normalized id without scanning the transcript. */
   getMessage(id: string): Promise<SessionTranscriptMessage | undefined>;

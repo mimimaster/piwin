@@ -62,6 +62,7 @@ import { createSidecarMobileAccess, interceptSidecarMobileAccess } from './mobil
 import { parsePermissionModeOverride } from './permission-mode-override.js';
 import { resolveCliChatPrompt } from './chat-prompt.js';
 import { formatCliFlashcardToolResult } from './flashcard-tool-result.js';
+import { formatCliAgentErrorEvent } from './cli-agent-error.js';
 import {
   runWalkthroughList,
   runWalkthroughGenerate,
@@ -352,7 +353,7 @@ function createAssistantCliDisplay() {
           return '\n';
 
         case 'error':
-          return `\n[error] ${event.message}\n`;
+          return formatCliAgentErrorEvent(event);
 
         case 'permission/request':
           return `\n[permission ${event.defaultDecision}] ${event.action}: ${event.detail}\n`;

@@ -129,6 +129,7 @@ export type QueuedTurnRow = {
       if (metadata.outcome !== undefined) message.outcome = metadata.outcome;
       if (metadata.terminalMessage !== undefined)
         message.terminalMessage = metadata.terminalMessage;
+      if (metadata.failure !== undefined) message.failure = metadata.failure;
       if (metadata.subagentActivity !== undefined) {
         message.subagentActivity = metadata.subagentActivity;
       }

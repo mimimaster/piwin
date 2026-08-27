@@ -13,6 +13,7 @@ export type SettleStreamingMessagesInput = {
   updatedAt: string;
   outcome: SessionRunOutcome;
   terminalMessage?: string;
+  failure?: SessionTranscriptMessage['failure'];
 };
 
 export function createTranscriptStreamSettleOps(
@@ -86,8 +87,22 @@ function mergeSettledMetadata(
     endedAt: input.updatedAt,
     outcome: input.outcome,
   };
-  if (input.terminalMessage !== undefined) {
-    next.terminalMessage = input.terminalMessage;
+  if (input.outcome === 'failed') {
+    if (input.terminalMessage !== undefined) {
+      next.terminalMessage = input.terminalMessage;
+    }
+    if (input.failure !== undefined) {
+      next.failure = input.failure;
+    }
+  } else {
+    delete next.terminalMessage;
+    delete next.failure;
+    if (
+      (input.outcome === 'cancelled' || input.outcome === 'paused') &&
+      input.terminalMessage !== undefined
+    ) {
+      next.terminalMessage = input.terminalMessage;
+    }
   }
   if (previous.thinkingStartedAt !== undefined && previous.thinkingEndedAt === undefined) {
     next.thinkingEndedAt = input.updatedAt;

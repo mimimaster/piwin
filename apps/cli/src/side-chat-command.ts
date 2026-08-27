@@ -22,6 +22,7 @@ import type {
   SideChatSyncData,
   SessionSummary,
 } from '@piwin/contracts';
+import { formatCliAgentErrorEvent } from './cli-agent-error.js';
 
 /* ------------------------------------------------------------------ */
 /* Host client seam (testable)                                         */
@@ -239,7 +240,7 @@ function waitForSideChatRun(
             log('\n');
             break;
           case 'error':
-            reject(new Error(event.message));
+            log(formatCliAgentErrorEvent(event));
             break;
           default:
             break;

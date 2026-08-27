@@ -1,5 +1,6 @@
 import type {
   AgentEvent,
+  AgentFailure,
   MediaAttachmentRef,
   ModelRef,
   PromptInput,
@@ -10,6 +11,7 @@ import {
   collectWorkspaceWrites,
   mergeSearchEvidence,
   mergeWorkspaceWrites,
+  normalizeAgentFailure,
   USER_AUTHORED_GENERATION,
 } from '@piwin/contracts';
 import type { SessionTranscriptStore, TranscriptStoreMessagePatch } from '@piwin/session';
@@ -147,7 +149,8 @@ export function createStoreTranscriptRecorder(options: {
         message !== undefined &&
         (message.status === 'error' ||
           (message.terminalMessage ?? '').trim().length > 0 ||
-          message.outcome === 'failed');
+          message.outcome === 'failed' ||
+          message.failure !== undefined);
       if (
         message !== undefined &&
         !keepFailed &&
@@ -177,8 +180,10 @@ export function createStoreTranscriptRecorder(options: {
     messageId: string | null;
     runId?: string;
     errorMessage: string;
+    failure?: AgentFailure;
   }): Promise<void> {
     const eventAt = new Date().toISOString();
+    const failure = input.failure ?? normalizeAgentFailure(undefined, input.errorMessage);
     const existingId =
       input.messageId ??
       (input.runId !== undefined ? (assistantIdsByRunId.get(input.runId) ?? null) : null) ??
@@ -189,10 +194,7 @@ export function createStoreTranscriptRecorder(options: {
         existingId,
         (message) => ({
           ...finishTranscriptThinking(message, eventAt),
-          status: 'error',
-          outcome: 'failed',
-          terminalMessage: input.errorMessage,
-          endedAt: eventAt,
+          failure,
         }),
         'error',
         true,
@@ -216,11 +218,9 @@ export function createStoreTranscriptRecorder(options: {
       text: '',
       thinking: '',
       tools: [],
-      status: 'error',
+      status: 'streaming',
       createdAt: eventAt,
-      endedAt: eventAt,
-      outcome: 'failed',
-      terminalMessage: input.errorMessage,
+      failure,
       runtimeGenerationId: options.runtimeGenerationId,
       ...(input.runId !== undefined ? { runId: input.runId } : {}),
       ...(model !== undefined ? { model } : {}),
@@ -238,9 +238,7 @@ export function createStoreTranscriptRecorder(options: {
       ...(message.model !== undefined ? { model: message.model } : {}),
       tools: [],
       metadata: {
-        endedAt: eventAt,
-        outcome: 'failed',
-        terminalMessage: input.errorMessage,
+        failure,
       },
     });
     if (!result.ok) {
@@ -615,6 +613,7 @@ export function createStoreTranscriptRecorder(options: {
               messageId: null,
               ...(event.runId !== undefined ? { runId: event.runId } : {}),
               errorMessage: event.message.trim() || 'Model request failed',
+              ...(event.failure === undefined ? {} : { failure: event.failure }),
             });
             break;
           }
@@ -677,6 +676,7 @@ function messagePatch(message: SessionTranscriptMessage): TranscriptStoreMessage
       ...(message.terminalMessage !== undefined
         ? { terminalMessage: message.terminalMessage }
         : {}),
+      ...(message.failure !== undefined ? { failure: message.failure } : {}),
       ...(message.subagentActivity !== undefined
         ? { subagentActivity: message.subagentActivity }
         : {}),

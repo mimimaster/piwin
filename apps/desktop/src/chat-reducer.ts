@@ -1,9 +1,9 @@
 import { isPlaceholderSessionName } from './title-display';
 import { isAssistantContentEmpty } from './assistant-message-content';
-import { looksLikeControlledAbortErrorMessage } from './controlled-abort-error.js';
 import type {
   AgentEvent,
   AgentEventEnvelope,
+  AgentFailure,
   ContextUsageSnapshot,
   ExecutionRunRecord,
   RunInterventionRecord,
@@ -149,6 +149,8 @@ export type ChatMessageUi = {
   };
   /** Error message if generation or execution failed. */
   error?: string;
+  /** Structured Agent failure when Host provided one. */
+  failure?: AgentFailure;
 };
 
 export type TranscriptHistoryViewUi = {
@@ -827,6 +829,7 @@ export function mapTranscriptMessagesToUi(
         }
       : {}),
     ...(message.terminalMessage ? { error: message.terminalMessage } : {}),
+    ...(message.failure ? { failure: message.failure } : {}),
   }));
 }
 
@@ -2340,15 +2343,10 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
       return {
         ...state,
         error: action.message,
-        runPhase: 'idle',
-        activeRunId: null,
-        activeRunPhase: null,
-        activeRunPhaseDetail: null,
-        activeRunStartedAt: null,
-        lastTerminalRunId: null,
-        streaming: false,
         activeSkill: null,
-        runTerminal: { kind: 'failed', message: action.message, at: Date.now() },
+        ...(state.activeRunId === null
+          ? { runPhase: 'idle' as const, streaming: false }
+          : {}),
       };
     case 'error/clear':
       return state.error === null ? state : { ...state, error: null };
@@ -3253,8 +3251,20 @@ function isEmptyAssistantPlaceholder(message: ChatMessageUi): boolean {
     message.status !== 'streaming' &&
     message.status !== 'error' &&
     !message.error &&
+    message.failure === undefined &&
     isAssistantContentEmpty(message)
   );
+}
+
+function withoutFailureEvidence(message: ChatMessageUi): ChatMessageUi {
+  if (message.error === undefined && message.failure === undefined && message.status !== 'error') {
+    return message;
+  }
+  const { error: _error, failure: _failure, ...rest } = message;
+  return {
+    ...rest,
+    status: message.status === 'error' ? 'done' : message.status,
+  };
 }
 
 function withoutEmptyAssistantPlaceholders(messages: readonly ChatMessageUi[]): ChatMessageUi[] {
@@ -3695,19 +3705,29 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
         return state;
       }
       return { ...state, contextUsage: event.usage };
+    case 'model/retry':
+      if (isStaleOptionalRunEvent(state, event.runId)) {
+        return state;
+      }
+      if (isUserControlInFlight(state) || event.phase === 'finished') {
+        return state;
+      }
+      return {
+        ...state,
+        ...(event.runId !== undefined ? { activeRunId: event.runId } : {}),
+        activeRunPhase: 'connecting-model',
+        runPhase: 'streaming',
+        streaming: true,
+      };
     case 'error':
-      // Host often terminates the Run first, then emits the agent error with the
-      // same runId. Accept that payload for the just-finished run; only drop
-      // errors that belong to a different live or terminal run.
-      if (
-        event.runId !== undefined &&
-        state.activeRunId !== null &&
-        state.activeRunId !== event.runId
-      ) {
+      // Evidence only. Run terminal status comes from run/terminal.
+      if (event.runId === undefined) {
+        return state;
+      }
+      if (state.activeRunId !== null && state.activeRunId !== event.runId) {
         return state;
       }
       if (
-        event.runId !== undefined &&
         state.activeRunId === null &&
         state.lastTerminalRunId !== null &&
         state.lastTerminalRunId !== event.runId
@@ -3716,15 +3736,9 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
       }
       {
         const errorMessage = event.message.trim() || 'Run failed';
-        const targetRunId = event.runId ?? state.activeRunId ?? state.lastTerminalRunId;
-        const controlInFlight =
-          state.runPhase === 'pausing' ||
-          state.runPhase === 'aborting' ||
-          state.activeRunPhase === 'pausing';
-        // Provider abort acknowledgements during pause/stop must not become a
-        // failed toast or stamp the assistant row as error — Host run/terminal
-        // still owns paused/stopped. Always drop the sidebar spinner.
-        if (controlInFlight && looksLikeControlledAbortErrorMessage(errorMessage)) {
+        const targetRunId = event.runId;
+        const controlInFlight = isUserControlInFlight(state);
+        if (controlInFlight) {
           return {
             ...state,
             error: null,
@@ -3737,72 +3751,28 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
             ),
           };
         }
-        if (
-          !controlInFlight &&
-          looksLikeControlledAbortErrorMessage(errorMessage) &&
-          (state.streaming || state.activeRunId !== null)
-        ) {
-          return {
-            ...state,
-            error: null,
-            runPhase: 'aborting',
-            streaming: false,
-            compacting: false,
-            activeSkill: null,
-            workingSessionIds: removeWorkingSessionId(
-              state.workingSessionIds,
-              state.activeSessionId,
-            ),
-          };
+        const lastOutcome = state.runRecordsById[targetRunId]?.outcome;
+        if (lastOutcome === 'cancelled' || lastOutcome === 'paused') {
+          return state;
         }
+        const runAlreadyFailed =
+          state.activeRunId === null &&
+          state.lastTerminalRunId === targetRunId &&
+          lastOutcome === 'failed';
         const failureProjection = markLatestAssistantFailure(
           state.messages,
           targetRunId,
           errorMessage,
           true,
+          false,
+          {
+            ...(event.failure === undefined ? {} : { failure: event.failure }),
+            stampStatus: runAlreadyFailed,
+          },
         );
-        let messages = failureProjection.messages;
-        if (!failureProjection.stamped) {
-          let lastAssistantIndex = -1;
-          for (let index = messages.length - 1; index >= 0; index -= 1) {
-            if (messages[index]?.role === 'assistant') {
-              lastAssistantIndex = index;
-              break;
-            }
-          }
-          if (lastAssistantIndex >= 0) {
-            messages = messages.map((message, index) =>
-              index === lastAssistantIndex
-                ? { ...message, status: 'error' as const, error: errorMessage }
-                : message,
-            );
-          } else {
-            messages = [
-              ...messages,
-              {
-                id: `piw-m-error-${targetRunId ?? Date.now().toString(36)}`,
-                role: 'assistant',
-                text: '',
-                thinking: '',
-                tools: [],
-                attachments: [],
-                status: 'error',
-                error: errorMessage,
-                ...(targetRunId ? { runId: targetRunId } : {}),
-              },
-            ];
-          }
-        }
         return {
           ...state,
-          messages,
-          error: errorMessage,
-          runPhase: 'idle',
-          streaming: false,
-          compacting: false,
-          activeSkill: null,
-          runTerminal: { kind: 'failed', message: errorMessage, at: Date.now() },
-          workingSessionIds: removeWorkingSessionId(state.workingSessionIds, state.activeSessionId),
+          messages: failureProjection.messages,
         };
       }
     default:
@@ -3950,6 +3920,11 @@ function applyRunRecord(
   }
   const errorMessage = outcome === 'failed' ? run.error?.trim() || 'Run failed' : undefined;
   let messages = state.messages;
+  if (outcome !== 'failed') {
+    messages = messages.map((message) =>
+      message.runId === run.runId ? withoutFailureEvidence(message) : message,
+    );
+  }
   if (errorMessage !== undefined) {
     const failureProjection = markLatestAssistantFailure(
       state.messages,
@@ -3957,6 +3932,7 @@ function applyRunRecord(
       errorMessage,
       false,
       true,
+      run.failure === undefined ? undefined : { failure: run.failure },
     );
     messages = failureProjection.messages;
     if (!failureProjection.stamped) {
@@ -3975,6 +3951,7 @@ function applyRunRecord(
                 status: 'error' as const,
                 error: message.error ?? errorMessage,
                 ...(message.runId === undefined ? { runId: run.runId } : {}),
+                ...(run.failure === undefined ? {} : { failure: run.failure }),
               }
             : message,
         );
@@ -3991,6 +3968,7 @@ function applyRunRecord(
             status: 'error',
             error: errorMessage,
             runId: run.runId,
+            ...(run.failure === undefined ? {} : { failure: run.failure }),
           },
         ];
       }

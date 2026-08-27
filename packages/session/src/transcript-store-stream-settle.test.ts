@@ -107,6 +107,69 @@ describe('SessionTranscriptStore.settleStreamingMessages', () => {
     store.close();
   });
 
+  it('persists structured Agent failure on settle', async () => {
+    const store = await openStore('failure');
+    await store.appendMessage({
+      id: 'a-fail',
+      runtimeGenerationId: 'gen-1',
+      backendMessageId: 'a1',
+      role: 'assistant',
+      text: '',
+      status: 'streaming',
+      runId: 'run-fail',
+      createdAt: '2026-08-27T03:25:58.000Z',
+    });
+    const failure = {
+      code: 'model-stream-stalled' as const,
+      origin: 'transport' as const,
+      message: 'parsed stream stalled',
+      retriable: true,
+    };
+    await store.settleStreamingMessages({
+      runId: 'run-fail',
+      updatedAt: '2026-08-27T03:41:00.000Z',
+      outcome: 'failed',
+      terminalMessage: failure.message,
+      failure,
+    });
+    expect((await store.getMessage('a-fail'))?.failure).toEqual(failure);
+    store.close();
+  });
+
+  it('clears intermediate failure evidence when the Run completes', async () => {
+    const store = await openStore('complete-clears-failure');
+    await store.appendMessage({
+      id: 'a-retry',
+      runtimeGenerationId: 'gen-1',
+      backendMessageId: 'a1',
+      role: 'assistant',
+      text: 'recovered',
+      status: 'streaming',
+      runId: 'run-retry',
+      createdAt: '2026-08-27T03:25:58.000Z',
+      metadata: {
+        failure: {
+          code: 'model-stream-missing-finish',
+          origin: 'protocol',
+          message: 'Stream ended without finish_reason',
+          retriable: true,
+        },
+        terminalMessage: 'Stream ended without finish_reason',
+      },
+    });
+    await store.settleStreamingMessages({
+      runId: 'run-retry',
+      updatedAt: '2026-08-27T03:41:00.000Z',
+      outcome: 'completed',
+    });
+    const settled = await store.getMessage('a-retry');
+    expect(settled?.status).toBe('done');
+    expect(settled?.outcome).toBe('completed');
+    expect(settled?.failure).toBeUndefined();
+    expect(settled?.terminalMessage).toBeUndefined();
+    store.close();
+  });
+
   it('is a no-op when no streaming assistant rows exist', async () => {
     const store = await openStore('noop');
     await store.appendMessage({

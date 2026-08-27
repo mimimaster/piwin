@@ -727,13 +727,60 @@ describe('createStoreTranscriptRecorder', () => {
           expect.objectContaining({ role: 'user', text: 'ping' }),
           expect.objectContaining({
             role: 'assistant',
-            status: 'error',
-            terminalMessage: 'No endpoints available matching your guardrail',
-            outcome: 'failed',
+            status: 'streaming',
             runId: 'run-silent',
+            failure: {
+              code: 'unknown-agent-failure',
+              origin: 'runtime',
+              message: 'No endpoints available matching your guardrail',
+              retriable: false,
+            },
           }),
         ]),
       );
+    } finally {
+      recorder.dispose();
+      store.close();
+    }
+  });
+
+  it('persists structured Agent failure on an error event without terminalizing the row', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-store-recorder-structured-failure-'));
+    const store = await openSessionTranscriptStore({
+      dbPath: join(rootDir, 'transcript.sqlite3'),
+      sessionId: 'session-structured-failure',
+      projectPath: '/project',
+    });
+    const recorder = createStoreTranscriptRecorder({
+      store,
+      runtimeGenerationId: 'generation-structured-failure',
+    });
+    const failure = {
+      code: 'model-stream-stalled' as const,
+      origin: 'transport' as const,
+      message: 'parsed stream stalled',
+      retriable: true,
+    };
+
+    try {
+      await recorder.recordEvent({
+        type: 'message/start',
+        messageId: 'assistant-stall',
+        role: 'assistant',
+        runId: 'run-stall',
+      });
+      await recorder.recordEvent({
+        type: 'error',
+        message: failure.message,
+        runId: 'run-stall',
+        failure,
+      });
+      await recorder.flush();
+
+      expect(await store.getMessage('assistant-stall')).toMatchObject({
+        status: 'streaming',
+        failure,
+      });
     } finally {
       recorder.dispose();
       store.close();
@@ -772,10 +819,16 @@ describe('createStoreTranscriptRecorder', () => {
       await recorder.flush();
 
       expect(await store.getMessage('assistant-empty')).toMatchObject({
-        status: 'error',
-        terminalMessage: 'provider 404',
-        outcome: 'failed',
+        status: 'done',
+        failure: {
+          code: 'unknown-agent-failure',
+          origin: 'runtime',
+          message: 'provider 404',
+          retriable: false,
+        },
       });
+      expect((await store.getMessage('assistant-empty'))?.outcome).toBeUndefined();
+      expect((await store.getMessage('assistant-empty'))?.terminalMessage).toBeUndefined();
     } finally {
       recorder.dispose();
       store.close();

@@ -40,4 +40,40 @@ describe('resolveTurnErrorMessage', () => {
       }),
     ).toBe('A message failed');
   });
+
+  it('hides live error evidence until Host fails the Run', () => {
+    expect(
+      resolveTurnErrorMessage({
+        messageStatus: 'streaming',
+        messageError: 'Provider returned error',
+        runOutcome: undefined,
+        runTerminalMessage: undefined,
+        isLastAssistantInTurn: true,
+        locale: 'en',
+      }),
+    ).toBeNull();
+  });
+
+  it('hides leftover evidence after a completed or cancelled Run', () => {
+    expect(
+      resolveTurnErrorMessage({
+        messageStatus: 'error',
+        messageError: 'The operation was aborted',
+        runOutcome: 'cancelled',
+        runTerminalMessage: 'Stopped',
+        isLastAssistantInTurn: true,
+        locale: 'en',
+      }),
+    ).toBeNull();
+    expect(
+      resolveTurnErrorMessage({
+        messageStatus: 'done',
+        messageError: 'Provider returned error',
+        runOutcome: 'completed',
+        runTerminalMessage: undefined,
+        isLastAssistantInTurn: true,
+        locale: 'en',
+      }),
+    ).toBeNull();
+  });
 });

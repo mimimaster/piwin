@@ -620,6 +620,7 @@ export const ChatMessageRow = memo(
           <TurnErrorCard
             messageId={message.id}
             error={errorMessage}
+            {...(message.failure === undefined ? {} : { failure: message.failure })}
             locale={props.locale}
             onRetry={() => {
               if (props.onRegenerate) {

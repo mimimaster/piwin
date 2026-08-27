@@ -31,6 +31,7 @@ function legacyMessageToInput(message: SessionTranscriptMessage): TranscriptStor
     message.thinkingEndedAt !== undefined ||
     message.outcome !== undefined ||
     message.terminalMessage !== undefined ||
+    message.failure !== undefined ||
     message.subagentActivity !== undefined ||
     message.searchEvidence !== undefined ||
     message.docCardSequence !== undefined;
@@ -64,6 +65,7 @@ function legacyMessageToInput(message: SessionTranscriptMessage): TranscriptStor
             ...(message.terminalMessage !== undefined
               ? { terminalMessage: message.terminalMessage }
               : {}),
+            ...(message.failure !== undefined ? { failure: message.failure } : {}),
             ...(message.subagentActivity !== undefined
               ? { subagentActivity: message.subagentActivity }
               : {}),
