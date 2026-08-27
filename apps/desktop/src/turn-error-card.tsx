@@ -7,10 +7,13 @@ import {
   type ContextMenuTarget,
 } from './context-menu';
 import { showErrorNotification, showSuccessNotification } from '@piwin/ui-kit';
+import type { AgentFailure } from '@piwin/contracts';
+import { classifyAgentFailure } from './turn-error-classification.js';
 
 export type TurnErrorCardProps = {
   messageId: string;
   error?: string | null | undefined;
+  failure?: AgentFailure | undefined;
   locale?: string | undefined;
   onRetry?: (() => void) | undefined;
   onSwitchModel?: (() => void) | undefined;
@@ -18,100 +21,16 @@ export type TurnErrorCardProps = {
   onFeedback?: ((message: string, level: 'info' | 'success' | 'error') => void) | undefined;
 };
 
-type ErrorClassification = {
-  category: 'provider' | 'quota' | 'context' | 'stream' | 'network' | 'execution' | 'unknown';
-  titleZh: string;
-  titleEn: string;
-  isKeyError?: boolean;
-};
-
-function classifyError(errorMessage: string): ErrorClassification {
-  const lower = errorMessage.toLowerCase();
-
-  if (
-    lower.includes('api key') ||
-    lower.includes('unauthorized') ||
-    lower.includes('authentication') ||
-    lower.includes('401') ||
-    lower.includes('invalid_api_key')
-  ) {
-    return {
-      category: 'provider',
-      titleZh: '模型认证或 API Key 错误',
-      titleEn: 'Authentication or API Key Error',
-      isKeyError: true,
-    };
-  }
-
-  if (
-    lower.includes('rate limit') ||
-    lower.includes('429') ||
-    lower.includes('quota') ||
-    lower.includes('insufficient_quota') ||
-    lower.includes('resource_exhausted') ||
-    lower.includes('credit')
-  ) {
-    return {
-      category: 'quota',
-      titleZh: '模型调用受限或配额不足',
-      titleEn: 'Rate Limit or Quota Exceeded',
-    };
-  }
-
-  if (
-    lower.includes('context length') ||
-    lower.includes('maximum context') ||
-    lower.includes('token limit') ||
-    lower.includes('too many tokens') ||
-    lower.includes('context_window')
-  ) {
-    return {
-      category: 'context',
-      titleZh: '上下文长度超限',
-      titleEn: 'Context Window Exceeded',
-    };
-  }
-
-  // A parsed model stream can stall while the proxy keeps the socket alive.
-  // This must beat the generic `timeout` → network rule because connectivity
-  // is not the failure being reported.
-  if (
-    lower.includes('stream idle') ||
-    lower.includes('idle timeout') ||
-    lower.includes('stream stalled') ||
-    lower.includes('tokens stopped arriving') ||
-    lower.includes('no model progress was received')
-  ) {
-    return {
-      category: 'stream',
-      titleZh: '模型输出中断',
-      titleEn: 'Model stream stalled',
-    };
-  }
-
-  if (
-    lower.includes('timeout') ||
-    lower.includes('timed out') ||
-    lower.includes('network') ||
-    lower.includes('econnrefused') ||
-    lower.includes('fetch failed')
-  ) {
-    return {
-      category: 'network',
-      titleZh: '网络请求或连接超时',
-      titleEn: 'Network Timeout or Connection Refused',
-    };
-  }
-
-  return {
-    category: 'execution',
-    titleZh: '生成失败',
-    titleEn: 'Generation Failed',
-  };
-}
-
 export function TurnErrorCard(props: TurnErrorCardProps): ReactElement | null {
-  const { error, locale = 'zh-CN', onRetry, onSwitchModel, onOpenSettings, onFeedback } = props;
+  const {
+    error,
+    failure,
+    locale = 'zh-CN',
+    onRetry,
+    onSwitchModel,
+    onOpenSettings,
+    onFeedback,
+  } = props;
   const [copied, setCopied] = useState(false);
   const contextMenu = useDesktopContextMenu();
 
@@ -120,7 +39,7 @@ export function TurnErrorCard(props: TurnErrorCardProps): ReactElement | null {
   }
 
   const isChinese = locale === 'zh-CN' || locale.startsWith('zh');
-  const classification = classifyError(error);
+  const classification = classifyAgentFailure(failure);
   const title = isChinese ? classification.titleZh : classification.titleEn;
 
   const handleCopy = async (): Promise<void> => {
@@ -187,7 +106,7 @@ export function TurnErrorCard(props: TurnErrorCardProps): ReactElement | null {
               {isChinese ? '重试' : 'Retry'}
             </Button>
           ) : null}
-          {classification.isKeyError && onOpenSettings ? (
+          {classification.primaryAction === 'settings' && onOpenSettings ? (
             <Button
               variant="secondary"
               size="compact"

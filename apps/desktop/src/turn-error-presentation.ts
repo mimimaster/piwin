@@ -17,26 +17,35 @@ export type TurnErrorPresentationInput = {
  * failed run is rendered only on its last assistant response.
  */
 export function resolveTurnErrorMessage(input: TurnErrorPresentationInput): string | null {
-  const runFailed = input.runOutcome === 'failed';
-  const isLastRunFailureRow = runFailed && input.isLastAssistantInTurn;
-  const messageHasError = input.messageStatus === 'error' || Boolean(input.messageError);
-  const isLegacyRunFailureRow = runFailed && messageHasError;
-  const shouldRenderError =
-    isLastRunFailureRow ||
-    (messageHasError && (!isLegacyRunFailureRow || input.isLastAssistantInTurn));
-
-  if (!shouldRenderError) {
+  if (
+    input.runOutcome === 'completed' ||
+    input.runOutcome === 'cancelled' ||
+    input.runOutcome === 'paused'
+  ) {
     return null;
   }
 
+  const runFailed = input.runOutcome === 'failed';
+  if (runFailed) {
+    if (!input.isLastAssistantInTurn) {
+      return null;
+    }
+    return (
+      input.messageError ||
+      input.runTerminalMessage ||
+      (input.locale === 'zh-CN' ? '生成失败' : 'Generation failed')
+    );
+  }
+
+  // Live evidence stays off-screen until Host terminals the Run. Persisted
+  // error rows without a run record (legacy hydrate) still render.
+  if (input.messageStatus === 'streaming') {
+    return null;
+  }
+  if (input.messageStatus !== 'error' && !input.messageError) {
+    return null;
+  }
   return (
-    input.messageError ||
-    (isLastRunFailureRow ? input.runTerminalMessage : undefined) ||
-    (input.messageStatus === 'error' || isLastRunFailureRow
-      ? input.locale === 'zh-CN'
-        ? '生成失败'
-        : 'Generation failed'
-      : undefined) ||
-    null
+    input.messageError || (input.locale === 'zh-CN' ? '生成失败' : 'Generation failed')
   );
 }

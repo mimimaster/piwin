@@ -281,6 +281,55 @@ describe('runSideChatSend', () => {
     expect(logs.some((line) => line.includes('completed'))).toBe(true);
   });
 
+  it('logs Agent error evidence and still waits for run/terminal', async () => {
+    let pushHandler: ((message: HostPush) => void) | undefined;
+    const client = createMockClient((cmd) => {
+      if (cmd.type === 'session/prompt') {
+        setTimeout(() => {
+          pushHandler?.({
+            type: 'event',
+            sessionId: 'side-001',
+            event: {
+              type: 'error',
+              message: '401 unauthorized',
+              failure: {
+                code: 'provider-authentication',
+                origin: 'provider',
+                message: '401 unauthorized',
+                retriable: false,
+                httpStatus: 401,
+              },
+            },
+          } as never);
+          pushHandler?.({
+            type: 'run/terminal',
+            run: {
+              sessionId: 'side-001',
+              runId: 'r1',
+              status: 'failed',
+              phase: 'terminal',
+              terminalCode: 'failed',
+            } as never,
+          });
+        }, 10);
+        return okResponse({ sessionId: 'side-001' });
+      }
+      return failResponse('wrong type');
+    });
+    client.onPush = vi.fn((handler: (message: HostPush) => void) => {
+      pushHandler = handler;
+      return () => {
+        pushHandler = undefined;
+      };
+    });
+    const logs: string[] = [];
+    await runSideChatSend(client, 'side-001', 'hello', (line) => logs.push(line), {
+      timeoutMs: 5000,
+    });
+    expect(logs.some((line) => line.includes('provider-authentication'))).toBe(true);
+    expect(logs.some((line) => line.includes('failed'))).toBe(true);
+  });
+
   it('throws on host error without waiting', async () => {
     const client = createMockClient(() => failResponse('session not found'));
     await expect(

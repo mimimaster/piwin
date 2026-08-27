@@ -38,13 +38,20 @@ describe('TurnErrorCard', () => {
     expect(container.querySelector('[data-testid="turn-error-card"]')).toBeNull();
   });
 
-  it('renders error message and classifies provider auth error', () => {
+  it('renders structured authentication failures', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
           <TurnErrorCard
             messageId="m1"
             error="Invalid API key provided for anthropic provider (401)"
+            failure={{
+              code: 'provider-authentication',
+              origin: 'provider',
+              message: 'Invalid API key provided for anthropic provider (401)',
+              retriable: false,
+              httpStatus: 401,
+            }}
             locale="zh-CN"
           />
         </PiwinUiProvider>,
@@ -52,15 +59,25 @@ describe('TurnErrorCard', () => {
     });
 
     expect(container.querySelector('[data-testid="turn-error-card"]')).not.toBeNull();
-    expect(container.textContent).toContain('模型认证或 API Key 错误');
+    expect(container.textContent).toContain('模型认证失败');
     expect(container.textContent).toContain('Invalid API key');
   });
 
-  it('does not classify stream idle timeout as a network failure', () => {
+  it('does not classify a structured stream stall as network', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <TurnErrorCard messageId="m1" error="Model stream idle timeout." locale="zh-CN" />
+          <TurnErrorCard
+            messageId="m1"
+            error="fetch failed: ECONNREFUSED"
+            failure={{
+              code: 'model-stream-stalled',
+              origin: 'transport',
+              message: 'fetch failed: ECONNREFUSED',
+              retriable: true,
+            }}
+            locale="zh-CN"
+          />
         </PiwinUiProvider>,
       );
     });
@@ -71,26 +88,7 @@ describe('TurnErrorCard', () => {
     expect(container.textContent).not.toContain('网络请求或连接超时');
   });
 
-  it('classifies a stalled token stream as stream, not network', () => {
-    act(() => {
-      root.render(
-        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <TurnErrorCard
-            messageId="m1"
-            error="The model stream stalled. Tokens stopped arriving while the connection stayed open."
-            locale="en"
-          />
-        </PiwinUiProvider>,
-      );
-    });
-
-    expect(container.querySelector('[data-testid="turn-error-card"]')?.getAttribute('data-category')).toBe(
-      'stream',
-    );
-    expect(container.textContent).toContain('Model stream stalled');
-  });
-
-  it('still classifies a real connection timeout as network', () => {
+  it('shows a generic generation failure for legacy message-only errors', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
@@ -100,9 +98,9 @@ describe('TurnErrorCard', () => {
     });
 
     expect(container.querySelector('[data-testid="turn-error-card"]')?.getAttribute('data-category')).toBe(
-      'network',
+      'unknown',
     );
-    expect(container.textContent).toContain('网络请求或连接超时');
+    expect(container.textContent).toContain('生成失败');
   });
 
   it('renders retry button and triggers onRetry callback', () => {
@@ -137,6 +135,13 @@ describe('TurnErrorCard', () => {
           <TurnErrorCard
             messageId="m1"
             error="Rate limit exceeded 429: out of quota"
+            failure={{
+              code: 'provider-quota',
+              origin: 'provider',
+              message: 'Rate limit exceeded 429: out of quota',
+              retriable: true,
+              httpStatus: 429,
+            }}
             onSwitchModel={onSwitchModel}
             locale="zh-CN"
           />
@@ -161,6 +166,13 @@ describe('TurnErrorCard', () => {
           <TurnErrorCard
             messageId="m1"
             error="401 Unauthorized API key"
+            failure={{
+              code: 'provider-authentication',
+              origin: 'provider',
+              message: '401 Unauthorized API key',
+              retriable: false,
+              httpStatus: 401,
+            }}
             onOpenSettings={onOpenSettings}
             locale="zh-CN"
           />

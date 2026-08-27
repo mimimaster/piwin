@@ -1,4 +1,5 @@
 import type {
+  AgentFailure,
   RunInterventionRecord,
   RunInterventionTerminalReason,
   SessionRunOutcome,
@@ -15,6 +16,7 @@ export async function settleStreamingMessages(
     runId?: string;
     outcome: SessionRunOutcome;
     terminalMessage?: string;
+    failure?: AgentFailure | null;
     updatedAt?: string;
   },
 ): Promise<SessionTranscriptMessage[]> {
@@ -23,6 +25,7 @@ export async function settleStreamingMessages(
     updatedAt: input.updatedAt ?? new Date().toISOString(),
     outcome: input.outcome,
     ...(input.terminalMessage !== undefined ? { terminalMessage: input.terminalMessage } : {}),
+    ...(input.failure !== undefined ? { failure: input.failure } : {}),
   });
 }
 
@@ -42,12 +45,14 @@ export async function finalizeRunTranscriptArtifacts(
     outcome: SessionRunOutcome;
     interventionReason: RunInterventionTerminalReason;
     terminalMessage?: string;
+    failure?: AgentFailure | null;
   },
 ): Promise<{ settled: SessionTranscriptMessage[]; expired: RunInterventionRecord[] }> {
   const settled = await settleStreamingMessages(store, {
     runId: input.runId,
     outcome: input.outcome,
     ...(input.terminalMessage !== undefined ? { terminalMessage: input.terminalMessage } : {}),
+    ...(input.failure !== undefined ? { failure: input.failure } : {}),
   });
   const expired = await store.expirePendingRunInterventions(
     input.runId,
