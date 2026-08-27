@@ -314,18 +314,18 @@ READY check → retrieve → optional rerank → neighbor expansion → context 
 | 入口场景 | 触发方式 | 前端交互行为 | 核心优势 |
 |:---|:---|:---|:---|
 | **1. 全局工作区主入口** | 侧栏主区「⚡️ 闪卡」或 `⌘Shift+F` | 打开全屏工作区，默认落入「今日」主视图，展示到期卡与待练批次 | 仪式感强、专注批次回忆的主入口 |
-| **2. 聊天划词瞬时入口** | 在 Chat 对话/代码中划选文字 | 选区旁弹出轻量气泡 `[⚡️ 存为闪卡]` → 微弹窗选择 Deck → 回车即存 | **完全不离开当前对话**，2 秒完成单卡提炼 |
+| **2. 聊天划词快捷入口** | 在 Chat 对话/代码中划选文字后右键 | 右键菜单项 **`[⚡️ 存为闪卡]`**（避免悬浮气泡干扰划选复制）→ 弹出微弹窗选择 Deck → 回车即存 | **完全不离开当前对话**，2 秒完成单卡提炼 |
 | **3. 对话末尾 Agent 推荐** | Agent 讲解完知识点后 | 回答下方附带轻量行动条：`[⚡️ 将本轮要点提炼为 5 张闪卡]` | 一键触发后台两阶段制卡 |
-| **4. 文件夹/文件右键菜单** | 在左侧项目文件树右键 | 右键菜单项 `[⚡️ 从此文件夹/文件生成闪卡...]` | 直接唤起极简制卡弹窗，路径自动填好 |
-| **5. 右栏抽屉快速复习** | 顶栏右上角「闪卡小托盘」图标 | 从右侧滑出 360px 迷你复习抽屉，刷 3~5 张到期卡后自动收起 | **利用碎片时间**，不打断正在进行的编码/聊天 |
+| **4. 文件夹/文件右键菜单** | 在左侧项目文件树/检查器中右键 | 右键菜单项 `[⚡️ 从此资料生成闪卡...]` | 直接唤起极简制卡弹窗，路径自动填好 |
+| **5. 右栏抽屉快速复习** | 顶栏右上角「闪卡小托盘」图标（或复用现有 Cards 瓷砖） | 从右侧滑出 360px 迷你复习抽屉，刷 3~5 张到期卡后自动收起 | **利用碎片时间**，不打断正在进行的编码/聊天 |
 
 #### B. 怎么出？（4 大顺畅出口）
 
 | 出口场景 | 触发时机 | 目标去向与交互表现 |
 |:---|:---|:---|
-| **1. 「以学代审」首次翻卡完成** | 刚生成的 8 张新卡翻完且已评分/丢弃 | 弹出清爽完成态卡片（“🎉 8 张新卡已就绪并排期复习！”），提供两个大按钮：<br>• **主出口**：`[ 🚀 回到之前的对话 / 继续干活 (Space/Enter) ]`（秒级切回之前的聊天，不丢失草稿）<br>• **次出口**：`[ 🗂️ 进入卡片库 ]` |
+| **1. 「以学代审」首次翻卡完成** | 刚生成的卡片翻完且已评分/丢弃 | 弹出清爽完成态卡片（“🎉 本批卡片已就绪并排期复习！”），提供两个大按钮：<br>• **主出口**：`[ 🚀 回到之前的对话 / 继续干活 (Space/Enter) ]`（秒级切回之前的聊天，不丢失输入草稿）<br>• **次出口**：`[ 🗂️ 进入卡片库 ]` |
 | **2. 每日到期复习清空完成** | 今日待复习卡片全部翻完 (0 Due) | 页面显示达成插画与统计，主 CTA **`[ ← 返回工作台 (Esc) ]`**，按 `Esc` 或 `Space` 直接回到上次活跃会话 |
-| **3. 随时按 Esc 中断退出** | 任何翻卡或管理过程中 | 随时按 `Esc` 或点击左上角 `[← 返回会话]` 瞬间离开；**无感自动暂存**：已评分的卡片已落盘，未翻完的批次保留在「今日」待练区，绝不丢状态 |
+| **3. 随时按 Esc 中断退出** | 任何翻卡或管理过程中 | 随时按 `Esc` 或点击左上角 `[← 返回会话]` 瞬间离开；**无感自动落盘暂存**：已评分的卡片已激活，未翻完的批次安静留在「今日」待练区，下次点开秒级恢复，绝不丢状态 |
 | **4. 后台生成时最小化** | 点击“开始生成”后 | 弹窗右上角 `[ 最小化 / 后台生成 ]` 或点击蒙层，立刻退回聊天；生成完成在右上角发出轻 Toast：`“【高速】8 张闪卡已生成 [立即翻看]”` |
 
 ## 6. 端到端体验
@@ -340,19 +340,13 @@ READY check → retrieve → optional rerank → neighbor expansion → context 
 4. 默认勾选全部可用文件；
 5. 主 CTA「开始生成」。
 
-~~资料清单不能只分 supported/unsupported，需展示：~~
-~~| 状态 | 例子 | UI |~~
-~~| 可直接离线解析 | md/txt/代码、文本型 PDF（目标） | 默认勾选 |~~
-~~| 需要本地增强解析 | 扫描 PDF、复杂表格 | 可勾但先提示安装/配置 |~~
-~~| 尚不支持 | PPT/PPTX（当前） | 不可勾；解释与路线 |~~
-~~| 过大/损坏/加密 | 具体文件 | 不可勾；具体原因 |~~
-
 **开箱即用支持范围（零外部服务依赖）[减法重构]：**
 
 | 能力层 | 格式 | 说明 |
 |--------|------|------|
-| **开箱离线内置** | Markdown、Text、Code、文本型 PDF、PPTX | PDF 复用本地 `pdfjs-dist`，PPTX 抽取文本/演讲者备注，纯本地零依赖 |
-| **不支持/跳过** | 扫描图片型 PDF、加密文件、纯媒体 | 诚实提示跳过，不强求用户配置 MinerU/OCR 本地服务 |
+| **P1 开箱离线内置** | Markdown、Text、Code、文本型 PDF | PDF 通过 Host 端口注入复用 `@piwin/media` 的 `pdfjs-dist` 本地提取；加入文本密度启发式，扫描版 PDF 诚实提示跳过并告知原因 |
+| **P2 计划支持** | PPTX / PPT 幻灯片 | 涉及纯 JS zip/OOXML 依赖与复杂版面抽取，排入 Phase 2 评估依赖包与提取质量后引入 |
+| **不支持/跳过** | 扫描图片型 PDF、加密文件、纯多媒体 | 诚实提示跳过，不强求用户配置 MinerU/OCR 本地服务 |
 
 ### 6.2 入库
 
@@ -376,8 +370,8 @@ READY check → retrieve → optional rerank → neighbor expansion → context 
   - 理解概念（mechanism/comparison/reason）；
   - 考试复习（混合难度，强调易错点）；
 - **数量 [加法：严格防复习负债]**：
-  - 选项收敛为：`少 (5张)` / `标准 (10张，默认)` / `深入 (15张)`；
-  - **防过载提醒**：若当前 Deck 积压未复习卡片 > 20 张，弹窗提醒：*“当前牌组尚有 22 张卡片待复习，建议先消化再生成，是否继续？”*
+  - 选项严格收敛为：`少 (5张)` / `标准 (10张，默认)` / `深入 (15张)`；
+  - **防过载提醒**：根据当前牌组今日待复习数判定，若 `dueCount > 20`，弹窗提醒：*“当前牌组尚有 22 张卡片待复习，建议先消化再生成，是否继续？”*
 - **难度**：基础 / 标准 / 进阶；
 - **主题**：选填自然语言。
 
@@ -391,48 +385,29 @@ READY check → retrieve → optional rerank → neighbor expansion → context 
 
 1. 查找相关内容；
 2. 提取原子知识点；
-3. 编写卡片（原子化质检）；
-4. 准备就绪 → 直接唤起「以学代审」首次翻卡流。
+3. 编写卡片（Prompt + QA 按照选择的 5/10/15 做硬截断）；
+4. 准备就绪 → 直接唤起「以学代审」首次翻卡流（原 `openReviewSession` 聊天指针会话保留为辅助查看出口，不再作为桌面生成强制出口）。
 
 允许离开、取消、失败重试。`degraded` 解释为“仅关键词检索，结果可能不够全面”。
 
-~~### 6.5 草稿审核（闭环核心）~~
-~~生成完成后不直接进入 CardStore 的复习队列，先形成 DraftBatch。~~
-~~审核页布局：~~
-~~```text~~
-~~左：卡片列表/质量筛选      中：正反面编辑      右：来源证据~~
-~~[✓] 12 可发布~~
-~~[!]  2 需要检查~~
-~~[×]  1 无法定位来源~~
-~~```~~
-~~每张草稿支持：接受 / 拒绝 / 编辑 / 标记问题原因 / 批量发布~~
-
-### 6.5 「以学代审（Learn-as-Review）」极速翻卡流 [减法瘦身 + 流程合并]
+### 6.5 「以学代审（Learn-as-Review）」极速翻卡流与「落盘不落队」[核心突破]
 
 **彻底放弃独立的 3 栏草稿审核台**。竞品与认知科学表明：强迫用户在列表里逐条审稿会引发严重审核疲劳（Reviewer's Fatigue），最终沦为闭眼全选。
 
-**新设计：将「质检」与「首次主动回忆」合二为一**。生成完成后直接启动一轮交互式翻卡栈（Swipe Stack）：
+**新设计：将「质检」与「首次主动回忆」合二为一，底层采用「落盘不落队」持久化机制**：
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│ 牌组：高速公路工程                      [1/8]   [✏️编辑] [✕丢弃] │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  Q: 高速公路收费系统的三级收费制包括哪些？                      │
-│                                                             │
-│                                                             │
-│                                                             │
-│                    [ 空格翻面查看答案 ]                       │
-└─────────────────────────────────────────────────────────────┘
-```
+1. **生成即落盘（防重启丢失）**：
+   - 生成完成的卡片立刻写入 Markdown 文件（`cards/<id>.md`），frontmatter 标记 `status: 'pending-first-review'`；
+   - **此时不创建 `review/<id>.json`**。由于 `queue.ts` 的 `buildReviewQueue` 原生规则是 `if (!state) continue;`，未评分的新卡**天然不会进入日常复习队列**，彻底避免 AI 错卡污染 FSRS！
+2. **首次翻卡栈（Swipe Stack）**：
+   - 界面启动一轮交互式翻卡栈，用户进行主动回忆；
+   - **按空格翻面**：
+     - **答案准确**：按键盘 `1~4`（Again / Hard / Good / Easy）评分 → **创建 `review/<id>.json` 并将 status 更新为 `active`**，正式启动 FSRS 调度；
+     - **答案有瑕疵**：点击 `[✏️ 编辑]` 微调；或点击 **`[🪄 浓缩]`** 让 Agent 一秒精简为极短答案/Cloze（调用 `CardStore.update`）；
+     - **AI 幻觉或废卡**：点击 `[✕ 丢弃]`（或按 `Delete`）→ 直接 `rm` 该 Markdown 文件，彻底不入库；
+     - **存疑想看原文**：点击 `[📄 来源: 规范.pdf p.12]` 展开引用片段。
 
-**翻面后的操作（一键闭环）：**
-1. **答案准确且完成回忆**：按键盘 `1~4`（Again / Hard / Good / Easy）评分 → **卡片正式落盘存入 CardStore**，并计入首次 FSRS 调度。
-2. **答案有小瑕疵**：点击 `[✏️ 编辑]` 微调；或点击 **`[🪄 浓缩]`** 让 Agent 一秒精简为极短答案/Cloze。
-3. **AI 幻觉或不需要此卡**：点击 `[✕ 丢弃]`（或按 `Delete`）→ 直接丢弃，不污染卡库。
-4. **存疑想看原文**：点击 `[📄 来源: 规范.pdf p.14]` 展开引用片段。
-
-> **价值**：用户无需专门做一遍枯燥的“审核录入”，在 3~5 分钟的首次练习中就顺手完成了筛选、纠错与记忆初次编码。
+> **收益**：既实现了 100% 本地落盘抗崩溃/抗重启（解决了 §2.4 #10 的内存丢失缺陷），又保证了 FSRS 队列的绝对纯净。用户在 3~5 分钟内一次性搞定质检与初次记忆编码。
 
 ### 6.6 长期复习与反馈
 
@@ -467,79 +442,71 @@ READY check → retrieve → optional rerank → neighbor expansion → context 
 ~~### 7.2 生成批次~~
 ~~PENDING → RETRIEVING → EXTRACTING → GENERATING → VALIDATING → DRAFT_READY → PUBLISHING → PUBLISHED~~
 
-## 7. 极简状态模型 [减法重构]
+## 7. 极简状态模型与「落盘不落队」生命周期 [减法重构]
 
-彻底摒弃多重状态机嵌套，仅保留两层清晰状态：
+彻底摒弃多重状态机嵌套与不稳定的内存暂存，采用 **「落盘不落队 (Disk-persisted, Queue-deferred)」** 模型：
 
-1. **瞬时 Generation Job 状态**（仅用于生成进度指示）：
+1. **瞬时 Generation Job 状态**（仅用于生成阶段进度指示与前端展示）：
    ```text
-   PENDING → INDEXING → GENERATING → READY_TO_LEARN (完成，待以学代审)
-                            ↘ FAILED / CANCELED
+   PENDING → RETRIEVING → EXTRACTING → GENERATING → READY_TO_LEARN (完成，自动唤起以学代审)
+                                                 ↘ FAILED / CANCELED
    ```
-2. **卡片生命周期**：
+
+2. **卡片生命周期（以 Markdown 为真源，FSRS 调度按需创建）**：
    ```text
-   临时生成缓冲 (In-memory/Temp)
-       ↓ (以学代审: 评分入库)
-   ACTIVE (FSRS 正常调度) ───(有问题)──→ NEEDS_FIX / SUSPENDED / DELETED
-       ↓ (以学代审: 丢弃)
-   DISCARDED (直接丢弃)
+   生成完成落盘
+   cards/<id>.md (status: 'pending-first-review') ──[无 review/<id>.json，FSRS队列天然忽略]──┐
+       │                                                                                   │
+       ├───[翻面评分 (1~4)]──→ 创建 review/<id>.json + 更新 status: 'active' ──→ 正常 FSRS 调度
+       │                                                                                   │
+       ├───[翻面编辑/浓缩]──→ 调用 CardStore.update，保留 pending 状态，继续评分           │
+       │                                                                                   │
+       ├───[翻面丢弃 (✕)]───→ 物理删除 cards/<id>.md ────────────────────────────→ 彻底丢弃
+       │                                                                                   │
+       └───[随时 Esc 退出]──→ 保持 pending 状态留在本地磁盘，显示在「今日」待练区 ────────┘
    ```
+
+> **抗崩溃与防污染原理**：
+> - `cards/<id>.md` 在生成后立即落盘，Host 崩溃或关闭时**零丢失**，下次启动自动从磁盘读出 `status: pending-first-review` 的卡片聚合为「待完成以学代审」批次；
+> - `packages/flashcards/src/queue.ts` 的 `buildReviewQueue` 原生规则为 `if (!state) continue;`。因为未评分前没有 `review/<id>.json`，新卡**绝对不会提前混入日常到期队列**，彻底解耦了持久化与复习调度。
 
 ## 8. 功能需求
 
-### 8.1 P0：先修明显断链与伪入口
+### 8.1 P0：先修明显断链与伪入口 (1 周)
 
-1. 全屏闪卡「AI 生成」直接打开文件夹/主题选择，不再拼 `/doccards generate` 假文本；
-2. `/doccards` 参数不能静默丢失；统一映射到闪卡制卡流程；
-3. 收敛入口：侧栏统一为「闪卡」，移除独立「知识中心」入口；
-4. 接通数量（5/10/15）、难度、Deck 参数；加入防复习过载提醒；
-5. “Mastered” 改为真实统计（未到期卡 / 学习中 / 需修复）。
+1. **工作区直连出卡**：全屏闪卡「AI 生成」直接唤起内置文件夹/主题弹窗，不再拼 `/doccards generate` 假文本；
+2. **入参四层贯通**：在 Contracts、Host、Prompt 和 QA 阶段完整支持 `count: 5 | 10 | 15`，QA 阶段硬截断由 40 改为入参 `count`；
+3. **收敛入口**：侧栏移除独立「知识中心」入口，点击重定向至全屏闪卡工作区；
+4. **防复习过载提醒**：以当前牌组今日待复习数 `dueCount > 20` 为判断口径，出卡前弹窗温和预警；
+5. **纠正虚假指标**：“Mastered” 改为真实状态统计（`未到期卡 / 学习中 / 待以学代审`），并修复 item 数与 review-card 数（Cloze 一拆多）的统计口径。
 
-### 8.2 P1：极简闭环与以学代审（正式发布门槛）
+### 8.2 P1：极简闭环与以学代审（正式发布门槛，2 周）
 
-1. **Deck 牌组与资料归属**：选文件夹生成卡片，自动绑定 Deck 与 `sourceFolder` 来源信息；
-2. **本地文件开箱解析**：内置 Markdown、Text、Code、本地文本 PDF（`pdfjs-dist`）、PPTX 文本抽取；
-3. **「以学代审」首次翻卡流**：生成完直接启动翻卡栈，按 1~4 评分入库并开始 FSRS，点丢弃直接放弃；
-4. **卡片原子化强约束**：Prompt 限制单卡 ≤ 2 句话，优先 Cloze；提供 `[🪄 浓缩]` 功能；
-5. **记忆评分与内容修改解耦**：翻面提供编辑、丢弃与 needs-fix 标记；
-6. **今日 (Today) 核心视图**：聚合到期复习与新生成待练批次。
+1. **落盘不落队与以学代审**：生成即写 `cards/<id>.md (pending-first-review)`，首次翻卡评分时写入 `review/<id>.json` 并激活，点丢弃直接删除；
+2. **卡片更新契约（隐性前置）**：落地 `CardStore.update(id, partial)` 与 IPC `flashcards/update`，支持 `[✏️ 编辑]` 与 `[🪄 浓缩]`，严格遵守 ADR 0054 Cloze 序号稳定性；
+3. **本地 PDF 开箱提取**：通过 Host 端口注入复用 `@piwin/media` 的 `pdfjs-dist` 本地文本提取能力，加入文本密度启发式，扫描版 PDF 给出诚实跳过提示；
+4. **卡片原子化强约束**：Prompt 强限制单卡答案 ≤ 2 句话，优先 Cloze 填空；
+5. **「今日」与「卡片库」双视图**：聚合今日到期复习与待练批次，支持按 Deck 浏览与 Markdown/Anki 导出。
 
-### 8.3 P2：Agent 伴学与极速制卡
+### 8.3 P2：Agent 伴学与格式扩展 (2 周)
 
-1. **翻面 Agent 伴学追问**：`[🤖 深入解释]`、`[💡 举例]`、`[🧠 助记口诀]` 就地微对话；
-2. **划词 / 单文件极速制卡**：划选文本一键提取 Cloze 存入 Deck；
-3. **薄弱概念针对性补卡**：基于多次 Again 的卡片来源重新生成巩固卡；
-4. **单卡 `[🪄 一键浓缩]`**：将冗长问答重构为极短问答或填空；
-5. **多文件与单篇文档划选支持**；
-6. **Mobile 端到期复习体验**。
+1. **翻面 Agent 伴学追问**：翻面提供 `[🤖 深入解释]`、`[💡 举例]`、`[🧠 助记口诀]` 就地单轮微对话（基于 `sourceExcerpt`）；
+2. **划词 / 单文件极速制卡**：选区右键菜单 `[⚡️ 存为闪卡]` 快速提炼存入指定 Deck；
+3. **PPTX / 幻灯片支持评估**：评估纯 JS zip/OOXML 依赖与复杂版面抽取质量，成熟后纳入离线支持；
+4. **薄弱概念针对性补卡**：基于 `lapses` 频次对易错知识点定向触发再生成；
+5. **Mobile 端到期复习体验**。
 
 ## 9. Contracts 与架构影响
 
-所有跨 Desktop/Host 的新能力先落 `@piwin/contracts`。
-
-~~建议领域类型：~~
-~~```ts~~
-~~type StudySpace = {~~
-~~  id: string;~~
-~~  name: string;~~
-~~  createdAt: string;~~
-~~  updatedAt: string;~~
-~~};~~
-~~type StudySource = {~~
-~~  id: string;~~
-~~  studySpaceId: string;~~
-~~  kind: 'folder' | 'file' | 'note';~~
-~~  locator: string;~~
-~~};~~
-~~type FlashcardDraftBatch = { ... };~~
-~~type FlashcardDraft = { ... };~~
-~~```~~
+所有跨 Desktop/Host 的新能力严格先落 `@piwin/contracts`。
 
 **极简 Contracts 方案（复用现有包，不新增 `@piwin/study`）[减法重构]：**
 
 - **不新建 `@piwin/study` 应用包**，所有卡片与牌组逻辑由 `@piwin/flashcards` 拥有，文件夹切块索引与 RAG 由 `@piwin/doc-rag` 拥有；
-- 复用 `FlashcardItem` 现有字段：
+- **扩展卡片实体与更新契约**：
   ```ts
+  export type FlashcardLifecycleStatus = 'pending-first-review' | 'active' | 'suspended' | 'needs-fix';
+
   export type FlashcardItem = FlashcardAttribution & {
     id: string;
     model: FlashcardModel; // 'basic' | 'cloze'
@@ -547,16 +514,47 @@ READY check → retrieve → optional rerank → neighbor expansion → context 
     front?: string;
     back?: string;
     text?: string;
+    status?: FlashcardLifecycleStatus; // 默认 active；未首次学习为 pending-first-review
     createdAt: string;
+    updatedAt?: string;
     // 来源溯源字段
     sourceFolder?: string;
     sourceFile?: string;
     sourceLine?: number;
     sourceExcerpt?: string;
   };
+
+  export type FlashcardUpdateInput = {
+    id: string;
+    front?: string;
+    back?: string;
+    text?: string;
+    deck?: string;
+    status?: FlashcardLifecycleStatus;
+  };
   ```
-- **瞬时生成请求与进度**：复用并简化 `FlashcardGenerationRequest` 与 `GenerationJob`；
-- **存储真源不变**：卡片以 `~/.piwin/flashcards/cards/*.md` 为真源，FSRS 调度以 `review/*.json` 为真源。
+- **生成请求贯通数量参数**：
+  ```ts
+  export type FlashcardGenerationRequest = {
+    folder: string;
+    includeFiles?: string[];
+    topic?: string;
+    deck?: string;
+    count?: 5 | 10 | 15; // 默认 10
+    difficulty?: 'basic' | 'standard' | 'advanced';
+  };
+  ```
+- **CardStore 接口新增 `update`**：
+  ```ts
+  export type CardStore = {
+    // 现有方法...
+    create: (input: FlashcardCreateInput) => Promise<FlashcardItem>;
+    batchCreate: (input: FlashcardBatchCreateInput) => Promise<{ created: FlashcardItem[]; skipped: FlashcardBatchSkip[] }>;
+    update: (id: string, partial: FlashcardUpdateInput) => Promise<FlashcardItem>;
+    delete: (cardId: string) => Promise<{ deleted: true; id: string }>;
+    // ...
+  };
+  ```
 
 ## 10. 关键页面草图
 
@@ -569,7 +567,7 @@ READY check → retrieve → optional rerank → neighbor expansion → context 
 │ 📌 今日                 │  🔥 今日待复习 12 张                          │
 │ 🗂️ 卡片库 (Decks)       │  [ 开始今日复习 (Space) ]                     │
 │                         │                                              │
-│                         │  ✨ 待完成以学代审                            │
+│                         │  ✨ 待完成以学代审 (落盘暂存，抗重启)           │
 │                         │  · 高速公路工程：刚刚生成 8 张新卡  [开始练习] │
 │                         │                                              │
 │                         │  📚 我的牌组                                 │
@@ -577,11 +575,6 @@ READY check → retrieve → optional rerank → neighbor expansion → context 
 │                         │  · 操作系统原理    24 卡 · 0 到期 · 资料正常  │
 └─────────────────────────┴──────────────────────────────────────────────┘
 ```
-
-~~### 10.2 空间资料与生成~~
-~~5级子页面导航 [概览] [资料] [草稿] [卡片] [学习记录]~~
-~~### 10.3 3栏草稿审核台~~
-~~[左：卡片列表] [中：正反面编辑] [右：来源证据]~~
 
 ### 10.2 「以学代审」首次翻卡交互（代替 3 栏独立审核台）
 
@@ -599,7 +592,7 @@ READY check → retrieve → optional rerank → neighbor expansion → context 
 │                                                                        │
 ├────────────────────────────────────────────────────────────────────────┤
 │  [1 Again 重新学]   [2 Hard 较难]   [3 Good 掌握]   [4 Easy 太简单]    │
-│  (点击评分即正式存入卡库并启动 FSRS；点击丢弃则直接放弃)                 │
+│  (点击评分即写入 review 状态激活 FSRS；点击丢弃则 rm 文件)                │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -638,54 +631,57 @@ READY check → retrieve → optional rerank → neighbor expansion → context 
 
 ```text
 选择资料出卡
-→ 生成 6~10 张原子卡片
-→ 「以学代审」首次翻卡（完成首次编码与质检）
+→ 生成 5~15 张原子卡片（落盘 status: pending-first-review）
+→ 「以学代审」首次翻卡（评分激活 FSRS，丢弃直接删除）
 → 进入 FSRS 长期复习队列
 → 7 天内完成到期复习
 ```
 
 ### 12.2 P1 验收场景
 
-1. 新用户选一个含 Markdown、文本 PDF、PPTX 的文件夹，第一屏清晰提示可用文件并生成卡片；
-2. 生成过程单批限制在 6~10 张，内容遵循原子化原则；
-3. 生成完成后直接唤起「以学代审」翻卡流，用户空格翻面，按 1~4 评分即入库并计划 FSRS，点丢弃直接放弃；
-4. 侧栏「知识中心」入口彻底下线，统一到全屏「闪卡」工作区；
-5. 复习翻面支持原地编辑、丢弃与内容纠错；
-6. 卡片 Markdown 文件与 FSRS JSON 文件在本地正确落盘。
+1. 新用户选一个含 Markdown、文本 PDF 的文件夹，第一屏清晰提示可用文件并生成卡片；
+2. 生成过程单批限制在 5/10/15 张，内容遵循原子化原则；
+3. 生成卡片立即落盘，此时不出现在 FSRS 队列中；Host 重启后卡片不丢失，在「今日」显示待练习批次；
+4. 首次翻卡按 1~4 评分即激活并计划 FSRS，点丢弃直接删除 Markdown；
+5. 翻卡时支持原地 `[✏️ 编辑]` 与 `[🪄 浓缩]`（调用 `CardStore.update`）；
+6. 侧栏「知识中心」入口彻底下线，统一到全屏「闪卡」工作区。
 
 ## 13. 分期落地计划
 
 ### Phase 0 — 快速修复断链 (1 周)
 1. 修复全屏「AI 生成」假命令断链，直达文件夹选择；
 2. 侧栏移除「知识中心」主入口，统一重定向到全屏闪卡；
-3. 修正 "Mastered" 假数据指标；
-4. 生成数量收敛为 5/10/15 张，加入防复习过载提示。
+3. 修正 "Mastered" 假数据指标与 Cloze 单位错配；
+4. 生成数量收敛为 5/10/15 张四层贯通；防过载提醒按 `dueCount > 20` 接入。
 
 ### Phase 1 — 极简闭环与以学代审 (2 周)
-1. 内置本地纯文本 PDF（`pdfjs-dist`）与 PPTX 文本提取；
-2. 实现「以学代审」首次翻卡流（翻面评分入库 / 丢弃 / 原地编辑）；
-3. 提示词注入「卡片原子化强约束」；
-4. 完善「今日」与「卡片库」双视图。
+1. 实现「落盘不落队」生命周期与「以学代审」翻卡栈；
+2. 落地 `CardStore.update` 与 IPC `flashcards/update` 契约；
+3. 内置本地文本 PDF（Host 端口注入 `pdfjs-dist`），扫描版 PDF 文本密度启发式跳过；
+4. 提示词注入「卡片原子化强约束」；
+5. 完善「今日」与「卡片库」双视图。
 
-### Phase 2 — Agent 伴学与极速制卡 (2 周)
+### Phase 2 — Agent 伴学与格式扩展 (2 周)
 1. 复习翻面 Agent 伴学追问（深入解释 / 举例 / 助记口诀）；
-2. 划词 / 单文件一键极速制卡；
-3. 卡片 `[🪄 一键浓缩]` 为填空/极简问答；
+2. 选区右键 `[⚡️ 存为闪卡]` 划词制卡；
+3. 评估纯 JS PPTX 提取依赖与质量；
 4. 针对多次 Again 薄弱概念的定向再生成。
 
 ## 14. 关键决策结论
 
 | 决策点 | 原提案 | **最新减法改造结论** | 理由 |
 |--------|--------|----------------------|------|
-| **架构与包划分** | 新建 `@piwin/study` 包与多层实体 | **不建新包**，复用 `@piwin/flashcards` 的 Deck 与来源属性 | 避免过度设计，保持 Markdown 纯粹性 |
+| **持久化与生命周期** | 内存临时缓冲 (In-memory/Temp) | **落盘不落队 (status: pending-first-review)** | 彻底解决重启丢卡问题，且未评分前不建 review state 天然不污染 FSRS 队列 |
+| **卡片更新契约** | 未定义 | **新增 `CardStore.update` 与 `flashcards/update`** | 作为 P1 基础前置，支撑翻卡中的编辑、浓缩与纠错 |
 | **草稿审核机制** | 独立的 3 栏草稿审批台 | **「以学代审 (Learn-as-Review)」翻卡流** | 消除审核疲劳，将审查与主动回忆一步完成 |
+| **架构与包划分** | 新建 `@piwin/study` 包与多层实体 | **不建新包**，复用 `@piwin/flashcards` 的 Deck 与来源属性 | 避免过度设计，保持 Markdown 纯粹性 |
 | **页面层级** | 空间内设 5 级嵌套子 Tab | **扁平收敛为「今日」与「卡片库」2 视图** | 学习工具必须轻快直达，拒绝层级迷失 |
-| **生成控制** | 自由批量出卡 | **单批 6~10 张 + 原子化强约束 + 防过载提醒** | 杜绝「生成错觉」与「复习负债」导致的弃用 |
+| **生成控制** | 自由批量出卡 | **单批 5/10/15 张四层贯通 + 原子化强约束 + dueCount>20 提醒** | 杜绝「生成错觉」与「复习负债」导致的弃用 |
 | **Agent 赋能** | 仅作为后台生成流水线 | **复习翻面伴学追问 (解释/举例/助记) + 划词制卡** | 发挥 piwin Agent 核心差异化能力 |
-| **资料格式** | 规划本地 OCR / MinerU | **开箱内置本地文本 PDF + PPTX 提取** | 零配置即开即用，不依赖外部服务 |
+| **资料格式** | 规划本地 OCR / PPTX 开箱 | **P1 保文本 PDF，PPTX 移入 P2 评估** | 保证零外部依赖与开箱稳定性 |
 
 ## 15. 推荐下一步
 
-1. 确认上述减法与加法结论；
-2. 优先实施 Phase 0 修复断链与收敛侧栏入口；
-3. 基于 `@piwin/flashcards` 快速打通「以学代审」首次翻卡交互原型。
+1. 确认上述落盘不落队与契约设计；
+2. 优先实施 Phase 0 修复断链与接通 `count: 5|10|15`；
+3. 在 `@piwin/flashcards` 中落地 `update` 契约与 `status` 过滤逻辑，打通「以学代审」翻卡原型。
