@@ -58,6 +58,11 @@ export type TodoRevisionConflictProblem = {
   data: { sessionId: string; actualRevision: string };
 };
 
+export type RetryDiscardsWritesProblem = {
+  code: 'retry-discards-writes';
+  data: import('./workspace-writes.js').WorkspaceWrites;
+};
+
 export type SessionBusyProblem = {
   code: 'session-busy';
   data: { sessionId: string; reason: 'body-job' | 'foreground-run' };

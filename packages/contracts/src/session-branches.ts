@@ -5,8 +5,8 @@
  * (`parent_message_id` + one active leaf). Clients never hold the tree:
  * `SessionTranscriptMessage` carries no parent field. The ‹n/m› switcher
  * renders from `session/branch-list` data and switches with
- * `session/branch-switch`; the daily edit/regenerate path branches via
- * `PromptInput.branchFromMessageId` instead of destructive truncation.
+ * `session/branch-switch`. Prompt edits use `branchFromMessageId`; same-turn
+ * retries use `retryUserMessageId` (ADR 0064) and never create a user sibling.
  */
 
 import type { SessionSummary } from './host.js';
@@ -17,6 +17,11 @@ import type { WorkspaceWrites } from './workspace-writes.js';
 export type TranscriptBranchSibling = {
   /** First message of the branch (the row whose parent is the anchor). */
   headMessageId: string;
+  /**
+   * Role of the sibling head. User heads are prompt forks; assistant heads
+   * are answer versions under one prompt (ADR 0064).
+   */
+  role: 'user' | 'assistant';
   /** Bounded preview of the head message text. */
   preview: string;
   /** Bounded preview of the direct assistant reply to the fork prompt, if any. */
@@ -48,6 +53,16 @@ export type TranscriptBranchPoint = {
   activeIndex: number;
   siblings: TranscriptBranchSibling[];
 };
+
+/** Prompt-edit fork: sibling heads are user rows. Missing role is treated as this. */
+export function isPromptForkPoint(point: TranscriptBranchPoint): boolean {
+  return point.siblings[0]?.role !== 'assistant';
+}
+
+/** Same-prompt answer versions: sibling heads are assistant rows. */
+export function isAnswerVariantPoint(point: TranscriptBranchPoint): boolean {
+  return point.siblings[0]?.role === 'assistant';
+}
 
 export type SessionBranchListData = {
   sessionId: string;

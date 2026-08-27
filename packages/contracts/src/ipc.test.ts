@@ -555,6 +555,22 @@ describe('ipc types', () => {
       expect(prompt.type).toBe('session/prompt');
     });
 
+    it('accepts PromptInput.retryUserMessageId without a second user row', () => {
+      const prompt: HostCommand = {
+        type: 'session/prompt',
+        sessionId: 's1',
+        input: {
+          text: '',
+          retryUserMessageId: 'm-user-2',
+          keepPreviousAttempt: true,
+        },
+        confirm: true,
+      };
+      expect(prompt.input.retryUserMessageId).toBe('m-user-2');
+      expect(prompt.input.keepPreviousAttempt).toBe(true);
+      expect(prompt.confirm).toBe(true);
+    });
+
     it('accepts PromptInput.permissionPreset from the composer Run Mode pill', () => {
       const prompt: HostCommand = {
         type: 'session/prompt',
