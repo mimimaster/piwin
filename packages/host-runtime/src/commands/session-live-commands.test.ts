@@ -1454,8 +1454,10 @@ describe('session live control commands', () => {
 
       await session.promptSettled;
       await vi.waitFor(() => {
-        expect(modelFacingText).toContain('[selection-reference: src/a.ts:2-4]');
-        expect(modelFacingText).toContain('[file-reference: a.ts:1]');
+        expect(modelFacingText).toContain(
+          '<context_ref type="selection" location="src/a.ts:2-4">',
+        );
+        expect(modelFacingText).toContain('<context_ref type="file" path="a.ts:1">');
         expect(modelFacingText).toContain('export const n = 1;');
       });
 
@@ -1929,7 +1931,9 @@ describe('Conversation prompt path (CHT-301~308)', () => {
     expect(response?.success).toBe(true);
     await session.promptSettled;
     await vi.waitFor(() => {
-      expect(modelFacingText).toContain('[selection-reference: src/a.ts:2-4]');
+      expect(modelFacingText).toContain(
+        '<context_ref type="selection" location="src/a.ts:2-4">',
+      );
     });
     expect(modelFacingText).toContain('const value = 1;');
     expect(modelFacingText).toContain('explain this');
