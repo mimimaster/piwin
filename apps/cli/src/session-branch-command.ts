@@ -1,8 +1,9 @@
-import type {
-  HostCommand,
-  HostResponse,
-  SessionBranchListData,
-  SessionBranchSwitchData,
+import {
+  isAnswerVariantPoint,
+  type HostCommand,
+  type HostResponse,
+  type SessionBranchListData,
+  type SessionBranchSwitchData,
 } from '@piwin/contracts';
 
 export type SessionBranchHostClient = {
@@ -28,7 +29,15 @@ export async function runSessionBranches(
   }
   for (const [pointIndex, point] of data.branchPoints.entries()) {
     const anchor = point.anchorMessageId ?? '(root)';
-    print(`fork ${pointIndex + 1} at ${anchor}  (${point.activeIndex + 1}/${point.siblings.length} active)`);
+    if (isAnswerVariantPoint(point)) {
+      print(
+        `answers at ${anchor}  (${point.activeIndex + 1}/${point.siblings.length} active)`,
+      );
+    } else {
+      print(
+        `fork ${pointIndex + 1} at ${anchor}  (${point.activeIndex + 1}/${point.siblings.length} active)`,
+      );
+    }
     for (const [siblingIndex, sibling] of point.siblings.entries()) {
       const marker = siblingIndex === point.activeIndex ? '*' : ' ';
       // `write` warns that switching away strands file changes (ADR 0055 §6).
@@ -76,4 +85,32 @@ export async function runSessionSwitch(
   }
   print(`switched ${sessionId} → leaf ${data.activeLeafMessageId}`);
   return data;
+}
+
+export async function runSessionRetry(
+  client: SessionBranchHostClient,
+  sessionId: string,
+  userMessageId: string,
+  print: (line: string) => void,
+  options?: { keepPrevious?: boolean; confirm?: boolean },
+): Promise<void> {
+  const response = await client.handleCommand({
+    type: 'session/prompt',
+    sessionId,
+    input: {
+      text: '',
+      retryUserMessageId: userMessageId,
+      ...(options?.keepPrevious === true ? { keepPreviousAttempt: true } : {}),
+    },
+    ...(options?.confirm === true ? { confirm: true } : {}),
+  });
+  if (!response.success) {
+    throw new Error(response.error);
+  }
+  const data = response.data as { runId?: string };
+  print(
+    data.runId
+      ? `retry ${sessionId} ${userMessageId} → run ${data.runId}`
+      : `retry ${sessionId} ${userMessageId}`,
+  );
 }
