@@ -5,6 +5,7 @@ describe('BackendPreparedPrompt', () => {
   it('preserves native image content fields through JSON', () => {
     const prompt: BackendPreparedPrompt = {
       text: 'Describe the attached image.',
+      runId: 'run-1',
       images: [{ dataBase64: 'aGVsbG8=', mimeType: 'image/png' }],
       streamingBehavior: 'followUp',
       model: {

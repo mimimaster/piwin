@@ -137,11 +137,12 @@ describe('WP6 conformance: blueprint parity', () => {
 
 describe('WP6 conformance: prepared prompt parity', () => {
   it('4. same prepared prompt text mode and image mode', () => {
-    const textPrompt: BackendPreparedPrompt = { text: 'hello' };
+    const textPrompt: BackendPreparedPrompt = { text: 'hello', runId: 'run-1' };
     expect(textPrompt.images).toBeUndefined();
 
     const imagePrompt: BackendPreparedPrompt = {
       text: 'describe',
+      runId: 'run-1',
       images: [{ dataBase64: 'AAAA', mimeType: 'image/png' }],
     };
     expect(imagePrompt.images).toEqual([{ dataBase64: 'AAAA', mimeType: 'image/png' }]);

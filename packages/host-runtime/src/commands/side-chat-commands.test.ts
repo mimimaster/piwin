@@ -10,6 +10,7 @@ import type {
   SessionTranscriptMessage,
   SessionTranscriptDocument,
 } from '@piwin/contracts';
+import { COMPLETED_STOP_OUTCOME } from '@piwin/contracts';
 import {
   archiveSessionRecord,
   createSessionRecord,
@@ -76,7 +77,9 @@ async function writeTranscript(
 function createMockSessionHandle(sessionId: string): SessionHandle {
   return {
     id: sessionId,
-    async prompt(): Promise<void> {},
+    async prompt() {
+      return COMPLETED_STOP_OUTCOME;
+    },
     async steer(): Promise<void> {},
     async followUp(): Promise<void> {},
     async abort(): Promise<void> {},

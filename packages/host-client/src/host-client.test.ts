@@ -6,6 +6,7 @@ import type {
   HostHello,
   HostHydrationFrame,
   HostPushBatchFrame,
+  HostPush,
   HostPushFrame,
   HostReplayFrame,
   HostResponseFrame,
@@ -633,6 +634,37 @@ describe('HostClient', () => {
       message: 'Remote media asset is not available on this Host',
     });
     expect(client.getState().kind).toBe('ready');
+    await client.close();
+  });
+
+  it('fills unknown-agent-failure on legacy Agent error pushes', async () => {
+    const transport = new FakeTransport();
+    const client = new HostClient({
+      transport,
+      clientId: 'legacy-error',
+      clientType: 'desktop',
+      clientVersion: 'test',
+    });
+    const events: HostPush[] = [];
+    client.subscribePush((push) => events.push(push));
+    await client.connect();
+    transport.emit({
+      type: 'push',
+      seq: 1,
+      eventId: 'e1',
+      push: {
+        type: 'event',
+        sessionId: 's1',
+        event: { type: 'error', message: 'Stream ended without finish_reason' },
+      },
+    });
+    expect(events[0]).toMatchObject({
+      type: 'event',
+      event: {
+        type: 'error',
+        failure: { code: 'unknown-agent-failure', origin: 'runtime' },
+      },
+    });
     await client.close();
   });
 

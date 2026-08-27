@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentEventEnvelope } from './host.js';
+import { normalizeDecodedAgentEvent } from './agent-event-decode.js';
 import type { HostCommand, HostPush } from './ipc.js';
 import { toMediaAttachmentRef } from './ipc.js';
 import type { SavedMediaAsset } from './media.js';
@@ -167,7 +168,7 @@ describe('ipc types', () => {
       sessionId: 's1',
       messageId: 'm1',
     };
-    expect(jobStart.type).toBe("job/start");
+    expect(jobStart.type).toBe('job/start');
     expect(sessionPin.type).toBe('session/pin');
     expect(sessionRename.type).toBe('session/rename');
     expect(sessionArchive.type).toBe('session/archive');
@@ -197,6 +198,23 @@ describe('ipc types', () => {
     };
     expect(listPerms.type).toBe('project/permissions-list');
     expect(revoke.type).toBe('project/permissions-revoke');
+  });
+
+  it('normalizes legacy error events without failure to unknown-agent-failure', () => {
+    const push: HostPush = {
+      type: 'event',
+      sessionId: 's1',
+      event: { type: 'error', message: 'Stream ended without finish_reason' },
+    };
+    const decoded = normalizeDecodedAgentEvent(push.event);
+    expect(decoded).toMatchObject({
+      type: 'error',
+      failure: {
+        code: 'unknown-agent-failure',
+        origin: 'runtime',
+        retriable: false,
+      },
+    });
   });
 
   it('accepts session/aborted AgentEvent via HostPush', () => {

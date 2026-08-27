@@ -2,7 +2,7 @@
 
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { BackendPreparedPrompt } from '@piwin/contracts';
+import { COMPLETED_STOP_OUTCOME, type BackendPreparedPrompt } from '@piwin/contracts';
 import {
   assertValidBackendSessionBlueprint,
   type BackendSessionHandle,
@@ -286,10 +286,10 @@ function wrapBackendPiSession(
           abort: () => piSession.abort?.() ?? Promise.resolve(),
           subscribe: (listener) => piSession.subscribe(listener),
         });
+        // Phase 3 replaces this placeholder with the Pi outcome tracker.
+        return COMPLETED_STOP_OUTCOME;
       } finally {
-        if (preparedPrompt.runId !== undefined) {
-          await interventionStager?.settleRun(preparedPrompt.runId);
-        }
+        await interventionStager?.settleRun(preparedPrompt.runId);
         setActiveRunId(undefined);
       }
     },

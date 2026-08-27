@@ -7,6 +7,7 @@ import type {
   ResolvedOrchestrationScheme,
   SessionHandle,
 } from '@piwin/contracts';
+import { COMPLETED_STOP_OUTCOME } from '@piwin/contracts';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
@@ -114,8 +115,9 @@ describe('session live control commands', () => {
         order.push('compact-source');
         return { ok: true, tokensBefore: 900_000, tokensAfter: 120_000 };
       },
-      async prompt(input): Promise<void> {
+      async prompt(input) {
         order.push(`prompt:${input.model?.modelId ?? 'default'}`);
+        return COMPLETED_STOP_OUTCOME;
       },
     };
     const { context } = createPromptContext(session);
@@ -1076,7 +1078,7 @@ describe('session live control commands', () => {
     const planPath = join(rootDir, 'sessions', baseSession.id, 'plan.json');
     const persistingSession: SessionHandle = {
       ...baseSession,
-      async prompt(): Promise<void> {
+      async prompt() {
         const now = new Date().toISOString();
         await saveSessionPlan(planPath, {
           id: 'plan-mode-plan',
@@ -1091,6 +1093,7 @@ describe('session live control commands', () => {
           updatedAt: now,
           source: 'assistant',
         });
+        return COMPLETED_STOP_OUTCOME;
       },
     };
     const { context, events } = createPromptContext(persistingSession);
@@ -1257,9 +1260,9 @@ describe('session live control commands', () => {
         void runId;
       };
       const originalPrompt = session.prompt.bind(session);
-      session.prompt = async (input: PromptInput): Promise<void> => {
+      session.prompt = async (input: PromptInput) => {
         modelFacingText = input.text;
-        await originalPrompt(input);
+        return originalPrompt(input);
       };
 
       const response = await handleSessionLiveCommand(
@@ -1371,9 +1374,9 @@ describe('session live control commands', () => {
         });
       };
       const originalPrompt = session.prompt.bind(session);
-      session.prompt = async (input: PromptInput): Promise<void> => {
+      session.prompt = async (input: PromptInput) => {
         modelFacingText = input.text;
-        await originalPrompt(input);
+        return originalPrompt(input);
       };
 
       const response = await handleSessionLiveCommand(
@@ -1417,9 +1420,9 @@ describe('session live control commands', () => {
         recordedPrompts.push(input);
       };
       const originalPrompt = session.prompt.bind(session);
-      session.prompt = async (input: PromptInput): Promise<void> => {
+      session.prompt = async (input: PromptInput) => {
         modelFacingText = input.text;
-        await originalPrompt(input);
+        return originalPrompt(input);
       };
 
       const response = await handleSessionLiveCommand(
@@ -1576,8 +1579,9 @@ function createSilentSessionHandle(): SessionHandle {
   const sessionId = randomUUID();
   return {
     id: sessionId,
-    async prompt(): Promise<void> {
+    async prompt() {
       // No events emitted — simulates silent model failure.
+      return COMPLETED_STOP_OUTCOME;
     },
     async steer(): Promise<void> {},
     async followUp(): Promise<void> {},
@@ -1845,9 +1849,9 @@ describe('Conversation prompt path (CHT-301~308)', () => {
       }) as any;
     let modelFacingText = '';
     const originalPrompt = session.prompt.bind(session);
-    session.prompt = async (input: PromptInput): Promise<void> => {
+    session.prompt = async (input: PromptInput) => {
       modelFacingText = input.text;
-      await originalPrompt(input);
+      return originalPrompt(input);
     };
     const now = new Date().toISOString();
     await saveSessionPlan(getPiwinSessionPlanPath(rootDir, session.id), {
@@ -1902,9 +1906,9 @@ describe('Conversation prompt path (CHT-301~308)', () => {
     context.resolveIsConversationChat = async () => true;
     let modelFacingText = '';
     const originalPrompt = session.prompt.bind(session);
-    session.prompt = async (input: PromptInput): Promise<void> => {
+    session.prompt = async (input: PromptInput) => {
       modelFacingText = input.text;
-      await originalPrompt(input);
+      return originalPrompt(input);
     };
 
     const response = await handleSessionLiveCommand(
@@ -1971,9 +1975,9 @@ describe('Conversation prompt path (CHT-301~308)', () => {
       }) as unknown as import('@piwin/session').SessionTranscriptStore;
     const modelFacingTexts: string[] = [];
     const originalPrompt = session.prompt.bind(session);
-    session.prompt = async (input: PromptInput): Promise<void> => {
+    session.prompt = async (input: PromptInput) => {
       modelFacingTexts.push(input.text);
-      await originalPrompt(input);
+      return originalPrompt(input);
     };
 
     const first = await handleSessionLiveCommand(
@@ -2024,9 +2028,9 @@ describe('Conversation prompt path (CHT-301~308)', () => {
     context.sessionFilesTouched.set(session.id, '### Files touched\n- src/a.ts');
     let modelFacingText = '';
     const originalPrompt = session.prompt.bind(session);
-    session.prompt = async (input: PromptInput): Promise<void> => {
+    session.prompt = async (input: PromptInput) => {
       modelFacingText = input.text;
-      await originalPrompt(input);
+      return originalPrompt(input);
     };
     const now = new Date().toISOString();
     await saveSessionPlan(getPiwinSessionPlanPath(rootDir, session.id), {

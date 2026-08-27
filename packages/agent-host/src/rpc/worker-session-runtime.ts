@@ -7,6 +7,7 @@
  * normalized AgentEvent before emission.
  */
 
+import { COMPLETED_STOP_OUTCOME } from '@piwin/contracts';
 import type {
   AgentEvent,
   BackendRunIntervention,
@@ -376,7 +377,8 @@ export class WorkerSessionRuntime {
       session.handle.setActiveRunId?.(undefined);
       session.activeRunId = undefined;
     }
-    this.sendResponse(id, true, {});
+    // Phase 3 replaces this placeholder with the Pi outcome tracker.
+    this.sendResponse(id, true, COMPLETED_STOP_OUTCOME);
   }
 
   private async handleAbort(

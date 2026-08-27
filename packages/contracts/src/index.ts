@@ -1,3 +1,6 @@
+export * from './agent-failure.js';
+export * from './agent-prompt-outcome.js';
+export * from './agent-event-decode.js';
 export * from './host.js';
 export * from './piwin-error.js';
 export * from './host-tool.js';

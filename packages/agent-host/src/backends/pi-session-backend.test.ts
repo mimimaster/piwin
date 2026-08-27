@@ -16,7 +16,7 @@ import { PiRpcAdapter } from '../rpc-adapter.js';
 
 describe('BackendPreparedPrompt', () => {
   it('preserves text-only prompts without preparing media', () => {
-    const prepared: BackendPreparedPrompt = { text: 'hello' };
+    const prepared: BackendPreparedPrompt = { text: 'hello', runId: 'run-1' };
     expect(prepared.text).toBe('hello');
     expect(prepared.images).toBeUndefined();
   });
@@ -24,6 +24,7 @@ describe('BackendPreparedPrompt', () => {
   it('preserves native image content in the backend shape', () => {
     const prepared: BackendPreparedPrompt = {
       text: 'describe',
+      runId: 'run-1',
       images: [{ dataBase64: 'AAAA', mimeType: 'image/png' }],
     };
     expect(prepared.images).toEqual([{ dataBase64: 'AAAA', mimeType: 'image/png' }]);
@@ -32,6 +33,7 @@ describe('BackendPreparedPrompt', () => {
   it('preserves streaming behavior and model', () => {
     const prepared: BackendPreparedPrompt = {
       text: 'go',
+      runId: 'run-1',
       streamingBehavior: 'steer',
       model: { protocol: 'openai-compatible', providerId: 'p1', modelId: 'm1' },
       thinkingLevel: 'high',

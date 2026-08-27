@@ -30,13 +30,16 @@ import {
   type WorkerInterventionClaimFrame,
   type WorkerInterventionPermitFrame,
 } from './rpc-sdk-worker-protocol.js';
-import type {
-  AgentEvent,
-  BackendRunIntervention,
-  HostToolExecutionResult,
-  SessionCompactResult,
-  SessionSeedMessage,
-  EphemeralProviderSecret,
+import {
+  COMPLETED_STOP_OUTCOME,
+  isAgentPromptOutcome,
+  type AgentEvent,
+  type AgentPromptOutcome,
+  type BackendRunIntervention,
+  type HostToolExecutionResult,
+  type SessionCompactResult,
+  type SessionSeedMessage,
+  type EphemeralProviderSecret,
 } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
 import { encodeWorkerSecretBootstrap } from './rpc/worker-secret-bootstrap.js';
@@ -406,7 +409,7 @@ export class RpcSdkWorkerClient extends EventEmitter {
       model?: { providerId: string; modelId: string };
       runId?: string;
     },
-  ): Promise<void> {
+  ): Promise<AgentPromptOutcome> {
     const response = await this.request(
       {
         method: 'session/prompt',
@@ -421,6 +424,7 @@ export class RpcSdkWorkerClient extends EventEmitter {
       options?.runId ? { runId: options.runId } : undefined,
     );
     if (!response.success) throw new Error(response.error ?? 'session/prompt failed');
+    return isAgentPromptOutcome(response.data) ? response.data : COMPLETED_STOP_OUTCOME;
   }
 
   /** Abort a running prompt in the worker. */
@@ -856,4 +860,3 @@ function writeWorkerSecretBootstrap(stream: Writable, frame: Buffer): Promise<vo
     }
   });
 }
-

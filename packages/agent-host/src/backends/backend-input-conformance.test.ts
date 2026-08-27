@@ -216,6 +216,7 @@ describe('backend input conformance', () => {
     }
     await sdkHandle.prompt({
       text: 'inspect image',
+      runId: 'run-conformance',
       images: [{ dataBase64: 'AAAA', mimeType: 'image/png' }],
     });
     expect(moduleFixture.getPromptCalls()).toEqual([
