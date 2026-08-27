@@ -1,0 +1,26 @@
+[
+  { "type": "agent_start" },
+  { "type": "message_start", "messageId": "m-auth", "role": "assistant" },
+  {
+    "type": "message_end",
+    "messageId": "m-auth",
+    "message": {
+      "role": "assistant",
+      "content": [],
+      "stopReason": "error",
+      "errorMessage": "401: Invalid Authentication"
+    }
+  },
+  {
+    "type": "agent_end",
+    "sessionId": "s-auth",
+    "messages": [
+      {
+        "role": "assistant",
+        "content": [],
+        "stopReason": "error",
+        "errorMessage": "401: Invalid Authentication"
+      }
+    ]
+  }
+]

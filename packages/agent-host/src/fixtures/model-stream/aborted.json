@@ -1,0 +1,31 @@
+[
+  { "type": "agent_start" },
+  { "type": "message_start", "messageId": "m-abort", "role": "assistant" },
+  {
+    "type": "message_update",
+    "messageId": "m-abort",
+    "assistantMessageEvent": { "type": "text_delta", "delta": "half" }
+  },
+  {
+    "type": "message_end",
+    "messageId": "m-abort",
+    "message": {
+      "role": "assistant",
+      "content": [{ "type": "text", "text": "half" }],
+      "stopReason": "aborted",
+      "errorMessage": "Request was aborted"
+    }
+  },
+  {
+    "type": "agent_end",
+    "sessionId": "s-abort",
+    "messages": [
+      {
+        "role": "assistant",
+        "content": [{ "type": "text", "text": "half" }],
+        "stopReason": "aborted",
+        "errorMessage": "Request was aborted"
+      }
+    ]
+  }
+]
