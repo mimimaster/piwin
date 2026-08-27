@@ -4,6 +4,7 @@ export type OpenAiSseScenario =
   | 'thinking-only-stop'
   | 'text-stop'
   | 'missing-finish'
+  | 'missing-finish-then-stop'
   | 'keep-alive-stall'
   | 'delayed-tool-continuation';
 
@@ -12,6 +13,7 @@ export type OpenAiSseFixture = {
   close: () => Promise<void>;
   /** Release a held second request used by delayed-tool-continuation. */
   releaseHeldRequest: () => void;
+  requestCount: () => number;
 };
 
 type ChatChunk = {
@@ -68,6 +70,7 @@ export async function startOpenAiSseFixture(scenario: OpenAiSseScenario): Promis
 
   return {
     baseUrl: `http://127.0.0.1:${address.port}/v1`,
+    requestCount: () => requestCount,
     releaseHeldRequest: () => {
       releaseHeld?.();
     },
@@ -113,6 +116,16 @@ function playScenario(
     case 'missing-finish':
       writeChunk(response, { delta: { role: 'assistant', content: 'partial' }, finishReason: null });
       response.end();
+      break;
+    case 'missing-finish-then-stop':
+      if (requestCount === 1) {
+        writeChunk(response, { delta: { role: 'assistant', content: 'partial' }, finishReason: null });
+        response.end();
+        return;
+      }
+      writeChunk(response, { delta: { role: 'assistant', content: 'Done.' }, finishReason: null });
+      writeChunk(response, { delta: {}, finishReason: 'stop' });
+      writeDone(response);
       break;
     case 'keep-alive-stall':
       writeChunk(response, { delta: { role: 'assistant', content: 'hello' }, finishReason: null });
