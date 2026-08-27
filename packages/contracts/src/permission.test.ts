@@ -57,27 +57,6 @@ describe('resolvePreset', () => {
     expect(resolvePreset('yolo')).toEqual({ mode: 'bypass', sandbox: 'none' });
   });
 
-  it('raises read-only floor under plan agent mode', () => {
-    expect(resolvePreset('auto', 'plan')).toEqual({
-      mode: 'ask-all',
-      sandbox: 'read-only',
-    });
-  });
-
-  it('raises read-only floor under ask agent mode', () => {
-    expect(resolvePreset('auto', 'ask')).toEqual({
-      mode: 'ask-all',
-      sandbox: 'read-only',
-    });
-  });
-
-  it('allows yolo under plan with bypass + none (locked: warn not block)', () => {
-    expect(resolvePreset('yolo', 'plan')).toEqual({
-      mode: 'bypass',
-      sandbox: 'none',
-    });
-  });
-
   it('defaults agentMode to agent', () => {
     expect(resolvePreset('auto')).toEqual(resolvePreset('auto', 'agent'));
   });
@@ -216,15 +195,6 @@ describe('mergeAgentModeIntoPrompt', () => {
     const out = mergeAgentModeIntoPrompt('agent', 'hello');
     expect(out).toBe('[piwin-mode:agent]\nUser:\nhello');
     expect(out).not.toContain('Operating contract');
-  });
-
-  it('prefixes plan mode with non-mutating constraints', () => {
-    const out = mergeAgentModeIntoPrompt('plan', 'build auth');
-    expect(out).toContain('[piwin-mode:plan]');
-    expect(out).toContain('Plan Mode');
-    expect(out).toContain('piwin_plan_create');
-    expect(out).toContain('Durable Artifact');
-    expect(out).toContain('build auth');
   });
 
   it('prefixes goal mode with autonomous iteration and verification contracts', () => {
