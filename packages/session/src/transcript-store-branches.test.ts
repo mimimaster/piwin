@@ -108,6 +108,7 @@ describe('transcript store branches', () => {
     expect(point?.activeIndex).toBe(1);
     expect(point?.siblings[0]).toMatchObject({
       headMessageId: 'u2',
+      role: 'user',
       preview: 'second question',
       leafPreview: 'second answer',
       messageCount: 2,
@@ -117,6 +118,44 @@ describe('transcript store branches', () => {
       preview: 'second question, rewritten',
       messageCount: 1,
     });
+    store.close();
+  });
+
+  it('rebase onto a user row then append creates assistant siblings', async () => {
+    const { store } = await openStore('retry-siblings');
+    await seedLinear(store);
+    await store.rebaseActiveLeaf('u2');
+    await append(store, 'a2-alt', 'assistant', 'second answer, rewritten');
+    expect((await store.listTail(10)).map((message) => message.id)).toEqual([
+      'u1',
+      'a1',
+      'u2',
+      'a2-alt',
+    ]);
+    expect((await store.getMessage('a2'))?.text).toBe('second answer');
+    const points = await store.listBranchPoints({ previewChars: 40 });
+    expect(points).toHaveLength(1);
+    expect(points[0]?.anchorMessageId).toBe('u2');
+    expect(points[0]?.siblings.map((sibling) => sibling.headMessageId)).toEqual(['a2', 'a2-alt']);
+    expect(points[0]?.siblings.map((sibling) => sibling.role)).toEqual(['assistant', 'assistant']);
+    store.close();
+  });
+
+  it('truncateFrom the active child then rebase leaves the user row for retry', async () => {
+    const { store } = await openStore('retry-truncate');
+    await seedLinear(store);
+    const removed = await store.truncateFrom('a2');
+    expect(removed.found).toBe(true);
+    expect(await store.getMessage('a2')).toBeUndefined();
+    await store.rebaseActiveLeaf('u2');
+    await append(store, 'a2-retry', 'assistant', 'retried answer');
+    expect((await store.listTail(10)).map((message) => message.id)).toEqual([
+      'u1',
+      'a1',
+      'u2',
+      'a2-retry',
+    ]);
+    expect(await store.listBranchPoints({ previewChars: 40 })).toEqual([]);
     store.close();
   });
 
