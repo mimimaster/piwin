@@ -22,10 +22,7 @@ describe('RunEventCorrelator', () => {
     expect(lateDelta.event).toMatchObject({ messageId: 'message-1', runId: 'run-1' });
   });
 
-  it('attributes identity-less provider errors to the active run when ALS is lost', () => {
-    // Pi stream callbacks often break AsyncLocalStorage. Provider failures still
-    // belong to the live foreground turn (ADR 0015); dropping them replaces
-    // upstream text with a generic empty-response fallback.
+  it('rejects identity-less provider errors instead of guessing the active run', () => {
     const correlator = new RunEventCorrelator();
     const result = correlator.correlate(
       'session-1',
@@ -33,11 +30,38 @@ describe('RunEventCorrelator', () => {
       'run-1',
       undefined,
     );
-    expect(result.accepted).toBe(true);
-    expect(result.event).toMatchObject({
+    expect(result.accepted).toBe(false);
+    expect(result.event).toEqual({
       type: 'error',
       message: '404: No endpoints available',
-      runId: 'run-1',
+    });
+  });
+
+  it('does not let an identity-less error attach to a replacement run', () => {
+    const correlator = new RunEventCorrelator();
+    correlator.correlate(
+      'session-1',
+      { type: 'message/start', messageId: 'message-1', role: 'assistant' },
+      'run-1',
+      'run-1',
+    );
+    correlator.correlate(
+      'session-1',
+      { type: 'message/start', messageId: 'message-2', role: 'assistant' },
+      'run-2',
+      'run-2',
+    );
+
+    const result = correlator.correlate(
+      'session-1',
+      { type: 'error', message: 'late identity-less error' },
+      'run-2',
+      undefined,
+    );
+    expect(result.accepted).toBe(false);
+    expect(result.event).toEqual({
+      type: 'error',
+      message: 'late identity-less error',
     });
   });
 

@@ -304,18 +304,40 @@ describe('RunRegistry semantic AgentEvent publication', () => {
     expect(reg.get(run.runId)?.status).toBe('running');
   });
 
-  it('remembers upstream agent error text for silent-completion terminalization', () => {
+  it('records error evidence without terminalizing from the event', () => {
     const reg = new RunRegistry({ createId: makeIdGen() });
     const run = reg.create({ kind: 'session-turn', sessionId: 'sess-error' });
 
-    expect(reg.getLastAgentError(run.runId)).toBeUndefined();
-    reg.noteAgentEvent(run.runId, {
+    expect(reg.hasAgentErrorEvidence(run.runId)).toBe(false);
+    const noted = reg.noteAgentEvent(run.runId, {
       type: 'error',
       message: '404: No endpoints available matching your guardrail',
     });
-    expect(reg.getLastAgentError(run.runId)).toBe(
-      '404: No endpoints available matching your guardrail',
-    );
+    expect(noted?.status).toBe('queued');
+    expect(reg.hasAgentErrorEvidence(run.runId)).toBe(true);
+    expect(reg.get(run.runId)?.status).toBe('queued');
+  });
+
+  it('stamps native stop reason and structured failure on terminate', () => {
+    const reg = new RunRegistry({ createId: makeIdGen() });
+    const run = reg.create({ kind: 'session-turn', sessionId: 'sess-failure' });
+    const failure = {
+      code: 'model-stream-stalled' as const,
+      origin: 'transport' as const,
+      message: 'parsed stream stalled',
+      retriable: true,
+    };
+
+    const terminal = reg.terminate(run.runId, 'failed', 'failed', failure.message, {
+      agentStopReason: 'error',
+      failure,
+    });
+    expect(terminal).toMatchObject({
+      status: 'failed',
+      error: failure.message,
+      agentStopReason: 'error',
+      failure,
+    });
   });
 
   it('ignores an explicitly mismatched Run ID without publishing', () => {

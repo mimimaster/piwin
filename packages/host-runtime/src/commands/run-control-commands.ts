@@ -117,7 +117,7 @@ import {
 } from '../session-scope.js';
 import { repairLegacySessionNames } from '../session-name-repair.js';
 import { findEnabledModel } from '../provider-helpers.js';
-import type { SessionLiveContext } from './session-live-context.js';
+import type { SessionLiveContext, TerminateHostRunOptions } from './session-live-context.js';
 import { handleSessionLiveCommand } from './session-live-commands.js';
 import { RESUME_CONTINUATION_PROMPT } from './prompt-preparation.js';
 
@@ -185,16 +185,32 @@ function schedulePauseCleanup(context: SessionLiveContext, sessionId: string, ru
   });
 }
 
+function mergeTerminateOptions(
+  extras: TerminateHostRunOptions | undefined,
+  extra: TerminateHostRunOptions,
+): TerminateHostRunOptions {
+  return {
+    ...(extras?.skipJobCleanup === true || extra.skipJobCleanup === true
+      ? { skipJobCleanup: true }
+      : {}),
+    ...(extras?.agentStopReason === undefined ? {} : { agentStopReason: extras.agentStopReason }),
+    ...(extra.agentStopReason === undefined ? {} : { agentStopReason: extra.agentStopReason }),
+    ...(extras?.failure === undefined ? {} : { failure: extras.failure }),
+    ...(extra.failure === undefined ? {} : { failure: extra.failure }),
+  };
+}
+
 export async function finalizeAbortedRun(
   context: SessionLiveContext,
   sessionId: string,
   runId: string,
+  extras?: TerminateHostRunOptions,
 ): Promise<void> {
   if (context.isPauseRequested(runId)) {
-    await finalizePausedRun(context, sessionId, runId);
+    await finalizePausedRun(context, sessionId, runId, extras);
     return;
   }
-  await finalizeCancelledRun(context, sessionId, runId);
+  await finalizeCancelledRun(context, sessionId, runId, undefined, 'cancelled', extras);
 }
 
 /**
@@ -208,17 +224,18 @@ export async function finalizeCancelledRun(
   runId: string,
   message?: string,
   code: RunTerminalCode = 'cancelled',
+  extras?: TerminateHostRunOptions,
 ): Promise<void> {
   const admitted = context.getForegroundRun(sessionId);
   const newerOwnsSession = admitted !== undefined && admitted.runId !== runId;
   if (newerOwnsSession) {
-    await context.terminateRun(sessionId, runId, 'cancelled', code, message);
+    await context.terminateRun(sessionId, runId, 'cancelled', code, message, extras);
     return;
   }
   if (admitted === undefined || admitted.runId !== runId) {
     return;
   }
-  await abortAndTerminalizeRun(context, sessionId, runId, message, code);
+  await abortAndTerminalizeRun(context, sessionId, runId, message, code, extras);
 }
 
 /**
@@ -232,8 +249,9 @@ export async function finalizeSupersededTurn(
   runId: string,
   message?: string,
   code: RunTerminalCode = 'superseded-by-new-prompt',
+  extras?: TerminateHostRunOptions,
 ): Promise<void> {
-  await abortAndTerminalizeRun(context, sessionId, runId, message, code);
+  await abortAndTerminalizeRun(context, sessionId, runId, message, code, extras);
 }
 
 async function abortAndTerminalizeRun(
@@ -242,6 +260,7 @@ async function abortAndTerminalizeRun(
   runId: string,
   message?: string,
   code: RunTerminalCode = 'cancelled',
+  extras?: TerminateHostRunOptions,
 ): Promise<void> {
   const cleanupPromise = Promise.allSettled([
     abortLiveSession(context, sessionId),
@@ -265,9 +284,7 @@ async function abortAndTerminalizeRun(
       abortTerminalOutcome(code),
       code,
       timeoutMessage,
-      {
-        skipJobCleanup: true,
-      },
+      mergeTerminateOptions(extras, { skipJobCleanup: true }),
     );
     context.quarantineSessionRuntime(sessionId, runId);
     return;
@@ -283,7 +300,7 @@ async function abortAndTerminalizeRun(
       });
     }
   }
-  await context.terminateRun(sessionId, runId, abortTerminalOutcome(code), code, message);
+  await context.terminateRun(sessionId, runId, abortTerminalOutcome(code), code, message, extras);
 }
 
 function abortTerminalOutcome(code: RunTerminalCode): 'cancelled' | 'failed' {
@@ -303,12 +320,13 @@ async function finalizePausedRun(
   context: SessionLiveContext,
   sessionId: string,
   runId: string,
+  extras?: TerminateHostRunOptions,
 ): Promise<void> {
   if (context.getForegroundRun(sessionId)?.runId !== runId) {
     return;
   }
   if (!context.isPauseRequested(runId)) {
-    await finalizeCancelledRun(context, sessionId, runId);
+    await finalizeCancelledRun(context, sessionId, runId, undefined, 'cancelled', extras);
     return;
   }
   const cleanupPromise = Promise.allSettled([
@@ -374,11 +392,16 @@ async function finalizePausedRun(
       ? 'Run paused; a resumable checkpoint was saved.'
       : 'Run paused from durable output after the runtime missed the cleanup deadline. The next prompt will use a fresh runtime.';
     if (cleanupSettled) {
-      await context.terminateRun(sessionId, runId, 'paused', 'paused', terminalMessage);
+      await context.terminateRun(sessionId, runId, 'paused', 'paused', terminalMessage, extras);
     } else {
-      await context.terminateRun(sessionId, runId, 'paused', 'paused', terminalMessage, {
-        skipJobCleanup: true,
-      });
+      await context.terminateRun(
+        sessionId,
+        runId,
+        'paused',
+        'paused',
+        terminalMessage,
+        mergeTerminateOptions(extras, { skipJobCleanup: true }),
+      );
       context.quarantineSessionRuntime(sessionId, runId);
     }
   } catch (error) {

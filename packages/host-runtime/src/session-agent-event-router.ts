@@ -39,32 +39,16 @@ export function routeSessionAgentEvent(
     activeRun?.runId,
     deps.runExecutionContext.getStore(),
   );
-  let correlatedEvent = correlation.event;
+  const correlatedEvent = correlation.event;
   if (!correlation.accepted) {
-    if (hasExplicitRunId(event)) {
-      // Stale explicit events are dropped at the host boundary. In
-      // particular, do not let them reach hooks, usage, or transcript.
-      return;
-    }
-    // Provider HTTP failures (404/401/…) often arrive from Pi stream
-    // callbacks that broke AsyncLocalStorage. Reclaim identity-less `error`
-    // events onto the live foreground run so upstream text is never dropped.
-    if (
-      event.type === 'error' &&
-      activeRun?.runId !== undefined &&
-      (activeRun.status === 'running' ||
-        activeRun.status === 'queued' ||
-        activeRun.status === 'cancelling')
-    ) {
-      correlatedEvent = { ...event, runId: activeRun.runId };
-    } else {
+    if (!hasExplicitRunId(event)) {
       deps.push({
         type: 'host/log',
         level: 'warn',
         message: `discarded uncorrelated session event: ${event.type}`,
       });
-      return;
     }
+    return;
   }
   const correlatedRunId = readEventRunId(correlatedEvent);
   const activeRunId = activeRun?.runId;

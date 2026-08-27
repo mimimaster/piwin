@@ -4,9 +4,31 @@
  */
 import type { RunTerminalCode } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
+import type { TerminateHostRunOptions } from './commands/session-live-context.js';
 import { isRunAbortReason } from './run-abort-reason.js';
 import { finalizeRunTranscriptArtifacts } from './transcript-stream-settler.js';
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
+
+export function resolveRunTerminalCode(input: {
+  cleanupFailed: boolean;
+  outcome: 'completed' | 'cancelled' | 'failed' | 'paused';
+  code?: RunTerminalCode;
+  supersededByNewPrompt: boolean;
+}): RunTerminalCode {
+  if (input.cleanupFailed) {
+    return 'job-cleanup-failed';
+  }
+  if (input.outcome === 'cancelled') {
+    return input.supersededByNewPrompt ? 'superseded-by-new-prompt' : 'cancelled';
+  }
+  if (input.outcome === 'completed') {
+    return 'completed';
+  }
+  if (input.outcome === 'paused') {
+    return 'paused';
+  }
+  return input.code ?? 'failed';
+}
 
 export async function terminateHostRun(
   deps: HostRuntimeKernel,
@@ -15,7 +37,7 @@ export async function terminateHostRun(
   outcome: 'completed' | 'cancelled' | 'failed' | 'paused',
   code?: RunTerminalCode,
   message?: string,
-  options?: { skipJobCleanup?: boolean },
+  options?: TerminateHostRunOptions,
 ): Promise<boolean> {
   const run = deps.runRegistry.get(runId);
   if (
@@ -47,26 +69,12 @@ export async function terminateHostRun(
   const supersededByNewPrompt =
     (isRunAbortReason(abortReason) && abortReason.code === 'superseded-by-new-prompt') ||
     code === 'superseded-by-new-prompt';
-  const timeoutCode =
-    code === 'model-connect-timeout' ||
-    code === 'model-first-token-timeout' ||
-    code === 'model-turn-timeout' ||
-    code === 'mcp-timeout';
-  const effectiveCode: RunTerminalCode = cleanupFailed
-    ? 'job-cleanup-failed'
-    : timeoutCode
-      ? 'timeout'
-      : outcome === 'cancelled'
-        ? supersededByNewPrompt
-          ? 'superseded-by-new-prompt'
-          : 'cancelled'
-        : outcome === 'completed'
-          ? 'completed'
-          : outcome === 'paused'
-            ? 'paused'
-            : code === 'runtime-memory-pressure'
-              ? code
-              : 'failed';
+  const effectiveCode = resolveRunTerminalCode({
+    cleanupFailed,
+    outcome,
+    supersededByNewPrompt,
+    ...(code === undefined ? {} : { code }),
+  });
   const effectiveMessage = cleanupFailed ? (message ?? 'job cleanup failed') : message;
   const terminalStatus = effectiveOutcome === 'paused' ? 'interrupted' : effectiveOutcome;
   const checkpointId = run.resumeCheckpointId;
@@ -138,6 +146,12 @@ export async function terminateHostRun(
     terminalStatus,
     effectiveCode,
     effectiveMessage,
+    {
+      ...(options?.agentStopReason === undefined
+        ? {}
+        : { agentStopReason: options.agentStopReason }),
+      ...(options?.failure === undefined ? {} : { failure: options.failure }),
+    },
   );
   if (!terminal) return false;
   // ADR 0040 §5/§7: the terminal Run releases busy residency only when

@@ -122,7 +122,7 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
     isPromptAdmissionReserved: (sessionId) => deps.promptAdmissionGate.isReserved(sessionId),
     joinRun: (runId) => deps.runRegistry.join(runId),
     getRunSignal: (runId) => deps.runRegistry.getSignal(runId),
-    getRunLastAgentError: (runId) => deps.runRegistry.getLastAgentError(runId),
+    hasRunAgentErrorEvidence: (runId) => deps.runRegistry.hasAgentErrorEvidence(runId),
     /** ADR 0040 §5: explicit protection lease (compaction / backend op). */
     protectRuntime: (sessionId) => {
       const generationId = deps.runtimeController.getStatus(sessionId).generationId;
