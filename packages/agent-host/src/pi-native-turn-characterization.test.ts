@@ -1,14 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { AgentEvent, AgentPromptOutcome } from '@piwin/contracts';
 import type { BackendSessionHandle } from './backends/pi-session-backend.js';
 import { createPiSessionEventMapper } from './event-map.js';
-import {
-  PiStreamProgressTimeoutError,
-  runPiPromptWithProgressTimeout,
-} from './pi-stream-progress-timeout.js';
+import { runPiPromptWithParsedStreamGuard } from './pi-parsed-stream-guard.js';
 
 const fixtureDir = join(dirname(fileURLToPath(import.meta.url)), 'fixtures/model-stream');
 
@@ -88,7 +85,8 @@ describe('Pi native turn characterization (current 0.84.2 mapping)', () => {
     const events: AgentEvent[] = [];
     let promptResolved = false;
 
-    await runPiPromptWithProgressTimeout({
+    await runPiPromptWithParsedStreamGuard({
+      enabled: false,
       timeoutMs: 0,
       prompt: async () => {
         for (const raw of loadFixture('provider-error.json')) {
@@ -106,19 +104,29 @@ describe('Pi native turn characterization (current 0.84.2 mapping)', () => {
     expect(events.filter((event) => event.type === 'error')).toHaveLength(1);
   });
 
-  it('current parsed-progress watchdog rejects the prompt race instead of returning a result', async () => {
+  it('settles a stalled OpenAI parsed stream instead of racing the prompt away', async () => {
+    vi.useFakeTimers();
     let listener: ((event: unknown) => void) | undefined;
-    const pending = runPiPromptWithProgressTimeout({
+    let resolvePrompt: (() => void) | undefined;
+    const pending = runPiPromptWithParsedStreamGuard({
+      enabled: true,
       timeoutMs: 20,
-      prompt: () => new Promise<void>(() => undefined),
-      abort: async () => undefined,
+      prompt: () =>
+        new Promise<void>((resolve) => {
+          resolvePrompt = resolve;
+        }),
+      abort: async () => {
+        resolvePrompt?.();
+      },
       subscribe: (next) => {
         listener = next;
         return () => undefined;
       },
     });
     listener?.({ type: 'message_start' });
-    await expect(pending).rejects.toBeInstanceOf(PiStreamProgressTimeoutError);
+    await vi.advanceTimersByTimeAsync(20);
+    await expect(pending).resolves.toMatchObject({ stalled: true });
+    vi.useRealTimers();
   });
 });
 

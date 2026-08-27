@@ -16,7 +16,12 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { readFile } from 'node:fs/promises';
-import type { ExtensionUiPort, SessionSeedMessage, ThinkingLevel } from '@piwin/contracts';
+import type {
+  AgentFailure,
+  ExtensionUiPort,
+  SessionSeedMessage,
+  ThinkingLevel,
+} from '@piwin/contracts';
 import { bindExtensionUiToPiSession, createExtensionUiContext } from '../extension-ui-bridge.js';
 import { buildThinkingLevelMap, mapThinkingLevelToPi } from '../map-thinking-level.js';
 import {
@@ -48,9 +53,11 @@ import { createPiwinSettingsManager } from '../pi-settings-manager.js';
 import { mapPiCompactionResult, type PiCompactionResult } from '../pi-compaction-result.js';
 import { buildPiSessionToolAllowlist } from '../pi-session-tool-allowlist.js';
 import {
+  createStalledStreamFailure,
+  isOpenAiCompletionsStreamProtocol,
   readPiHttpIdleTimeoutMs,
-  runPiPromptWithProgressTimeout,
-} from '../pi-stream-progress-timeout.js';
+  runPiPromptWithParsedStreamGuard,
+} from '../pi-parsed-stream-guard.js';
 import {
   createRunInterventionStager,
   type PiRunInterventionSession,
@@ -428,6 +435,9 @@ export function createWorkerPiSessionFactory(
       await bindExtensionUiToPiSession(piSession, uiContext);
     }
 
+    const initialModel = blueprint.model
+      ? modelRuntime.getModel(blueprint.model.providerId, blueprint.model.modelId)
+      : undefined;
     return adaptPiSessionForWorker(
       piSession,
       input.productSessionId,
@@ -435,6 +445,10 @@ export function createWorkerPiSessionFactory(
       modelRuntime,
       providers,
       streamProgressTimeoutMs,
+      initialModel?.api ??
+        (blueprint.model
+          ? inferProtocolFromProviderId(providers, blueprint.model.providerId)
+          : undefined),
     );
   };
 }
@@ -478,8 +492,11 @@ function adaptPiSessionForWorker(
   modelRuntime: PiModelRuntime,
   providers: SerializableWorkerProviderRuntime[] | undefined,
   streamProgressTimeoutMs: number,
+  initialProtocol?: string,
 ): WorkerPiSessionLike {
   let activeRunId: string | undefined;
+  let lastPromptStall: AgentFailure | undefined;
+  let selectedApi: string | undefined = initialProtocol;
   const interventionStager = piSession.agent
     ? createRunInterventionStager({
         session: piSession as PiRunInterventionSession,
@@ -493,6 +510,11 @@ function adaptPiSessionForWorker(
     setActiveRunId(runId) {
       activeRunId = runId;
     },
+    consumeParsedStreamStall() {
+      const stalled = lastPromptStall;
+      lastPromptStall = undefined;
+      return stalled;
+    },
     prompt: async (text, options) => {
       if (options?.model && piSession.setModel) {
         const selectedModel = modelRuntime.getModel(
@@ -504,6 +526,7 @@ function adaptPiSessionForWorker(
             `Configured model is unavailable: ${options.model.providerId}/${options.model.modelId}`,
           );
         }
+        selectedApi = selectedModel.api;
         await piSession.setModel(selectedModel);
       }
       if (options?.thinkingLevel && piSession.setThinkingLevel) {
@@ -514,12 +537,21 @@ function adaptPiSessionForWorker(
           mapThinkingLevelToPi(options.thinkingLevel as ThinkingLevel, protocol),
         );
       }
-      await runPiPromptWithProgressTimeout({
+      const guard = await runPiPromptWithParsedStreamGuard({
+        enabled: isOpenAiCompletionsStreamProtocol(
+          selectedApi ??
+            (options?.model
+              ? inferProtocolFromProviderId(providers, options.model.providerId)
+              : undefined),
+        ),
         timeoutMs: streamProgressTimeoutMs,
         prompt: () => piSession.prompt(text, options),
         abort: () => piSession.abort?.() ?? Promise.resolve(),
         subscribe: (listener) => piSession.subscribe(listener),
       });
+      lastPromptStall = guard.stalled
+        ? createStalledStreamFailure(streamProgressTimeoutMs, guard.abortError)
+        : undefined;
     },
     ...(piSession.steer ? { steer: (message) => piSession.steer!(message) } : {}),
     ...(piSession.followUp ? { followUp: (message) => piSession.followUp!(message) } : {}),
