@@ -301,6 +301,12 @@ export type HostCommand =
        * single-shell interruption).
        */
       foreground?: PromptForegroundAdmission;
+      /**
+       * Confirm discarding a previous attempt that wrote files (ADR 0064).
+       * Only meaningful with `retryUserMessageId` and `keepPreviousAttempt`
+       * omitted/false. Host refuses with `retry-discards-writes` until set.
+       */
+      confirm?: boolean;
     }
   | {
       id?: string;

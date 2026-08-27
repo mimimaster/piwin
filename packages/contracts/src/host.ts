@@ -140,12 +140,25 @@ export type PromptInput = {
    */
   clientMessageId?: string;
   /**
-   * This prompt replaces the given user message as a sibling branch
-   * (ADR 0055). Host moves the active leaf to that message's parent, then
-   * appends — the replaced turn and its subtree stay stored and switchable.
-   * Target must be a user row. Clients must not send the parent id.
+   * True prompt fork (ADR 0055 / 0064): this prompt replaces the given user
+   * row as a sibling. Host moves the active leaf to that row's parent, then
+   * appends. Send only when text / attachments / contextRefs actually changed.
+   * Mutually exclusive with `retryUserMessageId`.
    */
   branchFromMessageId?: string;
+  /**
+   * Re-run the same user turn (ADR 0064). Host moves the active leaf to this
+   * user row itself and does not append another user row — new answers land
+   * as assistant siblings. Target must be a user row on the active path.
+   * Mutually exclusive with `branchFromMessageId`.
+   */
+  retryUserMessageId?: string;
+  /**
+   * Keep the previous attempt as a sibling answer ("try another answer").
+   * Default false: truncate that attempt's subtree before re-running.
+   * Only meaningful with `retryUserMessageId`.
+   */
+  keepPreviousAttempt?: boolean;
   /**
    * Structured context references (SIDE spec §8.2). Host resolves these
    * during prompt preparation; the user transcript keeps the original text +
