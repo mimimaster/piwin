@@ -105,6 +105,7 @@ export type ChatMessageRowProps = {
   onCancelEdit: () => void;
   onEditResend: (messageId: string, text: string) => void;
   onRetry: (messageId: string) => void;
+  onRetryTurn?: (userMessageId: string, options: { keepPrevious: boolean }) => void;
   branchPoints?: TranscriptBranchPoint[];
   onSwitchBranch?: (headMessageId: string) => void;
   onInterventionEdit?: (messageId: string, text: string) => void | Promise<void>;
@@ -553,6 +554,7 @@ export const ChatMessageRow = memo(
               props.onEditResend(message.id, text);
             }}
             interventionEdit={canEditPendingIntervention}
+            currentTurn={props.lastUserMessageId === message.id}
           />
         ) : message.role === 'assistant' ? null : (
           <UserMessageContent
@@ -623,7 +625,9 @@ export const ChatMessageRow = memo(
             {...(message.failure === undefined ? {} : { failure: message.failure })}
             locale={props.locale}
             onRetry={() => {
-              if (props.onRegenerate) {
+              if (props.lastUserMessageId && props.onRetryTurn) {
+                props.onRetryTurn(props.lastUserMessageId, { keepPrevious: false });
+              } else if (props.onRegenerate) {
                 props.onRegenerate();
               } else if (props.lastUserMessageId) {
                 props.onRetry(props.lastUserMessageId);
@@ -632,6 +636,22 @@ export const ChatMessageRow = memo(
             onFeedback={props.onFeedback}
           />
         ) : null}
+        {message.role === 'assistant'
+          ? (() => {
+              const point = findActiveBranchPoint(props.branchPoints ?? [], message.id);
+              if (!point || !props.onSwitchBranch) {
+                return null;
+              }
+              return (
+                <MessageBranchSwitcher
+                  point={point}
+                  disabled={props.streaming === true}
+                  onSwitch={props.onSwitchBranch}
+                  {...(props.locale !== undefined ? { locale: props.locale } : {})}
+                />
+              );
+            })()
+          : null}
         {message.role === 'assistant' &&
         message.status === 'done' &&
         props.isLastAssistantInTurn === true &&
@@ -724,6 +744,7 @@ export const ChatMessageRow = memo(
           previous.onCancelEdit === next.onCancelEdit &&
           previous.onEditResend === next.onEditResend &&
           previous.onRetry === next.onRetry &&
+          previous.onRetryTurn === next.onRetryTurn &&
           previous.onSwitchBranch === next.onSwitchBranch &&
           previous.branchPoints === next.branchPoints &&
           previous.onInterventionEdit === next.onInterventionEdit &&
@@ -795,6 +816,7 @@ export const ChatMessageRow = memo(
       previous.showConversationTurnUsage === next.showConversationTurnUsage &&
       previous.onResolveFlashcards === next.onResolveFlashcards &&
       previous.onRegenerate === next.onRegenerate &&
+      previous.onRetryTurn === next.onRetryTurn &&
       previous.livePromptModel === next.livePromptModel &&
       previous.contextUsage === next.contextUsage &&
       previous.modelOptions === next.modelOptions &&

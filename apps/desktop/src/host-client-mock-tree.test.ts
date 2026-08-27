@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { SessionTranscriptMessage } from '@piwin/contracts';
 import {
   appendMockTranscriptMessage,
+  applyMockRetryPrompt,
   listMockBranchPoints,
   mockOffPathWrites,
   rebaseMockLeaf,
@@ -80,5 +81,39 @@ describe('mock conversation tree', () => {
       files: ['src/app.ts'],
       hasUnknownWrites: false,
     });
+  });
+
+  it('retries onto the user row without appending another prompt', () => {
+    const session: MockTranscriptTreeHost = { transcript: [] };
+    appendMockTranscriptMessage(session, row('u1', 'ask'));
+    appendMockTranscriptMessage(session, row('a1', 'first'));
+    const kept = applyMockRetryPrompt(session, {
+      retryUserMessageId: 'u1',
+      keepPrevious: true,
+      confirm: false,
+    });
+    expect(kept.ok).toBe(true);
+    appendMockTranscriptMessage(session, row('a1b', 'second'));
+    expect(visibleMockTranscript(session).map((message) => message.id)).toEqual(['u1', 'a1b']);
+    expect(listMockBranchPoints(session)[0]?.siblings.map((sibling) => sibling.role)).toEqual([
+      'assistant',
+      'assistant',
+    ]);
+  });
+
+  it('discards the previous answer on retry so no fork remains', () => {
+    const session: MockTranscriptTreeHost = { transcript: [] };
+    appendMockTranscriptMessage(session, row('u1', 'ask'));
+    appendMockTranscriptMessage(session, row('a1', 'first'));
+    const discarded = applyMockRetryPrompt(session, {
+      retryUserMessageId: 'u1',
+      keepPrevious: false,
+      confirm: false,
+    });
+    expect(discarded.ok).toBe(true);
+    appendMockTranscriptMessage(session, row('a1b', 'second'));
+    expect(visibleMockTranscript(session).map((message) => message.id)).toEqual(['u1', 'a1b']);
+    expect(session.transcript.some((message) => message.id === 'a1')).toBe(false);
+    expect(listMockBranchPoints(session)).toEqual([]);
   });
 });

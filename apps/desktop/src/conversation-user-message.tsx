@@ -7,7 +7,7 @@ import { useEffect, useRef, useState, type ReactElement, type ReactNode } from '
 import type { ChatMessageUi } from './chat-reducer';
 import { formatMessageTime } from './conversation-message-identity';
 import { MessageAttachments } from './message-attachments';
-import { IconCheck, IconClose, IconCopy, IconEdit, IconRevert } from './shell-icons';
+import { IconCheck, IconClose, IconCopy, IconEdit } from './shell-icons';
 
 export const USER_MESSAGE_COLLAPSE_THRESHOLD = 78;
 
@@ -213,11 +213,11 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
                       interventionStatus === 'pending' ||
                       interventionStatus === 'applying'
                     }
-                    title={isChinese ? '编辑此轮' : 'Edit this turn'}
-                    aria-label={isChinese ? '编辑此轮' : 'Edit this turn'}
-                    data-testid="message-revert-btn"
+                    title={isChinese ? '编辑' : 'Edit'}
+                    aria-label={isChinese ? '编辑' : 'Edit'}
+                    data-testid="message-edit-btn"
                   >
-                    <IconRevert />
+                    <IconEdit />
                   </button>
                 ) : null}
               </div>
@@ -337,11 +337,11 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
               interventionStatus === 'pending' ||
               interventionStatus === 'applying'
             }
-            title={isChinese ? '编辑此轮' : 'Edit this turn'}
-            aria-label={isChinese ? '编辑此轮' : 'Edit this turn'}
-            data-testid="message-revert-btn"
+            title={isChinese ? '编辑' : 'Edit'}
+            aria-label={isChinese ? '编辑' : 'Edit'}
+            data-testid="message-edit-btn"
           >
-            <IconRevert />
+            <IconEdit />
           </button>
         ) : null}
         {props.branchSwitcher}

@@ -99,6 +99,9 @@ export type WorkbenchOverlaysProps = {
   pendingSwitchConfirm: { targetMessageId: string; offPathWrites: WorkspaceWrites } | null;
   cancelSwitchBranch: () => void;
   confirmSwitchBranch: () => void;
+  pendingRetryDiscard: { userMessageId: string; offPathWrites: WorkspaceWrites } | null;
+  cancelRetryDiscard: () => void;
+  confirmRetryDiscard: () => void;
 };
 
 export type WorkbenchSettingsOverlayProps = {
@@ -275,6 +278,15 @@ export function WorkbenchOverlays(props: WorkbenchOverlaysProps): ReactElement {
         offPathWrites={props.pendingSwitchConfirm?.offPathWrites ?? null}
         onCancel={props.cancelSwitchBranch}
         onConfirm={props.confirmSwitchBranch}
+      />
+
+      <BranchSwitchConfirmDialog
+        open={props.pendingRetryDiscard !== null}
+        locale={props.locale}
+        intent="discard-attempt"
+        offPathWrites={props.pendingRetryDiscard?.offPathWrites ?? null}
+        onCancel={props.cancelRetryDiscard}
+        onConfirm={props.confirmRetryDiscard}
       />
     </>
   );

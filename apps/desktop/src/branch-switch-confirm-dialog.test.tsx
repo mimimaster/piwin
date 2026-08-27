@@ -58,6 +58,27 @@ describe('BranchSwitchConfirmDialog', () => {
     expect(onCancel).toHaveBeenCalledOnce();
   });
 
+  it('names a retry discard separately from a branch switch', () => {
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <BranchSwitchConfirmDialog
+            open
+            locale="en"
+            intent="discard-attempt"
+            offPathWrites={{ files: ['src/app.ts'], hasUnknownWrites: false }}
+            onCancel={() => undefined}
+            onConfirm={() => undefined}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+    const dialog = document.querySelector('[data-testid="branch-switch-confirm"]');
+    expect(dialog?.textContent).toContain('Retry will discard this attempt');
+    expect(dialog?.textContent).toContain('Retry anyway');
+    expect(dialog?.textContent).not.toContain('Switch anyway');
+  });
+
   it('renders nothing when closed', () => {
     act(() => {
       root.render(

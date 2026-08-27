@@ -6,6 +6,7 @@ import { useCallback, type Dispatch, type SetStateAction } from 'react';
 import type { PlanExecutionMode, RunInterventionRecord, SessionPlan } from '@piwin/contracts';
 import type { ChatUiAction, ChatUiState } from '../chat-reducer';
 import type { HostClient } from '../host-client';
+import { isUnchangedCurrentTurnResend } from '../conversation-branch';
 import { pushError, type NotificationAction } from '../notification-queue';
 
 export type UseWorkbenchTurnActionsArgs = {
@@ -16,6 +17,7 @@ export type UseWorkbenchTurnActionsArgs = {
   dispatchNotification: Dispatch<NotificationAction>;
   setEditingMessageId: Dispatch<SetStateAction<string | null>>;
   branchResend: (messageId: string, text: string) => void | Promise<void>;
+  retryTurn: (userMessageId: string, options: { keepPrevious: boolean }) => void | Promise<void>;
 };
 
 export function useWorkbenchTurnActions(args: UseWorkbenchTurnActionsArgs) {
@@ -27,6 +29,7 @@ export function useWorkbenchTurnActions(args: UseWorkbenchTurnActionsArgs) {
     dispatchNotification,
     setEditingMessageId,
     branchResend,
+    retryTurn,
   } = args;
 
   const handleCancelMessageEdit = useCallback((): void => {
@@ -106,9 +109,13 @@ export function useWorkbenchTurnActions(args: UseWorkbenchTurnActionsArgs) {
 
   const handleEditAndResendMessage = useCallback(
     (messageId: string, text: string): void => {
+      if (isUnchangedCurrentTurnResend(state.messages, messageId, { text })) {
+        void retryTurn(messageId, { keepPrevious: false });
+        return;
+      }
       void branchResend(messageId, text);
     },
-    [branchResend],
+    [branchResend, retryTurn, state.messages],
   );
 
   const handleMessageFeedback = useCallback(

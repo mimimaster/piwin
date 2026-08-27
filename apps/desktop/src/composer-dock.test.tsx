@@ -1250,7 +1250,7 @@ describe('ComposerDock host status', () => {
       <ComposerDock
         {...baseProps}
         isConversationSession
-        agentMode="plan"
+        agentMode="goal"
         runModePreset="auto"
         onRunModeChange={vi.fn()}
         orchestrationSchemeId="ultra-code"

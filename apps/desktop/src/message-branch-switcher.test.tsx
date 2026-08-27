@@ -13,6 +13,7 @@ const point: TranscriptBranchPoint = {
   siblings: [
     {
       headMessageId: 'u2-a',
+      role: 'user',
       preview: 'original',
       leafPreview: 'original reply',
       messageCount: 2,
@@ -21,6 +22,7 @@ const point: TranscriptBranchPoint = {
     },
     {
       headMessageId: 'u2-b',
+      role: 'user',
       preview: 'alternative',
       leafPreview: 'alternative reply',
       messageCount: 2,

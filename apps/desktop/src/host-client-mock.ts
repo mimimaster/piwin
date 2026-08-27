@@ -5,6 +5,7 @@ import { createMockSessionTranscriptPage } from './mock-session-transcript-page'
 import { createMockSessionTranscriptWindow } from './mock-session-transcript-window';
 import {
   appendMockTranscriptMessage,
+  applyMockRetryPrompt,
   ensureMockTree,
   listMockBranchPoints,
   mockOffPathWrites,
@@ -1153,7 +1154,45 @@ export class MockHostBackend {
             userMessage.attachments = mediaAttachments;
           }
         }
-        if (command.input.branchFromMessageId !== undefined) {
+        if (
+          command.input.branchFromMessageId !== undefined &&
+          command.input.retryUserMessageId !== undefined
+        ) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/prompt',
+            success: false,
+            error: 'retry-and-branch-conflict',
+          };
+        }
+        let retryUser: SessionTranscriptMessage | undefined;
+        if (command.input.retryUserMessageId !== undefined) {
+          const retried = applyMockRetryPrompt(session, {
+            retryUserMessageId: command.input.retryUserMessageId,
+            keepPrevious: command.input.keepPreviousAttempt === true,
+            confirm: command.confirm === true,
+          });
+          if (!retried.ok) {
+            return {
+              id,
+              type: 'response',
+              command: 'session/prompt',
+              success: false,
+              error: retried.error,
+              ...(retried.writes
+                ? { problem: { code: 'retry-discards-writes', data: retried.writes } }
+                : {}),
+            };
+          }
+          retryUser = retried.user;
+          this.emitPush({
+            type: 'session/branch-updated',
+            sessionId: command.sessionId,
+            activeLeafMessageId: session.activeLeafMessageId ?? null,
+            branchPointCount: listMockBranchPoints(session).length,
+          });
+        } else if (command.input.branchFromMessageId !== undefined) {
           const target = session.transcript.find(
             (message) => message.id === command.input.branchFromMessageId,
           );
@@ -1184,7 +1223,11 @@ export class MockHostBackend {
             branchPointCount: listMockBranchPoints(session).length,
           });
         }
-        if (command.input.source !== 'resume' && command.input.source !== 'queued-turn') {
+        if (
+          retryUser === undefined &&
+          command.input.source !== 'resume' &&
+          command.input.source !== 'queued-turn'
+        ) {
           appendMockTranscriptMessage(session, userMessage);
         }
         // Immediate text name (matches host recordUserPrompt naming pipeline).
@@ -1196,18 +1239,21 @@ export class MockHostBackend {
                 .map((item) => item.path)
                 .join(', ')}]`
             : '';
+        const promptText = retryUser?.text ?? command.input.text;
         this.emitMockAssemblySummary({
           sessionId: command.sessionId,
           runId,
           requestClass: command.input.source === 'resume' ? 'pause-resume' : 'prompt',
-          ...(command.input.source === 'resume' ? {} : { userMessageId: userMessage.id }),
-          text: command.input.text,
+          ...(command.input.source === 'resume'
+            ? {}
+            : { userMessageId: retryUser?.id ?? userMessage.id }),
+          text: promptText,
           ...(command.input.attachments ? { attachments: command.input.attachments } : {}),
         });
         // Stream asynchronously so concurrent session/abort can cancel mid-turn.
         void this.emitMockPrompt(
           command.sessionId,
-          `${command.input.text}${attachmentNote}`,
+          `${promptText}${attachmentNote}`,
           runId,
         );
         return {

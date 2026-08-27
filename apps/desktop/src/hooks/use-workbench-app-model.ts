@@ -189,6 +189,7 @@ export function useWorkbenchAppModel(args: UseWorkbenchAppModelArgs) {
     dispatchNotification: host.dispatchNotification,
     setEditingMessageId: chrome.setEditingMessageId,
     branchResend: session.branchResend,
+    retryTurn: session.retryTurn,
   });
 
   return {

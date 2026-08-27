@@ -1,6 +1,7 @@
 /**
- * Desktop conversation-tree actions (ADR 0055): list ‹n/m› points, switch
- * the active branch, and resend a user turn as a sibling instead of truncating.
+ * Desktop conversation-tree actions (ADR 0055 / 0064): list ‹n/m› points,
+ * switch the active branch, retry the same user turn, or resend a changed
+ * prompt as a sibling.
  */
 import { useCallback, useEffect, useState, type Dispatch } from 'react';
 import type {
@@ -30,7 +31,7 @@ import {
   requestPromptWithForeground,
 } from '../prompt-foreground';
 import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
-import { clipMessagesBeforeId } from '../conversation-branch.js';
+import { clipMessagesAfterId, clipMessagesBeforeId } from '../conversation-branch.js';
 import { transcriptOwnerBlocksDangerousAction } from '../transcript-owner-guard';
 import type { AgentModeId } from '../agent-mode';
 import type { ModelOption } from './use-session-actions';
@@ -93,6 +94,11 @@ export function useBranchActions(args: UseBranchActionsArgs) {
     targetMessageId: string;
     offPathWrites: WorkspaceWrites;
   } | null>(null);
+  const [pendingRetryDiscard, setPendingRetryDiscard] = useState<{
+    userMessageId: string;
+    keepPrevious: boolean;
+    offPathWrites: WorkspaceWrites;
+  } | null>(null);
 
   const refreshBranchPoints = useCallback(
     async (sessionId: string): Promise<void> => {
@@ -115,6 +121,7 @@ export function useBranchActions(args: UseBranchActionsArgs) {
     setBranchPoints([]);
     // Pending confirmations name a message id in the session we just left.
     setPendingSwitchConfirm(null);
+    setPendingRetryDiscard(null);
     setPendingTruncate(null);
     if (!activeSessionId) {
       return;
@@ -326,6 +333,117 @@ export function useBranchActions(args: UseBranchActionsArgs) {
     ],
   );
 
+  const retryTurn = useCallback(
+    async (
+      userMessageId: string,
+      options: { keepPrevious: boolean; confirm?: boolean },
+    ): Promise<void> => {
+      if (!activeSessionId) {
+        dispatchNotification(pushError('No active session to retry.'));
+        return;
+      }
+      if (streaming) {
+        dispatchNotification(
+          pushInfo('Wait for the current run to finish (or stop it) before retrying.'),
+        );
+        return;
+      }
+      const target = visibleMessages.find((message) => message.id === userMessageId);
+      if (!target || target.role !== 'user') {
+        dispatchNotification(pushError(`Cannot retry: message not found in chat (${userMessageId})`));
+        return;
+      }
+      if (!isGeneralScope && !projectTrusted) {
+        dispatch({ type: 'project/trust-dialog', open: true });
+        return;
+      }
+
+      setEditingMessageId(null);
+      const input = buildRetryPromptInput({
+        retryUserMessageId: userMessageId,
+        keepPrevious: options.keepPrevious,
+        agentMode,
+        selectedModelKey,
+        modelOptions,
+        ...(thinkingLevel !== undefined ? { thinkingLevel } : {}),
+        ...(permissionPreset !== undefined ? { permissionPreset } : {}),
+        ...(orchestrationSchemeId !== undefined ? { orchestrationSchemeId } : {}),
+        ...(delegationDisabled !== undefined ? { delegationDisabled } : {}),
+      });
+      const response = await requestPromptWithForeground({
+        request: (command, requestOptions) => hostClient.request(command, requestOptions),
+        sessionId: activeSessionId,
+        input,
+        ...(options.confirm === true ? { confirm: true } : {}),
+        createIdempotencyKey: createGestureIdempotencyKey,
+        ...(confirmForegroundReplace ? { confirmReplace: confirmForegroundReplace } : {}),
+        ...(typeof hostClient.supportsForegroundAdmission === 'function'
+          ? { remoteForegroundAdmission: hostClient.supportsForegroundAdmission() }
+          : {}),
+      });
+      if (!response.success) {
+        const writes = readRetryDiscardsWrites(response);
+        if (writes && options.confirm !== true) {
+          setPendingRetryDiscard({
+            userMessageId,
+            keepPrevious: options.keepPrevious,
+            offPathWrites: writes,
+          });
+          return;
+        }
+        await reloadTranscript(activeSessionId);
+        const problem = readForegroundProblem(response);
+        if (problem) {
+          dispatchNotification(pushError(foregroundMismatchNotice(problem, locale)));
+        } else {
+          dispatchNotification(pushError(response.error));
+        }
+        return;
+      }
+      // Clip only after Host accepts — a write-discard refusal must not flash
+      // the previous answer away before the confirm dialog.
+      if (clipMessagesAfterId(visibleMessages, userMessageId)) {
+        dispatch({
+          type: 'session/branch-switched',
+          sessionId: activeSessionId,
+          clipAfterMessageId: userMessageId,
+        });
+      }
+      setPendingRetryDiscard(null);
+      const accepted = response.data as { runId?: string; acceptedAt?: string };
+      if (typeof accepted.runId === 'string') {
+        dispatch({
+          type: 'run/accepted',
+          runId: accepted.runId,
+          ...(accepted.acceptedAt ? { acceptedAt: accepted.acceptedAt } : {}),
+        });
+      }
+      void refreshBranchPoints(activeSessionId);
+    },
+    [
+      activeSessionId,
+      agentMode,
+      permissionPreset,
+      confirmForegroundReplace,
+      delegationDisabled,
+      dispatch,
+      dispatchNotification,
+      hostClient,
+      isGeneralScope,
+      locale,
+      modelOptions,
+      orchestrationSchemeId,
+      projectTrusted,
+      refreshBranchPoints,
+      reloadTranscript,
+      selectedModelKey,
+      setEditingMessageId,
+      streaming,
+      thinkingLevel,
+      visibleMessages,
+    ],
+  );
+
   const requestTruncateAfter = useCallback(
     (messageId: string): void => {
       if (!activeSessionId) {
@@ -388,6 +506,7 @@ export function useBranchActions(args: UseBranchActionsArgs) {
     branchPoints,
     switchBranch,
     branchResend,
+    retryTurn,
     requestTruncateAfter,
     pendingTruncate,
     confirmTruncateAfter,
@@ -399,6 +518,16 @@ export function useBranchActions(args: UseBranchActionsArgs) {
       }
     },
     cancelSwitchBranch: () => setPendingSwitchConfirm(null),
+    pendingRetryDiscard,
+    confirmRetryDiscard: () => {
+      if (pendingRetryDiscard) {
+        void retryTurn(pendingRetryDiscard.userMessageId, {
+          keepPrevious: pendingRetryDiscard.keepPrevious,
+          confirm: true,
+        });
+      }
+    },
+    cancelRetryDiscard: () => setPendingRetryDiscard(null),
   };
 }
 
@@ -454,6 +583,65 @@ export function buildBranchPromptInput(input: {
     }
   }
   return prompt;
+}
+
+export function buildRetryPromptInput(input: {
+  retryUserMessageId: string;
+  keepPrevious: boolean;
+  agentMode: AgentModeId;
+  selectedModelKey: string;
+  modelOptions: ModelOption[];
+  thinkingLevel?: ThinkingLevel;
+  permissionPreset?: PermissionPreset;
+  orchestrationSchemeId?: string;
+  delegationDisabled?: boolean;
+}): PromptInput {
+  const prompt: PromptInput = {
+    text: '',
+    agentMode: input.agentMode,
+    retryUserMessageId: input.retryUserMessageId,
+  };
+  if (input.keepPrevious) {
+    prompt.keepPreviousAttempt = true;
+  }
+  if (input.permissionPreset) {
+    prompt.permissionPreset = input.permissionPreset;
+  }
+  if (input.orchestrationSchemeId && input.orchestrationSchemeId !== 'off') {
+    prompt.orchestrationSchemeId = input.orchestrationSchemeId;
+  }
+  if (input.delegationDisabled) {
+    prompt.delegationMode = 'disabled';
+  }
+  const option = input.modelOptions.find(
+    (item) => `${item.providerId}::${item.modelId}` === input.selectedModelKey,
+  );
+  if (option) {
+    prompt.model = {
+      protocol: option.protocol,
+      providerId: option.providerId,
+      modelId: option.modelId,
+    };
+    if (input.thinkingLevel && canUseThinkingLevel(option, input.thinkingLevel, true)) {
+      prompt.thinkingLevel = input.thinkingLevel;
+    }
+  }
+  return prompt;
+}
+
+export function readRetryDiscardsWrites(response: HostResponse): WorkspaceWrites | undefined {
+  if (response.success) {
+    return undefined;
+  }
+  const problem = response.problem;
+  if (problem?.code !== 'retry-discards-writes' || !problem.data || typeof problem.data !== 'object') {
+    return undefined;
+  }
+  const data = problem.data as WorkspaceWrites;
+  if (!Array.isArray(data.files) || typeof data.hasUnknownWrites !== 'boolean') {
+    return undefined;
+  }
+  return data;
 }
 
 /** Narrow Host request used by tests — keep the command shape explicit. */

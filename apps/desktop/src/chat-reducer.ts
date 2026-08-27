@@ -551,6 +551,8 @@ export type ChatUiAction =
       messages?: SessionTranscriptMessage[];
       /** Optimistic clip: drop this id and everything after it, keep prefix UI rows. */
       clipBeforeMessageId?: string;
+      /** Optimistic clip: keep this id, drop everything after it (retry). */
+      clipAfterMessageId?: string;
       transcriptPage?: SessionTranscriptPageInfo;
     }
   | {
@@ -1927,14 +1929,21 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         return state;
       }
       const messages =
-        action.clipBeforeMessageId !== undefined
+        action.clipAfterMessageId !== undefined
           ? (() => {
               const cut = state.messages.findIndex(
-                (message) => message.id === action.clipBeforeMessageId,
+                (message) => message.id === action.clipAfterMessageId,
               );
-              return cut === -1 ? state.messages : state.messages.slice(0, cut);
+              return cut === -1 ? state.messages : state.messages.slice(0, cut + 1);
             })()
-          : mapTranscriptMessagesToUi(action.messages ?? []);
+          : action.clipBeforeMessageId !== undefined
+            ? (() => {
+                const cut = state.messages.findIndex(
+                  (message) => message.id === action.clipBeforeMessageId,
+                );
+                return cut === -1 ? state.messages : state.messages.slice(0, cut);
+              })()
+            : mapTranscriptMessagesToUi(action.messages ?? []);
       return enforceBoundedTranscriptWindow({
         ...state,
         messages,
@@ -1963,7 +1972,7 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         activeSkill: null,
         workingSessionIds: removeWorkingSessionId(state.workingSessionIds, action.sessionId),
         runRecordsById:
-          action.clipBeforeMessageId !== undefined
+          action.clipBeforeMessageId !== undefined || action.clipAfterMessageId !== undefined
             ? state.runRecordsById
             : buildRunRecordsFromTranscriptMessages(action.messages ?? []),
       });

@@ -250,6 +250,8 @@ export type ComposerDockProps = {
    * Skills-MCP chrome. Default false so Project callers stay unchanged.
    */
   isConversationSession?: boolean;
+  /** Override the Send control label (edit card: Retry vs Send new version). */
+  sendAriaLabel?: string;
 };
 
 function getAgentPlaceholder(
@@ -268,7 +270,12 @@ function getAgentPlaceholder(
 
 export function ComposerCard(props: ComposerDockProps): ReactElement {
   const { locale, translator } = useDesktopLocale();
-  const copy = getDesktopCopy(locale).composer;
+  const copy = {
+    ...getDesktopCopy(locale).composer,
+    ...(props.sendAriaLabel
+      ? { send: props.sendAriaLabel, sendShortcut: props.sendAriaLabel }
+      : {}),
+  };
   const interruptionCopy = translator.interruption;
   const agentModeDefinition = getAgentMode(props.agentMode);
   const isPaused = props.paused === true;

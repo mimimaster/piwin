@@ -3,6 +3,7 @@
  */
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { ComposerCard, type ComposerDockProps } from './composer-dock';
+import { useDesktopLocale } from './desktop-locale-context';
 import type { ComposerPlusSubmenu } from './composer-plus-menu';
 import type { PendingComposerAttachment } from './media-utils';
 
@@ -15,9 +16,12 @@ export type MessageEditCardProps = {
   interventionEdit?: boolean;
   /** Original turn still has media/refs shown read-only above this card. */
   hasCarryContent?: boolean;
+  /** Unchanged send on the current user turn is a retry (ADR 0064). */
+  currentTurn?: boolean;
 };
 
 export function MessageEditCard(props: MessageEditCardProps): ReactElement {
+  const { locale } = useDesktopLocale();
   const [editText, setEditTextState] = useState(props.initialText);
   const editTextRef = useRef(props.initialText);
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
@@ -81,10 +85,22 @@ export function MessageEditCard(props: MessageEditCardProps): ReactElement {
     setPendingAttachments((prev) => prev.filter((item) => item.localId !== localId));
   }
 
+  const unchanged = editText.trim() === props.initialText.trim();
+  const sendAsRetry = props.currentTurn !== false && unchanged;
+  const sendAriaLabel =
+    locale === 'en'
+      ? sendAsRetry
+        ? 'Retry'
+        : 'Send new version'
+      : sendAsRetry
+        ? '重试'
+        : '发送新版本';
+
   return (
     <div ref={cardRef} className="message-edit-card-v2" data-testid="message-edit-box">
       <ComposerCard
         {...props.composerCard}
+        sendAriaLabel={sendAriaLabel}
         layoutMode="docked"
         composer={editText}
         onComposerChange={setEditText}

@@ -28,6 +28,7 @@ export type SessionPromptCommand = {
   sessionId: string;
   input: PromptInput;
   foreground: PromptForegroundAdmission;
+  confirm?: boolean;
 };
 
 export function nextPromptForeground(input: {
@@ -108,6 +109,8 @@ export async function requestPromptWithForeground(args: {
   onQueue?: (problem: ForegroundRunMismatchProblem) => Promise<HostResponse>;
   allowReplaceConfirm?: boolean;
   createIdempotencyKey?: () => string;
+  /** Confirm discarding a previous attempt that wrote files (ADR 0064). */
+  confirm?: boolean;
   /**
    * Remote-only gate. When false, the Host hello lacked
    * `foregroundRunAdmission` and this client must not send prompts.
@@ -128,6 +131,7 @@ export async function requestPromptWithForeground(args: {
     type: 'session/prompt' as const,
     sessionId: args.sessionId,
     input: args.input,
+    ...(args.confirm === true ? { confirm: true } : {}),
   };
   const nextKey = (): { idempotencyKey?: string } => {
     const key = args.createIdempotencyKey?.();

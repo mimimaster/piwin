@@ -113,8 +113,10 @@ export type ChatThreadProps = {
   onCancelEdit: () => void;
   onEditResend: (messageId: string, text: string) => void;
   onRetry: (messageId: string) => void;
-  /** Resend a user turn as a sibling branch (regenerate / context-bar retry). */
+  /** Resend a user turn as a sibling branch (changed-text edit). */
   onBranchResend?: (messageId: string, text: string) => void;
+  /** Re-run the same user turn without creating a prompt sibling. */
+  onRetryTurn?: (userMessageId: string, options: { keepPrevious: boolean }) => void;
   branchPoints?: TranscriptBranchPoint[];
   onSwitchBranch?: (headMessageId: string) => void;
   /** Edit a still-pending instruction without rewinding conversation history. */
@@ -548,8 +550,8 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                   latestAssistantMessageId === message.id ||
                   (conversationSession && isConversationIdentityMessage && isLatestTurn);
                 const onRegenerate =
-                  conversationSession && isLatestAssistant && precedingUser && props.onBranchResend
-                    ? () => props.onBranchResend?.(precedingUser.id, precedingUser.text)
+                  conversationSession && isLatestAssistant && precedingUser && props.onRetryTurn
+                    ? () => props.onRetryTurn?.(precedingUser.id, { keepPrevious: true })
                     : undefined;
                 const exploreRole = exploreRolesByMessageId.get(message.id);
                 const effectiveMessage =
@@ -628,6 +630,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                     onCancelEdit={props.onCancelEdit}
                     onEditResend={props.onEditResend}
                     onRetry={props.onRetry}
+                    {...(props.onRetryTurn !== undefined ? { onRetryTurn: props.onRetryTurn } : {})}
                     branchPoints={props.branchPoints ?? []}
                     {...(props.onSwitchBranch !== undefined
                       ? { onSwitchBranch: props.onSwitchBranch }
