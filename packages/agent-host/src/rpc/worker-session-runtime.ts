@@ -7,7 +7,7 @@
  * normalized AgentEvent before emission.
  */
 
-import { failedAgentPromptOutcome } from '@piwin/contracts';
+import { failedAgentPromptOutcome, type AgentFailure } from '@piwin/contracts';
 import type {
   AgentEvent,
   BackendRunIntervention,
@@ -68,6 +68,7 @@ export type WorkerPiSessionLike = {
   abortCompaction?: () => void;
   subscribe: (listener: (raw: unknown) => void) => () => void;
   setActiveRunId?(runId: string | undefined): void;
+  consumeParsedStreamStall?(): AgentFailure | undefined;
   armRunIntervention?(intervention: BackendRunIntervention): Promise<void>;
   cancelRunIntervention?(interventionId: string, expectedRevision: number): Promise<boolean>;
   subscribeRunInterventions?(
@@ -391,7 +392,12 @@ export class WorkerSessionRuntime {
             Object.keys(promptOptions).length > 0 ? promptOptions : undefined,
           ),
       });
-      this.sendResponse(id, true, outcome);
+      const stalled = session.handle.consumeParsedStreamStall?.();
+      this.sendResponse(
+        id,
+        true,
+        stalled === undefined ? outcome : failedAgentPromptOutcome(stalled),
+      );
     } finally {
       await session.handle.settleRunInterventions?.(context.runId);
       session.handle.setActiveRunId?.(undefined);

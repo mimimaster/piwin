@@ -673,4 +673,40 @@ describe('WorkerSessionRuntime', () => {
       },
     } satisfies WorkerEvent);
   });
+
+  it('prefers a parsed-stream stall over the native abort outcome', async () => {
+    const frames: WorkerFrame[] = [];
+    const session = createMockPiSession();
+    session.consumeParsedStreamStall = () => ({
+      code: 'model-stream-stalled',
+      origin: 'transport',
+      message:
+        'Model stream stalled: no model progress was received for 1 seconds while the connection remained open.',
+      retriable: true,
+    });
+    const runtime = new WorkerSessionRuntime({
+      sendFrame: (frame) => frames.push(frame),
+      createPiSession: async () => session,
+      eventMapper: fakeMapper(),
+    });
+    await runtime.handleRequest(createRequest());
+    await runtime.handleRequest({
+      type: 'request',
+      id: 'req-stall',
+      method: 'session/prompt',
+      context: promptContext,
+      payload: { method: 'session/prompt', sessionId: 'ps-1', text: 'hello' },
+    });
+    expect(frames).toContainEqual({
+      type: 'response',
+      id: 'req-stall',
+      context: promptContext,
+      success: true,
+      data: {
+        status: 'failed',
+        stopReason: 'error',
+        failure: expect.objectContaining({ code: 'model-stream-stalled' }),
+      },
+    });
+  });
 });

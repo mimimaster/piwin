@@ -30,11 +30,11 @@ import { mapPiCompactionResult, type PiCompactionResult } from '../pi-compaction
 import { buildPiSessionToolAllowlist } from '../pi-session-tool-allowlist.js';
 import { normalizeAgentEventIds } from '../generation-identity.js';
 import { stampPublishedAgentEvent } from '../agent-event-run-id.js';
-import { runTrackedPiPrompt } from '../pi-prompt-outcome-tracker.js';
 import {
+  isOpenAiCompletionsStreamProtocol,
   readPiHttpIdleTimeoutMs,
-  runPiPromptWithProgressTimeout,
-} from '../pi-stream-progress-timeout.js';
+  runTrackedGuardedPiPrompt,
+} from '../pi-parsed-stream-guard.js';
 import {
   createRunInterventionStager,
   type PiRunInterventionSession,
@@ -281,18 +281,20 @@ function wrapBackendPiSession(
         promptOptions.streamingBehavior = preparedPrompt.streamingBehavior;
       }
       try {
-        return await runTrackedPiPrompt({
+        const selectedModel = preparedPrompt.model
+          ? modelRuntime.getModel(preparedPrompt.model.providerId, preparedPrompt.model.modelId)
+          : undefined;
+        return await runTrackedGuardedPiPrompt({
+          enabled: isOpenAiCompletionsStreamProtocol(
+            selectedModel?.api ?? preparedPrompt.model?.protocol,
+          ),
+          timeoutMs: streamProgressTimeoutMs,
           subscribe: (listener) => piSession.subscribe(listener),
           prompt: () =>
-            runPiPromptWithProgressTimeout({
-              timeoutMs: streamProgressTimeoutMs,
-              prompt: () =>
-                Object.keys(promptOptions).length > 0
-                  ? piSession.prompt(preparedPrompt.text, promptOptions)
-                  : piSession.prompt(preparedPrompt.text),
-              abort: () => piSession.abort?.() ?? Promise.resolve(),
-              subscribe: (listener) => piSession.subscribe(listener),
-            }),
+            Object.keys(promptOptions).length > 0
+              ? piSession.prompt(preparedPrompt.text, promptOptions)
+              : piSession.prompt(preparedPrompt.text),
+          abort: () => piSession.abort?.() ?? Promise.resolve(),
         });
       } finally {
         await interventionStager?.settleRun(preparedPrompt.runId);
