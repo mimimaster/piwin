@@ -2,7 +2,7 @@
 
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { COMPLETED_STOP_OUTCOME, type BackendPreparedPrompt } from '@piwin/contracts';
+import type { BackendPreparedPrompt } from '@piwin/contracts';
 import {
   assertValidBackendSessionBlueprint,
   type BackendSessionHandle,
@@ -29,6 +29,8 @@ import { createPiwinSettingsManager } from '../pi-settings-manager.js';
 import { mapPiCompactionResult, type PiCompactionResult } from '../pi-compaction-result.js';
 import { buildPiSessionToolAllowlist } from '../pi-session-tool-allowlist.js';
 import { normalizeAgentEventIds } from '../generation-identity.js';
+import { stampPublishedAgentEvent } from '../agent-event-run-id.js';
+import { runTrackedPiPrompt } from '../pi-prompt-outcome-tracker.js';
 import {
   readPiHttpIdleTimeoutMs,
   runPiPromptWithProgressTimeout,
@@ -234,6 +236,7 @@ function wrapBackendPiSession(
   streamProgressTimeoutMs: number,
 ): BackendSessionHandle {
   const eventMapper = createPiSessionEventMapper();
+  let trailingRunId: string | undefined;
   const interventionStager = piSession.agent
     ? createRunInterventionStager({
         session: piSession as PiRunInterventionSession,
@@ -245,6 +248,7 @@ function wrapBackendPiSession(
   return {
     id: input.blueprint.sessionId,
     async prompt(preparedPrompt: BackendPreparedPrompt) {
+      trailingRunId = preparedPrompt.runId;
       setActiveRunId(preparedPrompt.runId);
       if (preparedPrompt.model && piSession.setModel) {
         const model = modelRuntime.getModel(
@@ -277,17 +281,19 @@ function wrapBackendPiSession(
         promptOptions.streamingBehavior = preparedPrompt.streamingBehavior;
       }
       try {
-        await runPiPromptWithProgressTimeout({
-          timeoutMs: streamProgressTimeoutMs,
-          prompt: () =>
-            Object.keys(promptOptions).length > 0
-              ? piSession.prompt(preparedPrompt.text, promptOptions)
-              : piSession.prompt(preparedPrompt.text),
-          abort: () => piSession.abort?.() ?? Promise.resolve(),
+        return await runTrackedPiPrompt({
           subscribe: (listener) => piSession.subscribe(listener),
+          prompt: () =>
+            runPiPromptWithProgressTimeout({
+              timeoutMs: streamProgressTimeoutMs,
+              prompt: () =>
+                Object.keys(promptOptions).length > 0
+                  ? piSession.prompt(preparedPrompt.text, promptOptions)
+                  : piSession.prompt(preparedPrompt.text),
+              abort: () => piSession.abort?.() ?? Promise.resolve(),
+              subscribe: (listener) => piSession.subscribe(listener),
+            }),
         });
-        // Phase 3 replaces this placeholder with the Pi outcome tracker.
-        return COMPLETED_STOP_OUTCOME;
       } finally {
         await interventionStager?.settleRun(preparedPrompt.runId);
         setActiveRunId(undefined);
@@ -347,12 +353,16 @@ function wrapBackendPiSession(
     subscribe(listener) {
       return piSession.subscribe((rawEvent) => {
         for (const mappedEvent of eventMapper.map(rawEvent)) {
-          listener(
+          const stamped = stampPublishedAgentEvent(
             normalizeAgentEventIds(mappedEvent.event, {
               sessionId: input.blueprint.sessionId,
               runtimeGenerationId: input.blueprint.runtimeGenerationId,
             }),
+            getActiveRunId() ?? trailingRunId,
           );
+          if (stamped) {
+            listener(stamped);
+          }
         }
       });
     },
