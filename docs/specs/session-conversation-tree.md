@@ -205,14 +205,14 @@ CREATE INDEX IF NOT EXISTS idx_message_parent
 ### 5.2 写语义
 
 - 常规追加：新行 `parent = active_leaf`，随后 leaf 前移（与现状等价）。
-- **编辑重发改为分支**：`PromptInput` 增加可选 `branchFromMessageId`。
-  字段命名的是被替代的 **user 消息**（不是 parent）。Host 解析 parent（含
-  根分叉 `NULL`）后 rebase 再追加。Desktop 编辑重发不再调用
-  `session/truncate-from`。旧后续链完整保留为兄弟分支。
-  （与早期 §5 草稿的偏差见 ADR 0055。）
-- `session/truncate-from` 保留为显式破坏性操作（"删除此处之后"），实现改为
+- **改写后的编辑重发才分叉**：`PromptInput.branchFromMessageId` 命名被替代的
+  **user 消息**（不是 parent）。Host 解析 parent（含根分叉 `NULL`）后 rebase
+  再追加。内容未变的重发与失败重试走 `retryUserMessageId`（ADR 0064），
+  不新建 user 行。Desktop 不再为日常重试调用 `session/truncate-from`。
+  （与早期 §5 草稿的偏差见 ADR 0055 / 0064。）
+- `session/truncate-from` 保留为显式破坏性操作（「回到此处」），实现改为
   删除以目标为根的**子树**（含各分支）并级联 `native_entry`。
-- 助手响应重试（现另一处 truncate 调用）同样改分支语义。
+- 助手「另生成一版」保留旧回答作 assistant 兄弟；失败重试先删掉失败尝试。
 
 ### 5.3 命令与推送（contracts / host-server / host-client）
 
@@ -269,7 +269,8 @@ type SessionBranchSwitchCommand = {
       `metadata_json.workspaceWrites` 是否存在；写边界上线前的旧行没有该
       metadata，一律显示为"无写"。切换时的 `needs-confirmation` 检查才是权威。
     - 该面板同时是分叉能力的**唯一前置入口**：`‹ n/m ›` 只在分叉发生后才出现，
-      所以空态必须写明"编辑已发送的消息并重发即可就地分叉，旧后续会保留"。
+      所以空态必须写明「改写某一轮的提问后发送，会在这里留下一个分叉」。
+    同文重试与「另生成一版」不再计入 header 徽标（ADR 0064）。
 - **CLI**（避免 AGENTS.md"仅 Desktop 实现"反模式）：
   `piwin session branches`（列分叉点与兄弟，写标记降级为行内 `(write)` 后缀）、
   `piwin session switch <messageId>`。树可视化 CLI 降级为缩进列表，记录于
@@ -346,7 +347,8 @@ type SessionBranchSwitchCommand = {
 
 ## 9. 已做默认决策（可推翻）
 
-1. 编辑重发默认建分支而非删除；破坏性删除保留为显式"删除此处之后"。
+1. 改写后的编辑重发才建提问分叉；同文重试不建分支。破坏性删除保留为显式
+   「回到此处」（ADR 0064 修订了原先的 daily-branch 默认）。
 2. 不做旧分支自动 GC；用户显式删除子树。
 3. 会话内搜索 V1 仅活跃路径；全树搜索后置。
 4. 全树导出后置；导出/fork/duplicate 默认活跃路径。

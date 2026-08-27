@@ -28,13 +28,16 @@ wrong.
 2. **Reads are path-scoped.** Pages, outline, search, history injection, and
    fork/duplicate walk the active path. Sibling branches stay on disk until
    the user switches or deletes a subtree.
-3. **Daily edit/regenerate branches.** `PromptInput.branchFromMessageId` is
-   the **user message being replaced**. Host resolves that row's parent
-   (including a null root parent) and appends a sibling. Clients do not send
-   the parent id.
+3. **Changed-text edit branches; same-turn retry does not.**
+   `PromptInput.branchFromMessageId` is the **user message being replaced**
+   when the text/attachments/refs actually changed. Host resolves that row's
+   parent and appends a sibling. Same-turn retry uses
+   `retryUserMessageId` and rebases onto the user row itself (ADR 0064).
+   Clients do not send the parent id.
 4. **`session/truncate-from` is explicit destruction.** It deletes the
    target subtree, not a linear `sequence >=` tail. Desktop exposes it only
-   as “Delete this and after”. Revert opens the edit card with no Host call.
+   as “Revert to here”. The user-bubble edit icon opens the edit card with
+   no Host call.
 5. **Switching is a Host command.** `session/branch-list` / `session/branch-switch`
    plus `session/branch-updated`. A live foreground run returns `run-active`.
    Unconfirmed switches that abandon writes return `needs-confirmation`.
@@ -45,8 +48,8 @@ tree” residual. Those IDs remain only as “do not resume Pi JSONL”.
 ## Consequences
 
 - ADR 0009's truncate-from rebuild still applies to the **explicit** subtree
-  delete. Edit/resend no longer truncates; Host rebases the leaf, then the
-  next prompt injects the new path.
+  delete. A changed-text edit no longer truncates; Host rebases the leaf,
+  then the next prompt injects the new path. Same-turn retry is ADR 0064.
 - Desktop shows `‹ n/m ›` on the active sibling head, a `branches`
   inspector tab, and the header **会话树** (same fork-point list). That
   header is the in-session tree, not Fork Chat lineage. CLI prints an
