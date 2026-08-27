@@ -8,6 +8,7 @@ import {
   type WorkerToolCallFrame,
 } from './rpc-sdk-worker-protocol.js';
 import { RpcSdkWorkerClient } from './rpc-sdk-worker-client.js';
+import { COMPLETED_STOP_OUTCOME } from '@piwin/contracts';
 import type { SerializableBlueprint } from './rpc/serializable-blueprint.js';
 
 const frameContext: WorkerFrameContext = {
@@ -328,7 +329,7 @@ describe('RpcSdkWorkerClient startup and framing', () => {
       "process.stdin.on('data', (chunk) => {",
       '  const request = JSON.parse(chunk.toString());',
       "  if (request.payload?.method === 'session/prompt') {",
-      "    setTimeout(() => process.stdout.write(JSON.stringify({ type: 'response', id: request.id, context: request.context, success: true, data: {} }) + '\\n'), 2_100);",
+      "    setTimeout(() => process.stdout.write(JSON.stringify({ type: 'response', id: request.id, context: request.context, success: true, data: { status: 'completed', stopReason: 'stop' } }) + '\\n'), 2_100);",
       '  }',
       '});',
       'setInterval(() => {}, 1000);',
@@ -342,7 +343,9 @@ describe('RpcSdkWorkerClient startup and framing', () => {
 
     try {
       await client.start();
-      await expect(client.prompt('session-1', 'long generation')).resolves.toBeUndefined();
+      await expect(client.prompt('session-1', 'long generation')).resolves.toEqual(
+        COMPLETED_STOP_OUTCOME,
+      );
     } finally {
       await client.close();
     }

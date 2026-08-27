@@ -31,7 +31,7 @@ import {
   type WorkerInterventionPermitFrame,
 } from './rpc-sdk-worker-protocol.js';
 import {
-  COMPLETED_STOP_OUTCOME,
+  failedAgentPromptOutcome,
   isAgentPromptOutcome,
   type AgentEvent,
   type AgentPromptOutcome,
@@ -424,7 +424,14 @@ export class RpcSdkWorkerClient extends EventEmitter {
       options?.runId ? { runId: options.runId } : undefined,
     );
     if (!response.success) throw new Error(response.error ?? 'session/prompt failed');
-    return isAgentPromptOutcome(response.data) ? response.data : COMPLETED_STOP_OUTCOME;
+    return isAgentPromptOutcome(response.data)
+      ? response.data
+      : failedAgentPromptOutcome({
+          code: 'backend-protocol-error',
+          origin: 'protocol',
+          message: 'worker prompt response was not an AgentPromptOutcome',
+          retriable: false,
+        });
   }
 
   /** Abort a running prompt in the worker. */

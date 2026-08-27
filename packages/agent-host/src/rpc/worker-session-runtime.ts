@@ -7,7 +7,7 @@
  * normalized AgentEvent before emission.
  */
 
-import { COMPLETED_STOP_OUTCOME } from '@piwin/contracts';
+import { failedAgentPromptOutcome } from '@piwin/contracts';
 import type {
   AgentEvent,
   BackendRunIntervention,
@@ -46,6 +46,8 @@ import {
 } from './serializable-blueprint.js';
 import type { PiBackendCustomToolDefinition } from '../backends/pi-backend-tool-adapter.js';
 import { normalizeAgentEventIds, normalizeGenerationToolCallId } from '../generation-identity.js';
+import { stampPublishedAgentEvent } from '../agent-event-run-id.js';
+import { runTrackedPiPrompt } from '../pi-prompt-outcome-tracker.js';
 
 /** Minimal Pi-like session surface the worker runtime needs. */
 export type WorkerPiSessionLike = {
@@ -122,6 +124,7 @@ type RuntimeSession = {
   unsubscribe: () => void;
   context: Pick<WorkerFrameContext, 'sessionId' | 'runtimeGenerationId'>;
   activeRunId: string | undefined;
+  trailingRunId: string | undefined;
   unsubscribeInterventions?: () => void;
 };
 
@@ -348,6 +351,20 @@ export class WorkerSessionRuntime {
   ): Promise<void> {
     const session = this.requireSession(payload.sessionId);
     this.assertSessionContext(session, context);
+    if (context.runId === undefined) {
+      this.sendResponse(
+        id,
+        true,
+        failedAgentPromptOutcome({
+          code: 'backend-protocol-error',
+          origin: 'protocol',
+          message: 'foreground worker prompt requires runId',
+          retriable: false,
+        }),
+      );
+      return;
+    }
+    session.trailingRunId = context.runId;
     session.activeRunId = context.runId;
     session.handle.setActiveRunId?.(context.runId);
     const options =
@@ -366,19 +383,20 @@ export class WorkerSessionRuntime {
       ...(payload.model ? { model: payload.model } : {}),
     };
     try {
-      await session.handle.prompt(
-        payload.text,
-        Object.keys(promptOptions).length > 0 ? promptOptions : undefined,
-      );
+      const outcome = await runTrackedPiPrompt({
+        subscribe: (listener) => session.handle.subscribe(listener),
+        prompt: () =>
+          session.handle.prompt(
+            payload.text,
+            Object.keys(promptOptions).length > 0 ? promptOptions : undefined,
+          ),
+      });
+      this.sendResponse(id, true, outcome);
     } finally {
-      if (context.runId !== undefined) {
-        await session.handle.settleRunInterventions?.(context.runId);
-      }
+      await session.handle.settleRunInterventions?.(context.runId);
       session.handle.setActiveRunId?.(undefined);
       session.activeRunId = undefined;
     }
-    // Phase 3 replaces this placeholder with the Pi outcome tracker.
-    this.sendResponse(id, true, COMPLETED_STOP_OUTCOME);
   }
 
   private async handleAbort(
@@ -612,17 +630,25 @@ export class WorkerSessionRuntime {
           sessionId,
           runtimeGenerationId: context.runtimeGenerationId,
         };
-        const activeRunId = this.sessions.get(sessionId)?.activeRunId;
-        if (activeRunId !== undefined) eventContext.runId = activeRunId;
+        const runtimeSession = this.sessions.get(sessionId);
+        const publishRunId = runtimeSession?.activeRunId ?? runtimeSession?.trailingRunId;
+        if (publishRunId !== undefined) eventContext.runId = publishRunId;
+        const event = stampPublishedAgentEvent(
+          normalizeAgentEventIds(wrapped.event, {
+            sessionId,
+            runtimeGenerationId: context.runtimeGenerationId,
+          }),
+          publishRunId,
+        );
+        if (!event) {
+          continue;
+        }
         const frame: WorkerEvent = {
           type: 'event',
           // Product IDs are the parent correlation key. The worker ID remains
           // available as an alias for requests and in the create response.
           context: eventContext,
-          event: normalizeAgentEventIds(wrapped.event, {
-            sessionId,
-            runtimeGenerationId: context.runtimeGenerationId,
-          }),
+          event,
         };
         this.options.sendFrame(frame);
       }
@@ -637,6 +663,7 @@ export class WorkerSessionRuntime {
         runtimeGenerationId: context.runtimeGenerationId,
       },
       activeRunId: undefined,
+      trailingRunId: undefined,
     };
     this.sessions.set(sessionId, session);
     if (handle.id !== sessionId) {

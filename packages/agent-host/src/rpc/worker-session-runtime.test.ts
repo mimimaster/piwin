@@ -1,9 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type {
-  AgentEvent,
-  AgentEventEnvelope,
-  BackendRunInterventionEvent,
-} from '@piwin/contracts';
+import type { AgentEvent, AgentEventEnvelope, BackendRunInterventionEvent } from '@piwin/contracts';
 import type { PiBackendCustomToolDefinition } from '../backends/pi-backend-tool-adapter.js';
 import type {
   WorkerEvent,
@@ -38,6 +34,11 @@ const frameContext: WorkerFrameContext = {
   sessionId: 'ps-1',
   runtimeGenerationId: 'gen-1',
 };
+const promptContext: WorkerFrameContext = {
+  ...frameContext,
+  runId: 'run-1',
+};
+const handledPromptOutcome = { status: 'completed', stopReason: 'handled' } as const;
 const normalizedMessageId = normalizeGenerationMessageId(frameContext, 'm1');
 
 function fakeMapper() {
@@ -57,27 +58,45 @@ function fakeMapper() {
   };
 }
 
-function createMockPiSession(sessionId = 'pi-s1', unsubscribe = vi.fn()): WorkerPiSessionLike {
-  let listener: ((raw: unknown) => void) | null = null;
+function createMockPiSession(
+  sessionId = 'pi-s1',
+  unsubscribe = vi.fn(),
+  promptEvents?: readonly unknown[],
+): WorkerPiSessionLike & { emit(raw: unknown): void } {
+  const listeners = new Set<(raw: unknown) => void>();
+  const emit = (raw: unknown): void => {
+    for (const listener of listeners) {
+      listener(raw);
+    }
+  };
   return {
     id: sessionId,
     prompt: vi.fn(async () => {
-      listener?.({ type: 'text', text: 'mock reply' });
+      if (promptEvents) {
+        for (const event of promptEvents) {
+          emit(event);
+        }
+        return;
+      }
+      emit({ type: 'text', text: 'mock reply' });
     }),
     steer: vi.fn(async () => {
-      listener?.({ type: 'text', text: 'steered' });
+      emit({ type: 'text', text: 'steered' });
     }),
     followUp: vi.fn(async () => {
-      listener?.({ type: 'text', text: 'followed' });
+      emit({ type: 'text', text: 'followed' });
     }),
     abort: vi.fn(async () => undefined),
     subscribe: (fn) => {
-      listener = fn;
+      listeners.add(fn);
       return () => {
-        listener = null;
-        unsubscribe();
+        listeners.delete(fn);
+        if (listeners.size === 0) {
+          unsubscribe();
+        }
       };
     },
+    emit,
   };
 }
 
@@ -122,8 +141,7 @@ describe('WorkerSessionRuntime', () => {
   it('waits for a parent permit before accepting a worker intervention claim', async () => {
     const frames: WorkerFrame[] = [];
     let interventionListener:
-      | ((event: BackendRunInterventionEvent) => Promise<{ accepted: boolean }>)
-      | undefined;
+      ((event: BackendRunInterventionEvent) => Promise<{ accepted: boolean }>) | undefined;
     const session: WorkerPiSessionLike = {
       ...createMockPiSession(),
       armRunIntervention: vi.fn(async () => undefined),
@@ -310,21 +328,26 @@ describe('WorkerSessionRuntime', () => {
       type: 'request',
       id: 'req-2',
       method: 'session/prompt',
-      context: frameContext,
+      context: promptContext,
       payload: { method: 'session/prompt', sessionId: 'ps-1', text: 'hello' },
     });
 
     expect(frames).toContainEqual({
       type: 'event',
-      context: frameContext,
-      event: { type: 'message/text_snapshot', messageId: normalizedMessageId, text: 'mock reply' },
+      context: promptContext,
+      event: {
+        type: 'message/text_snapshot',
+        messageId: normalizedMessageId,
+        text: 'mock reply',
+        runId: 'run-1',
+      },
     } satisfies WorkerEvent);
     expect(frames).toContainEqual({
       type: 'response',
       id: 'req-2',
-      context: frameContext,
+      context: promptContext,
       success: true,
-      data: {},
+      data: handledPromptOutcome,
     });
   });
 
@@ -351,14 +374,14 @@ describe('WorkerSessionRuntime', () => {
       type: 'request',
       id: 'prompt-product',
       method: 'session/prompt',
-      context: frameContext,
+      context: promptContext,
       payload: { method: 'session/prompt', sessionId: 'ps-1', text: 'product prompt' },
     });
     await runtime.handleRequest({
       type: 'request',
       id: 'prompt-worker',
       method: 'session/prompt',
-      context: frameContext,
+      context: promptContext,
       payload: { method: 'session/prompt', sessionId: 'worker-s1', text: 'worker prompt' },
     });
     await runtime.handleRequest({
@@ -381,8 +404,13 @@ describe('WorkerSessionRuntime', () => {
     expect(unsubscribe).toHaveBeenCalledTimes(1);
     expect(frames).toContainEqual({
       type: 'event',
-      context: frameContext,
-      event: { type: 'message/text_snapshot', messageId: normalizedMessageId, text: 'mock reply' },
+      context: promptContext,
+      event: {
+        type: 'message/text_snapshot',
+        messageId: normalizedMessageId,
+        text: 'mock reply',
+        runId: 'run-1',
+      },
     } satisfies WorkerEvent);
 
     await runtime.handleRequest({
@@ -547,5 +575,102 @@ describe('WorkerSessionRuntime', () => {
       success: false,
       error: 'unknown session: ps-1',
     });
+  });
+
+  it('returns a protocol failure when a foreground prompt omits runId', async () => {
+    const frames: WorkerFrame[] = [];
+    const runtime = new WorkerSessionRuntime({
+      sendFrame: (frame) => frames.push(frame),
+      createPiSession: async () => createMockPiSession(),
+      eventMapper: fakeMapper(),
+    });
+    await runtime.handleRequest(createRequest());
+    await runtime.handleRequest({
+      type: 'request',
+      id: 'req-missing-run',
+      method: 'session/prompt',
+      context: frameContext,
+      payload: { method: 'session/prompt', sessionId: 'ps-1', text: 'hello' },
+    });
+    expect(frames).toContainEqual({
+      type: 'response',
+      id: 'req-missing-run',
+      context: frameContext,
+      success: true,
+      data: {
+        status: 'failed',
+        stopReason: 'error',
+        failure: expect.objectContaining({
+          code: 'backend-protocol-error',
+          message: 'foreground worker prompt requires runId',
+        }),
+      },
+    });
+  });
+
+  it('drops a worker event whose runId disagrees with the frame', async () => {
+    const frames: WorkerFrame[] = [];
+    const runtime = new WorkerSessionRuntime({
+      sendFrame: (frame) => frames.push(frame),
+      createPiSession: async () => createMockPiSession(),
+      eventMapper: {
+        map: (): Array<{ event: AgentEvent; envelope: AgentEventEnvelope }> => [
+          {
+            event: {
+              type: 'message/text_snapshot',
+              messageId: 'm1',
+              text: 'mismatch',
+              runId: 'other-run',
+            },
+            envelope: { eventId: 'evt-mismatch', sequence: 1 },
+          },
+        ],
+      },
+    });
+    await runtime.handleRequest(createRequest());
+    await runtime.handleRequest({
+      type: 'request',
+      id: 'req-mismatch',
+      method: 'session/prompt',
+      context: promptContext,
+      payload: { method: 'session/prompt', sessionId: 'ps-1', text: 'hello' },
+    });
+    expect(frames.filter((frame) => frame.type === 'event')).toEqual([]);
+    expect(frames).toContainEqual({
+      type: 'response',
+      id: 'req-mismatch',
+      context: promptContext,
+      success: true,
+      data: handledPromptOutcome,
+    });
+  });
+
+  it('keeps trailing abort events on the settled Run', async () => {
+    const frames: WorkerFrame[] = [];
+    const session = createMockPiSession();
+    const runtime = new WorkerSessionRuntime({
+      sendFrame: (frame) => frames.push(frame),
+      createPiSession: async () => session,
+      eventMapper: fakeMapper(),
+    });
+    await runtime.handleRequest(createRequest());
+    await runtime.handleRequest({
+      type: 'request',
+      id: 'req-trail',
+      method: 'session/prompt',
+      context: promptContext,
+      payload: { method: 'session/prompt', sessionId: 'ps-1', text: 'hello' },
+    });
+    session.emit({ type: 'text', text: 'late abort' });
+    expect(frames).toContainEqual({
+      type: 'event',
+      context: promptContext,
+      event: {
+        type: 'message/text_snapshot',
+        messageId: normalizedMessageId,
+        text: 'late abort',
+        runId: 'run-1',
+      },
+    } satisfies WorkerEvent);
   });
 });
