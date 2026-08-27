@@ -101,14 +101,9 @@ export type MediaReadData =
     };
 
 export function formatTextModelImageInjection(attachment: TextModelImageInjection): string {
-  const dimensionPart =
+  const dim =
     attachment.width && attachment.height
-      ? `\ndimensions: ${attachment.width}x${attachment.height}`
+      ? ` dimensions="${attachment.width}x${attachment.height}"`
       : '';
-  return [
-    '[attached image]',
-    `path: ${attachment.absolutePath}`,
-    `mime: ${attachment.mimeType}`,
-    `size: ${attachment.byteSize} bytes${dimensionPart}`,
-  ].join('\n');
+  return `<attached_image path="${attachment.absolutePath}" mime="${attachment.mimeType}" bytes="${attachment.byteSize}"${dim} />`;
 }

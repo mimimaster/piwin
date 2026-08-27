@@ -1,60 +1,97 @@
-/** Run controls shared by the live and checkpoint-resting composer states. */
+/**
+ * Composer action slot: exactly one circular control.
+ *
+ * Idle Send → live Pause (`session/pause`) → paused Continue.
+ * A new typed prompt while paused is Send (clears the checkpoint).
+ * Never pair a second circle (no Send+Stop, Pause+Stop, Continue+Discard).
+ * Irreversible abort is Esc / `stop-run`. Follow-up while live is Enter.
+ */
 import type { ReactElement } from 'react';
-import { IconPause, IconSend, IconStop } from './shell-icons';
+import { IconPause, IconRefresh, IconSend } from './shell-icons';
 
-export type ComposerRunActionCopy = {
+export type ComposerActionSlotCopy = {
+  send: string;
+  sendShortcut: string;
   pause: string;
   pausing: string;
   stop: string;
   stopping: string;
   continueRun: string;
-  discardPause: string;
+  attachmentRetryOnly: string;
+  steer: string;
+  sendSteerMessage: string;
+  sendSteerHint: string;
 };
 
-/** Shown only when Host already projected a paused checkpoint (not the live interrupt). */
-export function ComposerPausedActions(props: {
-  copy: ComposerRunActionCopy;
+export type ComposerActionSlotProps = {
+  copy: ComposerActionSlotCopy;
   activeSessionId: string | null;
-  onResume?: () => void;
-  onAbort: () => void;
+  runPhase: 'idle' | 'streaming' | 'pausing' | 'aborting';
+  isStreamingRun: boolean;
+  isPaused: boolean;
+  hasContent: boolean;
+  onlyFailedAttachments: boolean;
   mutationsEnabled?: boolean;
-}): ReactElement {
+  isExtensionUiActive: boolean;
+  composerHasText: boolean;
+  onSend: () => void;
+  onPause: () => void;
+  onResume?: () => void;
+  onSteer?: () => void;
+};
+
+function mutationsOff(props: ComposerActionSlotProps): boolean {
+  return props.mutationsEnabled === false;
+}
+
+function ComposerSendButton(props: ComposerActionSlotProps): ReactElement {
   return (
-    <div className="composer-v2-action-group">
-      <button
-        type="button"
-        className="composer-v2-send-btn"
-        data-testid="resume-run-btn"
-        disabled={!props.activeSessionId || !props.onResume || props.mutationsEnabled === false}
-        onClick={props.onResume}
-        aria-label={props.copy.continueRun}
-        title={props.copy.continueRun}
-      >
-        <IconSend />
-      </button>
-      <button
-        type="button"
-        className="composer-v2-stop-btn is-running"
-        data-testid="discard-pause-btn"
-        data-action="stop"
-        disabled={!props.activeSessionId || props.mutationsEnabled === false}
-        onClick={props.onAbort}
-        aria-label={props.copy.discardPause}
-        title={props.copy.discardPause}
-      >
-        <IconStop />
-      </button>
-    </div>
+    <button
+      type="button"
+      className="composer-v2-send-btn"
+      data-testid="send-btn"
+      disabled={!props.hasContent || mutationsOff(props)}
+      onClick={props.onSend}
+      aria-label={props.copy.send}
+      title={props.copy.sendShortcut}
+    >
+      <IconSend />
+    </button>
   );
 }
 
-export function ComposerStreamingPause(props: {
-  copy: ComposerRunActionCopy;
-  activeSessionId: string | null;
-  runPhase: 'idle' | 'streaming' | 'pausing' | 'aborting';
-  onPause: () => void;
-  mutationsEnabled?: boolean;
-}): ReactElement {
+function ComposerRetryButton(props: ComposerActionSlotProps): ReactElement {
+  return (
+    <button
+      type="button"
+      className="composer-v2-send-btn is-retry"
+      data-testid="send-btn"
+      onClick={props.onSend}
+      aria-label={props.copy.attachmentRetryOnly}
+      title={props.copy.attachmentRetryOnly}
+    >
+      <IconRefresh />
+    </button>
+  );
+}
+
+function ComposerContinueButton(props: ComposerActionSlotProps): ReactElement {
+  return (
+    <button
+      type="button"
+      className="composer-v2-send-btn"
+      data-testid="resume-run-btn"
+      disabled={!props.activeSessionId || !props.onResume || mutationsOff(props)}
+      onClick={props.onResume}
+      aria-label={props.copy.continueRun}
+      title={props.copy.continueRun}
+    >
+      <IconSend />
+    </button>
+  );
+}
+
+function ComposerPauseButton(props: ComposerActionSlotProps): ReactElement {
   const isPausing = props.runPhase === 'pausing';
   const isAborting = props.runPhase === 'aborting';
   const isControlPending = isPausing || isAborting;
@@ -69,12 +106,56 @@ export function ComposerStreamingPause(props: {
       className="composer-v2-stop-btn is-running is-pause"
       data-testid="pause-btn"
       data-action="pause"
-      disabled={!props.activeSessionId || isControlPending || props.mutationsEnabled === false}
+      disabled={!props.activeSessionId || isControlPending || mutationsOff(props)}
       onClick={props.onPause}
       aria-label={label}
       title={label}
     >
       <IconPause />
     </button>
+  );
+}
+
+function renderPrimaryCircle(props: ComposerActionSlotProps): ReactElement {
+  if (props.isStreamingRun) {
+    return <ComposerPauseButton {...props} />;
+  }
+  if (props.isPaused && !props.hasContent) {
+    return <ComposerContinueButton {...props} />;
+  }
+  if (props.onlyFailedAttachments) {
+    return <ComposerRetryButton {...props} />;
+  }
+  return <ComposerSendButton {...props} />;
+}
+
+export function ComposerActionSlot(props: ComposerActionSlotProps): ReactElement {
+  const showSteer =
+    props.isStreamingRun &&
+    !props.isExtensionUiActive &&
+    props.composerHasText &&
+    props.onSteer !== undefined;
+  const primary = renderPrimaryCircle(props);
+  if (!showSteer) {
+    return <div className="composer-v2-action-slot">{primary}</div>;
+  }
+  const steerPending = props.runPhase === 'pausing' || props.runPhase === 'aborting';
+  return (
+    <div className="composer-v2-action-slot">
+      <div className="composer-v2-action-group">
+        <button
+          type="button"
+          className="composer-v2-text-btn"
+          data-testid="steer-btn"
+          disabled={steerPending}
+          onClick={props.onSteer}
+          aria-label={props.copy.sendSteerMessage}
+          title={props.copy.sendSteerHint}
+        >
+          {props.copy.steer}
+        </button>
+        {primary}
+      </div>
+    </div>
   );
 }

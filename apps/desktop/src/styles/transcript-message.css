@@ -94,7 +94,7 @@
 .system-file-link,
 .system-file-reference {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   gap: 0.28em;
   margin: 0 0.12em;
   padding: 0;
@@ -107,7 +107,7 @@
   font-size: inherit;
   line-height: inherit;
   text-decoration: none;
-  vertical-align: baseline;
+  vertical-align: -2.5px;
 }
 
 .system-file-link span,
@@ -128,8 +128,10 @@
 
 .system-file-link .file-icon,
 .system-file-reference .file-icon {
-  width: 0.95em;
-  height: 0.95em;
+  width: 1.05em;
+  height: 1.05em;
+  min-width: 15px;
+  min-height: 15px;
   flex: none;
 }
 

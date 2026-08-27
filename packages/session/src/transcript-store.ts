@@ -44,6 +44,7 @@ import {
   type RunInterventionRecord,
   type RunInterventionStatus,
   type RunInterventionTerminalReason,
+  type SessionRunOutcome,
   type UserInstructionPayload,
   type QueuedTurnMode,
   type QueuedTurnRecord,
@@ -61,7 +62,9 @@ import { createTranscriptMessagesOps } from './transcript-store-messages.js';
 import { createTranscriptPagesOps } from './transcript-store-pages.js';
 import { createTranscriptPauseOps } from './transcript-store-pause.js';
 import { createTranscriptQueuedTurnsOps } from './transcript-store-queued-turns.js';
+import { createTranscriptStreamSettleOps } from './transcript-store-stream-settle.js';
 export { LEGACY_IMPORT_GENERATION, USER_AUTHORED_GENERATION };
+export type { SettleStreamingMessagesInput } from './transcript-store-stream-settle.js';
 export type TranscriptStoreMessageInput = {
   /** Opaque normalized product message id (never a naked backend id). */
   id: string;
@@ -210,6 +213,16 @@ export type SessionTranscriptStore = {
   appendMessage(input: TranscriptStoreMessageInput): Promise<TranscriptStoreAppendResult>;
   /** Update only the affected row by normalized id. Returns false when absent. */
   updateMessage(id: string, patch: TranscriptStoreMessagePatch): Promise<boolean>;
+  /**
+   * Close crash/abort leftovers: assistant rows still `streaming`.
+   * Idempotent when none match. Does not rewrite message bodies.
+   */
+  settleStreamingMessages(input: {
+    runId?: string;
+    updatedAt: string;
+    outcome: SessionRunOutcome;
+    terminalMessage?: string;
+  }): Promise<SessionTranscriptMessage[]>;
   /** Read one row by normalized id without scanning the transcript. */
   getMessage(id: string): Promise<SessionTranscriptMessage | undefined>;
   /** Oldest persisted message with the requested role. */
@@ -694,6 +707,7 @@ export async function openSessionTranscriptStore(
 
   return {
     ...createTranscriptMessagesOps(core),
+    ...createTranscriptStreamSettleOps(core),
     ...createTranscriptBranchesOps(core),
     ...createTranscriptPagesOps(core),
     ...createTranscriptPauseOps(core),

@@ -104,7 +104,7 @@ export class HostEgressHub {
     this.maxClientQueueItems = options.maxClientQueueItems ?? 2_048;
     this.maxClientQueueBytes = options.maxClientQueueBytes ?? 2 * 1024 * 1024;
     this.maxFrameBytes = options.maxFrameBytes;
-    this.maxPendingDataItems = options.maxPendingDataItems ?? 128;
+    this.maxPendingDataItems = options.maxPendingDataItems ?? 8;
     this.maxPendingDataBytes = options.maxPendingDataBytes ?? 128 * 1024;
     this.maxPendingDiagnosticItems = options.maxPendingDiagnosticItems ?? 1_024;
     this.maxPendingDiagnosticBytes = options.maxPendingDiagnosticBytes ?? 256 * 1024;

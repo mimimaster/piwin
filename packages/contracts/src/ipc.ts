@@ -773,9 +773,9 @@ export type HostCommand =
       id?: string;
       type: 'session/fork';
       sessionId: string;
-      /** The assistant response to fork from (inclusive in the new transcript). */
-      messageId: string;
-      /** Optional display name; default "<source name> · Branch". */
+      /** Assistant response to fork from. Omit to use the latest completed assistant on the active path. */
+      messageId?: string;
+      /** Optional display name; default "(n) <source name>". */
       name?: string;
       /** V1 shared workspace; worktree is a follow-up slice. */
       workspaceStrategy: 'shared' | 'worktree';
@@ -1211,6 +1211,12 @@ export type HostStatusData = {
   ready: boolean;
   mock: boolean;
   piwinRoot: string;
+  /**
+   * Product-owned General Chat workspace (`~/.piwin/workspace`). Not a
+   * registered user project. Desktop uses this as the file-browse root when
+   * no project is open so generated files can still be previewed.
+   */
+  generalWorkspacePath: string;
   activeSessionIds: string[];
   /**
    * Capability flags so clients never assume RPC has custom tools.

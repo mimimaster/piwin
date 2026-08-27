@@ -203,7 +203,7 @@ export function isSafeRemoteCommand(command: HostCommand): boolean {
     case 'session/fork':
       return (
         isSafeRemoteId(command.sessionId) &&
-        isSafeRemoteId(command.messageId) &&
+        (command.messageId === undefined || isSafeRemoteId(command.messageId)) &&
         (command.name === undefined || command.name.length <= 512) &&
         command.workspaceStrategy === 'shared' &&
         command.messageProjection === 'none'

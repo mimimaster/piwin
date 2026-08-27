@@ -19,7 +19,7 @@ function assistant(partial: Partial<ChatMessageUi> & Pick<ChatMessageUi, 'id'>):
 }
 
 describe('conversationAssistantHasVisibleBody', () => {
-  it('treats text, attachments, citations, and generation tools as visible', () => {
+  it('treats text, attachments, citations, and tools as visible', () => {
     expect(conversationAssistantHasVisibleBody(assistant({ id: 'empty' }))).toBe(false);
     expect(
       conversationAssistantHasVisibleBody(assistant({ id: 'think', thinking: 'plan the fetch' })),
@@ -65,7 +65,7 @@ describe('conversationAssistantHasVisibleBody', () => {
     ).toBe(true);
   });
 
-  it('does not treat ordinary tools as Conversation-visible body', () => {
+  it('treats Conversation tool calls as visible body', () => {
     expect(
       conversationAssistantHasVisibleBody(
         assistant({
@@ -74,12 +74,20 @@ describe('conversationAssistantHasVisibleBody', () => {
           tools: [{ toolCallId: 't1', toolName: 'web_fetch', status: 'done', output: 'ok' }],
         }),
       ),
-    ).toBe(false);
+    ).toBe(true);
+    expect(
+      conversationAssistantHasVisibleBody(
+        assistant({
+          id: 'search',
+          tools: [{ toolCallId: 't2', toolName: 'web_search', status: 'running', output: '' }],
+        }),
+      ),
+    ).toBe(true);
   });
 });
 
 describe('shouldHideConversationAssistantRow', () => {
-  it('hides thinking-only and tool-only intermediate completions', () => {
+  it('hides thinking-only intermediate completions', () => {
     expect(
       shouldHideConversationAssistantRow({
         message: assistant({ id: 'mid', thinking: 'I will fetch it' }),
@@ -87,6 +95,20 @@ describe('shouldHideConversationAssistantRow', () => {
         isActivelyStreaming: false,
       }),
     ).toBe(true);
+  });
+
+  it('keeps tool-only intermediate completions on screen', () => {
+    expect(
+      shouldHideConversationAssistantRow({
+        message: assistant({
+          id: 'search',
+          thinking: 'look it up',
+          tools: [{ toolCallId: 't-web', toolName: 'web_search', status: 'done', output: 'hits' }],
+        }),
+        isLastAssistantInTurn: false,
+        isActivelyStreaming: false,
+      }),
+    ).toBe(false);
   });
 
   it('keeps the last thinking-only reply and any streaming row', () => {

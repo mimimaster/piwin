@@ -32,7 +32,10 @@ export type HostEgressChannelOptions = {
 };
 
 const DEFAULT_TARGET_BATCH_BYTES = 128 * 1024;
-const DEFAULT_MAX_BATCH_ITEMS = 128;
+/** Keep token frames small. A control barrier used to flush hundreds of
+ * queued deltas in one WebSocket frame; the shell then React-batches them
+ * into a single paint. */
+const DEFAULT_MAX_BATCH_ITEMS = 8;
 const DEFAULT_MAX_QUEUE_BYTES = 2 * 1024 * 1024;
 const DEFAULT_MAX_QUEUE_ITEMS = 2_048;
 const DEFAULT_MAX_FRAME_BYTES = 1 * 1024 * 1024;
@@ -319,7 +322,7 @@ export class HostEgressChannel {
     this.flushTimer = this.schedule(() => {
       this.flushTimer = undefined;
       this.flushData();
-    }, 24);
+    }, 8);
   }
 
   private scheduleDrainRetry(): void {

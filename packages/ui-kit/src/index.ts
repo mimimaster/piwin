@@ -51,7 +51,7 @@ export type {
 } from './menu.js';
 
 export { Popover, PopoverContent, PopoverTrigger } from './popover.js';
-export type { PopoverProps } from './popover.js';
+export type { PopoverProps, PopoverContentProps } from './popover.js';
 
 export { ConfirmDialog } from './confirm-dialog.js';
 export type { ConfirmDialogProps, ConfirmDialogTone } from './confirm-dialog.js';

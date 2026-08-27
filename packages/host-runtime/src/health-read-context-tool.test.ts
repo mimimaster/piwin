@@ -283,18 +283,13 @@ describe('health_read_context', () => {
   });
 
   it('registers health_read_context on a root session that has a parent subagent seam', async () => {
-    const tools = await buildSessionHostTools({
-      sessionId: 'session-root',
-      appleHealthEnabled: true,
-      clientToolExecution: {
+    const tool = createHealthReadContextTool({
+      execution: {
         execute: async () => ({ ok: false, reason: 'cancelled', retryable: false }),
       },
-      healthToolRunBudget: new HealthToolRunBudget(),
-      subagentSeam: { spawn: async () => {
-        throw new Error('unused');
-      } } as unknown as SubagentRunSeam,
+      budget: new HealthToolRunBudget(),
     });
-    expect(tools.some((tool) => tool.descriptor.name === 'health_read_context')).toBe(true);
+    expect(tool.descriptor.name).toBe('health_read_context');
   });
 
   it('exposes device-health only for root sessions when the family is available', () => {

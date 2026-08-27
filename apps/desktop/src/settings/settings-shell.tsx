@@ -9,19 +9,21 @@
 import {
   Component,
   useEffect,
+  useReducer,
   useRef,
   useState,
   type ErrorInfo,
   type ReactElement,
   type ReactNode,
 } from 'react';
-import { Button, Notice } from '@piwin/ui-kit';
+import { Button, Notice, Spinner } from '@piwin/ui-kit';
 import { getDesktopCopy } from '../desktop-locale';
 import { useDesktopLocale } from '../desktop-locale-context';
 import {
   WindowDragRegion,
   handleNativeWindowDragMouseDown,
 } from '../native-window-drag';
+import { scheduleIdleTask } from '../schedule-idle-task';
 import {
   SETTINGS_GROUPS,
   SETTINGS_SECTIONS,
@@ -30,8 +32,9 @@ import {
   type SettingsSectionId,
 } from './section-registry';
 import { SettingsProvider, type SettingsContextValue } from './settings-context';
-// Side effect: registers all migrated page components before first render.
-import './pages';
+import { ensureSettingsLazyLoaded } from './settings-lazy-load';
+// Chromium Basic bundle: first-paint section only.
+import './pages/basic.js';
 
 const SECTION_ICONS: Record<SettingsSectionId, ReactNode> = {
   general: (
@@ -230,8 +233,33 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
   const isChinese = locale === 'zh-CN';
   const copy = getDesktopCopy(locale);
   const mainScrollRef = useRef<HTMLDivElement | null>(null);
-
+  const [, bumpLazyGeneration] = useReducer((generation: number) => generation + 1, 0);
   const PageComponent = getSettingsSection(activeSection);
+
+  // Chromium ensureLazyLoaded(): pull Advanced when the active section is not Basic.
+  useEffect(() => {
+    if (PageComponent) {
+      return;
+    }
+    let cancelled = false;
+    void ensureSettingsLazyLoaded().then(() => {
+      if (!cancelled) {
+        bumpLazyGeneration();
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [PageComponent, activeSection]);
+
+  // Chromium settings-idle-load: warm Advanced after Basic has painted.
+  useEffect(() => {
+    return scheduleIdleTask(() => {
+      void ensureSettingsLazyLoaded().then(() => {
+        bumpLazyGeneration();
+      });
+    });
+  }, []);
 
   const query = searchQuery.trim().toLowerCase();
   const activeSectionMeta = SETTINGS_SECTIONS.find((section) => section.id === activeSection);
@@ -413,7 +441,13 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
                   <PageComponent />
                 </SettingsPageErrorBoundary>
               </SettingsProvider>
-            ) : null}
+            ) : (
+              <div className="deferred-surface-fallback" data-testid="settings-section-loading">
+                <Spinner
+                  label={isChinese ? '正在加载此设置页' : 'Loading this settings page'}
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>

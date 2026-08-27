@@ -8,7 +8,7 @@
  *
  * Rows / columns:
  *   - Titlebar: window controls, history, title, right tools (spans all columns)
- *   - Sidebar (collapsible) | Stage (transcript/permission/composer/statusBar)
+ *   - Sidebar (collapsible) | Stage (transcript/permission/composer)
  *     | Right panel / inspector (optional)
  */
 import type { ReactElement, ReactNode } from 'react';
@@ -21,7 +21,6 @@ export type WorkspaceShellProps = {
   activityDock?: ReactNode | undefined;
   permissionBar?: ReactNode | undefined;
   composerDock: ReactNode;
-  statusBar: ReactNode;
   rightPanel: ReactNode;
   workspaceClassName?: string | undefined;
   chatColumnClassName?: string | undefined;
@@ -35,7 +34,6 @@ type WorkspaceChatColumnProps = Pick<
   | 'activityDock'
   | 'permissionBar'
   | 'composerDock'
-  | 'statusBar'
   | 'chatColumnClassName'
 >;
 
@@ -49,7 +47,6 @@ function WorkspaceChatColumn(props: WorkspaceChatColumnProps): ReactElement {
         {props.activityDock !== undefined ? props.activityDock : null}
         {props.permissionBar !== undefined ? props.permissionBar : null}
         {props.composerDock}
-        {props.statusBar}
       </div>
     </section>
   );
@@ -62,7 +59,6 @@ export function WorkspaceShell(props: WorkspaceShellProps): ReactElement {
       activityDock={props.activityDock}
       permissionBar={props.permissionBar}
       composerDock={props.composerDock}
-      statusBar={props.statusBar}
       chatColumnClassName={props.chatColumnClassName}
     />
   );

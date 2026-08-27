@@ -21,16 +21,21 @@ import {
 import { CitationCards } from './CitationCards';
 import { extractFlashcardItemIdsFromText } from './resolve-conversation-flashcards.js';
 import { FlashcardResultProjection } from './FlashcardResultProjection';
-import { extractFlashcardRecords } from './flashcard-result-extract.js';
+import { extractFlashcardRecords, getMessageTools } from './flashcard-result-extract.js';
 import { MarkdownView } from './MarkdownView';
 import { mapThemeToArtifactVariables } from './artifact-theme-map';
 import { resolveAssistantRenderingPhase } from './streaming-caret';
 import type { DocumentOpenInput } from './tool-call-card';
+import type { DiffCardRequest } from './diff-card.js';
 import { IconBrain, IconChevronRight } from './shell-icons';
 import { behaviorTextClass, getBehaviorActivitySpec } from './behavior-activity.js';
 import { buildTurnPresentation } from './run-presentation.js';
 import { runtimeStatusText } from './run-activity-strings.js';
 import { conversationActivityLabel } from './conversation-activity.js';
+import { TurnToolGroup } from './turn-tool-group.js';
+import { resolveGenerationToolKind } from './generation-tool-kind.js';
+import { assistantTextIsProcess } from './assistant-text-role.js';
+import type { ToolCallDensity } from './ui-preferences.js';
 
 export {
   collectFlashcardToolsFromMessages,
@@ -50,6 +55,8 @@ export function ConversationResponseContent(props: {
   activeRunId: string | null;
   locale: 'zh-CN' | 'en';
   livePromptModel?: ModelRef | null;
+  /** Latest visible Conversation reply — keep composer model after streaming. */
+  isLatestAssistantResponse?: boolean;
   modelOptions?: readonly ModelOption[];
   configProviders?: readonly ModelProviderConfig[];
   usageChip?: ConversationUsageChipData | null;
@@ -62,6 +69,10 @@ export function ConversationResponseContent(props: {
   onOpenDocument?: ((input: DocumentOpenInput) => void) | undefined;
   /** Active project root for path chips (Save As / Reveal / absolute copy). */
   projectPath?: string | null | undefined;
+  toolDensity?: ToolCallDensity;
+  toolDiffRequest?: DiffCardRequest;
+  onOpenFile?: ((absolutePath: string, relativePath?: string) => void) | undefined;
+  onOpenDiff?: ((absolutePath: string, relativePath?: string) => void) | undefined;
   /** When false, skip in-message flip cards (used for earlier tool-only rows). */
   renderExtractedFlashcards?: boolean;
   /** Extra tool cards to scan (turn-level flashcard creates). */
@@ -84,10 +95,15 @@ export function ConversationResponseContent(props: {
     'automatic',
   );
   const hasThinking = message.thinking.trim().length > 0;
-  const isThinkingActive = presentation.isThinkingActive && hasThinking;
+  const liveStreaming = props.isStreaming === true;
+  // Keep reasoning visible for the whole live bubble. Turn presentation marks
+  // thinking inactive as soon as a caption or tool appears, which hid grok
+  // xhigh reasoning behind a frozen locator for minutes. Durable
+  // `status=streaming` after a missed terminal must not keep the spinner.
+  const thinkingStreaming = liveStreaming && message.status === 'streaming' && hasThinking;
   const thinkingOpen =
-    thinkingIntent === 'user-open' || (thinkingIntent === 'automatic' && isThinkingActive);
-  const thinkingLabelClass = behaviorTextClass('thinking', isThinkingActive);
+    thinkingIntent === 'user-open' || (thinkingIntent === 'automatic' && thinkingStreaming);
+  const thinkingLabelClass = behaviorTextClass('thinking', thinkingStreaming);
 
   const extractedCards =
     props.renderExtractedFlashcards === false
@@ -122,11 +138,16 @@ export function ConversationResponseContent(props: {
     props.renderExtractedFlashcards,
   ]);
   const displayCards = extractedCards.length > 0 ? extractedCards : resolvedCards;
+  const conversationTools = message.tools.filter(
+    (tool) => resolveGenerationToolKind(tool) === null,
+  );
+  const processCaption = assistantTextIsProcess(message);
 
   const resolvedModel = resolveConversationMessageModel({
     message,
     livePromptModel: props.livePromptModel ?? null,
-    isStreaming: props.isStreaming ?? message.status === 'streaming',
+    isStreaming: liveStreaming,
+    allowComposerFallback: props.isLatestAssistantResponse === true,
   });
 
   const modelDisplay = resolvedModel
@@ -140,7 +161,7 @@ export function ConversationResponseContent(props: {
   const showHeader = props.showHeader !== false;
 
   const isAwaitingFirstToken =
-    (props.isStreaming ?? message.status === 'streaming') &&
+    liveStreaming &&
     message.text.trim().length === 0 &&
     message.thinking.trim().length === 0 &&
     getMessageTools(message, props.sourceTools).length === 0;
@@ -168,10 +189,7 @@ export function ConversationResponseContent(props: {
         />
       ) : null}
       {isAwaitingFirstToken ? (
-        <div
-          className="conversation-thinking-wrapper is-open"
-          data-testid="conversation-activity"
-        >
+        <div className="conversation-thinking-wrapper is-open" data-testid="conversation-activity">
           <div
             className="turn-work-details-summary conversation-thinking-summary"
             data-activity-id="thinking"
@@ -207,13 +225,13 @@ export function ConversationResponseContent(props: {
             className="turn-work-details-summary conversation-thinking-summary"
             data-activity-id="thinking"
             data-activity-animation={getBehaviorActivitySpec('thinking').animation}
-            data-tool-status={isThinkingActive ? 'running' : 'done'}
+            data-tool-status={thinkingStreaming ? 'running' : 'done'}
             aria-label={locale === 'zh-CN' ? '思考过程' : 'Thoughts'}
             aria-expanded={thinkingOpen}
             data-testid="conversation-thinking-summary"
             onClick={() => setThinkingIntent(thinkingOpen ? 'user-closed' : 'user-open')}
           >
-            {isThinkingActive ? (
+            {thinkingStreaming ? (
               <span
                 className="turn-summary-active-animation"
                 data-testid="conversation-thinking-active-animation"
@@ -229,7 +247,7 @@ export function ConversationResponseContent(props: {
               <IconBrain className="turn-summary-brain-icon" />
             )}
             <span className={`turn-work-details-label ${thinkingLabelClass}`}>
-              {isThinkingActive
+              {thinkingStreaming
                 ? runtimeStatusText('thinking', locale)
                 : presentation.thoughtSeconds !== undefined
                   ? locale === 'zh-CN'
@@ -249,7 +267,7 @@ export function ConversationResponseContent(props: {
           {thinkingOpen ? (
             <div className="turn-work-details-body conversation-thinking-body">
               <div
-                className={`turn-thinking${isThinkingActive ? ' is-streaming' : ''}`}
+                className={`turn-thinking${thinkingStreaming ? ' is-streaming' : ''}`}
                 data-testid="conversation-thinking"
               >
                 <pre>{message.thinking}</pre>
@@ -259,7 +277,7 @@ export function ConversationResponseContent(props: {
         </div>
       ) : null}
 
-      {message.text.trim().length > 0 ? (
+      {message.text.trim().length > 0 && !processCaption ? (
         <MarkdownView
           text={message.text}
           renderingPhase={resolveAssistantRenderingPhase(
@@ -288,6 +306,20 @@ export function ConversationResponseContent(props: {
             : {})}
           {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
           {...(props.projectPath ? { projectPath: props.projectPath } : {})}
+        />
+      ) : null}
+
+      {conversationTools.length > 0 ? (
+        <TurnToolGroup
+          tools={conversationTools}
+          density={props.toolDensity ?? 'compact'}
+          locale={locale}
+          {...(props.modelOptions !== undefined ? { modelOptions: props.modelOptions } : {})}
+          {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
+          {...(props.toolDiffRequest !== undefined ? { request: props.toolDiffRequest } : {})}
+          {...(props.onOpenFile !== undefined ? { onOpenFile: props.onOpenFile } : {})}
+          {...(props.onOpenDiff !== undefined ? { onOpenDiff: props.onOpenDiff } : {})}
+          {...(props.onOpenDocument !== undefined ? { onOpenDocument: props.onOpenDocument } : {})}
         />
       ) : null}
 

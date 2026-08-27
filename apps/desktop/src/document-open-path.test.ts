@@ -1,11 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildDocumentUnavailableStub,
+  isBareExtensionPath,
   isPathInsideProjectRoot,
   localPreviewPathForPlan,
   planDocumentOpenPath,
 } from './document-open-path';
 import { isPiwinMediaPath, isRemoteMediaAssetRef, mediaKindForPath } from './media-path';
+
+describe('isBareExtensionPath', () => {
+  it('treats extension mentions as not real files', () => {
+    expect(isBareExtensionPath('.svg')).toBe(true);
+    expect(isBareExtensionPath('.html')).toBe(true);
+    expect(isBareExtensionPath('pelican.svg')).toBe(false);
+    expect(isBareExtensionPath('/tmp/a.svg')).toBe(false);
+  });
+});
 
 describe('isPathInsideProjectRoot', () => {
   it('accepts the root and nested paths', () => {

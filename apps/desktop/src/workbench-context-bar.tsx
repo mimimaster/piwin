@@ -6,9 +6,9 @@
 import type { ReactElement } from 'react';
 import type {
   PermissionPreset,
-  ProductSessionLineageView,
   ProductSessionOrigin,
   ProjectRecord,
+  TranscriptBranchPoint,
 } from '@piwin/contracts';
 import { ContextBar } from './context-bar';
 import type { ChatUiState } from './chat-reducer';
@@ -16,7 +16,7 @@ import { getDesktopCopy, type DesktopLocale } from './desktop-locale';
 import { projectLabel } from './project-display-name';
 import type { RightPanelTab } from './right-panel';
 import type { RunStatusView } from './run-status';
-import { SessionLineageHeaderPopover } from './session-lineage-popover';
+import { ConversationTreeHeaderPopover } from './conversation-tree-popover';
 import type { ShellSettingsSection } from './shell-navigation';
 import {
   resolveWorkbenchScopeLabel,
@@ -37,7 +37,9 @@ export type WorkbenchContextBarProps = {
   recentProjects: readonly ProjectRecord[];
   activeSessionName: string;
   activeSessionOrigin: ProductSessionOrigin | null;
-  sessionLineage: ProductSessionLineageView | null;
+  branchPoints: readonly TranscriptBranchPoint[];
+  streaming?: boolean;
+  onSwitchBranch: (headMessageId: string) => void;
   runStatus: RunStatusView;
   lastUserMessage: { id: string; text: string } | null;
   effectiveRunMode: PermissionPreset;
@@ -62,7 +64,9 @@ export function WorkbenchContextBar(props: WorkbenchContextBarProps): ReactEleme
     recentProjects,
     activeSessionName,
     activeSessionOrigin,
-    sessionLineage,
+    branchPoints,
+    streaming,
+    onSwitchBranch,
     runStatus,
     lastUserMessage,
     effectiveRunMode,
@@ -102,12 +106,10 @@ export function WorkbenchContextBar(props: WorkbenchContextBarProps): ReactEleme
       {...(activeSessionId
         ? {
             sessionTreeControl: (
-              <SessionLineageHeaderPopover
-                lineage={sessionLineage}
-                activeSessionId={activeSessionId}
-                activeSessionName={activeSessionName}
-                activeSessionArchived={state.activeSessionArchived}
-                onOpenSession={(sessionId) => void onResumeSession(sessionId)}
+              <ConversationTreeHeaderPopover
+                branchPoints={branchPoints}
+                disabled={streaming === true}
+                onSwitch={onSwitchBranch}
                 locale={locale}
               />
             ),

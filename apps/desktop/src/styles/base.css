@@ -129,8 +129,6 @@ html.is-theme-switching *::after {
   .tool-call-card,
   .msg-row.is-new,
   .context-bar-phase-dot.is-running,
-  .status-bar-agent.state-running .status-bar-dot,
-  .status-bar,
   .image-generation-progress-art::before,
   .image-generation-progress-art::after,
   .image-generation-progress-spark,

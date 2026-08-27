@@ -19,7 +19,7 @@ import { findEnabledProvider, resolveDefaultModelRef } from './provider-helpers.
 import { buildProviderRequestHeaders } from './provider-model-discovery.js';
 
 export const DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT =
-  'Describe this image in detail for a coding agent. Include text in the image verbatim.';
+  'Describe this image factually for a coding agent. Transcribe visible text, code, logs, and error messages verbatim, and summarize key UI layout or diagram relationships.';
 
 export const DEFAULT_VISION_DELEGATION_TIMEOUT_MS = 30_000;
 

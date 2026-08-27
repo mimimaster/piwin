@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-07-19; amended 2026-08-24)
+Accepted (2026-07-19; amended 2026-08-24; amended 2026-08-26)
 
 ## Context
 
@@ -21,13 +21,17 @@ Need Claude-like artifacts and Codex-like image UX without unsafe ad-hoc iframes
    - **Streaming Inline:** compatible explicit and native HTML/SVG fences auto
      stream-preview from the first recognizable fence (no source flash).
      Ordinary code and Mermaid stay source.
-     Canvas fences stay source until completion.
+     Canvas fences stay source in the transcript until completion; the right
+     Canvas panel stream-previews from the first parseable `surface="canvas"`
+     fence on a live message.
    - **Completed Inline:** compatible inert flow may render in a sanitized
      Shadow DOM; sandboxed content uses one height stream. Native and explicit
      HTML/SVG use the same default Inline path. `artifactCodeFirst` is
      Inline-only and is the source-first preference.
-   - **Canvas:** `surface="canvas"` auto-opens once on live completion when
-     capability is on. Hydrated history does not rearrange the shell.
+   - **Canvas:** `surface="canvas"` auto-opens the right panel as soon as the
+     live opening fence is parseable when capability is on. Transcript stays
+     source; the panel uses stream-preview then commits on completion.
+     Hydrated history does not rearrange the shell.
    - **Overflow:** 16,384 px is a defensive ceiling that enters
      `inline-overflow` (host-owned viewport + hint). Content is not silently
      cropped.
@@ -98,6 +102,16 @@ This amendment supersedes the source-only streaming clauses in the 2026-07-25,
 - Stream source is sanitized before rendering: scripts and unsafe embeds are
   removed, unfinished tags are withheld, and an unfinished `<style>` block is
   not applied.
+- A prefix is visually streamable only at a completed element boundary. Class-
+  driven markup without a completed stylesheet foundation stays behind a
+  host-owned preparing state; `canStream: false` is not rendered as raw HTML.
+  The model runtime contract requires complete `<style>` blocks before visible
+  markup and completed logical siblings in emission order.
+- If a late stylesheet unlocks a large buffered scene despite that contract,
+  preview-only materialization hoists the completed fragment stylesheet and
+  replays at most eight structurally closed prefixes. This bounded fallback
+  preserves one iframe and stable DOM growth; it never executes scripts or
+  slices characters.
 - The iframe document is stable for the whole streaming phase. Sanitized token
   snapshots reconcile its DOM in place at most once per 300ms and report the
   resulting stream height.

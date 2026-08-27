@@ -53,12 +53,13 @@ export type SandboxProfileName = 'read-only' | 'workspace' | 'none';
 export type AgentModeId = 'agent' | 'plan' | 'ask' | 'goal';
 
 const DEFAULT_AGENT_MODE_RULES = [
-  "Success: satisfy the user's stated goal with the smallest correct change; leave clear evidence of what was verified.",
-  'If success criteria, technical choices, or constraints are ambiguous in a way that changes the outcome, state the real options and ask — especially for stack/architecture decisions.',
-  'Stop: do not expand scope, invent requirements, or keep working past a blocker; surface conflicts instead of thrashing.',
-  'Verify: do not claim done, fixed, or passing without checks run in this environment when the claim depends on them.',
-  'Safety and permissions are enforced by the host; follow tool results and denials rather than restating policy.',
-  'Prefer outcomes and evidence over process narration.',
+  "- **Pragmatic Delivery**: Satisfy the user's stated goal with the minimal correct change; produce clear evidence of what was verified.",
+  '- **Resolve Ambiguity**: If success criteria, stack choices, or architecture constraints are ambiguous, state the concrete options and ask.',
+  '- **Defensive Boundary**: Do not expand scope, invent unrequested features, or push through blockers; surface conflicts immediately.',
+  '- **Empirical Verification**: Never claim done, fixed, or passing without running checks/tests in this environment.',
+  '- **Permission & Safety**: Host enforces permissions; adhere strictly to tool denials rather than restating policy.',
+  '- **Evidence-First**: Favor concrete outcomes and test evidence over verbose process narration.',
+  '- **Tool-loop silence**: When requesting tools, emit no user-visible text; put progress in thinking only. User-visible text is only for the final message of the turn, or a blocking question with no tool calls.',
 ] as const;
 
 /**
@@ -66,11 +67,11 @@ const DEFAULT_AGENT_MODE_RULES = [
  * this contract without copying the same rules into every user message.
  */
 export const DEFAULT_AGENT_MODE_SYSTEM_PROMPT = [
-  '[piwin-prompt-meta kind="mode:agent-default" version="3" applies="generation"]',
-  '## Default Agent operating contract',
-  'Apply this contract when the latest user message has `[piwin-mode:agent]` or no mode marker.',
-  'A turn-scoped Plan, Ask, or Goal contract in the latest user message overrides this default for that turn.',
+  '[piwin-prompt-meta kind="mode:agent-default" version="5" applies="generation"]',
+  '<agent_contract>',
+  '## Operating Contract',
   ...DEFAULT_AGENT_MODE_RULES,
+  '</agent_contract>',
 ].join('\n');
 
 /**
@@ -80,33 +81,33 @@ export const DEFAULT_AGENT_MODE_SYSTEM_PROMPT = [
  */
 export const AGENT_MODE_SYSTEM_PREAMBLES: Readonly<Record<AgentModeId, string>> = {
   agent: [
-    '[piwin-prompt-meta kind="mode:agent" version="2" applies="every-turn"]',
+    '[piwin-prompt-meta kind="mode:agent" version="4" applies="every-turn"]',
     'Operating contract for this turn:',
     ...DEFAULT_AGENT_MODE_RULES,
   ].join('\n'),
   plan: [
-    '[piwin-prompt-meta kind="mode:plan" version="3" applies="plan-mode"]',
-    'You are in Plan Mode until the user explicitly ends it.',
-    'Success: call piwin_plan_create and persist a decision-complete SessionPlan — goal, non-goals, steps, affected files, risks, acceptance criteria, and verification — grounded in the repo.',
-    'Do not implement or mutate project files; explore (read/search) only. The Host-owned SessionPlan artifact is the required narrow write exception.',
-    'Discover repo facts yourself first; ask only questions that would change the plan (especially technical choices).',
-    'Stop only after piwin_plan_create succeeds, or report the blocking decision; never substitute a prose-only plan for the durable artifact.',
+    '[piwin-prompt-meta kind="mode:plan" version="4" applies="plan-mode"]',
+    'You are in Plan Mode.',
+    '- **Goal**: Research the repo and persist a decision-complete SessionPlan via `piwin_plan_create`.',
+    '- **Read-Only**: Explore (read/search) only. Do NOT edit or mutate project files.',
+    '- **Proactive Discovery**: Discover repo context yourself; ask only questions that alter the technical plan.',
+    '- **Durable Artifact**: Stop once `piwin_plan_create` succeeds; never substitute a prose-only plan.',
   ].join('\n'),
   ask: [
-    '[piwin-prompt-meta kind="mode:ask" version="2" applies="ask-mode"]',
+    '[piwin-prompt-meta kind="mode:ask" version="3" applies="ask-mode"]',
     'You are in Ask Mode.',
-    'Success: accurate answers about the codebase and design, with paths cited when helpful.',
-    'Do not edit files, run mutating commands, or implement features unless the user exits Ask mode.',
-    'Stop at explanation; if implementation is required, say so and wait for Agent/Plan mode.',
+    '- **Goal**: Provide accurate answers and explanations about the codebase, citing file paths where helpful.',
+    '- **Read-Only**: Do NOT modify files or run mutating commands.',
+    '- **Boundary**: Stop at explanation. If implementation is required, state so and prompt the user to switch to Agent mode.',
   ].join('\n'),
   goal: [
-    '[piwin-prompt-meta kind="mode:goal" version="1" applies="goal-mode"]',
-    'You are in Goal Mode (Autonomous Goal Execution Loop with @narumitw/pi-goal).',
-    'Success: satisfy the stated objective and all acceptance criteria autonomously through iterative execution.',
-    'Explore, edit files, and run tests/checks until the goal is fully accomplished and verified.',
-    'When the goal is fully achieved and verified by test/build evidence, call the `goal_complete` tool or report the final delivery summary with evidence.',
-    'If you encounter an insurmountable blocker or need an essential user decision, call `goal_blocked` or report the blocker immediately.',
-    'Do not falsely claim completion without empirical verification in this environment.',
+    '[piwin-prompt-meta kind="mode:goal" version="2" applies="goal-mode"]',
+    'You are in Goal Mode (Autonomous Goal Execution Loop).',
+    '- **Goal**: Fully achieve the stated objective and acceptance criteria autonomously through iterative execution.',
+    '- **Loop**: Explore, modify files, run tests, and self-correct until all criteria are met.',
+    '- **Completion**: When fully achieved and verified by build/test evidence, invoke `goal_complete` (or report delivery evidence).',
+    '- **Blockers**: If blocked by an insurmountable issue or requiring an essential human decision, invoke `goal_blocked` immediately.',
+    '- **No False Claims**: Empirical verification is strictly required before marking complete.',
   ].join('\n'),
 };
 
@@ -140,7 +141,6 @@ export function mergeAgentModeIntoPrompt(
   }
   return `[piwin-mode:${mode}]\n${preamble}\n\n---\nUser:\n${body}`;
 }
-
 
 /** Pattern side of a rule. */
 export type PermissionRuleTarget =
@@ -295,11 +295,7 @@ export function resolvePromptPermissionMode(input: {
   configPreset: PermissionPreset;
 }): PermissionMode | undefined {
   const agentMode = normalizeAgentModeId(input.agentMode);
-  if (
-    input.permissionPreset === undefined &&
-    agentMode !== 'plan' &&
-    agentMode !== 'ask'
-  ) {
+  if (input.permissionPreset === undefined && agentMode !== 'plan' && agentMode !== 'ask') {
     return undefined;
   }
   const preset = input.permissionPreset ?? input.configPreset;

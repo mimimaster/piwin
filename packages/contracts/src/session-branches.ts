@@ -19,6 +19,10 @@ export type TranscriptBranchSibling = {
   headMessageId: string;
   /** Bounded preview of the head message text. */
   preview: string;
+  /** Bounded preview of the direct assistant reply to the fork prompt, if any. */
+  responsePreview?: string | undefined;
+  /** Status of the direct reply / first assistant response (e.g. done, error, interrupted). */
+  responseStatus?: 'done' | 'error' | 'streaming' | 'interrupted' | undefined;
   /** Bounded preview of the deepest message of the branch. */
   leafPreview: string;
   /** Rows in the branch subtree. */
@@ -38,6 +42,8 @@ export type TranscriptBranchSibling = {
 export type TranscriptBranchPoint = {
   /** Shared parent of the sibling heads; null when the fork is at the root. */
   anchorMessageId: string | null;
+  /** Shared prompt text if the anchor or sibling head is a user prompt. */
+  promptPreview?: string | undefined;
   /** Index of the active branch within `siblings` (sequence order). */
   activeIndex: number;
   siblings: TranscriptBranchSibling[];

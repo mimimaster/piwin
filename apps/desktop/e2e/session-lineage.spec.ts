@@ -19,34 +19,27 @@ async function openSession(page: Page): Promise<void> {
   await expect(page.getByTestId('context-session-tree-btn')).toBeVisible();
 }
 
-test.describe('product session tree', () => {
-  test('keeps a persistent entry and navigates newly created branches', async ({ page }) => {
+test.describe('session tree and Fork Chat', () => {
+  test('header tree stays in-session; Fork Chat creates a numbered sibling session', async ({
+    page,
+  }) => {
     await page.goto('/');
     await waitForHostReady(page);
     await openSession(page);
 
     const headerEntry = page.getByTestId('context-session-tree-btn');
     await expect(headerEntry).toHaveAttribute('data-has-branches', 'false');
-    await expect(headerEntry).toContainText('1');
+    await expect(headerEntry).toContainText('0');
 
     await headerEntry.click();
-    await expect(page.getByTestId('session-lineage-empty')).toBeVisible();
-    await expect(page.getByTestId('session-lineage-popover')).toContainText(
-      /1 个会话 · 0 个分支|1 sessions · 0 branches/,
-    );
+    await expect(page.getByTestId('branch-points-empty')).toBeVisible();
+    await expect(page.getByTestId('session-tree-popover')).toContainText(/0 个分岔|0 branches/);
+    await expect(page.getByTestId('session-tree-popover')).not.toContainText(/Fork Chat|分叉会话/);
 
     await headerEntry.click();
     await page.getByTestId('response-fork-btn').click();
     await expect(page.getByTestId('session-item')).toHaveCount(2);
-    await expect(headerEntry).toHaveAttribute('data-has-branches', 'true');
-    await expect(headerEntry).toContainText('2');
-
-    await headerEntry.click();
-    const treeItems = page.getByRole('treeitem');
-    await expect(treeItems).toHaveCount(2);
-    await expect(treeItems.last()).toContainText(/从此处分叉|Forked from/);
-
-    await treeItems.first().click();
-    await expect(page.getByTestId('context-bar-origin-badge')).toHaveCount(0);
+    await expect(page.getByTestId('session-item').filter({ hasText: '(1) ' })).toHaveCount(1);
+    await expect(headerEntry).toHaveAttribute('data-has-branches', 'false');
   });
 });

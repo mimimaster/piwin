@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, type RefObject } from 'react';
 import {
   ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
+  buildStableArtifactRevealFrames,
   parseArtifactRenderSnapshot,
   type ArtifactDescriptor,
   type ArtifactFrameMode,
@@ -16,6 +17,9 @@ export type ArtifactSandboxView = {
 };
 
 const ARTIFACT_STREAM_RENDER_THROTTLE_MS = 300;
+const ARTIFACT_STABLE_REPLAY_INTERVAL_MS = 140;
+const ARTIFACT_STABLE_REPLAY_MIN_BYTES = 4_096;
+const ARTIFACT_STABLE_REPLAY_MAX_FRAMES = 8;
 
 export type ArtifactDocument = {
   documentKey: string;
@@ -100,17 +104,24 @@ function postStreamSnapshot(
   return true;
 }
 
-/** Push stream DOM at most every 300ms; final source commits immediately. FrameMode posts unthrottled. */
+/**
+ * Push native stream DOM at most every 300ms. If a late stylesheet unlocks a
+ * previously withheld large scene, replay a bounded set of closed structural
+ * prefixes before committing the latest/final source. FrameMode stays urgent.
+ */
 export function useArtifactStreamPublisher(input: StreamPublisherInput): StreamPublisher {
   const latestRef = useRef(input);
   latestRef.current = input;
   const postedOnceRef = useRef(false);
   const lastPostAtRef = useRef(0);
   const lastFinalSourceRef = useRef<string | undefined>(undefined);
+  const lastPostedSourceRef = useRef<string | undefined>(undefined);
   const lastPostedFrameModeRef = useRef<ArtifactFrameMode | undefined>(undefined);
   const pendingSourceRef = useRef<string | undefined>(undefined);
   const revisionRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const replayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const replayActiveRef = useRef(false);
 
   const clearTimer = useCallback((): void => {
     if (timerRef.current) {
@@ -119,41 +130,120 @@ export function useArtifactStreamPublisher(input: StreamPublisherInput): StreamP
     }
   }, []);
 
-  const postCurrent = useCallback((force = false): void => {
-    const current = latestRef.current;
-    if (!current.enabled) {
-      return;
+  const clearReplayTimer = useCallback((): void => {
+    if (replayTimerRef.current) {
+      clearTimeout(replayTimerRef.current);
+      replayTimerRef.current = null;
     }
-    const final = current.decision.mode !== 'stream-preview';
-    const source = current.decision.renderSource;
-    const frameMode = current.frameMode;
-    const frameModeChanged = lastPostedFrameModeRef.current !== frameMode;
-    if (!current.streamLifecycle) {
-      if (!frameModeChanged) {
-        return;
+    replayActiveRef.current = false;
+  }, []);
+
+  const postSnapshot = useCallback(
+    (source: string, frameMode: ArtifactFrameMode, final: boolean): boolean => {
+      const current = latestRef.current;
+      if (
+        !current.enabled ||
+        !postStreamSnapshot(
+          current.iframeRef.current,
+          current.channelId,
+          revisionRef.current,
+          source,
+          frameMode,
+          final,
+        )
+      ) {
+        return false;
       }
-    } else if (!force && final && lastFinalSourceRef.current === source && !frameModeChanged) {
-      return;
-    }
-    if (
-      postStreamSnapshot(
-        current.iframeRef.current,
-        current.channelId,
-        revisionRef.current,
-        source,
-        frameMode,
-        final,
-      )
-    ) {
       revisionRef.current += 1;
       postedOnceRef.current = true;
       lastPostAtRef.current = Date.now();
+      lastPostedSourceRef.current = source;
       lastPostedFrameModeRef.current = frameMode;
       if (final) {
         lastFinalSourceRef.current = source;
       }
-    }
-  }, []);
+      return true;
+    },
+    [],
+  );
+
+  const startStableReplay = useCallback(
+    (frames: readonly string[]): void => {
+      clearReplayTimer();
+      replayActiveRef.current = true;
+      let frameIndex = 0;
+
+      const postNextFrame = (): void => {
+        const current = latestRef.current;
+        if (!current.enabled) {
+          clearReplayTimer();
+          return;
+        }
+        const frame = frames[frameIndex];
+        if (frame !== undefined && postSnapshot(frame, current.frameMode, false)) {
+          frameIndex += 1;
+        }
+        if (frameIndex < frames.length) {
+          replayTimerRef.current = setTimeout(postNextFrame, ARTIFACT_STABLE_REPLAY_INTERVAL_MS);
+          return;
+        }
+
+        replayTimerRef.current = null;
+        replayActiveRef.current = false;
+        const latest = latestRef.current;
+        const latestSource = latest.decision.renderSource;
+        const latestFinal = latest.decision.mode !== 'stream-preview';
+        if (latestSource !== lastPostedSourceRef.current || latestFinal) {
+          postSnapshot(latestSource, latest.frameMode, latestFinal);
+        }
+      };
+
+      postNextFrame();
+    },
+    [clearReplayTimer, postSnapshot],
+  );
+
+  const postCurrent = useCallback(
+    (force = false): void => {
+      const current = latestRef.current;
+      if (!current.enabled) {
+        return;
+      }
+      const final = current.decision.mode !== 'stream-preview';
+      const source = current.decision.renderSource;
+      const frameMode = current.frameMode;
+      const frameModeChanged = lastPostedFrameModeRef.current !== frameMode;
+      if (replayActiveRef.current) {
+        return;
+      }
+      if (!current.streamLifecycle) {
+        if (!frameModeChanged) {
+          return;
+        }
+      } else if (
+        !force &&
+        lastPostedSourceRef.current === source &&
+        !frameModeChanged &&
+        (!final || lastFinalSourceRef.current === source)
+      ) {
+        return;
+      }
+
+      if (
+        !final &&
+        lastPostedSourceRef.current === '' &&
+        source.length >= ARTIFACT_STABLE_REPLAY_MIN_BYTES
+      ) {
+        const frames = buildStableArtifactRevealFrames(source, ARTIFACT_STABLE_REPLAY_MAX_FRAMES);
+        if (frames.length > 1) {
+          startStableReplay(frames);
+          return;
+        }
+      }
+      postSnapshot(source, frameMode, final);
+    },
+    [postSnapshot, startStableReplay],
+  );
 
   useLayoutEffect(() => {
     if (!input.enabled) {
@@ -171,6 +261,12 @@ export function useArtifactStreamPublisher(input: StreamPublisherInput): StreamP
       return;
     }
     if (frameModeChanged) {
+      clearTimer();
+      pendingSourceRef.current = undefined;
+      postCurrent();
+      return;
+    }
+    if (lastPostedSourceRef.current === '' && input.decision.renderSource.length > 0) {
       clearTimer();
       pendingSourceRef.current = undefined;
       postCurrent();
@@ -206,7 +302,13 @@ export function useArtifactStreamPublisher(input: StreamPublisherInput): StreamP
     postCurrent,
   ]);
 
-  useEffect(() => clearTimer, [clearTimer]);
+  useEffect(
+    () => () => {
+      clearTimer();
+      clearReplayTimer();
+    },
+    [clearReplayTimer, clearTimer],
+  );
 
   const onIframeLoad = useCallback((): void => {
     clearTimer();

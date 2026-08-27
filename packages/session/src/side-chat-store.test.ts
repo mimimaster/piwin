@@ -64,7 +64,7 @@ describe('side-chat-context snapshot builder', () => {
     expect(snapshot.version).toBe(1);
     expect(snapshot.throughMessageId).toBe('msg-9');
     expect(snapshot.conversation.messageIds).toEqual(['msg-1', 'msg-9']);
-    expect(snapshot.conversation.formattedText).toContain('[piwin-side-chat-context]');
+    expect(snapshot.conversation.formattedText).toContain('<inherited_conversation');
     expect(snapshot.conversation.formattedText).toContain('Refactor the resolver');
     expect(snapshot.conversation.truncated).toBe(false);
   });
@@ -105,10 +105,10 @@ describe('side-chat-context snapshot builder', () => {
       messages: [makeMessage('msg-1', 'user', 'Context content')],
     });
     const block = formatSideChatContextBlock(snapshot);
-    expect(block).toContain('Side Chat discussion context');
+    expect(block).toContain('<side_chat_context');
     const merged = mergeSideChatContextIntoPrompt(block, 'Explain that approach');
-    expect(merged).toContain('[piwin-side-chat-context]');
-    expect(merged).toContain('Current side chat question');
+    expect(merged).toContain('<side_chat_context');
+    expect(merged).toContain('<inherited_conversation');
     expect(merged).toContain('Explain that approach');
   });
 });

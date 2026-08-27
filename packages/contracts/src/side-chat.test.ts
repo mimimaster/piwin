@@ -33,7 +33,7 @@ describe('side-chat contracts', () => {
       throughMessageId: 'msg-9',
       conversation: {
         messageIds: ['msg-1', 'msg-9'],
-        formattedText: '[piwin-side-chat-context]\nPrior main conversation…',
+        formattedText: '<inherited_conversation source="main_session">\nPrior main conversation…',
         truncated: false,
       },
       workspace: {
@@ -52,7 +52,7 @@ describe('side-chat contracts', () => {
     };
     const roundTripped = JSON.parse(JSON.stringify(snapshot)) as SideChatContextSnapshot;
     expect(roundTripped).toEqual(snapshot);
-    expect(roundTripped.conversation.formattedText).toContain('piwin-side-chat-context');
+    expect(roundTripped.conversation.formattedText).toContain('<inherited_conversation');
   });
 
   it('accepts every context ref discriminant', () => {

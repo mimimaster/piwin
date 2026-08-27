@@ -17,6 +17,18 @@
   line-height: 1.5;
 }
 
+/*
+ * Defense only. Live MarkdownView keeps isAnimating=false so Streamdown
+ * should not inject data-sd-animate. If a parent ever turns it on, do not
+ * let the package fade hide tokens at opacity 0.
+ */
+.markdown [data-sd-animate] {
+  animation: none !important;
+  opacity: 1 !important;
+  filter: none !important;
+  transform: none !important;
+}
+
 .markdown > * {
   max-width: 100%;
 }
@@ -30,8 +42,8 @@
 }
 
 /* Streaming caret: same ember signal as .stream-dot — it only exists while
-   the agent is producing tokens. */
-.markdown[style*='--streamdown-caret'] > :last-child::after {
+   the agent is producing tokens. Streamdown's package caret is not used. */
+.markdown.has-stream-caret > :last-child::after {
   display: inline-block;
   margin-left: 2px;
   color: var(--ember);

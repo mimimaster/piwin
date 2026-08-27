@@ -55,6 +55,7 @@ import type { DiffCardRequest } from './diff-card';
 import { AssistantResponseActions } from './assistant-response-actions';
 import { buildConversationTurnUsageChip } from './conversation-message-header';
 import { shouldHideConversationAssistantRow } from './conversation-turn-chrome';
+import { assistantTextIsProcess } from './assistant-text-role';
 import { UserMessageContent } from './conversation-user-message';
 import type { ModelOption } from './model-options';
 import { SystemMessageContent } from './system-message-content';
@@ -254,7 +255,7 @@ export const ChatMessageRow = memo(
       shouldHideConversationAssistantRow({
         message,
         isLastAssistantInTurn: props.isLastAssistantInTurn === true,
-        isActivelyStreaming: message.status === 'streaming',
+        isActivelyStreaming: props.streaming === true && message.status === 'streaming',
       })
     ) {
       return null;
@@ -293,6 +294,7 @@ export const ChatMessageRow = memo(
     }
 
     const isUserMessage = message.role === 'user';
+    const processCaption = assistantTextIsProcess(message);
     const rowClass = [
       'bubble',
       'chat-message-row',
@@ -304,9 +306,10 @@ export const ChatMessageRow = memo(
         ? 'is-turn-continuation'
         : '',
       message.role === 'assistant' &&
-      message.text.trim().length === 0 &&
-      message.thinking.trim().length === 0 &&
-      message.tools.length > 0
+      (processCaption ||
+        (message.text.trim().length === 0 &&
+          message.thinking.trim().length === 0 &&
+          message.tools.length > 0))
         ? 'is-tool-only'
         : '',
       message.status === 'streaming' ? 'is-streaming' : '',
@@ -389,6 +392,9 @@ export const ChatMessageRow = memo(
               {...(props.livePromptModel !== undefined
                 ? { livePromptModel: props.livePromptModel }
                 : {})}
+              {...(props.isLatestAssistantResponse !== undefined
+                ? { isLatestAssistantResponse: props.isLatestAssistantResponse }
+                : {})}
               {...(props.modelOptions !== undefined ? { modelOptions: props.modelOptions } : {})}
               {...(props.configProviders !== undefined
                 ? { configProviders: props.configProviders }
@@ -401,7 +407,10 @@ export const ChatMessageRow = memo(
                   ? buildConversationTurnUsageChip(props.contextUsage, props.locale ?? 'zh-CN')
                   : null
               }
-              isStreaming={props.streaming}
+              // Explicit `false` must not wipe message-local streaming: `??`
+              // only falls through for null/undefined, so a global streaming
+              // clear used to drop livePromptModel and hide the provider avatar.
+              isStreaming={props.streaming === true && message.status === 'streaming'}
               artifactPreviewEnabled={props.artifactPreviewEnabled}
               {...(props.artifactMaxBytes !== undefined
                 ? { artifactMaxBytes: props.artifactMaxBytes }
@@ -412,6 +421,12 @@ export const ChatMessageRow = memo(
                 : {})}
               {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
               {...(props.projectPath ? { projectPath: props.projectPath } : {})}
+              toolDensity={props.toolDensity}
+              {...(props.toolDiffRequest !== undefined
+                ? { toolDiffRequest: props.toolDiffRequest }
+                : {})}
+              {...(props.onOpenFile ? { onOpenFile: props.onOpenFile } : {})}
+              {...(props.onOpenDiff ? { onOpenDiff: props.onOpenDiff } : {})}
             />
           ) : (
             <TurnWorkDetails
@@ -451,7 +466,7 @@ export const ChatMessageRow = memo(
               {...(props.locale ? { locale: props.locale } : {})}
               {...(props.modelOptions ? { modelOptions: props.modelOptions } : {})}
             >
-              {message.text.trim().length > 0 ? (
+              {message.text.trim().length > 0 && !processCaption ? (
                 <MarkdownView
                   text={message.text}
                   renderingPhase={resolveAssistantRenderingPhase(
@@ -618,8 +633,8 @@ export const ChatMessageRow = memo(
         ) : null}
         {message.role === 'assistant' &&
         message.status === 'done' &&
-        (props.isLastAssistantInTurn === true ||
-          (props.isConversationSession === true && Boolean(message.text?.trim()))) &&
+        props.isLastAssistantInTurn === true &&
+        !processCaption &&
         (props.onForkFromMessage ||
           message.text ||
           (props.isConversationSession === true &&

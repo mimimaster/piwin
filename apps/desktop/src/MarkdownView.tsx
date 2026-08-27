@@ -58,7 +58,7 @@ type MarkdownViewProps = {
   showStreamingCaret?: boolean;
   /**
    * When true, Inline artifact blocks display source first with a preview toggle.
-   * Code-first is Inline-only; explicit Canvas still auto-reveals on live complete.
+   * Code-first is Inline-only and does not suppress Canvas auto-reveal.
    */
   artifactCodeFirst?: boolean;
   /** Security byte cap forwarded to analyzeArtifactFence when heavy path runs. */
@@ -76,6 +76,18 @@ const STREAMDOWN_PLUGINS = {
   math: createMathPlugin({ singleDollarTextMath: true }),
 };
 const MARKDOWN_LINK_SAFETY = { enabled: false };
+/**
+ * Streamdown 2.5: `mode="streaming"` + `animated={false}` defers block
+ * updates with `startTransition` inside useEffect. WKWebView starves that
+ * transition under a steady Host cadence. Passing an animate *object* makes
+ * the internal `ge` flag truthy so those updates are urgent setState.
+ * `isAnimating` stays false: `ge && isAnimating` is what injects
+ * `data-sd-animate` word spans. Caret is CSS `.has-stream-caret` only.
+ */
+export const STREAMDOWN_IMMEDIATE_STREAMING = {
+  duration: 0,
+  stagger: 0,
+} as const;
 /**
  * Streamdown streaming mode parses each marked block separately, so
  * `node.position.start.offset` is block-relative (often 0). One document block
@@ -142,7 +154,7 @@ export function MarkdownView({
   onOpenDocument,
   projectPath = null,
 }: MarkdownViewProps): ReactElement {
-  const phase: MarkdownRenderingPhase = renderingPhase;
+  const phase: MarkdownRenderingPhase = renderingPhase ?? 'completed';
   const streamMode = phase === 'streaming';
 
   const streamdownHtmlUiMode = htmlUiModeEnabled ?? artifactPreviewEnabled;
@@ -169,8 +181,8 @@ export function MarkdownView({
     ? streamdownText.replace(/(?:\r?\n)+$/u, '')
     : streamdownText;
   // History can use Streamdown's cheaper static path. Once this mounted
-  // message has rendered live tokens, however, it must retain the keyed block
-  // tree through completion or custom code fences (and their iframes) unmount.
+  // message has rendered live tokens, it must retain the keyed block tree
+  // through completion or custom code fences (and their iframes) unmount.
   const usedStreamingRendererRef = useRef(streamMode);
   if (streamMode) {
     usedStreamingRendererRef.current = true;
@@ -221,16 +233,16 @@ export function MarkdownView({
 
   return (
     <Streamdown
-      className="markdown"
-      // Streamdown renders `static` and `streaming` through different React
-      // trees. A live message keeps its keyed block tree through completion;
-      // completion only turns off repair, animation state and the caret.
+      className={shouldShowStreamingCaret ? 'markdown has-stream-caret' : 'markdown'}
+      // Live tokens stay on Streamdown's streaming tree. `static` skips remend
+      // and re-parses a finished document on every delta. The animate object
+      // only disables startTransition; isAnimating stays false so word spans
+      // are never injected.
       mode={streamdownMode}
       parseMarkdownIntoBlocksFn={parseStreamdownAsSingleDocument}
       parseIncompleteMarkdown={streamMode}
-      isAnimating={streamMode}
-      animated={false}
-      {...(shouldShowStreamingCaret ? { caret: 'block' as const } : {})}
+      isAnimating={false}
+      animated={STREAMDOWN_IMMEDIATE_STREAMING}
       plugins={STREAMDOWN_PLUGINS}
       components={streamdownComponents}
       controls={false}

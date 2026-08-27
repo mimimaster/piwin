@@ -215,6 +215,43 @@ describe('extractContentFieldFromInputPreview', () => {
 });
 
 describe('resolveDocumentContentFromMessages', () => {
+  it('recovers an inline SVG fence when the clicked chip is just .svg', () => {
+    const svg = '<svg viewBox="0 0 100 60"><circle cx="50" cy="30" r="20" /></svg>';
+    const resolved = resolveDocumentContentFromMessages({
+      title: '.svg',
+      path: '.svg',
+      messages: [
+        {
+          text: [
+            '2D 鹈鹕 SVG 生成',
+            '',
+            '```svg',
+            svg,
+            '```',
+            '',
+            '你可以直接将这段 SVG 保存为 `.svg` 文件在浏览器中打开查看。',
+          ].join('\n'),
+        },
+      ],
+    });
+    expect(resolved).toBe(svg);
+  });
+
+  it('recovers an artifact-html fence for a .html chip', () => {
+    const html = '<section class="card"><h1>Hello</h1></section>';
+    const resolved = resolveDocumentContentFromMessages({
+      title: '.html',
+      path: '.html',
+      messages: [
+        {
+          text: `\`\`\`artifact-html title="Card"\n${html}\n\`\`\`\n保存为 \`.html\``,
+        },
+      ],
+    });
+    expect(resolved).toBe(html);
+  });
+
+
   it('reproduces the half-cut regression and returns the full plan', () => {
     const messages = [
       {

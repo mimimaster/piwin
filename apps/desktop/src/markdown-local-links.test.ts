@@ -66,4 +66,9 @@ describe('isLocalPathChipCandidate', () => {
     expect(isLocalPathChipCandidate('/Users/me/a.md')).toBe(true);
     expect(isLocalPathChipCandidate('https://example.com/a.zip')).toBe(false);
   });
+
+  it('keeps a `.svg` / `.html` mention clickable so Chat can open the generated markup', () => {
+    expect(isLocalPathChipCandidate('.svg')).toBe(true);
+    expect(isLocalPathChipCandidate('.html')).toBe(true);
+  });
 });

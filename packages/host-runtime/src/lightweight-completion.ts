@@ -19,7 +19,7 @@ const MAX_TITLE_TOKENS = 512;
 const TITLE_REQUEST_TIMEOUT_MS = 15_000;
 
 const TITLE_SYSTEM_PROMPT =
-  'Generate a concise, descriptive title (3-7 words) for this coding session from the user message and optional assistant reply. Return ONLY the title text, no quotes, no markdown, no trailing punctuation.';
+  'Generate a concise, action-oriented title (3-7 words, e.g. "Add OAuth Login", "修复 Redis 重连") from the session context. Match the user\'s language. Return ONLY the title text with no quotes, markdown, or trailing punctuation.';
 
 /**
  * Gate an LLM title before it is persisted. Rejects empty/punctuation-only

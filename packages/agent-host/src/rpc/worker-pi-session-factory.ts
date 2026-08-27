@@ -48,6 +48,10 @@ import { createPiwinSettingsManager } from '../pi-settings-manager.js';
 import { mapPiCompactionResult, type PiCompactionResult } from '../pi-compaction-result.js';
 import { buildPiSessionToolAllowlist } from '../pi-session-tool-allowlist.js';
 import {
+  readPiHttpIdleTimeoutMs,
+  runPiPromptWithProgressTimeout,
+} from '../pi-stream-progress-timeout.js';
+import {
   createRunInterventionStager,
   type PiRunInterventionSession,
 } from '../run-intervention-stager.js';
@@ -337,16 +341,18 @@ export function createWorkerPiSessionFactory(
     }
     await modelRuntime.refresh({ allowNetwork: false });
 
+    const settingsManager = createPiwinSettingsManager(
+      piModule,
+      blueprint.workingDirectory,
+      agentDir,
+    );
+    const streamProgressTimeoutMs = readPiHttpIdleTimeoutMs(settingsManager);
     const sessionOptions: Record<string, unknown> = {
       cwd: blueprint.workingDirectory,
       agentDir,
       resourceLoader,
       modelRuntime,
-      settingsManager: createPiwinSettingsManager(
-        piModule,
-        blueprint.workingDirectory,
-        agentDir,
-      ),
+      settingsManager,
     };
     if (input.seedMessages) {
       sessionOptions.sessionManager = createSeededPiSessionManager(
@@ -428,6 +434,7 @@ export function createWorkerPiSessionFactory(
       input.runtimeGenerationId,
       modelRuntime,
       providers,
+      streamProgressTimeoutMs,
     );
   };
 }
@@ -470,6 +477,7 @@ function adaptPiSessionForWorker(
   runtimeGenerationId: string,
   modelRuntime: PiModelRuntime,
   providers: SerializableWorkerProviderRuntime[] | undefined,
+  streamProgressTimeoutMs: number,
 ): WorkerPiSessionLike {
   let activeRunId: string | undefined;
   const interventionStager = piSession.agent
@@ -506,7 +514,12 @@ function adaptPiSessionForWorker(
           mapThinkingLevelToPi(options.thinkingLevel as ThinkingLevel, protocol),
         );
       }
-      await piSession.prompt(text, options);
+      await runPiPromptWithProgressTimeout({
+        timeoutMs: streamProgressTimeoutMs,
+        prompt: () => piSession.prompt(text, options),
+        abort: () => piSession.abort?.() ?? Promise.resolve(),
+        subscribe: (listener) => piSession.subscribe(listener),
+      });
     },
     ...(piSession.steer ? { steer: (message) => piSession.steer!(message) } : {}),
     ...(piSession.followUp ? { followUp: (message) => piSession.followUp!(message) } : {}),

@@ -206,6 +206,65 @@ describe('useComposerMedia session transitions', () => {
     expect(latest().draftSessions).toEqual([]);
   });
 
+  it('keeps unsent text and images when a session switch passes through draft mode', () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const hostClient = { request: vi.fn() } as unknown as HostClient;
+    const dispatch = vi.fn();
+    let captured: ComposerMediaResult | undefined;
+
+    const latest = (): ComposerMediaResult => {
+      if (captured === undefined) {
+        throw new Error('composer media hook was not rendered');
+      }
+      return captured;
+    };
+
+    function Harness(props: { state: ChatUiState }): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: props.state,
+        dispatch,
+        agentMode: 'agent',
+      });
+      return null;
+    }
+
+    const sessionAState = {
+      ...createInitialChatUiState(),
+      activeSessionId: 'session-a',
+    };
+    const draftGapState = {
+      ...sessionAState,
+      activeSessionId: null,
+    };
+    const sessionBState = {
+      ...sessionAState,
+      activeSessionId: 'session-b',
+    };
+
+    act(() => root?.render(<Harness state={sessionAState} />));
+    act(() => latest().setComposer('unsent text for session A'));
+    pasteImage(latest);
+    expect(latest().pendingAttachments).toHaveLength(1);
+
+    // project/set and project/clear null activeSessionId before the next
+    // session/set. That gap must not drop the parked composer snapshot.
+    act(() => root?.render(<Harness state={draftGapState} />));
+    act(() => root?.render(<Harness state={sessionBState} />));
+    expect(latest().composer).toBe('');
+    expect(latest().pendingAttachments).toEqual([]);
+
+    act(() => root?.render(<Harness state={sessionAState} />));
+    expect(latest().composer).toBe('unsent text for session A');
+    expect(latest().pendingAttachments).toHaveLength(1);
+    expect(latest().pendingAttachments[0]?.attachment).toMatchObject({
+      kind: 'media',
+      name: 'screenshot.png',
+    });
+  });
+
   it('caps session composer snapshots and revokes evicted attachment blobs', () => {
     container = document.createElement('div');
     document.body.append(container);
@@ -326,6 +385,55 @@ describe('useComposerMedia session transitions', () => {
     beginSpy.mockRestore();
   });
 
+  it('inserts a selected New Agent draft row as soon as the composer has content', () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const hostClient = { request: vi.fn() } as unknown as HostClient;
+    let captured: ComposerMediaResult | undefined;
+
+    const latest = (): ComposerMediaResult => {
+      if (captured === undefined) {
+        throw new Error('composer media hook was not rendered');
+      }
+      return captured;
+    };
+
+    function Harness(props: { state: ChatUiState }): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: props.state,
+        dispatch: vi.fn(),
+        agentMode: 'agent',
+      });
+      return null;
+    }
+
+    const newAgentState = {
+      ...createInitialChatUiState(),
+      activeSessionId: null,
+    };
+    act(() => root?.render(<Harness state={newAgentState} />));
+    expect(latest().draftSessions).toEqual([]);
+
+    act(() => latest().setComposer('hello draft'));
+    expect(latest().draftSessions).toHaveLength(1);
+    expect(latest().draftSessions[0]?.text).toBe('hello draft');
+    expect(latest().draftSessions[0]?.scope).toEqual({ kind: 'general' });
+    expect(latest().activeDraftId).toBe(latest().draftSessions[0]?.id);
+
+    const draftId = latest().draftSessions[0]?.id;
+    act(() => latest().setComposer('hello draft changed'));
+    expect(latest().draftSessions).toHaveLength(1);
+    expect(latest().draftSessions[0]?.id).toBe(draftId);
+    expect(latest().draftSessions[0]?.text).toBe('hello draft changed');
+    expect(latest().activeDraftId).toBe(draftId);
+
+    act(() => latest().setComposer(''));
+    expect(latest().draftSessions).toEqual([]);
+    expect(latest().activeDraftId).toBeNull();
+  });
+
   it('uses a phantom sidebar row only for an unsent New Agent draft', () => {
     container = document.createElement('div');
     document.body.append(container);
@@ -371,6 +479,9 @@ describe('useComposerMedia session transitions', () => {
     expect(latest().draftSessions).toEqual([]);
 
     act(() => latest().setComposer('brand new agent draft'));
+    expect(latest().draftSessions).toHaveLength(1);
+    expect(latest().draftSessions[0]?.text).toBe('brand new agent draft');
+    expect(latest().activeDraftId).toBe(latest().draftSessions[0]?.id);
     act(() => root?.render(<Harness state={sessionState} />));
 
     expect(latest().composer).toBe('existing session draft');
@@ -396,6 +507,62 @@ describe('useComposerMedia session transitions', () => {
 
     act(() => root?.render(<Harness state={sessionState} />));
     expect(latest().composer).toBe('existing session draft');
+  });
+
+  it('resumes the parked New Agent draft for this scope when leaving a session', () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const hostClient = { request: vi.fn() } as unknown as HostClient;
+    const dispatch = vi.fn();
+    let captured: ComposerMediaResult | undefined;
+
+    const latest = (): ComposerMediaResult => {
+      if (captured === undefined) {
+        throw new Error('composer media hook was not rendered');
+      }
+      return captured;
+    };
+
+    function Harness(props: { state: ChatUiState }): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: props.state,
+        dispatch,
+        agentMode: 'agent',
+      });
+      return null;
+    }
+
+    const sessionState = {
+      ...createInitialChatUiState(),
+      activeSessionId: 'existing-session',
+    };
+    const newAgentState = {
+      ...sessionState,
+      activeSessionId: null,
+    };
+
+    act(() => root?.render(<Harness state={newAgentState} />));
+    act(() => latest().setComposer('unsent new agent prompt'));
+    pasteImage(latest);
+    expect(latest().draftSessions).toHaveLength(1);
+    expect(latest().activeDraftId).toBe(latest().draftSessions[0]?.id);
+
+    act(() => root?.render(<Harness state={sessionState} />));
+    expect(latest().composer).toBe('');
+    expect(latest().draftSessions).toHaveLength(1);
+
+    act(() => latest().startNewDraft());
+    act(() => root?.render(<Harness state={newAgentState} />));
+
+    expect(latest().composer).toBe('unsent new agent prompt');
+    expect(latest().pendingAttachments).toHaveLength(1);
+    expect(latest().pendingAttachments[0]?.attachment).toMatchObject({
+      kind: 'media',
+      name: 'screenshot.png',
+    });
+    expect(latest().draftSessions).toHaveLength(1);
   });
 
   it('parks the current New Agent text before starting another New Agent draft', () => {
@@ -431,6 +598,8 @@ describe('useComposerMedia session transitions', () => {
     };
     act(() => root?.render(<Harness state={newAgentState} />));
     act(() => latest().setComposer('first unsent New Agent draft'));
+    expect(latest().draftSessions).toHaveLength(1);
+    expect(latest().activeDraftId).toBe(latest().draftSessions[0]?.id);
 
     act(() => latest().startNewDraft());
 
@@ -442,6 +611,7 @@ describe('useComposerMedia session transitions', () => {
     const parkedDraftId = latest().draftSessions[0]?.id;
     expect(parkedDraftId).toBeDefined();
     act(() => latest().setComposer('second unsent New Agent draft'));
+    expect(latest().draftSessions).toHaveLength(2);
     act(() => latest().resumeDraft(parkedDraftId ?? 'missing-draft'));
 
     expect(latest().composer).toBe('first unsent New Agent draft');
@@ -497,6 +667,9 @@ describe('useComposerMedia session transitions', () => {
 
     expect(latest().pendingAttachments).toHaveLength(1);
     expect(latest().pendingAttachments[0]?.uploadStatus).toBe('queued');
+    expect(latest().draftSessions).toHaveLength(1);
+    expect(latest().draftSessions[0]?.name).toBe('screenshot.png');
+    expect(latest().activeDraftId).toBe(latest().draftSessions[0]?.id);
     expect(hostClient.request).not.toHaveBeenCalled();
     expect(ensureSession).not.toHaveBeenCalled();
 

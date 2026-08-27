@@ -83,6 +83,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     composer,
     setComposer,
     composerRef,
+    pendingAttachments,
     pendingAttachmentsRef,
     setPendingAttachments,
     pendingContextRefsRef,

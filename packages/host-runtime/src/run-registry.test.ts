@@ -271,7 +271,6 @@ describe('RunRegistry semantic AgentEvent publication', () => {
     expect(reg.getLastAgentError(run.runId)).toBe(
       '404: No endpoints available matching your guardrail',
     );
-    expect(reg.hasFirstToken(run.runId)).toBe(false);
   });
 
   it('ignores an explicitly mismatched Run ID without publishing', () => {

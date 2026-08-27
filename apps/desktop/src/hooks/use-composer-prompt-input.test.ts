@@ -53,4 +53,35 @@ describe('useComposerPromptInput permissionPreset', () => {
     expect(input.permissionPreset).toBeUndefined();
     expect(input.agentMode).toBeUndefined();
   });
+
+  it('resolves model from selectedModelKey when present', () => {
+    const input = readPromptInput({
+      selectedModelKey: 'openai::gpt-4o',
+      modelOptions: [
+        {
+          protocol: 'openai-compatible',
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+        },
+      ],
+    });
+    expect(input.model).toEqual({
+      protocol: 'openai-compatible',
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+    });
+  });
+
+  it('falls back to promptModel when selectedModelKey is empty or unset', () => {
+    const fallbackModel = {
+      protocol: 'openai-compatible' as const,
+      providerId: 'google',
+      modelId: 'gemini-3.7-flash',
+    };
+    const input = readPromptInput({
+      selectedModelKey: '',
+      promptModel: fallbackModel,
+    });
+    expect(input.model).toEqual(fallbackModel);
+  });
 });

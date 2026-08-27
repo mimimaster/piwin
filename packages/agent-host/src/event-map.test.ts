@@ -85,6 +85,38 @@ describe('mapPiSessionEvent', () => {
     });
   });
 
+  it('does not append a message_end thinking snapshot after live thinking_delta', () => {
+    const mapper = createPiSessionEventMapper();
+    const unwrap = (raw: unknown) => mapper.map(raw).map((wrapped) => wrapped.event);
+
+    unwrap({ type: 'message_start', messageId: 'm-live-think', role: 'assistant' });
+    unwrap({
+      type: 'message_update',
+      messageId: 'm-live-think',
+      assistantMessageEvent: { type: 'thinking_delta', delta: 'checking the provider' },
+    });
+    const ended = unwrap({
+      type: 'message_end',
+      messageId: 'm-live-think',
+      message: {
+        role: 'assistant',
+        content: [
+          { type: 'thinking', thinking: 'checking the provider' },
+          { type: 'text', text: 'Done.' },
+        ],
+      },
+    });
+
+    expect(ended.filter((event) => event.type === 'message/thinking_delta')).toEqual([]);
+    expect(ended).toEqual(
+      expect.arrayContaining([
+        { type: 'message/start', messageId: 'm-live-think', role: 'assistant' },
+        { type: 'message/text_snapshot', messageId: 'm-live-think', text: 'Done.' },
+        { type: 'message/end', messageId: 'm-live-think' },
+      ]),
+    );
+  });
+
   it('surfaces an error event when the assistant message ends with stopReason error', () => {
     // Provider rejections (e.g. instant 400) arrive as stopReason:'error' on
     // the recorded message, not as a standalone Pi error event.

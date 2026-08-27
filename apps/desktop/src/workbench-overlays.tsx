@@ -2,7 +2,7 @@
  * Modal stack + settings overlay of the desktop workbench (extracted from App).
  * Host commands stay with App; this file owns dialog/settings chrome.
  */
-import type { Dispatch, ReactElement, SetStateAction } from 'react';
+import { useEffect, type Dispatch, type ReactElement, type SetStateAction } from 'react';
 import type { PetPanelProps } from './PetPanel';
 import type {
   HostStatusData,
@@ -10,6 +10,7 @@ import type {
   PermissionRememberScope,
   PiwinConfig,
   ProjectRecord,
+  SessionScope,
   SessionStorageInfo,
   ThemeManifest,
   WorkspaceWrites,
@@ -17,13 +18,15 @@ import type {
 import { AppDialogs } from './app-dialogs';
 import { BranchSwitchConfirmDialog } from './branch-switch-confirm-dialog';
 import { CommandPalette } from './command-palette';
-import type { ChatUiState } from './chat-reducer';
+import type { ChatUiState, SessionListItemUi } from './chat-reducer';
 import type { DesktopCommandId } from './desktop-commands';
 import type { DesktopLocale } from './desktop-locale';
 import {
   DeferredSettingsPanel,
   DeferredSurfaceBoundary,
+  prefetchSettingsPanel,
 } from './deferred-desktop-surfaces';
+import { scheduleIdleTask } from './schedule-idle-task';
 import type { HostClient } from './host-client';
 import type { HostRequestAdapters } from './host-request-adapters';
 import {
@@ -34,6 +37,7 @@ import {
 import { isRemoteDesktopTransport } from './remote-session-hydrate';
 import { collectSessionsForLookup } from './session-list-lookup';
 import { SessionColdRestoreDialog } from './session-cold-restore-dialog';
+import { SessionSearchDialog } from './session-search-dialog';
 import type { SessionRowMenuAction } from './session-row-menu';
 import type { SettingsSectionId } from './settings/section-registry';
 import { TruncateAfterDialog } from './truncate-after-dialog';
@@ -76,6 +80,13 @@ export type WorkbenchOverlaysProps = {
   ) => void;
   onContinueSessionInProject: (sessionId: string, projectPath: string) => Promise<boolean>;
   recentProjects: readonly ProjectRecord[];
+  sessionSearchOpen: boolean;
+  onSessionSearchOpenChange: (open: boolean) => void;
+  sessionSearch: string;
+  onSessionSearchChange: (query: string) => void;
+  filteredSessions: readonly SessionListItemUi[];
+  filteredGeneralSessions: readonly SessionListItemUi[];
+  onOpenSession: (sessionId: string, context: { scope: SessionScope }) => void | Promise<void>;
   commandPaletteOpen: boolean;
   setCommandPaletteOpen: (open: boolean) => void;
   onRunCommand: (commandId: DesktopCommandId) => void;
@@ -119,6 +130,11 @@ export type WorkbenchSettingsOverlayProps = {
 };
 
 export function WorkbenchOverlays(props: WorkbenchOverlaysProps): ReactElement {
+  useEffect(() => {
+    return scheduleIdleTask(() => {
+      void prefetchSettingsPanel();
+    });
+  }, []);
   const sessions = collectSessionsForLookup({
     sessions: props.state.sessions,
     generalSessions: props.state.generalSessions,
@@ -163,10 +179,15 @@ export function WorkbenchOverlays(props: WorkbenchOverlaysProps): ReactElement {
             },
           });
         }}
-        {...(props.hostClient.supportsCommand('session/export') ? {} : { sessionMenuCanExport: false })}
+        {...(props.hostClient.supportsCommand('session/export')
+          ? {}
+          : { sessionMenuCanExport: false })}
         {...(props.hostClient.supportsCommand('session/duplicate')
           ? {}
           : { sessionMenuCanDuplicate: false })}
+        {...(props.hostClient.supportsCommand('session/fork')
+          ? {}
+          : { sessionMenuCanForkChat: false })}
         {...(props.hostClient.supportsCommand('session/duplicate')
           ? {}
           : { sessionMenuCanContinueInProject: false })}
@@ -202,6 +223,21 @@ export function WorkbenchOverlays(props: WorkbenchOverlaysProps): ReactElement {
           props.runContinueInProject(projectPath, props.onContinueSessionInProject);
         }}
         onCancelContinueInProject={props.closeContinueInProject}
+      />
+
+      <SessionSearchDialog
+        open={props.sessionSearchOpen}
+        onOpenChange={props.onSessionSearchOpenChange}
+        query={props.sessionSearch}
+        onQueryChange={props.onSessionSearchChange}
+        primaryScope={props.state.activeScope}
+        primarySessions={props.filteredSessions}
+        generalSessions={props.filteredGeneralSessions}
+        recentProjects={props.recentProjects}
+        locale={props.locale}
+        onOpenSession={(sessionId, scope) => {
+          void props.onOpenSession(sessionId, { scope });
+        }}
       />
 
       <CommandPalette
@@ -244,14 +280,14 @@ export function WorkbenchOverlays(props: WorkbenchOverlaysProps): ReactElement {
   );
 }
 
-export function WorkbenchSettingsOverlay(props: WorkbenchSettingsOverlayProps): ReactElement | null {
+export function WorkbenchSettingsOverlay(
+  props: WorkbenchSettingsOverlayProps,
+): ReactElement | null {
   if (!props.settingsOpen) {
     return null;
   }
   return (
-    <DeferredSurfaceBoundary
-      label={props.locale === 'zh-CN' ? '正在加载设置' : 'Loading settings'}
-    >
+    <DeferredSurfaceBoundary label={props.locale === 'zh-CN' ? '正在加载设置' : 'Loading settings'}>
       <DeferredSettingsPanel
         hostStatus={props.hostStatus}
         hostClient={props.hostClient}

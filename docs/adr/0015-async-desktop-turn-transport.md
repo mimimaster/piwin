@@ -60,6 +60,10 @@ unnecessary and harmful.
    `cancelled` only after a terminal normalized event confirms the run has
    stopped. A timeout that cannot cancel the underlying work is reported as
    `failed` with a `model-turn-timeout` code, not as a silent success.
+   Host owns a 120s stream-idle watchdog (no text/thinking/tool/permission
+   progress) that uses this same abort path. `session/resume` with no
+   foreground run settles leftover `streaming` assistant rows so a missed
+   `message/end` cannot leave a durable zombie.
 
 7. **Late events from a superseded run are discarded.** The host and UI track
    the current `runId` per session. Events carrying an older `runId` are logged

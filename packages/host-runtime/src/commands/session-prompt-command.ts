@@ -580,46 +580,17 @@ export async function handleSessionPromptCommand(
             return;
           }
 
-          // Detect silent / failed completion: prompt() resolved without a
-          // streamed answer. Prefer the upstream provider error when Pi already
-          // emitted one (often via stopReason:'error'); only invent the generic
-          // empty-response copy when nothing upstream arrived.
-          const currentRun = context.getForegroundRun(command.sessionId);
-          if (currentRun && !context.hasRunReceivedFirstToken(run.runId)) {
-            const upstreamError = context.getRunLastAgentError(run.runId)?.trim();
-            const failureMessage =
-              upstreamError && upstreamError.length > 0
-                ? upstreamError
-                : 'The model produced no response. This may indicate an unavailable ' +
-                  'model, invalid API key, or provider error. Check your provider ' +
-                  'configuration and try again.';
-            const alreadySurfaced = Boolean(upstreamError && upstreamError.length > 0);
-            if (!alreadySurfaced) {
-              const errorEvent = {
-                type: 'error' as const,
-                message: failureMessage,
-                retriable: true,
-                runId: run.runId,
-              };
-              // Persist before terminalizing: push alone fans out to shells and
-              // does not write the transcript recorder.
-              const recorder = context.transcriptRecorders.get(command.sessionId);
-              if (recorder) {
-                await recorder.recordEvent(errorEvent).catch(() => undefined);
-                await recorder.flush().catch(() => undefined);
-              }
-              context.push({
-                type: 'event',
-                sessionId: command.sessionId,
-                event: errorEvent,
-              });
-            }
+          // Pi's native stop reason is the turn authority. The adapter maps
+          // stopReason:'error' to this normalized event; clean stop/length,
+          // including thinking-only stop, remain successful.
+          const upstreamError = context.getRunLastAgentError(run.runId)?.trim();
+          if (upstreamError) {
             await context.terminateRun(
               command.sessionId,
               run.runId,
               'failed',
               undefined,
-              failureMessage,
+              upstreamError,
             );
             return;
           }

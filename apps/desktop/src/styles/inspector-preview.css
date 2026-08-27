@@ -219,6 +219,16 @@
   line-height: var(--lh-relaxed);
 }
 
+.markup-preview {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  padding: var(--s-5);
+  overflow: auto;
+}
+
 /* ── Media document preview (ADR 0052) ──────────────────────────── */
 
 .media-doc-body {

@@ -65,7 +65,6 @@ import { resolveToolPolicyDetails } from './capabilities/tool-policy-resolver.js
 import {
   findReadyWebSearchDelegate,
   findConfiguredModel,
-  formatSearchRouteCapabilityBrief,
   resolveNativeSearchAdapterSupport,
   resolveSearchRoute,
   shouldExposeExternalWebSearch,
@@ -372,13 +371,11 @@ async function compileAgentCapabilityPlan(
           }),
       )
     : undefined;
-  const searchRouteAppendPrompt = formatSearchRouteCapabilityBrief(searchRoute);
 
   const appendSystemPromptParts = [
     DEFAULT_AGENT_MODE_SYSTEM_PROMPT,
     artifactAppendPrompt,
     mcpAppendPrompt,
-    searchRouteAppendPrompt,
   ].filter((prompt): prompt is string => prompt !== undefined && prompt.trim().length > 0);
   const appendSystemPrompt =
     appendSystemPromptParts.length > 0 ? appendSystemPromptParts.join('\n\n') : undefined;
@@ -484,13 +481,12 @@ const CONVERSATION_TOOLBOX_FAMILIES: ReadonlySet<SessionToolFamily> = new Set([
   'video-generation',
 ]);
 
-const CONVERSATION_CHAT_SYSTEM_PROMPT = `## Piwin Chat operating contract
-
+const CONVERSATION_CHAT_SYSTEM_PROMPT = `<identity>
 You are Piwin Chat, a general-purpose conversational assistant. Answer the user directly.
-Do not assume access to project or workspace files or state. Treat only content the user explicitly attached, referenced, or provided as external context.
-Use the available web or creation capabilities when they genuinely help, and present the result to the user rather than the internal tool mechanics.`;
+When you call a tool, emit no user-visible text; keep progress in thinking. Visible text is only for the final reply of the turn, or a question with no tool calls.
+</identity>`;
 
-/** Resident system contract for pure-chat sessions: identity + boundary + routing. */
+/** Resident system contract for pure-chat sessions: identity. */
 export function formatConversationSystemPrompt(): string {
   return CONVERSATION_CHAT_SYSTEM_PROMPT;
 }
@@ -568,13 +564,10 @@ function compileConversationPlan(
     config.artifact,
     snapshot.tools.hostTools,
   );
-  const searchRouteAppendPrompt = formatSearchRouteCapabilityBrief(searchRoute);
 
-  const appendSystemPromptParts = [
-    formatConversationSystemPrompt(),
-    artifactAppendPrompt,
-    searchRouteAppendPrompt,
-  ].filter((prompt): prompt is string => prompt !== undefined && prompt.trim().length > 0);
+  const appendSystemPromptParts = [formatConversationSystemPrompt(), artifactAppendPrompt].filter(
+    (prompt): prompt is string => prompt !== undefined && prompt.trim().length > 0,
+  );
   const appendSystemPrompt =
     appendSystemPromptParts.length > 0 ? appendSystemPromptParts.join('\n\n') : undefined;
 

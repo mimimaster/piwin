@@ -410,9 +410,9 @@ describe('ChatThread render isolation (E1)', () => {
   });
 
   // ————————————————————————————————————————————————————————————————
-  // 1. Historical rows + closed right panel do not rerender for
-  //    streaming deltas, and the streaming row commits exactly once
-  //    per synthetic frame batch.
+  // 1. Historical rows + closed right panel do not rerender for a native
+  //    Host burst. React batches the synchronous reducer dispatches from one
+  //    wire frame; Desktop does not add a visibility-dependent frame queue.
   // ————————————————————————————————————————————————————————————————
   it('isolates historical rows and closed panel from streaming commits', () => {
     const historicalMessages = createHistoricalMessages(HISTORICAL_COUNT);
@@ -461,20 +461,13 @@ describe('ChatThread render isolation (E1)', () => {
       'false',
     );
 
-    // Three deltas within one frame reach the real reducer dispatch path.
-    readyStreamEventBuffer.push('s1', createDeltaEvent('streaming-e1', ' plus'));
-    readyStreamEventBuffer.push('s1', createDeltaEvent('streaming-e1', ' three'));
-    readyStreamEventBuffer.push('s1', createDeltaEvent('streaming-e1', ' deltas'));
-
-    expect(scheduledFrames.length).toBe(1);
-
-    // The only state change and React commit in this test is this frame flush.
     act(() => {
-      const frameCallback = scheduledFrames[0];
-      if (frameCallback) {
-        frameCallback();
-      }
+      readyStreamEventBuffer.push('s1', createDeltaEvent('streaming-e1', ' plus'));
+      readyStreamEventBuffer.push('s1', createDeltaEvent('streaming-e1', ' three'));
+      readyStreamEventBuffer.push('s1', createDeltaEvent('streaming-e1', ' deltas'));
     });
+
+    expect(scheduledFrames).toHaveLength(0);
 
     const updatedBubbles = Array.from(
       container.querySelectorAll<HTMLElement>('[data-testid="message-bubble"]'),
@@ -482,7 +475,7 @@ describe('ChatThread render isolation (E1)', () => {
     const lastBubble = updatedBubbles[updatedBubbles.length - 1];
     expect(lastBubble?.textContent).toContain('Initial streaming plus three deltas');
 
-    // Profiler confirms that React committed the frame-dispatched update. Its
+    // Profiler confirms that React committed the Host-burst update. Its
     // scopes commit with the parent harness, while the memo probes below prove
     // which representative rows actually rendered during that commit.
     expect(historicalRenderProbes.map((probe) => probe.profilerRecords.length)).toEqual([2, 2, 2]);
@@ -499,10 +492,10 @@ describe('ChatThread render isolation (E1)', () => {
   });
 
   // ————————————————————————————————————————————————————————————————
-  // 2. Terminal/lifecycle events bypass the frame queue immediately,
-  //    flushing pending deltas synchronously.
+  // 2. Terminal/lifecycle events remain behind preceding deltas without a
+  //    second client-side queue.
   // ————————————————————————————————————————————————————————————————
-  it('bypasses frame queue for terminal/lifecycle events', () => {
+  it('keeps terminal/lifecycle events ordered after native deltas', () => {
     const historicalMessages = createHistoricalMessages(200);
     const streamingMessage = createStreamingMessage('streaming-e2', 'Partial');
     const allMessages = [...historicalMessages, streamingMessage];
@@ -533,10 +526,10 @@ describe('ChatThread render isolation (E1)', () => {
       },
     });
 
-    // Push a text delta first (this schedules a frame)
+    // Push a text delta first; it must be reduced immediately.
     buffer.push('s1', createDeltaEvent('streaming-e2', ' delta-data'));
 
-    // Push a terminal event — must flush pending deltas and dispatch immediately
+    // Push a terminal event after the delta, matching Host sequence order.
     const terminalRun: ExecutionRunRecord = {
       runId: 'run-e2',
       kind: 'session-turn',
@@ -546,20 +539,17 @@ describe('ChatThread render isolation (E1)', () => {
       endedAt: new Date().toISOString(),
       terminalCode: 'completed',
     };
-    buffer.flush();
-    dispatchedActions.push({ type: 'run/terminal', run: terminalRun });
-    appState = chatUiReducer(appState, { type: 'run/terminal', run: terminalRun });
+    buffer.pushAction('s1', { type: 'run/terminal', run: terminalRun });
 
     // ---- Assertions ----
 
-    // A. Two actions dispatched: first the pending batch, then the immediate event
+    // A. Two actions dispatched in Host order: delta, then terminal.
     expect(dispatchedActions.length).toBe(2);
 
     const firstAction = dispatchedActions[0];
-    expect(firstAction?.type).toBe('event/batch');
-    if (firstAction?.type === 'event/batch') {
-      expect(firstAction.events).toHaveLength(1);
-      expect(firstAction.events[0]?.type).toBe('message/text_delta');
+    expect(firstAction?.type).toBe('event');
+    if (firstAction?.type === 'event') {
+      expect(firstAction.event.type).toBe('message/text_delta');
     }
 
     const secondAction = dispatchedActions[1];
@@ -568,8 +558,8 @@ describe('ChatThread render isolation (E1)', () => {
       expect(secondAction.run.runId).toBe('run-e2');
     }
 
-    // B. The scheduled frame was cancelled — it should never fire
-    expect(scheduledFrames.length).toBe(1);
+    // B. No requestAnimationFrame/timer callback was scheduled.
+    expect(scheduledFrames).toHaveLength(0);
 
     // C. The streaming message text reflects the flushed delta
     const lastMessage = appState.messages[appState.messages.length - 1];
@@ -791,7 +781,7 @@ describe('ChatThread render isolation (E1)', () => {
     expect(container.querySelectorAll('[data-testid="message-bubble"] .markdown')).toHaveLength(1);
     expect(
       container.querySelectorAll(
-        '[data-testid="message-bubble"] .markdown[style*="--streamdown-caret"]',
+        '[data-testid="message-bubble"] .markdown.has-stream-caret',
       ),
     ).toHaveLength(1);
   });
@@ -868,6 +858,7 @@ describe('ChatThread render isolation (E1)', () => {
               readStep('a-flow-read-2', 'tool-read-2', 'src/b.ts'),
               answer,
             ]}
+            workDetailsExpanded="always"
             streaming={false}
             editingMessageId={null}
             lastUserMessageId={userMessage.id}
@@ -927,14 +918,24 @@ describe('ChatThread render isolation (E1)', () => {
       status: 'done',
       runId: 'run-work',
     };
+    const writeAssistant: ChatMessageUi = {
+      id: 'a-run-write',
+      role: 'assistant',
+      text: 'Saving the SVG.',
+      thinking: '',
+      tools: [
+        { toolCallId: 'tool-write', toolName: 'write_file', status: 'done', output: 'saved' },
+      ],
+      attachments: [],
+      status: 'done',
+      runId: 'run-work',
+    };
     const finalAssistant: ChatMessageUi = {
       id: 'a-run-final',
       role: 'assistant',
       text: 'The SVG is ready.',
       thinking: '',
-      tools: [
-        { toolCallId: 'tool-write', toolName: 'write_file', status: 'done', output: 'saved' },
-      ],
+      tools: [],
       attachments: [],
       status: 'done',
       runId: 'run-work',
@@ -944,7 +945,13 @@ describe('ChatThread render isolation (E1)', () => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
           <ChatThreadHarness
-            messages={[userMessage, firstAssistant, thinkingOnlyAssistant, finalAssistant]}
+            messages={[
+              userMessage,
+              firstAssistant,
+              thinkingOnlyAssistant,
+              writeAssistant,
+              finalAssistant,
+            ]}
             streaming={false}
             editingMessageId={null}
             lastUserMessageId={userMessage.id}
@@ -966,10 +973,13 @@ describe('ChatThread render isolation (E1)', () => {
     expect(container.querySelectorAll('[data-testid="turn-work-details"]')).toHaveLength(3);
     const firstRow = container.querySelector('#msg-a-run-first');
     const thinkingRow = container.querySelector('#msg-a-run-thinking-only');
+    const writeRow = container.querySelector('#msg-a-run-write');
     const finalRow = container.querySelector('#msg-a-run-final');
     expect(firstRow?.textContent).toContain('inspect the existing files');
-    expect(firstRow?.textContent).toContain('I will inspect the workspace.');
+    expect(firstRow?.querySelector('.markdown')).toBeNull();
+    expect(firstRow?.textContent).not.toContain('I will inspect the workspace.');
     expect(thinkingRow?.textContent).toContain('prepare a new drawing');
+    expect(writeRow?.querySelector('.markdown')).toBeNull();
     expect(finalRow?.textContent).toContain('The SVG is ready.');
     expect(container.querySelectorAll('[data-testid="tool-call-card"]')).toHaveLength(2);
     expect(container.querySelector('[data-testid="activity-call-chain-summary"]')).toBeNull();
@@ -977,7 +987,10 @@ describe('ChatThread render isolation (E1)', () => {
     expect(firstRow?.compareDocumentPosition(thinkingRow as Node) ?? 0).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
-    expect(thinkingRow?.compareDocumentPosition(finalRow as Node) ?? 0).toBe(
+    expect(thinkingRow?.compareDocumentPosition(writeRow as Node) ?? 0).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(writeRow?.compareDocumentPosition(finalRow as Node) ?? 0).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
     expect(container.textContent).toContain('The SVG is ready.');
@@ -1006,7 +1019,7 @@ describe('ChatThread render isolation (E1)', () => {
               lastUserMessageId={userMessage.id}
               activeTheme={null}
               artifactThemeKey={0}
-              workDetailsExpanded="collapsed"
+              workDetailsExpanded="always"
               onEdit={noop}
               onCancelEdit={noop}
               onEditResend={noop}
@@ -1102,7 +1115,7 @@ describe('ChatThread render isolation (E1)', () => {
             lastUserMessageId={userMessage.id}
             activeTheme={null}
             artifactThemeKey={0}
-            workDetailsExpanded="collapsed"
+            workDetailsExpanded="always"
             onEdit={noop}
             onCancelEdit={noop}
             onEditResend={noop}
@@ -2080,14 +2093,23 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
 
   it('renders content-first Conversation answers without Agent work details', () => {
     const userMessage = createUserMessage('u-chat', 'search this');
-    const assistant: ChatMessageUi = {
-      id: 'a-chat',
+    const searchCall: ChatMessageUi = {
+      id: 'a-chat-search',
       role: 'assistant',
-      text: 'Here is the answer.',
+      text: '我先去搜索相关资料。',
       thinking: 'I should search first',
       tools: [
         { toolCallId: 'tool-web', toolName: 'web_search', status: 'done', output: 'hits' },
       ],
+      attachments: [],
+      status: 'done',
+    };
+    const assistant: ChatMessageUi = {
+      id: 'a-chat',
+      role: 'assistant',
+      text: 'Here is the answer.',
+      thinking: '',
+      tools: [],
       attachments: [],
       status: 'done',
       searchEvidence: {
@@ -2102,7 +2124,7 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
         ],
       },
     };
-    renderConversation([userMessage, assistant], {
+    renderConversation([userMessage, searchCall, assistant], {
       plan: {
         id: 'plan-1',
         sessionId: 's-chat',
@@ -2120,15 +2142,18 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
 
     expect(container.querySelector('[data-testid="conversation-response"]')).not.toBeNull();
     expect(container.textContent).toContain('Here is the answer.');
+    expect(container.textContent).not.toContain('我先去搜索相关资料。');
+    expect(container.querySelector('#msg-a-chat-search .markdown')).toBeNull();
     expect(container.querySelector('[data-testid="turn-work-details"]')).toBeNull();
-    expect(container.querySelector('[data-testid="turn-tool-group"]')).toBeNull();
+    expect(container.querySelector('[data-testid="turn-tool-group"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="tool-call-card"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="turn-thinking"]')).toBeNull();
     expect(container.querySelector('[data-testid="agent-locator"]')).toBeNull();
     expect(container.querySelector('[data-testid="files-changed-bar"]')).toBeNull();
     expect(container.querySelector('[data-testid="plan-card"]')).toBeNull();
     expect(container.querySelector('[data-testid="assembly-summary-capsule"]')).toBeNull();
     expect(container.textContent).toContain('Example');
-    expect(assistant.tools).toHaveLength(1);
+    expect(searchCall.tools).toHaveLength(1);
   });
 
   it('renders thinking in conversation mode and keeps generation progress', () => {
@@ -2138,7 +2163,7 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
       role: 'assistant',
       text: '',
       thinking: 'raw thought that must stay in the reducer',
-      tools: [{ toolCallId: 'tool-bash', toolName: 'bash', status: 'done', output: 'ok' }],
+      tools: [],
       attachments: [],
       status: 'done',
     };
@@ -2157,7 +2182,6 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
     expect(container.querySelector('#msg-a-legacy-image')).not.toBeNull();
     expect(container.querySelectorAll('[data-testid="conversation-message-header"]')).toHaveLength(1);
     expect(container.querySelector('[data-testid="image-generation-progress"]')).not.toBeNull();
-    expect(thinkingOnly.tools).toHaveLength(1);
     expect(thinkingOnly.thinking).toBe('raw thought that must stay in the reducer');
   });
 
@@ -2187,11 +2211,86 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
     };
     renderConversation([userMessage, firstCall, finalReply]);
 
-    expect(container.querySelector('#msg-a-fetch-think')).toBeNull();
+    expect(container.querySelector('#msg-a-fetch-think')).not.toBeNull();
     expect(container.querySelector('#msg-a-fetch-final')).not.toBeNull();
     expect(container.querySelectorAll('[data-testid="conversation-message-header"]')).toHaveLength(1);
-    expect(container.querySelectorAll('[data-testid="conversation-thinking-summary"]')).toHaveLength(1);
-    expect(container.textContent).toContain('页首内容已读取。');
+    expect(
+      container.querySelector('#msg-a-fetch-think [data-testid="conversation-message-model-name"]')
+        ?.textContent,
+    ).toBe('glm5.2');
+  });
+
+  it('inherits model snapshot from later assistant message in the same Conversation turn', () => {
+    const userMessage = createUserMessage('u-fetch-2', 'read the page');
+    const firstCallNoModel: ChatMessageUi = {
+      id: 'a-fetch-think-nomodel',
+      role: 'assistant',
+      text: '',
+      thinking: 'I will fetch the URL',
+      tools: [{ toolCallId: 'tool-fetch-2', toolName: 'web_fetch', status: 'done', output: 'ok' }],
+      attachments: [],
+      status: 'done',
+      createdAt: '2026-08-20T13:25:00.000Z',
+    };
+    const finalReplyWithModel: ChatMessageUi = {
+      id: 'a-fetch-final-withmodel',
+      role: 'assistant',
+      text: '页首内容已读取。',
+      thinking: 'summarize the page',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      createdAt: '2026-08-20T13:25:00.000Z',
+      model: { protocol: 'openai-compatible', providerId: 'google', modelId: 'gemini-3.7-flash' },
+    };
+    renderConversation([userMessage, firstCallNoModel, finalReplyWithModel]);
+
+    expect(
+      container.querySelector('#msg-a-fetch-think-nomodel [data-testid="conversation-message-header"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('#msg-a-fetch-think-nomodel [data-testid="conversation-message-model-name"]')
+        ?.textContent,
+    ).toBe('gemini-3.7-flash');
+  });
+
+  it('falls back to livePromptModel on the identity header of the latest Conversation turn', () => {
+    const userMessage = createUserMessage('u-fetch-3', 'generate something');
+    const firstCall: ChatMessageUi = {
+      id: 'a-tool-call',
+      role: 'assistant',
+      text: '',
+      thinking: 'preparing tool',
+      tools: [{ toolCallId: 'tool-art', toolName: 'artifact_instructions', status: 'done', output: 'ok' }],
+      attachments: [],
+      status: 'done',
+      createdAt: '2026-08-20T13:25:00.000Z',
+    };
+    const finalReply: ChatMessageUi = {
+      id: 'a-tool-reply',
+      role: 'assistant',
+      text: 'Here is your animation.',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      createdAt: '2026-08-20T13:25:00.000Z',
+    };
+    renderConversation([userMessage, firstCall, finalReply], {
+      livePromptModel: {
+        protocol: 'openai-compatible',
+        providerId: 'google',
+        modelId: 'gemini-3.7-flash',
+      },
+    });
+
+    expect(
+      container.querySelector('#msg-a-tool-call [data-testid="conversation-message-header"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('#msg-a-tool-call [data-testid="conversation-message-model-name"]')
+        ?.textContent,
+    ).toBe('gemini-3.7-flash');
   });
 
   it('does not repeat the identity header for two visible Conversation completions', () => {
@@ -2228,6 +2327,75 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
     );
   });
 
+  it('keeps Conversation copy/regenerate dock on the last completion only', () => {
+    const userMessage = createUserMessage('u-loop', 'draw a pelican');
+    const first: ChatMessageUi = {
+      id: 'a-loop-1',
+      role: 'assistant',
+      text: '先读取 Artifact 规范，再做鹈鹕骑自行车的 SVG 动画。',
+      thinking: 'load the spec',
+      tools: [
+        {
+          toolCallId: 'tool-art-1',
+          toolName: 'artifact_instructions',
+          status: 'done',
+          output: 'ok',
+        },
+      ],
+      attachments: [],
+      status: 'done',
+      model: { protocol: 'openai-compatible', providerId: 'cpa', modelId: 'grok-4.6' },
+    };
+    const second: ChatMessageUi = {
+      id: 'a-loop-2',
+      role: 'assistant',
+      text: '正在绘制一只大嘴鹈鹕骑车的循环动画。',
+      thinking: 'draw the loop',
+      tools: [
+        {
+          toolCallId: 'tool-art-2',
+          toolName: 'artifact_instructions',
+          status: 'done',
+          output: 'ok',
+        },
+      ],
+      attachments: [],
+      status: 'done',
+      model: { protocol: 'openai-compatible', providerId: 'cpa', modelId: 'grok-4.6' },
+    };
+    const finalReply: ChatMessageUi = {
+      id: 'a-loop-3',
+      role: 'assistant',
+      text: '一只大嘴鹈鹕在海岸公路上骑复古自行车。',
+      thinking: 'wrap up',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      model: { protocol: 'openai-compatible', providerId: 'cpa', modelId: 'grok-4.6' },
+    };
+    renderConversation([userMessage, first, second, finalReply], {
+      onBranchResend: vi.fn(),
+      onForkFromMessage: vi.fn(),
+    });
+
+    expect(container.querySelector('#msg-a-loop-1 [data-testid="assistant-response-actions"]')).toBeNull();
+    expect(container.querySelector('#msg-a-loop-2 [data-testid="assistant-response-actions"]')).toBeNull();
+    expect(container.querySelector('#msg-a-loop-1 .markdown')).toBeNull();
+    expect(container.querySelector('#msg-a-loop-2 .markdown')).toBeNull();
+    expect(container.textContent).not.toContain('先读取 Artifact 规范');
+    expect(container.textContent).not.toContain('正在绘制一只大嘴鹈鹕');
+    expect(container.querySelector('#msg-a-loop-3 .markdown')?.textContent).toContain(
+      '一只大嘴鹈鹕在海岸公路上骑复古自行车。',
+    );
+    expect(
+      container.querySelector('#msg-a-loop-3 [data-testid="assistant-response-actions"]'),
+    ).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid="response-copy-btn"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-testid="response-regenerate-btn"]')).toHaveLength(1);
+    expect(container.querySelector('#msg-a-loop-3 [data-testid="response-copy-btn"]')).not.toBeNull();
+    expect(container.querySelector('#msg-a-loop-3 [data-testid="response-regenerate-btn"]')).not.toBeNull();
+  });
+
   it('still shows every Agent lifecycle row without Conversation headers', () => {
     const userMessage = createUserMessage('u-agent', 'inspect');
     const thinkingOnly: ChatMessageUi = {
@@ -2248,7 +2416,10 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
       attachments: [],
       status: 'done',
     };
-    renderConversation([userMessage, thinkingOnly, finalReply], { isConversationSession: false });
+    renderConversation([userMessage, thinkingOnly, finalReply], {
+      isConversationSession: false,
+      workDetailsExpanded: 'always',
+    });
 
     expect(container.querySelector('#msg-a-agent-think')).not.toBeNull();
     expect(container.querySelector('#msg-a-agent-final')).not.toBeNull();

@@ -41,13 +41,7 @@ import {
   OrchestrationSchemeControl,
   type OrchestrationSchemeOption,
 } from './OrchestrationSchemeControl';
-import {
-  IconClose,
-  IconMic,
-  IconPlus,
-  IconRefresh,
-  IconSend,
-} from './shell-icons';
+import { IconClose, IconMic, IconPlus } from './shell-icons';
 import {
   buildSlashCatalog,
   detectActiveSlashToken,
@@ -78,7 +72,7 @@ import { SteerQueue, type SteerQueueMessage } from './steer-queue';
 import { ActiveJobsStrip } from './active-jobs-strip';
 import { useSpeechInput } from './hooks/use-speech-input.js';
 import { PromptHistoryMenu } from './prompt-history-menu';
-import { ComposerPausedActions, ComposerStreamingPause } from './composer-run-actions';
+import { ComposerActionSlot } from './composer-run-actions';
 import {
   loadPromptHistoryFromStorage,
   mergePromptHistory,
@@ -167,7 +161,7 @@ export type ComposerDockProps = {
   onSend: () => void;
   /** Save the active turn as a resumable Host checkpoint. */
   onPause: () => void;
-  /** Interrupt the active run (irreversible cancel). Same path as Esc / stop-run. */
+  /** Irreversible cancel. Esc / `stop-run` only — never a second composer circle. */
   onAbort: () => void;
   /** Host-owned admission. Run mutations stay off while unknown or reconciling. */
   mutationsEnabled?: boolean;
@@ -901,26 +895,6 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     autoResize();
   }, [composerValue, props.layoutMode, autoResize]);
 
-  const renderPausedActions = (): ReactElement => (
-    <ComposerPausedActions
-      copy={copy}
-      activeSessionId={props.activeSessionId}
-      onAbort={props.onAbort}
-      {...(props.onResume ? { onResume: props.onResume } : {})}
-      {...(props.mutationsEnabled === undefined ? {} : { mutationsEnabled: props.mutationsEnabled })}
-    />
-  );
-
-  const renderStreamingPause = (): ReactElement => (
-    <ComposerStreamingPause
-      copy={copy}
-      activeSessionId={props.activeSessionId}
-      runPhase={props.runPhase}
-      onPause={props.onPause}
-      {...(props.mutationsEnabled === undefined ? {} : { mutationsEnabled: props.mutationsEnabled })}
-    />
-  );
-
   return (
     <div
       className={`composer-card-v2${props.dropActive ? ' drop-active' : ''}${isStreamingRun ? ' is-streaming' : ''}`}
@@ -1209,75 +1183,24 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
             locale={locale === 'en' ? 'en' : 'zh-CN'}
           />
 
-          {/* Send / Pause / resume-or-discard */}
-          <div className="composer-v2-action-slot">
-            {isPaused ? (
-              renderPausedActions()
-            ) : isStreamingRun ? (
-              <div className="composer-v2-action-group">
-                {!isExtensionUiActive && hasContent ? (
-                  <>
-                    {props.onSteer && props.composer.trim().length > 0 ? (
-                      <button
-                        type="button"
-                        className="composer-v2-text-btn"
-                        data-testid="steer-btn"
-                        disabled={
-                          props.runPhase === 'pausing' || props.runPhase === 'aborting'
-                        }
-                        onClick={triggerSteer}
-                        aria-label={copy.sendSteerMessage}
-                        title={copy.sendSteerHint}
-                      >
-                        {copy.steer}
-                      </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      className="composer-v2-send-btn is-queue"
-                      data-testid="send-btn"
-                      disabled={
-                        !props.onFollowUp ||
-                        !canQueueStreamingText ||
-                        props.runPhase === 'pausing' ||
-                        props.runPhase === 'aborting' ||
-                        props.mutationsEnabled === false
-                      }
-                      onClick={triggerFollowUp}
-                      aria-label={copy.queueFollowUp}
-                      title={copy.queueFollowUpHint}
-                    >
-                      <IconSend />
-                    </button>
-                  </>
-                ) : null}
-                {renderStreamingPause()}
-              </div>
-            ) : onlyFailedAttachments ? (
-              <button
-                type="button"
-                className="composer-v2-send-btn is-retry"
-                data-testid="send-btn"
-                onClick={triggerSend}
-                aria-label={copy.attachmentRetryOnly}
-                title={copy.attachmentRetryOnly}
-              >
-                <IconRefresh />
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="composer-v2-send-btn"
-                data-testid="send-btn"
-                disabled={!hasContent || props.mutationsEnabled === false}
-                onClick={triggerSend}
-                aria-label={copy.send}
-                title={copy.sendShortcut}
-              >
-                <IconSend />
-              </button>
-            )}
-          </div>
+          <ComposerActionSlot
+            copy={copy}
+            activeSessionId={props.activeSessionId}
+            runPhase={props.runPhase}
+            isStreamingRun={isStreamingRun}
+            isPaused={isPaused}
+            hasContent={hasContent}
+            onlyFailedAttachments={onlyFailedAttachments}
+            isExtensionUiActive={isExtensionUiActive}
+            composerHasText={props.composer.trim().length > 0}
+            onSend={triggerSend}
+            onPause={props.onPause}
+            {...(props.onResume ? { onResume: props.onResume } : {})}
+            {...(props.onSteer ? { onSteer: triggerSteer } : {})}
+            {...(props.mutationsEnabled === undefined
+              ? {}
+              : { mutationsEnabled: props.mutationsEnabled })}
+          />
         </div>
       </div>
 

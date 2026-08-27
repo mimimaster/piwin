@@ -25,6 +25,10 @@ export type TranscriptBranchSibling = {
   headMessageId: string;
   /** Bounded preview of the head message text. */
   preview: string;
+  /** Bounded preview of the direct assistant reply to the fork prompt, if any. */
+  responsePreview?: string | undefined;
+  /** Status of the direct reply / first assistant response. */
+  responseStatus?: 'done' | 'error' | 'streaming' | 'interrupted' | undefined;
   /** Bounded preview of the deepest message of the branch. */
   leafPreview: string;
   /** Rows in the branch subtree. */
@@ -38,6 +42,8 @@ export type TranscriptBranchSibling = {
 export type TranscriptBranchPoint = {
   /** Shared parent of the sibling heads; null when the fork is at the root. */
   anchorMessageId: string | null;
+  /** Shared prompt text if anchor or sibling head is a user prompt. */
+  promptPreview?: string | undefined;
   /** Index of the active branch within `siblings` (sequence order). */
   activeIndex: number;
   siblings: TranscriptBranchSibling[];
@@ -125,8 +131,54 @@ export function createTranscriptBranchesOps(
     messageCount: number;
     updatedAt: string;
     leafPreview: string;
+    responsePreview?: string | undefined;
+    responseStatus?: 'done' | 'error' | 'streaming' | 'interrupted' | undefined;
     writesWorkspace: boolean;
   } {
+    const headRow = db
+      .prepare(
+        'SELECT role, status, substr(text, 1, ?) AS preview FROM transcript_message WHERE id = ?',
+      )
+      .get(previewChars, headMessageId) as
+      | { role: string; status: string; preview: string }
+      | undefined;
+
+    let responsePreview: string | undefined;
+    let responseStatus: 'done' | 'error' | 'streaming' | 'interrupted' | undefined;
+
+    if (headRow?.role === 'assistant') {
+      responsePreview = headRow.preview;
+      if (
+        headRow.status === 'done' ||
+        headRow.status === 'error' ||
+        headRow.status === 'streaming' ||
+        headRow.status === 'interrupted'
+      ) {
+        responseStatus = headRow.status;
+      }
+    } else {
+      const directChild = db
+        .prepare(
+          `SELECT role, status, substr(text, 1, ?) AS preview FROM transcript_message
+           WHERE parent_message_id = ? AND role = 'assistant'
+           ORDER BY sequence ASC LIMIT 1`,
+        )
+        .get(previewChars, headMessageId) as
+        | { role: string; status: string; preview: string }
+        | undefined;
+      if (directChild) {
+        responsePreview = directChild.preview;
+        if (
+          directChild.status === 'done' ||
+          directChild.status === 'error' ||
+          directChild.status === 'streaming' ||
+          directChild.status === 'interrupted'
+        ) {
+          responseStatus = directChild.status;
+        }
+      }
+    }
+
     // Presence of the metadata key is enough: the recorder only persists
     // `workspaceWrites` when a write was actually detected, never an empty set.
     const stats = db
@@ -159,6 +211,8 @@ export function createTranscriptBranchesOps(
       messageCount: stats.message_count,
       updatedAt: stats.updated_at,
       leafPreview: leaf?.preview ?? '',
+      responsePreview,
+      responseStatus,
       writesWorkspace: stats.writes_workspace === 1,
     };
   }
@@ -293,8 +347,35 @@ export function createTranscriptBranchesOps(
         if (siblingRows.length <= 1) {
           continue;
         }
+        let promptPreview: string | undefined;
+        if (node.parent_message_id !== null) {
+          const anchorRow = db
+            .prepare(
+              `SELECT role, substr(text, 1, ?) AS preview FROM transcript_message WHERE id = ?`,
+            )
+            .get(listOptions.previewChars, node.parent_message_id) as
+            | { role: string; preview: string }
+            | undefined;
+          if (anchorRow?.role === 'user') {
+            promptPreview = anchorRow.preview;
+          }
+        }
+        if (!promptPreview && siblingRows[0]) {
+          const firstHeadRow = db
+            .prepare(
+              `SELECT role, substr(text, 1, ?) AS preview FROM transcript_message WHERE id = ?`,
+            )
+            .get(listOptions.previewChars, siblingRows[0].id) as
+            | { role: string; preview: string }
+            | undefined;
+          if (firstHeadRow?.role === 'user') {
+            promptPreview = firstHeadRow.preview;
+          }
+        }
+
         points.push({
           anchorMessageId: node.parent_message_id,
+          promptPreview,
           activeIndex: Math.max(
             0,
             siblingRows.findIndex((sibling) => sibling.id === node.id),
@@ -304,6 +385,8 @@ export function createTranscriptBranchesOps(
             return {
               headMessageId: sibling.id,
               preview: sibling.preview,
+              responsePreview: stats.responsePreview,
+              responseStatus: stats.responseStatus,
               leafPreview: stats.leafPreview,
               messageCount: stats.messageCount,
               writesWorkspace: stats.writesWorkspace,

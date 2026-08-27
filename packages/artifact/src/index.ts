@@ -58,3 +58,5 @@ export { estimateSvgFenceHeight } from './svg-intrinsic-size.js';
 export { analyzeArtifactFence } from './render-intent.js';
 
 export { materializeArtifact } from './materialize.js';
+
+export { buildStableArtifactRevealFrames } from './streamable-preview.js';

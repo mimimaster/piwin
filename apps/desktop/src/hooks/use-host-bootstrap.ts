@@ -21,7 +21,7 @@ import type {
   SessionPlan,
   ThemeManifest,
 } from '@piwin/contracts';
-import type { PetRuntimeSnapshot } from '@piwin/contracts'
+import type { PetRuntimeSnapshot } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
 import { isRemoteCommandGapError } from '../remote-command-gap.js';
@@ -55,6 +55,9 @@ import {
   MAX_SESSION_PLAN_CACHE,
   putRecordLru,
 } from '../record-budget';
+
+/** HMR must remount this subscribe effect; `hostClient` identity does not change. */
+const HOST_PUSH_LIVE_PATH = 'paced-v2';
 
 export type ExtensionUiRequestState = {
   sessionId: string;
@@ -157,9 +160,7 @@ export function describeExtensionDeploymentFailure(
   return null;
 }
 
-export function extensionDeploymentAnnouncementKey(
-  deployment: ExtensionDeploymentRecord,
-): string {
+export function extensionDeploymentAnnouncementKey(deployment: ExtensionDeploymentRecord): string {
   return `${deployment.deploymentId}:${deployment.phase}`;
 }
 
@@ -243,9 +244,7 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
       return next;
     });
   }, []);
-  const [plansBySessionId, setPlansBySessionId] = useState<
-    Record<string, SessionPlan | null>
-  >({});
+  const [plansBySessionId, setPlansBySessionId] = useState<Record<string, SessionPlan | null>>({});
   const sessionPlan = selectSessionPlan(plansBySessionId, args.activeSessionId);
   const [extensionUiRequest, setExtensionUiRequest] = useState<ExtensionUiRequestState | null>(
     null,
@@ -253,7 +252,7 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
   const [extensionUiInput, setExtensionUiInput] = useState('');
   const [assemblySummariesByRunId, setAssemblySummariesByRunId] = useState<
     Record<string, import('@piwin/contracts').ContextSummaryPush>
-  >({});  /**
+  >({}); /**
    * React state can lag behind a push while an extension-ui resolve is in
    * flight. Keep the latest request synchronously so an old resolve cannot
    * clear the next questionnaire page.
@@ -274,7 +273,6 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
   useEffect(() => {
     const { hostClient, dispatch } = args;
     const streamEventBuffer = createStreamEventBuffer({ dispatch });
-    const bufferAgentEvents = hostClient.getTransport() !== 'remote';
     const unsubscribe = hostClient.subscribe((message: HostServerMessage) => {
       if (message.type === 'hydration') {
         streamEventBuffer.reset();
@@ -320,16 +318,7 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         return;
       }
       if (message.type === 'event') {
-        if (bufferAgentEvents) {
-          streamEventBuffer.push(message.sessionId, message.event, message.envelope);
-        } else {
-          dispatch({
-            type: 'event',
-            sessionId: message.sessionId,
-            event: message.event,
-            ...(message.envelope ? { envelope: message.envelope } : {}),
-          });
-        }
+        streamEventBuffer.push(message.sessionId, message.event, message.envelope);
         return;
       }
       if (message.type === 'agent/context-summary') {
@@ -351,11 +340,17 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         return;
       }
       if (message.type === 'run/updated') {
-        dispatch({ type: 'run/updated', run: message.run });
+        streamEventBuffer.pushAction(message.run.sessionId, {
+          type: 'run/updated',
+          run: message.run,
+        });
         return;
       }
       if (message.type === 'run/terminal') {
-        dispatch({ type: 'run/terminal', run: message.run });
+        streamEventBuffer.pushAction(message.run.sessionId, {
+          type: 'run/terminal',
+          run: message.run,
+        });
         const currentExtensionUiRequest = extensionUiRequestRef.current;
         if (currentExtensionUiRequest?.sessionId === message.run.sessionId) {
           clearExtensionUiRequest(currentExtensionUiRequest.requestId);
@@ -691,7 +686,11 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
             }
           }
         } else {
-          await applyRemoteConfiguredModels(hostClient, setConfiguredChatModels, args.setSelectedModelKey);
+          await applyRemoteConfiguredModels(
+            hostClient,
+            setConfiguredChatModels,
+            args.setSelectedModelKey,
+          );
           const projected = await readProjectedHostConfig(hostClient);
           if (projected !== undefined) {
             setConfig(projected);
@@ -737,8 +736,9 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
       // App lifetime owns the HostClient; OS/window close tears down Tauri.
     };
     // Bootstrap once per hostClient instance; setters are stable.
+    // HOST_PUSH_LIVE_PATH is in the deps so HMR actually resubscribes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [args.hostClient]);
+  }, [args.hostClient, HOST_PUSH_LIVE_PATH]);
 
   // Same class of bug as project/list: a cold sidecar makes the first
   // config/get fail. Retry when Host actually becomes ready.
@@ -881,11 +881,7 @@ async function applyRemoteConfiguredModels(
   }
   const next = readConfiguredChatModelsData(response.data);
   setConfiguredChatModels(next);
-  applyBootstrapSelectedModelKey(
-    setSelectedModelKey,
-    next.defaultProviderId,
-    next.defaultModelId,
-  );
+  applyBootstrapSelectedModelKey(setSelectedModelKey, next.defaultProviderId, next.defaultModelId);
 }
 
 function applyBootstrapSelectedModelKey(

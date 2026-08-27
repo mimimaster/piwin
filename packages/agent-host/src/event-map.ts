@@ -177,6 +177,8 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
   const citationUrlsByMessageId = new Map<string, Set<string>>();
   /** Dedupe identical upstream provider errors across one retry lifecycle. */
   const surfacedProviderErrorMessages = new Set<string>();
+  /** Messages that already streamed live thinking_delta. message_end snapshots must not append again. */
+  const streamedThinkingMessageIds = new Set<string>();
   let retryLifecycleActive = false;
   const envelopeGenerator = createEventEnvelopeGenerator();
 
@@ -190,6 +192,7 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
     rawToolOutputById.clear();
     citationUrlsByMessageId.clear();
     surfacedProviderErrorMessages.clear();
+    streamedThinkingMessageIds.clear();
     retryLifecycleActive = false;
   };
 
@@ -220,7 +223,7 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
           readRole(record.role) ?? readNestedRole(record, 'message') ?? 'assistant';
       }
 
-      const mappedEvents: AgentEvent[] = mapPiSessionEvent(
+      let mappedEvents: AgentEvent[] = mapPiSessionEvent(
         raw,
         activeMessageId,
         lastAssistantMessageId,
@@ -371,11 +374,26 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
           }
           return event;
         });
+      if (type === 'message_end') {
+        mappedEvents = mappedEvents.filter((event) => {
+          if (event.type !== 'message/thinking_delta') {
+            return true;
+          }
+          return !streamedThinkingMessageIds.has(event.messageId);
+        });
+      } else {
+        for (const event of mappedEvents) {
+          if (event.type === 'message/thinking_delta' && event.delta.length > 0) {
+            streamedThinkingMessageIds.add(event.messageId);
+          }
+        }
+      }
       if (type === 'agent_end') {
         toolNamesById.clear();
         presentationSeedsByToolId.clear();
         responseMessageIdsByToolId.clear();
         rawToolOutputById.clear();
+        streamedThinkingMessageIds.clear();
       }
       if (type === 'message_end') {
         const endedMessage = mappedEvents.find((event) => event.type === 'message/end');

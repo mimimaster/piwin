@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-08-03; amended 2026-08-24)
+Accepted (2026-08-03; amended 2026-08-24; amended 2026-08-26; amended 2026-08-27)
 
 ## Context
 
@@ -57,13 +57,15 @@ export type ArtifactSurface = 'inline' | 'canvas';
 - Canvas fences render a compact launcher in the transcript and do not mount
   an inline iframe.
 - Inline fences do not receive a generic "Open in Canvas" action.
-- Canvas does not auto-open while a response is streaming. Canvas fences stay
-  source until completion; Inline HTML/SVG may stream-preview (ADR 0005).
-- A completed explicit `surface="canvas"` fence auto-opens the Canvas tab once
-  for the live message that was observed streaming. Hydrated history and
-  session switches do not rearrange the shell. Code-first is Inline-only and
-  does not suppress that auto-reveal. The transcript launcher reopens the same
-  stable target id without stealing keyboard focus.
+- A live explicit `surface="canvas"` fence auto-opens the Canvas tab as soon
+  as the opening fence is parseable. The transcript stays source while
+  streaming; the right panel stream-previews the same growing source in one
+  sandbox iframe (ADR 0005). Completion commits that iframe to interactive.
+- Hydrated history and session switches do not rearrange the shell.
+  Subsequent tokens on the same target id update source only and do not steal
+  the inspector tab. Code-first is Inline-only and does not suppress Canvas
+  reveal. The transcript launcher reopens the same stable target id without
+  stealing keyboard focus.
 
 ### 2. Inline is the default and flows with the transcript
 
@@ -174,15 +176,19 @@ Runtime guarantees:
   ensures a useful minimum width (target 520–560 px, bounded by the existing
   viewport clamp); compact mode continues to use the 92vw overlay.
 - **Rendering**: the Canvas iframe fills the available panel body and owns its
-  internal scrolling. It does not show Inline Expand/Collapse or the Inline
+  internal scrolling. Host CSS treats that iframe as the design viewport — no
+  phone-card matting, 16px stage padding, or vertical centering. Undersized
+  stages scale up to contain; letterboxed portrait posters expand to the panel
+  so fluid layouts reflow. It does not show Inline Expand/Collapse or the Inline
   raw-source disclosure.
 - **Same security posture as Inline**: existing Artifact security
   classification, iframe sandbox, CSP, theme injection, external-resource
   policy, and action validation remain mandatory and identical. Canvas does not
   participate in Inline sizing or its bounded load-fallback lifecycle.
-- **Canvas stays source while streaming.** A completed live explicit Canvas
-  fence auto-opens once; hydrated history does not. Code-first is Inline-only
-  and does not suppress that auto-reveal.
+- **Canvas opens live.** A parseable live explicit Canvas fence auto-opens
+  the right panel immediately and stream-previews until the message completes;
+  hydrated history does not. Code-first is Inline-only and does not suppress
+  that auto-reveal. Transcript Canvas fences stay source while streaming.
 
 ### 7. Composer proposal capability
 
@@ -222,7 +228,8 @@ Native `html`/`htm`/`svg` fences retain their `declaration: native` provenance,
 yet compatible content uses the same default Inline path as explicit Artifact
 fences when the capability is enabled. `artifactCodeFirst` is the Inline
 source-first preference. Native fences never auto-open Canvas; explicit
-`surface="canvas"` still auto-reveals on live completion. An explicit
+`surface="canvas"` auto-opens the live Canvas panel as soon as the opening
+fence is parseable. An explicit
 `surface="inline"` fence that needs a page viewport uses `inline-viewport`
 rather than a Canvas reroute. The runtime does not mutate the descriptor or
 silently change `surface`.

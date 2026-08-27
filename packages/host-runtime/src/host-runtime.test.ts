@@ -321,14 +321,14 @@ describe('HostRuntime', () => {
     // No default model input → text-only → path inject fallback (no ImageContent).
     for (let attempt = 0; attempt < 150; attempt += 1) {
       const joinedSoFar = textDeltas.join('');
-      if (joinedSoFar.includes('[attached image]') && joinedSoFar.includes(asset.absolutePath)) {
+      if (joinedSoFar.includes('<attached_image') && joinedSoFar.includes(asset.absolutePath)) {
         break;
       }
       await new Promise((resolve) => setTimeout(resolve, 20));
     }
     const joined = textDeltas.join('');
     expect(joined).toContain('look at this');
-    expect(joined).toContain('[attached image]');
+    expect(joined).toContain('<attached_image');
     expect(joined).toContain(asset.absolutePath);
     expect(joined).not.toContain(pngBase64);
 
@@ -442,7 +442,7 @@ describe('HostRuntime', () => {
     const joined = textDeltas.join('');
     expect(joined).toContain('look at this vision');
     // Multimodal: path not injected into text; adapter would load ImageContent (mock keeps attachments).
-    expect(joined).not.toContain('[attached image]');
+    expect(joined).not.toContain('<attached_image');
     expect(joined).not.toContain(pngBase64);
 
     await runtime.dispose();

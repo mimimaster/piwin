@@ -35,12 +35,8 @@ export const DESKTOP_COMMANDS: DesktopCommand[] = [
     shortcut: '⌘N',
   },
   {
-    // R2: the session tab strip was removed, so this is the only ⌘K path to
-    // reach another session. It opens the sidebar with the session search
-    // focused, which *is* session switching — hence no separate
-    // "switch-session" command. The extra keywords keep "switch session" /
-    // "jump to session" queries discoverable ("goto" also carries the "to"
-    // token so multi-word queries still match).
+    // The focused search dialog is also the session switcher. Extra keywords
+    // keep "switch session" / "jump to session" queries discoverable.
     id: 'search-sessions',
     title: 'Search sessions',
     keywords: ['search', 'find', 'agents', 'sessions', 'switch', 'jump', 'goto', 'recent'],
@@ -168,9 +164,6 @@ export function commandAvailability(
       return { available: false, reason: 'Trust the project first' };
     }
     return { available: true };
-  }
-  if (commandId === 'search-sessions' && !context.hasProject) {
-    return { available: false, reason: 'Open a workspace first' };
   }
   return { available: true };
 }

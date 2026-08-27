@@ -38,6 +38,12 @@ body {
   overflow-wrap: break-word;
 }
 img, svg, canvas, video { max-width: 100%; height: auto; }
+html[data-frame-mode="canvas"] img,
+html[data-frame-mode="canvas"] svg,
+html[data-frame-mode="canvas"] canvas,
+html[data-frame-mode="canvas"] video {
+  max-height: none;
+}
 .piwin-artifact-root > svg {
   display: block;
   width: auto;
@@ -241,6 +247,39 @@ html[data-frame-mode="inline-viewport"] .piwin-artifact-root,
 html[data-frame-mode="inline-overflow"] .piwin-artifact-root,
 html[data-frame-mode="canvas"] .piwin-artifact-root {
   min-height: 100%;
+}
+/* Canvas is a viewport, not a gallery mat. The iframe is the design size;
+   host chrome must not center a phone card or add stage padding. */
+html[data-frame-mode="canvas"] {
+  container-type: size;
+}
+html[data-frame-mode="canvas"] body {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  padding: 0;
+  box-sizing: border-box;
+}
+html[data-frame-mode="canvas"] body > * {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  flex: 0 1 auto;
+  min-height: 0;
+}
+html[data-frame-mode="canvas"] .piwin-artifact-root {
+  flex: 1 1 auto;
+  height: 100%;
+  align-items: stretch;
+  justify-content: flex-start;
+}
+html[data-frame-mode="canvas"] body > svg,
+html[data-frame-mode="canvas"] .piwin-artifact-root > svg {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  margin-inline: 0;
 }
 `;
 }

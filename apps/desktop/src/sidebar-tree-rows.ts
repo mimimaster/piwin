@@ -51,6 +51,26 @@ export function sidebarTreeRowKey(row: SidebarTreeRow): string {
   return row.key;
 }
 
+/**
+ * Untouched project folders stay collapsed except the active/last-session
+ * project. Explicit entries in `collapsedProjects` always win. Search mode
+ * temporarily reveals every folder so matches are not hidden behind folds.
+ */
+export function resolveSidebarProjectCollapsed(input: {
+  projectPath: string;
+  collapsedProjects: Readonly<Record<string, boolean>>;
+  activeProjectPath?: string | null;
+  searching?: boolean;
+}): boolean {
+  if (input.searching === true) {
+    return false;
+  }
+  if (Object.prototype.hasOwnProperty.call(input.collapsedProjects, input.projectPath)) {
+    return input.collapsedProjects[input.projectPath] === true;
+  }
+  return input.projectPath !== input.activeProjectPath;
+}
+
 export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRow[] {
   const searching = input.sessionSearch.trim().length > 0;
   const drafts = input.draftSessions ?? [];
@@ -61,7 +81,14 @@ export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRo
   if (input.projectsSectionExpanded) {
     for (const project of input.recentProjects) {
       const scope: SessionScope = { kind: 'project', projectPath: project.path };
-      const collapsed = input.collapsedProjects[project.path] ?? false;
+      const collapsed = resolveSidebarProjectCollapsed({
+        projectPath: project.path,
+        collapsedProjects: input.collapsedProjects,
+        ...(input.activeProjectPath !== undefined
+          ? { activeProjectPath: input.activeProjectPath }
+          : {}),
+        searching,
+      });
       rows.push({
         kind: 'project-folder',
         projectPath: project.path,

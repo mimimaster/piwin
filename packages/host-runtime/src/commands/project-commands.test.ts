@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { handleProjectCommand } from './project-commands.js';
+import { getPiwinGeneralWorkspacePath } from '../paths.js';
 
 describe('project commands', () => {
   it('removes a remembered project without deleting its project directory', async () => {
@@ -61,6 +62,39 @@ describe('project commands', () => {
       content: '# Foo\n\nhello\n',
       isBinary: false,
     });
+  });
+
+  it('returns a data-URL preview for PNG files under a registered project', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-project-read-png-'));
+    const projectPath = join(rootDir, 'workspace');
+    await mkdir(join(projectPath, 'docs', 'design'), { recursive: true });
+    const pngBytes = Buffer.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44,
+      0x52,
+    ]);
+    await writeFile(join(projectPath, 'docs', 'design', 'icon.png'), pngBytes);
+
+    await handleProjectCommand({ type: 'project/open', path: projectPath }, 'open', rootDir);
+
+    const read = await handleProjectCommand(
+      {
+        type: 'project/read-file',
+        projectPath,
+        relativePath: 'docs/design/icon.png',
+      },
+      'read-png',
+      rootDir,
+    );
+    expect(read?.success).toBe(true);
+    const data = read && 'data' in read ? read.data : null;
+    expect(data).toMatchObject({
+      relativePath: 'docs/design/icon.png',
+      isBinary: true,
+      mimeHint: 'image/png',
+      content: '',
+    });
+    expect(data && typeof data === 'object' && 'previewDataUrl' in data ? data.previewDataUrl : null)
+      .toMatch(/^data:image\/png;base64,/);
   });
 
   it('rejects project/read-file for an unregistered root such as /etc', async () => {
@@ -163,6 +197,40 @@ describe('project commands', () => {
     expect(listed).toMatchObject({
       success: false,
       error: 'unknown-project',
+    });
+  });
+
+  it('lists and reads the General workspace without registering it as a project', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-general-browse-'));
+    const generalWorkspace = getPiwinGeneralWorkspacePath(rootDir);
+    await mkdir(generalWorkspace, { recursive: true });
+    await writeFile(join(generalWorkspace, 'card.html'), '<h1>Hello</h1>\n', 'utf8');
+
+    const listed = await handleProjectCommand(
+      { type: 'project/list-dir', projectPath: generalWorkspace },
+      'list-general',
+      rootDir,
+    );
+    expect(listed?.success).toBe(true);
+    expect(listed && 'data' in listed ? listed.data : null).toMatchObject({
+      projectPath: generalWorkspace,
+      entries: [{ name: 'card.html', relativePath: 'card.html', kind: 'file' }],
+    });
+
+    const read = await handleProjectCommand(
+      {
+        type: 'project/read-file',
+        projectPath: generalWorkspace,
+        relativePath: 'card.html',
+      },
+      'read-general',
+      rootDir,
+    );
+    expect(read?.success).toBe(true);
+    expect(read && 'data' in read ? read.data : null).toMatchObject({
+      relativePath: 'card.html',
+      content: '<h1>Hello</h1>\n',
+      isBinary: false,
     });
   });
 });

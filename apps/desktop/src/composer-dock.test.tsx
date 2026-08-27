@@ -10,6 +10,14 @@ import type { DesktopLocale } from './desktop-locale';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+/** Send, Pause, Continue, and the banned extra Stop/Discard circles. */
+const COMPOSER_CIRCULAR_ACTIONS =
+  '[data-testid="send-btn"], [data-testid="pause-btn"], [data-testid="resume-run-btn"], [data-testid="discard-pause-btn"], [data-testid="stop-btn"]';
+
+function circularActionCount(container: HTMLElement): number {
+  return container.querySelectorAll(COMPOSER_CIRCULAR_ACTIONS).length;
+}
+
 const baseProps: ComposerDockProps = {
   layoutMode: 'docked',
   projectPath: null,
@@ -244,6 +252,7 @@ describe('ComposerDock host status', () => {
     expect(container.querySelector('[data-testid="send-btn"]')).toBeNull();
     expect(container.querySelector('[data-testid="stop-btn"]')).toBeNull();
     expect(container.querySelectorAll('[data-testid="pause-btn"]').length).toBe(1);
+    expect(circularActionCount(container)).toBe(1);
 
     act(() => {
       pauseBtn.click();
@@ -293,6 +302,7 @@ describe('ComposerDock host status', () => {
     expect(pauseBtn).not.toBeNull();
     expect(container.querySelector('[data-testid="stop-btn"]')).toBeNull();
     expect(container.querySelectorAll('[data-testid="pause-btn"]').length).toBe(1);
+    expect(circularActionCount(container)).toBe(1);
 
     act(() => {
       pauseBtn.click();
@@ -318,9 +328,10 @@ describe('ComposerDock host status', () => {
 
     const steerBtn = container.querySelector('[data-testid="steer-btn"]') as HTMLButtonElement;
     expect(steerBtn).not.toBeNull();
-    expect(container.querySelector('[data-testid="send-btn"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="send-btn"]')).toBeNull();
     expect(container.querySelector('[data-testid="pause-btn"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="stop-btn"]')).toBeNull();
+    expect(circularActionCount(container)).toBe(1);
 
     act(() => {
       steerBtn.click();
@@ -346,9 +357,10 @@ describe('ComposerDock host status', () => {
     container = rendered.container;
 
     expect(container.querySelector('[data-testid="pause-btn"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="send-btn"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="send-btn"]')).toBeNull();
     expect(container.querySelector('[data-testid="stop-btn"]')).toBeNull();
     expect(container.querySelectorAll('[data-testid="pause-btn"]').length).toBe(1);
+    expect(circularActionCount(container)).toBe(1);
   });
 
   it('does not render pause or resume controls when idle', () => {
@@ -360,9 +372,10 @@ describe('ComposerDock host status', () => {
     expect(container.querySelector('[data-testid="resume-run-btn"]')).toBeNull();
     expect(container.querySelector('[data-testid="discard-pause-btn"]')).toBeNull();
     expect(container.querySelector('[data-testid="send-btn"]')).not.toBeNull();
+    expect(circularActionCount(container)).toBe(1);
   });
 
-  it('shows Resume and irreversible discard after a pause checkpoint is saved', () => {
+  it('shows Continue in the same slot after a pause checkpoint, without a second circular button', () => {
     const handleResume = vi.fn();
     const handleAbort = vi.fn();
     const rendered = renderDock(
@@ -377,21 +390,47 @@ describe('ComposerDock host status', () => {
     container = rendered.container;
 
     const resume = container.querySelector('[data-testid="resume-run-btn"]') as HTMLButtonElement;
-    const discard = container.querySelector(
-      '[data-testid="discard-pause-btn"]',
-    ) as HTMLButtonElement;
     expect(resume).not.toBeNull();
-    expect(discard).not.toBeNull();
     expect(resume.getAttribute('aria-label')).toBe('Continue run');
-    expect(discard.getAttribute('aria-label')).toBe('Discard pause');
+    expect(container.querySelector('[data-testid="discard-pause-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="stop-btn"]')).toBeNull();
     expect(container.querySelector('[data-testid="pause-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="send-btn"]')).toBeNull();
+    expect(circularActionCount(container)).toBe(1);
 
     act(() => {
       resume.click();
-      discard.click();
     });
     expect(handleResume).toHaveBeenCalledOnce();
-    expect(handleAbort).toHaveBeenCalledOnce();
+    expect(handleAbort).not.toHaveBeenCalled();
+  });
+
+  it('turns the paused Continue slot back into Send when the user drafts a new prompt', () => {
+    const handleSend = vi.fn();
+    const handleResume = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        paused
+        composer="new prompt"
+        onSend={handleSend}
+        onResume={handleResume}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const send = container.querySelector('[data-testid="send-btn"]') as HTMLButtonElement;
+    expect(send).not.toBeNull();
+    expect(container.querySelector('[data-testid="resume-run-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="discard-pause-btn"]')).toBeNull();
+    expect(circularActionCount(container)).toBe(1);
+
+    act(() => {
+      send.click();
+    });
+    expect(handleSend).toHaveBeenCalledOnce();
+    expect(handleResume).not.toHaveBeenCalled();
   });
 
   it('reuses the Composer textarea for Other input and keeps Pause instead of Steer', () => {
@@ -482,13 +521,14 @@ describe('ComposerDock host status', () => {
 
     expect(container.querySelector('[data-testid="steer-btn"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="pause-btn"]')).not.toBeNull();
-
-    const sendBtn = container.querySelector('[data-testid="send-btn"]') as HTMLButtonElement;
-    expect(sendBtn).not.toBeNull();
-    expect(sendBtn.classList.contains('is-queue')).toBe(true);
+    expect(container.querySelector('[data-testid="send-btn"]')).toBeNull();
+    expect(circularActionCount(container)).toBe(1);
 
     act(() => {
-      sendBtn.click();
+      const textarea = container?.querySelector<HTMLTextAreaElement>(
+        '[data-testid="composer-input"]',
+      );
+      textarea?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     });
     expect(handleFollowUp).toHaveBeenCalledTimes(1);
     expect(handleSteer).not.toHaveBeenCalled();

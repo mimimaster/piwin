@@ -2,7 +2,7 @@
 
 - Status: accepted
 - Date: 2026-08-10
-- Updated: 2026-08-25
+- Updated: 2026-08-26
 - Related: ADR 0012, ADR 0015, ADR 0040, `docs/specs/runtime-refactor.md`
 
 ## Context
@@ -42,18 +42,22 @@ than partially pausing a Run tree.
 
 ### Product UI (shells)
 
-Desktop exposes the checkpoint workflow without adding parallel composer chrome:
+Desktop exposes the checkpoint workflow without adding parallel composer chrome.
+The composer action slot holds **exactly one circular button** in every state:
 
-1. **One primary run control while a Run is live.** Label and icon are
-   **Pause**; there is no adjacent Pause+Stop pair.
+1. **Idle: Send.** After send, that same control becomes **Pause**. There is
+   never an adjacent Send+Stop, Pause+Stop, or Continue+Discard pair.
 2. Clicking Pause sends `session/pause` with the exact foreground `runId` and
    shows `pausing` until the Host publishes the terminal checkpoint.
-3. Once paused, the same action slot shows **Continue** and an irreversible
-   discard action. Continue sends `session/resume-run`; discard clears the
-   checkpoint through `session/abort`.
-4. Esc / the explicit `stop-run` command remain irreversible Stop gestures for
-   emergency cancellation. They are deliberately named Stop and are not shown
-   as a second live composer button.
+3. Once paused, the same slot shows **Continue** (`session/resume-run`). If the
+   user types a new prompt, the same slot becomes **Send**, which clears the
+   checkpoint then starts a new turn.
+4. Esc / the explicit `stop-run` command (⌘.) remain irreversible Stop. They
+   are not shown as a second composer button — including after pause. Follow-up
+   while a run is live is Enter, not a second Send circle.
+
+Do not add a second circular composer button and cite this ADR. The previous
+"Continue + Discard" wording caused that regression repeatedly.
 
 ## Consequences
 
@@ -65,8 +69,8 @@ Desktop exposes the checkpoint workflow without adding parallel composer chrome:
   abort/cancel mechanisms; no new Pi-native worker protocol is required.
 - The paused Run remains terminal and immutable, which keeps late-event
   filtering, restart behavior, and multi-client projections deterministic.
-- Desktop keeps one primary live control while making checkpoint pause and
-  continue directly usable. Irreversible Stop remains an explicit command.
+- Desktop keeps one primary circular control while making checkpoint pause and
+  continue directly usable. Irreversible Stop remains Esc / `stop-run`.
 
 ## Future replacement point
 

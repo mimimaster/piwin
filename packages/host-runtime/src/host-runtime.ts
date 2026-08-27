@@ -197,6 +197,7 @@ import type {
 } from '@piwin/contracts';
 import type { TranscriptRecorder } from './transcript-recorder.js';
 import { createStoreTranscriptRecorder } from './store-transcript-recorder.js';
+import { finalizeRunTranscriptArtifacts } from './transcript-stream-settler.js';
 import { transcriptAppendPush } from './transcript-append-push.js';
 import {
   createSessionTranscriptStoreRegistry,
@@ -260,6 +261,7 @@ import {
 } from './commands/session-live-commands.js';
 import { PromptAdmissionGate } from './commands/session-prompt-admission.js';
 import { isRunAbortReason } from './run-abort-reason.js';
+import { shouldSuppressControlledAbortError } from './run-agent-event-policy.js';
 import { QueuedTurnController } from './queued-turn-controller.js';
 import type { HostCommandContext } from './commands/host-command-context.js';
 import { SessionRuntimeController } from './sessions/session-runtime-controller.js';
@@ -1239,6 +1241,25 @@ export class HostRuntime {
       }
     }
     for (const run of activeRuns) {
+      try {
+        const finalized = await this.withTranscriptStore(run.sessionId, (store) =>
+          finalizeRunTranscriptArtifacts(store, {
+            runId: run.runId,
+            outcome: 'cancelled',
+            interventionReason: 'run-cancelling',
+            terminalMessage: 'host disposed',
+          }),
+        );
+        for (const intervention of finalized.expired) {
+          this.push({ type: 'run/intervention-updated', intervention });
+        }
+      } catch (error) {
+        this.push({
+          type: 'host/log',
+          level: 'warn',
+          message: `run transcript finalization failed for ${run.runId}: ${formatError(error)}`,
+        });
+      }
       this.runRegistry.terminate(run.runId, 'cancelled', 'host-shutdown', 'host disposed');
     }
     // Replacement cleanup must finish before MCP/Host disposal so a cancelled
@@ -3087,6 +3108,25 @@ export class HostRuntime {
       // Terminalize that leaf after siblings have joined so SC-09 remains true;
       // the batch/foreground owner can then finish the root Run normally.
       if (this.runRegistry.isActive(runId)) {
+        const crashed = this.runRegistry.get(runId);
+        if (crashed) {
+          try {
+            await this.withTranscriptStore(crashed.sessionId, (store) =>
+              finalizeRunTranscriptArtifacts(store, {
+                runId,
+                outcome: 'failed',
+                interventionReason: 'worker-crash',
+                terminalMessage: message,
+              }),
+            );
+          } catch (error) {
+            this.push({
+              type: 'host/log',
+              level: 'warn',
+              message: `run transcript finalization failed for ${runId}: ${formatError(error)}`,
+            });
+          }
+        }
         this.runRegistry.terminate(runId, 'failed', 'worker-crash', message);
       }
     } finally {
@@ -3899,7 +3939,7 @@ export class HostRuntime {
         : {
             clientToolExecution: this.options.clientToolExecution,
             healthToolRunBudget: this.healthToolRunBudget,
-            resolveHealthDisplay: (context) => {
+            resolveHealthDisplay: (context: { sessionId: string }) => {
               const stored = this.healthTurnBySession.get(context.sessionId);
               const provider = healthProviderDisclosure(
                 this.sessionModels.get(context.sessionId),
@@ -4578,7 +4618,6 @@ export class HostRuntime {
       isPromptAdmissionReserved: (sessionId) => this.promptAdmissionGate.isReserved(sessionId),
       joinRun: (runId) => this.runRegistry.join(runId),
       getRunSignal: (runId) => this.runRegistry.getSignal(runId),
-      hasRunReceivedFirstToken: (runId) => this.runRegistry.hasFirstToken(runId),
       getRunLastAgentError: (runId) => this.runRegistry.getLastAgentError(runId),
       /** ADR 0040 §5: explicit protection lease (compaction / backend op). */
       protectRuntime: (sessionId) => {
@@ -4664,21 +4703,23 @@ export class HostRuntime {
         const supersededByNewPrompt =
           (isRunAbortReason(abortReason) && abortReason.code === 'superseded-by-new-prompt') ||
           code === 'superseded-by-new-prompt';
+        const timeoutCode =
+          code === 'model-connect-timeout' ||
+          code === 'model-first-token-timeout' ||
+          code === 'model-turn-timeout' ||
+          code === 'mcp-timeout';
         const effectiveCode: RunTerminalCode = cleanupFailed
           ? 'job-cleanup-failed'
-          : outcome === 'cancelled'
-            ? supersededByNewPrompt
-              ? 'superseded-by-new-prompt'
-              : 'cancelled'
-            : outcome === 'completed'
-              ? 'completed'
-              : outcome === 'paused'
-                ? 'paused'
-                : code === 'model-connect-timeout' ||
-                    code === 'model-first-token-timeout' ||
-                    code === 'model-turn-timeout' ||
-                    code === 'mcp-timeout'
-                  ? 'timeout'
+          : timeoutCode
+            ? 'timeout'
+            : outcome === 'cancelled'
+              ? supersededByNewPrompt
+                ? 'superseded-by-new-prompt'
+                : 'cancelled'
+              : outcome === 'completed'
+                ? 'completed'
+                : outcome === 'paused'
+                  ? 'paused'
                   : code === 'runtime-memory-pressure'
                     ? code
                     : 'failed';
@@ -4718,25 +4759,34 @@ export class HostRuntime {
           }
         }
         try {
-          const expired = await this.withTranscriptStore(sessionId, (store) =>
-            store.expirePendingRunInterventions(
+          const finalized = await this.withTranscriptStore(sessionId, (store) =>
+            finalizeRunTranscriptArtifacts(store, {
               runId,
-              effectiveOutcome === 'paused'
-                ? 'run-pausing'
-                : effectiveOutcome === 'cancelled'
-                  ? 'run-cancelling'
-                  : 'run-ended',
-              new Date().toISOString(),
-            ),
+              outcome:
+                effectiveOutcome === 'paused'
+                  ? 'paused'
+                  : effectiveOutcome === 'completed'
+                    ? 'completed'
+                    : effectiveOutcome === 'cancelled'
+                      ? 'cancelled'
+                      : 'failed',
+              interventionReason:
+                effectiveOutcome === 'paused'
+                  ? 'run-pausing'
+                  : effectiveOutcome === 'cancelled'
+                    ? 'run-cancelling'
+                    : 'run-ended',
+              ...(effectiveMessage !== undefined ? { terminalMessage: effectiveMessage } : {}),
+            }),
           );
-          for (const intervention of expired) {
+          for (const intervention of finalized.expired) {
             this.push({ type: 'run/intervention-updated', intervention });
           }
         } catch (error) {
           this.push({
             type: 'host/log',
             level: 'warn',
-            message: `run intervention finalization failed for ${runId}: ${formatError(error)}`,
+            message: `run transcript finalization failed for ${runId}: ${formatError(error)}`,
           });
         }
         const terminal = this.runRegistry.terminate(
@@ -5129,6 +5179,7 @@ export class HostRuntime {
       ready: this.ready,
       mock: this.options.mock === true || process.env.PIWIN_MOCK === '1',
       piwinRoot: getPiwinRoot(this.options.piwinRoot),
+      generalWorkspacePath: getPiwinGeneralWorkspacePath(getPiwinRoot(this.options.piwinRoot)),
       activeSessionIds: [...this.sessions.keys()],
       capabilities: {
         // True only when the real parent-owned session tool port is composed
@@ -5357,6 +5408,19 @@ export class HostRuntime {
       const correlatedRunId = readEventRunId(correlatedEvent);
       const activeRunId = activeRun?.runId;
       const correlatedRun = correlatedRunId ? this.runRegistry.get(correlatedRunId) : undefined;
+      const correlatedRunSignal =
+        correlatedRunId === undefined ? undefined : this.runRegistry.getSignal(correlatedRunId);
+      if (
+        shouldSuppressControlledAbortError(correlatedEvent, {
+          ...(correlatedRunSignal !== undefined ? { signal: correlatedRunSignal } : {}),
+          ...(correlatedRun !== undefined ? { runStatus: correlatedRun.status } : {}),
+          ...(correlatedRunId !== undefined
+            ? { pauseRequested: this.runRegistry.isPauseRequested(correlatedRunId) }
+            : {}),
+        })
+      ) {
+        return;
+      }
       if (
         correlatedRunId !== undefined &&
         ((correlatedRun !== undefined && isRunTerminal(correlatedRun.status)) ||

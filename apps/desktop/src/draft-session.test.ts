@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { SessionScope } from '@piwin/contracts';
 import {
   draftSessionMatchesQuery,
+  findLatestDraftForScope,
   sortDraftSessions,
   type DraftSessionItemUi,
 } from './draft-session';
@@ -21,6 +22,24 @@ function draft(id: string, createdAt: string, name: string): DraftSessionItemUi 
 }
 
 describe('local composer drafts', () => {
+  it('picks the latest parked draft for a scope', () => {
+    const older = draft('older', '2026-08-09T08:00:00.000Z', 'older');
+    const newer = draft('newer', '2026-08-09T09:00:00.000Z', 'newer');
+    newer.updatedAt = '2026-08-09T10:00:00.000Z';
+    const general: DraftSessionItemUi = {
+      ...draft('general', '2026-08-09T11:00:00.000Z', 'general'),
+      scope: { kind: 'general' },
+    };
+
+    expect(findLatestDraftForScope([older, newer, general], projectScope)?.id).toBe('newer');
+    expect(findLatestDraftForScope([older, newer, general], { kind: 'general' })?.id).toBe(
+      'general',
+    );
+    expect(
+      findLatestDraftForScope([general], { kind: 'project', projectPath: '/other' }),
+    ).toBeUndefined();
+  });
+
   it('sorts drafts newest first without mutating the source list', () => {
     const older = draft('older', '2026-08-09T08:00:00.000Z', 'older');
     const newer = draft('newer', '2026-08-09T09:00:00.000Z', 'newer');

@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 import type { SessionListItemUi } from './chat-reducer';
 import type { DraftSessionItemUi } from './draft-session';
 import { createSessionListScopeState, setSessionListScopeMeta } from './session-list-scope';
-import { buildSidebarTreeRows, sidebarTreeRowKey, type SidebarTreeRow } from './sidebar-tree-rows';
+import {
+  buildSidebarTreeRows,
+  resolveSidebarProjectCollapsed,
+  sidebarTreeRowKey,
+  type SidebarTreeRow,
+} from './sidebar-tree-rows';
 
 function session(
   id: string,
@@ -35,6 +40,57 @@ function kinds(rows: SidebarTreeRow[]): string[] {
   });
 }
 
+describe('resolveSidebarProjectCollapsed', () => {
+  it('defaults to collapsed except the active/last-session project', () => {
+    expect(
+      resolveSidebarProjectCollapsed({
+        projectPath: '/active',
+        collapsedProjects: {},
+        activeProjectPath: '/active',
+      }),
+    ).toBe(false);
+    expect(
+      resolveSidebarProjectCollapsed({
+        projectPath: '/other',
+        collapsedProjects: {},
+        activeProjectPath: '/active',
+      }),
+    ).toBe(true);
+    expect(
+      resolveSidebarProjectCollapsed({
+        projectPath: '/any',
+        collapsedProjects: {},
+        activeProjectPath: null,
+      }),
+    ).toBe(true);
+  });
+
+  it('lets explicit overrides and search mode win', () => {
+    expect(
+      resolveSidebarProjectCollapsed({
+        projectPath: '/active',
+        collapsedProjects: { '/active': true },
+        activeProjectPath: '/active',
+      }),
+    ).toBe(true);
+    expect(
+      resolveSidebarProjectCollapsed({
+        projectPath: '/other',
+        collapsedProjects: { '/other': false },
+        activeProjectPath: '/active',
+      }),
+    ).toBe(false);
+    expect(
+      resolveSidebarProjectCollapsed({
+        projectPath: '/other',
+        collapsedProjects: {},
+        activeProjectPath: '/active',
+        searching: true,
+      }),
+    ).toBe(false);
+  });
+});
+
 describe('buildSidebarTreeRows', () => {
   it('respects Projects and Conversations section collapse', () => {
     const rows = buildSidebarTreeRows({
@@ -51,6 +107,34 @@ describe('buildSidebarTreeRows', () => {
     expect(kinds(rows)).toEqual(['header:projects', 'header:conversations']);
   });
 
+  it('expands only the active project folder by default', () => {
+    const rows = buildSidebarTreeRows({
+      recentProjects: [{ path: '/a' }, { path: '/b' }, { path: '/c' }],
+      projectSessionsByPath: {
+        '/a': [session('a1', 'A')],
+        '/b': [session('b1', 'B')],
+        '/c': [session('c1', 'C')],
+      },
+      generalSessions: [],
+      sessionSearch: '',
+      sessionListOrder: 'updated',
+      projectsSectionExpanded: true,
+      conversationsSectionExpanded: true,
+      collapsedProjects: {},
+      sessionListScopes: createSessionListScopeState(),
+      activeProjectPath: '/b',
+    });
+    expect(kinds(rows)).toEqual([
+      'header:projects',
+      'folder:/a:true',
+      'folder:/b:false',
+      'session:b1',
+      'folder:/c:true',
+      'header:conversations',
+      'empty:general',
+    ]);
+  });
+
   it('hides sessions under a collapsed project folder', () => {
     const rows = buildSidebarTreeRows({
       recentProjects: [{ path: '/a' }, { path: '/b' }],
@@ -65,6 +149,7 @@ describe('buildSidebarTreeRows', () => {
       conversationsSectionExpanded: true,
       collapsedProjects: { '/a': true },
       sessionListScopes: createSessionListScopeState(),
+      activeProjectPath: '/b',
     });
     expect(kinds(rows)).toEqual([
       'header:projects',
@@ -88,7 +173,7 @@ describe('buildSidebarTreeRows', () => {
       sessionListOrder: 'updated',
       projectsSectionExpanded: true,
       conversationsSectionExpanded: false,
-      collapsedProjects: {},
+      collapsedProjects: { '/a': false, '/b': false },
       sessionListScopes: createSessionListScopeState(),
     });
     const sessionRows = rows.filter((row) => row.kind === 'session');
@@ -115,7 +200,7 @@ describe('buildSidebarTreeRows', () => {
       sessionListOrder: 'updated' as const,
       projectsSectionExpanded: true,
       conversationsSectionExpanded: false,
-      collapsedProjects: {},
+      collapsedProjects: { '/a': false, '/b': false },
       sessionListScopes: createSessionListScopeState(),
     };
 

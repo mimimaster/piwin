@@ -24,25 +24,25 @@ export const BUILTIN_SUBAGENT_PROFILE_IDS = [
 export const BUILTIN_SUBAGENT_PROFILES: readonly SubagentProfile[] = [
   {
     id: 'explorer',
-    description: 'Fast read-only codebase exploration',
+    description: 'Read-only codebase exploration, symbol discovery, and evidence gathering',
     isolation: 'readonly',
     source: 'builtin',
   },
   {
     id: 'reviewer',
-    description: 'Read-only code review and analysis',
+    description: 'Read-only diff analysis, bug finding, and code review',
     isolation: 'readonly',
     source: 'builtin',
   },
   {
     id: 'implementer',
-    description: 'Isolated implementation with write and execute',
+    description: 'Isolated code implementation with write and run permissions in a git worktree',
     isolation: 'worktree',
     source: 'builtin',
   },
   {
     id: 'tester',
-    description: 'Isolated test execution and fixture writes',
+    description: 'Isolated test suite execution and test fixture generation in a git worktree',
     isolation: 'worktree',
     source: 'builtin',
   },

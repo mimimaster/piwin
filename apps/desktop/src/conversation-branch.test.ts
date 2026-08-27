@@ -3,6 +3,7 @@ import type { TranscriptBranchPoint } from '@piwin/contracts';
 import {
   adjacentSiblingHead,
   clipMessagesBeforeId,
+  countConversationTreeBranches,
   findActiveBranchPoint,
   formatBranchSwitcherLabel,
 } from './conversation-branch.js';
@@ -47,5 +48,20 @@ describe('conversation-branch helpers', () => {
     const messages = [{ id: 'u1' }, { id: 'a1' }, { id: 'u2' }, { id: 'a2' }];
     expect(clipMessagesBeforeId(messages, 'u2')).toEqual([{ id: 'u1' }, { id: 'a1' }]);
     expect(clipMessagesBeforeId(messages, 'missing')).toBeNull();
+  });
+
+  it('counts extra in-session siblings, not related Fork Chat sessions', () => {
+    expect(countConversationTreeBranches([])).toBe(0);
+    expect(countConversationTreeBranches([point])).toBe(1);
+    expect(
+      countConversationTreeBranches([
+        point,
+        {
+          ...point,
+          anchorMessageId: 'root',
+          siblings: [...point.siblings, { ...point.siblings[0]!, headMessageId: 'u2-c' }],
+        },
+      ]),
+    ).toBe(3);
   });
 });

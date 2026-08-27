@@ -24,6 +24,8 @@ const desktopRoot = fileURLToPath(new URL('..', import.meta.url));
 const repoRoot = fileURLToPath(new URL('../../..', import.meta.url));
 const stylesDir = join(desktopRoot, 'src/styles');
 const uiKitSrc = join(repoRoot, 'packages/ui-kit/src');
+const TURN_TELEMETRY_REMOVAL_REASON =
+  'per-turn metrics rail removed; detailed usage remains in Settings';
 
 /**
  * Selectors intentionally removed by the Deck migration. Each is a
@@ -32,6 +34,15 @@ const uiKitSrc = join(repoRoot, 'packages/ui-kit/src');
  * reinstating it would re-introduce the hardcoded color it replaced.
  */
 const DELIBERATE_SELECTOR_DROPS = new Map([
+  ['.search-field', 'inline sidebar search replaced by the session search dialog'],
+  ['.sidebar-search-field', 'inline sidebar search replaced by the session search dialog'],
+  ['.search-field:focus-within', 'inline sidebar search replaced by the session search dialog'],
+  ['.search-field input', 'inline sidebar search replaced by the session search dialog'],
+  [
+    '.search-field input::placeholder',
+    'inline sidebar search replaced by the session search dialog',
+  ],
+  ['.search-field .kbd', 'inline sidebar search replaced by the session search dialog'],
   [
     "html[data-theme-mode='dark'] .bubble.role-user:not(.is-conversation-bubble)",
     'token ramp is mode-aware',
@@ -144,11 +155,10 @@ const DELIBERATE_SELECTOR_DROPS = new Map([
     "html[data-theme-mode='dark'] .user-message-wrapper.is-conversation .user-message-collapsible",
     'token ramp is mode-aware',
   ],
-  // Turn telemetry was deliberately re-scoped from a full-width shell footer
-  // to an icon-led rail attached to the Composer. Duplicate model, context,
-  // branch, Skills, and MCP chrome no longer exists in its markup.
-  ['.status-bar-left', 'replaced by the single turn telemetry rail'],
-  ['.status-bar-right', 'replaced by the single turn telemetry rail'],
+  // The full status/metrics rail was removed from the conversation stage.
+  // Keep every retired selector explicit so future unrelated drops still fail.
+  ['.status-bar-left', TURN_TELEMETRY_REMOVAL_REASON],
+  ['.status-bar-right', TURN_TELEMETRY_REMOVAL_REASON],
   ['.status-bar-dot', 'run state now uses shared outline icons'],
   ['.status-bar-agent.state-running', 'tone now targets the state icon and label'],
   [
@@ -168,6 +178,38 @@ const DELIBERATE_SELECTOR_DROPS = new Map([
   ['.status-bar-chip img', 'Skills and MCP are not turn telemetry'],
   ['.status-bar-chip:hover', 'turn metrics are static labels, not controls'],
   ['.status-bar-agent .status-bar-dot', 'run state now uses shared outline icons'],
+  ['.chat-stage > .composer-dock:has(+ .status-bar)', TURN_TELEMETRY_REMOVAL_REASON],
+  [
+    '.chat-column-empty .chat-stage > .composer-dock.layout-centered:has(+ .status-bar)',
+    TURN_TELEMETRY_REMOVAL_REASON,
+  ],
+  ['.status-bar', TURN_TELEMETRY_REMOVAL_REASON],
+  ['.chat-column-empty .status-bar', TURN_TELEMETRY_REMOVAL_REASON],
+  ['.status-bar-rail', TURN_TELEMETRY_REMOVAL_REASON],
+  ['.status-bar-rail:hover', TURN_TELEMETRY_REMOVAL_REASON],
+  ['.status-bar-agent', TURN_TELEMETRY_REMOVAL_REASON],
+  ['.status-bar-agent-icon', TURN_TELEMETRY_REMOVAL_REASON],
+  ['.status-bar-agent-icon svg', TURN_TELEMETRY_REMOVAL_REASON],
+  ['.status-bar-metric-icon svg', TURN_TELEMETRY_REMOVAL_REASON],
+  ['.status-bar-agent-label', TURN_TELEMETRY_REMOVAL_REASON],
+  ['.status-bar-agent.state-running .status-bar-agent-icon', TURN_TELEMETRY_REMOVAL_REASON],
+  ['.status-bar-agent.state-running .status-bar-agent-label', TURN_TELEMETRY_REMOVAL_REASON],
+  ['.status-bar-agent.state-idle .status-bar-agent-icon', TURN_TELEMETRY_REMOVAL_REASON],
+  ['.status-bar-agent.state-idle .status-bar-agent-label', TURN_TELEMETRY_REMOVAL_REASON],
+  ['.status-bar-agent.state-error .status-bar-agent-icon', TURN_TELEMETRY_REMOVAL_REASON],
+  ['.status-bar-agent.state-error .status-bar-agent-label', TURN_TELEMETRY_REMOVAL_REASON],
+  ['.status-bar-agent.state-attention .status-bar-agent-icon', TURN_TELEMETRY_REMOVAL_REASON],
+  ['.status-bar-agent.state-attention .status-bar-agent-label', TURN_TELEMETRY_REMOVAL_REASON],
+  ['.status-bar-divider', TURN_TELEMETRY_REMOVAL_REASON],
+  ['.status-bar-metrics', TURN_TELEMETRY_REMOVAL_REASON],
+  ['.status-bar-metric', TURN_TELEMETRY_REMOVAL_REASON],
+  ['.status-bar-metric + .status-bar-metric::before', TURN_TELEMETRY_REMOVAL_REASON],
+  ['.status-bar-metric-icon', TURN_TELEMETRY_REMOVAL_REASON],
+  ['.status-bar-metric-label', TURN_TELEMETRY_REMOVAL_REASON],
+  ['.status-bar-metric-value', TURN_TELEMETRY_REMOVAL_REASON],
+  ['.status-bar-rail:hover .status-bar-metric-value', TURN_TELEMETRY_REMOVAL_REASON],
+  [".status-bar-metric[data-kind='input']", TURN_TELEMETRY_REMOVAL_REASON],
+  [".status-bar-metric[data-kind='output']", TURN_TELEMETRY_REMOVAL_REASON],
 ]);
 
 function stripComments(css) {

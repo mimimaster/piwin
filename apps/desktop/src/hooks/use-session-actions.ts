@@ -139,6 +139,8 @@ export function useSessionActions(args: UseSessionActionsArgs) {
   // committed activeSessionId. Share one create request per selected scope.
   const pendingSessionCreations = useRef(new Map<string, Promise<string | null>>());
   const sessionListRequestGenerations = useRef(new Map<string, number>());
+  const sessionListMutationEpochRef = useRef(state.sessionListMutationEpoch);
+  sessionListMutationEpochRef.current = state.sessionListMutationEpoch;
   const transcriptHistoryRequestSessionId = useRef<string | null>(null);
   const historySeekRequestGeneration = useRef(0);
   const [transcriptHistoryLoading, setTranscriptHistoryLoading] = useState(false);
@@ -286,6 +288,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       const scopeKey = sessionScopeKey(scope);
       const requestGeneration = (sessionListRequestGenerations.current.get(scopeKey) ?? 0) + 1;
       sessionListRequestGenerations.current.set(scopeKey, requestGeneration);
+      const mutationEpochAtStart = sessionListMutationEpochRef.current;
       const transport = hostClient.getTransport();
       if (
         isRemoteDesktopTransport(transport) &&
@@ -314,13 +317,17 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       }
       const mapped = mapListedSessionItems(listed.data);
       const named = mapped.sessions.filter((session) => sessionHasListName(session));
-      if (sessionListRequestGenerations.current.get(scopeKey) === requestGeneration) {
+      if (
+        sessionListRequestGenerations.current.get(scopeKey) === requestGeneration &&
+        sessionListMutationEpochRef.current === mutationEpochAtStart
+      ) {
         dispatch({
           type: 'session/hydrate-scope',
           scope,
           sessions: named,
           totalCount: mapped.totalCount,
           truncated: mapped.truncated,
+          mutationEpoch: mutationEpochAtStart,
           ...(options?.fillActiveList === true ? { fillActiveList: true } : {}),
         });
       }
@@ -1319,7 +1326,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
   );
 
   const handleForkSession = useCallback(
-    async (sessionId: string, messageId: string): Promise<void> => {
+    async (sessionId: string, messageId?: string): Promise<void> => {
       if (
         transcriptOwnerBlocksDangerousAction({
           transcriptOwnerSessionId: state.transcriptOwnerSessionId,
@@ -1334,7 +1341,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       const response = await hostClient.request({
         type: 'session/fork',
         sessionId,
-        messageId,
+        ...(messageId !== undefined ? { messageId } : {}),
         workspaceStrategy: 'shared',
         messageProjection: 'none',
       });
@@ -1394,6 +1401,9 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         case 'duplicate':
           await handleDuplicateSession(sessionId);
           break;
+        case 'fork-chat':
+          await handleForkSession(sessionId);
+          break;
         case 'continue-in-project':
           // App owns project selection; this action only opens that picker.
           break;
@@ -1426,6 +1436,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       confirmDeleteSession,
       dispatchNotification,
       handleDuplicateSession,
+      handleForkSession,
       handleExportSession,
       handleResumeSession,
       handleTogglePin,

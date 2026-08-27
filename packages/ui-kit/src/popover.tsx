@@ -12,6 +12,13 @@ export type PopoverProps = {
   testId?: string;
   /** Accessible name for the content, which Radix renders with role="dialog". */
   label?: string;
+  /**
+   * Whether to automatically focus the first focusable element when opened.
+   * Defaults to false to avoid unwanted initial focus rings on close buttons.
+   */
+  autoFocus?: boolean;
+  onOpenAutoFocus?: (event: Event) => void;
+  onCloseAutoFocus?: (event: Event) => void;
 };
 
 /** Anchored non-modal panel for context details and compact pickers. */
@@ -42,6 +49,15 @@ export function Popover(props: PopoverProps): ReactElement {
           side={props.side ?? 'bottom'}
           {...(props.testId ? { 'data-testid': props.testId } : {})}
           {...(props.label ? { 'aria-label': props.label } : {})}
+          onOpenAutoFocus={(event) => {
+            props.onOpenAutoFocus?.(event);
+            if (!props.onOpenAutoFocus && props.autoFocus !== true) {
+              event.preventDefault();
+            }
+          }}
+          onCloseAutoFocus={(event) => {
+            props.onCloseAutoFocus?.(event);
+          }}
         >
           {props.children}
         </PopoverPrimitive.Content>
@@ -54,13 +70,19 @@ export function PopoverTrigger(props: { children: ReactNode }): ReactElement {
   return <PopoverPrimitive.Trigger asChild>{props.children}</PopoverPrimitive.Trigger>;
 }
 
-export function PopoverContent(props: {
+export type PopoverContentProps = {
   children: ReactNode;
   className?: string;
   align?: 'start' | 'center' | 'end';
   side?: 'top' | 'right' | 'bottom' | 'left';
   testId?: string;
-}): ReactElement {
+  label?: string;
+  autoFocus?: boolean;
+  onOpenAutoFocus?: (event: Event) => void;
+  onCloseAutoFocus?: (event: Event) => void;
+};
+
+export function PopoverContent(props: PopoverContentProps): ReactElement {
   return (
     <PopoverPrimitive.Portal>
       <PopoverPrimitive.Content
@@ -69,6 +91,16 @@ export function PopoverContent(props: {
         align={props.align ?? 'start'}
         side={props.side ?? 'bottom'}
         {...(props.testId ? { 'data-testid': props.testId } : {})}
+        {...(props.label ? { 'aria-label': props.label } : {})}
+        onOpenAutoFocus={(event) => {
+          props.onOpenAutoFocus?.(event);
+          if (!props.onOpenAutoFocus && props.autoFocus !== true) {
+            event.preventDefault();
+          }
+        }}
+        onCloseAutoFocus={(event) => {
+          props.onCloseAutoFocus?.(event);
+        }}
       >
         {props.children}
       </PopoverPrimitive.Content>

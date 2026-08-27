@@ -254,7 +254,7 @@ export function ModelsPage(): ReactElement {
             <WorkspaceNavItem
               value="text"
               kind="text"
-              title={isChinese ? '通道与文本' : 'Channels & chat'}
+              title={isChinese ? '模型配置' : 'Channels & chat'}
               description={
                 isChinese ? '密钥、接口和对话默认模型' : 'Keys, endpoints, and chat default'
               }

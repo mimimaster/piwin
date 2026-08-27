@@ -4,8 +4,8 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import type { HostCommand, HostResponse } from '@piwin/contracts';
-import { formatError } from '@piwin/contracts';
+import type { HostCommand, HostResponse, ProjectReadFileData } from '@piwin/contracts';
+import { formatError, inferAttachmentMimeType } from '@piwin/contracts';
 import {
   listProjects,
   listRememberedPermissions,
@@ -20,7 +20,8 @@ import {
   setProjectTrust,
 } from '@piwin/project';
 import { fail, ok } from '../response-helpers.js';
-import { getPiwinProjectsPath, getPiwinRoot } from '../paths.js';
+import { getPiwinGeneralWorkspacePath, getPiwinProjectsPath, getPiwinRoot } from '../paths.js';
+import { ensureGeneralWorkspace } from '../general-workspace.js';
 import { bindProjectLocator } from '../project-locator.js';
 import { createRemoteProjectId, isRemoteProjectId } from '../remote-project-id.js';
 
@@ -127,6 +128,7 @@ export async function handleProjectCommand(
         command.projectPath,
         command.relativePath,
         requestId,
+        rootDir,
       );
     }
     case 'project/read-file': {
@@ -136,6 +138,7 @@ export async function handleProjectCommand(
         command.relativePath,
         command.maxBytes,
         requestId,
+        rootDir,
       );
     }
     default:
@@ -161,8 +164,15 @@ async function listProjectDirectory(
   projectPath: string,
   relativePath: string | undefined,
   requestId: string | undefined,
+  piwinRoot: string,
 ): Promise<HostResponse> {
-  const rootCheck = await requireRegisteredProjectRoot(projectsPath, projectPath, requestId, 'project/list-dir');
+  const rootCheck = await requireBrowseRoot(
+    projectsPath,
+    projectPath,
+    requestId,
+    'project/list-dir',
+    piwinRoot,
+  );
   if (!rootCheck.ok) {
     return rootCheck.response;
   }
@@ -235,11 +245,19 @@ async function listProjectDirectory(
 
 const DEFAULT_MAX_READ_BYTES = 256 * 1024;
 const HARD_MAX_READ_BYTES = 512 * 1024;
+/** Image previews may be larger than text; still capped to bound IPC payload. */
+const IMAGE_PREVIEW_MAX_BYTES = 8 * 1024 * 1024;
+
+function isInlineImagePreviewMime(mimeType: string): boolean {
+  return mimeType.startsWith('image/');
+}
 
 /**
- * Read a text file under project root for File tree preview.
- * Requires a remembered project root; rejects path traversal and out-of-root
- * symlinks; flags binary / oversized content honestly.
+ * Read a file under a browse root for File tree / Doc Preview.
+ * Accepts a remembered project or the product General workspace; rejects path
+ * traversal and out-of-root symlinks; flags binary / oversized content honestly.
+ * Image bytes under {@link IMAGE_PREVIEW_MAX_BYTES} also get a `previewDataUrl`
+ * so Desktop can render them (Tauri asset scope only covers `~/.piwin/media/**`).
  */
 async function readProjectFile(
   projectsPath: string,
@@ -247,12 +265,14 @@ async function readProjectFile(
   relativePath: string,
   maxBytesInput: number | undefined,
   requestId: string | undefined,
+  piwinRoot: string,
 ): Promise<HostResponse> {
-  const rootCheck = await requireRegisteredProjectRoot(
+  const rootCheck = await requireBrowseRoot(
     projectsPath,
     projectPath,
     requestId,
     'project/read-file',
+    piwinRoot,
   );
   if (!rootCheck.ok) {
     return rootCheck.response;
@@ -298,6 +318,25 @@ async function readProjectFile(
   const byteSize = buffer.byteLength;
   const sample = buffer.subarray(0, Math.min(buffer.length, 8000));
   const isBinary = sample.includes(0);
+  const inferredMime =
+    inferAttachmentMimeType(relativeNormalized, undefined, sample) ??
+    (isBinary ? 'application/octet-stream' : 'text/plain');
+
+  if (isInlineImagePreviewMime(inferredMime) && byteSize <= IMAGE_PREVIEW_MAX_BYTES) {
+    const data: ProjectReadFileData = {
+      projectPath: resolved.rootReal,
+      relativePath: relativeNormalized,
+      absolutePath: targetAbsolute,
+      content: isBinary ? '' : buffer.toString('utf8'),
+      byteSize,
+      truncated: false,
+      isBinary,
+      mimeHint: inferredMime,
+      previewDataUrl: `data:${inferredMime};base64,${buffer.toString('base64')}`,
+    };
+    return ok(requestId, 'project/read-file', data);
+  }
+
   if (isBinary) {
     return ok(requestId, 'project/read-file', {
       projectPath: resolved.rootReal,
@@ -307,7 +346,7 @@ async function readProjectFile(
       byteSize,
       truncated: false,
       isBinary: true,
-      mimeHint: 'application/octet-stream',
+      mimeHint: inferredMime,
     });
   }
 
@@ -327,19 +366,24 @@ async function readProjectFile(
     byteSize,
     truncated,
     isBinary: false,
-    mimeHint: 'text/plain',
+    mimeHint: inferredMime,
   });
 }
 
 /**
- * projectPath mode must match a remembered project store entry.
- * Callers cannot invent arbitrary roots (e.g. dirname of a skill path).
+ * Browse root for list-dir / read-file.
+ *
+ * Remembered user projects stay registered. The product General workspace
+ * (`~/.piwin/workspace`) is also allowed so Chat can preview generated files
+ * without pretending that directory is a user project. Callers still cannot
+ * invent arbitrary roots (e.g. dirname of a skill path, `/etc`).
  */
-async function requireRegisteredProjectRoot(
+async function requireBrowseRoot(
   projectsPath: string,
   projectPath: string,
   requestId: string | undefined,
   commandType: 'project/read-file' | 'project/list-dir',
+  piwinRoot: string,
 ): Promise<
   | { ok: true; rootAbsolute: string }
   | { ok: false; response: HostResponse }
@@ -358,6 +402,11 @@ async function requireRegisteredProjectRoot(
       ok: false,
       response: fail(requestId, commandType, bound.error),
     };
+  }
+  const generalWorkspace = normalizeProjectRootPath(getPiwinGeneralWorkspacePath(piwinRoot));
+  if (normalizeProjectRootPath(bound.path) === generalWorkspace) {
+    await ensureGeneralWorkspace(piwinRoot);
+    return { ok: true, rootAbsolute: generalWorkspace };
   }
   const registeredRoots = document.projects.map((project) => project.path);
   if (!isRegisteredProjectRoot(registeredRoots, bound.path)) {

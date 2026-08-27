@@ -101,8 +101,8 @@ create **independent product sessions with explicit lineage**, preserving ADR
 | Term | Meaning |
 |------|---------|
 | **Duplicate conversation** | Create an independent copy of the complete current conversation |
-| **Fork from here** | Create a linked child conversation ending at the selected assistant response |
-| **Conversation branches** | The linked set of user-created fork sessions sharing a root |
+| **Fork Chat** | Create a linked child conversation ending at the selected assistant response. New title is `(n) <source>`; the source session is not renamed. |
+| **Conversation branches** | In-session alternatives (ADR 0055). Not the Fork Chat family. |
 | **Shared workspace** | Forked sessions read and write the same current project directory |
 | **Isolated worktree** | A fork uses a separate Git worktree from creation onward |
 

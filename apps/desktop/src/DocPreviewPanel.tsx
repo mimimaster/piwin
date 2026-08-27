@@ -16,9 +16,11 @@ import { CodePreviewView } from './code-preview-view';
 import type { DesktopLocale } from './desktop-locale';
 import type { DocumentProvenance } from './active-document';
 import { provenanceLabel } from './active-document';
+import type { ArtifactThemeVariables } from '@piwin/artifact';
+import { MarkupPreviewView, markupPreviewKind } from './markup-preview-view';
 
 /** Markdown / plaintext files render through the enhanced Markdown viewer.
- *  Everything else (HTML, TS, JSON, CSS, …) renders as code with line numbers. */
+ *  HTML/SVG render visually. Everything else renders as code with line numbers. */
 const MARKDOWN_EXTENSIONS = new Set(['md', 'markdown', 'mdx', 'txt', 'text']);
 
 function isMarkdownPath(path: string): boolean {
@@ -60,6 +62,7 @@ export type DocPreviewPanelProps = {
   onDeleteComment?: ((id: string) => void) | undefined;
   onCommentLine?: ((lineContent: string) => void) | undefined;
   locale?: DesktopLocale | undefined;
+  artifactTheme?: ArtifactThemeVariables | undefined;
 };
 
 export function DocPreviewPanel({
@@ -85,6 +88,7 @@ export function DocPreviewPanel({
   onDeleteComment,
   onCommentLine,
   locale = 'zh-CN',
+  artifactTheme,
 }: DocPreviewPanelProps): ReactElement {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -97,6 +101,7 @@ export function DocPreviewPanel({
 
   const targetPath = filePath || (title && title.includes('.') ? title : `${displayTitle}.md`);
   const commentCount = comments.length;
+  const markupKind = markupPreviewKind(targetPath);
 
   const canCopyExport = status === 'ready' && Boolean(content);
 
@@ -304,7 +309,14 @@ export function DocPreviewPanel({
                   {warning}
                 </div>
               ) : null}
-              {isMarkdownPath(targetPath) ? (
+              {markupKind ? (
+                <MarkupPreviewView
+                  source={defaultContent}
+                  kind={markupKind}
+                  locale={locale}
+                  {...(artifactTheme ? { theme: artifactTheme } : {})}
+                />
+              ) : isMarkdownPath(targetPath) ? (
                 <EnhancedMarkdownView
                   text={defaultContent}
                   docTitle={displayTitle}

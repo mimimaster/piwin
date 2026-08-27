@@ -28,6 +28,8 @@ import { ConversationPaneSession } from './conversation-pane-session.js';
 import { ConversationPaneEmptyState } from './conversation-pane-empty-state.js';
 import { ConversationPaneHeader } from './conversation-pane-header.js';
 import type { MediaPreviewReader } from './transcript-media-preview.js';
+import type { ArtifactCanvasTarget } from './artifact-canvas-model.js';
+import type { DocumentOpenInput } from './tool-call-card.js';
 
 const MIN_PANE_WIDTH = 300;
 const MIN_PANE_HEIGHT = 220;
@@ -40,10 +42,14 @@ export type ConversationPaneWorkspaceProps = {
   hostClient: HostClient;
   activeTheme: ThemeManifest;
   artifactThemeKey: string | number;
+  artifactPreviewEnabled: boolean;
   readMedia: MediaPreviewReader | null;
   locale: 'zh-CN' | 'en';
   keyboardEnabled?: boolean;
   onCreateConversation: () => Promise<string | null>;
+  onOpenDocument?: (doc: DocumentOpenInput, target?: 'stage' | 'inspector') => void;
+  onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
+  fileBrowseRoot?: string | null;
 };
 
 function requiredPresetSize(count: ConversationPanePreset): { width: number; height: number } {
@@ -286,12 +292,20 @@ export function ConversationPaneWorkspace(props: ConversationPaneWorkspaceProps)
                   hostClient={props.hostClient}
                   activeTheme={props.activeTheme}
                   artifactThemeKey={props.artifactThemeKey}
+                  artifactPreviewEnabled={props.artifactPreviewEnabled}
                   readMedia={props.readMedia}
                   locale={props.locale}
                   onNameChange={(name) =>
                     setSessionNames((current) => ({ ...current, [sessionId]: name }))
                   }
                   onSessionDeleted={() => controller.bindSession(leaf.paneId, null)}
+                  {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
+                  {...(props.onOpenArtifactCanvas
+                    ? { onOpenArtifactCanvas: props.onOpenArtifactCanvas }
+                    : {})}
+                  {...(props.fileBrowseRoot !== undefined
+                    ? { fileBrowseRoot: props.fileBrowseRoot }
+                    : {})}
                 />
               ) : (
                 <ConversationPaneEmptyState

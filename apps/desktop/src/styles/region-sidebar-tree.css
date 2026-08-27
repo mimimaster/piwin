@@ -18,7 +18,7 @@
   min-height: 20px;
   padding: 0 var(--s-3);
   color: var(--text-4);
-  font-size: var(--fs-micro);
+  font-size: 11.5px;
   font-weight: 600;
   letter-spacing: var(--tracking-micro);
   text-transform: uppercase;
@@ -176,7 +176,8 @@
   flex-direction: column;
   gap: var(--s-3);
   margin-right: calc(var(--s-3) * -1);
-  padding: 0 0 0 var(--s-1);
+  /* Extra bottom pad so the last rows can clear the footer frost edge. */
+  padding: 0 0 28px var(--s-1);
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
 }
@@ -285,13 +286,13 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: var(--h-md);
+  height: 32px;
   min-width: 0;
   padding: 0;
   border-radius: var(--r-control);
   color: var(--text-2);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 14.5px;
+  font-weight: 550;
   transition:
     background-color var(--t-1) var(--ease-out),
     color var(--t-1) var(--ease-out);
@@ -302,9 +303,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 22px;
-  width: 22px;
-  height: 22px;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
   margin: 0;
   padding: 0;
 }
@@ -337,7 +338,7 @@
   align-items: center;
   flex: 1;
   min-width: 0;
-  height: var(--h-md);
+  height: 32px;
   padding: 0 var(--s-4);
   border: 0;
   border-radius: var(--r-control);
@@ -360,7 +361,7 @@
 
 .tree-folder-summary.active .tree-folder-main {
   color: var(--text-1);
-  font-weight: 560;
+  font-weight: 600;
 }
 
 .tree-folder-title {
@@ -375,10 +376,10 @@
 }
 
 .tree-folder-icon {
-  width: var(--icon-size-sm);
-  height: var(--icon-size-sm);
+  width: 17px;
+  height: 17px;
   flex-shrink: 0;
-  color: var(--text-4);
+  color: var(--text-3);
   transition: color var(--t-1) var(--ease-out);
 }
 

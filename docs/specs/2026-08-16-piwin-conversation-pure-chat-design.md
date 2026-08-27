@@ -219,23 +219,27 @@ DiscoverContextManifest()    // Conversation 应直接使用空 manifest
 
 ### 5.4 最小 System Prompt
 
-Conversation 的常驻 system contract 控制在“身份 + 边界 + 能力路由”三件事：
+Conversation 的常驻 system contract 只保留身份：
 
 ```text
-You are Piwin Chat, a general-purpose conversational assistant.
-Answer the user directly.
-Do not assume access to project/workspace files or state. Only treat content
-explicitly attached, referenced, or provided by the user as external context.
-Use available web or creation capabilities when useful, and present the result
-rather than internal tool mechanics.
+<identity>
+You are Piwin Chat, a general-purpose conversational assistant. Answer the user directly.
+</identity>
 ```
 
-实际文案可以本地化/润色，但不要塞入 Coding Agent 行为准则。
+不要塞入 Coding Agent 行为准则。
 
 常驻额外提示只允许：
 
-- Artifact 的 compact capability hint；
-- Web Search route 的短提示（需要时）；
+- Artifact compact policy:
+
+```text
+<artifact_policy>
+Emit HTML/SVG Artifacts only when interactive or visual content substantially outperforms Markdown.
+Before generating, invoke `artifact_instructions` once to retrieve the specification, then reuse the result.
+</artifact_policy>
+```
+
 - Toolbox 自己很短的路由说明。
 
 **不得**把 Artifact 完整 runtime contract、Image/Video schema、Flashcard schema 全塞进 system prompt。
@@ -446,7 +450,9 @@ Assistant actions
 Usage (可选)
 ```
 
-Project assistant row：继续走现有 `TurnWorkDetails`。
+同一条 assistant 上的 `text` 如果还带着工作工具（search / fetch / artifact_instructions / toolbox 等），那是工具循环的进度句，不是回复：不画 Markdown 正文，不挂复制/再生成。图、视频、闪卡这类结果型工具的说明句仍是回复。
+
+Project assistant row：继续走现有 `TurnWorkDetails`，同一套 process / reply 分类。
 
 不要为了 Chat 复制整个 transcript 系统；只是在 assistant 内容容器处换 presentation。
 
@@ -514,7 +520,9 @@ Conversation 下建议：
 - StatusBar 不显示 branch / Skills / MCP / Extensions；
 - 保留 model；
 - 保留 context usage；
-- Artifact canvas 只有在 Artifact 实际打开时出现，不作为常驻 Agent inspector。
+- Work Panel 默认不展示、标题栏也不放入口。用户点击生成的文件（SVG / HTML 等）或 Open Canvas 后，仍打开右侧面板查看内容。
+- 文件浏览 / 预览使用产品 General workspace（`~/.piwin/workspace`），不要求注册用户项目，也不用 “No workspace” 挡住内容。
+- Artifact canvas 不在 Chat 里自动弹出；只有用户点开时出现，不作为常驻 Agent inspector。
 
 ---
 
@@ -778,7 +786,7 @@ web_search? / web_fetch?
 
 - 按 Search Route 搜索；
 - 前台显示 sources/citations；
-- 不显示 `web_search({...})` 和 raw result。
+- Conversation 同时展示 `web_search` / `web_fetch` 工具行（调用链可见，raw JSON 默认折叠）。
 
 ### E. Artifact
 
@@ -788,15 +796,15 @@ web_search? / web_fetch?
 
 - 首轮静态 prompt 只有 compact Artifact hint；
 - 真需要时调用 `artifact_instructions`；
-- 用户看到 Artifact 结果/Canvas，不看工具链。
+- 用户看到 Artifact 结果/Canvas，并看到 `artifact_instructions` 工具行。
 
 ### F. ImageGen / VideoGen
 
 期望：
 
 - 通过 restricted toolbox；
-- toolbox describe/call 不显示；
-- UI 只显示生成状态 + 结果。
+- 生成状态 + 结果走现有 Image/Video 进度卡片；
+- 其他 toolbox 调用（闪卡、describe）走工具行展示。
 
 ### G. Flashcards
 

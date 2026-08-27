@@ -92,6 +92,34 @@
   font-size: var(--fs-chrome);
 }
 
+.file-tree-preview-image-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s-5);
+  overflow: auto;
+  background:
+    linear-gradient(45deg, var(--hover) 25%, transparent 25%) 0 0 / 16px 16px,
+    linear-gradient(-45deg, var(--hover) 25%, transparent 25%) 0 8px / 16px 16px,
+    linear-gradient(45deg, transparent 75%, var(--hover) 75%) 8px -8px / 16px 16px,
+    linear-gradient(-45deg, transparent 75%, var(--hover) 75%) -8px 0 / 16px 16px;
+  background-color: var(--surface-1);
+}
+
+.file-tree-preview-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: var(--r-control);
+  box-shadow: var(--elev-1);
+}
+
+.file-tree-preview-body .markup-preview {
+  padding: var(--s-5);
+}
+
 /* When split is open, the tree column stays a compact navigator on the right.
    Fixed basis so the single left preview rail absorbs remaining width. */
 /* File tree rail — draggable divider between left preview and right file tree. */
@@ -150,52 +178,101 @@
   display: none;
 }
 
-/* Directory rows: pure text + chevron (no folder glyph). */
+/* Directory and file rows: clean, uniform, high-contrast typography matching Cursor/VSCode standards */
 .file-tree-row .file-tree-name {
-  font-weight: 500;
+  font-weight: 400;
+  color: var(--text-1);
+}
+
+.file-tree-row.is-dir .file-tree-name {
+  color: var(--text-1);
+  font-weight: 400;
+}
+
+.file-tree-row.is-file .file-tree-name {
+  color: var(--text-1);
+  font-weight: 400;
 }
 
 .file-tree-node[aria-expanded] > .file-tree-row .file-tree-name {
   color: var(--text-1);
-  font-weight: 600;
+  font-weight: 400;
 }
 
-/* Header matches .right-panel-header in inspector-sections.css: same height,
-   same padding, no bottom rule. Every panel in the inspector opens the same
-   way or the tab strip stops feeling like one control. */
+/* Header: compact single-row toolbar */
 .file-tree-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--s-4);
-  min-height: var(--h-lg);
-  padding: 0 var(--s-5);
+  gap: var(--s-3);
+  height: 32px;
+  min-height: 32px;
+  padding: 0 var(--s-4);
   flex-shrink: 0;
 }
 
-.file-tree-header strong {
-  display: block;
-  color: var(--text-1);
-  font-size: var(--fs-body);
+.file-tree-header-title {
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: var(--tracking-tight);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  user-select: none;
 }
 
-/* Filter recesses to the void step, like every other field in the product. */
-.file-tree-filter {
-  width: calc(100% - (var(--s-5) * 2));
-  height: var(--h-md);
-  margin: var(--s-2) var(--s-5) var(--s-4);
-  padding: 0 var(--s-4);
+.file-tree-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Search bar toggled from header — sleek, recessed well */
+.file-tree-search-bar {
+  padding: 0 var(--s-4) var(--s-2);
+  flex-shrink: 0;
+}
+
+.file-tree-search-field {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: 28px;
+  padding: 0 var(--s-3);
   border: 0;
-  border-radius: var(--r-control);
+  border-radius: var(--r-control-sm, 4px);
   background: var(--void);
   box-shadow: inset 0 0 0 1px var(--line-1);
-  color: var(--text-1);
-  font-family: var(--font);
-  font-size: var(--fs-chrome);
-  box-sizing: border-box;
+  color: var(--text-3);
   transition: box-shadow var(--t-1) var(--ease-out);
+}
+
+.file-tree-search-field:focus-within {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--iris) 55%, transparent),
+    var(--focus-ring);
+}
+
+.file-tree-search-icon {
+  flex-shrink: 0;
+  color: var(--text-4);
+}
+
+.file-tree-filter {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-1);
+  font-family: var(--font, var(--font-sans));
+  font-size: 12px;
+  letter-spacing: -0.01em;
+  box-sizing: border-box;
 }
 
 .file-tree-filter::placeholder {
@@ -204,15 +281,42 @@
 
 .file-tree-filter:focus {
   outline: none;
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--iris) 55%, transparent),
-    var(--focus-ring);
+  box-shadow: none;
+}
+
+.file-tree-filter::-webkit-search-decoration,
+.file-tree-filter::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+}
+
+.file-tree-search-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-4);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    color var(--t-1) var(--ease-out),
+    background-color var(--t-1) var(--ease-out);
+}
+
+.file-tree-search-clear:hover {
+  color: var(--text-1);
+  background: var(--hover);
 }
 
 .file-tree-list {
   list-style: none;
   margin: 0;
-  padding: 0 var(--s-3) var(--s-6);
+  padding: 2px var(--s-3) var(--s-6);
   overflow: auto;
   flex: 1;
   /* Keyboard nav lives on the list itself; suppress the default focus outline
@@ -228,22 +332,26 @@
 .file-tree-row {
   display: flex;
   align-items: center;
-  gap: var(--s-3);
+  gap: 6px;
   width: 100%;
-  height: var(--h-sm);
+  height: 24px;
+  min-height: 24px;
   border: 0;
-  border-radius: var(--r-control);
+  border-radius: var(--r-control-sm, 4px);
   background: transparent;
-  color: var(--text-3);
+  color: var(--text-1);
   cursor: pointer;
-  font-family: var(--font);
-  font-size: var(--fs-chrome);
+  font-family: var(--font, var(--font-sans));
+  font-size: 13px;
+  line-height: 24px;
+  letter-spacing: 0;
   text-align: left;
   transition:
     background-color var(--t-1) var(--ease-out),
     color var(--t-1) var(--ease-out);
   content-visibility: auto;
   contain-intrinsic-size: auto 24px;
+  user-select: none;
 }
 
 .file-tree-row[draggable='true'] {
@@ -256,39 +364,66 @@
   color: var(--text-1);
 }
 
+.file-tree-row:hover .file-tree-name {
+  color: var(--text-1);
+}
+
+.file-tree-row:hover .file-tree-twist {
+  color: var(--text-2);
+}
+
 /* Selection is a step above hover so the two stay distinguishable while the
    pointer is sitting on the selected row. */
 .file-tree-node.selected > .file-tree-row,
 .file-tree-node.context-active > .file-tree-row {
   background: var(--active);
   color: var(--text-1);
+  font-weight: 450;
+}
+
+.file-tree-node.selected > .file-tree-row .file-tree-name,
+.file-tree-node.context-active > .file-tree-row .file-tree-name {
+  color: var(--text-1);
+  font-weight: 450;
 }
 
 .file-tree-twist {
-  width: 12px;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
   color: var(--text-4);
-  font-size: var(--fs-micro);
+  transition: color var(--t-1) var(--ease-out);
+}
+
+.file-tree-twist svg {
+  width: 13px;
+  height: 13px;
 }
 
 .file-tree-icon {
-  width: 14px;
-  display: grid;
-  place-items: center;
-  font-size: var(--fs-micro);
-  color: var(--text-4);
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .file-tree-icon svg {
-  width: 14px;
-  height: 14px;
-  stroke-width: var(--icon-stroke);
+  width: 16px;
+  height: 16px;
 }
 
 .file-tree-name {
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: inherit;
+  font-size: inherit;
 }
 
 /* Git status is a single letter carrying the reserved change semantics:
@@ -297,10 +432,15 @@
    wherever it appears. */
 .file-tree-git {
   margin-left: auto;
-  font-family: var(--font);
-  font-size: var(--fs-micro);
-  font-weight: 700;
-  padding-right: var(--s-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 0 4px;
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
 .file-tree-git--modified {

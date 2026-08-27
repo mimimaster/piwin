@@ -9,6 +9,7 @@ import {
   ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
   DEFAULT_MAX_ARTIFACT_BYTES,
 } from './constants.js';
+import { buildCanvasStageFitRuntime } from './srcdoc-canvas-fit.js';
 import type { ArtifactFrameMode } from './types.js';
 
 export function buildArtifactBridgeBootstrapScript(
@@ -152,6 +153,7 @@ export function buildArtifactBridgeBootstrapScript(
     }
     return currentFrameMode;
   };
+  ${buildCanvasStageFitRuntime()}
   var applyFrameMode = function (mode) {
     var next = acceptFrameMode(mode);
     currentFrameMode = next;
@@ -165,7 +167,11 @@ export function buildArtifactBridgeBootstrapScript(
       startHeightObserver();
       return;
     }
-    if (next !== 'canvas') scheduleHeight();
+    if (next === 'canvas') {
+      startCanvasStageFit();
+      return;
+    }
+    scheduleHeight();
   };
 
   ${
@@ -263,10 +269,12 @@ export function buildArtifactBridgeBootstrapScript(
         document.dispatchEvent(new Event('DOMContentLoaded'));
         window.dispatchEvent(new Event('load'));
         if (currentFrameMode === 'inline-flow') scheduleHeight();
+        if (currentFrameMode === 'canvas') scheduleCanvasStageFit();
       }, 0);
       return;
     }
     if (currentFrameMode === 'inline-flow') scheduleHeight();
+    if (currentFrameMode === 'canvas') scheduleCanvasStageFit();
   };
   window.addEventListener('message', onRenderCommand);`
       : ''
@@ -275,11 +283,13 @@ export function buildArtifactBridgeBootstrapScript(
   applyFrameMode(currentFrameMode);
   if (document.readyState === 'complete') {
     if (currentFrameMode === 'inline-flow') startHeightObserver();
-    else if (currentFrameMode !== 'canvas') scheduleHeight();
+    else if (currentFrameMode === 'canvas') startCanvasStageFit();
+    else scheduleHeight();
   } else {
     window.addEventListener('load', function () {
       if (currentFrameMode === 'inline-flow') startHeightObserver();
-      else if (currentFrameMode !== 'canvas') scheduleHeight();
+      else if (currentFrameMode === 'canvas') startCanvasStageFit();
+      else scheduleHeight();
     }, { once: true });
   }
 })();

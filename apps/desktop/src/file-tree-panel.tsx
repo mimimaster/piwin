@@ -36,7 +36,7 @@ import {
   Notice,
   Spinner,
 } from '@piwin/ui-kit';
-import { IconChevronDown, IconChevronRight, IconClose, IconRefresh } from './shell-icons';
+import { IconClose, IconRefresh, IconSearch } from './shell-icons';
 import { CodePreviewView } from './code-preview-view';
 import { EnhancedMarkdownView } from './EnhancedMarkdownView';
 import {
@@ -51,7 +51,6 @@ import {
   buildGitStatusByPath,
   filterTreeNodes,
   flattenVisibleRows,
-  gitStatusForPath,
   keyboardMove,
   type FileTreeNodeState,
 } from './file-tree-model';
@@ -59,7 +58,9 @@ import { loadExpandedPaths, saveExpandedPaths } from './file-tree-expand-memory'
 import type { DesktopLocale } from './desktop-locale';
 import { resolveProjectEntryAbsolutePath } from './file-tree-path';
 import { PIWIN_PATH_MIME } from './workspace-path-drag';
-import { ContextMenuFromCatalog, type ContextMenuDispatchers } from './context-menu';
+import type { ContextMenuDispatchers } from './context-menu';
+import { FileTreeNodeView } from './file-tree-node-view';
+import { MarkupPreviewView, markupPreviewKind } from './markup-preview-view';
 
 
 export type FileTreeRequest =
@@ -105,6 +106,8 @@ type FilePreviewState = {
   content: string;
   truncated: boolean;
   isBinary: boolean;
+  mimeHint?: string;
+  previewDataUrl?: string;
 };
 
 /** Markdown / plaintext files render through EnhancedMarkdownView (same path as DocPreview). */
@@ -199,25 +202,14 @@ async function restoreExpanded(
   return next;
 }
 
-/** Single-letter glyph for a git file status code (VS Code SCM style). */
-const GIT_STATUS_LETTER: Record<GitFileStatusCode, string> = {
-  modified: 'M',
-  added: 'A',
-  untracked: 'U',
-  deleted: 'D',
-  conflicted: 'C',
-  renamed: 'R',
-  copied: 'R',
-  typechange: 'T',
-  unknown: '?',
-};
-
 export function FileTreePanel(props: FileTreePanelProps): ReactElement {
   const [rootNodes, setRootNodes] = useState<FileTreeNodeState[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [filterQuery, setFilterQuery] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [gitStatusMap, setGitStatusMap] = useState<Map<string, GitFileStatusCode>>(() => new Map());
   const [preview, setPreview] = useState<FilePreviewState | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -236,6 +228,22 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
   useEffect(() => {
     railWidthRef.current = railWidthPx;
   }, [railWidthPx]);
+
+  const toggleSearch = useCallback(() => {
+    setIsSearchOpen((prev) => {
+      const next = !prev;
+      if (!next) {
+        setFilterQuery('');
+      }
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (isSearchOpen) {
+      searchInputRef.current?.focus();
+    }
+  }, [isSearchOpen]);
 
   const loadDirectory = useCallback(
     async (relativePath: string): Promise<ProjectDirEntry[]> => {
@@ -405,6 +413,11 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
   }
 
   function handleTreeKeyDown(event: KeyboardEvent<HTMLUListElement>): void {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
+      event.preventDefault();
+      setIsSearchOpen(true);
+      return;
+    }
     const displayNodes = filterTreeNodes(rootNodes, filterQuery);
     const visibleRows = flattenVisibleRows(displayNodes);
     const result = keyboardMove(visibleRows, selectedPath, event.key);
@@ -490,6 +503,8 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
         content: data.content ?? '',
         truncated: data.truncated === true,
         isBinary: data.isBinary === true,
+        ...(data.mimeHint ? { mimeHint: data.mimeHint } : {}),
+        ...(data.previewDataUrl ? { previewDataUrl: data.previewDataUrl } : {}),
       });
     } catch (loadError) {
       setPreview(null);
@@ -606,13 +621,28 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
   if (!props.projectPath) {
     return (
       <div className="file-tree-panel" data-testid="file-tree-panel">
-        <EmptyState title="No workspace" description="Open a workspace to browse project files." />
+        <EmptyState
+          title={locale === 'zh-CN' ? '暂无文件' : 'No files'}
+          description={
+            locale === 'zh-CN'
+              ? '生成或打开文件后，可以在这里浏览和预览。'
+              : 'Generated or opened files can be browsed and previewed here.'
+          }
+        />
       </div>
     );
   }
 
+  const markupKind =
+    preview && !preview.isBinary ? markupPreviewKind(preview.relativePath) : null;
+  const showMarkupPreview = markupKind !== null && Boolean(preview?.content);
+  const showImagePreview = Boolean(preview?.previewDataUrl) && !showMarkupPreview;
   const showMarkdownPreview =
-    preview != null && !preview.isBinary && isMarkdownPreviewPath(preview.relativePath);
+    preview != null &&
+    !showImagePreview &&
+    !showMarkupPreview &&
+    !preview.isBinary &&
+    isMarkdownPreviewPath(preview.relativePath);
 
   return (
     <div
@@ -664,21 +694,37 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
               </div>
             ) : null}
             {previewError ? <Notice tone="error">{previewError}</Notice> : null}
-            {preview && preview.isBinary ? (
-              <div className="file-tree-preview-binary muted">
+            {preview && showImagePreview && preview.previewDataUrl ? (
+              <div className="file-tree-preview-image-stage" data-testid="file-tree-preview-image">
+                <img
+                  className="file-tree-preview-image"
+                  src={preview.previewDataUrl}
+                  alt={previewFileName || preview.relativePath}
+                  draggable={false}
+                />
+              </div>
+            ) : null}
+            {preview && preview.isBinary && !showImagePreview ? (
+              <div className="file-tree-preview-binary muted" data-testid="file-tree-preview-binary">
                 {locale === 'zh-CN'
                   ? '此文件为二进制或无法以文本预览。'
                   : 'This file is binary or cannot be previewed as text.'}
               </div>
             ) : null}
-            {preview && !preview.isBinary ? (
+            {preview && !preview.isBinary && !showImagePreview ? (
               <>
                 {preview.truncated ? (
                   <div className="file-tree-preview-truncated muted">
                     {locale === 'zh-CN' ? '内容已截断' : 'Content truncated'}
                   </div>
                 ) : null}
-                {showMarkdownPreview ? (
+                {showMarkupPreview && markupKind ? (
+                  <MarkupPreviewView
+                    source={preview.content}
+                    kind={markupKind}
+                    locale={locale}
+                  />
+                ) : showMarkdownPreview ? (
                   <EnhancedMarkdownView
                     text={preview.content}
                     docTitle={previewFileName || preview.relativePath}
@@ -725,24 +771,79 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
           />
         ) : null}
         <header className="file-tree-header">
-          <div className="right-panel-header-copy">
-            <span className="right-panel-kicker">Workspace</span>
-            <strong>Files</strong>
+          <span className="file-tree-header-title">Workspace</span>
+          <div className="file-tree-header-actions">
+            <IconButton
+              title={
+                locale === 'zh-CN'
+                  ? isSearchOpen
+                    ? '关闭搜索'
+                    : '搜索文件'
+                  : isSearchOpen
+                    ? 'Close search'
+                    : 'Search files'
+              }
+              label={locale === 'zh-CN' ? '搜索文件' : 'Search files'}
+              data-testid="file-tree-search-toggle"
+              aria-pressed={isSearchOpen}
+              className={isSearchOpen ? 'active' : undefined}
+              onClick={toggleSearch}
+            >
+              <IconSearch />
+            </IconButton>
+            <IconButton
+              title={locale === 'zh-CN' ? '刷新' : 'Refresh'}
+              label={locale === 'zh-CN' ? '刷新文件树' : 'Refresh file tree'}
+              data-testid="file-tree-refresh-btn"
+              onClick={() => void reloadRoot()}
+            >
+              <IconRefresh />
+            </IconButton>
           </div>
-          <IconButton title="Refresh" label="Refresh file tree" onClick={() => void reloadRoot()}>
-            <IconRefresh />
-          </IconButton>
         </header>
         {error ? <Notice tone="error">{error}</Notice> : null}
-        <input
-          type="search"
-          data-testid="file-tree-filter"
-          className="file-tree-filter"
-          value={filterQuery}
-          onChange={(e) => setFilterQuery(e.target.value)}
-          placeholder={locale === 'zh-CN' ? '筛选已加载文件…' : 'Filter loaded files…'}
-          aria-label={locale === 'zh-CN' ? '筛选文件' : 'Filter files'}
-        />
+        {isSearchOpen ? (
+          <div className="file-tree-search-bar" data-testid="file-tree-search-bar">
+            <div className="file-tree-search-field">
+              <IconSearch className="file-tree-search-icon" width={13} height={13} aria-hidden />
+              <input
+                ref={searchInputRef}
+                type="search"
+                data-testid="file-tree-filter"
+                className="file-tree-filter"
+                value={filterQuery}
+                onChange={(e) => setFilterQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    e.preventDefault();
+                    if (filterQuery) {
+                      setFilterQuery('');
+                    } else {
+                      setIsSearchOpen(false);
+                    }
+                  }
+                }}
+                placeholder={locale === 'zh-CN' ? '搜索已加载文件…' : 'Filter loaded files…'}
+                aria-label={locale === 'zh-CN' ? '搜索文件' : 'Filter files'}
+              />
+              {filterQuery ? (
+                <button
+                  type="button"
+                  className="file-tree-search-clear"
+                  data-testid="file-tree-search-clear"
+                  onClick={() => {
+                    setFilterQuery('');
+                    searchInputRef.current?.focus();
+                  }}
+                  title={locale === 'zh-CN' ? '清除' : 'Clear'}
+                  aria-label={locale === 'zh-CN' ? '清除搜索' : 'Clear search'}
+                >
+                  <IconClose width={12} height={12} />
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
         {/* Keep the existing tree visible during reload so resize/parent re-renders
             cannot flash an empty Loading state over the file list. */}
         {loading && rootNodes.length === 0 ? (
@@ -801,146 +902,3 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
   );
 }
 
-function FileTreeNodeView(props: {
-  node: FileTreeNodeState;
-  depth: number;
-  selectedPath: string | null;
-  gitStatusMap: Map<string, GitFileStatusCode>;
-  projectPath: string | null;
-  onSelectFile: (path: string) => void;
-  onSelectPath: (path: string) => void;
-  onToggle: (path: string) => void;
-  onDragStart: (event: DragEvent, relativePath: string) => void;
-  absoluteFor: (relativePath: string) => string;
-  contextMenuCaps: {
-    hasProject: boolean;
-    canReveal: boolean;
-    sideChatAvailable: boolean;
-    applyAvailable: boolean;
-    locale: DesktopLocale;
-  };
-  contextMenuDispatchers: ContextMenuDispatchers;
-  enableContextMenu: boolean;
-
-}): ReactElement {
-  const { node, depth } = props;
-  const isDir = node.entry.kind === 'directory';
-  const selected = props.selectedPath === node.entry.relativePath;
-  const status = gitStatusForPath(props.gitStatusMap, node.entry.relativePath, node.entry.kind);
-  const absolutePath = props.absoluteFor(node.entry.relativePath);
-  const rowButton = (
-    <button
-      type="button"
-      className="file-tree-row"
-      style={{ paddingLeft: 8 + depth * 14 }}
-      draggable={!isDir}
-      onDragStart={(event) => {
-        if (!isDir) props.onDragStart(event, node.entry.relativePath);
-      }}
-      onClick={() => {
-        if (isDir) {
-          props.onToggle(node.entry.relativePath);
-        } else {
-          props.onSelectFile(node.entry.relativePath);
-        }
-      }}
-      onContextMenu={() => {
-        props.onSelectPath(node.entry.relativePath);
-        if (!isDir) {
-          props.onSelectFile(node.entry.relativePath);
-        }
-      }}
-      title={node.entry.relativePath}
-    >
-      <span className="file-tree-twist" aria-hidden>
-        {isDir ? (
-          node.expanded ? (
-            <IconChevronDown width={12} height={12} />
-          ) : (
-            <IconChevronRight width={12} height={12} />
-          )
-        ) : null}
-      </span>
-      {/* Folders are pure-text expand buttons — no folder glyph. Files keep type icons. */}
-      {!isDir ? (
-        <span className="file-tree-icon" aria-hidden>
-          <FileTypeIcon filePathOrExt={node.entry.name} />
-        </span>
-      ) : null}
-      <span className="file-tree-name">{node.entry.name}</span>
-      {status ? (
-        <span
-          className={`file-tree-git file-tree-git--${status}`}
-          data-testid={`file-tree-git-${node.entry.relativePath}`}
-          title={status}
-        >
-          {GIT_STATUS_LETTER[status]}
-        </span>
-      ) : null}
-    </button>
-  );
-
-  const row =
-    props.enableContextMenu && props.projectPath ? (
-      <ContextMenuFromCatalog
-        testId={`file-tree-context-${node.entry.relativePath}`}
-        target={{
-          surface: isDir ? 'file-tree-folder' : 'file-tree-file',
-          projectPath: props.projectPath,
-          relativePath: node.entry.relativePath,
-          absolutePath,
-          label: node.entry.name,
-        }}
-        caps={props.contextMenuCaps}
-        dispatchers={props.contextMenuDispatchers}
-      >
-        {rowButton}
-      </ContextMenuFromCatalog>
-    ) : (
-      rowButton
-    );
-
-
-  return (
-    <li
-      role="treeitem"
-      aria-expanded={isDir ? node.expanded : undefined}
-      className={`file-tree-node${selected ? ' selected' : ''}`}
-    >
-      {row}
-      {node.loading ? (
-        <div className="file-tree-nested muted" style={{ paddingLeft: 24 + depth * 14 }}>
-          Loading…
-        </div>
-      ) : null}
-      {node.error ? (
-        <div className="file-tree-nested" style={{ paddingLeft: 24 + depth * 14 }}>
-          <Notice tone="error">{node.error}</Notice>
-        </div>
-      ) : null}
-      {isDir && node.expanded && node.children ? (
-        <ul role="group" className="file-tree-children">
-          {node.children.map((child) => (
-            <FileTreeNodeView
-              key={child.entry.relativePath}
-              node={child}
-              depth={depth + 1}
-              selectedPath={props.selectedPath}
-              gitStatusMap={props.gitStatusMap}
-              projectPath={props.projectPath}
-              onSelectFile={props.onSelectFile}
-              onSelectPath={props.onSelectPath}
-              onToggle={props.onToggle}
-              onDragStart={props.onDragStart}
-              absoluteFor={props.absoluteFor}
-              contextMenuCaps={props.contextMenuCaps}
-              contextMenuDispatchers={props.contextMenuDispatchers}
-              enableContextMenu={props.enableContextMenu}
-
-            />
-          ))}
-        </ul>
-      ) : null}
-    </li>
-  );
-}

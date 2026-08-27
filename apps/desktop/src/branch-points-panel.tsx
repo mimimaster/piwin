@@ -30,8 +30,8 @@ export function BranchPointsPanel(props: BranchPointsPanelProps): ReactElement {
       <div className="branch-points-panel" data-testid="branch-points-panel">
         <p className="right-panel-empty muted" data-testid="branch-points-empty">
           {isZh
-            ? '这条会话还没有分支。编辑你发过的任意一条消息再发送一次，对话就会就地分叉：原来的后续会被保留成另一条分支，随时可以切回来。'
-            : 'This conversation has no branches yet. Edit any message you sent and send it again: the conversation forks in place and the previous continuation is kept as a branch you can switch back to.'}
+            ? '当前还没有分岔。编辑已发送的消息再发送，或点再生成，就会在这条会话里分叉；原来的后续会留下来。主对话区始终只显示当前这一路。'
+            : 'No branches yet. Edit a sent message and send it again, or regenerate: the conversation forks in place and the previous continuation is kept. The transcript always shows the active path.'}
         </p>
       </div>
     );
@@ -39,84 +39,144 @@ export function BranchPointsPanel(props: BranchPointsPanelProps): ReactElement {
 
   return (
     <div className="branch-points-panel" data-testid="branch-points-panel">
-      {props.branchPoints.map((point, pointIndex) => (
-        <section
-          className="branch-point-group"
-          key={point.anchorMessageId ?? `root-${String(pointIndex)}`}
-        >
-          <div className="branch-point-caption muted">
-            {isZh
-              ? `分叉点 ${String(pointIndex + 1)} · ${String(point.siblings.length)} 条分支`
-              : `Fork ${String(pointIndex + 1)} · ${String(point.siblings.length)} branches`}
-          </div>
-          <ul className="branch-point-list">
-            {point.siblings.map((sibling, index) => {
-              const isActive = index === point.activeIndex;
-              const meta = [
-                isZh
-                  ? `${String(sibling.messageCount)} 条消息`
-                  : `${String(sibling.messageCount)} messages`,
-                formatTimestamp(sibling.updatedAt, isZh),
-              ]
-                .filter((part) => part.length > 0)
-                .join(' · ');
-              return (
-                <li key={sibling.headMessageId}>
-                  <button
-                    type="button"
-                    className={
-                      isActive ? 'branch-point-item branch-point-item--active' : 'branch-point-item'
-                    }
-                    disabled={isActive || props.disabled === true}
-                    {...(isActive ? { 'aria-current': 'true' as const } : {})}
-                    onClick={() => props.onSwitch(sibling.headMessageId)}
-                    data-testid="branch-point-item"
-                    data-branch-head={sibling.headMessageId}
-                  >
-                    <span className="branch-point-ordinal">{index + 1}</span>
-                    <span className="branch-point-text">
-                      <span className="branch-point-preview">
-                        {sibling.preview.trim().length > 0
-                          ? sibling.preview
-                          : isZh
-                            ? '（无文本）'
-                            : '(no text)'}
+      {props.branchPoints.map((point, pointIndex) => {
+        const sharedPrompt = point.promptPreview ?? point.siblings[0]?.preview ?? '';
+        return (
+          <section
+            className="branch-point-group"
+            key={point.anchorMessageId ?? `root-${String(pointIndex)}`}
+          >
+            <div className="branch-point-header">
+              <div className="branch-point-anchor-row">
+                <span className="branch-point-anchor-dot" aria-hidden />
+                <span className="branch-point-anchor-title" title={sharedPrompt}>
+                  {sharedPrompt.trim().length > 0
+                    ? sharedPrompt
+                    : isZh
+                      ? '会话起点'
+                      : 'Root conversation'}
+                </span>
+              </div>
+              <div className="branch-point-caption muted">
+                {isZh
+                  ? `分叉点 ${String(pointIndex + 1)} · ${String(point.siblings.length)} 条分支`
+                  : `Fork ${String(pointIndex + 1)} · ${String(point.siblings.length)} branches`}
+              </div>
+            </div>
+
+            <ul className="branch-point-list">
+              {point.siblings.map((sibling, index) => {
+                const isActive = index === point.activeIndex;
+                const isLast = index === point.siblings.length - 1;
+                const meta = [
+                  isZh
+                    ? `${String(sibling.messageCount)} 条消息`
+                    : `${String(sibling.messageCount)} messages`,
+                  formatTimestamp(sibling.updatedAt, isZh),
+                ]
+                  .filter((part) => part.length > 0)
+                  .join(' · ');
+
+                const isReworded =
+                  sharedPrompt.trim().length > 0 &&
+                  sibling.preview.trim().length > 0 &&
+                  sibling.preview.trim() !== sharedPrompt.trim();
+
+                const primaryText =
+                  sibling.responsePreview && sibling.responsePreview.trim().length > 0
+                    ? sibling.responsePreview
+                    : sibling.preview.trim().length > 0
+                      ? sibling.preview
+                      : sibling.leafPreview.trim().length > 0
+                        ? sibling.leafPreview
+                        : isZh
+                          ? '（无文本）'
+                          : '(no text)';
+
+                const showContinuation =
+                  sibling.leafPreview.trim().length > 0 &&
+                  sibling.leafPreview.trim() !== primaryText.trim() &&
+                  sibling.messageCount > 2;
+
+                return (
+                  <li key={sibling.headMessageId} className="branch-point-item-wrapper">
+                    <span
+                      className={`branch-point-rail-line ${isLast ? 'branch-point-rail-line--last' : ''}`}
+                      aria-hidden
+                    />
+                    <button
+                      type="button"
+                      className={
+                        isActive
+                          ? 'branch-point-item branch-point-item--active'
+                          : 'branch-point-item'
+                      }
+                      disabled={isActive || props.disabled === true}
+                      {...(isActive ? { 'aria-current': 'true' as const } : {})}
+                      onClick={() => props.onSwitch(sibling.headMessageId)}
+                      data-testid="branch-point-item"
+                      data-branch-head={sibling.headMessageId}
+                    >
+                      <span className="branch-point-ordinal" aria-label={`Branch ${String(index + 1)}`}>
+                        {index + 1}
                       </span>
-                      {sibling.leafPreview.trim().length > 0 ? (
-                        <span className="branch-point-leaf muted">{sibling.leafPreview}</span>
-                      ) : null}
-                      <span className="branch-point-meta muted">{meta}</span>
-                    </span>
-                    <span className="branch-point-marks">
-                      {sibling.writesWorkspace ? (
-                        <span
-                          className="branch-point-write"
-                          title={isZh ? '这条分支改过工作区文件' : 'This branch changed files'}
-                          aria-label={
-                            isZh ? '这条分支改过工作区文件' : 'This branch changed files'
-                          }
-                          data-testid="branch-point-write-mark"
-                        >
-                          <IconFileDiff width={13} height={13} />
-                        </span>
-                      ) : null}
-                      {isActive ? (
-                        <span
-                          className="branch-point-active"
-                          title={isZh ? '当前分支' : 'Active branch'}
-                          aria-label={isZh ? '当前分支' : 'Active branch'}
-                        >
-                          <IconCheck width={13} height={13} />
-                        </span>
-                      ) : null}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      ))}
+                      <span className="branch-point-text">
+                        <div className="branch-point-tags">
+                          {isReworded ? (
+                            <span className="branch-point-tag branch-point-tag--reworded">
+                              {isZh ? '修改提问' : 'Reworded'}
+                            </span>
+                          ) : null}
+                          {sibling.responseStatus === 'error' ? (
+                            <span className="branch-point-tag branch-point-tag--error">
+                              {isZh ? '生成失败' : 'Failed'}
+                            </span>
+                          ) : null}
+                          {isActive ? (
+                            <span className="branch-point-tag branch-point-tag--active">
+                              {isZh ? '当前活跃' : 'Active'}
+                            </span>
+                          ) : null}
+                        </div>
+                        <span className="branch-point-preview">{primaryText}</span>
+                        {showContinuation ? (
+                          <span className="branch-point-leaf muted">
+                            {isZh ? `↳ 延伸至：${sibling.leafPreview}` : `↳ Continuation: ${sibling.leafPreview}`}
+                          </span>
+                        ) : null}
+                        <span className="branch-point-meta muted">{meta}</span>
+                      </span>
+                      <span className="branch-point-marks">
+                        {sibling.writesWorkspace ? (
+                          <span
+                            className="branch-point-write"
+                            title={isZh ? '这条分支改过工作区文件' : 'This branch changed files'}
+                            aria-label={
+                              isZh ? '这条分支改过工作区文件' : 'This branch changed files'
+                            }
+                            data-testid="branch-point-write-mark"
+                          >
+                            <IconFileDiff width={13} height={13} />
+                          </span>
+                        ) : null}
+                        {isActive ? (
+                          <span
+                            className="branch-point-active"
+                            title={isZh ? '当前分支' : 'Active branch'}
+                            aria-label={isZh ? '当前分支' : 'Active branch'}
+                          >
+                            <IconCheck width={13} height={13} />
+                          </span>
+                        ) : null}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        );
+      })}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import type { ChatUiAction } from './chat-reducer';
 
 export type StreamEventBuffer = {
   push: (sessionId: string, event: AgentEvent, envelope?: AgentEventEnvelope) => void;
+  pushAction: (sessionId: string, action: ChatUiAction) => void;
   flush: () => void;
   dispose: () => void;
   reset: () => void;
@@ -10,104 +11,42 @@ export type StreamEventBuffer = {
 
 export type StreamEventBufferOptions = {
   dispatch: (action: ChatUiAction) => void;
+  /**
+   * Legacy test hooks retained while callers migrate. Stream delivery no
+   * longer depends on a frame or timer scheduler.
+   */
   frameScheduler?: (callback: () => void) => number;
   frameCanceller?: (handle: number) => void;
 };
 
-const IMMEDIATE_EVENT_TYPES = new Set<AgentEvent['type']>([
-  'message/start',
-  'message/end',
-  'tool/start',
-  'tool/end',
-  'permission/request',
-  'permission/resolved',
-  'error',
-  'session/aborted',
-]);
-
-export function createStreamEventBuffer(
-  options: StreamEventBufferOptions,
-): StreamEventBuffer {
-  const scheduleFrame =
-    options.frameScheduler ?? ((callback: () => void) => window.requestAnimationFrame(callback));
-  const cancelFrame =
-    options.frameCanceller ?? ((handle: number) => window.cancelAnimationFrame(handle));
-  let pendingEvents: Array<{
-    sessionId: string;
-    event: AgentEvent;
-    envelope?: AgentEventEnvelope;
-  }> = [];
-  let frameHandle: number | null = null;
-
-  function flush(): void {
-    if (frameHandle !== null) {
-      cancelFrame(frameHandle);
-      frameHandle = null;
-    }
-    if (pendingEvents.length === 0) {
-      return;
-    }
-    const events = pendingEvents;
-    pendingEvents = [];
-    const sessionId = events[0]?.sessionId;
-    if (!sessionId || events.some((item) => item.sessionId !== sessionId)) {
-      for (const item of events) {
-        options.dispatch({
-          type: 'event',
-          sessionId: item.sessionId,
-          event: item.event,
-          ...(item.envelope ? { envelope: item.envelope } : {}),
-        });
-      }
-      return;
-    }
-    options.dispatch({
-      type: 'event/batch',
-      sessionId,
-      events: events.map((item) => item.event),
-      ...(events.some((item) => item.envelope)
-        ? {
-            envelopes: events.map((item) => item.envelope),
-          }
-        : {}),
-    });
-  }
-
+/**
+ * Preserve the Host's canonical sequence at the Desktop reducer boundary.
+ *
+ * The Host already coalesces native Pi deltas into bounded wire frames. A
+ * second requestAnimationFrame/timer queue here made delivery depend on
+ * window visibility and could leave lifecycle controls behind queued text.
+ * Dispatching synchronously lets React batch one wire frame while ensuring
+ * later Host pushes (especially message/end and run/terminal) never overtake
+ * an earlier delta and no client-generated character slicing is introduced.
+ */
+export function createStreamEventBuffer(options: StreamEventBufferOptions): StreamEventBuffer {
   function push(sessionId: string, event: AgentEvent, envelope?: AgentEventEnvelope): void {
-    if (IMMEDIATE_EVENT_TYPES.has(event.type)) {
-      flush();
-      options.dispatch({
-        type: 'event',
-        sessionId,
-        event,
-        ...(envelope ? { envelope } : {}),
-      });
-      return;
-    }
-    pendingEvents.push({
+    options.dispatch({
+      type: 'event',
       sessionId,
       event,
       ...(envelope ? { envelope } : {}),
     });
-    if (frameHandle === null) {
-      frameHandle = scheduleFrame(() => {
-        frameHandle = null;
-        flush();
-      });
-    }
   }
 
-  function dispose(): void {
-    flush();
+  function pushAction(_sessionId: string, action: ChatUiAction): void {
+    options.dispatch(action);
   }
 
-  function reset(): void {
-    if (frameHandle !== null) {
-      cancelFrame(frameHandle);
-      frameHandle = null;
-    }
-    pendingEvents = [];
-  }
+  // Kept as compatibility no-ops for effect cleanup and hydration call sites.
+  function flush(): void {}
+  function dispose(): void {}
+  function reset(): void {}
 
-  return { push, flush, dispose, reset };
+  return { push, pushAction, flush, dispose, reset };
 }

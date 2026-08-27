@@ -45,20 +45,20 @@ describe('canonical artifact language', () => {
 describe('default artifact decision prompt', () => {
   it('wraps the proactive decision policy in a metadata block', () => {
     expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
-      '[piwin-prompt-meta kind="artifact:decision" version="3" applies="artifacts-enabled"]',
+      '[piwin-prompt-meta kind="artifact:decision" version="5" applies="artifacts-enabled"]',
     );
     expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
-      '<artifact-decision-policy name="piwin-proactive-inline">',
+      '<artifact-decision-policy name="piwin-proactive-surfaces">',
     );
     expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('</artifact-decision-policy>');
   });
 
   it('treats dense reference content as a proactive artifact use case', () => {
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('information-dense response');
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('command summary');
-    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('long wall of text');
+    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('information-dense content');
+    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('command summaries');
+    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('comparative tables');
     expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
-      'prefer an Artifact even when the user does not explicitly mention UI',
+      'even without an explicit UI request',
     );
   });
 
@@ -72,13 +72,13 @@ describe('default artifact decision prompt', () => {
 
   it('routes short Markdown, dense Inline Artifact, and prototype Canvas', () => {
     expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
-      'Short explanations that fit in one or two paragraphs stay ordinary Markdown',
+      'Short answers (1–2 paragraphs)',
     );
     expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
-      'an `artifact-html` fence without `surface="canvas"`',
+      '`artifact-html` without surface attr',
     );
     expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
-      'App prototypes, multi-step local workflows, and coordinated workspaces declare `surface="canvas"`',
+      'Full app/page prototypes',
     );
     expect(DEFAULT_ARTIFACT_DECISION_PROMPT).not.toContain('```artifact-html');
   });
@@ -90,11 +90,15 @@ describe('artifact protocol formatter', () => {
     expect(protocol).toBe(ARTIFACT_RUNTIME_CONTRACT);
     expect(protocol).toContain('## HTML Artifact Runtime Contract');
     expect(protocol).toContain('```artifact-html title="Short descriptive title"');
-    expect(protocol).toContain(
-      '```artifact-html title="Short descriptive title" surface="canvas"',
-    );
+    expect(protocol).toContain('```artifact-html title="Short descriptive title" surface="canvas"');
     expect(protocol).toContain('surface="canvas"');
     expect(protocol).toContain('--piwin-artifact-');
+    expect(protocol).toContain('kind="artifact:runtime" version="6"');
+    expect(protocol).toContain('Canvas Viewport');
+    expect(protocol).toContain('Emit complete `<style>` blocks before any visible HTML markup');
+    expect(protocol).toContain(
+      'Close each visual block before starting siblings',
+    );
     for (const alias of PARSER_ONLY_ALIASES) {
       expect(protocol).not.toContain(alias);
     }
@@ -106,7 +110,7 @@ describe('artifact protocol formatter', () => {
     expect(instructions).toBe(
       `${resolveArtifactDecisionPrompt(config)}\n\n${formatArtifactProtocol()}`,
     );
-    expect(instructions).toContain('## Artifact Decision Policy');
+    expect(instructions).toContain('## Decision Criteria');
     expect(instructions).toContain('## HTML Artifact Runtime Contract');
     expect(instructions.split('## HTML Artifact Runtime Contract')).toHaveLength(2);
   });

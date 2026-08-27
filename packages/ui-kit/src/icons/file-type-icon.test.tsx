@@ -16,71 +16,46 @@ describe('FileTypeIcon', () => {
     expect(resolveFileTypeInfo('assets/').kind).toBe('folder');
   });
 
-  it('labels jsx as JSX within the react kind', () => {
-    const info = resolveFileTypeInfo('widget.jsx');
-    expect(info.kind).toBe('react');
-    expect(info.ext).toBe('JSX');
+  it('resolves dedicated config and ecosystem files', () => {
+    expect(resolveFileTypeInfo('.gitignore').kind).toBe('git');
+    expect(resolveFileTypeInfo('package.json').kind).toBe('npm');
+    expect(resolveFileTypeInfo('pnpm-lock.yaml').kind).toBe('pnpm');
+    expect(resolveFileTypeInfo('yarn.lock').kind).toBe('yarn');
+    expect(resolveFileTypeInfo('eslint.config.js').kind).toBe('eslint');
+    expect(resolveFileTypeInfo('.prettierrc').kind).toBe('prettier');
+    expect(resolveFileTypeInfo('.env.local').kind).toBe('env');
+    expect(resolveFileTypeInfo('Dockerfile').kind).toBe('docker');
+    expect(resolveFileTypeInfo('logo.svg').kind).toBe('svg');
   });
 
-  it('renders known file types as tinted tile badges', () => {
+  it('renders known file types as official material SVG markup', () => {
     const markup = markupFor('source.ts');
-    expect(markup).toContain('<rect');
-    expect(markup).toContain('opacity=".15"');
-    expect(markup).toContain('file-icon-ts');
-    expect(markup).toContain('>TS<');
+    expect(markup).toContain('file-icon-typescript');
+    expect(markup).toContain('<svg');
   });
 
-  it('keeps the TypeScript family on one brand color (ts/tsx/jsx)', () => {
-    expect(resolveFileTypeInfo('a.ts').color).toBe(resolveFileTypeInfo('b.tsx').color);
-    expect(resolveFileTypeInfo('c.jsx').color).toBe(resolveFileTypeInfo('a.ts').color);
-    expect(resolveFileTypeInfo('a.ts').color).toBe('#3178C6');
+  it('renders react as official react_ts icon', () => {
+    const tsxMarkup = markupFor('component.tsx');
+    expect(tsxMarkup).toContain('file-icon-react_ts');
+    expect(tsxMarkup).toContain('<svg');
   });
 
-  it('keeps folder and generic as stroke-only glyphs without tiles', () => {
+  it('renders git with official git icon', () => {
+    const gitMarkup = markupFor('.gitignore');
+    expect(gitMarkup).toContain('file-icon-git');
+    expect(gitMarkup).toContain('<svg');
+  });
+
+  it('renders npm and pnpm with official icons', () => {
+    const npmMarkup = markupFor('package.json');
+    expect(npmMarkup).toContain('file-icon-nodejs');
+    const pnpmMarkup = markupFor('pnpm-lock.yaml');
+    expect(pnpmMarkup).toContain('file-icon-pnpm');
+  });
+
+  it('renders folders with dedicated folder icon', () => {
     const folderMarkup = markupFor('assets/');
-    const genericMarkup = markupFor('data.unknownext');
-    expect(folderMarkup).not.toContain('<rect');
     expect(folderMarkup).toContain('file-icon-folder');
-    expect(genericMarkup).not.toContain('<rect');
-    expect(genericMarkup).toContain('file-icon-generic');
-  });
-
-  it('uses symbol glyphs for config/markup types on tiles', () => {
-    expect(markupFor('data.json')).toContain('file-icon-json');
-    expect(markupFor('index.html')).toContain('file-icon-html');
-    expect(markupFor('run.sh')).toContain('file-icon-shell');
-  });
-
-  it('palette stays in one accessible luminance band (≥3.5:1 on white)', () => {
-    const kinds: Array<[string, FileTypeInfo]> = [
-      ['a.ts', resolveFileTypeInfo('a.ts')],
-      ['a.tsx', resolveFileTypeInfo('a.tsx')],
-      ['a.js', resolveFileTypeInfo('a.js')],
-      ['a.py', resolveFileTypeInfo('a.py')],
-      ['a.json', resolveFileTypeInfo('a.json')],
-      ['a.css', resolveFileTypeInfo('a.css')],
-      ['a.md', resolveFileTypeInfo('a.md')],
-      ['a.html', resolveFileTypeInfo('a.html')],
-      ['a.rs', resolveFileTypeInfo('a.rs')],
-      ['a.go', resolveFileTypeInfo('a.go')],
-      ['a.sh', resolveFileTypeInfo('a.sh')],
-      ['a.png', resolveFileTypeInfo('a.png')],
-      ['folder', resolveFileTypeInfo('folder/')],
-      ['generic', resolveFileTypeInfo('file.xyz')],
-    ];
-
-    const channel = (hex: string, offset: number): number => {
-      const c = parseInt(hex.slice(1 + offset, 3 + offset), 16) / 255;
-      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-    };
-    const luminance = (hex: string): number => {
-      const [r, g, b]: [number, number, number] = [channel(hex, 0), channel(hex, 2), channel(hex, 4)];
-      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    };
-    const contrastOnWhite = (hex: string): number => (1.05) / (luminance(hex) + 0.05);
-
-    for (const [name, info] of kinds) {
-      expect(contrastOnWhite(info.color), `${name} → ${info.color}`).toBeGreaterThanOrEqual(3.5);
-    }
+    expect(folderMarkup).toContain('<svg');
   });
 });

@@ -79,6 +79,17 @@ export function resolveDocumentContentFromMessages(
     }
 
     const messageText = message.text ?? '';
+    const markupKind = requestedMarkupKind(cleanTitle, cleanPath);
+    if (markupKind && messageText) {
+      const markupBody = extractMatchingMarkupFence(messageText, markupKind);
+      if (markupBody) {
+        const score = markupBody.length + 2_500;
+        if (score > bestScore) {
+          bestCandidate = markupBody;
+          bestScore = score;
+        }
+      }
+    }
     if (messageText && mentionsDocument(messageText, cleanTitle, cleanPath)) {
       const fromMessage = extractMarkdownDocumentFromMessage(messageText, cleanTitle, cleanPath);
       if (fromMessage) {
@@ -92,6 +103,95 @@ export function resolveDocumentContentFromMessages(
   }
 
   return bestCandidate;
+}
+
+export function requestedMarkupKind(title: string, path: string): 'html' | 'svg' | null {
+  for (const raw of [path, title]) {
+    const base = (raw.split(/[\\/]/).pop() || raw).trim().toLowerCase();
+    if (!base) continue;
+    if (base === 'svg' || base === '.svg' || base.endsWith('.svg')) {
+      return 'svg';
+    }
+    if (
+      base === 'html' ||
+      base === 'htm' ||
+      base === '.html' ||
+      base === '.htm' ||
+      base.endsWith('.html') ||
+      base.endsWith('.htm')
+    ) {
+      return 'html';
+    }
+  }
+  return null;
+}
+
+function extractMatchingMarkupFence(text: string, kind: 'html' | 'svg'): string | null {
+  const fences = listMarkupFences(text);
+  for (let index = fences.length - 1; index >= 0; index -= 1) {
+    const fence = fences[index];
+    if (fence?.kind === kind) {
+      return fence.body;
+    }
+  }
+  return null;
+}
+
+function listMarkupFences(text: string): Array<{ kind: 'html' | 'svg'; body: string }> {
+  const lines = text.split('\n');
+  const fences: Array<{ kind: 'html' | 'svg'; body: string }> = [];
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const line = lines[lineIndex] ?? '';
+    const openingMatch = /^(?: {0,3})(`{3,}|~{3,})([^\n]*)\r?$/.exec(line);
+    const fenceMarks = openingMatch?.[1];
+    if (!fenceMarks) {
+      continue;
+    }
+    const info = (openingMatch?.[2] ?? '').trim();
+    const language = info.split(/\s+/)[0] ?? '';
+    let closingLineIndex: number | null = null;
+    for (let candidateIndex = lineIndex + 1; candidateIndex < lines.length; candidateIndex += 1) {
+      const candidateLine = lines[candidateIndex] ?? '';
+      const closingMatch = /^(?: {0,3})([`~]{3,})[ \t]*\r?$/.exec(candidateLine);
+      const closingFence = closingMatch?.[1];
+      if (
+        closingFence &&
+        closingFence[0] === fenceMarks[0] &&
+        closingFence.length >= fenceMarks.length
+      ) {
+        closingLineIndex = candidateIndex;
+        break;
+      }
+    }
+    const body =
+      closingLineIndex === null
+        ? lines.slice(lineIndex + 1).join('\n').trim()
+        : lines.slice(lineIndex + 1, closingLineIndex).join('\n').trim();
+    const kind = classifyMarkupFence(language, body);
+    if (kind && body.length >= 8) {
+      fences.push({ kind, body });
+    }
+    if (closingLineIndex === null) {
+      break;
+    }
+    lineIndex = closingLineIndex;
+  }
+  return fences;
+}
+
+function classifyMarkupFence(language: string, body: string): 'html' | 'svg' | null {
+  const raw = language.trim().toLowerCase();
+  const alias = raw.replace(/^language-/, '').replace(/^artifact-/, '');
+  if (raw === 'artifact-svg' || alias === 'svg') {
+    return 'svg';
+  }
+  if (raw === 'artifact-html' || alias === 'html' || alias === 'htm' || raw === 'artifact') {
+    return 'html';
+  }
+  if ((alias === 'xml' || alias === '') && /<svg[\s>/]/i.test(body)) {
+    return 'svg';
+  }
+  return null;
 }
 
 function mentionsDocument(text: string, title: string, path: string): boolean {

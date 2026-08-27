@@ -9,12 +9,12 @@
 
 import type { ThemeDeckTokens, ThemeManifest } from '@piwin/contracts';
 
-/** UI sans — system first so the shell matches native text rendering. */
+/** UI sans — upright, geometric neo-grotesque fonts first for precise, square structural feel. */
 const FONT_SANS =
-  '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", system-ui, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
+  'Inter, "Geist Sans", "Plus Jakarta Sans", "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", system-ui, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
 
 export const FONT_MONO =
-  '"JetBrains Mono", "Fira Code", "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+  '"JetBrains Mono", "Geist Mono", "Fira Code", "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace';
 
 /**
  * Obsidian — the default dark face.

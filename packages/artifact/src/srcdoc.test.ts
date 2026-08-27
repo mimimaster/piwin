@@ -102,14 +102,14 @@ describe('buildHtmlArtifactSrcdoc', () => {
     );
   });
 
-  it('hosts a full document in a stable Inline viewport without size messages', () => {
+  it('hosts a full document in a stable Inline viewport with the unified bridge', () => {
     const modelSource =
       '<!DOCTYPE html><html><head><title>Ink</title></head><body><main style="height:100vh">Workspace</main></body></html>';
     const { srcdoc } = buildHtmlArtifactSrcdoc({
       source: modelSource,
       channelId: 'inline-viewport-document',
       surface: 'inline',
-      layout: 'inline-viewport',
+      frameMode: 'inline-viewport',
       documentKind: 'document',
     });
 
@@ -117,8 +117,10 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(srcdoc).toContain('overflow-y: auto !important');
     expect(srcdoc).toContain('height: 100% !important');
     expect(srcdoc).not.toContain('<div class="piwin-artifact-root">');
-    expect(srcdoc).not.toContain('window.ResizeObserver');
-    expect(srcdoc).not.toContain(ARTIFACT_BRIDGE_SIZE_TYPE);
+    expect(srcdoc).toContain('var currentFrameMode = "inline-viewport";');
+    expect(srcdoc).toContain('if (!root || !root.getBoundingClientRect) return;');
+    expect(srcdoc).toContain('window.ResizeObserver');
+    expect(srcdoc).toContain(ARTIFACT_BRIDGE_SIZE_TYPE);
   });
 
   it('preserves a full document for Canvas and omits height measurement', () => {
@@ -138,6 +140,13 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(srcdoc).toContain('overflow-y: auto !important');
     expect(srcdoc).toContain('overflow: hidden !important');
     expect(srcdoc).toContain('overscroll-behavior: contain !important');
+    expect(srcdoc).toContain('html[data-frame-mode="canvas"] body > *');
+    expect(srcdoc).toContain('container-type: size');
+    expect(srcdoc).toContain('justify-content: flex-start');
+    expect(srcdoc).not.toContain('margin-block: auto');
+    expect(srcdoc).not.toContain('justify-content: safe center');
+    expect(srcdoc).toContain('data-piwin-canvas-fit');
+    expect(srcdoc).toContain('startCanvasStageFit');
     expect(srcdoc).not.toContain('<div class="piwin-artifact-root">');
     expect(srcdoc).toContain("currentFrameMode !== 'canvas'");
   });
@@ -162,6 +171,13 @@ describe('buildHtmlArtifactSrcdoc', () => {
       includeBridge: false,
     });
     expect(srcdoc).not.toContain('data-piwin-artifact-bridge-bootstrap');
+  });
+
+  it('starts canvas fit without posting a height stream', () => {
+    const root = createMeasuredRoot(240);
+    const session = runBridgeSession(root, { frameMode: 'canvas' });
+    expect(session.documentElement.attributes['data-frame-mode']).toBe('canvas');
+    expect(session.messages).toEqual([]);
   });
 
   it('emits syntactically valid bridges for every frame mode', () => {

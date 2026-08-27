@@ -11,6 +11,7 @@ import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from '../appearance-tokens';
 import { SETTINGS_SECTIONS, type SettingsSectionId } from './section-registry';
 import type { SettingsContextValue } from './settings-context';
+import { ensureSettingsLazyLoaded } from './settings-lazy-load';
 import { SettingsShell } from './settings-shell';
 import { webToDraft } from './web-draft';
 
@@ -115,6 +116,8 @@ describe('SettingsShell', () => {
   beforeEach(() => {
     previousActEnvironment = globalThis.IS_REACT_ACT_ENVIRONMENT;
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+    vi.stubGlobal('requestIdleCallback', () => 0);
+    vi.stubGlobal('cancelIdleCallback', () => undefined);
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -125,6 +128,7 @@ describe('SettingsShell', () => {
       root.unmount();
     });
     container.remove();
+    vi.unstubAllGlobals();
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
   });
 
@@ -141,16 +145,17 @@ describe('SettingsShell', () => {
     expect(container.querySelectorAll('.settings-nav-item')).toHaveLength(SETTINGS_SECTIONS.length);
   });
 
-  it('renders the restored Web settings page', () => {
-    act(() => {
+  it('renders the restored Web settings page', async () => {
+    await act(async () => {
       root.render(<ShellHarness initialSection="web" />);
+      await ensureSettingsLazyLoaded();
     });
     expect(container.querySelector('[data-testid="settings-nav-web"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="web-search-route-policy"]')).not.toBeNull();
   });
 
-  it('uses the page content heading without rendering a duplicate shell title', () => {
-    act(() => {
+  it('uses the page content heading without rendering a duplicate shell title', async () => {
+    await act(async () => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
           <SettingsShell
@@ -161,6 +166,7 @@ describe('SettingsShell', () => {
           />
         </PiwinUiProvider>,
       );
+      await ensureSettingsLazyLoaded();
     });
 
     expect(container.querySelector('.settings-main-header h2')).toBeNull();
@@ -219,9 +225,10 @@ describe('SettingsShell', () => {
     ).not.toBeNull();
   });
 
-  it('switches content when a nav item is clicked', () => {
-    act(() => {
+  it('switches content when a nav item is clicked', async () => {
+    await act(async () => {
       root.render(<ShellHarness initialSection="extensions" />);
+      await ensureSettingsLazyLoaded();
     });
     expect(container.querySelector('[data-testid="settings-extensions-hub"]')).not.toBeNull();
 
@@ -250,7 +257,7 @@ describe('SettingsShell', () => {
     ).toBe(true);
   });
 
-  it('renders the models page with provider settings when config is loaded', () => {
+  it('renders the models page with provider settings when config is loaded', async () => {
     const contextValue = createContextValue(vi.fn());
     contextValue.config = {
       hostMode: 'sdk',
@@ -268,7 +275,7 @@ describe('SettingsShell', () => {
       media: { maxPasteBytes: 1_000_000, allowedMimeTypes: [] },
       artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 1_000_000 },
     };
-    act(() => {
+    await act(async () => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
           <SettingsShell
@@ -278,6 +285,7 @@ describe('SettingsShell', () => {
           />
         </PiwinUiProvider>,
       );
+      await ensureSettingsLazyLoaded();
     });
     expect(container.querySelector('[data-testid="settings-models"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="provider-settings"]')).not.toBeNull();
@@ -309,6 +317,7 @@ describe('SettingsShell', () => {
     expect(extensionsNav).not.toBeNull();
     await act(async () => {
       extensionsNav?.click();
+      await ensureSettingsLazyLoaded();
     });
     expect(container.querySelector('[data-testid="settings-extensions-hub"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="legacy-skills"]')).toBeNull();

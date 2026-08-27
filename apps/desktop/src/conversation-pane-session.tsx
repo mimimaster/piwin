@@ -28,10 +28,13 @@ import {
   requestPromptWithForeground,
 } from './prompt-foreground.js';
 import { ConversationPaneTranscript } from './conversation-pane-transcript.js';
-import { IconSend, IconStop } from './shell-icons.js';
 import { createStreamEventBuffer } from './stream-event-buffer.js';
+import { IconSend, IconStop } from './shell-icons.js';
+
 import { MediaPreviewReadProvider } from './media-preview-read-context.js';
 import type { MediaPreviewReader } from './transcript-media-preview.js';
+import type { ArtifactCanvasTarget } from './artifact-canvas-model.js';
+import type { DocumentOpenInput } from './tool-call-card.js';
 
 type PaneResumeData = Omit<SessionResumeData, 'scope'> & {
   scope?: SessionScope | 'general' | 'project' | 'unknown';
@@ -42,10 +45,14 @@ export type ConversationPaneSessionProps = {
   hostClient: HostClient;
   activeTheme: ThemeManifest;
   artifactThemeKey: string | number;
+  artifactPreviewEnabled: boolean;
   readMedia: MediaPreviewReader | null;
   locale: 'zh-CN' | 'en';
   onNameChange?: (name: string) => void;
   onSessionDeleted?: () => void;
+  onOpenDocument?: (doc: DocumentOpenInput, target?: 'stage' | 'inspector') => void;
+  onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
+  fileBrowseRoot?: string | null;
 };
 
 function isGeneralScope(scope: PaneResumeData['scope']): boolean {
@@ -87,6 +94,8 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
       awaitTranscript: true,
     }),
   );
+  const stateRef = useRef(state);
+  stateRef.current = state;
   const [composer, setComposer] = useState('');
   const [model, setModel] = useState<ModelRef | null>(null);
   const [busy, setBusy] = useState(false);
@@ -102,6 +111,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
     async (isCancelled?: () => boolean): Promise<void> => {
       if (isCancelled?.()) return;
       dispatch({ type: 'foreground/admission', admission: 'reconciling' });
+      const runIdAtStart = stateRef.current.activeRunId;
       try {
         const response = await props.hostClient.request({
           type: 'session/foreground-run',
@@ -113,7 +123,31 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
           return;
         }
         const run = readRun(response.data);
-        if (run) dispatch({ type: 'run/updated', run });
+        if (run) {
+          dispatch({ type: 'run/updated', run });
+        } else if (runIdAtStart !== null && stateRef.current.activeRunId === runIdAtStart) {
+          // A foreground query that returns no Run is authoritative. Pull the
+          // durable tail before clearing the optimistic live projection so a
+          // missed terminal push cannot leave the pane spinning or hide the
+          // final assistant text.
+          const messagesResponse = await props.hostClient.request({
+            type: 'session/messages',
+            sessionId: props.sessionId,
+          });
+          if (isCancelled?.()) return;
+          if (messagesResponse.success) {
+            const data = messagesResponse.data as
+              { messages?: SessionTranscriptMessage[] } | undefined;
+            if (Array.isArray(data?.messages)) {
+              dispatch({
+                type: 'session/load-messages',
+                sessionId: props.sessionId,
+                messages: data.messages,
+              });
+            }
+          }
+          dispatch({ type: 'run/stale-clear', sessionId: props.sessionId });
+        }
         dispatch({ type: 'foreground/admission', admission: 'ready' });
       } catch {
         dispatch({ type: 'foreground/admission', admission: 'unknown' });
@@ -178,7 +212,6 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
 
   useEffect(() => {
     const streamEventBuffer = createStreamEventBuffer({ dispatch });
-    const bufferAgentEvents = props.hostClient.getTransport() !== 'remote';
     const unsubscribe = props.hostClient.subscribe((message) => {
       if (message.type === 'hydration') {
         streamEventBuffer.reset();
@@ -199,20 +232,17 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
       }
       if (!messageBelongsToSession(message, props.sessionId)) return;
       if (message.type === 'event') {
-        if (bufferAgentEvents) {
-          streamEventBuffer.push(message.sessionId, message.event, message.envelope);
-        } else {
-          dispatch({
-            type: 'event',
-            sessionId: message.sessionId,
-            event: message.event,
-            ...(message.envelope ? { envelope: message.envelope } : {}),
-          });
-        }
+        streamEventBuffer.push(message.sessionId, message.event, message.envelope);
       } else if (message.type === 'run/updated') {
-        dispatch({ type: 'run/updated', run: message.run });
+        streamEventBuffer.pushAction(message.run.sessionId, {
+          type: 'run/updated',
+          run: message.run,
+        });
       } else if (message.type === 'run/terminal') {
-        dispatch({ type: 'run/terminal', run: message.run });
+        streamEventBuffer.pushAction(message.run.sessionId, {
+          type: 'run/terminal',
+          run: message.run,
+        });
       } else if (message.type === 'transcript/append') {
         dispatch({
           type: 'transcript/append',
@@ -247,12 +277,21 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
     const clientMessageId = crypto.randomUUID();
     setComposer('');
     setBusy(true);
-    dispatch({ type: 'user/send', text, clientMessageId });
+    dispatch({
+      type: 'user/send',
+      text,
+      clientMessageId,
+      ...(model ? { model } : {}),
+    });
     try {
       const response = await requestPromptWithForeground({
         request: (command, options) => props.hostClient.request(command, options),
         sessionId: props.sessionId,
-        input: { text, clientMessageId },
+        input: {
+          text,
+          clientMessageId,
+          ...(model ? { model } : {}),
+        },
         allowReplaceConfirm: false,
         createIdempotencyKey: createGestureIdempotencyKey,
         remoteForegroundAdmission: props.hostClient.supportsForegroundAdmission(),
@@ -327,8 +366,16 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
           state={state}
           activeTheme={props.activeTheme}
           artifactThemeKey={props.artifactThemeKey}
+          artifactPreviewEnabled={props.artifactPreviewEnabled}
           locale={props.locale}
           livePromptModel={model}
+          {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
+          {...(props.onOpenArtifactCanvas
+            ? { onOpenArtifactCanvas: props.onOpenArtifactCanvas }
+            : {})}
+          {...(props.fileBrowseRoot !== undefined
+            ? { fileBrowseRoot: props.fileBrowseRoot }
+            : {})}
         />
         {state.error ? (
           <div className="conversation-pane-error" role="alert">

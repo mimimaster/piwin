@@ -146,6 +146,178 @@ describe('ConversationResponseContent', () => {
     expect(container.textContent).toContain('什么是光合作用？');
   });
 
+  it('renders the first-token activity for an empty streaming assistant message', () => {
+    const message: ChatMessageUi = {
+      id: 'm-streaming-empty',
+      role: 'assistant',
+      text: '',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'streaming',
+    };
+
+    const { container } = renderContent(
+      <ConversationResponseContent
+        message={message}
+        messageIndex={0}
+        showStreamingCaret={false}
+        activeTheme={null}
+        artifactThemeKey="default"
+        runRecordsById={{}}
+        activeRunId={null}
+        locale="en"
+        isStreaming
+        artifactPreviewEnabled={true}
+      />,
+    );
+
+    expect(container.querySelector('[data-testid="conversation-activity"]')).not.toBeNull();
+  });
+
+  it('streams live reasoning text while the Conversation bubble is still open', () => {
+    const message: ChatMessageUi = {
+      id: 'm-live-think',
+      role: 'assistant',
+      text: '',
+      thinking: 'Visualize a pelican on a bicycle, then emit the SVG fence.',
+      tools: [],
+      attachments: [],
+      status: 'streaming',
+    };
+
+    const { container } = renderContent(
+      <ConversationResponseContent
+        message={message}
+        messageIndex={0}
+        showStreamingCaret={false}
+        activeTheme={null}
+        artifactThemeKey="default"
+        runRecordsById={{}}
+        activeRunId="run-live-think"
+        locale="zh-CN"
+        isStreaming
+        artifactPreviewEnabled={true}
+      />,
+    );
+
+    expect(container.querySelector('[data-testid="conversation-thinking"]')?.textContent).toContain(
+      'Visualize a pelican on a bicycle',
+    );
+    expect(
+      container.querySelector('[data-testid="conversation-thinking-wrapper"]')?.className,
+    ).toContain('is-open');
+  });
+
+  it('keeps live reasoning open after a caption starts on the same bubble', () => {
+    const message: ChatMessageUi = {
+      id: 'm-think-caption',
+      role: 'assistant',
+      text: '正在把鹈鹕画进循环骑行动画。',
+      thinking: 'Keep drawing the pouch and black wingtips.',
+      thinkingStartedAt: 1_000,
+      thinkingEndedAt: 2_000,
+      tools: [],
+      attachments: [],
+      status: 'streaming',
+    };
+
+    const { container } = renderContent(
+      <ConversationResponseContent
+        message={message}
+        messageIndex={0}
+        showStreamingCaret={false}
+        activeTheme={null}
+        artifactThemeKey="default"
+        runRecordsById={{}}
+        activeRunId="run-think-caption"
+        locale="zh-CN"
+        isStreaming
+        artifactPreviewEnabled={true}
+      />,
+    );
+
+    expect(container.querySelector('[data-testid="conversation-thinking"]')?.textContent).toContain(
+      'Keep drawing the pouch',
+    );
+    expect(container.textContent).toContain('正在把鹈鹕画进循环骑行动画。');
+  });
+
+  it('renders Conversation web_search as a tool card', () => {
+    const message: ChatMessageUi = {
+      id: 'm-search',
+      role: 'assistant',
+      text: '一只大嘴鹈鹕正在海边骑巡航车。',
+      thinking: '',
+      tools: [
+        {
+          toolCallId: 't-web',
+          toolName: 'web_search',
+          status: 'done',
+          output: '{"hits":[]}',
+          presentation: {
+            kind: 'web',
+            title: 'web_search',
+            actionVerb: 'Searched',
+            inputPreview: '{"query":"white pelican"}',
+          },
+        },
+      ],
+      attachments: [],
+      status: 'done',
+    };
+
+    const { container } = renderContent(
+      <ConversationResponseContent
+        message={message}
+        messageIndex={0}
+        showStreamingCaret={false}
+        activeTheme={null}
+        artifactThemeKey="default"
+        runRecordsById={{}}
+        activeRunId={null}
+        locale="zh-CN"
+        artifactPreviewEnabled={true}
+      />,
+    );
+
+    expect(container.querySelector('[data-testid="turn-tool-group"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="tool-call-card"]')).not.toBeNull();
+    expect(container.querySelector('.markdown')).toBeNull();
+    expect(container.textContent).not.toContain('一只大嘴鹈鹕正在海边骑巡航车。');
+  });
+
+  it('collapses completed reasoning so history stays compact', () => {
+    const message: ChatMessageUi = {
+      id: 'm-think-done',
+      role: 'assistant',
+      text: '下面是一只在海边骑车的鹈鹕。',
+      thinking: 'Finished the SVG.',
+      thinkingStartedAt: 1_000,
+      thinkingEndedAt: 5_000,
+      tools: [],
+      attachments: [],
+      status: 'done',
+    };
+
+    const { container } = renderContent(
+      <ConversationResponseContent
+        message={message}
+        messageIndex={0}
+        showStreamingCaret={false}
+        activeTheme={null}
+        artifactThemeKey="default"
+        runRecordsById={{}}
+        activeRunId={null}
+        locale="zh-CN"
+        artifactPreviewEnabled={true}
+      />,
+    );
+
+    expect(container.querySelector('[data-testid="conversation-thinking"]')).toBeNull();
+    expect(container.querySelector('[data-testid="conversation-thinking-summary"]')).not.toBeNull();
+  });
+
   it('handles interaction on native flashcard: reveal, rate, and action callback', () => {
     let capturedAction: unknown = null;
     const message: ChatMessageUi = {
@@ -723,6 +895,151 @@ describe('ConversationResponseContent', () => {
         ?.classList.contains('is-continuation'),
     ).toBe(true);
     expect(container.textContent).toContain('Here is the result.');
+  });
+
+  it('keeps the provider avatar on the latest completed reply using the composer model', () => {
+    const message: ChatMessageUi = {
+      id: 'm-done-avatar',
+      role: 'assistant',
+      text: 'Hello after streaming.',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+    };
+    const { container } = renderContent(
+      <ConversationResponseContent
+        message={message}
+        messageIndex={0}
+        showStreamingCaret={false}
+        activeTheme={null}
+        artifactThemeKey="default"
+        runRecordsById={{}}
+        activeRunId={null}
+        locale="zh-CN"
+        artifactPreviewEnabled={true}
+        isStreaming={false}
+        isLatestAssistantResponse
+        livePromptModel={{
+          protocol: 'openai-compatible',
+          providerId: 'custom-openai',
+          modelId: 'win/glm5.2',
+        }}
+      />,
+    );
+    expect(container.querySelector('.conversation-message-provider-icon')).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="conversation-message-model-name"]')?.textContent,
+    ).toContain('glm5.2');
+  });
+
+  it('keeps the provider avatar on a live streaming row via the live run flag', () => {
+    const message: ChatMessageUi = {
+      id: 'm-live-avatar',
+      role: 'assistant',
+      text: '',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'streaming',
+    };
+    const { container } = renderContent(
+      <ConversationResponseContent
+        message={message}
+        messageIndex={0}
+        showStreamingCaret={false}
+        activeTheme={null}
+        artifactThemeKey="default"
+        runRecordsById={{}}
+        activeRunId="run-1"
+        locale="zh-CN"
+        artifactPreviewEnabled={true}
+        isStreaming
+        livePromptModel={{
+          protocol: 'openai-compatible',
+          providerId: 'custom-openai',
+          modelId: 'win/glm5.2',
+        }}
+      />,
+    );
+    expect(container.querySelector('.conversation-message-provider-icon')).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="conversation-message-model-name"]')?.textContent,
+    ).toContain('glm5.2');
+  });
+
+  it('materializes conversation artifact-html after leading prose', async () => {
+    const message: ChatMessageUi = {
+      id: 'm-pelican',
+      role: 'assistant',
+      text: [
+        '这是一个用纯 SVG + CSS 动画与交互打造的 “海滨骑行鹈鹕” 2D 矢量动画页面。',
+        '',
+        '```artifact-html',
+        '<!DOCTYPE html>',
+        '<html lang="zh-CN"><body><h1>Pelican</h1></body></html>',
+        '```',
+      ].join('\n'),
+      thinking: '已思考',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      runId: 'run-1',
+    };
+    const { container } = renderContent(
+      <ConversationResponseContent
+        message={message}
+        sessionId="session-1"
+        messageIndex={0}
+        showStreamingCaret={false}
+        activeTheme={null}
+        artifactThemeKey="default"
+        runRecordsById={{}}
+        activeRunId="run-1"
+        locale="zh-CN"
+        artifactPreviewEnabled
+      />,
+    );
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(container.querySelector('.artifact-frame')).not.toBeNull();
+    expect(container.querySelector('[data-testid="code-fence-source"]')).toBeNull();
+    expect(container.querySelector('[data-testid="code-fence-streaming"]')).toBeNull();
+  });
+
+  it('keeps completed Canvas fences as a transcript launcher, not an inline frame', async () => {
+    const message: ChatMessageUi = {
+      id: 'm-canvas',
+      role: 'assistant',
+      text: '```artifact-html title="Wide workspace" surface="canvas"\n<div>Wide</div>\n```',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+    };
+    const { container } = renderContent(
+      <ConversationResponseContent
+        message={message}
+        sessionId="session-1"
+        messageIndex={0}
+        showStreamingCaret={false}
+        activeTheme={null}
+        artifactThemeKey="default"
+        runRecordsById={{}}
+        activeRunId={null}
+        locale="zh-CN"
+        artifactPreviewEnabled
+        onOpenArtifactCanvas={() => {}}
+      />,
+    );
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[data-testid="artifact-canvas-launcher"]')).not.toBeNull();
+    expect(container.querySelector('.artifact-frame')).toBeNull();
   });
 
   it('forwards the code-first preference to conversation Markdown', () => {

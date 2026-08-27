@@ -57,25 +57,19 @@ describe('formatCatalogSystemPrompt', () => {
       },
     });
     const prompt = formatCatalogSystemPrompt(brief);
-    expect(prompt).toContain('## MCP tools (use them proactively)');
+    expect(prompt).toContain('<mcp_tools>');
+    expect(prompt).toContain('## MCP Catalog');
     expect(prompt).toContain(`\`${HOST_TOOLBOX_NAME}\``);
-    expect(prompt).toContain('Catalog flow:');
     expect(prompt).toContain('`docs`: 1 cached tool(s)');
     expect(prompt).not.toContain('mcp_gateway');
   });
 
-  it('keeps the empty-server copy stable', () => {
+  it('returns undefined when no servers are enabled', () => {
     const brief = buildMcpCapabilityBrief({
       config: createConfig({ disabled: { command: 'node', disabled: true } }),
       cachedToolsByServer: {},
     });
-    expect(formatCatalogSystemPrompt(brief)).toBe(
-      [
-        '## MCP tools',
-        'No MCP servers are enabled in this session generation.',
-        'If the user configures MCP later, a new generation rebuilds this surface.',
-      ].join('\n'),
-    );
+    expect(formatCatalogSystemPrompt(brief)).toBeUndefined();
   });
 
   it('reports omitted servers and stays within the system prompt cap', () => {
@@ -93,15 +87,15 @@ describe('formatCatalogSystemPrompt', () => {
     });
     const prompt = formatCatalogSystemPrompt(brief);
     expect(prompt).toContain(
-      `Configured server list truncated: ${omittedServerCount} more configured server(s) omitted from this bounded list.`,
+      `${omittedServerCount} additional configured server(s) omitted from this bounded list`,
     );
-    expect(prompt.length).toBeLessThanOrEqual(MCP_BRIEF_MAX_SYSTEM_CHARS);
+    expect(prompt?.length).toBeLessThanOrEqual(MCP_BRIEF_MAX_SYSTEM_CHARS);
   });
 
   it('truncates an oversized inventory to the hard character cap', () => {
     const prompt = formatCatalogSystemPrompt(createLargeBrief());
     expect(prompt).toHaveLength(MCP_BRIEF_MAX_SYSTEM_CHARS);
-    expect(prompt.endsWith('…')).toBe(true);
+    expect(prompt?.endsWith('…')).toBe(true);
   });
 });
 

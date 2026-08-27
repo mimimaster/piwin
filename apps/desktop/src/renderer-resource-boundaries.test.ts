@@ -30,6 +30,7 @@ const PRODUCT_GLASS_WHITELIST = [
   '.settings-feedback-host .ui-notice',
   '.collapsible-content-toggle',
   '.media-lightbox-close',
+  '.sidebar-footer-fade',
   ".app-shell[data-layout='compact'].nav-open > .sidebar",
   ".app-shell[data-layout='compact'].has-right-panel > .right-panel.outward-column:not(.is-collapsed)",
 ] as const;
@@ -186,6 +187,27 @@ describe('Desktop renderer resource boundaries', () => {
     expect(app).not.toContain("from './SettingsPanel'");
     expect(app).not.toContain("from './KnowledgeCenterPanel'");
     expect(deferredSurfaces).toContain("import('./SettingsPanel')");
+    expect(deferredSurfaces).toContain('prefetchSettingsPanel');
+
+    const settingsShell = readSource('./settings/settings-shell.tsx');
+    const settingsBasic = readSource('./settings/pages/basic.ts');
+    const settingsLazyLoad = readSource('./settings/pages/lazy-load.ts');
+    const settingsPagesIndex = readSource('./settings/pages/index.ts');
+    const generalPage = readSource('./settings/pages/general-page.tsx');
+    expect(settingsShell).toContain("import './pages/basic.js'");
+    expect(settingsShell).not.toContain("import './pages'");
+    expect(settingsShell).not.toContain('McpPanel');
+    expect(settingsShell).not.toContain('ModelsPage');
+    expect(settingsShell).not.toContain('KnowledgePage');
+    expect(settingsBasic).toContain('GeneralPage');
+    expect(settingsBasic).not.toContain('ModelsPage');
+    expect(settingsBasic).not.toContain('McpPanel');
+    expect(settingsLazyLoad).toContain('ModelsPage');
+    expect(settingsLazyLoad).toContain('ExtensionsPage');
+    expect(settingsLazyLoad).toContain('KnowledgePage');
+    expect(settingsPagesIndex).not.toContain('ModelsPage');
+    expect(generalPage).toContain("import('../../PetPanel')");
+    expect(generalPage).not.toContain("from '../../PetPanel'");
     expect(deferredSurfaces).toContain("import('./browser-session-panel')");
     expect(deferredSurfaces).toContain("import('./terminal-dock')");
     expect(composerMedia).not.toContain("from '../file-tree-panel'");

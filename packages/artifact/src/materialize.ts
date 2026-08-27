@@ -54,7 +54,11 @@ export function materializeArtifact(
   let bodySource = options.source ?? intent.descriptor.source;
 
   if (mode === 'stream-preview') {
-    bodySource = buildStreamableArtifactPreview(bodySource).previewSource;
+    const streamPreview = buildStreamableArtifactPreview(bodySource);
+    // `previewSource` is diagnostic when no stable visual boundary exists.
+    // Do not leak that unstable prefix into the iframe; keep the mounted stream
+    // document empty until the first safe snapshot can be reconciled in place.
+    bodySource = streamPreview.canStream ? streamPreview.previewSource : '';
   }
 
   const contract = applyArtifactThemeContract(bodySource);

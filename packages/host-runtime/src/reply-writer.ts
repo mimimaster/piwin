@@ -10,13 +10,14 @@ import {
 import { StructuredCompletionError } from './structured-completion-error.js';
 import type { ModelProviderConfig } from '@piwin/contracts';
 
-export const DEFAULT_REPLY_WRITER_SYSTEM_PROMPT = [
-  'You rewrite a coding-agent reply so a human can read it.',
-  'Preserve every fact, file path, command, code block, and number from the draft and evidence.',
-  'Do not invent work, files, or results.',
-  'Do not mention that you are rewriting or that another model wrote the draft.',
-  'Output only the rewritten reply.',
-].join(' ');
+export const DEFAULT_REPLY_WRITER_SYSTEM_PROMPT = `<reply_writer_contract>
+You rewrite coding-agent draft replies into polished, clear, and professional developer communications.
+
+## Invariants
+1. **Factual & Technical Fidelity**: Preserve all file paths, command names, error messages, diffs, and numbers verbatim. Never invent facts.
+2. **Anti-Laziness in Code**: Keep code blocks complete; never insert placeholder comments like "// ... existing code unchanged ...".
+3. **Transparent Delivery**: Output ONLY the final response. Never mention rewriting, drafting, or underlying models.
+</reply_writer_contract>`;
 
 const USER_BODY_MAX_CHARS = 8_000;
 const DRAFT_MAX_CHARS = 32_000;
@@ -43,12 +44,12 @@ export function assembleReplyWriterUserPrompt(params: {
   language: ReplyWriterLanguage;
   evidence: ReplyWriterEvidence;
 }): string {
-  const languageLine =
+  const languageDirective =
     params.language === 'en'
-      ? 'Write the reply in clear, complete English.'
+      ? 'Output language: English.'
       : params.language === 'follow-user'
-        ? "Write the reply in the user's language. If mixed, prefer the language of the user message."
-        : '用通顺、完整的简体中文写回复。不要电报体，不要把词胡乱拼在一起。';
+        ? "Output language: Match user's primary language."
+        : 'Output language: 简体中文（语句通顺自然，避免电报体）。';
   const tools =
     params.evidence.tools.length === 0
       ? '(none)'
@@ -59,18 +60,21 @@ export function assembleReplyWriterUserPrompt(params: {
             return `${index + 1}. ${tool.name}\n${output || '(empty)'}`;
           })
           .join('\n\n');
-  return [
-    languageLine,
-    '',
-    '## User message',
-    truncateChars(params.evidence.userText.trim(), USER_BODY_MAX_CHARS) || '(empty)',
-    '',
-    '## Worker draft',
-    truncateChars(params.evidence.draftText.trim(), DRAFT_MAX_CHARS) || '(empty)',
-    '',
-    '## Tool evidence',
-    tools,
-  ].join('\n');
+  return `<directive>
+${languageDirective}
+</directive>
+
+<user_message>
+${truncateChars(params.evidence.userText.trim(), USER_BODY_MAX_CHARS) || '(empty)'}
+</user_message>
+
+<worker_draft>
+${truncateChars(params.evidence.draftText.trim(), DRAFT_MAX_CHARS) || '(empty)'}
+</worker_draft>
+
+<tool_evidence>
+${tools}
+</tool_evidence>`;
 }
 
 export async function completeReplyWriter(params: {

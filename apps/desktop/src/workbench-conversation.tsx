@@ -93,6 +93,8 @@ export type WorkbenchTranscriptProps = {
   onOpenArtifactCanvas: (target: ArtifactCanvasTarget) => void;
   onOpenDocument: (doc: DocumentOpenInput, target?: 'stage' | 'inspector') => void;
   onOpenDiff: (absolutePath: string, relativePath?: string) => void;
+  /** Project root, or the General workspace when Chat has no project. */
+  fileBrowseRoot?: string | null;
   onPlanExecute: (mode: PlanExecutionMode) => void | Promise<void>;
   onPlanAbort: () => void | Promise<void>;
   onGenerateWalkthrough: (messageId: string, force?: boolean) => void | Promise<void>;
@@ -149,6 +151,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
     onOpenArtifactCanvas,
     onOpenDocument,
     onOpenDiff,
+    fileBrowseRoot,
     onPlanExecute,
     onPlanAbort,
     onGenerateWalkthrough,
@@ -227,7 +230,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
               ? { agentLocatorAnimation: preferences.agentLocatorAnimation }
               : {})}
             permissionPrompt={state.permissionPrompt}
-            projectPath={state.projectPath}
+            projectPath={fileBrowseRoot ?? state.projectPath}
             {...(hostClient.supportsCommand('git/diff-file')
               ? { toolDiffRequest: requestGit as never }
               : {})}

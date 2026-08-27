@@ -51,25 +51,19 @@ export type WalkthroughConfig = {
 
 export const MAX_WALKTHROUGH_PROMPT_BYTES = 16 * 1024;
 
-export const DEFAULT_WALKTHROUGH_PROMPT = [
-  '[piwin-prompt-meta kind="walkthrough:user" version="2" applies="plan-completion"]',
-  'Produce a developer-facing delivery document for the completed turn.',
-  '',
-  '## Success',
-  'A reader can see what changed, why it is correct, how to verify it, and what remains open — using only facts from the evidence.',
-  '',
-  '## Document shape (include a section only when evidence supports it)',
-  '- H1 title suited to the task',
-  '- ## Summary — objective and outcome',
-  '- ## What Changed — files, key diffs, representative code',
-  '- ## Technical Details — architecture notes; Mermaid only when it clarifies multi-module change',
-  '- ## Validation — commands/tests and real results',
-  '- ## How to Verify — how someone else re-checks',
-  '- ## Notes / Unresolved Items — risks and follow-ups',
-  '',
-  '## Stop / safety',
-  'Omit empty sections. No secrets. No invented files, commands, or results. Match the user\'s primary language.',
-].join('\n');
+export const DEFAULT_WALKTHROUGH_PROMPT = `<walkthrough_template version="3">
+Generate a clean, structured delivery document from the provided evidence.
+
+## Required Sections (omit any section if unsupported by evidence)
+# [Task Title]
+## Summary: Core objective and delivered outcome.
+## Changes: Modified files (\`[MODIFY]|[NEW]|[DELETE]\`) and critical diffs.
+## Validation: Test/build commands executed with actual stdout/stderr outcomes.
+## How to Verify: Concrete steps for a human reviewer to reproduce the verification.
+## Open Items: Remaining risks, deferred tasks, or follow-ups (if any).
+
+Rules: Omit empty sections. Match the user's primary language. Zero secrets, zero hallucination.
+</walkthrough_template>`;
 
 /**
  * Default concise response prompt injected into the model's context when

@@ -14,6 +14,7 @@ import {
 import { type Components, type ExtraProps } from 'streamdown';
 import { fileNameFromPath, PathChip } from './path-chip.js';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model.js';
+import { lookupIndexedFence } from './markdown-artifact-fence-lookup.js';
 import {
   MarkdownCodeFence,
   type MarkdownCodeFenceProps,
@@ -49,19 +50,7 @@ export type StreamdownRendererOptions = {
   fences: readonly ArtifactFenceRecord[];
 };
 
-function lookupIndexedFence(
-  options: StreamdownRendererOptions,
-  startOffset: number | undefined,
-): ArtifactFenceRecord | null {
-  if (typeof startOffset !== 'number') {
-    return null;
-  }
-  const ordinal = options.ordinalByProjectedStartOffset.get(startOffset);
-  if (ordinal === undefined) {
-    return null;
-  }
-  return options.fences.find((fence) => fence.ordinal === ordinal) ?? null;
-}
+
 
 function streamingFenceInfo(record: ArtifactFenceRecord, streaming: boolean): string {
   if (!streaming || !record.open) {
@@ -171,10 +160,15 @@ export function createStreamdownComponents(optionsRef: {
     }
 
     const startOffset = node?.position?.start?.offset;
-    const record = lookupIndexedFence(options, startOffset);
-    const originKey = options.artifactOrigin?.messageId ?? 'local';
     const languageMatch = /(?:^|\s)language-([A-Za-z0-9_-]+)/.exec(className ?? '');
     const fallbackLanguage = languageMatch?.[1] ?? '';
+    const record = lookupIndexedFence({
+      fences: options.fences,
+      ordinalByProjectedStartOffset: options.ordinalByProjectedStartOffset,
+      startOffset,
+      language: fallbackLanguage,
+    });
+    const originKey = options.artifactOrigin?.messageId ?? 'local';
     const fenceProps: MarkdownCodeFenceProps = {
       language: record?.language ?? fallbackLanguage,
       fenceInfo: record

@@ -1,7 +1,7 @@
 /**
  * Scrollable assistant/user message list with edit/retry actions.
  */
-import { useEffect, useMemo, useRef, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 
 import { RadialBellow } from '@piwin/ui-kit';
 import type {
@@ -55,6 +55,8 @@ import { DocCardSequenceView, type DocCardSequenceRequest } from './DocCardSeque
 import { ChatMessageRow } from './chat-message-row';
 import { collectFlashcardToolsFromMessages } from './conversation-response-content.js';
 import { resolveConversationTurnChrome } from './conversation-turn-chrome';
+import { projectTurnWorkDisclosure } from './turn-work-disclosure-model.js';
+import { TurnWorkDisclosure } from './turn-work-disclosure.js';
 
 /** Legacy helper retained for callers that still compute the old preference. */
 /** @deprecated Run Inspector disclosure is now explicitly user-owned. */
@@ -286,6 +288,9 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
   }, [transcriptMessages]);
 
   const turnGroups = useMemo(() => groupTranscriptTurns(chatMessages), [chatMessages]);
+  const [workDisclosureOpenByTurnId, setWorkDisclosureOpenByTurnId] = useState<
+    Record<string, boolean>
+  >({});
   // Cursor-style explore flow: consecutive read/search/thought-only assistant
   // steps collapse into one "Explored N files" capsule anchored at the first
   // step (agent sessions only — conversation mode keeps per-reply chrome).
@@ -326,8 +331,11 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
     props.activeRunId != null &&
     !props.permissionPrompt &&
     (conversationSession
-      ? chatMessages.length === 0 || (effectiveTail?.role === 'user' && !effectiveTailAwaitsFirstOutput)
-      : transcriptMessages.length === 0 || transcriptTail?.role === 'user' || tailAwaitsFirstOutput);
+      ? chatMessages.length === 0 ||
+        (effectiveTail?.role === 'user' && !effectiveTailAwaitsFirstOutput)
+      : transcriptMessages.length === 0 ||
+        transcriptTail?.role === 'user' ||
+        tailAwaitsFirstOutput);
   const conversationActivityKind = conversationSession
     ? resolveConversationActivityKind({
         streaming: props.streaming,
@@ -459,6 +467,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
         streaming={props.streaming === true}
         renderTurn={(turn) => {
           const turnMessages = turn.items.map((item) => item.message);
+          const turnModel = turnMessages.find((item) => item.model)?.model;
           const turnFlashcardTools = collectFlashcardToolsFromMessages(turnMessages);
           const conversationChrome = conversationSession
             ? resolveConversationTurnChrome({
@@ -467,6 +476,18 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                 latestAssistantMessageId,
               })
             : null;
+          const workDisclosureProjection = conversationSession
+            ? null
+            : projectTurnWorkDisclosure({
+                turn,
+                runRecordsById: props.runRecordsById ?? {},
+                activeRunId: props.activeRunId ?? null,
+                currentTurnStreaming: turn.id === currentResponseTurnId && props.streaming === true,
+              });
+          const workDisclosureKey = `${props.sessionId ?? 'session'}:${turn.id}`;
+          const workDisclosureDefaultOpen = props.workDetailsExpanded === 'always';
+          const workDisclosureOpen =
+            workDisclosureOpenByTurnId[workDisclosureKey] ?? workDisclosureDefaultOpen;
           return (
             <section
               key={turn.id}
@@ -475,7 +496,32 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                 ? { 'data-testid': 'current-response-turn' }
                 : {})}
             >
-              {turn.items.map(({ message, messageIndex }, itemIndex) => {
+              {turn.items.flatMap(({ message, messageIndex }, itemIndex) => {
+                const isDisclosureWorkItem =
+                  workDisclosureProjection !== null &&
+                  itemIndex >= workDisclosureProjection.startIndex &&
+                  itemIndex <= workDisclosureProjection.endIndex;
+                const isDisclosureStart = workDisclosureProjection?.startIndex === itemIndex;
+                const disclosureTrigger =
+                  isDisclosureStart && workDisclosureProjection ? (
+                    <TurnWorkDisclosure
+                      key={`work-disclosure-${turn.id}`}
+                      projection={workDisclosureProjection}
+                      open={workDisclosureOpen}
+                      locale={props.locale ?? 'zh-CN'}
+                      onToggle={() =>
+                        setWorkDisclosureOpenByTurnId((current) => ({
+                          ...current,
+                          [workDisclosureKey]: !(
+                            current[workDisclosureKey] ?? workDisclosureDefaultOpen
+                          ),
+                        }))
+                      }
+                    />
+                  ) : null;
+                if (isDisclosureWorkItem && !workDisclosureOpen) {
+                  return disclosureTrigger ? [disclosureTrigger] : [];
+                }
                 const followingAssistantRunId = turn.items
                   .slice(itemIndex + 1)
                   .find((item) => item.message.role === 'assistant' && item.message.runId)
@@ -493,16 +539,27 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                         summariesByRunId: props.assemblySummariesByRunId ?? {},
                       })
                     : undefined;
-                const isLatestAssistant = latestAssistantMessageId === message.id;
+                const isLatestTurn =
+                  turn.lastAssistantMessageId !== null &&
+                  turn.lastAssistantMessageId === latestAssistantMessageId;
+                const isConversationIdentityMessage =
+                  conversationChrome?.identityMessageId === message.id;
+                const isLatestAssistant =
+                  latestAssistantMessageId === message.id ||
+                  (conversationSession && isConversationIdentityMessage && isLatestTurn);
                 const onRegenerate =
                   conversationSession && isLatestAssistant && precedingUser && props.onBranchResend
                     ? () => props.onBranchResend?.(precedingUser.id, precedingUser.text)
                     : undefined;
                 const exploreRole = exploreRolesByMessageId.get(message.id);
-                return (
+                const effectiveMessage =
+                  conversationSession && message.role === 'assistant' && !message.model && turnModel
+                    ? { ...message, model: turnModel }
+                    : message;
+                const row = (
                   <ChatMessageRow
                     key={message.id}
-                    message={message}
+                    message={effectiveMessage}
                     {...(exploreRole !== undefined ? { exploreRole } : {})}
                     isConversationSession={conversationSession}
                     {...(conversationChrome
@@ -647,6 +704,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                       : {})}
                   />
                 );
+                return disclosureTrigger ? [disclosureTrigger, row] : [row];
               })}
               {turn.id === currentResponseTurnId ? runActivitySlot : null}
             </section>

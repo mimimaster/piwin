@@ -25,7 +25,6 @@ import { WorkbenchContextBar } from './workbench-context-bar';
 import { WorkbenchKnowledgeStage } from './workbench-knowledge-stage';
 import { WorkbenchOverlays, WorkbenchSettingsOverlay } from './workbench-overlays';
 import { WorkbenchSidebar } from './workbench-sidebar';
-import { WorkbenchStatusBar } from './workbench-status-bar';
 import { ConversationPaneWorkspace } from './conversation-pane-workspace';
 import {
   useConversationPaneLayout,
@@ -89,6 +88,9 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
   const {
     sessionSearch,
     setSessionSearch,
+    sessionSearchOpen,
+    setSessionSearchOpen,
+    openSessionSearch,
     showArchivedSessions,
     setShowArchivedSessions,
     sessionListOrder,
@@ -150,6 +152,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     extensionUiRequest,
     assemblySummariesByRunId,
     inspectorFileDiff,
+    fileBrowseRoot,
     activeDocument,
     sessionDocuments,
     artifactThemeKey,
@@ -333,7 +336,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       sessionListOrder={sessionListOrder}
                       onSessionListOrderChange={handleSessionListOrderChange}
                       sessionSearch={sessionSearch}
-                      onSessionSearchChange={setSessionSearch}
+                      onOpenSessionSearch={openSessionSearch}
                       showArchivedSessions={showArchivedSessions}
                       setShowArchivedSessions={setShowArchivedSessions}
                       hydrateSessions={hydrateSessions}
@@ -380,7 +383,11 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       recentProjects={recentProjects}
                       activeSessionName={activeSessionName}
                       activeSessionOrigin={activeSessionOrigin}
-                      sessionLineage={sessionLineage}
+                      branchPoints={branchPoints}
+                      streaming={state.streaming}
+                      onSwitchBranch={(headMessageId) => {
+                        void switchBranch(headMessageId);
+                      }}
                       runStatus={runStatus}
                       lastUserMessage={lastUserMessage}
                       effectiveRunMode={effectiveRunMode}
@@ -421,10 +428,14 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                           hostClient={hostClient}
                           activeTheme={activeTheme}
                           artifactThemeKey={artifactThemeKey}
+                          artifactPreviewEnabled={config?.artifact?.enabled ?? true}
                           readMedia={readTranscriptMedia}
                           locale={desktopLocale}
                           keyboardEnabled={!settingsOpen && !knowledgeOpen && !activeSubPage}
                           onCreateConversation={handleCreatePaneConversation}
+                          onOpenDocument={handleOpenDocument}
+                          onOpenArtifactCanvas={handleOpenArtifactCanvas}
+                          fileBrowseRoot={fileBrowseRoot}
                         />
                       );
                     }
@@ -477,6 +488,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       onOpenArtifactCanvas={handleOpenArtifactCanvas}
                       onOpenDocument={handleOpenDocument}
                       onOpenDiff={handleOpenDiff}
+                      fileBrowseRoot={fileBrowseRoot}
                       onPlanExecute={handlePlanExecute}
                       onPlanAbort={handlePlanAbort}
                       onGenerateWalkthrough={handleGenerateWalkthrough}
@@ -507,16 +519,6 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       onNewSession={handleStartNewSession}
                     />
                   }
-                  statusBar={
-                    <WorkbenchStatusBar
-                      streaming={state.streaming}
-                      runStartedAt={state.activeRunStartedAt}
-                      error={state.error}
-                      terminalAttention={terminalAttention}
-                      contextUsage={state.contextUsage}
-                      locale={desktopLocale}
-                    />
-                  }
                   rightPanel={
                     <WorkbenchInspector
                       showOverlayScrim={showOverlayScrim}
@@ -540,6 +542,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       requestGit={requestGit}
                       requestPty={requestPty}
                       projectPath={state.projectPath}
+                      fileBrowseRoot={fileBrowseRoot}
                       projectTrusted={state.projectTrusted}
                       activeSessionId={state.activeSessionId}
                       walkthroughsByMessageId={state.walkthroughsByMessageId}
@@ -609,6 +612,13 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                   runContinueInProject={runContinueInProject}
                   onContinueSessionInProject={handleContinueSessionInProject}
                   recentProjects={recentProjects}
+                  sessionSearchOpen={sessionSearchOpen}
+                  onSessionSearchOpenChange={setSessionSearchOpen}
+                  sessionSearch={sessionSearch}
+                  onSessionSearchChange={setSessionSearch}
+                  filteredSessions={filteredSessions}
+                  filteredGeneralSessions={filteredGeneralSessions}
+                  onOpenSession={handleResumeSession}
                   commandPaletteOpen={commandPaletteOpen}
                   setCommandPaletteOpen={shell.setCommandPaletteOpen}
                   onRunCommand={handleDesktopCommand}

@@ -3,10 +3,7 @@
  */
 import { useCallback, useEffect, type Dispatch, type SetStateAction } from 'react';
 import type { ThemeManifest } from '@piwin/contracts';
-import {
-  appearanceToggleBlockedNotice,
-  planAppearanceToggle,
-} from '../appearance-toggle';
+import { appearanceToggleBlockedNotice, planAppearanceToggle } from '../appearance-toggle';
 import { buildAppearanceTheme } from '../appearance-tokens';
 import type { DesktopCommandId } from '../desktop-commands';
 import { saveDesktopLocale, type DesktopLocale } from '../desktop-locale';
@@ -19,7 +16,6 @@ import { saveDesktopPreferences, type DesktopPreferences } from '../ui-preferenc
 
 type ShellCommands = {
   openInspector: (tab?: RightPanelTab | null) => void;
-  openSessions: () => void;
   openSettings: (section: ShellSettingsSection) => void;
   toggleSessions: () => void;
   toggleInspector: (tab?: RightPanelTab | null) => void;
@@ -39,6 +35,7 @@ export type UseWorkbenchCommandsArgs = {
   handleStartNewSession: () => void | Promise<void>;
   handleOpenWorkspaceClick: () => void | Promise<void>;
   handleAbort: () => void | Promise<void>;
+  openSessionSearch: () => void;
 };
 
 export function useWorkbenchCommands(args: UseWorkbenchCommandsArgs) {
@@ -54,6 +51,7 @@ export function useWorkbenchCommands(args: UseWorkbenchCommandsArgs) {
     handleStartNewSession,
     handleOpenWorkspaceClick,
     handleAbort,
+    openSessionSearch,
   } = args;
 
   const handleToggleAppearance = useCallback((): void => {
@@ -105,14 +103,7 @@ export function useWorkbenchCommands(args: UseWorkbenchCommandsArgs) {
         onNewSession: handleStartNewSession,
         onOpenWorkspace: handleOpenWorkspaceClick,
         onStopRun: handleAbort,
-        openSessions: () => {
-          shell.openSessions();
-        },
-        focusSessionSearch: () => {
-          document
-            .querySelector<HTMLInputElement>('[aria-label="Search conversations"]')
-            ?.focus();
-        },
+        openSessionSearch,
         focusComposer: () => {
           document.querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]')?.focus();
         },
@@ -128,7 +119,14 @@ export function useWorkbenchCommands(args: UseWorkbenchCommandsArgs) {
         openInspector: openRightTab,
       });
     },
-    [handleAbort, handleOpenWorkspaceClick, handleStartNewSession, openRightTab, shell],
+    [
+      handleAbort,
+      handleOpenWorkspaceClick,
+      handleStartNewSession,
+      openRightTab,
+      openSessionSearch,
+      shell,
+    ],
   );
 
   useDesktopShortcuts({
@@ -143,10 +141,13 @@ export function useWorkbenchCommands(args: UseWorkbenchCommandsArgs) {
     document.documentElement.lang = desktopLocale;
   }, [desktopLocale]);
 
-  const handleLocaleChange = useCallback((locale: DesktopLocale): void => {
-    setDesktopLocale(locale);
-    saveDesktopLocale(locale);
-  }, [setDesktopLocale]);
+  const handleLocaleChange = useCallback(
+    (locale: DesktopLocale): void => {
+      setDesktopLocale(locale);
+      saveDesktopLocale(locale);
+    },
+    [setDesktopLocale],
+  );
 
   return {
     handleToggleAppearance,

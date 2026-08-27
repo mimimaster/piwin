@@ -10,7 +10,7 @@ import {
 } from '@piwin/flashcards/cloze';
 import type { ChatMessageUi, ToolCardUi } from './chat-reducer';
 
-function getMessageTools(
+export function getMessageTools(
   message: ChatMessageUi,
   extraTools?: readonly ToolCardUi[],
 ): readonly ToolCardUi[] {

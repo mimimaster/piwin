@@ -598,6 +598,21 @@ export class HostClient {
     if (message.type === 'replay/done') {
       this.replayInFlight = false;
       this.replayRequestId = undefined;
+      // `currentSeq` is the server-side cursor fence, not merely the last
+      // record visible through this client's live subscription. During replay
+      // the Host advances its egress channel across filtered tail records
+      // before unpausing live delivery. Adopt the same fence or the next valid
+      // cursor batch has `afterSeq > lastSeq`, which starts an endless
+      // replay/resync loop and leaves live Agent deltas unapplied.
+      if (message.currentSeq > this.lastSeq) {
+        this.lastSeq = message.currentSeq;
+        for (const sequence of this.pendingPushes.keys()) {
+          if (sequence <= message.currentSeq) {
+            this.pendingPushes.delete(sequence);
+          }
+        }
+        this.persistCursor();
+      }
       if (this.pendingPushes.size === 0) {
         this.publishState({ kind: 'ready' });
       } else {

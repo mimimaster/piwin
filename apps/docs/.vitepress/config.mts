@@ -81,6 +81,13 @@ export default defineConfig({
           ],
         },
         {
+          text: '🧩 智能体架构与提示词系统',
+          collapsed: false,
+          items: [
+            { text: '提示词工程与上下文设计体系', link: '/docs/prompt-system' },
+          ],
+        },
+        {
           text: '📝 文档创作与层级管理',
           collapsed: false,
           items: [

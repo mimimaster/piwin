@@ -343,7 +343,7 @@ describe('session compile path classification', () => {
 
     expect(discoverResources).toHaveBeenCalledTimes(1);
     expect(result.blueprint.activeSkillPaths).toEqual(['/tmp/skills/s1']);
-    expect(result.blueprint.appendSystemPrompt).toContain('## Default Agent operating contract');
+    expect(result.blueprint.appendSystemPrompt).toContain('<agent_contract>');
     expect(result.sessionBlueprint.capabilitySnapshot.context.allowProjectAgentsFiles).toBe(true);
     expect(result.sessionBlueprint.capabilitySnapshot.context.allowPiNativeInstructions).toBe(true);
   });
@@ -471,10 +471,15 @@ describe('conversation fast path (pure chat)', () => {
     const result = await compileBlueprintForWorker({ scope: generalScope }, conversationOptions);
 
     const appendSystemPrompt = result.blueprint.appendSystemPrompt ?? '';
-    expect(appendSystemPrompt).toContain('## Piwin Chat operating contract');
-    expect(appendSystemPrompt).toContain('explicitly attached, referenced, or provided');
-    expect(appendSystemPrompt).not.toContain('## Default Agent operating contract');
-    expect(appendSystemPrompt).not.toContain('## MCP tools');
+    expect(appendSystemPrompt).toContain('<identity>');
+    expect(appendSystemPrompt).toContain('You are Piwin Chat, a general-purpose conversational assistant.');
+    expect(appendSystemPrompt).toContain('</identity>');
+    expect(appendSystemPrompt).not.toContain('explicitly attached, referenced, or provided');
+    expect(appendSystemPrompt).not.toContain('Use the available web or creation capabilities');
+    expect(appendSystemPrompt).not.toContain('<agent_contract>');
+    expect(appendSystemPrompt).not.toContain('<mcp_tools>');
+    expect(appendSystemPrompt).not.toContain('Search routing:');
+    expect(appendSystemPrompt).not.toContain('Use the web_search tool for web lookup');
     expect(result.backendBlueprint.appendSystemPrompt).toBe(result.blueprint.appendSystemPrompt);
   });
 
@@ -599,7 +604,7 @@ describe('conversation fast path (pure chat)', () => {
     const result = await compileBlueprintForWorker({ scope: generalScope }, conversationOptions);
 
     const appendSystemPrompt = result.blueprint.appendSystemPrompt ?? '';
-    expect(appendSystemPrompt).toContain('[piwin-prompt-meta kind="artifact:capability"');
+    expect(appendSystemPrompt).toContain('<artifact_policy>');
     expect(appendSystemPrompt).toContain('artifact_instructions');
     expect(appendSystemPrompt).not.toContain('## HTML Artifact Runtime Contract');
     expect(result.blueprint.tools.hostTools.map((tool) => tool.name)).toContain(

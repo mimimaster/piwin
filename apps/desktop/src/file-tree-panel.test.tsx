@@ -92,6 +92,27 @@ describe('FileTreePanel', () => {
     return document.querySelector<HTMLElement>(`[data-testid="${testId}"]`);
   }
 
+  it('does not tell the user to open a workspace when no browse root is set', () => {
+    const request = vi.fn(async (): Promise<HostResponse> => ({
+      id: '1',
+      type: 'response',
+      command: 'project/list-dir',
+      success: true,
+      data: { projectPath: '', relativePath: '', entries: [] },
+    }));
+    const tree: ReactElement = (
+      <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+        <FileTreePanel projectPath={null} request={request} locale="en" />
+      </PiwinUiProvider>
+    );
+    act(() => {
+      root.render(tree);
+    });
+    expect(container.textContent ?? '').toContain('No files');
+    expect(container.textContent ?? '').not.toContain('Open a workspace');
+    expect(request).not.toHaveBeenCalled();
+  });
+
   it('renders full-height tree without split preview and opens file via callback', async () => {
     const onOpenFile = vi.fn();
     const request = vi.fn(async (cmd: FileTreeRequest): Promise<HostResponse> => {
@@ -169,6 +190,110 @@ describe('FileTreePanel', () => {
     expect(srcRow?.querySelector('.file-tree-twist')).toBeTruthy();
   });
 
+  it('previews HTML files visually instead of as source code', async () => {
+    const request = vi.fn(async (cmd: FileTreeRequest): Promise<HostResponse> => {
+      if (cmd.type === 'project/list-dir') {
+        return okList([{ name: 'card.html', relativePath: 'card.html', kind: 'file' }]);
+      }
+      if (cmd.type === 'project/read-file') {
+        return {
+          id: '2',
+          type: 'response',
+          command: 'project/read-file',
+          success: true,
+          data: {
+            projectPath: '/proj',
+            relativePath: 'card.html',
+            absolutePath: '/proj/card.html',
+            content: '<h1>Hello</h1>',
+            byteSize: 15,
+            truncated: false,
+            isBinary: false,
+            mimeHint: 'text/html',
+          },
+        };
+      }
+      return {
+        id: '1',
+        type: 'response',
+        command: cmd.type,
+        success: false,
+        error: 'unexpected command',
+      };
+    });
+
+    renderPanel({ request });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    const htmlRow = Array.from(document.querySelectorAll<HTMLElement>('.file-tree-row')).find(
+      (row) => row.textContent?.includes('card.html'),
+    );
+    await act(async () => {
+      htmlRow?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(queryByTestId('markup-preview')).not.toBeNull();
+    expect(queryByTestId('code-preview-view')).toBeNull();
+  });
+
+  it('previews PNG files via host previewDataUrl instead of the binary stub', async () => {
+    const dataUrl = 'data:image/png;base64,iVBORw0KGgo=';
+    const request = vi.fn(async (cmd: FileTreeRequest): Promise<HostResponse> => {
+      if (cmd.type === 'project/list-dir') {
+        return okList([{ name: 'icon.png', relativePath: 'docs/design/icon.png', kind: 'file' }]);
+      }
+      if (cmd.type === 'project/read-file') {
+        return {
+          id: '2',
+          type: 'response',
+          command: 'project/read-file',
+          success: true,
+          data: {
+            projectPath: '/proj',
+            relativePath: 'docs/design/icon.png',
+            absolutePath: '/proj/docs/design/icon.png',
+            content: '',
+            byteSize: 16,
+            truncated: false,
+            isBinary: true,
+            mimeHint: 'image/png',
+            previewDataUrl: dataUrl,
+          },
+        };
+      }
+      return {
+        id: '1',
+        type: 'response',
+        command: cmd.type,
+        success: false,
+        error: 'unexpected command',
+      };
+    });
+
+    renderPanel({ request });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const iconRow = Array.from(document.querySelectorAll<HTMLElement>('.file-tree-row')).find(
+      (row) => row.textContent?.includes('icon.png'),
+    );
+    expect(iconRow).toBeTruthy();
+
+    await act(async () => {
+      iconRow?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const image = queryByTestId('file-tree-preview-image')?.querySelector('img');
+    expect(image).not.toBeNull();
+    expect(image?.getAttribute('src')).toBe(dataUrl);
+    expect(queryByTestId('file-tree-preview-binary')).toBeNull();
+    expect(queryByTestId('file-tree-preview')?.textContent).not.toContain('binary');
+  });
+
   it('filters visible names by query', async () => {
     const request = vi.fn(async (cmd: FileTreeRequest): Promise<HostResponse> => {
       if (cmd.type === 'project/list-dir') {
@@ -193,6 +318,16 @@ describe('FileTreePanel', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
+    // Initially search bar is hidden
+    expect(queryByTestId('file-tree-filter')).toBeNull();
+
+    // Toggle search open
+    const searchToggle = queryByTestId('file-tree-search-toggle') as HTMLButtonElement;
+    expect(searchToggle).toBeTruthy();
+    act(() => {
+      searchToggle.click();
+    });
+
     const filter = queryByTestId('file-tree-filter') as HTMLInputElement;
     expect(filter).toBeTruthy();
 
@@ -210,6 +345,89 @@ describe('FileTreePanel', () => {
     const srcRow = rows.find((row) => row.textContent?.includes('src'));
     expect(readmeRow).toBeTruthy();
     expect(srcRow).toBeUndefined();
+
+    // Clear search using clear button
+    const clearBtn = queryByTestId('file-tree-search-clear') as HTMLButtonElement;
+    expect(clearBtn).toBeTruthy();
+    act(() => {
+      clearBtn.click();
+    });
+    expect(filter.value).toBe('');
+
+    // Filter again then close search via toggle button
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value',
+      )?.set;
+      setter?.call(filter, 'readme');
+      filter.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    act(() => {
+      searchToggle.click();
+    });
+    expect(queryByTestId('file-tree-filter')).toBeNull();
+    const rowsAfterClose = Array.from(document.querySelectorAll<HTMLElement>('.file-tree-row'));
+    expect(rowsAfterClose.find((row) => row.textContent?.includes('README.md'))).toBeTruthy();
+    expect(rowsAfterClose.find((row) => row.textContent?.includes('src'))).toBeTruthy();
+  });
+
+  it('opens search on Cmd+F / Ctrl+F and closes on Escape', async () => {
+    const request = vi.fn(async (cmd: FileTreeRequest): Promise<HostResponse> => {
+      if (cmd.type === 'project/list-dir') {
+        return okList([{ name: 'README.md', relativePath: 'README.md', kind: 'file' }]);
+      }
+      return {
+        id: '1',
+        type: 'response',
+        command: cmd.type,
+        success: false,
+        error: 'unexpected command',
+      };
+    });
+
+    renderPanel({ request });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const treeList = document.querySelector('.file-tree-list') as HTMLUListElement;
+    expect(treeList).toBeTruthy();
+
+    // Trigger Cmd+F on tree list
+    act(() => {
+      treeList.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'f', metaKey: true, bubbles: true }),
+      );
+    });
+
+    const filter = queryByTestId('file-tree-filter') as HTMLInputElement;
+    expect(filter).toBeTruthy();
+
+    // Type query
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value',
+      )?.set;
+      setter?.call(filter, 'test');
+      filter.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(filter.value).toBe('test');
+
+    // Escape with query clears query
+    act(() => {
+      filter.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(filter.value).toBe('');
+    expect(queryByTestId('file-tree-filter')).toBeTruthy();
+
+    // Escape with empty query closes search
+    act(() => {
+      filter.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(queryByTestId('file-tree-filter')).toBeNull();
   });
 
   it('ArrowDown then Enter opens file via onOpenFile', async () => {

@@ -469,25 +469,33 @@
   background: color-mix(in srgb, var(--iris) 22%, transparent);
 }
 
-/* File paths remain clickable, but read as links instead of pills. */
+/* File paths remain clickable, with crisp file badges and precise baseline alignment. */
 .md-doc-chip {
   display: inline-flex;
   align-items: center;
-  gap: var(--s-3);
-  padding: 0;
-  margin: 0 3px;
+  gap: 5px;
+  padding: 1px 3px;
+  margin: 0 2px;
   font-family: var(--font-mono);
-  font-size: var(--fs-mono);
+  font-size: 0.95em;
   font-weight: 500;
   text-decoration: none;
   cursor: pointer;
-  vertical-align: baseline;
+  vertical-align: -2px;
   transition: color var(--t-1) var(--ease-out);
   line-height: 1.35;
   background: transparent;
   color: var(--iris-lift);
   border: none;
   box-shadow: none;
+}
+
+.md-doc-chip .file-icon {
+  width: 1.05em;
+  height: 1.05em;
+  min-width: 15px;
+  min-height: 15px;
+  flex-shrink: 0;
 }
 
 .md-doc-chip span,

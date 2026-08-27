@@ -81,7 +81,7 @@ export async function resolvePromptContextRefs(
         const message = await loadReferencedMessage(deps, ref.sideChatSessionId, ref.messageId);
         if (message) {
           blocks.push(
-            `[side-chat-reference: ${ref.label}]\n${message.text.trim().slice(0, MAX_CONTEXT_REF_TEXT_CHARS)}`,
+            `<context_ref type="side_chat_message" label="${ref.label}">\n${message.text.trim().slice(0, MAX_CONTEXT_REF_TEXT_CHARS)}\n</context_ref>`,
           );
         } else {
           deps.onDiagnostic?.(
@@ -94,7 +94,7 @@ export async function resolvePromptContextRefs(
         const message = await loadReferencedMessage(deps, ref.sourceSessionId, ref.messageId);
         if (message) {
           blocks.push(
-            `[main-message-reference: ${ref.label}]\n${message.text.trim().slice(0, MAX_CONTEXT_REF_TEXT_CHARS)}`,
+            `<context_ref type="main_message" label="${ref.label}">\n${message.text.trim().slice(0, MAX_CONTEXT_REF_TEXT_CHARS)}\n</context_ref>`,
           );
         } else {
           deps.onDiagnostic?.(
@@ -123,7 +123,7 @@ export async function resolvePromptContextRefs(
             ref.lineStart !== undefined
               ? `:${ref.lineStart}${ref.lineEnd !== undefined ? `-${ref.lineEnd}` : ''}`
               : '';
-          blocks.push(`[file-reference: ${ref.relativePath}${range}]\n${selected}`);
+          blocks.push(`<context_ref type="file" path="${ref.relativePath}${range}">\n${selected}\n</context_ref>`);
         }
         break;
       }
@@ -137,7 +137,7 @@ export async function resolvePromptContextRefs(
         const listing = await listBoundedFolderForRef(ref.projectPath, ref.relativePath);
         if (listing !== undefined) {
           const folderLabel = ref.relativePath === '' ? '.' : ref.relativePath;
-          blocks.push(`[folder-reference: ${folderLabel}]\n${listing}`);
+          blocks.push(`<context_ref type="folder" path="${folderLabel}">\n${listing}\n</context_ref>`);
         }
         break;
       }
@@ -151,28 +151,28 @@ export async function resolvePromptContextRefs(
                   : ''
               }`
             : ref.label;
-        blocks.push(`[selection-reference: ${loc}]\n${body}`);
+        blocks.push(`<context_ref type="selection" location="${loc}">\n${body}\n</context_ref>`);
         break;
       }
       case 'diff':
         blocks.push(
-          `[diff-reference: ${ref.label}]\n${ref.snapshotText.slice(0, MAX_CONTEXT_REF_TEXT_CHARS)}`,
+          `<context_ref type="diff" label="${ref.label}">\n${ref.snapshotText.slice(0, MAX_CONTEXT_REF_TEXT_CHARS)}\n</context_ref>`,
         );
         break;
       case 'terminal-output':
         blocks.push(
-          `[terminal-output-reference: ${ref.label}]\n${ref.snapshotText.slice(0, MAX_CONTEXT_REF_TEXT_CHARS)}`,
+          `<context_ref type="terminal_output" label="${ref.label}">\n${ref.snapshotText.slice(0, MAX_CONTEXT_REF_TEXT_CHARS)}\n</context_ref>`,
         );
         break;
       case 'error':
         blocks.push(
-          `[error-reference: ${ref.title}]\n${ref.detail.slice(0, MAX_CONTEXT_REF_TEXT_CHARS)}`,
+          `<context_ref type="error" title="${ref.title}">\n${ref.detail.slice(0, MAX_CONTEXT_REF_TEXT_CHARS)}\n</context_ref>`,
         );
         break;
       case 'connected-source':
         if (ref.source === 'apple-health') {
           blocks.push(
-            '[connected-source: Apple Health]\nThe user explicitly selected Apple Health for this turn. Call health_read_context only if this question needs personal Apple Health data, with the minimum metrics and shortest useful range. Do not diagnose.',
+            `<connected_source name="Apple Health">\nThe user selected Apple Health for this turn. Call health_read_context only if personal health data is required, with the minimum metrics and shortest useful range. Never diagnose.\n</connected_source>`,
           );
         }
         break;

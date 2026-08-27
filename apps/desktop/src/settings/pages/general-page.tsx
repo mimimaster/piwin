@@ -3,13 +3,12 @@
  * Unified application preferences: Appearance & Themes, General & Host Capabilities,
  * Keyboard Shortcuts, and Companion (Pet).
  */
-import { useState, type ReactElement } from 'react';
-import { SegmentedControl } from '@piwin/ui-kit';
+import { lazy, Suspense, useState, type ReactElement } from 'react';
+import { SegmentedControl, Spinner } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { settingsHostSupportsCommand, useSettings } from '../settings-context';
 import { AppearancePage } from './appearance-page';
 import { ShortcutsPage } from './shortcuts-page';
-import { PetPanel } from '../../PetPanel';
 import { Collapse, Select } from '@piwin/ui-kit';
 import { FieldRow } from '../field-row';
 import { PageTitle } from '../page-title';
@@ -21,6 +20,11 @@ import { HostTargetSettings } from '../../host-target-settings';
 import { MobileAccessSettings } from '../../mobile-access-settings';
 
 type GeneralSubTab = 'appearance' | 'general' | 'shortcuts' | 'pets';
+
+const DeferredPetPanel = lazy(async () => {
+  const module = await import('../../PetPanel');
+  return { default: module.PetPanel };
+});
 
 const CAPABILITY_LABEL_ZH: Record<string, string> = {
   customTools: '自定义工具（Web / MCP / 记忆 / 进程）',
@@ -275,7 +279,19 @@ export function GeneralPage(): ReactElement {
 
       {activeTab === 'pets' && (
         <div className="settings-card" data-testid="general-tab-pets">
-          <PetPanel request={requestPet} onActiveChanged={onPetActiveChanged} variant="inline" />
+          <Suspense
+            fallback={
+              <div className="deferred-surface-fallback" data-testid="settings-pets-loading">
+                <Spinner label={isChinese ? '正在加载灵动伴侣' : 'Loading companion'} />
+              </div>
+            }
+          >
+            <DeferredPetPanel
+              request={requestPet}
+              onActiveChanged={onPetActiveChanged}
+              variant="inline"
+            />
+          </Suspense>
         </div>
       )}
     </div>

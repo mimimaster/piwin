@@ -15,30 +15,25 @@
 ```text
 ## HTML Artifact Runtime Contract
 
-## Success
-A self-contained artifact fence that renders correctly in the chat column sandbox.
+### Fences
+- **Inline**: ```artifact-html title="Short descriptive title"```
+- **Canvas**: ```artifact-html title="Short descriptive title" surface="canvas"```
+- **SVG**: ```svg title="Short descriptive title"``` (self-contained, no external assets)
 
-```artifact-html title="Short descriptive title"
-<!-- body fragment: HTML/CSS + optional small inline JS -->
-```
+### Layout & Sizing
+- **Chat Width**: Fluid layout designed for 360–760px column. Outermost background must be `transparent` (apply surface colors to inner cards only).
+- **Canvas Viewport**: The Canvas iframe is the design viewport. Root layout (and the primary stage) uses `width: 100%` and `height: 100%` / `100dvh` of that iframe. Do not lock a phone/poster width or an `aspect-ratio` that letterboxes empty bars; extra panel width is scene/layout space.
+- **No Page Scrollbars**: Inline height must fit content naturally. Never use `100vh`, `height: 100%`, or root scroll containers. Use `surface="canvas"` if wide/horizontal workspace is needed.
+- **Hierarchy**: Flatten repeated items/cards as siblings (avoid card-in-card nesting).
 
-Canvas (app prototype / multi-step workspace):
+### Styling & Theme
+- **Proactive Artifacts**: Use host theme CSS variables: `--piwin-artifact-surface`, `--piwin-artifact-text`, `--piwin-artifact-muted`, `--piwin-artifact-accent`, `--piwin-artifact-border`, `--piwin-artifact-bg`.
+- **Explicit User Designs**: Free to use custom palettes when requested.
 
-```artifact-html title="Short descriptive title" surface="canvas"
-<!-- self-contained HTML/CSS + optional small inline JS -->
-```
-
-SVG: ```svg title="Short descriptive title"``` — self-contained, no external refs.
-
-## Constraints (break without these)
-- Colors: for proactive artifacts, use only `--piwin-artifact-*` theme vars (`surface`, `text`, `muted`, `accent`, `border`, `bg`) to adapt to host theme; for user-specified requests (e.g. custom SVG, HTML pages, or explicit UI designs), style freely with custom colors.
-- Outermost wrapper background: transparent; surface colors on inner cards only.
-- Layout for 360–760px chat column; fluid grids; not a full-page landing.
-- Inline grows with its content: no page-level or nested vertical scroll regions; let the conversation own vertical scrolling.
-- If the UI fundamentally needs horizontal scrolling or a wide workspace, declare `surface="canvas"`; never add horizontal scrolling to Inline.
-- Repeated cards/items are siblings — no card-in-card.
-- Main content is static HTML; JS only enhances. Content remains if JS fails.
-- No viewport-filling height (`100vh`/`100%`) or page-level overflow on html/body/outer wrapper.
+### Streaming & Progressive Enhancement
+- **CSS First**: Emit complete `<style>` blocks before any visible HTML markup.
+- **Incremental Streaming**: Close each visual block before starting siblings so live preview renders cleanly.
+- **Static First**: Core content must exist in static HTML; use JS strictly for enhancement (content remains readable if JS fails).
 ```
 
 Flashcards are structured tool results (`display.cards`), not `artifact-html`

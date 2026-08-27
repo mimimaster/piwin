@@ -88,11 +88,13 @@ describe('buildToolPresentation', () => {
   it('copies Health card details onto the presentation', () => {
     const presentation = buildToolPresentation({
       toolName: 'health_read_context',
-      sensitivity: 'health',
-      health: {
-        metrics: ['steps'],
-        periodLabel: '今天',
-        status: 'completed',
+      args: {
+        sensitivity: 'health',
+        health: {
+          metrics: ['steps'],
+          periodLabel: '今天',
+          status: 'completed',
+        },
       },
     });
     expect(presentation.kind).toBe('health');

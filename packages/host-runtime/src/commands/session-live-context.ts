@@ -281,7 +281,6 @@ export type SessionLiveContext = {
   isSessionBodyReserved: (sessionId: string) => boolean;
   joinRun: (runId: string) => Promise<ExecutionRunRecord | undefined>;
   getRunSignal: (runId: string) => AbortSignal | undefined;
-  hasRunReceivedFirstToken: (runId: string) => boolean;
   /** Upstream provider error text observed on this run, when available. */
   getRunLastAgentError: (runId: string) => string | undefined;
   requestCancelRun: (

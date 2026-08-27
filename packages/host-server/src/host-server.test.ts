@@ -101,6 +101,7 @@ class FakeRuntime implements HostRuntimePort {
           ready: true,
           mock: true,
           piwinRoot: '/Users/private/.piwin',
+          generalWorkspacePath: '/Users/private/.piwin/workspace',
           activeSessionIds: ['session-1'],
           capabilities: {},
         },

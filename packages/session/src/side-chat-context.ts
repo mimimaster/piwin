@@ -49,8 +49,7 @@ export function buildSideChatContextSnapshot(
   const windowed = eligible.slice(-maxMessages);
 
   const lines: string[] = [
-    '[piwin-side-chat-context]',
-    'Inherited conversation from the main session (product transcript; not Pi JSONL):',
+    '<inherited_conversation source="main_session">',
   ];
   let used = lines.join('\n').length;
   const bodyLines: string[] = [];
@@ -68,7 +67,7 @@ export function buildSideChatContextSnapshot(
   }
 
   const truncated = windowed.length > bodyLines.length || eligible.length > windowed.length;
-  const formattedText = [...lines, ...bodyLines, '[/piwin-side-chat-context]'].join('\n');
+  const formattedText = [...lines, ...bodyLines, '</inherited_conversation>'].join('\n');
 
   const snapshot: SideChatContextSnapshot = {
     version: input.version,
@@ -97,16 +96,15 @@ export function formatSideChatContextBlock(snapshot: SideChatContextSnapshot): s
     snapshot.workspace.scope === 'project'
       ? `project ${snapshot.workspace.projectPath ?? snapshot.workspace.workingDirectory}`
       : 'general workspace';
-  const header = `Side Chat discussion context (source session ${snapshot.sourceSessionId}, context v${snapshot.version}, captured ${snapshot.capturedAt}, workspace: live ${workspaceLabel}).`;
-  const parts = [header, snapshot.conversation.formattedText];
-  // SIDE §7.2: render refs metadata so the model knows which additional
-  // context items were shared. Inline-text refs (diff, terminal-output,
-  // error) include their content; message/file refs show their label only
-  // (content is resolved at prompt time by the host).
+  const parts = [
+    `<side_chat_context source="${snapshot.sourceSessionId}" version="${snapshot.version}" captured="${snapshot.capturedAt}" workspace="${workspaceLabel}">`,
+    snapshot.conversation.formattedText,
+  ];
   if (snapshot.refs.length > 0) {
     const refLines = snapshot.refs.map((ref) => formatContextRefLine(ref));
-    parts.push('[piwin-side-chat-refs]', ...refLines, '[/piwin-side-chat-refs]');
+    parts.push('<referenced_context>', ...refLines, '</referenced_context>');
   }
+  parts.push('</side_chat_context>');
   return parts.join('\n');
 }
 

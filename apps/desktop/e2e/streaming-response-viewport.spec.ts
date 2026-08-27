@@ -75,7 +75,7 @@ test('streaming response locks to an output floor without stealing manual histor
     'locked viewport manual scroll control '.repeat(32);
   await page.getByTestId('composer-input').fill(longPrompt);
   await page.getByTestId('send-btn').click();
-  await expect(page.getByTestId('stop-btn')).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByTestId('pause-btn')).toBeVisible({ timeout: 5_000 });
   await expect(page.getByTestId('current-response-turn')).toBeVisible();
 
   await expect

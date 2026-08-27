@@ -29,8 +29,15 @@
   padding-top: var(--s-2);
 }
 
-.chat-thread.is-conversation .chat-message-row.role-assistant.is-turn-continuation {
+.conversation-response .turn-tool-sequence {
   margin-top: var(--s-4);
+  margin-bottom: var(--s-3);
+  max-width: var(--chat-max);
+}
+
+.chat-thread.is-conversation .chat-message-row.role-assistant.is-turn-continuation {
+  /* Keep tool-loop segments on the same answer rhythm as Agent tool-only rows. */
+  margin-top: -4px;
 }
 
 .conversation-message-identity {

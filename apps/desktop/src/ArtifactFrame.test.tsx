@@ -35,9 +35,7 @@ const EMPTY_CAPABILITIES: ArtifactCapabilityReport = {
   externalResources: [],
 };
 
-function makeRenderPlan(
-  id = 'artifact-test-1',
-): Extract<ArtifactRenderPlan, { kind: 'render' }> {
+function makeRenderPlan(id = 'artifact-test-1'): Extract<ArtifactRenderPlan, { kind: 'render' }> {
   const source = '<div class="diagram">wide content</div><script>window.ready = true</script>';
   const descriptor = {
     id,
@@ -309,6 +307,37 @@ describe('ArtifactFrame chrome', () => {
     expect(iframe?.getAttribute('sandbox')).toBe('allow-scripts');
   });
 
+  it('covers an unstable stream prefix until a stable snapshot arrives', async () => {
+    const preparing = makeStreamPlan('', '<html>empty stable stream shell</html>');
+    const { container, root } = renderFrame(preparing, 'canvas', undefined, 'zh-CN');
+    instances.push({ container, root });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    expect(iframe).not.toBeNull();
+    expect(container.querySelector('[data-testid="artifact-stream-preparing"]')).not.toBeNull();
+    expect(container.textContent).toContain('正在准备稳定画面');
+
+    const stable = makeStreamPlan(
+      '<style>.scene { display: grid; }</style><div class="scene">ready</div>',
+      '<html>replacement must not mount</html>',
+    );
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ArtifactFrame plan={stable} presentation="canvas" locale="zh-CN" />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="artifact-stream-preparing"]')).toBeNull();
+    expect(container.querySelector('iframe.artifact-iframe')).toBe(iframe);
+  });
+
   it('keeps one iframe and pushes throttled DOM snapshots while output is streaming', async () => {
     const initial = makeStreamPlan('<div><p>Hel</p></div>', '<html>initial stream</html>');
     const { container, root } = renderFrame(initial);
@@ -354,6 +383,68 @@ describe('ArtifactFrame chrome', () => {
       },
       '*',
     );
+  });
+
+  it('replays a large newly-styled scene through stable prefixes', async () => {
+    const initial = makeStreamPlan('', '<html>empty stream shell</html>');
+    const { container, root } = renderFrame(initial, 'canvas');
+    instances.push({ container, root });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    expect(iframe).not.toBeNull();
+    const postMessage = vi.spyOn(iframe?.contentWindow as Window, 'postMessage');
+    const scene = [
+      '<style>.scene { display: grid; } .part { min-height: 20px; }</style>',
+      '<div class="scene">',
+      ...Array.from(
+        { length: 12 },
+        (_unused, index) =>
+          `<div class="part" data-part="${index}">${String(index).repeat(420)}</div>`,
+      ),
+      '</div>',
+    ].join('');
+    const styled = makeStreamPlan(scene, '<html>replacement must not mount</html>');
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ArtifactFrame plan={styled} presentation="canvas" />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const firstReplaySource = postMessage.mock.calls
+      .map(([payload]) => payload)
+      .find(
+        (payload) =>
+          typeof payload === 'object' &&
+          payload !== null &&
+          'source' in payload &&
+          typeof payload.source === 'string' &&
+          payload.source.length > 0,
+      ) as { source?: string } | undefined;
+    expect(firstReplaySource?.source?.length).toBeGreaterThan(0);
+    expect(firstReplaySource?.source?.length).toBeLessThan(scene.length);
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1_540));
+    });
+    const postedSources = postMessage.mock.calls
+      .map(([payload]) => payload)
+      .filter(
+        (payload): payload is { source: string } =>
+          typeof payload === 'object' &&
+          payload !== null &&
+          'source' in payload &&
+          typeof payload.source === 'string',
+      )
+      .map((payload) => payload.source);
+    expect(postedSources.at(-1)).toBe(scene);
+    expect(new Set(postedSources).size).toBeGreaterThan(2);
+    expect(container.querySelector('iframe.artifact-iframe')).toBe(iframe);
   });
 
   it('commits final DOM in place and does not replace the stream document', async () => {
@@ -495,9 +586,9 @@ describe('ArtifactFrame chrome', () => {
     expect(
       container.querySelector('[data-testid="artifact-frame"]')?.getAttribute('data-frame-mode'),
     ).toBe('inline-viewport');
-    expect(
-      container.querySelector('iframe.artifact-iframe')?.getAttribute('data-frame-mode'),
-    ).toBe('inline-viewport');
+    expect(container.querySelector('iframe.artifact-iframe')?.getAttribute('data-frame-mode')).toBe(
+      'inline-viewport',
+    );
   });
 
   it('applies every valid observed height through streaming and completion', async () => {

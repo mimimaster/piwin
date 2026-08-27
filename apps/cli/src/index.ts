@@ -70,6 +70,7 @@ import {
 } from './walkthrough-command.js';
 import {
   bindSideChatHostClient,
+  type SideChatHostClient,
   runSideChatList,
   runSideChatOpen,
   runSideChatSync,

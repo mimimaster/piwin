@@ -23,17 +23,23 @@ function makeTestTranscript(): SessionTranscriptDocument {
 }
 
 describe('buildForkSessionName', () => {
-  it('builds default branch name', () => {
-    expect(buildForkSessionName('My Chat', 'src-1')).toBe('My Chat · Branch');
+  it('prefixes the first fork with (1) and leaves the source title untouched', () => {
+    expect(buildForkSessionName('My Chat', 'src-1')).toBe('(1) My Chat');
   });
 
-  it('increments for collisions', () => {
-    expect(buildForkSessionName('My Chat', 'src-1', ['My Chat · Branch'])).toBe('My Chat · Branch 2');
-    expect(buildForkSessionName('My Chat', 'src-1', ['My Chat · Branch', 'My Chat · Branch 2'])).toBe('My Chat · Branch 3');
+  it('increments the prefix across the title family', () => {
+    expect(buildForkSessionName('My Chat', 'src-1', ['(1) My Chat'])).toBe('(2) My Chat');
+    expect(buildForkSessionName('My Chat', 'src-1', ['(1) My Chat', '(2) My Chat'])).toBe(
+      '(3) My Chat',
+    );
   });
 
-  it('strips existing branch suffix', () => {
-    expect(buildForkSessionName('My Chat · Branch', 'src-1')).toBe('My Chat · Branch');
+  it('does not reuse the source session name when forking a numbered child', () => {
+    expect(buildForkSessionName('(1) My Chat', 'fork-1')).toBe('(2) My Chat');
+  });
+
+  it('strips the legacy Branch suffix so new forks join the (n) family', () => {
+    expect(buildForkSessionName('My Chat · Branch', 'src-1')).toBe('(1) My Chat');
   });
 });
 
@@ -171,7 +177,7 @@ describe('forkProductSession', () => {
       },
     );
     expect(result).toBeDefined();
-    expect(result!.record.name).toBe('Test Chat · Branch');
+    expect(result!.record.name).toBe('(1) Test Chat');
   });
 
   it('uses the next available default branch name', async () => {
@@ -181,11 +187,11 @@ describe('forkProductSession', () => {
         sourceSessionId: 'source-1',
         messageId: 'msg-2',
         workspaceStrategy: 'shared',
-        existingForkNames: ['Test Chat · Branch', 'Test Chat · Branch 2'],
+        existingForkNames: ['(1) Test Chat', '(2) Test Chat'],
         newSessionId: 'fork-named-3',
       },
     );
     expect(result).toBeDefined();
-    expect(result?.record.name).toBe('Test Chat · Branch 3');
+    expect(result?.record.name).toBe('(3) Test Chat');
   });
 });

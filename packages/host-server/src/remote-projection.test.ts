@@ -649,6 +649,145 @@ describe('remote skills/read + tool-output projection', () => {
   });
 });
 
+describe('remote transcript attachment projection', () => {
+  const context = {
+    hostInstanceId: 'host-1',
+    mode: 'sdk' as const,
+    capabilities: createRemoteCapabilities(),
+    // Intentionally empty: resume must still emit remote-asset refs from
+    // attachment.id so history thumbs work after a Host restart.
+    remoteMediaPaths: new Map<string, string>(),
+  };
+
+  it('keeps media attachments on session/resume as remote-asset refs', () => {
+    const projected = projectRemoteResponse(
+      { type: 'session/resume', sessionId: 'session-1' },
+      {
+        type: 'response',
+        command: 'session/resume',
+        success: true,
+        data: {
+          sessionId: 'session-1',
+          live: false,
+          messages: [
+            {
+              id: 'user-1',
+              role: 'user',
+              text: 'why is this broken',
+              createdAt: '2026-08-27T00:51:00.000Z',
+              status: 'done',
+              attachments: [
+                {
+                  id: '34a0e473-3890-445b-b71b-c54f3c259843',
+                  kind: 'media',
+                  path: '/Users/private/.piwin/media/session-1/34a0e473-3890-445b-b71b-c54f3c259843.jpg',
+                  mimeType: 'image/jpeg',
+                  byteSize: 287807,
+                  source: 'paste',
+                  name: 'Screenshot 2026-08-27 at 00-51-03.png',
+                  contentKind: 'image',
+                },
+              ],
+            },
+          ],
+        },
+      },
+      context,
+    );
+
+    expect(projected.success).toBe(true);
+    if (!projected.success) {
+      throw new Error(projected.error);
+    }
+    expect(JSON.stringify(projected.data)).not.toContain('/Users/private');
+    expect(projected.data).toMatchObject({
+      messages: [
+        {
+          id: 'user-1',
+          attachmentCount: 1,
+          attachments: [
+            {
+              id: '34a0e473-3890-445b-b71b-c54f3c259843',
+              kind: 'media',
+              path: 'remote-asset:34a0e473-3890-445b-b71b-c54f3c259843',
+              mimeType: 'image/jpeg',
+              byteSize: 287807,
+              source: 'paste',
+              name: 'Screenshot 2026-08-27 at 00-51-03.png',
+              contentKind: 'image',
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it('keeps media attachments on session/transcript-page as remote-asset refs', () => {
+    const projected = projectRemoteResponse(
+      {
+        type: 'session/transcript-page',
+        query: { sessionId: 'session-1', limit: 16, maximumBytes: 256 * 1024 },
+      },
+      {
+        type: 'response',
+        command: 'session/transcript-page',
+        success: true,
+        data: {
+          status: 'page',
+          messages: [
+            {
+              id: 'message-older',
+              role: 'assistant',
+              text: 'done',
+              createdAt: '2026-08-27T00:00:00.000Z',
+              status: 'done',
+              attachments: [
+                {
+                  id: 'asset-gen-1',
+                  kind: 'media',
+                  path: '/Users/private/.piwin/media/session-1/asset-gen-1.png',
+                  mimeType: 'image/png',
+                  byteSize: 1200,
+                  source: 'generated',
+                },
+              ],
+            },
+          ],
+          page: {
+            revision: 'rev-1',
+            totalCount: 1,
+            startIndex: 0,
+            endIndex: 1,
+            messageBytes: 64,
+          },
+        },
+      },
+      context,
+    );
+
+    expect(projected.success).toBe(true);
+    if (!projected.success) {
+      throw new Error(projected.error);
+    }
+    expect(JSON.stringify(projected.data)).not.toContain('/Users/private');
+    expect(projected.data).toMatchObject({
+      messages: [
+        {
+          id: 'message-older',
+          attachmentCount: 1,
+          attachments: [
+            {
+              id: 'asset-gen-1',
+              path: 'remote-asset:asset-gen-1',
+              source: 'generated',
+            },
+          ],
+        },
+      ],
+    });
+  });
+});
+
 describe('remote queued-turn projection', () => {
   const context = {
     hostInstanceId: 'host-1',

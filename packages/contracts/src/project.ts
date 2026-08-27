@@ -80,17 +80,23 @@ export type ProjectListDirData = {
   entries: ProjectDirEntry[];
 };
 
-/** Response for `project/read-file` (text preview only). */
+/** Response for `project/read-file` (text preview; images may include a data URL). */
 export type ProjectReadFileData = {
   projectPath: string;
   relativePath: string;
   /** Absolute path under project root. */
   absolutePath: string;
-  /** UTF-8 text (may be truncated). */
+  /** UTF-8 text (may be truncated). Empty when `isBinary` and no text decode. */
   content: string;
   byteSize: number;
   truncated: boolean;
   /** When true, host refused to decode as text (binary/too large). */
   isBinary: boolean;
   mimeHint?: string;
+  /**
+   * Inline media preview for image files under the project root.
+   * Set when the host can safely base64-encode the bytes for the Desktop
+   * file-tree viewer (asset protocol cannot scope arbitrary project paths).
+   */
+  previewDataUrl?: string;
 };

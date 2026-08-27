@@ -13,6 +13,7 @@ describe('HostRuntime status capabilities', () => {
     expect(status.success).toBe(true);
     if (!status.success) throw new Error(status.error);
     const data = status.data as HostStatusData;
+    expect(data.generalWorkspacePath).toBe(join(rootDir, 'workspace'));
     expect(data.capabilities.customTools).toBe(false);
     expect(data.capabilities.subagentWorktree).toBe(false);
     expect(data.capabilities.jobs).toBe(true);

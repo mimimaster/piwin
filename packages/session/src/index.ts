@@ -175,6 +175,7 @@ export type {
   TranscriptStoreMessagePatch,
   TranscriptStoreTruncateResult,
   TranscriptStoreOptions,
+  SettleStreamingMessagesInput,
   RunInterventionStoreCreateInput,
   RunInterventionStoreCreateResult,
   RunInterventionStoreTransitionInput,

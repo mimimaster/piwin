@@ -117,6 +117,24 @@ describe('createArtifactCanvasTarget', () => {
     expect(target.intent.surface).toBe('canvas');
   });
 
+  it('sets streaming only when requested', () => {
+    const live = createArtifactCanvasTarget({
+      sessionId: 's1',
+      messageId: 'm1',
+      fenceIndex: 0,
+      intent: makeIntent(),
+      streaming: true,
+    });
+    expect(live.streaming).toBe(true);
+    const done = createArtifactCanvasTarget({
+      sessionId: 's1',
+      messageId: 'm1',
+      fenceIndex: 0,
+      intent: makeIntent(),
+    });
+    expect(done.streaming).toBeUndefined();
+  });
+
   it('does not rewrite an inline/viewport intent into a Canvas target', () => {
     expect(() =>
       createArtifactCanvasTarget({
@@ -230,6 +248,40 @@ describe('collectArtifactCanvasTargets', () => {
     });
 
     expect(targets).toEqual([]);
+  });
+
+  it('collects an open Canvas fence in stream-preview and marks streaming', () => {
+    const markdown = [
+      '```artifact-html title="Live" surface="canvas"',
+      '<main>partial',
+    ].join('\n');
+    const targets = collectArtifactCanvasTargets({
+      sessionId: 's1',
+      messageId: 'm1',
+      markdown,
+      mode: 'stream-preview',
+      streaming: true,
+    });
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({
+      id: 'canvas:s1:m1:0',
+      title: 'Live',
+      streaming: true,
+      source: '<main>partial',
+    });
+  });
+
+  it('omits streaming on completed collection', () => {
+    const targets = collectArtifactCanvasTargets({
+      sessionId: 's1',
+      messageId: 'm1',
+      markdown: [
+        '```artifact-html title="Workspace" surface="canvas"',
+        '<main>workspace</main>',
+        '```',
+      ].join('\n'),
+    });
+    expect(targets[0]?.streaming).toBeUndefined();
   });
 });
 

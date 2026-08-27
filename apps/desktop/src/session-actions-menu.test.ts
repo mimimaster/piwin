@@ -2,6 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { sessionActionItems } from './session-actions-menu';
 
 describe('sessionActionItems', () => {
+  it('offers Fork Chat next to Duplicate for active sessions', () => {
+    const items = sessionActionItems({ isPinned: false, isArchived: false });
+    expect(items).toContainEqual({
+      action: 'fork-chat',
+      label: 'Fork Chat',
+      testId: 'session-menu-fork-chat',
+    });
+  });
+
   it('offers a non-destructive continue-in-project action for active sessions', () => {
     const items = sessionActionItems({ isPinned: false, isArchived: false });
     expect(items).toContainEqual({
@@ -33,6 +42,22 @@ describe('sessionActionItems', () => {
       canDuplicate: false,
       canContinueInProject: false,
     });
-    expect(items.map((item) => item.action)).toEqual(['pin', 'rename', 'copy-id', 'archive', 'delete']);
+    expect(items.map((item) => item.action)).toEqual([
+      'pin',
+      'rename',
+      'copy-id',
+      'fork-chat',
+      'archive',
+      'delete',
+    ]);
+  });
+
+  it('hides Fork Chat when the Host omits session/fork', () => {
+    const items = sessionActionItems({
+      isPinned: false,
+      isArchived: false,
+      canForkChat: false,
+    });
+    expect(items.some((item) => item.action === 'fork-chat')).toBe(false);
   });
 });
