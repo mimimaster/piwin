@@ -56,7 +56,7 @@ describe('BranchPointsPanel', () => {
   it('tells the user how to branch when none exist yet', () => {
     render(<BranchPointsPanel branchPoints={[]} onSwitch={vi.fn()} locale="en" />);
     const empty = container.querySelector('[data-testid="branch-points-empty"]');
-    expect(empty?.textContent).toContain('Edit any message you sent');
+    expect(empty?.textContent).toContain('Edit a sent message');
     expect(container.querySelector('[data-testid="branch-point-item"]')).toBeNull();
   });
 

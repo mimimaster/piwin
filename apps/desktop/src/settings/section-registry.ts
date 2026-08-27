@@ -4,9 +4,8 @@
  * routes both read this table; adding a section means adding one row here
  * plus its page component.
  *
- * Section components are registered lazily (registerSettingsSection) as the
- * SettingsPanel monolith is migrated wave by wave; until a section has a
- * registered page the shell falls back to the legacy panel branch.
+ * Section components: Basic (`general`) registers with the shell; Advanced
+ * pages register through `ensureSettingsLazyLoaded()` (Chromium lazy_load).
  */
 import type { ComponentType } from 'react';
 import type { DesktopTranslator } from '../desktop-locale';

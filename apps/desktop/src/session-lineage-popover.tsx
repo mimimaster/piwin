@@ -14,17 +14,6 @@ export type SessionLineagePopoverProps = {
   locale: 'zh-CN' | 'en';
 };
 
-export type SessionLineageHeaderPopoverProps = {
-  lineage: ProductSessionLineageView | null;
-  activeSessionId: string;
-  activeSessionName: string;
-  activeSessionArchived?: boolean;
-  onOpenSession: (sessionId: string) => void;
-  locale: 'zh-CN' | 'en';
-};
-
-const UNKNOWN_UPDATED_AT = '1970-01-01T00:00:00.000Z';
-
 function getNodeLabel(node: ProductSessionLineageNode, locale: 'zh-CN' | 'en'): string {
   if (node.isArchived) {
     return `${node.name ?? (locale === 'zh-CN' ? '已归档会话' : 'Archived session')}`;
@@ -141,9 +130,9 @@ function SessionLineageTreePanel(props: {
     <div className="session-lineage-panel">
       <div className="session-lineage-popover-header">
         <div>
-          <strong>{isChinese ? '会话树' : 'Session tree'}</strong>
+          <strong>{isChinese ? '相关会话' : 'Related chats'}</strong>
           <span className="session-lineage-popover-subtitle">
-            {isChinese ? '在关联会话之间切换' : 'Navigate related sessions'}
+            {isChinese ? '打开这条消息分出去的会话' : 'Open chats forked from this reply'}
           </span>
         </div>
         <span>
@@ -198,86 +187,6 @@ function SessionLineageTreePanel(props: {
   );
 }
 
-function resolveHeaderLineage(props: SessionLineageHeaderPopoverProps): ProductSessionLineageView {
-  if (
-    props.lineage &&
-    props.lineage.activeSessionId === props.activeSessionId &&
-    props.lineage.nodes.length > 0
-  ) {
-    return props.lineage;
-  }
-  return {
-    rootSessionId: props.activeSessionId,
-    activeSessionId: props.activeSessionId,
-    rootMissing: false,
-    nodes: [
-      {
-        sessionId: props.activeSessionId,
-        name: props.activeSessionName,
-        isArchived: props.activeSessionArchived === true,
-        updatedAt: UNKNOWN_UPDATED_AT,
-      },
-    ],
-  };
-}
-
-/** Persistent session-level entry shown beside the active session title. */
-export function SessionLineageHeaderPopover(props: SessionLineageHeaderPopoverProps): ReactElement {
-  const [open, setOpen] = useState(false);
-  const lineage = useMemo(
-    () => resolveHeaderLineage(props),
-    [props.activeSessionArchived, props.activeSessionId, props.activeSessionName, props.lineage],
-  );
-  const isChinese = props.locale === 'zh-CN';
-  const { sessionCount, branchCount } = getLineageCounts(lineage);
-  const title = isChinese
-    ? branchCount > 0
-      ? `打开会话树（${branchCount} 个分支）`
-      : '打开会话树（尚无分支）'
-    : branchCount > 0
-      ? `Open session tree (${branchCount} branches)`
-      : 'Open session tree (no branches yet)';
-
-  return (
-    <Popover
-      open={open}
-      onOpenChange={setOpen}
-      align="start"
-      side="bottom"
-      label={isChinese ? '会话树' : 'Session tree'}
-      testId="session-lineage-popover"
-      contentClassName="session-lineage-popover session-lineage-popover--header"
-      trigger={
-        <button
-          type="button"
-          className="context-session-tree-trigger"
-          title={title}
-          aria-label={title}
-          aria-haspopup="dialog"
-          aria-expanded={open}
-          data-testid="context-session-tree-btn"
-          data-has-branches={branchCount > 0 ? 'true' : 'false'}
-        >
-          <IconSessionTree width={14} height={14} />
-          <span className="context-session-tree-label">
-            {isChinese ? '会话树' : 'Session tree'}
-          </span>
-          <span className="context-session-tree-count" aria-label={String(sessionCount)}>
-            {sessionCount}
-          </span>
-        </button>
-      }
-    >
-      <SessionLineageTreePanel
-        lineage={lineage}
-        locale={props.locale}
-        onOpenSession={props.onOpenSession}
-        onClose={() => setOpen(false)}
-      />
-    </Popover>
-  );
-}
-
 /** Compact product-session lineage tree anchored to a response action footer. */
 export function SessionLineagePopover(props: SessionLineagePopoverProps): ReactElement | null {
   const [open, setOpen] = useState(false);
@@ -290,11 +199,11 @@ export function SessionLineagePopover(props: SessionLineagePopoverProps): ReactE
   const triggerLabel =
     props.directForkCount > 0
       ? isChinese
-        ? `${props.directForkCount} 个分支`
+        ? `${props.directForkCount} 个分叉会话`
         : `${props.directForkCount} forks`
       : isChinese
-        ? '打开会话树'
-        : 'Open session tree';
+        ? '相关会话'
+        : 'Related chats';
 
   return (
     <Popover
@@ -302,7 +211,7 @@ export function SessionLineagePopover(props: SessionLineagePopoverProps): ReactE
       onOpenChange={setOpen}
       align="start"
       side="bottom"
-      label={isChinese ? '会话树' : 'Session tree'}
+      label={isChinese ? '相关会话' : 'Related chats'}
       testId="session-lineage-popover"
       contentClassName="session-lineage-popover"
       trigger={

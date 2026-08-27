@@ -20,7 +20,11 @@ import {
   type PendingComposerAttachment,
 } from '../media-utils.js';
 import type { DesktopCopy, DesktopLocale } from '../desktop-locale.js';
-import { applySkillToPrompt, normalizeCompactCustomInstructions, parseComposerSlashSubmit } from '../slash';
+import {
+  applySkillToPrompt,
+  normalizeCompactCustomInstructions,
+  parseComposerSlashSubmit,
+} from '../slash';
 import { deriveDefaultNameFromMessage } from '@piwin/session/derive-default-name';
 import { isPlaceholderSessionName } from '../title-display';
 import {
@@ -122,6 +126,12 @@ export function useComposerSend(params: UseComposerSendArgs) {
       skill?: SkillActivityView;
     }): string => {
       const clientMessageId = crypto.randomUUID();
+      // Same model resolution as the Host prompt — Conversation needs it on
+      // the optimistic turn so the avatar survives after streaming ends.
+      const turnModel = buildPromptRequestInput({
+        text: params.text,
+        agentMode: args.agentMode,
+      }).model;
       args.dispatch({
         type: 'user/send',
         text: params.displayText ?? params.text,
@@ -131,6 +141,7 @@ export function useComposerSend(params: UseComposerSendArgs) {
           : {}),
         clientMessageId,
         ...(params.skill ? { skill: params.skill } : {}),
+        ...(turnModel ? { model: turnModel } : {}),
       });
       setComposer('');
       // Hide chips without releasing them: File, blob URL and save results
@@ -182,8 +193,7 @@ export function useComposerSend(params: UseComposerSendArgs) {
         .then((response) => {
           if (!response.success) return;
           const data = response.data as
-            | { queueRevision?: unknown; queuedTurns?: unknown }
-            | undefined;
+            { queueRevision?: unknown; queuedTurns?: unknown } | undefined;
           if (
             data === undefined ||
             !Number.isSafeInteger(data.queueRevision) ||
@@ -342,11 +352,11 @@ export function useComposerSend(params: UseComposerSendArgs) {
         }
         // Sending consumes the local draft row, if this composer was resumed
         // from one. The newly created Host session will replace it in the list.
-        removeCurrentDraft();
         if (wasInDraftMode) {
           skipDraftSaveRef.current = true;
           draftTextRef.current = '';
         }
+        removeCurrentDraft();
         markAttachmentUploadStatus(
           deferredChips.map((item) => item.localId),
           'saving',
@@ -612,11 +622,11 @@ export function useComposerSend(params: UseComposerSendArgs) {
       if (deferredSessionId === null) {
         // Sending consumes the local draft row, if this composer was resumed
         // from one. The newly created Host session will replace it in the list.
-        removeCurrentDraft();
         if (wasInDraftMode) {
           skipDraftSaveRef.current = true;
           draftTextRef.current = '';
         }
+        removeCurrentDraft();
       }
 
       let clientMessageId: string | null = null;
@@ -696,7 +706,10 @@ export function useComposerSend(params: UseComposerSendArgs) {
           pendingContextRefsRef.current = [];
           const queuedData = response.data as { queuedTurn?: QueuedTurnRecord } | undefined;
           if (queuedData?.queuedTurn) {
-            args.dispatch({ type: 'session/queued-turn-updated', queuedTurn: queuedData.queuedTurn });
+            args.dispatch({
+              type: 'session/queued-turn-updated',
+              queuedTurn: queuedData.queuedTurn,
+            });
           }
           refreshQueuedTurnQueue(sessionId);
           if (promptRefsSnapshot) {
@@ -733,7 +746,10 @@ export function useComposerSend(params: UseComposerSendArgs) {
         // This inserts the row into the sidebar immediately; LLM may upgrade later.
         const currentName =
           args.state.sessions.find((session) => session.id === sessionId)?.name ??
-          args.state.generalSessions.find((session) => session.id === sessionId)?.name;
+          args.state.generalSessions.find((session) => session.id === sessionId)?.name ??
+          Object.values(args.state.projectSessionsByPath)
+            .flat()
+            .find((session) => session.id === sessionId)?.name;
         if (isPlaceholderSessionName(currentName)) {
           const interim = deriveDefaultNameFromMessage(displayText);
           if (interim) {
@@ -743,6 +759,7 @@ export function useComposerSend(params: UseComposerSendArgs) {
                 id: sessionId,
                 name: interim,
                 updatedAt: new Date().toISOString(),
+                scope: currentDraftScopeRef.current,
               },
             });
           }

@@ -112,9 +112,9 @@
 }
 
 .session-item-name {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 450;
-  line-height: 1.35;
+  line-height: 1.4;
   color: var(--text-2);
   white-space: nowrap;
   overflow: hidden;
@@ -152,7 +152,7 @@
   right: var(--s-5);
   top: 50%;
   transform: translateY(-50%);
-  font-size: var(--fs-mono);
+  font-size: 12px;
   font-weight: 400;
   color: var(--text-4);
   font-variant-numeric: tabular-nums;

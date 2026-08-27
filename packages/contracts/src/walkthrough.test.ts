@@ -34,11 +34,11 @@ describe('walkthrough config', () => {
     );
   });
 
-  it('default prompt includes metadata, success criteria, and safety', () => {
-    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('piwin-prompt-meta');
-    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('## Success');
-    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('## Stop / safety');
-    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('No secrets');
+  it('default prompt includes metadata, structure, and safety rules', () => {
+    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('<walkthrough_template');
+    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('## Required Sections');
+    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('Summary:');
+    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('Zero secrets');
   });
 
   it('default concise prompt is non-empty', () => {

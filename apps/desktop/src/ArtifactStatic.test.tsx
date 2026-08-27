@@ -65,6 +65,121 @@ describe('ArtifactStatic', () => {
     expect(shadow?.querySelector('[onerror]')).toBeNull();
   });
 
+  it('materializes defs wheel groups referenced by local use, matching the pelican SVG', () => {
+    act(() => {
+      root.render(
+        <ArtifactStatic
+          type="svg"
+          source={[
+            '<svg viewBox="0 0 400 220">',
+            '<defs><g id="spokedWheel">',
+            '<circle r="36" fill="none" stroke="#222" />',
+            '<circle r="6" />',
+            '</g></defs>',
+            '<g class="rear-wheel" transform="translate(-135, 150)"><use href="#spokedWheel"/></g>',
+            '<g class="front-wheel" transform="translate(175, 150)"><use href="#spokedWheel"/></g>',
+            '</svg>',
+          ].join('')}
+        />,
+      );
+    });
+
+    const shadow = container.querySelector<HTMLElement>(
+      '[data-testid="artifact-static"]',
+    )?.shadowRoot;
+    expect(shadow?.querySelector('use')).toBeNull();
+    expect(shadow?.querySelector('.rear-wheel circle')).not.toBeNull();
+    expect(shadow?.querySelector('.front-wheel circle')).not.toBeNull();
+    expect(shadow?.querySelectorAll('.rear-wheel circle, .front-wheel circle').length).toBe(4);
+  });
+
+  it('expands safe local SVG use instances for WebKit Shadow DOM rendering', () => {
+    act(() => {
+      root.render(
+        <ArtifactStatic
+          type="svg"
+          source={[
+            '<svg viewBox="0 0 240 120">',
+            '<defs><g id="wheel"><circle r="40" /></g></defs>',
+            '<use class="rear-wheel" href="#wheel" transform="translate(60 60)" />',
+            '<use class="front-wheel" xlink:href="#wheel" transform="translate(180 60)" />',
+            '</svg>',
+          ].join('')}
+        />,
+      );
+    });
+
+    const shadow = container.querySelector<HTMLElement>(
+      '[data-testid="artifact-static"]',
+    )?.shadowRoot;
+    expect(shadow?.querySelector('use')).toBeNull();
+    expect(shadow?.querySelector('.rear-wheel > g > circle')).not.toBeNull();
+    expect(shadow?.querySelector('.front-wheel > g > circle')).not.toBeNull();
+    expect(shadow?.querySelector('.rear-wheel')?.getAttribute('transform')).toBe(
+      'translate(60 60)',
+    );
+  });
+
+  it('does not expand an external SVG use reference', () => {
+    act(() => {
+      root.render(
+        <ArtifactStatic
+          type="svg"
+          source='<svg><defs><g id="wheel"><circle r="40" /></g></defs><use href="https://example.com/wheel.svg#wheel" /></svg>'
+        />,
+      );
+    });
+
+    const shadow = container.querySelector<HTMLElement>(
+      '[data-testid="artifact-static"]',
+    )?.shadowRoot;
+    expect(shadow?.querySelectorAll('circle')).toHaveLength(1);
+  });
+
+  it('drops percentage height on viewBox SVGs so transcript cards keep aspect ratio', () => {
+    act(() => {
+      root.render(
+        <ArtifactStatic
+          type="svg"
+          source='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 650" width="100%" height="100%"><circle r="10" /></svg>'
+        />,
+      );
+    });
+
+    const shadow = container.querySelector<HTMLElement>(
+      '[data-testid="artifact-static"]',
+    )?.shadowRoot;
+    const svg = shadow?.querySelector('svg');
+    expect(svg).not.toBeNull();
+    expect(svg?.getAttribute('height') ?? null).toBeNull();
+    expect(svg?.getAttribute('viewBox')).toBe('0 0 900 650');
+  });
+
+  it('expands pelican-style wheels nested under transformed groups', () => {
+    act(() => {
+      root.render(
+        <ArtifactStatic
+          type="svg"
+          source={[
+            '<svg viewBox="0 0 600 450" width="100%" height="100%">',
+            '<defs><g id="spokedWheel"><circle r="40" class="rim" /><circle r="6" class="hub" /></g></defs>',
+            '<g class="rear" transform="translate(-135, 150)"><use href="#spokedWheel"/></g>',
+            '<g class="front" transform="translate(175, 150)"><use href="#spokedWheel"/></g>',
+            '</svg>',
+          ].join('')}
+        />,
+      );
+    });
+
+    const shadow = container.querySelector<HTMLElement>(
+      '[data-testid="artifact-static"]',
+    )?.shadowRoot;
+    expect(shadow?.querySelector('use')).toBeNull();
+    expect(shadow?.querySelector('.rear .rim')).not.toBeNull();
+    expect(shadow?.querySelector('.front .rim')).not.toBeNull();
+    expect(shadow?.querySelector('svg')?.getAttribute('height') ?? null).toBeNull();
+  });
+
   it('does not wrap ordinary static content in an overflow shell', () => {
     act(() => {
       root.render(<ArtifactStatic type="html" source="<section>Short</section>" />);

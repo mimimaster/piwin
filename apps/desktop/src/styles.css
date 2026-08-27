@@ -12,7 +12,6 @@
 @import './styles/ui-foundations.css';
 @import './styles/behavior-activity.css';
 @import './styles/region-shell.css';
-@import './styles/region-status-bar.css';
 @import './styles/region-sidebar.css';
 @import './styles/region-sidebar-tree.css';
 @import './styles/region-sidebar-session.css';
@@ -68,6 +67,7 @@
 @import './styles/inspector-ink-wash.css';
 @import './styles/browser-session.css';
 @import './styles/usage-panel.css';
+@import './styles/region-session-search.css';
 @import './styles/region-overlays.css';
 @import './styles/subagent-session-inspector.css';
 @import './styles/goal.css';

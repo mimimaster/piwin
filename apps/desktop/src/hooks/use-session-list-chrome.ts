@@ -67,6 +67,9 @@ export function routeSessionChromeMenuAction(input: {
 export type UseSessionListChromeResult = {
   sessionSearch: string;
   setSessionSearch: Dispatch<SetStateAction<string>>;
+  sessionSearchOpen: boolean;
+  setSessionSearchOpen: (open: boolean) => void;
+  openSessionSearch: () => void;
   showArchivedSessions: boolean;
   setShowArchivedSessions: Dispatch<SetStateAction<boolean>>;
   sessionListOrder: SessionListOrder;
@@ -95,6 +98,7 @@ export type UseSessionListChromeResult = {
 
 export function useSessionListChrome(): UseSessionListChromeResult {
   const [sessionSearch, setSessionSearch] = useState('');
+  const [sessionSearchOpen, setSessionSearchOpenState] = useState(false);
   const [showArchivedSessions, setShowArchivedSessions] = useState(false);
   const [sessionListOrder, setSessionListOrder] = useState<SessionListOrder>('updated');
   const [sessionMenu, setSessionMenu] = useState<SessionMenuState | null>(null);
@@ -104,6 +108,17 @@ export function useSessionListChrome(): UseSessionListChromeResult {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [continueInProject, setContinueInProject] = useState<SessionNamedDraft | null>(null);
   const [continueInProjectBusy, setContinueInProjectBusy] = useState(false);
+
+  const setSessionSearchOpen = useCallback((open: boolean): void => {
+    setSessionSearchOpenState(open);
+    if (!open) {
+      setSessionSearch('');
+    }
+  }, []);
+
+  const openSessionSearch = useCallback((): void => {
+    setSessionSearchOpenState(true);
+  }, []);
 
   const openSessionMenu = useCallback((sessionId: string, x: number, y: number): void => {
     setSessionMenu({ sessionId, x, y });
@@ -118,13 +133,10 @@ export function useSessionListChrome(): UseSessionListChromeResult {
     setSessionMenu(null);
   }, []);
 
-  const requestContinueInProject = useCallback(
-    (sessionId: string, sessionName: string): void => {
-      setContinueInProject({ sessionId, sessionName });
-      setSessionMenu(null);
-    },
-    [],
-  );
+  const requestContinueInProject = useCallback((sessionId: string, sessionName: string): void => {
+    setContinueInProject({ sessionId, sessionName });
+    setSessionMenu(null);
+  }, []);
 
   const closeDeleteConfirm = useCallback((): void => {
     if (!deleteBusy) {
@@ -179,6 +191,9 @@ export function useSessionListChrome(): UseSessionListChromeResult {
   return {
     sessionSearch,
     setSessionSearch,
+    sessionSearchOpen,
+    setSessionSearchOpen,
+    openSessionSearch,
     showArchivedSessions,
     setShowArchivedSessions,
     sessionListOrder,

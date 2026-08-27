@@ -34,6 +34,7 @@ import { readMediaPreviewViaHost } from '../transcript-media-preview';
 import { useInspectorFileDiff } from '../use-inspector-file-diff';
 import type { ChatUiAction, ChatUiState } from '../chat-reducer';
 import type { HostClient } from '../host-client';
+import { resolveFileBrowseRoot } from '../file-browse-root';
 import { useActiveDocument } from './use-active-document';
 import { useArtifactCanvas } from './use-artifact-canvas';
 import { useHostBootstrap } from './use-host-bootstrap';
@@ -166,11 +167,15 @@ export function useWorkbenchHostRuntime(args: UseWorkbenchHostRuntimeArgs) {
   });
 
   const inspectorFileDiff = useInspectorFileDiff();
+  const fileBrowseRoot = resolveFileBrowseRoot({
+    projectPath: state.projectPath,
+    generalWorkspacePath: hostStatus?.generalWorkspacePath,
+  });
   const { activeDocument, openDocument: openDocumentBase } = useActiveDocument({
     hostClient,
     revealPreview: revealDocPreview,
     activeSessionId: state.activeSessionId,
-    projectPath: state.projectPath,
+    projectPath: fileBrowseRoot,
     ...(hostStatus?.piwinRoot ? { piwinRoot: hostStatus.piwinRoot } : {}),
     messages: state.messages,
   });
@@ -310,6 +315,7 @@ export function useWorkbenchHostRuntime(args: UseWorkbenchHostRuntimeArgs) {
     clearExtensionUiRequest,
     assemblySummariesByRunId,
     inspectorFileDiff,
+    fileBrowseRoot,
     activeDocument,
     openDocumentBase,
     sessionDocuments,

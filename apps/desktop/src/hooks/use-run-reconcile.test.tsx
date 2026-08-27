@@ -15,6 +15,7 @@ class FakeHostClient {
   readonly requests: HostCommand[] = [];
   private gapHandler: HostSequenceGapHandler | null = null;
   private foregroundRunResponse: ScriptedResponse | undefined;
+  private foregroundRunResponses: ScriptedResponse[] | undefined;
 
   registerSequenceGapHandler(handler: HostSequenceGapHandler | null): void {
     this.gapHandler = handler;
@@ -31,7 +32,8 @@ class FakeHostClient {
           error: 'host unavailable',
         });
       }
-      const run = this.foregroundRunResponse?.kind === 'run' ? this.foregroundRunResponse.run : null;
+      const scripted = this.foregroundRunResponses?.shift() ?? this.foregroundRunResponse;
+      const run = scripted?.kind === 'run' ? scripted.run : null;
       return Promise.resolve({
         type: 'response',
         command: command.type,
@@ -57,6 +59,12 @@ class FakeHostClient {
 
   scriptForegroundRun(response: ScriptedResponse): void {
     this.foregroundRunResponse = response;
+    this.foregroundRunResponses = undefined;
+  }
+
+  scriptForegroundRunSequence(...responses: ScriptedResponse[]): void {
+    this.foregroundRunResponses = [...responses];
+    this.foregroundRunResponse = responses.at(-1);
   }
 
   emitGap(): void {
@@ -220,6 +228,77 @@ describe('useRunReconcile', () => {
 
     expect(fake.requests.map((command) => command.type)).toEqual(['session/foreground-run']);
     expect(dispatch).not.toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+  });
+
+  it('uses bounded post-admission checks so a missed terminal push cannot leave the run live', async () => {
+    vi.useFakeTimers();
+    try {
+      const fake = new FakeHostClient();
+      const { endedAt: _endedAt, ...runningBase } = terminalRun();
+      fake.scriptForegroundRunSequence(
+        { kind: 'run', run: { ...runningBase, status: 'running' } },
+        { kind: 'run', run: { ...runningBase, status: 'running' } },
+        { kind: 'run', run: { ...runningBase, status: 'running' } },
+        { kind: 'run', run: null },
+      );
+      const actions: ChatUiAction[] = [];
+      const { root, container } = mountProbe(
+        fake as unknown as HostClient,
+        (action) => {
+          actions.push(action);
+        },
+        {
+          activeSessionId: 'session-1',
+          activeRunId: 'run-1',
+          runLive: true,
+        },
+      );
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      fake.requests.length = 0;
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+
+      expect(fake.requests.map((command) => command.type)).toEqual([
+        'session/foreground-run',
+        'session/foreground-run',
+        'session/foreground-run',
+        'session/messages',
+        'session/foreground-run',
+        'session/messages',
+      ]);
+      expect(actions.map((action) => action.type)).toContain('run/stale-clear');
+      root.unmount();
+      container.remove();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('clears leftover working when admission finds no Host run and the UI is idle', async () => {
+    const fake = new FakeHostClient();
+    fake.scriptForegroundRun({ kind: 'run', run: null });
+    const actions: ChatUiAction[] = [];
+    const { root, container } = mountProbe(fake as unknown as HostClient, (action) => {
+      actions.push(action);
+    }, {
+      activeSessionId: 'session-1',
+      activeRunId: null,
+      runLive: false,
+    });
+    await waitForAdmission(actions, 'ready');
+
+    expect(actions.map((action) => action.type)).toContain('run/stale-clear');
+    expect(
+      actions.find((action) => action.type === 'run/stale-clear'),
+    ).toEqual({ type: 'run/stale-clear', sessionId: 'session-1' });
     root.unmount();
     container.remove();
   });

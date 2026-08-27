@@ -1,9 +1,10 @@
 /**
  * Applies Canvas auto-reveal to the live session transcript.
  * Does not focus the panel; `onReveal` must not steal keyboard focus.
+ * `onUpdate` replaces source on the same target id without reopening the tab.
  */
 import { useEffect, useRef } from 'react';
-import type { ChatMessageUi } from '../chat-reducer';
+import type { ChatMessageUi, RunTerminalState } from '../chat-reducer';
 import type { ArtifactCanvasTarget } from '../artifact-canvas-model';
 import {
   advanceArtifactCanvasAutoReveal,
@@ -15,7 +16,9 @@ export function useArtifactCanvasAutoReveal(input: {
   messages: readonly ChatMessageUi[];
   enabled: boolean;
   maxBytes?: number;
+  runTerminalKind?: RunTerminalState['kind'];
   onReveal: (target: ArtifactCanvasTarget) => void;
+  onUpdate: (target: ArtifactCanvasTarget) => void;
 }): void {
   const stateRef = useRef(createArtifactCanvasAutoRevealState());
 
@@ -25,10 +28,26 @@ export function useArtifactCanvasAutoReveal(input: {
       messages: input.messages,
       enabled: input.enabled,
       ...(input.maxBytes !== undefined ? { maxBytes: input.maxBytes } : {}),
+      ...(input.runTerminalKind !== undefined
+        ? { runTerminalKind: input.runTerminalKind }
+        : {}),
     });
     stateRef.current = result.state;
-    if (result.target) {
-      input.onReveal(result.target);
+    if (!result.target || result.action === null) {
+      return;
     }
-  }, [input.activeSessionId, input.enabled, input.maxBytes, input.messages, input.onReveal]);
+    if (result.action === 'reveal') {
+      input.onReveal(result.target);
+      return;
+    }
+    input.onUpdate(result.target);
+  }, [
+    input.activeSessionId,
+    input.enabled,
+    input.maxBytes,
+    input.runTerminalKind,
+    input.messages,
+    input.onReveal,
+    input.onUpdate,
+  ]);
 }

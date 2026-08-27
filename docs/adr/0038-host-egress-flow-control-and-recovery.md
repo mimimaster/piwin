@@ -186,12 +186,18 @@ queue, or JavaScript callback queue as hidden buffering.
 - Route responses only to the pending Rust request; do not broadcast them to
   WebContent.
 - Emit push batches only to the `main` WebView, not application-wide.
-- Desktop consumes a batch in one client transaction and retains its final rAF
-  visual scheduler.
+- Desktop consumes a batch in one client transaction. Local WebViews coalesce
+  deltas only until the current JavaScript task's microtask checkpoint. Stream
+  visibility never depends on `requestAnimationFrame` or a timer because
+  background/occluded WebViews may throttle either; lifecycle and control
+  events still bypass the batch.
 - The client detects cursor gaps (`afterSeq` beyond the applied cursor) instead
   of healing over them silently. A gap notifies the UI layer, which reconciles
-  against Host authority — no polling timer; the triggers are the gap itself
-  and window refocus on a thread that still shows a live run.
+  against Host authority. Gap detection and window refocus on a thread that
+  still shows a live run are the normal triggers; a newly admitted Run also
+  gets a bounded 250ms/1s/3s/5s convergence window for a terminal push that
+  was lost after admission. This is bounded recovery, not an unbounded polling
+  loop.
 - Reconciliation queries `session/foreground-run` (the Run registry is the
   authority). A terminal record replays the terminal projection; no record at
   all clears stale streaming state; an active run means do nothing. The
@@ -223,8 +229,12 @@ invalidation. Desktop must also:
 - ignore identical or stale Run revisions;
 - pass a row only the Run record it renders, never the whole Run map as row
   identity;
-- process a Host batch atomically and commit live stream UI at most once per
-  animation frame;
+- process a Host batch atomically and coalesce live stream UI updates arriving
+  in the same transport task;
+- keep the Markdown renderer's live text projection on Streamdown's streaming
+  tree. An animate-plugin *object* is passed only so Streamdown skips
+  `startTransition` (WKWebView starves that path). `isAnimating` stays false
+  so word spans are not injected; the live caret is CSS `.has-stream-caret`;
 - keep the active response as a live tail while historical turns are immutable;
 - window dynamic-height transcript turns and preserve scroll anchoring;
 - unmount collapsed heavy thinking/tool/detail bodies;

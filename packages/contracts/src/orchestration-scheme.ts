@@ -193,10 +193,10 @@ const PROFILE_TO_DEFAULT_ROLE: Readonly<Record<string, string>> = {
 };
 
 const PROFILE_DEFAULT_DESCRIPTION: Readonly<Record<string, string>> = {
-  explorer: 'Fast read-only codebase exploration and evidence gathering.',
-  implementer: 'Isolated implementation with write and execute in a worktree.',
-  reviewer: 'Read-only code review and analysis.',
-  tester: 'Isolated test execution and fixture writes.',
+  explorer: 'Read-only codebase exploration, symbol discovery, and evidence gathering.',
+  implementer: 'Isolated code implementation with write and run permissions in a git worktree.',
+  reviewer: 'Read-only diff analysis, bug finding, and code review.',
+  tester: 'Isolated test suite execution and test fixture generation in a git worktree.',
 };
 
 /** Compare thinking levels for clamp (lower rank = less effort). */
@@ -219,35 +219,41 @@ export function clampThinkingLevelToMax(
 }
 
 const ULTRA_CODE_SCOUT_DESCRIPTION =
-  'Read-only scout for wide/heavy reads that would rot the main context: locating symbols, tracing call/type/import relationships, cross-file search, huge files (except foundational docs), independent parallel investigations, logs and search dumps. Return a dense evidence report with file:line citations; do not edit files or make final design decisions.';
+  'Read-only scout for wide/heavy reads to prevent main context rot: locating symbols, tracing call/type/import relationships, cross-file search, huge files, and parallel investigations. Returns a dense evidence report with file:line citations; never edits files or makes architectural decisions.';
 
 /**
  * Main-agent discipline (Codex AGENTS.md analogue). Injected only when Ultra
  * Code is selected for the turn. Covers when to spawn, when not to, wait, and
  * how to verify compressed scout reports.
  */
-const ULTRA_CODE_PREAMBLE = [
-  'Orchestration scheme Ultra Code is active for this turn.',
-  'You are the main agent (composer model): orchestrate, synthesize, and decide. Scouts exist to keep context rot out of this thread.',
-  'Delegate wide or heavy reads that would pollute this context — locating unknown symbols, tracing call/type/import relationships across files, cross-file search, huge files except foundational docs, independent parallel investigations, and large logs or search dumps — via piwin_subagent_run with role "scout". Split heavier exploration into several small concurrent scouts and fire those tool calls in one turn. Prefer more, lighter scouts over one giant scout.',
-  'Do not delegate: a known small file or single fact; the exact code you are about to edit; work whose spawn/wait cost is not cheaper than reading it yourself; foundational documents (architecture, design, handoff). Those stay with you even if long; a scout may only locate them.',
-  'Every scout task must be self-contained: scope, question, and expected output. When precision matters, demand file:line, symbol names, and short verbatim quotes.',
-  'Scout reports are compressed clues. Verify by sampling their citations; do not re-read the material they already searched. Re-reading spends the compression you bought. The only texts you must read in full are (1) code you are about to change and (2) foundational docs.',
-  'After a parallel wave, wait for all tool results before analysis, search, commands, or edits. Do not repeat the same broad search the scouts were assigned.',
-  'Scouts gather facts and citations; they must not edit, make product decisions, or spawn nested subagents. Prefer role-based delegation; do not invent expensive models or high thinking. Trivial lookups need not force a subagent. If a role is unavailable, complete the subtask yourself and keep pollution minimal.',
-].join(' ');
+const ULTRA_CODE_PREAMBLE = `<orchestration_discipline scheme="ultra-code">
+You are the composer agent: orchestrate, synthesize, and decide. Prevent context rot in this thread by delegating wide reads.
+
+## Delegation Policy
+- **Delegate (via \`piwin_subagent_run\` role="scout")**: Broad symbol discovery, cross-file call/import tracing, large files/logs, or independent parallel investigations. Prefer multiple small, parallel scouts fired in one turn.
+- **Do NOT Delegate**: Known small files, foundational docs, or the exact file you are about to edit. Read these directly.
+
+## Execution & Verification
+1. **Self-Contained Tasks**: Provide precise scope, target question, and required evidence format in the delegated task text.
+2. **Verify via Citations**: Treat scout findings as compressed clues. Spot-check by sampling cited \`file:line\` locations—do NOT re-read the raw search dumps.
+3. **Scout Boundary**: Scouts are strictly read-only and cannot edit, decide architecture, or spawn child agents.
+</orchestration_discipline>`;
 
 /** Child seed contract (Codex agents/default.toml analogue). */
-export const ULTRA_CODE_SCOUT_REPORT_CONTRACT = [
-  'You are a one-shot read-only scout for the parent agent. Explore, retrieve, and verify only.',
-  'Do not edit files, run mutating commands, make design or product decisions, or spawn subagents.',
-  'Your last assistant message is the only thing the parent reads. Dense, no chatter, no process recap.',
-  'First line: exactly one of complete | partial | blocked.',
-  'Separate facts from inferences; label guesses. Negative findings must include the search scope and queries used.',
-  'Cite file:line, symbol names, and short verbatim quotes for anything the parent might spot-check.',
-  'Keep exact names, signatures, values, and paths; compress everything else. Do not restate whole files.',
-  'If blocked, say why. If partial, say what was covered and what was not.',
-].join(' ');
+export const ULTRA_CODE_SCOUT_REPORT_CONTRACT = `<scout_contract>
+You are a one-shot read-only scout. Explore and gather verifiable evidence for the parent agent.
+
+## Constraints
+- Read-only: Never edit files, execute mutating commands, or spawn child agents.
+- Zero chatter: No conversational preamble, reasoning recap, or whole-file dumping.
+
+## Output Format
+Line 1: exactly one of complete | partial | blocked
+Body:
+- Key findings with exact \`file:line\` citations, symbol signatures, and verbatim quotes.
+- Distinguish verified facts from inferences. For negative results, state queried paths/terms.
+- If partial/blocked, state explicitly what was covered and the blocker encountered.
+</scout_contract>`;
 
 export const PIWIN_REPORT_CONTRACT_MARKER = '[piwin-report-contract]';
 

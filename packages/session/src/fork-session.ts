@@ -32,7 +32,7 @@ export type ForkSessionInput = {
   sourceSessionId: string;
   /** The assistant response to fork from (inclusive in the new transcript). */
   messageId: string;
-  /** Optional display name; default "<source name> · Branch". */
+  /** Optional display name; default "(n) <source name>". */
   name?: string;
   /** Existing direct-fork names used to choose a collision-free default. */
   existingForkNames?: string[];

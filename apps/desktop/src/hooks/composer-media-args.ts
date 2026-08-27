@@ -33,6 +33,8 @@ export type UseComposerMediaArgs = {
   onNeedWorkspace?: () => void | Promise<void>;
   /** Per-next-turn model key `providerId::modelId`. */
   selectedModelKey?: string;
+  /** Authoritative composer prompt model fallback. */
+  promptModel?: import('@piwin/contracts').ModelRef | null;
   modelOptions?: Array<{
     protocol: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
     providerId: string;

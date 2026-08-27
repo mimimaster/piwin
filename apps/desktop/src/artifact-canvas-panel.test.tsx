@@ -7,6 +7,7 @@ import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
+import * as artifact from '@piwin/artifact';
 import {
   analyzeArtifactFence,
   createArtifactFenceRecord,
@@ -103,6 +104,43 @@ describe('ArtifactCanvasPanel', () => {
     instances.push({ container, root });
     expect(container.querySelector('[data-testid="artifact-canvas-empty"]')).not.toBeNull();
     expect(container.querySelector('iframe')).toBeNull();
+  });
+
+  it('materializes stream-preview while the live target is still streaming', async () => {
+    const spy = vi.spyOn(artifact, 'materializeArtifact');
+    const { container, root } = renderPanel({
+      activeTarget: makeTarget({ streaming: true }),
+    });
+    instances.push({ container, root });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(spy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        mode: 'stream-preview',
+        presentation: 'canvas',
+        source: '<div class="config">stack</div>',
+      }),
+    );
+    spy.mockRestore();
+  });
+
+  it('materializes interactive when the target is complete', async () => {
+    const spy = vi.spyOn(artifact, 'materializeArtifact');
+    const { container, root } = renderPanel({ activeTarget: makeTarget() });
+    instances.push({ container, root });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(spy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        mode: 'interactive',
+        presentation: 'canvas',
+      }),
+    );
+    spy.mockRestore();
   });
 
   it('renders the active target through ArtifactFrame in canvas presentation', async () => {

@@ -16,6 +16,7 @@ import {
   type ArtifactDeclaration,
   type ArtifactDocumentKind,
   type ArtifactRenderIntent,
+  type ArtifactRenderMode,
 } from '@piwin/artifact';
 
 export type ArtifactCanvasTarget = {
@@ -40,6 +41,11 @@ export type ArtifactCanvasTarget = {
   source: string;
   /** Original analysis. Panel materializes with the current theme only. */
   intent: ArtifactRenderIntent;
+  /**
+   * Owning assistant message is still streaming. Panel uses stream-preview.
+   * Omit on completed / launcher targets (`exactOptionalPropertyTypes`).
+   */
+  streaming?: boolean;
 };
 
 /**
@@ -65,6 +71,7 @@ export function createArtifactCanvasTarget(input: {
   messageId: string;
   fenceIndex: number;
   intent: ArtifactRenderIntent;
+  streaming?: boolean;
 }): ArtifactCanvasTarget {
   const { sessionId, messageId, fenceIndex, intent } = input;
   if (intent.layout !== 'canvas') {
@@ -87,28 +94,33 @@ export function createArtifactCanvasTarget(input: {
     rawLanguage: descriptor.rawLanguage,
     source: descriptor.source,
     intent,
+    ...(input.streaming === true ? { streaming: true } : {}),
   };
 }
 
 /**
- * Recover renderable Canvas declarations from a completed Assistant message.
+ * Recover renderable Canvas declarations from an Assistant message.
  * Uses the same fence index, security policy, surface router, and ordinal as
  * MarkdownCodeFence so automatic reveal cannot create a second interpretation
- * of model output.
+ * of model output. Live collection passes `mode: 'stream-preview'`.
  */
 export function collectArtifactCanvasTargets(input: {
   sessionId: string;
   messageId: string;
   markdown: string;
   maxBytes?: number;
+  mode?: ArtifactRenderMode;
+  streaming?: boolean;
 }): ArtifactCanvasTarget[] {
   const targets: ArtifactCanvasTarget[] = [];
+  const mode: ArtifactRenderMode = input.mode ?? 'interactive';
+  const streaming = input.streaming === true;
 
   for (const fence of indexArtifactFences(input.markdown)) {
     const analysis = analyzeArtifactFence(fence, {
       id: `${input.messageId}-artifact-${fence.ordinal}`,
       htmlUiModeEnabled: true,
-      mode: 'interactive',
+      mode,
       ...(input.maxBytes !== undefined ? { maxBytes: input.maxBytes } : {}),
     });
     if (analysis.kind !== 'intent' || analysis.intent.layout !== 'canvas') {
@@ -120,6 +132,7 @@ export function collectArtifactCanvasTargets(input: {
         messageId: input.messageId,
         fenceIndex: fence.ordinal,
         intent: analysis.intent,
+        ...(streaming ? { streaming: true } : {}),
       }),
     );
   }

@@ -368,10 +368,6 @@ export class RunRegistry {
     return { ...node.record };
   }
 
-  hasFirstToken(runId: string): boolean {
-    return this.nodes.get(runId)?.record.firstTokenReceived === true;
-  }
-
   /** Upstream provider/agent error text captured for this run, if any. */
   getLastAgentError(runId: string): string | undefined {
     const message = this.nodes.get(runId)?.lastAgentErrorMessage?.trim();

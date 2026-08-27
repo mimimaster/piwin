@@ -33,6 +33,7 @@ function Probe(props: { keyboardEnabled?: boolean }): React.ReactElement {
         hostClient={hostClient}
         activeTheme={PIWIN_APPEARANCE_DARK}
         artifactThemeKey="test"
+        artifactPreviewEnabled={true}
         readMedia={null}
         locale="en"
         {...(props.keyboardEnabled === undefined ? {} : { keyboardEnabled: props.keyboardEnabled })}

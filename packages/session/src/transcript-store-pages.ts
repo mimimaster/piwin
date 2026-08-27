@@ -330,6 +330,14 @@ function clipOversizedMessage(
   if (message.outcome !== undefined) base.outcome = message.outcome;
   if (message.model !== undefined) base.model = message.model;
   if (message.searchEvidence !== undefined) base.searchEvidence = message.searchEvidence;
+  // Keep media refs when clipping text — thumbs are small JSON and must survive
+  // resume/history so pasted screenshots do not vanish from the bubble.
+  if (message.attachments !== undefined && message.attachments.length > 0) {
+    base.attachments = message.attachments;
+  }
+  if (message.contextRefs !== undefined && message.contextRefs.length > 0) {
+    base.contextRefs = message.contextRefs;
+  }
   if (serializedMessageBytes(base) > maximumEncodedBytes) {
     throw new RangeError('Session transcript page byte limit cannot fit message metadata');
   }

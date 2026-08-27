@@ -879,6 +879,9 @@ importers:
       '@tabler/icons-react':
         specifier: ^3.46.0
         version: 3.46.0(react@19.2.7)
+      material-file-icons:
+        specifier: ^2.4.0
+        version: 2.4.0
       react:
         specifier: ^19.0.0
         version: 19.2.7
@@ -1925,6 +1928,7 @@ packages:
   '@lancedb/lancedb@0.37.1':
     resolution: {integrity: sha512-l+si3t+bQ1JNxrnEfbbfKt9gWk2HcWYWx0dzoEBTVAs8B0BP79OrAv+mKTJ0EwG5wRDS3MwEChEg0g0Wh8I3tQ==}
     engines: {node: '>= 18'}
+    cpu: [x64, arm64]
     os: [darwin, linux, win32]
     peerDependencies:
       '@types/node': '>=18'
@@ -4261,6 +4265,9 @@ packages:
     resolution: {integrity: sha512-S6GcvALHg6K4ohtu4E7x0a1AqhAjp6cV8KhLSyN9qVapnzJkusVBxZRcIU9AeYsbe6P1hKDusSbEOzGyyuce6w==}
     engines: {node: '>= 20'}
     hasBin: true
+
+  material-file-icons@2.4.0:
+    resolution: {integrity: sha512-MgxhwBgoiNXyQdZVtXvdqP8t7Fu/Z3zW1aPeYN+UqtepzbKyf41b+Wme6DnwGk5Crt2JzmWLtl1XGE2YMooaQw==}
 
   math-intrinsics@1.1.0:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
@@ -8916,6 +8923,8 @@ snapshots:
   marked@17.0.6: {}
 
   marked@18.0.5: {}
+
+  material-file-icons@2.4.0: {}
 
   math-intrinsics@1.1.0: {}
 

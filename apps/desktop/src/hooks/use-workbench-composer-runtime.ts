@@ -127,6 +127,7 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     ensureSession: session.ensureSession,
     onNeedWorkspace: session.handleOpenWorkspaceClick,
     selectedModelKey,
+    promptModel: currentPromptModelRef,
     modelOptions: host.modelOptions,
     thinkingLevel,
     delegationDisabled,

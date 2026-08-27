@@ -65,7 +65,7 @@ function renderSidebar(props: Partial<ProjectSessionSidebarProps> = {}): {
     sessionGroups: [],
     activeSessionId: null,
     sessionSearch: '',
-    onSessionSearchChange: () => {},
+    onOpenSessionSearch: () => {},
     showArchivedSessions: false,
     onToggleShowArchived: () => {},
     settingsOpen: false,
@@ -193,8 +193,9 @@ describe('ProjectSessionSidebar resident session lists', () => {
     expect(container.querySelector('[data-testid="repository-item"]')).not.toBeNull();
   });
 
-  it('renders New Agent / Search as flat action rows and expands search on click', () => {
-    const { container, root } = renderSidebar();
+  it('renders New Agent / Search as flat action rows and requests the search dialog', () => {
+    const onOpenSessionSearch = vi.fn();
+    const { container, root } = renderSidebar({ onOpenSessionSearch });
 
     const newSessionButton = container.querySelector('[data-testid="new-session-btn"]');
     expect(newSessionButton).not.toBeNull();
@@ -204,14 +205,10 @@ describe('ProjectSessionSidebar resident session lists', () => {
     const searchButton = container.querySelector('[data-testid="session-search-btn"]');
     expect(searchButton).not.toBeNull();
     expect(searchButton?.classList.contains('sidebar-action-row')).toBe(true);
-    expect(container.querySelector('[data-testid="session-search-input"]')).toBeNull();
-
     act(() => {
       (searchButton as HTMLButtonElement).click();
     });
-
-    expect(container.querySelector('[data-testid="session-search-input"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="session-search-btn"]')).toBeNull();
+    expect(onOpenSessionSearch).toHaveBeenCalledOnce();
     act(() => {
       root.unmount();
     });
@@ -270,14 +267,21 @@ describe('ProjectSessionSidebar resident session lists', () => {
 
   it('keeps project and General lists independently owned', () => {
     const projects = createMockProjects(2);
+    const otherPath = projects[1]!.path;
     const { container } = renderSidebar({
       recentProjects: projects,
       projectPath: projects[0]?.path ?? null,
       projectSessionsByPath: {
-        [projects[1]!.path]: createMockSessions(8),
+        [otherPath]: createMockSessions(8),
       },
       generalSessions: createMockSessions(8),
     });
+
+    // Inactive project folders start collapsed; expand to inspect their list.
+    const otherProjectRow = container.querySelector<HTMLButtonElement>(
+      `[data-testid="repository-item"][data-project-path="${otherPath}"]`,
+    );
+    act(() => otherProjectRow?.click());
 
     expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(13);
     expect(container.querySelector('[data-testid="project-session-show-more"]')).not.toBeNull();
@@ -392,6 +396,31 @@ it('passes the clicked project scope explicitly when starting a project draft', 
   expect(onNewSession).toHaveBeenCalledWith({
     scope: { kind: 'project', projectPath: '/Users/test/project-a' },
   });
+});
+
+it('does not spin the open session when the composer is idle', () => {
+  const sessions = createMockSessions(1);
+  const { container } = renderSidebar({
+    filteredSessions: sessions,
+    activeSessionId: 'session-1',
+    runPhase: 'idle',
+    workingSessionIds: { 'session-1': true },
+  });
+
+  expect(container.querySelector('[data-testid="session-working-indicator"]')).toBeNull();
+  expect(container.querySelector('.session-item-time')).not.toBeNull();
+});
+
+it('spins the open session while its run is streaming even without a leftover map', () => {
+  const sessions = createMockSessions(1);
+  const { container } = renderSidebar({
+    filteredSessions: sessions,
+    activeSessionId: 'session-1',
+    runPhase: 'streaming',
+  });
+
+  expect(container.querySelector('[data-testid="session-working-indicator"]')).not.toBeNull();
+  expect(container.querySelector('.session-item-time')).toBeNull();
 });
 
 it('renders a circular indicator for a working session instead of its timestamp', () => {
@@ -645,7 +674,13 @@ describe('ProjectSessionSidebar project row behavior', () => {
     expect(onOpenProject).not.toHaveBeenCalled();
   });
 
-  it('shows sessions from projectSessionsByPath for every project row', () => {
+  it('renders a frosted fade between the session list and Knowledge Center', () => {
+    const { container } = renderSidebar();
+    expect(container.querySelector('.sidebar-footer-fade')).not.toBeNull();
+    expect(container.querySelector('[data-testid="sidebar-knowledge-btn"]')).not.toBeNull();
+  });
+
+  it('keeps inactive project folders collapsed until the user expands them', () => {
     const projects = createMockProjects(2);
     const otherProjectPath = projects[1]!.path;
     const otherSessions: SessionListItemUi[] = [
@@ -660,16 +695,23 @@ describe('ProjectSessionSidebar project row behavior', () => {
     const { container } = renderSidebar({
       recentProjects: projects,
       projectPath: projects[0]?.path ?? null,
+      filteredSessions: createMockSessions(1),
       projectSessionsByPath: { [otherProjectPath]: otherSessions },
     });
 
-    // Project sessions are visible without a project-level fold control.
-    const sessionItems = container.querySelectorAll('[data-testid="session-item"]');
-    const names = Array.from(sessionItems).map((el) => el.textContent ?? '');
-    expect(names.some((name) => name.includes('Other Project Chat'))).toBe(true);
+    expect(container.textContent).not.toContain('Other Project Chat');
+    const otherProjectRow = container.querySelector<HTMLButtonElement>(
+      `[data-testid="repository-item"][data-project-path="${otherProjectPath}"]`,
+    );
+    expect(otherProjectRow?.getAttribute('aria-expanded')).toBe('false');
+
+    act(() => otherProjectRow?.click());
+
+    expect(otherProjectRow?.getAttribute('aria-expanded')).toBe('true');
+    expect(container.textContent).toContain('Other Project Chat');
   });
 
-  it('keeps sessions for multiple projects visible simultaneously', () => {
+  it('keeps sessions for multiple projects visible after each folder is expanded', () => {
     const projects = createMockProjects(3);
     const sessionsByPath: Record<string, SessionListItemUi[]> = {
       [projects[1]!.path]: [
@@ -697,6 +739,13 @@ describe('ProjectSessionSidebar project row behavior', () => {
       projectSessionsByPath: sessionsByPath,
     });
 
+    for (const path of [projects[1]!.path, projects[2]!.path]) {
+      const row = container.querySelector<HTMLButtonElement>(
+        `[data-testid="repository-item"][data-project-path="${path}"]`,
+      );
+      act(() => row?.click());
+    }
+
     const names = Array.from(container.querySelectorAll('[data-testid="session-item"]')).map(
       (el) => el.textContent ?? '',
     );
@@ -706,18 +755,27 @@ describe('ProjectSessionSidebar project row behavior', () => {
 
   it('expands project session groups independently', () => {
     const projects = createMockProjects(2);
+    const otherPath = projects[1]!.path;
     const { container } = renderSidebar({
       recentProjects: projects,
       projectPath: projects[0]?.path ?? null,
       filteredSessions: createMockSessions(8),
       projectSessionsByPath: {
-        [projects[1]!.path]: createMockSessions(8).map((session) => ({
+        [otherPath]: createMockSessions(8).map((session) => ({
           ...session,
           id: `other-${session.id}`,
           name: `Other ${session.name}`,
         })),
       },
     });
+
+    act(() =>
+      container
+        .querySelector<HTMLButtonElement>(
+          `[data-testid="repository-item"][data-project-path="${otherPath}"]`,
+        )
+        ?.click(),
+    );
 
     expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(10);
     const showMoreButtons = container.querySelectorAll<HTMLButtonElement>(
@@ -756,9 +814,10 @@ describe('ProjectSessionSidebar project row behavior', () => {
     expect(container.querySelector('[data-testid="project-session-show-more"]')).not.toBeNull();
   });
 
-  it('collapses one project without hiding other project sessions', () => {
+  it('collapses one project without hiding other expanded project sessions', () => {
     const projects = createMockProjects(2);
     const firstProjectSessions = createMockSessions(1);
+    const secondPath = projects[1]!.path;
     const secondProjectSessions: SessionListItemUi[] = [
       {
         id: 'session-second-project',
@@ -773,9 +832,17 @@ describe('ProjectSessionSidebar project row behavior', () => {
       projectPath: projects[0]?.path ?? null,
       filteredSessions: firstProjectSessions,
       projectSessionsByPath: {
-        [projects[1]!.path]: secondProjectSessions,
+        [secondPath]: secondProjectSessions,
       },
     });
+
+    act(() =>
+      container
+        .querySelector<HTMLButtonElement>(
+          `[data-testid="repository-item"][data-project-path="${secondPath}"]`,
+        )
+        ?.click(),
+    );
 
     expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(2);
     const foldButtons = container.querySelectorAll<HTMLButtonElement>(
@@ -937,5 +1004,26 @@ describe('ProjectSessionSidebar virtualization gate', () => {
       });
       expect(document.activeElement).toBe(search);
     }
+  });
+});
+
+describe('ProjectSessionSidebar settings prefetch', () => {
+  it('wires settings intent prefetch on the settings button', () => {
+    const onPrefetchSettings = vi.fn();
+    const { container } = renderSidebar({ onPrefetchSettings });
+    const button = container.querySelector<HTMLButtonElement>('[data-testid="settings-open-btn"]');
+    expect(button).not.toBeNull();
+    const reactPropKey = Object.keys(button as HTMLButtonElement).find((key) =>
+      key.startsWith('__reactProps$'),
+    );
+    expect(reactPropKey).toBeDefined();
+    const reactProps = (button as unknown as Record<string, { onMouseEnter?: () => void }>)[
+      reactPropKey as string
+    ];
+    expect(typeof reactProps?.onMouseEnter).toBe('function');
+    act(() => {
+      reactProps?.onMouseEnter?.();
+    });
+    expect(onPrefetchSettings).toHaveBeenCalledTimes(1);
   });
 });

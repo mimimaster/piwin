@@ -18,27 +18,21 @@ export type RunDesktopCommandDeps = {
   onNewSession: () => void | Promise<void>;
   onOpenWorkspace: () => void | Promise<void>;
   onStopRun: () => void | Promise<void>;
-  openSessions: () => void;
-  focusSessionSearch: () => void;
+  openSessionSearch: () => void;
   focusComposer: () => void;
   openSettings: () => void;
   toggleSessions: () => void;
   toggleInspector: (tab?: RightPanelTab | null) => void;
   openInspector: (tab: RightPanelTab) => void;
-  schedule?: (task: () => void) => void;
 };
 
-export function runDesktopCommand(
-  commandId: DesktopCommandId,
-  deps: RunDesktopCommandDeps,
-): void {
+export function runDesktopCommand(commandId: DesktopCommandId, deps: RunDesktopCommandDeps): void {
   switch (commandId) {
     case 'new-session':
       void deps.onNewSession();
       return;
     case 'search-sessions':
-      deps.openSessions();
-      (deps.schedule ?? ((task) => window.setTimeout(task, 0)))(deps.focusSessionSearch);
+      deps.openSessionSearch();
       return;
     case 'focus-composer':
       deps.focusComposer();

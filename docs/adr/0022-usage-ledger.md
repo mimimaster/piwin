@@ -56,13 +56,9 @@ per-session breakdown. The user explicitly excluded cost estimation.
   token-composition trend, and one model × Key cache table. Separate heatmap,
   provider/model duplicate tables, and inferred performance metrics are not
   shown.
-- Desktop renders a content-width turn telemetry rail immediately below the
-  composer. It appears only while a Run is live or a usage sample exists, uses
-  the shared outline icon family, and does not duplicate model/context controls
-  already present in the composer. The rail reuses the latest per-turn usage
-  snapshot for duration, input/output, and cache hit rate, while the active
-  elapsed clock comes from the Host Run `startedAt`. Missing provider fields
-  stay absent and host estimates are visibly marked.
+- Desktop does not render a per-turn metrics rail below the composer. Detailed
+  usage remains available in **Settings → Usage**, while the composer keeps only
+  controls needed for the current turn.
 - The ledger grows append-only. No rollup/compaction policy yet; acceptable for
   a single-user product at this stage (ADR notes this as future work).
 - Stock `pi --mode rpc` does not deliver usage events (existing residual); rpc

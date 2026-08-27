@@ -10,9 +10,9 @@ describe('formatTextModelImageInjection', () => {
       width: 10,
       height: 20,
     });
-    expect(text).toContain('path: /Users/me/.piwin/media/s1/a.png');
-    expect(text).toContain('mime: image/png');
-    expect(text).toContain('size: 123 bytes');
-    expect(text).toContain('dimensions: 10x20');
+    expect(text).toContain('path="/Users/me/.piwin/media/s1/a.png"');
+    expect(text).toContain('mime="image/png"');
+    expect(text).toContain('bytes="123"');
+    expect(text).toContain('dimensions="10x20"');
   });
 });

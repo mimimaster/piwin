@@ -224,38 +224,98 @@
   padding: var(--s-5);
 }
 
+.branch-point-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  position: relative;
+}
+
+.branch-point-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding: 0 var(--s-2);
+}
+
+.branch-point-anchor-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.branch-point-anchor-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--iris);
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px var(--hover);
+}
+
+.branch-point-anchor-title {
+  font-size: var(--fs-chrome);
+  font-weight: 600;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .branch-point-caption {
-  padding: 0 var(--s-2) var(--s-3);
+  padding-left: calc(8px + var(--s-3));
   color: var(--text-4);
   font-size: var(--fs-micro);
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: var(--tracking-micro);
-  text-transform: uppercase;
 }
 
 .branch-point-list {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: var(--s-2);
   margin: 0;
-  padding: 0;
+  padding: 0 0 0 3px;
   list-style: none;
+  position: relative;
+}
+
+.branch-point-item-wrapper {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  padding-left: var(--s-4);
+}
+
+/* Tree Rail Line connecting the nodes */
+.branch-point-rail-line {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--border, rgba(128, 128, 128, 0.2));
+}
+
+.branch-point-rail-line--last {
+  bottom: 50%;
 }
 
 .branch-point-item {
   display: flex;
   align-items: flex-start;
-  gap: var(--s-4);
+  gap: var(--s-3);
   width: 100%;
   padding: var(--s-3) var(--s-4);
-  border: 0;
+  border: 1px solid transparent;
   border-radius: var(--r-control);
   background: transparent;
   color: inherit;
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background-color var(--t-1) var(--ease-out);
+  transition: background-color var(--t-1) var(--ease-out), border-color var(--t-1) var(--ease-out);
 }
 
 .branch-point-item:hover:not(:disabled) {
@@ -278,19 +338,61 @@
 
 .branch-point-ordinal {
   flex: 0 0 auto;
-  min-width: 16px;
-  padding-top: 1px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--hover);
   font-size: var(--fs-micro);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--text-4);
+  color: var(--text-3);
+  margin-top: 1px;
+}
+
+.branch-point-item--active .branch-point-ordinal {
+  background: var(--iris);
+  color: #ffffff;
 }
 
 .branch-point-text {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   flex: 1 1 auto;
   min-width: 0;
+}
+
+.branch-point-tags {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+
+.branch-point-tag {
+  font-size: var(--fs-micro);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.branch-point-tag--active {
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--iris);
+}
+
+.branch-point-tag--reworded {
+  background: var(--hover);
+  color: var(--text-3);
+}
+
+.branch-point-tag--error {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
 }
 
 .branch-point-preview {
@@ -316,6 +418,7 @@
   color: var(--text-4);
   font-size: var(--fs-micro);
   font-variant-numeric: tabular-nums;
+  margin-top: 2px;
 }
 
 .branch-point-marks {

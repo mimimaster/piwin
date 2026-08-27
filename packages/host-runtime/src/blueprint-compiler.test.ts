@@ -154,14 +154,14 @@ describe('compileBlueprintForWorker', () => {
 
     const appendSystemPrompt = result.blueprint.appendSystemPrompt;
     expect(appendSystemPrompt).toBeDefined();
-    expect(appendSystemPrompt).toContain('## Default Agent operating contract');
-    expect(appendSystemPrompt).toContain('[piwin-prompt-meta kind="artifact:capability"');
-    expect(appendSystemPrompt).toContain('## Artifact capability');
-    expect(appendSystemPrompt).toContain('at most one load per run');
+    expect(appendSystemPrompt).toContain('<agent_contract>');
+    expect(appendSystemPrompt).toContain('<artifact_policy>');
+    expect(appendSystemPrompt).toContain('invoke `artifact_instructions` once');
     expect(appendSystemPrompt).toContain(ARTIFACT_INSTRUCTIONS_TOOL_NAME);
     expect(appendSystemPrompt).not.toContain('artifact append sentinel');
     expect(appendSystemPrompt).not.toContain('## HTML Artifact Runtime Contract');
-    expect(appendSystemPrompt).toContain('## MCP tools (use them proactively)');
+    expect(appendSystemPrompt).toContain('<mcp_tools>');
+    expect(appendSystemPrompt).toContain('## MCP Catalog');
     expect(appendSystemPrompt).toContain('`docs`: 1 cached tool(s)');
     expect(appendSystemPrompt).toContain('piwin_toolbox');
     expect(appendSystemPrompt).not.toContain('mcp_gateway');
@@ -186,9 +186,9 @@ describe('compileBlueprintForWorker', () => {
       },
     );
 
-    expect(result.blueprint.appendSystemPrompt).toContain('## Default Agent operating contract');
+    expect(result.blueprint.appendSystemPrompt).toContain('<agent_contract>');
     expect(result.blueprint.appendSystemPrompt).not.toContain('## HTML Artifact Runtime Contract');
-    expect(result.blueprint.appendSystemPrompt).not.toContain('## Artifact capability');
+    expect(result.blueprint.appendSystemPrompt).not.toContain('<artifact_policy>');
     expect(result.blueprint.appendSystemPrompt).not.toContain(ARTIFACT_INSTRUCTIONS_TOOL_NAME);
     expect(result.blueprint.appendSystemPrompt).not.toContain('When to produce an Artifact');
   });
@@ -204,8 +204,8 @@ describe('compileBlueprintForWorker', () => {
       },
     );
 
-    expect(result.blueprint.appendSystemPrompt).toContain('## Default Agent operating contract');
-    expect(result.blueprint.appendSystemPrompt).not.toContain('## Artifact capability');
+    expect(result.blueprint.appendSystemPrompt).toContain('<agent_contract>');
+    expect(result.blueprint.appendSystemPrompt).not.toContain('<artifact_policy>');
     expect(result.blueprint.tools.hostTools.map((tool) => tool.name)).not.toContain(
       ARTIFACT_INSTRUCTIONS_TOOL_NAME,
     );
@@ -1415,7 +1415,7 @@ describe('session compile path classification', () => {
 
     expect(discoverResources).toHaveBeenCalledTimes(1);
     expect(result.blueprint.activeSkillPaths).toEqual(['/tmp/skills/s1']);
-    expect(result.blueprint.appendSystemPrompt).toContain('## Default Agent operating contract');
+    expect(result.blueprint.appendSystemPrompt).toContain('<agent_contract>');
     expect(result.sessionBlueprint.capabilitySnapshot.context.allowProjectAgentsFiles).toBe(true);
     expect(result.sessionBlueprint.capabilitySnapshot.context.allowPiNativeInstructions).toBe(true);
   });
@@ -1543,10 +1543,18 @@ describe('conversation fast path (pure chat)', () => {
     const result = await compileBlueprintForWorker({ scope: generalScope }, conversationOptions);
 
     const appendSystemPrompt = result.blueprint.appendSystemPrompt ?? '';
-    expect(appendSystemPrompt).toContain('## Piwin Chat operating contract');
-    expect(appendSystemPrompt).toContain('explicitly attached, referenced, or provided');
-    expect(appendSystemPrompt).not.toContain('## Default Agent operating contract');
-    expect(appendSystemPrompt).not.toContain('## MCP tools');
+    expect(appendSystemPrompt).toContain('<identity>');
+    expect(appendSystemPrompt).toContain(
+      'You are Piwin Chat, a general-purpose conversational assistant.',
+    );
+    expect(appendSystemPrompt).toContain(
+      'When you call a tool, emit no user-visible text; keep progress in thinking.',
+    );
+    expect(appendSystemPrompt).toContain('</identity>');
+    expect(appendSystemPrompt).not.toContain('explicitly attached, referenced, or provided');
+    expect(appendSystemPrompt).not.toContain('Use the available web or creation capabilities');
+    expect(appendSystemPrompt).not.toContain('<agent_contract>');
+    expect(appendSystemPrompt).not.toContain('<mcp_tools>');
     expect(result.backendBlueprint.appendSystemPrompt).toBe(result.blueprint.appendSystemPrompt);
   });
 
@@ -1672,9 +1680,8 @@ describe('conversation fast path (pure chat)', () => {
     const result = await compileBlueprintForWorker({ scope: generalScope }, conversationOptions);
 
     const appendSystemPrompt = result.blueprint.appendSystemPrompt ?? '';
-    expect(appendSystemPrompt).toContain('[piwin-prompt-meta kind="artifact:capability"');
-    expect(appendSystemPrompt).toContain('## Artifact capability');
-    expect(appendSystemPrompt).toContain('at most one load per run');
+    expect(appendSystemPrompt).toContain('<artifact_policy>');
+    expect(appendSystemPrompt).toContain('invoke `artifact_instructions` once');
     expect(appendSystemPrompt).toContain(ARTIFACT_INSTRUCTIONS_TOOL_NAME);
     expect(appendSystemPrompt).not.toContain('## HTML Artifact Runtime Contract');
     expect(appendSystemPrompt).not.toContain('```artifact-html');
@@ -1700,7 +1707,7 @@ describe('conversation fast path (pure chat)', () => {
     );
 
     expect(result.blueprint.appendSystemPrompt).not.toContain('## HTML Artifact Runtime Contract');
-    expect(result.blueprint.appendSystemPrompt).not.toContain('## Artifact capability');
+    expect(result.blueprint.appendSystemPrompt).not.toContain('<artifact_policy>');
     expect(result.blueprint.appendSystemPrompt).not.toContain('When to produce an Artifact');
   });
 

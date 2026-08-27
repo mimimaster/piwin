@@ -5,7 +5,6 @@ async function waitForHostReady(page: Page): Promise<void> {
   await expect(page.getByTestId('host-status-pill')).toContainText(/就绪|ready/i);
 }
 
-
 async function openSettingsFromCompactShell(page: Page): Promise<void> {
   // Prefer the always-visible titleband More → Settings path on compact,
   // so the suite does not depend on sidebar-footer geometry.
@@ -29,7 +28,6 @@ async function openSettingsFromCompactShell(page: Page): Promise<void> {
   await settingsBtn.evaluate((node: HTMLElement) => node.click());
 }
 
-
 async function openTrustedSession(page: Page, projectPath: string): Promise<void> {
   await page.getByTestId('open-workspace-btn').click();
   await page.getByTestId('project-path-input').fill(projectPath);
@@ -51,9 +49,18 @@ type BoundaryRecord = {
 
 async function recordBoundaryState(page: Page): Promise<BoundaryRecord> {
   const width = page.viewportSize()?.width ?? 0;
-  const sidebarVisible = await page.locator('.sidebar').isVisible().catch(() => false);
-  const rightPanelVisible = await page.getByTestId('right-panel').isVisible().catch(() => false);
-  const scrimVisible = await page.getByTestId('shell-overlay-scrim').isVisible().catch(() => false);
+  const sidebarVisible = await page
+    .locator('.sidebar')
+    .isVisible()
+    .catch(() => false);
+  const rightPanelVisible = await page
+    .getByTestId('right-panel')
+    .isVisible()
+    .catch(() => false);
+  const scrimVisible = await page
+    .getByTestId('shell-overlay-scrim')
+    .isVisible()
+    .catch(() => false);
   const dataLayout = await page.getByTestId('app-shell').getAttribute('data-layout');
   return { width, sidebarVisible, rightPanelVisible, scrimVisible, dataLayout };
 }
@@ -101,7 +108,10 @@ test.describe('responsive viewport smoke', () => {
     await expect(page.getByTestId('new-session-btn')).toBeVisible();
     await expect(page.getByTestId('session-search-btn')).toBeVisible();
     await page.getByTestId('session-search-btn').click();
+    await expect(page.getByTestId('session-search-dialog')).toBeVisible();
     await expect(page.getByTestId('session-search-input')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('session-search-dialog')).toHaveCount(0);
     await page.getByTestId('settings-open-btn').click();
     await expect(page.getByTestId('settings-panel')).toBeVisible();
     await page.keyboard.press('Escape');
@@ -222,7 +232,9 @@ test.describe('responsive viewport smoke', () => {
     await expect(page.getByTestId('settings-panel')).toHaveCount(0);
   });
 
-  test('compact closed sidebar keeps its toggle clear of macOS traffic lights', async ({ page }) => {
+  test('compact closed sidebar keeps its toggle clear of macOS traffic lights', async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 980, height: 760 });
     await page.goto('/');
 

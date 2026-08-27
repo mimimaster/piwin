@@ -90,6 +90,8 @@ export type WorkbenchInspectorProps = {
   requestGit: HostRequestAdapters['requestGit'];
   requestPty: HostRequestAdapters['requestPty'];
   projectPath: string | null;
+  /** Chat falls back to the General workspace so generated files still preview. */
+  fileBrowseRoot?: string | null;
   projectTrusted: boolean;
   activeSessionId: string | null;
   walkthroughsByMessageId: Record<string, WalkthroughArtifact>;
@@ -145,6 +147,7 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
     requestGit,
     requestPty,
     projectPath,
+    fileBrowseRoot,
     projectTrusted,
     activeSessionId,
     walkthroughsByMessageId,
@@ -254,7 +257,7 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
           filesContent={
             hostClient.supportsCommand('project/list-dir') ? (
               <DeferredFileTreePanel
-                projectPath={projectPath}
+                projectPath={fileBrowseRoot ?? projectPath}
                 request={requestFileTree}
                 {...(hostPathStyle === undefined ? {} : { pathStyle: hostPathStyle })}
                 onAddContextRef={(ref) => {
@@ -337,6 +340,7 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
               title={activeDocument?.title}
               content={activeDocumentContent(activeDocument)}
               filePath={activeDocumentFilePath(activeDocument)}
+              artifactTheme={mapThemeToArtifactVariables(activeTheme)}
               status={activeDocument?.status}
               displayRef={activeDocument?.displayRef}
               provenance={

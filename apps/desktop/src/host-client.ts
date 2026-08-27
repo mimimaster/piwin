@@ -21,6 +21,11 @@ import { readDesktopClientPrincipalId } from './desktop-client-principal.js';
 import { MOBILE_ACCESS_SIDECAR_ONLY_ERROR } from './mobile-access-local';
 import type { MockHostBackend } from './host-client-mock';
 import {
+  isHostPushBatchFrame,
+  isReplayDoneFrame,
+  isSafeSequence,
+} from './host-push-frame.js';
+import {
   createDesktopRemoteHostClient,
   readRemoteHostInstanceId,
   registerLiveDesktopRemoteHost,
@@ -345,6 +350,11 @@ export class HostClient {
     );
 
     this.unlistenHostMessage = await listen<HostServerMessage>('host-message', (event) => {
+      const rawPayload = event.payload as unknown;
+      if (isReplayDoneFrame(rawPayload)) {
+        this.adoptHostCursorFence(rawPayload.currentSeq);
+        return;
+      }
       // Responses are returned through request(); only unsolicited pushes are
       // broadcast to UI subscribers. Broadcasting responses as pushes makes a
       // failed request surface once in the caller and again in bootstrap.
@@ -354,6 +364,9 @@ export class HostClient {
       if (event.payload.type === 'host/status') {
         this.ready = event.payload.ready;
         this.mode = event.payload.mode;
+      }
+      if (event.payload.type === 'snapshot') {
+        this.adoptHostCursorFence(event.payload.currentSeq);
       }
     });
 
@@ -854,6 +867,19 @@ export class HostClient {
     this.lastHostSeq = batch.throughSeq;
   }
 
+  /**
+   * `currentSeq` is the Host's cursor fence, not the last item this client's
+   * subscription could see. Filtered replay tails skip records; live delivery
+   * then resumes at afterSeq=currentSeq. Adopt the fence or emitBatch treats
+   * the next valid batch as a hole and kicks reconcile/replay.
+   */
+  private adoptHostCursorFence(currentSeq: number): void {
+    if (!isSafeSequence(currentSeq) || currentSeq <= this.lastHostSeq) {
+      return;
+    }
+    this.lastHostSeq = currentSeq;
+  }
+
   // --- Browser session commands (ADR 0020 §6) -------------------------------
 
   /** Start the shared browser session (idempotent). */
@@ -942,53 +968,6 @@ export class HostClient {
   async sideChatSync(sideChatSessionId: string): Promise<HostResponse> {
     return this.request({ type: 'side-chat/sync', sideChatSessionId });
   }
-}
-
-function isHostPushBatchFrame(value: unknown): value is HostPushBatchFrame {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-  const record = value as Record<string, unknown>;
-  if (
-    record.type !== 'push/batch' ||
-    typeof record.hostInstanceId !== 'string' ||
-    record.hostInstanceId.length === 0 ||
-    !isSafeSequence(record.afterSeq) ||
-    !isSafeSequence(record.throughSeq) ||
-    record.throughSeq < record.afterSeq ||
-    !Array.isArray(record.items)
-  ) {
-    return false;
-  }
-  let previousSeq = record.afterSeq;
-  for (const item of record.items) {
-    if (typeof item !== 'object' || item === null) {
-      return false;
-    }
-    const itemRecord = item as Record<string, unknown>;
-    const pushRecord =
-      typeof itemRecord.push === 'object' && itemRecord.push !== null
-        ? (itemRecord.push as Record<string, unknown>)
-        : undefined;
-    if (
-      !isSafeSequence(itemRecord.seq) ||
-      itemRecord.seq <= previousSeq ||
-      itemRecord.seq > record.throughSeq ||
-      typeof itemRecord.eventId !== 'string' ||
-      itemRecord.eventId.length === 0 ||
-      pushRecord === undefined ||
-      (pushRecord.seq !== undefined && pushRecord.seq !== itemRecord.seq) ||
-      (pushRecord.eventId !== undefined && pushRecord.eventId !== itemRecord.eventId)
-    ) {
-      return false;
-    }
-    previousSeq = itemRecord.seq;
-  }
-  return true;
-}
-
-function isSafeSequence(value: unknown): value is number {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
 export function mergeRemoteCapabilities(

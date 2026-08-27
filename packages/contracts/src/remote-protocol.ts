@@ -1,4 +1,10 @@
-import type { AgentMessageRole, HostMode, PermissionDecision, ToolPresentation } from './host.js';
+import type {
+  AgentMessageRole,
+  HostMode,
+  MediaAttachmentRef,
+  PermissionDecision,
+  ToolPresentation,
+} from './host.js';
 import type { HostOsFamily, HostPathStyle } from './host-platform.js';
 import type { AttachmentContentKind } from './attachment.js';
 import type { HostCommand, HostPush, HostPushBatchFrame, HostResponse } from './ipc.js';
@@ -296,7 +302,16 @@ export type RemoteTranscriptMessage = {
   terminalMessage?: string;
   thinking?: string;
   tools?: RemoteTranscriptTool[];
+  /**
+   * Count kept for older clients / hydration size budgeting. Prefer
+   * `attachments` (paths rewritten to `remote-asset:<id>`) for rendering.
+   */
   attachmentCount?: number;
+  /**
+   * Media rows for transcript thumbs. Host absolute paths are rewritten to
+   * opaque `remote-asset:<id>` refs; clients load bytes via `media/read`.
+   */
+  attachments?: MediaAttachmentRef[];
   instructionDelivery?: import('./session-transcript.js').SessionTranscriptMessage['instructionDelivery'];
 };
 

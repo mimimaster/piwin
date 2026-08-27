@@ -31,9 +31,9 @@ describe('resolvePromptContextRefs', () => {
       label: 'clipboard',
     };
     const text = await resolvePromptContextRefs(emptyDeps(), [withPath, bare]);
-    expect(text).toContain('[selection-reference: src/a.ts:2-4]');
+    expect(text).toContain('<context_ref type="selection" location="src/a.ts:2-4">');
     expect(text).toContain('const value = 1;');
-    expect(text).toContain('[selection-reference: clipboard]');
+    expect(text).toContain('<context_ref type="selection" location="clipboard">');
     expect(text).toContain('plain selection');
   });
 
@@ -42,7 +42,7 @@ describe('resolvePromptContextRefs', () => {
     const text = await resolvePromptContextRefs(emptyDeps(), [
       { kind: 'selection', snapshotText: huge, label: 'big' },
     ]);
-    const body = text.split('\n').slice(1).join('\n');
+    const body = text.split('\n').slice(1, -1).join('\n');
     expect(body.length).toBe(8000);
   });
 
@@ -88,9 +88,9 @@ describe('resolvePromptContextRefs', () => {
         label: 'Side',
       },
     ]);
-    expect(text).toContain('[main-message-reference: Main]');
+    expect(text).toContain('<context_ref type="main_message" label="Main">');
     expect(text).toContain('main body');
-    expect(text).toContain('[side-chat-reference: Side]');
+    expect(text).toContain('<context_ref type="side_chat_message" label="Side">');
     expect(text).toContain('side body');
   });
 
@@ -110,7 +110,7 @@ describe('resolvePromptContextRefs', () => {
         label: 'hello',
       },
     ]);
-    expect(resolved).toContain('[file-reference: hello.ts:1]');
+    expect(resolved).toContain('<context_ref type="file" path="hello.ts:1">');
     expect(resolved).toContain('export const n = 1;');
   });
 
@@ -135,7 +135,7 @@ describe('resolvePromptContextRefs', () => {
         label: 'src/',
       },
     ]);
-    expect(resolved).toContain('[folder-reference: src]');
+    expect(resolved).toContain('<context_ref type="folder" path="src">');
     expect(resolved).toContain('- a.ts');
   });
 
@@ -198,9 +198,9 @@ describe('resolvePromptContextRefs', () => {
         label: 'term',
       },
     ]);
-    expect(text).toContain('[error-reference: TS2322]');
-    expect(text).toContain('[diff-reference: d]');
-    expect(text).toContain('[terminal-output-reference: term]');
+    expect(text).toContain('<context_ref type="error" title="TS2322">');
+    expect(text).toContain('<context_ref type="diff" label="d">');
+    expect(text).toContain('<context_ref type="terminal_output" label="term">');
   });
 
   it('prefers direct message lookup over the tail scan', async () => {
@@ -232,8 +232,7 @@ describe('resolvePromptContextRefs', () => {
         label: 'Old',
       },
     ]);
-    expect(text).toContain('[main-message-reference: Old]');
+    expect(text).toContain('<context_ref type="main_message" label="Old">');
     expect(text).toContain('old body');
   });
-
 });

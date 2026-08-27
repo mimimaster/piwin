@@ -27,6 +27,13 @@ export function formatBranchSwitcherLabel(point: TranscriptBranchPoint): string 
   return `${point.activeIndex + 1}/${point.siblings.length}`;
 }
 
+/** Extra in-session siblings across fork points. Fork Chat sessions are not counted. */
+export function countConversationTreeBranches(
+  points: readonly TranscriptBranchPoint[],
+): number {
+  return points.reduce((sum, point) => sum + Math.max(0, point.siblings.length - 1), 0);
+}
+
 /** Drop the target and everything after it. Null when the id is not in view. */
 export function clipMessagesBeforeId<T extends { id: string }>(
   messages: readonly T[],

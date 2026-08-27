@@ -47,8 +47,8 @@ export function ArtifactCanvasPanel(props: ArtifactCanvasPanelProps): ReactEleme
   const plan = useMemo(() => {
     if (!activeTarget) return null;
     return materializeArtifact(activeTarget.intent, {
-      mode: 'interactive',
-      source: activeTarget.intent.descriptor.source,
+      mode: activeTarget.streaming === true ? 'stream-preview' : 'interactive',
+      source: activeTarget.source,
       presentation: 'canvas',
       ...(props.artifactTheme ? { theme: props.artifactTheme } : {}),
     });

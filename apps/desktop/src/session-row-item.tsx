@@ -11,27 +11,8 @@ import {
   IconTrash,
   IconUnarchive,
 } from './shell-icons';
-
-function formatRelativeTime(dateString?: string): string {
-  if (!dateString) return '';
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  if (isNaN(diffMs) || diffMs < 0) return '';
-
-  const seconds = Math.floor(diffMs / 1000);
-  if (seconds < 60) return 'now';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d`;
-  const months = Math.floor(days / 30);
-  if (months < 12) return `${months}mo`;
-  const years = Math.floor(days / 365);
-  return `${years}y`;
-}
+import { formatSessionRelativeTime } from './session-relative-time';
+import { sessionRowIsWorking, type SessionRowRunPhase } from './session-row-working';
 
 function SessionActivityIndicator(props: {
   isWorking: boolean;
@@ -74,6 +55,7 @@ export function SessionRowItem({
   onResumeSession,
   onOpenSessionMenu,
   workingSessionIds,
+  runPhase,
   backendServiceSessionIds,
   completedAttentionSessionIds,
   onDismissCompletedAttention,
@@ -99,6 +81,7 @@ export function SessionRowItem({
   isContextActive?: boolean | undefined;
   copy: DesktopCopy['sidebar'];
   workingSessionIds?: Record<string, true> | undefined;
+  runPhase?: SessionRowRunPhase | undefined;
   backendServiceSessionIds?: Record<string, true> | undefined;
   completedAttentionSessionIds?: Record<string, true> | undefined;
   onDismissCompletedAttention?: ((sessionId: string) => void) | undefined;
@@ -108,7 +91,13 @@ export function SessionRowItem({
   const isArchived = 'isArchived' in session && session.isArchived === true;
   const storageState = !isDraft && 'storage' in session ? session.storage?.state : undefined;
   const isActive = isDraft ? session.id === activeDraftId : session.id === activeSessionId;
-  const isWorking = !isDraft && workingSessionIds != null && session.id in workingSessionIds;
+  const isWorking = sessionRowIsWorking({
+    sessionId: session.id,
+    isDraft,
+    activeSessionId,
+    runPhase: runPhase ?? 'idle',
+    ...(workingSessionIds !== undefined ? { workingSessionIds } : {}),
+  });
   const hasActiveBackendService =
     !isDraft && backendServiceSessionIds != null && session.id in backendServiceSessionIds;
   const hasActiveSessionWork = isWorking || hasActiveBackendService;
@@ -196,7 +185,7 @@ export function SessionRowItem({
         />
         {session.updatedAt && !isWorking && !hasActiveBackendService && !hasCompletedAttention ? (
           <span className="session-item-time" aria-label={session.updatedAt}>
-            {formatRelativeTime(session.updatedAt)}
+            {formatSessionRelativeTime(session.updatedAt)}
           </span>
         ) : null}
       </button>

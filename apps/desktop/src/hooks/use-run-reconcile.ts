@@ -5,6 +5,11 @@ import type { HostClient } from '../host-client.js';
 import type { ChatUiAction } from '../chat-reducer.js';
 import { planRunReconcile } from '../run-reconcile.js';
 
+// A prompt acknowledgement arrives before provider execution. These are
+// bounded convergence checks for a terminal push that was lost after the Run
+// was admitted; they stop as soon as the reducer leaves the live state.
+const POST_ADMISSION_RECONCILE_DELAYS_MS = [250, 1_000, 3_000, 5_000] as const;
+
 export type UseRunReconcileArgs = {
   hostClient: HostClient;
   dispatch: Dispatch<ChatUiAction>;
@@ -21,8 +26,10 @@ export type UseRunReconcileArgs = {
 
 /**
  * ADR 0038 reconciliation: when pushes are suspected lost, ask the Host what
- * actually happened instead of healing over the hole. Event-driven only — a
- * sequence gap or a window refocus — there is deliberately no polling timer.
+ * actually happened instead of healing over the hole. Sequence gaps and
+ * window refocus are the normal triggers; a newly admitted live Run also gets
+ * a small, bounded set of post-admission checks so a lost terminal push cannot
+ * leave the shell stuck. This is deliberately not a repeating polling loop.
  */
 export function useRunReconcile(args: UseRunReconcileArgs): void {
   const { hostClient, dispatch } = args;
@@ -72,7 +79,11 @@ export function useRunReconcile(args: UseRunReconcileArgs): void {
       type: 'session/foreground-run',
       sessionId,
     });
-    if (!response.success || sessionRef.current !== sessionId || runIdRef.current !== runIdAtStart) {
+    if (
+      !response.success ||
+      sessionRef.current !== sessionId ||
+      runIdRef.current !== runIdAtStart
+    ) {
       return;
     }
     const run = (response.data as { run?: ExecutionRunRecord | null } | undefined)?.run;
@@ -131,6 +142,10 @@ export function useRunReconcile(args: UseRunReconcileArgs): void {
             (response.data as { run?: ExecutionRunRecord | null } | undefined)?.run ?? null;
           if (run && isRunActive(run.status)) {
             dispatch({ type: 'run/updated', run });
+          } else if (!runLiveRef.current) {
+            // Idle leftover sidebar spinners: Host says no Run, so drop the
+            // marker without touching an optimistic send that is still live.
+            dispatch({ type: 'run/stale-clear', sessionId });
           }
           dispatch({ type: 'foreground/admission', admission: 'ready' });
         })
@@ -181,6 +196,30 @@ export function useRunReconcile(args: UseRunReconcileArgs): void {
     hostClient.registerSequenceGapHandler(() => schedule('live'));
     return () => hostClient.registerSequenceGapHandler(null);
   }, [hostClient, schedule]);
+
+  useEffect(() => {
+    // The prompt acknowledgement establishes the Run id before the provider
+    // can finish. Give the Host a few bounded turns to publish its terminal
+    // record. This covers a dropped terminal push without adding a background
+    // polling loop or delaying normal tokens.
+    if (!args.runLive || args.activeRunId === null) {
+      return;
+    }
+    let cancelled = false;
+    const timers = POST_ADMISSION_RECONCILE_DELAYS_MS.map((delay) =>
+      globalThis.setTimeout(() => {
+        if (!cancelled) {
+          schedule('live');
+        }
+      }, delay),
+    );
+    return () => {
+      cancelled = true;
+      for (const timer of timers) {
+        globalThis.clearTimeout(timer);
+      }
+    };
+  }, [args.activeRunId, args.runLive, schedule]);
 
   useEffect(() => {
     const sessionId = args.activeSessionId;

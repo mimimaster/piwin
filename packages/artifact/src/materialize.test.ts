@@ -3,7 +3,11 @@ import { createArtifactFenceRecord } from './fence-index.js';
 import { materializeArtifact } from './materialize.js';
 import { analyzeArtifactFence } from './render-intent.js';
 
-function analyze(info: string, source: string, extras: Parameters<typeof analyzeArtifactFence>[1] = {}) {
+function analyze(
+  info: string,
+  source: string,
+  extras: Parameters<typeof analyzeArtifactFence>[1] = {},
+) {
   return analyzeArtifactFence(createArtifactFenceRecord({ info, source }), extras);
 }
 
@@ -55,18 +59,24 @@ describe('materializeArtifact', () => {
   });
 
   it('returns stream-preview sandbox and strips scripts', () => {
-    const analysis = analyze('html', '<div class="card"><p>Hi</p></div><script>alert(1)', {
-      id: 'stream',
-      mode: 'stream-preview',
-      htmlUiModeEnabled: true,
-    });
+    const analysis = analyze(
+      'html',
+      '<style>.card { color: red; }</style><div class="card"><p>Hi</p></div><script>alert(1)',
+      {
+        id: 'stream',
+        mode: 'stream-preview',
+        htmlUiModeEnabled: true,
+      },
+    );
     expect(['intent', 'code']).toContain(analysis.kind);
     if (analysis.kind !== 'intent') return;
     const plan = materializeArtifact(analysis.intent, { mode: 'stream-preview' });
     expect(plan.mode).toBe('stream-preview');
     expect(plan.intent.renderer).toBe('sandbox');
     expect(plan.document.kind).toBe('sandbox');
-    expect(plan.renderSource).toBe('<div class="card"><p>Hi</p></div>');
+    expect(plan.renderSource).toBe(
+      '<style>.card { color: red; }</style><div class="card"><p>Hi</p></div>',
+    );
     expect(plan.renderSource).not.toContain('<script');
     if (plan.document.kind === 'sandbox') {
       expect(plan.document.srcdoc).toContain('<div class="card"><p>Hi</p></div>');
@@ -95,7 +105,37 @@ describe('materializeArtifact', () => {
     expect(styleOnly.kind).toBe('intent');
   });
 
-  it('renders an incomplete SVG as a safe stream snapshot', () => {
+  it('keeps CSS-dependent markup out of the stream document until its style foundation closes', () => {
+    const unstyledSource =
+      '<div class="scene"><svg class="pelican"><circle cx="10" cy="10" r="8" /></svg></div>';
+    const unstyled = analyze('artifact-html', unstyledSource, {
+      id: 'css-late-stream',
+      mode: 'stream-preview',
+    });
+    expect(unstyled.kind).toBe('intent');
+    if (unstyled.kind !== 'intent') return;
+
+    const unstyledPlan = materializeArtifact(unstyled.intent, {
+      mode: 'stream-preview',
+    });
+    expect(unstyledPlan.renderSource).toBe('');
+
+    const styledSource = `${unstyledSource}<style>.scene { display: grid; }</style>`;
+    const styled = analyze('artifact-html', styledSource, {
+      id: 'css-late-stream',
+      mode: 'stream-preview',
+    });
+    expect(styled.kind).toBe('intent');
+    if (styled.kind !== 'intent') return;
+
+    const styledPlan = materializeArtifact(styled.intent, {
+      mode: 'stream-preview',
+    });
+    expect(styledPlan.renderSource).toContain('<div class="scene">');
+    expect(styledPlan.renderSource).toContain('<style>.scene { display: grid; }</style>');
+  });
+
+  it('waits for a complete SVG element before advancing the stream snapshot', () => {
     const analysis = analyze('svg', '<svg viewBox="0 0 80 20"><text x="2" y="14">Lo', {
       id: 'svg-stream',
       mode: 'stream-preview',
@@ -104,7 +144,7 @@ describe('materializeArtifact', () => {
     expect(analysis.kind).toBe('intent');
     if (analysis.kind !== 'intent') return;
     const plan = materializeArtifact(analysis.intent, { mode: 'stream-preview' });
-    expect(plan.renderSource).toContain('Lo</text></svg>');
+    expect(plan.renderSource).toBe('');
   });
 
   it('returns blocked for external script without materializing', () => {
@@ -125,11 +165,9 @@ describe('materializeArtifact', () => {
   });
 
   it('keeps a viewport intent and uses canvas overflow CSS when the host is Canvas', () => {
-    const analysis = analyze(
-      'artifact-html',
-      '<main style="height:100vh">Workspace</main>',
-      { id: 'viewport-host' },
-    );
+    const analysis = analyze('artifact-html', '<main style="height:100vh">Workspace</main>', {
+      id: 'viewport-host',
+    });
     expect(analysis.kind).toBe('intent');
     if (analysis.kind !== 'intent') return;
     expect(analysis.intent.layout).toBe('viewport');

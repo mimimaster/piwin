@@ -112,7 +112,7 @@ export type ProjectSessionSidebarProps = {
   sessionGroups: SessionTimeGroup<SessionListItemUi>[];
   activeSessionId: string | null;
   sessionSearch: string;
-  onSessionSearchChange: (value: string) => void;
+  onOpenSessionSearch: () => void;
   showArchivedSessions: boolean;
   onToggleShowArchived: () => void;
   settingsOpen: boolean;
@@ -131,6 +131,8 @@ export type ProjectSessionSidebarProps = {
   onUnarchiveSession?: ((sessionId: string) => void) | undefined;
   onDeleteSession?: ((sessionId: string) => void) | undefined;
   onOpenSettings: () => void;
+  /** Chromium-style intent prefetch of the Basic settings chunk. */
+  onPrefetchSettings?: () => void;
   activeSubPage?: 'chat' | 'images' | 'videos' | 'flashcards' | null | undefined;
   onOpenImages?: (() => void) | undefined;
   onOpenVideos?: (() => void) | undefined;
@@ -151,6 +153,8 @@ export type ProjectSessionSidebarProps = {
    * Sessions in this set show a right-side circular working indicator.
    */
   workingSessionIds?: Record<string, true> | undefined;
+  /** Foreground run phase; the open session spins only while streaming. */
+  runPhase?: 'idle' | 'streaming' | 'pausing' | 'aborting' | undefined;
   /**
    * Session IDs that own an active backend service job. These take priority
    * over the regular working indicator and show a wave of three dots instead.
@@ -185,27 +189,10 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
   const folderTreeRef = useRef<HTMLDivElement>(null);
   const [folderTreeElement, setFolderTreeElement] = useState<HTMLDivElement | null>(null);
   const virtualizerRef = useRef<{ scrollToIndex: (index: number) => void } | null>(null);
-  const sessionSearchInputRef = useRef<HTMLInputElement>(null);
-  const hasActiveSessionSearch = props.sessionSearch.trim().length > 0;
-  const [sessionSearchExpanded, setSessionSearchExpanded] = useState(hasActiveSessionSearch);
   const changeSortBy = (order: SessionListOrder): void => {
     setLocalSortBy(order);
     props.onSessionListOrderChange?.(order);
   };
-
-  // Keep the expanded search field open while a query is active.
-  useEffect(() => {
-    if (hasActiveSessionSearch) {
-      setSessionSearchExpanded(true);
-    }
-  }, [hasActiveSessionSearch]);
-
-  useEffect(() => {
-    if (!sessionSearchExpanded) {
-      return;
-    }
-    sessionSearchInputRef.current?.focus();
-  }, [sessionSearchExpanded]);
 
   const treeRows = useMemo(
     () =>
@@ -575,9 +562,12 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
             return next;
           });
         }
+        // Persist the opposite of the *computed* row state so the first
+        // toggle on a default-collapsed (or default-expanded active)
+        // project records an explicit override.
         setCollapsedProjects((previous) => ({
           ...previous,
-          [row.projectPath]: !(previous[row.projectPath] ?? false),
+          [row.projectPath]: !row.collapsed,
         }));
       };
       const hasChildSessions =
@@ -665,6 +655,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
             onOpenSessionMenu={props.onOpenSessionMenu}
             isContextActive={props.sessionMenu?.sessionId === row.session.id}
             workingSessionIds={props.workingSessionIds}
+            {...(props.runPhase !== undefined ? { runPhase: props.runPhase } : {})}
             backendServiceSessionIds={props.backendServiceSessionIds}
             completedAttentionSessionIds={props.completedAttentionSessionIds}
             onDismissCompletedAttention={props.onDismissCompletedAttention}
@@ -810,43 +801,17 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
             <span>{sidebarCopy.flashcards}</span>
           </button>
 
-          {sessionSearchExpanded || hasActiveSessionSearch ? (
-            <label className="search-field sidebar-search-field">
-              <IconSearch />
-              <input
-                ref={sessionSearchInputRef}
-                value={props.sessionSearch}
-                onChange={(event) => props.onSessionSearchChange(event.target.value)}
-                onBlur={() => {
-                  if (!hasActiveSessionSearch) {
-                    setSessionSearchExpanded(false);
-                  }
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Escape') {
-                    event.preventDefault();
-                    props.onSessionSearchChange('');
-                    setSessionSearchExpanded(false);
-                  }
-                }}
-                placeholder={copy.searchSessions}
-                aria-label={copy.searchSessions}
-                data-testid="session-search-input"
-              />
-            </label>
-          ) : (
-            <button
-              type="button"
-              className="sidebar-action-row"
-              data-testid="session-search-btn"
-              onClick={() => setSessionSearchExpanded(true)}
-              title={copy.searchSessions}
-              aria-label={copy.searchSessions}
-            >
-              <IconSearch />
-              <span>{copy.searchSessions}</span>
-            </button>
-          )}
+          <button
+            type="button"
+            className="sidebar-action-row"
+            data-testid="session-search-btn"
+            onClick={props.onOpenSessionSearch}
+            title={copy.searchSessions}
+            aria-label={copy.searchSessions}
+          >
+            <IconSearch />
+            <span>{copy.searchSessions}</span>
+          </button>
         </div>
       </div>
 
@@ -889,6 +854,8 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
       </div>
 
       <div className="sidebar-footer">
+        {/* Soft frosted edge where the session list meets Knowledge Center. */}
+        <div className="sidebar-footer-fade" aria-hidden="true" />
         <button
           type="button"
           className={
@@ -918,6 +885,9 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
           aria-pressed={props.settingsOpen}
           data-testid="settings-open-btn"
           onClick={props.onOpenSettings}
+          onPointerEnter={props.onPrefetchSettings}
+          onMouseEnter={props.onPrefetchSettings}
+          onFocus={props.onPrefetchSettings}
         >
           <IconSettings />
           <span className="sidebar-footer-label">{copy.settings}</span>

@@ -261,8 +261,8 @@ type SessionBranchSwitchCommand = {
 - **Desktop**：
   - 分叉点消息侧 `‹ n/m ›` 切换器（ui-kit 既有组件组合，不造新原语）；
     切换时走 branch-switch，`needs-confirmation` 弹确认卡（S3）。
-  - 树面板（**已落地 2026-08-21，首版=分叉点清单**）：右侧检查器新增
-    `branches` tab（`BranchPointsPanel`），按分叉点分组，每行 = 一条兄弟分支，
+  - 树面板（**已落地 2026-08-21，首版=分叉点清单**；**2026-08-27 升到顶栏会话树**）：
+    顶栏「会话树」与右侧检查器 `branches` tab 共用 `BranchPointsPanel`。按分叉点分组，每行 = 一条兄弟分支，
     显示首条预览 + 叶预览 + 消息数/时间 + 写标记（`writesWorkspace`），点击
     即走 branch-switch。可视化树仍后置。
     - 写标记是**提示不是判据**：由 `listBranchPoints` 在兄弟子树上聚合

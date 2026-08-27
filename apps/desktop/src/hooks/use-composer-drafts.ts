@@ -3,7 +3,8 @@
  *
  * Draft rows are deliberately Desktop-local. A Host session is still only
  * created when the user sends, so switching away never leaves empty durable
- * sessions behind.
+ * sessions behind. The sidebar row itself appears as soon as New Agent has
+ * composer content, and stays selected until Send or the user leaves.
  */
 import {
   useCallback,
@@ -17,7 +18,11 @@ import {
 import type { PromptContextRef, SessionScope } from '@piwin/contracts';
 import type { PendingComposerAttachment } from '../media-utils.js';
 import { decideDraftTransition } from '../draft-transition';
-import { sortDraftSessions, type DraftSessionItemUi } from '../draft-session';
+import {
+  findLatestDraftForScope,
+  sortDraftSessions,
+  type DraftSessionItemUi,
+} from '../draft-session';
 import type { UseComposerMediaArgs } from './composer-media-args.js';
 import type { SessionComposerSnapshot } from './composer-session-snapshot.js';
 
@@ -34,6 +39,7 @@ export type UseComposerDraftsArgs = {
   composer: string;
   setComposer: Dispatch<SetStateAction<string>>;
   composerRef: MutableRefObject<string>;
+  pendingAttachments: readonly PendingComposerAttachment[];
   pendingAttachmentsRef: MutableRefObject<PendingComposerAttachment[]>;
   setPendingAttachments: Dispatch<SetStateAction<PendingComposerAttachment[]>>;
   pendingContextRefsRef: MutableRefObject<PromptContextRef[]>;
@@ -43,12 +49,21 @@ export type UseComposerDraftsArgs = {
   disposeComposerAttachments: (attachments: PendingComposerAttachment[]) => void;
 };
 
+function composerHasDraftContent(
+  text: string,
+  attachments: readonly PendingComposerAttachment[],
+  contextRefs: readonly PromptContextRef[],
+): boolean {
+  return text.trim().length > 0 || attachments.length > 0 || contextRefs.length > 0;
+}
+
 export function useComposerDrafts(params: UseComposerDraftsArgs) {
   const {
     args,
     composer,
     setComposer,
     composerRef,
+    pendingAttachments,
     pendingAttachmentsRef,
     setPendingAttachments,
     pendingContextRefsRef,
@@ -90,6 +105,12 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
    */
   const preserveComposerOnSessionActivationRef = useRef(false);
   const prevActiveSessionIdRef = useRef<string | null>(args.state.activeSessionId);
+  /**
+   * startNewDraft clears the composer before session/clear-active restores a
+   * parked row. Ignore that one empty pass so we do not delete the row we are
+   * about to put back.
+   */
+  const holdLiveDraftOnEmptyRef = useRef(false);
 
   const setActiveDraft = useCallback((draftId: string | null): void => {
     activeDraftIdRef.current = draftId;
@@ -118,7 +139,7 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
         name: text.trim().replace(/\s+/g, ' ') || attachmentTitle || 'Attachment draft',
         text,
         createdAt,
-        updatedAt: existing?.updatedAt ?? createdAt,
+        updatedAt: new Date().toISOString(),
         scope,
         isDraft: true,
       };
@@ -240,23 +261,35 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
     [disposeComposerAttachments],
   );
 
-  /** Start an empty composer without restoring the previously selected draft. */
+  /** Leave the current session for New Agent. Resume a parked draft for this scope if one exists. */
   const startNewDraft = useCallback(
     (scope?: SessionScope): void => {
+      holdLiveDraftOnEmptyRef.current = true;
+      const targetScope = scope ?? args.state.activeScope;
       const sessionId = activeSessionIdRef.current;
       if (sessionId !== null) {
         saveSessionComposerSnapshot(sessionId);
+        const existing = findLatestDraftForScope(draftSessionsRef.current, targetScope);
+        currentDraftIdRef.current = existing?.id ?? null;
+        setActiveDraft(existing?.id ?? null);
+        currentDraftScopeRef.current = existing?.scope ?? targetScope;
       } else if (
         composerRef.current.trim().length > 0 ||
         pendingAttachmentsRef.current.length > 0 ||
         readVisibleContextRefs().length > 0
       ) {
         upsertCurrentDraft(composerRef.current, currentDraftScopeRef.current);
+        currentDraftIdRef.current = null;
+        setActiveDraft(null);
+        currentDraftScopeRef.current = targetScope;
       } else if (currentDraftIdRef.current !== null || activeDraftIdRef.current !== null) {
         removeCurrentDraft();
+        currentDraftScopeRef.current = targetScope;
+      } else {
+        currentDraftScopeRef.current = targetScope;
       }
-      currentDraftIdRef.current = null;
-      setActiveDraft(null);
+      // Clear the live composer before session/clear-active so A→null cannot
+      // overwrite the session snapshot with the draft we are about to restore.
       draftTextRef.current = '';
       composerRef.current = '';
       pendingAttachmentsRef.current = [];
@@ -264,7 +297,6 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
       setComposer('');
       setPendingAttachments([]);
       args.restorePendingContextRefs?.([]);
-      currentDraftScopeRef.current = scope ?? args.state.activeScope;
     },
     [
       args.state.activeScope,
@@ -314,26 +346,58 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
     ],
   );
 
-  // Keep a selected draft row's title in sync while the user continues typing.
+  // New Agent: as soon as the composer has content, admit a selected local
+  // draft row. Host session creation still waits for Send.
   useEffect(() => {
-    const draftId = activeDraftIdRef.current;
-    if (!draftId || composer.trim().length === 0) return;
-    const existing = draftSessionsRef.current.find((draft) => draft.id === draftId);
-    if (!existing || existing.text === composer) return;
-    const updated: DraftSessionItemUi = {
-      ...existing,
-      name: composer.trim().replace(/\s+/g, ' '),
-      text: composer,
-    };
-    const next = draftSessionsRef.current.map((draft) => (draft.id === draftId ? updated : draft));
-    draftSessionsRef.current = next;
-    setDraftSessions(next);
-    draftTextRef.current = composer;
-    const snapshot = draftComposerSnapshotsRef.current.get(draftId);
-    if (snapshot) {
-      draftComposerSnapshotsRef.current.set(draftId, { ...snapshot, text: composer });
+    if (args.state.activeSessionId !== null) {
+      return;
     }
-  }, [composer]);
+    // The session-transition effect still holds the previous id on this
+    // tick. Do not admit the outgoing session composer as a New Agent row.
+    if (prevActiveSessionIdRef.current !== null) {
+      return;
+    }
+    if (skipDraftSaveRef.current || preserveComposerOnSessionActivationRef.current) {
+      return;
+    }
+    const contextRefs = readVisibleContextRefs();
+    const hasContent = composerHasDraftContent(composer, pendingAttachments, contextRefs);
+    if (!hasContent) {
+      if (holdLiveDraftOnEmptyRef.current) {
+        holdLiveDraftOnEmptyRef.current = false;
+        return;
+      }
+      if (currentDraftIdRef.current !== null || activeDraftIdRef.current !== null) {
+        removeCurrentDraft();
+      }
+      return;
+    }
+    holdLiveDraftOnEmptyRef.current = false;
+    const draftId = currentDraftIdRef.current ?? activeDraftIdRef.current;
+    const existing = draftId
+      ? draftSessionsRef.current.find((draft) => draft.id === draftId)
+      : undefined;
+    const snapshot = existing
+      ? draftComposerSnapshotsRef.current.get(existing.id)
+      : undefined;
+    if (
+      existing &&
+      existing.text === composer &&
+      snapshot !== undefined &&
+      snapshot.attachments.length === pendingAttachments.length &&
+      snapshot.contextRefs.length === contextRefs.length
+    ) {
+      return;
+    }
+    upsertCurrentDraft(composer, currentDraftScopeRef.current);
+  }, [
+    args.state.activeSessionId,
+    composer,
+    pendingAttachments,
+    readVisibleContextRefs,
+    removeCurrentDraft,
+    upsertCurrentDraft,
+  ]);
 
   // Host-less blank composer follows the latest navigation scope. Contentful
   // drafts keep their explicit/restored binding.
@@ -361,6 +425,11 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
     if (prevId === currentId) return;
     prevActiveSessionIdRef.current = currentId;
 
+    const hasComposerContent =
+      composerRef.current.trim().length > 0 ||
+      pendingAttachmentsRef.current.length > 0 ||
+      readVisibleContextRefs().length > 0;
+
     // Switching between two real sessions must not leak the old composer text
     // into the newly selected session, and must not create a phantom draft row.
     // Each session owns an independent composer snapshot.
@@ -368,6 +437,13 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
       saveSessionComposerSnapshot(prevId);
       restoreSessionComposerSnapshot(currentId);
       return;
+    }
+
+    // project/set and project/clear null activeSessionId before the next
+    // session/set. Persist unsent chips; if the composer is already empty,
+    // leave a snapshot that startNewDraft just wrote.
+    if (prevId !== null && currentId === null && hasComposerContent) {
+      saveSessionComposerSnapshot(prevId);
     }
 
     const decision = decideDraftTransition({
@@ -395,12 +471,8 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
       case 'save-and-clear-composer':
         // User switched to an existing session — park any unsent content as a
         // draft row, then restore that session's own snapshot.
-        if (
-          composer.trim().length > 0 ||
-          pendingAttachmentsRef.current.length > 0 ||
-          readVisibleContextRefs().length > 0
-        ) {
-          upsertCurrentDraft(composer, previousScope);
+        if (hasComposerContent) {
+          upsertCurrentDraft(composerRef.current, previousScope);
         } else if (currentDraftIdRef.current !== null) {
           removeCurrentDraft();
         }

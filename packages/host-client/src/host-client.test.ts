@@ -451,6 +451,67 @@ describe('HostClient', () => {
     await client.close();
   });
 
+  it('adopts the replay cursor fence across a filtered tail before live batches resume', async () => {
+    const transport = new FakeTransport();
+    transport.deferCatchUp = true;
+    const client = new HostClient({
+      transport,
+      clientId: 'filtered-replay-test',
+      clientType: 'desktop',
+      clientVersion: 'test',
+    });
+    const received: number[] = [];
+    client.subscribePush((_push, frame) => received.push(frame.seq));
+
+    await client.connect();
+    transport.emitBatch({
+      type: 'push/batch',
+      hostInstanceId: 'host-test',
+      afterSeq: 0,
+      throughSeq: 3,
+      items: [
+        {
+          seq: 1,
+          eventId: 'event-1',
+          push: { type: 'host/log', level: 'info', message: 'one' },
+        },
+        {
+          seq: 3,
+          eventId: 'event-3',
+          push: { type: 'host/log', level: 'info', message: 'three' },
+        },
+      ],
+    });
+    transport.emit({
+      type: 'replay/done',
+      requestId: 'hello-replay-filtered',
+      fromSeq: 1,
+      toSeq: 3,
+      currentSeq: 5,
+      complete: true,
+    });
+
+    expect(client.getLastSeq()).toBe(5);
+    transport.emitBatch({
+      type: 'push/batch',
+      hostInstanceId: 'host-test',
+      afterSeq: 5,
+      throughSeq: 7,
+      items: [
+        {
+          seq: 7,
+          eventId: 'event-7',
+          push: { type: 'host/log', level: 'info', message: 'seven' },
+        },
+      ],
+    });
+
+    expect(received).toEqual([1, 3, 7]);
+    expect(client.getLastSeq()).toBe(7);
+    expect(transport.sent.filter((frame) => frame.type === 'replay')).toEqual([]);
+    await client.close();
+  });
+
   it('sends a pairing token without a door token and adopts the issued secret', async () => {
     const transport = new FakeTransport();
     transport.nextHello = {

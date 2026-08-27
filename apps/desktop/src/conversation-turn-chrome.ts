@@ -1,10 +1,9 @@
 /**
  * Conversation turn chrome: one identity header per user turn, not per
- * model completion. Tool-loop assistant rows stay in the transcript;
- * Conversation only projects the user-visible reply.
+ * model completion. Tool-loop assistant rows stay in the transcript and
+ * Conversation paints their tools (search, fetch, artifact, toolbox).
  */
 import type { ChatMessageUi, ToolCardUi } from './chat-reducer';
-import { resolveGenerationToolKind } from './generation-tool-kind.js';
 
 export type ConversationTurnChrome = {
   /** First assistant row Conversation will actually paint; owns the identity header. */
@@ -15,8 +14,10 @@ export type ConversationTurnChrome = {
 };
 
 /**
- * Content Conversation paints besides thinking / identity. Tools themselves
- * are Agent chrome and do not keep an intermediate completion on screen.
+ * Content Conversation paints besides thinking / identity. Tool-loop captions
+ * still leave the row visible because the tools themselves count; the caption
+ * is not a reply (see assistantTextRole). Conversation's model-visible surface
+ * is small (search, fetch, artifact instructions, toolbox).
  */
 export function conversationAssistantHasVisibleBody(message: ChatMessageUi): boolean {
   if (message.text.trim().length > 0) {
@@ -28,7 +29,10 @@ export function conversationAssistantHasVisibleBody(message: ChatMessageUi): boo
   if ((message.searchEvidence?.citations.length ?? 0) > 0) {
     return true;
   }
-  return message.tools.some((tool) => resolveGenerationToolKind(tool) !== null);
+  if (message.tools.length > 0) {
+    return true;
+  }
+  return false;
 }
 
 export function shouldHideConversationAssistantRow(input: {

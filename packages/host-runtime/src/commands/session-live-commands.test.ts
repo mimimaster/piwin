@@ -119,7 +119,6 @@ describe('session live control commands', () => {
       },
     };
     const { context } = createPromptContext(session);
-    context.hasRunReceivedFirstToken = () => true;
     context.sessionModels.set(session.id, largeModelRef());
     context.replaceRuntimeForModel = async () => {
       order.push('replace-runtime');
@@ -924,9 +923,7 @@ describe('session live control commands', () => {
     expect(session.emittedDeltaCount).toBe(0);
   });
 
-  it('emits failed terminal when prompt resolves with no model output', async () => {
-    // Simulate a model that accepts the prompt but produces no deltas —
-    // e.g. unavailable model, invalid API key, or empty provider response.
+  it('does not invent a failure when Pi resolves without an error stop reason', async () => {
     const silentSession = createSilentSessionHandle();
     const promptContext = createPromptContext(silentSession);
     const { events } = promptContext;
@@ -958,21 +955,82 @@ describe('session live control commands', () => {
     );
     expect(terminalEvents).toHaveLength(1);
     expect(terminalEvents[0]?.run).toMatchObject({
-      status: 'failed',
+      status: 'completed',
     });
 
     const errorEvents = events.filter(
       (message): message is Extract<HostPush, { type: 'event' }> =>
         message.type === 'event' && message.event.type === 'error',
     );
-    expect(errorEvents).toHaveLength(1);
-    expect(errorEvents[0]?.event).toMatchObject({
-      type: 'error',
-      retriable: true,
-    });
+    expect(errorEvents).toHaveLength(0);
   });
 
-  it('terminalizes silent completions with the upstream provider error text', async () => {
+  it('keeps Pi thinking-only stop as a successful native completion', async () => {
+    const session = createSilentSessionHandle();
+    const promptContext = createPromptContext(session);
+    const { events, context } = promptContext;
+    context.loadTranscriptMessages = async (sessionId) => {
+      const run = context.getForegroundRun(sessionId);
+      const runId = run?.runId ?? 'missing-run';
+      return [
+        {
+          id: 'asst-tool',
+          role: 'assistant',
+          text: '先加载规范',
+          createdAt: '2026-08-27T06:25:25.000Z',
+          status: 'done',
+          runId,
+          tools: [
+            {
+              toolCallId: 't1',
+              toolName: 'artifact_instructions',
+              status: 'done',
+              output: 'ok',
+            },
+          ],
+        },
+        {
+          id: 'asst-empty-stop',
+          role: 'assistant',
+          text: '',
+          thinking: 'ctx.moveTo(58 80); ctx.',
+          createdAt: '2026-08-27T06:34:04.000Z',
+          status: 'done',
+          runId,
+          tools: [],
+        },
+      ];
+    };
+
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'session/prompt',
+        sessionId: session.id,
+        input: { text: '给我生成一张2D的鹈鹕骑自行车的HTML动画' },
+      },
+      undefined,
+      context,
+    );
+    expect(response).toMatchObject({ success: true });
+
+    await vi.waitFor(() => {
+      expect(context.getForegroundRun(session.id)).toBeUndefined();
+    });
+
+    const terminal = events.find(
+      (message): message is Extract<HostPush, { type: 'run/terminal' }> =>
+        message.type === 'run/terminal',
+    );
+    expect(terminal?.run).toMatchObject({ status: 'completed' });
+
+    const errorEvents = events.filter(
+      (message): message is Extract<HostPush, { type: 'event' }> =>
+        message.type === 'event' && message.event.type === 'error',
+    );
+    expect(errorEvents).toHaveLength(0);
+  });
+
+  it('terminalizes Pi error stops with the upstream provider error text', async () => {
     const silentSession = createSilentSessionHandle();
     const promptContext = createPromptContext(silentSession);
     const { events, context } = promptContext;
@@ -1037,7 +1095,6 @@ describe('session live control commands', () => {
     };
     const { context, events } = createPromptContext(persistingSession);
     context.piwinRoot = rootDir;
-    context.hasRunReceivedFirstToken = () => true;
 
     const response = await handleSessionLiveCommand(
       {
@@ -1643,7 +1700,6 @@ function createControlContext(
     isSessionBodyReserved: () => false,
     joinRun: (runId) => registry.join(runId),
     getRunSignal: (runId) => registry.getSignal(runId),
-    hasRunReceivedFirstToken: (runId) => registry.hasFirstToken(runId),
     getRunLastAgentError: (runId) => registry.getLastAgentError(runId),
     requestCancelRun: (_sessionId, runId) =>
       runId === undefined ? undefined : registry.requestCancel(runId),

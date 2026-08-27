@@ -6,6 +6,7 @@
 import type { Dispatch, ReactElement, SetStateAction } from 'react';
 import type { HostStatusData, ProjectRecord, SessionListOrder } from '@piwin/contracts';
 import type { ChatUiAction, ChatUiState, SessionListItemUi } from './chat-reducer';
+import { prefetchSettingsPanel } from './deferred-desktop-surfaces';
 import type { DesktopLocale } from './desktop-locale';
 import type { DraftSessionItemUi } from './draft-session';
 import type { HostClient } from './host-client';
@@ -45,7 +46,7 @@ export type WorkbenchSidebarProps = {
   sessionListOrder: SessionListOrder;
   onSessionListOrderChange: (order: SessionListOrder) => void;
   sessionSearch: string;
-  onSessionSearchChange: (value: string) => void;
+  onOpenSessionSearch: () => void;
   showArchivedSessions: boolean;
   setShowArchivedSessions: Dispatch<SetStateAction<boolean>>;
   hydrateSessions: WorkbenchSidebarHydrateSessions;
@@ -91,7 +92,7 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
     sessionListOrder,
     onSessionListOrderChange,
     sessionSearch,
-    onSessionSearchChange,
+    onOpenSessionSearch,
     showArchivedSessions,
     setShowArchivedSessions,
     hydrateSessions,
@@ -138,7 +139,12 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
       sessionGroups={sessionGroups}
       activeSessionId={state.activeSessionId}
       sessionSearch={sessionSearch}
-      onSessionSearchChange={onSessionSearchChange}
+      onOpenSessionSearch={() => {
+        if (isOverlayPresentation) {
+          shell.closeOverlay();
+        }
+        onOpenSessionSearch();
+      }}
       showArchivedSessions={showArchivedSessions}
       onToggleShowArchived={() => {
         const next = !showArchivedSessions;
@@ -170,10 +176,7 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
           // session/hydrate dispatch clobbering session/add, and the
           // explicit general scope avoids reading stale activeScope.
           dispatch({ type: 'project/clear' });
-          await hydrateSessions(
-            { kind: 'general' },
-            { includeArchived: showArchivedSessions },
-          );
+          await hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
           await onNewSession({ scope: { kind: 'general' } });
         })();
       }}
@@ -202,6 +205,9 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
         );
       }}
       onOpenSettings={() => openSettingsSection('general')}
+      onPrefetchSettings={() => {
+        void prefetchSettingsPanel();
+      }}
       activeSubPage={props.activeSubPage}
       onOpenImages={props.onOpenImages}
       onOpenVideos={props.onOpenVideos}
@@ -213,10 +219,7 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
       generalActive={state.activeScope.kind === 'general'}
       onSelectGeneral={() => {
         dispatch({ type: 'project/clear' });
-        void hydrateSessions(
-          { kind: 'general' },
-          { includeArchived: showArchivedSessions },
-        );
+        void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
       }}
       isOverlayPresentation={isOverlayPresentation}
       onCloseOverlay={() => shell.closeOverlay()}
@@ -226,6 +229,7 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
       onResizePointerDown={sidebarResize.onResizePointerDown}
       onResizeReset={() => sidebarResize.setWidthPx(SIDEBAR_DEFAULT_WIDTH_PX)}
       workingSessionIds={state.workingSessionIds}
+      runPhase={state.runPhase}
       backendServiceSessionIds={backendServiceSessionIds}
       completedAttentionSessionIds={state.completedAttentionSessionIds}
       onDismissCompletedAttention={(sessionId) => {

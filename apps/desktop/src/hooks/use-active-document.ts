@@ -10,12 +10,20 @@
 import { useCallback, useRef, useState } from 'react';
 import type { HostClient } from '../host-client';
 import type { DocumentOpenInput } from '../tool-call-card';
-import { localPreviewPathForPlan, planDocumentOpenPath } from '../document-open-path';
+import {
+  isBareExtensionPath,
+  localPreviewPathForPlan,
+  planDocumentOpenPath,
+} from '../document-open-path';
 import {
   createDocumentRequestId,
   type ActiveDocument,
 } from '../active-document';
-import { resolveDocumentContentFromMessages, type DocumentContentMessage } from '../resolve-document-content';
+import {
+  requestedMarkupKind,
+  resolveDocumentContentFromMessages,
+  type DocumentContentMessage,
+} from '../resolve-document-content';
 
 export type UseActiveDocumentInput = {
   hostClient: HostClient;
@@ -99,6 +107,24 @@ export function useActiveDocument(input: UseActiveDocumentInput): UseActiveDocum
 
       revealPreview();
 
+      const markupKind = requestedMarkupKind(cleanTitle, cleanPath);
+      const recoveredMarkupTitle =
+        isBareExtensionPath(cleanPath) && markupKind === 'svg'
+          ? 'SVG'
+          : isBareExtensionPath(cleanPath) && markupKind === 'html'
+            ? 'HTML'
+            : cleanTitle;
+      const recoveredMarkupPath =
+        markupKind === 'svg'
+          ? cleanPath.endsWith('.svg')
+            ? cleanPath
+            : 'preview.svg'
+          : markupKind === 'html'
+            ? /\.html?$/i.test(cleanPath)
+              ? cleanPath
+              : 'preview.html'
+            : cleanPath;
+
       // Inline content is authoritative — including an explicit empty string.
       if (doc.content !== undefined) {
         applyDocument({
@@ -132,6 +158,41 @@ export function useActiveDocument(input: UseActiveDocumentInput): UseActiveDocum
           path: cleanPath,
           messages,
         });
+
+      // `.svg` / `.html` chips are extension mentions. Preview the fence from
+      // the transcript instead of asking the workspace for a file named `.svg`.
+      if (isBareExtensionPath(cleanPath) || (!doc.target && markupKind && !cleanPath.includes('/'))) {
+        const recovered = searchInMessages();
+        if (recovered) {
+          applyDocument({
+            status: 'ready',
+            requestId,
+            title: recoveredMarkupTitle,
+            content: recovered,
+            displayRef: recoveredMarkupPath,
+            filePath: recoveredMarkupPath,
+            provenance: 'transcript',
+          });
+          return;
+        }
+        if (isBareExtensionPath(cleanPath)) {
+          applyDocument({
+            status: 'unavailable',
+            requestId,
+            title: recoveredMarkupTitle,
+            displayRef: cleanPath,
+            filePath: recoveredMarkupPath,
+            reason: 'not-found',
+            suggestion:
+              markupKind === 'svg'
+                ? '对话里没有找到可预览的 SVG。'
+                : markupKind === 'html'
+                  ? '对话里没有找到可预览的 HTML。'
+                  : '对话里没有找到可预览的内容。',
+          });
+          return;
+        }
+      }
 
       const displayRef = doc.target?.displayRef ?? cleanPath;
 
@@ -683,9 +744,11 @@ export function useActiveDocument(input: UseActiveDocumentInput): UseActiveDocum
 
       const msgFallback = searchInMessages();
       const reason =
-        openPlan.kind === 'legacy-absolute' || openPlan.kind === 'relative-outside'
-          ? 'outside-project'
-          : 'not-found';
+        markupKind
+          ? 'not-found'
+          : openPlan.kind === 'legacy-absolute' || openPlan.kind === 'relative-outside'
+            ? 'outside-project'
+            : 'not-found';
       if (msgFallback) {
         applyDocument({
           status: 'ready',

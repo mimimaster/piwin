@@ -42,19 +42,21 @@ export function isImagePromptAttachment(attachment: PromptAttachment): boolean {
 export function useComposerPromptInput(args: UseComposerMediaArgs) {
   const resolveTurnModel = useCallback((): ModelRef | undefined => {
     const key = args.selectedModelKey?.trim();
-    if (!key || !args.modelOptions?.length) {
-      return undefined;
+    if (key && args.modelOptions?.length) {
+      const option = args.modelOptions.find((item) => `${item.providerId}::${item.modelId}` === key);
+      if (option) {
+        return {
+          protocol: option.protocol,
+          providerId: option.providerId,
+          modelId: option.modelId,
+        };
+      }
     }
-    const option = args.modelOptions.find((item) => `${item.providerId}::${item.modelId}` === key);
-    if (!option) {
-      return undefined;
+    if (args.promptModel) {
+      return args.promptModel;
     }
-    return {
-      protocol: option.protocol,
-      providerId: option.providerId,
-      modelId: option.modelId,
-    };
-  }, [args.modelOptions, args.selectedModelKey]);
+    return undefined;
+  }, [args.modelOptions, args.promptModel, args.selectedModelKey]);
 
   const buildPromptRequestInput = useCallback(
     (params: {

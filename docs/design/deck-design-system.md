@@ -235,10 +235,9 @@ Changes from the current three-column grid:
    today collapsing it strands the user.
 3. **Panels float** with 7px gaps over `--void`, instead of sitting flush with hairline
    dividers.
-4. **Turn telemetry lives inside the stage card**, immediately below the composer rather
-   than as a full-window bar. It is content-width, appears only for a live Run or measured
-   usage, and uses the shared Pulse / Clock / Arrow / Database outline language. Model and
-   context controls stay in the composer and are never duplicated in telemetry.
+4. **The composer ends the stage chrome.** Per-turn duration, token, and cache metrics do
+   not sit below it; detailed usage belongs in Settings → Usage instead of competing with
+   the conversation.
 5. **The composer is elevation 3 inside the stage**, over a gradient fade, rather than a
    bordered card flush to the bottom.
 

@@ -10,7 +10,7 @@ import * as artifact from '@piwin/artifact';
 import { createDefaultArtifactTheme } from '@piwin/artifact';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
-import { MarkdownView } from './MarkdownView';
+import { MarkdownView, STREAMDOWN_IMMEDIATE_STREAMING } from './MarkdownView';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -96,6 +96,59 @@ describe('MarkdownView artifact preview policy', () => {
     cleanupMountedMarkdownRenders();
     vi.restoreAllMocks();
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
+  });
+
+  it('paints later streaming tokens on the live Streamdown tree', () => {
+    expect(STREAMDOWN_IMMEDIATE_STREAMING).toEqual({ duration: 0, stagger: 0 });
+    const { container, root } = renderMarkdown(
+      <MarkdownView text="first token" renderingPhase="streaming" />,
+    );
+    expect(container.textContent).toContain('first token');
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <MarkdownView text="first token, second token" renderingPhase="streaming" />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.textContent).toContain('first token, second token');
+  });
+
+  it('repairs incomplete markdown while streaming instead of snapping a finished document', () => {
+    const { container } = renderMarkdown(
+      <MarkdownView text="This is **partial" renderingPhase="streaming" />,
+    );
+    expect(container.textContent).toContain('partial');
+    expect(container.textContent).not.toContain('**');
+  });
+
+  it('does not inject Streamdown animate word spans while tokens are live', () => {
+    const { container } = renderMarkdown(
+      <MarkdownView text="Hello streaming token" renderingPhase="streaming" />,
+    );
+    expect(container.querySelector('[data-sd-animate]')).toBeNull();
+  });
+
+  it('drops the live caret class after the same mount completes and keeps the text', () => {
+    const { container, root } = renderMarkdown(
+      <MarkdownView text="stable tail" renderingPhase="streaming" />,
+    );
+    expect(container.querySelector('.markdown')?.classList.contains('has-stream-caret')).toBe(true);
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <MarkdownView text="stable tail" renderingPhase="completed" />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.textContent).toContain('stable tail');
+    expect(container.querySelector('.markdown')?.classList.contains('has-stream-caret')).toBe(
+      false,
+    );
   });
 
   it('capability off: artifact-html fence stays ordinary source code when artifactPreviewEnabled is false', () => {
@@ -261,7 +314,7 @@ describe('MarkdownView artifact preview policy', () => {
     expect(container.querySelector('[data-testid="artifact-static"]')).toBeNull();
   });
 
-  it('keeps Canvas fences source-only while the response is streaming', () => {
+  it('keeps Canvas fences source-only in the transcript while the response is streaming', () => {
     const { container } = renderMarkdown(
       <MarkdownView
         text={CANVAS_ARTIFACT_FENCE}
@@ -829,15 +882,18 @@ describe('MarkdownView file references', () => {
     );
     const p = container.querySelector('p.md-p');
     expect(p).not.toBeNull();
-    const rendererStyle = container.querySelector('.markdown')?.getAttribute('style') ?? '';
-    expect(rendererStyle).toContain('--streamdown-caret');
+    expect(container.querySelector('.markdown')?.classList.contains('has-stream-caret')).toBe(true);
+    expect(container.querySelector('.markdown')?.getAttribute('style') ?? '').not.toContain(
+      '--streamdown-caret',
+    );
+    expect(container.querySelector('[data-sd-animate]')).toBeNull();
     expect(container.querySelector('.markdown > .streaming-cursor-pulse')).toBeNull();
   });
 
   it('does not render a caret for empty or non-owner streaming content', () => {
     const empty = renderMarkdown(<MarkdownView text="" renderingPhase="streaming" />);
-    expect(empty.container.querySelector('.markdown')?.getAttribute('style') ?? '').not.toContain(
-      '--streamdown-caret',
+    expect(empty.container.querySelector('.markdown')?.classList.contains('has-stream-caret')).toBe(
+      false,
     );
     unmountMarkdown(empty);
 
@@ -849,8 +905,8 @@ describe('MarkdownView file references', () => {
       />,
     );
     expect(
-      notOwner.container.querySelector('.markdown')?.getAttribute('style') ?? '',
-    ).not.toContain('--streamdown-caret');
+      notOwner.container.querySelector('.markdown')?.classList.contains('has-stream-caret'),
+    ).toBe(false);
     unmountMarkdown(notOwner);
   });
 
@@ -859,7 +915,7 @@ describe('MarkdownView file references', () => {
       <MarkdownView text={'紧密衔接\n\n'} renderingPhase="streaming" />,
     );
     const markdown = container.querySelector('.markdown');
-    expect(markdown?.getAttribute('style') ?? '').toContain('--streamdown-caret');
+    expect(markdown?.classList.contains('has-stream-caret')).toBe(true);
     expect(markdown?.textContent).toBe('紧密衔接');
   });
 

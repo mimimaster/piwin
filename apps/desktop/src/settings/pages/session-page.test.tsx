@@ -189,6 +189,7 @@ describe('SessionPage settings', () => {
       ready: true,
       mock: true,
       piwinRoot: '~/.piwin',
+      generalWorkspacePath: '~/.piwin/workspace',
       activeSessionIds: ['session-1'],
       capabilities: {
         customTools: true,
@@ -283,6 +284,7 @@ describe('SessionPage settings', () => {
       ready: true,
       mock: true,
       piwinRoot: '~/.piwin',
+      generalWorkspacePath: '~/.piwin/workspace',
       activeSessionIds: [],
       capabilities: {
         customTools: true,
@@ -386,6 +388,7 @@ describe('SessionPage settings', () => {
       ready: true,
       mock: true,
       piwinRoot: '~/.piwin',
+      generalWorkspacePath: '~/.piwin/workspace',
       activeSessionIds: [],
       capabilities: {
         customTools: true,

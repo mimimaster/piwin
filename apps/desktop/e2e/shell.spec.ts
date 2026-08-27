@@ -217,8 +217,8 @@ test.describe('desktop shell (vite + host mock)', () => {
       );
     await page.getByTestId('send-btn').click();
 
-    // Stop being visible proves the run has not settled yet.
-    await expect(page.getByTestId('stop-btn')).toBeVisible({ timeout: 5000 });
+    // Pause being visible proves the run has not settled yet.
+    await expect(page.getByTestId('pause-btn')).toBeVisible({ timeout: 5000 });
 
     // R2 merged the tab strip / context header / run status strip into a
     // single ContextBar; duplicated status regions were the SR-01 defect.
@@ -244,12 +244,13 @@ test.describe('desktop shell (vite + host mock)', () => {
     const composerInput = page.getByTestId('composer-input');
     await composerInput.fill('typing remains responsive during the burst');
     await expect(composerInput).toHaveValue('typing remains responsive during the burst');
-    await expect(page.getByTestId('stop-btn')).toBeEnabled();
-    await page.getByTestId('stop-btn').click();
+    await expect(page.getByTestId('pause-btn')).toBeEnabled();
+    await page.getByTestId('pause-btn').click();
 
-    // Stop control stays mounted (hidden) so the send/stop swap never detaches DOM nodes.
-    await expect(page.getByTestId('stop-btn')).toBeHidden({ timeout: 10_000 });
-    await expect(page.getByTestId('send-btn')).toBeVisible();
+    await expect(page.getByTestId('pause-btn')).toHaveCount(0, { timeout: 10_000 });
+    await expect(
+      page.locator('[data-testid="send-btn"], [data-testid="resume-run-btn"]'),
+    ).toBeVisible();
   });
 
   test('composer plus menu selects Plan mode', async ({ page }) => {
@@ -366,7 +367,7 @@ test.describe('desktop shell (vite + host mock)', () => {
     await expect(page.getByTestId('pty-panel')).toContainText(/Open a project|Trust this project/);
   });
 
-  test('stop aborts mock stream without late text growth', async ({ page }) => {
+  test('pause ends mock stream without late text growth', async ({ page }) => {
     await page.goto('/');
     await waitForHostReady(page);
     await openTrustedSession(page, '/tmp/piwin-e2e-abort');
@@ -376,10 +377,12 @@ test.describe('desktop shell (vite + host mock)', () => {
         'please stream a fairly long reply so we can abort mid way through the mock host chunks',
       );
     await page.getByTestId('send-btn').click();
-    await expect(page.getByTestId('stop-btn')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTestId('pause-btn')).toBeVisible({ timeout: 5000 });
     // Force/evaluate avoids actionability races while the stream still animates layout.
-    await page.getByTestId('stop-btn').evaluate((node: HTMLElement) => node.click());
-    await expect(page.getByTestId('send-btn')).toBeVisible({ timeout: 8000 });
+    await page.getByTestId('pause-btn').evaluate((node: HTMLElement) => node.click());
+    await expect(
+      page.locator('[data-testid="send-btn"], [data-testid="resume-run-btn"]'),
+    ).toBeVisible({ timeout: 8000 });
     const assistant = page.locator('[data-testid="message-bubble"][data-role="assistant"]').last();
     await expect(assistant).toBeVisible();
     const textAfterStop = (await assistant.innerText()).trim();

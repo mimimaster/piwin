@@ -9,7 +9,7 @@ import {
   type ArtifactFrameMode,
   type ArtifactRenderPlan,
 } from '@piwin/artifact';
-import { Button } from '@piwin/ui-kit';
+import { Button, Spinner } from '@piwin/ui-kit';
 import { getBehaviorActivitySpec } from './behavior-activity.js';
 import { useArtifactFrameBridge } from './artifact-frame-bridge.js';
 import { useArtifactFrameLease } from './artifact-frame-lifecycle.js';
@@ -64,9 +64,7 @@ function requestedFrameMode(
 }
 
 function hostOwnsViewport(frameMode: ArtifactFrameMode, overflowsInlineFlow: boolean): boolean {
-  return (
-    frameMode === 'inline-viewport' || frameMode === 'inline-overflow' || overflowsInlineFlow
-  );
+  return frameMode === 'inline-viewport' || frameMode === 'inline-overflow' || overflowsInlineFlow;
 }
 
 function inlineStageStyle(
@@ -112,8 +110,7 @@ export function ArtifactSandboxFrame(props: {
   });
   const scrollPort = useTranscriptScrollPort();
   const bootstrapHeight = resolveBootstrapHeight(props.plan, props.presentation);
-  const measureHeight =
-    props.presentation === 'inline' && plannedFrameMode === 'inline-flow';
+  const measureHeight = props.presentation === 'inline' && plannedFrameMode === 'inline-flow';
   const bridge = useArtifactFrameBridge({
     channelId,
     documentKey: document.documentKey,
@@ -145,6 +142,8 @@ export function ArtifactSandboxFrame(props: {
   const canvas = props.presentation === 'canvas';
   const viewportChrome = hostOwnsViewport(appliedFrameMode, bridge.overflowsInlineFlow);
   const showOverflowHint = !canvas && appliedFrameMode === 'inline-overflow';
+  const preparingStableSnapshot =
+    view.mode === 'stream-preview' && props.plan.renderSource.trim().length === 0;
   const toolStatus = bridge.status === 'ready' || bridge.status === 'fallback' ? 'done' : 'running';
   const pausedLabel =
     props.locale === 'zh-CN' ? '预览已暂停以节省内存' : 'Preview paused to save memory';
@@ -219,6 +218,25 @@ export function ArtifactSandboxFrame(props: {
                 : inlineStageStyle(bridge.height, appliedFrameMode, bridge.overflowsInlineFlow)
             }
           >
+            {preparingStableSnapshot ? (
+              <div
+                className="artifact-iframe-placeholder"
+                data-testid="artifact-stream-preparing"
+                style={{ position: 'absolute', inset: 0, zIndex: 1 }}
+              >
+                <span className="artifact-preparing-sheen" aria-hidden="true" />
+                <div className="artifact-iframe-placeholder-body">
+                  <Spinner
+                    label={
+                      props.locale === 'zh-CN' ? '正在准备稳定画面' : 'Preparing a stable preview'
+                    }
+                  />
+                  <span className="artifact-iframe-placeholder-copy" aria-hidden="true">
+                    {props.locale === 'zh-CN' ? '正在准备稳定画面…' : 'Preparing a stable preview…'}
+                  </span>
+                </div>
+              </div>
+            ) : null}
             {lease.initGranted ? (
               <iframe
                 ref={iframeRef}

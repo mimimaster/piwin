@@ -79,6 +79,20 @@ class FakeHostClient {
         data: { sessionId: command.sessionId, run: this.run },
       });
     }
+    if (command.type === 'session/messages') {
+      return Promise.resolve({
+        type: 'response',
+        command: command.type,
+        success: true,
+        data: {
+          sessionId: command.sessionId,
+          messages: [
+            message('user-1', 'user', 'Pane question'),
+            message('assistant-1', 'assistant', 'Pane answer'),
+          ],
+        },
+      });
+    }
     if (command.type === 'session/prompt') {
       return Promise.resolve({
         type: 'response',
@@ -124,6 +138,7 @@ function renderSession(
           hostClient={host as unknown as HostClient}
           activeTheme={PIWIN_APPEARANCE_DARK}
           artifactThemeKey="test"
+          artifactPreviewEnabled={true}
           readMedia={null}
           locale="en"
           {...(onSessionDeleted ? { onSessionDeleted } : {})}
@@ -239,6 +254,40 @@ describe('ConversationPaneSession', () => {
         ).toBe(true),
       );
     });
+  });
+
+  it('settles the pane when a terminal push is missed', async () => {
+    const host = new FakeHostClient();
+    host.run = {
+      runId: 'run-active',
+      kind: 'session-turn',
+      status: 'running',
+      rootRunId: 'run-active',
+      sessionId: 'session-aux',
+    };
+    ({ container, root } = renderSession(host));
+    await vi.waitFor(() =>
+      expect(container?.querySelector('[aria-label="Stop response"]')).not.toBeNull(),
+    );
+
+    host.run = null;
+    act(() => {
+      host.emit({
+        type: 'host/status',
+        mode: 'sdk',
+        ready: true,
+        mock: false,
+      });
+    });
+
+    await vi.waitFor(() =>
+      expect(
+        container?.querySelector<HTMLElement>('[data-testid="conversation-pane-session"]')?.dataset
+          .streaming,
+      ).toBe('false'),
+    );
+    expect(container?.querySelector('[aria-label="Stop response"]')).toBeNull();
+    expect(container?.textContent).toContain('Pane answer');
   });
 
   it('clears a stale binding when the Host reports that the session no longer exists', async () => {

@@ -9,11 +9,14 @@ import {
   type HostToolRegistration,
 } from '@piwin/contracts';
 
-const DEFAULT_AUTOMATIC_HINT =
-  'Use an Artifact when dense, structured, visual, or interactive content is materially easier to use than Markdown.';
 const MAX_TRACKED_INSTRUCTION_RUNS = 256;
 const ALREADY_LOADED_OUTPUT =
   'Artifact instructions are already loaded for this run. Reuse the previous result and produce the final response without calling this tool again.';
+
+const ARTIFACT_POLICY_BODY = [
+  'Emit HTML/SVG Artifacts only when interactive or visual content substantially outperforms Markdown.',
+  `Before generating, invoke \`${ARTIFACT_INSTRUCTIONS_TOOL_NAME}\` once to retrieve the specification, then reuse the result.`,
+].join('\n');
 
 /** Compact always-on routing hint; the full contract is loaded through the tool. */
 export function formatArtifactCapabilityPrompt(config: ArtifactConfig): string | undefined {
@@ -22,25 +25,14 @@ export function formatArtifactCapabilityPrompt(config: ArtifactConfig): string |
   }
   const hasCustomDecision =
     config.decisionPrompt.mode === 'custom' && config.decisionPrompt.customPrompt.trim().length > 0;
-  const triggerHint =
-    config.triggerMode === 'explicit-only'
-      ? ARTIFACT_EXPLICIT_ONLY_HINT
-      : hasCustomDecision
-        ? undefined
-        : DEFAULT_AUTOMATIC_HINT;
-  const customHint = hasCustomDecision
-    ? 'A custom Artifact decision policy is configured. Load it before deciding whenever an Artifact may be relevant.'
-    : undefined;
-  return [
-    '[piwin-prompt-meta kind="artifact:capability" version="6" applies="generation"]',
-    '## Artifact capability',
-    triggerHint,
-    customHint,
-    `Before emitting an HTML or SVG Artifact, call \`${ARTIFACT_INSTRUCTIONS_TOOL_NAME}\` at most one load per run and reuse its successful result.`,
-    'Use ordinary Markdown when an Artifact does not materially improve the result.',
-  ]
-    .filter((part): part is string => part !== undefined && part.length > 0)
-    .join('\n');
+  const lines = [
+    config.triggerMode === 'explicit-only' ? ARTIFACT_EXPLICIT_ONLY_HINT : undefined,
+    ARTIFACT_POLICY_BODY,
+    hasCustomDecision
+      ? 'A custom Artifact decision policy is configured. Load it before deciding whenever an Artifact may be relevant.'
+      : undefined,
+  ].filter((part): part is string => part !== undefined && part.length > 0);
+  return `<artifact_policy>\n${lines.join('\n')}\n</artifact_policy>`;
 }
 
 /** Compact routing hint only when the generation surface has a concrete executor. */

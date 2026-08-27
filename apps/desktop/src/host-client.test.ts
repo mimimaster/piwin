@@ -300,6 +300,92 @@ describe('HostClient', () => {
     expect(gaps).toHaveLength(1);
   });
 
+  it('adopts replay/done currentSeq so a filtered tail does not look like a live gap', async () => {
+    const callbacks = new Map<string, (event: { payload: unknown }) => void>();
+    const unlisten = vi.fn();
+    listenMock.mockImplementation(
+      async (eventName: string, callback: (event: { payload: unknown }) => void) => {
+        callbacks.set(eventName, callback);
+        return unlisten;
+      },
+    );
+    invokeMock.mockImplementation(async (command: string) => {
+      if (command === 'host_start') {
+        return { started: true };
+      }
+      if (command === 'host_request') {
+        return {
+          id: 'ui-1',
+          type: 'response',
+          command: 'host/status',
+          success: true,
+          data: { mode: 'sdk', ready: true, mock: false },
+        } satisfies HostResponse;
+      }
+      throw new Error(`Unexpected Tauri command: ${command}`);
+    });
+
+    const client = new HostClient({ transport: 'live' });
+    const gaps: unknown[] = [];
+    const pushes: HostServerMessage[] = [];
+    client.registerSequenceGapHandler((gap) => gaps.push(gap));
+    client.subscribe((message) => pushes.push(message));
+    await client.connect();
+
+    callbacks.get('host-message-batch')?.({
+      payload: {
+        type: 'push/batch',
+        hostInstanceId: 'host-test',
+        afterSeq: 0,
+        throughSeq: 3,
+        items: [
+          {
+            seq: 1,
+            eventId: 'event-1',
+            push: { type: 'host/log', level: 'info', message: 'one' },
+          },
+          {
+            seq: 3,
+            eventId: 'event-3',
+            push: { type: 'host/log', level: 'info', message: 'three' },
+          },
+        ],
+      },
+    });
+    callbacks.get('host-message')?.({
+      payload: {
+        type: 'replay/done',
+        requestId: 'hello-replay-filtered',
+        fromSeq: 1,
+        toSeq: 3,
+        currentSeq: 5,
+        complete: true,
+      },
+    });
+    callbacks.get('host-message-batch')?.({
+      payload: {
+        type: 'push/batch',
+        hostInstanceId: 'host-test',
+        afterSeq: 5,
+        throughSeq: 7,
+        items: [
+          {
+            seq: 7,
+            eventId: 'event-7',
+            push: { type: 'host/log', level: 'info', message: 'seven' },
+          },
+        ],
+      },
+    });
+
+    expect(gaps).toEqual([]);
+    expect(
+      pushes
+        .filter((message) => message.type === 'host/log')
+        .map((message) => (message.type === 'host/log' ? message.message : '')),
+    ).toEqual(['one', 'three', 'seven']);
+  });
+
   it('does not invoke the JSONL sidecar when transport is remote', async () => {
     const client = new HostClient({
       transport: 'remote',

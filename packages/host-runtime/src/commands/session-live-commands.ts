@@ -113,6 +113,7 @@ import {
   workingDirectoryFromIndexRecord,
 } from '../session-scope.js';
 import { repairLegacySessionNames } from '../session-name-repair.js';
+import { settleOrphanStreamingMessages } from '../transcript-stream-settler.js';
 import { findEnabledModel } from '../provider-helpers.js';
 import type { SessionLiveContext } from './session-live-context.js';
 import { handleCompactionCommand } from './compaction-live.js';
@@ -445,6 +446,7 @@ export async function handleSessionLiveCommand(
       }
       const store = await context.getTranscriptStore(command.sessionId);
       if (context.getForegroundRun(command.sessionId) === undefined) {
+        await settleOrphanStreamingMessages(store);
         const reconciled = await store.finalizeOpenRunInterventions(
           'run-ended',
           new Date().toISOString(),

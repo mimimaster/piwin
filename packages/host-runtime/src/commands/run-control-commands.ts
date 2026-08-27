@@ -259,9 +259,16 @@ async function abortAndTerminalizeRun(
       level: 'warn',
       message: `session abort cleanup timed out: ${sessionId}/${runId}`,
     });
-    await context.terminateRun(sessionId, runId, 'cancelled', code, timeoutMessage, {
-      skipJobCleanup: true,
-    });
+    await context.terminateRun(
+      sessionId,
+      runId,
+      abortTerminalOutcome(code),
+      code,
+      timeoutMessage,
+      {
+        skipJobCleanup: true,
+      },
+    );
     context.quarantineSessionRuntime(sessionId, runId);
     return;
   }
@@ -276,7 +283,19 @@ async function abortAndTerminalizeRun(
       });
     }
   }
-  await context.terminateRun(sessionId, runId, 'cancelled', code, message);
+  await context.terminateRun(sessionId, runId, abortTerminalOutcome(code), code, message);
+}
+
+function abortTerminalOutcome(code: RunTerminalCode): 'cancelled' | 'failed' {
+  if (
+    code === 'model-turn-timeout' ||
+    code === 'model-connect-timeout' ||
+    code === 'model-first-token-timeout' ||
+    code === 'mcp-timeout'
+  ) {
+    return 'failed';
+  }
+  return 'cancelled';
 }
 
 /** Persist the partial transcript before publishing the paused terminal. */

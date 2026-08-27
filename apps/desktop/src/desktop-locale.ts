@@ -1495,7 +1495,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
           : 'Choosing a model only fills the ID — click “Save image model” below to write it into config.',
         removeModel: isChinese ? '移除' : 'Remove',
         noModels: isChinese
-          ? '还没有生图模型。请先在「通道与文本」里给对应模型勾选「生图」，并填写接口协议和请求路径。'
+          ? '还没有生图模型。请先在「模型配置」里给对应模型勾选「生图」，并填写接口协议和请求路径。'
           : 'No image models yet. Tag a model with Image generation under Channels & chat, and set its API style and request path.',
         modelsHeading: isChinese ? '图片生成模型' : 'Image generation models',
       },
@@ -1531,7 +1531,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         addModel: isChinese ? '添加视频模型' : 'Add video model',
         removeModel: isChinese ? '移除' : 'Remove',
         noModels: isChinese
-          ? '还没有视频模型。请先在「通道与文本」里给对应模型勾选「视频」，并填写接口协议和请求路径。'
+          ? '还没有视频模型。请先在「模型配置」里给对应模型勾选「视频」，并填写接口协议和请求路径。'
           : 'No video models yet. Tag a model with Video generation under Channels & chat, and set its API style and request path.',
         modelsHeading: isChinese ? '视频生成模型' : 'Video generation models',
         recognizedModels: isChinese ? '自动识别' : 'Recognized',

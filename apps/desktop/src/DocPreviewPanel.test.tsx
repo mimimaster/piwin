@@ -86,4 +86,41 @@ describe('DocPreviewPanel', () => {
     const badge = container.querySelector('[data-testid="doc-preview-readonly"]');
     expect(badge?.textContent).toContain('项目外 · 只读');
   });
+
+  it('renders HTML files visually instead of as source code', () => {
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <DocPreviewPanel
+            title="card.html"
+            filePath="/tmp/card.html"
+            content="<h1>Hello</h1>"
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="markup-preview"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="artifact-static"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="code-preview-view"]')).toBeNull();
+  });
+
+  it('renders SVG files visually instead of as source code', () => {
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <DocPreviewPanel
+            title="mark.svg"
+            filePath="/tmp/mark.svg"
+            content='<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" height="8"/></svg>'
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="markup-preview"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="code-preview-view"]')).toBeNull();
+  });
 });

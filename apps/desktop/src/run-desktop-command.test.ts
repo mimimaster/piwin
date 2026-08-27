@@ -10,24 +10,21 @@ function createDeps(overrides: Partial<RunDesktopCommandDeps> = {}): RunDesktopC
     onNewSession: vi.fn(),
     onOpenWorkspace: vi.fn(),
     onStopRun: vi.fn(),
-    openSessions: vi.fn(),
-    focusSessionSearch: vi.fn(),
+    openSessionSearch: vi.fn(),
     focusComposer: vi.fn(),
     openSettings: vi.fn(),
     toggleSessions: vi.fn(),
     toggleInspector: vi.fn(),
     openInspector: vi.fn(),
-    schedule: (task) => task(),
     ...overrides,
   };
 }
 
 describe('runDesktopCommand', () => {
-  it('opens sessions then focuses the conversation search', () => {
+  it('opens the session search dialog', () => {
     const deps = createDeps();
     runDesktopCommand('search-sessions', deps);
-    expect(deps.openSessions).toHaveBeenCalledOnce();
-    expect(deps.focusSessionSearch).toHaveBeenCalledOnce();
+    expect(deps.openSessionSearch).toHaveBeenCalledOnce();
   });
 
   it('toggles the inspector on files, and the right panel with a null tab', () => {

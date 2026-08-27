@@ -179,7 +179,7 @@ export function PathChip({
         onOpen();
       }}
     >
-      {showIcon ? <FileTypeIcon filePathOrExt={fullPath} /> : null}
+      {showIcon ? <FileTypeIcon filePathOrExt={fullPath} size="1.05em" /> : null}
       <span className="chip-text">{displayText}</span>
     </a>
   );

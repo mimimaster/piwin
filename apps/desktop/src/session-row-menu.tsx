@@ -5,6 +5,7 @@ import { useEffect, useRef, type ReactElement, type ReactNode } from 'react';
 import {
   IconArchive,
   IconArrowFork,
+  IconGit,
   IconCopy,
   IconDownload,
   IconEdit,
@@ -22,6 +23,7 @@ export type SessionRowMenuAction =
   | 'rename'
   | 'copy-id'
   | 'duplicate'
+  | 'fork-chat'
   | 'continue-in-project'
   | 'archive'
   | 'unarchive'
@@ -36,6 +38,7 @@ export type SessionRowMenuProps = {
   storageState?: 'local' | 'offloaded' | 'missing-pack';
   canExport?: boolean;
   canDuplicate?: boolean;
+  canForkChat?: boolean;
   canContinueInProject?: boolean;
   /** Screen position for fixed menu (from contextmenu / button). */
   position: { x: number; y: number };
@@ -54,6 +57,8 @@ function renderSessionActionIcon(action: SessionRowMenuAction): ReactNode {
       return <IconCopy width={14} height={14} />;
     case 'duplicate':
       return <IconArrowFork width={14} height={14} />;
+    case 'fork-chat':
+      return <IconGit width={14} height={14} />;
     case 'continue-in-project':
       return <IconFolderOpen width={14} height={14} />;
     case 'export':
@@ -130,6 +135,7 @@ export function SessionRowMenu(props: SessionRowMenuProps): ReactElement {
     ...(props.storageState ? { storageState: props.storageState } : {}),
     ...(props.canExport === false ? { canExport: false } : {}),
     ...(props.canDuplicate === false ? { canDuplicate: false } : {}),
+    ...(props.canForkChat === false ? { canForkChat: false } : {}),
     ...(props.canContinueInProject === false ? { canContinueInProject: false } : {}),
   });
 

@@ -69,6 +69,7 @@ const composerCard: ComposerDockProps = {
   onPaste: noop,
   onDrop: noop,
   onSend: noop,
+  onPause: noop,
   onAbort: noop,
   onCompact: noop,
   contextUsage: null,

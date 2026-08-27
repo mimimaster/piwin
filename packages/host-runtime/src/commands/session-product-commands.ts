@@ -44,7 +44,7 @@ import {
   openModelContextStore,
   copyModelContextLedger,
 } from '@piwin/session';
-import { getSessionLineage, getDirectForkNames, listAllSessionRecords } from '@piwin/session';
+import { getSessionLineage, listAllSessionRecords } from '@piwin/session';
 import { cloneSessionMedia, cleanupFailedMediaClone } from '@piwin/media';
 import { listProjects } from '@piwin/project';
 import { fail, ok } from '../response-helpers.js';
@@ -600,7 +600,7 @@ export async function handleSessionProductCommand(
         return fail(requestId, 'session/fork', 'Source session is archived');
       }
       const sourceStore = await context.getTranscriptStore(command.sessionId);
-      const selected = await sourceStore.getMessage(command.messageId);
+      const selected = await resolveForkAssistantMessage(sourceStore, command.messageId);
       if (selected === undefined || selected.role !== 'assistant') {
         return fail(requestId, 'session/fork', 'Selected assistant response was not found');
       }
@@ -619,9 +619,10 @@ export async function handleSessionProductCommand(
       }
       const created = await context.createSession(createInput);
       const mediaRoot = getPiwinMediaDir(rootDir);
-      // Compute existing fork names for collision avoidance.
-      const allRecords = await listAllSessionRecords(indexPath);
-      const existingForkNames = getDirectForkNames(allRecords, command.sessionId);
+      const lineage = await getSessionLineage({ indexPath }, command.sessionId);
+      const existingForkNames = lineage.nodes
+        .map((node) => node.name)
+        .filter((name): name is string => typeof name === 'string' && name.length > 0);
 
       try {
         const targetStore = await context.getTranscriptStore(created.id, source.projectPath);
@@ -654,7 +655,7 @@ export async function handleSessionProductCommand(
           await copyNativeEntries(sourceStore, targetStore, message.id, cloned.id);
           messageCount += 1;
           lastMessage = cloned;
-          if (message.id === command.messageId) {
+          if (message.id === selected.id) {
             reachedSelection = true;
             break;
           }
@@ -676,7 +677,7 @@ export async function handleSessionProductCommand(
         });
         if (!reachedSelection) {
           throw new Error(
-            `Message not found while streaming source transcript: ${command.messageId}`,
+            `Message not found while streaming source transcript: ${selected.id}`,
           );
         }
         const displayName =
@@ -704,7 +705,7 @@ export async function handleSessionProductCommand(
           rootSessionId: source.origin?.kind === 'fork' ? source.origin.rootSessionId : source.id,
           sourceSessionId: command.sessionId,
           ...(source.name ? { sourceSessionNameSnapshot: source.name } : {}),
-          sourceMessageId: command.messageId,
+          sourceMessageId: selected.id,
           sourceMessageRole: 'assistant',
           sourceMessagePreview: selected.text.slice(0, 200),
           sourceMessageCreatedAt: selected.createdAt,
@@ -855,6 +856,23 @@ async function appendDerivedMessage(
   if (!result.ok) {
     throw new Error(`Derived transcript identity collision: ${message.id}`);
   }
+}
+
+async function resolveForkAssistantMessage(
+  store: SessionTranscriptStore,
+  messageId: string | undefined,
+): Promise<SessionTranscriptMessage | undefined> {
+  if (messageId !== undefined) {
+    return store.getMessage(messageId);
+  }
+  const tail = await store.listTail(200);
+  for (let index = tail.length - 1; index >= 0; index -= 1) {
+    const message = tail[index];
+    if (message?.role === 'assistant' && message.status === 'done') {
+      return message;
+    }
+  }
+  return undefined;
 }
 
 /**

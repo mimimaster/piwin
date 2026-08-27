@@ -801,13 +801,13 @@ describe('computeSourceHash', () => {
 /* ------------------------------------------------------------------ */
 
 describe('assembleSystemPrompt', () => {
-  it('returns the constant system prompt with success and safety', () => {
+  it('returns the constant system prompt with discipline and safety', () => {
     const prompt = assembleSystemPrompt();
+    expect(prompt).toContain('<walkthrough_contract');
     expect(prompt).toContain('untrusted data');
-    expect(prompt).toContain('## Success');
-    expect(prompt).toContain('## Stop / safety');
+    expect(prompt).toContain('## Factual Discipline & Security');
     expect(prompt).toContain('<piwin-walkthrough-evidence>');
-    expect(prompt).toContain('Return Markdown');
+    expect(prompt).toContain('Markdown document');
   });
 
   it('keeps delivery markers so custom mode still gets UI format', () => {
@@ -815,14 +815,10 @@ describe('assembleSystemPrompt', () => {
     expect(prompt).toContain('[MODIFY]');
     expect(prompt).toContain('[NEW]');
     expect(prompt).toContain('[DELETE]');
-    expect(prompt).toContain('`diff`');
-    expect(prompt).toContain('`+ `');
-    expect(prompt).toContain('`- `');
+    expect(prompt).toContain('diff');
     expect(prompt).toContain('<details>');
-    expect(prompt).toContain('<summary>');
     expect(prompt).toContain('- [x]');
     expect(prompt).toContain('- [ ]');
-    expect(prompt).toContain('[!NOTE');
   });
 });
 

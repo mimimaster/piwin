@@ -5,7 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import type { ProductSessionLineageView } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
-import { SessionLineageHeaderPopover, SessionLineagePopover } from './session-lineage-popover';
+import { SessionLineagePopover } from './session-lineage-popover';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -132,72 +132,5 @@ describe('SessionLineagePopover', () => {
     container = rendered.container;
 
     expect(container.querySelector('[data-testid="response-session-tree-btn"]')).toBeNull();
-  });
-
-  it('keeps the header entry visible before the first branch exists', () => {
-    const rendered = renderPopover(
-      <SessionLineageHeaderPopover
-        lineage={null}
-        activeSessionId="root"
-        activeSessionName="Main conversation"
-        onOpenSession={() => undefined}
-        locale="en"
-      />,
-    );
-    root = rendered.root;
-    container = rendered.container;
-
-    const trigger = container.querySelector<HTMLButtonElement>(
-      '[data-testid="context-session-tree-btn"]',
-    );
-    expect(trigger).toBeTruthy();
-    expect(trigger?.textContent).toContain('Session tree');
-    expect(trigger?.textContent).toContain('1');
-    expect(trigger?.getAttribute('data-has-branches')).toBe('false');
-    if (!trigger) return;
-
-    act(() => {
-      trigger.click();
-    });
-
-    const popover = document.querySelector('[data-testid="session-lineage-popover"]');
-    expect(popover?.textContent).toContain('1 sessions · 0 branches');
-    expect(popover?.textContent).toContain('Main conversation');
-    expect(popover?.textContent).toContain('No branches yet');
-    expect(document.querySelector('[data-testid="session-lineage-empty"]')).toBeTruthy();
-  });
-
-  it('opens a related session from the persistent header tree', () => {
-    let selectedSessionId: string | null = null;
-    const rendered = renderPopover(
-      <SessionLineageHeaderPopover
-        lineage={createLineage()}
-        activeSessionId="root"
-        activeSessionName="Main conversation"
-        onOpenSession={(sessionId) => {
-          selectedSessionId = sessionId;
-        }}
-        locale="zh-CN"
-      />,
-    );
-    root = rendered.root;
-    container = rendered.container;
-
-    const trigger = container.querySelector<HTMLButtonElement>(
-      '[data-testid="context-session-tree-btn"]',
-    );
-    expect(trigger?.getAttribute('data-has-branches')).toBe('true');
-    act(() => {
-      trigger?.click();
-    });
-
-    const branch = document.querySelector<HTMLButtonElement>(
-      '[data-testid="session-lineage-node-branch"]',
-    );
-    expect(branch?.textContent).toContain('从此处分叉：A response to branch from');
-    act(() => {
-      branch?.click();
-    });
-    expect(selectedSessionId).toBe('branch');
   });
 });

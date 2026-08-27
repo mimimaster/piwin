@@ -94,18 +94,21 @@ export function useWorkbenchAppModel(args: UseWorkbenchAppModelArgs) {
     handleAbort: session.handleAbort,
   });
   // Capability is the only master switch. artifactCodeFirst is Inline-only and
-  // must not suppress explicit Canvas auto-reveal.
+  // must not be folded into `enabled`. Conversation and Project both auto-open
+  // the right Canvas as soon as `surface="canvas"` is parseable.
   useArtifactCanvasAutoReveal({
     activeSessionId: state.activeSessionId,
     messages: state.messages,
     enabled: host.config?.artifact?.enabled ?? true,
+    runTerminalKind: state.runTerminal.kind,
     onReveal: handleOpenArtifactCanvas,
+    onUpdate: host.artifactCanvas.openTarget,
     ...(host.config?.artifact?.maxBytes !== undefined
       ? { maxBytes: host.config.artifact.maxBytes }
       : {}),
   });
   const desktopContextMenuValue = useDesktopContextMenuValue({
-    projectPath: state.projectPath,
+    projectPath: host.fileBrowseRoot ?? state.projectPath,
     activeSessionId: state.activeSessionId,
     hostReady: state.hostReady,
     locale: chrome.desktopLocale,
@@ -137,6 +140,7 @@ export function useWorkbenchAppModel(args: UseWorkbenchAppModelArgs) {
     handleStartNewSession,
     handleOpenWorkspaceClick: session.handleOpenWorkspaceClick,
     handleAbort: session.handleAbort,
+    openSessionSearch: chrome.sessionListChrome.openSessionSearch,
   });
   const derived = useWorkbenchDerivedView({
     state,

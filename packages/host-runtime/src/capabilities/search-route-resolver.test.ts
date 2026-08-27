@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import type { ModelConfigEntry, WebConfig } from '@piwin/contracts';
 import {
   findReadyWebSearchDelegate,
-  formatSearchRouteCapabilityBrief,
   resolveNativeSearchAdapterSupport,
   resolveSearchRoute,
   shouldEnableNativeWebSearch,
@@ -178,23 +177,6 @@ describe('resolveSearchRoute', () => {
     expect(route.readiness.native.ready).toBe(true);
     expect(route.readiness.native.adapterCitationSupported).toBe(false);
     expect(route.issues.some((issue) => issue.includes('citation normalization'))).toBe(true);
-  });
-
-  it('formats a capability brief for the selected route', () => {
-    const native = resolveSearchRoute({
-      policy: 'native-only',
-      model: nativeModel(),
-      web: externalWeb(false),
-      adapter: adapterReady,
-    });
-    expect(formatSearchRouteCapabilityBrief(native)).toContain('provider-native');
-    const external = resolveSearchRoute({
-      policy: 'external-only',
-      model: { id: 'plain' },
-      web: externalWeb(true),
-      adapter: adapterReady,
-    });
-    expect(formatSearchRouteCapabilityBrief(external)).toContain('web_search');
   });
 });
 

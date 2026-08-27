@@ -19,7 +19,7 @@ export type TurnErrorCardProps = {
 };
 
 type ErrorClassification = {
-  category: 'provider' | 'quota' | 'context' | 'network' | 'execution' | 'unknown';
+  category: 'provider' | 'quota' | 'context' | 'stream' | 'network' | 'execution' | 'unknown';
   titleZh: string;
   titleEn: string;
   isKeyError?: boolean;
@@ -69,6 +69,23 @@ function classifyError(errorMessage: string): ErrorClassification {
       category: 'context',
       titleZh: '上下文长度超限',
       titleEn: 'Context Window Exceeded',
+    };
+  }
+
+  // A parsed model stream can stall while the proxy keeps the socket alive.
+  // This must beat the generic `timeout` → network rule because connectivity
+  // is not the failure being reported.
+  if (
+    lower.includes('stream idle') ||
+    lower.includes('idle timeout') ||
+    lower.includes('stream stalled') ||
+    lower.includes('tokens stopped arriving') ||
+    lower.includes('no model progress was received')
+  ) {
+    return {
+      category: 'stream',
+      titleZh: '模型输出中断',
+      titleEn: 'Model stream stalled',
     };
   }
 

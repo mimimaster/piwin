@@ -1,10 +1,17 @@
 import { lazy, Suspense, type ReactElement, type ReactNode } from 'react';
 import { Spinner } from '@piwin/ui-kit';
 
-export const DeferredSettingsPanel = lazy(async () => {
-  const module = await import('./SettingsPanel');
-  return { default: module.SettingsPanel };
-});
+/** Same specifier as React.lazy so Vite/Rollup emit one SettingsPanel chunk. */
+function loadSettingsPanel(): Promise<{ default: typeof import('./SettingsPanel').SettingsPanel }> {
+  return import('./SettingsPanel').then((module) => ({ default: module.SettingsPanel }));
+}
+
+export const DeferredSettingsPanel = lazy(loadSettingsPanel);
+
+/** Chromium-style warm of the Basic settings document before the click. */
+export function prefetchSettingsPanel(): Promise<unknown> {
+  return loadSettingsPanel();
+}
 
 export const DeferredKnowledgeCenterPanel = lazy(async () => {
   const module = await import('./KnowledgeCenterPanel');

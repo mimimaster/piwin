@@ -458,9 +458,9 @@
   transform: rotate(180deg);
 }
 
-/* ─── Send / stop / steer ─────────────────────────────────────────────
-   Send is the only solid iris fill in the shell. Stop replaces it in place
-   at the same size, so the primary action never moves. */
+/* ─── Send / pause / continue ─────────────────────────────────────────
+   One circular control. Send becomes Pause in place; Pause becomes Continue.
+   Never pair a second circle. Irreversible abort is Esc / stop-run. */
 
 .composer-v2-action-slot {
   position: relative;
@@ -496,11 +496,10 @@
   background: var(--iris-fill);
   color: var(--on-iris);
   cursor: pointer;
-  box-shadow: var(--elev-1);
+  box-shadow: none;
   flex-shrink: 0;
   transition:
     background-color var(--t-1) var(--ease-out),
-    box-shadow var(--t-2) var(--ease-out),
     transform var(--t-1) var(--ease-out);
 }
 
@@ -510,9 +509,7 @@
 }
 
 .composer-v2-send-btn:hover:not(:disabled) {
-  box-shadow:
-    var(--elev-1),
-    0 0 0 4px var(--iris-wash);
+  background: var(--iris-press);
 }
 
 .composer-v2-send-btn:active:not(:disabled) {
@@ -525,6 +522,13 @@
   color: var(--text-4);
   box-shadow: none;
   cursor: default;
+}
+
+.composer-v2-send-btn:focus-visible,
+.composer-v2-stop-btn:focus-visible {
+  outline: 2px solid var(--iris);
+  outline-offset: 0;
+  border-radius: 50%;
 }
 
 .composer-v2-stop-btn {

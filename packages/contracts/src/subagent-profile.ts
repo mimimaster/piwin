@@ -72,10 +72,10 @@ export const BUILTIN_SUBAGENT_PROFILE_SUMMARIES: readonly {
   id: string;
   description: string;
 }[] = [
-  { id: 'explorer', description: 'Fast read-only codebase exploration' },
-  { id: 'reviewer', description: 'Read-only code review and analysis' },
-  { id: 'implementer', description: 'Isolated implementation with write and execute' },
-  { id: 'tester', description: 'Isolated test execution and fixture writes' },
+  { id: 'explorer', description: 'Read-only codebase exploration, symbol discovery, and evidence gathering' },
+  { id: 'reviewer', description: 'Read-only diff analysis, bug finding, and code review' },
+  { id: 'implementer', description: 'Isolated code implementation with write and run permissions in a git worktree' },
+  { id: 'tester', description: 'Isolated test suite execution and test fixture generation in a git worktree' },
 ];
 
 /**

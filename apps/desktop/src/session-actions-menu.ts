@@ -16,6 +16,7 @@ export function sessionActionItems(options: {
   storageState?: 'local' | 'offloaded' | 'missing-pack';
   canExport?: boolean;
   canDuplicate?: boolean;
+  canForkChat?: boolean;
   canContinueInProject?: boolean;
 }): SessionActionItem[] {
   if (options.storageState === 'offloaded' || options.storageState === 'missing-pack') {
@@ -52,6 +53,9 @@ export function sessionActionItems(options: {
     ...(options.canDuplicate === false
       ? []
       : [{ action: 'duplicate' as const, label: 'Duplicate', testId: 'session-menu-duplicate' }]),
+    ...(options.canForkChat === false
+      ? []
+      : [{ action: 'fork-chat' as const, label: 'Fork Chat', testId: 'session-menu-fork-chat' }]),
     ...(options.canContinueInProject === false
       ? []
       : [

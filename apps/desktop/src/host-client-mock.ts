@@ -340,6 +340,7 @@ export class MockHostBackend {
             ready: true,
             mock: true,
             piwinRoot: '~/.piwin',
+            generalWorkspacePath: '~/.piwin/workspace',
             activeSessionIds: [...this.sessions.keys()],
             capabilities: {
               customTools: true,
@@ -524,6 +525,38 @@ export class MockHostBackend {
       case 'project/read-file': {
         const relativePath = (command.relativePath ?? '').replace(/^\/+|\/+$/g, '');
         const absolutePath = `${command.projectPath.replace(/\/+$/, '')}/${relativePath}`;
+        const lowerName = relativePath.toLowerCase();
+        if (/\.(png|jpe?g|gif|webp|bmp|ico|avif|svg)$/.test(lowerName)) {
+          const mimeHint = lowerName.endsWith('.svg')
+            ? 'image/svg+xml'
+            : lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg')
+              ? 'image/jpeg'
+              : lowerName.endsWith('.gif')
+                ? 'image/gif'
+                : lowerName.endsWith('.webp')
+                  ? 'image/webp'
+                  : 'image/png';
+          // 1×1 transparent PNG — enough for the file-tree image stage to mount.
+          const previewDataUrl =
+            'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+          return {
+            id,
+            type: 'response',
+            command: 'project/read-file',
+            success: true,
+            data: {
+              projectPath: command.projectPath,
+              relativePath,
+              absolutePath,
+              content: '',
+              byteSize: 68,
+              truncated: false,
+              isBinary: !lowerName.endsWith('.svg'),
+              mimeHint,
+              previewDataUrl,
+            },
+          };
+        }
         const content = [
           `// mock preview of ${relativePath}`,
           'export function hello() {',
@@ -3645,9 +3678,19 @@ export class MockHostBackend {
           };
         }
         const visibleSource = visibleMockTranscript(session);
-        const messageIndex = visibleSource.findIndex(
-          (message) => message.id === command.messageId,
-        );
+        let messageIndex =
+          command.messageId === undefined
+            ? -1
+            : visibleSource.findIndex((message) => message.id === command.messageId);
+        if (command.messageId === undefined) {
+          for (let index = visibleSource.length - 1; index >= 0; index -= 1) {
+            const candidate = visibleSource[index];
+            if (candidate?.role === 'assistant' && candidate.status === 'done') {
+              messageIndex = index;
+              break;
+            }
+          }
+        }
         if (messageIndex === -1) {
           return {
             id,
@@ -3711,7 +3754,7 @@ export class MockHostBackend {
           rootSessionId,
           sourceSessionId: command.sessionId,
           ...(session.name ? { sourceSessionNameSnapshot: session.name } : {}),
-          sourceMessageId: command.messageId,
+          sourceMessageId: sourceMessage.id,
           sourceMessageRole: 'assistant',
           sourceMessagePreview: sourceMessage.text.slice(0, 200),
           sourceMessageCreatedAt: sourceMessage.createdAt,

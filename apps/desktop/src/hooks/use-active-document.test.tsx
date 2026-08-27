@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { HostClient } from '../host-client';
 import { useActiveDocument } from './use-active-document';
+import type { DocumentContentMessage } from '../resolve-document-content';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -142,14 +143,20 @@ describe('useActiveDocument', () => {
   let latest: ReturnType<typeof useActiveDocument>;
   let reveal: ReturnType<typeof vi.fn>;
 
-  function renderHarness(client: HostClient): void {
+  function renderHarness(
+    client: HostClient,
+    options?: {
+      projectPath?: string | null;
+      messages?: readonly DocumentContentMessage[];
+    },
+  ): void {
     const Harness = () => {
       latest = useActiveDocument({
         hostClient: client,
         revealPreview: reveal,
         activeSessionId: 'session-1',
-        projectPath: '/workspace',
-        messages: [],
+        projectPath: options?.projectPath === undefined ? '/workspace' : options.projectPath,
+        messages: options?.messages ?? [],
       });
       return null;
     };
@@ -168,6 +175,41 @@ describe('useActiveDocument', () => {
     container = null;
     reveal = vi.fn();
     latest = undefined as unknown as ReturnType<typeof useActiveDocument>;
+  });
+
+  it('previews a `.svg` chip from the transcript instead of outside-project', async () => {
+    reveal = vi.fn();
+    const svg = '<svg viewBox="0 0 100 60"><circle cx="50" cy="30" r="20" /></svg>';
+    const { client, request } = createHostClientFake();
+    renderHarness(client, {
+      projectPath: null,
+      messages: [
+        {
+          text: [
+            '2D 鹈鹕 SVG 生成',
+            '',
+            '```svg',
+            svg,
+            '```',
+            '',
+            '你可以直接将这段 SVG 保存为 `.svg` 文件在浏览器中打开查看。',
+          ].join('\n'),
+        },
+      ],
+    });
+
+    await act(async () => {
+      latest.openDocument({ title: '.svg', path: '.svg' });
+    });
+
+    expect(request).not.toHaveBeenCalled();
+    expect(latest.activeDocument?.status).toBe('ready');
+    if (latest.activeDocument?.status === 'ready') {
+      expect(latest.activeDocument.title).toBe('SVG');
+      expect(latest.activeDocument.content).toBe(svg);
+      expect(latest.activeDocument.provenance).toBe('transcript');
+      expect(latest.activeDocument.filePath).toBe('.svg');
+    }
   });
 
   it('opens media vault paths as ready session-media without any host read', async () => {

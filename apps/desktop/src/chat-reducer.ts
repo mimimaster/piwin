@@ -1,5 +1,6 @@
 import { isPlaceholderSessionName } from './title-display';
 import { isAssistantContentEmpty } from './assistant-message-content';
+import { looksLikeControlledAbortErrorMessage } from './controlled-abort-error.js';
 import type {
   AgentEvent,
   AgentEventEnvelope,
@@ -31,6 +32,7 @@ import type {
 } from '@piwin/contracts';
 import type { SessionOutlineNode } from '@piwin/contracts';
 import {
+  isRunTerminal,
   mergeSearchEvidence,
   SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS,
   shouldAcceptContextUsage,
@@ -377,6 +379,12 @@ export type ChatUiState = {
     parentSessionId?: string;
   } | null;
   /**
+   * Bumped when the sidebar locally admits a listable row (first-send title /
+   * session/add). In-flight session/list hydrates capture the epoch at start
+   * and are ignored if it changed before they apply.
+   */
+  sessionListMutationEpoch: number;
+  /**
    * idle | streaming | pausing | aborting — explicit live-control feedback.
    * `streaming` remains true during both control transitions so existing guards keep working.
    */
@@ -447,9 +455,9 @@ export type ChatUiState = {
    */
   walkthroughsByMessageId: Record<string, WalkthroughArtifact>;
   /**
-   * Session IDs that currently have an active run (streaming / tool-running).
-   * Survives session switches so the sidebar can show a working indicator
-   * on sessions that are running in the background.
+   * Background sessions with an in-progress session-turn. The open session's
+   * spinner is derived from runPhase === 'streaming', not this map, so an
+   * idle composer cannot keep spinning.
    */
   workingSessionIds: Record<string, true>;
   /**
@@ -458,6 +466,12 @@ export type ChatUiState = {
    * opens the session (or the marker is cleared explicitly).
    */
   completedAttentionSessionIds: Record<string, true>;
+  /**
+   * Composer model for the in-flight turn. Used when Host omits
+   * `message/start.model` so Conversation can keep the provider avatar after
+   * the row leaves streaming (livePromptModel no longer applies).
+   */
+  pendingTurnModel: ModelRef | null;
 };
 
 export type ChatUiAction =
@@ -477,6 +491,8 @@ export type ChatUiAction =
       totalCount: number;
       truncated: boolean;
       fillActiveList?: boolean;
+      /** Epoch captured when the Host list request started. */
+      mutationEpoch?: number;
     }
   | {
       type: 'session/hydrate-project';
@@ -544,6 +560,12 @@ export type ChatUiAction =
       clientMessageId?: string;
       /** Skill selected by the composer, if this prompt used `/skill`. */
       skill?: SkillActivityView;
+      /**
+       * Composer model for this turn. Stamped onto assistant rows when Host
+       * omits `message/start.model`, so Conversation keeps the avatar after
+       * streaming ends (livePromptModel no longer applies to completed rows).
+       */
+      model?: ModelRef;
     }
   | {
       type: 'user/steer';
@@ -667,6 +689,7 @@ export function createInitialChatUiState(): ChatUiState {
     awaitingTranscript: false,
     transcriptOwnerSessionId: null,
     activeSessionMetadata: null,
+    sessionListMutationEpoch: 0,
     runPhase: 'idle',
     /**
      * Host-owned selected-session admission. Send/run controls stay off while
@@ -704,6 +727,7 @@ export function createInitialChatUiState(): ChatUiState {
     walkthroughsByMessageId: {},
     workingSessionIds: {},
     completedAttentionSessionIds: {},
+    pendingTurnModel: null,
   };
 }
 
@@ -756,9 +780,7 @@ export function mapTranscriptMessagesToUi(
         : (message.text ?? ''),
     thinking: message.thinking ?? '',
     tools: (message.tools ?? []).map((tool) => {
-      const output = createBoundedToolOutput(
-        tool.presentation?.output?.text ?? tool.output ?? '',
-      );
+      const output = createBoundedToolOutput(tool.presentation?.output?.text ?? tool.output ?? '');
       return {
         toolCallId: tool.toolCallId,
         toolName: tool.toolName,
@@ -790,9 +812,7 @@ export function mapTranscriptMessagesToUi(
       ? { thinkingEndedAt: parseEventTime(message.thinkingEndedAt) }
       : {}),
     ...(message.subagentActivity ? { subagentActivity: message.subagentActivity } : {}),
-    ...(message.instructionDelivery
-      ? { instructionDelivery: message.instructionDelivery }
-      : {}),
+    ...(message.instructionDelivery ? { instructionDelivery: message.instructionDelivery } : {}),
     ...(message.docCardSequence ? { docCardSequence: message.docCardSequence } : {}),
     ...(message.contextRefs && message.contextRefs.length > 0
       ? { contextRefs: message.contextRefs }
@@ -839,7 +859,11 @@ export function calculateUtf8ByteLength(text: string): number {
  * later append is a constant-time no-op — the head is kept and marked.
  */
 export function appendBoundedLiveText(
-  accumulator: { text: string; retainedBytes?: number | undefined; truncated?: boolean | undefined },
+  accumulator: {
+    text: string;
+    retainedBytes?: number | undefined;
+    truncated?: boolean | undefined;
+  },
   delta: string,
   options: BoundedTextAccumulatorOptions,
 ): BoundedTextAccumulator {
@@ -867,10 +891,7 @@ function collectLiveTranscriptMessageIds(
 
   // 1. Retain any message actively streaming or running a tool
   for (const message of messages) {
-    if (
-      message.status === 'streaming' ||
-      message.tools.some((tool) => tool.status === 'running')
-    ) {
+    if (message.status === 'streaming' || message.tools.some((tool) => tool.status === 'running')) {
       liveIds.add(message.id);
     }
   }
@@ -999,11 +1020,9 @@ function enforceBoundedTranscriptWindow(state: ChatUiState): ChatUiState {
   };
 }
 
-function refreshActiveSessionMetadata(
-  state: ChatUiState,
-  next: Partial<ChatUiState>,
-): ChatUiState {
-  const activeSessionId = next.activeSessionId !== undefined ? next.activeSessionId : state.activeSessionId;
+function refreshActiveSessionMetadata(state: ChatUiState, next: Partial<ChatUiState>): ChatUiState {
+  const activeSessionId =
+    next.activeSessionId !== undefined ? next.activeSessionId : state.activeSessionId;
   if (activeSessionId === null) {
     return { ...state, ...next, activeSessionMetadata: null };
   }
@@ -1067,6 +1086,8 @@ function owningScopeFromLists(state: ChatUiState, sessionId: string): SessionSco
   return null;
 }
 
+
+
 function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiState {
   switch (action.type) {
     case 'scope/set':
@@ -1085,9 +1106,8 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         activeScope: action.scope,
         // Switching scope clears the visible session list; hydrate reloads it.
         sessions: [],
-        activeSessionId: null,
-        // The painted transcript is gone; a stale owner would make the
-        // duplicate/fork/retry guards misfire on sidebar actions.
+        // Keep the live session identity so composer snapshots see A→B, not
+        // a fake New Agent gap. Transcript paint is cleared below.
         transcriptOwnerSessionId: null,
         messages: [],
         transcriptWindow: null,
@@ -1118,8 +1138,8 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         trustDialogOpen: !action.trusted,
         // A project owns its own history. Do not leave another project's rows or
         // transcript visible while the new project's session index is loading.
+        // Keep activeSessionId: composer must not treat this as New Agent.
         sessions: [],
-        activeSessionId: null,
         transcriptOwnerSessionId: null,
         messages: [],
         transcriptWindow: null,
@@ -1151,7 +1171,6 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         projectTrusted: false,
         trustDialogOpen: false,
         sessions: [],
-        activeSessionId: null,
         transcriptOwnerSessionId: null,
         messages: [],
         transcriptWindow: null,
@@ -1221,8 +1240,7 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
       // 2) cold + awaiting → keep previous rows under a loading banner (no empty flash)
       // 3) else → empty
       // Stream events stay ignored while awaitingTranscript is true.
-      const keepPreviousWhileLoading =
-        !warmHit && awaitingTranscript && state.messages.length > 0;
+      const keepPreviousWhileLoading = !warmHit && awaitingTranscript && state.messages.length > 0;
       // Owner follows the painted rows: new session for fresh/warm paint,
       // the previous owner while old rows stay visible under the loading banner.
       const transcriptOwnerSessionId =
@@ -1234,6 +1252,7 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         ...state,
         activeSessionId: action.sessionId,
         warmSessionCache,
+        pendingTurnModel: switchingAway ? null : state.pendingTurnModel,
         messages: preserveOptimisticDraftSend
           ? state.messages
           : warmHit
@@ -1365,14 +1384,12 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         // response may resolve before load-messages is dispatched — clearing
         // here would wipe the freshly-hydrated map.
         // `live` means the session handle can accept a future prompt, not that
-        // a prompt is currently running. Keep the marker only when the active
-        // Run projection already proves that this session is working.
+        // a prompt is currently running. Drop a leftover sidebar spinner unless
+        // this hydration is keeping a confirmed or still-streaming run.
         workingSessionIds:
-          action.live === false && !hasConfirmedActiveRun
-            ? removeWorkingSessionId(state.workingSessionIds, action.sessionId)
-            : hasConfirmedActiveRun
-              ? { ...state.workingSessionIds, [action.sessionId]: true }
-              : { ...state.workingSessionIds },
+          hasConfirmedActiveRun || (preserveRunProjection && state.streaming)
+            ? { ...state.workingSessionIds, [action.sessionId]: true }
+            : removeWorkingSessionId(state.workingSessionIds, action.sessionId),
       };
     }
     case 'session/prepend-messages': {
@@ -1486,6 +1503,10 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
             ? { ...state.projectSessionsByPath, [projectPath]: nextSessionsForPath }
             : state.projectSessionsByPath,
         sessionListScopes: nextSessionListScopes,
+        sessionListMutationEpoch:
+          listable && !alreadyKnown
+            ? state.sessionListMutationEpoch + 1
+            : state.sessionListMutationEpoch,
         activeSessionId: action.sessionId,
         messages: [],
         transcriptWindow: null,
@@ -1525,6 +1546,15 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
       };
     }
     case 'session/hydrate-scope': {
+      // Drop hydrates that started before a local sidebar admit (first-send
+      // name upsert). Otherwise a stale session/list replace erases the live row
+      // while activeSessionId is intentionally preserved.
+      if (
+        action.mutationEpoch !== undefined &&
+        action.mutationEpoch !== state.sessionListMutationEpoch
+      ) {
+        return state;
+      }
       const listable = dedupeSessionsById(
         action.sessions.filter((session) => !isPlaceholderSessionName(session.name)),
       );
@@ -1634,16 +1664,30 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
       // Resolve ownership from the session itself first, then from whichever
       // sidebar list already tracks it. Never invent ownership from activeScope
       // alone — that is what dual-listed project rows into Conversations.
+      const existingForMerge =
+        state.sessions.find((session) => session.id === action.session.id) ??
+        state.generalSessions.find((session) => session.id === action.session.id) ??
+        Object.values(state.projectSessionsByPath)
+          .flat()
+          .find((session) => session.id === action.session.id);
+      const existing = existingForMerge ?? {
+        id: action.session.id,
+        name: '',
+      };
+      // Partial index pushes (e.g. created with an empty name) must not erase a
+      // listable text/LLM title that already landed via name-updated.
+      const patch: SessionListItemUi =
+        Object.prototype.hasOwnProperty.call(action.session, 'name') &&
+        isPlaceholderSessionName(action.session.name) &&
+        !isPlaceholderSessionName(existing.name)
+          ? (() => {
+              const { name: _ignoredName, ...rest } = action.session;
+              return { ...rest, name: existing.name };
+            })()
+          : { ...action.session };
       const mergedForCheck = {
-        ...(state.sessions.find((session) => session.id === action.session.id) ??
-          state.generalSessions.find((session) => session.id === action.session.id) ??
-          Object.values(state.projectSessionsByPath)
-            .flat()
-            .find((session) => session.id === action.session.id) ?? {
-            id: action.session.id,
-            name: '',
-          }),
-        ...action.session,
+        ...existing,
+        ...patch,
       };
       const listable = !isPlaceholderSessionName(mergedForCheck.name);
       const knownInGeneral = state.generalSessions.some(
@@ -1680,14 +1724,14 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         shouldOwn: boolean,
       ): SessionListItemUi[] => {
         let next = list.map((session) =>
-          session.id === action.session.id ? { ...session, ...action.session } : session,
+          session.id === action.session.id ? { ...session, ...patch } : session,
         );
         if (shouldOwn && listable) {
           if (!next.some((session) => session.id === action.session.id)) {
             next.unshift({
-              ...action.session,
+              ...patch,
               id: action.session.id,
-              name: action.session.name ?? mergedForCheck.name,
+              name: patch.name ?? mergedForCheck.name,
             });
           }
         } else if (!shouldOwn || !listable) {
@@ -1729,6 +1773,10 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
       if (owningScope !== null && listable && !alreadyResident && !admitWithoutCounting) {
         nextSessionListScopes = adjustSessionListScopeTotal(nextSessionListScopes, owningScope, 1);
       }
+      const nextMutationEpoch =
+        listable && !alreadyResident
+          ? state.sessionListMutationEpoch + 1
+          : state.sessionListMutationEpoch;
 
       if (owningProjectPath != null) {
         const owned = state.projectSessionsByPath[owningProjectPath] ?? [];
@@ -1755,6 +1803,7 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
           generalSessions: nextGeneral,
           projectSessionsByPath: nextProjectSessionsByPath,
           sessionListScopes: nextSessionListScopes,
+          sessionListMutationEpoch: nextMutationEpoch,
         };
       }
       return {
@@ -1762,6 +1811,7 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         sessions: nextSessions,
         generalSessions: nextGeneral,
         sessionListScopes: nextSessionListScopes,
+        sessionListMutationEpoch: nextMutationEpoch,
       };
     }
     case 'session/remove': {
@@ -1908,6 +1958,7 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         streaming: false,
         error: null,
         activeSkill: null,
+        workingSessionIds: removeWorkingSessionId(state.workingSessionIds, action.sessionId),
         runRecordsById:
           action.clipBeforeMessageId !== undefined
             ? state.runRecordsById
@@ -1943,6 +1994,7 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         runTerminal: { kind: 'none' },
         error: null,
         activeSkill: action.skill ?? null,
+        pendingTurnModel: action.model ?? state.pendingTurnModel,
         workingSessionIds: state.activeSessionId
           ? { ...state.workingSessionIds, [state.activeSessionId]: true }
           : state.workingSessionIds,
@@ -1999,6 +2051,7 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
       return {
         ...state,
         messages: remainingMessages,
+        pendingTurnModel: shouldClearStreaming ? null : state.pendingTurnModel,
         ...(shouldClearStreaming
           ? {
               runPhase: 'idle' as const,
@@ -2007,6 +2060,10 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
               activeRunPhaseDetail: null,
               activeRunStartedAt: null,
               activeSkill: null,
+              workingSessionIds: removeWorkingSessionId(
+                state.workingSessionIds,
+                state.activeSessionId,
+              ),
             }
           : {}),
       };
@@ -2015,7 +2072,11 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
       return {
         ...state,
         runPhase: 'pausing',
-        streaming: true,
+        streaming: false,
+        workingSessionIds:
+          state.activeSessionId === null
+            ? state.workingSessionIds
+            : removeWorkingSessionId(state.workingSessionIds, state.activeSessionId),
       };
     case 'run/pause-failed':
       if (state.runPhase !== 'pausing') {
@@ -2025,12 +2086,20 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         ...state,
         runPhase: 'streaming',
         streaming: true,
+        workingSessionIds:
+          state.activeSessionId === null
+            ? state.workingSessionIds
+            : { ...state.workingSessionIds, [state.activeSessionId]: true },
       };
     case 'run/aborting':
       return {
         ...state,
         runPhase: 'aborting',
-        streaming: true,
+        streaming: false,
+        workingSessionIds:
+          state.activeSessionId === null
+            ? state.workingSessionIds
+            : removeWorkingSessionId(state.workingSessionIds, state.activeSessionId),
       };
     case 'run/abort-failed':
       if (state.runPhase !== 'aborting') {
@@ -2041,6 +2110,10 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         ...state,
         runPhase: 'streaming',
         streaming: true,
+        workingSessionIds:
+          state.activeSessionId === null
+            ? state.workingSessionIds
+            : { ...state.workingSessionIds, [state.activeSessionId]: true },
       };
     case 'run/accepted':
       if (state.activeRunId !== null && state.activeRunId !== action.runId) {
@@ -2074,7 +2147,9 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
     case 'foreground/admission':
       return { ...state, foregroundAdmission: action.admission };
     case 'run/updated':
-      if (state.activeSessionId !== action.run.sessionId) return state;
+      if (state.activeSessionId !== action.run.sessionId) {
+        return applyBackgroundSessionTurnWorkingMarker(state, action.run);
+      }
       return applyRunRecord(state, action.run, false);
     case 'run/terminal':
       if (state.activeSessionId !== action.run.sessionId) {
@@ -2178,7 +2253,9 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         ...state,
         queuedTurnsBySession: {
           ...state.queuedTurnsBySession,
-          [action.sessionId]: [...action.queuedTurns].sort((left, right) => left.sequence - right.sequence),
+          [action.sessionId]: [...action.queuedTurns].sort(
+            (left, right) => left.sequence - right.sequence,
+          ),
         },
         queuedTurnQueueRevisions: {
           ...state.queuedTurnQueueRevisions,
@@ -2192,9 +2269,7 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
       const existing = current.find((item) => item.queuedTurnId === queuedTurn.queuedTurnId);
       if (existing && existing.revision > queuedTurn.revision) return state;
       const next = existing
-        ? current.map((item) =>
-            item.queuedTurnId === queuedTurn.queuedTurnId ? queuedTurn : item,
-          )
+        ? current.map((item) => (item.queuedTurnId === queuedTurn.queuedTurnId ? queuedTurn : item))
         : [...current, queuedTurn];
       let messages = state.messages;
       if (state.activeSessionId === queuedTurn.sessionId) {
@@ -2204,13 +2279,14 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         const previous = messageIndex >= 0 ? state.messages[messageIndex] : undefined;
         if (previous !== undefined) {
           const targetRunId = queuedTurn.startedRunId ?? queuedTurn.replaceRunId;
-          const instructionDelivery: NonNullable<SessionTranscriptMessage['instructionDelivery']> = {
-            kind: 'queued-turn',
-            instructionId: queuedTurn.queuedTurnId,
-            status: queuedTurn.status,
-            revision: queuedTurn.revision,
-            ...(targetRunId ? { targetRunId } : {}),
-          };
+          const instructionDelivery: NonNullable<SessionTranscriptMessage['instructionDelivery']> =
+            {
+              kind: 'queued-turn',
+              instructionId: queuedTurn.queuedTurnId,
+              status: queuedTurn.status,
+              revision: queuedTurn.revision,
+              ...(targetRunId ? { targetRunId } : {}),
+            };
           messages = [...state.messages];
           messages[messageIndex] = {
             ...previous,
@@ -2601,9 +2677,7 @@ function finishCurrentSubagentSegment(stream: SubagentStreamState): SubagentStre
   const { searchEvidence: _droppedEvidence, ...streamWithoutEvidence } = stream;
   return {
     ...streamWithoutEvidence,
-    completedSegments: [...stream.completedSegments, segment].slice(
-      -MAX_SUBAGENT_STREAM_SEGMENTS,
-    ),
+    completedSegments: [...stream.completedSegments, segment].slice(-MAX_SUBAGENT_STREAM_SEGMENTS),
     completionRevision: stream.completionRevision + 1,
     text: '',
     textRetainedBytes: 0,
@@ -2856,9 +2930,7 @@ function applySubagentStreamEvent(
         outputTruncated: false,
         ...(event.presentation ? { presentation: event.presentation } : {}),
         ...(event.runId ? { runId: event.runId } : {}),
-        ...(event.responseMessageId
-          ? { responseMessageId: event.responseMessageId }
-          : {}),
+        ...(event.responseMessageId ? { responseMessageId: event.responseMessageId } : {}),
       };
       // Causal order delivers a message's tools after its message/end. When
       // the owning response is already a completed segment, the tool belongs
@@ -2907,9 +2979,7 @@ function applySubagentStreamEvent(
             outputTruncated: output.truncated,
             ...(event.presentation ? { presentation: event.presentation } : {}),
             ...(event.runId ? { runId: event.runId } : {}),
-            ...(event.responseMessageId
-              ? { responseMessageId: event.responseMessageId }
-              : {}),
+            ...(event.responseMessageId ? { responseMessageId: event.responseMessageId } : {}),
           };
         });
       const updated = patchSubagentToolWherever(existing, event.toolCallId, applyUpdate);
@@ -2927,9 +2997,7 @@ function applySubagentStreamEvent(
                 status: (event.isError ? 'error' : 'done') as 'done' | 'error',
                 ...(event.presentation ? { presentation: event.presentation } : {}),
                 ...(event.runId ? { runId: event.runId } : {}),
-                ...(event.responseMessageId
-                  ? { responseMessageId: event.responseMessageId }
-                  : {}),
+                ...(event.responseMessageId ? { responseMessageId: event.responseMessageId } : {}),
               }
             : t,
         );
@@ -3100,6 +3168,85 @@ function removeWorkingSessionId(
   return removeSessionIdMarker(working, sessionId);
 }
 
+/**
+ * Background `run/updated` must not paint another session's transcript, but it
+ * still owns the sidebar spinner. Host may publish a terminal-shaped update
+ * without a following `run/terminal` after the user has already switched away.
+ */
+function applyBackgroundSessionTurnWorkingMarker(
+  state: ChatUiState,
+  run: ExecutionRunRecord,
+): ChatUiState {
+  if (run.kind !== 'session-turn') {
+    return state;
+  }
+  const stopWorking =
+    isRunTerminal(run.status) || run.status === 'cancelling' || run.phase === 'pausing';
+  if (stopWorking) {
+    const nextWorking = removeWorkingSessionId(state.workingSessionIds, run.sessionId);
+    const shouldMarkCompletedAttention = run.status === 'completed' || run.status === 'failed';
+    const nextAttention: Record<string, true> = shouldMarkCompletedAttention
+      ? { ...state.completedAttentionSessionIds, [run.sessionId]: true }
+      : removeSessionIdMarker(state.completedAttentionSessionIds, run.sessionId);
+    if (
+      nextWorking === state.workingSessionIds &&
+      nextAttention === state.completedAttentionSessionIds
+    ) {
+      return state;
+    }
+    return {
+      ...state,
+      workingSessionIds: nextWorking,
+      completedAttentionSessionIds: nextAttention,
+    };
+  }
+  if (run.status !== 'queued' && run.status !== 'running') {
+    return state;
+  }
+  if (run.sessionId in state.workingSessionIds) {
+    return state;
+  }
+  return {
+    ...state,
+    workingSessionIds: { ...state.workingSessionIds, [run.sessionId]: true },
+  };
+}
+
+/**
+ * Pause/Stop stay sticky until Host terminals the Run or the request fails.
+ * Later live events (message/start, message/end, still-running run/updated)
+ * must not put the sidebar spinner or "thinking" chrome back on.
+ */
+function isUserControlInFlight(state: ChatUiState): boolean {
+  return (
+    state.runPhase === 'pausing' ||
+    state.runPhase === 'aborting' ||
+    state.activeRunPhase === 'pausing'
+  );
+}
+
+/**
+ * Prefer the in-flight turn model, then the active session list row. Host
+ * should also enrich `message/start`; these fallbacks keep Conversation's
+ * provider avatar after streaming when that enrichment is missing.
+ */
+function resolveAssistantModelFallback(state: ChatUiState): ModelRef | undefined {
+  if (state.pendingTurnModel) {
+    return state.pendingTurnModel;
+  }
+  const sessionId = state.activeSessionId;
+  if (sessionId === null) return undefined;
+  const fromLists =
+    state.sessions.find((session) => session.id === sessionId)?.model ??
+    state.generalSessions.find((session) => session.id === sessionId)?.model;
+  if (fromLists) return fromLists;
+  for (const sessions of Object.values(state.projectSessionsByPath)) {
+    const match = sessions.find((session) => session.id === sessionId)?.model;
+    if (match) return match;
+  }
+  return undefined;
+}
+
 /** Pi ends the tool-call assistant row before tool/start. Keep it until the next answer. */
 function isEmptyAssistantPlaceholder(message: ChatMessageUi): boolean {
   return (
@@ -3110,9 +3257,7 @@ function isEmptyAssistantPlaceholder(message: ChatMessageUi): boolean {
   );
 }
 
-function withoutEmptyAssistantPlaceholders(
-  messages: readonly ChatMessageUi[],
-): ChatMessageUi[] {
+function withoutEmptyAssistantPlaceholders(messages: readonly ChatMessageUi[]): ChatMessageUi[] {
   return messages.filter((message) => !isEmptyAssistantPlaceholder(message));
 }
 
@@ -3131,6 +3276,8 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
         return state;
       }
       const resolvedRunId = event.runId ?? state.activeRunId ?? undefined;
+      const resolvedModel = event.model ?? resolveAssistantModelFallback(state);
+      const controlInFlight = isUserControlInFlight(state);
       const message: ChatMessageUi = {
         id: event.messageId,
         role: 'assistant',
@@ -3140,14 +3287,21 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
         attachments: [],
         status: 'streaming',
         ...(resolvedRunId ? { runId: resolvedRunId } : {}),
-        ...(event.model ? { model: event.model } : {}),
+        ...(resolvedModel ? { model: resolvedModel } : {}),
       };
       return enforceBoundedTranscriptWindow({
         ...state,
         messages: [...withoutEmptyAssistantPlaceholders(state.messages), message],
-        runPhase: 'streaming',
-        ...(event.runId ? { activeRunId: event.runId, activeRunPhase: 'streaming' as const } : {}),
-        streaming: true,
+        runPhase: controlInFlight ? state.runPhase : 'streaming',
+        ...(event.runId
+          ? {
+              activeRunId: event.runId,
+              activeRunPhase: controlInFlight
+                ? state.activeRunPhase
+                : ('streaming' as const),
+            }
+          : {}),
+        streaming: !controlInFlight,
         runTerminal: { kind: 'none' },
       });
     }
@@ -3248,9 +3402,16 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
       if (isStaleOptionalRunEvent(state, event.runId)) {
         return state;
       }
+      const fallbackModel = resolveAssistantModelFallback(state);
       const next = updateMessage(state, event.messageId, (message) => ({
         ...finishMessageThinking(message, Date.now()),
-        status: 'done',
+        status: 'done' as const,
+        // After streaming, Conversation stops using livePromptModel. If Host
+        // omitted the snapshot on message/start, keep the turn/session model
+        // so the provider avatar does not disappear on completion.
+        ...(message.model === undefined && fallbackModel !== undefined
+          ? { model: fallbackModel }
+          : {}),
       }));
       // Pi ends the Assistant row that carries a tool call before
       // tool_execution_start. Keep that empty row so tool/start can attach;
@@ -3260,11 +3421,20 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
         message.tools.some((tool) => tool.status === 'running'),
       );
       if (event.runId !== undefined || state.activeRunId !== null) {
+        const controlInFlight = isUserControlInFlight(state);
         return enforceBoundedTranscriptWindow({
           ...next,
-          activeRunPhase: hasRunningTool ? 'tool-running' : state.activeRunPhase ?? 'streaming',
-          runPhase: state.runPhase === 'idle' ? 'streaming' : state.runPhase,
-          streaming: true,
+          activeRunPhase: controlInFlight
+            ? state.activeRunPhase
+            : hasRunningTool
+              ? 'tool-running'
+              : (state.activeRunPhase ?? 'streaming'),
+          runPhase: controlInFlight
+            ? state.runPhase
+            : state.runPhase === 'idle'
+              ? 'streaming'
+              : state.runPhase,
+          streaming: !controlInFlight,
         });
       }
       return enforceBoundedTranscriptWindow({
@@ -3547,6 +3717,44 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
       {
         const errorMessage = event.message.trim() || 'Run failed';
         const targetRunId = event.runId ?? state.activeRunId ?? state.lastTerminalRunId;
+        const controlInFlight =
+          state.runPhase === 'pausing' ||
+          state.runPhase === 'aborting' ||
+          state.activeRunPhase === 'pausing';
+        // Provider abort acknowledgements during pause/stop must not become a
+        // failed toast or stamp the assistant row as error — Host run/terminal
+        // still owns paused/stopped. Always drop the sidebar spinner.
+        if (controlInFlight && looksLikeControlledAbortErrorMessage(errorMessage)) {
+          return {
+            ...state,
+            error: null,
+            streaming: false,
+            compacting: false,
+            activeSkill: null,
+            workingSessionIds: removeWorkingSessionId(
+              state.workingSessionIds,
+              state.activeSessionId,
+            ),
+          };
+        }
+        if (
+          !controlInFlight &&
+          looksLikeControlledAbortErrorMessage(errorMessage) &&
+          (state.streaming || state.activeRunId !== null)
+        ) {
+          return {
+            ...state,
+            error: null,
+            runPhase: 'aborting',
+            streaming: false,
+            compacting: false,
+            activeSkill: null,
+            workingSessionIds: removeWorkingSessionId(
+              state.workingSessionIds,
+              state.activeSessionId,
+            ),
+          };
+        }
         const failureProjection = markLatestAssistantFailure(
           state.messages,
           targetRunId,
@@ -3594,6 +3802,7 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
           compacting: false,
           activeSkill: null,
           runTerminal: { kind: 'failed', message: errorMessage, at: Date.now() },
+          workingSessionIds: removeWorkingSessionId(state.workingSessionIds, state.activeSessionId),
         };
       }
     default:
@@ -3602,10 +3811,11 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
 }
 
 function isStaleRunEvent(state: ChatUiState, runId: string): boolean {
-  return (
-    (state.activeRunId !== null && state.activeRunId !== runId) ||
-    (state.activeRunId === null && state.lastTerminalRunId === runId)
-  );
+  // Only drop frames that belong to a different live run. Trailing deltas
+  // for a run can sit in the paint buffer when `run/terminal` used to
+  // dispatch in the same JS turn; treating them as stale hid the whole reply
+  // until transcript hydrate dumped it.
+  return state.activeRunId !== null && state.activeRunId !== runId;
 }
 
 /** Reduce the authoritative top-level RunHostPush projection. */
@@ -3685,9 +3895,24 @@ function applyRunRecord(
     return { ...state, runRecordsById: records };
   }
   if (outcome === undefined) {
-    if (state.activeRunId !== null && state.activeRunId !== run.runId && run.status === 'cancelling') {
+    if (state.activeRunId === null && state.lastTerminalRunId === run.runId) {
       return { ...state, runRecordsById: records };
     }
+    if (
+      state.activeRunId !== null &&
+      state.activeRunId !== run.runId &&
+      run.status === 'cancelling'
+    ) {
+      return { ...state, runRecordsById: records };
+    }
+    // Pause and Stop both enter cancelling. Never revive the sidebar spinner or
+    // streaming chrome while control is in flight — later abort errors used to
+    // clear it, then a still-running run/updated put it right back before Host
+    // had acknowledged the pause.
+    const controlPending =
+      run.status === 'cancelling' ||
+      run.phase === 'pausing' ||
+      isUserControlInFlight(state);
     return {
       ...state,
       activeRunId: run.runId,
@@ -3695,15 +3920,17 @@ function applyRunRecord(
       activeRunPhaseDetail: run.phaseDetail ?? null,
       activeRunStartedAt: run.startedAt ? parseEventTime(run.startedAt) : state.activeRunStartedAt,
       runPhase:
-        run.phase === 'pausing'
+        run.phase === 'pausing' || state.runPhase === 'pausing'
           ? 'pausing'
-          : run.status === 'cancelling'
+          : run.status === 'cancelling' || state.runPhase === 'aborting'
             ? 'aborting'
             : 'streaming',
-      streaming: true,
+      streaming: !controlPending,
       lastTerminalRunId: null,
       runTerminal: { kind: 'none' },
-      workingSessionIds: { ...state.workingSessionIds, [run.sessionId]: true },
+      workingSessionIds: controlPending
+        ? removeWorkingSessionId(state.workingSessionIds, run.sessionId)
+        : { ...state.workingSessionIds, [run.sessionId]: true },
       runRecordsById: records,
     };
   }
@@ -3721,8 +3948,7 @@ function applyRunRecord(
   if (state.activeRunId === null && state.lastTerminalRunId === run.runId) {
     return state;
   }
-  const errorMessage =
-    outcome === 'failed' ? (run.error?.trim() || 'Run failed') : undefined;
+  const errorMessage = outcome === 'failed' ? run.error?.trim() || 'Run failed' : undefined;
   let messages = state.messages;
   if (errorMessage !== undefined) {
     const failureProjection = markLatestAssistantFailure(
@@ -3781,8 +4007,8 @@ function applyRunRecord(
     runPhase: 'idle',
     streaming: false,
     activeSkill: null,
-    permissionPrompt:
-      state.permissionPrompt?.runId === run.runId ? null : state.permissionPrompt,
+    pendingTurnModel: null,
+    permissionPrompt: state.permissionPrompt?.runId === run.runId ? null : state.permissionPrompt,
     error: outcome === 'failed' ? (run.error ?? 'Run failed') : state.error,
     runTerminal:
       outcome === 'paused'

@@ -4,7 +4,7 @@
  * Renders a compact card in the transcript instead of mounting an inline
  * ArtifactFrame. The user clicks "Open Canvas" to route the fence into the
  * right-side Canvas shell (ADR 0029). Streaming Canvas fences stay
- * source-only and are handled by MarkdownView before reaching this component.
+ * source-only in the transcript; the panel stream-previews via auto-reveal.
  */
 
 import { useState, type ReactElement } from 'react';

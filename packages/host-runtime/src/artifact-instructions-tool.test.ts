@@ -29,13 +29,14 @@ const SOURCE_OR_UI_STATE_MARKERS = [
 ] as const;
 
 describe('Artifact instruction loading', () => {
-  it('keeps the resident capability hint compact and requires at most one load per run', () => {
+  it('keeps the resident capability hint compact and loads instructions once per run', () => {
     const artifactConfig = config();
     const prompt = formatArtifactCapabilityPrompt(artifactConfig);
 
-    expect(prompt).toContain('## Artifact capability');
+    expect(prompt).toContain('<artifact_policy>');
+    expect(prompt).toContain('</artifact_policy>');
     expect(prompt).toContain(ARTIFACT_INSTRUCTIONS_TOOL_NAME);
-    expect(prompt).toContain('at most one load per run');
+    expect(prompt).toContain('invoke `artifact_instructions` once');
     expect(prompt).not.toContain('## HTML Artifact Runtime Contract');
     expect(prompt).not.toContain('## Artifact Decision Policy');
     expect(prompt?.length).toBeLessThan(600);
@@ -47,9 +48,10 @@ describe('Artifact instruction loading', () => {
       config({ decisionPrompt: { mode: 'custom', customPrompt: 'private custom sentinel' } }),
     );
 
+    expect(prompt).toContain('<artifact_policy>');
     expect(prompt).toContain('A custom Artifact decision policy is configured');
     expect(prompt).not.toContain('private custom sentinel');
-    expect(prompt).toContain('at most one load per run');
+    expect(prompt).toContain('invoke `artifact_instructions` once');
   });
 
   it('preserves explicit-only routing and disappears when disabled', () => {
@@ -106,7 +108,7 @@ describe('artifact_instructions golden', () => {
     }
     expect(result.output).toBe(formatArtifactInstructions(artifactConfig));
     expect(result.output).toContain(formatArtifactProtocol());
-    expect(result.output).toContain('## Artifact Decision Policy');
+    expect(result.output).toContain('## Decision Criteria');
     expect(result.output).toContain('## HTML Artifact Runtime Contract');
     expect(result.output).toContain('```artifact-html');
     expect(result.output.split('## HTML Artifact Runtime Contract')).toHaveLength(2);

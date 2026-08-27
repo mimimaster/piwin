@@ -25,12 +25,17 @@ ADRs: [0005](./adr/0005-artifact-and-media.md), [0029](./adr/0029-artifact-surfa
   repairs (stream sanitization, theme contract) apply to `renderSource` only;
   copy/export use original model source.
 - **Code-first is Inline-only.** Explicit `surface="canvas"` still auto-reveals
-  once on live completion when capability is on.
+  on a live message when capability is on (as soon as the opening fence is
+  parseable; later tokens update the same target).
 - **Streaming:** ordinary code and Mermaid stay source. Native `html`/`htm`/`svg`
   and explicit Inline HTML/SVG may stream-preview in one sandbox iframe from
   the first recognizable fence; identity is sticky
-  (`<messageId>-artifact-<ordinal>`). Canvas launchers stay source while
-  streaming.
+  (`<messageId>-artifact-<ordinal>`). Canvas fences stay source in the
+  transcript; the right Canvas panel stream-previews the same fence. Visible
+  projection advances only at completed element boundaries after a complete
+  style foundation. CSS-dependent prefixes otherwise show a preparing state;
+  a large CSS-late unlock uses a bounded stable-prefix replay, never raw
+  unstyled DOM.
 - **16 384 px overflow:** Inline flow that exceeds the defensive ceiling
   enters `inline-overflow` (host-owned viewport + hint). No silent crop.
 - **Flashcards:** structured `FlashcardDisplayPayload` in tool presentation.
@@ -154,7 +159,7 @@ apps/desktop UI adapter (React/WebView)
 | Ordinary code | Always source + Copy |
 | Explicit `artifact-html` | RenderIntent; compatible Inline may auto-preview when capability is on and code-first is off |
 | Native `html`/`svg` | Same default Inline path as explicit Artifact when capability is on; `artifactCodeFirst` keeps source-first |
-| Canvas | Explicit `surface="canvas"` launcher; auto-reveal on live complete |
+| Canvas | Explicit `surface="canvas"` launcher; live panel stream-preview |
 
 ---
 
@@ -268,7 +273,8 @@ amendments are superseded by the convergence plan. Current contract:
   `declaration`. Both compatible declarations use the default Inline path;
   `artifactCodeFirst` is the sole source-first preference for Inline.
 - Full documents and viewport-coupled source use `inline-viewport` in the
-  transcript; explicit `surface="canvas"` auto-reveals once on live completion.
+  transcript; explicit `surface="canvas"` auto-opens the live Canvas panel and
+  stream-previews until a successful completion.
 - Canvas has no Inline height bridge. Sandboxed Inline observes one root
   rectangle and emits one revisioned size stream. Overflow above 16 384 px
   switches to `inline-overflow` with a host-owned viewport — content is not

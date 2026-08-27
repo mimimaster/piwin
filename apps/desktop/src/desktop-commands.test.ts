@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  commandAvailability,
-  filterDesktopCommands,
-} from './desktop-commands';
+import { commandAvailability, filterDesktopCommands } from './desktop-commands';
 
 describe('desktop-commands', () => {
   it('filters by tokens', () => {
@@ -30,14 +27,13 @@ describe('desktop-commands', () => {
     }
   });
 
-  it('blocks session switching without a project', () => {
+  it('keeps session search available for General conversations without a project', () => {
     const availability = commandAvailability('search-sessions', {
       hasProject: false,
       projectTrusted: false,
       hasActiveSession: false,
     });
-    expect(availability.available).toBe(false);
-    expect(availability.reason).toMatch(/workspace/i);
+    expect(availability).toEqual({ available: true });
   });
 
   it('exposes Open Activity not dock wording', () => {

@@ -45,7 +45,7 @@ export function AssistantResponseActions(
 
   const copyLabel = props.locale === 'zh-CN' ? '复制消息内容' : 'Copy message';
   const regenerateLabel = props.locale === 'zh-CN' ? '再生成' : 'Regenerate';
-  const forkLabel = props.locale === 'zh-CN' ? '从此处分叉' : 'Fork from here';
+  const forkLabel = props.locale === 'zh-CN' ? '分叉会话' : 'Fork Chat';
 
   async function handleCopyText(): Promise<void> {
     const textToCopy = props.messageText?.trim();

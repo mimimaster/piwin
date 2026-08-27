@@ -23,6 +23,7 @@ const VOID_TAGS = new Set([
 ]);
 
 const COMPLETE_SCRIPT_PATTERN = /<script\b[\s\S]*?<\/script\s*>/gi;
+const COMPLETE_STYLE_PATTERN = /<style\b[\s\S]*?<\/style\s*>/i;
 const TRAILING_INCOMPLETE_SCRIPT_PATTERN = /<script\b[\s\S]*$/i;
 const TRAILING_INCOMPLETE_STYLE_PATTERN = /<style\b(?:(?!<\/style>).)*$/is;
 const INLINE_EVENT_HANDLER_PATTERN = /\son[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi;
@@ -46,6 +47,7 @@ const GENERIC_STREAMABLE_TAGS = new Set([
   'canvas',
   'div',
 ]);
+const STREAM_REVEAL_IGNORED_BOUNDARY_TAGS = new Set(['style', 'script']);
 
 type TagEntry = {
   tag: string;
@@ -69,6 +71,24 @@ function sanitizeStreamingPreviewSource(source: string): string {
     .replace(UNSAFE_EMBED_PATTERN, '')
     .replace(INLINE_EVENT_HANDLER_PATTERN, '')
     .replace(JAVASCRIPT_URL_PATTERN, '$1=$2#$2');
+}
+
+/**
+ * A late stylesheet is safe to move ahead of fragment markup in preview mode.
+ * This gives every staged DOM prefix the same completed visual foundation.
+ * Full documents keep authored head/body order; the runtime protocol asks
+ * models to emit fragment CSS first, so this is a defensive fallback.
+ */
+function hoistFragmentStyleFoundation(source: string): string {
+  if (/<(?:!doctype|html|head|body)\b/i.test(source)) {
+    return source;
+  }
+  const styles: string[] = [];
+  const markup = source.replace(/<style\b[\s\S]*?<\/style\s*>/gi, (style) => {
+    styles.push(style);
+    return '';
+  });
+  return styles.length > 0 ? `${styles.join('\n')}${markup}` : source;
 }
 
 function findTagEnd(source: string, startIndex: number): number {
@@ -143,6 +163,32 @@ function* scanTags(source: string): Generator<TagEntry> {
   }
 }
 
+function hasInlineStyle(tag: string): boolean {
+  return /\sstyle\s*=\s*(?:"[^"]*"|'[^']*')/i.test(tag);
+}
+
+function hasClassName(tag: string): boolean {
+  return /\sclass\s*=\s*(?:"[^"]+"|'[^']+')/i.test(tag);
+}
+
+/**
+ * Class-driven markup without a completed stylesheet has no stable visual
+ * meaning. Models sometimes emit the whole DOM and append CSS afterwards;
+ * exposing that prefix paints a raw document flow that later collapses into
+ * an unrelated scene. Inline-styled nodes remain independently renderable.
+ */
+function findMissingStyleFoundationIndex(source: string): number | null {
+  if (COMPLETE_STYLE_PATTERN.test(source)) {
+    return null;
+  }
+  for (const tag of scanTags(source)) {
+    if (!tag.isClosing && hasClassName(tag.tag) && !hasInlineStyle(tag.tag)) {
+      return tag.position;
+    }
+  }
+  return null;
+}
+
 function buildSyntheticClosers(openTagStack: string[]): string {
   return openTagStack
     .slice()
@@ -151,10 +197,7 @@ function buildSyntheticClosers(openTagStack: string[]): string {
     .join('');
 }
 
-function buildPreviewFromSafePrefix(
-  source: string,
-  safeEndIndex: number,
-): StreamablePreviewResult {
+function buildPreviewFromSafePrefix(source: string, safeEndIndex: number): StreamablePreviewResult {
   const previewPrefix = source.slice(0, safeEndIndex);
   let openTagStack: string[] = [];
 
@@ -189,12 +232,18 @@ export function buildStreamableArtifactPreview(source: string): StreamablePrevie
     return { canStream: false, previewSource: source };
   }
 
-  const sanitizedSource = sanitizeStreamingPreviewSource(source);
+  const sanitizedSource = hoistFragmentStyleFoundation(sanitizeStreamingPreviewSource(source));
   if (!sanitizedSource.trim()) {
     return { canStream: false, previewSource: sanitizedSource };
   }
 
-  if (!GENERIC_STREAMABLE_STRUCTURE_PATTERN.test(sanitizedSource)) {
+  const missingStyleFoundationIndex = findMissingStyleFoundationIndex(sanitizedSource);
+  const stableCandidateSource =
+    missingStyleFoundationIndex === null
+      ? sanitizedSource
+      : sanitizedSource.slice(0, missingStyleFoundationIndex);
+
+  if (!GENERIC_STREAMABLE_STRUCTURE_PATTERN.test(stableCandidateSource)) {
     return { canStream: false, previewSource: sanitizedSource };
   }
 
@@ -202,7 +251,7 @@ export function buildStreamableArtifactPreview(source: string): StreamablePrevie
   let lastSafeEndIndex = -1;
   let hasStableStructure = false;
 
-  for (const tag of scanTags(sanitizedSource)) {
+  for (const tag of scanTags(stableCandidateSource)) {
     if (!tag.isClosing && GENERIC_STREAMABLE_TAGS.has(tag.tagName)) {
       hasStableStructure = true;
     }
@@ -226,24 +275,70 @@ export function buildStreamableArtifactPreview(source: string): StreamablePrevie
     }
 
     openTagStack.push(tag.tagName);
-    // A complete opening tag is a stable structural boundary. Its following
-    // plain text may stream, while a later unfinished tag remains hidden.
-    lastSafeEndIndex = tag.position + tag.tag.length;
   }
 
   if (!hasStableStructure || lastSafeEndIndex <= 0) {
     return { canStream: false, previewSource: sanitizedSource };
   }
 
-  // Text after the last complete tag is safe to reveal progressively. Stop at
-  // the next '<' because it starts markup whose closing '>' has not arrived.
-  const incompleteMarkupIndex = sanitizedSource.indexOf('<', lastSafeEndIndex);
-  const safeEndIndex =
-    incompleteMarkupIndex === -1 ? sanitizedSource.length : incompleteMarkupIndex;
-  const previewResult = buildPreviewFromSafePrefix(sanitizedSource, safeEndIndex);
+  const previewResult = buildPreviewFromSafePrefix(stableCandidateSource, lastSafeEndIndex);
   if (!previewResult.canStream) {
     return { canStream: false, previewSource: sanitizedSource };
   }
 
+  if (!GENERIC_STREAMABLE_STRUCTURE_PATTERN.test(previewResult.previewSource)) {
+    return { canStream: false, previewSource: sanitizedSource };
+  }
+
   return previewResult;
+}
+
+/**
+ * Split one large safe snapshot into a bounded series of structurally closed
+ * prefixes. Used only when a late stylesheet turns a previously withheld
+ * scene into one large renderSource jump; ordinary provider deltas stay native.
+ */
+export function buildStableArtifactRevealFrames(source: string, maxFrames = 8): readonly string[] {
+  if (!source.trim()) {
+    return [];
+  }
+  if (maxFrames <= 1) {
+    return [source];
+  }
+
+  const stableEndIndices: number[] = [];
+  for (const tag of scanTags(source)) {
+    if (
+      (tag.isClosing || tag.isSelfClosing) &&
+      !STREAM_REVEAL_IGNORED_BOUNDARY_TAGS.has(tag.tagName)
+    ) {
+      const endIndex = tag.position + tag.tag.length;
+      if (GENERIC_STREAMABLE_STRUCTURE_PATTERN.test(source.slice(0, endIndex))) {
+        stableEndIndices.push(endIndex);
+      }
+    }
+  }
+  stableEndIndices.push(source.length);
+
+  const uniqueEndIndices = [...new Set(stableEndIndices)].sort((left, right) => left - right);
+  const frameCount = Math.min(Math.floor(maxFrames), uniqueEndIndices.length);
+  const selectedEndIndices = Array.from({ length: frameCount }, (_unused, index) => {
+    if (frameCount === 1) {
+      return uniqueEndIndices[uniqueEndIndices.length - 1] ?? source.length;
+    }
+    const candidateIndex = Math.round((index * (uniqueEndIndices.length - 1)) / (frameCount - 1));
+    return uniqueEndIndices[candidateIndex] ?? source.length;
+  });
+
+  const frames = selectedEndIndices
+    .map((endIndex) => buildPreviewFromSafePrefix(source, endIndex))
+    .filter(
+      (result) =>
+        result.canStream && GENERIC_STREAMABLE_STRUCTURE_PATTERN.test(result.previewSource),
+    )
+    .map((result) => result.previewSource);
+  if (frames[frames.length - 1] !== source) {
+    frames.push(source);
+  }
+  return [...new Set(frames)];
 }

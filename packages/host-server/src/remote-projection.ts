@@ -5,6 +5,7 @@ import type {
   HostMode,
   HostPush,
   HostResponse,
+  MediaAttachmentRef,
   RemoteCapabilitySummary,
   RemoteHostStatusData,
   RemoteMediaSaveData,
@@ -112,21 +113,21 @@ export function projectRemoteResponse(
   if (command.type === 'session/messages') {
     return {
       ...response,
-      data: projectSessionMessages(response.data),
+      data: projectSessionMessages(response.data, context),
     };
   }
 
   if (command.type === 'session/transcript-page') {
     return {
       ...response,
-      data: projectSessionTranscriptPage(response.data),
+      data: projectSessionTranscriptPage(response.data, context),
     };
   }
 
   if (command.type === 'session/resume') {
     return {
       ...response,
-      data: projectSessionResume(response.data),
+      data: projectSessionResume(response.data, context),
     };
   }
 
@@ -451,19 +452,28 @@ function projectSessionListPage(data: unknown): RemoteSessionListPageData {
   return page;
 }
 
-function projectSessionMessages(data: unknown): RemoteSessionMessagesData {
+function projectSessionMessages(
+  data: unknown,
+  context: Pick<RemoteProjectionContext, 'remoteMediaPaths'>,
+): RemoteSessionMessagesData {
   const record = asRecord(data);
   const sessionId = typeof record?.sessionId === 'string' ? record.sessionId : '';
-  return { sessionId, messages: projectTranscriptMessages(record?.messages) };
+  return {
+    sessionId,
+    messages: projectTranscriptMessages(record?.messages, context.remoteMediaPaths),
+  };
 }
 
-function projectSessionResume(data: unknown): RemoteSessionResumeData {
+function projectSessionResume(
+  data: unknown,
+  context: Pick<RemoteProjectionContext, 'remoteMediaPaths'>,
+): RemoteSessionResumeData {
   const record = asRecord(data);
   const sessionId = typeof record?.sessionId === 'string' ? record.sessionId : '';
   const resume: RemoteSessionResumeData = {
     sessionId,
     live: record?.live === true,
-    messages: projectTranscriptMessages(record?.messages),
+    messages: projectTranscriptMessages(record?.messages, context.remoteMediaPaths),
     scope: projectSessionScope(record?.scope),
   };
   const transcriptPage = projectSessionTranscriptPageInfo(record?.transcriptPage);
@@ -566,7 +576,10 @@ function copyUsageNumber(
   }
 }
 
-function projectSessionTranscriptPage(data: unknown): RemoteSessionTranscriptPageData {
+function projectSessionTranscriptPage(
+  data: unknown,
+  context: Pick<RemoteProjectionContext, 'remoteMediaPaths'>,
+): RemoteSessionTranscriptPageData {
   const record = asRecord(data);
   if (record?.status === 'stale-cursor') {
     return {
@@ -579,7 +592,7 @@ function projectSessionTranscriptPage(data: unknown): RemoteSessionTranscriptPag
   }
   return {
     status: 'page',
-    messages: projectTranscriptMessages(record?.messages),
+    messages: projectTranscriptMessages(record?.messages, context.remoteMediaPaths),
     page: projectSessionTranscriptPageInfo(record?.page) ?? {
       revision: '',
       totalCount: 0,
@@ -614,7 +627,12 @@ function projectSessionTranscriptPageInfo(
   return info;
 }
 
-function projectTranscriptMessages(messagesValue: unknown): RemoteTranscriptMessage[] {
+const MAX_REMOTE_TRANSCRIPT_ATTACHMENTS = 16;
+
+function projectTranscriptMessages(
+  messagesValue: unknown,
+  remoteMediaPaths?: ReadonlyMap<string, string>,
+): RemoteTranscriptMessage[] {
   const messages = Array.isArray(messagesValue) ? messagesValue : [];
   const projected: RemoteTranscriptMessage[] = [];
   for (const message of messages) {
@@ -643,8 +661,17 @@ function projectTranscriptMessages(messagesValue: unknown): RemoteTranscriptMess
     if (isTranscriptOutcome(item.outcome)) {
       transcript.outcome = item.outcome;
     }
-    if (Array.isArray(item.attachments) && item.attachments.length > 0) {
-      transcript.attachmentCount = item.attachments.length;
+    const attachments = projectRemoteTranscriptAttachments(item.attachments, remoteMediaPaths);
+    if (attachments.length > 0) {
+      transcript.attachments = attachments;
+      transcript.attachmentCount = attachments.length;
+    } else if (Array.isArray(item.attachments) && item.attachments.length > 0) {
+      // Preserve count even when individual rows fail validation, so older
+      // clients still know media existed on the turn.
+      transcript.attachmentCount = Math.min(
+        item.attachments.length,
+        MAX_REMOTE_TRANSCRIPT_ATTACHMENTS,
+      );
     }
     const delivery = asRecord(item.instructionDelivery);
     if (
@@ -671,6 +698,85 @@ function projectTranscriptMessages(messagesValue: unknown): RemoteTranscriptMess
       transcript.tools = tools;
     }
     projected.push(transcript);
+  }
+  return projected;
+}
+
+const MEDIA_ATTACHMENT_SOURCES = new Set([
+  'paste',
+  'drop',
+  'file-picker',
+  'generated',
+]);
+
+/** Rewrite vault paths to opaque refs so resume/history can still thumb via media/read. */
+function projectRemoteTranscriptAttachments(
+  attachmentsValue: unknown,
+  remoteMediaPaths: ReadonlyMap<string, string> | undefined,
+): MediaAttachmentRef[] {
+  if (!Array.isArray(attachmentsValue)) {
+    return [];
+  }
+  const projected: MediaAttachmentRef[] = [];
+  for (const entry of attachmentsValue) {
+    if (projected.length >= MAX_REMOTE_TRANSCRIPT_ATTACHMENTS) {
+      break;
+    }
+    const attachment = asRecord(entry);
+    if (
+      attachment === undefined ||
+      attachment.kind !== 'media' ||
+      typeof attachment.id !== 'string' ||
+      attachment.id.length === 0 ||
+      attachment.id.length > 256 ||
+      /[\\/\u0000-\u001f]/.test(attachment.id) ||
+      typeof attachment.mimeType !== 'string' ||
+      typeof attachment.byteSize !== 'number' ||
+      !Number.isFinite(attachment.byteSize) ||
+      attachment.byteSize < 0 ||
+      typeof attachment.source !== 'string' ||
+      !MEDIA_ATTACHMENT_SOURCES.has(attachment.source)
+    ) {
+      continue;
+    }
+    // Prefer the durable asset id. remoteMediaPaths may be cold after a Host
+    // restart; media/read still resolves by sessionId + assetId on disk.
+    let path = `remote-asset:${attachment.id}`;
+    if (typeof attachment.path === 'string' && attachment.path.length > 0) {
+      if (isRemoteAssetRef(attachment.path)) {
+        path = attachment.path;
+      } else {
+        const mapped = projectRemoteMediaRef(attachment.path, remoteMediaPaths);
+        if (isRemoteAssetRef(mapped)) {
+          path = mapped;
+        }
+      }
+    }
+    const next: MediaAttachmentRef = {
+      id: attachment.id,
+      kind: 'media',
+      path,
+      mimeType: boundedString(attachment.mimeType, 128),
+      byteSize: Math.floor(attachment.byteSize),
+      source: attachment.source as MediaAttachmentRef['source'],
+    };
+    if (typeof attachment.name === 'string' && attachment.name.trim().length > 0) {
+      next.name = boundedString(attachment.name.trim(), 512);
+    }
+    if (
+      attachment.contentKind === 'image' ||
+      attachment.contentKind === 'text' ||
+      attachment.contentKind === 'document'
+    ) {
+      next.contentKind = attachment.contentKind;
+    }
+    if (typeof attachment.width === 'number' && Number.isFinite(attachment.width)) {
+      next.width = Math.floor(attachment.width);
+    }
+    if (typeof attachment.height === 'number' && Number.isFinite(attachment.height)) {
+      next.height = Math.floor(attachment.height);
+    }
+    projected.push(next);
   }
   return projected;
 }

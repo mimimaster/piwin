@@ -13,50 +13,50 @@ import {
 } from '../mcp-capability-brief.js';
 import { MODEL_TOOL_DESCRIPTION_MAX_CHARS } from '../model-tool-descriptor.js';
 
-export function formatCatalogSystemPrompt(brief: McpCapabilityBrief): string {
+export function formatCatalogSystemPrompt(brief: McpCapabilityBrief): string | undefined {
   if (brief.enabledServerCount === 0) {
-    return [
-      '## MCP tools',
-      'No MCP servers are enabled in this session generation.',
-      'If the user configures MCP later, a new generation rebuilds this surface.',
-    ].join('\n');
+    return undefined;
   }
 
   const lines: string[] = [
-    '## MCP tools (use them proactively)',
-    `Use a pinned direct tool when it matches; otherwise use \`${HOST_TOOLBOX_NAME}\` proactively.`,
-    'Catalog flow: `search(query)` → `call(target, arguments)`. Search results include exact schemas for top matches. `describe(target)` remains available. Never invent selectors. Search may lazily discover uncached servers.',
-    'Configured servers:',
+    '<mcp_tools>',
+    '## MCP Catalog',
+    `Use direct pinned tools when available; otherwise use \`${HOST_TOOLBOX_NAME}\` proactively.`,
+    '- **Workflow**: `search(query)` → `call(target, arguments)`. (Top search matches include exact schemas; `describe(target)` is available).',
+    '- **Rule**: Never invent target selectors. Search may lazily discover uncached servers.',
+    '- **Configured Servers**:',
   ];
 
   if (brief.omittedServerCount > 0) {
     lines.push(
-      `Configured server list truncated: ${brief.omittedServerCount} more configured server(s) omitted from this bounded list.`,
+      `  - *Note: ${brief.omittedServerCount} additional configured server(s) omitted from this bounded list.*`,
     );
   }
 
   for (const server of brief.servers) {
     if (server.cached) {
       const samples =
-        server.sampleToolNames.length > 0 ? ` e.g. ${server.sampleToolNames.join(', ')}` : '';
+        server.sampleToolNames.length > 0 ? ` (e.g. ${server.sampleToolNames.join(', ')})` : '';
       const more =
         server.toolCount > server.sampleToolNames.length
           ? ` (+${server.toolCount - server.sampleToolNames.length} more)`
           : '';
-      lines.push(`- \`${server.serverId}\`: ${server.toolCount} cached tool(s)${samples}${more}`);
+      lines.push(`  - \`${server.serverId}\`: ${server.toolCount} cached tool(s)${samples}${more}`);
     } else {
       lines.push(
-        `- \`${server.serverId}\`: metadata not cached yet — a normal search will try bounded lazy discovery; describe/call with a known selector also remain available`,
+        `  - \`${server.serverId}\`: uncached (search will attempt lazy discovery; describe/call with known selector available)`,
       );
     }
   }
 
   if (brief.directExposedNames.length > 0) {
-    lines.push(`Pinned direct: ${brief.directExposedNames.slice(0, 16).join(', ')}`);
+    lines.push(`- **Pinned Direct**: ${brief.directExposedNames.slice(0, 16).join(', ')}`);
     if (brief.directExposedNames.length > 16) {
-      lines.push(`- …(+${brief.directExposedNames.length - 16} more)`);
+      lines.push(`  - …(+${brief.directExposedNames.length - 16} more)`);
     }
   }
+
+  lines.push('</mcp_tools>');
 
   return truncate(lines.join('\n'), MCP_BRIEF_MAX_SYSTEM_CHARS);
 }

@@ -110,6 +110,15 @@ export function extractSkillIdHintFromPath(filePath: string): string | null {
   return null;
 }
 
+/**
+ * True when the user clicked an extension mention such as `.svg` or `.html`,
+ * not a real file name. Those must recover from the transcript, not the
+ * workspace filesystem.
+ */
+export function isBareExtensionPath(path: string): boolean {
+  return /^\.[A-Za-z][A-Za-z0-9]*$/.test(path.trim());
+}
+
 function looksLikeSkillPath(filePath: string): boolean {
   const normalized = filePath.replace(/\\/g, '/');
   return (

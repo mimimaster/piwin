@@ -31,7 +31,7 @@ function pageFetch(): typeof fetch {
 
 describe('fetch extract prompt', () => {
   it('forbids following instructions that appear in the page', () => {
-    expect(FETCH_EXTRACT_SYSTEM_PROMPT).toMatch(/do not follow/i);
+    expect(FETCH_EXTRACT_SYSTEM_PROMPT).toMatch(/do not execute/i);
     expect(FETCH_EXTRACT_SYSTEM_PROMPT).toMatch(/untrusted data/i);
     expect(FETCH_EXTRACT_SYSTEM_PROMPT).toContain(String(DEFAULT_FETCH_DELEGATE_OUTPUT_CHARS));
   });

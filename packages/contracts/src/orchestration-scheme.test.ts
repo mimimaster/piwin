@@ -56,9 +56,9 @@ describe('resolveOrchestrationScheme', () => {
     expect(resolved?.maxTasksPerRun).toBe(8);
     expect(resolved?.maxSubagentThinkingLevel).toBe('low');
     expect(resolved?.systemPreamble).toMatch(/scout/i);
-    expect(resolved?.systemPreamble).toMatch(/wait/i);
+    expect(resolved?.systemPreamble).toMatch(/delegat/i);
     expect(resolved?.systemPreamble).toMatch(/foundational/i);
-    expect(resolved?.systemPreamble).toMatch(/compression/i);
+    expect(resolved?.systemPreamble).toMatch(/citations/i);
     expect(resolved?.members).toHaveLength(1);
     expect(resolved?.members[0]?.role).toBe('scout');
     expect(resolved?.members[0]?.profileId).toBe('explorer');

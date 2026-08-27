@@ -30,6 +30,10 @@ import { mapPiCompactionResult, type PiCompactionResult } from '../pi-compaction
 import { buildPiSessionToolAllowlist } from '../pi-session-tool-allowlist.js';
 import { normalizeAgentEventIds } from '../generation-identity.js';
 import {
+  readPiHttpIdleTimeoutMs,
+  runPiPromptWithProgressTimeout,
+} from '../pi-stream-progress-timeout.js';
+import {
   createRunInterventionStager,
   type PiRunInterventionSession,
 } from '../run-intervention-stager.js';
@@ -95,6 +99,12 @@ export async function createBackendSdkSession(
     piBuiltinToolNames: capabilitySnapshot.tools.piBuiltinToolNames,
     hostTools: capabilitySnapshot.tools.hostTools,
   });
+  const settingsManager = createPiwinSettingsManager(
+    piModule,
+    capabilitySnapshot.workingDirectory,
+    agentDir,
+  );
+  const streamProgressTimeoutMs = readPiHttpIdleTimeoutMs(settingsManager);
   const sessionOptions: Record<string, unknown> = {
     cwd: capabilitySnapshot.workingDirectory,
     agentDir,
@@ -103,11 +113,7 @@ export async function createBackendSdkSession(
     // Empty allowlist is intentional when both sides are empty: no Pi defaults.
     tools: toolAllowlist,
     customTools,
-    settingsManager: createPiwinSettingsManager(
-      piModule,
-      capabilitySnapshot.workingDirectory,
-      agentDir,
-    ),
+    settingsManager,
   };
   if (input.seedMessages) {
     sessionOptions.sessionManager = createSeededPiSessionManager(
@@ -168,6 +174,7 @@ export async function createBackendSdkSession(
       activeRunId = runId;
     },
     () => activeRunId,
+    streamProgressTimeoutMs,
   );
 }
 
@@ -224,6 +231,7 @@ function wrapBackendPiSession(
   modelRuntime: PiModelRuntime,
   setActiveRunId: (runId: string | undefined) => void,
   getActiveRunId: () => string | undefined,
+  streamProgressTimeoutMs: number,
 ): BackendSessionHandle {
   const eventMapper = createPiSessionEventMapper();
   const interventionStager = piSession.agent
@@ -269,11 +277,15 @@ function wrapBackendPiSession(
         promptOptions.streamingBehavior = preparedPrompt.streamingBehavior;
       }
       try {
-        if (Object.keys(promptOptions).length > 0) {
-          await piSession.prompt(preparedPrompt.text, promptOptions);
-        } else {
-          await piSession.prompt(preparedPrompt.text);
-        }
+        await runPiPromptWithProgressTimeout({
+          timeoutMs: streamProgressTimeoutMs,
+          prompt: () =>
+            Object.keys(promptOptions).length > 0
+              ? piSession.prompt(preparedPrompt.text, promptOptions)
+              : piSession.prompt(preparedPrompt.text),
+          abort: () => piSession.abort?.() ?? Promise.resolve(),
+          subscribe: (listener) => piSession.subscribe(listener),
+        });
       } finally {
         if (preparedPrompt.runId !== undefined) {
           await interventionStager?.settleRun(preparedPrompt.runId);

@@ -325,33 +325,6 @@ export function shouldEnableNativeWebSearch(route: ResolvedSearchRoute): boolean
   return route.selected === 'native';
 }
 
-/**
- * Short capability brief describing the selected search route for the agent.
- * Prompt text is informational only; the compiled route is authoritative.
- */
-export function formatSearchRouteCapabilityBrief(route: ResolvedSearchRoute): string | undefined {
-  if (route.selected === 'native') {
-    return [
-      'Search routing: provider-native web search is enabled for this generation.',
-      'The Host web_search tool is not registered. Do not attempt external web_search.',
-      route.readiness.native.adapterCitationSupported
-        ? 'Native citations are normalized into product evidence when the provider returns them.'
-        : 'Native citation normalization may be incomplete for this provider.',
-    ].join(' ');
-  }
-  if (route.selected === 'external') {
-    return [
-      'Search routing: external Host web_search is enabled for this generation.',
-      'Provider-native web search fields are omitted for this generation.',
-      'Use the web_search tool for web lookup.',
-    ].join(' ');
-  }
-  return [
-    'Search routing: no web search backend is available for this generation.',
-    route.issues[0] ?? 'Configure an external search source or a native-web-search model.',
-  ].join(' ');
-}
-
 function dedupeIssues(issues: readonly string[]): string[] {
   const seen = new Set<string>();
   const result: string[] = [];

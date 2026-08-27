@@ -142,6 +142,15 @@ describe('conversation-message-identity', () => {
       expect(resolved).toEqual(liveModel);
     });
 
+    it('uses livePromptModel only when the live-run flag is set, not durable streaming status', () => {
+      const resolved = resolveConversationMessageModel({
+        message: { ...baseMessage, status: 'streaming' },
+        livePromptModel: liveModel,
+        isStreaming: false,
+      });
+      expect(resolved).toBeUndefined();
+    });
+
     it('does not backfill livePromptModel onto completed rows without a snapshot', () => {
       const resolved = resolveConversationMessageModel({
         message: { ...baseMessage, status: 'done' },
@@ -149,6 +158,16 @@ describe('conversation-message-identity', () => {
         isStreaming: false,
       });
       expect(resolved).toBeUndefined();
+    });
+
+    it('keeps livePromptModel on the latest completed reply when Host omitted the snapshot', () => {
+      const resolved = resolveConversationMessageModel({
+        message: { ...baseMessage, status: 'done' },
+        livePromptModel: liveModel,
+        isStreaming: false,
+        allowComposerFallback: true,
+      });
+      expect(resolved).toEqual(liveModel);
     });
 
     it('returns undefined when neither snapshot nor live model is available', () => {

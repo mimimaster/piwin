@@ -56,6 +56,55 @@ describe('TurnErrorCard', () => {
     expect(container.textContent).toContain('Invalid API key');
   });
 
+  it('does not classify stream idle timeout as a network failure', () => {
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <TurnErrorCard messageId="m1" error="Model stream idle timeout." locale="zh-CN" />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const card = container.querySelector('[data-testid="turn-error-card"]');
+    expect(card?.getAttribute('data-category')).toBe('stream');
+    expect(container.textContent).toContain('模型输出中断');
+    expect(container.textContent).not.toContain('网络请求或连接超时');
+  });
+
+  it('classifies a stalled token stream as stream, not network', () => {
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <TurnErrorCard
+            messageId="m1"
+            error="The model stream stalled. Tokens stopped arriving while the connection stayed open."
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="turn-error-card"]')?.getAttribute('data-category')).toBe(
+      'stream',
+    );
+    expect(container.textContent).toContain('Model stream stalled');
+  });
+
+  it('still classifies a real connection timeout as network', () => {
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <TurnErrorCard messageId="m1" error="fetch failed: ECONNREFUSED" locale="zh-CN" />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="turn-error-card"]')?.getAttribute('data-category')).toBe(
+      'network',
+    );
+    expect(container.textContent).toContain('网络请求或连接超时');
+  });
+
   it('renders retry button and triggers onRetry callback', () => {
     const onRetry = vi.fn();
     act(() => {
