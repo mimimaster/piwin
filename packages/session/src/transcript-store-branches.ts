@@ -7,7 +7,8 @@
  * cursors and user indexes go stale instead of mixing branches.
  *
  * `truncateFrom` is subtree deletion (the explicit "delete from here"
- * gesture) — the non-destructive daily path is rebase + append.
+ * gesture). Same-turn retry rebases onto the user row itself (ADR 0064);
+ * a genuine prompt edit rebases onto that row's parent.
  */
 
 import { rollback } from './sqlite-errors.js';
@@ -23,6 +24,8 @@ import type { SessionTranscriptStore, TranscriptStoreCore } from './transcript-s
 export type TranscriptBranchSibling = {
   /** First message of the branch (the row whose parent is the anchor). */
   headMessageId: string;
+  /** Role of the sibling head — user = prompt fork, assistant = answer version. */
+  role: 'user' | 'assistant';
   /** Bounded preview of the head message text. */
   preview: string;
   /** Bounded preview of the direct assistant reply to the fork prompt, if any. */
@@ -333,17 +336,17 @@ export function createTranscriptBranchesOps(
           node.parent_message_id === null
             ? db
                 .prepare(
-                  `SELECT id, substr(text, 1, ?) AS preview FROM transcript_message
+                  `SELECT id, role, substr(text, 1, ?) AS preview FROM transcript_message
                    WHERE parent_message_id IS NULL ORDER BY sequence ASC`,
                 )
                 .all(listOptions.previewChars)
             : db
                 .prepare(
-                  `SELECT id, substr(text, 1, ?) AS preview FROM transcript_message
+                  `SELECT id, role, substr(text, 1, ?) AS preview FROM transcript_message
                    WHERE parent_message_id = ? ORDER BY sequence ASC`,
                 )
                 .all(listOptions.previewChars, node.parent_message_id)
-        ) as unknown as Array<{ id: string; preview: string }>;
+        ) as unknown as Array<{ id: string; role: string; preview: string }>;
         if (siblingRows.length <= 1) {
           continue;
         }
@@ -384,6 +387,7 @@ export function createTranscriptBranchesOps(
             const stats = subtreeStats(sibling.id, listOptions.previewChars);
             return {
               headMessageId: sibling.id,
+              role: sibling.role === 'user' ? 'user' : 'assistant',
               preview: sibling.preview,
               responsePreview: stats.responsePreview,
               responseStatus: stats.responseStatus,
