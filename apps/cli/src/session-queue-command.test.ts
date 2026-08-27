@@ -62,7 +62,7 @@ describe('session queue CLI helpers', () => {
       input: {
         text: 'old text',
         clientMessageId: 'user-1',
-        agentMode: 'plan',
+        agentMode: 'goal',
       },
     });
     const updated = queuedTurn({ revision: 4, input: { ...current.input, text: 'new text' } });
@@ -90,7 +90,7 @@ describe('session queue CLI helpers', () => {
       input: {
         text: 'new text',
         clientMessageId: 'user-1',
-        agentMode: 'plan',
+        agentMode: 'goal',
       },
     });
   });

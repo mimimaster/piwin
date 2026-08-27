@@ -101,7 +101,7 @@ import {
   runSessionColdStorageStatus,
   formatDoctorColdStorageLines,
 } from './session-cold-storage-command.js';
-import { runSessionBranches, runSessionSwitch } from './session-branch-command.js';
+import { runSessionBranches, runSessionRetry, runSessionSwitch } from './session-branch-command.js';
 
 function printHelp(): void {
   console.log(`piwin — private coding agent shell
@@ -125,6 +125,7 @@ Usage:
   piwin session export <id> --format md|html [--redact-tools] [--out <path>] [--mock]
   piwin session branches <sessionId> [--mock]
   piwin session switch <sessionId> <messageId> [--confirm] [--mock]
+  piwin session retry <sessionId> <userMessageId> [--keep] [--confirm] [--mock]
   piwin session lifecycle plan [--mock]
   piwin session pack create <sessionId> --out <host-dir> [--pack-id <id>] [--mock]
   piwin session pack verify <packPath> [--mock]
@@ -1080,6 +1081,28 @@ async function commandSession(argv: string[]): Promise<void> {
       return;
     }
 
+    if (sub === 'retry') {
+      const sessionId = argv[2];
+      const userMessageId = argv[3];
+      if (!sessionId || !userMessageId) {
+        console.error(
+          'Usage: piwin session retry <sessionId> <userMessageId> [--keep] [--confirm] [--mock]',
+        );
+        process.exitCode = 1;
+        return;
+      }
+      try {
+        await runSessionRetry(runtime, sessionId, userMessageId, console.log, {
+          keepPrevious: argv.includes('--keep'),
+          confirm: argv.includes('--confirm'),
+        });
+      } catch (error) {
+        console.error(formatError(error));
+        process.exitCode = 1;
+      }
+      return;
+    }
+
     if (sub === 'switch') {
       const sessionId = argv[2];
       const messageId = argv[3];
@@ -1101,7 +1124,7 @@ async function commandSession(argv: string[]): Promise<void> {
 
     console.error(`Unknown session subcommand: ${sub}`);
     console.error(
-      'Usage: piwin session list|pin|unpin|pause|resume-run|queue|replace|search|export|branches|switch|lifecycle|pack|cold',
+      'Usage: piwin session list|pin|unpin|pause|resume-run|queue|replace|search|export|branches|switch|retry|lifecycle|pack|cold',
     );
     process.exitCode = 1;
   } finally {

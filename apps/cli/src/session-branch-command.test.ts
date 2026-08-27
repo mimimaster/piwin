@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { HostCommand, HostResponse, SessionBranchListData } from '@piwin/contracts';
-import { runSessionBranches, runSessionSwitch } from './session-branch-command.js';
+import { runSessionBranches, runSessionRetry, runSessionSwitch } from './session-branch-command.js';
 
 function ok(command: HostCommand['type'], data: unknown): HostResponse {
   return { type: 'response', command, success: true, data };
@@ -18,6 +18,7 @@ describe('session branch CLI', () => {
           siblings: [
             {
               headMessageId: 'u2a',
+              role: 'user',
               preview: 'original',
               leafPreview: 'original end',
               messageCount: 2,
@@ -26,6 +27,7 @@ describe('session branch CLI', () => {
             },
             {
               headMessageId: 'u2b',
+              role: 'user',
               preview: 'alternative',
               leafPreview: 'alternative end',
               messageCount: 2,
@@ -43,6 +45,58 @@ describe('session branch CLI', () => {
     expect(lines[0]).toContain('fork 1 at a1');
     expect(lines[1]).toContain('[1] u2a (write)');
     expect(lines[2]).toMatch(/^\s+\*\s+\[2\] u2b {2}alternative/);
+  });
+
+  it('prints answer versions separately from prompt forks', async () => {
+    const data: SessionBranchListData = {
+      sessionId: 's1',
+      revision: 'rev',
+      branchPoints: [
+        {
+          anchorMessageId: 'u1',
+          activeIndex: 0,
+          siblings: [
+            {
+              headMessageId: 'a1',
+              role: 'assistant',
+              preview: 'first answer',
+              leafPreview: 'first answer',
+              messageCount: 1,
+              writesWorkspace: false,
+              updatedAt: '2026-08-21T00:00:00.000Z',
+            },
+            {
+              headMessageId: 'a1-alt',
+              role: 'assistant',
+              preview: 'second answer',
+              leafPreview: 'second answer',
+              messageCount: 1,
+              writesWorkspace: false,
+              updatedAt: '2026-08-21T00:01:00.000Z',
+            },
+          ],
+        },
+      ],
+    };
+    const lines: string[] = [];
+    await runSessionBranches({ handleCommand: async () => ok('session/branch-list', data) }, 's1', (line) =>
+      lines.push(line),
+    );
+    expect(lines[0]).toContain('answers at u1');
+  });
+
+  it('sends session/prompt with retryUserMessageId', async () => {
+    const handleCommand = vi.fn(async () => ok('session/prompt', { runId: 'run-1' }));
+    const lines: string[] = [];
+    await runSessionRetry({ handleCommand }, 's1', 'u1', (line) => lines.push(line), {
+      keepPrevious: true,
+    });
+    expect(handleCommand).toHaveBeenCalledWith({
+      type: 'session/prompt',
+      sessionId: 's1',
+      input: { text: '', retryUserMessageId: 'u1', keepPreviousAttempt: true },
+    });
+    expect(lines[0]).toContain('run run-1');
   });
 
   it('prints run-active and switched outcomes', async () => {
