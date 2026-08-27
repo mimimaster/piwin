@@ -4,7 +4,11 @@
  */
 
 import type { ExecutionRunRecord, ModelRef } from '@piwin/contracts';
-import { estimatePendingPromptTokens, formatError } from '@piwin/contracts';
+import {
+  createUnknownAgentFailure,
+  estimatePendingPromptTokens,
+  formatError,
+} from '@piwin/contracts';
 import { loadSessionPlan } from '@piwin/session';
 import { createModelPromptAssembly } from '../model-context-assembly.js';
 import { persistAndPushAssembly } from '../model-context-record.js';
@@ -18,6 +22,10 @@ import {
 import { injectBranchCalibrationOnce } from './branch-calibration.js';
 import { finalizeAbortedRun } from './run-control-commands.js';
 import { scheduleReplyWriterAfterRun } from './reply-writer-live.js';
+import {
+  applyAgentPromptOutcome,
+  persistHostRuntimeFailure,
+} from './session-turn-outcome.js';
 
 export async function executeSessionTurn(input: {
   context: SessionLiveContext;
@@ -149,15 +157,14 @@ export async function executeSessionTurn(input: {
       return;
     }
 
-    await liveSession.prompt(promptInput);
-    if (context.getRunSignal(run.runId)?.aborted) {
-      await finalizeAbortedRun(context, command.sessionId, run.runId);
-      return;
-    }
-
-    const upstreamError = context.getRunLastAgentError(run.runId)?.trim();
-    if (upstreamError) {
-      await context.terminateRun(command.sessionId, run.runId, 'failed', undefined, upstreamError);
+    const outcome = await liveSession.prompt(promptInput);
+    const applied = await applyAgentPromptOutcome({
+      context,
+      sessionId: command.sessionId,
+      runId: run.runId,
+      outcome,
+    });
+    if (applied !== 'completed') {
       return;
     }
 
@@ -187,7 +194,9 @@ export async function executeSessionTurn(input: {
         });
       }
     }
-    await context.terminateRun(command.sessionId, run.runId, 'completed');
+    await context.terminateRun(command.sessionId, run.runId, 'completed', undefined, undefined, {
+      agentStopReason: outcome.stopReason,
+    });
     void scheduleReplyWriterAfterRun(context, {
       sessionId: command.sessionId,
       runId: run.runId,
@@ -202,22 +211,15 @@ export async function executeSessionTurn(input: {
       (error as { code?: string } | null)?.code === 'runtime-memory-pressure'
         ? ('runtime-memory-pressure' as const)
         : undefined;
-    const errorEvent = {
-      type: 'error' as const,
-      message,
-      retriable: true,
-      runId: run.runId,
-    };
-    const recorder = context.transcriptRecorders.get(command.sessionId);
-    if (recorder) {
-      await recorder.recordEvent(errorEvent).catch(() => undefined);
-      await recorder.flush().catch(() => undefined);
-    }
-    context.push({
-      type: 'event',
+    const failure = createUnknownAgentFailure(message);
+    await persistHostRuntimeFailure({
+      context,
       sessionId: command.sessionId,
-      event: errorEvent,
+      runId: run.runId,
+      failure,
     });
-    await context.terminateRun(command.sessionId, run.runId, 'failed', terminalCode, message);
+    await context.terminateRun(command.sessionId, run.runId, 'failed', terminalCode, failure.message, {
+      failure,
+    });
   }
 }

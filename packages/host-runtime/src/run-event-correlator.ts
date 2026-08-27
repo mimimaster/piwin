@@ -40,20 +40,14 @@ export class RunEventCorrelator {
     const identity = readEventIdentity(event);
     const ownedRunId =
       identity === undefined ? undefined : this.lookupOwnership(sessionId, identity);
-    // ADR 0015 guarantees one foreground run per session. When the AsyncLocalStorage
-    // execution context is lost (e.g. Pi SDK emits events from internal async stream
-    // callbacks that break the async hook chain), executionRunId is undefined. For
-    // events with a stable identity (message/tool/permission), fall back to the
-    // active run — there is no other run they could belong to. Provider `error`
-    // events are the same: Pi surfaces stopReason failures from stream callbacks
-    // without ALS, and dropping them replaces upstream text with a generic
-    // empty-response fallback. Explicit runIds from replaced/terminal runs are
-    // still rejected by isStaleExplicitRun above.
+    // Message/tool/permission identities may fall back to the active run when
+    // ALS is lost. Identity-less provider errors must not: the prompt outcome
+    // still carries the failure, so Host never guesses the current Run (PTA-06).
     const inferredRunId =
       explicitRunId ??
       ownedRunId ??
       executionRunId ??
-      (identity !== undefined || event.type === 'error' ? activeRunId : undefined);
+      (identity !== undefined ? activeRunId : undefined);
 
     if (inferredRunId === undefined) {
       return {

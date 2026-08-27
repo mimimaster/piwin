@@ -16,6 +16,8 @@
 import { randomUUID } from 'node:crypto';
 import type {
   AgentEvent,
+  AgentFailure,
+  AgentPromptOutcome,
   ExecutionRunKind,
   ExecutionRunRecord,
   ExecutionRunStatus,
@@ -37,12 +39,16 @@ interface RunNode {
   /** Resolvers waiting for this run to become terminal. */
   joinResolvers: Array<() => void>;
   /**
-   * Last provider/agent error text observed on this run. Kept off the public
-   * record so UI projections stay lean; used to terminalize silent completions
-   * with the upstream message instead of a generic empty-response string.
+   * Whether an Agent error event already reached this Run. Evidence only —
+   * never a completion input.
    */
-  lastAgentErrorMessage?: string;
+  hasAgentErrorEvidence?: boolean;
 }
+
+export type TerminateRunRecordOptions = {
+  agentStopReason?: AgentPromptOutcome['stopReason'];
+  failure?: AgentFailure;
+};
 
 /** Options for creating a run. */
 export type CreateRunInput = {
@@ -357,10 +363,7 @@ export class RunRegistry {
         }
         break;
       case 'error': {
-        const message = event.message.trim();
-        if (message.length > 0) {
-          node.lastAgentErrorMessage = message;
-        }
+        node.hasAgentErrorEvidence = true;
         break;
       }
       default:
@@ -377,10 +380,9 @@ export class RunRegistry {
     return { ...node.record };
   }
 
-  /** Upstream provider/agent error text captured for this run, if any. */
-  getLastAgentError(runId: string): string | undefined {
-    const message = this.nodes.get(runId)?.lastAgentErrorMessage?.trim();
-    return message && message.length > 0 ? message : undefined;
+  /** Whether an Agent error event was already admitted for this run. */
+  hasAgentErrorEvidence(runId: string): boolean {
+    return this.nodes.get(runId)?.hasAgentErrorEvidence === true;
   }
 
   /** Whether a run owns any non-terminal descendant. */
@@ -426,6 +428,7 @@ export class RunRegistry {
     status: 'completed' | 'failed' | 'cancelled' | 'interrupted',
     terminalCode?: RunTerminalCode,
     error?: string,
+    extras?: TerminateRunRecordOptions,
   ): ExecutionRunRecord | undefined {
     const node = this.nodes.get(runId);
     if (!node || isRunTerminal(node.record.status)) return undefined;
@@ -446,6 +449,12 @@ export class RunRegistry {
     node.record.endedAt = new Date().toISOString();
     if (terminalCode) node.record.terminalCode = terminalCode;
     if (error) node.record.error = error;
+    if (extras?.agentStopReason !== undefined) {
+      node.record.agentStopReason = extras.agentStopReason;
+    }
+    if (extras?.failure !== undefined) {
+      node.record.failure = extras.failure;
+    }
 
     const snapshot = this.publishUpdated(node);
     this.onRunTerminal?.(snapshot);

@@ -6,7 +6,9 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, open, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve as resolvePath } from 'node:path';
 import type {
+  AgentFailure,
   AgentHost,
+  AgentPromptOutcome,
   CreateSessionInput,
   CreateSessionOptions,
   ExecutionRunRecord,
@@ -113,6 +115,12 @@ import {
 } from '../session-scope.js';
 import { repairLegacySessionNames } from '../session-name-repair.js';
 import { findEnabledModel } from '../provider-helpers.js';
+
+export type TerminateHostRunOptions = {
+  skipJobCleanup?: boolean;
+  agentStopReason?: AgentPromptOutcome['stopReason'];
+  failure?: AgentFailure;
+};
 
 export type SessionLiveContext = {
   piwinRoot?: string;
@@ -281,8 +289,12 @@ export type SessionLiveContext = {
   isSessionBodyReserved: (sessionId: string) => boolean;
   joinRun: (runId: string) => Promise<ExecutionRunRecord | undefined>;
   getRunSignal: (runId: string) => AbortSignal | undefined;
-  /** Upstream provider error text observed on this run, when available. */
-  getRunLastAgentError: (runId: string) => string | undefined;
+  /**
+   * True when an Agent error event for this Run already reached Host
+   * admission. Used only to avoid duplicating outcome evidence, never to
+   * decide Run completion.
+   */
+  hasRunAgentErrorEvidence: (runId: string) => boolean;
   requestCancelRun: (
     sessionId: string,
     runId?: string,
@@ -318,7 +330,7 @@ export type SessionLiveContext = {
     outcome: 'completed' | 'cancelled' | 'failed' | 'paused',
     code?: RunTerminalCode,
     message?: string,
-    options?: { skipJobCleanup?: boolean },
+    options?: TerminateHostRunOptions,
   ) => boolean | Promise<boolean>;
   settlePendingPermissionsForSession: (sessionId: string) => void;
   /** Resolve Extension UI waits so Stop cannot leave a Pi prompt suspended. */
