@@ -12,12 +12,8 @@ import type {
   PushSink,
   RemoteSinkId,
 } from '@piwin/contracts';
-import {
-  createEventEnvelopeGenerator,
-  type ExtensionUiKind,
-  type ExtensionUiResponse,
-  AgentWorkerSupervisor,
-} from '@piwin/agent-host';
+import { type ExtensionUiKind, type ExtensionUiResponse, AgentWorkerSupervisor } from '@piwin/agent-host';
+import { createEventEnvelopeGenerator } from './host-event-envelope.js';
 import { FetchCache } from '@piwin/tools-web';
 import { type SessionColdStoragePlan, type SessionRuntimeRetentionConfig } from '@piwin/contracts';
 import { HealthToolRunBudget } from './health-tool-run-budget.js';

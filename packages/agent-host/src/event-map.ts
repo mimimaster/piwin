@@ -1,4 +1,4 @@
-import type { AgentEvent, AgentEventEnvelope, AgentMessageRole } from '@piwin/contracts';
+import type { AgentEvent, AgentMessageRole } from '@piwin/contracts';
 import { mapAgentEndProviderFailures, mapStandalonePiErrorEvent } from './agent-failure-map.js';
 import {
   mapAgentEndFallbackUsageEvent,
@@ -23,57 +23,8 @@ import {
   type ToolPresentationSeed,
 } from './tool-event-map.js';
 
-export type WrappedAgentEvent = {
-  event: AgentEvent;
-  envelope: AgentEventEnvelope;
-};
-
-export function createEventEnvelopeGenerator(runId?: string): {
-  next: (runIdOverride?: string) => AgentEventEnvelope;
-} {
-  let sequence = 0;
-  return {
-    next(runIdOverride?: string): AgentEventEnvelope {
-      sequence++;
-      const envelope: AgentEventEnvelope = {
-        eventId: `evt-${Date.now().toString(36)}-${sequence}`,
-        sequence,
-      };
-      const resolvedRunId = runIdOverride ?? runId;
-      if (resolvedRunId !== undefined) {
-        envelope.runId = resolvedRunId;
-      }
-      return envelope;
-    },
-  };
-}
-
-export function wrapEvent(
-  event: AgentEvent,
-  envelopeGenerator: ReturnType<typeof createEventEnvelopeGenerator>,
-): WrappedAgentEvent {
-  return {
-    event,
-    envelope: envelopeGenerator.next(),
-  };
-}
-
-export function wrapEvents(
-  events: AgentEvent[],
-  envelopeGenerator: ReturnType<typeof createEventEnvelopeGenerator>,
-): WrappedAgentEvent[] {
-  return events.map((event) => ({
-    event,
-    envelope: envelopeGenerator.next(extractRunId(event)),
-  }));
-}
-
-function extractRunId(event: AgentEvent): string | undefined {
-  return 'runId' in event ? (event as { runId?: string }).runId : undefined;
-}
-
 export type PiSessionEventMapper = {
-  map: (raw: unknown) => WrappedAgentEvent[];
+  map: (raw: unknown) => AgentEvent[];
   reset?: () => void;
 };
 
@@ -90,7 +41,6 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
   const surfacedProviderErrorMessages = new Set<string>();
   const streamedThinkingMessageIds = new Set<string>();
   let retryLifecycleActive = false;
-  const envelopeGenerator = createEventEnvelopeGenerator();
 
   const reset = (): void => {
     activeMessageId = null;
@@ -108,7 +58,7 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
 
   return {
     reset,
-    map(raw: unknown): WrappedAgentEvent[] {
+    map(raw: unknown): AgentEvent[] {
       if (!raw || typeof raw !== 'object') {
         return [];
       }
@@ -200,7 +150,7 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
         activeMessageId = null;
         activeMessageRole = null;
       }
-      return wrapEvents(mappedEvents, envelopeGenerator);
+      return mappedEvents;
     },
   };
 }

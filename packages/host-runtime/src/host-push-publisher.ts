@@ -4,7 +4,7 @@
  */
 
 import type { HostPush, AgentEventEnvelope, PushSink, RemoteSinkId } from '@piwin/contracts';
-import { createEventEnvelopeGenerator } from '@piwin/agent-host';
+import { createEventEnvelopeGenerator } from './host-event-envelope.js';
 import { formatError, LEGACY_LOCAL_SINK_ID } from '@piwin/contracts';
 
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
