@@ -555,6 +555,14 @@ export type AgentEvent =
       runId?: string;
     }
   | { type: 'permission/resolved'; requestId: string; decision: PermissionDecision; runId?: string }
+  | {
+      type: 'model/retry';
+      phase: 'waiting' | 'attempting' | 'finished';
+      attempt: number;
+      maxAttempts?: number;
+      delayMs?: number;
+      runId?: string;
+    }
   | { type: 'compaction/start'; runId?: string }
   | {
       type: 'compaction/end';

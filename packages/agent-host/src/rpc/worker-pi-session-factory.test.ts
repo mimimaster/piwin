@@ -78,6 +78,7 @@ function createMockPiModule(options: {
       create: vi.fn(() => ({
         getRetryEnabled: () => true,
         getRetrySettings: () => ({ enabled: true, maxRetries: 3, baseDelayMs: 2000 }),
+        getProviderRetrySettings: () => ({ maxRetries: 2, timeoutMs: 5000 }),
       })),
     },
   };
@@ -440,9 +441,9 @@ describe('createWorkerPiSessionFactory', () => {
       getRetrySettings: () => { maxRetries: number };
       getProviderRetrySettings: () => { maxRetries: number };
     };
-    expect(settingsManager.getRetryEnabled()).toBe(false);
-    expect(settingsManager.getRetrySettings().maxRetries).toBe(0);
-    expect(settingsManager.getProviderRetrySettings().maxRetries).toBe(0);
+    expect(settingsManager.getRetryEnabled()).toBe(true);
+    expect(settingsManager.getRetrySettings().maxRetries).toBe(3);
+    expect(settingsManager.getProviderRetrySettings().maxRetries).toBe(2);
   });
 
   it('binds extension UI to the created Pi session', async () => {

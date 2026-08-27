@@ -250,7 +250,21 @@ describe('mapPiSessionEvent', () => {
       })
       .map((wrapped) => wrapped.event);
 
-    mapper.map({ type: 'auto_retry_start', attempt: 1 });
+    expect(
+      mapper.map({ type: 'auto_retry_start', attempt: 1, delayMs: 250, maxAttempts: 3 }),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event: {
+            type: 'model/retry',
+            phase: 'waiting',
+            attempt: 1,
+            maxAttempts: 3,
+            delayMs: 250,
+          },
+        }),
+      ]),
+    );
     mapper.map({ type: 'agent_start' });
     const retryAttempt = mapper
       .map({
@@ -269,7 +283,13 @@ describe('mapPiSessionEvent', () => {
     expect(firstAttempt.filter((event) => event.type === 'error')).toHaveLength(1);
     expect(retryAttempt.filter((event) => event.type === 'error')).toHaveLength(0);
 
-    mapper.map({ type: 'auto_retry_end', success: false });
+    expect(mapper.map({ type: 'auto_retry_end', attempt: 1, success: false })).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event: { type: 'model/retry', phase: 'finished', attempt: 1 },
+        }),
+      ]),
+    );
     mapper.map({ type: 'agent_start' });
     const nextPrompt = mapper
       .map({
@@ -736,7 +756,9 @@ describe('mapPiSessionEvent', () => {
       toolName: 'health_read_context',
       isError: false,
       result: {
-        content: [{ type: 'text', text: 'These values are user-authorized Apple Health summaries.' }],
+        content: [
+          { type: 'text', text: 'These values are user-authorized Apple Health summaries.' },
+        ],
         details: {
           sensitivity: 'health',
           health: {
@@ -1111,9 +1133,7 @@ describe('C1: wrapEvent and wrapEvents', () => {
         timestamp: 1,
       },
     });
-    const assistantNative = assistantEnd.find(
-      (event) => event.type === 'message/native_context',
-    );
+    const assistantNative = assistantEnd.find((event) => event.type === 'message/native_context');
     if (assistantNative?.type !== 'message/native_context') {
       throw new Error('missing assistant native context event');
     }

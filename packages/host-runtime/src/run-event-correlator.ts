@@ -195,6 +195,7 @@ function isForegroundEvent(event: AgentEvent): boolean {
     case 'permission/resolved':
     case 'compaction/start':
     case 'compaction/end':
+    case 'model/retry':
     case 'error':
       return true;
     default:
@@ -217,6 +218,7 @@ function addRunId(event: AgentEvent, runId: string): AgentEvent {
     case 'permission/resolved':
     case 'compaction/start':
     case 'compaction/end':
+    case 'model/retry':
     case 'error':
       return { ...event, runId };
     default:
