@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed — product-owner directed |
+| Status | Shipped in-tree — live CPA/Grok smoke pending |
 | Date | 2026-08-27 |
 | Scope | `contracts`, `agent-host`, `host-runtime`, `session`, `host-client`, Desktop, CLI, ADRs |
 | Trigger | Grok 4.6 thinking-only stops, unterminated CPA streams, duplicate Host completion policy, misleading Desktop errors |

@@ -159,7 +159,7 @@ interface AgentHost {
 
 interface SessionHandle {
   readonly id: string;
-  prompt(input: PromptInput): Promise<void>;
+  prompt(input: PromptInput): Promise<AgentPromptOutcome>;
   steer(message: string): Promise<void>;
   followUp(message: string): Promise<void>;
   armRunIntervention?(input: BackendRunIntervention): Promise<void>;
@@ -179,9 +179,20 @@ interface PromptInput {
 ```
 
 `SessionHandle.prompt()` is the backend completion API used inside the Host.
-The product `session/prompt` HostCommand follows ADR 0015: it allocates and
-returns a `runId` immediately, then observes completion through Host pushes and
-RunRegistry state.
+It returns one structured `AgentPromptOutcome` (`completed` | `failed` |
+`aborted`) after Pi settles. The product `session/prompt` HostCommand still
+follows ADR 0015: it allocates and returns a `runId` immediately. Host
+`session-turn-executor` then terminalizes that Run once from the outcome.
+Desktop and CLI are projections; an `AgentEvent.error` is evidence only.
+
+Call chain for a foreground turn:
+
+```text
+Pi Agent Loop
+  → @piwin/agent-host (outcome + explicit runId on Agent events)
+  → Host session-turn-executor / RunRegistry
+  → Host push publisher (the only AgentEventEnvelope producer)
+```
 
 `steer()` and `followUp()` remain compatibility backend methods, not the
 product control vocabulary. New clients use the Host-owned Run intervention
@@ -201,6 +212,7 @@ Pi backends normalize Pi SDK and worker events into one `AgentEvent` union:
 - `message/*` start/update/end (text, thinking)
 - `tool/*` start/update/end
 - `compaction/*`
+- `model/retry`
 - `error`
 
 Product transport uses a broader `HostPush` union. `agent/event` carries the
@@ -440,8 +452,8 @@ performed.
 | Package | Responsibility |
 |---------|----------------|
 | `@piwin/contracts` | Types, events, config schemas (runtime-light) |
-| `@piwin/host-runtime` | Product composition root: Settings compilation, command/push routing, runtime generations, Runs, Jobs, permissions, tools, prompt preparation |
-| `@piwin/agent-host` | Pi-only boundary: SDK backend, isolated worker backend, Pi event/tool adapters, worker protocol |
+| `@piwin/host-runtime` | Product composition root: Settings compilation, command/push routing, runtime generations, Runs, Jobs, permissions, tools, prompt preparation. Turn execution lives in `session-turn-executor`; Run terminalization lives in `run-terminalizer`; Host egress envelopes live in `host-event-envelope`. |
+| `@piwin/agent-host` | Pi-only boundary: SDK backend, isolated worker backend, Pi event/tool adapters, worker protocol, parsed-stream guard for OpenAI-completions. Returns plain `AgentEvent[]` plus one `AgentPromptOutcome`. |
 | `@piwin/host-client` | Transport-neutral client facade for Desktop, CLI, Windows, mobile, and Web shells |
 | `@piwin/host-transport` | JSON framing and browser/Tauri WebSocket transport with connection state and cursor replay requests |
 | `@piwin/host-server` | Deployable Host wrapper: loopback/private listener, token auth, safe command admission, replay, health, lifecycle |

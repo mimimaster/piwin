@@ -57,13 +57,14 @@ unnecessary and harmful.
 
 6. **Cancellation is best effort across provider/MCP boundaries.** Local UI
    state reaches `cancelling` immediately upon user Stop. It reaches
-   `cancelled` only after a terminal normalized event confirms the run has
-   stopped. A timeout that cannot cancel the underlying work is reported as
-   `failed` with a `model-turn-timeout` code, not as a silent success.
-   Host owns a 120s stream-idle watchdog (no text/thinking/tool/permission
-   progress) that uses this same abort path. `session/resume` with no
-   foreground run settles leftover `streaming` assistant rows so a missed
-   `message/end` cannot leave a durable zombie.
+   `cancelled` only after Host `run/terminal` confirms the run has stopped.
+   Host no longer owns a model-stream watchdog. Parsed-stream stalls are
+   detected only in `@piwin/agent-host` for OpenAI-completions, using Pi's
+   `httpIdleTimeoutMs`, and they return a failed `AgentPromptOutcome`.
+   `RunRegistry` is the only product Run terminal authority; every
+   foreground Agent event that can affect a Run carries an explicit `runId`.
+   `session/resume` with no foreground run settles leftover `streaming`
+   assistant rows so a missed `message/end` cannot leave a durable zombie.
 
 7. **Late events from a superseded run are discarded.** The host and UI track
    the current `runId` per session. Events carrying an older `runId` are logged
@@ -75,8 +76,9 @@ unnecessary and harmful.
 - Stop, steer, and permission resolution are always reachable.
 - The UI can display run phases and elapsed time instead of a single
   indeterminate "responding" state.
-- Timeouts become cancellation-aware: they trigger the same abort path as
-  user Stop, rather than merely rejecting a response wrapper.
+- Parsed-stream stalls fail the Run through the same outcome path as other
+  Agent failures; user Stop remains a Host-owned abort that terminalizes
+  `cancelled`.
 - The JSONL sidecar protocol gains a control lane and per-session work queues,
   replacing the single global FIFO.
 - ADR 0006 remains valid for framing, event push, and short request/response
