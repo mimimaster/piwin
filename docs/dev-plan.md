@@ -37,6 +37,15 @@ Isolation 推进。三阶段现已完成：旧的 Job/Run/process/worker 权威�
 公共 runtime replacement 也已接入；后续改动必须通过架构门禁。
 原 Phase 7 worker plan 只保留为历史分析，不再是执行权威。
 
+Agent turn 完成权威已回到 Pi native outcome。产品 Run 只由 Host
+`RunRegistry` 根据 `AgentPromptOutcome` 终态一次。执行权威：
+
+- [`docs/specs/2026-08-27-pi-native-turn-authority-refactor.md`](./specs/2026-08-27-pi-native-turn-authority-refactor.md)
+
+确定性路径已落地（contracts / agent-host / host-runtime / Desktop / CLI）。
+旧 Host watchdog、identity-less error reclaim、全局 retry 清零、agent-host
+event envelope 已删除。用户批准的 CPA/Grok 实网冒烟仍待做。
+
 ### 1.2 Host Server / multi-client architecture program
 
 The Host-first deployment target is defined by:
