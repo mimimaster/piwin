@@ -367,9 +367,9 @@ describe('ConversationResponseContent', () => {
     expect(container.textContent).toContain('什么是光合作用？');
     expect(container.textContent).not.toContain('光能转化为化学能');
 
-    // Click to reveal answer
+    const card = container.querySelector('.fc-quiet-card-container');
     act(() => {
-      frame?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      card?.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }));
     });
 
     expect(container.textContent).toContain('光能转化为化学能');
