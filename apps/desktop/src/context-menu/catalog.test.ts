@@ -196,10 +196,11 @@ describe('buildContextMenuItems', () => {
       label: 'sel',
     };
     const items = buildContextMenuItems(target, baseCaps);
+    // Action id lands in PR1; string form avoids never-narrowing before the union expands.
     const structure = items.map((item) => {
       if (item.type === 'separator') return 'separator';
       if (item.type === 'submenu') return item.id;
-      return item.id;
+      return String(item.id);
     });
     expect(structure).toEqual([
       'generate-flashcard',
@@ -216,7 +217,7 @@ describe('buildContextMenuItems', () => {
     expect(more).toBeDefined();
     const childIds = more?.children
       .filter((child): child is Extract<typeof child, { type: 'item' }> => child.type === 'item')
-      .map((child) => child.id);
+      .map((child) => String(child.id));
     expect(childIds).toEqual(['explain', 'fix', 'side-chat', 'copy-as-ref']);
   });
 
@@ -228,11 +229,16 @@ describe('buildContextMenuItems', () => {
     };
     const en = buildContextMenuItems(target, { ...baseCaps, locale: 'en' });
     const zh = buildContextMenuItems(target, { ...baseCaps, locale: 'zh-CN' });
-    const enGen = en.find((item) => item.type === 'item' && item.id === 'generate-flashcard');
-    const zhGen = zh.find((item) => item.type === 'item' && item.id === 'generate-flashcard');
-    expect(enGen && 'label' in enGen ? enGen.label : '').toBe('Generate flashcard');
-    expect(zhGen && 'label' in zhGen ? zhGen.label : '').toBe('生成闪卡');
-    expect(enGen && 'testId' in enGen ? enGen.testId : '').toBe('context-menu-generate-flashcard');
-    expect(zhGen && 'testId' in zhGen ? zhGen.testId : '').toBe('context-menu-generate-flashcard');
+    const targetId = 'generate-flashcard';
+    const enGen = en.find(
+      (item) => item.type === 'item' && String(item.id) === targetId,
+    ) as Extract<(typeof en)[number], { type: 'item' }> | undefined;
+    const zhGen = zh.find(
+      (item) => item.type === 'item' && String(item.id) === targetId,
+    ) as Extract<(typeof zh)[number], { type: 'item' }> | undefined;
+    expect(enGen?.label ?? '').toBe('Generate flashcard');
+    expect(zhGen?.label ?? '').toBe('生成闪卡');
+    expect(enGen?.testId ?? '').toBe('context-menu-generate-flashcard');
+    expect(zhGen?.testId ?? '').toBe('context-menu-generate-flashcard');
   });
 });
