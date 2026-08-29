@@ -31,7 +31,7 @@ export function FlashcardDraftEditor(props: FlashcardDraftEditorProps): ReactEle
   const disabled = props.disabled === true;
   return (
     <div className="fc-draft-editor" data-testid="flashcard-draft-editor">
-      <label className="fcws-dialog-field">
+      <label className="fc-draft-field">
         <span>{labels.deck}</span>
         <Select
           value={props.deck}

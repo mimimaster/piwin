@@ -39,9 +39,12 @@ function useFlashcardLibrary(request: FlashcardsRequester): FlashcardLibrary {
   const [error, setError] = useState<string | null>(null);
   const requestRef = useRef(request);
   requestRef.current = request;
+  const hasLoadedRef = useRef(false);
 
   const reload = useCallback(async () => {
-    setLoading(true);
+    // Keep ReviewStage mounted on later refreshes so a saved tutor draft
+    // is not unmounted by the initial-load spinner.
+    if (!hasLoadedRef.current) setLoading(true);
     setError(null);
     const requester = requestRef.current;
     try {
@@ -69,6 +72,7 @@ function useFlashcardLibrary(request: FlashcardsRequester): FlashcardLibrary {
       }
       setQueue((queueResponse.data as { queue?: ReviewQueueItem[] }).queue ?? []);
     } finally {
+      hasLoadedRef.current = true;
       setLoading(false);
     }
   }, []);
