@@ -122,9 +122,12 @@ function item(
   },
 ): ContextMenuItemSpec {
   const baseLabel = labels[id];
+  // zh prefers full-width parentheses for disabled suffixes.
+  const wrapHint = (hint: string): string =>
+    labels === ZH_LABELS ? `（${hint}）` : ` (${hint})`;
   const label =
     options?.disabled && options.disabledHint
-      ? `${baseLabel} (${options.disabledHint})`
+      ? `${baseLabel}${wrapHint(options.disabledHint)}`
       : baseLabel;
   const spec: Extract<ContextMenuItemSpec, { type: 'item' }> = {
     type: 'item',
@@ -216,8 +219,8 @@ export function buildContextMenuItems(
       ]);
     case 'selection': {
       const cannotSendPreset = !caps.canSendPreset;
-      const disabledHint =
-        caps.locale === 'zh-CN' ? '需要活动会话' : 'requires an active session';
+      // Covers missing session and host-not-ready without blaming the wrong cause.
+      const disabledHint = caps.locale === 'zh-CN' ? '会话未就绪' : 'requires an active chat';
       return compact([
         item('generate-flashcard', labels, {
           disabled: cannotSendPreset,

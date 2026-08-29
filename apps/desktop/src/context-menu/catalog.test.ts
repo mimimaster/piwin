@@ -86,10 +86,20 @@ describe('buildContextMenuItems', () => {
       selectedText: '依赖数组',
       label: 'sel',
     };
-    const items = buildContextMenuItems(target, { ...baseCaps, canSendPreset: false });
-    const gen = items.find((item) => item.type === 'item' && item.id === 'generate-flashcard');
-    expect(gen && gen.type === 'item' && gen.disabled).toBe(true);
-    expect(gen && gen.type === 'item' ? gen.label : '').toContain('requires an active session');
+    const enItems = buildContextMenuItems(target, { ...baseCaps, canSendPreset: false });
+    const enGen = enItems.find((item) => item.type === 'item' && item.id === 'generate-flashcard');
+    expect(enGen && enGen.type === 'item' && enGen.disabled).toBe(true);
+    expect(enGen && enGen.type === 'item' ? enGen.label : '').toContain('requires an active chat');
+
+    const zhItems = buildContextMenuItems(target, {
+      ...baseCaps,
+      canSendPreset: false,
+      locale: 'zh-CN',
+    });
+    const zhGen = zhItems.find((item) => item.type === 'item' && item.id === 'generate-flashcard');
+    expect(zhGen && zhGen.type === 'item' && zhGen.disabled).toBe(true);
+    expect(zhGen && zhGen.type === 'item' ? zhGen.label : '').toContain('会话未就绪');
+    expect(zhGen && zhGen.type === 'item' ? zhGen.label : '').toMatch(/（.*）/);
   });
 
   it('includes fork only when message capabilities allow', () => {
@@ -223,11 +233,10 @@ describe('buildContextMenuItems', () => {
       label: 'sel',
     };
     const items = buildContextMenuItems(target, baseCaps);
-    // Action id lands in PR1; string form avoids never-narrowing before the union expands.
     const structure = items.map((item) => {
       if (item.type === 'separator') return 'separator';
       if (item.type === 'submenu') return item.id;
-      return String(item.id);
+      return item.id;
     });
     expect(structure).toEqual([
       'generate-flashcard',
@@ -244,7 +253,7 @@ describe('buildContextMenuItems', () => {
     expect(more).toBeDefined();
     const childIds = more?.children
       .filter((child): child is Extract<typeof child, { type: 'item' }> => child.type === 'item')
-      .map((child) => String(child.id));
+      .map((child) => child.id);
     expect(childIds).toEqual(['explain', 'fix', 'side-chat', 'copy-as-ref']);
   });
 
@@ -256,13 +265,14 @@ describe('buildContextMenuItems', () => {
     };
     const en = buildContextMenuItems(target, { ...baseCaps, locale: 'en' });
     const zh = buildContextMenuItems(target, { ...baseCaps, locale: 'zh-CN' });
-    const targetId = 'generate-flashcard';
     const enGen = en.find(
-      (item) => item.type === 'item' && String(item.id) === targetId,
-    ) as Extract<(typeof en)[number], { type: 'item' }> | undefined;
+      (item): item is Extract<(typeof en)[number], { type: 'item' }> =>
+        item.type === 'item' && item.id === 'generate-flashcard',
+    );
     const zhGen = zh.find(
-      (item) => item.type === 'item' && String(item.id) === targetId,
-    ) as Extract<(typeof zh)[number], { type: 'item' }> | undefined;
+      (item): item is Extract<(typeof zh)[number], { type: 'item' }> =>
+        item.type === 'item' && item.id === 'generate-flashcard',
+    );
     expect(enGen?.label ?? '').toBe('Generate flashcard');
     expect(zhGen?.label ?? '').toBe('生成闪卡');
     expect(enGen?.testId ?? '').toBe('context-menu-generate-flashcard');
