@@ -32,7 +32,7 @@ import {
 } from './use-conversation-pane-layout';
 import { sessionCreateInputForTransport } from './remote-session-hydrate';
 import { createGestureIdempotencyKey } from './gesture-idempotency';
-import { pushError } from './notification-queue';
+import { pushError, pushSuccess } from './notification-queue';
 import { WorkbenchSubpageStage } from './workbench-subpage-stage';
 import { insetComposerText } from './workbench-chrome-assembly';
 import { CardTutorProvider } from './flashcards/card-tutor-provider';
@@ -317,6 +317,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
       <CardTutorProvider
         request={requestHostCommand}
         locale={desktopLocale}
+        notify={(message) => dispatchNotification(pushSuccess(message))}
         {...(state.activeSessionId ? { sessionId: state.activeSessionId } : {})}
         {...(currentPromptModelRef ? { model: currentPromptModelRef } : {})}
       >

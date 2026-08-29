@@ -168,6 +168,17 @@
   margin: 0 0 var(--s-2, 4px);
 }
 
+.fc-tutor-draft,
+.fc-draft-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4, 8px);
+}
+
+.fc-tutor-draft {
+  margin-top: var(--s-4, 8px);
+}
+
 .fcws-tear {
   display: flex;
   flex-direction: column;

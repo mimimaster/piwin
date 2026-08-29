@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
-import { Button, Dialog, Select, TextArea } from '@piwin/ui-kit';
+import { Button, Dialog, TextArea } from '@piwin/ui-kit';
+import { FlashcardDraftEditor } from '../../flashcards/flashcard-draft-editor';
 import { IconSpark } from '../../shell-icons';
 
 export type CreateCardDialogProps = {
@@ -39,27 +40,21 @@ export function CreateCardDialog(props: CreateCardDialogProps): ReactElement {
     >
       <div className="fcws-dialog-body">
         <h3>{labels.title}</h3>
-        <label className="fcws-dialog-field">
-          <span>{labels.deck}</span>
-          <Select
-            value={props.deck}
-            onChange={(e) => props.onDeckChange(e.currentTarget.value)}
-            data={props.deckOptions}
-          />
-        </label>
-        <TextArea
-          label={labels.front}
-          placeholder={labels.frontPlaceholder}
-          value={props.front}
-          onChange={props.onFrontChange}
-          testId="flashcards-new-front"
-        />
-        <TextArea
-          label={labels.back}
-          placeholder={labels.backPlaceholder}
-          value={props.back}
-          onChange={props.onBackChange}
-          testId="flashcards-new-back"
+        <FlashcardDraftEditor
+          deckOptions={props.deckOptions}
+          deck={props.deck}
+          onDeckChange={props.onDeckChange}
+          front={props.front}
+          onFrontChange={props.onFrontChange}
+          back={props.back}
+          onBackChange={props.onBackChange}
+          labels={{
+            deck: labels.deck,
+            front: labels.front,
+            frontPlaceholder: labels.frontPlaceholder,
+            back: labels.back,
+            backPlaceholder: labels.backPlaceholder,
+          }}
         />
         <div className="fcws-dialog-footer">
           <Button variant="ghost" onClick={() => props.onOpenChange(false)}>

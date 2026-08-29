@@ -3,6 +3,9 @@ import type { FlashcardTutorFace } from '@piwin/contracts';
 import { Button, Notice, Spinner } from '@piwin/ui-kit';
 import { MarkdownView } from '../MarkdownView';
 import { cardTutorCopy, tutorErrorMessage } from './card-tutor-copy';
+import { FlashcardDraftEditor } from './flashcard-draft-editor';
+import type { FlashcardDraftSource } from './flashcard-tutor-draft';
+import { basicDraftMissingFrontOrBack } from './flashcard-tutor-draft';
 import { useCardTutor } from './card-tutor-provider';
 
 const SPINNER_DELAY_MS = 200;
@@ -11,6 +14,7 @@ export function CardTutorPanel(props: {
   locale: 'zh-CN' | 'en';
   itemId: string;
   face: FlashcardTutorFace;
+  item: FlashcardDraftSource;
   autoFocusHeading?: boolean;
 }): ReactElement | null {
   const tutor = useCardTutor();
@@ -36,8 +40,10 @@ export function CardTutorPanel(props: {
   if (!active) return null;
 
   const isHint = tutor.state.intent === 'hint' || props.face === 'front';
-  const heading = isHint ? copy.panelHint : copy.panelExplain;
+  const drafting = tutor.state.status === 'drafting';
+  const heading = drafting ? copy.makeCard : isHint ? copy.panelHint : copy.panelExplain;
   const loadingLabel = isHint ? copy.loadingHint : copy.loadingExplain;
+  const draftErrorText = tutorErrorMessage(copy, tutor.state.draft?.error?.code);
   const errorText = tutorErrorMessage(copy, tutor.state.error?.code);
   const liveMessage =
     tutor.state.status === 'ready'
@@ -46,9 +52,21 @@ export function CardTutorPanel(props: {
         : copy.readyLiveExplain
       : tutor.state.status === 'error'
         ? errorText
-        : '';
+        : drafting && tutor.state.draft?.saveStatus === 'saved'
+          ? copy.savedCard
+          : drafting && tutor.state.draft?.error
+            ? draftErrorText
+            : '';
 
   const modelUnavailable = tutor.state.error?.code === 'flashcard-selection-model-unavailable';
+  const draft = tutor.state.draft;
+  const saved = draft?.saveStatus === 'saved';
+  const saving = draft?.saveStatus === 'saving';
+  const canSave =
+    draft !== null &&
+    !saved &&
+    !saving &&
+    !basicDraftMissingFrontOrBack(draft.input);
 
   return (
     <section className="fc-tutor-panel" data-testid="card-tutor-panel" data-status={tutor.state.status}>
@@ -83,7 +101,12 @@ export function CardTutorPanel(props: {
               <Button variant="secondary" size="compact" onClick={() => void tutor.followUp('simplify')}>
                 {copy.simplify}
               </Button>
-              <Button variant="ghost" size="compact" disabled>
+              <Button
+                variant="ghost"
+                size="compact"
+                data-testid="card-tutor-make-card"
+                onClick={() => tutor.startDraft(props.item)}
+              >
                 {copy.makeCard}
               </Button>
               <Button variant="ghost" size="compact" onClick={tutor.close}>
@@ -97,6 +120,57 @@ export function CardTutorPanel(props: {
               </Button>
             </div>
           )}
+        </div>
+      ) : null}
+
+      {drafting && draft ? (
+        <div className="fc-tutor-draft" data-testid="card-tutor-draft">
+          <FlashcardDraftEditor
+            deckOptions={draft.deckOptions}
+            deck={draft.input.deck ?? 'General'}
+            onDeckChange={(deck) => tutor.updateDraft({ deck })}
+            front={draft.input.front ?? ''}
+            onFrontChange={(front) => tutor.updateDraft({ front })}
+            back={draft.input.back ?? ''}
+            onBackChange={(back) => tutor.updateDraft({ back })}
+            labels={{
+              deck: copy.draftDeck,
+              front: copy.draftFront,
+              frontPlaceholder: copy.draftFrontPlaceholder,
+              back: copy.draftBack,
+              backPlaceholder: copy.draftBackPlaceholder,
+            }}
+            disabled={saved || saving}
+            frontTestId="card-tutor-draft-front"
+            backTestId="card-tutor-draft-back"
+            deckTestId="card-tutor-draft-deck"
+          />
+          {draft.error ? (
+            <Notice tone="error" testId="card-tutor-draft-error" title={draftErrorText}>
+              {draft.existing?.front ? (
+                <p data-testid="card-tutor-existing">{draft.existing.front}</p>
+              ) : null}
+            </Notice>
+          ) : null}
+          <div className="fc-tutor-actions">
+            <Button
+              variant="primary"
+              size="compact"
+              data-testid="card-tutor-save-card"
+              disabled={!canSave}
+              onClick={() => void tutor.saveDraft()}
+            >
+              {saved ? copy.savedCard : copy.saveCard}
+            </Button>
+            {saved ? null : (
+              <Button variant="ghost" size="compact" onClick={tutor.cancelDraft}>
+                {copy.cancelDraft}
+              </Button>
+            )}
+            <Button variant="ghost" size="compact" onClick={tutor.close}>
+              {copy.close}
+            </Button>
+          </div>
         </div>
       ) : null}
 

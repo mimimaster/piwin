@@ -10,6 +10,18 @@ export type CardTutorCopy = {
   example: string;
   simplify: string;
   makeCard: string;
+  saveCard: string;
+  savedCard: string;
+  cancelDraft: string;
+  duplicateCard: string;
+  emptyFrontBack: string;
+  hostUnavailable: string;
+  saveFailed: string;
+  draftDeck: string;
+  draftFront: string;
+  draftFrontPlaceholder: string;
+  draftBack: string;
+  draftBackPlaceholder: string;
   retry: string;
   close: string;
   flipAnswer: string;
@@ -37,6 +49,18 @@ const ZH: CardTutorCopy = {
   example: '举例',
   simplify: '换个说法',
   makeCard: '做成新卡',
+  saveCard: '保存卡片',
+  savedCard: '已存入闪卡',
+  cancelDraft: '取消',
+  duplicateCard: '已存在相似卡片',
+  emptyFrontBack: '正面和背面不能为空',
+  hostUnavailable: 'Host 不可用，无法保存闪卡。',
+  saveFailed: '无法保存闪卡。',
+  draftDeck: '所属卡组',
+  draftFront: '正面（问题）',
+  draftFrontPlaceholder: '输入问题…',
+  draftBack: '背面（答案）',
+  draftBackPlaceholder: '输入答案与解析…',
   retry: '重试',
   close: '关闭',
   flipAnswer: '查看答案',
@@ -64,6 +88,18 @@ const EN: CardTutorCopy = {
   example: 'Example',
   simplify: 'Say it simpler',
   makeCard: 'Make a new card',
+  saveCard: 'Save card',
+  savedCard: 'Saved to flashcards',
+  cancelDraft: 'Cancel',
+  duplicateCard: 'A similar card already exists',
+  emptyFrontBack: 'Front and back cannot be empty',
+  hostUnavailable: 'Host is unavailable, so this card could not be saved.',
+  saveFailed: 'Could not save this card.',
+  draftDeck: 'Deck',
+  draftFront: 'Front (question)',
+  draftFrontPlaceholder: 'Enter the question…',
+  draftBack: 'Back (answer)',
+  draftBackPlaceholder: 'Enter the answer…',
   retry: 'Retry',
   close: 'Close',
   flipAnswer: 'Show answer',
@@ -103,6 +139,14 @@ export function tutorErrorMessage(copy: CardTutorCopy, code: string | null | und
       return copy.errorInvalid;
     case 'flashcard-not-found':
       return copy.errorNotFound;
+    case 'flashcard-draft-empty':
+      return copy.emptyFrontBack;
+    case 'flashcard-draft-duplicate':
+      return copy.duplicateCard;
+    case 'flashcard-draft-host-unavailable':
+      return copy.hostUnavailable;
+    case 'flashcard-draft-failed':
+      return copy.saveFailed;
     default:
       return copy.errorGeneric;
   }
