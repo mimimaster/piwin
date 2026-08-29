@@ -233,4 +233,131 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
       });
     }).not.toThrow();
   });
+
+  function firstTextNode(rootEl: ParentNode): Text {
+    const walker = document.createTreeWalker(rootEl, NodeFilter.SHOW_TEXT);
+    const node = walker.nextNode();
+    if (!(node instanceof Text) || node.textContent.trim().length === 0) {
+      throw new Error('expected a non-empty text node on the card face');
+    }
+    return node;
+  }
+
+  function selectRangeOnCardFace(face: Element, start: number, end: number): void {
+    const text = firstTextNode(face);
+    const range = document.createRange();
+    range.setStart(text, start);
+    range.setEnd(text, Math.min(end, text.data.length));
+    const selection = window.getSelection();
+    if (!selection) {
+      throw new Error('expected window.getSelection');
+    }
+    selection.removeAllRanges();
+    selection.addRange(range);
+    document.dispatchEvent(new Event('selectionchange'));
+  }
+
+  it('shows front primary action 给我提示 after a real Range selection on the front face', () => {
+    act(() => {
+      root.render(<FlashcardView card={sampleCard} locale="zh-CN" />);
+    });
+
+    const front = container.querySelector('.fc-quiet-front .fc-quiet-body');
+    expect(front).not.toBeNull();
+    act(() => {
+      selectRangeOnCardFace(front!, 0, 4);
+    });
+
+    const primary =
+      container.querySelector('[data-testid="card-selection-primary"]') ??
+      Array.from(container.querySelectorAll('button')).find((btn) =>
+        /给我提示|Hint/i.test(btn.textContent ?? ''),
+      );
+    expect(primary).toBeTruthy();
+    expect(primary?.textContent ?? '').toMatch(/给我提示|Hint/i);
+    expect(container.querySelector('.fc-selection-pill')).toBeNull();
+  });
+
+  it('shows back primary action 讲解 after a real Range selection on the back face', () => {
+    act(() => {
+      root.render(<FlashcardView card={sampleCard} locale="zh-CN" />);
+    });
+
+    const cardContainer = container.querySelector('.fc-quiet-card-container');
+    act(() => {
+      cardContainer?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(container.querySelector('.fc-quiet-frame')?.classList.contains('is-flipped')).toBe(true);
+
+    const back = container.querySelector('.fc-quiet-back .fc-quiet-body');
+    expect(back).not.toBeNull();
+    act(() => {
+      selectRangeOnCardFace(back!, 0, 4);
+    });
+
+    const primary =
+      container.querySelector('[data-testid="card-selection-primary"]') ??
+      Array.from(container.querySelectorAll('button')).find((btn) =>
+        /讲解|Explain/i.test(btn.textContent ?? ''),
+      );
+    expect(primary).toBeTruthy();
+    expect(primary?.textContent ?? '').toMatch(/讲解|Explain/i);
+    expect(primary?.textContent ?? '').not.toMatch(/给我提示|Hint/i);
+  });
+
+  it('does not flip the card when selecting text with a DOM Range', () => {
+    act(() => {
+      root.render(<FlashcardView card={sampleCard} locale="zh-CN" />);
+    });
+
+    const frame = container.querySelector('.fc-quiet-frame');
+    const front = container.querySelector('.fc-quiet-front .fc-quiet-body');
+    expect(frame?.classList.contains('is-flipped')).toBe(false);
+    expect(front).not.toBeNull();
+
+    act(() => {
+      selectRangeOnCardFace(front!, 0, 4);
+    });
+
+    expect(frame?.classList.contains('is-flipped')).toBe(false);
+    expect(window.getSelection()?.toString().trim().length).toBeGreaterThan(0);
+  });
+
+  it('does not flip the card when clicking text on the card face', () => {
+    act(() => {
+      root.render(<FlashcardView card={sampleCard} locale="zh-CN" />);
+    });
+
+    const frame = container.querySelector('.fc-quiet-frame');
+    const front = container.querySelector('.fc-quiet-front .fc-quiet-body');
+    expect(frame?.classList.contains('is-flipped')).toBe(false);
+    expect(front).not.toBeNull();
+
+    act(() => {
+      front?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+
+    expect(frame?.classList.contains('is-flipped')).toBe(false);
+  });
+
+  it('flips the card when Space is pressed while the card is focused', () => {
+    act(() => {
+      root.render(<FlashcardView card={sampleCard} locale="zh-CN" />);
+    });
+
+    const cardContainer = container.querySelector('.fc-quiet-card-container');
+    const frame = container.querySelector('.fc-quiet-frame');
+    expect(frame?.classList.contains('is-flipped')).toBe(false);
+
+    act(() => {
+      (cardContainer as HTMLElement | null)?.focus();
+      cardContainer?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }),
+      );
+    });
+
+    expect(frame?.classList.contains('is-flipped')).toBe(true);
+  });
 });

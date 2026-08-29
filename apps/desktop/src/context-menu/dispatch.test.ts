@@ -198,4 +198,30 @@ describe('dispatchContextMenuAction', () => {
     dispatchContextMenuAction('open-changed-files', messageTarget, dispatchers);
     expect(dispatchers.openChangedFiles).toHaveBeenCalledWith('m1');
   });
+
+  it('generate-flashcard sends exactly one preset with selection refs and does not write clipboard', () => {
+    const dispatchers = createDispatchers();
+    // Action id lands in PR1; cast keeps this suite red until then.
+    dispatchContextMenuAction(
+      'generate-flashcard' as Parameters<typeof dispatchContextMenuAction>[0],
+      selectionTarget,
+      dispatchers,
+    );
+
+    expect(dispatchers.sendPreset).toHaveBeenCalledTimes(1);
+    const [preset, refs] = dispatchers.sendPreset.mock.calls[0] ?? [];
+    expect(typeof preset).toBe('string');
+    expect(String(preset)).toMatch(/flashcard_create|一张|exactly one|single card/i);
+    expect(refs).toEqual([
+      expect.objectContaining({
+        kind: 'file',
+        projectPath: '/p',
+        relativePath: 'src/a.ts',
+        lineStart: 3,
+        lineEnd: 5,
+      }),
+    ]);
+    expect(dispatchers.copyText).not.toHaveBeenCalled();
+    expect(dispatchers.addToChat).toHaveBeenCalledTimes(1);
+  });
 });
