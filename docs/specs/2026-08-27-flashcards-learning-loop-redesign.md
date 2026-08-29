@@ -3,8 +3,7 @@
 > **状态：** 产品口径已定（2026-08-27；划词收敛 2026-08-30）  
 > **范围：** Desktop 闪卡  
 > **权威：** 产品 owner  
-> **执行计划：** [闪卡划词收敛与学习闭环](../plans/2026-08-30-flashcard-selection-convergence-execution-plan.md)
-
+> **执行计划：** [闪卡划词收敛与学习闭环](../plans/2026-08-30-flashcard-selection-convergence-execution-plan.md)（`docs/plans/` 按仓库策略本地/未跟踪，clone 后需自备该文件）
 piwin 是 coding-agent shell。闪卡是 Agent 从资料里抽出的记忆卡片。**我们负责产卡；用户自己管卡。**
 
 本轮不改 CardStore / review 存储真值，也不改 `sequenceId` / `position` 展示顺序语义（见 [ADR 0018](../adr/0018-notes-flashcards-local-rag.md)、[ADR 0054](../adr/0054-flashcard-item-review-card.md)）。无需新 ADR。

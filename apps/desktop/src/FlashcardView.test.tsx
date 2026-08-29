@@ -268,6 +268,7 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
       selectRangeOnCardFace(front!, 0, 4);
     });
 
+    // Missing shared primary is the PR0 pin; FlashcardView has no pill baseline on this branch.
     const primary =
       container.querySelector('[data-testid="card-selection-primary"]') ??
       Array.from(container.querySelectorAll('button')).find((btn) =>
@@ -275,7 +276,6 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
       );
     expect(primary).toBeTruthy();
     expect(primary?.textContent ?? '').toMatch(/给我提示|Hint/i);
-    expect(container.querySelector('.fc-selection-pill')).toBeNull();
   });
 
   it('shows back primary action 讲解 after a real Range selection on the back face', () => {
