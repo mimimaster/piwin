@@ -43,7 +43,10 @@ export function CardTutorPanel(props: {
   const drafting = tutor.state.status === 'drafting';
   const heading = drafting ? copy.makeCard : isHint ? copy.panelHint : copy.panelExplain;
   const loadingLabel = isHint ? copy.loadingHint : copy.loadingExplain;
-  const draftErrorText = tutorErrorMessage(copy, tutor.state.draft?.error?.code);
+  const draftError = tutor.state.draft?.error ?? null;
+  const draftErrorText = tutorErrorMessage(copy, draftError?.code);
+  const draftErrorDetail =
+    draftError && draftError.message !== draftError.code ? draftError.message : null;
   const errorText = tutorErrorMessage(copy, tutor.state.error?.code);
   const liveMessage =
     tutor.state.status === 'ready'
@@ -147,6 +150,9 @@ export function CardTutorPanel(props: {
           />
           {draft.error ? (
             <Notice tone="error" testId="card-tutor-draft-error" title={draftErrorText}>
+              {draftErrorDetail ? (
+                <p data-testid="card-tutor-draft-error-detail">{draftErrorDetail}</p>
+              ) : null}
               {draft.existing?.front ? (
                 <p data-testid="card-tutor-existing">{draft.existing.front}</p>
               ) : null}
@@ -163,11 +169,23 @@ export function CardTutorPanel(props: {
               {saved ? copy.savedCard : copy.saveCard}
             </Button>
             {saved ? null : (
-              <Button variant="ghost" size="compact" onClick={tutor.cancelDraft}>
+              <Button
+                variant="ghost"
+                size="compact"
+                data-testid="card-tutor-cancel-draft"
+                disabled={saving}
+                onClick={tutor.cancelDraft}
+              >
                 {copy.cancelDraft}
               </Button>
             )}
-            <Button variant="ghost" size="compact" onClick={tutor.close}>
+            <Button
+              variant="ghost"
+              size="compact"
+              data-testid="card-tutor-close"
+              disabled={saving}
+              onClick={tutor.close}
+            >
               {copy.close}
             </Button>
           </div>

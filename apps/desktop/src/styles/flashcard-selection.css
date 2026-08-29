@@ -179,6 +179,20 @@
   margin-top: var(--s-4, 8px);
 }
 
+.fc-draft-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2, 4px);
+}
+
+.fc-draft-field > span {
+  font-size: var(--fs-micro, 11px);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-4, var(--text-2, #dde0e5));
+}
+
 .fcws-tear {
   display: flex;
   flex-direction: column;

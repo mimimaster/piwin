@@ -275,6 +275,7 @@ function CreateHarness(): ReactElement {
       <span data-testid="deck">{tutor.state.draft?.input.deck ?? ''}</span>
       <span data-testid="save-status">{tutor.state.draft?.saveStatus ?? ''}</span>
       <span data-testid="draft-error">{tutor.state.draft?.error?.code ?? ''}</span>
+      <span data-testid="draft-error-message">{tutor.state.draft?.error?.message ?? ''}</span>
       <span data-testid="existing">{tutor.state.draft?.existing?.front ?? ''}</span>
       <button
         type="button"
@@ -305,6 +306,12 @@ function CreateHarness(): ReactElement {
       </button>
       <button type="button" data-testid="save" onClick={() => void tutor.saveDraft()}>
         save
+      </button>
+      <button type="button" data-testid="cancel-draft" onClick={tutor.cancelDraft}>
+        cancel-draft
+      </button>
+      <button type="button" data-testid="close" onClick={tutor.close}>
+        close
       </button>
     </div>
   );
@@ -511,6 +518,58 @@ describe('CardTutorProvider create from explanation', () => {
     expect(container.querySelector('[data-testid="status"]')?.textContent).toBe('drafting');
     expect(container.querySelector('[data-testid="draft-error"]')?.textContent).toBe(
       'flashcard-draft-host-unavailable',
+    );
+    expect(container.querySelector('[data-testid="save-status"]')?.textContent).toBe('idle');
+  });
+
+  it('ignores cancel and close while saving so create still notifies', async () => {
+    let finish!: (response: HostResponse) => void;
+    const notify = vi.fn();
+    const request = mockRequest((command) => {
+      if (command.type !== 'flashcards/batch-create') {
+        return { type: 'response', command: command.type, success: false, error: 'unexpected' };
+      }
+      return new Promise((resolve) => {
+        finish = resolve;
+      });
+    });
+    await readyDraft(request, notify);
+    await click(container, 'save');
+    expect(container.querySelector('[data-testid="save-status"]')?.textContent).toBe('saving');
+    await click(container, 'cancel-draft');
+    await click(container, 'close');
+    expect(container.querySelector('[data-testid="status"]')?.textContent).toBe('drafting');
+    expect(container.querySelector('[data-testid="save-status"]')?.textContent).toBe('saving');
+    await act(async () => {
+      finish({
+        type: 'response',
+        command: 'flashcards/batch-create',
+        success: true,
+        data: { created: [{ id: 'new-1' }], skipped: [] },
+      });
+    });
+    expect(container.querySelector('[data-testid="save-status"]')?.textContent).toBe('saved');
+    expect(notify).toHaveBeenCalledWith('已存入闪卡');
+  });
+
+  it('surfaces Host validation detail instead of a generic save failure', async () => {
+    const request = mockRequest(async (command) => ({
+      type: 'response',
+      command: command.type,
+      success: true,
+      data: {
+        created: [],
+        skipped: [{ front: '什么是「光合」？', reason: 'validation', detail: 'front too long' }],
+      },
+    }));
+    await readyDraft(request);
+    await click(container, 'save');
+    expect(container.querySelector('[data-testid="status"]')?.textContent).toBe('drafting');
+    expect(container.querySelector('[data-testid="draft-error"]')?.textContent).toBe(
+      'flashcard-draft-validation',
+    );
+    expect(container.querySelector('[data-testid="draft-error-message"]')?.textContent).toBe(
+      'front too long',
     );
     expect(container.querySelector('[data-testid="save-status"]')?.textContent).toBe('idle');
   });

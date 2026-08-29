@@ -146,6 +146,7 @@ export function tutorErrorMessage(copy: CardTutorCopy, code: string | null | und
     case 'flashcard-draft-host-unavailable':
       return copy.hostUnavailable;
     case 'flashcard-draft-failed':
+    case 'flashcard-draft-validation':
       return copy.saveFailed;
     default:
       return copy.errorGeneric;
