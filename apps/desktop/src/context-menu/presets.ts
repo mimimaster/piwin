@@ -10,6 +10,10 @@ export const PRESET_TEMPLATES = {
   'explain-failure': 'Explain why this failed and the most likely root cause.',
   'fix-error':
     'Fix this error. Inspect related files as needed and apply a minimal fix.',
+  'generate-flashcard':
+    'Create exactly one flashcard (一张) from the attached selection ref as the source. ' +
+    'The front must be an atomic question. The back answer must be at most two sentences. ' +
+    'You MUST call `flashcard_create` — do not treat a textual “already created” claim as success without calling the tool.',
 } as const;
 
 export type PresetTemplateId = keyof typeof PRESET_TEMPLATES;

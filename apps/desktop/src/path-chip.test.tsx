@@ -199,6 +199,7 @@ describe('PathChip context menu (CM-06)', () => {
         canReveal: false,
         sideChatAvailable: false,
         applyAvailable: true,
+        canSendPreset: false,
         locale: 'en',
       },
       dispatchers,

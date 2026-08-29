@@ -163,6 +163,7 @@ export function PathChip({
     canSaveAs: canActOnDisk,
     sideChatAvailable: false,
     applyAvailable: true,
+    canSendPreset: false,
     locale: locale as DesktopLocale,
   };
 
