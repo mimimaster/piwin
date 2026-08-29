@@ -301,6 +301,77 @@ describe('flashcard selection commands', () => {
     expect(successData(response)).toMatchObject({ markdown: 'Cloze explanation.' });
   });
 
+  it('rejects a combined-front cloze selection of a hidden hole answer', async () => {
+    const registry = new FlashcardSelectionExplanationRegistry();
+    const item: FlashcardItem = {
+      id: 'card-cloze-2',
+      model: 'cloze',
+      deck: 'srs',
+      text: 'The {{c1::cat}} sat on the {{c2::mat}}.',
+      createdAt: '2026-08-01T00:00:00.000Z',
+    };
+    const response = await handleFlashcardExplainSelection(
+      {
+        type: 'flashcards/explain-selection',
+        input: explainInput({
+          itemId: 'card-cloze-2',
+          face: 'front',
+          intent: 'hint',
+          selectedText: 'mat',
+        }),
+      },
+      undefined,
+      createContext(createStore(item)),
+      registry,
+    );
+    expect(response.success).toBe(false);
+    expect(problemCode(response)).toBe(FLASHCARD_SELECTION_ERROR.invalid);
+  });
+
+  it('matches a MarkdownView selection after stripping emphasis markers', async () => {
+    const registry = new FlashcardSelectionExplanationRegistry();
+    const item = basicItem({ front: 'this is *italic* and __bold__ text' });
+    const response = await handleFlashcardExplainSelection(
+      {
+        type: 'flashcards/explain-selection',
+        input: explainInput({ selectedText: 'this is italic and bold text' }),
+      },
+      undefined,
+      createContext(createStore(item)),
+      registry,
+    );
+    expect(response.success).toBe(true);
+  });
+
+  it('rejects front+explain and back+hint intent combinations', async () => {
+    const registry = new FlashcardSelectionExplanationRegistry();
+    const context = createContext(createStore(basicItem()));
+    const frontExplain = await handleFlashcardExplainSelection(
+      {
+        type: 'flashcards/explain-selection',
+        input: explainInput({ face: 'front', intent: 'explain' }),
+      },
+      undefined,
+      context,
+      registry,
+    );
+    const backHint = await handleFlashcardExplainSelection(
+      {
+        type: 'flashcards/explain-selection',
+        input: explainInput({
+          face: 'back',
+          intent: 'hint',
+          selectedText: 'captured environment',
+        }),
+      },
+      undefined,
+      context,
+      registry,
+    );
+    expect(problemCode(frontExplain)).toBe(FLASHCARD_SELECTION_ERROR.invalid);
+    expect(problemCode(backHint)).toBe(FLASHCARD_SELECTION_ERROR.invalid);
+  });
+
   it('rejects a selection that is not on the current face', async () => {
     const registry = new FlashcardSelectionExplanationRegistry();
     const response = await handleFlashcardExplainSelection(
@@ -346,6 +417,21 @@ describe('flashcard selection commands', () => {
       registry,
     );
     expect(problemCode(response)).toBe(FLASHCARD_SELECTION_ERROR.notFound);
+  });
+
+  it('does not report a missing card when the store itself fails', async () => {
+    const registry = new FlashcardSelectionExplanationRegistry();
+    const context = createContext(createStore(basicItem()));
+    context.getCardStore = async () => {
+      throw new Error('EACCES: permission denied');
+    };
+    const response = await handleFlashcardExplainSelection(
+      { type: 'flashcards/explain-selection', input: explainInput() },
+      undefined,
+      context,
+      registry,
+    );
+    expect(problemCode(response)).toBe(FLASHCARD_SELECTION_ERROR.providerFailed);
   });
 
   it('returns model-unavailable when no model can be resolved', async () => {

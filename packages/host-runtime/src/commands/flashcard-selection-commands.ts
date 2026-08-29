@@ -154,12 +154,11 @@ export async function handleFlashcardExplainSelection(
   try {
     const store = await context.getCardStore();
     item = await store.read(parsed.itemId);
-  } catch {
-    return failCode(
-      requestId,
-      'flashcards/explain-selection',
-      FLASHCARD_SELECTION_ERROR.notFound,
-    );
+  } catch (error) {
+    const code = isMissingCardError(error)
+      ? FLASHCARD_SELECTION_ERROR.notFound
+      : FLASHCARD_SELECTION_ERROR.providerFailed;
+    return failCode(requestId, 'flashcards/explain-selection', code);
   }
 
   const faces = visibleFaces(item);
@@ -322,8 +321,20 @@ function visibleFaces(item: FlashcardItem): { front: string; back: string } | un
 
 function selectionOccursInFace(faceText: string, selectedText: string): boolean {
   if (faceText.includes(selectedText)) return true;
-  const plain = faceText.replace(/\*\*/g, '');
-  return plain.includes(selectedText);
+  const facePlain = visiblePlainText(faceText);
+  const selectedPlain = visiblePlainText(selectedText);
+  if (facePlain.includes(selectedText)) return true;
+  return selectedPlain.length > 0 && facePlain.includes(selectedPlain);
+}
+
+/** Strip common emphasis markers so MarkdownView selections can match stored faces. */
+function visiblePlainText(text: string): string {
+  return text.replace(/\*\*|__|\*/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function isMissingCardError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes('card not found');
 }
 
 function failCode(
