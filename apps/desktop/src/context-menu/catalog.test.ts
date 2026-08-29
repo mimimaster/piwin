@@ -188,4 +188,51 @@ describe('buildContextMenuItems', () => {
     expect(apply && apply.type === 'item' && apply.disabled).toBe(true);
     expect(open && open.type === 'item' && open.disabled).toBe(true);
   });
+
+  it('selection menu includes generate-flashcard as the first action (target order)', () => {
+    const target: ContextMenuTarget = {
+      surface: 'selection',
+      selectedText: '依赖数组',
+      label: 'sel',
+    };
+    const items = buildContextMenuItems(target, baseCaps);
+    const structure = items.map((item) => {
+      if (item.type === 'separator') return 'separator';
+      if (item.type === 'submenu') return item.id;
+      return item.id;
+    });
+    expect(structure).toEqual([
+      'generate-flashcard',
+      'add-to-chat',
+      'ask-about',
+      'separator',
+      'copy',
+      'more',
+    ]);
+    const more = items.find(
+      (item): item is Extract<typeof item, { type: 'submenu' }> =>
+        item.type === 'submenu' && item.id === 'more',
+    );
+    expect(more).toBeDefined();
+    const childIds = more?.children
+      .filter((child): child is Extract<typeof child, { type: 'item' }> => child.type === 'item')
+      .map((child) => child.id);
+    expect(childIds).toEqual(['explain', 'fix', 'side-chat', 'copy-as-ref']);
+  });
+
+  it('localizes generate-flashcard labels in zh and en', () => {
+    const target: ContextMenuTarget = {
+      surface: 'selection',
+      selectedText: '依赖数组',
+      label: 'sel',
+    };
+    const en = buildContextMenuItems(target, { ...baseCaps, locale: 'en' });
+    const zh = buildContextMenuItems(target, { ...baseCaps, locale: 'zh-CN' });
+    const enGen = en.find((item) => item.type === 'item' && item.id === 'generate-flashcard');
+    const zhGen = zh.find((item) => item.type === 'item' && item.id === 'generate-flashcard');
+    expect(enGen && 'label' in enGen ? enGen.label : '').toBe('Generate flashcard');
+    expect(zhGen && 'label' in zhGen ? zhGen.label : '').toBe('生成闪卡');
+    expect(enGen && 'testId' in enGen ? enGen.testId : '').toBe('context-menu-generate-flashcard');
+    expect(zhGen && 'testId' in zhGen ? zhGen.testId : '').toBe('context-menu-generate-flashcard');
+  });
 });
