@@ -1,7 +1,13 @@
 import { useState, useEffect, useRef, useCallback, type ReactElement } from 'react';
-import type { FlashcardReviewCard } from '@piwin/contracts';
+import type { FlashcardReviewCard, FlashcardTutorFace } from '@piwin/contracts';
 import type { ArtifactActionMessage } from '@piwin/artifact';
 import { collapseToPhysicalCards } from '@piwin/flashcards/cloze';
+import { CardSelectionPopover } from './flashcards/card-selection-popover';
+import { CardTutorPanel } from './flashcards/card-tutor-panel';
+import { cardTutorCopy, fallbackActionLabel } from './flashcards/card-tutor-copy';
+import { clipSelectionText } from './flashcards/card-text-selection';
+import { useCardTutor } from './flashcards/card-tutor-provider';
+import { useCardTextSelection } from './flashcards/use-card-text-selection';
 import { MarkdownView } from './MarkdownView';
 
 export type FlashcardViewProps = {
@@ -24,8 +30,15 @@ export function FlashcardView({
   const [rated, setRated] = useState<string | null>(null);
   const [sourceOpen, setSourceOpen] = useState(false);
   const flipTimerRef = useRef<number | null>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const frontBodyRef = useRef<HTMLDivElement>(null);
+  const backBodyRef = useRef<HTMLDivElement>(null);
+  const face: FlashcardTutorFace = flipped ? 'back' : 'front';
+  const activeBodyRef = flipped ? backBodyRef : frontBodyRef;
+  const selection = useCardTextSelection({ containerRef: activeBodyRef });
+  const tutor = useCardTutor();
+  const copy = cardTutorCopy(locale);
 
-  // Clean up animation timer on unmount
   useEffect(() => {
     return () => {
       if (flipTimerRef.current !== null) {
@@ -35,6 +48,16 @@ export function FlashcardView({
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (tutor.state.itemId === card.itemId) {
+        tutor.cancel();
+      }
+    };
+    // Unmount of this card only — tutor identity is stable enough for cleanup.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [card.itemId]);
+
   const isZh = locale === 'zh-CN';
   const hasSource = Boolean(card.sourceFolder || card.sourceNoteId);
   const sourcePath = card.sourceFile
@@ -43,7 +66,15 @@ export function FlashcardView({
       ? `note:${card.sourceNoteId}`
       : '';
 
+  const restoreCardFocus = useCallback((): void => {
+    cardRef.current?.focus();
+  }, []);
+
   const handleToggleFlip = (): void => {
+    selection.dismiss();
+    if (tutor.state.itemId === card.itemId) {
+      tutor.cancel();
+    }
     if (flipTimerRef.current !== null) {
       window.clearTimeout(flipTimerRef.current);
     }
@@ -85,8 +116,45 @@ export function FlashcardView({
     }
   };
 
+  const invokeSelection = (): void => {
+    const snap = selection.snapshot;
+    if (!snap) return;
+    void tutor.explain({
+      itemId: card.itemId,
+      face,
+      selectedText: snap.selectedText,
+      intent: face === 'front' ? 'hint' : 'explain',
+    });
+    selection.dismiss();
+  };
+
+  const invokeFallback = (): void => {
+    const faceText = face === 'front' ? card.front : card.back;
+    const selectedText = clipSelectionText(faceText);
+    if (!selectedText) return;
+    void tutor.explain({
+      itemId: card.itemId,
+      face,
+      selectedText,
+      intent: face === 'front' ? 'hint' : 'explain',
+    });
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent): void => {
-    if (e.key === 'Enter' || e.key === ' ') {
+    const target = e.target;
+    if (
+      target instanceof HTMLElement &&
+      target !== e.currentTarget &&
+      target.closest('button, textarea, input, [contenteditable="true"]')
+    ) {
+      return;
+    }
+    if (selection.snapshot && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      invokeSelection();
+      return;
+    }
+    if (e.key === ' ') {
       e.preventDefault();
       handleToggleFlip();
     } else if (flipped && rated === null && card.ordinal > 0) {
@@ -108,24 +176,18 @@ export function FlashcardView({
 
   return (
     <div
+      ref={cardRef}
       className="fc-quiet-card-container"
       data-card-id={card.cardId}
       data-testid="chat-flashcard"
       tabIndex={0}
       onKeyDown={handleKeyDown}
     >
-      {/* 3D Flip Frame */}
-      <div
+      <article
         className={`fc-quiet-frame${flipped ? ' is-flipped' : ''}${isFlipping ? ' is-flipping' : ''}`}
-        onClick={handleToggleFlip}
-        role="button"
-        tabIndex={0}
         aria-label={flipped ? 'Flashcard back' : 'Flashcard front'}
       >
-        {/* Front Face: Question */}
-        <div
-          className={`fc-quiet-face fc-quiet-front${!flipped ? ' is-active' : ' is-hidden'}`}
-        >
+        <div className={`fc-quiet-face fc-quiet-front${!flipped ? ' is-active' : ' is-hidden'}`}>
           <div className="fc-quiet-header">
             <div className="fc-quiet-meta">
               <span className="fc-quiet-deck">{card.deck || (isZh ? '闪卡' : 'Card')}</span>
@@ -147,7 +209,7 @@ export function FlashcardView({
             </div>
           </div>
 
-          <div className="fc-quiet-body fc-quiet-question">
+          <div ref={frontBodyRef} className="fc-quiet-body fc-quiet-question">
             <MarkdownView
               text={card.front}
               renderingPhase="completed"
@@ -158,10 +220,7 @@ export function FlashcardView({
           </div>
         </div>
 
-        {/* Back Face: Answer */}
-        <div
-          className={`fc-quiet-face fc-quiet-back${flipped ? ' is-active' : ' is-hidden'}`}
-        >
+        <div className={`fc-quiet-face fc-quiet-back${flipped ? ' is-active' : ' is-hidden'}`}>
           <div className="fc-quiet-header">
             <div className="fc-quiet-meta">
               <span className="fc-quiet-deck">{card.deck || (isZh ? '闪卡' : 'Card')}</span>
@@ -176,7 +235,7 @@ export function FlashcardView({
             </div>
           </div>
 
-          <div className="fc-quiet-body fc-quiet-answer">
+          <div ref={backBodyRef} className="fc-quiet-body fc-quiet-answer">
             {flipped ? (
               <MarkdownView
                 text={card.back}
@@ -197,19 +256,17 @@ export function FlashcardView({
                     setSourceOpen((prev) => !prev);
                   }}
                 >
-                  <span>📎 {isZh ? '来源' : 'Source'}:</span>
+                  <span>{isZh ? '来源' : 'Source'}:</span>
                   <span className="fc-quiet-source-path">{sourcePath}</span>
                 </button>
               </div>
             ) : null}
           </div>
 
-          {/* Preview cards (ordinal 0) are one physical cloze note — flip only. */}
           {card.ordinal > 0 && rated === null ? (
             <div
               className="fc-quiet-footer chat-flashcard-rate-section"
               data-testid="chat-flashcard-rate-section"
-              onClick={(e) => e.stopPropagation()}
             >
               <div className="fc-quiet-rating-bar">
                 <button
@@ -247,18 +304,14 @@ export function FlashcardView({
               </div>
             </div>
           ) : card.ordinal > 0 ? (
-            <div
-              className="fc-quiet-footer fc-quiet-rated-bar chat-flashcard-done-badge"
-              onClick={(e) => e.stopPropagation()}
-            >
+            <div className="fc-quiet-footer fc-quiet-rated-bar chat-flashcard-done-badge">
               <span className="fc-quiet-rated-msg">
-                ✓ {isZh ? `已记录：${rated}` : `Rated: ${rated}`}
+                {isZh ? `已记录：${rated}` : `Rated: ${rated}`}
               </span>
               <button
                 type="button"
                 className="fc-quiet-change-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
+                onClick={() => {
                   setRated(null);
                 }}
               >
@@ -267,20 +320,46 @@ export function FlashcardView({
             </div>
           ) : null}
         </div>
+      </article>
+
+      <CardSelectionPopover
+        open={selection.snapshot !== null}
+        locale={locale}
+        face={face}
+        getAnchorRect={selection.getAnchorRect}
+        onInvoke={invokeSelection}
+        onDismiss={selection.dismiss}
+        restoreFocus={restoreCardFocus}
+      />
+
+      <CardTutorPanel locale={locale} itemId={card.itemId} face={face} />
+
+      <div className="fc-quiet-controls">
+        <button
+          type="button"
+          className="fc-quiet-control-btn"
+          data-testid="chat-flashcard-flip"
+          onClick={handleToggleFlip}
+        >
+          {flipped ? copy.flipQuestion : copy.flipAnswer}
+        </button>
+        <button
+          type="button"
+          className="fc-quiet-control-btn"
+          data-testid="card-tutor-fallback"
+          onClick={invokeFallback}
+        >
+          {fallbackActionLabel(locale, face)}
+        </button>
       </div>
 
-      {/* Source Citation Popover */}
       {sourceOpen && hasSource ? (
-        <div className="fc-quiet-source-popover" onClick={(e) => e.stopPropagation()}>
+        <div className="fc-quiet-source-popover">
           <div className="fc-quiet-popover-header">
-            <span className="fc-quiet-popover-path">📄 {sourcePath}</span>
+            <span className="fc-quiet-popover-path">{sourcePath}</span>
             {card.sourceFile ? (
-              <button
-                type="button"
-                className="fc-quiet-open-btn"
-                onClick={handleOpenSource}
-              >
-                {isZh ? '打开源文件' : 'Open'} ↗
+              <button type="button" className="fc-quiet-open-btn" onClick={handleOpenSource}>
+                {isZh ? '打开源文件' : 'Open'}
               </button>
             ) : null}
           </div>
@@ -318,7 +397,6 @@ export function FlashcardStackView(props: {
     return <div className="fc-quiet-empty" />;
   }
 
-  // Single card mode: render direct minimalist card
   if (cards.length === 1) {
     return (
       <div className="fc-quiet-stack">
@@ -331,7 +409,6 @@ export function FlashcardStackView(props: {
     );
   }
 
-  // Multi-card deck mode: minimalist navigation bar
   return (
     <div className="fc-quiet-stack is-multi">
       <div className="fc-quiet-nav">

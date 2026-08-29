@@ -7,9 +7,10 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import type { FlashcardItem } from '@piwin/contracts';
+import type { FlashcardItem, HostCommand, HostResponse } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from '../../appearance-tokens.js';
+import { CardTutorProvider } from '../../flashcards/card-tutor-provider';
 import { TearDeck, type TearDeckLabels } from './tear-deck';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -116,9 +117,12 @@ describe('TearDeck shared selection tutor contract', () => {
     expect(container.querySelector('.fc-selection-pill')).toBeNull();
 
     const primary =
+      document.querySelector('[data-testid="card-selection-primary"]') ??
       container.querySelector('[data-testid="card-selection-primary"]') ??
-      Array.from(container.querySelectorAll('button')).find((btn) =>
-        /给我提示|Hint/i.test(btn.textContent ?? ''),
+      Array.from(document.querySelectorAll('button')).find(
+        (btn) =>
+          /给我提示|Hint/i.test(btn.textContent ?? '') &&
+          btn.getAttribute('data-testid') !== 'card-tutor-fallback',
       );
     expect(primary).toBeTruthy();
     expect(primary?.textContent ?? '').toMatch(/给我提示|Hint/i);
@@ -139,10 +143,13 @@ describe('TearDeck shared selection tutor contract', () => {
     });
 
     const help =
+      document.querySelector('[data-testid="card-selection-primary"]') ??
       container.querySelector('[data-testid="card-selection-primary"]') ??
       container.querySelector('.fc-selection-pill') ??
-      Array.from(container.querySelectorAll('button')).find((btn) =>
-        /给我提示|Hint|讲解|Explain/i.test(btn.textContent ?? ''),
+      Array.from(document.querySelectorAll('button')).find(
+        (btn) =>
+          /给我提示|Hint|讲解|Explain/i.test(btn.textContent ?? '') &&
+          btn.getAttribute('data-testid') !== 'card-tutor-fallback',
       );
     expect(help).toBeTruthy();
 
@@ -152,5 +159,88 @@ describe('TearDeck shared selection tutor contract', () => {
 
     expect(writeText).not.toHaveBeenCalled();
     expect(container.textContent ?? '').not.toMatch(/已复制追问指令/);
+  });
+
+  it('selection → popover invoke shows Host ready markdown in the tutor panel', async () => {
+    const request = vi.fn(async (command: HostCommand): Promise<HostResponse> => {
+      if (command.type === 'flashcards/cancel-explanation') {
+        return { type: 'response', command: command.type, success: true, data: { cancelled: true } };
+      }
+      if (command.type !== 'flashcards/explain-selection') {
+        return { type: 'response', command: command.type, success: false, error: 'unexpected' };
+      }
+      return {
+        type: 'response',
+        command: command.type,
+        success: true,
+        data: {
+          explanationId: command.input.explanationId,
+          itemId: command.input.itemId,
+          selectedText: command.input.selectedText,
+          intent: command.input.intent,
+          markdown: '这是一条短提示。',
+        },
+      };
+    });
+
+    renderDeck(
+      <CardTutorProvider request={request} locale="zh-CN">
+        <TearDeck cards={[sampleCard()]} labels={labels} onClose={() => undefined} />
+      </CardTutorProvider>,
+    );
+
+    const face =
+      container.querySelector('[data-testid="flashcards-tear-front"]') ??
+      container.querySelector('.fcws-tear-content');
+    act(() => {
+      selectRange(face!, 0, 4);
+    });
+    const primary = document.querySelector('[data-testid="card-selection-primary"]');
+    await act(async () => {
+      primary?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+
+    expect(container.querySelector('[data-testid="card-tutor-ready"]')).not.toBeNull();
+    expect(container.textContent).toContain('这是一条短提示。');
+    expect(writeText).not.toHaveBeenCalled();
+    expect(request).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'flashcards/explain-selection' }),
+    );
+  });
+
+  it('selection → Host error shows retry without clipboard', async () => {
+    const request = vi.fn(async (command: HostCommand): Promise<HostResponse> => {
+      if (command.type === 'flashcards/cancel-explanation') {
+        return { type: 'response', command: command.type, success: true, data: { cancelled: true } };
+      }
+      return {
+        type: 'response',
+        command: command.type,
+        success: false,
+        error: 'flashcard-selection-provider-failed',
+        problem: { code: 'flashcard-selection-provider-failed' },
+      };
+    });
+
+    renderDeck(
+      <CardTutorProvider request={request} locale="zh-CN">
+        <TearDeck cards={[sampleCard()]} labels={labels} onClose={() => undefined} />
+      </CardTutorProvider>,
+    );
+
+    const face =
+      container.querySelector('[data-testid="flashcards-tear-front"]') ??
+      container.querySelector('.fcws-tear-content');
+    act(() => {
+      selectRange(face!, 0, 4);
+    });
+    const primary = document.querySelector('[data-testid="card-selection-primary"]');
+    await act(async () => {
+      primary?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+
+    expect(container.querySelector('[data-testid="card-tutor-error"]')).not.toBeNull();
+    expect(container.textContent).toMatch(/重试/);
+    expect(writeText).not.toHaveBeenCalled();
   });
 });

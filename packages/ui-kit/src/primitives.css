@@ -392,6 +392,12 @@
 /* Deck: menus are the top elevation tier — surface-4 + elev-4, no border.
    Legacy token fallbacks keep the primitive renderable in any consumer that
    has not adopted the Deck scale. */
+.ui-popover-virtual-anchor {
+  position: fixed;
+  pointer-events: none;
+  visibility: hidden;
+}
+
 .ui-menu-content,
 .ui-popover-content {
   min-width: 180px;

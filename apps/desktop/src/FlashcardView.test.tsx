@@ -1,7 +1,9 @@
 // @vitest-environment happy-dom
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { act } from 'react';
+import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { PiwinUiProvider } from '@piwin/ui-kit';
+import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { FlashcardView, FlashcardStackView } from './FlashcardView';
 import type { FlashcardReviewCard } from '@piwin/contracts';
 
@@ -40,9 +42,7 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
   };
 
   it('renders front face with question, deck, and tags', () => {
-    act(() => {
-      root.render(<FlashcardView card={sampleCard} locale="zh-CN" />);
-    });
+    renderView(<FlashcardView card={sampleCard} locale="zh-CN" />);
 
     expect(container.textContent).toContain('什么是光合作用？');
     expect(container.textContent).toContain('生物');
@@ -50,20 +50,28 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
     expect(container.textContent).toContain('翻看解答');
   });
 
-  it('manages is-flipping transient state and cleans up after animation timer', () => {
+  function renderView(node: ReactElement): void {
     act(() => {
-      root.render(<FlashcardView card={sampleCard} locale="zh-CN" />);
+      root.render(<PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>{node}</PiwinUiProvider>);
     });
+  }
+
+  function flipCard(): void {
+    const flip = container.querySelector('[data-testid="chat-flashcard-flip"]');
+    act(() => {
+      flip?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+  }
+
+  it('manages is-flipping transient state and cleans up after animation timer', () => {
+    renderView(<FlashcardView card={sampleCard} locale="zh-CN" />);
 
     const frame = container.querySelector('.fc-quiet-frame');
     expect(frame).not.toBeNull();
     expect(frame?.classList.contains('is-flipped')).toBe(false);
     expect(frame?.classList.contains('is-flipping')).toBe(false);
 
-    // Trigger flip
-    act(() => {
-      frame?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    flipCard();
 
     expect(frame?.classList.contains('is-flipped')).toBe(true);
     expect(frame?.classList.contains('is-flipping')).toBe(true);
@@ -80,17 +88,15 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
 
   it('supports keyboard navigation for flip and FSRS rating', () => {
     let capturedAction: unknown = null;
-    act(() => {
-      root.render(
-        <FlashcardView
-          card={sampleCard}
-          locale="zh-CN"
-          onAction={(a) => {
-            capturedAction = a;
-          }}
-        />,
-      );
-    });
+    renderView(
+      <FlashcardView
+        card={sampleCard}
+        locale="zh-CN"
+        onAction={(a) => {
+          capturedAction = a;
+        }}
+      />,
+    );
 
     const cardContainer = container.querySelector('.fc-quiet-card-container');
     expect(cardContainer).not.toBeNull();
@@ -135,9 +141,7 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
       createdAt: '2026-08-18T00:00:00.000Z',
     };
 
-    act(() => {
-      root.render(<FlashcardStackView cards={[sampleCard, card2]} locale="zh-CN" />);
-    });
+    renderView(<FlashcardStackView cards={[sampleCard, card2]} locale="zh-CN" />);
 
     // Top quiet navigation is present
     expect(container.textContent).toContain('卡片 (2)');
@@ -177,9 +181,7 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
       back: '线粒体是细胞的**能量工厂**。',
     };
 
-    act(() => {
-      root.render(<FlashcardStackView cards={[clozeC1, clozeC2]} locale="zh-CN" />);
-    });
+    renderView(<FlashcardStackView cards={[clozeC1, clozeC2]} locale="zh-CN" />);
 
     expect(container.textContent).not.toContain('卡片 (2)');
     expect(container.querySelectorAll('[data-testid="chat-flashcard"]')).toHaveLength(1);
@@ -197,14 +199,9 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
       createdAt: '2026-08-18T00:00:00.000Z',
     };
 
-    act(() => {
-      root.render(<FlashcardView card={preview} locale="zh-CN" />);
-    });
+    renderView(<FlashcardView card={preview} locale="zh-CN" />);
 
-    const frame = container.querySelector('.fc-quiet-frame');
-    act(() => {
-      frame?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    flipCard();
 
     expect(container.textContent).toContain('线粒体是');
     expect(container.querySelector('[data-testid="chat-flashcard-rate-section"]')).toBeNull();
@@ -212,14 +209,9 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
   });
 
   it('safely cleans up pending animation timer on unmount with zero leaks', () => {
-    act(() => {
-      root.render(<FlashcardView card={sampleCard} locale="zh-CN" />);
-    });
+    renderView(<FlashcardView card={sampleCard} locale="zh-CN" />);
 
-    const frame = container.querySelector('.fc-quiet-frame');
-    act(() => {
-      frame?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    flipCard();
 
     // Unmount while flip animation timer is still pending
     act(() => {
@@ -233,6 +225,16 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
       });
     }).not.toThrow();
   });
+
+  function querySelectionPrimary(): Element | undefined {
+    return (
+      document.querySelector('[data-testid="card-selection-primary"]') ??
+      container.querySelector('[data-testid="card-selection-primary"]') ??
+      Array.from(document.querySelectorAll('button')).find((btn) =>
+        btn.getAttribute('data-testid') === 'card-selection-primary',
+      )
+    );
+  }
 
   function firstTextNode(rootEl: ParentNode): Text {
     const walker = document.createTreeWalker(rootEl, NodeFilter.SHOW_TEXT);
@@ -258,9 +260,7 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
   }
 
   it('shows front primary action 给我提示 after a real Range selection on the front face', () => {
-    act(() => {
-      root.render(<FlashcardView card={sampleCard} locale="zh-CN" />);
-    });
+    renderView(<FlashcardView card={sampleCard} locale="zh-CN" />);
 
     const front = container.querySelector('.fc-quiet-front .fc-quiet-body');
     expect(front).not.toBeNull();
@@ -268,20 +268,18 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
       selectRangeOnCardFace(front!, 0, 4);
     });
 
-    // Missing shared primary is the PR0 pin; FlashcardView has no pill baseline on this branch.
     const primary =
-      container.querySelector('[data-testid="card-selection-primary"]') ??
-      Array.from(container.querySelectorAll('button')).find((btn) =>
-        /给我提示|Hint/i.test(btn.textContent ?? ''),
+      querySelectionPrimary() ??
+      Array.from(document.querySelectorAll('button')).find((btn) =>
+        /给我提示|Hint/i.test(btn.textContent ?? '') &&
+        btn.getAttribute('data-testid') !== 'card-tutor-fallback',
       );
     expect(primary).toBeTruthy();
     expect(primary?.textContent ?? '').toMatch(/给我提示|Hint/i);
   });
 
   it('shows back primary action 讲解 after a real Range selection on the back face', () => {
-    act(() => {
-      root.render(<FlashcardView card={sampleCard} locale="zh-CN" />);
-    });
+    renderView(<FlashcardView card={sampleCard} locale="zh-CN" />);
 
     const cardContainer = container.querySelector('.fc-quiet-card-container');
     act(() => {
@@ -298,9 +296,10 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
     });
 
     const primary =
-      container.querySelector('[data-testid="card-selection-primary"]') ??
-      Array.from(container.querySelectorAll('button')).find((btn) =>
-        /讲解|Explain/i.test(btn.textContent ?? ''),
+      querySelectionPrimary() ??
+      Array.from(document.querySelectorAll('button')).find((btn) =>
+        /讲解|Explain/i.test(btn.textContent ?? '') &&
+        btn.getAttribute('data-testid') !== 'card-tutor-fallback',
       );
     expect(primary).toBeTruthy();
     expect(primary?.textContent ?? '').toMatch(/讲解|Explain/i);
@@ -308,9 +307,7 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
   });
 
   it('does not flip the card when selecting text with a DOM Range', () => {
-    act(() => {
-      root.render(<FlashcardView card={sampleCard} locale="zh-CN" />);
-    });
+    renderView(<FlashcardView card={sampleCard} locale="zh-CN" />);
 
     const frame = container.querySelector('.fc-quiet-frame');
     const front = container.querySelector('.fc-quiet-front .fc-quiet-body');
@@ -326,9 +323,7 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
   });
 
   it('does not flip the card when clicking text on the card face', () => {
-    act(() => {
-      root.render(<FlashcardView card={sampleCard} locale="zh-CN" />);
-    });
+    renderView(<FlashcardView card={sampleCard} locale="zh-CN" />);
 
     const frame = container.querySelector('.fc-quiet-frame');
     const front = container.querySelector('.fc-quiet-front .fc-quiet-body');
@@ -343,9 +338,7 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
   });
 
   it('flips the card when Space is pressed while the card is focused', () => {
-    act(() => {
-      root.render(<FlashcardView card={sampleCard} locale="zh-CN" />);
-    });
+    renderView(<FlashcardView card={sampleCard} locale="zh-CN" />);
 
     const cardContainer = container.querySelector('.fc-quiet-card-container');
     const frame = container.querySelector('.fc-quiet-frame');
