@@ -14,7 +14,7 @@ import {
   SegmentedControl,
   Spinner,
 } from '@piwin/ui-kit';
-import type { FlashcardCreateInput } from '@piwin/contracts';
+import type { FlashcardCreateInput, FlashcardItem } from '@piwin/contracts';
 import { itemPreviewText } from '@piwin/flashcards/cloze';
 import {
   IconArrowLeft,
@@ -33,6 +33,9 @@ import {
   type FlashcardsRequester,
 } from './flashcards/use-flashcards-workspace';
 import { ReviewStage, type ReviewRatingName } from './flashcards/review-stage';
+import { TearDeck } from './flashcards/tear-deck';
+import { tearDeckLabels } from './flashcards/tear-deck-copy';
+import { browseStartIndex, cardsForBrowse } from './flashcards/browse-set';
 import { CreateCardDialog, GenerateCardsDialog } from './flashcards/workspace-dialogs';
 
 export type FlashcardsWorkspaceViewProps = {
@@ -69,7 +72,13 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
   const [newFront, setNewFront] = useState('');
   const [newBack, setNewBack] = useState('');
   const [generateTopic, setGenerateTopic] = useState('');
+  const [browse, setBrowse] = useState<{
+    cards: FlashcardItem[];
+    focusId: string;
+    startIndex: number;
+  } | null>(null);
   const ratingInFlight = useRef(false);
+  const browseLocale = isZh ? 'zh-CN' : 'en';
 
   const ws = useFlashcardsWorkspace(props.request);
   useCardTutorOnCreated(ws.reload);
@@ -191,6 +200,46 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
     [ws],
   );
 
+  const openBrowse = useCallback((cardId: string) => {
+    const cards = cardsForBrowse(visibleCards, cardId);
+    if (cards.length === 0) return;
+    setBrowse({
+      cards,
+      focusId: cardId,
+      startIndex: browseStartIndex(cards, cardId),
+    });
+  }, [visibleCards]);
+
+  const closeBrowse = useCallback(() => {
+    const focusId = browse?.focusId;
+    setBrowse(null);
+    if (!focusId) return;
+    window.requestAnimationFrame(() => {
+      document.querySelector<HTMLButtonElement>(`[data-testid="flashcard-open-${focusId}"]`)?.focus();
+    });
+  }, [browse]);
+
+  const deleteBrowseCard = useCallback(
+    async (cardId: string) => {
+      const ok = await ws.remove(cardId);
+      if (!ok) return;
+      setBrowse(null);
+      await ws.reload();
+    },
+    [ws],
+  );
+
+  const deleteBrowseSet = useCallback(async () => {
+    if (!browse) return;
+    const sequenceId = browse.cards.find((card) => card.sequenceId)?.sequenceId;
+    const ids = sequenceId
+      ? ws.cards.filter((card) => card.sequenceId === sequenceId).map((card) => card.id)
+      : browse.cards.map((card) => card.id);
+    await Promise.all(ids.map((id) => ws.remove(id)));
+    setBrowse(null);
+    await ws.reload();
+  }, [browse, ws]);
+
   const deckOptions = useMemo(() => {
     const options = ws.decks.map((deck) => ({ value: deck, label: deck }));
     return options.length > 0 ? options : [{ value: 'General', label: 'General' }];
@@ -298,6 +347,7 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
               onChange={(value) => {
                 setSurface(value as 'review' | 'library');
                 if (value !== 'review') exitReview();
+                if (value !== 'library') setBrowse(null);
               }}
               data={[
                 { value: 'review', label: t(`Review (${dueHere})`, `复习 (${dueHere})`) },
@@ -328,7 +378,7 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
                   locale={props.locale === 'en' ? 'en' : 'zh-CN'}
                   labels={{
                     flipHint: t('Click or press Space to reveal', '点击或按空格查看答案'),
-                    rateHint: t('Rate your recall with 1–4', '按 1–4 评价掌握程度'),
+                    rateHint: t('Rate your recall with 1–4', '按 1–4 评价回忆'),
                     revealAnswer: t('Reveal answer (Space)', '查看答案 (空格)'),
                     exitReview: t('Exit review', '结束复习'),
                     answer: t('Answer', '答案解析'),
@@ -395,7 +445,18 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
             </div>
           ) : (
             <div className="fcws-library" data-testid="flashcards-library">
-              {ws.loading ? (
+              {browse ? (
+                <TearDeck
+                  key={browse.focusId}
+                  cards={browse.cards}
+                  labels={tearDeckLabels(browseLocale)}
+                  locale={browseLocale}
+                  initialIndex={browse.startIndex}
+                  onClose={closeBrowse}
+                  onDeleteCard={(cardId) => void deleteBrowseCard(cardId)}
+                  onDeleteSet={() => void deleteBrowseSet()}
+                />
+              ) : ws.loading ? (
                 <div className="fcws-loading">
                   <Spinner label={t('Loading flashcards…', '正在加载闪卡…')} />
                 </div>
@@ -419,11 +480,16 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
                     const dueEntry = ws.queue.find((q) => q.card.itemId === card.id);
                     return (
                       <li key={card.id} className="fcws-card-row" data-testid={`flashcard-row-${card.id}`}>
-                        <div className="fcws-card-row-main">
+                        <button
+                          type="button"
+                          className="fcws-card-row-open"
+                          data-testid={`flashcard-open-${card.id}`}
+                          onClick={() => openBrowse(card.id)}
+                        >
                           <span className="fcws-card-deck">{card.deck}</span>
-                          <p className="fcws-card-front">{itemPreviewText(card)}</p>
-                          <p className="fcws-card-back">{card.back ?? card.text ?? ''}</p>
-                        </div>
+                          <span className="fcws-card-front">{itemPreviewText(card)}</span>
+                          <span className="fcws-card-back">{card.back ?? card.text ?? ''}</span>
+                        </button>
                         <div className="fcws-card-row-side">
                           {dueEntry !== undefined ? (
                             <span className="fcws-state-badge is-due">{t('Due', '待复习')}</span>
