@@ -78,6 +78,7 @@ import type { McpServerConfig } from './mcp.js';
 import type {
   FlashcardBatchCreateInput,
   FlashcardCreateInput,
+  FlashcardSelectionExplainInput,
   ReviewRating,
 } from './flashcards.js';
 import type { IndexFolderOptions, RetrieveOptions } from './doc-rag.js';
@@ -700,6 +701,16 @@ export type HostCommand =
   | { id?: string; type: 'flashcards/rate'; cardId: string; rating: ReviewRating }
   | { id?: string; type: 'flashcards/export'; deck?: string }
   | { id?: string; type: 'flashcards/batch-create'; input: FlashcardBatchCreateInput }
+  | {
+      id?: string;
+      type: 'flashcards/explain-selection';
+      input: FlashcardSelectionExplainInput;
+    }
+  | {
+      id?: string;
+      type: 'flashcards/cancel-explanation';
+      explanationId: string;
+    }
   /** Doc Cards (folder-sourced flashcards): scan / index / retrieve / bind. See docs/specs/doc-flashcards.md. */
   | { id?: string; type: 'doccards/scan-folder'; folderPath: string }
   | ({

@@ -42,7 +42,7 @@ import {
 import { listWalkthroughs, loadWalkthrough, saveWalkthrough } from '../walkthrough-store.js';
 import { getPiwinRoot } from '../paths.js';
 import { fail, ok } from '../response-helpers.js';
-import { findEnabledProvider, resolveConfiguredDefaultModelRef } from '../provider-helpers.js';
+import { resolveProviderForModel } from '../completion-model-resolution.js';
 
 /* ------------------------------------------------------------------ */
 /* §11.1 Command context seam                                          */
@@ -213,29 +213,6 @@ export function isWalkthroughCommand(command: HostCommand): boolean {
 
 function walkthroughError(code: WalkthroughErrorCode, message: string): WalkthroughError {
   return { code, message };
-}
-
-/**
- * Validates that a ModelRef points to a configured provider and model, and that
- * the provider protocol matches (spec §4.4). Returns the provider config or an
- * error code.
- */
-function resolveProviderForModel(
-  model: ModelRef,
-  config: PiwinConfig,
-): { provider: ModelProviderConfig } | { provider?: undefined; error: WalkthroughErrorCode } {
-  const provider = findEnabledProvider(config, model.providerId);
-  if (!provider) {
-    return { error: 'provider-not-found' };
-  }
-  if (provider.protocol !== model.protocol) {
-    return { error: 'unsupported-provider' };
-  }
-  const modelExists = provider.models.some((m) => m.id === model.modelId);
-  if (!modelExists) {
-    return { error: 'model-not-configured' };
-  }
-  return { provider };
 }
 
 /**

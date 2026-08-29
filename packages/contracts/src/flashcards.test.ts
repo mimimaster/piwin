@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { FlashcardReviewCard } from './flashcards.js';
+import type {
+  FlashcardReviewCard,
+  FlashcardSelectionExplainInput,
+  FlashcardSelectionExplanation,
+} from './flashcards.js';
 import {
   formatFlashcardDisplayText,
   isFlashcardCreateToolName,
@@ -16,6 +20,28 @@ const CARD: FlashcardReviewCard = {
   back: 'Untrusted HTML rendered in a sandbox.',
   createdAt: '2026-08-24T00:00:00.000Z',
 };
+
+describe('flashcard tutor contracts', () => {
+  it('accepts explain input and explanation result shapes', () => {
+    const input: FlashcardSelectionExplainInput = {
+      explanationId: 'exp-1',
+      itemId: 'card-1',
+      face: 'front',
+      selectedText: 'closure',
+      intent: 'hint',
+      locale: 'en',
+    };
+    const explanation: FlashcardSelectionExplanation = {
+      explanationId: 'exp-1',
+      itemId: 'card-1',
+      selectedText: 'closure',
+      intent: 'hint',
+      markdown: 'Think about captured variables.',
+    };
+    expect(input.face).toBe('front');
+    expect(explanation.markdown.length).toBeGreaterThan(0);
+  });
+});
 
 describe('flashcard display payload', () => {
   it('parses display.cards from a create tool result', () => {

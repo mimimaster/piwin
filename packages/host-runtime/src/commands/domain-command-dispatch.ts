@@ -26,6 +26,7 @@ import { handleUsageCommand } from './usage-commands.js';
 import type { SessionProductCommandContext } from './session-product-commands.js';
 import { handleSideChatCommand } from './side-chat-commands.js';
 import { handleWalkthroughList, handleWalkthroughGenerate } from './walkthrough-commands.js';
+import { handleFlashcardSelectionCommand } from './flashcard-selection-commands.js';
 import { handleKnowledgeCommand } from './knowledge-commands.js';
 import { handleSubagentCommand } from './subagent-commands.js';
 
@@ -54,6 +55,15 @@ export async function dispatchDomainCommands(
       context.walkthrough.registry,
     );
   }
+  // flashcards/cancel-explanation is also handled early in HostRuntime so it
+  // can abort an in-flight explain without waiting on domain composition.
+  const flashcardSelection = await handleFlashcardSelectionCommand(
+    command,
+    requestId,
+    context.flashcardSelection?.context,
+    context.flashcardSelection?.registry,
+  );
+  if (flashcardSelection) return flashcardSelection;
 
   const product = await handleSessionProductCommand(command, requestId, context.sessionProduct);
   if (product) return product;
