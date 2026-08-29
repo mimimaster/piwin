@@ -27,6 +27,7 @@ import {
   IconTrash,
 } from '../shell-icons';
 import type { DesktopLocale } from '../desktop-locale';
+import { useCardTutorOnCreated } from '../flashcards/card-tutor-provider';
 import {
   useFlashcardsWorkspace,
   type FlashcardsRequester,
@@ -71,6 +72,7 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
   const ratingInFlight = useRef(false);
 
   const ws = useFlashcardsWorkspace(props.request);
+  useCardTutorOnCreated(ws.reload);
 
   const visibleQueue = useMemo(
     () => (deckFilter === '' ? ws.queue : ws.queue.filter((entry) => entry.card.deck === deckFilter)),

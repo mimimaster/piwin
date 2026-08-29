@@ -173,6 +173,7 @@ export function ReviewStage(props: {
         locale={locale}
         itemId={item.card.itemId}
         face={face}
+        item={item.card}
         autoFocusHeading={focusHeading}
       />
 

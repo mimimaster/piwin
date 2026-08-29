@@ -339,6 +339,7 @@ export function FlashcardView({
         locale={locale}
         itemId={card.itemId}
         face={face}
+        item={card}
         autoFocusHeading={focusHeading}
       />
 

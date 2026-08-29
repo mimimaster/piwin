@@ -274,6 +274,7 @@ export function TearDeck(props: {
           locale={locale}
           itemId={current.id}
           face={face}
+          item={current}
           autoFocusHeading={focusHeading}
         />
       </main>
