@@ -11,35 +11,27 @@ import { useCardTutor } from '../../flashcards/card-tutor-provider';
 import { useCardTextSelection } from '../../flashcards/use-card-text-selection';
 import { IconCheck, IconClose, IconRefresh, IconTrash } from '../../shell-icons';
 import { MarkdownView } from '../../MarkdownView';
+import { type TearDeckLabels, tearDeckLabels } from './tear-deck-copy';
 
-export type TearDeckLabels = {
-  flipHint: string;
-  tear: string;
-  lastCard: string;
-  close: string;
-  deleteCard: string;
-  deleteSet: string;
-  answer: string;
-  question: string;
-  remaining: (count: number) => string;
-  revealShortcut: string;
-  nextShortcut: string;
-  completedTitle: string;
-  completedDescription: (count: number) => string;
-  restart: string;
-};
+export type { TearDeckLabels };
 
 export function TearDeck(props: {
   cards: FlashcardItem[];
-  labels: TearDeckLabels;
+  labels?: TearDeckLabels;
   onClose: () => void;
   onDeleteCard?: (cardId: string) => void;
   onDeleteSet?: () => void;
   locale?: 'zh-CN' | 'en';
+  initialIndex?: number;
 }): ReactElement {
   const locale = props.locale ?? 'zh-CN';
+  const labels = props.labels ?? tearDeckLabels(locale);
   const copy = cardTutorCopy(locale);
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState(() => {
+    const start = props.initialIndex ?? 0;
+    if (props.cards.length === 0) return 0;
+    return Math.min(Math.max(0, start), props.cards.length - 1);
+  });
   const [revealed, setRevealed] = useState(false);
   const [tearing, setTearing] = useState(false);
   const [completed, setCompleted] = useState(false);
@@ -131,16 +123,23 @@ export function TearDeck(props: {
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
-      if (
+      const typing =
         target !== null &&
         (target.tagName === 'INPUT' ||
           target.tagName === 'TEXTAREA' ||
-          target.tagName === 'BUTTON' ||
-          target.isContentEditable)
+          target.isContentEditable);
+      if (event.repeat) return;
+      if (event.key === 'Escape' && !typing) {
+        event.preventDefault();
+        closeDeck();
+        return;
+      }
+      if (
+        typing ||
+        (target !== null && target.tagName === 'BUTTON')
       ) {
         return;
       }
-      if (event.repeat) return;
       if (completed) {
         if (event.key === 'Enter') {
           restart();
@@ -164,7 +163,7 @@ export function TearDeck(props: {
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [completed, revealed, restart, selection.snapshot, tear, toggleReveal]);
+  }, [closeDeck, completed, revealed, restart, selection.snapshot, tear, toggleReveal]);
 
   useEffect(() => {
     return () => {
@@ -180,15 +179,17 @@ export function TearDeck(props: {
         <div className="fcws-tear-completed-icon">
           <IconCheck width={32} height={32} />
         </div>
-        <h3>{props.labels.completedTitle}</h3>
-        <p className="fcws-tear-completed-desc">{props.labels.completedDescription(total)}</p>
+        <h3>{labels.completedTitle}</h3>
+        <p className="fcws-tear-completed-desc" data-testid="flashcards-tear-completed-desc">
+          {labels.completedDescription(total)}
+        </p>
         <div className="fcws-tear-actions fcws-tear-completed-actions">
           <Button variant="primary" onClick={restart}>
             <IconRefresh width={14} height={14} />
-            <span>{props.labels.restart}</span>
+            <span>{labels.restart}</span>
           </Button>
           <Button variant="secondary" onClick={closeDeck}>
-            {props.labels.close}
+            {labels.close}
           </Button>
         </div>
       </div>
@@ -212,11 +213,11 @@ export function TearDeck(props: {
           type="button"
           className="fcws-tear-close"
           onClick={closeDeck}
-          title="Close (Esc)"
-          aria-label={props.labels.close}
+          title={labels.close}
+          aria-label={labels.close}
         >
           <IconClose width={14} height={14} />
-          <span>{props.labels.close}</span>
+          <span>{labels.close}</span>
         </button>
       </header>
 
@@ -240,7 +241,9 @@ export function TearDeck(props: {
         >
           <div className="fcws-tear-card-top" onClick={toggleReveal}>
             <div className="fcws-tear-meta">
-              <span className="fcws-tear-deck-name">{current.deck || (locale === 'en' ? 'Card' : '闪卡')}</span>
+              <span className="fcws-tear-deck-name">
+                {current.deck || (locale === 'en' ? 'Card' : '闪卡')}
+              </span>
               {Array.isArray(current.tags) && current.tags.length > 0 ? (
                 <span className="fcws-tear-tag">#{current.tags[0]}</span>
               ) : null}
@@ -290,39 +293,42 @@ export function TearDeck(props: {
 
         {hasNext ? (
           <Button variant="primary" size="default" data-testid="flashcards-tear-next" onClick={tear}>
-            {props.labels.tear}
+            {labels.tear}
           </Button>
         ) : (
           <Button
             variant="primary"
             size="default"
+            data-testid="flashcards-tear-end"
             onClick={() => {
               dismissTutor();
               setCompleted(true);
             }}
           >
-            {props.labels.lastCard}
+            {labels.lastCard}
           </Button>
         )}
         {props.onDeleteCard ? (
           <Button
             variant="ghost"
             size="compact"
+            className="fcws-tear-danger"
             data-testid="flashcards-tear-delete-card"
             onClick={() => props.onDeleteCard?.(current.id)}
           >
             <IconTrash width={13} height={13} />
-            <span>{props.labels.deleteCard}</span>
+            <span>{labels.deleteCard}</span>
           </Button>
         ) : null}
         {props.cards.length > 1 && props.onDeleteSet ? (
           <Button
             variant="ghost"
             size="compact"
+            className="fcws-tear-danger"
             data-testid="flashcards-tear-delete-set"
             onClick={props.onDeleteSet}
           >
-            {props.labels.deleteSet}
+            {labels.deleteSet}
           </Button>
         ) : null}
       </footer>

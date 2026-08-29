@@ -245,3 +245,73 @@ describe('TearDeck shared selection tutor contract', () => {
     expect(writeText).not.toHaveBeenCalled();
   });
 });
+
+describe('TearDeck navigation copy', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it('shows 下一张 for a set, not 撕掉', () => {
+    const cards = [
+      sampleCard({ id: 'a', sequenceId: 'seq', position: 1 }),
+      sampleCard({ id: 'b', sequenceId: 'seq', position: 2, front: '第二张问题', back: '第二张答案' }),
+    ];
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <TearDeck cards={cards} labels={labels} onClose={() => undefined} />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="flashcards-tear-next"]')?.textContent).toBe('下一张');
+    expect(container.textContent).not.toContain('撕掉');
+    expect(container.querySelector('[data-testid="flashcards-tear-end"]')).toBeNull();
+  });
+
+  it('last card uses 结束浏览 and completed page says 已浏览, never 掌握', () => {
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <TearDeck
+            cards={[sampleCard()]}
+            labels={labels}
+            onClose={() => undefined}
+            onDeleteCard={() => undefined}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const end = container.querySelector('[data-testid="flashcards-tear-end"]');
+    expect(end?.textContent).toBe('结束浏览');
+    expect(container.textContent).toContain('删这张');
+    expect(container.querySelector('[data-testid="flashcards-tear-delete-card"]')?.className).toMatch(
+      /fcws-tear-danger/,
+    );
+    expect(end?.className).not.toMatch(/fcws-tear-danger/);
+
+    act(() => {
+      end?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(container.querySelector('[data-testid="flashcards-tear-completed-desc"]')?.textContent).toBe(
+      '已浏览 1 张',
+    );
+    expect(container.textContent).not.toMatch(/掌握/);
+    expect(container.textContent).not.toContain('撕掉');
+  });
+});
+
