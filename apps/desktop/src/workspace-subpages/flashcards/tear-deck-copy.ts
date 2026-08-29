@@ -13,6 +13,7 @@ export type TearDeckLabels = {
   completedTitle: string;
   completedDescription: (count: number) => string;
   restart: string;
+  unnamedDeck: string;
 };
 
 const ZH: TearDeckLabels = {
@@ -30,6 +31,7 @@ const ZH: TearDeckLabels = {
   completedTitle: '本套已浏览完',
   completedDescription: (count) => `已浏览 ${count} 张`,
   restart: '再看一遍',
+  unnamedDeck: '闪卡',
 };
 
 const EN: TearDeckLabels = {
@@ -47,6 +49,7 @@ const EN: TearDeckLabels = {
   completedTitle: 'Finished browsing this set',
   completedDescription: (count) => `Browsed ${count} cards`,
   restart: 'Browse again',
+  unnamedDeck: 'Card',
 };
 
 export function tearDeckLabels(locale: 'zh-CN' | 'en'): TearDeckLabels {

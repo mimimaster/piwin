@@ -9,6 +9,7 @@ describe('tearDeckLabels', () => {
     expect(labels.deleteCard).toBe('删这张');
     expect(labels.deleteSet).toBe('删整套');
     expect(labels.completedDescription(3)).toBe('已浏览 3 张');
+    expect(labels.unnamedDeck).toBe('闪卡');
     const blob = JSON.stringify(labels);
     expect(blob).not.toMatch(/撕掉/);
     expect(blob).not.toMatch(/掌握/);
@@ -23,6 +24,7 @@ describe('tearDeckLabels', () => {
     expect(labels.deleteCard).toBe('Delete this card');
     expect(labels.deleteSet).toBe('Delete this set');
     expect(labels.completedDescription(2)).toBe('Browsed 2 cards');
+    expect(labels.unnamedDeck).toBe('Card');
     expect(labels.completedTitle).not.toMatch(/Mastered/i);
     expect(labels.completedDescription(2)).not.toMatch(/Mastered/i);
   });

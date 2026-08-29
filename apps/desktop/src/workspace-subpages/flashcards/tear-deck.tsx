@@ -241,9 +241,7 @@ export function TearDeck(props: {
         >
           <div className="fcws-tear-card-top" onClick={toggleReveal}>
             <div className="fcws-tear-meta">
-              <span className="fcws-tear-deck-name">
-                {current.deck || (locale === 'en' ? 'Card' : '闪卡')}
-              </span>
+              <span className="fcws-tear-deck-name">{current.deck || labels.unnamedDeck}</span>
               {Array.isArray(current.tags) && current.tags.length > 0 ? (
                 <span className="fcws-tear-tag">#{current.tags[0]}</span>
               ) : null}
