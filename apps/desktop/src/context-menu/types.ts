@@ -18,6 +18,7 @@ export type ContextMenuSurface =
   | 'error';
 
 export type ContextMenuActionId =
+  | 'generate-flashcard'
   | 'add-to-chat'
   | 'ask-about'
   | 'copy-as-ref'
@@ -111,6 +112,8 @@ export type ContextMenuCapabilities = {
   applyAvailable: boolean;
   /** CM-15: "Open changed files" for message surfaces (turn has changed paths). */
   openChangedFilesAvailable?: boolean;
+  /** Preset AI actions that auto-send (needs active session + ready host). */
+  canSendPreset: boolean;
   locale: DesktopLocale;
 };
 

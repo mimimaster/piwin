@@ -65,6 +65,7 @@ export function buildDesktopContextMenuCaps(input: {
     sideChatAvailable: Boolean(input.activeSessionId && input.hostReady && input.sideChatSupported),
     applyAvailable: input.applySupported,
     openChangedFilesAvailable: Boolean(input.projectPath && input.openChangedFilesSupported),
+    canSendPreset: Boolean(input.activeSessionId && input.hostReady),
     locale: input.locale,
   };
 }

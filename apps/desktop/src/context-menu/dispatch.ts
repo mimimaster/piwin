@@ -123,6 +123,9 @@ export function dispatchContextMenuAction(
       dispatchers.focusComposer();
       return;
     }
+    case 'generate-flashcard':
+      sendPreset('generate-flashcard', target, dispatchers);
+      return;
     case 'explain':
       sendPreset('explain', target, dispatchers);
       return;

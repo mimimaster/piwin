@@ -35,6 +35,7 @@ export type FileTreeNodeViewProps = {
     canReveal: boolean;
     sideChatAvailable: boolean;
     applyAvailable: boolean;
+    canSendPreset: boolean;
     locale: DesktopLocale;
   };
   contextMenuDispatchers: ContextMenuDispatchers;

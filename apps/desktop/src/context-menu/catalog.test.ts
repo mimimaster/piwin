@@ -7,6 +7,7 @@ const baseCaps: ContextMenuCapabilities = {
   canReveal: true,
   sideChatAvailable: true,
   applyAvailable: true,
+  canSendPreset: true,
   locale: 'en',
 };
 
@@ -41,18 +42,25 @@ describe('buildContextMenuItems', () => {
     expect(add && add.type === 'item' && add.disabled).toBe(true);
   });
 
-  it('builds selection menu with explain/fix', () => {
+  it('builds selection menu without quote-in-composer; explain/fix live under More', () => {
     const target: ContextMenuTarget = {
       surface: 'selection',
       selectedText: 'const x = 1',
       label: 'sel',
     };
+    const items = buildContextMenuItems(target, baseCaps);
     const ids = actionIds(target);
-    expect(ids[0]).toBe('add-to-chat');
+    expect(ids[0]).toBe('generate-flashcard');
     expect(ids).toContain('ask-about');
-    expect(ids).toContain('explain');
-    expect(ids).toContain('fix');
     expect(ids).not.toContain('quote-in-composer');
+    const more = items.find(
+      (item): item is Extract<typeof item, { type: 'submenu' }> =>
+        item.type === 'submenu' && item.id === 'more',
+    );
+    const childIds = more?.children
+      .filter((child): child is Extract<typeof child, { type: 'item' }> => child.type === 'item')
+      .map((child) => child.id);
+    expect(childIds).toEqual(expect.arrayContaining(['explain', 'fix']));
   });
 
   it('hides side-chat when unavailable', () => {
@@ -61,8 +69,27 @@ describe('buildContextMenuItems', () => {
       selectedText: 'x',
       label: 'sel',
     };
-    const ids = actionIds(target, { ...baseCaps, sideChatAvailable: false });
-    expect(ids).not.toContain('side-chat');
+    const items = buildContextMenuItems(target, { ...baseCaps, sideChatAvailable: false });
+    const more = items.find(
+      (item): item is Extract<typeof item, { type: 'submenu' }> =>
+        item.type === 'submenu' && item.id === 'more',
+    );
+    const childIds = more?.children
+      .filter((child): child is Extract<typeof child, { type: 'item' }> => child.type === 'item')
+      .map((child) => child.id);
+    expect(childIds).not.toContain('side-chat');
+  });
+
+  it('disables generate-flashcard when preset send is unavailable', () => {
+    const target: ContextMenuTarget = {
+      surface: 'selection',
+      selectedText: '依赖数组',
+      label: 'sel',
+    };
+    const items = buildContextMenuItems(target, { ...baseCaps, canSendPreset: false });
+    const gen = items.find((item) => item.type === 'item' && item.id === 'generate-flashcard');
+    expect(gen && gen.type === 'item' && gen.disabled).toBe(true);
+    expect(gen && gen.type === 'item' ? gen.label : '').toContain('requires an active session');
   });
 
   it('includes fork only when message capabilities allow', () => {
