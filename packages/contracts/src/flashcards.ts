@@ -8,6 +8,8 @@
  * never cascade. Review cards are derived from items at read time.
  */
 
+import type { ModelRef } from './host.js';
+
 export type FlashcardModel = 'basic' | 'cloze';
 
 /** Shared source / RAG lineage fields (item, create input, review projection). */
@@ -271,4 +273,32 @@ export type FlashcardsConfig = {
   maxReviewsPerDay?: number;
   /** Max items per `flashcard_batch_create`. Default 40. */
   maxBatchSize?: number;
+};
+
+/** Visible card face the tutor completion is answering against. */
+export type FlashcardTutorFace = 'front' | 'back';
+
+export type FlashcardTutorIntent =
+  | 'hint'
+  | 'explain'
+  | 'example'
+  | 'simplify';
+
+export type FlashcardSelectionExplainInput = {
+  explanationId: string;
+  itemId: string;
+  face: FlashcardTutorFace;
+  selectedText: string;
+  intent: FlashcardTutorIntent;
+  locale: 'en' | 'zh-CN';
+  sessionId?: string;
+  model?: ModelRef;
+};
+
+export type FlashcardSelectionExplanation = {
+  explanationId: string;
+  itemId: string;
+  selectedText: string;
+  intent: FlashcardTutorIntent;
+  markdown: string;
 };

@@ -62,6 +62,22 @@ describe('knowledge command handlers', () => {
       true,
     );
     expect(isKnowledgeCommand({ type: 'host/ping' })).toBe(false);
+    expect(
+      isKnowledgeCommand({
+        type: 'flashcards/explain-selection',
+        input: {
+          explanationId: 'exp-1',
+          itemId: 'card-1',
+          face: 'front',
+          selectedText: 'term',
+          intent: 'hint',
+          locale: 'en',
+        },
+      }),
+    ).toBe(false);
+    expect(
+      isKnowledgeCommand({ type: 'flashcards/cancel-explanation', explanationId: 'exp-1' }),
+    ).toBe(false);
   });
 
   it('routes notes list through the injected store and preserves filters', async () => {

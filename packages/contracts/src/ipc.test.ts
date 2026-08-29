@@ -465,6 +465,60 @@ describe('ipc types', () => {
         expect(push.artifact.generationId).toBe('g1');
       }
     });
+  });
+
+  describe('flashcard tutor commands', () => {
+    it('accepts flashcards/explain-selection command shape', () => {
+      const command: HostCommand = {
+        type: 'flashcards/explain-selection',
+        input: {
+          explanationId: 'exp-1',
+          itemId: 'card-1',
+          face: 'front',
+          selectedText: 'dependency array',
+          intent: 'hint',
+          locale: 'en',
+        },
+      };
+      expect(command.type).toBe('flashcards/explain-selection');
+      if (command.type === 'flashcards/explain-selection') {
+        expect(command.input.intent).toBe('hint');
+        expect(command.input.face).toBe('front');
+      }
+    });
+
+    it('accepts flashcards/explain-selection with optional session and model', () => {
+      const command: HostCommand = {
+        type: 'flashcards/explain-selection',
+        input: {
+          explanationId: 'exp-2',
+          itemId: 'card-1',
+          face: 'back',
+          selectedText: '闭包',
+          intent: 'explain',
+          locale: 'zh-CN',
+          sessionId: 's1',
+          model: { protocol: 'openai-compatible', providerId: 'p1', modelId: 'm1' },
+        },
+      };
+      expect(command.type).toBe('flashcards/explain-selection');
+      if (command.type === 'flashcards/explain-selection') {
+        expect(command.input.sessionId).toBe('s1');
+        expect(command.input.model?.modelId).toBe('m1');
+      }
+    });
+
+    it('accepts flashcards/cancel-explanation command shape', () => {
+      const command: HostCommand = {
+        type: 'flashcards/cancel-explanation',
+        explanationId: 'exp-1',
+      };
+      expect(command.type).toBe('flashcards/cancel-explanation');
+      if (command.type === 'flashcards/cancel-explanation') {
+        expect(command.explanationId).toBe('exp-1');
+      }
+    });
+  });
 
     it('accepts ADR 0027 host/replay command shape', () => {
       const replay: HostCommand = { type: 'host/replay', sinceSeq: 42 };
@@ -509,7 +563,6 @@ describe('ipc types', () => {
       };
       expect(status.type).toBe('host/status');
     });
-  });
 
   describe('ADR 0055 conversation tree', () => {
     it('accepts session/branch-list and session/branch-switch command shapes', () => {

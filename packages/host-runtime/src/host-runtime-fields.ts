@@ -36,6 +36,7 @@ import { SessionRuntimeController } from './sessions/session-runtime-controller.
 import { type SessionRuntimeResidencyController } from './sessions/session-runtime-residency-controller.js';
 import { SessionRuntimeReplacementEngine } from './session-runtime-replacement.js';
 import { WalkthroughGenerationRegistry } from './commands/walkthrough-commands.js';
+import { FlashcardSelectionExplanationRegistry } from './commands/flashcard-selection-commands.js';
 import { createDoccardsIngestionRegistry } from './commands/doccards-job-commands.js';
 import { createDoccardsGenerationRegistry } from './commands/doccards-generation-jobs.js';
 import { RunEventCorrelator } from './run-event-correlator.js';
@@ -151,6 +152,7 @@ export class HostRuntimeFields {
   walkthroughRegistry = new WalkthroughGenerationRegistry((level, message) =>
     this.push({ type: 'host/log', level, message }),
   );
+  flashcardSelectionRegistry = new FlashcardSelectionExplanationRegistry();
   doccardsIngestion = createDoccardsIngestionRegistry();
   doccardsGeneration = createDoccardsGenerationRegistry();
   petStateStore: PetStateStore | null = null;
