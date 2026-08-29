@@ -168,6 +168,37 @@ describe('CardTutorProvider', () => {
     resolveExplain?.(ok('late', 'ignored'));
   });
 
+  it('turns a malformed current Host success into error instead of hanging', async () => {
+    const request = vi.fn(async (command: HostCommand): Promise<HostResponse> => {
+      if (command.type === 'flashcards/cancel-explanation') {
+        return { type: 'response', command: command.type, success: true, data: { cancelled: true } };
+      }
+      return {
+        type: 'response',
+        command: 'flashcards/explain-selection',
+        success: true,
+        data: { unexpected: true },
+      };
+    });
+
+    act(() => {
+      root.render(
+        <CardTutorProvider request={request} locale="zh-CN">
+          <Harness />
+        </CardTutorProvider>,
+      );
+    });
+    await act(async () => {
+      container.querySelector('[data-testid="explain"]')?.dispatchEvent(
+        new MouseEvent('click', { bubbles: true }),
+      );
+    });
+    expect(container.querySelector('[data-testid="status"]')?.textContent).toBe('error');
+    expect(container.querySelector('[data-testid="error"]')?.textContent).toBe(
+      'flashcard-selection-provider-failed',
+    );
+  });
+
   it('retries the last snapshot with a new explanation id', async () => {
     const ids: string[] = [];
     const request = vi.fn(async (command: HostCommand): Promise<HostResponse> => {

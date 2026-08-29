@@ -2,10 +2,28 @@
    Collision/positioning stay with ui-kit Popover; this file only styles. */
 
 .fc-quiet-body,
-.fcws-tear-content {
+.fcws-tear-content,
+.fcws-face-text {
   user-select: text;
   -webkit-user-select: text;
   cursor: text;
+}
+
+.fc-quiet-header,
+.fc-quiet-tools,
+.fc-quiet-footer,
+.fc-quiet-controls,
+.fc-quiet-flip-badge,
+.fc-quiet-rating-bar,
+.fcws-progress-head,
+.fcws-face-tag,
+.fcws-face-hint,
+.fcws-rate-bar,
+.fcws-tear-toolbar,
+.fcws-tear-card-top,
+.fcws-tear-actions {
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .fc-quiet-frame {
@@ -100,6 +118,12 @@
   font-size: var(--fs-chrome, 12px);
   font-weight: 600;
   color: var(--text-2, var(--text, #dde0e5));
+  outline: none;
+}
+
+.fc-tutor-heading:focus-visible {
+  outline: var(--focus-ring, 2px solid var(--iris, #6b8afd));
+  outline-offset: 2px;
 }
 
 .fc-tutor-live {
@@ -159,7 +183,8 @@
   gap: var(--s-4, 8px);
 }
 
-.fcws-tear-card {
+.fcws-tear-card,
+.fcws-scene {
   cursor: default;
 }
 
@@ -172,8 +197,7 @@
 @media (prefers-reduced-motion: reduce) {
   .fc-tutor-panel,
   .ui-popover-content.fc-sel-popover {
-    animation: none !important;
-    transition: none !important;
-    transform: none !important;
+    animation: none;
+    transition: none;
   }
 }

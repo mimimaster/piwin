@@ -56,18 +56,42 @@ describe('CardSelectionPopover', () => {
     return button;
   }
 
-  it('invokes on Enter and Space', () => {
+  it('invokes on Enter and Space from the popover primary', () => {
     const onInvoke = vi.fn();
     renderPopover({ onInvoke });
     expect(primary().textContent).toMatch(/给我提示/);
 
     act(() => {
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      primary().dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
     });
     act(() => {
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }));
+      primary().dispatchEvent(
+        new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }),
+      );
     });
     expect(onInvoke).toHaveBeenCalledTimes(2);
+    expect(onInvoke).toHaveBeenCalledWith('keyboard');
+  });
+
+  it('ignores key repeat and composer/footer targets', () => {
+    const onInvoke = vi.fn();
+    renderPopover({ onInvoke });
+    act(() => {
+      primary().dispatchEvent(
+        new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true, repeat: true }),
+      );
+    });
+    const composer = document.createElement('textarea');
+    document.body.appendChild(composer);
+    act(() => {
+      composer.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
+    });
+    composer.remove();
+    expect(onInvoke).not.toHaveBeenCalled();
   });
 
   it('dismisses on Escape and restores card focus', () => {

@@ -3,6 +3,7 @@ import type { FlashcardReviewCard, FlashcardTutorFace } from '@piwin/contracts';
 import type { ArtifactActionMessage } from '@piwin/artifact';
 import { collapseToPhysicalCards } from '@piwin/flashcards/cloze';
 import { CardSelectionPopover } from './flashcards/card-selection-popover';
+import type { CardTutorInvokeSource } from './flashcards/card-selection-keys';
 import { CardTutorPanel } from './flashcards/card-tutor-panel';
 import { cardTutorCopy, fallbackActionLabel } from './flashcards/card-tutor-copy';
 import { clipSelectionText } from './flashcards/card-text-selection';
@@ -38,6 +39,8 @@ export function FlashcardView({
   const selection = useCardTextSelection({ containerRef: activeBodyRef });
   const tutor = useCardTutor();
   const copy = cardTutorCopy(locale);
+  const [focusHeading, setFocusHeading] = useState(false);
+  const cancelForItem = tutor.cancelForItem;
 
   useEffect(() => {
     return () => {
@@ -49,14 +52,11 @@ export function FlashcardView({
   }, []);
 
   useEffect(() => {
+    const itemId = card.itemId;
     return () => {
-      if (tutor.state.itemId === card.itemId) {
-        tutor.cancel();
-      }
+      cancelForItem(itemId);
     };
-    // Unmount of this card only — tutor identity is stable enough for cleanup.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [card.itemId]);
+  }, [card.itemId, cancelForItem]);
 
   const isZh = locale === 'zh-CN';
   const hasSource = Boolean(card.sourceFolder || card.sourceNoteId);
@@ -116,9 +116,10 @@ export function FlashcardView({
     }
   };
 
-  const invokeSelection = (): void => {
+  const invokeSelection = (source: CardTutorInvokeSource = 'pointer'): void => {
     const snap = selection.snapshot;
     if (!snap) return;
+    setFocusHeading(source === 'keyboard');
     void tutor.explain({
       itemId: card.itemId,
       face,
@@ -141,6 +142,7 @@ export function FlashcardView({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent): void => {
+    if (e.repeat) return;
     const target = e.target;
     if (
       target instanceof HTMLElement &&
@@ -151,7 +153,7 @@ export function FlashcardView({
     }
     if (selection.snapshot && (e.key === 'Enter' || e.key === ' ')) {
       e.preventDefault();
-      invokeSelection();
+      invokeSelection('keyboard');
       return;
     }
     if (e.key === ' ') {
@@ -330,9 +332,15 @@ export function FlashcardView({
         onInvoke={invokeSelection}
         onDismiss={selection.dismiss}
         restoreFocus={restoreCardFocus}
+        scopeRef={cardRef}
       />
 
-      <CardTutorPanel locale={locale} itemId={card.itemId} face={face} />
+      <CardTutorPanel
+        locale={locale}
+        itemId={card.itemId}
+        face={face}
+        autoFocusHeading={focusHeading}
+      />
 
       <div className="fc-quiet-controls">
         <button

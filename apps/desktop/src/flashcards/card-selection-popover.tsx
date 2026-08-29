@@ -1,6 +1,7 @@
-import { useEffect, type ReactElement } from 'react';
+import { useEffect, type ReactElement, type RefObject } from 'react';
 import type { FlashcardTutorFace } from '@piwin/contracts';
 import { IconSpark, Popover } from '@piwin/ui-kit';
+import { shouldHandleSelectionInvokeKey, type CardTutorInvokeSource } from './card-selection-keys';
 import { cardTutorCopy, primaryActionLabel } from './card-tutor-copy';
 
 export function CardSelectionPopover(props: {
@@ -8,14 +9,15 @@ export function CardSelectionPopover(props: {
   locale: 'zh-CN' | 'en';
   face: FlashcardTutorFace;
   getAnchorRect: () => DOMRect;
-  onInvoke: () => void;
+  onInvoke: (source: CardTutorInvokeSource) => void;
   onDismiss: () => void;
   restoreFocus?: () => void;
+  scopeRef?: RefObject<Element | null>;
 }): ReactElement | null {
   const copy = cardTutorCopy(props.locale);
   const label = primaryActionLabel(props.locale, props.face);
 
-  const { open, onInvoke, onDismiss, restoreFocus } = props;
+  const { open, onInvoke, onDismiss, restoreFocus, scopeRef } = props;
 
   useEffect(() => {
     if (!open) return;
@@ -27,11 +29,12 @@ export function CardSelectionPopover(props: {
         restoreFocus?.();
         return;
       }
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        event.stopPropagation();
-        onInvoke();
+      if (!shouldHandleSelectionInvokeKey(event, scopeRef?.current ?? null)) {
+        return;
       }
+      event.preventDefault();
+      event.stopPropagation();
+      onInvoke('keyboard');
     };
     const onPointerDown = (event: PointerEvent): void => {
       const target = event.target;
@@ -47,15 +50,15 @@ export function CardSelectionPopover(props: {
       document.removeEventListener('keydown', onKey, true);
       document.removeEventListener('pointerdown', onPointerDown, true);
     };
-  }, [open, onDismiss, onInvoke, restoreFocus]);
+  }, [open, onDismiss, onInvoke, restoreFocus, scopeRef]);
 
   if (!props.open) return null;
 
   return (
     <Popover
       open={true}
-      onOpenChange={(open) => {
-        if (!open) {
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
           props.onDismiss();
           props.restoreFocus?.();
         }
@@ -78,7 +81,7 @@ export function CardSelectionPopover(props: {
         onClick={(event) => {
           event.preventDefault();
           event.stopPropagation();
-          props.onInvoke();
+          props.onInvoke('pointer');
         }}
       >
         <IconSpark width={14} height={14} />

@@ -241,6 +241,7 @@ describe('TearDeck shared selection tutor contract', () => {
 
     expect(container.querySelector('[data-testid="card-tutor-error"]')).not.toBeNull();
     expect(container.textContent).toMatch(/重试/);
+    expect(container.textContent ?? '').not.toContain('flashcard-selection-provider-failed');
     expect(writeText).not.toHaveBeenCalled();
   });
 });

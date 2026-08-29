@@ -416,8 +416,9 @@ describe('FlashcardsWorkspaceView', () => {
       container.querySelector('[data-testid="flashcards-review-front"]')?.textContent,
     ).toContain('What is KV Cache?');
 
-    // Flip
-    const flipCard = container.querySelector<HTMLDivElement>('[data-testid="flashcards-review-card"]');
+    const flipCard = container.querySelector<HTMLButtonElement>(
+      '[data-testid="flashcards-review-flip"]',
+    );
     act(() => {
       flipCard?.click();
     });

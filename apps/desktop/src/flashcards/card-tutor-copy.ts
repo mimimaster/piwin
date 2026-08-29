@@ -18,6 +18,8 @@ export type CardTutorCopy = {
   settingsFallback: string;
   chatFallback: string;
   errorGeneric: string;
+  errorInvalid: string;
+  errorNotFound: string;
   panelHint: string;
   panelExplain: string;
   readyLiveHint: string;
@@ -43,6 +45,8 @@ const ZH: CardTutorCopy = {
   settingsFallback: '请到设置中配置对话模型。',
   chatFallback: '也可以在聊天中询问。',
   errorGeneric: '无法生成讲解。',
+  errorInvalid: '选区无效，请重新选择。',
+  errorNotFound: '找不到这张卡片。',
   panelHint: '提示',
   panelExplain: '讲解',
   readyLiveHint: '提示已生成。',
@@ -68,6 +72,8 @@ const EN: CardTutorCopy = {
   settingsFallback: 'Open Settings to configure a chat model.',
   chatFallback: 'You can also ask in chat.',
   errorGeneric: 'Could not generate an explanation.',
+  errorInvalid: 'That selection is not valid. Try again.',
+  errorNotFound: 'This card could not be found.',
   panelHint: 'Hint',
   panelExplain: 'Explanation',
   readyLiveHint: 'Hint is ready.',
@@ -87,4 +93,17 @@ export function primaryActionLabel(locale: 'zh-CN' | 'en', face: FlashcardTutorF
 export function fallbackActionLabel(locale: 'zh-CN' | 'en', face: FlashcardTutorFace): string {
   const copy = cardTutorCopy(locale);
   return face === 'front' ? copy.hintCard : copy.explainCard;
+}
+
+export function tutorErrorMessage(copy: CardTutorCopy, code: string | null | undefined): string {
+  switch (code) {
+    case 'flashcard-selection-model-unavailable':
+      return copy.modelUnavailable;
+    case 'flashcard-selection-invalid':
+      return copy.errorInvalid;
+    case 'flashcard-not-found':
+      return copy.errorNotFound;
+    default:
+      return copy.errorGeneric;
+  }
 }

@@ -39,11 +39,23 @@ export function useCardTextSelection(options: {
     if (!enabled) return;
     const container = containerRef.current;
     if (!container) return;
-    const next = snapshotCardTextSelection(container);
-    if (!next) return;
-    snapshotRef.current = next;
-    setSnapshot(next);
-  }, [containerRef, enabled]);
+    const live = typeof window === 'undefined' ? null : window.getSelection();
+    const next = snapshotCardTextSelection(container, live);
+    if (next) {
+      snapshotRef.current = next;
+      setSnapshot(next);
+      return;
+    }
+    if (!snapshotRef.current) return;
+    // Keep the snapshot while clicking the popover so invoke is not raced off.
+    if (
+      isInsideSelectionChrome(live?.anchorNode ?? null) ||
+      isInsideSelectionChrome(document.activeElement)
+    ) {
+      return;
+    }
+    dismiss();
+  }, [containerRef, dismiss, enabled]);
 
   useEffect(() => {
     if (!enabled) {
