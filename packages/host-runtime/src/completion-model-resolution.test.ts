@@ -161,4 +161,33 @@ describe('resolveFlashcardSelectionCompletionModel', () => {
     });
     expect(resolved).toEqual({ error: 'flashcard-selection-model-unavailable' });
   });
+
+  it('does not swap a session model with empty baseUrl for the configured default', () => {
+    const sessionModel: ModelRef = {
+      protocol: 'openai-compatible',
+      providerId: 'session-prov',
+      modelId: 'session-model',
+    };
+    const config = createConfig({
+      providers: [
+        createProvider({
+          id: 'session-prov',
+          baseUrl: '   ',
+          models: [{ id: 'session-model' }],
+        }),
+        createProvider({
+          id: 'default-prov',
+          models: [{ id: 'default-model' }],
+        }),
+      ],
+      defaultProviderId: 'default-prov',
+      defaultModelId: 'default-model',
+    });
+    const resolved = resolveFlashcardSelectionCompletionModel({
+      config,
+      sessionId: 'sess-1',
+      resolveSessionModel: () => sessionModel,
+    });
+    expect(resolved).toEqual({ error: 'flashcard-selection-model-unavailable' });
+  });
 });

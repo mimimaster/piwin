@@ -76,7 +76,7 @@ function tryResolveCandidate(
 /**
  * Flashcard tutor resolution: command model, then session model, then the
  * configured default chat model. Never falls back to an arbitrary provider.
- * An explicit command model that fails validation is not replaced.
+ * An explicit command or session model that fails validation is not replaced.
  */
 export function resolveFlashcardSelectionCompletionModel(
   request: FlashcardSelectionModelRequest,
@@ -92,8 +92,11 @@ export function resolveFlashcardSelectionCompletionModel(
   if (request.sessionId) {
     const sessionModel = request.resolveSessionModel(request.sessionId);
     if (sessionModel) {
-      const resolved = tryResolveCandidate(sessionModel, request.config);
-      if (resolved) return resolved;
+      return (
+        tryResolveCandidate(sessionModel, request.config) ?? {
+          error: 'flashcard-selection-model-unavailable',
+        }
+      );
     }
   }
 
