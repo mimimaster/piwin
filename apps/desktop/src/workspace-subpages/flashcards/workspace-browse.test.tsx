@@ -24,6 +24,24 @@ function selectSegment(root: ParentNode, value: string): void {
   input?.click();
 }
 
+async function waitForTearAdvance(): Promise<void> {
+  await act(async () => {
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, 220);
+    });
+  });
+}
+
+async function flushFrames(): Promise<void> {
+  await act(async () => {
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => resolve());
+      });
+    });
+  });
+}
+
 const CARDS: FlashcardItem[] = [
   {
     id: 'card-1',
@@ -110,12 +128,10 @@ describe('FlashcardsWorkspaceView browse overlay', () => {
 
     const next = container.querySelector('[data-testid="flashcards-tear-next"]');
     expect(next).not.toBeNull();
-    await act(async () => {
+    act(() => {
       next?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      await new Promise((resolve) => {
-        window.setTimeout(resolve, 220);
-      });
     });
+    await waitForTearAdvance();
 
     const end = container.querySelector('[data-testid="flashcards-tear-end"]');
     expect(end?.textContent).toBe('结束浏览');
@@ -153,6 +169,54 @@ describe('FlashcardsWorkspaceView browse overlay', () => {
     expect(tear?.textContent).toContain('Delete this set');
     expect(tear?.textContent).not.toContain('撕掉');
     expect(tear?.textContent).not.toMatch(/Mastered/i);
-    expect(tear?.textContent).not.toContain('End browsing');
+
+    act(() => {
+      container.querySelector('[data-testid="flashcards-tear-next"]')?.dispatchEvent(
+        new MouseEvent('click', { bubbles: true }),
+      );
+    });
+    await waitForTearAdvance();
+
+    const end = container.querySelector('[data-testid="flashcards-tear-end"]');
+    expect(end?.textContent).toBe('End browsing');
+    act(() => {
+      end?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(container.querySelector('[data-testid="flashcards-tear-completed-desc"]')?.textContent).toBe(
+      'Browsed 2 cards',
+    );
+    expect(container.querySelector('[data-testid="flashcards-tear"]')?.textContent).not.toMatch(/Mastered/i);
+  });
+
+  it('Escape closes the overlay and restores focus to the gallery tile', async () => {
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <FlashcardsWorkspaceView locale="zh-CN" onClose={vi.fn()} request={requester()} />
+        </PiwinUiProvider>,
+      );
+    });
+    await flush();
+
+    act(() => {
+      selectSegment(container, 'library');
+    });
+
+    const open = container.querySelector<HTMLButtonElement>('[data-testid="flashcard-open-card-1"]');
+    expect(open).not.toBeNull();
+    act(() => {
+      open?.focus();
+      open?.click();
+    });
+    expect(container.querySelector('[data-testid="flashcards-tear"]')).not.toBeNull();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    });
+    await flushFrames();
+
+    expect(container.querySelector('[data-testid="flashcards-tear"]')).toBeNull();
+    expect(document.activeElement?.getAttribute('data-testid')).toBe('flashcard-open-card-1');
   });
 });

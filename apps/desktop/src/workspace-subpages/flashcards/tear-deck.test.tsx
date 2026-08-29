@@ -30,6 +30,7 @@ const labels: TearDeckLabels = {
   completedTitle: '本套已浏览完',
   completedDescription: (count) => `已浏览 ${count} 张`,
   restart: '再看一遍',
+  unnamedDeck: '闪卡',
 };
 
 function sampleCard(overrides: Partial<FlashcardItem> = {}): FlashcardItem {

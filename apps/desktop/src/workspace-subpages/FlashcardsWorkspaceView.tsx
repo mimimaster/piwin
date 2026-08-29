@@ -78,6 +78,7 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
     startIndex: number;
   } | null>(null);
   const ratingInFlight = useRef(false);
+  const restoreBrowseFocusId = useRef<string | null>(null);
   const browseLocale = isZh ? 'zh-CN' : 'en';
 
   const ws = useFlashcardsWorkspace(props.request);
@@ -211,12 +212,22 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
   }, [visibleCards]);
 
   const closeBrowse = useCallback(() => {
-    const focusId = browse?.focusId;
+    if (browse) restoreBrowseFocusId.current = browse.focusId;
     setBrowse(null);
+  }, [browse]);
+
+  useEffect(() => {
+    if (browse !== null) return;
+    const focusId = restoreBrowseFocusId.current;
     if (!focusId) return;
-    window.requestAnimationFrame(() => {
+    restoreBrowseFocusId.current = null;
+    const focusTile = (): void => {
       document.querySelector<HTMLButtonElement>(`[data-testid="flashcard-open-${focusId}"]`)?.focus();
+    };
+    const frame = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(focusTile);
     });
+    return () => window.cancelAnimationFrame(frame);
   }, [browse]);
 
   const deleteBrowseCard = useCallback(
