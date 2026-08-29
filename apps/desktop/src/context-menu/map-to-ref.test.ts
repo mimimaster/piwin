@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mapTargetToContextRef } from './map-to-ref.js';
+import { mapTargetToContextRef, mapTargetToFlashcardContextRef } from './map-to-ref.js';
 import type { ContextMenuTarget } from './types.js';
 
 describe('mapTargetToContextRef', () => {
@@ -73,6 +73,28 @@ describe('mapTargetToContextRef', () => {
       kind: 'selection',
       snapshotText: selectedText.slice(0, 8000),
       label: 'n…',
+    });
+  });
+
+  it('flashcard mapping keeps snapshotText for document selections with path+lines', () => {
+    const target: ContextMenuTarget = {
+      surface: 'selection',
+      projectPath: '/repo',
+      relativePath: 'docs/react.md',
+      lineStart: 12,
+      lineEnd: 12,
+      selectedText: '依赖数组',
+      label: 'react.md:12',
+    };
+    expect(mapTargetToContextRef(target)).toMatchObject({ kind: 'file' });
+    expect(mapTargetToFlashcardContextRef(target)).toEqual({
+      kind: 'selection',
+      snapshotText: '依赖数组',
+      projectPath: '/repo',
+      relativePath: 'docs/react.md',
+      lineStart: 12,
+      lineEnd: 12,
+      label: 'react.md:12',
     });
   });
 });

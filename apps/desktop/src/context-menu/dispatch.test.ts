@@ -209,7 +209,8 @@ describe('dispatchContextMenuAction', () => {
     expect(String(preset)).toMatch(/flashcard_create|一张|exactly one|single card/i);
     expect(refs).toEqual([
       expect.objectContaining({
-        kind: 'file',
+        kind: 'selection',
+        snapshotText: 'const value = 1;',
         projectPath: '/p',
         relativePath: 'src/a.ts',
         lineStart: 3,
@@ -218,5 +219,35 @@ describe('dispatchContextMenuAction', () => {
     ]);
     expect(dispatchers.copyText).not.toHaveBeenCalled();
     expect(dispatchers.addToChat).toHaveBeenCalledTimes(1);
+  });
+
+  it('generate-flashcard keeps the selected phrase for code-preview-shaped document targets', () => {
+    const dispatchers = createDispatchers();
+    const codePreviewTarget: ContextMenuTarget = {
+      surface: 'selection',
+      projectPath: '/repo',
+      relativePath: 'docs/react.md',
+      lineStart: 12,
+      lineEnd: 12,
+      selectedText: '依赖数组',
+      label: 'react.md:12',
+    };
+    dispatchContextMenuAction('generate-flashcard', codePreviewTarget, dispatchers);
+    const [, refs] = dispatchers.sendPreset.mock.calls[0] ?? [];
+    expect(refs).toEqual([
+      expect.objectContaining({
+        kind: 'selection',
+        snapshotText: '依赖数组',
+        relativePath: 'docs/react.md',
+        lineStart: 12,
+        lineEnd: 12,
+      }),
+    ]);
+    // Sibling preset actions still prefer the file-range ref.
+    const explainDispatchers = createDispatchers();
+    dispatchContextMenuAction('explain', codePreviewTarget, explainDispatchers);
+    expect(explainDispatchers.sendPreset.mock.calls[0]?.[1]).toEqual([
+      expect.objectContaining({ kind: 'file', relativePath: 'docs/react.md', lineStart: 12 }),
+    ]);
   });
 });
