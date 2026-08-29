@@ -134,6 +134,8 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
         return;
       }
       if (event.code === 'Space') {
+        if (event.repeat) return;
+        if (document.querySelector('[data-testid="card-selection-popover"]')) return;
         event.preventDefault();
         setRevealed((prev) => !prev);
         return;
@@ -321,6 +323,7 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
                   total={visibleQueue.length}
                   revealed={revealed}
                   isNew={currentItem.isNew}
+                  locale={props.locale === 'en' ? 'en' : 'zh-CN'}
                   labels={{
                     flipHint: t('Click or press Space to reveal', '点击或按空格查看答案'),
                     rateHint: t('Rate your recall with 1–4', '按 1–4 评价掌握程度'),

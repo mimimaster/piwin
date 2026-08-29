@@ -3,6 +3,7 @@ import { Button } from '@piwin/ui-kit';
 import type { FlashcardItem, FlashcardTutorFace } from '@piwin/contracts';
 import { itemPreviewText } from '@piwin/flashcards/cloze';
 import { CardSelectionPopover } from '../../flashcards/card-selection-popover';
+import type { CardTutorInvokeSource } from '../../flashcards/card-selection-keys';
 import { CardTutorPanel } from '../../flashcards/card-tutor-panel';
 import { cardTutorCopy, fallbackActionLabel } from '../../flashcards/card-tutor-copy';
 import { clipSelectionText } from '../../flashcards/card-text-selection';
@@ -42,6 +43,7 @@ export function TearDeck(props: {
   const [revealed, setRevealed] = useState(false);
   const [tearing, setTearing] = useState(false);
   const [completed, setCompleted] = useState(false);
+  const [focusHeading, setFocusHeading] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLDivElement>(null);
   const selection = useCardTextSelection({ containerRef: textRef, enabled: !completed });
@@ -96,16 +98,20 @@ export function TearDeck(props: {
     cardRef.current?.focus();
   }, []);
 
-  const invokeSelection = useCallback((): void => {
-    if (!current || !selection.snapshot) return;
-    void tutor.explain({
-      itemId: current.id,
-      face,
-      selectedText: selection.snapshot.selectedText,
-      intent: face === 'front' ? 'hint' : 'explain',
-    });
-    selection.dismiss();
-  }, [current, face, selection, tutor]);
+  const invokeSelection = useCallback(
+    (source: CardTutorInvokeSource = 'pointer'): void => {
+      if (!current || !selection.snapshot) return;
+      setFocusHeading(source === 'keyboard');
+      void tutor.explain({
+        itemId: current.id,
+        face,
+        selectedText: selection.snapshot.selectedText,
+        intent: face === 'front' ? 'hint' : 'explain',
+      });
+      selection.dismiss();
+    },
+    [current, face, selection, tutor],
+  );
 
   const invokeFallback = useCallback((): void => {
     if (!current) return;
@@ -134,6 +140,7 @@ export function TearDeck(props: {
       ) {
         return;
       }
+      if (event.repeat) return;
       if (completed) {
         if (event.key === 'Enter') {
           restart();
@@ -221,6 +228,7 @@ export function TearDeck(props: {
         onInvoke={invokeSelection}
         onDismiss={selection.dismiss}
         restoreFocus={restoreCardFocus}
+        scopeRef={cardRef}
       />
 
       <main className="fcws-tear-stage">
@@ -262,7 +270,12 @@ export function TearDeck(props: {
           ) : null}
         </article>
 
-        <CardTutorPanel locale={locale} itemId={current.id} face={face} />
+        <CardTutorPanel
+          locale={locale}
+          itemId={current.id}
+          face={face}
+          autoFocusHeading={focusHeading}
+        />
       </main>
 
       <footer className="fcws-tear-actions">

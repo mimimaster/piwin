@@ -50,6 +50,7 @@ export type CardTutorContextValue = {
   followUp: (intent: 'example' | 'simplify') => Promise<void>;
   retry: () => Promise<void>;
   cancel: () => void;
+  cancelForItem: (itemId: string) => void;
   close: () => void;
 };
 
@@ -72,6 +73,7 @@ const DEFAULT_CONTEXT: CardTutorContextValue = {
   followUp: async () => undefined,
   retry: async () => undefined,
   cancel: () => undefined,
+  cancelForItem: () => undefined,
   close: () => undefined,
 };
 
@@ -130,6 +132,7 @@ export function CardTutorProvider(props: {
   const [state, setState] = useState<CardTutorState>(IDLE_STATE);
   const generationRef = useRef(0);
   const explanationIdRef = useRef<string | null>(null);
+  const activeItemIdRef = useRef<string | null>(null);
   const lastArgsRef = useRef<CardTutorExplainArgs | null>(null);
   const requestRef = useRef(props.request);
   requestRef.current = props.request;
@@ -150,6 +153,7 @@ export function CardTutorProvider(props: {
         .catch(() => undefined);
     }
     if (nextStatus === 'idle') {
+      activeItemIdRef.current = null;
       setState(IDLE_STATE);
     }
   }, []);
@@ -158,6 +162,15 @@ export function CardTutorProvider(props: {
     lastArgsRef.current = null;
     cancelInflight('idle');
   }, [cancelInflight]);
+
+  const cancelForItem = useCallback(
+    (itemId: string): void => {
+      if (activeItemIdRef.current !== itemId) return;
+      lastArgsRef.current = null;
+      cancelInflight('idle');
+    },
+    [cancelInflight],
+  );
 
   const close = useCallback((): void => {
     cancel();
@@ -168,6 +181,7 @@ export function CardTutorProvider(props: {
     const explanationId = createExplanationId();
     const generation = generationRef.current;
     explanationIdRef.current = explanationId;
+    activeItemIdRef.current = args.itemId;
     lastArgsRef.current = args;
     setState({
       status: 'loading',
@@ -217,6 +231,15 @@ export function CardTutorProvider(props: {
       }
       const payload = asExplanation(response.data);
       if (!payload || payload.explanationId !== explanationId) {
+        setState((prev) => ({
+          ...prev,
+          status: 'error',
+          markdown: null,
+          error: {
+            code: 'flashcard-selection-provider-failed',
+            message: 'flashcard-selection-provider-failed',
+          },
+        }));
         return;
       }
       setState({
@@ -284,8 +307,8 @@ export function CardTutorProvider(props: {
   }, []);
 
   const value = useMemo<CardTutorContextValue>(
-    () => ({ state, explain, followUp, retry, cancel, close }),
-    [state, explain, followUp, retry, cancel, close],
+    () => ({ state, explain, followUp, retry, cancel, cancelForItem, close }),
+    [state, explain, followUp, retry, cancel, cancelForItem, close],
   );
 
   return <CardTutorContext.Provider value={value}>{props.children}</CardTutorContext.Provider>;

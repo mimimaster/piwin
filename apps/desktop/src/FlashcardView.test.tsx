@@ -5,7 +5,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { FlashcardView, FlashcardStackView } from './FlashcardView';
-import type { FlashcardReviewCard } from '@piwin/contracts';
+import { CardTutorProvider } from './flashcards/card-tutor-provider';
+import type { FlashcardReviewCard, HostCommand, HostResponse } from '@piwin/contracts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -352,5 +353,97 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
     });
 
     expect(frame?.classList.contains('is-flipped')).toBe(true);
+  });
+
+  it('pointer invoke requests Host explain and shows ready markdown without stealing focus', async () => {
+    const request = vi.fn(async (command: HostCommand): Promise<HostResponse> => {
+      if (command.type === 'flashcards/cancel-explanation') {
+        return { type: 'response', command: command.type, success: true, data: { cancelled: true } };
+      }
+      if (command.type !== 'flashcards/explain-selection') {
+        return { type: 'response', command: command.type, success: false, error: 'unexpected' };
+      }
+      return {
+        type: 'response',
+        command: command.type,
+        success: true,
+        data: {
+          explanationId: command.input.explanationId,
+          itemId: command.input.itemId,
+          selectedText: command.input.selectedText,
+          intent: command.input.intent,
+          markdown: '这是一条短提示。',
+        },
+      };
+    });
+
+    renderView(
+      <CardTutorProvider request={request} locale="zh-CN">
+        <FlashcardView card={sampleCard} locale="zh-CN" />
+      </CardTutorProvider>,
+    );
+
+    const front = container.querySelector('.fc-quiet-front .fc-quiet-body');
+    act(() => {
+      selectRangeOnCardFace(front!, 0, 4);
+    });
+    const primary = querySelectionPrimary();
+    expect(primary).toBeTruthy();
+
+    await act(async () => {
+      primary?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+
+    expect(container.querySelector('[data-testid="card-tutor-ready"]')).not.toBeNull();
+    expect(container.textContent).toContain('这是一条短提示。');
+    expect(document.activeElement?.getAttribute('data-testid')).not.toBe('card-tutor-heading');
+    expect(request).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'flashcards/explain-selection' }),
+    );
+  });
+
+  it('keyboard invoke focuses the tutor panel heading', async () => {
+    const request = vi.fn(async (command: HostCommand): Promise<HostResponse> => {
+      if (command.type === 'flashcards/cancel-explanation') {
+        return { type: 'response', command: command.type, success: true, data: { cancelled: true } };
+      }
+      if (command.type !== 'flashcards/explain-selection') {
+        return { type: 'response', command: command.type, success: false, error: 'unexpected' };
+      }
+      return {
+        type: 'response',
+        command: command.type,
+        success: true,
+        data: {
+          explanationId: command.input.explanationId,
+          itemId: command.input.itemId,
+          selectedText: command.input.selectedText,
+          intent: command.input.intent,
+          markdown: '键盘提示。',
+        },
+      };
+    });
+
+    renderView(
+      <CardTutorProvider request={request} locale="zh-CN">
+        <FlashcardView card={sampleCard} locale="zh-CN" />
+      </CardTutorProvider>,
+    );
+
+    const front = container.querySelector('.fc-quiet-front .fc-quiet-body');
+    const cardEl = container.querySelector('.fc-quiet-card-container');
+    act(() => {
+      (cardEl as HTMLElement | null)?.focus();
+      selectRangeOnCardFace(front!, 0, 4);
+    });
+    await act(async () => {
+      cardEl?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
+    });
+
+    expect(container.querySelector('[data-testid="card-tutor-ready"]')).not.toBeNull();
+    expect(container.textContent).toContain('键盘提示。');
+    expect(document.activeElement?.getAttribute('data-testid')).toBe('card-tutor-heading');
   });
 });

@@ -60,7 +60,8 @@
 .fc-quiet-card-container {
   perspective: 1400px;
   width: 100%;
-  user-select: none;
+  user-select: auto;
+  -webkit-user-select: auto;
   outline: none;
 }
 
