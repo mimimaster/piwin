@@ -1,7 +1,20 @@
 /** @piwin/git — modular git read/write models. */
 
 export { runGitCommand, GitCommandError } from './git-command-runner.js';
-export type { GitCommandResult, RunGitCommandOptions } from './git-command-runner.js';
+export type {
+  GitCommandErrorKind,
+  GitCommandResult,
+  RunGitCommandOptions,
+} from './git-command-runner.js';
+
+export {
+  createTurnChangeObjectStore,
+  DEFAULT_TURN_CHANGE_MAX_OBJECT_BYTES,
+} from './turn-changes/object-store.js';
+export type {
+  TurnChangeObjectPutResult,
+  TurnChangeObjectStore,
+} from './turn-changes/object-store.js';
 
 export { probeGitRepository } from './repository-probe.js';
 
