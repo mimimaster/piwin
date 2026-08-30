@@ -340,4 +340,21 @@ describe('openTurnChangeStore', () => {
     expect(store.listRunIdsByAttempt('missing')).toEqual([]);
     store.close();
   });
+
+  it('creates additive operation_file without bumping user_version', async () => {
+    const rootDir = await createRootDir();
+    const store = openTurnChangeStore({ rootDir });
+    store.close();
+
+    const db = new DatabaseSync(databasePath(rootDir));
+    try {
+      const table = db
+        .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'operation_file'`)
+        .get() as { name: string } | undefined;
+      expect(table?.name).toBe('operation_file');
+      expect(readUserVersion(rootDir)).toBe(1);
+    } finally {
+      db.close();
+    }
+  });
 });

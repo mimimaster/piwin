@@ -7,6 +7,8 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 import { createTurnChangeObjectStore } from './object-store.js';
+import { bindTurnChangeOperationStore } from './operation-store.js';
+import type { TurnChangeOperationStore } from './operation-store.js';
 import {
   TURN_CHANGE_DATABASE_FILENAME,
   migrateTurnChangeSchema,
@@ -110,7 +112,7 @@ export type TurnChangeStore = {
   listRunIdsByAttempt(attemptId: string): string[];
   getRunSegment(runId: string): TurnChangeRunSegmentRecord | undefined;
   close(): void;
-};
+} & TurnChangeOperationStore;
 
 export function openTurnChangeStore(options: { rootDir: string }): TurnChangeStore {
   mkdirSync(options.rootDir, { recursive: true });
@@ -176,6 +178,7 @@ export function openTurnChangeStore(options: { rootDir: string }): TurnChangeSto
     `SELECT run_id FROM run_segment WHERE attempt_id = ? ORDER BY rowid ASC`,
   );
   const selectRunSegment = db.prepare(`SELECT * FROM run_segment WHERE run_id = ?`);
+  const operations = bindTurnChangeOperationStore(db);
   const persistFileAction = (input: TurnChangeFileActionRecord): void => {
     const existing = selectFileActionByUnique.get(
       input.runId,
@@ -346,6 +349,7 @@ export function openTurnChangeStore(options: { rootDir: string }): TurnChangeSto
     close(): void {
       db.close();
     },
+    ...operations,
   };
 }
 
