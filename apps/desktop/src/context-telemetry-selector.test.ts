@@ -233,13 +233,11 @@ describe('context ring selector matrix', () => {
     );
     expect(
       isChatCompactPendingOccupancy({
-        compacting: false,
         lastCompactionMessage: null,
         contextTelemetry: compacted,
       }),
     ).toBe(false);
     const compactPendingOccupancy = isChatCompactPendingOccupancy({
-      compacting: false,
       lastCompactionMessage: 'Context compacted',
       contextTelemetry: compacted,
     });
@@ -252,18 +250,44 @@ describe('context ring selector matrix', () => {
     expect(view.visible).toBe(true);
     expect(view.numericHidden).toBe(true);
     expect(view.labels.status).toMatch(/compacted/i);
+    expect(view.phase).toBe('compacted-pending');
+  });
 
-    const whileCompacting = selectContextRingView({
-      telemetry: compacted,
-      locale: 'en',
-      compactPendingOccupancy: isChatCompactPendingOccupancy({
-        compacting: true,
+  it('keeps numbers and the compacting label while compacting a known sample', () => {
+    const known = selected(
+      'session-a',
+      makeContextSnapshot({
+        sessionId: 'session-a',
+        phase: 'idle',
+        occupancy: makeKnownOccupancy({ tokensUsed: 80_000, tokensLimit: 128_000 }),
+        responseEvidence: {
+          currentRunHasResponse: false,
+          historyHasDisplayableResponse: true,
+        },
+      }),
+    );
+    expect(
+      isChatCompactPendingOccupancy({
         lastCompactionMessage: null,
-        contextTelemetry: compacted,
+        contextTelemetry: known,
+      }),
+    ).toBe(false);
+    const view = selectContextRingView({
+      telemetry: known,
+      locale: 'en',
+      compacting: true,
+      compactPendingOccupancy: isChatCompactPendingOccupancy({
+        lastCompactionMessage: null,
+        contextTelemetry: known,
       }),
     });
-    expect(whileCompacting.visible).toBe(true);
-    expect(whileCompacting.numericHidden).toBe(true);
+    expect(view.visible).toBe(true);
+    expect(view.numericHidden).toBe(false);
+    expect(view.tokensUsed).toBe(80_000);
+    expect(view.compacting).toBe(true);
+    expect(view.phase).toBe('compacting');
+    expect(view.labels.status).toMatch(/compacting/i);
+    expect(view.labels.status).not.toMatch(/compacted/i);
   });
 
   it('hides occupancy when Host marks the context version invalidated', () => {

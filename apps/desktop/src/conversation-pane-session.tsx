@@ -396,6 +396,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
   const contextRingView = selectContextRingView({
     telemetry: state.contextTelemetry,
     locale: props.locale,
+    ...(state.compacting ? { compacting: true } : {}),
     ...(isChatCompactPendingOccupancy(state) ? { compactPendingOccupancy: true } : {}),
   });
   return (
