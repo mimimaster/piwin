@@ -141,13 +141,19 @@
   gap: var(--s-4);
 }
 
-/* Shared `.turn-work-details` centers a `--chat-max` column with
-   `margin-inline: auto`. This message is a column flex container, and auto
-   margins on a flex item disable stretch and shrink it to max-content — a
-   thinking/explore-only turn then floats as a centered island. A definite
-   width restores the column; the main thread is unchanged. */
+/* Shared `.turn-work-details` is a `--chat-max` column with `margin-inline:
+   auto` for the main transcript. This message is a column flex container:
+   auto margins disable stretch, so the used width becomes shrink-to-fit or a
+   cyclic percentage (explore headers are `width: 100%` of that auto parent).
+   Leftover space is then split by the auto margins and the chrome no longer
+   shares the transcript's left edge — sometimes centered, often just shifted.
+   Drop the auto margins here so stretch applies; the main thread is unchanged. */
 .subagent-inspector-message.role-assistant .turn-work-details {
   width: 100%;
+  max-width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+  align-self: stretch;
 }
 
 .subagent-inspector-message.role-user {
