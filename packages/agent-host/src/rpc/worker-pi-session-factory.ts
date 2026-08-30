@@ -27,6 +27,7 @@ import { buildThinkingLevelMap, mapThinkingLevelToPi } from '../map-thinking-lev
 import {
   buildPiProviderRegistration,
   resolvePiModelCompat,
+  resolvePiModelLimits,
   type PiModelRuntime,
   type PiModelRegistration,
   type PiProviderApi,
@@ -274,8 +275,7 @@ export function buildWorkerProviderRegistration(
       ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
       input: model.input ? [...model.input] : (['text'] as Array<'text' | 'image'>),
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: model.contextWindow ?? 128_000,
-      maxTokens: model.maxOutputTokens ?? 8_192,
+      ...resolvePiModelLimits(model),
       ...(provider.headers ? { headers: provider.headers } : {}),
       ...(model.capabilities ? { capabilities: [...model.capabilities] } : {}),
       ...(model.nativeSearchAdapter ? { nativeSearchAdapter: model.nativeSearchAdapter } : {}),

@@ -189,4 +189,83 @@ describe('SessionTranscriptStore.settleStreamingMessages', () => {
     ).toEqual([]);
     store.close();
   });
+
+  it('stamps outcome on done+failure rows that never stayed streaming', async () => {
+    const store = await openStore('done-failure');
+    const failure = {
+      code: 'provider-unavailable' as const,
+      origin: 'provider' as const,
+      message: 'Connection error.',
+      retriable: true,
+    };
+    await store.appendMessage({
+      id: 'a-done-fail',
+      runtimeGenerationId: 'gen-1',
+      backendMessageId: 'a1',
+      role: 'assistant',
+      text: '',
+      status: 'done',
+      runId: 'run-done-fail',
+      createdAt: '2026-08-27T03:25:58.000Z',
+      metadata: { failure },
+    });
+    await store.appendMessage({
+      id: 'a-other-run',
+      runtimeGenerationId: 'gen-1',
+      backendMessageId: 'a2',
+      role: 'assistant',
+      text: '',
+      status: 'done',
+      runId: 'run-other',
+      createdAt: '2026-08-27T03:26:58.000Z',
+      metadata: { failure },
+    });
+
+    const settled = await store.settleStreamingMessages({
+      runId: 'run-done-fail',
+      updatedAt: '2026-08-27T03:42:00.000Z',
+      outcome: 'failed',
+      terminalMessage: failure.message,
+      failure,
+    });
+
+    expect(settled.map((message) => message.id)).toEqual(['a-done-fail']);
+    const repaired = await store.getMessage('a-done-fail');
+    expect(repaired?.status).toBe('done');
+    expect(repaired?.outcome).toBe('failed');
+    expect(repaired?.endedAt).toBe('2026-08-27T03:42:00.000Z');
+    expect(repaired?.failure).toEqual(failure);
+    expect((await store.getMessage('a-other-run'))?.outcome).toBeUndefined();
+    store.close();
+  });
+
+  it('does not re-stamp assistant rows that already carry an outcome', async () => {
+    const store = await openStore('already-outcome');
+    await store.appendMessage({
+      id: 'a-prior',
+      runtimeGenerationId: 'gen-1',
+      backendMessageId: 'a1',
+      role: 'assistant',
+      text: 'earlier',
+      status: 'done',
+      runId: 'run-prior',
+      createdAt: '2026-08-27T03:25:58.000Z',
+      metadata: {
+        outcome: 'completed',
+        endedAt: '2026-08-27T03:26:00.000Z',
+      },
+    });
+    expect(
+      await store.settleStreamingMessages({
+        runId: 'run-prior',
+        updatedAt: '2026-08-27T03:42:00.000Z',
+        outcome: 'failed',
+        terminalMessage: 'late failure',
+      }),
+    ).toEqual([]);
+    const prior = await store.getMessage('a-prior');
+    expect(prior?.outcome).toBe('completed');
+    expect(prior?.endedAt).toBe('2026-08-27T03:26:00.000Z');
+    store.close();
+  });
 });

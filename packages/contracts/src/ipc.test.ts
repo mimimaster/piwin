@@ -230,6 +230,50 @@ describe('ipc types', () => {
     expect(truncate.type).toBe('session/truncate-from');
   });
 
+  it('accepts session/set-composer-profile command shapes', () => {
+    const modelOnly: HostCommand = {
+      type: 'session/set-composer-profile',
+      sessionId: 's1',
+      model: { providerId: 'openai', modelId: 'gpt-5' },
+    };
+    const thinkingOnly: HostCommand = {
+      type: 'session/set-composer-profile',
+      sessionId: 's1',
+      thinkingLevel: 'high',
+    };
+    const both: HostCommand = {
+      type: 'session/set-composer-profile',
+      sessionId: 's1',
+      model: { providerId: 'openai', modelId: 'gpt-5' },
+      thinkingLevel: 'high',
+    };
+    const extracted: Extract<HostCommand, { type: 'session/set-composer-profile' }> = both;
+    expect(modelOnly.type).toBe('session/set-composer-profile');
+    expect(thinkingOnly.type).toBe('session/set-composer-profile');
+    expect(both.type).toBe('session/set-composer-profile');
+    expect(extracted.sessionId).toBe('s1');
+  });
+
+  it('accepts session/index-updated with op updated', () => {
+    const push: Extract<HostPush, { type: 'session/index-updated' }> = {
+      type: 'session/index-updated',
+      op: 'updated',
+      sessionId: 's1',
+      session: {
+        id: 's1',
+        scope: { kind: 'project', projectPath: '/tmp' },
+        workingDirectory: '/tmp',
+        projectPath: '/tmp',
+        updatedAt: '2026-08-30T00:00:00.000Z',
+        messageCount: 0,
+        model: { providerId: 'openai', modelId: 'gpt-5' },
+      },
+    };
+    expect(push.type).toBe('session/index-updated');
+    expect(push.op).toBe('updated');
+    expect(push.session?.model?.modelId).toBe('gpt-5');
+  });
+
   it('accepts permissions rules get/set command shapes', () => {
     const getRules: HostCommand = { type: 'permissions/get-rules', layer: 'user' };
     const setRules: HostCommand = {

@@ -4,7 +4,7 @@
  */
 import type { ModelProviderConfig, PiwinConfig } from './config.js';
 import { isModelEnabled, isProviderEnabled, modelSupportsCapability } from './config.js';
-import type { ThinkingLevel } from './host.js';
+import { isThinkingLevel, type ThinkingLevel } from './host.js';
 import type { ConfiguredChatModelGroup, ModelSource } from './subscription-oauth.js';
 
 export type ConfiguredChatModel = {
@@ -61,6 +61,8 @@ export function projectConfiguredChatModels(
       if (typeof model.reasoning === 'boolean') {
         entry.reasoning = model.reasoning;
       }
+      assignPositiveInteger(entry, 'contextWindow', model.contextWindow);
+      assignPositiveInteger(entry, 'maxOutputTokens', model.maxOutputTokens);
       models.push(entry);
     }
   }
@@ -73,4 +75,86 @@ export function projectConfiguredChatModels(
     data.defaultModelId = config.defaultModelId;
   }
   return data;
+}
+
+/**
+ * Parse the secret-free `models/configured` payload.
+ * Copies chat identity plus non-secret model limits (context window / max output).
+ */
+export function readConfiguredChatModelsData(data: unknown): ConfiguredChatModelsData {
+  const record = isRecord(data) ? data : undefined;
+  const models: ConfiguredChatModel[] = [];
+  const rawModels = record?.models;
+  if (Array.isArray(rawModels)) {
+    for (const item of rawModels) {
+      const model = readConfiguredChatModel(item);
+      if (model) {
+        models.push(model);
+      }
+    }
+  }
+  const next: ConfiguredChatModelsData = { models };
+  if (typeof record?.defaultProviderId === 'string' && record.defaultProviderId.length > 0) {
+    next.defaultProviderId = record.defaultProviderId;
+  }
+  if (typeof record?.defaultModelId === 'string' && record.defaultModelId.length > 0) {
+    next.defaultModelId = record.defaultModelId;
+  }
+  return next;
+}
+
+export function readConfiguredChatModel(item: unknown): ConfiguredChatModel | undefined {
+  if (!isRecord(item) || typeof item.providerId !== 'string' || typeof item.modelId !== 'string') {
+    return undefined;
+  }
+  const protocol = item.protocol;
+  const isChannelProtocol =
+    protocol === 'openai-compatible' ||
+    protocol === 'anthropic-compatible' ||
+    protocol === 'google-gemini';
+  const isSubscription = item.source === 'subscription';
+  if (!isChannelProtocol && !isSubscription) {
+    return undefined;
+  }
+  const model: ConfiguredChatModel = {
+    providerId: item.providerId,
+    modelId: item.modelId,
+    source: isSubscription ? 'subscription' : 'channel',
+    group: isSubscription ? 'subscription' : 'channel',
+  };
+  if (isChannelProtocol) {
+    model.protocol = protocol;
+  }
+  if (typeof item.label === 'string' && item.label.trim().length > 0) {
+    model.label = item.label;
+  }
+  if (isThinkingLevel(item.thinkingLevel)) {
+    model.thinkingLevel = item.thinkingLevel;
+  }
+  if (Array.isArray(item.thinkingLevels)) {
+    const thinkingLevels = item.thinkingLevels.filter(isThinkingLevel);
+    if (thinkingLevels.length > 0) {
+      model.thinkingLevels = thinkingLevels;
+    }
+  }
+  if (typeof item.reasoning === 'boolean') {
+    model.reasoning = item.reasoning;
+  }
+  assignPositiveInteger(model, 'contextWindow', item.contextWindow);
+  assignPositiveInteger(model, 'maxOutputTokens', item.maxOutputTokens);
+  return model;
+}
+
+function assignPositiveInteger(
+  target: ConfiguredChatModel,
+  key: 'contextWindow' | 'maxOutputTokens',
+  value: unknown,
+): void {
+  if (typeof value === 'number' && Number.isSafeInteger(value) && value > 0) {
+    target[key] = value;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }

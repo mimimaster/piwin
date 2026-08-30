@@ -5,6 +5,8 @@
  */
 import type { ModelConfigEntry, ModelProviderConfig, PiwinConfig } from '@piwin/contracts';
 import {
+  DEFAULT_MODEL_CONTEXT_WINDOW,
+  DEFAULT_MODEL_MAX_OUTPUT_TOKENS,
   isChannelProvider,
   isSubscriptionProvider,
   isThinkingLevel,
@@ -100,7 +102,7 @@ function mergeSubscriptionProvider(
   for (const catalogModel of catalog) {
     const fresh = catalogModelToConfigEntry(catalogModel);
     const previous = previousById.get(catalogModel.id);
-    models.push(previous ? { ...fresh, ...previous, id: catalogModel.id } : fresh);
+    models.push(previous ? mergeSubscriptionCatalogModel(fresh, previous) : fresh);
     previousById.delete(catalogModel.id);
   }
   for (const leftover of previousById.values()) {
@@ -119,6 +121,58 @@ function mergeSubscriptionProvider(
     provider.enabled = existing.enabled;
   }
   return provider;
+}
+
+/**
+ * Keep user enable/label/thinking defaults, but take the plan's context window
+ * when the saved value is missing or still the product 128K default.
+ */
+export function mergeSubscriptionCatalogModel(
+  catalog: ModelConfigEntry,
+  previous: ModelConfigEntry,
+): ModelConfigEntry {
+  const merged: ModelConfigEntry = { ...catalog, ...previous, id: catalog.id };
+  overlayCatalogLimits(merged, catalog);
+  return merged;
+}
+
+export function overlayCatalogLimits(
+  target: { contextWindow?: unknown; maxOutputTokens?: unknown },
+  catalog: { contextWindow?: number; maxOutputTokens?: number },
+): void {
+  const contextWindow = resolveCatalogBackedLimit(
+    readPositiveInteger(target.contextWindow),
+    catalog.contextWindow,
+    DEFAULT_MODEL_CONTEXT_WINDOW,
+  );
+  if (contextWindow !== undefined) {
+    target.contextWindow = contextWindow;
+  }
+  const maxOutputTokens = resolveCatalogBackedLimit(
+    readPositiveInteger(target.maxOutputTokens),
+    catalog.maxOutputTokens,
+    DEFAULT_MODEL_MAX_OUTPUT_TOKENS,
+  );
+  if (maxOutputTokens !== undefined) {
+    target.maxOutputTokens = maxOutputTokens;
+  }
+}
+
+function resolveCatalogBackedLimit(
+  configured: number | undefined,
+  catalog: number | undefined,
+  defaultLimit: number,
+): number | undefined {
+  const catalogLimit = readPositiveInteger(catalog);
+  const configuredLimit = readPositiveInteger(configured);
+  if (catalogLimit !== undefined && (configuredLimit === undefined || configuredLimit === defaultLimit)) {
+    return catalogLimit;
+  }
+  return configuredLimit;
+}
+
+function readPositiveInteger(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : undefined;
 }
 
 function subscriptionProvidersEqual(

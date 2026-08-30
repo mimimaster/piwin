@@ -64,6 +64,50 @@ describe('pi-agent-failure', () => {
     });
   });
 
+  it('maps Connection error and transport natives to provider-unavailable', () => {
+    expect(agentFailureFromPiFacts({ errorMessage: 'Connection error.' })).toMatchObject({
+      code: 'provider-unavailable',
+      origin: 'provider',
+      retriable: true,
+      message: 'Connection error.',
+    });
+    expect(
+      agentFailureFromPiFacts({
+        errorMessage: 'Connection error.',
+        nativeName: 'APIConnectionError',
+        provider: 'custom-openai',
+        baseUrl: 'http://127.0.0.1:8317/v1',
+      }),
+    ).toMatchObject({
+      code: 'provider-unavailable',
+      nativeName: 'APIConnectionError',
+      message: 'Connection error (custom-openai · http://127.0.0.1:8317/v1)',
+      retriable: true,
+    });
+    expect(
+      agentFailureFromPiFacts({ errorMessage: 'fetch failed: ECONNREFUSED' }),
+    ).toMatchObject({
+      code: 'provider-unavailable',
+      retriable: true,
+    });
+  });
+
+  it('reads provider context from Pi assistant error payloads', () => {
+    expect(
+      agentFailureFromPiEvent({
+        role: 'assistant',
+        provider: 'custom-openai',
+        model: 'gemini-3.7-flash-high',
+        stopReason: 'error',
+        errorMessage: 'Connection error.',
+      }),
+    ).toMatchObject({
+      code: 'provider-unavailable',
+      message: 'Connection error (custom-openai)',
+      retriable: true,
+    });
+  });
+
   it('redacts secrets in the bounded message', () => {
     const failure = agentFailureFromPiFacts({
       errorMessage: 'Authorization: Bearer sk-abcdefghijklmnopqrstuvwxyz',

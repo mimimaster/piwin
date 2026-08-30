@@ -458,6 +458,18 @@ export type HostCommand =
     }
   | {
       id?: string;
+      /**
+       * Sets desired session composer profile (session index).
+       * Does not apply runtime / sessionModels / compact.
+       * Does not belong on Live owner events.
+       */
+      type: 'session/set-composer-profile';
+      sessionId: string;
+      model?: import('./host.js').ModelRef;
+      thinkingLevel?: import('./host.js').ThinkingLevel;
+    }
+  | {
+      id?: string;
       type: 'side-chat/open';
       sourceSessionId: string;
       sourceMessageId?: string;
@@ -1068,7 +1080,7 @@ export type HostPushVariant =
     }
   | {
       type: 'session/index-updated';
-      op: 'created' | 'pinned' | 'unpinned' | 'archived' | 'unarchived' | 'deleted';
+      op: 'created' | 'pinned' | 'unpinned' | 'archived' | 'unarchived' | 'deleted' | 'updated';
       sessionId: string;
       session?: import('./host.js').SessionSummary;
     }

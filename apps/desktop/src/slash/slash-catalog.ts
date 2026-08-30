@@ -19,6 +19,8 @@ export type BuildSlashCatalogOptions = {
   compacting?: boolean;
   hasActiveSession?: boolean;
   projectTrusted?: boolean;
+  /** When false, skip the project-trust gate (General sessions). Default true. */
+  requireProjectTrust?: boolean;
   /** Current agent mode (for availability UI only). */
   agentMode?: AgentModeId;
   /** Whether the goal extension is enabled (defaults to true). */
@@ -66,7 +68,8 @@ export function buildSlashCatalog(options: BuildSlashCatalogOptions): SlashItem[
   const compacting = options.compacting === true;
   const hasActiveSession = options.hasActiveSession === true;
   const projectTrusted = options.projectTrusted === true;
-  const interactive = hasActiveSession && projectTrusted;
+  const requireProjectTrust = options.requireProjectTrust !== false;
+  const interactive = hasActiveSession && (!requireProjectTrust || projectTrusted);
   const conversationChat = options.conversationChat === true;
 
   const items: SlashItem[] = [];

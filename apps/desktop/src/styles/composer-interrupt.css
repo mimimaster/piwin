@@ -119,6 +119,15 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--iris) 25%, transparent);
 }
 
+.agent-interruption-choice[data-recommended='true'] {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--iris) 40%, transparent);
+}
+
+.agent-interruption-choice:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .agent-interruption-choice:focus-visible {
   outline: var(--focus-ring);
   outline-offset: -1px;

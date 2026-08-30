@@ -28,24 +28,31 @@ describe('resolveTurnErrorMessage', () => {
     ).toBe('Provider returned error');
   });
 
-  it('keeps an independent message error visible without a failed run record', () => {
+  it('hides message error evidence until Host fails the Run', () => {
     expect(
       resolveTurnErrorMessage({
         messageStatus: 'error',
         messageError: 'A message failed',
         runOutcome: undefined,
         runTerminalMessage: undefined,
-        isLastAssistantInTurn: false,
+        isLastAssistantInTurn: true,
         locale: 'en',
       }),
-    ).toBe('A message failed');
-  });
-
-  it('hides live error evidence until Host fails the Run', () => {
+    ).toBeNull();
     expect(
       resolveTurnErrorMessage({
         messageStatus: 'streaming',
         messageError: 'Provider returned error',
+        runOutcome: undefined,
+        runTerminalMessage: undefined,
+        isLastAssistantInTurn: true,
+        locale: 'en',
+      }),
+    ).toBeNull();
+    expect(
+      resolveTurnErrorMessage({
+        messageStatus: 'done',
+        messageError: 'Connection error.',
         runOutcome: undefined,
         runTerminalMessage: undefined,
         isLastAssistantInTurn: true,
@@ -75,5 +82,18 @@ describe('resolveTurnErrorMessage', () => {
         locale: 'en',
       }),
     ).toBeNull();
+  });
+
+  it('falls back to a locale default when the failed Run has no prose', () => {
+    expect(
+      resolveTurnErrorMessage({
+        messageStatus: 'done',
+        messageError: undefined,
+        runOutcome: 'failed',
+        runTerminalMessage: undefined,
+        isLastAssistantInTurn: true,
+        locale: 'zh-CN',
+      }),
+    ).toBe('生成失败');
   });
 });

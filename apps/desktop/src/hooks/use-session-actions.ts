@@ -73,6 +73,24 @@ export type ModelOption = {
   reasoning?: boolean;
 };
 
+function compactFailureMessage(error: string, locale: string): string {
+  const lower = error.toLowerCase();
+  if (lower.includes('nothing to compact') || lower.includes('session too small')) {
+    return locale === 'zh-CN'
+      ? '模型侧几乎没有可压缩的历史。如果刚恢复会话，先再发一轮再 /compact。'
+      : 'Nothing to compact in the live model session. If this session was just restored, send another turn first.';
+  }
+  if (lower.includes('already compacted')) {
+    return locale === 'zh-CN' ? '这段上下文已经压缩过了。' : 'This context is already compacted.';
+  }
+  if (lower.includes('session-busy') || lower.includes('foreground-run')) {
+    return locale === 'zh-CN'
+      ? '当前回合还在跑，没法压缩。等它结束或先 /stop。'
+      : 'Cannot compact while a run is in progress. Wait or /stop first.';
+  }
+  return error;
+}
+
 function resolveKnownSessionScope(state: ChatUiState, sessionId: string): SessionScope {
   for (const [projectPath, sessions] of Object.entries(state.projectSessionsByPath)) {
     const session = sessions.find((item) => item.id === sessionId);
@@ -1652,9 +1670,32 @@ export function useSessionActions(args: UseSessionActionsArgs) {
   ]);
 
   const handleCompact = useCallback(
-    async (customInstructions?: string): Promise<void> => {
-      if (!state.activeSessionId || state.compacting || state.streaming) {
-        return;
+    async (customInstructions?: string): Promise<boolean> => {
+      if (!state.activeSessionId) {
+        dispatchNotification(
+          pushError(
+            locale === 'zh-CN'
+              ? '先选一个会话再压缩上下文。'
+              : 'Select a session before compacting.',
+          ),
+        );
+        return false;
+      }
+      if (state.compacting) {
+        dispatchNotification(
+          pushInfo(locale === 'zh-CN' ? '正在压缩上下文。' : 'Compaction already running.'),
+        );
+        return false;
+      }
+      if (state.streaming) {
+        dispatchNotification(
+          pushError(
+            locale === 'zh-CN'
+              ? '当前回合还在跑。等它结束，或先 /stop 再 /compact。'
+              : 'A run is still in progress. Wait for it to finish, or /stop then /compact.',
+          ),
+        );
+        return false;
       }
       const payload: {
         type: 'session/compact';
@@ -1667,12 +1708,35 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       if (customInstructions && customInstructions.trim().length > 0) {
         payload.customInstructions = customInstructions.trim();
       }
-      const response = await hostClient.request(payload);
-      if (!response.success) {
-        dispatchNotification(pushError(response.error));
+      try {
+        const response = await hostClient.request(payload);
+        if (!response.success) {
+          dispatchNotification(
+            pushError(compactFailureMessage(response.error, locale)),
+          );
+          return false;
+        }
+        const data = response.data as { ok?: boolean; message?: string } | undefined;
+        if (data?.ok === false) {
+          dispatchNotification(
+            pushError(compactFailureMessage(data.message ?? 'Compaction failed', locale)),
+          );
+          return false;
+        }
+        return true;
+      } catch (error) {
+        dispatchNotification(pushError(compactFailureMessage(formatError(error), locale)));
+        return false;
       }
     },
-    [dispatchNotification, hostClient, state.activeSessionId, state.compacting, state.streaming],
+    [
+      dispatchNotification,
+      hostClient,
+      locale,
+      state.activeSessionId,
+      state.compacting,
+      state.streaming,
+    ],
   );
 
   const handleCompactAbort = useCallback(async (): Promise<void> => {

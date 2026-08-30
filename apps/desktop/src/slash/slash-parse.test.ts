@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   applySkillToPrompt,
   detectActiveSlashToken,
   normalizeCompactCustomInstructions,
   parseComposerSlashSubmit,
   replaceActiveSlashToken,
+  runReservedComposerSlashCommand,
 } from './slash-parse';
 
 const skills = [
@@ -54,6 +55,16 @@ describe('parseComposerSlashSubmit', () => {
     expect(parseComposerSlashSubmit('/compress', skills)).toMatchObject({
       commandId: 'compact',
     });
+  });
+
+  it('runs reserved compact/stop handlers for whole-message submits', async () => {
+    const compact = vi.fn(async () => true);
+    const abort = vi.fn(async () => undefined);
+    expect(await runReservedComposerSlashCommand('/compact keep tools', { compact })).toBe(true);
+    expect(compact).toHaveBeenCalledWith('keep tools');
+    expect(await runReservedComposerSlashCommand('/stop', { abort })).toBe(true);
+    expect(abort).toHaveBeenCalledTimes(1);
+    expect(await runReservedComposerSlashCommand('hello', { compact, abort })).toBe(false);
   });
 
   it('parses stop and abort', () => {

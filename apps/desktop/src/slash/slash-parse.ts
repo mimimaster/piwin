@@ -171,6 +171,35 @@ export function parseComposerSlashSubmit(
 /**
  * Cap and sanitize compact customInstructions.
  */
+/**
+ * Run whole-message `/compact` / `/stop` (and aliases) without painting a bubble.
+ * Returns true when the text was consumed as a reserved command.
+ */
+export async function runReservedComposerSlashCommand(
+  trimmedText: string,
+  handlers: {
+    compact?: (customInstructions?: string) => Promise<unknown>;
+    abort?: () => Promise<unknown>;
+  },
+): Promise<boolean> {
+  if (!trimmedText.startsWith('/')) {
+    return false;
+  }
+  const parsed = parseComposerSlashSubmit(trimmedText, []);
+  if (parsed.kind !== 'command') {
+    return false;
+  }
+  if (parsed.commandId === 'compact') {
+    await handlers.compact?.(normalizeCompactCustomInstructions(parsed.args));
+    return true;
+  }
+  if (parsed.commandId === 'stop') {
+    await handlers.abort?.();
+    return true;
+  }
+  return false;
+}
+
 export function normalizeCompactCustomInstructions(args: string): string | undefined {
   const trimmed = args.trim().replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
   if (!trimmed) {

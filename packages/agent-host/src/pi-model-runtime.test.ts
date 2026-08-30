@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_MODEL_MAX_OUTPUT_TOKENS } from '@piwin/contracts';
 import type { ModelProviderConfig, ResolvedSearchRoute } from '@piwin/contracts';
+import { lookupCatalogByModelId } from './model-catalog-reader.js';
 import { buildPiProviderRegistration, resolvePiApiForProvider } from './pi-model-runtime.js';
 import type { NativeSearchStreamSimple } from './native-web-search.js';
 
@@ -69,6 +70,21 @@ describe('pi-model-runtime', () => {
       protocol: 'anthropic-compatible',
     });
     expect(anthropicRegistration.models[0]).not.toHaveProperty('compat');
+  });
+
+  it('fills omitted grok-4.6 window from the Pi catalog instead of 128K', () => {
+    const catalog = lookupCatalogByModelId('grok-4.6');
+    expect(catalog?.contextWindow).toBe(500_000);
+
+    const registration = buildPiProviderRegistration({
+      id: 'xai-local',
+      protocol: 'openai-compatible',
+      name: 'xAI local gateway',
+      baseUrl: 'https://api.example.test/v1',
+      models: [{ id: 'grok-4.6' }],
+    });
+    expect(registration.models[0]?.contextWindow).toBe(500_000);
+    expect(registration.models[0]?.maxTokens).toBe(catalog?.maxTokens);
   });
 
   it('builds a Pi provider registration with complete model descriptors', () => {

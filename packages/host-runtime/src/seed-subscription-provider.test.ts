@@ -73,6 +73,32 @@ describe('seed subscription provider', () => {
     );
   });
 
+  it('replaces the default 128K window with the subscription catalog window', () => {
+    const config = createDefaultPiwinConfig();
+    config.providers = [
+      {
+        id: 'xai',
+        name: 'Grok',
+        protocol: 'openai-compatible',
+        baseUrl: 'oauth://xai',
+        source: 'subscription',
+        models: [{ id: 'grok-4.6', label: 'Grok 4.6', contextWindow: 128_000, maxOutputTokens: 8_192 }],
+      },
+    ];
+    const merged = upsertSubscriptionProvider(config, 'xai', [
+      { id: 'grok-4.6', name: 'Grok 4.6', contextWindow: 500_000, maxOutputTokens: 500_000 },
+    ]);
+    expect(merged.providers[0]?.models).toEqual([
+      {
+        id: 'grok-4.6',
+        label: 'Grok 4.6',
+        capabilities: ['chat'],
+        contextWindow: 500_000,
+        maxOutputTokens: 500_000,
+      },
+    ]);
+  });
+
   it('seeds every logged-in v1 account', () => {
     const config = createDefaultPiwinConfig();
     const next = ensureSubscriptionProviders(

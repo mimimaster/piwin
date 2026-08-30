@@ -1,13 +1,13 @@
-import type {
-  ConfiguredChatModel,
-  ConfiguredChatModelsData,
-  HostResponse,
-  RemoteHostStatusData,
-  RemoteMediaAsset,
-  RemoteProjectSummary,
-  RemoteSessionSummary,
+import {
+  readConfiguredChatModelsData,
+  type ConfiguredChatModel,
+  type ConfiguredChatModelsData,
+  type HostResponse,
+  type RemoteHostStatusData,
+  type RemoteMediaAsset,
+  type RemoteProjectSummary,
+  type RemoteSessionSummary,
 } from '@piwin/contracts';
-import { isThinkingLevel } from '@piwin/contracts';
 import { isRemoteHostStatusData } from './mobile-host-connection.js';
 
 export function applyHostStatus(
@@ -39,55 +39,10 @@ export function applyConfiguredModels(
 }
 
 export function readConfiguredChatModels(response: HostResponse): ConfiguredChatModelsData {
-  if (!response.success || !isRecord(response.data) || !Array.isArray(response.data.models)) {
+  if (!response.success) {
     return { models: [] };
   }
-  const models: ConfiguredChatModel[] = [];
-  for (const item of response.data.models) {
-    if (!isRecord(item) || typeof item.providerId !== 'string' || typeof item.modelId !== 'string') {
-      continue;
-    }
-    const protocol = item.protocol;
-    const isChannelProtocol =
-      protocol === 'openai-compatible' ||
-      protocol === 'anthropic-compatible' ||
-      protocol === 'google-gemini';
-    const isSubscription = item.source === 'subscription';
-    if (!isChannelProtocol && !isSubscription) {
-      continue;
-    }
-    const model: ConfiguredChatModel = {
-      providerId: item.providerId,
-      modelId: item.modelId,
-      ...(isSubscription
-        ? { source: 'subscription', group: 'subscription' }
-        : { source: 'channel', group: 'channel' }),
-    };
-    if (isChannelProtocol) {
-      model.protocol = protocol;
-    }
-    if (typeof item.label === 'string' && item.label.length > 0) {
-      model.label = item.label;
-    }
-    if (isThinkingLevel(item.thinkingLevel)) {
-      model.thinkingLevel = item.thinkingLevel;
-    }
-    if (Array.isArray(item.thinkingLevels)) {
-      model.thinkingLevels = item.thinkingLevels.filter(isThinkingLevel);
-    }
-    if (typeof item.reasoning === 'boolean') {
-      model.reasoning = item.reasoning;
-    }
-    models.push(model);
-  }
-  const data: ConfiguredChatModelsData = { models };
-  if (typeof response.data.defaultProviderId === 'string') {
-    data.defaultProviderId = response.data.defaultProviderId;
-  }
-  if (typeof response.data.defaultModelId === 'string') {
-    data.defaultModelId = response.data.defaultModelId;
-  }
-  return data;
+  return readConfiguredChatModelsData(response.data);
 }
 
 export function readProjects(response: HostResponse): RemoteProjectSummary[] {

@@ -69,6 +69,16 @@ describe('groupSlashItems', () => {
 });
 
 describe('buildSlashCatalog availability', () => {
+  it('keeps compact available in a general session without project trust', () => {
+    const items = buildSlashCatalog({
+      skills: [],
+      hasActiveSession: true,
+      projectTrusted: false,
+      requireProjectTrust: false,
+    });
+    expect(items.find((item) => item.name === 'compact')?.available).toBe(true);
+  });
+
   it('marks compact unavailable while streaming', () => {
     const items = buildSlashCatalog({
       skills: [],

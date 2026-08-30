@@ -33,6 +33,12 @@ describe('model-catalog-reader', () => {
     expect(found?.modelId).toBe(sample.modelId);
   });
 
+  it('looks up grok-4.6 by a gateway-prefixed id', () => {
+    const found = lookupCatalogByModelId('custom-openai/grok-4.6');
+    expect(found?.modelId).toBe('grok-4.6');
+    expect(found?.contextWindow).toBe(500_000);
+  });
+
   it('enrichFromCatalog fills missing fields without overwriting', () => {
     const catalog = {
       catalogProviderId: 'openai',

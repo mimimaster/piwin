@@ -207,6 +207,8 @@ describe('modelOptionsFromConfiguredModels', () => {
           modelId: 'deepseek-v4-flash',
           label: 'DeepSeek',
           reasoning: true,
+          contextWindow: 500_000,
+          maxOutputTokens: 64_000,
         },
         {
           providerId: 'anthropic',
@@ -221,6 +223,8 @@ describe('modelOptionsFromConfiguredModels', () => {
         modelId: 'deepseek-v4-flash',
         label: 'custom-openai / DeepSeek',
         reasoning: true,
+        contextWindow: 500_000,
+        maxOutputTokens: 64_000,
       },
       {
         providerId: 'anthropic',
@@ -241,6 +245,7 @@ describe('readConfiguredChatModelsData', () => {
           modelId: 'gpt-5.4-codex',
           source: 'subscription',
           label: 'GPT-5.4 Codex',
+          contextWindow: 272_000,
         },
       ],
     });
@@ -251,6 +256,7 @@ describe('readConfiguredChatModelsData', () => {
         source: 'subscription',
         group: 'subscription',
         label: 'GPT-5.4 Codex',
+        contextWindow: 272_000,
       },
     ]);
   });

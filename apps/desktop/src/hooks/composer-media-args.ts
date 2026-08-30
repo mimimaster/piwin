@@ -21,7 +21,7 @@ export type UseComposerMediaArgs = {
   permissionPreset?: PermissionPreset;
   /** Skills available for `/name` send intercept. */
   menuSkills?: Array<{ id: string; name: string; enabled: boolean }>;
-  onCompact?: (customInstructions?: string) => Promise<void>;
+  onCompact?: (customInstructions?: string) => Promise<boolean | void>;
   onAbort?: () => Promise<void>;
   /** Create (or ensure) a live session when the user sends without one. */
   ensureSession?: (options?: {

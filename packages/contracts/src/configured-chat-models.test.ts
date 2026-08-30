@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { projectConfiguredChatModels } from './configured-chat-models.js';
+import {
+  projectConfiguredChatModels,
+  readConfiguredChatModelsData,
+} from './configured-chat-models.js';
 import type { PiwinConfig } from './config.js';
 
 function config(
@@ -19,6 +22,8 @@ function config(
             label: 'DeepSeek V4 Flash',
             thinkingLevels: ['off', 'low', 'medium', 'high', 'max'],
             thinkingLevel: 'max',
+            contextWindow: 128_000,
+            maxOutputTokens: 8_192,
           },
           { id: 'whisper-1', capabilities: ['speech-to-text'] },
         ],
@@ -52,6 +57,8 @@ describe('projectConfiguredChatModels', () => {
           label: 'DeepSeek V4 Flash',
           thinkingLevel: 'max',
           thinkingLevels: ['off', 'low', 'medium', 'high', 'max'],
+          contextWindow: 128_000,
+          maxOutputTokens: 8_192,
           source: 'channel',
           group: 'channel',
         },
@@ -75,7 +82,14 @@ describe('projectConfiguredChatModels', () => {
             protocol: 'openai-compatible',
             baseUrl: 'oauth://openai-codex',
             source: 'subscription',
-            models: [{ id: 'gpt-5.4-codex', label: 'GPT-5.4 Codex' }],
+            models: [
+              {
+                id: 'gpt-5.4-codex',
+                label: 'GPT-5.4 Codex',
+                contextWindow: 500_000,
+                maxOutputTokens: 64_000,
+              },
+            ],
           },
         ],
       }),
@@ -85,8 +99,39 @@ describe('projectConfiguredChatModels', () => {
         providerId: 'openai-codex',
         modelId: 'gpt-5.4-codex',
         label: 'GPT-5.4 Codex',
+        contextWindow: 500_000,
+        maxOutputTokens: 64_000,
         source: 'subscription',
         group: 'subscription',
+      },
+    ]);
+  });
+});
+
+describe('readConfiguredChatModelsData', () => {
+  it('keeps subscription contextWindow from the Host payload', () => {
+    expect(
+      readConfiguredChatModelsData({
+        models: [
+          {
+            providerId: 'xai',
+            modelId: 'grok-4.6',
+            source: 'subscription',
+            label: 'Grok 4.6',
+            contextWindow: 500_000,
+            maxOutputTokens: 500_000,
+          },
+        ],
+      }).models,
+    ).toEqual([
+      {
+        providerId: 'xai',
+        modelId: 'grok-4.6',
+        source: 'subscription',
+        group: 'subscription',
+        label: 'Grok 4.6',
+        contextWindow: 500_000,
+        maxOutputTokens: 500_000,
       },
     ]);
   });

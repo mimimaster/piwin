@@ -140,6 +140,56 @@ describe('auth commands', () => {
     ]);
   });
 
+  it('overlays the catalog context window onto already-projected models', async () => {
+    const port: SubscriptionAuthPort = {
+      listCredentials: async () => [{ providerId: 'xai', type: 'oauth' }],
+      isUsingSubscription: () => true,
+      getChatCatalog: (id) =>
+        id === 'xai'
+          ? [
+              {
+                id: 'grok-4.6',
+                name: 'Grok 4.6',
+                contextWindow: 500_000,
+                maxOutputTokens: 500_000,
+              },
+            ]
+          : [],
+      login: async () => ({ kind: 'ok' }),
+      logout: async () => ({ kind: 'ok' }),
+      refreshProvider: async () => undefined,
+      dispose: () => undefined,
+    };
+    const service = new SubscriptionAuthService(
+      { port },
+      {
+        loadConfig: async () => createDefaultPiwinConfig(),
+        saveConfig: async () => undefined,
+      },
+    );
+    const merged = await service.mergeConfiguredModels({
+      models: [
+        {
+          providerId: 'xai',
+          modelId: 'grok-4.6',
+          source: 'subscription',
+          group: 'subscription',
+          contextWindow: 128_000,
+        },
+      ],
+    });
+    expect(merged.models).toEqual([
+      {
+        providerId: 'xai',
+        modelId: 'grok-4.6',
+        source: 'subscription',
+        group: 'subscription',
+        contextWindow: 500_000,
+        maxOutputTokens: 500_000,
+      },
+    ]);
+  });
+
   it('rejects respond from a different device', async () => {
     const { port } = fakePort();
     port.login = async (_providerId, interaction) => {

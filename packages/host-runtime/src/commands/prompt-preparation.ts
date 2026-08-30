@@ -671,7 +671,7 @@ async function formatBoundedHistoryWithContext(
  * resume and session switch can restore them after process restart.
  */
 export async function persistSessionComposerProfile(
-  context: SessionLiveContext,
+  context: Pick<SessionLiveContext, 'piwinRoot'>,
   sessionId: string,
   profile: { model?: ModelRef; thinkingLevel?: ThinkingLevel },
 ): Promise<void> {
