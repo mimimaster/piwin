@@ -5,7 +5,7 @@ import type {
   MediaAttachmentRef,
   SessionSummary,
 } from './host.js';
-import type { ModelProviderConfig, PiwinConfig } from './config.js';
+import type { PiwinConfig } from './config.js';
 import type { SavedMediaAsset, SaveMediaInput } from './media.js';
 import type { SkillSummary } from './skills.js';
 import type { ExtensionSummary } from './extensions.js';

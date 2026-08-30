@@ -32,11 +32,7 @@ import type {
   SessionTranscriptWindowQuery,
 } from './session-transcript-page.js';
 import type { SessionUserMessageIndexQuery } from './session-user-message-index.js';
-import type { InstallSource } from './mcp.js';
-import type {
-  McpConfigDocument,
-  McpServerConfig,
-} from './mcp.js';
+import type { InstallSource, McpServerConfig } from './mcp.js';
 import type {
   GitBranchCreateInput,
   GitCheckoutInput,
