@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -14,7 +14,8 @@ import { buildHostFilesystemTools } from '../tools/host-filesystem-tools.js';
 import { createExecutionTracker } from './execution-tracker.js';
 import { bindCaptureReceipts, createToolCapturePort } from './tool-capture.js';
 import { createTurnChangeCoordinator } from './coordinator.js';
-import { openTurnChangeRuntime } from './runtime-wiring.js';
+import { openTurnChangeRuntime, resolveTurnChangeWorkspaceRoot } from './runtime-wiring.js';
+import { getPiwinGeneralWorkspacePath } from '../paths.js';
 
 const temporaryDirectories: string[] = [];
 const openStores: TurnChangeStore[] = [];
@@ -237,5 +238,58 @@ describe('createTurnChangeCoordinator', () => {
     });
     await writeFile(join(rootDir, 'probe.txt'), 'ok', 'utf8');
     expect(rootDir.startsWith(join(homedir(), '.piwin'))).toBe(false);
+  });
+
+  it('treats bindSession projectPath "" as the general workspace lock key', async () => {
+    const piwinRoot = await createTempDir('piwin-tc-general-root-');
+    const storeRoot = await createTempDir('piwin-tc-general-store-');
+    const generalWorkspace = getPiwinGeneralWorkspacePath(piwinRoot);
+    await mkdir(generalWorkspace, { recursive: true });
+
+    const sessionProjects = new Map<string, string>([['session-general', '']]);
+    const workspaceRoot = resolveTurnChangeWorkspaceRoot({
+      projectPath: sessionProjects.get('session-general'),
+      piwinRoot,
+    });
+    expect(workspaceRoot).toBe(generalWorkspace);
+    expect(workspaceRoot).not.toBe('');
+    expect(workspaceRoot).not.toBe(process.cwd());
+
+    const runtime = openTurnChangeRuntime({
+      rootDir: storeRoot,
+      hostInstanceId: 'host-1',
+      piwinRoot,
+    });
+    openStores.push(runtime.store);
+    runtime.coordinator.beginAttempt({
+      sessionId: 'session-general',
+      userMessageId: 'um-1',
+      runId: 'run-1',
+      source: 'prompt',
+      workspaceRoot,
+    });
+
+    const tool = await runtime.gate.tryAcquire({
+      workspaceId: 'ws-tool',
+      rootPath: workspaceRoot,
+      kind: 'tool',
+      runId: 'run-1',
+    });
+    expect(tool.ok).toBe(true);
+    const git = await runtime.gate.tryAcquire({
+      workspaceId: 'ws-git',
+      rootPath: generalWorkspace,
+      kind: 'git',
+    });
+    expect(git).toEqual({ ok: false, reason: 'workspace-busy' });
+    const integration = await runtime.gate.tryAcquire({
+      workspaceId: 'ws-int',
+      rootPath: generalWorkspace,
+      kind: 'integration',
+    });
+    expect(integration).toEqual({ ok: false, reason: 'workspace-busy' });
+    if (tool.ok) {
+      tool.lease.release();
+    }
   });
 });

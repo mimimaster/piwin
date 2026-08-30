@@ -7,7 +7,8 @@ import { join } from 'node:path';
 
 import { getSessionRecord } from '@piwin/session';
 import { loadPiwinConfig } from './config-store.js';
-import { getPiwinGeneralWorkspacePath, getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
+import { getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
+import { resolveTurnChangeWorkspaceRoot } from './turn-changes/runtime-wiring.js';
 import { isConversationIndexRecord } from './session-scope.js';
 import { type SessionLiveContext } from './commands/session-live-commands.js';
 
@@ -221,10 +222,13 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
         return;
       }
       const child = deps.subagentSessionContexts.get(input.sessionId);
-      const workspaceRoot =
-        child?.workingDirectory ??
-        deps.sessionProjects.get(input.sessionId) ??
-        getPiwinGeneralWorkspacePath(getPiwinRoot(deps.options.piwinRoot));
+      const workspaceRoot = resolveTurnChangeWorkspaceRoot({
+        ...(child?.workingDirectory !== undefined
+          ? { childWorkingDirectory: child.workingDirectory }
+          : {}),
+        projectPath: deps.sessionProjects.get(input.sessionId),
+        piwinRoot: deps.options.piwinRoot,
+      });
       runtime.coordinator.beginAttempt({
         sessionId: input.sessionId,
         userMessageId: input.userMessageId,

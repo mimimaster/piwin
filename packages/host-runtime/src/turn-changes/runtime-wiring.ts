@@ -10,7 +10,7 @@ import {
   type TurnChangeObjectStore,
   type TurnChangeStore,
 } from '@piwin/git';
-import { getPiwinRoot } from '../paths.js';
+import { getPiwinGeneralWorkspacePath, getPiwinRoot } from '../paths.js';
 import {
   createTurnChangeCoordinator,
   type TurnChangeCoordinator,
@@ -31,6 +31,26 @@ export type TurnChangeRuntime = {
 
 export function resolveTurnChangeRuntimeRoot(piwinRoot?: string): string {
   return join(getPiwinRoot(piwinRoot), 'turn-changes');
+}
+
+/**
+ * Workspace root used for turn-change capture and the exclusive write gate.
+ * Empty `projectPath` is the bindSession General-session convention, not cwd.
+ */
+export function resolveTurnChangeWorkspaceRoot(input: {
+  projectPath?: string | undefined;
+  piwinRoot?: string | undefined;
+  childWorkingDirectory?: string | undefined;
+}): string {
+  const childWorkingDirectory = input.childWorkingDirectory?.trim();
+  if (childWorkingDirectory) {
+    return childWorkingDirectory;
+  }
+  const projectPath = input.projectPath?.trim();
+  if (projectPath) {
+    return projectPath;
+  }
+  return getPiwinGeneralWorkspacePath(getPiwinRoot(input.piwinRoot));
 }
 
 export function openTurnChangeRuntime(options: {

@@ -25,6 +25,7 @@ import { loadMergedPermissionRules } from './permission-rule-loader.js';
 import { fail } from './response-helpers.js';
 import { buildSessionHostTools } from './tools/build-session-host-tools.js';
 import { bindCaptureReceipts } from './turn-changes/tool-capture.js';
+import { resolveTurnChangeWorkspaceRoot } from './turn-changes/runtime-wiring.js';
 import type { McpCapabilityBrief } from './mcp-capability-brief.js';
 import { createHostToolAdmission } from './tools/tool-admission.js';
 
@@ -139,7 +140,13 @@ export async function composeSessionHostToolsForSession(
     // Bundled rules remain the fail-closed baseline when user/project rules
     // cannot be loaded; the generation still has a deterministic snapshot.
   }
-  const workspaceRoot = projectPath ?? rootDir;
+  const workspaceRoot = resolveTurnChangeWorkspaceRoot({
+    ...(childContext?.workingDirectory !== undefined
+      ? { childWorkingDirectory: childContext.workingDirectory }
+      : {}),
+    ...(projectPath !== undefined ? { projectPath } : {}),
+    piwinRoot: deps.options.piwinRoot,
+  });
   const turnChangeRuntime = deps.turnChangeRuntime;
   const tools = await buildSessionHostTools({
     sessionId,
