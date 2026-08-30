@@ -29,7 +29,13 @@ function createWorktreeLease(
   };
 }
 
-function createTaskResult(taskId: string, allowedOutputPaths?: string[]): SubagentTaskResult {
+const FROZEN_RESULT_REF = { resultId: 'res-1', revision: 1 } as const;
+
+function createTaskResult(
+  taskId: string,
+  allowedOutputPaths?: string[],
+  resultRef: { resultId: string; revision: number } | undefined = undefined,
+): SubagentTaskResult {
   return {
     runId: 'run-1',
     taskId,
@@ -37,7 +43,15 @@ function createTaskResult(taskId: string, allowedOutputPaths?: string[]): Subage
     summaryStatus: 'not-requested',
     integrationStatus: 'pending',
     ...(allowedOutputPaths !== undefined ? { allowedOutputPaths } : {}),
+    ...(resultRef ? { resultRef } : {}),
   };
+}
+
+function createFrozenTaskResult(
+  taskId: string,
+  allowedOutputPaths?: string[],
+): SubagentTaskResult {
+  return createTaskResult(taskId, allowedOutputPaths, FROZEN_RESULT_REF);
 }
 
 function createDeferred(): {
@@ -193,7 +207,7 @@ describe('SubagentIntegrationCoordinator', () => {
     });
 
     const result = await coordinator.integrate(
-      createTaskResult('task-1'),
+      createFrozenTaskResult('task-1'),
       createWorktreeLease('/tmp/project/.piwin-worktrees/one'),
       {
         signal: cancellationController.signal,
@@ -258,7 +272,7 @@ describe('SubagentIntegrationCoordinator', () => {
     expect(removeWorktree).not.toHaveBeenCalled();
   });
 
-  it('removes applied worktrees immediately but retains conflicts during dispose', async () => {
+  it('removes frozen applied worktrees after integrate and retains conflicts during dispose', async () => {
     let integrationCount = 0;
     const integrateWorktree: WorktreeIntegrationFunction = vi.fn(async (input) => {
       integrationCount += 1;
@@ -287,7 +301,7 @@ describe('SubagentIntegrationCoordinator', () => {
     const appliedWorktree = '/tmp/project/.piwin-worktrees/applied';
     const conflictedWorktree = '/tmp/project/.piwin-worktrees/conflicted';
     const appliedResult = await coordinator.integrate(
-      createTaskResult('task-1'),
+      createFrozenTaskResult('task-1'),
       createWorktreeLease(appliedWorktree),
     );
     const conflictedResult = await coordinator.integrate(
@@ -309,21 +323,85 @@ describe('SubagentIntegrationCoordinator', () => {
     expect(removeWorktree).not.toHaveBeenCalledWith(conflictedWorktree, '/tmp/project');
   });
 
-  it('keeps integration applied when only post-apply cleanup fails', async () => {
+  it('removes the copy once after a successful integrate with resultRef', async () => {
+    const removeWorktree = vi.fn().mockResolvedValue(undefined);
     const coordinator = createSubagentIntegrationCoordinator({
-      integrateWorktree: createSuccessIntegration(['game.js']),
+      integrateWorktree: createSuccessIntegration(['src/a.ts']),
       isBaseClean: vi.fn().mockResolvedValue(true),
-      removeWorktree: vi.fn().mockRejectedValue(new Error('cleanup refused')),
+      removeWorktree,
     });
 
     const result = await coordinator.integrate(
+      createFrozenTaskResult('task-1'),
+      createWorktreeLease('/tmp/project/.piwin-worktrees/frozen'),
+    );
+
+    expect(result.integrationStatus).toBe('applied');
+    expect(removeWorktree).toHaveBeenCalledTimes(1);
+    await coordinator.dispose();
+    expect(removeWorktree).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the worktree after a successful integrate without resultRef', async () => {
+    const removeWorktree = vi.fn().mockResolvedValue(undefined);
+    const coordinator = createSubagentIntegrationCoordinator({
+      integrateWorktree: createSuccessIntegration(['src/a.ts']),
+      isBaseClean: vi.fn().mockResolvedValue(true),
+      removeWorktree,
+    });
+
+    const worktreePath = '/tmp/project/.piwin-worktrees/unfrozen';
+    const result = await coordinator.integrate(
       createTaskResult('task-1'),
+      createWorktreeLease(worktreePath),
+    );
+
+    expect(result.integrationStatus).toBe('applied');
+    expect(result.error).toBeUndefined();
+    expect(removeWorktree).not.toHaveBeenCalled();
+    await coordinator.dispose();
+    expect(removeWorktree).not.toHaveBeenCalled();
+  });
+
+  it('keeps the copy when retainWorktree is set even after a freeze', async () => {
+    const removeWorktree = vi.fn().mockResolvedValue(undefined);
+    const coordinator = createSubagentIntegrationCoordinator({
+      integrateWorktree: createSuccessIntegration(['src/a.ts']),
+      isBaseClean: vi.fn().mockResolvedValue(true),
+      removeWorktree,
+    });
+
+    const result = await coordinator.integrate(
+      createFrozenTaskResult('task-1'),
+      createWorktreeLease('/tmp/project/.piwin-worktrees/retained'),
+      { retainWorktree: true },
+    );
+
+    expect(result.integrationStatus).toBe('applied');
+    expect(removeWorktree).not.toHaveBeenCalled();
+    await coordinator.dispose();
+    expect(removeWorktree).not.toHaveBeenCalled();
+  });
+
+  it('keeps integration applied when only post-apply cleanup fails', async () => {
+    const removeWorktree = vi.fn().mockRejectedValue(new Error('cleanup refused'));
+    const coordinator = createSubagentIntegrationCoordinator({
+      integrateWorktree: createSuccessIntegration(['game.js']),
+      isBaseClean: vi.fn().mockResolvedValue(true),
+      removeWorktree,
+    });
+
+    const result = await coordinator.integrate(
+      createFrozenTaskResult('task-1'),
       createWorktreeLease('/tmp/project/.piwin-worktrees/applied'),
     );
 
     expect(result.integrationStatus).toBe('applied');
     expect(result.changedFiles).toEqual(['game.js']);
-    expect(result.error).toContain('retained worktree cleanup failed');
+    expect(result.error).toContain('copy cleanup pending');
+    expect(removeWorktree).toHaveBeenCalledTimes(1);
+    await coordinator.dispose();
+    expect(removeWorktree).toHaveBeenCalledTimes(1);
   });
 
   it('adapts the Git integration result without dropping allowed paths', async () => {

@@ -183,6 +183,7 @@ export async function dispatchTask(
           onCommitPoint: () => {
             integrationCommitPointReached = true;
           },
+          ...(task.retainWorktree === true ? { retainWorktree: true } : {}),
         });
         worktreeHandled = true;
       } else {

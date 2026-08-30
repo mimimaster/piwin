@@ -64,6 +64,7 @@ it('applies an uncommitted new file, cleans its worktree, and removes its branch
     summaryStatus: 'merged',
     integrationStatus: 'pending',
     allowedOutputPaths: ['game.js'],
+    resultRef: { resultId: 'result-1', revision: 1 },
   };
   const coordinator = createSubagentIntegrationCoordinator({
     integrateWorktree: createGitWorktreeIntegrationAdapter(integrateWorktreeChanges),
