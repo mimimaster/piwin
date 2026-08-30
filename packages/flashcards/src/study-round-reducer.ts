@@ -191,7 +191,7 @@ function processAdvance(
   },
   review?: { nextReviewState: ReviewState; previousReviewState: ReviewState },
 ): StudyRoundReducerResult {
-  assertNotTerminal(round);
+  assertCanAdvance(round);
   assertRevisionAndControl(round, action.expectedRevision, action.controlEpoch);
   const target = requireEntry(round, action.entryId);
   if (target.state !== 'pending') {
@@ -235,18 +235,20 @@ function applyUndo(
   if (!round.lastAdvanceOperationId || round.lastAdvanceOperationId !== action.targetOperationId) {
     throw new StudyUndoConflictError(round.roundId, 'target is not the last advance');
   }
-  const restored = cloneRound(action.before.round);
+  const before = action.before.round;
+  const restored = cloneRound(round);
+  restored.currentEntryId = before.currentEntryId;
+  restored.face = before.face;
+  restored.lastAdvanceOperationId = null;
   restored.controllerIdentity = round.controllerIdentity;
   restored.controlEpoch = round.controlEpoch;
-  restored.revision = round.revision;
-  restored.lastAdvanceOperationId = null;
+  restoreUndoneEntry(restored, before);
+  restored.status = round.status === 'completed' ? 'active' : round.status;
   bumpRevision(restored, action.now);
 
   let reviewState: ReviewState | undefined;
   if (action.before.reviewState) {
-    const ratedEntry = round.entries.find(
-      (entry) => entry.entryId === action.before.round.currentEntryId,
-    );
+    const ratedEntry = round.entries.find((entry) => entry.entryId === before.currentEntryId);
     reviewState = restoreReviewStateBusiness(
       action.before.reviewState,
       (ratedEntry?.reviewStateRevision ?? reviewStateRevision(action.before.reviewState)) + 1,
@@ -356,6 +358,27 @@ function assertRevisionAndControl(
   if (controlEpoch !== round.controlEpoch) {
     throw new StudyControlLostError(round.roundId);
   }
+}
+
+function restoreUndoneEntry(round: FlashcardStudyRound, before: FlashcardStudyRound): void {
+  const undoneId = before.currentEntryId;
+  if (!undoneId) return;
+  const beforeEntry = before.entries.find((entry) => entry.entryId === undoneId);
+  const currentEntry = round.entries.find((entry) => entry.entryId === undoneId);
+  if (!beforeEntry || !currentEntry) return;
+  currentEntry.state = beforeEntry.state;
+  if (beforeEntry.reviewStateRevision !== undefined) {
+    currentEntry.reviewStateRevision = beforeEntry.reviewStateRevision;
+  } else {
+    delete currentEntry.reviewStateRevision;
+  }
+}
+
+function assertCanAdvance(round: FlashcardStudyRound): void {
+  if (round.status === 'paused') {
+    throw invalid('paused round rejects further advance');
+  }
+  assertNotTerminal(round);
 }
 
 function assertNotTerminal(round: FlashcardStudyRound): void {
