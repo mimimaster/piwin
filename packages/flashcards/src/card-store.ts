@@ -244,7 +244,7 @@ export function createCardStore(options: CardStoreOptions): CardStore {
     },
 
     async list(filter) {
-      await coordinator.ensureRecovered();
+      await coordinator.runExclusive(async () => undefined);
       const items = await scanItems();
       return items
         .filter((item) => {
@@ -319,15 +319,16 @@ export function createCardStore(options: CardStoreOptions): CardStore {
     },
 
     async loadReviewStates() {
-      await coordinator.ensureRecovered();
-      const items = await scanItems();
-      const states = new Map<string, ReviewState>();
-      for (const item of items) {
-        for (const card of expandItemToReviewCards(item)) {
-          states.set(card.cardId, await reviewWrites.getOrInit(card.cardId));
+      return coordinator.runExclusive(async () => {
+        const items = await scanItems();
+        const states = new Map<string, ReviewState>();
+        for (const item of items) {
+          for (const card of expandItemToReviewCards(item)) {
+            states.set(card.cardId, await reviewWrites.getOrInit(card.cardId));
+          }
         }
-      }
-      return states;
+        return states;
+      });
     },
 
     async rate(cardId, rating, now) {

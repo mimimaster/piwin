@@ -12,7 +12,7 @@ import {
 } from '@piwin/contracts';
 import type { CardStore } from './card-store.js';
 import { buildReviewQueue } from './queue.js';
-import { createInitialReviewState } from './scheduler.js';
+import type { ReviewWriteService } from './review-write-service.js';
 import {
   computeItemContentVersion,
   computeReviewCardContentVersion,
@@ -130,6 +130,7 @@ export async function buildStartEntries(
   cards: StudyCardAccess,
   mode: FlashcardStudyMode,
   scope: FlashcardStudyScope,
+  reviewWrites: ReviewWriteService,
 ): Promise<FlashcardStudyEntry[]> {
   if (mode === 'sequence') {
     const items = await resolveSequenceItems(coordinator, cards, scope);
@@ -142,14 +143,7 @@ export async function buildStartEntries(
   const reviewCards = await cards.listReviewCards(filter);
   const states = new Map<string, ReviewState>();
   for (const card of reviewCards) {
-    const existing = await coordinator.reviewStates.read(card.cardId);
-    if (existing) {
-      states.set(card.cardId, existing);
-      continue;
-    }
-    const initial = createInitialReviewState(card.cardId, coordinator.now());
-    await coordinator.reviewStates.write(initial);
-    states.set(card.cardId, initial);
+    states.set(card.cardId, await reviewWrites.getOrInit(card.cardId, coordinator.now()));
   }
   const queue = buildReviewQueue({
     cards: reviewCards,
