@@ -1,6 +1,7 @@
-import { readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { readdir, readFile, rename, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { FlashcardItem, ReviewState } from '@piwin/contracts';
+import { writeJsonAtomic, type AtomicJsonWriteHooks } from './atomic-json-file.js';
 import { expandItemToReviewCards, parseReviewCardId, reviewStateFileName } from './cloze.js';
 import { assertInsideFlashcardsRoot, sanitizeCardId } from './paths.js';
 import { createInitialReviewState } from './scheduler.js';
@@ -9,6 +10,7 @@ export type ReviewStateStoreOptions = {
   flashcardsRoot: string;
   reviewDir: string;
   ensureDirs: () => Promise<void>;
+  writeHooks?: () => AtomicJsonWriteHooks | undefined;
 };
 
 export type ReviewStateStore = {
@@ -56,9 +58,7 @@ export function createReviewStateStore(options: ReviewStateStoreOptions): Review
   async function write(state: ReviewState): Promise<void> {
     await ensureDirs();
     const path = reviewPath(state.cardId);
-    const tmpPath = `${path}.tmp`;
-    await writeFile(tmpPath, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
-    await rename(tmpPath, path);
+    await writeJsonAtomic(path, state, options.writeHooks?.());
   }
 
   async function deleteForItem(itemId: string): Promise<void> {

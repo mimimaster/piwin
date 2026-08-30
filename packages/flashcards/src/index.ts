@@ -52,3 +52,13 @@ export { createStudyRound, reduceStudyRound } from './study-round-reducer.js';
 export type { StudyRoundAction, StudyRoundReducerResult } from './study-round-reducer.js';
 export { buildStudyCatalogPage } from './study-catalog.js';
 export type { BuildStudyCatalogInput } from './study-catalog.js';
+export { createStudyService, createStudyServices } from './study-service.js';
+export type { StudyService, StudyServiceOptions, StudyServices } from './study-service.js';
+export { createReviewWriteService, incrementReviewRevision } from './review-write-service.js';
+export type { ReviewWriteService } from './review-write-service.js';
+export {
+  StudyCrashError,
+  getOrCreateStudyCoordinator,
+  resetStudyCoordinatorsForTests,
+} from './study-transaction.js';
+export type { StudyCrashPoint, StudyPersistenceHooks } from './study-transaction.js';
