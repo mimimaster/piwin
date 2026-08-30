@@ -18,6 +18,7 @@ import {
 import { loadPiwinConfig } from './config-store.js';
 import { createSecretResolver } from './secret-resolver.js';
 import { findEnabledProvider, resolveDefaultModelRef } from './provider-helpers.js';
+import { resolveChatModel } from './resolve-chat-model.js';
 import { getPiwinGeneralWorkspacePath, getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
 import { indexRecordToSummary } from './session-summary-map.js';
 import { SubagentOrchestrator } from './subagent-orchestrator.js';
@@ -469,9 +470,16 @@ export async function preflightSubagentTask(
     );
   }
 
-  const model = task.model ?? resolveDefaultModelRef(config);
+  const accounts = (await deps.subscriptionAuth?.chatResolveInput()) ?? { accounts: [] };
+  const resolved = task.model
+    ? resolveChatModel({ providers: config.providers }, task.model, accounts)
+    : undefined;
+  const model = resolved?.ref ?? resolveDefaultModelRef(config, accounts);
   if (!model) {
     return { config, resolvedProviderSecrets: [] };
+  }
+  if (resolved?.source === 'subscription' || model.source === 'subscription') {
+    return { config, effectiveModel: model, resolvedProviderSecrets: [] };
   }
   const provider = findEnabledProvider(config, model.providerId);
   if (!provider) {

@@ -79,25 +79,30 @@
   width: 100%;
   display: flex;
   align-items: center;
-  gap: var(--s-2);
+  gap: var(--s-3);
   height: var(--titleband-height);
   min-height: var(--titleband-height);
-  /* Full-window overlay, so it clears the traffic lights at full width. */
-  padding-left: var(--traffic-light-clearance);
-  padding-right: var(--s-4);
-  box-sizing: border-box;
-  background: var(--surface-2);
-  border-bottom: 0;
+  padding: 0 var(--s-3) 0 calc(var(--traffic-light-clearance) - var(--deck-inset));
+  border-bottom: 1px solid var(--line-1);
   flex-shrink: 0;
-  -webkit-app-region: drag;
-  app-region: drag;
+  box-sizing: border-box;
 }
 
 .knowledge-titlebar-leading {
   display: inline-flex;
   align-items: center;
+  gap: var(--s-2);
   flex: 0 0 auto;
   min-width: 0;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.knowledge-titlebar-title {
+  color: var(--text-1);
+  font-size: var(--fs-chrome);
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .knowledge-titlebar-drag {
@@ -121,32 +126,28 @@
 }
 
 .knowledge-back-button {
-  align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-4);
-  min-height: var(--h-sm);
-  padding: var(--s-1) var(--s-4) var(--s-1) var(--s-1);
-  color: var(--text-3);
-  font-size: var(--fs-body);
-  font-weight: 500;
-  letter-spacing: var(--tracking-tight);
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  padding: 0;
+  border-radius: var(--r-control);
+  color: var(--text-2);
   background: transparent;
-  border: 0;
-  box-shadow: none;
+  border: 1px solid transparent;
   cursor: pointer;
+  transition: all var(--t-1) var(--ease-out);
+  margin-right: 4px;
 }
 
 .knowledge-back-button:hover:not(:disabled),
-.knowledge-back-button:active:not(:disabled),
-.knowledge-back-button:focus-visible {
+.knowledge-back-button:active:not(:disabled) {
+  background: var(--hover);
   color: var(--text-1);
-  background: transparent;
-  box-shadow: none;
 }
 
 .knowledge-back-button:focus-visible {
-  outline: var(--focus-ring);
+  outline: 2px solid var(--iris);
   outline-offset: 2px;
 }
 

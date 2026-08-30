@@ -19,6 +19,7 @@ import type {
   PermissionPreset,
   WorkspaceWrites,
 } from '@piwin/contracts';
+import { toModelRef } from '@piwin/contracts';
 import type { TranscriptBranchPoint } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
 import type { ChatMessageUi, ChatUiAction } from '../chat-reducer';
@@ -570,11 +571,11 @@ export function buildBranchPromptInput(input: {
     (item) => `${item.providerId}::${item.modelId}` === input.selectedModelKey,
   );
   if (option) {
-    prompt.model = {
-      protocol: option.protocol,
+    prompt.model = toModelRef({
       providerId: option.providerId,
       modelId: option.modelId,
-    };
+      ...(option.protocol !== undefined ? { protocol: option.protocol } : {}),
+    });
     if (
       input.thinkingLevel &&
       canUseThinkingLevel(option, input.thinkingLevel, true)
@@ -617,11 +618,11 @@ export function buildRetryPromptInput(input: {
     (item) => `${item.providerId}::${item.modelId}` === input.selectedModelKey,
   );
   if (option) {
-    prompt.model = {
-      protocol: option.protocol,
+    prompt.model = toModelRef({
       providerId: option.providerId,
       modelId: option.modelId,
-    };
+      ...(option.protocol !== undefined ? { protocol: option.protocol } : {}),
+    });
     if (input.thinkingLevel && canUseThinkingLevel(option, input.thinkingLevel, true)) {
       prompt.thinkingLevel = input.thinkingLevel;
     }

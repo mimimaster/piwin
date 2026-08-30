@@ -46,6 +46,9 @@ import {
 import { buildResourceShadowDiagnostics, createPiResourceLoader } from './pi-resource-loader.js';
 import { createSecretResolver, type SecretResolver } from './secret-resolver.js';
 import { getEnabledProviders, resolveDefaultModelRef } from './provider-helpers.js';
+import { oauthRuntimesForCompilation } from './blueprint-provider-runtime.js';
+import { resolveChatModel } from './resolve-chat-model.js';
+import { isChannelProvider, isV1SubscriptionProviderId } from '@piwin/contracts';
 import {
   compileSessionCapabilitySnapshot,
   type CompileSnapshotInput,
@@ -126,6 +129,8 @@ export type CompileBlueprintOptions = {
    * providers from failing a session that never selects them.
    */
   requiredProviderIds?: readonly string[];
+  usableSubscriptionProviderIds?: readonly string[];
+  subscriptionAccounts?: import('./resolve-chat-model.js').ResolveChatModelAccounts;
   /** Override config load (tests). */
   config?: PiwinConfig;
   /** Override resource discovery (tests). */
@@ -418,14 +423,44 @@ async function assembleCompiledBlueprint(
   });
 
   // Build provider envelope from live config.
-  const defaultModel = resolveDefaultModelRef(config);
+  const defaultModel = resolveDefaultModelRef(config, options.subscriptionAccounts);
+  if (input.model && options.subscriptionAccounts) {
+    const resolved = resolveChatModel(config, input.model, options.subscriptionAccounts);
+    if (
+      !resolved &&
+      isV1SubscriptionProviderId(input.model.providerId) &&
+      !config.providers.some((provider) => provider.id === input.model?.providerId)
+    ) {
+      throw Object.assign(
+        new Error(`Subscription provider "${input.model.providerId}" is not signed in.`),
+        { code: 'provider-authentication' },
+      );
+    }
+  }
   const requiredProviderIds =
     options.requiredProviderIds ??
     (input.model ? [input.model.providerId] : defaultModel ? [defaultModel.providerId] : undefined);
+  if (requiredProviderIds && options.usableSubscriptionProviderIds) {
+    const usable = new Set(options.usableSubscriptionProviderIds);
+    const blocked = requiredProviderIds.find(
+      (providerId) =>
+        isV1SubscriptionProviderId(providerId) &&
+        !config.providers.some((provider) => provider.id === providerId) &&
+        !usable.has(providerId),
+    );
+    if (blocked) {
+      throw Object.assign(new Error(`Subscription provider "${blocked}" is not signed in.`), {
+        code: 'provider-authentication',
+      });
+    }
+  }
   const providerEnvelope = await buildProviderEnvelope(config, {
     allowInlineProviderSecrets: options.allowInlineProviderSecrets === true,
     allowWorkerProviderSecretBootstrap: options.allowWorkerProviderSecretBootstrap === true,
     ...(requiredProviderIds ? { requiredProviderIds } : {}),
+    ...(options.usableSubscriptionProviderIds
+      ? { usableSubscriptionProviderIds: options.usableSubscriptionProviderIds }
+      : {}),
     ...(options.secretResolver ? { secretResolver: options.secretResolver } : {}),
   });
   const providers = providerEnvelope.providers;
@@ -1064,6 +1099,7 @@ async function buildProviderEnvelope(
     allowInlineProviderSecrets: boolean;
     allowWorkerProviderSecretBootstrap: boolean;
     requiredProviderIds?: readonly string[];
+    usableSubscriptionProviderIds?: readonly string[];
     secretResolver?: Pick<SecretResolver, 'resolveProviderSecret'>;
   },
 ): Promise<{
@@ -1090,6 +1126,13 @@ async function buildProviderEnvelope(
       providerSecrets.push(built.secret);
     }
   }
+  envelope.push(
+    ...oauthRuntimesForCompilation(
+      config,
+      options.requiredProviderIds,
+      options.usableSubscriptionProviderIds,
+    ),
+  );
 
   return { providers: envelope, providerSecrets };
 }
@@ -1098,7 +1141,7 @@ function selectProvidersForCompilation(
   config: PiwinConfig,
   requiredProviderIds: readonly string[] | undefined,
 ): ModelProviderConfig[] {
-  const enabledProviders = getEnabledProviders(config);
+  const enabledProviders = getEnabledProviders(config).filter(isChannelProvider);
   if (requiredProviderIds === undefined) {
     return enabledProviders;
   }
@@ -1107,7 +1150,9 @@ function selectProvidersForCompilation(
     (providerId) => providerId.length > 0,
   );
   const providersById = new Map(enabledProviders.map((provider) => [provider.id, provider]));
-  const missingProviderId = uniqueIds.find((providerId) => !providersById.has(providerId));
+  const missingProviderId = uniqueIds.find(
+    (providerId) => !providersById.has(providerId) && !isV1SubscriptionProviderId(providerId),
+  );
   if (missingProviderId) {
     throw new Error(`Configured provider is unavailable: ${missingProviderId}`);
   }

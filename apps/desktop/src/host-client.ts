@@ -106,6 +106,7 @@ function getHostRequestTimeoutMs(
       return remote ? REMOTE_HOST_REQUEST_STATUS_TIMEOUT_MS : HOST_REQUEST_STATUS_TIMEOUT_MS;
     case 'models/discover':
     case 'models/test':
+    case 'voice/live/start':
     case 'speech/transcribe':
     case 'mcp/start':
     case 'mcp/stop':
@@ -205,6 +206,9 @@ export class HostClient {
     this.transport = detectTransport(options);
     this.hostMock = options.hostMock !== false;
     this.remoteTarget = options.remoteTarget;
+    // Settings (and others) extract `hostClient.request`. An unbound class
+    // method throws on `this.transport` and the click never leaves the UI.
+    this.request = this.request.bind(this);
   }
 
   getTransport(): TransportMode {

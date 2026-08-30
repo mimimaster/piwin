@@ -18,9 +18,13 @@ const API_KEY_PATTERNS = [
   /(authorization|proxy-authorization)["']?\s*[:=]\s*["']?[^\s"',;]{4,}["']?/gi,
   /x-api-key["']?\s*[:=]\s*["']?[^\s"',;]{4,}["']?/gi,
   /\b(?:token|access_token|refresh_token|password|secret)["']?\s*[:=]\s*["']?[A-Za-z0-9._~+/=-]{8,}["']?/gi,
+  /\bAIza[0-9A-Za-z_-]{20,}/g,
+  /\bauth_tokens\/[A-Za-z0-9._/-]{8,}/g,
+  /\b(?:offerSdp|answerSdp|sdpOffer|sdpAnswer|ephemeralToken)\b["']?\s*[:=]\s*["']?[^\s"',]{8,}/gi,
 ];
 
 const URL_QUERY_PATTERN = /([?&](?:key|token|api_key|apikey|access_token|auth)=)[^&\s"']+/gi;
+const SDP_BLOB_PATTERN = /\bv=0\r?\n[\s\S]{0,800}/g;
 
 /** Replace absolute product-owned paths with stable placeholders. */
 function redactAbsolutePaths(message: string, rootDirs: readonly string[]): string {
@@ -56,6 +60,7 @@ export function redactPersistedMessage(
     });
   }
   redacted = redacted.replace(URL_QUERY_PATTERN, '$1<redacted>');
+  redacted = redacted.replace(SDP_BLOB_PATTERN, 'v=0\\n<redacted>');
   redacted = redacted.replace(/\s+/g, ' ').trim();
   redacted = redactAbsolutePaths(redacted, options?.rootDirs ?? []);
   if (redacted.length > MAX_FAILURE_MESSAGE_LENGTH) {

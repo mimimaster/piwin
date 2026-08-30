@@ -5,6 +5,8 @@
 import { registerSettingsSection } from '../section-registry';
 import { PermissionsPage } from './permissions-page';
 import { ModelsPage } from './models-page';
+import { OauthPage } from './oauth-page';
+import { HooksPage } from './hooks-page';
 import { AgentPage } from './agent-page';
 import { ExtensionsPage } from './extensions-page';
 import { KnowledgePage } from './knowledge-page';
@@ -16,6 +18,8 @@ import { ArchivePage } from './archive-page';
 
 registerSettingsSection('permissions', PermissionsPage);
 registerSettingsSection('models', ModelsPage);
+registerSettingsSection('oauth', OauthPage);
+registerSettingsSection('hooks', HooksPage);
 registerSettingsSection('agent', AgentPage);
 registerSettingsSection('extensions', ExtensionsPage);
 registerSettingsSection('web', WebPage);

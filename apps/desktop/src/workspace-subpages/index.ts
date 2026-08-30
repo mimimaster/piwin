@@ -1,3 +1,2 @@
-export * from './ImagesWorkspaceView';
-export * from './VideosWorkspaceView';
+export * from './LibraryWorkspaceView';
 export * from './FlashcardsWorkspaceView';

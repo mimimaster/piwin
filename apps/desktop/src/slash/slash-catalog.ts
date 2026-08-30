@@ -137,15 +137,15 @@ export function buildSlashCatalog(options: BuildSlashCatalogOptions): SlashItem[
     items.push(stopItem);
   }
 
-  // --- Knowledge Center & Flashcards ---
+  // --- Flashcards (legacy /knowledge /wiki aliases open the same home) ---
   if (!conversationChat) {
     items.push({
       id: 'cmd:knowledge',
       kind: 'command',
       name: 'knowledge',
       aliases: ['doccards'],
-      label: 'Learn from folder',
-      description: 'Open the folder learning loop / 打开从文件夹学习',
+      label: 'Flashcards',
+      description: 'Open flashcards / 打开闪卡',
       keywords: ['knowledge', 'doccards', 'rag', 'docs', 'flashcards', '知识中心', '闪卡'],
       groupLabel: 'Command',
       available: true,
@@ -155,8 +155,8 @@ export function buildSlashCatalog(options: BuildSlashCatalogOptions): SlashItem[
       kind: 'command',
       name: 'flashcards',
       aliases: ['cards'],
-      label: 'Flashcards Review',
-      description: 'Open the due-queue review panel / 打开到期复习队列',
+      label: 'Flashcards',
+      description: 'Open flashcards / 打开闪卡',
       keywords: ['flashcards', 'cards', 'fsrs', 'review', 'anki', '卡片', '复习'],
       groupLabel: 'Command',
       available: true,
@@ -166,8 +166,8 @@ export function buildSlashCatalog(options: BuildSlashCatalogOptions): SlashItem[
       kind: 'command',
       name: 'notes',
       aliases: ['wiki'],
-      label: 'Learn from folder',
-      description: 'Search a document folder / 搜索文档文件夹',
+      label: 'Flashcards',
+      description: 'Open flashcards / 打开闪卡',
       keywords: ['notes', 'wiki', 'repo', 'markdown', '笔记'],
       groupLabel: 'Command',
       available: true,

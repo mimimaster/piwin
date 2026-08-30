@@ -50,6 +50,9 @@ import { type PiwinRootLease } from './piwin-root-lease.js';
 import type { SubagentTaskResult } from '@piwin/contracts';
 
 import type { ComposedSessionHostTools, HostRuntimeOptions } from './host-runtime-types.js';
+import type { SubscriptionAuthService } from './subscription-auth-service.js';
+import type { LiveCallCoordinator } from './voice/live-call-coordinator.js';
+import type { LiveSettingsService } from './voice/live-settings-service.js';
 
 /** Mutable HostRuntime instance fields. HostRuntime remains the composition root. */
 export class HostRuntimeFields {
@@ -289,6 +292,15 @@ export class HostRuntimeFields {
   coldStoragePlans = new Map<string, SessionColdStoragePlan>();
   coldStorageRecovery: Promise<void> | null = null;
   ready = true;
+  /** Host-owned Pi subscription OAuth (Codex / Grok / Copilot). */
+  subscriptionAuth: SubscriptionAuthService | undefined;
+  /** piwin Live singleton; created in initializeHostRuntime. */
+  liveCallCoordinator: LiveCallCoordinator | null = null;
+  liveSettings: LiveSettingsService | null = null;
+  liveEnabledFromConfig = true;
+  codexLiveAuthPresent = false;
+  /** Remote Host-server sets this per command; local sidecar stays unset. */
+  devicePrincipalStore = new AsyncLocalStorage<string>();
 
   // Overridden by HostRuntime. The walkthrough registry field initializer
   // binds `this.push` on the instance; JS resolves the subclass method.

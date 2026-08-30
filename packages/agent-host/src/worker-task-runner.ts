@@ -119,8 +119,8 @@ export class WorkerTaskRunner implements SubagentTaskRunner {
       const workerProviders: SerializableWorkerProviderRuntime[] = input.providers.map(
         (provider) => ({
           providerId: provider.providerId,
-          protocol: provider.protocol,
-          baseUrl: provider.baseUrl,
+          ...(provider.protocol !== undefined ? { protocol: provider.protocol } : {}),
+          ...(provider.baseUrl !== undefined ? { baseUrl: provider.baseUrl } : {}),
           ...(provider.headers ? { headers: { ...provider.headers } } : {}),
           models: provider.models.map((model) => ({
             id: model.id,

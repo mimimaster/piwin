@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import type { ToolCardUi } from './chat-reducer';
-import { IconCheck, IconClose, IconSpark } from './shell-icons';
+import { IconCheck, IconClose, IconImage } from './shell-icons';
 import { getBehaviorActivitySpec } from './behavior-activity.js';
 
 export function ImageGenerationProgress(props: {
@@ -46,7 +46,7 @@ export function ImageGenerationProgress(props: {
     >
       <div className="image-generation-progress-art" aria-hidden="true">
         {isRunning ? (
-          <IconSpark className="image-generation-progress-spark" />
+          <IconImage className="image-generation-progress-spark" />
         ) : (
           <span className="image-generation-progress-status-icon">
             {isCompleted ? <IconCheck /> : <IconClose />}
@@ -54,16 +54,21 @@ export function ImageGenerationProgress(props: {
         )}
       </div>
       <div className="image-generation-progress-copy">
-        <strong>
-          {title}
-          {isRunning ? (
-            <span className="image-generation-progress-dots" aria-hidden="true">
-              …
-            </span>
-          ) : null}
-        </strong>
+        <div className="image-generation-progress-title-row">
+          <strong>
+            {title}
+            {isRunning ? (
+              <span className="image-generation-progress-dots" aria-hidden="true">
+                …
+              </span>
+            ) : null}
+          </strong>
+        </div>
         <span>{detail}</span>
       </div>
+      {isRunning ? (
+        <span className="image-generation-progress-pulse" aria-hidden="true" />
+      ) : null}
     </div>
   );
 }

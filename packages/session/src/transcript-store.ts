@@ -97,6 +97,8 @@ export type TranscriptStoreMessageInput = {
     docCardSequence?: SessionTranscriptMessage['docCardSequence'];
     replyWriter?: SessionTranscriptMessage['replyWriter'];
     workspaceWrites?: SessionTranscriptMessage['workspaceWrites'];
+    promptSource?: SessionTranscriptMessage['source'];
+    voiceCallId?: string;
   };
 };
 

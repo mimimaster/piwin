@@ -2047,6 +2047,22 @@ describe('chatUiReducer', () => {
     expect(state.messages[1]?.text).toBe('ok');
   });
 
+  it('mapTranscriptMessagesToUi preserves voice-delegation source on user rows', () => {
+    const [userMessage] = mapTranscriptMessagesToUi([
+      {
+        id: 'u-voice',
+        role: 'user',
+        text: 'open the file',
+        createdAt: '2026-08-28T00:00:00.000Z',
+        status: 'done',
+        source: 'voice-delegation',
+        voiceCallId: 'live_1',
+      },
+    ]);
+    expect(userMessage?.source).toBe('voice-delegation');
+    expect(userMessage?.voiceCallId).toBe('live_1');
+  });
+
   it('mapTranscriptMessagesToUi does not throw when a user row is missing text', () => {
     const [userMessage] = mapTranscriptMessagesToUi([
       {

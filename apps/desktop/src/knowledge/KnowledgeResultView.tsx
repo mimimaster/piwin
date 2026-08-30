@@ -33,10 +33,12 @@ export function KnowledgeResultView(props: KnowledgeResultViewProps): ReactEleme
       '没有新卡片（这个文件夹里可能都是重复的）。',
     );
   } else if (props.resultKind === 'degraded') {
-    body = t(
-      `Saved ${props.created} cards, but the review session could not be opened.`,
-      `已保存 ${props.created} 张卡片，但复习会话没有打开。`,
-    );
+    body = props.onOpenSession
+      ? t(
+          `Saved ${props.created} cards, but the review session could not be opened.`,
+          `已保存 ${props.created} 张卡片，但复习会话没有打开。`,
+        )
+      : t(`Saved ${props.created} cards.`, `已保存 ${props.created} 张卡片。`);
   } else if (props.resultKind === 'canceled') {
     body = t('Generation was canceled.', '生成已取消。');
   } else {

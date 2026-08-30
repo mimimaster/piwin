@@ -68,8 +68,8 @@ export type SerializableBlueprint = {
 /** Provider runtime envelope (Phase 7 plan §6): worker must not resolve secrets itself. */
 export type SerializableProviderRuntime = {
   providerId: string;
-  protocol: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
-  baseUrl: string;
+  protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
+  baseUrl?: string;
   headers?: Record<string, string>;
   models: Array<{
     id: string;

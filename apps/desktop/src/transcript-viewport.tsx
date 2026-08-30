@@ -50,7 +50,6 @@ export type TranscriptViewportProps = {
 };
 
 export function TranscriptViewport(props: TranscriptViewportProps): ReactElement {
-  const locale = props.locale ?? 'zh-CN';
   const scroll = useTranscriptScroll({
     messageCount: props.messageCount,
     activitySignal: props.activitySignal,
@@ -195,12 +194,12 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
     maybeAutoLoadOlder();
   }, [maybeAutoLoadOlder, scroll]);
 
-  const handleJumpToLatest = useCallback((): void => {
-    props.onReturnToLatest?.();
-    scroll.jumpToLatest();
-  }, [props.onReturnToLatest, scroll]);
-
-  const showJumpToLatest = props.historyViewActive === true || scroll.showJumpToLatest;
+  // const locale = props.locale ?? 'zh-CN';
+  // const handleJumpToLatest = useCallback((): void => {
+  //   props.onReturnToLatest?.();
+  //   scroll.jumpToLatest();
+  // }, [props.onReturnToLatest, scroll]);
+  // const showJumpToLatest = props.historyViewActive === true || scroll.showJumpToLatest;
 
   return (
         <TranscriptScrollProvider
@@ -233,6 +232,7 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
         >
           {props.children}
         </div>
+        {/*
         {showJumpToLatest ? (
           <button
             type="button"
@@ -258,6 +258,7 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
                 : 'Jump to latest'}
           </button>
         ) : null}
+        */}
         {/* Always mounted: visibility via isOverflowing avoids mount thrash. */}
         <div
           className={

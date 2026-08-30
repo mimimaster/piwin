@@ -365,6 +365,8 @@ export type DesktopTranslator = {
     nav: {
       general: string;
       models: string;
+      oauth: string;
+      hooks: string;
       extensions: string;
       agent: string;
       knowledge: string;
@@ -1270,7 +1272,9 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
       todoConflict: isChinese ? '待办已被另一端改过' : 'Another client changed these todos.',
       nav: {
         general: isChinese ? '通用与外观' : 'General & Appearance',
-        models: isChinese ? '模型与服务商' : 'Models & Providers',
+        models: isChinese ? '模型配置' : 'Models & Providers',
+        oauth: isChinese ? 'OAuth 登录' : 'OAuth Login',
+        hooks: 'Hooks',
         extensions: isChinese ? '技能与扩展' : 'Skills & Extensions',
         agent: isChinese ? '智能体策略' : 'Agent & Workflows',
         knowledge: isChinese ? '知识库与向量' : 'Knowledge & Embeddings',

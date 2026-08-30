@@ -5,7 +5,7 @@
   <key>NSCameraUsageDescription</key>
   <string>Piwin uses the camera to scan a Host pairing QR code and to attach photos to a chat.</string>
   <key>NSMicrophoneUsageDescription</key>
-  <string>Piwin uses the microphone while you hold the mic button to dictate a message.</string>
+  <string>Piwin uses the microphone for hold-to-talk messages and Live voice calls.</string>
   <key>NSSpeechRecognitionUsageDescription</key>
   <string>Piwin converts your held speech into text on this device, then sends that text to your Host.</string>
   <key>NSHealthShareUsageDescription</key>

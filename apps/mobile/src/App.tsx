@@ -1,5 +1,6 @@
 import { useState, useEffect, type ReactElement } from 'react';
 import type { ConfiguredChatModel, ModelRef, ThinkingLevel } from '@piwin/contracts';
+import { toModelRef } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { useKeyboardInset } from './hooks/use-keyboard-inset.js';
 import { MobilePortal } from './mobile-portal.js';
@@ -11,11 +12,13 @@ import { ModelPickerModal } from './components/modals/ModelPickerModal.js';
 import { MobileShareModal } from './components/modals/MobileShareModal.js';
 import { ProjectFilesSheet } from './components/modals/ProjectFilesSheet.js';
 import { SkillsInspectorSheet } from './components/modals/SkillsInspectorSheet.js';
+import { MobileLiveSheet } from './components/modals/MobileLiveSheet.js';
 import { ConnectionSurface } from './surfaces/connection/ConnectionSurface.js';
 import { ConversationSurface } from './surfaces/conversation/ConversationSurface.js';
 import { HealthConsentSheet } from './health/HealthConsentSheet.js';
 import { useMobileHost } from './hooks/use-mobile-host.js';
 import { useTheme } from './hooks/use-theme.js';
+import { useMobileLive } from './hooks/use-mobile-live.js';
 import { readMobileOverlayHash, setMobileOverlayHash } from './mobile-overlay-hash.js';
 import { MOBILE_THEME } from './mobile-theme.js';
 
@@ -46,6 +49,11 @@ export function App(): ReactElement {
   const { themeMode, setThemeMode } = useTheme();
   const host = useMobileHost();
   const isConnected = host.connectionState.kind === 'ready';
+  const live = useMobileLive({
+    hostClient: host.client,
+    sessionId: host.activeSessionId,
+    ensureSession: async () => host.activeSessionId ?? (await host.handleCreateSession()),
+  });
 
   useEffect(() => {
     if (overlayHash === '#inbox') {
@@ -90,11 +98,12 @@ export function App(): ReactElement {
   const selectedModelRef: ModelRef | undefined =
     selectedModel === undefined
       ? undefined
-      : {
-          protocol: selectedModel.protocol,
+      : toModelRef({
           providerId: selectedModel.providerId,
           modelId: selectedModel.modelId,
-        };
+          ...(selectedModel.protocol !== undefined ? { protocol: selectedModel.protocol } : {}),
+          ...(selectedModel.source !== undefined ? { source: selectedModel.source } : {}),
+        });
 
   const activeSession = host.sessions.find((s) => s.sessionId === host.activeSessionId);
   const activeProject =
@@ -147,6 +156,9 @@ export function App(): ReactElement {
               thinkingLevel={selectedThinkingLevel}
               connectionState={host.connectionState}
               activeRunCount={host.activityItems.length}
+              onOpenLive={() => setMobileOverlayHash('#live')}
+              liveActive={live.owned && live.call !== null}
+              liveStarting={live.starting}
               onToggleSidebar={() => setMobileOverlayHash('#sidebar')}
               onOpenModelPicker={() => setMobileOverlayHash('#model-picker')}
               onNewChat={() => {
@@ -265,9 +277,7 @@ export function App(): ReactElement {
                 void host.handleResolvePermission(decision, requestId)
               }
               onAbortRun={(sessionId, runId) => {
-                void host.handleAbort(
-                  runId === undefined ? { sessionId } : { sessionId, runId },
-                );
+                void host.handleAbort(runId === undefined ? { sessionId } : { sessionId, runId });
               }}
               onNavigateToSession={(sessionId) => {
                 void host.handleSelectSession(sessionId);
@@ -314,6 +324,8 @@ export function App(): ReactElement {
               sessionTitle={activeSession?.name}
               messages={host.messages}
             />
+
+            <MobileLiveSheet isOpen={overlayHash === '#live'} onClose={closeOverlay} live={live} />
 
             {host.healthConsentRequest !== undefined ? (
               <MobilePortal>

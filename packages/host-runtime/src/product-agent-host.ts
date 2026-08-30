@@ -60,6 +60,10 @@ type ProductAgentHostCommonOptions = {
   workerSupervisor?: AgentWorkerSupervisor;
   /** Current Run identity, supplied by HostRuntime's execution context. */
   getCurrentRunId?: () => string | undefined;
+  getSubscriptionCompileContext?: () => Promise<{
+    usableSubscriptionProviderIds: readonly string[];
+    subscriptionAccounts: import('./resolve-chat-model.js').ResolveChatModelAccounts;
+  }>;
   /** Derive the host-local family index from the same registrations as descriptors. */
   buildToolFamilyIndex?: (
     sessionId: string,
@@ -346,10 +350,17 @@ export class ProductAgentHost implements AgentHost {
         runtimeGenerationId,
       );
 
+      const subscription = await this.options.getSubscriptionCompileContext?.();
       const compiled = await compileBlueprintForWorker(input, {
         ...(this.options.piwinRoot ? { piwinRoot: this.options.piwinRoot } : {}),
         sessionId,
         runtimeGenerationId,
+        ...(subscription
+          ? {
+              usableSubscriptionProviderIds: subscription.usableSubscriptionProviderIds,
+              subscriptionAccounts: subscription.subscriptionAccounts,
+            }
+          : {}),
         hostToolDescriptors,
         ...(hostToolFamilyIndex ? { hostToolFamilyIndex } : {}),
         ...(mcpConfig ? { mcpConfig } : {}),

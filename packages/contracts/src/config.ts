@@ -26,6 +26,7 @@ import type { RemoteConfig } from './remote.js';
 import type { ReplyWriterConfig } from './reply-writer.js';
 import type { SessionLifecycleConfig } from './session-lifecycle.js';
 import type { SessionColdStorageConfig } from './session-cold-storage.js';
+import type { ModelSource } from './subscription-oauth.js';
 
 /** Model capability tags. Drives tool routing and settings UI grouping. */
 export type ModelCapability =
@@ -34,6 +35,7 @@ export type ModelCapability =
   | 'video-generation'
   | 'speech-to-text'
   | 'text-to-speech'
+  | 'realtime-audio'
   | 'native-web-search';
 
 /**
@@ -176,6 +178,8 @@ export type OpenAiCompatibleProviderConfig = {
   id: string;
   protocol: 'openai-compatible';
   name: string;
+  /** Omitted or `channel` is BYOK. `subscription` is a Models-page OAuth provider. */
+  source?: ModelSource;
   baseUrl: string;
   apiKeyEnv?: string;
   apiKeyRef?: string;
@@ -190,6 +194,7 @@ export type AnthropicCompatibleProviderConfig = {
   id: string;
   protocol: 'anthropic-compatible';
   name: string;
+  source?: ModelSource;
   baseUrl: string;
   apiKeyEnv?: string;
   apiKeyRef?: string;
@@ -205,6 +210,7 @@ export type GoogleGeminiProviderConfig = {
   id: string;
   protocol: 'google-gemini';
   name: string;
+  source?: ModelSource;
   baseUrl: string;
   apiKeyEnv?: string;
   apiKeyRef?: string;
@@ -528,6 +534,17 @@ export type SpeechConfig = {
   /** Reserved for a future text-to-speech playback surface. */
   tts?: {
     defaultModel?: ModelRef;
+    voice?: string;
+  };
+  /**
+   * piwin Live (ADR 0065). `enabled` is ignored leftover; start/stop lives on
+   * the composer. `voice` is a legacy Codex fallback — read only until the
+   * next successful save writes `byProvider.openai-codex.voice`.
+   */
+  live?: {
+    enabled?: boolean;
+    providerId?: string;
+    byProvider?: Record<string, Record<string, string>>;
     voice?: string;
   };
 };

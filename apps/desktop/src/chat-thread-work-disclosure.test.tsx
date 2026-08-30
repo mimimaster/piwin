@@ -172,7 +172,7 @@ describe('ChatThread completed work disclosure', () => {
     expect(trigger?.getAttribute('aria-expanded')).toBe('true');
   });
 
-  it('folds settled process rows while the live assistant stays mounted', () => {
+  it('keeps earlier process rows visible while the live assistant is still working', () => {
     const messages = [
       message('user-1', { role: 'user', text: 'Implement this.' }),
       message('work-1', {
@@ -221,16 +221,7 @@ describe('ChatThread completed work disclosure', () => {
       ),
     );
 
-    const trigger = container.querySelector<HTMLButtonElement>(
-      '[data-testid="turn-work-disclosure-trigger"]',
-    );
-    expect(trigger?.textContent).toContain('Work');
-    expect(trigger?.getAttribute('aria-expanded')).toBe('false');
-    expect(container.querySelector('#msg-work-1')).toBeNull();
-    expect(container.querySelector('#msg-live-1')).not.toBeNull();
-
-    act(() => trigger?.click());
-
+    expect(container.querySelector('[data-testid="turn-work-disclosure"]')).toBeNull();
     expect(container.querySelector('#msg-work-1')).not.toBeNull();
     expect(container.querySelector('#msg-live-1')).not.toBeNull();
   });
@@ -382,8 +373,10 @@ describe('ChatThread completed work disclosure', () => {
       ),
     );
 
-    expect(container.querySelector('#msg-work-1')).toBeNull();
+    expect(container.querySelector('[data-testid="turn-work-disclosure"]')).toBeNull();
+    expect(container.querySelector('#msg-work-1')).not.toBeNull();
     expect(container.querySelector('#msg-work-2')).not.toBeNull();
+    expect(container.querySelector('#msg-work-1 .markdown')).toBeNull();
     expect(container.querySelector('#msg-work-2 .markdown')).toBeNull();
     expect(container.textContent).not.toContain(earlierCaption);
     expect(container.textContent).not.toContain(lastCaption);

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@piwin/ui-kit';
+import { isModelEnabled, isProviderEnabled } from '@piwin/contracts';
 import type { ModelRouteConfig, ModelProviderConfig, PiwinConfig } from '@piwin/contracts';
 import type { DesktopLocale, DesktopTranslator } from './desktop-locale.js';
 import { buildVideoGenerationRoute } from './generation-route-defaults.js';
@@ -76,10 +77,11 @@ export function VideoGenerationModelList(props: VideoGenerationModelListProps) {
               ? route.apiStyle
               : defaultVideoGenerationApiStyle(provider.protocol);
             const isEditing = editingKey === key;
+            const live = isProviderEnabled(provider) && isModelEnabled(model);
             return (
               <li
                 key={key}
-                className={`image-gen-model-item ${isEditing ? 'is-editing' : ''}`}
+                className={`image-gen-model-item${isEditing ? ' is-editing' : ''}${live ? '' : ' is-off'}`}
                 data-testid="video-model-row"
               >
                 <div className="image-gen-model-item-header">
@@ -93,6 +95,11 @@ export function VideoGenerationModelList(props: VideoGenerationModelListProps) {
                       {isDefault ? (
                         <span className="image-gen-default-badge">
                           {isChinese ? '默认' : 'Default'}
+                        </span>
+                      ) : null}
+                      {!live ? (
+                        <span className="image-gen-off-badge" data-testid="video-model-off-badge">
+                          {isChinese ? '已停用' : 'Disabled'}
                         </span>
                       ) : null}
                     </div>
@@ -132,6 +139,7 @@ export function VideoGenerationModelList(props: VideoGenerationModelListProps) {
                           size="compact"
                           variant="ghost"
                           data-testid="video-model-set-default"
+                          disabled={!live}
                           onClick={() => onSetDefault(provider, model.id)}
                         >
                           {copy.setDefault}

@@ -1,17 +1,29 @@
 import { useEffect, useState } from 'react';
 
+function tauriConvertFileSrc(): ((path: string) => string) | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  const internals = (
+    window as unknown as {
+      __TAURI_INTERNALS__?: { convertFileSrc?: (assetPath: string) => string };
+    }
+  ).__TAURI_INTERNALS__;
+  return typeof internals?.convertFileSrc === 'function' ? internals.convertFileSrc : null;
+}
+
 /**
- * Resolves `localPath` fields to renderable asset URLs via Tauri's asset
- * protocol. Outside Tauri (tests, browser dev) the fallback URL is used.
- * This is the seam real media listing will plug into: items carrying a
- * `localPath` under ~/.piwin/media render from disk automatically.
+ * Resolves vault paths to Tauri asset URLs. Reads convertFileSrc synchronously
+ * when the Tauri internals are already on window so the first gallery paint
+ * does not fall through to a full-file host read.
  */
 export function useLocalMediaSrc(): (localPath: string, fallbackUrl: string) => string {
-  const [convert, setConvert] = useState<
-    ((path: string) => string) | null
-  >(null);
+  const [convert, setConvert] = useState<((path: string) => string) | null>(tauriConvertFileSrc);
 
   useEffect(() => {
+    if (convert !== null) {
+      return;
+    }
     let cancelled = false;
     void import('@tauri-apps/api/core')
       .then((core) => {
@@ -25,7 +37,7 @@ export function useLocalMediaSrc(): (localPath: string, fallbackUrl: string) => 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [convert]);
 
   return (localPath: string, fallbackUrl: string) =>
     convert !== null ? convert(localPath) : fallbackUrl;

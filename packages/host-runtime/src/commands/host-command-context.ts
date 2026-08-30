@@ -121,6 +121,13 @@ export type HostCommandContext = {
   setSessionPermissionOverride: (sessionId: string, mode: PermissionMode) => void;
   /** Clear a per-session permission mode override. */
   clearSessionPermissionOverride: (sessionId: string) => void;
+  /** Injected Host-owned subscription OAuth service (tests + HostRuntime). */
+  subscriptionAuth?: import('../subscription-auth-service.js').SubscriptionAuthService;
+  /** pairedDeviceId ?? stable clientId. */
+  devicePrincipalId?: string;
+  /** Remote Hosts force Codex device-code (no Host loopback). */
+  /** Cancel Runs compiled to a subscription provider before logout. */
+  cancelRunsForProvider?: (providerId: string) => Promise<void>;
   /**
    * Optional walkthrough service bag (spec §11.1). Provided by HostRuntime for
    * both SDK and RPC adapters; mock/test contexts may omit it.

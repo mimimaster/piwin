@@ -7,6 +7,14 @@ import { handleCatalogCommand } from './catalog-commands.js';
 import { createDefaultPiwinConfig, savePiwinConfig } from '../config-store.js';
 import { saveMediaAsset } from '@piwin/media';
 
+/** 1×1 PNG that sharp can decode (same fixture as host-client-mock). */
+const MIN_PNG = Uint8Array.from(
+  Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64',
+  ),
+);
+
 function createMinimalContext(rootDir: string): HostCommandContext {
   return {
     piwinRoot: rootDir,
@@ -72,6 +80,48 @@ describe('handleCatalogCommand media/read', () => {
     expect(data.status).toBe('ready');
     expect(data.mimeType).toBe('image/png');
     expect(data.base64Data).toBe(Buffer.from([137, 80, 78, 71, 9, 9]).toString('base64'));
+  });
+
+  it('returns a webp sidecar for media/read variant=thumb', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-media-read-thumb-'));
+    const config = createDefaultPiwinConfig();
+    config.providers = [];
+    await savePiwinConfig(config, rootDir);
+    const mediaRoot = join(rootDir, 'media');
+    const asset = await saveMediaAsset(
+      {
+        mediaRoot,
+        maxPasteBytes: 64 * 1024,
+        allowedMimeTypes: ['image/png'],
+      },
+      {
+        sessionId: 'sess-1',
+        bytes: MIN_PNG,
+        mimeType: 'image/png',
+        source: 'generated',
+      },
+    );
+
+    const response = await handleCatalogCommand(
+      { type: 'media/read', input: { sessionId: 'sess-1', assetId: asset.id, variant: 'thumb' } },
+      undefined,
+      createMinimalContext(rootDir),
+    );
+    expect(response?.success).toBe(true);
+    const data = (response as { data?: { status?: string; mimeType?: string } }).data;
+    expect(data?.status).toBe('ready');
+    expect(data?.mimeType).toBe('image/webp');
+
+    const dense = await handleCatalogCommand(
+      {
+        type: 'media/read',
+        input: { sessionId: 'sess-1', assetId: asset.id, variant: 'thumb', thumbEdge: 256 },
+      },
+      undefined,
+      createMinimalContext(rootDir),
+    );
+    expect(dense?.success).toBe(true);
+    expect((dense as { data?: { mimeType?: string } }).data?.mimeType).toBe('image/webp');
   });
 
   it('maps unknown assets to an unavailable payload, not a transport error', async () => {

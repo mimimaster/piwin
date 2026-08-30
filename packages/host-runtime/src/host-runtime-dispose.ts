@@ -219,6 +219,12 @@ export async function disposeHostRuntime(deps: HostRuntimeKernel): Promise<void>
   await deps.flushUsageLedgerWrites();
   deps.sessionUsage.clear();
   deps.sessionLastPromptText.clear();
+  if (deps.liveCallCoordinator) {
+    await deps.liveCallCoordinator.dispose();
+    deps.liveCallCoordinator = null;
+  }
+  deps.subscriptionAuth?.dispose();
+  deps.subscriptionAuth = undefined;
   deps.sessionModels.clear();
   deps.healthTurnBySession.clear();
   deps.sessionLastAssistantReply.clear();

@@ -19,6 +19,7 @@
     { "path": "packages/artifact" },
     { "path": "packages/media" },
     { "path": "packages/speech" },
+    { "path": "packages/voice" },
     { "path": "packages/marketplace" },
     { "path": "packages/ui-kit" },
     { "path": "packages/browser" },

@@ -205,6 +205,65 @@ describe('HostEgressHub', () => {
     ]);
     hub.stop();
   });
+
+  it('delivers Live owner actions only to the paired device that owns the call', () => {
+    let runtimeSink: PushSink | undefined;
+    const ownerFrames: HostPushFrame[] = [];
+    const observerFrames: HostPushFrame[] = [];
+    const hub = new HostEgressHub({
+      attachRuntimeSink: (sink) => {
+        runtimeSink = sink;
+        return () => undefined;
+      },
+    });
+    hub.start();
+    hub.attachClient({
+      id: 'phone-a',
+      ownerDeviceId: 'phone-a',
+      deliverOwnerActions: true,
+      canSend: () => true,
+      sendNow: (frame) => ownerFrames.push(frame),
+      closeSlowConsumer: () => undefined,
+    });
+    hub.attachClient({
+      id: 'phone-b',
+      ownerDeviceId: 'phone-b',
+      deliverOwnerActions: true,
+      canSend: () => true,
+      sendNow: (frame) => observerFrames.push(frame),
+      closeSlowConsumer: () => undefined,
+    });
+
+    runtimeSink?.push({
+      type: 'voice/live-updated',
+      call: {
+        callId: 'call-1',
+        revision: 1,
+        phase: 'active',
+        boundSessionId: 'session-1',
+        boundSessionLabel: 'Work',
+        ownerDeviceId: 'phone-a',
+        providerId: 'openai-codex',
+        mediaDriverId: 'codex-webrtc-v1',
+        voiceModelId: 'gpt-live-1-codex',
+        startedAt: '2026-08-29T00:00:00.000Z',
+      },
+    });
+    runtimeSink?.push({
+      type: 'voice/live-owner-action',
+      callId: 'call-1',
+      action: 'append-context',
+      target: 'session',
+      channel: 'speakable',
+      content: 'done',
+    });
+
+    expect(ownerFrames.some((frame) => frame.push.type === 'voice/live-owner-action')).toBe(true);
+    expect(observerFrames.some((frame) => frame.push.type === 'voice/live-owner-action')).toBe(
+      false,
+    );
+    hub.stop();
+  });
 });
 
 function createStatusPush(): HostPush {

@@ -134,4 +134,43 @@ describe('ExploreFlowCapsule', () => {
     ).toBe('false');
     expect(container.textContent).toContain('已探索 2 个文件');
   });
+
+  it('keeps already-emitted tool cards mounted when a live group grows', () => {
+    const firstTool = readTool('t1', 'src/a.ts');
+    const secondTool = readTool('t2', 'src/b.ts');
+    const liveTwo: ExploreFlowGroup = {
+      ...doneGroup(),
+      items: [
+        { kind: 'tool', messageId: 'm1', tool: firstTool },
+        { kind: 'tool', messageId: 'm2', tool: secondTool },
+      ],
+      thoughtCount: 0,
+      toolCount: 2,
+      hasRunning: true,
+      isLive: true,
+    };
+    act(() => render(liveTwo));
+    const firstCard = container.querySelector('[data-testid="tool-call-card"]');
+    expect(firstCard).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid="tool-call-card"]')).toHaveLength(2);
+
+    const liveThree: ExploreFlowGroup = {
+      ...liveTwo,
+      items: [
+        ...liveTwo.items,
+        { kind: 'tool', messageId: 'm3', tool: readTool('t3', 'src/c.ts', 'running') },
+      ],
+      toolCount: 3,
+      fileCount: 3,
+    };
+    act(() => render(liveThree));
+
+    expect(container.querySelector('[data-testid="tool-call-card"]')).toBe(firstCard);
+    expect(container.querySelectorAll('[data-testid="tool-call-card"]')).toHaveLength(3);
+    expect(
+      container
+        .querySelector('[data-testid="explore-flow-capsule"]')
+        ?.getAttribute('data-expanded'),
+    ).toBe('true');
+  });
 });

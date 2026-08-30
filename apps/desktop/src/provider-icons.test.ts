@@ -67,7 +67,7 @@ describe('ProviderIcon', () => {
         modelId: 'claude-3-7-sonnet-20250219',
       }),
     );
-    expect(claudeProxy).toContain('data-provider-brand="Anthropic"');
+    expect(claudeProxy).toMatch(/data-provider-brand="(Anthropic|Claude)"/);
 
     const deepseekProxy = renderToStaticMarkup(
       createElement(ProviderIcon, {
@@ -91,5 +91,32 @@ describe('ProviderIcon', () => {
       }),
     );
     expect(glmProxy).toContain('data-provider-brand="Zhipu"');
+  });
+
+  it('resolves official brand icons for OAuth subscription providers', () => {
+    const kimi = renderToStaticMarkup(createElement(ProviderIcon, { id: 'kimi-coding' }));
+    expect(kimi).toContain('data-provider-icon="kimi-coding"');
+    expect(kimi).toContain('data-provider-brand="Kimi"');
+    expect(kimi).toContain('<svg');
+
+    const codex = renderToStaticMarkup(createElement(ProviderIcon, { id: 'openai-codex' }));
+    expect(codex).toContain('data-provider-icon="openai-codex"');
+    expect(codex).toContain('data-provider-brand="Codex"');
+    expect(codex).toContain('<svg');
+
+    const claude = renderToStaticMarkup(createElement(ProviderIcon, { id: 'anthropic' }));
+    expect(claude).toContain('data-provider-icon="anthropic"');
+    expect(claude).toContain('data-provider-brand="Anthropic"');
+    expect(claude).toContain('<svg');
+
+    const xai = renderToStaticMarkup(createElement(ProviderIcon, { id: 'xai' }));
+    expect(xai).toContain('data-provider-icon="xai"');
+    expect(xai).toMatch(/data-provider-brand="(XAI|Grok)"/);
+    expect(xai).toContain('<svg');
+
+    const copilot = renderToStaticMarkup(createElement(ProviderIcon, { id: 'github-copilot' }));
+    expect(copilot).toContain('data-provider-icon="github-copilot"');
+    expect(copilot).toContain('data-provider-brand="GithubCopilot"');
+    expect(copilot).toContain('<svg');
   });
 });

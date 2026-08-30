@@ -322,7 +322,17 @@
     color var(--t-1) var(--ease-out);
 }
 
-.tree-folder-toggle .tree-folder-icon {
+.tree-folder-toggle-spacer {
+  color: var(--text-4);
+}
+
+.tree-folder-summary:hover .tree-folder-toggle-spacer,
+.tree-folder-summary.active .tree-folder-toggle-spacer {
+  color: var(--text-2);
+}
+
+.tree-folder-toggle .tree-folder-icon,
+.tree-folder-toggle-spacer .tree-folder-icon {
   display: block;
 }
 

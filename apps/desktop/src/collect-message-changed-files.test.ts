@@ -101,7 +101,7 @@ describe('collectMessageChangedFiles', () => {
     expect(files).toEqual([]);
   });
 
-  it('keeps host changedPaths even when tool status is error', () => {
+  it('skips error tools even if changedPaths was present on presentation', () => {
     const files = collectMessageChangedFiles([
       tool({
         toolName: 'write',
@@ -109,7 +109,7 @@ describe('collectMessageChangedFiles', () => {
         presentation: presentation({ changedPaths: ['src/a.ts'] }),
       }),
     ]);
-    expect(files).toEqual([{ path: 'src/a.ts', name: 'a.ts' }]);
+    expect(files).toEqual([]);
   });
 });
 

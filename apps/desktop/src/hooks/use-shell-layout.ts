@@ -24,6 +24,7 @@ import {
   goShellForward,
   leaveSettingsRoute,
   pushShellRoute,
+  resolveShellSubPage,
   type ShellNavigationState,
   type ShellSettingsSection,
 } from '../shell-navigation';
@@ -68,6 +69,8 @@ export function useShellLayout() {
   const settingsOpen = activeRoute.kind === 'settings';
   const settingsSection: SettingsSectionId =
     activeRoute.kind === 'settings' ? normalizeSettingsSection(activeRoute.section) : 'general';
+  const activeSubPage = resolveShellSubPage(activeRoute);
+  const knowledgeOpen = false;
 
   const rememberTrigger = useCallback(() => {
     const active = document.activeElement;
@@ -134,6 +137,31 @@ export function useShellLayout() {
     [rememberTrigger, restoreFocus, inspectorTab],
   );
 
+  const openLibrary = useCallback(() => {
+    rememberTrigger();
+    setNavigation((current) => pushShellRoute(current, { kind: 'library' }));
+  }, [rememberTrigger]);
+
+  const openImages = useCallback(() => {
+    rememberTrigger();
+    setNavigation((current) => pushShellRoute(current, { kind: 'images' }));
+  }, [rememberTrigger]);
+
+  const openVideos = useCallback(() => {
+    rememberTrigger();
+    setNavigation((current) => pushShellRoute(current, { kind: 'videos' }));
+  }, [rememberTrigger]);
+
+  const openFlashcards = useCallback(() => {
+    rememberTrigger();
+    setNavigation((current) => pushShellRoute(current, { kind: 'flashcards' }));
+  }, [rememberTrigger]);
+
+  const openKnowledge = useCallback(() => {
+    rememberTrigger();
+    setNavigation((current) => pushShellRoute(current, { kind: 'flashcards' }));
+  }, [rememberTrigger]);
+
   const openSettings = useCallback(
     (section: ShellSettingsSection = 'general') => {
       rememberTrigger();
@@ -147,6 +175,16 @@ export function useShellLayout() {
     },
     [rememberTrigger],
   );
+
+  const closeSubPage = useCallback(() => {
+    setNavigation((current) => {
+      if (canGoShellBack(current)) {
+        return goShellBack(current);
+      }
+      return pushShellRoute(current, { kind: 'workspace' });
+    });
+    restoreFocus();
+  }, [restoreFocus]);
 
   const closeSettings = useCallback(() => {
     setNavigation((current) => leaveSettingsRoute(current));
@@ -205,9 +243,9 @@ export function useShellLayout() {
         restoreFocus();
         return;
       }
-      if (settingsOpen) {
+      if (settingsOpen || knowledgeOpen || activeSubPage) {
         event.preventDefault();
-        closeSettings();
+        closeSubPage();
         return;
       }
       if (overlay !== 'none') {
@@ -217,13 +255,15 @@ export function useShellLayout() {
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [closeOverlay, closeSettings, commandPaletteOpen, overlay, restoreFocus, settingsOpen]);
+  }, [activeSubPage, closeOverlay, closeSubPage, commandPaletteOpen, knowledgeOpen, overlay, restoreFocus, settingsOpen]);
 
   return {
     overlay,
     inspectorTab,
     settingsOpen,
     settingsSection,
+    activeSubPage,
+    knowledgeOpen,
     layoutMode,
     isCompact: derived.isCompact,
     /** @deprecated Prefer layoutMode / isCompact */
@@ -246,6 +286,12 @@ export function useShellLayout() {
     toggleSessions,
     toggleInspector,
     setInspectorTab,
+    openLibrary,
+    openImages,
+    openVideos,
+    openFlashcards,
+    openKnowledge,
+    closeSubPage,
     openSettings,
     closeSettings,
     setSettingsSection,

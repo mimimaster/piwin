@@ -12,6 +12,7 @@
 @import './settings-web-tools.css';
 @import './settings-provider-dialogs.css';
 @import './settings-byok.css';
+@import './region-settings-oauth.css';
 @import './settings-byok-editor.css';
 @import './settings-provider-connection.css';
 @import './settings-misc-pages.css';

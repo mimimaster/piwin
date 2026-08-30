@@ -24,6 +24,7 @@ const applicationPackageNames = new Set([
   '@piwin/project',
   '@piwin/session',
   '@piwin/speech',
+  '@piwin/voice',
   '@piwin/skills',
   '@piwin/theme',
   '@piwin/tools-web',

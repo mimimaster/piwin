@@ -171,4 +171,60 @@ describe('HostEgressChannel', () => {
 
     expect(sent.map((message) => message.type === 'push' && message.seq)).toEqual([3]);
   });
+
+  it('drops Live owner actions for non-owner clients', () => {
+    const sent: HostWireMessage[] = [];
+    const channel = new HostEgressChannel({
+      id: 'paired-phone',
+      hostInstanceId: 'host-1',
+      supportsBatch: false,
+      deliverOwnerActions: false,
+      send: (message) => sent.push(message),
+    });
+    channel.offer(
+      record(1, {
+        type: 'voice/live-owner-action',
+        callId: 'c1',
+        action: 'release-media',
+      }),
+    );
+    channel.offer(record(2, { type: 'host/log', level: 'info', message: 'ok' }));
+    channel.flushNow();
+    expect(channel.getStats().filteredItems).toBe(1);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ type: 'push', seq: 2 });
+  });
+
+  it('fences paired-device owner actions to the active Live owner', () => {
+    const sent: HostWireMessage[] = [];
+    const channel = new HostEgressChannel({
+      id: 'paired-phone-b',
+      hostInstanceId: 'host-1',
+      supportsBatch: false,
+      ownerDeviceId: 'phone-b',
+      liveOwnerDeviceId: 'phone-a',
+      deliverOwnerActions: true,
+      send: (message) => sent.push(message),
+    });
+
+    channel.offer(
+      record(1, {
+        type: 'voice/live-owner-action',
+        callId: 'c1',
+        action: 'release-media',
+      }),
+    );
+    channel.setLiveOwnerDeviceId('phone-b');
+    channel.offer(
+      record(2, {
+        type: 'voice/live-owner-action',
+        callId: 'c1',
+        action: 'release-media',
+      }),
+    );
+    channel.flushNow();
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ type: 'push', seq: 2 });
+  });
 });

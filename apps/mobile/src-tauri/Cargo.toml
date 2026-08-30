@@ -17,6 +17,7 @@ tauri = { version = "2", features = [] }
 tauri-plugin-barcode-scanner = "2"
 tauri-plugin-keyring-store = "0.2.0"
 tauri-plugin-piwin-healthkit = { path = "plugins/healthkit" }
+tauri-plugin-websocket = "2.4.2"
 sha2 = "0.10"
 
 [target.'cfg(target_os = "ios")'.dependencies]

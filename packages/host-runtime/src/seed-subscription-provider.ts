@@ -1,0 +1,135 @@
+/**
+ * Seed a Models-page Provider after subscription OAuth login.
+ * The row is operable (enable/disable models, defaults, params) but is not a
+ * BYOK channel — compile still uses `{ auth: { kind: 'oauth' } }`.
+ */
+import type { ModelConfigEntry, ModelProviderConfig, PiwinConfig } from '@piwin/contracts';
+import {
+  isChannelProvider,
+  isSubscriptionProvider,
+  isThinkingLevel,
+  isV1SubscriptionProviderId,
+  V1_SUBSCRIPTION_PROVIDER_META,
+  type SubscriptionAccount,
+  type V1SubscriptionProviderId,
+} from '@piwin/contracts';
+import { isSubscriptionAccountUsable } from './resolve-chat-model.js';
+
+export type SubscriptionCatalogSeedModel = {
+  id: string;
+  name: string;
+  reasoning?: boolean;
+  thinkingLevels?: readonly string[];
+  input?: readonly ('text' | 'image')[];
+  contextWindow?: number;
+  maxOutputTokens?: number;
+};
+
+export function subscriptionOauthOrigin(providerId: string): string {
+  return `oauth://${providerId}`;
+}
+
+export function catalogModelToConfigEntry(model: SubscriptionCatalogSeedModel): ModelConfigEntry {
+  const entry: ModelConfigEntry = {
+    id: model.id,
+    label: model.name,
+    capabilities: ['chat'],
+  };
+  if (typeof model.reasoning === 'boolean') {
+    entry.reasoning = model.reasoning;
+  }
+  if (Array.isArray(model.thinkingLevels)) {
+    const thinkingLevels = model.thinkingLevels.filter(isThinkingLevel);
+    if (thinkingLevels.length > 0) {
+      entry.thinkingLevels = thinkingLevels;
+    }
+  }
+  if (Array.isArray(model.input) && model.input.length > 0) {
+    entry.input = [...model.input];
+  }
+  if (typeof model.contextWindow === 'number') {
+    entry.contextWindow = model.contextWindow;
+  }
+  if (typeof model.maxOutputTokens === 'number') {
+    entry.maxOutputTokens = model.maxOutputTokens;
+  }
+  return entry;
+}
+
+export function upsertSubscriptionProvider(
+  config: PiwinConfig,
+  providerId: V1SubscriptionProviderId,
+  catalog: readonly SubscriptionCatalogSeedModel[],
+): PiwinConfig {
+  const existing = config.providers.find((provider) => provider.id === providerId);
+  if (existing && isChannelProvider(existing)) {
+    return config;
+  }
+  const nextProvider = mergeSubscriptionProvider(providerId, catalog, existing);
+  if (existing && subscriptionProvidersEqual(existing, nextProvider)) {
+    return config;
+  }
+  const providers = existing
+    ? config.providers.map((provider) => (provider.id === providerId ? nextProvider : provider))
+    : [...config.providers, nextProvider];
+  return { ...config, providers };
+}
+
+export function ensureSubscriptionProviders(
+  config: PiwinConfig,
+  accounts: readonly SubscriptionAccount[],
+  catalogFor: (providerId: string) => readonly SubscriptionCatalogSeedModel[],
+): PiwinConfig {
+  let next = config;
+  for (const account of accounts) {
+    if (!isSubscriptionAccountUsable(account) || !isV1SubscriptionProviderId(account.providerId)) {
+      continue;
+    }
+    next = upsertSubscriptionProvider(next, account.providerId, catalogFor(account.providerId));
+  }
+  return next;
+}
+
+function mergeSubscriptionProvider(
+  providerId: V1SubscriptionProviderId,
+  catalog: readonly SubscriptionCatalogSeedModel[],
+  existing: ModelProviderConfig | undefined,
+): ModelProviderConfig {
+  const previousById = new Map((existing?.models ?? []).map((model) => [model.id, model]));
+  const models: ModelConfigEntry[] = [];
+  for (const catalogModel of catalog) {
+    const fresh = catalogModelToConfigEntry(catalogModel);
+    const previous = previousById.get(catalogModel.id);
+    models.push(previous ? { ...fresh, ...previous, id: catalogModel.id } : fresh);
+    previousById.delete(catalogModel.id);
+  }
+  for (const leftover of previousById.values()) {
+    models.push(leftover);
+  }
+  const meta = V1_SUBSCRIPTION_PROVIDER_META[providerId];
+  const provider: ModelProviderConfig = {
+    id: providerId,
+    name: existing?.name?.trim() || meta.name,
+    protocol: 'openai-compatible',
+    baseUrl: subscriptionOauthOrigin(providerId),
+    source: 'subscription',
+    models,
+  };
+  if (existing?.enabled !== undefined) {
+    provider.enabled = existing.enabled;
+  }
+  return provider;
+}
+
+function subscriptionProvidersEqual(
+  left: ModelProviderConfig,
+  right: ModelProviderConfig,
+): boolean {
+  return (
+    isSubscriptionProvider(left) &&
+    left.name === right.name &&
+    left.enabled === right.enabled &&
+    left.baseUrl === right.baseUrl &&
+    JSON.stringify(left.models) === JSON.stringify(right.models)
+  );
+}

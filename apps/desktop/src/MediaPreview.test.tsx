@@ -33,6 +33,34 @@ describe('MediaPreview', () => {
       .forEach((node) => node.remove());
   });
 
+  it('resolves a local vault video when no preview URL is supplied', async () => {
+    const resolveSpy = vi
+      .spyOn(mediaUtils, 'resolveMediaPreviewUrl')
+      .mockResolvedValue('asset://video-1.mp4');
+    const attachment: MediaAttachmentRef = {
+      id: 'video-1',
+      kind: 'media',
+      path: '/Users/me/.piwin/media/session-1/video-1.mp4',
+      mimeType: 'video/mp4',
+      byteSize: 2_759_590,
+      source: 'generated',
+    };
+
+    await act(async () => {
+      root.render(<MediaPreview attachment={attachment} sessionId="session-1" />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const video = container.querySelector<HTMLVideoElement>('.media-preview-video');
+    expect(video).not.toBeNull();
+    expect(video?.src).toContain('asset://video-1.mp4');
+    expect(container.textContent).not.toContain('video/mp4 · 2759590B');
+    resolveSpy.mockRestore();
+  });
+
   it('renders generated videos as an inline controllable video element', () => {
     const attachment: MediaAttachmentRef = {
       id: 'video-1',

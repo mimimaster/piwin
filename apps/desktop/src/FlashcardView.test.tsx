@@ -39,7 +39,7 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
     createdAt: '2026-08-18T00:00:00.000Z',
   };
 
-  it('renders front face with question, deck, and tags', () => {
+  it('renders front face with question, deck, and tags without boilerplate text', () => {
     act(() => {
       root.render(<FlashcardView card={sampleCard} locale="zh-CN" />);
     });
@@ -47,7 +47,9 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
     expect(container.textContent).toContain('什么是光合作用？');
     expect(container.textContent).toContain('生物');
     expect(container.textContent).toContain('#植物学');
-    expect(container.textContent).toContain('翻看解答');
+    // Ensure no boilerplate instructional noise
+    expect(container.textContent).not.toContain('翻看解答');
+    expect(container.textContent).not.toContain('点击空白');
   });
 
   it('manages is-flipping transient state and cleans up after animation timer', () => {
@@ -60,21 +62,48 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
     expect(frame?.classList.contains('is-flipped')).toBe(false);
     expect(frame?.classList.contains('is-flipping')).toBe(false);
 
-    // Trigger flip
+    // Trigger clean click
     act(() => {
-      frame?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      frame?.dispatchEvent(new MouseEvent('mousedown', { clientX: 0, clientY: 0, bubbles: true }));
+      frame?.dispatchEvent(new MouseEvent('click', { clientX: 0, clientY: 0, bubbles: true }));
     });
 
     expect(frame?.classList.contains('is-flipped')).toBe(true);
     expect(frame?.classList.contains('is-flipping')).toBe(true);
 
-    // Advance timer past animation duration (550ms)
+    // Advance timer past animation duration (400ms)
     act(() => {
-      vi.advanceTimersByTime(600);
+      vi.advanceTimersByTime(500);
     });
 
     // is-flipping must be removed so WebKit releases temporary will-change GPU allocation
     expect(frame?.classList.contains('is-flipping')).toBe(false);
+    expect(frame?.classList.contains('is-flipped')).toBe(true);
+  });
+
+  it('suppresses flip when dragging mouse for text selection', () => {
+    act(() => {
+      root.render(<FlashcardView card={sampleCard} locale="zh-CN" />);
+    });
+
+    const frame = container.querySelector('.fc-quiet-frame');
+    expect(frame?.classList.contains('is-flipped')).toBe(false);
+
+    // Simulate drag gesture: mousedown at (0,0), click at (20,20) (dist > 4px)
+    act(() => {
+      frame?.dispatchEvent(new MouseEvent('mousedown', { clientX: 0, clientY: 0, bubbles: true }));
+      frame?.dispatchEvent(new MouseEvent('click', { clientX: 20, clientY: 20, bubbles: true }));
+    });
+
+    // Frame must NOT flip on drag
+    expect(frame?.classList.contains('is-flipped')).toBe(false);
+
+    // Clean click with dist <= 4px flips
+    act(() => {
+      frame?.dispatchEvent(new MouseEvent('mousedown', { clientX: 0, clientY: 0, bubbles: true }));
+      frame?.dispatchEvent(new MouseEvent('click', { clientX: 1, clientY: 1, bubbles: true }));
+    });
+
     expect(frame?.classList.contains('is-flipped')).toBe(true);
   });
 
@@ -104,14 +133,14 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
 
     expect(container.textContent).toContain('植物利用光能');
 
-    // Press '3' to rate 'good' (记住了)
+    // Press '3' to rate 'good' (记住)
     act(() => {
       cardContainer?.dispatchEvent(
         new KeyboardEvent('keydown', { key: '3', bubbles: true, cancelable: true }),
       );
     });
 
-    expect(container.textContent).toContain('已记录：记住了');
+    expect(container.textContent).toContain('已记录：记住');
     expect(capturedAction).toEqual({
       type: 'piwin-artifact:action',
       channelId: 'card-test-1',
@@ -140,17 +169,15 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
     });
 
     // Top quiet navigation is present
-    expect(container.textContent).toContain('卡片 (2)');
+    expect(container.textContent).toContain('一套 (2)');
     expect(container.textContent).toContain('什么是光合作用？');
-    // Card 2 is NOT mounted in DOM (memory saving)
     expect(container.textContent).not.toContain('牛顿第一运动定律');
 
-    // Click next button
-    const nextBtn = container.querySelector('button[title="下一张"]');
-    expect(nextBtn).not.toBeNull();
+    const tearBtn = container.querySelector('button[title="撕掉"]');
+    expect(tearBtn).not.toBeNull();
 
     act(() => {
-      nextBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      tearBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
     // Card 2 is now mounted and Card 1 is cleanly unmounted from memory
@@ -181,7 +208,7 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
       root.render(<FlashcardStackView cards={[clozeC1, clozeC2]} locale="zh-CN" />);
     });
 
-    expect(container.textContent).not.toContain('卡片 (2)');
+    expect(container.textContent).not.toContain('一套 (2)');
     expect(container.querySelectorAll('[data-testid="chat-flashcard"]')).toHaveLength(1);
   });
 

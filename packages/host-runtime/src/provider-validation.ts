@@ -62,7 +62,11 @@ export function validateProviders(
       issues.push({ path: `${base}.name`, message: 'provider name is required' });
     }
 
-    if (!provider.baseUrl?.trim()) {
+    if (provider.source === 'subscription') {
+      if (!provider.baseUrl?.trim()) {
+        issues.push({ path: `${base}.baseUrl`, message: 'baseUrl is required' });
+      }
+    } else if (!provider.baseUrl?.trim()) {
       issues.push({ path: `${base}.baseUrl`, message: 'baseUrl is required' });
     } else {
       try {

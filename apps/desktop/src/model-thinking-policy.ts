@@ -5,7 +5,7 @@ export type ThinkingModelFields = {
   reasoning?: boolean;
   thinkingLevels?: readonly ThinkingLevel[];
   thinkingLevel?: ThinkingLevel;
-  protocol?: ModelProviderConfig['protocol'];
+  protocol?: ModelProviderConfig['protocol'] | undefined;
 };
 
 /** Protocol-based default thinking levels when a model has no explicit config. */

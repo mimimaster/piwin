@@ -314,6 +314,14 @@ export function createStoreTranscriptRecorder(options: {
         createdAt: new Date().toISOString(),
         ...(attachments !== undefined && attachments.length > 0 ? { attachments } : {}),
         ...(contextRefs !== undefined ? { contextRefs } : {}),
+        ...(input.source === 'voice-delegation'
+          ? {
+              metadata: {
+                promptSource: 'voice-delegation' as const,
+                ...(input.voiceCallId ? { voiceCallId: input.voiceCallId } : {}),
+              },
+            }
+          : {}),
       });
       if (!result.ok) {
         options.onDiagnostic?.(`user transcript identity collision: messageId=${userId}`);

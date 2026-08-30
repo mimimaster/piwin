@@ -19,6 +19,14 @@ vi.mock('../secret-resolver.js', () => ({
       return Promise.resolve();
     },
     readSecretByRef: (ref: string) => Promise.resolve(mockKeychain.get(ref) ?? null),
+    deleteProviderSecret: (providerId: string) => {
+      mockKeychain.delete(`keychain:piwin-${providerId}`);
+      return Promise.resolve();
+    },
+    deleteSecretByRef: (ref: string) => {
+      mockKeychain.delete(ref);
+      return Promise.resolve();
+    },
   }),
 }));
 

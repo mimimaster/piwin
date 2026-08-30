@@ -1,5 +1,5 @@
 /**
- * Composer "+" menu: P0/P1 attachments plus Skills, MCP, and Knowledge Center.
+ * Composer "+" menu: P0/P1 attachments plus Skills, MCP, and Flashcards.
  * Modes are always Agent; orchestration lives on the toolbar.
  * Built on ui-kit menu primitives (Radix portal, positioning, Escape, arrow nav).
  */
@@ -13,7 +13,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from '@piwin/ui-kit';
-import { IconBook, IconCards, IconDocument, IconFile, IconMcp, IconPaperclip, IconSkill } from './shell-icons';
+import { IconCards, IconFile, IconMcp, IconPaperclip, IconSkill } from './shell-icons';
 
 export type ComposerPlusSubmenu = 'none' | 'skills' | 'mcp' | 'knowledge';
 
@@ -40,9 +40,7 @@ export type ComposerPlusMenuProps = {
   onOpenSkillsPanel: () => void;
   mcpServers: ComposerMcpOption[];
   onOpenMcpPanel: () => void;
-  /** Open Knowledge Center overlay from composer menu. */
   onOpenKnowledge?: ((subTab?: 'doccards' | 'cards' | 'wiki') => void) | undefined;
-  /** Open the right-panel Flashcards due queue. */
   onOpenCardsPanel?: (() => void) | undefined;
   /** Optional for isolated menu consumers that do not expose file uploads. */
   onAttachFile?: () => void;
@@ -88,43 +86,22 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
         </DropdownMenuItem>
       ) : null}
 
-      {props.onOpenKnowledge ? (
-        <>
-          <DropdownMenuLabel className="plus-menu-caption muted">Knowledge</DropdownMenuLabel>
-          <DropdownMenuSub
-            open={props.submenu === 'knowledge'}
-            onOpenChange={(open) => props.onSubmenu(open ? 'knowledge' : 'none')}
-          >
-            <DropdownMenuSubTrigger testId="plus-menu-knowledge">
-              <span className="plus-menu-icon">
-                <IconBook width={16} height={16} />
-              </span>
-              <span className="plus-menu-label">Knowledge Center</span>
-              <span className="plus-menu-chevron">›</span>
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="plus-submenu" label="Knowledge Center">
-              <DropdownMenuLabel className="plus-menu-caption muted">Knowledge flows</DropdownMenuLabel>
-              <DropdownMenuItem
-                onSelect={() => props.onOpenKnowledge?.('doccards')}
-                testId="plus-menu-open-doccards"
-              >
-                <span className="plus-menu-icon">
-                  <IconDocument width={14} height={14} />
-                </span>
-                <span className="plus-menu-label">Learn from folder</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() => props.onOpenCardsPanel?.()}
-                testId="plus-menu-open-flashcards"
-              >
-                <span className="plus-menu-icon">
-                  <IconCards width={14} height={14} />
-                </span>
-                <span className="plus-menu-label">Flashcards (知识卡片复习)</span>
-              </DropdownMenuItem>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-        </>
+      {props.onOpenKnowledge || props.onOpenCardsPanel ? (
+        <DropdownMenuItem
+          onSelect={() => {
+            if (props.onOpenCardsPanel) {
+              props.onOpenCardsPanel();
+              return;
+            }
+            props.onOpenKnowledge?.();
+          }}
+          testId="plus-menu-open-flashcards"
+        >
+          <span className="plus-menu-icon">
+            <IconCards width={16} height={16} />
+          </span>
+          <span className="plus-menu-label">Flashcards</span>
+        </DropdownMenuItem>
       ) : null}
 
       {props.hideAgentExtras === true ? null : (

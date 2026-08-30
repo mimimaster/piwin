@@ -11,7 +11,7 @@ import type {
   MediaSaveData,
 } from '@piwin/contracts';
 import { MEDIA_SAVE_CHUNK_MAX_BYTES, formatError } from '@piwin/contracts';
-import { createMediaService } from '@piwin/media';
+import { createMediaService, writeMediaLibraryMeta } from '@piwin/media';
 import { loadPiwinConfig } from '../config-store.js';
 import { decodeBase64Media } from '../media-decode.js';
 import {
@@ -37,10 +37,7 @@ export function isMediaSaveCommand(command: HostCommand): boolean {
   return TYPES.has(command.type);
 }
 
-async function requireMediaSession(
-  context: HostCommandContext,
-  sessionId: string,
-): Promise<void> {
+async function requireMediaSession(context: HostCommandContext, sessionId: string): Promise<void> {
   if (context.requireDurableSession) {
     await context.requireDurableSession(sessionId);
   } else {
@@ -85,6 +82,17 @@ export async function handleMediaSaveCommand(
             : {}),
           source: command.input.source,
         });
+        await writeMediaLibraryMeta(
+          { mediaRoot: getPiwinMediaDir(getPiwinRoot(context.piwinRoot)) },
+          asset.sessionId,
+          asset.id,
+          {
+            source: command.input.source,
+            kind: libraryKindForMime(asset.mimeType),
+            createdAt: asset.createdAt,
+            ...(asset.name ? { name: asset.name } : {}),
+          },
+        );
         const data: MediaSaveData = { asset };
         return ok(requestId, 'media/save', data);
       }
@@ -135,6 +143,17 @@ export async function handleMediaSaveCommand(
           ...(assembled.contentKind !== undefined ? { contentKind: assembled.contentKind } : {}),
           source: assembled.source,
         });
+        await writeMediaLibraryMeta(
+          { mediaRoot: getPiwinMediaDir(getPiwinRoot(context.piwinRoot)) },
+          asset.sessionId,
+          asset.id,
+          {
+            source: assembled.source,
+            kind: libraryKindForMime(asset.mimeType),
+            createdAt: asset.createdAt,
+            ...(asset.name ? { name: asset.name } : {}),
+          },
+        );
         const data: MediaSaveData = { asset };
         return ok(requestId, 'media/save-finish', data);
       }
@@ -149,4 +168,14 @@ export async function handleMediaSaveCommand(
   } catch (error) {
     return fail(requestId, command.type, formatError(error));
   }
+}
+
+function libraryKindForMime(mimeType: string): 'image' | 'video' | 'file' {
+  if (mimeType.startsWith('image/')) {
+    return 'image';
+  }
+  if (mimeType.startsWith('video/')) {
+    return 'video';
+  }
+  return 'file';
 }

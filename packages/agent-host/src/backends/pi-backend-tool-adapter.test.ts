@@ -47,6 +47,34 @@ describe('toPiBackendCustomTool invocation identity', () => {
     );
   });
 
+  it('formats permission denied errors without duplicate prefix', async () => {
+    const execute = vi.fn<HostToolExecutionPort['execute']>(async () => ({
+      ok: false,
+      code: 'permission-denied',
+      message: 'Permission denied for write_file: piwin-config',
+    }));
+    const tool = toPiBackendCustomTool(
+      {
+        name: 'write_file',
+        description: 'Write file',
+        parameters: { type: 'object', properties: {} },
+      },
+      { execute },
+      {
+        sessionId: 'session-1',
+        runtimeGenerationId: 'generation-1',
+        getRunId: () => 'run-1',
+      },
+    );
+
+    await expect(
+      tool.execute('write-call', {}, new AbortController().signal, undefined, undefined),
+    ).rejects.toMatchObject({
+      name: 'PiBackendToolExecutionError',
+      message: 'Permission denied for write_file: piwin-config',
+    });
+  });
+
   it('throws Host failures so Pi emits an error lifecycle event', async () => {
     const execute = vi.fn<HostToolExecutionPort['execute']>(async () => ({
       ok: false,

@@ -9,9 +9,16 @@ import {
   Anthropic,
   Azure,
   AzureAI,
+  Claude,
+  Codex,
+  Copilot,
   DeepSeek,
   Gemini,
+  Github,
+  GithubCopilot,
+  Grok,
   Groq,
+  Kimi,
   LmStudio,
   Moonshot,
   Ollama,
@@ -19,6 +26,7 @@ import {
   OpenRouter,
   Qwen,
   SiliconCloud,
+  XAI,
   Zhipu,
 } from 'modelicons';
 
@@ -88,13 +96,22 @@ function monogramFromName(
 
 const BRANDS: Record<string, BrandEntry> = {
   openai: { Icon: OpenAI as BrandIcon, softBg: '#e8f8f0', softFg: '#10a37f' },
+  'openai-codex': { Icon: Codex as BrandIcon, softBg: '#e8f8f0', softFg: '#10a37f' },
+  codex: { Icon: Codex as BrandIcon, softBg: '#e8f8f0', softFg: '#10a37f' },
   anthropic: { Icon: Anthropic as BrandIcon, softBg: '#f8ece4', softFg: '#d97757' },
+  claude: { Icon: Claude as BrandIcon, softBg: '#f8ece4', softFg: '#d97757' },
   gemini: { Icon: Gemini as BrandIcon, softBg: '#e8f0fe', softFg: '#4285f4' },
   'gemini-proxy': { Icon: Gemini as BrandIcon, softBg: '#e8f0fe', softFg: '#4285f4' },
   google: { Icon: Gemini as BrandIcon, softBg: '#e8f0fe', softFg: '#4285f4' },
   deepseek: { Icon: DeepSeek as BrandIcon, softBg: '#e8ecff', softFg: '#4d6bfe' },
   moonshot: { Icon: Moonshot as BrandIcon, softBg: '#edf1f6', softFg: '#16191d' },
-  kimi: { Icon: Moonshot as BrandIcon, softBg: '#edf1f6', softFg: '#16191d' },
+  kimi: { Icon: Kimi as BrandIcon, softBg: '#eef4ff', softFg: '#2563eb' },
+  'kimi-coding': { Icon: Kimi as BrandIcon, softBg: '#eef4ff', softFg: '#2563eb' },
+  xai: { Icon: XAI as BrandIcon, softBg: '#f1f5f9', softFg: '#09090b' },
+  grok: { Icon: Grok as BrandIcon, softBg: '#f1f5f9', softFg: '#09090b' },
+  'github-copilot': { Icon: GithubCopilot as BrandIcon, softBg: '#f0f6ff', softFg: '#0969da' },
+  copilot: { Icon: Copilot as BrandIcon, softBg: '#f0f6ff', softFg: '#0969da' },
+  github: { Icon: Github as BrandIcon, softBg: '#f1f5f9', softFg: '#181717' },
   zhipu: { Icon: Zhipu as BrandIcon, softBg: '#e8f3ff', softFg: '#3859FF' },
   glm: { Icon: Zhipu as BrandIcon, softBg: '#e8f3ff', softFg: '#3859FF' },
   chatglm: { Icon: Zhipu as BrandIcon, softBg: '#e8f3ff', softFg: '#3859FF' },
@@ -127,7 +144,7 @@ function resolveBrand(id: string, modelId?: string): BrandEntry | null {
   if (modelId) {
     const lowerModel = modelId.toLowerCase();
     if (lowerModel.includes('gemini') || lowerModel.includes('google')) return BRANDS.gemini!;
-    if (lowerModel.includes('claude') || lowerModel.includes('anthropic')) return BRANDS.anthropic!;
+    if (lowerModel.includes('claude') || lowerModel.includes('anthropic')) return BRANDS.claude ?? BRANDS.anthropic!;
     if (lowerModel.includes('deepseek')) return BRANDS.deepseek!;
     if (
       lowerModel.includes('qwen') ||
@@ -136,7 +153,11 @@ function resolveBrand(id: string, modelId?: string): BrandEntry | null {
     ) {
       return BRANDS.qwen!;
     }
-    if (lowerModel.includes('moonshot') || lowerModel.includes('kimi')) return BRANDS.moonshot!;
+    if (lowerModel.includes('kimi')) return BRANDS.kimi!;
+    if (lowerModel.includes('moonshot')) return BRANDS.moonshot!;
+    if (lowerModel.includes('grok')) return BRANDS.grok!;
+    if (lowerModel.includes('xai')) return BRANDS.xai!;
+    if (lowerModel.includes('copilot')) return BRANDS['github-copilot'] ?? BRANDS.copilot!;
     if (
       lowerModel.includes('zhipu') ||
       lowerModel.includes('glm') ||
@@ -152,6 +173,7 @@ function resolveBrand(id: string, modelId?: string): BrandEntry | null {
     if (lowerModel.includes('lmstudio') || lowerModel.includes('lm-studio')) {
       return BRANDS.lmstudio!;
     }
+    if (lowerModel.includes('codex')) return BRANDS['openai-codex'] ?? BRANDS.codex!;
     if (
       lowerModel.includes('openai') ||
       lowerModel.includes('gpt') ||
@@ -184,10 +206,15 @@ function resolveBrand(id: string, modelId?: string): BrandEntry | null {
   if (lower.includes('azure')) return BRANDS.azure!;
   if (lower.includes('openrouter')) return BRANDS.openrouter!;
   if (lower.includes('gemini') || lower.includes('google')) return BRANDS.gemini!;
-  if (lower.includes('anthropic') || lower.includes('claude')) return BRANDS.anthropic!;
+  if (lower.includes('copilot')) return BRANDS['github-copilot'] ?? BRANDS.copilot!;
+  if (lower.includes('grok')) return BRANDS.grok!;
+  if (lower.includes('xai')) return BRANDS.xai!;
+  if (lower.includes('claude')) return BRANDS.claude ?? BRANDS.anthropic!;
+  if (lower.includes('anthropic')) return BRANDS.anthropic!;
   if (lower.includes('deepseek')) return BRANDS.deepseek!;
   if (lower.includes('silicon')) return BRANDS.siliconflow!;
-  if (lower.includes('moonshot') || lower.includes('kimi')) return BRANDS.moonshot!;
+  if (lower.includes('kimi')) return BRANDS.kimi!;
+  if (lower.includes('moonshot')) return BRANDS.moonshot!;
   if (lower.includes('zhipu') || lower.includes('glm') || lower.includes('chatglm')) {
     return BRANDS.zhipu!;
   }
@@ -202,6 +229,7 @@ function resolveBrand(id: string, modelId?: string): BrandEntry | null {
   if (lower.includes('groq')) return BRANDS.groq!;
   if (lower.includes('ollama')) return BRANDS.ollama!;
   if (lower.includes('lmstudio') || lower.includes('lm-studio')) return BRANDS.lmstudio!;
+  if (lower.includes('codex')) return BRANDS['openai-codex'] ?? BRANDS.codex!;
   if (lower.includes('openai') || lower.includes('gpt')) return BRANDS.openai!;
 
   const keys = Object.keys(BRANDS).sort((a, b) => b.length - a.length);

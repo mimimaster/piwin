@@ -38,14 +38,4 @@ describe('applyPromptPermissionOverride', () => {
     });
     expect(actions).toEqual([{ kind: 'clear' }]);
   });
-
-  it('still raises ask-all for Plan mode under Auto config', () => {
-    const { actions, context } = captureOverride();
-    applyPromptPermissionOverride(context, {
-      sessionId: 's1',
-      agentMode: 'plan',
-      configPreset: 'auto',
-    });
-    expect(actions).toEqual([{ kind: 'set', mode: 'ask-all' }]);
-  });
 });

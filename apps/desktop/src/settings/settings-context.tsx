@@ -109,8 +109,12 @@ export type SettingsContextValue = {
   /** Optional live sidecar client. Phone access uses request, never a remote Host. */
   hostClient?: {
     subscribe: (listener: (message: HostServerMessage) => void) => () => void;
-    request?: (command: HostCommand | LocalMobileAccessCommand) => Promise<HostResponse>;
+    request?: (
+      command: HostCommand | LocalMobileAccessCommand,
+      options?: { idempotencyKey?: string },
+    ) => Promise<HostResponse>;
     getTransport?: () => 'mock' | 'live' | 'remote';
+    getRemoteTarget?: () => { endpoint?: string } | undefined;
     supportsCommand?: (type: HostCommand['type']) => boolean;
   };
   config: PiwinConfig | null;

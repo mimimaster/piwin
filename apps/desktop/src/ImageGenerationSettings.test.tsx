@@ -294,4 +294,33 @@ describe('ImageGenerationSettings', () => {
     });
     expect(container!.querySelector('[data-testid="model-config-panel-image"]')).not.toBeNull();
   });
+
+  it('marks an image model as off when its provider is disabled', async () => {
+    const config = makeConfig();
+    const provider = config.providers[0];
+    if (!provider) throw new Error('missing provider');
+    provider.enabled = false;
+    const saved: PiwinConfig[] = [];
+    ({ root, container } = renderSettings(config, async (next) => {
+      saved.push(next);
+      return true;
+    }));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const row = container!.querySelector('[data-testid="image-model-row"]');
+    expect(row?.className).toContain('is-off');
+    expect(container!.querySelector('[data-testid="image-model-off-badge"]')?.textContent).toBe(
+      'Disabled',
+    );
+    const setDefault = container!.querySelector<HTMLButtonElement>(
+      '[data-testid="image-model-set-default"]',
+    );
+    expect(setDefault?.disabled).toBe(true);
+    act(() => {
+      setDefault?.click();
+    });
+    expect(saved).toHaveLength(0);
+  });
 });

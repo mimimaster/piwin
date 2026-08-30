@@ -18,6 +18,8 @@ export type ShellSettingsSection =
   | 'tools'
   | 'web'
   | 'models'
+  | 'oauth'
+  | 'hooks'
   | 'vision'
   | 'pets'
   | 'automation'
@@ -40,7 +42,31 @@ export type ShellSettingsSection =
   | 'rules';
 
 export type ShellRoute =
-  { kind: 'workspace' } | { kind: 'settings'; section: ShellSettingsSection };
+  | { kind: 'workspace' }
+  | { kind: 'library' }
+  | { kind: 'images' }
+  | { kind: 'videos' }
+  | { kind: 'flashcards' }
+  /** @deprecated Legacy overlay. `resolveShellSubPage` maps this to flashcards. */
+  | { kind: 'knowledge' }
+  | { kind: 'settings'; section: ShellSettingsSection };
+
+export type ShellWorkspaceSubPage = 'library' | 'images' | 'videos' | 'flashcards';
+
+/** Flashcards is the only learning door. Old knowledge routes land there. */
+export function resolveShellSubPage(route: ShellRoute): ShellWorkspaceSubPage | null {
+  switch (route.kind) {
+    case 'library':
+    case 'images':
+    case 'videos':
+    case 'flashcards':
+      return route.kind;
+    case 'knowledge':
+      return 'flashcards';
+    default:
+      return null;
+  }
+}
 
 export type ShellNavigationState = {
   entries: ShellRoute[];

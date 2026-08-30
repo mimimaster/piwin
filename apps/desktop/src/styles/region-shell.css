@@ -114,6 +114,14 @@
   display: none;
 }
 
+/* Library / Flashcards are a full-window jump, same idea as settings. */
+.app-shell.studio-open > .settings-workspace-suspended,
+.app-shell.studio-open > .sidebar,
+.app-shell.studio-open > .right-panel,
+.app-shell.studio-open > .context-bar {
+  display: none;
+}
+
 /* Overlays escape the deck: fixed to the window, not placed in the grid. */
 .app-shell > .notification-region,
 .app-shell > .shell-overlay-scrim {

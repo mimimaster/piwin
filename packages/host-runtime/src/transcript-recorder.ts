@@ -187,6 +187,12 @@ export function createTranscriptRecorder(options: {
       const messageInput: Parameters<typeof createUserTranscriptMessage>[0] = {
         id: userId,
         text: input.text,
+        ...(input.source === 'voice-delegation'
+          ? {
+              source: 'voice-delegation' as const,
+              ...(input.voiceCallId ? { voiceCallId: input.voiceCallId } : {}),
+            }
+          : {}),
       };
       if (input.attachments && input.attachments.length > 0) {
         // Transcript persistence keeps the path-backed media-compatible

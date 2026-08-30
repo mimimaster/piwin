@@ -123,7 +123,7 @@ describe('walkthrough config', () => {
       ...createDefaultWalkthroughConfig(),
       mode: 'custom',
       custom: {
-        model: { protocol: 'foo' as ModelRef['protocol'], providerId: 'p', modelId: 'm' },
+        model: { protocol: 'foo', providerId: 'p', modelId: 'm' } as unknown as ModelRef,
         prompt: 'explain',
       },
     };

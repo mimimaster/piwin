@@ -104,6 +104,8 @@ describe('buildEnabledModelOptions', () => {
       {
         providerId: 'p1',
         protocol: 'google-gemini',
+        source: 'channel',
+        group: 'channel',
         modelId: 'gemini-pro',
         label: 'p1 / gemini-pro',
         contextWindow: 1_000_000,
@@ -231,6 +233,28 @@ describe('modelOptionsFromConfiguredModels', () => {
 });
 
 describe('readConfiguredChatModelsData', () => {
+  it('keeps subscription rows without a BYOK protocol', () => {
+    const data = readConfiguredChatModelsData({
+      models: [
+        {
+          providerId: 'openai-codex',
+          modelId: 'gpt-5.4-codex',
+          source: 'subscription',
+          label: 'GPT-5.4 Codex',
+        },
+      ],
+    });
+    expect(data.models).toEqual([
+      {
+        providerId: 'openai-codex',
+        modelId: 'gpt-5.4-codex',
+        source: 'subscription',
+        group: 'subscription',
+        label: 'GPT-5.4 Codex',
+      },
+    ]);
+  });
+
   it('keeps defaults and drops unknown protocols', () => {
     const data = readConfiguredChatModelsData({
       defaultProviderId: 'custom-openai',
@@ -254,6 +278,8 @@ describe('readConfiguredChatModelsData', () => {
           protocol: 'openai-compatible',
           modelId: 'deepseek-v4-flash',
           label: 'DeepSeek',
+          source: 'channel',
+          group: 'channel',
         },
       ],
     });

@@ -23,8 +23,7 @@ export function PermissionRulesEditor(): ReactElement | null {
     if (!canEdit || hostClient?.request === undefined) {
       return;
     }
-    const request = hostClient.request;
-    void request({ type: 'permissions/get-rules', layer: 'user' }).then((response) => {
+    void hostClient.request({ type: 'permissions/get-rules', layer: 'user' }).then((response) => {
       if (!response.success) {
         setError(response.error);
         return;
@@ -41,8 +40,7 @@ export function PermissionRulesEditor(): ReactElement | null {
   }
 
   async function handleSave(): Promise<void> {
-    const request = hostClient?.request;
-    if (request === undefined) {
+    if (hostClient?.request === undefined) {
       return;
     }
     let rules: PermissionRulesFile;
@@ -64,7 +62,7 @@ export function PermissionRulesEditor(): ReactElement | null {
       rules,
       ...(revision === undefined ? {} : { expectedRevision: revision }),
     };
-    const response: HostResponse = await request(command);
+    const response: HostResponse = await hostClient.request(command);
     setSaving(false);
     if (!response.success) {
       setError(response.error);

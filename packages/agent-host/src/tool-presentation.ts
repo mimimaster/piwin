@@ -5,7 +5,14 @@
  * Head-row contract (Cursor-style):
  *   [icon] [actionVerb] [path pill | query preview] [countTag] … [status] [duration]
  */
-import type { ToolErrorView, ToolKind, ToolOutputView, ToolPresentation } from '@piwin/contracts';
+import type {
+  HealthToolCardSummary,
+  ToolErrorView,
+  ToolKind,
+  ToolOutputView,
+  ToolPresentation,
+} from '@piwin/contracts';
+import { projectBoundedHealthToolCardSummary } from '@piwin/contracts';
 import { attachFlashcardPresentation } from './flashcard-presentation.js';
 
 function looksLikeCancelledToolOutput(text: string): boolean {
@@ -38,6 +45,8 @@ export type BuildToolPresentationInput = {
   startedAt?: string;
   endedAt?: string;
   durationMs?: number;
+  health?: HealthToolCardSummary;
+  sensitivity?: 'health';
 };
 
 /** Internal action family used only for presentation (not a contract field). */
@@ -61,6 +70,7 @@ type ToolActionFamily =
   | 'image'
   | 'video'
   | 'subagent'
+  | 'health'
   | 'other';
 
 /**
@@ -90,6 +100,8 @@ export function classifyToolKind(toolName: string): ToolKind {
       return 'video';
     case 'subagent':
       return 'subagent';
+    case 'health':
+      return 'health';
     default: {
       const normalized = toolName.trim().toLowerCase();
       if (normalized === 'process' || normalized.startsWith('process_')) {
@@ -232,6 +244,38 @@ export function buildToolPresentation(input: BuildToolPresentationInput): ToolPr
     presentation.changedPaths = targetPaths;
   }
 
+  if (input.health !== undefined) {
+    presentation.health = input.health;
+  }
+  if (input.sensitivity !== undefined) {
+    presentation.sensitivity = input.sensitivity;
+  }
+  if (family === 'health') {
+    presentation.kind = 'health';
+    presentation.sensitivity = 'health';
+    if (presentation.health === undefined && args && typeof args === 'object') {
+      const record = args as Record<string, unknown>;
+      const directHealth = projectBoundedHealthToolCardSummary(record.health);
+      if (directHealth !== undefined) {
+        presentation.health = directHealth;
+      } else {
+        const metrics = Array.isArray(record.metrics)
+          ? record.metrics.filter((m): m is any => typeof m === 'string')
+          : [];
+        const range =
+          record.range && typeof record.range === 'object'
+            ? (record.range as Record<string, unknown>)
+            : undefined;
+        const periodLabel = range?.preset === 'last-7-days' ? '近 7 天' : '今天';
+        presentation.health = {
+          metrics,
+          periodLabel,
+          status: 'waiting-for-phone',
+        };
+      }
+    }
+  }
+
   if (input.startedAt) {
     presentation.startedAt = input.startedAt;
   }
@@ -337,6 +381,9 @@ function resolveActionFamily(toolName: string): ToolActionFamily {
   if (n === 'image_gen' || n === 'image_generate' || n.includes('image_gen')) return 'image';
   if (n === 'video_gen' || n === 'video_generate' || n.includes('video_gen')) return 'video';
   if (n === 'piwin_subagent_run') return 'subagent';
+  if (n === 'health_read_context' || n.startsWith('health_') || n.startsWith('health:')) {
+    return 'health';
+  }
 
   if (
     n === 'write' ||
@@ -835,6 +882,11 @@ function extractActionDetails(input: {
       const sessionName = readString(record.sessionName);
       if (sessionName) summary = clipSummary(sessionName, 72);
       else if (task) summary = clipSummary(task, 96);
+      break;
+    }
+    case 'health': {
+      actionVerb = 'Health data';
+      summary = 'Apple Health';
       break;
     }
     default: {

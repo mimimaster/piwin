@@ -19,6 +19,8 @@ function secretResolver(apiKey = 'test-key'): SecretResolver {
     readProviderSecret: async () => apiKey,
     writeSecretByRef: async () => {},
     readSecretByRef: async () => apiKey,
+    deleteProviderSecret: async () => {},
+    deleteSecretByRef: async () => {},
   };
 }
 

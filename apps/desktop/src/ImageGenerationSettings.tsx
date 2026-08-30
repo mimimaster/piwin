@@ -7,6 +7,7 @@
 
 import { useMemo, useState, type ReactElement } from 'react';
 import { Button } from '@piwin/ui-kit';
+import { isModelEnabled, isProviderEnabled } from '@piwin/contracts';
 import type { ModelConfigEntry, ModelProviderConfig, ModelRouteConfig } from '@piwin/contracts';
 import { useDesktopLocale } from './desktop-locale-context.js';
 import {
@@ -67,7 +68,11 @@ export function ImageGenerationSettings(): ReactElement {
   const imageRows = useMemo(() => (config ? collectImageModels(config.providers) : []), [config]);
 
   function handleSetDefault(provider: ModelProviderConfig, modelId: string): void {
-    if (!config) {
+    if (!config || !isProviderEnabled(provider)) {
+      return;
+    }
+    const model = provider.models.find((entry) => entry.id === modelId);
+    if (!model || !isModelEnabled(model)) {
       return;
     }
     void saveConfig({
@@ -184,10 +189,11 @@ export function ImageGenerationSettings(): ReactElement {
                 config.imageGeneration?.defaultModel?.providerId === provider.id;
               const isTesting = testingKey === key;
               const isEditing = editingKey === key;
+              const live = isProviderEnabled(provider) && isModelEnabled(model);
               return (
                 <li
                   key={key}
-                  className={`image-gen-model-item ${isEditing ? 'is-editing' : ''}`}
+                  className={`image-gen-model-item${isEditing ? ' is-editing' : ''}${live ? '' : ' is-off'}`}
                   data-testid="image-model-row"
                 >
                   <div className="image-gen-model-item-header">
@@ -201,6 +207,11 @@ export function ImageGenerationSettings(): ReactElement {
                         {isDefault ? (
                           <span className="image-gen-default-badge">
                             {locale === 'zh-CN' ? '默认' : 'Default'}
+                          </span>
+                        ) : null}
+                        {!live ? (
+                          <span className="image-gen-off-badge" data-testid="image-model-off-badge">
+                            {locale === 'zh-CN' ? '已停用' : 'Disabled'}
                           </span>
                         ) : null}
                       </div>
@@ -243,7 +254,7 @@ export function ImageGenerationSettings(): ReactElement {
                           size="compact"
                           variant="ghost"
                           data-testid="image-model-test"
-                          disabled={isTesting || provider.enabled === false || model.enabled === false}
+                          disabled={isTesting || !live}
                           onClick={() => void handleTestModel(provider, model)}
                         >
                           {isTesting
@@ -259,6 +270,7 @@ export function ImageGenerationSettings(): ReactElement {
                             size="compact"
                             variant="ghost"
                             data-testid="image-model-set-default"
+                            disabled={!live}
                             onClick={() => handleSetDefault(provider, model.id)}
                           >
                             {copy.setDefault}

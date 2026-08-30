@@ -6,6 +6,7 @@ describe('readMobileOverlayHash', () => {
     expect(readMobileOverlayHash('#settings')).toBe('#settings');
     expect(readMobileOverlayHash('#model')).toBe('#model-picker');
     expect(readMobileOverlayHash('#sidebar')).toBe('#sidebar');
+    expect(readMobileOverlayHash('#live')).toBe('#live');
     expect(readMobileOverlayHash('')).toBe('');
     expect(readMobileOverlayHash('#unknown')).toBe('');
   });

@@ -193,6 +193,9 @@ export function registerWorkerProviders(
 ): void {
   const referencedBootstrapIds = new Set<string>();
   for (const provider of providers) {
+    if (provider.auth.kind === 'oauth') {
+      continue;
+    }
     if (provider.auth.kind === 'bootstrap') {
       referencedBootstrapIds.add(provider.auth.secretId);
     }
@@ -226,12 +229,15 @@ function resolveWorkerProviderApiKey(
       return apiKey;
     }
     case 'none':
+    case 'oauth':
       return undefined;
   }
 }
 
 function resolveWorkerApi(protocol: SerializableProviderRuntime['protocol']): PiProviderApi {
   switch (protocol) {
+    case undefined:
+      return 'openai-completions';
     case 'anthropic-compatible':
       return 'anthropic-messages';
     case 'google-gemini':
@@ -262,7 +268,7 @@ export function buildWorkerProviderRegistration(
       id: model.id,
       name: model.label?.trim() || model.id,
       api,
-      baseUrl: provider.baseUrl,
+      baseUrl: provider.baseUrl ?? '',
       reasoning: model.reasoning ?? true,
       ...(compat ? { compat } : {}),
       ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
@@ -277,7 +283,7 @@ export function buildWorkerProviderRegistration(
   });
   const registration: ReturnType<typeof buildPiProviderRegistration> = {
     name: provider.providerId,
-    baseUrl: provider.baseUrl,
+    baseUrl: provider.baseUrl ?? '',
     api,
     authHeader: Boolean(apiKey || provider.auth.kind !== 'none'),
     models,

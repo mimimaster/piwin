@@ -34,6 +34,7 @@ import { createRemoteProjectId, isRemoteProjectId } from '@piwin/host-runtime';
 import { projectConfiguredChatModelsResponse } from './remote-configured-models.js';
 import { redactRemoteHostPaths } from './remote-redact.js';
 import { projectRemoteTranscriptTools } from './remote-transcript-tool-projection.js';
+import { projectRemoteLiveResponse } from './remote-live-projection.js';
 
 export { redactRemoteHostPaths };
 
@@ -43,6 +44,8 @@ export type RemoteProjectionContext = {
   capabilities: RemoteCapabilitySummary;
   /** Host media id → absolute path, used to restore opaque client refs. */
   remoteMediaPaths?: ReadonlyMap<string, string>;
+  /** Local loopback Desktop may keep one-shot Live start bootstrap. */
+  liveOwner?: boolean;
 };
 
 export function projectRemoteResponse(
@@ -50,6 +53,12 @@ export function projectRemoteResponse(
   response: HostResponse,
   context: RemoteProjectionContext,
 ): HostResponse {
+  const live = projectRemoteLiveResponse(
+    command,
+    response,
+    context.liveOwner === true ? { owner: true } : {},
+  );
+  if (live) return live;
   if (!response.success) {
     return {
       ...response,
@@ -143,6 +152,13 @@ export function projectRemoteResponse(
     // passing it through untouched also keeps the sanitizer from
     // regex-scanning multi-megabyte base64 payloads.
     return response;
+  }
+
+  if (command.type === 'media/list') {
+    return {
+      ...response,
+      data: projectRemoteMediaListData(response.data),
+    };
   }
 
   if (command.type === 'preview/read-trusted-text') {
@@ -304,6 +320,84 @@ function projectRemoteMediaSaveData(data: unknown): RemoteMediaSaveData {
     asset?.contentKind === 'document'
   ) {
     projected.asset.contentKind = asset.contentKind;
+  }
+  return projected;
+}
+
+function projectRemoteMediaListData(data: unknown): {
+  items: Array<{
+    assetId: string;
+    sessionId: string;
+    mimeType: string;
+    byteSize: number;
+    createdAt: string;
+    kind: 'image' | 'video' | 'file';
+    name?: string;
+    prompt?: string;
+    model?: string;
+    hasThumb?: boolean;
+  }>;
+  total: number;
+  nextCursor?: string;
+} {
+  const record = asRecord(data);
+  const rawItems = Array.isArray(record?.items) ? record.items : [];
+  const items: Array<{
+    assetId: string;
+    sessionId: string;
+    mimeType: string;
+    byteSize: number;
+    createdAt: string;
+    kind: 'image' | 'video' | 'file';
+    name?: string;
+    prompt?: string;
+    model?: string;
+    hasThumb?: boolean;
+  }> = [];
+  for (const entry of rawItems) {
+    const item = asRecord(entry);
+    if (
+      item === undefined ||
+      typeof item.assetId !== 'string' ||
+      typeof item.sessionId !== 'string' ||
+      typeof item.mimeType !== 'string' ||
+      typeof item.createdAt !== 'string' ||
+      (item.kind !== 'image' && item.kind !== 'video' && item.kind !== 'file')
+    ) {
+      continue;
+    }
+    const projected: (typeof items)[number] = {
+      assetId: item.assetId,
+      sessionId: item.sessionId,
+      mimeType: item.mimeType,
+      byteSize: typeof item.byteSize === 'number' && item.byteSize >= 0 ? item.byteSize : 0,
+      createdAt: item.createdAt,
+      kind: item.kind,
+    };
+    if (typeof item.prompt === 'string' && item.prompt.trim()) {
+      projected.prompt = item.prompt;
+    }
+    if (typeof item.model === 'string' && item.model.trim()) {
+      projected.model = item.model;
+    }
+    if (typeof item.name === 'string' && item.name.trim()) {
+      projected.name = item.name;
+    }
+    if (item.hasThumb === true) {
+      projected.hasThumb = true;
+    }
+    items.push(projected);
+  }
+  const projected: {
+    items: typeof items;
+    total: number;
+    nextCursor?: string;
+  } = {
+    items,
+    total: typeof record?.total === 'number' && record.total >= 0 ? record.total : items.length,
+  };
+  if (typeof record?.nextCursor === 'string' && record.nextCursor.length > 0) {
+    projected.nextCursor = record.nextCursor;
   }
   return projected;
 }
@@ -688,9 +782,7 @@ function projectTranscriptMessages(
           RemoteTranscriptMessage['instructionDelivery']
         >['status'],
         revision: delivery.revision,
-        ...(typeof delivery.targetRunId === 'string'
-          ? { targetRunId: delivery.targetRunId }
-          : {}),
+        ...(typeof delivery.targetRunId === 'string' ? { targetRunId: delivery.targetRunId } : {}),
       };
     }
     const tools = projectRemoteTranscriptTools(item.tools);
@@ -702,12 +794,7 @@ function projectTranscriptMessages(
   return projected;
 }
 
-const MEDIA_ATTACHMENT_SOURCES = new Set([
-  'paste',
-  'drop',
-  'file-picker',
-  'generated',
-]);
+const MEDIA_ATTACHMENT_SOURCES = new Set(['paste', 'drop', 'file-picker', 'generated']);
 
 /** Rewrite vault paths to opaque refs so resume/history can still thumb via media/read. */
 function projectRemoteTranscriptAttachments(
@@ -902,6 +989,11 @@ const REMOTE_SECRET_KEYS = new Set([
   'password',
   'secret',
   'token',
+  'offerSdp',
+  'answerSdp',
+  'sdpOffer',
+  'sdpAnswer',
+  'ephemeralToken',
 ]);
 
 const REMOTE_SETTINGS_OMITTED_KEYS = new Set([
@@ -939,8 +1031,7 @@ export function projectRemoteSettingsData(data: unknown): unknown {
   return {
     snapshot: {
       schemaVersion: snapshot.schemaVersion,
-      revision:
-        typeof snapshot.revision === 'string' ? boundedString(snapshot.revision, 256) : '',
+      revision: typeof snapshot.revision === 'string' ? boundedString(snapshot.revision, 256) : '',
       runtimeRevision:
         typeof snapshot.runtimeRevision === 'string'
           ? boundedString(snapshot.runtimeRevision, 256)
@@ -960,9 +1051,7 @@ function projectRemoteSettingsApplyData(data: unknown): unknown {
   const snapshot = asRecord(projected)?.snapshot;
   return {
     ...(snapshot === undefined ? {} : { snapshot }),
-    changedDomains: Array.isArray(record.changedDomains)
-      ? record.changedDomains.slice(0, 32)
-      : [],
+    changedDomains: Array.isArray(record.changedDomains) ? record.changedDomains.slice(0, 32) : [],
   };
 }
 
@@ -980,11 +1069,7 @@ function projectDomainRevisions(value: unknown): Record<string, string> {
   return projected;
 }
 
-function projectRemoteSettingsValue(
-  value: unknown,
-  key: string | undefined,
-  depth = 0,
-): unknown {
+function projectRemoteSettingsValue(value: unknown, key: string | undefined, depth = 0): unknown {
   if (depth > 12) {
     return undefined;
   }
@@ -1018,7 +1103,6 @@ function projectRemoteSettingsValue(
   }
   return projected;
 }
-
 
 function projectSessionUserMessageIndex(data: unknown): unknown {
   const record = asRecord(data);
@@ -1098,10 +1182,7 @@ function sanitizeRemoteValue(value: unknown, key: string | undefined): unknown {
   return sanitized;
 }
 
-function projectRemoteQueuedTurnData(
-  data: unknown,
-  context: RemoteProjectionContext,
-): unknown {
+function projectRemoteQueuedTurnData(data: unknown, context: RemoteProjectionContext): unknown {
   const source = asRecord(data);
   const projected = asRecord(sanitizeRemoteValue(data, undefined));
   if (source === undefined || projected === undefined) {
@@ -1127,7 +1208,10 @@ function projectRemoteQueuedTurnPush(
 ): HostPush {
   return {
     ...message,
-    queuedTurn: projectRemoteQueuedTurnRecord(message.queuedTurn, remoteMediaPaths) as QueuedTurnRecord,
+    queuedTurn: projectRemoteQueuedTurnRecord(
+      message.queuedTurn,
+      remoteMediaPaths,
+    ) as QueuedTurnRecord,
   };
 }
 
@@ -1211,7 +1295,8 @@ function projectRemoteSkillsReadData(data: unknown): unknown {
           ? record.byteSize
           : 0,
       truncated: record.truncated === true,
-      provenance: record.provenance === 'current-resource' ? 'current-resource' : 'current-resource',
+      provenance:
+        record.provenance === 'current-resource' ? 'current-resource' : 'current-resource',
     };
     if (record.effectiveSource === 'bundled' || record.effectiveSource === 'user') {
       projected.effectiveSource = record.effectiveSource;

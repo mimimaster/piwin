@@ -174,6 +174,27 @@ describe('discoverProviderModels', () => {
     expect(chatModel?.capabilities).toBeUndefined();
   });
 
+  it('auto-tags OpenAI-protocol realtime voice models', async () => {
+    const result = await discoverProviderModels(createProvider(), {
+      resolveSecret: async () => 'test-secret',
+      fetch: async () =>
+        createJsonResponse({
+          data: [
+            { id: 'grok-voice-think-fast-2.0' },
+            { id: 'gpt-4o-realtime-preview' },
+            { id: 'deepseek-chat' },
+          ],
+        }),
+    });
+    expect(
+      result.models.find((model) => model.id === 'grok-voice-think-fast-2.0')?.capabilities,
+    ).toContain('realtime-audio');
+    expect(
+      result.models.find((model) => model.id === 'gpt-4o-realtime-preview')?.capabilities,
+    ).toContain('realtime-audio');
+    expect(result.models.find((model) => model.id === 'deepseek-chat')?.capabilities).toBeUndefined();
+  });
+
   it('auto-tags gateway image models that are not in the Pi catalog', async () => {
     const result = await discoverProviderModels(createProvider(), {
       resolveSecret: async () => 'test-secret',

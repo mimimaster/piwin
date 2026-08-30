@@ -16,9 +16,10 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react';
-import { Button, Notice, Spinner } from '@piwin/ui-kit';
+import { Notice, Spinner } from '@piwin/ui-kit';
 import { getDesktopCopy } from '../desktop-locale';
 import { useDesktopLocale } from '../desktop-locale-context';
+import { IconChevronLeft } from '../shell-icons';
 import {
   WindowDragRegion,
   handleNativeWindowDragMouseDown,
@@ -80,6 +81,36 @@ const SECTION_ICONS: Record<SettingsSectionId, ReactNode> = {
       <path d="M12 2v10" />
       <path d="M18.4 6.9A9 9 0 1 1 5.6 6.9" />
       <path d="M12 22V12" />
+    </svg>
+  ),
+  oauth: (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      <path d="M9 12l2 2 4-4" />
+    </svg>
+  ),
+  hooks: (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
     </svg>
   ),
   agent: (
@@ -308,27 +339,18 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
         >
           {onClose ? (
             <div className="settings-titlebar-leading" data-no-window-drag>
-              <Button
-                variant="ghost"
+              <button
+                type="button"
                 className="settings-back-button"
                 onClick={onClose}
                 data-testid="settings-back-button"
+                title={`${translator.settings.backToWorkspace} (Esc)`}
+                aria-label={translator.settings.backToWorkspace}
               >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="m15 18-6-6 6-6" />
-                </svg>
-                {translator.settings.backToWorkspace}
-              </Button>
+                <IconChevronLeft width={16} height={16} aria-hidden="true" />
+                <span className="sr-only">{translator.settings.backToWorkspace}</span>
+              </button>
+              <span className="settings-titlebar-title">{copy.settings}</span>
             </div>
           ) : null}
           <WindowDragRegion

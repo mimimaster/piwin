@@ -69,6 +69,7 @@ import {
   runWalkthroughExport,
   type WalkthroughHostClient,
 } from './walkthrough-command.js';
+import { runAuthCommand } from './auth-command.js';
 import {
   bindSideChatHostClient,
   type SideChatHostClient,
@@ -176,6 +177,7 @@ Usage:
   piwin doccards forget <folder>
   piwin cron list [--mock]
   piwin usage [--project <path> | --global] [--mock]
+  piwin auth status | login <kimi-coding|openai-codex|anthropic|xai|github-copilot> | logout <id>
   piwin walkthrough list <session-id>
   piwin walkthrough generate <session-id> <message-id>
   piwin walkthrough export <session-id> <message-id> [--output <path>]
@@ -2856,6 +2858,18 @@ async function commandContext(argv: string[]): Promise<void> {
   }
 }
 
+async function commandAuth(argv: string[]): Promise<void> {
+  const client = await createWalkthroughHostClient('sdk', false);
+  try {
+    await runAuthCommand(client, argv);
+  } catch (error) {
+    console.error(formatError(error));
+    process.exitCode = 1;
+  } finally {
+    await client.dispose();
+  }
+}
+
 async function commandWalkthrough(argv: string[]): Promise<void> {
   const sub = argv[1] ?? '';
   const mock = parseMock(argv);
@@ -3348,6 +3362,10 @@ async function main(argv: string[]): Promise<void> {
   }
   if (command === 'usage') {
     await commandUsage(argv);
+    return;
+  }
+  if (command === 'auth') {
+    await commandAuth(argv.slice(1));
     return;
   }
   if (command === 'walkthrough') {

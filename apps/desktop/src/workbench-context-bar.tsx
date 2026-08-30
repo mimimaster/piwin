@@ -30,6 +30,7 @@ type ContextBarShell = {
   canGoForward: boolean;
   goBack: () => void;
   goForward: () => void;
+  activeSubPage?: string | null | undefined;
 };
 
 export type WorkbenchContextBarProps = {
@@ -87,23 +88,38 @@ export function WorkbenchContextBar(props: WorkbenchContextBarProps): ReactEleme
   const desktopCopy = getDesktopCopy(locale);
   const activeSessionId = state.activeSessionId;
 
+  const subPageTitle =
+    shell.activeSubPage === 'library' ||
+    shell.activeSubPage === 'images' ||
+    shell.activeSubPage === 'videos'
+      ? locale === 'zh-CN'
+        ? '资料库'
+        : 'Library'
+      : shell.activeSubPage === 'flashcards'
+        ? locale === 'zh-CN'
+          ? '闪卡'
+          : 'Flashcards'
+        : null;
+
   return (
     <ContextBar
       session={{
-        title: resolveWorkbenchSessionTitle({
-          projectPath: state.projectPath,
-          projectLabel: state.projectPath
-            ? projectLabel(state.projectPath, recentProjects)
-            : null,
-          sessionName: activeSessionName,
-        }),
+        title:
+          subPageTitle ??
+          resolveWorkbenchSessionTitle({
+            projectPath: state.projectPath,
+            projectLabel: state.projectPath
+              ? projectLabel(state.projectPath, recentProjects)
+              : null,
+            sessionName: activeSessionName,
+          }),
         scopeLabel: resolveWorkbenchScopeLabel({
           isGeneral: state.activeScope.kind === 'general',
           locale,
           generalCopy: desktopCopy.general,
         }),
       }}
-      {...(activeSessionId
+      {...(activeSessionId && !subPageTitle
         ? {
             sessionTreeControl: (
               <ConversationTreeHeaderPopover
@@ -115,7 +131,7 @@ export function WorkbenchContextBar(props: WorkbenchContextBarProps): ReactEleme
             ),
           }
         : {})}
-      isConversationSession={state.activeScope.kind === 'general'}
+      isConversationSession={!subPageTitle && state.activeScope.kind === 'general'}
       runState={runStatus}
       onStop={() => void onStop()}
       onViewActivity={() => onOpenInspector('terminal')}

@@ -408,9 +408,30 @@ async function readFileAsBase64WithArrayBuffer(file: Blob): Promise<string> {
   return btoa(binary);
 }
 
+function convertFileSrcNow(absolutePath: string): string | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  const internals = (
+    window as unknown as {
+      __TAURI_INTERNALS__?: { convertFileSrc?: (assetPath: string) => string };
+    }
+  ).__TAURI_INTERNALS__;
+  return typeof internals?.convertFileSrc === 'function'
+    ? internals.convertFileSrc(absolutePath)
+    : null;
+}
+
 export async function resolveMediaPreviewUrl(absolutePath: string): Promise<string | null> {
   if (!isPiwinMediaPath(absolutePath)) {
     return null;
+  }
+  // Gallery already reads convertFileSrc off window so the first paint does
+  // not fall through to media/read. Transcript videos cannot use that
+  // fallback: the Host wire cap is ~700KB and a typical mp4 misses it.
+  const sync = convertFileSrcNow(absolutePath);
+  if (sync) {
+    return sync;
   }
   try {
     const core = await import('@tauri-apps/api/core');

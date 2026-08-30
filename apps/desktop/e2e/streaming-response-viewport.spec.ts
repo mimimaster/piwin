@@ -99,7 +99,6 @@ test('streaming response locks to an output floor without stealing manual histor
     streamBounds.y + streamBounds.height / 2,
   );
   await page.mouse.wheel(0, -360);
-  await expect(page.getByTestId('jump-to-latest-btn')).toBeVisible();
 
   const detachedGeometry = await readResponseViewportGeometry(page);
   await page.waitForTimeout(300);
@@ -108,8 +107,14 @@ test('streaming response locks to an output floor without stealing manual histor
     1,
   );
 
-  await page.getByTestId('jump-to-latest-btn').click();
-  await expect(page.getByTestId('jump-to-latest-btn')).toHaveCount(0);
+  await page.evaluate(() => {
+    const stream = document.querySelector('[data-testid="chat-stream"]');
+    if (!(stream instanceof HTMLElement)) {
+      throw new Error('Expected transcript stream');
+    }
+    stream.scrollTop = stream.scrollHeight;
+    stream.dispatchEvent(new Event('scroll'));
+  });
   await expect
     .poll(async () => {
       const geometry = await readResponseViewportGeometry(page);

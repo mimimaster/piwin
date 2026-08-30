@@ -8,10 +8,21 @@ import type {
   ModelRef,
   PiwinConfig,
 } from '@piwin/contracts';
-import { isModelEnabled, isProviderEnabled, modelSupportsCapability } from '@piwin/contracts';
+import {
+  isChannelProvider,
+  isModelEnabled,
+  isProviderEnabled,
+  modelSupportsCapability,
+} from '@piwin/contracts';
+import { SUBSCRIPTION_DEFAULT_FALLBACK_ORDER } from '@piwin/contracts';
+import {
+  isSubscriptionAccountUsable,
+  resolveChatModel,
+  type ResolveChatModelAccounts,
+} from './resolve-chat-model.js';
 
 export function getEnabledProviders(config: {
-  providers: readonly ModelProviderConfig[];
+  readonly providers: readonly ModelProviderConfig[];
 }): ModelProviderConfig[] {
   return config.providers.filter((provider) => isProviderEnabled(provider));
 }
@@ -50,27 +61,19 @@ export type DefaultModelConfigSlice = {
 
 export function resolveConfiguredDefaultModelRef(
   config: DefaultModelConfigSlice | PiwinConfig,
+  accounts: ResolveChatModelAccounts = { accounts: [] },
 ): ModelRef | undefined {
   if (!config.defaultProviderId || !config.defaultModelId) {
     return undefined;
   }
-  const provider = findEnabledProvider(config, config.defaultProviderId);
-  if (
-    !provider ||
-    !provider.models.some(
-      (model) =>
-        model.id === config.defaultModelId &&
-        isModelEnabled(model) &&
-        modelSupportsCapability(model, 'chat'),
-    )
-  ) {
-    return undefined;
-  }
-  return {
-    protocol: provider.protocol,
-    providerId: provider.id,
-    modelId: config.defaultModelId,
-  };
+  return resolveChatModel(
+    { providers: [...config.providers] },
+    {
+      providerId: config.defaultProviderId,
+      modelId: config.defaultModelId,
+    },
+    accounts,
+  )?.ref;
 }
 
 /**
@@ -79,12 +82,24 @@ export function resolveConfiguredDefaultModelRef(
  */
 export function resolveDefaultModelRef(
   config: DefaultModelConfigSlice | PiwinConfig,
+  accounts: ResolveChatModelAccounts = { accounts: [] },
 ): ModelRef | undefined {
-  const configured = resolveConfiguredDefaultModelRef(config);
+  const configured = resolveConfiguredDefaultModelRef(config, accounts);
   if (configured) {
     return configured;
   }
-  const enabled = getEnabledProviders(config);
+  for (const providerId of SUBSCRIPTION_DEFAULT_FALLBACK_ORDER) {
+    const account = accounts.accounts.find((entry) => entry.providerId === providerId);
+    if (!isSubscriptionAccountUsable(account)) {
+      continue;
+    }
+    const modelId = accounts.catalogModelIds?.get(providerId)?.[0];
+    if (!modelId) {
+      continue;
+    }
+    return { providerId, modelId, source: 'subscription' };
+  }
+  const enabled = getEnabledProviders(config).filter(isChannelProvider);
   if (enabled.length === 0) {
     return undefined;
   }
@@ -103,6 +118,7 @@ export function resolveDefaultModelRef(
         protocol: provider.protocol,
         providerId: provider.id,
         modelId: config.defaultModelId,
+        source: 'channel',
       };
     }
   }
@@ -121,5 +137,6 @@ export function resolveDefaultModelRef(
     protocol: first.protocol,
     providerId: first.id,
     modelId: firstModel.id,
+    source: 'channel',
   };
 }

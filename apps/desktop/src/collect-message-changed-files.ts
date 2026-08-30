@@ -51,14 +51,17 @@ function basename(path: string): string {
 
 /**
  * Collect unique changed file paths from tools attached to one message.
- * Failed tools still contribute when the host set changedPaths; otherwise
- * only non-error write-like tools contribute via targetPaths fallback.
+ * Error tools are skipped; non-error tools prefer host changedPaths, falling
+ * back to targetPaths for write-like tools.
  */
 export function collectMessageChangedFiles(tools: ToolCardUi[]): MessageChangedFile[] {
   const seen = new Set<string>();
   const files: MessageChangedFile[] = [];
 
   for (const tool of tools) {
+    if (tool.status === 'error') {
+      continue;
+    }
     const presentation = tool.presentation;
     const fromChanged = presentation?.changedPaths?.filter((p) => p.trim().length > 0) ?? [];
     if (fromChanged.length > 0) {
@@ -70,9 +73,6 @@ export function collectMessageChangedFiles(tools: ToolCardUi[]): MessageChangedF
       continue;
     }
 
-    if (tool.status === 'error') {
-      continue;
-    }
     if (!isWriteLikeToolName(tool.toolName, presentation)) {
       continue;
     }

@@ -415,6 +415,14 @@
   background: color-mix(in srgb, var(--iris) 8%, var(--void));
 }
 
+.provider-model-row--off {
+  opacity: 0.55;
+}
+
+.provider-model-row--off:hover {
+  background: var(--void);
+}
+
 .provider-model-expand-btn {
   flex: none;
   display: inline-flex;
@@ -783,6 +791,19 @@
   border-radius: var(--r-pill);
   background: color-mix(in srgb, var(--mint) 14%, transparent);
   color: var(--mint);
+  font-weight: 600;
+}
+
+.image-gen-model-item.is-off {
+  opacity: 0.62;
+}
+
+.image-gen-off-badge {
+  font-size: var(--fs-micro);
+  padding: 1px var(--s-3);
+  border-radius: var(--r-pill);
+  background: var(--hover);
+  color: var(--text-4);
   font-weight: 600;
 }
 

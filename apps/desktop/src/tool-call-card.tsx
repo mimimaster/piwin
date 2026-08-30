@@ -333,13 +333,19 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const isWriteLikeTool =
     tool.presentation?.actionVerb === 'Edited' || /write|edit|replace|patch/i.test(tool.toolName);
   const changedPaths =
-    tool.presentation?.changedPaths && tool.presentation.changedPaths.length > 0
+    tool.status !== 'error' &&
+    tool.presentation?.changedPaths &&
+    tool.presentation.changedPaths.length > 0
       ? tool.presentation.changedPaths
       : tool.status !== 'error' && isWriteLikeTool
         ? targetPaths
         : [];
   const hasChangedPaths = changedPaths.length > 0;
-  const canRenderDiffCard = hasChangedPaths && Boolean(props.projectPath) && Boolean(props.request);
+  const canRenderDiffCard =
+    tool.status !== 'error' &&
+    hasChangedPaths &&
+    Boolean(props.projectPath) &&
+    Boolean(props.request);
   const rawActionVerb = tool.presentation?.actionVerb ?? kindVerb(kind, tool.toolName);
   const baseBehaviorId = resolveToolBehaviorId({
     kind,
@@ -403,13 +409,14 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const diffStats = useToolEditDiffStats({
     enabled:
       isEditTool &&
+      tool.status !== 'error' &&
       Boolean(primaryOpenPath) &&
       Boolean(props.projectPath) &&
       Boolean(props.request),
     projectPath: props.projectPath,
     path: primaryOpenPath?.relativePath,
     request: props.request,
-    fallback: isEditTool ? recoveredArgs.diffStats : undefined,
+    fallback: isEditTool && tool.status !== 'error' ? recoveredArgs.diffStats : undefined,
   });
   const hasDetailInBody = Boolean(command || inputPreview);
   const isArgsDumpSummary =

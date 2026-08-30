@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   filterSuggestions,
   isLikelyImageGenerationModel,
+  isLikelyRealtimeAudioModel,
   isLikelyVideoGenerationModel,
   lookupImageGenerationRegistry,
   lookupVideoGenerationRegistry,
@@ -144,6 +145,19 @@ describe('isLikelyImageGenerationModel', () => {
     expect(isLikelyImageGenerationModel('gpt-4o')).toBe(false);
     expect(isLikelyImageGenerationModel('grok-imagine-video')).toBe(false);
     expect(isLikelyImageGenerationModel('custom-model', 'Custom', ['image-generation'])).toBe(true);
+  });
+});
+
+describe('isLikelyRealtimeAudioModel', () => {
+  it('detects OpenAI-protocol realtime voice ids', () => {
+    expect(isLikelyRealtimeAudioModel('grok-voice-think-fast-2.0')).toBe(true);
+    expect(isLikelyRealtimeAudioModel('gpt-4o-realtime-preview')).toBe(true);
+    expect(isLikelyRealtimeAudioModel('gpt-realtime')).toBe(true);
+    expect(isLikelyRealtimeAudioModel('deepseek-chat')).toBe(false);
+    expect(isLikelyRealtimeAudioModel('gpt-4o')).toBe(false);
+    expect(isLikelyRealtimeAudioModel('whisper-1')).toBe(false);
+    expect(isLikelyRealtimeAudioModel('grok-stt')).toBe(false);
+    expect(isLikelyRealtimeAudioModel('custom-rt', 'Custom', ['realtime-audio'])).toBe(true);
   });
 });
 

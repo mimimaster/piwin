@@ -24,6 +24,10 @@ import type {
   MediaSaveBeginInput,
   MediaSaveChunkInput,
   MediaSaveFinishInput,
+  MediaListInput,
+  MediaDeleteInput,
+  MediaReadVariant,
+  MediaThumbEdge,
   SavedMediaAsset,
   SaveMediaInput,
 } from './media.js';
@@ -113,6 +117,19 @@ import type { HostHydrationFrame, HostSnapshotFrame } from './remote-protocol.js
 import type { HostProblem } from './host-problem.js';
 import type { PromptForegroundAdmission } from './prompt-admission.js';
 import type { SessionListScopeRef } from './session-list-scope.js';
+import type { SubscriptionAuthCommand, SubscriptionAuthPush } from './subscription-oauth.js';
+import type {
+  LiveApplySettingsInput,
+  LiveEndInput,
+  LiveMediaStateInput,
+  LiveOwnerActionPush,
+  LiveReportEventInput,
+  LiveSetMutedInput,
+  LiveSetProviderKeyInput,
+  LiveStartInput,
+  LiveStatusInput,
+  LiveUpdatedPush,
+} from './voice-live.js';
 
 /**
  * Bytes are base64 only while crossing the desktop-to-host transport.
@@ -140,10 +157,15 @@ export type MediaReadCommandInput = {
   sessionId: string;
   assetId: string;
   maxBytes?: number;
+  /** `thumb` returns a grid WebP sidecar. Default is the original file. */
+  variant?: MediaReadVariant;
+  /** 256 (dense) or 384 (standard). Ignored unless variant is `thumb`. */
+  thumbEdge?: MediaThumbEdge;
 };
 
 /** UI / external client → host */
 export type HostCommand =
+  | SubscriptionAuthCommand
   | { id?: string; type: 'host/ping' }
   | { id?: string; type: 'host/status' }
   | {
@@ -460,6 +482,8 @@ export type HostCommand =
   | { id?: string; type: 'media/save-finish'; input: MediaSaveFinishInput }
   | { id?: string; type: 'media/save-abort'; input: MediaSaveAbortInput }
   | { id?: string; type: 'media/read'; input: MediaReadCommandInput }
+  | { id?: string; type: 'media/list'; input: MediaListInput }
+  | { id?: string; type: 'media/delete'; input: MediaDeleteInput }
   /**
    * Config-root-relative text preview (ADR 0052 Slice 3). Remote-safe:
    * callers send a path under `~/.piwin`, never a host-absolute path.
@@ -480,6 +504,16 @@ export type HostCommand =
    * to ~/.piwin/media, transcript, prompt attachments, or logs.
    */
   | { id?: string; type: 'speech/transcribe'; input: SpeechTranscribeInput }
+  /** piwin Live status (ready / missing / sanitized call). */
+  | { id?: string; type: 'voice/live/status'; input: LiveStatusInput }
+  | { id?: string; type: 'voice/live/settings-schema' }
+  | { id?: string; type: 'voice/live/apply-settings'; input: LiveApplySettingsInput }
+  | { id?: string; type: 'voice/live/set-provider-key'; input: LiveSetProviderKeyInput }
+  | { id?: string; type: 'voice/live/start'; input: LiveStartInput }
+  | { id?: string; type: 'voice/live/media-state'; input: LiveMediaStateInput }
+  | { id?: string; type: 'voice/live/set-muted'; input: LiveSetMutedInput }
+  | { id?: string; type: 'voice/live/end'; input: LiveEndInput }
+  | { id?: string; type: 'voice/live/report-event'; input: LiveReportEventInput }
   | { id?: string; type: 'skills/list'; projectPath?: string }
   | {
       id?: string;
@@ -1181,7 +1215,10 @@ export type HostPushVariant =
       job: GenerationJob;
       sessionId?: string;
       cardIds?: string[];
-    };
+    }
+  | SubscriptionAuthPush
+  | LiveUpdatedPush
+  | LiveOwnerActionPush;
 
 /** ADR 0027: HostPush is the variant union plus optional transport sequencing. */
 export type HostPush = HostPushVariant & HostPushSequencing;

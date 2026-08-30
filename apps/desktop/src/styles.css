@@ -18,6 +18,8 @@
 @import './styles/shell-ink-wash.css';
 @import './styles/region-context-bar.css';
 @import './styles/region-composer.css';
+/* Live voice floating draggable capsule */
+@import './styles/region-live.css';
 @import './styles/composer-context-rail.css';
 @import './styles/composer-interrupt.css';
 @import './styles/composer-attachments.css';
@@ -44,7 +46,11 @@
 @import './styles/doccards-grid.css';
 @import './styles/region-flashcards.css';
 @import './styles/region-flashcards-workspace.css';
-@import './styles/region-media-workspaces.css';
+@import './styles/region-studio-shell.css';
+@import './styles/region-library-workspace.css';
+@import './styles/region-library-inspector.css';
+@import './styles/region-library-empty.css';
+@import './styles/region-media-lightbox.css';
 @import './styles/flashcard-inline-card.css';
 @import './styles/region-notes.css';
 @import './styles/region-knowledge.css';

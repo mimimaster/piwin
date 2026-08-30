@@ -1,46 +1,41 @@
 import type { ReactElement } from 'react';
-import type { HostResponse } from '@piwin/contracts';
+import type { HostCommand, HostResponse } from '@piwin/contracts';
 import type { DesktopLocale } from './desktop-locale';
-import {
-  FlashcardsWorkspaceView,
-  ImagesWorkspaceView,
-  VideosWorkspaceView,
-} from './workspace-subpages';
-import type { FlashcardsWorkspaceCommand } from './workspace-subpages/flashcards/use-flashcards-workspace';
+import { FlashcardsWorkspaceView, LibraryWorkspaceView } from './workspace-subpages';
+import type { FlashcardsHomeCommand } from './workspace-subpages/FlashcardsWorkspaceView';
 
 export type WorkbenchSubpageStageProps = {
-  activeSubPage: 'chat' | 'images' | 'videos' | 'flashcards' | null;
+  activeSubPage: 'chat' | 'library' | 'images' | 'videos' | 'flashcards' | null;
   locale: DesktopLocale;
   onClose: () => void;
-  onSendToChat: (text: string) => void;
-  requestFlashcards: (command: FlashcardsWorkspaceCommand) => Promise<HostResponse>;
+  request: (command: HostCommand) => Promise<HostResponse>;
+  requestFlashcards: (command: FlashcardsHomeCommand) => Promise<HostResponse>;
+  refreshToken?: number;
+  projectPath?: string | null | undefined;
+  onConfigureEmbedding?: (() => void) | undefined;
 };
 
 /**
- * Fullscreen takeover stage for media studios and flashcards workspace.
- * Renders as a top-level overlay covering the workbench shell and sidebar.
+ * Library and Flashcards jump to a full-window page.
+ * Sidebar, titleband, and chat stage hide; back returns to the session.
  */
 export function WorkbenchSubpageStage(props: WorkbenchSubpageStageProps): ReactElement | null {
   if (!props.activeSubPage || props.activeSubPage === 'chat') {
     return null;
   }
 
-  if (props.activeSubPage === 'images') {
+  if (
+    props.activeSubPage === 'library' ||
+    props.activeSubPage === 'images' ||
+    props.activeSubPage === 'videos'
+  ) {
     return (
-      <ImagesWorkspaceView
-        locale={props.locale}
+      <LibraryWorkspaceView
         onClose={props.onClose}
-        onSendToChat={props.onSendToChat}
-      />
-    );
-  }
-
-  if (props.activeSubPage === 'videos') {
-    return (
-      <VideosWorkspaceView
+        request={props.request}
         locale={props.locale}
-        onClose={props.onClose}
-        onSendToChat={props.onSendToChat}
+        initialKind={props.activeSubPage === 'videos' ? 'video' : 'image'}
+        {...(props.refreshToken !== undefined ? { refreshToken: props.refreshToken } : {})}
       />
     );
   }
@@ -51,7 +46,10 @@ export function WorkbenchSubpageStage(props: WorkbenchSubpageStageProps): ReactE
         locale={props.locale}
         onClose={props.onClose}
         request={props.requestFlashcards}
-        onSendToChat={props.onSendToChat}
+        projectPath={props.projectPath}
+        {...(props.onConfigureEmbedding
+          ? { onConfigureEmbedding: props.onConfigureEmbedding }
+          : {})}
       />
     );
   }

@@ -20,7 +20,15 @@ Users fill baseUrl/apiKey/models. Host maps into Pi providers.
 ## Consequences
 
 - Provider UI = form + advanced JSON
-- No vendor login product requirement in v1
+- Channels remain user-configured BYOK / gateway protocols (OpenAI-compatible,
+  Anthropic-compatible, Gemini). OpenRouter is a key channel. Vendor
+  subscription login is a separate Accounts surface for Pi `isSubscription`
+  OAuth (`kimi-coding`, `openai-codex`, `anthropic`, `xai`, `github-copilot`).
+  After login, Host seeds a Models-page Provider with `source: 'subscription'`
+  so the user can inspect params, toggle models, and set defaults. Compile
+  still skips `registerProvider` and uses `{ auth: { kind: 'oauth' } }`.
+  A colliding BYOK channel (not the seeded row) relocates, e.g. `anthropic` →
+  `anthropic-api`.
 - Gateway products (LiteLLM, local proxies) work via OpenAI-compatible
 - OpenAI-compatible streams must provide a terminal `finish_reason`. Missing
   `finish_reason` stays Pi's native protocol/transport error. Host does not

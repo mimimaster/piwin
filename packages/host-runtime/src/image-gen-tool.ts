@@ -12,7 +12,7 @@ import type {
   ModelRouteConfig,
   PiwinConfig,
 } from '@piwin/contracts';
-import { createMediaService } from '@piwin/media';
+import { createMediaService, writeMediaLibraryMeta } from '@piwin/media';
 import type { SecretResolver } from './secret-resolver.js';
 import { findEnabledProvider, getEnabledProviders } from './provider-helpers.js';
 import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
@@ -732,14 +732,27 @@ export function buildImageGenTool(options: ImageGenToolOptions): HostToolRegistr
       });
       const assets = [];
       for (const image of generated) {
-        assets.push(
-          await media.saveMediaAsset({
-            sessionId,
-            bytes: image.bytes,
-            mimeType: image.mimeType,
+        const asset = await media.saveMediaAsset({
+          sessionId,
+          bytes: image.bytes,
+          mimeType: image.mimeType,
+          source: 'generated',
+        });
+        await writeMediaLibraryMeta(
+          { mediaRoot: mediaConfig.mediaRoot },
+          sessionId,
+          asset.id,
+          {
             source: 'generated',
-          }),
+            kind: 'image',
+            createdAt: asset.createdAt,
+            prompt,
+            ...(typeof args.model === 'string' && args.model.trim()
+              ? { model: args.model.trim() }
+              : { model: model.id }),
+          },
         );
+        assets.push(asset);
       }
       const images = assets.map((asset, index) => ({
         path: asset.absolutePath,

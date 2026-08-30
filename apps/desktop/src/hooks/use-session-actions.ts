@@ -27,6 +27,7 @@ import {
   SESSION_TRANSCRIPT_WINDOW_DEFAULT_BEFORE_ITEMS,
   SESSION_USER_MESSAGE_INDEX_DEFAULT_TICKS,
   formatError,
+  toModelRef,
 } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
 import type { ChatUiAction, ChatUiState, SessionListItemUi } from '../chat-reducer';
@@ -65,7 +66,7 @@ import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
 
 export type ModelOption = {
   providerId: string;
-  protocol: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
+  protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
   modelId: string;
   label: string;
   thinkingLevels?: readonly import('@piwin/contracts').ThinkingLevel[];
@@ -255,11 +256,11 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     if (!option) {
       return undefined;
     }
-    return {
-      protocol: option.protocol,
+    return toModelRef({
       providerId: option.providerId,
       modelId: option.modelId,
-    };
+      ...(option.protocol !== undefined ? { protocol: option.protocol } : {}),
+    });
   }, [modelOptions, selectedModelKey]);
 
   const hydrateSessions = useCallback(

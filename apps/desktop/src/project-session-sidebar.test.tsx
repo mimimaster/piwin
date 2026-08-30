@@ -252,6 +252,7 @@ describe('ProjectSessionSidebar resident session lists', () => {
     // Every project remains rendered; only a project's child list folds.
     expect(container.querySelectorAll('[data-testid="repository-item"]')).toHaveLength(8);
     expect(container.querySelectorAll('[data-testid="project-fold-toggle"]')).toHaveLength(1);
+    expect(container.querySelectorAll('.tree-folder-icon')).toHaveLength(8);
     expect(container.querySelector('[data-testid="projects-section-title"]')).not.toBeNull();
   });
 
@@ -674,10 +675,11 @@ describe('ProjectSessionSidebar project row behavior', () => {
     expect(onOpenProject).not.toHaveBeenCalled();
   });
 
-  it('renders a frosted fade between the session list and Knowledge Center', () => {
+  it('keeps the footer fade above settings and has no Knowledge Center door', () => {
     const { container } = renderSidebar();
     expect(container.querySelector('.sidebar-footer-fade')).not.toBeNull();
-    expect(container.querySelector('[data-testid="sidebar-knowledge-btn"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="sidebar-knowledge-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="settings-open-btn"]')).not.toBeNull();
   });
 
   it('keeps inactive project folders collapsed until the user expands them', () => {

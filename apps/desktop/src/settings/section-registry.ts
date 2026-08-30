@@ -14,6 +14,8 @@ export type SettingsSectionId =
   | 'general'
   | 'permissions'
   | 'models'
+  | 'oauth'
+  | 'hooks'
   | 'agent'
   | 'extensions'
   | 'web'
@@ -72,6 +74,8 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'general', group: 'application', labelKey: 'general' },
   { id: 'permissions', group: 'application', labelKey: 'permissions' },
   { id: 'models', group: 'agent', labelKey: 'models' },
+  { id: 'oauth', group: 'agent', labelKey: 'oauth' },
+  { id: 'hooks', group: 'agent', labelKey: 'hooks' },
   { id: 'agent', group: 'agent', labelKey: 'agent' },
   { id: 'extensions', group: 'integrations', labelKey: 'extensions' },
   { id: 'web', group: 'integrations', labelKey: 'web' },

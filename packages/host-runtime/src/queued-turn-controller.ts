@@ -435,7 +435,8 @@ export class QueuedTurnController {
         admission: 'queued-turn',
         input: {
           ...starting.input,
-          source: 'queued-turn',
+          source:
+            starting.input.source === 'voice-delegation' ? 'voice-delegation' : 'queued-turn',
           clientMessageId: starting.userMessageId,
         },
       });
@@ -544,8 +545,17 @@ function validateIdentity(queuedTurnId: string, userMessageId: string): string |
 }
 
 function normalizeInput(input: PromptInput, userMessageId: string): PromptInput {
-  const { source: _source, resumeCheckpointId: _checkpoint, ...rest } = input;
-  return { ...rest, clientMessageId: userMessageId };
+  const { source, resumeCheckpointId: _checkpoint, ...rest } = input;
+  return {
+    ...rest,
+    clientMessageId: userMessageId,
+    ...(source === 'voice-delegation'
+      ? {
+          source,
+          ...(input.voiceCallId !== undefined ? { voiceCallId: input.voiceCallId } : {}),
+        }
+      : {}),
+  };
 }
 
 function queuedTurnFingerprint(input: {

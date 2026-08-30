@@ -5,15 +5,20 @@
 import type { ModelProviderConfig, PiwinConfig } from './config.js';
 import { isModelEnabled, isProviderEnabled, modelSupportsCapability } from './config.js';
 import type { ThinkingLevel } from './host.js';
+import type { ConfiguredChatModelGroup, ModelSource } from './subscription-oauth.js';
 
 export type ConfiguredChatModel = {
   providerId: string;
-  protocol: ModelProviderConfig['protocol'];
+  protocol?: ModelProviderConfig['protocol'];
   modelId: string;
   label?: string;
   thinkingLevel?: ThinkingLevel;
   thinkingLevels?: readonly ThinkingLevel[];
   reasoning?: boolean;
+  contextWindow?: number;
+  maxOutputTokens?: number;
+  source?: ModelSource;
+  group?: ConfiguredChatModelGroup;
 };
 
 export type ConfiguredChatModelsData = {
@@ -34,11 +39,16 @@ export function projectConfiguredChatModels(
       if (!isModelEnabled(model) || !modelSupportsCapability(model, 'chat')) {
         continue;
       }
+      const isSubscription = provider.source === 'subscription';
       const entry: ConfiguredChatModel = {
         providerId: provider.id,
-        protocol: provider.protocol,
         modelId: model.id,
+        source: isSubscription ? 'subscription' : 'channel',
+        group: isSubscription ? 'subscription' : 'channel',
       };
+      if (!isSubscription) {
+        entry.protocol = provider.protocol;
+      }
       if (typeof model.label === 'string' && model.label.trim().length > 0) {
         entry.label = model.label;
       }

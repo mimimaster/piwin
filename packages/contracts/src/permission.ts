@@ -271,10 +271,10 @@ export function resolvePromptPermissionMode(input: {
   agentMode?: AgentModeId;
   configPreset: PermissionPreset;
 }): PermissionMode | undefined {
-  const agentMode = normalizeAgentModeId(input.agentMode);
-  if (input.permissionPreset === undefined && agentMode !== 'plan' && agentMode !== 'ask') {
+  if (input.permissionPreset === undefined) {
     return undefined;
   }
+  const agentMode = normalizeAgentModeId(input.agentMode);
   const preset = input.permissionPreset ?? input.configPreset;
   return resolvePreset(preset, agentMode).mode;
 }

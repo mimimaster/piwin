@@ -52,6 +52,8 @@ describe('projectConfiguredChatModels', () => {
           label: 'DeepSeek V4 Flash',
           thinkingLevel: 'max',
           thinkingLevels: ['off', 'low', 'medium', 'high', 'max'],
+          source: 'channel',
+          group: 'channel',
         },
       ],
     });
@@ -61,5 +63,31 @@ describe('projectConfiguredChatModels', () => {
     expect(serialized).not.toContain('SECRET_ENV');
     expect(serialized).not.toContain('hidden-chat');
     expect(serialized).not.toContain('whisper-1');
+  });
+
+  it('projects a seeded OAuth provider as subscription rows without a BYOK protocol', () => {
+    const projected = projectConfiguredChatModels(
+      config({
+        providers: [
+          {
+            id: 'openai-codex',
+            name: 'ChatGPT Codex',
+            protocol: 'openai-compatible',
+            baseUrl: 'oauth://openai-codex',
+            source: 'subscription',
+            models: [{ id: 'gpt-5.4-codex', label: 'GPT-5.4 Codex' }],
+          },
+        ],
+      }),
+    );
+    expect(projected.models).toEqual([
+      {
+        providerId: 'openai-codex',
+        modelId: 'gpt-5.4-codex',
+        label: 'GPT-5.4 Codex',
+        source: 'subscription',
+        group: 'subscription',
+      },
+    ]);
   });
 });

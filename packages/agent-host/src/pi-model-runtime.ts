@@ -19,18 +19,25 @@ export type PiProviderApi = 'openai-completions' | 'anthropic-messages' | 'googl
 export type PiModelCompat = {
   supportsStore?: boolean;
   supportsDeveloperRole?: boolean;
+  supportsReasoningEffort?: boolean;
   maxTokensField?: 'max_tokens' | 'max_completion_tokens';
   requiresReasoningContentOnAssistantMessages?: boolean;
   thinkingFormat?: 'deepseek';
 };
 
 /**
- * DeepSeek models behind a local OpenAI-compatible gateway cannot be detected
- * from the base URL. Keep this model-id prefix as an explicit compatibility
- * rule: it mirrors Pi's DeepSeek/OpenCode request shape without changing the
- * product protocol or affecting Anthropic/Google registrations.
+ * DeepSeek / Grok behind a local OpenAI-compatible gateway cannot be detected
+ * from the base URL (Pi only keys off provider id and vendor hosts). Keep
+ * these model-id prefixes as explicit compatibility rules: they mirror Pi's
+ * native request shape without changing the product protocol or affecting
+ * Anthropic/Google registrations.
+ *
+ * Grok in particular: Pi disables OpenAI `reasoning_effort` / developer-role
+ * / store on `api.x.ai`. The same fields on a CPA gateway make grok-4.6's
+ * reasoning channel repeat the last thought until the turn finally stops.
  */
 const DEEPSEEK_MODEL_ID_PREFIX = 'deepseek';
+const GROK_MODEL_ID_PREFIX = 'grok';
 
 const DEEPSEEK_OPENAI_COMPAT: PiModelCompat = {
   supportsStore: false,
@@ -40,6 +47,18 @@ const DEEPSEEK_OPENAI_COMPAT: PiModelCompat = {
   thinkingFormat: 'deepseek',
 };
 
+const GROK_OPENAI_COMPAT: PiModelCompat = {
+  supportsStore: false,
+  supportsDeveloperRole: false,
+  supportsReasoningEffort: false,
+};
+
+function openaiCompatModelName(modelId: string): string {
+  const id = modelId.trim().toLowerCase();
+  const slash = id.lastIndexOf('/');
+  return slash >= 0 ? id.slice(slash + 1) : id;
+}
+
 /** Resolve the Pi wire compatibility profile hidden by local gateway URLs. */
 export function resolvePiModelCompat(
   api: PiProviderApi,
@@ -48,8 +67,12 @@ export function resolvePiModelCompat(
   if (api !== 'openai-completions') {
     return undefined;
   }
-  if (modelId.trim().toLowerCase().startsWith(DEEPSEEK_MODEL_ID_PREFIX)) {
+  const modelName = openaiCompatModelName(modelId);
+  if (modelName.startsWith(DEEPSEEK_MODEL_ID_PREFIX)) {
     return { ...DEEPSEEK_OPENAI_COMPAT };
+  }
+  if (modelName.startsWith(GROK_MODEL_ID_PREFIX)) {
+    return { ...GROK_OPENAI_COMPAT };
   }
   return undefined;
 }

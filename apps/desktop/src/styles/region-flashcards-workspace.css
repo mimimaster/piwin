@@ -1,585 +1,564 @@
-/* Region: Flashcards workspace page (workspace-subpages/FlashcardsWorkspaceView).
-   Review-first layout: compact overview rail + immersive flip-card review or
-   library rows. Deck tokens only; colors come from theme/apply-appearance.ts. */
+/* Flashcards workspace — gallery + produce page. Layout chrome lives in region-studio-shell. */
 
-.fcws-stage {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: var(--layer-settings);
+.vault-produce-page {
   display: flex;
+  min-height: 0;
+  flex: 1;
   flex-direction: column;
-  height: 100%;
-  width: 100%;
   overflow: hidden;
-  background: var(--surface-1);
-  animation: deck-fade-in var(--t-2) var(--ease-out);
 }
 
-.fcws-title-badge {
-  background: color-mix(in srgb, var(--mint) 14%, transparent);
-  color: var(--mint);
+.vault-produce-page .knowledge-master-detail-layout {
+  min-height: 0;
+  flex: 1;
 }
 
-/* ── Overview rail ─────────────────────────────────────────────────── */
-.fcws-overview {
+.vault-produce-forget {
+  margin-top: auto;
+  padding: var(--s-3) 0;
+}
+
+/* ── Main Canvas ──────────────────────────────────────────────────── */
+
+.flashcards-main {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 28px 48px;
+  scrollbar-gutter: stable;
+}
+
+/* ── Deck Filter Chips ───────────────────────────────────────────── */
+
+.vault-chips {
   display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
-}
-
-.fcws-overview-due {
-  display: flex;
-  align-items: baseline;
-  justify-content: center;
-  gap: var(--s-2);
-  padding: var(--s-4);
-  background: var(--surface-3);
-  border-radius: var(--r-card);
-}
-
-.fcws-overview-num {
-  font-family: var(--font-mono, monospace);
-  font-size: 28px;
-  font-weight: 700;
-  line-height: 1;
-  color: var(--text-3);
-}
-
-.fcws-overview-due.is-active .fcws-overview-num {
-  color: var(--ember);
-}
-
-.fcws-overview-cap {
-  font-size: var(--fs-chrome);
-  color: var(--text-3);
-}
-
-.fcws-overview-row {
-  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 var(--s-1);
-  font-size: var(--fs-chrome);
-  color: var(--text-3);
+  gap: 8px;
 }
 
-.fcws-overview-row strong {
-  font-family: var(--font-mono, monospace);
-  font-weight: 600;
+.vault-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: var(--fs-chrome);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--t-1) var(--ease-out);
+}
+
+.vault-chip:hover {
+  border-color: var(--line-2);
+  background: var(--surface-3);
   color: var(--text-1);
 }
 
-/* ── Deck list ─────────────────────────────────────────────────────── */
-.fcws-deck-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.vault-chip.is-on {
+  border-color: var(--iris);
+  background: color-mix(in srgb, var(--iris) 12%, var(--surface-2));
+  color: var(--iris);
+  font-weight: 600;
 }
 
-.fcws-deck-row {
+.vault-chip-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--line-2) 60%, transparent);
+  color: inherit;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.vault-chip.is-on .vault-chip-count {
+  background: color-mix(in srgb, var(--iris) 20%, transparent);
+  color: var(--iris);
+}
+
+/* ── Card Gallery Grid ────────────────────────────────────────────── */
+
+.vault-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 18px;
+}
+
+.vault-card {
+  position: relative;
+  min-width: 0;
+}
+
+/* Card Face */
+.vault-card-face,
+.fcws-tile-face {
+  position: relative;
+  z-index: 1;
   display: flex;
+  width: 100%;
+  min-height: 170px;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 18px 20px;
+  border: 1px solid var(--line-1);
+  border-radius: 14px;
+  background: var(--surface-2);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: border-color var(--t-2) var(--ease-out), box-shadow var(--t-2) var(--ease-out);
+}
+
+.vault-card-face:hover,
+.fcws-tile-face:hover {
+  border-color: var(--line-2);
+  box-shadow: 0 8px 20px -4px rgba(0, 0, 0, 0.12);
+}
+
+.vault-card.is-set .vault-card-face {
+  border-left: 3px solid var(--iris);
+}
+
+.vault-card-head {
+  display: flex;
+  width: 100%;
   align-items: center;
   justify-content: space-between;
   gap: var(--s-2);
-  padding: var(--s-2) var(--s-3);
-  border: none;
-  border-radius: var(--r-control);
-  background: transparent;
+}
+
+.vault-card-deck {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
   color: var(--text-2);
-  font-size: var(--fs-chrome);
-  text-align: left;
+  font-size: var(--fs-micro);
+  font-weight: 520;
+}
+
+.vault-deck-icon {
+  color: var(--text-3);
+}
+
+.vault-card-n {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--iris) 15%, transparent);
+  color: var(--iris);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.vault-card-q {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 12px 0 8px;
+  color: var(--text-1);
+  font-size: var(--fs-body);
+  font-weight: 550;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+
+.vault-card-foot {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: flex-end;
+  padding-top: 8px;
+}
+
+.vault-card-cue {
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  transition: color var(--t-1) var(--ease-out);
+}
+
+.vault-card-face:hover .vault-card-cue {
+  color: var(--iris);
+}
+
+.vault-card-delete {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 4;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-control);
+  background: var(--surface-1);
+  color: var(--text-3);
   cursor: pointer;
   transition: background var(--t-1) var(--ease-out), color var(--t-1) var(--ease-out);
 }
 
-.fcws-deck-row:hover {
+.vault-card-delete:hover {
+  background: var(--hover);
+  color: var(--coral, #f43f5e);
+}
+
+/* ── Fullscreen Study Overlay (TearDeck) ───────────────────────────── */
+
+.vault-study-back {
+  position: fixed;
+  inset: 0;
+  z-index: var(--layer-dialog);
+  background: color-mix(in srgb, var(--void, #000) 88%, transparent);
+  animation: vault-fade-in var(--t-2) var(--ease-out);
+}
+
+.vault-study {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+.fcws-tear {
+  display: flex;
+  min-height: 100%;
+  flex: 1;
+  flex-direction: column;
+  padding: 24px 40px 48px;
+}
+
+.fcws-tear-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+  max-width: 680px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.fcws-tear-progress-wrap {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.fcws-tear-count {
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  font-size: var(--fs-chrome);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.fcws-tear-progress-bar {
+  height: 4px;
+  flex: 1;
+  overflow: hidden;
+  border-radius: var(--r-pill);
+  background: var(--line-1);
+}
+
+.fcws-tear-progress-fill {
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--iris);
+  transition: width var(--t-3) var(--ease-out);
+}
+
+.fcws-tear-close {
+  display: inline-flex;
+  height: 30px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-control);
+  background: var(--surface-2);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: all var(--t-1) var(--ease-out);
+}
+
+.fcws-tear-close:hover {
   background: var(--hover);
   color: var(--text-1);
 }
 
-.fcws-deck-row.active {
-  background: var(--iris-wash);
-  color: var(--iris);
-  font-weight: 600;
-}
-
-.fcws-deck-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.fcws-deck-meta {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-  flex-shrink: 0;
-}
-
-.fcws-deck-due {
-  font-style: normal;
-  font-family: var(--font-mono, monospace);
-  font-size: var(--fs-micro);
-  font-weight: 700;
-  color: var(--ember);
-}
-
-.fcws-deck-count {
-  min-width: 22px;
-  padding: 0 var(--s-2);
-  border-radius: var(--r-pill);
-  background: var(--surface-3);
-  color: var(--text-4);
-  font-family: var(--font-mono, monospace);
-  font-size: var(--fs-micro);
-  text-align: center;
-}
-
-/* ── Canvas toolbar ────────────────────────────────────────────────── */
-.fcws-canvas {
+.fcws-tear-stage {
   display: flex;
-  flex-direction: column;
-  gap: var(--s-4);
-}
-
-.fcws-toolbar {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-}
-
-.fcws-filter-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-1);
-  max-width: 220px;
-  height: var(--h-xs);
-  padding: 0 var(--s-3);
-  border: 1px solid var(--line-1);
-  border-radius: var(--r-pill);
-  background: var(--surface-3);
-  color: var(--text-2);
-  font-size: var(--fs-micro);
-  cursor: pointer;
-  transition: all var(--t-1) var(--ease-out);
-}
-
-.fcws-filter-chip:hover {
-  color: var(--coral);
-  border-color: var(--coral);
-}
-
-/* ── Review surface ────────────────────────────────────────────────── */
-.fcws-review-surface {
   flex: 1;
-  width: 100%;
-  max-width: 660px;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--s-4);
-  padding-top: var(--s-5);
-}
-
-.fcws-loading {
-  display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--s-9);
-  color: var(--text-3);
+  padding: 24px 0;
 }
 
-.fcws-progress-head {
+.fcws-tear-card {
   display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  width: 100%;
-  font-size: var(--fs-micro);
-  color: var(--text-4);
-}
-
-.fcws-progress-count {
-  font-family: var(--font-mono, monospace);
-  font-weight: 600;
-}
-
-.fcws-new-badge {
-  padding: 1px 8px;
-  border-radius: var(--r-pill);
-  background: var(--sky);
-  color: var(--surface-1);
-  font-weight: 700;
-}
-
-.fcws-kbd-hints {
-  margin-left: auto;
-  white-space: nowrap;
-}
-
-.fcws-kbd-hints kbd,
-.fcws-rate-btn kbd,
-.fcws-start-hero kbd {
-  font-family: var(--font-mono, monospace);
-  font-size: 10px;
-  padding: 1px 5px;
-  border: 1px solid var(--line-2);
-  border-bottom-width: 2px;
-  border-radius: 4px;
+  min-height: 320px;
+  width: min(600px, 92vw);
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 28px 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-overlay);
   background: var(--surface-3);
-  color: var(--text-2);
-}
-
-.fcws-progress-track {
-  width: 100%;
-  height: 3px;
-  border-radius: var(--r-pill);
-  background: var(--surface-3);
-  overflow: hidden;
-}
-
-.fcws-progress-fill {
-  height: 100%;
-  border-radius: inherit;
-  background: var(--iris-fill);
-  transition: width 320ms var(--ease-out);
-}
-
-/* ── Flip card scene ───────────────────────────────────────────────── */
-.fcws-scene {
-  perspective: 1200px;
-  width: 100%;
+  color: inherit;
+  text-align: left;
   cursor: pointer;
-}
-
-.fcws-flipper {
+  box-shadow: var(--elev-3);
+  transition: all var(--t-2) var(--ease-out);
   position: relative;
-  width: 100%;
-  min-height: 300px;
-  transform-style: preserve-3d;
-  transition: transform 480ms var(--ease-out);
 }
 
-.fcws-flipper.is-flipped {
-  transform: rotateY(180deg);
+.fcws-tear-card:hover {
+  border-color: var(--iris);
+  box-shadow: var(--elev-4);
 }
 
-.fcws-face {
-  position: absolute;
-  inset: 0;
+.fcws-tear-card.is-tearing {
+  opacity: 0.3;
+  transform: translateY(-24px) scale(0.96) rotate(-1.5deg);
+}
+
+.fcws-tear-card-top {
   display: flex;
-  flex-direction: column;
-  gap: var(--s-4);
-  padding: var(--s-6);
-  border: 1px solid var(--line-1);
-  border-radius: var(--r-panel);
-  background: var(--surface-1);
-  box-shadow: var(--elev-2);
-  backface-visibility: hidden;
-}
-
-.fcws-face-front {
   align-items: center;
-  justify-content: center;
-  text-align: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding-bottom: var(--s-3);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
 }
 
-.fcws-face-back {
-  transform: rotateY(180deg);
-}
-
-.fcws-face-tag {
-  display: inline-flex;
+.fcws-tear-meta {
+  display: flex;
   align-items: center;
-  gap: var(--s-1);
-  align-self: flex-start;
-  padding: 2px 10px;
-  border-radius: var(--r-pill);
-  background: var(--iris-wash);
-  color: var(--iris);
+  gap: var(--s-3);
+}
+
+.fcws-tear-deck-name {
   font-size: var(--fs-micro);
   font-weight: 600;
+  color: var(--text-2);
 }
 
-.fcws-face-back .fcws-face-tag.is-answer {
-  background: color-mix(in srgb, var(--mint) 13%, transparent);
-  color: var(--mint);
-}
-
-.fcws-face-text {
-  margin: 0;
-  font-size: 15px;
-  line-height: 1.65;
-  color: var(--text-1);
-  white-space: pre-wrap;
-  overflow-y: auto;
-  flex: 1;
-}
-
-.fcws-face-hint {
+.fcws-tear-tag {
+  font-family: var(--font-mono);
   font-size: var(--fs-micro);
   color: var(--text-4);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .fcws-flipper {
-    transition: none;
-  }
+.fcws-tear-index-tag {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--text-4);
 }
 
-/* ── Rating bar ────────────────────────────────────────────────────── */
-.fcws-rate-bar {
+.fcws-tear-text-wrap {
   display: flex;
-  gap: var(--s-3);
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 0;
+  text-align: center;
+}
+
+.fcws-tear-content {
   width: 100%;
 }
 
-.fcws-rate-btn {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--s-1);
-  padding: var(--s-3);
-  border: 1px solid var(--line-1);
-  border-bottom-width: 2px;
-  border-radius: var(--r-control);
-  background: var(--surface-1);
-  color: var(--text-2);
-  font-size: var(--fs-chrome);
-  cursor: pointer;
-  transition: all var(--t-1) var(--ease-out);
-}
-
-.fcws-rate-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--elev-2);
+.fcws-tear-content p {
+  margin: 0 0 var(--s-3) 0;
   color: var(--text-1);
+  font-size: 17px;
+  font-weight: 550;
+  letter-spacing: -0.015em;
+  line-height: var(--lh-relaxed);
 }
 
-.fcws-rate-btn.tone-again { border-bottom-color: var(--coral); }
-.fcws-rate-btn.tone-hard { border-bottom-color: var(--amber); }
-.fcws-rate-btn.tone-good { border-bottom-color: var(--iris); }
-.fcws-rate-btn.tone-easy { border-bottom-color: var(--mint); }
-
-.fcws-rate-btn.tone-again:hover { background: color-mix(in srgb, var(--coral) 8%, var(--surface-1)); }
-.fcws-rate-btn.tone-hard:hover { background: color-mix(in srgb, var(--amber) 9%, var(--surface-1)); }
-.fcws-rate-btn.tone-good:hover { background: var(--iris-wash); }
-.fcws-rate-btn.tone-easy:hover { background: color-mix(in srgb, var(--mint) 9%, var(--surface-1)); }
-
-/* ── Start hero / empty states ─────────────────────────────────────── */
-.fcws-start-hero {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--s-3);
-  text-align: center;
-  padding: var(--s-9) 0;
+.fcws-tear-content p:last-child {
+  margin-bottom: 0;
 }
 
-.fcws-start-icon {
+.fcws-tear-source-line {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+  padding-top: var(--s-3);
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+.fcws-tear-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  width: 56px;
-  height: 56px;
-  border-radius: var(--r-card);
-  background: var(--ember-wash);
-  color: var(--ember);
+  gap: var(--s-3);
 }
 
-.fcws-start-hero h2 {
+/* ── Completion Celebration ───────────────────────────────────────── */
+
+.fcws-tear-completed {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-4);
+  text-align: center;
+  padding: var(--s-8);
+}
+
+.fcws-tear-completed-icon {
+  display: grid;
+  width: 64px;
+  height: 64px;
+  place-items: center;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--mint, #10b981) 15%, transparent);
+  color: var(--mint, #10b981);
+  margin-bottom: var(--s-2);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--mint, #10b981) 20%, transparent);
+}
+
+.fcws-tear-completed h3 {
   margin: 0;
-  font-size: 17px;
-  font-weight: 700;
   color: var(--text-1);
+  font-size: 24px;
+  font-weight: 650;
 }
 
-.fcws-start-hero p {
+.fcws-tear-completed-desc {
   margin: 0;
-  max-width: 380px;
-  font-size: var(--fs-chrome);
+  color: var(--text-2);
+  font-size: var(--fs-body);
+}
+
+.fcws-tear-completed-actions {
+  margin-top: var(--s-3);
+  display: flex;
+  gap: var(--s-3);
+}
+
+/* ── Empty State ──────────────────────────────────────────────────── */
+
+.vault-empty {
+  display: flex;
+  flex-direction: column;
+  min-height: 320px;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-3);
   color: var(--text-3);
+  text-align: center;
+  padding: 48px var(--s-4);
+}
+
+.vault-empty h2 {
+  margin: 0;
+  color: var(--text-1);
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+
+.vault-empty p {
+  max-width: 440px;
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
   line-height: 1.55;
 }
 
-.fcws-empty-visual {
+.vault-empty-actions {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 52px;
-  height: 52px;
-  border-radius: var(--r-card);
-  background: color-mix(in srgb, var(--mint) 12%, transparent);
-  color: var(--mint);
-}
-
-.fcws-empty-actions {
-  display: flex;
-  gap: var(--s-2);
-}
-
-/* ── Library ───────────────────────────────────────────────────────── */
-.fcws-library {
-  flex: 1;
-  min-height: 0;
-}
-
-.fcws-card-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
   gap: var(--s-3);
+  margin-top: var(--s-4);
 }
 
-.fcws-card-row {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--s-4);
-  padding: var(--s-4);
-  background: var(--surface-1);
-  border: 1px solid var(--line-1);
-  border-radius: var(--r-card);
-  box-shadow: var(--elev-1);
-  transition: box-shadow var(--t-1) var(--ease-out), border-color var(--t-1) var(--ease-out);
-}
+/* ── Dialog ───────────────────────────────────────────────────────── */
 
-.fcws-card-row:hover {
-  border-color: var(--line-2);
-  box-shadow: var(--elev-2);
-}
-
-.fcws-card-row-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-1);
-}
-
-.fcws-card-deck {
-  align-self: flex-start;
-  padding: 1px 8px;
-  border-radius: var(--r-pill);
-  background: var(--iris-wash);
-  color: var(--iris);
-  font-size: var(--fs-micro);
-  font-weight: 600;
-}
-
-.fcws-card-front {
-  margin: 0;
-  font-size: var(--fs-chrome);
-  font-weight: 600;
-  color: var(--text-1);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.fcws-card-back {
-  margin: 0;
-  font-size: var(--fs-chrome);
-  color: var(--text-3);
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.fcws-card-row-side {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: var(--s-2);
-  flex-shrink: 0;
-}
-
-.fcws-state-badge {
-  padding: 1px 8px;
-  border-radius: var(--r-pill);
-  background: var(--surface-3);
-  color: var(--text-3);
-  font-size: var(--fs-micro);
-  white-space: nowrap;
-}
-
-.fcws-state-badge.is-due {
-  background: var(--ember-wash);
-  color: var(--ember);
-  font-weight: 600;
-}
-
-.fcws-card-delete {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border: none;
-  border-radius: var(--r-control);
-  background: transparent;
-  color: var(--text-4);
-  cursor: pointer;
-  transition: all var(--t-1) var(--ease-out);
-}
-
-.fcws-card-delete:hover {
-  background: var(--ember-wash);
-  color: var(--coral);
-}
-
-/* ── Dialogs (ui-kit Dialog contentClassName="fcws-dialog") ────────── */
 .fcws-dialog {
-  width: min(520px, 92vw);
+  width: min(480px, 92vw);
 }
 
 .fcws-dialog-body {
   display: flex;
   flex-direction: column;
-  gap: var(--s-4);
+  gap: var(--s-5);
   padding: var(--s-6);
 }
 
 .fcws-dialog-body h3 {
   margin: 0;
-  font-size: var(--fs-body);
-  font-weight: 700;
   color: var(--text-1);
+  font-size: var(--fs-title);
 }
 
 .fcws-dialog-field {
   display: flex;
   flex-direction: column;
-  gap: var(--s-2);
-}
-
-.fcws-dialog-field > span {
-  font-size: var(--fs-micro);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-4);
-}
-
-.fcws-generate-hint {
-  margin: 0;
-  font-size: var(--fs-chrome);
-  color: var(--text-3);
-  line-height: 1.55;
+  gap: var(--s-3);
 }
 
 .fcws-dialog-footer {
   display: flex;
   justify-content: flex-end;
-  gap: var(--s-2);
-  margin-top: var(--s-2);
+  gap: var(--s-3);
+  margin-top: var(--s-3);
+}
+
+.vault-card-face:focus-visible,
+.fcws-tile-face:focus-visible,
+.vault-card-delete:focus-visible,
+.fcws-tear-close:focus-visible,
+.fcws-tear-card:focus-visible,
+.vault-chip:focus-visible {
+  outline: 2px solid var(--iris);
+  outline-offset: 2px;
+}
+
+@media (max-width: 768px) {
+  .flashcards-main {
+    padding-inline: 16px;
+  }
+  .vault-cards {
+    grid-template-columns: 1fr;
+  }
+  .fcws-tear {
+    padding: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vault-card-face,
+  .fcws-tile-face,
+  .fcws-tear-card,
+  .fcws-tear-progress-fill,
+  .vault-chip {
+    transition: none;
+  }
 }

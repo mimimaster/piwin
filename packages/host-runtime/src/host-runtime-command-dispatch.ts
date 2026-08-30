@@ -7,7 +7,6 @@ import { randomUUID } from 'node:crypto';
 import type {
   HostCommand,
   HostResponse,
-  SettingsDomainImpact,
   SettingsApplyResult,
 } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
@@ -19,6 +18,7 @@ import { handleSessionLiveCommand } from './commands/session-live-commands.js';
 import { handleWalkthroughCancel } from './commands/walkthrough-commands.js';
 
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
+import { applySettingsRuntimeImpact } from './apply-settings-runtime-impact.js';
 import {
   EXTENSION_REGISTRY_MUTATING_COMMANDS,
   TRANSCRIPT_STORE_LEASED_COMMANDS,
@@ -106,48 +106,8 @@ export async function handleCommandWithTranscriptLease(
       // current run. Only runtime-stale domains are recorded.
       if (command.type === 'settings/apply' && domain.type === 'response' && domain.success) {
         const data = domain.data as SettingsApplyResult | null | undefined;
-        if (Array.isArray(data?.changedDomains)) {
-          const changedDomains = data.changedDomains;
-          const settingsConfig = (
-            domain.data as {
-              snapshot?: { config?: import('@piwin/contracts').PiwinConfig };
-            }
-          ).snapshot?.config;
-          if (settingsConfig?.permissions?.mode) {
-            deps.permissionModeFromConfig = settingsConfig.permissions.mode;
-          }
-          if (settingsConfig?.session) {
-            deps.applyRuntimeRetention(settingsConfig.session.runtimeRetention);
-          }
-          const runtimeChanges = changedDomains.filter(
-            (change: SettingsDomainImpact) =>
-              change.runtimeSchemaChanged ?? change.timing === 'new-runtime',
-          );
-          for (const sessionId of deps.sessions.keys()) {
-            const activeGenerationId = deps.runtimeController.getStatus(sessionId).generationId;
-            if (activeGenerationId === undefined || runtimeChanges.length === 0) {
-              continue;
-            }
-            deps.runtimeController.recordSettingsChange(
-              sessionId,
-              runtimeChanges,
-              data.snapshot.runtimeRevision,
-            );
-            void deps.runtimeReplacementEngine
-              .replace({
-                sessionId,
-                targetSettingsRevision: data.snapshot.runtimeRevision,
-                expectedActiveGenerationId: activeGenerationId,
-                when: 'after-current-run',
-              })
-              .catch((error: unknown) => {
-                deps.push({
-                  type: 'host/log',
-                  level: 'warn',
-                  message: `automatic runtime update failed for ${sessionId}: ${formatError(error)}`,
-                });
-              });
-          }
+        if (data && Array.isArray(data.changedDomains)) {
+          applySettingsRuntimeImpact(deps, data);
         }
       }
       return domain;

@@ -5,7 +5,24 @@ import {
   mediaPreviewAssetId,
   readMediaPreviewViaHost,
   resolveTranscriptPreviewUrls,
+  vaultMediaAbsolutePath,
 } from './transcript-media-preview';
+
+describe('vaultMediaAbsolutePath', () => {
+  it('builds the session vault path from home + ids + mime', () => {
+    expect(vaultMediaAbsolutePath('/Users/me', 'sess-1', 'asset-1', 'video/mp4')).toBe(
+      '/Users/me/.piwin/media/sess-1/asset-1.mp4',
+    );
+    expect(vaultMediaAbsolutePath('C:\\Users\\me\\', 'sess-1', 'asset-1', 'video/webm')).toBe(
+      'C:/Users/me/.piwin/media/sess-1/asset-1.webm',
+    );
+  });
+
+  it('rejects path-shaped ids', () => {
+    expect(vaultMediaAbsolutePath('/Users/me', '../x', 'asset-1', 'video/mp4')).toBeNull();
+    expect(vaultMediaAbsolutePath('/Users/me', 'sess-1', 'a/b', 'video/mp4')).toBeNull();
+  });
+});
 
 describe('mediaPreviewAssetId', () => {
   it('skips composer pending chips', () => {
@@ -138,5 +155,75 @@ describe('resolveTranscriptPreviewUrls', () => {
     expect(localSpy).not.toHaveBeenCalled();
     expect(readMedia).toHaveBeenCalledWith({ sessionId: 'sess', assetId: 'asset-1' });
     expect(result.fullUrl).toBe('blob:host');
+  });
+
+  it('reconstructs a redacted video path on the local vault instead of media/read', async () => {
+    const resolveSpy = vi.spyOn(mediaUtils, 'resolveMediaPreviewUrl').mockImplementation(async (path) => {
+      return path.endsWith('/.piwin/media/sess-1/asset-1.mp4') ? 'asset://video-1.mp4' : null;
+    });
+    const readMedia = vi.fn(async () => 'blob:host');
+
+    const result = await resolveTranscriptPreviewUrls({
+      path: '[host-path]',
+      assetId: 'asset-1',
+      sessionId: 'sess-1',
+      isVideo: true,
+      mimeType: 'video/mp4',
+      vaultHome: '/Users/me',
+      readMedia,
+    });
+
+    expect(result).toEqual({
+      thumbUrl: 'asset://video-1.mp4',
+      fullUrl: 'asset://video-1.mp4',
+      ownedThumb: null,
+    });
+    expect(readMedia).not.toHaveBeenCalled();
+    expect(resolveSpy).toHaveBeenCalledWith('/Users/me/.piwin/media/sess-1/asset-1.mp4');
+  });
+
+  it('does not base64-read a video after convertFileSrc misses', async () => {
+    vi.spyOn(mediaUtils, 'resolveMediaPreviewUrl').mockResolvedValue(null);
+    const readMedia = vi.fn(async () => 'blob:host');
+
+    const result = await resolveTranscriptPreviewUrls({
+      path: 'remote-asset:asset-9',
+      assetId: 'asset-9',
+      sessionId: 'sess-1',
+      isVideo: true,
+      mimeType: 'video/mp4',
+      vaultHome: '/Users/me',
+      readMedia,
+    });
+
+    expect(result).toEqual({ thumbUrl: null, fullUrl: null, ownedThumb: null });
+    expect(readMedia).not.toHaveBeenCalled();
+  });
+
+  it('rewrites a local video asset URL to a blob URL so play() can start', async () => {
+    vi.spyOn(mediaUtils, 'resolveMediaPreviewUrl').mockResolvedValue(
+      'http://asset.localhost/clip.mp4',
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(new Uint8Array([1, 2, 3]), { status: 200 })),
+    );
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:playable-video');
+
+    const result = await resolveTranscriptPreviewUrls({
+      path: '/Users/me/.piwin/media/sess/clip.mp4',
+      assetId: 'clip',
+      sessionId: 'sess',
+      isVideo: true,
+      mimeType: 'video/mp4',
+      readMedia: vi.fn(async () => null),
+    });
+
+    expect(result).toEqual({
+      thumbUrl: 'blob:playable-video',
+      fullUrl: 'blob:playable-video',
+      ownedThumb: 'blob:playable-video',
+    });
+    vi.unstubAllGlobals();
   });
 });

@@ -249,6 +249,25 @@ than one shell to the same sessions, Runs, Jobs, MCP supervisor, and data root.
 | M8.8 | Mobile/Web shell spike | client shell consumes Host protocol after M8.6; no independent Agent loop | in progress — real status/list/chat slice |
 | M8.9 | Conversation multi-pane live set (ADR 0063) | Desktop general scope has device-local 1/2/4/8 panes; one deduplicated remote subscription keeps all visible Chats live; Project Agent remains single-stage | done |
 
+### M9 — piwin Live (Provider Registry + work-session delegation)
+
+**Goal**: Desktop speak/listen/interrupt bound to one work session. First-period
+channels: **openai-codex** OAuth and **Gemini API key**. Host owns the call;
+Desktop owns media by `mediaDriverId`. Delegation → Session/Run/Permission
+(ADR 0065).
+
+Specs: [product](./specs/2026-08-28-codex-live-product.md) · [tech](./specs/2026-08-28-codex-live-voice-lane.md) · [provider adapter](./specs/2026-08-29-live-provider-adapter.md) · [plan](./plans/2026-08-28-piwin-live-execution-plan.md)
+
+| # | Task | Exit criteria | Status |
+|---|------|---------------|--------|
+| M9.0 | WP0 docs/ADR/architecture/PRD sync | 双登记台；长期凭证不离 Host，一次性 owner token 例外 | in progress |
+| M9.1 | WP1 双渠道 spike | Codex intelligence 证据或隐藏字段；Gemini constrained token + PCM Go/No-go | planned |
+| M9.2 | WP2–WP5 contracts + registry + Codex 迁移 | Codex 设置/建连/委派回归绿 | planned |
+| M9.3 | WP6–WP7 Gemini adapter + Desktop Driver + 设置 UI | 两家可选、失败自关 | planned |
+| M9.4 | WP8–WP9 transport/hardening + 验收 | §11 自动化与 native matrix | planned |
+
+**Out of M9:** Platform Realtime `realtime-audio` 目录、Host PCM 中继、非 Desktop 持麦、关键词委派。
+
 ---
 
 ## 4. Suggested near-term sequence (next 10 working days)

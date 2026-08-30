@@ -69,6 +69,7 @@ describe('extension-scanner', () => {
     expect(pathGuard).toBeDefined();
     expect(pathGuard?.source).toBe('bundled');
     expect(pathGuard?.description.toLowerCase()).toContain('secret');
+    expect(pathGuard?.hookEvents).toEqual(['tool_call']);
 
     const questionnaire = listed.find((item) => item.id === 'questionnaire');
     expect(questionnaire).toBeDefined();

@@ -11,6 +11,7 @@ import {
   createMediaService,
   assertInsideMediaRoot,
   assertRealPathInsideMediaRoot,
+  writeMediaLibraryMeta,
 } from '@piwin/media';
 import { isModelEnabled } from '@piwin/contracts';
 import type { SecretResolver } from './secret-resolver.js';
@@ -210,6 +211,18 @@ export function buildVideoGenTool(options: VideoGenToolOptions): HostToolRegistr
         mimeType: generated.mimeType,
         source: 'generated',
       });
+      await writeMediaLibraryMeta(
+        { mediaRoot: mediaConfig.mediaRoot },
+        sessionId,
+        asset.id,
+        {
+          source: 'generated',
+          kind: 'video',
+          createdAt: asset.createdAt,
+          prompt,
+          model: model.id,
+        },
+      );
       return {
         ok: true,
         output: JSON.stringify(

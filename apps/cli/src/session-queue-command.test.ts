@@ -152,13 +152,16 @@ describe('session queue CLI helpers', () => {
       queuedTurnId: 'queued-replace',
       userMessageId: 'user-replace',
     });
-    expect(client.handleCommand).toHaveBeenLastCalledWith({
-      type: 'session/replace-run',
-      sessionId: 'session-1',
-      runId: 'run-1',
-      queuedTurnId: 'queued-replace',
-      userMessageId: 'user-replace',
-      input: { text: 'replace text', clientMessageId: 'user-replace' },
-    });
+    expect(client.handleCommand).toHaveBeenLastCalledWith(
+      {
+        type: 'session/replace-run',
+        sessionId: 'session-1',
+        runId: 'run-1',
+        queuedTurnId: 'queued-replace',
+        userMessageId: 'user-replace',
+        input: { text: 'replace text', clientMessageId: 'user-replace' },
+      },
+      expect.any(Object),
+    );
   });
 });

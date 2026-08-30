@@ -8,21 +8,26 @@ export function projectConfiguredChatModelsResponse(data: unknown): ConfiguredCh
   if (Array.isArray(rawModels)) {
     for (const item of rawModels) {
       const model = asRecord(item);
-      if (
-        model === undefined ||
-        typeof model.providerId !== 'string' ||
-        typeof model.modelId !== 'string' ||
-        (model.protocol !== 'openai-compatible' &&
-          model.protocol !== 'anthropic-compatible' &&
-          model.protocol !== 'google-gemini')
-      ) {
+      if (model === undefined || typeof model.providerId !== 'string' || typeof model.modelId !== 'string') {
+        continue;
+      }
+      const protocol = model.protocol;
+      const isChannelProtocol =
+        protocol === 'openai-compatible' ||
+        protocol === 'anthropic-compatible' ||
+        protocol === 'google-gemini';
+      const isSubscription = model.source === 'subscription';
+      if (!isChannelProtocol && !isSubscription) {
         continue;
       }
       const projected: ConfiguredChatModel = {
         providerId: model.providerId,
-        protocol: model.protocol,
         modelId: model.modelId,
+        ...(isSubscription ? { source: 'subscription', group: 'subscription' } : { source: 'channel', group: 'channel' }),
       };
+      if (isChannelProtocol) {
+        projected.protocol = protocol;
+      }
       if (typeof model.label === 'string' && model.label.length > 0) {
         projected.label = model.label;
       }

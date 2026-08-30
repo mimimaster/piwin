@@ -36,9 +36,10 @@ export type UseComposerMediaArgs = {
   /** Authoritative composer prompt model fallback. */
   promptModel?: import('@piwin/contracts').ModelRef | null;
   modelOptions?: Array<{
-    protocol: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
+    protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
     providerId: string;
     modelId: string;
+    source?: import('@piwin/contracts').ModelSource;
     supportsImage?: boolean;
     thinkingLevels?: readonly ThinkingLevel[];
     reasoning?: boolean;
@@ -78,7 +79,7 @@ export type UseComposerMediaArgs = {
   addContextRefFromDrop?: (payload: { absolutePath: string; relativePath: string }) => boolean;
   /** Conversation chat ignores Agent slash modes, skills, and orchestration. */
   conversationChat?: boolean;
-  /** Open Knowledge Center overlay on slash command submit (/knowledge, /notes). */
+  /** Open the flashcards home on slash command submit (/knowledge, /notes). */
   onOpenKnowledge?: (subTab?: 'doccards' | 'cards' | 'wiki') => void;
   /** Open the right-panel Flashcards due queue (/flashcards). */
   onOpenCardsPanel?: () => void;

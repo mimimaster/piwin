@@ -23,6 +23,21 @@ function setInputValue(input: HTMLInputElement | null, value: string): void {
   input.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
+function readSwitch(
+  container: HTMLElement,
+  testId: string,
+): { checked: boolean; disabled: boolean } {
+  const root = container.querySelector(`[data-testid="${testId}"]`);
+  const input =
+    root instanceof HTMLInputElement
+      ? root
+      : root?.querySelector('input[type="checkbox"], input');
+  if (!(input instanceof HTMLInputElement)) {
+    throw new Error(`missing switch ${testId}`);
+  }
+  return { checked: input.checked, disabled: input.disabled };
+}
+
 function makeConfig(): PiwinConfig {
   return {
     hostMode: 'sdk',
@@ -250,6 +265,54 @@ describe('ProviderSettings', () => {
     const openai = saved?.providers.find((p: ModelProviderConfig) => p.id === 'openai');
     expect(openai).toBeTruthy();
     expect(openai?.enabled).toBe(false);
+    expect(openai?.models[0]?.enabled).toBeUndefined();
+  });
+
+  it('shows child models as off when the provider is disabled', async () => {
+    const props = makeProps();
+    props.config = {
+      ...makeConfig(),
+      providers: [
+        {
+          id: 'xgrok',
+          protocol: 'openai-compatible',
+          name: 'xgrok',
+          baseUrl: 'https://xgrok.planora.chat',
+          enabled: false,
+          models: [
+            {
+              id: 'grok-imagine-image-lite',
+              capabilities: ['image-generation'],
+            },
+          ],
+        },
+      ],
+    };
+    const { container, root } = renderProviderSettings(props);
+    instances.push({ container, root });
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="provider-row-expand-xgrok"]')
+        ?.click();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const row = container.querySelector('[data-testid="provider-row-xgrok"]');
+    expect(row?.className).toContain('provider-row--off');
+    expect(
+      container.querySelector('[data-testid="provider-model-row"]')?.className,
+    ).toContain('provider-model-row--off');
+    const modelSwitch = readSwitch(container, 'provider-model-toggle-grok-imagine-image-lite');
+    expect(modelSwitch.checked).toBe(false);
+    expect(modelSwitch.disabled).toBe(true);
+    expect(
+      container.querySelector<HTMLButtonElement>(
+        '[data-testid="provider-model-default-grok-imagine-image-lite"]',
+      )?.disabled,
+    ).toBe(true);
   });
 
   it('saves a new base url from the drawer', async () => {

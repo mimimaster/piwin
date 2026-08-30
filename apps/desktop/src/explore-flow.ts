@@ -13,9 +13,13 @@
  *     break the run.
  *   - A trailing thought (message with reasoning but no tools, e.g. the final
  *     answer's own thinking) folds its thought row into the preceding group.
+ *   - An empty streaming assistant (`message/start` before the first token)
+ *     is a lifecycle placeholder, not a break. Closing the run on it would
+ *     flicker `isLive` and remount the already-emitted tool list.
  *
  * Pure projection: recomputed from message state on every render.
  */
+import { isAssistantContentEmpty } from './assistant-message-content';
 import type { ChatMessageUi, ToolCardUi } from './chat-reducer';
 import { resolveToolClusterKind } from './tool-group-clustering';
 import { resolveGenerationToolKind } from './generation-tool-kind.js';
@@ -88,6 +92,19 @@ function isPureExploreStep(message: ChatMessageUi): boolean {
   const tools = inlineTools(message);
   if (tools.length === 0 && message.thinking.trim().length === 0) return false;
   return tools.every((tool) => isFlowExploratoryTool(tool));
+}
+
+/**
+ * Next API round has a bubble but no thought/tool/text yet. Pi emits this on
+ * every `message/start`; treating it as a break marks the open group settled.
+ */
+function isStreamingLifecyclePlaceholder(message: ChatMessageUi): boolean {
+  return (
+    message.status === 'streaming' &&
+    isAssistantContentEmpty(message) &&
+    message.subagentActivity === undefined &&
+    message.docCardSequence === undefined
+  );
 }
 
 /** Message that keeps its own row but donates its thought to the open group. */
@@ -203,6 +220,11 @@ export function buildExploreFlowRoles(
   for (const message of messages) {
     if (message.role !== 'assistant') {
       closeRun(false);
+      continue;
+    }
+    // Keep the open run live across the empty `message/start` gap. The new
+    // row joins later as a real explore step, fold-thought, or hard break.
+    if (isStreamingLifecyclePlaceholder(message)) {
       continue;
     }
     if (isPureExploreStep(message)) {

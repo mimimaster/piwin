@@ -53,6 +53,7 @@ export function AddModelDialog({
   const [videoGeneration, setVideoGeneration] = useState(false);
   const [speechToText, setSpeechToText] = useState(false);
   const [textToSpeech, setTextToSpeech] = useState(false);
+  const [realtimeAudio, setRealtimeAudio] = useState(false);
   const [nativeWebSearch, setNativeWebSearch] = useState(false);
   const [imageApiStyle, setImageApiStyle] = useState(EMPTY_GENERATION_ROUTE_FIELDS.imageApiStyle);
   const [imagePath, setImagePath] = useState('');
@@ -230,6 +231,7 @@ export function AddModelDialog({
       supportsVideoGeneration: videoGeneration,
       supportsSpeechToText: speechToText,
       supportsTextToSpeech: textToSpeech,
+      supportsRealtimeAudio: realtimeAudio,
       supportsNativeWebSearch: nativeWebSearch,
       reasoning,
       imageApiStyle,
@@ -437,20 +439,11 @@ export function AddModelDialog({
           <label className="add-model-flag">
             <input
               type="checkbox"
-              checked={speechToText}
-              onChange={(event) => setSpeechToText(event.currentTarget.checked)}
-              data-testid="add-model-speech-to-text"
+              checked={realtimeAudio}
+              onChange={(event) => setRealtimeAudio(event.currentTarget.checked)}
+              data-testid="add-model-realtime-audio"
             />
-            {isChinese ? '语音识别（ASR）' : 'Speech recognition (ASR)'}
-          </label>
-          <label className="add-model-flag">
-            <input
-              type="checkbox"
-              checked={textToSpeech}
-              onChange={(event) => setTextToSpeech(event.currentTarget.checked)}
-              data-testid="add-model-text-to-speech"
-            />
-            {isChinese ? '语音合成（TTS）' : 'Speech synthesis (TTS)'}
+            {isChinese ? '实时语音（Live Realtime）' : 'Realtime voice (Live)'}
           </label>
           <label className="add-model-flag">
             <input

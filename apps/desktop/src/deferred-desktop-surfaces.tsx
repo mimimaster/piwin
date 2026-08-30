@@ -13,11 +13,6 @@ export function prefetchSettingsPanel(): Promise<unknown> {
   return loadSettingsPanel();
 }
 
-export const DeferredKnowledgeCenterPanel = lazy(async () => {
-  const module = await import('./KnowledgeCenterPanel');
-  return { default: module.KnowledgeCenterPanel };
-});
-
 export const DeferredFileTreePanel = lazy(async () => {
   const module = await import('./file-tree-panel');
   return { default: module.FileTreePanel };

@@ -48,13 +48,12 @@ export function MobileAccessSettings(): ReactElement {
   );
 
   const refresh = useCallback(async (): Promise<void> => {
-    const request = hostClient?.request;
-    if (!sidecarAvailable || request === undefined) {
+    if (!sidecarAvailable || hostClient?.request === undefined) {
       return;
     }
     const [statusResponse, devicesResponse] = await Promise.all([
-      request({ type: 'mobile-access/status' }),
-      request({ type: 'mobile-access/list-devices' }),
+      hostClient.request({ type: 'mobile-access/status' }),
+      hostClient.request({ type: 'mobile-access/list-devices' }),
     ]);
     if (statusResponse.success) {
       setStatus(readMobileAccessStatusData(statusResponse.data));

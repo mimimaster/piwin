@@ -3,14 +3,10 @@ import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import type { FlashcardModel, HostResponse } from '@piwin/contracts';
+import type { FlashcardModel, HostCommand, HostResponse, MediaLibraryItem } from '@piwin/contracts';
 import { PIWIN_APPEARANCE_DARK } from '../appearance-tokens';
-import {
-  ImagesWorkspaceView,
-  VideosWorkspaceView,
-  FlashcardsWorkspaceView,
-} from './index';
-import type { FlashcardsWorkspaceCommand } from './flashcards/use-flashcards-workspace';
+import { LibraryWorkspaceView, FlashcardsWorkspaceView } from './index';
+import type { FlashcardsHomeCommand } from './FlashcardsWorkspaceView';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -26,14 +22,6 @@ function setInputValue(input: HTMLInputElement | HTMLTextAreaElement | null, val
   const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
   setter?.call(input, value);
   input.dispatchEvent(new Event('input', { bubbles: true }));
-}
-
-/** Select an option on a ui-kit/Mantine SegmentedControl (radio inputs). */
-function selectSegment(root: ParentNode, value: string): void {
-  const input = root.querySelector<HTMLInputElement>(`input[type="radio"][value="${value}"]`);
-  if (!input) return;
-  // React binds radio onChange to click; happy-dom forwards it from here.
-  input.click();
 }
 
 function findButton(root: ParentNode, text: string): HTMLButtonElement | undefined {
@@ -52,7 +40,80 @@ async function flush(times = 8): Promise<void> {
   }
 }
 
-describe('ImagesWorkspaceView', () => {
+/** media/list is debounced 200ms before the host request. */
+async function flushLibrary(): Promise<void> {
+  await act(async () => {
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, 220);
+    });
+  });
+  await flush(12);
+}
+
+function makeLibraryItem(overrides: Partial<MediaLibraryItem> = {}): MediaLibraryItem {
+  return {
+    assetId: 'asset-1',
+    sessionId: 'sess-1',
+    mimeType: 'image/png',
+    byteSize: 2048,
+    createdAt: '2026-08-27T12:00:00.000Z',
+    kind: 'image',
+    prompt: 'neon street',
+    model: 'flux',
+    ...overrides,
+  };
+}
+
+function makeMediaListRequester(items: MediaLibraryItem[]): {
+  request: (command: HostCommand) => Promise<HostResponse>;
+  calls: HostCommand[];
+} {
+  const calls: HostCommand[] = [];
+  return {
+    calls,
+    request: vi.fn(async (command: HostCommand): Promise<HostResponse> => {
+      calls.push(command);
+      if (command.type === 'media/delete') {
+        const index = items.findIndex(
+          (item) =>
+            item.sessionId === command.input.sessionId && item.assetId === command.input.assetId,
+        );
+        if (index >= 0) {
+          items.splice(index, 1);
+        }
+        return {
+          type: 'response',
+          command: 'media/delete',
+          success: true,
+          data: {
+            deleted: index >= 0,
+            sessionId: command.input.sessionId,
+            assetId: command.input.assetId,
+          },
+        };
+      }
+      if (command.type !== 'media/list') {
+        return { type: 'response', command: command.type, success: false, error: 'unexpected' };
+      }
+      const query = command.input.query?.trim().toLowerCase() ?? '';
+      const kind = command.input.kind;
+      const filtered = items.filter((item) => {
+        if (kind !== undefined && item.kind !== kind) {
+          return false;
+        }
+        return query === '' || item.prompt?.toLowerCase().includes(query) === true;
+      });
+      return {
+        type: 'response',
+        command: 'media/list',
+        success: true,
+        data: { items: filtered, total: filtered.length },
+      };
+    }),
+  };
+}
+
+describe('LibraryWorkspaceView', () => {
   let container: HTMLDivElement;
   let root: Root;
 
@@ -70,23 +131,37 @@ describe('ImagesWorkspaceView', () => {
     document.body.innerHTML = '';
   });
 
-  function render(overrides: Partial<Parameters<typeof ImagesWorkspaceView>[0]> = {}): void {
+  function render(overrides: Partial<Parameters<typeof LibraryWorkspaceView>[0]> = {}): void {
+    const request = overrides.request ?? makeMediaListRequester([]).request;
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ImagesWorkspaceView locale="zh-CN" onClose={vi.fn()} {...overrides} />
+          <LibraryWorkspaceView
+            locale="zh-CN"
+            onClose={vi.fn()}
+            request={request}
+            {...overrides}
+          />
         </PiwinUiProvider>,
       );
     });
   }
 
-  it('renders studio chrome and closes via back button', () => {
+  it('renders library chrome and closes via back button', async () => {
     const onClose = vi.fn();
     render({ onClose });
+    await flushLibrary();
 
-    expect(container.textContent).toContain('图片工作室');
+    expect(container.textContent).toContain('图片');
+    expect(container.textContent).toContain('资料库');
+    expect(container.querySelector('[data-testid="library-search"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="library-new-btn"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="library-sort-btn"]')).not.toBeNull();
+    expect(container.querySelector('.lib-composer')).toBeNull();
+    expect(container.querySelector('[data-testid="composer-input"]')).toBeNull();
+    expect(container.querySelector('.vault-bar.is-page')).not.toBeNull();
 
-    const backBtn = container.querySelector<HTMLButtonElement>('[data-testid="images-back-btn"]');
+    const backBtn = container.querySelector<HTMLButtonElement>('[data-testid="library-back-btn"]');
     expect(backBtn).not.toBeNull();
     act(() => {
       backBtn?.click();
@@ -94,73 +169,241 @@ describe('ImagesWorkspaceView', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('sends the composed command to chat and closes', () => {
+  it('sends the header search to media/list', async () => {
+    const fake = makeMediaListRequester([makeLibraryItem()]);
+    render({ request: fake.request });
+    await flushLibrary();
+
+    const input = container.querySelector<HTMLInputElement>('[data-testid="library-search"]');
+    expect(input).not.toBeNull();
+    act(() => {
+      setInputValue(input, 'neon');
+    });
+    await flushLibrary();
+
+    expect(
+      fake.calls.some(
+        (command) => command.type === 'media/list' && command.input.query === 'neon',
+      ),
+    ).toBe(true);
+  });
+
+  it('returns to chat from New → generate', async () => {
     const onClose = vi.fn();
-    const onSendToChat = vi.fn();
-    render({ onClose, onSendToChat });
-
-    const textarea = container.querySelector<HTMLTextAreaElement>(
-      '[data-testid="images-prompt-input"]',
-    );
-    expect(textarea).not.toBeNull();
-    act(() => {
-      setInputValue(textarea ?? null, 'Cyberpunk rainy street');
+    render({
+      onClose,
+      request: makeMediaListRequester([makeLibraryItem()]).request,
     });
+    await flushLibrary();
 
-    const inChatBtn = findButton(container, '在会话生成');
-    expect(inChatBtn).toBeDefined();
+    const newBtn = container.querySelector<HTMLButtonElement>('[data-testid="library-new-btn"]');
+    expect(newBtn).not.toBeNull();
     act(() => {
-      inChatBtn?.click();
+      newBtn?.dispatchEvent(
+        new window.PointerEvent('pointerdown', { bubbles: true, cancelable: true }),
+      );
+      newBtn?.dispatchEvent(
+        new window.PointerEvent('pointerup', { bubbles: true, cancelable: true }),
+      );
+      newBtn?.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
     });
-
-    expect(onSendToChat).toHaveBeenCalledWith(
-      expect.stringContaining('/image Cyberpunk rainy street --ar 1:1'),
-    );
+    const generate = document.querySelector<HTMLElement>('[data-testid="library-new-image"]');
+    expect(generate).not.toBeNull();
+    act(() => {
+      generate?.click();
+    });
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('opens the lightbox with image details when a card is clicked', () => {
+  it('exposes a native window drag region while the library covers shell chrome', async () => {
     render();
+    await flushLibrary();
 
-    const card = container.querySelector<HTMLDivElement>('[data-testid="image-card-img-1"]');
-    expect(card).not.toBeNull();
-    act(() => {
-      card?.click();
-    });
-
-    expect(document.body.textContent).toContain('图片详情');
-    expect(document.body.textContent).toContain('Flux-1.1 Pro');
+    const titlebar = container.querySelector('[data-testid="studio-topbar"]');
+    const dragStrip = container.querySelector('[data-testid="studio-topbar-drag"]');
+    expect(titlebar).not.toBeNull();
+    expect(container.querySelector('.vault-stage')).not.toBeNull();
+    expect(titlebar?.hasAttribute('data-tauri-drag-region')).toBe(true);
+    expect(dragStrip).not.toBeNull();
+    expect(dragStrip?.hasAttribute('data-tauri-drag-region')).toBe(true);
+    expect(
+      container.querySelector('[data-testid="library-back-btn"]')?.closest('[data-no-window-drag]'),
+    ).not.toBeNull();
   });
 
-  it('appends a generated placeholder card to the library', async () => {
-    vi.useFakeTimers();
-    try {
-      render();
-      const before = container.querySelectorAll('[data-testid^="image-card-"]').length;
+  it('lists host vault images instead of the demo set', async () => {
+    render({ request: makeMediaListRequester([makeLibraryItem()]).request });
+    await flushLibrary();
 
-      const textarea = container.querySelector<HTMLTextAreaElement>(
-        '[data-testid="images-prompt-input"]',
-      );
-      act(() => {
-        setInputValue(textarea ?? null, 'A lighthouse in fog');
-      });
-      const generateBtn = findButton(container, '立即生成');
-      act(() => {
-        generateBtn?.click();
-      });
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(1000);
-      });
+    expect(container.querySelector('[data-testid="image-card-asset-1"]')).not.toBeNull();
+    expect(container.textContent).toContain('neon street');
+    expect(container.textContent).not.toContain('Unsplash');
+  });
 
-      const after = container.querySelectorAll('[data-testid^="image-card-"]').length;
-      expect(after).toBe(before + 1);
-    } finally {
-      vi.useRealTimers();
-    }
+  it('does not fetch original media bytes for gallery tiles', async () => {
+    const fake = makeMediaListRequester([makeLibraryItem()]);
+    render({ request: fake.request });
+    await flushLibrary();
+    expect(fake.calls.filter((command) => command.type === 'media/read')).toEqual([]);
+  });
+
+  it('opens the lightbox with image details when a card is clicked', async () => {
+    render({ request: makeMediaListRequester([makeLibraryItem()]).request });
+    await flushLibrary();
+
+    const card = container.querySelector<HTMLDivElement>('[data-testid="image-card-asset-1"]');
+    expect(card).not.toBeNull();
+    act(() => {
+      card?.focus();
+      card?.click();
+    });
+    await flush(2);
+
+    expect(document.body.textContent).toContain('图片详情');
+    expect(document.body.textContent).toContain('flux');
+    expect(document.body.textContent).not.toContain('填入输入框');
+    expect(document.body.textContent).not.toContain('Use in composer');
+    expect(container.querySelector('[role="dialog"][aria-modal="true"]')).not.toBeNull();
+    expect(container.querySelector('.lib-canvas .vault-look-back')).not.toBeNull();
+    expect(document.activeElement?.classList.contains('media-lightbox-close')).toBe(true);
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+    await flush(2);
+    expect(container.querySelector('[data-testid="images-lightbox"]')).toBeNull();
+    expect(document.activeElement).toBe(card);
+  });
+
+  it('shows an empty library when the vault has no images', async () => {
+    render({ request: makeMediaListRequester([]).request });
+    await flushLibrary();
+    expect(container.textContent).toContain('还没有图片');
+  });
+
+  it('deletes a tile through media/delete and removes the card', async () => {
+    const items = [makeLibraryItem()];
+    const fake = makeMediaListRequester(items);
+    render({ request: fake.request });
+    await flushLibrary();
+
+    const deleteBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="media-delete-asset-1"]',
+    );
+    expect(deleteBtn).not.toBeNull();
+    act(() => {
+      deleteBtn?.click();
+    });
+    await flush(8);
+
+    expect(fake.calls).toContainEqual({
+      type: 'media/delete',
+      input: { sessionId: 'sess-1', assetId: 'asset-1' },
+    });
+    expect(container.querySelector('[data-testid="image-card-asset-1"]')).toBeNull();
+    expect(container.textContent).toContain('还没有图片');
+  });
+
+  it('filters images and videos in-page without leaving the library', async () => {
+    const items = [
+      makeLibraryItem(),
+      makeLibraryItem({
+        assetId: 'vid-1',
+        kind: 'video',
+        mimeType: 'video/mp4',
+        prompt: 'drone valley',
+      }),
+    ];
+    render({ request: makeMediaListRequester(items).request });
+    await flushLibrary();
+
+    expect(container.querySelector('[data-testid="library-tab-all"]')).toBeNull();
+    expect(container.querySelector('[data-testid="library-tab-file"]')).toBeNull();
+    expect(container.querySelector('[data-testid="library-tab-images"]')?.getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+
+    // Defaults to Images: image card is present, video is filtered out
+    expect(container.querySelector('[data-testid="image-card-asset-1"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="video-card-vid-1"]')).toBeNull();
+
+    // Switch to Videos tab
+    const videoTab = container.querySelector<HTMLButtonElement>(
+      '[data-testid="library-tab-videos"]',
+    );
+    expect(videoTab).not.toBeNull();
+    act(() => {
+      videoTab?.click();
+    });
+    await flushLibrary();
+    expect(container.querySelector('[data-testid="image-card-asset-1"]')).toBeNull();
+    expect(container.querySelector('[data-testid="video-card-vid-1"]')).not.toBeNull();
+
+    // Switch back to Images tab
+    const imagesTab = container.querySelector<HTMLButtonElement>(
+      '[data-testid="library-tab-images"]',
+    );
+    expect(imagesTab).not.toBeNull();
+    act(() => {
+      imagesTab?.click();
+    });
+    await flushLibrary();
+    expect(container.querySelector('[data-testid="image-card-asset-1"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="video-card-vid-1"]')).toBeNull();
+  });
+
+  it('renders a flat photo grid without magazine chrome', async () => {
+    render({ request: makeMediaListRequester([makeLibraryItem()]).request });
+    await flushLibrary();
+
+    expect(container.querySelector('.lib-grid')).not.toBeNull();
+    expect(container.querySelector('[data-testid="library-search"]')).not.toBeNull();
+    expect(container.textContent).not.toContain('生成内容库');
+    expect(container.textContent).not.toContain('CREATIVE VAULT');
+    expect(container.querySelector('.studio-page-intro')).toBeNull();
+    expect(findButton(container, '小')).toBeUndefined();
+    expect(container.querySelector('.lib-inspiration-wrap')).toBeNull();
+    expect(container.textContent).not.toContain('✦');
+  });
+
+  it('toggles batch mode and displays batch toolbar', async () => {
+    render({ request: makeMediaListRequester([makeLibraryItem()]).request });
+    await flushLibrary();
+
+    const batchBtn = findButton(container, '批量管理');
+    expect(batchBtn).toBeDefined();
+    act(() => {
+      batchBtn?.click();
+    });
+    await flushLibrary();
+
+    expect(container.querySelector('.lib-batch-bar')).not.toBeNull();
+    expect(container.textContent).toContain('退出管理');
+    expect(container.querySelector('.lib-card-batch-cb')).not.toBeNull();
+  });
+
+  it('toggles inspector drawer and displays asset parameters', async () => {
+    render({ request: makeMediaListRequester([makeLibraryItem()]).request });
+    await flushLibrary();
+
+    expect(container.querySelector('[data-testid="library-inspector-drawer"]')).toBeNull();
+
+    const inspectorToggleBtn = container.querySelector<HTMLButtonElement>(
+      'button[title="切换属性面板"]',
+    );
+    expect(inspectorToggleBtn).not.toBeNull();
+    act(() => {
+      inspectorToggleBtn?.click();
+    });
+    await flush(4);
+
+    expect(container.querySelector('[data-testid="library-inspector-drawer"]')).not.toBeNull();
+    expect(container.textContent).toContain('资产检查器');
+    expect(container.textContent).toContain('flux');
   });
 });
 
-describe('VideosWorkspaceView', () => {
+describe('LibraryWorkspaceView videos tab', () => {
   let container: HTMLDivElement;
   let root: Root;
 
@@ -178,48 +421,43 @@ describe('VideosWorkspaceView', () => {
     document.body.innerHTML = '';
   });
 
-  function render(overrides: Partial<Parameters<typeof VideosWorkspaceView>[0]> = {}): void {
+  function render(overrides: Partial<Parameters<typeof LibraryWorkspaceView>[0]> = {}): void {
+    const request = overrides.request ?? makeMediaListRequester([]).request;
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <VideosWorkspaceView locale="en" onClose={vi.fn()} {...overrides} />
+          <LibraryWorkspaceView
+            locale="en"
+            onClose={vi.fn()}
+            request={request}
+            initialKind="video"
+            {...overrides}
+          />
         </PiwinUiProvider>,
       );
     });
   }
 
-  it('renders studio chrome, modes, and duration controls', () => {
+  it('renders studio chrome and an empty library', async () => {
     render();
-
-    expect(container.textContent).toContain('Videos Studio');
-    expect(container.textContent).toContain('Text to Video');
-    expect(container.textContent).toContain('5s');
-    expect(container.textContent).toContain('FPV Drone');
+    await flushLibrary();
+    expect(container.textContent).toContain('Videos');
+    expect(container.textContent).toContain('No videos yet');
   });
 
-  it('sends the composed video command to chat', () => {
-    const onSendToChat = vi.fn();
-    render({ onSendToChat });
-
-    const textarea = container.querySelector<HTMLTextAreaElement>(
-      '[data-testid="videos-prompt-input"]',
-    );
-    act(() => {
-      setInputValue(textarea ?? null, 'Drone soaring through mountains');
+  it('opens the theater modal with video details', async () => {
+    render({
+      request: makeMediaListRequester([
+        makeLibraryItem({
+          assetId: 'vid-1',
+          kind: 'video',
+          mimeType: 'video/mp4',
+          prompt: 'drone valley',
+          model: 'kling',
+        }),
+      ]).request,
     });
-
-    const inChatBtn = findButton(container, 'In Chat');
-    act(() => {
-      inChatBtn?.click();
-    });
-
-    expect(onSendToChat).toHaveBeenCalledWith(
-      expect.stringContaining('/video Drone soaring through mountains --mode text-to-video'),
-    );
-  });
-
-  it('opens the theater modal with video details', () => {
-    render();
+    await flushLibrary();
 
     const card = container.querySelector<HTMLDivElement>('[data-testid="video-card-vid-1"]');
     expect(card).not.toBeNull();
@@ -228,7 +466,8 @@ describe('VideosWorkspaceView', () => {
     });
 
     expect(document.body.textContent).toContain('Video details');
-    expect(document.body.textContent).toContain('Runway Gen-3');
+    expect(document.body.textContent).toContain('kling');
+    expect(container.querySelector('video')?.autoplay).toBe(false);
   });
 });
 
@@ -243,29 +482,17 @@ type FakeStore = {
     front?: string;
     back?: string;
     createdAt: string;
-  }>;
-  queue: Array<{
-    card: {
-      cardId: string;
-      itemId: string;
-      model: FlashcardModel;
-      ordinal: number;
-      deck: string;
-      front: string;
-      back: string;
-      createdAt: string;
-    };
-    state: { cardId: string; due: string; stability: number; difficulty: number; reps: number; lapses: number };
-    isNew: boolean;
+    sequenceId?: string;
+    position?: number;
   }>;
 };
 
 function makeFakeRequester(store: FakeStore): {
-  request: (command: FlashcardsWorkspaceCommand) => Promise<HostResponse>;
-  calls: FlashcardsWorkspaceCommand[];
+  request: (command: FlashcardsHomeCommand) => Promise<HostResponse>;
+  calls: FlashcardsHomeCommand[];
 } {
-  const calls: FlashcardsWorkspaceCommand[] = [];
-  const ok = (command: FlashcardsWorkspaceCommand, data: unknown): HostResponse => ({
+  const calls: FlashcardsHomeCommand[] = [];
+  const ok = (command: FlashcardsHomeCommand, data: unknown): HostResponse => ({
     type: 'response',
     command: command.type,
     success: true,
@@ -273,20 +500,13 @@ function makeFakeRequester(store: FakeStore): {
   });
   return {
     calls,
-    request: vi.fn(async (command: FlashcardsWorkspaceCommand): Promise<HostResponse> => {
+    request: vi.fn(async (command: FlashcardsHomeCommand): Promise<HostResponse> => {
       calls.push(command);
       switch (command.type) {
         case 'flashcards/decks':
           return ok(command, { decks: store.decks });
         case 'flashcards/list':
           return ok(command, { cards: store.cards });
-        case 'flashcards/queue':
-          return ok(command, { queue: store.queue });
-        case 'flashcards/rate': {
-          const entry = store.queue.find((q) => q.card.cardId === command.cardId);
-          if (entry !== undefined) store.queue = store.queue.filter((q) => q !== entry);
-          return ok(command, {});
-        }
         case 'flashcards/delete': {
           store.cards = store.cards.filter((c) => c.id !== command.cardId);
           return ok(command, {});
@@ -302,6 +522,8 @@ function makeFakeRequester(store: FakeStore): {
           });
           return ok(command, { card: {} });
         }
+        case 'config/get':
+          return ok(command, { config: { providers: [] } });
         default:
           return ok(command, {});
       }
@@ -328,28 +550,25 @@ const BASE_STORE: FakeStore = {
       back: 'Value vs function memoization.',
       createdAt: '3d',
     },
-  ],
-  queue: [
     {
-      card: {
-        cardId: 'rc-1',
-        itemId: 'card-1',
-        model: 'basic',
-        ordinal: 0,
-        deck: 'General',
-        front: 'What is KV Cache?',
-        back: 'Key/value activation cache for attention.',
-        createdAt: '2d',
-      },
-      state: {
-        cardId: 'rc-1',
-        due: '2026-01-01T00:00:00Z',
-        stability: 1,
-        difficulty: 5,
-        reps: 0,
-        lapses: 0,
-      },
-      isNew: true,
+      id: 'seq-a',
+      model: 'basic',
+      deck: 'OS',
+      front: 'What is a page table?',
+      back: 'Virtual to physical map.',
+      createdAt: '4d',
+      sequenceId: 'seq_os',
+      position: 1,
+    },
+    {
+      id: 'seq-b',
+      model: 'basic',
+      deck: 'OS',
+      front: 'What is a TLB?',
+      back: 'Translation lookaside buffer.',
+      createdAt: '4d',
+      sequenceId: 'seq_os',
+      position: 2,
     },
   ],
 };
@@ -380,87 +599,87 @@ describe('FlashcardsWorkspaceView', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <FlashcardsWorkspaceView locale="zh-CN" onClose={vi.fn()} request={fake.request} {...overrides} />
+          <FlashcardsWorkspaceView
+            locale="zh-CN"
+            onClose={vi.fn()}
+            request={fake.request}
+            {...overrides}
+          />
         </PiwinUiProvider>,
       );
     });
-    await flush();
+    await flushLibrary();
     return fake;
   }
 
-  it('loads overview numbers, deck list, and start-review hero from the host', async () => {
+  it('opens as a tiled library, not a review ritual', async () => {
     const fake = await renderWith(structuredClone(BASE_STORE));
 
     expect(fake.request).toHaveBeenCalledWith({ type: 'flashcards/decks' });
-    expect(container.textContent).toContain('闪卡记忆中心');
-    expect(container.textContent).toContain('开始复习');
-    expect(container.textContent).toContain('全部卡组');
-    expect(container.textContent).toContain('General');
-    expect(container.textContent).toContain('TypeScript');
+    expect(container.textContent).toContain('闪卡');
+    expect(container.textContent).not.toContain('今日复习');
+    expect(container.textContent).not.toContain('开始复习');
+    expect(container.querySelector('[data-testid="flashcard-tile-card-1"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="flashcard-tile-seq_os"]')).not.toBeNull();
   }, 15000);
 
-  it('reviews: reveal answer then rate advances and finishes the queue', async () => {
-    const store = structuredClone(BASE_STORE);
-    const fake = await renderWith(store);
+  it('exposes a native window drag region while flashcards covers shell chrome', async () => {
+    await renderWith(structuredClone(BASE_STORE));
 
-    const startBtn = container.querySelector<HTMLButtonElement>(
-      '[data-testid="flashcards-review-start"]',
+    const titlebar = container.querySelector('[data-testid="studio-topbar"]');
+    const dragStrip = container.querySelector('[data-testid="studio-topbar-drag"]');
+    expect(titlebar).not.toBeNull();
+    expect(container.querySelector('.vault-stage')).not.toBeNull();
+    expect(titlebar?.hasAttribute('data-tauri-drag-region')).toBe(true);
+    expect(dragStrip).not.toBeNull();
+    expect(dragStrip?.hasAttribute('data-tauri-drag-region')).toBe(true);
+    expect(
+      container
+        .querySelector('[data-testid="flashcards-back-btn"]')
+        ?.closest('[data-no-window-drag]'),
+    ).not.toBeNull();
+  }, 15000);
+
+  it('tears a set in the same window', async () => {
+    await renderWith(structuredClone(BASE_STORE));
+
+    const setTile = container.querySelector<HTMLButtonElement>(
+      '[data-testid="flashcard-tile-seq_os"] .fcws-tile-face',
     );
-    expect(startBtn).not.toBeNull();
     act(() => {
-      startBtn?.click();
+      setTile?.click();
     });
     await flush(2);
 
-    expect(
-      container.querySelector('[data-testid="flashcards-review-front"]')?.textContent,
-    ).toContain('What is KV Cache?');
-
-    // Flip
-    const flipCard = container.querySelector<HTMLDivElement>('[data-testid="flashcards-review-card"]');
+    expect(container.querySelector('[data-testid="flashcards-tear-front"]')?.textContent).toContain(
+      'page table',
+    );
+    expect(container.querySelector('[role="dialog"][aria-modal="true"]')).not.toBeNull();
     act(() => {
-      flipCard?.click();
+      container.querySelector<HTMLButtonElement>('[data-testid="flashcards-tear-next"]')?.click();
     });
-
-    expect(
-      container.querySelector('[data-testid="flashcards-review-back"]')?.textContent,
-    ).toContain('attention');
-
-    // Rate "good" (3rd button)
-    const goodBtn = findButton(container, '记住了');
-    expect(goodBtn).toBeDefined();
-    act(() => {
-      goodBtn?.click();
+    await act(async () => {
+      await new Promise((resolve) => {
+        window.setTimeout(resolve, 280);
+      });
     });
-    await flush();
-
-    const rateCall = fake.calls.find((c) => c.type === 'flashcards/rate');
-    expect(rateCall).toMatchObject({ type: 'flashcards/rate', cardId: 'rc-1', rating: 'good' });
-
-    // Queue exhausted → completion surface, host reloaded
-    expect(container.textContent).toContain('今日复习已全部完成');
-    expect(fake.calls.filter((c) => c.type === 'flashcards/queue').length).toBeGreaterThanOrEqual(2);
+    await flush(2);
+    expect(container.querySelector('[data-testid="flashcards-tear-front"]')?.textContent).toContain(
+      'TLB',
+    );
   }, 15000);
 
-  it('library lists rows and deletes through the host command', async () => {
+  it('deletes a tile through the host command', async () => {
     const store = structuredClone(BASE_STORE);
     const fake = await renderWith(store);
 
-    act(() => {
-      selectSegment(container, 'library');
-    });
-
-    expect(
-      container.querySelector('[data-testid="flashcard-row-card-2"]'),
-    ).not.toBeNull();
-
     const deleteBtn = container.querySelector<HTMLButtonElement>(
-      '[data-testid="flashcard-row-card-2"] .fcws-card-delete',
+      '[data-testid="flashcard-delete-card-2"]',
     );
     act(() => {
       deleteBtn?.click();
     });
-    await flush();
+    await flushLibrary();
 
     expect(fake.calls).toContainEqual({ type: 'flashcards/delete', cardId: 'card-2' });
     expect(store.cards.some((c) => c.id === 'card-2')).toBe(false);
@@ -470,7 +689,7 @@ describe('FlashcardsWorkspaceView', () => {
     const store = structuredClone(BASE_STORE);
     const fake = await renderWith(store);
 
-    const addBtn = findButton(container, '新增卡片');
+    const addBtn = findButton(container, '新增');
     act(() => {
       addBtn?.click();
     });
@@ -486,12 +705,12 @@ describe('FlashcardsWorkspaceView', () => {
     });
 
     const saveBtn = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find(
-      (b) => b.textContent?.includes('保存卡片'),
+      (b) => b.textContent?.includes('保存') && !b.textContent?.includes('新增'),
     );
     act(() => {
       saveBtn?.click();
     });
-    await flush();
+    await flushLibrary();
 
     expect(fake.calls).toContainEqual({
       type: 'flashcards/create',
@@ -499,33 +718,52 @@ describe('FlashcardsWorkspaceView', () => {
     });
   }, 15000);
 
-  it('AI generation hands off to chat and closes the page', async () => {
-    const store = structuredClone(BASE_STORE);
-    const onSendToChat = vi.fn();
-    const onClose = vi.fn();
-    await renderWith(store, { onSendToChat, onClose });
+  it('jumps into the knowledge-center produce loop on the same page', async () => {
+    window.localStorage.removeItem('piwin.doccards.recent_folders');
+    await renderWith(structuredClone(BASE_STORE));
 
-    const aiBtn = findButton(container, 'AI 生成');
+    const produceBtn = findButton(container, '出卡');
+    expect(produceBtn).toBeDefined();
     act(() => {
-      aiBtn?.click();
+      produceBtn?.click();
+    });
+    await flush(4);
+
+    expect(container.querySelector('[data-testid="flashcards-produce"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="knowledge-project-list"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="hero-pick-folder-btn"]')).not.toBeNull();
+    expect(container.querySelector('.vault-sheet')).toBeNull();
+  });
+
+  it('does not render an in-page workspace switcher', async () => {
+    await renderWith(structuredClone(BASE_STORE));
+
+    expect(container.querySelector('[data-testid="studio-tab-images"]')).toBeNull();
+    expect(container.querySelector('[data-testid="studio-tab-flashcards"]')).toBeNull();
+  });
+
+  it('filters flashcards by deck tag', async () => {
+    const store = structuredClone(BASE_STORE);
+    store.cards.push({
+      id: 'custom-card-1',
+      model: 'basic',
+      deck: 'SpecialDeck',
+      front: 'Special Question',
+      back: 'Special Answer',
+      createdAt: '2026-08-27T12:00:00.000Z',
+    });
+    await renderWith(store);
+
+    const deckChip = container.querySelector<HTMLButtonElement>(
+      '[data-testid="flashcards-deck-SpecialDeck"]',
+    );
+    expect(deckChip).not.toBeNull();
+    act(() => {
+      deckChip?.click();
     });
     await flush(2);
 
-    const topicBox = document.body.querySelector<HTMLTextAreaElement>(
-      '[data-testid="flashcards-generate-dialog"] textarea',
-    );
-    act(() => {
-      setInputValue(topicBox ?? null, 'Transformer attention');
-    });
-
-    const genBtn = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find(
-      (b) => b.textContent?.includes('在会话中生成'),
-    );
-    act(() => {
-      genBtn?.click();
-    });
-
-    expect(onSendToChat).toHaveBeenCalledWith('/doccards generate "Transformer attention"');
-    expect(onClose).toHaveBeenCalled();
-  }, 15000);
+    expect(container.textContent).toContain('Special Question');
+    expect(container.textContent).not.toContain('page table');
+  });
 });

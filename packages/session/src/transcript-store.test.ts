@@ -336,7 +336,7 @@ describe('SessionTranscriptStore queued turns', () => {
       input: {
         text: 'same turn',
         clientMessageId: 'user-idempotent',
-        agentMode: 'plan',
+        agentMode: 'goal',
       },
       fingerprint: 'same-fingerprint',
       submittedAt: '2026-08-15T10:00:00.000Z',
@@ -348,7 +348,7 @@ describe('SessionTranscriptStore queued turns', () => {
       userMessageId: 'user-idempotent',
       mode: 'next',
       input: {
-        agentMode: 'plan',
+        agentMode: 'goal',
         clientMessageId: 'user-idempotent',
         text: 'same turn',
       },

@@ -11,7 +11,9 @@ BYOK（Bring Your Own Key) 懂得都懂，这里在废话多说几句，现在�
 如果有CPA、su2api、newapi之类的工具不支持2API的套餐，可以自行使用agent工具检索github库，必然有你想要的答案
 
 ## Provider
-Provider暂时只支持BYOK形式，请自行配置；
+通道（Channel）是 BYOK / 网关：Anthropic API Key、OpenRouter key、Ollama、本机 CPA（常见 `http://127.0.0.1:8317/v1`）等。已有 `anthropic` 通道时，登录 Claude 套餐会把它改名为 `anthropic-api`。
+
+套餐账号（Account）是另一层：设置 → **OAuth 登录** 登录 Kimi Code、ChatGPT Codex、Claude Pro/Max、Grok、GitHub Copilot，凭证写在 Pi 的 `~/.pi/agent/auth.json`，不会塞进通道 `apiKeyRef`。OpenRouter 仍是通道 Key。CLI：`piwin auth status | login <kimi-coding|openai-codex|anthropic|xai|github-copilot> | logout <id>`。
 
 
 

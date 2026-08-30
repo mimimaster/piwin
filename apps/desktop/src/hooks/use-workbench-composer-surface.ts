@@ -142,5 +142,6 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
     onSteerQueueSendNow: composer.handleSteerQueueSendNow,
     onSteerQueueEdit: composer.handleSteerQueueEdit,
     onSteerQueueRemove: composer.handleSteerQueueRemove,
+    ensureSession: session.ensureSession,
   });
 }

@@ -306,20 +306,12 @@ export function ModelEditPopover(props: ModelEditPopoverProps): ReactElement {
             testId="model-edit-video-generation"
           />
           <FieldCheckbox
-            label={isChinese ? '语音识别（ASR）' : 'Speech recognition (ASR)'}
-            checked={localDraft.supportsSpeechToText}
+            label={isChinese ? '实时语音（Live）' : 'Realtime voice (Live)'}
+            checked={localDraft.supportsRealtimeAudio}
             onCheckedChange={(checked) =>
-              updateDraft((current) => ({ ...current, supportsSpeechToText: checked }))
+              updateDraft((current) => ({ ...current, supportsRealtimeAudio: checked }))
             }
-            testId="model-edit-speech-to-text"
-          />
-          <FieldCheckbox
-            label={isChinese ? '语音合成（TTS）' : 'Speech synthesis (TTS)'}
-            checked={localDraft.supportsTextToSpeech}
-            onCheckedChange={(checked) =>
-              updateDraft((current) => ({ ...current, supportsTextToSpeech: checked }))
-            }
-            testId="model-edit-text-to-speech"
+            testId="model-edit-realtime-audio"
           />
         </div>
 

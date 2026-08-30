@@ -20,7 +20,8 @@
   },
   "dependencies": {
     "@piwin/contracts": "workspace:*",
-    "pdfjs-dist": "4.10.38"
+    "pdfjs-dist": "4.10.38",
+    "sharp": "^0.35.4"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",

@@ -198,7 +198,12 @@ export type PromptInput = {
    */
   delegationMode?: 'auto' | 'disabled';
   /** Internal Host continuation source; normal clients should omit this. */
-  source?: 'user' | 'resume' | 'queued-turn';
+  source?: 'user' | 'resume' | 'queued-turn' | 'voice-delegation';
+  /**
+   * When `source` is `voice-delegation`, product Live call id (never upstream
+   * provider event ids or audio metadata).
+   */
+  voiceCallId?: string;
   /** Internal Host checkpoint reference used by session/resume-run. */
   resumeCheckpointId?: string;
 };
@@ -263,11 +268,33 @@ export type SessionPresentation = {
   cardIds: string[];
 };
 
+export type ModelProtocol = 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
+
 export type ModelRef = {
-  protocol: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
   providerId: string;
   modelId: string;
+  protocol?: ModelProtocol;
+  source?: import('./subscription-oauth.js').ModelSource;
 };
+
+export function toModelRef(input: {
+  providerId: string;
+  modelId: string;
+  protocol?: ModelProtocol;
+  source?: import('./subscription-oauth.js').ModelSource;
+}): ModelRef {
+  const ref: ModelRef = {
+    providerId: input.providerId,
+    modelId: input.modelId,
+  };
+  if (input.protocol !== undefined) {
+    ref.protocol = input.protocol;
+  }
+  if (input.source !== undefined) {
+    ref.source = input.source;
+  }
+  return ref;
+}
 
 export type SessionSummary = {
   id: string;

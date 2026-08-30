@@ -533,10 +533,37 @@ export function isSafeRemoteCommand(command: HostCommand): boolean {
       return (
         /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(command.input.sessionId) &&
         /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(command.input.assetId) &&
+        (command.input.variant === undefined ||
+          command.input.variant === 'full' ||
+          command.input.variant === 'thumb') &&
+        (command.input.thumbEdge === undefined ||
+          command.input.thumbEdge === 256 ||
+          command.input.thumbEdge === 384) &&
         (command.input.maxBytes === undefined ||
           (Number.isSafeInteger(command.input.maxBytes) &&
             command.input.maxBytes >= 1024 &&
             command.input.maxBytes <= 8 * 1024 * 1024))
+      );
+    case 'media/list': {
+      const input = command.input;
+      if (!isRecord(input)) {
+        return false;
+      }
+      return (
+        (input.kind === undefined ||
+          input.kind === 'image' ||
+          input.kind === 'video' ||
+          input.kind === 'file') &&
+        (input.query === undefined || input.query.length <= 512) &&
+        (input.cursor === undefined || input.cursor.length <= 512) &&
+        (input.limit === undefined ||
+          (Number.isSafeInteger(input.limit) && input.limit > 0 && input.limit <= 80))
+      );
+    }
+    case 'media/delete':
+      return (
+        /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(command.input.sessionId) &&
+        /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(command.input.assetId)
       );
     case 'host/runtime-resources':
       return true;

@@ -8,6 +8,7 @@ import {
   goShellForward,
   leaveSettingsRoute,
   pushShellRoute,
+  resolveShellSubPage,
 } from './shell-navigation';
 
 describe('shell navigation stack', () => {
@@ -75,6 +76,12 @@ describe('shell navigation stack', () => {
       section: 'skills',
     });
     expect(canGoShellForward(reopened)).toBe(false);
+  });
+
+  it('maps the retired knowledge overlay onto the flashcards home', () => {
+    expect(resolveShellSubPage({ kind: 'knowledge' })).toBe('flashcards');
+    expect(resolveShellSubPage({ kind: 'flashcards' })).toBe('flashcards');
+    expect(resolveShellSubPage({ kind: 'workspace' })).toBeNull();
   });
 
   it('leaveSettingsRoute returns to workspace without inventing extra entries', () => {

@@ -28,13 +28,14 @@ import type { ComposerDockProps, ComposerModelOption } from '../composer-dock';
 import type { ComposerPlusSubmenu } from '../composer-plus-menu';
 import { saveDesktopHostLaunchMode } from '../desktop-host-launch';
 import type { HostClient } from '../host-client';
-import type {
-  AddContextRefResult,
-  PendingContextRefItem,
-} from './use-composer-context-refs';
+import type { AddContextRefResult, PendingContextRefItem } from './use-composer-context-refs';
 import type { ExtensionUiRequestState } from './use-host-bootstrap';
 import type { PendingComposerAttachment } from '../media-utils';
 import type { OrchestrationSchemeOption } from '../OrchestrationSchemeControl';
+import { showErrorNotification } from '@piwin/ui-kit';
+import { useDesktopLocale } from '../desktop-locale-context.js';
+import { liveStartErrorLabel, useLiveCall, type LiveCallController } from '../live/use-live-call.js';
+import { readDelegatedTurnResult } from '../live/live-session-result.js';
 import {
   clearDesktopRemoteHostTarget,
   formatDesktopRemoteHostDisplay,
@@ -128,11 +129,13 @@ export type UseComposerDockPropsArgs = {
   onSteerQueueSendNow: (messageId: string) => void | Promise<void>;
   onSteerQueueEdit: (messageId: string, text: string) => void;
   onSteerQueueRemove: (messageId: string) => void;
+  ensureSession: () => Promise<string | null>;
 };
 
 export function useComposerDockProps(args: UseComposerDockPropsArgs): {
   composerCard: ComposerDockProps;
   composerLayoutMode: 'centered' | 'docked';
+  live: LiveCallController;
 } {
   const {
     hostClient,
@@ -209,7 +212,20 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
     onSteerQueueSendNow,
     onSteerQueueEdit,
     onSteerQueueRemove,
+    ensureSession,
   } = args;
+
+  const { locale } = useDesktopLocale();
+  const live = useLiveCall({
+    hostClient,
+    sessionId: state.activeSessionId,
+    ensureSession,
+    sessionStreaming: state.streaming === true,
+    lastAssistant: readDelegatedTurnResult(state.messages),
+    onFail: (error) => {
+      showErrorNotification(liveStartErrorLabel(error, locale === 'zh-CN'));
+    },
+  });
 
   const composerLayoutMode = resolveComposerLayoutMode({
     messageCount: state.messages.length,
@@ -411,6 +427,23 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       onOpenModelSettings: handleOpenModelSettings,
       speechConfigured,
       speechRequest,
+      live: {
+        enabled: true,
+        canStart: live.canStart,
+        starting: live.starting,
+        call: live.call,
+        error: live.error,
+        missing: live.status?.missing ?? [],
+        onStart: () => {
+          void live.start();
+        },
+        onMute: (muted) => {
+          void live.setMuted(muted);
+        },
+        onEnd: () => {
+          void live.end();
+        },
+      },
       ...(hostStatus !== undefined ? { hostStatus } : {}),
       hostReady: state.hostReady,
       hostMock: state.hostMock,
@@ -522,6 +555,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       setPlusSubmenu,
       speechConfigured,
       speechRequest,
+      live,
       state.activeScope.kind,
       state.activeSessionId,
       state.foregroundAdmission,
@@ -541,5 +575,5 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
     ],
   );
 
-  return { composerCard, composerLayoutMode };
+  return { composerCard, composerLayoutMode, live };
 }

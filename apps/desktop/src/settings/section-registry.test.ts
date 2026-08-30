@@ -14,6 +14,8 @@ const ALL_SECTION_IDS: SettingsSectionId[] = [
   'general',
   'permissions',
   'models',
+  'oauth',
+  'hooks',
   'agent',
   'extensions',
   'web',
@@ -70,6 +72,8 @@ describe('section registry', () => {
     expect(isLegacySettingsSectionId('usage')).toBe(false);
     expect(isLegacySettingsSectionId('image-generation')).toBe(true);
     expect(normalizeSettingsSection('image-generation')).toBe('models');
+    expect(normalizeSettingsSection('oauth')).toBe('oauth');
+    expect(normalizeSettingsSection('hooks')).toBe('hooks');
     expect(Object.keys(LEGACY_SETTINGS_REDIRECTS).length).toBeGreaterThanOrEqual(13);
   });
 });

@@ -9,6 +9,7 @@ import {
   type ExtensionsConfig,
 } from '@piwin/contracts';
 import { createExtensionRevisionStore } from '@piwin/extensions';
+import { readExtensionHookEvents } from './detect-extension-hooks.js';
 import { getPiwinExtensionsDir } from './paths.js';
 
 export type ScanExtensionsOptions = {
@@ -35,6 +36,7 @@ export async function scanExtensions(options: ScanExtensionsOptions): Promise<Ex
         .sort((left, right) => right.installedAt.localeCompare(left.installedAt))[0];
     if (!selected) continue;
     managedIds.add(record.id);
+    const hookEvents = await readExtensionHookEvents(selected.entryPath);
     results.push({
       id: record.id,
       name: record.name,
@@ -47,6 +49,7 @@ export async function scanExtensions(options: ScanExtensionsOptions): Promise<Ex
       ...(selected.version ? { version: selected.version } : {}),
       configuredEnabled: record.configuredEnabled,
       ...(record.selectedRevision ? { selectedRevision: record.selectedRevision } : {}),
+      ...(hookEvents ? { hookEvents: [...hookEvents] } : {}),
     });
   }
   const roots: Array<{ path: string; source: ExtensionSource }> = [
@@ -200,6 +203,7 @@ async function buildExtensionSummary(
   const pathForLoader = directoryPath ?? entryPath;
   const resolvedSource: ExtensionSource =
     source === 'user' && (await isBundledMarker(entryPath)) ? 'bundled' : source;
+  const hookEvents = await readExtensionHookEvents(entryPath);
   return {
     id,
     name,
@@ -208,6 +212,7 @@ async function buildExtensionSummary(
     path: pathForLoader,
     enabled: true,
     configuredEnabled: true,
+    ...(hookEvents ? { hookEvents: [...hookEvents] } : {}),
   };
 }
 

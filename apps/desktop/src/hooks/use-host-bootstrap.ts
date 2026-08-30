@@ -455,7 +455,12 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
           if (snapshot?.config) {
             setConfig(mergeSettingsViewConfig(snapshot.config));
           }
+          await applyConfiguredChatModels(hostClient, setConfiguredChatModels, args.setSelectedModelKey);
         })();
+        return;
+      }
+      if (message.type === 'auth/updated' || message.type === 'auth/login-finished') {
+        void applyConfiguredChatModels(hostClient, setConfiguredChatModels, args.setSelectedModelKey);
         return;
       }
       if (message.type === 'session/name-updated') {
@@ -678,15 +683,15 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
             const nextConfig = data?.config;
             if (nextConfig !== undefined) {
               setConfig(nextConfig);
-              applyBootstrapSelectedModelKey(
-                args.setSelectedModelKey,
-                nextConfig.defaultProviderId,
-                nextConfig.defaultModelId,
-              );
             }
           }
+          await applyConfiguredChatModels(
+            hostClient,
+            setConfiguredChatModels,
+            args.setSelectedModelKey,
+          );
         } else {
-          await applyRemoteConfiguredModels(
+          await applyConfiguredChatModels(
             hostClient,
             setConfiguredChatModels,
             args.setSelectedModelKey,
@@ -750,7 +755,7 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
     void (async () => {
       try {
         if (args.hostClient.getTransport() === 'remote') {
-          await applyRemoteConfiguredModels(
+          await applyConfiguredChatModels(
             args.hostClient,
             setConfiguredChatModels,
             args.setSelectedModelKey,
@@ -772,14 +777,13 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         }
         const data = configResponse.data as { config?: PiwinConfig } | undefined;
         const nextConfig = data?.config;
-        if (nextConfig === undefined) {
-          return;
+        if (nextConfig !== undefined) {
+          setConfig(nextConfig);
         }
-        setConfig(nextConfig);
-        applyBootstrapSelectedModelKey(
+        await applyConfiguredChatModels(
+          args.hostClient,
+          setConfiguredChatModels,
           args.setSelectedModelKey,
-          nextConfig.defaultProviderId,
-          nextConfig.defaultModelId,
         );
       } catch {
         // Keep the shell up; the next ready epoch retries.
@@ -870,7 +874,7 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
   };
 }
 
-async function applyRemoteConfiguredModels(
+async function applyConfiguredChatModels(
   hostClient: HostClient,
   setConfiguredChatModels: Dispatch<SetStateAction<ConfiguredChatModelsData>>,
   setSelectedModelKey: Dispatch<SetStateAction<string>>,

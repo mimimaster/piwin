@@ -6,6 +6,7 @@
   "permissions": [
     "core:default",
     "barcode-scanner:default",
+    "websocket:default",
     "allow-mobile-credential-read",
     "allow-mobile-credential-write",
     "allow-mobile-credential-clear",

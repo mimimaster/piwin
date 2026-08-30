@@ -358,6 +358,14 @@
   pointer-events: auto;
 }
 
+.user-message-source {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--fs-mono);
+  line-height: 1;
+  color: var(--text-4);
+}
+
 .user-message-time {
   display: inline-flex;
   align-items: center;

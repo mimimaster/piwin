@@ -140,8 +140,7 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
         reasoning: '推理',
         imageGen: '生图',
         videoGen: '视频',
-        asr: '语音识别',
-        tts: '语音合成',
+        realtime: '实时语音',
         nativeSearch: providerCopy.nativeSearch,
         cancel: '取消',
         save: '保存',
@@ -159,8 +158,7 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
         reasoning: 'Reasoning',
         imageGen: 'Image gen',
         videoGen: 'Video',
-        asr: 'ASR',
-        tts: 'TTS',
+        realtime: 'Realtime',
         nativeSearch: providerCopy.nativeSearch,
         cancel: 'Cancel',
         save: 'Save',
@@ -306,32 +304,17 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
         <label className="model-edit-inline-cap">
           <input
             type="checkbox"
-            checked={localDraft.supportsSpeechToText}
+            checked={localDraft.supportsRealtimeAudio}
             onChange={(event: ChangeEvent<HTMLInputElement>) =>
               updateDraft((current) => ({
                 ...current,
-                supportsSpeechToText: event.target.checked,
+                supportsRealtimeAudio: event.target.checked,
               }))
             }
-            data-testid="model-edit-speech-to-text"
+            data-testid="model-edit-realtime-audio"
             disabled={disabled}
           />
-          <span>{t.asr}</span>
-        </label>
-        <label className="model-edit-inline-cap">
-          <input
-            type="checkbox"
-            checked={localDraft.supportsTextToSpeech}
-            onChange={(event: ChangeEvent<HTMLInputElement>) =>
-              updateDraft((current) => ({
-                ...current,
-                supportsTextToSpeech: event.target.checked,
-              }))
-            }
-            data-testid="model-edit-text-to-speech"
-            disabled={disabled}
-          />
-          <span>{t.tts}</span>
+          <span>{t.realtime}</span>
         </label>
         <label className="model-edit-inline-cap">
           <input

@@ -144,11 +144,11 @@ export function toPiBackendCustomTools(
 function formatBackendToolExecutionError(code: string, message: string): string {
   switch (code) {
     case 'tool-not-available':
-      return `Tool not available: ${message}`;
+      return message.startsWith('Tool not available') ? message : `Tool not available: ${message}`;
     case 'tool-disabled':
-      return `Tool disabled: ${message}`;
+      return message.startsWith('Tool disabled') ? message : `Tool disabled: ${message}`;
     case 'permission-denied':
-      return `Permission denied: ${message}`;
+      return message.startsWith('Permission denied') ? message : `Permission denied: ${message}`;
     case 'aborted':
       return 'Tool execution aborted';
     default:

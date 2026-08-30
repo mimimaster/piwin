@@ -1,8 +1,227 @@
-/* Region: settings → models capability defaults (ASR/TTS).
+/* Region: settings → models capability defaults (piwin Live / Speech).
+   Clean, flat, icon-dense layout matching desktop design system. */
 
-   Deck rule: a reserved (not-yet-available) card recesses instead of fading.
-   Opacity on a card takes its text with it and leaves a grey smear; dropping
-   it to the void step says "inactive" while keeping every word readable. */
+.settings-speech-panel {
+  min-width: 0;
+  width: 100%;
+}
+
+/* ── piwin Live Panel ──────────────────────────────────────────────────── */
+
+.speech-live-panel {
+  display: flex;
+  min-width: 0;
+  width: 100%;
+  flex-direction: column;
+  padding: var(--s-6);
+  border: 0;
+  border-radius: var(--r-card);
+  background: var(--surface-2);
+  box-shadow: var(--elev-1);
+}
+
+.speech-live-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  min-width: 0;
+  padding-bottom: var(--s-5);
+  border-bottom: 1px solid var(--line-1);
+}
+
+.speech-live-title-group {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  min-width: 0;
+}
+
+.speech-live-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border-radius: var(--r-control);
+  color: var(--iris-lift);
+  background: var(--iris-wash);
+}
+
+.speech-live-title-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.speech-live-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+
+.speech-live-title-row h3 {
+  margin: 0;
+  color: var(--text-1);
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+}
+
+.speech-live-hint-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: 2px var(--s-3);
+  border-radius: var(--r-pill);
+  background: var(--hover);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.speech-live-hint-badge svg {
+  color: var(--iris-lift);
+}
+
+/* ── Live Form Controls ────────────────────────────────────────────────── */
+
+.speech-live-body {
+  min-width: 0;
+  padding-top: var(--s-5);
+}
+
+.speech-live-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+.speech-live-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--s-5);
+  align-items: start;
+}
+
+.speech-field-label-content {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--text-2);
+  font-size: var(--fs-chrome);
+  font-weight: 600;
+}
+
+.speech-field-label-content svg {
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+
+/* ── Auth & Status Section ─────────────────────────────────────────────── */
+
+.speech-live-auth-section {
+  min-width: 0;
+}
+
+.speech-live-status-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-control);
+  background: var(--surface-3);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+}
+
+.speech-live-status-info {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.speech-live-status-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--iris-lift);
+  flex-shrink: 0;
+}
+
+.speech-live-status-text {
+  color: var(--text-2);
+  font-size: var(--fs-chrome);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.speech-live-key-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border-radius: var(--r-control);
+  background: var(--surface-3);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+}
+
+.speech-live-key-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.speech-live-key-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--text-2);
+  font-size: var(--fs-chrome);
+  font-weight: 600;
+}
+
+.speech-live-key-title svg {
+  color: var(--text-3);
+}
+
+.speech-key-status {
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  color: var(--text-4);
+}
+
+.speech-key-status.is-ready {
+  color: var(--mint-lift, #10b981);
+}
+
+.speech-live-key-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.speech-live-key-field {
+  min-width: 0;
+}
+
+.speech-live-key-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-shrink: 0;
+}
+
+/* ── Legacy Fallbacks (Preserved for compatibility) ────────────────────── */
 
 .speech-defaults {
   gap: 0;
@@ -93,33 +312,11 @@
   line-height: var(--lh-normal);
 }
 
-.speech-default-card-heading .ui-status-badge {
-  margin-top: var(--s-1);
-  white-space: nowrap;
-}
-
 .speech-default-card-body {
   min-width: 0;
   margin-top: var(--s-6);
   padding-top: var(--s-5);
   border-top: 1px solid var(--line-1);
-}
-
-.speech-default-card-body .ui-notice {
-  align-items: center;
-  min-height: 40px;
-  margin: 0;
-  padding: var(--s-4) var(--s-5);
-  border-radius: var(--r-control);
-}
-
-.speech-default-card-body .ui-notice-message {
-  font-size: var(--fs-micro);
-  line-height: var(--lh-tight);
-}
-
-.speech-default-card-body .ui-notice-action {
-  flex: 0 0 auto;
 }
 
 .speech-default-configured {
@@ -169,28 +366,8 @@
   line-height: var(--lh-tight);
 }
 
-@media (max-width: 760px) {
-  .speech-defaults-grid {
+@media (max-width: 640px) {
+  .speech-live-key-input-row {
     grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 520px) {
-  .speech-default-card-heading {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-
-  .speech-default-card-heading .ui-status-badge {
-    grid-column: 2;
-    margin-top: 0;
-  }
-
-  .speech-default-configured {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .speech-default-configured .settings-section-actions {
-    justify-content: flex-start;
   }
 }

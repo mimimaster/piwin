@@ -16,11 +16,7 @@ import {
   type KeyboardEvent,
   type ReactElement,
 } from 'react';
-import type {
-  ContextUsageSnapshot,
-  HostStatusData,
-  ProjectRecord,
-} from '@piwin/contracts';
+import type { ContextUsageSnapshot, HostStatusData, ProjectRecord } from '@piwin/contracts';
 import { Button, Dialog, IconButton } from '@piwin/ui-kit';
 import {
   ComposerPlusMenu,
@@ -31,9 +27,7 @@ import {
 import type { PendingContextRefItem } from './hooks/use-composer-context-refs';
 import { getAgentMode, type AgentModeId } from './agent-mode';
 import { isFailedMediaAttachment, type PendingComposerAttachment } from './media-utils';
-import {
-  ComposerAttachmentShelf,
-} from './composer-attachment-shelf';
+import { ComposerAttachmentShelf } from './composer-attachment-shelf';
 import { ContextUsageRing } from './context-usage-ring';
 import { ThinkingEffortControl } from './ThinkingEffortControl';
 import { RunModeControl } from './RunModeControl';
@@ -42,6 +36,8 @@ import {
   type OrchestrationSchemeOption,
 } from './OrchestrationSchemeControl';
 import { IconClose, IconMic, IconPlus } from './shell-icons';
+import { LiveComposerButton } from './live/LiveComposerButton.js';
+import type { LiveCallView, LiveReadyMissing } from '@piwin/contracts';
 import {
   buildSlashCatalog,
   detectActiveSlashToken,
@@ -83,7 +79,7 @@ import {
 
 export type ComposerModelOption = {
   providerId: string;
-  protocol: import('@piwin/contracts').ModelRef['protocol'];
+  protocol?: import('@piwin/contracts').ModelProtocol;
   modelId: string;
   label: string;
   contextWindow?: number;
@@ -219,9 +215,9 @@ export type ComposerDockProps = {
   runtimeRemoteHostLabel?: string;
   onSelectLocalRuntime?: () => void;
   onSelectAttachRuntime?: () => void;
-  /** Open Knowledge Center overlay from plus menu or UI. */
+  /** Open the flashcards home (legacy Knowledge Center slash aliases). */
   onOpenKnowledge?: ((subTab?: 'doccards' | 'cards' | 'wiki') => void) | undefined;
-  /** Open the right-panel Flashcards due queue. */
+  /** Open the flashcards home from the plus menu. */
   onOpenCardsPanel?: (() => void) | undefined;
   /** True when the configured ASR provider/model is currently usable. */
   speechConfigured?: boolean;
@@ -229,6 +225,17 @@ export type ComposerDockProps = {
   speechRequest?: (
     input: import('@piwin/contracts').SpeechTranscribeInput,
   ) => Promise<import('@piwin/contracts').HostResponse>;
+  live?: {
+    enabled: boolean;
+    canStart: boolean;
+    starting: boolean;
+    call: LiveCallView | null;
+    error: string | null;
+    missing: LiveReadyMissing[];
+    onStart: () => void;
+    onMute: (muted: boolean) => void;
+    onEnd: () => void;
+  };
   /** Steer messages queued for execution */
   steerQueueMessages?: readonly SteerQueueMessage[];
   onSteerQueueSendNow?: (messageId: string) => void | Promise<void>;
@@ -262,8 +269,6 @@ function getAgentPlaceholder(
   if (conversationSession) {
     return copy.chatPlaceholder;
   }
-  if (mode === 'plan') return copy.planPlaceholder;
-  if (mode === 'ask') return copy.askPlaceholder;
   if (mode === 'goal') return copy.goalPlaceholder;
   return copy.agentPlaceholder;
 }
@@ -309,8 +314,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   const onlyFailedAttachments = failedAttachments.length > 0 && !hasSendableContentBesidesFailures;
   const canQueueStreamingText =
     props.composer.trim().length > 0 && props.pendingAttachments.length === 0;
-  const canKeyboardSend =
-    props.composer.trim().length > 0 || props.hasCarryContent === true;
+  const canKeyboardSend = props.composer.trim().length > 0 || props.hasCarryContent === true;
   const selectedModel = props.modelOptions.find(
     (model) => `${model.providerId}::${model.modelId}` === props.selectedModelKey,
   );
@@ -327,7 +331,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   const thinkingModels = props.modelOptions.map((model) => ({
     key: `${model.providerId}::${model.modelId}`,
     label: model.label,
-    protocol: model.protocol,
+    ...(model.protocol !== undefined ? { protocol: model.protocol } : {}),
     ...(model.thinkingLevels !== undefined ? { thinkingLevels: model.thinkingLevels } : {}),
     ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
     ...(model.supportsImage ? { supportsImage: true } : {}),
@@ -1082,6 +1086,18 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
             onSelectModel={props.onSelectModel}
           />
 
+          <LiveComposerButton
+            enabled={true}
+            canStart={props.live?.canStart === true}
+            starting={props.live?.starting === true}
+            call={props.live?.call ?? null}
+            error={props.live?.error ?? null}
+            missing={props.live?.missing ?? []}
+            isChinese={locale === 'zh-CN'}
+            onStart={props.live?.onStart ?? (() => undefined)}
+            onEnd={props.live?.onEnd ?? (() => undefined)}
+          />
+
           {showSpeechInput ? (
             <>
               <IconButton
@@ -1311,9 +1327,7 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
           ) : null}
           <RuntimeTargetChip
             {...(props.runtimeRemoteConnected === true ? { remoteConnected: true } : {})}
-            {...(props.runtimeRemoteHostLabel
-              ? { hostLabel: props.runtimeRemoteHostLabel }
-              : {})}
+            {...(props.runtimeRemoteHostLabel ? { hostLabel: props.runtimeRemoteHostLabel } : {})}
             {...(props.onSelectLocalRuntime ? { onSelectLocal: props.onSelectLocalRuntime } : {})}
             {...(props.onSelectAttachRuntime
               ? { onSelectAttach: props.onSelectAttachRuntime }

@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="obsidian">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>piwin Live · 自由拖拽悬浮微胶囊组件 (Draggable Floating Voice Capsule)</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    :root {
+      --void: #09090C;
+      --surface-1: #111116;
+      --surface-2: #161620;
+      --surface-hover: #22222E;
+      --line: rgba(255, 255, 255, 0.1);
+      --line-strong: rgba(255, 255, 255, 0.2);
+
+      --text-muted: #8E8E9B;
+
+      --iris: #6E5DFF;
+      --iris-glow: rgba(110, 93, 255, 0.35);
+      --mint: #3ECF8E;
+      --mint-glow: rgba(62, 207, 142, 0.35);
+      --ember: #FF8A4C;
+      --ember-glow: rgba(255, 138, 76, 0.35);
+      --amber: #F5B544;
+      --amber-glow: rgba(245, 181, 68, 0.35);
+      --coral: #FF5F56;
+      --coral-glow: rgba(255, 95, 86, 0.35);
+      --sky: #4CC2FF;
+      --sky-glow: rgba(76, 194, 255, 0.35);
+
+      --elev-pill: 0 4px 14px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+      --elev-drag: 0 12px 30px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+      --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans SC", sans-serif;
+      --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+    }
+
+    [data-theme="bone"] {
+      --void: #E8E5DF;
+      --surface-1: #F3F1EB;
+      --surface-2: #FFFFFF;
+      --surface-hover: #EBE8E0;
+      --line: rgba(0, 0, 0, 0.08);
+      --line-strong: rgba(0, 0, 0, 0.18);
+      --text-muted: #6B6875;
+
+      --iris: #5B4BD6;
+      --iris-glow: rgba(91, 75, 214, 0.25);
+      --mint: #17A672;
+      --mint-glow: rgba(23, 166, 114, 0.25);
+      --ember: #DD6318;
+      --amber: #C7860B;
+      --coral: #DC4438;
+      --sky: #1A8FD0;
+
+      --elev-pill: 0 2px 8px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+      --elev-drag: 0 8px 24px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 1);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-ui);
+      background-color: var(--void);
+      color: #FFF;
+      padding: 16px;
+      -webkit-font-smoothing: antialiased;
+      user-select: none;
+    }
+
+    .wrap {
+      max-width: 780px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .theme-btn {
+      font-size: 10.5px;
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      color: var(--text-muted);
+      padding: 2px 8px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+
+    /* Interactive Draggable Workspace Sandbox */
+    .sandbox-card {
+      background: var(--surface-1);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .switch-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      justify-content: center;
+    }
+
+    .switch-btn {
+      background: transparent;
+      border: 1px solid var(--line);
+      color: var(--text-muted);
+      font-size: 10.5px;
+      font-weight: 500;
+      padding: 2px 7px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: all 0.1s;
+    }
+
+    .switch-btn:hover { background: var(--surface-2); color: #FFF; }
+    .switch-btn.active { background: var(--iris); color: #FFF; border-color: var(--iris); }
+
+    /* The Simulated Workspace Area for Dragging */
+    .drag-stage {
+      position: relative;
+      height: 240px;
+      background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.02) 0%, transparent 80%), var(--surface-2);
+      border: 1px dashed var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .ide-mock-code {
+      position: absolute;
+      inset: 16px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      opacity: 0.35;
+      line-height: 1.8;
+      pointer-events: none;
+    }
+
+    /* ==========================================================================
+       DRAGGABLE ZERO-TEXT FLOATING CAPSULE (自由拖拽悬浮微胶囊)
+       ========================================================================== */
+    .draggable-capsule {
+      --tone: var(--mint);
+      --tone-glow: var(--mint-glow);
+
+      position: absolute;
+      left: 50%;
+      top: 35%;
+      transform: translate(-50%, -50%);
+      z-index: 50;
+
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 32px;
+      padding: 0 4px 0 8px;
+      background: rgba(22, 22, 32, 0.92);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      box-shadow: var(--elev-pill);
+      cursor: grab;
+      touch-action: none;
+      transition: box-shadow 0.15s ease, border-color 0.2s ease, transform 0.05s ease;
+    }
+
+    .draggable-capsule:active,
+    .draggable-capsule.is-dragging {
+      cursor: grabbing;
+      box-shadow: var(--elev-drag), 0 0 20px var(--tone-glow);
+      transform: translate(-50%, -50%) scale(1.06);
+    }
+
+    /* States */
+    .draggable-capsule.is-listening {
+      --tone: var(--mint);
+      --tone-glow: var(--mint-glow);
+      border-color: rgba(62, 207, 142, 0.5);
+      box-shadow: 0 0 14px var(--mint-glow), var(--elev-pill);
+    }
+
+    .draggable-capsule.is-speaking {
+      --tone: var(--iris);
+      --tone-glow: var(--iris-glow);
+      border-color: rgba(110, 93, 255, 0.55);
+      box-shadow: 0 0 16px var(--iris-glow), var(--elev-pill);
+    }
+
+    .draggable-capsule.is-thinking {
+      --tone: var(--sky);
+      --tone-glow: var(--sky-glow);
+      border-color: rgba(76, 194, 255, 0.45);
+      box-shadow: 0 0 12px var(--sky-glow), var(--elev-pill);
+    }
+
+    .draggable-capsule.is-delegating {
+      --tone: var(--ember);
+      --tone-glow: var(--ember-glow);
+      border-color: rgba(255, 138, 76, 0.6);
+      box-shadow: 0 0 18px var(--ember-glow), var(--elev-pill);
+    }
+
+    .draggable-capsule.is-working {
+      --tone: var(--ember);
+      --tone-glow: var(--ember-glow);
+      border-color: rgba(255, 138, 76, 0.4);
+    }
+
+    .draggable-capsule.is-permission {
+      --tone: var(--amber);
+      --tone-glow: var(--amber-glow);
+      border-color: var(--amber);
+      box-shadow: 0 0 16px var(--amber-glow), var(--elev-pill);
+    }
+
+    .draggable-capsule.is-muted {
+      --tone: var(--text-muted);
+      border-color: var(--line);
+    }
+
+    .draggable-capsule.is-error {
+      --tone: var(--coral);
+      --tone-glow: var(--coral-glow);
+      border-color: var(--coral);
+      box-shadow: 0 0 14px var(--coral-glow), var(--elev-pill);
+    }
+
+    /* Drag Handle Grip Dots */
+    .drag-grip {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 2px 1px;
+      opacity: 0.4;
+      cursor: grab;
+    }
+    .draggable-capsule:active .drag-grip { cursor: grabbing; opacity: 0.8; }
+    .drag-grip span {
+      width: 2.5px;
+      height: 2.5px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    /* Dynamic Visual Effects */
+    .fx-equalizer {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      height: 13px;
+    }
+
+    .fx-equalizer span {
+      width: 2px;
+      height: 100%;
+      background: var(--tone);
+      border-radius: 999px;
+      transform: scaleY(0.25);
+      transform-origin: center;
+      box-shadow: 0 0 5px var(--tone-glow);
+    }
+
+    .is-listening .fx-equalizer span { animation: eq-wave 0.45s ease-in-out infinite alternate; }
+    .is-speaking  .fx-equalizer span { animation: eq-wave 0.65s ease-in-out infinite alternate; }
+    .is-working   .fx-equalizer span { animation: eq-wave 1.4s ease-in-out infinite alternate; }
+
+    .fx-equalizer span:nth-child(2) { animation-delay: -0.15s !important; height: 80%; }
+    .fx-equalizer span:nth-child(3) { animation-delay: -0.3s !important; height: 100%; }
+    .fx-equalizer span:nth-child(4) { animation-delay: -0.45s !important; height: 65%; }
+
+    .fx-spinner {
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      border: 2px solid rgba(76, 194, 255, 0.2);
+      border-top-color: var(--sky);
+      animation: spin 1s linear infinite;
+    }
+
+    .fx-flash-zap {
+      font-size: 13px;
+      color: var(--ember);
+      animation: zap-pulse 0.6s infinite alternate;
+    }
+
+    .fx-alert-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--coral);
+      box-shadow: 0 0 8px var(--coral);
+      animation: alert-blink 0.8s infinite;
+    }
+
+    /* Micro Icon Buttons (24px) */
+    .mini-icon-btn {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: transparent;
+      border: 1px solid transparent;
+      color: #9A9AA8;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      transition: all 0.1s ease;
+    }
+
+    .mini-icon-btn:hover {
+      background: var(--surface-hover);
+      color: #FFF;
+      border-color: var(--line);
+      transform: scale(1.08);
+    }
+
+    .mini-icon-btn.danger:hover {
+      background: rgba(255, 95, 86, 0.2);
+      color: var(--coral);
+      border-color: var(--coral);
+    }
+
+    .mini-icon-btn.active-iris {
+      background: rgba(110, 93, 255, 0.2);
+      color: var(--iris);
+      border-color: var(--iris);
+    }
+
+    .mini-icon-btn.active-amber {
+      background: rgba(245, 181, 68, 0.25);
+      color: var(--amber);
+      border-color: var(--amber);
+    }
+
+    @keyframes eq-wave { 0% { transform: scaleY(0.25); } 100% { transform: scaleY(1); } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes zap-pulse { 0% { transform: scale(0.9); opacity: 0.7; } 100% { transform: scale(1.2); opacity: 1; } }
+    @keyframes alert-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    /* Side-by-Side 8 States Grid */
+    .states-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 8px;
+    }
+
+    .state-card {
+      background: var(--surface-1);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .state-title {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="wrap">
+
+    <header class="header">
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <span style="font-size: 12px; font-weight: 700;">piwin Live · 自由拖拽悬浮微胶囊</span>
+        <span style="font-size: 9px; font-family: monospace; background: rgba(110,93,255,0.15); color: #8B7CFF; padding: 1px 4px; border-radius: 3px; border: 1px solid var(--iris);">DRAGGABLE · 32PX</span>
+      </div>
+      <button class="theme-btn" onclick="toggleTheme()" id="theme-btn">曜石黑 (Dark)</button>
+    </header>
+
+    <!-- Sandbox with Draggable Stage -->
+    <section class="sandbox-card">
+      <div class="switch-row">
+        <button class="switch-btn active" onclick="setState('listening')">01·听你说</button>
+        <button class="switch-btn" onclick="setState('speaking')">02·回复中</button>
+        <button class="switch-btn" onclick="setState('thinking')">03·思考中</button>
+        <button class="switch-btn" onclick="setState('delegating')">04·⚡委派</button>
+        <button class="switch-btn" onclick="setState('working')">05·Agent执行</button>
+        <button class="switch-btn" onclick="setState('permission')">06·权限拦截</button>
+        <button class="switch-btn" onclick="setState('muted')">07·静音</button>
+        <button class="switch-btn" onclick="setState('error')">08·异常</button>
+      </div>
+
+      <!-- Simulated Workspace with Free Draggable Capsule -->
+      <div class="drag-stage" id="drag-stage">
+        <div class="ide-mock-code">
+          1  import { useLiveVoice } from '@piwin/voice';<br/>
+          2  // 🖱️ 你可以按住中间这颗微胶囊在屏幕任意位置随意拖拽放置！<br/>
+          3  export function WorkspaceShell() {<br/>
+          4    const voice = useLiveVoice({ boundSession: 'auth-refactor' });<br/>
+          5    return &lt;EditorPane buffer={voice.activeBuffer} /&gt;;<br/>
+          6  }
+        </div>
+
+        <!-- The Draggable Capsule -->
+        <div class="draggable-capsule is-listening" id="float-capsule">
+          <!-- Drag Grip Dots -->
+          <div class="drag-grip" title="按住可拖拽移动">
+            <span></span><span></span><span></span>
+          </div>
+
+          <!-- Dynamic Visual Effect (Wave / Zap / Spinner) -->
+          <div id="capsule-fx">
+            <div class="fx-equalizer"><span></span><span></span><span></span><span></span></div>
+          </div>
+
+          <!-- Pure Micro Icon Actions -->
+          <div style="display: flex; align-items: center; gap: 2px;" id="capsule-icons">
+            <button class="mini-icon-btn" onclick="setState('muted')" title="静音">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+            </button>
+            <button class="mini-icon-btn danger" onclick="alert('挂断')" title="挂断">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div style="font-size: 10px; color: var(--text-muted); text-align: center;" id="state-caption">
+        🖱️ <strong>随意拖拽</strong>：可在上方代码区域任意拖放放置，零文字遮挡，纯视觉与微图标交互。
+      </div>
+    </section>
+
+    <!-- 8 States Grid -->
+    <section>
+      <div style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px;">
+        8 个微组件状态平铺一览 (All 8 Zero-Text States)
+      </div>
+
+      <div class="states-grid">
+
+        <!-- 01 Listening -->
+        <div class="state-card">
+          <span class="state-title">01 · 正在听</span>
+          <div style="display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 4px 0 8px; background: var(--surface-2); border: 1px solid rgba(62,207,142,0.5); border-radius: 999px;">
+            <div class="fx-equalizer" style="--tone: var(--mint); --tone-glow: var(--mint-glow);"><span></span><span></span><span></span><span></span></div>
+            <div style="display: flex; gap: 2px;">
+              <button class="mini-icon-btn" title="静音"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg></button>
+              <button class="mini-icon-btn danger" title="挂断">✕</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 02 Speaking -->
+        <div class="state-card">
+          <span class="state-title">02 · 回复中</span>
+          <div style="display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 4px 0 8px; background: var(--surface-2); border: 1px solid rgba(110,93,255,0.55); border-radius: 999px;">
+            <div class="fx-equalizer" style="--tone: var(--iris); --tone-glow: var(--iris-glow);"><span></span><span></span><span></span><span></span></div>
+            <div style="display: flex; gap: 2px;">
+              <button class="mini-icon-btn active-iris" title="打断发音"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></button>
+              <button class="mini-icon-btn danger" title="挂断">✕</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 03 Thinking -->
+        <div class="state-card">
+          <span class="state-title">03 · 思考中</span>
+          <div style="display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 4px 0 8px; background: var(--surface-2); border: 1px solid rgba(76,194,255,0.45); border-radius: 999px;">
+            <div class="fx-spinner"></div>
+            <div style="display: flex; gap: 2px;">
+              <button class="mini-icon-btn" title="静音"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg></button>
+              <button class="mini-icon-btn danger" title="挂断">✕</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 04 Delegating -->
+        <div class="state-card">
+          <span class="state-title">04 · ⚡ 委派</span>
+          <div style="display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 4px 0 8px; background: var(--surface-2); border: 1px solid rgba(255,138,76,0.6); border-radius: 999px;">
+            <span class="fx-flash-zap">⚡</span>
+            <div style="display: flex; gap: 2px;">
+              <button class="mini-icon-btn danger" title="挂断">✕</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 05 Working -->
+        <div class="state-card">
+          <span class="state-title">05 · Agent 执行</span>
+          <div style="display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 4px 0 8px; background: var(--surface-2); border: 1px solid rgba(255,138,76,0.4); border-radius: 999px;">
+            <div class="fx-equalizer" style="--tone: var(--ember); --tone-glow: var(--ember-glow);"><span></span><span></span><span></span><span></span></div>
+            <div style="display: flex; gap: 2px;">
+              <button class="mini-icon-btn" title="查看会话消息"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
+              <button class="mini-icon-btn danger" title="挂断">✕</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 06 Permission -->
+        <div class="state-card">
+          <span class="state-title">06 · 权限确认</span>
+          <div style="display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 4px 0 8px; background: var(--surface-2); border: 1px solid var(--amber); border-radius: 999px;">
+            <span style="color: var(--amber); font-size: 13px;">⚠️</span>
+            <div style="display: flex; gap: 2px;">
+              <button class="mini-icon-btn active-amber" title="批准"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></button>
+              <button class="mini-icon-btn danger" title="拒绝">✕</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 07 Muted -->
+        <div class="state-card">
+          <span class="state-title">07 · 静音</span>
+          <div style="display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 4px 0 8px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px;">
+            <div class="fx-equalizer" style="--tone: var(--text-muted);"><span style="transform: scaleY(0.2);"></span><span style="transform: scaleY(0.2);"></span><span style="transform: scaleY(0.2);"></span><span style="transform: scaleY(0.2);"></span></div>
+            <div style="display: flex; gap: 2px;">
+              <button class="mini-icon-btn" title="开启麦克风"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/></svg></button>
+              <button class="mini-icon-btn danger" title="挂断">✕</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 08 Error -->
+        <div class="state-card">
+          <span class="state-title">08 · 异常重试</span>
+          <div style="display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 4px 0 8px; background: var(--surface-2); border: 1px solid var(--coral); border-radius: 999px;">
+            <div class="fx-alert-dot"></div>
+            <div style="display: flex; gap: 2px;">
+              <button class="mini-icon-btn" style="color: var(--coral);" title="重试"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
+              <button class="mini-icon-btn danger" title="关闭">✕</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </div>
+
+  <script>
+    function toggleTheme() {
+      const html = document.documentElement;
+      const cur = html.getAttribute('data-theme');
+      const next = cur === 'bone' ? 'obsidian' : 'bone';
+      html.setAttribute('data-theme', next);
+      document.getElementById('theme-btn').textContent = next === 'bone' ? '骨白 (Light)' : '曜石黑 (Dark)';
+    }
+
+    const stateMap = {
+      listening: {
+        cls: 'is-listening',
+        fx: '<div class="fx-equalizer"><span></span><span></span><span></span><span></span></div>',
+        icons: `<button class="mini-icon-btn" onclick="setState('muted')" title="静音"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg></button><button class="mini-icon-btn danger" onclick="alert('挂断')" title="挂断">✕</button>`,
+        caption: '🟢 <strong>正在听</strong>：薄荷绿 4 柱跳动脉冲；纯图标提供 [静音 🎙️] 与 [挂断 ✕]（按住胶囊可随意拖拽移动）。'
+      },
+      speaking: {
+        cls: 'is-speaking',
+        fx: '<div class="fx-equalizer"><span></span><span></span><span></span><span></span></div>',
+        icons: `<button class="mini-icon-btn active-iris" onclick="setState('listening')" title="打断发音"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></button><button class="mini-icon-btn danger" onclick="alert('挂断')" title="挂断">✕</button>`,
+        caption: '🟣 <strong>模型回复中</strong>：紫色音波激活，提供 [⏸ 打断] 图标按钮，点击即可中断发音。'
+      },
+      thinking: {
+        cls: 'is-thinking',
+        fx: '<div class="fx-spinner"></div>',
+        icons: `<button class="mini-icon-btn" onclick="setState('muted')" title="静音"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg></button><button class="mini-icon-btn danger" onclick="alert('挂断')" title="挂断">✕</button>`,
+        caption: '🔵 <strong>思考运算中</strong>：天蓝旋转微光环，表示正在检索代码与语义。'
+      },
+      delegating: {
+        cls: 'is-delegating',
+        fx: '<span class="fx-flash-zap">⚡</span>',
+        icons: `<button class="mini-icon-btn danger" onclick="alert('挂断')" title="挂断">✕</button>`,
+        caption: '⚡ <strong>委派派发</strong>：余烬橙 ⚡ 脉冲闪烁，指示任务正安全移交会话。'
+      },
+      working: {
+        cls: 'is-working',
+        fx: '<div class="fx-equalizer"><span></span><span></span><span></span><span></span></div>',
+        icons: `<button class="mini-icon-btn" onclick="alert('查看会话')" title="查看会话"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button><button class="mini-icon-btn danger" onclick="alert('挂断')" title="挂断">✕</button>`,
+        caption: '🟠 <strong>Agent 执行中</strong>：余烬橙待命波形，附带 [📄 会话] 图标。'
+      },
+      permission: {
+        cls: 'is-permission',
+        fx: '<span style="color: var(--amber); font-size: 13px;">⚠️</span>',
+        icons: `<button class="mini-icon-btn active-amber" onclick="setState('working')" title="批准"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></button><button class="mini-icon-btn danger" onclick="alert('拒绝')" title="拒绝">✕</button>`,
+        caption: '🟡 <strong>权限拦截</strong>：警戒黄光环，纯图标提供 [✓ 允许] 和 [✕ 拒绝]。'
+      },
+      muted: {
+        cls: 'is-muted',
+        fx: '<div class="fx-equalizer"><span style="transform: scaleY(0.2);"></span><span style="transform: scaleY(0.2);"></span><span style="transform: scaleY(0.2);"></span><span style="transform: scaleY(0.2);"></span></div>',
+        icons: `<button class="mini-icon-btn" onclick="setState('listening')" title="开启麦克风"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/></svg></button><button class="mini-icon-btn danger" onclick="alert('挂断')" title="挂断">✕</button>`,
+        caption: '⚪ <strong>已静音</strong>：波形归平，点击 [🎙️⃠] 重新开麦。'
+      },
+      error: {
+        cls: 'is-error',
+        fx: '<div class="fx-alert-dot"></div>',
+        icons: `<button class="mini-icon-btn" style="color: var(--coral);" onclick="setState('listening')" title="重试"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button><button class="mini-icon-btn danger" onclick="alert('关闭')" title="关闭">✕</button>`,
+        caption: '🔴 <strong>连接异常</strong>：红色呼吸警示点，提供 [🔄 重试] 与 [✕ 关闭] 图标。'
+      }
+    };
+
+    function setState(key) {
+      document.querySelectorAll('.switch-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+
+      const data = stateMap[key];
+      const capsule = document.getElementById('float-capsule');
+      capsule.className = 'draggable-capsule ' + data.cls;
+      document.getElementById('capsule-fx').innerHTML = data.fx;
+      document.getElementById('capsule-icons').innerHTML = data.icons;
+      document.getElementById('state-caption').innerHTML = data.caption;
+    }
+
+    // Smooth Drag-and-Drop Implementation
+    const capsule = document.getElementById('float-capsule');
+    const stage = document.getElementById('drag-stage');
+    let isDragging = false;
+    let startX = 0, startY = 0;
+    let currentX = 0, currentY = 0;
+
+    capsule.addEventListener('pointerdown', (e) => {
+      // Don't drag if clicking buttons
+      if (e.target.closest('button')) return;
+
+      isDragging = true;
+      capsule.classList.add('is-dragging');
+      capsule.setPointerCapture(e.pointerId);
+
+      const rect = capsule.getBoundingClientRect();
+      const stageRect = stage.getBoundingClientRect();
+
+      startX = e.clientX - (rect.left + rect.width / 2);
+      startY = e.clientY - (rect.top + rect.height / 2);
+    });
+
+    capsule.addEventListener('pointermove', (e) => {
+      if (!isDragging) return;
+
+      const stageRect = stage.getBoundingClientRect();
+      let newX = e.clientX - stageRect.left - startX;
+      let newY = e.clientY - stageRect.top - startY;
+
+      // Stage Boundary Clamping
+      newX = Math.max(50, Math.min(stageRect.width - 50, newX));
+      newY = Math.max(20, Math.min(stageRect.height - 20, newY));
+
+      capsule.style.left = newX + 'px';
+      capsule.style.top = newY + 'px';
+      capsule.style.transform = 'translate(-50%, -50%) scale(1.05)';
+    });
+
+    capsule.addEventListener('pointerup', (e) => {
+      if (!isDragging) return;
+      isDragging = false;
+      capsule.classList.remove('is-dragging');
+      capsule.style.transform = 'translate(-50%, -50%) scale(1)';
+      capsule.releasePointerCapture(e.pointerId);
+    });
+  </script>
+</body>
+</html>
