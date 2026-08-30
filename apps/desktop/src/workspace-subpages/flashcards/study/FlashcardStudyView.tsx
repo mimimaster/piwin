@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { Button, Dialog, FlashcardFace, Notice, Spinner, TearDeckSurface } from '@piwin/ui-kit';
-import type { FlashcardStudyContentProjection, ReviewRating } from '@piwin/contracts';
+import type {
+  FlashcardStudyContentProjection,
+  FlashcardStudySnapshot,
+  ReviewRating,
+} from '@piwin/contracts';
 import type { FlashcardStudyController, FlashcardStudyViewModel } from '@piwin/host-client';
 import { IconCheck, IconPause, IconPlay, IconRefresh, IconRevert } from '../../../shell-icons';
 import { MarkdownView } from '../../../MarkdownView';
@@ -159,6 +163,7 @@ export function FlashcardStudyView(props: FlashcardStudyViewProps): ReactElement
     );
   }
 
+  const underShell = blankIncomingUnderShell(hold.tearing, snapshot);
   const save = saveKind(view);
   const progressTotal = counts?.total ?? 0;
   const progressIndex =
@@ -203,11 +208,7 @@ export function FlashcardStudyView(props: FlashcardStudyViewProps): ReactElement
         tearing={hold.tearing}
         {...(hold.transitionId ? { transitionId: hold.transitionId } : {})}
         onTransitionEnd={(id) => controller?.noteTransitionEnd(id)}
-        underShell={
-          snapshot?.nextShell ? (
-            <article className="fcws-tear-card" aria-hidden="true" data-testid="flashcards-study-under-shell" />
-          ) : null
-        }
+        {...(underShell ? { underShell } : {})}
         toolbar={
           <header className="fcws-tear-toolbar">
             <div className="fcws-tear-progress-wrap">
@@ -344,6 +345,23 @@ export function FlashcardStudyView(props: FlashcardStudyViewProps): ReactElement
         </div>
       </Dialog>
     </div>
+  );
+}
+
+/** During tear: blank back of the incoming current card. Idle: blank next shell. No Q/A. */
+function blankIncomingUnderShell(
+  tearing: boolean,
+  snapshot: FlashcardStudySnapshot | null,
+): ReactElement | null {
+  const showIncoming = tearing && snapshot?.current !== undefined;
+  const showNext = !tearing && snapshot?.nextShell !== undefined;
+  if (!showIncoming && !showNext) return null;
+  return (
+    <article
+      className="fcws-tear-card"
+      aria-hidden="true"
+      data-testid="flashcards-study-under-shell"
+    />
   );
 }
 

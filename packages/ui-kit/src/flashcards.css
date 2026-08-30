@@ -95,7 +95,16 @@
   pointer-events: none;
 }
 
+/* Blank under-shell stays visible; hide any readable Q/A if a face is passed. */
 .fcws-tear-under .fcws-tear-card {
+  visibility: visible;
+  cursor: default;
+}
+
+.fcws-tear-under .fcws-tear-card-top,
+.fcws-tear-under .fcws-tear-text-wrap,
+.fcws-tear-under .fcws-tear-content,
+.fcws-tear-under .fcws-tear-source-line {
   visibility: hidden;
 }
 
@@ -339,6 +348,11 @@
 .fcws-tear-index-tag {
   font-size: var(--fs-micro);
   color: var(--text-4);
+}
+
+.fcws-tear-text-wrap {
+  min-height: 0;
+  overflow: hidden;
 }
 
 .fcws-tear-content {

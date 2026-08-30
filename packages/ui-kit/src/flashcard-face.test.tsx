@@ -146,6 +146,12 @@ describe('TearDeckSurface', () => {
     }
   });
 
+  it('does not hide the whole under-shell card', () => {
+    const css = readFileSync(join(SRC_DIR, 'flashcards.css'), 'utf8');
+    expect(css).not.toMatch(/\.fcws-tear-under \.fcws-tear-card \{\s*visibility:\s*hidden;\s*\}/);
+    expect(css).toMatch(/\.fcws-tear-under \.fcws-tear-card \{[\s\S]*?visibility:\s*visible;/);
+  });
+
   it('does not render an under-shell node unless provided', () => {
     const markup = renderWithProvider(
       createElement(TearDeckSurface, {

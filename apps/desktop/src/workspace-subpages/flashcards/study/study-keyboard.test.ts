@@ -83,6 +83,22 @@ describe('resolveStudyKeyboard', () => {
     ).toEqual({ type: 'leave' });
   });
 
+  it('swallows Space, Enter, and 1-4 while an overlay is open', () => {
+    const sequenceOpen = { mode: 'sequence' as const, phase: 'answer' as const, overlayOpen: true };
+    const scheduledOpen = { mode: 'scheduled' as const, phase: 'answer' as const, overlayOpen: true };
+    expect(resolveStudyKeyboard({ ...baseEvent, key: ' ' }, sequenceOpen)).toBeNull();
+    expect(resolveStudyKeyboard({ ...baseEvent, key: 'Enter' }, sequenceOpen)).toBeNull();
+    expect(resolveStudyKeyboard({ ...baseEvent, key: 'ArrowRight' }, sequenceOpen)).toBeNull();
+    expect(resolveStudyKeyboard({ ...baseEvent, key: '3' }, scheduledOpen)).toBeNull();
+    expect(resolveStudyKeyboard({ ...baseEvent, key: '1' }, scheduledOpen)).toBeNull();
+    expect(
+      resolveStudyKeyboard(
+        { ...baseEvent, key: ' ', target: { tagName: 'BUTTON', isContentEditable: false } },
+        sequenceOpen,
+      ),
+    ).toBeNull();
+  });
+
   it('ignores repeat, IME, typing, and OS shortcuts', () => {
     const context = { mode: 'sequence' as const, phase: 'question' as const, overlayOpen: false };
     expect(resolveStudyKeyboard({ ...baseEvent, key: ' ', repeat: true }, context)).toBeNull();

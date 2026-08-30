@@ -65,6 +65,8 @@ export function resolveStudyKeyboard(
     return context.overlayOpen ? { type: 'close-overlay' } : { type: 'leave' };
   }
 
+  if (context.overlayOpen) return null;
+
   if (isStudyTypingTarget(event.target)) return null;
   if (isNativeButtonActivation(event)) return null;
 
