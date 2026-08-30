@@ -160,6 +160,67 @@ describe('FlashcardStudyPage', () => {
     expect(window.location.hash).toBe('#flashcards/study/round-1');
   });
 
+  it('pauses the round when system back leaves study, and does not double-pause', async () => {
+    history.replaceState(null, '', `${window.location.pathname}${window.location.search}#flashcards`);
+    navigateMobileFlashcardsRoute({ kind: 'study', roundId: 'round-1' }, 'push');
+    const fake = await renderStudy();
+    expect(fake.calls.filter((command) => command.type === 'flashcards/study/pause')).toHaveLength(0);
+
+    act(() => {
+      history.back();
+    });
+    await flush();
+    expect(window.location.hash).toBe('#flashcards');
+    expect(fake.calls.filter((command) => command.type === 'flashcards/study/pause')).toHaveLength(1);
+
+    act(() => {
+      history.back();
+    });
+    await flush();
+    expect(fake.calls.filter((command) => command.type === 'flashcards/study/pause')).toHaveLength(1);
+  });
+
+  it('does not pause when system back only closes the end-round overlay', async () => {
+    const fake = await renderStudy();
+    navigateMobileFlashcardsRoute({ kind: 'study', roundId: 'round-1' }, 'replace');
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="flashcards-study-end"]')?.click();
+    });
+    await flush();
+    act(() => {
+      history.back();
+    });
+    await flush();
+    expect(window.location.hash).toBe('#flashcards/study/round-1');
+    expect(fake.calls.filter((command) => command.type === 'flashcards/study/pause')).toHaveLength(0);
+  });
+
+  it('consumes the overlay history entry when confirming 结束本轮 so the next back leaves', async () => {
+    history.replaceState(null, '', `${window.location.pathname}${window.location.search}#flashcards`);
+    navigateMobileFlashcardsRoute({ kind: 'study', roundId: 'round-1' }, 'push');
+    const fake = await renderStudy();
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="flashcards-study-end"]')?.click();
+    });
+    await flush();
+    expect(historyStateHasFlashcardsOverlay(history.state)).toBe(true);
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="flashcards-study-end-confirm-btn"]')?.click();
+    });
+    await flush();
+    expect(container.querySelector('[data-testid="flashcards-study-end-confirm"]')).toBeNull();
+    expect(historyStateHasFlashcardsOverlay(history.state)).toBe(false);
+    expect(window.location.hash).toBe('#flashcards/study/round-1');
+    expect(fake.calls.filter((command) => command.type === 'flashcards/study/end')).toHaveLength(1);
+
+    act(() => {
+      history.back();
+    });
+    await flush();
+    expect(window.location.hash).toBe('#flashcards');
+  });
+
   it('explains a missing round with a way back', async () => {
     await renderStudy({ missing: true });
     expect(container.querySelector('[data-testid="flashcards-study-missing"]')).not.toBeNull();
