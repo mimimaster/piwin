@@ -124,54 +124,14 @@ describe('SubagentInlineSession', () => {
     expect(onOpenFullSession).toHaveBeenCalledTimes(1);
   });
 
-  it('applies retained changes from the inline panel', async () => {
-    const actions: string[] = [];
-    renderPanel({
-      onWorktreeAction: async (childSessionId, action) => {
-        actions.push(`${childSessionId}:${action}`);
-      },
-    });
-
-    const applyButton = document.querySelector<HTMLElement>(
-      '[data-testid="subagent-worktree-apply"]',
-    );
-    await act(async () => {
-      applyButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
-    expect(actions).toEqual(['child-1:apply']);
-  });
-
-  it('confirms before permanently discarding the retained worktree', async () => {
-    const actions: string[] = [];
-    renderPanel({
-      onWorktreeAction: async (childSessionId, action) => {
-        actions.push(`${childSessionId}:${action}`);
-      },
-    });
-
-    act(() => {
-      document
-        .querySelector<HTMLElement>('[data-testid="subagent-worktree-discard"]')
-        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-    expect(
-      document.querySelector('[data-testid="subagent-worktree-discard-confirm"]'),
-    ).not.toBeNull();
-    expect(actions).toEqual([]);
-
-    await act(async () => {
-      document
-        .querySelector<HTMLElement>('[data-testid="confirm-dialog-confirm"]')
-        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
-    expect(actions).toEqual(['child-1:discard']);
-  });
-
-  it('hides worktree actions while the child is still running', () => {
-    renderPanel({ status: 'running' });
-
+  it('does not show the apply/retain/discard bar for a completed worktree child', () => {
+    renderPanel();
     expect(document.querySelector('[data-testid="subagent-worktree-actions"]')).toBeNull();
+    expect(document.querySelector('[data-testid="subagent-worktree-apply"]')).toBeNull();
+    expect(document.querySelector('[data-testid="subagent-worktree-retain"]')).toBeNull();
+    expect(document.querySelector('[data-testid="subagent-worktree-discard"]')).toBeNull();
+    expect(
+      document.querySelector('[data-testid="subagent-inline-session"]')?.getAttribute('data-result-id'),
+    ).toBe('child-1');
   });
 });
