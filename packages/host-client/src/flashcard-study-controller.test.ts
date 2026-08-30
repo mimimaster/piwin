@@ -416,4 +416,35 @@ describe('flashcard study controller', () => {
     await controller.flip();
     expect(requests).toEqual([]);
   });
+
+  it('checkpoints needsReview without tearing', async () => {
+    const pending = createMemoryFlashcardStudyPendingStore();
+    const requests: HostCommand[] = [];
+    const controller = createFlashcardStudyController({
+      request: async (command) => {
+        requests.push(command);
+        if (command.type === 'flashcards/study/checkpoint') {
+          const next = snapshot(1);
+          const current = next.current;
+          return {
+            type: 'response',
+            command: command.type,
+            success: true,
+            data: current
+              ? snapshot(1, { current: { ...current, needsReview: true } })
+              : next,
+          };
+        }
+        return { type: 'response', command: command.type, success: true, data: snapshot(0) };
+      },
+      pending,
+      clock: clock(),
+      visibility: visibility(),
+    });
+    await controller.start({ mode: 'sequence', scope: { kind: 'item', itemId: 'item-1' } });
+    await controller.setNeedsReview(true);
+    expect(requests.some((command) => command.type === 'flashcards/study/checkpoint')).toBe(true);
+    expect(controller.getViewModel().phase).not.toBe('transitioning');
+    expect(controller.getViewModel().snapshot?.current?.needsReview).toBe(true);
+  });
 });

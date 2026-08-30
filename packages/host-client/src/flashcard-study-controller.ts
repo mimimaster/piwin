@@ -55,6 +55,7 @@ export type FlashcardStudyController = {
   open: (roundId: string) => Promise<void>;
   claim: () => Promise<void>;
   flip: () => Promise<void>;
+  setNeedsReview: (needsReview: boolean) => Promise<void>;
   next: () => Promise<void>;
   rate: (rating: ReviewRating) => Promise<void>;
   undo: () => Promise<void>;
@@ -411,7 +412,30 @@ export function createFlashcardStudyController(
       current: face === 'question' ? { ...withoutBack, face } : { ...current, face },
     };
     patch({ snapshot: optimistic });
-    queuedCheckpoint = { face };
+    queuedCheckpoint = {
+      face,
+      ...(queuedCheckpoint?.needsReview !== undefined
+        ? { needsReview: queuedCheckpoint.needsReview }
+        : {}),
+    };
+    enqueueCheckpoint();
+    await checkpointChain;
+  }
+
+  async function setNeedsReview(needsReview: boolean): Promise<void> {
+    const snapshot = currentRound();
+    if (!snapshot?.current || advanceBlocked()) return;
+    const current = snapshot.current;
+    patch({
+      snapshot: {
+        ...snapshot,
+        current: { ...current, needsReview },
+      },
+    });
+    queuedCheckpoint = {
+      face: queuedCheckpoint?.face ?? snapshot.round.face,
+      needsReview,
+    };
     enqueueCheckpoint();
     await checkpointChain;
   }
@@ -521,6 +545,7 @@ export function createFlashcardStudyController(
     open,
     claim,
     flip,
+    setNeedsReview,
     next,
     rate,
     undo: () => simple('undo'),
