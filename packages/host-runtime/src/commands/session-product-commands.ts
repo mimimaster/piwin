@@ -43,6 +43,8 @@ import {
   type SessionTranscriptStore,
   openModelContextStore,
   copyModelContextLedger,
+  readOrInsertUnknownContextState,
+  seedDerivedSessionContextState,
 } from '@piwin/session';
 import { getSessionLineage, listAllSessionRecords } from '@piwin/session';
 import { cloneSessionMedia, cleanupFailedMediaClone } from '@piwin/media';
@@ -126,6 +128,7 @@ const PRODUCT_COMMAND_TYPES = new Set<HostCommand['type']>([
   'session/lineage',
   'session/search',
   'session/model-context-summary',
+  'session/context-get',
 ]);
 
 export function isSessionProductCommand(command: HostCommand): boolean {
@@ -525,6 +528,12 @@ export async function handleSessionProductCommand(
           targetSessionId: created.id,
           messageIdMap,
         });
+        await seedDerivedSessionContextState({
+          source: sourceStore,
+          target: targetStore,
+          targetSessionId: created.id,
+          updatedAt: new Date().toISOString(),
+        });
         const displayName =
           typeof command.name === 'string' && command.name.trim().length > 0
             ? command.name.trim()
@@ -675,6 +684,12 @@ export async function handleSessionProductCommand(
             : { boundarySourceMessageId: lastSourceUserMessageId }),
           boundaryCreatedAt: selected.createdAt,
         });
+        await seedDerivedSessionContextState({
+          source: sourceStore,
+          target: targetStore,
+          targetSessionId: created.id,
+          updatedAt: new Date().toISOString(),
+        });
         if (!reachedSelection) {
           throw new Error(
             `Message not found while streaming source transcript: ${selected.id}`,
@@ -786,6 +801,29 @@ export async function handleSessionProductCommand(
       } finally {
         store.close();
       }
+    }
+    case 'session/context-get': {
+      const record = await getSessionRecord(indexPath, command.sessionId);
+      if (!record) {
+        return fail(requestId, 'session/context-get', `Unknown session: ${command.sessionId}`);
+      }
+      const rejectedContext = rejectUnavailableSessionBody(
+        requestId,
+        'session/context-get',
+        record,
+        'context',
+      );
+      if (rejectedContext) {
+        return rejectedContext;
+      }
+      const snapshot = await context.withTranscriptStore(command.sessionId, (store) =>
+        readOrInsertUnknownContextState(store, {
+          sessionId: command.sessionId,
+          reason: 'never-sampled',
+          updatedAt: new Date().toISOString(),
+        }),
+      );
+      return ok(requestId, 'session/context-get', snapshot);
     }
     default:
       return null;

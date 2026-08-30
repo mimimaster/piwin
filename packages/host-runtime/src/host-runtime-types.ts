@@ -24,6 +24,7 @@ export const TRANSCRIPT_STORE_LEASED_COMMANDS = new Set<HostCommand['type']>([
   'session/transcript-page',
   'session/transcript-window',
   'session/messages',
+  'session/context-get',
   'session/queued-turn-submit',
   'session/queued-turn-list',
   'session/queued-turn-edit',

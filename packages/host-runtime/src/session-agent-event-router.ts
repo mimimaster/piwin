@@ -76,6 +76,10 @@ export function routeSessionAgentEvent(
     // from reaching push, hooks, usage, or transcript recording.
     return;
   }
+  if (correlatedEvent.type === 'context/measurement' || correlatedEvent.type === 'usage/finalized') {
+    // Facts only. Occupancy never bills, never fires turn_end/hooks/pet/naming.
+    return;
+  }
   if (correlatedEvent.type === 'message/native_context') {
     // Native context copies are host-internal (spec: session-conversation-tree
     // §4.3): persist through the recorder, never push to clients, hooks,

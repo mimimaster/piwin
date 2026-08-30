@@ -72,6 +72,8 @@ export function classifyHostPushAudience(push: HostPushVariant): HostPushAudienc
       return session(push.parentSessionId);
     case 'session/runtime-updated':
       return session(push.status.sessionId);
+    case 'session/context-updated':
+      return session(push.sessionId);
     case 'run/updated':
     case 'run/terminal':
       return session(push.run.sessionId);
