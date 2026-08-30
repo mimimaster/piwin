@@ -116,6 +116,7 @@ export {
   selectLatestSessionContextUsage,
   readUsageRollup,
   computeUsageRollup,
+  resetUsageLedgerCaches,
 } from './usage-ledger-store.js';
 export type { UsageRollupOptions } from './usage-ledger-store.js';
 

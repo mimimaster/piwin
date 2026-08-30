@@ -7,6 +7,7 @@ import {
   appendUsageRecord,
   computeUsageRollup,
   loadUsageRecords,
+  resetUsageLedgerCaches,
   selectLatestSessionContextUsage,
   readUsageRollup,
 } from './usage-ledger-store.js';
@@ -263,7 +264,6 @@ describe('usage-ledger-store', () => {
     await appendUsageRecord(filePath, legacy);
     expect(await appendUsageRecord(filePath, withId)).toBe('inserted');
     expect(await appendUsageRecord(filePath, { ...withId, totalTokens: 99 })).toBe('duplicate');
-    const { resetUsageLedgerCaches } = await import('./usage-ledger-store.js');
     resetUsageLedgerCaches();
     expect(await appendUsageRecord(filePath, withId)).toBe('duplicate');
     const rows = await loadUsageRecords(filePath);
