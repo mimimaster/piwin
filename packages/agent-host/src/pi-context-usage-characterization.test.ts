@@ -29,6 +29,13 @@ type PiUsage = {
   cacheRead: number;
   cacheWrite: number;
   totalTokens: number;
+  cost: {
+    input: number;
+    output: number;
+    cacheRead: number;
+    cacheWrite: number;
+    total: number;
+  };
 };
 
 type PiContextEstimate = {
@@ -60,6 +67,7 @@ function usage(overrides: Partial<PiUsage> = {}): PiUsage {
     cacheRead: 0,
     cacheWrite: 0,
     totalTokens: 0,
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
     ...overrides,
   };
 }
@@ -151,7 +159,9 @@ describe('Pi 0.84.2 context usage characterization', () => {
       },
     ]);
     expect(estimate.usageTokens).toBe(90_000);
-    expect(estimate.trailingTokens).toBe(estimateTokens({ role: 'user', content: userText }) + 3);
+    expect(estimate.trailingTokens).toBe(
+      estimateTokens({ role: 'user', content: userText, timestamp: 2 }) + 3,
+    );
     expect(estimate.tokens).toBe(90_000 + estimate.trailingTokens);
     expect(estimate.lastUsageIndex).toBe(0);
   });

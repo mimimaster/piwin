@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentEvent } from '@piwin/contracts';
 import {
+  assistantUsageMeasurementId,
   normalizeAgentEventIds,
   normalizeGenerationMessageId,
   normalizeGenerationToolCallId,
@@ -18,6 +19,29 @@ const contextB: GenerationIdentityContext = {
 };
 
 describe('generation-identity', () => {
+  it('builds a stable usage measurement id from session, generation, and message', () => {
+    expect(
+      assistantUsageMeasurementId({
+        sessionId: 'session-1',
+        runtimeGenerationId: 'gen-a',
+        messageId: 'piw-m-1',
+      }),
+    ).toBe('session-1:gen-a:piw-m-1');
+    expect(
+      assistantUsageMeasurementId({
+        sessionId: 'session-1',
+        runtimeGenerationId: 'gen-a',
+        messageId: 'piw-m-1',
+      }),
+    ).toBe(
+      assistantUsageMeasurementId({
+        sessionId: 'session-1',
+        runtimeGenerationId: 'gen-a',
+        messageId: 'piw-m-1',
+      }),
+    );
+  });
+
   it('maps the same backend id within one generation to the same opaque product id', () => {
     const first = normalizeGenerationMessageId(contextA, 'pi-message-2');
     const second = normalizeGenerationMessageId(contextA, 'pi-message-2');
