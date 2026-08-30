@@ -3,11 +3,7 @@
  * Shows a stacked bar breakdown of context usage by category with token counts.
  */
 import { useMemo, type ReactElement } from 'react';
-import type { ContextUsageSnapshot } from '@piwin/contracts';
-import {
-  resolveContextTokensLimit,
-  resolveContextTokensUsed,
-} from './context-usage-ring';
+import { readContextOccupiedTokens, type ContextUsageSnapshot } from '@piwin/contracts';
 
 export type ContextWindowPanelProps = {
   usage: ContextUsageSnapshot | null;
@@ -40,13 +36,18 @@ function formatTokens(value: number): string {
 export function ContextWindowPanel(props: ContextWindowPanelProps): ReactElement {
   const locale = props.locale ?? 'zh-CN';
 
-  const limit = useMemo(
-    () => resolveContextTokensLimit(props.usage, props.modelContextWindow),
-    [props.usage, props.modelContextWindow],
-  );
+  const limit = useMemo(() => {
+    if (typeof props.modelContextWindow === 'number' && props.modelContextWindow > 0) {
+      return props.modelContextWindow;
+    }
+    if (typeof props.usage?.tokensLimit === 'number' && props.usage.tokensLimit > 0) {
+      return props.usage.tokensLimit;
+    }
+    return 0;
+  }, [props.usage, props.modelContextWindow]);
 
   const used = useMemo(
-    () => resolveContextTokensUsed(props.usage) ?? 0,
+    () => readContextOccupiedTokens(props.usage) ?? 0,
     [props.usage],
   );
 

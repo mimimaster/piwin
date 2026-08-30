@@ -1,24 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import type { ContextUsageSnapshot } from '@piwin/contracts';
 import {
-  buildConversationUsageDetailRows,
+  buildLastRequestDetailRows,
+  buildOccupancyDetailRows,
+  contextUsageCopyHasMixedEnglish,
   formatContextOccupancyCopy,
   formatUsageDurationMs,
   formatUsageTokenCount,
-  isHostEstimatedUsage,
+  getContextUsageCopy,
 } from './conversation-usage-copy.js';
-
-function createUsage(
-  overrides: Partial<ContextUsageSnapshot> = {},
-): ContextUsageSnapshot {
-  return {
-    sessionId: 'session-chat',
-    tokensUsed: 12_400,
-    tokensLimit: 128_000,
-    updatedAt: '2026-08-16T00:00:00.000Z',
-    ...overrides,
-  };
-}
+import { makeLastRequest } from './context-telemetry-test-fixtures.js';
 
 describe('conversation usage copy', () => {
   it('formats occupancy as used / limit', () => {
@@ -28,24 +18,18 @@ describe('conversation usage copy', () => {
     expect(formatUsageDurationMs(1_200)).toBe('1.2s');
   });
 
-  it('omits last-turn fields until Host reports them', () => {
-    const rows = buildConversationUsageDetailRows({
-      usage: createUsage(),
+  it('omits last-request fields until Host reports them', () => {
+    const rows = buildOccupancyDetailRows({
       used: 12_400,
       limit: 128_000,
     });
     expect(rows.map((row) => row.id)).toEqual(['occupied', 'limit']);
-    expect(rows[0]?.value).toBe('12K');
-    expect(rows[1]?.value).toBe('128K');
+    expect(buildLastRequestDetailRows({ usage: null })).toEqual([]);
   });
 
-  it('includes last-turn fields only when present and marks estimates', () => {
-    expect(isHostEstimatedUsage(createUsage({ source: 'pi-contextUsage' }))).toBe(
-      false,
-    );
-    const rows = buildConversationUsageDetailRows({
-      usage: createUsage({
-        source: 'host-estimate',
+  it('T26: last-request rows only include real fields, never category percentages', () => {
+    const rows = buildLastRequestDetailRows({
+      usage: makeLastRequest({
         promptTokens: 700,
         cacheReadTokens: 100,
         cacheWriteTokens: 50,
@@ -53,19 +37,36 @@ describe('conversation usage copy', () => {
         totalTokens: 1_050,
         durationMs: 1_200,
       }),
-      used: 850,
-      limit: 128_000,
       locale: 'en',
     });
-    expect(rows).toEqual([
-      { id: 'occupied', label: 'Context occupied', value: '~850' },
-      { id: 'limit', label: 'Context limit', value: '128K' },
-      { id: 'input', label: 'Input', value: '~700' },
-      { id: 'cache-read', label: 'Cache read', value: '~100' },
-      { id: 'cache-write', label: 'Cache write', value: '~50' },
-      { id: 'output', label: 'Output', value: '~200' },
-      { id: 'total', label: 'Total', value: '~1.1K' },
-      { id: 'duration', label: 'Duration', value: '1.2s' },
+    expect(rows.map((row) => row.id)).toEqual([
+      'input',
+      'cache-read',
+      'cache-write',
+      'output',
+      'total',
+      'duration',
     ]);
+    expect(rows.some((row) => row.value.includes('~'))).toBe(false);
+    expect(rows.some((row) => row.label.toLowerCase().includes('system'))).toBe(false);
+  });
+
+  it('T29: zh-CN strings cover ring copy without leftover English', () => {
+    const zh = getContextUsageCopy('zh-CN');
+    const en = getContextUsageCopy('en');
+    expect(zh.title).toBe('上下文占用');
+    expect(zh.close).toBe('关闭');
+    expect(zh.settings).toContain('上下文');
+    expect(zh.estimated).toBe('估算');
+    expect(zh.confirmed).toBe('已确认');
+    expect(zh.realtimeEstimate).toBe('实时估算');
+    expect(zh.limitUnknown).toBe('上限未知');
+    expect(zh.exceedsLimit).toBe('超过上下文上限');
+    expect(zh.compactedPending).toContain('已压缩');
+    expect(zh.capabilityMissing).toContain('不支持');
+    expect(zh.offline).toContain('离线');
+    expect(en.title).toBe('Context usage');
+    expect(en.capabilityMissing).toMatch(/does not support/i);
+    expect(contextUsageCopyHasMixedEnglish('zh-CN')).toBe(false);
   });
 });

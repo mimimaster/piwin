@@ -3,7 +3,7 @@
  * so a late/replaced generation cannot reach transcript, usage, hooks, or UI.
  */
 import type { AgentEvent } from '@piwin/contracts';
-import { formatError, isRunTerminal, shouldAcceptContextUsage } from '@piwin/contracts';
+import { formatError, isRunTerminal } from '@piwin/contracts';
 import { enrichAgentEventSessionModel } from './agent-event-session-model.js';
 import { enrichAgentEventDocumentTargets } from './document-targets.js';
 import { shouldSuppressControlledAbortError } from './run-agent-event-policy.js';
@@ -27,6 +27,10 @@ export function routeSessionAgentEvent(
   projectPath: string | undefined,
 ): void {
   const currentRuntimeGenerationId = deps.runtimeController.getStatus(session.id).generationId;
+  if (event.type === 'context/measurement' || event.type === 'usage/finalized') {
+    routeContextTelemetryEvent(deps, session.id, event, boundRuntimeGenerationId, currentRuntimeGenerationId);
+    return;
+  }
   if (currentRuntimeGenerationId !== boundRuntimeGenerationId) {
     // A late callback from a disposed generation must not reach transcript,
     // usage, hooks, or UI state after replacement/recovery.
@@ -93,6 +97,11 @@ export function routeSessionAgentEvent(
     }
     return;
   }
+  if (correlatedEvent.type === 'usage/update') {
+    // Occupancy/billing use context/measurement and usage/finalized. Compatible
+    // usage/update is a finalized projection from the coordinator only.
+    return;
+  }
   // Attach logical documentTargets for Doc Preview without rewriting
   // targetPaths (actual tool evidence stays intact).
   const projectPathForTargets = deps.sessionProjects.get(session.id) ?? projectPath ?? null;
@@ -129,42 +138,27 @@ export function routeSessionAgentEvent(
       ...(eventForClients.runId ? { runId: eventForClients.runId } : {}),
     });
   }
-  if (event.type === 'usage/update') {
-    const currentUsage = deps.sessionUsage.get(session.id);
-    if (!shouldAcceptContextUsage(currentUsage, event.usage)) {
-      return;
-    }
-    deps.sessionUsage.set(session.id, event.usage);
-    // CE-OBS: only agent_end (assistant-usage) is a billable per-turn
-    // count. pi-contextUsage is cumulative context occupancy — never sum.
-    if (event.usage.source !== 'pi-contextUsage') {
-      deps.enqueueUsageLedgerWrite(session.id, event.usage);
-    }
-  }
-  if (
-    eventForClients.type === 'compaction/end' &&
-    eventForClients.ok !== false &&
-    typeof eventForClients.tokensAfter === 'number'
-  ) {
-    const previous = deps.sessionUsage.get(session.id);
-    const tokensAfter = eventForClients.tokensAfter;
-    deps.sessionUsage.set(session.id, {
-      sessionId: session.id,
-      ...(previous?.modelId ? { modelId: previous.modelId } : {}),
-      tokensUsed: tokensAfter,
-      ...(typeof previous?.tokensLimit === 'number' ? { tokensLimit: previous.tokensLimit } : {}),
-      totalTokens: tokensAfter,
-      ...(typeof previous?.tokensLimit === 'number' && previous.tokensLimit > 0
-        ? { contextRatio: tokensAfter / previous.tokensLimit }
-        : {}),
-      updatedAt: new Date().toISOString(),
-      source: 'pi-contextUsage',
+  if (eventForClients.type === 'compaction/start') {
+    void deps.sessionContextCoordinator?.noteCompactionStart(session.id).catch((error: unknown) => {
+      logCoordinatorFailure(deps, error);
     });
   }
-  // CE-OBS: if mock/host did not emit usage, estimate after assistant message ends.
-  if (correlatedEvent.type === 'message/end') {
-    void deps.maybeEmitUsageOnMessageEnd(session.id, correlatedEvent.messageId);
+  if (eventForClients.type === 'compaction/end') {
+    void deps.sessionContextCoordinator
+      ?.noteCompactionEnd(session.id, {
+        ok: eventForClients.ok !== false,
+        ...(typeof eventForClients.tokensAfter === 'number'
+          ? { tokensAfter: eventForClients.tokensAfter }
+          : {}),
+        ...(typeof eventForClients.tokensBefore === 'number'
+          ? { tokensBefore: eventForClients.tokensBefore }
+          : {}),
+      })
+      .catch((error: unknown) => {
+        logCoordinatorFailure(deps, error);
+      });
   }
+  noteResponseEvidenceFromEvent(deps, session.id, eventForClients, correlatedRunId ?? activeRunId);
   // CE-NAME: capture the assistant reply from the event stream so
   // auto-naming can give the LLM title generator exchange context.
   if (correlatedEvent.type === 'message/start' && correlatedEvent.role === 'assistant') {
@@ -206,4 +200,93 @@ export function routeSessionAgentEvent(
       });
     });
   }
+}
+
+function routeContextTelemetryEvent(
+  deps: HostRuntimeKernel,
+  sessionId: string,
+  event: Extract<AgentEvent, { type: 'context/measurement' | 'usage/finalized' }>,
+  boundRuntimeGenerationId: string | undefined,
+  currentRuntimeGenerationId: string | undefined,
+): void {
+  const measurement = event.measurement;
+  if (measurement.sessionId !== sessionId) {
+    return;
+  }
+  if (
+    measurement.runtimeGenerationId !== undefined &&
+    boundRuntimeGenerationId !== undefined &&
+    measurement.runtimeGenerationId !== boundRuntimeGenerationId
+  ) {
+    return;
+  }
+  if (currentRuntimeGenerationId !== boundRuntimeGenerationId) {
+    return;
+  }
+  const coordinator = deps.sessionContextCoordinator;
+  if (coordinator === undefined) {
+    return;
+  }
+  if (event.type === 'context/measurement') {
+    void coordinator
+      .ingestMeasurement({
+        sessionId,
+        measurement: event.measurement,
+        ...(boundRuntimeGenerationId !== undefined ? { boundGenerationId: boundRuntimeGenerationId } : {}),
+      })
+      .catch((error: unknown) => {
+        logCoordinatorFailure(deps, error);
+      });
+    return;
+  }
+  void coordinator
+    .ingestFinalized({
+      sessionId,
+      measurement: event.measurement,
+      ...(boundRuntimeGenerationId !== undefined ? { boundGenerationId: boundRuntimeGenerationId } : {}),
+    })
+    .catch((error: unknown) => {
+      logCoordinatorFailure(deps, error);
+    });
+}
+
+function noteResponseEvidenceFromEvent(
+  deps: HostRuntimeKernel,
+  sessionId: string,
+  event: AgentEvent,
+  runId: string | undefined,
+): void {
+  const coordinator = deps.sessionContextCoordinator;
+  if (coordinator === undefined) {
+    return;
+  }
+  let messageId: string | undefined;
+  if (event.type === 'message/text_delta' && event.delta.trim().length > 0) {
+    messageId = event.messageId;
+  } else if (event.type === 'message/thinking_delta' && event.delta.trim().length > 0) {
+    messageId = event.messageId;
+  } else if (event.type === 'message/text_snapshot' && event.text.trim().length > 0) {
+    messageId = event.messageId;
+  } else if (event.type === 'tool/start') {
+    messageId = event.responseMessageId;
+  } else {
+    return;
+  }
+  void coordinator
+    .noteResponseEvidence({
+      sessionId,
+      ...(runId !== undefined ? { runId } : {}),
+      ...(messageId !== undefined ? { messageId } : {}),
+    })
+    .catch((error: unknown) => {
+      logCoordinatorFailure(deps, error);
+    });
+}
+
+function logCoordinatorFailure(deps: HostRuntimeKernel, error: unknown): void {
+  deps.push({
+    type: 'host/log',
+    level: 'warn',
+    message: `session context coordinator failed: ${formatError(error)}`,
+  });
 }

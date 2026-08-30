@@ -246,7 +246,7 @@ than one shell to the same sessions, Runs, Jobs, MCP supervisor, and data root.
 | M8.5 | Standalone Host Server | `apps/host` runs without Tauri and serves loopback/private WebSocket through HostRuntime | done — initial slice |
 | M8.6 | Private multi-client smoke | fake/runtime-port smoke covers two clients, safe reads, push and reconnect replay; real two-shell prompt smoke remains | partial |
 | M8.7 | Optional Gateway/tunnel | relay is transport-only, redacts secrets, and is not required for Tailscale/private LAN | planned |
-| M8.8 | Mobile/Web shell spike | client shell consumes Host protocol after M8.6; no independent Agent loop | in progress — real status/list/chat slice |
+| M8.8 | Mobile/Web shell spike | client shell consumes Host protocol after M8.6; no independent Agent loop | in progress — status/list/chat plus in-tree flashcard catalog/study (ADR 0066; real-device V04/V09/V22 not run) |
 | M8.9 | Conversation multi-pane live set (ADR 0063) | Desktop general scope has device-local 1/2/4/8 panes; one deduplicated remote subscription keeps all visible Chats live; Project Agent remains single-stage | done |
 
 ### M9 — piwin Live (Provider Registry + work-session delegation)
@@ -372,3 +372,24 @@ share one host Extension UI bridge — no new IPC or question contract:
 
 Slices shipped: bundled `questionnaire` extension, CLI TTY handler, `piwin chat`
 wiring, docs (ADR 0023 + architecture §3.5).
+
+### Flashcard study workbench (2026-08-30) — in tree, not device-verified
+
+ADR 0066: Host-owned rounds, operation log, additive `ReviewState.revision`.
+Desktop study page, Mobile catalog + study, CLI `piwin study`, existing
+`fcws-tear-off` 200ms, unique CardStore.
+
+**Do not mark shipped / Accepted.** Real-device V04/V09/V22 not run (iOS sim
+Shutdown; no `adb`; no Android gen). Visual fixtures not captured. Root
+`pnpm typecheck` / mobile build still fail on pre-existing `@piwin/artifact`
+errors. Desktop Vite build passes via `@piwin/flashcards/study-sequence`.
+
+Intentional v1 boundaries: Mobile source preview is excerpt-only; study is
+online-only; CLI has no animation. Compatibility: old Markdown not migrated;
+missing ReviewState revision = 0; `study/` dirs lazy-created. Rollback:
+reverting frontend entries must not delete rounds/operations; do not run an
+old Host against an unapplied new log; backup `~/.piwin/flashcards` first.
+
+Spec: [`2026-08-30-flashcard-review-workbench-spec.md`](./specs/2026-08-30-flashcard-review-workbench-spec.md).
+Delivery: [`2026-08-30-flashcard-review-workbench-delivery.md`](./evidence/2026-08-30-flashcard-review-workbench-delivery.md).
+Architecture: §2.0.2.

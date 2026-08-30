@@ -4,7 +4,13 @@
  * `piwin context <sessionId>` prints Host-owned assembly only. It never claims
  * the model received this payload and never dumps raw system / tools / files.
  */
-import type { HostCommand, HostResponse, ModelContextSummaryData } from '@piwin/contracts';
+import type {
+  HostCommand,
+  HostResponse,
+  ModelContextSummaryData,
+  SessionContextSnapshot,
+} from '@piwin/contracts';
+import { parseSessionContextSnapshot } from '@piwin/contracts';
 
 export type ContextHostClient = {
   handleCommand: (command: HostCommand) => Promise<HostResponse>;
@@ -35,11 +41,51 @@ export function formatContextSummary(data: ModelContextSummaryData): string {
   return [header, ...blocks].join('\n');
 }
 
+export function formatSessionContextOccupancy(
+  snapshot: SessionContextSnapshot,
+  locale: 'zh-CN' | 'en' = 'zh-CN',
+): string {
+  const quality =
+    snapshot.occupancy.kind === 'unknown'
+      ? locale === 'zh-CN'
+        ? '未知'
+        : 'unknown'
+      : snapshot.occupancy.quality === 'measured'
+        ? locale === 'zh-CN'
+          ? '已确认'
+          : 'confirmed'
+        : locale === 'zh-CN'
+          ? '估算'
+          : 'estimated';
+  if (snapshot.occupancy.kind === 'unknown') {
+    return locale === 'zh-CN'
+      ? `上下文占用\t${quality}\t${snapshot.occupancy.reason}`
+      : `context occupancy\t${quality}\t${snapshot.occupancy.reason}`;
+  }
+  const used = snapshot.occupancy.tokensUsed;
+  const limit = snapshot.occupancy.tokensLimit;
+  const tokens =
+    typeof limit === 'number' ? `${used}/${limit}` : `${used}`;
+  return locale === 'zh-CN'
+    ? `上下文占用\t${quality}\t${tokens}`
+    : `context occupancy\t${quality}\t${tokens}`;
+}
+
 export async function runContextSummary(
   client: ContextHostClient,
   sessionId: string,
   write: (line: string) => void,
 ): Promise<void> {
+  const occupancyResponse = await client.handleCommand({
+    type: 'session/context-get',
+    sessionId,
+  });
+  if (occupancyResponse.success) {
+    const snapshot = parseSessionContextSnapshot(occupancyResponse.data);
+    if (snapshot) {
+      write(formatSessionContextOccupancy(snapshot));
+    }
+  }
   const response = await client.handleCommand({
     type: 'session/model-context-summary',
     sessionId,

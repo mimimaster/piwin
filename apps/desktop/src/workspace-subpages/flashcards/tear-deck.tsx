@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
-import { Button } from '@piwin/ui-kit';
+import {
+  Button,
+  FlashcardFace,
+  TearDeckSurface,
+  FLASHCARD_TEAR_DURATION_MS,
+} from '@piwin/ui-kit';
 import type { FlashcardItem } from '@piwin/contracts';
 import { itemPreviewText } from '@piwin/flashcards/cloze';
 import { IconCheck, IconClose, IconRefresh, IconTrash } from '../../shell-icons';
@@ -40,7 +45,7 @@ export function TearDeck(props: {
         setIndex((prev) => prev + 1);
         setRevealed(false);
         setTearing(false);
-      }, 200);
+      }, FLASHCARD_TEAR_DURATION_MS);
     } else {
       setCompleted(true);
     }
@@ -101,134 +106,135 @@ export function TearDeck(props: {
 
   if (!current || completed) {
     return (
-      <div className="fcws-tear fcws-tear-completed" data-testid="flashcards-tear">
-        <div className="fcws-tear-completed-icon">
-          <IconCheck width={32} height={32} />
-        </div>
-        <h3>{labels.completedTitle}</h3>
-        <p className="fcws-tear-completed-desc" data-testid="flashcards-tear-completed-desc">
-          {labels.completedDescription(total)}
-        </p>
-        <div className="fcws-tear-actions fcws-tear-completed-actions">
-          <Button variant="primary" onClick={restart}>
-            <IconRefresh width={14} height={14} />
-            <span>{labels.restart}</span>
-          </Button>
-          <Button variant="secondary" onClick={closeDeck}>
-            {labels.close}
-          </Button>
-        </div>
-      </div>
+      <TearDeckSurface
+        completed
+        completedContent={
+          <>
+            <div className="fcws-tear-completed-icon">
+              <IconCheck width={32} height={32} />
+            </div>
+            <h3>{labels.completedTitle}</h3>
+            <p className="fcws-tear-completed-desc" data-testid="flashcards-tear-completed-desc">
+              {labels.completedDescription(total)}
+            </p>
+            <div className="fcws-tear-actions fcws-tear-completed-actions">
+              <Button variant="primary" onClick={restart}>
+                <IconRefresh width={14} height={14} />
+                <span>{labels.restart}</span>
+              </Button>
+              <Button variant="secondary" onClick={closeDeck}>
+                {labels.close}
+              </Button>
+            </div>
+          </>
+        }
+      />
     );
   }
 
   const progressPercent = Math.round(((index + 1) / total) * 100);
 
   return (
-    <div className="fcws-tear" data-testid="flashcards-tear">
-      <header className="fcws-tear-toolbar">
-        <div className="fcws-tear-progress-wrap">
-          <span className="fcws-tear-count" data-testid="flashcards-tear-count">
-            {index + 1} / {total}
-          </span>
-          <div className="fcws-tear-progress-bar">
-            <div className="fcws-tear-progress-fill" style={{ width: `${progressPercent}%` }} />
-          </div>
-        </div>
-        <button
-          type="button"
-          className="fcws-tear-close"
-          onClick={closeDeck}
-          title={labels.close}
-          aria-label={labels.close}
-        >
-          <IconClose width={14} height={14} />
-          <span>{labels.close}</span>
-        </button>
-      </header>
-
-      <main className="fcws-tear-stage">
-        <article
-          className={`fcws-tear-card${tearing ? ' is-tearing' : ''}${revealed ? ' is-revealed' : ''}`}
-          data-testid="flashcards-tear-card"
-          tabIndex={0}
-        >
-          <div className="fcws-tear-card-top" onClick={toggleReveal}>
-            <div className="fcws-tear-meta">
-              <span className="fcws-tear-deck-name">{current.deck || labels.unnamedDeck}</span>
-              {Array.isArray(current.tags) && current.tags.length > 0 ? (
-                <span className="fcws-tear-tag">#{current.tags[0]}</span>
-              ) : null}
+    <TearDeckSurface
+      tearing={tearing}
+      toolbar={
+        <header className="fcws-tear-toolbar">
+          <div className="fcws-tear-progress-wrap">
+            <span className="fcws-tear-count" data-testid="flashcards-tear-count">
+              {index + 1} / {total}
+            </span>
+            <div className="fcws-tear-progress-bar">
+              <div className="fcws-tear-progress-fill" style={{ width: `${progressPercent}%` }} />
             </div>
-            <span className="fcws-tear-index-tag">#{index + 1}</span>
           </div>
+          <button
+            type="button"
+            className="fcws-tear-close"
+            onClick={closeDeck}
+            title={labels.close}
+            aria-label={labels.close}
+          >
+            <IconClose width={14} height={14} />
+            <span>{labels.close}</span>
+          </button>
+        </header>
+      }
+      current={
+        <FlashcardFace
+          tearing={tearing}
+          revealed={revealed}
+          deckName={current.deck || labels.unnamedDeck}
+          tag={
+            Array.isArray(current.tags) && current.tags.length > 0 ? (
+              <span className="fcws-tear-tag">#{current.tags[0]}</span>
+            ) : null
+          }
+          indexTag={<span className="fcws-tear-index-tag">#{index + 1}</span>}
+          contentTestId={revealed ? 'flashcards-tear-back' : 'flashcards-tear-front'}
+          onFlip={toggleReveal}
+          content={
+            <MarkdownView
+              text={revealed ? (current.back ?? current.text ?? '') : itemPreviewText(current)}
+              renderingPhase="completed"
+              showStreamingCaret={false}
+              artifactPreviewEnabled={false}
+            />
+          }
+          source={
+            current.sourceFile ? (
+              <div className="fcws-tear-source-line">
+                <span>{current.sourceFile}</span>
+              </div>
+            ) : null
+          }
+        />
+      }
+      actions={
+        <footer className="fcws-tear-actions">
+          <Button variant="secondary" size="default" onClick={toggleReveal}>
+            <span>{revealed ? labels.question : labels.answer}</span>
+            <kbd className="fc-rate-key">Space</kbd>
+          </Button>
 
-          <div className="fcws-tear-text-wrap fc-quiet-text-zone">
-            <div
-              className="fcws-tear-content"
-              data-testid={revealed ? 'flashcards-tear-back' : 'flashcards-tear-front'}
+          {hasNext ? (
+            <Button variant="primary" size="default" data-testid="flashcards-tear-next" onClick={tear}>
+              {labels.tear}
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              size="default"
+              data-testid="flashcards-tear-end"
+              onClick={() => setCompleted(true)}
             >
-              <MarkdownView
-                text={revealed ? (current.back ?? current.text ?? '') : itemPreviewText(current)}
-                renderingPhase="completed"
-                showStreamingCaret={false}
-                artifactPreviewEnabled={false}
-              />
-            </div>
-          </div>
-
-          {current.sourceFile ? (
-            <div className="fcws-tear-source-line">
-              <span>{current.sourceFile}</span>
-            </div>
+              {labels.lastCard}
+            </Button>
+          )}
+          {props.onDeleteCard ? (
+            <Button
+              variant="ghost"
+              size="compact"
+              className="fcws-tear-danger"
+              data-testid="flashcards-tear-delete-card"
+              onClick={() => props.onDeleteCard?.(current.id)}
+            >
+              <IconTrash width={13} height={13} />
+              <span>{labels.deleteCard}</span>
+            </Button>
           ) : null}
-        </article>
-      </main>
-
-      <footer className="fcws-tear-actions">
-        <Button variant="secondary" size="default" onClick={toggleReveal}>
-          <span>{revealed ? labels.question : labels.answer}</span>
-          <kbd className="fc-rate-key">Space</kbd>
-        </Button>
-
-        {hasNext ? (
-          <Button variant="primary" size="default" data-testid="flashcards-tear-next" onClick={tear}>
-            {labels.tear}
-          </Button>
-        ) : (
-          <Button
-            variant="primary"
-            size="default"
-            data-testid="flashcards-tear-end"
-            onClick={() => setCompleted(true)}
-          >
-            {labels.lastCard}
-          </Button>
-        )}
-        {props.onDeleteCard ? (
-          <Button
-            variant="ghost"
-            size="compact"
-            className="fcws-tear-danger"
-            data-testid="flashcards-tear-delete-card"
-            onClick={() => props.onDeleteCard?.(current.id)}
-          >
-            <IconTrash width={13} height={13} />
-            <span>{labels.deleteCard}</span>
-          </Button>
-        ) : null}
-        {props.cards.length > 1 && props.onDeleteSet ? (
-          <Button
-            variant="ghost"
-            size="compact"
-            className="fcws-tear-danger"
-            data-testid="flashcards-tear-delete-set"
-            onClick={props.onDeleteSet}
-          >
-            {labels.deleteSet}
-          </Button>
-        ) : null}
-      </footer>
-    </div>
+          {props.cards.length > 1 && props.onDeleteSet ? (
+            <Button
+              variant="ghost"
+              size="compact"
+              className="fcws-tear-danger"
+              data-testid="flashcards-tear-delete-set"
+              onClick={props.onDeleteSet}
+            >
+              {labels.deleteSet}
+            </Button>
+          ) : null}
+        </footer>
+      }
+    />
   );
 }

@@ -81,6 +81,7 @@ export function useWorkbenchSessionRuntime(args: UseWorkbenchSessionRuntimeArgs)
     handleCompact,
     handleCompactAbort,
     handlePermission,
+    bumpToDraft,
   } = useSessionActions({
     hostClient,
     state,
@@ -264,6 +265,7 @@ export function useWorkbenchSessionRuntime(args: UseWorkbenchSessionRuntimeArgs)
     handleRunModeSetDefault,
     handleSettingsSaved,
     handleSettingsPreferencesChange,
+    bumpToDraft,
   };
 }
 

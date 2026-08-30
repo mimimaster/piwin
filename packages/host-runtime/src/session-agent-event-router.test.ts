@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { AgentEvent, HostPush } from '@piwin/contracts';
+import type { AgentEvent, ContextMeasurement, HostPush } from '@piwin/contracts';
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 import { RunEventCorrelator } from './run-event-correlator.js';
 import { RunRegistry } from './run-registry.js';
@@ -10,12 +10,26 @@ function createRouterKernel(input: {
   registry: RunRegistry;
   correlator?: RunEventCorrelator;
   executionRunId?: string;
-}): { deps: HostRuntimeKernel; pushes: HostPush[] } {
+  generationId?: string;
+}): {
+  deps: HostRuntimeKernel;
+  pushes: HostPush[];
+  petEvents: AgentEvent[];
+  ledgerWrites: unknown[];
+  hookEvents: AgentEvent[];
+  measurements: ContextMeasurement[];
+  finalized: unknown[];
+} {
   const pushes: HostPush[] = [];
+  const petEvents: AgentEvent[] = [];
+  const ledgerWrites: unknown[] = [];
+  const hookEvents: AgentEvent[] = [];
+  const measurements: ContextMeasurement[] = [];
+  const finalized: unknown[] = [];
   const correlator = input.correlator ?? new RunEventCorrelator();
   const deps = {
     runtimeController: {
-      getStatus: () => ({ generationId: 'gen-1' }),
+      getStatus: () => ({ generationId: input.generationId ?? 'gen-1' }),
     },
     runRegistry: input.registry,
     runEventCorrelator: correlator,
@@ -30,15 +44,32 @@ function createRouterKernel(input: {
     options: {},
     transcriptRecorders: new Map(),
     ensurePetStateStore: async () => ({
-      reduce: async () => undefined,
+      reduce: async (event: AgentEvent) => {
+        petEvents.push(event);
+      },
     }),
     sessionUsage: new Map(),
-    enqueueUsageLedgerWrite: () => undefined,
+    enqueueUsageLedgerWrite: (_sessionId: string, usage: unknown) => {
+      ledgerWrites.push(usage);
+    },
     assistantTextBuffers: new Map(),
     sessionLastAssistantReply: new Map(),
-    dispatchHooksForAgentEvent: async () => undefined,
+    dispatchHooksForAgentEvent: async (_sessionId: string, event: AgentEvent) => {
+      hookEvents.push(event);
+    },
+    sessionContextCoordinator: {
+      ingestMeasurement: async ({ measurement }: { measurement: ContextMeasurement }) => {
+        measurements.push(measurement);
+      },
+      ingestFinalized: async ({ measurement }: { measurement: unknown }) => {
+        finalized.push(measurement);
+      },
+      noteResponseEvidence: async () => undefined,
+      noteCompactionStart: async () => undefined,
+      noteCompactionEnd: async () => undefined,
+    },
   } as unknown as HostRuntimeKernel;
-  return { deps, pushes };
+  return { deps, pushes, petEvents, ledgerWrites, hookEvents, measurements, finalized };
 }
 
 describe('routeSessionAgentEvent', () => {
@@ -93,5 +124,140 @@ describe('routeSessionAgentEvent', () => {
     expect(registry.hasAgentErrorEvidence(replacement.runId)).toBe(false);
     expect(registry.get(replacement.runId)?.status).not.toBe('failed');
     expect(pushes.some((message) => message.type === 'event')).toBe(false);
+  });
+
+  it('routes context/measurement to the coordinator without pet, hooks, or billing', () => {
+    const registry = new RunRegistry();
+    registry.createForegroundRun('session-1');
+    const { deps, pushes, petEvents, ledgerWrites, hookEvents, measurements } = createRouterKernel({
+      sessionId: 'session-1',
+      registry,
+    });
+    const measurement: ContextMeasurement = {
+      sessionId: 'session-1',
+      runtimeGenerationId: 'gen-1',
+      sampleSequence: 1,
+      occupancy: {
+        kind: 'known',
+        tokensUsed: 90,
+        quality: 'measured',
+        coverage: 'complete',
+        basis: 'test',
+        sampledAt: '2026-08-30T00:00:00.000Z',
+      },
+      contextBoundary: { activeLeafMessageId: 'msg-1' },
+      sampledAt: '2026-08-30T00:00:00.000Z',
+    };
+
+    routeSessionAgentEvent(
+      deps,
+      { id: 'session-1' },
+      { type: 'context/measurement', measurement },
+      'gen-1',
+      undefined,
+      undefined,
+    );
+
+    expect(measurements).toEqual([measurement]);
+    expect(petEvents).toEqual([]);
+    expect(hookEvents).toEqual([]);
+    expect(ledgerWrites).toEqual([]);
+    expect(pushes.some((push) => push.type === 'event')).toBe(false);
+  });
+
+  it('drops a late sample from a previous runtimeGenerationId before the coordinator', () => {
+    const registry = new RunRegistry();
+    const { deps, measurements, pushes } = createRouterKernel({
+      sessionId: 'session-1',
+      registry,
+      generationId: 'gen-2',
+    });
+
+    routeSessionAgentEvent(
+      deps,
+      { id: 'session-1' },
+      {
+        type: 'context/measurement',
+        measurement: {
+          sessionId: 'session-1',
+          runtimeGenerationId: 'gen-1',
+          sampleSequence: 4,
+          occupancy: { kind: 'unknown', reason: 'stale' },
+          contextBoundary: { activeLeafMessageId: null },
+          sampledAt: '2026-08-30T00:00:00.000Z',
+        },
+      },
+      'gen-1',
+      undefined,
+      undefined,
+    );
+
+    expect(measurements).toEqual([]);
+    expect(pushes.some((push) => push.type === 'event')).toBe(false);
+  });
+
+  it('routes usage/finalized to the coordinator and does not bill via usage/update', () => {
+    const registry = new RunRegistry();
+    registry.createForegroundRun('session-1');
+    const { deps, ledgerWrites, hookEvents, petEvents, finalized, pushes } = createRouterKernel({
+      sessionId: 'session-1',
+      registry,
+    });
+
+    routeSessionAgentEvent(
+      deps,
+      { id: 'session-1' },
+      {
+        type: 'usage/finalized',
+        measurement: {
+          measurementId: 'session-1:gen-1:msg-1',
+          sessionId: 'session-1',
+          runtimeGenerationId: 'gen-1',
+          messageId: 'msg-1',
+          totalTokens: 12,
+          recordedAt: '2026-08-30T00:00:01.000Z',
+        },
+      },
+      'gen-1',
+      undefined,
+      undefined,
+    );
+
+    expect(finalized).toHaveLength(1);
+    expect(ledgerWrites).toEqual([]);
+    expect(hookEvents).toEqual([]);
+    expect(petEvents).toEqual([]);
+    expect(pushes.some((push) => push.type === 'event')).toBe(false);
+  });
+
+  it('does not bill streaming usage/update', () => {
+    const registry = new RunRegistry();
+    registry.createForegroundRun('session-1');
+    const { deps, ledgerWrites, hookEvents, pushes } = createRouterKernel({
+      sessionId: 'session-1',
+      registry,
+    });
+
+    routeSessionAgentEvent(
+      deps,
+      { id: 'session-1' },
+      {
+        type: 'usage/update',
+        sessionId: 'session-1',
+        usage: {
+          sessionId: 'session-1',
+          totalTokens: 12,
+          updatedAt: '2026-08-30T00:00:01.000Z',
+          source: 'assistant-usage',
+        },
+      },
+      'gen-1',
+      undefined,
+      undefined,
+    );
+
+    expect(ledgerWrites).toEqual([]);
+    expect(hookEvents).toEqual([]);
+    expect(pushes.some((push) => push.type === 'event')).toBe(false);
   });
 });

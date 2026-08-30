@@ -119,11 +119,15 @@ async function runCommand(
   const commandId = typeof command.id === 'string' ? command.id : undefined;
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   try {
+    const handle = (): Promise<HostResponse> =>
+      request.idempotencyKey
+        ? runtime.handleCommand(command, { idempotencyKey: request.idempotencyKey })
+        : runtime.handleCommand(command);
     const execute = (): Promise<HostResponse> =>
       timeoutMs === undefined
-        ? runtime.handleCommand(command)
+        ? handle()
         : Promise.race([
-            runtime.handleCommand(command),
+            handle(),
             new Promise<never>((_resolve, reject) => {
               timeoutId = setTimeout(() => {
                 reject(new Error(`command timed out after ${timeoutMs}ms`));

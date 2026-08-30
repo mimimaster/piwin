@@ -10,6 +10,7 @@ import {
   IconCopy,
 } from '@piwin/ui-kit';
 import { MobileDiffViewer } from './MobileDiffViewer.js';
+import type { FlashcardDisplayPayload } from '@piwin/contracts';
 import type { MobileToolCall } from '../../hooks/use-mobile-host.js';
 import {
   formatMobileFlashcardResult,
@@ -20,6 +21,7 @@ import { HealthToolCard } from '../../health/HealthToolCard.js';
 export type MobileToolCallCardProps = {
   tool: MobileToolCall;
   defaultExpanded?: boolean;
+  onEnterFlashcardStudy?: ((payload: FlashcardDisplayPayload) => void) | undefined;
 };
 
 export function resolveToolIcon(name: string): (props: { size?: number | string }) => ReactElement {
@@ -72,6 +74,7 @@ export function formatDuration(durationMs?: number): string | null {
 export function MobileToolCallCard({
   tool,
   defaultExpanded = false,
+  onEnterFlashcardStudy,
 }: MobileToolCallCardProps): ReactElement {
   const [expanded, setExpanded] = useState(defaultExpanded || tool.status === 'running');
   if (tool.presentation?.kind === 'health') {
@@ -148,6 +151,20 @@ export function MobileToolCallCard({
           </span>
         </div>
       </button>
+
+      {flashcardDisplay ? (
+        <button
+          type="button"
+          className="mobile-flashcards-enter-study"
+          data-testid="mobile-enter-flashcard-study"
+          onClick={(event) => {
+            event.stopPropagation();
+            onEnterFlashcardStudy?.(flashcardDisplay);
+          }}
+        >
+          进入复习台
+        </button>
+      ) : null}
 
       {/* 2. Expanded Terminal Body */}
       {expanded ? (

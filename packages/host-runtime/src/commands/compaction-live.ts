@@ -273,6 +273,19 @@ async function compactSessionHandle(
       });
     }
 
+    if (emitSessionFacts) {
+      void context.sessionContextCoordinator
+        ?.noteCompactionEnd(sessionId, {
+          ok: enrichedResult.ok !== false,
+          ...(typeof enrichedResult.tokensAfter === 'number'
+            ? { tokensAfter: enrichedResult.tokensAfter }
+            : {}),
+          ...(typeof enrichedResult.tokensBefore === 'number'
+            ? { tokensBefore: enrichedResult.tokensBefore }
+            : {}),
+        })
+        .catch(() => undefined);
+    }
     return enrichedResult;
   } finally {
     if (protectedRuntime) {

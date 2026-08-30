@@ -78,6 +78,7 @@ import {
   upsertSessionRecord,
   readToolOutputSnapshot,
   openModelContextStore,
+  readOrInsertUnknownContextState,
   type SessionTranscriptStore,
 } from '@piwin/session';
 import { formatSideChatContextBlock, mergeSideChatContextIntoPrompt } from '@piwin/session';
@@ -415,6 +416,13 @@ export async function handleSessionLiveCommand(
       await upsertSessionRecord(indexPath, record);
       // Subtree deletion can move the leaf and dissolve branch points.
       await pushBranchUpdated(context, command.sessionId, store);
+      // Leaf write and occupancy invalidate are consecutive store ops, not one
+      // SQLite transaction (`truncateFrom` does not accept context CAS).
+      await context.sessionContextCoordinator?.invalidate(command.sessionId, {
+        reason: 'truncate',
+        empty: truncated.remainingCount === 0,
+        contextBoundary: { activeLeafMessageId: await store.getActiveLeaf() },
+      });
       return ok(requestId, 'session/truncate-from', {
         sessionId: command.sessionId,
         removedCount: truncated.removedCount,
@@ -496,7 +504,17 @@ export async function handleSessionLiveCommand(
       if (restoredModel) {
         context.sessionModels.set(command.sessionId, restoredModel);
       }
-      const restoredUsage = await context.loadSessionUsage(command.sessionId);
+      const contextSnapshot = context.sessionContextCoordinator
+        ? await context.sessionContextCoordinator.getSnapshot(command.sessionId)
+        : await readOrInsertUnknownContextState(store, {
+            sessionId: command.sessionId,
+            reason: 'never-sampled',
+            updatedAt: new Date().toISOString(),
+          });
+      const lastRequestUsage = await store.readLatestAssistantUsageForActivePath();
+      const restoredUsage =
+        context.sessionContextCoordinator?.projectLegacyUsage(contextSnapshot) ??
+        (await context.loadSessionUsage(command.sessionId));
       const data: SessionResumeData = {
         sessionId: command.sessionId,
         live,
@@ -505,6 +523,8 @@ export async function handleSessionLiveCommand(
         projectPath: existing.projectPath,
         // ADR 0040 §9: bounded recent window, never the complete outline.
         outline: (await store.outlinePage({ sessionId: command.sessionId, limit: 40 })).nodes,
+        contextSnapshot,
+        lastRequestUsage,
       };
       const pauseCheckpoint = await store.getActivePauseCheckpoint();
       if (pauseCheckpoint !== undefined) {

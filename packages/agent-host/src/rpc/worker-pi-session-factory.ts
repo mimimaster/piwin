@@ -488,6 +488,9 @@ type WorkerPiSessionHandle = {
   setThinkingLevel?: (level: string) => Promise<void> | void;
   bindExtensions?: (bindings: Record<string, unknown>) => Promise<void>;
   subscribe: (listener: (raw: unknown) => void) => () => void;
+  getContextUsage?: () =>
+    | { tokens: number | null; contextWindow: number; percent?: number | null }
+    | undefined;
 };
 
 /** Adapt the raw Pi session to the `WorkerPiSessionLike` interface. */
@@ -595,6 +598,11 @@ function adaptPiSessionForWorker(
         }
       : {}),
     subscribe: (listener) => piSession.subscribe(listener),
+    ...(typeof piSession.getContextUsage === 'function'
+      ? {
+          getContextUsage: () => piSession.getContextUsage?.(),
+        }
+      : {}),
   };
 }
 

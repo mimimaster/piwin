@@ -83,6 +83,10 @@ export function classifyHostPush(push: HostPushVariant): HostPushPolicy {
       );
     case 'session/runtime-updated':
       return projection(deliveryKey('session', push.status.sessionId, 'runtime'));
+    case 'session/context-updated':
+      // Occupancy projection. Compaction/branch/invalidation stay barriers
+      // on their own events; live context-updated emission waits for WP3.
+      return projection(deliveryKey('session', push.sessionId, 'context'));
     case 'transcript/append':
       return append(deliveryKey('session', push.sessionId, 'transcript', push.message.id));
     case 'reply-writer/updated':
@@ -223,6 +227,8 @@ export function classifyHostPush(push: HostPushVariant): HostPushPolicy {
         barrierKeys: [deliveryKey('voice', 'live', push.callId, 'owner-action')],
         journal: false,
       };
+    case 'flashcards/study/changed':
+      return projection(deliveryKey('flashcards', 'study', push.roundId));
     default:
       return assertNever(push);
   }
@@ -259,6 +265,10 @@ function classifyAgentEvent(scope: HostDeliveryKey, event: AgentEvent): HostPush
       );
     case 'usage/update':
       return projection(deliveryKey(...scope, 'usage'));
+    case 'context/measurement':
+      return diagnostic(deliveryKey(...scope, 'context-measurement'));
+    case 'usage/finalized':
+      return projection(deliveryKey(...scope, 'usage-finalized'));
     case 'message/end':
       return control(
         [

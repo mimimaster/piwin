@@ -1,5 +1,5 @@
 import { useRef, type ChangeEvent, type ReactElement } from 'react';
-import type { RemoteSessionSummary } from '@piwin/contracts';
+import type { FlashcardDisplayPayload, RemoteSessionSummary } from '@piwin/contracts';
 import { Button, Card, IconCheck, IconClose, Notice } from '@piwin/ui-kit';
 import { MobileMessageItem } from '../../components/chat/MobileMessageItem.js';
 import { ModernComposer } from '../../components/chat/ModernComposer.js';
@@ -42,6 +42,7 @@ export type ConversationSurfaceProps = {
   healthEnabled?: boolean;
   includeAppleHealth?: boolean;
   onToggleAppleHealth?: () => void;
+  onEnterFlashcardStudy?: ((payload: FlashcardDisplayPayload) => void) | undefined;
 };
 
 export function ConversationSurface({
@@ -74,6 +75,7 @@ export function ConversationSurface({
   healthEnabled = false,
   includeAppleHealth = false,
   onToggleAppleHealth,
+  onEnterFlashcardStudy,
 }: ConversationSurfaceProps): ReactElement {
   const streamRef = useRef<HTMLDivElement | null>(null);
   const composerDockRef = useRef<HTMLDivElement | null>(null);
@@ -114,6 +116,9 @@ export function ConversationSurface({
               key={message.id}
               message={message}
               htmlUiModeEnabled={htmlUiModeEnabled}
+              {...(onEnterFlashcardStudy !== undefined
+                ? { onEnterFlashcardStudy }
+                : {})}
             />
           ))
         )}

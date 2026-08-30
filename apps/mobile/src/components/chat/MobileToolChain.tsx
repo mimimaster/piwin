@@ -1,14 +1,19 @@
 import { useState, type ReactElement } from 'react';
 import { IconChevronDown } from '@piwin/ui-kit';
+import type { FlashcardDisplayPayload } from '@piwin/contracts';
 import type { MobileToolCall } from '../../hooks/use-mobile-host.js';
 import { MobileToolCallCard } from './MobileToolCallCard.js';
 
 export type MobileToolChainProps = {
   tools?: MobileToolCall[] | undefined;
   isStreaming?: boolean | undefined;
+  onEnterFlashcardStudy?: ((payload: FlashcardDisplayPayload) => void) | undefined;
 };
 
-export function MobileToolChain({ tools }: MobileToolChainProps): ReactElement | null {
+export function MobileToolChain({
+  tools,
+  onEnterFlashcardStudy,
+}: MobileToolChainProps): ReactElement | null {
   if (!tools || tools.length === 0) {
     return null;
   }
@@ -19,7 +24,11 @@ export function MobileToolChain({ tools }: MobileToolChainProps): ReactElement |
   if (tools.length === 1 && tools[0] !== undefined) {
     return (
       <div className="mobile-tool-chain-container single" data-testid="mobile-tool-chain">
-        <MobileToolCallCard tool={tools[0]} defaultExpanded={tools[0].status === 'running'} />
+        <MobileToolCallCard
+          tool={tools[0]}
+          defaultExpanded={tools[0].status === 'running'}
+          {...(onEnterFlashcardStudy !== undefined ? { onEnterFlashcardStudy } : {})}
+        />
       </div>
     );
   }
@@ -70,7 +79,11 @@ export function MobileToolChain({ tools }: MobileToolChainProps): ReactElement |
       {batchOpen ? (
         <div className="mobile-tool-batch-list">
           {tools.map((tool) => (
-            <MobileToolCallCard key={tool.id} tool={tool} />
+            <MobileToolCallCard
+              key={tool.id}
+              tool={tool}
+              {...(onEnterFlashcardStudy !== undefined ? { onEnterFlashcardStudy } : {})}
+            />
           ))}
         </div>
       ) : null}

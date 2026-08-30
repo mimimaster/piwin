@@ -22,6 +22,7 @@ import type {
   WalkthroughGenerationRegistry,
 } from './walkthrough-commands.js';
 import type { KnowledgeCommandContext } from './knowledge-commands.js';
+import type { FlashcardStudyCommandContext } from './flashcard-study-commands.js';
 import type { SubagentCommandContext } from './subagent-commands.js';
 import type { WorkspaceWriteGate } from '../turn-changes/workspace-write-gate.js';
 import type { TurnChangeRuntime } from '../turn-changes/runtime-wiring.js';
@@ -112,6 +113,8 @@ export type HostCommandContext = {
   planExecution?: PlanExecutionSeam;
   /** Lazy application services for notes, flashcards, and document cards. */
   knowledge?: KnowledgeCommandContext;
+  /** Study-round commands. Separate from knowledge so handlers stay split. */
+  flashcardStudy?: FlashcardStudyCommandContext;
   /** Durable subagent batch orchestration seam. */
   subagent?: SubagentCommandContext;
   /**

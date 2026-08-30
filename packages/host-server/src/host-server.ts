@@ -854,7 +854,12 @@ export class HostServer {
             }),
             this.remoteMediaPaths,
           );
-          const executeCommand = () => this.runtime.handleCommand(remoteCommand);
+          const executeCommand = () =>
+            frame.idempotencyKey
+              ? this.runtime.handleCommand(remoteCommand, {
+                  idempotencyKey: frame.idempotencyKey,
+                })
+              : this.runtime.handleCommand(remoteCommand);
           const response = this.runtime.runWithDevicePrincipal
             ? await this.runtime.runWithDevicePrincipal(connection.idempotencyScope, executeCommand)
             : await executeCommand();

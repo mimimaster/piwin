@@ -9,6 +9,7 @@ import {
   IconListTree,
   IconFolder,
   IconSpark,
+  IconCards,
 } from '@piwin/ui-kit';
 import { MobileLayer } from '../../mobile-portal.js';
 
@@ -28,6 +29,7 @@ export type MobileSidebarDrawerProps = {
   onOpenFiles?: (() => void) | undefined;
   onOpenSkills?: (() => void) | undefined;
   onOpenShare?: (() => void) | undefined;
+  onOpenFlashcards?: (() => void) | undefined;
   activeRunCount?: number | undefined;
   endpoint?: string | undefined;
   isConnected: boolean;
@@ -49,6 +51,7 @@ export function MobileSidebarDrawer({
   onOpenFiles,
   onOpenSkills,
   onOpenShare,
+  onOpenFlashcards,
   activeRunCount = 0,
   endpoint,
   isConnected,
@@ -257,6 +260,20 @@ export function MobileSidebarDrawer({
 
         {/* 6. Drawer Bottom Navigation Hub */}
         <div className="mobile-drawer-footer">
+          {onOpenFlashcards ? (
+            <button
+              type="button"
+              className="mobile-drawer-footer-btn"
+              data-testid="mobile-open-flashcards"
+              onClick={() => {
+                onOpenFlashcards();
+              }}
+            >
+              <IconCards size={16} />
+              <span>闪卡</span>
+            </button>
+          ) : null}
+
           <button
             type="button"
             className="mobile-drawer-footer-btn"

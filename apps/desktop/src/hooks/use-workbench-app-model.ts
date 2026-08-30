@@ -2,7 +2,7 @@
  * Workbench owners: host runtime, session hydrate/restore, composer, and
  * view gestures. Must not list hydrateSessions in cold-start effect deps.
  */
-import { type Dispatch, type SetStateAction } from 'react';
+import { useRef, type Dispatch, type SetStateAction } from 'react';
 import type { ThemeManifest } from '@piwin/contracts';
 import type { HostLogEntry } from '../HostLogPanel';
 import { useArtifactCanvasAutoReveal } from './use-artifact-canvas-auto-reveal';
@@ -34,6 +34,7 @@ export type UseWorkbenchAppModelArgs = {
 export function useWorkbenchAppModel(args: UseWorkbenchAppModelArgs) {
   const { hostClient, state, dispatch, chrome, activeTheme, onThemeApplied, setHostLogEntries } =
     args;
+  const leaveActiveSessionRef = useRef<() => void>(() => undefined);
   const host = useWorkbenchHostRuntime({
     hostClient,
     state,
@@ -42,6 +43,7 @@ export function useWorkbenchAppModel(args: UseWorkbenchAppModelArgs) {
     activeTheme,
     onThemeApplied,
     setHostLogEntries,
+    onActiveSessionCleared: () => leaveActiveSessionRef.current(),
   });
   const session = useWorkbenchSessionRuntime({
     hostClient,
@@ -51,6 +53,7 @@ export function useWorkbenchAppModel(args: UseWorkbenchAppModelArgs) {
     host,
     setHostLogEntries,
   });
+  leaveActiveSessionRef.current = session.bumpToDraft;
   const composer = useWorkbenchComposerRuntime({
     hostClient,
     state,

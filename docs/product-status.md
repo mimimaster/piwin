@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Updated | 2026-08-13 |
+| Updated | 2026-08-30 |
 | Backlog | [`todo-deferred.md`](./todo-deferred.md) |
 | Depth program | [`specs/product-depth-competitive-alignment.md`](./specs/product-depth-competitive-alignment.md) |
 | Optimization program | [`specs/product-optimization-program.md`](./specs/product-optimization-program.md) **Active** |
@@ -38,6 +38,7 @@ Legend: **green** usable · **yellow** partial / honest degrade · **red** not s
 | Interactive PTY (xterm) | green (Tauri) | portable-pty + xterm; no second Node shell-preview architecture in the target state |
 | Host Server / multi-client | red | Target defined by ADR 0036; Host Server, private transport, auth, replay, and second-client connection are not shipped |
 | Personal Gateway / tunnel | red | Optional W4 transport layer after Host Server; ADR 0027 protocol seams retained |
+| Flashcard study workbench (ADR 0066) | yellow | **In tree, not released.** Desktop page, Mobile catalog+study, CLI `piwin study`, Host rounds/operations, unique CardStore, existing tear-off. Real-device V04/V09/V22 **not run**; visual fixtures **not captured**; root typecheck / mobile build still fail on pre-existing artifact types. Mobile source is excerpt-only; v1 online-only; CLI has no animation. Do not claim dual-device video or 已上线. |
 
 ## Architecture health
 

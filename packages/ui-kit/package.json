@@ -11,7 +11,8 @@
       "import": "./src/index.ts",
       "default": "./src/index.ts"
     },
-    "./styles.css": "./src/primitives.css"
+    "./styles.css": "./src/primitives.css",
+    "./flashcards.css": "./src/flashcards.css"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

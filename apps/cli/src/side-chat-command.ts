@@ -22,7 +22,9 @@ import type {
   SideChatSyncData,
   SessionSummary,
 } from '@piwin/contracts';
+import { parseSessionContextSnapshot } from '@piwin/contracts';
 import { formatCliAgentErrorEvent } from './cli-agent-error.js';
+import { formatSessionContextOccupancy } from './context-command.js';
 
 /* ------------------------------------------------------------------ */
 /* Host client seam (testable)                                         */
@@ -282,4 +284,14 @@ export async function runSideChatResume(
     throw new Error(response.error);
   }
   log(`resumed side chat ${sideChatSessionId}`);
+  const snapshot = parseSessionContextSnapshot(
+    isRecord(response.data) ? response.data.contextSnapshot : undefined,
+  );
+  if (snapshot) {
+    log(formatSessionContextOccupancy(snapshot));
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

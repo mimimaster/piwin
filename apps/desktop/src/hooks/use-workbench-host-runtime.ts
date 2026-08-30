@@ -53,6 +53,7 @@ export type UseWorkbenchHostRuntimeArgs = {
   activeTheme: ThemeManifest;
   onThemeApplied: (theme: ThemeManifest) => void;
   setHostLogEntries: Dispatch<SetStateAction<HostLogEntry[]>>;
+  onActiveSessionCleared?: () => void;
 };
 
 export function useWorkbenchHostRuntime(args: UseWorkbenchHostRuntimeArgs) {
@@ -164,6 +165,7 @@ export function useWorkbenchHostRuntime(args: UseWorkbenchHostRuntimeArgs) {
     setHostLogEntries,
     setSelectedModelKey,
     onThemeResolved: onThemeApplied,
+    ...(args.onActiveSessionCleared ? { onActiveSessionCleared: args.onActiveSessionCleared } : {}),
   });
 
   const inspectorFileDiff = useInspectorFileDiff();

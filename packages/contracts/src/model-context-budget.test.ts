@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createUnknownSessionContextSnapshot } from './context-telemetry.js';
 import {
   estimatePendingPromptTokens,
   readContextOccupiedTokens,
@@ -21,6 +22,43 @@ describe('model context budget', () => {
     expect(readContextOccupiedTokens({ ...base, promptTokens: 43 })).toBe(43);
     expect(readContextOccupiedTokens({ ...base, totalTokens: 44 })).toBe(44);
     expect(readContextOccupiedTokens({ ...base, contextRatio: 0.5, tokensLimit: 100 })).toBe(50);
+  });
+
+  it('uses Host snapshot occupancy and does not treat unknown as 0', () => {
+    expect(
+      readContextOccupiedTokens({
+        sessionId: 's1',
+        revision: 2,
+        contextVersion: 1,
+        contextBoundary: { activeLeafMessageId: null },
+        responseEvidence: {
+          currentRunHasResponse: true,
+          historyHasDisplayableResponse: true,
+        },
+        phase: 'idle',
+        occupancy: {
+          kind: 'known',
+          tokensUsed: 90_000,
+          quality: 'measured',
+          coverage: 'complete',
+          basis: 'input-plus-output',
+          sampledAt: '2026-08-30T00:00:00.000Z',
+        },
+        updatedAt: '2026-08-30T00:00:00.000Z',
+      }),
+    ).toBe(90_000);
+    expect(
+      readContextOccupiedTokens(
+        createUnknownSessionContextSnapshot({
+          sessionId: 's1',
+          revision: 1,
+          contextVersion: 1,
+          contextBoundary: { activeLeafMessageId: null },
+          reason: 'never-sampled',
+          updatedAt: '2026-08-30T00:00:00.000Z',
+        }),
+      ),
+    ).toBeUndefined();
   });
 
   it('reserves room for attachments and context references in a pending turn', () => {

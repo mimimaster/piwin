@@ -168,7 +168,12 @@ describe('Desktop renderer resource boundaries', () => {
     const deferredSurfaces = readSource('./deferred-desktop-surfaces.tsx');
     const composerMedia = readComposerHookSources();
     const hostClient = readSource('./host-client.ts');
-    const mockHostClient = readSource('./host-client-mock.ts');
+    const mockHostClient = [
+      readSource('./host-client-mock.ts'),
+      readSource('./host-client-mock-lifecycle.ts'),
+      readSource('./host-client-mock-session-read.ts'),
+      readSource('./host-client-mock-turn.ts'),
+    ].join('\n');
     const syntaxHighlight = readSource('./syntax-highlight.tsx');
 
     for (const settingsSheet of [
@@ -214,7 +219,7 @@ describe('Desktop renderer resource boundaries', () => {
     expect(composerMedia).toContain("from '../workspace-path-drag'");
     expect(hostClient).toContain("import type { MockHostBackend } from './host-client-mock'");
     expect(hostClient).toContain("import('./host-client-mock')");
-    expect(mockHostClient).not.toContain("from '@piwin/session'");
+    expect(mockHostClient).not.toMatch(/from '@piwin\/session['"]/);
     expect(mockHostClient).toContain("from '@piwin/session/fork-session-name'");
     expect(syntaxHighlight).toContain("import type { Highlighter, ThemedToken } from 'shiki'");
     expect(syntaxHighlight).toContain("import('shiki')");
@@ -260,7 +265,8 @@ describe('Desktop renderer resource boundaries', () => {
 
   it('does not import the Node flashcards barrel into the renderer', () => {
     // `@piwin/flashcards` re-exports card-store (node:fs). Loading that barrel
-    // in the WebView whitescreens the shell. Browser code may only use /cloze.
+    // in the WebView whitescreens the shell. Browser code may only use Node-free
+    // exports (`/cloze`, `/study-sequence`).
     const desktopSrc = fileURLToPath(new URL('.', import.meta.url));
     const hits: string[] = [];
     const files: string[] = [];
