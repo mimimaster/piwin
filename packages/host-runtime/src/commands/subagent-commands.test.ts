@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { SubagentBatchRequest } from '@piwin/contracts';
+import type { SubagentBatchRequest, SubagentResultSummary } from '@piwin/contracts';
+import { createSubagentResultService } from '../subagent-result-service.js';
 import { handleSubagentCommand } from './subagent-commands.js';
 
 const request: SubagentBatchRequest = {
@@ -154,4 +155,146 @@ describe('subagent command handlers', () => {
       });
     }
   });
+
+  it('serves result commands when a resultService is injected', async () => {
+    const service = createSubagentResultService();
+    const summary = makeResultSummary();
+    service.register(summary, { worktreePath: '/tmp/child-wt' });
+    const started: string[] = [];
+    const applied: string[] = [];
+    const withService = {
+      ...context,
+      resultService: service,
+      startParentPrompt: async (input: { parentSessionId: string; text: string; resultId: string }) => {
+        started.push(`${input.parentSessionId}:${input.resultId}`);
+        return { runId: 'parent-run' };
+      },
+      applyResult: async (input: { resultId: string; expectedRevision: number }) => {
+        applied.push(`${input.resultId}:${String(input.expectedRevision)}`);
+        return { operationId: 'op-1' };
+      },
+    };
+
+    const results = await handleSubagentCommand(
+      { type: 'subagent/results', parentSessionId: 'session-1' },
+      'request-results',
+      withService,
+    );
+    expect(results).toMatchObject({
+      success: true,
+      command: 'subagent/results',
+      data: { items: [summary] },
+    });
+
+    const result = await handleSubagentCommand(
+      { type: 'subagent/result', resultId: 'result-1' },
+      'request-result',
+      withService,
+    );
+    expect(result).toMatchObject({ success: true, command: 'subagent/result', data: summary });
+
+    const files = await handleSubagentCommand(
+      { type: 'subagent/result-files', resultId: 'result-1', revision: 1 },
+      'request-files',
+      withService,
+    );
+    expect(files).toMatchObject({
+      success: true,
+      command: 'subagent/result-files',
+      data: { files: [] },
+    });
+
+    const diff = await handleSubagentCommand(
+      { type: 'subagent/result-diff', resultId: 'result-1', revision: 1, fileId: 'file-1' },
+      'request-diff',
+      withService,
+    );
+    expect(diff).toMatchObject({
+      success: true,
+      command: 'subagent/result-diff',
+    });
+
+    const cleanup = await handleSubagentCommand(
+      { type: 'subagent/cleanup-plan', resultId: 'result-1', expectedRevision: 1 },
+      'request-cleanup',
+      withService,
+    );
+    expect(cleanup).toMatchObject({
+      success: true,
+      command: 'subagent/cleanup-plan',
+      data: { worktreePath: '/tmp/child-wt' },
+    });
+
+    const resolution = await handleSubagentCommand(
+      {
+        type: 'subagent/request-resolution',
+        resultId: 'result-1',
+        expectedRevision: 1,
+        purpose: 'resolve',
+      },
+      'request-resolution',
+      withService,
+    );
+    expect(resolution).toMatchObject({
+      success: true,
+      command: 'subagent/request-resolution',
+      data: { runId: 'parent-run' },
+    });
+    expect(started).toEqual(['session-1:result-1']);
+
+    const apply = await handleSubagentCommand(
+      { type: 'subagent/worktree-action', action: 'apply', resultId: 'result-1', expectedRevision: 1 },
+      'request-apply',
+      withService,
+    );
+    expect(apply).toMatchObject({
+      success: true,
+      command: 'subagent/worktree-action',
+      data: { operationId: 'op-1', action: 'apply', resultId: 'result-1' },
+    });
+    expect(applied).toEqual(['result-1:1']);
+  });
+
+  it('rejects a result worktree apply that omits expectedRevision', async () => {
+    const response = await handleSubagentCommand(
+      { type: 'subagent/worktree-action', action: 'apply', resultId: 'result-1' },
+      'request-upgrade',
+      context,
+    );
+    expect(response).toMatchObject({
+      success: false,
+      command: 'subagent/worktree-action',
+      error: 'upgrade-required',
+      problem: { code: 'upgrade-required' },
+    });
+  });
 });
+
+function makeResultSummary(): SubagentResultSummary {
+  return {
+    resultId: 'result-1',
+    revision: 1,
+    parentSessionId: 'session-1',
+    childSessionId: 'child-1',
+    taskId: 'task-1',
+    batchRunId: 'run-1',
+    sourceAttemptId: null,
+    targetWorkspaceId: 'ws-1',
+    deliveryIntent: 'candidate',
+    legacyManual: false,
+    candidateGroupId: null,
+    executionStatus: 'completed',
+    summaryStatus: 'merged',
+    integrationStatus: 'retained',
+    childChanges: { changeSetId: 'cs-child', revision: 1 },
+    appliedChanges: null,
+    copyState: 'present',
+    latestOperationId: null,
+    availability: {
+      view: { allowed: true },
+      apply: { allowed: true },
+      resolve: { allowed: true },
+      cleanup: { allowed: true },
+    },
+  };
+}

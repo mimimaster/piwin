@@ -287,6 +287,8 @@ export class HostRuntimeFields {
   subagentIntegrationCoordinator: SubagentIntegrationCoordinator | null = null;
   /** Turn-change store, coordinator, capture, and workspace write gate. */
   turnChangeRuntime: TurnChangeRuntime | null = null;
+  /** In-process frozen subagent result registry and apply mutex. */
+  subagentResultService: import('./subagent-result-service.js').SubagentResultService | null = null;
   /** Workspace service for subagent isolation leases. */
   subagentWorkspaceService: ReturnType<typeof createSubagentWorkspaceService> | null = null;
   /** Resource coordinator for bounded concurrency. */

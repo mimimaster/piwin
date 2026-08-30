@@ -7,6 +7,7 @@ import type {
   SubagentBatchRequest,
 } from '@piwin/contracts';
 import { fail, ok } from '../response-helpers.js';
+import type { SubagentResultService } from '../subagent-result-service.js';
 
 export const NOT_READY_SUBAGENT_ORCHESTRATION_MESSAGE =
   'subagent orchestration is not ready in this host runtime';
@@ -21,6 +22,15 @@ export type SubagentCommandContext = {
     childSessionId: string,
     action: 'apply' | 'retain' | 'discard',
   ) => Promise<{ integrationStatus: import('@piwin/contracts').SubagentIntegrationStatus }>;
+  resultService?: SubagentResultService;
+  startParentPrompt?: (input: {
+    parentSessionId: string;
+    text: string;
+    resultId: string;
+  }) => Promise<{ runId: string }>;
+  applyResult?: (input: { resultId: string; expectedRevision: number }) => Promise<{
+    operationId: string;
+  }>;
 };
 
 const TYPES = new Set<HostCommand['type']>([
@@ -37,7 +47,7 @@ const TYPES = new Set<HostCommand['type']>([
   'subagent/request-resolution',
 ]);
 
-const UNIMPLEMENTED_RESULT_TYPES = new Set<HostCommand['type']>([
+const RESULT_COMMAND_TYPES = new Set<HostCommand['type']>([
   'subagent/results',
   'subagent/result',
   'subagent/result-files',
@@ -46,12 +56,23 @@ const UNIMPLEMENTED_RESULT_TYPES = new Set<HostCommand['type']>([
   'subagent/request-resolution',
 ]);
 
-/** W5 implements result storage / apply / cleanup. */
 function unsupportedCapability(
   requestId: string | undefined,
   commandType: string,
 ): HostResponse {
   return fail(requestId, commandType, 'unsupported-capability', { code: 'unsupported-capability' });
+}
+
+function failCode(
+  requestId: string | undefined,
+  commandType: string,
+  code: string,
+  data?: unknown,
+): HostResponse {
+  if (data === undefined) {
+    return fail(requestId, commandType, code, { code });
+  }
+  return fail(requestId, commandType, code, { code, data });
 }
 
 export function isSubagentCommand(command: HostCommand): boolean {
@@ -64,9 +85,28 @@ export async function handleSubagentCommand(
   context: SubagentCommandContext | undefined,
 ): Promise<HostResponse | null> {
   if (!isSubagentCommand(command)) return null;
-  if (UNIMPLEMENTED_RESULT_TYPES.has(command.type)) {
-    return unsupportedCapability(requestId, command.type);
+
+  if (command.type === 'subagent/worktree-action') {
+    const resultId = command.resultId;
+    if (typeof resultId === 'string' && resultId.length > 0) {
+      if (
+        (command.action === 'apply' || command.action === 'discard') &&
+        typeof command.expectedRevision !== 'number'
+      ) {
+        return failCode(requestId, command.type, 'upgrade-required');
+      }
+      if (!context?.resultService) {
+        return unsupportedCapability(requestId, command.type);
+      }
+      return handleResultWorktreeAction(command, requestId, context);
+    }
+  } else if (RESULT_COMMAND_TYPES.has(command.type)) {
+    if (!context?.resultService) {
+      return unsupportedCapability(requestId, command.type);
+    }
+    return handleResultCommand(command, requestId, context);
   }
+
   if (!context) {
     return fail(requestId, command.type, NOT_READY_SUBAGENT_ORCHESTRATION_MESSAGE);
   }
@@ -113,4 +153,152 @@ export async function handleSubagentCommand(
     default:
       return null;
   }
+}
+
+async function handleResultCommand(
+  command: HostCommand,
+  requestId: string | undefined,
+  context: SubagentCommandContext,
+): Promise<HostResponse> {
+  const resultService = context.resultService;
+  if (!resultService) {
+    return unsupportedCapability(requestId, command.type);
+  }
+
+  switch (command.type) {
+    case 'subagent/results': {
+      const page = resultService.list({
+        parentSessionId: command.parentSessionId,
+        ...(command.attemptId === undefined ? {} : { attemptId: command.attemptId }),
+        ...(command.pendingOnly === undefined ? {} : { pendingOnly: command.pendingOnly }),
+        ...(command.cursor === undefined ? {} : { cursor: command.cursor }),
+        ...(command.limit === undefined ? {} : { limit: command.limit }),
+      });
+      return ok(requestId, command.type, page);
+    }
+    case 'subagent/result': {
+      const summary = resultService.get(command.resultId);
+      if (!summary) return failCode(requestId, command.type, 'not-found');
+      return ok(requestId, command.type, summary);
+    }
+    case 'subagent/result-files': {
+      if (!resultService.get(command.resultId)) {
+        return failCode(requestId, command.type, 'not-found');
+      }
+      const page = resultService.listFiles({
+        resultId: command.resultId,
+        revision: command.revision,
+        ...(command.cursor === undefined ? {} : { cursor: command.cursor }),
+        ...(command.limit === undefined ? {} : { limit: command.limit }),
+      });
+      return ok(requestId, command.type, page);
+    }
+    case 'subagent/result-diff': {
+      const diff = await resultService.diffFile({
+        resultId: command.resultId,
+        revision: command.revision,
+        fileId: command.fileId,
+      });
+      if (!diff.ok) return failCode(requestId, command.type, diff.code);
+      return ok(requestId, command.type, {
+        additions: diff.additions,
+        deletions: diff.deletions,
+        binary: diff.binary,
+        ...(diff.patch === undefined ? {} : { patch: diff.patch }),
+      });
+    }
+    case 'subagent/cleanup-plan': {
+      const plan = resultService.planCleanup(command.resultId, command.expectedRevision);
+      if (!plan.ok) return failCode(requestId, command.type, plan.code);
+      return ok(requestId, command.type, {
+        worktreePath: plan.worktreePath,
+        token: plan.token,
+        expiresAt: plan.expiresAt,
+      });
+    }
+    case 'subagent/request-resolution': {
+      const startParentPrompt = context.startParentPrompt;
+      if (!startParentPrompt) {
+        return unsupportedCapability(requestId, command.type);
+      }
+      const outcome = await resultService.requestResolution({
+        resultId: command.resultId,
+        expectedRevision: command.expectedRevision,
+        purpose: command.purpose,
+        startParentPrompt,
+      });
+      if (!outcome.ok) return failCode(requestId, command.type, outcome.code);
+      return ok(requestId, command.type, { runId: outcome.runId });
+    }
+    default:
+      return unsupportedCapability(requestId, command.type);
+  }
+}
+
+async function handleResultWorktreeAction(
+  command: Extract<HostCommand, { type: 'subagent/worktree-action' }>,
+  requestId: string | undefined,
+  context: SubagentCommandContext,
+): Promise<HostResponse> {
+  const resultService = context.resultService;
+  const resultId = command.resultId;
+  if (!resultService || typeof resultId !== 'string' || resultId.length === 0) {
+    return unsupportedCapability(requestId, command.type);
+  }
+
+  if (command.action === 'apply') {
+    const expectedRevision = command.expectedRevision;
+    const applyResult = context.applyResult;
+    if (typeof expectedRevision !== 'number') {
+      return failCode(requestId, command.type, 'upgrade-required');
+    }
+    if (!applyResult) {
+      return unsupportedCapability(requestId, command.type);
+    }
+    const outcome = await resultService.apply({ resultId, expectedRevision, applyResult });
+    if (!outcome.ok) {
+      return failCode(
+        requestId,
+        command.type,
+        outcome.code,
+        outcome.code === 'already-applied' ? { alreadyApplied: true } : undefined,
+      );
+    }
+    return ok(requestId, command.type, {
+      resultId,
+      action: command.action,
+      operationId: outcome.operationId,
+    });
+  }
+
+  if (command.action === 'retain') {
+    const summary = resultService.get(resultId);
+    if (!summary) return failCode(requestId, command.type, 'not-found');
+    if (
+      typeof command.expectedRevision === 'number' &&
+      command.expectedRevision !== summary.revision
+    ) {
+      return failCode(requestId, command.type, 'stale-revision');
+    }
+    return ok(requestId, command.type, {
+      resultId,
+      action: command.action,
+      integrationStatus: 'retained',
+    });
+  }
+
+  const expectedRevision = command.expectedRevision;
+  if (typeof expectedRevision !== 'number') {
+    return failCode(requestId, command.type, 'upgrade-required');
+  }
+  const summary = resultService.get(resultId);
+  if (!summary) return failCode(requestId, command.type, 'not-found');
+  if (summary.revision !== expectedRevision) {
+    return failCode(requestId, command.type, 'stale-revision');
+  }
+  return ok(requestId, command.type, {
+    resultId,
+    action: command.action,
+    operationId: `discard:${resultId}:${String(expectedRevision)}`,
+  });
 }
