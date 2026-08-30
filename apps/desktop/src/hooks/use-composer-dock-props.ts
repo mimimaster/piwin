@@ -442,6 +442,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
         queuedTurnPending:
           ((state.activeSessionId && state.queuedTurnsBySession[state.activeSessionId]) ?? [])
             .length > 0,
+        ...(state.compacting ? { compacting: true } : {}),
         ...(isChatCompactPendingOccupancy(state) ? { compactPendingOccupancy: true } : {}),
       }),
       ...(typeof selectedModelContextWindow === 'number'
@@ -583,6 +584,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       state.activeSessionId,
       state.foregroundAdmission,
       state.compacting,
+      state.lastCompactionMessage,
       state.contextUsage,
       state.contextTelemetry,
       state.queuedTurnsBySession,

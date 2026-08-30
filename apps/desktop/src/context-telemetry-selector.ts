@@ -59,18 +59,18 @@ export type SelectContextRingViewInput = {
   mountedMessageIds?: readonly string[];
   queuedTurnPending?: boolean;
   compactPendingOccupancy?: boolean;
+  /** Client compaction in flight; label compacting, keep a known sample. */
+  compacting?: boolean;
 };
 
-/** Compact-success unknown occupancy, or an in-flight compact, from chat UI state. */
+/** Compact-success unknown occupancy from chat UI state — not an in-flight compact. */
 export function isChatCompactPendingOccupancy(state: {
-  compacting: boolean;
   lastCompactionMessage: string | null;
   contextTelemetry: Pick<ContextTelemetryState, 'displayed'>;
 }): boolean {
   return (
-    state.compacting ||
-    (state.contextTelemetry.displayed?.occupancy.kind === 'unknown' &&
-      state.lastCompactionMessage !== null)
+    state.contextTelemetry.displayed?.occupancy.kind === 'unknown' &&
+    state.lastCompactionMessage !== null
   );
 }
 
@@ -120,7 +120,7 @@ export function selectContextRingView(input: SelectContextRingViewInput): Contex
     (snapshot.responseEvidence.historyHasDisplayableResponse &&
       snapshot.phase !== 'waiting-response');
   const offline = telemetry.disconnected === true;
-  const compacting = snapshot.phase === 'compacting';
+  const compacting = snapshot.phase === 'compacting' || input.compacting === true;
 
   if (emptyPhase || waitingWithoutResponse || snapshot.phase === 'invalidated') {
     return hiddenView({ copy, phase: snapshot.phase, lastRequest, offline });
@@ -130,7 +130,7 @@ export function selectContextRingView(input: SelectContextRingViewInput): Contex
     return hiddenView({ copy, phase: snapshot.phase, lastRequest, offline });
   }
 
-  if (!known && !compactPending && !offline) {
+  if (!known && !compactPending && !offline && !compacting) {
     return hiddenView({ copy, phase: snapshot.phase, lastRequest });
   }
 
@@ -148,9 +148,11 @@ export function selectContextRingView(input: SelectContextRingViewInput): Contex
   const numericHidden = known === null;
   const phase: ContextRingViewModel['phase'] = compactPending
     ? 'compacted-pending'
-    : offline
-      ? 'offline'
-      : snapshot.phase;
+    : compacting
+      ? 'compacting'
+      : offline
+        ? 'offline'
+        : snapshot.phase;
   const status = compactPending
     ? copy.compactedPending
     : compacting

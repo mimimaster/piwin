@@ -54,6 +54,7 @@ export function useWorkbenchDerivedView(input: {
         ...(typeof selectedModelContextWindow === 'number'
           ? { selectedModelContextWindow }
           : {}),
+        ...(state.compacting ? { compacting: true } : {}),
         ...(isChatCompactPendingOccupancy(state) ? { compactPendingOccupancy: true } : {}),
       }).percentText,
     [
