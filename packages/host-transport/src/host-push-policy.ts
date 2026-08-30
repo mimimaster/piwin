@@ -209,6 +209,8 @@ export function classifyHostPush(push: HostPushVariant): HostPushPolicy {
         barrierKeys: [deliveryKey('voice', 'live', push.callId, 'owner-action')],
         journal: false,
       };
+    case 'flashcards/study/changed':
+      return projection(deliveryKey('flashcards', 'study', push.roundId));
     default:
       return assertNever(push);
   }

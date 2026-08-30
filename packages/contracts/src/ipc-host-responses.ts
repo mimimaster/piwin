@@ -362,6 +362,12 @@ export type SkillsInstallData = {
   targetPath: string;
 };
 
+export type {
+  FlashcardStudyCatalogPage as FlashcardStudyCatalogData,
+  FlashcardStudyOperationResult as FlashcardStudyOperationLookupData,
+  FlashcardStudySnapshot as FlashcardStudySnapshotData,
+} from './flashcard-study.js';
+
 /** CE-CHAT pin / search / truncate payloads. */
 export type SessionPinData = {
   sessionId: string;

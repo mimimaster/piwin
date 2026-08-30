@@ -253,7 +253,16 @@ export type ReviewState = {
   reps: number;
   lapses: number;
   lastReviewedAt?: string;
+  /**
+   * Concurrent-write revision. Missing in old files defaults to 0.
+   * Incremented by every ReviewState write; not an FSRS field.
+   */
+  revision?: number;
 };
+
+export function reviewStateRevision(state: Pick<ReviewState, 'revision'>): number {
+  return state.revision ?? 0;
+}
 
 export type ReviewQueueItem = {
   card: FlashcardReviewCard;

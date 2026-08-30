@@ -1,10 +1,11 @@
-/** Notes / flashcards / doccards HostCommand variants. Later study commands belong here. */
+/** Notes / flashcards / doccards HostCommand variants, including study commands. */
 
 import type {
   FlashcardBatchCreateInput,
   FlashcardCreateInput,
   ReviewRating,
 } from './flashcards.js';
+import type { FlashcardStudyHostCommand } from './flashcard-study-commands.js';
 import type { IndexFolderOptions, RetrieveOptions } from './doc-rag.js';
 import type {
   NoteSearchQuery,
@@ -70,4 +71,5 @@ export type KnowledgeHostCommand =
       deck?: string;
     }
   | { id?: string; type: 'doccards/generation-status'; folderPath: string }
-  | { id?: string; type: 'doccards/cancel-generation'; folderPath: string };
+  | { id?: string; type: 'doccards/cancel-generation'; folderPath: string }
+  | FlashcardStudyHostCommand;
