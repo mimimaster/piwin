@@ -626,4 +626,5 @@ export type ChatUiAction =
   | { type: 'context-telemetry/capability'; supported: boolean }
   | { type: 'context-telemetry/disconnect' }
   | { type: 'context-telemetry/reconnect' }
-  | { type: 'context-telemetry/host-instance'; hostInstanceId: string | null };
+  | { type: 'context-telemetry/host-instance'; hostInstanceId: string | null }
+  | { type: 'context-telemetry/invalidate'; sessionId: string };

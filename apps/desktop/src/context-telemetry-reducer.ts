@@ -44,7 +44,8 @@ export type ContextTelemetryAction =
   | { type: 'capability'; supported: boolean }
   | { type: 'disconnect' }
   | { type: 'reconnect' }
-  | { type: 'host-instance'; hostInstanceId: string | null };
+  | { type: 'host-instance'; hostInstanceId: string | null }
+  | { type: 'invalidate'; sessionId: string };
 
 export function createInitialContextTelemetryState(): ContextTelemetryState {
   return {
@@ -82,6 +83,8 @@ export function applyContextTelemetry(
     case 'snapshot':
       void action.awaitingTranscript;
       return applySnapshot(state, action);
+    case 'invalidate':
+      return invalidateSession(state, action.sessionId);
     default:
       return state;
   }
@@ -127,17 +130,15 @@ function selectSession(
     warmOrder = stashed.warmOrder;
   }
   if (sessionId) {
-    const { nextById, nextOrder } = takeWarm(warmBySessionId, warmOrder, sessionId);
-    const restored = nextById !== warmBySessionId ? warmBySessionId[sessionId] : undefined;
     return {
       ...next,
       selectedSessionId: sessionId,
       selectionEpoch: next.selectionEpoch + 1,
-      displayed: restored?.snapshot ?? null,
-      lastRequestUsage: restored?.lastRequestUsage ?? null,
+      displayed: null,
+      lastRequestUsage: null,
       disconnected: false,
-      warmBySessionId: restored ? nextById : warmBySessionId,
-      warmOrder: restored ? nextOrder : warmOrder,
+      warmBySessionId,
+      warmOrder,
     };
   }
   return {
@@ -181,7 +182,7 @@ function applySnapshot(
     }
   }
   if (next.selectedSessionId !== action.snapshot.sessionId) {
-    return next;
+    return applyWarmSnapshot(next, action.snapshot);
   }
   const current = next.displayed;
   if (current && current.sessionId === action.snapshot.sessionId) {
@@ -196,6 +197,71 @@ function applySnapshot(
     ...next,
     displayed: action.snapshot,
     disconnected: false,
+  };
+}
+
+function invalidateSession(state: ContextTelemetryState, sessionId: string): ContextTelemetryState {
+  const dropped = dropWarm(state.warmBySessionId, state.warmOrder, sessionId);
+  const clearingDisplayed = state.selectedSessionId === sessionId && state.displayed !== null;
+  if (!clearingDisplayed && dropped.warmBySessionId === state.warmBySessionId) {
+    return state;
+  }
+  return {
+    ...state,
+    displayed: state.selectedSessionId === sessionId ? null : state.displayed,
+    lastRequestUsage: state.selectedSessionId === sessionId ? null : state.lastRequestUsage,
+    warmBySessionId: dropped.warmBySessionId,
+    warmOrder: dropped.warmOrder,
+  };
+}
+
+function applyWarmSnapshot(
+  state: ContextTelemetryState,
+  snapshot: SessionContextSnapshot,
+): ContextTelemetryState {
+  if (snapshot.phase === 'empty' || snapshot.phase === 'invalidated') {
+    return dropWarmSession(state, snapshot.sessionId);
+  }
+  const existing = state.warmBySessionId[snapshot.sessionId];
+  if (existing) {
+    if (snapshot.revision < existing.snapshot.revision) {
+      return state;
+    }
+    if (snapshot.revision === existing.snapshot.revision) {
+      return state;
+    }
+  }
+  const stashed = stashWarm(state, snapshot.sessionId, {
+    snapshot,
+    lastRequestUsage: null,
+  });
+  return { ...state, ...stashed };
+}
+
+function dropWarmSession(
+  state: ContextTelemetryState,
+  sessionId: string,
+): ContextTelemetryState {
+  const dropped = dropWarm(state.warmBySessionId, state.warmOrder, sessionId);
+  if (dropped.warmBySessionId === state.warmBySessionId) {
+    return state;
+  }
+  return { ...state, ...dropped };
+}
+
+function dropWarm(
+  byId: Record<string, ContextTelemetryWarmEntry>,
+  order: string[],
+  sessionId: string,
+): Pick<ContextTelemetryState, 'warmBySessionId' | 'warmOrder'> {
+  if (!byId[sessionId]) {
+    return { warmBySessionId: byId, warmOrder: order };
+  }
+  const nextById = { ...byId };
+  delete nextById[sessionId];
+  return {
+    warmBySessionId: nextById,
+    warmOrder: order.filter((id) => id !== sessionId),
   };
 }
 
@@ -218,21 +284,3 @@ function stashWarm(
   return { warmBySessionId: nextById, warmOrder: nextOrder };
 }
 
-function takeWarm(
-  byId: Record<string, ContextTelemetryWarmEntry>,
-  order: string[],
-  sessionId: string,
-): {
-  nextById: Record<string, ContextTelemetryWarmEntry>;
-  nextOrder: string[];
-} {
-  if (!byId[sessionId]) {
-    return { nextById: byId, nextOrder: order };
-  }
-  const nextById = { ...byId };
-  delete nextById[sessionId];
-  return {
-    nextById,
-    nextOrder: order.filter((id) => id !== sessionId),
-  };
-}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { chatUiReducer, createInitialChatUiState } from './chat-reducer.js';
+import { selectContextRingView } from './context-telemetry-selector.js';
 import type { SessionTranscriptMessage } from '@piwin/contracts';
 
 function userMessage(id: string, text: string): SessionTranscriptMessage {
@@ -63,5 +64,51 @@ describe('session/load-messages selection authority (T03)', () => {
     expect(ignored).toBe(state);
     expect(ignored.activeSessionId).toBe('session-b');
     expect(ignored.messages).toEqual([]);
+  });
+
+  it('session/branch-switched hides occupancy until a matching Host snapshot arrives', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, {
+      type: 'context-telemetry/snapshot',
+      snapshot: {
+        sessionId: 's1',
+        revision: 4,
+        contextVersion: 1,
+        contextBoundary: { activeLeafMessageId: 'a1' },
+        responseEvidence: {
+          currentRunHasResponse: false,
+          historyHasDisplayableResponse: true,
+        },
+        phase: 'idle',
+        occupancy: {
+          kind: 'known',
+          tokensUsed: 40_000,
+          tokensLimit: 128_000,
+          quality: 'measured',
+          coverage: 'complete',
+          basis: 'test',
+          sampledAt: '2026-08-30T00:00:00.000Z',
+        },
+        updatedAt: '2026-08-30T00:00:00.000Z',
+      },
+      source: 'live',
+    });
+    expect(state.contextTelemetry.displayed?.occupancy).toMatchObject({ tokensUsed: 40_000 });
+    state = chatUiReducer(state, { type: 'context-telemetry/capability', supported: true });
+    expect(selectContextRingView({ telemetry: state.contextTelemetry, locale: 'en' }).visible).toBe(
+      true,
+    );
+
+    state = chatUiReducer(state, {
+      type: 'session/branch-switched',
+      sessionId: 's1',
+      messages: [userMessage('u1', 'kept')],
+    });
+    expect(state.contextTelemetry.displayed).toBeNull();
+    expect(state.contextTelemetry.warmBySessionId.s1).toBeUndefined();
+    expect(selectContextRingView({ telemetry: state.contextTelemetry, locale: 'en' }).visible).toBe(
+      false,
+    );
   });
 });

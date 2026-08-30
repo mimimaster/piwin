@@ -21,6 +21,9 @@ class FakeHostClient {
   private readonly listeners = new Set<(message: HostServerMessage) => void>();
   run: ExecutionRunRecord | null = null;
   resumeMissing = false;
+  resumeFail = false;
+  advertiseContextTelemetry = false;
+  contextSnapshot: unknown = null;
 
   getTransport(): 'remote' {
     return 'remote';
@@ -45,6 +48,18 @@ class FakeHostClient {
 
   request(command: HostCommand): Promise<HostResponse> {
     this.requests.push(command);
+    if (command.type === 'host/status') {
+      return Promise.resolve({
+        type: 'response',
+        command: command.type,
+        success: true,
+        data: {
+          capabilities: this.advertiseContextTelemetry
+            ? { contextTelemetryVersion: 1 as const }
+            : {},
+        },
+      });
+    }
     if (command.type === 'session/resume') {
       if (this.resumeMissing) {
         return Promise.resolve({
@@ -53,6 +68,14 @@ class FakeHostClient {
           success: false,
           error: `Unknown session: ${command.sessionId}`,
           problem: { code: 'session-not-found' },
+        });
+      }
+      if (this.resumeFail) {
+        return Promise.resolve({
+          type: 'response',
+          command: command.type,
+          success: false,
+          error: 'resume failed',
         });
       }
       return Promise.resolve({
@@ -68,6 +91,7 @@ class FakeHostClient {
             message('user-1', 'user', 'Pane question'),
             message('assistant-1', 'assistant', 'Pane answer'),
           ],
+          ...(this.contextSnapshot ? { contextSnapshot: this.contextSnapshot } : {}),
         },
       });
     }
@@ -298,5 +322,118 @@ describe('ConversationPaneSession', () => {
 
     await vi.waitFor(() => expect(onSessionDeleted).toHaveBeenCalledOnce());
     expect(container?.textContent).not.toContain('Unknown session');
+  });
+
+  it('drives occupancy from a parsed Host snapshot via the shared selector', async () => {
+    const host = new FakeHostClient();
+    host.advertiseContextTelemetry = true;
+    host.contextSnapshot = {
+      sessionId: 'session-aux',
+      revision: 3,
+      contextVersion: 1,
+      contextBoundary: { activeLeafMessageId: 'assistant-1' },
+      responseEvidence: {
+        currentRunHasResponse: false,
+        historyHasDisplayableResponse: true,
+      },
+      phase: 'idle',
+      occupancy: {
+        kind: 'known',
+        tokensUsed: 12_400,
+        tokensLimit: 128_000,
+        quality: 'measured',
+        coverage: 'complete',
+        basis: 'test',
+        sampledAt: '2026-08-30T00:00:00.000Z',
+      },
+      updatedAt: '2026-08-30T00:00:00.000Z',
+    };
+    ({ container, root } = renderSession(host));
+    await vi.waitFor(() =>
+      expect(
+        container?.querySelector<HTMLElement>('[data-testid="conversation-pane-session"]')?.dataset
+          .contextRing,
+      ).toBe('visible'),
+    );
+    expect(container?.querySelector('[data-testid="context-usage-ring"]')).not.toBeNull();
+  });
+
+  it('hides occupancy when resume fails', async () => {
+    const host = new FakeHostClient();
+    host.advertiseContextTelemetry = true;
+    host.resumeFail = true;
+    host.contextSnapshot = {
+      sessionId: 'session-aux',
+      revision: 3,
+      contextVersion: 1,
+      contextBoundary: { activeLeafMessageId: 'assistant-1' },
+      responseEvidence: {
+        currentRunHasResponse: false,
+        historyHasDisplayableResponse: true,
+      },
+      phase: 'idle',
+      occupancy: {
+        kind: 'known',
+        tokensUsed: 12_400,
+        tokensLimit: 128_000,
+        quality: 'measured',
+        coverage: 'complete',
+        basis: 'test',
+        sampledAt: '2026-08-30T00:00:00.000Z',
+      },
+      updatedAt: '2026-08-30T00:00:00.000Z',
+    };
+    ({ container, root } = renderSession(host));
+    await vi.waitFor(() => expect(container?.textContent).toContain('resume failed'));
+    expect(
+      container?.querySelector<HTMLElement>('[data-testid="conversation-pane-session"]')?.dataset
+        .contextRing,
+    ).toBe('hidden');
+    expect(container?.querySelector('[data-testid="context-usage-ring"]')).toBeNull();
+  });
+
+  it('parses live session/context-updated onto the shared selector', async () => {
+    const host = new FakeHostClient();
+    host.advertiseContextTelemetry = true;
+    ({ container, root } = renderSession(host));
+    await vi.waitFor(() => expect(container?.textContent).toContain('Pane answer'));
+    expect(
+      container?.querySelector<HTMLElement>('[data-testid="conversation-pane-session"]')?.dataset
+        .contextRing,
+    ).toBe('hidden');
+
+    act(() => {
+      host.emit({
+        type: 'session/context-updated',
+        sessionId: 'session-aux',
+        snapshot: {
+          sessionId: 'session-aux',
+          revision: 8,
+          contextVersion: 1,
+          contextBoundary: { activeLeafMessageId: 'assistant-1' },
+          responseEvidence: {
+            currentRunHasResponse: false,
+            historyHasDisplayableResponse: true,
+          },
+          phase: 'idle',
+          occupancy: {
+            kind: 'known',
+            tokensUsed: 9_100,
+            tokensLimit: 128_000,
+            quality: 'measured',
+            coverage: 'complete',
+            basis: 'test',
+            sampledAt: '2026-08-30T00:00:00.000Z',
+          },
+          updatedAt: '2026-08-30T00:00:00.000Z',
+        },
+      });
+    });
+    await vi.waitFor(() =>
+      expect(
+        container?.querySelector<HTMLElement>('[data-testid="conversation-pane-session"]')?.dataset
+          .contextRing,
+      ).toBe('visible'),
+    );
   });
 });

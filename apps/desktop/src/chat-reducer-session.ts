@@ -627,6 +627,10 @@ export function reduceChatSession(
           action.clipBeforeMessageId !== undefined || action.clipAfterMessageId !== undefined
             ? state.runRecordsById
             : buildRunRecordsFromTranscriptMessages(action.messages ?? []),
+        contextTelemetry: applyContextTelemetry(state.contextTelemetry, {
+          type: 'invalidate',
+          sessionId: action.sessionId,
+        }),
       });
     }
     default:

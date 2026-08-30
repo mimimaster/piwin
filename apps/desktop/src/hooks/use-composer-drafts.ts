@@ -333,6 +333,7 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
       setActiveDraft(draft.id);
       restoreDraftComposerSnapshot(draft);
       if (sessionId !== null) {
+        args.onLeaveActiveSession?.();
         args.dispatch({ type: 'session/clear-active' });
       }
     },

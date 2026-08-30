@@ -27,6 +27,7 @@ import {
   resetGuardHostInstance,
   resumeTicketMatches,
   selectSessionForResume,
+  takeIfResumeCurrent,
   type SessionSelectionGuard,
 } from '../session-resume-guard.js';
 
@@ -202,6 +203,7 @@ export function useSessionResume(input: {
             ),
           );
         }
+        dispatch({ type: 'context-telemetry/invalidate', sessionId });
         dispatch({
           type: 'session/load-messages',
           sessionId,
@@ -296,12 +298,17 @@ export function useSessionResume(input: {
           invocations: childrenData?.invocations ?? [],
         });
       })();
-      if (data.model || data.thinkingLevel !== undefined) {
-        onSessionComposerProfileRestored?.({
-          ...(data.model ? { model: data.model } : {}),
-          ...(data.thinkingLevel !== undefined ? { thinkingLevel: data.thinkingLevel } : {}),
-        });
+      const restoredProfile = takeIfResumeCurrent(selectionGuardRef.current, started.ticket, {
+        ...(data.model ? { model: data.model } : {}),
+        ...(data.thinkingLevel !== undefined ? { thinkingLevel: data.thinkingLevel } : {}),
+      });
+      if (
+        restoredProfile &&
+        (restoredProfile.model !== undefined || restoredProfile.thinkingLevel !== undefined)
+      ) {
+        onSessionComposerProfileRestored?.(restoredProfile);
       }
+      if (!ticketMatches()) return;
       const snapshot = parseSessionContextSnapshot(data.contextSnapshot);
       if (snapshot) {
         dispatch({
