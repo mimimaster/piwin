@@ -5,16 +5,16 @@ import type { FlashcardStudyController, FlashcardStudyViewModel } from '@piwin/h
 import {
   historyStateHasFlashcardsOverlay,
   navigateMobileFlashcardsRoute,
+  parseMobileFlashcardsRoute,
   popMobileFlashcardsOverlay,
   pushMobileFlashcardsOverlay,
-  replaceMobileFlashcardsOverlayClosed,
 } from '../../mobile-flashcards-route.js';
 import { MOBILE_FLASHCARD_STUDY_COPY as copy } from './study-copy.js';
 import { blankIncomingUnderShell, renderStudyActions, renderStudyFace } from './study-face.js';
 import { resolveStudyKeyboard, type StudyKeyboardTarget } from './study-keyboard.js';
 import type { MobileStudyReturnSource } from './study-return-context.js';
 import type { MobileFlashcardStudyPorts } from './study-session.js';
-import { pauseThenLeave, useFlashcardStudy } from './use-flashcard-study.js';
+import { pauseIfActive, pauseThenLeave, useFlashcardStudy } from './use-flashcard-study.js';
 
 export type FlashcardStudyPageProps = {
   roundId: string;
@@ -89,11 +89,17 @@ export function FlashcardStudyPage(props: FlashcardStudyPageProps): ReactElement
     const onPop = (event: PopStateEvent) => {
       if (overlayOpenRef.current && !historyStateHasFlashcardsOverlay(event.state)) {
         setEndConfirm(false);
+        return;
       }
+      const nextRoute = parseMobileFlashcardsRoute();
+      const stillThisRound =
+        nextRoute?.kind === 'study' && nextRoute.roundId === props.roundId;
+      if (stillThisRound) return;
+      void pauseIfActive(controller);
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
-  }, []);
+  }, [controller, props.roundId]);
 
   const leave = useCallback(() => {
     void pauseThenLeave(controller, props.onLeave);
@@ -111,7 +117,8 @@ export function FlashcardStudyPage(props: FlashcardStudyPageProps): ReactElement
 
   const confirmEnd = (): void => {
     setEndConfirm(false);
-    replaceMobileFlashcardsOverlayClosed();
+    overlayOpenRef.current = false;
+    popMobileFlashcardsOverlay();
     void controller?.end();
   };
 

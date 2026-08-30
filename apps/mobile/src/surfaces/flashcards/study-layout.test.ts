@@ -11,6 +11,13 @@ const KIT_CSS = readFileSync(
 );
 
 describe('mobile study reading-region scroll chain', () => {
+  it('lifts catalog and study chrome with the published keyboard inset', () => {
+    expect(STUDY_CSS).toMatch(
+      /\.mobile-flashcards-page \{[\s\S]*?padding-bottom:\s*var\(--keyboard-inset/,
+    );
+    expect(STUDY_CSS).toMatch(/scroll-margin-bottom:\s*var\(--keyboard-inset/);
+  });
+
   it('bounds the card/wrap so fcws-tear-content is the only vertical scroller', () => {
     expect(STUDY_CSS).toMatch(
       /\.mobile-flashcards-study \.fcws-tear-card \{[\s\S]*?min-height:\s*0;[\s\S]*?overflow:\s*hidden;/,

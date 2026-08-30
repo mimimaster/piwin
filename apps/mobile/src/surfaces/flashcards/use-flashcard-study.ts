@@ -74,9 +74,9 @@ export function useFlashcardStudy(
   return { view, controller, facesConcealed };
 }
 
-export async function pauseThenLeave(
+/** Pause an in-progress round. No-op if already paused, completed, or not ready. */
+export async function pauseIfActive(
   controller: FlashcardStudyController | null,
-  onLeave: () => void,
 ): Promise<void> {
   const phase = controller?.getViewModel().phase;
   if (
@@ -88,6 +88,13 @@ export async function pauseThenLeave(
   ) {
     await controller.pause();
   }
+}
+
+export async function pauseThenLeave(
+  controller: FlashcardStudyController | null,
+  onLeave: () => void,
+): Promise<void> {
+  await pauseIfActive(controller);
   onLeave();
 }
 
