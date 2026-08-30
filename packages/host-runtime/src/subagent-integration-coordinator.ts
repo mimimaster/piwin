@@ -23,6 +23,7 @@ import type {
   WorktreeIntegrationInput as GitWorktreeIntegrationInput,
   WorktreeIntegrationResult as GitWorktreeIntegrationResult,
 } from '@piwin/git';
+import { settleAppliedWorktreeCopy } from './subagent-copy-cleanup.js';
 import type {
   WorkspaceWriteGate,
   WorkspaceWriteLease,
@@ -131,6 +132,8 @@ export type SubagentIntegrationControl = {
   readonly signal?: AbortSignal;
   /** Called immediately before the parent-mutating integration function starts. */
   readonly onCommitPoint?: () => void;
+  /** Keep the child copy after a successful apply. Does not skip integrate. */
+  readonly retainWorktree?: boolean;
 };
 
 export class IntegrationQueueCancelledError extends Error {
@@ -239,7 +242,7 @@ export function createSubagentIntegrationCoordinator(
   /** Explicit FIFO queues allow a cancelled waiter to be removed safely. */
   const integrationQueues = new Map<string, IntegrationQueueState>();
 
-  /** Worktrees retained due to conflict or failure; never cleaned up. */
+  /** Worktrees retained for inspection, missing freeze, or retainWorktree. */
   const retainedWorktrees = new Map<string, RetainedWorktree>();
 
   /** Worktrees created during this coordinator's lifetime (for dispose). */
@@ -407,27 +410,17 @@ export function createSubagentIntegrationCoordinator(
           };
         }
 
-        try {
-          await removeWorktree(worktreePath, parentRepoPath, worktreeBranch);
-          managedWorktrees.delete(worktreePath);
-        } catch (error) {
-          const message = formatError(error);
-          await retain(worktreePath, `integration applied but worktree cleanup failed: ${message}`);
-          return {
-            ...result,
-            integrationStatus: 'applied',
-            changedFiles: integrationResult.changedFiles,
-            error: `integration applied; retained worktree cleanup failed: ${message}`,
-            worktreePath,
-          };
-        }
-
-        return {
-          ...result,
-          integrationStatus: 'applied',
+        return settleAppliedWorktreeCopy({
+          result,
           changedFiles: integrationResult.changedFiles,
           worktreePath,
-        };
+          ...(control.retainWorktree === true ? { retainWorktree: true } : {}),
+          removeWorktree: () => removeWorktree(worktreePath, parentRepoPath, worktreeBranch),
+          keepWorktree: (reason) => retain(worktreePath, reason),
+          onRemoved: () => {
+            managedWorktrees.delete(worktreePath);
+          },
+        });
       }
 
       if (integrationResult.conflict) {
