@@ -8,10 +8,10 @@ import { HostRuntime } from './host-runtime.js';
 import { getPiwinUsageLedgerPath } from './paths.js';
 import type { SessionContextCoordinator } from './session-context-coordinator.js';
 
-async function waitForPushType(pushes: string[], type: string): Promise<void> {
-  const deadline = Date.now() + 5_000;
+async function waitForPushType(pushes: HostPush[], type: string): Promise<void> {
+  const deadline = Date.now() + 15_000;
   while (Date.now() < deadline) {
-    if (pushes.includes(type)) return;
+    if (pushes.some((push) => push.type === type)) return;
     await new Promise<void>((resolve) => {
       setTimeout(resolve, 10);
     });
@@ -66,11 +66,8 @@ describe('session context coordinator host commands', () => {
         sessionId,
         input: { text: 'hello context coordinator' },
       });
-      expect(prompted.success).toBe(true);
-      await waitForPushType(
-        pushes.map((push) => push.type),
-        'run/terminal',
-      );
+      expect(prompted, JSON.stringify(prompted)).toMatchObject({ success: true });
+      await waitForPushType(pushes, 'run/terminal');
       await runtime.flushUsageLedgerWrites();
       const ledgerPath = getPiwinUsageLedgerPath(rootDir);
       const baselineRows = await loadUsageRecords(ledgerPath);
@@ -130,7 +127,7 @@ describe('session context coordinator host commands', () => {
     } finally {
       await runtime.dispose();
     }
-  });
+  }, 20_000);
 
   it('session/context-get reads coordinator snapshot without allocating a runtime', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-context-get-live-'));

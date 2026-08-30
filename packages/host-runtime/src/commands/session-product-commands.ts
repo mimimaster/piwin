@@ -109,6 +109,9 @@ export type SessionProductCommandContext = {
   releaseSessionBody?: (sessionId: string) => void;
   isSessionBodyReserved?: (sessionId: string) => boolean;
   getForegroundRun?: (sessionId: string) => { runId: string } | undefined;
+  getContextSnapshot?: (
+    sessionId: string,
+  ) => Promise<import('@piwin/contracts').SessionContextSnapshot>;
 };
 
 const PRODUCT_COMMAND_TYPES = new Set<HostCommand['type']>([
@@ -816,13 +819,15 @@ export async function handleSessionProductCommand(
       if (rejectedContext) {
         return rejectedContext;
       }
-      const snapshot = await context.withTranscriptStore(command.sessionId, (store) =>
-        readOrInsertUnknownContextState(store, {
-          sessionId: command.sessionId,
-          reason: 'never-sampled',
-          updatedAt: new Date().toISOString(),
-        }),
-      );
+      const snapshot = context.getContextSnapshot
+        ? await context.getContextSnapshot(command.sessionId)
+        : await context.withTranscriptStore(command.sessionId, (store) =>
+            readOrInsertUnknownContextState(store, {
+              sessionId: command.sessionId,
+              reason: 'never-sampled',
+              updatedAt: new Date().toISOString(),
+            }),
+          );
       return ok(requestId, 'session/context-get', snapshot);
     }
     default:

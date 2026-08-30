@@ -49,6 +49,9 @@ import { composeLiveSettings } from './voice/compose-live-settings.js';
 
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 import type { HostRuntimeOptions } from './host-runtime-types.js';
+import { createSessionContextCoordinator } from './session-context-coordinator.js';
+import { recordFinalizedUsageToLedger } from './host-runtime-usage-ledger.js';
+import { dispatchTurnEndHook } from './host-runtime-services.js';
 
 export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRuntimeOptions): void {
   const rootOwnershipEnabled = options.rootOwnership?.enabled ?? process.env.NODE_ENV !== 'test';
@@ -77,6 +80,21 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
       rootDir: getPiwinRoot(options.piwinRoot),
       onDiagnostic: (message) =>
         deps.push({ type: 'host/log', level: 'info', message: `[transcript] ${message}` }),
+    });
+    deps.sessionContextCoordinator = createSessionContextCoordinator({
+      now: () => Date.now(),
+      nowIso: () => new Date().toISOString(),
+      getStore: (sessionId) => {
+        const projectPath = deps.sessionProjects.get(sessionId) ?? '';
+        return deps.transcriptStores.get(sessionId, projectPath);
+      },
+      push: (message) => deps.push(message),
+      recordFinalizedUsage: (sessionId, measurement) =>
+        recordFinalizedUsageToLedger(deps, sessionId, measurement),
+      log: (level, message) => {
+        deps.push({ type: 'host/log', level, message });
+      },
+      getBoundGenerationId: (sessionId) => deps.runtimeController.getStatus(sessionId).generationId,
     });
     if (options.onPush) {
       deps.pushSinks.set(LEGACY_LOCAL_SINK_ID, {
@@ -121,6 +139,32 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
         deps.healthToolRunBudget.release(run.runId);
         void deps.browserSession?.releaseAgentControlIfHeldBy(run.runId);
         deps.push({ type: 'run/terminal', run });
+        if (run.status === 'completed' || run.status === 'cancelled' || run.status === 'failed') {
+          try {
+            void dispatchTurnEndHook(deps, run.sessionId, run.runId).catch((error: unknown) => {
+              deps.push({
+                type: 'host/log',
+                level: 'warn',
+                message: `turn_end hook failed: ${formatError(error)}`,
+              });
+            });
+            void deps.sessionContextCoordinator
+              ?.noteRunTerminal({ sessionId: run.sessionId, runId: run.runId, outcome: run.status })
+              .catch((error: unknown) => {
+                deps.push({
+                  type: 'host/log',
+                  level: 'warn',
+                  message: `session context run terminal failed: ${formatError(error)}`,
+                });
+              });
+          } catch (error) {
+            deps.push({
+              type: 'host/log',
+              level: 'warn',
+              message: `run terminal context side effects failed: ${formatError(error)}`,
+            });
+          }
+        }
         deps.queuedTurnController.notifyRunTerminal(run);
         deps.liveCallCoordinator?.notifyBoundSessionTurnEnded({
           sessionId: run.sessionId,

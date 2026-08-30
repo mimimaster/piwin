@@ -245,6 +245,7 @@ export async function buildDomainContext(
       releaseSessionBody: (sessionId) => deps.sessionBodyGate.release(sessionId),
       isSessionBodyReserved: (sessionId) => deps.sessionBodyGate.isReserved(sessionId),
       getForegroundRun: (sessionId) => deps.runRegistry.getForegroundRun(sessionId),
+      getContextSnapshot: (sessionId) => deps.sessionContextCoordinator.getSnapshot(sessionId),
     },
     sessionPack: {
       ...(deps.options.piwinRoot !== undefined ? { piwinRoot: deps.options.piwinRoot } : {}),

@@ -281,6 +281,15 @@ describe('session context coordinator', () => {
   it('T13: message_end and agent_end with the same measurementId bill once', async () => {
     const harness = await createHarness('t13');
     const { coordinator, sessionId, billed, store } = harness;
+    await store.appendMessage({
+      id: 'msg-1',
+      runtimeGenerationId: 'gen-1',
+      backendMessageId: 'b-1',
+      role: 'assistant',
+      text: 'hello',
+      status: 'done',
+      createdAt: '2026-08-30T00:00:00.000Z',
+    });
     const row = finalized(sessionId, 'msg-1', 42, {
       measurementId: `${sessionId}:gen-1:msg-1`,
       runtimeGenerationId: 'gen-1',

@@ -61,6 +61,9 @@ async function rebaseForBranchPrompt(
   const store = await context.getTranscriptStore(command.sessionId);
   await store.rebaseActiveLeaf(parentId);
   await pushBranchUpdated(context, command.sessionId, store);
+  await context.sessionContextCoordinator?.invalidate(command.sessionId, {
+    reason: 'branch-switch',
+  });
   return null;
 }
 
@@ -112,6 +115,9 @@ async function rebaseForRetryPrompt(
   }
   await store.rebaseActiveLeaf(targetId);
   await pushBranchUpdated(context, command.sessionId, store);
+  await context.sessionContextCoordinator?.invalidate(command.sessionId, {
+    reason: 'branch-switch',
+  });
   return null;
 }
 
