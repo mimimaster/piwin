@@ -3,11 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import {
-  classifyGitCommandError,
-  GitCommandError,
-  runGitCommand,
-} from './git-command-runner.js';
+import { classifyGitCommandError, runGitCommand } from './git-command-runner.js';
 
 const temporaryDirectories: string[] = [];
 
@@ -25,11 +21,35 @@ describe('classifyGitCommandError', () => {
     expect(
       classifyGitCommandError({ killed: true, code: null, message: 'Command failed: TIMEOUT' }),
     ).toBe('timeout');
+    expect(
+      classifyGitCommandError({
+        killed: true,
+        code: null,
+        signal: 'SIGTERM',
+        message: 'Command failed',
+      }),
+    ).toBe('timeout');
+    expect(
+      classifyGitCommandError({
+        killed: true,
+        code: null,
+        signal: 'SIGKILL',
+        message: 'Command failed',
+      }),
+    ).toBe('timeout');
   });
 
   it('classifies other killed processes as killed', () => {
     expect(
       classifyGitCommandError({ killed: true, code: null, message: 'Command failed' }),
+    ).toBe('killed');
+    expect(
+      classifyGitCommandError({
+        killed: true,
+        code: null,
+        signal: 'SIGINT',
+        message: 'Command failed',
+      }),
     ).toBe('killed');
     expect(
       classifyGitCommandError({ killed: true, code: 1, message: 'Command failed' }),
@@ -111,19 +131,17 @@ describe('runGitCommand allowedExitCodes', () => {
     const directory = await createTempDir('piwin-git-runner-timeout-');
     await runGitCommand({ cwd: directory, args: ['init', '-b', 'main'] });
 
-    const error = await runGitCommand({
-      cwd: directory,
-      args: ['cat-file', '--batch'],
-      timeoutMs: 80,
-      allowedExitCodes: [0, 1],
-    }).catch((caught: unknown) => caught);
-
-    expect(error).toBeInstanceOf(GitCommandError);
-    if (!(error instanceof GitCommandError)) {
-      throw new Error('expected GitCommandError');
-    }
-    expect(['killed', 'timeout']).toContain(error.kind);
-    expect(error.kind).not.toBe('exit');
+    await expect(
+      runGitCommand({
+        cwd: directory,
+        args: ['cat-file', '--batch'],
+        timeoutMs: 80,
+        allowedExitCodes: [0, 1],
+      }),
+    ).rejects.toMatchObject({
+      name: 'GitCommandError',
+      kind: 'timeout',
+    });
   });
 
   it('keeps allowFailure mapping non-numeric codes to exitCode 1', async () => {
