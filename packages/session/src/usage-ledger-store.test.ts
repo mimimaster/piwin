@@ -7,6 +7,7 @@ import {
   appendUsageRecord,
   computeUsageRollup,
   loadUsageRecords,
+  resetUsageLedgerCaches,
   selectLatestSessionContextUsage,
   readUsageRollup,
 } from './usage-ledger-store.js';
@@ -248,5 +249,26 @@ describe('usage-ledger-store', () => {
       source: 'assistant-usage',
       updatedAt: '2026-08-09T11:24:22.004Z',
     });
+  });
+
+  it('T15: replay of the same measurementId stays one row and keeps old no-id rows', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-usage-idempotent-'));
+    const filePath = join(dir, 'ledger.jsonl');
+    const withId = record({
+      measurementId: 'session-1:gen-1:msg-1',
+      runId: 'run-1',
+      messageId: 'msg-1',
+      totalTokens: 40,
+    });
+    const legacy = record({ totalTokens: 11, recordedAt: '2026-07-01T00:00:00.000Z' });
+    await appendUsageRecord(filePath, legacy);
+    expect(await appendUsageRecord(filePath, withId)).toBe('inserted');
+    expect(await appendUsageRecord(filePath, { ...withId, totalTokens: 99 })).toBe('duplicate');
+    resetUsageLedgerCaches();
+    expect(await appendUsageRecord(filePath, withId)).toBe('duplicate');
+    const rows = await loadUsageRecords(filePath);
+    expect(rows).toHaveLength(2);
+    expect(rows.some((row) => row.measurementId === undefined && row.totalTokens === 11)).toBe(true);
+    expect(rows.filter((row) => row.measurementId === withId.measurementId)).toHaveLength(1);
   });
 });

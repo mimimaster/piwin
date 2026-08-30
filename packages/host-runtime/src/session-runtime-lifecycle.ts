@@ -229,6 +229,7 @@ export async function doActivateSessionRuntime(
     throw error;
   }
   deps.residencyController.commitActivation(sessionId, runtimeGenerationId);
+  await revalidateSessionContextAfterBind(deps, sessionId, runtimeGenerationId);
   deps.sessionRuntimeDelegationModes.set(
     sessionId,
     runId ? (deps.runDelegationModes.get(runId) ?? 'auto') : 'auto',
@@ -244,6 +245,33 @@ export async function doActivateSessionRuntime(
   // With a native replay seed the backend already owns full-fidelity
   // history, so the text-injection marker must stay unset.
   return handle;
+}
+
+async function revalidateSessionContextAfterBind(
+  deps: HostRuntimeKernel,
+  sessionId: string,
+  runtimeGenerationId: string,
+): Promise<void> {
+  try {
+    const store = await deps.getTranscriptStore(sessionId);
+    const contextBoundary: import('@piwin/contracts').ContextBoundary = {
+      activeLeafMessageId: await store.getActiveLeaf(),
+    };
+    const model = deps.sessionModels.get(sessionId);
+    if (model !== undefined) {
+      contextBoundary.model = model;
+    }
+    await deps.sessionContextCoordinator.revalidateAfterActivation(sessionId, {
+      runtimeGenerationId,
+      contextBoundary,
+    });
+  } catch (error) {
+    deps.push({
+      type: 'host/log',
+      level: 'warn',
+      message: `session context revalidate failed for ${sessionId}: ${formatError(error)}`,
+    });
+  }
 }
 
 export function pendingColdStartGenerationId(

@@ -45,6 +45,10 @@ export function handleRemotePush(
   setPermissionRequest: Dispatch<SetStateAction<RemotePermissionRequest | undefined>>,
 ): void {
   const activeSessionId = activeSessionRef.current;
+  if (push.type === 'session/context-updated') {
+    // Occupancy is Host-authored. Mobile does not invent a ring from the billing ledger.
+    return;
+  }
   if (push.type === 'permission/request') {
     if (activeSessionId === undefined || push.sessionId === activeSessionId) {
       setPermissionRequest(push);

@@ -39,8 +39,7 @@ describe('usage-map', () => {
       cacheReadTokens: 100,
       cacheWriteTokens: 50,
       totalTokens: 1050,
-      // Context occupancy = input-side (prompt + cache), not billable turn total.
-      tokensUsed: 850,
+      tokensUsed: 1050,
       source: 'assistant-usage',
     });
   });
@@ -58,7 +57,7 @@ describe('usage-map', () => {
       cacheReadTokens: 100,
       cacheWriteTokens: 50,
       totalTokens: 1050,
-      tokensUsed: 850,
+      tokensUsed: 1050,
     });
   });
 
@@ -104,6 +103,15 @@ describe('usage-map', () => {
     expect(snapshot?.breakdown?.toolDefinitionsTokens).toBe(200);
     expect(snapshot?.breakdown?.conversationTokens).toBe(700);
     expect(snapshot?.breakdown?.source).toBe('pi');
+  });
+
+  it('does not invent a fixed-percentage breakdown for production snapshots', () => {
+    const snapshot = mapUsageSnapshot('s1', {
+      input: 700,
+      output: 200,
+    });
+    expect(snapshot?.breakdown).toBeUndefined();
+    expect(snapshot?.tokensUsed).toBe(900);
   });
 
   it('estimates breakdown summing to used', () => {

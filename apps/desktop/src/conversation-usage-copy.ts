@@ -1,8 +1,8 @@
 /**
- * Conversation-facing usage copy. Reuses ContextUsageSnapshot fields without
- * inventing per-message totals or mixing occupancy with cumulative spend.
+ * Conversation-facing occupancy and last-request copy.
+ * Occupancy and last-request metering stay separate; no invented category split.
  */
-import type { ContextUsageSnapshot } from '@piwin/contracts';
+import type { AssistantUsageMeasurement } from '@piwin/contracts';
 
 export type ConversationUsageLocale = 'zh-CN' | 'en';
 
@@ -12,35 +12,104 @@ export type ConversationUsageDetailRow = {
   value: string;
 };
 
-const LABELS = {
+export type ContextUsageCopy = {
+  title: string;
+  close: string;
+  settings: string;
+  occupied: string;
+  limit: string;
+  remaining: string;
+  confirmed: string;
+  estimated: string;
+  realtimeEstimate: string;
+  exceedsLimit: string;
+  limitUnknown: string;
+  estimatedAgainstSelectedModel: string;
+  compacting: string;
+  compactedPending: string;
+  offline: string;
+  capabilityMissing: string;
+  lastRequest: string;
+  input: string;
+  cacheRead: string;
+  cacheWrite: string;
+  output: string;
+  total: string;
+  duration: string;
+  accessibleLabel: (used: string, limit: string, percent: string | undefined) => string;
+  hover: (used: string, limit: string, percent: string | undefined) => string;
+  percentFull: (percent: number) => string;
+};
+
+const COPY: Record<ConversationUsageLocale, ContextUsageCopy> = {
   'zh-CN': {
+    title: '上下文占用',
+    close: '关闭',
+    settings: '编辑上下文窗口',
     occupied: '上下文占用',
     limit: '上下文上限',
+    remaining: '剩余',
+    confirmed: '已确认',
+    estimated: '估算',
+    realtimeEstimate: '实时估算',
+    exceedsLimit: '超过上下文上限',
+    limitUnknown: '上限未知',
+    estimatedAgainstSelectedModel: '按所选模型窗口估算',
+    compacting: '压缩中',
+    compactedPending: '上下文已压缩，用量待更新',
+    offline: '离线，显示上次数据',
+    capabilityMissing: '当前主机不支持实时上下文占用',
+    lastRequest: '最后一次请求',
     input: '输入',
     cacheRead: '缓存读取',
     cacheWrite: '缓存写入',
     output: '输出',
     total: '合计',
     duration: '耗时',
-    estimated: '估算',
+    accessibleLabel: (used, limit, percent) =>
+      percent
+        ? `上下文占用 ${used} / ${limit}（${percent}）`
+        : `上下文占用 ${used}，${limit}`,
+    hover: (used, limit, percent) =>
+      percent ? `${percent}（${used} / ${limit}）上下文已占用` : `${used} / ${limit} 上下文已占用`,
+    percentFull: (percent) => `${percent}% 已占用`,
   },
   en: {
+    title: 'Context usage',
+    close: 'Close',
+    settings: 'Edit context window',
     occupied: 'Context occupied',
     limit: 'Context limit',
+    remaining: 'Remaining',
+    confirmed: 'Confirmed',
+    estimated: 'Estimated',
+    realtimeEstimate: 'Realtime estimate',
+    exceedsLimit: 'Exceeds context limit',
+    limitUnknown: 'Limit unknown',
+    estimatedAgainstSelectedModel: 'Estimated against selected model window',
+    compacting: 'Compacting',
+    compactedPending: 'Context compacted, usage pending',
+    offline: 'Offline, showing last data',
+    capabilityMissing: 'This Host does not support realtime context usage',
+    lastRequest: 'Last request',
     input: 'Input',
     cacheRead: 'Cache read',
     cacheWrite: 'Cache write',
     output: 'Output',
     total: 'Total',
     duration: 'Duration',
-    estimated: 'Estimated',
+    accessibleLabel: (used, limit, percent) =>
+      percent ? `Context ${used} / ${limit} (${percent})` : `Context ${used}, ${limit}`,
+    hover: (used, limit, percent) =>
+      percent
+        ? `${percent} (${used} / ${limit}) context used`
+        : `${used} / ${limit} context used`,
+    percentFull: (percent) => `${percent}% full`,
   },
-} as const;
+};
 
-export function isHostEstimatedUsage(
-  usage: ContextUsageSnapshot | null | undefined,
-): boolean {
-  return usage?.source === 'host-estimate';
+export function getContextUsageCopy(locale: ConversationUsageLocale): ContextUsageCopy {
+  return COPY[locale];
 }
 
 export function formatUsageTokenCount(value: number): string {
@@ -73,79 +142,184 @@ export function formatUsageDurationMs(durationMs: number): string {
 export function conversationUsageEstimatedLabel(
   locale: ConversationUsageLocale = 'en',
 ): string {
-  return LABELS[locale].estimated;
+  return COPY[locale].estimated;
 }
 
-/**
- * Status / popover rows for Conversation. Occupancy and limit always appear
- * once a sample exists; last-turn fields are omitted until Host reports them.
- */
-export function buildConversationUsageDetailRows(input: {
-  usage: ContextUsageSnapshot | null | undefined;
-  used: number;
-  limit: number;
+export function conversationUsageConfirmedLabel(
+  locale: ConversationUsageLocale = 'en',
+): string {
+  return COPY[locale].confirmed;
+}
+
+export function buildOccupancyDetailRows(input: {
+  used?: number;
+  limit?: number;
   locale?: ConversationUsageLocale;
+  remaining?: number;
 }): ConversationUsageDetailRow[] {
   const locale = input.locale ?? 'en';
-  const labels = LABELS[locale];
-  const estimated = isHostEstimatedUsage(input.usage);
-  const mark = (value: string): string => (estimated ? `~${value}` : value);
-  const rows: ConversationUsageDetailRow[] = [
-    {
+  const labels = COPY[locale];
+  const rows: ConversationUsageDetailRow[] = [];
+  if (typeof input.used === 'number') {
+    rows.push({
       id: 'occupied',
       label: labels.occupied,
-      value: mark(formatUsageTokenCount(input.used)),
-    },
-    {
-      id: 'limit',
-      label: labels.limit,
-      value: formatUsageTokenCount(input.limit),
-    },
-  ];
+      value: formatUsageTokenCount(input.used),
+    });
+  }
+  rows.push({
+    id: 'limit',
+    label: labels.limit,
+    value:
+      typeof input.limit === 'number' ? formatUsageTokenCount(input.limit) : labels.limitUnknown,
+  });
+  if (typeof input.remaining === 'number') {
+    rows.push({
+      id: 'remaining',
+      label: labels.remaining,
+      value: formatUsageTokenCount(input.remaining),
+    });
+  }
+  return rows;
+}
 
+export function buildLastRequestDetailRows(input: {
+  usage: AssistantUsageMeasurement | null | undefined;
+  locale?: ConversationUsageLocale;
+}): ConversationUsageDetailRow[] {
   const usage = input.usage;
-  if (typeof usage?.promptTokens === 'number') {
+  if (!usage) {
+    return [];
+  }
+  const locale = input.locale ?? 'en';
+  const labels = COPY[locale];
+  const rows: ConversationUsageDetailRow[] = [];
+  if (typeof usage.promptTokens === 'number') {
     rows.push({
       id: 'input',
       label: labels.input,
-      value: mark(formatUsageTokenCount(usage.promptTokens)),
+      value: formatUsageTokenCount(usage.promptTokens),
     });
   }
-  if (typeof usage?.cacheReadTokens === 'number') {
+  if (typeof usage.cacheReadTokens === 'number') {
     rows.push({
       id: 'cache-read',
       label: labels.cacheRead,
-      value: mark(formatUsageTokenCount(usage.cacheReadTokens)),
+      value: formatUsageTokenCount(usage.cacheReadTokens),
     });
   }
-  if (typeof usage?.cacheWriteTokens === 'number') {
+  if (typeof usage.cacheWriteTokens === 'number') {
     rows.push({
       id: 'cache-write',
       label: labels.cacheWrite,
-      value: mark(formatUsageTokenCount(usage.cacheWriteTokens)),
+      value: formatUsageTokenCount(usage.cacheWriteTokens),
     });
   }
-  if (typeof usage?.completionTokens === 'number') {
+  if (typeof usage.completionTokens === 'number') {
     rows.push({
       id: 'output',
       label: labels.output,
-      value: mark(formatUsageTokenCount(usage.completionTokens)),
+      value: formatUsageTokenCount(usage.completionTokens),
     });
   }
-  if (typeof usage?.totalTokens === 'number') {
+  if (typeof usage.totalTokens === 'number') {
     rows.push({
       id: 'total',
       label: labels.total,
-      value: mark(formatUsageTokenCount(usage.totalTokens)),
+      value: formatUsageTokenCount(usage.totalTokens),
     });
   }
-  if (typeof usage?.durationMs === 'number') {
+  if (typeof usage.durationMs === 'number') {
     rows.push({
       id: 'duration',
       label: labels.duration,
       value: formatUsageDurationMs(usage.durationMs),
     });
   }
-
   return rows;
+}
+
+/** @deprecated Use buildOccupancyDetailRows + buildLastRequestDetailRows. */
+export function buildConversationUsageDetailRows(input: {
+  usage?: { promptTokens?: number; cacheReadTokens?: number; cacheWriteTokens?: number; completionTokens?: number; totalTokens?: number; durationMs?: number } | null;
+  used: number;
+  limit: number;
+  locale?: ConversationUsageLocale;
+}): ConversationUsageDetailRow[] {
+  const occupancy = buildOccupancyDetailRows({
+    used: input.used,
+    limit: input.limit,
+    ...(input.locale !== undefined ? { locale: input.locale } : {}),
+  });
+  if (!input.usage) {
+    return occupancy;
+  }
+  return [
+    ...occupancy,
+    ...buildLastRequestDetailRows({
+      usage: {
+        measurementId: 'legacy',
+        sessionId: 'legacy',
+        messageId: 'legacy',
+        totalTokens: input.usage.totalTokens ?? 0,
+        recordedAt: '1970-01-01T00:00:00.000Z',
+        ...(typeof input.usage.promptTokens === 'number'
+          ? { promptTokens: input.usage.promptTokens }
+          : {}),
+        ...(typeof input.usage.cacheReadTokens === 'number'
+          ? { cacheReadTokens: input.usage.cacheReadTokens }
+          : {}),
+        ...(typeof input.usage.cacheWriteTokens === 'number'
+          ? { cacheWriteTokens: input.usage.cacheWriteTokens }
+          : {}),
+        ...(typeof input.usage.completionTokens === 'number'
+          ? { completionTokens: input.usage.completionTokens }
+          : {}),
+        ...(typeof input.usage.durationMs === 'number'
+          ? { durationMs: input.usage.durationMs }
+          : {}),
+      },
+      ...(input.locale !== undefined ? { locale: input.locale } : {}),
+    }),
+  ];
+}
+
+export function isHostEstimatedUsage(usage: { source?: string } | null | undefined): boolean {
+  return usage?.source === 'host-estimate';
+}
+
+const LATIN_IN_ZH = /[A-Za-z]{3,}/;
+
+export function contextUsageCopyHasMixedEnglish(locale: ConversationUsageLocale): boolean {
+  if (locale !== 'zh-CN') {
+    return false;
+  }
+  const copy = COPY['zh-CN'];
+  const samples = [
+    copy.title,
+    copy.close,
+    copy.settings,
+    copy.occupied,
+    copy.limit,
+    copy.remaining,
+    copy.confirmed,
+    copy.estimated,
+    copy.realtimeEstimate,
+    copy.exceedsLimit,
+    copy.limitUnknown,
+    copy.estimatedAgainstSelectedModel,
+    copy.compacting,
+    copy.compactedPending,
+    copy.offline,
+    copy.capabilityMissing,
+    copy.lastRequest,
+    copy.input,
+    copy.cacheRead,
+    copy.cacheWrite,
+    copy.output,
+    copy.total,
+    copy.duration,
+    copy.percentFull(12),
+  ];
+  return samples.some((sample) => LATIN_IN_ZH.test(sample));
 }

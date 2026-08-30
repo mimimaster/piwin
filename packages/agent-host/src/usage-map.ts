@@ -1,7 +1,8 @@
 /**
  * Map Pi contextUsage / assistant usage shapes into ContextUsageSnapshot.
  * Never invents token counts for totals — only maps when numbers are present.
- * Breakdown may be host-estimated and is labeled as such.
+ * tokensUsed is window fill (input + output + cache once). Production mapping
+ * does not invent a fixed-percentage category breakdown.
  */
 import type { ContextUsageBreakdown, ContextUsageSnapshot, UsageSource } from '@piwin/contracts';
 
@@ -67,13 +68,19 @@ export function mapUsageSnapshot(
       ? promptTokens + completionTokens + (cacheReadTokens ?? 0) + (cacheWriteTokens ?? 0)
       : undefined);
 
-  // Context occupancy ≠ billable turn total. When providers only report turn
-  // fields, input-side tokens (prompt + cache) best approximate window fill.
-  const inputSideTokens =
-    promptTokens !== undefined || cacheReadTokens !== undefined || cacheWriteTokens !== undefined
-      ? (promptTokens ?? 0) + (cacheReadTokens ?? 0) + (cacheWriteTokens ?? 0)
+  // Window fill = input + output + cache once. Provider/Pi totalTokens already
+  // includes cache when present, so do not add cache again on top of total.
+  const componentFill =
+    promptTokens !== undefined ||
+    completionTokens !== undefined ||
+    cacheReadTokens !== undefined ||
+    cacheWriteTokens !== undefined
+      ? (promptTokens ?? 0) +
+        (completionTokens ?? 0) +
+        (cacheReadTokens ?? 0) +
+        (cacheWriteTokens ?? 0)
       : undefined;
-  const resolvedTokensUsed = tokensUsed ?? inputSideTokens;
+  const resolvedTokensUsed = tokensUsed ?? totalTokens ?? componentFill;
 
   const hasAny =
     resolvedTokensUsed !== undefined ||
@@ -118,17 +125,6 @@ export function mapUsageSnapshot(
   );
   if (mappedBreakdown) {
     snapshot.breakdown = mappedBreakdown;
-  } else if (usedForRatio !== undefined) {
-    const estimateInput: {
-      tokensUsed: number;
-      promptTokens?: number;
-      completionTokens?: number;
-    } = { tokensUsed: usedForRatio };
-    if (promptTokens !== undefined) estimateInput.promptTokens = promptTokens;
-    if (completionTokens !== undefined) {
-      estimateInput.completionTokens = completionTokens;
-    }
-    snapshot.breakdown = estimateUsageBreakdown(estimateInput);
   }
 
   return snapshot;

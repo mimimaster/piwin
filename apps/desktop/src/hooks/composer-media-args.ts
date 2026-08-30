@@ -83,4 +83,6 @@ export type UseComposerMediaArgs = {
   onOpenKnowledge?: (subTab?: 'doccards' | 'cards' | 'wiki') => void;
   /** Open the right-panel Flashcards due queue (/flashcards). */
   onOpenCardsPanel?: () => void;
+  /** Bump resume selection identity before leaving the active session for a draft. */
+  onLeaveActiveSession?: () => void;
 };

@@ -138,15 +138,30 @@ export function createMockSessionHandle(input: CreateMockSessionOptions): Sessio
         byteLength: Buffer.byteLength(nativePayload, 'utf8'),
       },
     });
-    emit({
-      type: 'usage/update',
+    const interventionUsage = estimateMockUsage(
       sessionId,
-      usage: estimateMockUsage(
+      intervention.text,
+      reply,
+      Math.max(1, Date.now() - startedAt),
+    );
+    emit({
+      type: 'usage/finalized',
+      measurement: {
+        measurementId: `${sessionId}:mock:${assistantMessageId}`,
         sessionId,
-        intervention.text,
-        reply,
-        Math.max(1, Date.now() - startedAt),
-      ),
+        messageId: assistantMessageId,
+        totalTokens: interventionUsage.totalTokens ?? interventionUsage.tokensUsed ?? 0,
+        recordedAt: interventionUsage.updatedAt,
+        ...(interventionUsage.promptTokens !== undefined
+          ? { promptTokens: interventionUsage.promptTokens }
+          : {}),
+        ...(interventionUsage.completionTokens !== undefined
+          ? { completionTokens: interventionUsage.completionTokens }
+          : {}),
+        ...(interventionUsage.durationMs !== undefined
+          ? { durationMs: interventionUsage.durationMs }
+          : {}),
+      },
     });
     return true;
   };
@@ -293,7 +308,40 @@ export function createMockSessionHandle(input: CreateMockSessionOptions): Sessio
           reply,
           Math.max(1, Date.now() - startedAt),
         );
-        emit({ type: 'usage/update', sessionId, usage });
+        emit({
+          type: 'context/measurement',
+          measurement: {
+            sessionId,
+            messageId: assistantMessageId,
+            sampleSequence: 1,
+            occupancy: {
+              kind: 'known',
+              tokensUsed: usage.tokensUsed ?? usage.totalTokens ?? 0,
+              ...(usage.tokensLimit !== undefined ? { tokensLimit: usage.tokensLimit } : {}),
+              quality: 'estimated',
+              coverage: 'partial',
+              basis: 'mock-estimate',
+              sampledAt: usage.updatedAt,
+            },
+            contextBoundary: { activeLeafMessageId: assistantMessageId },
+            sampledAt: usage.updatedAt,
+          },
+        });
+        emit({
+          type: 'usage/finalized',
+          measurement: {
+            measurementId: `${sessionId}:mock:${assistantMessageId}`,
+            sessionId,
+            messageId: assistantMessageId,
+            totalTokens: usage.totalTokens ?? usage.tokensUsed ?? 0,
+            recordedAt: usage.updatedAt,
+            ...(usage.promptTokens !== undefined ? { promptTokens: usage.promptTokens } : {}),
+            ...(usage.completionTokens !== undefined
+              ? { completionTokens: usage.completionTokens }
+              : {}),
+            ...(usage.durationMs !== undefined ? { durationMs: usage.durationMs } : {}),
+          },
+        });
         await drainRunInterventions();
       } finally {
         await expireStagedInterventions();

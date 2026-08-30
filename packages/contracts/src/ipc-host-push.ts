@@ -10,6 +10,7 @@ import type {
 import type { ExtensionUiKind } from './extension-ui.js';
 import type { BrowserControllerPush, WebElementPickResult } from './browser.js';
 import type { ContextSummaryPush } from './model-context.js';
+import type { SessionContextSnapshot } from './context-telemetry.js';
 import type { ExtensionDeploymentRecord, ExtensionSummary } from './extensions.js';
 import type { SessionPlan } from './plan.js';
 import type { PlanExecutionState } from './plan-execution.js';
@@ -97,6 +98,7 @@ export type HostPushVariant =
       envelope?: AgentEventEnvelope;
     }
   | { type: 'session/runtime-updated'; status: SessionRuntimeStatus }
+  | { type: 'session/context-updated'; sessionId: string; snapshot: SessionContextSnapshot }
   /** ADR 0055: the active leaf moved (branch prompt/switch/subtree delete). */
   | {
       type: 'session/branch-updated';

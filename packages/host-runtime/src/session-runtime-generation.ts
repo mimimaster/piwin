@@ -164,6 +164,19 @@ export async function createRuntimeGeneration(
     // transcript exactly once, just like a cold activation.
     deps.coldStartHistoryBySession.set(sessionId, candidate.generationId);
     deps.preparedRuntimeGenerations.delete(key);
+    try {
+      const leaf = await deps.getTranscriptStore(sessionId).then((store) => store.getActiveLeaf());
+      await deps.sessionContextCoordinator.revalidateAfterActivation(sessionId, {
+        runtimeGenerationId: candidate.generationId,
+        contextBoundary: { activeLeafMessageId: leaf },
+      });
+    } catch (error) {
+      deps.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `session context revalidate failed after replacement: ${formatError(error)}`,
+      });
+    }
   } catch (error) {
     if (promoted) {
       deps.sessionHostToolPort?.rollbackCommittedGeneration(sessionId, candidate.generationId);
@@ -349,5 +362,18 @@ export function createAdmittedForegroundRun(
   if (generationId !== undefined) {
     deps.residencyController.markBusy(sessionId, generationId);
   }
+  void deps.sessionContextCoordinator
+    ?.noteRunStarted({
+      sessionId,
+      runId: run.runId,
+      ...(generationId !== undefined ? { runtimeGenerationId: generationId } : {}),
+    })
+    .catch((error: unknown) => {
+      deps.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `session context run start failed: ${formatError(error)}`,
+      });
+    });
   return run;
 }

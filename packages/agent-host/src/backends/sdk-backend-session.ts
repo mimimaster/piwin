@@ -2,7 +2,7 @@
 
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { BackendPreparedPrompt } from '@piwin/contracts';
+import type { AgentEvent, BackendPreparedPrompt } from '@piwin/contracts';
 import {
   assertValidBackendSessionBlueprint,
   type BackendSessionHandle,
@@ -28,8 +28,14 @@ import {
 import { createPiwinSettingsManager } from '../pi-settings-manager.js';
 import { mapPiCompactionResult, type PiCompactionResult } from '../pi-compaction-result.js';
 import { buildPiSessionToolAllowlist } from '../pi-session-tool-allowlist.js';
-import { normalizeAgentEventIds } from '../generation-identity.js';
-import { stampPublishedAgentEvent } from '../agent-event-run-id.js';
+import {
+  createPiContextSampler,
+  occupancyModelIdentityFromRef,
+  publishSampledPiSessionEvents,
+  readPiContextUsageSample,
+  sameOccupancyModelIdentity,
+  type OccupancyModelIdentity,
+} from '../pi-context-sampler.js';
 import {
   isOpenAiCompletionsStreamProtocol,
   readPiHttpIdleTimeoutMs,
@@ -240,6 +246,20 @@ function wrapBackendPiSession(
   streamProgressTimeoutMs: number,
 ): BackendSessionHandle {
   const eventMapper = createPiSessionEventMapper();
+  const sampler = createPiContextSampler({
+    sessionId: input.blueprint.sessionId,
+    runtimeGenerationId: input.blueprint.runtimeGenerationId,
+    getRunId: getActiveRunId,
+    ...(typeof piSession.getContextUsage === 'function'
+      ? {
+          getContextUsage: () => readPiContextUsageSample(piSession.getContextUsage?.()),
+        }
+      : {}),
+  });
+  const occupancyListeners = new Set<(event: AgentEvent) => void>();
+  let appliedModel: OccupancyModelIdentity | undefined = input.blueprint.model
+    ? occupancyModelIdentityFromRef(input.blueprint.model)
+    : undefined;
   let trailingRunId: string | undefined;
   const interventionStager = piSession.agent
     ? createRunInterventionStager({
@@ -265,6 +285,15 @@ function wrapBackendPiSession(
           );
         }
         await piSession.setModel(model);
+        const nextModel = occupancyModelIdentityFromRef(preparedPrompt.model);
+        if (appliedModel !== undefined && !sameOccupancyModelIdentity(appliedModel, nextModel)) {
+          for (const extra of sampler.invalidateBaseline()) {
+            for (const listener of occupancyListeners) {
+              listener(extra);
+            }
+          }
+        }
+        appliedModel = nextModel;
       }
       if (preparedPrompt.thinkingLevel && piSession.setThinkingLevel) {
         await piSession.setThinkingLevel(
@@ -357,20 +386,24 @@ function wrapBackendPiSession(
         }
       : {}),
     subscribe(listener) {
-      return piSession.subscribe((rawEvent) => {
-        for (const mappedEvent of eventMapper.map(rawEvent)) {
-          const stamped = stampPublishedAgentEvent(
-            normalizeAgentEventIds(mappedEvent, {
-              sessionId: input.blueprint.sessionId,
-              runtimeGenerationId: input.blueprint.runtimeGenerationId,
-            }),
-            getActiveRunId() ?? trailingRunId,
-          );
-          if (stamped) {
-            listener(stamped);
-          }
-        }
+      occupancyListeners.add(listener);
+      const unsubscribe = piSession.subscribe((rawEvent) => {
+        publishSampledPiSessionEvents({
+          mapper: eventMapper,
+          sampler,
+          raw: rawEvent,
+          identity: {
+            sessionId: input.blueprint.sessionId,
+            runtimeGenerationId: input.blueprint.runtimeGenerationId,
+          },
+          runId: getActiveRunId() ?? trailingRunId,
+          emit: listener,
+        });
       });
+      return () => {
+        occupancyListeners.delete(listener);
+        unsubscribe();
+      };
     },
   };
 }
@@ -396,6 +429,9 @@ type PiLikeSession = {
   setThinkingLevel?: (level: string) => Promise<void> | void;
   bindExtensions?: (bindings: Record<string, unknown>) => Promise<void>;
   subscribe: (listener: (raw: unknown) => void) => () => void;
+  getContextUsage?: () =>
+    | { tokens: number | null; contextWindow: number; percent?: number | null }
+    | undefined;
 };
 
 function createRequestId(): string {

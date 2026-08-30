@@ -22,13 +22,15 @@ per-session breakdown. The user explicitly excluded cost estimation.
    `@piwin/session` (`usage-ledger-store.ts`). One `UsageRecord` per billable
    turn; rollups are computed on read, so the write path is a single cheap
    append that never rewrites history.
-2. **Only billable per-turn sources enter the ledger**:
-   - `assistant-usage` (mapped from Pi `agent_end`)
-   - `host-estimate` (the existing `maybeEmitUsageOnMessageEnd` fallback)
-   - `pi-contextUsage` is cumulative context occupancy and is **never summed**
-     into the ledger.
-   - Dedup relies on the existing age-guard in `maybeEmitUsageOnMessageEnd`
-     (skip host-estimate if a real usage was recorded within 2s).
+2. **Only billable per-request sources enter the ledger**:
+   - `assistant-usage` from `usage/finalized` (stable `measurementId`;
+     message_end, with agent_end filling a miss)
+   - Historical `host-estimate` rows remain; new real requests do not append
+     that fallback (`maybeEmitUsageOnMessageEnd` is a no-op)
+   - Context occupancy lives in `session_context_state` (ADR 0067) and is
+     **never summed** into the ledger
+   - New rows with `measurementId` are idempotent on append; old rows without
+     an id keep original semantics and are not guess-deduped
 3. **Attribution** is applied at the `HostRuntime` event boundary (not in the
    pure mapper): authoritative `sessionId`, `projectPath` from
    `sessionProjects`, `providerId` from the active `ModelRef`, and `modelId`
