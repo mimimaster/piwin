@@ -36,6 +36,20 @@ export type { TurnChangePathKind, ResolvedTurnChangePath } from './turn-changes/
 export { writeTurnChangeFile, deleteTurnChangeFile } from './turn-changes/file-writer.js';
 export type { TurnChangeWriteReceipt } from './turn-changes/file-writer.js';
 
+export { planUndoRedo } from './turn-changes/operation-plan.js';
+export type { PlannedFileOp } from './turn-changes/operation-plan.js';
+
+export { runTurnChangeOperation } from './turn-changes/operation-runner.js';
+export type { TurnChangeOperationRunResult } from './turn-changes/operation-runner.js';
+
+export { recoverTurnChangeOperation } from './turn-changes/recovery.js';
+export type {
+  TurnChangeBeginOperationResult,
+  TurnChangeOperationFileRecord,
+  TurnChangeOperationKind,
+  TurnChangeOperationRecord,
+} from './turn-changes/operation-store.js';
+
 export { probeGitRepository } from './repository-probe.js';
 
 export { parsePorcelainStatus, parsePorcelainFileLine } from './status-parser.js';

@@ -83,6 +83,17 @@ CREATE TABLE IF NOT EXISTS operation (
   expected_revision INTEGER NOT NULL,
   direction TEXT
 );
+CREATE TABLE IF NOT EXISTS operation_file (
+  operation_id TEXT NOT NULL,
+  relative_path TEXT NOT NULL,
+  from_sha TEXT,
+  to_sha TEXT,
+  backup_sha TEXT,
+  from_exists INTEGER NOT NULL,
+  to_exists INTEGER NOT NULL,
+  status TEXT NOT NULL,
+  PRIMARY KEY(operation_id, relative_path)
+);
 CREATE TABLE IF NOT EXISTS idempotency (
   principal TEXT NOT NULL,
   key TEXT NOT NULL,
