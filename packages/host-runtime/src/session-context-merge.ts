@@ -35,7 +35,8 @@ export function snapshotDisplayEqual(
     left.responseEvidence.currentRunHasResponse === right.responseEvidence.currentRunHasResponse &&
     left.responseEvidence.historyHasDisplayableResponse ===
       right.responseEvidence.historyHasDisplayableResponse &&
-    left.runId === right.runId
+    left.runId === right.runId &&
+    left.runtimeGenerationId === right.runtimeGenerationId
   );
 }
 
@@ -57,6 +58,12 @@ function sameWhenSet(current: string | undefined, incoming: string | undefined):
 }
 
 export function boundaryCompatible(current: ContextBoundary, incoming: ContextBoundary): boolean {
+  if (current.activeLeafMessageId !== incoming.activeLeafMessageId) {
+    // Unbound snapshots may take the first sample leaf; barriers stamp a leaf.
+    if (current.activeLeafMessageId !== null) {
+      return false;
+    }
+  }
   if (!sameWhenSet(current.compactionBoundary, incoming.compactionBoundary)) {
     return false;
   }
@@ -117,7 +124,7 @@ export function applyMeasurement(
   ) {
     return { snapshot, drop: true };
   }
-  if (snapshot.phase === 'empty') {
+  if (snapshot.phase === 'empty' || snapshot.phase === 'invalidated') {
     return { snapshot, drop: true };
   }
   if (!boundaryCompatible(snapshot.contextBoundary, measurement.contextBoundary)) {
@@ -167,18 +174,15 @@ export function applyResponseEvidence(
   if (snapshot.responseEvidence.currentRunHasResponse) {
     return { snapshot, immediate: false };
   }
-  let occupancy = snapshot.occupancy;
-  if (
-    occupancy.kind !== 'known' &&
-    snapshot.lastConfirmed !== undefined &&
-    boundaryCompatible(snapshot.contextBoundary, snapshot.lastConfirmed.contextBoundary)
-  ) {
-    occupancy = snapshot.lastConfirmed.occupancy;
+  const nextBoundary: ContextBoundary = { ...snapshot.contextBoundary };
+  if (input.messageId !== undefined) {
+    nextBoundary.activeLeafMessageId = input.messageId;
   }
   const next = stampOwner(
     {
       ...snapshot,
-      occupancy,
+      contextBoundary: nextBoundary,
+      occupancy: snapshot.occupancy,
       phase: snapshot.phase === 'compacting' ? 'compacting' : 'streaming',
       responseEvidence: {
         currentRunHasResponse: true,
@@ -228,10 +232,11 @@ export function applyRunTerminal(
   snapshot: SessionContextSnapshot,
   input: { nowIso: string; runId: string },
 ): SessionContextSnapshot {
-  const next: SessionContextSnapshot = { ...snapshot, updatedAt: input.nowIso };
-  if (snapshot.runId === input.runId) {
-    delete next.runId;
+  if (snapshot.runId !== input.runId) {
+    return snapshot;
   }
+  const next: SessionContextSnapshot = { ...snapshot, updatedAt: input.nowIso };
+  delete next.runId;
   if (!snapshot.responseEvidence.currentRunHasResponse) {
     next.occupancy = { kind: 'unknown', reason: 'run-ended-without-response' };
     next.phase = snapshot.responseEvidence.historyHasDisplayableResponse ? 'idle' : 'empty';
@@ -287,7 +292,7 @@ export function applyCompactionEnd(
       updatedAt: input.nowIso,
     };
   }
-  return {
+  const unmeasured: SessionContextSnapshot = {
     ...snapshot,
     contextVersion,
     contextBoundary,
@@ -295,6 +300,8 @@ export function applyCompactionEnd(
     phase: 'idle',
     updatedAt: input.nowIso,
   };
+  delete unmeasured.lastConfirmed;
+  return unmeasured;
 }
 
 export function applyInvalidate(
@@ -319,11 +326,9 @@ export function applyInvalidate(
     updatedAt: input.nowIso,
   };
   delete next.runId;
-  if (input.empty === true) {
-    delete next.lastConfirmed;
-    delete next.coveredMessageId;
-    delete next.coveredRequestId;
-  }
+  delete next.lastConfirmed;
+  delete next.coveredMessageId;
+  delete next.coveredRequestId;
   return next;
 }
 

@@ -158,10 +158,11 @@ async function createHarness(
       pushes.push(message);
     },
     recordFinalizedUsage: async (_sessionId, usage) => {
+      if (billed.some((row) => row.measurementId === usage.measurementId)) {
+        return 'duplicate';
+      }
       billed.push(usage);
-      return billed.filter((row) => row.measurementId === usage.measurementId).length > 1
-        ? 'duplicate'
-        : 'inserted';
+      return 'inserted';
     },
     log: (level, message) => {
       logs.push({ level, message });
@@ -354,13 +355,14 @@ describe('session context coordinator', () => {
     if (snapshot.occupancy.kind === 'known') {
       throw new Error('compact without tokensAfter must not keep the old full occupancy');
     }
+    expect(snapshot.lastConfirmed).toBeUndefined();
     store.close();
   });
 
   it('T18: matching boundary restores after dispose; mismatch invalidates; ledger unused', async () => {
     const harness = await createHarness('t18');
     const { coordinator, sessionId, store } = harness;
-    await coordinator.noteResponseEvidence({ sessionId, messageId: 'msg-1' });
+    await coordinator.noteResponseEvidence({ sessionId, messageId: 'leaf-1' });
     await coordinator.ingestMeasurement({
       sessionId,
       boundGenerationId: 'gen-1',
@@ -441,6 +443,133 @@ describe('session context coordinator', () => {
       snapshot: before,
     });
     expect(cas.ok).toBe(false);
+    store.close();
+  });
+
+  it('T19: non-empty branch switch stamps the new leaf and drops late pre-switch samples', async () => {
+    const harness = await createHarness('t19-branch');
+    const { coordinator, sessionId, store } = harness;
+    await coordinator.noteResponseEvidence({ sessionId, messageId: 'leaf-a' });
+    await coordinator.ingestMeasurement({
+      sessionId,
+      boundGenerationId: 'gen-1',
+      measurement: measurement(sessionId, {
+        sampleSequence: 4,
+        messageId: 'leaf-a',
+        occupancy: knownOccupancy(9_000, '2026-08-30T00:00:00.000Z'),
+        contextBoundary: { activeLeafMessageId: 'leaf-a' },
+      }),
+    });
+    const before = await coordinator.getSnapshot(sessionId);
+    expect(before.occupancy).toMatchObject({ kind: 'known', tokensUsed: 9_000 });
+
+    await coordinator.invalidate(sessionId, {
+      reason: 'branch-switch',
+      contextBoundary: { activeLeafMessageId: 'leaf-b' },
+    });
+    const switched = await coordinator.getSnapshot(sessionId);
+    expect(switched.phase).toBe('invalidated');
+    expect(switched.occupancy.kind).toBe('unknown');
+    expect(switched.contextBoundary.activeLeafMessageId).toBe('leaf-b');
+    expect(switched.contextVersion).toBeGreaterThan(before.contextVersion);
+    expect(switched.lastConfirmed).toBeUndefined();
+
+    await coordinator.ingestMeasurement({
+      sessionId,
+      boundGenerationId: 'gen-1',
+      measurement: measurement(sessionId, {
+        sampleSequence: 5,
+        messageId: 'leaf-a',
+        occupancy: knownOccupancy(9_000, '2026-08-30T00:00:02.000Z'),
+        contextBoundary: { activeLeafMessageId: 'leaf-a' },
+      }),
+    });
+    await coordinator.flush(sessionId);
+    const afterLate = await coordinator.getSnapshot(sessionId);
+    expect(afterLate.occupancy.kind).toBe('unknown');
+    expect(afterLate.contextBoundary.activeLeafMessageId).toBe('leaf-b');
+    expect(afterLate.phase).toBe('invalidated');
+    const cas = await store.replaceContextState({
+      expectedContextVersion: before.contextVersion,
+      expectedBoundary: before.contextBoundary,
+      snapshot: before,
+    });
+    expect(cas.ok).toBe(false);
+    store.close();
+  });
+
+  it('CAS mismatch reverts in-memory occupancy to the store snapshot', async () => {
+    const harness = await createHarness('cas-revert');
+    const { coordinator, sessionId, store } = harness;
+    await coordinator.noteResponseEvidence({ sessionId, messageId: 'msg-1' });
+    await coordinator.ingestMeasurement({
+      sessionId,
+      boundGenerationId: 'gen-1',
+      measurement: measurement(sessionId, {
+        sampleSequence: 1,
+        occupancy: knownOccupancy(4_000, '2026-08-30T00:00:00.000Z'),
+      }),
+    });
+    await coordinator.flush(sessionId);
+    const before = await coordinator.getSnapshot(sessionId);
+    const bumped = await store.replaceContextState({
+      expectedContextVersion: before.contextVersion,
+      expectedBoundary: before.contextBoundary,
+      snapshot: {
+        ...before,
+        contextVersion: before.contextVersion + 1,
+        occupancy: { kind: 'unknown', reason: 'external-barrier' },
+      },
+    });
+    expect(bumped.ok).toBe(true);
+    await coordinator.ingestMeasurement({
+      sessionId,
+      boundGenerationId: 'gen-1',
+      measurement: measurement(sessionId, {
+        sampleSequence: 2,
+        occupancy: knownOccupancy(9_999, '2026-08-30T00:00:03.000Z'),
+      }),
+    });
+    await coordinator.flush(sessionId);
+    const after = await coordinator.getSnapshot(sessionId);
+    expect(after.occupancy.kind).toBe('unknown');
+    if (after.occupancy.kind === 'known') {
+      throw new Error('cas-mismatch must not keep the rejected 9999 occupancy');
+    }
+    store.close();
+  });
+
+  it('occupancy run-terminal is a no-op unless snapshot.runId matches', async () => {
+    const harness = await createHarness('run-id-terminal');
+    const { coordinator, sessionId, store } = harness;
+    await coordinator.noteRunStarted({ sessionId, runId: 'run-parent', runtimeGenerationId: 'gen-1' });
+    await coordinator.noteResponseEvidence({ sessionId, runId: 'run-parent', messageId: 'msg-1' });
+    await coordinator.ingestMeasurement({
+      sessionId,
+      boundGenerationId: 'gen-1',
+      measurement: measurement(sessionId, {
+        sampleSequence: 1,
+        occupancy: knownOccupancy(3_300, '2026-08-30T00:00:00.000Z'),
+      }),
+    });
+    await coordinator.noteRunTerminal({
+      sessionId,
+      runId: 'run-subagent',
+      outcome: 'completed',
+    });
+    const afterChild = await coordinator.getSnapshot(sessionId);
+    expect(afterChild.runId).toBe('run-parent');
+    expect(afterChild.phase).not.toBe('idle');
+    expect(afterChild.occupancy).toMatchObject({ kind: 'known', tokensUsed: 3_300 });
+
+    await coordinator.noteRunTerminal({
+      sessionId,
+      runId: 'run-parent',
+      outcome: 'completed',
+    });
+    const afterParent = await coordinator.getSnapshot(sessionId);
+    expect(afterParent.runId).toBeUndefined();
+    expect(afterParent.phase).toBe('idle');
     store.close();
   });
 

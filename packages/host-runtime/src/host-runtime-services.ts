@@ -198,6 +198,41 @@ export function hookEventForAgentEvent(
   return null;
 }
 
+export function isForegroundSessionTurn(
+  run: import('@piwin/contracts').ExecutionRunRecord,
+): boolean {
+  return run.kind === 'session-turn';
+}
+
+export function notifyForegroundSessionTurnTerminal(
+  deps: HostRuntimeKernel,
+  run: import('@piwin/contracts').ExecutionRunRecord,
+): void {
+  if (!isForegroundSessionTurn(run)) {
+    return;
+  }
+  if (run.status !== 'completed' && run.status !== 'cancelled' && run.status !== 'failed') {
+    return;
+  }
+  void dispatchTurnEndHook(deps, run.sessionId, run.runId).catch((error: unknown) => {
+    deps.push({
+      type: 'host/log',
+      level: 'warn',
+      message: `turn_end hook failed: ${formatError(error)}`,
+    });
+  });
+  const outcome = run.status;
+  void deps.sessionContextCoordinator
+    ?.noteRunTerminal({ sessionId: run.sessionId, runId: run.runId, outcome })
+    .catch((error: unknown) => {
+      deps.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `session context run terminal failed: ${formatError(error)}`,
+      });
+    });
+}
+
 export async function dispatchTurnEndHook(
   deps: HostRuntimeKernel,
   sessionId: string,

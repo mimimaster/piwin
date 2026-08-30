@@ -97,6 +97,11 @@ export function routeSessionAgentEvent(
     }
     return;
   }
+  if (correlatedEvent.type === 'usage/update') {
+    // Occupancy/billing use context/measurement and usage/finalized. Compatible
+    // usage/update is a finalized projection from the coordinator only.
+    return;
+  }
   // Attach logical documentTargets for Doc Preview without rewriting
   // targetPaths (actual tool evidence stays intact).
   const projectPathForTargets = deps.sessionProjects.get(session.id) ?? projectPath ?? null;

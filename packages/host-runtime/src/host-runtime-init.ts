@@ -51,7 +51,7 @@ import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 import type { HostRuntimeOptions } from './host-runtime-types.js';
 import { createSessionContextCoordinator } from './session-context-coordinator.js';
 import { recordFinalizedUsageToLedger } from './host-runtime-usage-ledger.js';
-import { dispatchTurnEndHook } from './host-runtime-services.js';
+import { notifyForegroundSessionTurnTerminal } from './host-runtime-services.js';
 
 export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRuntimeOptions): void {
   const rootOwnershipEnabled = options.rootOwnership?.enabled ?? process.env.NODE_ENV !== 'test';
@@ -139,32 +139,7 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
         deps.healthToolRunBudget.release(run.runId);
         void deps.browserSession?.releaseAgentControlIfHeldBy(run.runId);
         deps.push({ type: 'run/terminal', run });
-        if (run.status === 'completed' || run.status === 'cancelled' || run.status === 'failed') {
-          try {
-            void dispatchTurnEndHook(deps, run.sessionId, run.runId).catch((error: unknown) => {
-              deps.push({
-                type: 'host/log',
-                level: 'warn',
-                message: `turn_end hook failed: ${formatError(error)}`,
-              });
-            });
-            void deps.sessionContextCoordinator
-              ?.noteRunTerminal({ sessionId: run.sessionId, runId: run.runId, outcome: run.status })
-              .catch((error: unknown) => {
-                deps.push({
-                  type: 'host/log',
-                  level: 'warn',
-                  message: `session context run terminal failed: ${formatError(error)}`,
-                });
-              });
-          } catch (error) {
-            deps.push({
-              type: 'host/log',
-              level: 'warn',
-              message: `run terminal context side effects failed: ${formatError(error)}`,
-            });
-          }
-        }
+        notifyForegroundSessionTurnTerminal(deps, run);
         deps.queuedTurnController.notifyRunTerminal(run);
         deps.liveCallCoordinator?.notifyBoundSessionTurnEnded({
           sessionId: run.sessionId,

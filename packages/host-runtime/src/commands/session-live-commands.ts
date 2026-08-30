@@ -416,9 +416,12 @@ export async function handleSessionLiveCommand(
       await upsertSessionRecord(indexPath, record);
       // Subtree deletion can move the leaf and dissolve branch points.
       await pushBranchUpdated(context, command.sessionId, store);
+      // Leaf write and occupancy invalidate are consecutive store ops, not one
+      // SQLite transaction (`truncateFrom` does not accept context CAS).
       await context.sessionContextCoordinator?.invalidate(command.sessionId, {
         reason: 'truncate',
         empty: truncated.remainingCount === 0,
+        contextBoundary: { activeLeafMessageId: await store.getActiveLeaf() },
       });
       return ok(requestId, 'session/truncate-from', {
         sessionId: command.sessionId,
