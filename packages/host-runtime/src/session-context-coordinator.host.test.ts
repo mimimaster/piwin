@@ -172,4 +172,56 @@ describe('session context coordinator host commands', () => {
       await runtime.dispose();
     }
   });
+
+  it('T22: two sequential resumes on the same session do not rewind revision', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-context-dual-resume-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    try {
+      const created = await runtime.handleCommand({
+        type: 'session/create',
+        input: { projectPath: '/tmp/context-dual-resume' },
+      });
+      expect(created.success).toBe(true);
+      if (!created.success) throw new Error(created.error);
+      const sessionId = (created.data as { sessionId: string }).sessionId;
+      const coordinator = coordinatorOf(runtime);
+      await coordinator.noteResponseEvidence({ sessionId, messageId: 'msg-1' });
+      await coordinator.ingestMeasurement({
+        sessionId,
+        measurement: {
+          sessionId,
+          sampleSequence: 1,
+          occupancy: {
+            kind: 'known',
+            tokensUsed: 2_048,
+            quality: 'measured',
+            coverage: 'complete',
+            basis: 'dual-resume',
+            sampledAt: new Date().toISOString(),
+          },
+          contextBoundary: { activeLeafMessageId: 'msg-1' },
+          sampledAt: new Date().toISOString(),
+        },
+      });
+      await coordinator.flush(sessionId);
+
+      const first = await runtime.handleCommand({ type: 'session/resume', sessionId });
+      expect(first.success).toBe(true);
+      if (!first.success) throw new Error(first.error);
+      const firstResume = first.data as SessionResumeData;
+      const firstRevision = firstResume.contextSnapshot.revision;
+
+      const second = await runtime.handleCommand({ type: 'session/resume', sessionId });
+      expect(second.success).toBe(true);
+      if (!second.success) throw new Error(second.error);
+      const secondResume = second.data as SessionResumeData;
+      expect(secondResume.contextSnapshot.revision).toBeGreaterThanOrEqual(firstRevision);
+      expect(secondResume.contextSnapshot.occupancy).toMatchObject({
+        kind: 'known',
+        tokensUsed: 2_048,
+      });
+    } finally {
+      await runtime.dispose();
+    }
+  });
 });

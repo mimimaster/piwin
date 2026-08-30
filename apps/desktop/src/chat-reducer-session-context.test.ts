@@ -471,7 +471,7 @@ describe('chatUiReducer session and context', () => {
     expect(state.contextUsage?.totalTokens).toBe(42);
   });
 
-  it('does not let a host estimate replace measured context usage', () => {
+  it('stores leftover usage/update on contextUsage without occupancy gating', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
     state = chatUiReducer(state, {
@@ -489,8 +489,6 @@ describe('chatUiReducer session and context', () => {
         },
       },
     });
-    const measuredState = state;
-
     state = chatUiReducer(state, {
       type: 'event',
       sessionId: 's1',
@@ -505,9 +503,7 @@ describe('chatUiReducer session and context', () => {
         },
       },
     });
-
-    expect(state).toBe(measuredState);
-    expect(state.contextUsage?.totalTokens).toBe(300_726);
+    expect(state.contextUsage?.totalTokens).toBe(409);
   });
 
   it('hydrates context usage with resumed messages and clears it when switching sessions', () => {

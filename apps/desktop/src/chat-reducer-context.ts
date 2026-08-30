@@ -1,4 +1,4 @@
-import { shouldAcceptContextUsage, type ContextUsageSnapshot } from '@piwin/contracts';
+import type { ContextUsageSnapshot } from '@piwin/contracts';
 import type { ChatUiState } from './chat-ui-types';
 
 export function contextUsageForSessionSet(input: {
@@ -43,8 +43,6 @@ export function applyCompactionEndContextUsage(
 }
 
 export function applyUsageUpdate(state: ChatUiState, usage: ContextUsageSnapshot): ChatUiState {
-  if (!shouldAcceptContextUsage(state.contextUsage, usage)) {
-    return state;
-  }
+  // Occupancy authority is SessionContextSnapshot, not this leftover field.
   return { ...state, contextUsage: usage };
 }
