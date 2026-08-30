@@ -171,6 +171,13 @@ export function isFlashcardStudyCommandType(type: string): type is FlashcardStud
   return (FLASHCARD_STUDY_COMMAND_TYPES as readonly string[]).includes(type);
 }
 
+/** Old Hosts omit this flag; clients must not fake a local study loop. */
+export function hostSupportsFlashcardStudy(
+  capabilities: { flashcardStudy?: boolean } | undefined,
+): boolean {
+  return capabilities?.flashcardStudy === true;
+}
+
 export function isPathLikeFlashcardStudyId(value: string): boolean {
   return (
     value.includes('..') ||

@@ -97,6 +97,7 @@ import { validatePromptAttachments, buildModelPromptInput } from './host-runtime
 import {
   getNotesServices,
   getCardStore,
+  getStudyService,
   getFolderRag,
   dispatchHooksForAgentEvent,
   runCronJob,
@@ -268,7 +269,16 @@ export class HostRuntime extends HostRuntimeFields {
     this.subscriptionAuth?.noteDeviceDisconnected(deviceId);
   }
 
-  async handleCommand(command: HostCommand): Promise<HostResponse> {
+  async handleCommand(
+    command: HostCommand,
+    options?: { idempotencyKey?: string },
+  ): Promise<HostResponse> {
+    const key = options?.idempotencyKey?.trim();
+    if (key) {
+      return this.commandRequestStore.run({ idempotencyKey: key }, () =>
+        handleCommand(this.asKernel(), command),
+      );
+    }
     return handleCommand(this.asKernel(), command);
   }
 
@@ -421,6 +431,10 @@ export class HostRuntime extends HostRuntimeFields {
 
   async getCardStore(): Promise<import('@piwin/flashcards').CardStore> {
     return getCardStore(this.asKernel());
+  }
+
+  async getStudyService(): Promise<import('@piwin/flashcards').StudyService> {
+    return getStudyService(this.asKernel());
   }
 
   async getFolderRag(): Promise<import('@piwin/doc-rag').FolderRag> {

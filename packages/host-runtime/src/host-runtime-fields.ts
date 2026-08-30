@@ -198,6 +198,9 @@ export class HostRuntimeFields {
   /** Extracted web_fetch pages. Hits skip the network; admission still runs. */
   fetchCache = new FetchCache();
   cardStore: import('@piwin/flashcards').CardStore | null = null;
+  studyService: import('@piwin/flashcards').StudyService | null = null;
+  /** Envelope idempotency key for the in-flight Host command (study mutations). */
+  commandRequestStore = new AsyncLocalStorage<{ idempotencyKey?: string }>();
   /** Host-owned browser session (ADR 0020); lazily created on first access. */
   browserSession: import('@piwin/browser').BrowserSession | null = null;
   /** Guards first init of `browserSession` so concurrent callers share one. */

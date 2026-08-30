@@ -28,6 +28,7 @@ import type { SessionProductCommandContext } from './session-product-commands.js
 import { handleSideChatCommand } from './side-chat-commands.js';
 import { handleWalkthroughList, handleWalkthroughGenerate } from './walkthrough-commands.js';
 import { handleKnowledgeCommand } from './knowledge-commands.js';
+import { handleFlashcardStudyCommand } from './flashcard-study-commands.js';
 import { handleSubagentCommand } from './subagent-commands.js';
 import { handleAuthCommand } from './auth-commands.js';
 import { handleVoiceLiveCommand } from './voice-live-commands.js';
@@ -113,6 +114,9 @@ export async function dispatchDomainCommands(
 
   const usage = await handleUsageCommand(command, requestId, context);
   if (usage) return usage;
+
+  const study = await handleFlashcardStudyCommand(command, requestId, context.flashcardStudy);
+  if (study) return study;
 
   const knowledge = await handleKnowledgeCommand(command, requestId, context.knowledge);
   if (knowledge) return knowledge;

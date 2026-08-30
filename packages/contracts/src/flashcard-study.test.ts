@@ -22,6 +22,7 @@ import {
   FLASHCARD_STUDY_CATALOG_MAX_LIMIT,
   FLASHCARD_STUDY_COMMAND_TYPES,
   FLASHCARD_STUDY_MUTATION_TYPES,
+  hostSupportsFlashcardStudy,
   parseFlashcardStudyCommand,
 } from './flashcard-study-commands.js';
 
@@ -337,5 +338,11 @@ describe('IPC wiring', () => {
     expect(remoteCommandRequiresIdempotencyKey('flashcards/study/catalog')).toBe(false);
     expect(remoteCommandRequiresIdempotencyKey('flashcards/study/get')).toBe(false);
     expect(remoteCommandRequiresIdempotencyKey('flashcards/study/operation')).toBe(false);
+  });
+
+  it('treats missing flashcardStudy capability as an old Host', () => {
+    expect(hostSupportsFlashcardStudy(undefined)).toBe(false);
+    expect(hostSupportsFlashcardStudy({})).toBe(false);
+    expect(hostSupportsFlashcardStudy({ flashcardStudy: true })).toBe(true);
   });
 });

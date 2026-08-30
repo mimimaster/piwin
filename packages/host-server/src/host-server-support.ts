@@ -11,8 +11,10 @@ import type {
 } from '@piwin/contracts';
 import {
   ACTIVITY_SUMMARY_MAX_ITEMS,
+  isFlashcardStudyCommandType,
   isSupportedAttachmentMimeType,
   LIVE_SUBSCRIPTION_MAX_SESSION_IDS,
+  parseFlashcardStudyCommand,
   QUEUED_TURN_MAX_TEXT_BYTES,
   SESSION_LIST_PAGE_MAX_ITEMS,
   SESSION_TRANSCRIPT_PAGE_MAX_BYTES,
@@ -131,6 +133,9 @@ export function isSafeRemoteCommand(command: HostCommand): boolean {
   // Phone-access listen/pairing is local sidecar IPC, not a Host command.
   if (command.type.startsWith('mobile-access/')) {
     return false;
+  }
+  if (isFlashcardStudyCommandType(command.type)) {
+    return parseFlashcardStudyCommand(command).ok;
   }
   switch (command.type) {
     case 'activity/summary':

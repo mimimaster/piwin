@@ -264,6 +264,7 @@ export function createRemoteCapabilities(
     logicalProjectRefs: true,
     activityHydration: true,
     liveSubscriptions: true,
+    flashcardStudy: true,
   };
 }
 

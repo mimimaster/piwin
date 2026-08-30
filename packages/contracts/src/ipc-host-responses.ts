@@ -121,6 +121,8 @@ export type HostStatusData = {
     sessionUserMessageIndex?: boolean;
     /** Host can seek to a user-message anchor and return a bounded transcript window. */
     sessionTranscriptSeek?: boolean;
+    /** Host exposes `flashcards/study/*` rounds. Absent on old Hosts. */
+    flashcardStudy?: boolean;
   };
 };
 
