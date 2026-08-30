@@ -348,6 +348,47 @@ describe('WorkerSessionRuntime', () => {
     });
   });
 
+  it('emits context/measurement and usage/finalized from mapped worker events', async () => {
+    const frames: WorkerFrame[] = [];
+    const runtime = new WorkerSessionRuntime({
+      sendFrame: (frame) => frames.push(frame),
+      createPiSession: async () =>
+        createMockPiSession('pi-s1', vi.fn(), [
+          { type: 'message_start', messageId: 'm1', role: 'assistant' },
+          {
+            type: 'message_update',
+            messageId: 'm1',
+            assistantMessageEvent: { type: 'text_delta', delta: 'hello' },
+          },
+          {
+            type: 'message_end',
+            messageId: 'm1',
+            message: {
+              role: 'assistant',
+              id: 'm1',
+              usage: { input: 80, output: 10, cacheRead: 0, cacheWrite: 0, totalTokens: 90 },
+              stopReason: 'stop',
+            },
+          },
+        ]),
+    });
+    await runtime.handleRequest(createRequest());
+    await runtime.handleRequest({
+      type: 'request',
+      id: 'req-usage',
+      method: 'session/prompt',
+      context: promptContext,
+      payload: { method: 'session/prompt', sessionId: 'ps-1', text: 'hello' },
+    });
+    const events = frames.flatMap((frame) => (frame.type === 'event' ? [frame.event] : []));
+    expect(events.some((event) => event.type === 'context/measurement')).toBe(true);
+    expect(events.some((event) => event.type === 'usage/finalized')).toBe(true);
+    const occupancy = events.find((event) => event.type === 'context/measurement');
+    if (occupancy?.type === 'context/measurement' && occupancy.measurement.occupancy.kind === 'known') {
+      expect(occupancy.measurement.occupancy.tokensUsed).toBe(90);
+    }
+  });
+
   it('supports distinct product and worker ids across the session lifecycle', async () => {
     const frames: WorkerFrame[] = [];
     const unsubscribe = vi.fn();

@@ -618,6 +618,30 @@ describe('createWorkerPiSessionFactory', () => {
     expect(opts.tools).toEqual(['read', 'grep', 'ls', 'bash', 'web_search', 'mcp_gateway']);
     expect(opts.customTools).toHaveLength(1);
   });
+
+  it('forwards getContextUsage from the Pi session onto the worker handle', async () => {
+    const session = {
+      sessionId: 'pi-ctx-1',
+      prompt: vi.fn(async () => undefined),
+      subscribe: vi.fn(() => () => undefined),
+      getContextUsage: vi.fn(() => ({ tokens: 90_000, contextWindow: 128_000, percent: 70 })),
+    };
+    const piModule = createMockPiModule({ session });
+    const factory = createWorkerPiSessionFactory({
+      agentDir: '/tmp/agent',
+      piModule,
+    });
+    const handle = await factory({
+      productSessionId: 'ps-1',
+      runtimeGenerationId: 'generation-test',
+      blueprint,
+    });
+    expect(handle.getContextUsage?.()).toEqual({
+      tokens: 90_000,
+      contextWindow: 128_000,
+      percent: 70,
+    });
+  });
 });
 
 describe('buildWorkerProviderRegistration native search streamSimple', () => {
