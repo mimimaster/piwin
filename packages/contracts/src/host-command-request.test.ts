@@ -45,7 +45,14 @@ describe('HostCommandRequest envelope', () => {
     expect(parsed).toEqual({ command: prompt });
   });
 
-  it('requires idempotency keys for apply/discard/request-resolution, not result reads', () => {
+  it('requires an idempotency key for request-resolution, not worktree-action or result reads', () => {
+    expect(
+      hostCommandRequestRequiresIdempotencyKey({
+        type: 'subagent/worktree-action',
+        action: 'apply',
+        childSessionId: 'child-1',
+      }),
+    ).toBe(false);
     expect(
       hostCommandRequestRequiresIdempotencyKey({
         type: 'subagent/worktree-action',
@@ -53,7 +60,7 @@ describe('HostCommandRequest envelope', () => {
         resultId: 'result-1',
         expectedRevision: 1,
       }),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       hostCommandRequestRequiresIdempotencyKey({
         type: 'subagent/request-resolution',
