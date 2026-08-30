@@ -55,7 +55,7 @@ export async function openCliHost(
   const runtime = new HostRuntime(options);
   return {
     transport: 'in-process',
-    handleCommand: (command) => runtime.handleCommand(command),
+    handleCommand: (command, requestOptions) => runtime.handleCommand(command, requestOptions),
     dispose: () => runtime.dispose(),
   };
 }
