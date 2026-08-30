@@ -264,4 +264,34 @@ describe('HostToolExecutionRouter', () => {
       code: 'tool-not-available',
     });
   });
+
+  it('does not begin capture when permission denies the call', async () => {
+    let began = 0;
+    const denied = tool('web_search');
+    const router = new HostToolExecutionRouter({
+      tools: [denied],
+      admission: admissionWithEvaluate(() => ({
+        kind: 'decision',
+        policy: {
+          decision: 'deny',
+          reason: 'blocked',
+          action: 'filesystem:read',
+          rememberable: false,
+        },
+      })),
+      capture: {
+        beginCapture: () => {
+          began += 1;
+          return { captureId: 'cap-1' };
+        },
+        finishCapture: async () => undefined,
+        recordReceipt: () => undefined,
+      },
+    });
+    await expect(runTool(router, 'web_search', { query: 'x' })).resolves.toMatchObject({
+      ok: false,
+      code: 'permission-denied',
+    });
+    expect(began).toBe(0);
+  });
 });

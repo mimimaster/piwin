@@ -27,6 +27,8 @@ import {
   type ToolAuthorityRevalidation,
   type ToolDisablePredicate,
 } from './host-tool-execution-router.js';
+import type { ExecutionTracker } from '../turn-changes/execution-tracker.js';
+import type { ToolCapturePort } from '../turn-changes/tool-capture.js';
 import { HOST_TOOLBOX_NAME } from '../host-toolbox.js';
 import { getAttachedToolCatalog } from '../tool-catalog/catalog-tool.js';
 import {
@@ -55,6 +57,8 @@ export type SessionHostToolExecutionPortOptions = {
    * port passes it into every generation router.
    */
   isToolDisabled?: ToolDisablePredicate;
+  capture?: ToolCapturePort;
+  tracker?: ExecutionTracker;
 };
 
 type GenerationToolSurface = {
@@ -431,6 +435,8 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
       admission,
       revalidateAuthority: (context) => this.revalidateAuthority(context),
       invocationLedger: ledger,
+      ...(this.options.capture ? { capture: this.options.capture } : {}),
+      ...(this.options.tracker ? { tracker: this.options.tracker } : {}),
     });
     const toolbox = frozenTools.find((tool) => tool.descriptor.name === HOST_TOOLBOX_NAME);
     const catalog = toolbox ? getAttachedToolCatalog(toolbox) : undefined;
@@ -458,6 +464,8 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
       admission: surface.admission,
       revalidateAuthority: (context) => this.revalidateAuthority(context),
       invocationLedger: surface.ledger,
+      ...(this.options.capture ? { capture: this.options.capture } : {}),
+      ...(this.options.tracker ? { tracker: this.options.tracker } : {}),
     });
   }
 

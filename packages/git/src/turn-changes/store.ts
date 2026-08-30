@@ -25,6 +25,34 @@ type AttemptRow = {
   disposition: string;
 };
 
+export type TurnChangeFileActionRecord = {
+  actionId: string;
+  runId: string;
+  toolCallId: string | null;
+  actionOrdinal: number;
+  relativePath: string;
+  beforeSha: string | null;
+  afterSha: string | null;
+  beforeExists: boolean;
+  afterExists: boolean;
+  settlement: string;
+};
+
+type FileActionRow = {
+  action_id: string;
+  run_id: string;
+  tool_call_id: string | null;
+  action_ordinal: number;
+  relative_path: string;
+  before_sha: string | null;
+  after_sha: string | null;
+  before_exists: number;
+  after_exists: number;
+  settlement: string;
+};
+
+const FILE_ACTION_REF_KIND = 'file-action';
+
 export type TurnChangeStore = {
   putObject(bytes: Uint8Array): Promise<{ sha256: string; byteLength: number }>;
   getObject(sha256: string): Promise<Uint8Array>;
@@ -53,6 +81,9 @@ export type TurnChangeStore = {
     captureState: string;
     disposition: string;
   } | undefined;
+  recordFileAction(input: TurnChangeFileActionRecord): void;
+  listFileActionsByRun(runId: string): TurnChangeFileActionRecord[];
+  markAttemptCaptureState(changeSetId: string, captureState: string): void;
   close(): void;
 };
 
@@ -93,6 +124,74 @@ export function openTurnChangeStore(options: { rootDir: string }): TurnChangeSto
      ) VALUES (?, ?, ?, ?, ?, 0, 'collecting', 'applied')`,
   );
   const selectAttempt = db.prepare('SELECT * FROM attempt WHERE change_set_id = ?');
+  const selectFileActionByUnique = db.prepare(
+    `SELECT * FROM file_action
+     WHERE run_id = ? AND tool_call_id IS ? AND action_ordinal = ?`,
+  );
+  const insertFileAction = db.prepare(
+    `INSERT INTO file_action(
+       action_id, run_id, tool_call_id, action_ordinal, relative_path,
+       before_sha, after_sha, before_exists, after_exists, settlement
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
+  const selectFileActionsByRun = db.prepare(
+    `SELECT * FROM file_action WHERE run_id = ? ORDER BY rowid ASC`,
+  );
+  const updateAttemptCaptureState = db.prepare(
+    `UPDATE attempt SET capture_state = ? WHERE change_set_id = ?`,
+  );
+  const persistFileAction = (input: TurnChangeFileActionRecord): void => {
+    const existing = selectFileActionByUnique.get(
+      input.runId,
+      input.toolCallId,
+      input.actionOrdinal,
+    ) as FileActionRow | undefined;
+    if (existing) {
+      return;
+    }
+    db.exec('BEGIN');
+    try {
+      const raced = selectFileActionByUnique.get(
+        input.runId,
+        input.toolCallId,
+        input.actionOrdinal,
+      ) as FileActionRow | undefined;
+      if (raced) {
+        db.exec('ROLLBACK');
+        return;
+      }
+      insertFileAction.run(
+        input.actionId,
+        input.runId,
+        input.toolCallId,
+        input.actionOrdinal,
+        input.relativePath,
+        input.beforeSha,
+        input.afterSha,
+        input.beforeExists ? 1 : 0,
+        input.afterExists ? 1 : 0,
+        input.settlement,
+      );
+      if (input.beforeSha) {
+        upsertPin.run(input.beforeSha, FILE_ACTION_REF_KIND, input.actionId, null);
+      }
+      if (input.afterSha) {
+        upsertPin.run(input.afterSha, FILE_ACTION_REF_KIND, input.actionId, null);
+      }
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      const duplicate = selectFileActionByUnique.get(
+        input.runId,
+        input.toolCallId,
+        input.actionOrdinal,
+      ) as FileActionRow | undefined;
+      if (duplicate) {
+        return;
+      }
+      throw error;
+    }
+  };
 
   return {
     async putObject(bytes: Uint8Array): Promise<{ sha256: string; byteLength: number }> {
@@ -158,8 +257,36 @@ export function openTurnChangeStore(options: { rootDir: string }): TurnChangeSto
       };
     },
 
+    recordFileAction(input: TurnChangeFileActionRecord): void {
+      persistFileAction(input);
+    },
+
+    listFileActionsByRun(runId: string): TurnChangeFileActionRecord[] {
+      const rows = selectFileActionsByRun.all(runId) as FileActionRow[];
+      return rows.map(mapFileActionRow);
+    },
+
+    markAttemptCaptureState(changeSetId: string, captureState: string): void {
+      updateAttemptCaptureState.run(captureState, changeSetId);
+    },
+
     close(): void {
       db.close();
     },
+  };
+}
+
+function mapFileActionRow(row: FileActionRow): TurnChangeFileActionRecord {
+  return {
+    actionId: row.action_id,
+    runId: row.run_id,
+    toolCallId: row.tool_call_id,
+    actionOrdinal: row.action_ordinal,
+    relativePath: row.relative_path,
+    beforeSha: row.before_sha,
+    afterSha: row.after_sha,
+    beforeExists: row.before_exists === 1,
+    afterExists: row.after_exists === 1,
+    settlement: row.settlement,
   };
 }

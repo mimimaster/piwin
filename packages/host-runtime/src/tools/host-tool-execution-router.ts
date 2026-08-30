@@ -7,6 +7,8 @@
  * but the production port never omits them.
  */
 
+import { randomUUID } from 'node:crypto';
+
 import type {
   HostToolExecutionContext,
   HostToolRegistration,
@@ -22,6 +24,8 @@ import {
   type LedgerAttempt,
   type ToolInvocationLedger,
 } from './tool-invocation-ledger.js';
+import type { ExecutionTracker } from '../turn-changes/execution-tracker.js';
+import { runInToolCapture, type ToolCapturePort } from '../turn-changes/tool-capture.js';
 
 /** Stable tool-execution error codes crossing the tool boundary. */
 export type HostToolErrorCode = ToolResultErrorCode;
@@ -64,6 +68,8 @@ export type HostToolExecutionRouterOptions = {
   revalidateAuthority?: (context: HostToolExecutionContext) => ToolAuthorityRevalidation;
   /** Generation-scoped invocation ledger. Tests may omit it. */
   invocationLedger?: ToolInvocationLedger;
+  capture?: ToolCapturePort;
+  tracker?: ExecutionTracker;
 };
 
 /**
@@ -79,6 +85,8 @@ export class HostToolExecutionRouter {
     | ((context: HostToolExecutionContext) => ToolAuthorityRevalidation)
     | undefined;
   private readonly invocationLedger: ToolInvocationLedger | undefined;
+  private readonly capture: ToolCapturePort | undefined;
+  private readonly tracker: ExecutionTracker | undefined;
 
   constructor(options: HostToolExecutionRouterOptions) {
     toolFamilyIndex(options.tools);
@@ -89,6 +97,8 @@ export class HostToolExecutionRouter {
     this.admission = options.admission;
     this.revalidateAuthority = options.revalidateAuthority;
     this.invocationLedger = options.invocationLedger;
+    this.capture = options.capture;
+    this.tracker = options.tracker;
   }
 
   has(toolName: string): boolean {
@@ -158,7 +168,7 @@ export class HostToolExecutionRouter {
     }
 
     return await this.continuePreparedExecution(tool, canonicalArgs, context, {
-      invocationId: context.runId,
+      invocationId: context.toolCallId ?? randomUUID(),
       signal,
       markRunnerStarted: () => undefined,
     });
@@ -209,46 +219,107 @@ export class HostToolExecutionRouter {
       });
     }
 
-    attempt.markRunnerStarted();
-    const maxDurationMs = tool.executionSpec?.maxDurationMs;
-    const deadline =
-      maxDurationMs !== undefined ? AbortSignal.timeout(maxDurationMs) : undefined;
-    const runnerSignal = deadline ? AbortSignal.any([signal, deadline]) : signal;
-    const runnerPromise = tool.execute(canonicalArgs, runnerSignal, context);
-    try {
-      if (deadline && maxDurationMs !== undefined) {
-        const raced = await Promise.race([
-          runnerPromise.then((result) => ({ kind: 'result' as const, result })),
-          abortableTimeout(deadline, maxDurationMs),
-        ]);
-        if (raced.kind === 'timeout') {
-          void runnerPromise.catch(() => undefined);
-          return {
-            ok: false,
-            code: 'execution-failed',
-            message: `tool execution timed out after ${maxDurationMs}ms`,
-            details: { reason: 'timeout', maxDurationMs },
-          };
+    const begun = this.capture?.beginCapture({
+      runId: context.runId,
+      toolCallId: context.toolCallId ?? attempt.invocationId,
+      toolName: tool.descriptor.name,
+      fileEffect: tool.fileEffect,
+      canonicalArgs,
+    });
+    const captureId = begun?.captureId;
+    const finishCapture = async (result: ToolResult): Promise<ToolResult> => {
+      if (captureId && this.capture) {
+        try {
+          await this.capture.finishCapture({ captureId, result });
+        } catch {
+          // Capture I/O failure must not change the business ToolResult.
         }
-        return raced.result;
       }
-      return await runnerPromise;
-    } catch (error) {
-      if (signal.aborted) {
-        return { ok: false, code: 'aborted', message: 'tool execution aborted' };
-      }
-      if (deadline?.aborted && !signal.aborted) {
-        return {
-          ok: false,
-          code: 'execution-failed',
-          message: `tool execution timed out after ${maxDurationMs}ms`,
-          details: { reason: 'timeout', maxDurationMs },
-        };
-      }
-      const message = formatError(error);
-      return { ok: false, code: 'execution-failed', message };
+      return result;
+    };
+
+    const blockedAfterCapture = this.blockAfterBeginCapture(signal, context);
+    if (blockedAfterCapture) {
+      return await finishCapture(blockedAfterCapture);
     }
+
+    const runExecutor = async (): Promise<ToolResult> => {
+      attempt.markRunnerStarted();
+      const maxDurationMs = tool.executionSpec?.maxDurationMs;
+      const deadline =
+        maxDurationMs !== undefined ? AbortSignal.timeout(maxDurationMs) : undefined;
+      const runnerSignal = deadline ? AbortSignal.any([signal, deadline]) : signal;
+      const runnerPromise = tool.execute(canonicalArgs, runnerSignal, context);
+      const tracked = this.tracker?.track(runnerPromise) ?? runnerPromise;
+      try {
+        if (deadline && maxDurationMs !== undefined) {
+          const raced = await Promise.race([
+            tracked.then((result) => ({ kind: 'result' as const, result })),
+            abortableTimeout(deadline, maxDurationMs),
+          ]);
+          if (raced.kind === 'timeout') {
+            void tracked.then(
+              (result) => {
+                void finishCapture(result);
+              },
+              (error: unknown) => {
+                void finishCapture(mapExecutorError(error, signal, deadline, maxDurationMs));
+              },
+            );
+            return {
+              ok: false,
+              code: 'execution-failed',
+              message: `tool execution timed out after ${maxDurationMs}ms`,
+              details: { reason: 'timeout', maxDurationMs },
+            };
+          }
+          return await finishCapture(raced.result);
+        }
+        return await finishCapture(await tracked);
+      } catch (error) {
+        return await finishCapture(mapExecutorError(error, signal, deadline, maxDurationMs));
+      }
+    };
+
+    if (captureId) {
+      return await runInToolCapture(captureId, runExecutor);
+    }
+    return await runExecutor();
   }
+
+  private blockAfterBeginCapture(
+    signal: AbortSignal,
+    context: HostToolExecutionContext,
+  ): ToolResult | undefined {
+    if (signal.aborted) {
+      return { ok: false, code: 'aborted', message: 'tool execution aborted before executor' };
+    }
+    const authority = this.revalidateAuthority?.(context);
+    if (authority && !authority.allowed) {
+      return { ok: false, code: authority.code, message: authority.reason };
+    }
+    return undefined;
+  }
+}
+
+function mapExecutorError(
+  error: unknown,
+  signal: AbortSignal,
+  deadline: AbortSignal | undefined,
+  maxDurationMs: number | undefined,
+): ToolResult {
+  if (signal.aborted) {
+    return { ok: false, code: 'aborted', message: 'tool execution aborted' };
+  }
+  if (deadline?.aborted && !signal.aborted && maxDurationMs !== undefined) {
+    return {
+      ok: false,
+      code: 'execution-failed',
+      message: `tool execution timed out after ${maxDurationMs}ms`,
+      details: { reason: 'timeout', maxDurationMs },
+    };
+  }
+  return { ok: false, code: 'execution-failed', message: formatError(error) };
 }
 
 function abortableTimeout(
