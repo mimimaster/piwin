@@ -24,6 +24,9 @@ export type { ComposedFileAction, ComposeCoverage } from './turn-changes/compose
 
 export { diffTurnChangeObjects } from './turn-changes/content-diff.js';
 
+export { resolveTurnChangePath, assertWritableTurnChangeFile } from './turn-changes/path-policy.js';
+export type { TurnChangePathKind, ResolvedTurnChangePath } from './turn-changes/path-policy.js';
+
 export { probeGitRepository } from './repository-probe.js';
 
 export { parsePorcelainStatus, parsePorcelainFileLine } from './status-parser.js';
