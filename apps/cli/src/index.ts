@@ -104,6 +104,7 @@ import {
 } from './session-cold-storage-command.js';
 import { runSessionBranches, runSessionRetry, runSessionSwitch } from './session-branch-command.js';
 import { runTurnRedo, runTurnUndo } from './turn-change-command.js';
+import { runSubagentResult, runSubagentResults } from './subagent-result-command.js';
 
 function printHelp(): void {
   console.log(`piwin — private coding agent shell
@@ -185,6 +186,8 @@ Usage:
   piwin context <sessionId> [--mock]
   piwin subagent status <runId>
   piwin subagent cancel <runId>
+  piwin subagent results <parentSessionId>
+  piwin subagent result <resultId>
   piwin turn undo <changeSetId> --expected-version <revision>
   piwin turn redo <changeSetId> --expected-version <revision>
   piwin side-chat list <source-session-id> [--include-archived]
@@ -2993,6 +2996,44 @@ async function commandSubagent(argv: string[]): Promise<void> {
     return;
   }
 
+  if (sub === 'results') {
+    const parentSessionId = argv[2];
+    if (!parentSessionId || parentSessionId.startsWith('--')) {
+      console.error('Usage: piwin subagent results <parentSessionId> [--mock]');
+      process.exitCode = 1;
+      return;
+    }
+    const client = await createWalkthroughHostClient(mode, mock);
+    try {
+      await runSubagentResults(client, parentSessionId, console.log);
+    } catch (error) {
+      console.error(formatError(error));
+      process.exitCode = 1;
+    } finally {
+      await client.dispose();
+    }
+    return;
+  }
+
+  if (sub === 'result') {
+    const resultId = argv[2];
+    if (!resultId || resultId.startsWith('--')) {
+      console.error('Usage: piwin subagent result <resultId> [--mock]');
+      process.exitCode = 1;
+      return;
+    }
+    const client = await createWalkthroughHostClient(mode, mock);
+    try {
+      await runSubagentResult(client, resultId, console.log);
+    } catch (error) {
+      console.error(formatError(error));
+      process.exitCode = 1;
+    } finally {
+      await client.dispose();
+    }
+    return;
+  }
+
   if (sub === 'cancel') {
     const runId = argv[2];
     if (!runId || runId.startsWith('--')) {
@@ -3022,7 +3063,7 @@ async function commandSubagent(argv: string[]): Promise<void> {
   }
 
   console.error(`Unknown subagent subcommand: ${sub || '(none)'}`);
-  console.error('Usage: piwin subagent status|cancel <runId>');
+  console.error('Usage: piwin subagent status|cancel|results|result');
   process.exitCode = 1;
 }
 
