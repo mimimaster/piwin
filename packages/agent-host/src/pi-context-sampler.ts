@@ -36,6 +36,42 @@ export type PiContextUsageSample = {
   contextWindow: number;
 };
 
+/** Model identity used to decide occupancy baseline invalidation (§4.2.8). */
+export type OccupancyModelIdentity = {
+  providerId: string;
+  modelId: string;
+  protocol?: string;
+};
+
+export function occupancyModelIdentityFromRef(model: {
+  providerId: string;
+  modelId: string;
+  protocol?: string;
+}): OccupancyModelIdentity {
+  const identity: OccupancyModelIdentity = {
+    providerId: model.providerId,
+    modelId: model.modelId,
+  };
+  if (model.protocol !== undefined) {
+    identity.protocol = model.protocol;
+  }
+  return identity;
+}
+
+export function sameOccupancyModelIdentity(
+  left: OccupancyModelIdentity | undefined,
+  right: OccupancyModelIdentity | undefined,
+): boolean {
+  if (left === undefined || right === undefined) {
+    return false;
+  }
+  return (
+    left.providerId === right.providerId &&
+    left.modelId === right.modelId &&
+    left.protocol === right.protocol
+  );
+}
+
 export type CreatePiContextSamplerInput = {
   sessionId: string;
   runtimeGenerationId: string;

@@ -134,53 +134,46 @@ describe('SDK vs worker occupancy parity', () => {
     expect(lastMeasurementId(workerEvents)).toBe(expectedMeasurementId);
   });
 
-  it('SDK setModel invalidates the previous measured occupancy', async () => {
-    const listeners = new Set<(event: unknown) => void>();
-    const emit = (event: unknown): void => {
-      for (const listener of listeners) listener(event);
-    };
-    const setModel = vi.fn(async () => undefined);
-    const fakeSession = {
-      prompt: async (): Promise<void> => undefined,
-      setModel,
-      abort: async (): Promise<void> => undefined,
-      subscribe: (listener: (event: unknown) => void): (() => void) => {
-        listeners.add(listener);
-        return () => {
-          listeners.delete(listener);
-        };
-      },
-    };
-    const createAgentSession = vi.fn(async () => ({ session: fakeSession }));
-    const modelRuntime: PiModelRuntime = {
-      registerProvider: vi.fn(),
-      getModel: vi.fn(() => registeredModel),
-      refresh: vi.fn(async () => undefined),
-    };
-    const handle = await createBackendSdkSession(
-      { blueprint: blueprint(), providers: [], hostToolExecution: hostToolExecution() },
-      {
-        piModule: {
-          DefaultResourceLoader: class {
-            async reload(): Promise<void> {
-              return undefined;
-            }
-          },
-          createAgentSession,
-          ModelRuntime: { create: vi.fn(async () => modelRuntime) },
-          SettingsManager: {
-            create: vi.fn(() => ({
-              getRetryEnabled: () => true,
-              getRetrySettings: () => ({ enabled: true, maxRetries: 3, baseDelayMs: 2000 }),
-              getProviderRetrySettings: () => ({ maxRetries: 2, timeoutMs: 5000 }),
-            })),
-          },
-        },
-        modelRuntime,
-      },
-    );
-    const events: AgentEvent[] = [];
-    handle.subscribe((event) => events.push(event));
+  it('keeps the measured baseline when SDK prompts again with the same model', async () => {
+    const { emit, handle, events } = await createSdkHandle();
+    await handle.prompt({
+      text: 'first',
+      runId: 'run-1',
+      model: { providerId: 'p1', modelId: 'model-1', protocol: 'openai-compatible' },
+    });
+    for (const raw of occupancyFixture) {
+      emit(raw);
+    }
+    expect(lastKnownTokens(events)).toBe(90_000);
+    await handle.prompt({
+      text: 'again',
+      runId: 'run-2',
+      model: { providerId: 'p1', modelId: 'model-1', protocol: 'openai-compatible' },
+    });
+    emit({
+      type: 'message_start',
+      messageId: 'm-2',
+      role: 'assistant',
+    });
+    emit({
+      type: 'message_update',
+      messageId: 'm-2',
+      assistantMessageEvent: { type: 'text_delta', delta: 'after same model' },
+    });
+    const afterSame = events.filter((event) => event.type === 'context/measurement').at(-1);
+    expect(
+      afterSame?.type === 'context/measurement' ? afterSame.measurement.occupancy.kind : undefined,
+    ).toBe('known');
+    expect(lastKnownTokens(events)).toBeGreaterThanOrEqual(90_000);
+  });
+
+  it('SDK setModel invalidates occupancy only when the model identity changes', async () => {
+    const { emit, handle, events, setModel } = await createSdkHandle();
+    await handle.prompt({
+      text: 'first',
+      runId: 'run-1',
+      model: { providerId: 'p1', modelId: 'model-1', protocol: 'openai-compatible' },
+    });
     for (const raw of occupancyFixture) {
       emit(raw);
     }
@@ -188,7 +181,7 @@ describe('SDK vs worker occupancy parity', () => {
     await handle.prompt({
       text: 'switch',
       runId: 'run-switch',
-      model: { providerId: 'p1', modelId: 'model-1' },
+      model: { providerId: 'p1', modelId: 'model-2', protocol: 'openai-compatible' },
     });
     expect(setModel).toHaveBeenCalled();
     emit({
@@ -202,11 +195,66 @@ describe('SDK vs worker occupancy parity', () => {
       assistantMessageEvent: { type: 'text_delta', delta: 'after switch' },
     });
     const afterSwitch = events.filter((event) => event.type === 'context/measurement').at(-1);
-    expect(afterSwitch?.type === 'context/measurement' ? afterSwitch.measurement.occupancy.kind : undefined).toBe(
-      'unknown',
-    );
+    expect(
+      afterSwitch?.type === 'context/measurement' ? afterSwitch.measurement.occupancy.kind : undefined,
+    ).toBe('unknown');
   });
 });
+
+async function createSdkHandle(): Promise<{
+  emit: (event: unknown) => void;
+  handle: Awaited<ReturnType<typeof createBackendSdkSession>>;
+  events: AgentEvent[];
+  setModel: ReturnType<typeof vi.fn>;
+}> {
+  const listeners = new Set<(event: unknown) => void>();
+  const emit = (event: unknown): void => {
+    for (const listener of listeners) listener(event);
+  };
+  const setModel = vi.fn(async () => undefined);
+  const fakeSession = {
+    prompt: async (): Promise<void> => undefined,
+    setModel,
+    abort: async (): Promise<void> => undefined,
+    subscribe: (listener: (event: unknown) => void): (() => void) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
+  const createAgentSession = vi.fn(async () => ({ session: fakeSession }));
+  const modelRuntime: PiModelRuntime = {
+    registerProvider: vi.fn(),
+    getModel: vi.fn(() => registeredModel),
+    refresh: vi.fn(async () => undefined),
+  };
+  const handle = await createBackendSdkSession(
+    { blueprint: blueprint(), providers: [], hostToolExecution: hostToolExecution() },
+    {
+      piModule: {
+        DefaultResourceLoader: class {
+          async reload(): Promise<void> {
+            return undefined;
+          }
+        },
+        createAgentSession,
+        ModelRuntime: { create: vi.fn(async () => modelRuntime) },
+        SettingsManager: {
+          create: vi.fn(() => ({
+            getRetryEnabled: () => true,
+            getRetrySettings: () => ({ enabled: true, maxRetries: 3, baseDelayMs: 2000 }),
+            getProviderRetrySettings: () => ({ maxRetries: 2, timeoutMs: 5000 }),
+          })),
+        },
+      },
+      modelRuntime,
+    },
+  );
+  const events: AgentEvent[] = [];
+  handle.subscribe((event) => events.push(event));
+  return { emit, handle, events, setModel };
+}
 
 async function collectSdkEvents(rawEvents: readonly unknown[]): Promise<AgentEvent[]> {
   let eventListener: ((event: unknown) => void) | undefined;

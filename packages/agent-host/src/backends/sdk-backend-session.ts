@@ -2,7 +2,7 @@
 
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { BackendPreparedPrompt } from '@piwin/contracts';
+import type { AgentEvent, BackendPreparedPrompt } from '@piwin/contracts';
 import {
   assertValidBackendSessionBlueprint,
   type BackendSessionHandle,
@@ -30,8 +30,11 @@ import { mapPiCompactionResult, type PiCompactionResult } from '../pi-compaction
 import { buildPiSessionToolAllowlist } from '../pi-session-tool-allowlist.js';
 import {
   createPiContextSampler,
+  occupancyModelIdentityFromRef,
   publishSampledPiSessionEvents,
   readPiContextUsageSample,
+  sameOccupancyModelIdentity,
+  type OccupancyModelIdentity,
 } from '../pi-context-sampler.js';
 import {
   isOpenAiCompletionsStreamProtocol,
@@ -253,6 +256,10 @@ function wrapBackendPiSession(
         }
       : {}),
   });
+  const occupancyListeners = new Set<(event: AgentEvent) => void>();
+  let appliedModel: OccupancyModelIdentity | undefined = input.blueprint.model
+    ? occupancyModelIdentityFromRef(input.blueprint.model)
+    : undefined;
   let trailingRunId: string | undefined;
   const interventionStager = piSession.agent
     ? createRunInterventionStager({
@@ -278,7 +285,15 @@ function wrapBackendPiSession(
           );
         }
         await piSession.setModel(model);
-        sampler.invalidateBaseline();
+        const nextModel = occupancyModelIdentityFromRef(preparedPrompt.model);
+        if (appliedModel !== undefined && !sameOccupancyModelIdentity(appliedModel, nextModel)) {
+          for (const extra of sampler.invalidateBaseline()) {
+            for (const listener of occupancyListeners) {
+              listener(extra);
+            }
+          }
+        }
+        appliedModel = nextModel;
       }
       if (preparedPrompt.thinkingLevel && piSession.setThinkingLevel) {
         await piSession.setThinkingLevel(
@@ -371,7 +386,8 @@ function wrapBackendPiSession(
         }
       : {}),
     subscribe(listener) {
-      return piSession.subscribe((rawEvent) => {
+      occupancyListeners.add(listener);
+      const unsubscribe = piSession.subscribe((rawEvent) => {
         publishSampledPiSessionEvents({
           mapper: eventMapper,
           sampler,
@@ -384,6 +400,10 @@ function wrapBackendPiSession(
           emit: listener,
         });
       });
+      return () => {
+        occupancyListeners.delete(listener);
+        unsubscribe();
+      };
     },
   };
 }
