@@ -14,6 +14,7 @@ describe('mobile configured chat models', () => {
             modelId: 'gpt-5.4-codex',
             source: 'subscription',
             group: 'subscription',
+            contextWindow: 272_000,
           },
           {
             providerId: 'custom-openai',
@@ -36,6 +37,7 @@ describe('mobile configured chat models', () => {
         modelId: 'gpt-5.4-codex',
         source: 'subscription',
         group: 'subscription',
+        contextWindow: 272_000,
       },
       {
         providerId: 'custom-openai',

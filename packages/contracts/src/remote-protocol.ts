@@ -127,6 +127,7 @@ export const FALLBACK_REMOTE_ALLOWED_COMMANDS = [
   'session/pin',
   'session/unpin',
   'session/rename',
+  'session/set-composer-profile',
   'session/archive',
   'session/unarchive',
   'session/delete',

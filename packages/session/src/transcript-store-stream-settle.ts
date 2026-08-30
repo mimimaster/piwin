@@ -26,6 +26,9 @@ export function createTranscriptStreamSettleOps(
       ensureOpen();
       db.exec('BEGIN IMMEDIATE');
       try {
+        // Orphan recovery (no runId): only close leftover streams.
+        // Run finalization also stamps done/error rows that never received an
+        // outcome (failure evidence often lands as done+failure, not streaming).
         const rows =
           input.runId === undefined
             ? (db
@@ -38,7 +41,19 @@ export function createTranscriptStreamSettleOps(
             : (db
                 .prepare(
                   `SELECT * FROM transcript_message
-                   WHERE role = 'assistant' AND status = 'streaming' AND run_id = ?
+                   WHERE role = 'assistant'
+                     AND run_id = ?
+                     AND (
+                       status = 'streaming'
+                       OR status = 'error'
+                       OR (
+                         status = 'done'
+                         AND (
+                           metadata_json IS NULL
+                           OR json_extract(metadata_json, '$.outcome') IS NULL
+                         )
+                       )
+                     )
                    ORDER BY sequence ASC`,
                 )
                 .all(input.runId) as unknown as MessageRow[]);

@@ -31,7 +31,11 @@ import { getPiAgentDir, getPiwinRoot } from './paths.js';
 import { rewriteChannelModelRefs } from './rewrite-channel-model-refs.js';
 import { buildSubscriptionAccounts } from './subscription-account-status.js';
 import { isSubscriptionAccountUsable } from './resolve-chat-model.js';
-import { ensureSubscriptionProviders, upsertSubscriptionProvider } from './seed-subscription-provider.js';
+import {
+  ensureSubscriptionProviders,
+  overlayCatalogLimits,
+  upsertSubscriptionProvider,
+} from './seed-subscription-provider.js';
 import { resolveConfiguredDefaultModelRef } from './provider-helpers.js';
 import { selectSubscriptionLoginMethod } from './select-subscription-login-method.js';
 import { assertCodexCallbackPortFree } from './subscription-oauth-callback-port.js';
@@ -383,20 +387,30 @@ export class SubscriptionAuthService {
       for (const model of port.getChatCatalog(account.providerId)) {
         const key = `${account.providerId}::${model.id}`;
         if (existing.has(key)) {
+          const current = models.find(
+            (entry) => `${entry.providerId}::${entry.modelId}` === key,
+          );
+          if (current) {
+            overlayCatalogLimits(current, model);
+          }
           continue;
         }
         existing.add(key);
-        models.push({
+        const next: Record<string, unknown> = {
           providerId: account.providerId,
           modelId: model.id,
           label: model.name,
           source: 'subscription',
           group: 'subscription',
-          ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
-          ...(model.thinkingLevels ? { thinkingLevels: model.thinkingLevels } : {}),
-          ...(model.contextWindow !== undefined ? { contextWindow: model.contextWindow } : {}),
-          ...(model.maxOutputTokens !== undefined ? { maxOutputTokens: model.maxOutputTokens } : {}),
-        });
+        };
+        if (model.reasoning !== undefined) {
+          next.reasoning = model.reasoning;
+        }
+        if (model.thinkingLevels) {
+          next.thinkingLevels = model.thinkingLevels;
+        }
+        overlayCatalogLimits(next, model);
+        models.push(next);
       }
     }
     return { ...channelModels, models };

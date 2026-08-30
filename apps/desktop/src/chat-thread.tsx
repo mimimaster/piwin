@@ -11,7 +11,6 @@ import type {
   ModelRef,
   PermissionDecision,
   PermissionRememberScope,
-  PlanExecutionMode,
   ProductSessionLineageView,
   SessionPlan,
   SessionSummary,
@@ -154,8 +153,6 @@ export type ChatThreadProps = {
   onOpenDiff?: ((absolutePath: string, relativePath?: string) => void) | undefined;
   /** Callback when clicking a markdown document link or plan document chip. */
   onOpenDocument?: ((input: DocumentOpenInput) => void) | undefined;
-  /** Called when the user selects an execution mode for the session plan. */
-  onPlanExecute?: ((mode: PlanExecutionMode) => void | Promise<void>) | undefined;
   /** Called when the user aborts a running plan. */
   onPlanAbort?: (() => void | Promise<void>) | undefined;
   /** Locale used by all run activity components. */
@@ -445,7 +442,6 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                   }),
               }
             : {})}
-          {...(props.onPlanExecute ? { onExecute: props.onPlanExecute } : {})}
           {...(props.onPlanAbort ? { onAbort: props.onPlanAbort } : {})}
         />
       ) : null}

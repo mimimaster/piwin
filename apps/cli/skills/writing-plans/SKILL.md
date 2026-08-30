@@ -15,12 +15,13 @@ Produce one reviewable `SessionPlan` the user can approve before any implementat
 - `source: 'skill'`, `skillId: 'writing-plans'`.
 - `independentSteps` lists only steps safe to run in isolated child sessions (no shared-file conflicts). Omit when work is sequential.
 - Optional `profileId` per step only when a non-default subagent role is needed (`explorer` | `reviewer` | `implementer` | `tester`).
-- Chat summary states plan size: **short** (<4 steps and <2 independent) or **long** (otherwise), so the UI can recommend execution mode.
+- Chat summary states plan size: **short** (<4 steps and <2 independent) or **long** (otherwise). The Host uses this to recommend `inline` vs `subagent-driven`.
 - No shell commands, scripts, or hooks as step fields — plans are reviewable artifacts, not executables.
 
 ## Stop when
 - Goal, constraints, or technical choices are ambiguous in a way that would change the plan — surface the real options and ask; do not invent scope.
-- Plan is draft-created. Do **not** implement, mutate source, or start execution until the user approves and picks a mode (`inline` or `subagent-driven`).
+- Plan is draft-created. Do **not** implement, mutate source, or start execution.
+- Do **not** ask the user in chat to pick `inline` or `subagent-driven`. The Host shows a mode picker. Summarize the plan and wait.
 
 ## Constraints
 - Prefer thin, correct plans over speculative multi-week epics.

@@ -30,6 +30,8 @@ const EXTERNAL_DEPS = {
   '@medv/finder': '4.0.2',
   esbuild: '0.25.12',
   'playwright-core': '1.61.1',
+  // Native libvips bindings cannot be inlined by esbuild.
+  sharp: '0.35.4',
 };
 
 function run(cmd, args, options = {}) {

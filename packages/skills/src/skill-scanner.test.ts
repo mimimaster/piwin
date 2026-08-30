@@ -75,6 +75,7 @@ describe('scanSkills', () => {
     expect(content).toContain('inline');
     expect(content).toContain('independentSteps');
     expect(content).toContain('Walkthrough');
+    expect(content).toContain('Do **not** ask the user in chat');
   });
 });
 

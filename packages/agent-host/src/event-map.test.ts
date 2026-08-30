@@ -126,11 +126,17 @@ describe('mapPiSessionEvent', () => {
       })
       ;
 
-    expect(events.slice(0, 2)).toEqual([
-      { type: 'message/end', messageId: 'm-failed' },
-      { type: 'error', message: '400: model_not_found' },
+    expect(events[0]).toEqual({ type: 'message/end', messageId: 'm-failed' });
+    expect(events.filter((event) => event.type === 'error')).toEqual([
+      expect.objectContaining({
+        type: 'error',
+        message: '400: model_not_found',
+        failure: expect.objectContaining({
+          code: 'provider-http-error',
+          httpStatus: 400,
+        }),
+      }),
     ]);
-    expect(events.filter((event) => event.type === 'error')).toHaveLength(1);
   });
 
   it('pulls nested provider error objects and aborted details through to AgentEvent', () => {
@@ -147,10 +153,11 @@ describe('mapPiSessionEvent', () => {
       },
     });
     expect(nested.filter((event) => event.type === 'error')).toEqual([
-      {
+      expect.objectContaining({
         type: 'error',
         message: 'No endpoints available matching your guardrail restrictions and data policy',
-      },
+        failure: expect.objectContaining({ code: 'unknown-agent-failure' }),
+      }),
     ]);
 
     const aborted = mapPiSessionEvent({
@@ -164,7 +171,11 @@ describe('mapPiSessionEvent', () => {
       },
     });
     expect(aborted.filter((event) => event.type === 'error')).toEqual([
-      { type: 'error', message: 'stream closed by gateway: timeout' },
+      expect.objectContaining({
+        type: 'error',
+        message: 'stream closed by gateway: timeout',
+        failure: expect.objectContaining({ code: 'model-request-timeout' }),
+      }),
     ]);
   });
 
@@ -186,7 +197,14 @@ describe('mapPiSessionEvent', () => {
       ;
 
     expect(events.filter((event) => event.type === 'error')).toEqual([
-      { type: 'error', message: '401: Invalid Authentication' },
+      expect.objectContaining({
+        type: 'error',
+        message: '401: Invalid Authentication',
+        failure: expect.objectContaining({
+          code: 'provider-authentication',
+          httpStatus: 401,
+        }),
+      }),
     ]);
   });
 
@@ -302,7 +320,14 @@ describe('mapPiSessionEvent', () => {
         type: 'error',
         errorMessage: 'provider rejected request',
       }),
-    ).toEqual([{ type: 'error', message: 'provider rejected request', retriable: false }]);
+    ).toEqual([
+      expect.objectContaining({
+        type: 'error',
+        message: 'provider rejected request',
+        retriable: false,
+        failure: expect.objectContaining({ code: 'unknown-agent-failure' }),
+      }),
+    ]);
   });
 
   it('does not invent errors for assistant messages that end normally', () => {
@@ -1004,7 +1029,38 @@ describe('mapPiSessionEvent', () => {
 
   it('maps errors', () => {
     expect(mapPiSessionEvent({ type: 'error', message: 'boom' })).toEqual([
-      { type: 'error', message: 'boom', retriable: false },
+      expect.objectContaining({
+        type: 'error',
+        message: 'boom',
+        retriable: false,
+        failure: expect.objectContaining({ code: 'unknown-agent-failure' }),
+      }),
+    ]);
+  });
+
+  it('enriches Connection error with provider from the assistant payload', () => {
+    expect(
+      mapPiSessionEvent({
+        type: 'message_end',
+        messageId: 'm-conn',
+        message: {
+          role: 'assistant',
+          provider: 'custom-openai',
+          content: [],
+          stopReason: 'error',
+          errorMessage: 'Connection error.',
+        },
+      }).filter((event) => event.type === 'error'),
+    ).toEqual([
+      expect.objectContaining({
+        type: 'error',
+        message: 'Connection error (custom-openai)',
+        retriable: true,
+        failure: expect.objectContaining({
+          code: 'provider-unavailable',
+          message: 'Connection error (custom-openai)',
+        }),
+      }),
     ]);
   });
 

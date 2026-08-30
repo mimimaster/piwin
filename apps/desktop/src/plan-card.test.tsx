@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 /**
- * PlanCard Process / mode selection / abort flow coverage.
+ * PlanCard progress / abort / terminal coverage. Execution-mode choice
+ * lives on PlanExecutionGate, not this card.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { act, type ReactElement } from 'react';
@@ -8,7 +9,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { PlanCard } from './plan-card';
-import type { PlanExecutionMode, SessionPlan } from '@piwin/contracts';
+import type { SessionPlan } from '@piwin/contracts';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -58,80 +59,13 @@ describe('PlanCard execution flow', () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
   });
 
-  it('shows Process button for a draft plan with onExecute', () => {
-    const { container } = renderPlan(<PlanCard plan={draftPlan()} onExecute={() => undefined} />);
-    expect(container.querySelector('[data-testid="plan-process"]')).toBeTruthy();
+  it('is a progress tracker and does not host the execution-mode picker', () => {
+    const { container } = renderPlan(<PlanCard plan={draftPlan()} />);
+    expect(container.querySelector('[data-testid="plan-card"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="plan-process"]')).toBeNull();
     expect(container.querySelector('[data-testid="plan-mode-buttons"]')).toBeNull();
-  });
-
-  it('reveals mode buttons after clicking Process', () => {
-    const { container } = renderPlan(<PlanCard plan={draftPlan()} onExecute={() => undefined} />);
-    const processBtn = container.querySelector<HTMLButtonElement>('[data-testid="plan-process"]');
-    expect(processBtn).toBeTruthy();
-    act(() => {
-      processBtn?.click();
-    });
-    expect(container.querySelector('[data-testid="plan-mode-buttons"]')).toBeTruthy();
-    expect(container.querySelector('[data-testid="plan-mode-subagent"]')).toBeTruthy();
-    expect(container.querySelector('[data-testid="plan-mode-inline"]')).toBeTruthy();
-  });
-
-  it('calls onExecute with inline when inline button is clicked', () => {
-    let selectedMode: PlanExecutionMode | null = null;
-    const { container } = renderPlan(
-      <PlanCard
-        plan={draftPlan()}
-        onExecute={(mode) => {
-          selectedMode = mode;
-        }}
-      />,
-    );
-    const processBtn = container.querySelector<HTMLButtonElement>('[data-testid="plan-process"]');
-    act(() => {
-      processBtn?.click();
-    });
-    const inlineBtn = container.querySelector<HTMLButtonElement>('[data-testid="plan-mode-inline"]');
-    act(() => {
-      inlineBtn?.click();
-    });
-    expect(selectedMode).toBe('inline');
-  });
-
-  it('calls onExecute with subagent-driven when subagent button is clicked', () => {
-    let selectedMode: PlanExecutionMode | null = null;
-    const { container } = renderPlan(
-      <PlanCard
-        plan={draftPlan()}
-        onExecute={(mode) => {
-          selectedMode = mode;
-        }}
-      />,
-    );
-    const processBtn = container.querySelector<HTMLButtonElement>('[data-testid="plan-process"]');
-    act(() => {
-      processBtn?.click();
-    });
-    const subagentBtn = container.querySelector<HTMLButtonElement>(
-      '[data-testid="plan-mode-subagent"]',
-    );
-    act(() => {
-      subagentBtn?.click();
-    });
-    expect(selectedMode).toBe('subagent-driven');
-  });
-
-  it('marks subagent-driven as recommended for long plans', () => {
-    const { container } = renderPlan(
-      <PlanCard plan={draftPlan({ complexity: 'long' })} onExecute={() => undefined} />,
-    );
-    const processBtn = container.querySelector<HTMLButtonElement>('[data-testid="plan-process"]');
-    act(() => {
-      processBtn?.click();
-    });
-    const subagentBtn = container.querySelector<HTMLButtonElement>(
-      '[data-testid="plan-mode-subagent"]',
-    );
-    expect(subagentBtn?.className).toContain('plan-btn-recommended');
+    expect(container.querySelector('[data-testid="plan-mode-inline"]')).toBeNull();
+    expect(container.querySelector('[data-testid="plan-mode-subagent"]')).toBeNull();
   });
 
   it('shows Abort button when plan is executing', () => {
@@ -163,10 +97,7 @@ describe('PlanCard execution flow', () => {
     expect(container.querySelector('[data-testid="plan-process"]')).toBeNull();
   });
 
-  it('does not show Process button when no onExecute callback', () => {
-    const { container } = renderPlan(<PlanCard plan={draftPlan()} />);
-    expect(container.querySelector('[data-testid="plan-process"]')).toBeNull();
-  });
+
 
   it('renders progress header count and step SVG icons correctly', () => {
     const plan = draftPlan({

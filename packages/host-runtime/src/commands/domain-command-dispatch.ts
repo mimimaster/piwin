@@ -31,6 +31,8 @@ import { handleKnowledgeCommand } from './knowledge-commands.js';
 import { handleSubagentCommand } from './subagent-commands.js';
 import { handleAuthCommand } from './auth-commands.js';
 import { handleVoiceLiveCommand } from './voice-live-commands.js';
+import { handleSessionComposerProfileCommand } from './session-composer-profile-command.js';
+import { loadPiwinConfig } from '../config-store.js';
 
 export type DomainDispatchContext = HostCommandContext &
   import('./voice-live-commands.js').VoiceLiveCommandContext & {
@@ -66,6 +68,13 @@ export async function dispatchDomainCommands(
 
   const product = await handleSessionProductCommand(command, requestId, context.sessionProduct);
   if (product) return product;
+
+  const composerProfile = await handleSessionComposerProfileCommand(command, requestId, {
+    ...(context.piwinRoot === undefined ? {} : { piwinRoot: context.piwinRoot }),
+    push: context.push,
+    loadConfig: () => loadPiwinConfig(context.piwinRoot),
+  });
+  if (composerProfile) return composerProfile;
 
   if (context.sessionPack) {
     const pack = await handleSessionPackCommand(command, requestId, context.sessionPack);

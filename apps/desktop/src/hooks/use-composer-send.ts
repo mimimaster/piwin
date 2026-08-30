@@ -271,6 +271,38 @@ export function useComposerSend(params: UseComposerSendArgs) {
       if (promptSubmissionInProgress.current) {
         return;
       }
+      // `/compact` and `/stop` must intercept before Send gates. Admission
+      // reconciling, paused runs, and failed chips would otherwise swallow the
+      // command with an empty composer and no toast.
+      if (text.startsWith('/') && pendingAttachmentsRef.current.length === 0) {
+        const parsed = parseComposerSlashSubmit(text, []);
+        if (parsed.kind === 'command' && parsed.commandId === 'compact') {
+          promptSubmissionInProgress.current = true;
+          try {
+            const compacted = await args.onCompact?.(
+              normalizeCompactCustomInstructions(parsed.args),
+            );
+            if (compacted !== false) {
+              setComposer('');
+              clearPendingAttachments();
+            }
+          } finally {
+            promptSubmissionInProgress.current = false;
+          }
+          return;
+        }
+        if (parsed.kind === 'command' && parsed.commandId === 'stop') {
+          promptSubmissionInProgress.current = true;
+          try {
+            setComposer('');
+            clearPendingAttachments();
+            await args.onAbort?.();
+          } finally {
+            promptSubmissionInProgress.current = false;
+          }
+          return;
+        }
+      }
       if (!desktopForegroundMutationsEnabled(args.state)) {
         return;
       }
@@ -435,29 +467,6 @@ export function useComposerSend(params: UseComposerSendArgs) {
         }));
         const parsed = parseComposerSlashSubmit(text, skills);
 
-        if (parsed.kind === 'command' && parsed.commandId === 'compact') {
-          promptSubmissionInProgress.current = true;
-          try {
-            setComposer('');
-            clearPendingAttachments();
-            const instructions = normalizeCompactCustomInstructions(parsed.args);
-            await args.onCompact?.(instructions);
-          } finally {
-            promptSubmissionInProgress.current = false;
-          }
-          return;
-        }
-        if (parsed.kind === 'command' && parsed.commandId === 'stop') {
-          promptSubmissionInProgress.current = true;
-          try {
-            setComposer('');
-            clearPendingAttachments();
-            await args.onAbort?.();
-          } finally {
-            promptSubmissionInProgress.current = false;
-          }
-          return;
-        }
         if (parsed.kind === 'scheme') {
           if (args.conversationChat === true) {
             return;

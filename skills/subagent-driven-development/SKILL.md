@@ -1,6 +1,6 @@
 ---
 name: subagent-driven-development
-description: Execute an approved plan by delegating independent steps to isolated child sessions, then merge and verify in the parent. Trigger via /subagent-driven-development or plan-card mode.
+description: Execute an approved plan by delegating independent steps to isolated child sessions, then merge and verify in the parent. Trigger via /subagent-driven-development or the plan execution gate.
 version: 2
 ---
 

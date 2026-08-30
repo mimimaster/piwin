@@ -92,6 +92,10 @@ describe('remoteHostSupportsCommand', () => {
     );
   });
 
+  it('allows session composer profile on the historical fallback ceiling', () => {
+    expect(FALLBACK_REMOTE_ALLOWED_COMMANDS).toContain('session/set-composer-profile');
+  });
+
   it('trusts the advertised ceiling when present', () => {
     expect(remoteHostSupportsCommand(['host/ping', 'settings/get'], 'settings/get')).toBe(true);
     expect(remoteHostSupportsCommand(['host/ping'], 'host/status')).toBe(false);

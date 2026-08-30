@@ -515,7 +515,6 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       onOpenDocument={handleOpenDocument}
                       onOpenDiff={handleOpenDiff}
                       fileBrowseRoot={fileBrowseRoot}
-                      onPlanExecute={handlePlanExecute}
                       onPlanAbort={handlePlanAbort}
                       onGenerateWalkthrough={handleGenerateWalkthrough}
                       onCancelWalkthrough={handleCancelWalkthrough}
@@ -528,6 +527,8 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                     <WorkbenchPermissionBar
                       state={state}
                       extensionUiRequest={extensionUiRequest}
+                      sessionPlan={sessionPlan}
+                      onPlanExecute={handlePlanExecute}
                       onPermission={handlePermission}
                       onExtensionUiResolve={handleExtensionUiResolve}
                     />

@@ -15,6 +15,7 @@ export {
   normalizeCompactCustomInstructions,
   parseComposerSlashSubmit,
   replaceActiveSlashToken,
+  runReservedComposerSlashCommand,
 } from './slash-parse';
 export type { SkillLookupEntry } from './slash-parse';
 export { SlashMenu } from './slash-menu';

@@ -1331,6 +1331,90 @@ describe('useComposerMedia session transitions', () => {
     });
   });
 
+  it('does not queue /compact as a follow-up while streaming', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const onCompact = vi.fn(async () => true);
+    const hostClient = {
+      request: vi.fn(async () => ({
+        type: 'response' as const,
+        command: 'session/queued-turn-submit',
+        success: true as const,
+        data: {},
+      })),
+    } as unknown as HostClient;
+    let captured: ComposerMediaResult | undefined;
+    function Harness(): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: {
+          ...createInitialChatUiState(),
+          activeSessionId: 'session-1',
+          activeRunId: 'run-1',
+          runPhase: 'streaming',
+          streaming: true,
+        },
+        dispatch: vi.fn(),
+        agentMode: 'agent',
+        onCompact,
+      });
+      return null;
+    }
+    act(() => root?.render(<Harness />));
+    const latest = (): ComposerMediaResult => {
+      if (captured === undefined) throw new Error('hook not rendered');
+      return captured;
+    };
+    act(() => latest().setComposer('/compact keep the plan'));
+    act(() => {
+      latest().handleFollowUp();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(onCompact).toHaveBeenCalledWith('keep the plan');
+    expect(vi.mocked(hostClient.request)).not.toHaveBeenCalled();
+    expect(latest().composer).toBe('');
+  });
+
+  it('intercepts /compact on Send even when foreground admission is not ready', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const onCompact = vi.fn(async () => true);
+    const hostClient = {
+      request: vi.fn(),
+    } as unknown as HostClient;
+    let captured: ComposerMediaResult | undefined;
+    function Harness(): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: {
+          ...createInitialChatUiState(),
+          activeSessionId: 'session-1',
+          foregroundAdmission: 'unknown',
+        },
+        dispatch: vi.fn(),
+        agentMode: 'agent',
+        onCompact,
+      });
+      return null;
+    }
+    act(() => root?.render(<Harness />));
+    const latest = (): ComposerMediaResult => {
+      if (captured === undefined) throw new Error('hook not rendered');
+      return captured;
+    };
+    act(() => latest().setComposer('/compact'));
+    await act(async () => {
+      await latest().handleSend();
+    });
+    expect(onCompact).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(hostClient.request)).not.toHaveBeenCalled();
+    expect(latest().composer).toBe('');
+  });
+
   it('converts a queued message into a Run intervention on send-now', async () => {
     container = document.createElement('div');
     document.body.append(container);

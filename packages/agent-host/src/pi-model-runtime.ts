@@ -5,6 +5,7 @@ import {
   isModelEnabled,
   modelSupportsCapability,
 } from '@piwin/contracts';
+import { lookupCatalogByModelId } from './model-catalog-reader.js';
 import { buildThinkingLevelMap, type PiThinkingLevelMap } from './map-thinking-level.js';
 import {
   providerNeedsNativeSearchWrapper,
@@ -140,6 +141,28 @@ export function resolvePiApiForProvider(protocol: ModelProviderConfig['protocol'
   }
 }
 
+export function resolvePiModelLimits(model: {
+  id: string;
+  contextWindow?: number;
+  maxOutputTokens?: number;
+}): { contextWindow: number; maxTokens: number } {
+  const catalog = lookupCatalogByModelId(model.id);
+  return {
+    contextWindow:
+      positiveLimit(model.contextWindow) ??
+      positiveLimit(catalog?.contextWindow) ??
+      DEFAULT_MODEL_CONTEXT_WINDOW,
+    maxTokens:
+      positiveLimit(model.maxOutputTokens) ??
+      positiveLimit(catalog?.maxTokens) ??
+      DEFAULT_MODEL_MAX_OUTPUT_TOKENS,
+  };
+}
+
+function positiveLimit(value: number | undefined): number | undefined {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : undefined;
+}
+
 export function buildPiProviderRegistration(
   provider: ModelProviderConfig,
   apiKey?: string,
@@ -171,8 +194,7 @@ export function buildPiProviderRegistration(
           cacheRead: 0,
           cacheWrite: 0,
         },
-        contextWindow: model.contextWindow ?? DEFAULT_MODEL_CONTEXT_WINDOW,
-        maxTokens: model.maxOutputTokens ?? DEFAULT_MODEL_MAX_OUTPUT_TOKENS,
+        ...resolvePiModelLimits(model),
         ...(provider.headers ? { headers: provider.headers } : {}),
       };
       if (model.capabilities?.length) {

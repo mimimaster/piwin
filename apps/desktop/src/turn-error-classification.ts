@@ -75,6 +75,13 @@ export function classifyAgentFailure(failure: AgentFailure | undefined): TurnErr
         titleEn: 'Model service returned an error',
         primaryAction: failure?.retriable === true ? 'retry' : 'copy',
       };
+    case 'provider-unavailable':
+      return {
+        category: 'http',
+        titleZh: '无法连接模型服务',
+        titleEn: 'Could not reach model service',
+        primaryAction: 'retry',
+      };
     default:
       return {
         category: 'unknown',

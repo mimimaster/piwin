@@ -36,6 +36,7 @@ import { InkWashEmptyVignette } from './ink-wash-empty-vignette';
 import type { KnowledgeCenterPanelProps } from './KnowledgeCenterPanel';
 import type { ModelOption } from './model-options';
 import { PermissionBar } from './permission-bar';
+import { canShowPlanExecutionGate, PlanExecutionGate } from './plan-execution-gate';
 import { ProjectTrustNotice } from './project-trust-notice';
 import { SessionArchivedBanner } from './session-archived-banner';
 import type { SubagentInspectorSelection } from './subagent-activity-model';
@@ -96,7 +97,6 @@ export type WorkbenchTranscriptProps = {
   onOpenDiff: (absolutePath: string, relativePath?: string) => void;
   /** Project root, or the General workspace when Chat has no project. */
   fileBrowseRoot?: string | null;
-  onPlanExecute: (mode: PlanExecutionMode) => void | Promise<void>;
   onPlanAbort: () => void | Promise<void>;
   onGenerateWalkthrough: (messageId: string, force?: boolean) => void | Promise<void>;
   onCancelWalkthrough: (messageId: string, generationId?: string) => void | Promise<void>;
@@ -154,7 +154,6 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
     onOpenDocument,
     onOpenDiff,
     fileBrowseRoot,
-    onPlanExecute,
     onPlanAbort,
     onGenerateWalkthrough,
     onCancelWalkthrough,
@@ -288,7 +287,6 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
                 }
               : {})}
             onOpenDiff={onOpenDiff}
-            onPlanExecute={onPlanExecute}
             onPlanAbort={onPlanAbort}
             composerCard={composerCard}
             walkthroughsByMessageId={state.walkthroughsByMessageId}
@@ -370,6 +368,8 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
 export type WorkbenchPermissionBarProps = {
   state: ChatUiState;
   extensionUiRequest: ExtensionUiRequestState | null;
+  sessionPlan?: SessionPlan | null;
+  onPlanExecute?: (mode: PlanExecutionMode) => void | Promise<void>;
   onPermission: (
     decision: PermissionDecision,
     scope?: PermissionRememberScope,
@@ -380,8 +380,16 @@ export type WorkbenchPermissionBarProps = {
 export function WorkbenchPermissionBar(
   props: WorkbenchPermissionBarProps,
 ): ReactElement | null {
-  const { state, extensionUiRequest, onPermission, onExtensionUiResolve } = props;
-  if (state.activeScope.kind !== 'general' && state.permissionPrompt) {
+  const {
+    state,
+    extensionUiRequest,
+    sessionPlan,
+    onPlanExecute,
+    onPermission,
+    onExtensionUiResolve,
+  } = props;
+  const isConversationSession = state.activeScope.kind === 'general';
+  if (!isConversationSession && state.permissionPrompt) {
     return (
       <PermissionBar
         prompt={state.permissionPrompt}
@@ -392,13 +400,25 @@ export function WorkbenchPermissionBar(
       />
     );
   }
-  if (state.activeScope.kind !== 'general' && extensionUiRequest) {
+  if (!isConversationSession && extensionUiRequest) {
     return (
       <ExtensionUiPrompt
         request={extensionUiRequest}
         onResolve={(payload) => void onExtensionUiResolve(payload)}
       />
     );
+  }
+  if (
+    onPlanExecute &&
+    sessionPlan &&
+    canShowPlanExecutionGate({
+      plan: sessionPlan,
+      isConversationSession,
+      streaming: state.streaming,
+      hasPermissionPrompt: Boolean(state.permissionPrompt),
+    })
+  ) {
+    return <PlanExecutionGate plan={sessionPlan} onExecute={onPlanExecute} />;
   }
   return null;
 }

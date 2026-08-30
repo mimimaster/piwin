@@ -3,6 +3,7 @@
  * model completion. Tool-loop assistant rows stay in the transcript and
  * Conversation paints their tools (search, fetch, artifact, toolbox).
  */
+import { isFlashcardCreateToolName } from '@piwin/contracts';
 import type { ChatMessageUi, ToolCardUi } from './chat-reducer';
 
 export type ConversationTurnChrome = {
@@ -68,13 +69,9 @@ function assistantHasFlashcardResult(message: ChatMessageUi): boolean {
   return message.tools.some((tool) => tool.status === 'done' && toolNameLooksLikeFlashcard(tool));
 }
 
-/** Keep aligned with `isFlashcardCreateTool` name matching; this file must stay UI-free. */
 function toolNameLooksLikeFlashcard(tool: ToolCardUi): boolean {
-  const names = [tool.toolName, tool.presentation?.routedToolName, tool.presentation?.title]
-    .filter((value): value is string => typeof value === 'string')
-    .map((value) => value.toLowerCase());
-  return names.some(
-    (name) => name.includes('flashcard_create') || name.includes('flashcard_batch_create'),
+  return [tool.toolName, tool.presentation?.routedToolName, tool.presentation?.title].some((name) =>
+    isFlashcardCreateToolName(name),
   );
 }
 

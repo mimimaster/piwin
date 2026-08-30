@@ -94,6 +94,22 @@ describe('classifyAgentFailure', () => {
     expect(classification.category).not.toBe('unknown');
   });
 
+  it('maps provider-unavailable to a reachability failure, not UNKNOWN', () => {
+    expect(
+      classifyAgentFailure({
+        code: 'provider-unavailable',
+        origin: 'provider',
+        message: 'Connection error (custom-openai · http://127.0.0.1:8317/v1)',
+        retriable: true,
+      }),
+    ).toMatchObject({
+      category: 'http',
+      titleZh: '无法连接模型服务',
+      titleEn: 'Could not reach model service',
+      primaryAction: 'retry',
+    });
+  });
+
   it('maps legacy message-only errors to a generic generation failure', () => {
     expect(classifyAgentFailure(undefined)).toMatchObject({
       category: 'unknown',

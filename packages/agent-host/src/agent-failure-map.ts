@@ -1,5 +1,6 @@
 import type { AgentEvent } from '@piwin/contracts';
 import { asRecord, readString, readUpstreamErrorMessage } from './pi-event-read.js';
+import { agentFailureFromPiEvent } from './pi-agent-failure.js';
 
 export function mapStandalonePiErrorEvent(event: Record<string, unknown>): AgentEvent[] {
   const message =
@@ -7,7 +8,15 @@ export function mapStandalonePiErrorEvent(event: Record<string, unknown>): Agent
     readString(event.message) ??
     readString(event.error) ??
     'unknown error';
-  return [{ type: 'error', message, retriable: Boolean(event.retriable) }];
+  const failure = agentFailureFromPiEvent(event, { errorMessage: message });
+  return [
+    {
+      type: 'error',
+      message: failure.message,
+      retriable: event.retriable === undefined ? failure.retriable : Boolean(event.retriable),
+      failure,
+    },
+  ];
 }
 
 export function mapAssistantStopReasonFailure(
@@ -17,13 +26,26 @@ export function mapAssistantStopReasonFailure(
   const stopReason = endedMessage ? readString(endedMessage.stopReason) : undefined;
   const errorMessage = readUpstreamErrorMessage(endedMessage, rawEvent);
   if (stopReason === 'error') {
+    const failure = agentFailureFromPiEvent(
+      endedMessage ?? {},
+      rawEvent,
+      { errorMessage: errorMessage ?? 'Model request failed' },
+    );
     return {
       type: 'error',
-      message: errorMessage ?? 'Model request failed',
+      message: failure.message,
+      retriable: failure.retriable,
+      failure,
     };
   }
   if (stopReason === 'aborted' && errorMessage) {
-    return { type: 'error', message: errorMessage };
+    const failure = agentFailureFromPiEvent(endedMessage ?? {}, rawEvent, { errorMessage });
+    return {
+      type: 'error',
+      message: failure.message,
+      retriable: failure.retriable,
+      failure,
+    };
   }
   return undefined;
 }

@@ -1,4 +1,5 @@
 import {
+  isFlashcardCreateToolName,
   parseFlashcardDisplayPayload,
   type FlashcardItem,
   type FlashcardReviewCard,
@@ -24,19 +25,11 @@ export function getMessageTools(
   return message.tools;
 }
 
+/** Name only — grep/read/plan output quoting cloze schema is not a create. */
 export function isFlashcardCreateTool(tool: ToolCardUi): boolean {
-  const names = [tool.toolName, tool.presentation?.routedToolName, tool.presentation?.title]
-    .filter((value): value is string => typeof value === 'string')
-    .map((value) => value.toLowerCase());
-  if (
-    names.some(
-      (name) => name.includes('flashcard_create') || name.includes('flashcard_batch_create'),
-    )
-  ) {
-    return true;
-  }
-  const blob = `${tool.output ?? ''}\n${tool.presentation?.output?.text ?? ''}`;
-  return blob.includes('flashcard_batch_create') || /"model"\s*:\s*"cloze"/.test(blob);
+  return [tool.toolName, tool.presentation?.routedToolName, tool.presentation?.title].some((name) =>
+    isFlashcardCreateToolName(name),
+  );
 }
 
 export function messageHasFlashcardToolResult(
@@ -218,6 +211,7 @@ function displayCardsFromToolArgs(rawArgs: unknown, toolCallId: string): Flashca
 function textFromCreateTurn(message: ChatMessageUi, extraTools?: readonly ToolCardUi[]): string {
   const parts = [message.text];
   for (const tool of getMessageTools(message, extraTools)) {
+    if (!isFlashcardCreateTool(tool)) continue;
     parts.push(tool.output ?? '');
     parts.push(tool.presentation?.output?.text ?? '');
     parts.push(tool.presentation?.inputPreview ?? '');

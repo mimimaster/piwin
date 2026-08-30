@@ -4,13 +4,13 @@
  * (not anchored to a message), so ChatThread mounts a single card at the top
  * of the assistant area when `sessionPlan` is present.
  *
- * Approval + execution flow (Antigravity-style):
- *   draft  → [Process] reveals [subagent-driven] [inline]
- *   approved/executing → progress + [Abort] (when running)
+ * Progress + abort only. Execution-mode choice lives on PlanExecutionGate
+ * above the composer (draft/approved → inline | subagent-driven).
+ *   executing → progress + [Abort]
  *   done/abandoned → final state, no actions
  */
 import { useState, type ReactElement } from 'react';
-import type { PlanExecutionMode, PlanStepStatus, SessionPlan } from '@piwin/contracts';
+import type { PlanStepStatus, SessionPlan } from '@piwin/contracts';
 import { Collapse } from '@piwin/ui-kit';
 import { behaviorTextClass, getBehaviorActivitySpec } from './behavior-activity.js';
 
@@ -48,8 +48,6 @@ export type PlanCardProps = {
   plan: SessionPlan;
   defaultOpen?: boolean;
   onOpenDocument?: ((doc: { title: string; content?: string }) => void) | undefined;
-  /** Called when the user selects an execution mode for a draft/approved plan. */
-  onExecute?: (mode: PlanExecutionMode) => void | Promise<void>;
   /** Called when the user aborts a running plan. */
   onAbort?: () => void | Promise<void>;
   /** Disable action buttons (e.g. while a host request is in flight). */
@@ -99,21 +97,16 @@ export function PlanCard({
   plan,
   defaultOpen = true,
   onOpenDocument,
-  onExecute,
   onAbort,
   actionInProgress = false,
 }: PlanCardProps): ReactElement {
   const [open, setOpen] = useState(defaultOpen);
-  const [modeRevealed, setModeRevealed] = useState(false);
-  const isLong = plan.complexity === 'long';
   const execution = plan.execution;
   const isRunning =
     execution?.status === 'running' ||
     execution?.status === 'queued' ||
     plan.status === 'executing';
   const isTerminal = plan.status === 'done' || plan.status === 'abandoned';
-  const canProcess =
-    !isTerminal && !isRunning && (plan.status === 'draft' || plan.status === 'approved');
 
   const totalCount = plan.steps.length;
   const doneCount = plan.steps.filter((s) => s.status === 'done').length;
@@ -125,12 +118,6 @@ export function PlanCard({
       title: plan.title || 'Implementation Plan',
       content: formatPlanMarkdown(plan),
     });
-  }
-
-  async function handleModeSelect(mode: PlanExecutionMode): Promise<void> {
-    if (!onExecute || actionInProgress) return;
-    await onExecute(mode);
-    setModeRevealed(false);
   }
 
   async function handleAbort(): Promise<void> {
@@ -185,42 +172,6 @@ export function PlanCard({
             );
           })}
         </div>
-        {canProcess && onExecute ? (
-          <div className="plan-actions" data-testid="plan-actions">
-            {!modeRevealed ? (
-              <button
-                type="button"
-                className="plan-btn plan-btn-primary"
-                data-testid="plan-process"
-                disabled={actionInProgress}
-                onClick={() => setModeRevealed(true)}
-              >
-                Process
-              </button>
-            ) : (
-              <div className="plan-mode-buttons" data-testid="plan-mode-buttons">
-                <button
-                  type="button"
-                  className={`plan-btn${isLong ? ' plan-btn-recommended' : ''}`}
-                  data-testid="plan-mode-subagent"
-                  disabled={actionInProgress}
-                  onClick={() => void handleModeSelect('subagent-driven')}
-                >
-                  {isLong ? '★ ' : ''}Subagent-driven
-                </button>
-                <button
-                  type="button"
-                  className={`plan-btn${!isLong ? ' plan-btn-recommended' : ''}`}
-                  data-testid="plan-mode-inline"
-                  disabled={actionInProgress}
-                  onClick={() => void handleModeSelect('inline')}
-                >
-                  {isLong ? '' : '★ '}Inline
-                </button>
-              </div>
-            )}
-          </div>
-        ) : null}
         {isRunning && onAbort ? (
           <div className="plan-actions" data-testid="plan-running-actions">
             <span className="plan-running-label" data-testid="plan-running-label">

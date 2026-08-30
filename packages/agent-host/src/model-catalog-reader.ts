@@ -118,7 +118,10 @@ export function lookupCatalogByModelId(modelId: string): ModelCatalogEntry | und
   const exact = getAllEntries().find((entry) => entry.modelId === id);
   if (exact) return exact;
   const lower = id.toLowerCase();
-  return getAllEntries().find((entry) => entry.modelId.toLowerCase() === lower);
+  const caseInsensitive = getAllEntries().find((entry) => entry.modelId.toLowerCase() === lower);
+  if (caseInsensitive) return caseInsensitive;
+  const name = splitModelName(id);
+  return name !== id ? lookupCatalogByModelId(name) : undefined;
 }
 
 /**

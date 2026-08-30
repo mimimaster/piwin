@@ -97,7 +97,7 @@ export type UseComposerDockPropsArgs = {
   onPause: () => void | Promise<unknown>;
   onResumeRun: () => void | Promise<unknown>;
   onAbort: () => void | Promise<unknown>;
-  onCompact: () => void | Promise<unknown>;
+  onCompact: (customInstructions?: string) => void | Promise<unknown>;
   onOpenProject: (path: string) => void | Promise<void>;
   onExtensionUiResolve: (payload: {
     confirmed?: boolean;
@@ -306,8 +306,8 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
   const handleComposerAbort = useCallback((): void => {
     void onAbort();
   }, [onAbort]);
-  const handleComposerCompact = useCallback((): void => {
-    void onCompact();
+  const handleComposerCompact = useCallback((customInstructions?: string): void => {
+    void onCompact(customInstructions);
   }, [onCompact]);
 
   const docCommentsAttachment = useMemo(

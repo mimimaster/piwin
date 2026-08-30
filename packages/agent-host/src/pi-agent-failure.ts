@@ -13,6 +13,15 @@ import {
 import { readNumber, readString, readUpstreamErrorMessage } from './pi-event-read.js';
 
 const PROTOCOL_MISSING_FINISH = /stream ended without finish_reason/i;
+const CONNECTION_ERROR_MESSAGE = /^connection error\b/i;
+const CONNECTION_TRANSPORT_HINT =
+  /ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ECONNRESET|ETIMEDOUT|EPIPE|EHOSTUNREACH|fetch failed|network\s*error|socket hang up/i;
+const CONNECTION_NATIVE_NAMES = new Set([
+  'APIConnectionError',
+  'APIConnectionTimeoutError',
+  'FetchError',
+  'ConnectTimeoutError',
+]);
 
 export function readHttpStatusFromMessage(message: string): number | undefined {
   const match = /(?:^|\b)([1-5]\d{2})(?:\b|:)/.exec(message);
@@ -27,10 +36,16 @@ export function agentFailureFromPiFacts(input: {
   errorMessage?: string;
   httpStatus?: number;
   nativeName?: string;
+  provider?: string;
+  baseUrl?: string;
 }): AgentFailure {
-  const message = input.errorMessage?.trim() || 'unknown agent failure';
-  const httpStatus = input.httpStatus ?? readHttpStatusFromMessage(message);
+  const rawMessage = input.errorMessage?.trim() || 'unknown agent failure';
+  const httpStatus = input.httpStatus ?? readHttpStatusFromMessage(rawMessage);
   const nativeName = input.nativeName?.trim();
+  const provider = input.provider?.trim();
+  const baseUrl = input.baseUrl?.trim();
+  // Classify from the raw provider prose; only the display message is enriched.
+  const message = enrichConnectionFailureMessage(rawMessage, { provider, baseUrl });
   const fromStatus = failureFromHttpStatus(httpStatus);
   if (fromStatus) {
     return sanitizeAgentFailure({
@@ -40,7 +55,7 @@ export function agentFailureFromPiFacts(input: {
       ...(nativeName ? { nativeName } : {}),
     });
   }
-  const fromNative = failureFromNativeIdentity(nativeName, message);
+  const fromNative = failureFromNativeIdentity(nativeName, rawMessage);
   if (fromNative) {
     return sanitizeAgentFailure({
       ...fromNative,
@@ -49,7 +64,7 @@ export function agentFailureFromPiFacts(input: {
       ...(nativeName ? { nativeName } : {}),
     });
   }
-  const fromMessage = failureFromLegacyMessage(message);
+  const fromMessage = failureFromLegacyMessage(rawMessage);
   if (fromMessage) {
     return sanitizeAgentFailure({
       ...fromMessage,
@@ -69,6 +84,8 @@ export function agentFailureFromPiEvent(...sources: unknown[]): AgentFailure {
   const errorMessage = readUpstreamErrorMessage(...sources);
   let httpStatus: number | undefined;
   let nativeName: string | undefined;
+  let provider: string | undefined;
+  let baseUrl: string | undefined;
   for (const source of sources) {
     if (!source || typeof source !== 'object') {
       continue;
@@ -76,18 +93,47 @@ export function agentFailureFromPiEvent(...sources: unknown[]): AgentFailure {
     const record = source as Record<string, unknown>;
     httpStatus ??= readNumber(record.status) ?? readNumber(record.statusCode);
     nativeName ??= readString(record.name) ?? readString(record.code);
+    provider ??= readString(record.provider);
+    baseUrl ??= readString(record.baseUrl) ?? readString(record.baseURL);
     const nested = record.error;
     if (nested && typeof nested === 'object') {
       const errorRecord = nested as Record<string, unknown>;
       httpStatus ??= readNumber(errorRecord.status) ?? readNumber(errorRecord.statusCode);
       nativeName ??= readString(errorRecord.name) ?? readString(errorRecord.code);
+      provider ??= readString(errorRecord.provider);
+      baseUrl ??= readString(errorRecord.baseUrl) ?? readString(errorRecord.baseURL);
     }
   }
   return agentFailureFromPiFacts({
     ...(errorMessage === undefined ? {} : { errorMessage }),
     ...(httpStatus === undefined ? {} : { httpStatus }),
     ...(nativeName === undefined ? {} : { nativeName }),
+    ...(provider === undefined ? {} : { provider }),
+    ...(baseUrl === undefined ? {} : { baseUrl }),
   });
+}
+
+export function enrichConnectionFailureMessage(
+  message: string,
+  context: { provider?: string | undefined; baseUrl?: string | undefined },
+): string {
+  if (!CONNECTION_ERROR_MESSAGE.test(message) && !CONNECTION_TRANSPORT_HINT.test(message)) {
+    return message;
+  }
+  const parts: string[] = [];
+  if (context.provider && context.provider.length > 0) {
+    parts.push(context.provider);
+  }
+  if (context.baseUrl && context.baseUrl.length > 0) {
+    parts.push(context.baseUrl);
+  }
+  if (parts.length === 0) {
+    return message;
+  }
+  if (CONNECTION_ERROR_MESSAGE.test(message)) {
+    return `Connection error (${parts.join(' · ')})`;
+  }
+  return `${message} (${parts.join(' · ')})`;
 }
 
 function failureFromHttpStatus(
@@ -128,6 +174,9 @@ function failureFromNativeIdentity(
   if (nativeName === 'AbortError' || nativeName === 'APIUserAbortError') {
     return { code: 'unknown-agent-failure', origin: 'transport', retriable: false };
   }
+  if (nativeName !== undefined && CONNECTION_NATIVE_NAMES.has(nativeName)) {
+    return { code: 'provider-unavailable', origin: 'provider', retriable: true };
+  }
   return undefined;
 }
 
@@ -151,6 +200,9 @@ function failureFromLegacyMessage(
   }
   if (/timed? ?out|deadline exceeded/i.test(message)) {
     return { code: 'model-request-timeout', origin: 'transport', retriable: true };
+  }
+  if (CONNECTION_ERROR_MESSAGE.test(message) || CONNECTION_TRANSPORT_HINT.test(message)) {
+    return { code: 'provider-unavailable', origin: 'provider', retriable: true };
   }
   return undefined;
 }

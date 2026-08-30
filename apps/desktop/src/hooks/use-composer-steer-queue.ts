@@ -18,6 +18,10 @@ import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
 import { hostFailureNotice } from '../host-problem-copy.js';
 import type { SteerQueueMessage } from '../steer-queue-model';
 import type { UseComposerMediaArgs } from './composer-media-args.js';
+import {
+  normalizeCompactCustomInstructions,
+  parseComposerSlashSubmit,
+} from '../slash';
 import type { ComposerPromptRequestInput } from './use-composer-send.js';
 
 type PromptRequestParams = {
@@ -60,6 +64,23 @@ export function useComposerSteerQueue(params: UseComposerSteerQueueArgs) {
     const text = (overrideText ?? composer).trim();
     if (!text) {
       return false;
+    }
+    const reserved = parseComposerSlashSubmit(text, []);
+    if (reserved.kind === 'command' && reserved.commandId === 'stop') {
+      if (overrideText === undefined) {
+        setComposer('');
+      }
+      await args.onAbort?.();
+      return true;
+    }
+    if (reserved.kind === 'command' && reserved.commandId === 'compact') {
+      const compacted = await args.onCompact?.(
+        normalizeCompactCustomInstructions(reserved.args),
+      );
+      if (compacted !== false && overrideText === undefined) {
+        setComposer('');
+      }
+      return compacted !== false;
     }
     if (!args.state.activeSessionId || !args.state.activeRunId || !args.state.streaming) {
       notifyError(attachmentCopy.steerUnavailable);
@@ -130,6 +151,34 @@ export function useComposerSteerQueue(params: UseComposerSteerQueueArgs) {
   const handleFollowUp = useCallback((): void => {
     const text = composer.trim();
     const sessionId = args.state.activeSessionId;
+    const reserved = parseComposerSlashSubmit(text, []);
+    if (reserved.kind === 'command' && reserved.commandId === 'stop') {
+      if (promptSubmissionInProgress.current) {
+        return;
+      }
+      setComposer('');
+      void args.onAbort?.();
+      return;
+    }
+    if (reserved.kind === 'command' && reserved.commandId === 'compact') {
+      if (promptSubmissionInProgress.current) {
+        return;
+      }
+      promptSubmissionInProgress.current = true;
+      void (async () => {
+        try {
+          const compacted = await args.onCompact?.(
+            normalizeCompactCustomInstructions(reserved.args),
+          );
+          if (compacted !== false) {
+            setComposer('');
+          }
+        } finally {
+          promptSubmissionInProgress.current = false;
+        }
+      })();
+      return;
+    }
     if (
       !text ||
       !sessionId ||
