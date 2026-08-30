@@ -3,7 +3,11 @@
  */
 import type { PromptContextRef } from '@piwin/contracts';
 import { PRESET_TEMPLATES, type PresetTemplateId } from './presets.js';
-import { copyAsRefText, mapTargetToContextRef } from './map-to-ref.js';
+import {
+  copyAsRefText,
+  mapTargetToContextRef,
+  mapTargetToFlashcardContextRef,
+} from './map-to-ref.js';
 import type { ContextMenuActionId, ContextMenuTarget } from './types.js';
 
 export type ContextMenuDispatchers = {
@@ -90,10 +94,12 @@ function sendPreset(
   templateId: PresetTemplateId,
   target: ContextMenuTarget,
   dispatchers: ContextMenuDispatchers,
+  mapRef: (t: ContextMenuTarget) => PromptContextRef | null = mapTargetToContextRef,
 ): void {
-  const refs = refsForTarget(target);
-  for (const ref of refs) {
-    dispatchers.addToChat(ref);
+  const ref = mapRef(target);
+  const refs = ref ? [ref] : [];
+  for (const next of refs) {
+    dispatchers.addToChat(next);
   }
   dispatchers.sendPreset(PRESET_TEMPLATES[templateId], refs);
 }
@@ -123,6 +129,9 @@ export function dispatchContextMenuAction(
       dispatchers.focusComposer();
       return;
     }
+    case 'generate-flashcard':
+      sendPreset('generate-flashcard', target, dispatchers, mapTargetToFlashcardContextRef);
+      return;
     case 'explain':
       sendPreset('explain', target, dispatchers);
       return;

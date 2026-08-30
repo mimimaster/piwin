@@ -27,9 +27,12 @@ export function useFlashcardsWorkspace(request: FlashcardsRequester): Flashcards
   const [error, setError] = useState<string | null>(null);
   const requestRef = useRef(request);
   requestRef.current = request;
+  const hasLoadedRef = useRef(false);
 
   const reload = useCallback(async () => {
-    setLoading(true);
+    // Keep ReviewStage mounted on later refreshes so a saved tutor draft
+    // is not unmounted by the initial-load spinner.
+    if (!hasLoadedRef.current) setLoading(true);
     setError(null);
     const requester = requestRef.current;
     try {
@@ -47,6 +50,7 @@ export function useFlashcardsWorkspace(request: FlashcardsRequester): Flashcards
       }
       setCards((listResponse.data as { cards?: FlashcardItem[] }).cards ?? []);
     } finally {
+      hasLoadedRef.current = true;
       setLoading(false);
     }
   }, []);

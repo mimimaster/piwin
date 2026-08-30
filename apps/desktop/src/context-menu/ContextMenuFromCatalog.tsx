@@ -14,6 +14,7 @@ import {
   IconAgent,
   IconAlertCircle,
   IconArrowFork,
+  IconCards,
   IconChat,
   IconCheckCircle,
   IconCode,
@@ -56,6 +57,8 @@ export type ContextMenuFromCatalogProps = {
 function renderActionIcon(iconName: string | undefined): ReactNode {
   if (!iconName) return null;
   switch (iconName) {
+    case 'cards':
+      return <IconCards width={14} height={14} />;
     case 'chat':
       return <IconChat width={14} height={14} />;
     case 'spark':

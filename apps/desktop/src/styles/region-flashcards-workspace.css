@@ -501,6 +501,265 @@
 
 /* ── Dialog ───────────────────────────────────────────────────────── */
 
+.fcws-card-row:hover {
+  border-color: var(--line-2);
+  box-shadow: var(--elev-2);
+}
+
+.fcws-card-row-main,
+.fcws-card-row-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  align-items: flex-start;
+  text-align: left;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.fcws-card-row-open:focus-visible {
+  outline: var(--focus-ring, 2px solid var(--iris));
+  outline-offset: 2px;
+  border-radius: var(--r-control);
+}
+
+.fcws-card-deck {
+  align-self: flex-start;
+  padding: 1px 8px;
+  border-radius: var(--r-pill);
+  background: var(--iris-wash);
+  color: var(--iris);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+}
+
+.fcws-card-front {
+  margin: 0;
+  font-size: var(--fs-chrome);
+  font-weight: 600;
+  color: var(--text-1);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.fcws-card-back {
+  margin: 0;
+  font-size: var(--fs-chrome);
+  color: var(--text-3);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.fcws-card-row-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--s-2);
+  flex-shrink: 0;
+}
+
+.fcws-state-badge {
+  padding: 1px 8px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  white-space: nowrap;
+}
+
+.fcws-state-badge.is-due {
+  background: var(--ember-wash);
+  color: var(--ember);
+  font-weight: 600;
+}
+
+.fcws-card-delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--text-4);
+  cursor: pointer;
+  transition: all var(--t-1) var(--ease-out);
+}
+
+.fcws-card-delete:hover {
+  background: var(--ember-wash);
+  color: var(--coral);
+}
+
+/* ── Browse overlay (TearDeck) ─────────────────────────────────────── */
+.fcws-library .fcws-tear {
+  flex: 1;
+  min-height: 0;
+  padding: var(--s-2) 0 var(--s-4);
+}
+
+.fcws-tear-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.fcws-tear-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+  flex: 1;
+}
+
+.fcws-tear-count {
+  font-family: var(--font-mono, monospace);
+  font-size: var(--fs-chrome);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.fcws-tear-progress-bar {
+  flex: 1;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.fcws-tear-progress-fill {
+  height: 100%;
+  background: var(--iris);
+}
+
+.fcws-tear-close {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  font-size: var(--fs-chrome);
+}
+
+.fcws-tear-close:focus-visible {
+  outline: var(--focus-ring, 2px solid var(--iris));
+  outline-offset: 2px;
+  border-radius: var(--r-control);
+}
+
+.fcws-tear-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-height: 280px;
+  padding: var(--s-6);
+  background: var(--surface-1);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-panel);
+  box-shadow: var(--elev-2);
+  outline: none;
+}
+
+.fcws-tear-card.is-tearing {
+  animation: fcws-tear-off 200ms var(--ease-out) forwards;
+}
+
+.fcws-tear-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  cursor: pointer;
+}
+
+.fcws-tear-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.fcws-tear-deck-name {
+  font-size: var(--fs-chrome);
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.fcws-tear-tag,
+.fcws-tear-index-tag {
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+}
+
+.fcws-tear-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--text-1);
+}
+
+.fcws-tear-source-line {
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+}
+
+.fcws-tear-completed {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: var(--s-4);
+  padding: var(--s-9) var(--s-4);
+}
+
+.fcws-tear-completed-icon {
+  color: var(--mint);
+}
+
+.fcws-tear-completed-desc {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+}
+
+.fcws-tear-danger {
+  color: var(--text-3);
+}
+
+.fcws-tear-danger:hover {
+  color: var(--coral);
+}
+
+@keyframes fcws-tear-off {
+  to {
+    transform: translateX(24%) rotate(5deg);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fcws-tear-card.is-tearing {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+/* ── Dialogs (ui-kit Dialog contentClassName="fcws-dialog") ────────── */
 .fcws-dialog {
   width: min(480px, 92vw);
 }

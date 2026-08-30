@@ -98,8 +98,34 @@ describe('buildDesktopContextMenuCaps', () => {
       sideChatAvailable: false,
       applyAvailable: true,
       openChangedFilesAvailable: true,
+      canSendPreset: false,
       locale: 'zh-CN',
     });
+  });
+
+  it('requires a live session and ready host before advertising preset send', () => {
+    expect(
+      buildDesktopContextMenuCaps({
+        projectPath: '/repo',
+        activeSessionId: 'sess-1',
+        hostReady: true,
+        locale: 'en',
+        sideChatSupported: true,
+        applySupported: true,
+        openChangedFilesSupported: true,
+      }).canSendPreset,
+    ).toBe(true);
+    expect(
+      buildDesktopContextMenuCaps({
+        projectPath: '/repo',
+        activeSessionId: 'sess-1',
+        hostReady: false,
+        locale: 'en',
+        sideChatSupported: true,
+        applySupported: true,
+        openChangedFilesSupported: true,
+      }).canSendPreset,
+    ).toBe(false);
   });
 });
 

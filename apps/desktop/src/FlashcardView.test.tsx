@@ -1,9 +1,12 @@
 // @vitest-environment happy-dom
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { act } from 'react';
+import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { PiwinUiProvider } from '@piwin/ui-kit';
+import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { FlashcardView, FlashcardStackView } from './FlashcardView';
-import type { FlashcardReviewCard } from '@piwin/contracts';
+import { CardTutorProvider } from './flashcards/card-tutor-provider';
+import type { FlashcardReviewCard, HostCommand, HostResponse } from '@piwin/contracts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -39,41 +42,44 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
     createdAt: '2026-08-18T00:00:00.000Z',
   };
 
-  it('renders front face with question, deck, and tags without boilerplate text', () => {
-    act(() => {
-      root.render(<FlashcardView card={sampleCard} locale="zh-CN" />);
-    });
+  it('renders front face with question, deck, and tags', () => {
+    renderView(<FlashcardView card={sampleCard} locale="zh-CN" />);
 
     expect(container.textContent).toContain('什么是光合作用？');
     expect(container.textContent).toContain('生物');
     expect(container.textContent).toContain('#植物学');
-    // Ensure no boilerplate instructional noise
-    expect(container.textContent).not.toContain('翻看解答');
-    expect(container.textContent).not.toContain('点击空白');
+    expect(container.textContent).toContain('翻看解答');
   });
 
-  it('manages is-flipping transient state and cleans up after animation timer', () => {
+  function renderView(node: ReactElement): void {
     act(() => {
-      root.render(<FlashcardView card={sampleCard} locale="zh-CN" />);
+      root.render(<PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>{node}</PiwinUiProvider>);
     });
+  }
+
+  function flipCard(): void {
+    const flip = container.querySelector('[data-testid="chat-flashcard-flip"]');
+    act(() => {
+      flip?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+  }
+
+  it('manages is-flipping transient state and cleans up after animation timer', () => {
+    renderView(<FlashcardView card={sampleCard} locale="zh-CN" />);
 
     const frame = container.querySelector('.fc-quiet-frame');
     expect(frame).not.toBeNull();
     expect(frame?.classList.contains('is-flipped')).toBe(false);
     expect(frame?.classList.contains('is-flipping')).toBe(false);
 
-    // Trigger clean click
-    act(() => {
-      frame?.dispatchEvent(new MouseEvent('mousedown', { clientX: 0, clientY: 0, bubbles: true }));
-      frame?.dispatchEvent(new MouseEvent('click', { clientX: 0, clientY: 0, bubbles: true }));
-    });
+    flipCard();
 
     expect(frame?.classList.contains('is-flipped')).toBe(true);
     expect(frame?.classList.contains('is-flipping')).toBe(true);
 
-    // Advance timer past animation duration (400ms)
+    // Advance timer past animation duration (550ms)
     act(() => {
-      vi.advanceTimersByTime(500);
+      vi.advanceTimersByTime(600);
     });
 
     // is-flipping must be removed so WebKit releases temporary will-change GPU allocation
@@ -81,45 +87,17 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
     expect(frame?.classList.contains('is-flipped')).toBe(true);
   });
 
-  it('suppresses flip when dragging mouse for text selection', () => {
-    act(() => {
-      root.render(<FlashcardView card={sampleCard} locale="zh-CN" />);
-    });
-
-    const frame = container.querySelector('.fc-quiet-frame');
-    expect(frame?.classList.contains('is-flipped')).toBe(false);
-
-    // Simulate drag gesture: mousedown at (0,0), click at (20,20) (dist > 4px)
-    act(() => {
-      frame?.dispatchEvent(new MouseEvent('mousedown', { clientX: 0, clientY: 0, bubbles: true }));
-      frame?.dispatchEvent(new MouseEvent('click', { clientX: 20, clientY: 20, bubbles: true }));
-    });
-
-    // Frame must NOT flip on drag
-    expect(frame?.classList.contains('is-flipped')).toBe(false);
-
-    // Clean click with dist <= 4px flips
-    act(() => {
-      frame?.dispatchEvent(new MouseEvent('mousedown', { clientX: 0, clientY: 0, bubbles: true }));
-      frame?.dispatchEvent(new MouseEvent('click', { clientX: 1, clientY: 1, bubbles: true }));
-    });
-
-    expect(frame?.classList.contains('is-flipped')).toBe(true);
-  });
-
   it('supports keyboard navigation for flip and FSRS rating', () => {
     let capturedAction: unknown = null;
-    act(() => {
-      root.render(
-        <FlashcardView
-          card={sampleCard}
-          locale="zh-CN"
-          onAction={(a) => {
-            capturedAction = a;
-          }}
-        />,
-      );
-    });
+    renderView(
+      <FlashcardView
+        card={sampleCard}
+        locale="zh-CN"
+        onAction={(a) => {
+          capturedAction = a;
+        }}
+      />,
+    );
 
     const cardContainer = container.querySelector('.fc-quiet-card-container');
     expect(cardContainer).not.toBeNull();
@@ -133,14 +111,14 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
 
     expect(container.textContent).toContain('植物利用光能');
 
-    // Press '3' to rate 'good' (记住)
+    // Press '3' to rate 'good' (记住了)
     act(() => {
       cardContainer?.dispatchEvent(
         new KeyboardEvent('keydown', { key: '3', bubbles: true, cancelable: true }),
       );
     });
 
-    expect(container.textContent).toContain('已记录：记住');
+    expect(container.textContent).toContain('已记录：记住了');
     expect(capturedAction).toEqual({
       type: 'piwin-artifact:action',
       channelId: 'card-test-1',
@@ -164,20 +142,20 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
       createdAt: '2026-08-18T00:00:00.000Z',
     };
 
-    act(() => {
-      root.render(<FlashcardStackView cards={[sampleCard, card2]} locale="zh-CN" />);
-    });
+    renderView(<FlashcardStackView cards={[sampleCard, card2]} locale="zh-CN" />);
 
     // Top quiet navigation is present
-    expect(container.textContent).toContain('一套 (2)');
+    expect(container.textContent).toContain('卡片 (2)');
     expect(container.textContent).toContain('什么是光合作用？');
+    // Card 2 is NOT mounted in DOM (memory saving)
     expect(container.textContent).not.toContain('牛顿第一运动定律');
 
-    const tearBtn = container.querySelector('button[title="撕掉"]');
-    expect(tearBtn).not.toBeNull();
+    // Click next button
+    const nextBtn = container.querySelector('button[title="下一张"]');
+    expect(nextBtn).not.toBeNull();
 
     act(() => {
-      tearBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      nextBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
     // Card 2 is now mounted and Card 1 is cleanly unmounted from memory
@@ -204,11 +182,9 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
       back: '线粒体是细胞的**能量工厂**。',
     };
 
-    act(() => {
-      root.render(<FlashcardStackView cards={[clozeC1, clozeC2]} locale="zh-CN" />);
-    });
+    renderView(<FlashcardStackView cards={[clozeC1, clozeC2]} locale="zh-CN" />);
 
-    expect(container.textContent).not.toContain('一套 (2)');
+    expect(container.textContent).not.toContain('卡片 (2)');
     expect(container.querySelectorAll('[data-testid="chat-flashcard"]')).toHaveLength(1);
   });
 
@@ -224,14 +200,9 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
       createdAt: '2026-08-18T00:00:00.000Z',
     };
 
-    act(() => {
-      root.render(<FlashcardView card={preview} locale="zh-CN" />);
-    });
+    renderView(<FlashcardView card={preview} locale="zh-CN" />);
 
-    const frame = container.querySelector('.fc-quiet-frame');
-    act(() => {
-      frame?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    flipCard();
 
     expect(container.textContent).toContain('线粒体是');
     expect(container.querySelector('[data-testid="chat-flashcard-rate-section"]')).toBeNull();
@@ -239,14 +210,9 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
   });
 
   it('safely cleans up pending animation timer on unmount with zero leaks', () => {
-    act(() => {
-      root.render(<FlashcardView card={sampleCard} locale="zh-CN" />);
-    });
+    renderView(<FlashcardView card={sampleCard} locale="zh-CN" />);
 
-    const frame = container.querySelector('.fc-quiet-frame');
-    act(() => {
-      frame?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    flipCard();
 
     // Unmount while flip animation timer is still pending
     act(() => {
@@ -259,5 +225,225 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
         vi.advanceTimersByTime(1000);
       });
     }).not.toThrow();
+  });
+
+  function querySelectionPrimary(): Element | undefined {
+    return (
+      document.querySelector('[data-testid="card-selection-primary"]') ??
+      container.querySelector('[data-testid="card-selection-primary"]') ??
+      Array.from(document.querySelectorAll('button')).find((btn) =>
+        btn.getAttribute('data-testid') === 'card-selection-primary',
+      )
+    );
+  }
+
+  function firstTextNode(rootEl: ParentNode): Text {
+    const walker = document.createTreeWalker(rootEl, NodeFilter.SHOW_TEXT);
+    const node = walker.nextNode();
+    if (!(node instanceof Text) || node.textContent.trim().length === 0) {
+      throw new Error('expected a non-empty text node on the card face');
+    }
+    return node;
+  }
+
+  function selectRangeOnCardFace(face: Element, start: number, end: number): void {
+    const text = firstTextNode(face);
+    const range = document.createRange();
+    range.setStart(text, start);
+    range.setEnd(text, Math.min(end, text.data.length));
+    const selection = window.getSelection();
+    if (!selection) {
+      throw new Error('expected window.getSelection');
+    }
+    selection.removeAllRanges();
+    selection.addRange(range);
+    document.dispatchEvent(new Event('selectionchange'));
+  }
+
+  it('shows front primary action 给我提示 after a real Range selection on the front face', () => {
+    renderView(<FlashcardView card={sampleCard} locale="zh-CN" />);
+
+    const front = container.querySelector('.fc-quiet-front .fc-quiet-body');
+    expect(front).not.toBeNull();
+    act(() => {
+      selectRangeOnCardFace(front!, 0, 4);
+    });
+
+    const primary =
+      querySelectionPrimary() ??
+      Array.from(document.querySelectorAll('button')).find((btn) =>
+        /给我提示|Hint/i.test(btn.textContent ?? '') &&
+        btn.getAttribute('data-testid') !== 'card-tutor-fallback',
+      );
+    expect(primary).toBeTruthy();
+    expect(primary?.textContent ?? '').toMatch(/给我提示|Hint/i);
+  });
+
+  it('shows back primary action 讲解 after a real Range selection on the back face', () => {
+    renderView(<FlashcardView card={sampleCard} locale="zh-CN" />);
+
+    const cardContainer = container.querySelector('.fc-quiet-card-container');
+    act(() => {
+      cardContainer?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(container.querySelector('.fc-quiet-frame')?.classList.contains('is-flipped')).toBe(true);
+
+    const back = container.querySelector('.fc-quiet-back .fc-quiet-body');
+    expect(back).not.toBeNull();
+    act(() => {
+      selectRangeOnCardFace(back!, 0, 4);
+    });
+
+    const primary =
+      querySelectionPrimary() ??
+      Array.from(document.querySelectorAll('button')).find((btn) =>
+        /讲解|Explain/i.test(btn.textContent ?? '') &&
+        btn.getAttribute('data-testid') !== 'card-tutor-fallback',
+      );
+    expect(primary).toBeTruthy();
+    expect(primary?.textContent ?? '').toMatch(/讲解|Explain/i);
+    expect(primary?.textContent ?? '').not.toMatch(/给我提示|Hint/i);
+  });
+
+  it('does not flip the card when selecting text with a DOM Range', () => {
+    renderView(<FlashcardView card={sampleCard} locale="zh-CN" />);
+
+    const frame = container.querySelector('.fc-quiet-frame');
+    const front = container.querySelector('.fc-quiet-front .fc-quiet-body');
+    expect(frame?.classList.contains('is-flipped')).toBe(false);
+    expect(front).not.toBeNull();
+
+    act(() => {
+      selectRangeOnCardFace(front!, 0, 4);
+    });
+
+    expect(frame?.classList.contains('is-flipped')).toBe(false);
+    expect(window.getSelection()?.toString().trim().length).toBeGreaterThan(0);
+  });
+
+  it('does not flip the card when clicking text on the card face', () => {
+    renderView(<FlashcardView card={sampleCard} locale="zh-CN" />);
+
+    const frame = container.querySelector('.fc-quiet-frame');
+    const front = container.querySelector('.fc-quiet-front .fc-quiet-body');
+    expect(frame?.classList.contains('is-flipped')).toBe(false);
+    expect(front).not.toBeNull();
+
+    act(() => {
+      front?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+
+    expect(frame?.classList.contains('is-flipped')).toBe(false);
+  });
+
+  it('flips the card when Space is pressed while the card is focused', () => {
+    renderView(<FlashcardView card={sampleCard} locale="zh-CN" />);
+
+    const cardContainer = container.querySelector('.fc-quiet-card-container');
+    const frame = container.querySelector('.fc-quiet-frame');
+    expect(frame?.classList.contains('is-flipped')).toBe(false);
+
+    act(() => {
+      (cardContainer as HTMLElement | null)?.focus();
+      cardContainer?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }),
+      );
+    });
+
+    expect(frame?.classList.contains('is-flipped')).toBe(true);
+  });
+
+  it('pointer invoke requests Host explain and shows ready markdown without stealing focus', async () => {
+    const request = vi.fn(async (command: HostCommand): Promise<HostResponse> => {
+      if (command.type === 'flashcards/cancel-explanation') {
+        return { type: 'response', command: command.type, success: true, data: { cancelled: true } };
+      }
+      if (command.type !== 'flashcards/explain-selection') {
+        return { type: 'response', command: command.type, success: false, error: 'unexpected' };
+      }
+      return {
+        type: 'response',
+        command: command.type,
+        success: true,
+        data: {
+          explanationId: command.input.explanationId,
+          itemId: command.input.itemId,
+          selectedText: command.input.selectedText,
+          intent: command.input.intent,
+          markdown: '这是一条短提示。',
+        },
+      };
+    });
+
+    renderView(
+      <CardTutorProvider request={request} locale="zh-CN">
+        <FlashcardView card={sampleCard} locale="zh-CN" />
+      </CardTutorProvider>,
+    );
+
+    const front = container.querySelector('.fc-quiet-front .fc-quiet-body');
+    act(() => {
+      selectRangeOnCardFace(front!, 0, 4);
+    });
+    const primary = querySelectionPrimary();
+    expect(primary).toBeTruthy();
+
+    await act(async () => {
+      primary?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+
+    expect(container.querySelector('[data-testid="card-tutor-ready"]')).not.toBeNull();
+    expect(container.textContent).toContain('这是一条短提示。');
+    expect(document.activeElement?.getAttribute('data-testid')).not.toBe('card-tutor-heading');
+    expect(request).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'flashcards/explain-selection' }),
+    );
+  });
+
+  it('keyboard invoke focuses the tutor panel heading', async () => {
+    const request = vi.fn(async (command: HostCommand): Promise<HostResponse> => {
+      if (command.type === 'flashcards/cancel-explanation') {
+        return { type: 'response', command: command.type, success: true, data: { cancelled: true } };
+      }
+      if (command.type !== 'flashcards/explain-selection') {
+        return { type: 'response', command: command.type, success: false, error: 'unexpected' };
+      }
+      return {
+        type: 'response',
+        command: command.type,
+        success: true,
+        data: {
+          explanationId: command.input.explanationId,
+          itemId: command.input.itemId,
+          selectedText: command.input.selectedText,
+          intent: command.input.intent,
+          markdown: '键盘提示。',
+        },
+      };
+    });
+
+    renderView(
+      <CardTutorProvider request={request} locale="zh-CN">
+        <FlashcardView card={sampleCard} locale="zh-CN" />
+      </CardTutorProvider>,
+    );
+
+    const front = container.querySelector('.fc-quiet-front .fc-quiet-body');
+    const cardEl = container.querySelector('.fc-quiet-card-container');
+    act(() => {
+      (cardEl as HTMLElement | null)?.focus();
+      selectRangeOnCardFace(front!, 0, 4);
+    });
+    await act(async () => {
+      cardEl?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
+    });
+
+    expect(container.querySelector('[data-testid="card-tutor-ready"]')).not.toBeNull();
+    expect(container.textContent).toContain('键盘提示。');
+    expect(document.activeElement?.getAttribute('data-testid')).toBe('card-tutor-heading');
   });
 });

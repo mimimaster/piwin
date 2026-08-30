@@ -7,6 +7,34 @@ import type { ContextMenuTarget } from './types.js';
 
 const MAX_SELECTION_SNAPSHOT_CHARS = 8000;
 
+function selectionSnapshotRef(
+  target: Extract<ContextMenuTarget, { surface: 'selection' | 'code-block' }>,
+): Extract<PromptContextRef, { kind: 'selection' }> {
+  const selectionRef: Extract<PromptContextRef, { kind: 'selection' }> = {
+    kind: 'selection',
+    snapshotText: target.selectedText.slice(0, MAX_SELECTION_SNAPSHOT_CHARS),
+    label: target.label,
+  };
+  if (target.projectPath) selectionRef.projectPath = target.projectPath;
+  if (target.relativePath) selectionRef.relativePath = target.relativePath;
+  if (target.lineStart !== undefined) selectionRef.lineStart = target.lineStart;
+  if (target.lineEnd !== undefined) selectionRef.lineEnd = target.lineEnd;
+  return selectionRef;
+}
+
+/**
+ * Flashcard create needs the exact selected phrase as `snapshotText`.
+ * Keep path/line metadata when present; do not collapse to a file-range ref.
+ */
+export function mapTargetToFlashcardContextRef(
+  target: ContextMenuTarget,
+): PromptContextRef | null {
+  if (target.surface === 'selection' || target.surface === 'code-block') {
+    return selectionSnapshotRef(target);
+  }
+  return mapTargetToContextRef(target);
+}
+
 export function mapTargetToContextRef(target: ContextMenuTarget): PromptContextRef | null {
   switch (target.surface) {
     case 'file-tree-file':
@@ -26,7 +54,6 @@ export function mapTargetToContextRef(target: ContextMenuTarget): PromptContextR
       };
     case 'selection':
     case 'code-block': {
-      const snapshotText = target.selectedText.slice(0, MAX_SELECTION_SNAPSHOT_CHARS);
       if (
         target.projectPath &&
         target.relativePath &&
@@ -44,16 +71,7 @@ export function mapTargetToContextRef(target: ContextMenuTarget): PromptContextR
         }
         return fileRef;
       }
-      const selectionRef: Extract<PromptContextRef, { kind: 'selection' }> = {
-        kind: 'selection',
-        snapshotText,
-        label: target.label,
-      };
-      if (target.projectPath) selectionRef.projectPath = target.projectPath;
-      if (target.relativePath) selectionRef.relativePath = target.relativePath;
-      if (target.lineStart !== undefined) selectionRef.lineStart = target.lineStart;
-      if (target.lineEnd !== undefined) selectionRef.lineEnd = target.lineEnd;
-      return selectionRef;
+      return selectionSnapshotRef(target);
     }
     case 'message-user':
     case 'message-assistant':

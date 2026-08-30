@@ -2,7 +2,7 @@
  * Workbench composition root: shell chrome + host/session owners + slot tree.
  */
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import { formatError, type ThemeManifest } from '@piwin/contracts';
+import { formatError, type HostCommand, type ThemeManifest } from '@piwin/contracts';
 import { chatUiReducer, createInitialChatUiState } from './chat-reducer';
 import { useWorkbenchHostClient } from './use-workbench-host-client';
 import { MediaPreviewReadProvider } from './media-preview-read-context';
@@ -32,8 +32,9 @@ import {
 } from './use-conversation-pane-layout';
 import { sessionCreateInputForTransport } from './remote-session-hydrate';
 import { createGestureIdempotencyKey } from './gesture-idempotency';
-import { pushError } from './notification-queue';
+import { pushError, pushSuccess } from './notification-queue';
 import { WorkbenchSubpageStage } from './workbench-subpage-stage';
+import { CardTutorProvider } from './flashcards/card-tutor-provider';
 
 export type AppProps = {
   /** Resolved active manifest owned by DesktopThemeRoot. */
@@ -326,9 +327,21 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     }
   }, [currentPromptModelRef, dispatchNotification, hostClient]);
 
+  const requestHostCommand = useCallback(
+    (command: HostCommand) => hostClient.request(command),
+    [hostClient],
+  );
+
   return (
     <DesktopLocaleProvider locale={desktopLocale} onLocaleChange={handleLocaleChange}>
-      <LocalFileActionsProvider request={(command) => hostClient.request(command)}>
+      <CardTutorProvider
+        request={requestHostCommand}
+        locale={desktopLocale}
+        notify={(message) => dispatchNotification(pushSuccess(message))}
+        {...(state.activeSessionId ? { sessionId: state.activeSessionId } : {})}
+        {...(currentPromptModelRef ? { model: currentPromptModelRef } : {})}
+      >
+        <LocalFileActionsProvider request={(command) => hostClient.request(command)}>
         <MediaPreviewReadProvider sessionId={state.activeSessionId} readMedia={readTranscriptMedia}>
           <DesktopContextMenuProvider value={desktopContextMenuValue}>
             <SubagentInspectorProvider
@@ -713,7 +726,8 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
             </SubagentInspectorProvider>
           </DesktopContextMenuProvider>
         </MediaPreviewReadProvider>
-      </LocalFileActionsProvider>
+        </LocalFileActionsProvider>
+      </CardTutorProvider>
     </DesktopLocaleProvider>
   );
 }

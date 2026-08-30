@@ -2,23 +2,27 @@
    (FlashcardView.tsx, via chat-message-row.tsx / conversation-response-content.tsx).
    Split out of region-flashcards.css by responsibility (AGENTS.md 3.2).
 
-   High-density, pure-interpretation minimalist physical card aesthetic. */
+   Deck rule: this card previously hardcoded a near-black charcoal face
+   (`rgba(28, 30, 38, ...)`) regardless of theme, so it rendered as a dark
+   slab even in Bone. It gets the same treatment as the transcript's other
+   floating objects (permission-request-card, subagent slots): surface-3 at
+   rest, lifting to elev-3 on hover/focus — an object you are meant to pick up
+   and turn over, not a fixed panel. */
 
 .fc-quiet-stack {
   display: flex;
   flex-direction: column;
   gap: var(--s-4);
   width: 100%;
-  max-width: 580px;
-  margin: var(--s-3) 0 var(--s-5);
-  position: relative;
+  max-width: 640px;
+  margin: var(--s-4) 0 var(--s-5);
 }
 
 .fc-quiet-nav {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--s-3) var(--s-5);
+  padding: var(--s-4) var(--s-5);
   background: var(--surface-2);
   border: 0;
   border-radius: var(--r-card);
@@ -54,11 +58,11 @@
 }
 
 .fc-quiet-card-container {
-  perspective: 1200px;
+  perspective: 1400px;
   width: 100%;
-  user-select: none;
+  user-select: auto;
+  -webkit-user-select: auto;
   outline: none;
-  position: relative;
 }
 
 .fc-quiet-card-container:focus-visible .fc-quiet-frame {
@@ -66,71 +70,14 @@
   outline-offset: 2px;
 }
 
-/* Physical Stack Depth Layer behind top card */
-.fc-quiet-stack-layer {
-  position: absolute;
-  inset: 0;
-  top: 5px;
-  left: 5px;
-  right: 5px;
-  bottom: -5px;
-  border-radius: var(--r-overlay);
-  background: var(--surface-3);
-  border: 1px solid var(--border);
-  opacity: 0.45;
-  transform: scale(0.985);
-  z-index: 0;
-  pointer-events: none;
-}
-
-/* Floating Selection Pill */
-.fc-selection-pill {
-  position: absolute;
-  transform: translate(-50%, -100%);
-  z-index: 50;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-  padding: 3px 10px;
-  border-radius: 9999px;
-  background: var(--text-1);
-  color: var(--surface-1);
-  font-size: var(--fs-micro);
-  font-weight: 600;
-  border: none;
-  box-shadow: var(--elev-3);
-  cursor: pointer;
-  transition:
-    opacity var(--t-1) var(--ease-out),
-    transform var(--t-1) var(--ease-out);
-  white-space: nowrap;
-}
-
-.fc-selection-pill:hover {
-  opacity: 0.92;
-  transform: translate(-50%, -102%) scale(1.02);
-}
-
-.fc-selection-icon {
-  font-size: 11px;
-}
-
-.fc-selection-enter {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  opacity: 0.7;
-}
-
-/* 3D Card Frame */
 .fc-quiet-frame {
   position: relative;
   width: 100%;
   border-radius: var(--r-overlay);
   transform-style: preserve-3d;
-  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
-  cursor: pointer;
+  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+  cursor: default;
   outline: none;
-  z-index: 1;
 }
 
 .fc-quiet-frame.is-flipping {
@@ -141,29 +88,10 @@
   transform: rotateY(180deg);
 }
 
-/* Peeling Transition Animation */
-@keyframes fcPeelNext {
-  0% {
-    transform: translateY(0) scale(1) rotate(0deg);
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(-28px) scale(0.95) rotate(-1.5deg);
-    opacity: 0;
-  }
-}
-
-.fc-quiet-peeling {
-  animation: fcPeelNext 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .fc-quiet-frame {
     transition: none !important;
     transform-style: flat !important;
-  }
-  .fc-quiet-peeling {
-    animation: none !important;
   }
 }
 
@@ -177,11 +105,10 @@
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   overflow: hidden;
-  border: 1px solid var(--border);
+  border: none !important;
   background: var(--surface-3);
   box-shadow: var(--elev-2);
   transition: box-shadow var(--t-2) var(--ease-out);
-  min-height: 240px;
 }
 
 .fc-quiet-face.is-active {
@@ -213,51 +140,79 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--s-4) var(--s-5) var(--s-3);
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  padding: var(--s-5) var(--s-6) var(--s-4);
+  border-bottom: none;
   gap: var(--s-4);
 }
 
 .fc-quiet-meta {
   display: flex;
   align-items: center;
-  gap: var(--s-3);
+  gap: var(--s-4);
 }
 
 .fc-quiet-deck {
-  font-size: var(--fs-micro);
+  font-size: var(--fs-chrome);
   font-weight: 600;
-  color: var(--text-2);
-  letter-spacing: 0.02em;
+  color: var(--text-3);
 }
 
 .fc-quiet-tag {
   font-size: var(--fs-micro);
-  font-family: var(--font-mono);
   color: var(--text-4);
 }
 
+/* Sky: this is a status readout ("the answer is showing"), the same reserved
+   color the terminal and MCP use for a background process running. */
+.fc-quiet-answer-pill {
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  color: var(--sky);
+  background: color-mix(in srgb, var(--sky) 14%, transparent);
+  padding: 2px var(--s-4);
+  border-radius: var(--r-control);
+  border: none;
+}
+
+.fc-quiet-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+
 .fc-quiet-index {
-  font-family: var(--font-mono);
   font-size: var(--fs-micro);
   color: var(--text-4);
 }
 
+.fc-quiet-flip-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+}
+
+.fc-quiet-flip-badge kbd {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  padding: 2px var(--s-3);
+  border-radius: var(--r-chip);
+  background: var(--surface-4);
+  box-shadow: var(--elev-1);
+  border: none;
+  color: var(--text-2);
+}
+
 .fc-quiet-body {
-  padding: var(--s-5) var(--s-6);
+  padding: var(--s-5) var(--s-6) var(--s-6);
   flex: 1;
 }
 
-/* Selectable Pure Text Zone */
-.fc-quiet-text-zone {
-  cursor: text;
-  user-select: text;
-}
-
 .fc-quiet-body p {
-  margin: 0 0 var(--s-3) 0;
+  margin: 0 0 var(--s-4) 0;
   line-height: var(--lh-relaxed);
-  font-size: var(--fs-body);
+  font-size: var(--fs-title);
   color: var(--text-2);
 }
 
@@ -266,26 +221,24 @@
 }
 
 .fc-quiet-question p {
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 17px;
+  font-weight: 550;
   color: var(--text-1);
-  line-height: var(--lh-snug);
+  line-height: var(--lh-relaxed);
 }
 
 .fc-quiet-body blockquote {
-  margin: var(--s-4) 0;
-  padding: var(--s-3) var(--s-4);
+  margin: var(--s-5) 0;
+  padding: var(--s-4) var(--s-5);
   border-left: 3px solid var(--iris);
   background: var(--iris-wash);
   border-radius: var(--r-control);
   color: var(--text-1);
-  font-size: var(--fs-micro);
 }
 
 .fc-quiet-source-row {
-  margin-top: var(--s-4);
+  margin-top: var(--s-5);
   display: flex;
-  align-items: center;
 }
 
 .fc-quiet-source-btn {
@@ -310,61 +263,53 @@
   color: var(--text-4);
 }
 
-/* Footer / FSRS Rating Bar */
+/* Footer / Rating Bar */
 .fc-quiet-footer {
-  padding: var(--s-3) var(--s-5) var(--s-4);
+  padding: var(--s-5) var(--s-6) var(--s-6);
   background: var(--surface-2);
-  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  border-top: none;
 }
 
 .fc-quiet-rating-bar {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: var(--s-3);
+  gap: var(--s-4);
 }
 
 .fc-quiet-rate-btn {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: var(--s-3) var(--s-3);
+  justify-content: center;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-4);
   border-radius: var(--r-control);
-  border: 1px solid var(--border);
-  background: var(--surface-3);
+  border: none;
+  background: var(--hover);
   color: var(--text-1);
-  font-size: var(--fs-micro);
+  font-size: var(--fs-chrome);
   font-weight: 500;
   cursor: pointer;
   transition:
     background-color var(--t-1) var(--ease-out),
-    transform var(--t-1) var(--ease-out),
-    border-color var(--t-1) var(--ease-out);
+    transform var(--t-1) var(--ease-out);
   outline: none;
   user-select: none;
 }
 
 .fc-quiet-rate-btn:hover {
-  background: var(--hover);
+  background: var(--active);
   transform: translateY(-1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fc-quiet-rate-btn:hover {
+    transform: none;
+  }
 }
 
 .fc-rate-key {
   font-family: var(--font-mono);
-  font-size: 10px;
-  padding: 1px 4px;
-  border-radius: 3px;
-  background: var(--surface-4);
-  color: var(--text-3);
-}
-
-.fc-rate-label {
   font-size: var(--fs-micro);
-  font-weight: 600;
-}
-
-.fc-rate-interval {
-  font-family: var(--font-mono);
-  font-size: 10px;
   color: var(--text-4);
 }
 
@@ -372,7 +317,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: var(--fs-micro);
+  font-size: var(--fs-chrome);
   color: var(--text-2);
 }
 
@@ -382,7 +327,7 @@
   background: transparent;
   border: none;
   cursor: pointer;
-  padding: var(--s-2) var(--s-3);
+  padding: var(--s-2) var(--s-4);
   border-radius: var(--r-control);
   transition:
     background-color var(--t-1) var(--ease-out),
@@ -396,10 +341,10 @@
 
 /* Source Popover */
 .fc-quiet-source-popover {
-  margin-top: var(--s-3);
-  padding: var(--s-3) var(--s-4);
+  margin-top: var(--s-4);
+  padding: var(--s-4) var(--s-5);
   background: var(--surface-4);
-  border: 1px solid var(--border);
+  border: 0;
   border-radius: var(--r-card);
   font-size: var(--fs-micro);
   color: var(--text-3);
@@ -431,4 +376,3 @@
   border: none;
   cursor: pointer;
 }
-

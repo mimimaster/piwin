@@ -517,50 +517,103 @@ describe('ipc types', () => {
         expect(push.artifact.generationId).toBe('g1');
       }
     });
+  });
 
-    it('accepts ADR 0027 host/replay command shape', () => {
-      const replay: HostCommand = { type: 'host/replay', sinceSeq: 42 };
-      expect(replay.type).toBe('host/replay');
-    });
-
-    it('accepts activity/summary command shape', () => {
-      const summary: HostCommand = { type: 'activity/summary', maxItems: 16 };
-      expect(summary.type).toBe('activity/summary');
-    });
-
-    it('accepts ADR 0027 seq/eventId on any push variant', () => {
-      const status: HostPush = {
-        type: 'host/status',
-        mode: 'sdk',
-        ready: true,
-        mock: false,
-        seq: 7,
-        eventId: 'evt-7',
+  describe('flashcard tutor commands', () => {
+    it('accepts flashcards/explain-selection command shape', () => {
+      const command: HostCommand = {
+        type: 'flashcards/explain-selection',
+        input: {
+          explanationId: 'exp-1',
+          itemId: 'card-1',
+          face: 'front',
+          selectedText: 'dependency array',
+          intent: 'hint',
+          locale: 'en',
+        },
       };
-      const replayDone: HostPush = {
-        type: 'host/replay-done',
-        sinceSeq: 5,
-        lastSeq: 9,
-        seq: 10,
-        eventId: 'evt-10',
-      };
-      if (status.type === 'host/status') {
-        expect(status.seq).toBe(7);
-      }
-      if (replayDone.type === 'host/replay-done') {
-        expect(replayDone.lastSeq).toBe(9);
+      expect(command.type).toBe('flashcards/explain-selection');
+      if (command.type === 'flashcards/explain-selection') {
+        expect(command.input.intent).toBe('hint');
+        expect(command.input.face).toBe('front');
       }
     });
 
-    it('host/status capabilities include ADR 0027 remote flags', () => {
-      const status: HostPush = {
-        type: 'host/status',
-        mode: 'sdk',
-        ready: true,
-        mock: false,
+    it('accepts flashcards/explain-selection with optional session and model', () => {
+      const command: HostCommand = {
+        type: 'flashcards/explain-selection',
+        input: {
+          explanationId: 'exp-2',
+          itemId: 'card-1',
+          face: 'back',
+          selectedText: '闭包',
+          intent: 'explain',
+          locale: 'zh-CN',
+          sessionId: 's1',
+          model: { protocol: 'openai-compatible', providerId: 'p1', modelId: 'm1' },
+        },
       };
-      expect(status.type).toBe('host/status');
+      expect(command.type).toBe('flashcards/explain-selection');
+      if (command.type === 'flashcards/explain-selection') {
+        expect(command.input.sessionId).toBe('s1');
+        expect(command.input.model?.modelId).toBe('m1');
+      }
     });
+
+    it('accepts flashcards/cancel-explanation command shape', () => {
+      const command: HostCommand = {
+        type: 'flashcards/cancel-explanation',
+        explanationId: 'exp-1',
+      };
+      expect(command.type).toBe('flashcards/cancel-explanation');
+      if (command.type === 'flashcards/cancel-explanation') {
+        expect(command.explanationId).toBe('exp-1');
+      }
+    });
+  });
+
+  it('accepts ADR 0027 host/replay command shape', () => {
+    const replay: HostCommand = { type: 'host/replay', sinceSeq: 42 };
+    expect(replay.type).toBe('host/replay');
+  });
+
+  it('accepts activity/summary command shape', () => {
+    const summary: HostCommand = { type: 'activity/summary', maxItems: 16 };
+    expect(summary.type).toBe('activity/summary');
+  });
+
+  it('accepts ADR 0027 seq/eventId on any push variant', () => {
+    const status: HostPush = {
+      type: 'host/status',
+      mode: 'sdk',
+      ready: true,
+      mock: false,
+      seq: 7,
+      eventId: 'evt-7',
+    };
+    const replayDone: HostPush = {
+      type: 'host/replay-done',
+      sinceSeq: 5,
+      lastSeq: 9,
+      seq: 10,
+      eventId: 'evt-10',
+    };
+    if (status.type === 'host/status') {
+      expect(status.seq).toBe(7);
+    }
+    if (replayDone.type === 'host/replay-done') {
+      expect(replayDone.lastSeq).toBe(9);
+    }
+  });
+
+  it('host/status capabilities include ADR 0027 remote flags', () => {
+    const status: HostPush = {
+      type: 'host/status',
+      mode: 'sdk',
+      ready: true,
+      mock: false,
+    };
+    expect(status.type).toBe('host/status');
   });
 
   describe('ADR 0055 conversation tree', () => {

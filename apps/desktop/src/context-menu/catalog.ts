@@ -12,6 +12,7 @@ import type {
 type LabelTable = Record<ContextMenuActionId, string>;
 
 const EN_LABELS: LabelTable = {
+  'generate-flashcard': 'Generate flashcard',
   'add-to-chat': 'Add to Chat',
   'ask-about': 'Ask about…',
   'copy-as-ref': 'Copy as @ref',
@@ -38,6 +39,7 @@ const EN_LABELS: LabelTable = {
 };
 
 const ZH_LABELS: LabelTable = {
+  'generate-flashcard': '生成闪卡',
   'add-to-chat': '添加到对话',
   'ask-about': '询问…',
   'copy-as-ref': '复制为 @引用',
@@ -69,6 +71,7 @@ const ZH_SUBMENU_LABELS = { more: '更多…' } as const;
 type SubmenuLabelTable = { more: string };
 
 const ACTION_ICONS: Record<ContextMenuActionId, string> = {
+  'generate-flashcard': 'cards',
   'add-to-chat': 'chat',
   'ask-about': 'spark',
   'copy-as-ref': 'link',
@@ -109,12 +112,27 @@ function submenuLabelsFor(locale: ContextMenuCapabilities['locale']): SubmenuLab
 function item(
   id: ContextMenuActionId,
   labels: LabelTable,
-  options?: { disabled?: boolean; danger?: boolean; icon?: string; shortcut?: string },
+  options?: {
+    disabled?: boolean;
+    danger?: boolean;
+    icon?: string;
+    shortcut?: string;
+    /** Appended when disabled — ContextMenuItem has no title/tooltip API. */
+    disabledHint?: string;
+  },
 ): ContextMenuItemSpec {
+  const baseLabel = labels[id];
+  // zh prefers full-width parentheses for disabled suffixes.
+  const wrapHint = (hint: string): string =>
+    labels === ZH_LABELS ? `（${hint}）` : ` (${hint})`;
+  const label =
+    options?.disabled && options.disabledHint
+      ? `${baseLabel}${wrapHint(options.disabledHint)}`
+      : baseLabel;
   const spec: Extract<ContextMenuItemSpec, { type: 'item' }> = {
     type: 'item',
     id,
-    label: labels[id],
+    label,
     testId: `context-menu-${id}`,
     icon: options?.icon ?? ACTION_ICONS[id],
   };
@@ -199,17 +217,33 @@ export function buildContextMenuItems(
         item('copy-absolute-path', labels),
         ...(caps.canReveal ? [item('reveal', labels)] : []),
       ]);
-    case 'selection':
+    case 'selection': {
+      const cannotSendPreset = !caps.canSendPreset;
+      // Covers missing session and host-not-ready without blaming the wrong cause.
+      const disabledHint = caps.locale === 'zh-CN' ? '会话未就绪' : 'requires an active chat';
       return compact([
+        item('generate-flashcard', labels, {
+          disabled: cannotSendPreset,
+          ...(cannotSendPreset ? { disabledHint } : {}),
+        }),
         item('add-to-chat', labels),
         item('ask-about', labels),
-        item('explain', labels),
-        item('fix', labels),
-        ...(caps.sideChatAvailable ? [item('side-chat', labels)] : []),
         sep(),
-        item('copy-as-ref', labels),
         item('copy', labels),
+        {
+          type: 'submenu' as const,
+          id: 'more',
+          label: submenuLabelsFor(caps.locale).more,
+          icon: 'more',
+          children: [
+            item('explain', labels),
+            item('fix', labels),
+            ...(caps.sideChatAvailable ? [item('side-chat', labels)] : []),
+            item('copy-as-ref', labels),
+          ],
+        },
       ]);
+    }
     case 'code-block':
       return compact([
         item('copy', labels),

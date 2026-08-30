@@ -475,6 +475,7 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
     canReveal: false,
     sideChatAvailable: false,
     applyAvailable: false,
+    canSendPreset: false,
     locale,
   } as const;
 

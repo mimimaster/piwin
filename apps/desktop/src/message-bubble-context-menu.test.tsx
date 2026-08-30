@@ -32,6 +32,7 @@ const caps = {
   canReveal: true,
   sideChatAvailable: true,
   applyAvailable: true,
+  canSendPreset: true,
   locale: 'en' as const,
 };
 
