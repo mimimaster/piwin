@@ -5,8 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { FlashcardView, FlashcardStackView } from './FlashcardView';
-import { CardTutorProvider } from './flashcards/card-tutor-provider';
-import type { FlashcardReviewCard, HostCommand, HostResponse } from '@piwin/contracts';
+import type { FlashcardReviewCard } from '@piwin/contracts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -227,16 +226,6 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
     }).not.toThrow();
   });
 
-  function querySelectionPrimary(): Element | undefined {
-    return (
-      document.querySelector('[data-testid="card-selection-primary"]') ??
-      container.querySelector('[data-testid="card-selection-primary"]') ??
-      Array.from(document.querySelectorAll('button')).find((btn) =>
-        btn.getAttribute('data-testid') === 'card-selection-primary',
-      )
-    );
-  }
-
   function firstTextNode(rootEl: ParentNode): Text {
     const walker = document.createTreeWalker(rootEl, NodeFilter.SHOW_TEXT);
     const node = walker.nextNode();
@@ -259,53 +248,6 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
     selection.addRange(range);
     document.dispatchEvent(new Event('selectionchange'));
   }
-
-  it('shows front primary action 给我提示 after a real Range selection on the front face', () => {
-    renderView(<FlashcardView card={sampleCard} locale="zh-CN" />);
-
-    const front = container.querySelector('.fc-quiet-front .fc-quiet-body');
-    expect(front).not.toBeNull();
-    act(() => {
-      selectRangeOnCardFace(front!, 0, 4);
-    });
-
-    const primary =
-      querySelectionPrimary() ??
-      Array.from(document.querySelectorAll('button')).find((btn) =>
-        /给我提示|Hint/i.test(btn.textContent ?? '') &&
-        btn.getAttribute('data-testid') !== 'card-tutor-fallback',
-      );
-    expect(primary).toBeTruthy();
-    expect(primary?.textContent ?? '').toMatch(/给我提示|Hint/i);
-  });
-
-  it('shows back primary action 讲解 after a real Range selection on the back face', () => {
-    renderView(<FlashcardView card={sampleCard} locale="zh-CN" />);
-
-    const cardContainer = container.querySelector('.fc-quiet-card-container');
-    act(() => {
-      cardContainer?.dispatchEvent(
-        new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }),
-      );
-    });
-    expect(container.querySelector('.fc-quiet-frame')?.classList.contains('is-flipped')).toBe(true);
-
-    const back = container.querySelector('.fc-quiet-back .fc-quiet-body');
-    expect(back).not.toBeNull();
-    act(() => {
-      selectRangeOnCardFace(back!, 0, 4);
-    });
-
-    const primary =
-      querySelectionPrimary() ??
-      Array.from(document.querySelectorAll('button')).find((btn) =>
-        /讲解|Explain/i.test(btn.textContent ?? '') &&
-        btn.getAttribute('data-testid') !== 'card-tutor-fallback',
-      );
-    expect(primary).toBeTruthy();
-    expect(primary?.textContent ?? '').toMatch(/讲解|Explain/i);
-    expect(primary?.textContent ?? '').not.toMatch(/给我提示|Hint/i);
-  });
 
   it('does not flip the card when selecting text with a DOM Range', () => {
     renderView(<FlashcardView card={sampleCard} locale="zh-CN" />);
@@ -353,97 +295,5 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
     });
 
     expect(frame?.classList.contains('is-flipped')).toBe(true);
-  });
-
-  it('pointer invoke requests Host explain and shows ready markdown without stealing focus', async () => {
-    const request = vi.fn(async (command: HostCommand): Promise<HostResponse> => {
-      if (command.type === 'flashcards/cancel-explanation') {
-        return { type: 'response', command: command.type, success: true, data: { cancelled: true } };
-      }
-      if (command.type !== 'flashcards/explain-selection') {
-        return { type: 'response', command: command.type, success: false, error: 'unexpected' };
-      }
-      return {
-        type: 'response',
-        command: command.type,
-        success: true,
-        data: {
-          explanationId: command.input.explanationId,
-          itemId: command.input.itemId,
-          selectedText: command.input.selectedText,
-          intent: command.input.intent,
-          markdown: '这是一条短提示。',
-        },
-      };
-    });
-
-    renderView(
-      <CardTutorProvider request={request} locale="zh-CN">
-        <FlashcardView card={sampleCard} locale="zh-CN" />
-      </CardTutorProvider>,
-    );
-
-    const front = container.querySelector('.fc-quiet-front .fc-quiet-body');
-    act(() => {
-      selectRangeOnCardFace(front!, 0, 4);
-    });
-    const primary = querySelectionPrimary();
-    expect(primary).toBeTruthy();
-
-    await act(async () => {
-      primary?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-    });
-
-    expect(container.querySelector('[data-testid="card-tutor-ready"]')).not.toBeNull();
-    expect(container.textContent).toContain('这是一条短提示。');
-    expect(document.activeElement?.getAttribute('data-testid')).not.toBe('card-tutor-heading');
-    expect(request).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'flashcards/explain-selection' }),
-    );
-  });
-
-  it('keyboard invoke focuses the tutor panel heading', async () => {
-    const request = vi.fn(async (command: HostCommand): Promise<HostResponse> => {
-      if (command.type === 'flashcards/cancel-explanation') {
-        return { type: 'response', command: command.type, success: true, data: { cancelled: true } };
-      }
-      if (command.type !== 'flashcards/explain-selection') {
-        return { type: 'response', command: command.type, success: false, error: 'unexpected' };
-      }
-      return {
-        type: 'response',
-        command: command.type,
-        success: true,
-        data: {
-          explanationId: command.input.explanationId,
-          itemId: command.input.itemId,
-          selectedText: command.input.selectedText,
-          intent: command.input.intent,
-          markdown: '键盘提示。',
-        },
-      };
-    });
-
-    renderView(
-      <CardTutorProvider request={request} locale="zh-CN">
-        <FlashcardView card={sampleCard} locale="zh-CN" />
-      </CardTutorProvider>,
-    );
-
-    const front = container.querySelector('.fc-quiet-front .fc-quiet-body');
-    const cardEl = container.querySelector('.fc-quiet-card-container');
-    act(() => {
-      (cardEl as HTMLElement | null)?.focus();
-      selectRangeOnCardFace(front!, 0, 4);
-    });
-    await act(async () => {
-      cardEl?.dispatchEvent(
-        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
-      );
-    });
-
-    expect(container.querySelector('[data-testid="card-tutor-ready"]')).not.toBeNull();
-    expect(container.textContent).toContain('键盘提示。');
-    expect(document.activeElement?.getAttribute('data-testid')).toBe('card-tutor-heading');
   });
 });

@@ -66,8 +66,6 @@ const HOST_REQUEST_NO_TIMEOUT_MS = 0;
 const HOST_REQUEST_STATUS_TIMEOUT_MS = 3_000;
 const REMOTE_HOST_REQUEST_STATUS_TIMEOUT_MS = 15_000;
 const HOST_REQUEST_QUERY_TIMEOUT_MS = 15_000;
-/** Host tutor completion budget is 20s; the client wait must not be shorter. */
-const HOST_REQUEST_FLASHCARD_EXPLAIN_TIMEOUT_MS = 20_000;
 const HOST_REQUEST_OPERATION_TIMEOUT_MS = 120_000;
 const HOST_REQUEST_IMAGE_GENERATION_TIMEOUT_MS = 360_000;
 const HOST_REQUEST_NETWORK_QUERY_TIMEOUT_MS = 30_000;
@@ -131,8 +129,6 @@ function getHostRequestTimeoutMs(
       return HOST_REQUEST_IMAGE_GENERATION_TIMEOUT_MS;
     case 'pet/store-query':
       return HOST_REQUEST_NETWORK_QUERY_TIMEOUT_MS;
-    case 'flashcards/explain-selection':
-      return HOST_REQUEST_FLASHCARD_EXPLAIN_TIMEOUT_MS;
     default:
       return HOST_REQUEST_QUERY_TIMEOUT_MS;
   }

@@ -117,58 +117,6 @@ describe('HostClient', () => {
     });
   });
 
-  it('uses an operation timeout of at least 20s for flashcards/explain-selection', async () => {
-    const explainResponse: HostResponse = {
-      id: 'ui-1',
-      type: 'response',
-      command: 'flashcards/explain-selection',
-      success: true,
-      data: {
-        explanationId: 'e1',
-        itemId: 'c1',
-        selectedText: '光合',
-        intent: 'hint',
-        markdown: 'tip',
-      },
-    };
-    invokeMock.mockResolvedValue(explainResponse);
-    const client = new HostClient({ transport: 'live' });
-    await client.request({
-      type: 'flashcards/explain-selection',
-      input: {
-        explanationId: 'e1',
-        itemId: 'c1',
-        face: 'front',
-        selectedText: '光合',
-        intent: 'hint',
-        locale: 'zh-CN',
-      },
-    });
-    expect(invokeMock).toHaveBeenCalledWith(
-      'host_request',
-      expect.objectContaining({ timeoutMs: expect.any(Number) }),
-    );
-    const arg = invokeMock.mock.calls[0]?.[1] as { timeoutMs: number };
-    expect(arg.timeoutMs).toBeGreaterThanOrEqual(20_000);
-  });
-
-  it('keeps flashcards/cancel-explanation on the short query timeout', async () => {
-    invokeMock.mockResolvedValue({
-      id: 'ui-1',
-      type: 'response',
-      command: 'flashcards/cancel-explanation',
-      success: true,
-      data: { cancelled: true },
-    } satisfies HostResponse);
-    const client = new HostClient({ transport: 'live' });
-    await client.request({
-      type: 'flashcards/cancel-explanation',
-      explanationId: 'e1',
-    });
-    const arg = invokeMock.mock.calls[0]?.[1] as { timeoutMs: number };
-    expect(arg.timeoutMs).toBe(15_000);
-  });
-
   it('shares concurrent live connect calls so host events have one listener each', async () => {
     const unlisten = vi.fn();
     listenMock.mockResolvedValue(unlisten);

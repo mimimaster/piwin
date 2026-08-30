@@ -169,14 +169,6 @@ export async function buildDomainContext(
       context: deps.buildWalkthroughContext(),
       registry: deps.walkthroughRegistry,
     },
-    flashcardSelection: {
-      context: {
-        getCardStore: () => deps.getCardStore(),
-        loadConfig: () => loadPiwinConfig(deps.options.piwinRoot),
-        resolveSessionModel: (sessionId) => deps.sessionModels.get(sessionId),
-      },
-      registry: deps.flashcardSelectionRegistry,
-    },
     knowledge: {
       getNotesServices: () => deps.getNotesServices(),
       getCardStore: () => deps.getCardStore(),

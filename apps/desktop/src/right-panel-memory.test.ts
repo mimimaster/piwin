@@ -62,6 +62,19 @@ describe('right-panel-memory multi-tab', () => {
     });
   });
 
+  it('drops retired conversation-tree tabs from stored state', () => {
+    const storage = memoryStorage({
+      [RIGHT_PANEL_STATE_STORAGE_KEY]: JSON.stringify({
+        openTabs: ['terminal', 'branches', 'files'],
+        activeTab: 'branches',
+      }),
+    });
+    expect(readStoredRightPanelState(storage)).toEqual({
+      openTabs: ['terminal', 'files'],
+      activeTab: 'terminal',
+    });
+  });
+
   it('legacy view helpers map empty/open', () => {
     expect(readStoredRightPanelView(memoryStorage())).toBe('home');
     const storage = memoryStorage();

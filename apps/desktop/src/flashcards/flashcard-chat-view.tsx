@@ -1,13 +1,6 @@
-import { useState, useEffect, useRef, useCallback, type ReactElement, type KeyboardEvent, type MouseEvent } from 'react';
-import type { FlashcardReviewCard, FlashcardTutorFace } from '@piwin/contracts';
+import { useState, useEffect, useRef, type ReactElement, type KeyboardEvent, type MouseEvent } from 'react';
+import type { FlashcardReviewCard } from '@piwin/contracts';
 import type { ArtifactActionMessage } from '@piwin/artifact';
-import { CardSelectionPopover } from './card-selection-popover';
-import type { CardTutorInvokeSource } from './card-selection-keys';
-import { CardTutorPanel } from './card-tutor-panel';
-import { cardTutorCopy, fallbackActionLabel } from './card-tutor-copy';
-import { clipSelectionText } from './card-text-selection';
-import { useCardTutor } from './card-tutor-provider';
-import { useCardTextSelection } from './use-card-text-selection';
 import { flashcardChatCopy, flashcardRateLabel } from './flashcard-chat-copy';
 import { FlashcardChatFaces } from './flashcard-chat-faces';
 import type { FlashcardRateName } from './flashcard-rate-bar';
@@ -35,14 +28,7 @@ export function FlashcardView({
   const cardRef = useRef<HTMLDivElement>(null);
   const frontBodyRef = useRef<HTMLDivElement>(null);
   const backBodyRef = useRef<HTMLDivElement>(null);
-  const face: FlashcardTutorFace = flipped ? 'back' : 'front';
-  const activeBodyRef = flipped ? backBodyRef : frontBodyRef;
-  const selection = useCardTextSelection({ containerRef: activeBodyRef });
-  const tutor = useCardTutor();
-  const copy = cardTutorCopy(locale);
   const chatCopy = flashcardChatCopy(locale);
-  const [focusHeading, setFocusHeading] = useState(false);
-  const cancelForItem = tutor.cancelForItem;
 
   useEffect(() => {
     return () => {
@@ -53,13 +39,6 @@ export function FlashcardView({
     };
   }, []);
 
-  useEffect(() => {
-    const itemId = card.itemId;
-    return () => {
-      cancelForItem(itemId);
-    };
-  }, [card.itemId, cancelForItem]);
-
   const hasSource = Boolean(card.sourceFolder || card.sourceNoteId);
   const sourcePath = card.sourceFile
     ? `${card.sourceFile}${card.sourceLine && card.sourceLine > 0 ? `:${card.sourceLine}` : ''}`
@@ -67,15 +46,7 @@ export function FlashcardView({
       ? `note:${card.sourceNoteId}`
       : '';
 
-  const restoreCardFocus = useCallback((): void => {
-    cardRef.current?.focus();
-  }, []);
-
   const handleToggleFlip = (): void => {
-    selection.dismiss();
-    if (tutor.state.itemId === card.itemId) {
-      tutor.cancel();
-    }
     if (flipTimerRef.current !== null) {
       window.clearTimeout(flipTimerRef.current);
     }
@@ -118,31 +89,6 @@ export function FlashcardView({
     }
   };
 
-  const invokeSelection = (source: CardTutorInvokeSource = 'pointer'): void => {
-    const snap = selection.snapshot;
-    if (!snap) return;
-    setFocusHeading(source === 'keyboard');
-    void tutor.explain({
-      itemId: card.itemId,
-      face,
-      selectedText: snap.selectedText,
-      intent: face === 'front' ? 'hint' : 'explain',
-    });
-    selection.dismiss();
-  };
-
-  const invokeFallback = (): void => {
-    const faceText = face === 'front' ? card.front : card.back;
-    const selectedText = clipSelectionText(faceText);
-    if (!selectedText) return;
-    void tutor.explain({
-      itemId: card.itemId,
-      face,
-      selectedText,
-      intent: face === 'front' ? 'hint' : 'explain',
-    });
-  };
-
   const handleKeyDown = (event: KeyboardEvent): void => {
     if (event.repeat) return;
     const target = event.target;
@@ -151,11 +97,6 @@ export function FlashcardView({
       target !== event.currentTarget &&
       target.closest('button, textarea, input, [contenteditable="true"]')
     ) {
-      return;
-    }
-    if (selection.snapshot && (event.key === 'Enter' || event.key === ' ')) {
-      event.preventDefault();
-      invokeSelection('keyboard');
       return;
     }
     if (event.key === ' ') {
@@ -205,25 +146,6 @@ export function FlashcardView({
         onToggleSource={() => setSourceOpen((prev) => !prev)}
       />
 
-      <CardSelectionPopover
-        open={selection.snapshot !== null}
-        locale={locale}
-        face={face}
-        getAnchorRect={selection.getAnchorRect}
-        onInvoke={invokeSelection}
-        onDismiss={selection.dismiss}
-        restoreFocus={restoreCardFocus}
-        scopeRef={cardRef}
-      />
-
-      <CardTutorPanel
-        locale={locale}
-        itemId={card.itemId}
-        face={face}
-        item={card}
-        autoFocusHeading={focusHeading}
-      />
-
       <div className="fc-quiet-controls">
         <button
           type="button"
@@ -231,15 +153,7 @@ export function FlashcardView({
           data-testid="chat-flashcard-flip"
           onClick={handleToggleFlip}
         >
-          {flipped ? copy.flipQuestion : copy.flipAnswer}
-        </button>
-        <button
-          type="button"
-          className="fc-quiet-control-btn"
-          data-testid="card-tutor-fallback"
-          onClick={invokeFallback}
-        >
-          {fallbackActionLabel(locale, face)}
+          {flipped ? chatCopy.flipBack : chatCopy.flipToAnswer}
         </button>
       </div>
 

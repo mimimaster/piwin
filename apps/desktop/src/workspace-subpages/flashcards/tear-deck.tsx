@@ -1,14 +1,7 @@
-import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import { Button } from '@piwin/ui-kit';
-import type { FlashcardItem, FlashcardTutorFace } from '@piwin/contracts';
+import type { FlashcardItem } from '@piwin/contracts';
 import { itemPreviewText } from '@piwin/flashcards/cloze';
-import { CardSelectionPopover } from '../../flashcards/card-selection-popover';
-import type { CardTutorInvokeSource } from '../../flashcards/card-selection-keys';
-import { CardTutorPanel } from '../../flashcards/card-tutor-panel';
-import { cardTutorCopy, fallbackActionLabel } from '../../flashcards/card-tutor-copy';
-import { clipSelectionText } from '../../flashcards/card-text-selection';
-import { useCardTutor } from '../../flashcards/card-tutor-provider';
-import { useCardTextSelection } from '../../flashcards/use-card-text-selection';
 import { IconCheck, IconClose, IconRefresh, IconTrash } from '../../shell-icons';
 import { MarkdownView } from '../../MarkdownView';
 import { type TearDeckLabels, tearDeckLabels } from './tear-deck-copy';
@@ -26,7 +19,6 @@ export function TearDeck(props: {
 }): ReactElement {
   const locale = props.locale ?? 'zh-CN';
   const labels = props.labels ?? tearDeckLabels(locale);
-  const copy = cardTutorCopy(locale);
   const [index, setIndex] = useState(() => {
     const start = props.initialIndex ?? 0;
     if (props.cards.length === 0) return 0;
@@ -35,25 +27,13 @@ export function TearDeck(props: {
   const [revealed, setRevealed] = useState(false);
   const [tearing, setTearing] = useState(false);
   const [completed, setCompleted] = useState(false);
-  const [focusHeading, setFocusHeading] = useState(false);
-  const cardRef = useRef<HTMLDivElement>(null);
-  const textRef = useRef<HTMLDivElement>(null);
-  const selection = useCardTextSelection({ containerRef: textRef, enabled: !completed });
-  const tutor = useCardTutor();
 
   const current = props.cards[index];
   const total = props.cards.length;
   const hasNext = index < total - 1;
-  const face: FlashcardTutorFace = revealed ? 'back' : 'front';
-
-  const dismissTutor = useCallback((): void => {
-    selection.dismiss();
-    tutor.cancel();
-  }, [selection, tutor]);
 
   const tear = useCallback(() => {
     if (tearing) return;
-    dismissTutor();
     if (hasNext) {
       setTearing(true);
       window.setTimeout(() => {
@@ -64,61 +44,21 @@ export function TearDeck(props: {
     } else {
       setCompleted(true);
     }
-  }, [dismissTutor, hasNext, tearing]);
+  }, [hasNext, tearing]);
 
   const restart = useCallback(() => {
-    dismissTutor();
     setIndex(0);
     setRevealed(false);
     setCompleted(false);
-  }, [dismissTutor]);
-
-  const toggleReveal = useCallback((): void => {
-    selection.dismiss();
-    if (current && tutor.state.itemId === current.id) {
-      tutor.cancel();
-    }
-    setRevealed((prev) => !prev);
-  }, [current, selection, tutor]);
-
-  const closeDeck = useCallback((): void => {
-    dismissTutor();
-    props.onClose();
-  }, [dismissTutor, props]);
-
-  const restoreCardFocus = useCallback((): void => {
-    cardRef.current?.focus();
   }, []);
 
-  const invokeSelection = useCallback(
-    (source: CardTutorInvokeSource = 'pointer'): void => {
-      if (!current || !selection.snapshot) return;
-      setFocusHeading(source === 'keyboard');
-      void tutor.explain({
-        itemId: current.id,
-        face,
-        selectedText: selection.snapshot.selectedText,
-        intent: face === 'front' ? 'hint' : 'explain',
-      });
-      selection.dismiss();
-    },
-    [current, face, selection, tutor],
-  );
+  const toggleReveal = useCallback((): void => {
+    setRevealed((prev) => !prev);
+  }, []);
 
-  const invokeFallback = useCallback((): void => {
-    if (!current) return;
-    const faceText = revealed
-      ? (current.back ?? current.text ?? '')
-      : itemPreviewText(current);
-    const selectedText = clipSelectionText(faceText);
-    if (!selectedText) return;
-    void tutor.explain({
-      itemId: current.id,
-      face,
-      selectedText,
-      intent: face === 'front' ? 'hint' : 'explain',
-    });
-  }, [current, face, revealed, tutor]);
+  const closeDeck = useCallback((): void => {
+    props.onClose();
+  }, [props]);
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
@@ -134,19 +74,13 @@ export function TearDeck(props: {
         closeDeck();
         return;
       }
-      if (
-        typing ||
-        (target !== null && target.tagName === 'BUTTON')
-      ) {
+      if (typing || (target !== null && target.tagName === 'BUTTON')) {
         return;
       }
       if (completed) {
         if (event.key === 'Enter') {
           restart();
         }
-        return;
-      }
-      if (selection.snapshot) {
         return;
       }
       if (event.key === ' ' || event.key === 'Spacebar') {
@@ -163,15 +97,7 @@ export function TearDeck(props: {
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [closeDeck, completed, revealed, restart, selection.snapshot, tear, toggleReveal]);
-
-  useEffect(() => {
-    return () => {
-      tutor.cancel();
-    };
-    // TearDeck unmount cancels whatever this surface started.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [closeDeck, completed, revealed, restart, tear, toggleReveal]);
 
   if (!current || completed) {
     return (
@@ -221,20 +147,8 @@ export function TearDeck(props: {
         </button>
       </header>
 
-      <CardSelectionPopover
-        open={selection.snapshot !== null}
-        locale={locale}
-        face={face}
-        getAnchorRect={selection.getAnchorRect}
-        onInvoke={invokeSelection}
-        onDismiss={selection.dismiss}
-        restoreFocus={restoreCardFocus}
-        scopeRef={cardRef}
-      />
-
       <main className="fcws-tear-stage">
         <article
-          ref={cardRef}
           className={`fcws-tear-card${tearing ? ' is-tearing' : ''}${revealed ? ' is-revealed' : ''}`}
           data-testid="flashcards-tear-card"
           tabIndex={0}
@@ -251,7 +165,6 @@ export function TearDeck(props: {
 
           <div className="fcws-tear-text-wrap fc-quiet-text-zone">
             <div
-              ref={textRef}
               className="fcws-tear-content"
               data-testid={revealed ? 'flashcards-tear-back' : 'flashcards-tear-front'}
             >
@@ -270,23 +183,12 @@ export function TearDeck(props: {
             </div>
           ) : null}
         </article>
-
-        <CardTutorPanel
-          locale={locale}
-          itemId={current.id}
-          face={face}
-          item={current}
-          autoFocusHeading={focusHeading}
-        />
       </main>
 
       <footer className="fcws-tear-actions">
         <Button variant="secondary" size="default" onClick={toggleReveal}>
-          <span>{revealed ? copy.flipQuestion : copy.flipAnswer}</span>
+          <span>{revealed ? labels.question : labels.answer}</span>
           <kbd className="fc-rate-key">Space</kbd>
-        </Button>
-        <Button variant="ghost" size="default" data-testid="card-tutor-fallback" onClick={invokeFallback}>
-          {fallbackActionLabel(locale, face)}
         </Button>
 
         {hasNext ? (
@@ -298,10 +200,7 @@ export function TearDeck(props: {
             variant="primary"
             size="default"
             data-testid="flashcards-tear-end"
-            onClick={() => {
-              dismissTutor();
-              setCompleted(true);
-            }}
+            onClick={() => setCompleted(true)}
           >
             {labels.lastCard}
           </Button>
