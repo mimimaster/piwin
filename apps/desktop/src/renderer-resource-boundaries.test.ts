@@ -260,7 +260,8 @@ describe('Desktop renderer resource boundaries', () => {
 
   it('does not import the Node flashcards barrel into the renderer', () => {
     // `@piwin/flashcards` re-exports card-store (node:fs). Loading that barrel
-    // in the WebView whitescreens the shell. Browser code may only use /cloze.
+    // in the WebView whitescreens the shell. Browser code may only use Node-free
+    // exports (`/cloze`, `/study-sequence`).
     const desktopSrc = fileURLToPath(new URL('.', import.meta.url));
     const hits: string[] = [];
     const files: string[] = [];

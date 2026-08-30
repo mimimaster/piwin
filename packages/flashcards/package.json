@@ -15,6 +15,11 @@
       "types": "./src/cloze.ts",
       "import": "./src/cloze.ts",
       "default": "./src/cloze.ts"
+    },
+    "./study-sequence": {
+      "types": "./src/study-sequence.ts",
+      "import": "./src/study-sequence.ts",
+      "default": "./src/study-sequence.ts"
     }
   },
   "scripts": {
