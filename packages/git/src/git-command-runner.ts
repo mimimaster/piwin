@@ -60,6 +60,7 @@ export class GitCommandError extends Error {
 type ExecFileFailure = {
   code?: number | string | null;
   killed?: boolean;
+  signal?: string | null;
   stdout?: string | Buffer;
   stderr?: string | Buffer;
   message?: string;
@@ -68,10 +69,14 @@ type ExecFileFailure = {
 export function classifyGitCommandError(err: {
   code?: number | string | null;
   killed?: boolean;
+  signal?: string | null;
   message?: string;
 }): GitCommandErrorKind {
   const message = err.message ?? '';
-  const timedOut = err.code === 'ERR_TIMEOUT' || message.includes('TIMEOUT');
+  const timedOut =
+    err.code === 'ERR_TIMEOUT' ||
+    message.includes('TIMEOUT') ||
+    (err.code == null && (err.signal === 'SIGTERM' || err.signal === 'SIGKILL'));
   if (err.killed === true && timedOut) {
     return 'timeout';
   }
