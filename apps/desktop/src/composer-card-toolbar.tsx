@@ -215,15 +215,12 @@ export function ComposerCardToolbar({
         ) : null}
 
         {/* Context usage ring */}
-        <ComposerContextUsageControl
-          usage={props.contextUsage}
-          {...(typeof props.modelContextWindow === 'number'
-            ? { modelContextWindow: props.modelContextWindow }
-            : {})}
-          {...(props.onOpenModelSettings ? { onOpenModelSettings: props.onOpenModelSettings } : {})}
-          isConversationSession={props.isConversationSession === true}
-          locale={locale === 'en' ? 'en' : 'zh-CN'}
-        />
+        {props.contextRingView ? (
+          <ComposerContextUsageControl
+            view={props.contextRingView}
+            {...(props.onOpenModelSettings ? { onOpenModelSettings: props.onOpenModelSettings } : {})}
+          />
+        ) : null}
 
         <ComposerActionSlot
           copy={copy}

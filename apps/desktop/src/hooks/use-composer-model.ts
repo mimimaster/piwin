@@ -57,6 +57,7 @@ export type UseComposerModelControllerArgs = {
   generalSessions: readonly SessionListItemUi[];
   activeSessionId: string | null;
   contextUsage: ContextUsageSnapshot | null;
+  contextSnapshot?: import('@piwin/contracts').SessionContextSnapshot | null;
   streaming: boolean;
   compacting: boolean;
   dispatch: Dispatch<ChatUiAction>;
@@ -117,6 +118,7 @@ export function useComposerModelController(args: UseComposerModelControllerArgs)
     generalSessions,
     activeSessionId,
     contextUsage,
+    contextSnapshot,
     streaming,
     compacting,
     dispatch,
@@ -321,7 +323,7 @@ export function useComposerModelController(args: UseComposerModelControllerArgs)
       if (!nextModel || nextModelKey === selectedModelKey || modelSwitchInFlightRef.current) {
         return;
       }
-      const occupiedTokens = readContextOccupiedTokens(contextUsage);
+      const occupiedTokens = readContextOccupiedTokens(contextSnapshot ?? contextUsage);
       const targetBudget = resolveModelContextBudget({
         ...(nextModel.contextWindow !== undefined
           ? { contextWindow: nextModel.contextWindow }
@@ -399,6 +401,7 @@ export function useComposerModelController(args: UseComposerModelControllerArgs)
       compacting,
       config?.thinking?.ultraEnabled,
       contextUsage,
+      contextSnapshot,
       dispatch,
       dispatchNotification,
       hostClient,

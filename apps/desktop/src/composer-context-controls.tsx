@@ -1,23 +1,15 @@
 import type { ReactElement } from 'react';
-import type { ContextUsageSnapshot } from '@piwin/contracts';
 import { ContextUsageRing } from './context-usage-ring';
+import type { ContextRingViewModel } from './context-telemetry-selector.js';
 
 export function ComposerContextUsageControl(props: {
-  usage: ContextUsageSnapshot | null;
-  modelContextWindow?: number;
+  view: ContextRingViewModel;
   onOpenModelSettings?: () => void;
-  isConversationSession?: boolean;
-  locale: string;
-}): ReactElement {
+}): ReactElement | null {
   return (
     <ContextUsageRing
-      usage={props.usage}
-      {...(typeof props.modelContextWindow === 'number'
-        ? { modelContextWindow: props.modelContextWindow }
-        : {})}
+      view={props.view}
       {...(props.onOpenModelSettings ? { onOpenModelSettings: props.onOpenModelSettings } : {})}
-      isConversationSession={props.isConversationSession === true}
-      locale={props.locale === 'en' ? 'en' : 'zh-CN'}
     />
   );
 }

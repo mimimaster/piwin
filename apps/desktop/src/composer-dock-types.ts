@@ -113,6 +113,7 @@ export type ComposerDockProps = {
   /** Host capability; when false compact slash is unavailable. Default true. */
   compactionSupported?: boolean;
   contextUsage: ContextUsageSnapshot | null;
+  contextRingView?: import('./context-telemetry-selector.js').ContextRingViewModel;
   modelContextWindow?: number;
   onOpenModelSettings?: () => void;
   thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
