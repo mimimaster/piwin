@@ -123,6 +123,12 @@ export type { ColorInputProps } from './color-input.js';
 export { Card } from './card.js';
 export type { CardProps } from './card.js';
 
+export { FlashcardFace } from './flashcard-face.js';
+export type { FlashcardFaceProps } from './flashcard-face.js';
+
+export { TearDeckSurface, FLASHCARD_TEAR_DURATION_MS } from './tear-deck-surface.js';
+export type { TearDeckSurfaceProps } from './tear-deck-surface.js';
+
 /** Shared redesigned icons and file type badges. */
 export * from './icons/index.js';
 
