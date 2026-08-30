@@ -38,7 +38,7 @@ import { TurnWorkDetails } from './turn-work-details';
 import type { DocumentOpenInput } from './tool-call-card';
 import { AssemblySummaryCapsule } from './assembly-summary-capsule';
 import { WalkthroughAction } from './walkthrough-action';
-import { FilesChangedBar, type FilesChangedBarRequest } from './files-changed-bar';
+import { ChatTurnFilesSummary, type FilesChangedBarRequest } from './chat-turn-files-summary';
 import { ImageGenerationProgress } from './image-generation-progress';
 import { VideoGenerationProgress } from './video-generation-progress';
 import {
@@ -590,19 +590,17 @@ export const ChatMessageRow = memo(
             {...(props.locale ? { locale: props.locale } : {})}
           />
         )}
-        {props.isConversationSession !== true &&
-        message.role === 'assistant' &&
-        message.tools.length > 0 ? (
-          <FilesChangedBar
-            tools={message.tools}
-            {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
-            {...(props.filesChangedRequest !== undefined
-              ? { request: props.filesChangedRequest }
-              : {})}
-            {...(props.onReviewChanges !== undefined ? { onReview: props.onReviewChanges } : {})}
-            {...(props.locale ? { locale: props.locale } : {})}
-          />
-        ) : null}
+        <ChatTurnFilesSummary
+          role={message.role}
+          tools={message.tools}
+          {...(props.isConversationSession !== undefined
+            ? { isConversationSession: props.isConversationSession }
+            : {})}
+          {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
+          {...(props.filesChangedRequest !== undefined ? { request: props.filesChangedRequest } : {})}
+          {...(props.onReviewChanges !== undefined ? { onReview: props.onReviewChanges } : {})}
+          {...(props.locale ? { locale: props.locale } : {})}
+        />
         {props.isConversationSession !== true &&
         message.role === 'assistant' &&
         props.isLastAssistantInTurn === true &&
