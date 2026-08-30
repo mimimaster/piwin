@@ -154,6 +154,10 @@ export async function handleSessionBranchCommand(
         context.pendingBranchCalibrationBySession.set(command.sessionId, offPathWrites);
       }
       await pushBranchUpdated(context, command.sessionId, liveStore);
+      await context.sessionContextCoordinator?.invalidate(command.sessionId, {
+        reason: 'branch-switch',
+        empty: remaining.length === 0,
+      });
       const data: SessionBranchSwitchData = {
         status: 'switched',
         sessionId: command.sessionId,

@@ -215,5 +215,6 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
         }));
     },
     replaceRuntimeForModel: (sessionId) => deps.replaceRuntimeForModel(sessionId),
+    sessionContextCoordinator: deps.sessionContextCoordinator,
   };
 }

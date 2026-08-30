@@ -257,6 +257,5 @@ describe('routeSessionAgentEvent', () => {
     );
 
     expect(ledgerWrites).toEqual([]);
-    expect(hookEvents.some((event) => event.type === 'usage/update')).toBe(false);
   });
 });

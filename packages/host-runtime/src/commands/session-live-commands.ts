@@ -416,6 +416,10 @@ export async function handleSessionLiveCommand(
       await upsertSessionRecord(indexPath, record);
       // Subtree deletion can move the leaf and dissolve branch points.
       await pushBranchUpdated(context, command.sessionId, store);
+      await context.sessionContextCoordinator?.invalidate(command.sessionId, {
+        reason: 'truncate',
+        empty: truncated.remainingCount === 0,
+      });
       return ok(requestId, 'session/truncate-from', {
         sessionId: command.sessionId,
         removedCount: truncated.removedCount,
@@ -497,13 +501,17 @@ export async function handleSessionLiveCommand(
       if (restoredModel) {
         context.sessionModels.set(command.sessionId, restoredModel);
       }
-      const restoredUsage = await context.loadSessionUsage(command.sessionId);
-      const contextSnapshot = await readOrInsertUnknownContextState(store, {
-        sessionId: command.sessionId,
-        reason: 'never-sampled',
-        updatedAt: new Date().toISOString(),
-      });
+      const contextSnapshot = context.sessionContextCoordinator
+        ? await context.sessionContextCoordinator.getSnapshot(command.sessionId)
+        : await readOrInsertUnknownContextState(store, {
+            sessionId: command.sessionId,
+            reason: 'never-sampled',
+            updatedAt: new Date().toISOString(),
+          });
       const lastRequestUsage = await store.readLatestAssistantUsageForActivePath();
+      const restoredUsage =
+        context.sessionContextCoordinator?.projectLegacyUsage(contextSnapshot) ??
+        (await context.loadSessionUsage(command.sessionId));
       const data: SessionResumeData = {
         sessionId: command.sessionId,
         live,
