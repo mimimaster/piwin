@@ -38,8 +38,7 @@ export function createEmptyMockContextSnapshot(
 }
 
 export class MockContextTelemetryStore {
-  /** WP5 flips this after covering tests exist. */
-  advertiseVersion = false;
+  advertiseVersion = true;
   private readonly sessions = new Map<string, MockContextSessionState>();
 
   clear(): void {

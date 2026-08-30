@@ -63,7 +63,7 @@ describe('session/context-get and resume unknown snapshots', () => {
       if (!status.success) throw new Error(status.error);
       const data = status.data as HostStatusData;
       expect(data.activeSessionIds).not.toContain(sessionId);
-      expect(data.capabilities.contextTelemetryVersion).toBeUndefined();
+      expect(data.capabilities.contextTelemetryVersion).toBe(1);
     } finally {
       await runtime.dispose();
     }
