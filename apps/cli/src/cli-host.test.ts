@@ -35,6 +35,38 @@ describe('openCliHost', () => {
     }
   });
 
+  it('forwards caller-owned keys to in-process HostRuntime', async () => {
+    delete process.env.PIWIN_HOST_URL;
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-cli-host-key-'));
+    const host = await openCliHost({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    try {
+      const missing = await host.handleCommand({
+        type: 'flashcards/study/start',
+        mode: 'scheduled',
+        scope: { kind: 'all' },
+        resumeExisting: true,
+      });
+      expect(missing).toMatchObject({
+        success: false,
+        problem: { code: 'idempotency-key-required' },
+      });
+      const withKey = await host.handleCommand(
+        {
+          type: 'flashcards/study/start',
+          mode: 'scheduled',
+          scope: { kind: 'all' },
+          resumeExisting: true,
+        },
+        { idempotencyKey: 'cli-in-process-1' },
+      );
+      expect(withKey.success === false ? withKey.problem?.code : undefined).not.toBe(
+        'idempotency-key-required',
+      );
+    } finally {
+      await host.dispose();
+    }
+  });
+
   it('refuses attached mutations without a caller-owned key and reuses one attempt', async () => {
     const sent: Array<{ type: string; key?: string }> = [];
     const handleCommand = createAttachedCliCommandHandler(async (command, options) => {
