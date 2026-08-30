@@ -48,6 +48,8 @@ import type {
   QueuedTurnRecord,
   ThemeManifest,
 } from '@piwin/contracts';
+import { handleMockAuthCommand } from './host-client-mock-auth.js';
+import { handleMockLiveCommand, type MockLiveSlot } from './host-client-mock-live.js';
 import {
   isJobTerminal,
   isRunTerminal,
@@ -153,6 +155,7 @@ export class MockHostBackend {
   /** Guards the exactly-once terminal transition for each mock run. */
   private mockTerminalRunIds = new Set<string>();
   private mockRuns = new Map<string, ExecutionRunRecord>();
+  private mockLiveSlot: MockLiveSlot | null = null;
   private mockConfig: import('@piwin/contracts').PiwinConfig = {
     hostMode: 'sdk',
     providers: [],
@@ -326,6 +329,10 @@ export class MockHostBackend {
       this.e2eCommandCounts.sessionList += 1;
     } else if (command.type === 'session/list-page') {
       this.e2eCommandCounts.sessionListPage += 1;
+    }
+    const mockAuth = handleMockAuthCommand(this, command, id);
+    if (mockAuth) {
+      return mockAuth;
     }
     switch (command.type) {
       case 'host/ping':
@@ -2128,6 +2135,28 @@ export class MockHostBackend {
           },
         };
       }
+      case 'media/list': {
+        return {
+          id,
+          type: 'response',
+          command: 'media/list',
+          success: true,
+          data: { items: [], total: 0 },
+        };
+      }
+      case 'media/delete': {
+        return {
+          id,
+          type: 'response',
+          command: 'media/delete',
+          success: true,
+          data: {
+            deleted: true,
+            sessionId: command.input.sessionId,
+            assetId: command.input.assetId,
+          },
+        };
+      }
       case 'preview/read-trusted-text': {
         return {
           id,
@@ -2638,6 +2667,7 @@ export class MockHostBackend {
             source: 'bundled' as const,
             path: '/mock/.piwin/extensions/path-guard.ts',
             enabled: !this.mockDisabledExtensionIds.has('path-guard'),
+            hookEvents: ['tool_call'],
           },
           {
             id: 'goal',
@@ -4629,7 +4659,18 @@ export class MockHostBackend {
         };
       }
 
-      default:
+      default: {
+        const live = handleMockLiveCommand({
+          command,
+          id,
+          config: this.mockConfig,
+          emitPush: (message) => this.emitPush(message),
+          slot: this.mockLiveSlot,
+          setSlot: (slot) => {
+            this.mockLiveSlot = slot;
+          },
+        });
+        if (live) return live;
         return {
           id,
           type: 'response',
@@ -4637,6 +4678,7 @@ export class MockHostBackend {
           success: false,
           error: `mock client does not implement ${command.type}`,
         };
+      }
     }
   }
 

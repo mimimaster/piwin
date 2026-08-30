@@ -315,6 +315,7 @@ pub fn run() {
                 let _ = application.emit("host-log", serde_json::json!({
                     "level": "info",
                     "message": format!("ShutdownReport: {}", serde_json::to_string(&report).unwrap_or_default()),
+                    "pendingRequestCount": host_obs.pending_request_count,
                 }));
 
                 let shutdown_state = application.state::<ShutdownState>();

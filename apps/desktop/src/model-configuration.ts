@@ -2,6 +2,7 @@ import {
   DEFAULT_MODEL_CONTEXT_WINDOW,
   DEFAULT_MODEL_MAX_OUTPUT_TOKENS,
   isLikelyImageGenerationModel,
+  isLikelyRealtimeAudioModel,
   isLikelyVideoGenerationModel,
   modelSupportsCapability,
   THINKING_LEVEL_OPTIONS,
@@ -47,6 +48,8 @@ export type ModelConfigurationDraft = {
   supportsSpeechToText: boolean;
   /** Maps to `capabilities` including `text-to-speech`. */
   supportsTextToSpeech: boolean;
+  /** Maps to `capabilities` including `realtime-audio` (piwin Live OpenAI-Realtime channel). */
+  supportsRealtimeAudio: boolean;
   /** Maps to `capabilities` including `native-web-search`. */
   supportsNativeWebSearch: boolean;
   /** Maps to `reasoning`. */
@@ -117,6 +120,9 @@ export function createModelConfigurationDraft(
     supportsVideoGeneration: likelyVideo,
     supportsSpeechToText: effective.capabilities?.includes('speech-to-text') ?? false,
     supportsTextToSpeech: effective.capabilities?.includes('text-to-speech') ?? false,
+    supportsRealtimeAudio:
+      effective.capabilities?.includes('realtime-audio') === true ||
+      isLikelyRealtimeAudioModel(effective.id, effective.label, effective.capabilities),
     supportsNativeWebSearch: modelSupportsCapability(effective, 'native-web-search'),
     reasoning: generationOnly ? effective.reasoning === true : (effective.reasoning ?? true),
     ...hydrateGenerationRouteDraft(
@@ -177,6 +183,9 @@ export function createModelConfigurationEntry(
   }
   if (draft.supportsTextToSpeech) {
     capabilities.push('text-to-speech');
+  }
+  if (draft.supportsRealtimeAudio) {
+    capabilities.push('realtime-audio');
   }
   if (draft.supportsNativeWebSearch) {
     capabilities.push('native-web-search');
@@ -277,6 +286,7 @@ export function applyModelConfigurationDraft(
       capability !== 'video-generation' &&
       capability !== 'speech-to-text' &&
       capability !== 'text-to-speech' &&
+      capability !== 'realtime-audio' &&
       capability !== 'native-web-search',
   );
   const editedCapabilities = new Set<ModelCapability>(preservedCapabilities);
@@ -284,6 +294,7 @@ export function applyModelConfigurationDraft(
   if (draft.supportsVideoGeneration) editedCapabilities.add('video-generation');
   if (draft.supportsSpeechToText) editedCapabilities.add('speech-to-text');
   if (draft.supportsTextToSpeech) editedCapabilities.add('text-to-speech');
+  if (draft.supportsRealtimeAudio) editedCapabilities.add('realtime-audio');
   if (draft.supportsNativeWebSearch) editedCapabilities.add('native-web-search');
   if (editedCapabilities.size > 0) {
     updated.capabilities = [...editedCapabilities];

@@ -12,6 +12,7 @@ import {
   type PromptTemplateSummary,
   type SkillSummary,
 } from '@piwin/contracts';
+import { readExtensionHookEvents } from './detect-extension-hooks.js';
 
 export type PiNativeInventoryDiagnostic = {
   code: 'invalid-settings' | 'unresolved' | 'empty-package';
@@ -548,6 +549,7 @@ async function buildExtension(
   if (!name) return null;
   const pathForLoader = directoryPath ?? entryPath;
   const contentRevision = await hashPath(pathForLoader);
+  const hookEvents = await readExtensionHookEvents(entryPath);
   return {
     id: normalizeResourceId(name),
     name,
@@ -557,6 +559,7 @@ async function buildExtension(
     enabled: true,
     configuredEnabled: true,
     contentRevision,
+    ...(hookEvents ? { hookEvents: [...hookEvents] } : {}),
   };
 }
 

@@ -8,8 +8,9 @@
  * Manual save in the drawer; the enable switch in the list persists immediately.
  */
 
-import { useMemo, useRef, useState, type ReactElement } from 'react';
-import { formatError } from '@piwin/contracts';
+import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import { formatError, isProviderEnabled, isSubscriptionProvider } from '@piwin/contracts';
+import type { AuthStatusData } from '@piwin/contracts';
 import type {
   ModelConfigEntry,
   ModelDiscoveryResult,
@@ -33,6 +34,7 @@ import {
   resolveDefaultAfterProviderChange,
   type ProviderDraft,
 } from './provider-draft.js';
+import { useSettings } from './settings/settings-context.js';
 
 export type DiscoverModelsOptions = {
   apiKey?: string;
@@ -75,6 +77,31 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
   const common = translator.common;
   const isChinese = locale === 'zh-CN';
   const confirmDialog = useConfirmDialog();
+  const { hostClient } = useSettings();
+  const [reservedSubscriptionIds, setReservedSubscriptionIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!hostClient?.request) {
+      return;
+    }
+    void hostClient.request({ type: 'auth/status' }).then((response) => {
+      if (!response.success || !response.data || typeof response.data !== 'object') {
+        return;
+      }
+      const data = response.data as AuthStatusData;
+      setReservedSubscriptionIds(
+        data.accounts
+          .filter(
+            (account) =>
+              account.state === 'logged-in' ||
+              account.state === 'logging-in' ||
+              account.state === 'sync-error' ||
+              account.state === 'needs-reauth',
+          )
+          .map((account) => account.providerId),
+      );
+    });
+  }, [hostClient]);
 
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'on' | 'off'>('all');
@@ -282,10 +309,10 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
   function handleAddFromPreset(preset: ProviderPreset): void {
     // One vendor may back many channels (own baseUrl + key each), so a preset
     // that is already configured still yields a new unique provider entry.
-    const id = allocateUniqueProviderId(
-      preset.id,
-      config.providers.map((provider) => provider.id),
-    );
+    const id = allocateUniqueProviderId(preset.id, [
+      ...config.providers.map((provider) => provider.id),
+      ...reservedSubscriptionIds,
+    ]);
     const name = allocateUniqueProviderName(
       preset.name,
       config.providers.map((provider) => provider.name),
@@ -309,6 +336,14 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
   }
 
   function handleOpenDrawer(provider: ModelProviderConfig): void {
+    if (isSubscriptionProvider(provider)) {
+      onInfo(
+        isChinese
+          ? '套餐提供商没有 API Key。展开这一行即可开关模型、改参数、设默认。'
+          : 'Subscription providers have no API key. Expand the row to toggle models, edit params, and set the default.',
+      );
+      return;
+    }
     setDrawer({ draft: providerToDraft(provider), isNew: false });
   }
 
@@ -359,6 +394,8 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
   }
 
   async function handleSetDefaultModelFromList(providerId: string, modelId: string): Promise<void> {
+    const provider = config.providers.find((entry) => entry.id === providerId);
+    if (!provider || !isProviderEnabled(provider)) return;
     const next: PiwinConfig = {
       ...config,
       defaultProviderId: providerId,
@@ -368,6 +405,8 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
   }
 
   async function handleToggleModelFromList(providerId: string, modelId: string): Promise<void> {
+    const target = config.providers.find((entry) => entry.id === providerId);
+    if (!target || !isProviderEnabled(target)) return;
     const nextProviders = config.providers.map((provider) => {
       if (provider.id !== providerId) return provider;
       const nextModels = provider.models.map((model) =>

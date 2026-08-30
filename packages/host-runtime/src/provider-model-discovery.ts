@@ -13,6 +13,7 @@ import type {
 import {
   formatError,
   isLikelyImageGenerationModel,
+  isLikelyRealtimeAudioModel,
   isLikelyVideoGenerationModel,
   lookupVideoGenerationRegistry,
   matchImageCatalog,
@@ -265,10 +266,12 @@ function enrichDiscoveredModelFromCatalog(
   videoMetadata: ExplicitVideoGenerationMetadata | undefined,
 ): DiscoveredModel {
   const enriched = enrichFromCatalog(model, lookupCatalogByModelId(model.id));
-  return enrichVideoGenerationCapability(
-    enrichImageGenerationCapability(enriched),
-    protocol,
-    videoMetadata,
+  return enrichRealtimeAudioCapability(
+    enrichVideoGenerationCapability(
+      enrichImageGenerationCapability(enriched),
+      protocol,
+      videoMetadata,
+    ),
   );
 }
 
@@ -348,4 +351,13 @@ function enrichVideoGenerationCapability(
   }
 
   return model;
+}
+
+function enrichRealtimeAudioCapability(model: DiscoveredModel): DiscoveredModel {
+  if (!isLikelyRealtimeAudioModel(model.id, model.label, model.capabilities)) {
+    return model;
+  }
+  const capabilities = new Set<ModelCapability>(model.capabilities ?? []);
+  capabilities.add('realtime-audio');
+  return { ...model, capabilities: [...capabilities] };
 }

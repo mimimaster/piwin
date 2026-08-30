@@ -148,6 +148,8 @@ export type QueuedTurnRow = {
       if (metadata.workspaceWrites !== undefined) {
         message.workspaceWrites = metadata.workspaceWrites;
       }
+      if (metadata.promptSource !== undefined) message.source = metadata.promptSource;
+      if (metadata.voiceCallId !== undefined) message.voiceCallId = metadata.voiceCallId;
     }
     return message;
   }

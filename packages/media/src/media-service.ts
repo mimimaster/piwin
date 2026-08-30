@@ -1,8 +1,13 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, realpath, stat, unlink, writeFile } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
 import { contentKindForMimeType } from '@piwin/contracts';
-import type { MediaReadFailureReason, SaveMediaInput, SavedMediaAsset } from '@piwin/contracts';
+import type {
+  MediaReadFailureReason,
+  MediaThumbEdge,
+  SaveMediaInput,
+  SavedMediaAsset,
+} from '@piwin/contracts';
 import { assertAttachmentPayloadSafe } from './attachment-policy.js';
 
 export type MediaServiceOptions = {
@@ -21,6 +26,28 @@ const MIME_TO_EXT: Record<string, string> = {
   'video/webm': '.webm',
   'video/quicktime': '.mov',
   'application/pdf': '.pdf',
+  'text/plain': '.txt',
+  'text/markdown': '.md',
+  'application/json': '.json',
+  'text/csv': '.csv',
+  'text/tab-separated-values': '.tsv',
+  'text/html': '.html',
+  'text/css': '.css',
+  'application/javascript': '.js',
+  'application/typescript': '.ts',
+  'application/xml': '.xml',
+  'application/yaml': '.yaml',
+  'application/toml': '.toml',
+  'application/x-sh': '.sh',
+  'application/sql': '.sql',
+  'image/svg+xml': '.svg',
+  'application/msword': '.doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+  'application/vnd.ms-excel': '.xls',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+  'application/vnd.ms-powerpoint': '.ppt',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+  'application/zip': '.zip',
 };
 
 const EXT_TO_MIME: Record<string, string> = {
@@ -33,12 +60,37 @@ const EXT_TO_MIME: Record<string, string> = {
   '.webm': 'video/webm',
   '.mov': 'video/quicktime',
   '.pdf': 'application/pdf',
+  '.txt': 'text/plain',
+  '.md': 'text/markdown',
+  '.json': 'application/json',
+  '.csv': 'text/csv',
+  '.tsv': 'text/tab-separated-values',
+  '.html': 'text/html',
+  '.css': 'text/css',
+  '.js': 'application/javascript',
+  '.ts': 'application/typescript',
+  '.xml': 'application/xml',
+  '.yaml': 'application/yaml',
+  '.yml': 'application/yaml',
+  '.toml': 'application/toml',
+  '.sh': 'application/x-sh',
+  '.zsh': 'application/x-sh',
+  '.sql': 'application/sql',
+  '.svg': 'image/svg+xml',
+  '.doc': 'application/msword',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.xls': 'application/vnd.ms-excel',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.ppt': 'application/vnd.ms-powerpoint',
+  '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  '.zip': 'application/zip',
 };
 
 export type ReadMediaInput = {
   sessionId: string;
   assetId: string;
   maxBytes: number;
+  thumbEdge?: MediaThumbEdge;
 };
 
 export type ReadMediaResult =
@@ -62,6 +114,13 @@ export function createMediaService(options: MediaServiceOptions) {
     },
     async readMediaAsset(input: ReadMediaInput): Promise<ReadMediaResult> {
       return readMediaAsset(options, input);
+    },
+    async readMediaThumb(input: ReadMediaInput): Promise<ReadMediaResult> {
+      const { readMediaThumb } = await import('./media-thumb.js');
+      return readMediaThumb(options, input);
+    },
+    async deleteMediaAsset(input: { sessionId: string; assetId: string }): Promise<boolean> {
+      return deleteMediaAsset(options, input);
     },
     resolveMediaPath(absolutePath: string): string {
       return assertInsideMediaRoot(options.mediaRoot, absolutePath);
@@ -99,6 +158,14 @@ export async function saveMediaAsset(
   assertInsideMediaRoot(options.mediaRoot, absolutePath);
   await writeFile(absolutePath, input.bytes);
   await assertRealPathInsideMediaRoot(options.mediaRoot, absolutePath);
+  if (mimeType.startsWith('image/')) {
+    const { writeMediaThumbFromFile } = await import('./media-thumb.js');
+    await writeMediaThumbFromFile(options, {
+      sessionDir: directory,
+      assetId: id,
+      sourcePath: absolutePath,
+    });
+  }
 
   const asset: SavedMediaAsset = {
     id,
@@ -145,13 +212,21 @@ export function assertInsideMediaRoot(mediaRoot: string, absolutePath: string): 
  * the write path's defenses. Oversized assets are rejected whole — a
  * truncated image would render as corruption, not a preview.
  */
-export async function readMediaAsset(
+type LocatedVaultFile =
+  | {
+      status: 'ready';
+      sessionId: string;
+      assetId: string;
+      directory: string;
+      fileName: string;
+      absolutePath: string;
+    }
+  | { status: 'unavailable'; reason: MediaReadFailureReason };
+
+export async function locateVaultFile(
   options: Pick<MediaServiceOptions, 'mediaRoot'>,
-  input: ReadMediaInput,
-): Promise<ReadMediaResult> {
-  if (!Number.isSafeInteger(input.maxBytes) || input.maxBytes <= 0) {
-    return { status: 'unavailable', reason: 'invalid-request' };
-  }
+  input: { sessionId: string; assetId: string },
+): Promise<LocatedVaultFile> {
   let sessionId: string;
   let assetId: string;
   try {
@@ -173,13 +248,27 @@ export async function readMediaAsset(
   if (entries === null) {
     return { status: 'unavailable', reason: 'not-found' };
   }
+  const hasNonJsonSibling = entries.some(
+    (name) =>
+      name.startsWith(`${assetId}.`) &&
+      !name.endsWith('.json') &&
+      !name.endsWith('.meta.json') &&
+      !name.includes('.thumb.'),
+  );
   const fileName =
     entries.find((name) => name === assetId) ??
-    entries.find(
-      (name) =>
-        name.startsWith(`${assetId}.`) &&
-        /^[a-zA-Z0-9]{0,12}$/.test(name.slice(assetId.length + 1)),
-    );
+    entries.find((name) => {
+      if (!name.startsWith(`${assetId}.`)) {
+        return false;
+      }
+      const extension = name.slice(assetId.length + 1);
+      // Sidecars are `<assetId>.json` or `<assetId>.meta.json`; never treat
+      // them as the media file.
+      if (extension === 'json') {
+        return !hasNonJsonSibling;
+      }
+      return /^[a-zA-Z0-9]{0,12}$/.test(extension);
+    });
   if (fileName === undefined) {
     return { status: 'unavailable', reason: 'not-found' };
   }
@@ -187,7 +276,6 @@ export async function readMediaAsset(
   const absolutePath = resolve(directory, fileName);
   try {
     assertInsideMediaRoot(root, absolutePath);
-    // A symlinked vault file would pass the string check; realpath re-validates.
     await assertRealPathInsideMediaRoot(root, absolutePath);
   } catch {
     return { status: 'unavailable', reason: 'outside-media-root' };
@@ -197,19 +285,63 @@ export async function readMediaAsset(
   if (fileStat === null || !fileStat.isFile()) {
     return { status: 'unavailable', reason: 'not-found' };
   }
+  return { status: 'ready', sessionId, assetId, directory, fileName, absolutePath };
+}
+
+export async function readMediaAsset(
+  options: Pick<MediaServiceOptions, 'mediaRoot'>,
+  input: ReadMediaInput,
+): Promise<ReadMediaResult> {
+  if (!Number.isSafeInteger(input.maxBytes) || input.maxBytes <= 0) {
+    return { status: 'unavailable', reason: 'invalid-request' };
+  }
+  const located = await locateVaultFile(options, input);
+  if (located.status === 'unavailable') {
+    return located;
+  }
+  const fileStat = await stat(located.absolutePath).catch(() => null);
+  if (fileStat === null || !fileStat.isFile()) {
+    return { status: 'unavailable', reason: 'not-found' };
+  }
   if (fileStat.size > input.maxBytes) {
     return { status: 'unavailable', reason: 'too-large' };
   }
 
-  const bytes = await readFile(absolutePath);
+  const bytes = await readFile(located.absolutePath);
   return {
     status: 'ready',
-    assetId,
-    sessionId,
-    mimeType: EXT_TO_MIME[extname(fileName).toLowerCase()] ?? 'application/octet-stream',
+    assetId: located.assetId,
+    sessionId: located.sessionId,
+    mimeType: EXT_TO_MIME[extname(located.fileName).toLowerCase()] ?? 'application/octet-stream',
     byteSize: bytes.byteLength,
     bytes,
   };
+}
+
+export async function deleteMediaAsset(
+  options: Pick<MediaServiceOptions, 'mediaRoot'>,
+  input: { sessionId: string; assetId: string },
+): Promise<boolean> {
+  const located = await locateVaultFile(options, input);
+  if (located.status === 'unavailable') {
+    return false;
+  }
+  await unlink(located.absolutePath);
+  const { deleteMediaThumb } = await import('./media-thumb.js');
+  await deleteMediaThumb(options, {
+    sessionDir: located.directory,
+    assetId: located.assetId,
+  });
+  for (const sidecarName of [`${located.assetId}.json`, `${located.assetId}.meta.json`]) {
+    const sidecarPath = resolve(located.directory, sidecarName);
+    try {
+      assertInsideMediaRoot(resolve(options.mediaRoot), sidecarPath);
+      await unlink(sidecarPath);
+    } catch {
+      // Sidecar is optional; missing or escaping paths are not a delete failure.
+    }
+  }
+  return true;
 }
 
 /**

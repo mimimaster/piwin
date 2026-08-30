@@ -40,7 +40,7 @@ function summaryLabel(projection: TurnWorkDisclosureProjection, locale: 'zh-CN' 
   return `${duration} · ${projection.failureCount} failure${projection.failureCount === 1 ? '' : 's'}`;
 }
 
-/** Completed turn-level progressive disclosure around unchanged causal rows. */
+/** Turn-level disclosure around unchanged causal rows after the query settles. */
 export function TurnWorkDisclosure(props: TurnWorkDisclosureProps): ReactElement {
   return (
     <div

@@ -28,6 +28,11 @@ export type HostEgressChannelOptions = {
   canSend?: () => boolean;
   onSlowConsumer?: (reason: string) => void;
   liveFilter?: LiveSessionFilter;
+  deliverOwnerActions?: boolean;
+  /** Stable identity of this connection for Live owner-action delivery. */
+  ownerDeviceId?: string;
+  /** Current Host Live owner, if known when the channel is created. */
+  liveOwnerDeviceId?: string;
   schedule?: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
 };
 
@@ -79,6 +84,9 @@ export class HostEgressChannel {
   private slowConsumerDisconnects = 0;
   private filteredItems = 0;
   private liveFilter: LiveSessionFilter;
+  private deliverOwnerActions: boolean;
+  private readonly ownerDeviceId: string | undefined;
+  private liveOwnerDeviceId: string | undefined;
 
   public constructor(options: HostEgressChannelOptions) {
     this.id = options.id;
@@ -93,6 +101,9 @@ export class HostEgressChannel {
     this.canSend = options.canSend ?? (() => true);
     this.onSlowConsumer = options.onSlowConsumer ?? (() => undefined);
     this.liveFilter = options.liveFilter ?? 'all';
+    this.deliverOwnerActions = options.deliverOwnerActions ?? true;
+    this.ownerDeviceId = options.ownerDeviceId;
+    this.liveOwnerDeviceId = options.liveOwnerDeviceId;
     this.schedule = options.schedule ?? ((callback, delayMs) => setTimeout(callback, delayMs));
     this.lastSentSeq = options.initialSeq ?? 0;
     if (
@@ -171,6 +182,11 @@ export class HostEgressChannel {
 
   public setLiveFilter(filter: LiveSessionFilter): void {
     this.liveFilter = filter;
+  }
+
+  /** Update the active call owner before a queued Live action is offered. */
+  public setLiveOwnerDeviceId(ownerDeviceId: string | undefined): void {
+    this.liveOwnerDeviceId = ownerDeviceId;
   }
 
   public getLiveFilter(): LiveSessionFilter {
@@ -475,10 +491,20 @@ export class HostEgressChannel {
   }
 
   private passesLiveFilter(record: HostEgressRecord): boolean {
-    return hostPushPassesLiveFilter(
-      classifyHostPushAudience(record.sequence.push),
-      this.liveFilter,
-    );
+    const audience = classifyHostPushAudience(record.sequence.push);
+    if (audience.kind === 'owner') {
+      if (!this.deliverOwnerActions) return false;
+      // Legacy callers that do not identify a connection retain the old
+      // boolean-only behavior. HostServer always supplies an identity, so a
+      // paired device cannot receive another device's owner action.
+      if (
+        this.ownerDeviceId !== undefined &&
+        (this.liveOwnerDeviceId === undefined || this.ownerDeviceId !== this.liveOwnerDeviceId)
+      ) {
+        return false;
+      }
+    }
+    return hostPushPassesLiveFilter(audience, this.liveFilter);
   }
 
   private recordSend(

@@ -28,6 +28,8 @@ const secretResolver: SecretResolver = {
   readProviderSecret: async () => null,
   writeSecretByRef: async () => undefined,
   readSecretByRef: async () => null,
+  deleteProviderSecret: async () => undefined,
+  deleteSecretByRef: async () => undefined,
 };
 
 function mockFetchTitle(title: string): void {

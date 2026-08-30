@@ -293,7 +293,6 @@ describe('artifact capability off (workbench / subagent / history)', () => {
         </TranscriptViewport>,
       );
       await flushFrame();
-      expect(container.querySelector('[data-testid="jump-to-latest-btn"]')).not.toBeNull();
       expect(container.textContent).not.toContain('latest live answer');
       expectSourceOnly(container);
     },

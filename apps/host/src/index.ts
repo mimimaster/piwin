@@ -84,7 +84,15 @@ const server = new HostServer({
   allowRemoteExtensionActivation,
   ...(clientToolBroker === undefined ? {} : { clientToolBroker }),
   onError: (error) => console.error(`[piwin-host] ${error.message}`),
-  onConnectionEvent: (event) => logConnectionEvent(event),
+  onConnectionEvent: (event) => {
+    logConnectionEvent(event);
+    if (event.deviceId && event.phase === 'hello-ok') {
+      runtime.noteAuthDeviceConnected(event.deviceId);
+    }
+    if (event.deviceId && (event.phase === 'close' || event.phase === 'idle-terminate')) {
+      runtime.noteAuthDeviceDisconnected(event.deviceId);
+    }
+  },
 });
 
 try {

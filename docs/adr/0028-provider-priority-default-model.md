@@ -10,10 +10,14 @@ Users can configure multiple providers that expose the **same model id** (e.g.
 two OpenAI-compatible gateways both serving `deepseek-v4-flash`, or an
 OpenAI-compatible proxy fronting Gemini alongside the native Gemini endpoint).
 piwin resolves the default chat model with `resolveDefaultModelRef`
-(`packages/agent-host/src/provider-helpers.ts`):
+(`packages/host-runtime/src/provider-helpers.ts`):
 
-1. configured `defaultProviderId` + `defaultModelId`, then
-2. **first enabled provider in config order** (its first model).
+1. configured `defaultProviderId` + `defaultModelId` if `resolveChatModel` succeeds
+   (channel or v1 subscription account),
+2. first **logged-in** v1 account in `V1_SUBSCRIPTION_PROVIDER_IDS` order
+   (`kimi-coding`, `openai-codex`, `anthropic`, `xai`, `github-copilot`)
+   plus that provider’s first Pi chat catalog model,
+3. **highest-priority enabled channel** (its first chat model).
 
 The fallback silently depends on config file ordering, which users cannot see
 or control from the UI. There is no way to say "prefer gateway A, then B, then

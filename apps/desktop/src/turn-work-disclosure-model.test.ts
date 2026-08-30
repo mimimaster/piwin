@@ -127,7 +127,7 @@ describe('projectTurnWorkDisclosure', () => {
     ).toBeNull();
   });
 
-  it('folds settled process rows while the live tail is still streaming', () => {
+  it('keeps settled process rows mounted while the live tail is still streaming', () => {
     const transcriptTurn = turn([
       message('user-1', { role: 'user', text: 'Implement this.' }),
       message('work-1', {
@@ -151,14 +151,10 @@ describe('projectTurnWorkDisclosure', () => {
         activeRunId: 'run-1',
         currentTurnStreaming: true,
       }),
-    ).toEqual({
-      startIndex: 1,
-      endIndex: 2,
-      failureCount: 0,
-    });
+    ).toBeNull();
   });
 
-  it('keeps the newest process row visible while earlier tool-loop rows fold', () => {
+  it('keeps earlier tool-loop rows mounted while a later tool is still running', () => {
     const transcriptTurn = turn([
       message('user-1', { role: 'user', text: 'Implement this.' }),
       message('work-1', {
@@ -180,11 +176,7 @@ describe('projectTurnWorkDisclosure', () => {
         activeRunId: 'run-1',
         currentTurnStreaming: true,
       }),
-    ).toEqual({
-      startIndex: 1,
-      endIndex: 1,
-      failureCount: 0,
-    });
+    ).toBeNull();
   });
 
   it('does not fold when the only assistant row is still live', () => {
@@ -238,7 +230,7 @@ describe('projectTurnWorkDisclosure', () => {
     ).toBeNull();
   });
 
-  it('folds earlier process rows when the last assistant is still a settled process step', () => {
+  it('keeps process rows mounted when the last assistant is still a process step', () => {
     const transcriptTurn = turn([
       message('user-1', { role: 'user', text: 'Implement this.' }),
       message('work-1', {
@@ -260,9 +252,71 @@ describe('projectTurnWorkDisclosure', () => {
         activeRunId: 'run-1',
         currentTurnStreaming: false,
       }),
+    ).toBeNull();
+  });
+
+  it('does not fold when a subagent is still running', () => {
+    const transcriptTurn = turn([
+      message('user-1', { role: 'user', text: 'Implement this.' }),
+      message('work-1', {
+        runId: 'run-1',
+        thinking: 'Delegating.',
+        tools: [{ toolCallId: 'read-1', toolName: 'read', status: 'done', output: '' }],
+      }),
+      message('child-1', {
+        runId: 'run-1',
+        subagentActivity: {
+          childSessionId: 'child-1',
+          displayName: 'Explorer',
+          taskSummary: 'Search the repo',
+          state: 'running',
+          updatedAt: '2026-08-27T00:00:00.000Z',
+        },
+      }),
+      message('answer-1', {
+        text: 'A provisional answer.',
+        runId: 'run-1',
+      }),
+    ]);
+
+    expect(
+      projectTurnWorkDisclosure({
+        turn: transcriptTurn,
+        runRecordsById: {},
+        activeRunId: null,
+        currentTurnStreaming: false,
+      }),
+    ).toBeNull();
+  });
+
+  it('folds earlier process rows when the settled conclusion is a generation result', () => {
+    const transcriptTurn = turn([
+      message('user-1', { role: 'user', text: 'Draw a pelican.' }),
+      message('work-1', {
+        thinking: 'Need a reference.',
+        runId: 'run-1',
+        tools: [{ toolCallId: 'read-1', toolName: 'read', status: 'done', output: 'ok', runId: 'run-1' }],
+      }),
+      message('image-1', {
+        text: 'Here is the image.',
+        runId: 'run-1',
+        tools: [
+          { toolCallId: 'gen-1', toolName: 'image_gen', status: 'done', output: 'ok', runId: 'run-1' },
+        ],
+      }),
+    ]);
+
+    expect(
+      projectTurnWorkDisclosure({
+        turn: transcriptTurn,
+        runRecordsById: { 'run-1': completedRun() },
+        activeRunId: null,
+        currentTurnStreaming: false,
+      }),
     ).toEqual({
       startIndex: 1,
       endIndex: 1,
+      elapsedMs: 94_000,
       failureCount: 0,
     });
   });

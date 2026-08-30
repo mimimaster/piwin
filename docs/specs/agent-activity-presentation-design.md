@@ -39,11 +39,13 @@ behaviorId
 
 ### 2.1 回合级折叠
 
-Project Agent 的调用链仍按因果顺序保留。回合级 disclosure 只收**已经结束**的中间过程行；当前这条 assistant（流式、跑工具、或最终回答）始终留在 disclosure 外：
+Project Agent 的调用链仍按因果顺序保留。回合级 `已工作` disclosure 只在**这句用户 query 已经结算**之后出现：没有流式输出、没有仍在跑的工具或子 Agent、该回合不再持有 active Run，并且已经写出用户可见的正式结论。进行中不把已结束的前缀提前收进折叠组。
+
+进行中：
 
 ```text
-已工作  ›                   ← 已结束的思考 / 工具（未获取到耗时时）
-正在修改 permissions.ts     ← 当前这条
+思考 / 工具 / 检索…        ← 全程摊开，方便回看
+正在修改 permissions.ts
 ```
 
 完成后：
@@ -53,12 +55,11 @@ Project Agent 的调用链仍按因果顺序保留。回合级 disclosure 只收
 最终回答正文……
 ```
 
-- 用户问题和当前/最终 assistant 始终在 disclosure 外；
+- 用户问题和最终 assistant 始终在 disclosure 外；
 - 带工作工具的中间 assistant `text` 是过程句，不是最终回答；展开后也不把它画成回复正文；
 - 展开后恢复原始消息行和顺序，不聚合、不改写、不制造新的 Run Inspector；
 - 前缀里如果夹着一条真正的回复，整段先不折，避免把回答藏进过程区；
-- 权限确认、当前流式行和当前正在跑的工具行不进折叠范围；
-- 完成态与进行中默认收起，`always` 偏好默认展开；用户点击后的选择优先于后续重渲染；
+- 完成态默认收起，`always` 偏好默认展开；用户点击后的选择优先于后续重渲染；
 - 摘要保留失败次数，完整证据可按需展开；
 - 收起时卸载中间重型 DOM，符合 Desktop transcript renderer retention 边界。
 

@@ -52,6 +52,12 @@
   animation-delay: 280ms;
 }
 
+/* Live append: already-painted rows must not replay the cascade if the list
+   remounts. Only the newest sibling should enter. */
+.tool-batch-capsule.is-running .tool-batch-items > .tool-call-card:not(:last-child) {
+  animation: none;
+}
+
 /* ── Head row ─────────────────────────────────────────────────────────── */
 
 .tool-call-summary {
@@ -542,136 +548,115 @@
   height: 16px;
 }
 
-/* ── Image generation progress ────────────────────────────────────────
-   The one tool card that stays visible through completion: it carries a
-   result, so it keeps a surface and shifts tone by outcome. */
+/* ── Image & Video generation progress ─────────────────────────────────
+   Conversation-native inline activity card matching the assistant message flow. */
 
 .image-generation-progress {
   display: flex;
   align-items: center;
-  gap: var(--s-5);
-  width: min(380px, 100%);
-  margin: var(--s-2) 0 var(--s-5);
-  padding: var(--s-5);
+  gap: var(--s-3);
+  width: 100%;
+  max-width: var(--chat-max, 680px);
+  margin: var(--s-3) 0 var(--s-4);
+  padding: var(--s-3) var(--s-4);
   border: 0;
-  border-radius: var(--r-panel);
-  background: color-mix(in srgb, var(--iris) 8%, var(--surface-3));
-  box-shadow: var(--elev-1);
+  border-radius: var(--r-control);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line-1);
   overflow: hidden;
+  position: relative;
+  transition:
+    background-color var(--t-2) var(--ease-out),
+    box-shadow var(--t-2) var(--ease-out);
+}
+
+.image-generation-progress.status-running {
+  background: color-mix(in srgb, var(--iris) 6%, var(--surface-2));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--iris) 24%, var(--line-1));
 }
 
 .image-generation-progress.status-done {
-  background: color-mix(in srgb, var(--mint) 8%, var(--surface-3));
+  background: color-mix(in srgb, var(--mint) 6%, var(--surface-2));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mint) 24%, var(--line-1));
 }
 
 .image-generation-progress.status-error {
-  background: color-mix(in srgb, var(--coral) 8%, var(--surface-3));
+  background: color-mix(in srgb, var(--coral) 6%, var(--surface-2));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--coral) 24%, var(--line-1));
 }
 
 .image-generation-progress-art {
   position: relative;
   display: grid;
   place-items: center;
-  width: 76px;
-  height: 76px;
-  flex: none;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border-radius: var(--r-control);
+  background: var(--iris-wash);
+  color: var(--iris-lift);
   overflow: hidden;
-  border-radius: var(--r-card);
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--iris) 55%, var(--surface-3)),
-    var(--surface-3)
-  );
 }
 
 .image-generation-progress.status-done .image-generation-progress-art {
-  background: color-mix(in srgb, var(--mint) 18%, var(--surface-3));
+  background: var(--mint-wash);
+  color: var(--mint-lift, #10b981);
 }
 
 .image-generation-progress.status-error .image-generation-progress-art {
-  background: color-mix(in srgb, var(--coral) 18%, var(--surface-3));
-}
-
-.image-generation-progress-art::before {
-  position: absolute;
-  inset: -55%;
-  content: '';
-  background: linear-gradient(
-    115deg,
-    transparent 35%,
-    color-mix(in srgb, var(--text-1) 28%, transparent) 48%,
-    transparent 61%
-  );
-  animation: image-generation-sheen 1.8s linear infinite;
-}
-
-.image-generation-progress-art::after {
-  position: absolute;
-  inset: 12px;
-  content: '';
-  border: 1px solid color-mix(in srgb, var(--text-1) 20%, transparent);
-  border-radius: var(--r-control);
-  animation: image-generation-frame 1.6s ease-in-out infinite;
+  background: var(--coral-wash);
+  color: var(--coral-lift, #f43f5e);
 }
 
 .image-generation-progress-spark {
-  position: relative;
-  z-index: 1;
-  width: 24px;
-  height: 24px;
-  color: var(--text-1);
-  filter: drop-shadow(0 2px 7px var(--iris-glow));
-  animation: image-generation-spark 1.4s ease-in-out infinite;
+  width: 16px;
+  height: 16px;
+  animation: image-generation-spark 1.8s ease-in-out infinite;
+}
+
+.image-generation-progress-art svg {
+  width: 16px;
+  height: 16px;
 }
 
 .image-generation-progress-status-icon {
-  position: relative;
-  z-index: 1;
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
-  border: 1px solid currentColor;
-  border-radius: 50%;
+  width: 100%;
+  height: 100%;
 }
 
 .image-generation-progress-status-icon svg {
-  width: 20px;
-  height: 20px;
-}
-
-.image-generation-progress.status-done .image-generation-progress-status-icon {
-  color: var(--mint);
-}
-
-.image-generation-progress.status-error .image-generation-progress-status-icon {
-  color: var(--coral);
-}
-
-.image-generation-progress.status-done .image-generation-progress-art::before,
-.image-generation-progress.status-done .image-generation-progress-art::after,
-.image-generation-progress.status-error .image-generation-progress-art::before,
-.image-generation-progress.status-error .image-generation-progress-art::after {
-  animation: none;
-  opacity: 0;
+  width: 16px;
+  height: 16px;
 }
 
 .image-generation-progress-copy {
-  display: grid;
-  gap: var(--s-2);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   min-width: 0;
+  flex: 1 1 auto;
+}
+
+.image-generation-progress-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
 }
 
 .image-generation-progress-copy strong {
   color: var(--text-1);
-  font-size: var(--fs-body);
+  font-size: var(--fs-chrome);
   font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
 }
 
 .image-generation-progress-copy > span {
   color: var(--text-3);
-  font-size: var(--fs-mono);
-  line-height: var(--lh-normal);
+  font-size: var(--fs-micro);
+  line-height: 1.35;
 }
 
 .image-generation-progress-dots {
@@ -682,36 +667,38 @@
   animation: image-generation-dots 1.2s steps(4, end) infinite;
 }
 
-@keyframes image-generation-sheen {
-  from {
-    transform: translateX(-32%);
-  }
-  to {
-    transform: translateX(32%);
-  }
+.image-generation-progress-pulse {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--iris-lift);
+  box-shadow: 0 0 8px var(--iris-glow);
+  animation: image-generation-dot-pulse 1.6s ease-in-out infinite;
+  margin-right: var(--s-1);
 }
 
-@keyframes image-generation-frame {
+@keyframes image-generation-dot-pulse {
   0%,
   100% {
-    transform: scale(0.94);
-    opacity: 0.42;
+    opacity: 0.4;
+    transform: scale(0.85);
   }
   50% {
-    transform: scale(1);
-    opacity: 0.9;
+    opacity: 1;
+    transform: scale(1.15);
   }
 }
 
 @keyframes image-generation-spark {
   0%,
   100% {
-    transform: scale(0.82) rotate(-8deg);
-    opacity: 0.62;
+    opacity: 0.75;
+    transform: scale(0.92);
   }
   50% {
-    transform: scale(1.08) rotate(8deg);
     opacity: 1;
+    transform: scale(1.08);
   }
 }
 

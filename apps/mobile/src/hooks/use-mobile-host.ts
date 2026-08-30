@@ -915,6 +915,8 @@ export function useMobileHost() {
   };
 
   return {
+    /** The connected HostClient is the shared authority for chat and Live. */
+    client: clientRef.current,
     endpoint,
     setEndpoint,
     authToken,

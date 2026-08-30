@@ -15,6 +15,7 @@ import {
   formatCardMarkdown,
   copyToClipboard,
 } from './knowledge-export';
+import { MarkdownView } from './MarkdownView';
 import {
   IconAlertCircle,
   IconCards,
@@ -395,18 +396,28 @@ export function FlashcardsPanel(props: FlashcardsPanelProps) {
           </div>
 
           <div className="flashcards-card-box">
-            <div className="flashcards-question-side">
-              <span className="flashcards-box-side-tag">Q</span>
+            <div className="flashcards-question-side fc-quiet-text-zone">
               <div className="flashcards-box-content" data-testid="flashcards-review-front">
-                {currentItem.card.front}
+                <MarkdownView
+                  text={currentItem.card.front}
+                  renderingPhase="completed"
+                  showStreamingCaret={false}
+                  locale={locale}
+                  artifactPreviewEnabled={false}
+                />
               </div>
             </div>
 
             {revealed ? (
-              <div className="flashcards-answer-side">
-                <span className="flashcards-box-side-tag is-answer">A</span>
+              <div className="flashcards-answer-side fc-quiet-text-zone">
                 <div className="flashcards-box-content" data-testid="flashcards-review-back">
-                  {currentItem.card.back}
+                  <MarkdownView
+                    text={currentItem.card.back}
+                    renderingPhase="completed"
+                    showStreamingCaret={false}
+                    locale={locale}
+                    artifactPreviewEnabled={false}
+                  />
                 </div>
                 {currentItem.card.sourceExcerpt && (
                   <div className="flashcards-box-source-quote">

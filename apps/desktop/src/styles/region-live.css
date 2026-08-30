@@ -1,0 +1,300 @@
+/* piwin Live — 32px Draggable Zero-Text Floating Voice Capsule */
+
+.live-bar-host {
+  position: fixed !important;
+  inset: 0 !important;
+  pointer-events: none !important;
+  z-index: 300 !important;
+}
+
+.live-bar-host .live-bar {
+  pointer-events: auto !important;
+}
+
+/* Base 32px Micro-Capsule */
+.live-bar {
+  --live-tone: var(--iris);
+  --live-glow: rgba(110, 93, 255, 0.35);
+
+  position: absolute;
+  left: 50%;
+  top: calc(var(--titleband-height, 32px) + var(--s-3, 6px));
+  transform: translate(-50%, 0);
+
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 8px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  max-height: 32px !important;
+  width: auto !important;
+  min-width: auto !important;
+  max-width: fit-content !important;
+  padding: 0 4px 0 8px !important;
+  box-sizing: border-box !important;
+
+  border: 1px solid color-mix(in srgb, var(--live-tone) 45%, var(--line-2, rgba(255, 255, 255, 0.15))) !important;
+  border-radius: var(--r-pill, 999px) !important;
+  background: color-mix(in srgb, var(--surface-3, #161620) 94%, transparent) !important;
+  backdrop-filter: blur(16px) !important;
+  box-shadow: var(--elev-3, 0 4px 14px rgba(0, 0, 0, 0.5)), 0 0 14px var(--live-glow) !important;
+
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+  animation: live-capsule-enter 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.live-bar:focus-visible {
+  outline: 2px solid var(--live-tone);
+  outline-offset: 2px;
+}
+
+.live-bar.is-dragging {
+  cursor: grabbing !important;
+  box-shadow: var(--elev-4, 0 12px 30px rgba(0, 0, 0, 0.8)), 0 0 24px var(--live-glow) !important;
+  transform: translate(-50%, -50%) scale(1.06) !important;
+}
+
+/* Tone Color Variations */
+.live-bar.is-active {
+  --live-tone: var(--mint, #3ECF8E);
+  --live-glow: rgba(62, 207, 142, 0.35);
+}
+
+.live-bar.is-speaking {
+  --live-tone: var(--iris, #6E5DFF);
+  --live-glow: rgba(110, 93, 255, 0.35);
+}
+
+.live-bar.is-working {
+  --live-tone: var(--ember, #FF8A4C);
+  --live-glow: rgba(255, 138, 76, 0.35);
+}
+
+.live-bar.is-permission {
+  --live-tone: var(--amber, #F5B544);
+  --live-glow: rgba(245, 181, 68, 0.35);
+}
+
+.live-bar.is-muted {
+  --live-tone: var(--text-3, #5C5C6B);
+  --live-glow: transparent;
+}
+
+.live-bar.is-error {
+  --live-tone: var(--coral, #FF5F56);
+  --live-glow: rgba(255, 95, 86, 0.35);
+}
+
+.live-bar.is-connecting {
+  --live-tone: var(--sky, #4CC2FF);
+  --live-glow: rgba(76, 194, 255, 0.35);
+}
+
+/* Grip Dots */
+.live-bar-grip {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+  padding: 2px 1px !important;
+  color: var(--text-3, #8E8E9B) !important;
+  opacity: 0.5 !important;
+  cursor: grab !important;
+}
+
+.live-bar.is-dragging .live-bar-grip {
+  cursor: grabbing !important;
+  opacity: 0.9 !important;
+}
+
+.live-bar-grip span {
+  display: block !important;
+  width: 2.5px !important;
+  height: 2.5px !important;
+  border-radius: 50% !important;
+  background: currentColor !important;
+}
+
+/* Visual FX Area (Equalizer, Spinner, Flash, Blinker) */
+.live-bar-fx {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 14px !important;
+  height: 14px !important;
+}
+
+/* Dynamic Equalizer */
+.live-equalizer {
+  display: flex !important;
+  align-items: center !important;
+  gap: 2.5px !important;
+  height: 13px !important;
+}
+
+.live-equalizer span {
+  display: inline-block !important;
+  width: 2.5px !important;
+  height: 100% !important;
+  background: var(--live-tone, #3ECF8E) !important;
+  border-radius: 999px !important;
+  transform: scaleY(0.25) !important;
+  transform-origin: center !important;
+  box-shadow: 0 0 4px var(--live-glow) !important;
+}
+
+.live-bar[data-activity='user-speaking'] .live-equalizer span,
+.live-bar[data-activity='listening'] .live-equalizer span {
+  animation: live-eq-bounce 0.48s ease-in-out infinite alternate !important;
+}
+
+.live-bar[data-activity='assistant-speaking'] .live-equalizer span {
+  animation: live-eq-bounce 0.65s ease-in-out infinite alternate !important;
+}
+
+.live-bar[data-activity='working'] .live-equalizer span {
+  animation: live-eq-bounce 1.35s ease-in-out infinite alternate !important;
+}
+
+.live-equalizer span:nth-child(2) { animation-delay: -0.15s !important; height: 80% !important; }
+.live-equalizer span:nth-child(3) { animation-delay: -0.3s !important; height: 100% !important; }
+.live-equalizer span:nth-child(4) { animation-delay: -0.45s !important; height: 65% !important; }
+
+.live-equalizer.is-flat span {
+  animation: none !important;
+  transform: scaleY(0.2) !important;
+}
+
+/* Spinner for Connecting / Thinking */
+.live-spinner {
+  display: block !important;
+  width: 13px !important;
+  height: 13px !important;
+  border-radius: 50% !important;
+  border: 2px solid color-mix(in srgb, var(--live-tone) 25%, transparent) !important;
+  border-top-color: var(--live-tone) !important;
+  animation: live-spin 1s linear infinite !important;
+}
+
+/* Alert Blinker Dot for Errors */
+.live-alert-dot {
+  display: block !important;
+  width: 8px !important;
+  height: 8px !important;
+  border-radius: 50% !important;
+  background: var(--coral, #FF5F56) !important;
+  box-shadow: 0 0 8px var(--coral, #FF5F56) !important;
+  animation: live-blink 0.8s infinite !important;
+}
+
+/* Warning Badge for Permission */
+.live-warning-glyph {
+  display: inline-block !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  color: var(--amber, #F5B544) !important;
+  animation: live-pulse-glyph 1.2s infinite alternate !important;
+}
+
+/* Pure Icon Action Buttons (24px) */
+.live-bar-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 2px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.live-icon-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  min-height: 24px !important;
+  max-width: 24px !important;
+  max-height: 24px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  color: var(--text-2, #9A9AA8) !important;
+  cursor: pointer !important;
+  transition: all 0.12s ease !important;
+  box-sizing: border-box !important;
+}
+
+.live-icon-btn:hover {
+  background: var(--surface-4, #2B2B3A) !important;
+  color: var(--text-1, #EDEDF2) !important;
+  border-color: var(--line-1, rgba(255, 255, 255, 0.1)) !important;
+  transform: scale(1.08) !important;
+}
+
+.live-icon-btn.is-danger:hover {
+  background: rgba(255, 95, 86, 0.2) !important;
+  color: var(--coral, #FF5F56) !important;
+  border-color: var(--coral, #FF5F56) !important;
+}
+
+.live-icon-btn.is-accent {
+  background: color-mix(in srgb, var(--live-tone) 16%, transparent) !important;
+  color: var(--live-tone) !important;
+  border-color: color-mix(in srgb, var(--live-tone) 40%, transparent) !important;
+}
+
+.live-icon-btn.is-accent:hover {
+  background: color-mix(in srgb, var(--live-tone) 30%, transparent) !important;
+  border-color: var(--live-tone) !important;
+}
+
+/* Keyframe Animations */
+@keyframes live-capsule-enter {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+@keyframes live-eq-bounce {
+  0% { transform: scaleY(0.25); }
+  100% { transform: scaleY(1); }
+}
+
+@keyframes live-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes live-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+@keyframes live-pulse-glyph {
+  0% { transform: scale(0.92); }
+  100% { transform: scale(1.15); }
+}
+
+/* Reduced Motion Override */
+@media (prefers-reduced-motion: reduce) {
+  .live-bar,
+  .live-equalizer span,
+  .live-spinner,
+  .live-alert-dot,
+  .live-warning-glyph {
+    animation: none !important;
+  }
+  .live-equalizer span {
+    transform: scaleY(0.3) !important;
+  }
+}

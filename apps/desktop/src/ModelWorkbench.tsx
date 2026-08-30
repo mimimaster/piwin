@@ -590,18 +590,11 @@ function ModelInlineEditor({
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
           <input
             type="checkbox"
-            checked={local.supportsSpeechToText}
-            onChange={(e) => setLocal({ ...local, supportsSpeechToText: e.target.checked })}
+            checked={local.supportsRealtimeAudio}
+            onChange={(e) => setLocal({ ...local, supportsRealtimeAudio: e.target.checked })}
+            data-testid="model-edit-realtime-audio"
           />
-          {isChinese ? '语音识别（ASR）' : 'Speech recognition (ASR)'}
-        </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
-          <input
-            type="checkbox"
-            checked={local.supportsTextToSpeech}
-            onChange={(e) => setLocal({ ...local, supportsTextToSpeech: e.target.checked })}
-          />
-          {isChinese ? '语音合成（TTS）' : 'Speech synthesis (TTS)'}
+          {isChinese ? '实时语音（Live）' : 'Realtime voice (Live)'}
         </label>
       </div>
 

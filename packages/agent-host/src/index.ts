@@ -58,6 +58,22 @@ export type {
   PiProviderApi,
   PiProviderRegistration,
 } from './pi-model-runtime.js';
+export {
+  createSubscriptionAuthPort,
+  defaultPiAuthPaths,
+  isOauthProviderAuth,
+  shouldRegisterCompiledProvider,
+} from './subscription-auth.js';
+export type {
+  HostAuthEvent,
+  HostAuthInteraction,
+  HostAuthPrompt,
+  SubscriptionAuthPort,
+  SubscriptionCatalogModel,
+  SubscriptionCredentialInfo,
+  SubscriptionLoginOutcome,
+  SubscriptionLogoutOutcome,
+} from './subscription-auth.js';
 
 export {
   BLUEPRINT_PROTOCOL_VERSION,

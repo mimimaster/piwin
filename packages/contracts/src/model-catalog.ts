@@ -620,3 +620,25 @@ export function isLikelyVideoGenerationModel(
   }
   return VIDEO_GENERATION_HINT_PATTERN.test(haystack);
 }
+
+const REALTIME_AUDIO_HINT_PATTERN = /\brealtime\b|grok-voice|speech-to-speech|voice-agent/i;
+const REALTIME_AUDIO_EXCLUDE_PATTERN = /\b(whisper|grok-stt|speech-to-text|asr)\b/i;
+
+/**
+ * Heuristic: OpenAI-Realtime / speech-to-speech voice models.
+ * ASR-only ids (whisper, grok-stt) stay out; chat audio-preview is not Live.
+ */
+export function isLikelyRealtimeAudioModel(
+  modelId: string,
+  label?: string,
+  capabilities?: readonly string[],
+): boolean {
+  if (capabilities?.includes('realtime-audio')) {
+    return true;
+  }
+  const haystack = `${modelId} ${label ?? ''}`.toLowerCase();
+  if (REALTIME_AUDIO_EXCLUDE_PATTERN.test(haystack)) {
+    return false;
+  }
+  return REALTIME_AUDIO_HINT_PATTERN.test(haystack);
+}

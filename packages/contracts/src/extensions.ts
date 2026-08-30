@@ -99,6 +99,8 @@ export type ExtensionSummary = {
   configuredEnabled?: boolean;
   /** Registry revision currently selected for this extension. */
   selectedRevision?: string;
+  /** Pi `pi.on(event)` names detected from source without executing the module. */
+  hookEvents?: string[];
 };
 
 export type ExtensionsConfig = {

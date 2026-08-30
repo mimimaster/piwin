@@ -61,6 +61,14 @@ class FakeRuntime implements HostRuntimePort {
         },
       };
     }
+    if (command.type === 'media/list') {
+      return {
+        type: 'response',
+        command: command.type,
+        success: true,
+        data: { items: [], total: 0 },
+      };
+    }
     if (command.type === 'preview/read-trusted-text') {
       return {
         type: 'response',
@@ -1805,6 +1813,49 @@ describe('HostServer', () => {
     expect(rejected).toMatchObject({
       type: 'error',
       code: 'command-not-allowed',
+    });
+
+    socket.close();
+    await server.stop();
+  });
+
+  it('admits media/list for the studio library over the remote wire', async () => {
+    const runtime = new FakeRuntime();
+    const server = new HostServer({ runtime, port: 0, instanceId: 'host-media-list-test' });
+    const address = await server.start();
+    const socket = new WebSocket(address.url);
+    const inbox = new MessageInbox();
+    socket.on('message', (data) => inbox.push(decodeHostWireMessage(data.toString())));
+
+    await waitForOpen(socket);
+    socket.send(
+      encodeHostWireMessage({
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'desktop',
+        clientVersion: 'test',
+        clientId: 'desktop-media-list-test',
+        lastSeq: 0,
+      }),
+    );
+    await inbox.waitFor((message) => message.type === 'host/hello');
+
+    socket.send(
+      encodeHostWireMessage({
+        type: 'command',
+        requestId: 'media-list',
+        command: { type: 'media/list', input: { limit: 40 } },
+      }),
+    );
+    const response = await inbox.waitFor(
+      (message) => message.type === 'response' && message.requestId === 'media-list',
+    );
+    expect(response).toMatchObject({
+      type: 'response',
+      response: {
+        success: true,
+        data: { items: [], total: 0 },
+      },
     });
 
     socket.close();

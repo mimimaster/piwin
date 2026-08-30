@@ -12,11 +12,6 @@ describe('agent-mode', () => {
     expect(out).not.toContain('Operating contract');
   });
 
-  it('still resolves retired Plan/Ask ids for leftover session chips', () => {
-    expect(getAgentMode('plan').id).toBe('plan');
-    expect(getAgentMode('ask').id).toBe('ask');
-  });
-
   it('prefixes goal mode with autonomous iteration constraints', () => {
     const out = applyAgentModeToPrompt('goal', 'build feature');
     expect(out).toContain('[piwin-mode:goal]');

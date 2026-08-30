@@ -108,6 +108,58 @@ describe('ipc types', () => {
     expect(finish.type).toBe('media/save-finish');
   });
 
+  it('accepts media/delete command shape', () => {
+    const command: HostCommand = {
+      type: 'media/delete',
+      input: { sessionId: 's1', assetId: 'asset-1' },
+    };
+    expect(command.type).toBe('media/delete');
+  });
+
+  it('accepts media/read thumb variant', () => {
+    const command: HostCommand = {
+      type: 'media/read',
+      input: { sessionId: 's1', assetId: 'asset-1', variant: 'thumb' },
+    };
+    expect(command.type).toBe('media/read');
+    if (command.type === 'media/read') {
+      expect(command.input.variant).toBe('thumb');
+    }
+  });
+
+  it('accepts media/read thumbEdge', () => {
+    const command: HostCommand = {
+      type: 'media/read',
+      input: { sessionId: 's1', assetId: 'asset-1', variant: 'thumb', thumbEdge: 256 },
+    };
+    expect(command.type).toBe('media/read');
+    if (command.type === 'media/read') {
+      expect(command.input.thumbEdge).toBe(256);
+    }
+  });
+
+  it('accepts media/list command shape', () => {
+    const command: HostCommand = {
+      type: 'media/list',
+      input: { kind: 'image', query: 'portrait', limit: 40 },
+    };
+    expect(command.type).toBe('media/list');
+    if (command.type === 'media/list') {
+      expect(command.input.kind).toBe('image');
+    }
+  });
+
+  it('accepts media/list without kind for the mixed library', () => {
+    const command: HostCommand = {
+      type: 'media/list',
+      input: { query: 'portrait', limit: 40 },
+    };
+    expect(command.type).toBe('media/list');
+    if (command.type === 'media/list') {
+      expect(command.input.kind).toBeUndefined();
+    }
+  });
+
   it('accepts preview/read-trusted-text command shape', () => {
     const command: HostCommand = {
       type: 'preview/read-trusted-text',

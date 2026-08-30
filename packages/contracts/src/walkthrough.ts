@@ -91,7 +91,7 @@ export const DEFAULT_CONCISE_PROMPT_ZH = [
 ].join('\n');
 
 /** Provider protocols accepted by `WalkthroughCustomConfig.model`. */
-const SUPPORTED_WALKTHROUGH_PROTOCOLS: readonly ModelRef['protocol'][] = [
+const SUPPORTED_WALKTHROUGH_PROTOCOLS: readonly NonNullable<ModelRef['protocol']>[] = [
   'openai-compatible',
   'anthropic-compatible',
   'google-gemini',

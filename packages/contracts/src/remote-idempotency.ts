@@ -10,6 +10,7 @@ export const REMOTE_IDEMPOTENT_MUTATION_TYPES = [
   'session/create',
   'permission/resolve',
   'settings/apply',
+  'auth/login',
   'notes/write',
   'notes/update',
   'notes/delete',

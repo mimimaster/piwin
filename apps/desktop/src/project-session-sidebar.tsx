@@ -39,7 +39,6 @@ import {
 } from '@piwin/ui-kit';
 import { projectDisplayName } from './project-display-name';
 import {
-  IconBook,
   IconCards,
   IconChat,
   IconCheck,
@@ -55,7 +54,6 @@ import {
   IconSettings,
   IconSliders,
   IconTrash,
-  IconVideo,
 } from './shell-icons';
 import { getDesktopCopy, type DesktopLocale } from './desktop-locale';
 
@@ -133,12 +131,11 @@ export type ProjectSessionSidebarProps = {
   onOpenSettings: () => void;
   /** Chromium-style intent prefetch of the Basic settings chunk. */
   onPrefetchSettings?: () => void;
-  activeSubPage?: 'chat' | 'images' | 'videos' | 'flashcards' | null | undefined;
+  activeSubPage?: 'chat' | 'library' | 'images' | 'videos' | 'flashcards' | null | undefined;
+  onOpenLibrary?: (() => void) | undefined;
   onOpenImages?: (() => void) | undefined;
   onOpenVideos?: (() => void) | undefined;
   onOpenFlashcards?: (() => void) | undefined;
-  knowledgeOpen?: boolean;
-  onToggleKnowledge?: () => void;
   isOverlayPresentation?: boolean;
   onCloseOverlay?: () => void;
   locale?: DesktopLocale;
@@ -607,7 +604,9 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                 )}
               </button>
             ) : (
-              <span className="tree-folder-toggle-spacer" aria-hidden />
+              <span className="tree-folder-toggle-spacer" aria-hidden>
+                <IconFolder className="tree-folder-icon" />
+              </span>
             )}
             <button
               type="button"
@@ -767,26 +766,20 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
 
           <button
             type="button"
-            className={`sidebar-action-row${props.activeSubPage === 'images' ? ' active' : ''}`}
-            data-testid="sidebar-images-btn"
-            onClick={() => props.onOpenImages?.()}
-            title={sidebarCopy.images}
-            aria-label={sidebarCopy.images}
+            className={`sidebar-action-row${
+              props.activeSubPage === 'library' ||
+              props.activeSubPage === 'images' ||
+              props.activeSubPage === 'videos'
+                ? ' active'
+                : ''
+            }`}
+            data-testid="sidebar-library-btn"
+            onClick={() => (props.onOpenLibrary ?? props.onOpenImages)?.()}
+            title={props.locale === 'en' ? 'Library' : '资料库'}
+            aria-label={props.locale === 'en' ? 'Library' : '资料库'}
           >
             <IconImage />
-            <span>{sidebarCopy.images}</span>
-          </button>
-
-          <button
-            type="button"
-            className={`sidebar-action-row${props.activeSubPage === 'videos' ? ' active' : ''}`}
-            data-testid="sidebar-videos-btn"
-            onClick={() => props.onOpenVideos?.()}
-            title={sidebarCopy.videos}
-            aria-label={sidebarCopy.videos}
-          >
-            <IconVideo />
-            <span>{sidebarCopy.videos}</span>
+            <span>{props.locale === 'en' ? 'Library' : '资料库'}</span>
           </button>
 
           <button
@@ -854,25 +847,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
       </div>
 
       <div className="sidebar-footer">
-        {/* Soft frosted edge where the session list meets Knowledge Center. */}
         <div className="sidebar-footer-fade" aria-hidden="true" />
-        <button
-          type="button"
-          className={
-            props.knowledgeOpen
-              ? 'sidebar-footer-button sidebar-knowledge-button active'
-              : 'sidebar-footer-button sidebar-knowledge-button'
-          }
-          title={copy.knowledgeCenter}
-          aria-label={copy.knowledgeCenter}
-          aria-pressed={props.knowledgeOpen}
-          data-testid="sidebar-knowledge-btn"
-          onClick={props.onToggleKnowledge}
-          disabled={props.onToggleKnowledge === undefined}
-        >
-          <IconBook />
-          <span className="sidebar-footer-label">{copy.knowledgeCenter}</span>
-        </button>
         <button
           type="button"
           className={

@@ -179,6 +179,7 @@ export function ModelsPage(): ReactElement {
     searchModelCatalog,
     storeProviderSecret,
     remoteSettingsReadOnly,
+    hostClient,
   } = useSettings();
   const [activeTab, setActiveTab] = useState<ModelTab>('text');
 
@@ -232,12 +233,6 @@ export function ModelsPage(): ReactElement {
             label={isChinese ? '能力默认值' : 'Capability defaults'}
             value={`${summary.readyDefaultCount} / ${summary.applicableDefaultCount}`}
             detail={isChinese ? '已配置 / 适用' : 'ready / applicable'}
-          />
-          <OverviewMetric
-            label={isChinese ? '语音输入' : 'Voice input'}
-            value={summary.speechDefaultLabel ?? (isChinese ? '可选' : 'Optional')}
-            detail={summary.speechDefaultLabel ? 'ASR' : isChinese ? '尚未配置' : 'not configured'}
-            compact
           />
         </div>
 
@@ -308,9 +303,9 @@ export function ModelsPage(): ReactElement {
               value="speech"
               kind="speech"
               title={isChinese ? '语音能力' : 'Speech'}
-              description={isChinese ? '语音输入与输出能力' : 'Voice input and output capabilities'}
+              description={isChinese ? 'piwin Live 实时语音' : 'piwin Live realtime voice'}
               count={summary.speechModelCount}
-              defaultLabel={summary.speechDefaultLabel ?? (isChinese ? 'ASR 可选' : 'ASR optional')}
+              defaultLabel={isChinese ? 'Live' : 'Live'}
               testId="model-config-tab-speech"
             />
           </TabsList>
@@ -385,6 +380,15 @@ export function ModelsPage(): ReactElement {
               onSave={saveConfig}
               onError={setError}
               onInfo={setInfo}
+              {...(hostClient?.request
+                ? {
+                    hostRequest: (command) => {
+                      const request = hostClient.request;
+                      if (!request) return Promise.reject(new Error('host unavailable'));
+                      return request(command);
+                    },
+                  }
+                : {})}
             />
           </TabsContent>
         </Tabs>

@@ -4,6 +4,7 @@
 @import './styles/composer.css';
 @import './styles/sidebar-drawer.css';
 @import './styles/modals-sheets.css';
+@import './styles/live.css';
 @import './styles/artifact-viewer.css';
 @import './tool-chain.css';
 @import './chat-markdown.css';

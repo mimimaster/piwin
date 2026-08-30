@@ -30,9 +30,11 @@ import {
 
 export type ModelOption = {
   providerId: string;
-  protocol: ModelProviderConfig['protocol'];
+  protocol?: ModelProviderConfig['protocol'];
   modelId: string;
   label: string;
+  source?: import('@piwin/contracts').ModelSource;
+  group?: import('@piwin/contracts').ConfiguredChatModelGroup;
   contextWindow?: number;
   maxOutputTokens?: number;
   /** Configured thinking level default for this model. */
@@ -65,12 +67,14 @@ export function modelOptionsFromConfiguredModels(
 ): ModelOption[] {
   return models.map((model) => ({
     providerId: model.providerId,
-    protocol: model.protocol,
+    ...(model.protocol !== undefined ? { protocol: model.protocol } : {}),
     modelId: model.modelId,
+    ...(model.source !== undefined ? { source: model.source } : {}),
+    ...(model.group !== undefined ? { group: model.group } : {}),
     label:
       typeof model.label === 'string' && model.label.trim().length > 0
-        ? `${model.providerId} / ${model.label}`
-        : `${model.providerId} / ${model.modelId}`,
+        ? `${model.group === 'subscription' ? '套餐' : model.providerId} / ${model.label}`
+        : `${model.group === 'subscription' ? '套餐' : model.providerId} / ${model.modelId}`,
     ...(model.thinkingLevel ? { thinkingLevel: model.thinkingLevel } : {}),
     ...(model.thinkingLevels ? { thinkingLevels: model.thinkingLevels } : {}),
     ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
@@ -86,18 +90,25 @@ export function readConfiguredChatModelsData(data: unknown): ConfiguredChatModel
       if (!isRecord(item) || typeof item.providerId !== 'string' || typeof item.modelId !== 'string') {
         continue;
       }
-      if (
-        item.protocol !== 'openai-compatible' &&
-        item.protocol !== 'anthropic-compatible' &&
-        item.protocol !== 'google-gemini'
-      ) {
+      const protocol = item.protocol;
+      const isChannelProtocol =
+        protocol === 'openai-compatible' ||
+        protocol === 'anthropic-compatible' ||
+        protocol === 'google-gemini';
+      const isSubscription = item.source === 'subscription';
+      if (!isChannelProtocol && !isSubscription) {
         continue;
       }
       const model: ConfiguredChatModel = {
         providerId: item.providerId,
-        protocol: item.protocol,
         modelId: item.modelId,
+        ...(isSubscription
+          ? { source: 'subscription', group: 'subscription' }
+          : { source: 'channel', group: 'channel' }),
       };
+      if (isChannelProtocol) {
+        model.protocol = protocol;
+      }
       if (typeof item.label === 'string' && item.label.trim().length > 0) {
         model.label = item.label;
       }
@@ -148,6 +159,8 @@ export function buildEnabledModelOptions(
       options.push({
         providerId: provider.id,
         protocol: provider.protocol,
+        source: 'channel',
+        group: 'channel',
         modelId: model.id,
         label: `${provider.name} / ${model.label ?? model.id}`,
         ...(typeof model.contextWindow === 'number' ? { contextWindow: model.contextWindow } : {}),

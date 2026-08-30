@@ -187,6 +187,14 @@ export async function recordUserPrompt(
           status: 'done',
           createdAt,
           ...(attachments !== undefined && attachments.length > 0 ? { attachments } : {}),
+          ...(input.source === 'voice-delegation'
+            ? {
+                metadata: {
+                  promptSource: 'voice-delegation' as const,
+                  ...(input.voiceCallId ? { voiceCallId: input.voiceCallId } : {}),
+                },
+              }
+            : {}),
         }),
       projectPath,
     );
@@ -210,6 +218,12 @@ export async function recordUserPrompt(
     ...(attachments !== undefined && attachments.length > 0 ? { attachments } : {}),
     ...(input.contextRefs !== undefined && input.contextRefs.length > 0
       ? { contextRefs: input.contextRefs.map((ref) => ({ ...ref })) }
+      : {}),
+    ...(input.source === 'voice-delegation'
+      ? {
+          source: 'voice-delegation' as const,
+          ...(input.voiceCallId ? { voiceCallId: input.voiceCallId } : {}),
+        }
       : {}),
   };
   deps.healthTurnBySession.set(sessionId, {

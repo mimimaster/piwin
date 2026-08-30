@@ -16,8 +16,9 @@ import type {
   ScannedDocFile,
   ScannedFileV2,
 } from '@piwin/contracts';
-import { Button, IconButton } from '@piwin/ui-kit';
+import { IconButton } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context.js';
+import { IconChevronLeft } from './shell-icons.js';
 import {
   WindowDragRegion,
   handleNativeWindowDragMouseDown,
@@ -539,27 +540,18 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
         >
           {props.onClose ? (
             <div className="knowledge-titlebar-leading" data-no-window-drag>
-              <Button
-                variant="ghost"
+              <button
+                type="button"
                 className="knowledge-back-button"
                 onClick={props.onClose}
                 data-testid="knowledge-back-button"
+                title={`${t('Back to workspace', '返回工作区')} (Esc)`}
+                aria-label={t('Back to workspace', '返回工作区')}
               >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="m15 18-6-6 6-6" />
-                </svg>
-                {t('Back to workspace', '返回工作区')}
-              </Button>
+                <IconChevronLeft width={16} height={16} aria-hidden="true" />
+                <span className="sr-only">{t('Back to workspace', '返回工作区')}</span>
+              </button>
+              <span className="knowledge-titlebar-title">{t('Knowledge Center', '知识中心')}</span>
             </div>
           ) : null}
           <WindowDragRegion

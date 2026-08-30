@@ -87,4 +87,22 @@ describe('createSecretResolver', () => {
     });
     expect(value).toBe('cliproxy-new-key');
   });
+
+  it('deletes a provider secret from the file store', async () => {
+    const { mkdtemp, access } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { constants } = await import('node:fs');
+    const root = await mkdtemp(join(tmpdir(), 'piwin-secrets-del-'));
+    const resolver = createSecretResolver({
+      piwinRoot: root,
+      preferFileStore: true,
+    });
+    await resolver.writeProviderSecret('google-gemini', 'gemini-key');
+    await resolver.deleteProviderSecret('google-gemini');
+    await expect(access(join(root, 'secrets', 'piwin-google-gemini'), constants.F_OK)).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
+    expect(await resolver.readProviderSecret('google-gemini')).toBeNull();
+  });
 });

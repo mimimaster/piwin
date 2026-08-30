@@ -265,7 +265,8 @@ export function mergeSeededToolPresentation(
   if (!seed) {
     return lifecycle;
   }
-  return {
+  const isError = lifecycle.error !== undefined;
+  const merged: ToolPresentation = {
     ...seed,
     ...lifecycle,
     kind: seed.kind,
@@ -275,8 +276,13 @@ export function mergeSeededToolPresentation(
     ...(seed.inputPreview !== undefined ? { inputPreview: seed.inputPreview } : {}),
     ...(seed.command !== undefined ? { command: seed.command } : {}),
     ...(seed.targetPaths !== undefined ? { targetPaths: seed.targetPaths } : {}),
-    ...(seed.changedPaths !== undefined ? { changedPaths: seed.changedPaths } : {}),
   };
+  if (isError) {
+    delete merged.changedPaths;
+  } else if (seed.changedPaths !== undefined && merged.changedPaths === undefined) {
+    merged.changedPaths = seed.changedPaths;
+  }
+  return merged;
 }
 
 export function readToolCallArgs(event: Record<string, unknown>): unknown {

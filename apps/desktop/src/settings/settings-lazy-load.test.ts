@@ -27,6 +27,8 @@ describe('settings lazy load (Chrome two-bundle)', () => {
     await ensureSettingsLazyLoaded();
     await ensureSettingsLazyLoaded();
     expect(getSettingsSection('models')).toBeTypeOf('function');
+    expect(getSettingsSection('oauth')).toBeTypeOf('function');
+    expect(getSettingsSection('hooks')).toBeTypeOf('function');
     expect(getSettingsSection('permissions')).toBeTypeOf('function');
     expect(getSettingsSection('agent')).toBeTypeOf('function');
     expect(getSettingsSection('extensions')).toBeTypeOf('function');

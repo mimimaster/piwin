@@ -23,14 +23,25 @@ export function FlashcardView({
   const [isFlipping, setIsFlipping] = useState(false);
   const [rated, setRated] = useState<string | null>(null);
   const [sourceOpen, setSourceOpen] = useState(false);
-  const flipTimerRef = useRef<number | null>(null);
+  const [selectedText, setSelectedText] = useState('');
+  const [pillPos, setPillPos] = useState<{ x: number; y: number } | null>(null);
+  const [peeling, setPeeling] = useState(false);
 
-  // Clean up animation timer on unmount
+  const containerRef = useRef<HTMLDivElement>(null);
+  const startPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const flipTimerRef = useRef<number | null>(null);
+  const peelTimerRef = useRef<number | null>(null);
+
+  // Clean up animation timers on unmount
   useEffect(() => {
     return () => {
       if (flipTimerRef.current !== null) {
         window.clearTimeout(flipTimerRef.current);
         flipTimerRef.current = null;
+      }
+      if (peelTimerRef.current !== null) {
+        window.clearTimeout(peelTimerRef.current);
+        peelTimerRef.current = null;
       }
     };
   }, []);
@@ -52,11 +63,47 @@ export function FlashcardView({
     flipTimerRef.current = window.setTimeout(() => {
       setIsFlipping(false);
       flipTimerRef.current = null;
-    }, 550);
+    }, 400);
+  };
+
+  const handleMouseDown = (e: React.MouseEvent): void => {
+    startPosRef.current = { x: e.clientX, y: e.clientY };
+  };
+
+  const handleFrameClick = (e: React.MouseEvent): void => {
+    const dist = Math.hypot(
+      e.clientX - startPosRef.current.x,
+      e.clientY - startPosRef.current.y,
+    );
+    const currentSelection = window.getSelection()?.toString().trim();
+
+    // Drag threshold or active selection: suppress flip
+    if (dist > 4 || (currentSelection && currentSelection.length > 0)) {
+      return;
+    }
+
+    // Dismiss active pill on clean click
+    if (selectedText.length > 0) {
+      setSelectedText('');
+      setPillPos(null);
+      window.getSelection()?.removeAllRanges();
+      return;
+    }
+
+    handleToggleFlip();
   };
 
   const handleRate = (rating: 'again' | 'hard' | 'good' | 'easy', label: string): void => {
     setRated(label);
+    setPeeling(true);
+    if (peelTimerRef.current !== null) {
+      window.clearTimeout(peelTimerRef.current);
+    }
+    peelTimerRef.current = window.setTimeout(() => {
+      setPeeling(false);
+      peelTimerRef.current = null;
+    }, 240);
+
     if (onAction) {
       onAction({
         type: 'piwin-artifact:action',
@@ -85,6 +132,62 @@ export function FlashcardView({
     }
   };
 
+  const handleExplainSelected = (e: React.MouseEvent): void => {
+    e.stopPropagation();
+    const term = selectedText;
+    setSelectedText('');
+    setPillPos(null);
+    window.getSelection()?.removeAllRanges();
+
+    if (onAction && term) {
+      onAction({
+        type: 'piwin-artifact:action',
+        channelId: card.cardId,
+        action: 'composer/propose-text',
+        payload: {
+          text: `针对闪卡《${card.front}》，请详细讲解其中的概念「${term}」。`,
+          label: `讲解「${term}」`,
+        },
+      });
+    }
+  };
+
+  // Listen to text selection across the card
+  useEffect(() => {
+    const handleSelectionChange = (): void => {
+      const sel = window.getSelection();
+      const text = sel?.toString().trim();
+      if (!text || text.length === 0 || !containerRef.current) {
+        setPillPos(null);
+        setSelectedText('');
+        return;
+      }
+
+      if (sel && sel.anchorNode && containerRef.current.contains(sel.anchorNode)) {
+        setSelectedText(text);
+        try {
+          const range = sel.getRangeAt(0);
+          const rect = range.getBoundingClientRect();
+          const containerRect = containerRef.current.getBoundingClientRect();
+          setPillPos({
+            x: rect.left + rect.width / 2 - containerRect.left,
+            y: rect.top - containerRect.top - 6,
+          });
+        } catch {
+          setPillPos(null);
+        }
+      } else {
+        setPillPos(null);
+        setSelectedText('');
+      }
+    };
+
+    document.addEventListener('selectionchange', handleSelectionChange);
+    return () => {
+      document.removeEventListener('selectionchange', handleSelectionChange);
+    };
+  }, []);
+
   const handleKeyDown = (e: React.KeyboardEvent): void => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
@@ -98,7 +201,7 @@ export function FlashcardView({
         handleRate('hard', isZh ? '较难' : 'Hard');
       } else if (e.key === '3') {
         e.preventDefault();
-        handleRate('good', isZh ? '记住了' : 'Good');
+        handleRate('good', isZh ? '记住' : 'Good');
       } else if (e.key === '4') {
         e.preventDefault();
         handleRate('easy', isZh ? '简单' : 'Easy');
@@ -108,21 +211,47 @@ export function FlashcardView({
 
   return (
     <div
-      className="fc-quiet-card-container"
+      ref={containerRef}
+      className={`fc-quiet-card-container${peeling ? ' fc-quiet-peeling' : ''}`}
       data-card-id={card.cardId}
       data-testid="chat-flashcard"
       tabIndex={0}
       onKeyDown={handleKeyDown}
+      onMouseDown={handleMouseDown}
     >
+      {/* Physical Stack Depth Layer */}
+      {totalCards && totalCards > 1 && cardIndex !== undefined && cardIndex < totalCards - 1 ? (
+        <div className="fc-quiet-stack-layer" />
+      ) : null}
+
+      {/* Floating Selection Tooltip Pill */}
+      {pillPos && selectedText ? (
+        <button
+          type="button"
+          className="fc-selection-pill"
+          style={{ left: `${pillPos.x}px`, top: `${pillPos.y}px` }}
+          onClick={handleExplainSelected}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <span className="fc-selection-icon">✨</span>
+          <span>
+            {isZh
+              ? `讲解「${selectedText.length > 8 ? selectedText.slice(0, 8) + '…' : selectedText}」`
+              : `Explain "${selectedText.length > 8 ? selectedText.slice(0, 8) + '…' : selectedText}"`}
+          </span>
+          <span className="fc-selection-enter">↵</span>
+        </button>
+      ) : null}
+
       {/* 3D Flip Frame */}
       <div
         className={`fc-quiet-frame${flipped ? ' is-flipped' : ''}${isFlipping ? ' is-flipping' : ''}`}
-        onClick={handleToggleFlip}
+        onClick={handleFrameClick}
         role="button"
         tabIndex={0}
         aria-label={flipped ? 'Flashcard back' : 'Flashcard front'}
       >
-        {/* Front Face: Question */}
+        {/* Front Face: Pure Concept Question */}
         <div
           className={`fc-quiet-face fc-quiet-front${!flipped ? ' is-active' : ' is-hidden'}`}
         >
@@ -134,20 +263,14 @@ export function FlashcardView({
               ) : null}
             </div>
 
-            <div className="fc-quiet-tools">
-              {typeof cardIndex === 'number' && typeof totalCards === 'number' && totalCards > 1 ? (
-                <span className="fc-quiet-index">
-                  {cardIndex + 1} / {totalCards}
-                </span>
-              ) : null}
-              <span className="fc-quiet-flip-badge">
-                <span>{isZh ? '翻看解答' : 'Flip'}</span>
-                <kbd>Space</kbd>
+            {typeof cardIndex === 'number' && typeof totalCards === 'number' && totalCards > 1 ? (
+              <span className="fc-quiet-index">
+                {cardIndex + 1} / {totalCards}
               </span>
-            </div>
+            ) : null}
           </div>
 
-          <div className="fc-quiet-body fc-quiet-question">
+          <div className="fc-quiet-body fc-quiet-question fc-quiet-text-zone">
             <MarkdownView
               text={card.front}
               renderingPhase="completed"
@@ -158,25 +281,26 @@ export function FlashcardView({
           </div>
         </div>
 
-        {/* Back Face: Answer */}
+        {/* Back Face: High Density Substantive Answer */}
         <div
           className={`fc-quiet-face fc-quiet-back${flipped ? ' is-active' : ' is-hidden'}`}
         >
           <div className="fc-quiet-header">
             <div className="fc-quiet-meta">
               <span className="fc-quiet-deck">{card.deck || (isZh ? '闪卡' : 'Card')}</span>
-              <span className="fc-quiet-answer-pill">{isZh ? '解答' : 'Answer'}</span>
+              {Array.isArray(card.tags) && card.tags.length > 0 ? (
+                <span className="fc-quiet-tag">#{card.tags[0]}</span>
+              ) : null}
             </div>
 
-            <div className="fc-quiet-tools">
-              <span className="fc-quiet-flip-badge">
-                <span>{isZh ? '翻回' : 'Flip back'}</span>
-                <kbd>Space</kbd>
+            {typeof cardIndex === 'number' && typeof totalCards === 'number' && totalCards > 1 ? (
+              <span className="fc-quiet-index">
+                {cardIndex + 1} / {totalCards}
               </span>
-            </div>
+            ) : null}
           </div>
 
-          <div className="fc-quiet-body fc-quiet-answer">
+          <div className="fc-quiet-body fc-quiet-answer fc-quiet-text-zone">
             {flipped ? (
               <MarkdownView
                 text={card.back}
@@ -197,7 +321,7 @@ export function FlashcardView({
                     setSourceOpen((prev) => !prev);
                   }}
                 >
-                  <span>📎 {isZh ? '来源' : 'Source'}:</span>
+                  <span>📎</span>
                   <span className="fc-quiet-source-path">{sourcePath}</span>
                 </button>
               </div>
@@ -218,7 +342,8 @@ export function FlashcardView({
                   onClick={() => handleRate('again', isZh ? '忘了' : 'Again')}
                 >
                   <span className="fc-rate-key">1</span>
-                  <span>{isZh ? '忘了' : 'Again'}</span>
+                  <span className="fc-rate-label">{isZh ? '忘了' : 'Again'}</span>
+                  <span className="fc-rate-interval">10m</span>
                 </button>
                 <button
                   type="button"
@@ -226,15 +351,17 @@ export function FlashcardView({
                   onClick={() => handleRate('hard', isZh ? '较难' : 'Hard')}
                 >
                   <span className="fc-rate-key">2</span>
-                  <span>{isZh ? '较难' : 'Hard'}</span>
+                  <span className="fc-rate-label">{isZh ? '较难' : 'Hard'}</span>
+                  <span className="fc-rate-interval">1d</span>
                 </button>
                 <button
                   type="button"
                   className="fc-quiet-rate-btn btn-good"
-                  onClick={() => handleRate('good', isZh ? '记住了' : 'Good')}
+                  onClick={() => handleRate('good', isZh ? '记住' : 'Good')}
                 >
                   <span className="fc-rate-key">3</span>
-                  <span>{isZh ? '记住了' : 'Good'}</span>
+                  <span className="fc-rate-label">{isZh ? '记住' : 'Good'}</span>
+                  <span className="fc-rate-interval">3d</span>
                 </button>
                 <button
                   type="button"
@@ -242,7 +369,8 @@ export function FlashcardView({
                   onClick={() => handleRate('easy', isZh ? '简单' : 'Easy')}
                 >
                   <span className="fc-rate-key">4</span>
-                  <span>{isZh ? '简单' : 'Easy'}</span>
+                  <span className="fc-rate-label">{isZh ? '简单' : 'Easy'}</span>
+                  <span className="fc-rate-interval">7d</span>
                 </button>
               </div>
             </div>
@@ -306,12 +434,8 @@ export function FlashcardStackView(props: {
   const safeIndex = Math.min(Math.max(0, activeIndex), Math.max(0, cards.length - 1));
   const activeCard = cards[safeIndex];
 
-  const handlePrev = useCallback((): void => {
-    setActiveIndex((prev) => (prev > 0 ? prev - 1 : cards.length - 1));
-  }, [cards.length]);
-
-  const handleNext = useCallback((): void => {
-    setActiveIndex((prev) => (prev < cards.length - 1 ? prev + 1 : 0));
+  const handleTear = useCallback((): void => {
+    setActiveIndex((prev) => (prev < cards.length - 1 ? prev + 1 : prev));
   }, [cards.length]);
 
   if (!cards || cards.length === 0 || !activeCard) {
@@ -336,30 +460,24 @@ export function FlashcardStackView(props: {
     <div className="fc-quiet-stack is-multi">
       <div className="fc-quiet-nav">
         <span className="fc-quiet-nav-label">
-          {isZh ? `卡片 (${cards.length})` : `Cards (${cards.length})`}
+          {isZh ? `一套 (${cards.length})` : `Set (${cards.length})`}
         </span>
         <div className="fc-quiet-nav-actions">
-          <button
-            type="button"
-            className="fc-quiet-nav-btn"
-            onClick={handlePrev}
-            aria-label="Previous card"
-            title={isZh ? '上一张' : 'Previous'}
-          >
-            ‹
-          </button>
           <span className="fc-quiet-nav-count">
             {safeIndex + 1} / {cards.length}
           </span>
-          <button
-            type="button"
-            className="fc-quiet-nav-btn"
-            onClick={handleNext}
-            aria-label="Next card"
-            title={isZh ? '下一张' : 'Next'}
-          >
-            ›
-          </button>
+          {safeIndex < cards.length - 1 ? (
+            <button
+              type="button"
+              className="fc-quiet-nav-btn"
+              onClick={handleTear}
+              aria-label={isZh ? '撕掉' : 'Tear'}
+              title={isZh ? '撕掉' : 'Tear'}
+              data-testid="flashcard-tear-next"
+            >
+              {isZh ? '撕掉' : 'Tear'}
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -376,3 +494,4 @@ export function FlashcardStackView(props: {
     </div>
   );
 }
+

@@ -5,6 +5,7 @@
  * read and test on its own.
  */
 import { useCallback } from 'react';
+import { toModelRef } from '@piwin/contracts';
 import type {
   AgentModeId,
   ModelRef,
@@ -45,11 +46,12 @@ export function useComposerPromptInput(args: UseComposerMediaArgs) {
     if (key && args.modelOptions?.length) {
       const option = args.modelOptions.find((item) => `${item.providerId}::${item.modelId}` === key);
       if (option) {
-        return {
-          protocol: option.protocol,
+        return toModelRef({
           providerId: option.providerId,
           modelId: option.modelId,
-        };
+          ...(option.protocol !== undefined ? { protocol: option.protocol } : {}),
+          ...(option.source !== undefined ? { source: option.source } : {}),
+        });
       }
     }
     if (args.promptModel) {

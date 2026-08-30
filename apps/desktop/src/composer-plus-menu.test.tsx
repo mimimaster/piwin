@@ -149,25 +149,14 @@ describe('ComposerPlusMenu', () => {
     );
   });
 
-  it('renders Knowledge submenu when onOpenKnowledge is provided', () => {
-    const onOpenKnowledge = vi.fn();
-    render(createBaseProps({ submenu: 'knowledge', onOpenKnowledge }), root);
-
-    const flyout = document.querySelector('[aria-label="Knowledge Center"]');
-    expect(flyout).not.toBeNull();
-    expect(flyout?.textContent).toContain('Learn from folder');
-    expect(flyout?.textContent).not.toContain('Repo Wiki');
-
-    clickItem('plus-menu-open-doccards');
-    expect(onOpenKnowledge).toHaveBeenCalledWith('doccards');
-  });
-
-  it('routes Flashcards through onOpenCardsPanel, not onOpenKnowledge', () => {
+  it('opens flashcards from a single plus-menu item', () => {
     const onOpenKnowledge = vi.fn();
     const onOpenCardsPanel = vi.fn();
-    render(createBaseProps({ submenu: 'knowledge', onOpenKnowledge, onOpenCardsPanel }), root);
+    render(createBaseProps({ onOpenKnowledge, onOpenCardsPanel }), root);
+    expect(document.body.textContent).toContain('Flashcards');
+    expect(document.body.textContent).not.toContain('Knowledge Center');
     clickItem('plus-menu-open-flashcards');
     expect(onOpenCardsPanel).toHaveBeenCalledTimes(1);
-    expect(onOpenKnowledge).not.toHaveBeenCalledWith('cards');
+    expect(onOpenKnowledge).not.toHaveBeenCalled();
   });
 });

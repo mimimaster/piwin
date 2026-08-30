@@ -1,114 +1,115 @@
 import type { ReactElement, ReactNode } from 'react';
-import { IconButton } from '@piwin/ui-kit';
-import { IconArrowLeft, IconClose, IconSearch } from '../../shell-icons';
-
-/**
- * Chrome shared by the Images / Videos studio pages: a slim topbar, a left
- * creation/library rail, and pill controls. Pure layout — no data concerns.
- */
+import { getDesktopCopy, type DesktopLocale } from '../../desktop-locale';
+import { useDesktopLocale } from '../../desktop-locale-context';
+import { WindowDragRegion, handleNativeWindowDragMouseDown } from '../../native-window-drag';
+import { IconChevronLeft, IconClose, IconSearch } from '../../shell-icons';
 
 export type StudioTopbarProps = {
   testId: string;
   backLabel: string;
   onBack: () => void;
-  icon: ReactNode;
-  title: string;
-  countLabel?: string;
-  searchPlaceholder?: string;
-  searchValue?: string;
-  onSearchChange?: (value: string) => void;
-  /** Extra controls rendered between search and the close button. */
-  actions?: ReactNode;
+  locale?: DesktopLocale | undefined;
+  kind: 'library' | 'flashcards';
+  /** `page` = title | search | primary. `bar` = compact toolbar. */
+  layout?: 'bar' | 'page';
+  titleCount?: number | undefined;
+  searchPlaceholder?: string | undefined;
+  searchTestId?: string | undefined;
+  searchValue?: string | undefined;
+  onSearchChange?: ((value: string) => void) | undefined;
+  filters?: ReactNode | undefined;
+  actions?: ReactNode | undefined;
+  primaryAction?: ReactNode | undefined;
 };
 
+/** Full-window page chrome: titleband, back, context, search, filters, actions. */
 export function StudioTopbar(props: StudioTopbarProps): ReactElement {
+  const { locale: contextLocale } = useDesktopLocale();
+  const locale = props.locale ?? contextLocale;
+  const isZh = locale === 'zh-CN';
+  const t = (en: string, zh: string) => (isZh ? zh : en);
+  const dragWindowLabel = getDesktopCopy(locale).titlebar.dragWindow;
+  const title = props.kind === 'flashcards' ? t('Flashcards', '闪卡') : t('Library', '资料库');
+  const pageLayout = props.layout === 'page';
+
+  const searchField =
+    props.searchPlaceholder !== undefined ? (
+      <label className="vault-search">
+        <IconSearch width={14} height={14} aria-hidden="true" />
+        <span className="sr-only">{props.searchPlaceholder}</span>
+        <input
+          type="search"
+          aria-label={props.searchPlaceholder}
+          placeholder={props.searchPlaceholder}
+          value={props.searchValue ?? ''}
+          onChange={(event) => props.onSearchChange?.(event.target.value)}
+          {...(props.searchTestId !== undefined ? { 'data-testid': props.searchTestId } : {})}
+        />
+        {Boolean(props.searchValue) ? (
+          <button
+            type="button"
+            className="vault-search-clear"
+            onClick={() => props.onSearchChange?.('')}
+            aria-label={t('Clear search', '清空搜索')}
+          >
+            <IconClose width={11} height={11} aria-hidden="true" />
+          </button>
+        ) : null}
+      </label>
+    ) : null;
+
   return (
-    <header className="studio-topbar">
-      <div className="studio-topbar-identity">
-        <button
-          type="button"
-          className="studio-back-btn"
-          data-testid={props.testId}
-          onClick={props.onBack}
+    <header className="studio-chrome">
+      <WindowDragRegion
+        className="vault-titleband"
+        data-testid="studio-topbar-drag"
+        aria-label={dragWindowLabel}
+      />
+      <div
+        className={`vault-bar${pageLayout ? ' is-page' : ''}`}
+        data-testid="studio-topbar"
+        data-tauri-drag-region
+        onMouseDown={handleNativeWindowDragMouseDown}
+      >
+        <div className="vault-bar-leading" data-no-window-drag>
+          <button
+            type="button"
+            className={`vault-back${pageLayout ? ' is-icon' : ''}`}
+            data-testid={props.testId}
+            onClick={props.onBack}
+            aria-label={props.backLabel}
+          >
+            <IconChevronLeft width={16} height={16} aria-hidden="true" />
+            {pageLayout ? null : <span>{props.backLabel}</span>}
+          </button>
+          <span className="vault-bar-context">
+            <span>{title}</span>
+            {props.titleCount !== undefined ? (
+              <span className="vault-bar-count">{props.titleCount}</span>
+            ) : null}
+          </span>
+        </div>
+
+        {pageLayout ? (
+          <div className="vault-bar-search" data-no-window-drag>
+            {searchField}
+          </div>
+        ) : null}
+
+        <div
+          className={pageLayout ? 'vault-bar-primary' : 'vault-bar-actions'}
+          data-no-window-drag
         >
-          <IconArrowLeft width={14} height={14} />
-          <span>{props.backLabel}</span>
-        </button>
-        <div className="studio-title-badge">{props.icon}</div>
-        <h1 className="studio-title">{props.title}</h1>
-        {props.countLabel !== undefined && (
-          <span className="studio-count-badge">{props.countLabel}</span>
-        )}
+          {pageLayout ? props.primaryAction : searchField}
+          {props.filters ? null : props.actions}
+        </div>
       </div>
-      <div className="studio-topbar-actions">
-        {props.searchPlaceholder !== undefined && (
-          <label className="studio-search-well">
-            <IconSearch width={14} height={14} />
-            <input
-              type="text"
-              placeholder={props.searchPlaceholder}
-              value={props.searchValue ?? ''}
-              onChange={(e) => props.onSearchChange?.(e.target.value)}
-            />
-          </label>
-        )}
-        {props.actions}
-        <IconButton label="Close" title="Close" onClick={props.onBack}>
-          <IconClose width={16} height={16} />
-        </IconButton>
-      </div>
+      {props.filters ? (
+        <div className="vault-filters" data-no-window-drag>
+          <div className="vault-filters-leading">{props.filters}</div>
+          {props.actions}
+        </div>
+      ) : null}
     </header>
-  );
-}
-
-export function StudioRail(props: { children: ReactNode }): ReactElement {
-  return <aside className="studio-rail">{props.children}</aside>;
-}
-
-export function RailSection(props: {
-  title: string;
-  children: ReactNode;
-}): ReactElement {
-  return (
-    <section className="rail-section">
-      <h2 className="rail-section-title">{props.title}</h2>
-      {props.children}
-    </section>
-  );
-}
-
-/** Label + control row inside a rail section. */
-export function RailField(props: {
-  label: string;
-  htmlFor?: string;
-  children: ReactNode;
-}): ReactElement {
-  return (
-    <div className="rail-field">
-      <span className="rail-field-label">{props.label}</span>
-      {props.children}
-    </div>
-  );
-}
-
-export function PillGroup(props: { children: ReactNode }): ReactElement {
-  return <div className="pill-group">{props.children}</div>;
-}
-
-export function PillButton(props: {
-  active: boolean;
-  onClick: () => void;
-  title?: string;
-  children: ReactNode;
-}): ReactElement {
-  return (
-    <button
-      type="button"
-      className={`pill-btn${props.active ? ' active' : ''}`}
-      onClick={props.onClick}
-      {...(props.title !== undefined ? { title: props.title } : {})}
-    >
-      {props.children}
-    </button>
   );
 }

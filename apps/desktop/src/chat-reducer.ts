@@ -138,6 +138,8 @@ export type ChatMessageUi = {
   docCardSequence?: SessionTranscriptMessage['docCardSequence'];
   /** Context references attached to this user message (e.g. selections, file pins). */
   contextRefs?: PromptContextRef[];
+  source?: SessionTranscriptMessage['source'];
+  voiceCallId?: string;
   /** Model snapshot used to produce this Assistant message. */
   model?: ModelRef;
   /** Reply Writer is rewriting this bubble. */
@@ -821,6 +823,8 @@ export function mapTranscriptMessagesToUi(
     ...(message.contextRefs && message.contextRefs.length > 0
       ? { contextRefs: message.contextRefs }
       : {}),
+    ...(message.source ? { source: message.source } : {}),
+    ...(message.voiceCallId ? { voiceCallId: message.voiceCallId } : {}),
     ...(message.model ? { model: message.model } : {}),
     ...(message.replyWriter
       ? {
@@ -4316,7 +4320,10 @@ function mergeToolPresentation(
     ...(incoming.error || existing.error ? { error: incoming.error ?? existing.error } : {}),
   };
   const targetPaths = incoming.targetPaths ?? existing.targetPaths;
-  const changedPaths = incoming.changedPaths ?? existing.changedPaths;
+  const changedPaths =
+    incoming.error !== undefined
+      ? incoming.changedPaths
+      : (incoming.changedPaths ?? existing.changedPaths);
   if (targetPaths !== undefined) {
     merged.targetPaths = targetPaths;
   }

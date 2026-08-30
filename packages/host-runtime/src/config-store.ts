@@ -428,6 +428,26 @@ function normalizeVideoGenerationConfig(value: unknown): VideoGenerationConfig |
   return { defaultModel };
 }
 
+function normalizeLiveByProvider(
+  value: unknown,
+): Record<string, Record<string, string>> | undefined {
+  const record = asRecord(value);
+  if (!record) return undefined;
+  const byProvider: Record<string, Record<string, string>> = {};
+  for (const [providerId, raw] of Object.entries(record)) {
+    const fields = asRecord(raw);
+    if (!fields) continue;
+    const normalized: Record<string, string> = {};
+    for (const [key, fieldValue] of Object.entries(fields)) {
+      if (typeof fieldValue === 'string' && fieldValue.trim()) {
+        normalized[key] = fieldValue.trim();
+      }
+    }
+    if (Object.keys(normalized).length > 0) byProvider[providerId] = normalized;
+  }
+  return Object.keys(byProvider).length > 0 ? byProvider : undefined;
+}
+
 function normalizeSpeechConfig(value: unknown): SpeechConfig | undefined {
   const record = asRecord(value);
   if (!record) {
@@ -461,6 +481,21 @@ function normalizeSpeechConfig(value: unknown): SpeechConfig | undefined {
     if (Object.keys(tts).length > 0) {
       normalized.tts = tts;
     }
+  }
+  const liveRecord = asRecord(record.live);
+  if (liveRecord) {
+    const live: NonNullable<SpeechConfig['live']> = {
+      enabled: liveRecord.enabled === true,
+    };
+    if (typeof liveRecord.voice === 'string' && liveRecord.voice.trim()) {
+      live.voice = liveRecord.voice.trim();
+    }
+    if (typeof liveRecord.providerId === 'string' && liveRecord.providerId.trim()) {
+      live.providerId = liveRecord.providerId.trim();
+    }
+    const byProvider = normalizeLiveByProvider(liveRecord.byProvider);
+    if (byProvider) live.byProvider = byProvider;
+    normalized.live = live;
   }
   return Object.keys(normalized).length > 0 ? normalized : undefined;
 }

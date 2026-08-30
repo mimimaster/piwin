@@ -5,7 +5,7 @@ import type { TranscriptTurn } from './transcript-turns.js';
 export type TurnWorkDisclosureProjection = {
   /** Inclusive index of the first intermediate row hidden by the disclosure. */
   startIndex: number;
-  /** Inclusive index immediately before the live tail or final Assistant answer. */
+  /** Inclusive index immediately before the settled user-facing Assistant answer. */
   endIndex: number;
   elapsedMs?: number;
   failureCount: number;
@@ -24,16 +24,6 @@ function hasVisibleFinalContent(message: ChatMessageUi): boolean {
     message.text.trim().length > 0 ||
     message.attachments.length > 0 ||
     (message.searchEvidence?.citations.length ?? 0) > 0
-  );
-}
-
-function isFinalAnswer(message: ChatMessageUi): boolean {
-  return (
-    message.role === 'assistant' &&
-    message.status === 'done' &&
-    message.error === undefined &&
-    message.tools.length === 0 &&
-    hasVisibleFinalContent(message)
   );
 }
 
@@ -56,8 +46,16 @@ function isUserFacingReply(message: ChatMessageUi): boolean {
   );
 }
 
+function isSubagentActive(activity: ChatMessageUi['subagentActivity']): boolean {
+  return activity !== undefined && (activity.state === 'started' || activity.state === 'running');
+}
+
 function isMessageActive(message: ChatMessageUi): boolean {
-  return message.status === 'streaming' || message.tools.some((tool) => tool.status === 'running');
+  return (
+    message.status === 'streaming' ||
+    message.tools.some((tool) => tool.status === 'running') ||
+    isSubagentActive(message.subagentActivity)
+  );
 }
 
 function findLastAssistantIndex(turn: TranscriptTurn): number {
@@ -78,14 +76,6 @@ function prefixHasWork(turn: TranscriptTurn, startIndex: number, endIndex: numbe
   for (let index = startIndex; index <= endIndex; index += 1) {
     const message = turn.items[index]?.message;
     if (message && hasIntermediateWork(message)) return true;
-  }
-  return false;
-}
-
-function prefixHasRunningWork(turn: TranscriptTurn, startIndex: number, endIndex: number): boolean {
-  for (let index = startIndex; index <= endIndex; index += 1) {
-    const message = turn.items[index]?.message;
-    if (message && isMessageActive(message)) return true;
   }
   return false;
 }
@@ -187,11 +177,19 @@ function countFailures(
   return failedToolCount > 0 ? failedToolCount : hasNonToolFailure ? 1 : 0;
 }
 
+function isTurnSettled(
+  input: ProjectTurnWorkDisclosureInput,
+  runIds: ReadonlySet<string>,
+): boolean {
+  if (input.currentTurnStreaming) return false;
+  if (input.turn.items.some(({ message }) => isMessageActive(message))) return false;
+  if (input.activeRunId !== null && runIds.has(input.activeRunId)) return false;
+  return true;
+}
+
 /**
- * Select the Assistant range that may be disclosed.
- * The newest assistant stays mounted. Settled process rows before it may
- * collapse even while the turn is still running. Returning `null` keeps the
- * original causal stream fully mounted.
+ * Wrap intermediate Agent work only after the user query has settled.
+ * Returning `null` keeps the original causal stream fully mounted.
  */
 export function projectTurnWorkDisclosure(
   input: ProjectTurnWorkDisclosureInput,
@@ -199,23 +197,17 @@ export function projectTurnWorkDisclosure(
   const lastAssistantIndex = findLastAssistantIndex(input.turn);
   if (lastAssistantIndex <= 0) return null;
   const lastAssistant = input.turn.items[lastAssistantIndex]?.message;
-  if (!lastAssistant) return null;
+  if (!lastAssistant || !isUserFacingReply(lastAssistant)) return null;
 
   const endIndex = lastAssistantIndex - 1;
   const startIndex = findFirstAssistantIndex(input.turn, endIndex);
   if (startIndex === -1 || endIndex < startIndex) return null;
   if (!prefixHasWork(input.turn, startIndex, endIndex)) return null;
-
-  const runIds = collectRunIds(input.turn);
-  if (isFinalAnswer(lastAssistant)) {
-    const hasActiveMessage = input.turn.items.some(({ message }) => isMessageActive(message));
-    const ownsActiveRun = input.activeRunId !== null && runIds.has(input.activeRunId);
-    if (input.currentTurnStreaming || hasActiveMessage || ownsActiveRun) return null;
-  } else if (prefixHasRunningWork(input.turn, startIndex, endIndex)) {
-    return null;
-  }
   // A contiguous [start, end] would also hide any real reply in that span.
   if (prefixHasUserFacingReply(input.turn, startIndex, endIndex)) return null;
+
+  const runIds = collectRunIds(input.turn);
+  if (!isTurnSettled(input, runIds)) return null;
 
   const elapsedMs = resolveElapsedMs(
     input.turn,

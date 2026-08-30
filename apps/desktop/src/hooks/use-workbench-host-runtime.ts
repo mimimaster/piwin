@@ -258,14 +258,18 @@ export function useWorkbenchHostRuntime(args: UseWorkbenchHostRuntimeArgs) {
   );
 
   const artifactThemeKey = `${activeTheme.mode}:${activeTheme.id}`;
-  const modelOptions = useMemo(() => {
-    if (config !== null && config.providers.length > 0) {
-      return buildEnabledModelOptions(config.providers);
-    }
-    return modelOptionsFromConfiguredModels(configuredChatModels.models);
-  }, [config, configuredChatModels]);
-  const defaultProviderId = config?.defaultProviderId ?? configuredChatModels.defaultProviderId;
-  const defaultModelId = config?.defaultModelId ?? configuredChatModels.defaultModelId;
+  const modelOptions = useMemo(
+    () =>
+      configuredChatModels.models.length > 0
+        ? modelOptionsFromConfiguredModels(configuredChatModels.models)
+        : config !== null
+          ? buildEnabledModelOptions(config.providers)
+          : [],
+    [config, configuredChatModels],
+  );
+  const defaultProviderId =
+    configuredChatModels.defaultProviderId ?? config?.defaultProviderId;
+  const defaultModelId = configuredChatModels.defaultModelId ?? config?.defaultModelId;
   const speechConfigured = useMemo(() => isSpeechConfigured(config), [config]);
   const { handleArtifactAction, handleGenerateWalkthrough, handleCancelWalkthrough } =
     useWorkbenchArtifactActions({

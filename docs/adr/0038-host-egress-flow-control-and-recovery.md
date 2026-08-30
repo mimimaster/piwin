@@ -135,7 +135,10 @@ ADR 0027's direction remains correct, but sequence placement is refined:
    values, and evicts bounded diagnostics.
 3. Only canonical records that remain receive a Host-global `seq` and
    `eventId`.
-4. Canonical records enter the bounded replay journal.
+4. Canonical records enter the bounded replay journal, except pushes marked
+   `journal: false`. Subscription OAuth `auth/prompt` and `auth/login-finished`
+   are ephemeral: reconnect uses `auth/status.activeLogin`, never a journaled
+   callback URL or respond value.
 5. Per-client subscription and queue policy produce a cursor-bearing batch.
 
 This prevents intentional projection replacement from manufacturing apparent

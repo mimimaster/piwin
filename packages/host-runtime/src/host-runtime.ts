@@ -243,6 +243,10 @@ export class HostRuntime extends HostRuntimeFields {
     return this;
   }
 
+  runWithDevicePrincipal<T>(deviceId: string, fn: () => Promise<T>): Promise<T> {
+    return this.devicePrincipalStore.run(deviceId, fn);
+  }
+
   async dispose(): Promise<void> {
     if (this.disposePromise) {
       return this.disposePromise;
@@ -254,6 +258,14 @@ export class HostRuntime extends HostRuntimeFields {
 
   async disposeInternal(): Promise<void> {
     return disposeHostRuntime(this.asKernel());
+  }
+
+  noteAuthDeviceConnected(deviceId: string): void {
+    this.subscriptionAuth?.noteDeviceConnected(deviceId);
+  }
+
+  noteAuthDeviceDisconnected(deviceId: string): void {
+    this.subscriptionAuth?.noteDeviceDisconnected(deviceId);
   }
 
   async handleCommand(command: HostCommand): Promise<HostResponse> {

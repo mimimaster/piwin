@@ -33,6 +33,7 @@ import {
 import type { HostDevicePairing } from './device-pairing.js';
 import type { HostDevicePairingFileStore } from './device-pairing-store.js';
 import { authenticateHostHello } from './host-hello-auth.js';
+import { enrichHostListenError } from './listen-busy.js';
 import type { DeviceToolBroker } from './device-tool-broker.js';
 import { ClientToolFrameRouter } from './client-tool-frame-router.js';
 import {
@@ -63,8 +64,16 @@ import {
   resolveRemoteCommand,
   toError,
 } from './host-server-support.js';
+import { stampSubscriptionAuthCommand } from './stamp-subscription-auth.js';
+import {
+  isLiveOwnerCommand,
+  isLiveOwnerConnection,
+  liveOwnerCommandRejectedReason,
+} from './live-remote-gate.js';
 
-export type HostRuntimePort = Pick<HostRuntime, 'handleCommand' | 'attachPushSink'>;
+export type HostRuntimePort = Pick<HostRuntime, 'handleCommand' | 'attachPushSink'> & {
+  runWithDevicePrincipal?: HostRuntime['runWithDevicePrincipal'];
+};
 
 export type HostServerOptions = {
   runtime: HostRuntimePort;
@@ -242,7 +251,9 @@ export class HostServer {
       this.devicePairing === undefined &&
       !isLoopbackHost(this.host)
     ) {
-      throw new Error('An auth token or device pairing store is required when Host binds beyond loopback');
+      throw new Error(
+        'An auth token or device pairing store is required when Host binds beyond loopback',
+      );
     }
 
     const server = new WebSocketServer({
@@ -260,7 +271,7 @@ export class HostServer {
       server.on('error', (error) => {
         const normalized = toError(error, 'Host WebSocket server error');
         if (!listening) {
-          reject(normalized);
+          reject(enrichHostListenError(normalized, this.host, this.port));
           return;
         }
         this.onError(normalized);
@@ -286,7 +297,7 @@ export class HostServer {
       return await listeningPromise;
     } catch (error) {
       await this.stop();
-      throw toError(error, 'Unable to start Host server');
+      throw enrichHostListenError(error, this.host, this.port);
     }
   }
 
@@ -521,10 +532,7 @@ export class HostServer {
       return;
     }
 
-    if (
-      message.type === 'client-tool/result' ||
-      message.type === 'client-tool/capabilities'
-    ) {
+    if (message.type === 'client-tool/result' || message.type === 'client-tool/capabilities') {
       if (this.clientToolRouter === undefined || connection.deviceId === undefined) {
         this.sendError(connection, 'bad-message', `Unexpected Host message type: ${message.type}`);
         return;
@@ -694,6 +702,11 @@ export class HostServer {
       supportsBatch:
         message.capabilities?.pushBatching === true && message.capabilities.cursorBatches === true,
       liveFilter,
+      deliverOwnerActions: isLiveOwnerConnection({
+        loopbackHost: isLoopbackHost(this.host),
+        ...(connection.deviceId === undefined ? {} : { pairedDeviceId: connection.deviceId }),
+      }),
+      ownerDeviceId: connection.deviceId ?? 'local',
       canSend: () =>
         connection.socket.readyState === OPEN_READY_STATE &&
         connection.socket.bufferedAmount < HOST_SOCKET_SEND_BUDGET_BYTES,
@@ -722,7 +735,10 @@ export class HostServer {
         send: (frame) => this.send(connection, frame),
       });
     }
-    this.send(connection, this.createHostHello(admission.pairedDeviceId, admission.issuedDeviceSecret));
+    this.send(
+      connection,
+      this.createHostHello(admission.pairedDeviceId, admission.issuedDeviceSecret),
+    );
     this.onConnectionEvent({
       phase: 'hello-ok',
       connectionId: connection.connectionId,
@@ -779,6 +795,30 @@ export class HostServer {
       );
       return;
     }
+    if (
+      isLiveOwnerCommand(frame.command.type) &&
+      !isLiveOwnerConnection({
+        loopbackHost: isLoopbackHost(this.host),
+        ...(connection.deviceId === undefined ? {} : { pairedDeviceId: connection.deviceId }),
+      })
+    ) {
+      await this.sendResponse(connection, {
+        type: 'response',
+        requestId: frame.requestId,
+        response: {
+          type: 'response',
+          command: frame.command.type,
+          success: false,
+          error: liveOwnerCommandRejectedReason(),
+          problem: {
+            code: 'command-not-allowed',
+            retryable: false,
+            data: { reason: 'live-local-owner-only' },
+          },
+        },
+      });
+      return;
+    }
 
     // Remote session/prompt must send `foreground`. Admission itself lives in
     // HostRuntime (`if-idle` / `replace-run`); this gate only rejects omit.
@@ -808,10 +848,18 @@ export class HostServer {
         idempotencyKey: frame.idempotencyKey,
         command: frame.command,
         execute: async () => {
-          const remoteCommand = resolveRemoteCommand(frame.command, this.remoteMediaPaths);
-          const response = await this.runtime.handleCommand(remoteCommand);
+          const remoteCommand = resolveRemoteCommand(
+            stampSubscriptionAuthCommand(frame.command, {
+              devicePrincipalId: connection.idempotencyScope,
+            }),
+            this.remoteMediaPaths,
+          );
+          const executeCommand = () => this.runtime.handleCommand(remoteCommand);
+          const response = this.runtime.runWithDevicePrincipal
+            ? await this.runtime.runWithDevicePrincipal(connection.idempotencyScope, executeCommand)
+            : await executeCommand();
           rememberRemoteMediaAsset(this.remoteMediaPaths, remoteCommand, response);
-          return projectRemoteResponse(frame.command, response, this.projectionContext());
+          return projectRemoteResponse(frame.command, response, this.projectionContext(connection));
         },
       });
       await this.sendResponse(connection, {
@@ -845,12 +893,19 @@ export class HostServer {
     };
   }
 
-  private projectionContext(): RemoteProjectionContext {
+  private projectionContext(connection?: ClientConnection): RemoteProjectionContext {
+    const liveOwner =
+      connection !== undefined &&
+      isLiveOwnerConnection({
+        loopbackHost: isLoopbackHost(this.host),
+        ...(connection.deviceId === undefined ? {} : { pairedDeviceId: connection.deviceId }),
+      });
     return {
       hostInstanceId: this.instanceId,
       mode: this.mode,
       capabilities: this.capabilities,
       remoteMediaPaths: this.remoteMediaPaths,
+      ...(liveOwner ? { liveOwner: true } : {}),
     };
   }
 
@@ -935,6 +990,4 @@ export class HostServer {
       })),
     };
   }
-
 }
-

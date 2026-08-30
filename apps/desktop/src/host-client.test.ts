@@ -72,6 +72,20 @@ describe('HostClient', () => {
     expect(invokeMock).not.toHaveBeenCalled();
   });
 
+  it('keeps request usable after it is extracted from the instance', async () => {
+    const client = new HostClient({ transport: 'live' });
+    const request = client.request;
+    const response = await request({
+      type: 'session/abort',
+      sessionId: 'session-1',
+      runId: 'run-1',
+    });
+    expect(response).toMatchObject({
+      success: false,
+      error: 'idempotency-key-required',
+    });
+  });
+
   it('does not impose an acknowledgement timeout on model-backed compaction', async () => {
     const compactResponse: HostResponse = {
       id: 'ui-1',

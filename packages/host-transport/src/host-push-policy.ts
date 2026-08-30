@@ -8,20 +8,24 @@ export type HostPushPolicy =
       kind: 'control';
       barrierKeys: HostDeliveryKey[];
       runBarrierId?: string;
+      journal?: false;
     }
   | {
       kind: 'append';
       key: HostDeliveryKey;
       runId?: string;
+      journal?: false;
     }
   | {
       kind: 'projection';
       key: HostDeliveryKey;
       runId?: string;
+      journal?: false;
     }
   | {
       kind: 'diagnostic';
       key: HostDeliveryKey;
+      journal?: false;
     };
 
 /** Classify a semantic push before it reaches any transport. */
@@ -187,6 +191,24 @@ export function classifyHostPush(push: HostPushVariant): HostPushPolicy {
       return projection(deliveryKey('doccards', 'generation', push.job.folderKey));
     case 'doccards/generation-terminal':
       return control([deliveryKey('doccards', 'generation', push.job.folderKey)]);
+    case 'auth/prompt':
+      return { kind: 'control', barrierKeys: [], journal: false };
+    case 'auth/login-finished':
+      return { kind: 'control', barrierKeys: [deliveryKey('auth', 'login', push.result.loginId)], journal: false };
+    case 'auth/updated':
+      return projection(deliveryKey('auth', 'accounts'));
+    case 'voice/live-updated':
+      return {
+        kind: 'projection',
+        key: deliveryKey('voice', 'live', push.call?.callId ?? 'none'),
+        journal: false,
+      };
+    case 'voice/live-owner-action':
+      return {
+        kind: 'control',
+        barrierKeys: [deliveryKey('voice', 'live', push.callId, 'owner-action')],
+        journal: false,
+      };
     default:
       return assertNever(push);
   }

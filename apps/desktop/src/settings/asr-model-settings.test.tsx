@@ -49,9 +49,8 @@ describe('AsrModelSettings', () => {
     document.body.querySelector('[data-testid="settings-asr-dialog"]')?.remove();
   });
 
-  it('lists only enabled ASR-tagged models and saves the selected default', async () => {
+  it('hides legacy ASR/TTS cards and keeps Live', () => {
     const config = makeConfig();
-    const saveConfig = vi.fn(async () => true);
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -62,7 +61,7 @@ describe('AsrModelSettings', () => {
             <AsrModelSettings
               config={config}
               saving={false}
-              onSave={saveConfig}
+              onSave={vi.fn(async () => true)}
               onError={vi.fn()}
               onInfo={vi.fn()}
             />
@@ -72,32 +71,9 @@ describe('AsrModelSettings', () => {
     });
 
     expect(container.querySelector('[data-testid="settings-speech-defaults"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="settings-asr-unconfigured"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="settings-tts-reserved"]')).not.toBeNull();
-    act(() => {
-      container
-        ?.querySelector<HTMLButtonElement>('[data-testid="settings-asr-unconfigured"] button')
-        ?.click();
-    });
-    expect(document.querySelector('[data-testid="settings-asr-dialog"]')).not.toBeNull();
-    expect(document.querySelector('[data-testid="settings-asr-model-select"]')).not.toBeNull();
-
-    await act(async () => {
-      document.querySelector<HTMLButtonElement>('[data-testid="settings-asr-save"]')?.click();
-      await Promise.resolve();
-    });
-    expect(saveConfig).toHaveBeenCalledWith(
-      expect.objectContaining({
-        speech: {
-          asr: {
-            defaultModel: {
-              protocol: 'openai-compatible',
-              providerId: 'openai',
-              modelId: 'whisper-1',
-            },
-          },
-        },
-      }),
-    );
+    expect(container.querySelector('[data-testid="settings-live-card"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="settings-asr-card"]')).toBeNull();
+    expect(container.querySelector('[data-testid="settings-asr-unconfigured"]')).toBeNull();
+    expect(container.querySelector('[data-testid="settings-tts-reserved"]')).toBeNull();
   });
 });

@@ -47,18 +47,25 @@ export function readConfiguredChatModels(response: HostResponse): ConfiguredChat
     if (!isRecord(item) || typeof item.providerId !== 'string' || typeof item.modelId !== 'string') {
       continue;
     }
-    if (
-      item.protocol !== 'openai-compatible' &&
-      item.protocol !== 'anthropic-compatible' &&
-      item.protocol !== 'google-gemini'
-    ) {
+    const protocol = item.protocol;
+    const isChannelProtocol =
+      protocol === 'openai-compatible' ||
+      protocol === 'anthropic-compatible' ||
+      protocol === 'google-gemini';
+    const isSubscription = item.source === 'subscription';
+    if (!isChannelProtocol && !isSubscription) {
       continue;
     }
     const model: ConfiguredChatModel = {
       providerId: item.providerId,
-      protocol: item.protocol,
       modelId: item.modelId,
+      ...(isSubscription
+        ? { source: 'subscription', group: 'subscription' }
+        : { source: 'channel', group: 'channel' }),
     };
+    if (isChannelProtocol) {
+      model.protocol = protocol;
+    }
     if (typeof item.label === 'string' && item.label.length > 0) {
       model.label = item.label;
     }

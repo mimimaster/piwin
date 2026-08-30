@@ -22,7 +22,7 @@ import {
   WorkbenchTranscript,
 } from './workbench-conversation';
 import { WorkbenchContextBar } from './workbench-context-bar';
-import { WorkbenchKnowledgeStage } from './workbench-knowledge-stage';
+import { LiveBar } from './live/LiveBar.js';
 import { WorkbenchOverlays, WorkbenchSettingsOverlay } from './workbench-overlays';
 import { WorkbenchSidebar } from './workbench-sidebar';
 import { ConversationPaneWorkspace } from './conversation-pane-workspace';
@@ -34,7 +34,6 @@ import { sessionCreateInputForTransport } from './remote-session-hydrate';
 import { createGestureIdempotencyKey } from './gesture-idempotency';
 import { pushError } from './notification-queue';
 import { WorkbenchSubpageStage } from './workbench-subpage-stage';
-import { insetComposerText } from './workbench-chrome-assembly';
 
 export type AppProps = {
   /** Resolved active manifest owned by DesktopThemeRoot. */
@@ -66,15 +65,13 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     sidebarResize,
     rightPanelResize,
     setRightPanelView,
-    knowledgeOpen,
-    setKnowledgeOpen,
     activeSubPage,
     setActiveSubPage,
+    openLibrary,
     openImages,
     openVideos,
     openFlashcards,
     closeSubPage,
-    handleOpenCardsPanel,
     sessionListChrome,
     sessionListQuery,
     editingMessageId,
@@ -243,6 +240,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     activeSessionOrigin,
     composerCard,
     composerLayoutMode,
+    live,
     handleInspectSubagent,
     subagentInspectorToggle,
     subagentInspectorPanel,
@@ -266,6 +264,28 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     state.compacting ||
     composer.trim().length > 0 ||
     pendingAttachments.length > 0;
+  const mediaStudioOpen =
+    activeSubPage === 'library' || activeSubPage === 'images' || activeSubPage === 'videos';
+  const studioOpen = mediaStudioOpen || activeSubPage === 'flashcards';
+  const [mediaLibraryEpoch, setMediaLibraryEpoch] = useState(0);
+  const wasStreamingRef = useRef(false);
+  useEffect(() => {
+    if (wasStreamingRef.current && !state.streaming) {
+      setMediaLibraryEpoch((epoch) => epoch + 1);
+    }
+    wasStreamingRef.current = state.streaming;
+  }, [state.streaming]);
+  const composerColumn = (
+    <WorkbenchComposerColumn
+      state={state}
+      activeTheme={activeTheme}
+      activeSessionName={activeSessionName}
+      composerCard={composerCard}
+      onTrustProject={handleTrustProject}
+      onUnarchiveSession={(sessionId) => void handleSessionMenuAction(sessionId, 'unarchive')}
+      onNewSession={handleStartNewSession}
+    />
+  );
 
   const conversationPanesEnabled = state.activeScope.kind === 'general';
   const conversationPaneController = useConversationPaneLayout({
@@ -316,17 +336,17 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
               panel={subagentInspectorPanel}
             >
               <div
-                className={`app-shell workbench${rightPanelOpen ? ' has-right-panel' : ''}${navDrawerOpen ? ' nav-open' : ''}${settingsOpen ? ' settings-open' : ''}${knowledgeOpen ? ' knowledge-open' : ''}${rightPanelResize.isResizing || sidebarResize.isResizing ? ' is-resizing-panels' : ''}`}
+                className={`app-shell workbench${rightPanelOpen ? ' has-right-panel' : ''}${navDrawerOpen ? ' nav-open' : ''}${settingsOpen ? ' settings-open' : ''}${studioOpen ? ' studio-open' : ''}${rightPanelResize.isResizing || sidebarResize.isResizing ? ' is-resizing-panels' : ''}`}
                 style={appShellStyle}
                 data-testid="app-shell"
                 data-layout={layoutMode}
                 data-right={rightPanelOpen ? 'expanded' : 'collapsed'}
                 data-settings-open={settingsOpen ? 'true' : 'false'}
-                data-knowledge-open={knowledgeOpen ? 'true' : 'false'}
+                data-studio-open={studioOpen ? 'true' : 'false'}
               >
                 <WorkspaceShell
                   workspaceClassName={
-                    settingsOpen || knowledgeOpen ? 'settings-workspace-suspended' : undefined
+                    settingsOpen || studioOpen ? 'settings-workspace-suspended' : undefined
                   }
                   sidebar={
                     <WorkbenchSidebar
@@ -346,11 +366,10 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       hydrateSessions={hydrateSessions}
                       settingsOpen={settingsOpen}
                       activeSubPage={activeSubPage}
+                      onOpenLibrary={openLibrary}
                       onOpenImages={openImages}
                       onOpenVideos={openVideos}
                       onOpenFlashcards={openFlashcards}
-                      knowledgeOpen={knowledgeOpen}
-                      setKnowledgeOpen={setKnowledgeOpen}
                       onOpenWorkspace={handleOpenWorkspaceClick}
                       onOpenProject={handleOpenProject}
                       onRemoveProject={handleRemoveProjectFromSidebar}
@@ -437,7 +456,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                           artifactPreviewEnabled={config?.artifact?.enabled ?? true}
                           readMedia={readTranscriptMedia}
                           locale={desktopLocale}
-                          keyboardEnabled={!settingsOpen && !knowledgeOpen && !activeSubPage}
+                          keyboardEnabled={!settingsOpen && !activeSubPage}
                           onCreateConversation={handleCreatePaneConversation}
                           onOpenDocument={handleOpenDocument}
                           onOpenArtifactCanvas={handleOpenArtifactCanvas}
@@ -513,19 +532,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       onExtensionUiResolve={handleExtensionUiResolve}
                     />
                   }
-                  composerDock={
-                    <WorkbenchComposerColumn
-                      state={state}
-                      activeTheme={activeTheme}
-                      activeSessionName={activeSessionName}
-                      composerCard={composerCard}
-                      onTrustProject={handleTrustProject}
-                      onUnarchiveSession={(sessionId) =>
-                        void handleSessionMenuAction(sessionId, 'unarchive')
-                      }
-                      onNewSession={handleStartNewSession}
-                    />
-                  }
+                  composerDock={studioOpen ? null : composerColumn}
                   rightPanel={
                     <WorkbenchInspector
                       showOverlayScrim={showOverlayScrim}
@@ -585,6 +592,26 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                     />
                   }
                 />
+                {live.starting || live.call ? (
+                  <div className="live-bar-host">
+                    <LiveBar
+                      call={live.call}
+                      starting={live.starting}
+                      peer={live.peer}
+                      error={live.error}
+                      onRetry={() => {
+                        void live.start();
+                      }}
+                      onDismiss={live.dismissError}
+                      onMute={(muted) => {
+                        void live.setMuted(muted);
+                      }}
+                      onEnd={() => {
+                        void live.end();
+                      }}
+                    />
+                  </div>
+                ) : null}
 
                 {foregroundReplaceConfirm.dialog}
 
@@ -647,31 +674,14 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                 activeSubPage={activeSubPage}
                 locale={desktopLocale}
                 onClose={closeSubPage}
-                onSendToChat={(text) => {
-                  closeSubPage();
-                  setComposer((prev) => insetComposerText(prev, text));
-                  window.setTimeout(() => {
-                    document
-                      .querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]')
-                      ?.focus();
-                  }, 50);
-                }}
+                request={(command) => hostClient.request(command)}
                 requestFlashcards={(command) => hostClient.request(command)}
-              />
-              <WorkbenchKnowledgeStage
-                knowledgeOpen={knowledgeOpen}
-                locale={desktopLocale}
+                refreshToken={mediaLibraryEpoch}
                 projectPath={state.projectPath}
-                recentProjects={recentProjects}
-                request={requestKnowledgeCenter}
-                onOpenSession={handleResumeSession}
-                onOpenCardsPanel={handleOpenCardsPanel}
                 onConfigureEmbedding={() => {
-                  setKnowledgeOpen(false);
+                  closeSubPage();
                   openSettingsSection('knowledge');
                 }}
-                setKnowledgeOpen={setKnowledgeOpen}
-                setComposer={setComposer}
               />
               <WorkbenchSettingsOverlay
                 settingsOpen={settingsOpen}

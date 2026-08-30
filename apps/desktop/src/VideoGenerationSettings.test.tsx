@@ -169,6 +169,32 @@ describe('VideoGenerationSettings', () => {
     expect(container?.querySelector('[data-testid="video-add-model-submit"]')).toBeNull();
   });
 
+  it('marks a video model as off when its provider is disabled', () => {
+    const config = makeConfig();
+    const provider = config.providers[0];
+    if (!provider) throw new Error('missing provider');
+    provider.enabled = false;
+    const saved: PiwinConfig[] = [];
+    ({ root, container } = renderSettings(config, async (next) => {
+      saved.push(next);
+      return true;
+    }));
+
+    const row = container!.querySelector('[data-testid="video-model-row"]');
+    expect(row?.className).toContain('is-off');
+    expect(container!.querySelector('[data-testid="video-model-off-badge"]')?.textContent).toBe(
+      'Disabled',
+    );
+    const setDefault = container!.querySelector<HTMLButtonElement>(
+      '[data-testid="video-model-set-default"]',
+    );
+    expect(setDefault?.disabled).toBe(true);
+    act(() => {
+      setDefault?.click();
+    });
+    expect(saved).toHaveLength(0);
+  });
+
   it('saves video protocol onto the existing model route', () => {
     const config = makeConfig();
     const saved: PiwinConfig[] = [];

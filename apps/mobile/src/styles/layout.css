@@ -15,8 +15,9 @@
   --motion-ease: cubic-bezier(0.16, 1, 0.3, 1);
   --motion-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
 
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", sans-serif;
-  --font-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'PingFang SC', sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
 
   font-family: var(--font-sans);
   background: var(--void);
@@ -217,6 +218,21 @@ select {
   align-items: center;
   justify-content: center;
   cursor: pointer;
+}
+
+.mobile-top-live-btn {
+  color: var(--text-2);
+}
+
+.mobile-top-live-btn.is-active {
+  color: var(--iris);
+  background: var(--iris-soft);
+  box-shadow: 0 0 12px var(--iris-soft);
+}
+
+.mobile-top-live-btn.is-starting {
+  color: var(--amber);
+  animation: breath 1.4s infinite ease-in-out;
 }
 
 .mobile-status-dot {

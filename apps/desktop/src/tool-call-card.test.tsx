@@ -488,6 +488,61 @@ describe('ToolCallCard openable file paths', () => {
     expect(container.querySelector('[data-testid="diff-card"]')).not.toBeNull();
   });
 
+  it('never renders a DiffCard or review buttons when a write/edit tool errors', async () => {
+    const errorTool: ToolCardUi = {
+      toolCallId: 'write-err-1',
+      toolName: 'write_file',
+      status: 'error',
+      output: 'Permission denied: Permission denied for write_file: piwin-config',
+      presentation: {
+        title: 'write_file',
+        kind: 'filesystem',
+        actionVerb: 'Edited',
+        targetPaths: ['apps/desktop/src/file.tsx'],
+        changedPaths: ['apps/desktop/src/file.tsx'],
+        error: {
+          category: 'permission',
+          message: 'Permission denied for write_file: piwin-config',
+        },
+      },
+    };
+    const request = vi.fn(async () => ({
+      type: 'response' as const,
+      command: 'git/diff-file',
+      success: true as const,
+      data: {
+        diff: {
+          repository: { rootPath: '/workspace', isRepository: true },
+          path: 'apps/desktop/src/file.tsx',
+          scope: 'combined' as const,
+          isBinary: false,
+          patch: '--- a/file.tsx\n+++ b/file.tsx\n@@ -1 +1,2 @@\n+change\n',
+          truncated: false,
+        },
+      },
+    }));
+
+    act(() => {
+      root.render(
+        <ToolCallCard tool={errorTool} projectPath="/workspace" request={request} locale="zh-CN" />,
+      );
+    });
+
+    const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
+    // Error cards auto-expand
+    expect(card?.classList.contains('is-expanded')).toBe(true);
+    // Must NOT render DiffCard
+    expect(container.querySelector('[data-testid="diff-card"]')).toBeNull();
+    expect(container.textContent).not.toContain('拒绝');
+    expect(container.textContent).not.toContain('接受');
+    // Request must not be called
+    expect(request).not.toHaveBeenCalled();
+    // Error message must be rendered
+    expect(container.querySelector('[data-testid="tool-call-error"]')?.textContent).toContain(
+      'permission: Permission denied for write_file: piwin-config',
+    );
+  });
+
   it('keeps a finished silent tool collapsed without a No output body', () => {
     const silent: ToolCardUi = {
       toolCallId: 'copy-1',

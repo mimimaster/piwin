@@ -170,7 +170,11 @@ export function AutomationPanel(props: AutomationPanelProps) {
           <div className="settings-section">
             <PageTitle
               title={isChinese ? '事件钩子 (Hooks)' : 'Event Hooks'}
-              description={isChinese ? '在特定事件发生时执行本地命令。' : 'Execute local commands when specific events occur.'}
+              description={
+                isChinese
+                  ? '在特定事件发生时执行本地命令。完整配置与扩展拦截见设置侧栏 Hooks。'
+                  : 'Execute local commands when specific events occur. Full config and extension intercepts live under Settings → Hooks.'
+              }
             />
             <ul className="ext-list">
               {hooks.length === 0 ? (

@@ -907,6 +907,37 @@ describe('mapPiSessionEvent', () => {
     });
   });
 
+  it('drops changedPaths on tool_execution_end when execution is an error', () => {
+    const mapper = createPiSessionEventMapper();
+    mapper.map({
+      type: 'tool_execution_start',
+      toolCallId: 'call-write-err',
+      toolName: 'write_file',
+      args: { path: 'src/main.ts', content: 'console.log("bad");' },
+    });
+
+    const endEvents = mapper.map({
+      type: 'tool_execution_end',
+      toolCallId: 'call-write-err',
+      toolName: 'write_file',
+      result: {
+        content: [{ type: 'text', text: 'Permission denied: Permission denied for write_file: piwin-config' }],
+        isError: true,
+      },
+      isError: true,
+    });
+
+    const toolEnd = endEvents.find((e) => e.type === 'tool/end');
+    expect(toolEnd).toBeDefined();
+    expect(toolEnd).toMatchObject({
+      type: 'tool/end',
+      isError: true,
+    });
+    if (toolEnd && toolEnd.type === 'tool/end') {
+      expect(toolEnd.presentation?.changedPaths).toBeUndefined();
+    }
+  });
+
   it('keeps image_gen prompt summary on tool_execution_end when args are present', () => {
     const endEvents = mapPiSessionEvent({
       type: 'tool_execution_end',

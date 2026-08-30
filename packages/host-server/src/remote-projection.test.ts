@@ -475,6 +475,8 @@ describe('remote models/configured projection', () => {
           protocol: 'openai-compatible',
           modelId: 'deepseek-v4-flash',
           label: 'Flash',
+          source: 'channel',
+          group: 'channel',
         },
       ],
     });
@@ -646,6 +648,52 @@ describe('remote skills/read + tool-output projection', () => {
         base64Data: 'AQIDBA==',
       },
     });
+  });
+
+  it('strips absolutePath from media/list items', () => {
+    const context: Parameters<typeof projectRemoteResponse>[2] = {
+      hostInstanceId: 'host-1',
+      mode: 'sdk',
+      capabilities: createRemoteCapabilities(),
+    };
+    const projected = projectRemoteResponse(
+      { type: 'media/list', input: { kind: 'image' } },
+      {
+        type: 'response',
+        command: 'media/list',
+        success: true,
+        data: {
+          total: 1,
+          items: [
+            {
+              assetId: 'asset-1',
+              sessionId: 'sess-1',
+              mimeType: 'image/png',
+              byteSize: 12,
+              createdAt: '2026-08-27T00:00:00.000Z',
+              kind: 'image',
+              prompt: 'cat',
+              hasThumb: true,
+              absolutePath: '/Users/me/.piwin/media/sess-1/asset-1.png',
+              thumbAbsolutePath: '/Users/me/.piwin/media/sess-1/asset-1.thumb.384.webp',
+            },
+          ],
+        },
+      },
+      context,
+    );
+    expect(projected.success).toBe(true);
+    expect((projected as { data?: { items?: Array<Record<string, unknown>> } }).data?.items?.[0])
+      .toEqual({
+        assetId: 'asset-1',
+        sessionId: 'sess-1',
+        mimeType: 'image/png',
+        byteSize: 12,
+        createdAt: '2026-08-27T00:00:00.000Z',
+        kind: 'image',
+        prompt: 'cat',
+        hasThumb: true,
+      });
   });
 });
 

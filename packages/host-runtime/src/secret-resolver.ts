@@ -6,7 +6,7 @@
  * persist under `~/.piwin/secrets/` on the Host so `secrets/set` works there.
  */
 import { spawn } from 'node:child_process';
-import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ModelProviderConfig } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
@@ -33,6 +33,9 @@ export type SecretResolver = {
   writeSecretByRef: (ref: string, secret: string) => Promise<void>;
   /** Read a secret from an explicit keychain ref. Returns null if not found. */
   readSecretByRef: (ref: string) => Promise<string | null>;
+  /** Remove a provider secret. Empty string is not a delete. */
+  deleteProviderSecret: (providerId: string) => Promise<void>;
+  deleteSecretByRef: (ref: string) => Promise<void>;
 };
 
 export type CreateSecretResolverOptions = {
@@ -45,6 +48,7 @@ export type CreateSecretResolverOptions = {
   piwinRoot?: string;
   /** Tests: skip macOS keychain and use the file store only. */
   preferFileStore?: boolean;
+  deleteKeychain?: (ref: string) => Promise<void>;
 };
 
 export function createSecretResolver(options: CreateSecretResolverOptions = {}): SecretResolver {
@@ -55,6 +59,8 @@ export function createSecretResolver(options: CreateSecretResolverOptions = {}):
     options.readKeychain ?? ((ref) => defaultReadSecret(ref, root, preferFileStore));
   const writeKeychain =
     options.writeKeychain ?? ((ref, secret) => defaultWriteSecret(ref, secret, root, preferFileStore));
+  const deleteKeychain =
+    options.deleteKeychain ?? ((ref) => defaultDeleteSecret(ref, root, preferFileStore));
 
   async function resolveProviderSecret(provider: ModelProviderConfig): Promise<string> {
     if (provider.apiKeyRef?.trim()) {
@@ -160,6 +166,22 @@ export function createSecretResolver(options: CreateSecretResolverOptions = {}):
     return readKeychain(trimmedRef);
   }
 
+  async function deleteSecretByRef(ref: string): Promise<void> {
+    const trimmedRef = ref.trim();
+    if (!trimmedRef) {
+      throw new Error('keychain ref is required to delete a secret');
+    }
+    await deleteKeychain(trimmedRef);
+  }
+
+  async function deleteProviderSecret(providerId: string): Promise<void> {
+    const trimmedId = providerId.trim();
+    if (!trimmedId) {
+      throw new Error('providerId is required to delete a secret');
+    }
+    await deleteKeychain(`keychain:piwin-${trimmedId}`);
+  }
+
   return {
     resolveProviderSecret,
     reportProviderSecret,
@@ -167,6 +189,8 @@ export function createSecretResolver(options: CreateSecretResolverOptions = {}):
     readProviderSecret,
     writeSecretByRef,
     readSecretByRef,
+    deleteProviderSecret,
+    deleteSecretByRef,
   };
 }
 
@@ -276,6 +300,43 @@ async function readFileSecret(root: string, service: string): Promise<string | n
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       return null;
     }
+    throw error;
+  }
+}
+
+async function defaultDeleteSecret(
+  ref: string,
+  root: string,
+  preferFileStore: boolean,
+): Promise<void> {
+  const service = secretServiceName(ref);
+  if (process.platform === 'darwin' && !preferFileStore) {
+    await deleteMacKeychain(service).catch(() => undefined);
+  }
+  await deleteFileSecret(root, service);
+}
+
+async function deleteMacKeychain(service: string): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn('security', ['delete-generic-password', '-s', service], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    child.on('error', (error) => reject(error));
+    child.on('close', (code) => {
+      if (code === 0 || code === 44) {
+        resolve();
+        return;
+      }
+      reject(new Error(`keychain delete failed (exit ${code ?? 'unknown'})`));
+    });
+  });
+}
+
+async function deleteFileSecret(root: string, service: string): Promise<void> {
+  try {
+    await unlink(secretFilePath(root, service));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
     throw error;
   }
 }

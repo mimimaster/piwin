@@ -18,6 +18,7 @@ import {
   readContextOccupiedTokens,
   resolveModelContextBudget,
   type ContextUsageSnapshot,
+  toModelRef,
   type ModelRef,
   type PiwinConfig,
   type ThinkingLevel,
@@ -86,11 +87,12 @@ export function describeComposerModel(
         option.providerId === defaults.providerId && option.modelId === defaults.modelId,
     );
   const promptModel: ModelRef | null = fallback
-    ? {
-        protocol: fallback.protocol,
+    ? toModelRef({
         providerId: fallback.providerId,
         modelId: fallback.modelId,
-      }
+        ...(fallback.protocol !== undefined ? { protocol: fallback.protocol } : {}),
+        ...(fallback.source !== undefined ? { source: fallback.source } : {}),
+      })
     : null;
   return {
     label: selected?.label ?? 'Default model',
@@ -274,11 +276,14 @@ export function useComposerModelController(args: UseComposerModelControllerArgs)
           composerProfile: {
             ...(selectedModel
               ? {
-                  model: {
-                    protocol: selectedModel.protocol,
+                  model: toModelRef({
                     providerId: selectedModel.providerId,
                     modelId: selectedModel.modelId,
-                  },
+                    source: selectedModel.source ?? 'channel',
+                    ...(selectedModel.protocol !== undefined
+                      ? { protocol: selectedModel.protocol }
+                      : {}),
+                  }),
                 }
               : {}),
             thinkingLevel: nextThinkingLevel,
@@ -343,11 +348,12 @@ export function useComposerModelController(args: UseComposerModelControllerArgs)
           const response = await hostClient.request({
             type: 'session/compact',
             sessionId: preparedSessionId,
-            targetModel: {
-              protocol: nextModel.protocol,
+            targetModel: toModelRef({
               providerId: nextModel.providerId,
               modelId: nextModel.modelId,
-            },
+              ...(nextModel.protocol !== undefined ? { protocol: nextModel.protocol } : {}),
+              ...(nextModel.source !== undefined ? { source: nextModel.source } : {}),
+            }),
           });
           if (!response.success) {
             dispatchNotification(pushError(response.error));

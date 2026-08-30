@@ -3,6 +3,7 @@ import type { HostPushVariant } from '@piwin/contracts';
 export type HostPushAudience =
   | { kind: 'global' }
   | { kind: 'inbox' }
+  | { kind: 'owner' }
   | { kind: 'session'; sessionId: string };
 
 export type LiveSessionFilter = 'all' | { sessionIds: ReadonlySet<string> };
@@ -40,7 +41,15 @@ export function classifyHostPushAudience(push: HostPushVariant): HostPushAudienc
     case 'permission/request':
     case 'permission/resolved':
     case 'extension/ui_request':
+    case 'auth/prompt':
+    case 'auth/login-finished':
       return { kind: 'inbox' };
+    case 'auth/updated':
+      return { kind: 'global' };
+    case 'voice/live-updated':
+      return { kind: 'global' };
+    case 'voice/live-owner-action':
+      return { kind: 'owner' };
     case 'event':
     case 'session/name-updated':
     case 'plan/updated':
@@ -79,6 +88,9 @@ export function hostPushPassesLiveFilter(
   audience: HostPushAudience,
   filter: LiveSessionFilter,
 ): boolean {
+  if (audience.kind === 'owner') {
+    return filter === 'all';
+  }
   if (filter === 'all' || audience.kind !== 'session') {
     return true;
   }

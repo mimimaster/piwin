@@ -9,7 +9,7 @@ import {
 } from '@piwin/contracts';
 import { Button, Dialog, Field, Notice, Select, StatusBadge, TextInput } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../desktop-locale-context.js';
-import { PageTitle } from './page-title.js';
+import { LiveSettings, type LiveSettingsHostRequest } from '../live/live-settings.js';
 
 type AsrModelOption = {
   provider: ModelProviderConfig;
@@ -27,7 +27,11 @@ export type AsrModelSettingsProps = {
   onSave: (next: PiwinConfig) => Promise<boolean>;
   onError: (message: string) => void;
   onInfo: (message: string) => void;
+  hostRequest?: LiveSettingsHostRequest;
 };
+
+/** Hidden while Live is the speech surface. Keep the code; do not delete Host ASR/TTS. */
+const SHOW_LEGACY_ASR_TTS = false;
 
 export function AsrModelSettings(props: AsrModelSettingsProps): ReactElement {
   const { locale } = useDesktopLocale();
@@ -94,7 +98,10 @@ export function AsrModelSettings(props: AsrModelSettingsProps): ReactElement {
       delete nextSpeech.asr;
     }
     const next: PiwinConfig = { ...props.config };
-    if (nextSpeech && (nextSpeech.tts?.defaultModel || nextSpeech.tts?.voice)) {
+    if (
+      nextSpeech &&
+      (nextSpeech.tts?.defaultModel || nextSpeech.tts?.voice || nextSpeech.live)
+    ) {
       next.speech = nextSpeech;
     } else {
       delete next.speech;
@@ -105,97 +112,101 @@ export function AsrModelSettings(props: AsrModelSettingsProps): ReactElement {
   }
 
   return (
-    <section className="settings-section speech-defaults" data-testid="settings-speech-defaults">
-      <PageTitle
-        title={isChinese ? '能力默认值' : 'Capability defaults'}
-        description={
-          isChinese
-            ? '为桌面语音输入设置默认模型；TTS 先保留能力标记，播放链路接入后再启用。'
-            : 'Set the default model for desktop voice input. TTS stays capability-only until playback is wired.'
-        }
+    <section className="settings-section settings-speech-panel" data-testid="settings-speech-defaults">
+      {SHOW_LEGACY_ASR_TTS ? (
+        <div className="speech-defaults-grid">
+          <article className="speech-default-card" data-testid="settings-asr-card">
+            <div className="speech-default-card-heading">
+              <span className="speech-default-icon speech-default-icon--input" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <rect x="9" y="2.5" width="6" height="12" rx="3" />
+                  <path d="M5.5 10.5v1.5a6.5 6.5 0 0 0 13 0v-1.5M12 18.5V22M8.5 22h7" />
+                </svg>
+              </span>
+              <div className="speech-default-card-heading-copy">
+                <span className="speech-default-card-kicker">ASR</span>
+                <h3>{isChinese ? '语音输入' : 'Voice input'}</h3>
+                <p>
+                  {isChinese
+                    ? '录音只在本次请求中使用，不会保存音频。'
+                    : 'Recordings are used for this request only and are never saved.'}
+                </p>
+              </div>
+              {configuredOption ? (
+                <StatusBadge
+                  tone="success"
+                  label={isChinese ? '已就绪' : 'Ready'}
+                  testId="settings-asr-ready"
+                />
+              ) : null}
+            </div>
+
+            <div className="speech-default-card-body">
+              {configuredOption ? (
+                <div className="speech-default-configured" data-testid="settings-asr-configured">
+                  <div className="speech-default-model">
+                    <strong>{configuredOption.model.label ?? configuredOption.model.id}</strong>
+                    <span>
+                      {configuredOption.provider.name} · {configuredOption.model.id}
+                      {props.config.speech?.asr?.language
+                        ? ` · ${props.config.speech.asr.language}`
+                        : ''}
+                    </span>
+                  </div>
+                  <div className="settings-section-actions">
+                    <Button size="compact" onClick={openDialog} disabled={props.saving}>
+                      {isChinese ? '更换' : 'Change'}
+                    </Button>
+                    <Button
+                      size="compact"
+                      variant="ghost"
+                      onClick={() => void clearAsr()}
+                      disabled={props.saving}
+                      data-testid="settings-asr-clear"
+                    >
+                      {isChinese ? '停用' : 'Disable'}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Notice
+                  tone={hasInvalidConfiguredModel ? 'warning' : 'info'}
+                  testId="settings-asr-unconfigured"
+                  action={
+                    <Button
+                      size="compact"
+                      variant="primary"
+                      onClick={openDialog}
+                      disabled={props.saving}
+                    >
+                      {isChinese ? '配置 ASR' : 'Configure ASR'}
+                    </Button>
+                  }
+                >
+                  {hasInvalidConfiguredModel
+                    ? isChinese
+                      ? '当前模型不可用，请选择已启用且带 ASR 能力标记的模型。'
+                      : 'The current model is unavailable. Choose an enabled model tagged for ASR.'
+                    : isChinese
+                      ? '尚未配置桌面语音输入。'
+                      : 'Desktop voice input is not configured yet.'}
+                </Notice>
+              )}
+            </div>
+          </article>
+        </div>
+      ) : null}
+
+      <LiveSettings
+        config={props.config}
+        saving={props.saving}
+        onSave={props.onSave}
+        onError={props.onError}
+        onInfo={props.onInfo}
+        {...(props.hostRequest ? { hostRequest: props.hostRequest } : {})}
       />
 
-      <div className="speech-defaults-grid">
-        <article className="speech-default-card" data-testid="settings-asr-card">
-          <div className="speech-default-card-heading">
-            <span className="speech-default-icon speech-default-icon--input" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <rect x="9" y="2.5" width="6" height="12" rx="3" />
-                <path d="M5.5 10.5v1.5a6.5 6.5 0 0 0 13 0v-1.5M12 18.5V22M8.5 22h7" />
-              </svg>
-            </span>
-            <div className="speech-default-card-heading-copy">
-              <span className="speech-default-card-kicker">ASR</span>
-              <h3>{isChinese ? '语音输入' : 'Voice input'}</h3>
-              <p>
-                {isChinese
-                  ? '录音只在本次请求中使用，不会保存音频。'
-                  : 'Recordings are used for this request only and are never saved.'}
-              </p>
-            </div>
-            {configuredOption ? (
-              <StatusBadge
-                tone="success"
-                label={isChinese ? '已就绪' : 'Ready'}
-                testId="settings-asr-ready"
-              />
-            ) : null}
-          </div>
-
-          <div className="speech-default-card-body">
-            {configuredOption ? (
-              <div className="speech-default-configured" data-testid="settings-asr-configured">
-                <div className="speech-default-model">
-                  <strong>{configuredOption.model.label ?? configuredOption.model.id}</strong>
-                  <span>
-                    {configuredOption.provider.name} · {configuredOption.model.id}
-                    {props.config.speech?.asr?.language
-                      ? ` · ${props.config.speech.asr.language}`
-                      : ''}
-                  </span>
-                </div>
-                <div className="settings-section-actions">
-                  <Button size="compact" onClick={openDialog} disabled={props.saving}>
-                    {isChinese ? '更换' : 'Change'}
-                  </Button>
-                  <Button
-                    size="compact"
-                    variant="ghost"
-                    onClick={() => void clearAsr()}
-                    disabled={props.saving}
-                    data-testid="settings-asr-clear"
-                  >
-                    {isChinese ? '停用' : 'Disable'}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <Notice
-                tone={hasInvalidConfiguredModel ? 'warning' : 'info'}
-                testId="settings-asr-unconfigured"
-                action={
-                  <Button
-                    size="compact"
-                    variant="primary"
-                    onClick={openDialog}
-                    disabled={props.saving}
-                  >
-                    {isChinese ? '配置 ASR' : 'Configure ASR'}
-                  </Button>
-                }
-              >
-                {hasInvalidConfiguredModel
-                  ? isChinese
-                    ? '当前模型不可用，请选择已启用且带 ASR 能力标记的模型。'
-                    : 'The current model is unavailable. Choose an enabled model tagged for ASR.'
-                  : isChinese
-                    ? '尚未配置桌面语音输入。'
-                    : 'Desktop voice input is not configured yet.'}
-              </Notice>
-            )}
-          </div>
-        </article>
-
+      {SHOW_LEGACY_ASR_TTS ? (
         <article
           className="speech-default-card speech-default-card--reserved"
           data-testid="settings-tts-reserved"
@@ -230,18 +241,20 @@ export function AsrModelSettings(props: AsrModelSettingsProps): ReactElement {
             </span>
           </div>
         </article>
-      </div>
+      ) : null}
 
-      <AsrConfigDialog
-        open={dialogOpen}
-        draft={draft}
-        options={options}
-        saving={props.saving}
-        isChinese={isChinese}
-        onOpenChange={setDialogOpen}
-        onDraftChange={setDraft}
-        onSave={() => void saveAsr()}
-      />
+      {SHOW_LEGACY_ASR_TTS ? (
+        <AsrConfigDialog
+          open={dialogOpen}
+          draft={draft}
+          options={options}
+          saving={props.saving}
+          isChinese={isChinese}
+          onOpenChange={setDialogOpen}
+          onDraftChange={setDraft}
+          onSave={() => void saveAsr()}
+        />
+      ) : null}
     </section>
   );
 }

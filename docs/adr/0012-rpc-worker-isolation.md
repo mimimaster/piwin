@@ -59,6 +59,10 @@ Provider compilation is least-scope: a fixed session/subagent model compiles
 only its effective provider. An unrelated enabled provider with a keychain
 reference cannot block that session.
 
+Subscription accounts compile as `{ auth: { kind: 'oauth', providerId } }`.
+The parent never `registerProvider` for those ids and never puts OAuth tokens
+in the worker JSONL envelope. Channels still use `apiKeyEnv` / `apiKeyRef`.
+
 ## Non-goals for this ADR
 
 - Sharing one worker across multiple live runtime generations

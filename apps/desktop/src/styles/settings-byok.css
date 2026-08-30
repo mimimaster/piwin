@@ -278,6 +278,12 @@
   background: color-mix(in srgb, var(--iris) 5%, var(--surface-2));
 }
 
+.provider-row--off .provider-row-name,
+.provider-row--off .provider-row-host,
+.provider-row--off .provider-row-models-count {
+  color: var(--text-4);
+}
+
 .provider-row-expanded {
   /* Align with provider-row-main horizontal inset — no extra nest indent */
   padding: var(--s-3) var(--s-6) var(--s-5);

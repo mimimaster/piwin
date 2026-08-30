@@ -189,13 +189,14 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
       const model: ModelRef | undefined =
         modelRaw &&
         typeof modelRaw === 'object' &&
-        modelRaw.protocol &&
         modelRaw.providerId &&
         modelRaw.modelId
           ? {
-              protocol: modelRaw.protocol as ModelRef['protocol'],
               providerId: modelRaw.providerId,
               modelId: modelRaw.modelId,
+              ...(modelRaw.protocol
+                ? { protocol: modelRaw.protocol as NonNullable<ModelRef['protocol']> }
+                : {}),
             }
           : undefined;
 

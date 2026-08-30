@@ -58,6 +58,17 @@ export function useWorkbenchArtifactActions(args: UseWorkbenchArtifactActionsArg
           });
         return;
       }
+      if (action.action === 'composer/propose-text') {
+        const text = action.payload.text?.trim();
+        if (text) {
+          void navigator.clipboard?.writeText(text).catch(() => {});
+          showUiNotification({
+            message: `已复制追问指令：「${text}」`,
+            tone: 'info',
+          });
+        }
+        return;
+      }
       if (action.action === 'artifact/download-unsupported') {
         const filename = action.payload.filename?.trim();
         const message = filename

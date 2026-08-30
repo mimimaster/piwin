@@ -114,4 +114,18 @@ describe('UserMessageContent context chips', () => {
     expect(footer?.querySelector('[data-testid="message-copy-btn"]')).not.toBeNull();
     expect(footer?.querySelector('[data-testid="message-edit-btn"]')).not.toBeNull();
   });
+
+  it('labels a voice-delegation user turn', () => {
+    render(
+      <UserMessageContent
+        message={{ ...message, source: 'voice-delegation', voiceCallId: 'live_1' }}
+        onRetry={vi.fn()}
+        locale="zh-CN"
+        isConversationSession={true}
+      />,
+    );
+    expect(container?.querySelector('[data-testid="user-message-voice-delegation"]')?.textContent).toBe(
+      '语音委派',
+    );
+  });
 });

@@ -199,6 +199,9 @@ async function createBackendModelRuntime(
     modelsPath: join(agentDir, 'models.json'),
   });
   for (const provider of providers) {
+    if (provider.auth.kind === 'oauth') {
+      continue;
+    }
     modelRuntime.registerProvider(
       provider.providerId,
       buildWorkerProviderRegistration(
@@ -223,6 +226,7 @@ function resolveBackendProviderApiKey(provider: SerializableProviderRuntime): st
         `Provider "${provider.providerId}" uses worker-only bootstrap auth in the SDK backend`,
       );
     case 'none':
+    case 'oauth':
       return undefined;
   }
 }

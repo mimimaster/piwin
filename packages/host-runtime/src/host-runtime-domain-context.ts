@@ -16,6 +16,8 @@ import { openDoccardReviewSession } from './doccards-review-session.js';
 import type { SubagentBatchRequest } from '@piwin/contracts';
 
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
+import { cancelRunsForSubscriptionProvider } from './cancel-subscription-runs.js';
+import { readOpenaiCodexLiveAuth } from './voice/codex-live-token.js';
 
 /**
  * Builds the WalkthroughCommandContext seam (spec §11.1) shared by the SDK
@@ -187,6 +189,9 @@ export async function buildDomainContext(
         }),
       ...(deps.options.piwinRoot ? { piwinRoot: deps.options.piwinRoot } : {}),
     },
+    ...(deps.subscriptionAuth ? { subscriptionAuth: deps.subscriptionAuth } : {}),
+    devicePrincipalId: deps.devicePrincipalStore.getStore() ?? 'local',
+    cancelRunsForProvider: (providerId) => cancelRunsForSubscriptionProvider(deps, providerId),
     ...(subagentOrchestrator
       ? {
           subagent: {
@@ -206,6 +211,19 @@ export async function buildDomainContext(
   };
   return {
     ...hostContext,
+    ...(deps.liveCallCoordinator ? { liveCallCoordinator: deps.liveCallCoordinator } : {}),
+    ...(deps.liveSettings ? { liveSettings: deps.liveSettings } : {}),
+    resolveOwnerDeviceId: () => deps.devicePrincipalStore.getStore() ?? 'local',
+    refreshLivePrereqs: async () => {
+      const config = await loadPiwinConfig(deps.options.piwinRoot);
+      deps.liveEnabledFromConfig = true;
+      try {
+        await deps.subscriptionAuth?.refreshProvider('openai-codex');
+      } catch {
+        // Presence still comes from the refreshed-or-stale file read.
+      }
+      deps.codexLiveAuthPresent = (await readOpenaiCodexLiveAuth()) !== null;
+    },
     sessionProduct: {
       ...(deps.options.piwinRoot !== undefined ? { piwinRoot: deps.options.piwinRoot } : {}),
       createSession: (input) => deps.createSession(input),

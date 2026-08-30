@@ -107,7 +107,9 @@ export function ExploreFlowCapsule(props: ExploreFlowCapsuleProps): ReactElement
   const expanded = internalExpanded;
 
   // Live flows stay open so rows stream in; once the flow closes it folds back
-  // to the summary line unless the user pinned it (or an op failed).
+  // to the summary line unless the user pinned it (or an op failed). Collapsing
+  // unmounts the list — `isLive` must not flicker across empty `message/start`
+  // placeholders (see buildExploreFlowRoles).
   useEffect(() => {
     if (disclosureIntentRef.current !== 'automatic') {
       return;

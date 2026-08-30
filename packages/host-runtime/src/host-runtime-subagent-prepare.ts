@@ -23,6 +23,7 @@ import type {
 import { resolveSubagentChildPrompt } from './subagent-lifecycle-service.js';
 import { resolveSubagentParentLocation } from './subagent-parent-scope.js';
 import { compileBlueprintForWorker } from './blueprint-compiler.js';
+import { isSubscriptionAccountUsable } from './resolve-chat-model.js';
 import type { SubagentRunSeam } from './subagent-run-tool.js';
 import type { SubagentRuntimeSnapshot, BackendPreparedPrompt } from '@piwin/contracts';
 
@@ -104,6 +105,7 @@ export async function prepareSubagentTask(
 
   // Compile the blueprint for the worker. The blueprint includes the
   // capability snapshot, model, thinking level, and resource manifest.
+  const subscriptionAccounts = await deps.subscriptionAuth?.chatResolveInput();
   const compiled = await compileBlueprintForWorker(createInput, {
     ...(deps.options.piwinRoot ? { piwinRoot: deps.options.piwinRoot } : {}),
     sessionId: input.childSessionId,
@@ -111,6 +113,14 @@ export async function prepareSubagentTask(
     allowInlineProviderSecrets: false,
     allowWorkerProviderSecretBootstrap: true,
     ...(effectiveModel ? { requiredProviderIds: [effectiveModel.providerId] } : {}),
+    ...(subscriptionAccounts
+      ? {
+          subscriptionAccounts,
+          usableSubscriptionProviderIds: subscriptionAccounts.accounts
+            .filter((account) => isSubscriptionAccountUsable(account))
+            .map((account) => account.providerId),
+        }
+      : {}),
     ...(config ? { config } : {}),
     ...(input.preflight
       ? {
@@ -208,8 +218,8 @@ export async function prepareSubagentTask(
       }
       return {
         providerId: provider.providerId,
-        protocol: provider.protocol,
-        baseUrl: provider.baseUrl,
+        ...(provider.protocol !== undefined ? { protocol: provider.protocol } : {}),
+        ...(provider.baseUrl !== undefined ? { baseUrl: provider.baseUrl } : {}),
         ...(provider.headers ? { headers: { ...provider.headers } } : {}),
         models: provider.models.map((model) => ({
           id: model.id,

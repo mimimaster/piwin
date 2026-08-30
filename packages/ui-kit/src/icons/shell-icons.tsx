@@ -92,6 +92,24 @@ export const IconMoreVertical = createIcon(
 
 export const IconMenuList = createIcon(<path d="M4.5 7h15M4.5 12h15M4.5 17h15" />);
 
+export const IconGrid = createIcon(
+  <>
+    <rect x="4.5" y="4.5" width="6.25" height="6.25" rx="1.2" />
+    <rect x="13.25" y="4.5" width="6.25" height="6.25" rx="1.2" />
+    <rect x="4.5" y="13.25" width="6.25" height="6.25" rx="1.2" />
+    <rect x="13.25" y="13.25" width="6.25" height="6.25" rx="1.2" />
+  </>,
+);
+
+export const IconListDots = createIcon(
+  <>
+    <circle cx="5.25" cy="7" r="1.15" fill="currentColor" stroke="none" />
+    <circle cx="5.25" cy="12" r="1.15" fill="currentColor" stroke="none" />
+    <circle cx="5.25" cy="17" r="1.15" fill="currentColor" stroke="none" />
+    <path d="M8.75 7h10.75M8.75 12h10.75M8.75 17h10.75" />
+  </>,
+);
+
 export const IconExpand = createIcon(
   <>
     <path d="M14.75 4.75h4.5v4.5" />

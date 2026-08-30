@@ -2,14 +2,7 @@
  * Shell chrome: layout, panel resize, session-list query, locale, and
  * foreground-run confirms. Host commands stay with App / session hooks.
  */
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type SetStateAction,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from 'react';
 import {
   ORCHESTRATION_SCHEME_OFF_ID,
   type ForegroundRunMismatchProblem,
@@ -30,10 +23,7 @@ import { useTerminalPanelState } from './use-terminal-panel-state';
 import type { RightPanelTab } from '../right-panel';
 import { RIGHT_PANEL_DEFAULT_WIDTH_PX } from '../right-panel-width';
 import { useConfirmDialog } from '../use-confirm-dialog';
-import {
-  loadDesktopPreferences,
-  type DesktopPreferences,
-} from '../ui-preferences';
+import { loadDesktopPreferences, type DesktopPreferences } from '../ui-preferences';
 import { appShellCssVars, desktopPreferencesCssVars } from '../workbench-preferences-style';
 
 export type UseWorkbenchShellChromeArgs = {
@@ -78,24 +68,55 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
       shell.openInspector(inspectorTab);
     }
   }, [rightPanelOpen, shell]);
-  const [knowledgeOpen, setKnowledgeOpen] = useState(false);
-  const [activeSubPage, setActiveSubPage] = useState<'chat' | 'images' | 'videos' | 'flashcards' | null>(null);
-  const openImages = useCallback(() => setActiveSubPage('images'), []);
-  const openVideos = useCallback(() => setActiveSubPage('videos'), []);
-  const openFlashcards = useCallback(() => setActiveSubPage('flashcards'), []);
-  const closeSubPage = useCallback(() => setActiveSubPage(null), []);
+  const knowledgeOpen = shell.knowledgeOpen ?? false;
+  const setKnowledgeOpen = useCallback(
+    (action: boolean | ((prev: boolean) => boolean)) => {
+      const next = typeof action === 'function' ? action(knowledgeOpen) : action;
+      if (next) {
+        shell.openKnowledge?.();
+      } else {
+        shell.closeSubPage?.();
+      }
+    },
+    [knowledgeOpen, shell],
+  );
+  const activeSubPage = (shell.activeSubPage as 'chat' | 'library' | 'images' | 'videos' | 'flashcards' | null) ?? null;
+  const setActiveSubPage = useCallback((subPage: 'chat' | 'library' | 'images' | 'videos' | 'flashcards' | null) => {
+    if (!subPage || subPage === 'chat') {
+      shell.closeSubPage?.();
+    } else if (subPage === 'library') {
+      shell.openLibrary?.();
+    } else if (subPage === 'images') {
+      shell.openImages?.();
+    } else if (subPage === 'videos') {
+      shell.openVideos?.();
+    } else if (subPage === 'flashcards') {
+      shell.openFlashcards?.();
+    }
+  }, [shell]);
+  const openLibrary = useCallback(() => {
+    shell.openLibrary?.();
+  }, [shell]);
+  const openImages = useCallback(() => {
+    shell.openImages?.();
+  }, [shell]);
+  const openVideos = useCallback(() => {
+    shell.openVideos?.();
+  }, [shell]);
+  const openFlashcards = useCallback(() => {
+    shell.openFlashcards?.();
+  }, [shell]);
+  const closeSubPage = useCallback(() => {
+    shell.closeSubPage?.();
+  }, [shell]);
   const handleOpenCardsPanel = useCallback(() => {
-    shell.openInspector('cards');
+    shell.openFlashcards?.();
   }, [shell]);
   const handleOpenKnowledge = useCallback(
-    (subTab: 'doccards' | 'cards' | 'wiki' = 'doccards') => {
-      if (subTab === 'cards') {
-        handleOpenCardsPanel();
-        return;
-      }
-      setKnowledgeOpen(true);
+    (_subTab: 'doccards' | 'cards' | 'wiki' = 'doccards') => {
+      shell.openFlashcards?.();
     },
-    [handleOpenCardsPanel],
+    [shell],
   );
   const watchingTerminalRef = useRef(false);
   watchingTerminalRef.current =
@@ -217,6 +238,7 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
     setKnowledgeOpen,
     activeSubPage,
     setActiveSubPage,
+    openLibrary,
     openImages,
     openVideos,
     openFlashcards,

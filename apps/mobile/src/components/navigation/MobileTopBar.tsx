@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import type { HostClientState } from '@piwin/host-client';
 import type { ThinkingLevel } from '@piwin/contracts';
-import { IconMenuList, IconPlus, IconSpark } from '@piwin/ui-kit';
+import { IconMenuList, IconMic, IconPlus, IconSpark } from '@piwin/ui-kit';
 
 export type MobileTopBarProps = {
   sessionTitle?: string | undefined;
@@ -12,6 +12,9 @@ export type MobileTopBarProps = {
   activeRunCount?: number | undefined;
   onToggleSidebar: () => void;
   onOpenModelPicker?: () => void;
+  onOpenLive?: () => void;
+  liveActive?: boolean;
+  liveStarting?: boolean;
   onNewChat: () => void;
   onOpenSettings: () => void;
 };
@@ -25,6 +28,9 @@ export function MobileTopBar({
   activeRunCount = 0,
   onToggleSidebar,
   onOpenModelPicker,
+  onOpenLive,
+  liveActive = false,
+  liveStarting = false,
   onNewChat,
   onOpenSettings,
 }: MobileTopBarProps): ReactElement {
@@ -55,7 +61,9 @@ export function MobileTopBar({
           >
             <IconSpark size={14} className="mobile-pill-spark" />
             <span className="mobile-pill-title">
-              {activeModelName || sessionTitle || (projectName ? `${projectName} · 对话` : 'Piwin Agent')}
+              {activeModelName ||
+                sessionTitle ||
+                (projectName ? `${projectName} · 对话` : 'Piwin Agent')}
             </span>
             {showThinkingBadge ? (
               <span className="mobile-pill-thinking-badge">{thinkingLevel.toUpperCase()}</span>
@@ -66,6 +74,17 @@ export function MobileTopBar({
 
         {/* Right: Actions (Status Dot + New Chat) */}
         <div className="mobile-top-right">
+          {onOpenLive !== undefined ? (
+            <button
+              type="button"
+              className={`mobile-top-btn mobile-top-live-btn${liveActive ? ' is-active' : ''}${liveStarting ? ' is-starting' : ''}`}
+              onClick={onOpenLive}
+              aria-label={liveActive ? '打开 Live 语音通话' : '开始 Live 语音通话'}
+              aria-pressed={liveActive}
+            >
+              <IconMic size={19} />
+            </button>
+          ) : null}
           <button
             type="button"
             className="mobile-top-status-dot-btn"

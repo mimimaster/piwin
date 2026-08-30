@@ -15,6 +15,23 @@ describe('persisted error redaction', () => {
     expect(message).toContain('<redacted>');
   });
 
+  it('removes Live SDP, Gemini tokens, and access_token query values', () => {
+    const message = redactPersistedMessage(
+      [
+        'negotiate failed offerSdp=v=0',
+        'o=- secret-sdp IN IP4 127.0.0.1',
+        'ephemeralToken=auth_tokens/abc123xyz',
+        'AIzaSyA-test-key-value-1234567890',
+        'https://example.test/ws?access_token=tokensecret',
+      ].join('\n'),
+    );
+    expect(message).not.toContain('secret-sdp');
+    expect(message).not.toContain('auth_tokens/abc123xyz');
+    expect(message).not.toContain('AIzaSyA-test-key-value-1234567890');
+    expect(message).not.toContain('tokensecret');
+    expect(message).toContain('<redacted>');
+  });
+
   it('removes secrets from URL query strings', () => {
     const message = redactPersistedMessage(
       'fetch failed for https://example.com/v1?key=super-secret-token&model=gpt',

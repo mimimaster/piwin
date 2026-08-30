@@ -55,11 +55,35 @@ packages/host-runtime  →  application packages + agent-host + contracts
 application packages  →  contracts
 packages/agent-host  →  contracts + Pi packages (only place allowed)
 packages/agent-host  ↛  application packages
+# `@piwin/voice` is an application package (Pi-free). Host-runtime composes it;
+# agent-host never imports voice; voice never imports agent-host/session.
 apps/*  ↛  Pi packages
 apps/gateway (optional) → host-transport + contracts only
 ```
 
 Violations are architecture bugs.
+
+### 2.0.1 piwin Live topology (ADR 0065)
+
+Realtime voice is Host-owned control with Desktop-owned media. First-period
+channels: **openai-codex** (subscription OAuth) and **google-gemini** (Host
+API key → constrained ephemeral token). Spec:
+[2026-08-29-live-provider-adapter.md](./specs/2026-08-29-live-provider-adapter.md).
+
+```text
+Desktop Live Controller + Media Driver Registry (mediaDriverId)
+  → HostCommand voice/live/* (owner-only start bootstrap)
+  → host-runtime LiveCallCoordinator
+      → Host Provider Registry (providerId)
+      → @piwin/voice adapter (auth + start material only)
+      → Desktop-normalized delegation → Host admission
+      → existing Session/Run/Permission (queue when busy)
+```
+
+Host does not PCM-relay audio. Sanitized call status may fan out. Long-lived
+credentials never leave Host. One-shot owner bootstrap (SDP answer or Gemini
+ephemeral token) appears only on the owner start response — never in
+HostPush journals, status, or persisted errors.
 
 ### 2.1 Host-first deployment model
 
@@ -470,6 +494,7 @@ performed.
 | `@piwin/browser` | Playwright-driven browser session (agent tools + panel mirror + element pick) |
 | `@piwin/process` | Non-interactive Job registry, process-tree supervision, logs, readiness |
 | `@piwin/media` | Paste store and previews; PromptPreparation validates model-facing media refs |
+| `@piwin/voice` | Live call domain + Codex Live adapter (Pi-free); Host owns call authority + upstream events; Desktop owns WebRTC media; auth via openai-codex OAuth (ADR 0065) |
 | `@piwin/marketplace` | Unified install sources |
 | `@piwin/ui-kit` | Shared desktop UI primitives |
 

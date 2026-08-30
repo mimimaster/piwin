@@ -247,6 +247,7 @@ export function MediaPreview(props: {
         sessionId,
         isVideo,
         readMedia,
+        mimeType: props.attachment.mimeType,
       });
       if (cancelled) {
         if (resolved.ownedThumb) {
@@ -268,6 +269,7 @@ export function MediaPreview(props: {
     isFileCard,
     isVideo,
     props.attachment.id,
+    props.attachment.mimeType,
     props.attachment.path,
     props.lightboxUrl,
     props.previewUrl,

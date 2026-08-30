@@ -7,6 +7,23 @@ import {
 } from './host-push-audience.js';
 
 describe('classifyHostPushAudience', () => {
+  it('keeps Live owner actions off session filters unless the shell is unfiltered', () => {
+    expect(
+      classifyHostPushAudience({
+        type: 'voice/live-owner-action',
+        callId: 'c1',
+        action: 'release-media',
+      }),
+    ).toEqual({ kind: 'owner' });
+    expect(
+      hostPushPassesLiveFilter(
+        { kind: 'owner' },
+        { sessionIds: new Set(['s-b']) },
+      ),
+    ).toBe(false);
+    expect(hostPushPassesLiveFilter({ kind: 'owner' }, 'all')).toBe(true);
+  });
+
   it('classifies high-rate session pushes as session-scoped', () => {
     const transcript: HostPushVariant = {
       type: 'transcript/append',

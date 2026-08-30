@@ -42,6 +42,9 @@ export type HostEgressClientOptions = {
   supportsBatch?: boolean;
   closeSlowConsumer?: (reason: string) => void;
   liveFilter?: LiveSessionFilter;
+  deliverOwnerActions?: boolean;
+  /** Stable identity of this connection for Live owner-action delivery. */
+  ownerDeviceId?: string;
 };
 
 type PendingRecord = {
@@ -84,6 +87,7 @@ export class HostEgressHub {
   private disposed = false;
   private readonly ingestListeners = new Set<(push: HostPush) => void>();
   private readonly onCanonicalIngest: ((push: HostPush) => void) | undefined;
+  private liveOwnerDeviceId: string | undefined;
 
   public constructor(options: HostEgressHubOptions) {
     const hostInstanceId = options.hostInstanceId ?? randomUUID();
@@ -118,6 +122,7 @@ export class HostEgressHub {
     }
     this.onError = options.onError ?? (() => undefined);
     this.onCanonicalIngest = options.onCanonicalIngest;
+    this.liveOwnerDeviceId = undefined;
   }
 
   public subscribeIngest(listener: (push: HostPush) => void): () => void {
@@ -183,6 +188,13 @@ export class HostEgressHub {
         : { maxQueueBytes: options.maxQueueBytes }),
       ...(this.maxFrameBytes === undefined ? {} : { maxFrameBytes: this.maxFrameBytes }),
       ...(options.liveFilter === undefined ? {} : { liveFilter: options.liveFilter }),
+      ...(options.deliverOwnerActions === undefined
+        ? {}
+        : { deliverOwnerActions: options.deliverOwnerActions }),
+      ...(options.ownerDeviceId === undefined ? {} : { ownerDeviceId: options.ownerDeviceId }),
+      ...(this.liveOwnerDeviceId === undefined
+        ? {}
+        : { liveOwnerDeviceId: this.liveOwnerDeviceId }),
       send: (message) => {
         if (options.send !== undefined) {
           options.send(message as HostPushFrame | HostPushBatchFrame);
@@ -252,8 +264,7 @@ export class HostEgressHub {
     const records = this.journal.listSince(sinceSeq).map((sequence) => this.toRecord(sequence));
     // Empty/expired journals are incomplete whenever the client is behind the
     // live head — otherwise reconnects skip hydration and filter new pushes.
-    const complete =
-      sinceSeq >= this.sequence || this.journal.isCompleteSince(sinceSeq);
+    const complete = sinceSeq >= this.sequence || this.journal.isCompleteSince(sinceSeq);
     return { complete, records, currentSeq: this.sequence };
   }
 
@@ -316,6 +327,12 @@ export class HostEgressHub {
 
   public ingest(push: HostPush): void {
     if (this.disposed) return;
+    if (push.type === 'voice/live-updated') {
+      this.liveOwnerDeviceId = push.call?.ownerDeviceId;
+      for (const client of this.clients.values()) {
+        client.setLiveOwnerDeviceId(this.liveOwnerDeviceId);
+      }
+    }
     this.ingressByType.set(push.type, (this.ingressByType.get(push.type) ?? 0) + 1);
     const policy = classifyHostPush(push);
     const pending = this.createPending(push, policy);
@@ -455,7 +472,9 @@ export class HostEgressHub {
       pending.policy.kind,
       (this.canonicalByPolicy.get(pending.policy.kind) ?? 0) + 1,
     );
-    this.journal.append(sequence);
+    if (pending.policy.journal !== false) {
+      this.journal.append(sequence);
+    }
     this.onCanonicalIngest?.(pending.push);
     for (const listener of this.ingestListeners) {
       try {

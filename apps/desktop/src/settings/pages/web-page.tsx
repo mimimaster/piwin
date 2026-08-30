@@ -94,7 +94,7 @@ type SearchDelegateOption = {
 
 function modelRefKey(model: ModelRef | undefined): string {
   return model
-    ? [model.protocol, model.providerId, model.modelId].map(encodeURIComponent).join('/')
+    ? [model.protocol ?? '', model.providerId, model.modelId].map(encodeURIComponent).join('/')
     : '';
 }
 

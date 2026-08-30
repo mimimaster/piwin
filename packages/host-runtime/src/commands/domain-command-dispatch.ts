@@ -15,6 +15,7 @@ import { handlePermissionRulesCommand } from './permission-rules-commands.js';
 import { handlePreviewCommand } from './preview-commands.js';
 import { handleMediaIngestCommand } from './media-ingest-commands.js';
 import { handleMediaSaveCommand } from './media-save-commands.js';
+import { handleMediaListCommand } from './media-list-commands.js';
 import { handleBrowserCommand } from './browser-commands.js';
 import { handlePluginCommand } from './plugin-commands.js';
 import { handleSessionProductCommand } from './session-product-commands.js';
@@ -28,12 +29,15 @@ import { handleSideChatCommand } from './side-chat-commands.js';
 import { handleWalkthroughList, handleWalkthroughGenerate } from './walkthrough-commands.js';
 import { handleKnowledgeCommand } from './knowledge-commands.js';
 import { handleSubagentCommand } from './subagent-commands.js';
+import { handleAuthCommand } from './auth-commands.js';
+import { handleVoiceLiveCommand } from './voice-live-commands.js';
 
-export type DomainDispatchContext = HostCommandContext & {
-  sessionProduct: SessionProductCommandContext;
-  sessionPack?: SessionPackCommandContext;
-  sessionColdStorage?: SessionColdStorageCommandContext;
-};
+export type DomainDispatchContext = HostCommandContext &
+  import('./voice-live-commands.js').VoiceLiveCommandContext & {
+    sessionProduct: SessionProductCommandContext;
+    sessionPack?: SessionPackCommandContext;
+    sessionColdStorage?: SessionColdStorageCommandContext;
+  };
 
 export async function dispatchDomainCommands(
   command: HostCommand,
@@ -54,6 +58,12 @@ export async function dispatchDomainCommands(
       context.walkthrough.registry,
     );
   }
+
+  const auth = await handleAuthCommand(command, requestId, context);
+  if (auth) return auth;
+
+  const voiceLive = await handleVoiceLiveCommand(command, requestId, context);
+  if (voiceLive) return voiceLive;
 
   const product = await handleSessionProductCommand(command, requestId, context.sessionProduct);
   if (product) return product;
@@ -89,6 +99,9 @@ export async function dispatchDomainCommands(
 
   const mediaSave = await handleMediaSaveCommand(command, requestId, context);
   if (mediaSave) return mediaSave;
+
+  const mediaList = await handleMediaListCommand(command, requestId, context);
+  if (mediaList) return mediaList;
 
   const usage = await handleUsageCommand(command, requestId, context);
   if (usage) return usage;

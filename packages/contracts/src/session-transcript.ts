@@ -83,6 +83,13 @@ export type SessionTranscriptMessage = {
    * resolved file or message bodies.
    */
   contextRefs?: PromptContextRef[];
+  /**
+   * How this user row entered the transcript. Omitted on assistant rows
+   * and on user rows written before this field existed.
+   */
+  source?: 'user' | 'resume' | 'queued-turn' | 'voice-delegation';
+  /** Product Live call id when `source` is `voice-delegation`. */
+  voiceCallId?: string;
   /** Host-owned delivery state for durable user instructions. */
   instructionDelivery?: {
     kind: 'run-intervention' | 'queued-turn';

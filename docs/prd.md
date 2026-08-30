@@ -282,6 +282,26 @@ Model-facing text (text-only providers):
 
 Do **not** dump base64 into context for text models.
 
+### 4.11 piwin Live (P1)
+
+Bound realtime voice on a work session. First-period channels: **openai-codex
+subscription OAuth** and **Gemini API key**. Product:
+[2026-08-28-codex-live-product.md](./specs/2026-08-28-codex-live-product.md);
+channels/settings: [2026-08-29-live-provider-adapter.md](./specs/2026-08-29-live-provider-adapter.md);
+ADR [0065](./adr/0065-piwin-live-voice-work-session.md).
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| LIVE-01 | Codex: Accounts openai-codex login. Gemini: Host-held API key. No Platform `realtime-audio` picker; no Live Enable toggle | P1 |
+| LIVE-02 | Desktop owns media (WebRTC or PCM WebSocket by `mediaDriverId`). Host holds long-lived credentials and the call. Owner start response may include one-shot bootstrap (SDP answer or Gemini ephemeral token) | P1 |
+| LIVE-03 | Upstream client delegation → Host admission → Session/Run/Permission; busy queues | P1 |
+| LIVE-04 | One active call per Host; owner-only media controls; others see sanitized status | P1 |
+| LIVE-05 | No raw audio persistence; persist only delegated instruction text + source tag | P1 |
+| LIVE-06 | Hangup does not cancel an already-admitted Agent Run | P1 |
+| LIVE-07 | Accessible Live chrome (keyboard, 44px, screen reader status) | P1 |
+
+**Non-goals (MVP):** Platform Realtime `realtime-audio` catalog; Host PCM relay; CLI/Mobile/Web as mic owners; Voice calling Agent tools directly; keyword delegation.
+
 ---
 
 ## 5. CLI requirements

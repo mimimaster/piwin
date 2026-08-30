@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import type { EphemeralProviderSecret, ModelProviderConfig, PiwinConfig } from '@piwin/contracts';
-import { modelSupportsCapability } from '@piwin/contracts';
+import {
+  isChannelProvider,
+  isV1SubscriptionProviderId,
+  modelSupportsCapability,
+} from '@piwin/contracts';
 import type { SerializableProviderRuntime } from '@piwin/agent-host';
 import { getEnabledProviders } from './provider-helpers.js';
 import { createSecretResolver, type SecretResolver } from './secret-resolver.js';
@@ -26,6 +30,7 @@ export type ProviderEnvelopeCompileOptions = {
   allowInlineProviderSecrets: boolean;
   allowWorkerProviderSecretBootstrap: boolean;
   requiredProviderIds?: readonly string[];
+  usableSubscriptionProviderIds?: readonly string[];
   secretResolver?: Pick<SecretResolver, 'resolveProviderSecret'>;
 };
 
@@ -60,6 +65,13 @@ export async function buildProviderEnvelope(
       providerSecrets.push(built.secret);
     }
   }
+  envelope.push(
+    ...oauthRuntimesForCompilation(
+      config,
+      options.requiredProviderIds,
+      options.usableSubscriptionProviderIds,
+    ),
+  );
 
   return { providers: envelope, providerSecrets };
 }
@@ -68,7 +80,7 @@ function selectProvidersForCompilation(
   config: PiwinConfig,
   requiredProviderIds: readonly string[] | undefined,
 ): ModelProviderConfig[] {
-  const enabledProviders = getEnabledProviders(config);
+  const enabledProviders = getEnabledProviders(config).filter(isChannelProvider);
   if (requiredProviderIds === undefined) {
     return enabledProviders;
   }
@@ -77,7 +89,9 @@ function selectProvidersForCompilation(
     (providerId) => providerId.length > 0,
   );
   const providersById = new Map(enabledProviders.map((provider) => [provider.id, provider]));
-  const missingProviderId = uniqueIds.find((providerId) => !providersById.has(providerId));
+  const missingProviderId = uniqueIds.find(
+    (providerId) => !providersById.has(providerId) && !isV1SubscriptionProviderId(providerId),
+  );
   if (missingProviderId) {
     throw new Error(`Configured provider is unavailable: ${missingProviderId}`);
   }
@@ -158,6 +172,35 @@ async function buildSingleProviderRuntime(
   }
 
   return { runtime: buildProviderRuntime(provider, { kind: 'none' }) };
+}
+
+export function oauthRuntimesForCompilation(
+  config: Pick<PiwinConfig, 'providers'>,
+  requiredProviderIds: readonly string[] | undefined,
+  usableSubscriptionProviderIds?: readonly string[],
+): SerializableProviderRuntime[] {
+  if (requiredProviderIds === undefined) {
+    return [];
+  }
+  const channelIds = new Set(
+    config.providers.filter(isChannelProvider).map((provider) => provider.id),
+  );
+  const usable =
+    usableSubscriptionProviderIds === undefined
+      ? undefined
+      : new Set(usableSubscriptionProviderIds);
+  return [...new Set(requiredProviderIds)]
+    .filter((providerId) => {
+      if (!isV1SubscriptionProviderId(providerId) || channelIds.has(providerId)) {
+        return false;
+      }
+      return usable === undefined || usable.has(providerId);
+    })
+    .map((providerId) => ({
+      providerId,
+      models: [],
+      auth: { kind: 'oauth' as const, providerId },
+    }));
 }
 
 function buildProviderRuntime(

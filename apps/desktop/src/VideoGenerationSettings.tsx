@@ -6,6 +6,7 @@
  */
 
 import { useMemo, type ReactElement } from 'react';
+import { isModelEnabled, isProviderEnabled } from '@piwin/contracts';
 import type { ModelProviderConfig, ModelRouteConfig } from '@piwin/contracts';
 import { useDesktopLocale } from './desktop-locale-context';
 import { patchProviderModelRoute } from './generation-route-defaults.js';
@@ -22,7 +23,11 @@ export function VideoGenerationSettings(): ReactElement {
   const videoRows = useMemo(() => (config ? collectVideoModels(config.providers) : []), [config]);
 
   function handleSetDefault(provider: ModelProviderConfig, modelId: string): void {
-    if (!config) {
+    if (!config || !isProviderEnabled(provider)) {
+      return;
+    }
+    const model = provider.models.find((entry) => entry.id === modelId);
+    if (!model || !isModelEnabled(model)) {
       return;
     }
     void saveConfig({

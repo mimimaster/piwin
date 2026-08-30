@@ -1,0 +1,120 @@
+/* Live voice sheet: one focused surface, with platform-sized controls and safe-area padding. */
+.mobile-live-sheet {
+  width: min(100%, 520px);
+  max-height: min(86dvh, 680px);
+  margin: auto auto 0;
+  overflow: auto;
+  border: 1px solid var(--line-3);
+  border-bottom: none;
+  border-radius: 24px 24px 0 0;
+  background: var(--surface-1);
+  box-shadow: var(--elev-4);
+}
+
+.mobile-live-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 28px 20px max(28px, env(safe-area-inset-bottom, 28px));
+  text-align: center;
+}
+
+.mobile-live-orb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 88px;
+  height: 88px;
+  border-radius: var(--radius-full);
+  color: var(--text-2);
+  background: var(--surface-control);
+  border: 1px solid var(--line-2);
+  transition:
+    color var(--motion-smooth) var(--motion-ease),
+    background var(--motion-smooth) var(--motion-ease),
+    box-shadow var(--motion-smooth) var(--motion-ease);
+}
+
+.mobile-live-orb.is-active {
+  color: #ffffff;
+  background: var(--iris-gradient);
+  box-shadow: var(--iris-glow);
+  animation: mobile-live-breathe 2.2s ease-in-out infinite;
+}
+
+.mobile-live-status {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.mobile-live-status strong {
+  color: var(--text-1);
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.mobile-live-status span,
+.mobile-live-helper,
+.mobile-live-missing {
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.mobile-live-helper,
+.mobile-live-missing {
+  max-width: 340px;
+  margin: 0;
+}
+
+.mobile-live-error {
+  width: min(100%, 360px);
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--coral) 50%, var(--line-2));
+  border-radius: var(--radius-md);
+  color: var(--text-1);
+  background: color-mix(in srgb, var(--coral) 12%, var(--surface-2));
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.mobile-live-primary-action,
+.mobile-live-actions {
+  width: min(100%, 360px);
+}
+
+.mobile-live-primary-action {
+  min-height: 48px;
+}
+
+.mobile-live-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.mobile-live-mute-action,
+.mobile-live-end-action {
+  min-height: 48px;
+}
+
+@keyframes mobile-live-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.035);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-live-orb,
+  .mobile-live-orb.is-active {
+    animation: none;
+    transition: none;
+  }
+}

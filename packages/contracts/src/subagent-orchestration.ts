@@ -23,8 +23,8 @@
 import type { EphemeralProviderSecret, WorkerProviderAuthDescriptor } from './provider-auth.js';
 export type SubagentProviderEnvelope = {
   readonly providerId: string;
-  readonly protocol: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
-  readonly baseUrl: string;
+  readonly protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
+  readonly baseUrl?: string;
   readonly headers?: Record<string, string>;
   readonly models: ReadonlyArray<{
     readonly id: string;

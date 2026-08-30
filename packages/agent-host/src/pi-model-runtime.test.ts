@@ -45,6 +45,32 @@ describe('pi-model-runtime', () => {
     expect(anthropicRegistration.models[0]).not.toHaveProperty('compat');
   });
 
+  it('adds Grok xAI wire compat for OpenAI-channel grok models only', () => {
+    const openAiProvider: ModelProviderConfig = {
+      id: 'local-gateway',
+      protocol: 'openai-compatible',
+      name: 'Local gateway',
+      baseUrl: 'http://127.0.0.1:8317/v1',
+      models: [{ id: 'grok-4.6' }, { id: 'x-ai/grok-4.6' }, { id: 'gpt-5.6' }],
+    };
+
+    const openAiRegistration = buildPiProviderRegistration(openAiProvider);
+    const grokCompat = {
+      supportsStore: false,
+      supportsDeveloperRole: false,
+      supportsReasoningEffort: false,
+    };
+    expect(openAiRegistration.models[0]?.compat).toEqual(grokCompat);
+    expect(openAiRegistration.models[1]?.compat).toEqual(grokCompat);
+    expect(openAiRegistration.models[2]).not.toHaveProperty('compat');
+
+    const anthropicRegistration = buildPiProviderRegistration({
+      ...openAiProvider,
+      protocol: 'anthropic-compatible',
+    });
+    expect(anthropicRegistration.models[0]).not.toHaveProperty('compat');
+  });
+
   it('builds a Pi provider registration with complete model descriptors', () => {
     const provider: ModelProviderConfig = {
       id: 'xai-local',
@@ -85,7 +111,11 @@ describe('pi-model-runtime', () => {
         maxTokens: 8_192,
       }),
     ]);
-    expect(registration.models[0]).not.toHaveProperty('compat');
+    expect(registration.models[0]?.compat).toEqual({
+      supportsStore: false,
+      supportsDeveloperRole: false,
+      supportsReasoningEffort: false,
+    });
     expect(registration.models[0]).not.toHaveProperty('thinkingLevels');
     expect(registration.models[0]?.thinkingLevelMap).toEqual({
       off: null,

@@ -8,12 +8,19 @@ import type {
   SpeechTranscribeData,
 } from '@piwin/contracts';
 import {
+  MEDIA_THUMB_EDGE_STANDARD_PX,
   SPEECH_MAX_DURATION_MS,
   formatError,
+  isMediaThumbEdge,
   modelSupportsCapability,
   projectConfiguredChatModels,
 } from '@piwin/contracts';
-import { SettingsRevisionConflictError, SettingsService } from '../settings/settings-service.js';
+import {
+  applySettingsMutations,
+  SettingsRevisionConflictError,
+  SettingsService,
+} from '../settings/settings-service.js';
+import { isSubscriptionProvider, isV1SubscriptionProviderId } from '@piwin/contracts';
 import { createMediaService } from '@piwin/media';
 import { createExtensionRevisionStore } from '@piwin/extensions';
 import { ensureBundledSkillsInstalled, readSkillPreview } from '@piwin/skills';
@@ -202,11 +209,21 @@ export async function handleCatalogCommand(
         maxPasteBytes: config.media.maxPasteBytes,
         allowedMimeTypes: config.media.allowedMimeTypes,
       });
-      const result = await mediaService.readMediaAsset({
-        sessionId: command.input.sessionId,
-        assetId: command.input.assetId,
-        maxBytes,
-      });
+      const result =
+        command.input.variant === 'thumb'
+          ? await mediaService.readMediaThumb({
+              sessionId: command.input.sessionId,
+              assetId: command.input.assetId,
+              maxBytes: Math.min(maxBytes, 256 * 1024),
+              thumbEdge: isMediaThumbEdge(command.input.thumbEdge)
+                ? command.input.thumbEdge
+                : MEDIA_THUMB_EDGE_STANDARD_PX,
+            })
+          : await mediaService.readMediaAsset({
+              sessionId: command.input.sessionId,
+              assetId: command.input.assetId,
+              maxBytes,
+            });
       if (result.status === 'unavailable') {
         const data: MediaReadData = {
           status: 'unavailable',
@@ -506,6 +523,35 @@ export async function handleCatalogCommand(
     case 'settings/apply': {
       const settingsService = new SettingsService({ piwinRoot: context.piwinRoot });
       try {
+        if (command.input.mutations.some((mutation) => mutation.domain === 'providers')) {
+          const current = await settingsService.getSnapshot();
+          const nextConfig = applySettingsMutations(current.config, command.input.mutations);
+          const { getSubscriptionAuthService } = await import('./auth-commands.js');
+          const accounts = (await getSubscriptionAuthService(context).status()).accounts;
+          const blocked = new Set(
+            accounts
+              .filter(
+                (account) =>
+                  isV1SubscriptionProviderId(account.providerId) &&
+                  (account.state === 'logged-in' ||
+                    account.state === 'logging-in' ||
+                    account.state === 'sync-error' ||
+                    account.state === 'needs-reauth'),
+              )
+              .map((account) => account.providerId),
+          );
+          const colliding = nextConfig.providers.find(
+            (provider) => blocked.has(provider.id) && !isSubscriptionProvider(provider),
+          );
+          if (colliding) {
+            return fail(
+              requestId,
+              'settings/apply',
+              `Channel id "${colliding.id}" collides with a logged-in subscription account.`,
+              { code: 'collision', data: { providerId: colliding.id } },
+            );
+          }
+        }
         const result = await settingsService.apply(command.input);
         if (result.changedDomains.length > 0) {
           context.push({
@@ -569,8 +615,17 @@ export async function handleCatalogCommand(
       }
     }
     case 'models/configured': {
-      const config = await loadPiwinConfig(getPiwinRoot(context.piwinRoot));
-      return ok(requestId, 'models/configured', projectConfiguredChatModels(config));
+      try {
+        const { getSubscriptionAuthService } = await import('./auth-commands.js');
+        const service = getSubscriptionAuthService(context);
+        const config = await service.ensureLoggedInProviders();
+        const projected = projectConfiguredChatModels(config);
+        const merged = await service.mergeConfiguredModels(projected);
+        return ok(requestId, 'models/configured', merged);
+      } catch {
+        const config = await loadPiwinConfig(getPiwinRoot(context.piwinRoot));
+        return ok(requestId, 'models/configured', projectConfiguredChatModels(config));
+      }
     }
     case 'models/image-catalog/search': {
       // Pi maintains a separate ImagesModel catalog from the chat Model catalog.

@@ -1,0 +1,484 @@
+/* Settings → OAuth: Subscription Accounts Panel styling.
+   Card Grid layout with inline collapsible auth drawer, adhering to Deck Design System. */
+
+.oauth-settings-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+}
+
+.oauth-accounts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+/* ── Responsive Card Grid ─────────────────────────────────────────────── */
+
+.oauth-account-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--s-4);
+  align-items: start;
+}
+
+.oauth-account-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-panel);
+  background: var(--surface-2);
+  border: 1px solid var(--line-1);
+  box-shadow: var(--elev-1);
+  transition:
+    transform var(--t-2) var(--ease-out),
+    box-shadow var(--t-2) var(--ease-out),
+    border-color var(--t-2) var(--ease-out),
+    background-color var(--t-2) var(--ease-out);
+}
+
+.oauth-account-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--elev-2);
+  border-color: var(--line-2);
+}
+
+.oauth-account-card.is-connected {
+  border-color: color-mix(in srgb, var(--mint) 35%, var(--line-1));
+  background: color-mix(in srgb, var(--surface-2) 96%, var(--mint));
+}
+
+.oauth-account-card.is-expanded {
+  border-color: color-mix(in srgb, var(--iris) 40%, var(--line-1));
+  background: color-mix(in srgb, var(--surface-2) 96%, var(--iris));
+  box-shadow: var(--elev-2);
+}
+
+.oauth-card-top {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.oauth-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.oauth-brand-wrapper {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.oauth-account-mark {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-card);
+  background: var(--surface-1);
+  border: 1px solid var(--line-1);
+  box-shadow: var(--elev-1);
+  transition: transform var(--t-2) var(--ease-out);
+}
+
+.oauth-account-card:hover .oauth-account-mark {
+  transform: scale(1.04);
+}
+
+.oauth-brand-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.oauth-brand-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+}
+
+.oauth-brand-title {
+  font-size: 14.5px;
+  font-weight: 650;
+  color: var(--text-1);
+  letter-spacing: var(--tracking-tight);
+}
+
+.oauth-brand-tagline {
+  font-size: 11.5px;
+  color: var(--text-4);
+}
+
+/* ── Status Badges ────────────────────────────────────────────────────── */
+
+.oauth-status-badge {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: var(--tracking-micro);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.oauth-status-badge.is-logged-in {
+  background: color-mix(in srgb, var(--mint) 12%, transparent);
+  color: var(--mint);
+  border: 1px solid color-mix(in srgb, var(--mint) 30%, transparent);
+}
+
+.oauth-status-badge.is-logged-out {
+  background: var(--hover);
+  color: var(--text-4);
+  border: 1px solid var(--line-1);
+}
+
+.oauth-status-badge.is-logging-in {
+  background: color-mix(in srgb, var(--iris) 15%, transparent);
+  color: var(--iris);
+  border: 1px solid color-mix(in srgb, var(--iris) 30%, transparent);
+}
+
+.oauth-status-badge.is-needs-reauth {
+  background: color-mix(in srgb, var(--amber) 15%, transparent);
+  color: var(--amber);
+  border: 1px solid color-mix(in srgb, var(--amber) 30%, transparent);
+}
+
+.oauth-status-badge.is-sync-error {
+  background: color-mix(in srgb, var(--coral) 15%, transparent);
+  color: var(--coral);
+  border: 1px solid color-mix(in srgb, var(--coral) 30%, transparent);
+}
+
+.oauth-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.oauth-status-dot.is-pulse {
+  box-shadow: 0 0 6px currentColor;
+  animation: oauth-dot-pulse 2.2s infinite ease-in-out;
+}
+
+@keyframes oauth-dot-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.85);
+  }
+}
+
+.oauth-status-dot.is-spinning {
+  animation: oauth-dot-spin 1.2s infinite linear;
+}
+
+@keyframes oauth-dot-spin {
+  0% { transform: rotate(0deg) translateX(2px) rotate(0deg); }
+  100% { transform: rotate(360deg) translateX(2px) rotate(-360deg); }
+}
+
+.oauth-collision-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin-top: var(--s-1);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
+  color: var(--amber);
+  font-size: var(--fs-micro);
+  line-height: 1.45;
+}
+
+/* ── Card Footer & Actions ────────────────────────────────────────────── */
+
+.oauth-account-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line-1);
+}
+
+.oauth-account-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+/* ── Inline Expandable Drawer (Auth Form Area) ────────────────────────── */
+
+.oauth-account-inline-drawer {
+  margin-top: var(--s-4);
+  padding-top: var(--s-4);
+  border-top: 1px dashed color-mix(in srgb, var(--iris) 30%, var(--line-1));
+  animation: oauth-drawer-expand 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes oauth-drawer-expand {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.oauth-inline-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.oauth-inline-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.oauth-inline-hint {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--text-4);
+  line-height: 1.45;
+}
+
+/* ── Device Code Section ──────────────────────────────────────────────── */
+
+.oauth-inline-device-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.oauth-inline-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.oauth-device-code-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--s-3) var(--s-4);
+  background: var(--void);
+  border-radius: var(--r-card);
+  border: 1px solid var(--line-2);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.oauth-device-code-value {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--text-1);
+  user-select: all;
+}
+
+.oauth-copy-btn {
+  flex: 0 0 auto;
+}
+
+.oauth-icon-mint {
+  color: var(--mint);
+}
+
+.oauth-timer-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
+  color: var(--amber);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+}
+
+/* ── Web OAuth URL Section ────────────────────────────────────────────── */
+
+.oauth-inline-url-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.oauth-inline-url-box {
+  padding: var(--s-3) var(--s-4);
+  background: var(--void);
+  border-radius: var(--r-control);
+  border: 1px solid var(--line-2);
+  max-height: 110px;
+  overflow-y: auto;
+}
+
+.oauth-auth-url {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-2);
+  word-break: break-all;
+  user-select: all;
+}
+
+.oauth-inline-url-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+/* ── Input & Callback Form ────────────────────────────────────────────── */
+
+.oauth-inline-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.oauth-inline-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.oauth-inline-input input {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+.oauth-inline-actions-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+  margin-top: var(--s-1);
+}
+
+.oauth-inline-waiting-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--iris);
+  font-weight: 500;
+  margin-left: auto;
+}
+
+.oauth-inline-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding-top: var(--s-2);
+}
+
+.oauth-inline-loading {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-2);
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+.oauth-inline-message-box {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3);
+  border-radius: var(--r-control);
+  background: var(--surface-2);
+  border: 1px solid var(--line-1);
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.oauth-inline-spinner {
+  animation: oauth-dot-spin 1.2s infinite linear;
+  color: var(--iris);
+}
+
+.oauth-inline-select-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.oauth-inline-options-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+/* ── Footnote Notice ──────────────────────────────────────────────────── */
+
+.oauth-accounts-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-panel);
+  background: var(--surface-2);
+  border: 1px solid var(--line-1);
+}
+
+.oauth-notice-icon {
+  flex: 0 0 auto;
+  color: var(--iris);
+  margin-top: 1px;
+}
+
+.oauth-accounts-footnote {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+  line-height: 1.5;
+}
+
+@media (max-width: 720px) {
+  .oauth-account-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .oauth-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--s-2);
+  }
+
+  .oauth-account-footer {
+    justify-content: stretch;
+  }
+
+  .oauth-account-actions {
+    width: 100%;
+  }
+
+  .oauth-account-actions button {
+    width: 100%;
+  }
+}

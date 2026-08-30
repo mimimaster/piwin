@@ -2,6 +2,9 @@ import { useState, type ReactElement } from 'react';
 import {
   isLikelyImageGenerationModel,
   isLikelyVideoGenerationModel,
+  isModelEnabled,
+  isProviderEnabled,
+  isSubscriptionProvider,
   modelSupportsCapability,
 } from '@piwin/contracts';
 import type {
@@ -123,6 +126,16 @@ export function modelCaps(
   return caps;
 }
 
+function modelToggleLabel(
+  providerLive: boolean,
+  model: ModelConfigEntry,
+  isChinese: boolean,
+): string {
+  if (!providerLive) return isChinese ? '提供商已停用' : 'Provider is disabled';
+  if (!isModelEnabled(model)) return isChinese ? '已停用' : 'Disabled';
+  return isChinese ? '已启用' : 'Enabled';
+}
+
 export function ProviderRow({
   provider,
   status,
@@ -178,6 +191,8 @@ export function ProviderRow({
     }
   }
 
+  const providerLive = isProviderEnabled(provider);
+
   const t = isChinese
     ? {
         models: '模型',
@@ -193,6 +208,7 @@ export function ProviderRow({
         discovering: '正在拉取…',
         addModel: '手动添加模型',
         modelsHeading: '模型服务',
+        oauthPlan: 'OAuth 套餐',
       }
     : {
         models: 'Models',
@@ -208,12 +224,15 @@ export function ProviderRow({
         discovering: 'Fetching…',
         addModel: 'Add model manually',
         modelsHeading: 'Models',
+        oauthPlan: 'OAuth subscription',
       };
+
+  const subscription = isSubscriptionProvider(provider);
 
   return (
     <>
       <div
-        className={`provider-row${expanded ? ' provider-row--expanded' : ''}`}
+        className={`provider-row${expanded ? ' provider-row--expanded' : ''}${providerLive ? '' : ' provider-row--off'}`}
         data-testid={`provider-row-${provider.id}`}
       >
         <div className="provider-row-main">
@@ -245,8 +264,8 @@ export function ProviderRow({
                 />
               )}
             </b>
-            <span className="provider-row-host" title={provider.baseUrl}>
-              {hostOf(provider.baseUrl)}
+            <span className="provider-row-host" title={subscription ? t.oauthPlan : provider.baseUrl}>
+              {subscription ? t.oauthPlan : hostOf(provider.baseUrl)}
             </span>
           </div>
           <div className="provider-row-models-count">
@@ -267,6 +286,7 @@ export function ProviderRow({
                 size="sm"
               />
             </div>
+            {subscription ? null : (
             <button
               type="button"
               className="provider-row-open"
@@ -280,6 +300,7 @@ export function ProviderRow({
             >
               <IconEdit width={14} height={14} className="provider-row-edit-icon" />
             </button>
+            )}
           </div>
         </div>
 
@@ -290,6 +311,7 @@ export function ProviderRow({
                 {t.modelsHeading}
                 <span className="provider-field-label-count">（{provider.models.length}）</span>
               </span>
+              {subscription ? null : (
               <button
                 type="button"
                 className="provider-discover-btn"
@@ -308,6 +330,7 @@ export function ProviderRow({
                 )}
                 <span>{discovering ? t.discovering : t.discover}</span>
               </button>
+              )}
             </div>
 
             <div className="provider-model-list" data-testid="provider-model-list">
@@ -320,13 +343,15 @@ export function ProviderRow({
                 const mTest = modelTestStatus[model.id];
                 const isTesting = testingModelId === model.id;
                 const isExpanded = expandedModelId === model.id;
+                const modelLive = providerLive && isModelEnabled(model);
+                const toggleLabel = modelToggleLabel(providerLive, model, isChinese);
                 return (
                   <div
                     key={model.id}
                     className={`provider-model-item${isExpanded ? ' provider-model-item--expanded' : ''}`}
                   >
                     <div
-                      className="provider-model-row"
+                      className={`provider-model-row${modelLive ? '' : ' provider-model-row--off'}`}
                       data-testid="provider-model-row"
                       onClick={() => toggleModelExpand(model.id)}
                     >
@@ -380,6 +405,7 @@ export function ProviderRow({
                           {mTest.message}
                         </span>
                       )}
+                      {subscription ? null : (
                       <button
                         type="button"
                         className="provider-mini-btn"
@@ -398,6 +424,7 @@ export function ProviderRow({
                           <IconSpark width={16} height={16} />
                         )}
                       </button>
+                      )}
                       <button
                         type="button"
                         className="provider-mini-btn"
@@ -407,7 +434,7 @@ export function ProviderRow({
                           event.stopPropagation();
                           if (!isDefaultModel) onSetDefaultModel(model.id);
                         }}
-                        disabled={disabled || isDefaultModel}
+                        disabled={disabled || isDefaultModel || !providerLive}
                         data-testid={`provider-model-default-${model.id}`}
                         style={isDefaultModel ? { color: 'var(--warn, #f59e0b)' } : undefined}
                       >
@@ -434,20 +461,13 @@ export function ProviderRow({
                       <div
                         className="provider-model-toggle"
                         onClick={(event) => event.stopPropagation()}
-                        title={
-                          model.enabled === false
-                            ? isChinese
-                              ? '已停用'
-                              : 'Disabled'
-                            : isChinese
-                              ? '已启用'
-                              : 'Enabled'
-                        }
+                        title={toggleLabel}
                       >
                         <Switch
-                          checked={model.enabled !== false}
+                          checked={modelLive}
                           onCheckedChange={() => onToggleModel(model.id)}
-                          disabled={disabled}
+                          disabled={disabled || !providerLive}
+                          aria-label={toggleLabel}
                           testId={`provider-model-toggle-${model.id}`}
                           size="sm"
                         />

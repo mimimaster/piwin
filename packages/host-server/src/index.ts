@@ -1,4 +1,5 @@
 export * from './host-server.js';
+export * from './listen-busy.js';
 export * from './host-command-idempotency-registry.js';
 export * from './host-egress-hub.js';
 export * from './host-egress-channel.js';

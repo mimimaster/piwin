@@ -4,6 +4,7 @@
  */
 
 import type { AgentFailure, AgentPromptOutcome } from '@piwin/contracts';
+import { isV1SubscriptionProviderId } from '@piwin/contracts';
 import { formatError, sanitizeAgentFailure } from '@piwin/contracts';
 import { finalizeAbortedRun } from './run-control-commands.js';
 import type { SessionLiveContext } from './session-live-context.js';
@@ -22,6 +23,7 @@ export async function applyAgentPromptOutcome(input: {
       return 'completed';
     case 'failed':
       await persistStructuredFailureIfNeeded(context, sessionId, runId, outcome.failure);
+      noteSubscriptionAuthFailure(context, sessionId, outcome.failure);
       await context.terminateRun(sessionId, runId, 'failed', undefined, outcome.failure.message, {
         agentStopReason: outcome.stopReason,
         failure: outcome.failure,
@@ -51,6 +53,26 @@ export async function persistHostRuntimeFailure(input: {
   failure: AgentFailure;
 }): Promise<void> {
   await persistStructuredFailureIfNeeded(input.context, input.sessionId, input.runId, input.failure);
+}
+
+function noteSubscriptionAuthFailure(
+  context: SessionLiveContext,
+  sessionId: string,
+  failure: AgentFailure,
+): void {
+  if (failure.code !== 'provider-authentication') {
+    return;
+  }
+  const model = context.sessionModels.get(sessionId);
+  if (!model) {
+    return;
+  }
+  if (model.source === 'channel') {
+    return;
+  }
+  if (model.source === 'subscription' || isV1SubscriptionProviderId(model.providerId)) {
+    context.noteSubscriptionAuthFailure?.(model.providerId);
+  }
 }
 
 function hasHostAbortReason(context: SessionLiveContext, runId: string): boolean {

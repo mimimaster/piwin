@@ -10,6 +10,7 @@ import { App } from './App';
 import { AppErrorBoundary } from './AppErrorBoundary';
 import { ArtifactGallery } from './e2e/artifact-gallery';
 import { PrimitiveGallery } from './e2e/primitive-gallery';
+import { LiveSpikePanel } from './live-spike/LiveSpikePanel';
 import {
   buildAppearanceTheme,
   applyAppearanceToDocument,
@@ -27,6 +28,7 @@ import { loadDesktopPreferences } from './ui-preferences';
  */
 const E2E_PRIMITIVE_GALLERY_HASH = '#/e2e/primitives';
 const E2E_ARTIFACT_GALLERY_HASH = '#/e2e/artifacts';
+const LIVE_SPIKE_HASH = '#/live-spike';
 
 function isE2eFixtureRoute(prefix: string): boolean {
   if (import.meta.env.VITE_PIWIN_E2E_FIXTURES !== 'true' || typeof window === 'undefined') {
@@ -42,6 +44,15 @@ function isPrimitiveGalleryRoute(): boolean {
 
 function isArtifactGalleryRoute(): boolean {
   return isE2eFixtureRoute(E2E_ARTIFACT_GALLERY_HASH);
+}
+
+/** R1 only: explicit env flag + hash. Production builds strip the flag. */
+function isLiveSpikeRoute(): boolean {
+  if (import.meta.env.VITE_PIWIN_LIVE_SPIKE !== '1' || typeof window === 'undefined') {
+    return false;
+  }
+  const hash = window.location.hash;
+  return hash === LIVE_SPIKE_HASH || hash.startsWith(`${LIVE_SPIKE_HASH}?`);
 }
 
 export function DesktopThemeRoot() {
@@ -95,7 +106,9 @@ export function DesktopThemeRoot() {
   return (
     <PiwinUiProvider manifest={activeTheme}>
       <AppErrorBoundary>
-        {isPrimitiveGalleryRoute() ? (
+        {isLiveSpikeRoute() ? (
+          <LiveSpikePanel />
+        ) : isPrimitiveGalleryRoute() ? (
           <PrimitiveGallery onApplyTheme={applyResolvedTheme} />
         ) : isArtifactGalleryRoute() ? (
           <ArtifactGallery />

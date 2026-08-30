@@ -51,12 +51,11 @@ export type WorkbenchSidebarProps = {
   setShowArchivedSessions: Dispatch<SetStateAction<boolean>>;
   hydrateSessions: WorkbenchSidebarHydrateSessions;
   settingsOpen: boolean;
-  activeSubPage?: 'chat' | 'images' | 'videos' | 'flashcards' | null | undefined;
+  activeSubPage?: 'chat' | 'library' | 'images' | 'videos' | 'flashcards' | null | undefined;
+  onOpenLibrary?: () => void;
   onOpenImages?: () => void;
   onOpenVideos?: () => void;
   onOpenFlashcards?: () => void;
-  knowledgeOpen: boolean;
-  setKnowledgeOpen: Dispatch<SetStateAction<boolean>>;
   onOpenWorkspace: () => void | Promise<void>;
   onOpenProject: (path: string) => void | Promise<void>;
   onRemoveProject: (path: string) => void | Promise<void>;
@@ -97,8 +96,6 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
     setShowArchivedSessions,
     hydrateSessions,
     settingsOpen,
-    knowledgeOpen,
-    setKnowledgeOpen,
     onOpenWorkspace,
     onOpenProject,
     onRemoveProject,
@@ -209,13 +206,10 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
         void prefetchSettingsPanel();
       }}
       activeSubPage={props.activeSubPage}
+      onOpenLibrary={props.onOpenLibrary}
       onOpenImages={props.onOpenImages}
       onOpenVideos={props.onOpenVideos}
       onOpenFlashcards={props.onOpenFlashcards}
-      knowledgeOpen={knowledgeOpen}
-      {...(hostClient.supportsCommand('doccards/scan-folder')
-        ? { onToggleKnowledge: () => setKnowledgeOpen((current) => !current) }
-        : {})}
       generalActive={state.activeScope.kind === 'general'}
       onSelectGeneral={() => {
         dispatch({ type: 'project/clear' });

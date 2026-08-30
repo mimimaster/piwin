@@ -13,6 +13,7 @@ import {
   listOrchestrationSchemes,
   migrateSchemeMembers,
   type OrchestrationSchemeSettings,
+  toModelRef,
   type ModelRef,
   type SubagentConfig,
 } from '@piwin/contracts';
@@ -191,20 +192,16 @@ export function SubagentProfilesPage(): ReactElement {
   const modelOptions = useMemo(() => {
     if (!config) return [];
     return buildEnabledModelOptions(config.providers).map((option) => {
-      const ref: ModelRef = {
-        protocol: option.protocol,
+      const ref: ModelRef = toModelRef({
         providerId: option.providerId,
         modelId: option.modelId,
-      };
+        ...(option.protocol !== undefined ? { protocol: option.protocol } : {}),
+      });
       return { value: JSON.stringify(ref), label: option.label, ref };
     });
   }, [config]);
 
   useEffect(() => {
-    if (modelOptions.length > 0) {
-      setConfiguredPickerOptions([]);
-      return;
-    }
     let cancelled = false;
     void (async () => {
       const response = await request({ type: 'models/configured' });
@@ -213,11 +210,12 @@ export function SubagentProfilesPage(): ReactElement {
       if (cancelled) return;
       setConfiguredPickerOptions(
         modelOptionsFromConfiguredModels(models).map((option) => {
-          const ref: ModelRef = {
-            protocol: option.protocol,
+          const ref: ModelRef = toModelRef({
             providerId: option.providerId,
             modelId: option.modelId,
-          };
+            ...(option.protocol !== undefined ? { protocol: option.protocol } : {}),
+            ...(option.source !== undefined ? { source: option.source } : {}),
+          });
           return { value: JSON.stringify(ref), label: option.label, ref };
         }),
       );
@@ -225,9 +223,10 @@ export function SubagentProfilesPage(): ReactElement {
     return () => {
       cancelled = true;
     };
-  }, [modelOptions.length, request]);
+  }, [request]);
 
-  const pickerModelOptions = modelOptions.length > 0 ? modelOptions : configuredPickerOptions;
+  const pickerModelOptions =
+    configuredPickerOptions.length > 0 ? configuredPickerOptions : modelOptions;
 
   function buildUniqueSchemeCloneId(baseId: string, existingIds: ReadonlySet<string>): string {
     const sanitizedBase =

@@ -255,6 +255,24 @@ describe('buildWorkerProviderRegistration', () => {
     });
   });
 
+  it('applies the Grok OpenAI compat rule in the RPC worker', () => {
+    const provider: SerializableWorkerProviderRuntime = {
+      providerId: 'local-gateway',
+      protocol: 'openai-compatible',
+      baseUrl: 'http://127.0.0.1:8317/v1',
+      models: [{ id: 'grok-4.6', reasoning: true }],
+      auth: { kind: 'none' },
+    };
+
+    const registration = buildWorkerProviderRegistration(provider, undefined);
+
+    expect(registration.models[0]?.compat).toEqual({
+      supportsStore: false,
+      supportsDeveloperRole: false,
+      supportsReasoningEffort: false,
+    });
+  });
+
   it('maps the serializable envelope to a Pi provider registration', () => {
     const provider: SerializableProviderRuntime = {
       providerId: 'prov-1',

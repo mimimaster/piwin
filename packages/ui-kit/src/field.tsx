@@ -14,7 +14,7 @@ type FieldControlProps = {
 };
 
 export type FieldProps = {
-  label: string;
+  label: ReactNode;
   children: ReactElement<FieldControlProps>;
   description?: string;
   error?: string | null;
