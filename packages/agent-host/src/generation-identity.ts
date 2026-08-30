@@ -64,6 +64,15 @@ export function normalizeGenerationMessageId(
   return `${MESSAGE_ID_PREFIX}-${hashGenerationIdentity(context, backendMessageId)}`;
 }
 
+/** Stable request id for usage/finalized. `messageId` must already be normalized. */
+export function assistantUsageMeasurementId(input: {
+  sessionId: string;
+  runtimeGenerationId?: string;
+  messageId: string;
+}): string {
+  return `${input.sessionId}:${input.runtimeGenerationId ?? ''}:${input.messageId}`;
+}
+
 /** Opaque product tool-call id for one backend tool-call id in one generation. */
 export function normalizeGenerationToolCallId(
   context: GenerationIdentityContext,
