@@ -19,8 +19,8 @@ export async function runSubagentResults(
   if (!response.success) {
     throw new Error(response.error);
   }
-  const data = response.data as { results?: SubagentResultSummary[] };
-  const results = data.results ?? [];
+  const data = response.data as { items?: SubagentResultSummary[]; results?: SubagentResultSummary[] };
+  const results = data.items ?? data.results ?? [];
   if (results.length === 0) {
     write(`session ${parentSessionId}: no subagent results`);
     return;
