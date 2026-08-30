@@ -74,7 +74,10 @@ export type FlashcardStudyRoundSummary = {
   lastAdvanceOperationId: string | null;
 };
 
-/** Current-card projection. Next-shell metadata must not include answers. */
+/**
+ * Current-card projection for the requesting principal.
+ * Always includes `back` so flip can reveal locally; next-shell must stay blank.
+ */
 export type FlashcardStudyContentProjection = {
   entryId: string;
   itemId: string;

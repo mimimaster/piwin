@@ -17,7 +17,14 @@ import {
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const CARDS = [
-  { id: 'seq-a', front: 'What is a page table?', back: 'Virtual to physical map.', sequenceId: 'seq_os', deck: 'OS' },
+  {
+    id: 'seq-a',
+    front: 'What is a page table?',
+    back: 'Virtual to physical map.',
+    sequenceId: 'seq_os',
+    deck: 'OS',
+    sourceFile: '/Users/host/notes/page-table.md',
+  },
   { id: 'seq-b', front: 'What is a TLB?', back: 'Translation lookaside buffer.', sequenceId: 'seq_os', deck: 'OS' },
 ];
 
@@ -94,6 +101,12 @@ describe('FlashcardStudyPage', () => {
     expect(container.querySelector('[data-testid="flashcards-study-page"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="flashcards-tear-front"]')?.textContent).toContain(
       'page table',
+    );
+    expect(container.querySelector('[data-testid="flashcards-study-source"]')?.textContent).toContain(
+      'page-table.md',
+    );
+    expect(container.querySelector('[data-testid="flashcards-study-source"]')?.textContent).not.toContain(
+      '/Users/host',
     );
     act(() => {
       Array.from(container.querySelectorAll('button'))
