@@ -817,9 +817,9 @@
 }
 
 /* ── Tool batch capsule ───────────────────────────────────────────────
-   Not a boxed card: the header reads as one more chain row. Only failures
-   take a surface, because a failure is the one case worth interrupting the
-   scan for. */
+   Not a boxed card: the header reads as one more chain row. Failures are
+   highlighted on specific failed tool rows and error summary counters rather
+   than tinting the entire container surface. */
 
 .tool-batch-capsule {
   display: flex;
@@ -829,12 +829,6 @@
   border: none;
   margin: 1px 0;
   overflow: hidden;
-}
-
-.tool-batch-capsule.has-error {
-  border-radius: var(--r-control);
-  border: 0;
-  background: color-mix(in srgb, var(--coral) 7%, transparent);
 }
 
 .tool-batch-header {
