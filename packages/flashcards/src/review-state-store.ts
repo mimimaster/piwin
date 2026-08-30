@@ -40,7 +40,7 @@ export function createReviewStateStore(options: ReviewStateStoreOptions): Review
       if (typeof parsed.due !== 'string') {
         throw new Error('missing due field');
       }
-      return parsed;
+      return { ...parsed, revision: parsed.revision ?? 0 };
     } catch (error) {
       const backupPath = `${path}.bak`;
       await rename(path, backupPath).catch(() => undefined);

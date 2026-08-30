@@ -82,6 +82,31 @@ describe('review-state-store', () => {
     warn.mockRestore();
   });
 
+  it('defaults a missing revision to 0', async () => {
+    const store = createReviewStateStore({
+      flashcardsRoot: getFlashcardsRoot(piwinRoot),
+      reviewDir,
+      ensureDirs,
+    });
+    await ensureDirs();
+    await writeFile(
+      join(reviewDir, 'card-legacy.json'),
+      JSON.stringify({
+        cardId: 'card-legacy',
+        due: '2026-08-30T00:00:00.000Z',
+        stability: 0,
+        difficulty: 0,
+        reps: 0,
+        lapses: 0,
+      }),
+      'utf8',
+    );
+    await expect(store.read('card-legacy')).resolves.toMatchObject({
+      cardId: 'card-legacy',
+      revision: 0,
+    });
+  });
+
   it('deletes basic and cloze review files for an item', async () => {
     const store = createReviewStateStore({
       flashcardsRoot: getFlashcardsRoot(piwinRoot),

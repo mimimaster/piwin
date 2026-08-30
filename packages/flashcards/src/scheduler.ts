@@ -31,6 +31,7 @@ export function createInitialReviewState(cardId: string, now: Date = new Date())
     difficulty: 0,
     reps: 0,
     lapses: 0,
+    revision: 0,
   };
 }
 
@@ -47,7 +48,7 @@ export function rateCard(
   const fsrsCard = toFsrsCard(state, now);
   const result = scheduler.next(fsrsCard, now, RATING_MAP[rating]);
   const next = result.card;
-  return {
+  const rated: ReviewState = {
     cardId: state.cardId,
     due: next.due.toISOString(),
     stability: next.stability,
@@ -56,6 +57,8 @@ export function rateCard(
     lapses: next.lapses,
     lastReviewedAt: now.toISOString(),
   };
+  if (state.revision !== undefined) rated.revision = state.revision;
+  return rated;
 }
 
 function toFsrsCard(state: ReviewState, now: Date): FsrsCard {
