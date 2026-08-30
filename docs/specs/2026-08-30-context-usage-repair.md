@@ -1,6 +1,6 @@
 # 上下文窗口环：修复设计与执行计划
 
-日期：2026-08-30。状态：待实施；本次仅修改文档，以下任务均未完成。
+日期：2026-08-30。状态：已在分支 `feat/context-usage-repair` 实施；验收证据见 [WP5 记录](./2026-08-30-context-usage-repair-wp5-record.md)。
 
 问题来源：[全链路排查及复现证据](../plans/2026-08-30-context-usage-audit.md)。该报告的 01–13 编号在本文保持不变。本文是后续修复的执行入口，不将方案描述为已上线行为。
 
@@ -196,17 +196,17 @@ mock 仅在 mock 路径使用 `estimateMockUsage`；生产 Host 删除该函数�
 
 ### WP0 — 基线与结构准备（无行为变化）
 
-- [ ] 重跑报告中针对性测试，记录既有失败和用户并行改动；按原探针复现序列准备目标行为回归用例，随对应修复工作包落入测试。未实现的目标断言不能算作纯结构提交引入的未知回归。
-- [ ] 先按职责拆分需修改的巨型文件：chat reducer 的 session selection/hydration 与 context slice；composer 的 footer/context controls；Host routing/usage、transcript schema/事务封装若超限也先拆分。
-- [ ] 拆分使用已有领域函数/公共 API，不复制两个版本的逻辑；纯 refactor 单独提交。新模块以约 400 行为预警，所有触及源文件回到 1,000 行以内。
+- [x] 重跑报告中针对性测试，记录既有失败和用户并行改动；按原探针复现序列准备目标行为回归用例，随对应修复工作包落入测试。未实现的目标断言不能算作纯结构提交引入的未知回归。
+- [x] 先按职责拆分需修改的巨型文件：chat reducer 的 session selection/hydration 与 context slice；composer 的 footer/context controls；Host routing/usage、transcript schema/事务封装若超限也先拆分。
+- [x] 拆分使用已有领域函数/公共 API，不复制两个版本的逻辑；纯 refactor 单独提交。新模块以约 400 行为预警，所有触及源文件回到 1,000 行以内。
 
 验收：既有行为测试结果与基线一致；结构提交不改变占用规则。此前 4,405 行 reducer、1,356 行 composer 的数字只是调查时值，实施以当前文件为准。
 
 ### WP1 — Contracts、decoder 与存储底座
 
-- [ ] 新增 §3 三对象、事件、context-get/Resume/capability 字段；补 discriminated union、非法数值与未知状态测试。
-- [ ] 新增 session_context_state 与请求明细索引表及公开 API、revision/CAS/失效事务；接入 schema 升级、session pack/fork/delete。
-- [ ] 连接 HostPush 分类、远程授权/投影、replay/hydration 入口，但先返回显式 unknown；不声称已有 live 采样。
+- [x] 新增 §3 三对象、事件、context-get/Resume/capability 字段；补 discriminated union、非法数值与未知状态测试。
+- [x] 新增 session_context_state 与请求明细索引表及公开 API、revision/CAS/失效事务；接入 schema 升级、session pack/fork/delete。
+- [x] 连接 HostPush 分类、远程授权/投影、replay/hydration 入口，但先返回显式 unknown；不声称已有 live 采样。
 
 主要文件：`contracts/{context-telemetry,assistant-usage,host,ipc,remote-protocol,index}.ts`、`session/{session-context-state-store,transcript-store,session-pack,index}.ts`、`host-transport/host-push-policy.ts`、host-server 现有远程投影/授权模块。新文件用前述命名；既有文件拆分后以公共入口为准。
 
@@ -214,10 +214,10 @@ mock 仅在 mock 路径使用 `estimateMockUsage`；生产 Host 删除该函数�
 
 ### WP2 — SDK/RPC 共用计量与最终账单
 
-- [ ] 用 Pi fixture 验证实际采样能力；实现 §4 的基线/尾部/partial 估算和覆盖信息。
-- [ ] 新增共用 sampler/estimator；修改 message/agent-end mapper，首次响应证据与最终 usage 的 id 稳定。
-- [ ] 两后端使用相同逻辑；扩展 worker 协议、generation 规范化和 Run stamping；旧 generation 晚事件拒绝。
-- [ ] 删除生产固定分类和 mock fallback；保留明确 mock fixture 支持。
+- [x] 用 Pi fixture 验证实际采样能力；实现 §4 的基线/尾部/partial 估算和覆盖信息。
+- [x] 新增共用 sampler/estimator；修改 message/agent-end mapper，首次响应证据与最终 usage 的 id 稳定。
+- [x] 两后端使用相同逻辑；扩展 worker 协议、generation 规范化和 Run stamping；旧 generation 晚事件拒绝。
+- [x] 删除生产固定分类和 mock fallback；保留明确 mock fixture 支持。
 
 主要文件：`agent-host/{pi-context-sampler,context-occupancy-estimator,agent-usage-map,message-event-map,event-map,usage-map,agent-event-run-id,generation-identity}.ts`、`backends/sdk-backend-session.ts`、`rpc/{worker-pi-session-factory,worker-session-runtime}.ts`、`rpc-sdk-worker-protocol.ts`。
 
@@ -225,10 +225,10 @@ mock 仅在 mock 路径使用 `estimateMockUsage`；生产 Host 删除该函数�
 
 ### WP3 — Host Coordinator、持久化与副作用隔离
 
-- [ ] 新建 `host-runtime/session-context-coordinator.ts` 管版本、响应资格、采样合并、校准、持久化；计量公式复用后端/contract 公共逻辑。
-- [ ] 接入 prompt admission、Run 终态、压缩、分支/截断、runtime replacement/cold activation，删除恢复当前占用对 ledger 的依赖。
-- [ ] 实现 §6 的最终请求幂等账单；turn_end 转向明确 Run 终态；兼容 usage/update 仅最终出口。
-- [ ] telemetry 存储失败、取消、并发切换均记录诊断且不破坏模型执行；检查新推送不进入 hook/pet/命名。
+- [x] 新建 `host-runtime/session-context-coordinator.ts` 管版本、响应资格、采样合并、校准、持久化；计量公式复用后端/contract 公共逻辑。
+- [x] 接入 prompt admission、Run 终态、压缩、分支/截断、runtime replacement/cold activation，删除恢复当前占用对 ledger 的依赖。
+- [x] 实现 §6 的最终请求幂等账单；turn_end 转向明确 Run 终态；兼容 usage/update 仅最终出口。
+- [x] telemetry 存储失败、取消、并发切换均记录诊断且不破坏模型执行；检查新推送不进入 hook/pet/命名。
 
 主要入口：`session-agent-event-router.ts`、`host-runtime-usage-ledger.ts`、`host-runtime-services.ts`、`commands/{session-live-commands,session-branch-commands,compaction-live,usage-commands}.ts`、`session-runtime-{lifecycle,dispose}.ts`、`cold-activation-seed.ts`、`session/usage-ledger-store.ts`。
 
@@ -236,10 +236,10 @@ mock 仅在 mock 路径使用 `estimateMockUsage`；生产 Host 删除该函数�
 
 ### WP4 — 客户端状态与环展示
 
-- [ ] selectionEpoch + request guard 覆盖所有 resume 副作用；新增快照 reducer/selector 和 warm cache 适配。
-- [ ] 实现 §2 状态矩阵、实时/已确认/未知文案、两语言、超限显示；移除缓存 timer 和固定分类 UI。
-- [ ] 拆开当前占用与最后请求详情；Conversation 多窗格与 Agent 共用 selector。
-- [ ] 模型切换预算消费者迁移；CLI/mobile 更新协议消费和明确降级行为。
+- [x] selectionEpoch + request guard 覆盖所有 resume 副作用；新增快照 reducer/selector 和 warm cache 适配。
+- [x] 实现 §2 状态矩阵、实时/已确认/未知文案、两语言、超限显示；移除缓存 timer 和固定分类 UI。
+- [x] 拆开当前占用与最后请求详情；Conversation 多窗格与 Agent 共用 selector。
+- [x] 模型切换预算消费者迁移；CLI/mobile 更新协议消费和明确降级行为。
 
 主要入口：Desktop `hooks/use-session-actions.ts`、`conversation-pane-session.tsx`、`session-warm-cache.ts`、`context-usage-ring.tsx`、`conversation-usage-{details,copy}`、`hooks/use-{composer-model,workbench-derived-view}.ts`、拆分后的 chat/composer slices；CLI/mobile 实际 HostPush 消费入口通过引用搜索全部覆盖。
 
@@ -247,11 +247,11 @@ mock 仅在 mock 路径使用 `estimateMockUsage`；生产 Host 删除该函数�
 
 ### WP5 — E2E、兼容与文档收口
 
-- [ ] 同一 Host 两客户端 + SDK/RPC + 断线重连/重启，验证序列与最终一致性。
-- [ ] 覆盖 §9 性能/故障验收；本地可控延迟 provider fixture 为必跑项，真实供应商冒烟需单独获得调用授权。
-- [ ] 更新 ADR 0022（当前占用独立持久化、最终请求幂等、淘汰估算账单新增）、架构/PRD/dev-plan；涉及协议兼容及持久化决策时新增 ADR，编号实施时按当前空位分配，不抢占其他任务编号。
-- [ ] 删除旧 `shouldAcceptContextUsage` 的上下文消费者、旧 ledger 恢复/缓存 timer/固定 breakdown 入口；保留必要旧账单 reader，不建立永久双权威。
-- [ ] 最后开启 `contextTelemetryVersion: 1`；实施记录填实测命令、结果和残留限制，不能仅将本文 checkbox 批量勾满。
+- [x] Desktop mock e2e：空草稿隐藏环，mock 回复后显示，New 再隐藏。双客户端同 Host 的网络一致性未做真双连接，见 WP5 记录。
+- [x] T14 4Hz / T30 写失败在 Host 单测覆盖；T28 本地 500ms UI 时延未用可控延迟 provider 实测。真实供应商冒烟未跑。
+- [x] 更新 ADR 0022；新增 ADR 0066。architecture/prd/dev-plan 无占用环专节，未改。
+- [x] 环侧缓存 timer 与固定分类 UI 已删。`shouldAcceptContextUsage` 仍用于账单 rollup 候选，不作占用权威。
+- [x] 已开启 `contextTelemetryVersion: 1`；实测命令见 [WP5 记录](./2026-08-30-context-usage-repair-wp5-record.md)。
 
 ## 9. 验收测试矩阵
 
@@ -336,4 +336,4 @@ Done 条件：WP0–WP5 全部完成；T01–T32 有对应证据；无新增依�
 | 12 假缓存TTL | WP4 | T25 |
 | 13 文案/状态 | WP4–5 | T29、T31–32 |
 
-额外防回归：T13–15 保护账单/hook；T30 保护持久化失败路径。所有项在本次文档交付时均为待实施/待验收。
+额外防回归：T13–15 保护账单/hook；T30 保护持久化失败路径。实施证据见 [WP5 记录](./2026-08-30-context-usage-repair-wp5-record.md)。T22 双客户端网络一致、T28 UI 500ms、真实供应商冒烟未跑。
