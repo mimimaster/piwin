@@ -57,6 +57,9 @@
                                   # body: ## Front / ## Back (+ source snapshot excerpt)
   review/<card-id>.json           # FSRS state for a basic item (cardId === itemId)
   review/<item-id>--c<n>.json     # FSRS state for cloze ordinal n (cardId === itemId:cN)
+                                  # ReviewState.revision optional; missing = 0 (ADR 0066)
+  study/rounds/<roundId>.json     # Host study rounds (lazy-created; user data, not cache)
+  study/operations/<seq>-<hash>.json  # idempotent operation log (lazy-created)
   decks.json                      # deck names/order
 ~/.piwin/notes/.eval/golden.jsonl # recall eval set: {query, expectedNoteIds[], note?}
 ```

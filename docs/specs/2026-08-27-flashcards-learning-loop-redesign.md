@@ -1,13 +1,15 @@
 # 闪卡产品规格
 
-> **状态：** 产品口径已定（2026-08-27；划词收敛 2026-08-30）  
-> **范围：** Desktop 闪卡  
+> **状态：** 产品口径已定（2026-08-27；划词收敛 2026-08-30）。卡库 / 出卡 / 划词仍以本文为准。独立复习台以 [2026-08-30 规格](./2026-08-30-flashcard-review-workbench-spec.md) 与 [ADR 0066](../adr/0066-host-owned-flashcard-study-rounds.md) 为准（代码已在树；双端真机证据未齐，ADR 未标 Accepted）。  
+> **范围：** Desktop 闪卡家（唯一 CardStore）；复习台另见 2026-08-30 规格  
 > **权威：** 产品 owner  
 > **执行计划：** [闪卡划词收敛与学习闭环](../plans/2026-08-30-flashcard-selection-convergence-execution-plan.md)（`docs/plans/` 按仓库策略本地/未跟踪，clone 后需自备该文件）
 
 piwin 是 coding-agent shell。闪卡是 Agent 从资料里抽出的记忆卡片。**我们负责产卡；用户自己管卡。**
 
-本轮不改 CardStore / review 存储真值，也不改 `sequenceId` / `position` 展示顺序语义（见 [ADR 0018](../adr/0018-notes-flashcards-local-rag.md)、[ADR 0054](../adr/0054-flashcard-item-review-card.md)）。无需新 ADR。
+本文不改 CardStore / review 的存储位置，也不改 `sequenceId` / `position` 展示顺序语义（见 [ADR 0018](../adr/0018-notes-flashcards-local-rag.md)、[ADR 0054](../adr/0054-flashcard-item-review-card.md)）。**唯一卡库**与原撕卡要求仍有效。Host 拥有的学习轮次、operation 日志与 `ReviewState.revision` 见 [ADR 0066](../adr/0066-host-owned-flashcard-study-rounds.md)，不是第二套卡库。
+
+原「没有独立复习台 / 库内点开走临时 TearDeck 浏览即学习闭环」的结论 **作废**。点单张或一套进入 Host 复习台（`sequence`）；卡库「待复习」进入 `scheduled`。浏览不再是仅本地 `index` / `revealed` 的临时叠卡。
 
 ---
 
@@ -23,7 +25,8 @@ piwin 是 coding-agent shell。闪卡是 Agent 从资料里抽出的记忆卡片
 资料（文件夹 / 工作空间 → 向量库；向量库 chunk；模型知识；web search）
   → 出卡（RAG 两段式：知识点 → 有序卡）
   → 增量写入 CardStore（~/.piwin/flashcards/）
-  → 闪卡页平铺展示、用户增删改、点开单卡翻面 / 一套导航到下一张
+  → 闪卡页平铺展示、用户增删改
+  → 点单张 / 一套进入 Host 复习台（撕卡契约不变；见 2026-08-30 规格）
 ```
 
 每次出卡往家里 **加**。不满意 **删一张或删整套**，再出。文件夹 / 工作空间只表示资料从哪来；卡落在同一个家里，用户自己管留哪些。
@@ -63,7 +66,7 @@ piwin 是 coding-agent shell。闪卡是 Agent 从资料里抽出的记忆卡片
 ### 4.2 闪卡页功能
 
 1. **展示（默认）**  
-   平铺所有卡。单张：点开翻面。一套：平铺上像一张（叠卡只露顶）；点开后在 **同一窗口** 用撕卡动画进入 **下一张**，直到没有下一张。
+   平铺所有卡。单张 / 一套：平铺上像一张（叠卡只露顶）。点开进入 **Host 复习台** 的顺序模式（`sequence`），不是仅本地的临时 TearDeck 浏览。撕卡动画、按钮「下一张」/「结束浏览」、完成页「已浏览 N 张」仍是交互契约（见 [2026-08-30 规格](./2026-08-30-flashcard-review-workbench-spec.md)）。卡库可另开「待复习」（`scheduled`）；这不是把图库首页改回学习仪表盘。
 
 2. **管理**  
    增：手动新建或任一出卡路径。删：一张或整套。改：删了再出。
@@ -133,8 +136,8 @@ piwin 是 coding-agent shell。闪卡是 Agent 从资料里抽出的记忆卡片
 ### 6.1 闪卡页
 
 - 默认平铺（网格或列表）。  
-- 单张：点开翻面，关闭回平铺。  
-- 一套：平铺视觉上一张；窗口内撕卡动画 → **下一张**，直至结束。按钮文案是「下一张」；最后一张是 **「结束浏览」**；完成页写「已浏览 N 张」。真正删除只叫「删这张 / 删整套」，危险色不画在导航按钮上。
+- 单张或一套：点开进入复习台顺序模式；撕卡动画 → **下一张**，直至结束。按钮文案是「下一张」；最后一张是 **「结束浏览」**；完成页写「已浏览 N 张」。真正删除只叫「删这张 / 删整套」，危险色不画在导航按钮上。  
+- 动效参考仍是现有 `TearDeck` / `fcws-tear-off`（200ms、位移+旋转+淡出），不是分页、轮播或换文字。
 
 ### 6.2 聊天
 
@@ -184,7 +187,7 @@ piwin 是 coding-agent shell。闪卡是 Agent 从资料里抽出的记忆卡片
 | 删什么 | 改为什么 |
 |--------|----------|
 | 侧栏「知识中心」作为闪卡 / 出卡入口 | 入库 + 出卡并进 **闪卡页**；知识中心钮去掉或只保留与闪卡无关的设置（若有） |
-| 闪卡页「闪卡记忆中心 / 今日概览 / 待复习 / Mastered / 开始复习」 | 进去 **先平铺展示卡**（对齐图片页） |
+| 闪卡页「闪卡记忆中心 / 今日概览 / Mastered / 开始复习」仪表盘 | 进去 **先平铺展示卡**（对齐图片页）。「待复习」可以是卡库上的 **一个动作**，进入 Host `scheduled` 轮次，不把首页改成学习仪表盘 |
 | 右栏 `FlashcardsPanel` 当第二套闪卡家 | 到期卡若有需要，从闪卡页进入；或缩成与 CardStore 同一数据源的一眼预览 |
 | 知识中心出卡结果 →「打开复习会话」跳聊天 | 出完留在 **闪卡页**；聊天只做当场撕卡预览 |
 | 一套卡主交互「‹ 上一张 / 下一张 ›」分页条 | **同一窗口撕卡动画 + 「下一张」按钮** |
@@ -214,13 +217,13 @@ piwin 是 coding-agent shell。闪卡是 Agent 从资料里抽出的记忆卡片
 | 1 | 闪卡页复习壳 | 复习优先壳 + 卡片库已落地；默认平铺图库首页仍待后续（见 #10） |
 | 2 | 知识中心独立 overlay | 产卡环并进闪卡页（同页跳转，主从栏） — 已落地 |
 | 3 | 出卡后跳聊天会话 | 出完在闪卡页可见；聊天仅预览 |
-| 4 | 一套用上一张 / 下一张分页或「撕掉」文案 | 撕卡动画 + 按钮「下一张」/「结束浏览」 — 已落地（`TearDeck`，库列表点开） |
+| 4 | 一套用上一张 / 下一张分页或「撕掉」文案 | 撕卡动画 + 按钮「下一张」/「结束浏览」仍是契约（`fcws-tear-off` 200ms）。库列表点开改为进入 Host 复习台，不再是仅本地 TearDeck 浏览 — 见 [2026-08-30 规格](./2026-08-30-flashcard-review-workbench-spec.md) |
 | 5 | 聊天出卡与闪卡页列表未完全同源 | 划词 / 斜杠 / 打字出卡必进 CardStore，侧栏可见 |
 | 6 | 外部划词菜单无「生成闪卡」 | selection 菜单首项 `generate-flashcard`，恰好一张 — 已落地 |
 | 7 | 卡内划词复制 prompt / 两套浮层 | 共享 popover：正面「给我提示」、背面「讲解」；就地结果，不写 transcript / clipboard — 已落地 |
 | 8 | 整卡 click 与拖选竞争 | 单击文字不翻面；Space / 显式按钮翻面 — 已落地 |
 | 9 | PDF 等入库 | 延续 doc-flashcards 同一条 RAG |
-| 10 | 闪卡页默认仍是 FSRS 复习壳 | **已落地现状**：`FlashcardsWorkspaceView` 仍是复习优先 + 卡片库；库内点开走 `TearDeck` 浏览。平铺图库作为默认首页仍待后续，不在本轮划词闭环里重做。 |
+| 10 | 闪卡页默认仍是 FSRS 复习壳 | **已过时，勿再当结论**：原先「库内点开走临时 TearDeck 浏览 / 没有独立复习台」已由 [复习台规格](./2026-08-30-flashcard-review-workbench-spec.md) 取代。卡库仍是家；点单张 / 套进 `sequence`，「待复习」进 `scheduled`。平铺图库作为默认首页仍待后续，不在划词闭环里重做。 |
 
 落地顺序见 [执行计划](../plans/2026-08-30-flashcard-selection-convergence-execution-plan.md)。
 
@@ -230,10 +233,12 @@ piwin 是 coding-agent shell。闪卡是 Agent 从资料里抽出的记忆卡片
 
 | 文档 | 关系 |
 |------|------|
-| [ADR 0018](../adr/0018-notes-flashcards-local-rag.md) | 记忆外置；plain text 真值 — 本轮不改 |
-| [ADR 0054](../adr/0054-flashcard-item-review-card.md) | item；`sequenceId` / `position` 展示顺序 — 本轮不改 |
+| [ADR 0018](../adr/0018-notes-flashcards-local-rag.md) | 记忆外置；plain text 真值；唯一 CardStore |
+| [ADR 0054](../adr/0054-flashcard-item-review-card.md) | item；`sequenceId` / `position` 展示顺序 |
+| [ADR 0066](../adr/0066-host-owned-flashcard-study-rounds.md) | Host 轮次、operation 日志、ReviewState revision；状态是落地未验收，不是 Accepted |
+| [复习台规格](./2026-08-30-flashcard-review-workbench-spec.md) | 独立复习台、撕卡时序、双端 / CLI；取代「没有复习台」 |
 | [划词收敛执行计划](../plans/2026-08-30-flashcard-selection-convergence-execution-plan.md) | 外部出卡 + 卡内伴学落地切片 |
-| [doc-flashcards.md](./doc-flashcards.md) | Host / doc-rag / IPC；Presentation 以 **本文** 为准 |
+| [doc-flashcards.md](./doc-flashcards.md) | Host / doc-rag / IPC；卡库 Presentation 以 **本文** 为准；学习闭环以复习台规格为准 |
 
 ---
 
@@ -242,6 +247,6 @@ piwin 是 coding-agent shell。闪卡是 Agent 从资料里抽出的记忆卡片
 1. 侧栏「闪卡」一点，看见所有已落盘卡（含聊天出的）。  
 2. 文件夹 / 工作空间 → 向量库 → 出卡，在闪卡页可完成。  
 3. 聊天 / 文档划词 →「生成闪卡」→ **恰好一张**原子卡进会话与 CardStore；闪卡页可见。  
-4. 平铺；一套在同一窗口可撕到下一张；按钮文案是「下一张」；最后一张「结束浏览」；完成页「已浏览 N 张」，不写「掌握」。  
+4. 平铺；点一套进入复习台后可撕到下一张（同一撕卡契约）；按钮文案是「下一张」；最后一张「结束浏览」；完成页「已浏览 N 张」，不写「掌握」。  
 5. 可删一张 / 删一套；改 = 删了再出。  
 6. 拖选与单击文字不翻面；Space 与显式按钮翻面。
