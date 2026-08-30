@@ -32,6 +32,7 @@ import {
   resolveSubagentProfile,
 } from './subagent-profile-resolver.js';
 import {
+  ACTIVATE_NEW_INTEGRATE_DEFAULT,
   resolveSubagentDeliveryPolicy,
   type SubagentDeliveryPolicySource,
 } from './subagent-delivery-policy.js';
@@ -114,7 +115,7 @@ export function planSubagentSpawn(input: {
     ...(request.applyPolicy !== undefined ? { applyPolicy: request.applyPolicy } : {}),
     isolation: snapshot.isolation,
     source: request.source ?? 'batch',
-    activateNewIntegrateDefault: false,
+    activateNewIntegrateDefault: ACTIVATE_NEW_INTEGRATE_DEFAULT,
   });
   if (!policy.ok) {
     return { error: policy.message, code: policy.code };

@@ -133,10 +133,9 @@ export function getStatus(deps: HostRuntimeKernel): HostStatusData {
       pty: false,
       // ADR 0030: subagent worktree is available when the orchestrator is composed.
       subagentWorktree: deps.subagentOrchestrator !== null,
-      // Delivery/review/undo stay false until W5 result storage and turn-change undo land.
-      subagentDeliveryV1: false,
-      subagentResultReviewV1: false,
-      turnChangeUndoV1: false,
+      subagentDeliveryV1: true,
+      subagentResultReviewV1: true,
+      turnChangeUndoV1: true,
       marketplaceHub: true,
       automation: true,
     },

@@ -55,7 +55,12 @@ export async function buildDomainContext(
   const subagentOrchestrator = deps.subagentOrchestrator;
   const hostContext: HostCommandContext = {
     ...(deps.options.piwinRoot !== undefined ? { piwinRoot: deps.options.piwinRoot } : {}),
-    ...(deps.turnChangeRuntime ? { workspaceWriteGate: deps.turnChangeRuntime.gate } : {}),
+    ...(deps.turnChangeRuntime
+      ? {
+          workspaceWriteGate: deps.turnChangeRuntime.gate,
+          turnChangeRuntime: deps.turnChangeRuntime,
+        }
+      : {}),
     push: (message) => deps.push(message),
     requireSession: (sessionId) => deps.requireSession(sessionId),
     requireDurableSession: (sessionId) => deps.requireDurableSession(sessionId),

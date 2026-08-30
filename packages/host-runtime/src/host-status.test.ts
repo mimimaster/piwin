@@ -30,9 +30,9 @@ describe('HostRuntime status capabilities', () => {
     expect(data.capabilities.sessionExport).toBe(true);
     expect(data.capabilities.sessionLifecycle).toBe(true);
     expect(data.capabilities.pty).toBe(false);
-    expect(data.capabilities.subagentDeliveryV1).toBe(false);
-    expect(data.capabilities.subagentResultReviewV1).toBe(false);
-    expect(data.capabilities.turnChangeUndoV1).toBe(false);
+    expect(data.capabilities.subagentDeliveryV1).toBe(true);
+    expect(data.capabilities.subagentResultReviewV1).toBe(true);
+    expect(data.capabilities.turnChangeUndoV1).toBe(true);
     await runtime.dispose();
   });
 
@@ -48,9 +48,9 @@ describe('HostRuntime status capabilities', () => {
     // Live non-mock RPC reports true via isRpcWorkerMode — mock keeps prior mock semantics.
     expect(data.capabilities.customTools).toBe(false);
     expect(data.capabilities.subagentWorktree).toBe(false);
-    expect(data.capabilities.subagentDeliveryV1).toBe(false);
-    expect(data.capabilities.subagentResultReviewV1).toBe(false);
-    expect(data.capabilities.turnChangeUndoV1).toBe(false);
+    expect(data.capabilities.subagentDeliveryV1).toBe(true);
+    expect(data.capabilities.subagentResultReviewV1).toBe(true);
+    expect(data.capabilities.turnChangeUndoV1).toBe(true);
     // mock:true still enables compaction capability flag
     expect(data.capabilities.compaction).toBe(true);
     expect(data.capabilities.extensions).toBe(true);

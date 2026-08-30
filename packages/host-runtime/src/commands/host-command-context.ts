@@ -24,6 +24,7 @@ import type {
 import type { KnowledgeCommandContext } from './knowledge-commands.js';
 import type { SubagentCommandContext } from './subagent-commands.js';
 import type { WorkspaceWriteGate } from '../turn-changes/workspace-write-gate.js';
+import type { TurnChangeRuntime } from '../turn-changes/runtime-wiring.js';
 
 /**
  * Optional seam used by plan/execute to drive subagent-driven and inline
@@ -57,6 +58,7 @@ export type PlanExecutionSeam = {
 
 export type HostCommandContext = {
   piwinRoot?: string;
+  turnChangeRuntime?: TurnChangeRuntime | null;
   push: (message: HostPush) => void;
   requireSession: (sessionId: string) => SessionHandle;
   /**

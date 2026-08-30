@@ -103,6 +103,7 @@ import {
   formatDoctorColdStorageLines,
 } from './session-cold-storage-command.js';
 import { runSessionBranches, runSessionRetry, runSessionSwitch } from './session-branch-command.js';
+import { runTurnRedo, runTurnUndo } from './turn-change-command.js';
 
 function printHelp(): void {
   console.log(`piwin — private coding agent shell
@@ -184,6 +185,8 @@ Usage:
   piwin context <sessionId> [--mock]
   piwin subagent status <runId>
   piwin subagent cancel <runId>
+  piwin turn undo <changeSetId> --expected-version <revision>
+  piwin turn redo <changeSetId> --expected-version <revision>
   piwin side-chat list <source-session-id> [--include-archived]
   piwin side-chat open <source-session-id> [--name <name>] [--message <message-id>]
   piwin side-chat sync <side-chat-session-id>
@@ -3023,6 +3026,39 @@ async function commandSubagent(argv: string[]): Promise<void> {
   process.exitCode = 1;
 }
 
+async function commandTurn(argv: string[]): Promise<void> {
+  const sub = argv[1] ?? '';
+  const changeSetId = argv[2];
+  const versionFlag = argv.indexOf('--expected-version');
+  const revisionRaw = versionFlag >= 0 ? argv[versionFlag + 1] : undefined;
+  const revision = revisionRaw !== undefined ? Number(revisionRaw) : Number.NaN;
+  if (
+    (sub !== 'undo' && sub !== 'redo') ||
+    !changeSetId ||
+    changeSetId.startsWith('--') ||
+    !Number.isInteger(revision)
+  ) {
+    console.error('Usage: piwin turn undo|redo <changeSetId> --expected-version <revision>');
+    process.exitCode = 1;
+    return;
+  }
+  const mock = parseMock(argv);
+  const mode = parseMode(argv);
+  const runtime = await openCliHost({ mode, mock });
+  try {
+    if (sub === 'undo') {
+      await runTurnUndo(runtime, changeSetId, revision, console.log);
+    } else {
+      await runTurnRedo(runtime, changeSetId, revision, console.log);
+    }
+  } catch (error) {
+    console.error(formatError(error));
+    process.exitCode = 1;
+  } finally {
+    await runtime.dispose();
+  }
+}
+
 /**
  * CLI side-chat commands (spec §12).
  * Usage: piwin side-chat list|open|sync|send|resume
@@ -3378,6 +3414,10 @@ async function main(argv: string[]): Promise<void> {
   }
   if (command === 'subagent') {
     await commandSubagent(argv);
+    return;
+  }
+  if (command === 'turn') {
+    await commandTurn(argv);
     return;
   }
   if (command === 'side-chat') {

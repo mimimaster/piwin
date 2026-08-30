@@ -30,6 +30,7 @@ import type {
 } from '@piwin/contracts';
 import { formatError, parseSubagentDeliveryFields } from '@piwin/contracts';
 import {
+  ACTIVATE_NEW_INTEGRATE_DEFAULT,
   isSubagentDeliveryPolicyError,
   resolveSubagentDeliveryPolicy,
 } from './subagent-delivery-policy.js';
@@ -205,6 +206,8 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
         ...(typeof args.applyPolicy === 'string' ? { applyPolicy: args.applyPolicy } : {}),
       });
       if (!parsedDelivery.ok) return invalidSubagentInput(parsedDelivery.message);
+      let deliveryIntent = parsedDelivery.deliveryIntent;
+      let applyPolicy = parsedDelivery.applyPolicy;
       if (mode !== undefined) {
         const policy = resolveSubagentDeliveryPolicy({
           ...(parsedDelivery.deliveryIntent !== undefined
@@ -215,12 +218,12 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
             : {}),
           isolation: mode,
           source: 'model-tool',
-          activateNewIntegrateDefault: false,
+          activateNewIntegrateDefault: ACTIVATE_NEW_INTEGRATE_DEFAULT,
         });
         if (!policy.ok) return invalidSubagentInput(policy.message);
+        deliveryIntent = policy.policy.deliveryIntent;
+        applyPolicy = policy.policy.applyPolicy;
       }
-      const deliveryIntent = parsedDelivery.deliveryIntent;
-      const applyPolicy = parsedDelivery.applyPolicy;
 
       const modelRaw = args.model as
         { protocol?: string; providerId?: string; modelId?: string } | undefined;

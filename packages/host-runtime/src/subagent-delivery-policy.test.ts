@@ -27,13 +27,24 @@ describe('resolveSubagentDeliveryPolicy', () => {
     });
   });
 
-  it('maps omitted fields + worktree to integrate/none under W1', () => {
+  it('maps omitted fields + worktree to integrate/none when the new default is off', () => {
     expect(resolve({ isolation: 'worktree' })).toEqual({
       ok: true,
       policy: {
         deliveryIntent: 'integrate',
         legacyManual: false,
         applyPolicy: 'none',
+      },
+    });
+  });
+
+  it('maps omitted fields + worktree to integrate/auto when the new default is on', () => {
+    expect(resolve({ isolation: 'worktree', activateNewIntegrateDefault: true })).toEqual({
+      ok: true,
+      policy: {
+        deliveryIntent: 'integrate',
+        legacyManual: false,
+        applyPolicy: 'auto',
       },
     });
   });

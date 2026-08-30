@@ -121,7 +121,7 @@ export async function dispatchDomainCommands(
   const subagent = await handleSubagentCommand(command, requestId, context.subagent);
   if (subagent) return subagent;
 
-  const turnChange = await handleTurnChangeCommand(command, requestId);
+  const turnChange = await handleTurnChangeCommand(command, requestId, context);
   if (turnChange) return turnChange;
 
   for (const handler of [

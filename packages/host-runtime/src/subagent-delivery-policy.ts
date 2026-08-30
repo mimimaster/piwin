@@ -34,6 +34,9 @@ export type ResolveSubagentDeliveryPolicyResult =
   | { ok: true; policy: ResolvedSubagentDeliveryPolicy }
   | { ok: false; code: string; message: string };
 
+/** Flip after capture, freeze, and safe apply exist. */
+export const ACTIVATE_NEW_INTEGRATE_DEFAULT = true;
+
 export const SUBAGENT_DELIVERY_POLICY_ERROR_CODES = [
   'unknown-intent',
   'unknown-apply-policy',

@@ -169,7 +169,7 @@ describe('planSubagentSpawn', () => {
       expect(result.snapshot.isolation).toBe('worktree');
       expect(result.snapshot.capabilities).toBeUndefined();
       expect(result.spawnOptions.deliveryIntent).toBe('integrate');
-      expect(result.spawnOptions.applyPolicy).toBe('none');
+      expect(result.spawnOptions.applyPolicy).toBe('auto');
       expect(result.legacyManual).toBe(false);
     }
   });
