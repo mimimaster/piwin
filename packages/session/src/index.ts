@@ -167,6 +167,10 @@ export {
   LEGACY_IMPORT_GENERATION,
   USER_AUTHORED_GENERATION,
 } from './transcript-store.js';
+export {
+  readOrInsertUnknownContextState,
+  seedDerivedSessionContextState,
+} from './session-context-state-store.js';
 export { transcriptRevisionToken } from './transcript-store-pages.js';
 export type {
   SessionTranscriptStore,
