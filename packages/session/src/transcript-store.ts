@@ -50,6 +50,9 @@ import {
   type QueuedTurnRecord,
   type QueuedTurnStatus,
   type QueuedTurnTerminalReason,
+  type AssistantUsageMeasurement,
+  type ContextBoundary,
+  type SessionContextSnapshot,
 } from '@piwin/contracts';
 import {
   createTranscriptBranchesOps,
@@ -62,6 +65,10 @@ import { createTranscriptMessagesOps } from './transcript-store-messages.js';
 import { createTranscriptPagesOps } from './transcript-store-pages.js';
 import { createTranscriptPauseOps } from './transcript-store-pause.js';
 import { createTranscriptQueuedTurnsOps } from './transcript-store-queued-turns.js';
+import {
+  SESSION_CONTEXT_STATE_DDL,
+  createSessionContextStateOps,
+} from './session-context-state-store.js';
 import { createTranscriptStreamSettleOps } from './transcript-store-stream-settle.js';
 export { LEGACY_IMPORT_GENERATION, USER_AUTHORED_GENERATION };
 export type { SettleStreamingMessagesInput } from './transcript-store-stream-settle.js';
@@ -393,6 +400,20 @@ export type SessionTranscriptStore = {
    * store stays empty/authoritative.
    */
   importLegacyDocument(document: SessionTranscriptDocument): Promise<{ imported: number }>;
+  readContextState(): Promise<SessionContextSnapshot | null>;
+  replaceContextState(input: {
+    expectedContextVersion: number;
+    expectedBoundary: ContextBoundary;
+    snapshot: SessionContextSnapshot;
+  }): Promise<{ ok: true; snapshot: SessionContextSnapshot } | { ok: false; reason: 'cas-mismatch' | 'unavailable' }>;
+  invalidateContextState(input: {
+    expectedContextVersion?: number;
+    reason: string;
+    contextBoundary: ContextBoundary;
+    updatedAt: string;
+  }): Promise<SessionContextSnapshot>;
+  readLatestAssistantUsageForActivePath(): Promise<AssistantUsageMeasurement | null>;
+  putAssistantUsageMeasurement(measurement: AssistantUsageMeasurement): Promise<'inserted' | 'duplicate'>;
   /** Select this initialized Store as the product transcript authority. */
   markAuthoritative(): Promise<void>;
   /** Whether this store is the authority (a verified v2 migration exists). */
@@ -542,7 +563,20 @@ export async function openSessionTranscriptStore(
       ON queued_turn(session_id, sequence);
     CREATE INDEX IF NOT EXISTS idx_queued_turn_status
       ON queued_turn(session_id, status, sequence);
+    ${SESSION_CONTEXT_STATE_DDL}
   `);
+  const contextColumns = db
+    .prepare('PRAGMA table_info(session_context_state)')
+    .all() as Array<{ name: string }>;
+  if (!contextColumns.some((column) => column.name === 'snapshot_json')) {
+    throw new Error('session_context_state is missing snapshot_json');
+  }
+  const usageColumns = db
+    .prepare('PRAGMA table_info(assistant_usage_measurement)')
+    .all() as Array<{ name: string }>;
+  if (!usageColumns.some((column) => column.name === 'measurement_json')) {
+    throw new Error('assistant_usage_measurement is missing measurement_json');
+  }
   const metaColumns = db.prepare('PRAGMA table_info(transcript_meta)').all() as Array<{
     name: string;
   }>;
@@ -719,6 +753,7 @@ export async function openSessionTranscriptStore(
     ...createTranscriptQueuedTurnsOps(core),
     ...createTranscriptHistoryOps(core),
     ...createTranscriptLegacyOps(core),
+    ...createSessionContextStateOps(core),
       close() {
         if (!closed) {
           closed = true;

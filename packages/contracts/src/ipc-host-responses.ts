@@ -123,6 +123,8 @@ export type HostStatusData = {
     sessionTranscriptSeek?: boolean;
     /** Host exposes `flashcards/study/*` rounds. Absent on old Hosts. */
     flashcardStudy?: boolean;
+    /** ADR 0067: live context occupancy snapshots. */
+    contextTelemetryVersion?: 1;
   };
 };
 

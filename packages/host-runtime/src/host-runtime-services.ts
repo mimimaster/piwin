@@ -203,35 +203,80 @@ export async function getFolderRag(
   return deps.folderRag;
 }
 
-/**
- * Maps normalized AgentEvent → CE-HOOK events and runs matching hooks.
- * Failures are logged only; they never fail the original agent turn.
- */
-export async function dispatchHooksForAgentEvent(
+export function hookEventForAgentEvent(
+  event: AgentEvent,
+): import('@piwin/contracts').HookEventName | null {
+  if (event.type === 'session/started') {
+    return 'agent_start';
+  }
+  if (event.type === 'session/ended') {
+    return 'agent_end';
+  }
+  if (event.type === 'message/start' && event.role === 'user') {
+    return 'turn_start';
+  }
+  if (event.type === 'tool/end') {
+    return 'tool_execution_end';
+  }
+  return null;
+}
+
+export function isForegroundSessionTurn(
+  run: import('@piwin/contracts').ExecutionRunRecord,
+): boolean {
+  return run.kind === 'session-turn';
+}
+
+export function notifyForegroundSessionTurnTerminal(
+  deps: HostRuntimeKernel,
+  run: import('@piwin/contracts').ExecutionRunRecord,
+): void {
+  if (!isForegroundSessionTurn(run)) {
+    return;
+  }
+  if (run.status !== 'completed' && run.status !== 'cancelled' && run.status !== 'failed') {
+    return;
+  }
+  void dispatchTurnEndHook(deps, run.sessionId, run.runId).catch((error: unknown) => {
+    deps.push({
+      type: 'host/log',
+      level: 'warn',
+      message: `turn_end hook failed: ${formatError(error)}`,
+    });
+  });
+  const outcome = run.status;
+  void deps.sessionContextCoordinator
+    ?.noteRunTerminal({ sessionId: run.sessionId, runId: run.runId, outcome })
+    .catch((error: unknown) => {
+      deps.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `session context run terminal failed: ${formatError(error)}`,
+      });
+    });
+}
+
+export async function dispatchTurnEndHook(
   deps: HostRuntimeKernel,
   sessionId: string,
-  event: AgentEvent,
+  runId: string,
+): Promise<void> {
+  if (deps.turnEndHooksFired.has(runId)) {
+    return;
+  }
+  deps.turnEndHooksFired.add(runId);
+  await dispatchNamedHook(deps, sessionId, 'turn_end');
+}
+
+async function dispatchNamedHook(
+  deps: HostRuntimeKernel,
+  sessionId: string,
+  hookEvent: import('@piwin/contracts').HookEventName,
+  toolName?: string,
 ): Promise<void> {
   const rootDir = getPiwinRoot(deps.options.piwinRoot);
   const config = await loadPiwinConfig(rootDir);
   if (config.automation?.enabled !== true || config.automation?.hooksEnabled !== true) {
-    return;
-  }
-  let hookEvent: import('@piwin/contracts').HookEventName | null = null;
-  let toolName: string | undefined;
-  if (event.type === 'session/started') {
-    hookEvent = 'agent_start';
-  } else if (event.type === 'session/ended') {
-    hookEvent = 'agent_end';
-  } else if (event.type === 'message/start' && event.role === 'user') {
-    hookEvent = 'turn_start';
-  } else if (event.type === 'session/aborted' || event.type === 'usage/update') {
-    // Abort or completed turn usage → turn_end (message/end has no role).
-    hookEvent = 'turn_end';
-  } else if (event.type === 'tool/end') {
-    hookEvent = 'tool_execution_end';
-  }
-  if (!hookEvent) {
     return;
   }
   const hooksDocument = await loadHooks(getHooksStorePath(rootDir));
@@ -254,6 +299,22 @@ export async function dispatchHooksForAgentEvent(
         : `hook ${result.hookId} failed: ${result.message ?? 'error'}`,
     });
   }
+}
+
+/**
+ * Maps normalized AgentEvent → CE-HOOK events and runs matching hooks.
+ * Failures are logged only; they never fail the original agent turn.
+ */
+export async function dispatchHooksForAgentEvent(
+  deps: HostRuntimeKernel,
+  sessionId: string,
+  event: AgentEvent,
+): Promise<void> {
+  const hookEvent = hookEventForAgentEvent(event);
+  if (!hookEvent) {
+    return;
+  }
+  await dispatchNamedHook(deps, sessionId, hookEvent);
 }
 
 export async function runCronJob(

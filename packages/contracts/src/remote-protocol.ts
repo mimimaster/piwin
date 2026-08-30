@@ -97,6 +97,7 @@ export const FALLBACK_REMOTE_ALLOWED_COMMANDS = [
   'session/queued-turn-reorder',
   'session/replace-run',
   'session/model-context-summary',
+  'session/context-get',
   'models/configured',
   'auth/status',
   'auth/login',
@@ -400,6 +401,8 @@ export type RemoteSessionResumeData = {
   };
   thinkingLevel?: string;
   contextUsage?: import('./usage.js').ContextUsageSnapshot;
+  contextSnapshot: import('./context-telemetry.js').SessionContextSnapshot;
+  lastRequestUsage: import('./assistant-usage.js').AssistantUsageMeasurement | null;
   outline?: RemoteSessionOutlineNode[];
 };
 

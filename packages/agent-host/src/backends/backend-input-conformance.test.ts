@@ -231,13 +231,13 @@ describe('backend input conformance', () => {
       messageId: 'backend-message-1',
       assistantMessageEvent: { type: 'text_delta', delta: 'hello' },
     });
-    expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({
       type: 'message/text_delta',
       messageId: expect.stringMatching(/^piw-m-/),
       delta: 'hello',
     });
     expect(events[0]).not.toMatchObject({ messageId: 'backend-message-1' });
+    expect(events.some((event) => event.type === 'context/measurement')).toBe(true);
   });
 
   it('rejects malformed Blueprints before calling createAgentSession', async () => {

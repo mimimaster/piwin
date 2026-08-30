@@ -7,6 +7,7 @@
  */
 export { mapPiSessionEvent } from './event-map.js';
 export {
+  assistantUsageMeasurementId,
   normalizeGenerationMessageId,
   normalizeGenerationToolCallId,
   normalizeGenerationPermissionRequestId,

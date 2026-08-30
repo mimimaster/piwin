@@ -368,4 +368,5 @@ export type SessionLiveContext = {
   }) => Promise<{ generationId: string; settingsRevision: string }>;
   /** Rebuild a resident generation when the next turn changes Provider. */
   replaceRuntimeForModel: (sessionId: string) => Promise<void>;
+  sessionContextCoordinator?: import('../session-context-coordinator.js').SessionContextCoordinator;
 };

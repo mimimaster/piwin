@@ -668,6 +668,28 @@ describe('HostClient', () => {
     await client.close();
   });
 
+  it('delivers an unknown HostPush type without entering error state', async () => {
+    const transport = new FakeTransport();
+    const client = new HostClient({
+      transport,
+      clientId: 'unknown-push',
+      clientType: 'desktop',
+      clientVersion: 'test',
+    });
+    const events: HostPush[] = [];
+    client.subscribePush((push) => events.push(push));
+    await client.connect();
+    transport.emit({
+      type: 'push',
+      seq: 1,
+      eventId: 'e-unknown',
+      push: { type: 'future/unknown-telemetry', sessionId: 's1' } as unknown as HostPush,
+    });
+    expect(client.getState().kind).toBe('ready');
+    expect(events).toEqual([{ type: 'future/unknown-telemetry', sessionId: 's1' }]);
+    await client.close();
+  });
+
   it('does not close the socket when catch-up exceeds the request timeout', async () => {
     const transport = new FakeTransport();
     transport.deferCatchUp = true;

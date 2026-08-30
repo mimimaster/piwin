@@ -149,6 +149,11 @@ export async function disposeHostRuntime(deps: HostRuntimeKernel): Promise<void>
     deps.runEventCorrelator.clear(sessionId);
     deps.eventEnvelopeGenerators.delete(sessionId);
   }
+  if (deps.sessionContextCoordinator) {
+    await deps.sessionContextCoordinator.flush();
+    deps.sessionContextCoordinator.dispose();
+  }
+  deps.turnEndHooksFired.clear();
   deps.sessions.clear();
   deps.sessionProjects.clear();
   try {

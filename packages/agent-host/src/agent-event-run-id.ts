@@ -19,6 +19,8 @@ type UnownedAgentEventType =
   | 'session/started'
   | 'session/ended'
   | 'usage/update'
+  | 'context/measurement'
+  | 'usage/finalized'
   | 'memory/extraction_start'
   | 'memory/extraction_end';
 
@@ -29,6 +31,8 @@ export function canCarryAgentEventRunId(event: AgentEvent): event is AgentEventW
     event.type !== 'session/started' &&
     event.type !== 'session/ended' &&
     event.type !== 'usage/update' &&
+    event.type !== 'context/measurement' &&
+    event.type !== 'usage/finalized' &&
     event.type !== 'memory/extraction_start' &&
     event.type !== 'memory/extraction_end'
   );

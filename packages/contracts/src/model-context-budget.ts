@@ -2,6 +2,7 @@ import {
   DEFAULT_MODEL_CONTEXT_WINDOW,
   DEFAULT_MODEL_MAX_OUTPUT_TOKENS,
 } from './config.js';
+import type { SessionContextSnapshot } from './context-telemetry.js';
 import type { ContextUsageSnapshot } from './usage.js';
 
 /** Keep migration below the hard provider limit so the next turn has working room. */
@@ -43,18 +44,30 @@ export function resolveModelContextBudget(input: ModelContextBudgetInput): Model
   };
 }
 
-/** Prefer cumulative occupancy, then the latest provider prompt measurement. */
+/**
+ * Prefer Host snapshot occupancy (cache + output already included when known).
+ * Unknown occupancy is not 0. Legacy ContextUsageSnapshot keeps prior fallbacks.
+ */
 export function readContextOccupiedTokens(
-  usage: ContextUsageSnapshot | null | undefined,
+  usage: ContextUsageSnapshot | SessionContextSnapshot | null | undefined,
 ): number | undefined {
+  if (!usage) {
+    return undefined;
+  }
+  if ('occupancy' in usage) {
+    if (usage.occupancy.kind !== 'known') {
+      return undefined;
+    }
+    return Math.ceil(usage.occupancy.tokensUsed);
+  }
   const ratioEstimate =
-    typeof usage?.contextRatio === 'number' &&
+    typeof usage.contextRatio === 'number' &&
     Number.isFinite(usage.contextRatio) &&
     typeof usage.tokensLimit === 'number' &&
     Number.isFinite(usage.tokensLimit)
       ? usage.contextRatio * usage.tokensLimit
       : undefined;
-  const value = usage?.tokensUsed ?? usage?.promptTokens ?? usage?.totalTokens ?? ratioEstimate;
+  const value = usage.tokensUsed ?? usage.promptTokens ?? usage.totalTokens ?? ratioEstimate;
   return typeof value === 'number' && Number.isFinite(value) && value >= 0
     ? Math.ceil(value)
     : undefined;
