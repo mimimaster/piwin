@@ -132,6 +132,17 @@ describe('generation-identity', () => {
       },
     };
     expect(normalizeAgentEventIds(usage, contextA)).toBe(usage);
+    const measurement: AgentEvent = {
+      type: 'context/measurement',
+      measurement: {
+        sessionId: 'session-1',
+        sampleSequence: 1,
+        occupancy: { kind: 'unknown', reason: 'no-measurement' },
+        contextBoundary: { activeLeafMessageId: null },
+        sampledAt: '2026-08-30T00:00:00.000Z',
+      },
+    };
+    expect(normalizeAgentEventIds(measurement, contextA)).toBe(measurement);
   });
 
   it('two generations emitting the same naked id produce distinct rows', () => {

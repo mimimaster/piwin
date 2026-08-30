@@ -21,7 +21,12 @@ import {
   type OccupancyRequestUsage,
   type OccupancyTrailingTokens,
 } from './context-occupancy-estimator.js';
-import { normalizeGenerationMessageId } from './generation-identity.js';
+import { stampPublishedAgentEvent } from './agent-event-run-id.js';
+import {
+  normalizeAgentEventIds,
+  normalizeGenerationMessageId,
+  type GenerationIdentityContext,
+} from './generation-identity.js';
 import { asRecord, readRole, readString } from './pi-event-read.js';
 import { extractToolResultText } from './tool-result-extract.js';
 import { readToolCallArgs } from './tool-event-map.js';
@@ -50,6 +55,53 @@ export type PiContextSampler = {
   observe(input: PiContextSamplerObserveInput): AgentEvent[];
   dispose(): void;
 };
+
+export function readPiContextUsageSample(value: unknown): PiContextUsageSample | undefined {
+  const record = asRecord(value);
+  if (!record) {
+    return undefined;
+  }
+  const contextWindow = record.contextWindow;
+  if (typeof contextWindow !== 'number' || !Number.isFinite(contextWindow) || contextWindow <= 0) {
+    return undefined;
+  }
+  const tokens = record.tokens;
+  if (tokens !== null && (typeof tokens !== 'number' || !Number.isFinite(tokens))) {
+    return undefined;
+  }
+  return { tokens, contextWindow };
+}
+
+export function publishSampledPiSessionEvents(input: {
+  mapper: { map: (raw: unknown) => AgentEvent[] };
+  sampler: PiContextSampler;
+  raw: unknown;
+  identity: GenerationIdentityContext;
+  runId: string | undefined;
+  emit: (event: AgentEvent) => void;
+}): void {
+  const publishedMapped: AgentEvent[] = [];
+  for (const mapped of input.mapper.map(input.raw)) {
+    const stamped = stampPublishedAgentEvent(
+      normalizeAgentEventIds(mapped, input.identity),
+      input.runId,
+    );
+    if (!stamped) {
+      continue;
+    }
+    publishedMapped.push(stamped);
+    input.emit(stamped);
+  }
+  for (const extra of input.sampler.observe({
+    mappedEvents: publishedMapped,
+    raw: input.raw,
+  })) {
+    const stamped = stampPublishedAgentEvent(extra, input.runId);
+    if (stamped) {
+      input.emit(stamped);
+    }
+  }
+}
 
 export function createPiContextSampler(input: CreatePiContextSamplerInput): PiContextSampler {
   const identity = {
