@@ -32,6 +32,7 @@ import { createImmediateSafetyPredicate } from './sessions/immediate-safety-gate
 import { SessionRuntimeReplacementEngine } from './session-runtime-replacement.js';
 import { createSessionHostToolExecutionPort } from './tools/session-host-tool-port.js';
 import { openTurnChangeRuntime } from './turn-changes/runtime-wiring.js';
+import { createSubagentResultService } from './subagent-result-service.js';
 import { descriptorsFromTools } from './tools/build-session-host-tools.js';
 import { toolFamilyIndex } from './tools/tool-family-index.js';
 import { SubagentOrchestrator } from './subagent-orchestrator.js';
@@ -385,6 +386,10 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
       deps.turnChangeRuntime = openTurnChangeRuntime({
         hostInstanceId: deps.hostInstanceId,
         ...(options.piwinRoot !== undefined ? { piwinRoot: options.piwinRoot } : {}),
+      });
+      deps.subagentResultService = createSubagentResultService({
+        changeStore: deps.turnChangeRuntime.store,
+        objectStore: deps.turnChangeRuntime.objectStore,
       });
       deps.sessionHostToolPort = createSessionHostToolExecutionPort({
         isSessionKnown: (sessionId) =>

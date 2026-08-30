@@ -211,6 +211,36 @@ export async function buildDomainContext(
               deps.continueSubagentChild(subagentOrchestrator, childSessionId, text),
             actOnWorktree: (childSessionId: string, action: 'apply' | 'retain' | 'discard') =>
               deps.actOnSubagentWorktree(childSessionId, action),
+            ...(deps.subagentResultService
+              ? {
+                  resultService: deps.subagentResultService,
+                  startParentPrompt: async (input: {
+                    parentSessionId: string;
+                    text: string;
+                    resultId: string;
+                  }) => {
+                    const accepted = await deps.promptPlanSession(
+                      input.parentSessionId,
+                      input.text,
+                    );
+                    return { runId: accepted.runId };
+                  },
+                  applyResult: async (input: {
+                    resultId: string;
+                    expectedRevision: number;
+                  }) => {
+                    const summary = deps.subagentResultService?.get(input.resultId);
+                    const childSessionId = summary?.childSessionId;
+                    if (!childSessionId) {
+                      throw new Error(`subagent result not found: ${input.resultId}`);
+                    }
+                    await deps.actOnSubagentWorktree(childSessionId, 'apply');
+                    return {
+                      operationId: `apply-${input.resultId}-${String(input.expectedRevision)}`,
+                    };
+                  },
+                }
+              : {}),
           },
         }
       : {}),

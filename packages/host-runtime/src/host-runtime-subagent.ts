@@ -386,6 +386,38 @@ export async function persistSubagentTaskResult(
     integrationStatus: result.integrationStatus,
   };
   await upsertSessionRecord(indexPath, record);
+  const resultRef = result.resultRef;
+  if (resultRef && deps.subagentResultService) {
+    deps.subagentResultService.register(
+      {
+        resultId: resultRef.resultId,
+        revision: resultRef.revision,
+        parentSessionId,
+        childSessionId,
+        taskId: result.taskId,
+        batchRunId: result.runId,
+        sourceAttemptId: null,
+        targetWorkspaceId: '',
+        deliveryIntent: 'integrate',
+        legacyManual: false,
+        candidateGroupId: null,
+        executionStatus: result.executionStatus,
+        summaryStatus: result.summaryStatus,
+        integrationStatus: result.integrationStatus,
+        childChanges: result.childChanges ?? null,
+        appliedChanges: null,
+        copyState: 'present',
+        latestOperationId: null,
+        availability: {
+          view: { allowed: true },
+          apply: { allowed: result.integrationStatus !== 'applied' },
+          resolve: { allowed: true },
+          cleanup: { allowed: true },
+        },
+      },
+      result.worktreePath ? { worktreePath: result.worktreePath } : undefined,
+    );
+  }
   deps.push({
     type: 'subagent/updated',
     parentSessionId,
