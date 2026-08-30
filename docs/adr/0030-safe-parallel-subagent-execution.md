@@ -11,6 +11,19 @@ and CLI batch entry points share the production `SubagentOrchestrator`; Run
 identity, dirty-base consent, worktree integration, and worker isolation are
 enforced by Host-owned services.
 
+**Delivery / integrate update (2026-08-30, `feat/subagent-delivery-review`):**
+Ordinary admitted write subtasks default to `deliveryIntent=integrate` with
+`applyPolicy=auto` when `ACTIVATE_NEW_INTEGRATE_DEFAULT` is true. Readonly
+tasks stay `report`. `retainWorktree` only keeps the execution copy after
+integrate; it does **not** skip integrate. Child result freeze (S0→S1) is
+against the worktree lease `baseCommit`, not parent `HEAD`. Parent apply uses
+the bounded turn-change file writer (`applyTreeDiffToWorkspace`); Git
+three-way calculation may still use a temporary index / `git apply --cached`,
+but that is not the parent working-tree write path. Host advertises
+`subagentDeliveryV1`, `subagentResultReviewV1`, and `turnChangeUndoV1` as
+true. See also
+[`2026-08-30-subagent-delivery-review-adjustment.md`](../specs/2026-08-30-subagent-delivery-review-adjustment.md).
+
 ## Context
 
 piwin supports subagent-driven plan execution where independent steps run in
@@ -79,14 +92,25 @@ subagents because stock Pi RPC cannot register piwin custom tools.
 ### Worktree-only parallel writes
 
 Parallel write tasks use one worktree per child. Integration uses three-way
-diff+apply (not `git checkout <branch> -- <paths>`) to preserve parent branch
-history.
+prepare on a temporary parent index, then a bounded working-tree write (not
+`git checkout <branch> -- <paths>`, and not `git apply` as the parent write).
 
 Subagent worktree checkouts live under the product config root
 `<piwinRoot>/worktrees/<repository-key>/`, rather than inside the parent
 checkout. Change capture and three-way calculation use temporary Git indexes;
 integration must preserve both the child index and the user's parent index.
 Applied changes appear as ordinary unstaged parent working-tree changes.
+
+### Delivery intent and default integrate (2026-08-30)
+
+Host resolves `SubagentDeliveryIntent` once per admission
+(`report` | `integrate` | `candidate`) via `resolveSubagentDeliveryPolicy`.
+Unspecified intent: readonly isolation → `report`; admitted worktree write →
+`integrate`. With the integrate default activated, new non-legacy integrate
+tasks receive `applyPolicy=auto`. Explicit legacy `none`/`explicit` stay
+manual (`legacyManual`). Orchestrator integrate gate is
+`applyPolicy === 'auto'` and intent is neither `candidate` nor `report`;
+`retainWorktree` is not part of that gate.
 
 The original hard-reject rule for dirty parent working trees is superseded by
 [ADR 0031](./0031-dirty-base-parallel-write-consent.md). The current rule is
@@ -105,6 +129,11 @@ is never allowed to discard unintegrated changes. The batch status becomes
 The owning batch Run terminates as `failed` with stable terminal code
 `integration-required`; `needs-integration` is the product projection, not a
 second Run terminal state.
+
+Settled worktree children freeze S0/S1 against `lease.baseCommit` into Host
+turn-change storage when `turnChangeRuntime` is present. Automatic integrate
+still serializes per repository and respects the workspace write gate when
+that runtime exists.
 
 ### No automatic retry
 
@@ -154,3 +183,13 @@ defines or copies provider/model catalogs.
 - Failed/conflicted worktrees are retained, requiring manual cleanup.
 - The orchestrator is the single scheduling authority; plan code and the model
   tool never call `Promise.all` directly for subagent dispatch.
+- Ordinary new write delegations integrate automatically into the parent
+  workspace before the parent model continues; users review the parent turn,
+  not each child apply bar.
+- Parent undo/redo of recorded turn changes is Host-owned
+  (`turn-changes/undo|redo` when `turnChangeRuntime` exists; CLI
+  `piwin turn undo|redo <changeSetId> --expected-version <n>`).
+- Result-review command surfaces such as `subagent/request-resolution`,
+  candidate mutex adopt UI, and full result pagination/diff Host APIs are
+  **not** claimed complete by this ADR update; they remain follow-ups under
+  the delivery-review spec.

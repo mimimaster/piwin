@@ -447,6 +447,14 @@ Configured concurrency greater than one is effective only when the backend
 reports real process isolation. Write tasks use per-child worktrees and
 repository-keyed serialized integration.
 
+Delivery policy (ADR 0030 delivery update, 2026-08-30): Host resolves
+`SubagentDeliveryIntent` once at admission. Ordinary admitted write subtasks
+default to `integrate` / `applyPolicy=auto` when the integrate default is
+active; readonly stays `report`; `retainWorktree` does not skip integrate.
+Settled worktree children freeze S0/S1 against the lease `baseCommit` (not
+parent `HEAD`). Parent apply uses the bounded turn-change writer after
+temporary-index three-way prepare. Conflicted/failed worktrees remain retained.
+
 Subagent presentation follows ADR 0046. Each model delegation owns a durable,
 revisioned `SubagentInvocation` keyed to its parent Run and normalized tool
 call. The parent transcript tool position is the visual anchor; low-frequency
@@ -456,9 +464,10 @@ is restart truth and repairs stale active-looking child records. Child sessions
 persist in the index but are excluded from `session/list` and `session/search`
 (same main-list rule as SIDE-D9). They remain reachable through the parent
 transcript inline panel and `session/list-children`. The Desktop child
-inspector reuses normal transcript/tool/permission/file rendering and exposes
-explicit worktree apply/retain/discard. There is no composer-adjacent
-current-work dock.
+inspector reuses normal transcript/tool/permission/file rendering for
+observation; there is no standing apply/retain/discard bar and no
+composer-adjacent current-work dock. Parent-turn review and undo/redo are
+Host-owned (`turnChangeUndoV1`; CLI `piwin turn undo|redo`).
 
 Runtime reload is a Host-owned replacement transaction. Settings persistence
 records the active and desired revisions separately, then resident sessions
@@ -487,7 +496,7 @@ performed.
 | `@piwin/extensions` | Host-owned immutable Pi Extension revisions, registry, and deployment journal |
 | `@piwin/mcp` | Config document, MCP Supervisor/ProcessSlot lifecycle, owned transport, metadata catalog |
 | `@piwin/tools-web` | `web_search`, `web_fetch` (HTML/PDF extract; long pages may return `spillPath`) |
-| `@piwin/git` | Status, diff, commit graph model |
+| `@piwin/git` | Status, diff, commit graph model; worktree integrate prepare; turn-change object/file writer and undo/redo primitives |
 | `@piwin/theme` | Theme packages install/apply |
 | `@piwin/pet` | Codex pet adapter + state machine |
 | `@piwin/artifact` | Fence index, RenderIntent, security, srcdoc/theme policy (Desktop owns iframe scheduling) |
@@ -508,6 +517,9 @@ performed.
   sessions/<session-id>/      # transcript.sqlite3 + leftover non-payload files
   pack-staging/               # non-authoritative pack construction
   cold-storage/transactions/  # offload/restore journals and quarantine (ADR 0044)
+  turn-changes/               # Host turn-change store, objects, undo/redo ops
+  subagent-runs/              # durable subagent batch/invocation manifests
+  worktrees/                  # managed subagent worktree checkouts
   skills/
   extensions/                  # immutable revisions, registry.json, deployment records
   mcp.json
@@ -809,6 +821,7 @@ target is to attach to the same long-lived Host Server as Desktop and mobile.
 | **Provider** | unconfigured · credential unavailable · configured | Best-effort status only. Provider readiness must **not** gate workspace browse/trust (PSR D7). |
 | **Packages** | `memory`, `process`, `automation` first-class | Product commands route through host-runtime; Advanced/Experimental in Desktop Settings. |
 | **Evidence coverage** | browser mock · live JSONL sidecar · native macOS | [See automated prerequisites](../README.md#automated-prerequisite-sequence) and [trace recipe](plans/2026-07-24-responsiveness-trace-recipe.md). Automated prerequisites are not a release candidate; a separately reviewed dated native macOS evidence manifest is required before declaring one. |
+| **Subagent delivery / turn undo** | `subagentDeliveryV1` · `subagentResultReviewV1` · `turnChangeUndoV1` | Host advertises these true when the delivery default, result freeze path, and turn-change runtime are present. Clients must not invent UI from version strings alone. Result-review Host commands such as `subagent/request-resolution` and candidate mutex adopt UI are not claimed complete solely because the flags are true. |
 
 ### Evidence layers
 
