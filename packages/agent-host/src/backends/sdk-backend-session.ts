@@ -278,6 +278,7 @@ function wrapBackendPiSession(
           );
         }
         await piSession.setModel(model);
+        sampler.invalidateBaseline();
       }
       if (preparedPrompt.thinkingLevel && piSession.setThinkingLevel) {
         await piSession.setThinkingLevel(
