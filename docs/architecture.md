@@ -31,7 +31,7 @@
 ├─────────────────────────────────────────────────────────────┤
 │ Application services (no UI frameworks)                      │
 │  session · project · process · skills · mcp · browser        │
-│  git · artifact · media · tools-web                          │
+│  git · artifact · media · tools-web · notes · flashcards     │
 ├─────────────────────────────────────────────────────────────┤
 │ Pi boundary: @piwin/agent-host                               │
 │  PiSdkAdapter · Pi worker backend · Pi event/tool adapters   │
@@ -84,6 +84,37 @@ Host does not PCM-relay audio. Sanitized call status may fan out. Long-lived
 credentials never leave Host. One-shot owner bootstrap (SDP answer or Gemini
 ephemeral token) appears only on the owner start response — never in
 HostPush journals, status, or persisted errors.
+
+### 2.0.2 Flashcard study workbench (ADR 0066)
+
+Study progress is Host-owned. Desktop, Mobile, and CLI share one CardStore,
+one `flashcards/study/*` protocol, and one FSRS `ReviewState` write path.
+Shells do not keep a second library or a phone-local scheduler.
+
+```text
+Desktop study page · Mobile catalog/study · CLI `piwin study`
+  → HostCommand flashcards/study/*  (idempotencyKey on the existing envelope)
+  → host-runtime study commands
+      → @piwin/flashcards StudyService (rounds + operation log + ReviewState)
+      → Push flashcards/study/changed {roundId, revision, reason}
+```
+
+Cards stay in `~/.piwin/flashcards/cards/`; ReviewState in `review/`. New user
+data (lazy-created): `study/rounds/<roundId>.json`,
+`study/operations/<sequence>-<keyHash>.json`. `ReviewState.revision` is
+additive (missing = 0). Card UI and `fcws-tear-off` 200ms stay; ui-kit
+`FlashcardFace` / `TearDeckSurface` are the shared faces.
+
+Intentional v1 differences, not unfinished ports:
+
+- Mobile source preview is title + excerpt only; Host absolute paths are
+  stripped; never `doccards/open-source`.
+- Online-only: no Host → no new round, no batch rate, no offline library.
+- CLI has **no tear animation** and no touch; checkpoint before `rate`.
+
+ADR 0066 is **Implemented in tree — verification incomplete**. Dual-device
+V04/V09/V22, visual fixtures, and root typecheck/mobile build are **not**
+passed. Do not document this as Accepted / 已上线.
 
 ### 2.1 Host-first deployment model
 
@@ -478,7 +509,7 @@ performed.
 | `@piwin/contracts` | Types, events, config schemas (runtime-light) |
 | `@piwin/host-runtime` | Product composition root: Settings compilation, command/push routing, runtime generations, Runs, Jobs, permissions, tools, prompt preparation. Turn execution lives in `session-turn-executor`; Run terminalization lives in `run-terminalizer`; Host egress envelopes live in `host-event-envelope`. |
 | `@piwin/agent-host` | Pi-only boundary: SDK backend, isolated worker backend, Pi event/tool adapters, worker protocol, parsed-stream guard for OpenAI-completions. Returns plain `AgentEvent[]` plus one `AgentPromptOutcome`. |
-| `@piwin/host-client` | Transport-neutral client facade for Desktop, CLI, Windows, mobile, and Web shells |
+| `@piwin/host-client` | Transport-neutral client facade for Desktop, CLI, Windows, mobile, and Web shells (includes flashcard study controller) |
 | `@piwin/host-transport` | JSON framing and browser/Tauri WebSocket transport with connection state and cursor replay requests |
 | `@piwin/host-server` | Deployable Host wrapper: loopback/private listener, token auth, safe command admission, replay, health, lifecycle |
 | `@piwin/session` | History index, tree projection, naming |
@@ -495,8 +526,10 @@ performed.
 | `@piwin/process` | Non-interactive Job registry, process-tree supervision, logs, readiness |
 | `@piwin/media` | Paste store and previews; PromptPreparation validates model-facing media refs |
 | `@piwin/voice` | Live call domain + Codex Live adapter (Pi-free); Host owns call authority + upstream events; Desktop owns WebRTC media; auth via openai-codex OAuth (ADR 0065) |
+| `@piwin/flashcards` | Unique CardStore; FSRS review JSON; Host-owned study rounds / operation log / catalog (ADR 0018, 0054, 0066). Renderer-safe export: `@piwin/flashcards/study-sequence` |
+| `@piwin/notes` | Local markdown notes + FTS/optional vector RAG (ADR 0018) |
 | `@piwin/marketplace` | Unified install sources |
-| `@piwin/ui-kit` | Shared desktop UI primitives |
+| `@piwin/ui-kit` | Shared UI primitives, including `FlashcardFace` / `TearDeckSurface` (existing `fcws-tear-off` 200ms; no Host/FS) |
 
 ## 5. Config root `~/.piwin`
 
@@ -514,6 +547,12 @@ performed.
   themes/
   pets/
   media/<session-id>/
+  notes/                      # markdown notes (ADR 0018)
+  flashcards/
+    cards/                    # item markdown (unique CardStore)
+    review/                   # FSRS ReviewState JSON; missing revision = 0
+    study/rounds/             # Host study rounds (lazy-created; ADR 0066)
+    study/operations/         # idempotent operation log (lazy-created)
   jobs/                       # Job metadata and diagnostic log spool
   logs/
 ```
@@ -758,6 +797,13 @@ mobile OS integration such as secure credential storage, camera/file pickers,
 and notifications. It never imports Pi packages or receives Host absolute
 paths.
 
+Flashcard catalog and study pages are first-class Mobile routes (`#flashcards`,
+`#flashcards/study/<roundId>`), not chat-only Q/A. v1 Mobile study is
+**online-only** against the same Host. Source preview is title + excerpt;
+the client must not call `doccards/open-source` or display Host filesystem
+paths. System back / lock / landscape on real devices is **not** yet evidenced
+(ADR 0066 verification incomplete).
+
 ## 10. CLI shape
 
 ```text
@@ -767,6 +813,11 @@ apps/cli → @piwin/host-client / @piwin/host-transport → Host Server
 Commands mirror Host capabilities; no separate business logic. A CLI may use an
 in-process HostRuntime for a one-shot/local smoke path, but the multi-client
 target is to attach to the same long-lived Host Server as Desktop and mobile.
+
+`piwin study` (alias `piwin cards study`) uses the same `flashcards/study/*`
+commands. It has **no tear animation and no touch** on purpose; checkpoint
+before `rate`; progress is the Host snapshot. It must not `createStudyService`
+or open a second CardStore.
 
 ## 11. Testing strategy
 
@@ -809,6 +860,7 @@ target is to attach to the same long-lived Host Server as Desktop and mobile.
 | **Provider** | unconfigured · credential unavailable · configured | Best-effort status only. Provider readiness must **not** gate workspace browse/trust (PSR D7). |
 | **Packages** | `memory`, `process`, `automation` first-class | Product commands route through host-runtime; Advanced/Experimental in Desktop Settings. |
 | **Evidence coverage** | browser mock · live JSONL sidecar · native macOS | [See automated prerequisites](../README.md#automated-prerequisite-sequence) and [trace recipe](plans/2026-07-24-responsiveness-trace-recipe.md). Automated prerequisites are not a release candidate; a separately reviewed dated native macOS evidence manifest is required before declaring one. |
+| **Flashcard study** | in-tree · device/visual evidence pending | ADR 0066. Desktop page, Mobile catalog+study, CLI `piwin study`, Host rounds/operations. **Not** dual-device verified; Mobile is excerpt-only / online-only; CLI has no animation. |
 
 ### Evidence layers
 

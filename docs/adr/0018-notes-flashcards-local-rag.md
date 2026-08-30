@@ -156,8 +156,13 @@ pasting it into a ```html fence — models never hand-write the action wiring.
 - The product's public identity widens from "coding-agent shell" to "agent
   shell with a personal knowledge layer"; PRD should gain a section framing
   notes/flashcards as the memory system's user-visible surface.
-- CLI parity is mandatory (`piwin notes …`, `piwin cards …`), consistent
-  with repo rules on host/CLI consistency.
+- CLI parity is mandatory (`piwin notes …`, `piwin cards …`, and `piwin study`
+  for Host-owned rounds), consistent with repo rules on host/CLI consistency.
+- Host-owned study rounds, the operation log, and additive
+  `ReviewState.revision` are recorded in
+  [ADR 0066](./0066-host-owned-flashcard-study-rounds.md). They do not replace
+  this CardStore layout. ADR 0066 is implemented in tree with verification
+  incomplete (not Accepted).
 
 ## Appendix: Doc Cards (folder RAG → flashcard generation)
 

@@ -1,8 +1,8 @@
 # 闪卡复习台：桌面 / 移动端执行规格
 
 日期：2026-08-30  
-状态：**产品方向由 owner 明确；本文是供后续实施的完整方案，本轮只写文档，不实施功能。**  
-执行清单：[复习台实施计划](../plans/2026-08-30-flashcard-review-workbench-execution-plan.md)。
+状态：**规格仍是验收权威。** P0–P6 已在 `feat/flashcard-review-workbench` 落地（桌面复习页、移动端卡库+复习页、CLI `piwin study`、Host `flashcards/study/*`、持久 rounds/operations、`ReviewState.revision`）。P7 **未完成**：V04/V09/V22 真机未跑、视觉夹具未拍、根目录 typecheck / Mobile build 仍因既有 artifact 类型失败。ADR：[0066](../adr/0066-host-owned-flashcard-study-rounds.md)（Implemented in tree — verification incomplete，**不是** Accepted / 已上线）。交付记录：[delivery notes](../evidence/2026-08-30-flashcard-review-workbench-delivery.md)。  
+执行清单：[复习台实施计划](../plans/2026-08-30-flashcard-review-workbench-execution-plan.md)（`docs/plans/` 被 gitignore，勿 force-add）。
 
 ## 0. 必须遵守的边界
 
@@ -279,4 +279,15 @@ Push：`flashcards/study/changed {roundId, revision, reason}` 与可恢复快照
 
 若未通过桌面原视觉回归或移动撕卡 / 返回真机测试，只能报告“实现未完成 / 验证受阻”，不能以 CSS 缩放或浏览器模拟冒充双端交付。签名 / 设备条件缺失如实记录，不能省掉移动端验收。
 
+**当前（2026-08-30）：** P0–P6 代码在树。V04/V09/V22 **未跑**（iOS `Piwin Mobile Test` 为 Shutdown；无独立 Host fixture；无 `adb`；无 Android gen）。私密用户卡视觉夹具未拍。根目录 typecheck / Mobile build 仍因既有 `@piwin/artifact` 错误失败。因此 P7 **未完成**，ADR 0066 **不得**标 Accepted / 已上线。详见 [delivery notes](../evidence/2026-08-30-flashcard-review-workbench-delivery.md)。
+
 本规格没有新视觉稿。实施者应参考现有组件与主题；UI/UX 检查仅用于返回可预测、触控冲突、可访问性和动效生命周期，不授权重新设计卡片。
+
+## 12. 兼容与回退
+
+- 旧卡 Markdown **不迁移**。缺 `model` 仍按 `basic`（ADR 0054）。
+- 旧 `ReviewState` 缺 `revision` 视为 **0**。
+- `study/rounds` 与 `study/operations` **懒创建**；已有 `cards/` + `review/` 无需改写即可继续用。
+- 回退前端复习入口 **不得删除** rounds / operations。
+- 不要用不能安全读取或补完新 operation 日志的旧 Host 去挂载仍有未投影日志的数据根。恢复旧 Host 前先核对 `applied`，并备份 `~/.piwin/flashcards`。
+- 有意差异（第一版）：Mobile 来源只展示标题与摘录、只在线学习；CLI 无撕卡动画 / 无触控。
