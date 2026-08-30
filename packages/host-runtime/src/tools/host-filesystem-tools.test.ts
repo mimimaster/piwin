@@ -3,9 +3,13 @@
  * are correctly composed with permission gates.
  */
 
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { HostToolRegistration, PermissionMode, ToolResult } from '@piwin/contracts';
 import { buildHostFilesystemTools } from './host-filesystem-tools.js';
+import { createWorkspaceWriteGate } from '../turn-changes/workspace-write-gate.js';
 import { createBundledRuleSet } from '../permission-defaults.js';
 import { createHostToolAdmission } from './tool-admission.js';
 import { HostToolExecutionRouter } from './host-tool-execution-router.js';
@@ -255,5 +259,34 @@ describe('buildHostFilesystemTools', () => {
     for (const entry of entries) {
       expect(entry.kind).toMatch(/^(file|directory)$/);
     }
+  });
+
+  it('fails write_file with workspace-busy when the workspace lease is held', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'piwin-fs-busy-'));
+    const gate = createWorkspaceWriteGate();
+    const held = await gate.tryAcquire({
+      workspaceId: 'ws-fs',
+      rootPath: cwd,
+      kind: 'git',
+    });
+    expect(held.ok).toBe(true);
+    const tools = buildHostFilesystemTools({
+      cwd,
+      workspaceWrite: { gate, workspaceId: 'ws-fs', rootPath: cwd },
+    });
+    const writeTool = requireTool(tools, 'write_file');
+    const target = join(cwd, 'blocked.txt');
+    const result = await executeTool(writeTool, { path: target, content: 'nope' });
+    expect(result).toMatchObject({
+      ok: false,
+      code: 'execution-failed',
+      message: expect.stringMatching(/workspace-busy/),
+    });
+    if (held.ok) {
+      held.lease.release();
+    }
+    const after = await executeTool(writeTool, { path: target, content: 'yes' });
+    expect(after.ok).toBe(true);
+    await rm(cwd, { recursive: true, force: true });
   });
 });

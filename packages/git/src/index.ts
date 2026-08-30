@@ -17,7 +17,11 @@ export type {
 } from './turn-changes/object-store.js';
 
 export { openTurnChangeStore } from './turn-changes/store.js';
-export type { TurnChangeFileActionRecord, TurnChangeStore } from './turn-changes/store.js';
+export type {
+  TurnChangeFileActionRecord,
+  TurnChangeRunSegmentRecord,
+  TurnChangeStore,
+} from './turn-changes/store.js';
 
 export { persistTurnChangeWriteReceipt } from './turn-changes/capture.js';
 

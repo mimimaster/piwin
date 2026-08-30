@@ -111,6 +111,7 @@ export function composeSubagentOrchestrator(deps: HostRuntimeKernel): void {
   deps.subagentIntegrationCoordinator = createSubagentIntegrationCoordinator({
     integrateWorktree: integrationAdapter,
     isBaseClean: isWorktreeBaseClean,
+    ...(deps.turnChangeRuntime ? { workspaceWriteGate: deps.turnChangeRuntime.gate } : {}),
     removeWorktree: async (
       worktreePath: string,
       parentRepoPath: string,

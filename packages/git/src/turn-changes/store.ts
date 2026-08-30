@@ -51,6 +51,22 @@ type FileActionRow = {
   settlement: string;
 };
 
+export type TurnChangeRunSegmentRecord = {
+  runId: string;
+  attemptId: string;
+  source: string;
+  startedAt: string;
+  endedAt: string | null;
+};
+
+type RunSegmentRow = {
+  run_id: string;
+  attempt_id: string;
+  source: string;
+  started_at: string;
+  ended_at: string | null;
+};
+
 const FILE_ACTION_REF_KIND = 'file-action';
 
 export type TurnChangeStore = {
@@ -84,6 +100,15 @@ export type TurnChangeStore = {
   recordFileAction(input: TurnChangeFileActionRecord): void;
   listFileActionsByRun(runId: string): TurnChangeFileActionRecord[];
   markAttemptCaptureState(changeSetId: string, captureState: string): void;
+  beginRunSegment(input: {
+    runId: string;
+    attemptId: string;
+    source: string;
+    startedAt?: string;
+  }): void;
+  endRunSegment(runId: string, endedAt?: string): void;
+  listRunIdsByAttempt(attemptId: string): string[];
+  getRunSegment(runId: string): TurnChangeRunSegmentRecord | undefined;
   close(): void;
 };
 
@@ -140,6 +165,17 @@ export function openTurnChangeStore(options: { rootDir: string }): TurnChangeSto
   const updateAttemptCaptureState = db.prepare(
     `UPDATE attempt SET capture_state = ? WHERE change_set_id = ?`,
   );
+  const insertRunSegment = db.prepare(
+    `INSERT OR IGNORE INTO run_segment(run_id, attempt_id, source, started_at, ended_at)
+     VALUES (?, ?, ?, ?, NULL)`,
+  );
+  const updateRunSegmentEndedAt = db.prepare(
+    `UPDATE run_segment SET ended_at = ? WHERE run_id = ? AND ended_at IS NULL`,
+  );
+  const selectRunIdsByAttempt = db.prepare(
+    `SELECT run_id FROM run_segment WHERE attempt_id = ? ORDER BY rowid ASC`,
+  );
+  const selectRunSegment = db.prepare(`SELECT * FROM run_segment WHERE run_id = ?`);
   const persistFileAction = (input: TurnChangeFileActionRecord): void => {
     const existing = selectFileActionByUnique.get(
       input.runId,
@@ -268,6 +304,43 @@ export function openTurnChangeStore(options: { rootDir: string }): TurnChangeSto
 
     markAttemptCaptureState(changeSetId: string, captureState: string): void {
       updateAttemptCaptureState.run(captureState, changeSetId);
+    },
+
+    beginRunSegment(input: {
+      runId: string;
+      attemptId: string;
+      source: string;
+      startedAt?: string;
+    }): void {
+      insertRunSegment.run(
+        input.runId,
+        input.attemptId,
+        input.source,
+        input.startedAt ?? new Date().toISOString(),
+      );
+    },
+
+    endRunSegment(runId: string, endedAt?: string): void {
+      updateRunSegmentEndedAt.run(endedAt ?? new Date().toISOString(), runId);
+    },
+
+    listRunIdsByAttempt(attemptId: string): string[] {
+      const rows = selectRunIdsByAttempt.all(attemptId) as Array<{ run_id: string }>;
+      return rows.map((row) => row.run_id);
+    },
+
+    getRunSegment(runId: string): TurnChangeRunSegmentRecord | undefined {
+      const row = selectRunSegment.get(runId) as RunSegmentRow | undefined;
+      if (row === undefined) {
+        return undefined;
+      }
+      return {
+        runId: row.run_id,
+        attemptId: row.attempt_id,
+        source: row.source,
+        startedAt: row.started_at,
+        endedAt: row.ended_at,
+      };
     },
 
     close(): void {

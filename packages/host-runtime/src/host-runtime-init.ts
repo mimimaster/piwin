@@ -31,6 +31,7 @@ import { createSessionRuntimeResidencyController } from './sessions/session-runt
 import { createImmediateSafetyPredicate } from './sessions/immediate-safety-gate.js';
 import { SessionRuntimeReplacementEngine } from './session-runtime-replacement.js';
 import { createSessionHostToolExecutionPort } from './tools/session-host-tool-port.js';
+import { openTurnChangeRuntime } from './turn-changes/runtime-wiring.js';
 import { descriptorsFromTools } from './tools/build-session-host-tools.js';
 import { toolFamilyIndex } from './tools/tool-family-index.js';
 import { SubagentOrchestrator } from './subagent-orchestrator.js';
@@ -381,11 +382,17 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
       deps.sessionHostToolPort = null;
       deps.host = new ProductAgentHost({ ...commonHostOptions, mock: true });
     } else {
+      deps.turnChangeRuntime = openTurnChangeRuntime({
+        hostInstanceId: deps.hostInstanceId,
+        ...(options.piwinRoot !== undefined ? { piwinRoot: options.piwinRoot } : {}),
+      });
       deps.sessionHostToolPort = createSessionHostToolExecutionPort({
         isSessionKnown: (sessionId) =>
           deps.runtimeController.hasActiveGeneration(sessionId) ||
           deps.sessions.has(sessionId) ||
           deps.subagentSessionContexts.has(sessionId),
+        capture: deps.turnChangeRuntime.capture,
+        tracker: deps.turnChangeRuntime.tracker,
         getRuntimeGenerationId: (sessionId) =>
           deps.subagentSessionContexts.get(sessionId)?.runtimeGenerationId ??
           deps.runtimeController.getStatus(sessionId).generationId,

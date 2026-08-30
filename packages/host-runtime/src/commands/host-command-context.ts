@@ -23,6 +23,7 @@ import type {
 } from './walkthrough-commands.js';
 import type { KnowledgeCommandContext } from './knowledge-commands.js';
 import type { SubagentCommandContext } from './subagent-commands.js';
+import type { WorkspaceWriteGate } from '../turn-changes/workspace-write-gate.js';
 
 /**
  * Optional seam used by plan/execute to drive subagent-driven and inline
@@ -128,6 +129,8 @@ export type HostCommandContext = {
   /** Remote Hosts force Codex device-code (no Host loopback). */
   /** Cancel Runs compiled to a subscription provider before logout. */
   cancelRunsForProvider?: (providerId: string) => Promise<void>;
+  /** Exclusive in-process workspace write lock for git mutations. */
+  workspaceWriteGate?: WorkspaceWriteGate;
   /**
    * Optional walkthrough service bag (spec §11.1). Provided by HostRuntime for
    * both SDK and RPC adapters; mock/test contexts may omit it.

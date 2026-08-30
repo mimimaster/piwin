@@ -42,6 +42,7 @@ export async function executeSessionTurn(input: {
   supersededRun: ExecutionRunRecord | undefined;
 }): Promise<void> {
   const { context, command, run } = input;
+  let turnChangeBound = false;
   try {
     if (!input.conversationChat) {
       const delegationMode = command.input.delegationMode === 'disabled' ? 'disabled' : 'auto';
@@ -83,6 +84,13 @@ export async function executeSessionTurn(input: {
       await finalizeAbortedRun(context, command.sessionId, run.runId);
       return;
     }
+    context.beginTurnChangeRun?.({
+      sessionId: command.sessionId,
+      userMessageId: userMessageId ?? null,
+      runId: run.runId,
+      source: command.input.source === 'resume' ? 'resume' : 'prompt',
+    });
+    turnChangeBound = true;
 
     if (input.requiresModelRuntimeReplacement) {
       try {
@@ -227,5 +235,9 @@ export async function executeSessionTurn(input: {
     await context.terminateRun(command.sessionId, run.runId, 'failed', terminalCode, failure.message, {
       failure,
     });
+  } finally {
+    if (turnChangeBound) {
+      context.endTurnChangeRun?.(run.runId);
+    }
   }
 }

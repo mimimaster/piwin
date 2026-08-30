@@ -29,7 +29,7 @@ import { createSubagentRunTool, type SubagentRunSeam } from '../subagent-run-too
 import { buildImageGenTool } from '../image-gen-tool.js';
 import { buildVideoGenTool } from '../video-gen-tool.js';
 import { buildArtifactInstructionsTool } from '../artifact-instructions-tool.js';
-import { buildHostFilesystemTools } from './host-filesystem-tools.js';
+import { buildHostFilesystemTools, type BuildHostFilesystemToolsOptions } from './host-filesystem-tools.js';
 import type { SecretResolver } from '../secret-resolver.js';
 import {
   createMcpGenerationSnapshot,
@@ -129,6 +129,9 @@ export type BuildSessionHostToolsOptions = {
   onDiagnostic?: (diagnostic: { capability: string; message: string }) => void;
   /** Preserve the exact MCP capability brief on the frozen generation surface. */
   onMcpCapabilityBrief?: (brief: McpCapabilityBrief) => void;
+
+  turnChange?: BuildHostFilesystemToolsOptions['turnChange'];
+  workspaceWrite?: BuildHostFilesystemToolsOptions['workspaceWrite'];
 };
 
 /**
@@ -206,8 +209,11 @@ export async function buildSessionHostTools(
   // (not replace) Pi's built-in read/grep/ls with parent-gated write/bash.
   // Pi built-ins remain owned by the Pi backend; these registrations provide
   // the parent-owned surface shared by SDK and RPC execution.
+  const fsCwd = options.projectPath ?? rootDir ?? process.cwd();
   const fsTools = buildHostFilesystemTools({
-    cwd: options.projectPath ?? rootDir ?? process.cwd(),
+    cwd: fsCwd,
+    ...(options.turnChange ? { turnChange: options.turnChange } : {}),
+    ...(options.workspaceWrite ? { workspaceWrite: options.workspaceWrite } : {}),
   });
   tools.push(...fsTools);
 

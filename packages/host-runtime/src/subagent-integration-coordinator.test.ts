@@ -1,5 +1,9 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { SubagentTaskResult, SubagentWorkspaceLease } from '@piwin/contracts';
+import { createWorkspaceWriteGate } from './turn-changes/workspace-write-gate.js';
 import type {
   WorktreeIntegrationInput as GitWorktreeIntegrationInput,
   WorktreeIntegrationResult as GitWorktreeIntegrationResult,
@@ -383,5 +387,80 @@ describe('SubagentIntegrationCoordinator', () => {
       conflictFiles: ['game.js'],
       error: 'patch does not apply: game.js',
     });
+  });
+
+  it('fails integration with workspace-busy and does not write parent files', async () => {
+    const parentRepoPath = await mkdtemp(join(tmpdir(), 'piwin-int-busy-'));
+    const gate = createWorkspaceWriteGate();
+    const held = await gate.tryAcquire({
+      workspaceId: 'ws-parent',
+      rootPath: parentRepoPath,
+      kind: 'tool',
+    });
+    expect(held.ok).toBe(true);
+    const integrateWorktree = vi.fn(createSuccessIntegration(['game.js']));
+    const coordinator = createSubagentIntegrationCoordinator({
+      integrateWorktree,
+      isBaseClean: vi.fn().mockResolvedValue(true),
+      removeWorktree: vi.fn().mockResolvedValue(undefined),
+      workspaceWriteGate: gate,
+    });
+
+    const result = await coordinator.integrate(
+      createTaskResult('task-busy'),
+      createWorktreeLease(join(parentRepoPath, 'worktree'), parentRepoPath),
+    );
+
+    expect(result.integrationStatus).toBe('failed');
+    expect(result.error).toMatch(/workspace-busy/);
+    expect(integrateWorktree).not.toHaveBeenCalled();
+    if (held.ok) {
+      held.lease.release();
+    }
+
+    const afterRelease = await coordinator.integrate(
+      createTaskResult('task-free'),
+      createWorktreeLease(join(parentRepoPath, 'worktree-2'), parentRepoPath),
+    );
+    expect(afterRelease.integrationStatus).toBe('applied');
+    expect(integrateWorktree).toHaveBeenCalledTimes(1);
+    await rm(parentRepoPath, { recursive: true, force: true });
+  });
+
+  it('holds the workspace gate during parent apply so overlapping kinds are busy', async () => {
+    const parentRepoPath = await mkdtemp(join(tmpdir(), 'piwin-int-hold-'));
+    const gate = createWorkspaceWriteGate();
+    const started = createDeferred();
+    const releaseApply = createDeferred();
+    const integrateWorktree: WorktreeIntegrationFunction = async (input) => {
+      started.resolve();
+      await releaseApply.promise;
+      return {
+        success: true,
+        changedFiles: [],
+        allowedOutputPaths: input.allowedOutputPaths ? [...input.allowedOutputPaths] : [],
+      };
+    };
+    const coordinator = createSubagentIntegrationCoordinator({
+      integrateWorktree,
+      isBaseClean: vi.fn().mockResolvedValue(true),
+      removeWorktree: vi.fn().mockResolvedValue(undefined),
+      workspaceWriteGate: gate,
+    });
+
+    const integration = coordinator.integrate(
+      createTaskResult('task-hold'),
+      createWorktreeLease(join(parentRepoPath, 'worktree'), parentRepoPath),
+    );
+    await started.promise;
+    const overlapping = await gate.tryAcquire({
+      workspaceId: 'ws-parent',
+      rootPath: parentRepoPath,
+      kind: 'git',
+    });
+    expect(overlapping).toEqual({ ok: false, reason: 'workspace-busy' });
+    releaseApply.resolve();
+    await integration;
+    await rm(parentRepoPath, { recursive: true, force: true });
   });
 });

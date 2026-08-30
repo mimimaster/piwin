@@ -7,7 +7,7 @@ import { join } from 'node:path';
 
 import { getSessionRecord } from '@piwin/session';
 import { loadPiwinConfig } from './config-store.js';
-import { getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
+import { getPiwinGeneralWorkspacePath, getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
 import { isConversationIndexRecord } from './session-scope.js';
 import { type SessionLiveContext } from './commands/session-live-commands.js';
 
@@ -215,5 +215,26 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
         }));
     },
     replaceRuntimeForModel: (sessionId) => deps.replaceRuntimeForModel(sessionId),
+    beginTurnChangeRun: (input) => {
+      const runtime = deps.turnChangeRuntime;
+      if (!runtime) {
+        return;
+      }
+      const child = deps.subagentSessionContexts.get(input.sessionId);
+      const workspaceRoot =
+        child?.workingDirectory ??
+        deps.sessionProjects.get(input.sessionId) ??
+        getPiwinGeneralWorkspacePath(getPiwinRoot(deps.options.piwinRoot));
+      runtime.coordinator.beginAttempt({
+        sessionId: input.sessionId,
+        userMessageId: input.userMessageId,
+        runId: input.runId,
+        source: child ? 'child' : input.source,
+        workspaceRoot,
+      });
+    },
+    endTurnChangeRun: (runId) => {
+      deps.turnChangeRuntime?.coordinator.endRunSegment(runId);
+    },
   };
 }

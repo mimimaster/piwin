@@ -299,4 +299,45 @@ describe('openTurnChangeStore', () => {
     expect(store.getAttempt('cs-1')?.captureState).toBe('incomplete');
     store.close();
   });
+
+  it('records run segments and lists runIds for an attempt', async () => {
+    const rootDir = await createRootDir();
+    const store = openTurnChangeStore({ rootDir });
+    store.createAttempt({
+      changeSetId: 'cs-1',
+      attemptId: 'att-1',
+      sessionId: 'sess-1',
+      workspaceId: 'ws-1',
+    });
+
+    store.beginRunSegment({
+      runId: 'run-1',
+      attemptId: 'att-1',
+      source: 'prompt',
+      startedAt: '2026-08-30T00:00:00.000Z',
+    });
+    store.beginRunSegment({
+      runId: 'run-2',
+      attemptId: 'att-1',
+      source: 'resume',
+      startedAt: '2026-08-30T00:01:00.000Z',
+    });
+    store.endRunSegment('run-1', '2026-08-30T00:00:30.000Z');
+
+    expect(store.listRunIdsByAttempt('att-1')).toEqual(['run-1', 'run-2']);
+    expect(store.getRunSegment('run-1')).toEqual({
+      runId: 'run-1',
+      attemptId: 'att-1',
+      source: 'prompt',
+      startedAt: '2026-08-30T00:00:00.000Z',
+      endedAt: '2026-08-30T00:00:30.000Z',
+    });
+    expect(store.getRunSegment('run-2')).toMatchObject({
+      runId: 'run-2',
+      source: 'resume',
+      endedAt: null,
+    });
+    expect(store.listRunIdsByAttempt('missing')).toEqual([]);
+    store.close();
+  });
 });
