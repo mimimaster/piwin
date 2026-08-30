@@ -23,4 +23,19 @@ describe('Host wire codec context telemetry', () => {
     };
     expect(decodeHostWireMessage(encodeHostWireMessage(frame))).toEqual(frame);
   });
+
+  it('does not throw on an unknown inner HostPush type', () => {
+    const encoded = JSON.stringify({
+      type: 'push',
+      seq: 4,
+      eventId: 'event-unknown',
+      push: { type: 'future/unknown-telemetry', sessionId: 'session-1' },
+    });
+    expect(() => decodeHostWireMessage(encoded)).not.toThrow();
+    const decoded = decodeHostWireMessage(encoded);
+    expect(decoded).toMatchObject({
+      type: 'push',
+      push: { type: 'future/unknown-telemetry', sessionId: 'session-1' },
+    });
+  });
 });

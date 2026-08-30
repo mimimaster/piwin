@@ -336,12 +336,6 @@
   margin-top: var(--s-2);
 }
 
-.context-usage-hover-tooltip-expired {
-  font-weight: 500;
-  color: var(--amber);
-  margin-top: var(--s-2);
-}
-
 .context-usage-ring {
   display: grid;
   place-items: center;
@@ -432,12 +426,6 @@
   font-size: var(--fs-chrome);
 }
 
-.context-usage-cache-estimate {
-  margin: 0 0 var(--s-4);
-  font-size: var(--fs-micro);
-  color: var(--text-3);
-}
-
 .context-usage-pill {
   display: inline-flex;
   align-items: center;
@@ -458,24 +446,6 @@
 .context-usage-pill.tone-critical {
   background: color-mix(in srgb, var(--coral) 18%, transparent);
   color: var(--coral);
-}
-
-.context-usage-bar {
-  height: 6px;
-  margin-bottom: var(--s-5);
-  border-radius: var(--r-pill);
-  background: var(--void);
-  box-shadow: inset 0 0 0 1px var(--line-1);
-  overflow: hidden;
-}
-
-/* Deliberate literals: breakdown chart gradient shared with inline row
-   swatch colors in context-usage-ring.tsx — not a Deck semantic role. */
-.context-usage-bar > i {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, var(--iris-lift), var(--iris), var(--coral));
 }
 
 .context-usage-rows {
@@ -499,12 +469,6 @@
   display: inline-flex;
   align-items: center;
   gap: var(--s-4);
-}
-
-.context-usage-row-label > i {
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
 }
 
 .context-usage-popover-footer {
