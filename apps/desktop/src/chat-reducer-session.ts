@@ -26,6 +26,7 @@ import {
   mergeRefreshedTailWithLiveMessages,
 } from './chat-reducer-transcript';
 import { contextUsageForLoadMessages, contextUsageForSessionSet } from './chat-reducer-context';
+import { applyContextTelemetry } from './context-telemetry-reducer';
 
 export type ChatUiSessionSelectionAction = Extract<
   ChatUiAction,
@@ -275,6 +276,10 @@ export function reduceChatSession(
           nextSessionId: action.sessionId,
           current: state.contextUsage,
         }),
+        contextTelemetry: applyContextTelemetry(state.contextTelemetry, {
+          type: 'select',
+          sessionId: action.sessionId,
+        }),
         // Subagent activity belongs to the previously active parent; the new
         // session hydrates its own children on resume.
         ...CLEARED_SUBAGENT_UI,
@@ -288,8 +293,10 @@ export function reduceChatSession(
       };
     }
     case 'session/load-messages': {
-      // Drop stale resume responses if the user already switched again.
-      if (state.activeSessionId !== null && state.activeSessionId !== action.sessionId) {
+      // User selection is the activation authority. A late resume must not
+      // revive messages/model/occupancy after New (activeSessionId === null)
+      // or after switching away.
+      if (state.activeSessionId === null || state.activeSessionId !== action.sessionId) {
         return state;
       }
       // Session hydration can race the foreground-run admission query. A
@@ -545,6 +552,10 @@ export function reduceChatSession(
         // a Host session. Usage belongs to the previous active session and
         // must not leak into the uncreated draft.
         contextUsage: null,
+        contextTelemetry: applyContextTelemetry(state.contextTelemetry, {
+          type: 'select',
+          sessionId: null,
+        }),
         messages: [],
         transcriptWindow: null,
         historyView: null,

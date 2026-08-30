@@ -223,6 +223,10 @@ export class HostClient {
     return this.remoteCapabilities;
   }
 
+  getHostInstanceId(): string | null {
+    return this.hostInstanceId;
+  }
+
   /** Local transports expose the full Host contract; remote uses the negotiated command ceiling. */
   supportsCommand(type: HostCommand['type']): boolean {
     if (this.transport !== 'remote') {

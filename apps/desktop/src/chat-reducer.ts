@@ -1,6 +1,7 @@
 import type { WalkthroughArtifact } from '@piwin/contracts';
 import { createSessionListScopeState } from './session-list-scope';
 import { createEmptyWarmSessionCache } from './session-warm-cache';
+import { createInitialContextTelemetryState, applyContextTelemetry } from './context-telemetry-reducer';
 import type { ChatUiAction, ChatUiState } from './chat-ui-types';
 import { refreshActiveSessionMetadata } from './chat-reducer-session-helpers';
 import { reduceChatSession } from './chat-reducer-session';
@@ -97,6 +98,7 @@ export function createInitialChatUiState(): ChatUiState {
     lastCompactionDurationMs: null,
     lastCompactionFileOps: null,
     contextUsage: null,
+    contextTelemetry: createInitialContextTelemetryState(),
     receivedEventIds: new Set<string>(),
     lastAcceptedSequenceByRun: {},
     runRecordsById: {},
@@ -179,6 +181,58 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         hostReady: action.ready,
         hostMock: action.mock,
         foregroundAdmission: action.ready ? state.foregroundAdmission : 'unknown',
+        contextTelemetry: applyContextTelemetry(
+          state.contextTelemetry,
+          action.ready ? { type: 'reconnect' } : { type: 'disconnect' },
+        ),
+      };
+    case 'context-telemetry/snapshot':
+      return {
+        ...state,
+        contextTelemetry: applyContextTelemetry(state.contextTelemetry, {
+          type: 'snapshot',
+          snapshot: action.snapshot,
+          source: action.source ?? 'live',
+          awaitingTranscript: state.awaitingTranscript,
+          ...(action.hostInstanceId !== undefined
+            ? { hostInstanceId: action.hostInstanceId }
+            : {}),
+        }),
+      };
+    case 'context-telemetry/last-request':
+      return {
+        ...state,
+        contextTelemetry: applyContextTelemetry(state.contextTelemetry, {
+          type: 'last-request',
+          sessionId: action.sessionId,
+          usage: action.usage,
+        }),
+      };
+    case 'context-telemetry/capability':
+      return {
+        ...state,
+        contextTelemetry: applyContextTelemetry(state.contextTelemetry, {
+          type: 'capability',
+          supported: action.supported,
+        }),
+      };
+    case 'context-telemetry/disconnect':
+      return {
+        ...state,
+        contextTelemetry: applyContextTelemetry(state.contextTelemetry, { type: 'disconnect' }),
+      };
+    case 'context-telemetry/reconnect':
+      return {
+        ...state,
+        contextTelemetry: applyContextTelemetry(state.contextTelemetry, { type: 'reconnect' }),
+      };
+    case 'context-telemetry/host-instance':
+      return {
+        ...state,
+        contextTelemetry: applyContextTelemetry(state.contextTelemetry, {
+          type: 'host-instance',
+          hostInstanceId: action.hostInstanceId,
+        }),
       };
     case 'permission/show':
       if (action.prompt.runId !== undefined && isStaleRunEvent(state, action.prompt.runId)) {

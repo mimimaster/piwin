@@ -2,6 +2,7 @@ import { isPlaceholderSessionName } from './title-display';
 import type { SessionScope, SessionTranscriptMessage } from '@piwin/contracts';
 import { adjustSessionListScopeTotal, getSessionListScopeMeta } from './session-list-scope';
 import { removeWarmSessionSnapshot } from './session-warm-cache';
+import { applyContextTelemetry } from './context-telemetry-reducer';
 import type { ChatUiAction, ChatUiState, SessionListItemUi } from './chat-ui-types';
 import {
   dedupeSessionsById,
@@ -331,6 +332,9 @@ export function reduceChatSessionList(
           action.sessionId,
         ),
         workingSessionIds: removeWorkingSessionId(state.workingSessionIds, action.sessionId),
+        contextTelemetry: activeRemoved
+          ? applyContextTelemetry(state.contextTelemetry, { type: 'select', sessionId: null })
+          : state.contextTelemetry,
       };
     }
     case 'session/mark-archived-active':

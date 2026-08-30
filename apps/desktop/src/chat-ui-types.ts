@@ -2,6 +2,7 @@ import type {
   AgentEvent,
   AgentEventEnvelope,
   AgentFailure,
+  AssistantUsageMeasurement,
   ContextUsageSnapshot,
   ExecutionRunRecord,
   RunInterventionRecord,
@@ -11,6 +12,7 @@ import type {
   PromptContextRef,
   PermissionDecision,
   PermissionRequestContext,
+  SessionContextSnapshot,
   SessionRunOutcome,
   SessionRunPhase,
   SessionScope,
@@ -30,6 +32,7 @@ import type {
 import type { SessionOutlineNode } from '@piwin/contracts';
 import type { SessionListScopeState } from './session-list-scope';
 import type { WarmSessionCache } from './session-warm-cache';
+import type { ContextTelemetryState } from './context-telemetry-reducer';
 
 export const MAX_TOOL_CARDS_PER_MESSAGE = 128;
 
@@ -366,6 +369,8 @@ export type ChatUiState = {
   } | null;
   /** CE-OBS last context/token usage for active session. */
   contextUsage: ContextUsageSnapshot | null;
+  /** Host occupancy snapshot for the selected session; independent of transcript load. */
+  contextTelemetry: ContextTelemetryState;
   /**
    * C1: bounded ordered ring of received eventIds for replay detection.
    * Insertion-ordered Set for O(1) membership; when it exceeds
@@ -606,4 +611,19 @@ export type ChatUiAction =
     }
   | { type: 'walkthrough/hydrate'; artifacts: WalkthroughArtifact[] }
   | { type: 'walkthrough/updated'; artifact: WalkthroughArtifact }
-  | { type: 'walkthrough/remove'; messageId: string };
+  | { type: 'walkthrough/remove'; messageId: string }
+  | {
+      type: 'context-telemetry/snapshot';
+      snapshot: SessionContextSnapshot;
+      source?: 'hydrate' | 'live' | 'replay';
+      hostInstanceId?: string | null;
+    }
+  | {
+      type: 'context-telemetry/last-request';
+      sessionId: string;
+      usage: AssistantUsageMeasurement | null;
+    }
+  | { type: 'context-telemetry/capability'; supported: boolean }
+  | { type: 'context-telemetry/disconnect' }
+  | { type: 'context-telemetry/reconnect' }
+  | { type: 'context-telemetry/host-instance'; hostInstanceId: string | null };
