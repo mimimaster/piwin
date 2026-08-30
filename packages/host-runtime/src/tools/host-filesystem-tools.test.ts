@@ -60,10 +60,38 @@ function requireTool(tools: HostToolRegistration[], name: string): HostToolRegis
 }
 
 describe('buildHostFilesystemTools', () => {
-  it('returns 5 tools: read_file, write_file, list_directory, bash, run_bash', () => {
+  it('returns 6 tools: read_file, write_file, delete_file, list_directory, bash, run_bash', () => {
     const tools = buildHostFilesystemTools({ cwd: '/tmp' });
     const names = tools.map((t) => t.descriptor.name).sort();
-    expect(names).toEqual(['bash', 'list_directory', 'read_file', 'run_bash', 'write_file']);
+    expect(names).toEqual([
+      'bash',
+      'delete_file',
+      'list_directory',
+      'read_file',
+      'run_bash',
+      'write_file',
+    ]);
+  });
+
+  it('declares Host-local fileEffect without copying it onto descriptor', () => {
+    const tools = buildHostFilesystemTools({ cwd: '/tmp' });
+    const writeFileTool = requireTool(tools, 'write_file');
+    const deleteFileTool = requireTool(tools, 'delete_file');
+    const readFileTool = requireTool(tools, 'read_file');
+    const listTool = requireTool(tools, 'list_directory');
+    const bashTool = requireTool(tools, 'bash');
+    const runBashTool = requireTool(tools, 'run_bash');
+
+    expect('fileEffect' in writeFileTool.descriptor).toBe(false);
+    expect(writeFileTool.fileEffect?.kind).toBe('exact-paths');
+    expect(deleteFileTool.fileEffect?.kind).toBe('exact-paths');
+    expect(readFileTool.fileEffect).toEqual({ kind: 'none' });
+    expect(listTool.fileEffect).toEqual({ kind: 'none' });
+    expect(bashTool.fileEffect).toEqual({ kind: 'uncontained' });
+    expect(runBashTool.fileEffect).toEqual({ kind: 'uncontained' });
+    if (writeFileTool.fileEffect?.kind === 'exact-paths') {
+      expect(writeFileTool.fileEffect.pathsFromArgs({ path: '/tmp/a.ts' })).toEqual(['/tmp/a.ts']);
+    }
   });
 
   it('read_file executes without permission gate', async () => {

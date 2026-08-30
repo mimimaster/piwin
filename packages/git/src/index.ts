@@ -17,7 +17,9 @@ export type {
 } from './turn-changes/object-store.js';
 
 export { openTurnChangeStore } from './turn-changes/store.js';
-export type { TurnChangeStore } from './turn-changes/store.js';
+export type { TurnChangeFileActionRecord, TurnChangeStore } from './turn-changes/store.js';
+
+export { persistTurnChangeWriteReceipt } from './turn-changes/capture.js';
 
 export { composeFileActions } from './turn-changes/compose.js';
 export type { ComposedFileAction, ComposeCoverage } from './turn-changes/compose.js';

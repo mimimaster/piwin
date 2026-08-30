@@ -178,4 +178,125 @@ describe('openTurnChangeStore', () => {
 
     expect(() => openTurnChangeStore({ rootDir })).toThrow(/user_version|schema version|unsupported/i);
   });
+
+  it('records a file_action, pins CAS objects, and lists by run', async () => {
+    const rootDir = await createRootDir();
+    const store = openTurnChangeStore({ rootDir });
+    const before = new TextEncoder().encode('before\n');
+    const after = new TextEncoder().encode('after\n');
+    const beforePut = await store.putObject(before);
+    const afterPut = await store.putObject(after);
+
+    store.recordFileAction({
+      actionId: 'action-1',
+      runId: 'run-1',
+      toolCallId: 'tool-1',
+      actionOrdinal: 0,
+      relativePath: 'src/a.ts',
+      beforeSha: beforePut.sha256,
+      afterSha: afterPut.sha256,
+      beforeExists: true,
+      afterExists: true,
+      settlement: 'applied',
+    });
+
+    expect(store.listFileActionsByRun('run-1')).toEqual([
+      {
+        actionId: 'action-1',
+        runId: 'run-1',
+        toolCallId: 'tool-1',
+        actionOrdinal: 0,
+        relativePath: 'src/a.ts',
+        beforeSha: beforePut.sha256,
+        afterSha: afterPut.sha256,
+        beforeExists: true,
+        afterExists: true,
+        settlement: 'applied',
+      },
+    ]);
+    expect(readObjectRefs(rootDir, beforePut.sha256)).toEqual(
+      expect.arrayContaining([
+        {
+          sha256: beforePut.sha256,
+          ref_kind: 'file-action',
+          ref_id: 'action-1',
+          pin_until: null,
+        },
+      ]),
+    );
+    expect(readObjectRefs(rootDir, afterPut.sha256)).toEqual(
+      expect.arrayContaining([
+        {
+          sha256: afterPut.sha256,
+          ref_kind: 'file-action',
+          ref_id: 'action-1',
+          pin_until: null,
+        },
+      ]),
+    );
+    store.close();
+  });
+
+  it('returns the existing file_action row for a duplicate unique key', async () => {
+    const rootDir = await createRootDir();
+    const store = openTurnChangeStore({ rootDir });
+    const first = await store.putObject(new TextEncoder().encode('first\n'));
+    const second = await store.putObject(new TextEncoder().encode('second\n'));
+
+    store.recordFileAction({
+      actionId: 'action-1',
+      runId: 'run-1',
+      toolCallId: 'tool-1',
+      actionOrdinal: 0,
+      relativePath: 'src/a.ts',
+      beforeSha: null,
+      afterSha: first.sha256,
+      beforeExists: false,
+      afterExists: true,
+      settlement: 'applied',
+    });
+    store.recordFileAction({
+      actionId: 'action-2',
+      runId: 'run-1',
+      toolCallId: 'tool-1',
+      actionOrdinal: 0,
+      relativePath: 'src/b.ts',
+      beforeSha: null,
+      afterSha: second.sha256,
+      beforeExists: false,
+      afterExists: true,
+      settlement: 'failed',
+    });
+
+    expect(store.listFileActionsByRun('run-1')).toEqual([
+      {
+        actionId: 'action-1',
+        runId: 'run-1',
+        toolCallId: 'tool-1',
+        actionOrdinal: 0,
+        relativePath: 'src/a.ts',
+        beforeSha: null,
+        afterSha: first.sha256,
+        beforeExists: false,
+        afterExists: true,
+        settlement: 'applied',
+      },
+    ]);
+    store.close();
+  });
+
+  it('markAttemptCaptureState updates an existing attempt', async () => {
+    const rootDir = await createRootDir();
+    const store = openTurnChangeStore({ rootDir });
+    store.createAttempt({
+      changeSetId: 'cs-1',
+      attemptId: 'att-1',
+      sessionId: 'sess-1',
+      workspaceId: 'ws-1',
+    });
+
+    store.markAttemptCaptureState('cs-1', 'incomplete');
+    expect(store.getAttempt('cs-1')?.captureState).toBe('incomplete');
+    store.close();
+  });
 });

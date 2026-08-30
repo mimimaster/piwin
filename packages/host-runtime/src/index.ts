@@ -309,6 +309,10 @@ export type {
 } from './tools/tool-approval-broker.js';
 export { HostToolRegistrationError, toolFamilyIndex } from './tools/tool-family-index.js';
 export { ToolInvocationLedger, fingerprintToolInvocation } from './tools/tool-invocation-ledger.js';
+export { createExecutionTracker } from './turn-changes/execution-tracker.js';
+export type { ExecutionTracker } from './turn-changes/execution-tracker.js';
+export { createToolCapturePort, bindCaptureReceipts } from './turn-changes/tool-capture.js';
+export type { ToolCapturePort } from './turn-changes/tool-capture.js';
 
 // Phase 2: Structured Concurrency
 export { RunRegistry } from './run-registry.js';

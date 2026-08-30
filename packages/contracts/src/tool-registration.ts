@@ -141,6 +141,18 @@ export type HostToolExecutionSpec = {
 
 export const MAX_HOST_TOOL_DURATION_MS = 30 * 60 * 1000;
 
+/**
+ * Host-local file-effect declaration. Functions stay in-process; never copy
+ * onto `descriptor` or serialize into a Blueprint.
+ */
+export type HostToolFileEffect =
+  | { kind: 'none' }
+  | {
+      kind: 'exact-paths';
+      pathsFromArgs: (args: Record<string, unknown>) => string[];
+    }
+  | { kind: 'uncontained' };
+
 export type HostToolRegistration = {
   descriptor: HostToolDescriptor;
   family: SessionToolFamily;
@@ -152,4 +164,5 @@ export type HostToolRegistration = {
   permissionSpec: HostToolPermissionSpec;
   executionSpec?: HostToolExecutionSpec;
   execute: HostToolExecutor;
+  fileEffect?: HostToolFileEffect;
 };
