@@ -9,6 +9,7 @@
    region styles so desktop provides variables first and regions may
    scope-refine later. */
 @import '@piwin/ui-kit/styles.css';
+@import '@piwin/ui-kit/flashcards.css';
 @import './styles/ui-foundations.css';
 @import './styles/behavior-activity.css';
 @import './styles/region-shell.css';
