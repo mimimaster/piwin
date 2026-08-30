@@ -673,13 +673,27 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                 locale={desktopLocale}
                 onClose={closeSubPage}
                 request={(command) => hostClient.request(command)}
-                requestFlashcards={(command) => hostClient.request(command)}
+                requestFlashcards={(command, options) => hostClient.request(command, options)}
                 refreshToken={mediaLibraryEpoch}
                 projectPath={state.projectPath}
                 onConfigureEmbedding={() => {
                   closeSubPage();
                   openSettingsSection('knowledge');
                 }}
+                subscribePush={(listener) =>
+                  hostClient.subscribe((message) => {
+                    if (message.type === 'flashcards/study/changed') listener(message);
+                  })
+                }
+                subscribeConnected={(listener) => {
+                  listener(hostClient.isReady());
+                  return hostClient.subscribe((message) => {
+                    if (message.type === 'host/status') listener(message.ready);
+                  });
+                }}
+                hasStudyCapability={() =>
+                  hostStatus?.capabilities.flashcardStudy === true
+                }
               />
               <WorkbenchSettingsOverlay
                 settingsOpen={settingsOpen}

@@ -220,7 +220,7 @@
   color: var(--coral, #f43f5e);
 }
 
-/* ── Fullscreen Study Overlay (TearDeck) ───────────────────────────── */
+/* ── Fullscreen Study Overlay (legacy browse) ─────────────────────── */
 
 .vault-study-back {
   position: fixed;
@@ -235,6 +235,66 @@
   width: 100%;
   height: 100%;
   flex-direction: column;
+}
+
+/* Study product page (P4). Not a backdrop-dismiss overlay. */
+.vault-study-page {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.vault-study-page .fcws-tear {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.vault-study-page .fcws-tear-stage {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.vault-study-page .fcws-tear-card {
+  max-height: 100%;
+  min-height: 0;
+}
+
+.fcws-study-save {
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.fcws-study-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.fcws-study-paused {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  cursor: default;
+}
+
+.fcws-study-paused h3 {
+  margin: 0 0 var(--s-3);
+  color: var(--text-1);
+}
+
+.fcws-study-paused p {
+  margin: 0;
+  color: var(--text-3);
+}
+
+.fcws-study-rate-actions {
+  width: min(600px, 92vw);
+  margin: 0 auto;
 }
 
 /* Face / tear / completion styles live in @piwin/ui-kit/flashcards.css. */

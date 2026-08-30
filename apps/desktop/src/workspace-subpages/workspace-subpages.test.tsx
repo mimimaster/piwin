@@ -7,6 +7,7 @@ import type { FlashcardModel, HostCommand, HostResponse, MediaLibraryItem } from
 import { PIWIN_APPEARANCE_DARK } from '../appearance-tokens';
 import { LibraryWorkspaceView, FlashcardsWorkspaceView } from './index';
 import type { FlashcardsHomeCommand } from './FlashcardsWorkspaceView';
+import { createStudyHostFake } from './flashcards/study/study-test-harness';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -492,6 +493,7 @@ function makeFakeRequester(store: FakeStore): {
   calls: FlashcardsHomeCommand[];
 } {
   const calls: FlashcardsHomeCommand[] = [];
+  const study = createStudyHostFake(store.cards);
   const ok = (command: FlashcardsHomeCommand, data: unknown): HostResponse => ({
     type: 'response',
     command: command.type,
@@ -525,6 +527,9 @@ function makeFakeRequester(store: FakeStore): {
         case 'config/get':
           return ok(command, { config: { providers: [] } });
         default:
+          if (command.type.startsWith('flashcards/study/')) {
+            return study.request(command);
+          }
           return ok(command, {});
       }
     }),
@@ -640,7 +645,7 @@ describe('FlashcardsWorkspaceView', () => {
     ).not.toBeNull();
   }, 15000);
 
-  it('tears a set in the same window', async () => {
+  it('opens a set into the study page, not a dismissible overlay', async () => {
     await renderWith(structuredClone(BASE_STORE));
 
     const setTile = container.querySelector<HTMLButtonElement>(
@@ -649,24 +654,13 @@ describe('FlashcardsWorkspaceView', () => {
     act(() => {
       setTile?.click();
     });
-    await flush(2);
+    await flush(8);
 
     expect(container.querySelector('[data-testid="flashcards-tear-front"]')?.textContent).toContain(
       'page table',
     );
-    expect(container.querySelector('[role="dialog"][aria-modal="true"]')).not.toBeNull();
-    act(() => {
-      container.querySelector<HTMLButtonElement>('[data-testid="flashcards-tear-next"]')?.click();
-    });
-    await act(async () => {
-      await new Promise((resolve) => {
-        window.setTimeout(resolve, 280);
-      });
-    });
-    await flush(2);
-    expect(container.querySelector('[data-testid="flashcards-tear-front"]')?.textContent).toContain(
-      'TLB',
-    );
+    expect(container.querySelector('[data-testid="flashcards-study-page"]')).not.toBeNull();
+    expect(container.querySelector('[role="dialog"][aria-modal="true"]')).toBeNull();
   }, 15000);
 
   it('deletes a tile through the host command', async () => {
