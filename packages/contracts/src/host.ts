@@ -624,6 +624,8 @@ export type AgentEvent =
     }
   /** CE-OBS: mapped from Pi contextUsage / assistant usage. */
   | { type: 'usage/update'; sessionId: string; usage: ContextUsageSnapshot }
+  | { type: 'context/measurement'; measurement: import('./context-telemetry.js').ContextMeasurement }
+  | { type: 'usage/finalized'; measurement: import('./assistant-usage.js').AssistantUsageMeasurement }
   /** CE-MEM-05 optional silent extract progress. */
   | { type: 'memory/extraction_start'; sessionId: string }
   | {
