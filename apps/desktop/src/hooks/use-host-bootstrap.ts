@@ -317,6 +317,15 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         lastPushedHostReadyRef.current = ready;
         return;
       }
+      if (message.type === 'session/context-updated') {
+        dispatch({
+          type: 'context-telemetry/snapshot',
+          snapshot: message.snapshot,
+          source: 'live',
+          hostInstanceId: hostClient.getHostInstanceId(),
+        });
+        return;
+      }
       if (message.type === 'event') {
         streamEventBuffer.push(message.sessionId, message.event, message.envelope);
         return;
@@ -642,6 +651,10 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         if (statusResponse.success) {
           const statusData = statusResponse.data as HostStatusData;
           setHostStatus(statusData);
+          dispatch({
+            type: 'context-telemetry/capability',
+            supported: statusData.capabilities.contextTelemetryVersion === 1,
+          });
         }
         // Request path must update the shell pill; push-only left UI stuck offline after HMR.
         dispatch({

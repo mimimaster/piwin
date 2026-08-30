@@ -34,6 +34,7 @@ import type { PendingComposerAttachment } from '../media-utils';
 import type { OrchestrationSchemeOption } from '../OrchestrationSchemeControl';
 import { showErrorNotification } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../desktop-locale-context.js';
+import { selectContextRingView } from '../context-telemetry-selector.js';
 import { liveStartErrorLabel, useLiveCall, type LiveCallController } from '../live/use-live-call.js';
 import { readDelegatedTurnResult } from '../live/live-session-result.js';
 import {
@@ -421,6 +422,24 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       onCompact: handleComposerCompact,
       compactionSupported: hostStatus?.capabilities?.compaction !== false,
       contextUsage: state.contextUsage,
+      contextRingView: selectContextRingView({
+        telemetry: state.contextTelemetry,
+        locale: locale === 'en' ? 'en' : 'zh-CN',
+        ...(typeof selectedModelContextWindow === 'number'
+          ? { selectedModelContextWindow }
+          : {}),
+        ...(selectedModelKey.includes('::')
+          ? {
+              selectedModel: {
+                providerId: selectedModelKey.slice(0, selectedModelKey.indexOf('::')),
+                modelId: selectedModelKey.slice(selectedModelKey.indexOf('::') + 2),
+              },
+            }
+          : {}),
+        queuedTurnPending:
+          ((state.activeSessionId && state.queuedTurnsBySession[state.activeSessionId]) ?? [])
+            .length > 0,
+      }),
       ...(typeof selectedModelContextWindow === 'number'
         ? { modelContextWindow: selectedModelContextWindow }
         : {}),
@@ -561,6 +580,9 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       state.foregroundAdmission,
       state.compacting,
       state.contextUsage,
+      state.contextTelemetry,
+      state.queuedTurnsBySession,
+      locale,
       state.hostMock,
       state.hostReady,
       state.projectPath,

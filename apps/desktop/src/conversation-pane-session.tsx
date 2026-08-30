@@ -38,6 +38,7 @@ import type { DocumentOpenInput } from './tool-call-card.js';
 
 type PaneResumeData = Omit<SessionResumeData, 'scope'> & {
   scope?: SessionScope | 'general' | 'project' | 'unknown';
+  contextUsage?: SessionResumeData['contextUsage'];
 };
 
 export type ConversationPaneSessionProps = {
@@ -197,6 +198,20 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
           ...(data.contextUsage !== undefined ? { contextUsage: data.contextUsage } : {}),
           live: data.live,
         });
+        if (data.contextSnapshot) {
+          dispatch({
+            type: 'context-telemetry/snapshot',
+            snapshot: data.contextSnapshot,
+            source: 'hydrate',
+          });
+        }
+        if ('lastRequestUsage' in data) {
+          dispatch({
+            type: 'context-telemetry/last-request',
+            sessionId: props.sessionId,
+            usage: data.lastRequestUsage ?? null,
+          });
+        }
         setModel(data.model ?? null);
         if (data.name) onNameChangeRef.current?.(data.name);
         await hydrateForegroundRun(() => cancelled);
@@ -231,7 +246,13 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
         return;
       }
       if (!messageBelongsToSession(message, props.sessionId)) return;
-      if (message.type === 'event') {
+      if (message.type === 'session/context-updated') {
+        dispatch({
+          type: 'context-telemetry/snapshot',
+          snapshot: message.snapshot,
+          source: 'live',
+        });
+      } else if (message.type === 'event') {
         streamEventBuffer.push(message.sessionId, message.event, message.envelope);
       } else if (message.type === 'run/updated') {
         streamEventBuffer.pushAction(message.run.sessionId, {

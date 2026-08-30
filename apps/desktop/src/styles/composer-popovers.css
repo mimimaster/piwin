@@ -370,6 +370,12 @@
   transition: stroke-dashoffset 0.25s ease;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .context-usage-ring-progress {
+    transition: none;
+  }
+}
+
 .context-usage-ring.tone-warn .context-usage-ring-progress {
   stroke: var(--amber);
 }

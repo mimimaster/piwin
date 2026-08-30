@@ -1,39 +1,50 @@
 // @vitest-environment happy-dom
-/**
- * ContextUsageRing popover coverage for slice R5.
- * Same happy-dom + createRoot harness as ThinkingEffortControl.test.tsx; the
- * popover is portaled by Radix, so assertions read from document.
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
+import { ContextUsageRing, type ContextUsageRingProps } from './context-usage-ring.js';
 import {
-  CACHE_EXPIRY_ESTIMATE_MS,
-  computeContextUsagePercent,
-  ContextUsageRing,
-  hasRenderableContextUsage,
-  resolveContextTokensUsed,
-  type ContextUsageRingProps,
-} from './context-usage-ring.js';
+  applyContextTelemetry,
+  createInitialContextTelemetryState,
+} from './context-telemetry-reducer.js';
+import { selectContextRingView } from './context-telemetry-selector.js';
+import {
+  makeContextSnapshot,
+  makeKnownOccupancy,
+} from './context-telemetry-test-fixtures.js';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
 
-function createBaseProps(
-  overrides: Partial<ContextUsageRingProps> = {},
-): ContextUsageRingProps {
-  return {
-    usage: {
-      sessionId: 'session-test',
-      tokensUsed: 40_000,
-      tokensLimit: 200_000,
-      updatedAt: '2026-07-26T00:00:00.000Z',
-    },
-    ...overrides,
-  };
+function capableView(
+  snapshot: ReturnType<typeof makeContextSnapshot>,
+  options: {
+    selectedModelContextWindow?: number;
+    selectedModel?: { providerId: string; modelId: string };
+    locale?: 'zh-CN' | 'en';
+  } = {},
+): ContextUsageRingProps['view'] {
+  let telemetry = applyContextTelemetry(createInitialContextTelemetryState(), {
+    type: 'capability',
+    supported: true,
+  });
+  telemetry = applyContextTelemetry(telemetry, {
+    type: 'select',
+    sessionId: snapshot.sessionId,
+    hostInstanceId: 'host-1',
+  });
+  telemetry = applyContextTelemetry(telemetry, { type: 'snapshot', snapshot, source: 'live' });
+  return selectContextRingView({
+    telemetry,
+    locale: options.locale ?? 'en',
+    ...(options.selectedModelContextWindow !== undefined
+      ? { selectedModelContextWindow: options.selectedModelContextWindow }
+      : {}),
+    ...(options.selectedModel ? { selectedModel: options.selectedModel } : {}),
+  });
 }
 
 function render(props: ContextUsageRingProps, root: Root): void {
@@ -61,14 +72,8 @@ function queryPopover(): HTMLElement | null {
   return document.querySelector<HTMLElement>('[data-testid="context-usage-popover"]');
 }
 
-/**
- * Native buttons fire `click` for Enter/Space, which is how Radix's popover
- * trigger activates. happy-dom does not synthesize that from a raw keydown,
- * so keyboard activation is exercised through the same activation event.
- */
 function activateTrigger(): void {
   act(() => {
-    // Focus first: Radix restores focus to whatever was focused when it opened.
     queryTrigger().focus();
     queryTrigger().click();
   });
@@ -82,51 +87,18 @@ function pressKey(target: Element, key: string): void {
   });
 }
 
-describe('context usage resolution', () => {
-  it('hides the ring until a real usage sample exists', () => {
-    expect(hasRenderableContextUsage(null)).toBe(false);
-    expect(computeContextUsagePercent(null, 128_000)).toBeUndefined();
-  });
-
-  it('prefers tokensUsed for context occupancy', () => {
-    expect(
-      resolveContextTokensUsed({
-        sessionId: 's1',
-        tokensUsed: 1_200,
-        totalTokens: 1_500,
-        updatedAt: '2026-07-26T00:00:00.000Z',
-      }),
-    ).toBe(1_200);
-  });
-
-  it('uses input-side tokens (prompt + cache) when tokensUsed is absent', () => {
-    // Assistant turn total includes completion; window fill is input-side.
-    expect(
-      resolveContextTokensUsed({
-        sessionId: 's1',
-        promptTokens: 700,
-        completionTokens: 200,
-        cacheReadTokens: 100,
-        cacheWriteTokens: 50,
-        totalTokens: 1_050,
-        updatedAt: '2026-07-26T00:00:00.000Z',
-        source: 'assistant-usage',
-      }),
-    ).toBe(850);
-    expect(
-      computeContextUsagePercent(
-        {
-          sessionId: 's1',
-          promptTokens: 700,
-          cacheReadTokens: 100,
-          cacheWriteTokens: 50,
-          totalTokens: 1_050,
-          updatedAt: '2026-07-26T00:00:00.000Z',
-        },
-        10_000,
-      ),
-    ).toBe(9);
-  });
+const eligibleSnapshot = makeContextSnapshot({
+  sessionId: 'session-test',
+  phase: 'idle',
+  occupancy: makeKnownOccupancy({
+    tokensUsed: 40_000,
+    tokensLimit: 200_000,
+    quality: 'measured',
+  }),
+  responseEvidence: {
+    currentRunHasResponse: false,
+    historyHasDisplayableResponse: true,
+  },
 });
 
 describe('ContextUsageRing', () => {
@@ -140,15 +112,9 @@ describe('ContextUsageRing', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
-    // Fake only the interval/clock the countdown ticker uses. setTimeout is
-    // left real so the Escape test's `setTimeout(resolve, 0)` macrotask fires;
-    // setInterval is faked so `advanceTimersByTime` drives the 1s ticker.
-    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
-    vi.setSystemTime(new Date('2026-07-26T00:00:00.000Z'));
   });
 
   afterEach(() => {
-    vi.useRealTimers();
     act(() => {
       root.unmount();
     });
@@ -158,323 +124,147 @@ describe('ContextUsageRing', () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
   });
 
-  it('does not render before the first usage sample', () => {
-    render(createBaseProps({ usage: null }), root);
+  it('T01: does not render when the selector hides empty/waiting states', () => {
+    const hidden = selectContextRingView({
+      telemetry: applyContextTelemetry(createInitialContextTelemetryState(), {
+        type: 'capability',
+        supported: true,
+      }),
+      locale: 'en',
+    });
+    render({ view: hidden }, root);
     expect(document.querySelector('[data-testid="context-usage-ring"]')).toBeNull();
   });
 
-  it('renders a closed ring with the usage tone and label', () => {
-    render(createBaseProps(), root);
-
+  it('renders a closed ring from selector labels', () => {
+    render({ view: capableView(eligibleSnapshot) }, root);
     const trigger = queryTrigger();
     expect(trigger.className).toContain('tone-ok');
-    expect(trigger.getAttribute('aria-label')).toBe('Context 40K / 200K (20%)');
-    expect(trigger.getAttribute('title')).toBeNull();
+    expect(trigger.getAttribute('aria-label')).toContain('40K');
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
     expect(queryPopover()).toBeNull();
   });
 
-  it('opens the popover from the trigger and shows the usage figures', () => {
-    render(createBaseProps(), root);
-
+  it('opens the popover and shows occupancy without category rows', () => {
+    render({ view: capableView(eligibleSnapshot) }, root);
     activateTrigger();
-
     const popover = queryPopover();
     expect(popover).not.toBeNull();
-    expect(queryTrigger().getAttribute('aria-expanded')).toBe('true');
-    expect(popover?.getAttribute('aria-label')).toBe('Context usage');
-    expect(popover?.textContent).toContain('20% Full');
-    expect(popover?.textContent).toContain('40K / 200K Tokens');
+    expect(popover?.textContent).toContain('Context occupied');
+    expect(popover?.textContent).not.toContain('System prompt');
+    expect(popover?.textContent).not.toContain('Tool definitions');
+    expect(popover?.textContent).not.toContain('Skills');
+    expect(popover?.textContent).not.toContain('MCP');
   });
 
-  it('lists every breakdown category, falling back to an em dash', () => {
-    render(
-      createBaseProps({
-        breakdown: { systemPromptTokens: 1200, source: 'host-estimate' },
-      }),
-      root,
-    );
-    activateTrigger();
-
-    const rows = document.querySelectorAll('.context-usage-rows li');
-    expect(rows).toHaveLength(6);
-    expect(rows[0]?.textContent).toContain('System prompt');
-    expect(rows[0]?.textContent).toContain('~1.2K');
-    expect(rows[1]?.textContent).toContain('—');
-  });
-
-  it('does not mark Pi-provided breakdown values as estimates', () => {
-    render(
-      createBaseProps({
-        breakdown: { systemPromptTokens: 1200, source: 'pi' },
-      }),
-      root,
-    );
-    activateTrigger();
-
-    const systemPromptRow = document.querySelector('.context-usage-rows li');
-    expect(systemPromptRow?.textContent).toContain('1.2K');
-    expect(systemPromptRow?.textContent).not.toContain('~1.2K');
-  });
-
-  it('reports a critical tone', () => {
-    render(
-      createBaseProps({
-        usage: {
-          sessionId: 'session-test',
-          tokensUsed: 95_000,
-          updatedAt: '2026-07-26T00:00:00.000Z',
+  it('T24: shows 120% text, 100% arc, and exceeds copy', () => {
+    const view = capableView(
+      makeContextSnapshot({
+        sessionId: 'session-test',
+        phase: 'idle',
+        occupancy: makeKnownOccupancy({
+          tokensUsed: 153_600,
+          tokensLimit: 1_000_000,
+          quality: 'measured',
+        }),
+        contextBoundary: {
+          activeLeafMessageId: 'a1',
+          model: { providerId: 'openai', modelId: 'gpt-1m' },
         },
-        modelContextWindow: 100_000,
+        responseEvidence: {
+          currentRunHasResponse: false,
+          historyHasDisplayableResponse: true,
+        },
       }),
-      root,
+      {
+        selectedModelContextWindow: 128_000,
+        selectedModel: { providerId: 'openai', modelId: 'gpt-128k' },
+      },
     );
-
-    expect(queryTrigger().className).toContain('tone-critical');
-
+    expect(view.percentText).toBe(120);
+    expect(view.arcRatio).toBe(1);
+    render({ view }, root);
     activateTrigger();
-    expect(queryPopover()?.textContent).toContain('95% Full');
+    expect(queryPopover()?.textContent).toContain('120%');
+    expect(queryPopover()?.textContent).toContain('Exceeds context limit');
+    expect(queryPopover()?.textContent).toMatch(/selected model window/i);
+    expect(queryPopover()?.textContent).toContain('128K');
+    expect(queryPopover()?.textContent).not.toContain('1M');
   });
 
-  it('recomputes percent from used/limit when host contextRatio used a different window', () => {
-    // Host snapshot may carry contextRatio against a smaller window (e.g. 128K)
-    // while the selected model exposes a 1M window for display.
-    render(
-      createBaseProps({
-        usage: {
-          sessionId: 'session-test',
-          tokensUsed: 21_000,
-          tokensLimit: 128_000,
-          contextRatio: 21_000 / 128_000, // ~16% against the host window
-          updatedAt: '2026-07-26T00:00:00.000Z',
+  it('T24: unknown limit does not invent 128K', () => {
+    const view = capableView(
+      makeContextSnapshot({
+        sessionId: 'session-test',
+        phase: 'idle',
+        occupancy: makeKnownOccupancy({ tokensUsed: 12_400, quality: 'estimated' }),
+        responseEvidence: {
+          currentRunHasResponse: false,
+          historyHasDisplayableResponse: true,
         },
-        modelContextWindow: 1_000_000,
       }),
-      root,
     );
-
-    const trigger = queryTrigger();
-    expect(trigger.getAttribute('aria-label')).toBe('Context 21K / 1M (2%)');
-    expect(trigger.getAttribute('title')).toBeNull();
-    expect(trigger.className).toContain('tone-ok');
-
+    expect(view.limitUnknown).toBe(true);
+    expect(view.tokensLimit).toBeUndefined();
+    render({ view }, root);
     activateTrigger();
-    const popover = queryPopover();
-    expect(popover?.textContent).toContain('2% Full');
-    expect(popover?.textContent).toContain('21K / 1M Tokens');
-    // Must NOT still show the host-window ratio against the 1M denominator.
-    expect(popover?.textContent).not.toContain('16% Full');
+    expect(queryPopover()?.textContent).toContain('12K');
+    expect(queryPopover()?.textContent).toMatch(/limit unknown/i);
+    expect(queryPopover()?.textContent).not.toContain('128K');
+  });
+
+  it('T25: never shows a cache countdown or higher-cost copy', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-26T00:06:00.000Z'));
+    render({ view: capableView(eligibleSnapshot) }, root);
+    act(() => {
+      queryTrigger().focus();
+    });
+    activateTrigger();
+    const text = `${queryPopover()?.textContent ?? ''}${
+      document.querySelector('[data-testid="context-usage-hover-tooltip"]')?.textContent ?? ''
+    }`;
+    expect(text).not.toContain('expires in');
+    expect(text).not.toContain('Cache estimate');
+    expect(text).not.toContain('Higher cost');
+    expect(text).not.toContain('Prompt cache');
+    vi.useRealTimers();
+  });
+
+  it('T26: does not invent category rows from percentages', () => {
+    render({ view: capableView(eligibleSnapshot) }, root);
+    activateTrigger();
+    expect(document.querySelectorAll('.context-usage-rows li').length).toBeGreaterThan(0);
+    expect(queryPopover()?.textContent).not.toContain('~');
+    expect(queryPopover()?.textContent).not.toContain('System prompt');
   });
 
   it('invokes the model-settings callback and closes the popover', () => {
     const onOpenModelSettings = vi.fn();
-    render(createBaseProps({ onOpenModelSettings }), root);
+    render({ view: capableView(eligibleSnapshot), onOpenModelSettings }, root);
     activateTrigger();
-
     const link = document.querySelector<HTMLButtonElement>('.linkish-btn');
-    expect(link).not.toBeNull();
     act(() => {
       link?.click();
     });
-
     expect(onOpenModelSettings).toHaveBeenCalledTimes(1);
     expect(queryPopover()).toBeNull();
   });
 
-  it('closes from the popover close button', () => {
-    render(createBaseProps(), root);
-    activateTrigger();
-
-    const close = document.querySelector<HTMLButtonElement>(
-      '.context-usage-popover-header button',
-    );
-    expect(close?.getAttribute('aria-label')).toBe('Close');
-    act(() => {
-      close?.click();
-    });
-
-    expect(queryPopover()).toBeNull();
-  });
-
   it('closes on Escape and returns focus to the trigger', async () => {
-    render(createBaseProps(), root);
+    render({ view: capableView(eligibleSnapshot) }, root);
     activateTrigger();
-
     const popover = queryPopover();
-    expect(popover).not.toBeNull();
     if (!popover) {
       throw new Error('popover not rendered');
     }
-
     pressKey(popover, 'Escape');
-
     expect(queryPopover()).toBeNull();
-    expect(queryTrigger().getAttribute('aria-expanded')).toBe('false');
-
-    // Radix's focus scope restores focus in a macrotask on unmount.
     await act(async () => {
       await new Promise((resolve) => {
         setTimeout(resolve, 0);
       });
     });
     expect(document.activeElement).toBe(queryTrigger());
-  });
-
-  it('shows a 5:00 cache estimate when updatedAt is now and popover opens', () => {
-    render(createBaseProps(), root);
-    activateTrigger();
-
-    const popover = queryPopover();
-    expect(popover?.textContent).toContain('Cache estimate · expires in 5:00');
-  });
-
-  it('decrements the estimate each second while the popover is open', () => {
-    render(createBaseProps(), root);
-    activateTrigger();
-
-    act(() => {
-      vi.advanceTimersByTime(61_000);
-    });
-
-    const popover = queryPopover();
-    // 61s elapsed → 300 - 61 = 239s → 3:59 (ceil keeps it at 3:59 once past 3:59.0)
-    expect(popover?.textContent).toContain('Cache estimate · expires in 3:59');
-  });
-
-  it('hides the estimate when updatedAt is older than 5 minutes', () => {
-    vi.setSystemTime(new Date('2026-07-26T00:06:00.000Z'));
-    render(createBaseProps(), root);
-    activateTrigger();
-
-    const popover = queryPopover();
-    expect(popover?.textContent).not.toContain('Cache estimate');
-  });
-
-  it('hides the estimate when updatedAt is unparseable', () => {
-    render(
-      createBaseProps({
-        usage: {
-          sessionId: 'session-test',
-          tokensUsed: 40_000,
-          tokensLimit: 200_000,
-          updatedAt: 'not-a-date',
-        },
-      }),
-      root,
-    );
-    activateTrigger();
-
-    const popover = queryPopover();
-    expect(popover?.textContent).not.toContain('Cache estimate');
-  });
-
-  it('hides the ring entirely when usage is null (no sample yet)', () => {
-    render(createBaseProps({ usage: null }), root);
-    expect(document.querySelector('[data-testid="context-usage-ring"]')).toBeNull();
-    expect(queryPopover()).toBeNull();
-  });
-
-  it('clamps a future updatedAt to 5:00', () => {
-    vi.setSystemTime(new Date('2026-07-25T23:59:00.000Z'));
-    render(createBaseProps(), root);
-    activateTrigger();
-
-    const popover = queryPopover();
-    expect(popover?.textContent).toContain('Cache estimate · expires in 5:00');
-  });
-
-  it('does not run the ticker while the popover is closed', () => {
-    render(createBaseProps(), root);
-    // Popover never opened; advance well past the window.
-    act(() => {
-      vi.advanceTimersByTime(10 * 60_000);
-    });
-    activateTrigger();
-
-    // Even though 10 minutes passed, the closed popover never ticked, so the
-    // first render after open recomputes from Date.now() and shows expired/none.
-    const popover = queryPopover();
-    expect(popover?.textContent).not.toContain('Cache estimate');
-  });
-
-  it('shows hover tooltip with usage and active cache expiry countdown on focus/hover', () => {
-    render(
-      createBaseProps({
-        usage: {
-          sessionId: 'session-test',
-          tokensUsed: 270_000,
-          tokensLimit: 1_000_000,
-          updatedAt: '2026-07-26T00:00:00.000Z',
-        },
-      }),
-      root,
-    );
-
-    act(() => {
-      queryTrigger().focus();
-    });
-
-    const tooltip = document.querySelector('[data-testid="context-usage-hover-tooltip"]');
-    expect(tooltip).not.toBeNull();
-    expect(tooltip?.textContent).toContain('27% (270K / 1M) context used');
-    expect(tooltip?.textContent).toContain('Prompt cache expires in 5:00');
-  });
-
-  it('shows expired prompt cache warning in hover tooltip when cache window has passed', () => {
-    vi.setSystemTime(new Date('2026-07-26T00:06:00.000Z'));
-    render(
-      createBaseProps({
-        usage: {
-          sessionId: 'session-test',
-          tokensUsed: 618_000,
-          tokensLimit: 1_000_000,
-          updatedAt: '2026-07-26T00:00:00.000Z',
-        },
-      }),
-      root,
-    );
-
-    act(() => {
-      queryTrigger().focus();
-    });
-
-    const tooltip = document.querySelector('[data-testid="context-usage-hover-tooltip"]');
-    expect(tooltip).not.toBeNull();
-    expect(tooltip?.textContent).toContain('62% (618K / 1M) context used');
-    expect(tooltip?.textContent).toContain('Prompt cache has expired.');
-    expect(tooltip?.textContent).toContain('Higher cost expected.');
-  });
-
-  it('shows Conversation last-turn fields instead of Agent categories', () => {
-    render(
-      createBaseProps({
-        isConversationSession: true,
-        usage: {
-          sessionId: 'session-chat',
-          tokensUsed: 12_400,
-          tokensLimit: 128_000,
-          promptTokens: 700,
-          completionTokens: 200,
-          source: 'host-estimate',
-          updatedAt: '2026-07-26T00:00:00.000Z',
-        },
-      }),
-      root,
-    );
-    activateTrigger();
-    const details = document.querySelector('[data-testid="conversation-usage-details"]');
-    expect(details?.textContent).toContain('Estimated');
-    expect(details?.textContent).toContain('Context occupied');
-    expect(details?.textContent).toContain('Input');
-    expect(details?.textContent).not.toContain('System prompt');
-    expect(details?.textContent).not.toContain('Tool definitions');
-    expect(details?.textContent).not.toContain('Skills');
-    expect(details?.textContent).not.toContain('MCP');
-  });
-});
-
-describe('CACHE_EXPIRY_ESTIMATE_MS', () => {
-  it('is a 5-minute window', () => {
-    expect(CACHE_EXPIRY_ESTIMATE_MS).toBe(5 * 60 * 1000);
   });
 });

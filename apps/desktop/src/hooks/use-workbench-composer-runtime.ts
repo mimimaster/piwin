@@ -63,6 +63,7 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     generalSessions: state.generalSessions,
     activeSessionId: state.activeSessionId,
     contextUsage: state.contextUsage,
+    contextSnapshot: state.contextTelemetry.displayed,
     streaming: state.streaming,
     compacting: state.compacting,
     dispatch,
