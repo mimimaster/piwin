@@ -97,13 +97,26 @@ function kindFromStats(stats: Stats): TurnChangePathKind {
 
 async function assertSymlinkInsideWorkspace(rootReal: string, linkPath: string): Promise<void> {
   const linkText = await readlink(linkPath);
-  const target = isAbsolute(linkText) ? resolve(linkText) : resolve(dirname(linkPath), linkText);
+  const target = isAbsolute(linkText)
+    ? resolve(linkText)
+    : resolve(await realParentDir(linkPath), linkText);
   await assertInsideWorkspace(rootReal, target);
   try {
     await assertInsideWorkspace(rootReal, await realpath(linkPath));
   } catch (error) {
     if (errorHasCode(error, 'ENOENT') || errorHasCode(error, 'ENOTDIR')) {
       return;
+    }
+    throw error;
+  }
+}
+
+async function realParentDir(linkPath: string): Promise<string> {
+  try {
+    return await realpath(dirname(linkPath));
+  } catch (error) {
+    if (errorHasCode(error, 'ENOENT') || errorHasCode(error, 'ENOTDIR')) {
+      throw new Error('path escapes workspace');
     }
     throw error;
   }

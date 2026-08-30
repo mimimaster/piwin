@@ -192,6 +192,27 @@ describe('resolveTurnChangePath / assertWritableTurnChangeFile', () => {
     ).rejects.toThrow(/path escapes workspace/);
   });
 
+  it('rejects a dangling relative symlink behind a directory symlink', async () => {
+    const root = await createTempDir('piwin-turn-change-path-');
+    await mkdir(join(root, 'real-dir'));
+    await mkdir(join(root, 'deep'));
+    await symlink('../../secret.txt', join(root, 'real-dir/link'));
+    await symlink(join(root, 'real-dir'), join(root, 'deep/linked-dir'));
+
+    await expect(
+      resolveTurnChangePath({
+        workspaceRoot: root,
+        relativePath: 'deep/linked-dir/link',
+      }),
+    ).rejects.toThrow(/path escapes workspace/);
+    await expect(
+      assertWritableTurnChangeFile({
+        workspaceRoot: root,
+        relativePath: 'deep/linked-dir/link',
+      }),
+    ).rejects.toThrow(/path escapes workspace/);
+  });
+
   it('classifies a fifo as unsupported and rejects writable', async () => {
     const root = await createTempDir('piwin-turn-change-path-');
     const fifoPath = join(root, 'pipe.fifo');
