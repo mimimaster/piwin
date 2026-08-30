@@ -128,4 +128,30 @@ describe('subagent command handlers', () => {
       success: false,
     });
   });
+
+  it('returns unsupported-capability for result commands until W5', async () => {
+    const commands: Parameters<typeof handleSubagentCommand>[0][] = [
+      { type: 'subagent/results', parentSessionId: 'session-1' },
+      { type: 'subagent/result', resultId: 'result-1' },
+      { type: 'subagent/result-files', resultId: 'result-1', revision: 1 },
+      { type: 'subagent/result-diff', resultId: 'result-1', revision: 1, fileId: 'file-1' },
+      { type: 'subagent/cleanup-plan', resultId: 'result-1', expectedRevision: 1 },
+      {
+        type: 'subagent/request-resolution',
+        resultId: 'result-1',
+        expectedRevision: 1,
+        purpose: 'resolve',
+      },
+      { type: 'subagent/worktree-action', action: 'apply', resultId: 'result-1', expectedRevision: 1 },
+    ];
+    for (const command of commands) {
+      const response = await handleSubagentCommand(command, 'request-result', context);
+      expect(response).toMatchObject({
+        success: false,
+        command: command.type,
+        error: 'unsupported-capability',
+        problem: { code: 'unsupported-capability' },
+      });
+    }
+  });
 });

@@ -24,6 +24,7 @@ import type {
   SubagentInvocation,
   SubagentTaskResult,
 } from './subagent-orchestration.js';
+import type { SubagentResultSummary } from './subagent-result.js';
 import type { SubscriptionAuthPush } from './subscription-oauth.js';
 import type { LiveOwnerActionPush, LiveUpdatedPush } from './voice-live.js';
 import type { WalkthroughArtifact } from './walkthrough-artifact.js';
@@ -85,6 +86,11 @@ export type HostPushVariant =
       runId: string;
       parentSessionId: string;
       result: SubagentTaskResult;
+    }
+  | {
+      type: 'subagent/result-updated';
+      parentSessionId: string;
+      result: SubagentResultSummary;
     }
   | {
       type: 'subagent/stream';

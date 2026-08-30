@@ -100,6 +100,12 @@ export type HostStatusData = {
     sessionUserMessageIndex?: boolean;
     /** Host can seek to a user-message anchor and return a bounded transcript window. */
     sessionTranscriptSeek?: boolean;
+    /** Delivery-intent / result-ref Host surface. Default false until W5+. */
+    subagentDeliveryV1?: boolean;
+    /** Result review / apply / cleanup Host surface. Default false until W5+. */
+    subagentResultReviewV1?: boolean;
+    /** Turn-change undo Host surface. Default false until turn-change infra lands. */
+    turnChangeUndoV1?: boolean;
   };
 };
 

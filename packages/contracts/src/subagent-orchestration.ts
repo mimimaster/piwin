@@ -51,6 +51,7 @@ import type {
   SubagentIntegrationStatus,
   SubagentSummaryStatus,
 } from './subagent-lifecycle.js';
+import type { SubagentDeliveryIntent, SubagentResultRef } from './subagent-delivery.js';
 import type { SubagentApplyPolicy, SubagentIsolationMode } from './subagent.js';
 import type { SubagentCapability, SubagentRuntimeSnapshot } from './subagent-profile.js';
 import type { BackendPreparedPrompt } from './backend-prepared-prompt.js';
@@ -117,6 +118,12 @@ export type SubagentTaskSpec = {
   isolationOverride?: SubagentIsolationMode;
   /** Resolved application policy for worktree changes. */
   applyPolicy?: SubagentApplyPolicy;
+  /** How the child result should be delivered to the parent workspace. */
+  deliveryIntent?: SubagentDeliveryIntent;
+  /** True when this spec was produced by a pre-delivery manual worktree action. */
+  legacyManual?: boolean;
+  /** Frozen result identity once a result record exists. */
+  resultRef?: SubagentResultRef;
   /** Whether a worktree should be retained after successful execution. */
   retainWorktree?: boolean;
   /** Resolved capability ceiling captured before dispatch. */
