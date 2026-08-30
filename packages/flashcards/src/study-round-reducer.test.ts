@@ -321,6 +321,75 @@ describe('undo', () => {
     expect(undoneRate.reviewState?.revision).toBeGreaterThan(rated.reviewState?.revision ?? 0);
   });
 
+  it('keeps a later needsReview mark on the new card when undoing the previous next', () => {
+    const started = sequenceRound();
+    const firstId = started.currentEntryId;
+    const advanced = reduceStudyRound(started, {
+      type: 'next',
+      expectedRevision: started.revision,
+      controlEpoch: started.controlEpoch,
+      entryId: firstId ?? '',
+      contentVersion: 'cv-1',
+      operationId: 'op-next-1',
+      now: LATER,
+    });
+    const marked = reduceStudyRound(advanced.round, {
+      type: 'checkpoint',
+      expectedRevision: advanced.round.revision,
+      controlEpoch: advanced.round.controlEpoch,
+      entryId: advanced.round.currentEntryId ?? '',
+      contentVersion: 'cv-1',
+      face: 'question',
+      needsReview: true,
+      now: LATER,
+    });
+    const secondId = advanced.round.currentEntryId;
+    expect(secondId).not.toBe(firstId);
+    const undone = reduceStudyRound(marked.round, {
+      type: 'undo',
+      expectedRevision: marked.round.revision,
+      controlEpoch: marked.round.controlEpoch,
+      targetOperationId: 'op-next-1',
+      now: LATER,
+      before: advanced.undoBefore!,
+    });
+    expect(undone.round.currentEntryId).toBe(firstId);
+    expect(undone.round.entries.find((entry) => entry.entryId === firstId)?.state).toBe('pending');
+    expect(undone.round.entries.find((entry) => entry.entryId === secondId)?.needsReview).toBe(true);
+    expect(undone.round.status).toBe('active');
+  });
+
+  it('stays paused when undoing after a later pause', () => {
+    const started = sequenceRound();
+    const firstId = started.currentEntryId;
+    const advanced = reduceStudyRound(started, {
+      type: 'next',
+      expectedRevision: started.revision,
+      controlEpoch: started.controlEpoch,
+      entryId: firstId ?? '',
+      contentVersion: 'cv-1',
+      operationId: 'op-next-1',
+      now: LATER,
+    });
+    const paused = reduceStudyRound(advanced.round, {
+      type: 'pause',
+      expectedRevision: advanced.round.revision,
+      controlEpoch: advanced.round.controlEpoch,
+      now: LATER,
+    });
+    const undone = reduceStudyRound(paused.round, {
+      type: 'undo',
+      expectedRevision: paused.round.revision,
+      controlEpoch: paused.round.controlEpoch,
+      targetOperationId: 'op-next-1',
+      now: LATER,
+      before: advanced.undoBefore!,
+    });
+    expect(undone.round.status).toBe('paused');
+    expect(undone.round.currentEntryId).toBe(firstId);
+    expect(computeFlashcardStudyCounts(undone.round.entries).processed).toBe(0);
+  });
+
   it('checkpoint and claim do not restore an old controller or rewind versions', () => {
     const started = sequenceRound();
     const advanced = reduceStudyRound(started, {
@@ -438,6 +507,66 @@ describe('validation and terminal guards', () => {
         before: { round: started },
       }),
     ).toThrow(StudyUndoConflictError);
+  });
+
+  it('rejects next and rate while paused', () => {
+    const started = sequenceRound();
+    const paused = reduceStudyRound(started, {
+      type: 'pause',
+      expectedRevision: started.revision,
+      controlEpoch: started.controlEpoch,
+      now: LATER,
+    });
+    expect(() =>
+      reduceStudyRound(paused.round, {
+        type: 'next',
+        expectedRevision: paused.round.revision,
+        controlEpoch: paused.round.controlEpoch,
+        entryId: paused.round.currentEntryId ?? '',
+        contentVersion: 'cv-1',
+        operationId: 'op-paused-next',
+        now: LATER,
+      }),
+    ).toThrow(/paused/i);
+
+    const { round, states } = scheduledRound();
+    const first = round.entries[0];
+    const cardId = first?.cardId;
+    if (!first || !cardId) throw new Error('expected cloze entry');
+    const previous = states.get(cardId);
+    if (!previous) throw new Error('expected review state');
+    const shown = reduceStudyRound(round, {
+      type: 'checkpoint',
+      expectedRevision: round.revision,
+      controlEpoch: round.controlEpoch,
+      entryId: first.entryId,
+      contentVersion: 'cv-1',
+      face: 'answer',
+      now: LATER,
+    });
+    const pausedRate = reduceStudyRound(shown.round, {
+      type: 'pause',
+      expectedRevision: shown.round.revision,
+      controlEpoch: shown.round.controlEpoch,
+      now: LATER,
+    });
+    expect(pausedRate.round.currentEntryId).toBe(first.entryId);
+    expect(pausedRate.round.face).toBe('answer');
+    expect(() =>
+      reduceStudyRound(pausedRate.round, {
+        type: 'rate-result',
+        expectedRevision: pausedRate.round.revision,
+        controlEpoch: pausedRate.round.controlEpoch,
+        entryId: first.entryId,
+        contentVersion: 'cv-1',
+        rating: 'good',
+        expectedReviewStateRevision: 0,
+        operationId: 'op-paused-rate',
+        now: LATER,
+        nextReviewState: { ...previous, reps: 1, revision: 1 },
+        previousReviewState: previous,
+      }),
+    ).toThrow(/paused/i);
   });
 
   it('treats invalidated as not learning', () => {
