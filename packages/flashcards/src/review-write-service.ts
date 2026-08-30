@@ -88,7 +88,7 @@ export function createReviewWriteService(coordinator: StudyCoordinator): ReviewW
     },
 
     async applyTarget(state) {
-      await reviewStates.write(state);
+      return coordinator.runExclusive(() => coordinator.writeTargetReviewState(state));
     },
 
     async deleteForItem(itemId) {

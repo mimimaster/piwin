@@ -16,7 +16,7 @@ import {
 import { createCardStore, type CardStore } from './card-store.js';
 import { parseReviewCardId } from './cloze.js';
 import { getFlashcardsRoot } from './paths.js';
-import { applyRatingToReviewState } from './review-write-service.js';
+import { applyRatingToReviewState, createReviewWriteService } from './review-write-service.js';
 import { buildStudyCatalogPage } from './study-catalog.js';
 import { digestPayload } from './study-content-version.js';
 import { createStudyRound, reduceStudyRound } from './study-round-reducer.js';
@@ -118,6 +118,7 @@ export function createStudyServices(options: {
 
 export function createStudyService(options: StudyServiceOptions): StudyService {
   const { coordinator, cards } = options;
+  const reviewWrites = createReviewWriteService(coordinator);
 
   async function finishIdempotent(
     idempotencyKey: string,
@@ -253,7 +254,13 @@ export function createStudyService(options: StudyServiceOptions): StudyService {
             roundId: newRoundId(),
             mode: input.mode,
             scope: input.scope,
-            entries: await buildStartEntries(coordinator, cards, input.mode, input.scope),
+            entries: await buildStartEntries(
+              coordinator,
+              cards,
+              input.mode,
+              input.scope,
+              reviewWrites,
+            ),
             controllerIdentity: input.controllerIdentity,
             now,
           });

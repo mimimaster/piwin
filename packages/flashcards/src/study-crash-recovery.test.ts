@@ -411,6 +411,67 @@ describe('study crash recovery', () => {
     });
     expect(await countOperationFiles(ctx.coordinator.flashcardsRoot)).toBeGreaterThanOrEqual(3);
   });
+
+  it('recovery of a committed-but-unapplied log fires onApplied once', async () => {
+    const ctx = await scheduledReady();
+    arm(ctx, { crashAt: 'after-log-durable' });
+    await expect(
+      ctx.study.rate({
+        idempotencyKey: 'rate-push',
+        controllerIdentity: IDENTITY,
+        roundId: ctx.started.round.roundId,
+        expectedRevision: ctx.started.round.revision,
+        controlEpoch: ctx.started.round.controlEpoch,
+        entryId: ctx.entryId,
+        contentVersion: ctx.contentVersion,
+        rating: 'good',
+        expectedReviewStateRevision: 0,
+      }),
+    ).rejects.toBeInstanceOf(StudyCrashError);
+
+    const applied: Array<{ roundId: string; revision: number; reason: string }> = [];
+    const again = await restart(ctx.piwinRoot, {
+      onApplied: (event) => applied.push(event),
+    });
+    await again.recover();
+    expect(applied).toEqual([
+      expect.objectContaining({
+        roundId: ctx.started.round.roundId,
+        reason: 'rate',
+      }),
+    ]);
+    await again.study.operation('rate-push');
+    expect(applied).toHaveLength(1);
+  });
+
+  it('operation lookup applies an unapplied commit and fires onApplied', async () => {
+    const ctx = await sequenceReady();
+    arm(ctx, { crashAt: 'after-log-durable' });
+    await expect(
+      ctx.study.next({
+        idempotencyKey: 'next-push',
+        controllerIdentity: IDENTITY,
+        roundId: ctx.started.round.roundId,
+        expectedRevision: ctx.started.round.revision,
+        controlEpoch: ctx.started.round.controlEpoch,
+        entryId: ctx.entryId,
+        contentVersion: ctx.contentVersion,
+      }),
+    ).rejects.toBeInstanceOf(StudyCrashError);
+
+    const applied: Array<{ roundId: string; reason: string }> = [];
+    const again = await restart(ctx.piwinRoot, {
+      onApplied: (event) => applied.push(event),
+    });
+    const looked = await again.study.operation('next-push');
+    expect(looked.status).toBe('success');
+    expect(applied).toEqual([
+      expect.objectContaining({
+        roundId: ctx.started.round.roundId,
+        reason: 'next',
+      }),
+    ]);
+  });
 });
 
 describe('study service start/get', () => {
