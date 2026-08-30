@@ -284,6 +284,64 @@ describe('flashcard study host commands', () => {
     expect(sanitized.tiles[0]?.preview).toBe('What is mitosis?');
   });
 
+  it('operation lookup is principal-scoped and sanitizes snapshots', async () => {
+    const context = await openContext(IDENTITY, 'start-op');
+    const store = createStudyServices({ piwinRoot: context.piwinRoot }).cardStore;
+    await store.create({
+      front: 'owner-question',
+      back: 'owner-answer-secret',
+      sequenceId: 'seq',
+      position: 1,
+    });
+    await store.create({ front: 'Q2', back: 'A2', sequenceId: 'seq', position: 2 });
+    const started = dataOf(
+      await handleFlashcardStudyCommand(
+        {
+          type: 'flashcards/study/start',
+          mode: 'sequence',
+          scope: { kind: 'sequence', sequenceId: 'seq' },
+          resumeExisting: true,
+        },
+        'r1',
+        { ...context, idempotencyKey: 'start-op' },
+      ),
+    );
+    const round = started.round as { roundId: string; revision: number; controlEpoch: number };
+    const current = started.current as { entryId: string; contentVersion: string };
+    await handleFlashcardStudyCommand(
+      {
+        type: 'flashcards/study/next',
+        roundId: round.roundId,
+        expectedRevision: round.revision,
+        controlEpoch: round.controlEpoch,
+        entryId: current.entryId,
+        contentVersion: current.contentVersion,
+      },
+      'r2',
+      { ...context, idempotencyKey: 'next-owned' },
+    );
+
+    const owner = dataOf(
+      await handleFlashcardStudyCommand(
+        { type: 'flashcards/study/operation', idempotencyKey: 'next-owned' },
+        'r3',
+        { ...context, controllerIdentity: IDENTITY },
+      ),
+    );
+    expect(owner.status).toBe('success');
+
+    const other = await handleFlashcardStudyCommand(
+      { type: 'flashcards/study/operation', idempotencyKey: 'next-owned' },
+      'r4',
+      { ...context, controllerIdentity: OTHER },
+    );
+    const otherData = dataOf(other);
+    expect(otherData.status).toBe('not-found');
+    const serialized = JSON.stringify(other);
+    expect(serialized).not.toContain('owner-question');
+    expect(serialized).not.toContain('owner-answer-secret');
+  });
+
   it('mutations without an envelope key fail closed', async () => {
     const context = await openContext(IDENTITY);
     const response = await handleFlashcardStudyCommand(

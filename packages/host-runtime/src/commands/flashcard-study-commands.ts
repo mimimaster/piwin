@@ -13,6 +13,7 @@ import {
   type FlashcardStudyChangedReason,
   type FlashcardStudyHostCommand,
   type FlashcardStudyMutationType,
+  type FlashcardStudyOperationResult,
   type FlashcardStudySnapshot,
   type HostCommand,
   type HostPush,
@@ -90,7 +91,8 @@ async function dispatchStudy(
       return ok(requestId, command.type, sanitizeSnapshot(snapshot));
     }
     case 'flashcards/study/operation': {
-      return ok(requestId, command.type, await study.operation(command.idempotencyKey));
+      const result = await study.operation(command.idempotencyKey, identity);
+      return ok(requestId, command.type, sanitizeOperationResult(result));
     }
     default:
       return mutate(command, requestId, context, study, identity);
@@ -248,6 +250,13 @@ export function sanitizeSnapshot(snapshot: FlashcardStudySnapshot): FlashcardStu
   const next = { ...current };
   if (next.sourceTitle) next.sourceTitle = safeSourceTitle(next.sourceTitle);
   return { ...snapshot, current: next };
+}
+
+export function sanitizeOperationResult(
+  result: FlashcardStudyOperationResult,
+): FlashcardStudyOperationResult {
+  if (result.status !== 'success') return result;
+  return { status: 'success', snapshot: sanitizeSnapshot(result.snapshot) };
 }
 
 function safeSourceTitle(value: string): string {
