@@ -1,53 +1,31 @@
 /**
  * Project open/trust + session lifecycle + chat ops (edit/retry/abort/compact).
  */
-import { useCallback, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useRef, type Dispatch, type SetStateAction } from 'react';
 import type {
-  ExecutionRunRecord,
   ModelRef,
-  PermissionDecision,
-  PermissionRememberScope,
   SessionListData,
   SessionListOrder,
-  SessionPauseAcceptedData,
-  SessionResumeRunAcceptedData,
   SessionScope,
-  SessionStorageInfo,
   SessionSummary,
-  SessionTranscriptMessage,
-  SessionTranscriptPageInfo,
-  SessionTranscriptWindowData,
-  SessionUserMessageAnchor,
-  SessionUserMessageIndexData,
 } from '@piwin/contracts';
-import {
-  SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
-  SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS,
-  SESSION_TRANSCRIPT_WINDOW_DEFAULT_AFTER_ITEMS,
-  SESSION_TRANSCRIPT_WINDOW_DEFAULT_BEFORE_ITEMS,
-  SESSION_USER_MESSAGE_INDEX_DEFAULT_TICKS,
-  formatError,
-  toModelRef,
-} from '@piwin/contracts';
+import { toModelRef } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
 import type { ChatUiAction, ChatUiState, SessionListItemUi } from '../chat-reducer';
 import type { NotificationAction } from '../notification-queue';
-import { pushError, pushInfo, pushSuccess } from '../notification-queue';
+import { pushError, pushSuccess } from '../notification-queue';
 import { appendHostLogEntry, type HostLogEntry } from '../HostLogPanel';
 import type { SessionRowMenuAction } from '../session-row-menu';
 import { isDesktopShellRuntime, pickProjectDirectory } from '../pick-project-directory';
 import { summaryToListItem } from './session-list-item';
 import { sessionHasListName } from '../title-display';
-import { resolveSessionOutline } from '../transcript-outline';
 import { chooseSessionExportPath } from '../session-export-dialog';
-import { chooseSessionPackPath } from '../session-pack-dialog';
 import { isSessionBodyOffloaded } from '../session-storage-ui';
 import { forgetTranscriptScrollPosition } from '../transcript-scroll-memory';
 import { transcriptOwnerBlocksDangerousAction } from '../transcript-owner-guard';
 import { desktopSessionListMaxItems } from '../session-list-policy';
 import { sessionScopeKey } from '../session-scope-key';
 import { findSessionForLookup } from '../session-list-lookup';
-import { requestSessionTranscriptPage } from '../session-transcript-page-request';
 import {
   activateProjectOnHost,
   isOpaqueRemoteProjectId,
@@ -57,12 +35,13 @@ import {
   sessionListCommandForTransport,
 } from '../remote-session-hydrate';
 import { isWorkbenchHostTeardownError } from '../workbench-host-teardown.js';
-import { shouldBlockRemoteHostGesture } from '../host-reconnect-gate.js';
-import { desktopForegroundMutationsEnabled } from '../foreground-admission.js';
-import { hostFailureNotice, hostReconnectNotice } from '../host-problem-copy.js';
 import { useDesktopLocale } from '../desktop-locale-context';
 import { findAdjacentSessionId } from '../session-navigation';
 import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
+import { resolveKnownSessionScope } from './session-actions-helpers.js';
+import { useSessionResume } from './use-session-resume.js';
+import { useSessionRunActions } from './use-session-run-actions.js';
+import { useSessionTranscriptActions } from './use-session-transcript-actions.js';
 
 export type ModelOption = {
   providerId: string;
@@ -72,41 +51,6 @@ export type ModelOption = {
   thinkingLevels?: readonly import('@piwin/contracts').ThinkingLevel[];
   reasoning?: boolean;
 };
-
-function compactFailureMessage(error: string, locale: string): string {
-  const lower = error.toLowerCase();
-  if (lower.includes('nothing to compact') || lower.includes('session too small')) {
-    return locale === 'zh-CN'
-      ? '模型侧几乎没有可压缩的历史。如果刚恢复会话，先再发一轮再 /compact。'
-      : 'Nothing to compact in the live model session. If this session was just restored, send another turn first.';
-  }
-  if (lower.includes('already compacted')) {
-    return locale === 'zh-CN' ? '这段上下文已经压缩过了。' : 'This context is already compacted.';
-  }
-  if (lower.includes('session-busy') || lower.includes('foreground-run')) {
-    return locale === 'zh-CN'
-      ? '当前回合还在跑，没法压缩。等它结束或先 /stop。'
-      : 'Cannot compact while a run is in progress. Wait or /stop first.';
-  }
-  return error;
-}
-
-function resolveKnownSessionScope(state: ChatUiState, sessionId: string): SessionScope {
-  for (const [projectPath, sessions] of Object.entries(state.projectSessionsByPath)) {
-    const session = sessions.find((item) => item.id === sessionId);
-    if (session) {
-      return session.scope?.kind === 'project' ? session.scope : { kind: 'project', projectPath };
-    }
-  }
-  const generalSession = state.generalSessions.find((item) => item.id === sessionId);
-  if (generalSession?.scope) {
-    return generalSession.scope;
-  }
-  if (generalSession) {
-    return { kind: 'general' };
-  }
-  return state.activeScope;
-}
 
 export type UseSessionActionsArgs = {
   hostClient: HostClient;
@@ -154,115 +98,22 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     onSessionComposerProfileRestored,
   } = args;
   const { locale } = useDesktopLocale();
-  // Multiple event handlers can ask for the first session before React has
-  // committed activeSessionId. Share one create request per selected scope.
   const pendingSessionCreations = useRef(new Map<string, Promise<string | null>>());
   const sessionListRequestGenerations = useRef(new Map<string, number>());
   const sessionListMutationEpochRef = useRef(state.sessionListMutationEpoch);
   sessionListMutationEpochRef.current = state.sessionListMutationEpoch;
-  const transcriptHistoryRequestSessionId = useRef<string | null>(null);
-  const historySeekRequestGeneration = useRef(0);
-  const [transcriptHistoryLoading, setTranscriptHistoryLoading] = useState(false);
-  const [coldRestorePrompt, setColdRestorePrompt] = useState<{
-    sessionId: string;
-    storage: SessionStorageInfo;
-  } | null>(null);
-
-  const hydrateQueuedTurns = useCallback(
-    async (sessionId: string): Promise<void> => {
-      const response = await hostClient.request({
-        type: 'session/queued-turn-list',
-        sessionId,
-      });
-      if (!response.success) return;
-      const data = response.data as {
-        queueRevision?: unknown;
-        queuedTurns?: unknown;
-      } | undefined;
-      if (
-        data === undefined ||
-        !Number.isSafeInteger(data.queueRevision) ||
-        !Array.isArray(data.queuedTurns)
-      )
-        return;
-      const queueRevision = data.queueRevision as number;
-      dispatch({
-        type: 'session/queued-turns-hydrate',
-        sessionId,
-        queueRevision,
-        queuedTurns: data.queuedTurns as import('@piwin/contracts').QueuedTurnRecord[],
-      });
-    },
-    [dispatch, hostClient],
-  );
-
-  const loadUserMessageIndex = useCallback(
-    async (sessionId: string, epoch: number): Promise<void> => {
-      const response = await hostClient.request({
-        type: 'session/user-message-index',
-        query: {
-          sessionId,
-          maximumTicks: SESSION_USER_MESSAGE_INDEX_DEFAULT_TICKS,
-        },
-      });
-      if (!response.success) {
-        // The rail can continue using resident user rows while an older Host
-        // or a cold session does not expose the optional index capability.
-        return;
-      }
-      const index = response.data as SessionUserMessageIndexData;
-      dispatch({ type: 'session/user-message-index', sessionId, epoch, index });
-    },
-    [dispatch, hostClient],
-  );
-
-  const handleJumpToHistoryAnchor = useCallback(
-    async (anchor: SessionUserMessageAnchor): Promise<void> => {
-      const sessionId = state.activeSessionId;
-      if (!sessionId) {
-        return;
-      }
-      const requestGeneration = historySeekRequestGeneration.current + 1;
-      historySeekRequestGeneration.current = requestGeneration;
-      const epoch = state.userMessageIndexEpoch;
-      const response = await hostClient.request({
-        type: 'session/transcript-window',
-        query: {
-          sessionId,
-          anchorMessageId: anchor.messageId,
-          beforeItems: SESSION_TRANSCRIPT_WINDOW_DEFAULT_BEFORE_ITEMS,
-          afterItems: SESSION_TRANSCRIPT_WINDOW_DEFAULT_AFTER_ITEMS,
-          maximumBytes: SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
-        },
-      });
-      if (historySeekRequestGeneration.current !== requestGeneration) {
-        return;
-      }
-      if (!response.success) {
-        dispatchNotification(pushError(response.error));
-        return;
-      }
-      const data = response.data as SessionTranscriptWindowData;
-      if (data.status === 'window') {
-        dispatch({
-          type: 'session/seek-messages',
-          sessionId,
-          epoch,
-          messages: data.messages,
-          window: data.window,
-        });
-      }
-    },
-    [dispatch, hostClient, state.activeSessionId, state.userMessageIndexEpoch],
-  );
-
-  const handleReturnToLiveTranscript = useCallback((): void => {
-    historySeekRequestGeneration.current += 1;
-    const sessionId = state.activeSessionId;
-    if (sessionId) {
-      dispatch({ type: 'session/return-to-live', sessionId });
-    }
-  }, [dispatch, state.activeSessionId]);
+  const {
+    transcriptHistoryLoading,
+    loadUserMessageIndex,
+    handleJumpToHistoryAnchor,
+    handleReturnToLiveTranscript,
+    handleLoadOlderTranscript,
+  } = useSessionTranscriptActions({
+    hostClient,
+    state,
+    dispatch,
+    dispatchNotification,
+  });
 
   const selectedModelRef = useCallback((): ModelRef | undefined => {
     if (!selectedModelKey) {
@@ -369,387 +220,39 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     [dispatch, hostClient, sessionListOrder, showArchivedSessions, state.activeScope],
   );
 
-  const handleResumeSession = useCallback(
-    async (
-      sessionId: string,
-      context?: { scope?: SessionScope; quiet?: boolean },
-    ): Promise<void> => {
-      if (shouldBlockRemoteHostGesture(hostClient)) {
-        dispatchNotification(pushInfo(hostReconnectNotice(locale)));
-        return;
-      }
-      const effectiveActiveScope = context?.scope ?? state.activeScope;
-      const targetScopeHint = context?.scope ?? resolveSessionScopeHint?.(sessionId);
-      // Project ownership wins when a session is dual-listed (the bug that
-      // painted the same row under both Projects and Conversations).
-      const knownProjectPath =
-        Object.entries(state.projectSessionsByPath).find(([, list]) =>
-          list.some((session) => session.id === sessionId),
-        )?.[0] ?? (targetScopeHint?.kind === 'project' ? targetScopeHint.projectPath : undefined);
-      const knownGeneral =
-        state.generalSessions.some((session) => session.id === sessionId) ||
-        targetScopeHint?.kind === 'general';
-      const existingListItem =
-        knownProjectPath != null
-          ? state.projectSessionsByPath[knownProjectPath]?.find(
-              (session) => session.id === sessionId,
-            )
-          : (state.generalSessions.find((session) => session.id === sessionId) ??
-            state.sessions.find((session) => session.id === sessionId));
-
-      if (
-        knownProjectPath &&
-        (effectiveActiveScope.kind !== 'project' ||
-          effectiveActiveScope.projectPath !== knownProjectPath)
-      ) {
-        // Switch into the owning project without going through handleOpenProject
-        // (that helper also resumes, which would recurse).
-        const activation = await activateProjectOnHost(
-          (command) => hostClient.request(command),
-          hostClient.getTransport(),
-          knownProjectPath,
-        );
-        if (!activation.ok) {
-          dispatchNotification(pushError(activation.error));
-          return;
-        }
-        if (!activation.trusted) {
-          dispatch({ type: 'project/set', path: activation.path, trusted: false });
-          dispatchNotification(pushError('Project is not trusted on the Host.'));
-          return;
-        }
-        dispatch({ type: 'project/set', path: activation.path, trusted: true });
-        await hydrateSessions(activation.path, {
-          fillActiveList: true,
-        });
-        void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
-      }
-      if (knownGeneral && !knownProjectPath && effectiveActiveScope.kind === 'project') {
-        dispatch({ type: 'project/clear' });
-        await hydrateSessions(
-          { kind: 'general' },
-          {
-            includeArchived: showArchivedSessions,
-          },
-        );
-      }
-
-      if (isSessionBodyOffloaded(existingListItem?.storage)) {
-        const storage = existingListItem?.storage;
-        if (storage) {
-          setColdRestorePrompt({ sessionId, storage });
-        }
-        return;
-      }
-
-      dispatch({ type: 'session/set', sessionId, awaitTranscript: true });
-      const resumed = await hostClient.request({
-        type: 'session/resume',
-        sessionId,
-      });
-      if (!resumed.success) {
-        if (context?.quiet !== true) {
-          dispatchNotification(
-            pushError(
-              isWorkbenchHostTeardownError(resumed.error)
-                ? hostReconnectNotice(locale)
-                : `${resumed.error} — start a New session to continue in this process.`,
-            ),
-          );
-        }
-        // Clear the painted previous transcript and exit awaitingTranscript so
-        // the UI does not stay stuck showing another session's rows.
-        dispatch({
-          type: 'session/load-messages',
-          sessionId,
-          messages: [],
-          live: false,
-        });
-        return;
-      }
-      const data = resumed.data as {
-        sessionId: string;
-        live: boolean;
-        messages?: SessionTranscriptMessage[];
-        transcriptPage?: SessionTranscriptPageInfo;
-        outline?: import('@piwin/contracts').SessionOutlineNode[];
-        model?: ModelRef;
-        thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
-        contextUsage?: import('@piwin/contracts').ContextUsageSnapshot;
-        scope?: import('@piwin/contracts').SessionScope;
-        projectPath?: string;
-        name?: string;
-      };
-      // Host scope is authoritative. Prefer explicit scope; only treat a
-      // non-empty projectPath as project when scope is missing (legacy).
-      const resumedProjectPath =
-        data.scope?.kind === 'project'
-          ? data.scope.projectPath
-          : data.scope?.kind === 'general'
-            ? null
-            : data.projectPath?.trim()
-              ? data.projectPath
-              : null;
-      if (
-        resumedProjectPath &&
-        (effectiveActiveScope.kind !== 'project' ||
-          effectiveActiveScope.projectPath !== resumedProjectPath) &&
-        knownProjectPath !== resumedProjectPath
-      ) {
-        const activation = await activateProjectOnHost(
-          (command) => hostClient.request(command),
-          hostClient.getTransport(),
-          resumedProjectPath,
-        );
-        if (activation.ok && activation.trusted) {
-          dispatch({ type: 'project/set', path: activation.path, trusted: true });
-          await hydrateSessions(activation.path, {
-            fillActiveList: true,
-            includeArchived: showArchivedSessions,
-          });
-          void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
-          dispatch({ type: 'session/set', sessionId, awaitTranscript: true });
-        } else if (!activation.ok) {
-          dispatch({ type: 'error', message: activation.error });
-        }
-      }
-      if (
-        data.scope?.kind === 'general' &&
-        effectiveActiveScope.kind === 'project' &&
-        !knownGeneral &&
-        !resumedProjectPath
-      ) {
-        dispatch({ type: 'project/clear' });
-        await hydrateSessions(
-          { kind: 'general' },
-          {
-            includeArchived: showArchivedSessions,
-          },
-        );
-        dispatch({ type: 'session/set', sessionId, awaitTranscript: true });
-      }
-      // Re-assert ownership with host scope so dual-listed rows collapse to
-      // the correct sidebar section (project vs Conversations).
-      if (data.scope || data.name || data.model || data.thinkingLevel !== undefined) {
-        dispatch({
-          type: 'session/update',
-          session: {
-            id: sessionId,
-            name: data.name ?? existingListItem?.name ?? '',
-            ...(data.scope ? { scope: data.scope } : {}),
-            ...(data.model ? { model: data.model } : {}),
-            ...(data.thinkingLevel !== undefined ? { thinkingLevel: data.thinkingLevel } : {}),
-          },
-        });
-      }
-      // Hydrate child summaries in the background so the activity dock and
-      // inspector have data without blocking transcript load. The reducer
-      // ignores children whose parent is not the active session, so a stale
-      // response for a switched-away parent cannot leak into the UI.
-      void (async () => {
-        const childrenResponse = await hostClient.request({
-          type: 'session/list-children',
-          parentSessionId: sessionId,
-        });
-        if (!childrenResponse.success) {
-          return;
-        }
-        const childrenData = childrenResponse.data as
-          | {
-              sessions?: SessionSummary[];
-              invocations?: import('@piwin/contracts').SubagentInvocation[];
-            }
-          | undefined;
-        dispatch({
-          type: 'subagent/children-hydrate',
-          parentSessionId: sessionId,
-          children: childrenData?.sessions ?? [],
-        });
-        dispatch({
-          type: 'subagent/invocations-hydrate',
-          parentSessionId: sessionId,
-          invocations: childrenData?.invocations ?? [],
-        });
-      })();
-      if (data.model || data.thinkingLevel !== undefined) {
-        onSessionComposerProfileRestored?.({
-          ...(data.model ? { model: data.model } : {}),
-          ...(data.thinkingLevel !== undefined ? { thinkingLevel: data.thinkingLevel } : {}),
-        });
-      }
-      const messages = data.messages ?? [];
-      if (messages.length === 0 && data.transcriptPage === undefined) {
-        // Legacy Host compatibility only. Page-aware Hosts mark an empty tail
-        // explicitly, so Desktop never falls back to a complete-array read.
-        const listed = await hostClient.request({
-          type: 'session/messages',
-          sessionId,
-        });
-        if (listed.success) {
-          const listedData = listed.data as { messages: SessionTranscriptMessage[] };
-          const outlineInput: {
-            transcriptMessages: SessionTranscriptMessage[];
-            outline?: import('@piwin/contracts').SessionOutlineNode[] | null;
-          } = { transcriptMessages: listedData.messages };
-          if (data.outline !== undefined) {
-            outlineInput.outline = data.outline;
-          }
-          const outline = resolveSessionOutline(outlineInput);
-          dispatch({
-            type: 'session/load-messages',
-            sessionId,
-            messages: listedData.messages,
-            outline,
-            contextUsage: data.contextUsage ?? null,
-            live: data.live,
-          });
-          await hydrateQueuedTurns(sessionId);
-          return;
-        }
-      }
-      const outlineInput: {
-        transcriptMessages: SessionTranscriptMessage[];
-        outline?: import('@piwin/contracts').SessionOutlineNode[] | null;
-      } = { transcriptMessages: messages };
-      if (data.outline !== undefined) {
-        outlineInput.outline = data.outline;
-      }
-      const outline = resolveSessionOutline(outlineInput);
-      dispatch({
-        type: 'session/load-messages',
-        sessionId,
-        messages,
-        ...(data.transcriptPage ? { transcriptPage: data.transcriptPage } : {}),
-        outline,
-        contextUsage: data.contextUsage ?? null,
-        live: data.live,
-      });
-      await hydrateQueuedTurns(sessionId);
-    },
-    [
-      dispatch,
-      dispatchNotification,
-      hydrateQueuedTurns,
-      hostClient,
-      hydrateSessions,
-      locale,
-      onSessionComposerProfileRestored,
-      resolveSessionScopeHint,
-      showArchivedSessions,
-      state.activeScope,
-      state.generalSessions,
-      state.projectSessionsByPath,
-      state.sessions,
-    ],
-  );
-
-  const confirmColdRestore = useCallback(
-    async (packPath?: string): Promise<void> => {
-      if (!coldRestorePrompt) {
-        return;
-      }
-      const sessionId = coldRestorePrompt.sessionId;
-      const resolvedPackPath =
-        packPath ??
-        (coldRestorePrompt.storage.state === 'missing-pack'
-          ? ((await chooseSessionPackPath('Choose session pack')) ?? undefined)
-          : coldRestorePrompt.storage.packPath);
-      if (coldRestorePrompt.storage.state === 'missing-pack' && !resolvedPackPath) {
-        return;
-      }
-      const response = await hostClient.request({
-        type: 'session/cold-storage-restore',
-        sessionId,
-        ...(resolvedPackPath ? { packPath: resolvedPackPath } : {}),
-      });
-      if (!response.success) {
-        dispatchNotification(pushError(response.error));
-        return;
-      }
-      const existing =
-        state.sessions.find((item) => item.id === sessionId) ??
-        state.generalSessions.find((item) => item.id === sessionId);
-      if (existing) {
-        const next = { ...existing };
-        delete next.storage;
-        dispatch({ type: 'session/update', session: next });
-      }
-      setColdRestorePrompt(null);
-      await handleResumeSession(sessionId);
-    },
-    [
-      coldRestorePrompt,
-      dispatch,
-      dispatchNotification,
-      handleResumeSession,
-      hostClient,
-      state.generalSessions,
-      state.sessions,
-    ],
-  );
-
-  const handleLoadOlderTranscript = useCallback(async (): Promise<void> => {
-    const sessionId = state.activeSessionId;
-    const transcriptWindow = state.transcriptWindow;
-    const olderCursor = transcriptWindow?.olderCursor;
-    if (
-      !sessionId ||
-      !transcriptWindow ||
-      !olderCursor ||
-      transcriptWindow.cacheLimitReached ||
-      transcriptHistoryRequestSessionId.current !== null
-    ) {
-      return;
-    }
-
-    transcriptHistoryRequestSessionId.current = sessionId;
-    setTranscriptHistoryLoading(true);
-    try {
-      const pageResult = await requestSessionTranscriptPage(
-        (command) => hostClient.request(command),
-        {
-          sessionId,
-          limit: SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS,
-          maximumBytes: SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
-          beforeCursor: olderCursor,
-        },
-      );
-      if (!pageResult.success) {
-        dispatchNotification(pushError(pageResult.error));
-        return;
-      }
-      if (!pageResult.restartedAtTail) {
-        dispatch({
-          type: 'session/prepend-messages',
-          sessionId,
-          messages: pageResult.data.messages,
-          transcriptPage: pageResult.data.page,
-        });
-        return;
-      }
-
-      dispatch({
-        type: 'session/load-messages',
-        sessionId,
-        messages: pageResult.data.messages,
-        transcriptPage: pageResult.data.page,
-        outline: state.outline,
-        preserveActiveTail: true,
-      });
-    } finally {
-      if (transcriptHistoryRequestSessionId.current === sessionId) {
-        transcriptHistoryRequestSessionId.current = null;
-        setTranscriptHistoryLoading(false);
-      }
-    }
-  }, [
+  const {
+    handleResumeSession,
+    handleNewSession,
+    confirmColdRestore,
+    coldRestorePrompt,
+    clearColdRestorePrompt,
+    setColdRestorePrompt,
+    bumpToDraft,
+  } = useSessionResume({
+    hostClient,
+    state,
     dispatch,
     dispatchNotification,
+    locale,
+    showArchivedSessions,
+    ...(resolveSessionScopeHint ? { resolveSessionScopeHint } : {}),
+    hydrateSessions,
+    ...(onSessionComposerProfileRestored ? { onSessionComposerProfileRestored } : {}),
+  });
+  const {
+    handlePause,
+    handleResumeRun,
+    handleAbort,
+    handleCompact,
+    handleCompactAbort,
+    handlePermission,
+  } = useSessionRunActions({
     hostClient,
-    state.activeSessionId,
-    state.outline,
-    state.transcriptWindow,
-  ]);
+    state,
+    dispatch,
+    dispatchNotification,
+    locale,
+  });
 
   const ensureSession = useCallback(
     async (options?: {
@@ -1016,20 +519,6 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     ],
   );
 
-  // New session button: enter draft mode without creating a host session.
-  // The session is created lazily on first send via resolveSessionIdForComposer
-  // → ensureSession. This avoids cluttering the sidebar with unnamed sessions.
-  // The scope parameter is handled by callers (e.g. onNewGeneralSession does
-  // project/clear before calling this); here we only clear the active session.
-  const handleNewSession = useCallback(
-    async (_options?: {
-      scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
-    }): Promise<void> => {
-      dispatch({ type: 'session/clear-active' });
-    },
-    [dispatch],
-  );
-
   const handleExportSession = useCallback(
     async (options?: { format?: 'md' | 'html'; redactTools?: boolean }): Promise<void> => {
       const sessionId = state.activeSessionId;
@@ -1190,6 +679,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         if (nextSessionId) {
           await handleResumeSession(nextSessionId);
         } else {
+          bumpToDraft();
           dispatch({ type: 'session/clear-active' });
         }
         await hydrateSessions(sessionScope, { includeArchived: showArchivedSessions });
@@ -1207,6 +697,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     [
       dispatch,
       dispatchNotification,
+      bumpToDraft,
       handleResumeSession,
       hostClient,
       hydrateSessions,
@@ -1258,12 +749,13 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       const wasActive = state.activeSessionId === sessionId;
       dispatch({ type: 'session/remove', sessionId });
       if (wasActive) {
+        bumpToDraft();
         dispatch({ type: 'session/clear-active' });
       }
       dispatchNotification(pushSuccess('Agent deleted permanently'));
       return true;
     },
-    [dispatch, dispatchNotification, hostClient, state],
+    [bumpToDraft, dispatch, dispatchNotification, hostClient, state],
   );
 
   /** Request path kept for menu handlers that still need an entry point. */
@@ -1468,322 +960,6 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     ],
   );
 
-  const handlePause = useCallback(async (): Promise<void> => {
-    const sessionId = state.activeSessionId;
-    if (
-      !sessionId ||
-      state.runPhase === 'pausing' ||
-      state.runPhase === 'aborting' ||
-      (state.activeRunId === null && !state.streaming)
-    ) {
-      return;
-    }
-    if (!desktopForegroundMutationsEnabled(state)) {
-      return;
-    }
-    if (shouldBlockRemoteHostGesture(hostClient)) {
-      dispatchNotification(pushInfo(hostReconnectNotice(locale)));
-      return;
-    }
-
-    dispatch({ type: 'run/pausing' });
-    try {
-      let runId = state.activeRunId;
-      if (runId === null) {
-        const foregroundResponse = await hostClient.request({
-          type: 'session/foreground-run',
-          sessionId,
-        });
-        if (!foregroundResponse.success) {
-          dispatch({ type: 'run/pause-failed' });
-          dispatchNotification(pushError(hostFailureNotice(foregroundResponse, locale)));
-          return;
-        }
-        const foregroundRun = (
-          foregroundResponse.data as { run?: ExecutionRunRecord | null } | undefined
-        )?.run;
-        if (!foregroundRun) {
-          dispatch({ type: 'run/stale-clear', sessionId });
-          return;
-        }
-        runId = foregroundRun.runId;
-      }
-
-      const response = await hostClient.request(
-        { type: 'session/pause', sessionId, runId },
-        { idempotencyKey: createGestureIdempotencyKey() },
-      );
-      if (!response.success) {
-        dispatch({ type: 'run/pause-failed' });
-        dispatchNotification(pushError(hostFailureNotice(response, locale)));
-        return;
-      }
-      const data = response.data as SessionPauseAcceptedData | undefined;
-      if (data?.reason === 'run-mismatch') {
-        dispatch({ type: 'run/pause-failed' });
-        dispatchNotification(
-          pushError(
-            locale === 'zh-CN'
-              ? '暂停失败：当前运行已经变化，请重试。'
-              : 'Pause failed because the active run changed. Try again.',
-          ),
-        );
-        return;
-      }
-      if (data?.reason === 'no-active-run') {
-        dispatch({ type: 'run/stale-clear', sessionId });
-        return;
-      }
-      if (data?.state !== 'pausing' && data?.state !== 'paused') {
-        dispatch({ type: 'run/pause-failed' });
-        dispatchNotification(
-          pushError(
-            locale === 'zh-CN'
-              ? 'Host 未确认暂停请求，请重试。'
-              : 'The Host did not confirm the pause request. Try again.',
-          ),
-        );
-      }
-    } catch (error) {
-      dispatch({ type: 'run/pause-failed' });
-      dispatchNotification(pushError(formatError(error)));
-    }
-  }, [
-    dispatch,
-    dispatchNotification,
-    hostClient,
-    locale,
-    state.activeRunId,
-    state.activeSessionId,
-    state.foregroundAdmission,
-    state.runPhase,
-    state.streaming,
-  ]);
-
-  const handleResumeRun = useCallback(async (): Promise<void> => {
-    const sessionId = state.activeSessionId;
-    if (!sessionId || state.runTerminal.kind !== 'paused' || state.runPhase !== 'idle') {
-      return;
-    }
-    if (!desktopForegroundMutationsEnabled(state)) {
-      return;
-    }
-    if (shouldBlockRemoteHostGesture(hostClient)) {
-      dispatchNotification(pushInfo(hostReconnectNotice(locale)));
-      return;
-    }
-    try {
-      const response = await hostClient.request(
-        {
-          type: 'session/resume-run',
-          sessionId,
-          ...(state.runTerminal.checkpointId
-            ? { checkpointId: state.runTerminal.checkpointId }
-            : {}),
-        },
-        { idempotencyKey: createGestureIdempotencyKey() },
-      );
-      if (!response.success) {
-        dispatchNotification(pushError(hostFailureNotice(response, locale)));
-        return;
-      }
-      const data = response.data as SessionResumeRunAcceptedData | undefined;
-      if (!data?.runId) {
-        dispatchNotification(
-          pushError(
-            locale === 'zh-CN'
-              ? 'Host 未确认继续运行，请重试。'
-              : 'The Host did not confirm the resumed run. Try again.',
-          ),
-        );
-        return;
-      }
-      dispatch({ type: 'run/accepted', runId: data.runId, acceptedAt: data.acceptedAt });
-    } catch (error) {
-      dispatchNotification(pushError(formatError(error)));
-    }
-  }, [
-    dispatch,
-    dispatchNotification,
-    hostClient,
-    locale,
-    state.activeSessionId,
-    state.foregroundAdmission,
-    state.runPhase,
-    state.runTerminal,
-  ]);
-
-  const handleAbort = useCallback(async (): Promise<void> => {
-    if (
-      !state.activeSessionId ||
-      state.runPhase === 'pausing' ||
-      state.runPhase === 'aborting'
-    ) {
-      return;
-    }
-    if (!desktopForegroundMutationsEnabled(state)) {
-      return;
-    }
-    if (shouldBlockRemoteHostGesture(hostClient)) {
-      dispatchNotification(pushInfo(hostReconnectNotice(locale)));
-      return;
-    }
-    const live = state.activeRunId !== null || state.streaming;
-    if (live) {
-      dispatch({ type: 'run/aborting' });
-    }
-    const response = await hostClient.request(
-      {
-        type: 'session/abort',
-        sessionId: state.activeSessionId,
-        ...(state.activeRunId ? { runId: state.activeRunId } : {}),
-      },
-      { idempotencyKey: createGestureIdempotencyKey() },
-    );
-    if (!response.success) {
-      if (live) {
-        dispatch({ type: 'run/abort-failed' });
-      }
-      dispatchNotification(pushError(hostFailureNotice(response, locale)));
-      return;
-    }
-    const data = response.data as { cancelled?: boolean } | undefined;
-    if (data?.cancelled === true) {
-      return;
-    }
-    // Host had nothing to cancel (or only a leftover checkpoint). Leave idle.
-    if (live) {
-      dispatch({ type: 'run/stale-clear', sessionId: state.activeSessionId });
-    } else {
-      dispatch({ type: 'run/terminal-dismiss' });
-    }
-  }, [
-    dispatch,
-    dispatchNotification,
-    hostClient,
-    locale,
-    state.activeRunId,
-    state.activeSessionId,
-    state.foregroundAdmission,
-    state.runPhase,
-    state.streaming,
-  ]);
-
-  const handleCompact = useCallback(
-    async (customInstructions?: string): Promise<boolean> => {
-      if (!state.activeSessionId) {
-        dispatchNotification(
-          pushError(
-            locale === 'zh-CN'
-              ? '先选一个会话再压缩上下文。'
-              : 'Select a session before compacting.',
-          ),
-        );
-        return false;
-      }
-      if (state.compacting) {
-        dispatchNotification(
-          pushInfo(locale === 'zh-CN' ? '正在压缩上下文。' : 'Compaction already running.'),
-        );
-        return false;
-      }
-      if (state.streaming) {
-        dispatchNotification(
-          pushError(
-            locale === 'zh-CN'
-              ? '当前回合还在跑。等它结束，或先 /stop 再 /compact。'
-              : 'A run is still in progress. Wait for it to finish, or /stop then /compact.',
-          ),
-        );
-        return false;
-      }
-      const payload: {
-        type: 'session/compact';
-        sessionId: string;
-        customInstructions?: string;
-      } = {
-        type: 'session/compact',
-        sessionId: state.activeSessionId,
-      };
-      if (customInstructions && customInstructions.trim().length > 0) {
-        payload.customInstructions = customInstructions.trim();
-      }
-      try {
-        const response = await hostClient.request(payload);
-        if (!response.success) {
-          dispatchNotification(
-            pushError(compactFailureMessage(response.error, locale)),
-          );
-          return false;
-        }
-        const data = response.data as { ok?: boolean; message?: string } | undefined;
-        if (data?.ok === false) {
-          dispatchNotification(
-            pushError(compactFailureMessage(data.message ?? 'Compaction failed', locale)),
-          );
-          return false;
-        }
-        return true;
-      } catch (error) {
-        dispatchNotification(pushError(compactFailureMessage(formatError(error), locale)));
-        return false;
-      }
-    },
-    [
-      dispatchNotification,
-      hostClient,
-      locale,
-      state.activeSessionId,
-      state.compacting,
-      state.streaming,
-    ],
-  );
-
-  const handleCompactAbort = useCallback(async (): Promise<void> => {
-    if (!state.activeSessionId) {
-      return;
-    }
-    const response = await hostClient.request({
-      type: 'session/compact-abort',
-      sessionId: state.activeSessionId,
-    });
-    if (!response.success) {
-      dispatchNotification(pushError(response.error));
-    }
-  }, [dispatchNotification, hostClient, state.activeSessionId]);
-
-  const handlePermission = useCallback(
-    async (
-      decision: PermissionDecision,
-      rememberScope: PermissionRememberScope = 'once',
-    ): Promise<void> => {
-      const prompt = state.permissionPrompt;
-      if (!prompt) {
-        return;
-      }
-      const payload: {
-        type: 'permission/resolve';
-        requestId: string;
-        decision: PermissionDecision;
-        rememberScope?: PermissionRememberScope;
-      } = {
-        type: 'permission/resolve',
-        requestId: prompt.requestId,
-        decision,
-      };
-      if (decision === 'allow') {
-        payload.rememberScope = rememberScope;
-      }
-      const response = await hostClient.request(payload, {
-        idempotencyKey: createGestureIdempotencyKey(),
-      });
-      dispatch({ type: 'permission/clear', requestId: prompt.requestId });
-      if (!response.success) {
-        dispatchNotification(pushError(response.error));
-      }
-    },
-    [dispatch, dispatchNotification, hostClient, state.permissionPrompt],
-  );
 
   return {
     hydrateSessions,
@@ -1800,7 +976,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     handleResumeSession,
     coldRestorePrompt,
     confirmColdRestore,
-    clearColdRestorePrompt: () => setColdRestorePrompt(null),
+    clearColdRestorePrompt,
     handleLoadOlderTranscript,
     handleExportSession,
     handleTogglePin,
