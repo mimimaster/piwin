@@ -89,24 +89,9 @@ const TYPES = new Set<HostCommand['type']>([
 
 /** One notes rebuild at a time for this Host process. */
 let notesReindexInFlight: Promise<unknown> | undefined;
-/** Last-applied flashcard rate wins; overlapping rates for one card wait. */
-const flashcardRateChains = new Map<string, Promise<unknown>>();
 
 export function isKnowledgeCommand(command: HostCommand): boolean {
   return TYPES.has(command.type);
-}
-
-async function runSerializedCardRate<T>(cardId: string, work: () => Promise<T>): Promise<T> {
-  const previous = flashcardRateChains.get(cardId) ?? Promise.resolve();
-  const next = previous.catch(() => undefined).then(work);
-  flashcardRateChains.set(
-    cardId,
-    next.then(
-      () => undefined,
-      () => undefined,
-    ),
-  );
-  return next;
 }
 
 export async function handleKnowledgeCommand(
@@ -290,9 +275,7 @@ export async function handleKnowledgeCommand(
     }
     case 'flashcards/rate': {
       const store = await context.getCardStore();
-      const state = await runSerializedCardRate(command.cardId, () =>
-        store.rate(command.cardId, command.rating),
-      );
+      const state = await store.rate(command.cardId, command.rating);
       return ok(requestId, 'flashcards/rate', { state });
     }
     case 'flashcards/export': {
