@@ -19,6 +19,11 @@ export type {
 export { openTurnChangeStore } from './turn-changes/store.js';
 export type { TurnChangeStore } from './turn-changes/store.js';
 
+export { composeFileActions } from './turn-changes/compose.js';
+export type { ComposedFileAction, ComposeCoverage } from './turn-changes/compose.js';
+
+export { diffTurnChangeObjects } from './turn-changes/content-diff.js';
+
 export { probeGitRepository } from './repository-probe.js';
 
 export { parsePorcelainStatus, parsePorcelainFileLine } from './status-parser.js';

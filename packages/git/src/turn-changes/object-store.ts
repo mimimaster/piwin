@@ -13,6 +13,7 @@ const SHA256_HEX = /^[0-9a-f]{64}$/;
 export type TurnChangeObjectPutResult = { sha256: string; byteLength: number };
 
 export type TurnChangeObjectStore = {
+  readonly rootDir: string;
   put(bytes: Uint8Array): Promise<TurnChangeObjectPutResult>;
   get(sha256: string): Promise<Uint8Array>;
   stat(sha256: string): Promise<TurnChangeObjectPutResult | undefined>;
@@ -26,6 +27,7 @@ export function createTurnChangeObjectStore(options: {
   const rootDir = options.rootDir;
 
   return {
+    rootDir,
     async put(bytes: Uint8Array): Promise<TurnChangeObjectPutResult> {
       if (bytes.byteLength > maxObjectBytes) {
         throw new Error(`object exceeds maxObjectBytes (${maxObjectBytes})`);
