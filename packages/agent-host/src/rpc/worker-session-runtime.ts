@@ -49,8 +49,11 @@ import { normalizeGenerationToolCallId } from '../generation-identity.js';
 import { runTrackedPiPrompt } from '../pi-prompt-outcome-tracker.js';
 import {
   createPiContextSampler,
+  occupancyModelIdentityFromRef,
   publishSampledPiSessionEvents,
   readPiContextUsageSample,
+  sameOccupancyModelIdentity,
+  type OccupancyModelIdentity,
   type PiContextSampler,
 } from '../pi-context-sampler.js';
 
@@ -136,6 +139,7 @@ type RuntimeSession = {
   trailingRunId: string | undefined;
   unsubscribeInterventions?: () => void;
   sampler: PiContextSampler;
+  appliedModel?: OccupancyModelIdentity;
 };
 
 type PendingToolCall = {
@@ -275,7 +279,14 @@ export class WorkerSessionRuntime {
       extensionUi: this.createExtensionUiPort(payload.productSessionId),
       ...(proxyTools.length > 0 ? { proxyTools } : {}),
     });
-    this.attachSession(payload.productSessionId, handle, context);
+    this.attachSession(
+      payload.productSessionId,
+      handle,
+      context,
+      payload.blueprint.model
+        ? occupancyModelIdentityFromRef(payload.blueprint.model)
+        : undefined,
+    );
     this.sendResponse(id, true, { sessionId: handle.id });
   }
 
@@ -378,14 +389,21 @@ export class WorkerSessionRuntime {
     session.activeRunId = context.runId;
     session.handle.setActiveRunId?.(context.runId);
     if (payload.model) {
-      const eventContext: WorkerFrameContext = {
-        sessionId: session.productSessionId,
-        runtimeGenerationId: session.context.runtimeGenerationId,
-        runId: context.runId,
-      };
-      for (const extra of session.sampler.invalidateBaseline()) {
-        this.options.sendFrame({ type: 'event', context: eventContext, event: extra });
+      const nextModel = occupancyModelIdentityFromRef(payload.model);
+      if (
+        session.appliedModel !== undefined &&
+        !sameOccupancyModelIdentity(session.appliedModel, nextModel)
+      ) {
+        const eventContext: WorkerFrameContext = {
+          sessionId: session.productSessionId,
+          runtimeGenerationId: session.context.runtimeGenerationId,
+          runId: context.runId,
+        };
+        for (const extra of session.sampler.invalidateBaseline()) {
+          this.options.sendFrame({ type: 'event', context: eventContext, event: extra });
+        }
       }
+      session.appliedModel = nextModel;
     }
     const options =
       payload.images && payload.images.length > 0
@@ -649,6 +667,7 @@ export class WorkerSessionRuntime {
     sessionId: string,
     handle: WorkerPiSessionLike,
     context: WorkerFrameContext,
+    appliedModel?: OccupancyModelIdentity,
   ): void {
     const sampler = createPiContextSampler({
       sessionId,
@@ -702,6 +721,7 @@ export class WorkerSessionRuntime {
       activeRunId: undefined,
       trailingRunId: undefined,
       sampler,
+      ...(appliedModel !== undefined ? { appliedModel } : {}),
     };
     this.sessions.set(sessionId, session);
     if (handle.id !== sessionId) {
