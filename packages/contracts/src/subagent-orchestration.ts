@@ -51,7 +51,11 @@ import type {
   SubagentIntegrationStatus,
   SubagentSummaryStatus,
 } from './subagent-lifecycle.js';
-import type { SubagentDeliveryIntent, SubagentResultRef } from './subagent-delivery.js';
+import type {
+  ChangeVersionRef,
+  SubagentDeliveryIntent,
+  SubagentResultRef,
+} from './subagent-delivery.js';
 import type { SubagentApplyPolicy, SubagentIsolationMode } from './subagent.js';
 import type { SubagentCapability, SubagentRuntimeSnapshot } from './subagent-profile.js';
 import type { BackendPreparedPrompt } from './backend-prepared-prompt.js';
@@ -243,6 +247,10 @@ export type SubagentTaskResult = {
   worktreePath?: string;
   /** Relative paths that the integration operation is allowed to apply. */
   allowedOutputPaths?: string[];
+  /** Frozen child result identity. */
+  resultRef?: SubagentResultRef;
+  /** Child S0→S1 snapshot. Not the parent Git HEAD. */
+  childChanges?: ChangeVersionRef;
 };
 
 /** Batch-level result after all tasks settle. */

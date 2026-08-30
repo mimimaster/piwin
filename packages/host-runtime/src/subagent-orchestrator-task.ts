@@ -165,13 +165,19 @@ export async function dispatchTask(
       worktreeHandled = true;
     }
 
+    if (lease?.mode === 'worktree' && deps.freezeChildResult) {
+      result = await deps.freezeChildResult({ result, lease });
+    }
+
     if (
       result.executionStatus === 'completed' &&
       lease.mode === 'worktree' &&
       (result.integrationStatus === 'pending' || result.integrationStatus === 'not-requested')
     ) {
       const applyPolicy = task.applyPolicy ?? 'auto';
-      if (applyPolicy === 'auto' && task.retainWorktree !== true) {
+      const shouldIntegrate =
+        applyPolicy === 'auto' && task.deliveryIntent !== 'candidate' && task.deliveryIntent !== 'report';
+      if (shouldIntegrate) {
         result = await integrateTask(deps, result, lease, {
           signal,
           onCommitPoint: () => {

@@ -148,4 +148,9 @@ export type SubagentOrchestratorOptions = {
     parentSessionId: string;
     result: SubagentTaskResult;
   }) => void | Promise<void>;
+  /** Freeze child S0/S1 after the executor stops and before integrate. */
+  freezeChildResult?: (input: {
+    result: SubagentTaskResult;
+    lease: SubagentWorkspaceLease;
+  }) => Promise<SubagentTaskResult>;
 };

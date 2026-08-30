@@ -93,6 +93,7 @@ export class SubagentOrchestrator {
   private readonly unregisterTaskSession: SubagentOrchestratorOptions['unregisterTaskSession'];
   private readonly recordTaskPrompt: SubagentOrchestratorOptions['recordTaskPrompt'];
   private readonly onTaskResult: SubagentOrchestratorOptions['onTaskResult'];
+  private readonly freezeChildResult: SubagentOrchestratorOptions['freezeChildResult'];
   /** Active batches keyed by runId. */
   private readonly activeBatches = new Map<string, BatchState>();
 
@@ -120,6 +121,7 @@ export class SubagentOrchestrator {
     this.unregisterTaskSession = options.unregisterTaskSession;
     this.recordTaskPrompt = options.recordTaskPrompt;
     this.onTaskResult = options.onTaskResult;
+    this.freezeChildResult = options.freezeChildResult;
   }
 
   /**
@@ -477,6 +479,7 @@ export class SubagentOrchestrator {
       unregisterTaskSession: this.unregisterTaskSession,
       recordTaskPrompt: this.recordTaskPrompt,
       onTaskResult: this.onTaskResult,
+      freezeChildResult: this.freezeChildResult,
       emitPush: (batchState, message) => this.emitPush(batchState, message),
       activeBatches: this.activeBatches,
     };

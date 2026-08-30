@@ -51,6 +51,7 @@ export type SubagentOrchestratorContext = {
   unregisterTaskSession: SubagentOrchestratorOptions['unregisterTaskSession'];
   recordTaskPrompt: SubagentOrchestratorOptions['recordTaskPrompt'];
   onTaskResult: SubagentOrchestratorOptions['onTaskResult'];
+  freezeChildResult: SubagentOrchestratorOptions['freezeChildResult'];
   emitPush: (batchState: BatchState, message: HostPush) => void;
   activeBatches: Map<string, BatchState>;
 };
