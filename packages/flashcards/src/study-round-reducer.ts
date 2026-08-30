@@ -242,9 +242,6 @@ function applyUndo(
   restored.lastAdvanceOperationId = null;
   restored.controllerIdentity = round.controllerIdentity;
   restored.controlEpoch = round.controlEpoch;
-  restoreUndoneEntry(restored, before);
-  restored.status = round.status === 'completed' ? 'active' : round.status;
-  bumpRevision(restored, action.now);
 
   let reviewState: ReviewState | undefined;
   if (action.before.reviewState) {
@@ -254,6 +251,9 @@ function applyUndo(
       (ratedEntry?.reviewStateRevision ?? reviewStateRevision(action.before.reviewState)) + 1,
     );
   }
+  restoreUndoneEntry(restored, before, reviewState?.revision);
+  restored.status = round.status === 'completed' ? 'active' : round.status;
+  bumpRevision(restored, action.now);
   return { round: restored, ...(reviewState ? { reviewState } : {}) };
 }
 
@@ -360,14 +360,20 @@ function assertRevisionAndControl(
   }
 }
 
-function restoreUndoneEntry(round: FlashcardStudyRound, before: FlashcardStudyRound): void {
+function restoreUndoneEntry(
+  round: FlashcardStudyRound,
+  before: FlashcardStudyRound,
+  restoredReviewStateRevision?: number,
+): void {
   const undoneId = before.currentEntryId;
   if (!undoneId) return;
   const beforeEntry = before.entries.find((entry) => entry.entryId === undoneId);
   const currentEntry = round.entries.find((entry) => entry.entryId === undoneId);
   if (!beforeEntry || !currentEntry) return;
   currentEntry.state = beforeEntry.state;
-  if (beforeEntry.reviewStateRevision !== undefined) {
+  if (restoredReviewStateRevision !== undefined) {
+    currentEntry.reviewStateRevision = restoredReviewStateRevision;
+  } else if (beforeEntry.reviewStateRevision !== undefined) {
     currentEntry.reviewStateRevision = beforeEntry.reviewStateRevision;
   } else {
     delete currentEntry.reviewStateRevision;

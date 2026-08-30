@@ -249,6 +249,55 @@ describe('flashcard study host commands', () => {
     expect(lookup.snapshot).toEqual(first);
   });
 
+  it('start snapshot includes back and basename sourceTitle for the requester', async () => {
+    const context = await openContext(IDENTITY, 'start-source');
+    const store = createStudyServices({ piwinRoot: context.piwinRoot }).cardStore;
+    await store.create({
+      front: 'What is a TLB?',
+      back: 'translation-lookaside-buffer',
+      sourceFile: '/Users/secret/notes/tlb.md',
+      sourceFolder: '/Users/secret/notes',
+      sequenceId: 'seq-src',
+      position: 1,
+    });
+    await store.create({
+      front: 'What is a page table?',
+      back: 'virtual-to-physical',
+      sequenceId: 'seq-src',
+      position: 2,
+    });
+    const started = dataOf(
+      await handleFlashcardStudyCommand(
+        {
+          type: 'flashcards/study/start',
+          mode: 'sequence',
+          scope: { kind: 'sequence', sequenceId: 'seq-src' },
+          resumeExisting: true,
+        },
+        'r1',
+        { ...context, idempotencyKey: 'start-source' },
+      ),
+    );
+    const current = started.current as {
+      face: string;
+      back?: string;
+      sourceTitle?: string;
+      sourceFile?: string;
+    };
+    expect(current.face).toBe('question');
+    expect(current.back).toBe('translation-lookaside-buffer');
+    expect(current.sourceTitle).toBe('tlb.md');
+    expect(current.sourceFile).toBeUndefined();
+    const serialized = JSON.stringify(started);
+    expect(serialized).not.toContain('/Users/secret');
+    expect(serialized).not.toContain('"sourceFile"');
+    const nextShell = started.nextShell as Record<string, unknown> | undefined;
+    expect(nextShell).toBeDefined();
+    expect(nextShell).not.toHaveProperty('back');
+    expect(nextShell).not.toHaveProperty('front');
+    expect(JSON.stringify(nextShell)).not.toContain('virtual-to-physical');
+  });
+
   it('catalog omits Host absolute paths and answers', async () => {
     const context = await openContext();
     const store = createStudyServices({ piwinRoot: context.piwinRoot }).cardStore;

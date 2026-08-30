@@ -86,6 +86,8 @@ export function createFlashcardStudyController(
     transitionSettled: true,
   };
   let inFlight: HostRequestAttempt | null = null;
+  let inFlightIdle: Promise<void> = Promise.resolve();
+  let settleInFlightIdle: (() => void) | null = null;
   let checkpointChain: Promise<void> = Promise.resolve();
   let queuedCheckpoint: { face: 'question' | 'answer'; needsReview?: boolean } | null = null;
   let restoring = false;
@@ -203,14 +205,14 @@ export function createFlashcardStudyController(
     await ports.pending.save(pending);
     patch({ pending: true, saving: true, awaitingConfirmation: false });
     const attempt = createHostRequestAttempt(command, pending.idempotencyKey);
-    inFlight = attempt;
+    beginInFlight(attempt);
     try {
       const response = await executeHostRequestAttempt(ports.request, attempt);
       await acceptResponse(response, tear);
     } catch {
       patch({ awaitingConfirmation: true, saving: false });
     } finally {
-      if (inFlight === attempt) inFlight = null;
+      endInFlight(attempt);
     }
   }
 
@@ -293,14 +295,14 @@ export function createFlashcardStudyController(
     }
     if (inFlight) return;
     const attempt = createHostRequestAttempt(pending.command, pending.idempotencyKey);
-    inFlight = attempt;
+    beginInFlight(attempt);
     try {
       const retried = await executeHostRequestAttempt(ports.request, attempt);
       await acceptResponse(retried, true);
     } catch {
       patch({ awaitingConfirmation: true, saving: false });
     } finally {
-      if (inFlight === attempt) inFlight = null;
+      endInFlight(attempt);
     }
   }
 
@@ -379,15 +381,41 @@ export function createFlashcardStudyController(
     );
   }
 
+  function beginInFlight(attempt: HostRequestAttempt): void {
+    inFlight = attempt;
+    inFlightIdle = new Promise((resolve) => {
+      settleInFlightIdle = resolve;
+    });
+  }
+
+  function endInFlight(attempt: HostRequestAttempt): void {
+    if (inFlight !== attempt) return;
+    inFlight = null;
+    const settle = settleInFlightIdle;
+    settleInFlightIdle = null;
+    settle?.();
+  }
+
+  async function waitForInFlightIdle(): Promise<void> {
+    while (inFlight) {
+      await inFlightIdle;
+    }
+  }
+
+  async function drainCheckpoints(): Promise<void> {
+    await checkpointChain;
+  }
+
   function enqueueCheckpoint(): void {
     const snapshot = currentRound();
     if (!snapshot?.current || !snapshot.access.hasControl) return;
     checkpointChain = checkpointChain.then(async () => {
+      await waitForInFlightIdle();
       const queued = queuedCheckpoint;
       queuedCheckpoint = null;
-      if (!queued || inFlight) return;
+      if (!queued) return;
       const latest = currentRound();
-      if (!latest?.current) return;
+      if (!latest?.current || !latest.access.hasControl) return;
       const command: HostCommand = {
         type: 'flashcards/study/checkpoint',
         ...roundFields(latest),
@@ -405,11 +433,10 @@ export function createFlashcardStudyController(
     if (!snapshot?.current || advanceBlocked()) return;
     const face = snapshot.round.face === 'answer' ? 'question' : 'answer';
     const current = snapshot.current;
-    const { back: _ignoredBack, ...withoutBack } = current;
     const optimistic: FlashcardStudySnapshot = {
       ...snapshot,
       round: { ...snapshot.round, face },
-      current: face === 'question' ? { ...withoutBack, face } : { ...current, face },
+      current: { ...current, face },
     };
     patch({ snapshot: optimistic });
     queuedCheckpoint = {
@@ -454,6 +481,7 @@ export function createFlashcardStudyController(
   }
 
   async function next(): Promise<void> {
+    await drainCheckpoints();
     const snapshot = currentRound();
     if (!snapshot?.current) return;
     await advance(
@@ -468,6 +496,7 @@ export function createFlashcardStudyController(
   }
 
   async function rate(rating: ReviewRating): Promise<void> {
+    await drainCheckpoints();
     const snapshot = currentRound();
     if (!snapshot?.current) return;
     await advance(
@@ -484,6 +513,7 @@ export function createFlashcardStudyController(
   }
 
   async function simple(type: 'undo' | 'pause' | 'resume' | 'end'): Promise<void> {
+    await drainCheckpoints();
     const snapshot = currentRound();
     if (!snapshot || blocked() || inFlight) return;
     if (type === 'undo' && !snapshot.canUndo) return;

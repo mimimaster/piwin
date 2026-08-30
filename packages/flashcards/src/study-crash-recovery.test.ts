@@ -266,6 +266,64 @@ describe('study crash recovery', () => {
     expect(state.revision).toBeGreaterThan(1);
   });
 
+  it('scheduled rate then undo then re-rate does not double-count reps', async () => {
+    const ctx = await scheduledReady();
+    const rated = await ctx.study.rate({
+      idempotencyKey: 'rate-first',
+      controllerIdentity: IDENTITY,
+      roundId: ctx.started.round.roundId,
+      expectedRevision: ctx.started.round.revision,
+      controlEpoch: ctx.started.round.controlEpoch,
+      entryId: ctx.entryId,
+      contentVersion: ctx.contentVersion,
+      rating: 'good',
+      expectedReviewStateRevision: ctx.started.current?.reviewStateRevision ?? 0,
+    });
+    expect((await ctx.cardStore.getReviewState(ctx.item.id)).reps).toBe(1);
+
+    const undone = await ctx.study.undo({
+      idempotencyKey: 'undo-rerate',
+      controllerIdentity: IDENTITY,
+      roundId: rated.round.roundId,
+      expectedRevision: rated.round.revision,
+      controlEpoch: rated.round.controlEpoch,
+      targetOperationId: 'rate-first',
+    });
+    expect(undone.round.face).toBe('answer');
+    expect(undone.current?.reviewStateRevision).toBe(
+      (await ctx.cardStore.getReviewState(ctx.item.id)).revision,
+    );
+    expect(undone.current?.reviewStateRevision).toBeGreaterThan(0);
+
+    const shown = await ctx.study.checkpoint({
+      idempotencyKey: 'flip-after-undo',
+      controllerIdentity: IDENTITY,
+      roundId: undone.round.roundId,
+      expectedRevision: undone.round.revision,
+      controlEpoch: undone.round.controlEpoch,
+      entryId: ctx.entryId,
+      contentVersion: ctx.contentVersion,
+      face: 'answer',
+    });
+    expect(shown.round.face).toBe('answer');
+
+    const rerated = await ctx.study.rate({
+      idempotencyKey: 'rate-again',
+      controllerIdentity: IDENTITY,
+      roundId: shown.round.roundId,
+      expectedRevision: shown.round.revision,
+      controlEpoch: shown.round.controlEpoch,
+      entryId: ctx.entryId,
+      contentVersion: ctx.contentVersion,
+      rating: 'good',
+      expectedReviewStateRevision: shown.current?.reviewStateRevision ?? 0,
+    });
+    expect(rerated.round.status).toBe('completed');
+    const state = await ctx.cardStore.getReviewState(ctx.item.id);
+    expect(state.reps).toBe(1);
+    expect(state.revision).toBeGreaterThan(undone.current?.reviewStateRevision ?? 0);
+  });
+
   it('same key same payload is identical across calls and restart', async () => {
     const ctx = await sequenceReady();
     const input = {

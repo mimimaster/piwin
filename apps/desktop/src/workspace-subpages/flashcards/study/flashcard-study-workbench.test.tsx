@@ -27,6 +27,7 @@ const CARDS: LibraryCard[] = [
     createdAt: '4d',
     sequenceId: 'seq_os',
     position: 1,
+    sourceFile: '/Users/host/notes/page-table.md',
   },
   {
     id: 'seq-b',
@@ -135,6 +136,8 @@ describe('Flashcard study workbench', () => {
     expect(container.querySelector('[data-testid="flashcards-tear-front"]')?.textContent).toContain(
       'page table',
     );
+    expect(container.querySelector('.fcws-tear-source-line')?.textContent).toContain('page-table.md');
+    expect(container.querySelector('.fcws-tear-source-line')?.textContent).not.toContain('/Users/host');
     expect(fake.calls.some((command) => command.type === 'flashcards/study/start')).toBe(true);
     const start = fake.calls.find((command) => command.type === 'flashcards/study/start');
     expect(start).toMatchObject({

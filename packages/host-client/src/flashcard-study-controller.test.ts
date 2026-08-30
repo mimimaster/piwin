@@ -33,6 +33,7 @@ function snapshot(revision: number, extras?: Partial<FlashcardStudySnapshot>): F
       deck: 'srs',
       face: 'question',
       front: 'Q',
+      back: 'A',
       needsReview: false,
     },
     counts: { total: 2, processed: revision, invalidated: 0, remaining: 2 - revision },
@@ -446,5 +447,111 @@ describe('flashcard study controller', () => {
     expect(requests.some((command) => command.type === 'flashcards/study/checkpoint')).toBe(true);
     expect(controller.getViewModel().phase).not.toBe('transitioning');
     expect(controller.getViewModel().snapshot?.current?.needsReview).toBe(true);
+  });
+
+  it('keeps the answer body on optimistic flip before checkpoint returns', async () => {
+    const pending = createMemoryFlashcardStudyPendingStore();
+    let releaseCheckpoint: (() => void) | undefined;
+    const hold = new Promise<void>((resolve) => {
+      releaseCheckpoint = resolve;
+    });
+    const controller = createFlashcardStudyController({
+      request: async (command) => {
+        if (command.type === 'flashcards/study/checkpoint') {
+          await hold;
+          const current = snapshot(1).current;
+          return {
+            type: 'response',
+            command: command.type,
+            success: true,
+            data: snapshot(1, {
+              round: { ...snapshot(1).round, face: 'answer', lastAdvanceOperationId: null },
+              current: current ? { ...current, face: 'answer', back: 'A' } : current,
+            }),
+          };
+        }
+        return { type: 'response', command: command.type, success: true, data: snapshot(0) };
+      },
+      pending,
+      clock: clock(),
+      visibility: visibility(),
+    });
+    await controller.start({ mode: 'sequence', scope: { kind: 'item', itemId: 'item-1' } });
+    expect(controller.getViewModel().snapshot?.current?.back).toBe('A');
+    const flip = controller.flip();
+    expect(controller.getViewModel().snapshot?.round.face).toBe('answer');
+    expect(controller.getViewModel().snapshot?.current?.face).toBe('answer');
+    expect(controller.getViewModel().snapshot?.current?.back).toBe('A');
+    releaseCheckpoint?.();
+    await flip;
+    expect(controller.getViewModel().snapshot?.current?.back).toBe('A');
+  });
+
+  it('checkpoints the answer face before a racing rate', async () => {
+    const pending = createMemoryFlashcardStudyPendingStore();
+    const requests: HostCommand[] = [];
+    let releaseCheckpoint: (() => void) | undefined;
+    const hold = new Promise<void>((resolve) => {
+      releaseCheckpoint = resolve;
+    });
+    const scheduled = (revision: number, face: 'question' | 'answer'): FlashcardStudySnapshot => {
+      const base = snapshot(revision);
+      const current = base.current;
+      return snapshot(revision, {
+        round: {
+          ...base.round,
+          mode: 'scheduled',
+          scope: { kind: 'all' },
+          face,
+          lastAdvanceOperationId: revision > 1 ? 'rate-1' : null,
+        },
+        current: current
+          ? {
+              ...current,
+              face,
+              back: 'A',
+              reviewStateRevision: 0,
+            }
+          : undefined,
+      });
+    };
+    const controller = createFlashcardStudyController({
+      request: async (command) => {
+        requests.push(command);
+        if (command.type === 'flashcards/study/start') {
+          return { type: 'response', command: command.type, success: true, data: scheduled(0, 'question') };
+        }
+        if (command.type === 'flashcards/study/checkpoint') {
+          await hold;
+          return { type: 'response', command: command.type, success: true, data: scheduled(1, 'answer') };
+        }
+        if (command.type === 'flashcards/study/rate') {
+          return { type: 'response', command: command.type, success: true, data: scheduled(2, 'question') };
+        }
+        return { type: 'response', command: command.type, success: true, data: scheduled(0, 'question') };
+      },
+      pending,
+      clock: clock(),
+      visibility: visibility(),
+    });
+    await controller.start({ mode: 'scheduled', scope: { kind: 'all' } });
+    const flip = controller.flip();
+    const rate = controller.rate('good');
+    for (let i = 0; i < 20; i += 1) {
+      if (requests.some((command) => command.type === 'flashcards/study/checkpoint')) break;
+      await Promise.resolve();
+    }
+    expect(requests.some((command) => command.type === 'flashcards/study/checkpoint')).toBe(true);
+    expect(requests.some((command) => command.type === 'flashcards/study/rate')).toBe(false);
+    releaseCheckpoint?.();
+    await Promise.all([flip, rate]);
+    const types = requests.map((command) => command.type);
+    expect(types.indexOf('flashcards/study/checkpoint')).toBeGreaterThan(-1);
+    expect(types.indexOf('flashcards/study/rate')).toBeGreaterThan(
+      types.indexOf('flashcards/study/checkpoint'),
+    );
+    expect(requests.find((command) => command.type === 'flashcards/study/checkpoint')).toMatchObject({
+      face: 'answer',
+    });
   });
 });

@@ -13,6 +13,8 @@ export type StudyHarnessCard = {
   back?: string;
   deck?: string;
   sequenceId?: string;
+  sourceFile?: string;
+  sourceTitle?: string;
 };
 
 type RoundState = {
@@ -69,8 +71,13 @@ export function createStudyHostFake(
           deck: currentCard.deck ?? 'General',
           face: round.face,
           front: currentCard.front ?? '',
+          back: currentCard.back ?? '',
           needsReview: round.needsReview.has(currentCard.id),
-          ...(round.face === 'answer' ? { back: currentCard.back ?? '' } : {}),
+          ...(currentCard.sourceTitle
+            ? { sourceTitle: currentCard.sourceTitle }
+            : currentCard.sourceFile
+              ? { sourceTitle: sourceTitleFromFile(currentCard.sourceFile) }
+              : {}),
         }
       : undefined;
     const nextCard = round.cards[round.index + 1];
@@ -273,4 +280,9 @@ export function createStudyHostFake(
       }
     },
   };
+}
+
+function sourceTitleFromFile(sourceFile: string): string {
+  const parts = sourceFile.split(/[/\\]/).filter((part) => part.length > 0);
+  return parts[parts.length - 1] ?? sourceFile;
 }

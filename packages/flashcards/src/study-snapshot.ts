@@ -19,9 +19,7 @@ export function buildStudySnapshot(input: {
   const currentEntry = round.currentEntryId
     ? round.entries.find((entry) => entry.entryId === round.currentEntryId)
     : undefined;
-  const current = currentEntry
-    ? projectEntry(round, currentEntry, input.items, round.face === 'answer')
-    : undefined;
+  const current = currentEntry ? projectEntry(round, currentEntry, input.items) : undefined;
   const nextPending = currentEntry
     ? round.entries.find(
         (entry, index) =>
@@ -66,7 +64,6 @@ function projectEntry(
   round: FlashcardStudyRound,
   entry: FlashcardStudyRound['entries'][number],
   items: ReadonlyMap<string, FlashcardItem>,
-  includeBack: boolean,
 ): FlashcardStudyContentProjection | undefined {
   const item = items.get(entry.itemId);
   if (!item) return undefined;
@@ -83,6 +80,7 @@ function projectEntry(
     deck: card.deck,
     face: round.face,
     front: card.front,
+    back: card.back,
     needsReview: entry.needsReview,
   };
   if (entry.cardId) projection.cardId = entry.cardId;
@@ -90,16 +88,25 @@ function projectEntry(
   if (entry.reviewStateRevision !== undefined) {
     projection.reviewStateRevision = entry.reviewStateRevision;
   }
-  if (includeBack) projection.back = card.back;
   if (card.model === 'cloze' && entry.ordinal !== undefined) {
     const siblings = expandItemToReviewCards(item);
     projection.siblingOrdinal = entry.ordinal;
     projection.siblingCount = siblings.length;
   }
+  const sourceTitle = sourceTitleFromFile(item.sourceFile);
+  if (sourceTitle) projection.sourceTitle = sourceTitle;
   if (item.sourceExcerpt) projection.sourceExcerpt = item.sourceExcerpt;
   if (item.tags) projection.tags = item.tags;
   if (item.sequenceId) projection.sequenceId = item.sequenceId;
   return projection;
+}
+
+function sourceTitleFromFile(sourceFile: string | undefined): string | undefined {
+  const trimmed = sourceFile?.trim();
+  if (!trimmed) return undefined;
+  const parts = trimmed.split(/[/\\]/).filter((part) => part.length > 0);
+  const base = parts[parts.length - 1];
+  return base || undefined;
 }
 
 function toNextShell(entry: FlashcardStudyRound['entries'][number]): FlashcardStudyNextShell {

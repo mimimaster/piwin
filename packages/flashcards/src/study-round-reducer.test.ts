@@ -319,6 +319,8 @@ describe('undo', () => {
     expect(undoneRate.reviewState?.reps).toBe(0);
     expect(undoneRate.reviewState?.due).toBe(beforeState.due);
     expect(undoneRate.reviewState?.revision).toBeGreaterThan(rated.reviewState?.revision ?? 0);
+    expect(undoneRate.round.entries[0]?.reviewStateRevision).toBe(undoneRate.reviewState?.revision);
+    expect(undoneRate.round.entries[0]?.reviewStateRevision).not.toBe(0);
   });
 
   it('keeps a later needsReview mark on the new card when undoing the previous next', () => {
