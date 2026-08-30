@@ -1,18 +1,21 @@
 import type { ReactElement } from 'react';
-import type { HostCommand, HostResponse } from '@piwin/contracts';
+import type { HostCommand, HostPush, HostResponse } from '@piwin/contracts';
+import type { HostRequestOptions } from '@piwin/host-client';
 import type { DesktopLocale } from './desktop-locale';
 import { FlashcardsWorkspaceView, LibraryWorkspaceView } from './workspace-subpages';
-import type { FlashcardsHomeCommand } from './workspace-subpages/FlashcardsWorkspaceView';
 
 export type WorkbenchSubpageStageProps = {
   activeSubPage: 'chat' | 'library' | 'images' | 'videos' | 'flashcards' | null;
   locale: DesktopLocale;
   onClose: () => void;
   request: (command: HostCommand) => Promise<HostResponse>;
-  requestFlashcards: (command: FlashcardsHomeCommand) => Promise<HostResponse>;
+  requestFlashcards: (command: HostCommand, options?: HostRequestOptions) => Promise<HostResponse>;
   refreshToken?: number;
   projectPath?: string | null | undefined;
   onConfigureEmbedding?: (() => void) | undefined;
+  subscribePush?: (listener: (push: HostPush) => void) => () => void;
+  subscribeConnected?: (listener: (connected: boolean) => void) => () => void;
+  hasStudyCapability?: () => boolean;
 };
 
 /**
@@ -50,6 +53,9 @@ export function WorkbenchSubpageStage(props: WorkbenchSubpageStageProps): ReactE
         {...(props.onConfigureEmbedding
           ? { onConfigureEmbedding: props.onConfigureEmbedding }
           : {})}
+        {...(props.subscribePush ? { subscribePush: props.subscribePush } : {})}
+        {...(props.subscribeConnected ? { subscribeConnected: props.subscribeConnected } : {})}
+        {...(props.hasStudyCapability ? { hasStudyCapability: props.hasStudyCapability } : {})}
       />
     );
   }

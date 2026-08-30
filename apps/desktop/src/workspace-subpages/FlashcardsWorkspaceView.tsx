@@ -1,6 +1,13 @@
-import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { Button, Notice, Spinner } from '@piwin/ui-kit';
-import type { FlashcardCreateInput, HostResponse } from '@piwin/contracts';
+import type {
+  FlashcardCreateInput,
+  FlashcardStudyCatalogPage,
+  HostCommand,
+  HostPush,
+  HostResponse,
+} from '@piwin/contracts';
+import type { HostRequestOptions } from '@piwin/host-client';
 import { IconCards, IconPlus, IconSpark } from '../shell-icons';
 import type { DesktopLocale } from '../desktop-locale';
 import { StudioTopbar } from './studio/studio-chrome';
@@ -20,12 +27,27 @@ import {
   tileMatchesQuery,
 } from './flashcards/group-flashcard-tiles';
 import { ProduceStage } from './flashcards/produce-stage';
-import { TearDeck } from './flashcards/tear-deck';
-import { tearDeckLabels } from './flashcards/tear-deck-copy';
-import { useModalFocus } from './studio/use-modal-focus';
+import { FlashcardStudyRoute } from './flashcards/study/FlashcardStudyRoute';
+import { flashcardStudyCopy } from './flashcards/study/study-copy';
+import {
+  captureStudyReturnContext,
+  clearStudyReturnContext,
+  saveStudyReturnContext,
+  type FlashcardStudyReturnContext,
+} from './flashcards/study/study-return-context';
+import {
+  createStudyEntry,
+  scheduledScopeForDeck,
+  studyScopeForTile,
+} from './flashcards/study/study-entry';
+import type { FlashcardStudyEntry } from './flashcards/study/use-flashcard-study';
+import type { FlashcardStudyPorts } from './flashcards/study/study-session';
 
-export type FlashcardsHomeCommand = FlashcardsLibraryCommand | FlashcardsProduceCommand;
-export type FlashcardsRequester = (command: FlashcardsHomeCommand) => Promise<HostResponse>;
+export type FlashcardsHomeCommand = FlashcardsLibraryCommand | FlashcardsProduceCommand | HostCommand;
+export type FlashcardsRequester = (
+  command: HostCommand,
+  options?: HostRequestOptions,
+) => Promise<HostResponse>;
 
 export type FlashcardsWorkspaceViewProps = {
   locale?: DesktopLocale;
@@ -33,6 +55,9 @@ export type FlashcardsWorkspaceViewProps = {
   request: FlashcardsRequester;
   projectPath?: string | null | undefined;
   onConfigureEmbedding?: (() => void) | undefined;
+  subscribePush?: (listener: (push: HostPush) => void) => () => void;
+  subscribeConnected?: (listener: (connected: boolean) => void) => () => void;
+  hasStudyCapability?: () => boolean;
 };
 
 /** Flashcards home — tiled library; produce is a page jump into the folder loop. */
@@ -44,11 +69,17 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
   const [search, setSearch] = useState('');
   const [selectedDeck, setSelectedDeck] = useState<string>('all');
   const [page, setPage] = useState<'gallery' | 'produce'>('gallery');
-  const [openTileId, setOpenTileId] = useState<string | null>(null);
+  const [study, setStudy] = useState<{
+    entry: FlashcardStudyEntry;
+    returnContext: FlashcardStudyReturnContext;
+  } | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [newDeck, setNewDeck] = useState('');
   const [newFront, setNewFront] = useState('');
   const [newBack, setNewBack] = useState('');
+  const [dueCount, setDueCount] = useState(0);
+  const [newCount, setNewCount] = useState(0);
+  const [hostTooOld, setHostTooOld] = useState(false);
 
   const ws = useFlashcardsWorkspace(props.request);
   const produce = useFlashcardsProduce({
@@ -86,20 +117,50 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
     });
   }, [allGroupedTiles, selectedDeck, search]);
 
-  const openTile = tiles.find((tile) => tile.id === openTileId);
-  const reviewDialogRef = useModalFocus<HTMLDivElement>(
-    () => setOpenTileId(null),
-    openTile !== undefined,
-  );
   const producing = page === 'produce';
+  const studying = study !== null;
+  const studyCopy = flashcardStudyCopy(locale);
+
+  const restoreLibrary = useCallback((context: FlashcardStudyReturnContext) => {
+    setSearch(context.search);
+    setSelectedDeck(context.selectedDeck);
+    setStudy(null);
+    clearStudyReturnContext();
+    requestAnimationFrame(() => {
+      const main = document.getElementById('vault-main');
+      if (main) main.scrollTop = context.scrollTop;
+      if (context.focusTileId) {
+        const tile = document.querySelector<HTMLElement>(
+          `[data-testid="flashcard-tile-${context.focusTileId}"] .fcws-tile-face`,
+        );
+        tile?.focus();
+      }
+    });
+  }, []);
+
+  const enterStudy = useCallback(
+    (entry: FlashcardStudyEntry, focusTileId: string | null) => {
+      if (props.hasStudyCapability && !props.hasStudyCapability()) {
+        setHostTooOld(true);
+        return;
+      }
+      setHostTooOld(false);
+      const returnContext = captureStudyReturnContext({
+        selectedDeck,
+        search,
+        scrollTop: document.getElementById('vault-main')?.scrollTop ?? 0,
+        focusTileId,
+      });
+      saveStudyReturnContext(returnContext);
+      setStudy({ entry, returnContext });
+    },
+    [props, search, selectedDeck],
+  );
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
-      if (openTileId !== null) {
-        setOpenTileId(null);
-        return;
-      }
+      if (studying) return;
       if (createOpen) return;
       if (producing) {
         setPage('gallery');
@@ -109,7 +170,33 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [createOpen, openTileId, producing, props.onClose]);
+  }, [createOpen, producing, props.onClose, studying]);
+
+  const requestRef = useRef(props.request);
+  requestRef.current = props.request;
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const scope = scheduledScopeForDeck(selectedDeck);
+      const response = await requestRef.current({
+        type: 'flashcards/study/catalog',
+        limit: 1,
+        scopeFilter: scope,
+      });
+      if (cancelled) return;
+      if (!response.success) {
+        if (response.problem?.code === 'host-too-old') setHostTooOld(true);
+        return;
+      }
+      const pageData = response.data as FlashcardStudyCatalogPage | undefined;
+      setDueCount(pageData?.dueCount ?? 0);
+      setNewCount(pageData?.newCount ?? 0);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDeck, ws.cards.length]);
 
   const deleteTile = useCallback(
     async (tileId: string) => {
@@ -118,13 +205,10 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
       const ids = tileCards(tile).map((card) => card.id);
       const ok = ids.length === 1 ? await ws.remove(ids[0] ?? '') : await ws.removeMany(ids);
       if (ok) {
-        if (openTileId === tileId) {
-          setOpenTileId(null);
-        }
         await ws.reload();
       }
     },
-    [allGroupedTiles, openTileId, ws],
+    [allGroupedTiles, ws],
   );
 
   const submitCreate = useCallback(async () => {
@@ -148,6 +232,23 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
     const options = ws.decks.map((deck) => ({ value: deck, label: deck }));
     return options.length > 0 ? options : [{ value: 'General', label: 'General' }];
   }, [ws.decks]);
+
+  if (study) {
+    const studyPorts: FlashcardStudyPorts = {
+      request: props.request,
+      ...(props.subscribePush ? { subscribePush: props.subscribePush } : {}),
+      ...(props.subscribeConnected ? { subscribeConnected: props.subscribeConnected } : {}),
+      ...(props.hasStudyCapability ? { hasStudyCapability: props.hasStudyCapability } : {}),
+    };
+    return (
+      <FlashcardStudyRoute
+        {...(props.locale !== undefined ? { locale: props.locale } : {})}
+        entry={study.entry}
+        ports={studyPorts}
+        onLeave={() => restoreLibrary(study.returnContext)}
+      />
+    );
+  }
 
   const deckFilters =
     availableDecks.length > 0 ? (
@@ -199,6 +300,24 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
             <span className="vault-bar-context">{t('Produce', '出卡')}</span>
           ) : (
             <div className="vault-bar-tools">
+              <Button
+                variant="secondary"
+                size="compact"
+                data-testid="flashcards-study-due"
+                onClick={() =>
+                  enterStudy(
+                    createStudyEntry({
+                      mode: 'scheduled',
+                      scope: scheduledScopeForDeck(selectedDeck),
+                    }),
+                    null,
+                  )
+                }
+              >
+                <span>{studyCopy.due}</span>
+                {dueCount > 0 ? <span className="vault-chip-count">{studyCopy.dueDue(dueCount)}</span> : null}
+                {newCount > 0 ? <span className="vault-chip-count">{studyCopy.dueNew(newCount)}</span> : null}
+              </Button>
               <Button variant="secondary" size="compact" onClick={() => setPage('produce')}>
                 <IconSpark width={13} height={13} aria-hidden="true" />
                 <span>{t('Produce', '出卡')}</span>
@@ -232,6 +351,11 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
               {ws.error}
             </Notice>
           )}
+          {hostTooOld ? (
+            <Notice tone="warning" testId="flashcards-study-host-old">
+              {studyCopy.hostTooOld}
+            </Notice>
+          ) : null}
 
           {ws.loading ? (
             <div className="vault-empty">
@@ -261,43 +385,23 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
           ) : (
             <FlashcardGallery
               tiles={tiles}
-              onOpen={setOpenTileId}
+              onOpen={(tileId) => {
+                const tile = tiles.find((item) => item.id === tileId);
+                if (!tile) return;
+                enterStudy(
+                  createStudyEntry({
+                    mode: 'sequence',
+                    scope: studyScopeForTile(tile),
+                  }),
+                  tileId,
+                );
+              }}
               onDeleteTile={(tile) => void deleteTile(tile.id)}
               deleteLabel={t('Delete tile', '删除此项')}
             />
           )}
         </main>
       )}
-
-      {openTile ? (
-        <div className="vault-study-back" onClick={() => setOpenTileId(null)}>
-          <div
-            ref={reviewDialogRef}
-            className="vault-study"
-            data-testid="flashcards-tear-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-label={t('Flashcard review', '闪卡复习')}
-            tabIndex={-1}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <TearDeck
-              cards={tileCards(openTile)}
-              labels={tearDeckLabels(locale)}
-              locale={locale}
-              onClose={() => setOpenTileId(null)}
-              onDeleteCard={async (cardId) => {
-                const ok = await ws.remove(cardId);
-                if (ok) {
-                  await ws.reload();
-                  if (openTile.kind === 'single') setOpenTileId(null);
-                }
-              }}
-              onDeleteSet={() => void deleteTile(openTile.id)}
-            />
-          </div>
-        </div>
-      ) : null}
 
       <CreateCardDialog
         open={createOpen}
