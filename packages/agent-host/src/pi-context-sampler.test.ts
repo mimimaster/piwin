@@ -193,6 +193,130 @@ describe('pi-context-sampler', () => {
     });
   });
 
+  it('T12: aborted usage after a valid baseline emits unknown, not last+trailing', () => {
+    const sampler = createSampler();
+    replay(sampler, [
+      { type: 'message_start', messageId: 'm-1', role: 'assistant' },
+      {
+        type: 'message_end',
+        messageId: 'm-1',
+        message: {
+          role: 'assistant',
+          id: 'm-1',
+          usage: validUsage,
+          stopReason: 'stop',
+        },
+      },
+    ]);
+    const aborted = replay(sampler, [
+      { type: 'message_start', messageId: 'm-fail', role: 'assistant' },
+      {
+        type: 'message_update',
+        messageId: 'm-fail',
+        assistantMessageEvent: { type: 'text_delta', delta: 'partial output that must not stay known' },
+      },
+      {
+        type: 'message_end',
+        messageId: 'm-fail',
+        message: {
+          role: 'assistant',
+          id: 'm-fail',
+          usage: { input: 40, output: 8, cacheRead: 0, cacheWrite: 0, totalTokens: 48 },
+          stopReason: 'aborted',
+        },
+      },
+    ]);
+    expect(measurements(aborted).at(-1)?.occupancy).toEqual({
+      kind: 'unknown',
+      reason: 'error-or-aborted-usage',
+    });
+    expect(finalized(aborted)).toHaveLength(1);
+  });
+
+  it('does not add tool-call args after a measured message_end already includes them', () => {
+    const sampler = createSampler();
+    const ended = replay(sampler, [
+      { type: 'message_start', messageId: 'm-1', role: 'assistant' },
+      {
+        type: 'message_end',
+        messageId: 'm-1',
+        message: {
+          role: 'assistant',
+          id: 'm-1',
+          usage: validUsage,
+          stopReason: 'stop',
+        },
+      },
+    ]);
+    expect(knownTokens(ended).at(-1)).toBe(90_000);
+    const afterToolStart = replay(sampler, [
+      {
+        type: 'tool_execution_start',
+        toolCallId: 'tool-1',
+        toolName: 'read',
+        args: { path: 'a'.repeat(400) },
+      },
+    ]);
+    expect(knownTokens(afterToolStart).at(-1)).toBe(90_000);
+  });
+
+  it('replaces streaming tool-call argument snapshots instead of concatenating them', () => {
+    const sampler = createSampler({
+      getContextUsage: () => ({ tokens: 1_000, contextWindow: 8_000 }),
+    });
+    const firstArgs = { path: 'ab' };
+    const secondArgs = { path: 'x'.repeat(80) };
+    replay(sampler, [{ type: 'message_start', messageId: 'm-1', role: 'assistant' }]);
+    replay(sampler, [
+      {
+        type: 'message_update',
+        messageId: 'm-1',
+        assistantMessageEvent: { type: 'tool_call', arguments: firstArgs },
+      },
+    ]);
+    const second = replay(sampler, [
+      {
+        type: 'message_update',
+        messageId: 'm-1',
+        assistantMessageEvent: { type: 'tool_call', arguments: secondArgs },
+      },
+    ]);
+    const snapshotTokens = Math.ceil(JSON.stringify(secondArgs).length / 4);
+    const concatTokens =
+      Math.ceil(JSON.stringify(firstArgs).length / 4) + snapshotTokens;
+    expect(knownTokens(second).at(-1)).toBe(1_000 + snapshotTokens);
+    expect(knownTokens(second).at(-1)).not.toBe(1_000 + concatTokens);
+  });
+
+  it('invalidates the measured baseline on model change', () => {
+    const sampler = createSampler();
+    replay(sampler, [
+      { type: 'message_start', messageId: 'm-1', role: 'assistant' },
+      {
+        type: 'message_end',
+        messageId: 'm-1',
+        message: {
+          role: 'assistant',
+          id: 'm-1',
+          usage: validUsage,
+          stopReason: 'stop',
+        },
+      },
+    ]);
+    const invalidated = sampler.invalidateBaseline();
+    expect(measurements(invalidated).at(-1)?.occupancy.kind).toBe('unknown');
+    const afterSwitch = replay(sampler, [
+      { type: 'message_start', messageId: 'm-2', role: 'assistant' },
+      {
+        type: 'message_update',
+        messageId: 'm-2',
+        assistantMessageEvent: { type: 'text_delta', delta: 'hello' },
+      },
+    ]);
+    expect(knownTokens(afterSwitch)).toEqual([]);
+    expect(measurements(afterSwitch).at(-1)?.occupancy.kind).toBe('unknown');
+  });
+
   it('T13: message_end and agent_end mint the same measurementId', () => {
     const sampler = createSampler();
     const events = replay(sampler, [
@@ -226,34 +350,6 @@ describe('pi-context-sampler', () => {
     expect(ids).toHaveLength(1);
     expect(ids[0]).toBe(
       `${identity.sessionId}:${identity.runtimeGenerationId}:${normalizedMessageId}`,
-    );
-  });
-
-  it('SDK vs worker: same fixture events produce the same occupancy tokensUsed and measurementId', () => {
-    const fixture = [
-      { type: 'message_start', messageId: 'm-1', role: 'assistant' },
-      {
-        type: 'message_update',
-        messageId: 'm-1',
-        assistantMessageEvent: { type: 'text_delta', delta: 'Done.' },
-      },
-      {
-        type: 'message_end',
-        messageId: 'm-1',
-        message: {
-          role: 'assistant',
-          id: 'm-1',
-          usage: validUsage,
-          stopReason: 'stop',
-        },
-      },
-    ];
-    const sdk = replay(createSampler(), fixture);
-    const worker = replay(createSampler(), fixture);
-    expect(knownTokens(sdk).at(-1)).toBe(90_000);
-    expect(knownTokens(worker)).toEqual(knownTokens(sdk));
-    expect(finalized(sdk).map((measurement) => measurement.measurementId)).toEqual(
-      finalized(worker).map((measurement) => measurement.measurementId),
     );
   });
 

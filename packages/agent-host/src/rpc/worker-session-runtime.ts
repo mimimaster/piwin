@@ -377,6 +377,16 @@ export class WorkerSessionRuntime {
     session.trailingRunId = context.runId;
     session.activeRunId = context.runId;
     session.handle.setActiveRunId?.(context.runId);
+    if (payload.model) {
+      const eventContext: WorkerFrameContext = {
+        sessionId: session.productSessionId,
+        runtimeGenerationId: session.context.runtimeGenerationId,
+        runId: context.runId,
+      };
+      for (const extra of session.sampler.invalidateBaseline()) {
+        this.options.sendFrame({ type: 'event', context: eventContext, event: extra });
+      }
+    }
     const options =
       payload.images && payload.images.length > 0
         ? {

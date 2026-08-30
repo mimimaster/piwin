@@ -383,10 +383,78 @@ describe('WorkerSessionRuntime', () => {
     const events = frames.flatMap((frame) => (frame.type === 'event' ? [frame.event] : []));
     expect(events.some((event) => event.type === 'context/measurement')).toBe(true);
     expect(events.some((event) => event.type === 'usage/finalized')).toBe(true);
-    const occupancy = events.find((event) => event.type === 'context/measurement');
-    if (occupancy?.type === 'context/measurement' && occupancy.measurement.occupancy.kind === 'known') {
-      expect(occupancy.measurement.occupancy.tokensUsed).toBe(90);
-    }
+    const known = events.flatMap((event) =>
+      event.type === 'context/measurement' && event.measurement.occupancy.kind === 'known'
+        ? [event.measurement.occupancy.tokensUsed]
+        : [],
+    );
+    expect(known.at(-1)).toBe(90);
+    const finalized = events.find((event) => event.type === 'usage/finalized');
+    expect(finalized?.type === 'usage/finalized' ? finalized.measurement.totalTokens : undefined).toBe(
+      90,
+    );
+  });
+
+  it('invalidates occupancy when a worker prompt selects a model', async () => {
+    const frames: WorkerFrame[] = [];
+    let prompts = 0;
+    const session = createMockPiSession();
+    session.prompt = vi.fn(async () => {
+      prompts += 1;
+      if (prompts === 1) {
+        session.emit({ type: 'message_start', messageId: 'm1', role: 'assistant' });
+        session.emit({
+          type: 'message_end',
+          messageId: 'm1',
+          message: {
+            role: 'assistant',
+            id: 'm1',
+            usage: { input: 80, output: 10, cacheRead: 0, cacheWrite: 0, totalTokens: 90 },
+            stopReason: 'stop',
+          },
+        });
+      }
+    });
+    const runtime = new WorkerSessionRuntime({
+      sendFrame: (frame) => frames.push(frame),
+      createPiSession: async () => session,
+    });
+    await runtime.handleRequest(createRequest());
+    await runtime.handleRequest({
+      type: 'request',
+      id: 'req-first',
+      method: 'session/prompt',
+      context: promptContext,
+      payload: { method: 'session/prompt', sessionId: 'ps-1', text: 'hello' },
+    });
+    const knownAfterFirst = frames.flatMap((frame) =>
+      frame.type === 'event' &&
+      frame.event.type === 'context/measurement' &&
+      frame.event.measurement.occupancy.kind === 'known'
+        ? [frame.event.measurement.occupancy.tokensUsed]
+        : [],
+    );
+    expect(knownAfterFirst.at(-1)).toBe(90);
+    await runtime.handleRequest({
+      type: 'request',
+      id: 'req-model',
+      method: 'session/prompt',
+      context: promptContext,
+      payload: {
+        method: 'session/prompt',
+        sessionId: 'ps-1',
+        text: 'switch',
+        model: { providerId: 'p1', modelId: 'm1' },
+      },
+    });
+    const lastOccupancy = frames
+      .flatMap((frame) =>
+        frame.type === 'event' && frame.event.type === 'context/measurement'
+          ? [frame.event.measurement.occupancy]
+          : [],
+      )
+      .at(-1);
+    expect(lastOccupancy).toEqual({ kind: 'unknown', reason: 'no-measurement' });
   });
 
   it('supports distinct product and worker ids across the session lifecycle', async () => {

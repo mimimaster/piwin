@@ -53,6 +53,8 @@ export type PiContextSamplerObserveInput = {
 
 export type PiContextSampler = {
   observe(input: PiContextSamplerObserveInput): AgentEvent[];
+  /** Model change / rebuild: drop the previous measured baseline. */
+  invalidateBaseline(): AgentEvent[];
   dispose(): void;
 };
 
@@ -123,6 +125,8 @@ export function createPiContextSampler(input: CreatePiContextSamplerInput): PiCo
   let trailingUnobserved = false;
   let missingImageEstimate = false;
   let lastCompleted: OccupancyRequestUsage | undefined;
+  let blockedRequest: OccupancyRequestUsage | undefined;
+  let assistantInFlight = false;
   let compactionBoundary: string | undefined;
   const finalizedIds = new Set<string>();
   const countedToolResults = new Set<string>();
@@ -143,6 +147,13 @@ export function createPiContextSampler(input: CreatePiContextSamplerInput): PiCo
 
   return {
     dispose,
+    invalidateBaseline(): AgentEvent[] {
+      if (disposed) {
+        return [];
+      }
+      dropBaseline();
+      return [emitMeasurement(nowIso())];
+    },
     observe(observeInput: PiContextSamplerObserveInput): AgentEvent[] {
       if (disposed) {
         return [];
@@ -165,8 +176,7 @@ export function createPiContextSampler(input: CreatePiContextSamplerInput): PiCo
         if (event.type === 'compaction/start') {
           compactionStarted = true;
           cancellationGeneration += 1;
-          baselineInvalidated = true;
-          lastCompleted = undefined;
+          dropBaseline();
           trailingUserTokens = 0;
           trailingToolResultTokens = 0;
           trailingSteerTokens = 0;
@@ -179,8 +189,7 @@ export function createPiContextSampler(input: CreatePiContextSamplerInput): PiCo
         if (event.type === 'compaction/end') {
           compactionEnded = true;
           cancellationGeneration += 1;
-          baselineInvalidated = true;
-          lastCompleted = undefined;
+          dropBaseline();
           const boundary = readString(raw?.firstKeptEntryId) ?? readString(raw?.compactionBoundary);
           if (boundary) {
             compactionBoundary = boundary;
@@ -191,6 +200,7 @@ export function createPiContextSampler(input: CreatePiContextSamplerInput): PiCo
         if (event.type === 'message/start') {
           currentMessageId = event.messageId;
           if (event.role === 'assistant') {
+            assistantInFlight = true;
             streamingText = '';
             streamingThinking = '';
             streamingToolArgs = '';
@@ -217,8 +227,12 @@ export function createPiContextSampler(input: CreatePiContextSamplerInput): PiCo
         }
         if (event.type === 'tool/start') {
           noteEvidence(event.responseMessageId ?? currentMessageId);
-          const argsChars = stringifyChars(readToolCallArgs(raw ?? {}));
-          streamingToolArgs += argsChars > 0 ? 'x'.repeat(argsChars) : '';
+          if (assistantInFlight) {
+            const argsChars = stringifyChars(readToolCallArgs(raw ?? {}));
+            if (argsChars > 0) {
+              streamingToolArgs = 'x'.repeat(argsChars);
+            }
+          }
           shouldSample = true;
           continue;
         }
@@ -243,28 +257,43 @@ export function createPiContextSampler(input: CreatePiContextSamplerInput): PiCo
             }
             shouldSample = true;
           } else if (role === 'assistant' || role === undefined) {
+            assistantInFlight = false;
             const usage = occupancyUsageFromRawMessage(rawMessage);
-            if (usage && isValidOccupancyBaseline(usage)) {
-              lastCompleted = usage;
-              baselineInvalidated = false;
-              trailingUserTokens = 0;
-              trailingToolResultTokens = 0;
-              trailingSteerTokens = 0;
-              streamingText = '';
-              streamingThinking = '';
-              streamingToolArgs = '';
-              missingImageEstimate = false;
+            if (usage) {
+              if (isValidOccupancyBaseline(usage)) {
+                lastCompleted = usage;
+                blockedRequest = undefined;
+                baselineInvalidated = false;
+                trailingUserTokens = 0;
+                trailingToolResultTokens = 0;
+                trailingSteerTokens = 0;
+                streamingText = '';
+                streamingThinking = '';
+                streamingToolArgs = '';
+                missingImageEstimate = false;
+              } else {
+                blockedRequest = usage;
+              }
             }
             shouldSample = true;
           }
         }
       }
 
-      if (raw?.type === 'message_update') {
+      if (raw?.type === 'model_select') {
+        dropBaseline();
+        shouldSample = true;
+      }
+
+      if (raw?.type === 'message_update' && assistantInFlight) {
         const assistantEvent = asRecord(raw.assistantMessageEvent);
-        const toolArgs = readAssistantToolArgChars(assistantEvent);
-        if (toolArgs > 0) {
-          streamingToolArgs += 'x'.repeat(toolArgs);
+        const toolArgs = readAssistantToolArgUpdate(assistantEvent);
+        if (toolArgs) {
+          if (toolArgs.kind === 'snapshot') {
+            streamingToolArgs = 'x'.repeat(toolArgs.chars);
+          } else {
+            streamingToolArgs += 'x'.repeat(toolArgs.chars);
+          }
           shouldSample = true;
         }
       }
@@ -381,8 +410,25 @@ export function createPiContextSampler(input: CreatePiContextSamplerInput): PiCo
     return { type: 'context/measurement', measurement };
   }
 
+  function dropBaseline(): void {
+    baselineInvalidated = true;
+    lastCompleted = undefined;
+    blockedRequest = undefined;
+    assistantInFlight = false;
+  }
+
   function captureOccupancy(sampledAt: string): ContextOccupancy {
     const piUsage = input.getContextUsage?.();
+    const tokensLimit =
+      piUsage && piUsage.contextWindow > 0 ? piUsage.contextWindow : undefined;
+    if (blockedRequest) {
+      return estimateContextOccupancy({
+        sampledAt,
+        currentRequest: blockedRequest,
+        ...(lastCompleted ? { lastCompletedRequest: lastCompleted } : {}),
+        ...(tokensLimit !== undefined ? { tokensLimit } : {}),
+      });
+    }
     if (piUsage && piUsage.tokens === null) {
       return { kind: 'unknown', reason: 'post-compaction' };
     }
@@ -397,8 +443,6 @@ export function createPiContextSampler(input: CreatePiContextSamplerInput): PiCo
     };
     if (trailingUnobserved) trailing.unobserved = true;
 
-    const tokensLimit =
-      piUsage && piUsage.contextWindow > 0 ? piUsage.contextWindow : undefined;
     const observedContext = missingImageEstimate
       ? { missingImageEstimate: true as const }
       : undefined;
@@ -497,9 +541,11 @@ function stringifyChars(value: unknown): number {
   }
 }
 
-function readAssistantToolArgChars(assistantEvent: Record<string, unknown> | null): number {
+function readAssistantToolArgUpdate(
+  assistantEvent: Record<string, unknown> | null,
+): { kind: 'snapshot' | 'delta'; chars: number } | null {
   if (!assistantEvent) {
-    return 0;
+    return null;
   }
   const type = readString(assistantEvent.type);
   if (
@@ -508,9 +554,14 @@ function readAssistantToolArgChars(assistantEvent: Record<string, unknown> | nul
     type !== 'tool_call_delta' &&
     type !== 'toolCall'
   ) {
-    return 0;
+    return null;
   }
-  return stringifyChars(
-    assistantEvent.arguments ?? assistantEvent.args ?? assistantEvent.delta ?? assistantEvent.partialArgs,
-  );
+  const snapshot = assistantEvent.arguments ?? assistantEvent.args;
+  if (snapshot !== undefined && snapshot !== null) {
+    const chars = stringifyChars(snapshot);
+    return chars > 0 ? { kind: 'snapshot', chars } : null;
+  }
+  const delta = assistantEvent.delta ?? assistantEvent.partialArgs;
+  const chars = stringifyChars(delta);
+  return chars > 0 ? { kind: 'delta', chars } : null;
 }
