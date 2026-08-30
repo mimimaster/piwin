@@ -135,6 +135,7 @@ export function getStatus(deps: HostRuntimeKernel): HostStatusData {
       subagentWorktree: deps.subagentOrchestrator !== null,
       marketplaceHub: true,
       automation: true,
+      contextTelemetryVersion: 1,
     },
   };
 }
