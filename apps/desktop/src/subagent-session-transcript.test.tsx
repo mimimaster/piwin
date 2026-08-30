@@ -180,11 +180,18 @@ describe('SubagentSessionTranscript work-details layout', () => {
     }
   });
 
-  it('keeps a definite-width rule so flex auto-margins cannot shrink-wrap chrome', async () => {
+  it('cancels transcript auto-margins so inspector work chrome shares the left edge', async () => {
     const css = await readFile(path.join(SRC_DIR, 'styles/subagent-session-inspector.css'), 'utf8');
-    expect(css).toMatch(
-      /\.subagent-inspector-message\.role-assistant\s+\.turn-work-details\s*\{[^}]*width:\s*100%;/s,
-    );
+    const rule =
+      /\.subagent-inspector-message\.role-assistant\s+\.turn-work-details\s*\{([^}]+)\}/s.exec(
+        css,
+      )?.[1];
+    expect(rule).toBeDefined();
+    expect(rule).toMatch(/width:\s*100%/);
+    expect(rule).toMatch(/max-width:\s*100%/);
+    expect(rule).toMatch(/margin-left:\s*0/);
+    expect(rule).toMatch(/margin-right:\s*0/);
+    expect(rule).toMatch(/align-self:\s*stretch/);
   });
 
   it('nests thinking-only explore chrome under the inspector assistant message', () => {
