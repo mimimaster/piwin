@@ -154,9 +154,12 @@ export async function handleSessionBranchCommand(
         context.pendingBranchCalibrationBySession.set(command.sessionId, offPathWrites);
       }
       await pushBranchUpdated(context, command.sessionId, liveStore);
+      // Leaf write and occupancy invalidate are consecutive store ops, not one
+      // SQLite transaction (`switchActiveBranch` does not accept context CAS).
       await context.sessionContextCoordinator?.invalidate(command.sessionId, {
         reason: 'branch-switch',
         empty: remaining.length === 0,
+        contextBoundary: { activeLeafMessageId },
       });
       const data: SessionBranchSwitchData = {
         status: 'switched',

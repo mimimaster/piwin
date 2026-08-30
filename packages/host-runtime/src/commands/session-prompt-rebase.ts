@@ -63,6 +63,7 @@ async function rebaseForBranchPrompt(
   await pushBranchUpdated(context, command.sessionId, store);
   await context.sessionContextCoordinator?.invalidate(command.sessionId, {
     reason: 'branch-switch',
+    contextBoundary: { activeLeafMessageId: await store.getActiveLeaf() },
   });
   return null;
 }
@@ -117,6 +118,7 @@ async function rebaseForRetryPrompt(
   await pushBranchUpdated(context, command.sessionId, store);
   await context.sessionContextCoordinator?.invalidate(command.sessionId, {
     reason: 'branch-switch',
+    contextBoundary: { activeLeafMessageId: await store.getActiveLeaf() },
   });
   return null;
 }

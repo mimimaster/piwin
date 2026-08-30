@@ -233,7 +233,7 @@ describe('routeSessionAgentEvent', () => {
   it('does not bill streaming usage/update', () => {
     const registry = new RunRegistry();
     registry.createForegroundRun('session-1');
-    const { deps, ledgerWrites, hookEvents } = createRouterKernel({
+    const { deps, ledgerWrites, hookEvents, pushes } = createRouterKernel({
       sessionId: 'session-1',
       registry,
     });
@@ -257,5 +257,7 @@ describe('routeSessionAgentEvent', () => {
     );
 
     expect(ledgerWrites).toEqual([]);
+    expect(hookEvents).toEqual([]);
+    expect(pushes.some((push) => push.type === 'event')).toBe(false);
   });
 });

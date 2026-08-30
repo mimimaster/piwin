@@ -138,15 +138,30 @@ export function createMockSessionHandle(input: CreateMockSessionOptions): Sessio
         byteLength: Buffer.byteLength(nativePayload, 'utf8'),
       },
     });
-    emit({
-      type: 'usage/update',
+    const interventionUsage = estimateMockUsage(
       sessionId,
-      usage: estimateMockUsage(
+      intervention.text,
+      reply,
+      Math.max(1, Date.now() - startedAt),
+    );
+    emit({
+      type: 'usage/finalized',
+      measurement: {
+        measurementId: `${sessionId}:mock:${assistantMessageId}`,
         sessionId,
-        intervention.text,
-        reply,
-        Math.max(1, Date.now() - startedAt),
-      ),
+        messageId: assistantMessageId,
+        totalTokens: interventionUsage.totalTokens ?? interventionUsage.tokensUsed ?? 0,
+        recordedAt: interventionUsage.updatedAt,
+        ...(interventionUsage.promptTokens !== undefined
+          ? { promptTokens: interventionUsage.promptTokens }
+          : {}),
+        ...(interventionUsage.completionTokens !== undefined
+          ? { completionTokens: interventionUsage.completionTokens }
+          : {}),
+        ...(interventionUsage.durationMs !== undefined
+          ? { durationMs: interventionUsage.durationMs }
+          : {}),
+      },
     });
     return true;
   };
@@ -327,7 +342,6 @@ export function createMockSessionHandle(input: CreateMockSessionOptions): Sessio
             ...(usage.durationMs !== undefined ? { durationMs: usage.durationMs } : {}),
           },
         });
-        emit({ type: 'usage/update', sessionId, usage });
         await drainRunInterventions();
       } finally {
         await expireStagedInterventions();

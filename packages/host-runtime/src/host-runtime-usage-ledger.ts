@@ -16,9 +16,9 @@ export async function recordFinalizedUsageToLedger(
   deps: HostRuntimeKernel,
   sessionId: string,
   measurement: AssistantUsageMeasurement,
-): Promise<'inserted' | 'duplicate'> {
+): Promise<'inserted' | 'duplicate' | 'unavailable'> {
   if (measurement.sessionId !== sessionId || !Number.isFinite(measurement.totalTokens)) {
-    return 'duplicate';
+    return 'unavailable';
   }
   const rootDir = getPiwinRoot(deps.options.piwinRoot);
   const ledgerPath = getPiwinUsageLedgerPath(rootDir);
@@ -60,7 +60,7 @@ export async function recordFinalizedUsageToLedger(
       level: 'warn',
       message: `usage ledger write failed: ${message}`,
     });
-    return 'duplicate';
+    return 'unavailable';
   }
 }
 

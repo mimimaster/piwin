@@ -40,7 +40,7 @@ export type SessionContextCoordinatorDeps = {
   recordFinalizedUsage: (
     sessionId: string,
     measurement: AssistantUsageMeasurement,
-  ) => Promise<'inserted' | 'duplicate'>;
+  ) => Promise<'inserted' | 'duplicate' | 'unavailable'>;
   log: (level: 'warn' | 'info', message: string) => void;
   getBoundGenerationId?: (sessionId: string) => string | undefined;
   schedule?: (fn: () => void, ms: number) => { clear: () => void };
@@ -99,11 +99,10 @@ type SessionEntry = {
 export function projectSnapshotToLegacyUsage(
   snapshot: SessionContextSnapshot,
 ): ContextUsageSnapshot | undefined {
-  const occupancy =
-    snapshot.occupancy.kind === 'known' ? snapshot.occupancy : snapshot.lastConfirmed?.occupancy;
-  if (occupancy === undefined || occupancy.kind !== 'known') {
+  if (snapshot.occupancy.kind !== 'known') {
     return undefined;
   }
+  const occupancy = snapshot.occupancy;
   const usage: ContextUsageSnapshot = {
     sessionId: snapshot.sessionId,
     tokensUsed: occupancy.tokensUsed,
@@ -161,6 +160,25 @@ export function createSessionContextCoordinator(
         deps.log('warn', `session context store unavailable for ${id}`);
       },
       schedule,
+      onCasMismatch: async () => {
+        const current = sessions.get(sessionId);
+        if (current === undefined) {
+          return;
+        }
+        try {
+          const store = await deps.getStore(sessionId);
+          const fresh = await store.readContextState();
+          if (fresh !== null) {
+            current.snapshot = fresh;
+            current.publisher.notePersisted(fresh);
+          }
+        } catch (error) {
+          deps.log(
+            'warn',
+            `session context cas-mismatch reread failed: ${error instanceof Error ? error.message : 'error'}`,
+          );
+        }
+      },
     });
   }
 
@@ -195,22 +213,21 @@ export function createSessionContextCoordinator(
     snapshot: SessionContextSnapshot,
     immediate: boolean,
   ): Promise<SessionContextSnapshot> {
-    entry.snapshot = snapshot;
     try {
-      const published = await entry.publisher.publish(snapshot, immediate);
-      if (published !== undefined) {
-        entry.snapshot = published;
-        return published;
+      const outcome = await entry.publisher.publish(snapshot, immediate);
+      if (outcome.status === 'cas-mismatch') {
+        return entry.snapshot;
       }
+      entry.snapshot = outcome.snapshot;
+      return outcome.snapshot;
     } catch (error) {
       deps.log('warn', `session context publish failed: ${error instanceof Error ? error.message : 'error'}`);
+      return entry.snapshot;
     }
-    return entry.snapshot;
   }
 
   function bumpBarrier(entry: SessionEntry): void {
     entry.barrierEpoch += 1;
-    entry.lastSampleSequence = 0;
   }
 
   return {
@@ -255,39 +272,44 @@ export function createSessionContextCoordinator(
           `assistant usage index write failed: ${error instanceof Error ? error.message : 'error'}`,
         );
       }
+      let billed: 'inserted' | 'duplicate' | 'unavailable' = 'unavailable';
       try {
-        await deps.recordFinalizedUsage(input.sessionId, input.measurement);
+        billed = await deps.recordFinalizedUsage(input.sessionId, input.measurement);
       } catch (error) {
         deps.log(
           'warn',
           `usage ledger write failed: ${error instanceof Error ? error.message : 'error'}`,
         );
       }
-      const usage: ContextUsageSnapshot = {
-        sessionId: input.sessionId,
-        totalTokens: input.measurement.totalTokens,
-        updatedAt: input.measurement.recordedAt,
-        source: 'assistant-usage',
-      };
-      if (input.measurement.modelId !== undefined) usage.modelId = input.measurement.modelId;
-      if (input.measurement.promptTokens !== undefined) usage.promptTokens = input.measurement.promptTokens;
-      if (input.measurement.completionTokens !== undefined) {
-        usage.completionTokens = input.measurement.completionTokens;
+      if (billed === 'inserted') {
+        const usage: ContextUsageSnapshot = {
+          sessionId: input.sessionId,
+          totalTokens: input.measurement.totalTokens,
+          updatedAt: input.measurement.recordedAt,
+          source: 'assistant-usage',
+        };
+        if (input.measurement.modelId !== undefined) usage.modelId = input.measurement.modelId;
+        if (input.measurement.promptTokens !== undefined) {
+          usage.promptTokens = input.measurement.promptTokens;
+        }
+        if (input.measurement.completionTokens !== undefined) {
+          usage.completionTokens = input.measurement.completionTokens;
+        }
+        if (input.measurement.cacheReadTokens !== undefined) {
+          usage.cacheReadTokens = input.measurement.cacheReadTokens;
+        }
+        if (input.measurement.cacheWriteTokens !== undefined) {
+          usage.cacheWriteTokens = input.measurement.cacheWriteTokens;
+        }
+        if (input.measurement.durationMs !== undefined) usage.durationMs = input.measurement.durationMs;
+        deps.push({
+          type: 'event',
+          sessionId: input.sessionId,
+          event: { type: 'usage/update', sessionId: input.sessionId, usage },
+        });
       }
-      if (input.measurement.cacheReadTokens !== undefined) {
-        usage.cacheReadTokens = input.measurement.cacheReadTokens;
-      }
-      if (input.measurement.cacheWriteTokens !== undefined) {
-        usage.cacheWriteTokens = input.measurement.cacheWriteTokens;
-      }
-      if (input.measurement.durationMs !== undefined) usage.durationMs = input.measurement.durationMs;
-      deps.push({
-        type: 'event',
-        sessionId: input.sessionId,
-        event: { type: 'usage/update', sessionId: input.sessionId, usage },
-      });
       const entry = await hydrate(input.sessionId);
-      await commit(entry, { ...entry.snapshot, updatedAt: deps.nowIso() }, false);
+      await commit(entry, { ...entry.snapshot, updatedAt: deps.nowIso() }, true);
     },
 
     async noteResponseEvidence(input) {
@@ -305,6 +327,12 @@ export function createSessionContextCoordinator(
 
     async noteRunStarted(input) {
       const entry = await hydrate(input.sessionId);
+      if (
+        input.runtimeGenerationId !== undefined &&
+        entry.snapshot.runtimeGenerationId !== input.runtimeGenerationId
+      ) {
+        entry.lastSampleSequence = 0;
+      }
       const snapshot = applyRunStarted(entry.snapshot, {
         nowIso: deps.nowIso(),
         runId: input.runId,
@@ -359,17 +387,43 @@ export function createSessionContextCoordinator(
     async invalidate(sessionId, input) {
       const entry = await hydrate(sessionId);
       bumpBarrier(entry);
+      const store = await deps.getStore(sessionId);
+      const leaf =
+        input.contextBoundary !== undefined
+          ? input.contextBoundary.activeLeafMessageId
+          : await store.getActiveLeaf();
+      const contextBoundary: ContextBoundary =
+        input.contextBoundary ??
+        { ...entry.snapshot.contextBoundary, activeLeafMessageId: leaf };
+      const nowIso = deps.nowIso();
+      try {
+        const invalidated = await store.invalidateContextState({
+          reason: input.reason,
+          contextBoundary,
+          updatedAt: nowIso,
+        });
+        entry.publisher.notePersisted(invalidated);
+        entry.snapshot = invalidated;
+      } catch (error) {
+        deps.log(
+          'warn',
+          `session context invalidate failed: ${error instanceof Error ? error.message : 'error'}`,
+        );
+      }
       const snapshot = applyInvalidate(entry.snapshot, {
-        nowIso: deps.nowIso(),
+        nowIso,
         reason: input.reason,
         ...(input.empty !== undefined ? { empty: input.empty } : {}),
-        ...(input.contextBoundary !== undefined ? { contextBoundary: input.contextBoundary } : {}),
+        contextBoundary,
       });
       return commit(entry, snapshot, true);
     },
 
     async revalidateAfterActivation(sessionId, input) {
       const entry = await hydrate(sessionId);
+      if (entry.snapshot.runtimeGenerationId !== input.runtimeGenerationId) {
+        entry.lastSampleSequence = 0;
+      }
       const matched =
         entry.snapshot.contextBoundary.activeLeafMessageId === input.contextBoundary.activeLeafMessageId &&
         (entry.snapshot.contextBoundary.compactionBoundary ?? '') ===
@@ -388,8 +442,8 @@ export function createSessionContextCoordinator(
     async getSnapshot(sessionId) {
       const entry = await hydrate(sessionId);
       const flushed = await entry.publisher.flush();
-      if (flushed !== undefined) {
-        entry.snapshot = flushed;
+      if (flushed !== undefined && flushed.status !== 'cas-mismatch') {
+        entry.snapshot = flushed.snapshot;
       }
       return entry.snapshot;
     },
@@ -420,16 +474,16 @@ export function createSessionContextCoordinator(
           return;
         }
         const flushed = await entry.publisher.flush();
-        if (flushed !== undefined) {
-          entry.snapshot = flushed;
+        if (flushed !== undefined && flushed.status !== 'cas-mismatch') {
+          entry.snapshot = flushed.snapshot;
         }
         return;
       }
       await Promise.all(
         [...sessions.values()].map(async (entry) => {
           const flushed = await entry.publisher.flush();
-          if (flushed !== undefined) {
-            entry.snapshot = flushed;
+          if (flushed !== undefined && flushed.status !== 'cas-mismatch') {
+            entry.snapshot = flushed.snapshot;
           }
         }),
       );

@@ -80,6 +80,8 @@ describe('session context coordinator host commands', () => {
 
       const coordinator = coordinatorOf(runtime);
       const generationId = generationOf(runtime, sessionId);
+      const live = await coordinator.getSnapshot(sessionId);
+      const leaf = live.contextBoundary.activeLeafMessageId;
       for (let index = 0; index < 100; index += 1) {
         await coordinator.ingestMeasurement({
           sessionId,
@@ -96,7 +98,7 @@ describe('session context coordinator host commands', () => {
               basis: 'host-test',
               sampledAt: new Date().toISOString(),
             },
-            contextBoundary: { activeLeafMessageId: 'host-test-leaf' },
+            contextBoundary: { activeLeafMessageId: leaf },
             sampledAt: new Date().toISOString(),
           },
         });
@@ -155,7 +157,7 @@ describe('session context coordinator host commands', () => {
             basis: 'host-get',
             sampledAt: new Date().toISOString(),
           },
-          contextBoundary: { activeLeafMessageId: null },
+          contextBoundary: { activeLeafMessageId: 'msg-1' },
           sampledAt: new Date().toISOString(),
         },
       });
