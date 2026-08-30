@@ -1804,6 +1804,14 @@ export class MockHostBackend {
           success: true,
           data: { enabled: command.enabled },
         };
+      case 'session/set-composer-profile':
+        return {
+          id,
+          type: 'response',
+          command: 'session/set-composer-profile',
+          success: true,
+          data: { ok: true },
+        };
 
       case 'session/list-children': {
         const sessions = this.childIndex?.get(command.parentSessionId) ?? [];

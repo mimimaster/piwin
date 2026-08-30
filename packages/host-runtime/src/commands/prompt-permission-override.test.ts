@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { PermissionMode } from '@piwin/contracts';
-import { applyPromptPermissionOverride } from './prompt-preparation.js';
+import {
+  applyPromptPermissionOverride,
+  shouldPreserveSessionPermissionOverride,
+} from './prompt-preparation.js';
 
 function captureOverride() {
   const actions: Array<{ kind: 'set'; mode: PermissionMode } | { kind: 'clear' }> = [];
@@ -16,6 +19,28 @@ function captureOverride() {
     },
   };
 }
+
+describe('shouldPreserveSessionPermissionOverride', () => {
+  it('preserves for Host-internal sources when preset and agentMode are omitted', () => {
+    expect(shouldPreserveSessionPermissionOverride({ source: 'voice-delegation' })).toBe(true);
+    expect(shouldPreserveSessionPermissionOverride({ source: 'queued-turn' })).toBe(true);
+    expect(shouldPreserveSessionPermissionOverride({ source: 'resume' })).toBe(true);
+  });
+
+  it('does not preserve for omitted source or user so CLI still clears', () => {
+    expect(shouldPreserveSessionPermissionOverride({})).toBe(false);
+    expect(shouldPreserveSessionPermissionOverride({ source: 'user' })).toBe(false);
+  });
+
+  it('does not preserve when permissionPreset is explicit even for voice-delegation', () => {
+    expect(
+      shouldPreserveSessionPermissionOverride({
+        source: 'voice-delegation',
+        permissionPreset: 'ask',
+      }),
+    ).toBe(false);
+  });
+});
 
 describe('applyPromptPermissionOverride', () => {
   it('sets ask-all when the composer pill is Ask and config is still YOLO', () => {

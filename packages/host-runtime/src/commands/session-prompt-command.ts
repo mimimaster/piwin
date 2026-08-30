@@ -34,6 +34,7 @@ import {
 import { listKnownChatModelKeys } from './prompt-preparation.js';
 import { executeSessionTurn } from './session-turn-executor.js';
 import { rebaseForPromptTree } from './session-prompt-rebase.js';
+import { resolveSessionTurnProfile } from './session-turn-profile.js';
 
 export async function handleSessionPromptCommand(
   command: HostCommand,
@@ -175,14 +176,19 @@ export async function handleSessionPromptCommand(
       // can. Keep this Run detached from the old generation while Host builds
       // the replacement below; same-Provider model switches still use Pi's
       // native setModel path without a rebuild.
-      const previousModel = command.input.model
-        ? context.sessionModels.get(command.sessionId)
-        : undefined;
-      const requiresModelRuntimeReplacement =
-        command.input.model !== undefined &&
-        context.sessions.has(command.sessionId) &&
-        (previousModel === undefined ||
-          previousModel.providerId !== command.input.model.providerId);
+      // Desired = input.model ?? index record ?? last-applied. Voice-delegation
+      // omits input.model; Host still applies the desired composer profile.
+      const {
+        previousModel,
+        requiresModelRuntimeReplacement,
+        desiredModel,
+        desiredThinkingLevel,
+      } = resolveSessionTurnProfile({
+        input: command.input,
+        record: promptRecord,
+        appliedModel: context.sessionModels.get(command.sessionId),
+        hasLiveHandle: context.sessions.has(command.sessionId),
+      });
       const explicitForeground = command.foreground;
       let reservedAdmission = false;
       if (explicitForeground !== undefined) {
@@ -297,6 +303,8 @@ export async function handleSessionPromptCommand(
           startingPlanRevision,
           previousModel,
           requiresModelRuntimeReplacement,
+          desiredModel,
+          desiredThinkingLevel,
           supersededRun,
         });
       });
