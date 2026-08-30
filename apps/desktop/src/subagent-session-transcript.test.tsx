@@ -1,11 +1,16 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from 'vitest';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import type { ChatMessageUi, SubagentStreamState } from './chat-reducer';
+import type { ChatMessageUi, SubagentStreamState, ToolCardUi } from './chat-reducer';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { SubagentSessionTranscript } from './subagent-session-transcript';
+
+const SRC_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)));
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -130,5 +135,88 @@ describe('SubagentSessionTranscript thinking visibility', () => {
 
     expect(container.querySelector('[data-testid="tool-call-card"]')).not.toBeNull();
     expect(container.textContent).toContain('pnpm test');
+  });
+});
+
+function readFileTool(id: string, relativePath: string): ToolCardUi {
+  return {
+    toolCallId: id,
+    toolName: 'read',
+    status: 'done',
+    output: 'ok',
+    presentation: {
+      kind: 'filesystem',
+      title: 'Read',
+      actionVerb: 'Read',
+      targetPaths: [relativePath],
+    },
+  };
+}
+
+const thinkingOnlyExploreMessage: ChatMessageUi = {
+  id: 'child-thinking-only',
+  role: 'assistant',
+  text: '',
+  thinking: 'Checking the contracts before editing.',
+  thinkingStartedAt: 1_000,
+  thinkingEndedAt: 5_000,
+  tools: [
+    readFileTool('read-1', 'packages/contracts/src/ipc.ts'),
+    readFileTool('read-2', 'packages/contracts/src/remote-protocol.ts'),
+  ],
+  attachments: [],
+  status: 'done',
+};
+
+describe('SubagentSessionTranscript work-details layout', () => {
+  const mountedRoots: Array<{ root: Root; container: HTMLElement }> = [];
+
+  afterEach(() => {
+    for (const mountedRoot of mountedRoots.splice(0)) {
+      act(() => {
+        mountedRoot.root.unmount();
+      });
+      mountedRoot.container.remove();
+    }
+  });
+
+  it('keeps a definite-width rule so flex auto-margins cannot shrink-wrap chrome', async () => {
+    const css = await readFile(path.join(SRC_DIR, 'styles/subagent-session-inspector.css'), 'utf8');
+    expect(css).toMatch(
+      /\.subagent-inspector-message\.role-assistant\s+\.turn-work-details\s*\{[^}]*width:\s*100%;/s,
+    );
+  });
+
+  it('nests thinking-only explore chrome under the inspector assistant message', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    mountedRoots.push({ root, container });
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <SubagentSessionTranscript
+            historicalMessages={[thinkingOnlyExploreMessage]}
+            stream={null}
+            loading={false}
+            error={null}
+            onRetry={() => undefined}
+            locale="zh-CN"
+            artifactPreviewEnabled={true}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const message = container.querySelector('.subagent-inspector-message.role-assistant');
+    const workDetails = message?.querySelector('[data-testid="turn-work-details"]');
+    expect(message).not.toBeNull();
+    expect(workDetails).not.toBeNull();
+    expect(workDetails?.parentElement).toBe(message);
+    expect(container.textContent).toContain('已思考 4 秒');
+    expect(container.textContent).toContain('已探索 2 个文件');
+    expect(container.querySelector('[data-testid="tool-batch-capsule"]')).not.toBeNull();
+    expect(container.querySelector('.markdown')).toBeNull();
   });
 });
