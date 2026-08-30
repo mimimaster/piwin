@@ -66,6 +66,16 @@ export function classifyHostPush(push: HostPushVariant): HostPushPolicy {
       return projection(
         deliveryKey('subagent', push.parentSessionId, 'result', push.result.resultId),
       );
+    case 'turn-changes/updated':
+      return control([
+        deliveryKey('workspace', push.workspaceId, 'turn-change', push.changeSetId),
+      ]);
+    case 'turn-changes/operation-updated':
+      return projection(
+        deliveryKey('workspace', push.workspaceId, 'turn-change-operation', push.operationId),
+      );
+    case 'workspace-files-updated':
+      return projection(deliveryKey('workspace', push.workspaceId, 'files'));
     case 'subagent/stream':
       return classifyAgentEvent(
         deliveryKey('subagent', push.parentSessionId, push.childSessionId),

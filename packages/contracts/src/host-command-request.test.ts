@@ -101,4 +101,94 @@ describe('HostCommandRequest envelope', () => {
       }),
     ).toBe(false);
   });
+
+  it('requires an idempotency key for turn-change mutations, not reads', () => {
+    expect(
+      hostCommandRequestRequiresIdempotencyKey({
+        type: 'turn-changes/undo',
+        changeSetId: 'cs-1',
+        expectedRevision: 1,
+      }),
+    ).toBe(true);
+    expect(
+      hostCommandRequestRequiresIdempotencyKey({
+        type: 'turn-changes/redo',
+        changeSetId: 'cs-1',
+        expectedRevision: 1,
+      }),
+    ).toBe(true);
+    expect(
+      hostCommandRequestRequiresIdempotencyKey({
+        type: 'turn-changes/cancel',
+        operationId: 'op-1',
+      }),
+    ).toBe(true);
+    expect(
+      hostCommandRequestRequiresIdempotencyKey({
+        type: 'turn-changes/recovery-run',
+        operationId: 'op-1',
+        expectedRevision: 1,
+        confirmationToken: 'token-1',
+      }),
+    ).toBe(true);
+    expect(
+      hostCommandRequestRequiresIdempotencyKey({ type: 'turn-changes/get', changeSetId: 'cs-1' }),
+    ).toBe(false);
+    expect(
+      hostCommandRequestRequiresIdempotencyKey({
+        type: 'turn-changes/list-by-runs',
+        sessionId: 'session-1',
+        runIds: ['run-1'],
+      }),
+    ).toBe(false);
+    expect(
+      hostCommandRequestRequiresIdempotencyKey({
+        type: 'turn-changes/files',
+        changeSetId: 'cs-1',
+        revision: 1,
+      }),
+    ).toBe(false);
+    expect(
+      hostCommandRequestRequiresIdempotencyKey({
+        type: 'turn-changes/diff',
+        changeSetId: 'cs-1',
+        revision: 1,
+        fileId: 'file-1',
+      }),
+    ).toBe(false);
+    expect(
+      hostCommandRequestRequiresIdempotencyKey({
+        type: 'turn-changes/check',
+        changeSetId: 'cs-1',
+        revision: 1,
+        direction: 'undo',
+      }),
+    ).toBe(false);
+    expect(
+      hostCommandRequestRequiresIdempotencyKey({
+        type: 'turn-changes/operation',
+        operationId: 'op-1',
+      }),
+    ).toBe(false);
+    expect(
+      hostCommandRequestRequiresIdempotencyKey({
+        type: 'turn-changes/operations',
+        workspaceId: 'ws-1',
+      }),
+    ).toBe(false);
+    expect(
+      hostCommandRequestRequiresIdempotencyKey({
+        type: 'turn-changes/recovery-preview',
+        operationId: 'op-1',
+        expectedRevision: 1,
+      }),
+    ).toBe(false);
+    expect(
+      hostCommandRequestRequiresIdempotencyKey({
+        type: 'turn-changes/recovery-verify',
+        operationId: 'op-1',
+        expectedRevision: 1,
+      }),
+    ).toBe(false);
+  });
 });

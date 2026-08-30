@@ -78,6 +78,7 @@ export * from './subagent-lifecycle.js';
 export * from './subagent-orchestration.js';
 export * from './subagent-delivery.js';
 export * from './subagent-result.js';
+export * from './turn-change.js';
 export * from './compaction-fileops.js';
 export * from './pty.js';
 export * from './automation.js';

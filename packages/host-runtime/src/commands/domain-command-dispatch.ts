@@ -29,6 +29,7 @@ import { handleSideChatCommand } from './side-chat-commands.js';
 import { handleWalkthroughList, handleWalkthroughGenerate } from './walkthrough-commands.js';
 import { handleKnowledgeCommand } from './knowledge-commands.js';
 import { handleSubagentCommand } from './subagent-commands.js';
+import { handleTurnChangeCommand } from './turn-change-commands.js';
 import { handleAuthCommand } from './auth-commands.js';
 import { handleVoiceLiveCommand } from './voice-live-commands.js';
 import { handleSessionComposerProfileCommand } from './session-composer-profile-command.js';
@@ -119,6 +120,9 @@ export async function dispatchDomainCommands(
 
   const subagent = await handleSubagentCommand(command, requestId, context.subagent);
   if (subagent) return subagent;
+
+  const turnChange = await handleTurnChangeCommand(command, requestId);
+  if (turnChange) return turnChange;
 
   for (const handler of [
     handleCatalogCommand,

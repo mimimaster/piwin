@@ -16,6 +16,10 @@ export const REMOTE_IDEMPOTENT_MUTATION_TYPES = [
   'notes/delete',
   'todo/set',
   'subagent/request-resolution',
+  'turn-changes/undo',
+  'turn-changes/redo',
+  'turn-changes/cancel',
+  'turn-changes/recovery-run',
 ] as const satisfies readonly HostCommand['type'][];
 
 export function remoteCommandRequiresIdempotencyKey(type: HostCommand['type']): boolean {

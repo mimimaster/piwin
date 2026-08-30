@@ -57,6 +57,51 @@ describe('classifyHostPushAudience', () => {
     expect(classifyHostPush(transcript).kind).toBe('append');
   });
 
+  it('classifies workspace-scoped turn-change pushes as global', () => {
+    expect(
+      classifyHostPushAudience({
+        type: 'turn-changes/operation-updated',
+        workspaceId: 'ws-1',
+        operationId: 'op-1',
+        changeSetId: 'cs-1',
+      }),
+    ).toEqual({ kind: 'global' });
+    expect(
+      classifyHostPushAudience({ type: 'workspace-files-updated', workspaceId: 'ws-1' }),
+    ).toEqual({ kind: 'global' });
+    expect(
+      hostPushPassesLiveFilter(
+        classifyHostPushAudience({
+          type: 'turn-changes/updated',
+          workspaceId: 'ws-1',
+          changeSetId: 'cs-1',
+          revision: 1,
+          summary: {
+            changeSetId: 'cs-1',
+            attemptId: 'attempt-1',
+            sessionId: 'session-1',
+            workspaceId: 'ws-1',
+            userMessageId: null,
+            runIds: ['run-1'],
+            revision: 1,
+            captureState: 'ready',
+            disposition: 'applied',
+            fileCount: 0,
+            additions: 0,
+            deletions: 0,
+            binaryFileCount: 0,
+            coverageComplete: true,
+            undo: { allowed: true },
+            redo: { allowed: false, reason: 'direction-unavailable' },
+            expiresAt: null,
+            latestOperationId: null,
+          },
+        }),
+        { sessionIds: new Set(['s-b']) },
+      ),
+    ).toBe(true);
+  });
+
   it('keeps global and inbox pushes flowing under a session-B filter', () => {
     const filter = { sessionIds: new Set(['s-b']) };
     expect(
