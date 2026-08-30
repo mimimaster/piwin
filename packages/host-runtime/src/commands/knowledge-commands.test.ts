@@ -62,6 +62,7 @@ describe('knowledge command handlers', () => {
       true,
     );
     expect(isKnowledgeCommand({ type: 'host/ping' })).toBe(false);
+    expect(isKnowledgeCommand({ type: 'flashcards/study/catalog', limit: 20 })).toBe(false);
   });
 
   it('routes notes list through the injected store and preserves filters', async () => {

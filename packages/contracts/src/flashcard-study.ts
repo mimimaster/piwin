@@ -93,6 +93,8 @@ export type FlashcardStudyContentProjection = {
   sourceExcerpt?: string;
   tags?: string[];
   sequenceId?: string;
+  /** Scheduled ReviewState.revision observed for this entry. */
+  reviewStateRevision?: number;
 };
 
 export type FlashcardStudyNextShell = {

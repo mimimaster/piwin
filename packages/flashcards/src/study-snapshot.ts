@@ -87,6 +87,9 @@ function projectEntry(
   };
   if (entry.cardId) projection.cardId = entry.cardId;
   if (entry.ordinal !== undefined) projection.ordinal = entry.ordinal;
+  if (entry.reviewStateRevision !== undefined) {
+    projection.reviewStateRevision = entry.reviewStateRevision;
+  }
   if (includeBack) projection.back = card.back;
   if (card.model === 'cloze' && entry.ordinal !== undefined) {
     const siblings = expandItemToReviewCards(item);

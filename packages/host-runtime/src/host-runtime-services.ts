@@ -82,6 +82,29 @@ export async function getCardStore(
   return deps.cardStore;
 }
 
+export async function getStudyService(
+  deps: HostRuntimeKernel,
+): Promise<import('@piwin/flashcards').StudyService> {
+  if (!deps.studyService) {
+    const rootDir = getPiwinRoot(deps.options.piwinRoot);
+    const config = await loadPiwinConfig(rootDir);
+    if (config.flashcards?.enabled === false) {
+      throw new Error('Flashcards are disabled (config.flashcards.enabled=false).');
+    }
+    const cardStore = await getCardStore(deps);
+    const { createStudyService, getFlashcardsRoot, getOrCreateStudyCoordinator } =
+      await import('@piwin/flashcards');
+    const { toStudyChangedPush } = await import('./commands/flashcard-study-commands.js');
+    const coordinator = getOrCreateStudyCoordinator(getFlashcardsRoot(rootDir), {
+      onApplied: (event) => {
+        deps.push(toStudyChangedPush(event));
+      },
+    });
+    deps.studyService = createStudyService({ coordinator, cards: cardStore });
+  }
+  return deps.studyService;
+}
+
 export async function getFolderRag(
   deps: HostRuntimeKernel,
 ): Promise<import('@piwin/doc-rag').FolderRag> {
