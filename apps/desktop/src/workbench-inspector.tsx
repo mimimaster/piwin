@@ -15,6 +15,7 @@ import type { HostClient } from './host-client';
 import { RightPanel, type RightPanelTab } from './right-panel';
 import { RIGHT_PANEL_DEFAULT_WIDTH_PX } from './right-panel-width';
 import { RemoteUnavailableSurface } from './remote-unavailable-surface';
+import { WorkbenchReviewSurface } from './workbench-review-surface';
 import { ArtifactCanvasPanel } from './artifact-canvas-panel';
 import { appendComposerProposal, type ArtifactCanvasTarget } from './artifact-canvas-model';
 import { mapThemeToArtifactVariables } from './artifact-theme-map';
@@ -40,14 +41,11 @@ import type { FlashcardsPanelProps } from './FlashcardsPanel';
 import type { FileTreeRequest } from './file-tree-panel';
 import {
   DeferredBrowserSessionPanel,
-  DeferredChangesPanel,
   DeferredDocPreviewPanel,
   DeferredFileTreePanel,
   DeferredFlashcardsPanel,
-  DeferredGitPanel,
   DeferredMediaDocPreview,
   DeferredNotesPanel,
-  DeferredReviewPanel,
   DeferredSideChatPanel,
   DeferredTerminalDock,
 } from './deferred-desktop-surfaces';
@@ -403,26 +401,13 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
             )
           }
           reviewContent={
-            hostClient.supportsCommand('git/status') ? (
-              <DeferredReviewPanel
-                changesContent={
-                  <DeferredChangesPanel
-                    projectPath={projectPath}
-                    request={requestGit as never}
-                    locale={locale}
-                  />
-                }
-                gitContent={
-                  <DeferredGitPanel
-                    projectPath={projectPath}
-                    request={requestGit as never}
-                    variant="embedded"
-                  />
-                }
-              />
-            ) : (
-              <RemoteUnavailableSurface feature="review" locale={locale} />
-            )
+            <WorkbenchReviewSurface
+              hostClient={hostClient}
+              projectPath={projectPath}
+              locale={locale}
+              activeSessionId={activeSessionId}
+              requestGit={requestGit}
+            />
           }
         />
       </>
