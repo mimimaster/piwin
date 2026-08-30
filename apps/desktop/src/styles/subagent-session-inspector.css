@@ -141,6 +141,15 @@
   gap: var(--s-4);
 }
 
+/* Shared `.turn-work-details` centers a `--chat-max` column with
+   `margin-inline: auto`. This message is a column flex container, and auto
+   margins on a flex item disable stretch and shrink it to max-content — a
+   thinking/explore-only turn then floats as a centered island. A definite
+   width restores the column; the main thread is unchanged. */
+.subagent-inspector-message.role-assistant .turn-work-details {
+  width: 100%;
+}
+
 .subagent-inspector-message.role-user {
   padding: var(--s-4) var(--s-5);
   border: 0;
