@@ -268,4 +268,152 @@ describe('flashcard study controller', () => {
     await Promise.resolve();
     expect(requests.some((command) => command.type === 'flashcards/study/next')).toBe(false);
   });
+
+  it('open() does not replay pending after operation not-found when epoch is stale', async () => {
+    const pending = createMemoryFlashcardStudyPendingStore();
+    const requests: HostCommand[] = [];
+    const controller = createFlashcardStudyController({
+      request: async (command) => {
+        requests.push(command);
+        if (command.type === 'flashcards/study/operation') {
+          return {
+            type: 'response',
+            command: command.type,
+            success: true,
+            data: { status: 'not-found' },
+          };
+        }
+        return { type: 'response', command: command.type, success: true, data: snapshot(0) };
+      },
+      pending,
+      clock: clock(),
+      visibility: visibility(),
+    });
+    await controller.start({ mode: 'sequence', scope: { kind: 'item', itemId: 'item-1' } });
+    await pending.save({
+      roundId: 'round-1',
+      idempotencyKey: 'stale-open',
+      command: {
+        type: 'flashcards/study/next',
+        roundId: 'round-1',
+        expectedRevision: 0,
+        controlEpoch: 0,
+        entryId: 'entry-1',
+        contentVersion: 'cv-1',
+      },
+      expectedRevision: 0,
+      controlEpoch: 0,
+      contentVersion: 'cv-1',
+    });
+    await controller.open('round-1');
+    expect(requests.some((command) => command.type === 'flashcards/study/next')).toBe(false);
+  });
+
+  it('handlePush refreshes without flashing loading or skipping tear', async () => {
+    const pending = createMemoryFlashcardStudyPendingStore();
+    const phases: string[] = [];
+    const controller = createFlashcardStudyController({
+      request: async (command) => {
+        if (command.type === 'flashcards/study/start') {
+          return { type: 'response', command: command.type, success: true, data: snapshot(0) };
+        }
+        if (command.type === 'flashcards/study/get') {
+          return { type: 'response', command: command.type, success: true, data: snapshot(2) };
+        }
+        return { type: 'response', command: command.type, success: true, data: snapshot(0) };
+      },
+      pending,
+      clock: clock(),
+      visibility: visibility(),
+    });
+    controller.subscribe((view) => phases.push(view.phase));
+    await controller.start({ mode: 'sequence', scope: { kind: 'item', itemId: 'item-1' } });
+    phases.length = 0;
+    controller.handlePush({
+      type: 'flashcards/study/changed',
+      roundId: 'round-1',
+      revision: 2,
+      reason: 'next',
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(phases).not.toContain('loading');
+    expect(controller.getViewModel().phase).toBe('transitioning');
+    expect(controller.getViewModel().snapshot?.round.revision).toBe(2);
+  });
+
+  it('settles a tearing card when the last subscriber unsubscribes', async () => {
+    const pending = createMemoryFlashcardStudyPendingStore();
+    const controller = createFlashcardStudyController({
+      request: async (command): Promise<HostResponse> => ({
+        type: 'response',
+        command: command.type,
+        success: true,
+        data: command.type === 'flashcards/study/next' ? snapshot(1) : snapshot(0),
+      }),
+      pending,
+      clock: clock(),
+      visibility: visibility(),
+    });
+    const unsubscribe = controller.subscribe(() => undefined);
+    await controller.start({ mode: 'sequence', scope: { kind: 'item', itemId: 'item-1' } });
+    await controller.next();
+    expect(controller.getViewModel().phase).toBe('transitioning');
+    unsubscribe();
+    expect(controller.getViewModel().phase).not.toBe('transitioning');
+    const again = controller.subscribe(() => undefined);
+    expect(controller.getViewModel().phase).not.toBe('transitioning');
+    again();
+  });
+
+  it('does not next, rate, or flip while paused or completed', async () => {
+    const pending = createMemoryFlashcardStudyPendingStore();
+    const requests: HostCommand[] = [];
+    const controller = createFlashcardStudyController({
+      request: async (command) => {
+        requests.push(command);
+        if (command.type === 'flashcards/study/start') {
+          return { type: 'response', command: command.type, success: true, data: snapshot(0) };
+        }
+        if (command.type === 'flashcards/study/pause') {
+          return {
+            type: 'response',
+            command: command.type,
+            success: true,
+            data: snapshot(1, { round: { ...snapshot(1).round, status: 'paused', face: 'answer' } }),
+          };
+        }
+        if (command.type === 'flashcards/study/end') {
+          return {
+            type: 'response',
+            command: command.type,
+            success: true,
+            data: snapshot(2, {
+              round: { ...snapshot(2).round, status: 'completed' },
+              canUndo: true,
+            }),
+          };
+        }
+        return { type: 'response', command: command.type, success: true, data: snapshot(0) };
+      },
+      pending,
+      clock: clock(),
+      visibility: visibility(),
+    });
+    await controller.start({ mode: 'sequence', scope: { kind: 'item', itemId: 'item-1' } });
+    await controller.pause();
+    expect(controller.getViewModel().phase).toBe('paused');
+    requests.length = 0;
+    await controller.next();
+    await controller.rate('good');
+    await controller.flip();
+    expect(requests).toEqual([]);
+    await controller.end();
+    expect(controller.getViewModel().phase).toBe('completed');
+    requests.length = 0;
+    await controller.next();
+    await controller.rate('good');
+    await controller.flip();
+    expect(requests).toEqual([]);
+  });
 });

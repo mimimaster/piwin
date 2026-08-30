@@ -184,6 +184,15 @@ export function createFlashcardStudyController(
     );
   }
 
+  function pausedOrCompleted(): boolean {
+    const status = state.snapshot?.round.status;
+    return status === 'paused' || status === 'completed' || status === 'ended';
+  }
+
+  function advanceBlocked(): boolean {
+    return blocked() || pausedOrCompleted();
+  }
+
   async function executeMutation(
     command: HostCommand,
     pending: FlashcardStudyPendingRecord,
@@ -219,6 +228,15 @@ export function createFlashcardStudyController(
     applySnapshot(snapshot, { tear });
   }
 
+  async function refreshRound(roundId: string, tear: boolean): Promise<void> {
+    const response = await ports.request({ type: 'flashcards/study/get', roundId });
+    if (response.success && isStudySnapshot(response.data)) {
+      applySnapshot(response.data, { tear });
+    } else if (!response.success) {
+      fail(response.problem?.code ?? 'study-error', response.error);
+    }
+  }
+
   async function reconcilePending(): Promise<void> {
     const pending = await ports.pending.load();
     if (!pending) return;
@@ -245,11 +263,28 @@ export function createFlashcardStudyController(
         return;
       }
     }
-    const current = state.snapshot;
-    const staleEpoch = current !== null && current.round.controlEpoch !== pending.controlEpoch;
+    let current = state.snapshot;
+    if (
+      (!current || current.round.roundId !== pending.roundId) &&
+      pending.roundId.length > 0 &&
+      pending.roundId !== 'pending-start'
+    ) {
+      const getResponse = await ports.request({
+        type: 'flashcards/study/get',
+        roundId: pending.roundId,
+      });
+      if (getResponse.success && isStudySnapshot(getResponse.data)) {
+        applySnapshot(getResponse.data, { tear: false });
+        current = state.snapshot;
+      }
+    }
+    if (!current) {
+      return;
+    }
+    const staleEpoch = current.round.controlEpoch !== pending.controlEpoch;
     const staleVersion =
       pending.contentVersion !== undefined &&
-      current?.current?.contentVersion !== undefined &&
+      current.current?.contentVersion !== undefined &&
       current.current.contentVersion !== pending.contentVersion;
     if (staleEpoch || staleVersion) {
       await ports.pending.clear();
@@ -306,16 +341,10 @@ export function createFlashcardStudyController(
 
   async function open(roundId: string): Promise<void> {
     if (!requireCapability()) return;
-    patch({ snapshot: null, error: null });
     restoring = true;
     try {
       await reconcilePending();
-      const response = await ports.request({ type: 'flashcards/study/get', roundId });
-      if (response.success && isStudySnapshot(response.data)) {
-        applySnapshot(response.data);
-      } else if (!response.success) {
-        fail(response.problem?.code ?? 'study-error', response.error);
-      }
+      await refreshRound(roundId, false);
     } finally {
       restoring = false;
     }
@@ -372,7 +401,7 @@ export function createFlashcardStudyController(
 
   async function flip(): Promise<void> {
     const snapshot = currentRound();
-    if (!snapshot?.current || blocked()) return;
+    if (!snapshot?.current || advanceBlocked()) return;
     const face = snapshot.round.face === 'answer' ? 'question' : 'answer';
     const current = snapshot.current;
     const { back: _ignoredBack, ...withoutBack } = current;
@@ -391,7 +420,7 @@ export function createFlashcardStudyController(
     command: HostCommand,
     snapshot: FlashcardStudySnapshot,
   ): Promise<void> {
-    if (blocked() || inFlight || gestureLocked) return;
+    if (advanceBlocked() || inFlight || gestureLocked) return;
     gestureLocked = true;
     try {
       await executeMutation(command, pendingFrom(command, snapshot, newKey()), true);
@@ -452,7 +481,7 @@ export function createFlashcardStudyController(
     if (push.revision <= snapshot.round.revision) return;
     const id = studyTransitionId(push.roundId, push.revision);
     if (seenTransitionIds.has(id)) return;
-    void open(push.roundId);
+    void refreshRound(push.roundId, true);
   }
 
   function setConnected(connected: boolean): void {
@@ -480,6 +509,9 @@ export function createFlashcardStudyController(
           if (fallbackTimer !== null) {
             ports.clock.clearTimeout(fallbackTimer);
             fallbackTimer = null;
+          }
+          if (state.transitionId && !state.transitionSettled) {
+            noteTransitionEnd(state.transitionId);
           }
         }
       };

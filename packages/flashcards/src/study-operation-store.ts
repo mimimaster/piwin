@@ -35,6 +35,8 @@ export type DurableStudyOperation = {
   reviewStateRevisionAfter?: number;
   targetRound?: FlashcardStudyRound;
   targetReviewState?: ReviewState;
+  /** Authenticated connection that submitted the mutation. Absent on pre-P3 logs. */
+  principalId?: string;
 };
 
 export type StudyOperationStoreOptions = {

@@ -74,6 +74,7 @@ export type OperationDraft = {
   reviewStateRevisionAfter?: number;
   targetRound?: FlashcardStudyRound;
   targetReviewState?: ReviewState;
+  principalId?: string;
 };
 
 export type StudyCoordinator = {
@@ -299,6 +300,7 @@ function createStudyCoordinator(
         : {}),
       ...(draft.targetRound ? { targetRound: draft.targetRound } : {}),
       ...(draft.targetReviewState ? { targetReviewState: draft.targetReviewState } : {}),
+      ...(draft.principalId ? { principalId: draft.principalId } : {}),
     };
     try {
       await operations.write(record);

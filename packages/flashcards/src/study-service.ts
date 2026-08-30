@@ -86,7 +86,10 @@ export type StudyService = {
   pause: (input: StudyRoundMutation) => Promise<FlashcardStudySnapshot>;
   resume: (input: StudyRoundMutation) => Promise<FlashcardStudySnapshot>;
   end: (input: StudyRoundMutation) => Promise<FlashcardStudySnapshot>;
-  operation: (idempotencyKey: string) => Promise<FlashcardStudyOperationResult>;
+  operation: (
+    idempotencyKey: string,
+    principalId?: string,
+  ) => Promise<FlashcardStudyOperationResult>;
 };
 
 export type StudyServiceOptions = {
@@ -171,6 +174,7 @@ export function createStudyService(options: StudyServiceOptions): StudyService {
           }
         : {}),
       targetRound: input.reduced.round,
+      principalId: input.controllerIdentity,
     });
     if (record.result.status !== 'success') {
       throw new StudyOperationConflictError(input.idempotencyKey);
@@ -277,6 +281,7 @@ export function createStudyService(options: StudyServiceOptions): StudyService {
           afterRevision: round.revision,
           result: { status: 'success', snapshot },
           targetRound: round,
+          principalId: input.controllerIdentity,
         });
         return snapshot;
       });
@@ -474,10 +479,17 @@ export function createStudyService(options: StudyServiceOptions): StudyService {
       return mutateSimple(input, 'end');
     },
 
-    async operation(idempotencyKey) {
+    async operation(idempotencyKey, principalId) {
       return coordinator.runExclusive(async () => {
         const record = await coordinator.lookupByKey(idempotencyKey);
         if (!record) return { status: 'not-found' };
+        if (
+          principalId !== undefined &&
+          record.principalId !== undefined &&
+          record.principalId !== principalId
+        ) {
+          return { status: 'not-found' };
+        }
         if (!record.applied) {
           const finished = await coordinator.lookup(idempotencyKey, record.payloadDigest);
           return finished?.result ?? record.result;
