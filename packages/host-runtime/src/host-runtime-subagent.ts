@@ -22,6 +22,7 @@ import { resolveChatModel } from './resolve-chat-model.js';
 import { getPiwinGeneralWorkspacePath, getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
 import { indexRecordToSummary } from './session-summary-map.js';
 import { SubagentOrchestrator } from './subagent-orchestrator.js';
+import { freezeSubagentChildResult } from './subagent-result-freeze.js';
 import type { SubagentTaskPreflightContext } from './subagent-orchestrator.js';
 import { resolveSubagentChildPrompt } from './subagent-lifecycle-service.js';
 import { createSubagentWorkspaceService } from './subagent-workspace-service.js';
@@ -141,6 +142,21 @@ export function composeSubagentOrchestrator(deps: HostRuntimeKernel): void {
     prepareTask: (input) => deps.prepareSubagentTask(input),
     preflightTask: (input) => deps.preflightSubagentTask(input.task),
     integrationCoordinator: deps.subagentIntegrationCoordinator,
+    ...(deps.turnChangeRuntime
+      ? {
+          freezeChildResult: ({ result, lease }) => {
+            const runtime = deps.turnChangeRuntime;
+            if (!runtime) {
+              return Promise.resolve(result);
+            }
+            return freezeSubagentChildResult({
+              store: runtime.store,
+              result,
+              lease,
+            });
+          },
+        }
+      : {}),
     resourceCoordinator: deps.runtimeResourceCoordinator,
     runRegistry: deps.runRegistry,
     runStore,

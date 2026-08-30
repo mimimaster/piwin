@@ -12,6 +12,8 @@ import { tmpdir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import { runGitCommand } from './git-command-runner.js';
 import { assertSafeRef } from './path-safety.js';
+import { applyTreeDiffToWorkspace } from './turn-changes/apply-tree-diff.js';
+import { createTurnChangeObjectStore } from './turn-changes/object-store.js';
 
 const INTEGRATION_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
 
@@ -188,10 +190,14 @@ export async function integrateWorktreeChanges(
       if (checkResult.exitCode !== 0) {
         return conflictResult(changedFiles, checkResult.stderr || checkResult.stdout);
       }
-      await runGitCommand({
-        cwd: projectPath,
-        args: ['apply', parentPatchPath],
-        maxBufferBytes: INTEGRATION_MAX_BUFFER_BYTES,
+      const objectStore = createTurnChangeObjectStore({
+        rootDir: join(integrationDirectory, 'turn-change-objects'),
+      });
+      await applyTreeDiffToWorkspace({
+        workspaceRoot: projectPath,
+        beforeTree,
+        afterTree,
+        store: objectStore,
       });
     }
 

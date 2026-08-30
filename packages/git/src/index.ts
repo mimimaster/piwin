@@ -25,6 +25,9 @@ export type {
 
 export { persistTurnChangeWriteReceipt } from './turn-changes/capture.js';
 
+export { freezeWorktreeAgainstBase } from './turn-changes/freeze-tree.js';
+export type { FrozenWorktreeSnapshot } from './turn-changes/freeze-tree.js';
+
 export { composeFileActions } from './turn-changes/compose.js';
 export type { ComposedFileAction, ComposeCoverage } from './turn-changes/compose.js';
 
@@ -41,6 +44,11 @@ export type { PlannedFileOp } from './turn-changes/operation-plan.js';
 
 export { runTurnChangeOperation } from './turn-changes/operation-runner.js';
 export type { TurnChangeOperationRunResult } from './turn-changes/operation-runner.js';
+
+export type {
+  TurnChangeVersionFile,
+  TurnChangeVersionRecord,
+} from './turn-changes/version-store.js';
 
 export { recoverTurnChangeOperation } from './turn-changes/recovery.js';
 export type {
