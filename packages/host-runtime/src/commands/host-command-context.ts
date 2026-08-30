@@ -21,6 +21,10 @@ import type {
   WalkthroughCommandContext,
   WalkthroughGenerationRegistry,
 } from './walkthrough-commands.js';
+import type {
+  FlashcardSelectionCommandContext,
+  FlashcardSelectionExplanationRegistry,
+} from './flashcard-selection-commands.js';
 import type { KnowledgeCommandContext } from './knowledge-commands.js';
 import type { SubagentCommandContext } from './subagent-commands.js';
 
@@ -135,5 +139,13 @@ export type HostCommandContext = {
   walkthrough?: {
     context: WalkthroughCommandContext;
     registry: WalkthroughGenerationRegistry;
+  };
+  /**
+   * Optional in-card flashcard tutor bag. Provided by HostRuntime for both
+   * SDK and RPC adapters; mock/test contexts may omit it.
+   */
+  flashcardSelection?: {
+    context: FlashcardSelectionCommandContext;
+    registry: FlashcardSelectionExplanationRegistry;
   };
 };

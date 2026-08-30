@@ -76,6 +76,8 @@ describe('remoteHostSupportsCommand', () => {
     expect(remoteHostSupportsCommand(undefined, 'plan/get')).toBe(true);
     expect(remoteHostSupportsCommand(undefined, 'pet/list')).toBe(true);
     expect(remoteHostSupportsCommand(undefined, 'theme/get-active')).toBe(true);
+    expect(remoteHostSupportsCommand(undefined, 'flashcards/explain-selection')).toBe(true);
+    expect(remoteHostSupportsCommand(undefined, 'flashcards/cancel-explanation')).toBe(true);
   });
 
   it('keeps Host settings mutations on the historical fallback ceiling', () => {

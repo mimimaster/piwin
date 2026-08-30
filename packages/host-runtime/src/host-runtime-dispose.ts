@@ -13,6 +13,7 @@ import { createCancelledExtensionUiResponse } from './extension-ui-cancel.js';
 export async function disposeHostRuntime(deps: HostRuntimeKernel): Promise<void> {
   const shutdownErrors: unknown[] = [];
   deps.queuedTurnController.dispose();
+  deps.flashcardSelectionRegistry.abortAll();
   const replacementCleanup = deps.runtimeReplacementEngine.cancelAll();
   const activeRuns = deps.runRegistry.list({
     status: ['queued', 'running', 'cancelling'],

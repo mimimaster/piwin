@@ -12,6 +12,7 @@ import {
   useFlashcardsProduce,
   type FlashcardsProduceCommand,
 } from './flashcards/use-flashcards-produce';
+import { useCardTutorOnCreated } from '../flashcards/card-tutor-provider';
 import { CreateCardDialog } from './flashcards/workspace-dialogs';
 import { FlashcardGallery } from './flashcards/flashcard-gallery';
 import {
@@ -21,6 +22,7 @@ import {
 } from './flashcards/group-flashcard-tiles';
 import { ProduceStage } from './flashcards/produce-stage';
 import { TearDeck } from './flashcards/tear-deck';
+import { tearDeckLabels } from './flashcards/tear-deck-copy';
 import { useModalFocus } from './studio/use-modal-focus';
 
 export type FlashcardsHomeCommand = FlashcardsLibraryCommand | FlashcardsProduceCommand;
@@ -50,6 +52,7 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
   const [newBack, setNewBack] = useState('');
 
   const ws = useFlashcardsWorkspace(props.request);
+  useCardTutorOnCreated(ws.reload);
   const produce = useFlashcardsProduce({
     request: props.request,
     projectPath: props.projectPath,
@@ -282,23 +285,8 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
           >
             <TearDeck
               cards={tileCards(openTile)}
-              labels={{
-                flipHint: t('Show answer', '查看答案'),
-                tear: t('Next', '下一张'),
-                lastCard: t('Finish', '完成'),
-                close: t('Close', '关闭'),
-                deleteCard: t('Delete this card', '删这张'),
-                deleteSet: t('Delete this set', '删这套'),
-                answer: t('Answer', '答案'),
-                question: t('Question', '问题'),
-                remaining: (count) => t(`${count} remaining`, `剩余 ${count} 张`),
-                revealShortcut: t('Space · show answer', '空格 · 查看答案'),
-                nextShortcut: t('Enter or → · next', '回车或 → · 下一张'),
-                completedTitle: t('Review complete', '复习完成'),
-                completedDescription: (count) =>
-                  t(`You reviewed all ${count} cards.`, `已完成全部 ${count} 张卡片。`),
-                restart: t('Review again', '再来一遍'),
-              }}
+              labels={tearDeckLabels(locale)}
+              locale={locale}
               onClose={() => setOpenTileId(null)}
               onDeleteCard={async (cardId) => {
                 const ok = await ws.remove(cardId);

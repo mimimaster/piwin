@@ -50,8 +50,17 @@ export type {
   DropdownMenuSubTriggerProps,
 } from './menu.js';
 
-export { Popover, PopoverContent, PopoverTrigger } from './popover.js';
-export type { PopoverProps, PopoverContentProps } from './popover.js';
+export {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverTrigger,
+  PopoverVirtualAnchor,
+  virtualAnchorFromRange,
+} from './popover.js';
+export type { PopoverProps, PopoverContentProps, VirtualAnchorRect } from './popover.js';
+
+export { restoreSelectionRanges, snapshotSelectionRanges } from './selection-ranges.js';
 
 export { ConfirmDialog } from './confirm-dialog.js';
 export type { ConfirmDialogProps, ConfirmDialogTone } from './confirm-dialog.js';
