@@ -18,6 +18,7 @@ describe('ipc types', () => {
       'ipc-commands-runtime.ts',
       'ipc-commands-session.ts',
       'ipc-commands-content.ts',
+      'ipc-commands-turn-changes.ts',
       'ipc-push.ts',
       'ipc-envelope.ts',
       'ipc-response-data.ts',
@@ -34,12 +35,14 @@ describe('ipc types', () => {
     expect(source).toContain("from './ipc-commands-runtime.js'");
     expect(source).toContain("from './ipc-commands-session.js'");
     expect(source).toContain("from './ipc-commands-content.js'");
+    expect(source).toContain("from './ipc-commands-turn-changes.js'");
     expect(source).toContain("from './ipc-push.js'");
     expect(source).toContain("from './ipc-envelope.js'");
     expect(source).toContain("from './ipc-response-data.js'");
     expect(source).toContain('HostRuntimeCommand');
     expect(source).toContain('HostSessionCommand');
     expect(source).toContain('HostContentCommand');
+    expect(source).toContain('HostTurnChangeCommand');
     expect(source).toContain('SubscriptionAuthCommand');
   });
 

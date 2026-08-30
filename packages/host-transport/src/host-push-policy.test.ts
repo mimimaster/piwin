@@ -243,4 +243,54 @@ describe('classifyHostPush', () => {
       key: ['doccards', 'generation', 'fk1'],
     });
   });
+
+  it('classifies turn-change undo as control and operation progress as coalescable', () => {
+    const summary = {
+      changeSetId: 'cs-1',
+      attemptId: 'attempt-1',
+      sessionId: 'session-1',
+      workspaceId: 'ws-1',
+      userMessageId: null,
+      runIds: ['run-1'],
+      revision: 2,
+      captureState: 'ready' as const,
+      disposition: 'undone' as const,
+      fileCount: 1,
+      additions: 0,
+      deletions: 4,
+      binaryFileCount: 0,
+      coverageComplete: true,
+      undo: { allowed: false as const, reason: 'direction-unavailable' as const },
+      redo: { allowed: true as const },
+      expiresAt: null,
+      latestOperationId: 'op-1',
+    };
+    expect(
+      classifyHostPush({
+        type: 'turn-changes/updated',
+        workspaceId: 'ws-1',
+        changeSetId: 'cs-1',
+        revision: 2,
+        summary,
+      }),
+    ).toEqual({
+      kind: 'control',
+      barrierKeys: [['workspace', 'ws-1', 'turn-change', 'cs-1']],
+    });
+    expect(
+      classifyHostPush({
+        type: 'turn-changes/operation-updated',
+        workspaceId: 'ws-1',
+        operationId: 'op-1',
+        changeSetId: 'cs-1',
+      }),
+    ).toEqual({
+      kind: 'projection',
+      key: ['workspace', 'ws-1', 'turn-change-operation', 'op-1'],
+    });
+    expect(classifyHostPush({ type: 'workspace-files-updated', workspaceId: 'ws-1' })).toEqual({
+      kind: 'projection',
+      key: ['workspace', 'ws-1', 'files'],
+    });
+  });
 });

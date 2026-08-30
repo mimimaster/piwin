@@ -3,9 +3,10 @@
 import type { HostContentCommand } from './ipc-commands-content.js';
 import type { HostRuntimeCommand } from './ipc-commands-runtime.js';
 import type { HostSessionCommand } from './ipc-commands-session.js';
+import type { HostTurnChangeCommand } from './ipc-commands-turn-changes.js';
 import type { SubscriptionAuthCommand } from './subscription-oauth.js';
 
-export type { HostContentCommand, HostRuntimeCommand, HostSessionCommand };
+export type { HostContentCommand, HostRuntimeCommand, HostSessionCommand, HostTurnChangeCommand };
 export type {
   MediaReadCommandInput,
   MediaSaveCommandInput,
@@ -83,4 +84,5 @@ export type HostCommand =
   | SubscriptionAuthCommand
   | HostRuntimeCommand
   | HostSessionCommand
-  | HostContentCommand;
+  | HostContentCommand
+  | HostTurnChangeCommand;

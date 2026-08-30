@@ -26,6 +26,7 @@ import type {
 } from './subagent-orchestration.js';
 import type { SubagentResultSummary } from './subagent-result.js';
 import type { SubscriptionAuthPush } from './subscription-oauth.js';
+import type { TurnChangeSummary } from './turn-change.js';
 import type { LiveOwnerActionPush, LiveUpdatedPush } from './voice-live.js';
 import type { WalkthroughArtifact } from './walkthrough-artifact.js';
 
@@ -92,6 +93,20 @@ export type HostPushVariant =
       parentSessionId: string;
       result: SubagentResultSummary;
     }
+  | {
+      type: 'turn-changes/updated';
+      workspaceId: string;
+      changeSetId: string;
+      revision: number;
+      summary: TurnChangeSummary;
+    }
+  | {
+      type: 'turn-changes/operation-updated';
+      workspaceId: string;
+      operationId: string;
+      changeSetId: string;
+    }
+  | { type: 'workspace-files-updated'; workspaceId: string }
   | {
       type: 'subagent/stream';
       parentSessionId: string;
