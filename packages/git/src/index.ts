@@ -16,6 +16,9 @@ export type {
   TurnChangeObjectStore,
 } from './turn-changes/object-store.js';
 
+export { openTurnChangeStore } from './turn-changes/store.js';
+export type { TurnChangeStore } from './turn-changes/store.js';
+
 export { probeGitRepository } from './repository-probe.js';
 
 export { parsePorcelainStatus, parsePorcelainFileLine } from './status-parser.js';
