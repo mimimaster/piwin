@@ -69,9 +69,8 @@ describe('buildPlanSubagentTask', () => {
       parentSessionId: 's1',
       profileId: 'implementer',
       applyPolicy: 'auto',
-      deliveryIntent: 'integrate',
-      legacyManual: false,
     });
+    expect(task?.deliveryIntent).toBeUndefined();
   });
 
   it('preserves an explicit step profile', () => {
@@ -80,11 +79,8 @@ describe('buildPlanSubagentTask', () => {
       '1',
     );
     expect(task?.profileId).toBe('reviewer');
-    expect(task).toMatchObject({
-      deliveryIntent: 'report',
-      applyPolicy: 'none',
-      legacyManual: false,
-    });
+    expect(task?.applyPolicy).toBe('auto');
+    expect(task?.deliveryIntent).toBeUndefined();
   });
 });
 

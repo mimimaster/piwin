@@ -42,6 +42,7 @@ import type {
   SubagentTaskPreflightContext,
 } from './subagent-orchestrator.js';
 import type { SubagentRunSeam } from './subagent-run-tool.js';
+import type { SubagentDeliveryPolicySource } from './subagent-delivery-policy.js';
 import type { createSubagentRunStore, SessionTranscriptStore } from '@piwin/session';
 import type { RuntimeReplacementCandidate } from './session-runtime-replacement.js';
 import type { ProductAgentHostToolRegistrationMode } from './product-agent-host.js';
@@ -563,8 +564,11 @@ export class HostRuntime extends HostRuntimeFields {
     return getGenerationMcpCapabilityBrief(this.asKernel(), sessionId, runtimeGenerationId);
   }
 
-  async prepareSubagentBatch(request: SubagentBatchRequest): Promise<SubagentBatchRequest> {
-    return prepareSubagentBatch(this.asKernel(), request);
+  async prepareSubagentBatch(
+    request: SubagentBatchRequest,
+    source: SubagentDeliveryPolicySource = 'batch',
+  ): Promise<SubagentBatchRequest> {
+    return prepareSubagentBatch(this.asKernel(), request, source);
   }
 
   async continueSubagentChild(

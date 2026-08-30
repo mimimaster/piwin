@@ -255,8 +255,9 @@ describe('planSubagentSpawn', () => {
       workingDirectory: '/tmp/project',
       enabledSkillIds: [],
     });
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       error: 'report deliveryIntent is incompatible with worktree isolation',
+      code: 'report-with-write',
     });
   });
 
@@ -274,8 +275,79 @@ describe('planSubagentSpawn', () => {
       workingDirectory: '/tmp/project',
       enabledSkillIds: [],
     });
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       error: 'integrate deliveryIntent is incompatible with readonly isolation',
+      code: 'write-intent-readonly',
+    });
+  });
+
+  it('maps historical Plan auto on reviewer/explorer to report/none', () => {
+    for (const profileId of ['reviewer', 'explorer'] as const) {
+      const result = planSubagentSpawn({
+        config: makeConfig(),
+        request: {
+          parentSessionId: 'parent-1',
+          task: 'review the change',
+          selector: { profileId },
+          applyPolicy: 'auto',
+          source: 'plan',
+        },
+        parentDepth: 0,
+        parentKind: 'main',
+        workingDirectory: '/tmp/project',
+        enabledSkillIds: [],
+      });
+      expect('error' in result, profileId).toBe(false);
+      if (!('error' in result)) {
+        expect(result.snapshot.isolation).toBe('readonly');
+        expect(result.spawnOptions.deliveryIntent).toBe('report');
+        expect(result.spawnOptions.applyPolicy).toBe('none');
+        expect(result.legacyManual).toBe(false);
+      }
+    }
+  });
+
+  it('keeps Plan auto as integrate/auto for implementer worktree', () => {
+    const result = planSubagentSpawn({
+      config: makeConfig(),
+      request: {
+        parentSessionId: 'parent-1',
+        task: 'implement feature X',
+        selector: { profileId: 'implementer' },
+        applyPolicy: 'auto',
+        source: 'plan',
+      },
+      parentDepth: 0,
+      parentKind: 'main',
+      workingDirectory: '/tmp/project',
+      enabledSkillIds: [],
+    });
+    expect('error' in result).toBe(false);
+    if (!('error' in result)) {
+      expect(result.snapshot.isolation).toBe('worktree');
+      expect(result.spawnOptions.deliveryIntent).toBe('integrate');
+      expect(result.spawnOptions.applyPolicy).toBe('auto');
+      expect(result.legacyManual).toBe(false);
+    }
+  });
+
+  it('rejects profile-without-mode integrate once isolation resolves readonly', () => {
+    const result = planSubagentSpawn({
+      config: makeConfig(),
+      request: {
+        parentSessionId: 'parent-1',
+        task: 'review only',
+        selector: { profileId: 'explorer' },
+        deliveryIntent: 'integrate',
+        source: 'model-tool',
+      },
+      parentDepth: 0,
+      parentKind: 'main',
+      workingDirectory: '/tmp/project',
+      enabledSkillIds: [],
+    });
+    expect(result).toMatchObject({
+      code: 'write-intent-readonly',
     });
   });
 

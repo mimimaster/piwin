@@ -17,6 +17,7 @@ import { getPiwinGeneralWorkspacePath, getPiwinRoot, getPiwinSessionIndexPath } 
 import { indexRecordToSummary } from './session-summary-map.js';
 import { SubagentOrchestrator } from './subagent-orchestrator.js';
 import { planSubagentSpawn } from './subagent-lifecycle-service.js';
+import type { SubagentDeliveryPolicySource } from './subagent-delivery-policy.js';
 import { reconcileSubagentBatchStatusAfterWorktreeAction } from './subagent-batch-status.js';
 import {
   invocationActivityForResult,
@@ -99,33 +100,36 @@ export function getSubagentSeam(
           !schemeSpawn.clearedModel &&
           !resolvedModel;
         // One model tool call = one task; turn-scoped gate limits parallel calls.
-        const preparedRequest = await deps.prepareSubagentBatch({
-          parentSessionId: sessionId,
-          tasks: [
-            {
-              id: randomUUID(),
-              parentSessionId: sessionId,
-              invocationId: input.invocationId,
-              parentRunId: input.parentRunId,
-              ...(input.parentToolCallId ? { parentToolCallId: input.parentToolCallId } : {}),
-              task: input.task,
-              ...(mode ? { isolationOverride: mode } : {}),
-              ...(input.applyPolicy ? { applyPolicy: input.applyPolicy } : {}),
-              ...(input.deliveryIntent ? { deliveryIntent: input.deliveryIntent } : {}),
-              ...(input.sessionName ? { sessionName: input.sessionName } : {}),
-              ...(schemeSpawn.role ? { role: schemeSpawn.role } : {}),
-              ...(schemeSpawn.profileId ? { profileId: schemeSpawn.profileId } : {}),
-              ...(schemeSpawn.reportContract ? { reportContract: schemeSpawn.reportContract } : {}),
-              ...(resolvedModel
-                ? { model: resolvedModel }
-                : allowInputModel && input.model
-                  ? { model: input.model }
-                  : {}),
-              ...(schemeSpawn.thinkingLevel ? { thinkingLevel: schemeSpawn.thinkingLevel } : {}),
-            },
-          ],
-          maxConcurrency: 1,
-        });
+        const preparedRequest = await deps.prepareSubagentBatch(
+          {
+            parentSessionId: sessionId,
+            tasks: [
+              {
+                id: randomUUID(),
+                parentSessionId: sessionId,
+                invocationId: input.invocationId,
+                parentRunId: input.parentRunId,
+                ...(input.parentToolCallId ? { parentToolCallId: input.parentToolCallId } : {}),
+                task: input.task,
+                ...(mode ? { isolationOverride: mode } : {}),
+                ...(input.applyPolicy ? { applyPolicy: input.applyPolicy } : {}),
+                ...(input.deliveryIntent ? { deliveryIntent: input.deliveryIntent } : {}),
+                ...(input.sessionName ? { sessionName: input.sessionName } : {}),
+                ...(schemeSpawn.role ? { role: schemeSpawn.role } : {}),
+                ...(schemeSpawn.profileId ? { profileId: schemeSpawn.profileId } : {}),
+                ...(schemeSpawn.reportContract ? { reportContract: schemeSpawn.reportContract } : {}),
+                ...(resolvedModel
+                  ? { model: resolvedModel }
+                  : allowInputModel && input.model
+                    ? { model: input.model }
+                    : {}),
+                ...(schemeSpawn.thinkingLevel ? { thinkingLevel: schemeSpawn.thinkingLevel } : {}),
+              },
+            ],
+            maxConcurrency: 1,
+          },
+          'model-tool',
+        );
         const handle = orchestrator.startBatch(preparedRequest, parentRunId);
         const cancelBatch = (): void => {
           void orchestrator.cancelBatch(handle.runId).catch(() => {
@@ -203,6 +207,7 @@ export function getSubagentSeam(
 export async function prepareSubagentBatch(
   deps: HostRuntimeKernel,
   request: SubagentBatchRequest,
+  source: SubagentDeliveryPolicySource = 'batch',
 ): Promise<SubagentBatchRequest> {
   const rootDir = getPiwinRoot(deps.options.piwinRoot);
   const config = await loadPiwinConfig(deps.options.piwinRoot);
@@ -242,6 +247,7 @@ export async function prepareSubagentBatch(
         ...(task.isolationOverride ? { mode: task.isolationOverride } : {}),
         ...(task.applyPolicy ? { applyPolicy: task.applyPolicy } : {}),
         ...(task.deliveryIntent ? { deliveryIntent: task.deliveryIntent } : {}),
+        source,
         ...(task.allowedOutputPaths ? { allowedOutputPaths: [...task.allowedOutputPaths] } : {}),
         ...(task.retainWorktree !== undefined ? { retainWorktree: task.retainWorktree } : {}),
       },
@@ -251,7 +257,8 @@ export async function prepareSubagentBatch(
       enabledSkillIds,
     });
     if ('error' in planned) {
-      throw new Error(`subagent task ${task.id}: ${planned.error}`);
+      const detail = planned.code ? `${planned.code}: ${planned.error}` : planned.error;
+      throw new Error(`subagent task ${task.id}: ${detail}`);
     }
     const model = planned.snapshot.model ?? parentModel;
     return {

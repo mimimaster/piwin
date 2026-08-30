@@ -34,6 +34,18 @@ export type ResolveSubagentDeliveryPolicyResult =
   | { ok: true; policy: ResolvedSubagentDeliveryPolicy }
   | { ok: false; code: string; message: string };
 
+export const SUBAGENT_DELIVERY_POLICY_ERROR_CODES = [
+  'unknown-intent',
+  'unknown-apply-policy',
+  'conflicting-fields',
+  'report-with-write',
+  'write-intent-readonly',
+] as const;
+
+export function isSubagentDeliveryPolicyError(message: string): boolean {
+  return SUBAGENT_DELIVERY_POLICY_ERROR_CODES.some((code) => message.includes(code));
+}
+
 function asDeliveryField(value: unknown):
   | { ok: true; value: string | undefined }
   | { ok: false; code: string; message: string } {
@@ -86,6 +98,22 @@ export function resolveSubagentDeliveryPolicy(
     ...(applyField.value !== undefined ? { applyPolicy: applyField.value } : {}),
   });
   if (!parsed.ok) return parsed;
+
+  if (
+    input.source === 'plan' &&
+    input.isolation === 'readonly' &&
+    parsed.deliveryIntent === undefined &&
+    parsed.applyPolicy === 'auto'
+  ) {
+    return {
+      ok: true,
+      policy: {
+        deliveryIntent: 'report',
+        legacyManual: false,
+        applyPolicy: 'none',
+      },
+    };
+  }
 
   let deliveryIntent: SubagentDeliveryIntent;
   let legacyManual = false;
