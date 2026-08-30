@@ -27,8 +27,8 @@ import {
   getReviewDir,
   sanitizeCardId,
 } from './paths.js';
-import { createReviewStateStore } from './review-state-store.js';
-import { createInitialReviewState, rateCard } from './scheduler.js';
+import { createReviewWriteService } from './review-write-service.js';
+import { getOrCreateStudyCoordinator } from './study-transaction.js';
 
 export type CardStoreOptions = {
   piwinRoot: string;
@@ -77,17 +77,13 @@ export function createCardStore(options: CardStoreOptions): CardStore {
   const flashcardsRoot = getFlashcardsRoot(options.piwinRoot);
   const cardsDir = getCardsDir(flashcardsRoot);
   const reviewDir = getReviewDir(flashcardsRoot);
+  const coordinator = getOrCreateStudyCoordinator(flashcardsRoot);
+  const reviewWrites = createReviewWriteService(coordinator);
 
   async function ensureDirs(): Promise<void> {
     await mkdir(cardsDir, { recursive: true });
     await mkdir(reviewDir, { recursive: true });
   }
-
-  const reviewStates = createReviewStateStore({
-    flashcardsRoot,
-    reviewDir,
-    ensureDirs,
-  });
 
   async function scanItems(): Promise<FlashcardItem[]> {
     await ensureDirs();
@@ -192,24 +188,26 @@ export function createCardStore(options: CardStoreOptions): CardStore {
     getFlashcardsRoot: () => flashcardsRoot,
 
     async create(input) {
-      await ensureDirs();
-      const item = buildItem(input);
-      const preview = itemPreviewText(item);
+      return coordinator.runExclusive(async () => {
+        await ensureDirs();
+        const item = buildItem(input);
+        const preview = itemPreviewText(item);
 
-      const existing = await scanItems();
-      const comparable = existing.filter((entry) =>
-        input.sourceFolder
-          ? entry.sourceFolder === input.sourceFolder
-          : entry.deck === item.deck && !entry.sourceFolder,
-      );
-      const duplicate = findNearDuplicateItem(preview, comparable, itemPreviewText);
-      if (duplicate) {
-        throw new DuplicateCardError(duplicate);
-      }
+        const existing = await scanItems();
+        const comparable = existing.filter((entry) =>
+          input.sourceFolder
+            ? entry.sourceFolder === input.sourceFolder
+            : entry.deck === item.deck && !entry.sourceFolder,
+        );
+        const duplicate = findNearDuplicateItem(preview, comparable, itemPreviewText);
+        if (duplicate) {
+          throw new DuplicateCardError(duplicate);
+        }
 
-      await writeFile(itemPath(item.id), encodeCardMarkdown(item), 'utf8');
-      await reviewStates.ensureForItem(item);
-      return item;
+        await writeFile(itemPath(item.id), encodeCardMarkdown(item), 'utf8');
+        await reviewWrites.ensureForItem(item);
+        return item;
+      });
     },
 
     async batchCreate(input, maxBatchSize = 40) {
@@ -246,6 +244,7 @@ export function createCardStore(options: CardStoreOptions): CardStore {
     },
 
     async list(filter) {
+      await coordinator.ensureRecovered();
       const items = await scanItems();
       return items
         .filter((item) => {
@@ -276,21 +275,25 @@ export function createCardStore(options: CardStoreOptions): CardStore {
     },
 
     async delete(cardId) {
-      const { itemId } = parseReviewCardId(cardId);
-      await readItem(itemId);
-      await rm(itemPath(itemId));
-      await reviewStates.deleteForItem(itemId);
-      return { deleted: true, id: itemId };
+      return coordinator.runExclusive(async () => {
+        const { itemId } = parseReviewCardId(cardId);
+        await readItem(itemId);
+        await rm(itemPath(itemId));
+        await reviewWrites.deleteForItem(itemId);
+        return { deleted: true, id: itemId };
+      });
     },
 
     async deleteBySourceFolder(folderPath) {
-      const items = await scanItems();
-      const matching = items.filter((item) => item.sourceFolder === folderPath);
-      for (const item of matching) {
-        await rm(itemPath(item.id));
-        await reviewStates.deleteForItem(item.id);
-      }
-      return { deleted: matching.length };
+      return coordinator.runExclusive(async () => {
+        const items = await scanItems();
+        const matching = items.filter((item) => item.sourceFolder === folderPath);
+        for (const item of matching) {
+          await rm(itemPath(item.id));
+          await reviewWrites.deleteForItem(item.id);
+        }
+        return { deleted: matching.length };
+      });
     },
 
     async rebindSourceFolder(oldPath, newPath) {
@@ -309,38 +312,29 @@ export function createCardStore(options: CardStoreOptions): CardStore {
     },
 
     async getReviewState(cardId) {
-      await requireReviewCard(cardId);
-      const state = await reviewStates.read(cardId);
-      if (state) return state;
-      const initial = createInitialReviewState(cardId);
-      await reviewStates.write(initial);
-      return initial;
+      return coordinator.runExclusive(async () => {
+        await requireReviewCard(cardId);
+        return reviewWrites.getOrInit(cardId);
+      });
     },
 
     async loadReviewStates() {
+      await coordinator.ensureRecovered();
       const items = await scanItems();
       const states = new Map<string, ReviewState>();
       for (const item of items) {
         for (const card of expandItemToReviewCards(item)) {
-          const state = await reviewStates.read(card.cardId);
-          if (state) {
-            states.set(card.cardId, state);
-          } else {
-            const initial = createInitialReviewState(card.cardId);
-            await reviewStates.write(initial);
-            states.set(card.cardId, initial);
-          }
+          states.set(card.cardId, await reviewWrites.getOrInit(card.cardId));
         }
       }
       return states;
     },
 
     async rate(cardId, rating, now) {
-      await requireReviewCard(cardId);
-      const current = await this.getReviewState(cardId);
-      const next = rateCard(current, rating, now);
-      await reviewStates.write(next);
-      return next;
+      return coordinator.runExclusive(async () => {
+        await requireReviewCard(cardId);
+        return reviewWrites.rate(cardId, rating, now);
+      });
     },
   };
 }

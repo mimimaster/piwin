@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createCardStore, type CardStore } from './card-store.js';
 import { getFlashcardsRoot } from './paths.js';
+import { resetStudyCoordinatorsForTests } from './study-transaction.js';
 
 let piwinRoot: string;
 let store: CardStore;
@@ -14,6 +15,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  resetStudyCoordinatorsForTests();
   await rm(piwinRoot, { recursive: true, force: true });
 });
 
@@ -33,6 +35,7 @@ describe('card-store', () => {
 
     const state = await store.getReviewState(card.id);
     expect(state.reps).toBe(0);
+    expect(state.revision).toBe(0);
     expect(new Date(state.due).getTime()).toBeLessThanOrEqual(Date.now());
   });
 
@@ -51,6 +54,7 @@ describe('card-store', () => {
     const card = await store.create({ front: 'f', back: 'b' });
     const rated = await store.rate(card.id, 'good');
     expect(rated.reps).toBe(1);
+    expect(rated.revision).toBe(1);
 
     // New store instance (fresh process simulation) sees the same state.
     const reopened = createCardStore({ piwinRoot });
