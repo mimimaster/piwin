@@ -16,7 +16,6 @@ import { projectActivitySummary } from './activity-summary.js';
 import { dispatchDomainCommands } from './commands/domain-command-dispatch.js';
 import { handleSessionLiveCommand } from './commands/session-live-commands.js';
 import { handleWalkthroughCancel } from './commands/walkthrough-commands.js';
-import { handleFlashcardCancelExplanation } from './commands/flashcard-selection-commands.js';
 
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 import { applySettingsRuntimeImpact } from './apply-settings-runtime-impact.js';
@@ -70,13 +69,6 @@ export async function handleCommandWithTranscriptLease(
         requestId,
         deps.buildWalkthroughContext(),
         deps.walkthroughRegistry,
-      );
-    }
-    if (command.type === 'flashcards/cancel-explanation') {
-      return handleFlashcardCancelExplanation(
-        command,
-        requestId,
-        deps.flashcardSelectionRegistry,
       );
     }
     if (EXTENSION_REGISTRY_MUTATING_COMMANDS.has(command.type)) {

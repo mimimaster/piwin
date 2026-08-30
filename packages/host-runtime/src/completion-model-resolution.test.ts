@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ModelProviderConfig, ModelRef, PiwinConfig } from '@piwin/contracts';
 import { createDefaultWalkthroughConfig } from '@piwin/contracts';
-import {
-  resolveFlashcardSelectionCompletionModel,
-  resolveProviderForModel,
-} from './completion-model-resolution.js';
+import { resolveProviderForModel } from './completion-model-resolution.js';
 
 const MODEL: ModelRef = {
   protocol: 'openai-compatible',
@@ -74,120 +71,5 @@ describe('resolveProviderForModel', () => {
   it('returns model-not-configured when the model id is missing', () => {
     const resolved = resolveProviderForModel({ ...MODEL, modelId: 'nope' }, createConfig());
     expect(resolved).toEqual({ error: 'model-not-configured' });
-  });
-});
-
-describe('resolveFlashcardSelectionCompletionModel', () => {
-  it('prefers a valid command-provided model', () => {
-    const other: ModelRef = { ...MODEL, modelId: 'model-b' };
-    const config = createConfig({
-      providers: [createProvider({ models: [{ id: 'model-a' }, { id: 'model-b' }] })],
-      defaultProviderId: 'prov',
-      defaultModelId: 'model-a',
-    });
-    const resolved = resolveFlashcardSelectionCompletionModel({
-      config,
-      model: other,
-      sessionId: 'sess-1',
-      resolveSessionModel: () => MODEL,
-    });
-    expect('model' in resolved).toBe(true);
-    if ('model' in resolved) {
-      expect(resolved.model.modelId).toBe('model-b');
-    }
-  });
-
-  it('does not fall through when an explicit command model is invalid', () => {
-    const config = createConfig({ defaultProviderId: 'prov', defaultModelId: 'model-a' });
-    const resolved = resolveFlashcardSelectionCompletionModel({
-      config,
-      model: { ...MODEL, modelId: 'missing' },
-      resolveSessionModel: () => MODEL,
-      sessionId: 'sess-1',
-    });
-    expect(resolved).toEqual({ error: 'flashcard-selection-model-unavailable' });
-  });
-
-  it('uses the session model when no command model is provided', () => {
-    const sessionModel: ModelRef = { ...MODEL, modelId: 'model-b' };
-    const config = createConfig({
-      providers: [createProvider({ models: [{ id: 'model-a' }, { id: 'model-b' }] })],
-      defaultProviderId: 'prov',
-      defaultModelId: 'model-a',
-    });
-    const resolved = resolveFlashcardSelectionCompletionModel({
-      config,
-      sessionId: 'sess-1',
-      resolveSessionModel: () => sessionModel,
-    });
-    expect('model' in resolved).toBe(true);
-    if ('model' in resolved) {
-      expect(resolved.model.modelId).toBe('model-b');
-    }
-  });
-
-  it('uses the configured default chat model when session model is absent', () => {
-    const config = createConfig({ defaultProviderId: 'prov', defaultModelId: 'model-a' });
-    const resolved = resolveFlashcardSelectionCompletionModel({
-      config,
-      sessionId: 'sess-1',
-      resolveSessionModel: () => undefined,
-    });
-    expect('model' in resolved).toBe(true);
-    if ('model' in resolved) {
-      expect(resolved.model.modelId).toBe('model-a');
-    }
-  });
-
-  it('does not pick an arbitrary provider when nothing is configured', () => {
-    const config = createConfig();
-    const resolved = resolveFlashcardSelectionCompletionModel({
-      config,
-      resolveSessionModel: () => undefined,
-    });
-    expect(resolved).toEqual({ error: 'flashcard-selection-model-unavailable' });
-  });
-
-  it('rejects a provider with an empty base URL', () => {
-    const config = createConfig({
-      providers: [createProvider({ baseUrl: '   ' })],
-      defaultProviderId: 'prov',
-      defaultModelId: 'model-a',
-    });
-    const resolved = resolveFlashcardSelectionCompletionModel({
-      config,
-      model: MODEL,
-      resolveSessionModel: () => undefined,
-    });
-    expect(resolved).toEqual({ error: 'flashcard-selection-model-unavailable' });
-  });
-
-  it('does not swap a session model with empty baseUrl for the configured default', () => {
-    const sessionModel: ModelRef = {
-      protocol: 'openai-compatible',
-      providerId: 'session-prov',
-      modelId: 'session-model',
-    };
-    const config = createConfig({
-      providers: [
-        createProvider({
-          id: 'session-prov',
-          baseUrl: '   ',
-          models: [{ id: 'session-model' }],
-        }),
-        createProvider({
-          id: 'default-prov',
-          models: [{ id: 'default-model' }],
-        }),
-      ],
-      defaultProviderId: 'default-prov',
-      defaultModelId: 'default-model',
-    });
-    const resolved = resolveFlashcardSelectionCompletionModel({
-      config,
-      sessionId: 'sess-1',
-      resolveSessionModel: () => sessionModel,
-    });
-    expect(resolved).toEqual({ error: 'flashcard-selection-model-unavailable' });
   });
 });

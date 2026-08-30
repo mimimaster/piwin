@@ -30,8 +30,6 @@ export function useFlashcardsWorkspace(request: FlashcardsRequester): Flashcards
   const hasLoadedRef = useRef(false);
 
   const reload = useCallback(async () => {
-    // Keep ReviewStage mounted on later refreshes so a saved tutor draft
-    // is not unmounted by the initial-load spinner.
     if (!hasLoadedRef.current) setLoading(true);
     setError(null);
     const requester = requestRef.current;

@@ -12,7 +12,6 @@ import {
   useFlashcardsProduce,
   type FlashcardsProduceCommand,
 } from './flashcards/use-flashcards-produce';
-import { useCardTutorOnCreated } from '../flashcards/card-tutor-provider';
 import { CreateCardDialog } from './flashcards/workspace-dialogs';
 import { FlashcardGallery } from './flashcards/flashcard-gallery';
 import {
@@ -52,7 +51,6 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
   const [newBack, setNewBack] = useState('');
 
   const ws = useFlashcardsWorkspace(props.request);
-  useCardTutorOnCreated(ws.reload);
   const produce = useFlashcardsProduce({
     request: props.request,
     projectPath: props.projectPath,

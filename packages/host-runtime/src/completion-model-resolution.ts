@@ -1,9 +1,8 @@
 /**
- * Shared model/provider resolution for non-session completions
- * (Walkthrough and flashcard selection tutor).
+ * Shared model/provider resolution for non-session completions (Walkthrough).
  */
 import type { ModelProviderConfig, ModelRef, PiwinConfig } from '@piwin/contracts';
-import { findEnabledProvider, resolveConfiguredDefaultModelRef } from './provider-helpers.js';
+import { findEnabledProvider } from './provider-helpers.js';
 
 export type CompletionProviderResolutionError =
   | 'provider-not-found'
@@ -34,77 +33,4 @@ export function resolveProviderForModel(
     return { error: 'model-not-configured' };
   }
   return { provider };
-}
-
-const STRUCTURED_COMPLETION_PROTOCOLS = new Set<ModelProviderConfig['protocol']>([
-  'openai-compatible',
-  'anthropic-compatible',
-  'google-gemini',
-]);
-
-export function isStructuredCompletionProtocol(
-  protocol: ModelProviderConfig['protocol'],
-): boolean {
-  return STRUCTURED_COMPLETION_PROTOCOLS.has(protocol);
-}
-
-export type FlashcardSelectionModelResolution =
-  | { model: ModelRef; provider: ModelProviderConfig }
-  | { error: 'flashcard-selection-model-unavailable' };
-
-export type FlashcardSelectionModelRequest = {
-  config: PiwinConfig;
-  resolveSessionModel: (sessionId: string) => ModelRef | undefined;
-  model?: ModelRef;
-  sessionId?: string;
-};
-
-function providerSupportsStructuredCompletion(provider: ModelProviderConfig): boolean {
-  return isStructuredCompletionProtocol(provider.protocol) && provider.baseUrl.trim().length > 0;
-}
-
-function tryResolveCandidate(
-  model: ModelRef,
-  config: PiwinConfig,
-): FlashcardSelectionModelResolution | undefined {
-  const resolved = resolveProviderForModel(model, config);
-  if ('error' in resolved) return undefined;
-  if (!providerSupportsStructuredCompletion(resolved.provider)) return undefined;
-  return { model, provider: resolved.provider };
-}
-
-/**
- * Flashcard tutor resolution: command model, then session model, then the
- * configured default chat model. Never falls back to an arbitrary provider.
- * An explicit command or session model that fails validation is not replaced.
- */
-export function resolveFlashcardSelectionCompletionModel(
-  request: FlashcardSelectionModelRequest,
-): FlashcardSelectionModelResolution {
-  if (request.model) {
-    return (
-      tryResolveCandidate(request.model, request.config) ?? {
-        error: 'flashcard-selection-model-unavailable',
-      }
-    );
-  }
-
-  if (request.sessionId) {
-    const sessionModel = request.resolveSessionModel(request.sessionId);
-    if (sessionModel) {
-      return (
-        tryResolveCandidate(sessionModel, request.config) ?? {
-          error: 'flashcard-selection-model-unavailable',
-        }
-      );
-    }
-  }
-
-  const configured = resolveConfiguredDefaultModelRef(request.config);
-  if (configured) {
-    const resolved = tryResolveCandidate(configured, request.config);
-    if (resolved) return resolved;
-  }
-
-  return { error: 'flashcard-selection-model-unavailable' };
 }

@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { Select, TextArea } from '@piwin/ui-kit';
-import type { FlashcardDeckOption } from './flashcard-tutor-draft';
+export type FlashcardDeckOption = { value: string; label: string };
 
 export type FlashcardDraftEditorLabels = {
   deck: string;
@@ -25,7 +25,7 @@ export type FlashcardDraftEditorProps = {
   deckTestId?: string;
 };
 
-/** Shared front/back/deck fields for manual create and tutor “make a new card”. */
+/** Shared front/back/deck fields for manual flashcard create. */
 export function FlashcardDraftEditor(props: FlashcardDraftEditorProps): ReactElement {
   const { labels } = props;
   const disabled = props.disabled === true;

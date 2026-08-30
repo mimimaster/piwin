@@ -50,10 +50,10 @@ tree” residual. Those IDs remain only as “do not resume Pi JSONL”.
 - ADR 0009's truncate-from rebuild still applies to the **explicit** subtree
   delete. A changed-text edit no longer truncates; Host rebases the leaf,
   then the next prompt injects the new path. Same-turn retry is ADR 0064.
-- Desktop shows `‹ n/m ›` on the active sibling head, a `branches`
-  inspector tab, and the header **会话树** (same fork-point list). That
-  header is the in-session tree, not Fork Chat lineage. CLI prints an
-  indented fork list (`piwin session branches` / `switch`).
+- Desktop shows `‹ n/m ›` on the active sibling head and the header
+  **会话树** (fork-point list). That header is the in-session tree, not
+  Fork Chat lineage. CLI prints an indented fork list
+  (`piwin session branches` / `switch`).
 - Workspace files do not follow a switch. Host warns when the abandoned
   path wrote files; v1 confirmation is continue/cancel only. The next
   prompt injects the abandoned file list plus a bounded git snapshot.

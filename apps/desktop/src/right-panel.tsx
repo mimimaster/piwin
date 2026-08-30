@@ -43,8 +43,6 @@ export type RightPanelProps = {
   /** Browser session panel body (ADR 0020 §6 mirrored frame + pick). */
   browserContent?: ReactNode;
   reviewContent: ReactNode;
-  /** In-session conversation branch points (ADR 0055 §5.4). */
-  branchesContent?: ReactNode;
   notesContent?: ReactNode;
   cardsContent?: ReactNode;
   canvasContent?: ReactNode;
@@ -77,8 +75,6 @@ function sectionContent(props: RightPanelProps, tab: RightPanelTab): ReactNode |
       return props.browserContent;
     case 'review':
       return props.reviewContent;
-    case 'branches':
-      return props.branchesContent;
     case 'notes':
       return props.notesContent;
     case 'cards':

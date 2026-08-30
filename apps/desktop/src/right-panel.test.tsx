@@ -112,6 +112,8 @@ describe('RightPanel multi-tab', () => {
     expect(panel?.getAttribute('data-view')).toBe('home');
     expect(container.querySelector('[data-testid="right-panel-home"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="right-panel-home-terminal"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="right-panel-home-cards"]')).toBeNull();
+    expect(container.querySelector('[data-testid="right-panel-home-branches"]')).toBeNull();
     expect(container.querySelector('[data-testid="terminal-body"]')).toBeNull();
   });
 
@@ -205,6 +207,8 @@ describe('RightPanel multi-tab', () => {
       addBtn?.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
     });
     expect(document.querySelector('[data-testid="right-panel-plus-menu"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="right-panel-plus-cards"]')).toBeNull();
+    expect(document.querySelector('[data-testid="right-panel-plus-branches"]')).toBeNull();
 
     const filesBtn = document.querySelector<HTMLElement>('[data-testid="right-panel-plus-files"]');
     act(() => {

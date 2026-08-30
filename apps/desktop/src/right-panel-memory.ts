@@ -7,7 +7,6 @@ export type RightPanelTabKind =
   | 'terminal'
   | 'review'
   | 'browser'
-  | 'branches'
   | 'notes'
   | 'cards'
   | 'canvas'
@@ -30,7 +29,6 @@ const ALLOWED_KINDS: RightPanelTabKind[] = [
   'terminal',
   'review',
   'browser',
-  'branches',
   'cards',
   'docPreview',
 ];

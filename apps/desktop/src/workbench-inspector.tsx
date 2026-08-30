@@ -8,11 +8,9 @@ import type {
   PromptContextRef,
   SessionPlan,
   ThemeManifest,
-  TranscriptBranchPoint,
   WalkthroughArtifact,
   WebElementPickResult,
 } from '@piwin/contracts';
-import { BranchPointsPanel } from './branch-points-panel';
 import type { HostClient } from './host-client';
 import { RightPanel, type RightPanelTab } from './right-panel';
 import { RIGHT_PANEL_DEFAULT_WIDTH_PX } from './right-panel-width';
@@ -119,9 +117,6 @@ export type WorkbenchInspectorProps = {
   terminalCwd: string;
   handleTerminalCwdChange: (cwd: string) => void;
   terminalRecentDirs: string[];
-  branchPoints: TranscriptBranchPoint[];
-  onSwitchBranch: (headMessageId: string) => void;
-  streaming: boolean;
 };
 
 export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement {
@@ -175,9 +170,6 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
     terminalCwd,
     handleTerminalCwdChange,
     terminalRecentDirs,
-    branchPoints,
-    onSwitchBranch,
-    streaming,
   } = props;
   useBrowserInspectorReveal(hostClient, (tab) => {
     shell.openInspector(tab);
@@ -229,14 +221,6 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
           onOpenMcp={() => openSettingsSection('tools')}
           onOpenSettings={() => openSettingsSection('general')}
           onToggleSessions={() => shell.toggleSessions()}
-          branchesContent={
-            <BranchPointsPanel
-              branchPoints={branchPoints}
-              disabled={streaming}
-              onSwitch={(headMessageId) => void onSwitchBranch(headMessageId)}
-              locale={locale}
-            />
-          }
           notesContent={
             hostClient.supportsCommand('notes/list') ? (
               <DeferredNotesPanel
