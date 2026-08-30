@@ -1,0 +1,36 @@
+/**
+ * Mount gate for the per-assistant-message FilesChangedBar in chat rows.
+ */
+import type { ReactElement } from 'react';
+import type { ChatMessageUi } from './chat-reducer';
+import {
+  FilesChangedBar,
+  type FilesChangedBarRequest,
+} from './files-changed-bar';
+
+export type { FilesChangedBarRequest };
+
+export type ChatTurnFilesSummaryProps = {
+  isConversationSession?: boolean;
+  role: ChatMessageUi['role'];
+  tools: ChatMessageUi['tools'];
+  projectPath?: string | null;
+  request?: FilesChangedBarRequest;
+  onReview?: () => void;
+  locale?: string;
+};
+
+export function ChatTurnFilesSummary(props: ChatTurnFilesSummaryProps): ReactElement | null {
+  if (props.isConversationSession === true) return null;
+  if (props.role !== 'assistant') return null;
+  if (props.tools.length === 0) return null;
+  return (
+    <FilesChangedBar
+      tools={props.tools}
+      {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
+      {...(props.request !== undefined ? { request: props.request } : {})}
+      {...(props.onReview !== undefined ? { onReview: props.onReview } : {})}
+      {...(props.locale === 'zh-CN' || props.locale === 'en' ? { locale: props.locale } : {})}
+    />
+  );
+}
