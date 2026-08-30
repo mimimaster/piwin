@@ -7,16 +7,19 @@ import { MobileArtifactPending, MobileArtifactStage } from './MobileArtifactStag
 import { useHaptics } from '../../hooks/use-haptics.js';
 import { useTts } from '../../hooks/use-tts.js';
 import { partitionMobileTranscript } from '../../mobile-transcript-segments.js';
+import type { FlashcardDisplayPayload } from '@piwin/contracts';
 import type { MobileTranscriptMessage } from '../../hooks/use-mobile-host.js';
 
 type MobileMessageItemProps = {
   message: MobileTranscriptMessage;
   htmlUiModeEnabled: boolean;
+  onEnterFlashcardStudy?: ((payload: FlashcardDisplayPayload) => void) | undefined;
 };
 
 export function MobileMessageItem({
   message,
   htmlUiModeEnabled,
+  onEnterFlashcardStudy,
 }: MobileMessageItemProps): ReactElement | null {
   const [copied, setCopied] = useState(false);
   const haptics = useHaptics();
@@ -145,7 +148,13 @@ export function MobileMessageItem({
             />
           ) : null}
 
-          {hasTools ? <MobileToolChain tools={toolCalls} isStreaming={isStreaming} /> : null}
+          {hasTools ? (
+            <MobileToolChain
+              tools={toolCalls}
+              isStreaming={isStreaming}
+              {...(onEnterFlashcardStudy !== undefined ? { onEnterFlashcardStudy } : {})}
+            />
+          ) : null}
 
           {segments.length > 0 || (isStreaming && !hasTools && !hasThinking) ? (
             <div className="modern-assistant-content">

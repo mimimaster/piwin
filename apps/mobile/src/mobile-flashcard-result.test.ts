@@ -19,7 +19,11 @@ const CARD = {
 describe('Mobile flashcard tool-result degradation', () => {
   it('formats structured Q/A text from presentation.flashcard', () => {
     const payload = resolveMobileFlashcardDisplay({
-      flashcard: { cards: [CARD] },
+      presentation: {
+        kind: 'other',
+        title: '闪卡',
+        flashcard: { cards: [CARD] },
+      },
     });
     expect(payload).not.toBeNull();
     const text = formatMobileFlashcardResult(payload!);
