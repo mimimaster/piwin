@@ -22,7 +22,7 @@ import type {
   ThemeManifest,
 } from '@piwin/contracts';
 import type { PetRuntimeSnapshot } from '@piwin/contracts';
-import { formatError } from '@piwin/contracts';
+import { formatError, parseSessionContextSnapshot } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
 import { isRemoteCommandGapError } from '../remote-command-gap.js';
 import { isWorkbenchHostTeardownError } from '../workbench-host-teardown.js';
@@ -81,6 +81,8 @@ export type UseHostBootstrapArgs = {
   setSelectedModelKey: Dispatch<SetStateAction<string>>;
   /** Root theme owner callback; this hook never applies document theme state itself. */
   onThemeResolved: (theme: ThemeManifest) => void;
+  /** Bump resume selection identity when the active session is deleted remotely. */
+  onActiveSessionCleared?: () => void;
 };
 
 type PermissionRequestPush = Extract<HostPush, { type: 'permission/request' }>;
@@ -318,12 +320,15 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         return;
       }
       if (message.type === 'session/context-updated') {
-        dispatch({
-          type: 'context-telemetry/snapshot',
-          snapshot: message.snapshot,
-          source: 'live',
-          hostInstanceId: hostClient.getHostInstanceId(),
-        });
+        const snapshot = parseSessionContextSnapshot(message.snapshot);
+        if (snapshot) {
+          dispatch({
+            type: 'context-telemetry/snapshot',
+            snapshot,
+            source: 'live',
+            hostInstanceId: hostClient.getHostInstanceId(),
+          });
+        }
         return;
       }
       if (message.type === 'event') {
@@ -442,6 +447,7 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         if (message.op === 'deleted') {
           dispatch({ type: 'session/remove', sessionId: message.sessionId });
           if (args.activeSessionId === message.sessionId) {
+            args.onActiveSessionCleared?.();
             dispatch({ type: 'session/clear-active' });
           }
           return;

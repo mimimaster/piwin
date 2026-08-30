@@ -144,6 +144,7 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     clearPendingContextRefs: clearContextRefs,
     consumePendingContextRefs: consumeContextRefSnapshot,
     restorePendingContextRefs: replaceContextRefs,
+    onLeaveActiveSession: session.bumpToDraft,
     addContextRefFromDrop: ({ relativePath }) => {
       if (!state.projectPath) {
         return false;

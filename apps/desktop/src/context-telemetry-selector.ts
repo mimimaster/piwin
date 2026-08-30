@@ -61,6 +61,19 @@ export type SelectContextRingViewInput = {
   compactPendingOccupancy?: boolean;
 };
 
+/** Compact-success unknown occupancy, or an in-flight compact, from chat UI state. */
+export function isChatCompactPendingOccupancy(state: {
+  compacting: boolean;
+  lastCompactionMessage: string | null;
+  contextTelemetry: Pick<ContextTelemetryState, 'displayed'>;
+}): boolean {
+  return (
+    state.compacting ||
+    (state.contextTelemetry.displayed?.occupancy.kind === 'unknown' &&
+      state.lastCompactionMessage !== null)
+  );
+}
+
 export function selectContextRingView(input: SelectContextRingViewInput): ContextRingViewModel {
   const copy = getContextUsageCopy(input.locale);
   const telemetry = input.telemetry;
@@ -109,7 +122,7 @@ export function selectContextRingView(input: SelectContextRingViewInput): Contex
   const offline = telemetry.disconnected === true;
   const compacting = snapshot.phase === 'compacting';
 
-  if (emptyPhase || waitingWithoutResponse) {
+  if (emptyPhase || waitingWithoutResponse || snapshot.phase === 'invalidated') {
     return hiddenView({ copy, phase: snapshot.phase, lastRequest, offline });
   }
 

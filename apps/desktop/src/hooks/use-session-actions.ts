@@ -960,7 +960,6 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     ],
   );
 
-
   return {
     hydrateSessions,
     transcriptHistoryLoading,
@@ -995,5 +994,6 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     handleCompact,
     handleCompactAbort,
     handlePermission,
+    bumpToDraft,
   };
 }

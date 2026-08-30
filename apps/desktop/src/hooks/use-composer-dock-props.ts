@@ -34,7 +34,10 @@ import type { PendingComposerAttachment } from '../media-utils';
 import type { OrchestrationSchemeOption } from '../OrchestrationSchemeControl';
 import { showErrorNotification } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../desktop-locale-context.js';
-import { selectContextRingView } from '../context-telemetry-selector.js';
+import {
+  isChatCompactPendingOccupancy,
+  selectContextRingView,
+} from '../context-telemetry-selector.js';
 import { liveStartErrorLabel, useLiveCall, type LiveCallController } from '../live/use-live-call.js';
 import { readDelegatedTurnResult } from '../live/live-session-result.js';
 import {
@@ -439,6 +442,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
         queuedTurnPending:
           ((state.activeSessionId && state.queuedTurnsBySession[state.activeSessionId]) ?? [])
             .length > 0,
+        ...(isChatCompactPendingOccupancy(state) ? { compactPendingOccupancy: true } : {}),
       }),
       ...(typeof selectedModelContextWindow === 'number'
         ? { modelContextWindow: selectedModelContextWindow }

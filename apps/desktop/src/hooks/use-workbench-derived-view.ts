@@ -4,7 +4,10 @@
 import { useMemo } from 'react';
 import type { JobRecord, SessionPlan } from '@piwin/contracts';
 import type { ChatUiState } from '../chat-reducer';
-import { selectContextRingView } from '../context-telemetry-selector.js';
+import {
+  isChatCompactPendingOccupancy,
+  selectContextRingView,
+} from '../context-telemetry-selector.js';
 import type { DesktopLocale } from '../desktop-locale';
 import { deriveRunStatus } from '../run-status';
 import { collectSessionTools } from '../tool-call-card';
@@ -51,8 +54,15 @@ export function useWorkbenchDerivedView(input: {
         ...(typeof selectedModelContextWindow === 'number'
           ? { selectedModelContextWindow }
           : {}),
+        ...(isChatCompactPendingOccupancy(state) ? { compactPendingOccupancy: true } : {}),
       }).percentText,
-    [state.contextTelemetry, selectedModelContextWindow, desktopLocale],
+    [
+      state.contextTelemetry,
+      state.compacting,
+      state.lastCompactionMessage,
+      selectedModelContextWindow,
+      desktopLocale,
+    ],
   );
   const lastUserMessage = useMemo(() => findLastUserMessage(state.messages), [state.messages]);
   const lastUserMessageId = lastUserMessage?.id ?? null;

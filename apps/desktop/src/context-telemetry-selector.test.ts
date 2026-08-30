@@ -3,7 +3,10 @@ import {
   applyContextTelemetry,
   createInitialContextTelemetryState,
 } from './context-telemetry-reducer.js';
-import { selectContextRingView } from './context-telemetry-selector.js';
+import {
+  isChatCompactPendingOccupancy,
+  selectContextRingView,
+} from './context-telemetry-selector.js';
 import {
   makeContextSnapshot,
   makeKnownOccupancy,
@@ -221,21 +224,62 @@ describe('context ring selector matrix', () => {
       makeContextSnapshot({
         sessionId: 'session-a',
         phase: 'idle',
-        occupancy: { kind: 'unknown', reason: 'compact-tokens-after-missing' },
+        occupancy: { kind: 'unknown', reason: 'unavailable' },
         responseEvidence: {
           currentRunHasResponse: false,
           historyHasDisplayableResponse: true,
         },
       }),
     );
+    expect(
+      isChatCompactPendingOccupancy({
+        compacting: false,
+        lastCompactionMessage: null,
+        contextTelemetry: compacted,
+      }),
+    ).toBe(false);
+    const compactPendingOccupancy = isChatCompactPendingOccupancy({
+      compacting: false,
+      lastCompactionMessage: 'Context compacted',
+      contextTelemetry: compacted,
+    });
+    expect(compactPendingOccupancy).toBe(true);
     const view = selectContextRingView({
       telemetry: compacted,
       locale: 'en',
-      compactPendingOccupancy: true,
+      compactPendingOccupancy,
     });
     expect(view.visible).toBe(true);
     expect(view.numericHidden).toBe(true);
     expect(view.labels.status).toMatch(/compacted/i);
+
+    const whileCompacting = selectContextRingView({
+      telemetry: compacted,
+      locale: 'en',
+      compactPendingOccupancy: isChatCompactPendingOccupancy({
+        compacting: true,
+        lastCompactionMessage: null,
+        contextTelemetry: compacted,
+      }),
+    });
+    expect(whileCompacting.visible).toBe(true);
+    expect(whileCompacting.numericHidden).toBe(true);
+  });
+
+  it('hides occupancy when Host marks the context version invalidated', () => {
+    const invalidated = selected(
+      'session-a',
+      makeContextSnapshot({
+        sessionId: 'session-a',
+        phase: 'invalidated',
+        occupancy: makeKnownOccupancy({ tokensUsed: 80_000, tokensLimit: 128_000 }),
+        responseEvidence: {
+          currentRunHasResponse: false,
+          historyHasDisplayableResponse: true,
+        },
+      }),
+    );
+    expect(selectContextRingView({ telemetry: invalidated, locale: 'en' }).visible).toBe(false);
   });
 
   it('capability missing hides the ring even with a snapshot', () => {

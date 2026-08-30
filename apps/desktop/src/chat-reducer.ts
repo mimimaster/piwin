@@ -234,6 +234,14 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
           hostInstanceId: action.hostInstanceId,
         }),
       };
+    case 'context-telemetry/invalidate':
+      return {
+        ...state,
+        contextTelemetry: applyContextTelemetry(state.contextTelemetry, {
+          type: 'invalidate',
+          sessionId: action.sessionId,
+        }),
+      };
     case 'permission/show':
       if (action.prompt.runId !== undefined && isStaleRunEvent(state, action.prompt.runId)) {
         return state;

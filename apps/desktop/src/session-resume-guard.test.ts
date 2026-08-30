@@ -6,6 +6,7 @@ import {
   resetGuardHostInstance,
   resumeTicketMatches,
   selectSessionForResume,
+  takeIfResumeCurrent,
 } from './session-resume-guard.js';
 
 describe('session resume selection guard (T03, T04)', () => {
@@ -51,6 +52,20 @@ describe('session resume selection guard (T03, T04)', () => {
     expect(first.ticket.selectionEpoch).toBe(second.ticket.selectionEpoch);
     expect(resumeTicketMatches(guard, first.ticket)).toBe(false);
     expect(resumeTicketMatches(guard, second.ticket)).toBe(true);
+  });
+
+  it('draft restore / New bump blocks late composer-profile restore', () => {
+    let guard = createSessionSelectionGuard('host-a');
+    guard = selectSessionForResume(guard, 'session-old', 'host-a');
+    const started = beginResumeRequest(guard, 'session-old');
+    guard = started.guard;
+    guard = bumpSelectionEpoch(guard, { selectedSessionId: null });
+
+    expect(
+      takeIfResumeCurrent(guard, started.ticket, {
+        model: { providerId: 'openai', modelId: 'gpt' },
+      }),
+    ).toBeNull();
   });
 
   it('HostInstance change invalidates in-flight tickets without Date.now ordering', () => {

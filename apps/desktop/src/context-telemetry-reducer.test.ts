@@ -3,6 +3,7 @@ import {
   applyContextTelemetry,
   createInitialContextTelemetryState,
 } from './context-telemetry-reducer.js';
+import { selectContextRingView } from './context-telemetry-selector.js';
 import {
   makeContextSnapshot,
   makeKnownOccupancy,
@@ -244,8 +245,9 @@ describe('context telemetry reducer (T05)', () => {
     expect(state.lastRequestUsage?.totalTokens).toBe(15);
   });
 
-  it('bounded warm set restores only the matching session on return', () => {
+  it('does not restore warm occupancy on A→B→A; failed resume stays hidden', () => {
     let state = createInitialContextTelemetryState();
+    state = applyContextTelemetry(state, { type: 'capability', supported: true });
     state = applyContextTelemetry(state, {
       type: 'select',
       sessionId: 'session-a',
@@ -256,10 +258,16 @@ describe('context telemetry reducer (T05)', () => {
       snapshot: makeContextSnapshot({
         sessionId: 'session-a',
         revision: 5,
-        occupancy: makeKnownOccupancy({ tokensUsed: 21 }),
+        phase: 'idle',
+        occupancy: makeKnownOccupancy({ tokensUsed: 21, tokensLimit: 128_000 }),
+        responseEvidence: {
+          currentRunHasResponse: false,
+          historyHasDisplayableResponse: true,
+        },
       }),
       source: 'live',
     });
+    expect(selectContextRingView({ telemetry: state, locale: 'en' }).visible).toBe(true);
     state = applyContextTelemetry(state, {
       type: 'select',
       sessionId: 'session-b',
@@ -271,7 +279,63 @@ describe('context telemetry reducer (T05)', () => {
       sessionId: 'session-a',
       hostInstanceId: 'host-1',
     });
-    expect(state.displayed?.revision).toBe(5);
-    expect(state.displayed?.occupancy).toEqual(makeKnownOccupancy({ tokensUsed: 21 }));
+    expect(state.displayed).toBeNull();
+    expect(state.warmBySessionId['session-a']?.snapshot.revision).toBe(5);
+    expect(selectContextRingView({ telemetry: state, locale: 'en' }).visible).toBe(false);
+
+    state = applyContextTelemetry(state, { type: 'invalidate', sessionId: 'session-a' });
+    expect(state.displayed).toBeNull();
+    expect(state.warmBySessionId['session-a']).toBeUndefined();
+    expect(selectContextRingView({ telemetry: state, locale: 'en' }).visible).toBe(false);
+  });
+
+  it('updates warm for a non-selected session and drops it on a barrier snapshot', () => {
+    let state = createInitialContextTelemetryState();
+    state = applyContextTelemetry(state, {
+      type: 'select',
+      sessionId: 'session-a',
+      hostInstanceId: 'host-1',
+    });
+    state = applyContextTelemetry(state, {
+      type: 'snapshot',
+      snapshot: makeContextSnapshot({
+        sessionId: 'session-a',
+        revision: 4,
+        occupancy: makeKnownOccupancy({ tokensUsed: 80_000 }),
+      }),
+      source: 'live',
+    });
+    state = applyContextTelemetry(state, {
+      type: 'select',
+      sessionId: 'session-b',
+      hostInstanceId: 'host-1',
+    });
+    state = applyContextTelemetry(state, {
+      type: 'snapshot',
+      snapshot: makeContextSnapshot({
+        sessionId: 'session-a',
+        revision: 6,
+        occupancy: makeKnownOccupancy({ tokensUsed: 5_000 }),
+        phase: 'idle',
+      }),
+      source: 'live',
+    });
+    expect(state.displayed).toBeNull();
+    expect(state.warmBySessionId['session-a']?.snapshot.revision).toBe(6);
+    expect(state.warmBySessionId['session-a']?.snapshot.occupancy).toEqual(
+      makeKnownOccupancy({ tokensUsed: 5_000 }),
+    );
+
+    state = applyContextTelemetry(state, {
+      type: 'snapshot',
+      snapshot: makeContextSnapshot({
+        sessionId: 'session-a',
+        revision: 7,
+        phase: 'invalidated',
+        occupancy: { kind: 'unknown', reason: 'branch-switched' },
+      }),
+      source: 'live',
+    });
+    expect(state.warmBySessionId['session-a']).toBeUndefined();
   });
 });

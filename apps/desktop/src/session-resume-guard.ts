@@ -108,3 +108,12 @@ export function resumeTicketMatches(
     guard.issuedRequestId === ticket.requestId
   );
 }
+
+/** Apply a late resume side effect (model, occupancy, messages) only if the ticket is still current. */
+export function takeIfResumeCurrent<T>(
+  guard: SessionSelectionGuard,
+  ticket: ResumeSelectionTicket,
+  value: T,
+): T | null {
+  return resumeTicketMatches(guard, ticket) ? value : null;
+}
