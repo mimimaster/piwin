@@ -27,6 +27,9 @@ export { diffTurnChangeObjects } from './turn-changes/content-diff.js';
 export { resolveTurnChangePath, assertWritableTurnChangeFile } from './turn-changes/path-policy.js';
 export type { TurnChangePathKind, ResolvedTurnChangePath } from './turn-changes/path-policy.js';
 
+export { writeTurnChangeFile, deleteTurnChangeFile } from './turn-changes/file-writer.js';
+export type { TurnChangeWriteReceipt } from './turn-changes/file-writer.js';
+
 export { probeGitRepository } from './repository-probe.js';
 
 export { parsePorcelainStatus, parsePorcelainFileLine } from './status-parser.js';
