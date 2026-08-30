@@ -11,6 +11,7 @@ import {
 import { IconButton, TextArea } from '@piwin/ui-kit';
 import {
   formatError,
+  parseSessionContextSnapshot,
   type ExecutionRunRecord,
   type HostServerMessage,
   type ModelRef,
@@ -20,6 +21,11 @@ import {
   type ThemeManifest,
 } from '@piwin/contracts';
 import { chatUiReducer, createInitialChatUiState } from './chat-reducer.js';
+import {
+  isChatCompactPendingOccupancy,
+  selectContextRingView,
+} from './context-telemetry-selector.js';
+import { ComposerContextUsageControl } from './composer-context-controls.js';
 import type { HostClient } from './host-client.js';
 import { createGestureIdempotencyKey } from './gesture-idempotency.js';
 import {
@@ -38,6 +44,7 @@ import type { DocumentOpenInput } from './tool-call-card.js';
 
 type PaneResumeData = Omit<SessionResumeData, 'scope'> & {
   scope?: SessionScope | 'general' | 'project' | 'unknown';
+  contextUsage?: SessionResumeData['contextUsage'];
 };
 
 export type ConversationPaneSessionProps = {
@@ -163,6 +170,15 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
     setModel(null);
     void (async () => {
       try {
+        const statusResponse = await props.hostClient.request({ type: 'host/status' });
+        if (!cancelled && statusResponse.success) {
+          const capabilities = (statusResponse.data as { capabilities?: { contextTelemetryVersion?: 1 } } | undefined)
+            ?.capabilities;
+          dispatch({
+            type: 'context-telemetry/capability',
+            supported: capabilities?.contextTelemetryVersion === 1,
+          });
+        }
         const response = await props.hostClient.request({
           type: 'session/resume',
           sessionId: props.sessionId,
@@ -173,6 +189,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
             onSessionDeletedRef.current?.();
             return;
           }
+          dispatch({ type: 'context-telemetry/invalidate', sessionId: props.sessionId });
           dispatch({ type: 'error', message: response.error });
           return;
         }
@@ -197,6 +214,21 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
           ...(data.contextUsage !== undefined ? { contextUsage: data.contextUsage } : {}),
           live: data.live,
         });
+        const snapshot = parseSessionContextSnapshot(data.contextSnapshot);
+        if (snapshot) {
+          dispatch({
+            type: 'context-telemetry/snapshot',
+            snapshot,
+            source: 'hydrate',
+          });
+        }
+        if ('lastRequestUsage' in data) {
+          dispatch({
+            type: 'context-telemetry/last-request',
+            sessionId: props.sessionId,
+            usage: data.lastRequestUsage ?? null,
+          });
+        }
         setModel(data.model ?? null);
         if (data.name) onNameChangeRef.current?.(data.name);
         await hydrateForegroundRun(() => cancelled);
@@ -231,7 +263,16 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
         return;
       }
       if (!messageBelongsToSession(message, props.sessionId)) return;
-      if (message.type === 'event') {
+      if (message.type === 'session/context-updated') {
+        const snapshot = parseSessionContextSnapshot(message.snapshot);
+        if (snapshot) {
+          dispatch({
+            type: 'context-telemetry/snapshot',
+            snapshot,
+            source: 'live',
+          });
+        }
+      } else if (message.type === 'event') {
         streamEventBuffer.push(message.sessionId, message.event, message.envelope);
       } else if (message.type === 'run/updated') {
         streamEventBuffer.pushAction(message.run.sessionId, {
@@ -352,6 +393,12 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
   }
 
   const canSend = composer.trim().length > 0 && !state.streaming && !busy;
+  const contextRingView = selectContextRingView({
+    telemetry: state.contextTelemetry,
+    locale: props.locale,
+    ...(state.compacting ? { compacting: true } : {}),
+    ...(isChatCompactPendingOccupancy(state) ? { compactPendingOccupancy: true } : {}),
+  });
   return (
     <MediaPreviewReadProvider sessionId={props.sessionId} readMedia={props.readMedia}>
       <div
@@ -360,6 +407,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
         data-awaiting-transcript={state.awaitingTranscript ? 'true' : 'false'}
         data-message-count={state.messages.length}
         data-streaming={state.streaming ? 'true' : 'false'}
+        data-context-ring={contextRingView.visible ? 'visible' : 'hidden'}
       >
         <ConversationPaneTranscript
           sessionId={props.sessionId}
@@ -398,6 +446,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
               onKeyDown: handleComposerKeyDown,
             }}
           />
+          <ComposerContextUsageControl view={contextRingView} />
           {state.streaming ? (
             <IconButton
               label={props.locale === 'zh-CN' ? '停止生成' : 'Stop response'}

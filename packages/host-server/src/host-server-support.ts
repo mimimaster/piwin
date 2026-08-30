@@ -11,8 +11,10 @@ import type {
 } from '@piwin/contracts';
 import {
   ACTIVITY_SUMMARY_MAX_ITEMS,
+  isFlashcardStudyCommandType,
   isSupportedAttachmentMimeType,
   LIVE_SUBSCRIPTION_MAX_SESSION_IDS,
+  parseFlashcardStudyCommand,
   QUEUED_TURN_MAX_TEXT_BYTES,
   SESSION_LIST_PAGE_MAX_ITEMS,
   SESSION_TRANSCRIPT_PAGE_MAX_BYTES,
@@ -132,6 +134,9 @@ export function isSafeRemoteCommand(command: HostCommand): boolean {
   if (command.type.startsWith('mobile-access/')) {
     return false;
   }
+  if (isFlashcardStudyCommandType(command.type)) {
+    return parseFlashcardStudyCommand(command).ok;
+  }
   switch (command.type) {
     case 'activity/summary':
       return (
@@ -183,6 +188,7 @@ export function isSafeRemoteCommand(command: HostCommand): boolean {
     case 'session/foreground-run':
     case 'session/lineage':
     case 'session/runtime-status':
+    case 'session/context-get':
       return isSafeRemoteId(command.sessionId);
     case 'session/reload-runtime':
       return (

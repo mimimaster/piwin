@@ -4,7 +4,10 @@
 import { useMemo } from 'react';
 import type { JobRecord, SessionPlan } from '@piwin/contracts';
 import type { ChatUiState } from '../chat-reducer';
-import { computeContextUsagePercent } from '../context-usage-ring';
+import {
+  isChatCompactPendingOccupancy,
+  selectContextRingView,
+} from '../context-telemetry-selector.js';
 import type { DesktopLocale } from '../desktop-locale';
 import { deriveRunStatus } from '../run-status';
 import { collectSessionTools } from '../tool-call-card';
@@ -44,8 +47,23 @@ export function useWorkbenchDerivedView(input: {
   const visibleTranscriptMessages = state.historyView?.messages ?? state.messages;
   const visibleRunRecordsById = state.historyView?.runRecordsById ?? state.runRecordsById;
   const contextUsagePercent = useMemo(
-    () => computeContextUsagePercent(state.contextUsage, selectedModelContextWindow),
-    [state.contextUsage, selectedModelContextWindow],
+    () =>
+      selectContextRingView({
+        telemetry: state.contextTelemetry,
+        locale: desktopLocale === 'en' ? 'en' : 'zh-CN',
+        ...(typeof selectedModelContextWindow === 'number'
+          ? { selectedModelContextWindow }
+          : {}),
+        ...(state.compacting ? { compacting: true } : {}),
+        ...(isChatCompactPendingOccupancy(state) ? { compactPendingOccupancy: true } : {}),
+      }).percentText,
+    [
+      state.contextTelemetry,
+      state.compacting,
+      state.lastCompactionMessage,
+      selectedModelContextWindow,
+      desktopLocale,
+    ],
   );
   const lastUserMessage = useMemo(() => findLastUserMessage(state.messages), [state.messages]);
   const lastUserMessageId = lastUserMessage?.id ?? null;

@@ -190,3 +190,40 @@ describe('mobile transcript health presentation', () => {
     expect(harness.messages()[0]?.toolCalls?.[0]?.presentation?.health?.status).toBe('no-data');
   });
 });
+
+describe('session/context-updated', () => {
+  it('ignores occupancy pushes and does not invent transcript usage', () => {
+    const harness = collectMessages();
+    handleRemotePush(
+      {
+        type: 'session/context-updated',
+        sessionId: 'session-1',
+        snapshot: {
+          sessionId: 'session-1',
+          revision: 2,
+          contextVersion: 1,
+          contextBoundary: { activeLeafMessageId: null },
+          responseEvidence: {
+            currentRunHasResponse: true,
+            historyHasDisplayableResponse: true,
+          },
+          phase: 'idle',
+          occupancy: {
+            kind: 'known',
+            tokensUsed: 90_000,
+            quality: 'measured',
+            coverage: 'complete',
+            basis: 'test',
+            sampledAt: '2026-08-30T00:00:00.000Z',
+          },
+          updatedAt: '2026-08-30T00:00:00.000Z',
+        },
+      },
+      harness.activeSessionRef,
+      harness.setMessages,
+      harness.setPausedCheckpointId,
+      harness.setPermissionRequest,
+    );
+    expect(harness.messages()).toEqual([]);
+  });
+});

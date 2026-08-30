@@ -3,6 +3,20 @@ import type { AgentEvent, HostPushVariant } from '@piwin/contracts';
 import { classifyHostPush } from './host-push-policy.js';
 
 describe('classifyHostPush', () => {
+  it('classifies study-round changes as a replaceable projection', () => {
+    expect(
+      classifyHostPush({
+        type: 'flashcards/study/changed',
+        roundId: 'round-1',
+        revision: 3,
+        reason: 'rate',
+      }),
+    ).toEqual({
+      kind: 'projection',
+      key: ['flashcards', 'study', 'round-1'],
+    });
+  });
+
   it('classifies assembly context summaries as a session projection', () => {
     expect(
       classifyHostPush({

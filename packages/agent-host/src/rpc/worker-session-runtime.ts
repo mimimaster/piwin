@@ -45,9 +45,17 @@ import {
   isSerializableBlueprint,
 } from './serializable-blueprint.js';
 import type { PiBackendCustomToolDefinition } from '../backends/pi-backend-tool-adapter.js';
-import { normalizeAgentEventIds, normalizeGenerationToolCallId } from '../generation-identity.js';
-import { stampPublishedAgentEvent } from '../agent-event-run-id.js';
+import { normalizeGenerationToolCallId } from '../generation-identity.js';
 import { runTrackedPiPrompt } from '../pi-prompt-outcome-tracker.js';
+import {
+  createPiContextSampler,
+  occupancyModelIdentityFromRef,
+  publishSampledPiSessionEvents,
+  readPiContextUsageSample,
+  sameOccupancyModelIdentity,
+  type OccupancyModelIdentity,
+  type PiContextSampler,
+} from '../pi-context-sampler.js';
 
 /** Minimal Pi-like session surface the worker runtime needs. */
 export type WorkerPiSessionLike = {
@@ -75,6 +83,9 @@ export type WorkerPiSessionLike = {
     listener: (event: BackendRunInterventionEvent) => Promise<BackendRunInterventionEventResult>,
   ): () => void;
   settleRunInterventions?(runId: string): Promise<void>;
+  getContextUsage?: () =>
+    | { tokens: number | null; contextWindow: number; percent?: number | null }
+    | undefined;
 };
 
 export type CreateWorkerPiSessionInput = {
@@ -127,6 +138,8 @@ type RuntimeSession = {
   activeRunId: string | undefined;
   trailingRunId: string | undefined;
   unsubscribeInterventions?: () => void;
+  sampler: PiContextSampler;
+  appliedModel?: OccupancyModelIdentity;
 };
 
 type PendingToolCall = {
@@ -266,7 +279,14 @@ export class WorkerSessionRuntime {
       extensionUi: this.createExtensionUiPort(payload.productSessionId),
       ...(proxyTools.length > 0 ? { proxyTools } : {}),
     });
-    this.attachSession(payload.productSessionId, handle, context);
+    this.attachSession(
+      payload.productSessionId,
+      handle,
+      context,
+      payload.blueprint.model
+        ? occupancyModelIdentityFromRef(payload.blueprint.model)
+        : undefined,
+    );
     this.sendResponse(id, true, { sessionId: handle.id });
   }
 
@@ -368,6 +388,23 @@ export class WorkerSessionRuntime {
     session.trailingRunId = context.runId;
     session.activeRunId = context.runId;
     session.handle.setActiveRunId?.(context.runId);
+    if (payload.model) {
+      const nextModel = occupancyModelIdentityFromRef(payload.model);
+      if (
+        session.appliedModel !== undefined &&
+        !sameOccupancyModelIdentity(session.appliedModel, nextModel)
+      ) {
+        const eventContext: WorkerFrameContext = {
+          sessionId: session.productSessionId,
+          runtimeGenerationId: session.context.runtimeGenerationId,
+          runId: context.runId,
+        };
+        for (const extra of session.sampler.invalidateBaseline()) {
+          this.options.sendFrame({ type: 'event', context: eventContext, event: extra });
+        }
+      }
+      session.appliedModel = nextModel;
+    }
     const options =
       payload.images && payload.images.length > 0
         ? {
@@ -516,6 +553,7 @@ export class WorkerSessionRuntime {
       this.assertSessionContext(session, context);
       session.unsubscribe();
       session.unsubscribeInterventions?.();
+      session.sampler.dispose();
       this.deleteSessionAliases(session);
     }
     if (session) {
@@ -629,35 +667,47 @@ export class WorkerSessionRuntime {
     sessionId: string,
     handle: WorkerPiSessionLike,
     context: WorkerFrameContext,
+    appliedModel?: OccupancyModelIdentity,
   ): void {
+    const sampler = createPiContextSampler({
+      sessionId,
+      runtimeGenerationId: context.runtimeGenerationId,
+      getRunId: () => {
+        const runtimeSession = this.sessions.get(sessionId);
+        return runtimeSession?.activeRunId ?? runtimeSession?.trailingRunId;
+      },
+      ...(typeof handle.getContextUsage === 'function'
+        ? { getContextUsage: () => readPiContextUsageSample(handle.getContextUsage?.()) }
+        : {}),
+    });
     const unsubscribe = handle.subscribe((raw) => {
-      for (const mapped of this.eventMapper.map(raw)) {
-        const eventContext: WorkerFrameContext = {
+      const runtimeSession = this.sessions.get(sessionId);
+      const publishRunId = runtimeSession?.activeRunId ?? runtimeSession?.trailingRunId;
+      const eventContext: WorkerFrameContext = {
+        sessionId,
+        runtimeGenerationId: context.runtimeGenerationId,
+      };
+      if (publishRunId !== undefined) eventContext.runId = publishRunId;
+      publishSampledPiSessionEvents({
+        mapper: this.eventMapper,
+        sampler,
+        raw,
+        identity: {
           sessionId,
           runtimeGenerationId: context.runtimeGenerationId,
-        };
-        const runtimeSession = this.sessions.get(sessionId);
-        const publishRunId = runtimeSession?.activeRunId ?? runtimeSession?.trailingRunId;
-        if (publishRunId !== undefined) eventContext.runId = publishRunId;
-        const event = stampPublishedAgentEvent(
-          normalizeAgentEventIds(mapped, {
-            sessionId,
-            runtimeGenerationId: context.runtimeGenerationId,
-          }),
-          publishRunId,
-        );
-        if (!event) {
-          continue;
-        }
-        const frame: WorkerEvent = {
-          type: 'event',
-          // Product IDs are the parent correlation key. The worker ID remains
-          // available as an alias for requests and in the create response.
-          context: eventContext,
-          event,
-        };
-        this.options.sendFrame(frame);
-      }
+        },
+        runId: publishRunId,
+        emit: (event) => {
+          const frame: WorkerEvent = {
+            type: 'event',
+            // Product IDs are the parent correlation key. The worker ID remains
+            // available as an alias for requests and in the create response.
+            context: eventContext,
+            event,
+          };
+          this.options.sendFrame(frame);
+        },
+      });
     });
     const session: RuntimeSession = {
       handle,
@@ -670,6 +720,8 @@ export class WorkerSessionRuntime {
       },
       activeRunId: undefined,
       trailingRunId: undefined,
+      sampler,
+      ...(appliedModel !== undefined ? { appliedModel } : {}),
     };
     this.sessions.set(sessionId, session);
     if (handle.id !== sessionId) {

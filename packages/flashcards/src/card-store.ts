@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type {
   FlashcardBatchCreateInput,
@@ -16,7 +16,6 @@ import {
   isValidClozeText,
   itemPreviewText,
   parseReviewCardId,
-  reviewStateFileName,
   stripClozeMarkers,
 } from './cloze.js';
 import { findNearDuplicateItem } from './dedup.js';
@@ -28,7 +27,8 @@ import {
   getReviewDir,
   sanitizeCardId,
 } from './paths.js';
-import { createInitialReviewState, rateCard } from './scheduler.js';
+import { createReviewWriteService } from './review-write-service.js';
+import { getOrCreateStudyCoordinator } from './study-transaction.js';
 
 export type CardStoreOptions = {
   piwinRoot: string;
@@ -77,6 +77,8 @@ export function createCardStore(options: CardStoreOptions): CardStore {
   const flashcardsRoot = getFlashcardsRoot(options.piwinRoot);
   const cardsDir = getCardsDir(flashcardsRoot);
   const reviewDir = getReviewDir(flashcardsRoot);
+  const coordinator = getOrCreateStudyCoordinator(flashcardsRoot);
+  const reviewWrites = createReviewWriteService(coordinator);
 
   async function ensureDirs(): Promise<void> {
     await mkdir(cardsDir, { recursive: true });
@@ -108,79 +110,6 @@ export function createCardStore(options: CardStoreOptions): CardStore {
   function itemPath(itemId: string): string {
     sanitizeCardId(itemId);
     return assertInsideFlashcardsRoot(flashcardsRoot, join(cardsDir, `${itemId}.md`));
-  }
-
-  function reviewPath(cardId: string): string {
-    const { itemId } = parseReviewCardId(cardId);
-    sanitizeCardId(itemId);
-    return assertInsideFlashcardsRoot(flashcardsRoot, join(reviewDir, reviewStateFileName(cardId)));
-  }
-
-  async function deleteReviewFiles(itemId: string): Promise<void> {
-    sanitizeCardId(itemId);
-    await rm(assertInsideFlashcardsRoot(flashcardsRoot, join(reviewDir, `${itemId}.json`)), {
-      force: true,
-    });
-    let entries: string[];
-    try {
-      entries = await readdir(reviewDir);
-    } catch {
-      return;
-    }
-    const prefix = `${itemId}--c`;
-    for (const entry of entries) {
-      if (!entry.startsWith(prefix) || !entry.endsWith('.json')) continue;
-      await rm(assertInsideFlashcardsRoot(flashcardsRoot, join(reviewDir, entry)), { force: true });
-    }
-  }
-
-  /**
-   * Review state is user data (ADR 0018): a corrupted file must never be
-   * silently reset. Missing file → null (caller may initialize); corrupt
-   * file → preserved as .bak, logged, then treated as missing.
-   */
-  async function readReviewState(cardId: string): Promise<ReviewState | null> {
-    const path = reviewPath(cardId);
-    let raw: string;
-    try {
-      raw = await readFile(path, 'utf8');
-    } catch {
-      return null; // genuinely missing — safe to initialize
-    }
-    try {
-      const parsed = JSON.parse(raw) as ReviewState;
-      if (typeof parsed.due !== 'string') {
-        throw new Error('missing due field');
-      }
-      return parsed;
-    } catch (error) {
-      const backupPath = `${path}.bak`;
-      await rename(path, backupPath).catch(() => undefined);
-      console.warn(
-        `[piwin/flashcards] corrupt review state for ${cardId} preserved at ${backupPath}: ${
-          error instanceof Error ? error.message : 'parse error'
-        }`,
-      );
-      return null;
-    }
-  }
-
-  /** Atomic write (tmp + rename): crash mid-write never truncates user data. */
-  async function writeReviewState(state: ReviewState): Promise<void> {
-    await ensureDirs();
-    const path = reviewPath(state.cardId);
-    const tmpPath = `${path}.tmp`;
-    await writeFile(tmpPath, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
-    await rename(tmpPath, path);
-  }
-
-  async function ensureReviewStates(item: FlashcardItem): Promise<void> {
-    for (const card of expandItemToReviewCards(item)) {
-      const existing = await readReviewState(card.cardId);
-      if (!existing) {
-        await writeReviewState(createInitialReviewState(card.cardId));
-      }
-    }
   }
 
   async function requireReviewCard(cardId: string): Promise<FlashcardReviewCard> {
@@ -259,24 +188,26 @@ export function createCardStore(options: CardStoreOptions): CardStore {
     getFlashcardsRoot: () => flashcardsRoot,
 
     async create(input) {
-      await ensureDirs();
-      const item = buildItem(input);
-      const preview = itemPreviewText(item);
+      return coordinator.runExclusive(async () => {
+        await ensureDirs();
+        const item = buildItem(input);
+        const preview = itemPreviewText(item);
 
-      const existing = await scanItems();
-      const comparable = existing.filter((entry) =>
-        input.sourceFolder
-          ? entry.sourceFolder === input.sourceFolder
-          : entry.deck === item.deck && !entry.sourceFolder,
-      );
-      const duplicate = findNearDuplicateItem(preview, comparable, itemPreviewText);
-      if (duplicate) {
-        throw new DuplicateCardError(duplicate);
-      }
+        const existing = await scanItems();
+        const comparable = existing.filter((entry) =>
+          input.sourceFolder
+            ? entry.sourceFolder === input.sourceFolder
+            : entry.deck === item.deck && !entry.sourceFolder,
+        );
+        const duplicate = findNearDuplicateItem(preview, comparable, itemPreviewText);
+        if (duplicate) {
+          throw new DuplicateCardError(duplicate);
+        }
 
-      await writeFile(itemPath(item.id), encodeCardMarkdown(item), 'utf8');
-      await ensureReviewStates(item);
-      return item;
+        await writeFile(itemPath(item.id), encodeCardMarkdown(item), 'utf8');
+        await reviewWrites.ensureForItem(item);
+        return item;
+      });
     },
 
     async batchCreate(input, maxBatchSize = 40) {
@@ -313,6 +244,7 @@ export function createCardStore(options: CardStoreOptions): CardStore {
     },
 
     async list(filter) {
+      await coordinator.runExclusive(async () => undefined);
       const items = await scanItems();
       return items
         .filter((item) => {
@@ -343,21 +275,25 @@ export function createCardStore(options: CardStoreOptions): CardStore {
     },
 
     async delete(cardId) {
-      const { itemId } = parseReviewCardId(cardId);
-      await readItem(itemId);
-      await rm(itemPath(itemId));
-      await deleteReviewFiles(itemId);
-      return { deleted: true, id: itemId };
+      return coordinator.runExclusive(async () => {
+        const { itemId } = parseReviewCardId(cardId);
+        await readItem(itemId);
+        await rm(itemPath(itemId));
+        await reviewWrites.deleteForItem(itemId);
+        return { deleted: true, id: itemId };
+      });
     },
 
     async deleteBySourceFolder(folderPath) {
-      const items = await scanItems();
-      const matching = items.filter((item) => item.sourceFolder === folderPath);
-      for (const item of matching) {
-        await rm(itemPath(item.id));
-        await deleteReviewFiles(item.id);
-      }
-      return { deleted: matching.length };
+      return coordinator.runExclusive(async () => {
+        const items = await scanItems();
+        const matching = items.filter((item) => item.sourceFolder === folderPath);
+        for (const item of matching) {
+          await rm(itemPath(item.id));
+          await reviewWrites.deleteForItem(item.id);
+        }
+        return { deleted: matching.length };
+      });
     },
 
     async rebindSourceFolder(oldPath, newPath) {
@@ -376,38 +312,30 @@ export function createCardStore(options: CardStoreOptions): CardStore {
     },
 
     async getReviewState(cardId) {
-      await requireReviewCard(cardId);
-      const state = await readReviewState(cardId);
-      if (state) return state;
-      const initial = createInitialReviewState(cardId);
-      await writeReviewState(initial);
-      return initial;
+      return coordinator.runExclusive(async () => {
+        await requireReviewCard(cardId);
+        return reviewWrites.getOrInit(cardId);
+      });
     },
 
     async loadReviewStates() {
-      const items = await scanItems();
-      const states = new Map<string, ReviewState>();
-      for (const item of items) {
-        for (const card of expandItemToReviewCards(item)) {
-          const state = await readReviewState(card.cardId);
-          if (state) {
-            states.set(card.cardId, state);
-          } else {
-            const initial = createInitialReviewState(card.cardId);
-            await writeReviewState(initial);
-            states.set(card.cardId, initial);
+      return coordinator.runExclusive(async () => {
+        const items = await scanItems();
+        const states = new Map<string, ReviewState>();
+        for (const item of items) {
+          for (const card of expandItemToReviewCards(item)) {
+            states.set(card.cardId, await reviewWrites.getOrInit(card.cardId));
           }
         }
-      }
-      return states;
+        return states;
+      });
     },
 
     async rate(cardId, rating, now) {
-      await requireReviewCard(cardId);
-      const current = await this.getReviewState(cardId);
-      const next = rateCard(current, rating, now);
-      await writeReviewState(next);
-      return next;
+      return coordinator.runExclusive(async () => {
+        await requireReviewCard(cardId);
+        return reviewWrites.rate(cardId, rating, now);
+      });
     },
   };
 }

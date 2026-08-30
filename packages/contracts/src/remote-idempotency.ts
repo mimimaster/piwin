@@ -20,6 +20,15 @@ export const REMOTE_IDEMPOTENT_MUTATION_TYPES = [
   'turn-changes/redo',
   'turn-changes/cancel',
   'turn-changes/recovery-run',
+  'flashcards/study/start',
+  'flashcards/study/claim',
+  'flashcards/study/checkpoint',
+  'flashcards/study/next',
+  'flashcards/study/rate',
+  'flashcards/study/undo',
+  'flashcards/study/pause',
+  'flashcards/study/resume',
+  'flashcards/study/end',
 ] as const satisfies readonly HostCommand['type'][];
 
 export function remoteCommandRequiresIdempotencyKey(type: HostCommand['type']): boolean {

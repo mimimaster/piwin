@@ -68,6 +68,10 @@ export async function disposeLiveSession(
   deps.sessionHostToolPort?.clearSession(sessionId);
   deps.clearSessionAllowlist(sessionId);
   deps.sessionUsage.delete(sessionId);
+  if (deps.sessionContextCoordinator) {
+    await deps.sessionContextCoordinator.flush(sessionId);
+    deps.sessionContextCoordinator.disposeSession(sessionId);
+  }
   deps.sessionLastPromptText.delete(sessionId);
   deps.sessionAutoCompactionOverrides.delete(sessionId);
   deps.sessionFilesTouched.delete(sessionId);

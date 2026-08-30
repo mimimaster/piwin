@@ -138,6 +138,8 @@ export function getStatus(deps: HostRuntimeKernel): HostStatusData {
       turnChangeUndoV1: true,
       marketplaceHub: true,
       automation: true,
+      flashcardStudy: true,
+      contextTelemetryVersion: 1,
     },
   };
 }

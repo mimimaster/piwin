@@ -54,6 +54,7 @@ import type { ComposedSessionHostTools, HostRuntimeOptions } from './host-runtim
 import type { SubscriptionAuthService } from './subscription-auth-service.js';
 import type { LiveCallCoordinator } from './voice/live-call-coordinator.js';
 import type { LiveSettingsService } from './voice/live-settings-service.js';
+import type { SessionContextCoordinator } from './session-context-coordinator.js';
 
 /** Mutable HostRuntime instance fields. HostRuntime remains the composition root. */
 export class HostRuntimeFields {
@@ -116,6 +117,9 @@ export class HostRuntimeFields {
   sessionUsage = new Map<string, ContextUsageSnapshot>();
   /** CE-OBS: usage writes that must finish before a Host instance is disposed. */
   pendingUsageLedgerWrites = new Set<Promise<void>>();
+  sessionContextCoordinator = undefined as unknown as SessionContextCoordinator;
+  /** turn_end hooks already fired for a confirmed foreground runId. */
+  turnEndHooksFired = new Set<string>();
   /** Last user prompt text for host-estimate usage (mock path). */
   sessionLastPromptText = new Map<string, string>();
   modelRequestOrdinals = new Map<string, number>();
@@ -199,6 +203,9 @@ export class HostRuntimeFields {
   /** Extracted web_fetch pages. Hits skip the network; admission still runs. */
   fetchCache = new FetchCache();
   cardStore: import('@piwin/flashcards').CardStore | null = null;
+  studyService: import('@piwin/flashcards').StudyService | null = null;
+  /** Envelope idempotency key for the in-flight Host command (study mutations). */
+  commandRequestStore = new AsyncLocalStorage<{ idempotencyKey?: string }>();
   /** Host-owned browser session (ADR 0020); lazily created on first access. */
   browserSession: import('@piwin/browser').BrowserSession | null = null;
   /** Guards first init of `browserSession` so concurrent callers share one. */

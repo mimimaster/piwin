@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
@@ -268,5 +268,51 @@ describe('Mobile Tool Call Chain & Execution Cards', () => {
     });
     expect(container.querySelector('.artifact-preview-btn')).toBeNull();
     expect(container.querySelector('iframe')).toBeNull();
+  });
+
+  it('keeps flashcard text and offers 进入复习台', () => {
+    const onEnter = vi.fn();
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={MOBILE_THEME}>
+          <MobileToolCallCard
+            defaultExpanded
+            onEnterFlashcardStudy={onEnter}
+            tool={{
+              id: 'fc-1',
+              name: 'flashcard_create',
+              status: 'done',
+              presentation: {
+                kind: 'other',
+                title: '闪卡',
+                flashcard: {
+                  cards: [
+                    {
+                      cardId: 'card-1',
+                      itemId: 'item-1',
+                      model: 'basic',
+                      ordinal: 1,
+                      deck: 'srs',
+                      front: 'What is an Artifact?',
+                      back: 'Untrusted HTML rendered in a sandbox.',
+                      createdAt: '2026-08-24T00:00:00.000Z',
+                    },
+                  ],
+                },
+              },
+            }}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+    expect(container.textContent).toContain('Q: What is an Artifact?');
+    const enter = container.querySelector<HTMLButtonElement>(
+      '[data-testid="mobile-enter-flashcard-study"]',
+    );
+    expect(enter?.textContent).toContain('进入复习台');
+    act(() => {
+      enter?.click();
+    });
+    expect(onEnter).toHaveBeenCalled();
   });
 });

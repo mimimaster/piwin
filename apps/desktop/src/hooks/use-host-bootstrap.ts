@@ -22,7 +22,7 @@ import type {
   ThemeManifest,
 } from '@piwin/contracts';
 import type { PetRuntimeSnapshot } from '@piwin/contracts';
-import { formatError } from '@piwin/contracts';
+import { formatError, parseSessionContextSnapshot } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
 import { isRemoteCommandGapError } from '../remote-command-gap.js';
 import { isWorkbenchHostTeardownError } from '../workbench-host-teardown.js';
@@ -81,6 +81,8 @@ export type UseHostBootstrapArgs = {
   setSelectedModelKey: Dispatch<SetStateAction<string>>;
   /** Root theme owner callback; this hook never applies document theme state itself. */
   onThemeResolved: (theme: ThemeManifest) => void;
+  /** Bump resume selection identity when the active session is deleted remotely. */
+  onActiveSessionCleared?: () => void;
 };
 
 type PermissionRequestPush = Extract<HostPush, { type: 'permission/request' }>;
@@ -317,6 +319,18 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         lastPushedHostReadyRef.current = ready;
         return;
       }
+      if (message.type === 'session/context-updated') {
+        const snapshot = parseSessionContextSnapshot(message.snapshot);
+        if (snapshot) {
+          dispatch({
+            type: 'context-telemetry/snapshot',
+            snapshot,
+            source: 'live',
+            hostInstanceId: hostClient.getHostInstanceId(),
+          });
+        }
+        return;
+      }
       if (message.type === 'event') {
         streamEventBuffer.push(message.sessionId, message.event, message.envelope);
         return;
@@ -433,6 +447,7 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         if (message.op === 'deleted') {
           dispatch({ type: 'session/remove', sessionId: message.sessionId });
           if (args.activeSessionId === message.sessionId) {
+            args.onActiveSessionCleared?.();
             dispatch({ type: 'session/clear-active' });
           }
           return;
@@ -642,6 +657,10 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         if (statusResponse.success) {
           const statusData = statusResponse.data as HostStatusData;
           setHostStatus(statusData);
+          dispatch({
+            type: 'context-telemetry/capability',
+            supported: statusData.capabilities.contextTelemetryVersion === 1,
+          });
         }
         // Request path must update the shell pill; push-only left UI stuck offline after HMR.
         dispatch({

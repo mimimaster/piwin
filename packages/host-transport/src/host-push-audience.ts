@@ -34,6 +34,7 @@ export function classifyHostPushAudience(push: HostPushVariant): HostPushAudienc
     case 'doccards/index-terminal':
     case 'doccards/generation-progress':
     case 'doccards/generation-terminal':
+    case 'flashcards/study/changed':
     case 'automation/cron_finished':
     case 'pty/output':
     case 'pty/exit':
@@ -77,6 +78,8 @@ export function classifyHostPushAudience(push: HostPushVariant): HostPushAudienc
       return { kind: 'global' };
     case 'session/runtime-updated':
       return session(push.status.sessionId);
+    case 'session/context-updated':
+      return session(push.sessionId);
     case 'run/updated':
     case 'run/terminal':
       return session(push.run.sessionId);

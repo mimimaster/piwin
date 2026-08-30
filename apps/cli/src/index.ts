@@ -70,6 +70,7 @@ import {
   type WalkthroughHostClient,
 } from './walkthrough-command.js';
 import { runAuthCommand } from './auth-command.js';
+import { bindStudyHostClient, runStudyCommand, type StudyHostClient } from './study-command.js';
 import {
   bindSideChatHostClient,
   type SideChatHostClient,
@@ -170,6 +171,13 @@ Usage:
   piwin cards due [--deck d]
   piwin cards review [--deck d]             (interactive FSRS loop)
   piwin cards export [--deck d] [--out <path>]   (Anki TSV)
+  piwin cards study <catalog|start|get|claim|checkpoint|next|rate|undo|pause|resume|end|operation>
+  piwin study catalog [--query q] [--cursor c] [--limit n] [--deck d]
+  piwin study start sequence --item <id> | --sequence <id>
+  piwin study start scheduled [--deck d]
+  piwin study get <roundId> | claim <roundId> --revision n --epoch n
+  piwin study checkpoint <roundId> --revision n --epoch n --entry id --content-version v --face question|answer
+  piwin study next|rate|undo|pause|resume|end|operation   (Host snapshot; no tear / no touch)
   piwin doccards scan <folder>
   piwin doccards index <folder>
   piwin doccards retrieve <folder> <query> [--limit n]
@@ -2109,6 +2117,10 @@ async function commandNotes(argv: string[]): Promise<void> {
 }
 
 async function commandCards(argv: string[]): Promise<void> {
+  if (argv[1] === 'study') {
+    await commandStudy(argv.slice(2));
+    return;
+  }
   const sub = argv[1] ?? 'list';
   const root = getPiwinRoot();
   const config = await loadPiwinConfig(root);
@@ -2278,7 +2290,7 @@ async function commandCards(argv: string[]): Promise<void> {
     return;
   }
 
-  console.error('Usage: piwin cards add|list|decks|show|delete|due|review|export');
+  console.error('Usage: piwin cards add|list|decks|show|delete|due|review|export|study');
   process.exitCode = 1;
 }
 
@@ -2864,6 +2876,20 @@ async function commandContext(argv: string[]): Promise<void> {
   }
 }
 
+async function commandStudy(argv: string[]): Promise<void> {
+  const mock = parseMock(argv);
+  const mode = parseMode(argv);
+  const client = await createStudyHostClient(mode, mock);
+  try {
+    await runStudyCommand(client, argv, console.log);
+  } catch (error) {
+    console.error(formatError(error));
+    process.exitCode = 1;
+  } finally {
+    await client.dispose();
+  }
+}
+
 async function commandAuth(argv: string[]): Promise<void> {
   const client = await createWalkthroughHostClient('sdk', false);
   try {
@@ -3225,6 +3251,12 @@ async function commandSideChat(argv: string[]): Promise<void> {
   process.exitCode = 1;
 }
 
+/** Same attached/in-process Host as other CLI verbs. Study never opens a second flashcards root. */
+async function createStudyHostClient(mode: HostMode, mock: boolean): Promise<StudyHostClient> {
+  const host = await openCliHost({ mode, mock });
+  return bindStudyHostClient(host);
+}
+
 /**
  * Build a {@link SideChatHostClient} on the live Host, or an in-process runtime.
  */
@@ -3427,6 +3459,10 @@ async function main(argv: string[]): Promise<void> {
   }
   if (command === 'cards') {
     await commandCards(argv);
+    return;
+  }
+  if (command === 'study') {
+    await commandStudy(argv.slice(1));
     return;
   }
   if (command === 'doccards') {

@@ -97,6 +97,7 @@ export const FALLBACK_REMOTE_ALLOWED_COMMANDS = [
   'session/queued-turn-reorder',
   'session/replace-run',
   'session/model-context-summary',
+  'session/context-get',
   'models/configured',
   'auth/status',
   'auth/login',
@@ -150,6 +151,18 @@ export const FALLBACK_REMOTE_ALLOWED_COMMANDS = [
   'preview/read-trusted-text',
   'skills/read',
   'extensions/list',
+  'flashcards/study/catalog',
+  'flashcards/study/start',
+  'flashcards/study/get',
+  'flashcards/study/claim',
+  'flashcards/study/checkpoint',
+  'flashcards/study/next',
+  'flashcards/study/rate',
+  'flashcards/study/undo',
+  'flashcards/study/pause',
+  'flashcards/study/resume',
+  'flashcards/study/end',
+  'flashcards/study/operation',
 ] as const satisfies readonly HostCommand['type'][];
 
 /** True when this Host advertised the command, or omitted the ceiling (operator). */
@@ -212,6 +225,8 @@ export type RemoteCapabilitySummary = {
   clientToolRequests?: boolean;
   /** Host accepts `client/subscriptions` and filters high-rate session pushes. */
   liveSubscriptions?: boolean;
+  /** Host exposes `flashcards/study/*`. Absent on old Hosts — shells show 需要更新 Host. */
+  flashcardStudy?: boolean;
   /**
    * OS family of the Host process (`process.platform`). Shells use this for
    * Host-path placeholders and joins — never the client OS.
@@ -386,6 +401,8 @@ export type RemoteSessionResumeData = {
   };
   thinkingLevel?: string;
   contextUsage?: import('./usage.js').ContextUsageSnapshot;
+  contextSnapshot: import('./context-telemetry.js').SessionContextSnapshot;
+  lastRequestUsage: import('./assistant-usage.js').AssistantUsageMeasurement | null;
   outline?: RemoteSessionOutlineNode[];
 };
 

@@ -98,6 +98,9 @@ export type UsageRecord = {
   firstTokenMs?: number;
   /** Turn outcome status. */
   success?: boolean;
+  measurementId?: string;
+  runId?: string;
+  messageId?: string;
 };
 
 /** Token aggregate for a single model / day / session bucket. */

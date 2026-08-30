@@ -240,5 +240,6 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
     endTurnChangeRun: (runId) => {
       deps.turnChangeRuntime?.coordinator.endRunSegment(runId);
     },
+    sessionContextCoordinator: deps.sessionContextCoordinator,
   };
 }

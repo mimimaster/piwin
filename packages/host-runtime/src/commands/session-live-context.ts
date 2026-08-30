@@ -377,4 +377,5 @@ export type SessionLiveContext = {
   }) => void;
   /** End the run_segment when the turn returns. */
   endTurnChangeRun?: (runId: string) => void;
+  sessionContextCoordinator?: import('../session-context-coordinator.js').SessionContextCoordinator;
 };

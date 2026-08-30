@@ -22,9 +22,61 @@ export type UsageRollupOptions = {
   topSessions?: number;
 };
 
-export async function appendUsageRecord(filePath: string, record: UsageRecord): Promise<void> {
+type LedgerCache = {
+  queue: Promise<void>;
+  seen: Set<string> | null;
+};
+
+const ledgerCaches = new Map<string, LedgerCache>();
+
+function cacheFor(filePath: string): LedgerCache {
+  const existing = ledgerCaches.get(filePath);
+  if (existing !== undefined) {
+    return existing;
+  }
+  const created: LedgerCache = { queue: Promise.resolve(), seen: null };
+  ledgerCaches.set(filePath, created);
+  return created;
+}
+
+/** Test seam: simulate a process restart after a successful JSONL write. */
+export function resetUsageLedgerCaches(): void {
+  ledgerCaches.clear();
+}
+
+export async function appendUsageRecord(
+  filePath: string,
+  record: UsageRecord,
+): Promise<'inserted' | 'duplicate'> {
+  const cache = cacheFor(filePath);
+  const pending = cache.queue.then(() => appendUsageRecordLocked(filePath, cache, record));
+  cache.queue = pending.then(
+    () => undefined,
+    () => undefined,
+  );
+  return pending;
+}
+
+async function appendUsageRecordLocked(
+  filePath: string,
+  cache: LedgerCache,
+  record: UsageRecord,
+): Promise<'inserted' | 'duplicate'> {
+  if (cache.seen === null) {
+    const existing = await loadUsageRecords(filePath);
+    cache.seen = new Set(
+      existing.flatMap((row) => (row.measurementId !== undefined ? [row.measurementId] : [])),
+    );
+  }
+  if (record.measurementId !== undefined && cache.seen.has(record.measurementId)) {
+    return 'duplicate';
+  }
   await mkdir(dirname(filePath), { recursive: true });
   await appendFile(filePath, `${JSON.stringify(record)}\n`, 'utf8');
+  if (record.measurementId !== undefined) {
+    cache.seen.add(record.measurementId);
+  }
+  return 'inserted';
 }
 
 export async function loadUsageRecords(filePath: string): Promise<UsageRecord[]> {
@@ -109,6 +161,7 @@ export function computeUsageRollup(
   const windowTo = options?.window?.to;
   const topSessions = options?.topSessions ?? 20;
 
+  const seenMeasurementIds = new Set<string>();
   const filtered = records.filter((record) => {
     if (scope) {
       const recordProject = record.projectPath;
@@ -122,6 +175,10 @@ export function computeUsageRollup(
     }
     if (windowFrom !== undefined && record.recordedAt < windowFrom) return false;
     if (windowTo !== undefined && record.recordedAt > windowTo) return false;
+    if (record.measurementId !== undefined) {
+      if (seenMeasurementIds.has(record.measurementId)) return false;
+      seenMeasurementIds.add(record.measurementId);
+    }
     return true;
   });
 

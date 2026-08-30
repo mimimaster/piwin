@@ -49,6 +49,17 @@ export async function loadSessionPlanForWalkthrough(
   return loadSessionPlan(planPath);
 }
 
+function buildFlashcardStudyContext(
+  deps: HostRuntimeKernel,
+): import('./commands/flashcard-study-commands.js').FlashcardStudyCommandContext {
+  const idempotencyKey = deps.commandRequestStore.getStore()?.idempotencyKey;
+  return {
+    getStudyService: () => deps.getStudyService(),
+    controllerIdentity: deps.devicePrincipalStore.getStore() ?? 'local',
+    ...(idempotencyKey ? { idempotencyKey } : {}),
+  };
+}
+
 export async function buildDomainContext(
   deps: HostRuntimeKernel,
 ): Promise<import('./commands/domain-command-dispatch.js').DomainDispatchContext> {
@@ -195,6 +206,7 @@ export async function buildDomainContext(
         }),
       ...(deps.options.piwinRoot ? { piwinRoot: deps.options.piwinRoot } : {}),
     },
+    flashcardStudy: buildFlashcardStudyContext(deps),
     ...(deps.subscriptionAuth ? { subscriptionAuth: deps.subscriptionAuth } : {}),
     devicePrincipalId: deps.devicePrincipalStore.getStore() ?? 'local',
     cancelRunsForProvider: (providerId) => cancelRunsForSubscriptionProvider(deps, providerId),
@@ -281,6 +293,7 @@ export async function buildDomainContext(
       releaseSessionBody: (sessionId) => deps.sessionBodyGate.release(sessionId),
       isSessionBodyReserved: (sessionId) => deps.sessionBodyGate.isReserved(sessionId),
       getForegroundRun: (sessionId) => deps.runRegistry.getForegroundRun(sessionId),
+      getContextSnapshot: (sessionId) => deps.sessionContextCoordinator.getSnapshot(sessionId),
     },
     sessionPack: {
       ...(deps.options.piwinRoot !== undefined ? { piwinRoot: deps.options.piwinRoot } : {}),

@@ -1,3 +1,4 @@
+@import '@piwin/ui-kit/flashcards.css';
 @import './themes.css';
 @import './styles/layout.css';
 @import './styles/chat-stream.css';
@@ -6,6 +7,7 @@
 @import './styles/modals-sheets.css';
 @import './styles/live.css';
 @import './styles/artifact-viewer.css';
+@import './surfaces/flashcards/flashcards-surface.css';
 @import './tool-chain.css';
 @import './chat-markdown.css';
 @import './components/chat/quick-actions.css';

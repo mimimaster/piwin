@@ -307,7 +307,8 @@ async function waitForCompletedAssistants(
       const messages = (response.data as { messages: SessionTranscriptMessage[] }).messages;
       if (
         messages.filter((message) => message.role === 'assistant' && message.status === 'done')
-          .length >= count
+          .length >= count &&
+        runtime.listForegroundRuns().every((run) => run.sessionId !== sessionId)
       ) {
         return messages;
       }

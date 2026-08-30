@@ -12,6 +12,18 @@ export function getReviewDir(flashcardsRoot: string): string {
   return join(flashcardsRoot, 'review');
 }
 
+export function getStudyDir(flashcardsRoot: string): string {
+  return join(flashcardsRoot, 'study');
+}
+
+export function getStudyRoundsDir(flashcardsRoot: string): string {
+  return join(getStudyDir(flashcardsRoot), 'rounds');
+}
+
+export function getStudyOperationsDir(flashcardsRoot: string): string {
+  return join(getStudyDir(flashcardsRoot), 'operations');
+}
+
 export const DEFAULT_DECK = 'default';
 
 /** Reject path traversal: target must stay under flashcardsRoot. */

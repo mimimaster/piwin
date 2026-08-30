@@ -15,13 +15,10 @@ describe('ipc types', () => {
   it('keeps ipc modules under the source-file size cap', () => {
     const files = [
       'ipc.ts',
-      'ipc-commands-runtime.ts',
-      'ipc-commands-session.ts',
-      'ipc-commands-content.ts',
+      'ipc-host-commands.ts',
+      'ipc-session-commands.ts',
       'ipc-commands-turn-changes.ts',
-      'ipc-push.ts',
-      'ipc-envelope.ts',
-      'ipc-response-data.ts',
+      'ipc-host-push.ts',
     ];
     for (const fileName of files) {
       const lines = readFileSync(join(SRC_DIR, fileName), 'utf8').split('\n').length;
@@ -32,18 +29,10 @@ describe('ipc types', () => {
 
   it('re-exports the public IPC surface from the ipc.ts aggregate', () => {
     const source = readFileSync(join(SRC_DIR, 'ipc.ts'), 'utf8');
-    expect(source).toContain("from './ipc-commands-runtime.js'");
-    expect(source).toContain("from './ipc-commands-session.js'");
-    expect(source).toContain("from './ipc-commands-content.js'");
+    expect(source).toContain("from './ipc-host-commands.js'");
+    expect(source).toContain("from './ipc-host-push.js'");
     expect(source).toContain("from './ipc-commands-turn-changes.js'");
-    expect(source).toContain("from './ipc-push.js'");
-    expect(source).toContain("from './ipc-envelope.js'");
-    expect(source).toContain("from './ipc-response-data.js'");
-    expect(source).toContain('HostRuntimeCommand');
-    expect(source).toContain('HostSessionCommand');
-    expect(source).toContain('HostContentCommand');
     expect(source).toContain('HostTurnChangeCommand');
-    expect(source).toContain('SubscriptionAuthCommand');
   });
 
   it('allows constructing command and push shapes', () => {
