@@ -192,6 +192,10 @@ describe('Flashcard study workbench', () => {
     await flush();
     expect(fake.calls.filter((command) => command.type === 'flashcards/study/next')).toHaveLength(1);
     expect(container.querySelector('.fcws-tear-card.is-tearing')).not.toBeNull();
+    const under = container.querySelector('[data-testid="flashcards-study-under-shell"]');
+    expect(under).not.toBeNull();
+    expect(under?.closest('.fcws-tear-under')).not.toBeNull();
+    expect(under?.textContent ?? '').not.toMatch(/page table|TLB|physical map/);
     await act(async () => {
       await new Promise((resolve) => {
         window.setTimeout(resolve, 280);
@@ -256,6 +260,26 @@ describe('Flashcard study workbench', () => {
     await flush(16);
     expect(container.querySelector('[data-testid="flashcards-study-page"]')).toBeNull();
     expect(container.querySelector('[data-testid="flashcards-workspace"]')).not.toBeNull();
+  });
+
+  it('does not flip or rate while the end-round overlay is open', async () => {
+    const fake = await openSet();
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="flashcards-study-end"]')?.click();
+    });
+    await flush();
+    expect(document.body.querySelector('[data-testid="flashcards-study-end-confirm"]')).not.toBeNull();
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: '3', bubbles: true }));
+    });
+    await flush();
+    expect(container.querySelector('[data-testid="flashcards-tear-front"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="flashcards-tear-back"]')).toBeNull();
+    expect(fake.calls.filter((command) => command.type === 'flashcards/study/next')).toHaveLength(0);
+    expect(fake.calls.filter((command) => command.type === 'flashcards/study/rate')).toHaveLength(0);
+    expect(fake.calls.filter((command) => command.type === 'flashcards/study/checkpoint')).toHaveLength(0);
   });
 
   it('restores ReturnContext after leaving study', async () => {
