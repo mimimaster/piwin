@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { SubagentOrchestrator } from './subagent-orchestrator.js';
 import { RunRegistry } from './run-registry.js';
@@ -19,6 +22,12 @@ import type { SubagentOrchestratorOptions } from './subagent-orchestrator.js';
 import { createDefaultPiwinConfig } from './config-store.js';
 
 const RUNTIME_GENERATION_ID = 'generation-test';
+
+const SRC_DIR = dirname(fileURLToPath(import.meta.url));
+
+function sourceLineCount(fileName: string): number {
+  return readFileSync(join(SRC_DIR, fileName), 'utf8').split('\n').length;
+}
 
 /** Minimal fake integration coordinator for tests. */
 function makeFakeIntegrationCoordinator(
@@ -766,5 +775,28 @@ describe('SubagentOrchestrator', () => {
     expect(result.results[0]?.integrationStatus).toBe('failed');
     expect(result.results[0]?.error).toContain('fake integration failure');
     expect(result.results[0]?.allowedOutputPaths).toEqual(['src/a.ts']);
+  });
+
+  it('keeps orchestrator modules under the source-file size cap', () => {
+    const files = [
+      'subagent-orchestrator.ts',
+      'subagent-orchestrator-types.ts',
+      'subagent-orchestrator-batch.ts',
+      'subagent-orchestrator-invocation.ts',
+      'subagent-orchestrator-task.ts',
+      'subagent-orchestrator-finalize.ts',
+    ];
+    for (const fileName of files) {
+      expect(sourceLineCount(fileName), fileName).toBeLessThanOrEqual(1000);
+    }
+    expect(sourceLineCount('subagent-orchestrator.ts')).toBeLessThan(700);
+    for (const fileName of files.filter((name) => name !== 'subagent-orchestrator.ts')) {
+      expect(sourceLineCount(fileName), fileName).toBeLessThan(500);
+    }
+  });
+
+  it('re-exports public orchestrator types from subagent-orchestrator.ts', async () => {
+    const mod = await import('./subagent-orchestrator.js');
+    expect(mod.SubagentOrchestrator).toBeTypeOf('function');
   });
 });
