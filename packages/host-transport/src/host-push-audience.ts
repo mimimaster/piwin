@@ -34,6 +34,7 @@ export function classifyHostPushAudience(push: HostPushVariant): HostPushAudienc
     case 'doccards/index-terminal':
     case 'doccards/generation-progress':
     case 'doccards/generation-terminal':
+    case 'flashcards/study/changed':
     case 'automation/cron_finished':
     case 'pty/output':
     case 'pty/exit':

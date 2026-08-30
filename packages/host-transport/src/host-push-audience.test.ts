@@ -111,4 +111,15 @@ describe('classifyHostPushAudience', () => {
       ),
     ).toBe(true);
   });
+
+  it('classifies study-round changes as global so other devices can refresh', () => {
+    expect(
+      classifyHostPushAudience({
+        type: 'flashcards/study/changed',
+        roundId: 'round-1',
+        revision: 3,
+        reason: 'rate',
+      }),
+    ).toEqual({ kind: 'global' });
+  });
 });
