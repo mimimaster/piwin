@@ -4,6 +4,11 @@
 
 Accepted (2026-08-12)
 
+**Presentation update (2026-08-30, `feat/subagent-delivery-review`):** Desktop
+inline/inspector observation no longer shows a standing apply/retain/discard
+bar. Ordinary delivery is Host-owned on the parent turn (ADR 0030 delivery
+update). Child panels remain for status, process, and transcript.
+
 ## Context
 
 Subagent execution was presented in a composer-adjacent working dock.
@@ -101,3 +106,11 @@ as bounded segments (cap 30). Empty `message/end` shells are kept so a
 tool-only assistant is not wiped by the next `message/start`. Inspector history
 refresh keys off a monotonic `completionRevision`, not segment array length,
 so a long child still refreshes after the cap.
+
+Desktop delivery presentation (2026-08-30): the standing worktree
+apply/retain/discard action bar is removed from the inline child panel.
+Host capability flags `subagentDeliveryV1`, `subagentResultReviewV1`, and
+`turnChangeUndoV1` are advertised true so clients can gate new surfaces
+honestly. Candidate adopt/mutex UI, parent `request-resolution` prompt wiring,
+and Tauri smoke evidence for the full delivery-review acceptance matrix are
+**not** claimed shipped here.

@@ -2,13 +2,13 @@
 
 | 字段 | 内容 |
 | --- | --- |
-| 状态 | V1 / 实施中；`feat/subagent-delivery-review` |
+| 状态 | V1 / 核心路径已落地（`feat/subagent-delivery-review`）；非全量验收完成 |
 | 日期 | 2026-08-30 |
 | 产品目标 | 用户在主对话验收本轮整体成果，不必逐个进入子代理决定是否保留文件 |
 | 基于 | 当前仓库实现、[竞品及代码调研](../plans/2026-08-30-subagent-review-ux-research.md) |
-| 关联 | [本轮撤销 Spec](2026-08-30-file-checkpoint-restore.md)、[本轮撤销实施方案](../plans/2026-08-30-turn-change-undo-implementation-plan.md) |
+| 关联 | [本轮撤销 Spec](2026-08-30-file-checkpoint-restore.md)、[本轮撤销实施方案](../plans/2026-08-30-turn-change-undo-implementation-plan.md)；架构/ADR：[architecture.md](../architecture.md)、[ADR 0030](../adr/0030-safe-parallel-subagent-execution.md)、[ADR 0046](../adr/0046-inline-subagent-invocation-projection.md) |
 | 不变项 | 仅本轮提示词撤销；不恢复整个目录，不撤整个会话，不删除聊天，不自动提交 Git |
-| 实施顺序 | 本文 §12 工作包；全部状态为待实施 |
+| 实施顺序 | §12 工作包；已落地：默认 integrate、readonly=report、retain 不阻 integrate、S0/S1 相对 baseCommit 冻结、父写走 turn-change writer、Desktop 去掉常驻三按钮栏、能力位与 CLI/Host turn undo\|redo。未完成：request-resolution 父 prompt、候选互斥采用 UI、完整 result 分页/diff/cleanup Host API、Tauri 全量冒烟证据 |
 
 ## 0. 执行摘要与固定决策
 
