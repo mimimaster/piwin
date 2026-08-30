@@ -29,7 +29,10 @@ import type {
   ToolResult,
 } from '@piwin/contracts';
 import { formatError, parseSubagentDeliveryFields } from '@piwin/contracts';
-import { resolveSubagentDeliveryPolicy } from './subagent-delivery-policy.js';
+import {
+  isSubagentDeliveryPolicyError,
+  resolveSubagentDeliveryPolicy,
+} from './subagent-delivery-policy.js';
 
 export type SubagentRunSeam = {
   /** Spawn a child subagent session and wait for it to finish. */
@@ -300,6 +303,9 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
             details: { runId: context.runId },
             retryable: false,
           };
+        }
+        if (isSubagentDeliveryPolicyError(message)) {
+          return invalidSubagentInput(message);
         }
         return { ok: false, code: 'subagent-failed', message, retryable: true };
       }

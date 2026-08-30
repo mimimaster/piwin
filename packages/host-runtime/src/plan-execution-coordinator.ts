@@ -11,13 +11,10 @@ import type {
   PlanExecutionState,
   PlanExecutionSummary,
   SessionPlan,
-  SubagentIsolationMode,
   SubagentTaskSpec,
   SubagentTaskResult,
 } from '@piwin/contracts';
 import { MAX_PLAN_EXECUTION_ERROR_CHARS, MAX_PLAN_WALKTHROUGH_UNRESOLVED } from '@piwin/contracts';
-import { resolveSubagentDeliveryPolicy } from './subagent-delivery-policy.js';
-import { BUILTIN_SUBAGENT_PROFILES } from './subagent-profile-defaults.js';
 
 export type InlineDirective = {
   promptText: string;
@@ -79,11 +76,6 @@ export function buildSubagentTaskDirective(plan: SessionPlan, stepId: string): S
   };
 }
 
-function isolationForPlanProfile(profileId: string): SubagentIsolationMode {
-  const profile = BUILTIN_SUBAGENT_PROFILES.find((entry) => entry.id === profileId);
-  return profile?.isolation ?? 'worktree';
-}
-
 /** Build the executable batch task for one independent plan step. */
 export function buildPlanSubagentTask(
   plan: SessionPlan,
@@ -92,23 +84,12 @@ export function buildPlanSubagentTask(
   const step = plan.steps.find((entry) => entry.id === stepId);
   const directive = buildSubagentTaskDirective(plan, stepId);
   if (!step || !directive) return null;
-  const profileId = step.profileId ?? 'implementer';
-  const isolation = isolationForPlanProfile(profileId);
-  const policy = resolveSubagentDeliveryPolicy({
-    ...(isolation === 'worktree' ? { applyPolicy: 'auto' } : {}),
-    isolation,
-    source: 'plan',
-    activateNewIntegrateDefault: false,
-  });
-  if (!policy.ok) return null;
   return {
     id: stepId,
     parentSessionId: plan.sessionId,
     task: directive.promptText,
-    profileId,
-    applyPolicy: policy.policy.applyPolicy,
-    deliveryIntent: policy.policy.deliveryIntent,
-    legacyManual: policy.policy.legacyManual,
+    profileId: step.profileId ?? 'implementer',
+    applyPolicy: 'auto',
     ...(step.dependsOn ? { dependsOn: step.dependsOn } : {}),
     ...(step.parallelGroup ? { parallelGroup: step.parallelGroup } : {}),
   };

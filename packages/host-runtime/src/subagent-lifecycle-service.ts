@@ -31,7 +31,10 @@ import {
   buildSubagentRuntimeSnapshot,
   resolveSubagentProfile,
 } from './subagent-profile-resolver.js';
-import { resolveSubagentDeliveryPolicy } from './subagent-delivery-policy.js';
+import {
+  resolveSubagentDeliveryPolicy,
+  type SubagentDeliveryPolicySource,
+} from './subagent-delivery-policy.js';
 
 export type SubagentSpawnRequest = {
   parentSessionId: string;
@@ -43,6 +46,7 @@ export type SubagentSpawnRequest = {
   mode?: SubagentIsolationMode;
   applyPolicy?: SubagentApplyPolicy;
   deliveryIntent?: SubagentDeliveryIntent;
+  source?: SubagentDeliveryPolicySource;
   allowedOutputPaths?: string[];
   retainWorktree?: boolean;
   role?: string;
@@ -73,7 +77,7 @@ export function planSubagentSpawn(input: {
   parentKind?: string | undefined;
   workingDirectory: string;
   enabledSkillIds: readonly string[];
-}): SubagentSpawnPlan | { error: string } {
+}): SubagentSpawnPlan | { error: string; code?: string } {
   const { config, request, parentDepth, parentKind, workingDirectory, enabledSkillIds } = input;
 
   if (parentKind === 'subagent' || parentDepth >= 1) {
@@ -109,11 +113,11 @@ export function planSubagentSpawn(input: {
     ...(request.deliveryIntent !== undefined ? { deliveryIntent: request.deliveryIntent } : {}),
     ...(request.applyPolicy !== undefined ? { applyPolicy: request.applyPolicy } : {}),
     isolation: snapshot.isolation,
-    source: 'batch',
+    source: request.source ?? 'batch',
     activateNewIntegrateDefault: false,
   });
   if (!policy.ok) {
-    return { error: policy.message };
+    return { error: policy.message, code: policy.code };
   }
   const retainWorktree = request.retainWorktree === true;
 

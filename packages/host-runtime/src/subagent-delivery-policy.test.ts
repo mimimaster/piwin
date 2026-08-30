@@ -140,6 +140,51 @@ describe('resolveSubagentDeliveryPolicy', () => {
     ).toMatchObject({ ok: false, code: 'conflicting-fields' });
   });
 
+  it('maps historical Plan auto + readonly to report/none', () => {
+    expect(
+      resolve({ isolation: 'readonly', applyPolicy: 'auto', source: 'plan' }),
+    ).toEqual({
+      ok: true,
+      policy: {
+        deliveryIntent: 'report',
+        legacyManual: false,
+        applyPolicy: 'none',
+      },
+    });
+  });
+
+  it('keeps Plan auto + worktree as integrate/auto', () => {
+    expect(resolve({ isolation: 'worktree', applyPolicy: 'auto', source: 'plan' })).toEqual({
+      ok: true,
+      policy: {
+        deliveryIntent: 'integrate',
+        legacyManual: false,
+        applyPolicy: 'auto',
+      },
+    });
+  });
+
+  it('does not apply historical Plan auto to model-tool readonly', () => {
+    expect(resolve({ isolation: 'readonly', applyPolicy: 'auto' })).toMatchObject({
+      ok: false,
+      code: 'write-intent-readonly',
+    });
+  });
+
+  it('still rejects explicit integrate on Plan readonly', () => {
+    expect(
+      resolve({
+        isolation: 'readonly',
+        deliveryIntent: 'integrate',
+        applyPolicy: 'auto',
+        source: 'plan',
+      }),
+    ).toMatchObject({ ok: false, code: 'write-intent-readonly' });
+    expect(
+      resolve({ isolation: 'readonly', deliveryIntent: 'integrate', source: 'plan' }),
+    ).toMatchObject({ ok: false, code: 'write-intent-readonly' });
+  });
+
   it('ignores retainWorktree and does not treat it as skip-integrate', () => {
     const result = resolveSubagentDeliveryPolicy({
       isolation: 'worktree',

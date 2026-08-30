@@ -160,7 +160,7 @@ export async function buildDomainContext(
             maxConcurrency: Math.max(1, clampedConcurrency),
           };
         }
-        const preparedRequest = await deps.prepareSubagentBatch(batchRequest);
+        const preparedRequest = await deps.prepareSubagentBatch(batchRequest, 'plan');
         const handle = deps.subagentOrchestrator.startBatch(preparedRequest, parentRunId);
         return handle.completion;
       },

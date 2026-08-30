@@ -221,6 +221,24 @@ describe('createSubagentRunTool', () => {
     expect(seam.spawn).not.toHaveBeenCalled();
   });
 
+  it('maps later isolation policy failures to invalid-input', async () => {
+    const seam = fakeSeam({
+      spawn: vi.fn(async () => {
+        throw new Error(
+          'subagent task t1: write-intent-readonly: integrate deliveryIntent is incompatible with readonly isolation',
+        );
+      }),
+    });
+    const tool = createSubagentRunTool({ sessionId: 's1', seam });
+    const result = await executeTool(tool, {
+      task: 'test',
+      profileId: 'explorer',
+      deliveryIntent: 'integrate',
+    });
+    expect(result).toMatchObject({ ok: false, code: 'invalid-input' });
+    expect(messageOf(result)).toContain('write-intent-readonly');
+  });
+
   it('declares deliveryIntent and applyPolicy in the tool schema', () => {
     const tool = createSubagentRunTool({ sessionId: 's1', seam: fakeSeam() });
     const properties = tool.descriptor.parameters.properties as Record<string, { enum?: string[] }>;
