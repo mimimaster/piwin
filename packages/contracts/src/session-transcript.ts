@@ -161,6 +161,10 @@ export type SessionResumeData = {
   thinkingLevel?: import('./host.js').ThinkingLevel;
   /** Last authoritative context usage restored by the Host. */
   contextUsage?: import('./usage.js').ContextUsageSnapshot;
+  /** Always present; unknown occupancy is explicit. */
+  contextSnapshot: import('./context-telemetry.js').SessionContextSnapshot;
+  /** Always present; null means no finalized request measurement on the active path. */
+  lastRequestUsage: import('./assistant-usage.js').AssistantUsageMeasurement | null;
   /** Active resumable checkpoint, when the last foreground turn was paused. */
   pauseCheckpoint?: import('./session-pause.js').SessionPauseCheckpoint;
   /** Linear message outline for jump-scroll UI (not a multi-branch Pi tree). */
