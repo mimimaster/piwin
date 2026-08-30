@@ -35,6 +35,7 @@ import type { ChatUiAction, SessionListItemUi } from '../chat-reducer';
 import { pushError, type NotificationAction } from '../notification-queue';
 import { resolveThinkingLevelForModel } from '../model-thinking-policy';
 import type { ModelOption } from '../model-options';
+import { commitSessionComposerProfile } from './commit-session-composer-profile.js';
 
 export type ComposerModelRestoreProfile = {
   model?: ModelRef;
@@ -83,8 +84,7 @@ export function describeComposerModel(
   const fallback =
     selected ??
     modelOptions.find(
-      (option) =>
-        option.providerId === defaults.providerId && option.modelId === defaults.modelId,
+      (option) => option.providerId === defaults.providerId && option.modelId === defaults.modelId,
     );
   const promptModel: ModelRef | null = fallback
     ? toModelRef({
@@ -375,6 +375,21 @@ export function useComposerModelController(args: UseComposerModelControllerArgs)
           thinkingLevel,
           config?.thinking?.ultraEnabled === true,
         ) ?? 'off';
+      const profileResult = await commitSessionComposerProfile({
+        request: (command) => hostClient.request(command),
+        sessionId: activeSessionId,
+        model: toModelRef({
+          providerId: nextModel.providerId,
+          modelId: nextModel.modelId,
+          ...(nextModel.protocol !== undefined ? { protocol: nextModel.protocol } : {}),
+          ...(nextModel.source !== undefined ? { source: nextModel.source } : {}),
+        }),
+        thinkingLevel: nextThinkingLevel,
+      });
+      if (!profileResult.ok) {
+        dispatchNotification(pushError(profileResult.error));
+        return;
+      }
       setSelectedModelKey(nextModelKey);
       setThinkingLevel(nextThinkingLevel);
       persistComposerProfile(nextModelKey, nextThinkingLevel);
@@ -398,14 +413,31 @@ export function useComposerModelController(args: UseComposerModelControllerArgs)
   );
 
   const handleThinkingLevelChange = useCallback(
-    (nextThinkingLevel: ThinkingLevel): void => {
+    async (nextThinkingLevel: ThinkingLevel): Promise<void> => {
       if (nextThinkingLevel === thinkingLevel) {
+        return;
+      }
+      const profileResult = await commitSessionComposerProfile({
+        request: (command) => hostClient.request(command),
+        sessionId: activeSessionId,
+        thinkingLevel: nextThinkingLevel,
+      });
+      if (!profileResult.ok) {
+        dispatchNotification(pushError(profileResult.error));
         return;
       }
       setThinkingLevel(nextThinkingLevel);
       persistComposerProfile(selectedModelKey, nextThinkingLevel);
     },
-    [persistComposerProfile, selectedModelKey, setThinkingLevel, thinkingLevel],
+    [
+      activeSessionId,
+      dispatchNotification,
+      hostClient,
+      persistComposerProfile,
+      selectedModelKey,
+      setThinkingLevel,
+      thinkingLevel,
+    ],
   );
 
   const described = useMemo(

@@ -73,6 +73,15 @@ heuristics are forbidden. Spoken “handed to Agent” only after Host receipt.
 
 Busy sessions **queue**. Ending Live does **not** cancel an admitted Run.
 
+Work-session **chat** model is not a Live field. Composer picker commits
+desired profile with `session/set-composer-profile` (session index
+`record.model` / `thinkingLevel`). `sessionModels` remains last-applied
+runtime. `voice-delegation` `session/prompt` omits `input.model`; Host
+resolves `desired = input.model ?? record.model ?? sessionModels` on that
+turn (same-provider `setModel`, cross-provider runtime replacement).
+Live owner events, `LiveCallSlot`, and `admit-voice-delegation` must not
+carry a work `ModelRef`.
+
 ### 5. Retention
 
 | Data | MVP default |

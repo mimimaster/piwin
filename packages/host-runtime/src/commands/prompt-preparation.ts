@@ -257,6 +257,10 @@ export async function preparePromptInput(
   run: ExecutionRunRecord,
   assembly: ModelPromptAssembly,
   conversationChat: boolean,
+  desired?: {
+    desiredModel: ModelRef | undefined;
+    desiredThinkingLevel: ThinkingLevel | undefined;
+  },
 ): Promise<{ promptInput: PromptInput; userMessageId?: string }> {
   throwIfPromptPreparationAborted(context, run.runId);
 
@@ -425,12 +429,20 @@ export async function preparePromptInput(
   // ADR 0026: concisePrompt injection retired with walkthrough generation.
   throwIfPromptPreparationAborted(context, run.runId);
   context.sessionLastPromptText.set(command.sessionId, promptSource.text);
-  if (command.input.model) {
-    context.sessionModels.set(command.sessionId, command.input.model);
-    // Persist the composer model on the session index so resume/open restores
-    // the last-used model instead of falling back to the desktop default.
+  if (promptInput.model === undefined && desired?.desiredModel !== undefined) {
+    promptInput.model = desired.desiredModel;
+  }
+  if (promptInput.thinkingLevel === undefined && desired?.desiredThinkingLevel !== undefined) {
+    promptInput.thinkingLevel = desired.desiredThinkingLevel;
+  }
+  if (promptInput.model !== undefined) {
+    context.sessionModels.set(command.sessionId, promptInput.model);
+  }
+  // Index is desired composer state. Rewrite it only for explicit picker/typed
+  // sends — voice-delegation and other omitted-model turns must not persist.
+  if (command.input.model !== undefined || command.input.thinkingLevel !== undefined) {
     await persistSessionComposerProfile(context, command.sessionId, {
-      model: command.input.model,
+      ...(command.input.model !== undefined ? { model: command.input.model } : {}),
       ...(command.input.thinkingLevel !== undefined
         ? { thinkingLevel: command.input.thinkingLevel }
         : {}),
@@ -438,6 +450,24 @@ export async function preparePromptInput(
   }
   throwIfPromptPreparationAborted(context, run.runId);
   return userMessageId === undefined ? { promptInput } : { promptInput, userMessageId };
+}
+
+/**
+ * Host-internal continuations omit composer preset/agentMode. Skip
+ * applyPromptPermissionOverride so an existing Ask/Auto override is kept
+ * instead of clearing back to config (possibly YOLO).
+ */
+export function shouldPreserveSessionPermissionOverride(
+  input: Pick<PromptInput, 'permissionPreset' | 'agentMode' | 'source'>,
+): boolean {
+  if (input.permissionPreset !== undefined || input.agentMode !== undefined) {
+    return false;
+  }
+  return (
+    input.source === 'voice-delegation' ||
+    input.source === 'queued-turn' ||
+    input.source === 'resume'
+  );
 }
 
 /** Apply composer Run Mode + agent-mode floor to the session admission gate. */
@@ -479,25 +509,28 @@ async function applyAgentPromptContext(
 ): Promise<void> {
   // Composer Run Mode (permissionPreset) is session-level and must override
   // config YOLO. Plan/Ask agent modes still raise the floor via resolvePreset.
+  // Host-internal sources that omit both fields keep the live override.
   const agentMode = command.input.agentMode;
-  try {
-    const config = await context.loadConfig();
-    applyPromptPermissionOverride(context, {
-      sessionId: command.sessionId,
-      configPreset: resolvePermissionPreset(config.permissions),
-      ...(command.input.permissionPreset !== undefined
-        ? { permissionPreset: command.input.permissionPreset }
-        : {}),
-      ...(agentMode !== undefined ? { agentMode } : {}),
-    });
-  } catch {
-    if (command.input.permissionPreset !== undefined) {
+  if (!shouldPreserveSessionPermissionOverride(command.input)) {
+    try {
+      const config = await context.loadConfig();
       applyPromptPermissionOverride(context, {
         sessionId: command.sessionId,
-        permissionPreset: command.input.permissionPreset,
-        configPreset: DEFAULT_PERMISSION_PRESET,
+        configPreset: resolvePermissionPreset(config.permissions),
+        ...(command.input.permissionPreset !== undefined
+          ? { permissionPreset: command.input.permissionPreset }
+          : {}),
         ...(agentMode !== undefined ? { agentMode } : {}),
       });
+    } catch {
+      if (command.input.permissionPreset !== undefined) {
+        applyPromptPermissionOverride(context, {
+          sessionId: command.sessionId,
+          permissionPreset: command.input.permissionPreset,
+          configPreset: DEFAULT_PERMISSION_PRESET,
+          ...(agentMode !== undefined ? { agentMode } : {}),
+        });
+      }
     }
   }
 

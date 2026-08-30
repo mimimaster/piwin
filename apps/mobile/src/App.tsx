@@ -21,6 +21,10 @@ import { useTheme } from './hooks/use-theme.js';
 import { useMobileLive } from './hooks/use-mobile-live.js';
 import { readMobileOverlayHash, setMobileOverlayHash } from './mobile-overlay-hash.js';
 import { MOBILE_THEME } from './mobile-theme.js';
+import {
+  commitMobileComposerProfile,
+  createMobileComposerProfileRequest,
+} from './mobile-composer-profile.js';
 
 function modelDisplayName(model: ConfiguredChatModel | undefined): string | undefined {
   if (model === undefined) {
@@ -306,16 +310,56 @@ export function App(): ReactElement {
               selectedModelId={selectedModelId}
               selectedThinkingLevel={selectedThinkingLevel}
               onSelectModel={(modelId, providerId) => {
-                setSelectedProviderId(providerId);
-                setSelectedModelId(modelId);
                 const next = host.configuredModels.find(
                   (model) => model.providerId === providerId && model.modelId === modelId,
                 );
-                if (next?.thinkingLevel !== undefined) {
-                  setSelectedThinkingLevel(next.thinkingLevel);
-                }
+                const client = host.client;
+                void commitMobileComposerProfile({
+                  request: createMobileComposerProfileRequest(
+                    client === undefined ? undefined : (command) => client.request(command),
+                  ),
+                  sessionId: host.activeSessionId,
+                  ...(next === undefined
+                    ? {}
+                    : {
+                        model: toModelRef({
+                          providerId: next.providerId,
+                          modelId: next.modelId,
+                          ...(next.protocol !== undefined ? { protocol: next.protocol } : {}),
+                          ...(next.source !== undefined ? { source: next.source } : {}),
+                        }),
+                      }),
+                  ...(next?.thinkingLevel !== undefined
+                    ? { thinkingLevel: next.thinkingLevel }
+                    : {}),
+                }).then((result) => {
+                  if (!result.ok) {
+                    host.setErrorMessage(result.error);
+                    return;
+                  }
+                  setSelectedProviderId(providerId);
+                  setSelectedModelId(modelId);
+                  if (next?.thinkingLevel !== undefined) {
+                    setSelectedThinkingLevel(next.thinkingLevel);
+                  }
+                });
               }}
-              onSelectThinkingLevel={setSelectedThinkingLevel}
+              onSelectThinkingLevel={(level) => {
+                const client = host.client;
+                void commitMobileComposerProfile({
+                  request: createMobileComposerProfileRequest(
+                    client === undefined ? undefined : (command) => client.request(command),
+                  ),
+                  sessionId: host.activeSessionId,
+                  thinkingLevel: level,
+                }).then((result) => {
+                  if (!result.ok) {
+                    host.setErrorMessage(result.error);
+                    return;
+                  }
+                  setSelectedThinkingLevel(level);
+                });
+              }}
             />
 
             <MobileShareModal

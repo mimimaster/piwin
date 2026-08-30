@@ -36,7 +36,7 @@ Host Runtime（Call 权威 + 委派编排）
 3. **长期 secret / token 不进 renderer。** owner Shell 只拿产品 `callId`、revision 和本次 start response 的一次性建连材料；长期凭证与原始事件留在 Host。
 4. **Voice 不进 `agent-host`。** 实时语音是应用能力；只有委派进入现有 agent-host 路径。
 5. **Provider-neutral contracts。** `@piwin/voice` 公开类型不出现 `quicksilver`、`avas`、chatgpt.com 路径字符串；这些只在 adapter 私有实现。
-6. **委派 = 上游 client delegation 事件 → Host admission。** 禁止关键词猜测；禁止把 Agent tool catalog 注入 Live 会话。
+6. **委派 = 上游 client delegation 事件 → Host admission。** 禁止关键词猜测；禁止把 Agent tool catalog 注入 Live 会话。工作会话主模型走 session composer profile（`session/set-composer-profile` + prompt 解析 desired vs applied），**禁止** Live 管道（owner event / `LiveCallSlot` / `admit-voice-delegation`）携带工作 `ModelRef`。
 
 ### 1.2 上游 wire 事实（adapter 私有；勿升格为 contracts）
 

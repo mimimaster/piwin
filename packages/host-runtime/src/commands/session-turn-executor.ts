@@ -3,7 +3,7 @@
  * session-prompt-command.ts; this module owns the single post-ack terminal path.
  */
 
-import type { ExecutionRunRecord, ModelRef } from '@piwin/contracts';
+import type { ExecutionRunRecord, ModelRef, ThinkingLevel } from '@piwin/contracts';
 import {
   createUnknownAgentFailure,
   estimatePendingPromptTokens,
@@ -37,6 +37,8 @@ export async function executeSessionTurn(input: {
   startingPlanRevision: number;
   previousModel: ModelRef | undefined;
   requiresModelRuntimeReplacement: boolean;
+  desiredModel: ModelRef | undefined;
+  desiredThinkingLevel: ThinkingLevel | undefined;
   supersededRun: ExecutionRunRecord | undefined;
 }): Promise<void> {
   const { context, command, run } = input;
@@ -49,11 +51,11 @@ export async function executeSessionTurn(input: {
         return;
       }
     }
-    if (command.input.model) {
+    if (input.desiredModel !== undefined) {
       await compactLiveSessionForTarget(
         context,
         command.sessionId,
-        command.input.model,
+        input.desiredModel,
         estimatePendingPromptTokens({
           text: command.input.text,
           ...(command.input.attachments
@@ -72,6 +74,10 @@ export async function executeSessionTurn(input: {
       run,
       assembly,
       input.conversationChat,
+      {
+        desiredModel: input.desiredModel,
+        desiredThinkingLevel: input.desiredThinkingLevel,
+      },
     );
     if (context.getRunSignal(run.runId)?.aborted) {
       await finalizeAbortedRun(context, command.sessionId, run.runId);
