@@ -1,6 +1,6 @@
 import { useState, useEffect, type ReactElement } from 'react';
-import type { ConfiguredChatModel, ModelRef, ThinkingLevel } from '@piwin/contracts';
-import { toModelRef } from '@piwin/contracts';
+import type { ConfiguredChatModel, FlashcardDisplayPayload, ModelRef, ThinkingLevel } from '@piwin/contracts';
+import { hostSupportsFlashcardStudy, toModelRef } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { useKeyboardInset } from './hooks/use-keyboard-inset.js';
 import { MobilePortal } from './mobile-portal.js';
@@ -15,11 +15,18 @@ import { SkillsInspectorSheet } from './components/modals/SkillsInspectorSheet.j
 import { MobileLiveSheet } from './components/modals/MobileLiveSheet.js';
 import { ConnectionSurface } from './surfaces/connection/ConnectionSurface.js';
 import { ConversationSurface } from './surfaces/conversation/ConversationSurface.js';
+import { FlashcardsSurface } from './surfaces/flashcards/FlashcardsSurface.js';
+import { enterStudyFromChatDisplay } from './surfaces/flashcards/chat-study-entry.js';
 import { HealthConsentSheet } from './health/HealthConsentSheet.js';
 import { useMobileHost } from './hooks/use-mobile-host.js';
 import { useTheme } from './hooks/use-theme.js';
 import { useMobileLive } from './hooks/use-mobile-live.js';
 import { readMobileOverlayHash, setMobileOverlayHash } from './mobile-overlay-hash.js';
+import {
+  navigateMobileFlashcardsRoute,
+  parseMobileFlashcardsRoute,
+  subscribeMobileFlashcardsRoute,
+} from './mobile-flashcards-route.js';
 import { MOBILE_THEME } from './mobile-theme.js';
 import {
   commitMobileComposerProfile,
@@ -35,6 +42,7 @@ function modelDisplayName(model: ConfiguredChatModel | undefined): string | unde
 
 export function App(): ReactElement {
   const [overlayHash, setOverlayHash] = useState(readMobileOverlayHash);
+  const [flashcardsRoute, setFlashcardsRoute] = useState(parseMobileFlashcardsRoute);
   const [selectedProviderId, setSelectedProviderId] = useState<string | undefined>();
   const [selectedModelId, setSelectedModelId] = useState<string | undefined>();
   const [selectedThinkingLevel, setSelectedThinkingLevel] = useState<ThinkingLevel | undefined>();
@@ -47,7 +55,11 @@ export function App(): ReactElement {
     };
     handleHashChange();
     window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    const unsubscribeFlashcards = subscribeMobileFlashcardsRoute(setFlashcardsRoute);
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+      unsubscribeFlashcards();
+    };
   }, []);
 
   const { themeMode, setThemeMode } = useTheme();
@@ -116,11 +128,38 @@ export function App(): ReactElement {
       : undefined;
 
   const closeOverlay = () => setMobileOverlayHash('');
+  const openFlashcardsCatalog = () => {
+    navigateMobileFlashcardsRoute({ kind: 'catalog' }, 'replace');
+  };
+  const enterFlashcardStudy = (payload: FlashcardDisplayPayload) => {
+    const client = host.client;
+    if (client === undefined) {
+      host.setErrorMessage('未连接 Host');
+      return;
+    }
+    void enterStudyFromChatDisplay({
+      request: (command, options) => client.request(command, options),
+      payload,
+      hasStudyCapability: () => hostSupportsFlashcardStudy(host.hostStatus?.capabilities),
+    }).then((result) => {
+      if (!result.ok) host.setErrorMessage(result.error);
+    });
+  };
+  const showFlashcards = flashcardsRoute !== null && !showConnectionConfig;
 
   return (
     <PiwinUiProvider manifest={MOBILE_THEME}>
       <main className="mobile-shell">
-        {!isConnected || showConnectionConfig ? (
+        {showFlashcards && flashcardsRoute !== null ? (
+          <div className="mobile-view-wrapper">
+            <FlashcardsSurface
+              route={flashcardsRoute}
+              {...(host.client !== undefined ? { client: host.client } : {})}
+              {...(host.hostStatus !== undefined ? { hostStatus: host.hostStatus } : {})}
+              connectionState={host.connectionState}
+            />
+          </div>
+        ) : !isConnected || showConnectionConfig ? (
           <div className="mobile-view-wrapper">
             <MobileTopBar
               sessionTitle="Piwin Host 连接"
@@ -171,7 +210,6 @@ export function App(): ReactElement {
               }}
               onOpenSettings={() => setMobileOverlayHash('#settings')}
             />
-
             <ConversationSurface
               activeSessionId={host.activeSessionId}
               sessions={host.sessions}
@@ -207,6 +245,7 @@ export function App(): ReactElement {
               healthEnabled={host.healthEnabled}
               includeAppleHealth={host.includeAppleHealth}
               onToggleAppleHealth={() => host.setIncludeAppleHealth((value) => !value)}
+              onEnterFlashcardStudy={enterFlashcardStudy}
               onReplaceAndSend={() => {
                 if (host.pendingReplaceRunId === undefined) {
                   return;
@@ -247,6 +286,7 @@ export function App(): ReactElement {
               onOpenFiles={() => setMobileOverlayHash('#files')}
               onOpenSkills={() => setMobileOverlayHash('#skills')}
               onOpenShare={() => setMobileOverlayHash('#share')}
+              onOpenFlashcards={openFlashcardsCatalog}
               activeRunCount={host.activityItems.length}
               endpoint={host.endpoint}
               isConnected={isConnected}

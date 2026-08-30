@@ -88,6 +88,7 @@ describe('Mobile Shell Navigation & Surfaces', () => {
             onNewChat={vi.fn()}
             onOpenSettings={vi.fn()}
             onOpenInbox={vi.fn()}
+            onOpenFlashcards={vi.fn()}
             isConnected={true}
           />
         </PiwinUiProvider>,
@@ -95,6 +96,7 @@ describe('Mobile Shell Navigation & Surfaces', () => {
     });
 
     expect(document.body.textContent).toContain('Host 已就绪');
+    expect(document.body.textContent).toContain('闪卡');
     expect(document.body.textContent).toContain('Refactor Core');
     expect(document.body.textContent).toContain('Fix Bug');
 
