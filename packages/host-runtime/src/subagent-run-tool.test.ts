@@ -10,6 +10,7 @@ type SpawnCall = {
   task: string;
   mode?: string;
   applyPolicy?: string;
+  deliveryIntent?: string;
   sessionName?: string;
   profileId?: string;
 };
@@ -150,20 +151,83 @@ describe('createSubagentRunTool', () => {
     expect(firstSpawnArg(seam).applyPolicy).toBe('explicit');
   });
 
-  it('omits applyPolicy when none or invalid', async () => {
+  it('omits applyPolicy when the caller did not pass one', async () => {
     const seam = fakeSeam();
     const tool = createSubagentRunTool({ sessionId: 's1', seam });
     await executeTool(tool, { task: 'test' });
     expect(firstSpawnArg(seam).applyPolicy).toBeUndefined();
-    await executeTool(tool, { task: 'test', applyPolicy: 'bogus' });
+    expect(firstSpawnArg(seam).deliveryIntent).toBeUndefined();
+  });
+
+  it('does not default worktree spawn to auto integrate', async () => {
+    const seam = fakeSeam();
+    const tool = createSubagentRunTool({ sessionId: 's1', seam });
+    await executeTool(tool, { task: 'test', mode: 'worktree' });
+    expect(firstSpawnArg(seam).applyPolicy).toBeUndefined();
+    expect(firstSpawnArg(seam).mode).toBe('worktree');
+  });
+
+  it('forwards an explicit none applyPolicy without inventing candidate intent', async () => {
+    const seam = fakeSeam();
+    const tool = createSubagentRunTool({ sessionId: 's1', seam });
+    await executeTool(tool, { task: 'test', mode: 'worktree', applyPolicy: 'none' });
+    expect(firstSpawnArg(seam).applyPolicy).toBe('none');
+    expect(firstSpawnArg(seam).deliveryIntent).toBeUndefined();
+  });
+
+  it('forwards deliveryIntent when the model provides one', async () => {
+    const seam = fakeSeam();
+    const tool = createSubagentRunTool({ sessionId: 's1', seam });
+    await executeTool(tool, { task: 'test', mode: 'worktree', deliveryIntent: 'candidate' });
+    expect(firstSpawnArg(seam).deliveryIntent).toBe('candidate');
     expect(firstSpawnArg(seam).applyPolicy).toBeUndefined();
   });
 
-  it('declares applyPolicy in the tool schema', () => {
+  it('rejects unknown or conflicting delivery fields as invalid-input', async () => {
+    const seam = fakeSeam();
+    const tool = createSubagentRunTool({ sessionId: 's1', seam });
+    const unknown = await executeTool(tool, { task: 'test', deliveryIntent: 'merge' });
+    expect(unknown).toMatchObject({ ok: false, code: 'invalid-input' });
+    expect(messageOf(unknown)).toContain('unknown deliveryIntent');
+    const bogusPolicy = await executeTool(tool, { task: 'test', applyPolicy: 'bogus' });
+    expect(bogusPolicy).toMatchObject({ ok: false, code: 'invalid-input' });
+    const conflict = await executeTool(tool, {
+      task: 'test',
+      mode: 'worktree',
+      deliveryIntent: 'integrate',
+      applyPolicy: 'none',
+    });
+    expect(conflict).toMatchObject({ ok: false, code: 'invalid-input' });
+    expect(seam.spawn).not.toHaveBeenCalled();
+  });
+
+  it('rejects report with worktree and integrate with readonly', async () => {
+    const seam = fakeSeam();
+    const tool = createSubagentRunTool({ sessionId: 's1', seam });
+    const reportWrite = await executeTool(tool, {
+      task: 'test',
+      mode: 'worktree',
+      deliveryIntent: 'report',
+    });
+    expect(reportWrite).toMatchObject({ ok: false, code: 'invalid-input' });
+    expect(messageOf(reportWrite)).toContain('worktree');
+    const integrateReadonly = await executeTool(tool, {
+      task: 'test',
+      mode: 'readonly',
+      deliveryIntent: 'integrate',
+    });
+    expect(integrateReadonly).toMatchObject({ ok: false, code: 'invalid-input' });
+    expect(messageOf(integrateReadonly)).toContain('readonly');
+    expect(seam.spawn).not.toHaveBeenCalled();
+  });
+
+  it('declares deliveryIntent and applyPolicy in the tool schema', () => {
     const tool = createSubagentRunTool({ sessionId: 's1', seam: fakeSeam() });
     const properties = tool.descriptor.parameters.properties as Record<string, { enum?: string[] }>;
     expect(properties).toHaveProperty('applyPolicy');
     expect(properties.applyPolicy?.enum).toEqual(['none', 'auto', 'explicit']);
+    expect(properties).toHaveProperty('deliveryIntent');
+    expect(properties.deliveryIntent?.enum).toEqual(['report', 'integrate', 'candidate']);
   });
 
   it('rejects empty task', async () => {

@@ -17,6 +17,7 @@ import {
   formatSubagentReportContractBlock,
   type PiwinConfig,
   type SubagentApplyPolicy,
+  type SubagentDeliveryIntent,
   type SubagentIsolationMode,
   type SubagentLifecycleState,
   type SubagentProfileSelector,
@@ -30,6 +31,7 @@ import {
   buildSubagentRuntimeSnapshot,
   resolveSubagentProfile,
 } from './subagent-profile-resolver.js';
+import { resolveSubagentDeliveryPolicy } from './subagent-delivery-policy.js';
 
 export type SubagentSpawnRequest = {
   parentSessionId: string;
@@ -40,6 +42,7 @@ export type SubagentSpawnRequest = {
   /** Legacy isolation/apply fields; used to make the resolved profile stricter. */
   mode?: SubagentIsolationMode;
   applyPolicy?: SubagentApplyPolicy;
+  deliveryIntent?: SubagentDeliveryIntent;
   allowedOutputPaths?: string[];
   retainWorktree?: boolean;
   role?: string;
@@ -55,6 +58,7 @@ export type SubagentSpawnPlan = {
   };
   lifecycle: SubagentLifecycleState;
   issues: string[];
+  legacyManual: boolean;
 };
 
 /**
@@ -101,15 +105,22 @@ export function planSubagentSpawn(input: {
     enabledSkillIds,
   });
 
-  const applyPolicy: SubagentApplyPolicy =
-    request.applyPolicy === 'auto' || request.applyPolicy === 'explicit'
-      ? request.applyPolicy
-      : 'none';
+  const policy = resolveSubagentDeliveryPolicy({
+    ...(request.deliveryIntent !== undefined ? { deliveryIntent: request.deliveryIntent } : {}),
+    ...(request.applyPolicy !== undefined ? { applyPolicy: request.applyPolicy } : {}),
+    isolation: snapshot.isolation,
+    source: 'batch',
+    activateNewIntegrateDefault: false,
+  });
+  if (!policy.ok) {
+    return { error: policy.message };
+  }
   const retainWorktree = request.retainWorktree === true;
 
   const spawnOptions: SubagentSpawnOptions = {
     mode: snapshot.isolation,
-    applyPolicy,
+    applyPolicy: policy.policy.applyPolicy,
+    deliveryIntent: policy.policy.deliveryIntent,
     retainWorktree,
     ...(snapshot.profileId ? { profileId: snapshot.profileId } : {}),
     ...(snapshot.capabilities ? { capabilities: [...snapshot.capabilities] } : {}),
@@ -130,6 +141,7 @@ export function planSubagentSpawn(input: {
     createInput,
     lifecycle: createDefaultSubagentLifecycleState(),
     issues: profileIssues.map((issue) => issue.message),
+    legacyManual: policy.policy.legacyManual,
   };
 }
 

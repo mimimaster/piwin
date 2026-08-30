@@ -111,6 +111,7 @@ export function getSubagentSeam(
               task: input.task,
               ...(mode ? { isolationOverride: mode } : {}),
               ...(input.applyPolicy ? { applyPolicy: input.applyPolicy } : {}),
+              ...(input.deliveryIntent ? { deliveryIntent: input.deliveryIntent } : {}),
               ...(input.sessionName ? { sessionName: input.sessionName } : {}),
               ...(schemeSpawn.role ? { role: schemeSpawn.role } : {}),
               ...(schemeSpawn.profileId ? { profileId: schemeSpawn.profileId } : {}),
@@ -240,6 +241,7 @@ export async function prepareSubagentBatch(
         ...(task.role ? { role: task.role } : {}),
         ...(task.isolationOverride ? { mode: task.isolationOverride } : {}),
         ...(task.applyPolicy ? { applyPolicy: task.applyPolicy } : {}),
+        ...(task.deliveryIntent ? { deliveryIntent: task.deliveryIntent } : {}),
         ...(task.allowedOutputPaths ? { allowedOutputPaths: [...task.allowedOutputPaths] } : {}),
         ...(task.retainWorktree !== undefined ? { retainWorktree: task.retainWorktree } : {}),
       },
@@ -262,6 +264,10 @@ export async function prepareSubagentBatch(
       ...(planned.spawnOptions.applyPolicy
         ? { applyPolicy: planned.spawnOptions.applyPolicy }
         : {}),
+      ...(planned.spawnOptions.deliveryIntent
+        ? { deliveryIntent: planned.spawnOptions.deliveryIntent }
+        : {}),
+      legacyManual: planned.legacyManual,
       ...(planned.spawnOptions.retainWorktree !== undefined
         ? { retainWorktree: planned.spawnOptions.retainWorktree }
         : {}),

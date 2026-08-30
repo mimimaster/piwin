@@ -247,6 +247,13 @@ export {
   transitionIntegrationStatus,
 } from './subagent-lifecycle-service.js';
 export type { SubagentSpawnRequest, SubagentSpawnPlan } from './subagent-lifecycle-service.js';
+export { resolveSubagentDeliveryPolicy } from './subagent-delivery-policy.js';
+export type {
+  SubagentDeliveryPolicySource,
+  ResolvedSubagentDeliveryPolicy,
+  ResolveSubagentDeliveryPolicyInput,
+  ResolveSubagentDeliveryPolicyResult,
+} from './subagent-delivery-policy.js';
 export {
   initSchedulerState,
   nextReadyBatch,
