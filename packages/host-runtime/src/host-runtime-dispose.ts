@@ -190,6 +190,14 @@ export async function disposeHostRuntime(deps: HostRuntimeKernel): Promise<void>
   deps.subagentOrchestrator = null;
   deps.subagentWorkspaceService = null;
   deps.runtimeResourceCoordinator = null;
+  if (deps.turnChangeRuntime) {
+    try {
+      deps.turnChangeRuntime.close();
+    } catch (error) {
+      shutdownErrors.push(error);
+    }
+    deps.turnChangeRuntime = null;
+  }
   try {
     await deps.host.dispose();
   } catch (error) {

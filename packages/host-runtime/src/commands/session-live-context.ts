@@ -368,4 +368,13 @@ export type SessionLiveContext = {
   }) => Promise<{ generationId: string; settingsRevision: string }>;
   /** Rebuild a resident generation when the next turn changes Provider. */
   replaceRuntimeForModel: (sessionId: string) => Promise<void>;
+  /** Bind this run to a turn-change attempt after userMessageId is known. */
+  beginTurnChangeRun?: (input: {
+    sessionId: string;
+    userMessageId: string | null;
+    runId: string;
+    source: 'prompt' | 'resume' | 'child';
+  }) => void;
+  /** End the run_segment when the turn returns. */
+  endTurnChangeRun?: (runId: string) => void;
 };

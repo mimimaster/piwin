@@ -57,12 +57,14 @@ export function bindCaptureReceipts(
 export function createToolCapturePort(options: {
   store: TurnChangeStore;
   changeSetId?: string;
+  resolveChangeSetId?: (runId: string) => string | undefined;
 }): ToolCapturePort {
   const sessions = new Map<string, CaptureSession>();
 
-  const markIncomplete = (): void => {
-    if (options.changeSetId) {
-      options.store.markAttemptCaptureState(options.changeSetId, 'incomplete');
+  const markIncomplete = (runId: string): void => {
+    const changeSetId = options.changeSetId ?? options.resolveChangeSetId?.(runId);
+    if (changeSetId) {
+      options.store.markAttemptCaptureState(changeSetId, 'incomplete');
     }
   };
 
@@ -98,7 +100,7 @@ export function createToolCapturePort(options: {
       sessions.delete(input.captureId);
       try {
         if (session.fileEffect.kind === 'uncontained') {
-          markIncomplete();
+          markIncomplete(session.runId);
           return;
         }
         const settlement = settlementFromResult(input.result);
@@ -114,7 +116,7 @@ export function createToolCapturePort(options: {
           });
         }
       } catch {
-        markIncomplete();
+        markIncomplete(session.runId);
       }
     },
   };

@@ -43,6 +43,7 @@ import { type SessionHostToolExecutionPort } from './tools/session-host-tool-por
 import { SubagentOrchestrator } from './subagent-orchestrator.js';
 import { createSubagentWorkspaceService } from './subagent-workspace-service.js';
 import { type SubagentIntegrationCoordinator } from './subagent-integration-coordinator.js';
+import type { TurnChangeRuntime } from './turn-changes/runtime-wiring.js';
 import { type RuntimeResourceCoordinator } from './runtime-resource-coordinator.js';
 import { TurnScopedSchemeAdmissionGate } from './orchestration-scheme-admission.js';
 import { SessionBodyGate } from './session-body-gate.js';
@@ -284,6 +285,8 @@ export class HostRuntimeFields {
   agentWorkerSupervisor: AgentWorkerSupervisor | null = null;
   /** Integration coordinator for worktree code integration. */
   subagentIntegrationCoordinator: SubagentIntegrationCoordinator | null = null;
+  /** Turn-change store, coordinator, capture, and workspace write gate. */
+  turnChangeRuntime: TurnChangeRuntime | null = null;
   /** Workspace service for subagent isolation leases. */
   subagentWorkspaceService: ReturnType<typeof createSubagentWorkspaceService> | null = null;
   /** Resource coordinator for bounded concurrency. */

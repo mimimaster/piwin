@@ -23,6 +23,10 @@ import type {
   WorktreeIntegrationInput as GitWorktreeIntegrationInput,
   WorktreeIntegrationResult as GitWorktreeIntegrationResult,
 } from '@piwin/git';
+import type {
+  WorkspaceWriteGate,
+  WorkspaceWriteLease,
+} from './turn-changes/workspace-write-gate.js';
 
 export type WorktreeIntegrationInput = {
   readonly worktreePath: string;
@@ -118,6 +122,8 @@ export type SubagentIntegrationCoordinatorOptions = {
     parentRepoPath: string,
     worktreeBranch?: string,
   ) => Promise<void>;
+  /** Exclusive parent-workspace lock; acquired after the repo serial queue. */
+  workspaceWriteGate?: WorkspaceWriteGate;
 };
 
 export type SubagentIntegrationControl = {
@@ -228,7 +234,7 @@ type RetainedWorktree = {
 export function createSubagentIntegrationCoordinator(
   options: SubagentIntegrationCoordinatorOptions,
 ): SubagentIntegrationCoordinator {
-  const { integrateWorktree, isBaseClean, removeWorktree } = options;
+  const { integrateWorktree, isBaseClean, removeWorktree, workspaceWriteGate } = options;
 
   /** Explicit FIFO queues allow a cancelled waiter to be removed safely. */
   const integrationQueues = new Map<string, IntegrationQueueState>();
@@ -344,11 +350,30 @@ export function createSubagentIntegrationCoordinator(
       : undefined;
 
     let slot: IntegrationQueueLease | undefined;
+    let writeLease: WorkspaceWriteLease | undefined;
 
     try {
       slot = await acquireIntegrationSlot(parentRepoPath, worktreePath, control.signal);
       if (control.signal?.aborted) {
         throw new IntegrationQueueCancelledError();
+      }
+
+      if (workspaceWriteGate) {
+        const acquired = await workspaceWriteGate.tryAcquire({
+          workspaceId: parentRepoPath,
+          rootPath: parentRepoPath,
+          kind: 'integration',
+        });
+        if (!acquired.ok) {
+          await retain(worktreePath, acquired.reason);
+          return {
+            ...result,
+            integrationStatus: 'failed',
+            error: acquired.reason,
+            worktreePath,
+          };
+        }
+        writeLease = acquired.lease;
       }
 
       // The current Git adapter is a one-shot operation. Until the durable
@@ -447,6 +472,7 @@ export function createSubagentIntegrationCoordinator(
         worktreePath,
       };
     } finally {
+      writeLease?.release();
       slot?.release();
     }
   }

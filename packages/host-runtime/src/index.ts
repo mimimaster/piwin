@@ -313,6 +313,19 @@ export { createExecutionTracker } from './turn-changes/execution-tracker.js';
 export type { ExecutionTracker } from './turn-changes/execution-tracker.js';
 export { createToolCapturePort, bindCaptureReceipts } from './turn-changes/tool-capture.js';
 export type { ToolCapturePort } from './turn-changes/tool-capture.js';
+export { createTurnChangeCoordinator, workspaceIdForRoot } from './turn-changes/coordinator.js';
+export type {
+  TurnChangeAttemptBinding,
+  TurnChangeCoordinator,
+  TurnChangeRunSource,
+} from './turn-changes/coordinator.js';
+export { createWorkspaceWriteGate } from './turn-changes/workspace-write-gate.js';
+export type {
+  WorkspaceWriteGate,
+  WorkspaceWriteLease,
+} from './turn-changes/workspace-write-gate.js';
+export { openTurnChangeRuntime, resolveTurnChangeRuntimeRoot } from './turn-changes/runtime-wiring.js';
+export type { TurnChangeRuntime } from './turn-changes/runtime-wiring.js';
 
 // Phase 2: Structured Concurrency
 export { RunRegistry } from './run-registry.js';

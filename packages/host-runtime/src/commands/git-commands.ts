@@ -7,6 +7,7 @@ import { createGitService } from '@piwin/git';
 import { bindProjectLocatorFromRoot } from '../project-locator.js';
 import { fail, ok } from '../response-helpers.js';
 import type { HostCommandContext } from './host-command-context.js';
+import type { WorkspaceWriteGate } from '../turn-changes/workspace-write-gate.js';
 
 
 const TYPES = new Set<HostCommand['type']>([
@@ -116,8 +117,10 @@ export async function handleGitCommand(
             command.type,
           );
           if (!projectPath.ok) return projectPath.response;
-          const result = await git.stage({ ...command.input, projectPath: projectPath.path });
-          return ok(requestId, 'git/stage', { result });
+          return withGitWriteGate(context.workspaceWriteGate, projectPath.path, requestId, command.type, async () => {
+            const result = await git.stage({ ...command.input, projectPath: projectPath.path });
+            return ok(requestId, 'git/stage', { result });
+          });
         }
         case 'git/unstage': {
           const projectPath = await resolveGitProjectPath(
@@ -127,8 +130,10 @@ export async function handleGitCommand(
             command.type,
           );
           if (!projectPath.ok) return projectPath.response;
-          const result = await git.unstage({ ...command.input, projectPath: projectPath.path });
-          return ok(requestId, 'git/unstage', { result });
+          return withGitWriteGate(context.workspaceWriteGate, projectPath.path, requestId, command.type, async () => {
+            const result = await git.unstage({ ...command.input, projectPath: projectPath.path });
+            return ok(requestId, 'git/unstage', { result });
+          });
         }
         case 'git/commit': {
           const projectPath = await resolveGitProjectPath(
@@ -138,8 +143,10 @@ export async function handleGitCommand(
             command.type,
           );
           if (!projectPath.ok) return projectPath.response;
-          const result = await git.commit({ ...command.input, projectPath: projectPath.path });
-          return ok(requestId, 'git/commit', { result });
+          return withGitWriteGate(context.workspaceWriteGate, projectPath.path, requestId, command.type, async () => {
+            const result = await git.commit({ ...command.input, projectPath: projectPath.path });
+            return ok(requestId, 'git/commit', { result });
+          });
         }
         case 'git/branch-create': {
           const projectPath = await resolveGitProjectPath(
@@ -149,8 +156,10 @@ export async function handleGitCommand(
             command.type,
           );
           if (!projectPath.ok) return projectPath.response;
-          const result = await git.createBranch({ ...command.input, projectPath: projectPath.path });
-          return ok(requestId, 'git/branch-create', { result });
+          return withGitWriteGate(context.workspaceWriteGate, projectPath.path, requestId, command.type, async () => {
+            const result = await git.createBranch({ ...command.input, projectPath: projectPath.path });
+            return ok(requestId, 'git/branch-create', { result });
+          });
         }
         case 'git/checkout': {
           const projectPath = await resolveGitProjectPath(
@@ -160,11 +169,38 @@ export async function handleGitCommand(
             command.type,
           );
           if (!projectPath.ok) return projectPath.response;
-          const result = await git.checkout({ ...command.input, projectPath: projectPath.path });
-          return ok(requestId, 'git/checkout', { result });
+          return withGitWriteGate(context.workspaceWriteGate, projectPath.path, requestId, command.type, async () => {
+            const result = await git.checkout({ ...command.input, projectPath: projectPath.path });
+            return ok(requestId, 'git/checkout', { result });
+          });
         }
     default:
       return null;
+  }
+}
+
+async function withGitWriteGate(
+  gate: WorkspaceWriteGate | undefined,
+  projectPath: string,
+  requestId: string | undefined,
+  commandType: HostCommand['type'],
+  run: () => Promise<HostResponse>,
+): Promise<HostResponse> {
+  if (!gate) {
+    return run();
+  }
+  const acquired = await gate.tryAcquire({
+    workspaceId: projectPath,
+    rootPath: projectPath,
+    kind: 'git',
+  });
+  if (!acquired.ok) {
+    return fail(requestId, commandType, acquired.reason);
+  }
+  try {
+    return await run();
+  } finally {
+    acquired.lease.release();
   }
 }
 
