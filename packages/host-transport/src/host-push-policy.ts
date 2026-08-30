@@ -62,6 +62,10 @@ export function classifyHostPush(push: HostPushVariant): HostPushPolicy {
         deliveryKey('run', push.runId, 'subagent-task', push.result.taskId),
         push.runId,
       );
+    case 'subagent/result-updated':
+      return projection(
+        deliveryKey('subagent', push.parentSessionId, 'result', push.result.resultId),
+      );
     case 'subagent/stream':
       return classifyAgentEvent(
         deliveryKey('subagent', push.parentSessionId, push.childSessionId),

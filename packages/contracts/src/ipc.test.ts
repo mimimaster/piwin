@@ -715,4 +715,92 @@ describe('ipc types', () => {
       expect(prompt.input.permissionPreset).toBe('ask');
     });
   });
+
+  it('accepts subagent result command and push shapes', () => {
+    const results: HostCommand = {
+      type: 'subagent/results',
+      parentSessionId: 'parent-1',
+      pendingOnly: true,
+      limit: 50,
+    };
+    const result: HostCommand = { type: 'subagent/result', resultId: 'result-1' };
+    const files: HostCommand = {
+      type: 'subagent/result-files',
+      resultId: 'result-1',
+      revision: 2,
+      cursor: 'c1',
+      limit: 20,
+    };
+    const diff: HostCommand = {
+      type: 'subagent/result-diff',
+      resultId: 'result-1',
+      revision: 2,
+      fileId: 'file-1',
+    };
+    const cleanup: HostCommand = {
+      type: 'subagent/cleanup-plan',
+      resultId: 'result-1',
+      expectedRevision: 2,
+    };
+    const resolve: HostCommand = {
+      type: 'subagent/request-resolution',
+      resultId: 'result-1',
+      expectedRevision: 2,
+      purpose: 'resolve',
+    };
+    const apply: HostCommand = {
+      type: 'subagent/worktree-action',
+      action: 'apply',
+      resultId: 'result-1',
+      expectedRevision: 2,
+    };
+    const legacyDiscard: HostCommand = {
+      type: 'subagent/worktree-action',
+      action: 'discard',
+      childSessionId: 'child-1',
+    };
+    const push: HostPush = {
+      type: 'subagent/result-updated',
+      parentSessionId: 'parent-1',
+      result: {
+        resultId: 'result-1',
+        revision: 2,
+        parentSessionId: 'parent-1',
+        childSessionId: 'child-1',
+        taskId: 'task-1',
+        batchRunId: 'run-1',
+        sourceAttemptId: null,
+        targetWorkspaceId: 'ws-1',
+        deliveryIntent: 'candidate',
+        legacyManual: false,
+        candidateGroupId: null,
+        executionStatus: 'completed',
+        summaryStatus: 'merged',
+        integrationStatus: 'retained',
+        childChanges: { changeSetId: 'cs-child', revision: 1 },
+        appliedChanges: null,
+        copyState: 'present',
+        latestOperationId: null,
+        availability: {
+          view: { allowed: true },
+          apply: { allowed: false, reason: 'unsupported-capability' },
+          resolve: { allowed: false, reason: 'unsupported-capability' },
+          cleanup: { allowed: false, reason: 'unsupported-capability' },
+        },
+      },
+    };
+    expect(results.type).toBe('subagent/results');
+    expect(result.type).toBe('subagent/result');
+    expect(files.type).toBe('subagent/result-files');
+    expect(diff.type).toBe('subagent/result-diff');
+    expect(cleanup.type).toBe('subagent/cleanup-plan');
+    expect(resolve.type).toBe('subagent/request-resolution');
+    expect(apply.type).toBe('subagent/worktree-action');
+    expect(legacyDiscard.type).toBe('subagent/worktree-action');
+    expect(push.type).toBe('subagent/result-updated');
+    if (push.type === 'subagent/result-updated') {
+      expect(push.result.childChanges?.changeSetId).toBe('cs-child');
+      expect(push.result.appliedChanges).toBeNull();
+    }
+  });
 });

@@ -103,9 +103,50 @@ export type HostSessionCommand =
   | { id?: string; type: 'subagent/continue'; childSessionId: string; text: string }
   | {
       id?: string;
+      type: 'subagent/results';
+      parentSessionId: string;
+      attemptId?: string;
+      pendingOnly?: boolean;
+      cursor?: string;
+      limit?: number;
+    }
+  | { id?: string; type: 'subagent/result'; resultId: string }
+  | {
+      id?: string;
+      type: 'subagent/result-files';
+      resultId: string;
+      revision: number;
+      cursor?: string;
+      limit?: number;
+    }
+  | {
+      id?: string;
+      type: 'subagent/result-diff';
+      resultId: string;
+      revision: number;
+      fileId: string;
+    }
+  | {
+      id?: string;
+      type: 'subagent/cleanup-plan';
+      resultId: string;
+      expectedRevision: number;
+    }
+  | {
+      id?: string;
+      type: 'subagent/request-resolution';
+      resultId: string;
+      expectedRevision: number;
+      purpose: 'resolve' | 'verify';
+    }
+  | {
+      id?: string;
       type: 'subagent/worktree-action';
-      childSessionId: string;
       action: 'apply' | 'retain' | 'discard';
+      childSessionId?: string;
+      resultId?: string;
+      expectedRevision?: number;
+      cleanupToken?: string;
     }
   | { id?: string; type: 'session/resume'; sessionId: string }
   | {

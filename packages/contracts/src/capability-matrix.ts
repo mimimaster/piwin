@@ -83,6 +83,17 @@ export function buildCapabilityMatrix(
       'Bounded session outline paging',
       capabilities.sessionOutlinePage === true,
     ),
+    row(
+      'subagentDeliveryV1',
+      'Subagent delivery intent',
+      capabilities.subagentDeliveryV1 === true,
+    ),
+    row(
+      'subagentResultReviewV1',
+      'Subagent result review',
+      capabilities.subagentResultReviewV1 === true,
+    ),
+    row('turnChangeUndoV1', 'Turn-change undo', capabilities.turnChangeUndoV1 === true),
   ];
 }
 

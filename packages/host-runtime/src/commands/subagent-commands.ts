@@ -29,7 +29,30 @@ const TYPES = new Set<HostCommand['type']>([
   'subagent/batch-cancel',
   'subagent/continue',
   'subagent/worktree-action',
+  'subagent/results',
+  'subagent/result',
+  'subagent/result-files',
+  'subagent/result-diff',
+  'subagent/cleanup-plan',
+  'subagent/request-resolution',
 ]);
+
+const UNIMPLEMENTED_RESULT_TYPES = new Set<HostCommand['type']>([
+  'subagent/results',
+  'subagent/result',
+  'subagent/result-files',
+  'subagent/result-diff',
+  'subagent/cleanup-plan',
+  'subagent/request-resolution',
+]);
+
+/** W5 implements result storage / apply / cleanup. */
+function unsupportedCapability(
+  requestId: string | undefined,
+  commandType: string,
+): HostResponse {
+  return fail(requestId, commandType, 'unsupported-capability', { code: 'unsupported-capability' });
+}
 
 export function isSubagentCommand(command: HostCommand): boolean {
   return TYPES.has(command.type);
@@ -41,6 +64,9 @@ export async function handleSubagentCommand(
   context: SubagentCommandContext | undefined,
 ): Promise<HostResponse | null> {
   if (!isSubagentCommand(command)) return null;
+  if (UNIMPLEMENTED_RESULT_TYPES.has(command.type)) {
+    return unsupportedCapability(requestId, command.type);
+  }
   if (!context) {
     return fail(requestId, command.type, NOT_READY_SUBAGENT_ORCHESTRATION_MESSAGE);
   }
@@ -73,9 +99,13 @@ export async function handleSubagentCommand(
       });
     }
     case 'subagent/worktree-action': {
-      const result = await context.actOnWorktree(command.childSessionId, command.action);
+      const childSessionId = command.childSessionId;
+      if (typeof childSessionId !== 'string' || childSessionId.length === 0) {
+        return unsupportedCapability(requestId, command.type);
+      }
+      const result = await context.actOnWorktree(childSessionId, command.action);
       return ok(requestId, command.type, {
-        childSessionId: command.childSessionId,
+        childSessionId,
         action: command.action,
         ...result,
       });

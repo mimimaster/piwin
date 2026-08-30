@@ -52,4 +52,39 @@ describe('capability-matrix', () => {
     const rows = buildCapabilityMatrix({ ...baseCaps, queuedTurns: true });
     expect(rows.find((row) => row.id === 'queuedTurns')).toMatchObject({ available: true });
   });
+
+  it('keeps delivery/review/undo unavailable when flags are omitted or false', () => {
+    const omitted = buildCapabilityMatrix(baseCaps);
+    expect(omitted.find((row) => row.id === 'subagentDeliveryV1')).toMatchObject({
+      available: false,
+    });
+    expect(omitted.find((row) => row.id === 'subagentResultReviewV1')).toMatchObject({
+      available: false,
+    });
+    expect(omitted.find((row) => row.id === 'turnChangeUndoV1')).toMatchObject({
+      available: false,
+    });
+
+    const disabled = buildCapabilityMatrix({
+      ...baseCaps,
+      subagentDeliveryV1: false,
+      subagentResultReviewV1: false,
+      turnChangeUndoV1: false,
+    });
+    expect(disabled.find((row) => row.id === 'subagentDeliveryV1')?.available).toBe(false);
+    expect(disabled.find((row) => row.id === 'subagentResultReviewV1')?.available).toBe(false);
+    expect(disabled.find((row) => row.id === 'turnChangeUndoV1')?.available).toBe(false);
+  });
+
+  it('marks delivery/review/undo available only when explicitly true', () => {
+    const enabled = buildCapabilityMatrix({
+      ...baseCaps,
+      subagentDeliveryV1: true,
+      subagentResultReviewV1: true,
+      turnChangeUndoV1: true,
+    });
+    expect(enabled.find((row) => row.id === 'subagentDeliveryV1')?.available).toBe(true);
+    expect(enabled.find((row) => row.id === 'subagentResultReviewV1')?.available).toBe(true);
+    expect(enabled.find((row) => row.id === 'turnChangeUndoV1')?.available).toBe(true);
+  });
 });

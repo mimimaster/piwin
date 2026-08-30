@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   HOST_COMMAND_REQUEST_ENVELOPE_VERSION,
+  hostCommandRequestRequiresIdempotencyKey,
   isHostCommandRequestEnvelope,
   parseHostCommandRequest,
 } from './host-command-request.js';
@@ -42,5 +43,55 @@ describe('HostCommandRequest envelope', () => {
   it('does not invent an idempotency key for a bare mutation line', () => {
     const parsed = parseHostCommandRequest(prompt);
     expect(parsed).toEqual({ command: prompt });
+  });
+
+  it('requires idempotency keys for apply/discard/request-resolution, not result reads', () => {
+    expect(
+      hostCommandRequestRequiresIdempotencyKey({
+        type: 'subagent/worktree-action',
+        action: 'apply',
+        resultId: 'result-1',
+        expectedRevision: 1,
+      }),
+    ).toBe(true);
+    expect(
+      hostCommandRequestRequiresIdempotencyKey({
+        type: 'subagent/request-resolution',
+        resultId: 'result-1',
+        expectedRevision: 1,
+        purpose: 'resolve',
+      }),
+    ).toBe(true);
+    expect(
+      hostCommandRequestRequiresIdempotencyKey({
+        type: 'subagent/results',
+        parentSessionId: 'parent-1',
+      }),
+    ).toBe(false);
+    expect(
+      hostCommandRequestRequiresIdempotencyKey({ type: 'subagent/result', resultId: 'result-1' }),
+    ).toBe(false);
+    expect(
+      hostCommandRequestRequiresIdempotencyKey({
+        type: 'subagent/result-files',
+        resultId: 'result-1',
+        revision: 1,
+      }),
+    ).toBe(false);
+    expect(
+      hostCommandRequestRequiresIdempotencyKey({
+        type: 'subagent/result-diff',
+        resultId: 'result-1',
+        revision: 1,
+        fileId: 'file-1',
+      }),
+    ).toBe(false);
+    expect(
+      hostCommandRequestRequiresIdempotencyKey({
+        type: 'subagent/cleanup-plan',
+        resultId: 'result-1',
+        expectedRevision: 1,
+      }),
+    ).toBe(false);
   });
 });

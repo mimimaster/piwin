@@ -69,6 +69,7 @@ export function classifyHostPushAudience(push: HostPushVariant): HostPushAudienc
       return session(push.parentSessionId);
     case 'subagent/batch-updated':
     case 'subagent/task-updated':
+    case 'subagent/result-updated':
       return session(push.parentSessionId);
     case 'session/runtime-updated':
       return session(push.status.sessionId);
