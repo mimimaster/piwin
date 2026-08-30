@@ -23,11 +23,13 @@ import type {
   SubagentExecutionStatus,
   SubagentIntegrationStatus,
   SubagentApplyPolicy,
+  SubagentDeliveryIntent,
   SubagentIsolationMode,
   ThinkingLevel,
   ToolResult,
 } from '@piwin/contracts';
-import { formatError } from '@piwin/contracts';
+import { formatError, parseSubagentDeliveryFields } from '@piwin/contracts';
+import { resolveSubagentDeliveryPolicy } from './subagent-delivery-policy.js';
 
 export type SubagentRunSeam = {
   /** Spawn a child subagent session and wait for it to finish. */
@@ -39,6 +41,7 @@ export type SubagentRunSeam = {
     task: string;
     mode?: SubagentIsolationMode;
     applyPolicy?: SubagentApplyPolicy;
+    deliveryIntent?: SubagentDeliveryIntent;
     sessionName?: string;
     /** ORCH-V2: scheme roster role (preferred when a scheme is active). */
     role?: string;
@@ -112,13 +115,21 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
             type: 'string',
             description: 'Optional short name for the subagent session (shown in UI)',
           },
+          deliveryIntent: {
+            type: 'string',
+            enum: ['report', 'integrate', 'candidate'],
+            description:
+              'How the child result should be delivered: "report" (read-only summary), ' +
+              '"integrate" (apply worktree changes to the parent workspace), or "candidate" ' +
+              '(keep an isolated proposal for later review). Default follows isolation.',
+          },
           applyPolicy: {
             type: 'string',
             enum: ['none', 'auto', 'explicit'],
             description:
               'Worktree change application policy: "none" (default, changes stay in the worktree) ' +
               'or "auto"/"explicit" (apply changed files back to the parent branch on merge). ' +
-              'Only relevant when mode is "worktree".',
+              'Only relevant when mode is "worktree". Kept until runtime replacement.',
           },
           profileId: {
             type: 'string',
@@ -162,10 +173,6 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
       const sessionNameRaw = String(args.sessionName ?? '').trim();
       const sessionName = sessionNameRaw || undefined;
 
-      const applyPolicyRaw = String(args.applyPolicy ?? 'none').trim();
-      const applyPolicy =
-        applyPolicyRaw === 'auto' || applyPolicyRaw === 'explicit' ? applyPolicyRaw : 'none';
-
       const roleRaw = String(args.role ?? '').trim();
       const role = roleRaw || undefined;
 
@@ -183,6 +190,34 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
         }
         mode = modeRaw as SubagentIsolationMode;
       }
+
+      if (args.deliveryIntent !== undefined && typeof args.deliveryIntent !== 'string') {
+        return invalidSubagentInput('unknown deliveryIntent');
+      }
+      if (args.applyPolicy !== undefined && typeof args.applyPolicy !== 'string') {
+        return invalidSubagentInput('unknown applyPolicy');
+      }
+      const parsedDelivery = parseSubagentDeliveryFields({
+        ...(typeof args.deliveryIntent === 'string' ? { deliveryIntent: args.deliveryIntent } : {}),
+        ...(typeof args.applyPolicy === 'string' ? { applyPolicy: args.applyPolicy } : {}),
+      });
+      if (!parsedDelivery.ok) return invalidSubagentInput(parsedDelivery.message);
+      if (mode !== undefined) {
+        const policy = resolveSubagentDeliveryPolicy({
+          ...(parsedDelivery.deliveryIntent !== undefined
+            ? { deliveryIntent: parsedDelivery.deliveryIntent }
+            : {}),
+          ...(parsedDelivery.applyPolicy !== undefined
+            ? { applyPolicy: parsedDelivery.applyPolicy }
+            : {}),
+          isolation: mode,
+          source: 'model-tool',
+          activateNewIntegrateDefault: false,
+        });
+        if (!policy.ok) return invalidSubagentInput(policy.message);
+      }
+      const deliveryIntent = parsedDelivery.deliveryIntent;
+      const applyPolicy = parsedDelivery.applyPolicy;
 
       const modelRaw = args.model as
         { protocol?: string; providerId?: string; modelId?: string } | undefined;
@@ -229,7 +264,8 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
           task,
           ...(mode ? { mode } : {}),
           ...(sessionName ? { sessionName } : {}),
-          ...(applyPolicy !== 'none' ? { applyPolicy } : {}),
+          ...(deliveryIntent ? { deliveryIntent } : {}),
+          ...(applyPolicy ? { applyPolicy } : {}),
           ...(role ? { role } : {}),
           ...(profileId ? { profileId } : {}),
           ...(model ? { model } : {}),

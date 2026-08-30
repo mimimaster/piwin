@@ -61,8 +61,11 @@ export async function prepareSubagentTask(
   // Build the CreateSessionInput for the child session.
   const subagentOptions = {
     mode: input.workspaceLease.mode,
-    applyPolicy: input.task.applyPolicy ?? 'none',
     retainWorktree: input.task.retainWorktree === true,
+    ...(input.task.applyPolicy !== undefined ? { applyPolicy: input.task.applyPolicy } : {}),
+    ...(input.task.deliveryIntent !== undefined
+      ? { deliveryIntent: input.task.deliveryIntent }
+      : {}),
     ...(input.task.profileId ? { profileId: input.task.profileId } : {}),
     ...(input.task.capabilities ? { capabilities: [...input.task.capabilities] } : {}),
     ...(input.task.skillIds ? { skillIds: [...input.task.skillIds] } : {}),

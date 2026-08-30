@@ -69,6 +69,8 @@ describe('buildPlanSubagentTask', () => {
       parentSessionId: 's1',
       profileId: 'implementer',
       applyPolicy: 'auto',
+      deliveryIntent: 'integrate',
+      legacyManual: false,
     });
   });
 
@@ -78,6 +80,11 @@ describe('buildPlanSubagentTask', () => {
       '1',
     );
     expect(task?.profileId).toBe('reviewer');
+    expect(task).toMatchObject({
+      deliveryIntent: 'report',
+      applyPolicy: 'none',
+      legacyManual: false,
+    });
   });
 });
 

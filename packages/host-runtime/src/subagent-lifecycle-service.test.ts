@@ -145,6 +145,9 @@ describe('planSubagentSpawn', () => {
       expect(result.lifecycle.executionStatus).toBe('queued');
       expect(result.lifecycle.summaryStatus).toBe('not-requested');
       expect(result.lifecycle.integrationStatus).toBe('not-requested');
+      expect(result.spawnOptions.deliveryIntent).toBe('report');
+      expect(result.spawnOptions.applyPolicy).toBe('none');
+      expect(result.legacyManual).toBe(false);
     }
   });
 
@@ -165,7 +168,115 @@ describe('planSubagentSpawn', () => {
     if (!('error' in result)) {
       expect(result.snapshot.isolation).toBe('worktree');
       expect(result.snapshot.capabilities).toBeUndefined();
+      expect(result.spawnOptions.deliveryIntent).toBe('integrate');
+      expect(result.spawnOptions.applyPolicy).toBe('none');
+      expect(result.legacyManual).toBe(false);
     }
+  });
+
+  it('keeps explicit auto as integrate/auto on worktree', () => {
+    const result = planSubagentSpawn({
+      config: makeConfig(),
+      request: {
+        parentSessionId: 'parent-1',
+        task: 'implement feature X',
+        selector: { profileId: 'implementer' },
+        applyPolicy: 'auto',
+      },
+      parentDepth: 0,
+      parentKind: 'main',
+      workingDirectory: '/tmp/project',
+      enabledSkillIds: [],
+    });
+    expect('error' in result).toBe(false);
+    if (!('error' in result)) {
+      expect(result.spawnOptions.deliveryIntent).toBe('integrate');
+      expect(result.spawnOptions.applyPolicy).toBe('auto');
+      expect(result.legacyManual).toBe(false);
+    }
+  });
+
+  it('marks explicit none as legacy manual without a user candidate', () => {
+    const result = planSubagentSpawn({
+      config: makeConfig(),
+      request: {
+        parentSessionId: 'parent-1',
+        task: 'implement feature X',
+        selector: { profileId: 'implementer' },
+        applyPolicy: 'none',
+      },
+      parentDepth: 0,
+      parentKind: 'main',
+      workingDirectory: '/tmp/project',
+      enabledSkillIds: [],
+    });
+    expect('error' in result).toBe(false);
+    if (!('error' in result)) {
+      expect(result.spawnOptions.deliveryIntent).toBe('integrate');
+      expect(result.spawnOptions.applyPolicy).toBe('none');
+      expect(result.legacyManual).toBe(true);
+    }
+  });
+
+  it('does not treat retainWorktree as skip-integrate', () => {
+    const result = planSubagentSpawn({
+      config: makeConfig(),
+      request: {
+        parentSessionId: 'parent-1',
+        task: 'implement feature X',
+        selector: { profileId: 'implementer' },
+        applyPolicy: 'auto',
+        retainWorktree: true,
+      },
+      parentDepth: 0,
+      parentKind: 'main',
+      workingDirectory: '/tmp/project',
+      enabledSkillIds: [],
+    });
+    expect('error' in result).toBe(false);
+    if (!('error' in result)) {
+      expect(result.spawnOptions.deliveryIntent).toBe('integrate');
+      expect(result.spawnOptions.applyPolicy).toBe('auto');
+      expect(result.spawnOptions.retainWorktree).toBe(true);
+    }
+  });
+
+  it('rejects report intent on worktree isolation', () => {
+    const result = planSubagentSpawn({
+      config: makeConfig(),
+      request: {
+        parentSessionId: 'parent-1',
+        task: 'implement feature X',
+        selector: { profileId: 'implementer' },
+        deliveryIntent: 'report',
+      },
+      parentDepth: 0,
+      parentKind: 'main',
+      workingDirectory: '/tmp/project',
+      enabledSkillIds: [],
+    });
+    expect(result).toEqual({
+      error: 'report deliveryIntent is incompatible with worktree isolation',
+    });
+  });
+
+  it('rejects integrate intent on readonly isolation', () => {
+    const result = planSubagentSpawn({
+      config: makeConfig(),
+      request: {
+        parentSessionId: 'parent-1',
+        task: 'review only',
+        selector: { profileId: 'explorer' },
+        deliveryIntent: 'integrate',
+      },
+      parentDepth: 0,
+      parentKind: 'main',
+      workingDirectory: '/tmp/project',
+      enabledSkillIds: [],
+    });
+    expect(result).toEqual({
+      error: 'integrate deliveryIntent is incompatible with readonly isolation',
+    });
   });
 
   it('per-call model overrides profile model', () => {
