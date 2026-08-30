@@ -2,5 +2,5 @@ export {
   groupFlashcardTiles,
   tileCards,
   tileMatchesQuery,
-} from '@piwin/flashcards';
-export type { FlashcardTile } from '@piwin/flashcards';
+} from '@piwin/flashcards/study-sequence';
+export type { FlashcardTile } from '@piwin/flashcards/study-sequence';
