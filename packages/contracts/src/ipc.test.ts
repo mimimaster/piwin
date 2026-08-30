@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import type { AgentEventEnvelope } from './host.js';
 import { normalizeDecodedAgentEvent } from './agent-event-decode.js';
@@ -6,7 +9,40 @@ import { toMediaAttachmentRef } from './ipc.js';
 import type { SavedMediaAsset } from './media.js';
 import type { CreateSessionOptions, SessionSeedMessage } from './session-seed.js';
 
+const SRC_DIR = dirname(fileURLToPath(import.meta.url));
+
 describe('ipc types', () => {
+  it('keeps ipc modules under the source-file size cap', () => {
+    const files = [
+      'ipc.ts',
+      'ipc-commands-runtime.ts',
+      'ipc-commands-session.ts',
+      'ipc-commands-content.ts',
+      'ipc-push.ts',
+      'ipc-envelope.ts',
+      'ipc-response-data.ts',
+    ];
+    for (const fileName of files) {
+      const lines = readFileSync(join(SRC_DIR, fileName), 'utf8').split('\n').length;
+      expect(lines, fileName).toBeLessThanOrEqual(1000);
+    }
+    expect(readFileSync(join(SRC_DIR, 'ipc.ts'), 'utf8').split('\n').length).toBeLessThan(200);
+  });
+
+  it('re-exports the public IPC surface from the ipc.ts aggregate', () => {
+    const source = readFileSync(join(SRC_DIR, 'ipc.ts'), 'utf8');
+    expect(source).toContain("from './ipc-commands-runtime.js'");
+    expect(source).toContain("from './ipc-commands-session.js'");
+    expect(source).toContain("from './ipc-commands-content.js'");
+    expect(source).toContain("from './ipc-push.js'");
+    expect(source).toContain("from './ipc-envelope.js'");
+    expect(source).toContain("from './ipc-response-data.js'");
+    expect(source).toContain('HostRuntimeCommand');
+    expect(source).toContain('HostSessionCommand');
+    expect(source).toContain('HostContentCommand');
+    expect(source).toContain('SubscriptionAuthCommand');
+  });
+
   it('allows constructing command and push shapes', () => {
     const command: HostCommand = { type: 'host/ping' };
     const push: HostPush = {
