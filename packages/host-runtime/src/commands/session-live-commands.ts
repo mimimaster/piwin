@@ -78,6 +78,7 @@ import {
   upsertSessionRecord,
   readToolOutputSnapshot,
   openModelContextStore,
+  readOrInsertUnknownContextState,
   type SessionTranscriptStore,
 } from '@piwin/session';
 import { formatSideChatContextBlock, mergeSideChatContextIntoPrompt } from '@piwin/session';
@@ -497,6 +498,12 @@ export async function handleSessionLiveCommand(
         context.sessionModels.set(command.sessionId, restoredModel);
       }
       const restoredUsage = await context.loadSessionUsage(command.sessionId);
+      const contextSnapshot = await readOrInsertUnknownContextState(store, {
+        sessionId: command.sessionId,
+        reason: 'never-sampled',
+        updatedAt: new Date().toISOString(),
+      });
+      const lastRequestUsage = await store.readLatestAssistantUsageForActivePath();
       const data: SessionResumeData = {
         sessionId: command.sessionId,
         live,
@@ -505,6 +512,8 @@ export async function handleSessionLiveCommand(
         projectPath: existing.projectPath,
         // ADR 0040 §9: bounded recent window, never the complete outline.
         outline: (await store.outlinePage({ sessionId: command.sessionId, limit: 40 })).nodes,
+        contextSnapshot,
+        lastRequestUsage,
       };
       const pauseCheckpoint = await store.getActivePauseCheckpoint();
       if (pauseCheckpoint !== undefined) {

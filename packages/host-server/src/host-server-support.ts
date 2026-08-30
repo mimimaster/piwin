@@ -183,6 +183,7 @@ export function isSafeRemoteCommand(command: HostCommand): boolean {
     case 'session/foreground-run':
     case 'session/lineage':
     case 'session/runtime-status':
+    case 'session/context-get':
       return isSafeRemoteId(command.sessionId);
     case 'session/reload-runtime':
       return (
