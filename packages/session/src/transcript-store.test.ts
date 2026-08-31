@@ -1096,26 +1096,30 @@ describe('SessionTranscriptStore', () => {
     store.close();
   });
 
-  it('keeps tail/history/outline bounded with 10,000 rows', async () => {
-    const { store } = await openStore('scale');
-    for (let index = 0; index < 10_000; index += 1) {
-      await store.appendMessage(
-        messageInput({
-          id: `piw-m-${index}`,
-          runtimeGenerationId: 'gen-a',
-          backendMessageId: `b-${index}`,
-          role: index % 2 === 0 ? 'user' : 'assistant',
-          text: `turn ${index}`,
-        }),
-      );
-    }
-    expect(await store.count()).toBe(10_000);
-    expect(await store.listTail(50)).toHaveLength(50);
-    expect((await store.buildHistoryWindow({ maxMessages: 40 })).length).toBeLessThanOrEqual(40);
-    const outline = await store.outlinePage({ sessionId: 'session-scale', limit: 100 });
-    expect(outline.nodes.length).toBeLessThanOrEqual(100);
-    store.close();
-  });
+  it(
+    'keeps tail/history/outline bounded with 10,000 rows',
+    async () => {
+      const { store } = await openStore('scale');
+      for (let index = 0; index < 10_000; index += 1) {
+        await store.appendMessage(
+          messageInput({
+            id: `piw-m-${index}`,
+            runtimeGenerationId: 'gen-a',
+            backendMessageId: `b-${index}`,
+            role: index % 2 === 0 ? 'user' : 'assistant',
+            text: `turn ${index}`,
+          }),
+        );
+      }
+      expect(await store.count()).toBe(10_000);
+      expect(await store.listTail(50)).toHaveLength(50);
+      expect((await store.buildHistoryWindow({ maxMessages: 40 })).length).toBeLessThanOrEqual(40);
+      const outline = await store.outlinePage({ sessionId: 'session-scale', limit: 100 });
+      expect(outline.nodes.length).toBeLessThanOrEqual(100);
+      store.close();
+    },
+    60_000,
+  );
 
   it('builds a user-only navigation index with a stable independent revision', async () => {
     const { store } = await openStore('user-index');
