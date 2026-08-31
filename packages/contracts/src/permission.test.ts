@@ -123,6 +123,15 @@ describe('resolvePromptPermissionMode', () => {
       }),
     ).toBeUndefined();
   });
+
+  it('does not raise a permission floor for Goal mode', () => {
+    expect(
+      resolvePromptPermissionMode({
+        agentMode: 'goal',
+        configPreset: 'auto',
+      }),
+    ).toBeUndefined();
+  });
 });
 
 describe('createEmptyRuleSet', () => {

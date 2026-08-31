@@ -14,6 +14,7 @@ import { Button } from '@piwin/ui-kit';
 import { Streamdown, type Components, type ExtraProps } from 'streamdown';
 import { PathChip } from './path-chip';
 import { MermaidBlock } from './MermaidBlock';
+import { escapeRawHtmlInMarkdown } from './markdown-html-escape';
 import { renderKatex, isMermaidFenceLanguage, isMathFenceLanguage } from './markdown-math';
 import { IconCommentAction } from './shell-icons';
 import { useHighlight, TokenSpans, normalizeLanguage, type TokenLine } from './syntax-highlight';
@@ -100,7 +101,7 @@ function shouldUseLegacyReviewRenderer(text: string): boolean {
 
 const ENHANCED_STREAMDOWN_PLUGINS = {
   cjk,
-  math: createMathPlugin({ singleDollarTextMath: true }),
+  math: createMathPlugin({ singleDollarTextMath: false }),
 };
 const ENHANCED_LINK_SAFETY = { enabled: false };
 
@@ -152,6 +153,7 @@ function EnhancedStreamdownContent({
   onDeleteComment,
   onCommentLine,
 }: EnhancedStreamdownContentProps): ReactElement {
+  const escapedText = useMemo(() => escapeRawHtmlInMarkdown(text), [text]);
   const components = useMemo(
     () =>
       createEnhancedStreamdownComponents({
@@ -188,7 +190,7 @@ function EnhancedStreamdownContent({
       skipHtml
       linkSafety={ENHANCED_LINK_SAFETY}
     >
-      {text}
+      {escapedText}
     </Streamdown>
   );
 }
