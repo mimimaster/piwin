@@ -20,13 +20,14 @@ export function sanitizeLiveSpeakableResult(input: {
     return [
       'status: done',
       'takeaway:',
-      'continue: Continue from your last spoken line. The result is already on the chat page. One short line; do not invent details or announce a system.',
+      'continue: Continue from your last spoken line. A work turn ended with no speakable result. Do not claim anything was rendered or verified; refer to the chat if needed.',
     ].join('\n');
   }
   return [
     'status: done',
+    'evidence: assistant-report; display-not-verified',
     `takeaway: ${takeaway}`,
-    'continue: Continue from your last spoken line. One short takeaway. Do not announce that a work session finished.',
+    'continue: Continue from your last spoken line. No claims of visible/verified UI. No system announcement.',
   ].join('\n');
 }
 

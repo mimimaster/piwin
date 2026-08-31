@@ -79,6 +79,10 @@ export function modelOptionsFromConfiguredModels(
     ...(model.thinkingLevel ? { thinkingLevel: model.thinkingLevel } : {}),
     ...(model.thinkingLevels ? { thinkingLevels: model.thinkingLevels } : {}),
     ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
+    ...(model.input?.includes('image') ? { supportsImage: true } : {}),
+    ...(model.capabilities?.includes('image-generation')
+      ? { supportsImageGeneration: true }
+      : {}),
     ...(typeof model.contextWindow === 'number' ? { contextWindow: model.contextWindow } : {}),
     ...(typeof model.maxOutputTokens === 'number'
       ? { maxOutputTokens: model.maxOutputTokens }

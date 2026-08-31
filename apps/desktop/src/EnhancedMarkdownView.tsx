@@ -451,6 +451,11 @@ function createEnhancedStreamdownComponents(
     strong: ({ children, node: _node }: EnhancedStreamdownElementProps<'strong'>) => (
       <strong className="enhanced-strong">{children}</strong>
     ),
+    em: ({ children, node: _node, className, ...props }: EnhancedStreamdownElementProps<'em'>) => (
+      <em {...props} className={className ? `enhanced-em ${className}` : 'enhanced-em'}>
+        {children}
+      </em>
+    ),
   };
 }
 

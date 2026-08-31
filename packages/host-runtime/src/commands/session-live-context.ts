@@ -23,6 +23,7 @@ import type {
   QueuedTurnRecord,
   RunInterventionRecord,
   SessionHandle,
+  SessionSeedMessage,
   SessionCompactData,
   SessionCompactExportData,
   SessionCompactResult,
@@ -238,6 +239,14 @@ export type SessionLiveContext = {
   touchSession: (sessionId: string, previewText: string) => Promise<void>;
   needsProductHistoryInjection: (sessionId: string) => boolean;
   ensureLiveSession: (sessionId: string) => Promise<SessionHandle>;
+  /**
+   * Drop the reconstructed backend and activate again with product-history
+   * seeds so `/compact` can summarize the conversation the user sees.
+   */
+  reactivateWithSeedMessages: (
+    sessionId: string,
+    seedMessages: readonly SessionSeedMessage[],
+  ) => Promise<SessionHandle>;
   /**
    * ADR 0040 §7: Host-owned cold activation. Returns the resident handle,
    * creating a fresh runtime generation for the stable product session id

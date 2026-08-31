@@ -23,6 +23,8 @@ export type UseComposerMediaArgs = {
   menuSkills?: Array<{ id: string; name: string; enabled: boolean }>;
   onCompact?: (customInstructions?: string) => Promise<boolean | void>;
   onAbort?: () => Promise<void>;
+  /** Continue a paused turn. Optional text is extra instruction for the resume. */
+  onResumeRun?: (continuationText?: string) => Promise<void>;
   /** Create (or ensure) a live session when the user sends without one. */
   ensureSession?: (options?: {
     projectPath?: string;

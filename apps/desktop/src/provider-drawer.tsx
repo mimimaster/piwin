@@ -12,6 +12,7 @@
 
 import { useState, type ReactElement } from 'react';
 import { Button, IconButton, Switch, TextInput } from '@piwin/ui-kit';
+import { useOverlayDismiss } from './overlay-dismiss.js';
 import { createHeaderRow, hasKeychainSecret, type ProviderDraft } from './provider-draft.js';
 import { ProviderIcon } from './provider-icons.js';
 import { ProviderStatusPill, type ProviderTestStatus } from './provider-status.js';
@@ -141,6 +142,7 @@ export function ProviderDrawer({
 }: ProviderDrawerProps): ReactElement {
   const [showKey, setShowKey] = useState(false);
   const [advOpen, setAdvOpen] = useState(false);
+  const overlayDismiss = useOverlayDismiss(onClose);
 
   const status = draft.enabled
     ? (testStatus[draft.id] ?? null)
@@ -160,13 +162,14 @@ export function ProviderDrawer({
   return (
     <div
       className="provider-editor-overlay"
-      onClick={onClose}
       data-testid="provider-drawer-overlay"
       role="presentation"
+      onPointerDown={overlayDismiss.onPointerDown}
+      onPointerUp={overlayDismiss.onPointerUp}
+      onPointerCancel={overlayDismiss.onPointerCancel}
     >
       <div
         className="provider-editor-modal"
-        onClick={(event) => event.stopPropagation()}
         data-testid="provider-drawer"
         role="dialog"
         aria-modal="true"

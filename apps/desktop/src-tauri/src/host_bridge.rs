@@ -429,12 +429,19 @@ fn host_start_blocking(
 
     let mut command = Command::new(&program);
 
-    // Force dev and packaged builds to use the same user-level config root.
-    // Tauri-hosted apps can inherit a different effective home from the shell;
-    // setting PIWIN_ROOT explicitly keeps ~/.piwin consistent for both modes.
-    if let Ok(home) = std::env::var("HOME") {
-        let piwin_root = std::path::PathBuf::from(home).join(".piwin");
+    // Force packaged builds to own ~/.piwin; in dev mode allow PIWIN_ROOT override.
+    if tier != HostCommandTier::Packaged && std::env::var("PIWIN_ROOT").is_ok() {
+        if let Ok(env_root) = std::env::var("PIWIN_ROOT") {
+            command.env("PIWIN_ROOT", env_root);
+        }
+    } else if let Ok(home) = app.path().home_dir() {
+        let piwin_root = home.join(".piwin");
         command.env("PIWIN_ROOT", piwin_root.as_os_str());
+    }
+    if tier == HostCommandTier::Packaged {
+        // The bundled Host must ignore a launcher environment such as
+        // PIWIN_ROOT=~/.piwin-test and always own the user's default root.
+        command.env("PIWIN_DESKTOP_BUNDLED", "1");
     }
 
     command

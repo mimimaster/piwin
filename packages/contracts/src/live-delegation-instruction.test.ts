@@ -14,6 +14,9 @@ import {
 } from './live-delegation-instruction.js';
 
 describe('sanitizeLiveDelegationInstruction', () => {
+  it('preserves bracketed task data and negative constraints', () => {
+    expect(sanitizeLiveDelegationInstruction('不要[删除文件]，只分析 src/[id].ts')).toBe('不要[删除文件]，只分析 src/[id].ts');
+  });
   it('drops throat-clear ASR tags and leftover filler', () => {
     expect(sanitizeLiveDelegationInstruction('[clear throat] 噢。')).toBeNull();
     expect(sanitizeLiveDelegationInstruction('[laughter]')).toBeNull();
@@ -53,8 +56,8 @@ describe('spoken contracts', () => {
     expect(PIWIN_LIVE_INSTRUCTIONS).toContain('live delegation channel');
     expect(PIWIN_LIVE_INSTRUCTIONS).not.toContain('<');
     expect(composeLiveSpokenInstructions('tool-handover')).toContain('delegate_to_work_session');
-    expect(PIWIN_LIVE_DELEGATE_TOOL_DESCRIPTION).toContain('Summarized work brief');
-    expect(PIWIN_LIVE_DELEGATE_INSTRUCTION_DESCRIPTION).toContain('Never a verbatim transcript');
+    expect(PIWIN_LIVE_DELEGATE_TOOL_DESCRIPTION).toContain('not permission to execute');
+    expect(PIWIN_LIVE_DELEGATE_INSTRUCTION_DESCRIPTION).toContain('preserving negations and uncertainty');
   });
 });
 

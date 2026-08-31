@@ -78,14 +78,18 @@ function fenceMarkerRun(
 
 function buildOrdinalMap(
   fences: readonly ArtifactFenceRecord[],
-  shiftAfter: number,
-  shiftBy: number,
+  insertions: readonly { offset: number; text: string }[],
 ): Map<number, number> {
   const map = new Map<number, number>();
+  let insertionIndex = 0;
+  let shift = 0;
   for (const fence of fences) {
-    const projectedStart =
-      fence.startOffset > shiftAfter ? fence.startOffset + shiftBy : fence.startOffset;
-    map.set(projectedStart, fence.ordinal);
+    let insertion = insertions[insertionIndex];
+    while (insertion && insertion.offset <= fence.startOffset) {
+      shift += insertion.text.length;
+      insertion = insertions[++insertionIndex];
+    }
+    map.set(fence.startOffset + shift, fence.ordinal);
   }
   return map;
 }
@@ -100,51 +104,44 @@ export function projectArtifactMarkdownForRender(
   done: boolean,
 ): ArtifactMarkdownProjection {
   const fences = indexArtifactFences(rawMarkdown);
-  if (done) {
-    return {
-      markdown: rawMarkdown,
-      fences,
-      ordinalByProjectedStartOffset: buildOrdinalMap(fences, rawMarkdown.length, 0),
-    };
-  }
+  const insertions = fences.flatMap((fence) => fence.recoveredOpening
+    ? [{ offset: fence.startOffset, text: '\n\n' }] : []);
+  const openFence = done ? undefined : fences.find((fence) => fence.open && isProjectableStreamingFence(fence.info));
 
-  const openFence = fences.find((fence) => fence.open);
-  if (!openFence || !isProjectableStreamingFence(openFence.info)) {
-    return {
-      markdown: rawMarkdown,
-      fences,
-      ordinalByProjectedStartOffset: buildOrdinalMap(fences, rawMarkdown.length, 0),
-    };
-  }
-
-  let markdown = rawMarkdown;
-  let shiftAfter = rawMarkdown.length;
-  let shiftBy = 0;
-
-  if (isNativeArtifactLanguage(openFence.info)) {
-    const insertAt = openingLineInsertOffset(markdown, openFence.startOffset);
-    const openingLine = markdown.slice(
-      lineStartOffset(markdown, openFence.startOffset),
+  if (openFence && isNativeArtifactLanguage(openFence.info)) {
+    const insertAt = openingLineInsertOffset(rawMarkdown, openFence.startOffset);
+    const openingLine = rawMarkdown.slice(
+      lineStartOffset(rawMarkdown, openFence.startOffset),
       insertAt,
     );
     if (!openingLine.includes(STREAMING_ARTIFACT_FENCE_MARKER)) {
       const insertion = ` ${STREAMING_ARTIFACT_FENCE_MARKER}`;
-      markdown = markdown.slice(0, insertAt) + insertion + markdown.slice(insertAt);
-      shiftAfter = insertAt;
-      shiftBy = insertion.length;
+      insertions.push({ offset: insertAt, text: insertion });
     }
   }
 
-  const { char, length } = fenceMarkerRun(rawMarkdown, openFence.startOffset);
-  const prefix = blockquotePrefixBeforeFence(rawMarkdown, openFence.startOffset);
-  const closer = `${prefix}${char.repeat(length)}`;
-  markdown = markdown.endsWith('\n') || markdown.endsWith('\r')
-    ? `${markdown}${closer}`
-    : `${markdown}\n${closer}`;
+  // Index order is ascending; the optional open-fence marker comes last.
+  // Assemble once, keeping raw offsets intact even for many artifacts.
+  const parts: string[] = [];
+  let copiedTo = 0;
+  for (const insertion of insertions) {
+    parts.push(rawMarkdown.slice(copiedTo, insertion.offset), insertion.text);
+    copiedTo = insertion.offset;
+  }
+  parts.push(rawMarkdown.slice(copiedTo));
+  let markdown = parts.join('');
+  if (openFence) {
+    const { char, length } = fenceMarkerRun(rawMarkdown, openFence.startOffset);
+    const prefix = blockquotePrefixBeforeFence(rawMarkdown, openFence.startOffset);
+    const closer = `${prefix}${char.repeat(length)}`;
+    markdown = markdown.endsWith('\n') || markdown.endsWith('\r')
+      ? `${markdown}${closer}`
+      : `${markdown}\n${closer}`;
+  }
 
   return {
     markdown,
     fences,
-    ordinalByProjectedStartOffset: buildOrdinalMap(fences, shiftAfter, shiftBy),
+    ordinalByProjectedStartOffset: buildOrdinalMap(fences, insertions),
   };
 }

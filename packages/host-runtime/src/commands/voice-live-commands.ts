@@ -20,6 +20,7 @@ const TYPES = new Set<HostCommand['type']>([
   'voice/live/apply-settings',
   'voice/live/set-provider-key',
   'voice/live/start',
+  'voice/live/rebind',
   'voice/live/media-state',
   'voice/live/set-muted',
   'voice/live/end',
@@ -97,6 +98,20 @@ export async function handleVoiceLiveCommand(
     }
     const { ok: _ok, ...data } = result;
     return ok(requestId, command.type, data);
+  }
+
+  if (command.type === 'voice/live/rebind') {
+    const ownerDeviceId = context.resolveOwnerDeviceId?.() ?? 'local';
+    const result = await coordinator.rebind({
+      sessionId: command.input.sessionId,
+      callId: command.input.callId,
+      ownerDeviceId,
+      ...(command.input.expectedRevision !== undefined
+        ? { expectedRevision: command.input.expectedRevision }
+        : {}),
+    });
+    if (!result.ok) return fail(requestId, command.type, result.errorCode);
+    return ok(requestId, command.type, { call: result.call });
   }
 
   if (command.type === 'voice/live/set-muted') {

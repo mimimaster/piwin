@@ -189,3 +189,168 @@ describe('useSessionResume selection guard', () => {
     );
   });
 });
+
+describe('useSessionResume continue-in-project', () => {
+  let root: Root | null = null;
+  let container: HTMLDivElement | null = null;
+
+  afterEach(() => {
+    act(() => root?.unmount());
+    container?.remove();
+    root = null;
+    container = null;
+  });
+
+  const projectPath = '/Volumes/BigDisk/Projects/Projects/piwin';
+  const continuedId = 'session-continued';
+
+  function projectResumeData(sessionId: string) {
+    return {
+      sessionId,
+      live: false,
+      scope: { kind: 'project' as const, projectPath },
+      name: 'Continued session',
+      messages: [
+        {
+          id: 'm1',
+          role: 'user' as const,
+          text: 'hello',
+          createdAt: '2026-08-31T12:00:00.000Z',
+          status: 'done' as const,
+        },
+      ],
+    };
+  }
+
+  function renderContinueHook(input: {
+    hostClient: HostClient;
+    dispatch?: ReturnType<typeof vi.fn>;
+  }): { latest: () => ResumeHook; dispatch: ReturnType<typeof vi.fn> } {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const dispatch = input.dispatch ?? vi.fn();
+    const hydrateSessions = vi.fn(async () => []);
+    const state: ChatUiState = {
+      ...createInitialChatUiState(),
+      activeScope: { kind: 'general' },
+      generalSessions: [sessionItem('session-old')],
+      sessions: [sessionItem('session-old')],
+    };
+    let captured: ResumeHook | undefined;
+    function Harness(): null {
+      captured = useSessionResume({
+        hostClient: input.hostClient,
+        state,
+        dispatch: dispatch as (action: ChatUiAction) => void,
+        dispatchNotification: vi.fn(),
+        locale: 'en',
+        showArchivedSessions: false,
+        hydrateSessions,
+      });
+      return null;
+    }
+    act(() => {
+      root?.render(<Harness />);
+    });
+    return {
+      dispatch,
+      latest: () => {
+        if (captured === undefined) {
+          throw new Error('useSessionResume was not rendered');
+        }
+        return captured;
+      },
+    };
+  }
+
+  function liveHost(
+    request: (command: HostCommand) => Promise<HostResponse>,
+  ): HostClient {
+    return {
+      getHostInstanceId: () => 'host-1',
+      getTransport: () => 'live',
+      isReady: () => true,
+      request,
+    } as unknown as HostClient;
+  }
+
+  it('activates the destination project before resume and sets the session once', async () => {
+    const commands: string[] = [];
+    const hostClient = liveHost(async (command) => {
+      commands.push(command.type);
+      if (command.type === 'project/open') {
+        return ok(command, { path: projectPath, trusted: true, trust: 'trusted' });
+      }
+      if (command.type === 'session/resume') {
+        return ok(command, projectResumeData(continuedId));
+      }
+      if (command.type === 'session/queued-turn-list') {
+        return ok(command, { queueRevision: 0, queuedTurns: [] });
+      }
+      if (command.type === 'session/list-children') {
+        return ok(command, { sessions: [], invocations: [] });
+      }
+      return ok(command);
+    });
+    const { latest, dispatch } = renderContinueHook({ hostClient });
+
+    await act(async () => {
+      await latest().handleResumeSession(continuedId, {
+        scope: { kind: 'project', projectPath },
+      });
+    });
+
+    expect(commands.indexOf('project/open')).toBeGreaterThanOrEqual(0);
+    expect(commands.indexOf('project/open')).toBeLessThan(commands.indexOf('session/resume'));
+    const sessionSets = dispatch.mock.calls.filter(
+      (call) => (call[0] as ChatUiAction).type === 'session/set',
+    );
+    expect(sessionSets).toHaveLength(1);
+    expect(sessionSets[0]?.[0]).toEqual({
+      type: 'session/set',
+      sessionId: continuedId,
+      awaitTranscript: true,
+    });
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'project/set', path: projectPath, trusted: true }),
+    );
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'session/load-messages',
+        sessionId: continuedId,
+      }),
+    );
+  });
+
+  it('does not re-set the same session after discovering project scope from resume', async () => {
+    const hostClient = liveHost(async (command) => {
+      if (command.type === 'project/open') {
+        return ok(command, { path: projectPath, trusted: true, trust: 'trusted' });
+      }
+      if (command.type === 'session/resume') {
+        return ok(command, projectResumeData(continuedId));
+      }
+      if (command.type === 'session/queued-turn-list') {
+        return ok(command, { queueRevision: 0, queuedTurns: [] });
+      }
+      if (command.type === 'session/list-children') {
+        return ok(command, { sessions: [], invocations: [] });
+      }
+      return ok(command);
+    });
+    const { latest, dispatch } = renderContinueHook({ hostClient });
+
+    await act(async () => {
+      await latest().handleResumeSession(continuedId);
+    });
+
+    const sessionSets = dispatch.mock.calls.filter(
+      (call) => (call[0] as ChatUiAction).type === 'session/set',
+    );
+    expect(sessionSets).toHaveLength(1);
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'project/set', path: projectPath, trusted: true }),
+    );
+  });
+});

@@ -1,3 +1,4 @@
+import os from 'node:os';
 import path from 'node:path';
 import type {
   HostCommand,
@@ -67,6 +68,9 @@ export function projectRemoteResponse(
   }
   if (command.type === 'host/status') {
     return { ...response, data: projectRemoteStatusData(response.data, context) };
+  }
+  if (command.type === 'host/list-dir') {
+    return response;
   }
   if (command.type === 'activity/summary') {
     return { ...response, data: readActivitySummaryData(response.data) };
@@ -265,6 +269,8 @@ export function createRemoteCapabilities(
     activityHydration: true,
     liveSubscriptions: true,
     flashcardStudy: true,
+    hostListDir: true,
+    homeDirectory: os.homedir(),
   };
 }
 
@@ -488,31 +494,47 @@ const REMOTE_SECRET_KEYS = new Set([
   'ephemeralToken',
 ]);
 
-const REMOTE_SETTINGS_OMITTED_KEYS = new Set([
-  ...REMOTE_SECRET_KEYS,
-  ...REMOTE_PATH_KEYS,
+/**
+ * Settings fields the shell must be able to read and write back to Host.
+ * Secrets stay redacted; pairing (`remote`) stays off this projection.
+ */
+const REMOTE_SETTINGS_SHELL_EDITABLE_KEYS = new Set([
   'args',
-  'authToken',
   'command',
-  'deviceSecret',
   'directory',
   'entryPath',
   'extraPaths',
   'fetchApiKeyEnv',
-  'headers',
-  'outputPath',
-  'packPath',
-  'remote',
-  'root',
   'searchApiKeyEnv',
-  'secretRef',
-  'tokenRef',
 ]);
 
+const REMOTE_SETTINGS_OMITTED_KEYS = new Set(
+  [
+    ...REMOTE_SECRET_KEYS,
+    ...REMOTE_PATH_KEYS,
+    'args',
+    'authToken',
+    'command',
+    'deviceSecret',
+    'directory',
+    'entryPath',
+    'extraPaths',
+    'fetchApiKeyEnv',
+    'headers',
+    'outputPath',
+    'packPath',
+    'remote',
+    'root',
+    'searchApiKeyEnv',
+    'secretRef',
+    'tokenRef',
+  ].filter((key) => !REMOTE_SETTINGS_SHELL_EDITABLE_KEYS.has(key)),
+);
+
 /**
- * Remote Settings is a read-only projection: enough product configuration to
- * render Desktop pages, without Host paths, secret refs, headers, or client
- * restore credentials.
+ * Remote Settings projection for Desktop/mobile shells. Secrets and pairing
+ * credentials stay redacted. User-editable Host fields (CLI launchers, extra
+ * skill paths, env var names) pass through so the shell can change them.
  */
 export function projectRemoteSettingsData(data: unknown): unknown {
   const record = asRecord(data);
@@ -574,12 +596,15 @@ function projectRemoteSettingsValue(value: unknown, key: string | undefined, dep
     return undefined;
   }
   if (typeof value === 'string') {
+    if (key !== undefined && REMOTE_SETTINGS_SHELL_EDITABLE_KEYS.has(key)) {
+      return boundedString(value, 32_000);
+    }
     return boundedString(redactRemoteHostPaths(value), 32_000);
   }
   if (Array.isArray(value)) {
     return value
       .slice(0, 128)
-      .map((item) => projectRemoteSettingsValue(item, undefined, depth + 1))
+      .map((item) => projectRemoteSettingsValue(item, key, depth + 1))
       .filter((item) => item !== undefined);
   }
   const record = asRecord(value);

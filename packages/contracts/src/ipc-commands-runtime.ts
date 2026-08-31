@@ -7,6 +7,7 @@ import type { SearchRoutePreviewInput, WebSearchTestInput } from './web.js';
 export type HostRuntimeCommand =
   | { id?: string; type: 'host/ping' }
   | { id?: string; type: 'host/status' }
+  | { id?: string; type: 'host/list-dir'; path?: string; includeHidden?: boolean }
   | {
       id?: string;
       /** ADR 0040 §8: query-only aggregate residency/resource metrics. */

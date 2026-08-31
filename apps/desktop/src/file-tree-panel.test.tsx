@@ -294,6 +294,57 @@ describe('FileTreePanel', () => {
     expect(queryByTestId('file-tree-preview')?.textContent).not.toContain('binary');
   });
 
+  it('shows a centered unsupported-format state for installers', async () => {
+    const request = vi.fn(async (cmd: FileTreeRequest): Promise<HostResponse> => {
+      if (cmd.type === 'project/list-dir') {
+        return okList([{ name: 'Setup.dmg', relativePath: 'Setup.dmg', kind: 'file' }]);
+      }
+      if (cmd.type === 'project/read-file') {
+        return {
+          id: '2',
+          type: 'response',
+          command: 'project/read-file',
+          success: true,
+          data: {
+            projectPath: '/proj',
+            relativePath: 'Setup.dmg',
+            absolutePath: '/proj/Setup.dmg',
+            content: '',
+            byteSize: 80 * 1024 * 1024,
+            truncated: false,
+            isBinary: true,
+            mimeHint: 'application/octet-stream',
+          },
+        };
+      }
+      return {
+        id: '1',
+        type: 'response',
+        command: cmd.type,
+        success: false,
+        error: 'unexpected command',
+      };
+    });
+
+    renderPanel({ request });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    const installerRow = Array.from(document.querySelectorAll<HTMLElement>('.file-tree-row')).find(
+      (row) => row.textContent?.includes('Setup.dmg'),
+    );
+    await act(async () => {
+      installerRow?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const state = queryByTestId('file-tree-preview-binary');
+    expect(state).not.toBeNull();
+    expect(state?.textContent).toContain('无法预览此文件');
+    expect(state?.textContent).toContain('不支持预览 .dmg 文件');
+    expect(state?.textContent).not.toContain('二进制');
+  });
+
   it('filters visible names by query', async () => {
     const request = vi.fn(async (cmd: FileTreeRequest): Promise<HostResponse> => {
       if (cmd.type === 'project/list-dir') {

@@ -31,6 +31,7 @@ import {
   configFromSettingsWriteResponse,
   interpretSettingsLoadResponse,
   knowledgeWriteRetained,
+  providerListWriteRetained,
 } from './settings/settings-view-config';
 import { SettingsShell } from './settings/settings-shell';
 import type { SettingsConfigRequest, SettingsContextValue } from './settings/settings-context';
@@ -251,6 +252,14 @@ export const SettingsPanel = memo(function SettingsPanel({
             locale === 'zh-CN'
               ? '当前 Host 没有保存重排 / 解析 / 专用模型。更新并重启 Host 后再保存，表单先留着。'
               : 'This Host did not persist reranker, parsers, or dedicated models. Update and restart the Host, then save again. Your form was kept.',
+          );
+          return false;
+        }
+        if (!providerListWriteRetained(next, stored)) {
+          setError(
+            locale === 'zh-CN'
+              ? '当前 Host 没有按提交保存提供商列表。更新并重启 Host 后再保存。'
+              : 'This Host did not persist the provider list you submitted. Update and restart the Host, then save again.',
           );
           return false;
         }

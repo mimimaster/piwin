@@ -1,5 +1,5 @@
 import { useState, type ReactElement } from 'react';
-import { DropdownMenu, DropdownMenuItem, FileTypeIcon, IconButton } from '@piwin/ui-kit';
+import { DropdownMenu, DropdownMenuItem, EmptyState, FileTypeIcon, IconButton } from '@piwin/ui-kit';
 import {
   IconBook,
   IconChat,
@@ -18,6 +18,7 @@ import type { DocumentProvenance } from './active-document';
 import { provenanceLabel } from './active-document';
 import type { ArtifactThemeVariables } from '@piwin/artifact';
 import { MarkupPreviewView, markupPreviewKind } from './markup-preview-view';
+import { PreviewUnavailable } from './PreviewUnavailable';
 
 /** Markdown / plaintext files render through the enhanced Markdown viewer.
  *  HTML/SVG render visually. Everything else renders as code with line numbers. */
@@ -49,6 +50,8 @@ export type DocPreviewPanelProps = {
   skillSource?: string | undefined;
   unavailableReason?: string | undefined;
   suggestion?: string | undefined;
+  byteSize?: number | undefined;
+  maxBytes?: number | undefined;
   /** Trusted-domain preview badge (ADR 0052 Slice 3). */
   readOnly?: boolean | undefined;
   sessionDocuments?: SessionDocItem[] | undefined;
@@ -76,7 +79,8 @@ export function DocPreviewPanel({
   skillId,
   skillSource,
   unavailableReason,
-  suggestion,
+  byteSize,
+  maxBytes,
   readOnly = false,
   sessionDocuments,
   onSelectDocument,
@@ -277,31 +281,20 @@ export function DocPreviewPanel({
 
         <div className="doc-preview-body">
           {status === 'loading' ? (
-            <div className="doc-preview-state" data-testid="doc-preview-state-loading">
-              {locale === 'zh-CN' ? '正在加载文档…' : 'Loading document…'}
+            <div className="preview-unavailable" data-testid="doc-preview-state-loading">
+              <EmptyState
+                title={locale === 'zh-CN' ? '正在加载预览…' : 'Loading preview…'}
+              />
             </div>
           ) : status === 'unavailable' ? (
-            <div className="doc-preview-state" data-testid="doc-preview-state-unavailable">
-              <p className="doc-preview-state-title">
-                {locale === 'zh-CN' ? '无法预览' : 'Unavailable'}
-              </p>
-              {unavailableReason ? (
-                <p>
-                  {locale === 'zh-CN' ? '原因' : 'Reason'}: <code>{unavailableReason}</code>
-                </p>
-              ) : null}
-              {displayRef ? (
-                <p>
-                  {locale === 'zh-CN' ? '引用' : 'Ref'}: <code>{displayRef}</code>
-                </p>
-              ) : null}
-              {suggestion ? <p>{suggestion}</p> : null}
-              {filePath ? (
-                <p>
-                  {locale === 'zh-CN' ? '路径' : 'Path'}: <code>{filePath}</code>
-                </p>
-              ) : null}
-            </div>
+            <PreviewUnavailable
+              reason={unavailableReason || 'unavailable'}
+              locale={locale}
+              fileName={targetPath}
+              {...(byteSize !== undefined ? { byteSize } : {})}
+              {...(maxBytes !== undefined ? { maxBytes } : {})}
+              testId="doc-preview-state-unavailable"
+            />
           ) : (
             <>
               {warning ? (

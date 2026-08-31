@@ -1,3 +1,5 @@
+import type { LiveDelegationContext } from '@piwin/contracts';
+
 const LIVE_DELEGATION_LEDGER_MAX = 64;
 
 export type LiveDelegationRecord = {
@@ -9,12 +11,33 @@ export type LiveDelegationRecord = {
   runId?: string;
   admission: 'accepted' | 'rejected';
   resultDelivered: boolean;
+  brief?: string;
+  result?: string;
+  status?: LiveDelegationContext['status'];
 };
 
 export class LiveDelegationLedger {
   private readonly records: LiveDelegationRecord[] = [];
 
   hasCapacity(): boolean { return this.records.length < LIVE_DELEGATION_LEDGER_MAX; }
+
+  context(): LiveDelegationContext[] {
+    return this.contextForSession();
+  }
+
+  contextForSession(sessionId?: string): LiveDelegationContext[] {
+    return this.records.flatMap((record) => {
+      if (sessionId && record.sessionId !== sessionId) return [];
+      return record.brief
+        ? [{
+            delegationId: record.providerDelegationId,
+            brief: record.brief,
+            status: record.status ?? 'working',
+            ...(record.result ? { result: record.result } : {}),
+          }]
+        : [];
+    }).slice(-12);
+  }
 
   remember(record: LiveDelegationRecord): { ok: true } | { ok: false; reason: 'full' } {
     if (this.records.length >= LIVE_DELEGATION_LEDGER_MAX) return { ok: false, reason: 'full' };

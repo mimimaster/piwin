@@ -77,6 +77,7 @@
 @import './styles/usage-panel.css';
 @import './styles/region-session-search.css';
 @import './styles/region-overlays.css';
+@import './styles/host-workspace-picker.css';
 @import './styles/subagent-session-inspector.css';
 @import './styles/goal.css';
 /* Memory-governor degradation overlay. Cross-cutting override layer, not a

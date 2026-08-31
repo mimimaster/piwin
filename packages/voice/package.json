@@ -10,6 +10,11 @@
       "types": "./src/index.ts",
       "import": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./wire": {
+      "types": "./src/live-client-wire.ts",
+      "import": "./src/live-client-wire.ts",
+      "default": "./src/live-client-wire.ts"
     }
   },
   "scripts": {

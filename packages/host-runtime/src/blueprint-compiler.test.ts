@@ -23,6 +23,7 @@ import { toolFamilyIndex } from './tools/tool-family-index.js';
 import type { McpCapabilityBrief } from './mcp-capability-brief.js';
 import { buildHostToolboxDescriptor } from './tool-catalog/catalog-tool.js';
 import { createSettingsSnapshot } from './settings/settings-service.js';
+import { createExternalSearchWebConfig } from './blueprint-compiler-test-fixtures.js';
 
 function createConfig(overrides?: Partial<PiwinConfig>): PiwinConfig {
   return {
@@ -44,7 +45,7 @@ function createConfig(overrides?: Partial<PiwinConfig>): PiwinConfig {
       decisionPrompt: { mode: 'default', customPrompt: '' },
       maxBytes: 100_000,
     },
-    web: createDefaultWebConfig(),
+    web: createExternalSearchWebConfig(),
     skills: { extraPaths: [], disabledIds: [] },
     extensions: { extraPaths: [], disabledIds: [] },
     prompts: { extraPaths: [], disabledIds: [] },
@@ -1091,7 +1092,7 @@ describe('compileBlueprintForWorker', () => {
 
   describe('search route resolution', () => {
     it('selects native search and hides the external web_search tool when the policy is native-first', async () => {
-      const web = { ...createDefaultWebConfig(), searchRoutePolicy: 'native-first' as const };
+      const web = createExternalSearchWebConfig('native-first');
       const webSearchDescriptor = {
         name: 'web_search',
         description: 'Search the web',
@@ -1144,7 +1145,7 @@ describe('compileBlueprintForWorker', () => {
     });
 
     it('falls back to external search when the model declares a vendor-specific native adapter (native-first)', async () => {
-      const web = { ...createDefaultWebConfig(), searchRoutePolicy: 'native-first' as const };
+      const web = createExternalSearchWebConfig('native-first');
       const webSearchDescriptor = {
         name: 'web_search',
         description: 'Search the web',
@@ -1201,7 +1202,7 @@ describe('compileBlueprintForWorker', () => {
     });
 
     it('selects external search and keeps web_search when the model has native search and the policy is external-only', async () => {
-      const web = { ...createDefaultWebConfig(), searchRoutePolicy: 'external-only' as const };
+      const web = createExternalSearchWebConfig('external-only');
       const webSearchDescriptor = {
         name: 'web_search',
         description: 'Search the web',
@@ -1323,7 +1324,7 @@ describe('compileBlueprintForWorker', () => {
     });
 
     it('keeps the policy-selected external outlet for side chat', async () => {
-      const web = { ...createDefaultWebConfig(), searchRoutePolicy: 'external-only' as const };
+      const web = createExternalSearchWebConfig('external-only');
       const webSearchDescriptor = {
         name: 'web_search',
         description: 'Search the web',

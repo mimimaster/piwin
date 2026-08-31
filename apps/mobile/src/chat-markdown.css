@@ -13,6 +13,18 @@
   margin-bottom: 0;
 }
 
+.mobile-markdown-root .mobile-markdown-strong,
+.mobile-markdown-root strong {
+  color: var(--text-strong);
+  font-weight: 700;
+}
+
+.mobile-markdown-root .mobile-markdown-em,
+.mobile-markdown-root em {
+  color: var(--text);
+  font-style: italic;
+}
+
 .mobile-markdown-root h1,
 .mobile-markdown-root h2,
 .mobile-markdown-root h3,

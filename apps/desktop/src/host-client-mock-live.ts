@@ -32,6 +32,7 @@ export function handleMockLiveCommand(input: {
     command.type !== 'voice/live/apply-settings' &&
     command.type !== 'voice/live/set-provider-key' &&
     command.type !== 'voice/live/start' &&
+    command.type !== 'voice/live/rebind' &&
     command.type !== 'voice/live/media-state' &&
     command.type !== 'voice/live/set-muted' &&
     command.type !== 'voice/live/end' &&
@@ -107,6 +108,24 @@ export function handleMockLiveCommand(input: {
       call,
       bootstrap: { mediaDriverId: 'codex-webrtc-v1', answerSdp },
     });
+  }
+
+  if (command.type === 'voice/live/rebind') {
+    if (!input.slot || input.slot.call.callId !== command.input.callId) {
+      return fail(id, command.type, 'live-session-unavailable');
+    }
+    const nextActivity =
+      input.slot.call.activity === 'agent-working' ? 'listening' : input.slot.call.activity;
+    const call: LiveCallView = {
+      ...input.slot.call,
+      revision: input.slot.call.revision + 1,
+      boundSessionId: command.input.sessionId,
+      boundSessionLabel: command.input.sessionId,
+      ...(nextActivity ? { activity: nextActivity } : {}),
+    };
+    input.setSlot({ ...input.slot, call });
+    input.emitPush({ type: 'voice/live-updated', call });
+    return ok(id, command.type, { call });
   }
 
   if (command.type === 'voice/live/set-muted') {

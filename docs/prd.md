@@ -90,6 +90,12 @@ public HostClient/contracts surface; only the Host composition reaches
 | AW-07 | Model + thinking level controls | P0 |
 | AW-08 | Abort / Steer / Follow-up | P1 |
 
+**Pause/send clarification (2026-09-01):** Pausing stops the current turn,
+not future user input. Sending text or attachments after pause starts a new
+turn in the same conversation and records the complete user message. Only
+explicit Continue resumes the checkpoint. Desktop keeps one action slot:
+empty paused composer → Continue; nonempty → Send. See ADR 0042.
+
 **Layer model**
 
 ```text

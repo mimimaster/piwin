@@ -25,6 +25,7 @@ export type LiveCallTransition =
   | { type: 'set-activity'; activity: LiveCallActivity }
   | { type: 'reconnect' }
   | { type: 'reconnected' }
+  | { type: 'retarget' }
   | { type: 'end'; errorCode?: LiveCallErrorCode }
   | { type: 'fail'; errorCode: LiveCallErrorCode };
 
@@ -60,6 +61,13 @@ export function transitionLiveCall(
         ...state,
         phase: 'active',
         activity: state.activity ?? 'listening',
+        revision: state.revision + 1,
+      };
+    case 'retarget':
+      if (state.phase === 'ended' || state.phase === 'failed') return null;
+      return {
+        ...state,
+        activity: state.activity === 'agent-working' ? 'listening' : state.activity,
         revision: state.revision + 1,
       };
     case 'end':

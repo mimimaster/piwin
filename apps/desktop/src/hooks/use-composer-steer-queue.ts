@@ -314,6 +314,15 @@ export function useComposerSteerQueue(params: UseComposerSteerQueueArgs) {
         notifyError(attachmentCopy.steerUnavailable);
         return;
       }
+      const reserved = parseComposerSlashSubmit(target.input.text, []);
+      if (reserved.kind === 'command' && reserved.commandId === 'stop') {
+        await args.onAbort?.();
+        return;
+      }
+      if (reserved.kind === 'command' && reserved.commandId === 'compact') {
+        await args.onCompact?.(normalizeCompactCustomInstructions(reserved.args));
+        return;
+      }
       if ((target.input.attachments?.length ?? 0) > 0 || (target.input.contextRefs?.length ?? 0) > 0) {
         notifyError('带附件或上下文引用的消息暂不支持调整为当前任务');
         return;

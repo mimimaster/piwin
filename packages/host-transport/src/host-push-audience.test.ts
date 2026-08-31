@@ -41,21 +41,54 @@ describe('classifyHostPushAudience', () => {
       sessionId: 's-a',
       event: { type: 'message/end', messageId: 'm1' },
     };
-    const run: HostPushVariant = {
-      type: 'run/updated',
-      run: {
-        runId: 'run-1',
-        kind: 'session-turn',
-        status: 'running',
-        rootRunId: 'run-1',
-        sessionId: 's-a',
-      },
-    };
     expect(classifyHostPushAudience(transcript)).toEqual({ kind: 'session', sessionId: 's-a' });
     expect(classifyHostPushAudience(event)).toEqual({ kind: 'session', sessionId: 's-a' });
-    expect(classifyHostPushAudience(run)).toEqual({ kind: 'session', sessionId: 's-a' });
     expect(classifyHostPush(transcript).kind).toBe('append');
   });
+
+  it.each(['run/updated', 'run/terminal'] as const)(
+    'delivers session-turn %s without a transcript subscription',
+    (type) => {
+      for (const status of [
+        'queued',
+        'running',
+        'cancelling',
+        'completed',
+        'failed',
+        'cancelled',
+        'interrupted',
+      ] as const) {
+        const push: HostPushVariant = {
+          type,
+          run: {
+            runId: 'run-a',
+            rootRunId: 'run-a',
+            sessionId: 's-a',
+            kind: 'session-turn',
+            status,
+          },
+        };
+        const audience = classifyHostPushAudience(push);
+        expect(audience).toEqual({ kind: 'global' });
+        expect(hostPushPassesLiveFilter(audience, { sessionIds: new Set(['s-b']) })).toBe(true);
+        expect(hostPushPassesLiveFilter(audience, { sessionIds: new Set() })).toBe(true);
+      }
+    },
+  );
+
+  it.each(['plan-execution', 'subagent-batch', 'subagent-task'] as const)(
+    'keeps internal %s run notifications session-scoped',
+    (kind) => {
+      for (const type of ['run/updated', 'run/terminal'] as const) {
+        const audience = classifyHostPushAudience({
+          type,
+          run: { runId: 'child', rootRunId: 'run-a', sessionId: 's-a', kind, status: 'completed' },
+        });
+        expect(audience).toEqual({ kind: 'session', sessionId: 's-a' });
+        expect(hostPushPassesLiveFilter(audience, { sessionIds: new Set(['s-b']) })).toBe(false);
+      }
+    },
+  );
 
   it('classifies workspace-scoped turn-change pushes as global', () => {
     expect(

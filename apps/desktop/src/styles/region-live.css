@@ -89,6 +89,17 @@
   --live-glow: rgba(255, 95, 86, 0.35);
 }
 
+.live-bar-session {
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-2, #a1a1aa);
+  font-size: 12px;
+  line-height: 1.2;
+  padding-right: 2px;
+}
+
 .live-bar-error-copy {
   max-width: min(28rem, 55vw);
   padding-block: 8px;

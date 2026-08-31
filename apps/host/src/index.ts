@@ -27,13 +27,14 @@ const allowRemoteExtensionActivation = process.env.PIWIN_HOST_ALLOW_EXTENSION_AC
 const hostBuildId = process.env.PIWIN_HOST_BUILD_ID?.trim() || '0.0.0-dev';
 const minClientVersion = process.env.PIWIN_HOST_MIN_CLIENT_VERSION?.trim() || undefined;
 const allowCleartext = process.env.PIWIN_HOST_ALLOW_CLEARTEXT === '1';
+const piwinRoot = resolvePiwinRoot();
 
 const agentWorkerScript = resolveAgentWorkerScript();
-const clientToolBroker = await createDeviceToolBrokerForHost(resolvePiwinRoot());
+const clientToolBroker = await createDeviceToolBrokerForHost(piwinRoot);
 const runtime = new HostRuntime({
   mode,
   mock,
-  ...(process.env.PIWIN_ROOT === undefined ? {} : { piwinRoot: process.env.PIWIN_ROOT }),
+  piwinRoot,
   ...(agentWorkerScript === undefined ? {} : { agentWorkerScript }),
   ...(clientToolBroker === undefined ? {} : { clientToolExecution: clientToolBroker }),
 });
@@ -51,7 +52,7 @@ if (pairingEnabled) {
     throw error;
   }
   const pairing = new HostDevicePairing();
-  const store = new HostDevicePairingFileStore(join(resolvePiwinRoot(), 'devices', 'pairing.json'));
+  const store = new HostDevicePairingFileStore(join(piwinRoot, 'devices', 'pairing.json'));
   try {
     await store.load(pairing);
   } catch (error) {
@@ -163,6 +164,11 @@ function isLoopbackBind(bindHost: string): boolean {
 }
 
 function resolvePiwinRoot(): string {
+  // The bundled Desktop is the user's local all-in-one Host. It must never
+  // inherit a test root from the shell that launched the app.
+  if (process.env.PIWIN_DESKTOP_BUNDLED === '1') {
+    return join(homedir(), '.piwin');
+  }
   const override = process.env.PIWIN_ROOT?.trim();
   if (override !== undefined && override.length > 0) {
     return override;

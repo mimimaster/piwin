@@ -94,6 +94,7 @@ type ProbeProps = {
   runLive: boolean;
   hostReady?: boolean;
   catchUpEpoch?: number;
+  foregroundAdmission?: 'unknown' | 'reconciling' | 'ready';
 };
 
 function mountProbe(
@@ -117,6 +118,9 @@ function mountProbe(
       runLive: probeProps.runLive,
       ...(probeProps.hostReady === undefined ? {} : { hostReady: probeProps.hostReady }),
       ...(probeProps.catchUpEpoch === undefined ? {} : { catchUpEpoch: probeProps.catchUpEpoch }),
+      ...(probeProps.foregroundAdmission === undefined
+        ? {}
+        : { foregroundAdmission: probeProps.foregroundAdmission }),
     });
     return null;
   }
@@ -425,6 +429,51 @@ describe('useRunReconcile', () => {
         .filter((action) => action.type === 'foreground/admission')
         .map((action) => (action.type === 'foreground/admission' ? action.admission : undefined)),
     ).toEqual(['reconciling', 'unknown', 'reconciling', 'ready']);
+    root.unmount();
+    container.remove();
+  });
+
+  it('re-admits when the same session returns to reconciling', async () => {
+    const fake = new FakeHostClient();
+    fake.scriptForegroundRun({ kind: 'run', run: null });
+    const actions: ChatUiAction[] = [];
+    const props = {
+      activeSessionId: 'session-1',
+      activeRunId: null,
+      runLive: false,
+      foregroundAdmission: 'reconciling' as const,
+    };
+    const { root, container, rerender } = mountProbe(
+      fake as unknown as HostClient,
+      (action) => {
+        actions.push(action);
+      },
+      props,
+    );
+    const readyCount = (): number =>
+      actions.filter(
+        (action) => action.type === 'foreground/admission' && action.admission === 'ready',
+      ).length;
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(readyCount()).toBeGreaterThanOrEqual(1);
+      });
+    });
+    const firstForegroundRuns = fake.requests.filter(
+      (command) => command.type === 'session/foreground-run',
+    ).length;
+    expect(firstForegroundRuns).toBeGreaterThanOrEqual(1);
+
+    rerender({ ...props, foregroundAdmission: 'ready' });
+    rerender({ ...props, foregroundAdmission: 'reconciling' });
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(
+          fake.requests.filter((command) => command.type === 'session/foreground-run').length,
+        ).toBeGreaterThan(firstForegroundRuns);
+        expect(readyCount()).toBeGreaterThanOrEqual(2);
+      });
+    });
     root.unmount();
     container.remove();
   });

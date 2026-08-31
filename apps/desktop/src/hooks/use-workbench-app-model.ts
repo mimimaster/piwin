@@ -29,11 +29,20 @@ export type UseWorkbenchAppModelArgs = {
   activeTheme: ThemeManifest;
   onThemeApplied: (theme: ThemeManifest) => void;
   setHostLogEntries: Dispatch<SetStateAction<HostLogEntry[]>>;
+  liveSessionId: string | null;
 };
 
 export function useWorkbenchAppModel(args: UseWorkbenchAppModelArgs) {
-  const { hostClient, state, dispatch, chrome, activeTheme, onThemeApplied, setHostLogEntries } =
-    args;
+  const {
+    hostClient,
+    state,
+    dispatch,
+    chrome,
+    activeTheme,
+    onThemeApplied,
+    setHostLogEntries,
+    liveSessionId,
+  } = args;
   const leaveActiveSessionRef = useRef<() => void>(() => undefined);
   const host = useWorkbenchHostRuntime({
     hostClient,
@@ -167,6 +176,7 @@ export function useWorkbenchAppModel(args: UseWorkbenchAppModelArgs) {
     handleExtensionUiResolve,
     handleExtensionUiAbort,
     openSettingsSection: commands.openSettingsSection,
+    liveSessionId,
   });
   const subagent = useWorkbenchSubagentInspector({
     hostClient,

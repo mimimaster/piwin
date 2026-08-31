@@ -192,6 +192,7 @@ export function useWorkbenchHostRuntime(args: UseWorkbenchHostRuntimeArgs) {
       state.runPhase === 'aborting',
     hostReady: state.hostReady,
     catchUpEpoch: remoteCatchUpEpoch,
+    foregroundAdmission: state.foregroundAdmission,
   });
 
   const orchestrationSchemeOptions = useMemo(() => {

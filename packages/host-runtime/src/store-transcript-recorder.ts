@@ -341,7 +341,7 @@ export function createStoreTranscriptRecorder(options: {
               await prunePendingEmptyMessages([previousAssistantId]);
               activeMessages.delete(previousAssistantId);
             }
-            const model = options.resolveModel?.();
+            const model = event.model ?? options.resolveModel?.();
             const message: SessionTranscriptMessage = {
               id: event.messageId,
               role: 'assistant',

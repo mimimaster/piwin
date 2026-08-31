@@ -234,7 +234,14 @@ export type HostSessionCommand =
       input: PromptInput;
     }
   | { id?: string; type: 'session/pause'; sessionId: string; runId?: string }
-  | { id?: string; type: 'session/resume-run'; sessionId: string; checkpointId?: string }
+  | {
+      id?: string;
+      type: 'session/resume-run';
+      sessionId: string;
+      checkpointId?: string;
+      /** Extra user instruction for the continuation. Omit for the default resume prompt. */
+      text?: string;
+    }
   | { id?: string; type: 'session/abort'; sessionId: string; runId?: string }
   | {
       id?: string;

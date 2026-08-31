@@ -66,6 +66,21 @@ describe('model thinking policy', () => {
     ).toEqual(['low', 'medium', 'high']);
   });
 
+  it('infers default thinking levels for subscription providers without protocol', () => {
+    expect(
+      getSupportedThinkingLevels({ reasoning: true, providerId: 'openai-codex', source: 'subscription' }, false),
+    ).toEqual(['low', 'medium', 'high', 'xhigh']);
+    expect(
+      getSupportedThinkingLevels({ reasoning: true, providerId: 'xai', source: 'subscription' }, false),
+    ).toEqual(['low', 'medium', 'high', 'xhigh']);
+    expect(
+      getSupportedThinkingLevels({ reasoning: true, providerId: 'anthropic', source: 'subscription' }, false),
+    ).toEqual(['low', 'medium', 'high', 'max']);
+    expect(
+      getSupportedThinkingLevels({ reasoning: true, providerId: 'kimi-coding', source: 'subscription' }, false),
+    ).toEqual(['low', 'medium', 'high', 'max']);
+  });
+
   it('prefers explicit thinkingLevels over protocol defaults', () => {
     expect(
       getSupportedThinkingLevels(

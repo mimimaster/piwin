@@ -72,6 +72,41 @@ describe('projectConfiguredChatModels', () => {
     expect(serialized).not.toContain('whisper-1');
   });
 
+  it('projects input and capabilities when configured', () => {
+    const projected = projectConfiguredChatModels(
+      config({
+        providers: [
+          {
+            id: 'xai',
+            name: 'xAI',
+            protocol: 'openai-compatible',
+            baseUrl: 'http://127.0.0.1:8317/v1',
+            models: [
+              {
+                id: 'grok-4.6',
+                label: 'Grok 4.6',
+                input: ['text', 'image'],
+                capabilities: ['native-web-search'],
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(projected.models).toEqual([
+      {
+        providerId: 'xai',
+        protocol: 'openai-compatible',
+        modelId: 'grok-4.6',
+        label: 'Grok 4.6',
+        input: ['text', 'image'],
+        capabilities: ['native-web-search'],
+        source: 'channel',
+        group: 'channel',
+      },
+    ]);
+  });
+
   it('projects a seeded OAuth provider as subscription rows without a BYOK protocol', () => {
     const projected = projectConfiguredChatModels(
       config({
@@ -109,7 +144,7 @@ describe('projectConfiguredChatModels', () => {
 });
 
 describe('readConfiguredChatModelsData', () => {
-  it('keeps subscription contextWindow from the Host payload', () => {
+  it('keeps subscription contextWindow, input, and capabilities from the Host payload', () => {
     expect(
       readConfiguredChatModelsData({
         models: [
@@ -120,6 +155,8 @@ describe('readConfiguredChatModelsData', () => {
             label: 'Grok 4.6',
             contextWindow: 500_000,
             maxOutputTokens: 500_000,
+            input: ['text', 'image'],
+            capabilities: ['native-web-search'],
           },
         ],
       }).models,
@@ -132,6 +169,8 @@ describe('readConfiguredChatModelsData', () => {
         label: 'Grok 4.6',
         contextWindow: 500_000,
         maxOutputTokens: 500_000,
+        input: ['text', 'image'],
+        capabilities: ['native-web-search'],
       },
     ]);
   });

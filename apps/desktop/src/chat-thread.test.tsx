@@ -2266,7 +2266,7 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
     ).toBe('gemini-3.7-flash');
   });
 
-  it('falls back to livePromptModel on the identity header of the latest Conversation turn', () => {
+  it('does not follow livePromptModel on a completed latest Conversation reply', () => {
     const userMessage = createUserMessage('u-fetch-3', 'generate something');
     const firstCall: ChatMessageUi = {
       id: 'a-tool-call',
@@ -2300,9 +2300,44 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
       container.querySelector('#msg-a-tool-reply [data-testid="conversation-message-header"]'),
     ).not.toBeNull();
     expect(
-      container.querySelector('#msg-a-tool-reply [data-testid="conversation-message-model-name"]')
+      container.querySelector('#msg-a-tool-reply [data-testid="conversation-message-model-name"]'),
+    ).toBeNull();
+  });
+
+  it('keeps the generation-time avatar on a completed reply when composer livePromptModel changes', () => {
+    const userMessage = createUserMessage('u-snapshot', 'write something');
+    const reply: ChatMessageUi = {
+      id: 'a-snapshot',
+      role: 'assistant',
+      text: 'Here is the answer.',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      createdAt: '2026-08-20T13:25:00.000Z',
+      model: {
+        protocol: 'anthropic-compatible',
+        providerId: 'anthropic',
+        modelId: 'claude-sonnet-4',
+      },
+    };
+    renderConversation([userMessage, reply], {
+      livePromptModel: {
+        protocol: 'openai-compatible',
+        providerId: 'xgrok',
+        modelId: 'grok-4',
+      },
+    });
+
+    expect(container.querySelector('.conversation-message-provider-icon')).not.toBeNull();
+    expect(
+      container.querySelector('#msg-a-snapshot [data-testid="conversation-message-model-name"]')
         ?.textContent,
-    ).toBe('gemini-3.7-flash');
+    ).toBe('claude-sonnet-4');
+    expect(
+      container.querySelector('#msg-a-snapshot [data-testid="conversation-message-model-name"]')
+        ?.textContent,
+    ).not.toContain('grok-4');
   });
 
   it('does not repeat the identity header for two visible Conversation completions', () => {

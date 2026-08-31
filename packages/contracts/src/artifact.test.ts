@@ -45,7 +45,7 @@ describe('canonical artifact language', () => {
 describe('default artifact decision prompt', () => {
   it('wraps the proactive decision policy in a metadata block', () => {
     expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
-      '[piwin-prompt-meta kind="artifact:decision" version="5" applies="artifacts-enabled"]',
+      '[piwin-prompt-meta kind="artifact:decision" version="6" applies="artifacts-enabled"]',
     );
     expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
       '<artifact-decision-policy name="piwin-proactive-surfaces">',
@@ -82,6 +82,18 @@ describe('default artifact decision prompt', () => {
     );
     expect(DEFAULT_ARTIFACT_DECISION_PROMPT).not.toContain('```artifact-html');
   });
+
+  it('keeps pre-slim proactive routing: scan/reuse, wall-of-text, default Inline, auto Canvas', () => {
+    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
+      'scan, understand, search, copy, compare, and reuse',
+    );
+    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('wall of text');
+    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('Default Artifact surface');
+    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
+      'opens the right workspace automatically',
+    );
+    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('explain, debug, teach');
+  });
 });
 
 describe('artifact protocol formatter', () => {
@@ -93,15 +105,39 @@ describe('artifact protocol formatter', () => {
     expect(protocol).toContain('```artifact-html title="Short descriptive title" surface="canvas"');
     expect(protocol).toContain('surface="canvas"');
     expect(protocol).toContain('--piwin-artifact-');
-    expect(protocol).toContain('kind="artifact:runtime" version="6"');
+    expect(protocol).toContain('kind="artifact:runtime" version="8"');
     expect(protocol).toContain('Canvas Viewport');
     expect(protocol).toContain('Emit complete `<style>` blocks before any visible HTML markup');
     expect(protocol).toContain(
       'Close each visual block before starting siblings',
     );
+    expect(protocol).toContain('### Success');
+    expect(protocol).toContain('chat column sandbox');
+    expect(protocol).toContain('Constraints (break without these)');
+    expect(protocol).toContain('not a full-page landing');
+    expect(protocol).toContain('nested vertical scroll');
+    expect(protocol).toContain('never add horizontal scrolling to Inline');
+    expect(protocol).toContain('Outermost wrapper background');
     for (const alias of PARSER_ONLY_ALIASES) {
       expect(protocol).not.toContain(alias);
     }
+  });
+
+  it('shows block fences on their own line, not one-line empty fences', () => {
+    const protocol = formatArtifactProtocol();
+    expect(protocol).toContain('column 0 of its own line');
+    expect(protocol).toContain('do not wrap attributes onto the next line');
+    expect(protocol).toContain('Never append the opening fence to a sentence');
+    expect(protocol).toContain('```artifact-html title="Short descriptive title"\n');
+    expect(protocol).toContain(
+      '```artifact-html title="Short descriptive title" surface="canvas"\n',
+    );
+    expect(protocol).toContain('```svg title="Short descriptive title"\n');
+    expect(protocol).not.toMatch(/```artifact-html title="Short descriptive title"```/);
+    expect(protocol).not.toMatch(
+      /```artifact-html title="Short descriptive title" surface="canvas"```/,
+    );
+    expect(protocol).not.toMatch(/```svg title="Short descriptive title"```/);
   });
 
   it('assembles decision policy plus protocol without a second surface-rule copy', () => {

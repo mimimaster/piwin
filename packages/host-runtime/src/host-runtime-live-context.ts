@@ -64,6 +64,19 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
     needsProductHistoryInjection: (sessionId) =>
       deps.pendingColdStartGenerationId(sessionId) !== undefined,
     ensureLiveSession: (sessionId) => deps.ensureLiveSession(sessionId),
+    reactivateWithSeedMessages: async (sessionId, seedMessages) => {
+      await deps.disposeLiveSession(sessionId);
+      deps.pendingActivationSeedMessages.set(sessionId, [...seedMessages]);
+      try {
+        return await deps.activateSessionRuntime(sessionId);
+      } catch (error) {
+        deps.pendingActivationSeedMessages.delete(sessionId);
+        await deps.activateSessionRuntime(sessionId).catch(() => undefined);
+        throw error;
+      } finally {
+        deps.pendingActivationSeedMessages.delete(sessionId);
+      }
+    },
     activateSessionRuntime: (sessionId, runId, signal, excludeSeedMessageId) =>
       deps.activateSessionRuntime(sessionId, runId, signal, excludeSeedMessageId),
     markProductHistoryInjected: (sessionId) => {

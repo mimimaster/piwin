@@ -28,6 +28,7 @@ import {
 import { ComposerContextUsageControl } from './composer-context-controls.js';
 import type { HostClient } from './host-client.js';
 import { createGestureIdempotencyKey } from './gesture-idempotency.js';
+import { hostFailureNotice } from './host-problem-copy.js';
 import {
   foregroundMismatchNotice,
   readForegroundProblem,
@@ -62,11 +63,11 @@ export type ConversationPaneSessionProps = {
   fileBrowseRoot?: string | null;
 };
 
-function isGeneralScope(scope: PaneResumeData['scope']): boolean {
+function isSupportedPaneScope(scope: PaneResumeData['scope']): boolean {
   return (
     scope === undefined ||
     scope === 'general' ||
-    (typeof scope === 'object' && scope.kind === 'general')
+    (typeof scope === 'object' && (scope.kind === 'general' || scope.kind === 'project'))
   );
 }
 
@@ -195,13 +196,13 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
         }
         if (cancelled) return;
         const data = response.data as PaneResumeData;
-        if (!isGeneralScope(data.scope)) {
+        if (!isSupportedPaneScope(data.scope)) {
           dispatch({
             type: 'error',
             message:
               props.locale === 'zh-CN'
-                ? '多窗格只能打开 Chat 会话。'
-                : 'Multi-pane can only open Chat conversations.',
+                ? '多窗格只能打开有效的 Chat 或项目会话。'
+                : 'Multi-pane can only open valid Chat or project conversations.',
           });
           return;
         }
@@ -213,6 +214,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
           ...(data.outline ? { outline: data.outline } : {}),
           ...(data.contextUsage !== undefined ? { contextUsage: data.contextUsage } : {}),
           live: data.live,
+          ...(data.pauseCheckpoint ? { pauseCheckpoint: data.pauseCheckpoint } : {}),
         });
         const snapshot = parseSessionContextSnapshot(data.contextSnapshot);
         if (snapshot) {
@@ -373,7 +375,9 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
         const problem = readForegroundProblem(response);
         dispatch({
           type: 'error',
-          message: problem ? foregroundMismatchNotice(problem, props.locale) : response.error,
+          message: problem
+            ? foregroundMismatchNotice(problem, props.locale)
+            : hostFailureNotice(response, props.locale),
         });
         setComposer(text);
         return;
@@ -447,7 +451,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
           artifactThemeKey={props.artifactThemeKey}
           artifactPreviewEnabled={props.artifactPreviewEnabled}
           locale={props.locale}
-          livePromptModel={model}
+          livePromptModel={state.pendingTurnModel}
           {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
           {...(props.onOpenArtifactCanvas
             ? { onOpenArtifactCanvas: props.onOpenArtifactCanvas }

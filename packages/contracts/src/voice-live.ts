@@ -161,6 +161,12 @@ export type LiveStartInput = {
   bootstrap: LiveClientBootstrapInput;
 };
 
+export type LiveRebindInput = {
+  sessionId: string;
+  callId: string;
+  expectedRevision?: number;
+};
+
 export type LiveGeminiThinkingLevel = 'minimal' | 'low' | 'medium' | 'high';
 
 export type LiveOwnerBootstrap =

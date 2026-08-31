@@ -247,7 +247,7 @@ than one shell to the same sessions, Runs, Jobs, MCP supervisor, and data root.
 | M8.6 | Private multi-client smoke | fake/runtime-port smoke covers two clients, safe reads, push and reconnect replay; real two-shell prompt smoke remains | partial |
 | M8.7 | Optional Gateway/tunnel | relay is transport-only, redacts secrets, and is not required for Tailscale/private LAN | planned |
 | M8.8 | Mobile/Web shell spike | client shell consumes Host protocol after M8.6; no independent Agent loop | in progress — status/list/chat plus in-tree flashcard catalog/study (ADR 0066; real-device V04/V09/V22 not run) |
-| M8.9 | Conversation multi-pane live set (ADR 0063) | Desktop general scope has device-local 1/2/4/8 panes; one deduplicated remote subscription keeps all visible Chats live; Project Agent remains single-stage | done |
+| M8.9 | Conversation multi-pane live set (ADR 0063) | Desktop general and project scopes have device-local 1/2/4/8 panes; one deduplicated remote subscription keeps all visible sessions live; the primary pane retains the full Project Agent workbench | done |
 
 ### M9 — piwin Live (Provider Registry + work-session delegation)
 

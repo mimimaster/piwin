@@ -18,6 +18,8 @@ type ThinkingEffortControlProps = {
   models?: Array<{
     key: string;
     label: string;
+    providerId?: string;
+    source?: import('@piwin/contracts').ModelSource;
     protocol?: ModelProviderConfig['protocol'];
     thinkingLevels?: readonly ThinkingLevel[];
     reasoning?: boolean;

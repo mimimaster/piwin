@@ -273,6 +273,25 @@ export function knowledgeWriteRetained(sent: PiwinConfig, stored: PiwinConfig): 
 }
 
 /**
+ * Older Hosts re-attach provider rows that still have `apiKeyRef` /
+ * `apiKeyEnv` when the shell omits them. Treat a mismatched id set as a
+ * failed save so the Models page does not toast "removed" while the row stays.
+ */
+export function providerListWriteRetained(sent: PiwinConfig, stored: PiwinConfig): boolean {
+  const sentIds = new Set(sent.providers.map((provider) => provider.id));
+  const storedIds = new Set(stored.providers.map((provider) => provider.id));
+  if (sentIds.size !== storedIds.size) {
+    return false;
+  }
+  for (const id of sentIds) {
+    if (!storedIds.has(id)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
  * Settings forms edit the merged view document. Diff against that view, not
  * the raw Host projection — omitted keys are filled with local defaults and
  * must not look like the user changed process/providers/desktop.

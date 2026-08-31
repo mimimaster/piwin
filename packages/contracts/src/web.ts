@@ -7,17 +7,54 @@ import type { ModelRef } from './host.js';
  * Prefer {@link WebConfig.searchSources} for configuration.
  */
 export type WebSearchProvider =
-  'duckduckgo' | 'brave' | 'tavily' | 'searxng' | 'cli' | 'aggregate' | 'none';
+  | 'duckduckgo'
+  | 'brave'
+  | 'tavily'
+  | 'searxng'
+  | 'cli'
+  | 'http'
+  | 'aggregate'
+  | 'none';
+
+const WEB_SEARCH_SOURCE_KINDS = [
+  'duckduckgo',
+  'brave',
+  'tavily',
+  'searxng',
+  'cli',
+  'http',
+] as const;
 
 /** Built-in and user-defined search backends that tools-web can execute. */
-export type WebSearchSourceKind = 'duckduckgo' | 'brave' | 'tavily' | 'searxng' | 'cli';
+export type WebSearchSourceKind = (typeof WEB_SEARCH_SOURCE_KINDS)[number];
 
-/** Provider kinds that support a lightweight credentials connectivity check. */
-export type WebSearchTestableSourceKind = Extract<WebSearchSourceKind, 'brave' | 'tavily'>;
+export function isWebSearchSourceKind(value: unknown): value is WebSearchSourceKind {
+  return (
+    typeof value === 'string' && (WEB_SEARCH_SOURCE_KINDS as readonly string[]).includes(value)
+  );
+}
+
+/** Custom CLI settings card covers both local spawn and HTTP adapters. */
+export function isCustomWebSearchKind(
+  kind: WebSearchSourceKind,
+): kind is Extract<WebSearchSourceKind, 'cli' | 'http'> {
+  return kind === 'cli' || kind === 'http';
+}
+
+/** Provider kinds that support a lightweight connectivity check from Settings. */
+export type WebSearchTestableSourceKind = Extract<
+  WebSearchSourceKind,
+  'brave' | 'tavily' | 'searxng' | 'cli' | 'http'
+>;
 
 export type WebSearchTestInput = {
   sourceId: string;
   kind: WebSearchTestableSourceKind;
+  /**
+   * Unsaved draft. When set, Host tests this snapshot instead of the stored
+   * source so Settings can verify CLI/HTTP/SearXNG before Save.
+   */
+  source?: WebSearchSource;
 };
 
 export type WebSearchTestResult = {
@@ -52,7 +89,7 @@ export type WebSearchSource = {
   apiKeyEnv?: string;
   /** Keychain reference holding the API key. Raw secrets never enter config. */
   apiKeyRef?: string;
-  /** SearXNG instance base URL (e.g. https://searx.example.com). */
+  /** SearXNG instance or custom HTTP search URL (kind=http). */
   baseUrl?: string;
   /**
    * Executable for kind=cli (no shell). Args come from {@link args};
@@ -61,6 +98,11 @@ export type WebSearchSource = {
   command?: string;
   /** CLI argv template; `{{query}}` is replaced with the search query. */
   args?: string[];
+  /**
+   * Extra env for kind=cli. Merged over the Host process env at spawn.
+   * Do not put secrets here when a keychain ref is available.
+   */
+  env?: Record<string, string>;
 };
 
 export type WebSearchStrategy = {
@@ -74,8 +116,9 @@ export type WebSearchStrategy = {
  * external `web_search` tool (ADR 0043). Distinct from multi-source
  * {@link WebSearchStrategy}, which only schedules external backends.
  *
- * Migration default is `external-first` so existing permission/citation
- * behavior is preserved until the user opts into native search.
+ * Packing default is `native-first` with no external sources enabled.
+ * A saved config that already has enabled sources but omitted this field
+ * keeps `external-first` so user setup is not rewritten at load time.
  */
 export type SearchRoutePolicy = 'native-first' | 'external-first' | 'native-only' | 'external-only';
 
@@ -85,8 +128,34 @@ export type SearchBackend = 'native' | 'external';
 /** Provenance tag for search citations rendered in the product UI. */
 export type SearchCitationProvenance = 'native' | 'external';
 
-/** Default search-route policy for new and migrated configs. */
-export const DEFAULT_SEARCH_ROUTE_POLICY: SearchRoutePolicy = 'external-first';
+/** Packing default: model built-in search first, no external sources opened. */
+export const DEFAULT_SEARCH_ROUTE_POLICY: SearchRoutePolicy = 'native-first';
+
+export function isSearchRoutePolicy(value: unknown): value is SearchRoutePolicy {
+  return (
+    value === 'native-first' ||
+    value === 'external-first' ||
+    value === 'native-only' ||
+    value === 'external-only'
+  );
+}
+
+/**
+ * Resolve a stored or omitted search-route policy.
+ * Enabled external sources without an explicit policy stay `external-first`.
+ */
+export function inferSearchRoutePolicy(
+  policy: unknown,
+  sources: readonly Pick<WebSearchSource, 'enabled'>[] = [],
+): SearchRoutePolicy {
+  if (isSearchRoutePolicy(policy)) {
+    return policy;
+  }
+  if (sources.some((source) => source.enabled)) {
+    return 'external-first';
+  }
+  return DEFAULT_SEARCH_ROUTE_POLICY;
+}
 
 /** Per-backend readiness facts used by the pure search-route resolver. */
 export type SearchBackendReadiness = {
@@ -380,7 +449,8 @@ export type WebConfig = {
   searchStrategy: WebSearchStrategy;
   /**
    * Native vs external search outlet policy (ADR 0043).
-   * Default / migration value: {@link DEFAULT_SEARCH_ROUTE_POLICY}.
+   * Packing default: {@link DEFAULT_SEARCH_ROUTE_POLICY}. Omitted values on
+   * configs that already have enabled sources infer `external-first`.
    */
   searchRoutePolicy: SearchRoutePolicy;
   /** Reader backend for HTML pages. Default: local supermarkdown. */

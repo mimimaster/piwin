@@ -6,7 +6,7 @@ import {
 } from './remote-projection.js';
 
 describe('remote settings projection', () => {
-  it('keeps renderable settings while removing secrets, Host paths, and remote credentials', () => {
+  it('keeps renderable settings while removing secrets and pairing credentials', () => {
     const projected = projectRemoteSettingsData({
       root: '/Users/private/.piwin',
       snapshot: {
@@ -79,7 +79,10 @@ describe('remote settings projection', () => {
               sessionId: 'session-1',
             },
           },
-          skills: { disabledIds: ['disabled-skill'] },
+          skills: {
+            extraPaths: ['/Users/private/.cursor/skills'],
+            disabledIds: ['disabled-skill'],
+          },
           subagents: {
             schemes: [{ id: 'scheme-1', name: 'Visual review' }],
           },
@@ -87,7 +90,9 @@ describe('remote settings projection', () => {
       },
     });
     const serialized = JSON.stringify(projected);
-    expect(serialized).not.toContain('/Users/private');
+    expect(serialized).toContain('/Users/private/.cursor/skills');
+    expect(serialized).not.toContain('/Users/private/.piwin');
+    expect(serialized).not.toContain('/Users/private/Projects/piwin');
     expect(serialized).not.toContain('PRIVATE_API_KEY');
     expect(serialized).not.toContain('Bearer secret');
     expect(serialized).not.toContain('keychain:');
@@ -130,7 +135,37 @@ describe('remote settings projection', () => {
     expect(JSON.stringify(projected)).not.toContain('keychain:knowledge-reranker');
   });
 
-  it('keeps a CLI search source visible without leaking its Host launcher', () => {
+  it('keeps Host folder-picker paths so the shell can open a workspace', () => {
+    const projected = projectRemoteResponse(
+      { type: 'host/list-dir', path: '/Users/host' },
+      {
+        type: 'response',
+        command: 'host/list-dir',
+        success: true,
+        data: {
+          path: '/Users/host',
+          parentPath: '/Users',
+          homePath: '/Users/host',
+          entries: [
+            { name: 'Projects', kind: 'directory', path: '/Users/host/Projects' },
+          ],
+        },
+      },
+      {
+        hostInstanceId: 'host-1',
+        mode: 'sdk',
+        capabilities: createRemoteCapabilities(),
+      },
+    );
+    const serialized = JSON.stringify(projected);
+    expect(serialized).toContain('/Users/host/Projects');
+    expect(serialized).not.toContain('[host-path]');
+  });
+
+  it('projects CLI launcher fields so the shell can edit and save them', () => {
+    const command =
+      '/Users/private/.local/share/fnm/node-versions/v24.11.1/installation/bin/node';
+    const args = ['/Users/private/.piwin/bin/windsurf-search.mjs', '{{query}}'];
     const projected = projectRemoteSettingsData({
       snapshot: {
         schemaVersion: 2,
@@ -143,8 +178,8 @@ describe('remote settings projection', () => {
                 id: 'cli',
                 kind: 'cli',
                 enabled: true,
-                command: '/Users/private/.local/share/fnm/node-versions/v24.11.1/installation/bin/node',
-                args: ['/Users/private/.piwin/bin/windsurf-search.mjs', '{{query}}'],
+                command,
+                args,
               },
             ],
           },
@@ -155,10 +190,9 @@ describe('remote settings projection', () => {
     expect(serialized).toContain('"id":"cli"');
     expect(serialized).toContain('"kind":"cli"');
     expect(serialized).toContain('"enabled":true');
-    expect(serialized).not.toContain('command');
-    expect(serialized).not.toContain('args');
-    expect(serialized).not.toContain('/Users/private');
-    expect(serialized).not.toContain('[host-path]');
+    expect(serialized).toContain('"command"');
+    expect(serialized).toContain(command);
+    expect(serialized).toContain('windsurf-search.mjs');
   });
 });
 

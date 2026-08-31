@@ -65,12 +65,14 @@ describe('LiveBar', () => {
     onEnd: vi.fn(),
   };
 
-  it('renders a zero-text compact capsule with proper accessible labels', () => {
+  it('renders the bound session on the compact capsule', () => {
     render(<LiveBar call={call} {...controls} />);
     const bar = container?.querySelector('[data-testid="live-bar"]');
     expect(bar).not.toBeNull();
     expect(bar?.getAttribute('aria-label')).toContain('语音正在倾听');
-    expect(bar?.textContent?.trim()).toBe('');
+    expect(container?.querySelector('[data-testid="live-bar-session"]')?.textContent).toBe(
+      '图片生成被审核拦截',
+    );
   });
 
   it('renders spinner only while media is still coming up', () => {

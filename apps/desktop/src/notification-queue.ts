@@ -51,6 +51,10 @@ export function createEmptyNotificationState(): NotificationState {
   return { items: [] };
 }
 
+function messageKey(level: NotificationLevel, message: string): string {
+  return `n-${level}-${message.slice(0, 48).replace(/\s+/g, '_')}`;
+}
+
 /**
  * Emit a toast notification through `@piwin/ui-kit` (Mantine Notifications).
  * Safely guards against non-DOM environments (e.g. tests without DOM).
@@ -59,15 +63,17 @@ export function emitDesktopNotification(input: NotificationPushInput): string {
   const level = input.level;
   const ttlMs =
     typeof input.ttlMs === 'number' ? input.ttlMs : DEFAULT_TTL[level];
+  const stableId = input.id ?? messageKey(level, input.message);
 
   try {
     return showUiNotification({
+      id: stableId,
       tone: level as UiNotificationTone,
       message: input.message,
       autoClose: ttlMs > 0 ? ttlMs : false,
     });
   } catch {
-    return input.id ?? `n-${Date.now()}`;
+    return stableId;
   }
 }
 
@@ -90,14 +96,16 @@ export function notificationReducer(
         typeof action.notification.ttlMs === 'number'
           ? action.notification.ttlMs
           : DEFAULT_TTL[level];
+      const id = action.notification.id ?? messageKey(level, action.notification.message);
       const item: AppNotification = {
-        id: action.notification.id ?? `n-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        id,
         level,
         message: action.notification.message,
         createdAt: Date.now(),
         ttlMs,
       };
-      const items = [item, ...state.items].slice(0, MAX_ITEMS);
+      const filtered = state.items.filter((existing) => existing.id !== id);
+      const items = [item, ...filtered].slice(0, MAX_ITEMS);
       return { items };
     }
     case 'notify/dismiss':

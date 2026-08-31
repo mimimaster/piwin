@@ -30,6 +30,7 @@
     "@piwin/session": "workspace:*",
     "@piwin/theme": "workspace:*",
     "@piwin/ui-kit": "workspace:*",
+    "@piwin/voice": "workspace:*",
     "@streamdown/cjk": "1.0.3",
     "@streamdown/math": "1.0.2",
     "@tanstack/react-virtual": "3.14.9",

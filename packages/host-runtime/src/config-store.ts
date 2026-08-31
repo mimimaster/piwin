@@ -1,6 +1,6 @@
 import { mkdir, readFile } from 'node:fs/promises';
 import { writeTextFileAtomic } from '@piwin/session';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import type {
   AutomationConfig,
   ArtifactConfig,
@@ -50,7 +50,8 @@ import {
   createDefaultWalkthroughConfig,
   DEFAULT_ATTACHMENT_ALLOWED_MIME_TYPES,
   createDefaultWebConfig,
-  DEFAULT_SEARCH_ROUTE_POLICY,
+  inferSearchRoutePolicy,
+  isWebSearchSourceKind,
   modeToPreset,
   normalizeWalkthroughConfig,
   normalizeSessionRuntimeRetentionConfig,
@@ -105,7 +106,27 @@ export async function loadPiwinConfig(piwinRoot?: string): Promise<PiwinConfig> 
     return normalizePiwinConfig(parsed);
   } catch (error) {
     if (isNotFound(error)) {
-      return createDefaultPiwinConfig();
+      return (await loadBundledDefaultConfig()) ?? createDefaultPiwinConfig();
+    }
+    throw error;
+  }
+}
+
+/**
+ * Packaged Host fallback used on a fresh machine. The user-owned config always
+ * wins; the bundle only supplies a seed when ~/.piwin/config.json is absent.
+ */
+async function loadBundledDefaultConfig(): Promise<PiwinConfig | undefined> {
+  const bundledAssetsRoot = process.env.PIWIN_BUNDLED_ASSETS_ROOT?.trim();
+  if (!bundledAssetsRoot) {
+    return undefined;
+  }
+  try {
+    const raw = await readFile(join(bundledAssetsRoot, 'default-config.json'), 'utf8');
+    return normalizePiwinConfig(JSON.parse(raw));
+  } catch (error) {
+    if (isNotFound(error)) {
+      return undefined;
     }
     throw error;
   }
@@ -769,6 +790,7 @@ function normalizeWebConfig(value: unknown, defaults: WebConfig): WebConfig {
     provider === 'tavily' ||
     provider === 'searxng' ||
     provider === 'cli' ||
+    provider === 'http' ||
     provider === 'aggregate' ||
     provider === 'none'
       ? provider
@@ -791,10 +813,7 @@ function normalizeWebConfig(value: unknown, defaults: WebConfig): WebConfig {
     defaults.searchSources,
   );
   const searchStrategy = normalizeSearchStrategy(record.searchStrategy, defaults.searchStrategy);
-  const searchRoutePolicy = normalizeSearchRoutePolicy(
-    record.searchRoutePolicy,
-    defaults.searchRoutePolicy ?? DEFAULT_SEARCH_ROUTE_POLICY,
-  );
+  const searchRoutePolicy = inferSearchRoutePolicy(record.searchRoutePolicy, searchSources);
   const mirroredProvider = mirrorSearchProviderFromSources(searchSources, searchProvider);
   const normalized: WebConfig = {
     searchProvider: mirroredProvider,
@@ -851,21 +870,6 @@ function normalizeFetchFallback(
   defaults: WebConfig['fetchFallback'],
 ): WebConfig['fetchFallback'] {
   if (value === 'none' || value === 'jina' || value === 'browser') {
-    return value;
-  }
-  return defaults;
-}
-
-function normalizeSearchRoutePolicy(
-  value: unknown,
-  defaults: NonNullable<WebConfig['searchRoutePolicy']>,
-): NonNullable<WebConfig['searchRoutePolicy']> {
-  if (
-    value === 'native-first' ||
-    value === 'external-first' ||
-    value === 'native-only' ||
-    value === 'external-only'
-  ) {
     return value;
   }
   return defaults;
@@ -938,6 +942,9 @@ function migrateLegacySearchSources(
   if (provider === 'cli') {
     return [{ id: 'cli', kind: 'cli', enabled: true }];
   }
+  if (provider === 'http') {
+    return [{ id: 'http', kind: 'http', enabled: true }];
+  }
   if (provider === 'aggregate') {
     return defaults.length > 0
       ? defaults
@@ -955,13 +962,7 @@ function normalizeOneSearchSource(value: unknown): WebConfig['searchSources'][nu
     return null;
   }
   const kind = record.kind;
-  if (
-    kind !== 'duckduckgo' &&
-    kind !== 'brave' &&
-    kind !== 'tavily' &&
-    kind !== 'searxng' &&
-    kind !== 'cli'
-  ) {
+  if (!isWebSearchSourceKind(kind)) {
     return null;
   }
   const id = typeof record.id === 'string' && record.id.trim() ? record.id.trim() : kind;
@@ -987,6 +988,17 @@ function normalizeOneSearchSource(value: unknown): WebConfig['searchSources'][nu
   }
   if (Array.isArray(record.args)) {
     source.args = record.args.filter((item): item is string => typeof item === 'string');
+  }
+  if (record.env && typeof record.env === 'object' && !Array.isArray(record.env)) {
+    const env: Record<string, string> = {};
+    for (const [key, value] of Object.entries(record.env as Record<string, unknown>)) {
+      if (key.trim() && typeof value === 'string') {
+        env[key] = value;
+      }
+    }
+    if (Object.keys(env).length > 0) {
+      source.env = env;
+    }
   }
   return source;
 }

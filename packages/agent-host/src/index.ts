@@ -180,3 +180,4 @@ export type {
   NativeModelWebSearchDependencies,
   NativeModelWebSearchRequest,
 } from './native-model-web-search.js';
+export { completeModelText, ModelTextCompletionError } from './model-text-completion.js';

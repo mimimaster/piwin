@@ -2,7 +2,7 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import type { HostPush } from '@piwin/contracts';
+import type { HostPush, SessionTranscriptMessage } from '@piwin/contracts';
 import { HostRuntime } from './host-runtime.js';
 import type { RunRegistry } from './run-registry.js';
 
@@ -106,6 +106,173 @@ describe('HostRuntime pause/resume', () => {
     } finally {
       await runtime.dispose();
     }
+    },
+  );
+
+  it.each([
+    { mode: 'sdk', text: '先别继续旧任务，解释刚才的错误' },
+    { mode: 'rpc', text: '先别继续旧任务，解释刚才的错误' },
+    { mode: 'sdk', text: '继续' },
+    { mode: 'rpc', text: '继续' },
+  ] as const)(
+    'a new prompt after pause stays a user message ($mode, $text)',
+    async ({ mode, text }) => {
+      const rootDir = await mkdtemp(join(tmpdir(), 'piwin-pause-new-prompt-'));
+      const pushes: HostPush[] = [];
+      const runtime = new HostRuntime({
+        mode,
+        mock: true,
+        piwinRoot: rootDir,
+        onPush: (push) => pushes.push(push),
+      });
+
+      try {
+        const created = await runtime.handleCommand({
+          type: 'session/create',
+          input: { projectPath: '/tmp/pause-new-prompt' },
+        });
+        expect(created.success).toBe(true);
+        if (!created.success) throw new Error(created.error);
+        const sessionId = (created.data as { sessionId: string }).sessionId;
+
+        const prompt = await runtime.handleCommand({
+          type: 'session/prompt',
+          sessionId,
+          input: { text: 'Please produce a fairly long reply so I can pause mid way.' },
+        });
+        expect(prompt.success).toBe(true);
+        if (!prompt.success) throw new Error(prompt.error);
+        const runId = (prompt.data as { runId: string }).runId;
+
+        await waitFor(() => runRegistry(runtime).getForegroundRun(sessionId));
+        const pause = await runtime.handleCommand({
+          type: 'session/pause',
+          sessionId,
+          runId,
+        });
+        expect(pause).toMatchObject({ success: true, data: { state: 'pausing', runId } });
+        await waitFor(() =>
+          pushes.find(
+            (push): push is Extract<HostPush, { type: 'run/terminal' }> =>
+              push.type === 'run/terminal' && push.run.runId === runId,
+          ),
+        );
+
+        const rejected = await runtime.handleCommand({
+          type: 'session/prompt',
+          sessionId,
+          input: { text, orchestrationSchemeId: 'missing-pause-test-scheme' },
+        });
+        expect(rejected.success).toBe(false);
+        const stillPaused = await runtime.handleCommand({ type: 'session/resume', sessionId });
+        expect(stillPaused).toMatchObject({
+          success: true,
+          data: { pauseCheckpoint: { status: 'active' } },
+        });
+
+        const next = await runtime.handleCommand({
+          type: 'session/prompt',
+          sessionId,
+          input: { text, clientMessageId: 'new-after-pause' },
+        });
+        expect(next.success).toBe(true);
+        if (!next.success) throw new Error(next.error);
+        const nextRunId = (next.data as { runId: string }).runId;
+        expect(nextRunId).not.toBe(runId);
+        expect(runRegistry(runtime).get(nextRunId)?.resumeCheckpointId).toBeUndefined();
+
+        const resumedTerminal = await waitFor(() =>
+          pushes.find(
+            (push): push is Extract<HostPush, { type: 'run/terminal' }> =>
+              push.type === 'run/terminal' && push.run.runId === nextRunId,
+          ),
+        );
+        expect(resumedTerminal.run.status).toBe('completed');
+
+        const view = await runtime.handleCommand({ type: 'session/resume', sessionId });
+        expect(view.success).toBe(true);
+        if (!view.success) throw new Error(view.error);
+        expect((view.data as { pauseCheckpoint?: unknown }).pauseCheckpoint).toBeUndefined();
+        const messages = await runtime.handleCommand({ type: 'session/messages', sessionId });
+        if (!messages.success) throw new Error(messages.error);
+        const transcript = (messages.data as { messages: SessionTranscriptMessage[] }).messages;
+        expect(transcript.filter((message) => message.id === 'new-after-pause')).toMatchObject([
+          { role: 'user', text },
+        ]);
+        expect(transcript.some((message) =>
+          message.role === 'assistant' && message.text.includes(text),
+        )).toBe(true);
+        expect(transcript.some((message) =>
+          message.text.includes('Continue the interrupted task from the current transcript'),
+        )).toBe(false);
+      } finally {
+        await runtime.dispose();
+      }
+    },
+  );
+
+  it.each(['sdk', 'rpc'] as const)(
+    'abort after pause leaves the checkpoint so resume can continue (%s)',
+    async (mode) => {
+      const rootDir = await mkdtemp(join(tmpdir(), 'piwin-pause-abort-keeps-'));
+      const pushes: HostPush[] = [];
+      const runtime = new HostRuntime({
+        mode,
+        mock: true,
+        piwinRoot: rootDir,
+        onPush: (push) => pushes.push(push),
+      });
+
+      try {
+        const created = await runtime.handleCommand({
+          type: 'session/create',
+          input: { projectPath: '/tmp/pause-abort-keeps' },
+        });
+        expect(created.success).toBe(true);
+        if (!created.success) throw new Error(created.error);
+        const sessionId = (created.data as { sessionId: string }).sessionId;
+
+        const prompt = await runtime.handleCommand({
+          type: 'session/prompt',
+          sessionId,
+          input: { text: 'Please produce a fairly long reply so I can pause mid way.' },
+        });
+        expect(prompt.success).toBe(true);
+        if (!prompt.success) throw new Error(prompt.error);
+        const runId = (prompt.data as { runId: string }).runId;
+
+        await waitFor(() => runRegistry(runtime).getForegroundRun(sessionId));
+        const pause = await runtime.handleCommand({
+          type: 'session/pause',
+          sessionId,
+          runId,
+        });
+        expect(pause).toMatchObject({ success: true, data: { state: 'pausing', runId } });
+        await waitFor(() =>
+          pushes.find(
+            (push): push is Extract<HostPush, { type: 'run/terminal' }> =>
+              push.type === 'run/terminal' && push.run.runId === runId,
+          ),
+        );
+
+        const abort = await runtime.handleCommand({ type: 'session/abort', sessionId });
+        expect(abort.success).toBe(true);
+
+        const view = await runtime.handleCommand({ type: 'session/resume', sessionId });
+        expect(view.success).toBe(true);
+        if (!view.success) throw new Error(view.error);
+        expect(
+          (view.data as { pauseCheckpoint?: { status?: string } }).pauseCheckpoint?.status,
+        ).toBe('active');
+
+        const resume = await runtime.handleCommand({
+          type: 'session/resume-run',
+          sessionId,
+        });
+        expect(resume.success).toBe(true);
+      } finally {
+        await runtime.dispose();
+      }
     },
   );
 });

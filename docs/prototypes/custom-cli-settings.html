@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>piwin 原型 · Custom CLI 设置</title>
+  <style>
+    :root {
+      --void: #08080b;
+      --surface-1: #101014;
+      --surface-2: #141419;
+      --surface-3: #1a1a21;
+      --surface-4: #22222b;
+      --text-1: #ededf2;
+      --text-2: #9a9aa8;
+      --text-3: #62626f;
+      --text-4: #414150;
+      --line-1: rgba(255, 255, 255, 0.055);
+      --line-2: rgba(255, 255, 255, 0.09);
+      --line-3: rgba(255, 255, 255, 0.15);
+      --iris: #6e5dff;
+      --iris-lift: #8b7cff;
+      --iris-wash: rgba(110, 93, 255, 0.12);
+      --on-iris: #fff;
+      --mint: #3ecf8e;
+      --mint-wash: rgba(62, 207, 142, 0.14);
+      --amber: #f5b544;
+      --amber-wash: rgba(245, 181, 68, 0.12);
+      --coral: #ff5f56;
+      --coral-wash: rgba(255, 95, 86, 0.12);
+      --sky: #4cc2ff;
+      --elev-1: 0 1px 0 rgba(255, 255, 255, 0.03), 0 8px 24px rgba(0, 0, 0, 0.28);
+      --font: Inter, "Geist Sans", -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", sans-serif;
+      --mono: "JetBrains Mono", "SF Mono", Menlo, monospace;
+      --r: 12px;
+      --r-sm: 8px;
+      --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font: 13px/1.45 var(--font);
+      color: var(--text-1);
+      background: var(--void);
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input, textarea, select { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+      outline: 2px solid var(--iris-lift);
+      outline-offset: 2px;
+    }
+
+    .proto-bar {
+      position: sticky; top: 0; z-index: 20;
+      display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+      padding: 12px 20px;
+      background: color-mix(in srgb, var(--surface-1) 92%, transparent);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--line-2);
+    }
+    .proto-bar h1 {
+      margin: 0; font-size: 13px; font-weight: 600; letter-spacing: -0.02em;
+    }
+    .proto-bar p { margin: 0; color: var(--text-2); font-size: 12px; }
+    .seg {
+      display: inline-flex; padding: 3px; border-radius: 999px;
+      background: var(--void); box-shadow: inset 0 0 0 1px var(--line-2);
+    }
+    .seg button {
+      border: 0; background: transparent; color: var(--text-2);
+      padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 600;
+    }
+    .seg button[aria-pressed="true"] {
+      background: var(--surface-3); color: var(--text-1);
+      box-shadow: var(--elev-1);
+    }
+
+    .shell { max-width: 720px; margin: 0 auto; padding: 28px 20px 80px; }
+    .page-kicker { margin: 0 0 4px; color: var(--text-3); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
+    .page-title { margin: 0 0 6px; font-size: 22px; font-weight: 650; letter-spacing: -0.03em; }
+    .page-sub { margin: 0 0 22px; color: var(--text-2); }
+
+    .tabs {
+      display: flex; gap: 4px; margin-bottom: 18px;
+      border-bottom: 1px solid var(--line-1);
+    }
+    .tabs button {
+      border: 0; background: none; padding: 10px 12px; color: var(--text-3); font-weight: 600;
+    }
+    .tabs button[aria-selected="true"] {
+      color: var(--text-1);
+      box-shadow: inset 0 -2px 0 var(--iris);
+    }
+
+    .hint {
+      margin: 0 0 16px; padding: 10px 12px; border-radius: var(--r-sm);
+      background: var(--iris-wash); color: var(--text-2); font-size: 12px;
+    }
+    .hint strong { color: var(--text-1); font-weight: 600; }
+
+    .card-list { display: flex; flex-direction: column; gap: 10px; }
+    .card {
+      border-radius: var(--r);
+      background: var(--surface-2);
+      box-shadow: var(--elev-1);
+      overflow: hidden;
+    }
+    .card.is-on {
+      background: color-mix(in srgb, var(--iris) 6%, var(--surface-2));
+      box-shadow: var(--elev-1), inset 0 0 0 1px color-mix(in srgb, var(--iris) 28%, transparent);
+    }
+    .card-row {
+      display: flex; align-items: center; gap: 12px; width: 100%;
+      padding: 14px 16px; min-height: 68px;
+    }
+    .expand {
+      flex: 1; display: flex; align-items: center; gap: 12px;
+      border: 0; background: none; text-align: left; min-width: 0; padding: 0;
+    }
+    .card-title { font-size: 14px; font-weight: 600; letter-spacing: -0.02em; }
+    .card-desc { margin-top: 3px; color: var(--text-2); font-size: 12px; }
+    .chevron {
+      margin-left: auto; color: var(--text-4); font-size: 20px; font-weight: 350;
+      transition: transform 160ms var(--ease);
+    }
+    .card.is-open .chevron { transform: rotate(90deg); color: var(--iris-lift); }
+
+    .switch {
+      flex: 0 0 auto; width: 40px; height: 22px; border: 0; border-radius: 999px;
+      background: var(--surface-4); box-shadow: inset 0 0 0 1px var(--line-2);
+      position: relative;
+    }
+    .switch::after {
+      content: ""; position: absolute; top: 3px; left: 3px;
+      width: 16px; height: 16px; border-radius: 50%; background: var(--text-2);
+      transition: transform 160ms var(--ease), background 160ms var(--ease);
+    }
+    .switch[aria-checked="true"] { background: var(--mint); box-shadow: none; }
+    .switch[aria-checked="true"]::after { transform: translateX(18px); background: #fff; }
+
+    .body {
+      display: none; flex-direction: column; gap: 14px;
+      padding: 4px 16px 16px; border-top: 1px solid var(--line-1);
+    }
+    .card.is-open .body { display: flex; }
+
+    label.field { display: flex; flex-direction: column; gap: 6px; }
+    .field-name { font-size: 12px; font-weight: 600; }
+    .field-help { color: var(--text-3); font-size: 12px; line-height: 1.45; }
+    input[type="text"], textarea, select {
+      width: 100%; min-height: 38px; padding: 8px 12px;
+      border: 0; border-radius: var(--r-sm);
+      background: var(--void); color: var(--text-1);
+      box-shadow: inset 0 0 0 1px var(--line-2);
+    }
+    textarea { min-height: 92px; resize: vertical; font-family: var(--mono); font-size: 12px; line-height: 1.5; }
+    .input-row { display: flex; gap: 8px; }
+    .input-row input { flex: 1; }
+
+    .ghost, .primary, .chip {
+      border: 0; border-radius: var(--r-sm); font-weight: 600; font-size: 12px;
+    }
+    .ghost {
+      background: var(--surface-3); color: var(--text-1);
+      padding: 8px 12px; box-shadow: inset 0 0 0 1px var(--line-2);
+      white-space: nowrap;
+    }
+    .ghost:hover { background: var(--surface-4); }
+    .primary {
+      background: var(--iris); color: var(--on-iris); padding: 8px 14px;
+    }
+    .primary:hover { background: var(--iris-lift); }
+    .chip {
+      background: var(--surface-3); color: var(--text-2);
+      padding: 5px 9px; box-shadow: inset 0 0 0 1px var(--line-2);
+    }
+    .chip:hover, .chip.is-on { color: var(--text-1); background: var(--iris-wash); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--iris) 35%, transparent); }
+
+    .chip-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .chip-row .lbl { color: var(--text-3); font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+
+    .preview {
+      display: flex; flex-direction: column; gap: 6px;
+      padding: 10px 12px; border-radius: var(--r-sm);
+      background: var(--void); box-shadow: inset 0 0 0 1px var(--line-1);
+    }
+    .preview .lbl { color: var(--text-3); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+    .preview code {
+      font-family: var(--mono); font-size: 12px; white-space: pre-wrap; word-break: break-all;
+    }
+    .argv {
+      display: flex; flex-wrap: wrap; gap: 6px;
+    }
+    .argv span {
+      font-family: var(--mono); font-size: 11px; padding: 3px 7px; border-radius: 6px;
+      background: var(--surface-3); color: var(--text-2);
+    }
+    .argv span.query { color: var(--sky); background: color-mix(in srgb, var(--sky) 12%, transparent); }
+
+    .notice {
+      padding: 10px 12px; border-radius: var(--r-sm); font-size: 12px; line-height: 1.45;
+    }
+    .notice.ok { background: var(--mint-wash); color: var(--text-1); }
+    .notice.warn { background: var(--amber-wash); color: var(--text-1); }
+    .notice.err { background: var(--coral-wash); color: var(--coral); }
+    .notice .t { font-weight: 600; display: block; margin-bottom: 2px; }
+
+    .hit {
+      display: flex; flex-direction: column; gap: 2px;
+      padding: 8px 0; border-top: 1px solid var(--line-1);
+    }
+    .hit a { color: var(--iris-lift); text-decoration: none; font-size: 12px; }
+    .hit .s { color: var(--text-3); font-size: 12px; }
+
+    .row-actions { display: flex; justify-content: space-between; gap: 8px; align-items: center; flex-wrap: wrap; }
+    details.adv { border-top: 1px solid var(--line-1); padding-top: 8px; }
+    details.adv > summary {
+      list-style: none; cursor: pointer; color: var(--text-3); font-size: 12px; font-weight: 600; user-select: none;
+    }
+    details.adv > summary::-webkit-details-marker { display: none; }
+    .adv-body { display: flex; flex-direction: column; gap: 12px; padding-top: 12px; }
+
+    .example {
+      display: flex; flex-direction: column; gap: 4px;
+      padding: 10px 12px; border-radius: var(--r-sm); background: var(--void); text-align: left;
+      border: 0; width: 100%;
+    }
+    .example:hover { box-shadow: inset 0 0 0 1px var(--iris); }
+    .example .n { font-size: 12px; font-weight: 600; }
+    .example code { font-family: var(--mono); font-size: 11px; color: var(--text-2); }
+    .example .note { color: var(--text-3); font-size: 11px; }
+
+    .route { margin-top: 22px; }
+    .footer {
+      display: flex; justify-content: space-between; align-items: center; gap: 12px;
+      margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--line-1);
+    }
+    .muted { color: var(--text-3); font-size: 12px; }
+
+    .overlay {
+      position: fixed; inset: 0; z-index: 40;
+      background: rgba(0, 0, 0, 0.55);
+      display: none; align-items: center; justify-content: center; padding: 24px;
+    }
+    .overlay.open { display: flex; }
+    .modal {
+      width: min(520px, 100%);
+      background: var(--surface-2); border-radius: 14px; box-shadow: 0 24px 64px rgba(0,0,0,.5);
+      padding: 16px;
+    }
+    .modal h2 { margin: 0 0 4px; font-size: 15px; }
+    .file {
+      display: flex; gap: 10px; align-items: flex-start; width: 100%;
+      border: 0; background: var(--void); text-align: left;
+      padding: 10px 12px; border-radius: var(--r-sm); margin-top: 8px;
+    }
+    .file:hover { background: var(--surface-3); }
+    .file .path { font-family: var(--mono); font-size: 11px; color: var(--text-2); }
+    .examples-pop { display: none; flex-direction: column; gap: 8px; }
+    .examples-pop.open { display: flex; }
+
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="proto-bar">
+    <div>
+      <h1>piwin 原型 · Web 搜索源</h1>
+      <p>可点。建议先切到「建议方案」，展开 Custom CLI：插入查询词、选脚本、套示例、点测试。</p>
+    </div>
+    <div class="seg" role="tablist" aria-label="方案">
+      <button type="button" id="mode-now" aria-pressed="false">现在</button>
+      <button type="button" id="mode-new" aria-pressed="true">建议方案</button>
+    </div>
+  </div>
+
+  <main class="shell">
+    <p class="page-kicker">Settings</p>
+    <h2 class="page-title">Web 工具</h2>
+    <p class="page-sub">搜索源在 Host 上执行。模型只看到一个 <code>web_search</code>。</p>
+
+    <div class="tabs" role="tablist">
+      <button type="button" aria-selected="true">搜索</button>
+      <button type="button" aria-selected="false" disabled>抓取</button>
+    </div>
+
+    <p class="hint" id="mode-hint"></p>
+    <div class="card-list" id="cards"></div>
+
+    <div class="route">
+      <label class="field">
+        <span class="field-name">搜索路由</span>
+        <select>
+          <option>外部搜索优先（默认）</option>
+          <option>模型内置搜索优先</option>
+          <option>仅外部搜索</option>
+          <option>仅模型内置搜索</option>
+        </select>
+        <span class="field-help">每一轮生成只选一条搜索出口；失败不会静默改走另一条。</span>
+      </label>
+    </div>
+
+    <div class="footer">
+      <div class="muted">当前轮次完成后自动应用 · 原型不写回 Host</div>
+      <button type="button" class="primary" id="save-btn">保存 Web 配置</button>
+    </div>
+  </main>
+
+  <div class="overlay" id="picker" role="dialog" aria-labelledby="picker-title">
+    <div class="modal">
+      <h2 id="picker-title">选择可执行文件或脚本</h2>
+      <p class="muted">Host 侧文件选择。有 shebang 的脚本可直接当命令。</p>
+      <button type="button" class="file" data-pick="/Users/yorickjue/.piwin/bin/windsurf-search.mjs" data-shebang="#!/usr/bin/env node">
+        <span>
+          <strong>windsurf-search.mjs</strong>
+          <div class="path">~/.piwin/bin/windsurf-search.mjs</div>
+          <div class="muted">shebang · node</div>
+        </span>
+      </button>
+      <button type="button" class="file" data-pick="/usr/local/bin/smart-search" data-shebang="">
+        <span>
+          <strong>smart-search</strong>
+          <div class="path">/usr/local/bin/smart-search</div>
+          <div class="muted">PATH 上的二进制</div>
+        </span>
+      </button>
+      <button type="button" class="file" data-pick="/Users/yorickjue/Developer/anysearch/scripts/anysearch_cli.py" data-shebang="#!/usr/bin/env python3">
+        <span>
+          <strong>anysearch_cli.py</strong>
+          <div class="path">…/anysearch/scripts/anysearch_cli.py</div>
+          <div class="muted">shebang · python3</div>
+        </span>
+      </button>
+      <div class="row-actions" style="margin-top:12px;justify-content:flex-end">
+        <button type="button" class="ghost" id="picker-close">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const OLD_CMD = "/Users/yorickjue/.local/share/fnm/node-versions/v24.11.1/installation/bin/node";
+    const OLD_ARGS = "/Users/yorickjue/.piwin/bin/windsurf-search.mjs\n{{query}}\n--limit\n5";
+    const NEW_LINE = "/Users/yorickjue/.piwin/bin/windsurf-search.mjs \"{{query}}\" --limit 5";
+
+    const state = {
+      mode: "new",
+      open: new Set(["cli"]),
+      on: new Set(["cli"]),
+      cliKind: "cmd",
+      command: NEW_LINE,
+      oldCommand: OLD_CMD,
+      oldArgs: OLD_ARGS,
+      envText: "",
+      httpUrl: "http://127.0.0.1:8787/search",
+      httpKey: "",
+      searxUrl: "http://127.0.0.1:8080",
+      shebang: "#!/usr/bin/env node",
+      test: null,
+      examplesOpen: false,
+      advOpen: false,
+      toast: "",
+    };
+
+    const examples = [
+      {
+        id: "windsurf",
+        name: "本机 windsurf-search",
+        cmd: NEW_LINE,
+        shebang: "#!/usr/bin/env node",
+        kind: "cmd",
+        code: "windsurf-search.mjs \"{{query}}\" --limit 5",
+        note: "用脚本 shebang，不再填写 fnm 的 node。",
+      },
+      {
+        id: "anysearch",
+        name: "AnySearch Skill CLI",
+        cmd: "python3 /path/to/anysearch_cli.py search \"{{query}}\" --max_results 5",
+        shebang: "",
+        kind: "cmd",
+        code: "python3 anysearch_cli.py search \"{{query}}\" --max_results 5",
+        note: "把路径换成你本机 Skill 目录。",
+      },
+      {
+        id: "searx-wrap",
+        name: "SearXNG wrapper",
+        cmd: "searxng-search \"{{query}}\" --limit 5",
+        shebang: "",
+        kind: "cmd",
+        code: "searxng-search \"{{query}}\" --limit 5",
+        note: "命令需在 Host PATH 上。自托管实例更建议用上面的 SearXNG 卡片。",
+      },
+      {
+        id: "http",
+        name: "HTTP 自建接口",
+        cmd: "",
+        shebang: "",
+        kind: "http",
+        code: "POST /search  { query, count }",
+        note: "适合已经有 HTTP 搜索网关的情况，不必再包 CLI。",
+      },
+    ];
+
+    function tokenize(input) {
+      const out = [];
+      let buf = "";
+      let quote = null;
+      for (let i = 0; i < input.length; i++) {
+        const ch = input[i];
+        if (quote) {
+          if (ch === quote) quote = null;
+          else buf += ch;
+        } else if (ch === '"' || ch === "'") {
+          quote = ch;
+        } else if (/\s/.test(ch)) {
+          if (buf) { out.push(buf); buf = ""; }
+        } else {
+          buf += ch;
+        }
+      }
+      if (buf) out.push(buf);
+      return out;
+    }
+
+    function quoteArg(value) {
+      if (value.includes("{{query}}") || /[^A-Za-z0-9_./:@%+=,-]/.test(value)) {
+        return `"${value.replaceAll('"', '\\"')}"`;
+      }
+      return value;
+    }
+
+    function parsedCommand() {
+      const tokens = tokenize(state.command.trim());
+      return { exe: tokens[0] || "", args: tokens.slice(1) };
+    }
+
+    function looksLikeFnmNode(exe) {
+      return /fnm|nvm|\.local\/share\/fnm|node-versions/.test(exe);
+    }
+
+    function sourceList() {
+      const base = [
+        { id: "ddg", title: "DuckDuckGo", desc: "免费 · 无需 API Key" },
+        { id: "brave", title: "Brave", desc: "需要 API Key · 保存在 Host" },
+        { id: "tavily", title: "Tavily", desc: "需要 API Key · 保存在 Host" },
+      ];
+      if (state.mode === "new") {
+        base.push({ id: "searx", title: "SearXNG", desc: "自托管实例 · 填 URL 即可" });
+      }
+      base.push({
+        id: "cli",
+        title: "Custom CLI",
+        desc: state.mode === "new"
+          ? "本地命令或 HTTP 接口，接任意搜索后端"
+          : "自行封装 SearXNG / 自托管 / 任意搜索接口",
+      });
+      return base;
+    }
+
+    function render() {
+      document.getElementById("mode-now").setAttribute("aria-pressed", String(state.mode === "now"));
+      document.getElementById("mode-new").setAttribute("aria-pressed", String(state.mode === "new"));
+      document.getElementById("mode-hint").innerHTML = state.mode === "now"
+        ? "<strong>现在：</strong>无 shell 的 argv 表单。可执行文件与参数拆开，没有测试，也没有 SearXNG 卡片。"
+        : "<strong>建议：</strong>SearXNG 回到自己的卡片。CLI 按终端一行填写，运行时仍拆成 argv。可点「选择脚本 / 插入查询词 / 测试」。";
+
+      document.getElementById("cards").innerHTML = sourceList().map(renderCard).join("");
+      bindCardEvents();
+    }
+
+    function renderCard(source) {
+      const on = state.on.has(source.id);
+      const open = state.open.has(source.id);
+      let body = "";
+      if (source.id === "cli") body = state.mode === "now" ? renderOldCli() : renderNewCli();
+      if (source.id === "searx") body = renderSearx();
+      if (source.id === "brave" || source.id === "tavily") body = renderSecret(source.title);
+      return `
+        <article class="card ${on ? "is-on" : ""} ${open ? "is-open" : ""}" data-id="${source.id}">
+          <div class="card-row">
+            <button type="button" class="switch" aria-checked="${on}" aria-label="启用 ${source.title}"></button>
+            <button type="button" class="expand" aria-expanded="${open}">
+              <span>
+                <div class="card-title">${source.title}</div>
+                <div class="card-desc">${source.desc}</div>
+              </span>
+              <span class="chevron" aria-hidden="true">›</span>
+            </button>
+          </div>
+          <div class="body">${body}</div>
+        </article>`;
+    }
+
+    function renderSecret(name) {
+      return `
+        <div class="notice ok"><span class="t">密钥保存在 Host</span>原型不演示钥匙串。正式产品与现在的 ${name} 卡片相同。</div>
+        <div class="row-actions"><span></span><button type="button" class="ghost" data-act="fake-test">测试连接</button></div>`;
+    }
+
+    function renderSearx() {
+      return `
+        <label class="field">
+          <span class="field-name">实例 URL</span>
+          <input type="text" id="searx-url" value="${escapeAttr(state.searxUrl)}" spellcheck="false" />
+          <span class="field-help">Host 会请求 <code>/search?format=json</code>。不必再包一层 CLI。</span>
+        </label>
+        <div class="row-actions">
+          <span class="muted">自托管最常见路径</span>
+          <button type="button" class="primary" data-act="test-searx">测试</button>
+        </div>
+        ${renderTest("searx")}`;
+    }
+
+    function renderOldCli() {
+      const preview = [state.oldCommand, ...state.oldArgs.split(/\n/).map((s) => s.trim()).filter(Boolean)].join(" ");
+      return `
+        <label class="field">
+          <span class="field-name">可执行文件</span>
+          <input type="text" id="old-cmd" value="${escapeAttr(state.oldCommand)}" spellcheck="false" />
+          <span class="field-help">无 shell：填写 PATH 上的命令名，或绝对路径。</span>
+        </label>
+        <label class="field">
+          <span class="field-name">参数（每行一个）</span>
+          <textarea id="old-args">${escapeHtml(state.oldArgs)}</textarea>
+          <span class="field-help">每行一个 argv；可用 {{query}} 插入查询词。stdout 需输出 JSON hits。</span>
+        </label>
+        <details>
+          <summary class="muted" style="cursor:pointer">常用配置示例</summary>
+          <p class="field-help">只展示，不会填进表单。</p>
+        </details>
+        <div class="preview"><div class="lbl">将执行</div><code id="old-run">${escapeHtml(preview)}</code></div>`;
+    }
+
+    function renderNewCli() {
+      const { exe, args } = parsedCommand();
+      return `
+        <div class="seg" role="tablist" aria-label="连接方式">
+          <button type="button" data-act="kind-cmd" aria-pressed="${state.cliKind === "cmd"}">命令行</button>
+          <button type="button" data-act="kind-http" aria-pressed="${state.cliKind === "http"}">HTTP 接口</button>
+        </div>
+        ${state.cliKind === "http" ? renderHttp() : `
+        <label class="field">
+          <span class="field-name">命令</span>
+          <div class="input-row">
+            <input type="text" id="new-cmd" value="${escapeAttr(state.command)}" spellcheck="false" />
+            <button type="button" class="ghost" data-act="pick">选择脚本</button>
+          </div>
+          <span class="field-help">按终端写法填写。运行时仍无 shell，下面预览就是实际 argv。</span>
+        </label>
+        <div class="chip-row">
+          <span class="lbl">插入</span>
+          <button type="button" class="chip" data-act="insert-query">{{query}}</button>
+          <button type="button" class="chip" data-act="insert-limit">--limit 5</button>
+        </div>
+        <div id="cli-notices">${cliNoticesHtml(exe)}</div>
+        <div class="preview">
+          <div class="lbl">将拆成 argv（无 shell）</div>
+          <div class="argv" id="cli-argv">${argvChipsHtml(exe, args)}</div>
+        </div>
+        <div class="preview">
+          <div class="lbl">将执行</div>
+          <code id="cli-run">${escapeHtml([exe, ...args.map(quoteArg)].filter(Boolean).join(" "))}</code>
+        </div>
+        `}
+        <div class="row-actions">
+          <button type="button" class="ghost" data-act="toggle-examples">${state.examplesOpen ? "收起示例" : "用示例填充"}</button>
+          <button type="button" class="primary" data-act="test-cli">测试</button>
+        </div>
+        <div class="examples-pop ${state.examplesOpen ? "open" : ""}">
+          ${examples.map((ex) => `
+            <button type="button" class="example" data-act="apply-ex" data-ex="${ex.id}">
+              <span class="n">${ex.name}</span>
+              <code>${escapeHtml(ex.code)}</code>
+              <span class="note">${ex.note}</span>
+            </button>`).join("")}
+        </div>
+        ${state.toast ? `<div class="notice ok">${escapeHtml(state.toast)}</div>` : ""}
+        ${renderTest("cli")}
+        ${state.cliKind === "cmd" ? `
+        <details class="adv" ${state.advOpen ? "open" : ""}>
+          <summary>高级：逐行 argv / 环境变量</summary>
+          <div class="adv-body">
+            <label class="field">
+              <span class="field-name">参数（每行一个）</span>
+              <textarea id="adv-args">${escapeHtml(args.join("\n"))}</textarea>
+              <span class="field-help">和现在的存储格式相同。改这里会回写上面的命令行。</span>
+            </label>
+            <label class="field">
+              <span class="field-name">环境变量</span>
+              <textarea id="adv-env" placeholder="SEARCH_API_KEY=…">${escapeHtml(state.envText)}</textarea>
+            </label>
+          </div>
+        </details>` : ""}`;
+    }
+
+    function renderHttp() {
+      return `
+        <label class="field">
+          <span class="field-name">接口 URL</span>
+          <input type="text" id="http-url" value="${escapeAttr(state.httpUrl)}" spellcheck="false" />
+          <span class="field-help">POST JSON：<code>{"query":"…","count":5}</code>。返回 <code>{hits:[{title,url,snippet}]}</code> 或同结构数组。</span>
+        </label>
+        <label class="field">
+          <span class="field-name">Bearer（可选）</span>
+          <input type="text" id="http-key" value="${escapeAttr(state.httpKey)}" placeholder="留空则不带鉴权" />
+        </label>
+        <div class="preview"><div class="lbl">将请求</div><code>POST ${escapeHtml(state.httpUrl || "(url)")}</code></div>`;
+    }
+
+    function hasShebang(exe) {
+      return Boolean(state.shebang) && /\.(mjs|js|py|sh)$/.test(exe);
+    }
+
+    function argvChipsHtml(exe, args) {
+      return `${exe ? `<span>${escapeHtml(exe)}</span>` : ""} ${args.map((a) => `<span class="${a.includes("{{query}}") ? "query" : ""}">${escapeHtml(a)}</span>`).join(" ")}`;
+    }
+
+    function cliNoticesHtml(exe) {
+      if (hasShebang(exe)) {
+        return `<div class="notice ok"><span class="t">检测到 shebang ${escapeHtml(state.shebang)}</span>将直接执行脚本，不必再填 fnm / nvm 的 node 路径。</div>`;
+      }
+      if (looksLikeFnmNode(exe)) {
+        return `<div class="notice warn"><span class="t">这条命令绑死了某个 Node 版本</span>GUI 进程通常没有 fnm 的 PATH。给脚本加 shebang，或点「选择脚本」。</div>`;
+      }
+      return "";
+    }
+
+    function patchCliPreview() {
+      const { exe, args } = parsedCommand();
+      const argv = document.getElementById("cli-argv");
+      const run = document.getElementById("cli-run");
+      const notices = document.getElementById("cli-notices");
+      if (argv) argv.innerHTML = argvChipsHtml(exe, args);
+      if (run) run.textContent = [exe, ...args.map(quoteArg)].filter(Boolean).join(" ");
+      if (notices) notices.innerHTML = cliNoticesHtml(exe);
+    }
+
+    function renderTest(kind) {
+      const t = state.test;
+      if (!t || t.kind !== kind) return "";
+      if (t.status === "loading") return `<div class="notice">正在用「人工智能」试搜…</div>`;
+      if (t.status === "err") return `<div class="notice err"><span class="t">测试失败</span>${escapeHtml(t.message)}</div>`;
+      return `
+        <div class="notice ok">
+          <span class="t">解析到 ${t.hits.length} 条 hits · ${t.ms}ms</span>
+          stdout / HTTP 响应符合约定。
+          ${t.hits.map((h) => `<div class="hit"><strong>${escapeHtml(h.title)}</strong><a href="#">${escapeHtml(h.url)}</a><div class="s">${escapeHtml(h.snippet)}</div></div>`).join("")}
+        </div>`;
+    }
+
+    function bindCardEvents() {
+      document.querySelectorAll(".card").forEach((card) => {
+        const id = card.dataset.id;
+        card.querySelector(".switch")?.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (state.on.has(id)) state.on.delete(id); else state.on.add(id);
+          render();
+        });
+        card.querySelector(".expand")?.addEventListener("click", () => {
+          if (state.open.has(id)) state.open.delete(id); else state.open.add(id);
+          render();
+        });
+      });
+      const $ = (sel) => document.querySelector(sel);
+      $("#old-cmd")?.addEventListener("input", (e) => {
+        state.oldCommand = e.target.value;
+        const run = document.getElementById("old-run");
+        if (run) {
+          const args = state.oldArgs.split(/\n/).map((s) => s.trim()).filter(Boolean);
+          run.textContent = [state.oldCommand, ...args].join(" ");
+        }
+      });
+      $("#old-args")?.addEventListener("input", (e) => {
+        state.oldArgs = e.target.value;
+        const run = document.getElementById("old-run");
+        if (run) {
+          const args = state.oldArgs.split(/\n/).map((s) => s.trim()).filter(Boolean);
+          run.textContent = [state.oldCommand, ...args].join(" ");
+        }
+      });
+      $("#new-cmd")?.addEventListener("input", (e) => {
+        state.command = e.target.value;
+        state.toast = "";
+        const exe = tokenize(state.command)[0] || "";
+        if (!/\.(mjs|js|py|sh)$/.test(exe)) state.shebang = "";
+        patchCliPreview();
+      });
+      $("#adv-args")?.addEventListener("change", (e) => {
+        const { exe } = parsedCommand();
+        const args = e.target.value.split(/\n/).map((s) => s.trim()).filter(Boolean);
+        state.command = [exe, ...args.map(quoteArg)].filter(Boolean).join(" ");
+        render();
+      });
+      $("#adv-env")?.addEventListener("input", (e) => { state.envText = e.target.value; });
+      $("#http-url")?.addEventListener("input", (e) => { state.httpUrl = e.target.value; });
+      $("#http-key")?.addEventListener("input", (e) => { state.httpKey = e.target.value; });
+      $("#searx-url")?.addEventListener("input", (e) => { state.searxUrl = e.target.value; });
+      document.querySelectorAll("[data-act]").forEach((el) => {
+        el.addEventListener("click", () => handleAct(el.dataset.act, el.dataset.ex));
+      });
+      document.querySelector("details.adv")?.addEventListener("toggle", (e) => {
+        state.advOpen = e.currentTarget.open;
+      });
+    }
+
+    function insertAtCursor(text) {
+      const input = document.getElementById("new-cmd");
+      if (!input) {
+        state.command = `${state.command} ${text}`.trim();
+        render();
+        return;
+      }
+      const start = input.selectionStart ?? state.command.length;
+      const end = input.selectionEnd ?? start;
+      const before = state.command.slice(0, start);
+      const after = state.command.slice(end);
+      const padL = before.length && !before.endsWith(" ") ? " " : "";
+      const padR = after && !after.startsWith(" ") ? " " : "";
+      state.command = `${before}${padL}${text}${padR}${after}`;
+      render();
+      queueMicrotask(() => {
+        const next = document.getElementById("new-cmd");
+        if (!next) return;
+        const pos = start + padL.length + text.length;
+        next.focus();
+        next.setSelectionRange(pos, pos);
+      });
+    }
+
+    function fakeHits() {
+      return [
+        { title: "piwin Custom CLI search", url: "https://example.com/piwin-cli", snippet: "本地脚本返回的第一条结果。" },
+        { title: "SearXNG JSON API", url: "https://docs.searxng.org/", snippet: "自托管搜索实例的接口说明。" },
+        { title: "windsurf-search", url: "https://example.com/windsurf-search", snippet: "stdout 输出 { hits: [...] }。" },
+      ];
+    }
+
+    function handleAct(act, exId) {
+      if (act === "kind-cmd") { state.cliKind = "cmd"; state.test = null; render(); return; }
+      if (act === "kind-http") { state.cliKind = "http"; state.test = null; render(); return; }
+      if (act === "pick") { document.getElementById("picker").classList.add("open"); return; }
+      if (act === "insert-query") { insertAtCursor('"{{query}}"'); return; }
+      if (act === "insert-limit") { insertAtCursor("--limit 5"); return; }
+      if (act === "toggle-examples") { state.examplesOpen = !state.examplesOpen; render(); return; }
+      if (act === "apply-ex") {
+        const ex = examples.find((item) => item.id === exId);
+        if (!ex) return;
+        state.cliKind = ex.kind;
+        if (ex.kind === "cmd") {
+          state.command = ex.cmd;
+          state.shebang = ex.shebang;
+        }
+        state.examplesOpen = false;
+        state.toast = `已填入「${ex.name}」`;
+        state.test = null;
+        render();
+        return;
+      }
+      if (act === "test-cli") {
+        runTest("cli");
+        return;
+      }
+      if (act === "test-searx") {
+        runTest("searx");
+        return;
+      }
+      if (act === "fake-test") {
+        runTest("brave");
+      }
+    }
+
+    function runTest(kind) {
+      if (kind === "cli" && state.cliKind === "cmd") {
+        const { exe, args } = parsedCommand();
+        if (!exe) {
+          state.test = { kind, status: "err", message: "还没有命令。先选脚本，或从示例填入。" };
+          render();
+          return;
+        }
+        if (looksLikeFnmNode(exe)) {
+          state.test = { kind, status: "err", message: `找不到可执行文件：Host 启动时 PATH 里没有 ${exe}` };
+          render();
+          return;
+        }
+        if (!args.some((a) => a.includes("{{query}}")) && state.cliKind === "cmd") {
+          state.test = { kind, status: "err", message: "参数里没有 {{query}}，Host 不知道查询词往哪插。" };
+          render();
+          return;
+        }
+      }
+      if (kind === "cli" && state.cliKind === "http" && !state.httpUrl.trim()) {
+        state.test = { kind, status: "err", message: "先填接口 URL。" };
+        render();
+        return;
+      }
+      state.test = { kind, status: "loading" };
+      render();
+      window.setTimeout(() => {
+        state.test = { kind, status: "ok", ms: 140 + Math.floor(Math.random() * 80), hits: fakeHits() };
+        render();
+      }, 520);
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    }
+    function escapeAttr(value) {
+      return escapeHtml(value);
+    }
+
+    document.getElementById("mode-now").addEventListener("click", () => {
+      state.mode = "now";
+      state.open = new Set(["cli"]);
+      state.test = null;
+      render();
+    });
+    document.getElementById("mode-new").addEventListener("click", () => {
+      state.mode = "new";
+      state.open = new Set(["cli"]);
+      render();
+    });
+    document.getElementById("picker-close").addEventListener("click", () => {
+      document.getElementById("picker").classList.remove("open");
+    });
+    document.getElementById("picker").addEventListener("click", (e) => {
+      if (e.target.id === "picker") e.currentTarget.classList.remove("open");
+    });
+    document.querySelectorAll(".file").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const path = btn.dataset.pick;
+        state.shebang = btn.dataset.shebang || "";
+        state.command = `${quoteArg(path)} "{{query}}" --limit 5`;
+        state.cliKind = "cmd";
+        state.toast = "已选脚本，并自动补上 {{query}}";
+        document.getElementById("picker").classList.remove("open");
+        render();
+      });
+    });
+    document.getElementById("save-btn").addEventListener("click", () => {
+      const btn = document.getElementById("save-btn");
+      btn.textContent = "已保存（原型）";
+      window.setTimeout(() => { btn.textContent = "保存 Web 配置"; }, 1200);
+    });
+
+    render();
+  </script>
+</body>
+</html>

@@ -466,7 +466,7 @@ describe('flashcard study controller', () => {
             success: true,
             data: snapshot(1, {
               round: { ...snapshot(1).round, face: 'answer', lastAdvanceOperationId: null },
-              current: current ? { ...current, face: 'answer', back: 'A' } : current,
+              ...(current ? { current: { ...current, face: 'answer', back: 'A' } } : {}),
             }),
           };
         }
@@ -505,14 +505,16 @@ describe('flashcard study controller', () => {
           face,
           lastAdvanceOperationId: revision > 1 ? 'rate-1' : null,
         },
-        current: current
+        ...(current
           ? {
-              ...current,
-              face,
-              back: 'A',
-              reviewStateRevision: 0,
+              current: {
+                ...current,
+                face,
+                back: 'A',
+                reviewStateRevision: 0,
+              },
             }
-          : undefined,
+          : {}),
       });
     };
     const controller = createFlashcardStudyController({

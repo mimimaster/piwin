@@ -72,7 +72,6 @@ export function useLiveCall(input: {
   const sessionIdRef = useRef(input.sessionId);
   const sessionId = input.sessionId;
   useEffect(() => {
-    if (callRef.current || startingRef.current) return;
     sessionIdRef.current = input.sessionId;
   }, [input.sessionId]);
   const startAbortRef = useRef<AbortController | null>(null);
@@ -378,6 +377,35 @@ export function useLiveCall(input: {
     },
     [input.hostClient],
   );
+
+  const rebind = useCallback(
+    async (nextSessionId: string) => {
+      const call = callRef.current;
+      if (!call || startingRef.current || userEndedRef.current) return;
+      if (call.boundSessionId === nextSessionId) return;
+      const requestRebind = async (expectedRevision: number) =>
+        input.hostClient.request({
+          type: 'voice/live/rebind',
+          input: {
+            sessionId: nextSessionId,
+            callId: call.callId,
+            expectedRevision,
+          },
+        });
+      const first = await requestRebind(call.revision);
+      if (first.success) return;
+      if (first.error !== 'live-conflict') return;
+      const latest = callRef.current;
+      if (!latest || latest.boundSessionId === nextSessionId) return;
+      await requestRebind(latest.revision);
+    },
+    [input.hostClient],
+  );
+
+  useEffect(() => {
+    if (!sessionId || starting) return;
+    void rebind(sessionId);
+  }, [rebind, sessionId, starting, status?.call?.callId]);
 
   const end = useCallback(async () => {
     let release = (): void => undefined;

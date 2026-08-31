@@ -3,9 +3,22 @@ import {
   type HostToolDescriptor,
   type HostToolRegistration,
   type PiwinConfig,
+  type SearchRoutePolicy,
   type SessionScope,
   type SessionToolFamily,
+  type WebConfig,
 } from '@piwin/contracts';
+
+export function createExternalSearchWebConfig(
+  policy: SearchRoutePolicy = 'external-first',
+): WebConfig {
+  return {
+    ...createDefaultWebConfig(),
+    searchProvider: 'duckduckgo',
+    searchSources: [{ id: 'duckduckgo', kind: 'duckduckgo', enabled: true }],
+    searchRoutePolicy: policy,
+  };
+}
 import { toolFamilyIndex } from './tools/tool-family-index.js';
 
 export function createBlueprintTestConfig(overrides?: Partial<PiwinConfig>): PiwinConfig {
@@ -28,7 +41,7 @@ export function createBlueprintTestConfig(overrides?: Partial<PiwinConfig>): Piw
       decisionPrompt: { mode: 'default', customPrompt: '' },
       maxBytes: 100_000,
     },
-    web: createDefaultWebConfig(),
+    web: createExternalSearchWebConfig(),
     skills: { extraPaths: [], disabledIds: [] },
     extensions: { extraPaths: [], disabledIds: [] },
     prompts: { extraPaths: [], disabledIds: [] },

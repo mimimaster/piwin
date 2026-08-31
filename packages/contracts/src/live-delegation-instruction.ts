@@ -1,5 +1,5 @@
 /**
- * Live handover sanitizers. Host peels spoken wrappers; it does not guess work intent.
+ * Live handover sanitizers. Intent review precedes mechanical Session admission.
  */
 
 import {
@@ -25,15 +25,16 @@ export const PIWIN_LIVE_INSTRUCTIONS = composeLiveSpokenInstructions('native-del
 export const PIWIN_LIVE_POLICY = PIWIN_LIVE_SPOKEN_CONTRACT;
 
 export const PIWIN_LIVE_DELEGATE_TOOL_HINT =
-  ' For work requiring files, code, tools, or chat page presence, call `delegate_to_work_session` with the summarized brief.';
+  ' For explicitly requested work requiring files, code or tools, call `delegate_to_work_session` with the user request for intent review.';
 
 export const PIWIN_LIVE_DELEGATE_TOOL_DESCRIPTION =
-  'Summarized work brief for the coding agent. Compress spoken intent; never a verbatim transcript, filler, or ASR tags. STOP_CURRENT_RUN only to halt the current run.';
+  'Candidate work request for Host intent review, not permission to execute. Only for clear work intent; preserve the user wording, negations and constraints. Never turn reactions, confirmations or fragments into work. STOP_CURRENT_RUN only to halt current work, not speech.';
 
 export const PIWIN_LIVE_DELEGATE_INSTRUCTION_DESCRIPTION =
-  'A concise summarized task in the user language. Never a verbatim transcript.';
+  'The actionable user request in the user language, preserving negations and uncertainty. No filler or ASR tags; do not invent missing intent.';
 
-const NON_SPEECH_TAG = /\[[^[\]]{1,40}\]/g;
+// Only known non-speech annotations; bracketed filenames/constraints are data.
+const NON_SPEECH_TAG = /\[(?:clear throat|clearing throat|throat clearing|laughter|laughing|laughs|cough|coughing|sigh|sighing|breathing|background noise|noise|inaudible|silence|music|咳嗽|清嗓|笑声|叹气|噪音)\]/giu;
 const FILLER_ONLY =
   /^(?:[。．，,、!！?？.~…\s]|噢|哦|嗯|啊|呃|额|哈|嘿|唔|唉|uh+|um+|ah+|oh+|hmm+|huh+|mhm+|mm+|ya+|yeah|yes|ok|okay|好|对)+$/iu;
 
@@ -55,6 +56,7 @@ export function sanitizeLiveDelegationInstruction(raw: string): string | null {
 }
 
 /**
+ * @deprecated Not an intent gate. Live admission must preserve reviewed briefs.
  * Drop spoken wrappers the Live model forgot to summarize.
  * Does not guess new intent — only peels "没有,我是让你…" off the leftover task.
  */

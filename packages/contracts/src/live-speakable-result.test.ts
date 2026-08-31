@@ -5,6 +5,12 @@ import {
 } from './live-speakable-result.js';
 
 describe('sanitizeLiveSpeakableResult', () => {
+  it('never treats generated code or a finished turn as verified visible UI', () => {
+    const spoken = sanitizeLiveSpeakableResult({ assistantText: '```artifact-html\n<html>demo</html>\n```', completed: true });
+    expect(spoken).toContain('Do not claim anything was rendered or verified');
+    expect(spoken).not.toContain('<html>');
+    expect(sanitizeLiveSpeakableResult({ assistantText: '画面已经显示', completed: true })).toContain('display-not-verified');
+  });
   it('returns a continue-from-last-line takeaway', () => {
     const spoken = sanitizeLiveSpeakableResult({
       assistantText: '洛杉矶今天晴，大约 24 度。',

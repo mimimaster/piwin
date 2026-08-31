@@ -20,7 +20,7 @@ import type {
   WebConfig,
 } from '@piwin/contracts';
 import {
-  DEFAULT_SEARCH_ROUTE_POLICY,
+  inferSearchRoutePolicy,
   isModelEnabled,
   isProviderEnabled,
   modelSupportsCapability,
@@ -46,7 +46,8 @@ export type ResolveSearchRouteInput = {
   model?: Pick<ModelConfigEntry, 'id' | 'enabled' | 'capabilities'> | null;
   /** External Host `web_search` config (ordinary sources or model delegate). */
   web?:
-    | Pick<WebConfig, 'searchSources' | 'searchRoutePolicy' | 'searchDelegateModel'>
+    | (Pick<WebConfig, 'searchSources'> &
+        Partial<Pick<WebConfig, 'searchRoutePolicy' | 'searchDelegateModel'>>)
     | null
     | undefined;
   /** Host validation result for the configured `web_search` delegate model. */
@@ -59,7 +60,10 @@ export type ResolveSearchRouteInput = {
  * Fallback is capability availability before the request starts only.
  */
 export function resolveSearchRoute(input: ResolveSearchRouteInput): ResolvedSearchRoute {
-  const policy = input.policy ?? input.web?.searchRoutePolicy ?? DEFAULT_SEARCH_ROUTE_POLICY;
+  const policy = inferSearchRoutePolicy(
+    input.policy ?? input.web?.searchRoutePolicy,
+    input.web?.searchSources ?? [],
+  );
   const readiness = evaluateSearchReadiness(input);
   const issues: string[] = [...readiness.native.reasons, ...readiness.external.reasons];
 

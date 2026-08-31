@@ -110,6 +110,8 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   const thinkingModels = props.modelOptions.map((model) => ({
     key: `${model.providerId}::${model.modelId}`,
     label: model.label,
+    providerId: model.providerId,
+    ...(model.source !== undefined ? { source: model.source } : {}),
     ...(model.protocol !== undefined ? { protocol: model.protocol } : {}),
     ...(model.thinkingLevels !== undefined ? { thinkingLevels: model.thinkingLevels } : {}),
     ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),

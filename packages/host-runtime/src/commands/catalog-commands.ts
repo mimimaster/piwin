@@ -10,6 +10,7 @@ import type {
 import {
   MEDIA_THUMB_EDGE_STANDARD_PX,
   SPEECH_MAX_DURATION_MS,
+  createDefaultWebConfig,
   formatError,
   isMediaThumbEdge,
   modelSupportsCapability,
@@ -830,9 +831,13 @@ export async function handleCatalogCommand(
     case 'web/test-search-source': {
       try {
         const config = await loadPiwinConfig(getPiwinRoot(context.piwinRoot));
-        const source = config.web?.searchSources.find(
-          (candidate) => candidate.id === command.input.sourceId,
-        );
+        const draft = command.input.source;
+        const source =
+          draft && draft.id === command.input.sourceId && draft.kind === command.input.kind
+            ? draft
+            : config.web?.searchSources.find(
+                (candidate) => candidate.id === command.input.sourceId,
+              );
         if (!source) {
           return fail(
             requestId,
@@ -847,10 +852,13 @@ export async function handleCatalogCommand(
             `Web search source kind changed: expected ${command.input.kind}, got ${source.kind}`,
           );
         }
-        if (!config.web) {
+        if (!config.web && !draft) {
           return fail(requestId, 'web/test-search-source', 'Web tools are not configured');
         }
-        const credentials = await resolveWebRuntimeCredentials(config.web, createSecretResolver());
+        const credentials = await resolveWebRuntimeCredentials(
+          config.web ?? createDefaultWebConfig(),
+          createSecretResolver(),
+        );
         return ok(requestId, 'web/test-search-source', await testSearchSource(source, credentials));
       } catch (error) {
         const message = formatError(error);

@@ -8,6 +8,7 @@ import {
   closeConversationPane,
   createConversationPaneLayout,
   listConversationPaneLeaves,
+  resolveFocusedConversationSessionId,
   setConversationPaneSplitRatio,
   splitConversationPane,
   toggleMaximizedConversationPane,
@@ -103,5 +104,23 @@ describe('conversation pane layout', () => {
     expect(maximized.maximizedPaneId).toBe(paneId);
     expect(maximized.root).toBe(initial.root);
     expect(toggleMaximizedConversationPane(maximized, paneId).maximizedPaneId).toBeNull();
+  });
+
+  it('resolves Live target from the focused pane session', () => {
+    const createId = createIds();
+    let layout = createConversationPaneLayout('session-primary');
+    expect(
+      resolveFocusedConversationSessionId({ layout, primarySessionId: 'session-primary' }),
+    ).toBe('session-primary');
+    layout = splitConversationPane(layout, PRIMARY_CONVERSATION_PANE_ID, 'row', createId);
+    const second = listConversationPaneLeaves(layout.root)[1];
+    if (!second) throw new Error('split did not create a second pane');
+    expect(
+      resolveFocusedConversationSessionId({ layout, primarySessionId: 'session-primary' }),
+    ).toBeNull();
+    layout = bindConversationPaneSession(layout, second.paneId, 'session-two');
+    expect(
+      resolveFocusedConversationSessionId({ layout, primarySessionId: 'session-primary' }),
+    ).toBe('session-two');
   });
 });

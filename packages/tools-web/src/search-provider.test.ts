@@ -19,12 +19,11 @@ describe('search providers', () => {
     await expect(provider.search('q', { limit: 3 })).rejects.toThrow(/disabled/);
   });
 
-  it('defaults to duckduckgo via resolveWebConfig', () => {
+  it('packing default via resolveWebConfig is native-first with no external sources', () => {
     const resolved = resolveWebConfig();
-    expect(resolved.searchProvider).toBe('duckduckgo');
-    expect(resolved.searchSources).toEqual([
-      { id: 'duckduckgo', kind: 'duckduckgo', enabled: true },
-    ]);
+    expect(resolved.searchProvider).toBe('none');
+    expect(resolved.searchSources).toEqual([]);
+    expect(resolved.searchRoutePolicy).toBe('native-first');
     expect(resolved.fetchProvider).toBe('supermarkdown');
     expect(resolved.searchTimeoutMs).toBe(15000);
     expect(resolved.searchStrategy.mode).toBe('parallel');
@@ -256,6 +255,65 @@ describe('search providers', () => {
         url: 'https://docs.example/x',
         snippet: 'snippet',
         source: 'searx',
+      },
+    ]);
+  });
+
+  it('http provider POSTs query/count and accepts link as url', async () => {
+    vi.stubGlobal('fetch', (async (_input: unknown, init?: RequestInit) => {
+      expect(init?.method).toBe('POST');
+      expect(JSON.parse(String(init?.body))).toEqual({ query: 'docs', count: 5 });
+      return new Response(
+        JSON.stringify([{ title: 'Hit', link: 'https://example.com/h', snippet: 's' }]),
+        { status: 200 },
+      );
+    }) as typeof fetch);
+    const result = await webSearch('docs', {
+      searchSources: [
+        {
+          id: 'custom-http',
+          kind: 'http',
+          enabled: true,
+          baseUrl: 'http://127.0.0.1:8787/search',
+        },
+      ],
+      searchMaxResults: 5,
+      searchTimeoutMs: 2000,
+    });
+    expect(result.hits).toEqual([
+      {
+        title: 'Hit',
+        url: 'https://example.com/h',
+        snippet: 's',
+        source: 'custom-http',
+      },
+    ]);
+  });
+
+  it('cli provider merges extra env into spawn', async () => {
+    const result = await webSearch('docs', {
+      searchSources: [
+        {
+          id: 'cli',
+          kind: 'cli',
+          enabled: true,
+          command: process.execPath,
+          args: [
+            '-e',
+            'process.stdout.write(JSON.stringify({hits:[{title:process.env.SEARCH_FLAG||"",url:"https://example.com/x",snippet:""}]}))',
+            '{{query}}',
+          ],
+          env: { SEARCH_FLAG: 'from-env' },
+        },
+      ],
+      searchTimeoutMs: 5000,
+    });
+    expect(result.hits).toEqual([
+      {
+        title: 'from-env',
+        url: 'https://example.com/x',
+        snippet: '',
+        source: 'cli',
       },
     ]);
   });

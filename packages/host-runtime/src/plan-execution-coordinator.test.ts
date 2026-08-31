@@ -10,6 +10,7 @@ import {
   completeExecutionState,
   createExecutionState,
   failExecutionState,
+  recoverPlanAfterExecutionFailure,
   selectSubagentSteps,
 } from './plan-execution-coordinator.js';
 
@@ -145,6 +146,21 @@ describe('execution state helpers', () => {
     const state = completeExecutionState(createExecutionState(plan(), 'inline'));
     expect(state.status).toBe('completed');
     expect(state.endedAt).toBeTruthy();
+  });
+
+  it('recoverPlanAfterExecutionFailure returns an executing plan to approved', () => {
+    const failed = failExecutionState(
+      createExecutionState(plan(), 'subagent-driven'),
+      'session-busy: body-job',
+    );
+    const recovered = recoverPlanAfterExecutionFailure(
+      plan({ status: 'executing', execution: failed }),
+      failed,
+    );
+    expect(recovered.status).toBe('approved');
+    expect(recovered.execution?.status).toBe('failed');
+    expect(recovered.execution?.error).toBe('session-busy: body-job');
+    expect(recovered.revision).toBe(1);
   });
 });
 

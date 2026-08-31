@@ -38,7 +38,7 @@ describe('resolveSearchRoute', () => {
     });
   });
 
-  it('defaults to external-first and selects external when both are ready', () => {
+  it('selects external when policy is external-first and both backends are ready', () => {
     const route = resolveSearchRoute({
       model: nativeModel(),
       web: externalWeb(true),
@@ -49,6 +49,27 @@ describe('resolveSearchRoute', () => {
     expect(route.fallback).toBe('native');
     expect(shouldExposeExternalWebSearch(route)).toBe(true);
     expect(shouldEnableNativeWebSearch(route)).toBe(false);
+  });
+
+  it('packing default with no sources is native-first', () => {
+    const route = resolveSearchRoute({
+      model: nativeModel(),
+      web: { searchSources: [] },
+      adapter: adapterReady,
+    });
+    expect(route.policy).toBe('native-first');
+    expect(route.selected).toBe('native');
+    expect(shouldEnableNativeWebSearch(route)).toBe(true);
+  });
+
+  it('omitted policy with enabled sources stays external-first', () => {
+    const route = resolveSearchRoute({
+      model: nativeModel(),
+      web: { searchSources: [{ id: 'duckduckgo', kind: 'duckduckgo', enabled: true }] },
+      adapter: adapterReady,
+    });
+    expect(route.policy).toBe('external-first');
+    expect(route.selected).toBe('external');
   });
 
   it('falls back to native under external-first when no external sources are ready', () => {

@@ -21,7 +21,15 @@ type HostRequestCall = {
 
 function createHostClientFake(options?: {
   projectRead?:
-    | { success: true; isBinary?: boolean; content?: string }
+    | {
+        success: true;
+        isBinary?: boolean;
+        content?: string;
+        mimeHint?: string;
+        byteSize?: number;
+        previewDataUrl?: string;
+        absolutePath?: string;
+      }
     | { success: false };
 }): { client: HostClient; request: ReturnType<typeof vi.fn> } {
   const request = vi.fn(async (command: HostRequestCall) => {
@@ -42,6 +50,18 @@ function createHostClientFake(options?: {
         data: {
           content: isBinary ? '' : (options?.projectRead?.content ?? '# file body'),
           isBinary,
+          ...(options?.projectRead?.mimeHint
+            ? { mimeHint: options.projectRead.mimeHint }
+            : {}),
+          ...(options?.projectRead?.byteSize !== undefined
+            ? { byteSize: options.projectRead.byteSize }
+            : {}),
+          ...(options?.projectRead?.previewDataUrl
+            ? { previewDataUrl: options.projectRead.previewDataUrl }
+            : {}),
+          ...(options?.projectRead?.absolutePath
+            ? { absolutePath: options.projectRead.absolutePath }
+            : {}),
         },
       };
     }
@@ -399,12 +419,38 @@ describe('useActiveDocument', () => {
     });
 
     expect(request.mock.calls.some((call) => call[0]?.type === 'preview/read-local-file')).toBe(
-      true,
+      false,
     );
     expect(latest.activeDocument?.status).toBe('unavailable');
     if (latest.activeDocument?.status === 'unavailable') {
       expect(latest.activeDocument.reason).toBe('binary');
       expect(latest.activeDocument.reason).not.toBe('not-found');
+    }
+  });
+
+  it('opens a project image from previewDataUrl without local ingest', async () => {
+    reveal = vi.fn();
+    const { client, request } = createHostClientFake({
+      projectRead: {
+        success: true,
+        isBinary: true,
+        mimeHint: 'image/png',
+        byteSize: 16,
+        previewDataUrl: 'data:image/png;base64,AAAA',
+        absolutePath: '/workspace/icon.png',
+      },
+    });
+    renderHarness(client);
+
+    await act(async () => {
+      latest.openDocument({ title: 'icon.png', path: 'icon.png' });
+    });
+
+    expect(request.mock.calls.map((call) => call[0]?.type)).toEqual(['project/read-file']);
+    expect(latest.activeDocument?.status).toBe('ready');
+    if (latest.activeDocument?.status === 'ready') {
+      expect(latest.activeDocument.media?.dataUrl).toBe('data:image/png;base64,AAAA');
+      expect(latest.activeDocument.media?.path).toBe('/workspace/icon.png');
     }
   });
 

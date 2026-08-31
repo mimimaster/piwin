@@ -2,7 +2,12 @@
  * Secret-free chat model list for remote shells.
  * Never include apiKey*, baseUrl, headers, or Host paths.
  */
-import type { ModelProviderConfig, PiwinConfig } from './config.js';
+import type {
+  ModelCapability,
+  ModelInputModality,
+  ModelProviderConfig,
+  PiwinConfig,
+} from './config.js';
 import { isModelEnabled, isProviderEnabled, modelSupportsCapability } from './config.js';
 import { isThinkingLevel, type ThinkingLevel } from './host.js';
 import type { ConfiguredChatModelGroup, ModelSource } from './subscription-oauth.js';
@@ -15,6 +20,8 @@ export type ConfiguredChatModel = {
   thinkingLevel?: ThinkingLevel;
   thinkingLevels?: readonly ThinkingLevel[];
   reasoning?: boolean;
+  input?: readonly ModelInputModality[];
+  capabilities?: readonly ModelCapability[];
   contextWindow?: number;
   maxOutputTokens?: number;
   source?: ModelSource;
@@ -60,6 +67,12 @@ export function projectConfiguredChatModels(
       }
       if (typeof model.reasoning === 'boolean') {
         entry.reasoning = model.reasoning;
+      }
+      if (model.input !== undefined && model.input.length > 0) {
+        entry.input = model.input;
+      }
+      if (model.capabilities !== undefined && model.capabilities.length > 0) {
+        entry.capabilities = model.capabilities;
       }
       assignPositiveInteger(entry, 'contextWindow', model.contextWindow);
       assignPositiveInteger(entry, 'maxOutputTokens', model.maxOutputTokens);
@@ -139,6 +152,29 @@ export function readConfiguredChatModel(item: unknown): ConfiguredChatModel | un
   }
   if (typeof item.reasoning === 'boolean') {
     model.reasoning = item.reasoning;
+  }
+  if (Array.isArray(item.input)) {
+    const input = item.input.filter(
+      (m): m is ModelInputModality => m === 'text' || m === 'image',
+    );
+    if (input.length > 0) {
+      model.input = input;
+    }
+  }
+  if (Array.isArray(item.capabilities)) {
+    const capabilities = item.capabilities.filter(
+      (c): c is ModelCapability =>
+        c === 'chat' ||
+        c === 'image-generation' ||
+        c === 'video-generation' ||
+        c === 'speech-to-text' ||
+        c === 'text-to-speech' ||
+        c === 'realtime-audio' ||
+        c === 'native-web-search',
+    );
+    if (capabilities.length > 0) {
+      model.capabilities = capabilities;
+    }
   }
   assignPositiveInteger(model, 'contextWindow', item.contextWindow);
   assignPositiveInteger(model, 'maxOutputTokens', item.maxOutputTokens);

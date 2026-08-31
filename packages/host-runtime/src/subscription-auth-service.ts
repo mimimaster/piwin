@@ -392,6 +392,15 @@ export class SubscriptionAuthService {
           );
           if (current) {
             overlayCatalogLimits(current, model);
+            if (!current['input'] && Array.isArray(model.input) && model.input.length > 0) {
+              current['input'] = [...model.input];
+            }
+            if (current['reasoning'] === undefined && typeof model.reasoning === 'boolean') {
+              current['reasoning'] = model.reasoning;
+            }
+            if (!current['thinkingLevels'] && Array.isArray(model.thinkingLevels) && model.thinkingLevels.length > 0) {
+              current['thinkingLevels'] = model.thinkingLevels;
+            }
           }
           continue;
         }
@@ -408,6 +417,9 @@ export class SubscriptionAuthService {
         }
         if (model.thinkingLevels) {
           next.thinkingLevels = model.thinkingLevels;
+        }
+        if (Array.isArray(model.input) && model.input.length > 0) {
+          next.input = [...model.input];
         }
         overlayCatalogLimits(next, model);
         models.push(next);

@@ -1,3 +1,4 @@
+import { PendingLiveTools } from '@piwin/voice/wire';
 import type {
   LiveClientBootstrapInput,
   LiveOwnerBootstrap,
@@ -31,7 +32,7 @@ export function createGeminiLiveDriver(deps: GeminiLiveDriverDeps = {}): Desktop
   let errorCode: LivePeerSnapshot['errorCode'] = null;
   let socket: WebSocket | null = null;
   let localStream: MediaStream | null = null;
-  let pendingToolId: string | null = null;
+  const pendingTools = new PendingLiveTools(() => emitEvent({ type: 'media-failed', mappedCode: 'live-protocol-failed' }));
   let captureContext: AudioContext | null = null;
   let processor: ScriptProcessorNode | null = null;
 
@@ -166,7 +167,7 @@ export function createGeminiLiveDriver(deps: GeminiLiveDriverDeps = {}): Desktop
           if (parsed.kind === 'owner') emitEvent(parsed.event);
           if (parsed.kind === 'go-away') emitEvent({ type: 'media-closed' });
           if (parsed.kind === 'tool-call') {
-            pendingToolId = parsed.id;
+            if (!pendingTools.add(parsed.id)) return;
             emitEvent({
               type: 'delegation',
               providerDelegationId: parsed.id,
@@ -188,19 +189,20 @@ export function createGeminiLiveDriver(deps: GeminiLiveDriverDeps = {}): Desktop
         await this.close();
         return;
       }
-      if (action.action === 'ack-delegation' && pendingToolId) {
+      if (action.action === 'ack-delegation') {
+        const toolId = pendingTools.take(action.providerDelegationId);
+        if (!toolId) return;
         sendJson(
           geminiToolResponsePayload({
-            id: pendingToolId,
+            id: toolId,
             accepted: action.ok === true,
             queued: Boolean(action.queueId),
           }),
         );
-        pendingToolId = null;
         return;
       }
       if (action.action === 'append-context' && action.content) {
-        sendJson(geminiContextAppendPayload(action.content));
+        sendJson(geminiContextAppendPayload(action.content, action.channel !== 'commentary'));
       }
     },
     subscribeEvents(listener) {
@@ -210,7 +212,7 @@ export function createGeminiLiveDriver(deps: GeminiLiveDriverDeps = {}): Desktop
       };
     },
     appendContext(input) {
-      sendJson(geminiContextAppendPayload(input.content));
+      sendJson(geminiContextAppendPayload(input.content, input.channel === 'speakable'));
     },
     async close() {
       processor?.disconnect();
@@ -226,6 +228,7 @@ export function createGeminiLiveDriver(deps: GeminiLiveDriverDeps = {}): Desktop
       }
       socket?.close();
       socket = null;
+      pendingTools.clear();
       setPhase('ended');
     },
   };

@@ -69,6 +69,33 @@ describe('config-store', () => {
     expect(loaded.knowledge?.extractionLlm?.modelRef).toBe('primary/chat');
   });
 
+  it('packing default web search is native-first with no external sources', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-web-pack-default-'));
+    await writeFile(join(rootDir, 'config.json'), JSON.stringify({ hostMode: 'sdk' }), 'utf8');
+    const loaded = await loadPiwinConfig(rootDir);
+    expect(loaded.web?.searchRoutePolicy).toBe('native-first');
+    expect(loaded.web?.searchProvider).toBe('none');
+    expect(loaded.web?.searchSources).toEqual([]);
+  });
+
+  it('keeps enabled DuckDuckGo sources on a legacy web block without route policy', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-web-legacy-ddg-'));
+    await writeFile(
+      join(rootDir, 'config.json'),
+      JSON.stringify({
+        hostMode: 'sdk',
+        web: { searchProvider: 'duckduckgo' },
+      }),
+      'utf8',
+    );
+    const loaded = await loadPiwinConfig(rootDir);
+    expect(loaded.web?.searchSources).toEqual([
+      { id: 'duckduckgo', kind: 'duckduckgo', enabled: true },
+    ]);
+    expect(loaded.web?.searchRoutePolicy).toBe('external-first');
+    expect(loaded.web?.searchProvider).toBe('duckduckgo');
+  });
+
   it('round-trips config in a temp root', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-'));
     const config = createDefaultPiwinConfig();
@@ -78,6 +105,51 @@ describe('config-store', () => {
     expect(loaded.hostMode).toBe('rpc');
     const raw = await readFile(savedPath, 'utf8');
     expect(raw).toContain('"hostMode": "rpc"');
+  });
+
+  it('loads the packaged default config only when the user config is absent', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-bundled-default-'));
+    const bundledRoot = await mkdtemp(join(tmpdir(), 'piwin-config-bundled-assets-'));
+    await writeFile(
+      join(bundledRoot, 'default-config.json'),
+      JSON.stringify({
+        defaultProviderId: 'bundled-provider',
+        defaultModelId: 'bundled-model',
+        providers: [
+          {
+            id: 'bundled-provider',
+            protocol: 'openai-compatible',
+            name: 'Bundled provider',
+            baseUrl: 'http://127.0.0.1:8317/v1',
+            models: [{ id: 'bundled-model', label: 'Bundled model' }],
+          },
+        ],
+      }),
+      'utf8',
+    );
+
+    const previousAssetsRoot = process.env.PIWIN_BUNDLED_ASSETS_ROOT;
+    process.env.PIWIN_BUNDLED_ASSETS_ROOT = bundledRoot;
+    try {
+      const bundled = await loadPiwinConfig(rootDir);
+      expect(bundled.defaultProviderId).toBe('bundled-provider');
+      expect(bundled.providers).toHaveLength(1);
+
+      await writeFile(
+        join(rootDir, 'config.json'),
+        JSON.stringify({ defaultProviderId: 'user-provider', providers: [] }),
+        'utf8',
+      );
+      const user = await loadPiwinConfig(rootDir);
+      expect(user.defaultProviderId).toBe('user-provider');
+      expect(user.providers).toEqual([]);
+    } finally {
+      if (previousAssetsRoot === undefined) {
+        delete process.env.PIWIN_BUNDLED_ASSETS_ROOT;
+      } else {
+        process.env.PIWIN_BUNDLED_ASSETS_ROOT = previousAssetsRoot;
+      }
+    }
   });
 
   it('init creates once', async () => {

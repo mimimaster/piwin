@@ -144,6 +144,29 @@ describe('chatUiReducer session and context', () => {
     expect(state.messages[1]?.text).toBe('seen');
   });
 
+  it('restores a paused checkpoint from session/load-messages', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, {
+      type: 'session/load-messages',
+      sessionId: 's1',
+      messages: [],
+      pauseCheckpoint: {
+        checkpointId: 'ckpt-1',
+        sessionId: 's1',
+        sourceRunId: 'run-paused',
+        createdAt: new Date().toISOString(),
+        transcriptRevision: 1,
+        status: 'active',
+      },
+    });
+    expect(state.runTerminal).toMatchObject({
+      kind: 'paused',
+      checkpointId: 'ckpt-1',
+    });
+    expect(state.lastTerminalRunId).toBe('run-paused');
+  });
+
   it('projects legacy mode wrappers to the user-facing body on hydrate', () => {
     const wrappedUserText = [
       '[piwin-mode:agent]',

@@ -29,6 +29,29 @@ describe('LiveDelegationLedger', () => {
     expect(ledger.findForTurn({ sessionId: 's1', runId: 'r2' })?.providerDelegationId).toBe('d2');
   });
 
+  it('scopes review context to one session', () => {
+    const ledger = new LiveDelegationLedger();
+    ledger.remember({
+      callId: 'c1',
+      providerDelegationId: 'd1',
+      sessionId: 's1',
+      messageId: 'm1',
+      admission: 'accepted',
+      resultDelivered: false,
+      brief: 'from s1',
+    });
+    ledger.remember({
+      callId: 'c1',
+      providerDelegationId: 'd2',
+      sessionId: 's2',
+      messageId: 'm2',
+      admission: 'accepted',
+      resultDelivered: false,
+      brief: 'from s2',
+    });
+    expect(ledger.contextForSession('s2').map((task) => task.brief)).toEqual(['from s2']);
+  });
+
   it('binds a queued run id later', () => {
     const ledger = new LiveDelegationLedger();
     ledger.remember({

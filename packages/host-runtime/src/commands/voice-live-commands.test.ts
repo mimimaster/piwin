@@ -72,6 +72,47 @@ describe('handleVoiceLiveCommand', () => {
     await context.liveCallCoordinator?.dispose();
   });
 
+  it('rebinds an active call to another session', async () => {
+    const context = makeContext({
+      liveCallCoordinator: makeLiveCoordinator({
+        resolveSessionLabel: (sessionId) =>
+          sessionId === 's1' ? 'Work' : sessionId === 's2' ? 'Other' : null,
+      }),
+    });
+    const started = await handleVoiceLiveCommand(
+      {
+        type: 'voice/live/start',
+        input: {
+          sessionId: 's1',
+          providerId: 'openai-codex',
+          settingsRevision: 1,
+          idempotencyKey: 'k-rebind',
+          bootstrap: { mediaDriverId: 'codex-webrtc-v1', offerSdp: 'v=0\n' },
+        },
+      },
+      'req-start',
+      context,
+    );
+    expect(started?.success).toBe(true);
+    const data = started && started.success ? (started.data as { call: { callId: string; revision: number } }) : null;
+    const rebound = await handleVoiceLiveCommand(
+      {
+        type: 'voice/live/rebind',
+        input: {
+          sessionId: 's2',
+          callId: data?.call.callId ?? '',
+          ...(data?.call.revision !== undefined ? { expectedRevision: data.call.revision } : {}),
+        },
+      },
+      'req-rebind',
+      context,
+    );
+    expect(rebound?.success).toBe(true);
+    const call = rebound && rebound.success ? (rebound.data as { call: { boundSessionId: string } }).call : null;
+    expect(call?.boundSessionId).toBe('s2');
+    await context.liveCallCoordinator?.dispose();
+  });
+
   it('ends an in-flight start without a callId', async () => {
     let releaseCreate: (() => void) | undefined;
     const holdCreate = new Promise<void>((resolve) => {

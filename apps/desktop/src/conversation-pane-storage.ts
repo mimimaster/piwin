@@ -16,6 +16,13 @@ const MAX_ID_LENGTH = 256;
 type StorageReader = Pick<Storage, 'getItem'>;
 type StorageWriter = Pick<Storage, 'setItem'>;
 
+export function conversationPaneStorageKey(scopeKey?: string): string {
+  const normalizedScopeKey = scopeKey?.trim();
+  return normalizedScopeKey && normalizedScopeKey !== 'general'
+    ? `${CONVERSATION_PANE_STORAGE_KEY}:${encodeURIComponent(normalizedScopeKey)}`
+    : CONVERSATION_PANE_STORAGE_KEY;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
@@ -97,12 +104,15 @@ export function parseConversationPaneLayout(value: unknown): ConversationPaneLay
   };
 }
 
-export function loadConversationPaneLayout(storage?: StorageReader): ConversationPaneLayout {
+export function loadConversationPaneLayout(
+  storage?: StorageReader,
+  scopeKey?: string,
+): ConversationPaneLayout {
   try {
     const resolvedStorage =
       storage ?? (typeof window === 'undefined' ? undefined : window.localStorage);
     if (!resolvedStorage) return createConversationPaneLayout();
-    const serialized = resolvedStorage.getItem(CONVERSATION_PANE_STORAGE_KEY);
+    const serialized = resolvedStorage.getItem(conversationPaneStorageKey(scopeKey));
     if (serialized === null) return createConversationPaneLayout();
     return parseConversationPaneLayout(JSON.parse(serialized)) ?? createConversationPaneLayout();
   } catch {
@@ -113,12 +123,13 @@ export function loadConversationPaneLayout(storage?: StorageReader): Conversatio
 export function saveConversationPaneLayout(
   layout: ConversationPaneLayout,
   storage?: StorageWriter,
+  scopeKey?: string,
 ): void {
   try {
     const resolvedStorage =
       storage ?? (typeof window === 'undefined' ? undefined : window.localStorage);
     if (!resolvedStorage) return;
-    resolvedStorage.setItem(CONVERSATION_PANE_STORAGE_KEY, JSON.stringify(layout));
+    resolvedStorage.setItem(conversationPaneStorageKey(scopeKey), JSON.stringify(layout));
   } catch {
     // Layout persistence is best-effort; Host/session state is unaffected.
   }

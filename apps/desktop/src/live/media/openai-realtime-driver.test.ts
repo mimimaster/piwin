@@ -69,6 +69,8 @@ describe('createOpenaiRealtimeDriver', () => {
       }),
     );
     expect(events).toContain('delegation');
+    fake.emit(JSON.stringify({ type: 'response.function_call_arguments.done', call_id: 'call-2',
+      name: 'delegate_to_work_session', arguments: '{"instruction":"不用确认啦"}' }));
     await driver.handleOwnerAction({
       type: 'voice/live-owner-action',
       callId: 'c1',
@@ -78,7 +80,17 @@ describe('createOpenaiRealtimeDriver', () => {
       queueId: 'q1',
     });
     expect(fake.sent.some((item) => item.includes('function_call_output'))).toBe(true);
-    expect(fake.sent.some((item) => item.includes('response.create'))).toBe(true);
+    const output = fake.sent.map((frame) => JSON.parse(frame)).find((frame) => frame.item?.type === 'function_call_output');
+    expect(output.item.call_id).toBe('call-1');
+    expect(fake.sent.some((item) => item.includes('response.create'))).toBe(false);
+    await driver.handleOwnerAction({ type: 'voice/live-owner-action', callId: 'c1', action: 'ack-delegation',
+      providerDelegationId: 'call-2', ok: false });
+    await driver.handleOwnerAction({ type: 'voice/live-owner-action', callId: 'c1', action: 'append-context',
+      channel: 'commentary', content: 'Keep this preference in voice. No confirmation.' });
+    expect(fake.sent.some((item) => item.includes('response.create'))).toBe(false);
+    await driver.handleOwnerAction({ type: 'voice/live-owner-action', callId: 'c1', action: 'append-context',
+      channel: 'speakable', content: 'Task result: completed.' });
+    expect(fake.sent.filter((item) => item.includes('response.create'))).toHaveLength(1);
     await driver.close();
   });
 });

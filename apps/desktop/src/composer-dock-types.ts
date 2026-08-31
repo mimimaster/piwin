@@ -20,6 +20,8 @@ export type ComposerModelOption = {
   protocol?: import('@piwin/contracts').ModelProtocol;
   modelId: string;
   label: string;
+  source?: import('@piwin/contracts').ModelSource;
+  group?: import('@piwin/contracts').ConfiguredChatModelGroup;
   contextWindow?: number;
   /** Configured thinking level default for this model. */
   thinkingLevel?: import('@piwin/contracts').ThinkingLevel;

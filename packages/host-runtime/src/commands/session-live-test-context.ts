@@ -134,6 +134,7 @@ export function createControlContext(
     touchSession: async (): Promise<void> => undefined,
     needsProductHistoryInjection: (): boolean => false,
     ensureLiveSession: async () => session,
+    reactivateWithSeedMessages: async () => session,
     activateSessionRuntime: async () => session,
     markProductHistoryInjected: (): void => undefined,
     protectRuntime: (): boolean => true,

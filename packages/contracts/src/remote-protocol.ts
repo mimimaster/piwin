@@ -234,6 +234,10 @@ export type RemoteCapabilitySummary = {
   platform?: HostOsFamily;
   /** Filesystem path style on the Host. Derived from `platform`. */
   pathStyle?: HostPathStyle;
+  /** Host home directory. Used as the folder-picker start path. */
+  homeDirectory?: string;
+  /** Host accepts `host/list-dir` for the workspace folder picker. */
+  hostListDir?: boolean;
 };
 
 export type HostHello = {

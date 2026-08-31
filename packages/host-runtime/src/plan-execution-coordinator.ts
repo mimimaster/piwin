@@ -172,6 +172,22 @@ export function failExecutionState(
   };
 }
 
+/**
+ * After a failed run, the plan must become selectable again. Leaving
+ * `status: 'executing'` hides the execution gate even though work stopped.
+ */
+export function recoverPlanAfterExecutionFailure(
+  plan: SessionPlan,
+  failedState: PlanExecutionState,
+): SessionPlan {
+  return {
+    ...plan,
+    status: plan.status === 'executing' ? 'approved' : plan.status,
+    execution: failedState,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 export function abortExecutionState(state: PlanExecutionState): PlanExecutionState {
   return {
     ...state,

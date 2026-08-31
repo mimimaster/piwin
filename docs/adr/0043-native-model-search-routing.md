@@ -48,10 +48,12 @@ type SearchRoutePolicy =
   | 'external-only';
 ```
 
-`external-first` is the migration default because it preserves current
-behavior, permission handling, and citation rendering. Host Runtime resolves
-the route from the selected model, adapter support, configured external search
-sources, and policy:
+Packing default is `native-first` with no external sources enabled: a fresh
+install uses the model's built-in network search when the model supports it.
+A saved config that already has enabled external sources but omitted
+`searchRoutePolicy` keeps `external-first` so user setup is not rewritten.
+Host Runtime resolves the route from the selected model, adapter support,
+configured external search sources, and policy:
 
 | Policy | First choice | Fallback |
 |---|---|---|

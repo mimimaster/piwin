@@ -1,8 +1,8 @@
 import type { AgentEvent, ModelRef } from '@piwin/contracts';
 
 /**
- * Pin the session's current model onto assistant `message/start` events.
- * Downstream shells must not backfill historic rows from the composer picker.
+ * Pin the session's last-applied runtime model onto assistant `message/start`.
+ * That snapshot is the generation identity for the row.
  */
 export function enrichAgentEventSessionModel(
   event: AgentEvent,

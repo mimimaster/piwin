@@ -152,56 +152,19 @@ export function geminiToolResponsePayload(input: {
   });
 }
 
-export function geminiContextAppendPayload(content: string): string {
+export function geminiContextAppendPayload(content: string, speakable = true): string {
   return JSON.stringify({
     clientContent: {
       turns: [{ role: 'user', parts: [{ text: content }] }],
-      turnComplete: true,
+      turnComplete: speakable,
     },
   });
 }
 
-export function codexDelegationAckPayload(input: {
-  providerDelegationId: string;
-  ok: boolean;
-  runId?: string;
-  messageId?: string;
-  queueId?: string;
-}): string {
-  return JSON.stringify({
-    type: 'delegation.ack',
-    item_id: input.providerDelegationId,
-    ok: input.ok,
-    ...(input.runId ? { run_id: input.runId } : {}),
-    ...(input.messageId ? { message_id: input.messageId } : {}),
-    ...(input.queueId ? { queue_id: input.queueId } : {}),
-  });
-}
-
-export function codexContextAppendPayloads(input: {
-  target: 'session' | 'delegation';
-  channel: 'speakable' | 'commentary';
-  content: string;
-  providerDelegationId?: string;
-}): string[] {
-  const chunks = splitUtf8Chunks(input.content, 500);
-  return chunks.map((text) =>
-    JSON.stringify(
-      input.target === 'delegation' && input.providerDelegationId
-        ? {
-            type: 'delegation.context.append',
-            delegation_item_id: input.providerDelegationId,
-            channel: input.channel,
-            content: [{ type: 'input_text', text }],
-          }
-        : {
-            type: 'session.context.append',
-            channel: input.channel,
-            content: [{ type: 'input_text', text }],
-          },
-    ),
-  );
-}
+export {
+  buildDelegationAckPayload as codexDelegationAckPayload,
+  buildContextAppendPayloads as codexContextAppendPayloads,
+} from '@piwin/voice/wire';
 
 export function parseOpenaiRealtimeMessage(raw: string): MobileOpenaiRealtimeMessage {
   let value: unknown;
@@ -349,21 +312,6 @@ function readInstruction(raw: unknown): string {
 
 function withinDelegationLimit(value: string): boolean {
   return new TextEncoder().encode(value).byteLength <= LIVE_DELEGATION_INSTRUCTION_MAX_BYTES;
-}
-
-function splitUtf8Chunks(text: string, maxBytes: number): string[] {
-  if (!text) return [];
-  const encoder = new TextEncoder();
-  if (encoder.encode(text).byteLength <= maxBytes) return [text];
-  const chunks: string[] = [];
-  let remaining = text;
-  while (remaining.length > 0) {
-    let end = Math.min(remaining.length, maxBytes);
-    while (end > 1 && encoder.encode(remaining.slice(0, end)).byteLength > maxBytes) end -= 1;
-    chunks.push(remaining.slice(0, end));
-    remaining = remaining.slice(end);
-  }
-  return chunks;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {

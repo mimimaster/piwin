@@ -299,9 +299,16 @@ html[data-theme-visual-style='ink-wash'] .role-assistant .markdown span {
 }
 
 html[data-theme-visual-style='ink-wash'] .role-assistant .markdown strong,
-html[data-theme-visual-style='ink-wash'] .role-assistant .markdown b {
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown b,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .md-strong {
   color: #ffffff !important;
-  font-weight: 650 !important;
+  font-weight: 700 !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .md-em,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown em {
+  color: #f3efe6 !important;
+  font-style: italic !important;
 }
 
 html[data-theme-visual-style='ink-wash'] .role-assistant .markdown h1,
@@ -331,10 +338,10 @@ html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .chip-text {
   color: inherit !important;
 }
 
-html[data-theme-visual-style='ink-wash'] .role-assistant .markdown code {
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .md-inline-code {
   color: #e6dfd5 !important;
   background: rgba(255, 255, 255, 0.08) !important;
-  border: none !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
 }
 
 html[data-theme-visual-style='ink-wash'] .bubble.role-user .message-text,

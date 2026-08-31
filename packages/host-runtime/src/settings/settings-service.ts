@@ -264,11 +264,16 @@ export function createRuntimeSettingsRevision(config: PiwinConfig): string {
  * must keep those omitted fields or apply would wipe them / fail validation.
  *
  * Arrays of `{ id }` records merge by id (source order in a projected web
- * domain is not authoritative). Host-held launchers that the shell omitted
- * entirely stay on disk — toggling a source sets `enabled`, it does not drop
- * the row.
+ * domain is not authoritative). Host-held *web* launchers that the shell
+ * omitted entirely stay on disk — toggling a source sets `enabled`, it does
+ * not drop the row. Provider rows are different: omitting one from a
+ * `providers` replace is a delete, even when the row still has `apiKeyRef`.
  */
-function mergeMissingDomainFields(current: unknown, incoming: unknown): unknown {
+function mergeMissingDomainFields(
+  current: unknown,
+  incoming: unknown,
+  domain?: SettingsDomain,
+): unknown {
   if (incoming === undefined) {
     return current;
   }
@@ -286,9 +291,9 @@ function mergeMissingDomainFields(current: unknown, incoming: unknown): unknown 
       return incoming;
     }
     if (canMergeRecordsById(current, incoming)) {
-      return mergeIdRecordArrays(current, incoming);
+      return mergeIdRecordArrays(current, incoming, domain);
     }
-    return incoming.map((item, index) => mergeMissingDomainFields(current[index], item));
+    return incoming.map((item, index) => mergeMissingDomainFields(current[index], item, domain));
   }
   if (current === null || typeof current !== 'object' || Array.isArray(current)) {
     return incoming;
@@ -297,7 +302,7 @@ function mergeMissingDomainFields(current: unknown, incoming: unknown): unknown 
   const incomingRecord = incoming as Record<string, unknown>;
   const merged: Record<string, unknown> = { ...currentRecord };
   for (const [key, value] of Object.entries(incomingRecord)) {
-    merged[key] = mergeMissingDomainFields(currentRecord[key], value);
+    merged[key] = mergeMissingDomainFields(currentRecord[key], value, domain);
   }
   return merged;
 }
@@ -313,6 +318,7 @@ export function applySettingsMutations(
       [mutation.domain]: mergeMissingDomainFields(
         readConfigDomain(nextConfig, mutation.domain),
         mutation.value,
+        mutation.domain,
       ),
     } as PiwinConfig;
   }
@@ -472,7 +478,11 @@ function canMergeRecordsById(current: unknown[], incoming: unknown[]): boolean {
   );
 }
 
-function mergeIdRecordArrays(current: unknown[], incoming: unknown[]): unknown[] {
+function mergeIdRecordArrays(
+  current: unknown[],
+  incoming: unknown[],
+  domain?: SettingsDomain,
+): unknown[] {
   const currentById = new Map(
     current.filter(isIdRecord).map((item) => [String(item.id), item] as const),
   );
@@ -481,8 +491,13 @@ function mergeIdRecordArrays(current: unknown[], incoming: unknown[]): unknown[]
       return item;
     }
     const prior = currentById.get(String(item.id));
-    return prior === undefined ? item : mergeMissingDomainFields(prior, item);
+    return prior === undefined ? item : mergeMissingDomainFields(prior, item, domain);
   });
+  // Web search CLI launchers can vanish from a projected apply that only
+  // edited DuckDuckGo. Provider omission is an explicit delete.
+  if (domain !== 'web') {
+    return merged;
+  }
   const incomingIds = new Set(incoming.filter(isIdRecord).map((item) => String(item.id)));
   for (const item of current) {
     if (!isIdRecord(item) || incomingIds.has(String(item.id)) || !hasHostHeldFields(item)) {

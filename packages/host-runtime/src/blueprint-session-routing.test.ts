@@ -16,11 +16,12 @@ import {
   createBlueprintTestConfig as createConfig,
   createBlueprintTestFamilyIndex as createFamilyIndex,
   generalBlueprintTestScope as generalScope,
+  createExternalSearchWebConfig,
 } from './blueprint-compiler-test-fixtures.js';
 
 describe('search route resolution', () => {
   it('selects native search and hides the external web_search tool when the policy is native-first', async () => {
-    const web = { ...createDefaultWebConfig(), searchRoutePolicy: 'native-first' as const };
+    const web = createExternalSearchWebConfig('native-first');
     const webSearchDescriptor = {
       name: 'web_search',
       description: 'Search the web',
@@ -73,7 +74,7 @@ describe('search route resolution', () => {
   });
 
   it('falls back to external search when the model declares a vendor-specific native adapter (native-first)', async () => {
-    const web = { ...createDefaultWebConfig(), searchRoutePolicy: 'native-first' as const };
+    const web = createExternalSearchWebConfig('native-first');
     const webSearchDescriptor = {
       name: 'web_search',
       description: 'Search the web',
@@ -130,7 +131,7 @@ describe('search route resolution', () => {
   });
 
   it('selects external search and keeps web_search when the model has native search and the policy is external-only', async () => {
-    const web = { ...createDefaultWebConfig(), searchRoutePolicy: 'external-only' as const };
+    const web = createExternalSearchWebConfig('external-only');
     const webSearchDescriptor = {
       name: 'web_search',
       description: 'Search the web',
@@ -252,7 +253,7 @@ describe('search route resolution', () => {
   });
 
   it('keeps the policy-selected external outlet for side chat', async () => {
-    const web = { ...createDefaultWebConfig(), searchRoutePolicy: 'external-only' as const };
+    const web = createExternalSearchWebConfig('external-only');
     const webSearchDescriptor = {
       name: 'web_search',
       description: 'Search the web',

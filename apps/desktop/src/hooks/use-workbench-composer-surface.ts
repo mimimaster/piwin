@@ -25,6 +25,7 @@ export type UseWorkbenchComposerSurfaceArgs = {
   handleExtensionUiResolve: (payload: ExtensionUiResolvePayload) => void | Promise<void>;
   handleExtensionUiAbort: () => void | Promise<void>;
   openSettingsSection: (section: ShellSettingsSection) => void;
+  liveSessionId: string | null;
 };
 
 export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArgs) {
@@ -42,6 +43,7 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
     handleExtensionUiResolve,
     handleExtensionUiAbort,
     openSettingsSection,
+    liveSessionId,
   } = args;
   const {
     agentMode,
@@ -143,5 +145,6 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
     onSteerQueueEdit: composer.handleSteerQueueEdit,
     onSteerQueueRemove: composer.handleSteerQueueRemove,
     ensureSession: session.ensureSession,
+    liveSessionId,
   });
 }

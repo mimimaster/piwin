@@ -214,6 +214,35 @@ export function mergeRefreshedTailWithLiveMessages(
   return [...durablePrefix, ...currentLiveMessages];
 }
 
+/**
+ * Keep a generation-time model already painted on a live row when a later
+ * transcript page omits it. Incoming snapshots still win.
+ */
+export function preserveAssistantModelSnapshots(
+  incoming: readonly ChatMessageUi[],
+  current: readonly ChatMessageUi[],
+): ChatMessageUi[] {
+  if (incoming.length === 0 || current.length === 0) {
+    return [...incoming];
+  }
+  const stampedById = new Map<string, NonNullable<ChatMessageUi['model']>>();
+  for (const message of current) {
+    if (message.role === 'assistant' && message.model) {
+      stampedById.set(message.id, message.model);
+    }
+  }
+  if (stampedById.size === 0) {
+    return [...incoming];
+  }
+  return incoming.map((message) => {
+    if (message.role !== 'assistant' || message.model) {
+      return message;
+    }
+    const stamped = stampedById.get(message.id);
+    return stamped ? { ...message, model: stamped } : message;
+  });
+}
+
 export function retainRunRecordsForMessages(
   runRecordsById: Readonly<Record<string, RunRecordUi>>,
   messages: readonly ChatMessageUi[],

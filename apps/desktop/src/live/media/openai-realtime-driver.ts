@@ -1,3 +1,4 @@
+import { PendingLiveTools } from '@piwin/voice/wire';
 import type {
   LiveClientBootstrapInput,
   LiveOwnerBootstrap,
@@ -49,7 +50,7 @@ export function createOpenaiRealtimeDriver(
   let processor: ScriptProcessorNode | null = null;
   let nextPlayTime = 0;
   let outputSampleRateHz = 24_000;
-  let pendingToolId: string | null = null;
+  const pendingTools = new PendingLiveTools(() => emitEvent({ type: 'media-failed', mappedCode: 'live-protocol-failed' }));
   let lastAppendedContent = '';
 
   function snapshot(): LivePeerSnapshot {
@@ -177,7 +178,7 @@ export function createOpenaiRealtimeDriver(
           }
           if (parsed.kind === 'owner') emitEvent(parsed.event);
           if (parsed.kind === 'tool-call') {
-            pendingToolId = parsed.id;
+            if (!pendingTools.add(parsed.id)) return;
             emitEvent({
               type: 'delegation',
               providerDelegationId: parsed.id,
@@ -215,16 +216,26 @@ export function createOpenaiRealtimeDriver(
         await this.close();
         return;
       }
-      if (action.action === 'ack-delegation' && pendingToolId) {
+      if (action.action === 'ack-delegation') {
+        const toolId = pendingTools.take(action.providerDelegationId);
+        if (!toolId) return;
         sendJson(
           openaiRealtimeFunctionOutputPayload({
-            callId: pendingToolId,
+            callId: toolId,
             accepted: action.ok === true,
             queued: Boolean(action.queueId),
           }),
         );
-        sendJson(openaiRealtimeResponseCreatePayload());
-        pendingToolId = null;
+        // Admission is not a request to speak. Host supplies a separate
+        // commentary or speakable result after the decision.
+        return;
+      }
+      if (action.action === 'append-context' && action.content) {
+        this.appendContext({
+          target: action.target === 'delegation' ? 'delegation' : 'session',
+          channel: action.channel === 'commentary' ? 'commentary' : 'speakable',
+          content: action.content,
+        });
       }
     },
     subscribeEvents(listener) {
@@ -238,7 +249,7 @@ export function createOpenaiRealtimeDriver(
       if (!content || content === lastAppendedContent) return;
       lastAppendedContent = content;
       sendJson(openaiRealtimeContextAppendPayload(content));
-      sendJson(openaiRealtimeResponseCreatePayload());
+      if (input.channel === 'speakable') sendJson(openaiRealtimeResponseCreatePayload());
     },
     async close() {
       processor?.disconnect();
@@ -259,6 +270,8 @@ export function createOpenaiRealtimeDriver(
       }
       socket?.close();
       socket = null;
+      pendingTools.clear();
+      lastAppendedContent = '';
       setPhase('ended');
     },
   };

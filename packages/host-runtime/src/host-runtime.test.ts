@@ -2384,6 +2384,63 @@ describe('HostRuntime', () => {
           push.run.status === 'failed',
       ),
     ).toBe(true);
+    const latest = await runtime.handleCommand({ type: 'plan/get', sessionId });
+    expect(latest.success).toBe(true);
+    if (!latest.success) throw new Error(latest.error);
+    const latestPlan = (latest.data as { plan: { status: string; execution?: { status?: string } } })
+      .plan;
+    expect(latestPlan.status).toBe('approved');
+    expect(latestPlan.execution?.status).toBe('failed');
+    await runtime.dispose();
+  });
+
+  it('rejects plan/execute while a session body job holds the lock', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-plan-busy-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    await runtime.handleCommand({ type: 'project/open', path: '/tmp/plan-busy' });
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/plan-busy' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+    const now = new Date().toISOString();
+    await runtime.handleCommand({
+      type: 'plan/set',
+      sessionId,
+      plan: {
+        id: 'p-busy',
+        sessionId,
+        projectPath: '/tmp/plan-busy',
+        status: 'draft',
+        title: 'T',
+        goal: 'G',
+        steps: [{ id: '1', title: 'A', status: 'pending' }],
+        revision: 0,
+        createdAt: now,
+        updatedAt: now,
+        source: 'user',
+      },
+    });
+    await runtime.handleCommand({ type: 'plan/approve', sessionId });
+    const reserved = (
+      runtime as unknown as { sessionBodyGate: { tryReserve: (id: string) => boolean } }
+    ).sessionBodyGate.tryReserve(sessionId);
+    expect(reserved).toBe(true);
+    const result = await runtime.handleCommand({
+      type: 'plan/execute',
+      request: { sessionId, planId: 'p-busy', mode: 'subagent-driven' },
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain('session-busy');
+      expect(result.problem?.code).toBe('session-busy');
+    }
+    const latest = await runtime.handleCommand({ type: 'plan/get', sessionId });
+    expect(latest.success).toBe(true);
+    if (!latest.success) throw new Error(latest.error);
+    expect((latest.data as { plan: { status: string } }).plan.status).toBe('approved');
     await runtime.dispose();
   });
 

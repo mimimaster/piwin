@@ -68,7 +68,8 @@ html[data-theme-visual-style='ink-wash'] .code-preview-view {
   margin: 0;
 }
 
-html[data-theme-visual-style='ink-wash'] .doc-preview-state {
+html[data-theme-visual-style='ink-wash'] .doc-preview-state,
+html[data-theme-visual-style='ink-wash'] .preview-unavailable {
   background: transparent !important;
   border: none !important;
   border-radius: 0;

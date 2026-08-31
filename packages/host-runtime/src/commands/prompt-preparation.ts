@@ -45,6 +45,7 @@ import {
   SESSION_TRANSCRIPT_WINDOW_DEFAULT_AFTER_ITEMS,
   SESSION_TRANSCRIPT_WINDOW_DEFAULT_BEFORE_ITEMS,
   formatError,
+  isPauseContinueUtterance,
   wrapLiveDelegationForAgent,
   DEFAULT_PERMISSION_PRESET,
   resolvePermissionPreset,
@@ -166,6 +167,13 @@ export type PromptCommand = Extract<HostCommand, { type: 'session/prompt' }>;
 
 export const RESUME_CONTINUATION_PROMPT =
   'Continue the interrupted task from the current transcript and tool state. First inspect what has already been completed and any partial output; do not repeat successful side effects. Then continue only the unfinished work and report what remains.';
+
+export function resolveResumePromptText(userText: string | undefined): string {
+  if (userText === undefined || isPauseContinueUtterance(userText)) {
+    return RESUME_CONTINUATION_PROMPT;
+  }
+  return `${RESUME_CONTINUATION_PROMPT}\n\nAdditional user instruction:\n${userText.trim()}`;
+}
 
 class PromptPreparationCancelledError extends Error {
   constructor() {

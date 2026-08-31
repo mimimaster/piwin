@@ -1,3 +1,25 @@
+const PAUSE_CONTINUE_UTTERANCES = new Set([
+  '继续',
+  '接着',
+  '接着做',
+  '往下',
+  '往下做',
+  'continue',
+  'keep going',
+  'resume',
+  'go on',
+]);
+
+/** True when the user is asking to continue a paused turn, not start a new one. */
+export function isPauseContinueUtterance(text: string): boolean {
+  const normalized = text
+    .trim()
+    .toLowerCase()
+    .replace(/[!！。.?？~～]+$/g, '')
+    .trim();
+  return normalized.length === 0 || PAUSE_CONTINUE_UTTERANCES.has(normalized);
+}
+
 /** Durable, non-secret checkpoint used to continue an interrupted session turn. */
 export type SessionPauseCheckpoint = {
   checkpointId: string;

@@ -5,6 +5,7 @@ import {
   interpretSettingsLoadResponse,
   knowledgeWriteRetained,
   mergeSettingsViewConfig,
+  providerListWriteRetained,
   settingsMutationsFromViewDraft,
 } from './settings-view-config.js';
 
@@ -180,6 +181,35 @@ describe('settings view config', () => {
       },
     });
     expect(merged.notes?.knowledgeExtras?.reranker?.model).toBe('Qwen/Qwen3-Reranker-8B');
+  });
+
+  it('treats a Host ACK that resurrected an omitted provider as a lost write', () => {
+    const kept = {
+      id: 'keep-me',
+      protocol: 'openai-compatible' as const,
+      name: 'Keep',
+      baseUrl: 'https://api.example.com/v1',
+      models: [] as { id: string }[],
+    };
+    const dropped = {
+      id: 'cpa',
+      protocol: 'openai-compatible' as const,
+      name: 'CPA',
+      baseUrl: 'http://127.0.0.1:8317/v1',
+      apiKeyRef: 'keychain:piwin-cpa',
+      models: [] as { id: string }[],
+    };
+    const sent = mergeSettingsViewConfig({ providers: [kept] });
+    expect(providerListWriteRetained(sent, mergeSettingsViewConfig({ providers: [kept, dropped] }))).toBe(
+      false,
+    );
+    expect(providerListWriteRetained(sent, sent)).toBe(true);
+    expect(
+      providerListWriteRetained(
+        mergeSettingsViewConfig({ providers: [kept, dropped] }),
+        mergeSettingsViewConfig({ providers: [kept] }),
+      ),
+    ).toBe(false);
   });
 
   it('treats a Host ACK that dropped reranker extras as a lost write', () => {

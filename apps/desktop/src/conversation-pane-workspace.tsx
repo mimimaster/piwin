@@ -116,9 +116,18 @@ export function ConversationPaneWorkspace(props: ConversationPaneWorkspaceProps)
 
   function focusActivePaneSoon(): void {
     window.requestAnimationFrame(() => {
-      rootRef.current
-        ?.querySelector<HTMLElement>('[data-conversation-pane-active="true"]')
-        ?.focus({ preventScroll: true });
+      const activePane = rootRef.current?.querySelector<HTMLElement>(
+        '[data-conversation-pane-active="true"]',
+      );
+      if (!activePane) return;
+      const textarea = activePane.querySelector<HTMLTextAreaElement>(
+        'textarea, [contenteditable="true"]',
+      );
+      if (textarea && !textarea.disabled) {
+        textarea.focus({ preventScroll: true });
+      } else {
+        activePane.focus({ preventScroll: true });
+      }
     });
   }
 
@@ -276,10 +285,14 @@ export function ConversationPaneWorkspace(props: ConversationPaneWorkspaceProps)
                 closable={leaf.paneId !== PRIMARY_CONVERSATION_PANE_ID}
                 splitDisabled={leaves.length >= CONVERSATION_PANE_MAX_COUNT}
                 locale={props.locale}
+                sessionId={sessionId}
+                sessions={props.sessions}
                 onApplyPreset={applyPreset}
                 onSplit={splitPane}
                 onToggleMaximized={controller.toggleMaximized}
                 onClose={controller.close}
+                onSelectSession={controller.bindSession}
+                onCreateSession={(paneId) => void createConversation(paneId)}
               />
             ) : null}
             <div className="conversation-pane-body">

@@ -77,13 +77,6 @@ export async function handleSessionPromptCommand(
       const startingPlan = planPath ? await loadSessionPlan(planPath) : null;
       const startingPlanRevision = startingPlan?.revision ?? -1;
       const activeCheckpoint = await context.getActivePauseCheckpoint(command.sessionId);
-      if (command.input.source !== 'resume' && activeCheckpoint !== undefined) {
-        return fail(
-          requestId,
-          'session/prompt',
-          `paused-run: session ${command.sessionId} has resumable checkpoint ${activeCheckpoint.checkpointId}`,
-        );
-      }
       if (command.input.source === 'resume') {
         if (
           command.input.resumeCheckpointId === undefined ||
@@ -306,6 +299,8 @@ export async function handleSessionPromptCommand(
           desiredModel,
           desiredThinkingLevel,
           supersededRun,
+          supersededCheckpointId:
+            command.input.source === 'resume' ? undefined : activeCheckpoint?.checkpointId,
         });
       });
 

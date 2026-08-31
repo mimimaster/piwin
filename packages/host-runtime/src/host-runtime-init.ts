@@ -43,11 +43,7 @@ import { cancelRunsForSubscriptionProvider } from './cancel-subscription-runs.js
 import { applySettingsRuntimeImpact } from './apply-settings-runtime-impact.js';
 import { rewritePersistedChannelRefs } from './rewrite-persisted-channel-refs.js';
 import { isSubscriptionAccountUsable } from './resolve-chat-model.js';
-import { LiveCallCoordinator } from './voice/live-call-coordinator.js';
-import { createVoiceDelegationAdmission } from './voice/voice-delegation-admission.js';
-import { createHostVoiceDelegationPrompt } from './voice/admit-voice-delegation.js';
-import { readOpenaiCodexLiveAuth } from './voice/codex-live-token.js';
-import { composeLiveSettings } from './voice/compose-live-settings.js';
+import { composeHostLive } from './voice/compose-host-live.js';
 
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 import type { HostRuntimeOptions } from './host-runtime-types.js';
@@ -534,58 +530,7 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
       // and batch IPC returns a normalized not-ready response.
       deps.composeSubagentOrchestrator();
     }
-    const liveHolder: { coordinator: LiveCallCoordinator | null } = { coordinator: null };
-    const composedLive = composeLiveSettings({
-      ...(deps.options.piwinRoot === undefined ? {} : { piwinRoot: deps.options.piwinRoot }),
-      ...(deps.options.mock === true ? { mock: true } : {}),
-      authReady: async () => deps.codexLiveAuthPresent,
-      resolveAuth: () => readOpenaiCodexLiveAuth(),
-      getCoordinator: () => liveHolder.coordinator,
-    });
-    deps.liveSettings = composedLive.service;
-    deps.liveCallCoordinator = new LiveCallCoordinator({
-      registry: composedLive.registry,
-      resolveSnapshot: (providerId) => composedLive.service.snapshot(providerId),
-      resolveSessionLabel: async (sessionId) => {
-        const trimmed = sessionId.trim();
-        if (!trimmed) return null;
-        try {
-          const record = await getSessionRecord(
-            getPiwinSessionIndexPath(getPiwinRoot(deps.options.piwinRoot)),
-            trimmed,
-          );
-          if (!record) return null;
-          const name = record.name?.trim();
-          return name && name.length > 0 ? name : trimmed;
-        } catch {
-          return null;
-        }
-      },
-      admission: createVoiceDelegationAdmission({
-        busy: {
-          isSessionBusy: (sessionId) => Boolean(deps.runRegistry.getForegroundRun(sessionId)),
-        },
-        prompt: createHostVoiceDelegationPrompt({
-          handleCommand: (command) => deps.handleCommand(command),
-        }),
-      }),
-      ...(deps.options.mock === true
-        ? { getFakeAdapter: () => composedLive.lastFakeAdapter() }
-        : {}),
-      pushUpdated: (call) => deps.push({ type: 'voice/live-updated', call }),
-      pushOwnerAction: (action) => deps.push(action),
-    });
-    liveHolder.coordinator = deps.liveCallCoordinator;
-    void loadPiwinConfig(deps.options.piwinRoot)
-      .then((config) => {
-        deps.liveEnabledFromConfig = true;
-      })
-      .catch(() => undefined);
-    void readOpenaiCodexLiveAuth()
-      .then((auth) => {
-        deps.codexLiveAuthPresent = auth !== null;
-      })
-      .catch(() => undefined);
+    composeHostLive(deps);
     deps.subscriptionAuth?.bindCancelRuns((providerId) =>
       cancelRunsForSubscriptionProvider(deps, providerId),
     );

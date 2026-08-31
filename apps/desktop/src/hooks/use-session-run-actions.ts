@@ -6,7 +6,7 @@ import type {
   SessionPauseAcceptedData,
   SessionResumeRunAcceptedData,
 } from '@piwin/contracts';
-import { formatError } from '@piwin/contracts';
+import { formatError, isPauseContinueUtterance } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
 import type { ChatUiAction, ChatUiState } from '../chat-reducer';
 import type { Dispatch } from 'react';
@@ -119,7 +119,7 @@ export function useSessionRunActions(input: {
     state.streaming,
   ]);
 
-  const handleResumeRun = useCallback(async (): Promise<void> => {
+  const handleResumeRun = useCallback(async (continuationText?: string): Promise<void> => {
     const sessionId = state.activeSessionId;
     if (!sessionId || state.runTerminal.kind !== 'paused' || state.runPhase !== 'idle') {
       return;
@@ -131,6 +131,10 @@ export function useSessionRunActions(input: {
       dispatchNotification(pushInfo(hostReconnectNotice(locale)));
       return;
     }
+    const extra =
+      continuationText !== undefined && !isPauseContinueUtterance(continuationText)
+        ? continuationText.trim()
+        : undefined;
     try {
       const response = await hostClient.request(
         {
@@ -139,6 +143,7 @@ export function useSessionRunActions(input: {
           ...(state.runTerminal.checkpointId
             ? { checkpointId: state.runTerminal.checkpointId }
             : {}),
+          ...(extra !== undefined ? { text: extra } : {}),
         },
         { idempotencyKey: createGestureIdempotencyKey() },
       );
@@ -184,6 +189,9 @@ export function useSessionRunActions(input: {
       return;
     }
     const live = state.activeRunId !== null || state.streaming;
+    if (!live && state.runTerminal.kind === 'paused') {
+      return;
+    }
     if (live) {
       dispatch({ type: 'run/aborting' });
     }
@@ -220,6 +228,7 @@ export function useSessionRunActions(input: {
     state.activeSessionId,
     state.foregroundAdmission,
     state.runPhase,
+    state.runTerminal,
     state.streaming,
   ]);
 

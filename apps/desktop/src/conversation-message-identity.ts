@@ -100,12 +100,6 @@ export type ResolveConversationMessageModelInput = {
   message: ChatMessageUi;
   livePromptModel?: ModelRef | null;
   isStreaming?: boolean;
-  /**
-   * Latest visible Conversation reply. Host sometimes omits `message.model`
-   * on the live start event; without this the provider avatar vanishes the
-   * instant streaming ends because livePromptModel is otherwise streaming-only.
-   */
-  allowComposerFallback?: boolean;
 };
 
 /**
@@ -113,10 +107,10 @@ export type ResolveConversationMessageModelInput = {
  *
  * Rules:
  * 1. If the message has a persisted `model` snapshot, always use it.
- * 2. Streaming rows without a snapshot may use `livePromptModel`.
- * 3. The latest visible reply may keep `livePromptModel` after completion so
- *    the avatar does not disappear when Host omitted the snapshot.
- * 4. Older completed rows without a snapshot stay unlabeled.
+ * 2. Streaming rows without a snapshot may use `livePromptModel`, which must
+ *    be the frozen in-flight turn model, not the live composer selection.
+ * 3. Completed rows without a snapshot stay unlabeled. Binding them to the
+ *    composer makes historic avatars jump when the user picks another model.
  */
 export function resolveConversationMessageModel(
   input: ResolveConversationMessageModelInput,
@@ -125,11 +119,7 @@ export function resolveConversationMessageModel(
     return input.message.model;
   }
 
-  if (!input.livePromptModel) {
-    return undefined;
-  }
-
-  if (input.isStreaming === true || input.allowComposerFallback === true) {
+  if (input.isStreaming === true && input.livePromptModel) {
     return input.livePromptModel;
   }
 

@@ -119,7 +119,7 @@ import { repairLegacySessionNames } from '../session-name-repair.js';
 import { findEnabledModel } from '../provider-helpers.js';
 import type { SessionLiveContext, TerminateHostRunOptions } from './session-live-context.js';
 import { handleSessionLiveCommand } from './session-live-commands.js';
-import { RESUME_CONTINUATION_PROMPT } from './prompt-preparation.js';
+import { resolveResumePromptText } from './prompt-preparation.js';
 
 /**
  * Start cancellation side effects without making the control response depend
@@ -528,7 +528,7 @@ export async function handleRunControlCommand(
         type: 'session/prompt',
         sessionId: command.sessionId,
         input: {
-          text: RESUME_CONTINUATION_PROMPT,
+          text: resolveResumePromptText(command.text),
           source: 'resume',
           resumeCheckpointId: checkpoint.checkpointId,
         },
@@ -561,17 +561,6 @@ export async function handleRunControlCommand(
         // already disappeared, even though there is no active run left to
         // cancel.
         context.settlePendingExtensionUiForSession(command.sessionId);
-        // Idempotent: no active run to cancel. Clear the durable checkpoint
-        // before acknowledging so a subsequent prompt cannot race the Stop.
-        try {
-          await context.clearPauseCheckpoint(command.sessionId);
-        } catch (error) {
-          context.push({
-            type: 'host/log',
-            level: 'warn',
-            message: `pause checkpoint clear failed: ${formatError(error)}`,
-          });
-        }
         scheduleAbortCleanup(context, command.sessionId);
         return ok(requestId, 'session/abort', {
           sessionId: command.sessionId,

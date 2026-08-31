@@ -105,6 +105,216 @@ describe('session live control commands', () => {
     });
   });
 
+  it('treats already-compacted as a no-op and switches when occupancy now fits', async () => {
+    const baseSession = createDelayedSessionHandle();
+    let compactCalls = 0;
+    let usageReads = 0;
+    const session: SessionHandle = {
+      ...baseSession,
+      async compact(): Promise<import('@piwin/contracts').SessionCompactResult> {
+        compactCalls += 1;
+        return { ok: false, message: 'Already compacted' };
+      },
+    };
+    const { context } = createControlContext(session);
+    context.sessionModels.set(session.id, largeModelRef());
+    context.loadSessionUsage = async () => {
+      usageReads += 1;
+      return {
+        sessionId: session.id,
+        tokensUsed: usageReads === 1 ? 900_000 : 80_000,
+        tokensLimit: 1_000_000,
+        updatedAt: new Date().toISOString(),
+        source: 'pi-contextUsage',
+      };
+    };
+    context.loadConfig = async () => modelSwitchConfig();
+
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'session/compact',
+        sessionId: session.id,
+        targetModel: smallModelRef(),
+      },
+      undefined,
+      context,
+    );
+
+    expect(compactCalls).toBe(1);
+    expect(usageReads).toBe(2);
+    expect(response).toMatchObject({
+      success: true,
+      data: { ok: true, compacted: false, targetInputBudget: 201_600, tokensAfter: 80_000 },
+    });
+  });
+
+  it('treats a thrown already-compacted as a no-op when occupancy is unknown', async () => {
+    const baseSession = createDelayedSessionHandle();
+    let compactCalls = 0;
+    const session: SessionHandle = {
+      ...baseSession,
+      async compact(): Promise<import('@piwin/contracts').SessionCompactResult> {
+        compactCalls += 1;
+        throw new Error('Already compacted');
+      },
+    };
+    const { context } = createControlContext(session);
+    context.sessionModels.set(session.id, largeModelRef());
+    let usageReads = 0;
+    context.loadSessionUsage = async () => {
+      usageReads += 1;
+      if (usageReads === 1) {
+        return {
+          sessionId: session.id,
+          tokensUsed: 900_000,
+          tokensLimit: 1_000_000,
+          updatedAt: new Date().toISOString(),
+          source: 'pi-contextUsage',
+        };
+      }
+      return null;
+    };
+    context.loadConfig = async () => modelSwitchConfig();
+
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'session/compact',
+        sessionId: session.id,
+        targetModel: smallModelRef(),
+      },
+      undefined,
+      context,
+    );
+
+    expect(compactCalls).toBe(1);
+    expect(response).toMatchObject({
+      success: true,
+      data: { ok: true, compacted: false, targetInputBudget: 201_600 },
+    });
+    expect((response as { data?: { message?: string } }).data?.message).toMatch(/already compacted/i);
+  });
+
+  it('does not surface Already compacted when occupancy still exceeds the target', async () => {
+    const baseSession = createDelayedSessionHandle();
+    const session: SessionHandle = {
+      ...baseSession,
+      async compact(): Promise<import('@piwin/contracts').SessionCompactResult> {
+        return { ok: false, message: 'Already compacted' };
+      },
+    };
+    const { context } = createControlContext(session);
+    context.sessionModels.set(session.id, largeModelRef());
+    context.loadSessionUsage = async () => ({
+      sessionId: session.id,
+      tokensUsed: 900_000,
+      tokensLimit: 1_000_000,
+      updatedAt: new Date().toISOString(),
+      source: 'pi-contextUsage',
+    });
+    context.loadConfig = async () => modelSwitchConfig();
+
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'session/compact',
+        sessionId: session.id,
+        targetModel: smallModelRef(),
+      },
+      undefined,
+      context,
+    );
+
+    expect(response).toMatchObject({
+      success: false,
+      error: expect.stringMatching(/context-limit-exceeded/),
+    });
+    expect(String((response as { error?: string } | null)?.error ?? '').toLowerCase()).not.toContain(
+      'already compacted',
+    );
+  });
+
+  it('wakes a cold session before compacting', async () => {
+    const base = createSilentSessionHandle();
+    let compactCalls = 0;
+    const session: SessionHandle = {
+      ...base,
+      async getMessages() {
+        return [
+          { id: 'u1', role: 'user', text: 'hello' },
+          { id: 'a1', role: 'assistant', text: 'hi' },
+        ];
+      },
+      async compact() {
+        compactCalls += 1;
+        return { ok: true, tokensBefore: 100, tokensAfter: 40 };
+      },
+    };
+    const { context } = createPromptContext(session);
+    context.sessions = new Map();
+    context.requireSession = () => {
+      throw new Error(`Unknown session: ${session.id}`);
+    };
+    let ensured = false;
+    context.ensureLiveSession = async () => {
+      ensured = true;
+      context.sessions.set(session.id, session);
+      return session;
+    };
+
+    const response = await handleSessionLiveCommand(
+      { type: 'session/compact', sessionId: session.id },
+      undefined,
+      context,
+    );
+
+    expect(ensured).toBe(true);
+    expect(compactCalls).toBe(1);
+    expect(response).toMatchObject({
+      success: true,
+      data: { ok: true, tokensAfter: 40 },
+    });
+  });
+
+  it('reseeds reconstructed history when live compact finds nothing', async () => {
+    const base = createSilentSessionHandle();
+    let compactCalls = 0;
+    const session: SessionHandle = {
+      ...base,
+      async compact() {
+        compactCalls += 1;
+        return { ok: true, tokensBefore: 8000, tokensAfter: 1200 };
+      },
+    };
+    const { context } = createPromptContext(session);
+    context.withTranscriptStore = async (_sessionId, operation) =>
+      operation({
+        buildHistoryWindow: async () => [
+          { role: 'user', text: 'hello there' },
+          { role: 'assistant', text: 'a long reply about the topic' },
+          { role: 'user', text: 'please continue with more detail' },
+          { role: 'assistant', text: 'sure, more detail follows' },
+        ],
+      } as never);
+    let reseeded = 0;
+    context.reactivateWithSeedMessages = async (_sessionId, seeds) => {
+      reseeded += 1;
+      expect(seeds.length).toBeGreaterThanOrEqual(2);
+      return session;
+    };
+
+    const response = await handleSessionLiveCommand(
+      { type: 'session/compact', sessionId: session.id },
+      undefined,
+      context,
+    );
+
+    expect(reseeded).toBe(1);
+    expect(compactCalls).toBe(1);
+    expect(response).toMatchObject({
+      success: true,
+      data: { ok: true, tokensAfter: 1200 },
+    });
+  });
+
   it('rechecks and compacts before applying the target model on prompt', async () => {
     const baseSession = createDelayedSessionHandle();
     const order: string[] = [];
@@ -1108,7 +1318,8 @@ describe('session live control commands', () => {
           revision: 0,
           createdAt: now,
           updatedAt: now,
-          source: 'assistant',
+          source: 'skill',
+          skillId: 'writing-plans',
         });
         return COMPLETED_STOP_OUTCOME;
       },

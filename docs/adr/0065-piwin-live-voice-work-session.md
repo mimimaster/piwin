@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | Status | **Accepted — multi-provider; supersedes Codex-only same-week wording** |
-| Date | 2026-08-28; revised 2026-08-29; language layers 2026-08-31 |
+| Date | 2026-08-28; revised 2026-08-29; language layers + intent admission 2026-08-31 |
 | Scope | `@piwin/contracts`, `@piwin/voice`, `@piwin/host-runtime`, `@piwin/host-server`, `@piwin/host-transport`, `apps/desktop`, `apps/mobile` |
 | Product | [2026-08-28 product](../specs/2026-08-28-codex-live-product.md) · [2026-08-29 provider adapter](../specs/2026-08-29-live-provider-adapter.md) · [2026-08-31 language layers](../specs/2026-08-31-live-language-layers.md) |
 | Architecture | [2026-08-28 voice lane](../specs/2026-08-28-codex-live-voice-lane.md) |
@@ -67,13 +67,30 @@ Desktop or paired Mobile Media Driver (selected by mediaDriverId)
 Host does not PCM-relay audio. Wire details stay in the matching adapter and
 Driver.
 
-### 4. Delegation = upstream client delegation → Host admission
+### 4. Delegation is a candidate → tool-free intent review → Host admission
 
 Voice does not receive the Agent/MCP tool catalog. Work enters the bound
-session only when Host admits a normalized client-delegation event. Keyword
-heuristics are forbidden. Spoken “handed to Agent” only after Host receipt.
+session only after a normalized client-delegation event passes a tool-free
+semantic review and Host admission. The event type alone is not authorization.
+Keyword task heuristics are forbidden. Spoken acceptance only after Host feedback.
 
-Busy sessions **steer** the current Run. Live may abort only with the protocol token `STOP_CURRENT_RUN` (the voice model decides; Host does not guess from user speech). Steer failure may fall back to a queued turn. Ending Live does **not** cancel an admitted Run. Host strips ASR tags such as `[clear throat]` and rejects filler-only instructions.
+The Host resolves the bound session's desired chat model for one independent
+text completion: no Session prompt, Run, tools, project instructions, or casual
+transcript persistence. `@piwin/voice` owns the review prompt/strict decision
+parser; `@piwin/agent-host` owns the Pi-only completion boundary (including
+native subscription auth); Host composes selection, credentials and lifecycle.
+Decisions are work/repeat/reuse/conversation/clarify/stop. Only work/repeat and
+explicit stop reach mechanical Session admission. Reuse applies to completed
+tasks too; explicit redo remains allowed. Ambiguous speech never defaults to
+work. Preserve negations and user constraints rather than peeling prefixes.
+
+Review is call-scoped and serialized, with at most 8 candidates and a total
+20-second admission-review budget per candidate including queue time. Invalid
+output, unavailable models, timeout and hangup fail closed. Stop cancels pending
+reviews without waiting for the model. Existing admitted Runs survive hangup.
+The ledger retains recent briefs and bounded result summaries only in memory.
+
+Busy sessions **steer** the current Run. Live may abort only through `STOP_CURRENT_RUN` (explicit protocol stop or a semantic stop decision; never a stop-talking preference). Steer failure may fall back to a queued turn. Ending Live does **not** cancel an admitted Run. Host strips known ASR annotations such as `[clear throat]` and rejects filler-only instructions, preserving other bracketed task data.
 
 Work-session **chat** model is not a Live field. Composer picker commits
 desired profile with `session/set-composer-profile` (session index
@@ -89,8 +106,18 @@ Language-model boundaries (2026-08-31): the voice model sees only
 one-time `live_work_session` preamble and per-turn `voice_brief`; results
 return as a speakable takeaway, not a “session finished” announcement.
 Desktop shows a handover card, not a typed user bubble. Host still must
-not keyword-guess intent. Details:
+not keyword-guess intent. A separate tool-free model reviews candidates before
+those work-layer messages are created. Details:
 [2026-08-31-live-language-layers.md](../specs/2026-08-31-live-language-layers.md).
+
+Desktop and Mobile share browser-safe `@piwin/voice/wire` adapters. Codex
+admission feedback uses commentary `delegation.context.append`, not an invented
+`delegation.ack`; `ack_filler` is disabled. Private Codex framing is based on the
+local reference implementation, not guaranteed by the public Platform API.
+Platform/Gemini tool receipts correlate by provider tool ID, never the last
+pending ID. Commentary does not explicitly request another spoken response.
+Known upstream errors and local closed-channel sends become visible failures.
+Sending a frame still does not prove upstream receipt or audible playback.
 
 ### 5. Retention
 
@@ -105,8 +132,9 @@ not keyword-guess intent. Details:
 
 One active call per Host; owner-only start/mute/end/SDP; a loopback Desktop or
 one authenticated paired Mobile device may become the owner; others see
-sanitized `LiveCallView`; browse OK, no silent rebind; owner disconnect grace;
-Host restart ends the call.
+sanitized `LiveCallView`; Desktop retargets work to the focused conversation
+pane without tearing down media or changing the owner device; empty panes keep
+the previous bind; owner disconnect grace; Host restart ends the call.
 
 ### 7. Connection state and authorization failures are explicit
 
@@ -157,6 +185,9 @@ even though the native helper accepts it.
   copy must preserve that distinction rather than blaming the user's plan.
 - Must isolate adapter + fixtures; product copy must stay honest.
 - WebRTC-in-Tauri remains an R1 risk.
+- Intent admission adds a short, billable request on the selected chat model;
+  latency/accuracy vary by provider. Failure blocks new work instead of silently
+  bypassing review. Real microphone/listening acceptance remains a separate check.
 
 ## Rejected alternatives
 

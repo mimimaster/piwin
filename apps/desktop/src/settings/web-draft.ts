@@ -2,11 +2,13 @@
  * Pure draft<->config conversion for the Web tools settings form.
  * Draft keeps raw strings so users can type freely; parsing happens on save.
  */
+import { formatEnvLines, linesToArgs, parseEnvLines } from './cli-command-line.js';
 import {
   DEFAULT_FETCH_CACHE_TTL_MS,
   DEFAULT_FETCH_RETURN_MAX_CHARS,
   DEFAULT_FETCH_STORE_MAX_CHARS,
-  DEFAULT_SEARCH_ROUTE_POLICY,
+  inferSearchRoutePolicy,
+  isCustomWebSearchKind,
   type ModelRef,
   type SearchRoutePolicy,
   type WebConfig,
@@ -26,6 +28,8 @@ export type DraftSearchSource = {
   command: string;
   /** One argv token per line; use {{query}} for the search query token. */
   args: string;
+  /** KEY=VALUE per line for kind=cli. */
+  envText: string;
 };
 
 export type DraftWeb = {
@@ -53,7 +57,7 @@ export function webToDraft(web: WebConfig): DraftWeb {
     searchSources: (web.searchSources ?? []).map(sourceToDraft),
     ...(web.searchDelegateModel ? { searchDelegateModel: web.searchDelegateModel } : {}),
     ...(web.fetchDelegateModel ? { fetchDelegateModel: web.fetchDelegateModel } : {}),
-    searchRoutePolicy: web.searchRoutePolicy ?? DEFAULT_SEARCH_ROUTE_POLICY,
+    searchRoutePolicy: inferSearchRoutePolicy(web.searchRoutePolicy, web.searchSources ?? []),
     perSourceTimeoutMs: String(web.searchStrategy?.perSourceTimeoutMs ?? 8000),
     searchMaxResults: String(web.searchMaxResults ?? 10),
     searchTimeoutMs: String(web.searchTimeoutMs ?? 15000),
@@ -70,7 +74,7 @@ export function webToDraft(web: WebConfig): DraftWeb {
   };
 }
 
-/** Remote Settings strips `command`; keep the Host CLI path if the draft omitted it. */
+/** Keep the Host CLI path if this save omitted command/args instead of clearing them. */
 export function preserveWebCliLaunchers(next: WebConfig, previous?: WebConfig): WebConfig {
   if (!previous) {
     return next;
@@ -90,10 +94,13 @@ export function preserveWebCliLaunchers(next: WebConfig, previous?: WebConfig): 
       }
       const command = source.command?.trim() || prior.command;
       const args = source.args && source.args.length > 0 ? source.args : prior.args;
+      const env =
+        source.env && Object.keys(source.env).length > 0 ? source.env : prior.env;
       return {
         ...source,
         ...(command ? { command } : {}),
         ...(args && args.length > 0 ? { args } : {}),
+        ...(env && Object.keys(env).length > 0 ? { env } : {}),
       };
     }),
   };
@@ -156,6 +163,12 @@ export function draftToWeb(draft: DraftWeb): WebConfig {
   };
 }
 
+export function findCustomSearchSource(
+  sources: readonly DraftSearchSource[],
+): DraftSearchSource | undefined {
+  return sources.find((source) => isCustomWebSearchKind(source.kind));
+}
+
 export function createDraftSearchSource(
   kind: WebSearchSourceKind,
   existingIds: readonly string[],
@@ -171,6 +184,7 @@ export function createDraftSearchSource(
     baseUrl: '',
     command: '',
     args: '',
+    envText: '',
   };
   if (kind === 'brave') {
     base.apiKeyEnv = 'BRAVE_API_KEY';
@@ -181,6 +195,8 @@ export function createDraftSearchSource(
   } else if (kind === 'cli') {
     base.command = '';
     base.args = '{{query}}';
+  } else if (kind === 'http') {
+    base.baseUrl = 'http://127.0.0.1:8787/search';
   }
   return base;
 }
@@ -196,6 +212,7 @@ function sourceToDraft(source: WebSearchSource): DraftSearchSource {
     baseUrl: source.baseUrl ?? '',
     command: source.command ?? '',
     args: (source.args ?? []).join('\n'),
+    envText: formatEnvLines(source.env),
   };
 }
 
@@ -220,12 +237,13 @@ function draftSourceToConfig(draft: DraftSearchSource): WebSearchSource {
   if (draft.command?.trim()) {
     source.command = draft.command.trim();
   }
-  const args = (draft.args ?? '')
-    .split(/\r?\n/)
-    .map((part) => part.trim())
-    .filter(Boolean);
+  const args = linesToArgs(draft.args ?? '');
   if (args.length > 0) {
     source.args = args;
+  }
+  const env = parseEnvLines(draft.envText ?? '');
+  if (env) {
+    source.env = env;
   }
   return source;
 }
