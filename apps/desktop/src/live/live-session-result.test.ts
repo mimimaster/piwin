@@ -40,4 +40,25 @@ describe('live session result feed', () => {
       }),
     ).toBe(false);
   });
+
+  it('does not feed another session into the bound Live call', () => {
+    expect(
+      canFeedLiveSessionResult({
+        activity: 'agent-working',
+        sessionStreaming: false,
+        assistant: { messageId: 'b1', text: '另一会话的回复', done: true, toolsRunning: false },
+        viewedSessionId: 's-other',
+        boundSessionId: 's-live',
+      }),
+    ).toBe(false);
+    expect(
+      canFeedLiveSessionResult({
+        activity: 'agent-working',
+        sessionStreaming: false,
+        assistant: { messageId: 'a2', text: '洛杉矶晴', done: true, toolsRunning: false },
+        viewedSessionId: 's-live',
+        boundSessionId: 's-live',
+      }),
+    ).toBe(true);
+  });
 });

@@ -49,6 +49,7 @@ describe('createLiveSettingsService', () => {
     });
     expect(applied.ok).toBe(true);
     expect(getConfig().speech?.live?.byProvider?.['openai-codex']?.voice).toBe('maple');
+    expect(getConfig().speech?.live?.byProvider?.['openai-codex']?.intelligence).toBeUndefined();
     expect(getConfig().speech?.live?.providerId).toBe('openai-codex');
   });
 
@@ -69,6 +70,17 @@ describe('createLiveSettingsService', () => {
     expect(snap.values.voice).toBe('spruce');
   });
 
+  it('ignores leftover Codex intelligence so start still validates', async () => {
+    const config = createDefaultPiwinConfig();
+    config.speech = {
+      live: { providerId: 'openai-codex', byProvider: { 'openai-codex': { voice: 'maple', intelligence: 'high' } } },
+    };
+    const { service } = makeService(config);
+    const snap = await service.snapshot('openai-codex');
+    expect(snap.settingsValid).toBe(true);
+    expect(snap.values).toEqual({ voice: 'maple' });
+  });
+
   it('rejects extra keys and refuses key writes on oauth providers', async () => {
     const { service } = makeService();
     const schema = await service.schema();
@@ -84,5 +96,15 @@ describe('createLiveSettingsService', () => {
       key: 'sk-test',
     });
     expect(key).toEqual({ ok: false, message: 'live-provider-unavailable' });
+  });
+
+  it('migrates the obsolete alloy voice on read but still rejects invalid new input', async () => {
+    const config = createDefaultPiwinConfig();
+    config.speech = { live: { voice: 'alloy' } };
+    const { service, getConfig } = makeService(config);
+    expect((await service.snapshot()).values).toEqual({ voice: 'cove' });
+    expect((await service.schema()).providers[0]?.settings[0]?.defaultValue).toBe('cove');
+    expect(getConfig().speech?.live?.voice).toBe('alloy');
+    expect((await service.apply({ expectedRevision: 1, providerId: 'openai-codex', values: { voice: 'alloy' } })).ok).toBe(false);
   });
 });

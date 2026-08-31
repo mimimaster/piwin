@@ -54,7 +54,7 @@ function renderMessage(message: ChatMessageUi): HTMLElement {
   );
 }
 
-describe('ConversationResponseContent process captions', () => {
+describe('ConversationResponseContent process markdown', () => {
   afterEach(() => {
     for (const { container, root } of mounted) {
       act(() => {
@@ -65,19 +65,18 @@ describe('ConversationResponseContent process captions', () => {
     mounted.length = 0;
   });
 
-  it('does not paint tool-loop captions as the reply body', () => {
-    const caption = '空框就是中间轮次的复制/再生成栏。接下来核对 transcript。';
+  it('paints tool-loop body as normal markdown beside the tools', () => {
+    const body = '空框就是中间轮次的复制/再生成栏。接下来核对 transcript。';
     const container = renderMessage(
       assistant({
         id: 'process',
-        text: caption,
+        text: body,
         thinking: 'The user is asking about a fragmented conversation.',
         tools: [{ toolCallId: 't1', toolName: 'web_fetch', status: 'done', output: 'ok' }],
       }),
     );
 
-    expect(container.querySelector('.markdown')).toBeNull();
-    expect(container.textContent).not.toContain(caption);
+    expect(container.querySelector('.markdown')?.textContent).toContain(body);
     expect(container.querySelector('[data-testid="conversation-thinking-summary"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="turn-tool-group"]')).not.toBeNull();
   });

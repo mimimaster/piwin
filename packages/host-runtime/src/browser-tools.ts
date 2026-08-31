@@ -277,9 +277,7 @@ export function createBrowserToolDefinitions(
   const navigate = createBrowserRegistration(
     {
       name: 'browser_navigate',
-      description:
-        'Navigate the shared right-sidebar Browser to a URL. Use after browser_snapshot to inspect the page. Only http(s) URLs are allowed.' +
-        USER_CONTROL_HINT,
+      description: 'Navigate the right-sidebar browser to an http(s) URL.' + USER_CONTROL_HINT,
       parameters: {
         type: 'object',
         properties: {
@@ -345,7 +343,7 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_snapshot',
       description:
-        'Capture an accessibility snapshot of the current page. Returns a JSON tree of elements with ref identifiers (e.g. e5) for use with browser_click/browser_type.',
+        'Capture an accessibility tree snapshot. Returns low-token structural elements with ref IDs (e.g. "e5") for click/type targeting.',
       parameters: {
         type: 'object',
         properties: {},
@@ -363,7 +361,7 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_click',
       description:
-        'Click an element on the page. Use a ref (from browser_snapshot, e.g. "e5") or a CSS selector.' +
+        'Click a page element targeting a snapshot ref (e.g. "e5") or CSS selector.' +
         USER_CONTROL_HINT,
       parameters: {
         type: 'object',
@@ -389,7 +387,7 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_type',
       description:
-        'Type text into a focusable element. First focuses the element (ref or CSS selector), then types the text character by character.' +
+        'Focus an element (via ref or CSS selector) and type text character by character.' +
         USER_CONTROL_HINT,
       parameters: {
         type: 'object',
@@ -418,7 +416,7 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_fill_form',
       description:
-        'Fill multiple form fields at once. Each field maps a ref or CSS selector to a value. Uses Playwright fill (sets value directly, no keystroke events).' +
+        'Batch fill multiple form fields at once by mapping refs or selectors to values.' +
         USER_CONTROL_HINT,
       parameters: {
         type: 'object',
@@ -464,7 +462,7 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_scroll',
       description:
-        'Scroll the page by a delta. Positive y scrolls down; positive x scrolls right.' +
+        'Scroll page in a specified direction (up | down | left | right).' +
         USER_CONTROL_HINT,
       parameters: {
         type: 'object',
@@ -500,10 +498,7 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_screenshot',
       description:
-        'Capture a screenshot of the current page for visual QA after UI changes. ' +
-        'Vision models receive the JPEG in this tool result — look at the image and keep editing. ' +
-        'Text-only models receive a vision description when vision delegation is configured. ' +
-        'Optionally also save a JPEG copy to a path.',
+        'Capture a visual page screenshot for UI layout verification. Multimodal models inspect the JPEG directly in tool results.',
       parameters: {
         type: 'object',
         properties: {
@@ -553,7 +548,7 @@ export function createBrowserToolDefinitions(
   const find = createBrowserRegistration(
     {
       name: 'browser_find',
-      description: 'Search for text on the current page. Returns the number of matching elements.',
+      description: 'Search for matching text occurrences on the current page.',
       parameters: {
         type: 'object',
         properties: {
@@ -578,7 +573,7 @@ export function createBrowserToolDefinitions(
   const back = createBrowserRegistration(
     {
       name: 'browser_back',
-      description: 'Navigate back in browser history.' + USER_CONTROL_HINT,
+      description: 'Navigate backward in browser history.' + USER_CONTROL_HINT,
       parameters: { type: 'object', properties: {}, required: [] },
     },
     permissionSpec('browser:back'),
@@ -613,7 +608,7 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_wait',
       description:
-        'Wait for a fixed duration (milliseconds) before continuing. Use for page transitions or animations.',
+        'Wait for a fixed duration in milliseconds for page transitions or animations.',
       parameters: {
         type: 'object',
         properties: {
@@ -637,7 +632,7 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_lock',
       description:
-        'Lock or unlock the shared browser workbench. action=lock acquires agent control when idle. If the user has taken over, this fails with browser-user-has-control — do not retry-steal; ask them to give the browser back. action=unlock yields to idle.',
+        'Acquire or release agent control over the shared browser workbench (action="lock" | "unlock").',
       parameters: {
         type: 'object',
         properties: {

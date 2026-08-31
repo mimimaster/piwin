@@ -127,15 +127,15 @@ describe('ChatThread process narration', () => {
     });
   }
 
-  it('hides Conversation tool-loop captions and keeps actions on the final reply', () => {
-    const processCaption = '空框就是中间轮次挂上的复制/再生成栏。接下来只在最后一条保留操作栏。';
+  it('folds Conversation process markdown after the conclusion and keeps actions on the reply', () => {
+    const processBody = '空框就是中间轮次挂上的复制/再生成栏。接下来只在最后一条保留操作栏。';
     const finalText = '一只大嘴鹈鹕在海岸公路上骑复古自行车。';
     render(
       [
         userMessage('u1', '为什么会话会断裂'),
         assistant({
           id: 'a-process-1',
-          text: processCaption,
+          text: processBody,
           thinking: 'Inspect the conversation chrome.',
           tools: [
             { toolCallId: 't1', toolName: 'read', status: 'done', output: 'ok' },
@@ -144,7 +144,7 @@ describe('ChatThread process narration', () => {
         }),
         assistant({
           id: 'a-process-2',
-          text: processCaption,
+          text: processBody,
           thinking: 'Same caption, next tools.',
           tools: [
             { toolCallId: 't3', toolName: 'artifact_instructions', status: 'done', output: 'ok' },
@@ -163,35 +163,41 @@ describe('ChatThread process narration', () => {
       },
     );
 
-    expect(container.querySelector('#msg-a-process-1 .markdown')).toBeNull();
-    expect(container.querySelector('#msg-a-process-2 .markdown')).toBeNull();
-    expect(container.querySelector('#msg-a-process-1')?.classList.contains('is-tool-only')).toBe(
-      true,
-    );
-    expect(container.textContent).not.toContain(processCaption);
+    expect(container.querySelector('#msg-a-process-1')).toBeNull();
+    expect(container.querySelector('#msg-a-process-2')).toBeNull();
+    expect(container.textContent).not.toContain(processBody);
     expect(container.querySelector('#msg-a-final .markdown')?.textContent).toContain(finalText);
-    expect(
-      container.querySelector('#msg-a-process-1 [data-testid="assistant-response-actions"]'),
-    ).toBeNull();
-    expect(
-      container.querySelector('#msg-a-process-2 [data-testid="assistant-response-actions"]'),
-    ).toBeNull();
     expect(
       container.querySelector('#msg-a-final [data-testid="assistant-response-actions"]'),
     ).not.toBeNull();
     expect(
       container.querySelector('#msg-a-final [data-testid="response-copy-btn"]'),
     ).not.toBeNull();
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="turn-work-disclosure-trigger"]')
+        ?.click();
+    });
+
+    expect(container.querySelector('#msg-a-process-1 .markdown')?.textContent).toContain(processBody);
+    expect(container.querySelector('#msg-a-process-2 .markdown')?.textContent).toContain(processBody);
+    expect(
+      container.querySelector('#msg-a-process-1 [data-testid="assistant-response-actions"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('#msg-a-final [data-testid="response-copy-btn"]'),
+    ).not.toBeNull();
   });
 
-  it('does not treat a still-running last tool-loop row as a reply', () => {
-    const processCaption = '接着核对中间轮次的操作栏。';
+  it('keeps live process markdown visible before a conclusion arrives', () => {
+    const processBody = '接着核对中间轮次的操作栏。';
     render(
       [
         userMessage('u1', '查一下'),
         assistant({
           id: 'a-live',
-          text: processCaption,
+          text: processBody,
           thinking: 'Need another read.',
           tools: [{ toolCallId: 't1', toolName: 'read', status: 'done', output: 'ok' }],
         }),
@@ -199,21 +205,18 @@ describe('ChatThread process narration', () => {
       { isConversationSession: true, onBranchResend: vi.fn(), onForkFromMessage: vi.fn() },
     );
 
-    expect(container.querySelector('#msg-a-live .markdown')).toBeNull();
-    expect(container.textContent).not.toContain(processCaption);
-    expect(
-      container.querySelector('#msg-a-live [data-testid="assistant-response-actions"]'),
-    ).toBeNull();
+    expect(container.querySelector('#msg-a-live .markdown')?.textContent).toContain(processBody);
+    expect(container.querySelector('[data-testid="turn-work-disclosure"]')).toBeNull();
   });
 
-  it('keeps Project tool-loop captions out of the expanded work disclosure', () => {
-    const processCaption = '同一轮被拆成多条 assistant 行。我去看 chat-thread 怎么画。';
+  it('restores Project process markdown inside the expanded work disclosure', () => {
+    const processBody = '同一轮被拆成多条 assistant 行。我去看 chat-thread 怎么画。';
     render(
       [
         userMessage('u1', 'Implement this.'),
         assistant({
           id: 'work-1',
-          text: processCaption,
+          text: processBody,
           thinking: 'Inspecting the implementation.',
           tools: [
             {
@@ -245,8 +248,7 @@ describe('ChatThread process narration', () => {
     );
 
     expect(container.querySelector('#msg-work-1')).not.toBeNull();
-    expect(container.querySelector('#msg-work-1 .markdown')).toBeNull();
-    expect(container.textContent).not.toContain(processCaption);
+    expect(container.querySelector('#msg-work-1 .markdown')?.textContent).toContain(processBody);
     expect(container.querySelector('#msg-answer-1 .markdown')?.textContent).toContain(
       'Implemented and verified.',
     );

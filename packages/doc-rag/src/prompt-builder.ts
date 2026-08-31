@@ -46,16 +46,13 @@ export function buildFlashcardGenerationPrompt(input: BuildFlashcardGenerationPr
     lines.push(COUNT_GUIDANCE[count]);
   }
   lines.push('');
-  lines.push('## Retrieved passages');
-  lines.push('');
+  lines.push('<retrieved_passages>');
   for (const [index, chunk] of chunks.entries()) {
-    lines.push(`### Passage ${index + 1}: ${chunk.filePath}:${chunk.startLine}-${chunk.endLine}`);
-    lines.push('```');
+    lines.push(`  <passage index="${index + 1}" location="${chunk.filePath}:${chunk.startLine}-${chunk.endLine}">`);
     lines.push(chunk.content);
-    lines.push('```');
-    lines.push('');
+    lines.push(`  </passage>`);
   }
-  lines.push('## Instructions');
+  lines.push('</retrieved_passages>');
   lines.push('');
   lines.push(qualityRules);
   lines.push('');

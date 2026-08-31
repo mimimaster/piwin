@@ -1,4 +1,9 @@
-import { validateLiveApplyValues, validateLiveSettingFields, type LiveSettingField } from '@piwin/contracts';
+import {
+  composeLiveSpokenInstructions,
+  validateLiveApplyValues,
+  validateLiveSettingFields,
+  type LiveSettingField,
+} from '@piwin/contracts';
 
 export const GEMINI_LIVE_PROVIDER_ID = 'google-gemini';
 export const GEMINI_LIVE_DEFAULT_MODEL = 'gemini-3.1-flash-live-preview';
@@ -47,9 +52,7 @@ export const GEMINI_LIVE_THINKING = ['minimal', 'low', 'medium', 'high'] as cons
 export const GEMINI_LIVE_CONSTRAINED_ENDPOINT =
   'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained';
 
-/** Locked into the ephemeral token so the voice cannot invent an OpenAI identity. */
-export const GEMINI_LIVE_SYSTEM_INSTRUCTION =
-  'You are piwin Live, the realtime voice of the piwin desktop. Your model is Google Gemini. You are not OpenAI, ChatGPT, GPT, Codex, or a ChatGPT subscription voice. Do not introduce yourself as those. Speak the user language. Casual talk stays in this call. For work that needs files, code, tools, or the current project, call delegate_to_work_session with the instruction.';
+export const GEMINI_LIVE_SYSTEM_INSTRUCTION = composeLiveSpokenInstructions('tool-handover');
 
 export function geminiLiveSettingFields(): LiveSettingField[] {
   const fields: LiveSettingField[] = [

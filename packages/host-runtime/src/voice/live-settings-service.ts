@@ -5,7 +5,7 @@ import type {
   LiveSettingsView,
   PiwinConfig,
 } from '@piwin/contracts';
-import { DEFAULT_CODEX_LIVE_VOICE, type LiveProviderRegistry } from '@piwin/voice';
+import { DEFAULT_CODEX_LIVE_VOICE, resolveCodexLiveVoice, type LiveProviderRegistry } from '@piwin/voice';
 
 export type LiveChannelSnapshot = {
   revision: number;
@@ -52,9 +52,11 @@ export function createLiveSettingsService(deps: {
 
   function readProviderValues(config: PiwinConfig, providerId: string): Record<string, string> {
     const stored = config.speech?.live?.byProvider?.[providerId];
-    if (stored) return { ...stored };
+    if (stored) return providerId === 'openai-codex'
+      ? { ...stored, voice: resolveCodexLiveVoice(stored.voice) }
+      : { ...stored };
     if (providerId === 'openai-codex' && config.speech?.live?.voice?.trim()) {
-      return { voice: config.speech.live.voice.trim() };
+      return { voice: resolveCodexLiveVoice(config.speech.live.voice) };
     }
     return {};
   }
@@ -120,9 +122,13 @@ export function createLiveSettingsService(deps: {
     await registration.refresh?.();
     const descriptor = registration.descriptor();
     const stored = readProviderValues(config, selected);
+    const allowed = new Set(descriptor.settings.map((field) => field.key));
+    const known = Object.fromEntries(
+      Object.entries(stored).filter(([key]) => allowed.has(key)),
+    );
     const validated = registration.validateSettings({
       ...Object.fromEntries(descriptor.settings.map((field) => [field.key, field.defaultValue])),
-      ...stored,
+      ...known,
     });
     cachedValues = validated.ok ? { ...validated.normalized } : stored;
     const authReady = await registration.authReady();

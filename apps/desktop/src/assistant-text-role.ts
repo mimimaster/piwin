@@ -1,7 +1,7 @@
 /**
- * Whether an assistant `text` part is a user-facing reply or a tool-loop
- * caption. Same-message text + work tools are generated before those tools
- * run, so the caption cannot be the answer that uses the results.
+ * Same-message text + work tools is process body: still markdown, but it is
+ * not the settled conclusion used for copy/fold. The conclusion is a later
+ * assistant row without work tools.
  */
 import type { ChatMessageUi, ToolCardUi } from './chat-reducer.js';
 import { resolveGenerationToolKind } from './generation-tool-kind.js';

@@ -54,7 +54,10 @@ export function createHealthReadContextTool(
     descriptor: {
       name: 'health_read_context',
       description:
-        'Read a bounded Apple Health summary from the paired iPhone. Use only when the user asks about their Apple Health data or explicitly selects Health. Request the minimum metrics and shortest useful range. One call per turn; treat missing data as unknown, never as zero; report period and freshness; do not diagnose.',
+        'Read bounded Apple Health activity & biometric metrics from the paired device. ' +
+        'Scope: Request only explicitly asked metrics within a <=90-day window. ' +
+        'Data Contract: Treat missing/null values as unknown, never as zero. Report observation period. ' +
+        'Boundary: Provide factual trends and descriptive summaries only. Never provide clinical diagnoses or medical advice.',
       parameters: {
         type: 'object',
         properties: {

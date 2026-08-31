@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { SPEECH_MAX_AUDIO_BYTES, SPEECH_MAX_DURATION_MS } from '@piwin/contracts';
+import {
+  SPEECH_MAX_AUDIO_BYTES,
+  SPEECH_MAX_DURATION_MS,
+  sanitizeLiveDelegationInstruction,
+} from '@piwin/contracts';
 import type { HostResponse, SpeechTranscribeData, SpeechTranscribeInput } from '@piwin/contracts';
 
 export type SpeechInputStatus = 'idle' | 'listening' | 'transcribing';
@@ -118,11 +122,15 @@ export function useSpeechInput(options: UseSpeechInputOptions): SpeechInputContr
         throw new Error(response.error);
       }
       const data = response.data as SpeechTranscribeData | undefined;
-      if (!data || typeof data.text !== 'string' || !data.text.trim()) {
+      if (!data || typeof data.text !== 'string') {
         throw new Error('ASR response did not contain transcript text.');
       }
+      const transcript = sanitizeLiveDelegationInstruction(data.text);
+      if (!transcript) {
+        return;
+      }
       if (!cancelledRef.current) {
-        onTranscriptRef.current(data.text.trim());
+        onTranscriptRef.current(transcript);
       }
     } catch (caughtError) {
       if (mountedRef.current && !cancelledRef.current) {

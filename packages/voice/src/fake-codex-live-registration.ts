@@ -1,4 +1,4 @@
-import type { LiveProviderDescriptor } from '@piwin/contracts';
+import { PIWIN_LIVE_INSTRUCTIONS, type LiveProviderDescriptor } from '@piwin/contracts';
 import {
   FakeRealtimeVoiceAdapter,
   type FakeRealtimeVoiceAdapterControls,
@@ -37,7 +37,7 @@ export function createFakeCodexRegistration(
         sdpOffer: input.clientBootstrap.offerSdp,
         accessToken: 'fake',
         accountId: 'fake',
-        instructions: 'piwin Live work-session voice assistant.',
+        instructions: PIWIN_LIVE_INSTRUCTIONS,
         signal: input.signal,
       });
       return {

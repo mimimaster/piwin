@@ -3,12 +3,12 @@
  * Session admission is injected; this module never imports @piwin/session.
  */
 
+import { randomUUID } from 'node:crypto';
 import type {
   LiveCallErrorCode,
   LiveCallView,
   LiveClientBootstrapInput,
   LiveOwnerBootstrap,
-  LiveStartData,
   LiveStatusData,
   LiveStatusInput,
 } from '@piwin/contracts';
@@ -17,70 +17,28 @@ import {
   createInitialLiveCallState,
   transitionLiveCall,
   type FakeRealtimeVoiceAdapter,
-  type LiveCallState,
-  type LiveProviderRegistry,
-  type VoiceDelegationEvent,
 } from '@piwin/voice';
 import { computeLiveReadiness } from './live-call-readiness.js';
-import { LiveDelegationLedger } from './live-delegation-ledger.js';
+import { LiveDelegationController } from './live-delegation-controller.js';
 import type { LiveChannelSnapshot } from './live-settings-service.js';
-import { sanitizeLiveSpeakableResult } from './live-speakable-result.js';
+import { forgetLiveWorkPreamble } from './live-work-preamble.js';
 import { createLiveStartBudget } from './live-call-budgets.js';
 
-export type LiveDelegationAdmissionResult =
-  | { status: 'accepted'; messageId: string; queued: false; runId: string }
-  | { status: 'accepted'; messageId: string; queued: true; queuedTurnId: string }
-  | { status: 'rejected'; reason: LiveCallErrorCode };
-
-type LiveStartResult = { ok: true } & LiveStartData | { ok: false; errorCode: LiveCallErrorCode };
-
-export type LiveDelegationAdmissionPort = {
-  admit(input: {
-    callId: string;
-    sessionId: string;
-    instruction: string;
-    providerDelegationId: string;
-  }): Promise<LiveDelegationAdmissionResult>;
-};
-
-export type LiveCallSlot = {
-  callId: string;
-  sessionId: string;
-  sessionLabel: string;
-  ownerDeviceId: string;
-  idempotencyKey: string;
-  startedAt: string;
-  state: LiveCallState;
-  muted: boolean;
-  providerId: string;
-  mediaDriverId: LiveOwnerBootstrap['mediaDriverId'];
-  voiceModelId: string;
-  ownerBootstrap: LiveOwnerBootstrap | null;
-  close: () => Promise<void>;
-  startAbort: AbortController;
-};
-
-export type LiveCoordinatorDeps = {
-  registry: LiveProviderRegistry;
-  resolveSnapshot: (providerId?: string) => Promise<LiveChannelSnapshot>;
-  resolveSessionLabel: (sessionId: string) => Promise<string | null> | string | null;
-  admission: LiveDelegationAdmissionPort;
-  getFakeAdapter?: () => FakeRealtimeVoiceAdapter | null;
-  now?: () => string;
-  pushUpdated?: (call: LiveCallView | null) => void;
-  pushOwnerAction?: (action: import('@piwin/contracts').LiveOwnerActionPush) => void;
-};
+import type { LiveCallSlot, LiveCoordinatorDeps, LiveStartResult } from './live-call-types.js';
+export type { LiveCallSlot, LiveCoordinatorDeps, LiveDelegationAdmissionPort, LiveDelegationAdmissionResult } from './live-call-types.js';
 
 export class LiveCallCoordinator {
   private slot: LiveCallSlot | null = null;
   private startInFlight: {
     idempotencyKey: string;
     ownerDeviceId: string;
+    sessionId: string;
+    providerId: string;
     abort: AbortController;
     promise: Promise<LiveStartResult>;
   } | null = null;
   private snapshot: LiveChannelSnapshot | null = null;
-  private readonly ledger = new LiveDelegationLedger();
+  private readonly delegations: LiveDelegationController;
   private readonly startBudget = createLiveStartBudget();
   private readonly deps: LiveCoordinatorDeps;
   private readonly now: () => string;
@@ -88,6 +46,12 @@ export class LiveCallCoordinator {
   constructor(deps: LiveCoordinatorDeps) {
     this.deps = deps;
     this.now = deps.now ?? (() => new Date().toISOString());
+    this.delegations = new LiveDelegationController({
+      admission: deps.admission,
+      ...(deps.pushOwnerAction ? { pushOwnerAction: deps.pushOwnerAction } : {}),
+      getSlot: () => this.slot,
+      onChanged: () => this.emit(),
+    });
   }
 
   async prepare(providerId?: string): Promise<LiveChannelSnapshot> {
@@ -129,11 +93,28 @@ export class LiveCallCoordinator {
     ownerDeviceId: string;
     signal: AbortSignal;
   }): Promise<LiveStartResult> {
+    // Bootstrap material is replayable only to the original owner/target.
+    if (this.slot) {
+      if (this.slot.ownerDeviceId !== input.ownerDeviceId) {
+        return { ok: false, errorCode: 'live-call-busy' };
+      }
+      if (this.slot.idempotencyKey === input.idempotencyKey) {
+        if (this.slot.sessionId !== input.sessionId || this.slot.providerId !== input.providerId) {
+          return { ok: false, errorCode: 'live-conflict' };
+        }
+        if (this.slot.ownerBootstrap) {
+          return { ok: true, call: this.toView(this.slot), bootstrap: this.slot.ownerBootstrap };
+        }
+      }
+    }
     if (this.startInFlight) {
       if (
         this.startInFlight.idempotencyKey === input.idempotencyKey &&
         this.startInFlight.ownerDeviceId === input.ownerDeviceId
       ) {
+        if (this.startInFlight.sessionId !== input.sessionId || this.startInFlight.providerId !== input.providerId) {
+          return { ok: false, errorCode: 'live-conflict' };
+        }
         return this.startInFlight.promise;
       }
       return { ok: false, errorCode: 'live-call-busy' };
@@ -142,16 +123,20 @@ export class LiveCallCoordinator {
       return { ok: false, errorCode: 'live-start-throttled' };
     }
     const abort = new AbortController();
+    const onAbort = (): void => abort.abort();
     if (input.signal.aborted) abort.abort();
     else {
-      input.signal.addEventListener('abort', () => abort.abort(), { once: true });
+      input.signal.addEventListener('abort', onAbort, { once: true });
     }
     const work = this.startUnlocked({ ...input, abort }).finally(() => {
+      input.signal.removeEventListener('abort', onAbort);
       if (this.startInFlight?.promise === work) this.startInFlight = null;
     });
     this.startInFlight = {
       idempotencyKey: input.idempotencyKey,
       ownerDeviceId: input.ownerDeviceId,
+      sessionId: input.sessionId,
+      providerId: input.providerId,
       abort,
       promise: work,
     };
@@ -170,6 +155,7 @@ export class LiveCallCoordinator {
     if (input.abort.signal.aborted) return { ok: false, errorCode: 'live-protocol-failed' };
     const snapshot = await this.prepare(input.providerId);
     if (input.abort.signal.aborted) return { ok: false, errorCode: 'live-protocol-failed' };
+    if (input.settingsRevision !== snapshot.revision) return { ok: false, errorCode: 'live-conflict' };
     if (!snapshot.registered) return { ok: false, errorCode: 'live-provider-unavailable' };
     if (!snapshot.authReady) return { ok: false, errorCode: 'live-provider-auth' };
     if (!snapshot.settingsValid) return { ok: false, errorCode: 'live-protocol-failed' };
@@ -200,7 +186,7 @@ export class LiveCallCoordinator {
     const registration = this.deps.registry.get(input.providerId);
     if (!registration) return { ok: false, errorCode: 'live-provider-unavailable' };
 
-    const callId = `live_${Date.now().toString(36)}`;
+    const callId = `live_${randomUUID()}`;
     this.slot = {
       callId,
       sessionId: input.sessionId,
@@ -227,7 +213,8 @@ export class LiveCallCoordinator {
         signal: input.abort.signal,
       });
       if (!this.slot || this.slot.callId !== callId || input.abort.signal.aborted) {
-        await created.close().catch(() => undefined);
+        await created.close().catch(() => console.error('[piwin-live] late create cleanup failed'));
+        if (this.slot?.callId === callId) await this.cleanup();
         return { ok: false, errorCode: 'live-protocol-failed' };
       }
       this.slot.voiceModelId = created.voiceModelId;
@@ -240,7 +227,8 @@ export class LiveCallCoordinator {
         error instanceof Error && isLiveCallErrorCode(error.message)
           ? error.message
           : 'live-protocol-failed';
-      await this.cleanup();
+      console.error(`[piwin-live] start failed provider=${input.providerId} code=${errorCode}`);
+      if (this.slot?.callId === callId) await this.cleanup();
       return { ok: false, errorCode };
     }
   }
@@ -268,14 +256,17 @@ export class LiveCallCoordinator {
     expectedRevision?: number;
     ownerDeviceId: string;
   }): Promise<{ ok: true } | { ok: false; errorCode: LiveCallErrorCode }> {
-    this.abortOwnedStart(input.ownerDeviceId);
-    if (!this.slot) return { ok: true };
+    if (!this.slot) {
+      if (!input.callId) this.abortOwnedStart(input.ownerDeviceId);
+      return { ok: true };
+    }
     if (this.slot.ownerDeviceId !== input.ownerDeviceId) {
       return { ok: false, errorCode: 'live-not-owner' };
     }
     if (input.callId && this.slot.callId !== input.callId) {
       return { ok: false, errorCode: 'live-session-unavailable' };
     }
+    this.abortOwnedStart(input.ownerDeviceId);
     const next = transitionLiveCall(this.slot.state, { type: 'end' });
     if (next) this.slot.state = next;
     await this.cleanup();
@@ -299,10 +290,7 @@ export class LiveCallCoordinator {
     }
     const event = input.event;
     if (event.type === 'delegation') {
-      if (this.ledger.find(this.slot.callId, event.providerDelegationId)) {
-        return { ok: true };
-      }
-      void this.handleDelegation({
+      void this.delegations.handleDelegation({
         providerDelegationId: event.providerDelegationId,
         instruction: event.instruction,
       });
@@ -360,6 +348,7 @@ export class LiveCallCoordinator {
   }
 
   async dispose(): Promise<void> {
+    this.startInFlight?.abort.abort();
     this.startBudget.reset();
     await this.cleanup();
   }
@@ -387,131 +376,29 @@ export class LiveCallCoordinator {
     return { ok: true, slot: this.slot };
   }
 
-  private readonly inFlightDelegations = new Set<string>();
-
-  private async handleDelegation(delegation: VoiceDelegationEvent): Promise<void> {
-    const slot = this.slot;
-    if (!slot) return;
-    const callId = slot.callId;
-    const inflightKey = `${callId}:${delegation.providerDelegationId}`;
-    if (this.ledger.find(callId, delegation.providerDelegationId) || this.inFlightDelegations.has(inflightKey)) {
-      return;
-    }
-    this.inFlightDelegations.add(inflightKey);
-    try {
-      await this.admitAndRecord(slot, delegation, callId);
-    } finally {
-      this.inFlightDelegations.delete(inflightKey);
-    }
+  notifyBoundSessionTurnEnded(
+    input: Parameters<LiveDelegationController['notifyBoundSessionTurnEnded']>[0],
+  ): void {
+    this.delegations.notifyBoundSessionTurnEnded(input);
   }
 
-  private async admitAndRecord(
-    slot: LiveCallSlot,
-    delegation: VoiceDelegationEvent,
-    callId: string,
-  ): Promise<void> {
-    const result = await this.deps.admission.admit({
-      callId,
-      sessionId: slot.sessionId,
-      instruction: delegation.instruction,
-      providerDelegationId: delegation.providerDelegationId,
-    });
-    const ack = {
-      providerDelegationId: delegation.providerDelegationId,
-      ok: result.status === 'accepted',
-      ...(result.status === 'accepted'
-        ? result.queued
-          ? { queueId: result.queuedTurnId, messageId: result.messageId }
-          : { runId: result.runId, messageId: result.messageId }
-        : {}),
-    };
-    this.deps.pushOwnerAction?.({
-      type: 'voice/live-owner-action',
-      callId,
-      action: 'ack-delegation',
-      ...ack,
-    });
-    if (this.slot?.callId !== callId) return;
-    if (result.status === 'accepted') {
-      const stored = this.ledger.remember({
-        callId,
-        providerDelegationId: delegation.providerDelegationId,
-        sessionId: slot.sessionId,
-        messageId: result.messageId,
-        admission: 'accepted',
-        resultDelivered: false,
-        ...(result.queued ? { queueId: result.queuedTurnId } : { runId: result.runId }),
-      });
-      if (!stored.ok) {
-        this.deps.pushOwnerAction?.({
-          type: 'voice/live-owner-action',
-          callId,
-          action: 'show-error',
-          errorCode: 'live-delegation-rejected',
-        });
-        return;
-      }
-      const next = transitionLiveCall(this.slot.state, {
-        type: 'set-activity',
-        activity: 'agent-working',
-      });
-      if (next) {
-        this.slot.state = next;
-        this.emit();
-      }
-    }
-  }
-
-  notifyBoundSessionTurnEnded(input: {
-    sessionId: string;
-    runId: string;
-    kind: string;
-    status: string;
-    assistantText: string;
-  }): void {
-    const slot = this.slot;
-    if (!slot || slot.sessionId !== input.sessionId) return;
-    const pending = this.ledger.findForTurn({ sessionId: input.sessionId, runId: input.runId });
-    if (!pending) {
-      this.ledger.bindRunId({ sessionId: input.sessionId, runId: input.runId });
-    }
-    const record =
-      pending ?? this.ledger.findForTurn({ sessionId: input.sessionId, runId: input.runId });
-    if (!record) return;
-    const content = sanitizeLiveSpeakableResult({
-      assistantText: input.assistantText,
-      completed: input.status === 'completed',
-    });
-    this.ledger.markDelivered(record);
-    this.deps.pushOwnerAction?.({
-      type: 'voice/live-owner-action',
-      callId: slot.callId,
-      action: 'append-context',
-      channel: 'speakable',
-      target: 'delegation',
-      providerDelegationId: record.providerDelegationId,
-      content,
-    });
-    const next = transitionLiveCall(slot.state, {
-      type: 'set-activity',
-      activity: slot.muted ? 'muted' : 'listening',
-    });
-    if (next) {
-      slot.state = next;
-      this.emit();
-    }
+  bindQueuedDelegationRun(input: Parameters<LiveDelegationController['bindQueuedRun']>[0]): void {
+    this.delegations.bindQueuedRun(input);
   }
 
   private async cleanup(): Promise<void> {
     const slot = this.slot;
     this.slot = null;
-    this.ledger.clear();
+    this.delegations.clear();
+    if (slot) forgetLiveWorkPreamble(slot.callId);
     if (!slot) {
-      this.deps.pushUpdated?.(null);
       return;
     }
     slot.startAbort.abort();
-    await slot.close().catch(() => undefined);
+    // Publish the slot release before asynchronous cleanup; a late null push
+    // must never erase a replacement call started while close is pending.
+    this.deps.pushUpdated?.(null);
+    await slot.close().catch(() => console.error('[piwin-live] call cleanup failed'));
     if (slot.ownerBootstrap) {
       this.deps.pushOwnerAction?.({
         type: 'voice/live-owner-action',
@@ -519,7 +406,6 @@ export class LiveCallCoordinator {
         action: 'release-media',
       });
     }
-    this.deps.pushUpdated?.(null);
   }
 
   private emit(): void {

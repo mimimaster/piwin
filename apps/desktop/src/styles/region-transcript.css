@@ -557,3 +557,32 @@
   margin: 0;
   padding: 0;
 }
+
+.voice-handover-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  width: 100%;
+  min-width: 0;
+}
+
+.voice-handover-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.voice-handover-card-label {
+  font-size: var(--fs-mono);
+  line-height: 1;
+  color: var(--text-4);
+}
+
+.voice-handover-card-brief {
+  color: var(--text-1);
+  word-break: break-word;
+}
+
+.bubble.role-user.is-voice-handover {
+  background: color-mix(in srgb, var(--surface-3) 88%, var(--iris) 12%);
+}

@@ -177,7 +177,9 @@ export function LiveSettings(props: LiveSettingsProps): ReactElement {
 }
 
 function getFieldIcon(key: string): ReactElement {
-  if (key === 'model') return <IconBrain size={14} />;
+  if (key === 'model' || key === 'intelligence' || key === 'thinkingLevel') {
+    return <IconBrain size={14} />;
+  }
   if (key === 'voice') return <IconMic size={14} />;
   return <IconSliders size={14} />;
 }

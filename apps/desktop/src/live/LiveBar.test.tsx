@@ -133,11 +133,22 @@ describe('LiveBar', () => {
     expect(controls.onEnd).toHaveBeenCalled();
   });
 
-  it('shows interrupt button when model is responding (assistant-speaking)', () => {
+  it('keeps real mute controls while responding instead of a fake interrupt button', () => {
     render(<LiveBar call={{ ...call, activity: 'assistant-speaking' }} {...controls} />);
     const interruptBtn = container?.querySelector('[data-testid="live-bar-interrupt"]') as HTMLButtonElement;
-    expect(interruptBtn).not.toBeNull();
-    expect(interruptBtn.getAttribute('title')).toBe('打断');
+    expect(interruptBtn).toBeNull();
+    expect(container?.querySelector('[data-testid="live-bar-mute"]')).not.toBeNull();
+  });
+
+  it('does not present unmute as permission approval', () => {
+    render(<LiveBar call={{ ...call, activity: 'waiting-for-permission' }} {...controls} />);
+    expect(container?.querySelector('[data-testid="live-bar-allow"]')).toBeNull();
+    expect(container?.querySelector('[data-testid="live-bar-mute"]')).not.toBeNull();
+  });
+
+  it('shows the failure text visually and announces it', () => {
+    render(<LiveBar call={null} {...controls} error="live-protocol-failed" />);
+    expect(container?.querySelector('[role="alert"]')?.textContent).toContain('上游');
   });
 
   it('renders drag grip dots for free repositioning', () => {

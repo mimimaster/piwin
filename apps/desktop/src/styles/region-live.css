@@ -1,4 +1,4 @@
-/* piwin Live — 32px Draggable Zero-Text Floating Voice Capsule */
+/* piwin Live — compact media controls; failures remain readable and recoverable. */
 
 .live-bar-host {
   position: fixed !important;
@@ -26,9 +26,8 @@
   align-items: center !important;
   justify-content: flex-start !important;
   gap: 8px !important;
-  height: 32px !important;
-  min-height: 32px !important;
-  max-height: 32px !important;
+  height: auto !important;
+  min-height: 48px !important;
   width: auto !important;
   min-width: auto !important;
   max-width: fit-content !important;
@@ -89,6 +88,16 @@
   --live-tone: var(--coral, #FF5F56);
   --live-glow: rgba(255, 95, 86, 0.35);
 }
+
+.live-bar-error-copy {
+  max-width: min(28rem, 55vw);
+  padding-block: 8px;
+  color: var(--text-1);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 
 .live-bar.is-connecting {
   --live-tone: var(--sky, #4CC2FF);
@@ -200,7 +209,7 @@
   animation: live-pulse-glyph 1.2s infinite alternate !important;
 }
 
-/* Pure Icon Action Buttons (24px) */
+/* The visual icons stay compact; their interaction targets are 44px. */
 .live-bar-actions {
   display: flex !important;
   align-items: center !important;
@@ -213,12 +222,11 @@
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  width: 24px !important;
-  height: 24px !important;
-  min-width: 24px !important;
-  min-height: 24px !important;
-  max-width: 24px !important;
-  max-height: 24px !important;
+  width: 44px !important;
+  height: 44px !important;
+  min-width: 44px !important;
+  min-height: 44px !important;
+  flex-shrink: 0;
   padding: 0 !important;
   margin: 0 !important;
   border-radius: 50% !important;

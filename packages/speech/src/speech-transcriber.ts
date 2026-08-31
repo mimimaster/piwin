@@ -1,5 +1,5 @@
 import type { ModelConfigEntry, ModelProviderConfig } from '@piwin/contracts';
-import { SPEECH_MAX_AUDIO_BYTES } from '@piwin/contracts';
+import { SPEECH_MAX_AUDIO_BYTES, sanitizeLiveDelegationInstruction } from '@piwin/contracts';
 
 export const SPEECH_DEFAULT_TIMEOUT_MS = 120_000;
 
@@ -228,10 +228,10 @@ function parseTranscriptText(payload: unknown): string {
     throw new SpeechTranscriptionError('provider', 'ASR response was invalid.');
   }
   const text = (payload as Record<string, unknown>).text;
-  if (typeof text !== 'string' || !text.trim()) {
+  if (typeof text !== 'string') {
     throw new SpeechTranscriptionError('provider', 'ASR response did not contain transcript text.');
   }
-  return text.trim();
+  return sanitizeLiveDelegationInstruction(text) ?? '';
 }
 
 function extensionForMime(mimeType: string): string {

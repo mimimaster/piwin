@@ -633,10 +633,9 @@ export function buildImageGenTool(options: ImageGenToolOptions): HostToolRegistr
     descriptor: {
       name: 'image_gen',
       description:
-        'Generate one or more raster images from a text prompt. The client UI already previews the attachments. ' +
-        'After success, comment briefly if useful — do not embed markdown images or local file paths. ' +
-        'For photos, illustrations, icons, textures, mockups, and cutouts. ' +
-        'Not for SVG/vector, icon-system edits, or HTML/CSS/canvas visuals.',
+        'Generate raster images from text prompts (photos, illustrations, mockups, textures). ' +
+        'Not for code-drawn UI, SVGs, or Canvas visuals (use Artifacts). ' +
+        'Never output markdown image syntax or local filesystem paths in text.',
       parameters: {
         type: 'object',
         properties: {

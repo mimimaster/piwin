@@ -1,9 +1,15 @@
-import type { LiveGeminiThinkingLevel, LiveOwnerBootstrap } from '@piwin/contracts';
+import {
+  PIWIN_LIVE_DELEGATE_INSTRUCTION_DESCRIPTION,
+  PIWIN_LIVE_DELEGATE_TOOL_DESCRIPTION,
+  type LiveGeminiThinkingLevel,
+  type LiveOwnerBootstrap,
+} from '@piwin/contracts';
 import {
   GEMINI_LIVE_CONSTRAINED_ENDPOINT,
   GEMINI_LIVE_DEFAULT_MODEL,
   GEMINI_LIVE_DEFAULT_THINKING,
   GEMINI_LIVE_DEFAULT_VOICE,
+  GEMINI_LIVE_SYSTEM_INSTRUCTION,
 } from './gemini-live-schema.js';
 
 const TOKEN_URL = 'https://generativelanguage.googleapis.com/v1beta/auth_tokens';
@@ -39,6 +45,9 @@ export function buildGeminiLiveTokenRequest(input: {
     uses: 1,
     bidiGenerateContentSetup: {
       model: `models/${input.modelId}`,
+      systemInstruction: {
+        parts: [{ text: GEMINI_LIVE_SYSTEM_INSTRUCTION }],
+      },
       generationConfig: {
         responseModalities: ['AUDIO'],
         speechConfig: {
@@ -53,10 +62,15 @@ export function buildGeminiLiveTokenRequest(input: {
           functionDeclarations: [
             {
               name: 'delegate_to_work_session',
-              description: 'Hand this instruction to the current work session.',
+              description: PIWIN_LIVE_DELEGATE_TOOL_DESCRIPTION,
               parameters: {
                 type: 'OBJECT',
-                properties: { instruction: { type: 'STRING' } },
+                properties: {
+                  instruction: {
+                    type: 'STRING',
+                    description: PIWIN_LIVE_DELEGATE_INSTRUCTION_DESCRIPTION,
+                  },
+                },
                 required: ['instruction'],
               },
             },

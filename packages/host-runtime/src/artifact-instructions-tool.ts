@@ -53,7 +53,8 @@ export function buildArtifactInstructionsTool(config: ArtifactConfig): HostToolR
     descriptor: {
       name: ARTIFACT_INSTRUCTIONS_TOOL_NAME,
       description:
-        'Load the full configured Artifact decision policy and HTML/SVG output contract. Call at most once per run, only when the response should contain an Artifact.',
+        'Load the full HTML/SVG Artifact rendering policy and sandboxed output contract. ' +
+        'Call at most once per turn, ONLY when generating an interactive widget, dashboard, diagram, or standalone page.',
       parameters: {
         type: 'object',
         properties: {},

@@ -314,10 +314,41 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
   async function handleSend(event?: FormEvent): Promise<void> {
     event?.preventDefault();
     const text = composer.trim();
-    if (!text || state.streaming || busy) return;
+    if (!text || busy) return;
     const clientMessageId = crypto.randomUUID();
     setComposer('');
     setBusy(true);
+    if (state.streaming) {
+      const instructionId = crypto.randomUUID();
+      dispatch({
+        type: 'user/steer',
+        text,
+        clientMessageId,
+        instructionId,
+        ...(state.activeRunId ? { targetRunId: state.activeRunId } : {}),
+      });
+      try {
+        const response = await props.hostClient.request({
+          type: 'session/steer',
+          sessionId: props.sessionId,
+          message: text,
+          clientMessageId,
+          ...(state.activeRunId ? { runId: state.activeRunId } : {}),
+        });
+        if (!response.success) {
+          dispatch({ type: 'user/send-rollback', clientMessageId });
+          dispatch({ type: 'error', message: response.error });
+          setComposer(text);
+        }
+      } catch (error) {
+        dispatch({ type: 'user/send-rollback', clientMessageId });
+        dispatch({ type: 'error', message: formatError(error) });
+        setComposer(text);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     dispatch({
       type: 'user/send',
       text,
@@ -392,7 +423,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
     }
   }
 
-  const canSend = composer.trim().length > 0 && !state.streaming && !busy;
+  const canSend = composer.trim().length > 0 && !busy;
   const contextRingView = selectContextRingView({
     telemetry: state.contextTelemetry,
     locale: props.locale,
@@ -447,7 +478,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
             }}
           />
           <ComposerContextUsageControl view={contextRingView} />
-          {state.streaming ? (
+          {state.streaming && !composer.trim() ? (
             <IconButton
               label={props.locale === 'zh-CN' ? '停止生成' : 'Stop response'}
               className="conversation-pane-send is-stop"
@@ -457,7 +488,15 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
             </IconButton>
           ) : (
             <IconButton
-              label={props.locale === 'zh-CN' ? '发送消息' : 'Send message'}
+              label={
+                state.streaming
+                  ? props.locale === 'zh-CN'
+                    ? '调整当前任务'
+                    : 'Steer current run'
+                  : props.locale === 'zh-CN'
+                    ? '发送消息'
+                    : 'Send message'
+              }
               className="conversation-pane-send"
               type="submit"
               disabled={!canSend}

@@ -501,7 +501,7 @@ describe('ComposerDock host status', () => {
     expect(handleResolve).toHaveBeenCalledWith({ value: 'Use a new branch' });
   });
 
-  it('queues Enter/send while streaming and reserves Command+Enter for a Run intervention', () => {
+  it('steers Enter and Command+Enter while streaming so chat can continue', () => {
     const handleSteer = vi.fn();
     const handleFollowUp = vi.fn();
     const handleSend = vi.fn();
@@ -530,8 +530,8 @@ describe('ComposerDock host status', () => {
       );
       textarea?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     });
-    expect(handleFollowUp).toHaveBeenCalledTimes(1);
-    expect(handleSteer).not.toHaveBeenCalled();
+    expect(handleSteer).toHaveBeenCalledTimes(1);
+    expect(handleFollowUp).not.toHaveBeenCalled();
 
     act(() => {
       const textarea = container?.querySelector<HTMLTextAreaElement>(
@@ -541,7 +541,7 @@ describe('ComposerDock host status', () => {
         new KeyboardEvent('keydown', { key: 'Enter', metaKey: true, bubbles: true }),
       );
     });
-    expect(handleSteer).toHaveBeenCalledTimes(1);
+    expect(handleSteer).toHaveBeenCalledTimes(2);
     expect(handleSend).not.toHaveBeenCalled();
   });
 

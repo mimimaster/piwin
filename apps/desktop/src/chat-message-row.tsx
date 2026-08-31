@@ -55,7 +55,7 @@ import type { DiffCardRequest } from './diff-card';
 import { AssistantResponseActions } from './assistant-response-actions';
 import { buildConversationTurnUsageChip } from './conversation-message-header';
 import { shouldHideConversationAssistantRow } from './conversation-turn-chrome';
-import { assistantTextIsProcess } from './assistant-text-role';
+
 import { UserMessageContent } from './conversation-user-message';
 import type { ModelOption } from './model-options';
 import { SystemMessageContent } from './system-message-content';
@@ -295,22 +295,24 @@ export const ChatMessageRow = memo(
     }
 
     const isUserMessage = message.role === 'user';
-    const processCaption = assistantTextIsProcess(message);
     const rowClass = [
       'bubble',
       'chat-message-row',
       `role-${message.role}`,
-      props.isConversationSession === true && isUserMessage ? 'is-conversation-bubble' : '',
+      props.isConversationSession === true &&
+      isUserMessage &&
+      message.source !== 'voice-delegation'
+        ? 'is-conversation-bubble'
+        : '',
+      message.source === 'voice-delegation' ? 'is-voice-handover' : '',
       props.isConversationSession === true &&
       message.role === 'assistant' &&
       props.showConversationHeader === false
         ? 'is-turn-continuation'
         : '',
       message.role === 'assistant' &&
-      (processCaption ||
-        (message.text.trim().length === 0 &&
-          message.thinking.trim().length === 0 &&
-          message.tools.length > 0))
+      message.text.trim().length === 0 &&
+      message.tools.length > 0
         ? 'is-tool-only'
         : '',
       message.status === 'streaming' ? 'is-streaming' : '',
@@ -467,7 +469,7 @@ export const ChatMessageRow = memo(
               {...(props.locale ? { locale: props.locale } : {})}
               {...(props.modelOptions ? { modelOptions: props.modelOptions } : {})}
             >
-              {message.text.trim().length > 0 && !processCaption ? (
+              {message.text.trim().length > 0 ? (
                 <MarkdownView
                   text={message.text}
                   renderingPhase={resolveAssistantRenderingPhase(
@@ -653,7 +655,6 @@ export const ChatMessageRow = memo(
         {message.role === 'assistant' &&
         message.status === 'done' &&
         props.isLastAssistantInTurn === true &&
-        !processCaption &&
         (props.onForkFromMessage ||
           message.text ||
           (props.isConversationSession === true &&

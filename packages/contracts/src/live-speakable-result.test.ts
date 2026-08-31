@@ -5,13 +5,15 @@ import {
 } from './live-speakable-result.js';
 
 describe('sanitizeLiveSpeakableResult', () => {
-  it('wraps a short assistant reply as a speakable takeaway', () => {
+  it('returns a continue-from-last-line takeaway', () => {
     const spoken = sanitizeLiveSpeakableResult({
       assistantText: '洛杉矶今天晴，大约 24 度。',
       completed: true,
     });
+    expect(spoken).toContain('status: done');
     expect(spoken).toContain('洛杉矶今天晴');
-    expect(spoken).toContain('Do not read tables');
+    expect(spoken).toContain('Continue from your last spoken line');
+    expect(spoken).not.toMatch(/The work session finished/i);
   });
 
   it('strips fenced dumps and truncates long replies', () => {
@@ -28,7 +30,7 @@ describe('sanitizeLiveSpeakableResult', () => {
       assistantText: 'should not be spoken as success',
       completed: false,
     });
-    expect(spoken).toContain('did not finish');
+    expect(spoken).toContain('status: incomplete');
     expect(spoken).not.toContain('should not be spoken');
   });
 });

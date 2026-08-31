@@ -58,7 +58,6 @@
 
 .md-p {
   margin: 0 0 0.6em;
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
@@ -70,6 +69,18 @@
 .md-list-item {
   padding-left: 0.15em;
   overflow-wrap: anywhere;
+}
+
+.md-list-item + .md-list-item {
+  margin-top: 0.3em;
+}
+
+.md-list-item > .md-p {
+  margin: 0 0 0.3em;
+}
+
+.md-list-item > .md-p:last-child {
+  margin-bottom: 0;
 }
 
 .md-list-item > .md-code-block,

@@ -474,14 +474,12 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                 latestAssistantMessageId,
               })
             : null;
-          const workDisclosureProjection = conversationSession
-            ? null
-            : projectTurnWorkDisclosure({
-                turn,
-                runRecordsById: props.runRecordsById ?? {},
-                activeRunId: props.activeRunId ?? null,
-                currentTurnStreaming: turn.id === currentResponseTurnId && props.streaming === true,
-              });
+          const workDisclosureProjection = projectTurnWorkDisclosure({
+            turn,
+            runRecordsById: props.runRecordsById ?? {},
+            activeRunId: props.activeRunId ?? null,
+            currentTurnStreaming: turn.id === currentResponseTurnId && props.streaming === true,
+          });
           const workDisclosureKey = `${props.sessionId ?? 'session'}:${turn.id}`;
           const workDisclosureDefaultOpen = props.workDetailsExpanded === 'always';
           const workDisclosureOpen =

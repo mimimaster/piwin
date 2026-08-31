@@ -1,4 +1,9 @@
-import type { LiveOwnerEvent } from '@piwin/contracts';
+import {
+  composeLiveSpokenInstructions,
+  PIWIN_LIVE_DELEGATE_INSTRUCTION_DESCRIPTION,
+  PIWIN_LIVE_DELEGATE_TOOL_DESCRIPTION,
+  type LiveOwnerEvent,
+} from '@piwin/contracts';
 
 export type OpenaiRealtimeParsedMessage =
   | { kind: 'session-created' }
@@ -11,8 +16,7 @@ export type OpenaiRealtimeParsedMessage =
 
 export const OPENAI_REALTIME_DELEGATE_TOOL = 'delegate_to_work_session';
 
-export const OPENAI_REALTIME_LIVE_INSTRUCTIONS =
-  'You are piwin Live, the realtime voice of the piwin desktop. Casual talk stays in this call. For work that needs files, code, tools, the current project, or anything that should appear in the chat page, you MUST call delegate_to_work_session with a clear instruction. Do not pretend you already did the work. After the tool returns, briefly tell the user it is in the current chat.';
+export const OPENAI_REALTIME_LIVE_INSTRUCTIONS = composeLiveSpokenInstructions('tool-handover');
 
 export function openaiRealtimeSessionUpdatePayload(input: {
   voice: string;
@@ -32,14 +36,13 @@ export function openaiRealtimeSessionUpdatePayload(input: {
         {
           type: 'function',
           name: OPENAI_REALTIME_DELEGATE_TOOL,
-          description:
-            'Hand work to the current piwin chat session. Use this whenever the user wants you to do something in the app, write, search files, or change the project.',
+          description: PIWIN_LIVE_DELEGATE_TOOL_DESCRIPTION,
           parameters: {
             type: 'object',
             properties: {
               instruction: {
                 type: 'string',
-                description: 'What the work session should do, in the user language.',
+                description: PIWIN_LIVE_DELEGATE_INSTRUCTION_DESCRIPTION,
               },
             },
             required: ['instruction'],

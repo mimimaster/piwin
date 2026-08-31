@@ -14,6 +14,8 @@ export type LiveDelegationRecord = {
 export class LiveDelegationLedger {
   private readonly records: LiveDelegationRecord[] = [];
 
+  hasCapacity(): boolean { return this.records.length < LIVE_DELEGATION_LEDGER_MAX; }
+
   remember(record: LiveDelegationRecord): { ok: true } | { ok: false; reason: 'full' } {
     if (this.records.length >= LIVE_DELEGATION_LEDGER_MAX) return { ok: false, reason: 'full' };
     this.records.push(record);
@@ -36,7 +38,7 @@ export class LiveDelegationLedger {
           ? item.messageId === input.messageId
           : input.queueId
             ? item.queueId === input.queueId
-            : Boolean(item.queueId)),
+            : false),
     );
     if (record) record.runId = input.runId;
   }

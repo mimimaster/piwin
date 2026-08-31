@@ -3,14 +3,16 @@
 | Field | Value |
 |-------|-------|
 | Status | **Accepted — multi-provider; supersedes Codex-only same-week wording** |
-| Date | 2026-08-28; revised 2026-08-29 |
+| Date | 2026-08-28; revised 2026-08-29; language layers 2026-08-31 |
 | Scope | `@piwin/contracts`, `@piwin/voice`, `@piwin/host-runtime`, `@piwin/host-server`, `@piwin/host-transport`, `apps/desktop`, `apps/mobile` |
-| Product | [2026-08-28 product](../specs/2026-08-28-codex-live-product.md) · [2026-08-29 provider adapter](../specs/2026-08-29-live-provider-adapter.md) |
+| Product | [2026-08-28 product](../specs/2026-08-28-codex-live-product.md) · [2026-08-29 provider adapter](../specs/2026-08-29-live-provider-adapter.md) · [2026-08-31 language layers](../specs/2026-08-31-live-language-layers.md) |
 | Architecture | [2026-08-28 voice lane](../specs/2026-08-28-codex-live-voice-lane.md) |
 | Plan | [execution plan](../plans/2026-08-28-piwin-live-execution-plan.md) |
 | Related | ADR 0002, ADR 0036, ADR 0038, ADR 0050, ADR 0056, ADR 0062; subscription OAuth spec |
 
 渠道、设置、建连材料与登记台以 [2026-08-29-live-provider-adapter.md](../specs/2026-08-29-live-provider-adapter.md) 为准。会话准入、单 Host 单通话、挂断不取消已接纳 Run、原始音频不落盘，仍以本文与 2026-08-28 产品规格为准。
+
+2026-08-31 稳定性修订：[Live reliability](../specs/2026-08-31-live-reliability.md)。已落实 owner-scoped bootstrap 重放、settingsRevision 校验、晚到取消清理、真实媒体就绪门、Host 唯一结果回传与可恢复失败 UI。原生 bridge 已验证当前适配器 HTTP 201 → connected；真实设备听感验收仍单独进行。
 
 ## Context
 
@@ -71,7 +73,7 @@ Voice does not receive the Agent/MCP tool catalog. Work enters the bound
 session only when Host admits a normalized client-delegation event. Keyword
 heuristics are forbidden. Spoken “handed to Agent” only after Host receipt.
 
-Busy sessions **queue**. Ending Live does **not** cancel an admitted Run.
+Busy sessions **steer** the current Run. Live may abort only with the protocol token `STOP_CURRENT_RUN` (the voice model decides; Host does not guess from user speech). Steer failure may fall back to a queued turn. Ending Live does **not** cancel an admitted Run. Host strips ASR tags such as `[clear throat]` and rejects filler-only instructions.
 
 Work-session **chat** model is not a Live field. Composer picker commits
 desired profile with `session/set-composer-profile` (session index
@@ -81,6 +83,14 @@ resolves `desired = input.model ?? record.model ?? sessionModels` on that
 turn (same-provider `setModel`, cross-provider runtime replacement).
 Live owner events, `LiveCallSlot`, and `admit-voice-delegation` must not
 carry a work `ModelRef`.
+
+Language-model boundaries (2026-08-31): the voice model sees only
+`PIWIN_LIVE_SPOKEN_CONTRACT` plus a channel appendix; the work model sees a
+one-time `live_work_session` preamble and per-turn `voice_brief`; results
+return as a speakable takeaway, not a “session finished” announcement.
+Desktop shows a handover card, not a typed user bubble. Host still must
+not keyword-guess intent. Details:
+[2026-08-31-live-language-layers.md](../specs/2026-08-31-live-language-layers.md).
 
 ### 5. Retention
 
@@ -115,6 +125,11 @@ races. A verified example is the legacy Realtime voice `alloy`: the Codex Live
 v3 endpoint returned 403, while the same account, SDP, and headers returned 201
 with the supported voice `cove`. The adapter therefore validates the private
 v3 voice catalog and defaults unknown values to `cove` before sending.
+
+Codex Live intelligence is **off**. 2026-08-31 AVAS returned 400
+`Unknown parameter: 'intelligence'`. `CODEX_LIVE_INTELLIGENCE_ENABLED` is
+false: the setting is hidden, call-create omits the field, leftover config
+values are ignored.
 
 The adapter preserves SDP framing across the Host boundary. In particular, it
 normalizes answers to CRLF and retains the final line terminator: macOS WebKit

@@ -1,7 +1,8 @@
+import { IconButton } from '@piwin/ui-kit';
 import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
 import type { LiveCallView } from '@piwin/contracts';
 import { useDesktopLocale } from '../desktop-locale-context.js';
-import { IconCheck, IconClose, IconMic, IconPause, IconRefresh } from '../shell-icons.js';
+import { IconClose, IconMic, IconRefresh } from '../shell-icons.js';
 import type { LivePeerSnapshot } from './live-peer.js';
 import { liveStartErrorLabel } from './use-live-call.js';
 
@@ -86,7 +87,8 @@ export function LiveBar(props: LiveBarProps): ReactElement {
       data-testid="live-bar"
       data-activity={presentation.motion}
       aria-label={presentation.accessibleLabel}
-      role="status"
+      role={props.error ? 'alert' : 'status'}
+      title={props.call ? `${presentation.accessibleLabel} · ${props.call.boundSessionLabel}` : presentation.accessibleLabel}
       tabIndex={-1}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -119,97 +121,73 @@ export function LiveBar(props: LiveBarProps): ReactElement {
             <span />
           </span>
         ) : presentation.fxType === 'warning' ? (
-          <span className="live-warning-glyph">⚠️</span>
+          <span className="live-alert-dot" />
         ) : (
           <span className="live-alert-dot" />
         )}
       </div>
 
-      {/* Pure Micro-Icon Actions Cluster */}
+      {props.error ? <span className="live-bar-error-copy">{liveStartErrorLabel(props.error, isChinese)}</span> : null}
+
+      {/* Media controls never imply permission approval or response cancellation. */}
       <div className="live-bar-actions">
         {props.error ? (
           <>
-            <button
+            <IconButton
               type="button"
               className="live-icon-btn is-accent"
-              aria-label={isChinese ? '重试' : 'Retry'}
+              label={isChinese ? '重试' : 'Retry'}
               title={isChinese ? '重试连接' : 'Retry connection'}
               onClick={props.onRetry}
               data-testid="live-bar-retry"
             >
               <IconRefresh size={13} aria-hidden="true" />
-            </button>
-            <button
+            </IconButton>
+            <IconButton
               type="button"
               className="live-icon-btn is-danger"
-              aria-label={isChinese ? '关闭 Live 提示' : 'Dismiss Live message'}
+              label={isChinese ? '关闭 Live 提示' : 'Dismiss Live message'}
               title={isChinese ? '关闭' : 'Dismiss'}
               onClick={props.onDismiss}
               data-testid="live-bar-dismiss"
             >
               <IconClose size={14} aria-hidden="true" />
-            </button>
+            </IconButton>
           </>
         ) : props.call ? (
           <>
-            {props.call.activity === 'assistant-speaking' ? (
-              <button
-                type="button"
-                className="live-icon-btn is-accent"
-                aria-label={isChinese ? '打断回复' : 'Interrupt'}
-                title={isChinese ? '打断' : 'Interrupt'}
-                onClick={() => props.onMute(false)}
-                data-testid="live-bar-interrupt"
-              >
-                <IconPause size={13} aria-hidden="true" />
-              </button>
-            ) : props.call.activity === 'waiting-for-permission' ? (
-              <button
-                type="button"
-                className="live-icon-btn is-accent"
-                aria-label={isChinese ? '允许执行' : 'Allow'}
-                title={isChinese ? '允许' : 'Allow'}
-                onClick={() => props.onMute(false)}
-                data-testid="live-bar-allow"
-              >
-                <IconCheck size={13} aria-hidden="true" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                className={`live-icon-btn ${muted ? 'is-muted' : ''}`}
-                aria-pressed={muted}
-                aria-label={muted ? (isChinese ? '取消静音' : 'Unmute') : isChinese ? '静音' : 'Mute'}
-                title={muted ? (isChinese ? '取消静音' : 'Unmute') : isChinese ? '静音' : 'Mute'}
-                onClick={() => props.onMute(!muted)}
-                data-testid="live-bar-mute"
-              >
-                <IconMic size={13} aria-hidden="true" />
-              </button>
-            )}
+            <IconButton
+              className={`live-icon-btn ${muted ? 'is-muted' : ''}`}
+              aria-pressed={muted}
+              label={muted ? (isChinese ? '取消静音' : 'Unmute') : isChinese ? '静音' : 'Mute'}
+              onClick={() => props.onMute(!muted)}
+              data-testid="live-bar-mute"
+            >
+              <IconMic size={16} aria-hidden="true" />
+            </IconButton>
 
-            <button
+            <IconButton
               type="button"
               className="live-icon-btn is-danger"
-              aria-label={isChinese ? '挂断通话' : 'Hang up'}
+              label={isChinese ? '挂断通话' : 'Hang up'}
               title={isChinese ? '挂断' : 'Hang up'}
               onClick={props.onEnd}
               data-testid="live-bar-end"
             >
               <IconClose size={14} aria-hidden="true" />
-            </button>
+            </IconButton>
           </>
         ) : (
-          <button
+          <IconButton
             type="button"
             className="live-icon-btn is-danger"
-            aria-label={isChinese ? '取消连接' : 'Cancel'}
+            label={isChinese ? '取消连接' : 'Cancel'}
             title={isChinese ? '取消' : 'Cancel'}
             onClick={props.onEnd}
             data-testid="live-bar-cancel"
           >
             <IconClose size={14} aria-hidden="true" />
-          </button>
+          </IconButton>
         )}
       </div>
     </section>

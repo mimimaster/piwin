@@ -31,7 +31,49 @@ describe('createVoiceDelegationAdmission', () => {
     expect(prompt.admitVoiceDelegation).toHaveBeenCalledTimes(1);
   });
 
-  it('queues when session busy', async () => {
+  it('rejects filler-only ASR leftovers', async () => {
+    const prompt = {
+      admitVoiceDelegation: vi.fn(),
+    };
+    const port = createVoiceDelegationAdmission({
+      busy: { isSessionBusy: () => false },
+      prompt,
+    });
+    const result = await port.admit({
+      callId: 'c1',
+      sessionId: 's1',
+      instruction: '[clear throat] 噢。',
+      providerDelegationId: 'd-filler',
+    });
+    expect(result).toEqual({ status: 'rejected', reason: 'live-delegation-rejected' });
+    expect(prompt.admitVoiceDelegation).not.toHaveBeenCalled();
+  });
+
+  it('compresses spoken wrappers before prompting', async () => {
+    const prompt = {
+      admitVoiceDelegation: vi.fn(async () => ({
+        queued: false as const,
+        runId: 'r-search',
+        messageId: 'm-search',
+      })),
+    };
+    const port = createVoiceDelegationAdmission({
+      busy: { isSessionBusy: () => false },
+      prompt,
+    });
+    const result = await port.admit({
+      callId: 'c1',
+      sessionId: 's1',
+      instruction: '没有,我是让你随便搜索一点东西',
+      providerDelegationId: 'd-spoken',
+    });
+    expect(result.status).toBe('accepted');
+    expect(prompt.admitVoiceDelegation).toHaveBeenCalledWith(
+      expect.objectContaining({ instruction: '随便搜索一点东西' }),
+    );
+  });
+
+  it('passes queue=true when session busy', async () => {
     const prompt = {
       admitVoiceDelegation: vi.fn(async () => ({
         queued: true as const,

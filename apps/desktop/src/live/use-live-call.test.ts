@@ -96,8 +96,8 @@ describe('liveStartErrorLabel', () => {
     expect(liveStartErrorLabel('live-start-cancelled', true)).toContain('已中止');
   });
 
-  it('maps a leftover Host slot to a retry hint', () => {
-    expect(liveStartErrorLabel('live-call-busy', true)).toContain('还停在 Host');
+  it('maps an occupied call to the owning-device hint and other failures to recovery hints', () => {
+    expect(liveStartErrorLabel('live-call-busy', true)).toContain('持麦设备');
     expect(liveStartErrorLabel('live-disconnected', true)).toBe('Live 已断开');
     expect(liveStartErrorLabel('live-conflict', true)).toContain('再点一次');
     expect(liveStartErrorLabel('live-start-throttled', true)).toContain('太快');

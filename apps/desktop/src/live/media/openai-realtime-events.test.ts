@@ -8,9 +8,12 @@ import {
 describe('openai realtime events', () => {
   it('registers the work-session tool on session.update', () => {
     const payload = JSON.parse(openaiRealtimeSessionUpdatePayload({ voice: 'eve' })) as {
-      session: { tools: { name: string }[] };
+      session: { tools: { name: string }[]; instructions: string };
     };
     expect(payload.session.tools[0]?.name).toBe('delegate_to_work_session');
+    expect(payload.session.instructions).toContain('speaking face of this work session');
+    expect(payload.session.instructions).toContain('delegate_to_work_session');
+    expect(payload.session.instructions).toContain('STOP_CURRENT_RUN');
   });
 
   it('parses function-call arguments as a delegation', () => {

@@ -1,4 +1,4 @@
-import type { LiveProviderDescriptor } from '@piwin/contracts';
+import { PIWIN_LIVE_INSTRUCTIONS, type LiveProviderDescriptor } from '@piwin/contracts';
 import { CodexLiveAdapter } from './codex-live-adapter.js';
 import type { LiveProviderRegistration } from './live-provider-registration.js';
 import { codexLiveSettingFields, validateCodexLiveSettings } from './live-settings-schema.js';
@@ -36,7 +36,7 @@ export function createCodexLiveRegistration(deps: {
         sdpOffer: input.clientBootstrap.offerSdp,
         accessToken: auth.accessToken,
         accountId: auth.accountId,
-        instructions: 'piwin Live work-session voice assistant.',
+        instructions: PIWIN_LIVE_INSTRUCTIONS,
         signal: input.signal,
         ...(voice ? { voice } : {}),
       });
