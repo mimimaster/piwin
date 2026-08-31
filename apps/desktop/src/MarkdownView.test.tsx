@@ -933,6 +933,57 @@ describe('MarkdownView file references', () => {
     ).toBe('enabled');
   });
 
+  it('does not treat env vars or prices as KaTeX', () => {
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text="Set $HOME and $PATH. 价格是 $100，折扣后 $50。"
+        renderingPhase="completed"
+      />,
+    );
+    const markdown = container.querySelector('.markdown');
+    expect(markdown?.querySelector('.katex')).toBeNull();
+    expect(markdown?.textContent).toContain('$HOME');
+    expect(markdown?.textContent).toContain('$PATH');
+    expect(markdown?.textContent).toContain('$100');
+    expect(markdown?.textContent).toContain('$50');
+  });
+
+  it('still renders display math with $$ delimiters', () => {
+    const { container } = renderMarkdown(
+      <MarkdownView text={'公式 $$E=mc^2$$ 结束'} renderingPhase="completed" />,
+    );
+    expect(container.querySelector('.katex')).not.toBeNull();
+    expect(container.querySelector('annotation')?.textContent).toContain('E=mc^2');
+  });
+
+  it('shows HTML tag mentions as text instead of creating DOM nodes', () => {
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text="Use the <div> element and </div> to wrap."
+        renderingPhase="completed"
+      />,
+    );
+    const markdown = container.querySelector('.markdown');
+    expect(markdown?.querySelector('div')).toBeNull();
+    expect(markdown?.textContent).toContain('<div>');
+    expect(markdown?.textContent).toContain('</div>');
+  });
+
+  it('keeps source-file inline code as code, not path chips', () => {
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text="Edit `main.ts` and `.tsx`, not `.svg`."
+        renderingPhase="completed"
+        onOpenDocument={vi.fn()}
+      />,
+    );
+    const chips = [...container.querySelectorAll('.md-doc-chip')].map(
+      (el) => el.getAttribute('data-full-path'),
+    );
+    expect(chips).toEqual(['.svg']);
+    expect(container.querySelector('.md-inline-code')?.textContent).toBe('main.ts');
+  });
+
   it('renders GFM task lists, strikethrough, callouts, and no raw HTML nodes', () => {
     const { container } = renderMarkdown(
       <MarkdownView
