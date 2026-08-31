@@ -203,6 +203,10 @@ export class RpcSdkWorkerClient extends EventEmitter {
     this.exitPromise = new Promise<void>((resolve) => {
       this.resolveExit = resolve;
     });
+    ignoreWorkerPipeErrors(child.stdin);
+    ignoreWorkerPipeErrors(child.stdout);
+    ignoreWorkerPipeErrors(child.stderr);
+    ignoreWorkerPipeErrors(child.stdio?.[3]);
     this.child.stdout?.setEncoding('utf8');
     this.child.stderr?.setEncoding('utf8');
     this.child.stdout?.on('data', (chunk: string) => this.handleStdout(chunk));
@@ -839,6 +843,15 @@ export class RpcSdkWorkerClient extends EventEmitter {
   /** True when the worker has sent a valid hello handshake. */
   get isReady(): boolean {
     return this.helloReceived && !this.exited;
+  }
+}
+
+/** Child kill can reset stdio; an unhandled 'error' would crash the parent. */
+function ignoreWorkerPipeErrors(stream: unknown): void {
+  if (stream && typeof stream === 'object' && 'on' in stream && typeof stream.on === 'function') {
+    stream.on('error', () => {
+      // ECONNRESET / EPIPE after teardown is expected.
+    });
   }
 }
 

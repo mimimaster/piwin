@@ -174,9 +174,8 @@ export type PromptInput = {
    * Agent collaboration mode for this prompt.
    * - Host injects the mode operating contract into model-facing text only
    *   (transcript / naming keep the raw user body).
-   * - When set to 'plan' or 'ask', the host also raises the permission floor
-   *   to read-only (ask-all + read-only sandbox) regardless of the session
-   *   preset.
+   * - Agent / Goal do not change the permission floor; the composer Run Mode
+   *   pill (`permissionPreset`) is the only session override.
    */
   agentMode?: AgentModeId;
   /**

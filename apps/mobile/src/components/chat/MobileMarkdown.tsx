@@ -10,7 +10,7 @@ type MobileMarkdownProps = {
 
 const STREAMDOWN_PLUGINS = {
   cjk,
-  math: createMathPlugin({ singleDollarTextMath: true }),
+  math: createMathPlugin({ singleDollarTextMath: false }),
 };
 
 export const MobileMarkdown = memo(function MobileMarkdown({

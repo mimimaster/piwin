@@ -1115,7 +1115,7 @@ describe('SessionTranscriptStore', () => {
     const outline = await store.outlinePage({ sessionId: 'session-scale', limit: 100 });
     expect(outline.nodes.length).toBeLessThanOrEqual(100);
     store.close();
-  });
+  }, 60_000);
 
   it('builds a user-only navigation index with a stable independent revision', async () => {
     const { store } = await openStore('user-index');

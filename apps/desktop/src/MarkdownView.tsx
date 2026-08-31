@@ -13,6 +13,7 @@ import {
   createStreamdownComponents,
   type StreamdownRendererOptions,
 } from './markdown-streamdown.js';
+import { escapeRawHtmlInMarkdown } from './markdown-html-escape.js';
 import { rewriteLocalFileMarkdownLinks } from './markdown-local-links.js';
 
 export type { MarkdownRenderingPhase } from './markdown-code-fence.js';
@@ -73,7 +74,9 @@ type MarkdownViewProps = {
 
 const STREAMDOWN_PLUGINS = {
   cjk,
-  math: createMathPlugin({ singleDollarTextMath: true }),
+  // Single-dollar `$...$` collides with env vars (`$HOME`) and prices (`$100`).
+  // Keep `$$...$$` / `\(...\)` for real math.
+  math: createMathPlugin({ singleDollarTextMath: false }),
 };
 const MARKDOWN_LINK_SAFETY = { enabled: false };
 /**
@@ -168,7 +171,11 @@ export function MarkdownView({
   );
 
   const artifactProjection = useMemo(
-    () => projectArtifactMarkdownForRender(rewriteLocalFileMarkdownLinks(text), !streamMode),
+    () =>
+      projectArtifactMarkdownForRender(
+        escapeRawHtmlInMarkdown(rewriteLocalFileMarkdownLinks(text)),
+        !streamMode,
+      ),
     [text, streamMode],
   );
   const streamdownText = artifactProjection.markdown;
