@@ -124,23 +124,13 @@ describe('resolvePromptPermissionMode', () => {
     ).toBeUndefined();
   });
 
-  it('still raises ask-all for Plan mode under Auto config', () => {
+  it('does not raise a permission floor for Goal mode', () => {
     expect(
       resolvePromptPermissionMode({
-        agentMode: 'plan',
+        agentMode: 'goal',
         configPreset: 'auto',
       }),
-    ).toBe('ask-all');
-  });
-
-  it('keeps YOLO under Plan when the composer preset is yolo (warn, not block)', () => {
-    expect(
-      resolvePromptPermissionMode({
-        permissionPreset: 'yolo',
-        agentMode: 'plan',
-        configPreset: 'auto',
-      }),
-    ).toBe('bypass');
+    ).toBeUndefined();
   });
 });
 
