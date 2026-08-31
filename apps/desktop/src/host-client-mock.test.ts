@@ -477,6 +477,104 @@ describe('MockHostBackend assembly summary', () => {
   });
 });
 
+describe('MockHostBackend pause checkpoint', () => {
+  async function createPausedSession(): Promise<{
+    backend: MockHostBackend;
+    sessionId: string;
+    runId: string;
+    pushes: HostPush[];
+  }> {
+    const pushes: HostPush[] = [];
+    const backend = new MockHostBackend(
+      (message) => {
+        pushes.push(message);
+      },
+      () => 'sdk',
+    );
+    const created = await backend.handle(
+      { type: 'session/create', input: { projectPath: '/tmp/mock-pause' } },
+      'create',
+    );
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+    const prompt = await backend.handle(
+      {
+        type: 'session/prompt',
+        sessionId,
+        input: { text: 'Please produce a fairly long reply so I can pause mid way.' },
+      },
+      'prompt',
+    );
+    if (!prompt.success) throw new Error(prompt.error);
+    const runId = (prompt.data as { runId: string }).runId;
+    await waitForPush(
+      pushes,
+      (push) =>
+        push.type === 'run/updated' &&
+        push.run.runId === runId &&
+        push.run.phase === 'waiting-first-token',
+    );
+    const pause = await backend.handle(
+      { type: 'session/pause', sessionId, runId },
+      'pause',
+    );
+    if (!pause.success) throw new Error(pause.error);
+    await waitForPush(
+      pushes,
+      (push): push is Extract<HostPush, { type: 'run/terminal' }> =>
+        push.type === 'run/terminal' &&
+        push.run.runId === runId &&
+        push.run.terminalCode === 'paused',
+    );
+    return { backend, sessionId, runId, pushes };
+  }
+
+  it('abort after pause keeps the checkpoint so resume-run can continue', async () => {
+    const { backend, sessionId } = await createPausedSession();
+    const abort = await backend.handle({ type: 'session/abort', sessionId }, 'abort');
+    expect(abort).toMatchObject({ success: true, data: { cancelled: false } });
+    const resume = await backend.handle({ type: 'session/resume-run', sessionId }, 'resume');
+    expect(resume.success).toBe(true);
+  });
+
+  it('a new prompt retires the checkpoint and records the user message', async () => {
+    const { backend, sessionId, runId, pushes } = await createPausedSession();
+    const next = await backend.handle(
+      {
+        type: 'session/prompt',
+        sessionId,
+        input: { text: '先别继续，解释刚才的错误', clientMessageId: 'new-after-pause' },
+      },
+      'next-prompt',
+    );
+    expect(next.success).toBe(true);
+    if (!next.success) throw new Error(next.error);
+    const nextRunId = (next.data as { runId: string }).runId;
+    expect(nextRunId).not.toBe(runId);
+    await waitForPush(
+      pushes,
+      (push) => push.type === 'run/terminal' && push.run.runId === nextRunId,
+    );
+
+    const messages = await backend.handle({ type: 'session/messages', sessionId }, 'messages');
+    if (!messages.success) throw new Error(messages.error);
+    const transcript = (messages.data as { messages: SessionTranscriptMessage[] }).messages;
+    expect(transcript.filter((message) => message.id === 'new-after-pause')).toMatchObject([
+      { role: 'user', text: '先别继续，解释刚才的错误' },
+    ]);
+    expect(
+      transcript.some((message) =>
+        message.text.includes('Continue the interrupted task from the current transcript'),
+      ),
+    ).toBe(false);
+
+    const resume = await backend.handle({ type: 'session/resume-run', sessionId }, 'resume');
+    expect(resume.success).toBe(false);
+    if (resume.success) throw new Error('expected resume-run to fail after a new prompt');
+    expect(resume.error).toMatch(/no-active-checkpoint/);
+  });
+});
+
 async function waitForPush(
   pushes: HostPush[],
   predicate: (push: HostPush) => boolean,
