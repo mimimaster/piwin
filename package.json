@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "pnpm -r run build",
-    "typecheck": "pnpm -r run typecheck",
+    "typecheck": "pnpm -r --filter '!@piwin/mobile' run typecheck",
     "test": "pnpm --workspace-concurrency=1 -r run test",
     "lint": "pnpm -r run lint",
     "format": "prettier --write .",

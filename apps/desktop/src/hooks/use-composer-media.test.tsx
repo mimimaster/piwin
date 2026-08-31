@@ -1655,7 +1655,7 @@ describe('useComposerMedia Conversation send path', () => {
           activeScope: { kind: 'general' },
         },
         dispatch: vi.fn(),
-        agentMode: 'plan',
+        agentMode: 'goal',
         orchestrationSchemeId: 'ultra-code',
         conversationChat: true,
       });
@@ -1702,7 +1702,7 @@ describe('useComposerMedia Conversation send path', () => {
           activeScope: { kind: 'project', projectPath: '/tmp/piwin-project' },
         },
         dispatch: vi.fn(),
-        agentMode: 'plan',
+        agentMode: 'goal',
         orchestrationSchemeId: 'ultra-code',
       });
       return null;
@@ -1718,7 +1718,7 @@ describe('useComposerMedia Conversation send path', () => {
 
     const input = readPromptInput(hostClient);
     expect(input.text).toBe('hello project');
-    expect(input.agentMode).toBe('plan');
+    expect(input.agentMode).toBe('goal');
     expect(input.orchestrationSchemeId).toBe('ultra-code');
   });
 
