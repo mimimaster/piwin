@@ -14,7 +14,11 @@
 .markdown {
   min-width: 0;
   overflow-wrap: anywhere;
-  line-height: 1.5;
+  font-family: var(--font, var(--font-sans));
+  font-size: var(--chat-font-size);
+  line-height: var(--chat-line-height);
+  color: var(--text-1);
+  letter-spacing: normal;
 }
 
 /*
@@ -31,6 +35,13 @@
 
 .markdown > * {
   max-width: 100%;
+}
+
+/* Keep prose at a comfortable reading measure when the user chooses a wide
+   conversation stage. Structured blocks such as code and tables intentionally
+   remain available at the full stage width below. */
+.markdown > :where(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6) {
+  max-width: min(100%, 76em);
 }
 
 .markdown > :first-child {
@@ -59,6 +70,51 @@
 .md-p {
   margin: 0 0 0.6em;
   overflow-wrap: anywhere;
+}
+
+/* Streamdown's built-in renderer uses utility-class names such as
+   `font-semibold`. This app does not ship Tailwind, so keep the semantic
+   element and provide the visual contract here. */
+.markdown .md-strong,
+.markdown strong,
+.markdown b {
+  color: var(--text-1);
+  font-weight: 700;
+}
+
+.markdown .md-em,
+.markdown em,
+.markdown i {
+  color: var(--text-1);
+  font-style: italic;
+}
+
+.markdown .md-mark,
+.markdown mark {
+  border-radius: var(--r-chip);
+  background: color-mix(in srgb, var(--amber) 22%, transparent);
+  color: var(--text-1);
+  padding: 0 0.18em;
+}
+
+.markdown .md-kbd,
+.markdown kbd {
+  border: 1px solid var(--line-2);
+  border-bottom-width: 2px;
+  border-radius: var(--r-chip);
+  background: var(--surface-3);
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  padding: 0.05em 0.35em;
+}
+
+.markdown .md-sup,
+.markdown sup,
+.markdown .md-sub,
+.markdown sub {
+  font-size: 0.75em;
+  line-height: 0;
 }
 
 .md-list {
@@ -237,14 +293,20 @@
 }
 
 .md-inline-code {
+  display: inline-block;
+  max-width: 100%;
   font-family: var(--font-mono);
-  /* Inline code should read as text, not as a pill-shaped control. */
-  background: transparent;
+  /* A restrained text marker, not a large pill-shaped control. */
+  background: var(--surface-3);
   color: var(--text-1);
-  border-radius: var(--r-chip);
-  padding: 1px var(--s-3);
-  font-size: var(--code-font-size);
+  border: 1px solid var(--line-1);
+  border-radius: 3px;
+  padding: 0.05em 0.28em;
+  font-size: 0.9em;
   font-weight: 450;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  vertical-align: baseline;
 }
 
 .md-code-block {
@@ -384,25 +446,26 @@
 
 .md-h {
   margin: 1.2em 0 0.4em;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-1);
   line-height: 1.3;
+  letter-spacing: -0.012em;
 }
 
 .md-h1 {
-  font-size: 1.4em;
+  font-size: 1.5em;
   border-bottom: 1px solid var(--line-1);
   padding-bottom: 0.3em;
 }
 
 .md-h2 {
-  font-size: 1.25em;
+  font-size: 1.3em;
   border-bottom: 1px solid var(--line-1);
   padding-bottom: 0.25em;
 }
 
 .md-h3 {
-  font-size: 1.1em;
+  font-size: 1.12em;
 }
 
 .md-h4,

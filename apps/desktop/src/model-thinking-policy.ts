@@ -2,6 +2,8 @@ import { THINKING_LEVEL_OPTIONS } from '@piwin/contracts';
 import type { ModelProviderConfig, ThinkingLevel } from '@piwin/contracts';
 
 export type ThinkingModelFields = {
+  providerId?: string;
+  source?: import('@piwin/contracts').ModelSource;
   reasoning?: boolean;
   thinkingLevels?: readonly ThinkingLevel[];
   thinkingLevel?: ThinkingLevel;
@@ -18,6 +20,23 @@ export const DEFAULT_THINKING_LEVELS_BY_PROTOCOL: Record<
   'google-gemini': ['low', 'medium', 'high'],
 };
 
+export function inferProtocolForThinking(
+  model: ThinkingModelFields | undefined,
+): ModelProviderConfig['protocol'] | undefined {
+  if (model?.protocol) return model.protocol;
+  if (model?.providerId === 'anthropic' || model?.providerId === 'kimi-coding') {
+    return 'anthropic-compatible';
+  }
+  if (
+    model?.providerId === 'openai-codex' ||
+    model?.providerId === 'xai' ||
+    model?.providerId === 'github-copilot'
+  ) {
+    return 'openai-compatible';
+  }
+  return undefined;
+}
+
 export function getDefaultThinkingLevelsForProtocol(
   protocol: ModelProviderConfig['protocol'] | undefined,
 ): readonly ThinkingLevel[] {
@@ -30,10 +49,11 @@ export function getSupportedThinkingLevels(
   _ultraEnabled: boolean,
 ): ThinkingLevel[] {
   if (!model || model.reasoning !== true) return [];
+  const protocol = inferProtocolForThinking(model);
   const baseLevels =
     model.thinkingLevels && model.thinkingLevels.length > 0
       ? model.thinkingLevels
-      : getDefaultThinkingLevelsForProtocol(model.protocol);
+      : getDefaultThinkingLevelsForProtocol(protocol);
   // ultra is not offered anymore; THINKING_LEVEL_OPTIONS no longer contains
   // it, so this filter is defense-in-depth only.
   return baseLevels.filter(

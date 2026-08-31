@@ -138,6 +138,13 @@ export function isSafeRemoteCommand(command: HostCommand): boolean {
     return parseFlashcardStudyCommand(command).ok;
   }
   switch (command.type) {
+    case 'host/list-dir':
+      return (
+        command.path === undefined ||
+        (typeof command.path === 'string' &&
+          command.path.length > 0 &&
+          command.path.length <= 4096)
+      );
     case 'activity/summary':
       return (
         command.maxItems === undefined ||

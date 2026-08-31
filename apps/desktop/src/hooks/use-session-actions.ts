@@ -16,7 +16,7 @@ import type { NotificationAction } from '../notification-queue';
 import { pushError, pushSuccess } from '../notification-queue';
 import { appendHostLogEntry, type HostLogEntry } from '../HostLogPanel';
 import type { SessionRowMenuAction } from '../session-row-menu';
-import { isDesktopShellRuntime, pickProjectDirectory } from '../pick-project-directory';
+import { pickOrPromptWorkspaceFolder } from '../workspace-open';
 import { summaryToListItem } from './session-list-item';
 import { sessionHasListName } from '../title-display';
 import { chooseSessionExportPath } from '../session-export-dialog';
@@ -411,12 +411,14 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       if (resumeSessionId) {
         await handleResumeSession(resumeSessionId, {
           scope: { kind: 'project', projectPath: openedPath },
+          projectAlreadyActivated: true,
           ...(options?.quiet === true ? { quiet: true } : {}),
         });
       } else if (options?.switchSession) {
         if (sessions[0]) {
           await handleResumeSession(sessions[0].id, {
             scope: { kind: 'project', projectPath: openedPath },
+            projectAlreadyActivated: true,
           });
         } else {
           await ensureSession({ projectPath: openedPath, alreadyTrusted: true });
@@ -435,41 +437,30 @@ export function useSessionActions(args: UseSessionActionsArgs) {
   );
 
   const handleOpenWorkspaceClick = useCallback(async (): Promise<void> => {
-    if (isRemoteDesktopTransport(hostClient.getTransport())) {
-      setProjectPickerOpen(true);
-      return;
-    }
-    const defaultPath = state.projectPath?.trim() || projectInput.trim() || undefined;
-    const selected = await pickProjectDirectory({
-      ...(defaultPath ? { defaultPath } : {}),
-      title: 'Open workspace',
+    const hostHomeDirectory = hostClient.getRemoteCapabilities()?.homeDirectory;
+    const result = await pickOrPromptWorkspaceFolder({
+      projectPath: state.projectPath,
+      projectInput,
+      title: locale === 'zh-CN' ? '打开工作区' : 'Open workspace',
+      ...(hostHomeDirectory ? { hostHomeDirectory } : {}),
     });
-    if (selected) {
-      await handleOpenProject(selected);
+    if (result.kind === 'picked') {
+      await handleOpenProject(result.path);
       return;
     }
-    if (!isDesktopShellRuntime()) {
+    if (result.kind === 'dialog') {
       setProjectPickerOpen(true);
     }
-  }, [handleOpenProject, hostClient, projectInput, setProjectPickerOpen, state.projectPath]);
+  }, [
+    handleOpenProject,
+    hostClient,
+    locale,
+    projectInput,
+    setProjectPickerOpen,
+    state.projectPath,
+  ]);
 
-  const handleBrowseProject = useCallback(async (): Promise<void> => {
-    if (isRemoteDesktopTransport(hostClient.getTransport())) {
-      return;
-    }
-    const defaultPath = state.projectPath?.trim() || projectInput.trim() || undefined;
-    const selected = await pickProjectDirectory({
-      ...(defaultPath ? { defaultPath } : {}),
-      title: 'Open workspace',
-    });
-    if (selected) {
-      await handleOpenProject(selected);
-      return;
-    }
-    if (!isDesktopShellRuntime()) {
-      setProjectPickerOpen(true);
-    }
-  }, [handleOpenProject, hostClient, projectInput, setProjectPickerOpen, state.projectPath]);
+  const handleBrowseProject = handleOpenWorkspaceClick;
 
   const handleTrustProject = useCallback(
     async (trust: boolean): Promise<void> => {
@@ -830,7 +821,9 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         : { id: data.sessionId, name: 'Continued session' };
       dispatch({ type: 'session/update', session: listItem });
       dispatchNotification(pushSuccess(`Continued “${listItem.name}” in project`));
-      await handleResumeSession(data.sessionId);
+      await handleResumeSession(data.sessionId, {
+        scope: { kind: 'project', projectPath },
+      });
       return true;
     },
     [dispatch, dispatchNotification, handleResumeSession, hostClient],

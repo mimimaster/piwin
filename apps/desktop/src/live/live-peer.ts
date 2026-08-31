@@ -8,6 +8,7 @@ import {
   parseLiveChannelMessage,
 } from './normalize-live-channel.js';
 import { waitForLiveMediaReady, type LiveOwnerEvent } from '@piwin/contracts';
+import { sendLiveFrames } from '@piwin/voice/wire';
 
 export type LivePeerPhase = 'idle' | 'acquiring-mic' | 'negotiating' | 'connected' | 'ended' | 'error';
 
@@ -161,9 +162,7 @@ export class LivePeer {
     messageId?: string;
     queueId?: string;
   }): void {
-    if (this.channel?.readyState === 'open') {
-      this.channel.send(buildDelegationAckPayload(input));
-    }
+    sendLiveFrames(this.channel, [buildDelegationAckPayload(input)]);
   }
 
   sendContextAppend(input: {
@@ -172,10 +171,7 @@ export class LivePeer {
     content: string;
     providerDelegationId?: string;
   }): void {
-    if (this.channel?.readyState !== 'open') return;
-    for (const payload of buildContextAppendPayloads(input)) {
-      this.channel.send(payload);
-    }
+    sendLiveFrames(this.channel, buildContextAppendPayloads(input));
   }
 
   async stop(): Promise<void> {

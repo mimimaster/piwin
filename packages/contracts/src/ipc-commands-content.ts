@@ -47,6 +47,7 @@ import type {
   LiveEndInput,
   LiveMediaStateInput,
   LiveReportEventInput,
+  LiveRebindInput,
   LiveSetMutedInput,
   LiveSetProviderKeyInput,
   LiveStartInput,
@@ -116,6 +117,7 @@ export type HostContentCommand =
   | { id?: string; type: 'voice/live/apply-settings'; input: LiveApplySettingsInput }
   | { id?: string; type: 'voice/live/set-provider-key'; input: LiveSetProviderKeyInput }
   | { id?: string; type: 'voice/live/start'; input: LiveStartInput }
+  | { id?: string; type: 'voice/live/rebind'; input: LiveRebindInput }
   | { id?: string; type: 'voice/live/media-state'; input: LiveMediaStateInput }
   | { id?: string; type: 'voice/live/set-muted'; input: LiveSetMutedInput }
   | { id?: string; type: 'voice/live/end'; input: LiveEndInput }

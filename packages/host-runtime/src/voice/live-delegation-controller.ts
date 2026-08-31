@@ -1,17 +1,25 @@
-import type { LiveOwnerActionPush } from '@piwin/contracts';
+import {
+  isLiveStopInstruction, PIWIN_LIVE_STOP_INSTRUCTION,
+  type LiveOwnerActionPush, type LiveDelegationReviewer,
+} from '@piwin/contracts';
 import { transitionLiveCall, type VoiceDelegationEvent } from '@piwin/voice';
 import type { LiveCallSlot, LiveDelegationAdmissionPort } from './live-call-types.js';
 import { LiveDelegationLedger, type LiveDelegationRecord } from './live-delegation-ledger.js';
 import { sanitizeLiveSpeakableResult } from './live-speakable-result.js';
+import { reviewLiveDelegation, LIVE_DELEGATION_REVIEW_TIMEOUT_MS } from './review-live-delegation.js';
 
 /** Call-scoped admission and result delivery; never reads a shell's visible transcript. */
 export class LiveDelegationController {
   private readonly ledger = new LiveDelegationLedger();
   private readonly queuedRuns = new Map<string, string>();
   private readonly earlyResults = new Map<string, LiveTurnResult>();
+  private reviewTail = Promise.resolve();
+  private reviewAbort = new AbortController();
+  private readonly reviewed = new Set<string>();
 
   constructor(private readonly deps: {
     admission: LiveDelegationAdmissionPort;
+    review: LiveDelegationReviewer;
     pushOwnerAction?: (action: LiveOwnerActionPush) => void;
     getSlot: () => LiveCallSlot | null;
     onChanged: () => void;
@@ -20,6 +28,11 @@ export class LiveDelegationController {
   private get slot(): LiveCallSlot | null { return this.deps.getSlot(); }
   private emit(): void { this.deps.onChanged(); }
   clear(): void {
+    this.reviewAbort.abort();
+    this.reviewAbort = new AbortController();
+    this.reviewTail = Promise.resolve();
+    this.reviewed.clear();
+    this.inFlightDelegations.clear();
     this.ledger.clear();
     this.queuedRuns.clear();
     this.earlyResults.clear();
@@ -40,38 +53,128 @@ export class LiveDelegationController {
     const slot = this.slot;
     if (!slot) return;
     const callId = slot.callId;
+    const targetSessionId = slot.sessionId;
+    const expiresAt = Date.now() + LIVE_DELEGATION_REVIEW_TIMEOUT_MS;
     const inflightKey = `${callId}:${delegation.providerDelegationId}`;
-    if (this.ledger.find(callId, delegation.providerDelegationId) || this.inFlightDelegations.has(inflightKey)) {
+    if (this.reviewed.has(inflightKey) || this.inFlightDelegations.has(inflightKey)) {
+      return;
+    }
+    const stopping = isLiveStopInstruction(delegation.instruction);
+    if (stopping) {
+      // A stop must not sit behind slow intent decisions or let stale work
+      // launch after stopping the current Run.
+      this.reviewAbort.abort();
+      this.reviewAbort = new AbortController();
+      this.reviewTail = Promise.resolve();
+    }
+    const epoch = this.reviewAbort;
+    if (!stopping && (this.inFlightDelegations.size >= 8 || this.reviewed.size >= 128)) {
+      this.finishWithoutWork(slot, delegation, 'unavailable');
       return;
     }
     this.inFlightDelegations.add(inflightKey);
+    let stoppedReviewQueue = false;
     try {
-      if (!this.ledger.hasCapacity()) throw new Error('live-delegation-rejected');
-      await this.admitAndRecord(slot, delegation, callId);
+      const work = async () => {
+        if (this.slot !== slot || epoch.signal.aborted || slot.startAbort.signal.aborted) return;
+        if (!stopping && Date.now() >= expiresAt) {
+          this.finishWithoutWork(slot, delegation, 'unavailable');
+          this.reviewed.add(inflightKey);
+          return;
+        }
+        const decision = stopping ? { kind: 'stop' as const } : await reviewLiveDelegation(this.deps.review, {
+          sessionId: targetSessionId,
+          instruction: delegation.instruction,
+          tasks: this.ledger.contextForSession(targetSessionId),
+          signal: AbortSignal.any([epoch.signal, slot.startAbort.signal]),
+        }, expiresAt - Date.now());
+        if (this.slot !== slot || epoch.signal.aborted || slot.startAbort.signal.aborted) return;
+        if (!stopping && Date.now() >= expiresAt) throw new Error('live-delegation-review-expired');
+        if (decision.kind === 'conversation' || decision.kind === 'clarify') {
+          this.finishWithoutWork(slot, delegation, decision.kind);
+        } else if (decision.kind === 'reuse') {
+          this.reuseResult(slot, delegation, decision.delegationId);
+        } else {
+          const instruction = decision.kind === 'stop' ? PIWIN_LIVE_STOP_INSTRUCTION : decision.brief;
+          // Same canonical task is not new work. Explicit repeats are distinct.
+          const same = decision.kind === 'work'
+            ? this.ledger.contextForSession(targetSessionId).reverse().find((task) => task.brief === instruction)
+            : undefined;
+          if (same) this.reuseResult(slot, delegation, same.delegationId);
+          else {
+            if (decision.kind !== 'stop' && !this.ledger.hasCapacity()) throw new Error('live-delegation-rejected');
+            if (decision.kind === 'stop' && !stopping) {
+              stoppedReviewQueue = true;
+              this.reviewAbort.abort();
+              this.reviewAbort = new AbortController();
+            }
+            await this.admitAndRecord(slot, { ...delegation, instruction }, callId, targetSessionId);
+          }
+        }
+        if (this.slot === slot) this.reviewed.add(inflightKey);
+      };
+      const pending = stopping ? work() : this.reviewTail.then(work);
+      this.reviewTail = pending.catch(() => undefined); // Caller below reports the failure.
+      await pending;
     } catch {
-      console.error('[piwin-live] delegation admission failed');
-      if (this.slot !== slot) return;
-      this.deps.pushOwnerAction?.({
-        type: 'voice/live-owner-action', callId, action: 'ack-delegation',
-        providerDelegationId: delegation.providerDelegationId, ok: false,
-      });
+      if (this.slot !== slot || (epoch.signal.aborted && !stoppedReviewQueue) || slot.startAbort.signal.aborted) return;
+      console.error('[piwin-live] delegation review/admission failed; no fallback execution');
+      this.reviewed.add(inflightKey);
+      this.finishWithoutWork(slot, delegation, 'unavailable');
     } finally {
+      // A stop-cancelled candidate must not revive when its provider replays
+      // the same ID later in this call. A genuinely new retry gets a new ID.
+      if (this.slot === slot) this.reviewed.add(inflightKey);
       this.inFlightDelegations.delete(inflightKey);
     }
+  }
+
+  private finishWithoutWork(
+    slot: LiveCallSlot,
+    delegation: VoiceDelegationEvent,
+    reason: 'conversation' | 'clarify' | 'unavailable',
+    content?: string,
+  ): void {
+    this.deps.pushOwnerAction?.({
+      type: 'voice/live-owner-action', callId: slot.callId, action: 'ack-delegation',
+      providerDelegationId: delegation.providerDelegationId, ok: false,
+    });
+    this.deps.pushOwnerAction?.({
+      type: 'voice/live-owner-action', callId: slot.callId, action: 'append-context',
+      target: 'delegation', providerDelegationId: delegation.providerDelegationId,
+      channel: reason === 'conversation' && !content ? 'commentary' : 'speakable',
+      content: content ?? (reason === 'conversation'
+        ? 'No work started. This is conversation or a speaking preference. Keep it in voice; respect requests for silence/no confirmation. Do not delegate it again.'
+        : reason === 'clarify'
+          ? 'No work started. The request is incomplete. Ask one short question in the user language about what action they want; do not invent or re-delegate the fragment.'
+          : 'No work started: intent verification was unavailable. Briefly say you could not start it and the user can retry or type in chat. Do not claim acceptance.'),
+    });
+  }
+
+  private reuseResult(slot: LiveCallSlot, delegation: VoiceDelegationEvent, originalId: string): void {
+    const original = this.ledger.find(slot.callId, originalId);
+    if (!original) throw new Error('live-delegation-reuse-invalid');
+    this.finishWithoutWork(slot, delegation, 'conversation', original.result ??
+      'The existing task is still in progress. No new task was started. Use its existing status; do not repeat the delegation.');
   }
 
   private async admitAndRecord(
     slot: LiveCallSlot,
     delegation: VoiceDelegationEvent,
     callId: string,
+    sessionId: string,
   ): Promise<void> {
     const result = await this.deps.admission.admit({
       callId,
-      sessionId: slot.sessionId,
+      sessionId,
       instruction: delegation.instruction,
       providerDelegationId: delegation.providerDelegationId,
     });
     if (this.slot !== slot) return;
+    if (result.status !== 'accepted') {
+      this.finishWithoutWork(slot, delegation, 'unavailable');
+      return;
+    }
     const ack = {
       providerDelegationId: delegation.providerDelegationId,
       ok: result.status === 'accepted',
@@ -88,14 +191,16 @@ export class LiveDelegationController {
       ...ack,
     });
     if (result.status === 'accepted') {
+      if (isLiveStopInstruction(delegation.instruction)) return;
       const runId = result.queued ? this.queuedRuns.get(result.messageId) : result.runId;
       const stored = this.ledger.remember({
         callId,
         providerDelegationId: delegation.providerDelegationId,
-        sessionId: slot.sessionId,
+        sessionId,
         messageId: result.messageId,
         admission: 'accepted',
         resultDelivered: false,
+        ...(!isLiveStopInstruction(delegation.instruction) ? { brief: delegation.instruction } : {}),
         ...(result.queued ? { queueId: result.queuedTurnId } : {}),
         ...(runId ? { runId } : {}),
       });
@@ -123,7 +228,7 @@ export class LiveDelegationController {
 
   notifyBoundSessionTurnEnded(input: LiveTurnResult): void {
     const slot = this.slot;
-    if (!slot || slot.sessionId !== input.sessionId || input.kind !== 'session-turn') return;
+    if (!slot || input.kind !== 'session-turn') return;
     let record = this.ledger.findForTurn(input);
     if (!record) {
       // A fast Run may finish before its admission acknowledgement. Retain
@@ -145,6 +250,8 @@ export class LiveDelegationController {
     let nextRecord: LiveDelegationRecord | undefined = record;
     while (nextRecord) {
       record = nextRecord;
+      record.result = content;
+      record.status = input.status === 'completed' ? 'completed' : 'incomplete';
       this.ledger.markDelivered(record);
       nextRecord = this.ledger.findForTurn(input);
     }

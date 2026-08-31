@@ -20,6 +20,10 @@ import {
   type ActiveDocument,
 } from '../active-document';
 import {
+  activeDocumentFromProjectRead,
+  type ProjectReadPreviewInput,
+} from '../preview-unavailable';
+import {
   requestedMarkupKind,
   resolveDocumentContentFromMessages,
   type DocumentContentMessage,
@@ -419,16 +423,14 @@ export function useActiveDocument(input: UseActiveDocumentInput): UseActiveDocum
               relativePath,
             });
             if (response.success && response.data) {
-              const fileData = response.data as { content?: string; isBinary?: boolean };
-              if (typeof fileData.content === 'string' && fileData.isBinary !== true) {
-                applyDocument({
-                  status: 'ready',
-                  requestId,
-                  title: cleanTitle,
-                  content: fileData.content,
-                  displayRef: displayRef || relativePath,
-                  provenance: 'project-current',
-                });
+              const next = activeDocumentFromProjectRead({
+                data: response.data as ProjectReadPreviewInput,
+                requestId,
+                title: cleanTitle,
+                displayRef: displayRef || relativePath,
+              });
+              if (next) {
+                applyDocument(next);
                 return;
               }
             }
@@ -589,16 +591,14 @@ export function useActiveDocument(input: UseActiveDocumentInput): UseActiveDocum
             relativePath: openPlan.relativePath,
           });
           if (response.success && response.data) {
-            const fileData = response.data as { content?: string; isBinary?: boolean };
-            if (typeof fileData.content === 'string' && fileData.isBinary !== true) {
-              applyDocument({
-                status: 'ready',
-                requestId,
-                title: cleanTitle,
-                content: fileData.content,
-                displayRef: cleanPath,
-                provenance: 'project-current',
-              });
+            const next = activeDocumentFromProjectRead({
+              data: response.data as ProjectReadPreviewInput,
+              requestId,
+              title: cleanTitle,
+              displayRef: cleanPath,
+            });
+            if (next) {
+              applyDocument(next);
               return;
             }
           }

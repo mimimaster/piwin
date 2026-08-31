@@ -61,6 +61,8 @@ export type ActiveDocument =
       filePath?: string | null;
       reason: string;
       suggestion?: string;
+      byteSize?: number;
+      maxBytes?: number;
     };
 
 export function createDocumentRequestId(): string {

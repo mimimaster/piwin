@@ -8,6 +8,7 @@ import {
 describe('live remote gate', () => {
   it('treats start and mute as owner commands and status as observe-only', () => {
     expect(isLiveOwnerCommand('voice/live/start')).toBe(true);
+    expect(isLiveOwnerCommand('voice/live/rebind')).toBe(true);
     expect(isLiveOwnerCommand('voice/live/set-muted')).toBe(true);
     expect(isLiveOwnerCommand('voice/live/status')).toBe(false);
     expect(isLiveOwnerCommand('voice/live/settings-schema')).toBe(false);

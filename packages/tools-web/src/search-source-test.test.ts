@@ -37,4 +37,33 @@ describe('testSearchSource', () => {
       testSearchSource({ id: 'duckduckgo', kind: 'duckduckgo', enabled: true }),
     ).rejects.toThrow(/does not support connectivity tests/);
   });
+
+  it('rejects a CLI source without {{query}}', async () => {
+    await expect(
+      testSearchSource({
+        id: 'cli',
+        kind: 'cli',
+        enabled: true,
+        command: 'my-search',
+        args: ['--limit', '5'],
+      }),
+    ).rejects.toThrow(/{{query}}/);
+  });
+
+  it('tests an HTTP source with a small POST', async () => {
+    vi.stubGlobal('fetch', (async (_input: unknown, init?: RequestInit) => {
+      expect(init?.method).toBe('POST');
+      return new Response(JSON.stringify({ hits: [{ title: 'piwin', url: 'https://example.com', snippet: '' }] }), {
+        status: 200,
+      });
+    }) as typeof fetch);
+
+    const result = await testSearchSource({
+      id: 'http',
+      kind: 'http',
+      enabled: true,
+      baseUrl: 'http://127.0.0.1:8787/search',
+    });
+    expect(result).toMatchObject({ sourceId: 'http', kind: 'http', resultCount: 1 });
+  });
 });

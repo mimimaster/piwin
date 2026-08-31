@@ -22,6 +22,12 @@ export type UseRunReconcileArgs = {
   hostReady?: boolean;
   /** Remote snapshot / catch-up fence — reload transcript even when idle. */
   catchUpEpoch?: number;
+  /**
+   * Host-owned selected-session admission. Same-session `session/set` (continue
+   * in project, project rehome after resume) returns this to `reconciling`
+   * without changing `activeSessionId`. Re-admit in that case or Send stays off.
+   */
+  foregroundAdmission?: 'unknown' | 'reconciling' | 'ready';
 };
 
 /**
@@ -227,10 +233,20 @@ export function useRunReconcile(args: UseRunReconcileArgs): void {
       dispatch({ type: 'foreground/admission', admission: 'unknown' });
       return;
     }
+    // `ready` already finished this selection. `unknown` waits for hostReady.
+    // `reconciling` (including a same-id session/set) must admit again.
+    if (args.foregroundAdmission === 'ready' || args.foregroundAdmission === 'unknown') {
+      return;
+    }
     const generation = selectionGenerationRef.current + 1;
     selectionGenerationRef.current = generation;
     admitSelectedSession(sessionId, generation);
-  }, [admitSelectedSession, args.activeSessionId, dispatch]);
+  }, [
+    admitSelectedSession,
+    args.activeSessionId,
+    args.foregroundAdmission,
+    dispatch,
+  ]);
 
   useEffect(() => {
     const handleFocus = (): void => schedule('live');

@@ -110,7 +110,9 @@ describe('MediaDocPreview', () => {
 
     const state = query('media-doc-state-unavailable');
     expect(state).not.toBeNull();
-    expect(state?.textContent).toContain('无法加载媒体');
+    expect(state?.textContent).toContain('无法加载预览');
+    expect(state?.textContent).toContain('媒体文件当前无法读取');
+    expect(state?.textContent).not.toContain('Ref');
     expect(query('media-doc-image')).toBeNull();
   });
 });

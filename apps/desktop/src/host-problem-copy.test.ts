@@ -104,6 +104,57 @@ describe('host problem copy', () => {
     ).toMatch(/还不支持这些设置项/);
   });
 
+  it('maps a leftover paused-run protocol string off the checkpoint UUID', () => {
+    expect(
+      hostFailureNotice(
+        {
+          type: 'response',
+          command: 'session/prompt',
+          success: false,
+          error:
+            'paused-run: session session-mth19yeb-jup3xc4a has resumable checkpoint 6448b534-4fc4-43b9-ac84-7e487d4972ab',
+        },
+        'zh-CN',
+      ),
+    ).toMatch(/上一轮已暂停/);
+    expect(
+      hostFailureNotice(
+        {
+          type: 'response',
+          command: 'session/prompt',
+          success: false,
+          error: 'paused-run: session s1 has resumable checkpoint ckpt-1',
+        },
+        'en',
+      ),
+    ).toMatch(/paused/i);
+    expect(
+      hostFailureNotice(
+        {
+          type: 'response',
+          command: 'session/prompt',
+          success: false,
+          error: 'paused-run: session s1 has resumable checkpoint ckpt-1',
+        },
+        'zh-CN',
+      ),
+    ).not.toMatch(/checkpoint/);
+  });
+
+  it('maps slash-command interventions off the protocol string', () => {
+    expect(
+      hostFailureNotice(
+        {
+          type: 'response',
+          command: 'run/intervention-submit',
+          success: false,
+          error: 'intervention-command-unsupported: slash commands must be sent as a normal turn',
+        },
+        'zh-CN',
+      ),
+    ).toMatch(/斜杠命令不能插入当前回合/);
+  });
+
   it('maps a dropped Host socket to reconnecting copy', () => {
     expect(
       hostFailureNotice(

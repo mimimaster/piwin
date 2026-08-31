@@ -216,6 +216,25 @@ describe('web draft conversion', () => {
     expect(second.id).toBe('tavily-2');
   });
 
+  it('round-trips CLI env lines', () => {
+    const config: WebConfig = {
+      ...SAMPLE_WEB,
+      searchProvider: 'cli',
+      searchApiKeyEnv: '',
+      searchSources: [
+        {
+          id: 'cli',
+          kind: 'cli',
+          enabled: true,
+          command: 'my-search',
+          args: ['{{query}}'],
+          env: { SEARCH_API_KEY: 'from-env' },
+        },
+      ],
+    };
+    expect(draftToWeb(webToDraft(config))).toEqual(config);
+  });
+
   it('parses CLI args as one token per line', () => {
     const draft = webToDraft(SAMPLE_WEB);
     const cliSource = createDraftSearchSource('cli', []);

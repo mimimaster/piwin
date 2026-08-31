@@ -7,7 +7,6 @@ import type { Dispatch, ReactElement } from 'react';
 import type {
   ContextSummaryPush,
   FlashcardReviewCard,
-  ModelRef,
   PermissionDecision,
   PermissionRememberScope,
   PiwinConfig,
@@ -60,7 +59,6 @@ export type WorkbenchTranscriptProps = {
   config: PiwinConfig | null;
   preferences: DesktopPreferences;
   sessionPlan: SessionPlan | null | undefined;
-  currentPromptModel: ModelRef | null;
   modelOptions: ModelOption[];
   requestKnowledgeCenter: KnowledgeCenterPanelProps['request'];
   resolveFlashcards: (itemIds: string[]) => Promise<FlashcardReviewCard[]>;
@@ -121,7 +119,6 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
     config,
     preferences,
     sessionPlan,
-    currentPromptModel,
     modelOptions,
     requestKnowledgeCenter,
     resolveFlashcards,
@@ -216,7 +213,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
             docCardRequest={requestKnowledgeCenter as never}
             isConversationSession={state.activeScope.kind === 'general'}
             onResolveFlashcards={resolveFlashcards}
-            livePromptModel={currentPromptModel}
+            livePromptModel={state.pendingTurnModel}
             modelOptions={modelOptions}
             {...(config?.providers !== undefined ? { configProviders: config.providers } : {})}
             contextUsage={state.contextUsage}
@@ -415,6 +412,7 @@ export function WorkbenchPermissionBar(
       plan: sessionPlan,
       isConversationSession,
       streaming: state.streaming,
+      paused: state.runTerminal.kind === 'paused',
       hasPermissionPrompt: Boolean(state.permissionPrompt),
     })
   ) {

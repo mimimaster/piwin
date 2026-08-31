@@ -49,18 +49,26 @@ function createLayoutId(kind: 'pane' | 'split'): string {
 export function useConversationPaneLayout(args: {
   enabled: boolean;
   primarySessionId: string | null;
+  scopeKey?: string;
 }): ConversationPaneLayoutController {
-  const [layout, setLayout] = useState(loadConversationPaneLayout);
+  const [layout, setLayout] = useState(() => loadConversationPaneLayout(undefined, args.scopeKey));
+  const [loadedScopeKey, setLoadedScopeKey] = useState(args.scopeKey);
   const createId: ConversationPaneIdFactory = useCallback(createLayoutId, []);
 
   useEffect(() => {
     if (!args.enabled) return;
+    if (loadedScopeKey !== args.scopeKey) {
+      setLayout(loadConversationPaneLayout(undefined, args.scopeKey));
+      setLoadedScopeKey(args.scopeKey);
+      return;
+    }
     setLayout((current) => replacePrimaryConversationSession(current, args.primarySessionId));
-  }, [args.enabled, args.primarySessionId]);
+  }, [args.enabled, args.primarySessionId, args.scopeKey, loadedScopeKey]);
 
   useEffect(() => {
-    saveConversationPaneLayout(layout);
-  }, [layout]);
+    if (loadedScopeKey !== args.scopeKey) return;
+    saveConversationPaneLayout(layout, undefined, args.scopeKey);
+  }, [args.scopeKey, layout, loadedScopeKey]);
 
   const update = useCallback(
     (transform: (current: ConversationPaneLayout) => ConversationPaneLayout): void => {

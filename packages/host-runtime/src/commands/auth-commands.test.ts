@@ -140,7 +140,7 @@ describe('auth commands', () => {
     ]);
   });
 
-  it('overlays the catalog context window onto already-projected models', async () => {
+  it('overlays the catalog context window, input, and reasoning onto already-projected models', async () => {
     const port: SubscriptionAuthPort = {
       listCredentials: async () => [{ providerId: 'xai', type: 'oauth' }],
       isUsingSubscription: () => true,
@@ -150,6 +150,8 @@ describe('auth commands', () => {
               {
                 id: 'grok-4.6',
                 name: 'Grok 4.6',
+                input: ['text', 'image'],
+                reasoning: true,
                 contextWindow: 500_000,
                 maxOutputTokens: 500_000,
               },
@@ -184,6 +186,8 @@ describe('auth commands', () => {
         modelId: 'grok-4.6',
         source: 'subscription',
         group: 'subscription',
+        input: ['text', 'image'],
+        reasoning: true,
         contextWindow: 500_000,
         maxOutputTokens: 500_000,
       },

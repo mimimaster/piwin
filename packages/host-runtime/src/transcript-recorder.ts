@@ -237,7 +237,7 @@ export function createTranscriptRecorder(options: {
               // Spec §7.3: snapshot the model used for this run onto the
               // assistant transcript message so default-mode walkthrough
               // generation can recover the historical model later.
-              const modelSnapshot = options.resolveModel?.();
+              const modelSnapshot = event.model ?? options.resolveModel?.();
               if (modelSnapshot) {
                 message.model = modelSnapshot;
               }

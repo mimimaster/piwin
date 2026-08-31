@@ -1,4 +1,4 @@
-import type { LiveCallErrorCode, LiveCallView, LiveOwnerBootstrap, LiveStartData } from '@piwin/contracts';
+import type { LiveCallErrorCode, LiveCallView, LiveOwnerBootstrap, LiveStartData, LiveDelegationReviewer } from '@piwin/contracts';
 import type { FakeRealtimeVoiceAdapter, LiveCallState, LiveProviderRegistry } from '@piwin/voice';
 import type { LiveChannelSnapshot } from './live-settings-service.js';
 
@@ -36,6 +36,7 @@ export type LiveCallSlot = {
 };
 
 export type LiveCoordinatorDeps = {
+  review: LiveDelegationReviewer;
   registry: LiveProviderRegistry;
   resolveSnapshot: (providerId?: string) => Promise<LiveChannelSnapshot>;
   resolveSessionLabel: (sessionId: string) => Promise<string | null> | string | null;

@@ -155,25 +155,11 @@ export function isUserControlInFlight(state: ChatUiState): boolean {
 }
 
 /**
- * Prefer the in-flight turn model, then the active session list row. Host
- * should also enrich `message/start`; these fallbacks keep Conversation's
- * provider avatar after streaming when that enrichment is missing.
+ * Frozen send-time model for the in-flight turn. Do not read the session
+ * list / composer picker — those follow the next prompt, not this reply.
  */
 export function resolveAssistantModelFallback(state: ChatUiState): ModelRef | undefined {
-  if (state.pendingTurnModel) {
-    return state.pendingTurnModel;
-  }
-  const sessionId = state.activeSessionId;
-  if (sessionId === null) return undefined;
-  const fromLists =
-    state.sessions.find((session) => session.id === sessionId)?.model ??
-    state.generalSessions.find((session) => session.id === sessionId)?.model;
-  if (fromLists) return fromLists;
-  for (const sessions of Object.values(state.projectSessionsByPath)) {
-    const match = sessions.find((session) => session.id === sessionId)?.model;
-    if (match) return match;
-  }
-  return undefined;
+  return state.pendingTurnModel ?? undefined;
 }
 
 /** Pi ends the tool-call assistant row before tool/start. Keep it until the next answer. */

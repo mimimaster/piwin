@@ -4,6 +4,7 @@ import { notifications } from '@mantine/notifications';
 export type UiNotificationTone = 'info' | 'success' | 'warning' | 'error';
 
 export type UiNotificationInput = {
+  id?: string;
   tone: UiNotificationTone;
   title?: string;
   message: string;
@@ -103,6 +104,7 @@ function renderToneIcon(tone: UiNotificationTone): ReactNode {
  */
 export function showUiNotification(input: UiNotificationInput): string {
   return notifications.show({
+    ...(input.id !== undefined ? { id: input.id } : {}),
     message: input.message,
     color: MANTINE_NOTIFICATION_COLORS[input.tone],
     icon: input.icon ?? renderToneIcon(input.tone),

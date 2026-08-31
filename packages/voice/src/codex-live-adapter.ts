@@ -94,7 +94,7 @@ export function buildCodexLiveCallBody(input: {
     instructions: string;
     audio: { output: { voice: CodexLiveVoice } };
     intelligence?: CodexLiveIntelligence;
-    delegation: { type: 'client'; ack_filler: true };
+    delegation: { type: 'client'; ack_filler: false };
   };
 } {
   return {
@@ -108,7 +108,7 @@ export function buildCodexLiveCallBody(input: {
       ...(CODEX_LIVE_INTELLIGENCE_ENABLED
         ? { intelligence: resolveCodexLiveIntelligence(input.intelligence) }
         : {}),
-      delegation: { type: 'client', ack_filler: true },
+      delegation: { type: 'client', ack_filler: false },
     },
   };
 }

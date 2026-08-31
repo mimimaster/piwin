@@ -316,7 +316,11 @@ On hello / replay-too-old, before the shell enables mutation controls:
 
 `hostInstanceId` change → drop cursor, full hydrate. Do not stitch seq spaces.
 
-Unsubscribed sessions: no full transcript. Index + inbox-class events only.
+Unsubscribed sessions: no full transcript. Index, inbox-class events, and
+`session-turn` Run lifecycle projections still arrive. `run/updated` and
+`run/terminal` for these turns are global so background sidebar working and
+completion indicators update without reopening the session. Internal
+plan/subagent Runs and message/tool streams remain session-scoped.
 
 Clients that advertise `liveSubscriptions` receive high-rate session pushes
 only for a bounded subscribed set (default: the active session; maximum eight

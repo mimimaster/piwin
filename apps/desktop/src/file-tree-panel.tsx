@@ -38,6 +38,11 @@ import {
 } from '@piwin/ui-kit';
 import { IconClose, IconRefresh, IconSearch } from './shell-icons';
 import { CodePreviewView } from './code-preview-view';
+import { PreviewUnavailable } from './PreviewUnavailable';
+import {
+  classifyFileTreePreviewUnavailable,
+  FILE_TREE_IMAGE_PREVIEW_MAX_BYTES,
+} from './preview-unavailable';
 import { EnhancedMarkdownView } from './EnhancedMarkdownView';
 import {
   FILE_TREE_RAIL_DEFAULT_WIDTH_PX,
@@ -106,6 +111,7 @@ type FilePreviewState = {
   content: string;
   truncated: boolean;
   isBinary: boolean;
+  byteSize?: number;
   mimeHint?: string;
   previewDataUrl?: string;
 };
@@ -504,6 +510,7 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
         content: data.content ?? '',
         truncated: data.truncated === true,
         isBinary: data.isBinary === true,
+        ...(typeof data.byteSize === 'number' ? { byteSize: data.byteSize } : {}),
         ...(data.mimeHint ? { mimeHint: data.mimeHint } : {}),
         ...(data.previewDataUrl ? { previewDataUrl: data.previewDataUrl } : {}),
       });
@@ -644,6 +651,13 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
     !showMarkupPreview &&
     !preview.isBinary &&
     isMarkdownPreviewPath(preview.relativePath);
+  const binaryUnavailableReason =
+    preview && preview.isBinary && !showImagePreview
+      ? classifyFileTreePreviewUnavailable({
+          ...(preview.mimeHint ? { mimeHint: preview.mimeHint } : {}),
+          ...(preview.byteSize !== undefined ? { byteSize: preview.byteSize } : {}),
+        })
+      : null;
 
   return (
     <div
@@ -694,7 +708,14 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
                 <span className="muted">{locale === 'zh-CN' ? '加载中…' : 'Loading…'}</span>
               </div>
             ) : null}
-            {previewError ? <Notice tone="error">{previewError}</Notice> : null}
+            {previewError ? (
+              <PreviewUnavailable
+                reason="not-found"
+                locale={locale}
+                fileName={previewFileName}
+                testId="file-tree-preview-unavailable"
+              />
+            ) : null}
             {preview && showImagePreview && preview.previewDataUrl ? (
               <div className="file-tree-preview-image-stage" data-testid="file-tree-preview-image">
                 <img
@@ -705,12 +726,17 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
                 />
               </div>
             ) : null}
-            {preview && preview.isBinary && !showImagePreview ? (
-              <div className="file-tree-preview-binary muted" data-testid="file-tree-preview-binary">
-                {locale === 'zh-CN'
-                  ? '此文件为二进制或无法以文本预览。'
-                  : 'This file is binary or cannot be previewed as text.'}
-              </div>
+            {preview && binaryUnavailableReason ? (
+              <PreviewUnavailable
+                reason={binaryUnavailableReason}
+                locale={locale}
+                fileName={previewFileName || preview.relativePath}
+                {...(preview.byteSize !== undefined ? { byteSize: preview.byteSize } : {})}
+                {...(binaryUnavailableReason === 'too-large'
+                  ? { maxBytes: FILE_TREE_IMAGE_PREVIEW_MAX_BYTES }
+                  : {})}
+                testId="file-tree-preview-binary"
+              />
             ) : null}
             {preview && !preview.isBinary && !showImagePreview ? (
               <>

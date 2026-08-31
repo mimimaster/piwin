@@ -61,6 +61,7 @@ import { createJsonlStdioTransport } from './host-serve-transport.js';
 import { createSidecarMobileAccess, interceptSidecarMobileAccess } from './mobile-access-serve.js';
 import { parsePermissionModeOverride } from './permission-mode-override.js';
 import { resolveCliChatPrompt } from './chat-prompt.js';
+import { resolveHostDataRoot } from './host-data-root.js';
 import { formatCliFlashcardToolResult } from './flashcard-tool-result.js';
 import { formatCliAgentErrorEvent } from './cli-agent-error.js';
 import {
@@ -2606,9 +2607,11 @@ async function commandHostServe(argv: string[]): Promise<void> {
   const testFixture = parseHostServeTestFixture(argv);
   const permissionModeOverride = resolvePermissionModeOverride(argv);
   const transport = createJsonlStdioTransport();
+  const hostDataRoot = resolveHostDataRoot();
   const runtimeOptions: ConstructorParameters<typeof HostRuntime>[0] = {
     mode,
     mock,
+    piwinRoot: hostDataRoot,
   };
   // Source-tree multi-process E2E may pair the live Host source with an
   // explicitly built worker artifact. Packaged Desktop passes this option at
@@ -2623,7 +2626,7 @@ async function commandHostServe(argv: string[]): Promise<void> {
   if (permissionModeOverride !== undefined) {
     runtimeOptions.permissionModeOverride = permissionModeOverride;
   }
-  const clientToolBroker = await createDeviceToolBrokerForHost(getPiwinRoot());
+  const clientToolBroker = await createDeviceToolBrokerForHost(hostDataRoot);
   if (clientToolBroker !== undefined) {
     runtimeOptions.clientToolExecution = clientToolBroker;
   }
@@ -2679,7 +2682,7 @@ async function commandHostServe(argv: string[]): Promise<void> {
     mobileAccess = await createSidecarMobileAccess({
       runtime,
       instanceId: hostInstanceId,
-      piwinRoot: getPiwinRoot(),
+      piwinRoot: hostDataRoot,
       egressHub,
       idempotencyRegistry: authority.idempotencyRegistry,
       ...(clientToolBroker === undefined ? {} : { clientToolBroker }),

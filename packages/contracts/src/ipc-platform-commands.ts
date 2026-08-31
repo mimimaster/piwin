@@ -56,6 +56,7 @@ import type {
   LiveEndInput,
   LiveMediaStateInput,
   LiveReportEventInput,
+  LiveRebindInput,
   LiveSetMutedInput,
   LiveSetProviderKeyInput,
   LiveStartInput,
@@ -67,6 +68,17 @@ export type PlatformHostCommand =
   | SubscriptionAuthCommand
   | { id?: string; type: 'host/ping' }
   | { id?: string; type: 'host/status' }
+  | {
+      id?: string;
+      /**
+       * List one Host directory so the shell can pick a workspace.
+       * Omit `path` to list the Host home directory.
+       */
+      type: 'host/list-dir';
+      path?: string;
+      /** When true, include dotfiles such as `~/.piwin`. Default skips names starting with `.`. */
+      includeHidden?: boolean;
+    }
   | {
       id?: string;
       /** ADR 0040 §8: query-only aggregate residency/resource metrics. */
@@ -159,6 +171,7 @@ export type PlatformHostCommand =
   | { id?: string; type: 'voice/live/apply-settings'; input: LiveApplySettingsInput }
   | { id?: string; type: 'voice/live/set-provider-key'; input: LiveSetProviderKeyInput }
   | { id?: string; type: 'voice/live/start'; input: LiveStartInput }
+  | { id?: string; type: 'voice/live/rebind'; input: LiveRebindInput }
   | { id?: string; type: 'voice/live/media-state'; input: LiveMediaStateInput }
   | { id?: string; type: 'voice/live/set-muted'; input: LiveSetMutedInput }
   | { id?: string; type: 'voice/live/end'; input: LiveEndInput }

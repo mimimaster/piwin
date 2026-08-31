@@ -5,6 +5,7 @@ import {
   DEFAULT_FETCH_FALLBACK,
   DEFAULT_FETCH_RETURN_MAX_CHARS,
   DEFAULT_FETCH_STORE_MAX_CHARS,
+  DEFAULT_SEARCH_ROUTE_POLICY,
   type WebConfig,
 } from './web.js';
 import type { SkillsConfig } from './skills.js';
@@ -630,13 +631,13 @@ export function createDefaultCompactionConfig(): CompactionConfig {
 
 export function createDefaultWebConfig(): WebConfig {
   return {
-    searchProvider: 'duckduckgo',
+    searchProvider: 'none',
     searchApiKeyEnv: '',
     searchMaxResults: 10,
     searchTimeoutMs: 15000,
-    searchSources: [{ id: 'duckduckgo', kind: 'duckduckgo', enabled: true }],
+    searchSources: [],
     searchStrategy: { mode: 'parallel', perSourceTimeoutMs: 8000 },
-    searchRoutePolicy: 'external-first',
+    searchRoutePolicy: DEFAULT_SEARCH_ROUTE_POLICY,
     fetchProvider: 'supermarkdown',
     fetchApiKeyEnv: 'FIRECRAWL_API_KEY',
     fetchMaxBytes: 65536,

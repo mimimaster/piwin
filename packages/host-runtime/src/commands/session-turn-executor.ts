@@ -40,6 +40,7 @@ export async function executeSessionTurn(input: {
   desiredModel: ModelRef | undefined;
   desiredThinkingLevel: ThinkingLevel | undefined;
   supersededRun: ExecutionRunRecord | undefined;
+  supersededCheckpointId: string | undefined;
 }): Promise<void> {
   const { context, command, run } = input;
   let turnChangeBound = false;
@@ -171,6 +172,22 @@ export async function executeSessionTurn(input: {
       return;
     }
 
+    // New user input replaces the paused task, not its transcript. Keep the
+    // recovery point through validation/runtime preparation; retire it only
+    // when the new turn is ready to reach the model.
+    if (input.supersededCheckpointId !== undefined) {
+      const cleared = await context.clearPauseCheckpoint(
+        command.sessionId,
+        input.supersededCheckpointId,
+      );
+      if (!cleared) {
+        throw new Error('pause-checkpoint-mismatch: new prompt no longer owns the paused task');
+      }
+      if (context.getRunSignal(run.runId)?.aborted) {
+        await finalizeAbortedRun(context, command.sessionId, run.runId);
+        return;
+      }
+    }
     const outcome = await liveSession.prompt(promptInput);
     const applied = await applyAgentPromptOutcome({
       context,

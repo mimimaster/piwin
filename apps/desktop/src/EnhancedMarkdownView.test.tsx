@@ -89,9 +89,10 @@ describe('EnhancedMarkdownView', () => {
   });
 
   it('keeps ordinary Markdown on the Streamdown review surface', () => {
-    const elem = renderView('A **reviewable** paragraph with ~~old~~ text.');
+    const elem = renderView('A **reviewable** paragraph with _important_ ~~old~~ text.');
     expect(elem.querySelector('.enhanced-markdown-streamdown')).not.toBeNull();
     expect(elem.querySelector('.enhanced-strong')?.textContent).toBe('reviewable');
+    expect(elem.querySelector('.enhanced-em')?.textContent).toBe('important');
     expect(elem.querySelector('del')?.textContent).toBe('old');
   });
 

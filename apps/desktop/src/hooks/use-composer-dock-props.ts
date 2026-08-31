@@ -134,6 +134,8 @@ export type UseComposerDockPropsArgs = {
   onSteerQueueEdit: (messageId: string, text: string) => void;
   onSteerQueueRemove: (messageId: string) => void;
   ensureSession: () => Promise<string | null>;
+  /** Focused conversation pane session; Live follows this while a call is up. */
+  liveSessionId: string | null;
 };
 
 export function useComposerDockProps(args: UseComposerDockPropsArgs): {
@@ -217,12 +219,13 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
     onSteerQueueEdit,
     onSteerQueueRemove,
     ensureSession,
+    liveSessionId,
   } = args;
 
   const { locale } = useDesktopLocale();
   const live = useLiveCall({
     hostClient,
-    sessionId: state.activeSessionId,
+    sessionId: liveSessionId,
     ensureSession,
     sessionStreaming: state.streaming === true,
     lastAssistant: readDelegatedTurnResult(state.messages),

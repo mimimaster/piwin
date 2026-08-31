@@ -70,14 +70,15 @@
   display: flex;
   flex: 0 0 var(--workspace-header-height);
   align-items: center;
-  gap: var(--s-3);
+  gap: var(--s-2);
   min-width: 0;
-  padding: 0 var(--s-3) 0 var(--s-4);
+  padding: 0 var(--s-2) 0 var(--s-3);
   background: var(--surface-1);
   box-shadow: inset 0 -1px 0 var(--line-1);
   color: var(--text-2);
   font-size: var(--fs-chrome);
   user-select: none;
+  cursor: default;
 }
 
 .conversation-pane-index {
@@ -109,6 +110,53 @@
   font-weight: 570;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.conversation-pane-title-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  min-width: 0;
+  flex: 1 1 auto;
+  max-width: 100%;
+  padding: 2px var(--s-2);
+  margin: 0;
+  border: none;
+  border-radius: var(--r-chip);
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--fs-chrome);
+  font-weight: 570;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  transition: background-color var(--t-2) var(--ease-out), color var(--t-2) var(--ease-out);
+}
+
+.conversation-pane-title-button:hover {
+  background: var(--hover);
+  color: var(--text-1);
+}
+
+.conversation-pane-title-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-pane-title-arrow {
+  flex: 0 0 auto;
+  opacity: 0.6;
+  color: var(--text-3);
+}
+
+.conversation-pane-menu-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: var(--s-2);
 }
 
 .conversation-pane-active-label {
@@ -224,6 +272,22 @@
   color: var(--text-1);
   font-size: var(--fs-chrome);
   text-align: center;
+}
+
+.conversation-pane-workspace[data-pane-count='4'] .conversation-pane-transcript,
+.conversation-pane-workspace[data-pane-count='8'] .conversation-pane-transcript {
+  gap: var(--s-5);
+  padding: var(--s-4) var(--s-4) var(--s-6);
+}
+
+.conversation-pane-workspace[data-pane-count='4'] .conversation-pane-composer,
+.conversation-pane-workspace[data-pane-count='8'] .conversation-pane-composer {
+  padding: var(--s-3) var(--s-4) var(--s-4);
+}
+
+.conversation-pane-workspace[data-pane-count='4'] .conversation-pane-composer .piwin-text-area-field,
+.conversation-pane-workspace[data-pane-count='8'] .conversation-pane-composer .piwin-text-area-field {
+  min-height: 42px;
 }
 
 .conversation-pane-workspace[data-pane-count='8'] .conversation-pane-active-label,

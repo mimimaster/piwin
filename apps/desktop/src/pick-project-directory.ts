@@ -57,3 +57,34 @@ export async function pickProjectDirectory(
     return null;
   }
 }
+
+/**
+ * Native file picker for a Host-local executable/script.
+ * Returns null when cancelled, not running in Tauri, or the dialog is unavailable.
+ */
+export async function pickLocalFile(options: PickProjectDirectoryOptions = {}): Promise<string | null> {
+  if (!isDesktopShellRuntime()) {
+    return null;
+  }
+  try {
+    const dialog = await import('@tauri-apps/plugin-dialog');
+    if (typeof dialog.open !== 'function') {
+      return null;
+    }
+    const selected = await dialog.open({
+      directory: false,
+      multiple: false,
+      title: options.title ?? 'Choose script',
+      ...(options.defaultPath?.trim() ? { defaultPath: options.defaultPath.trim() } : {}),
+    });
+    if (typeof selected === 'string' && selected.trim()) {
+      return selected.trim();
+    }
+    if (Array.isArray(selected) && typeof selected[0] === 'string' && selected[0].trim()) {
+      return selected[0].trim();
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}

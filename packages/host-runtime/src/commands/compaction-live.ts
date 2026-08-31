@@ -28,6 +28,7 @@ import type {
   SessionCompactData,
   SessionCompactExportData,
   SessionCompactResult,
+  SessionSeedMessage,
   SessionIndexRecord,
   SessionResumeData,
   SessionRunAcceptedData,
@@ -120,19 +121,119 @@ import { repairLegacySessionNames } from '../session-name-repair.js';
 import { findEnabledModel } from '../provider-helpers.js';
 import type { SessionLiveContext } from './session-live-context.js';
 
-async function compactLiveSession(
-  context: SessionLiveContext,
-  sessionId: string,
-  customInstructions?: string,
-): Promise<SessionCompactResult> {
-  const session = context.requireSession(sessionId);
-  return compactSessionHandle(context, sessionId, session, customInstructions, true);
+function isNothingToCompact(result: SessionCompactResult): boolean {
+  if (result.ok !== false) {
+    return false;
+  }
+  const message = (result.message ?? '').toLowerCase();
+  return message.includes('nothing to compact') || message.includes('session too small');
+}
+
+function isAlreadyCompactedMessage(message: string | undefined): boolean {
+  return (message ?? '').toLowerCase().includes('already compacted');
 }
 
 type TargetCompactionResult = SessionCompactResult & {
   compacted: boolean;
   targetInputBudget: number;
 };
+
+async function compactLiveSessionForTargetAttempt(
+  context: SessionLiveContext,
+  sessionId: string,
+  customInstructions: string,
+): Promise<SessionCompactResult> {
+  try {
+    return await compactLiveSession(context, sessionId, customInstructions);
+  } catch (error) {
+    const message = formatError(error);
+    if (isAlreadyCompactedMessage(message)) {
+      return { ok: false, message };
+    }
+    throw error;
+  }
+}
+
+async function resolveAlreadyCompactedTarget(
+  context: SessionLiveContext,
+  sessionId: string,
+  targetBudget: { inputBudget: number },
+  pendingPromptTokens: number,
+  compactResult: SessionCompactResult,
+): Promise<TargetCompactionResult> {
+  const latestUsage = await context.loadSessionUsage(sessionId);
+  const latestOccupied = readContextOccupiedTokens(latestUsage);
+  const postCompactTokens = compactResult.tokensAfter ?? latestOccupied;
+  if (postCompactTokens === undefined) {
+    return {
+      ok: true,
+      compacted: false,
+      targetInputBudget: targetBudget.inputBudget,
+      message:
+        'Native context is already compacted; occupancy could not be re-measured. Provider limits still apply.',
+    };
+  }
+  if (postCompactTokens + Math.max(0, pendingPromptTokens) > targetBudget.inputBudget) {
+    throw new Error(
+      `context-limit-exceeded: compacted context ${postCompactTokens + Math.max(0, pendingPromptTokens)} exceeds target input budget ${targetBudget.inputBudget}`,
+    );
+  }
+  return {
+    ok: true,
+    compacted: false,
+    targetInputBudget: targetBudget.inputBudget,
+    tokensAfter: postCompactTokens,
+    message: 'Native context is already compacted and fits the target model budget',
+  };
+}
+
+async function loadProductCompactionSeeds(
+  context: SessionLiveContext,
+  sessionId: string,
+): Promise<SessionSeedMessage[]> {
+  try {
+    const history = await context.withTranscriptStore(sessionId, (store) =>
+      store.buildHistoryWindow({ maxMessages: 200, maxChars: 200_000 }),
+    );
+    const snapshotMessages: SessionTranscriptMessage[] = history.map((message, index) => ({
+      id: `compact-history-${index}`,
+      role: message.role as SessionTranscriptMessage['role'],
+      text: message.text,
+      createdAt: new Date().toISOString(),
+      status: 'done',
+    }));
+    return buildCompactionSeedMessages(snapshotMessages);
+  } catch {
+    return [];
+  }
+}
+
+async function compactLiveSession(
+  context: SessionLiveContext,
+  sessionId: string,
+  customInstructions?: string,
+): Promise<SessionCompactResult> {
+  // Resume/index sessions are often cold: requireSession would throw
+  // "Unknown session" even though the product transcript is on screen.
+  let session = await context.ensureLiveSession(sessionId);
+  const liveMessages = await session.getMessages().catch(() => []);
+  if (liveMessages.length < 2) {
+    const seedMessages = await loadProductCompactionSeeds(context, sessionId);
+    if (seedMessages.length >= 2) {
+      session = await context.reactivateWithSeedMessages(sessionId, seedMessages);
+    }
+  }
+  const first = await compactSessionHandle(context, sessionId, session, customInstructions, true);
+  if (!isNothingToCompact(first)) {
+    return first;
+  }
+  const seedMessages = await loadProductCompactionSeeds(context, sessionId);
+  if (seedMessages.length < 2) {
+    return first;
+  }
+  session = await context.reactivateWithSeedMessages(sessionId, seedMessages);
+  return compactSessionHandle(context, sessionId, session, customInstructions, true);
+}
 
 export async function compactLiveSessionForTarget(
   context: SessionLiveContext,
@@ -195,8 +296,21 @@ export async function compactLiveSessionForTarget(
   ]
     .filter((value): value is string => Boolean(value))
     .join('\n');
-  const result = await compactLiveSession(context, sessionId, targetInstructions);
+  const result = await compactLiveSessionForTargetAttempt(
+    context,
+    sessionId,
+    targetInstructions,
+  );
   if (!result.ok) {
+    if (isAlreadyCompactedMessage(result.message)) {
+      return resolveAlreadyCompactedTarget(
+        context,
+        sessionId,
+        targetBudget,
+        pendingPromptTokens,
+        result,
+      );
+    }
     throw new Error(result.message ?? 'Target-model compaction failed');
   }
 
@@ -457,6 +571,8 @@ export async function handleCompactionCommand(
             )
           : await compactLiveSession(context, command.sessionId, command.customInstructions);
         return ok(requestId, 'session/compact', toSessionCompactData(result));
+      } catch (error) {
+        return fail(requestId, 'session/compact', formatError(error));
       } finally {
         context.releaseSessionBody(command.sessionId);
       }

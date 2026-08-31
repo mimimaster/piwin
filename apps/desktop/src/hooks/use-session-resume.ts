@@ -114,7 +114,12 @@ export function useSessionResume(input: {
   const handleResumeSession = useCallback(
     async (
       sessionId: string,
-      context?: { scope?: SessionScope; quiet?: boolean },
+      context?: {
+        scope?: SessionScope;
+        quiet?: boolean;
+        /** Caller already ran project/open for `scope`. Skip a second activation. */
+        projectAlreadyActivated?: boolean;
+      },
     ): Promise<void> => {
       if (shouldBlockRemoteHostGesture(hostClient)) {
         dispatchNotification(pushInfo(hostReconnectNotice(locale)));
@@ -131,15 +136,18 @@ export function useSessionResume(input: {
       const ticketMatches = (): boolean =>
         resumeTicketMatches(selectionGuardRef.current, started.ticket);
 
-      const effectiveActiveScope = context?.scope ?? state.activeScope;
-      const targetScopeHint = context?.scope ?? resolveSessionScopeHint?.(sessionId);
+      // `context.scope` is where the session belongs. Continue-in-project
+      // passes the project while the shell is still on General, so compare
+      // against the live UI scope when deciding whether to activate.
+      const currentUiScope = state.activeScope;
+      const destinationScope = context?.scope ?? resolveSessionScopeHint?.(sessionId);
       const knownProjectPath =
         Object.entries(state.projectSessionsByPath).find(([, list]) =>
           list.some((session) => session.id === sessionId),
-        )?.[0] ?? (targetScopeHint?.kind === 'project' ? targetScopeHint.projectPath : undefined);
+        )?.[0] ?? (destinationScope?.kind === 'project' ? destinationScope.projectPath : undefined);
       const knownGeneral =
         state.generalSessions.some((session) => session.id === sessionId) ||
-        targetScopeHint?.kind === 'general';
+        destinationScope?.kind === 'general';
       const existingListItem =
         knownProjectPath != null
           ? state.projectSessionsByPath[knownProjectPath]?.find(
@@ -150,8 +158,8 @@ export function useSessionResume(input: {
 
       if (
         knownProjectPath &&
-        (effectiveActiveScope.kind !== 'project' ||
-          effectiveActiveScope.projectPath !== knownProjectPath)
+        context?.projectAlreadyActivated !== true &&
+        (currentUiScope.kind !== 'project' || currentUiScope.projectPath !== knownProjectPath)
       ) {
         const activation = await activateProjectOnHost(
           (command) => hostClient.request(command),
@@ -172,7 +180,12 @@ export function useSessionResume(input: {
         await hydrateSessions(activation.path, { fillActiveList: true });
         void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
       }
-      if (knownGeneral && !knownProjectPath && effectiveActiveScope.kind === 'project') {
+      if (
+        knownGeneral &&
+        !knownProjectPath &&
+        currentUiScope.kind === 'project' &&
+        context?.projectAlreadyActivated !== true
+      ) {
         if (!ticketMatches()) return;
         dispatch({ type: 'project/clear' });
         await hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
@@ -225,8 +238,8 @@ export function useSessionResume(input: {
               : null;
       if (
         resumedProjectPath &&
-        (effectiveActiveScope.kind !== 'project' ||
-          effectiveActiveScope.projectPath !== resumedProjectPath) &&
+        (currentUiScope.kind !== 'project' ||
+          currentUiScope.projectPath !== resumedProjectPath) &&
         knownProjectPath !== resumedProjectPath
       ) {
         const activation = await activateProjectOnHost(
@@ -242,23 +255,21 @@ export function useSessionResume(input: {
             includeArchived: showArchivedSessions,
           });
           void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
-          if (!ticketMatches()) return;
-          dispatch({ type: 'session/set', sessionId, awaitTranscript: true });
+          // Keep the session/set from before resume. Re-selecting the same id
+          // after project/set would drop Send until admission runs again.
         } else if (!activation.ok) {
           dispatch({ type: 'error', message: activation.error });
         }
       }
       if (
         data.scope?.kind === 'general' &&
-        effectiveActiveScope.kind === 'project' &&
+        currentUiScope.kind === 'project' &&
         !knownGeneral &&
         !resumedProjectPath
       ) {
         if (!ticketMatches()) return;
         dispatch({ type: 'project/clear' });
         await hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
-        if (!ticketMatches()) return;
-        dispatch({ type: 'session/set', sessionId, awaitTranscript: true });
       }
       if (!ticketMatches()) return;
       if (data.scope || data.name || data.model || data.thinkingLevel !== undefined) {
@@ -349,6 +360,7 @@ export function useSessionResume(input: {
             outline,
             contextUsage: data.contextUsage ?? null,
             live: data.live,
+            ...(data.pauseCheckpoint ? { pauseCheckpoint: data.pauseCheckpoint } : {}),
           });
           await hydrateQueuedTurns(sessionId, ticketMatches);
           return;
@@ -371,6 +383,7 @@ export function useSessionResume(input: {
         outline,
         contextUsage: data.contextUsage ?? null,
         live: data.live,
+        ...(data.pauseCheckpoint ? { pauseCheckpoint: data.pauseCheckpoint } : {}),
       });
       await hydrateQueuedTurns(sessionId, ticketMatches);
     },

@@ -898,7 +898,7 @@ describe('ConversationResponseContent', () => {
     expect(container.textContent).toContain('Here is the result.');
   });
 
-  it('keeps the provider avatar on the latest completed reply using the composer model', () => {
+  it('does not follow a later composer model on a completed reply without a snapshot', () => {
     const message: ChatMessageUi = {
       id: 'm-done-avatar',
       role: 'assistant',
@@ -928,10 +928,51 @@ describe('ConversationResponseContent', () => {
         }}
       />,
     );
-    expect(container.querySelector('.conversation-message-provider-icon')).not.toBeNull();
+    expect(container.querySelector('[data-testid="conversation-message-model-name"]')).toBeNull();
+    expect(container.querySelector('.conversation-message-provider-icon')).toBeNull();
+  });
+
+  it('keeps the snapshot model when the composer later selects a different model', () => {
+    const message: ChatMessageUi = {
+      id: 'm-done-snapshot',
+      role: 'assistant',
+      text: 'Hello after streaming.',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      model: {
+        protocol: 'openai-compatible',
+        providerId: 'chatgpt-codex',
+        modelId: 'gpt-5.3-codex-spark',
+      },
+    };
+    const { container } = renderContent(
+      <ConversationResponseContent
+        message={message}
+        messageIndex={0}
+        showStreamingCaret={false}
+        activeTheme={null}
+        artifactThemeKey="default"
+        runRecordsById={{}}
+        activeRunId={null}
+        locale="zh-CN"
+        artifactPreviewEnabled={true}
+        isStreaming={false}
+        isLatestAssistantResponse
+        livePromptModel={{
+          protocol: 'openai-compatible',
+          providerId: 'xgrok',
+          modelId: 'grok-4',
+        }}
+      />,
+    );
     expect(
       container.querySelector('[data-testid="conversation-message-model-name"]')?.textContent,
-    ).toContain('glm5.2');
+    ).toContain('gpt-5.3-codex-spark');
+    expect(
+      container.querySelector('[data-testid="conversation-message-model-name"]')?.textContent,
+    ).not.toContain('grok-4');
   });
 
   it('keeps the provider avatar on a live streaming row via the live run flag', () => {

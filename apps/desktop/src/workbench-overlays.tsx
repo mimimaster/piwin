@@ -5,6 +5,7 @@
 import { useEffect, type Dispatch, type ReactElement, type SetStateAction } from 'react';
 import type { PetPanelProps } from './PetPanel';
 import type {
+  HostListDirData,
   HostStatusData,
   PermissionDecision,
   PermissionRememberScope,
@@ -15,6 +16,7 @@ import type {
   ThemeManifest,
   WorkspaceWrites,
 } from '@piwin/contracts';
+
 import { AppDialogs } from './app-dialogs';
 import { BranchSwitchConfirmDialog } from './branch-switch-confirm-dialog';
 import { CommandPalette } from './command-palette';
@@ -162,6 +164,20 @@ export function WorkbenchOverlays(props: WorkbenchOverlaysProps): ReactElement {
           ? {
               hostWorkspacePicker: true,
               ...(hostOsFamily === undefined ? {} : { hostOsFamily }),
+              ...(props.hostClient.supportsCommand('host/list-dir')
+                ? {
+                    onListHostDirectory: async (path?: string): Promise<HostListDirData> => {
+                      const response = await props.hostClient.request({
+                        type: 'host/list-dir',
+                        ...(path && path.trim().length > 0 ? { path: path.trim() } : {}),
+                      });
+                      if (!response.success) {
+                        throw new Error(response.error);
+                      }
+                      return response.data as HostListDirData;
+                    },
+                  }
+                : {}),
             }
           : {})}
         projectPath={props.state.projectPath}

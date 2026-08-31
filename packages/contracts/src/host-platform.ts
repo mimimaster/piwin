@@ -39,3 +39,19 @@ export function looksLikeHostAbsolutePath(value: string, style: HostPathStyle): 
   }
   return trimmed.startsWith('/');
 }
+
+/** One directory (or file) on the Host, for the shell folder picker. */
+export type HostDirEntry = {
+  name: string;
+  kind: 'directory' | 'file';
+  /** Absolute Host path. */
+  path: string;
+};
+
+/** Response for `host/list-dir`. */
+export type HostListDirData = {
+  path: string;
+  parentPath: string | null;
+  homePath: string;
+  entries: HostDirEntry[];
+};

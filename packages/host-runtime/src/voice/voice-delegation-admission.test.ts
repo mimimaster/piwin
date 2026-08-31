@@ -49,7 +49,7 @@ describe('createVoiceDelegationAdmission', () => {
     expect(prompt.admitVoiceDelegation).not.toHaveBeenCalled();
   });
 
-  it('compresses spoken wrappers before prompting', async () => {
+  it('preserves the reviewed brief including negation before prompting', async () => {
     const prompt = {
       admitVoiceDelegation: vi.fn(async () => ({
         queued: false as const,
@@ -64,12 +64,12 @@ describe('createVoiceDelegationAdmission', () => {
     const result = await port.admit({
       callId: 'c1',
       sessionId: 's1',
-      instruction: '没有,我是让你随便搜索一点东西',
+      instruction: '不是删除文件，只查清楚问题，不要修改',
       providerDelegationId: 'd-spoken',
     });
     expect(result.status).toBe('accepted');
     expect(prompt.admitVoiceDelegation).toHaveBeenCalledWith(
-      expect.objectContaining({ instruction: '随便搜索一点东西' }),
+      expect.objectContaining({ instruction: '不是删除文件，只查清楚问题，不要修改' }),
     );
   });
 

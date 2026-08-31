@@ -36,7 +36,6 @@ import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
 import { hostFailureNotice, hostReconnectNotice } from '../host-problem-copy.js';
 import { shouldBlockRemoteHostGesture } from '../host-reconnect-gate.js';
 import { desktopForegroundMutationsEnabled } from '../foreground-admission.js';
-import { buildPausedRunAbortCommand } from '../paused-run-abort.js';
 import { flattenUnsafeRemoteContextRefs } from '../remote-context-refs.js';
 import { isImagePromptAttachment, useComposerPromptInput } from './use-composer-prompt-input.js';
 import type { UseComposerMediaArgs } from './composer-media-args.js';
@@ -310,21 +309,6 @@ export function useComposerSend(params: UseComposerSendArgs) {
         notifyError(hostReconnectNotice(locale));
         return;
       }
-      if (args.state.runTerminal.kind === 'paused') {
-        const abortPaused = buildPausedRunAbortCommand(args.state);
-        if (abortPaused === undefined) {
-          return;
-        }
-        const clearPause = await args.hostClient.request(abortPaused, {
-          idempotencyKey: createGestureIdempotencyKey(),
-        });
-        if (!clearPause.success) {
-          notifyError(hostFailureNotice(clearPause, locale));
-          return;
-        }
-        args.dispatch({ type: 'run/terminal-dismiss' });
-      }
-
       const promptRefsSnapshot = args.getPendingContextRefTokens?.() ?? null;
       const contextRefs = promptRefsSnapshot
         ? promptRefsSnapshot.items.map((item) => item.ref)

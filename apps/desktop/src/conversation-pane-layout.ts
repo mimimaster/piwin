@@ -298,3 +298,14 @@ export function toggleMaximizedConversationPane(
     maximizedPaneId: layout.maximizedPaneId === paneId ? null : paneId,
   };
 }
+
+/** Session Live should target: focused pane if it has one, else the primary session. */
+export function resolveFocusedConversationSessionId(input: {
+  layout: ConversationPaneLayout;
+  primarySessionId: string | null;
+}): string | null {
+  const leaf = findConversationPaneLeaf(input.layout.root, input.layout.activePaneId);
+  if (leaf?.sessionId) return leaf.sessionId;
+  if (leaf?.paneId === PRIMARY_CONVERSATION_PANE_ID) return input.primarySessionId;
+  return null;
+}

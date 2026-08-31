@@ -15,6 +15,48 @@ export async function handleMockHostCommands(
   switch (command.type) {
       case 'host/ping':
         return { id, type: 'response', command: 'host/ping', success: true, data: { pong: true } };
+      case 'host/list-dir': {
+        const homePath = '/Users/mock';
+        const current = command.path?.trim() || homePath;
+        return {
+          id,
+          type: 'response',
+          command: 'host/list-dir',
+          success: true,
+          data: {
+            path: current,
+            parentPath: current === homePath ? '/' : homePath,
+            homePath,
+            entries:
+              current === homePath
+                ? [
+                    { name: 'Applications', kind: 'directory', path: `${homePath}/Applications` },
+                    { name: 'Desktop', kind: 'directory', path: `${homePath}/Desktop` },
+                    { name: 'Developer', kind: 'directory', path: `${homePath}/Developer` },
+                    { name: 'Documents', kind: 'directory', path: `${homePath}/Documents` },
+                    { name: 'Downloads', kind: 'directory', path: `${homePath}/Downloads` },
+                    { name: 'Projects', kind: 'directory', path: `${homePath}/Projects` },
+                    ...(command.includeHidden
+                      ? [{ name: '.piwin', kind: 'directory' as const, path: `${homePath}/.piwin` }]
+                      : []),
+                  ]
+                : current === `${homePath}/.piwin`
+                  ? [
+                      {
+                        name: 'search.mjs',
+                        kind: 'file' as const,
+                        path: `${homePath}/.piwin/search.mjs`,
+                      },
+                    ]
+                  : current === `${homePath}/Developer`
+                    ? [
+                        { name: 'piwin', kind: 'directory', path: `${homePath}/Developer/piwin` },
+                        { name: 'notes.md', kind: 'file', path: `${homePath}/Developer/notes.md` },
+                      ]
+                    : [],
+          },
+        };
+      }
       case 'host/status':
         return {
           id,

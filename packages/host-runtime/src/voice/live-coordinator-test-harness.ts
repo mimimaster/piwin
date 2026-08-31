@@ -36,6 +36,7 @@ export function makeLiveCoordinator(
     registry: new LiveProviderRegistry([fake]),
     resolveSnapshot: async () => snapshot ?? readyLiveSnapshot(),
     resolveSessionLabel: () => 'Work',
+    review: async (request) => ({ kind: 'repeat', brief: request.instruction }),
     admission: createVoiceDelegationAdmission({
       busy: { isSessionBusy: () => false },
       prompt: {

@@ -54,7 +54,7 @@ export function ConversationResponseContent(props: {
   activeRunId: string | null;
   locale: 'zh-CN' | 'en';
   livePromptModel?: ModelRef | null;
-  /** Latest visible Conversation reply — keep composer model after streaming. */
+  /** Latest visible Conversation reply (regenerate / copy dock). */
   isLatestAssistantResponse?: boolean;
   modelOptions?: readonly ModelOption[];
   configProviders?: readonly ModelProviderConfig[];
@@ -144,7 +144,6 @@ export function ConversationResponseContent(props: {
     message,
     livePromptModel: props.livePromptModel ?? null,
     isStreaming: liveStreaming,
-    allowComposerFallback: props.isLatestAssistantResponse === true,
   });
 
   const modelDisplay = resolvedModel

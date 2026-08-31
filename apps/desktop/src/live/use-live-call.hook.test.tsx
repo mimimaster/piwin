@@ -28,6 +28,7 @@ class FakeLiveHost {
   readonly listeners = new Set<(message: HostServerMessage) => void>();
   slot: LiveCallView | null = null;
   ended: string[] = [];
+  rebinds: string[] = [];
   startFailure: string | null = null;
   selectedProviderId = 'openai-codex';
   mediaDriverId: 'codex-webrtc-v1' | 'gemini-live-v1beta' = 'codex-webrtc-v1';
@@ -91,6 +92,21 @@ class FakeLiveHost {
     }
     if (command.type === 'voice/live/report-event') {
       return { type: 'response', command: command.type, success: true, data: { ok: true } };
+    }
+    if (command.type === 'voice/live/rebind') {
+      if (!this.slot || this.slot.callId !== command.input.callId) {
+        return { type: 'response', command: command.type, success: false, error: 'live-session-unavailable' };
+      }
+      this.rebinds.push(command.input.sessionId);
+      this.slot = {
+        ...this.slot,
+        revision: this.slot.revision + 1,
+        boundSessionId: command.input.sessionId,
+        boundSessionLabel: command.input.sessionId,
+        ...(this.slot.activity === 'agent-working' ? { activity: 'listening' as const } : {}),
+      };
+      this.emit({ type: 'voice/live-updated', call: this.slot });
+      return { type: 'response', command: command.type, success: true, data: { call: this.slot } };
     }
     return { type: 'response', command: command.type, success: false, error: 'unused' };
   }
@@ -377,8 +393,10 @@ describe('useLiveCall hangup', () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    act(() => {
+    await act(async () => {
       container?.querySelector<HTMLButtonElement>('[data-testid="switch"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
     });
     act(() => {
       host.emit({
@@ -391,5 +409,6 @@ describe('useLiveCall hangup', () => {
     });
     expect(peer.appended.some((text) => text.includes('另一会话'))).toBe(false);
     expect(peer.appended.some((text) => text.includes('洛杉矶今天晴'))).toBe(false);
+    expect(host.rebinds).toEqual(['s2']);
   });
 });

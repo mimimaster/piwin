@@ -19,6 +19,28 @@ export const MobileMarkdown = memo(function MobileMarkdown({
 }: MobileMarkdownProps): ReactElement {
   const components: Components = useMemo(
     () => ({
+      strong({ children, className, ...rest }: ComponentProps<'strong'>) {
+        return (
+          <strong
+            {...rest}
+            className={
+              className ? `mobile-markdown-strong ${className}` : 'mobile-markdown-strong'
+            }
+          >
+            {children}
+          </strong>
+        );
+      },
+      em({ children, className, ...rest }: ComponentProps<'em'>) {
+        return (
+          <em
+            {...rest}
+            className={className ? `mobile-markdown-em ${className}` : 'mobile-markdown-em'}
+          >
+            {children}
+          </em>
+        );
+      },
       code({ className, children, ...rest }: ComponentProps<'code'>) {
         const match = /language-(\w+)/.exec(className || '');
         const isInline = !match && typeof children === 'string' && !children.includes('\n');

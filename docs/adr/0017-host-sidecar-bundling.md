@@ -65,6 +65,11 @@ The host bundle includes the piwin-owned `agent-worker.mjs` artifact beside
 Host composition root.
 5. Dev workflow (`pnpm tauri dev`, CLI) is **unchanged**; bundling is a
    packaging-time concern only.
+6. The packaged Host carries `bundled-assets/default-config.json` as a
+   first-run seed. It is read only when the target user's
+   `~/.piwin/config.json` does not exist; an existing user config always wins.
+   The seed is config-only, so provider credentials remain env/keychain
+   references rather than raw secrets.
 
 ## Implementation steps
 

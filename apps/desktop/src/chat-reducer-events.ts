@@ -55,11 +55,16 @@ export function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiSt
       }
       // Host reconnects or duplicate SDK subscriptions may replay lifecycle
       // start events. A message id identifies one assistant bubble.
-      if (state.messages.some((message) => message.id === event.messageId)) {
-        return state;
-      }
       const resolvedRunId = event.runId ?? state.activeRunId ?? undefined;
       const resolvedModel = event.model ?? resolveAssistantModelFallback(state);
+      if (state.messages.some((message) => message.id === event.messageId)) {
+        if (!resolvedModel) {
+          return state;
+        }
+        return updateMessage(state, event.messageId, (message) =>
+          message.model ? message : { ...message, model: resolvedModel },
+        );
+      }
       const controlInFlight = isUserControlInFlight(state);
       const message: ChatMessageUi = {
         id: event.messageId,

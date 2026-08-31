@@ -24,6 +24,7 @@
     "@piwin/host-client": "workspace:*",
     "@piwin/host-transport": "workspace:*",
     "@piwin/ui-kit": "workspace:*",
+    "@piwin/voice": "workspace:*",
     "@streamdown/cjk": "1.0.3",
     "@streamdown/math": "1.0.2",
     "@tauri-apps/api": "^2.11.1",

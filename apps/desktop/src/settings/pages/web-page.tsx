@@ -2,27 +2,30 @@
  * Settings → Web tools page.
  * Multi-select search sources + web_fetch. Draft state lives in settings context.
  */
-import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import {
   DEFAULT_SEARCH_ROUTE_POLICY,
   isModelEnabled,
   isProviderEnabled,
   modelSupportsCapability,
+  type HostListDirData,
   type ModelRef,
   type SearchRoutePolicy,
   type SearchRoutePreviewData,
   type SearchRoutePreviewInput,
   createDefaultWebConfig,
+  type WebSearchSource,
   type WebSearchSourceKind,
+  type WebSearchTestableSourceKind,
 } from '@piwin/contracts';
 import {
   Button,
+  Dialog,
   Field,
   Notice,
   SegmentedControl,
   Select,
   Switch,
-  TextArea,
   TextInput,
 } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
@@ -30,61 +33,11 @@ import { FieldRow } from '../field-row';
 import { SearchRouteStatus } from '../search-route-status';
 import { useSettings } from '../settings-context';
 import { WebSecretEditor } from '../web-secret-editor';
-import { CLI_SEARCH_EXAMPLES, formatCliSearchExample } from '../cli-search-examples';
-import { createDraftSearchSource, draftToWeb, type DraftSearchSource } from '../web-draft';
-
-const SOURCE_KIND_OPTIONS: Array<{
-  id: Exclude<WebSearchSourceKind, 'searxng'>;
-  title: string;
-  description: string;
-  descriptionZh: string;
-}> = [
-  {
-    id: 'duckduckgo',
-    title: 'DuckDuckGo',
-    description: 'Free · no API key',
-    descriptionZh: '免费 · 无需 API Key',
-  },
-  {
-    id: 'brave',
-    title: 'Brave',
-    description: 'API key · stored on the Host',
-    descriptionZh: '需要 API Key · 保存在 Host',
-  },
-  {
-    id: 'tavily',
-    title: 'Tavily',
-    description: 'API key · stored on the Host',
-    descriptionZh: '需要 API Key · 保存在 Host',
-  },
-  {
-    id: 'cli',
-    title: 'Custom CLI',
-    description: 'Wrap SearXNG / self-hosted / any search API yourself',
-    descriptionZh: '自行封装 SearXNG / 自托管 / 任意搜索接口',
-  },
-];
-
-const FETCH_PROVIDER_OPTIONS = [
-  {
-    id: 'supermarkdown' as const,
-    title: 'Supermarkdown',
-    description: 'Local HTML→Markdown · Free default',
-    descriptionZh: '本地 HTML 转换 · 默认免费',
-  },
-  {
-    id: 'jina' as const,
-    title: 'Jina Reader',
-    description: 'r.jina.ai — handles JS-rendered pages',
-    descriptionZh: 'r.jina.ai — 适合 JS 渲染',
-  },
-  {
-    id: 'firecrawl' as const,
-    title: 'Firecrawl',
-    description: 'Scrape API — self-hostable',
-    descriptionZh: 'Scrape API — 可自托管',
-  },
-];
+import { WebCliSourceFields, draftToTestSource } from '../web-cli-source-fields';
+import { createDraftSearchSource, draftToWeb, findCustomSearchSource, type DraftSearchSource } from '../web-draft';
+import { HostWorkspacePicker } from '../../host-workspace-picker';
+import { pickLocalFile } from '../../pick-project-directory';
+import { FETCH_PROVIDER_OPTIONS, SOURCE_KIND_OPTIONS } from './web-page-options';
 
 type SearchDelegateOption = {
   key: string;
@@ -112,11 +65,15 @@ export function WebPage(): ReactElement {
     testWebSearchSource,
     remoteSettingsReadOnly,
     hostClient,
+    setError,
+    setInfo,
   } = useSettings();
-  const remoteShell = hostClient?.getTransport?.() === 'remote';
   const [webToolsTab, setWebToolsTab] = useState<'search' | 'fetch'>('search');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [expandedSourceIds, setExpandedSourceIds] = useState<Set<string>>(() => new Set());
+  const [filePickerOpen, setFilePickerOpen] = useState(false);
+  const [filePickerPath, setFilePickerPath] = useState('');
+  const filePickResolverRef = useRef<((path: string | null) => void) | null>(null);
   const [routePreview, setRoutePreview] = useState<SearchRoutePreviewData | null>(null);
   const [routePreviewLoading, setRoutePreviewLoading] = useState(false);
   const [routePreviewError, setRoutePreviewError] = useState(false);
@@ -224,11 +181,19 @@ export function WebPage(): ReactElement {
     }
   }, [isDirty, saveStatus]);
 
-  const isKindEnabled = (kind: WebSearchSourceKind): boolean =>
-    webDraft.searchSources.some((source) => source.kind === kind && source.enabled);
+  const isKindEnabled = (kind: WebSearchSourceKind): boolean => {
+    if (kind === 'cli') {
+      return findCustomSearchSource(webDraft.searchSources)?.enabled === true;
+    }
+    return webDraft.searchSources.some((source) => source.kind === kind && source.enabled);
+  };
 
-  const findSource = (kind: WebSearchSourceKind): DraftSearchSource | undefined =>
-    webDraft.searchSources.find((source) => source.kind === kind);
+  const findSource = (kind: WebSearchSourceKind): DraftSearchSource | undefined => {
+    if (kind === 'cli') {
+      return findCustomSearchSource(webDraft.searchSources);
+    }
+    return webDraft.searchSources.find((source) => source.kind === kind);
+  };
 
   const toggleExpanded = (sourceId: string): void => {
     setExpandedSourceIds((current) => {
@@ -248,7 +213,7 @@ export function WebPage(): ReactElement {
       setWebDraft({
         ...webDraft,
         searchSources: webDraft.searchSources.map((source) =>
-          source.kind === kind ? { ...source, enabled } : source,
+          source.id === existing.id ? { ...source, enabled } : source,
         ),
       });
       setExpandedSourceIds((current) => {
@@ -277,7 +242,7 @@ export function WebPage(): ReactElement {
     const existing = findSource(kind);
     if (!existing) {
       const created = createDraftSearchSource(
-        kind,
+        kind === 'cli' && patch.kind === 'http' ? 'http' : kind,
         webDraft.searchSources.map((source) => source.id),
       );
       setWebDraft({
@@ -289,7 +254,7 @@ export function WebPage(): ReactElement {
     setWebDraft({
       ...webDraft,
       searchSources: webDraft.searchSources.map((source) =>
-        source.kind === kind ? { ...source, ...patch } : source,
+        source.id === existing.id ? { ...source, ...patch } : source,
       ),
     });
   };
@@ -341,14 +306,20 @@ export function WebPage(): ReactElement {
 
   const testSearchConnection = async (
     sourceId: string,
-    kind: 'brave' | 'tavily',
+    kind: WebSearchTestableSourceKind,
+    draft?: WebSearchSource,
   ): Promise<{ durationMs: number; resultCount: number }> => {
+    const input = {
+      sourceId,
+      kind,
+      ...(draft ? { source: draft } : {}),
+    };
     if (testWebSearchSource) {
-      return testWebSearchSource({ sourceId, kind });
+      return testWebSearchSource(input);
     }
     const response = await request({
       type: 'web/test-search-source',
-      webTest: { sourceId, kind },
+      webTest: input,
     });
     if (!response.success) {
       throw new Error(response.error);
@@ -357,7 +328,35 @@ export function WebPage(): ReactElement {
     return result;
   };
 
+  const pickCliScript = async (): Promise<string | null> => {
+    const remote = hostClient?.getTransport?.() === 'remote';
+    if (!remote) {
+      const native = await pickLocalFile({
+        title: locale === 'zh-CN' ? '选择搜索脚本' : 'Choose search script',
+      });
+      if (native) {
+        return native;
+      }
+    }
+    if (!hostClient?.supportsCommand?.('host/list-dir') || !hostClient.request) {
+      return null;
+    }
+    return await new Promise((resolve) => {
+      filePickResolverRef.current = resolve;
+      setFilePickerPath('');
+      setFilePickerOpen(true);
+    });
+  };
+
+  const closeFilePicker = (path: string | null): void => {
+    setFilePickerOpen(false);
+    const resolvePick = filePickResolverRef.current;
+    filePickResolverRef.current = null;
+    resolvePick?.(path);
+  };
+
   return (
+    <>
     <div
       className="settings-card"
       data-testid="settings-web-tools"
@@ -511,69 +510,89 @@ export function WebPage(): ReactElement {
                     {selected &&
                     source &&
                     expandedSourceIds.has(source.id) &&
+                    option.id === 'searxng' ? (
+                      <div
+                        className="web-source-card-body"
+                        onClick={(event) => event.stopPropagation()}
+                        onKeyDown={(event) => event.stopPropagation()}
+                      >
+                        <Field
+                          label={zh ? '实例 URL' : 'Instance URL'}
+                          description={
+                            zh
+                              ? 'Host 会请求 /search?format=json。不必再包一层 CLI。'
+                              : 'Host calls /search?format=json. No CLI wrapper needed.'
+                          }
+                          className="web-source-field"
+                        >
+                          <TextInput
+                            value={source.baseUrl}
+                            onChange={(event) =>
+                              updateKind('searxng', { baseUrl: event.currentTarget.value })
+                            }
+                            placeholder="http://127.0.0.1:8080"
+                            spellCheck={false}
+                            disabled={saving || remoteSettingsReadOnly === true}
+                            testId="web-search-searxng-url"
+                          />
+                        </Field>
+                        <div className="web-cli-actions">
+                          <span className="muted">
+                            {zh ? '自托管最常见路径' : 'Typical self-hosted path'}
+                          </span>
+                          <Button
+                            variant="primary"
+                            disabled={saving || remoteSettingsReadOnly === true}
+                            data-testid="web-search-searxng-test"
+                            onClick={() => {
+                              void (async () => {
+                                try {
+                                  const result = await testSearchConnection(
+                                    source.id,
+                                    'searxng',
+                                    draftToTestSource(source),
+                                  );
+                                  setInfo(
+                                    zh
+                                      ? `解析到 ${result.resultCount} 条 hits · ${result.durationMs}ms`
+                                      : `${result.resultCount} hits · ${result.durationMs}ms`,
+                                    'success',
+                                  );
+                                } catch (error) {
+                                  setError(error instanceof Error ? error.message : String(error));
+                                }
+                              })();
+                            }}
+                          >
+                            {zh ? '测试' : 'Test'}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {selected &&
+                    source &&
+                    expandedSourceIds.has(source.id) &&
                     option.id === 'cli' ? (
                       <div
                         className="web-source-card-body"
                         onClick={(event) => event.stopPropagation()}
                         onKeyDown={(event) => event.stopPropagation()}
                       >
-                        {remoteShell ? (
-                          <Notice tone="info" testId="web-search-cli-host-held">
-                            {zh
-                              ? '启动器路径由 Host 保管。远程壳看不到、也不能改；保存其它 Web 选项不会把它抹掉。'
-                              : 'The launcher path stays on the Host. This remote shell cannot see or edit it, and saving other Web options will not erase it.'}
-                          </Notice>
-                        ) : (
-                          <>
-                            <Field
-                              label={zh ? '可执行文件' : 'Executable'}
-                              description={
-                                zh
-                                  ? '无 shell：填写 PATH 上的命令名，或绝对路径。'
-                                  : 'No shell: binary name on PATH, or an absolute path.'
-                              }
-                              className="web-source-field"
-                            >
-                              <TextInput
-                                value={source?.command ?? ''}
-                                onChange={(event) =>
-                                  updateKind('cli', { command: event.currentTarget.value })
-                                }
-                                placeholder={
-                                  zh
-                                    ? '例如 anysearch、smart-search 或 /usr/local/bin/my-search'
-                                    : 'e.g. anysearch, smart-search, or /usr/local/bin/my-search'
-                                }
-                                spellCheck={false}
-                                testId="web-search-cli-command"
-                              />
-                            </Field>
-
-                            <TextArea
-                              label={zh ? '参数（每行一个）' : 'Arguments (one per line)'}
-                              description={
-                                zh
-                                  ? '每行一个 argv；可用 {{query}} 插入查询词。stdout 需输出 JSON hits。密钥/URL 写在你的脚本或环境变量里。'
-                                  : 'One argv token per line. Use {{query}} for the search text. stdout must print JSON hits. Keys/URLs live in your script or env.'
-                              }
-                              value={source?.args ?? ''}
-                              onChange={(value) => updateKind('cli', { args: value })}
-                              placeholder={'search\n{{query}}'}
-                              rows={3}
-                              className="web-source-field"
-                              testId="web-search-cli-args"
-                              nativeProps={{ spellCheck: false }}
-                            />
-
-                            <CliSearchExamples zh={zh} />
-
-                            <CliCommandPreview
-                              command={source?.command ?? ''}
-                              argsText={source?.args ?? ''}
-                              zh={zh}
-                            />
-                          </>
-                        )}
+                        <WebCliSourceFields
+                          source={source}
+                          zh={zh}
+                          disabled={saving || remoteSettingsReadOnly === true}
+                          onChange={(patch) => updateKind('cli', patch)}
+                          onPickScript={pickCliScript}
+                          onTest={(tested) =>
+                            testSearchConnection(
+                              tested.id,
+                              tested.kind === 'http' ? 'http' : 'cli',
+                              tested,
+                            )
+                          }
+                        />
                       </div>
                     ) : null}
                   </div>
@@ -903,65 +922,37 @@ export function WebPage(): ReactElement {
         </div>
       </div>
     </div>
+    <Dialog
+      label={zh ? '选择脚本' : 'Choose script'}
+      open={filePickerOpen}
+      onOpenChange={(open) => {
+        if (!open) {
+          closeFilePicker(null);
+        }
+      }}
+      testId="web-search-cli-file-picker"
+      contentClassName="workspace-open-dialog"
+    >
+      <HostWorkspacePicker
+        locale={locale === 'zh-CN' ? 'zh-CN' : 'en'}
+        currentPath={filePickerPath}
+        onCurrentPathChange={setFilePickerPath}
+        mode="file"
+        listDirectory={async (path) => {
+          const response = await hostClient?.request?.({
+            type: 'host/list-dir',
+            ...(path ? { path } : {}),
+            includeHidden: true,
+          });
+          if (!response?.success) {
+            throw new Error(response?.error ?? 'host/list-dir failed');
+          }
+          return response.data as HostListDirData;
+        }}
+        onConfirm={(path) => closeFilePicker(path)}
+        onCancel={() => closeFilePicker(null)}
+      />
+    </Dialog>
+    </>
   );
-}
-
-function CliCommandPreview(props: {
-  command: string;
-  argsText: string;
-  zh: boolean;
-}): ReactElement | null {
-  const executable = props.command.trim();
-  if (!executable) {
-    return null;
-  }
-  const args = props.argsText
-    .split(/\r?\n/)
-    .map((part) => part.trim())
-    .filter(Boolean);
-  const previewParts = [executable, ...args.map((arg) => shellQuotePreview(arg))];
-  return (
-    <div className="web-cli-preview" data-testid="web-search-cli-preview">
-      <div className="web-cli-preview-label">{props.zh ? '将执行' : 'Will run'}</div>
-      <code className="web-cli-preview-code">{previewParts.join(' ')}</code>
-    </div>
-  );
-}
-
-function CliSearchExamples(props: { zh: boolean }): ReactElement {
-  return (
-    <details className="web-cli-examples" data-testid="web-search-cli-examples">
-      <summary>{props.zh ? '常用配置示例' : 'Common configuration examples'}</summary>
-      <div className="web-cli-examples-list">
-        <p className="web-cli-examples-intro">
-          {props.zh
-            ? '下面只是配置参考，不会自动安装服务。AnySearch 有官方 CLI 形态，其他示例需要你自己准备 wrapper。'
-            : 'These are configuration references, not automatic integrations. AnySearch has a documented CLI shape; prepare the other wrappers yourself.'}
-        </p>
-        {CLI_SEARCH_EXAMPLES.map((example) => (
-          <div className="web-cli-example" key={example.id}>
-            <div className="web-cli-example-title">
-              {props.zh ? example.labelZh : example.label}
-            </div>
-            <div className="web-cli-example-description">
-              {props.zh ? example.descriptionZh : example.description}
-            </div>
-            <code className="web-cli-example-command">{formatCliSearchExample(example)}</code>
-            <div className="web-cli-example-note">{props.zh ? example.noteZh : example.note}</div>
-          </div>
-        ))}
-      </div>
-    </details>
-  );
-}
-
-/** Light quoting for preview only — runtime still uses argv array (no shell). */
-function shellQuotePreview(value: string): string {
-  if (value.length === 0) {
-    return "''";
-  }
-  if (/^[A-Za-z0-9_./:@%+=,-]+$/.test(value) || value.includes('{{query}}')) {
-    return value;
-  }
-  return `'${value.replaceAll("'", `'"'"'`)}'`;
 }

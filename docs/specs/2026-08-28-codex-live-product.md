@@ -52,7 +52,7 @@
 
 - 对外名 **piwin Live**，不声称官方 Codex/ChatGPT Live 产品。
 - 忙会话默认 **steer** 当前 Run；明确停止才 abort。挂断不误杀已接纳 Agent Run。
-- 可浏览其他会话，不可静默改绑。
+- 可浏览其他会话；Desktop 焦点会话/窗格变化时改绑工作目标，不改绑持麦设备。
 - 无关键词委派；必须等 Host 接纳回执后才能口头宣称已交付。
 - Desktop WebRTC 优先；Host **不**默认中继 PCM（GipPity 式中继不是 MVP）。
 - 原始音频 / 闲聊 transcript 默认不持久化；委派文本持久化。
@@ -87,7 +87,7 @@ ChatGPT `backend-api/codex` Live（`quicksilver` / `avas` / `gpt-live-1-codex`�
 - CLI / Web 不持麦；Desktop 与已配对 Mobile 都可作为 owner。
 - 不保存原始录音；不提供会议录音产品。
 - 语音通道不获得 Agent/MCP/权限工具目录。
-- 通话中不改绑会话或持麦设备。
+- 通话中不改绑持麦设备；Desktop 工作会话跟随当前焦点会话/窗格。
 
 ### 1.4 可验收承诺
 
@@ -97,7 +97,7 @@ ChatGPT `backend-api/codex` Live（`quicksilver` / `avas` / `gpt-live-1-codex`�
 2. 静音 / 取消静音 / 挂断；键盘与读屏可用。
 3. 明确工作指令经 Live 委派协议进入绑定会话，显示「语音委派」用户轮。
 4. 该轮走现有 Run / 队列 / 权限；Voice 无旁路权限。
-5. 通话中浏览其他会话，Live 条始终显示绑定目标。
+5. 通话中切换会话或焦点窗格时，Live 条跟着显示新的绑定目标；口头工作进入焦点会话。
 6. 失败时知道缺登录、麦权限、协议失败等，并有明确恢复动作。
 
 ---
@@ -123,7 +123,7 @@ flowchart LR
 
 **不变量**
 
-1. 每个 call 绑定稳定 `sessionId`、`ownerDeviceId`、订阅 provider `openai-codex`；通话中不可静默改绑。
+1. 每个 call 绑定稳定 `ownerDeviceId` 与渠道；Desktop 焦点会话/窗格变化时 owner 可改绑 `sessionId`（空窗格保持原绑定）。持麦设备通话中不改绑。
 2. Live 语音模型（`gpt-live-1-codex`）不看见 Agent 工具目录；工作只经 Host 接纳的委派进入会话。
 3. 口头「已交给 Agent」只能在 Host 回执之后。
 4. 同一 `~/.piwin` Host 同时最多一个活动 Live call（MVP）。
@@ -206,10 +206,10 @@ flowchart TB
 
 ### 4.3 导航与多面板
 
-- 可切换会话/面板；全局 Live 条显示绑定会话。
-- 其它会话的 Live 按钮显示「正在另一会话通话」。
-- 无「改绑」；须挂断后在目标会话重开。
-- 任务进行中仍可继续说/打字：默认 steer 当前 Run，不必先停。
+- 可切换会话/面板；全局 Live 条显示当前绑定会话。
+- 焦点停在哪个会话窗口，后续口头工作就进入哪个会话；不必挂断重开。
+- 空窗格不改绑。已接纳的 Run 不因改绑而取消。
+- 任务进行中仍可继续说/打字：默认 steer 当前绑定会话的 Run，不必先停。
 
 ### 4.4 权限
 

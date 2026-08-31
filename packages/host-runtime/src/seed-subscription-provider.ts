@@ -132,6 +132,18 @@ export function mergeSubscriptionCatalogModel(
   previous: ModelConfigEntry,
 ): ModelConfigEntry {
   const merged: ModelConfigEntry = { ...catalog, ...previous, id: catalog.id };
+  if (previous.input === undefined && catalog.input !== undefined) {
+    merged.input = catalog.input;
+  }
+  if (previous.capabilities === undefined && catalog.capabilities !== undefined) {
+    merged.capabilities = catalog.capabilities;
+  }
+  if (previous.reasoning === undefined && catalog.reasoning !== undefined) {
+    merged.reasoning = catalog.reasoning;
+  }
+  if (previous.thinkingLevels === undefined && catalog.thinkingLevels !== undefined) {
+    merged.thinkingLevels = catalog.thinkingLevels;
+  }
   overlayCatalogLimits(merged, catalog);
   return merged;
 }

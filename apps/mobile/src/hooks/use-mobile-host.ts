@@ -607,23 +607,6 @@ export function useMobileHost() {
     setIsSending(true);
     setErrorMessage(undefined);
     try {
-      if (pausedCheckpointId !== undefined) {
-        const runId = knownForegroundRunId(foreground);
-        if (runId === undefined) {
-          setErrorMessage('无法在未确认的 Run 上清除暂停。');
-          return;
-        }
-        const clearPause = await executeMobileMutation(
-          (command, options) => client.request(command, options),
-          buildMobileAbortCommand(sessionId, runId),
-          createMobileIdempotencyKey(),
-        );
-        if (!clearPause.success) {
-          setErrorMessage(clearPause.error);
-          return;
-        }
-        setPausedCheckpointId(undefined);
-      }
       const intentForeground: ForegroundRunState =
         queueAgainstRunId === undefined
           ? foreground
@@ -674,6 +657,7 @@ export function useMobileHost() {
         return;
       }
       setPendingReplaceRunId(undefined);
+      setPausedCheckpointId(undefined);
       const runId = readRunId(response.data);
       if (runId !== undefined) {
         setForeground((current) =>

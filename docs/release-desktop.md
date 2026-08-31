@@ -50,6 +50,12 @@ pnpm package:desktop
 2. `pnpm fetch:node-runtime` — Node `v22.19.0` → `apps/desktop/src-tauri/binaries/piwin-host-<triple>`
 3. `tauri build` with `tauri.conf.sidecar.json` — embeds Host files
 
+`bundle:host` also copies the build machine's `~/.piwin/config.json` to
+`host/bundled-assets/default-config.json`. A packaged Host reads this seed only
+when the target machine has no `~/.piwin/config.json`; an existing user config
+always wins. Provider credentials remain references (env/keychain), not raw
+secrets. Set `PIWIN_DEFAULT_CONFIG_SOURCE` to choose a different seed file.
+
 ### Thin shell (no local Host)
 
 ```bash

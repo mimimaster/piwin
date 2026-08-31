@@ -56,7 +56,7 @@ export type UseWorkbenchSessionLifecycleArgs = {
   ) => Promise<void>;
   handleResumeSession: (
     sessionId: string,
-    context?: { scope?: SessionScope; quiet?: boolean },
+    context?: { scope?: SessionScope; quiet?: boolean; projectAlreadyActivated?: boolean },
   ) => void | Promise<void>;
   showArchivedSessions: boolean;
   remoteCatchUpEpoch: number;

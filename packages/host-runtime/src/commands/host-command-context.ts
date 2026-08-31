@@ -111,6 +111,8 @@ export type HostCommandContext = {
   rememberSessionPermission: (sessionId: string, action: string, detail: string) => void;
   /** Optional plan execution orchestration seam. */
   planExecution?: PlanExecutionSeam;
+  /** Compact/truncate/delete/pack hold this; plan execute must not ACK while set. */
+  isSessionBodyReserved?: (sessionId: string) => boolean;
   /** Lazy application services for notes, flashcards, and document cards. */
   knowledge?: KnowledgeCommandContext;
   /** Study-round commands. Separate from knowledge so handlers stay split. */

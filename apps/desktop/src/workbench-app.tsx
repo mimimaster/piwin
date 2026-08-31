@@ -27,6 +27,11 @@ import { WorkbenchOverlays, WorkbenchSettingsOverlay } from './workbench-overlay
 import { WorkbenchSidebar } from './workbench-sidebar';
 import { ConversationPaneWorkspace } from './conversation-pane-workspace';
 import {
+  PRIMARY_CONVERSATION_PANE_ID,
+  listConversationPaneLeaves,
+  resolveFocusedConversationSessionId,
+} from './conversation-pane-layout';
+import {
   useConversationPaneLayout,
   useConversationPaneSubscriptions,
 } from './use-conversation-pane-layout';
@@ -34,6 +39,7 @@ import { sessionCreateInputForTransport } from './remote-session-hydrate';
 import { createGestureIdempotencyKey } from './gesture-idempotency';
 import { pushError } from './notification-queue';
 import { WorkbenchSubpageStage } from './workbench-subpage-stage';
+import { sessionScopeKey } from './session-scope-key';
 
 export type AppProps = {
   /** Resolved active manifest owned by DesktopThemeRoot. */
@@ -119,6 +125,19 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     terminalRecentDirs,
     handleTerminalCwdChange,
   } = terminal;
+  const conversationPanesEnabled =
+    state.activeScope.kind === 'general' || state.activeScope.kind === 'project';
+  const conversationPaneController = useConversationPaneLayout({
+    enabled: conversationPanesEnabled,
+    primarySessionId: conversationPanesEnabled ? state.activeSessionId : null,
+    ...(conversationPanesEnabled ? { scopeKey: sessionScopeKey(state.activeScope) } : {}),
+  });
+  const liveSessionId = conversationPanesEnabled
+    ? resolveFocusedConversationSessionId({
+        layout: conversationPaneController.layout,
+        primarySessionId: state.activeSessionId,
+      })
+    : state.activeSessionId;
   const model = useWorkbenchAppModel({
     hostClient,
     state,
@@ -127,6 +146,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     activeTheme,
     onThemeApplied,
     setHostLogEntries,
+    liveSessionId,
   });
   const {
     requestConfig,
@@ -287,11 +307,6 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     />
   );
 
-  const conversationPanesEnabled = state.activeScope.kind === 'general';
-  const conversationPaneController = useConversationPaneLayout({
-    enabled: conversationPanesEnabled,
-    primarySessionId: conversationPanesEnabled ? state.activeSessionId : null,
-  });
   useConversationPaneSubscriptions({
     hostClient,
     activeSessionId: state.activeSessionId,
@@ -304,7 +319,10 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
         {
           type: 'session/create',
           input: sessionCreateInputForTransport(hostClient.getTransport(), {
-            useGeneral: true,
+            useGeneral: state.activeScope.kind === 'general',
+            ...(state.activeScope.kind === 'project'
+              ? { projectKey: state.activeScope.projectPath }
+              : {}),
             ...(currentPromptModelRef ? { model: currentPromptModelRef } : {}),
           }),
         },
@@ -324,7 +342,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
       dispatchNotification(pushError(formatError(error)));
       return null;
     }
-  }, [currentPromptModelRef, dispatchNotification, hostClient]);
+  }, [currentPromptModelRef, dispatchNotification, hostClient, state.activeScope]);
 
   return (
     <DesktopLocaleProvider locale={desktopLocale} onLocaleChange={handleLocaleChange}>
@@ -379,6 +397,25 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       }}
                       onResumeSession={(sessionId) => {
                         setActiveSubPage(null);
+                        if (conversationPanesEnabled) {
+                          const leaves = listConversationPaneLeaves(
+                            conversationPaneController.layout.root,
+                          );
+                          if (leaves.length > 1) {
+                            const activePaneId = conversationPaneController.layout.activePaneId;
+                            const existingLeaf = leaves.find(
+                              (leaf) => leaf.sessionId === sessionId,
+                            );
+                            if (existingLeaf) {
+                              conversationPaneController.focus(existingLeaf.paneId);
+                              return Promise.resolve();
+                            }
+                            if (activePaneId !== PRIMARY_CONVERSATION_PANE_ID) {
+                              conversationPaneController.bindSession(activePaneId, sessionId);
+                              return Promise.resolve();
+                            }
+                          }
+                        }
                         return handleResumeSession(sessionId);
                       }}
                       onResumeDraft={(draftId) => {
@@ -449,7 +486,11 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                             activeSessionName ||
                             (desktopLocale === 'zh-CN' ? '新 Chat' : 'New Chat')
                           }
-                          sessions={state.generalSessions}
+                          sessions={
+                            state.activeScope.kind === 'general'
+                              ? state.generalSessions
+                              : state.sessions
+                          }
                           hostClient={hostClient}
                           activeTheme={activeTheme}
                           artifactThemeKey={artifactThemeKey}
@@ -482,7 +523,6 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       config={config}
                       preferences={preferences}
                       sessionPlan={sessionPlan}
-                      currentPromptModel={currentPromptModelRef}
                       modelOptions={modelOptions}
                       requestKnowledgeCenter={requestKnowledgeCenter}
                       resolveFlashcards={resolveConversationFlashcards}

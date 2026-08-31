@@ -320,6 +320,45 @@ describe('applySettingsMutations', () => {
     ]);
   });
 
+  it('deletes a provider that holds an apiKeyRef when the shell omits that row', () => {
+    const base = createSettingsSnapshot(undefined as unknown as PiwinConfig).config;
+    const currentProviders = [
+      {
+        id: 'custom-openai',
+        protocol: 'openai-compatible' as const,
+        name: 'Cpa',
+        baseUrl: 'http://127.0.0.1:8317/v1',
+        apiKeyRef: 'keychain:piwin-custom-openai',
+        models: [{ id: 'win/glm5.2' }],
+      },
+      {
+        id: 'keep-me',
+        protocol: 'openai-compatible' as const,
+        name: 'Keep',
+        baseUrl: 'https://api.example.com/v1',
+        apiKeyEnv: 'KEEP_API_KEY',
+        models: [{ id: 'keep-1' }],
+      },
+    ];
+    const next = applySettingsMutations(
+      { ...base, providers: currentProviders },
+      [
+        mutation('providers', [
+          {
+            id: 'keep-me',
+            protocol: 'openai-compatible',
+            name: 'Keep',
+            baseUrl: 'https://api.example.com/v1',
+            apiKeyEnv: '[stored-secret]',
+            models: [{ id: 'keep-1' }],
+          },
+        ]),
+      ],
+    );
+    expect(next.providers.map((provider) => provider.id)).toEqual(['keep-me']);
+    expect(next.providers[0]?.apiKeyEnv).toBe('KEEP_API_KEY');
+  });
+
   it('keeps omitted secret fields when replacing a projected web domain', () => {
     const base = createSettingsSnapshot(undefined as unknown as PiwinConfig).config;
     const currentWeb = base.web;
@@ -368,6 +407,35 @@ describe('SettingsService', () => {
     const reloaded = await service.getSnapshot();
     expect(reloaded.revision).toBe(result.snapshot.revision);
     expect(reloaded.config.automation?.enabled).toBe(true);
+  });
+
+  it('persists deletion of a provider that holds a stored secret ref', async () => {
+    const service = new SettingsService({ piwinRoot });
+    const before = await service.getSnapshot();
+    const created = await service.apply({
+      expectedRevision: before.revision,
+      mutations: [
+        mutation('providers', [
+          {
+            id: 'cpa',
+            protocol: 'openai-compatible',
+            name: 'CPA',
+            baseUrl: 'http://127.0.0.1:8317/v1',
+            apiKeyRef: 'keychain:piwin-cpa',
+            models: [],
+          },
+        ]),
+      ],
+    });
+    expect(created.snapshot.config.providers.map((provider) => provider.id)).toEqual(['cpa']);
+
+    const removed = await service.apply({
+      expectedRevision: created.snapshot.revision,
+      mutations: [mutation('providers', [])],
+    });
+    expect(removed.snapshot.config.providers).toEqual([]);
+    const reloaded = await service.getSnapshot();
+    expect(reloaded.config.providers).toEqual([]);
   });
 
   it('does not mark a Web source switch as an immediate tightening', async () => {
@@ -564,7 +632,12 @@ describe('SettingsService', () => {
     await service.apply({
       expectedRevision: before.revision,
       mutations: [
-        mutation('web', { searchEnabled: false, searchProvider: 'none', searchSources: [] }),
+        mutation('web', {
+          ...(before.config.web ?? {}),
+          searchMaxResults: 3,
+          searchProvider: 'none',
+          searchSources: [],
+        }),
       ],
     });
     const staleApply = service.apply({

@@ -150,6 +150,30 @@ describe('ConversationPaneWorkspace', () => {
     ).toBe('1');
   });
 
+  it('toggles maximized pane when double clicking header', () => {
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd', metaKey: true }));
+    });
+    const workspace = container?.querySelector<HTMLElement>(
+      '[data-testid="conversation-pane-workspace"]',
+    );
+    expect(workspace?.dataset.paneCount).toBe('2');
+    expect(workspace?.classList.contains('has-maximized-pane')).toBe(false);
+
+    const header = container?.querySelector<HTMLElement>('.conversation-pane-header');
+    expect(header).not.toBeNull();
+
+    act(() => {
+      header?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    });
+    expect(workspace?.classList.contains('has-maximized-pane')).toBe(true);
+
+    act(() => {
+      header?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    });
+    expect(workspace?.classList.contains('has-maximized-pane')).toBe(false);
+  });
+
   it('does not capture shortcuts while an overlay owns the shell', () => {
     act(() => {
       root?.render(<Probe keyboardEnabled={false} />);

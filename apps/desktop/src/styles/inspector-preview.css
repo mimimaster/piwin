@@ -219,6 +219,54 @@
   line-height: var(--lh-relaxed);
 }
 
+.doc-preview-body .preview-unavailable,
+.file-tree-preview-body .preview-unavailable,
+.media-doc-body .preview-unavailable {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s-8);
+}
+
+.file-tree-preview-body:has(.preview-unavailable) {
+  padding: 0;
+}
+
+.preview-unavailable .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-5);
+  max-width: 22rem;
+  text-align: center;
+}
+
+.preview-unavailable .empty-state-visual {
+  display: flex;
+  color: var(--text-4);
+}
+
+.preview-unavailable .empty-state-visual svg {
+  stroke-width: 1.15;
+}
+
+.preview-unavailable .empty-state-title {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: 600;
+  color: var(--text-1);
+  letter-spacing: var(--tracking-tight);
+}
+
+.preview-unavailable .empty-state-copy {
+  margin: 0;
+  font-size: var(--fs-chrome);
+  color: var(--text-3);
+  line-height: var(--lh-normal);
+}
+
 .markup-preview {
   display: flex;
   flex-direction: column;

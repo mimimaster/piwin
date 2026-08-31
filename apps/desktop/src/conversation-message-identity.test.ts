@@ -160,14 +160,13 @@ describe('conversation-message-identity', () => {
       expect(resolved).toBeUndefined();
     });
 
-    it('keeps livePromptModel on the latest completed reply when Host omitted the snapshot', () => {
+    it('does not paint livePromptModel onto a completed reply, including the latest one', () => {
       const resolved = resolveConversationMessageModel({
         message: { ...baseMessage, status: 'done' },
         livePromptModel: liveModel,
         isStreaming: false,
-        allowComposerFallback: true,
       });
-      expect(resolved).toEqual(liveModel);
+      expect(resolved).toBeUndefined();
     });
 
     it('returns undefined when neither snapshot nor live model is available', () => {

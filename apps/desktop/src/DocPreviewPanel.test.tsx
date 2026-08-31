@@ -106,6 +106,53 @@ describe('DocPreviewPanel', () => {
     expect(container.querySelector('[data-testid="code-preview-view"]')).toBeNull();
   });
 
+  it('shows a centered reason instead of dumping host codes', () => {
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <DocPreviewPanel
+            title="Setup.dmg"
+            filePath="/proj/Setup.dmg"
+            status="unavailable"
+            unavailableReason="binary"
+            displayRef="/proj/Setup.dmg"
+            suggestion="该文件无法作为文档预览。请右键路径芯片选择另存为，或在文件管理器中显示。"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const state = container.querySelector('[data-testid="doc-preview-state-unavailable"]');
+    expect(state).not.toBeNull();
+    expect(state?.textContent).toContain('无法预览此文件');
+    expect(state?.textContent).toContain('不支持预览 .dmg 文件');
+    expect(state?.textContent).not.toContain('binary');
+    expect(state?.textContent).not.toContain('Reason');
+    expect(state?.textContent).not.toContain('/proj/Setup.dmg');
+  });
+
+  it('explains when a file is too large to preview', () => {
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <DocPreviewPanel
+            title="huge.png"
+            filePath="/proj/huge.png"
+            status="unavailable"
+            unavailableReason="too-large"
+            byteSize={12.4 * 1024 * 1024}
+            maxBytes={8 * 1024 * 1024}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const state = container.querySelector('[data-testid="doc-preview-state-unavailable"]');
+    expect(state?.textContent).toContain('File is too large to preview');
+    expect(state?.textContent).toContain('12.4 MB exceeds the 8.0 MB preview limit');
+  });
+
   it('renders SVG files visually instead of as source code', () => {
     act(() => {
       root.render(

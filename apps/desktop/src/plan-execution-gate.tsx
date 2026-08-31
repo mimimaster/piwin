@@ -16,25 +16,40 @@ export type PlanExecutionGateVisibility = {
   plan: SessionPlan | null | undefined;
   isConversationSession: boolean;
   streaming?: boolean;
+  paused?: boolean;
   hasPermissionPrompt?: boolean;
 };
 
 export function canShowPlanExecutionGate(input: PlanExecutionGateVisibility): boolean {
   if (input.isConversationSession) return false;
   if (input.streaming === true) return false;
+  if (input.paused === true) return false;
   if (input.hasPermissionPrompt === true) return false;
   const plan = input.plan;
   if (!plan) return false;
-  if (plan.status !== 'draft' && plan.status !== 'approved') return false;
   const executionStatus = plan.execution?.status;
   if (executionStatus === 'running' || executionStatus === 'queued') return false;
+  const retryableStuck =
+    plan.status === 'executing' &&
+    (executionStatus === 'failed' || executionStatus === 'aborted');
+  if (plan.status !== 'draft' && plan.status !== 'approved' && !retryableStuck) return false;
   return true;
 }
 
+function countIndependentSteps(plan: Pick<SessionPlan, 'steps' | 'independentSteps'>): number {
+  const known = new Set(plan.steps.map((step) => step.id));
+  let count = 0;
+  for (const stepId of plan.independentSteps ?? []) {
+    if (known.has(stepId)) count += 1;
+  }
+  return count;
+}
+
 export function recommendedPlanExecutionMode(
-  plan: Pick<SessionPlan, 'complexity'>,
+  plan: Pick<SessionPlan, 'complexity' | 'steps' | 'independentSteps'>,
 ): PlanExecutionMode {
-  return plan.complexity === 'long' ? 'subagent-driven' : 'inline';
+  if (plan.complexity !== 'long') return 'inline';
+  return countIndependentSteps(plan) > 0 ? 'subagent-driven' : 'inline';
 }
 
 export type PlanExecutionGateProps = {

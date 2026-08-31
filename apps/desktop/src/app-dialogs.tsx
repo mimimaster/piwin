@@ -22,6 +22,7 @@ import { SessionRowMenu, type SessionRowMenuAction } from './session-row-menu';
 import { projectDisplayName } from './project-display-name';
 import type { DesktopLocale } from './desktop-locale';
 import type { SessionNamedDraft, SessionRenameDraft } from './hooks/use-session-list-chrome';
+import { HostWorkspacePicker } from './host-workspace-picker';
 
 export type AppDialogsProps = {
   projectInput: string;
@@ -57,10 +58,12 @@ export type AppDialogsProps = {
   onContinueInProjectOpenChange: (open: boolean) => void;
   onContinueInProject: (projectPath: string) => void;
   onCancelContinueInProject: () => void;
-  /** Remote shells type a Host path; they must not pick a folder from this computer. */
+  /** Remote shells browse the Host filesystem instead of this computer. */
   hostWorkspacePicker?: boolean;
   /** Host OS from hello capabilities. Drives path placeholder and validation. */
   hostOsFamily?: HostOsFamily;
+  /** List a Host directory for the remote folder picker. */
+  onListHostDirectory?: (path?: string) => Promise<import('@piwin/contracts').HostListDirData>;
 };
 
 export function AppDialogs(props: AppDialogsProps): ReactElement {
@@ -72,14 +75,6 @@ export function AppDialogs(props: AppDialogsProps): ReactElement {
   const hostOsFamily = props.hostOsFamily ?? 'other';
   const hostPathStyle = hostPathStyleFromOsFamily(hostOsFamily);
   const hostPathExample = hostWorkspacePathExample(hostOsFamily);
-  const hostOsLabel =
-    hostOsFamily === 'darwin'
-      ? 'macOS'
-      : hostOsFamily === 'linux'
-        ? 'Linux'
-        : hostOsFamily === 'win32'
-          ? 'Windows'
-          : 'Host';
   const typedHostPath = props.projectInput.trim();
   const hostPathLooksWrong =
     props.hostWorkspacePicker === true &&
@@ -90,71 +85,78 @@ export function AppDialogs(props: AppDialogsProps): ReactElement {
   return (
     <>
       <Dialog
-        label="Open workspace"
+        label={isChinese ? '打开工作区' : 'Open workspace'}
         open={props.projectPickerOpen}
         onOpenChange={props.onProjectPickerOpenChange}
         testId="workspace-path-dialog"
         closeOnInteractOutside
+        {...(props.hostWorkspacePicker === true && props.onListHostDirectory
+          ? { contentClassName: 'workspace-open-dialog' }
+          : {})}
       >
-        <h3>Open workspace</h3>
-        <p className="muted">
-          {props.hostWorkspacePicker === true
-            ? isChinese
-              ? `壳连的是 ${hostOsLabel} Host。填那台机器上的绝对路径，不是这台电脑上的文件夹。`
-              : `This shell talks to a ${hostOsLabel} Host. Enter an absolute path that exists on that machine, not a folder on this computer.`
-            : 'Browser preview cannot open the system folder picker. Enter an absolute path, or run the desktop app for the native chooser.'}
-        </p>
-        <Field
-          label="Workspace path"
-          required
-          description={
-            props.hostWorkspacePicker === true
-              ? isChinese
-                ? `${hostOsLabel} 路径，例如 ${hostPathExample}`
-                : `${hostOsLabel} path, for example ${hostPathExample}`
-              : 'Absolute path to a local repository or folder'
-          }
-        >
-          <input
-            className="project-path-input"
-            data-testid="project-path-input"
-            value={props.projectInput}
-            onChange={(event) => props.onProjectInputChange(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault();
-                props.onOpenProject();
-              }
-            }}
-            placeholder={
-              props.hostWorkspacePicker === true ? hostPathExample : '/absolute/path/to/repo'
-            }
-            spellCheck={false}
-            autoFocus
+        {props.hostWorkspacePicker === true && props.onListHostDirectory ? (
+          <HostWorkspacePicker
+            locale={isChinese ? 'zh-CN' : 'en'}
+            currentPath={props.projectInput}
+            onCurrentPathChange={props.onProjectInputChange}
+            listDirectory={props.onListHostDirectory}
+            recents={props.trustedProjects
+              .map((project) => project.path)
+              .filter((path) => looksLikeHostAbsolutePath(path, hostPathStyle))}
+            onConfirm={(path) => props.onOpenProject(path)}
+            onCancel={() => props.onProjectPickerOpenChange(false)}
           />
-        </Field>
-        {hostPathLooksWrong ? (
-          <p className="muted" data-testid="host-path-style-hint">
-            {isChinese
-              ? `这台 Host 用的是 ${hostPathStyle === 'windows' ? 'Windows' : 'POSIX'} 路径。`
-              : `This Host expects a ${hostPathStyle === 'windows' ? 'Windows' : 'POSIX'} path.`}
-          </p>
-        ) : null}
-        <div className="modal-actions">
-          <Button variant="ghost" onClick={() => props.onProjectPickerOpenChange(false)}>
-            Cancel
-          </Button>
-          {props.hostWorkspacePicker === true ? null : (
-            <Button onClick={() => props.onBrowseProject()}>Choose folder…</Button>
-          )}
-          <Button
-            variant="primary"
-            data-testid="open-project-btn"
-            onClick={() => props.onOpenProject()}
-          >
-            Open
-          </Button>
-        </div>
+        ) : (
+          <>
+            <h3>{isChinese ? '打开工作区' : 'Open workspace'}</h3>
+            <p className="muted">
+              Enter an absolute path, or run the desktop app for the native chooser.
+            </p>
+            <Field
+              label={isChinese ? '工作区路径' : 'Workspace path'}
+              required
+              description="Absolute path to a local repository or folder"
+            >
+              <input
+                className="project-path-input"
+                data-testid="project-path-input"
+                value={props.projectInput}
+                onChange={(event) => props.onProjectInputChange(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    props.onOpenProject();
+                  }
+                }}
+                placeholder={
+                  props.hostWorkspacePicker === true ? hostPathExample : '/absolute/path/to/repo'
+                }
+                spellCheck={false}
+                autoFocus
+              />
+            </Field>
+            {hostPathLooksWrong ? (
+              <p className="muted" data-testid="host-path-style-hint">
+                {isChinese
+                  ? `这台 Host 用的是 ${hostPathStyle === 'windows' ? 'Windows' : 'POSIX'} 路径。`
+                  : `This Host expects a ${hostPathStyle === 'windows' ? 'Windows' : 'POSIX'} path.`}
+              </p>
+            ) : null}
+            <div className="modal-actions">
+              <Button variant="ghost" onClick={() => props.onProjectPickerOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button onClick={() => props.onBrowseProject()}>Choose folder…</Button>
+              <Button
+                variant="primary"
+                data-testid="open-project-btn"
+                onClick={() => props.onOpenProject()}
+              >
+                Open
+              </Button>
+            </div>
+          </>
+        )}
       </Dialog>
 
       {props.trustDialogOpen && props.projectPath ? (

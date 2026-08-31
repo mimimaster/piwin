@@ -6,8 +6,10 @@ import {
   DropdownMenuSeparator,
   IconButton,
 } from '@piwin/ui-kit';
+import type { SessionListItemUi } from './chat-reducer.js';
 import {
   IconArrowDown,
+  IconChevronDown,
   IconClose,
   IconCompress,
   IconExpand,
@@ -28,26 +30,105 @@ export type ConversationPaneHeaderProps = {
   closable: boolean;
   splitDisabled: boolean;
   locale: 'zh-CN' | 'en';
+  sessionId?: string | null;
+  sessions?: readonly SessionListItemUi[];
   onApplyPreset: (count: ConversationPanePreset) => void;
   onSplit: (paneId: string, orientation: ConversationPaneOrientation) => void;
   onToggleMaximized: (paneId: string) => void;
   onClose: (paneId: string) => void;
+  onSelectSession?: (paneId: string, sessionId: string) => void;
+  onCreateSession?: (paneId: string) => void;
 };
 
 export function ConversationPaneHeader(props: ConversationPaneHeaderProps): ReactElement {
   const isChinese = props.locale === 'zh-CN';
+  const availableSessions = props.sessions ?? [];
+
   return (
-    <header className="conversation-pane-header">
+    <header
+      className="conversation-pane-header"
+      onDoubleClick={(event) => {
+        if (
+          (event.target as HTMLElement).closest(
+            'button, [role="menuitem"], [data-prevent-zoom="true"]',
+          )
+        ) {
+          return;
+        }
+        props.onToggleMaximized(props.paneId);
+      }}
+      title={
+        props.maximized
+          ? isChinese
+            ? '双击还原窗格 (Esc)'
+            : 'Double click to restore pane (Esc)'
+          : isChinese
+            ? '双击最大化窗格'
+            : 'Double click to maximize pane'
+      }
+    >
       <span className="conversation-pane-index" aria-hidden="true">
         {props.index + 1}
       </span>
-      <span className="conversation-pane-title" title={props.title}>
-        {props.title}
-      </span>
+      {props.onSelectSession || props.onCreateSession ? (
+        <DropdownMenu
+          modal={false}
+          align="start"
+          label={props.title}
+          trigger={
+            <button
+              type="button"
+              className="conversation-pane-title-button"
+              title={isChinese ? '切换会话' : 'Switch Chat'}
+              data-prevent-zoom="true"
+            >
+              <span className="conversation-pane-title-text">{props.title}</span>
+              <IconChevronDown width={12} height={12} className="conversation-pane-title-arrow" />
+            </button>
+          }
+        >
+          <DropdownMenuLabel>{isChinese ? '切换会话' : 'Switch Chat'}</DropdownMenuLabel>
+          {availableSessions.length > 0 ? (
+            availableSessions.slice(0, 15).map((session) => (
+              <DropdownMenuItem
+                key={session.id}
+                onSelect={() => props.onSelectSession?.(props.paneId, session.id)}
+              >
+                <span className="conversation-pane-menu-item">
+                  {session.name || (isChinese ? '未命名 Chat' : 'Untitled Chat')}
+                  {session.id === props.sessionId ? ' ✓' : ''}
+                </span>
+              </DropdownMenuItem>
+            ))
+          ) : (
+            <DropdownMenuItem disabled>
+              <span className="conversation-pane-menu-item" style={{ opacity: 0.6 }}>
+                {isChinese ? '暂无其他会话' : 'No other sessions'}
+              </span>
+            </DropdownMenuItem>
+          )}
+          {props.onCreateSession ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => props.onCreateSession?.(props.paneId)}>
+                {isChinese ? '+ 新建 Chat' : '+ New Chat'}
+              </DropdownMenuItem>
+            </>
+          ) : null}
+        </DropdownMenu>
+      ) : (
+        <span className="conversation-pane-title" title={props.title}>
+          {props.title}
+        </span>
+      )}
       <span className="conversation-pane-active-label">
         {props.active ? (isChinese ? '当前' : 'Active') : null}
       </span>
-      <div className="conversation-pane-actions">
+      <div
+        className="conversation-pane-actions"
+        onClick={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => e.stopPropagation()}
+      >
         <DropdownMenu
           modal={false}
           align="end"

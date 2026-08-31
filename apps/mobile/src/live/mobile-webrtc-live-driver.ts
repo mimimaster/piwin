@@ -1,5 +1,4 @@
 import {
-  LIVE_DELEGATION_INSTRUCTION_MAX_BYTES,
   waitForLiveMediaReady,
   type LiveClientBootstrapInput,
   type LiveOwnerActionPush,
@@ -7,6 +6,7 @@ import {
   type LiveOwnerEvent,
 } from '@piwin/contracts';
 import { codexContextAppendPayloads, codexDelegationAckPayload } from './live-wire.js';
+import { parseLiveChannelMessage as parseCodexOwnerEvent, sendLiveFrames } from '@piwin/voice/wire';
 import type {
   MobileLiveMediaDriver,
   MobileLivePeerErrorCode,
@@ -158,10 +158,9 @@ export function createMobileWebrtcLiveDriver(): MobileLiveMediaDriver {
       }
       if (
         action.action === 'ack-delegation' &&
-        action.providerDelegationId &&
-        channel?.readyState === 'open'
+        action.providerDelegationId
       ) {
-        channel.send(
+        sendLiveFrames(channel, [
           codexDelegationAckPayload({
             providerDelegationId: action.providerDelegationId,
             ok: action.ok === true,
@@ -169,7 +168,7 @@ export function createMobileWebrtcLiveDriver(): MobileLiveMediaDriver {
             ...(action.messageId ? { messageId: action.messageId } : {}),
             ...(action.queueId ? { queueId: action.queueId } : {}),
           }),
-        );
+        ]);
         return;
       }
       if (action.action === 'append-context' && action.content) {
@@ -212,8 +211,7 @@ export function createMobileWebrtcLiveDriver(): MobileLiveMediaDriver {
     content: string;
     providerDelegationId?: string;
   }): void {
-    if (channel?.readyState !== 'open') return;
-    for (const payload of codexContextAppendPayloads(input)) channel.send(payload);
+    sendLiveFrames(channel, codexContextAppendPayloads(input));
   }
 
   function attachRemoteAudio(stream: MediaStream): void {
@@ -260,57 +258,6 @@ export function createMobileWebrtcLiveDriver(): MobileLiveMediaDriver {
   }
 }
 
-function parseCodexOwnerEvent(raw: string): LiveOwnerEvent | null {
-  let value: unknown;
-  try {
-    value = JSON.parse(raw);
-  } catch {
-    return null;
-  }
-  if (!value || typeof value !== 'object') return null;
-  const record = value as Record<string, unknown>;
-  if (record.type === 'delegation.created') {
-    const item = record.item;
-    if (!item || typeof item !== 'object') return null;
-    const delegation = item as Record<string, unknown>;
-    if (delegation.type !== 'delegation' || delegation.target !== 'client') return null;
-    const id = typeof delegation.id === 'string' ? delegation.id.trim() : '';
-    if (!id || !Array.isArray(delegation.content)) return null;
-    const instruction = delegation.content
-      .flatMap((part) => {
-        if (!part || typeof part !== 'object') return [];
-        const content = part as Record<string, unknown>;
-        return content.type === 'input_text' && typeof content.text === 'string'
-          ? [content.text]
-          : [];
-      })
-      .join('')
-      .trim();
-    if (!instruction) return null;
-    if (new TextEncoder().encode(instruction).byteLength > LIVE_DELEGATION_INSTRUCTION_MAX_BYTES) {
-      return null;
-    }
-    return { type: 'delegation', providerDelegationId: id, instruction };
-  }
-  if (record.type === 'input_audio_buffer.speech_started') {
-    return { type: 'activity', activity: 'user-speaking' };
-  }
-  if (
-    record.type === 'output_audio_buffer.started' ||
-    record.type === 'response.output_audio.delta' ||
-    record.type === 'response.audio.delta'
-  ) {
-    return { type: 'activity', activity: 'assistant-speaking' };
-  }
-  if (
-    record.type === 'input_audio_buffer.speech_stopped' ||
-    record.type === 'output_audio_buffer.stopped' ||
-    record.type === 'response.done'
-  ) {
-    return { type: 'activity', activity: 'listening' };
-  }
-  return null;
-}
 
 async function waitForIceGathering(
   peer: Pick<RTCPeerConnection, 'iceGatheringState'> & EventTarget,

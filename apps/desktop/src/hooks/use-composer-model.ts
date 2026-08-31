@@ -33,9 +33,14 @@ import {
 import type { HostClient } from '../host-client';
 import type { ChatUiAction, SessionListItemUi } from '../chat-reducer';
 import { pushError, type NotificationAction } from '../notification-queue';
+import { useDesktopLocale } from '../desktop-locale-context';
 import { resolveThinkingLevelForModel } from '../model-thinking-policy';
 import type { ModelOption } from '../model-options';
 import { commitSessionComposerProfile } from './commit-session-composer-profile.js';
+import {
+  compactFailureMessage,
+  isTargetCompactNoOpFailure,
+} from './session-actions-helpers.js';
 
 export type ComposerModelRestoreProfile = {
   model?: ModelRef;
@@ -127,6 +132,7 @@ export function useComposerModelController(args: UseComposerModelControllerArgs)
     sessionComposerProfileRestoredRef,
   } = args;
 
+  const { locale } = useDesktopLocale();
   const modelSwitchInFlightRef = useRef(false);
   const activeSessionIdRef = useRef<string | null>(activeSessionId);
   useEffect(() => {
@@ -357,16 +363,19 @@ export function useComposerModelController(args: UseComposerModelControllerArgs)
               ...(nextModel.source !== undefined ? { source: nextModel.source } : {}),
             }),
           });
-          if (!response.success) {
-            dispatchNotification(pushError(response.error));
+          if (!response.success && !isTargetCompactNoOpFailure(response.error)) {
+            dispatchNotification(pushError(compactFailureMessage(response.error, locale)));
             return;
           }
           if (activeSessionIdRef.current !== preparedSessionId) {
             return;
           }
         } catch (error) {
-          dispatchNotification(pushError(formatError(error)));
-          return;
+          const message = formatError(error);
+          if (!isTargetCompactNoOpFailure(message)) {
+            dispatchNotification(pushError(compactFailureMessage(message, locale)));
+            return;
+          }
         } finally {
           modelSwitchInFlightRef.current = false;
         }
@@ -405,6 +414,7 @@ export function useComposerModelController(args: UseComposerModelControllerArgs)
       dispatch,
       dispatchNotification,
       hostClient,
+      locale,
       modelOptions,
       persistComposerProfile,
       selectedModelKey,

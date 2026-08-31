@@ -29,6 +29,7 @@ import {
   stripLeadingCalloutMarker,
   type MarkdownDocumentReference,
 } from './markdown-streamdown-nodes.js';
+import { createMarkdownInlineRenderers } from './markdown-inline-renderers.js';
 
 export type StreamdownRendererOptions = {
   phase: MarkdownRenderingPhase;
@@ -347,6 +348,7 @@ export function createStreamdownComponents(optionsRef: {
   );
 
   return {
+    ...createMarkdownInlineRenderers(),
     p: renderParagraph,
     h1: renderHeading(1),
     h2: renderHeading(2),

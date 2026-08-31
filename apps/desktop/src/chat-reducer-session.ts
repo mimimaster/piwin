@@ -24,6 +24,7 @@ import {
   enforceBoundedTranscriptWindow,
   mapTranscriptMessagesToUi,
   mergeRefreshedTailWithLiveMessages,
+  preserveAssistantModelSnapshots,
 } from './chat-reducer-transcript';
 import { contextUsageForLoadMessages, contextUsageForSessionSet } from './chat-reducer-context';
 import { applyContextTelemetry } from './context-telemetry-reducer';
@@ -305,7 +306,10 @@ export function reduceChatSession(
       // the visible history.
       const preserveRunProjection = action.preserveActiveTail || state.activeRunId !== null;
       const hasConfirmedActiveRun = state.activeRunId !== null;
-      const refreshedMessages = mapTranscriptMessagesToUi(action.messages);
+      const refreshedMessages = preserveAssistantModelSnapshots(
+        mapTranscriptMessagesToUi(action.messages),
+        state.messages,
+      );
       const candidateMessages = action.preserveActiveTail
         ? mergeRefreshedTailWithLiveMessages(refreshedMessages, state.messages, state.streaming)
         : refreshedMessages;
@@ -339,7 +343,11 @@ export function reduceChatSession(
         activeRunPhase: preserveRunProjection ? state.activeRunPhase : null,
         activeRunPhaseDetail: preserveRunProjection ? state.activeRunPhaseDetail : null,
         activeRunStartedAt: preserveRunProjection ? state.activeRunStartedAt : null,
-        lastTerminalRunId: preserveRunProjection ? state.lastTerminalRunId : null,
+        lastTerminalRunId: preserveRunProjection
+          ? state.lastTerminalRunId
+          : action.pauseCheckpoint?.status === 'active'
+            ? action.pauseCheckpoint.sourceRunId
+            : null,
         streaming: preserveRunProjection ? state.streaming : false,
         activeSkill: preserveRunProjection ? state.activeSkill : null,
         outline: action.outline ?? [],
@@ -347,7 +355,15 @@ export function reduceChatSession(
         awaitingTranscript: false,
         transcriptOwnerSessionId: action.sessionId,
         contextUsage: contextUsageForLoadMessages(action.contextUsage, state.contextUsage),
-        runTerminal: preserveRunProjection ? state.runTerminal : { kind: 'none' },
+        runTerminal: preserveRunProjection
+          ? state.runTerminal
+          : action.pauseCheckpoint?.status === 'active'
+            ? {
+                kind: 'paused',
+                at: Date.now(),
+                checkpointId: action.pauseCheckpoint.checkpointId,
+              }
+            : { kind: 'none' },
         error: null,
         runRecordsById: preserveRunProjection
           ? { ...hydratedRunRecords, ...state.runRecordsById }

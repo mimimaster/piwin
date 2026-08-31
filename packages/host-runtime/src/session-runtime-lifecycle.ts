@@ -151,16 +151,25 @@ export async function doActivateSessionRuntime(
   // Native replay seed (spec: session-conversation-tree §4.4): when the
   // durable transcript owns native context copies, reconstruct the model
   // context with full fidelity instead of the text-injection prompt prefix.
+  // Compact may stash product-history seeds here so a reconstructed backend
+  // has a conversation to summarize instead of failing with "nothing to compact".
   let replaySeedOptions: CreateSessionOptions | undefined;
-  try {
-    const store = await deps.getTranscriptStore(sessionId);
-    replaySeedOptions = await buildColdActivationSeedOptions(store, excludeSeedMessageId);
-  } catch (error) {
-    deps.push({
-      type: 'host/log',
-      level: 'warn',
-      message: `native replay seed build failed for ${sessionId}: ${formatError(error)}`,
-    });
+  const compactSeeds = deps.pendingActivationSeedMessages.get(sessionId);
+  if (compactSeeds && compactSeeds.length > 0) {
+    // Compact snapshots must use `compaction` so Pi will summarize the seeded
+    // history. `replay` keeps seeded turns intact and compact then no-ops.
+    replaySeedOptions = { seedMessages: compactSeeds, seedMode: 'compaction' };
+  } else {
+    try {
+      const store = await deps.getTranscriptStore(sessionId);
+      replaySeedOptions = await buildColdActivationSeedOptions(store, excludeSeedMessageId);
+    } catch (error) {
+      deps.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `native replay seed build failed for ${sessionId}: ${formatError(error)}`,
+      });
+    }
   }
   let handle: SessionHandle;
   try {

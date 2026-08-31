@@ -192,7 +192,7 @@ export type ChatThreadProps = {
   onResolveFlashcards?: (
     itemIds: string[],
   ) => Promise<import('@piwin/contracts').FlashcardReviewCard[]>;
-  /** Model snapshot / live model used for conversation headers. */
+  /** Frozen send-time model for the in-flight turn's pending assistant row. */
   livePromptModel?: ModelRef | null;
   /** Active model options for name resolution. */
   modelOptions?: readonly ModelOption[];

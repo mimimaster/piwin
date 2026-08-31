@@ -72,11 +72,11 @@ export function geminiToolResponsePayload(input: {
   });
 }
 
-export function geminiContextAppendPayload(content: string): string {
+export function geminiContextAppendPayload(content: string, speakable = true): string {
   return JSON.stringify({
     clientContent: {
       turns: [{ role: 'user', parts: [{ text: content }] }],
-      turnComplete: true,
+      turnComplete: speakable,
     },
   });
 }

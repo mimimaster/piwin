@@ -7,6 +7,7 @@ import {
 } from './conversation-pane-layout.js';
 import {
   CONVERSATION_PANE_STORAGE_KEY,
+  conversationPaneStorageKey,
   loadConversationPaneLayout,
   parseConversationPaneLayout,
   saveConversationPaneLayout,
@@ -53,6 +54,25 @@ describe('conversation pane storage', () => {
         maximizedPaneId: null,
       }),
     ).toBeNull();
+  });
+
+  it('keeps layouts isolated by session scope', () => {
+    const generalLayout = createConversationPaneLayout('general-session');
+    const projectLayout = createConversationPaneLayout('project-session');
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+    };
+
+    saveConversationPaneLayout(generalLayout, storage, 'general');
+    saveConversationPaneLayout(projectLayout, storage, 'project:/tmp/piwin');
+
+    expect(loadConversationPaneLayout(storage, 'general')).toEqual(generalLayout);
+    expect(loadConversationPaneLayout(storage, 'project:/tmp/piwin')).toEqual(projectLayout);
+    expect(conversationPaneStorageKey('general')).not.toBe(
+      conversationPaneStorageKey('project:/tmp/piwin'),
+    );
   });
 
   it('falls back safely for malformed JSON', () => {

@@ -76,6 +76,7 @@ describe('Host-only Live results', () => {
       event: { type: 'delegation', providerDelegationId: 'd1', instruction: '修复' } });
     coordinator.notifyBoundSessionTurnEnded(result);
     expect(actions).toHaveLength(0);
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'));
     release?.();
     await vi.waitFor(() => expect(actions.filter((action) => action.action === 'append-context')).toHaveLength(1));
     expect(actions.map((action) => action.action)).toEqual(['ack-delegation', 'append-context']);

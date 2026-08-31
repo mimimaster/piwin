@@ -12,6 +12,7 @@ import type {
   PromptContextRef,
   PermissionDecision,
   PermissionRequestContext,
+  SessionPauseCheckpoint,
   SessionContextSnapshot,
   SessionRunOutcome,
   SessionRunPhase,
@@ -416,9 +417,9 @@ export type ChatUiState = {
    */
   completedAttentionSessionIds: Record<string, true>;
   /**
-   * Composer model for the in-flight turn. Used when Host omits
-   * `message/start.model` so Conversation can keep the provider avatar after
-   * the row leaves streaming (livePromptModel no longer applies).
+   * Frozen composer model for the in-flight turn. Stamped onto assistant rows
+   * when Host omits `message/start.model`. Historic headers must not read the
+   * live composer selection.
    */
   pendingTurnModel: ModelRef | null;
 };
@@ -460,6 +461,8 @@ export type ChatUiAction =
       live?: boolean;
       /** Merge a stale-tail refresh without replacing the active local turn. */
       preserveActiveTail?: boolean;
+      /** Active Host pause checkpoint restored with the transcript. */
+      pauseCheckpoint?: SessionPauseCheckpoint;
     }
   | {
       type: 'session/prepend-messages';

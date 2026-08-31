@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createLiveDelegationReviewer } from './index.js';
 import { createInitialLiveCallState, transitionLiveCall } from './call-state.js';
 import { FakeRealtimeVoiceAdapter } from './fake-realtime-voice-adapter.js';
 import { normalizeCodexDelegationCreated } from './codex-delegation.js';
@@ -15,6 +16,12 @@ import {
   resolveCodexLiveVoice,
 } from './codex-live-adapter.js';
 
+describe('public exports', () => {
+  it('exports createLiveDelegationReviewer for Host composition', () => {
+    expect(typeof createLiveDelegationReviewer).toBe('function');
+  });
+});
+
 describe('transitionLiveCall', () => {
   it('starts → active → ended', () => {
     let state = createInitialLiveCallState();
@@ -30,6 +37,18 @@ describe('transitionLiveCall', () => {
     let state = createInitialLiveCallState();
     state = transitionLiveCall(state, { type: 'fail', errorCode: 'live-protocol-failed' })!;
     expect(transitionLiveCall(state, { type: 'connected' })).toBeNull();
+  });
+
+  it('retargets an active call and clears agent-working', () => {
+    let state = createInitialLiveCallState();
+    state = transitionLiveCall(state, { type: 'connected' })!;
+    state = transitionLiveCall(state, { type: 'set-activity', activity: 'agent-working' })!;
+    const next = transitionLiveCall(state, { type: 'retarget' });
+    expect(next?.activity).toBe('listening');
+    expect(next?.revision).toBe(state.revision + 1);
+    expect(transitionLiveCall(next!, { type: 'fail', errorCode: 'live-protocol-failed' })).not.toBeNull();
+    const failed = transitionLiveCall(next!, { type: 'fail', errorCode: 'live-protocol-failed' })!;
+    expect(transitionLiveCall(failed, { type: 'retarget' })).toBeNull();
   });
 });
 

@@ -88,6 +88,7 @@ export async function buildDomainContext(
       deps.rememberProjectPermission(sessionId, action, detail, scope, projectPath),
     rememberSessionPermission: (sessionId, action, detail) =>
       deps.rememberSessionPermission(sessionId, action, detail),
+    isSessionBodyReserved: (sessionId) => deps.sessionBodyGate.isReserved(sessionId),
     sessionPermissionOverrides: deps.sessionPermissionOverrides,
     setSessionPermissionOverride: (sessionId, mode) =>
       deps.setSessionPermissionOverride(sessionId, mode),

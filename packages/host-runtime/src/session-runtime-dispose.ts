@@ -148,6 +148,7 @@ export function quarantineSessionRuntime(
   }
 
   deps.coldStartHistoryBySession.delete(sessionId);
+  deps.pendingActivationSeedMessages.delete(sessionId);
   deps.pendingDirectActivations.delete(sessionId);
   deps.runtimeController.detachGeneration(sessionId);
   if (runtimeGenerationId !== undefined) {

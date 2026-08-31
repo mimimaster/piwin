@@ -348,6 +348,12 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
                   ? activeDocument.suggestion
                   : undefined
               }
+              byteSize={
+                activeDocument?.status === 'unavailable' ? activeDocument.byteSize : undefined
+              }
+              maxBytes={
+                activeDocument?.status === 'unavailable' ? activeDocument.maxBytes : undefined
+              }
               sessionDocuments={sessionDocuments}
               onOpenFile={(filePath) => {
                 handleOpenDocument({

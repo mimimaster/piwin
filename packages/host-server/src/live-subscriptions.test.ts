@@ -183,6 +183,65 @@ describe('live session subscriptions', () => {
     });
   });
 
+  it('delivers Run termination after switching away from a running session', async () => {
+    const { url } = await startServer();
+    const client = await connectClient(url, 'background-run', {
+      liveSubscriptions: true,
+      sessionIds: [],
+    });
+    cleanups.push(async () => client.client.close());
+    const sessionA = await createSession(client, 'background-a');
+    const sessionB = await createSession(client, 'foreground-b');
+    await client.client.updateSubscriptions([sessionA]);
+    const accepted = requireSuccess(
+      await client.client.request(
+        {
+          type: 'session/prompt',
+          sessionId: sessionA,
+          input: { text: 'keep running while I switch away' },
+          foreground: { kind: 'if-idle' },
+        },
+        { idempotencyKey: randomUUID() },
+      ),
+      'prompt A',
+    );
+    const { runId } = accepted.data as { runId: string };
+    await vi.waitFor(() => {
+      expect(
+        client.pushes.some(
+          (push) =>
+            push.type === 'run/updated' &&
+            push.run.runId === runId &&
+            push.run.status === 'running',
+        ),
+      ).toBe(true);
+    });
+
+    await client.client.updateSubscriptions([sessionB]);
+    requireSuccess(
+      await client.client.request(
+        {
+          type: 'session/abort',
+          sessionId: sessionA,
+          runId,
+        },
+        { idempotencyKey: randomUUID() },
+      ),
+      'abort A',
+    );
+
+    await vi.waitFor(() => {
+      expect(
+        client.pushes.some(
+          (push) =>
+            push.type === 'run/terminal' &&
+            push.run.runId === runId &&
+            push.run.status === 'cancelled',
+        ),
+      ).toBe(true);
+    });
+  });
+
   it('applies a mid-stream subscription update with a fence', async () => {
     const { url } = await startServer();
     const operator = await connectClient(url, 'operator');

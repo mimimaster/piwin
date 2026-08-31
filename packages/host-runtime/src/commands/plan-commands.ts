@@ -1,8 +1,8 @@
 /**
  * Host IPC handlers: plan.
  */
-import type { HostCommand, HostResponse, PlanExecutionState, SessionPlan } from '@piwin/contracts'
-import { formatError } from '@piwin/contracts';;
+import type { HostCommand, HostResponse, PlanExecutionState, SessionPlan } from '@piwin/contracts';
+import { formatError } from '@piwin/contracts';
 import {
   applyPlanStatus,
   applyPlanStepUpdate,
@@ -24,8 +24,10 @@ import {
   completeExecutionState,
   createExecutionState,
   failExecutionState,
+  recoverPlanAfterExecutionFailure,
   selectSubagentSteps,
 } from '../plan-execution-coordinator.js';
+import { sessionBusyResponse } from '../session-body-gate.js';
 import { startWalkthroughGeneration } from './walkthrough-commands.js';
 import { resolveConfiguredDefaultModelRef, findEnabledProvider } from '../provider-helpers.js';
 import { createDefaultWalkthroughConfig } from '@piwin/contracts';
@@ -226,6 +228,14 @@ async function handlePlanExecute(
       `plan is already ${plan.execution.status} with mode ${plan.execution.mode}`,
     );
   }
+  if (context.isSessionBodyReserved?.(command.request.sessionId) === true) {
+    return sessionBusyResponse(
+      requestId,
+      'plan/execute',
+      command.request.sessionId,
+      'body-job',
+    );
+  }
 
   const planRun = seam.startPlanRun?.(command.request.sessionId, plan.id);
   if (!planRun) {
@@ -321,11 +331,7 @@ async function runPlanExecution(
       return;
     }
     state = failExecutionState(state, error);
-    const updated: SessionPlan = {
-      ...current,
-      execution: state,
-      updatedAt: new Date().toISOString(),
-    };
+    const updated = recoverPlanAfterExecutionFailure(current, state);
     await saveSessionPlan(planPath, updated);
     context.push({ type: 'plan/updated', sessionId, plan: updated });
     context.push({ type: 'plan/execution-updated', state });

@@ -1,3 +1,4 @@
+import { PendingLiveTools } from '@piwin/voice/wire';
 import type {
   LiveClientBootstrapInput,
   LiveOwnerActionPush,
@@ -52,7 +53,7 @@ export function createMobilePcmLiveDriver(
   let processor: ScriptProcessorNode | null = null;
   let nextPlayTime = 0;
   let outputSampleRateHz = 24_000;
-  let pendingToolId: string | null = null;
+  const pendingTools = new PendingLiveTools(() => emitEvent({ type: 'media-failed', mappedCode: 'live-protocol-failed' }));
   let lastAppendedContent = '';
 
   function snapshot(): MobileLivePeerSnapshot {
@@ -150,12 +151,14 @@ export function createMobilePcmLiveDriver(
         await this.close();
         return;
       }
-      if (action.action === 'ack-delegation' && pendingToolId) {
+      if (action.action === 'ack-delegation') {
+        const toolId = pendingTools.take(action.providerDelegationId);
+        if (!toolId) return;
         const accepted = action.ok === true;
         if (kind === 'gemini-live-v1beta') {
           sendJson(
             geminiToolResponsePayload({
-              id: pendingToolId,
+              id: toolId,
               accepted,
               queued: Boolean(action.queueId),
             }),
@@ -163,18 +166,16 @@ export function createMobilePcmLiveDriver(
         } else {
           sendJson(
             openaiFunctionOutputPayload({
-              callId: pendingToolId,
+              callId: toolId,
               accepted,
               queued: Boolean(action.queueId),
             }),
           );
-          sendJson(realtimeResponseCreatePayload());
         }
-        pendingToolId = null;
         return;
       }
       if (action.action === 'append-context' && action.content) {
-        sendContext(action.content);
+        sendContext(action.content, action.channel !== 'commentary');
       }
     },
     subscribeEvents(listener) {
@@ -185,8 +186,7 @@ export function createMobilePcmLiveDriver(
       const content = input.content.trim();
       if (!content || content === lastAppendedContent) return;
       lastAppendedContent = content;
-      sendContext(content);
-      if (kind === 'openai-realtime-ws-v1') sendJson(realtimeResponseCreatePayload());
+      sendContext(content, input.channel === 'speakable');
     },
     async close(): Promise<void> {
       processor?.disconnect();
@@ -206,7 +206,8 @@ export function createMobilePcmLiveDriver(
       }
       socket?.close();
       socket = null;
-      pendingToolId = null;
+      pendingTools.clear();
+      lastAppendedContent = '';
       setPhase('ended');
     },
   };
@@ -266,7 +267,7 @@ export function createMobilePcmLiveDriver(
           } else if (parsed.kind === 'owner') {
             emitEvent(parsed.event);
           } else if (parsed.kind === 'tool-call') {
-            pendingToolId = parsed.id;
+            if (!pendingTools.add(parsed.id)) return;
             emitEvent({
               type: 'delegation',
               providerDelegationId: parsed.id,
@@ -291,7 +292,7 @@ export function createMobilePcmLiveDriver(
         }
         if (parsed.kind === 'owner') emitEvent(parsed.event);
         if (parsed.kind === 'tool-call') {
-          pendingToolId = parsed.id;
+          if (!pendingTools.add(parsed.id)) return;
           emitEvent({
             type: 'delegation',
             providerDelegationId: parsed.id,
@@ -370,11 +371,12 @@ export function createMobilePcmLiveDriver(
     }
   }
 
-  function sendContext(content: string): void {
+  function sendContext(content: string, speakable: boolean): void {
     sendJson(
       kind === 'gemini-live-v1beta'
-        ? geminiContextAppendPayload(content)
+        ? geminiContextAppendPayload(content, speakable)
         : realtimeContextAppendPayload(content),
     );
+    if (kind === 'openai-realtime-ws-v1' && speakable) sendJson(realtimeResponseCreatePayload());
   }
 }

@@ -82,7 +82,10 @@ export function classifyHostPushAudience(push: HostPushVariant): HostPushAudienc
       return session(push.sessionId);
     case 'run/updated':
     case 'run/terminal':
-      return session(push.run.sessionId);
+      // Foreground turn lifecycle also drives background sidebar status.
+      // It must survive switching transcript subscriptions; internal Runs
+      // and high-rate message/tool streams remain session-scoped.
+      return push.run.kind === 'session-turn' ? { kind: 'global' } : session(push.run.sessionId);
     case 'run/intervention-updated':
       return session(push.intervention.sessionId);
     case 'session/queued-turn-updated':

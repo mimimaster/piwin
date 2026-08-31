@@ -834,4 +834,41 @@ describe('createStoreTranscriptRecorder', () => {
       store.close();
     }
   });
+
+  it('snapshots event.model onto the assistant row when resolveModel is empty', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-store-recorder-event-model-'));
+    const store = await openSessionTranscriptStore({
+      dbPath: join(rootDir, 'transcript.sqlite3'),
+      sessionId: 'session-event-model',
+      projectPath: '/project',
+    });
+    const recorder = createStoreTranscriptRecorder({
+      store,
+      runtimeGenerationId: 'generation-event-model',
+      resolveModel: () => undefined,
+    });
+
+    try {
+      await recorder.recordEvent({
+        type: 'message/start',
+        messageId: 'assistant-event-model',
+        role: 'assistant',
+        model: {
+          protocol: 'openai-compatible',
+          providerId: 'cpa',
+          modelId: 'glm-5',
+        },
+      });
+      await recorder.flush();
+
+      expect((await store.getMessage('assistant-event-model'))?.model).toEqual({
+        protocol: 'openai-compatible',
+        providerId: 'cpa',
+        modelId: 'glm-5',
+      });
+    } finally {
+      recorder.dispose();
+      store.close();
+    }
+  });
 });

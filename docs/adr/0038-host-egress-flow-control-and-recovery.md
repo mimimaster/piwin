@@ -93,6 +93,13 @@ bounded internal observers, but it is not a bypass around egress policy.
 The Hub never blocks or cancels a Host Run because a UI is slow. Host work and
 transcript persistence continue when all clients are disconnected.
 
+Background lifecycle correction (2026-08-31): `run/updated` and `run/terminal`
+for `session-turn` Runs have a global audience, independent of the visible
+transcript subscription set. These semantic state revisions drive sidebar
+working/completion indicators even after a session is closed or switched away.
+Internal plan/subagent Runs and high-rate transcript/tool events remain
+session-scoped; this does not subscribe clients to all background transcripts.
+
 ### 3. Delivery semantics are exhaustive and transport-owned
 
 Every `HostPush` variant is classified by a pure, exhaustive classifier owned

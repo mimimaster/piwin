@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-08-03; amended 2026-08-24; amended 2026-08-26; amended 2026-08-27)
+Accepted (2026-08-03; amended 2026-08-24; amended 2026-08-26; amended 2026-08-27; amended 2026-08-31)
 
 ## Context
 
@@ -46,6 +46,12 @@ Canonical fence syntax:
 <!-- self-contained HTML/CSS/JS body fragment -->
 ```
 ````
+
+The model-facing runtime contract (`formatArtifactProtocol`, v8) shows this
+block shape. Opening fence at column 0 of its own line; `title` and `surface`
+stay on that opening line. Inline uses the chat-column flow constraints
+(transparent root, no `100vh`, no nested page scroll, no horizontal scroll).
+Canvas fills the inspector iframe (`width: 100%` / `height: 100%` / `100dvh`).
 
 ```ts
 export type ArtifactSurface = 'inline' | 'canvas';

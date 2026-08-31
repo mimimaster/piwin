@@ -85,7 +85,6 @@
   contain: layout style;
 }
 
-.file-tree-preview-binary,
 .file-tree-preview-truncated {
   padding: var(--s-5) var(--s-5);
   color: var(--text-3);

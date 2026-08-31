@@ -23,6 +23,9 @@ export function createProviderForSource(source: WebSearchSource, apiKey?: string
   if (source.kind === 'searxng') {
     return createSearxngProvider(source);
   }
+  if (source.kind === 'http') {
+    return createHttpProvider(source, apiKey);
+  }
   return createCliProvider(source);
 }
 
@@ -161,6 +164,7 @@ function createSearxngProvider(source: WebSearchSource): SearchProvider {
 function createCliProvider(source: WebSearchSource): SearchProvider {
   const command = source.command?.trim() ?? '';
   const argTemplate = source.args && source.args.length > 0 ? source.args : ['{{query}}'];
+  const extraEnv = source.env;
   return {
     id: source.id,
     async search(query, options) {
@@ -168,17 +172,82 @@ function createCliProvider(source: WebSearchSource): SearchProvider {
         throw new Error(`CLI search source "${source.id}" is missing command`);
       }
       const argv = argTemplate.map((part) => part.replaceAll('{{query}}', query));
-      const stdout = await runCliCapture(command, argv, options.signal);
-      return parseCliSearchHits(stdout, source.id, options.limit);
+      const stdout = await runCliCapture(command, argv, options.signal, extraEnv);
+      return parseSearchHitsJson(stdout, source.id, options.limit);
     },
   };
 }
 
-function runCliCapture(command: string, argv: string[], signal?: AbortSignal): Promise<string> {
+/**
+ * Open WebUI-compatible custom search: POST {query, count} → hits JSON.
+ */
+function createHttpProvider(source: WebSearchSource, runtimeApiKey?: string): SearchProvider {
+  const baseUrl = source.baseUrl?.trim() ?? '';
+  const apiKeyEnv = source.apiKeyEnv?.trim();
+  return {
+    id: source.id,
+    async search(query, options) {
+      if (!baseUrl) {
+        throw new Error(`HTTP search source "${source.id}" is missing baseUrl`);
+      }
+      let endpoint: URL;
+      try {
+        endpoint = new URL(baseUrl);
+      } catch {
+        throw new Error(`HTTP search source "${source.id}" has invalid baseUrl: ${baseUrl}`);
+      }
+      const apiKey =
+        runtimeApiKey ?? (apiKeyEnv ? process.env[apiKeyEnv] : undefined) ?? undefined;
+      const headers: Record<string, string> = {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      };
+      if (apiKey) {
+        headers.Authorization = `Bearer ${apiKey}`;
+      }
+      const requestInit: RequestInit = {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          query,
+          count: Math.min(Math.max(options.limit, 1), 20),
+        }),
+      };
+      if (options.signal) {
+        requestInit.signal = options.signal;
+      }
+      const response = await fetch(endpoint, requestInit);
+      if (!response.ok) {
+        throw new Error(`HTTP search failed: HTTP ${response.status}`);
+      }
+      const payload = await response.text();
+      return parseSearchHitsJson(payload, source.id, options.limit);
+    },
+  };
+}
+
+function mergeSpawnEnv(extraEnv?: Record<string, string>): NodeJS.ProcessEnv {
+  if (!extraEnv) {
+    return process.env;
+  }
+  const merged: NodeJS.ProcessEnv = { ...process.env };
+  for (const [key, value] of Object.entries(extraEnv)) {
+    merged[key] = value;
+  }
+  return merged;
+}
+
+function runCliCapture(
+  command: string,
+  argv: string[],
+  signal?: AbortSignal,
+  extraEnv?: Record<string, string>,
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, argv, {
       shell: false,
       stdio: ['ignore', 'pipe', 'pipe'],
+      env: mergeSpawnEnv(extraEnv),
     });
     const stdoutChunks: Buffer[] = [];
     const stderrChunks: Buffer[] = [];
@@ -231,7 +300,7 @@ function runCliCapture(command: string, argv: string[], signal?: AbortSignal): P
   });
 }
 
-function parseCliSearchHits(stdout: string, sourceId: string, limit: number): SearchHit[] {
+function parseSearchHitsJson(stdout: string, sourceId: string, limit: number): SearchHit[] {
   const trimmed = stdout.trim();
   if (!trimmed) {
     return [];
@@ -241,7 +310,7 @@ function parseCliSearchHits(stdout: string, sourceId: string, limit: number): Se
     parsed = JSON.parse(trimmed) as unknown;
   } catch {
     throw new Error(
-      `CLI search "${sourceId}" stdout is not JSON. Expected { hits: [...] } or an array of hits.`,
+      `Search source "${sourceId}" response is not JSON. Expected { hits: [...] } or an array of hits.`,
     );
   }
   const rawHits = extractHitArray(parsed);
@@ -251,7 +320,13 @@ function parseCliSearchHits(stdout: string, sourceId: string, limit: number): Se
     if (!item || typeof item !== 'object') continue;
     const record = item as Record<string, unknown>;
     const title = typeof record.title === 'string' ? record.title.trim() : '';
-    const url = typeof record.url === 'string' ? record.url.trim() : '';
+    const urlValue =
+      typeof record.url === 'string'
+        ? record.url
+        : typeof record.link === 'string'
+          ? record.link
+          : '';
+    const url = urlValue.trim();
     if (!title || !url) continue;
     const snippet = typeof record.snippet === 'string' ? record.snippet : '';
     const source =
@@ -272,7 +347,7 @@ function extractHitArray(parsed: unknown): unknown[] {
       return hits;
     }
   }
-  throw new Error('CLI search JSON must be an array of hits or { "hits": [...] }');
+  throw new Error('Search JSON must be an array of hits or { "hits": [...] }');
 }
 
 /**

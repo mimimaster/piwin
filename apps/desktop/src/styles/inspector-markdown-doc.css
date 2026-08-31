@@ -194,6 +194,11 @@
   color: var(--text-1);
 }
 
+.enhanced-em {
+  color: var(--text-1);
+  font-style: italic;
+}
+
 .enhanced-link,
 .md-doc-link {
   color: var(--iris-lift);

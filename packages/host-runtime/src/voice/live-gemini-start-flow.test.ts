@@ -41,6 +41,7 @@ describe('Gemini Live start without Codex', () => {
       }),
     ]);
     const coordinator = new LiveCallCoordinator({
+      review: async (request) => ({ kind: 'work', brief: request.instruction }),
       registry,
       resolveSnapshot: async (providerId) => {
         if (providerId === 'openai-codex') {

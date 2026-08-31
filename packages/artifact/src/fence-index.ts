@@ -12,6 +12,8 @@ export type ArtifactFenceRecord = {
   language: string;
   source: string;
   open: boolean;
+  /** A canonical artifact opening glued to prose; projection inserts a break. */
+  recoveredOpening?: true;
 };
 
 /** Build a record for analysis when the caller is not indexing Markdown. */
@@ -48,9 +50,24 @@ type OpeningFence = {
   info: string;
   quoteDepth: number;
   contentColumn: number;
+  recoveredOpening?: true;
 };
 
 const LIST_MARKER_PATTERN = /^([-*+] |\d{1,9}[.)] )/;
+
+/** Narrow recovery for model output, never general inline code/quoted examples. */
+function recoverArtifactOpening(text: string, nextLine: string): OpeningFence | null {
+  const markerIndex = text.indexOf('```artifact-html');
+  if (markerIndex <= 0) return null;
+  const prefix = text.slice(0, markerIndex);
+  if (!prefix.trim() || /[`~<>\[\]]/.test(prefix) || /^(?: {4}|\t)|^\s*(?:>|[-*+] |\d+[.)] )/.test(prefix)) return null;
+  // Require an actual HTML document on the immediately following line. A
+  // mention such as "use ```artifact-html" must stay documentation.
+  if (!/^\s*(?:<!doctype\s+html\b|<html(?:\s|>))/i.test(nextLine)) return null;
+  const opening = parseOpeningFence(text.slice(markerIndex));
+  if (!opening || getFenceLanguageToken(opening.info) !== 'artifact-html') return null;
+  return { ...opening, markerIndex, contentColumn: 0, recoveredOpening: true };
+}
 
 function splitMarkdownLines(markdown: string): MarkdownLine[] {
   const lines: MarkdownLine[] = [];
@@ -210,7 +227,7 @@ export function indexArtifactFences(markdown: string): ArtifactFenceRecord[] {
     if (!line) {
       break;
     }
-    const opening = parseOpeningFence(line.text);
+    const opening = parseOpeningFence(line.text) ?? recoverArtifactOpening(line.text, lines[lineIndex + 1]?.text ?? '');
     if (!opening) {
       lineIndex += 1;
       continue;
@@ -250,6 +267,7 @@ export function indexArtifactFences(markdown: string): ArtifactFenceRecord[] {
       language: getFenceLanguageToken(opening.info),
       source: contentLines.join('\n'),
       open,
+      ...(opening.recoveredOpening ? { recoveredOpening: true as const } : {}),
     });
     ordinal += 1;
     if (open) {

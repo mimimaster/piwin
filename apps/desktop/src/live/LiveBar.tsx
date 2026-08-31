@@ -127,6 +127,12 @@ export function LiveBar(props: LiveBarProps): ReactElement {
         )}
       </div>
 
+      {props.call?.boundSessionLabel ? (
+        <span className="live-bar-session" data-testid="live-bar-session">
+          {props.call.boundSessionLabel}
+        </span>
+      ) : null}
+
       {props.error ? <span className="live-bar-error-copy">{liveStartErrorLabel(props.error, isChinese)}</span> : null}
 
       {/* Media controls never imply permission approval or response cancellation. */}

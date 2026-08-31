@@ -27,6 +27,16 @@ export function hostFailureNotice(response: HostResponse, locale: DesktopLocale)
   if (isWorkbenchHostTeardownError(response.error)) {
     return hostReconnectNotice(locale);
   }
+  if (response.error.startsWith('paused-run:')) {
+    return locale === 'zh-CN'
+      ? '上一轮已暂停。点继续接着做，或再发一条新消息结束暂停。'
+      : 'The previous turn is paused. Continue it, or send a new message to start a new turn.';
+  }
+  if (response.error.includes('intervention-command-unsupported')) {
+    return locale === 'zh-CN'
+      ? '斜杠命令不能插入当前回合。等这轮结束再发 /compact。'
+      : 'Slash commands cannot steer the current run. Wait for it to finish, then send /compact.';
+  }
   if (response.error.startsWith('Host request timed out:')) {
     return locale === 'zh-CN'
       ? 'Host 还没确认这条操作。会话还在，再发一次；不要当成断线。'

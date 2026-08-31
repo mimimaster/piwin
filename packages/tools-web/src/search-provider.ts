@@ -6,7 +6,11 @@ import type {
   WebSearchSource,
   WebSearchStrategy,
 } from '@piwin/contracts';
-import { DEFAULT_FETCH_FALLBACK, createDefaultWebConfig } from '@piwin/contracts';
+import {
+  DEFAULT_FETCH_FALLBACK,
+  createDefaultWebConfig,
+  inferSearchRoutePolicy,
+} from '@piwin/contracts';
 import { mergeSearchHitBatches, type SourceHitBatch } from './search-merge.js';
 import { createProviderForSource, type SearchProvider } from './search-source-providers.js';
 import type { WebRuntimeCredentials } from './runtime-credentials.js';
@@ -31,7 +35,7 @@ export function resolveWebConfig(partial?: Partial<WebConfig> | undefined): WebC
     ...(partial.searchDelegateModel ? { searchDelegateModel: partial.searchDelegateModel } : {}),
     ...(partial.fetchDelegateModel ? { fetchDelegateModel: partial.fetchDelegateModel } : {}),
     searchStrategy,
-    searchRoutePolicy: partial.searchRoutePolicy ?? defaults.searchRoutePolicy,
+    searchRoutePolicy: inferSearchRoutePolicy(partial.searchRoutePolicy, searchSources),
     fetchProvider: partial.fetchProvider ?? defaults.fetchProvider,
     fetchFallback: partial.fetchFallback ?? defaults.fetchFallback ?? DEFAULT_FETCH_FALLBACK,
     ...(partial.fetchApiKeyRef ? { fetchApiKeyRef: partial.fetchApiKeyRef } : {}),
@@ -291,6 +295,9 @@ function migrateLegacySearchProvider(
   if (provider === 'cli') {
     return [{ id: 'cli', kind: 'cli', enabled: true }];
   }
+  if (provider === 'http') {
+    return [{ id: 'http', kind: 'http', enabled: true }];
+  }
   if (provider === 'aggregate') {
     return [{ id: 'duckduckgo', kind: 'duckduckgo', enabled: true }];
   }
@@ -340,6 +347,17 @@ function normalizeSourceRecord(value: WebSearchSource): WebSearchSource {
   }
   if (Array.isArray(value.args)) {
     source.args = value.args.filter((item): item is string => typeof item === 'string');
+  }
+  if (value.env && typeof value.env === 'object') {
+    const env: Record<string, string> = {};
+    for (const [key, envValue] of Object.entries(value.env)) {
+      if (key.trim() && typeof envValue === 'string') {
+        env[key] = envValue;
+      }
+    }
+    if (Object.keys(env).length > 0) {
+      source.env = env;
+    }
   }
   return source;
 }

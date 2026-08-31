@@ -265,13 +265,13 @@ describe('WebPage search route settings', () => {
     const policySelect = container.querySelector<HTMLSelectElement>(
       '[data-testid="web-search-route-policy"]',
     );
-    expect(policySelect?.value).toBe('external-first');
+    expect(policySelect?.value).toBe('native-first');
     expect(container.querySelector('[data-testid="search-route-selected"]')?.textContent).toContain(
       'native',
     );
     expect(request).toHaveBeenCalledWith({
       type: 'web/search-route-preview',
-      input: expect.objectContaining({ policy: 'external-first' }),
+      input: expect.objectContaining({ policy: 'native-first' }),
     });
   });
 
@@ -421,7 +421,7 @@ describe('WebPage search route settings', () => {
     expect(container.querySelector('[data-testid="web-fetch-store-max-chars"]')).toBeTruthy();
   });
 
-  it('does not show empty CLI launcher fields on a remote shell', async () => {
+  it('shows CLI launcher fields on a remote shell so they can be saved to Host', async () => {
     const request = vi.fn<SettingsRequest>(async (command: SettingsCommand) => {
       const input = getSearchRoutePreviewInput(command);
       if (input) {
@@ -432,7 +432,15 @@ describe('WebPage search route settings', () => {
     const draft = webToDraft({
       ...createDefaultWebConfig(),
       searchProvider: 'cli',
-      searchSources: [{ id: 'cli', kind: 'cli', enabled: true }],
+      searchSources: [
+        {
+          id: 'cli',
+          kind: 'cli',
+          enabled: true,
+          command: '/usr/local/bin/my-search',
+          args: ['{{query}}'],
+        },
+      ],
     });
     const container = renderPage(request, draft, 'remote');
     await flushPreviewDebounce();
@@ -445,7 +453,79 @@ describe('WebPage search route settings', () => {
     act(() => {
       cliHeader.click();
     });
-    expect(container.querySelector('[data-testid="web-search-cli-host-held"]')).toBeTruthy();
-    expect(container.querySelector('[data-testid="web-search-cli-command"]')).toBeNull();
+    expect(container.querySelector('[data-testid="web-search-cli-host-held"]')).toBeNull();
+    const commandInput = container.querySelector<HTMLInputElement>(
+      '[data-testid="web-search-cli-command"]',
+    );
+    expect(commandInput).not.toBeNull();
+    expect(commandInput?.querySelector('input')?.value ?? commandInput?.value).toBe(
+      '/usr/local/bin/my-search',
+    );
+    const argsInput = container.querySelector('[data-testid="web-search-cli-args"]');
+    const argsValue =
+      argsInput instanceof HTMLInputElement
+        ? argsInput.value
+        : argsInput?.querySelector('input')?.value;
+    expect(argsValue).toContain('{{query}}');
+  });
+
+  it('fills a CLI example into the command line', async () => {
+    const request = vi.fn<SettingsRequest>(async (command: SettingsCommand) => {
+      const input = getSearchRoutePreviewInput(command);
+      if (input) {
+        return successResponse(nativePreview(input.policy));
+      }
+      return { type: 'response', command: command.type, success: true, data: {} };
+    });
+    const draft = webToDraft({
+      ...createDefaultWebConfig(),
+      searchProvider: 'cli',
+      searchSources: [
+        {
+          id: 'cli',
+          kind: 'cli',
+          enabled: true,
+          command: 'my-search',
+          args: ['{{query}}'],
+        },
+      ],
+    });
+    const container = renderPage(request, draft, 'live');
+    await flushPreviewDebounce();
+    const cliHeader = container.querySelector<HTMLButtonElement>(
+      '[data-testid="web-search-source-cli"]',
+    );
+    if (!cliHeader) throw new Error('CLI source card missing');
+    act(() => {
+      cliHeader.click();
+    });
+    expect(container.querySelector('[data-testid="web-search-source-searxng"]')).toBeTruthy();
+    const examplesToggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="web-search-cli-examples-toggle"]',
+    );
+    if (!examplesToggle) throw new Error('examples toggle missing');
+    act(() => {
+      examplesToggle.click();
+    });
+    const anySearch = Array.from(
+      container.querySelectorAll<HTMLButtonElement>('button.web-cli-example'),
+    ).find((button) => button.textContent?.includes('AnySearch'));
+    if (!anySearch) throw new Error('AnySearch example missing');
+    act(() => {
+      anySearch.click();
+    });
+    const commandInput = container.querySelector('[data-testid="web-search-cli-command"]');
+    const commandValue =
+      commandInput instanceof HTMLInputElement
+        ? commandInput.value
+        : commandInput?.querySelector('input')?.value;
+    expect(commandValue).toBe('python3');
+    const argsInput = container.querySelector('[data-testid="web-search-cli-args"]');
+    const argsValue =
+      argsInput instanceof HTMLInputElement
+        ? argsInput.value
+        : argsInput?.querySelector('input')?.value;
+    expect(argsValue).toContain('anysearch_cli.py');
+    expect(argsValue).toContain('{{query}}');
   });
 });

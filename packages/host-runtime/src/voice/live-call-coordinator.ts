@@ -48,6 +48,7 @@ export class LiveCallCoordinator {
     this.now = deps.now ?? (() => new Date().toISOString());
     this.delegations = new LiveDelegationController({
       admission: deps.admission,
+      review: deps.review,
       ...(deps.pushOwnerAction ? { pushOwnerAction: deps.pushOwnerAction } : {}),
       getSlot: () => this.slot,
       onChanged: () => this.emit(),
@@ -249,6 +250,41 @@ export class LiveCallCoordinator {
     if (next) gate.slot.state = next;
     this.emit();
     return { ok: true };
+  }
+
+  async rebind(input: {
+    sessionId: string;
+    callId: string;
+    ownerDeviceId: string;
+    expectedRevision?: number;
+  }): Promise<{ ok: true; call: LiveCallView } | { ok: false; errorCode: LiveCallErrorCode }> {
+    if (!this.slot || this.slot.callId !== input.callId) {
+      return { ok: false, errorCode: 'live-session-unavailable' };
+    }
+    if (this.slot.ownerDeviceId !== input.ownerDeviceId) {
+      return { ok: false, errorCode: 'live-not-owner' };
+    }
+    if (this.slot.sessionId === input.sessionId) {
+      return { ok: true, call: this.toView(this.slot) };
+    }
+    if (
+      input.expectedRevision !== undefined &&
+      input.expectedRevision !== this.slot.state.revision
+    ) {
+      return { ok: false, errorCode: 'live-conflict' };
+    }
+    const label = await Promise.resolve(this.deps.resolveSessionLabel(input.sessionId));
+    if (!label) return { ok: false, errorCode: 'live-session-unavailable' };
+    if (!this.slot || this.slot.callId !== input.callId) {
+      return { ok: false, errorCode: 'live-session-unavailable' };
+    }
+    this.slot.sessionId = input.sessionId;
+    this.slot.sessionLabel = label;
+    forgetLiveWorkPreamble(this.slot.callId);
+    const next = transitionLiveCall(this.slot.state, { type: 'retarget' });
+    if (next) this.slot.state = next;
+    this.emit();
+    return { ok: true, call: this.toView(this.slot) };
   }
 
   async end(input: {

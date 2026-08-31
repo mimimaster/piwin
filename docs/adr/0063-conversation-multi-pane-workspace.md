@@ -6,15 +6,14 @@
 ## Context
 
 Desktop currently paints one selected session in one stage. That is suitable
-for Project Agent work, where one run and its inspector are the center of the
-window, but it prevents a user from monitoring several independent
-Conversations at once.
+for a single Project Agent run, but it prevents a user from monitoring several
+independent sessions at once.
 
-Conversation is already the product's pure Chat surface. Project sessions
-remain Agent sessions; deleting the shared `agent` run mode would break that
-separate product surface. The requested tmux-like behavior therefore belongs
-to Conversation presentation, not to Agent execution or Host session
-authority.
+Conversation and Project Agent sessions share the same Host session authority.
+The requested tmux-like behavior therefore belongs to Desktop presentation,
+not to Agent execution or Host session authority. Supplementary panes may use
+the compact session renderer, while the primary pane keeps the full workbench
+and inspector.
 
 The interaction references converge on the same model:
 
@@ -38,16 +37,17 @@ References:
 ## Decision
 
 1. Desktop owns a recursive binary split tree. A leaf contains a stable
-   `paneId` and at most one general-scope `sessionId`; a branch contains its
-   orientation and bounded ratio.
+   `paneId` and at most one session id from the active scope; a branch contains
+   its orientation and bounded ratio.
 2. The tree, active pane, and maximized pane are device-local shell state. They
    are versioned in Desktop storage and never enter Host settings or session
    transcripts.
 3. Host remains the only authority for sessions, prompts, runs, transcripts,
    and push events. Each visible leaf independently resumes and renders its
    bound Conversation.
-4. Multi-pane is enabled only while the active scope is `general`. Project
-   Agent sessions keep the current single-stage workbench and inspector.
+4. Multi-pane is enabled for both `general` and `project` scopes. Each scope
+   has its own device-local layout storage, so switching projects cannot show
+   sessions from another scope.
 5. One window supports at most eight visible panes. The remote live-session
    subscription bound is raised from four to eight so every visible pane can
    remain live without polling.
@@ -67,8 +67,8 @@ References:
 
 ## Consequences
 
-- Eight Conversations can run and update concurrently without multiplying
-  Host authorities or Pi adapters.
+- Eight sessions can run and update concurrently without multiplying Host
+  authorities or Pi adapters.
 - Layout can differ safely between Desktop devices connected to one Host.
 - The primary pane continues to own global titlebar/sidebar integration during
   the first slice. Supplementary panes own their title, transcript, run state,
@@ -86,5 +86,6 @@ References:
   different semantics, not an independent Conversation.
 - **Store layout on Host.** Window geometry is device-local and should not roam
   across unrelated display sizes.
-- **Delete Agent mode globally.** Project sessions still require Agent/Goal run
-  behavior; the correct boundary is to exclude them from the Chat pane system.
+- **Duplicate the whole Project Agent workbench per pane.** Project panes use
+  the same compact session renderer as supplementary Chat panes; only the
+  primary pane owns the full Agent workbench and inspector.

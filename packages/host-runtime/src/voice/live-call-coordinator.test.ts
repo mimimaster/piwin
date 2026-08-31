@@ -161,6 +161,7 @@ describe('LiveCallCoordinator', () => {
     let createCalls = 0;
     const fake = createFakeCodexRegistration({ autoReady: false });
     const coordinator = new LiveCallCoordinator({
+      review: async (request) => ({ kind: 'work', brief: request.instruction }),
       registry: new LiveProviderRegistry([
         {
           ...fake,
@@ -298,6 +299,102 @@ describe('LiveCallCoordinator', () => {
     expect(spoken?.content).not.toMatch(/The work session finished/i);
     expect(spoken?.content).not.toMatch(/token|sdp/i);
     expect(coordinator.status(STATUS).call?.activity).toBe('listening');
+    await coordinator.dispose();
+  });
+
+  it('rebinds work to another session without ending the call', async () => {
+    const admitted: string[] = [];
+    const coordinator = makeLiveCoordinator({
+      resolveSessionLabel: (sessionId) =>
+        sessionId === 's1' ? 'Work' : sessionId === 's2' ? 'Other' : null,
+      review: async (request) => ({ kind: 'work', brief: request.instruction }),
+      admission: createVoiceDelegationAdmission({
+        busy: { isSessionBusy: () => false },
+        prompt: {
+          admitVoiceDelegation: async (input) => {
+            admitted.push(input.sessionId);
+            return { queued: false, runId: `r-${admitted.length}`, messageId: `m-${admitted.length}` };
+          },
+        },
+      }),
+    });
+    const started = await coordinator.start(startArgs({ idempotencyKey: 'k-rebind' }));
+    expect(started.ok).toBe(true);
+    if (!started.ok) return;
+    const outsider = await coordinator.rebind({
+      sessionId: 's2',
+      callId: started.call.callId,
+      ownerDeviceId: 'other',
+    });
+    expect(outsider).toEqual({ ok: false, errorCode: 'live-not-owner' });
+    const missing = await coordinator.rebind({
+      sessionId: 'missing',
+      callId: started.call.callId,
+      ownerDeviceId: 'd1',
+    });
+    expect(missing).toEqual({ ok: false, errorCode: 'live-session-unavailable' });
+    const rebound = await coordinator.rebind({
+      sessionId: 's2',
+      callId: started.call.callId,
+      ownerDeviceId: 'd1',
+    });
+    expect(rebound.ok).toBe(true);
+    if (rebound.ok) {
+      expect(rebound.call.boundSessionId).toBe('s2');
+      expect(rebound.call.boundSessionLabel).toBe('Other');
+      expect(rebound.call.callId).toBe(started.call.callId);
+    }
+    coordinator.reportOwnerEvent({
+      callId: started.call.callId,
+      ownerDeviceId: 'd1',
+      event: { type: 'delegation', providerDelegationId: 'del-s2', instruction: 'fix other' },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(admitted).toEqual(['s2']);
+    await coordinator.dispose();
+  });
+
+  it('keeps an in-flight admission on the session that heard it', async () => {
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const admitted: string[] = [];
+    const coordinator = makeLiveCoordinator({
+      resolveSessionLabel: (sessionId) =>
+        sessionId === 's1' ? 'Work' : sessionId === 's2' ? 'Other' : null,
+      review: async (request) => {
+        await held;
+        return { kind: 'work', brief: request.instruction };
+      },
+      admission: createVoiceDelegationAdmission({
+        busy: { isSessionBusy: () => false },
+        prompt: {
+          admitVoiceDelegation: async (input) => {
+            admitted.push(input.sessionId);
+            return { queued: false, runId: 'r-held', messageId: 'm-held' };
+          },
+        },
+      }),
+    });
+    const started = await coordinator.start(startArgs({ idempotencyKey: 'k-held' }));
+    expect(started.ok).toBe(true);
+    if (!started.ok) return;
+    coordinator.reportOwnerEvent({
+      callId: started.call.callId,
+      ownerDeviceId: 'd1',
+      event: { type: 'delegation', providerDelegationId: 'del-held', instruction: 'fix first' },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const rebound = await coordinator.rebind({
+      sessionId: 's2',
+      callId: started.call.callId,
+      ownerDeviceId: 'd1',
+    });
+    expect(rebound.ok).toBe(true);
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(admitted).toEqual(['s1']);
     await coordinator.dispose();
   });
 

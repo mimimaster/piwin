@@ -187,7 +187,9 @@ export function useMobileLive(input: {
         return;
       }
       if (push.type === 'voice/live-owner-action') {
-        void driverRef.current?.handleOwnerAction(push as LiveOwnerActionPush);
+        void driverRef.current?.handleOwnerAction(push as LiveOwnerActionPush).catch(() => {
+          void failAndClose('live-protocol-failed');
+        });
       }
     });
     const unsubscribeState = input.hostClient.subscribeState((state) => {

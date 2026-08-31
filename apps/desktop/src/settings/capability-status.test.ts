@@ -27,9 +27,22 @@ function liveRuntime(): SessionRuntimeStatus {
 }
 
 describe('resolveCapabilityStatuses', () => {
-  it('web search effective requires a ready source', () => {
+  it('packing default has Host web_search off until an external source is enabled', () => {
     const config = baseConfig();
     config.web = createDefaultWebConfig();
+    const statuses = resolveCapabilityStatuses({ config, runtimeStatus: liveRuntime() });
+    const web = statuses.find((item) => item.key === 'webSearch');
+    expect(web?.configured).toBe('off');
+    expect(web?.effective).toBe(false);
+  });
+
+  it('web search effective requires a ready source', () => {
+    const config = baseConfig();
+    config.web = {
+      ...createDefaultWebConfig(),
+      searchProvider: 'duckduckgo',
+      searchSources: [{ id: 'duckduckgo', kind: 'duckduckgo', enabled: true }],
+    };
     const statuses = resolveCapabilityStatuses({ config, runtimeStatus: liveRuntime() });
     const web = statuses.find((item) => item.key === 'webSearch');
     expect(web?.configured).toBe('on');

@@ -17,6 +17,7 @@ import {
 import { IconButton } from '@piwin/ui-kit';
 import { IconClose } from './shell-icons';
 import { MediaLightbox } from './MediaPreview';
+import { PreviewUnavailable } from './PreviewUnavailable';
 import { resolveMediaPreviewUrl } from './media-utils';
 import { mediaKindForPath } from './media-path';
 import { provenanceLabel, type ActiveDocumentMedia } from './active-document';
@@ -251,19 +252,12 @@ export function MediaDocPreview({
       <div className="doc-preview-container">
         <div className="doc-preview-body media-doc-body">
           {showUnavailable ? (
-            <div className="doc-preview-state" data-testid="media-doc-state-unavailable">
-              <p className="doc-preview-state-title">
-                {locale === 'zh-CN' ? '无法加载媒体' : 'Media unavailable'}
-              </p>
-              <p>
-                {locale === 'zh-CN' ? '引用' : 'Ref'}: <code>{displayRef || media.path}</code>
-              </p>
-              <p>
-                {locale === 'zh-CN'
-                  ? '该媒体文件当前无法读取（可能已被清理或不在本机媒体库中）。'
-                  : 'This media asset cannot be read right now (it may have been pruned, or lives on a remote host).'}
-              </p>
-            </div>
+            <PreviewUnavailable
+              reason="media-unavailable"
+              locale={locale}
+              fileName={fileLabel}
+              testId="media-doc-state-unavailable"
+            />
           ) : isVideo ? (
             <video
               className="media-doc-video"

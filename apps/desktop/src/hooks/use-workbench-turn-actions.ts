@@ -8,6 +8,8 @@ import type { ChatUiAction, ChatUiState } from '../chat-reducer';
 import type { HostClient } from '../host-client';
 import { isUnchangedCurrentTurnResend } from '../conversation-branch';
 import { pushError, type NotificationAction } from '../notification-queue';
+import { hostFailureNotice } from '../host-problem-copy.js';
+import { useDesktopLocale } from '../desktop-locale-context';
 
 export type UseWorkbenchTurnActionsArgs = {
   hostClient: HostClient;
@@ -31,6 +33,7 @@ export function useWorkbenchTurnActions(args: UseWorkbenchTurnActionsArgs) {
     branchResend,
     retryTurn,
   } = args;
+  const { locale } = useDesktopLocale();
 
   const handleCancelMessageEdit = useCallback((): void => {
     setEditingMessageId(null);
@@ -144,11 +147,11 @@ export function useWorkbenchTurnActions(args: UseWorkbenchTurnActionsArgs) {
       if (!response.success) {
         dispatchNotification({
           type: 'notify/push',
-          notification: { level: 'error', message: response.error },
+          notification: { level: 'error', message: hostFailureNotice(response, locale) },
         });
       }
     },
-    [hostClient, state.activeSessionId, sessionPlan, dispatchNotification],
+    [hostClient, locale, state.activeSessionId, sessionPlan, dispatchNotification],
   );
 
   const handlePlanAbort = useCallback(async (): Promise<void> => {

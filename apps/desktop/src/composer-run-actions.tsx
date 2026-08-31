@@ -2,9 +2,8 @@
  * Composer action slot: exactly one circular control.
  *
  * Idle Send → live Pause (`session/pause`) → paused Continue.
- * A new typed prompt while paused is Send (clears the checkpoint).
- * Never pair a second circle (no Send+Stop, Pause+Stop, Continue+Discard).
- * Irreversible abort is Esc / `stop-run`. Follow-up while live is Enter.
+ * A draft while paused uses ordinary Send; only empty Continue resumes.
+ * One circular control. Follow-up while live is Enter.
  */
 import type { ReactElement } from 'react';
 import { IconPause, IconRefresh, IconSend } from './shell-icons';

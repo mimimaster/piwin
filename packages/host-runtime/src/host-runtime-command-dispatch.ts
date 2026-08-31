@@ -12,6 +12,7 @@ import type {
 import { formatError } from '@piwin/contracts';
 
 import { fail, ok } from './response-helpers.js';
+import { handleHostListDir } from './commands/host-list-dir.js';
 import { projectActivitySummary } from './activity-summary.js';
 import { dispatchDomainCommands } from './commands/domain-command-dispatch.js';
 import { handleSessionLiveCommand } from './commands/session-live-commands.js';
@@ -125,6 +126,8 @@ export async function handleCommandWithTranscriptLease(
         return ok(requestId, 'host/ping', { pong: true });
       case 'host/status':
         return ok(requestId, 'host/status', deps.getStatus());
+      case 'host/list-dir':
+        return handleHostListDir(command, requestId);
       case 'activity/summary':
         return ok(
           requestId,

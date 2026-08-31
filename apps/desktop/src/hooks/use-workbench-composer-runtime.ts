@@ -125,6 +125,7 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     onOpenCardsPanel: handleOpenCardsPanel,
     onCompact: session.handleCompact,
     onAbort: session.handleAbort,
+    onResumeRun: session.handleResumeRun,
     ensureSession: session.ensureSession,
     onNeedWorkspace: session.handleOpenWorkspaceClick,
     selectedModelKey,

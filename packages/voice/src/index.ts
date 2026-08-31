@@ -67,6 +67,7 @@ export {
   openaiRealtimeOwnerBootstrap,
   tryMintOpenaiRealtimeClientSecret,
 } from './openai-realtime-adapter.js';
+export { createLiveDelegationReviewer } from './delegation-review.js';
 export {
   CodexLiveAdapter,
   CODEX_LIVE_VOICES,
