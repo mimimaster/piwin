@@ -71,4 +71,14 @@ describe('isLocalPathChipCandidate', () => {
     expect(isLocalPathChipCandidate('.svg')).toBe(true);
     expect(isLocalPathChipCandidate('.html')).toBe(true);
   });
+
+  it('does not chip source-file mentions as if they were deliverables', () => {
+    expect(isLocalPathChipCandidate('main.ts')).toBe(false);
+    expect(isLocalPathChipCandidate('README.md')).toBe(false);
+    expect(isLocalPathChipCandidate('.ts')).toBe(false);
+    expect(isLocalPathChipCandidate('.tsx')).toBe(false);
+    expect(isLocalPathChipCandidate('.md')).toBe(false);
+    expect(isLocalPathChipCandidate('src/utils.ts')).toBe(true);
+  });
 });
+
