@@ -417,16 +417,6 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     props.onSteer?.();
   }
 
-  function triggerFollowUp(): void {
-    const trimmed = props.composer.trim();
-    if (trimmed) {
-      pushHistoryEntry(trimmed);
-    }
-    setHistoryMenuOpen(false);
-    draftBeforeHistoryRef.current = '';
-    props.onFollowUp?.();
-  }
-
   function applyHistoryItem(text: string): void {
     props.onComposerChange(text);
     focusCaret(text.length);
