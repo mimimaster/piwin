@@ -60,7 +60,7 @@ export type UseComposerSendArgs = {
   sessionComposerSnapshotsRef: MutableRefObject<Map<string, SessionComposerSnapshot>>;
   // Drafts domain.
   upsertCurrentDraft: (text: string, scope: SessionScope) => void;
-  removeCurrentDraft: () => void;
+  removeCurrentDraft: (reason?: 'discard' | 'send') => void;
   skipDraftSaveRef: MutableRefObject<boolean>;
   preserveComposerOnSessionActivationRef: MutableRefObject<boolean>;
   draftTextRef: MutableRefObject<string>;
@@ -388,7 +388,7 @@ export function useComposerSend(params: UseComposerSendArgs) {
           skipDraftSaveRef.current = true;
           draftTextRef.current = '';
         }
-        removeCurrentDraft();
+        removeCurrentDraft('send');
         markAttachmentUploadStatus(
           deferredChips.map((item) => item.localId),
           'saving',
@@ -635,7 +635,7 @@ export function useComposerSend(params: UseComposerSendArgs) {
           skipDraftSaveRef.current = true;
           draftTextRef.current = '';
         }
-        removeCurrentDraft();
+        removeCurrentDraft('send');
       }
 
       let clientMessageId: string | null = null;

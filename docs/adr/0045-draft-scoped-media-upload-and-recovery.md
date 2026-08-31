@@ -191,6 +191,20 @@ JSON frame. Desktop uses `media/save-begin` / `media/save-chunk` /
 Host wire. One-shot `media/save` remains for small CLI/compat callers. Original
 screenshot bytes are stored; GIF first-frame rasterization is unchanged.
 
+### Compatibility-path correction (2026-08-31)
+
+Sending a New Agent draft used to call `removeCurrentDraft()` before
+`media/save`. That path disposed the draft snapshot, which deleted the
+retained source `File` still required by the send flow. Immediate
+paste-then-Send then surfaced `attachmentSourceMissing` ("附件已不可用") and
+never issued `media/save`.
+
+`removeCurrentDraft` now takes an explicit reason: `discard` (default) still
+releases local Files and object URLs; `send` only drops the draft row/snapshot
+and leaves send-held chips intact. Successful ACK, prompt-failure rollback,
+and explicit discard/remove keep using the existing disposal path. No staging
+protocol change.
+
 ### Known debt on the compatibility path (recorded 2026-08-13)
 
 - A `media/save` that succeeds and is then abandoned (chip removed, draft
