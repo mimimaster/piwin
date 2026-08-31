@@ -60,7 +60,11 @@ export function buildFlashcardTools(options: BuildFlashcardToolsOptions): HostTo
       descriptor: {
         name: 'flashcard_create',
         description:
-          'Create a flashcard item in the user card library. model is "basic" (front/back Q&A, default) or "cloze" (text with {{cN::answer}} markers). Conversation shows one structured flip card per item from the tool result; FSRS still schedules each cloze ordinal separately. Call flashcard_list first to avoid duplicates. When generating from a note, pass sourceNoteId and a short sourceExcerpt. When generating from a folder (RAG-sourced), pass sourceFolder, sourceFile, sourceLine, and sourceExcerpt. Do not emit HTML fences for the card.',
+          'Create a flashcard item in the user card library. ' +
+          'Models: "basic" (front/back Q&A) or "cloze" (text with {{c1::answer}} markers). ' +
+          'Call flashcard_list first to avoid duplicates. ' +
+          'Include sourceExcerpt and source reference (sourceNoteId for notes, or sourceFolder/sourceFile/sourceLine for folders) when deriving from documents. ' +
+          'Never emit markdown/HTML card fences; the client natively renders interactive flip cards from the tool result.',
         parameters: {
           type: 'object',
           properties: {
@@ -118,7 +122,11 @@ export function buildFlashcardTools(options: BuildFlashcardToolsOptions): HostTo
       descriptor: {
         name: 'flashcard_batch_create',
         description:
-          'Create multiple flashcard items in one call (preferred for batch generation). Each item may be model "basic" (front/back) or "cloze" (text with {{cN::answer}}). Call flashcard_list first to avoid duplicates. Each item may carry sourceFolder/sourceFile/sourceLine/sourceExcerpt for folder-sourced cards, or sourceNoteId/sourceExcerpt for note-sourced cards, or no source fields for open-knowledge cards. Returns { created, skipped, display }. Duplicates are skipped (not fatal) but skipped[].existing is the already-stored item and display still includes that physical card. Do not emit HTML fences for the cards.',
+          'Create multiple flashcard items in one call (preferred for batch generation). ' +
+          'Supports both "basic" (front/back) and "cloze" ({{c1::answer}}) models. ' +
+          'Call flashcard_list first to avoid duplicates. ' +
+          'Include source references (sourceExcerpt, sourceNoteId, or folder path/line) for RAG traceability. ' +
+          'Duplicates are gracefully skipped; never output markdown/HTML card fences.',
         parameters: {
           type: 'object',
           properties: {

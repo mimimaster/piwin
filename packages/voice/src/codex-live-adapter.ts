@@ -62,6 +62,57 @@ export function resolveCodexLiveVoice(value: string | undefined): CodexLiveVoice
   return CODEX_LIVE_VOICES.find((voice) => voice === normalized) ?? DEFAULT_CODEX_LIVE_VOICE;
 }
 
+export const CODEX_LIVE_INTELLIGENCES = ['instant', 'medium', 'high'] as const;
+export type CodexLiveIntelligence = (typeof CODEX_LIVE_INTELLIGENCES)[number];
+export const DEFAULT_CODEX_LIVE_INTELLIGENCE: CodexLiveIntelligence = 'medium';
+
+/**
+ * 2026-08-31: AVAS call-create returns 400
+ * `Unknown parameter: 'intelligence'`. Hide the setting and never send it.
+ */
+export const CODEX_LIVE_INTELLIGENCE_ENABLED = false;
+
+export function resolveCodexLiveIntelligence(
+  value: string | undefined,
+): CodexLiveIntelligence {
+  const normalized = value?.trim().toLowerCase();
+  return (
+    CODEX_LIVE_INTELLIGENCES.find((level) => level === normalized) ??
+    DEFAULT_CODEX_LIVE_INTELLIGENCE
+  );
+}
+
+export function buildCodexLiveCallBody(input: {
+  sdp: string;
+  instructions: string;
+  voice?: string;
+  intelligence?: string;
+}): {
+  sdp: string;
+  session: {
+    model: string;
+    instructions: string;
+    audio: { output: { voice: CodexLiveVoice } };
+    intelligence?: CodexLiveIntelligence;
+    delegation: { type: 'client'; ack_filler: true };
+  };
+} {
+  return {
+    sdp: input.sdp,
+    session: {
+      model: DEFAULT_MODEL,
+      instructions: input.instructions,
+      // The v3 Codex Live lane has its own voice catalog. Sending the
+      // older Realtime voice `alloy` returns a misleading HTTP 403.
+      audio: { output: { voice: resolveCodexLiveVoice(input.voice) } },
+      ...(CODEX_LIVE_INTELLIGENCE_ENABLED
+        ? { intelligence: resolveCodexLiveIntelligence(input.intelligence) }
+        : {}),
+      delegation: { type: 'client', ack_filler: true },
+    },
+  };
+}
+
 export class CodexLiveAdapter implements RealtimeVoiceAdapter {
   private readonly listeners = new Set<(event: RealtimeVoiceAdapterEvent) => void>();
   private closed = false;
@@ -90,21 +141,19 @@ export class CodexLiveAdapter implements RealtimeVoiceAdapter {
           accountId: input.accountId,
           sessionId: input.sessionId,
         }),
-        body: JSON.stringify({
-          sdp: input.sdpOffer,
-          session: {
-            model: DEFAULT_MODEL,
+        body: JSON.stringify(
+          buildCodexLiveCallBody({
+            sdp: input.sdpOffer,
             instructions: input.instructions,
-            // The v3 Codex Live lane has its own voice catalog. Sending the
-            // older Realtime voice `alloy` returns a misleading HTTP 403.
-            audio: { output: { voice: resolveCodexLiveVoice(input.voice) } },
-            delegation: { type: 'client', ack_filler: true },
-          },
-        }),
+            ...(input.voice ? { voice: input.voice } : {}),
+            ...(input.intelligence ? { intelligence: input.intelligence } : {}),
+          }),
+        ),
         signal: controller.signal,
       });
       if (response.status !== 201) {
-        await response.arrayBuffer().catch(() => undefined);
+        const raw = await response.text().catch(() => '');
+        console.error(`[piwin-live] codex createCall status=${response.status} ${redactLiveLog(raw)}`);
         const code = mapHttpStatusToLiveError(response.status);
         this.emit({ type: 'failed', errorCode: code });
         throw new Error(code);
@@ -177,4 +226,15 @@ function normalizeSdpLineEndings(sdp: string): string {
 
 function isLiveErrorCode(value: string): value is LiveCallErrorCode {
   return value.startsWith('live-');
+}
+
+/** Host toast says "check logs"; never print tokens or SDP. */
+export function redactLiveLog(raw: string): string {
+  return raw
+    .replace(/sk-[A-Za-z0-9._-]{8,}/g, 'sk-…')
+    .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, 'Bearer …')
+    .replace(/v=0[\s\S]{0,400}/g, '[sdp]')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 280);
 }

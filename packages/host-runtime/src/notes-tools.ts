@@ -108,7 +108,10 @@ function createNotesToolDefinitions(
       descriptor: {
         name: 'note_search',
         description:
-          'Search the user notes library (full-text, CJK-aware). Returns ranked hits with snippets. Use this to ground answers in the user notes (RAG).',
+          'Search the user personal notes library (hybrid full-text & semantic). ' +
+          'Returns ranked note hits with snippets, tags, and IDs. ' +
+          'RAG Grounding: Base answers strictly on returned snippets; cite Note Titles/IDs. ' +
+          'If information is missing, state not found without hallucinating.',
         parameters: {
           type: 'object',
           properties: {

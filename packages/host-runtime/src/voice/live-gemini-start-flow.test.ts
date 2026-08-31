@@ -70,7 +70,7 @@ describe('Gemini Live start without Codex', () => {
     const started = await coordinator.start({
       sessionId: 's1',
       providerId: 'google-gemini',
-      settingsRevision: 1,
+      settingsRevision: 3,
       idempotencyKey: 'gemini-no-codex',
       bootstrap: { mediaDriverId: 'gemini-live-v1beta' },
       ownerDeviceId: 'local',

@@ -163,6 +163,23 @@ describe('resolveConversationTurnChrome', () => {
     expect(chrome.showUsageOnIdentity).toBe(true);
   });
 
+  it('pins identity to the conclusion when earlier rows are tool-loop work', () => {
+    const process = assistant({
+      id: 'a-work',
+      text: 'I will fetch the page.',
+      tools: [{ toolCallId: 't1', toolName: 'web_fetch', status: 'done', output: 'ok' }],
+    });
+    const final = assistant({ id: 'a-final', text: 'Here is the page.' });
+    const chrome = resolveConversationTurnChrome({
+      messages: [process, final],
+      lastAssistantMessageId: 'a-final',
+      latestAssistantMessageId: 'a-final',
+    });
+
+    expect(chrome.identityMessageId).toBe('a-final');
+    expect(chrome.hiddenAssistantIds.size).toBe(0);
+  });
+
   it('keeps identity on the first visible completion when two replies both have text', () => {
     const first = assistant({ id: 'a-1', text: 'I will look that up.' });
     const second = assistant({ id: 'a-2', text: 'Done.' });

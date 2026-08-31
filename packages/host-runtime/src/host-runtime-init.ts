@@ -184,8 +184,20 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
       validatePromptAttachments: (input) => deps.validatePromptAttachments(input),
       admitPrompt: (command) =>
         handleSessionLiveCommand(command, command.id, deps.buildSessionLiveContext()).then(
-          (response) =>
-            response ?? fail(command.id, 'session/prompt', 'queued prompt was not handled'),
+          (response) => {
+            const data = (response?.success ? response.data : undefined) as { runId?: unknown } | undefined;
+            if (response?.success && typeof data?.runId === 'string' &&
+                command.input.source === 'voice-delegation' && command.input.voiceCallId &&
+                command.input.clientMessageId) {
+              deps.liveCallCoordinator?.bindQueuedDelegationRun({
+                callId: command.input.voiceCallId,
+                sessionId: command.sessionId,
+                messageId: command.input.clientMessageId,
+                runId: data.runId,
+              });
+            }
+            return response ?? fail(command.id, 'session/prompt', 'queued prompt was not handled');
+          },
         ),
       push: (message) => deps.push(message),
     });

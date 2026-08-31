@@ -25,7 +25,7 @@ function assistant(partial: Partial<ChatMessageUi> & Pick<ChatMessageUi, 'id'>):
 }
 
 describe('assistantTextRole', () => {
-  it('treats tool-loop captions as process, not a reply', () => {
+  it('treats same-message work-tool text as process for fold, not as missing body', () => {
     const message = assistant({
       id: 'loop',
       text: '空框就是中间轮次的复制/再生成栏。接下来核对 transcript。',

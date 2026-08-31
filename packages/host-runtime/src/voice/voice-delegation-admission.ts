@@ -4,6 +4,7 @@
 
 import {
   LIVE_DELEGATION_INSTRUCTION_MAX_BYTES,
+  compressLiveDelegationInstruction,
 } from '@piwin/contracts';
 import type {
   LiveDelegationAdmissionPort,
@@ -43,7 +44,7 @@ export function createVoiceDelegationAdmission(input: {
       if (pending) return pending;
 
       const work = (async (): Promise<LiveDelegationAdmissionResult> => {
-        const instruction = request.instruction.trim();
+        const instruction = compressLiveDelegationInstruction(request.instruction);
         const reject = (): LiveDelegationAdmissionResult => ({
           status: 'rejected',
           reason: 'live-delegation-rejected',

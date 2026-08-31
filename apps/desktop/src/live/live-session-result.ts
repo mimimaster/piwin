@@ -43,7 +43,10 @@ export function canFeedLiveSessionResult(input: {
   activity: string | undefined;
   sessionStreaming: boolean;
   assistant: LiveSessionAssistant | null;
+  viewedSessionId?: string | null;
+  boundSessionId?: string | null;
 }): boolean {
+  if (input.boundSessionId && input.viewedSessionId !== input.boundSessionId) return false;
   if (input.activity !== 'agent-working') return false;
   if (input.sessionStreaming) return false;
   if (!input.assistant?.text.trim()) return false;

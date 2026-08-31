@@ -1,13 +1,15 @@
 /**
  * Conversation turn chrome: one identity header per user turn, not per
- * model completion. Tool-loop assistant rows stay in the transcript and
- * Conversation paints their tools (search, fetch, artifact, toolbox).
+ * model completion. Tool-loop rows stay in the transcript; after a
+ * conclusion they fold behind work disclosure. Identity follows the
+ * conclusion when one exists.
  */
 import { isFlashcardCreateToolName } from '@piwin/contracts';
+import { assistantHasWorkTools } from './assistant-text-role.js';
 import type { ChatMessageUi, ToolCardUi } from './chat-reducer';
 
 export type ConversationTurnChrome = {
-  /** First assistant row Conversation will actually paint; owns the identity header. */
+  /** Assistant row that owns the identity header (conclusion, else first visible). */
   identityMessageId: string | null;
   hiddenAssistantIds: ReadonlySet<string>;
   /** Turn usage belongs on the identity header of the session's latest turn. */
@@ -15,10 +17,9 @@ export type ConversationTurnChrome = {
 };
 
 /**
- * Content Conversation paints besides thinking / identity. Tool-loop captions
- * still leave the row visible because the tools themselves count; the caption
- * is not a reply (see assistantTextRole). Conversation's model-visible surface
- * is small (search, fetch, artifact instructions, toolbox).
+ * Content Conversation paints besides thinking / identity. Process markdown
+ * and tools both count as visible body; the settled conclusion is a later
+ * row without work tools.
  */
 export function conversationAssistantHasVisibleBody(message: ChatMessageUi): boolean {
   if (message.text.trim().length > 0) {
@@ -75,13 +76,25 @@ function toolNameLooksLikeFlashcard(tool: ToolCardUi): boolean {
   );
 }
 
+function assistantLooksLikeConclusion(message: ChatMessageUi): boolean {
+  return (
+    message.role === 'assistant' &&
+    message.status !== 'streaming' &&
+    message.error === undefined &&
+    !assistantHasWorkTools(message) &&
+    conversationAssistantHasVisibleBody(message)
+  );
+}
+
 export function resolveConversationTurnChrome(input: {
   messages: readonly ChatMessageUi[];
   lastAssistantMessageId: string | null;
   latestAssistantMessageId: string | null;
 }): ConversationTurnChrome {
   const hiddenAssistantIds = new Set<string>();
-  let identityMessageId: string | null = null;
+  let firstVisibleId: string | null = null;
+  let conclusionId: string | null = null;
+  let sawProcessPrefix = false;
   const lastAssistantMessageId = input.lastAssistantMessageId;
   const lastAssistant = lastAssistantMessageId
     ? input.messages.find((message) => message.id === lastAssistantMessageId)
@@ -104,13 +117,19 @@ export function resolveConversationTurnChrome(input: {
       hiddenAssistantIds.add(message.id);
       continue;
     }
-    if (identityMessageId === null) {
-      identityMessageId = message.id;
+    if (firstVisibleId === null) {
+      firstVisibleId = message.id;
+    }
+    if (assistantHasWorkTools(message)) {
+      sawProcessPrefix = true;
+    } else if (assistantLooksLikeConclusion(message)) {
+      conclusionId = message.id;
     }
   }
 
   return {
-    identityMessageId,
+    identityMessageId:
+      sawProcessPrefix && conclusionId !== null ? conclusionId : firstVisibleId,
     hiddenAssistantIds,
     showUsageOnIdentity,
   };

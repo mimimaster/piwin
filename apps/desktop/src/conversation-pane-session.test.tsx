@@ -128,6 +128,14 @@ class FakeHostClient {
     if (command.type === 'session/abort') {
       return Promise.resolve({ type: 'response', command: command.type, success: true, data: {} });
     }
+    if (command.type === 'session/steer') {
+      return Promise.resolve({
+        type: 'response',
+        command: command.type,
+        success: true,
+        data: { sessionId: command.sessionId, runId: this.run?.runId ?? 'run-steer' },
+      });
+    }
     return Promise.resolve({
       type: 'response',
       command: command.type,
@@ -241,6 +249,48 @@ describe('ConversationPaneSession', () => {
         ).toBe(true),
       );
     });
+  });
+
+  it('steers the foreground run when sending during a stream', async () => {
+    const host = new FakeHostClient();
+    host.run = {
+      runId: 'run-active',
+      kind: 'session-turn',
+      status: 'running',
+      rootRunId: 'run-active',
+      sessionId: 'session-aux',
+    };
+    ({ container, root } = renderSession(host));
+    await vi.waitFor(() =>
+      expect(container?.querySelector('[aria-label="Stop response"]')).not.toBeNull(),
+    );
+    const textarea = container?.querySelector<HTMLTextAreaElement>('textarea');
+    if (!textarea) throw new Error('pane composer missing');
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+      if (!setter) throw new Error('textarea value setter missing');
+      setter.call(textarea, '改成先搜资料');
+      textarea.dispatchEvent(new InputEvent('input', { bubbles: true }));
+    });
+    await vi.waitFor(() =>
+      expect(container?.querySelector('[aria-label="Steer current run"]')).not.toBeNull(),
+    );
+    act(() => {
+      textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    await act(async () => {
+      await vi.waitFor(() =>
+        expect(
+          host.requests.some(
+            (command) =>
+              command.type === 'session/steer' &&
+              command.sessionId === 'session-aux' &&
+              command.message === '改成先搜资料',
+          ),
+        ).toBe(true),
+      );
+    });
+    expect(host.requests.some((command) => command.type === 'session/prompt')).toBe(false);
   });
 
   it('stops the exact foreground run owned by this pane', async () => {

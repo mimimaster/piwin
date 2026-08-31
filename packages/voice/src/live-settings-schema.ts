@@ -3,10 +3,15 @@ import {
   validateLiveSettingFields,
   type LiveSettingField,
 } from '@piwin/contracts';
-import { CODEX_LIVE_VOICES, DEFAULT_CODEX_LIVE_VOICE } from './codex-live-adapter.js';
+import {
+  CODEX_LIVE_INTELLIGENCE_ENABLED,
+  CODEX_LIVE_INTELLIGENCES,
+  CODEX_LIVE_VOICES,
+  DEFAULT_CODEX_LIVE_INTELLIGENCE,
+  DEFAULT_CODEX_LIVE_VOICE,
+} from './codex-live-adapter.js';
 
-/** WP1 wire probe is not done. Hide Instant/Medium/High until evidence lands. */
-export const CODEX_LIVE_INTELLIGENCE_ENABLED = false;
+export { CODEX_LIVE_INTELLIGENCE_ENABLED };
 
 export function codexLiveSettingFields(): LiveSettingField[] {
   const fields: LiveSettingField[] = [
@@ -28,12 +33,11 @@ export function codexLiveSettingFields(): LiveSettingField[] {
       control: 'select',
       label: 'Intelligence',
       required: false,
-      defaultValue: 'medium',
-      options: [
-        { value: 'instant', label: 'Instant' },
-        { value: 'medium', label: 'Medium' },
-        { value: 'high', label: 'High' },
-      ],
+      defaultValue: DEFAULT_CODEX_LIVE_INTELLIGENCE,
+      options: CODEX_LIVE_INTELLIGENCES.map((level) => ({
+        value: level,
+        label: level.slice(0, 1).toUpperCase() + level.slice(1),
+      })),
     });
   }
   const valid = validateLiveSettingFields(fields);

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  sanitizeLiveSpeakableResult,
   type HostServerMessage,
   type LiveCallView,
   type LiveOwnerEvent,
@@ -20,10 +19,7 @@ import {
 import { createDesktopLiveMediaRegistry } from './media/create-live-media-registry.js';
 import type { DesktopLiveMediaDriver } from './media/live-media-driver.js';
 import { LivePeerStartError, type LivePeer, type LivePeerSnapshot } from './live-peer.js';
-import {
-  canFeedLiveSessionResult,
-  type LiveSessionAssistant,
-} from './live-session-result.js';
+import type { LiveSessionAssistant } from './live-session-result.js';
 
 export {
   canStartLive,
@@ -56,7 +52,7 @@ export function useLiveCall(input: {
   lastAssistant?: LiveSessionAssistant | null;
   /** Test seam; production owns one browser WebRTC peer per mounted controller. */
   createPeer?: () => LivePeer;
-  /** Called after Live is torn down because it failed. Do not keep a red bar. */
+  /** Called after media is released; the error remains available for retry. */
   onFail?: (error: string) => void;
 }): LiveCallController {
   const [status, setStatus] = useState<LiveStatusData | null>(null);
@@ -74,10 +70,12 @@ export function useLiveCall(input: {
   const userEndedRef = useRef(false);
   const endChainRef = useRef(Promise.resolve());
   const sessionIdRef = useRef(input.sessionId);
-  sessionIdRef.current = input.sessionId;
   const sessionId = input.sessionId;
-  const lastDelegationIdRef = useRef<string | null>(null);
-  const fedResultKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (callRef.current || startingRef.current) return;
+    sessionIdRef.current = input.sessionId;
+  }, [input.sessionId]);
+  const startAbortRef = useRef<AbortController | null>(null);
 
   const rejectIncomingCall = useCallback(
     (call: LiveCallView): void => {
@@ -104,10 +102,12 @@ export function useLiveCall(input: {
     async (code: string): Promise<void> => {
       if (userEndedRef.current || failCloseInFlightRef.current) return;
       failCloseInFlightRef.current = true;
+      const wasStarting = startingRef.current;
+      startAbortRef.current?.abort();
       startEpochRef.current += 1;
       startingRef.current = false;
       setStarting(false);
-      setError(null);
+      setError(code);
       const call = callRef.current;
       callRef.current = null;
       setStatus((current) => ({
@@ -117,13 +117,12 @@ export function useLiveCall(input: {
       }));
       try {
         await driverRef.current?.close();
-        if (call) {
+        if (call || wasStarting) {
           await input.hostClient
             .request({
               type: 'voice/live/end',
               input: {
-                callId: call.callId,
-                expectedRevision: call.revision,
+                ...(call ? { callId: call.callId, expectedRevision: call.revision } : {}),
                 reason: 'error',
               },
             })
@@ -209,16 +208,18 @@ export function useLiveCall(input: {
         return;
       }
       if (message.type === 'voice/live-owner-action') {
+        if (message.callId !== callRef.current?.callId) return;
         if (message.action === 'release-media' && startingRef.current) {
           return;
         }
-        if (message.action === 'ack-delegation' && message.providerDelegationId) {
-          lastDelegationIdRef.current = message.providerDelegationId;
-        }
-        void driverRef.current?.handleOwnerAction(message);
+        void driverRef.current?.handleOwnerAction(message).catch(() => {
+          void failAndCloseRef.current('live-protocol-failed');
+        });
       }
     });
     return () => {
+      startEpochRef.current += 1;
+      startAbortRef.current?.abort();
       unsubscribe();
       unsubscribePeerRef.current?.();
       unsubscribePeerRef.current = null;
@@ -245,50 +246,6 @@ export function useLiveCall(input: {
     [input.hostClient],
   );
 
-  useEffect(() => {
-    const call = status?.call ?? callRef.current;
-    const activity = call?.activity;
-    if (
-      !canFeedLiveSessionResult({
-        activity,
-        sessionStreaming: input.sessionStreaming === true,
-        assistant: input.lastAssistant ?? null,
-      })
-    ) {
-      return;
-    }
-    const assistant = input.lastAssistant;
-    if (!assistant || !call) return;
-    const key = `${call.callId}:${assistant.messageId}`;
-    if (fedResultKeyRef.current === key) return;
-    fedResultKeyRef.current = key;
-    const content = sanitizeLiveSpeakableResult({
-      assistantText: assistant.text,
-      completed: assistant.done,
-    });
-    const delegationId = lastDelegationIdRef.current;
-    driverRef.current?.appendContext({
-      target: 'session',
-      channel: 'speakable',
-      content,
-    });
-    if (delegationId) {
-      driverRef.current?.appendContext({
-        target: 'delegation',
-        channel: 'speakable',
-        content,
-        providerDelegationId: delegationId,
-      });
-    }
-    callRef.current = { ...call, activity: 'listening' };
-    setStatus((current) => ({
-      ...emptyLiveStatus(current),
-      ready: current?.ready ?? true,
-      missing: current?.missing ?? [],
-      call: callRef.current,
-    }));
-    void reportEvent({ type: 'activity', activity: 'listening' });
-  }, [input.lastAssistant, input.sessionStreaming, reportEvent, status?.call]);
 
   const start = useCallback(async () => {
     await endChainRef.current.catch(() => undefined);
@@ -298,6 +255,8 @@ export function useLiveCall(input: {
     startingRef.current = true;
     setStarting(true);
     setError(null);
+    let providerId = statusRef.current?.selectedProviderId ?? '';
+    try {
     let sessionId = sessionIdRef.current;
     if (!sessionId && input.ensureSession) {
       sessionId = await input.ensureSession();
@@ -340,6 +299,7 @@ export function useLiveCall(input: {
       return;
     }
     const idempotencyKey = `live-${sessionId}-${Date.now().toString(36)}`;
+    providerId = channel.providerId;
     const driverId = channel.mediaDriverId;
     const registry = createDesktopLiveMediaRegistry(
       input.createPeer ? { createPeer: input.createPeer } : {},
@@ -359,7 +319,7 @@ export function useLiveCall(input: {
     });
     driverRef.current = driver;
     const startAbort = new AbortController();
-    try {
+    startAbortRef.current = startAbort;
       const clientBootstrap = await driver.prepareStart();
       if (epoch !== startEpochRef.current) return;
       const response = await input.hostClient.request({
@@ -396,7 +356,7 @@ export function useLiveCall(input: {
             ? caught.message
             : 'live-protocol-failed';
       const message =
-        raw === 'live-provider-auth' ? liveProviderAuthError(channel.providerId) : raw;
+        raw === 'live-provider-auth' ? liveProviderAuthError(providerId) : raw;
       await failAndCloseRef.current(message);
     } finally {
       if (epoch === startEpochRef.current) {
@@ -429,10 +389,12 @@ export function useLiveCall(input: {
     await previous.catch(() => undefined);
     try {
       const wasStarting = startingRef.current;
+      startAbortRef.current?.abort();
       startEpochRef.current += 1;
       userEndedRef.current = true;
       startingRef.current = false;
       setStarting(false);
+      setError(null);
       const call = callRef.current;
       callRef.current = null;
       setStatus((current) => emptyLiveStatus(current));
@@ -487,5 +449,5 @@ export function useLiveCall(input: {
 }
 
 function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === 'AbortError';
+  return error instanceof Error && error.name === 'AbortError';
 }

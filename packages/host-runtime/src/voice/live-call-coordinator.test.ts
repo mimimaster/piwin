@@ -294,6 +294,8 @@ describe('LiveCallCoordinator', () => {
     });
     const spoken = ownerActions.find((action) => action.action === 'append-context');
     expect(spoken?.content).toContain('洛杉矶今天晴');
+    expect(spoken?.content).toContain('Continue from your last spoken line');
+    expect(spoken?.content).not.toMatch(/The work session finished/i);
     expect(spoken?.content).not.toMatch(/token|sdp/i);
     expect(coordinator.status(STATUS).call?.activity).toBe('listening');
     await coordinator.dispose();

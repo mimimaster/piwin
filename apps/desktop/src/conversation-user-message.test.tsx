@@ -115,17 +115,20 @@ describe('UserMessageContent context chips', () => {
     expect(footer?.querySelector('[data-testid="message-edit-btn"]')).not.toBeNull();
   });
 
-  it('labels a voice-delegation user turn', () => {
+  it('renders a voice handover as a task card instead of a typed bubble', () => {
     render(
       <UserMessageContent
-        message={{ ...message, source: 'voice-delegation', voiceCallId: 'live_1' }}
+        message={{ ...message, source: 'voice-delegation', voiceCallId: 'live_1', text: '搜索近期资料' }}
         onRetry={vi.fn()}
         locale="zh-CN"
         isConversationSession={true}
       />,
     );
+    expect(container?.querySelector('[data-testid="voice-handover-card"]')).not.toBeNull();
     expect(container?.querySelector('[data-testid="user-message-voice-delegation"]')?.textContent).toBe(
       '语音委派',
     );
+    expect(container?.querySelector('.voice-handover-card-brief')?.textContent).toBe('搜索近期资料');
+    expect(container?.querySelector('[data-testid="user-message-avatar"]')).toBeNull();
   });
 });

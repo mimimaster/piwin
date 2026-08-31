@@ -13,6 +13,17 @@ describe('resolveCliChatPrompt', () => {
     });
   });
 
+  it('maps optimize-prompt and its aliases to structured optimize-prompt skill intent', () => {
+    expect(resolveCliChatPrompt('/optimize-prompt refine my tool')).toMatchObject({
+      skillId: 'optimize-prompt',
+      text: expect.stringContaining('[piwin-skill:optimize-prompt]'),
+    });
+    expect(resolveCliChatPrompt('/prompt-optimize refine my tool')).toMatchObject({
+      skillId: 'optimize-prompt',
+      text: expect.stringContaining('refine my tool'),
+    });
+  });
+
   it('keeps ordinary messages unchanged', () => {
     expect(resolveCliChatPrompt('explain this code')).toEqual({ text: 'explain this code' });
   });

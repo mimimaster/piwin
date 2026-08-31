@@ -976,10 +976,11 @@ describe('ChatThread render isolation (E1)', () => {
     const writeRow = container.querySelector('#msg-a-run-write');
     const finalRow = container.querySelector('#msg-a-run-final');
     expect(firstRow?.textContent).toContain('inspect the existing files');
-    expect(firstRow?.querySelector('.markdown')).toBeNull();
-    expect(firstRow?.textContent).not.toContain('I will inspect the workspace.');
+    expect(firstRow?.querySelector('.markdown')?.textContent).toContain(
+      'I will inspect the workspace.',
+    );
     expect(thinkingRow?.textContent).toContain('prepare a new drawing');
-    expect(writeRow?.querySelector('.markdown')).toBeNull();
+    expect(writeRow?.querySelector('.markdown')?.textContent).toContain('Saving the SVG.');
     expect(finalRow?.textContent).toContain('The SVG is ready.');
     expect(container.querySelectorAll('[data-testid="tool-call-card"]')).toHaveLength(2);
     expect(container.querySelector('[data-testid="activity-call-chain-summary"]')).toBeNull();
@@ -2144,10 +2145,9 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
     expect(container.querySelector('[data-testid="conversation-response"]')).not.toBeNull();
     expect(container.textContent).toContain('Here is the answer.');
     expect(container.textContent).not.toContain('我先去搜索相关资料。');
-    expect(container.querySelector('#msg-a-chat-search .markdown')).toBeNull();
+    expect(container.querySelector('#msg-a-chat-search')).toBeNull();
     expect(container.querySelector('[data-testid="turn-work-details"]')).toBeNull();
-    expect(container.querySelector('[data-testid="turn-tool-group"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="tool-call-card"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="turn-work-disclosure"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="turn-thinking"]')).toBeNull();
     expect(container.querySelector('[data-testid="agent-locator"]')).toBeNull();
     expect(container.querySelector('[data-testid="files-changed-bar"]')).toBeNull();
@@ -2155,6 +2155,17 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
     expect(container.querySelector('[data-testid="assembly-summary-capsule"]')).toBeNull();
     expect(container.textContent).toContain('Example');
     expect(searchCall.tools).toHaveLength(1);
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="turn-work-disclosure-trigger"]')
+        ?.click();
+    });
+    expect(container.querySelector('#msg-a-chat-search .markdown')?.textContent).toContain(
+      '我先去搜索相关资料。',
+    );
+    expect(container.querySelector('[data-testid="turn-tool-group"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="tool-call-card"]')).not.toBeNull();
   });
 
   it('renders thinking in conversation mode and keeps generation progress', () => {
@@ -2212,11 +2223,11 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
     };
     renderConversation([userMessage, firstCall, finalReply]);
 
-    expect(container.querySelector('#msg-a-fetch-think')).not.toBeNull();
+    expect(container.querySelector('#msg-a-fetch-think')).toBeNull();
     expect(container.querySelector('#msg-a-fetch-final')).not.toBeNull();
     expect(container.querySelectorAll('[data-testid="conversation-message-header"]')).toHaveLength(1);
     expect(
-      container.querySelector('#msg-a-fetch-think [data-testid="conversation-message-model-name"]')
+      container.querySelector('#msg-a-fetch-final [data-testid="conversation-message-model-name"]')
         ?.textContent,
     ).toBe('glm5.2');
   });
@@ -2247,10 +2258,10 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
     renderConversation([userMessage, firstCallNoModel, finalReplyWithModel]);
 
     expect(
-      container.querySelector('#msg-a-fetch-think-nomodel [data-testid="conversation-message-header"]'),
+      container.querySelector('#msg-a-fetch-final-withmodel [data-testid="conversation-message-header"]'),
     ).not.toBeNull();
     expect(
-      container.querySelector('#msg-a-fetch-think-nomodel [data-testid="conversation-message-model-name"]')
+      container.querySelector('#msg-a-fetch-final-withmodel [data-testid="conversation-message-model-name"]')
         ?.textContent,
     ).toBe('gemini-3.7-flash');
   });
@@ -2286,10 +2297,10 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
     });
 
     expect(
-      container.querySelector('#msg-a-tool-call [data-testid="conversation-message-header"]'),
+      container.querySelector('#msg-a-tool-reply [data-testid="conversation-message-header"]'),
     ).not.toBeNull();
     expect(
-      container.querySelector('#msg-a-tool-call [data-testid="conversation-message-model-name"]')
+      container.querySelector('#msg-a-tool-reply [data-testid="conversation-message-model-name"]')
         ?.textContent,
     ).toBe('gemini-3.7-flash');
   });

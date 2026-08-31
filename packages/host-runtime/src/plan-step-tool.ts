@@ -33,8 +33,9 @@ export function createPlanStepTool(options: PlanStepToolOptions): HostToolRegist
     descriptor: {
       name: 'piwin_plan_set_step',
       description:
-        'Update plan step status (pending|active|done|skipped). ' +
-        'Mark done only when acceptance criteria are met; put verification evidence in note.',
+        'Update execution status of a plan step (pending | active | done | skipped). ' +
+        'Mark done ONLY after verifying concrete evidence (test/build passing). ' +
+        'Document empirical verification results in note.',
       parameters: {
         type: 'object',
         properties: {

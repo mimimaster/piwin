@@ -7,7 +7,7 @@ import {
   buildDelegationAckPayload,
   parseLiveChannelMessage,
 } from './normalize-live-channel.js';
-import type { LiveOwnerEvent } from '@piwin/contracts';
+import { waitForLiveMediaReady, type LiveOwnerEvent } from '@piwin/contracts';
 
 export type LivePeerPhase = 'idle' | 'acquiring-mic' | 'negotiating' | 'connected' | 'ended' | 'error';
 
@@ -106,6 +106,23 @@ export class LivePeer {
       const { answerSdp } = await input.negotiate(offerSdp, signal);
       if (signal.aborted) throw new DOMException('aborted', 'AbortError');
       await this.peer.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+      const peer = this.peer;
+      const channel = this.channel;
+      await waitForLiveMediaReady({
+        signal,
+        read: () => peer.connectionState === 'failed' || peer.connectionState === 'closed' || channel.readyState === 'closed'
+          ? 'failed' : peer.connectionState === 'connected' && channel.readyState === 'open' ? 'ready' : 'pending',
+        subscribe: (listener) => {
+          peer.addEventListener('connectionstatechange', listener);
+          channel.addEventListener('open', listener);
+          channel.addEventListener('close', listener);
+          return () => {
+            peer.removeEventListener('connectionstatechange', listener);
+            channel.removeEventListener('open', listener);
+            channel.removeEventListener('close', listener);
+          };
+        },
+      });
       this.setPhase('connected');
     } catch (error: unknown) {
       // Host/create failures must outrank a cleanup abort. A failed start can
@@ -116,7 +133,10 @@ export class LivePeer {
         await this.stopInternal();
         throw error;
       }
-      if (signal.aborted || isAbortError(error)) throw new DOMException('aborted', 'AbortError');
+      if (signal.aborted || isAbortError(error)) {
+        await this.stopInternal();
+        throw new DOMException('aborted', 'AbortError');
+      }
       const code = mapStartError(error);
       this.fail(code);
       await this.stopInternal();
@@ -235,7 +255,7 @@ export class LivePeer {
 }
 
 function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === 'AbortError';
+  return error instanceof Error && error.name === 'AbortError';
 }
 
 /** Host `live-*` codes and peer start errors survive cleanup abort. */

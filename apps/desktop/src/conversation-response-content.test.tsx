@@ -283,8 +283,9 @@ describe('ConversationResponseContent', () => {
 
     expect(container.querySelector('[data-testid="turn-tool-group"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="tool-call-card"]')).not.toBeNull();
-    expect(container.querySelector('.markdown')).toBeNull();
-    expect(container.textContent).not.toContain('一只大嘴鹈鹕正在海边骑巡航车。');
+    expect(container.querySelector('.markdown')?.textContent).toContain(
+      '一只大嘴鹈鹕正在海边骑巡航车。',
+    );
   });
 
   it('collapses completed reasoning so history stays compact', () => {

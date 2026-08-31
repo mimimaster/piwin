@@ -1,5 +1,7 @@
 # 产品规格 — piwin Live（会话内实时语音工作）
 
+2026-08-31：[稳定性修订](./2026-08-31-live-reliability.md) 已落地，包含当前适配器 HTTP 201 / 原生 connected 证据；真实设备说听验收与 Limited Beta 门禁不以此替代。
+
 | 字段 | 值 |
 |------|----|
 | 状态 | **Dogfood implementation — call-create 201 与 SDP 兼容修复已验证，Desktop/Mobile 音频端到端验收进行中** |
@@ -10,6 +12,7 @@
 | 执行计划 | [2026-08-28-piwin-live-execution-plan.md](../plans/2026-08-28-piwin-live-execution-plan.md) |
 | 相关能力 | [Pi-native subscription OAuth](./2026-08-28-subscription-oauth.md) · [multi-client concurrency](./multi-client-concurrency.md) |
 | 参考实现 | `@howaboua/pi-codex-conversion` voice 路径（鉴权与 call 形态证据，不是可直接粘贴的产品代码） |
+| 语言模型分层 | [2026-08-31-live-language-layers.md](./2026-08-31-live-language-layers.md)（说话面 / 交接 / 手 / 回传） |
 
 渠道、设置、建连材料与 Provider 结构以 [2026-08-29-live-provider-adapter.md](./2026-08-29-live-provider-adapter.md) 为准。会话准入、失败自关、声音由电脑直连上游，仍以本文为准。
 
@@ -48,7 +51,7 @@
 ### 0.3 仍保留的正确约束
 
 - 对外名 **piwin Live**，不声称官方 Codex/ChatGPT Live 产品。
-- 忙会话默认排队；挂断不误杀已接纳 Agent Run。
+- 忙会话默认 **steer** 当前 Run；明确停止才 abort。挂断不误杀已接纳 Agent Run。
 - 可浏览其他会话，不可静默改绑。
 - 无关键词委派；必须等 Host 接纳回执后才能口头宣称已交付。
 - Desktop WebRTC 优先；Host **不**默认中继 PCM（GipPity 式中继不是 MVP）。
@@ -88,14 +91,14 @@ ChatGPT `backend-api/codex` Live（`quicksilver` / `avas` / `gpt-live-1-codex`�
 
 ### 1.4 可验收承诺
 
-已登录 openai-codex 且 Live 开关打开时，Desktop 或已配对 Mobile 用户可以：
+当前渠道的登录/密钥与设置就绪时，Desktop 或已配对 Mobile 用户可以（不另设 Live 开关）：
 
 1. 在现有工作会话开始实时语音，听回复并可打断。
 2. 静音 / 取消静音 / 挂断；键盘与读屏可用。
 3. 明确工作指令经 Live 委派协议进入绑定会话，显示「语音委派」用户轮。
 4. 该轮走现有 Run / 队列 / 权限；Voice 无旁路权限。
 5. 通话中浏览其他会话，Live 条始终显示绑定目标。
-6. 失败时知道缺登录、关开关、麦权限、协议失败等，并有明确恢复动作。
+6. 失败时知道缺登录、麦权限、协议失败等，并有明确恢复动作。
 
 ---
 
@@ -103,7 +106,7 @@ ChatGPT `backend-api/codex` Live（`quicksilver` / `avas` / `gpt-live-1-codex`�
 
 ```mermaid
 flowchart LR
-  A[① 套餐登录 + Live 开关] --> B[② 设备通话]
+  A[① 当前渠道凭据就绪] --> B[② 设备通话]
   B --> C[③ 协议委派]
   C --> D[④ 现有工作会话]
   D --> E[⑤ 结果与恢复]
@@ -112,7 +115,7 @@ flowchart LR
 
 | 模块 | 用户看到什么 | 权威 |
 |------|--------------|------|
-| ① 资格 | Accounts 登录状态、Live 开关、音色、麦克风测试 | Host：subscription OAuth + Live settings |
+| ① 资格 | 当前渠道凭据、音色、麦克风能力 | Host：Provider registry + Live settings |
 | ② 通话 | 连接 / 聆听 / 说话 / 静音 / 挂断 | Host Call + owner shell 媒体 |
 | ③ 委派 | 「已交给当前会话」或可恢复失败 | Host admission（协议事件 → 会话） |
 | ④ 工作会话 | 用户轮、工具卡、权限、结果 | 现有 Session / Run / Permission |
@@ -125,7 +128,7 @@ flowchart LR
 3. 口头「已交给 Agent」只能在 Host 回执之后。
 4. 同一 `~/.piwin` Host 同时最多一个活动 Live call（MVP）。
 5. 原始音频、SDP、access token 不进 transcript / 日志 / HostPush journal / 配置。
-6. 忙会话默认**排队**；不自动中断当前 Run。
+6. 忙会话默认 **steer** 当前 Run（语音接管方向）。只有 Live 交出 `STOP_CURRENT_RUN` 才 abort。挂断仍不取消已接纳 Run。ASR 标签/纯语气词委派直接拒绝，不写用户轮。
 7. Voice 不得 `bypass`、替用户点允许或调 MCP。
 8. Host 重启、logout、绑定会话失效、owner 超时 → 结束通话并释放麦克风。
 
@@ -175,15 +178,15 @@ ready =
 ### 4.1 首次配置
 
 1. Settings → **Accounts**：完成 `openai-codex` 登录（复用现有 OAuth，不新建第二套登录）。
-2. Settings → **Voice / Live**（或 Models → Speech 下的 Live 分区）：打开「piwin Live（Beta）」，可选音色，测试麦克风（本地回放，不上传）。
-3. Composer Live 入口变为可用（未 ready 时可点开缺项：未登录 / 未开开关 / 无会话 / 无麦）。
+2. Settings → **Voice / Live**（或 Models → Speech 下的 Live 分区）：选择已准备凭据的渠道和音色，没有额外启用开关。
+3. Composer Live 入口变为可用（未 ready 时说明缺项：凭据 / 设置 / 会话 / 媒体能力）。
 
 ### 4.2 一次完整通话
 
 ```mermaid
 flowchart TB
   A[在工作会话点 Live] --> B{Host ready?}
-  B -->|否| C[缺项：登录 / 开关 / 麦 / 会话]
+  B -->|否| C[缺项：凭据 / 设置 / 麦 / 会话]
   B -->|是| D[申请麦克风并创建 call]
   D --> E[连接中]
   E -->|成功| F[Active]
@@ -192,7 +195,7 @@ flowchart TB
   H -->|否| F
   H -->|是| I[Host 校验 call/owner/session/幂等]
   I -->|空闲| J[写入语音委派用户轮并 Run]
-  I -->|忙| K[可见排队轮]
+  I -->|忙| K[steer 当前 Run；失败再排队]
   I -->|拒绝| L[口头说明 + 恢复动作]
   J --> M[现有工具与权限]
   K --> M
@@ -206,6 +209,7 @@ flowchart TB
 - 可切换会话/面板；全局 Live 条显示绑定会话。
 - 其它会话的 Live 按钮显示「正在另一会话通话」。
 - 无「改绑」；须挂断后在目标会话重开。
+- 任务进行中仍可继续说/打字：默认 steer 当前 Run，不必先停。
 
 ### 4.4 权限
 
@@ -221,7 +225,7 @@ flowchart TB
 | ID | 需求 | 验收重点 |
 |----|------|----------|
 | CFG-1 | Codex 登录后 Composer 直接可开/关 Live | 无设置开关；`speech.live.enabled` 忽略 |
-| CFG-2 | 可选 `speech.live.voice`（音色） | 非法值可见失败，不静默替换 |
+| CFG-2 | 可选渠道音色 | 新输入严格校验；旧 Codex 音色读取时安全迁移 |
 | CFG-3 | 资格展示：openai-codex 登录状态；兼容渠道复用模型配置 | OpenAI-compatible 渠道只显示已标记 `realtime-audio` 的模型 |
 | CFG-4 | 本地麦克风测试 | 音频不离开设备、不落盘 |
 | ENT-1 | Composer Live 始终可发现 | 未 ready 打开缺项说明 |
@@ -267,7 +271,7 @@ VoiceDelegationAdmission {
 | DEL-2 | `(callId, providerDelegationId)` 幂等 | 不产生第二用户轮/Run |
 | DEL-3 | instruction 长度/空白校验 | 拒绝空/超大 payload |
 | DEL-4 | 写入「语音委派」用户轮 | 持久化文本 + callId + source；无音频 |
-| DEL-5 | 忙会话排队 | 不 abort 当前 Run |
+| DEL-5 | 忙会话默认 steer 当前 Run；`STOP_CURRENT_RUN` 才 abort；steer 失败才排队 | 用户轮只持久化改写后的 brief；Agent 侧再包一层 handover。浏览其它会话不得把其回复喂进本通话 |
 | DEL-6 | 现有权限与工具目录 | 无 Voice 旁路 |
 | DEL-7 | Host 回执后才能口头宣称交付 | |
 | DEL-8 | 回传仅去敏短状态 | 绑定会话 Run 结束后 Host 推 `append-context`；Desktop 经 data channel 发给 Live。无 diff/secret/原始工具输出 |
@@ -277,7 +281,7 @@ VoiceDelegationAdmission {
 | 数据 | MVP |
 |------|-----|
 | 原始音频 | 不落盘 |
-| SDP / token | 仅 Host 内存 |
+| SDP / token | 长期凭据仅 Host；一次性 bootstrap 仅 owner 响应与媒体内存 |
 | 闲聊 transcript | 默认不持久化 |
 | 委派最终文本 | 持久化 |
 | 诊断 | provider=openai-codex、phase、耗时、mapped error；无 token/SDP/音频 |
@@ -294,8 +298,6 @@ VoiceDelegationAdmission {
 
 ```text
 piwin Live                                      [Beta]
-[开关]
-
 套餐账号   ● 已登录 openai-codex   /   ○ 未登录 → 去 Accounts
 音色       [可选 ▼]
 麦克风     [测试麦克风]
@@ -324,7 +326,6 @@ piwin 默认不保存录音；工作指令会作为「语音委派」写入绑�
 
 | 条件 | 错误码 | 恢复 |
 |------|--------|------|
-| Live 关闭 | `live-disabled` | 打开 Live 设置 |
 | 未登录 / token 失效 | `live-provider-auth` | Accounts 登录 / 重新登录 |
 | 麦克风拒绝 | `live-microphone-denied` | 系统设置 / 重试 |
 | WebRTC 不可用 | `live-media-unsupported` | 诊断 |
@@ -361,12 +362,12 @@ piwin 默认不保存录音；工作指令会作为「语音委派」写入绑�
 3. 会话 A 能听/说/打断/静音。
 4. 切到 B，条仍绑 A；B 不能第二路。
 5. 明确工作请求 → A 一条语音委派轮。
-6. 空闲 Run / 忙则排队。
+6. 空闲 Run / 忙时 steer，失败才排队。
 7. 权限：Voice 只提示；Desktop UI 决定。
 8. 结果以文字为准；Voice 仅短状态。
 9. 同一 delegation id 重放不双写。
 10. 挂断释媒体；不杀已接纳 Run。
-11–15. 重连预算、owner grace、Host 重启、关开关/logout、非 owner 只读。
+11–15. 重连预算、owner grace、Host 重启、切换设置/logout、非 owner 只读。
 16–20. 泄漏扫描、闲聊不持久化、键盘/读屏/缩放。
 
 ---

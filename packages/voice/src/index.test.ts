@@ -4,9 +4,14 @@ import { FakeRealtimeVoiceAdapter } from './fake-realtime-voice-adapter.js';
 import { normalizeCodexDelegationCreated } from './codex-delegation.js';
 import {
   CodexLiveAdapter,
+  CODEX_LIVE_INTELLIGENCE_ENABLED,
+  DEFAULT_CODEX_LIVE_INTELLIGENCE,
   DEFAULT_CODEX_LIVE_VOICE,
+  buildCodexLiveCallBody,
   buildCodexLiveCallUrl,
   buildCodexLiveRequestHeaders,
+  redactLiveLog,
+  resolveCodexLiveIntelligence,
   resolveCodexLiveVoice,
 } from './codex-live-adapter.js';
 
@@ -71,6 +76,13 @@ describe('CodexLiveAdapter', () => {
     expect(resolveCodexLiveVoice(' JUNIPER ')).toBe('juniper');
   });
 
+  it('defaults unknown intelligence to medium', () => {
+    expect(DEFAULT_CODEX_LIVE_INTELLIGENCE).toBe('medium');
+    expect(resolveCodexLiveIntelligence(undefined)).toBe('medium');
+    expect(resolveCodexLiveIntelligence('MAX')).toBe('medium');
+    expect(resolveCodexLiveIntelligence(' HIGH ')).toBe('high');
+  });
+
   it('posts Codex backend URL and returns SDP answer', async () => {
     expect(buildCodexLiveCallUrl()).toContain('intent=quicksilver');
     expect(buildCodexLiveCallUrl()).not.toContain('api.openai.com');
@@ -83,9 +95,9 @@ describe('CodexLiveAdapter', () => {
           'x-session-id': 'session-1',
           'user-agent': 'pi-codex-conversion',
         });
-        expect(JSON.parse(String(init?.body))).toMatchObject({
-          session: { audio: { output: { voice: 'cove' } } },
-        });
+        const body = JSON.parse(String(init?.body)) as { session: Record<string, unknown> };
+        expect(body.session.audio).toEqual({ output: { voice: 'cove' } });
+        expect(body.session).not.toHaveProperty('intelligence');
         return new Response('v=0\no=- 1 1 IN IP4 0.0.0.0\ns=-\nt=0 0\n', { status: 201 });
       },
     });
@@ -99,6 +111,13 @@ describe('CodexLiveAdapter', () => {
     });
     expect(result.sdpAnswer).toBe('v=0\r\no=- 1 1 IN IP4 0.0.0.0\r\ns=-\r\nt=0 0\r\n');
     await adapter.close();
+  });
+
+  it('omits session.intelligence after AVAS rejected the field', () => {
+    expect(CODEX_LIVE_INTELLIGENCE_ENABLED).toBe(false);
+    expect(
+      buildCodexLiveCallBody({ sdp: 'v=0', instructions: 'hi', intelligence: 'high' }).session,
+    ).not.toHaveProperty('intelligence');
   });
 
   it('unwraps a JSON SDP answer body', async () => {
@@ -121,6 +140,11 @@ describe('CodexLiveAdapter', () => {
   });
 
   it('maps a 403 create response to provider access denied', async () => {
+    const logged: string[] = [];
+    const error = console.error;
+    console.error = (...args: unknown[]) => {
+      logged.push(args.map(String).join(' '));
+    };
     const adapter = new CodexLiveAdapter({
       fetchImpl: async () =>
         new Response(
@@ -128,17 +152,28 @@ describe('CodexLiveAdapter', () => {
           { status: 403 },
         ),
     });
-    await expect(
-      adapter.createCall({
-        sessionId: 'session-1',
-        sdpOffer: 'v=0\n',
-        accessToken: 't',
-        accountId: 'a',
-        instructions: 'hi',
-        signal: new AbortController().signal,
-      }),
-    ).rejects.toThrow('live-provider-access-denied');
-    await adapter.close();
+    try {
+      await expect(
+        adapter.createCall({
+          sessionId: 'session-1',
+          sdpOffer: 'v=0\n',
+          accessToken: 't',
+          accountId: 'a',
+          instructions: 'hi',
+          signal: new AbortController().signal,
+        }),
+      ).rejects.toThrow('live-provider-access-denied');
+      expect(logged.some((line) => line.includes('codex createCall status=403'))).toBe(true);
+    } finally {
+      console.error = error;
+      await adapter.close();
+    }
+  });
+
+  it('redacts tokens and SDP from Live failure logs', () => {
+    expect(redactLiveLog('Bearer abcdefghijklmnop v=0\no=- 1\nsk-abcdefghijklmnopqrstuv')).toBe(
+      'Bearer … [sdp]',
+    );
   });
 });
 

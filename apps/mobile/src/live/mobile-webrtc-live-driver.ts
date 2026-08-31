@@ -1,5 +1,6 @@
 import {
   LIVE_DELEGATION_INSTRUCTION_MAX_BYTES,
+  waitForLiveMediaReady,
   type LiveClientBootstrapInput,
   type LiveOwnerActionPush,
   type LiveOwnerBootstrap,
@@ -25,9 +26,7 @@ export function createMobileWebrtcLiveDriver(): MobileLiveMediaDriver {
   let peer: RTCPeerConnection | null = null;
   let channel: RTCDataChannel | null = null;
   let remoteAudio: HTMLAudioElement | null = null;
-  let answerResolve: ((sdp: string) => void) | null = null;
-  let answerReject: ((error: unknown) => void) | null = null;
-  let startWork: Promise<void> | null = null;
+  let startAbort: AbortController | null = null;
   let closing = false;
 
   function snapshot(): MobileLivePeerSnapshot {
@@ -67,11 +66,18 @@ export function createMobileWebrtcLiveDriver(): MobileLiveMediaDriver {
         throw new Error('mic-unavailable');
       }
       closing = false;
+      startAbort = new AbortController();
+      const signal = startAbort.signal;
       errorCode = null;
       muted = false;
       setPhase('acquiring-mic');
       try {
-        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        if (signal.aborted) {
+          for (const track of stream.getTracks()) track.stop();
+          throw new DOMException('aborted', 'AbortError');
+        }
+        localStream = stream;
         peer = new RTCPeerConnection();
         for (const track of localStream.getTracks()) peer.addTrack(track, localStream);
         peer.ontrack = (event) => {
@@ -91,10 +97,10 @@ export function createMobileWebrtcLiveDriver(): MobileLiveMediaDriver {
         setPhase('negotiating');
         const offer = await peer.createOffer();
         await peer.setLocalDescription(offer);
-        await waitForIceGathering(peer, new AbortController().signal);
+        await waitForIceGathering(peer, signal);
+        if (signal.aborted) throw new DOMException('aborted', 'AbortError');
         const offerSdp = peer.localDescription?.sdp;
         if (!offerSdp) throw new Error('missing local sdp');
-        startWork = waitForAnswer();
         return { mediaDriverId: 'codex-webrtc-v1', offerSdp };
       } catch (error: unknown) {
         if (isAbortError(error)) throw error;
@@ -107,14 +113,35 @@ export function createMobileWebrtcLiveDriver(): MobileLiveMediaDriver {
     async connect(bootstrap: LiveOwnerBootstrap, signal: AbortSignal): Promise<void> {
       if (bootstrap.mediaDriverId !== 'codex-webrtc-v1') throw new Error('live-media-unsupported');
       if (signal.aborted) throw new DOMException('aborted', 'AbortError');
-      const reject = answerReject;
-      const onAbort = (): void => {
-        reject?.(new DOMException('aborted', 'AbortError'));
-      };
+      const currentPeer = peer;
+      const currentChannel = channel;
+      const abort = startAbort;
+      if (!currentPeer || !currentChannel || !abort) throw new Error('live-protocol-failed');
+      const onAbort = (): void => abort.abort();
       signal.addEventListener('abort', onAbort, { once: true });
       try {
-        answerResolve?.(bootstrap.answerSdp);
-        await startWork;
+        await currentPeer.setRemoteDescription({ type: 'answer', sdp: bootstrap.answerSdp });
+        await waitForLiveMediaReady({
+          signal: abort.signal,
+          read: () => currentPeer.connectionState === 'failed' || currentPeer.connectionState === 'closed' || currentChannel.readyState === 'closed'
+            ? 'failed' : currentPeer.connectionState === 'connected' && currentChannel.readyState === 'open' ? 'ready' : 'pending',
+          subscribe: (listener) => {
+            currentPeer.addEventListener('connectionstatechange', listener);
+            currentChannel.addEventListener('open', listener);
+            currentChannel.addEventListener('close', listener);
+            return () => {
+              currentPeer.removeEventListener('connectionstatechange', listener);
+              currentChannel.removeEventListener('open', listener);
+              currentChannel.removeEventListener('close', listener);
+            };
+          },
+        });
+        setPhase('connected');
+        emitEvent({ type: 'media-active' });
+      } catch (error) {
+        if (!isAbortError(error)) fail('negotiate-failed');
+        await closeResources();
+        throw error;
       } finally {
         signal.removeEventListener('abort', onAbort);
       }
@@ -169,24 +196,6 @@ export function createMobileWebrtcLiveDriver(): MobileLiveMediaDriver {
     },
   };
 
-  function waitForAnswer(): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      answerResolve = (sdp) => {
-        void peer?.setRemoteDescription({ type: 'answer', sdp }).then(
-          () => {
-            setPhase('connected');
-            emitEvent({ type: 'media-active' });
-            resolve();
-          },
-          (error: unknown) => {
-            fail('negotiate-failed');
-            reject(error);
-          },
-        );
-      };
-      answerReject = reject;
-    });
-  }
 
   function bindChannel(nextChannel: RTCDataChannel): void {
     channel = nextChannel;
@@ -220,11 +229,8 @@ export function createMobileWebrtcLiveDriver(): MobileLiveMediaDriver {
 
   async function closeResources(): Promise<void> {
     closing = true;
-    const reject = answerReject;
-    answerResolve = null;
-    answerReject = null;
-    reject?.(new DOMException('aborted', 'AbortError'));
-    startWork = null;
+    startAbort?.abort();
+    startAbort = null;
     if (remoteAudio) {
       remoteAudio.pause();
       remoteAudio.srcObject = null;
@@ -343,5 +349,5 @@ function mapMediaError(error: unknown): MobileLivePeerErrorCode {
 }
 
 function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === 'AbortError';
+  return error instanceof Error && error.name === 'AbortError';
 }

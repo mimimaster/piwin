@@ -216,6 +216,9 @@ export type SessionHostCommand =
       runId?: string;
       /** Matches an optimistic client row to the persisted Host transcript row. */
       clientMessageId?: string;
+      /** Voice handover: persist the brief, wrap only the agent-facing steer. */
+      source?: 'voice-delegation';
+      voiceCallId?: string;
     }
   | {
       id?: string;

@@ -45,6 +45,7 @@ import {
   SESSION_TRANSCRIPT_WINDOW_DEFAULT_AFTER_ITEMS,
   SESSION_TRANSCRIPT_WINDOW_DEFAULT_BEFORE_ITEMS,
   formatError,
+  wrapLiveDelegationForAgent,
   DEFAULT_PERMISSION_PRESET,
   resolvePermissionPreset,
   resolvePromptPermissionMode,
@@ -120,6 +121,7 @@ import {
 import { repairLegacySessionNames } from '../session-name-repair.js';
 import { findEnabledModel } from '../provider-helpers.js';
 import type { SessionLiveContext } from './session-live-context.js';
+import { shouldInjectLiveWorkPreamble } from '../voice/live-work-preamble.js';
 
 /** Build resolver deps with registered-project-root enforcement (security). */
 export function createResolveRefsDeps(context: SessionLiveContext): {
@@ -323,7 +325,12 @@ export async function preparePromptInput(
   );
   const promptInput: PromptInput = {
     ...preparedFromHost,
-    text: preparedFromHost.text,
+    text:
+      promptSource.source === 'voice-delegation'
+        ? wrapLiveDelegationForAgent(preparedFromHost.text, {
+            firstForCall: shouldInjectLiveWorkPreamble(promptSource.voiceCallId),
+          })
+        : preparedFromHost.text,
     ...(preparedFromHost.attachments ? { attachments: [...preparedFromHost.attachments] } : {}),
   };
   assembly.add({

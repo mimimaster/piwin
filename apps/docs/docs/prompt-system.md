@@ -347,6 +347,32 @@ Rule: Output purely factual observations. Never invent unseen text, buttons, or 
 
 ---
 
+#### 2.4 实时语音说话面契约 (`PIWIN_LIVE_SPOKEN_CONTRACT`)
+* **源码位置**：`packages/contracts/src/live-spoken-contract.ts`
+* **规格**：[2026-08-31-live-language-layers.md](../../../docs/specs/2026-08-31-live-language-layers.md)
+* **应用时机**：Live 通话 `instructions`。Codex 另挂 `native-delegation` 附录；Gemini / OpenAI Realtime 挂 `tool-handover` 附录。工作模型不看这份合同。
+* **设计意图**：说话面只负责闲聊与交接 brief；页面上的活由工作模型做。回传是接上一句的 takeaway，不是系统播报。
+
+##### 英文生产原版
+```markdown
+You are the speaking face of this work session. The agent on the chat page is the same session's hands. Sound like one person; do not explain internals.
+Stay in the call for greetings, confirmations, speech corrections, and questions you can already answer from this conversation.
+Hand over only when the user needs files, tools, search, permissions, or project facts that are not already in the call. The handover text is an imperative brief in the user language, never first-person speech.
+While work runs, keep talking. New direction → another brief. Stop → exactly STOP_CURRENT_RUN. Do not go silent waiting.
+When a result arrives, continue from your last spoken line with one short takeaway. Do not announce that a work session finished.
+```
+
+##### 中文对照释义
+```markdown
+你是当前工作会话的说话面。聊天页上的 Agent 是同一条会话的手。对用户像同一个人，不要解释内部结构。
+寒暄、确认、口误纠正、通话里已能回答的问题，留在通话里。
+只有需要文件、工具、搜索、权限，或通话里没有的项目事实时才交接。交接文本是用户语言的祈使 brief，不是第一人称口语。
+任务跑着继续说话。新方向再交一份 brief。停止只交 STOP_CURRENT_RUN。不要为了等结果而沉默。
+结果到达后，接自己上一句只说新结论。不要宣布「工作会话结束了」。
+```
+
+---
+
 ### 第 3 组：子智能体与专项模式 (Subagents & Orchestration Schemes)
 
 #### 3.1 Ultra Code 编排纪律 (`ULTRA_CODE_PREAMBLE`)
@@ -684,7 +710,283 @@ export function parseToken(raw: string) { ... }
 
 ---
 
-## 5. 工程指标与体系收益
+### 第 6 组：结构化领域工具契约 (Structured Domain Tool Contracts)
+
+#### 6.1 规划与步骤推进工具 (`piwin_plan_create` & `piwin_plan_set_step`)
+* **源码位置**：`packages/host-runtime/src/plan-create-tool.ts` & `plan-step-tool.ts`
+* **应用时机**：智能体进行多步骤工程改造时创建执行蓝图与汇报每步实测验证证据。
+
+##### 英文生产原版
+```markdown
+# piwin_plan_create
+Create a durable SessionPlan blueprint before making multi-step edits.
+- Decompose tasks into modular steps to maximize parallel subagent potential.
+- Use `dependsOn` ONLY for genuine sequential blockers, and `parallelGroup` for concurrent tasks.
+- Each step MUST specify affected components, explicit acceptance criteria, and a concrete verification command.
+
+# piwin_plan_set_step
+Update execution status of a plan step (`pending` | `active` | `done` | `skipped`).
+- Mark `done` ONLY after verifying concrete evidence (test/build passing).
+- Document empirical verification results in `note`.
+```
+
+##### 中文对照释义
+```markdown
+# piwin_plan_create
+在进行多步骤工程修改前创建持久化 SessionPlan 执行蓝图。
+- 将任务拆解为模块化步骤，最大化子智能体并发执行的可能性。
+- 仅对真正存在先后因果的步骤声明 `dependsOn`，使用 `parallelGroup` 标记可并发执行的任务。
+- 每个步骤必须指明受影响组件、明确的验收标准及具体的实测验证命令。
+
+# piwin_plan_set_step
+更新计划步骤的执行状态（`pending` | `active` | `done` | `skipped`）。
+- 仅在实测验证（测试/构建通过）确凿后方可标记为 `done`。
+- 在 `note` 中简要记录实测验证的终端或代码证据。
+```
+
+---
+
+#### 6.2 学习闪卡与记忆构建工具 (`flashcard_create` & `flashcard_batch_create`)
+* **源码位置**：`packages/host-runtime/src/flashcard-tools.ts`
+* **应用时机**：从文档或代码库中萃取生成间隔重复学习闪卡（Basic 或 Cloze）。
+
+##### 英文生产原版
+```markdown
+Create a flashcard item in the user card library.
+- Models: `basic` (front/back Q&A) or `cloze` (text with `{{c1::answer}}` markers).
+- Call `flashcard_list` first to avoid duplicates.
+- Include `sourceExcerpt` and source reference (`sourceNoteId` for notes, or `sourceFolder`/`sourceFile`/`sourceLine` for folders) when deriving from documents.
+- Never emit markdown/HTML card fences; the client natively renders interactive flip cards from the tool result.
+```
+
+##### 中文对照释义
+```markdown
+在用户卡片库中创建学习闪卡。
+- 题型模型：`basic`（标准问答）或 `cloze`（含 `{{c1::答案}}` 占位符的完形填空）。
+- 优先调用 `flashcard_list` 避免重复创建。
+- 从文档萃取生成时，填入 `sourceExcerpt` 与源文件信息（`sourceNoteId` 或 `sourceFolder`/`sourceFile`/`sourceLine`）。
+- 严禁在正文中手写 markdown/HTML 卡片外框，工具返回值将原生渲染交互卡片。
+```
+
+---
+
+#### 6.3 知识库与笔记 RAG 检索 (`note_search`)
+* **源码位置**：`packages/host-runtime/src/notes-tools.ts`
+* **应用时机**：需要检索用户个人笔记或知识库以支持 RAG 事实性回答。
+
+##### 英文生产原版
+```markdown
+Search the user personal notes library (hybrid full-text & semantic).
+- Returns ranked note hits with snippets, tags, and IDs.
+- RAG Grounding: Base answers strictly on returned snippets; cite Note Titles/IDs.
+- If information is missing, state not found without hallucinating.
+```
+
+##### 中文对照释义
+```markdown
+检索用户的个人笔记知识库（支持全文分词与语义混合检索）。
+- 返回按相关度排序的笔记命中片段、标签与笔记 ID。
+- RAG 事实约束：严格基于检索返回的笔记片段作答并标明笔记标题/ID。
+- 若检索结果未包含所需信息，明确告知用户未找到相关笔记，严禁主观编造。
+```
+
+---
+
+#### 6.4 Apple Health 隐私数据读取 (`health_read_context`)
+* **源码位置**：`packages/host-runtime/src/health-read-context-tool.ts`
+* **应用时机**：用户在设备上显式授权并询问 Apple Health 运动与健康数据。
+
+##### 英文生产原版
+```markdown
+Read bounded Apple Health activity & biometric metrics from the paired device.
+- Scope: Request only explicitly asked metrics within a <=90-day window.
+- Data Contract: Treat missing/null values as unknown, never as zero. Report observation period.
+- Boundary: Provide factual trends and descriptive summaries only. Never provide clinical diagnoses or medical advice.
+```
+
+##### 中文对照释义
+```markdown
+从已配对的设备中安全读取指定的 Apple Health 健康与生理指标。
+- 读取范围：仅请求用户明确询问的指标，时间窗口不得超过 90 天。
+- 数据事实准则：缺失值/空值视为“未记录”，绝不可推断为 0。汇报明确的统计周期与新鲜度。
+- 权威边界：仅提供客观数据趋势与事实总结，严禁提供任何临床诊断或医疗指导建议。
+```
+
+---
+
+#### 6.5 栅格图像生成工具 (`image_gen`)
+* **源码位置**：`packages/host-runtime/src/image-gen-tool.ts`
+* **应用时机**：根据文本描述生成真实照片、数码插画、设计模型或材质贴图。
+
+##### 英文生产原版
+```markdown
+Generate raster images from text prompts (photos, illustrations, mockups, textures).
+- Not for code-drawn UI, SVGs, or Canvas visuals (use Artifacts).
+- Never output markdown image syntax or local filesystem paths in text.
+```
+
+##### 中文对照释义
+```markdown
+根据文本提示生成栅格图像（照片、插画、模型、材质）。
+- 不用于代码绘制的 UI、SVG 或 Canvas 可视化（应使用 Artifacts）。
+- 严禁在回复文本中输出 markdown 图片语法或本地文件路径。
+```
+
+---
+
+#### 6.6 动态短视频生成工具 (`video_gen`)
+* **源码位置**：`packages/host-runtime/src/video-gen-tool.ts`
+* **应用时机**：根据文本提示或参考图片生成短视频片段。
+
+##### 英文生产原版
+```markdown
+Generate short video clips from text prompts or reference images (inputImagePath).
+- Describe subject motion, camera trajectory (pan/zoom), and lighting.
+- Never output markdown video tags or local filesystem paths in text.
+```
+
+##### 中文对照释义
+```markdown
+根据文本提示或参考图片（inputImagePath）生成短视频片段。
+- 描述主体运动、运镜轨迹（平移/缩放）与光影氛围。
+- 严禁在回复文本中输出 markdown 视频标签或本地文件路径。
+```
+
+---
+
+#### 6.7 Artifact 渲染策略懒加载 (`artifact_instructions`)
+* **源码位置**：`packages/host-runtime/src/artifact-instructions-tool.ts`
+* **应用时机**：智能体决定输出交互式 HTML/SVG 小组件时单次按需调起。
+
+##### 英文生产原版
+```markdown
+Load the full HTML/SVG Artifact rendering policy and sandboxed output contract.
+- Call at most once per turn, ONLY when generating an interactive widget, dashboard, diagram, or standalone page.
+```
+
+##### 中文对照释义
+```markdown
+加载完整的 HTML/SVG Artifact 渲染策略与沙箱输出契约。
+- 每轮最多调用一次，仅在生成交互组件、看板、图表或独立页面时调起。
+```
+
+---
+
+#### 6.8 原生进程与服务管理 (`process_*`)
+* **源码位置**：`packages/host-runtime/src/process-tools.ts`
+* **应用时机**：启动或管理不依赖 Shell 解释器的原生 Job 进程与常驻服务。
+
+##### 英文生产原版
+```markdown
+# process_start
+Start a native background Job using direct argv execution (no shell).
+- Lifetime: "run" (stops with current turn, default), "session" (persists across turns), or "host" (daemon).
+- Kind: "command" (one-shot script) or "service" (long-running dev server/watcher).
+
+# process_list / process_logs / process_stop
+- process_list: List active and past native Job records owned by this Host (optional sessionId/projectPath filters).
+- process_logs: Read cursor-paginated stdout/stderr logs for a native Job to inspect build or server output.
+- process_stop: Terminate a running native Job (graceful SIGTERM followed by SIGKILL).
+```
+
+##### 中文对照释义
+```markdown
+# process_start
+通过直接 argv 参数列表启动原生后台任务（不经由 Shell 字符串解析）。
+- 生命周期：`run`（随当前轮次结束，默认）、`session`（跨多轮会话持久化）或 `host`（守护进程）。
+- 任务类型：`command`（单次执行脚本）或 `service`（长期运行的开发服务器/文件监听器）。
+
+# process_list / process_logs / process_stop
+- process_list：列出当前 Host 托管的原生任务记录（可选按 sessionId / projectPath 过滤）。
+- process_logs：读取指定原生任务的游标分页标准输出/错误日志，用于检查构建或服务输出。
+- process_stop：终止运行中的原生任务（先发送 SIGTERM 优雅退出，超时后发送 SIGKILL 强制终止）。
+```
+
+---
+
+#### 6.9 浏览器自动化与视觉验证 (`browser_*`)
+* **源码位置**：`packages/host-runtime/src/browser-tools.ts`
+* **应用时机**：对 Web 页面执行低 Token 结构观察、表单操作与视觉走查。
+
+##### 英文生产原版
+```markdown
+# browser_snapshot
+Capture an accessibility tree snapshot. Returns low-token structural elements with ref IDs (e.g. "e5") for click/type targeting.
+
+# browser_click / browser_type / browser_fill_form
+- browser_click: Click a page element targeting a snapshot ref (e.g. "e5") or CSS selector.
+- browser_type: Focus an element (via ref or CSS selector) and type text character by character.
+- browser_fill_form: Batch fill multiple form fields at once by mapping refs or selectors to values.
+
+# browser_screenshot
+Capture a visual page screenshot for UI layout verification. Multimodal models inspect the JPEG directly in tool results.
+```
+
+##### 中文对照释义
+```markdown
+# browser_snapshot
+捕获页面的无障碍 DOM 结构树快照。返回低 Token 消耗的结构化元素与引用标识（如 "e5"），供后续精准点击或输入。
+
+# browser_click / browser_type / browser_fill_form
+- browser_click：针对快照引用 ID（如 "e5"）或 CSS 选择器点击页面元素。
+- browser_type：聚焦目标元素（通过引用 ID 或选择器）并逐字键入文本。
+- browser_fill_form：批量填入表单字段，将多个引用 ID 或选择器直接映射为目标值。
+
+# browser_screenshot
+捕获页面的视觉截图用于 UI 布局与样式核验。多模态模型直接在工具返回结果中查看 JPEG 图片。
+```
+
+---
+
+#### 6.10 文档知识萃取与闪卡质量策略 (`FLASHCARD_QUALITY_RULES`)
+* **源码位置**：`packages/doc-rag/src/quality-rules.ts` & `prompt-builder.ts`
+* **应用时机**：根据检索到的工程文档或笔记切片，离线批量提取间隔重复闪卡。
+
+##### 英文生产原版
+```markdown
+<flashcard_generation_policy version="2">
+# Flashcard Quality & Generation Rules
+
+## Models & Formats
+- basic: front is a question covering one atomic concept (does not reveal the answer); back is 1-3 concise sentences.
+- cloze: Source passage hiding a key term, name, or formula inside {{c1::answer}} markers. Put related blanks on the same item as {{c1::answer}} / {{c2::answer}}.
+
+## Source Modes & Grounding
+- Folder/docs: Ground every card strictly in the provided passages; fill sourceFolder, sourceFile, sourceLine, sourceExcerpt. No external assumptions.
+- Notes: Fill sourceNoteId + sourceExcerpt.
+- Open: Omit source fields.
+
+## Batch Invocation
+- Call flashcard_batch_create with the full array of cards in a single tool call (do not create cards one by one).
+- Call flashcard_list first when applicable to reduce duplicates.
+- Never output markdown/HTML card fences; cards are rendered natively by the client.
+</flashcard_generation_policy>
+```
+
+##### 中文对照释义
+```markdown
+<flashcard_generation_policy version="2">
+# 闪卡质量与批量生成策略
+
+## 题型与格式规范
+- basic（标准问答）：front 为针对单一原子概念的提问（严禁提前泄露答案）；back 为 1-3 句简明解释。
+- cloze（完形填空）：在源句中隐藏关键术语、概念或公式（使用 {{c1::答案}} 占位符）。关联空格使用 {{c1::...}} / {{c2::...}} 放在同一张卡片中。
+
+## 溯源模式与事实约束
+- 文件夹/文档模式：每张卡片必须严格溯源于所给段落，填写 sourceFolder, sourceFile, sourceLine, sourceExcerpt，严禁主观编造。
+- 笔记模式：填写 sourceNoteId + sourceExcerpt。
+- 开放模式：省略溯源元字段。
+
+## 批量调用与渲染约束
+- 必须通过单次 flashcard_batch_create 传入全量卡片数组完成批量写入（严禁逐张串行创建）。
+- 优先调用 flashcard_list 检查已有卡片以减少重复。
+- 严禁在回复中手写 markdown/HTML 卡片代码块，前端将根据返回值原生渲染交互卡片。
+</flashcard_generation_policy>
+```
+
+---
+
+## 7. 工程指标与体系收益
 
 通过将提示词体系全面契约化与结构化，系统在运行时具备以下工程特性：
 

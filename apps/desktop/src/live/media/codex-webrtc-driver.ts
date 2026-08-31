@@ -10,6 +10,7 @@ import type { DesktopLiveMediaDriver } from './live-media-driver.js';
 export function createCodexWebrtcDriver(peer = new LivePeer()): DesktopLiveMediaDriver {
   const eventListeners = new Set<(event: LiveOwnerEvent) => void>();
   let offerResolve: ((sdp: string) => void) | null = null;
+  let offerReject: ((error: unknown) => void) | null = null;
   let answerResolve: ((sdp: string) => void) | null = null;
   let answerReject: ((error: unknown) => void) | null = null;
   let startWork: Promise<void> | null = null;
@@ -32,6 +33,7 @@ export function createCodexWebrtcDriver(peer = new LivePeer()): DesktopLiveMedia
     async prepareStart(): Promise<LiveClientBootstrapInput> {
       const offerSdp = await new Promise<string>((resolve, reject) => {
         offerResolve = resolve;
+        offerReject = reject;
         startWork = peer
           .start({
             onOwnerEvent: emitEvent,
@@ -60,6 +62,9 @@ export function createCodexWebrtcDriver(peer = new LivePeer()): DesktopLiveMedia
               throw error;
             },
           );
+        // prepareStart awaits the offer, while connect awaits startWork later.
+        // Observe failures immediately even when no connect call will follow.
+        void startWork.catch(() => undefined);
       });
       return { mediaDriverId: 'codex-webrtc-v1', offerSdp };
     },
@@ -109,13 +114,14 @@ export function createCodexWebrtcDriver(peer = new LivePeer()): DesktopLiveMedia
       peer.sendContextAppend(input);
     },
     async close() {
+      offerReject?.(new DOMException('aborted', 'AbortError'));
+      offerReject = null;
       const rejectAnswer = answerReject;
       answerReject = null;
       rejectAnswer?.(new DOMException('aborted', 'AbortError'));
-      await Promise.all([
-        peer.stop().catch(() => undefined),
-        startWork?.catch(() => undefined) ?? Promise.resolve(),
-      ]);
+      // A browser microphone permission prompt is not abortable. Do not wait
+      // for it here; LivePeer stops a late stream as soon as it is granted.
+      await peer.stop();
     },
   };
 }

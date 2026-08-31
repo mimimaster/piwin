@@ -110,8 +110,8 @@ export function liveStartErrorLabel(error: string, isChinese: boolean): string {
   }
   if (error === 'live-call-busy' || error === 'call-busy') {
     return isChinese
-      ? '上次通话还停在 Host 上。再点一次即可重新连接'
-      : 'The previous call is still on the Host. Start Live again.';
+      ? '已有 Live 通话，请回到持麦设备结束通话后再试。'
+      : 'A Live call is already active. End it on the owning device before retrying.';
   }
   if (error === 'live-provider-unavailable') {
     return isChinese

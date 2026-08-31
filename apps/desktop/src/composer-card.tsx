@@ -93,8 +93,6 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     props.pendingAttachments.some((item) => !isFailedMediaAttachment(item)) ||
     (props.pendingContextRefs?.length ?? 0) > 0;
   const onlyFailedAttachments = failedAttachments.length > 0 && !hasSendableContentBesidesFailures;
-  const canQueueStreamingText =
-    props.composer.trim().length > 0 && props.pendingAttachments.length === 0;
   const canKeyboardSend = props.composer.trim().length > 0 || props.hasCarryContent === true;
   const selectedModel = props.modelOptions.find(
     (model) => `${model.providerId}::${model.modelId}` === props.selectedModelKey,
@@ -664,8 +662,8 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
         return;
       }
       if (isStreamingRun) {
-        if (canQueueStreamingText) {
-          triggerFollowUp();
+        if (props.composer.trim().length > 0) {
+          triggerSteer();
         }
       } else if (canKeyboardSend) {
         triggerSend();

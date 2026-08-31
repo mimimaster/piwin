@@ -314,6 +314,12 @@ describe('ChatThread completed work disclosure', () => {
     expect(container.querySelector('#msg-work-1')).toBeNull();
     expect(container.textContent).not.toContain(processCaption);
     expect(container.querySelector('#msg-image-1 .markdown')?.textContent).toContain(imageCaption);
+
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-testid="turn-work-disclosure-trigger"]',
+    );
+    act(() => trigger?.click());
+    expect(container.querySelector('#msg-work-1 .markdown')?.textContent).toContain(processCaption);
     expect(
       container.querySelector('#msg-image-1 [data-testid="assistant-response-actions"]'),
     ).not.toBeNull();
@@ -376,12 +382,7 @@ describe('ChatThread completed work disclosure', () => {
     expect(container.querySelector('[data-testid="turn-work-disclosure"]')).toBeNull();
     expect(container.querySelector('#msg-work-1')).not.toBeNull();
     expect(container.querySelector('#msg-work-2')).not.toBeNull();
-    expect(container.querySelector('#msg-work-1 .markdown')).toBeNull();
-    expect(container.querySelector('#msg-work-2 .markdown')).toBeNull();
-    expect(container.textContent).not.toContain(earlierCaption);
-    expect(container.textContent).not.toContain(lastCaption);
-    expect(
-      container.querySelector('#msg-work-2 [data-testid="assistant-response-actions"]'),
-    ).toBeNull();
+    expect(container.querySelector('#msg-work-1 .markdown')?.textContent).toContain(earlierCaption);
+    expect(container.querySelector('#msg-work-2 .markdown')?.textContent).toContain(lastCaption);
   });
 });

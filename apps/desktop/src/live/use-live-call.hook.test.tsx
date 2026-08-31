@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from 'vitest';
-import { act, useEffect, type ReactElement } from 'react';
+import { act, useEffect, useState, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { HostCommand, HostResponse, HostServerMessage, LiveCallView } from '@piwin/contracts';
 import type { HostClient } from '../host-client.js';
@@ -273,7 +273,7 @@ describe('useLiveCall hangup', () => {
     expect(probe.current?.canStart).toBe(true);
   });
 
-  it('closes Live and reports the Host create error instead of staying red', async () => {
+  it('releases media but retains the Host create error for retry', async () => {
     const host = new FakeLiveHost();
     host.startFailure = 'live-provider-access-denied';
     const failed: string[] = [];
@@ -286,11 +286,11 @@ describe('useLiveCall hangup', () => {
     });
     expect(probe.current?.starting).toBe(false);
     expect(probe.current?.call).toBeNull();
-    expect(probe.current?.error).toBeNull();
+    expect(probe.current?.error).toBe('live-provider-access-denied');
     expect(failed).toEqual(['live-provider-access-denied']);
   });
 
-  it('feeds the finished assistant bubble back to Live without waiting for Host', async () => {
+  it('does not guess a result from an existing assistant bubble; only relays Host results', async () => {
     const host = new FakeLiveHost();
     const peer = new FakePeer();
     const probe = mount(host, peer, {
@@ -315,7 +315,81 @@ describe('useLiveCall hangup', () => {
     await act(async () => {
       await Promise.resolve();
     });
-    expect(peer.appended.some((text) => text.includes('洛杉矶今天晴'))).toBe(true);
-    expect(probe.current?.call?.activity).toBe('listening');
+    expect(peer.appended).toEqual([]);
+    expect(probe.current?.call?.activity).toBe('agent-working');
+    act(() => {
+      host.emit({ type: 'voice/live-owner-action', callId: 'c-started',
+        action: 'append-context', target: 'delegation', channel: 'speakable',
+        providerDelegationId: 'd1', content: 'Host result', });
+      host.emit({ type: 'voice/live-owner-action', callId: 'old-call',
+        action: 'append-context', content: 'stale result', });
+    });
+    expect(peer.appended).toEqual(['Host result']);
+  });
+
+  it('does not feed another session into the bound Live call', async () => {
+    const host = new FakeLiveHost();
+    const peer = new FakePeer();
+    function Probe(): ReactElement {
+      const [viewedSessionId, setViewedSessionId] = useState('s1');
+      const [assistant, setAssistant] = useState({
+        messageId: 'a1',
+        text: '洛杉矶今天晴，大约 24 度。',
+        done: true,
+        toolsRunning: false,
+      });
+      const live = useLiveCall({
+        hostClient: host as unknown as HostClient,
+        sessionId: viewedSessionId,
+        sessionStreaming: false,
+        lastAssistant: assistant,
+        createPeer: () => peer as unknown as LivePeer,
+      });
+      return (
+        <>
+          <button type="button" data-testid="start" onClick={() => void live.start()} />
+          <button
+            type="button"
+            data-testid="switch"
+            onClick={() => {
+              setViewedSessionId('s2');
+              setAssistant({
+                messageId: 'b1',
+                text: '另一会话的回复',
+                done: true,
+                toolsRunning: false,
+              });
+            }}
+          />
+        </>
+      );
+    }
+    const hostEl = document.createElement('div');
+    document.body.appendChild(hostEl);
+    const next = createRoot(hostEl);
+    act(() => {
+      next.render(<Probe />);
+    });
+    root = next;
+    container = hostEl;
+    await act(async () => {
+      container?.querySelector<HTMLButtonElement>('[data-testid="start"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    act(() => {
+      container?.querySelector<HTMLButtonElement>('[data-testid="switch"]')?.click();
+    });
+    act(() => {
+      host.emit({
+        type: 'voice/live-updated',
+        call: { ...liveCall('c-started'), activity: 'agent-working' },
+      });
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(peer.appended.some((text) => text.includes('另一会话'))).toBe(false);
+    expect(peer.appended.some((text) => text.includes('洛杉矶今天晴'))).toBe(false);
   });
 });

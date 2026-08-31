@@ -1,5 +1,5 @@
 /**
- * DEL-8: Live only hears a short sanitized takeaway, never raw tools/diffs.
+ * Layer ④: Live only hears a short takeaway it can continue from.
  */
 
 export const LIVE_SPEAKABLE_RESULT_MAX_CHARS = 600;
@@ -9,17 +9,24 @@ export function sanitizeLiveSpeakableResult(input: {
   completed: boolean;
 }): string {
   if (!input.completed) {
-    return 'The work session did not finish. Tell the user briefly that they can check the chat or try again. Do not invent results.';
+    return [
+      'status: incomplete',
+      'takeaway:',
+      'continue: Continue from your last spoken line. Say the work did not finish and they can check the chat or try again. Do not invent results. Do not announce a system.',
+    ].join('\n');
   }
-  const body = clipSpeakableText(input.assistantText);
-  if (!body) {
-    return 'The work session finished. Tell the user the result is already in the current chat. Do not invent details.';
+  const takeaway = clipSpeakableText(input.assistantText);
+  if (!takeaway) {
+    return [
+      'status: done',
+      'takeaway:',
+      'continue: Continue from your last spoken line. The result is already on the chat page. One short line; do not invent details or announce a system.',
+    ].join('\n');
   }
   return [
-    'The work session finished. Speak a short takeaway from this result.',
-    'Do not read tables, lists, diffs, or tool output aloud.',
-    'Result:',
-    body,
+    'status: done',
+    `takeaway: ${takeaway}`,
+    'continue: Continue from your last spoken line. One short takeaway. Do not announce that a work session finished.',
   ].join('\n');
 }
 

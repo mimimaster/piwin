@@ -44,6 +44,7 @@ import {
   SESSION_TRANSCRIPT_WINDOW_DEFAULT_AFTER_ITEMS,
   SESSION_TRANSCRIPT_WINDOW_DEFAULT_BEFORE_ITEMS,
   formatError,
+  wrapLiveDelegationForAgent,
   DEFAULT_PERMISSION_PRESET,
   resolvePreset,
   mergeAgentModeIntoPrompt,
@@ -118,6 +119,7 @@ import {
 import { repairLegacySessionNames } from '../session-name-repair.js';
 import { findEnabledModel } from '../provider-helpers.js';
 import type { SessionLiveContext } from './session-live-context.js';
+import { shouldInjectLiveWorkPreamble } from '../voice/live-work-preamble.js';
 
 function validateRunInterventionInput(
   input: import('@piwin/contracts').UserInstructionPayload,
@@ -625,11 +627,23 @@ export async function handleRunInterventionCommand(
           `run-mismatch: requested ${command.runId}, active ${active.runId}`,
         );
       }
-      await context.requireSession(command.sessionId).steer(command.message);
+      const agentSteer =
+        command.source === 'voice-delegation'
+          ? wrapLiveDelegationForAgent(command.message, {
+              firstForCall: shouldInjectLiveWorkPreamble(command.voiceCallId),
+            })
+          : command.message;
+      await context.requireSession(command.sessionId).steer(agentSteer);
       const userMessageId = command.clientMessageId?.trim() || randomUUID();
       await context.recordUserPrompt(command.sessionId, {
         text: command.message,
         clientMessageId: userMessageId,
+        ...(command.source === 'voice-delegation'
+          ? {
+              source: 'voice-delegation' as const,
+              ...(command.voiceCallId ? { voiceCallId: command.voiceCallId } : {}),
+            }
+          : {}),
       });
       const steerAssembly = createModelPromptAssembly();
       steerAssembly.add({

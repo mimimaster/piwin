@@ -8,6 +8,7 @@ import type { ChatMessageUi } from './chat-reducer';
 import { formatMessageTime } from './conversation-message-identity';
 import { MessageAttachments } from './message-attachments';
 import { IconCheck, IconClose, IconCopy, IconEdit } from './shell-icons';
+import { VoiceHandoverCard } from './voice-handover-card.js';
 
 export const USER_MESSAGE_COLLAPSE_THRESHOLD = 78;
 
@@ -35,12 +36,17 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
   const hasContextRefs = Boolean(message.contextRefs && message.contextRefs.length > 0);
   const interventionStatus = message.instructionDelivery?.status;
   const isChinese = props.locale !== 'en';
-  const sourceLabel =
-    message.source === 'voice-delegation'
-      ? isChinese
-        ? '语音委派'
-        : 'Voice delegation'
-      : null;
+
+  if (message.source === 'voice-delegation') {
+    return (
+      <VoiceHandoverCard
+        message={message}
+        {...(props.locale !== undefined ? { locale: props.locale } : {})}
+        {...(props.branchSwitcher !== undefined ? { branchSwitcher: props.branchSwitcher } : {})}
+        {...(props.onFeedback !== undefined ? { onFeedback: props.onFeedback } : {})}
+      />
+    );
+  }
 
   const interventionLabel =
     interventionStatus === 'pending'
@@ -169,11 +175,6 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
               data-testid="user-message-actions"
               onClick={(e) => e.stopPropagation()}
             >
-              {sourceLabel ? (
-                <span className="user-message-source" data-testid="user-message-voice-delegation">
-                  {sourceLabel}
-                </span>
-              ) : null}
               {interventionLabel ? (
                 <span className="user-message-time" data-testid="intervention-delivery-status">
                   {interventionLabel}
@@ -294,11 +295,6 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
         data-testid="user-message-actions"
         onClick={(e) => e.stopPropagation()}
       >
-        {sourceLabel ? (
-          <span className="user-message-source" data-testid="user-message-voice-delegation">
-            {sourceLabel}
-          </span>
-        ) : null}
         {interventionLabel ? (
           <span className="user-message-time" data-testid="intervention-delivery-status">
             {interventionLabel}

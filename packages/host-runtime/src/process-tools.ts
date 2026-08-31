@@ -118,7 +118,9 @@ export function buildProcessTools(options: BuildProcessToolsOptions): HostToolRe
     descriptor: {
       name: 'process_start',
       description:
-        'Start a native Job with argv only (no shell). Default lifetime is run (ends with the Agent Run); use session/host for longer services.',
+        'Start a native background Job using direct argv execution (no shell). ' +
+        'Lifetime: "run" (stops with current turn, default), "session" (persists across turns), or "host" (daemon). ' +
+        'Kind: "command" (one-shot script) or "service" (long-running dev server/watcher).',
       parameters: {
         type: 'object',
         properties: {
@@ -173,7 +175,8 @@ export function buildProcessTools(options: BuildProcessToolsOptions): HostToolRe
   const listTool: HostToolRegistration = {
     descriptor: {
       name: 'process_list',
-      description: 'List native Job records owned by this Host.',
+      description:
+        'List active and past native Job records owned by this Host (optional sessionId/projectPath filters).',
       parameters: {
         type: 'object',
         properties: {
@@ -214,7 +217,8 @@ export function buildProcessTools(options: BuildProcessToolsOptions): HostToolRe
   const logsTool: HostToolRegistration = {
     descriptor: {
       name: 'process_logs',
-      description: 'Read cursor-paginated logs for a native Job record.',
+      description:
+        'Read cursor-paginated stdout/stderr logs for a native Job to inspect build or server output.',
       parameters: {
         type: 'object',
         properties: {
@@ -266,7 +270,7 @@ export function buildProcessTools(options: BuildProcessToolsOptions): HostToolRe
   const stopTool: HostToolRegistration = {
     descriptor: {
       name: 'process_stop',
-      description: 'Stop a native Job record with graceful then forceful termination.',
+      description: 'Terminate a running native Job (graceful SIGTERM followed by SIGKILL).',
       parameters: {
         type: 'object',
         properties: {

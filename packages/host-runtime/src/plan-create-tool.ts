@@ -45,9 +45,10 @@ export function createPlanCreateTool(options: PlanCreateToolOptions): HostToolRe
     descriptor: {
       name: 'piwin_plan_create',
       description:
-        'Create a draft SessionPlan for user approval before implementation. ' +
-        'Success: title, goal, ordered steps with stable ids, titles, and detail (acceptance criteria + verification). ' +
-        'No shell/scripts as step fields. Remains draft until the user approves.',
+        'Create a durable SessionPlan blueprint before making multi-step edits. ' +
+        'Decompose tasks into modular steps to maximize parallel subagent potential. ' +
+        'Use dependsOn ONLY for genuine sequential blockers, and parallelGroup for concurrent tasks. ' +
+        'Each step MUST specify affected components, explicit acceptance criteria, and a concrete verification command.',
       parameters: {
         type: 'object',
         properties: {

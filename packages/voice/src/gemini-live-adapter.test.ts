@@ -31,12 +31,17 @@ describe('Gemini Live adapter', () => {
     expect(body).not.toHaveProperty('liveConnectConstraints');
     const setup = body.bidiGenerateContentSetup as {
       model: string;
+      systemInstruction?: { parts?: { text?: string }[] };
       generationConfig: { responseModalities: string[] };
       tools: unknown[];
     };
     expect(setup.model).toBe('models/gemini-3.1-flash-live-preview');
     expect(setup.generationConfig.responseModalities).toEqual(['AUDIO']);
+    expect(setup.systemInstruction?.parts?.[0]?.text).toContain('speaking face of this work session');
+    expect(setup.systemInstruction?.parts?.[0]?.text).toContain('delegate_to_work_session');
     expect(JSON.stringify(setup.tools)).toContain('delegate_to_work_session');
+    expect(JSON.stringify(setup.tools)).toContain('STOP_CURRENT_RUN');
+    expect(JSON.stringify(setup.tools)).toContain('Never a verbatim transcript');
     expect(JSON.stringify(body)).not.toMatch(/AIza|sk-/);
   });
 

@@ -1,4 +1,10 @@
-import { LIVE_DELEGATION_INSTRUCTION_MAX_BYTES, type LiveOwnerEvent } from '@piwin/contracts';
+import {
+  LIVE_DELEGATION_INSTRUCTION_MAX_BYTES,
+  composeLiveSpokenInstructions,
+  PIWIN_LIVE_DELEGATE_INSTRUCTION_DESCRIPTION,
+  PIWIN_LIVE_DELEGATE_TOOL_DESCRIPTION,
+  type LiveOwnerEvent,
+} from '@piwin/contracts';
 
 export type MobileOpenaiRealtimeMessage =
   | { kind: 'session-created' }
@@ -20,8 +26,7 @@ export const GEMINI_LIVE_FIXED_ENDPOINT =
   'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained';
 
 const DELEGATE_TOOL = 'delegate_to_work_session';
-const LIVE_INSTRUCTIONS =
-  'You are piwin Live, the realtime voice of the piwin mobile app. Casual talk stays in this call. For work that needs files, code, tools, the current project, or anything that should appear in the chat page, you MUST call delegate_to_work_session with a clear instruction. Do not pretend you already did the work. After the tool returns, briefly tell the user it is in the current chat.';
+const LIVE_INSTRUCTIONS = composeLiveSpokenInstructions('tool-handover');
 
 export function floatToPcm16Base64(input: Float32Array<ArrayBufferLike>): string {
   const bytes = new Uint8Array(input.length * 2);
@@ -64,14 +69,13 @@ export function openaiSessionUpdatePayload(voice: string): string {
         {
           type: 'function',
           name: DELEGATE_TOOL,
-          description:
-            'Hand work to the current piwin chat session. Use this whenever the user wants app, file, code, or project work.',
+          description: PIWIN_LIVE_DELEGATE_TOOL_DESCRIPTION,
           parameters: {
             type: 'object',
             properties: {
               instruction: {
                 type: 'string',
-                description: 'What the work session should do, in the user language.',
+                description: PIWIN_LIVE_DELEGATE_INSTRUCTION_DESCRIPTION,
               },
             },
             required: ['instruction'],

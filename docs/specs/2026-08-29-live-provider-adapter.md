@@ -1,5 +1,7 @@
 # piwin Live 多渠道 Provider Adapter — 可执行实现规格
 
+2026-08-31 补充：[稳定性修订与实测](./2026-08-31-live-reliability.md)。owner/key 重放同时固定 session/provider；媒体 connected + data channel open 才 active；Host 唯一回传；紧急 end 不受 activity revision 变化阻挡。旧文冲突描述以该修订为准。
+
 | 字段 | 值 |
 |------|----|
 | 状态 | **Executable — 已完成设计审查，可按工作包施工** |
@@ -55,7 +57,7 @@
 1. 首期登记 `openai-codex`、`google-gemini` 和 `openai-realtime`。
 2. Codex 复用 Accounts 中的套餐 OAuth；Gemini 使用 Gemini API key。
 3. Live 渠道只负责实时对话和委派；工作 Run 继续使用当前会话已经选择的文本模型与思考程度。
-4. Codex 智能程度只有在发布前真实 wire probe 证明上游接受后才显示 `instant / medium / high`。
+4. Codex 智能程度已关（2026-08-31 AVAS 拒收 `session.intelligence`）。`CODEX_LIVE_INTELLIGENCE_ENABLED = false`。
 5. Gemini 可选 Live 型号、音色和 `minimal / low / medium / high` 思考程度。
 6. Desktop 或已配对 Mobile 直接连接上游媒体；Host 只交换建连材料并保有通话、准入和结果关联权威。
 7. 顶栏、Composer Live 按钮、失败自关、错误通知和委派展示对各渠道共用。
@@ -66,7 +68,7 @@
 2. call 创建后固定绑定 `sessionId`、`ownerDeviceId`、`providerId`、`mediaDriverId` 和 settings snapshot；通话中不改绑。
 3. Voice 模型不获得 Agent/MCP/权限工具目录。Gemini 只登记一个产品工具：请求 Host 把指令委派到绑定会话。
 4. 只有 Host 成功持久化/排队委派后，语音侧才可声称“已交给 Agent”。
-5. 忙会话排队；挂断不取消已经接纳的 Run。
+5. 忙会话默认 steer 当前 Run；`STOP_CURRENT_RUN` 才 abort；挂断不取消已经接纳的 Run。
 6. 原始音频、闲聊 transcript、SDP、长期凭证、短时令牌和原始上游报文不写 transcript、config、日志或 HostPush journal。
 7. 非 owner 只能看到去敏 `LiveCallView`；建连材料与 owner action 只给 owner。
 8. `expectedRevision` 是实际并发门，不是装饰字段。过期写操作返回 `live-conflict`。
@@ -386,7 +388,7 @@ type SpeechLiveConfig = {
 ```text
 speech.live.providerId
 speech.live.byProvider.openai-codex.voice
-speech.live.byProvider.openai-codex.intelligence       # 仅 capability 开启后
+speech.live.byProvider.openai-codex.intelligence       # 已撤下：旧值读取时忽略，不发送
 speech.live.byProvider.google-gemini.model
 speech.live.byProvider.google-gemini.voice
 speech.live.byProvider.google-gemini.thinkingLevel
@@ -460,10 +462,9 @@ type LiveProviderRegistration = {
 
 Codex intelligence：
 
-1. 在 WP1 的真实 call-create fixture/spike 中分别验证 `instant`、`medium`、`high` 的 wire 字段与响应。
-2. 证据写入去敏 evidence；adapter 以显式 capability 常量控制 schema。
-3. 未全部通过时 schema 不返回 `intelligence`，config 中旧值不发送上游。
-4. 设置页打开不能触发真实通话探测。
+1. **已关。** 2026-08-31 AVAS 返回 400 `Unknown parameter: 'intelligence'`。
+2. `CODEX_LIVE_INTELLIGENCE_ENABLED = false`：设置页隐藏，call-create 不发送，config 旧值忽略。
+3. 设置页打开不能触发真实通话探测。
 
 ### 5.3 Gemini 注册
 
@@ -837,7 +838,7 @@ apps/desktop/src/live/live-settings.tsx
 | CALL-4 | start failure 的真实 code 在 release/null 前到达 UI |
 | CALL-5 | logout、clear key、settings change、dispose 都清媒体和 slot |
 | DEL-1 | 两家委派都生成 `voice-delegation` 用户轮并走现有权限 |
-| DEL-2 | duplicate id 不产生第二轮；忙会话可见排队 |
+| DEL-2 | duplicate id 不产生第二轮；忙会话默认 steer，steer 失败才可见排队 |
 | DEL-3 | 连续两次委派的 message/queue/run/result 不串线 |
 | DEL-4 | Host ack 前 Driver 不向上游宣称已交付 |
 | DEL-5 | 挂断后已开工/已排队工作继续，结果留 transcript |
@@ -853,7 +854,7 @@ apps/desktop/src/live/live-settings.tsx
 1. 首次麦权限允许、拒绝、拒绝后恢复。
 2. 开始、听、说、barge-in、mute/unmute、挂断。
 3. 上游 401/403/429、超时、协议错误、中途断开。
-4. 会话空闲委派、忙会话排队、权限等待、Run 成功/失败。
+4. 会话空闲委派、忙会话 steer（失败才排队）、权限等待、Run 成功/失败；filler 拒绝。
 5. 通话中切换其它会话；Live Bar 仍明确绑定原会话。
 6. 通话中修改当前 Provider 设置/凭证，确定性结束。
 7. 快速 start/end、重复 end、Host 退出、renderer reload。

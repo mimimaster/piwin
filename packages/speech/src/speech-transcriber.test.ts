@@ -68,6 +68,23 @@ describe('@piwin/speech', () => {
     expect(await (file as Blob).arrayBuffer()).toEqual(new Uint8Array([1, 2, 3]).buffer);
   });
 
+  it('strips ASR event tags and drops filler-only transcripts', async () => {
+    const fetchImplementation: typeof fetch = async () =>
+      new Response(JSON.stringify({ text: '[clear throat] 噢。' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    const result = await transcribeOpenAiCompatible({
+      provider,
+      model,
+      apiKey: null,
+      audio: new Uint8Array([1]),
+      mimeType: 'audio/webm',
+      fetch: fetchImplementation,
+    });
+    expect(result.text).toBe('');
+  });
+
   it('rejects unsupported provider protocols before making a network request', async () => {
     await expect(
       transcribeOpenAiCompatible({

@@ -6,9 +6,13 @@ import {
 } from './live-settings-schema.js';
 
 describe('Codex Live settings schema', () => {
-  it('hides intelligence until the WP1 probe writes evidence', () => {
+  it('hides intelligence after AVAS rejected the field', () => {
     expect(CODEX_LIVE_INTELLIGENCE_ENABLED).toBe(false);
     expect(codexLiveSettingFields().some((field) => field.key === 'intelligence')).toBe(false);
+    expect(validateCodexLiveSettings({ voice: 'cove' })).toEqual({
+      ok: true,
+      normalized: { voice: 'cove' },
+    });
     expect(validateCodexLiveSettings({ voice: 'cove', intelligence: 'high' }).ok).toBe(false);
   });
 });

@@ -112,9 +112,9 @@ export function buildVideoGenTool(options: VideoGenToolOptions): HostToolRegistr
     descriptor: {
       name: 'video_gen',
       description:
-        'Generate a short video from text or an image reference. The client UI already previews the attachment. ' +
-        'After success, comment briefly if useful — do not embed markdown videos or local file paths. ' +
-        'Not for video editing or long-form production.',
+        'Generate short video clips from text prompts or reference images (inputImagePath). ' +
+        'Describe subject motion, camera trajectory (pan/zoom), and lighting. ' +
+        'Never output markdown video tags or local filesystem paths in text.',
       parameters: {
         type: 'object',
         properties: {

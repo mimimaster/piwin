@@ -34,7 +34,6 @@ import { runtimeStatusText } from './run-activity-strings.js';
 import { conversationActivityLabel } from './conversation-activity.js';
 import { TurnToolGroup } from './turn-tool-group.js';
 import { resolveGenerationToolKind } from './generation-tool-kind.js';
-import { assistantTextIsProcess } from './assistant-text-role.js';
 import type { ToolCallDensity } from './ui-preferences.js';
 
 export {
@@ -141,8 +140,6 @@ export function ConversationResponseContent(props: {
   const conversationTools = message.tools.filter(
     (tool) => resolveGenerationToolKind(tool) === null,
   );
-  const processCaption = assistantTextIsProcess(message);
-
   const resolvedModel = resolveConversationMessageModel({
     message,
     livePromptModel: props.livePromptModel ?? null,
@@ -277,7 +274,7 @@ export function ConversationResponseContent(props: {
         </div>
       ) : null}
 
-      {message.text.trim().length > 0 && !processCaption ? (
+      {message.text.trim().length > 0 ? (
         <MarkdownView
           text={message.text}
           renderingPhase={resolveAssistantRenderingPhase(

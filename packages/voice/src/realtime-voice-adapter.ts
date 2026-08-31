@@ -23,6 +23,7 @@ export type CreateRealtimeCallInput = {
   accessToken: string;
   accountId: string;
   voice?: string;
+  intelligence?: string;
   instructions: string;
   signal: AbortSignal;
 };
