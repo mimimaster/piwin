@@ -171,6 +171,12 @@ export async function handleMockTurnCommands(
         ) {
           appendMockTranscriptMessage(session, userMessage);
         }
+        // Ordinary prompts replace the paused task. Keep the checkpoint
+        // through admission failures above; retire it only when this turn is
+        // ready to stream, matching Host executeSessionTurn.
+        if (command.input.source !== 'resume') {
+          host.mockPauseCheckpointIds.delete(command.sessionId);
+        }
         // Immediate text name (matches host recordUserPrompt naming pipeline).
         host.maybeMockAutoName(command.sessionId);
         const attachmentNote =
@@ -319,7 +325,7 @@ export async function handleMockTurnCommands(
       case 'session/abort': {
         const activeRunId = host.mockActiveRunIds.get(command.sessionId);
         if (!activeRunId) {
-          host.mockPauseCheckpointIds.delete(command.sessionId);
+          // A paused checkpoint is not a live run. Abort must not throw it away.
           host.mockPauseRequested.delete(command.sessionId);
           return {
             id,
