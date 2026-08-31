@@ -34,6 +34,9 @@ import type { SessionComposerSnapshot } from './composer-session-snapshot.js';
  */
 export const MAX_RETAINED_SESSION_COMPOSER_SNAPSHOTS = 8;
 
+/** Why the current local draft row is being removed. */
+export type ComposerDraftRemovalReason = 'discard' | 'send';
+
 export type UseComposerDraftsArgs = {
   args: UseComposerMediaArgs;
   composer: string;
@@ -154,7 +157,7 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
     [readVisibleContextRefs, setActiveDraft],
   );
 
-  const removeCurrentDraft = useCallback((): void => {
+  const removeCurrentDraft = useCallback((reason: ComposerDraftRemovalReason = 'discard'): void => {
     const draftId = currentDraftIdRef.current ?? activeDraftIdRef.current;
     currentDraftIdRef.current = null;
     setActiveDraft(null);
@@ -162,7 +165,9 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
     if (!draftId) return;
     const droppedSnapshot = draftComposerSnapshotsRef.current.get(draftId);
     draftComposerSnapshotsRef.current.delete(draftId);
-    if (droppedSnapshot) {
+    // Send still holds the live chips and their source Files. Dropping the
+    // draft row must not revoke those; ACK/failure paths release them.
+    if (droppedSnapshot && reason === 'discard') {
       disposeComposerAttachments(droppedSnapshot.attachments);
     }
     const next = draftSessionsRef.current.filter((draft) => draft.id !== draftId);
