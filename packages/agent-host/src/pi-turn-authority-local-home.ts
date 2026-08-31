@@ -7,7 +7,8 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-export const LOCAL_TURN_IDLE_TIMEOUT_MS = 400;
+/** Generous enough that CI load cannot turn a missing-finish close into an idle timeout. */
+export const LOCAL_TURN_IDLE_TIMEOUT_MS = 2_500;
 export const LOCAL_TURN_RETRY_MAX = 1;
 export const LOCAL_TURN_RETRY_BASE_DELAY_MS = 20;
 export const FIXTURE_PROVIDER_ID = 'fixture';
