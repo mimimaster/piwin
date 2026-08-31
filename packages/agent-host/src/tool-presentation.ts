@@ -5,7 +5,14 @@
  * Head-row contract (Cursor-style):
  *   [icon] [actionVerb] [path pill | query preview] [countTag] … [status] [duration]
  */
-import type { ToolErrorView, ToolKind, ToolOutputView, ToolPresentation } from '@piwin/contracts';
+import type {
+  HealthToolCardSummary,
+  ToolErrorView,
+  ToolKind,
+  ToolOutputView,
+  ToolPresentation,
+} from '@piwin/contracts';
+import { projectBoundedHealthToolCardSummary } from '@piwin/contracts';
 import { attachFlashcardPresentation } from './flashcard-presentation.js';
 
 function looksLikeCancelledToolOutput(text: string): boolean {
@@ -38,6 +45,8 @@ export type BuildToolPresentationInput = {
   startedAt?: string;
   endedAt?: string;
   durationMs?: number;
+  health?: HealthToolCardSummary;
+  sensitivity?: 'health';
 };
 
 /** Internal action family used only for presentation (not a contract field). */
@@ -61,6 +70,7 @@ type ToolActionFamily =
   | 'image'
   | 'video'
   | 'subagent'
+  | 'health'
   | 'other';
 
 /**
@@ -90,6 +100,8 @@ export function classifyToolKind(toolName: string): ToolKind {
       return 'video';
     case 'subagent':
       return 'subagent';
+    case 'health':
+      return 'health';
     default: {
       const normalized = toolName.trim().toLowerCase();
       if (normalized === 'process' || normalized.startsWith('process_')) {
@@ -180,10 +192,53 @@ function hasSemanticTruncation(toolName: string, outputText: string): boolean {
   }
 }
 
-/**
- * Build a ToolPresentation from known tool metadata. Does not invent fields
- * the provider did not supply.
- */
+const HEALTH_PERIOD_LABELS: Record<string, string> = {
+  today: '今天',
+  'last-7-days': '近 7 天',
+  'last-30-days': '近 30 天',
+};
+
+function resolveHealthPresentation(
+  input: BuildToolPresentationInput,
+  args: unknown,
+  family: ToolActionFamily,
+): { health?: HealthToolCardSummary; sensitivity?: 'health' } {
+  const record = isPlainRecord(args) ? args : undefined;
+  const sensitivity =
+    input.sensitivity === 'health' || record?.sensitivity === 'health' ? 'health' : undefined;
+  const explicit = projectBoundedHealthToolCardSummary(input.health ?? record?.health);
+  if (explicit) {
+    return { health: explicit, ...(sensitivity ? { sensitivity } : {}) };
+  }
+  if (family === 'health') {
+    const inferred = inferHealthStartCard(record);
+    if (inferred) {
+      return { health: inferred, ...(sensitivity ? { sensitivity } : {}) };
+    }
+  }
+  return sensitivity ? { sensitivity } : {};
+}
+
+function inferHealthStartCard(args: Record<string, unknown> | undefined): HealthToolCardSummary | undefined {
+  if (!args) {
+    return undefined;
+  }
+  const metrics = Array.isArray(args.metrics)
+    ? args.metrics.filter((item): item is string => typeof item === 'string')
+    : [];
+  const range = isPlainRecord(args.range) ? args.range : undefined;
+  const preset = typeof range?.preset === 'string' ? range.preset : undefined;
+  const periodLabel = preset ? HEALTH_PERIOD_LABELS[preset] : undefined;
+  if (metrics.length === 0 || !periodLabel) {
+    return undefined;
+  }
+  return projectBoundedHealthToolCardSummary({
+    metrics,
+    periodLabel,
+    status: 'waiting-for-phone',
+  });
+}
+
 /** Pi/host sometimes ship tool args as a JSON string instead of an object. */
 export function coerceToolArgs(args: unknown): unknown {
   if (typeof args !== 'string') {
@@ -200,6 +255,10 @@ export function coerceToolArgs(args: unknown): unknown {
   }
 }
 
+/**
+ * Build a ToolPresentation from known tool metadata. Does not invent fields
+ * the provider did not supply.
+ */
 export function buildToolPresentation(input: BuildToolPresentationInput): ToolPresentation {
   const family = resolveActionFamily(input.toolName);
   const kind = classifyToolKind(input.toolName);
@@ -292,13 +351,22 @@ export function buildToolPresentation(input: BuildToolPresentationInput): ToolPr
     // image/video keep prompt via extractActionDetails; never promote raw args JSON.
     family !== 'mcp' &&
     family !== 'image' &&
-    family !== 'video'
+    family !== 'video' &&
+    family !== 'health'
   ) {
     presentation.summary = clipSummary(presentation.inputPreview);
   }
 
   if (toolWasCancelled) {
     presentation.summary = 'Cancelled before completion';
+  }
+
+  const healthFields = resolveHealthPresentation(input, args, family);
+  if (healthFields.health) {
+    presentation.health = healthFields.health;
+  }
+  if (healthFields.sensitivity) {
+    presentation.sensitivity = healthFields.sensitivity;
   }
 
   return attachFlashcardPresentation(presentation, {
@@ -337,6 +405,7 @@ function resolveActionFamily(toolName: string): ToolActionFamily {
   if (n === 'image_gen' || n === 'image_generate' || n.includes('image_gen')) return 'image';
   if (n === 'video_gen' || n === 'video_generate' || n.includes('video_gen')) return 'video';
   if (n === 'piwin_subagent_run') return 'subagent';
+  if (n === 'health_read_context' || n.startsWith('health_')) return 'health';
 
   if (
     n === 'write' ||
@@ -835,6 +904,10 @@ function extractActionDetails(input: {
       const sessionName = readString(record.sessionName);
       if (sessionName) summary = clipSummary(sessionName, 72);
       else if (task) summary = clipSummary(task, 96);
+      break;
+    }
+    case 'health': {
+      actionVerb = 'Read health';
       break;
     }
     default: {

@@ -39,13 +39,13 @@ describe('applyPromptPermissionOverride', () => {
     expect(actions).toEqual([{ kind: 'clear' }]);
   });
 
-  it('still raises ask-all for Plan mode under Auto config', () => {
+  it('does not raise a permission floor for Goal mode', () => {
     const { actions, context } = captureOverride();
     applyPromptPermissionOverride(context, {
       sessionId: 's1',
-      agentMode: 'plan',
+      agentMode: 'goal',
       configPreset: 'auto',
     });
-    expect(actions).toEqual([{ kind: 'set', mode: 'ask-all' }]);
+    expect(actions).toEqual([{ kind: 'clear' }]);
   });
 });

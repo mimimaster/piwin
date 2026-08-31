@@ -92,9 +92,27 @@ export function isLocalFileMarkdownHref(href: string): boolean {
 }
 
 /**
+ * Archives / media / markup agents offer as clickable deliverables.
+ * Source and config extensions (`ts`, `md`, `json`, …) are not chips unless
+ * the mention is an actual path (`src/app.ts`, `/Users/…/README.md`).
+ */
+const BARE_DELIVERABLE_EXTENSION_PATTERN =
+  /\.(zip|tar|tgz|gz|7z|rar|png|jpe?g|gif|webp|svg|bmp|ico|avif|pdf|html?|mp4|webm|mov|m4v|wasm|dmg|pkg|docx?|xlsx?|pptx?|exe|app|ipa|apk)(?:$|[?#])/i;
+
+function isBareFilename(value: string): boolean {
+  return (
+    !value.includes('/') &&
+    !value.includes('\\') &&
+    !/^file:/i.test(value) &&
+    !value.startsWith('~')
+  );
+}
+
+/**
  * True when an inline-code / bare-text string should render as a PathChip.
- * Slightly stricter than link href detection: requires path separators,
- * file: / ~, or a clear deliverable extension on a bare name.
+ * Paths (separators, `file:`, `~`) stay clickable. Bare names only chip when
+ * they look like a downloadable artifact (`.zip`, `.svg`, `.html`, …), not a
+ * source-file mention such as `main.ts` or `.md`.
  */
 export function isLocalPathChipCandidate(value: string): boolean {
   const trimmed = value.trim();
@@ -105,13 +123,16 @@ export function isLocalPathChipCandidate(value: string): boolean {
     return false;
   }
   if (isLocalFileMarkdownHref(trimmed)) {
+    if (isBareFilename(trimmed)) {
+      return BARE_DELIVERABLE_EXTENSION_PATTERN.test(trimmed);
+    }
     return true;
   }
-  // Bare "report.zip" without ./ — agents put these in backticks.
-  if (!trimmed.includes('://') && !trimmed.includes(' ') && LOCAL_FILE_EXTENSION_PATTERN.test(trimmed)) {
-    return true;
-  }
-  return false;
+  return (
+    !trimmed.includes('://') &&
+    !trimmed.includes(' ') &&
+    BARE_DELIVERABLE_EXTENSION_PATTERN.test(trimmed)
+  );
 }
 
 function escapeMarkdownLinkLabel(label: string): string {

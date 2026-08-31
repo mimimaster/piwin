@@ -262,8 +262,6 @@ function getAgentPlaceholder(
   if (conversationSession) {
     return copy.chatPlaceholder;
   }
-  if (mode === 'plan') return copy.planPlaceholder;
-  if (mode === 'ask') return copy.askPlaceholder;
   if (mode === 'goal') return copy.goalPlaceholder;
   return copy.agentPlaceholder;
 }

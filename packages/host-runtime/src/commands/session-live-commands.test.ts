@@ -1120,7 +1120,7 @@ describe('session live control commands', () => {
       {
         type: 'session/prompt',
         sessionId: persistingSession.id,
-        input: { text: 'Plan the change', agentMode: 'plan' },
+        input: { text: 'Plan the change', agentMode: 'agent' },
       },
       undefined,
       context,
@@ -1711,7 +1711,7 @@ describe('Conversation prompt path (CHT-301~308)', () => {
           sessionId: session.id,
           input: {
             text: 'hello',
-            agentMode: 'plan',
+            agentMode: 'goal',
             orchestrationSchemeId: 'ultra-code',
             skillId: 'writing-plans',
           },
