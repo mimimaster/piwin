@@ -262,21 +262,19 @@ export function resolvePermissionPreset(
  * Session-scoped approval mode for one prompt (ADR 0024 composer pill).
  *
  * Composer Run Mode is session-level and must reach Host even when
- * `config.permissions` is still YOLO. Plan/Ask agent modes still raise the
- * floor through {@link resolvePreset}. `undefined` means: clear the session
- * override and fall back to CLI / config.
+ * `config.permissions` is still YOLO. `undefined` means: clear the session
+ * override and fall back to CLI / config. Agent / Goal no longer raise a
+ * permission floor.
  */
 export function resolvePromptPermissionMode(input: {
   permissionPreset?: PermissionPreset;
   agentMode?: AgentModeId;
   configPreset: PermissionPreset;
 }): PermissionMode | undefined {
-  const agentMode = normalizeAgentModeId(input.agentMode);
-  if (input.permissionPreset === undefined && agentMode !== 'plan' && agentMode !== 'ask') {
+  if (input.permissionPreset === undefined) {
     return undefined;
   }
-  const preset = input.permissionPreset ?? input.configPreset;
-  return resolvePreset(preset, agentMode).mode;
+  return resolvePreset(input.permissionPreset, normalizeAgentModeId(input.agentMode)).mode;
 }
 
 export function createEmptyRuleSet(): PermissionRuleSet {
