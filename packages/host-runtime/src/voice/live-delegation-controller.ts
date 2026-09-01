@@ -5,6 +5,7 @@ import {
 import { transitionLiveCall, type VoiceDelegationEvent } from '@piwin/voice';
 import type { LiveCallSlot, LiveDelegationAdmissionPort } from './live-call-types.js';
 import { LiveDelegationLedger, type LiveDelegationRecord } from './live-delegation-ledger.js';
+import { liveHoldSpeakableReason, resolveLiveWorkReuse } from './live-delegation-reuse.js';
 import { sanitizeLiveSpeakableResult } from './live-speakable-result.js';
 import { reviewLiveDelegation, LIVE_DELEGATION_REVIEW_TIMEOUT_MS } from './review-live-delegation.js';
 
@@ -95,13 +96,19 @@ export class LiveDelegationController {
         } else if (decision.kind === 'reuse') {
           this.reuseResult(slot, delegation, decision.delegationId);
         } else {
-          const instruction = decision.kind === 'stop' ? PIWIN_LIVE_STOP_INSTRUCTION : decision.brief;
-          // Same canonical task is not new work. Explicit repeats are distinct.
-          const same = decision.kind === 'work'
-            ? this.ledger.contextForSession(targetSessionId).reverse().find((task) => task.brief === instruction)
-            : undefined;
-          if (same) this.reuseResult(slot, delegation, same.delegationId);
-          else {
+          const instruction =
+            decision.kind === 'stop' ? PIWIN_LIVE_STOP_INSTRUCTION : decision.brief;
+          const follow =
+            decision.kind === 'stop'
+              ? ({ action: 'admit' } as const)
+              : resolveLiveWorkReuse({
+                  kind: decision.kind,
+                  brief: decision.brief,
+                  tasks: this.ledger.contextForSession(targetSessionId),
+                });
+          if (follow.action === 'reuse') {
+            this.reuseResult(slot, delegation, follow.delegationId);
+          } else {
             if (decision.kind !== 'stop' && !this.ledger.hasCapacity()) throw new Error('live-delegation-rejected');
             if (decision.kind === 'stop' && !stopping) {
               stoppedReviewQueue = true;
@@ -132,9 +139,27 @@ export class LiveDelegationController {
   private finishWithoutWork(
     slot: LiveCallSlot,
     delegation: VoiceDelegationEvent,
-    reason: 'conversation' | 'clarify' | 'unavailable',
+    reason: 'conversation' | 'clarify' | 'unavailable' | 'hold-empty' | 'hold-mismatch',
     content?: string,
   ): void {
+    let speakable: string;
+    switch (reason) {
+      case 'conversation':
+        speakable = 'No work started. This is conversation or a speaking preference. Keep it in voice; respect requests for silence/no confirmation. Do not delegate it again.';
+        break;
+      case 'clarify':
+        speakable = 'No work started. The request is incomplete. Ask one short question in the user language about what action they want; do not invent or re-delegate the fragment.';
+        break;
+      case 'hold-empty':
+        speakable = 'No work started. The user is not in a work session. Ask them to open or focus a session. Do not claim you started the task.';
+        break;
+      case 'hold-mismatch':
+        speakable = 'No work started. The session the user is looking at is not the bound Live work session. Do not run the task in the previous session. Do not claim you started it.';
+        break;
+      case 'unavailable':
+        speakable = 'No work started: intent verification was unavailable. Briefly say you could not start it and the user can retry or type in chat. Do not claim acceptance.';
+        break;
+    }
     this.deps.pushOwnerAction?.({
       type: 'voice/live-owner-action', callId: slot.callId, action: 'ack-delegation',
       providerDelegationId: delegation.providerDelegationId, ok: false,
@@ -143,11 +168,7 @@ export class LiveDelegationController {
       type: 'voice/live-owner-action', callId: slot.callId, action: 'append-context',
       target: 'delegation', providerDelegationId: delegation.providerDelegationId,
       channel: reason === 'conversation' && !content ? 'commentary' : 'speakable',
-      content: content ?? (reason === 'conversation'
-        ? 'No work started. This is conversation or a speaking preference. Keep it in voice; respect requests for silence/no confirmation. Do not delegate it again.'
-        : reason === 'clarify'
-          ? 'No work started. The request is incomplete. Ask one short question in the user language about what action they want; do not invent or re-delegate the fragment.'
-          : 'No work started: intent verification was unavailable. Briefly say you could not start it and the user can retry or type in chat. Do not claim acceptance.'),
+      content: content ?? speakable,
     });
   }
 
@@ -172,7 +193,12 @@ export class LiveDelegationController {
     });
     if (this.slot !== slot) return;
     if (result.status !== 'accepted') {
-      this.finishWithoutWork(slot, delegation, 'unavailable');
+      const hold = liveHoldSpeakableReason(result.reason);
+      this.finishWithoutWork(
+        slot,
+        delegation,
+        hold ?? 'unavailable',
+      );
       return;
     }
     const ack = {
