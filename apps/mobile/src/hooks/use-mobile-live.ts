@@ -58,6 +58,8 @@ export function useMobileLive(input: {
   hostClient: HostClient | undefined;
   sessionId: string | undefined;
   ensureSession?: () => Promise<string | undefined>;
+  /** Test seam; production creates drivers from the mobile media registry. */
+  createDriver?: (driverId: LiveMediaDriverId) => MobileLiveMediaDriver;
 }): MobileLiveCallController {
   const [status, setStatus] = useState<LiveStatusData | null>(null);
   const statusRef = useRef<LiveStatusData | null>(null);
@@ -257,7 +259,9 @@ export function useMobileLive(input: {
       await failAndClose('live-provider-unavailable');
       return;
     }
-    const driver = createMobileLiveMediaRegistry().create(mediaDriverId);
+    const driver = input.createDriver
+      ? input.createDriver(mediaDriverId)
+      : createMobileLiveMediaRegistry().create(mediaDriverId);
     if (!driver.isSupported()) {
       await failAndClose('live-media-unsupported');
       return;
@@ -307,7 +311,68 @@ export function useMobileLive(input: {
         setStarting(false);
       }
     }
-  }, [failAndClose, input.ensureSession, input.hostClient, refreshStatus, reportEvent]);
+  }, [
+    failAndClose,
+    input.createDriver,
+    input.ensureSession,
+    input.hostClient,
+    refreshStatus,
+    reportEvent,
+  ]);
+
+  const rebind = useCallback(
+    async (nextSessionId: string): Promise<void> => {
+      const initial = callRef.current;
+      if (!initial || startingRef.current || userEndedRef.current) return;
+      if (initial.boundSessionId === nextSessionId) return;
+      const client = clientRef.current;
+      if (client === undefined) return;
+      const callId = initial.callId;
+      const maxAttempts = 3;
+      let lastError: string | null = null;
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        const call = callRef.current;
+        if (!call || call.callId !== callId || startingRef.current || userEndedRef.current) return;
+        if (call.boundSessionId === nextSessionId) return;
+        const response = await client.request({
+          type: 'voice/live/rebind',
+          input: {
+            sessionId: nextSessionId,
+            callId,
+            expectedRevision: call.revision,
+          },
+        });
+        if (response.success) {
+          const data = response.data as { call?: LiveCallView } | undefined;
+          const incoming = data?.call ?? null;
+          if (incoming) {
+            const next = adoptLiveStatus(statusRef.current, {
+              ...emptyLiveStatus(statusRef.current),
+              ready: statusRef.current?.ready ?? false,
+              call: incoming,
+            });
+            statusRef.current = next;
+            setStatus(next);
+            if (next.call?.callId === callId) {
+              callRef.current = next.call;
+            }
+          }
+          setError(null);
+          return;
+        }
+        lastError = response.error?.trim() ? response.error : 'live-protocol-failed';
+        if (lastError !== 'live-conflict') break;
+      }
+      if (lastError) setError(lastError);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    const sessionId = input.sessionId;
+    if (!sessionId || starting) return;
+    void rebind(sessionId);
+  }, [input.sessionId, rebind, starting, status?.call?.callId]);
 
   const setMuted = useCallback(async (muted: boolean): Promise<void> => {
     const client = clientRef.current;
