@@ -12,7 +12,7 @@ import type {
   LiveStatusData,
   LiveStatusInput,
 } from '@piwin/contracts';
-import { isLiveCallErrorCode, LIVE_SDP_OFFER_MAX_BYTES } from '@piwin/contracts';
+import { isLiveCallErrorCode, LIVE_SDP_OFFER_MAX_BYTES, piwinLiveRetargetContext } from '@piwin/contracts';
 import {
   createInitialLiveCallState,
   transitionLiveCall,
@@ -283,6 +283,14 @@ export class LiveCallCoordinator {
     forgetLiveWorkPreamble(this.slot.callId);
     const next = transitionLiveCall(this.slot.state, { type: 'retarget' });
     if (next) this.slot.state = next;
+    this.deps.pushOwnerAction?.({
+      type: 'voice/live-owner-action',
+      callId: this.slot.callId,
+      action: 'append-context',
+      target: 'session',
+      channel: 'commentary',
+      content: piwinLiveRetargetContext(label),
+    });
     this.emit();
     return { ok: true, call: this.toView(this.slot) };
   }
