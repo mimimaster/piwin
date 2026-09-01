@@ -261,6 +261,7 @@ export async function buildDomainContext(
   return {
     ...hostContext,
     ...(deps.liveCallCoordinator ? { liveCallCoordinator: deps.liveCallCoordinator } : {}),
+    ...(deps.liveIntendedSession ? { liveIntendedSession: deps.liveIntendedSession } : {}),
     ...(deps.liveSettings ? { liveSettings: deps.liveSettings } : {}),
     resolveOwnerDeviceId: () => deps.devicePrincipalStore.getStore() ?? 'local',
     refreshLivePrereqs: async () => {

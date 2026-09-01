@@ -10,12 +10,15 @@ import { composeLiveReviewer } from './compose-live-reviewer.js';
 import { readOpenaiCodexLiveAuth } from './codex-live-token.js';
 import { createVoiceDelegationAdmission } from './voice-delegation-admission.js';
 import { createHostVoiceDelegationPrompt } from './admit-voice-delegation.js';
+import { LiveIntendedSessionGate } from './live-intended-session-gate.js';
 
 export function composeHostLive(deps: HostRuntimeKernel): void {
   const piwinRoot = deps.options.piwinRoot;
   const getRecord = (sessionId: string) => getSessionRecord(
     getPiwinSessionIndexPath(getPiwinRoot(piwinRoot)), sessionId,
   );
+  const liveIntendedSession = new LiveIntendedSessionGate();
+  deps.liveIntendedSession = liveIntendedSession;
   const composed = composeLiveSettings({
     ...(piwinRoot === undefined ? {} : { piwinRoot }),
     ...(deps.options.mock === true ? { mock: true } : {}),
@@ -53,6 +56,7 @@ export function composeHostLive(deps: HostRuntimeKernel): void {
     admission: createVoiceDelegationAdmission({
       busy: { isSessionBusy: (sessionId) => Boolean(deps.runRegistry.getForegroundRun(sessionId)) },
       prompt: createHostVoiceDelegationPrompt({ handleCommand: (command) => deps.handleCommand(command) }),
+      intended: liveIntendedSession,
     }),
     ...(deps.options.mock === true ? { getFakeAdapter: () => composed.lastFakeAdapter() } : {}),
     pushUpdated: (call) => deps.push({ type: 'voice/live-updated', call }),

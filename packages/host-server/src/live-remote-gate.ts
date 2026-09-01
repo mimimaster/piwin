@@ -3,6 +3,7 @@ import type { HostCommand } from '@piwin/contracts';
 const LIVE_OWNER_COMMANDS = new Set<HostCommand['type']>([
   'voice/live/start',
   'voice/live/rebind',
+  'voice/live/set-intended-session',
   'voice/live/set-muted',
   'voice/live/report-event',
   'voice/live/media-state',

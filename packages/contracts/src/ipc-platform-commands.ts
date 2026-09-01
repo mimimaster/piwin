@@ -62,6 +62,7 @@ import type {
   LiveStartInput,
   LiveStatusInput,
 } from './voice-live.js';
+import type { LiveSetIntendedSessionInput } from './live-intended-session.js';
 import type { MediaReadCommandInput, MediaSaveCommandInput } from './ipc-media.js';
 
 export type PlatformHostCommand =
@@ -172,6 +173,7 @@ export type PlatformHostCommand =
   | { id?: string; type: 'voice/live/set-provider-key'; input: LiveSetProviderKeyInput }
   | { id?: string; type: 'voice/live/start'; input: LiveStartInput }
   | { id?: string; type: 'voice/live/rebind'; input: LiveRebindInput }
+  | { id?: string; type: 'voice/live/set-intended-session'; input: LiveSetIntendedSessionInput }
   | { id?: string; type: 'voice/live/media-state'; input: LiveMediaStateInput }
   | { id?: string; type: 'voice/live/set-muted'; input: LiveSetMutedInput }
   | { id?: string; type: 'voice/live/end'; input: LiveEndInput }
