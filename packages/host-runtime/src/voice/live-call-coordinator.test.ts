@@ -304,6 +304,12 @@ describe('LiveCallCoordinator', () => {
 
   it('rebinds work to another session without ending the call', async () => {
     const admitted: string[] = [];
+    const ownerActions: Array<{
+      action: string;
+      channel?: string;
+      target?: string;
+      content?: string;
+    }> = [];
     const coordinator = makeLiveCoordinator({
       resolveSessionLabel: (sessionId) =>
         sessionId === 's1' ? 'Work' : sessionId === 's2' ? 'Other' : null,
@@ -317,6 +323,14 @@ describe('LiveCallCoordinator', () => {
           },
         },
       }),
+      pushOwnerAction: (action) => {
+        ownerActions.push({
+          action: action.action,
+          ...(action.channel ? { channel: action.channel } : {}),
+          ...(action.target ? { target: action.target } : {}),
+          ...(action.content ? { content: action.content } : {}),
+        });
+      },
     });
     const started = await coordinator.start(startArgs({ idempotencyKey: 'k-rebind' }));
     expect(started.ok).toBe(true);
@@ -333,6 +347,21 @@ describe('LiveCallCoordinator', () => {
       ownerDeviceId: 'd1',
     });
     expect(missing).toEqual({ ok: false, errorCode: 'live-session-unavailable' });
+    const conflict = await coordinator.rebind({
+      sessionId: 's2',
+      callId: started.call.callId,
+      ownerDeviceId: 'd1',
+      expectedRevision: started.call.revision - 1,
+    });
+    expect(conflict).toEqual({ ok: false, errorCode: 'live-conflict' });
+    expect(ownerActions.filter((action) => action.action === 'append-context')).toHaveLength(0);
+    const same = await coordinator.rebind({
+      sessionId: 's1',
+      callId: started.call.callId,
+      ownerDeviceId: 'd1',
+    });
+    expect(same.ok).toBe(true);
+    expect(ownerActions.filter((action) => action.action === 'append-context')).toHaveLength(0);
     const rebound = await coordinator.rebind({
       sessionId: 's2',
       callId: started.call.callId,
@@ -344,6 +373,13 @@ describe('LiveCallCoordinator', () => {
       expect(rebound.call.boundSessionLabel).toBe('Other');
       expect(rebound.call.callId).toBe(started.call.callId);
     }
+    const retarget = ownerActions.filter((action) => action.action === 'append-context');
+    expect(retarget).toHaveLength(1);
+    expect(retarget[0]).toMatchObject({
+      channel: 'commentary',
+      target: 'session',
+    });
+    expect(retarget[0]?.content).toContain('Other');
     coordinator.reportOwnerEvent({
       callId: started.call.callId,
       ownerDeviceId: 'd1',

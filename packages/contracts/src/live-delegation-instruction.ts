@@ -10,6 +10,7 @@ import {
 
 export {
   composeLiveSpokenInstructions,
+  piwinLiveRetargetContext,
   PIWIN_LIVE_CODEX_APPENDIX,
   PIWIN_LIVE_SPOKEN_CONTRACT,
   PIWIN_LIVE_TOOL_APPENDIX,
