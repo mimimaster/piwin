@@ -5,7 +5,13 @@ import type { LiveChannelSnapshot } from './live-settings-service.js';
 export type LiveDelegationAdmissionResult =
   | { status: 'accepted'; messageId: string; queued: false; runId: string }
   | { status: 'accepted'; messageId: string; queued: true; queuedTurnId: string }
-  | { status: 'rejected'; reason: LiveCallErrorCode };
+  | {
+    status: 'rejected';
+    reason:
+      | LiveCallErrorCode
+      | 'live-delegation-held-empty'
+      | 'live-delegation-held-mismatch';
+  };
 
 export type LiveStartResult = { ok: true } & LiveStartData | { ok: false; errorCode: LiveCallErrorCode };
 
