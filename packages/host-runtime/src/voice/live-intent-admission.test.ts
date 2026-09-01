@@ -129,4 +129,86 @@ describe('Host intent admission regressions', () => {
     await vi.advanceTimersByTimeAsync(20_000);
     await rejected;
   });
+
+  it('does not session/prompt a second work decision with the same brief after completion (mtieeuab seq5)', async () => {
+    const review = vi.fn<LiveDelegationReviewer>()
+      .mockResolvedValueOnce({ kind: 'work', brief: '随便生成一张图片' })
+      .mockResolvedValueOnce({ kind: 'work', brief: '随便生成一张图片' });
+    const fixture = await setup(review);
+    fixture.send('item_EJE2', '随便生成一张图片');
+    await fixture.settled('item_EJE2');
+    fixture.coordinator.notifyBoundSessionTurnEnded({
+      sessionId: 's1',
+      runId: 'run',
+      kind: 'session-turn',
+      status: 'completed',
+      assistantText: 'Done — generated an image.',
+    });
+    fixture.send('item_EJE3', '随便生成一张图片');
+    await fixture.settled('item_EJE3');
+    expect(fixture.admit).toHaveBeenCalledTimes(1);
+    const spoken = fixture.actions.filter((action) => action.action === 'append-context');
+    expect(spoken.at(-1)?.content).toContain('generated an image');
+    await fixture.coordinator.dispose();
+  });
+
+  it('still admits kind repeat on the same bound session after completion', async () => {
+    const review = vi.fn<LiveDelegationReviewer>()
+      .mockResolvedValueOnce({ kind: 'work', brief: '随便生成一张图片' })
+      .mockResolvedValueOnce({ kind: 'repeat', brief: '随便生成一张图片' });
+    const fixture = await setup(review);
+    fixture.send('first', '随便生成一张图片');
+    await fixture.settled('first');
+    fixture.coordinator.notifyBoundSessionTurnEnded({
+      sessionId: 's1',
+      runId: 'run',
+      kind: 'session-turn',
+      status: 'completed',
+      assistantText: '图好了',
+    });
+    fixture.send('second', '随便生成一张图片');
+    await fixture.settled('second');
+    expect(fixture.admit).toHaveBeenCalledTimes(2);
+    await fixture.coordinator.dispose();
+  });
+
+  it('speaks hold-empty when admission rejects with live-delegation-held-empty', async () => {
+    const actions: LiveOwnerActionPush[] = [];
+    const coordinator = makeLiveCoordinator({
+      review: async () => ({ kind: 'repeat', brief: '随便生成一张图片' }),
+      admission: {
+        admit: async () => ({
+          status: 'rejected',
+          reason: 'live-delegation-held-empty',
+        }),
+      },
+      pushOwnerAction: (action) => actions.push(action),
+    });
+    const started = await coordinator.start({
+      sessionId: 's1',
+      providerId: 'openai-codex',
+      settingsRevision: 1,
+      idempotencyKey: 'hold',
+      ownerDeviceId: 'owner',
+      bootstrap: { mediaDriverId: 'codex-webrtc-v1', offerSdp: 'v=0\n' },
+      signal: new AbortController().signal,
+    });
+    if (!started.ok) throw new Error(started.errorCode);
+    coordinator.reportOwnerEvent({
+      callId: started.call.callId,
+      ownerDeviceId: 'owner',
+      event: {
+        type: 'delegation',
+        providerDelegationId: 'd-hold',
+        instruction: '随便生成一张图片',
+      },
+    });
+    await vi.waitFor(() =>
+      expect(actions.some((action) => action.action === 'append-context')).toBe(true),
+    );
+    expect(actions.find((action) => action.action === 'append-context')?.content).toContain(
+      'not in a work session',
+    );
+    await coordinator.dispose();
+  });
 });

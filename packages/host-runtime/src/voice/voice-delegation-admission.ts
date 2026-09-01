@@ -4,6 +4,7 @@
 
 import {
   LIVE_DELEGATION_INSTRUCTION_MAX_BYTES,
+  isLiveStopInstruction,
   sanitizeLiveDelegationInstruction,
 } from '@piwin/contracts';
 import type {
@@ -31,6 +32,7 @@ export type SessionPromptPort = {
 export function createVoiceDelegationAdmission(input: {
   busy: SessionBusyProbe;
   prompt: SessionPromptPort;
+  intended?: { read(callId: string): string | null | undefined };
 }): LiveDelegationAdmissionPort {
   const ledger = new Map<string, LiveDelegationAdmissionResult>();
   const inflight = new Map<string, Promise<LiveDelegationAdmissionResult>>();
@@ -62,6 +64,23 @@ export function createVoiceDelegationAdmission(input: {
           const rejected = reject();
           ledger.set(key, rejected);
           return rejected;
+        }
+
+        if (!isLiveStopInstruction(instruction) && input.intended) {
+          const intendedSessionId = input.intended.read(request.callId);
+          if (intendedSessionId === null) {
+            const held = { status: 'rejected' as const, reason: 'live-delegation-held-empty' as const };
+            ledger.set(key, held);
+            return held;
+          }
+          if (intendedSessionId !== undefined && intendedSessionId !== request.sessionId) {
+            const held = {
+              status: 'rejected' as const,
+              reason: 'live-delegation-held-mismatch' as const,
+            };
+            ledger.set(key, held);
+            return held;
+          }
         }
 
         const queue = input.busy.isSessionBusy(request.sessionId);

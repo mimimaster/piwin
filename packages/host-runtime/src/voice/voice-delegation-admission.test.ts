@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { LiveIntendedSessionGate } from './live-intended-session-gate.js';
 import { createVoiceDelegationAdmission } from './voice-delegation-admission.js';
 
 describe('createVoiceDelegationAdmission', () => {
@@ -124,5 +125,74 @@ describe('createVoiceDelegationAdmission', () => {
       if (!second.queued) expect(second.runId).toBe('r3');
     }
     expect(prompt.admitVoiceDelegation).toHaveBeenCalledTimes(2);
+  });
+
+  it('holds when intended session is empty', async () => {
+    const prompt = { admitVoiceDelegation: vi.fn() };
+    const gate = new LiveIntendedSessionGate();
+    gate.set('c1', null);
+    const port = createVoiceDelegationAdmission({
+      busy: { isSessionBusy: () => false },
+      prompt,
+      intended: gate,
+    });
+    const result = await port.admit({
+      callId: 'c1',
+      sessionId: 'session-a',
+      instruction: '随便生成一张图片',
+      providerDelegationId: 'item_EJE3',
+    });
+    expect(result).toEqual({
+      status: 'rejected',
+      reason: 'live-delegation-held-empty',
+    });
+    expect(prompt.admitVoiceDelegation).not.toHaveBeenCalled();
+  });
+
+  it('holds when intended session mismatches the bound session', async () => {
+    const prompt = { admitVoiceDelegation: vi.fn() };
+    const gate = new LiveIntendedSessionGate();
+    gate.set('c1', 'session-b');
+    const port = createVoiceDelegationAdmission({
+      busy: { isSessionBusy: () => false },
+      prompt,
+      intended: gate,
+    });
+    const result = await port.admit({
+      callId: 'c1',
+      sessionId: 'session-a',
+      instruction: '随便生成一张图片',
+      providerDelegationId: 'd2',
+    });
+    expect(result).toEqual({
+      status: 'rejected',
+      reason: 'live-delegation-held-mismatch',
+    });
+    expect(prompt.admitVoiceDelegation).not.toHaveBeenCalled();
+  });
+
+  it('still admits STOP_CURRENT_RUN while held', async () => {
+    const prompt = {
+      admitVoiceDelegation: vi.fn(async () => ({
+        queued: false as const,
+        runId: 'r-stop',
+        messageId: 'm-stop',
+      })),
+    };
+    const gate = new LiveIntendedSessionGate();
+    gate.set('c1', null);
+    const port = createVoiceDelegationAdmission({
+      busy: { isSessionBusy: () => false },
+      prompt,
+      intended: gate,
+    });
+    const result = await port.admit({
+      callId: 'c1',
+      sessionId: 'session-a',
+      instruction: 'STOP_CURRENT_RUN',
+      providerDelegationId: 'stop-1',
+    });
+    expect(result.status).toBe('accepted');
+    expect(prompt.admitVoiceDelegation).toHaveBeenCalledTimes(1);
   });
 });
