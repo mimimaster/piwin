@@ -68,6 +68,11 @@ export function liveStartErrorLabel(error: string, isChinese: boolean): string {
   if (error === 'live-session-unavailable') {
     return isChinese ? '无法创建会话' : 'Could not create a session';
   }
+  if (error === 'live-not-owner') {
+    return isChinese
+      ? '当前设备不是这场 Live 的持麦端，无法改绑工作目标'
+      : 'This device is not the Live owner, so the work target cannot be rebound';
+  }
   if (error === 'live-conflict') {
     return isChinese ? 'Live 设置刚更新过，请再点一次开始' : 'Live settings just changed. Start Live again.';
   }
@@ -140,4 +145,11 @@ export function liveStartErrorLabel(error: string, isChinese: boolean): string {
       : 'The Live connection was interrupted. Try again.';
   }
   return error;
+}
+
+/** Secondary LiveBar copy when focus is empty or differs from the bound work session (S-keep). */
+export function liveStillBoundTargetLabel(boundSessionLabel: string, isChinese: boolean): string {
+  return isChinese
+    ? `工作目标仍绑定「${boundSessionLabel}」`
+    : `Work target still bound to ${boundSessionLabel}`;
 }

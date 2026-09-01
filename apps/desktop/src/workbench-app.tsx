@@ -621,6 +621,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       starting={live.starting}
                       peer={live.peer}
                       error={live.error}
+                      intendedSessionId={liveSessionId}
                       onRetry={() => {
                         void live.start();
                       }}

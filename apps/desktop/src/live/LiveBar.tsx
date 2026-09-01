@@ -4,13 +4,15 @@ import type { LiveCallView } from '@piwin/contracts';
 import { useDesktopLocale } from '../desktop-locale-context.js';
 import { IconClose, IconMic, IconRefresh } from '../shell-icons.js';
 import type { LivePeerSnapshot } from './live-peer.js';
-import { liveStartErrorLabel } from './use-live-call.js';
+import { liveStillBoundTargetLabel, liveStartErrorLabel } from './live-call-copy.js';
 
 export type LiveBarProps = {
   call: LiveCallView | null;
   starting: boolean;
   peer: LivePeerSnapshot;
   error: string | null;
+  /** Focus / intended work session; empty or mismatch shows S-keep still-bound copy. */
+  intendedSessionId?: string | null;
   onRetry: () => void;
   onDismiss: () => void;
   onMute: (muted: boolean) => void;
@@ -22,6 +24,13 @@ export function LiveBar(props: LiveBarProps): ReactElement {
   const isChinese = locale === 'zh-CN';
   const muted = props.call?.activity === 'muted' || props.peer.muted;
   const presentation = presentLiveState(props, isChinese);
+  const intendedRaw = props.intendedSessionId;
+  const intendedSessionId =
+    intendedRaw === undefined ? undefined : intendedRaw?.trim() ? intendedRaw.trim() : null;
+  const showStillBound =
+    Boolean(props.call?.boundSessionLabel) &&
+    intendedSessionId !== undefined &&
+    (intendedSessionId === null || intendedSessionId !== props.call?.boundSessionId);
 
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -130,6 +139,12 @@ export function LiveBar(props: LiveBarProps): ReactElement {
       {props.call?.boundSessionLabel ? (
         <span className="live-bar-session" data-testid="live-bar-session">
           {props.call.boundSessionLabel}
+        </span>
+      ) : null}
+
+      {showStillBound && props.call?.boundSessionLabel ? (
+        <span className="live-bar-still-bound" data-testid="live-bar-still-bound">
+          {liveStillBoundTargetLabel(props.call.boundSessionLabel, isChinese)}
         </span>
       ) : null}
 

@@ -159,4 +159,27 @@ describe('LiveBar', () => {
     expect(grip).not.toBeNull();
     expect(grip?.getAttribute('title')).toBe('按住可拖拽移动');
   });
+
+  it('shows still-bound secondary copy when intendedSessionId is null', () => {
+    render(<LiveBar call={call} {...controls} intendedSessionId={null} />);
+    const stillBound = container?.querySelector('[data-testid="live-bar-still-bound"]');
+    expect(stillBound).not.toBeNull();
+    expect(stillBound?.textContent).toContain('图片生成被审核拦截');
+    expect(stillBound?.textContent).toMatch(/仍|工作目标/);
+  });
+
+  it('shows still-bound secondary copy when intendedSessionId differs from the bound session', () => {
+    render(<LiveBar call={call} {...controls} intendedSessionId="other-session" />);
+    expect(container?.querySelector('[data-testid="live-bar-still-bound"]')?.textContent).toContain(
+      '图片生成被审核拦截',
+    );
+  });
+
+  it('hides still-bound secondary copy when intendedSessionId matches the bound session', () => {
+    render(<LiveBar call={call} {...controls} intendedSessionId="s1" />);
+    expect(container?.querySelector('[data-testid="live-bar-still-bound"]')).toBeNull();
+    expect(container?.querySelector('[data-testid="live-bar-session"]')?.textContent).toBe(
+      '图片生成被审核拦截',
+    );
+  });
 });
