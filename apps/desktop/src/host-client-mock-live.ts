@@ -36,7 +36,8 @@ export function handleMockLiveCommand(input: {
     command.type !== 'voice/live/media-state' &&
     command.type !== 'voice/live/set-muted' &&
     command.type !== 'voice/live/end' &&
-    command.type !== 'voice/live/report-event'
+    command.type !== 'voice/live/report-event' &&
+    command.type !== 'voice/live/set-intended-session'
   ) {
     return null;
   }
@@ -166,6 +167,10 @@ export function handleMockLiveCommand(input: {
       input.setSlot(null);
       input.emitPush({ type: 'voice/live-updated', call: null });
     }
+    return ok(id, command.type, { accepted: true });
+  }
+
+  if (command.type === 'voice/live/set-intended-session') {
     return ok(id, command.type, { accepted: true });
   }
 
