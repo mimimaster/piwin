@@ -136,6 +136,82 @@ describe('ContextUsageRing', () => {
     expect(document.querySelector('[data-testid="context-usage-ring"]')).toBeNull();
   });
 
+  it('renders a closed ring from an idle dirty lastConfirmed snapshot', () => {
+    const view = capableView(
+      makeContextSnapshot({
+        sessionId: 'session-test',
+        phase: 'idle',
+        contextBoundary: { activeLeafMessageId: 'leaf-1' },
+        occupancy: { kind: 'unknown', reason: 'waiting-for-response' },
+        lastConfirmed: {
+          occupancy: makeKnownOccupancy({
+            tokensUsed: 40_000,
+            tokensLimit: 200_000,
+            quality: 'measured',
+          }),
+          contextBoundary: { activeLeafMessageId: 'leaf-1' },
+          sampledAt: '2026-08-30T00:00:00.000Z',
+        },
+        responseEvidence: {
+          currentRunHasResponse: false,
+          historyHasDisplayableResponse: true,
+        },
+      }),
+    );
+    expect(view.visible).toBe(true);
+    expect(view.occupancySource).toBe('current');
+    render({ view }, root);
+    expect(document.querySelector('[data-testid="context-usage-ring"]')).not.toBeNull();
+  });
+
+  it('labels runtime-generation-mismatch lastConfirmed as pending measurement, not Confirmed', () => {
+    const view = capableView(
+      makeContextSnapshot({
+        sessionId: 'session-test',
+        phase: 'invalidated',
+        contextBoundary: {
+          activeLeafMessageId: 'voice-live-leaf',
+          model: { providerId: 'openai', modelId: 'gpt-1' },
+          compactionBoundary: 'compact:a',
+          capabilityFingerprint: 'cap-a',
+          seedFingerprint: 'seed-a',
+        },
+        occupancy: { kind: 'unknown', reason: 'runtime-generation-mismatch' },
+        lastConfirmed: {
+          occupancy: makeKnownOccupancy({
+            tokensUsed: 7_797,
+            tokensLimit: 500_000,
+            quality: 'measured',
+          }),
+          contextBoundary: {
+            activeLeafMessageId: 'piw-old-leaf',
+            model: { providerId: 'openai', modelId: 'gpt-1' },
+            compactionBoundary: 'compact:a',
+            capabilityFingerprint: 'cap-a',
+            seedFingerprint: 'seed-a',
+          },
+          sampledAt: '2026-09-01T08:23:05.531Z',
+        },
+        responseEvidence: {
+          currentRunHasResponse: false,
+          historyHasDisplayableResponse: true,
+        },
+      }),
+    );
+    expect(view.visible).toBe(true);
+    expect(view.occupancySource).toBe('last-confirmed');
+    render({ view }, root);
+    activateTrigger();
+    const popover = queryPopover();
+    expect(popover?.textContent).toContain(
+      'Last confirmed; current context pending measurement',
+    );
+    expect(document.querySelector('[data-testid="conversation-usage-confirmed"]')).toBeNull();
+    expect(document.querySelector('[data-testid="conversation-usage-last-confirmed"]')?.textContent).toBe(
+      'Last confirmed; current context pending measurement',
+    );
+  });
+
   it('renders a closed ring from selector labels', () => {
     render({ view: capableView(eligibleSnapshot) }, root);
     const trigger = queryTrigger();

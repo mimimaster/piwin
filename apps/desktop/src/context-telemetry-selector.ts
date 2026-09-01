@@ -1,4 +1,12 @@
-import type { AssistantUsageMeasurement, SessionContextPhase } from '@piwin/contracts';
+import {
+  contextBoundaryCompatible,
+  promoteLastConfirmed,
+  type AssistantUsageMeasurement,
+  type ContextBoundary,
+  type ContextOccupancy,
+  type SessionContextPhase,
+  type SessionContextSnapshot,
+} from '@piwin/contracts';
 import type { ContextTelemetryState } from './context-telemetry-reducer.js';
 import {
   formatUsageTokenCount,
@@ -6,6 +14,8 @@ import {
   type ContextUsageCopy,
   type ConversationUsageLocale,
 } from './conversation-usage-copy.js';
+
+type KnownOccupancy = Extract<ContextOccupancy, { kind: 'known' }>;
 
 export type ContextRingLabels = {
   title: string;
@@ -38,6 +48,7 @@ export type ContextRingViewModel = {
   tokensUsed?: number;
   tokensLimit?: number;
   quality?: 'measured' | 'estimated';
+  occupancySource: 'current' | 'last-confirmed';
   phase: SessionContextPhase | 'offline' | 'capability-missing' | 'compacted-pending';
   labels: ContextRingLabels;
   arcRatio: number;
@@ -81,7 +92,7 @@ export function selectContextRingView(input: SelectContextRingViewInput): Contex
   void input.mountedMessageIds;
   void input.queuedTurnPending;
   const capabilityMissing = telemetry.capabilitySupported !== true;
-  const snapshot = telemetry.displayed;
+  const snapshot = telemetry.displayed ? promoteLastConfirmed(telemetry.displayed) : null;
   const lastRequest = projectLastRequest(telemetry.lastRequestUsage);
 
   if (capabilityMissing) {
@@ -97,10 +108,10 @@ export function selectContextRingView(input: SelectContextRingViewInput): Contex
     return hiddenView({ copy, phase: 'empty', lastRequest });
   }
 
-  const compactPending =
-    input.compactPendingOccupancy === true || isCompactPendingReason(snapshot.occupancy);
-  const occupancy = snapshot.occupancy;
-  const known = occupancy.kind === 'known' ? occupancy : null;
+  const compactPending = input.compactPendingOccupancy === true;
+  const resolved = resolveRingOccupancy(snapshot);
+  const known = resolved.occupancy;
+  const occupancySource = resolved.occupancySource;
   const displayLimit = resolveDisplayLimit({
     snapshotLimit: known?.tokensLimit,
     selectedModelContextWindow: input.selectedModelContextWindow,
@@ -114,15 +125,19 @@ export function selectContextRingView(input: SelectContextRingViewInput): Contex
 
   const waitingWithoutResponse =
     snapshot.phase === 'waiting-response' && !snapshot.responseEvidence.currentRunHasResponse;
-  const emptyPhase = snapshot.phase === 'empty';
+  const emptyPhase = snapshot.phase === 'empty' && known === null;
   const hasEvidence =
     snapshot.responseEvidence.currentRunHasResponse ||
     (snapshot.responseEvidence.historyHasDisplayableResponse &&
-      snapshot.phase !== 'waiting-response');
+      snapshot.phase !== 'waiting-response') ||
+    (known !== null && snapshot.phase === 'invalidated');
   const offline = telemetry.disconnected === true;
   const compacting = snapshot.phase === 'compacting' || input.compacting === true;
 
-  if (emptyPhase || waitingWithoutResponse || snapshot.phase === 'invalidated') {
+  if (emptyPhase || waitingWithoutResponse) {
+    return hiddenView({ copy, phase: snapshot.phase, lastRequest, offline });
+  }
+  if (snapshot.phase === 'invalidated' && known === null) {
     return hiddenView({ copy, phase: snapshot.phase, lastRequest, offline });
   }
 
@@ -153,19 +168,22 @@ export function selectContextRingView(input: SelectContextRingViewInput): Contex
       : offline
         ? 'offline'
         : snapshot.phase;
+  const staleCopy = occupancySource === 'last-confirmed';
   const status = compactPending
     ? copy.compactedPending
     : compacting
       ? copy.compacting
       : offline
         ? copy.offline
-        : quality === 'estimated'
-          ? snapshot.phase === 'streaming' || snapshot.phase === 'waiting-response'
-            ? copy.realtimeEstimate
-            : copy.estimated
-          : quality === 'measured'
-            ? copy.confirmed
-            : copy.estimated;
+        : staleCopy
+          ? copy.lastConfirmedPending
+          : quality === 'estimated'
+            ? snapshot.phase === 'streaming' || snapshot.phase === 'waiting-response'
+              ? copy.realtimeEstimate
+              : copy.estimated
+            : quality === 'measured'
+              ? copy.confirmed
+              : copy.estimated;
   const limitNote = estimatedAgainstSelectedModel
     ? copy.estimatedAgainstSelectedModel
     : displayLimit === undefined
@@ -183,13 +201,18 @@ export function selectContextRingView(input: SelectContextRingViewInput): Contex
     ...(typeof tokensUsed === 'number' ? { tokensUsed } : {}),
     ...(displayLimit !== undefined ? { tokensLimit: displayLimit } : {}),
     ...(quality !== undefined ? { quality } : {}),
+    occupancySource,
     phase,
     labels: {
       title: copy.title,
       close: copy.close,
       settings: copy.settings,
       status,
-      quality: quality === 'measured' ? copy.confirmed : copy.estimated,
+      quality: staleCopy
+        ? copy.lastConfirmedPending
+        : quality === 'measured'
+          ? copy.confirmed
+          : copy.estimated,
       limitNote,
       exceeds: exceedsLimit ? copy.exceedsLimit : '',
       hover: copy.hover(usedLabel, limitLabel, percentLabel),
@@ -221,6 +244,7 @@ function hiddenView(input: {
   return {
     visible: false,
     numericHidden: true,
+    occupancySource: 'current',
     phase: input.phase,
     labels: {
       title: input.copy.title,
@@ -249,6 +273,65 @@ function hiddenView(input: {
     capabilityMissing: input.capabilityMissing === true,
     ...(input.lastRequest !== undefined ? { lastRequest: input.lastRequest } : {}),
   };
+}
+
+function resolveRingOccupancy(snapshot: SessionContextSnapshot): {
+  occupancy: KnownOccupancy | null;
+  occupancySource: 'current' | 'last-confirmed';
+} {
+  const current =
+    snapshot.phase === 'invalidated' || snapshot.occupancy.kind !== 'known'
+      ? null
+      : snapshot.occupancy;
+  if (current) {
+    return { occupancy: current, occupancySource: 'current' };
+  }
+  const stale = presentationLastConfirmedOccupancy(snapshot);
+  if (stale) {
+    return { occupancy: stale, occupancySource: 'last-confirmed' };
+  }
+  return { occupancy: null, occupancySource: 'current' };
+}
+
+function presentationLastConfirmedOccupancy(
+  snapshot: SessionContextSnapshot,
+): KnownOccupancy | null {
+  if (snapshot.phase !== 'invalidated') {
+    return null;
+  }
+  if (snapshot.occupancy.kind !== 'unknown') {
+    return null;
+  }
+  if (snapshot.occupancy.reason !== 'runtime-generation-mismatch') {
+    return null;
+  }
+  if (!snapshot.responseEvidence.historyHasDisplayableResponse) {
+    return null;
+  }
+  const lastConfirmed = snapshot.lastConfirmed;
+  if (lastConfirmed === undefined || lastConfirmed.occupancy.kind !== 'known') {
+    return null;
+  }
+  if (
+    !nonLeafContextBoundaryCompatible(
+      lastConfirmed.contextBoundary,
+      snapshot.contextBoundary,
+    )
+  ) {
+    return null;
+  }
+  return lastConfirmed.occupancy;
+}
+
+/** Same as contracts boundary compatibility, except a moved active leaf is allowed. */
+function nonLeafContextBoundaryCompatible(
+  lastConfirmedBoundary: ContextBoundary,
+  currentBoundary: ContextBoundary,
+): boolean {
+  return contextBoundaryCompatible(
+    { ...lastConfirmedBoundary, activeLeafMessageId: currentBoundary.activeLeafMessageId },
+    currentBoundary,
+  );
 }
 
 function resolveDisplayLimit(input: {
@@ -291,13 +374,6 @@ function isEstimatedAgainstSelectedModel(input: {
     typeof input.known?.tokensLimit === 'number' &&
     input.known.tokensLimit !== input.selectedModelContextWindow
   );
-}
-
-function isCompactPendingReason(occupancy: {
-  kind: string;
-  reason?: string;
-}): boolean {
-  return occupancy.kind === 'unknown' && (occupancy.reason ?? '').includes('compact');
 }
 
 function projectLastRequest(

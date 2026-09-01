@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import type { ContextOccupancy, SessionContextSnapshot } from './context-telemetry.js';
+import type { ContextBoundary, ContextOccupancy, SessionContextSnapshot } from './context-telemetry.js';
 import {
   CONTEXT_TELEMETRY_VERSION,
+  canPromoteLastConfirmed,
   createUnknownSessionContextSnapshot,
   isFiniteNonNegative,
   parseSessionContextSnapshot,
+  promoteLastConfirmed,
+  ringOccupancyFromSnapshot,
 } from './context-telemetry.js';
 
 type UnknownOccupancy = Extract<ContextOccupancy, { kind: 'unknown' }>;
@@ -43,6 +46,32 @@ function validSnapshot(overrides: Record<string, unknown> = {}): Record<string, 
     phase: 'idle',
     occupancy: { kind: 'unknown', reason: 'not-sampled' },
     updatedAt: '2026-08-30T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function lastConfirmedOf(contextBoundary: ContextBoundary = boundary) {
+  return {
+    occupancy: knownOccupancy(),
+    contextBoundary,
+    sampledAt: '2026-08-30T00:00:01.000Z',
+  };
+}
+
+function idleDirtySnapshot(overrides: Partial<SessionContextSnapshot> = {}): SessionContextSnapshot {
+  return {
+    sessionId: 'session-1',
+    revision: 4,
+    contextVersion: 2,
+    contextBoundary: boundary,
+    responseEvidence: {
+      currentRunHasResponse: false,
+      historyHasDisplayableResponse: true,
+    },
+    phase: 'idle',
+    occupancy: { kind: 'unknown', reason: 'waiting-for-response' },
+    lastConfirmed: lastConfirmedOf(),
+    updatedAt: '2026-08-30T00:00:02.000Z',
     ...overrides,
   };
 }
@@ -156,6 +185,167 @@ describe('context telemetry contracts', () => {
             contextBoundary: boundary,
             sampledAt: '2026-08-30T00:00:01.000Z',
           },
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it('promotes idle unknown waiting-for-response with history evidence and same boundary', () => {
+    const snapshot = idleDirtySnapshot();
+    expect(canPromoteLastConfirmed(snapshot)).toBe(true);
+    const promoted = promoteLastConfirmed(snapshot);
+    expect(promoted.occupancy).toEqual(knownOccupancy());
+    expect(promoted.phase).toBe('idle');
+    expect(promoted.lastConfirmed).toEqual(snapshot.lastConfirmed);
+    expect(promoted.contextVersion).toBe(2);
+    expect(promoted.revision).toBe(4);
+  });
+
+  it('promotes idle unknown run-ended-without-response with history evidence and same boundary', () => {
+    const snapshot = idleDirtySnapshot({
+      occupancy: { kind: 'unknown', reason: 'run-ended-without-response' },
+    });
+    expect(canPromoteLastConfirmed(snapshot)).toBe(true);
+    expect(promoteLastConfirmed(snapshot).occupancy).toEqual(knownOccupancy());
+  });
+
+  it('does not promote a live waiting-response snapshot without current-run response', () => {
+    const waiting = idleDirtySnapshot({
+      phase: 'waiting-response',
+      runId: 'run-2',
+    });
+    expect(canPromoteLastConfirmed(waiting)).toBe(false);
+    expect(promoteLastConfirmed(waiting)).toBe(waiting);
+  });
+
+  it('does not promote runtime-generation-mismatch after invalidate with a moved leaf', () => {
+    const snapshot = idleDirtySnapshot({
+      phase: 'invalidated',
+      occupancy: { kind: 'unknown', reason: 'runtime-generation-mismatch' },
+      contextBoundary: { activeLeafMessageId: 'voice-live-leaf' },
+    });
+    expect(canPromoteLastConfirmed(snapshot)).toBe(false);
+    expect(promoteLastConfirmed(snapshot)).toBe(snapshot);
+  });
+
+  it('does not promote abort, compaction, store, branch/schema, or empty snapshots', () => {
+    const blocked: SessionContextSnapshot[] = [
+      idleDirtySnapshot({ occupancy: { kind: 'unknown', reason: 'error-or-aborted-usage' } }),
+      idleDirtySnapshot({ occupancy: { kind: 'unknown', reason: 'compaction-unmeasured' } }),
+      idleDirtySnapshot({
+        phase: 'unavailable',
+        occupancy: { kind: 'unknown', reason: 'store-unavailable' },
+      }),
+      idleDirtySnapshot({
+        phase: 'invalidated',
+        occupancy: { kind: 'unknown', reason: 'branch-switch' },
+      }),
+      idleDirtySnapshot({
+        phase: 'invalidated',
+        occupancy: { kind: 'unknown', reason: 'schema-or-session-mismatch' },
+      }),
+      idleDirtySnapshot({
+        phase: 'empty',
+        occupancy: { kind: 'unknown', reason: 'never-sampled' },
+      }),
+    ];
+    for (const snapshot of blocked) {
+      expect(canPromoteLastConfirmed(snapshot)).toBe(false);
+      expect(promoteLastConfirmed(snapshot)).toBe(snapshot);
+    }
+    const { lastConfirmed: _dropped, ...withoutConfirmed } = idleDirtySnapshot();
+    expect(canPromoteLastConfirmed(withoutConfirmed)).toBe(false);
+  });
+
+  it('does not promote when model, compaction, capability, seed, or stamped leaf disagree', () => {
+    const incompatible: SessionContextSnapshot[] = [
+      idleDirtySnapshot({
+        lastConfirmed: lastConfirmedOf({
+          activeLeafMessageId: 'leaf-1',
+          model: { providerId: 'openai', modelId: 'gpt-4' },
+        }),
+        contextBoundary: {
+          activeLeafMessageId: 'leaf-1',
+          model: { providerId: 'anthropic', modelId: 'claude-3' },
+        },
+      }),
+      idleDirtySnapshot({
+        lastConfirmed: lastConfirmedOf({
+          activeLeafMessageId: 'leaf-1',
+          compactionBoundary: 'compact:before',
+        }),
+        contextBoundary: { activeLeafMessageId: 'leaf-1', compactionBoundary: 'compact:after' },
+      }),
+      idleDirtySnapshot({
+        lastConfirmed: lastConfirmedOf({
+          activeLeafMessageId: 'leaf-1',
+          capabilityFingerprint: 'cap-a',
+        }),
+        contextBoundary: { activeLeafMessageId: 'leaf-1', capabilityFingerprint: 'cap-b' },
+      }),
+      idleDirtySnapshot({
+        lastConfirmed: lastConfirmedOf({
+          activeLeafMessageId: 'leaf-1',
+          seedFingerprint: 'seed-a',
+        }),
+        contextBoundary: { activeLeafMessageId: 'leaf-1', seedFingerprint: 'seed-b' },
+      }),
+      idleDirtySnapshot({
+        contextBoundary: { activeLeafMessageId: 'other-leaf' },
+      }),
+    ];
+    for (const snapshot of incompatible) {
+      expect(canPromoteLastConfirmed(snapshot)).toBe(false);
+      expect(promoteLastConfirmed(snapshot)).toBe(snapshot);
+    }
+  });
+
+  it('does not change contextVersion, revision, or turn invalidated into idle', () => {
+    const idle = idleDirtySnapshot();
+    const promotedIdle = promoteLastConfirmed(idle);
+    expect(promotedIdle.contextVersion).toBe(idle.contextVersion);
+    expect(promotedIdle.revision).toBe(idle.revision);
+    expect(promotedIdle.phase).toBe('idle');
+
+    const invalidated = idleDirtySnapshot({
+      phase: 'invalidated',
+      occupancy: { kind: 'unknown', reason: 'runtime-generation-mismatch' },
+      contextBoundary: { activeLeafMessageId: 'voice-live-leaf' },
+    });
+    const promotedInvalidated = promoteLastConfirmed(invalidated);
+    expect(promotedInvalidated).toBe(invalidated);
+    expect(promotedInvalidated.phase).toBe('invalidated');
+    expect(promotedInvalidated.contextVersion).toBe(2);
+    expect(promotedInvalidated.revision).toBe(4);
+  });
+
+  it('returns current known occupancy only and does not fall back to lastConfirmed', () => {
+    expect(ringOccupancyFromSnapshot(idleDirtySnapshot({ occupancy: knownOccupancy() }))).toEqual(
+      knownOccupancy(),
+    );
+    expect(ringOccupancyFromSnapshot(idleDirtySnapshot())).toBeNull();
+    expect(
+      ringOccupancyFromSnapshot(
+        idleDirtySnapshot({
+          phase: 'invalidated',
+          occupancy: { kind: 'unknown', reason: 'runtime-generation-mismatch' },
+          contextBoundary: { activeLeafMessageId: 'voice-live-leaf' },
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      ringOccupancyFromSnapshot(
+        idleDirtySnapshot({
+          phase: 'unavailable',
+          occupancy: { kind: 'unknown', reason: 'store-unavailable' },
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      ringOccupancyFromSnapshot(
+        idleDirtySnapshot({
+          phase: 'waiting-response',
+          runId: 'run-2',
         }),
       ),
     ).toBeNull();

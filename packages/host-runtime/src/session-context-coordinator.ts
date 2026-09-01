@@ -1,10 +1,12 @@
-import type {
-  AssistantUsageMeasurement,
-  ContextBoundary,
-  ContextMeasurement,
-  ContextUsageSnapshot,
-  HostPush,
-  SessionContextSnapshot,
+import {
+  canPromoteLastConfirmed,
+  promoteLastConfirmed,
+  type AssistantUsageMeasurement,
+  type ContextBoundary,
+  type ContextMeasurement,
+  type ContextUsageSnapshot,
+  type HostPush,
+  type SessionContextSnapshot,
 } from '@piwin/contracts';
 import {
   readOrInsertUnknownContextState,
@@ -20,6 +22,7 @@ import {
   applyRunStarted,
   applyRunTerminal,
 } from './session-context-merge.js';
+import { repairPersistedCrossLeafKnownPollution } from './session-context-persisted-repair.js';
 import { createSessionContextPublisher, type SessionContextPublisher } from './session-context-publish.js';
 
 export type SessionContextCoordinatorDeps = {
@@ -205,7 +208,24 @@ export function createSessionContextCoordinator(
       publisher,
     };
     sessions.set(sessionId, entry);
+    await repairPersistedOccupancy(entry);
+    await settlePersistedOccupancy(entry);
     return entry;
+  }
+
+  async function repairPersistedOccupancy(entry: SessionEntry): Promise<void> {
+    const repaired = repairPersistedCrossLeafKnownPollution(entry.snapshot);
+    if (repaired === entry.snapshot) {
+      return;
+    }
+    await commit(entry, { ...repaired, updatedAt: deps.nowIso() }, true);
+  }
+
+  async function settlePersistedOccupancy(entry: SessionEntry): Promise<void> {
+    if (!canPromoteLastConfirmed(entry.snapshot)) {
+      return;
+    }
+    await commit(entry, { ...promoteLastConfirmed(entry.snapshot), updatedAt: deps.nowIso() }, true);
   }
 
   async function commit(
@@ -441,6 +461,7 @@ export function createSessionContextCoordinator(
 
     async getSnapshot(sessionId) {
       const entry = await hydrate(sessionId);
+      await settlePersistedOccupancy(entry);
       const flushed = await entry.publisher.flush();
       if (flushed !== undefined && flushed.status !== 'cas-mismatch') {
         entry.snapshot = flushed.snapshot;

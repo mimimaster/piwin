@@ -31,6 +31,42 @@ function selected(
   return applyContextTelemetry(state, { type: 'snapshot', snapshot, source: 'live' });
 }
 
+const STALE_EN = 'Last confirmed; current context pending measurement';
+const STALE_ZH = '上次确认，当前上下文待测量';
+const SHARED_BOUNDARY = {
+  model: { providerId: 'openai', modelId: 'gpt-1' },
+  compactionBoundary: 'compact:a',
+  capabilityFingerprint: 'cap-a',
+  seedFingerprint: 'seed-a',
+} as const;
+
+function runtimeMismatchSnapshot(
+  overrides: Parameters<typeof makeContextSnapshot>[0] = {},
+) {
+  return makeContextSnapshot({
+    sessionId: 'session-a',
+    phase: 'invalidated',
+    contextBoundary: { activeLeafMessageId: 'voice-live-leaf', ...SHARED_BOUNDARY },
+    occupancy: { kind: 'unknown', reason: 'runtime-generation-mismatch' },
+    lastConfirmed: {
+      occupancy: makeKnownOccupancy({ tokensUsed: 7_797, tokensLimit: 500_000 }),
+      contextBoundary: { activeLeafMessageId: 'piw-old-leaf', ...SHARED_BOUNDARY },
+      sampledAt: '2026-09-01T08:23:05.531Z',
+    },
+    responseEvidence: {
+      currentRunHasResponse: false,
+      historyHasDisplayableResponse: true,
+    },
+    ...overrides,
+  });
+}
+
+function runtimeMismatchTelemetry(
+  overrides: Parameters<typeof makeContextSnapshot>[0] = {},
+) {
+  return selected('session-a', runtimeMismatchSnapshot(overrides));
+}
+
 describe('context ring selector matrix', () => {
   it('T01: hides empty draft, unsent input, and empty message_start/waiting', () => {
     const draft = withCapability(createInitialContextTelemetryState());
@@ -216,6 +252,194 @@ describe('context ring selector matrix', () => {
       queuedTurnPending: true,
     });
     expect(queued.visible).toBe(true);
+  });
+
+  it('shows lastConfirmed on idle dirty occupancy and still hides a waiting run', () => {
+    const lastConfirmed = {
+      occupancy: makeKnownOccupancy({ tokensUsed: 23_065, tokensLimit: 128_000 }),
+      contextBoundary: { activeLeafMessageId: 'leaf-1' },
+      sampledAt: '2026-08-30T00:00:00.000Z',
+    };
+    const dirtyIdle = selected(
+      'session-a',
+      makeContextSnapshot({
+        sessionId: 'session-a',
+        phase: 'idle',
+        contextBoundary: { activeLeafMessageId: 'leaf-1' },
+        occupancy: { kind: 'unknown', reason: 'waiting-for-response' },
+        lastConfirmed,
+        responseEvidence: {
+          currentRunHasResponse: false,
+          historyHasDisplayableResponse: true,
+        },
+      }),
+    );
+    const visible = selectContextRingView({ telemetry: dirtyIdle, locale: 'en' });
+    expect(visible.visible).toBe(true);
+    expect(visible.tokensUsed).toBe(23_065);
+    expect(visible.occupancySource).toBe('current');
+    expect(visible.labels.status).toBe('Confirmed');
+    expect(visible.labels.quality).toBe('Confirmed');
+    expect(visible.labels.status).not.toBe(STALE_EN);
+
+    const waitingDirty = selected(
+      'session-a',
+      makeContextSnapshot({
+        sessionId: 'session-a',
+        phase: 'waiting-response',
+        contextBoundary: { activeLeafMessageId: 'leaf-1' },
+        occupancy: { kind: 'unknown', reason: 'waiting-for-response' },
+        lastConfirmed,
+        responseEvidence: {
+          currentRunHasResponse: false,
+          historyHasDisplayableResponse: true,
+        },
+      }),
+    );
+    expect(selectContextRingView({ telemetry: waitingDirty, locale: 'en' }).visible).toBe(false);
+  });
+
+  it('shows stale lastConfirmed for runtime-generation-mismatch with a moved leaf', () => {
+    const telemetry = runtimeMismatchTelemetry();
+    const view = selectContextRingView({ telemetry, locale: 'en' });
+    expect(view.visible).toBe(true);
+    expect(view.tokensUsed).toBe(7_797);
+    expect(view.occupancySource).toBe('last-confirmed');
+    expect(view.phase).toBe('invalidated');
+    expect(view.labels.status).toBe(STALE_EN);
+    expect(view.labels.quality).toBe(STALE_EN);
+    expect(view.labels.status).not.toBe('Confirmed');
+    expect(view.labels.quality).not.toBe('Confirmed');
+
+    const zh = selectContextRingView({ telemetry, locale: 'zh-CN' });
+    expect(zh.labels.status).toBe(STALE_ZH);
+    expect(zh.labels.quality).toBe(STALE_ZH);
+    expect(zh.labels.status).not.toBe('已确认');
+    expect(zh.labels.quality).not.toBe('已确认');
+  });
+
+  it('does not mutate the reducer snapshot when presenting stale lastConfirmed', () => {
+    const telemetry = runtimeMismatchTelemetry();
+    const displayed = telemetry.displayed;
+    expect(displayed?.phase).toBe('invalidated');
+    expect(displayed?.occupancy).toEqual({
+      kind: 'unknown',
+      reason: 'runtime-generation-mismatch',
+    });
+    const view = selectContextRingView({ telemetry, locale: 'en' });
+    expect(view.visible).toBe(true);
+    expect(view.occupancySource).toBe('last-confirmed');
+    expect(telemetry.displayed).toBe(displayed);
+    expect(telemetry.displayed?.phase).toBe('invalidated');
+    expect(telemetry.displayed?.occupancy).toEqual({
+      kind: 'unknown',
+      reason: 'runtime-generation-mismatch',
+    });
+  });
+
+  it('hides lastConfirmed for abort, compaction-unmeasured, store, and branch/schema reasons', () => {
+    const blocked = [
+      { phase: 'idle' as const, reason: 'error-or-aborted-usage' },
+      { phase: 'idle' as const, reason: 'compaction-unmeasured' },
+      { phase: 'unavailable' as const, reason: 'store-unavailable' },
+      { phase: 'invalidated' as const, reason: 'branch-switch' },
+      { phase: 'invalidated' as const, reason: 'schema-or-session-mismatch' },
+    ];
+    for (const row of blocked) {
+      const view = selectContextRingView({
+        telemetry: runtimeMismatchTelemetry({
+          phase: row.phase,
+          occupancy: { kind: 'unknown', reason: row.reason },
+        }),
+        locale: 'en',
+      });
+      expect({
+        reason: row.reason,
+        visible: view.visible,
+        tokensUsed: view.tokensUsed,
+        occupancySource: view.occupancySource,
+        status: view.labels.status,
+        quality: view.labels.quality,
+      }).toEqual({
+        reason: row.reason,
+        visible: false,
+        tokensUsed: undefined,
+        occupancySource: 'current',
+        status: '',
+        quality: '',
+      });
+    }
+  });
+
+  it('hides lastConfirmed when model, compaction, capability, or seed disagree', () => {
+    const incompatible = [
+      {
+        lastConfirmed: {
+          occupancy: makeKnownOccupancy({ tokensUsed: 7_797, tokensLimit: 500_000 }),
+          contextBoundary: {
+            activeLeafMessageId: 'piw-old-leaf',
+            ...SHARED_BOUNDARY,
+            model: { providerId: 'anthropic', modelId: 'claude-3' },
+          },
+          sampledAt: '2026-09-01T08:23:05.531Z',
+        },
+      },
+      {
+        lastConfirmed: {
+          occupancy: makeKnownOccupancy({ tokensUsed: 7_797, tokensLimit: 500_000 }),
+          contextBoundary: {
+            activeLeafMessageId: 'piw-old-leaf',
+            ...SHARED_BOUNDARY,
+            compactionBoundary: 'compact:after',
+          },
+          sampledAt: '2026-09-01T08:23:05.531Z',
+        },
+      },
+      {
+        lastConfirmed: {
+          occupancy: makeKnownOccupancy({ tokensUsed: 7_797, tokensLimit: 500_000 }),
+          contextBoundary: {
+            activeLeafMessageId: 'piw-old-leaf',
+            ...SHARED_BOUNDARY,
+            capabilityFingerprint: 'cap-b',
+          },
+          sampledAt: '2026-09-01T08:23:05.531Z',
+        },
+      },
+      {
+        lastConfirmed: {
+          occupancy: makeKnownOccupancy({ tokensUsed: 7_797, tokensLimit: 500_000 }),
+          contextBoundary: {
+            activeLeafMessageId: 'piw-old-leaf',
+            ...SHARED_BOUNDARY,
+            seedFingerprint: 'seed-b',
+          },
+          sampledAt: '2026-09-01T08:23:05.531Z',
+        },
+      },
+    ];
+    for (const overrides of incompatible) {
+      const view = selectContextRingView({
+        telemetry: runtimeMismatchTelemetry(overrides),
+        locale: 'en',
+      });
+      expect(view.visible).toBe(false);
+      expect(view.tokensUsed).toBeUndefined();
+      expect(view.occupancySource).toBe('current');
+    }
+  });
+
+  it('hides runtime-generation-mismatch lastConfirmed while waiting without a current response', () => {
+    const view = selectContextRingView({
+      telemetry: runtimeMismatchTelemetry({
+        phase: 'waiting-response',
+        runId: 'run-2',
+      }),
+      locale: 'en',
+    });
+    expect(view.visible).toBe(false);
+    expect(view.tokensUsed).toBeUndefined();
+    expect(view.occupancySource).toBe('current');
   });
 
   it('hides numeric ring after compact success with unknown occupancy', () => {

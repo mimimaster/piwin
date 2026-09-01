@@ -20,6 +20,7 @@ export type ContextUsageCopy = {
   limit: string;
   remaining: string;
   confirmed: string;
+  lastConfirmedPending: string;
   estimated: string;
   realtimeEstimate: string;
   exceedsLimit: string;
@@ -50,6 +51,7 @@ const COPY: Record<ConversationUsageLocale, ContextUsageCopy> = {
     limit: '上下文上限',
     remaining: '剩余',
     confirmed: '已确认',
+    lastConfirmedPending: '上次确认，当前上下文待测量',
     estimated: '估算',
     realtimeEstimate: '实时估算',
     exceedsLimit: '超过上下文上限',
@@ -82,6 +84,7 @@ const COPY: Record<ConversationUsageLocale, ContextUsageCopy> = {
     limit: 'Context limit',
     remaining: 'Remaining',
     confirmed: 'Confirmed',
+    lastConfirmedPending: 'Last confirmed; current context pending measurement',
     estimated: 'Estimated',
     realtimeEstimate: 'Realtime estimate',
     exceedsLimit: 'Exceeds context limit',
@@ -303,6 +306,7 @@ export function contextUsageCopyHasMixedEnglish(locale: ConversationUsageLocale)
     copy.limit,
     copy.remaining,
     copy.confirmed,
+    copy.lastConfirmedPending,
     copy.estimated,
     copy.realtimeEstimate,
     copy.exceedsLimit,

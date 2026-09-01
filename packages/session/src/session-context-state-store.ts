@@ -292,6 +292,7 @@ export async function seedDerivedSessionContextState(input: {
       historyHasDisplayableResponse: true,
     };
   }
+  // Occupancy stays unknown(derived-session) until the target active path is measured.
   const replaced = await input.target.replaceContextState({
     expectedContextVersion: snapshot.contextVersion,
     expectedBoundary: snapshot.contextBoundary,
