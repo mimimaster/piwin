@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | Status | **Accepted — multi-provider; supersedes Codex-only same-week wording** |
-| Date | 2026-08-28; revised 2026-08-29; language layers + intent admission 2026-08-31 |
+| Date | 2026-08-28; revised 2026-08-29; language layers + intent admission 2026-08-31; retarget / failure visibility / Mobile follow 2026-09-01 |
 | Scope | `@piwin/contracts`, `@piwin/voice`, `@piwin/host-runtime`, `@piwin/host-server`, `@piwin/host-transport`, `apps/desktop`, `apps/mobile` |
 | Product | [2026-08-28 product](../specs/2026-08-28-codex-live-product.md) · [2026-08-29 provider adapter](../specs/2026-08-29-live-provider-adapter.md) · [2026-08-31 language layers](../specs/2026-08-31-live-language-layers.md) |
 | Architecture | [2026-08-28 voice lane](../specs/2026-08-28-codex-live-voice-lane.md) |
@@ -13,6 +13,8 @@
 渠道、设置、建连材料与登记台以 [2026-08-29-live-provider-adapter.md](../specs/2026-08-29-live-provider-adapter.md) 为准。会话准入、单 Host 单通话、挂断不取消已接纳 Run、原始音频不落盘，仍以本文与 2026-08-28 产品规格为准。
 
 2026-08-31 稳定性修订：[Live reliability](../specs/2026-08-31-live-reliability.md)。已落实 owner-scoped bootstrap 重放、settingsRevision 校验、晚到取消清理、真实媒体就绪门、Host 唯一结果回传与可恢复失败 UI。原生 bridge 已验证当前适配器 HTTP 201 → connected；真实设备听感验收仍单独进行。
+
+2026-09-01 retarget / failure visibility / Mobile follow：通话中 Desktop 焦点与 paired Mobile owner 当前工作会话均 auto-rebind；空焦点保持旧绑且 owner UI 必须标出绑定目标；改绑失败可见；成功改 session 后 Host 发短 `append-context` retarget，不 abort 已接纳 Run。
 
 ## Context
 
@@ -132,9 +134,15 @@ Sending a frame still does not prove upstream receipt or audible playback.
 
 One active call per Host; owner-only start/mute/end/SDP; a loopback Desktop or
 one authenticated paired Mobile device may become the owner; others see
-sanitized `LiveCallView`; Desktop retargets work to the focused conversation
-pane without tearing down media or changing the owner device; empty panes keep
-the previous bind; owner disconnect grace; Host restart ends the call.
+sanitized `LiveCallView`. Desktop retargets work to the focused conversation
+pane, and a paired Mobile owner retargets work to its current work session, in
+both cases without tearing down media or changing the owner device. Empty
+panes / empty effective focus keep the previous bind, and the owner shell must
+still identify the bound work target. Failed rebind is a visible error (Live
+bar / error surface), not a silent keep. A successful rebind that changes
+session notifies the voice model via a short Host `append-context` retarget;
+admitted Runs are not aborted; in-flight admission stays on the session that
+heard it. Owner disconnect grace; Host restart ends the call.
 
 ### 7. Connection state and authorization failures are explicit
 

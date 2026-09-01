@@ -26,6 +26,7 @@ export {
   liveMissingLabel,
   liveProviderAuthError,
   liveStartErrorLabel,
+  liveStillBoundTargetLabel,
   resolveLiveStartChannel,
 } from './live-call-copy.js';
 
@@ -378,33 +379,65 @@ export function useLiveCall(input: {
     [input.hostClient],
   );
 
+  const rebindChainRef = useRef(Promise.resolve());
+
   const rebind = useCallback(
     async (nextSessionId: string) => {
-      const call = callRef.current;
-      if (!call || startingRef.current || userEndedRef.current) return;
-      if (call.boundSessionId === nextSessionId) return;
-      const requestRebind = async (expectedRevision: number) =>
-        input.hostClient.request({
+      const initial = callRef.current;
+      if (!initial || startingRef.current || userEndedRef.current) return;
+      if (sessionIdRef.current !== nextSessionId) return;
+      if (initial.boundSessionId === nextSessionId) return;
+      const callId = initial.callId;
+      const maxAttempts = 3;
+      let lastError: string | null = null;
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        if (sessionIdRef.current !== nextSessionId) return;
+        const call = callRef.current;
+        if (!call || call.callId !== callId || startingRef.current || userEndedRef.current) return;
+        if (call.boundSessionId === nextSessionId) return;
+        const response = await input.hostClient.request({
           type: 'voice/live/rebind',
           input: {
             sessionId: nextSessionId,
-            callId: call.callId,
-            expectedRevision,
+            callId,
+            expectedRevision: call.revision,
           },
         });
-      const first = await requestRebind(call.revision);
-      if (first.success) return;
-      if (first.error !== 'live-conflict') return;
-      const latest = callRef.current;
-      if (!latest || latest.boundSessionId === nextSessionId) return;
-      await requestRebind(latest.revision);
+        if (sessionIdRef.current !== nextSessionId) return;
+        if (response.success) {
+          const data = response.data as { call?: LiveCallView } | undefined;
+          const incoming = data?.call ?? null;
+          if (incoming) {
+            const merged = preferFresherLiveCall(callRef.current, incoming);
+            callRef.current = merged;
+            setStatus((current) =>
+              adoptLiveStatus(current, {
+                ...emptyLiveStatus(current),
+                ready: current?.ready ?? false,
+                missing: withoutLiveCallBusy(current?.missing ?? []),
+                call: merged,
+              }),
+            );
+          }
+          setError(null);
+          return;
+        }
+        lastError = response.error?.trim() ? response.error : 'live-protocol-failed';
+        if (lastError !== 'live-conflict') break;
+      }
+      if (lastError && sessionIdRef.current === nextSessionId) setError(lastError);
     },
     [input.hostClient],
   );
 
   useEffect(() => {
     if (!sessionId || starting) return;
-    void rebind(sessionId);
+    const target = sessionId;
+    const run = async (): Promise<void> => {
+      if (sessionIdRef.current !== target) return;
+      await rebind(target);
+    };
+    rebindChainRef.current = rebindChainRef.current.then(run, run);
   }, [rebind, sessionId, starting, status?.call?.callId]);
 
   const end = useCallback(async () => {

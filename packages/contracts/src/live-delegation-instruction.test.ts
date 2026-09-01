@@ -9,6 +9,7 @@ import {
   composeLiveSpokenInstructions,
   compressLiveDelegationInstruction,
   isLiveStopInstruction,
+  piwinLiveRetargetContext,
   sanitizeLiveDelegationInstruction,
   wrapLiveDelegationForAgent,
 } from './live-delegation-instruction.js';
@@ -58,6 +59,13 @@ describe('spoken contracts', () => {
     expect(composeLiveSpokenInstructions('tool-handover')).toContain('delegate_to_work_session');
     expect(PIWIN_LIVE_DELEGATE_TOOL_DESCRIPTION).toContain('not permission to execute');
     expect(PIWIN_LIVE_DELEGATE_INSTRUCTION_DESCRIPTION).toContain('preserving negations and uncertainty');
+  });
+
+  it('names the retargeted session without XML or tool names', () => {
+    const text = piwinLiveRetargetContext('Other');
+    expect(text).toContain('session titled "Other"');
+    expect(text).not.toContain('<');
+    expect(text).not.toContain('delegate_to_work_session');
   });
 });
 

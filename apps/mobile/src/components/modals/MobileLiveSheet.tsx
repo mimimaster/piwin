@@ -67,7 +67,7 @@ export function MobileLiveSheet({
 
           {live.error !== null ? (
             <div className="mobile-live-error" role="alert">
-              {liveErrorLabel(live.error)}
+              {liveErrorLabel(live.error, active)}
             </div>
           ) : null}
 
@@ -138,11 +138,20 @@ function missingLabel(missing: readonly string[]): string {
   return 'Live 当前未就绪。';
 }
 
-function liveErrorLabel(error: string): string {
+function liveErrorLabel(error: string, activeCall = false): string {
   const normalized = error.trim();
   if (normalized === 'mic-denied') return '麦克风被拒绝，请在系统设置中允许 Piwin 使用麦克风。';
   if (normalized === 'mic-unavailable') return '麦克风当前不可用，请检查系统权限或重新连接设备。';
-  if (normalized === 'live-session-unavailable') return '无法找到当前对话，请返回聊天后重试。';
+  if (normalized === 'live-session-unavailable') {
+    return activeCall
+      ? '无法改绑到该会话，语音通话仍保持连接。'
+      : '无法找到当前对话，请返回聊天后重试。';
+  }
+  if (normalized === 'live-conflict') {
+    return activeCall
+      ? '工作目标改绑冲突，请稍后再试。'
+      : 'Live 设置刚更新过，请再点一次开始。';
+  }
   if (normalized === 'live-provider-auth' || normalized.startsWith('live-provider-auth:')) {
     if (normalized.endsWith('google-gemini'))
       return '请先在 Host 的 Live 设置中保存 Gemini API key。';
