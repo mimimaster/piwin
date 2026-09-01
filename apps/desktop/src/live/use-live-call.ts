@@ -379,15 +379,19 @@ export function useLiveCall(input: {
     [input.hostClient],
   );
 
+  const rebindChainRef = useRef(Promise.resolve());
+
   const rebind = useCallback(
     async (nextSessionId: string) => {
       const initial = callRef.current;
       if (!initial || startingRef.current || userEndedRef.current) return;
+      if (sessionIdRef.current !== nextSessionId) return;
       if (initial.boundSessionId === nextSessionId) return;
       const callId = initial.callId;
       const maxAttempts = 3;
       let lastError: string | null = null;
       for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        if (sessionIdRef.current !== nextSessionId) return;
         const call = callRef.current;
         if (!call || call.callId !== callId || startingRef.current || userEndedRef.current) return;
         if (call.boundSessionId === nextSessionId) return;
@@ -399,6 +403,7 @@ export function useLiveCall(input: {
             expectedRevision: call.revision,
           },
         });
+        if (sessionIdRef.current !== nextSessionId) return;
         if (response.success) {
           const data = response.data as { call?: LiveCallView } | undefined;
           const incoming = data?.call ?? null;
@@ -420,14 +425,19 @@ export function useLiveCall(input: {
         lastError = response.error?.trim() ? response.error : 'live-protocol-failed';
         if (lastError !== 'live-conflict') break;
       }
-      if (lastError) setError(lastError);
+      if (lastError && sessionIdRef.current === nextSessionId) setError(lastError);
     },
     [input.hostClient],
   );
 
   useEffect(() => {
     if (!sessionId || starting) return;
-    void rebind(sessionId);
+    const target = sessionId;
+    const run = async (): Promise<void> => {
+      if (sessionIdRef.current !== target) return;
+      await rebind(target);
+    };
+    rebindChainRef.current = rebindChainRef.current.then(run, run);
   }, [rebind, sessionId, starting, status?.call?.callId]);
 
   const end = useCallback(async () => {

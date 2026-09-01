@@ -46,6 +46,8 @@ class FakeLiveHost {
   rebindFailure: string | null = null;
   rebindConflictTimes = 0;
   emitRebindPush = true;
+  /** Optional per-session gate: rebind awaits the promise before applying. */
+  rebindBlockers = new Map<string, Promise<void>>();
   selectedProviderId = 'openai-codex';
   mediaDriverId: LiveMediaDriverId = 'codex-webrtc-v1';
 
@@ -97,6 +99,8 @@ class FakeLiveHost {
       }
       this.rebinds.push(command.input.sessionId);
       this.rebindRevisions.push(command.input.expectedRevision ?? this.slot.revision);
+      const blocker = this.rebindBlockers.get(command.input.sessionId);
+      if (blocker) await blocker;
       if (this.rebindFailure) {
         return {
           type: 'response',
@@ -309,6 +313,72 @@ describe('useMobileLive session rebind', () => {
     const probe = await startThenSwitchSession({ host, nextSessionId: undefined });
     expect(host.rebinds).toEqual([]);
     expect(probe.current?.call?.boundSessionId).toBe('s1');
+    expect(probe.current?.error).toBeNull();
+  });
+
+  it('ignores a stale in-flight rebind after the intended session advances', async () => {
+    const host = new FakeLiveHost();
+    let releaseS2!: () => void;
+    host.rebindBlockers.set(
+      's2',
+      new Promise<void>((resolve) => {
+        releaseS2 = resolve;
+      }),
+    );
+    const probe = { current: null as MobileLiveCallController | null };
+    const driver = new FakeDriver();
+    function Probe(): ReactElement {
+      const [viewedSessionId, setViewedSessionId] = useState<string | undefined>('s1');
+      const live = useMobileLive({
+        hostClient: host as unknown as HostClient,
+        sessionId: viewedSessionId,
+        createDriver: () => driver,
+      });
+      useEffect(() => {
+        probe.current = live;
+      });
+      return (
+        <>
+          <button type="button" data-testid="start" onClick={() => void live.start()} />
+          <button type="button" data-testid="to-s2" onClick={() => setViewedSessionId('s2')} />
+          <button type="button" data-testid="to-s3" onClick={() => setViewedSessionId('s3')} />
+        </>
+      );
+    }
+    const hostEl = document.createElement('div');
+    document.body.appendChild(hostEl);
+    const next = createRoot(hostEl);
+    act(() => {
+      next.render(<Probe />);
+    });
+    root = next;
+    container = hostEl;
+    await act(async () => {
+      container?.querySelector<HTMLButtonElement>('[data-testid="start"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      container?.querySelector<HTMLButtonElement>('[data-testid="to-s2"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(host.rebinds).toEqual(['s2']);
+    await act(async () => {
+      container?.querySelector<HTMLButtonElement>('[data-testid="to-s3"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      releaseS2();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(host.rebinds.at(-1)).toBe('s3');
+    expect(probe.current?.call?.boundSessionId).toBe('s3');
     expect(probe.current?.error).toBeNull();
   });
 });
