@@ -29,7 +29,16 @@ class FakeLiveHost {
   slot: LiveCallView | null = null;
   ended: string[] = [];
   rebinds: string[] = [];
+  rebindRevisions: number[] = [];
   startFailure: string | null = null;
+  /** When set, every rebind fails with this code (no slot mutation). */
+  rebindFailure: string | null = null;
+  /** Return `live-conflict` this many times before applying a successful rebind. */
+  rebindConflictTimes = 0;
+  /** When false, success still returns `data.call` but skips `voice/live-updated`. */
+  emitRebindPush = true;
+  /** Optional per-session gate: rebind awaits the promise before applying. */
+  rebindBlockers = new Map<string, Promise<void>>();
   selectedProviderId = 'openai-codex';
   mediaDriverId: 'codex-webrtc-v1' | 'gemini-live-v1beta' = 'codex-webrtc-v1';
   lastStartProviderId: string | null = null;
@@ -98,6 +107,16 @@ class FakeLiveHost {
         return { type: 'response', command: command.type, success: false, error: 'live-session-unavailable' };
       }
       this.rebinds.push(command.input.sessionId);
+      this.rebindRevisions.push(command.input.expectedRevision ?? this.slot.revision);
+      const blocker = this.rebindBlockers.get(command.input.sessionId);
+      if (blocker) await blocker;
+      if (this.rebindFailure) {
+        return { type: 'response', command: command.type, success: false, error: this.rebindFailure };
+      }
+      if (this.rebindConflictTimes > 0) {
+        this.rebindConflictTimes -= 1;
+        return { type: 'response', command: command.type, success: false, error: 'live-conflict' };
+      }
       this.slot = {
         ...this.slot,
         revision: this.slot.revision + 1,
@@ -105,7 +124,9 @@ class FakeLiveHost {
         boundSessionLabel: command.input.sessionId,
         ...(this.slot.activity === 'agent-working' ? { activity: 'listening' as const } : {}),
       };
-      this.emit({ type: 'voice/live-updated', call: this.slot });
+      if (this.emitRebindPush) {
+        this.emit({ type: 'voice/live-updated', call: this.slot });
+      }
       return { type: 'response', command: command.type, success: true, data: { call: this.slot } };
     }
     return { type: 'response', command: command.type, success: false, error: 'unused' };
@@ -410,5 +431,149 @@ describe('useLiveCall hangup', () => {
     expect(peer.appended.some((text) => text.includes('另一会话'))).toBe(false);
     expect(peer.appended.some((text) => text.includes('洛杉矶今天晴'))).toBe(false);
     expect(host.rebinds).toEqual(['s2']);
+  });
+
+  async function startThenSwitchSession(input: {
+    host: FakeLiveHost;
+    peer?: FakePeer;
+    nextSessionId?: string;
+  }): Promise<{ current: LiveCallController | null }> {
+    const probe = { current: null as LiveCallController | null };
+    const peer = input.peer ?? new FakePeer();
+    function Probe(): ReactElement {
+      const [viewedSessionId, setViewedSessionId] = useState('s1');
+      const live = useLiveCall({
+        hostClient: input.host as unknown as HostClient,
+        sessionId: viewedSessionId,
+        sessionStreaming: false,
+        createPeer: () => peer as unknown as LivePeer,
+      });
+      useEffect(() => {
+        probe.current = live;
+      });
+      return (
+        <>
+          <button type="button" data-testid="start" onClick={() => void live.start()} />
+          <button
+            type="button"
+            data-testid="switch"
+            onClick={() => setViewedSessionId(input.nextSessionId ?? 's2')}
+          />
+        </>
+      );
+    }
+    const hostEl = document.createElement('div');
+    document.body.appendChild(hostEl);
+    const next = createRoot(hostEl);
+    act(() => {
+      next.render(<Probe />);
+    });
+    root = next;
+    container = hostEl;
+    await act(async () => {
+      container?.querySelector<HTMLButtonElement>('[data-testid="start"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      container?.querySelector<HTMLButtonElement>('[data-testid="switch"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    return probe;
+  }
+
+  it('updates boundSessionId from rebind response without waiting for voice/live-updated', async () => {
+    const host = new FakeLiveHost();
+    host.emitRebindPush = false;
+    const probe = await startThenSwitchSession({ host });
+    expect(host.rebinds).toEqual(['s2']);
+    expect(probe.current?.call?.boundSessionId).toBe('s2');
+    expect(probe.current?.error).toBeNull();
+  });
+
+  it('surfaces non-conflict rebind failures on live.error', async () => {
+    const host = new FakeLiveHost();
+    host.rebindFailure = 'live-session-unavailable';
+    const probe = await startThenSwitchSession({ host });
+    expect(host.rebinds).toEqual(['s2']);
+    expect(probe.current?.call?.boundSessionId).toBe('s1');
+    expect(probe.current?.error).toBe('live-session-unavailable');
+  });
+
+  it('retries live-conflict with latest revision then surfaces the error', async () => {
+    const host = new FakeLiveHost();
+    host.rebindFailure = 'live-conflict';
+    const probe = await startThenSwitchSession({ host });
+    expect(host.rebinds).toEqual(['s2', 's2', 's2']);
+    expect(host.rebindRevisions).toEqual([1, 1, 1]);
+    expect(probe.current?.call?.boundSessionId).toBe('s1');
+    expect(probe.current?.error).toBe('live-conflict');
+  });
+
+  it('ignores a stale in-flight rebind after the intended session advances', async () => {
+    const host = new FakeLiveHost();
+    let releaseS2!: () => void;
+    host.rebindBlockers.set(
+      's2',
+      new Promise<void>((resolve) => {
+        releaseS2 = resolve;
+      }),
+    );
+    const probe = { current: null as LiveCallController | null };
+    function Probe(): ReactElement {
+      const [viewedSessionId, setViewedSessionId] = useState('s1');
+      const live = useLiveCall({
+        hostClient: host as unknown as HostClient,
+        sessionId: viewedSessionId,
+        sessionStreaming: false,
+        createPeer: () => new FakePeer() as unknown as LivePeer,
+      });
+      useEffect(() => {
+        probe.current = live;
+      });
+      return (
+        <>
+          <button type="button" data-testid="start" onClick={() => void live.start()} />
+          <button type="button" data-testid="to-s2" onClick={() => setViewedSessionId('s2')} />
+          <button type="button" data-testid="to-s3" onClick={() => setViewedSessionId('s3')} />
+        </>
+      );
+    }
+    const hostEl = document.createElement('div');
+    document.body.appendChild(hostEl);
+    const next = createRoot(hostEl);
+    act(() => {
+      next.render(<Probe />);
+    });
+    root = next;
+    container = hostEl;
+    await act(async () => {
+      container?.querySelector<HTMLButtonElement>('[data-testid="start"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      container?.querySelector<HTMLButtonElement>('[data-testid="to-s2"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(host.rebinds).toEqual(['s2']);
+    await act(async () => {
+      container?.querySelector<HTMLButtonElement>('[data-testid="to-s3"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      releaseS2();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(host.rebinds.at(-1)).toBe('s3');
+    expect(probe.current?.call?.boundSessionId).toBe('s3');
+    expect(probe.current?.error).toBeNull();
   });
 });

@@ -4,13 +4,15 @@ import type { LiveCallView } from '@piwin/contracts';
 import { useDesktopLocale } from '../desktop-locale-context.js';
 import { IconClose, IconMic, IconRefresh } from '../shell-icons.js';
 import type { LivePeerSnapshot } from './live-peer.js';
-import { liveStartErrorLabel } from './use-live-call.js';
+import { liveStillBoundTargetLabel, liveStartErrorLabel } from './live-call-copy.js';
 
 export type LiveBarProps = {
   call: LiveCallView | null;
   starting: boolean;
   peer: LivePeerSnapshot;
   error: string | null;
+  /** Focus / intended work session; empty or mismatch shows S-keep still-bound copy. */
+  intendedSessionId?: string | null;
   onRetry: () => void;
   onDismiss: () => void;
   onMute: (muted: boolean) => void;
@@ -22,6 +24,19 @@ export function LiveBar(props: LiveBarProps): ReactElement {
   const isChinese = locale === 'zh-CN';
   const muted = props.call?.activity === 'muted' || props.peer.muted;
   const presentation = presentLiveState(props, isChinese);
+  const intendedRaw = props.intendedSessionId;
+  const intendedSessionId =
+    intendedRaw === undefined ? undefined : intendedRaw?.trim() ? intendedRaw.trim() : null;
+  const showStillBound =
+    Boolean(props.call?.boundSessionLabel) &&
+    intendedSessionId !== undefined &&
+    (intendedSessionId === null || intendedSessionId !== props.call?.boundSessionId);
+  /** Start-failure chrome (Retry→start) only when there is no live call to keep up. */
+  const startFailureChrome = Boolean(props.error) && !props.call;
+  const errorKind = props.call ? 'rebind' : 'start';
+  const errorCopy = props.error
+    ? liveStartErrorLabel(props.error, isChinese, { kind: errorKind })
+    : null;
 
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -133,11 +148,17 @@ export function LiveBar(props: LiveBarProps): ReactElement {
         </span>
       ) : null}
 
-      {props.error ? <span className="live-bar-error-copy">{liveStartErrorLabel(props.error, isChinese)}</span> : null}
+      {showStillBound && props.call?.boundSessionLabel ? (
+        <span className="live-bar-still-bound" data-testid="live-bar-still-bound">
+          {liveStillBoundTargetLabel(props.call.boundSessionLabel, isChinese)}
+        </span>
+      ) : null}
+
+      {errorCopy ? <span className="live-bar-error-copy">{errorCopy}</span> : null}
 
       {/* Media controls never imply permission approval or response cancellation. */}
       <div className="live-bar-actions">
-        {props.error ? (
+        {startFailureChrome ? (
           <>
             <IconButton
               type="button"
@@ -218,8 +239,18 @@ type LivePresentation = {
 
 function presentLiveState(props: LiveBarProps, isChinese: boolean): LivePresentation {
   if (props.error) {
+    const kind = props.call ? 'rebind' : 'start';
+    const detail = liveStartErrorLabel(props.error, isChinese, { kind });
+    if (props.call) {
+      return {
+        accessibleLabel: `${isChinese ? '工作目标改绑失败' : 'Work target rebind failed'}: ${detail}`,
+        tone: 'error',
+        motion: 'error',
+        fxType: 'alert-dot',
+      };
+    }
     return {
-      accessibleLabel: `${isChinese ? '语音连接未建立' : 'Voice connection error'}: ${liveStartErrorLabel(props.error, isChinese)}`,
+      accessibleLabel: `${isChinese ? '语音连接未建立' : 'Voice connection error'}: ${detail}`,
       tone: 'error',
       motion: 'error',
       fxType: 'alert-dot',

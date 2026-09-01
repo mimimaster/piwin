@@ -299,7 +299,12 @@ export function toggleMaximizedConversationPane(
   };
 }
 
-/** Session Live should target: focused pane if it has one, else the primary session. */
+/**
+ * Session Live should target from the focused leaf:
+ * - focused leaf with `sessionId` → that id
+ * - focused PRIMARY leaf with no session → `primarySessionId`
+ * - focused empty secondary leaf → `null` (S-keep: do not fall back to primary)
+ */
 export function resolveFocusedConversationSessionId(input: {
   layout: ConversationPaneLayout;
   primarySessionId: string | null;

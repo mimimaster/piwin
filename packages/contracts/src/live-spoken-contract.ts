@@ -34,3 +34,8 @@ export function composeLiveSpokenInstructions(
     channel === 'native-delegation' ? PIWIN_LIVE_CODEX_APPENDIX : PIWIN_LIVE_TOOL_APPENDIX;
   return `${PIWIN_LIVE_SPOKEN_CONTRACT} ${appendix}`;
 }
+
+/** Short commentary after Live rebinds to another work session. */
+export function piwinLiveRetargetContext(sessionLabel: string): string {
+  return `Work target is now the session titled "${sessionLabel}". Later work goes there. Continue from your last spoken line; do not recap the previous session unless the user asks.`;
+}

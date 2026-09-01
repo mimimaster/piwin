@@ -397,6 +397,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                                 conversationPaneController.bindSession(activePaneId, sessionId);
                                 return Promise.resolve();
                               }
+                              conversationPaneController.focus(PRIMARY_CONVERSATION_PANE_ID);
                             }
                           }
                         }
@@ -621,7 +622,10 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       starting={live.starting}
                       peer={live.peer}
                       error={live.error}
+                      intendedSessionId={liveSessionId}
                       onRetry={() => {
+                        // Start-failure chrome only; LiveBar hides Retry while a call is up.
+                        if (live.call) return;
                         void live.start();
                       }}
                       onDismiss={live.dismissError}
