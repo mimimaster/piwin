@@ -13,6 +13,7 @@ import type {
 import { fail, ok } from '../response-helpers.js';
 import type { HostCommandContext } from './host-command-context.js';
 import type { LiveCallCoordinator } from '../voice/live-call-coordinator.js';
+import type { LiveIntendedSessionGate } from '../voice/live-intended-session-gate.js';
 
 const TYPES = new Set<HostCommand['type']>([
   'voice/live/status',
@@ -21,6 +22,7 @@ const TYPES = new Set<HostCommand['type']>([
   'voice/live/set-provider-key',
   'voice/live/start',
   'voice/live/rebind',
+  'voice/live/set-intended-session',
   'voice/live/media-state',
   'voice/live/set-muted',
   'voice/live/end',
@@ -29,6 +31,7 @@ const TYPES = new Set<HostCommand['type']>([
 
 export type VoiceLiveCommandContext = HostCommandContext & {
   liveCallCoordinator?: LiveCallCoordinator;
+  liveIntendedSession?: LiveIntendedSessionGate;
   resolveOwnerDeviceId?: () => string;
   refreshLivePrereqs?: () => Promise<void>;
   liveSettings?: {
@@ -112,6 +115,13 @@ export async function handleVoiceLiveCommand(
     });
     if (!result.ok) return fail(requestId, command.type, result.errorCode);
     return ok(requestId, command.type, { call: result.call });
+  }
+
+  if (command.type === 'voice/live/set-intended-session') {
+    const callId = command.input.callId.trim();
+    if (!callId) return fail(requestId, command.type, 'live-session-unavailable');
+    context.liveIntendedSession?.set(callId, command.input.intendedSessionId);
+    return ok(requestId, command.type, { accepted: true });
   }
 
   if (command.type === 'voice/live/set-muted') {
