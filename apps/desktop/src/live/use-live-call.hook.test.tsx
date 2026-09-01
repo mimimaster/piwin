@@ -37,6 +37,8 @@ class FakeLiveHost {
   rebindConflictTimes = 0;
   /** When false, success still returns `data.call` but skips `voice/live-updated`. */
   emitRebindPush = true;
+  /** Optional per-session gate: rebind awaits the promise before applying. */
+  rebindBlockers = new Map<string, Promise<void>>();
   selectedProviderId = 'openai-codex';
   mediaDriverId: 'codex-webrtc-v1' | 'gemini-live-v1beta' = 'codex-webrtc-v1';
   lastStartProviderId: string | null = null;
@@ -106,6 +108,8 @@ class FakeLiveHost {
       }
       this.rebinds.push(command.input.sessionId);
       this.rebindRevisions.push(command.input.expectedRevision ?? this.slot.revision);
+      const blocker = this.rebindBlockers.get(command.input.sessionId);
+      if (blocker) await blocker;
       if (this.rebindFailure) {
         return { type: 'response', command: command.type, success: false, error: this.rebindFailure };
       }
@@ -506,5 +510,70 @@ describe('useLiveCall hangup', () => {
     expect(host.rebindRevisions).toEqual([1, 1, 1]);
     expect(probe.current?.call?.boundSessionId).toBe('s1');
     expect(probe.current?.error).toBe('live-conflict');
+  });
+
+  it('ignores a stale in-flight rebind after the intended session advances', async () => {
+    const host = new FakeLiveHost();
+    let releaseS2!: () => void;
+    host.rebindBlockers.set(
+      's2',
+      new Promise<void>((resolve) => {
+        releaseS2 = resolve;
+      }),
+    );
+    const probe = { current: null as LiveCallController | null };
+    function Probe(): ReactElement {
+      const [viewedSessionId, setViewedSessionId] = useState('s1');
+      const live = useLiveCall({
+        hostClient: host as unknown as HostClient,
+        sessionId: viewedSessionId,
+        sessionStreaming: false,
+        createPeer: () => new FakePeer() as unknown as LivePeer,
+      });
+      useEffect(() => {
+        probe.current = live;
+      });
+      return (
+        <>
+          <button type="button" data-testid="start" onClick={() => void live.start()} />
+          <button type="button" data-testid="to-s2" onClick={() => setViewedSessionId('s2')} />
+          <button type="button" data-testid="to-s3" onClick={() => setViewedSessionId('s3')} />
+        </>
+      );
+    }
+    const hostEl = document.createElement('div');
+    document.body.appendChild(hostEl);
+    const next = createRoot(hostEl);
+    act(() => {
+      next.render(<Probe />);
+    });
+    root = next;
+    container = hostEl;
+    await act(async () => {
+      container?.querySelector<HTMLButtonElement>('[data-testid="start"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      container?.querySelector<HTMLButtonElement>('[data-testid="to-s2"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(host.rebinds).toEqual(['s2']);
+    await act(async () => {
+      container?.querySelector<HTMLButtonElement>('[data-testid="to-s3"]')?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      releaseS2();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(host.rebinds.at(-1)).toBe('s3');
+    expect(probe.current?.call?.boundSessionId).toBe('s3');
+    expect(probe.current?.error).toBeNull();
   });
 });

@@ -320,10 +320,13 @@ export function useMobileLive(input: {
     reportEvent,
   ]);
 
+  const rebindChainRef = useRef(Promise.resolve());
+
   const rebind = useCallback(
     async (nextSessionId: string): Promise<void> => {
       const initial = callRef.current;
       if (!initial || startingRef.current || userEndedRef.current) return;
+      if (sessionRef.current !== nextSessionId) return;
       if (initial.boundSessionId === nextSessionId) return;
       const client = clientRef.current;
       if (client === undefined) return;
@@ -331,6 +334,7 @@ export function useMobileLive(input: {
       const maxAttempts = 3;
       let lastError: string | null = null;
       for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        if (sessionRef.current !== nextSessionId) return;
         const call = callRef.current;
         if (!call || call.callId !== callId || startingRef.current || userEndedRef.current) return;
         if (call.boundSessionId === nextSessionId) return;
@@ -342,6 +346,7 @@ export function useMobileLive(input: {
             expectedRevision: call.revision,
           },
         });
+        if (sessionRef.current !== nextSessionId) return;
         if (response.success) {
           const data = response.data as { call?: LiveCallView } | undefined;
           const incoming = data?.call ?? null;
@@ -363,7 +368,7 @@ export function useMobileLive(input: {
         lastError = response.error?.trim() ? response.error : 'live-protocol-failed';
         if (lastError !== 'live-conflict') break;
       }
-      if (lastError) setError(lastError);
+      if (lastError && sessionRef.current === nextSessionId) setError(lastError);
     },
     [],
   );
@@ -371,7 +376,12 @@ export function useMobileLive(input: {
   useEffect(() => {
     const sessionId = input.sessionId;
     if (!sessionId || starting) return;
-    void rebind(sessionId);
+    const target = sessionId;
+    const run = async (): Promise<void> => {
+      if (sessionRef.current !== target) return;
+      await rebind(target);
+    };
+    rebindChainRef.current = rebindChainRef.current.then(run, run);
   }, [input.sessionId, rebind, starting, status?.call?.callId]);
 
   const setMuted = useCallback(async (muted: boolean): Promise<void> => {
