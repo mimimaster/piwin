@@ -41,7 +41,7 @@ describe('chatUiReducer session and context', () => {
     });
 
     expect(state.sessions).toEqual([]);
-    expect(state.activeSessionId).toBe('prior-session');
+    expect(state.activeSessionId).toBeNull();
     expect(state.messages).toEqual([]);
     expect(state.streaming).toBe(false);
   });

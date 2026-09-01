@@ -51,7 +51,12 @@ export {
   SubagentRunManifestCorruptError,
   SubagentRunManifestExistsError,
 } from './subagent-run-store.js';
-export { deriveDefaultNameFromMessage, extractUserFacingBody } from './derive-default-name.js';
+export {
+  deriveDefaultNameFromMessage,
+  deriveSessionListName,
+  extractUserFacingBody,
+  SESSION_LIST_NAME_FALLBACK,
+} from './derive-default-name.js';
 export {
   filterListableSessions,
   isLegacyInternalSessionName,

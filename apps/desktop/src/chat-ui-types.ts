@@ -264,6 +264,13 @@ export type ChatUiState = {
   projectSessionsByPath: Record<string, SessionListItemUi[]>;
   /** Host projection metadata per hydrated scope. */
   sessionListScopes: SessionListScopeState;
+  /**
+   * Canonical session identity keyed by id. Unnamed rows stay here so a later
+   * name patch cannot guess the current page's scope.
+   */
+  sessionEntitiesById: Record<string, SessionListItemUi>;
+  /** Deleted ids that in-flight hydrates must not resurrect. */
+  sessionTombstonesById: Record<string, true>;
   activeSessionId: string | null;
   messages: ChatMessageUi[];
   /**
@@ -430,8 +437,8 @@ export type ChatUiAction =
   | { type: 'project/clear' }
   | { type: 'project/trust-dialog'; open: boolean }
   | { type: 'project/trusted' }
-  | { type: 'session/set'; sessionId: string; awaitTranscript?: boolean }
-  | { type: 'session/add'; sessionId: string; name: string }
+  | { type: 'session/set'; sessionId: string; awaitTranscript?: boolean; ifIdle?: boolean }
+  | { type: 'session/add'; sessionId: string; name: string; scope?: SessionScope }
   | { type: 'session/hydrate'; sessions: SessionListItemUi[] }
   | { type: 'session/hydrate-general'; sessions: SessionListItemUi[] }
   | {
@@ -444,6 +451,7 @@ export type ChatUiAction =
       /** Epoch captured when the Host list request started. */
       mutationEpoch?: number;
     }
+  | { type: 'session/hydrate-error'; scope: SessionScope; error: string }
   | {
       type: 'session/hydrate-project';
       projectPath: string;
@@ -535,7 +543,7 @@ export type ChatUiAction =
   | { type: 'run/pause-failed' }
   | { type: 'run/aborting' }
   | { type: 'run/abort-failed' }
-  | { type: 'run/accepted'; runId: string; acceptedAt?: string }
+  | { type: 'run/accepted'; runId: string; sessionId?: string; acceptedAt?: string }
   | { type: 'run/updated'; run: ExecutionRunRecord }
   | { type: 'run/terminal'; run: ExecutionRunRecord }
   | { type: 'foreground/admission'; admission: 'unknown' | 'reconciling' | 'ready' }

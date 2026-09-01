@@ -11,7 +11,6 @@ export type ArchivedHydrationRequest = {
   options: {
     includeArchived: boolean;
     order: SessionListOrder;
-    fillActiveList?: true;
   };
 };
 
@@ -33,7 +32,6 @@ export function listArchivedHydrationRequests(input: {
       options: {
         includeArchived: input.includeArchived,
         order: input.order,
-        ...(project.path === input.activeProjectPath ? { fillActiveList: true } : {}),
       },
     });
   }

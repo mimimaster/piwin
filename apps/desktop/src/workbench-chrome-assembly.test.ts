@@ -28,7 +28,7 @@ describe('listArchivedHydrationRequests', () => {
       },
       {
         scope: { kind: 'project', projectPath: '/b' },
-        options: { includeArchived: true, order: 'updated', fillActiveList: true },
+        options: { includeArchived: true, order: 'updated' },
       },
     ]);
   });

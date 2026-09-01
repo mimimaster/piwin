@@ -25,7 +25,6 @@ export type WorkbenchSidebarHydrateSessions = (
   options?: {
     includeArchived?: boolean;
     order?: SessionListOrder;
-    fillActiveList?: boolean;
   },
 ) => Promise<unknown>;
 
@@ -165,7 +164,7 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
             onRemoveProject: (path: string) => void onRemoveProject(path),
           }
         : {})}
-      onNewSession={() => void onNewSession()}
+      onNewSession={(options) => void onNewSession(options)}
       onNewGeneralSession={() => {
         void (async () => {
           // Sequence: switch scope → hydrate general list → create new
@@ -228,6 +227,9 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
       completedAttentionSessionIds={state.completedAttentionSessionIds}
       onDismissCompletedAttention={(sessionId) => {
         dispatch({ type: 'session/attention-dismiss', sessionId });
+      }}
+      onRetrySessionList={(scope) => {
+        void hydrateSessions(scope, { includeArchived: showArchivedSessions });
       }}
     />
   );

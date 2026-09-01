@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   createRemoteCapabilities,
+  projectRemotePush,
   projectRemoteResponse,
   projectRemoteSettingsData,
 } from './remote-projection.js';
@@ -1147,5 +1148,34 @@ describe('remote activity/summary projection', () => {
       ],
       truncated: false,
     });
+  });
+});
+
+describe('projectRemotePush session index', () => {
+  it('projects index-updated session scope to an opaque projectId instead of [host-path]', () => {
+    const projected = projectRemotePush({
+      type: 'session/index-updated',
+      op: 'created',
+      sessionId: 'sess-1',
+      session: {
+        id: 'sess-1',
+        name: '',
+        scope: { kind: 'project', projectPath: '/Users/me/secret-project' },
+        workingDirectory: '/Users/me/secret-project',
+        projectPath: '/Users/me/secret-project',
+        updatedAt: '2026-09-01T00:00:00.000Z',
+        messageCount: 0,
+      },
+    });
+    const serialized = JSON.stringify(projected);
+    expect(serialized).not.toContain('/Users/me/secret-project');
+    expect(serialized).not.toContain('[host-path]');
+    expect(projected.type).toBe('session/index-updated');
+    if (projected.type !== 'session/index-updated') {
+      throw new Error('expected index-updated');
+    }
+    const session = projected.session as { projectId?: string; scope?: { projectPath?: string } };
+    expect(session.projectId).toMatch(/^project-/);
+    expect(session.scope?.projectPath).toBe(session.projectId);
   });
 });

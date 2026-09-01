@@ -14,8 +14,10 @@ export function summaryToListItem(
   if (typeof session.messageCount === 'number') item.messageCount = session.messageCount;
   if (session.updatedAt) item.updatedAt = session.updatedAt;
   if (session.isPinned === true) item.isPinned = true;
+  if (session.isPinned === false) item.isPinned = false;
   if (session.pinnedAt) item.pinnedAt = session.pinnedAt;
   if (session.isArchived === true) item.isArchived = true;
+  if (session.isArchived === false) item.isArchived = false;
   if (session.archivedAt) item.archivedAt = session.archivedAt;
   if (session.origin) item.origin = session.origin;
   if (session.model) item.model = session.model;

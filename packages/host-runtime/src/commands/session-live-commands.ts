@@ -237,7 +237,7 @@ export async function handleSessionLiveCommand(
         );
       } catch (error) {
         await context.disposeLiveSession(session.id).catch(() => undefined);
-        throw error;
+        return fail(requestId, 'session/create', formatError(error));
       }
       // Seed the session composer profile at create time so a new session
       // remembers the model even before the first prompt is sent.
@@ -268,7 +268,8 @@ export async function handleSessionLiveCommand(
           }),
         );
       } catch {
-        // Index write is best-effort; create still succeeded.
+        // Bind already committed the durable row. A later index read must not
+        // turn a successful create into a false failure for clients.
       }
       return ok(requestId, 'session/create', {
         sessionId: session.id,

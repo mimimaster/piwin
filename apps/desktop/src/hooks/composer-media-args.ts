@@ -30,6 +30,7 @@ export type UseComposerMediaArgs = {
     projectPath?: string;
     alreadyTrusted?: boolean;
     scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
+    sessionName?: string;
   }) => Promise<string | null>;
   /** When Send has no workspace, open the workspace picker (keep draft text). */
   onNeedWorkspace?: () => void | Promise<void>;

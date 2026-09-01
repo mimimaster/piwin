@@ -57,6 +57,8 @@ export function createInitialChatUiState(): ChatUiState {
      *  folders can stay open with their own conversations visible. */
     projectSessionsByPath: {},
     sessionListScopes: createSessionListScopeState(),
+    sessionEntitiesById: {},
+    sessionTombstonesById: {},
     activeSessionId: null,
     messages: [],
     warmSessionCache: createEmptyWarmSessionCache(),
@@ -129,6 +131,7 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
     case 'session/return-to-live':
     case 'session/hydrate':
     case 'session/hydrate-scope':
+    case 'session/hydrate-error':
     case 'session/hydrate-project':
     case 'session/retain-project-paths':
     case 'session/hydrate-general':

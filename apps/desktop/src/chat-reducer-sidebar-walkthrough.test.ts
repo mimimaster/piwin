@@ -27,10 +27,17 @@ describe('chatUiReducer sidebar', () => {
         truncated: false,
       });
 
-      expect(state.sessionListScopes.general).toEqual({ totalCount: 12, truncated: false });
+      expect(state.sessionListScopes.general).toEqual({
+        totalCount: 12,
+        truncated: false,
+        mutationEpoch: 0,
+        queryStatus: 'ready',
+      });
       expect(state.sessionListScopes.projects['/proj']).toEqual({
         totalCount: 1,
         truncated: false,
+        mutationEpoch: 0,
+        queryStatus: 'ready',
       });
       expect(state.sessions).toHaveLength(12);
       expect(state.generalSessions).toHaveLength(12);

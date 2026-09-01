@@ -1,8 +1,13 @@
 import type { SessionScope } from '@piwin/contracts';
 
+export type SessionListQueryStatus = 'idle' | 'ready' | 'error';
+
 export type SessionListScopeMeta = {
   totalCount: number;
   truncated: boolean;
+  mutationEpoch: number;
+  queryStatus: SessionListQueryStatus;
+  queryError?: string;
 };
 
 export type SessionListScopeState = {
@@ -24,16 +29,36 @@ export function getSessionListScopeMeta(
 export function setSessionListScopeMeta(
   state: SessionListScopeState,
   scope: SessionScope,
-  meta: SessionListScopeMeta,
+  meta: {
+    totalCount: number;
+    truncated: boolean;
+    mutationEpoch?: number;
+    queryStatus?: SessionListQueryStatus;
+    queryError?: string;
+  },
 ): SessionListScopeState {
+  const current = getSessionListScopeMeta(state, scope);
+  const normalized: SessionListScopeMeta = {
+    totalCount: meta.totalCount,
+    truncated: meta.truncated,
+    mutationEpoch: meta.mutationEpoch ?? current?.mutationEpoch ?? 0,
+    queryStatus: meta.queryStatus ?? current?.queryStatus ?? 'idle',
+    ...(meta.queryError !== undefined
+      ? { queryError: meta.queryError }
+      : meta.queryStatus === 'ready'
+        ? {}
+        : current?.queryError
+          ? { queryError: current.queryError }
+          : {}),
+  };
   if (scope.kind === 'general') {
-    return { ...state, general: meta };
+    return { ...state, general: normalized };
   }
   return {
     ...state,
     projects: {
       ...state.projects,
-      [scope.projectPath]: meta,
+      [scope.projectPath]: normalized,
     },
   };
 }
@@ -52,6 +77,19 @@ export function adjustSessionListScopeTotal(
   return setSessionListScopeMeta(state, scope, {
     totalCount,
     truncated: current.truncated && totalCount > 0,
+    mutationEpoch: current.mutationEpoch,
+  });
+}
+
+export function bumpSessionListScopeMutationEpoch(
+  state: SessionListScopeState,
+  scope: SessionScope,
+): SessionListScopeState {
+  const current = getSessionListScopeMeta(state, scope);
+  return setSessionListScopeMeta(state, scope, {
+    totalCount: current?.totalCount ?? 0,
+    truncated: current?.truncated ?? false,
+    mutationEpoch: (current?.mutationEpoch ?? 0) + 1,
   });
 }
 

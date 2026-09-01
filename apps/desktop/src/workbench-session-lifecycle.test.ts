@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { PiwinConfig, SessionScope } from '@piwin/contracts';
 import {
   lastSessionPersistUnchanged,
+  mapWithConcurrency,
   planLastSessionPersist,
   planLastSessionRestore,
   resolveSessionScopeHintFromSearchHits,
@@ -172,9 +173,24 @@ describe('planRecentProjectSessionHydration', () => {
       planRecentProjectSessionHydration({
         hostReady: true,
         recentProjectPaths: ['/a', '/b'],
-        lastHydratedKey: '/a\0/b',
+        lastHydratedKey: '0\0/a\0/b',
       }),
     ).toEqual({ kind: 'retain-only', projectPaths: ['/a', '/b'] });
+  });
+
+  it('rehydrates when catch-up epoch changes even if project paths do not', () => {
+    expect(
+      planRecentProjectSessionHydration({
+        hostReady: true,
+        recentProjectPaths: ['/a'],
+        lastHydratedKey: '1\0/a',
+        catchUpEpoch: 2,
+      }),
+    ).toEqual({
+      kind: 'hydrate',
+      projectPaths: ['/a'],
+      nextKey: '2\0/a',
+    });
   });
 
   it('hydrates when the recent-project set changes', () => {
@@ -187,7 +203,7 @@ describe('planRecentProjectSessionHydration', () => {
     ).toEqual({
       kind: 'hydrate',
       projectPaths: ['/a', '/b'],
-      nextKey: '/a\0/b',
+      nextKey: '0\0/a\0/b',
     });
   });
 });
@@ -345,5 +361,22 @@ describe('planLastSessionPersist', () => {
         alreadyPersisted: null,
       }),
     ).toEqual({ kind: 'persist', lastSession: pointer });
+  });
+});
+
+describe('mapWithConcurrency', () => {
+  it('isolates per-item failures when the mapper catches', async () => {
+    const seen: number[] = [];
+    await mapWithConcurrency([1, 2, 3, 4], 2, async (item) => {
+      try {
+        if (item === 2) {
+          throw new Error('skip');
+        }
+        seen.push(item);
+      } catch {
+        // isolated
+      }
+    });
+    expect(seen.sort()).toEqual([1, 3, 4]);
   });
 });

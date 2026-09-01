@@ -49,7 +49,11 @@ export function refreshActiveSessionMetadata(
         state.projectSessionsByPath,
     ),
   ];
-  const item = lists.flat().find((session) => session.id === activeSessionId);
+  const entities =
+    (next.sessionEntitiesById as Record<string, SessionListItemUi> | undefined) ??
+    state.sessionEntitiesById;
+  const item =
+    lists.flat().find((session) => session.id === activeSessionId) ?? entities[activeSessionId];
   // A changed active session with no list row yet must not inherit the
   // previous session's title (first-send / cold resume). Keep the previous
   // cache only when the active session id did not change (sidebar paging).

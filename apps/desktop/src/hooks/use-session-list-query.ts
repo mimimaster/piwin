@@ -92,7 +92,7 @@ export function useSessionListQuery(input: UseSessionListQueryInput): UseSession
               },
             });
             if (!response.success) {
-              return [sessionScopeKey(scope), [] as SessionSearchHit[]] as const;
+              return [sessionScopeKey(scope), null] as const;
             }
             const data = response.data as { hits?: SessionSearchHit[] } | undefined;
             return [sessionScopeKey(scope), data?.hits ?? []] as const;
@@ -100,8 +100,17 @@ export function useSessionListQuery(input: UseSessionListQueryInput): UseSession
         );
         if (cancelled) return;
         const nextHits: Record<string, SessionSearchHit[]> = {};
+        let searchFailed = false;
         for (const [scopeKey, hits] of results) {
+          if (hits === null) {
+            searchFailed = true;
+            continue;
+          }
           nextHits[scopeKey] = hits;
+        }
+        if (searchFailed && Object.keys(nextHits).length === 0) {
+          setRemoteSearchHitsByScope(null);
+          return;
         }
         setRemoteSearchHitsByScope(nextHits);
       })();

@@ -1,9 +1,22 @@
 import { isPlaceholderSessionName } from './title-display';
 import type { SessionScope, SessionTranscriptMessage } from '@piwin/contracts';
-import { adjustSessionListScopeTotal, getSessionListScopeMeta } from './session-list-scope';
+import {
+  adjustSessionListScopeTotal,
+  bumpSessionListScopeMutationEpoch,
+  getSessionListScopeMeta,
+} from './session-list-scope';
 import { removeWarmSessionSnapshot } from './session-warm-cache';
 import { applyContextTelemetry } from './context-telemetry-reducer';
 import type { ChatUiAction, ChatUiState, SessionListItemUi } from './chat-ui-types';
+import {
+  addSessionTombstone,
+  clearSessionTombstone,
+  isSessionTombstoned,
+  removeSessionEntity,
+  resolveEntityScope,
+  upsertSessionEntity,
+} from './session-entities';
+import { mergeSessionListItem } from './session-list-item-merge';
 import {
   dedupeSessionsById,
   owningScopeFromLists,
@@ -36,13 +49,13 @@ export function reduceChatSessionList(
       // Stamp updatedAt so Conversations / project lists sort the new row to the
       // top (sort is pinned first, then updatedAt desc; missing timestamps sink).
       const createdAt = new Date().toISOString();
-      const projectPath =
-        state.activeScope.kind === 'project' ? state.activeScope.projectPath : null;
+      const owningScope: SessionScope = action.scope ?? state.activeScope;
+      const projectPath = owningScope.kind === 'project' ? owningScope.projectPath : null;
       const newSession: SessionListItemUi = {
         id: action.sessionId,
         name: action.name,
         updatedAt: createdAt,
-        scope: projectPath != null ? { kind: 'project', projectPath } : { kind: 'general' },
+        scope: owningScope,
       };
       // Sidebar policy: placeholder / empty names never enter the list. The
       // session can still be active (composer) until the first text title lands.
@@ -51,7 +64,12 @@ export function reduceChatSessionList(
         projectPath != null
           ? sessionListContainsId(state.projectSessionsByPath[projectPath] ?? [], action.sessionId)
           : sessionListContainsId(state.generalSessions, action.sessionId);
-      const nextSessionsForPath = listable
+      const belongsToActiveList =
+        owningScope.kind === 'general'
+          ? state.activeScope.kind === 'general'
+          : state.activeScope.kind === 'project' &&
+            state.activeScope.projectPath === owningScope.projectPath;
+      const nextSessionsForPath = listable && belongsToActiveList
         ? dedupeSessionsById([
             newSession,
             ...state.sessions.filter((item) => item.id !== action.sessionId),
@@ -63,30 +81,47 @@ export function reduceChatSessionList(
             ...state.generalSessions.filter((item) => item.id !== action.sessionId),
           ])
         : state.generalSessions.filter((item) => item.id !== action.sessionId);
-      const owningScope: SessionScope =
-        projectPath != null ? { kind: 'project', projectPath } : { kind: 'general' };
       const nextSessionListScopes =
         listable && !alreadyKnown
-          ? adjustSessionListScopeTotal(state.sessionListScopes, owningScope, 1)
+          ? bumpSessionListScopeMutationEpoch(
+              adjustSessionListScopeTotal(state.sessionListScopes, owningScope, 1),
+              owningScope,
+            )
           : state.sessionListScopes;
       return {
         ...state,
+        sessionEntitiesById: upsertSessionEntity(
+          state.sessionEntitiesById,
+          newSession,
+        ),
+        sessionTombstonesById: clearSessionTombstone(state.sessionTombstonesById, action.sessionId),
         sessions: nextSessionsForPath,
         generalSessions:
-          state.activeScope.kind === 'general' && listable
+          owningScope.kind === 'general' && listable
             ? nextGeneralSessions
             : state.generalSessions.filter((item) => item.id !== action.sessionId),
-        // Mirror the new row into the folder tree for the active project.
+        // Mirror the new row into the folder tree for the owning project.
         projectSessionsByPath:
           projectPath != null && listable
-            ? { ...state.projectSessionsByPath, [projectPath]: nextSessionsForPath }
+            ? {
+                ...state.projectSessionsByPath,
+                [projectPath]: dedupeSessionsById([
+                  newSession,
+                  ...(state.projectSessionsByPath[projectPath] ?? []).filter(
+                    (item) => item.id !== action.sessionId,
+                  ),
+                ]),
+              }
             : state.projectSessionsByPath,
         sessionListScopes: nextSessionListScopes,
         sessionListMutationEpoch:
           listable && !alreadyKnown
             ? state.sessionListMutationEpoch + 1
             : state.sessionListMutationEpoch,
-        activeSessionId: action.sessionId,
+        activeSessionId:
+          state.activeSessionId === null || state.activeSessionId === action.sessionId
+            ? action.sessionId
+            : state.activeSessionId,
         messages: [],
         transcriptWindow: null,
         historyView: null,
@@ -124,10 +159,15 @@ export function reduceChatSessionList(
         });
         return list;
       };
-      // Resolve ownership from the session itself first, then from whichever
-      // sidebar list already tracks it. Never invent ownership from activeScope
-      // alone — that is what dual-listed project rows into Conversations.
+      // Resolve ownership from the session itself, then the entity store, then
+      // whichever sidebar list already tracks it. Never invent ownership from
+      // activeScope — that is what dual-listed project rows into Conversations.
+      if (isSessionTombstoned(state.sessionTombstonesById, action.session.id)) {
+        return state;
+      }
+      const existingEntity = state.sessionEntitiesById[action.session.id];
       const existingForMerge =
+        existingEntity ??
         state.sessions.find((session) => session.id === action.session.id) ??
         state.generalSessions.find((session) => session.id === action.session.id) ??
         Object.values(state.projectSessionsByPath)
@@ -137,21 +177,8 @@ export function reduceChatSessionList(
         id: action.session.id,
         name: '',
       };
-      // Partial index pushes (e.g. created with an empty name) must not erase a
-      // listable text/LLM title that already landed via name-updated.
-      const patch: SessionListItemUi =
-        Object.prototype.hasOwnProperty.call(action.session, 'name') &&
-        isPlaceholderSessionName(action.session.name) &&
-        !isPlaceholderSessionName(existing.name)
-          ? (() => {
-              const { name: _ignoredName, ...rest } = action.session;
-              return { ...rest, name: existing.name };
-            })()
-          : { ...action.session };
-      const mergedForCheck = {
-        ...existing,
-        ...patch,
-      };
+      const patch = mergeSessionListItem(existing, action.session);
+      const mergedForCheck = patch;
       const listable = !isPlaceholderSessionName(mergedForCheck.name);
       const knownInGeneral = state.generalSessions.some(
         (session) => session.id === action.session.id,
@@ -159,28 +186,14 @@ export function reduceChatSessionList(
       const knownProjectPath = Object.entries(state.projectSessionsByPath).find(([, list]) =>
         list.some((session) => session.id === action.session.id),
       )?.[0];
-      const ownScope = action.session.scope ?? mergedForCheck.scope;
-      const ownProjectPath =
-        ownScope?.kind === 'project'
-          ? ownScope.projectPath
-          : action.session.scope?.kind === 'project'
-            ? action.session.scope.projectPath
-            : undefined;
+      const ownScope = patch.scope ?? resolveEntityScope(state, action.session.id);
+      const ownProjectPath = ownScope?.kind === 'project' ? ownScope.projectPath : undefined;
       const isExplicitGeneral = ownScope?.kind === 'general';
       const isExplicitProject = ownScope?.kind === 'project' || ownProjectPath != null;
-      // Project ownership wins over general so a project session cannot leak
-      // into Conversations just because general is currently active.
-      const owningProjectPath =
-        ownProjectPath ??
-        knownProjectPath ??
-        (!isExplicitGeneral && !knownInGeneral && state.activeScope.kind === 'project'
-          ? state.activeScope.projectPath
-          : null);
+      const owningProjectPath = ownProjectPath ?? knownProjectPath ?? null;
       const belongsToGeneral =
         isExplicitGeneral ||
-        (!isExplicitProject &&
-          owningProjectPath == null &&
-          (knownInGeneral || state.activeScope.kind === 'general'));
+        (!isExplicitProject && owningProjectPath == null && knownInGeneral);
 
       const upsertIntoList = (
         list: SessionListItemUi[],
@@ -236,10 +249,23 @@ export function reduceChatSessionList(
       if (owningScope !== null && listable && !alreadyResident && !admitWithoutCounting) {
         nextSessionListScopes = adjustSessionListScopeTotal(nextSessionListScopes, owningScope, 1);
       }
+      if (owningScope !== null && listable && !alreadyResident) {
+        nextSessionListScopes = bumpSessionListScopeMutationEpoch(
+          nextSessionListScopes,
+          owningScope,
+        );
+      }
       const nextMutationEpoch =
         listable && !alreadyResident
           ? state.sessionListMutationEpoch + 1
           : state.sessionListMutationEpoch;
+      const nextEntities = upsertSessionEntity(state.sessionEntitiesById, patch);
+      if (owningScope === null) {
+        return {
+          ...state,
+          sessionEntitiesById: nextEntities,
+        };
+      }
 
       if (owningProjectPath != null) {
         const owned = state.projectSessionsByPath[owningProjectPath] ?? [];
@@ -262,6 +288,7 @@ export function reduceChatSessionList(
         }
         return {
           ...state,
+          sessionEntitiesById: nextEntities,
           sessions: nextSessions,
           generalSessions: nextGeneral,
           projectSessionsByPath: nextProjectSessionsByPath,
@@ -271,6 +298,7 @@ export function reduceChatSessionList(
       }
       return {
         ...state,
+        sessionEntitiesById: nextEntities,
         sessions: nextSessions,
         generalSessions: nextGeneral,
         sessionListScopes: nextSessionListScopes,
@@ -292,7 +320,10 @@ export function reduceChatSessionList(
       const nextSessionListScopes =
         removedScope === null
           ? state.sessionListScopes
-          : adjustSessionListScopeTotal(state.sessionListScopes, removedScope, -1);
+          : bumpSessionListScopeMutationEpoch(
+              adjustSessionListScopeTotal(state.sessionListScopes, removedScope, -1),
+              removedScope,
+            );
       const activeRemoved = state.activeSessionId === action.sessionId;
       const queuedTurnsBySession = { ...state.queuedTurnsBySession };
       const queuedTurnQueueRevisions = { ...state.queuedTurnQueueRevisions };
@@ -300,6 +331,8 @@ export function reduceChatSessionList(
       delete queuedTurnQueueRevisions[action.sessionId];
       return {
         ...state,
+        sessionEntitiesById: removeSessionEntity(state.sessionEntitiesById, action.sessionId),
+        sessionTombstonesById: addSessionTombstone(state.sessionTombstonesById, action.sessionId),
         sessions: nextSessions,
         generalSessions: nextGeneralSessions,
         projectSessionsByPath: nextProjectSessionsByPath,

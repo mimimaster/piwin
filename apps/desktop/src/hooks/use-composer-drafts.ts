@@ -25,6 +25,13 @@ import {
 } from '../draft-session';
 import type { UseComposerMediaArgs } from './composer-media-args.js';
 import type { SessionComposerSnapshot } from './composer-session-snapshot.js';
+import {
+  buildComposerDraftStore,
+  draftsFromPersistedStore,
+  loadComposerDraftStore,
+  readComposerDraftPartitionId,
+  saveComposerDraftStore,
+} from '../composer-draft-persistence.js';
 
 /**
  * Cap on per-session unsent composer snapshots. Each snapshot pins its
@@ -94,6 +101,7 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
   const draftTextRef = useRef('');
   /** Scope chosen by the New Agent entry point, independent of async navigation. */
   const currentDraftScopeRef = useRef(args.state.activeScope);
+  const explicitDraftScopeRef = useRef<SessionScope | null>(null);
   const previousActiveScopeRef = useRef(args.state.activeScope);
   // When a session is created on first send, activeSessionId transitions from
   // null → new id. The effect below would normally save the composer text as
@@ -114,6 +122,37 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
    * about to put back.
    */
   const holdLiveDraftOnEmptyRef = useRef(false);
+  const loadedDraftPartitionRef = useRef<string | null>(null);
+  const persistTimerRef = useRef<number | null>(null);
+
+  const persistComposerDrafts = useCallback((): void => {
+    const partition = readComposerDraftPartitionId(args.hostClient);
+    if (!partition) {
+      return;
+    }
+    saveComposerDraftStore(
+      buildComposerDraftStore({
+        hostInstanceId: partition,
+        drafts: draftSessionsRef.current,
+        draftSnapshots: draftComposerSnapshotsRef.current,
+        sessionSnapshots: sessionComposerSnapshotsRef.current,
+      }),
+    );
+  }, [args.hostClient, draftComposerSnapshotsRef, sessionComposerSnapshotsRef]);
+
+  const scheduleComposerDraftPersist = useCallback((): void => {
+    if (typeof window === 'undefined') {
+      persistComposerDrafts();
+      return;
+    }
+    if (persistTimerRef.current !== null) {
+      window.clearTimeout(persistTimerRef.current);
+    }
+    persistTimerRef.current = window.setTimeout(() => {
+      persistTimerRef.current = null;
+      persistComposerDrafts();
+    }, 250);
+  }, [persistComposerDrafts]);
 
   const setActiveDraft = useCallback((draftId: string | null): void => {
     activeDraftIdRef.current = draftId;
@@ -121,13 +160,16 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
   }, []);
 
   const upsertCurrentDraft = useCallback(
-    (text: string, scope: SessionScope): void => {
+    (text: string, scope: SessionScope, options?: { select?: boolean }): void => {
       const attachments = [...pendingAttachmentsRef.current];
       const contextRefs = readVisibleContextRefs();
       if (text.trim().length === 0 && attachments.length === 0 && contextRefs.length === 0) {
         return;
       }
-      const draftId = currentDraftIdRef.current ?? activeDraftIdRef.current ?? crypto.randomUUID();
+      const draftId =
+        options?.select === false
+          ? crypto.randomUUID()
+          : (currentDraftIdRef.current ?? activeDraftIdRef.current ?? crypto.randomUUID());
       const existing = draftSessionsRef.current.find((draft) => draft.id === draftId);
       const createdAt = existing?.createdAt ?? new Date().toISOString();
       const attachmentTitle = attachments
@@ -150,11 +192,14 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
       draftSessionsRef.current = next;
       draftComposerSnapshotsRef.current.set(draftId, { text, attachments, contextRefs });
       setDraftSessions(sortDraftSessions(next));
-      currentDraftIdRef.current = draftId;
-      setActiveDraft(draftId);
+      scheduleComposerDraftPersist();
+      if (options?.select !== false) {
+        currentDraftIdRef.current = draftId;
+        setActiveDraft(draftId);
+      }
       draftTextRef.current = text;
     },
-    [readVisibleContextRefs, setActiveDraft],
+    [readVisibleContextRefs, scheduleComposerDraftPersist, setActiveDraft],
   );
 
   const removeCurrentDraft = useCallback((reason: ComposerDraftRemovalReason = 'discard'): void => {
@@ -173,7 +218,8 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
     const next = draftSessionsRef.current.filter((draft) => draft.id !== draftId);
     draftSessionsRef.current = next;
     setDraftSessions(next);
-  }, [disposeComposerAttachments, setActiveDraft]);
+    scheduleComposerDraftPersist();
+  }, [disposeComposerAttachments, scheduleComposerDraftPersist, setActiveDraft]);
 
   const saveSessionComposerSnapshot = useCallback(
     (sessionId: string): void => {
@@ -192,24 +238,30 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
         if (previous) {
           disposeComposerAttachments(previous.attachments);
         }
+        scheduleComposerDraftPersist();
         return;
       }
       // Delete-then-set refreshes LRU recency for the just-saved session.
       sessionComposerSnapshotsRef.current.delete(sessionId);
       sessionComposerSnapshotsRef.current.set(sessionId, snapshot);
-      while (sessionComposerSnapshotsRef.current.size > MAX_RETAINED_SESSION_COMPOSER_SNAPSHOTS) {
-        const oldest = sessionComposerSnapshotsRef.current.entries().next();
-        const [oldestId, oldestSnapshot] = oldest.value ?? [];
-        if (oldest.done || oldestId === undefined || oldestSnapshot === undefined) break;
-        sessionComposerSnapshotsRef.current.delete(oldestId);
-        // The active session's chips may still be live in the composer; only
-        // dispose attachments that no other holder can reach.
-        if (oldestId !== activeSessionIdRef.current) {
-          disposeComposerAttachments(oldestSnapshot.attachments);
-        }
+      const attachmentHolders = [...sessionComposerSnapshotsRef.current.entries()].filter(
+        ([, held]) => held.attachments.length > 0,
+      );
+      while (attachmentHolders.length > MAX_RETAINED_SESSION_COMPOSER_SNAPSHOTS) {
+        const oldest = attachmentHolders.shift();
+        if (oldest === undefined) break;
+        const [oldestId, oldestSnapshot] = oldest;
+        if (oldestId === activeSessionIdRef.current) continue;
+        sessionComposerSnapshotsRef.current.set(oldestId, {
+          text: oldestSnapshot.text,
+          attachments: [],
+          contextRefs: oldestSnapshot.contextRefs,
+        });
+        disposeComposerAttachments(oldestSnapshot.attachments);
       }
+      scheduleComposerDraftPersist();
     },
-    [disposeComposerAttachments, readVisibleContextRefs],
+    [disposeComposerAttachments, readVisibleContextRefs, scheduleComposerDraftPersist],
   );
 
   const restoreSessionComposerSnapshot = useCallback(
@@ -248,6 +300,31 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
     [args, setComposer],
   );
 
+  useEffect(() => {
+    const partition = readComposerDraftPartitionId(args.hostClient);
+    if (!partition || loadedDraftPartitionRef.current === partition) {
+      return;
+    }
+    loadedDraftPartitionRef.current = partition;
+    const stored = loadComposerDraftStore(partition);
+    if (stored === null) {
+      return;
+    }
+    const restored = draftsFromPersistedStore(stored);
+    if (draftSessionsRef.current.length === 0 && restored.drafts.length > 0) {
+      draftSessionsRef.current = restored.drafts;
+      setDraftSessions(restored.drafts);
+      for (const [draftId, snapshot] of restored.draftSnapshots) {
+        draftComposerSnapshotsRef.current.set(draftId, snapshot);
+      }
+    }
+    for (const [sessionId, snapshot] of restored.sessionSnapshots) {
+      if (!sessionComposerSnapshotsRef.current.has(sessionId)) {
+        sessionComposerSnapshotsRef.current.set(sessionId, snapshot);
+      }
+    }
+  }, [args.hostClient, args.state.hostReady]);
+
   // Teardown sweep: no holder may outlive the hook, so every retained blob
   // URL and source File (session snapshots, draft snapshots, live chips) is
   // released here instead of leaking until page reload.
@@ -266,11 +343,32 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
     [disposeComposerAttachments],
   );
 
+  useEffect(() => {
+    const onHide = (): void => {
+      persistComposerDrafts();
+    };
+    if (typeof window === 'undefined') {
+      return;
+    }
+    window.addEventListener('pagehide', onHide);
+    return () => {
+      window.removeEventListener('pagehide', onHide);
+      if (persistTimerRef.current !== null) {
+        window.clearTimeout(persistTimerRef.current);
+        persistTimerRef.current = null;
+      }
+      persistComposerDrafts();
+    };
+  }, [persistComposerDrafts]);
+
   /** Leave the current session for New Agent. Resume a parked draft for this scope if one exists. */
   const startNewDraft = useCallback(
     (scope?: SessionScope): void => {
       holdLiveDraftOnEmptyRef.current = true;
       const targetScope = scope ?? args.state.activeScope;
+      if (scope !== undefined) {
+        explicitDraftScopeRef.current = targetScope;
+      }
       const sessionId = activeSessionIdRef.current;
       if (sessionId !== null) {
         saveSessionComposerSnapshot(sessionId);
@@ -405,10 +503,13 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
     upsertCurrentDraft,
   ]);
 
-  // Host-less blank composer follows the latest navigation scope. Contentful
-  // drafts keep their explicit/restored binding.
+  // Host-less blank composer follows the latest navigation scope unless an
+  // explicit New-in-P target is still waiting for that project to activate.
   useEffect(() => {
     if (args.state.activeSessionId !== null) {
+      return;
+    }
+    if (explicitDraftScopeRef.current !== null) {
       return;
     }
     const hasContent =
@@ -430,6 +531,9 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
     previousActiveScopeRef.current = args.state.activeScope;
     if (prevId === currentId) return;
     prevActiveSessionIdRef.current = currentId;
+    if (currentId !== null) {
+      explicitDraftScopeRef.current = null;
+    }
 
     const hasComposerContent =
       composerRef.current.trim().length > 0 ||
@@ -536,5 +640,6 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
     preserveComposerOnSessionActivationRef,
     draftTextRef,
     currentDraftScopeRef,
+    currentDraftIdRef,
   };
 }

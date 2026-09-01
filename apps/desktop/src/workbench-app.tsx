@@ -2,7 +2,7 @@
  * Workbench composition root: shell chrome + host/session owners + slot tree.
  */
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import { formatError, type ThemeManifest } from '@piwin/contracts';
+import type { ThemeManifest } from '@piwin/contracts';
 import { chatUiReducer, createInitialChatUiState } from './chat-reducer';
 import { useWorkbenchHostClient } from './use-workbench-host-client';
 import { MediaPreviewReadProvider } from './media-preview-read-context';
@@ -35,11 +35,10 @@ import {
   useConversationPaneLayout,
   useConversationPaneSubscriptions,
 } from './use-conversation-pane-layout';
-import { sessionCreateInputForTransport } from './remote-session-hydrate';
-import { createGestureIdempotencyKey } from './gesture-idempotency';
-import { pushError } from './notification-queue';
-import { WorkbenchSubpageStage } from './workbench-subpage-stage';
 import { sessionScopeKey } from './session-scope-key';
+import { resolveEntityScope } from './session-entities';
+import { shouldBindSessionToSecondaryPane } from './conversation-pane-bind';
+import { WorkbenchSubpageStage } from './workbench-subpage-stage';
 
 export type AppProps = {
   /** Resolved active manifest owned by DesktopThemeRoot. */
@@ -223,7 +222,6 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     effectiveRunMode,
     handleSettingsSaved,
     handleSettingsPreferencesChange,
-    currentPromptModelRef,
     composer,
     setComposer,
     pendingAttachments,
@@ -314,35 +312,14 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     panesEnabled: conversationPanesEnabled,
   });
   const handleCreatePaneConversation = useCallback(async (): Promise<string | null> => {
-    try {
-      const response = await hostClient.request(
-        {
-          type: 'session/create',
-          input: sessionCreateInputForTransport(hostClient.getTransport(), {
-            useGeneral: state.activeScope.kind === 'general',
-            ...(state.activeScope.kind === 'project'
-              ? { projectKey: state.activeScope.projectPath }
-              : {}),
-            ...(currentPromptModelRef ? { model: currentPromptModelRef } : {}),
-          }),
-        },
-        { idempotencyKey: createGestureIdempotencyKey() },
-      );
-      if (!response.success) {
-        dispatchNotification(pushError(response.error));
-        return null;
-      }
-      const sessionId = (response.data as { sessionId?: unknown } | undefined)?.sessionId;
-      if (typeof sessionId !== 'string' || sessionId.length === 0) {
-        dispatchNotification(pushError('Host returned an invalid Conversation id'));
-        return null;
-      }
-      return sessionId;
-    } catch (error) {
-      dispatchNotification(pushError(formatError(error)));
-      return null;
-    }
-  }, [currentPromptModelRef, dispatchNotification, hostClient, state.activeScope]);
+    const scope =
+      state.activeScope.kind === 'project'
+        ? { kind: 'project' as const, projectPath: state.activeScope.projectPath }
+        : { kind: 'general' as const };
+    await handleStartNewSession({ scope });
+    conversationPaneController.focus(PRIMARY_CONVERSATION_PANE_ID);
+    return null;
+  }, [conversationPaneController, handleStartNewSession, state.activeScope]);
 
   return (
     <DesktopLocaleProvider locale={desktopLocale} onLocaleChange={handleLocaleChange}>
@@ -411,8 +388,15 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                               return Promise.resolve();
                             }
                             if (activePaneId !== PRIMARY_CONVERSATION_PANE_ID) {
-                              conversationPaneController.bindSession(activePaneId, sessionId);
-                              return Promise.resolve();
+                              if (
+                                shouldBindSessionToSecondaryPane({
+                                  sessionScope: resolveEntityScope(state, sessionId),
+                                  activeScope: state.activeScope,
+                                })
+                              ) {
+                                conversationPaneController.bindSession(activePaneId, sessionId);
+                                return Promise.resolve();
+                              }
                             }
                           }
                         }

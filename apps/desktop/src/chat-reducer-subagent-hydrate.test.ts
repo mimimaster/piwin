@@ -482,7 +482,7 @@ describe('chatUiReducer subagent hydration', () => {
       path: '/p',
       trusted: true,
     });
-    expect(afterProjectSet.activeSessionId).toBe('session-a');
+    expect(afterProjectSet.activeSessionId).toBeNull();
     expect(afterProjectSet.transcriptOwnerSessionId).toBeNull();
 
     let projectState = chatUiReducer(stateWithOwner(), {
@@ -505,7 +505,7 @@ describe('chatUiReducer subagent hydration', () => {
     });
     expect(projectState.transcriptOwnerSessionId).toBe('session-p');
     const afterProjectClear = chatUiReducer(projectState, { type: 'project/clear' });
-    expect(afterProjectClear.activeSessionId).toBe('session-p');
+    expect(afterProjectClear.activeSessionId).toBeNull();
     expect(afterProjectClear.transcriptOwnerSessionId).toBeNull();
 
     const afterActiveRemoved = chatUiReducer(stateWithOwner(), {
@@ -546,7 +546,6 @@ describe('chatUiReducer subagent hydration', () => {
       sessions: [{ id: 'session-zzz', name: 'Other' }],
       totalCount: 80,
       truncated: true,
-      fillActiveList: true,
     });
     expect(state.sessions.some((item) => item.id === 'session-a')).toBe(false);
     expect(state.activeSessionMetadata).toMatchObject({ id: 'session-a', name: 'Named session A' });

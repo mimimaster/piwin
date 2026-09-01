@@ -16,7 +16,7 @@ import type {
   SessionScope,
   ThinkingLevel,
 } from '@piwin/contracts';
-import { isThinkingLevel } from '@piwin/contracts';
+import { isThinkingLevel, parseSessionStorageInfo } from '@piwin/contracts';
 import type { ChatUiAction, SessionListItemUi } from './chat-reducer';
 import { MAX_RECENT_PROJECTS } from './record-budget';
 
@@ -353,14 +353,18 @@ export function mapListedSessionItem(value: unknown): SessionListItemUi | undefi
   if (typeof value.messageCount === 'number') item.messageCount = value.messageCount;
   if (typeof value.updatedAt === 'string') item.updatedAt = value.updatedAt;
   if (value.isPinned === true || value.pinned === true) item.isPinned = true;
+  if (value.isPinned === false || value.pinned === false) item.isPinned = false;
   if (typeof value.pinnedAt === 'string') item.pinnedAt = value.pinnedAt;
   if (value.isArchived === true || value.archived === true) item.isArchived = true;
+  if (value.isArchived === false || value.archived === false) item.isArchived = false;
   if (typeof value.archivedAt === 'string') item.archivedAt = value.archivedAt;
   const scope = mapListedSessionScope(value);
   if (scope !== undefined) item.scope = scope;
   const model = readListedModelRef(value.model);
   if (model) item.model = model;
   if (isThinkingLevel(value.thinkingLevel)) item.thinkingLevel = value.thinkingLevel;
+  const storage = parseSessionStorageInfo(value.storage);
+  if (storage && storage.state !== 'local') item.storage = storage;
   return item;
 }
 
@@ -389,12 +393,24 @@ function readListedModelRef(value: unknown): ModelRef | undefined {
   };
 }
 
+function isUsableListedProjectId(value: string): boolean {
+  const trimmed = value.trim();
+  return trimmed.length > 0 && trimmed !== '[host-path]' && !trimmed.includes('[host-path]');
+}
+
 function mapListedSessionScope(value: Record<string, unknown>): SessionScope | undefined {
   const scope = value.scope;
   if (isRecord(scope) && scope.kind === 'general') {
     return { kind: 'general' };
   }
   if (isRecord(scope) && scope.kind === 'project' && typeof scope.projectPath === 'string') {
+    if (!isUsableListedProjectId(scope.projectPath)) {
+      const projectId = typeof value.projectId === 'string' ? value.projectId.trim() : '';
+      if (isUsableListedProjectId(projectId)) {
+        return { kind: 'project', projectPath: projectId };
+      }
+      return undefined;
+    }
     return { kind: 'project', projectPath: scope.projectPath };
   }
   if (scope === 'general') {
@@ -402,7 +418,7 @@ function mapListedSessionScope(value: Record<string, unknown>): SessionScope | u
   }
   if (scope === 'project') {
     const projectId = typeof value.projectId === 'string' ? value.projectId.trim() : '';
-    if (projectId.length > 0) {
+    if (projectId.length > 0 && isUsableListedProjectId(projectId)) {
       return { kind: 'project', projectPath: projectId };
     }
   }

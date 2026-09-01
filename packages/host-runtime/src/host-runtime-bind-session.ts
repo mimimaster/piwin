@@ -80,8 +80,6 @@ export async function bindSession(
         const recordInput: Parameters<typeof createSessionRecord>[0] = {
           id: session.id,
           projectPath,
-          // No placeholder name: unnamed sessions stay off the sidebar until
-          // the first user message assigns a text title.
           ...(sessionName ? { name: sessionName } : {}),
         };
         if (!projectPath) {
@@ -113,8 +111,6 @@ export async function bindSession(
         await upsertSessionRecord(indexPath, createSessionRecord(recordInput));
       }
     } catch (error) {
-      // best-effort index write — surface failure so users see why a
-      // session may be missing from the list (corrupt index, permissions).
       const detail = formatError(error);
       const warning = `session index write failed: ${detail}`;
       console.warn(warning);
@@ -123,6 +119,7 @@ export async function bindSession(
         level: 'warn',
         message: warning,
       });
+      throw error instanceof Error ? error : new Error(warning);
     }
   }
 
