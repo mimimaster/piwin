@@ -64,8 +64,18 @@ export function liveProviderAuthError(providerId: string): string {
   return `live-provider-auth:${providerId}`;
 }
 
-export function liveStartErrorLabel(error: string, isChinese: boolean): string {
+export type LiveErrorLabelKind = 'start' | 'rebind';
+
+export function liveStartErrorLabel(
+  error: string,
+  isChinese: boolean,
+  options?: { kind?: LiveErrorLabelKind },
+): string {
+  const kind = options?.kind ?? 'start';
   if (error === 'live-session-unavailable') {
+    if (kind === 'rebind') {
+      return isChinese ? '无法改绑到该会话' : 'Could not rebind to that session';
+    }
     return isChinese ? '无法创建会话' : 'Could not create a session';
   }
   if (error === 'live-not-owner') {
@@ -74,6 +84,11 @@ export function liveStartErrorLabel(error: string, isChinese: boolean): string {
       : 'This device is not the Live owner, so the work target cannot be rebound';
   }
   if (error === 'live-conflict') {
+    if (kind === 'rebind') {
+      return isChinese
+        ? '工作目标改绑冲突，请稍后再试'
+        : 'Work target rebind conflict. Try again in a moment.';
+    }
     return isChinese ? 'Live 设置刚更新过，请再点一次开始' : 'Live settings just changed. Start Live again.';
   }
   const authProvider = error.startsWith('live-provider-auth:')
