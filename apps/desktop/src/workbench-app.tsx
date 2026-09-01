@@ -397,6 +397,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                                 conversationPaneController.bindSession(activePaneId, sessionId);
                                 return Promise.resolve();
                               }
+                              conversationPaneController.focus(PRIMARY_CONVERSATION_PANE_ID);
                             }
                           }
                         }

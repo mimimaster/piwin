@@ -7,7 +7,9 @@ import {
   bindConversationPaneSession,
   closeConversationPane,
   createConversationPaneLayout,
+  focusConversationPane,
   listConversationPaneLeaves,
+  replacePrimaryConversationSession,
   resolveFocusedConversationSessionId,
   setConversationPaneSplitRatio,
   splitConversationPane,
@@ -115,6 +117,9 @@ describe('conversation pane layout', () => {
     layout = splitConversationPane(layout, PRIMARY_CONVERSATION_PANE_ID, 'row', createId);
     const second = listConversationPaneLeaves(layout.root)[1];
     if (!second) throw new Error('split did not create a second pane');
+    expect(layout.activePaneId).toBe(second.paneId);
+    expect(second.sessionId).toBeNull();
+    // S-keep: empty secondary must not fall back to primarySessionId
     expect(
       resolveFocusedConversationSessionId({ layout, primarySessionId: 'session-primary' }),
     ).toBeNull();
@@ -122,5 +127,23 @@ describe('conversation pane layout', () => {
     expect(
       resolveFocusedConversationSessionId({ layout, primarySessionId: 'session-primary' }),
     ).toBe('session-two');
+  });
+
+  it('resume-fallback focus-primary makes Live resolve the resumed session', () => {
+    const createId = createIds();
+    let layout = createConversationPaneLayout('session-a');
+    layout = splitConversationPane(layout, PRIMARY_CONVERSATION_PANE_ID, 'row', createId);
+    expect(layout.activePaneId).not.toBe(PRIMARY_CONVERSATION_PANE_ID);
+    expect(
+      resolveFocusedConversationSessionId({ layout, primarySessionId: 'session-a' }),
+    ).toBeNull();
+
+    // Cannot bind secondary → focus primary, then primary resume replaces session
+    layout = focusConversationPane(layout, PRIMARY_CONVERSATION_PANE_ID);
+    expect(layout.activePaneId).toBe(PRIMARY_CONVERSATION_PANE_ID);
+    layout = replacePrimaryConversationSession(layout, 'session-b');
+    expect(
+      resolveFocusedConversationSessionId({ layout, primarySessionId: 'session-b' }),
+    ).toBe('session-b');
   });
 });
