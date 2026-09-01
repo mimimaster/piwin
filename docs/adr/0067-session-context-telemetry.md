@@ -26,6 +26,41 @@ missing or billed; compact/branch/resume revived stale numbers.
    the ledger.
 5. The ring hides until the current foreground Run has real response evidence
    (non-empty text, thinking, or a model-initiated tool call).
+6. **Host current occupancy promote** is a same-boundary idle restore, not a
+   display fallback. Promote only when all of: `phase === 'idle'`; occupancy
+   unknown with reason `waiting-for-response` or `run-ended-without-response`;
+   known `lastConfirmed`; current-run or history response evidence; strict
+   `contextBoundaryCompatible` (active leaf included). Copy `lastConfirmed`
+   occupancy as current occupancy; do not bump `contextVersion`; do not rewrite
+   phase. Never promote `runtime-generation-mismatch`, abort/error,
+   compact-unmeasured, store-unavailable, branch/schema invalidated, empty, or
+   an incompatible boundary (including a moved leaf). `session/resume` and
+   `session/context-get` return this Host snapshot.
+7. **Desktop presentation-only stale fallback** may show `lastConfirmed`
+   numbers without changing Host authority. It requires all of:
+   `phase === 'invalidated'`; unknown reason exactly
+   `runtime-generation-mismatch`; `historyHasDisplayableResponse`; not a live
+   waiting-response first-response gate; non-leaf-compatible boundary (model /
+   compaction / capability / seed match; moved leaf allowed). Label:
+   「上次确认，当前上下文待测量」 / "Last confirmed; current context pending
+   measurement". Snapshot stays unknown/invalidated. Compact and model-switch
+   budget (`readContextOccupiedTokens`) read only current known occupancy,
+   never `lastConfirmed`.
+8. Publisher persist equality includes `lastConfirmed`, context boundary,
+   covered/evidence ids, and occupancy/`lastConfirmed` `sampledAt`. It may
+   ignore only `revision`/`updatedAt`. A lastConfirmed-only change must be
+   written.
+9. Derived sessions (fork/duplicate) stay `unknown(derived-session)` until the
+   target active path is measured. History evidence may copy; occupancy,
+   `lastConfirmed`, live owner, revision, and `contextVersion` must not.
+10. Clients restore the same session from the warm cache on A→B→A.
+    `selectSession` does not clear `disconnected`; only reconnect restores
+    online. Offline warm display stays labeled offline.
+11. Cold hydrate repairs old-patch idle+known cross-leaf pollution: demote to
+    `invalidated` + `unknown(runtime-generation-mismatch)`, keep
+    `lastConfirmed`, clear covered ids, do not bump `contextVersion`, persist
+    via CAS, idempotent on the next hydrate. Repair runs before settle;
+    mismatch is not promotable, so repair cannot be undone into known.
 
 ## Consequences
 
@@ -33,3 +68,5 @@ missing or billed; compact/branch/resume revived stale numbers.
   samples CAS-fail.
 - Historical host-estimate ledger rows are left in place.
 - SDK and RPC share the same sampler/estimator inside `agent-host`.
+- Stale `lastConfirmed` is Desktop presentation only; it is not Host current
+  occupancy and must not enter budget or compact decisions.

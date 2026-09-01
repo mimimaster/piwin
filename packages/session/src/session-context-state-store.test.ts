@@ -52,6 +52,18 @@ function unknownSnapshot(
   };
 }
 
+function knownOccupancy(tokensUsed: number) {
+  return {
+    kind: 'known' as const,
+    tokensUsed,
+    tokensLimit: 128_000,
+    quality: 'measured' as const,
+    coverage: 'complete' as const,
+    basis: 'current-request',
+    sampledAt: '2026-08-30T00:00:00.000Z',
+  };
+}
+
 describe('session context state store', () => {
   it('creates context tables idempotently when opening twice', async () => {
     const { dbPath, sessionId, store } = await openStore('migrate');
@@ -207,11 +219,147 @@ describe('session context state store', () => {
     const derived = await target.store.readContextState();
     expect(derived?.sessionId).toBe(target.sessionId);
     expect(derived?.revision).toBe(1);
-    expect(derived?.contextVersion).not.toBe(7);
+    expect(derived?.contextVersion).toBe(1);
     expect(derived?.runId).toBeUndefined();
     expect(derived?.runtimeGenerationId).toBeUndefined();
     expect(derived?.responseEvidence.currentRunHasResponse).toBe(false);
     expect(derived?.responseEvidence.historyHasDisplayableResponse).toBe(true);
+    expect(derived?.occupancy).toEqual({ kind: 'unknown', reason: 'derived-session' });
+    source.store.close();
+    target.store.close();
+  });
+
+  it('keeps derived occupancy unknown when the source snapshot is known', async () => {
+    const source = await openStore('derive-occ-src');
+    const target = await openStore('derive-occ-dst');
+    const occupancy = knownOccupancy(12_400);
+    const inserted = await source.store.replaceContextState({
+      expectedContextVersion: 1,
+      expectedBoundary: boundary('leaf-a'),
+      snapshot: unknownSnapshot(source.sessionId, {
+        occupancy,
+        lastConfirmed: {
+          occupancy,
+          contextBoundary: boundary('leaf-a'),
+          sampledAt: '2026-08-30T00:00:00.000Z',
+        },
+        responseEvidence: {
+          currentRunHasResponse: false,
+          historyHasDisplayableResponse: true,
+        },
+        phase: 'idle',
+      }),
+    });
+    expect(inserted.ok).toBe(true);
+
+    await seedDerivedSessionContextState({
+      source: source.store,
+      target: target.store,
+      targetSessionId: target.sessionId,
+      updatedAt: '2026-08-30T00:01:00.000Z',
+    });
+    const derived = await target.store.readContextState();
+    expect(derived?.occupancy).toEqual({ kind: 'unknown', reason: 'derived-session' });
+    expect(derived?.lastConfirmed).toBeUndefined();
+    expect(derived?.sessionId).toBe(target.sessionId);
+    expect(derived?.runId).toBeUndefined();
+    expect(derived?.responseEvidence.historyHasDisplayableResponse).toBe(true);
+    source.store.close();
+    target.store.close();
+  });
+
+  it('keeps derived occupancy unknown when the source only has lastConfirmed', async () => {
+    const source = await openStore('derive-last-src');
+    const target = await openStore('derive-last-dst');
+    const occupancy = knownOccupancy(8_800);
+    const inserted = await source.store.replaceContextState({
+      expectedContextVersion: 1,
+      expectedBoundary: boundary('leaf-a'),
+      snapshot: unknownSnapshot(source.sessionId, {
+        occupancy: { kind: 'unknown', reason: 'waiting-for-response' },
+        lastConfirmed: {
+          occupancy,
+          contextBoundary: boundary('leaf-a'),
+          sampledAt: '2026-08-30T00:00:00.000Z',
+        },
+        responseEvidence: {
+          currentRunHasResponse: false,
+          historyHasDisplayableResponse: true,
+        },
+        phase: 'idle',
+      }),
+    });
+    expect(inserted.ok).toBe(true);
+
+    await seedDerivedSessionContextState({
+      source: source.store,
+      target: target.store,
+      targetSessionId: target.sessionId,
+      updatedAt: '2026-08-30T00:01:00.000Z',
+    });
+    const derived = await target.store.readContextState();
+    expect(derived?.occupancy).toEqual({ kind: 'unknown', reason: 'derived-session' });
+    expect(derived?.lastConfirmed).toBeUndefined();
+    source.store.close();
+    target.store.close();
+  });
+
+  it('keeps derived occupancy unknown when the target active leaf is truncated', async () => {
+    const source = await openStore('derive-trunc-src');
+    const target = await openStore('derive-trunc-dst');
+    const occupancy = knownOccupancy(12_400);
+    const inserted = await source.store.replaceContextState({
+      expectedContextVersion: 1,
+      expectedBoundary: boundary('a2'),
+      snapshot: unknownSnapshot(source.sessionId, {
+        occupancy,
+        lastConfirmed: {
+          occupancy,
+          contextBoundary: boundary('a2'),
+          sampledAt: '2026-08-30T00:00:00.000Z',
+        },
+        contextBoundary: boundary('a2'),
+        responseEvidence: {
+          currentRunHasResponse: false,
+          historyHasDisplayableResponse: true,
+        },
+        phase: 'idle',
+      }),
+    });
+    expect(inserted.ok).toBe(true);
+
+    for (const [id, role, text] of [
+      ['u1', 'user', 'first question'],
+      ['a1', 'assistant', 'first answer'],
+      ['u2', 'user', 'second question'],
+      ['a2', 'assistant', 'second answer'],
+    ] as const) {
+      const appended = await target.store.appendMessage({
+        id,
+        runtimeGenerationId: 'gen-trunc',
+        backendMessageId: `b-${id}`,
+        role,
+        text,
+        status: 'done',
+        createdAt: '2026-08-30T00:00:00.000Z',
+      });
+      expect(appended.ok).toBe(true);
+    }
+    await target.store.rebaseActiveLeaf('a1');
+    expect(await target.store.getActiveLeaf()).toBe('a1');
+
+    await seedDerivedSessionContextState({
+      source: source.store,
+      target: target.store,
+      targetSessionId: target.sessionId,
+      updatedAt: '2026-08-30T00:01:00.000Z',
+    });
+    const derived = await target.store.readContextState();
+    expect(derived?.occupancy).toEqual({ kind: 'unknown', reason: 'derived-session' });
+    expect(derived?.lastConfirmed).toBeUndefined();
+    expect(derived?.contextBoundary.activeLeafMessageId).toBe('a1');
+    expect(derived?.runId).toBeUndefined();
+    expect(derived?.runtimeGenerationId).toBeUndefined();
     source.store.close();
     target.store.close();
   });

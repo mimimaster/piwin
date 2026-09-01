@@ -1,5 +1,5 @@
 import type { ContextBoundary, SessionContextSnapshot } from '@piwin/contracts';
-import { snapshotDisplayEqual } from './session-context-merge.js';
+import { snapshotPersistEqual } from './session-context-merge.js';
 
 export const CONTEXT_PUBLISH_INTERVAL_MS = 250;
 
@@ -56,7 +56,7 @@ export function createSessionContextPublisher(
     if (disposed) {
       return { status: 'cas-mismatch' };
     }
-    if (lastPushed !== undefined && snapshotDisplayEqual(lastPushed, snapshot)) {
+    if (lastPushed !== undefined && snapshotPersistEqual(lastPushed, snapshot)) {
       return { status: 'ok', snapshot: lastPushed, persisted: true };
     }
     const result = await deps.persist(snapshot, cas);
@@ -111,7 +111,7 @@ export function createSessionContextPublisher(
         pending = undefined;
         return enqueue(snapshot);
       }
-      if (lastPushed !== undefined && snapshotDisplayEqual(lastPushed, snapshot) && pending === undefined) {
+      if (lastPushed !== undefined && snapshotPersistEqual(lastPushed, snapshot) && pending === undefined) {
         return Promise.resolve({ status: 'ok' as const, snapshot: lastPushed, persisted: true });
       }
       const elapsed = lastPublishAt === 0 ? CONTEXT_PUBLISH_INTERVAL_MS : deps.now() - lastPublishAt;

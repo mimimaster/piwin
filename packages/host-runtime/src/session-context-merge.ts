@@ -1,8 +1,10 @@
-import type {
-  ContextBoundary,
-  ContextMeasurement,
-  ContextOccupancy,
-  SessionContextSnapshot,
+import {
+  contextBoundaryCompatible,
+  promoteLastConfirmed,
+  type ContextBoundary,
+  type ContextMeasurement,
+  type ContextOccupancy,
+  type SessionContextSnapshot,
 } from '@piwin/contracts';
 
 export function occupancyEqual(left: ContextOccupancy, right: ContextOccupancy): boolean {
@@ -18,25 +20,78 @@ export function occupancyEqual(left: ContextOccupancy, right: ContextOccupancy):
       left.tokensLimit === right.tokensLimit &&
       left.quality === right.quality &&
       left.coverage === right.coverage &&
-      left.basis === right.basis
+      left.basis === right.basis &&
+      left.sampledAt === right.sampledAt
     );
   }
   return false;
 }
 
-export function snapshotDisplayEqual(
+function modelRefEqual(
+  left: ContextBoundary['model'],
+  right: ContextBoundary['model'],
+): boolean {
+  if (left === undefined && right === undefined) {
+    return true;
+  }
+  if (left === undefined || right === undefined) {
+    return false;
+  }
+  return (
+    left.providerId === right.providerId &&
+    left.modelId === right.modelId &&
+    left.protocol === right.protocol &&
+    left.source === right.source
+  );
+}
+
+function contextBoundaryEqual(left: ContextBoundary, right: ContextBoundary): boolean {
+  return (
+    left.activeLeafMessageId === right.activeLeafMessageId &&
+    left.compactionBoundary === right.compactionBoundary &&
+    left.capabilityFingerprint === right.capabilityFingerprint &&
+    left.seedFingerprint === right.seedFingerprint &&
+    modelRefEqual(left.model, right.model)
+  );
+}
+
+function lastConfirmedEqual(
+  left: SessionContextSnapshot['lastConfirmed'],
+  right: SessionContextSnapshot['lastConfirmed'],
+): boolean {
+  if (left === undefined && right === undefined) {
+    return true;
+  }
+  if (left === undefined || right === undefined) {
+    return false;
+  }
+  return (
+    occupancyEqual(left.occupancy, right.occupancy) &&
+    contextBoundaryEqual(left.contextBoundary, right.contextBoundary) &&
+    left.sampledAt === right.sampledAt
+  );
+}
+
+/** Persist-state equality. Ignores revision/updatedAt bookkeeping only. */
+export function snapshotPersistEqual(
   left: SessionContextSnapshot,
   right: SessionContextSnapshot,
 ): boolean {
   return (
-    left.phase === right.phase &&
+    left.sessionId === right.sessionId &&
     left.contextVersion === right.contextVersion &&
+    left.phase === right.phase &&
+    left.runId === right.runId &&
+    left.runtimeGenerationId === right.runtimeGenerationId &&
+    left.coveredMessageId === right.coveredMessageId &&
+    left.coveredRequestId === right.coveredRequestId &&
     occupancyEqual(left.occupancy, right.occupancy) &&
+    contextBoundaryEqual(left.contextBoundary, right.contextBoundary) &&
     left.responseEvidence.currentRunHasResponse === right.responseEvidence.currentRunHasResponse &&
     left.responseEvidence.historyHasDisplayableResponse ===
       right.responseEvidence.historyHasDisplayableResponse &&
-    left.runId === right.runId &&
-    left.runtimeGenerationId === right.runtimeGenerationId
+    left.responseEvidence.evidenceMessageId === right.responseEvidence.evidenceMessageId &&
+    lastConfirmedEqual(left.lastConfirmed, right.lastConfirmed)
   );
 }
 
@@ -50,36 +105,8 @@ export function isBlockedOccupancy(occupancy: ContextOccupancy): boolean {
   return /error|abort|zero/i.test(occupancy.basis);
 }
 
-function sameWhenSet(current: string | undefined, incoming: string | undefined): boolean {
-  if (current === undefined || current.length === 0) {
-    return true;
-  }
-  return (incoming ?? '') === current;
-}
-
 export function boundaryCompatible(current: ContextBoundary, incoming: ContextBoundary): boolean {
-  if (current.activeLeafMessageId !== incoming.activeLeafMessageId) {
-    // Unbound snapshots may take the first sample leaf; barriers stamp a leaf.
-    if (current.activeLeafMessageId !== null) {
-      return false;
-    }
-  }
-  if (!sameWhenSet(current.compactionBoundary, incoming.compactionBoundary)) {
-    return false;
-  }
-  if (!sameWhenSet(current.capabilityFingerprint, incoming.capabilityFingerprint)) {
-    return false;
-  }
-  if (!sameWhenSet(current.seedFingerprint, incoming.seedFingerprint)) {
-    return false;
-  }
-  if (current.model !== undefined && incoming.model !== undefined) {
-    return (
-      current.model.providerId === incoming.model.providerId &&
-      current.model.modelId === incoming.model.modelId
-    );
-  }
-  return true;
+  return contextBoundaryCompatible(current, incoming);
 }
 
 export function activationBoundaryMatches(
@@ -174,16 +201,17 @@ export function applyResponseEvidence(
   if (snapshot.responseEvidence.currentRunHasResponse) {
     return { snapshot, immediate: false };
   }
-  const nextBoundary: ContextBoundary = { ...snapshot.contextBoundary };
-  if (input.messageId !== undefined) {
-    nextBoundary.activeLeafMessageId = input.messageId;
-  }
-  const next = stampOwner(
+  // Promote against the pre-evidence leaf so lastConfirmed still matches,
+  // then advance the leaf to the new assistant message. Contracts promotion
+  // is idle-only; evidence-time lift uses an idle candidate without changing
+  // the live waiting/invalidated/compact gates.
+  const phase = snapshot.phase === 'compacting' ? 'compacting' : 'streaming';
+  let next = stampOwner(
     {
       ...snapshot,
-      contextBoundary: nextBoundary,
+      contextBoundary: snapshot.contextBoundary,
       occupancy: snapshot.occupancy,
-      phase: snapshot.phase === 'compacting' ? 'compacting' : 'streaming',
+      phase,
       responseEvidence: {
         currentRunHasResponse: true,
         historyHasDisplayableResponse: true,
@@ -193,6 +221,20 @@ export function applyResponseEvidence(
     },
     input,
   );
+  if (snapshot.phase === 'waiting-response' || snapshot.phase === 'idle') {
+    const candidate: SessionContextSnapshot = { ...next, phase: 'idle' };
+    next = { ...promoteLastConfirmed(candidate), phase };
+  }
+  if (input.messageId !== undefined) {
+    next = {
+      ...next,
+      contextBoundary: {
+        ...next.contextBoundary,
+        activeLeafMessageId: input.messageId,
+      },
+      updatedAt: input.nowIso,
+    };
+  }
   return { snapshot: next, immediate: true };
 }
 
@@ -240,10 +282,10 @@ export function applyRunTerminal(
   if (!snapshot.responseEvidence.currentRunHasResponse) {
     next.occupancy = { kind: 'unknown', reason: 'run-ended-without-response' };
     next.phase = snapshot.responseEvidence.historyHasDisplayableResponse ? 'idle' : 'empty';
-    return next;
+    return promoteLastConfirmed(next);
   }
   next.phase = snapshot.phase === 'compacting' ? 'compacting' : 'idle';
-  return next;
+  return promoteLastConfirmed(next);
 }
 
 export function applyCompactionStart(

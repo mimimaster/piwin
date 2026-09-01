@@ -245,7 +245,7 @@ describe('context telemetry reducer (T05)', () => {
     expect(state.lastRequestUsage?.totalTokens).toBe(15);
   });
 
-  it('does not restore warm occupancy on A→B→A; failed resume stays hidden', () => {
+  it('restores warm occupancy on A→B→A; a session with no warm stays hidden', () => {
     let state = createInitialContextTelemetryState();
     state = applyContextTelemetry(state, { type: 'capability', supported: true });
     state = applyContextTelemetry(state, {
@@ -253,13 +253,14 @@ describe('context telemetry reducer (T05)', () => {
       sessionId: 'session-a',
       hostInstanceId: 'host-1',
     });
+    const occupancyA = makeKnownOccupancy({ tokensUsed: 21, tokensLimit: 128_000 });
     state = applyContextTelemetry(state, {
       type: 'snapshot',
       snapshot: makeContextSnapshot({
         sessionId: 'session-a',
         revision: 5,
         phase: 'idle',
-        occupancy: makeKnownOccupancy({ tokensUsed: 21, tokensLimit: 128_000 }),
+        occupancy: occupancyA,
         responseEvidence: {
           currentRunHasResponse: false,
           historyHasDisplayableResponse: true,
@@ -274,14 +275,15 @@ describe('context telemetry reducer (T05)', () => {
       hostInstanceId: 'host-1',
     });
     expect(state.displayed).toBeNull();
+    expect(selectContextRingView({ telemetry: state, locale: 'en' }).visible).toBe(false);
     state = applyContextTelemetry(state, {
       type: 'select',
       sessionId: 'session-a',
       hostInstanceId: 'host-1',
     });
-    expect(state.displayed).toBeNull();
+    expect(state.displayed?.occupancy).toEqual(occupancyA);
     expect(state.warmBySessionId['session-a']?.snapshot.revision).toBe(5);
-    expect(selectContextRingView({ telemetry: state, locale: 'en' }).visible).toBe(false);
+    expect(selectContextRingView({ telemetry: state, locale: 'en' }).visible).toBe(true);
 
     state = applyContextTelemetry(state, { type: 'invalidate', sessionId: 'session-a' });
     expect(state.displayed).toBeNull();
@@ -336,6 +338,244 @@ describe('context telemetry reducer (T05)', () => {
       }),
       source: 'live',
     });
+    expect(state.warmBySessionId['session-a']).toBeUndefined();
+  });
+
+  it('T05: A→B→A restores snapshot and lastRequest immediately', () => {
+    let state = createInitialContextTelemetryState();
+    state = applyContextTelemetry(state, { type: 'capability', supported: true });
+    state = applyContextTelemetry(state, {
+      type: 'select',
+      sessionId: 'session-a',
+      hostInstanceId: 'host-1',
+    });
+    const occupancyA = makeKnownOccupancy({ tokensUsed: 21, tokensLimit: 128_000 });
+    const snapshotA = makeContextSnapshot({
+      sessionId: 'session-a',
+      revision: 5,
+      phase: 'idle',
+      occupancy: occupancyA,
+      responseEvidence: {
+        currentRunHasResponse: false,
+        historyHasDisplayableResponse: true,
+      },
+    });
+    state = applyContextTelemetry(state, { type: 'snapshot', snapshot: snapshotA, source: 'live' });
+    const usageA = makeLastRequest({
+      sessionId: 'session-a',
+      messageId: 'assistant-a',
+      promptTokens: 12,
+      totalTokens: 18,
+    });
+    state = applyContextTelemetry(state, {
+      type: 'last-request',
+      sessionId: 'session-a',
+      usage: usageA,
+    });
+
+    state = applyContextTelemetry(state, {
+      type: 'select',
+      sessionId: 'session-b',
+      hostInstanceId: 'host-1',
+    });
+    expect(state.displayed).toBeNull();
+    expect(state.lastRequestUsage).toBeNull();
+
+    state = applyContextTelemetry(state, {
+      type: 'select',
+      sessionId: 'session-a',
+      hostInstanceId: 'host-1',
+    });
+    expect(state.disconnected).toBe(false);
+    expect(state.displayed).toEqual(snapshotA);
+    expect(state.lastRequestUsage).toEqual(usageA);
+    expect(state.warmBySessionId['session-a']?.snapshot).toEqual(snapshotA);
+    expect(state.warmBySessionId['session-a']?.lastRequestUsage).toEqual(usageA);
+  });
+
+  it('T05: disconnect then A→B→A keeps disconnected and marks warm as offline', () => {
+    let state = createInitialContextTelemetryState();
+    state = applyContextTelemetry(state, { type: 'capability', supported: true });
+    state = applyContextTelemetry(state, {
+      type: 'select',
+      sessionId: 'session-a',
+      hostInstanceId: 'host-1',
+    });
+    const occupancyA = makeKnownOccupancy({ tokensUsed: 21, tokensLimit: 128_000 });
+    const snapshotA = makeContextSnapshot({
+      sessionId: 'session-a',
+      revision: 5,
+      phase: 'idle',
+      occupancy: occupancyA,
+      responseEvidence: {
+        currentRunHasResponse: false,
+        historyHasDisplayableResponse: true,
+      },
+    });
+    state = applyContextTelemetry(state, { type: 'snapshot', snapshot: snapshotA, source: 'live' });
+    const usageA = makeLastRequest({
+      sessionId: 'session-a',
+      messageId: 'assistant-a',
+      totalTokens: 18,
+    });
+    state = applyContextTelemetry(state, {
+      type: 'last-request',
+      sessionId: 'session-a',
+      usage: usageA,
+    });
+
+    state = applyContextTelemetry(state, { type: 'disconnect' });
+    expect(state.disconnected).toBe(true);
+    const offlineOnA = selectContextRingView({ telemetry: state, locale: 'en' });
+    expect(offlineOnA.visible).toBe(true);
+    expect(offlineOnA.offline).toBe(true);
+    expect(offlineOnA.phase).toBe('offline');
+
+    state = applyContextTelemetry(state, {
+      type: 'select',
+      sessionId: 'session-b',
+      hostInstanceId: 'host-1',
+    });
+    expect(state.disconnected).toBe(true);
+    expect(state.displayed).toBeNull();
+    expect(state.lastRequestUsage).toBeNull();
+
+    state = applyContextTelemetry(state, {
+      type: 'select',
+      sessionId: 'session-a',
+      hostInstanceId: 'host-1',
+    });
+    expect(state.disconnected).toBe(true);
+    expect(state.displayed).toEqual(snapshotA);
+    expect(state.lastRequestUsage).toEqual(usageA);
+    const restoredOffline = selectContextRingView({ telemetry: state, locale: 'en' });
+    expect(restoredOffline.visible).toBe(true);
+    expect(restoredOffline.offline).toBe(true);
+    expect(restoredOffline.phase).toBe('offline');
+    expect(restoredOffline.tokensUsed).toBe(21);
+  });
+
+  it('T05: only reconnect action sets disconnected to false', () => {
+    let state = createInitialContextTelemetryState();
+    state = applyContextTelemetry(state, { type: 'capability', supported: true });
+    state = applyContextTelemetry(state, {
+      type: 'select',
+      sessionId: 'session-a',
+      hostInstanceId: 'host-1',
+    });
+    state = applyContextTelemetry(state, {
+      type: 'snapshot',
+      snapshot: makeContextSnapshot({
+        sessionId: 'session-a',
+        revision: 2,
+        occupancy: makeKnownOccupancy({ tokensUsed: 9 }),
+      }),
+      source: 'live',
+    });
+    state = applyContextTelemetry(state, { type: 'disconnect' });
+    expect(state.disconnected).toBe(true);
+
+    state = applyContextTelemetry(state, {
+      type: 'select',
+      sessionId: 'session-b',
+      hostInstanceId: 'host-1',
+    });
+    expect(state.disconnected).toBe(true);
+
+    state = applyContextTelemetry(state, {
+      type: 'select',
+      sessionId: 'session-a',
+      hostInstanceId: 'host-1',
+    });
+    expect(state.disconnected).toBe(true);
+
+    state = applyContextTelemetry(state, {
+      type: 'select',
+      sessionId: null,
+      hostInstanceId: 'host-1',
+    });
+    expect(state.disconnected).toBe(true);
+
+    const stillOffline = applyContextTelemetry(state, { type: 'capability', supported: true });
+    expect(stillOffline.disconnected).toBe(true);
+
+    const reconnected = applyContextTelemetry(state, { type: 'reconnect' });
+    expect(reconnected.disconnected).toBe(false);
+    expect(state.disconnected).toBe(true);
+  });
+
+  it('T05: selecting a session with no warm does not reuse previous displayed or lastRequest', () => {
+    let state = createInitialContextTelemetryState();
+    state = applyContextTelemetry(state, {
+      type: 'select',
+      sessionId: 'session-a',
+      hostInstanceId: 'host-1',
+    });
+    const snapshotA = makeContextSnapshot({
+      sessionId: 'session-a',
+      revision: 4,
+      occupancy: makeKnownOccupancy({ tokensUsed: 70_000 }),
+    });
+    state = applyContextTelemetry(state, { type: 'snapshot', snapshot: snapshotA, source: 'live' });
+    const usageA = makeLastRequest({
+      sessionId: 'session-a',
+      messageId: 'assistant-a',
+      totalTokens: 15,
+    });
+    state = applyContextTelemetry(state, {
+      type: 'last-request',
+      sessionId: 'session-a',
+      usage: usageA,
+    });
+
+    const afterSwitch = applyContextTelemetry(state, {
+      type: 'select',
+      sessionId: 'session-b',
+      hostInstanceId: 'host-1',
+    });
+    expect(afterSwitch.selectedSessionId).toBe('session-b');
+    expect(afterSwitch.displayed).toBeNull();
+    expect(afterSwitch.lastRequestUsage).toBeNull();
+    expect(afterSwitch.warmBySessionId['session-a']?.snapshot).toEqual(snapshotA);
+    expect(afterSwitch.warmBySessionId['session-b']).toBeUndefined();
+  });
+
+  it('T05: HostInstance change clears previous host warm data', () => {
+    let state = createInitialContextTelemetryState();
+    state = applyContextTelemetry(state, {
+      type: 'select',
+      sessionId: 'session-a',
+      hostInstanceId: 'host-1',
+    });
+    state = applyContextTelemetry(state, {
+      type: 'snapshot',
+      snapshot: makeContextSnapshot({
+        sessionId: 'session-a',
+        revision: 8,
+        occupancy: makeKnownOccupancy({ tokensUsed: 50_000 }),
+      }),
+      source: 'live',
+    });
+    state = applyContextTelemetry(state, {
+      type: 'last-request',
+      sessionId: 'session-a',
+      usage: makeLastRequest({ messageId: 'assistant-host-1', totalTokens: 7 }),
+    });
+
+    state = applyContextTelemetry(state, { type: 'host-instance', hostInstanceId: 'host-2' });
+    expect(state.displayed).toBeNull();
+    expect(state.lastRequestUsage).toBeNull();
+    expect(state.warmBySessionId).toEqual({});
+    expect(state.warmOrder).toEqual([]);
+    expect(state.hostInstanceId).toBe('host-2');
+
+    state = applyContextTelemetry(state, {
+      type: 'select',
+      sessionId: 'session-a',
+      hostInstanceId: 'host-2',
+    });
+    expect(state.displayed).toBeNull();
+    expect(state.lastRequestUsage).toBeNull();
     expect(state.warmBySessionId['session-a']).toBeUndefined();
   });
 });

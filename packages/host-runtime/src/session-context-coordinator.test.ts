@@ -31,7 +31,10 @@ async function openStore(label: string): Promise<{
   return { store, sessionId };
 }
 
-function knownOccupancy(tokensUsed: number, sampledAt: string): ContextOccupancy {
+function knownOccupancy(
+  tokensUsed: number,
+  sampledAt: string,
+): Extract<ContextOccupancy, { kind: 'known' }> {
   return {
     kind: 'known',
     tokensUsed,
@@ -699,6 +702,227 @@ describe('session context coordinator', () => {
     });
     const snapshot = await coordinator.getSnapshot(sessionId);
     expect(snapshot.occupancy.kind).not.toBe('known');
+    store.close();
+  });
+
+  it('samples before evidence then terminal persist lastConfirmed occupancy', async () => {
+    const harness = await createHarness('promote-terminal');
+    const { coordinator, sessionId, store } = harness;
+    await coordinator.noteRunStarted({ sessionId, runId: 'run-1', runtimeGenerationId: 'gen-1' });
+    await coordinator.noteResponseEvidence({ sessionId, runId: 'run-1', messageId: 'msg-1' });
+    await coordinator.ingestMeasurement({
+      sessionId,
+      boundGenerationId: 'gen-1',
+      measurement: measurement(sessionId, {
+        sampleSequence: 1,
+        messageId: 'msg-1',
+        occupancy: knownOccupancy(4_400, '2026-08-30T00:00:00.000Z'),
+      }),
+    });
+    await coordinator.noteRunTerminal({
+      sessionId,
+      runId: 'run-1',
+      outcome: 'completed',
+    });
+    await coordinator.flush(sessionId);
+
+    await coordinator.noteRunStarted({ sessionId, runId: 'run-2', runtimeGenerationId: 'gen-1' });
+    await coordinator.ingestMeasurement({
+      sessionId,
+      boundGenerationId: 'gen-1',
+      measurement: measurement(sessionId, {
+        sampleSequence: 2,
+        messageId: 'msg-1',
+        occupancy: knownOccupancy(4_800, '2026-08-30T00:00:02.000Z'),
+      }),
+    });
+    await coordinator.flush(sessionId);
+    const waiting = await coordinator.getSnapshot(sessionId);
+    expect(waiting.occupancy).toEqual({ kind: 'unknown', reason: 'waiting-for-response' });
+    expect(waiting.lastConfirmed?.occupancy.tokensUsed).toBe(4_800);
+
+    await coordinator.noteResponseEvidence({ sessionId, runId: 'run-2', messageId: 'msg-2' });
+    const afterEvidence = await coordinator.getSnapshot(sessionId);
+    expect(afterEvidence.occupancy).toMatchObject({ kind: 'known', tokensUsed: 4_800 });
+    expect(afterEvidence.contextBoundary.activeLeafMessageId).toBe('msg-2');
+    expect(afterEvidence.coveredMessageId).toBe('msg-2');
+    expect(afterEvidence.responseEvidence.evidenceMessageId).toBe('msg-2');
+
+    await coordinator.noteRunTerminal({
+      sessionId,
+      runId: 'run-2',
+      outcome: 'completed',
+    });
+    await coordinator.flush(sessionId);
+    const snapshot = await coordinator.getSnapshot(sessionId);
+    expect(snapshot.occupancy).toMatchObject({ kind: 'known', tokensUsed: 4_800 });
+    const persisted = await store.readContextState();
+    expect(persisted?.occupancy).toMatchObject({ kind: 'known', tokensUsed: 4_800 });
+    store.close();
+  });
+
+  it('settles a dirty idle waiting-for-response row on getSnapshot and leaves live waiting alone', async () => {
+    const harness = await createHarness('settle-dirty');
+    const { coordinator, sessionId, store } = harness;
+    const leaf = { activeLeafMessageId: 'leaf-idle' };
+    const occupancy = knownOccupancy(23_065, '2026-08-30T00:00:00.000Z');
+    const written = await store.replaceContextState({
+      expectedContextVersion: 1,
+      expectedBoundary: leaf,
+      snapshot: {
+        sessionId,
+        revision: 1,
+        contextVersion: 1,
+        contextBoundary: leaf,
+        responseEvidence: {
+          currentRunHasResponse: false,
+          historyHasDisplayableResponse: true,
+        },
+        phase: 'idle',
+        occupancy: { kind: 'unknown', reason: 'waiting-for-response' },
+        lastConfirmed: {
+          occupancy,
+          contextBoundary: leaf,
+          sampledAt: '2026-08-30T00:00:00.000Z',
+        },
+        updatedAt: '2026-08-30T00:00:00.000Z',
+      },
+    });
+    expect(written.ok).toBe(true);
+
+    const settled = await coordinator.getSnapshot(sessionId);
+    expect(settled.occupancy).toMatchObject({ kind: 'known', tokensUsed: 23_065 });
+    const again = await coordinator.getSnapshot(sessionId);
+    expect(again.occupancy).toMatchObject({ kind: 'known', tokensUsed: 23_065 });
+    const persisted = await store.readContextState();
+    expect(persisted?.occupancy).toMatchObject({ kind: 'known', tokensUsed: 23_065 });
+
+    await coordinator.noteRunStarted({ sessionId, runId: 'run-live', runtimeGenerationId: 'gen-1' });
+    const waiting = await coordinator.getSnapshot(sessionId);
+    expect(waiting.phase).toBe('waiting-response');
+    expect(waiting.occupancy.kind).toBe('unknown');
+    expect(waiting.lastConfirmed?.occupancy.tokensUsed).toBe(23_065);
+    store.close();
+  });
+
+  it('does not promote invalidated runtime-generation-mismatch with a moved leaf on getSnapshot', async () => {
+    const harness = await createHarness('settle-mismatch');
+    const { coordinator, sessionId, store } = harness;
+    const occupancy = knownOccupancy(7_797, '2026-09-01T08:23:05.531Z');
+    const written = await store.replaceContextState({
+      expectedContextVersion: 1,
+      expectedBoundary: { activeLeafMessageId: 'voice-live-leaf' },
+      snapshot: {
+        sessionId,
+        revision: 1,
+        contextVersion: 3,
+        contextBoundary: { activeLeafMessageId: 'voice-live-leaf' },
+        responseEvidence: {
+          currentRunHasResponse: false,
+          historyHasDisplayableResponse: true,
+        },
+        phase: 'invalidated',
+        occupancy: { kind: 'unknown', reason: 'runtime-generation-mismatch' },
+        lastConfirmed: {
+          occupancy,
+          contextBoundary: { activeLeafMessageId: 'piw-old-leaf' },
+          sampledAt: '2026-09-01T08:23:05.531Z',
+        },
+        updatedAt: '2026-09-01T08:23:37.011Z',
+      },
+    });
+    expect(written.ok).toBe(true);
+    if (!written.ok) {
+      throw new Error('expected context state write to succeed');
+    }
+    const writtenRevision = written.snapshot.revision;
+    const settled = await coordinator.getSnapshot(sessionId);
+    expect(settled.occupancy).toEqual({
+      kind: 'unknown',
+      reason: 'runtime-generation-mismatch',
+    });
+    expect(settled.phase).toBe('invalidated');
+    expect(settled.contextBoundary.activeLeafMessageId).toBe('voice-live-leaf');
+    expect(settled.lastConfirmed?.occupancy.tokensUsed).toBe(7_797);
+    const persisted = await store.readContextState();
+    expect(persisted?.occupancy).toEqual({
+      kind: 'unknown',
+      reason: 'runtime-generation-mismatch',
+    });
+    expect(persisted?.phase).toBe('invalidated');
+    expect(persisted?.revision).toBe(writtenRevision);
+    store.close();
+  });
+
+  it('repairs old-patch idle known cross-leaf pollution on cold hydrate once', async () => {
+    const harness = await createHarness('repair-cross-leaf');
+    const { coordinator, sessionId, store } = harness;
+    const occupancy = knownOccupancy(7_797, '2026-09-01T08:23:05.531Z');
+    const written = await store.replaceContextState({
+      expectedContextVersion: 1,
+      expectedBoundary: { activeLeafMessageId: 'voice-live-leaf' },
+      snapshot: {
+        sessionId,
+        revision: 1,
+        contextVersion: 3,
+        contextBoundary: { activeLeafMessageId: 'voice-live-leaf' },
+        runtimeGenerationId: 'gen-voice',
+        responseEvidence: {
+          currentRunHasResponse: false,
+          historyHasDisplayableResponse: true,
+        },
+        phase: 'idle',
+        occupancy,
+        lastConfirmed: {
+          occupancy,
+          contextBoundary: { activeLeafMessageId: 'piw-old-leaf' },
+          sampledAt: '2026-09-01T08:23:05.531Z',
+        },
+        coveredMessageId: 'piw-old-leaf',
+        coveredRequestId: 'req-old',
+        updatedAt: '2026-09-01T08:23:37.011Z',
+      },
+    });
+    expect(written.ok).toBe(true);
+    if (!written.ok) {
+      throw new Error('expected context state write to succeed');
+    }
+    const writtenRevision = written.snapshot.revision;
+
+    const repaired = await coordinator.getSnapshot(sessionId);
+    expect(repaired.phase).toBe('invalidated');
+    expect(repaired.occupancy).toEqual({
+      kind: 'unknown',
+      reason: 'runtime-generation-mismatch',
+    });
+    expect(repaired.contextVersion).toBe(3);
+    expect(repaired.runtimeGenerationId).toBe('gen-voice');
+    expect(repaired.contextBoundary.activeLeafMessageId).toBe('voice-live-leaf');
+    expect(repaired.lastConfirmed).toEqual(written.snapshot.lastConfirmed);
+    expect(repaired.coveredMessageId).toBeUndefined();
+    expect(repaired.coveredRequestId).toBeUndefined();
+    expect(coordinator.projectLegacyUsage(repaired)).toBeUndefined();
+
+    const persisted = await store.readContextState();
+    expect(persisted?.phase).toBe('invalidated');
+    expect(persisted?.occupancy).toEqual({
+      kind: 'unknown',
+      reason: 'runtime-generation-mismatch',
+    });
+    expect(persisted?.contextVersion).toBe(3);
+    expect(persisted?.revision).toBeGreaterThan(writtenRevision);
+    const repairedRevision = persisted?.revision;
+
+    coordinator.disposeSession(sessionId);
+    const again = await coordinator.getSnapshot(sessionId);
+    expect(again.phase).toBe('invalidated');
+    expect(again.occupancy).toEqual({
+      kind: 'unknown',
+      reason: 'runtime-generation-mismatch',
+    });
+    expect(again.lastConfirmed?.occupancy.tokensUsed).toBe(7_797);
+    const persistedAgain = await store.readContextState();
+    expect(persistedAgain?.revision).toBe(repairedRevision);
     store.close();
   });
 });

@@ -62,7 +62,11 @@ export function ConversationUsageDetails(
           {copy.capabilityMissing}
         </p>
       ) : null}
-      {props.view.quality === 'estimated' ? (
+      {props.view.occupancySource === 'last-confirmed' ? (
+        <p className="muted" data-testid="conversation-usage-last-confirmed">
+          {props.view.labels.quality}
+        </p>
+      ) : props.view.quality === 'estimated' ? (
         <p className="muted" data-testid="conversation-usage-estimated">
           {copy.estimated}
         </p>

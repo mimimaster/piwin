@@ -125,6 +125,96 @@ export function parseSessionContextSnapshot(value: unknown): SessionContextSnaps
   return snapshot;
 }
 
+function sameWhenSet(current: string | undefined, incoming: string | undefined): boolean {
+  if (current === undefined || current.length === 0) {
+    return true;
+  }
+  return (incoming ?? '') === current;
+}
+
+/** Stored `current` may take the first incoming leaf; a stamped leaf cannot jump. */
+export function contextBoundaryCompatible(
+  current: ContextBoundary,
+  incoming: ContextBoundary,
+): boolean {
+  if (current.activeLeafMessageId !== incoming.activeLeafMessageId) {
+    if (current.activeLeafMessageId !== null) {
+      return false;
+    }
+  }
+  if (!sameWhenSet(current.compactionBoundary, incoming.compactionBoundary)) {
+    return false;
+  }
+  if (!sameWhenSet(current.capabilityFingerprint, incoming.capabilityFingerprint)) {
+    return false;
+  }
+  if (!sameWhenSet(current.seedFingerprint, incoming.seedFingerprint)) {
+    return false;
+  }
+  if (current.model !== undefined && incoming.model !== undefined) {
+    return (
+      current.model.providerId === incoming.model.providerId &&
+      current.model.modelId === incoming.model.modelId
+    );
+  }
+  return true;
+}
+
+const PROMOTABLE_UNKNOWN_REASONS = new Set([
+  'waiting-for-response',
+  'run-ended-without-response',
+]);
+
+/**
+ * Same-boundary idle dirty occupancy may lift `lastConfirmed` as current authority.
+ * Live waiting, invalidate, compact, abort, and generation mismatch must not.
+ */
+export function canPromoteLastConfirmed(snapshot: SessionContextSnapshot): boolean {
+  if (snapshot.occupancy.kind !== 'unknown') {
+    return false;
+  }
+  if (!PROMOTABLE_UNKNOWN_REASONS.has(snapshot.occupancy.reason)) {
+    return false;
+  }
+  const lastConfirmed = snapshot.lastConfirmed;
+  if (lastConfirmed === undefined || lastConfirmed.occupancy.kind !== 'known') {
+    return false;
+  }
+  if (snapshot.phase !== 'idle') {
+    return false;
+  }
+  if (
+    !snapshot.responseEvidence.currentRunHasResponse &&
+    !snapshot.responseEvidence.historyHasDisplayableResponse
+  ) {
+    return false;
+  }
+  return contextBoundaryCompatible(lastConfirmed.contextBoundary, snapshot.contextBoundary);
+}
+
+/** Current known occupancy only. lastConfirmed is not a display fallback here. */
+export function ringOccupancyFromSnapshot(
+  snapshot: SessionContextSnapshot,
+): Extract<ContextOccupancy, { kind: 'known' }> | null {
+  return snapshot.occupancy.kind === 'known' ? snapshot.occupancy : null;
+}
+
+/** Pure occupancy lift. Caller owns `updatedAt` and persist revision; phase stays as-is. */
+export function promoteLastConfirmed(snapshot: SessionContextSnapshot): SessionContextSnapshot {
+  if (!canPromoteLastConfirmed(snapshot)) {
+    return snapshot;
+  }
+  const lastConfirmed = snapshot.lastConfirmed;
+  if (lastConfirmed === undefined) {
+    return snapshot;
+  }
+  return {
+    ...snapshot,
+    occupancy: lastConfirmed.occupancy,
+    lastConfirmed,
+  };
+}
+
 export function createUnknownSessionContextSnapshot(input: {
   sessionId: string;
   revision: number;

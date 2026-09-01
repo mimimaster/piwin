@@ -2,7 +2,9 @@
 
 日期：2026-08-30。状态：已在分支 `feat/context-usage-repair` 实施；验收证据见 [WP5 记录](./2026-08-30-context-usage-repair-wp5-record.md)。
 
-问题来源：[全链路排查及复现证据](../plans/2026-08-30-context-usage-audit.md)。该报告的 01–13 编号在本文保持不变。本文是后续修复的执行入口，不将方案描述为已上线行为。
+问题来源：[全链路排查及复现证据](../plans/2026-08-30-context-usage-audit.md)。该报告的 01–13 编号在本文保持不变。本文是 WP0–WP5 占用遥测修复的执行入口。
+
+重启 / 重开占用权威以 [2026-09-01 resume spec](./2026-09-01-session-context-ring-resume.md) 为准：Host 只做严格同边界 current occupancy 提升；Desktop 仅对 `runtime-generation-mismatch` 做 presentation-only stale 展示；派生会话不继承源 occupancy。
 
 ## 1. 目标、范围与非目标
 
@@ -36,8 +38,8 @@
 | 完成但无精确计量 | 显示可用估算 | “估算”；不写入真实计费统计 |
 | 首轮无响应就失败/取消 | 隐藏 | 错误提示独立存在 |
 | 有响应后失败/取消 | 有有效样本则显示 | 显示最后可用值及“不完整/上次确认”；无效零值不覆盖基线 |
-| 历史会话闲置/恢复 | 匹配当前上下文才显示 | 标注“上次确认”或“估算”；不是缓存 TTL |
-| 切会话、恢复失败、身份不匹配 | 隐藏 | 不把旧会话环当加载占位 |
+| 历史会话闲置/恢复 | 同边界 idle dirty 由 Host 提升为当前 known 后显示；`runtime-generation-mismatch` 且非 leaf 兼容时 Desktop 可显示 stale lastConfirmed | 当前权威显示「已确认」或「估算」；stale 显示「上次确认，当前上下文待测量」；不是缓存 TTL。Host 快照在 mismatch 下保持 unknown/invalidated |
+| 切会话、恢复失败、身份不匹配 | A→B→A 立即恢复该会话 warm；无 warm 或身份不匹配则隐藏 | 不把旧会话环当加载占位；`selectSession` 不得清 `disconnected` |
 | 压缩中 | 保留匹配的旧样本并标“压缩中” | 压缩成功后原子替换；失败保留旧有效状态 |
 | 压缩成功但占用未知 | 隐藏数值环 | 状态区提示“上下文已压缩，用量待更新” |
 | 切分支/删历史/重建运行时 | 旧值立即失效 | 校验或重新估算后显示；删空一定隐藏 |
@@ -79,7 +81,7 @@
 | `responseEvidence` | 当前 Run 首响应状态 + 当前有效历史是否有可展示响应；证据 id 绑定规范化 messageId |
 | `phase` | `empty`、`waiting-response`、`streaming`、`idle`、`compacting`、`invalidated` 等受控状态 |
 | `occupancy` | `known` 时含非负有限 tokensUsed、可选 tokensLimit、`measured/estimated`、`complete/partial` coverage、basis、sampledAt；`unknown` 时只有 reason |
-| `lastConfirmed` | 可选、带自身边界的历史测量，仅用于显式“上次确认”；不能自动当成本轮当前值 |
+| `lastConfirmed` | 可选、带自身边界的历史测量。当前 Run 尚无首响应时不当本轮值。Host 仅在 idle + unknown(`waiting-for-response` / `run-ended-without-response`) + 证据 + 严格同边界时提升为当前 occupancy，见 [resume spec](./2026-09-01-session-context-ring-resume.md)。`runtime-generation-mismatch` 即使 leaf 已变也不得提升为当前权威；Desktop 可在该精确场景做 presentation-only stale 展示 |
 
 `updatedAt/sampledAt` 仅用于人类阅读，禁止用于跨进程先后裁决。`revision` 管总体先后，`contextVersion` 管基线是否还能复用；同一 contextVersion 内允许多轮输入、工具结果和输出递增。
 
@@ -149,6 +151,8 @@ mock 仅在 mock 路径使用 `estimateMockUsage`；生产 Host 删除该函数�
 
 `replaceContextState` 以预期 contextVersion/边界比较并交换；过时计算的晚写必须失败。revision 在同事务递增；每个发布给客户端的权威快照先提交持久化，不能进程重启后正常读取就版本倒退。
 
+publisher 的持久状态相等比较必须包含 `lastConfirmed`、`contextBoundary`、covered/evidence ids 与 occupancy/`lastConfirmed` `sampledAt`；仅可忽略 `revision`/`updatedAt`。`lastConfirmed` 单独变化必须落盘。
+
 数据库写失败：记录脱敏的 session 级诊断，将该会话 telemetry 标为 unavailable（使用独立诊断状态，不伪造已持久化快照）；不让遥测错误终止模型 Run。恢复时重新校验最后成功持久化边界，不将过期记录冒充当前值。
 
 ### 5.2 上下文变化事务
@@ -157,8 +161,9 @@ mock 仅在 mock 路径使用 `estimateMockUsage`；生产 Host 删除该函数�
 - 压缩：已有 Pi 压缩边界是内容事实，snapshot 记录相同边界。成功时递增 contextVersion、替换占用并清空旧 breakdown；估算保持 estimated。跨 Pi/产品存储没有单个事务，恢复时检测边界不一致并进入 unknown/rebuild，不回退到账单。
 - 压缩若仅存在于旧内存 runtime，不能仅持久化 2,500 这个数字就声称重启后仍有同一压缩上下文。冷激活必须用实际 replay seed 校验/重算：匹配才保留样本，不匹配就重建 contextVersion。这项修复不许掩盖真实 replay 内容变化。
 - 普通冷读取不创建 runtime。冷激活生成新 runtime 后，绑定实际 seed、能力与模型；即使旧读数存在也要校验/估算，不能沿用另一个 generation 的样本。
+- 冷 hydrate 对旧补丁留下的 idle+known 跨 leaf 污染行：降为 `invalidated` + `unknown(runtime-generation-mismatch)`，保留 `lastConfirmed`，清除 covered ids，不 bump `contextVersion`；再次 hydrate 幂等。
 - 抽走/冷存储：checkpoint 冲刷后随现有 session pack 流程打包；恢复时验证 schema 与边界。
-- fork/duplicate/side-chat：保留历史内容可以继承“有有效响应”的事实，但必须建立新 sessionId/version；不原样复制 live owner/revision。没有可验证计量时用估算或未知。
+- fork/duplicate/side-chat：历史「有有效响应」可以继承，但必须建立新 sessionId，`revision`/`contextVersion` 初始化为 1；不复制 live owner、occupancy、`lastConfirmed`。目标在针对 active path 被测量前保持 `unknown(derived-session)`。
 - 删除会话随会话数据库清理；历史计费记录不因分支删除或截断而扣减。
 
 ### 5.3 老数据迁移
@@ -183,11 +188,11 @@ mock 仅在 mock 路径使用 `estimateMockUsage`；生产 Host 删除该函数�
 - 新建、切会话、离开 scope、删除当前会话时递增本地 `selectionEpoch`；每次 resume 请求捕获 `(hostInstanceId, sessionId, selectionEpoch, requestId)`。任何晚回调在更新消息、模型选择、usage 等所有副作用前先验证；不只在 reducer 最后加一个 null 判断。
 - 同一会话的多个恢复请求也必须有 request 序号；`session/load-messages` 不再能从空草稿自行激活旧会话。用户选择是激活权威，数据返回只能填充当前选择。
 - 新增独立 `context-telemetry-reducer.ts` 处理快照。收到当前选择会话的快照时，即使 transcript 仍加载中也接收；hydrate/live/replay 统一以 revision 选择最新完整状态。
-- 每次选择立即清空“当前显示投影”；warm cache 按 session 保存 snapshot，不跨会话复用。失败时显式 unavailable/unknown，不能靠字段省略保留旧值。
-- 同一 HostInstance 下丢弃旧 revision；HostInstance 变化时清除传输 cursor/待处理回调，再读取持久状态，不能用本机 Date.now 排序。
-- 环只吃 selector 产物：可见性、数值、质量、状态、模型上限。selector 验证 session/版本/首响应资格，React 组件不猜计量口径。
+- 切到已有 warm 的会话时立即把该会话 snapshot / lastRequest 提回 displayed；无 warm 则 displayed 为 null。warm 按 session 保存，不跨会话复用。`selectSession` 不得把 `disconnected` 置 false；只有 reconnect 恢复在线。失败时显式 unavailable/unknown，不能靠字段省略保留旧值。
+- 同一 HostInstance 下丢弃旧 revision；HostInstance 变化时清除传输 cursor/待处理回调与该 Host 的 warm，再读取持久状态，不能用本机 Date.now 排序。
+- 环只吃 selector 产物：可见性、数值、质量、状态、模型上限、`occupancySource`。selector 验证 session/版本/首响应资格；仅 exact `runtime-generation-mismatch` + 非 leaf 兼容边界可 presentation-only 使用 `lastConfirmed`。React 组件不猜计量口径。
 - 主 Workbench、Conversation 多窗格使用同一个 selector/reducer；快照仅当前已订阅/可见或有限 warm 集合持有，遵守原有有界缓存。
-- `readContextOccupiedTokens` 的模型迁移预检改用同一 Host snapshot 语义，包含缓存和输出；未知不当 0，保留 provider 最终约束与现有保守预算。
+- `readContextOccupiedTokens` 的模型迁移预检改用同一 Host snapshot 语义，只读当前 `occupancy.kind === 'known'`（含缓存和输出）；未知不当 0，不消费 `lastConfirmed`。保留 provider 最终约束与现有保守预算。
 - CLI 使用 `session/context-get` 输出“已确认/估算/未知”，不需要新做 TUI 环；mobile 无环时可只正确接收/忽略新遥测并继续聊天，不能继续从账单制造实时占用。
 
 ## 8. 可执行工作包（按顺序，小提交）

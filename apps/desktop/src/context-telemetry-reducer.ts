@@ -130,13 +130,14 @@ function selectSession(
     warmOrder = stashed.warmOrder;
   }
   if (sessionId) {
+    const warm = warmBySessionId[sessionId];
     return {
       ...next,
       selectedSessionId: sessionId,
       selectionEpoch: next.selectionEpoch + 1,
-      displayed: null,
-      lastRequestUsage: null,
-      disconnected: false,
+      displayed: warm?.snapshot ?? null,
+      lastRequestUsage: warm?.lastRequestUsage ?? null,
+      disconnected: next.disconnected,
       warmBySessionId,
       warmOrder,
     };
@@ -147,7 +148,7 @@ function selectSession(
     selectionEpoch: next.selectionEpoch + 1,
     displayed: null,
     lastRequestUsage: null,
-    disconnected: false,
+    disconnected: next.disconnected,
     warmBySessionId,
     warmOrder,
   };
