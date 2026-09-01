@@ -54,6 +54,7 @@ import type { SubagentTaskResult } from '@piwin/contracts';
 import type { ComposedSessionHostTools, HostRuntimeOptions } from './host-runtime-types.js';
 import type { SubscriptionAuthService } from './subscription-auth-service.js';
 import type { LiveCallCoordinator } from './voice/live-call-coordinator.js';
+import type { LiveIntendedSessionGate } from './voice/live-intended-session-gate.js';
 import type { LiveSettingsService } from './voice/live-settings-service.js';
 import type { SessionContextCoordinator } from './session-context-coordinator.js';
 
@@ -315,6 +316,8 @@ export class HostRuntimeFields {
   subscriptionAuth: SubscriptionAuthService | undefined;
   /** piwin Live singleton; created in initializeHostRuntime. */
   liveCallCoordinator: LiveCallCoordinator | null = null;
+  /** Owner focus for Live admission hold; created with the coordinator. */
+  liveIntendedSession: LiveIntendedSessionGate | null = null;
   liveSettings: LiveSettingsService | null = null;
   liveEnabledFromConfig = true;
   codexLiveAuthPresent = false;

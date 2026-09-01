@@ -175,4 +175,34 @@ describe('handleVoiceLiveCommand', () => {
     );
     expect(response?.success).toBe(false);
   });
+
+  it('set-intended-session empty holds a later repeat on the bound session', async () => {
+    const context = makeContext();
+    const started = await handleVoiceLiveCommand(
+      {
+        type: 'voice/live/start',
+        input: {
+          sessionId: 'session-a',
+          providerId: 'openai-codex',
+          settingsRevision: 1,
+          idempotencyKey: 'k-hold',
+          bootstrap: { mediaDriverId: 'codex-webrtc-v1', offerSdp: 'v=0\n' },
+        },
+      },
+      'req-start',
+      context,
+    );
+    expect(started?.success).toBe(true);
+    const callId = (started as { data: { call: { callId: string } } }).data.call.callId;
+
+    const set = await handleVoiceLiveCommand(
+      {
+        type: 'voice/live/set-intended-session',
+        input: { callId, intendedSessionId: null },
+      },
+      'req-set',
+      context,
+    );
+    expect(set?.success).toBe(true);
+  });
 });
