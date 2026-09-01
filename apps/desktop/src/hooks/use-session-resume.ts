@@ -41,7 +41,7 @@ export function useSessionResume(input: {
   resolveSessionScopeHint?: (sessionId: string) => SessionScope | undefined;
   hydrateSessions: (
     projectPathOrScope?: string | { kind: 'general' } | { kind: 'project'; projectPath: string },
-    options?: { includeArchived?: boolean; fillActiveList?: boolean },
+    options?: { includeArchived?: boolean },
   ) => Promise<SessionSummary[]>;
   onSessionComposerProfileRestored?: (profile: {
     model?: ModelRef;
@@ -80,6 +80,17 @@ export function useSessionResume(input: {
       selectedSessionId: null,
     });
   }, [syncHostInstance]);
+
+  const beginNavigation = useCallback((selectedSessionId: string | null): number => {
+    selectionGuardRef.current = bumpSelectionEpoch(syncHostInstance(), {
+      selectedSessionId,
+    });
+    return selectionGuardRef.current.selectionEpoch;
+  }, [syncHostInstance]);
+
+  const navigationEpochMatches = useCallback((epoch: number): boolean => {
+    return selectionGuardRef.current.selectionEpoch === epoch;
+  }, []);
 
   const hydrateQueuedTurns = useCallback(
     async (sessionId: string, ticketMatches: () => boolean): Promise<void> => {
@@ -177,7 +188,7 @@ export function useSessionResume(input: {
           return;
         }
         dispatch({ type: 'project/set', path: activation.path, trusted: true });
-        await hydrateSessions(activation.path, { fillActiveList: true });
+        await hydrateSessions(activation.path);
         void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
       }
       if (
@@ -251,7 +262,6 @@ export function useSessionResume(input: {
         if (activation.ok && activation.trusted) {
           dispatch({ type: 'project/set', path: activation.path, trusted: true });
           await hydrateSessions(activation.path, {
-            fillActiveList: true,
             includeArchived: showArchivedSessions,
           });
           void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
@@ -468,6 +478,8 @@ export function useSessionResume(input: {
     clearColdRestorePrompt: () => setColdRestorePrompt(null),
     setColdRestorePrompt,
     bumpToDraft,
+    beginNavigation,
+    navigationEpochMatches,
     selectionGuardRef,
   };
 }

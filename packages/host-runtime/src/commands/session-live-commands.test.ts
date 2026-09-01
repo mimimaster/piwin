@@ -2158,6 +2158,35 @@ describe('session/create projectId binding', () => {
     expect(captured[0]?.projectPath).toBe(created.path);
     await rm(rootDir, { recursive: true, force: true });
   });
+
+  it('returns a create failure when bind/index persistence throws', async () => {
+    const session = createDelayedSessionHandle();
+    const { context } = createControlContext(session);
+    const disposed: string[] = [];
+    context.createSession = async () => session;
+    context.bindSession = async () => {
+      throw new Error('session index write failed: EACCES');
+    };
+    context.disposeLiveSession = async (sessionId) => {
+      disposed.push(sessionId);
+    };
+
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'session/create',
+        input: { scope: { kind: 'general' }, sessionName: 'Conversation' },
+      },
+      undefined,
+      context,
+    );
+
+    expect(response).toMatchObject({
+      success: false,
+      command: 'session/create',
+      error: 'session index write failed: EACCES',
+    });
+    expect(disposed).toEqual([session.id]);
+  });
 });
 
 describe('session/tool-output snapshot recovery', () => {

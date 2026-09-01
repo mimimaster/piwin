@@ -20,10 +20,14 @@ describe('session list scope metadata', () => {
     expect(getSessionListScopeMeta(state, { kind: 'general' })).toEqual({
       totalCount: 10,
       truncated: false,
+      mutationEpoch: 0,
+      queryStatus: 'idle',
     });
     expect(getSessionListScopeMeta(state, { kind: 'project', projectPath: '/a' })).toEqual({
       totalCount: 2000,
       truncated: true,
+      mutationEpoch: 0,
+      queryStatus: 'idle',
     });
     expect(getSessionListScopeMeta(state, { kind: 'project', projectPath: '/b' })).toBeNull();
   });

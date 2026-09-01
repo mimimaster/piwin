@@ -125,6 +125,7 @@ export function SessionRowItem({
         data-completed={hasCompletedAttention ? 'true' : 'false'}
         data-context-active={isContextActive ? 'true' : 'false'}
         aria-current={isActive ? 'page' : undefined}
+        aria-label={isDraft ? `${session.name} (draft)` : session.name}
         className={
           isActive
             ? isWorking

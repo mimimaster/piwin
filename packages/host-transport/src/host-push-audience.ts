@@ -15,6 +15,7 @@ export function classifyHostPushAudience(push: HostPushVariant): HostPushAudienc
     case 'host/log':
     case 'host/replay-done':
     case 'settings/updated':
+    case 'session/name-updated':
     case 'session/index-updated':
     case 'extension/catalog-updated':
     case 'extension/deployment-updated':
@@ -52,7 +53,6 @@ export function classifyHostPushAudience(push: HostPushVariant): HostPushAudienc
     case 'voice/live-owner-action':
       return { kind: 'owner' };
     case 'event':
-    case 'session/name-updated':
     case 'plan/updated':
     case 'transcript/append':
     case 'reply-writer/updated':

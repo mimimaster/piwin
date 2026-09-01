@@ -29,6 +29,7 @@ import {
   redactHostError,
 } from './remote-projection-helpers.js';
 import {
+  projectHostSessionForRemoteClient,
   projectSessionList,
   projectSessionListPage,
   projectSessionMessages,
@@ -278,6 +279,18 @@ export function projectRemotePush(
   message: HostPush,
   context?: Pick<RemoteProjectionContext, 'remoteMediaPaths'>,
 ): HostPush {
+  if (message.type === 'session/index-updated') {
+    const projectedSession =
+      message.session === undefined
+        ? undefined
+        : projectHostSessionForRemoteClient(message.session);
+    return {
+      type: 'session/index-updated',
+      op: message.op,
+      sessionId: message.sessionId,
+      ...(projectedSession === undefined ? {} : { session: projectedSession }),
+    } as HostPush;
+  }
   const projected =
     message.type === 'session/queued-turn-updated'
       ? projectRemoteQueuedTurnPush(message, context?.remoteMediaPaths)

@@ -22,6 +22,7 @@ export type SidebarTreeRow =
       key: string;
     }
   | { kind: 'empty-hint'; scope: SessionScope; key: string }
+  | { kind: 'query-error'; scope: SessionScope; key: string }
   | { kind: 'truncation-hint'; scope: SessionScope; hiddenCount: number; key: string };
 
 export const DEFAULT_PROJECT_SESSION_VISIBLE_COUNT = 5;
@@ -45,10 +46,41 @@ export type SidebarTreeRowsInput = {
   sessionListScopes: SessionListScopeState;
   activeProjectPath?: string | null;
   activeProjectSessions?: SessionListItemUi[];
+  revealSessionId?: string | null;
+  revealDraftId?: string | null;
 };
 
 export function sidebarTreeRowKey(row: SidebarTreeRow): string {
   return row.key;
+}
+
+function revealIndexInRows(
+  rows: readonly Extract<SidebarTreeRow, { kind: 'session' }>[],
+  sessionId?: string | null,
+  draftId?: string | null,
+): number {
+  if (!sessionId && !draftId) {
+    return -1;
+  }
+  return rows.findIndex(
+    (row) => row.session.id === sessionId || row.session.id === draftId,
+  );
+}
+
+export function sidebarSearchHidesReveal(
+  rows: readonly SidebarTreeRow[],
+  searching: boolean,
+  sessionId?: string | null,
+  draftId?: string | null,
+): boolean {
+  if (!searching || (!sessionId && !draftId)) {
+    return false;
+  }
+  return !rows.some(
+    (row) =>
+      row.kind === 'session' &&
+      (row.session.id === sessionId || row.session.id === draftId),
+  );
 }
 
 /**
@@ -74,30 +106,28 @@ export function resolveSidebarProjectCollapsed(input: {
 export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRow[] {
   const searching = input.sessionSearch.trim().length > 0;
   const drafts = input.draftSessions ?? [];
+  const revealSessionId = input.revealSessionId ?? null;
+  const revealDraftId = input.revealDraftId ?? null;
   const rows: SidebarTreeRow[] = [
     { kind: 'section-header', sectionId: 'projects', key: 'section:projects' },
   ];
 
-  if (input.projectsSectionExpanded) {
+  const generalMerged = mergeScopeRows(
+    { kind: 'general' },
+    drafts,
+    input.generalSessions,
+    input.sessionSearch,
+    input.sessionListOrder,
+  );
+  const revealGeneral = revealIndexInRows(generalMerged, revealSessionId, revealDraftId) >= 0;
+  const showProjects =
+    input.projectsSectionExpanded ||
+    projectSectionContainsReveal(input, drafts, revealSessionId, revealDraftId);
+  const showConversations = input.conversationsSectionExpanded || revealGeneral;
+
+  if (showProjects) {
     for (const project of input.recentProjects) {
       const scope: SessionScope = { kind: 'project', projectPath: project.path };
-      const collapsed = resolveSidebarProjectCollapsed({
-        projectPath: project.path,
-        collapsedProjects: input.collapsedProjects,
-        ...(input.activeProjectPath !== undefined
-          ? { activeProjectPath: input.activeProjectPath }
-          : {}),
-        searching,
-      });
-      rows.push({
-        kind: 'project-folder',
-        projectPath: project.path,
-        collapsed,
-        key: `project:${project.path}`,
-      });
-      if (collapsed) {
-        continue;
-      }
       const hostSessions =
         input.activeProjectPath === project.path && input.activeProjectSessions !== undefined
           ? input.activeProjectSessions
@@ -109,9 +139,29 @@ export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRo
         input.sessionSearch,
         input.sessionListOrder,
       );
+      const selectedIndex = revealIndexInRows(merged, revealSessionId, revealDraftId);
+      const collapsed =
+        resolveSidebarProjectCollapsed({
+          projectPath: project.path,
+          collapsedProjects: input.collapsedProjects,
+          ...(input.activeProjectPath !== undefined
+            ? { activeProjectPath: input.activeProjectPath }
+            : {}),
+          searching,
+        }) && selectedIndex < 0;
+      rows.push({
+        kind: 'project-folder',
+        projectPath: project.path,
+        collapsed,
+        key: `project:${project.path}`,
+      });
+      if (collapsed) {
+        continue;
+      }
       const visibleCount = Math.max(
         input.projectSessionVisibleCounts?.[project.path] ?? DEFAULT_PROJECT_SESSION_VISIBLE_COUNT,
         DEFAULT_PROJECT_SESSION_VISIBLE_COUNT,
+        selectedIndex + 1,
       );
       const visible = searching ? merged : merged.slice(0, visibleCount);
       rows.push(...visible);
@@ -144,19 +194,11 @@ export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRo
     key: 'section:conversations',
   });
 
-  if (input.conversationsSectionExpanded) {
-    const generalScope: SessionScope = { kind: 'general' };
-    const merged = mergeScopeRows(
-      generalScope,
-      drafts,
-      input.generalSessions,
-      input.sessionSearch,
-      input.sessionListOrder,
-    );
-    rows.push(...merged);
+  if (showConversations) {
+    rows.push(...generalMerged);
     appendScopeHints(rows, {
-      scope: generalScope,
-      merged,
+      scope: { kind: 'general' },
+      merged: generalMerged,
       searching,
       sessionListScopes: input.sessionListScopes,
       allowEmptyHint: true,
@@ -164,6 +206,30 @@ export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRo
   }
 
   return rows;
+}
+
+function projectSectionContainsReveal(
+  input: SidebarTreeRowsInput,
+  drafts: readonly DraftSessionItemUi[],
+  sessionId: string | null,
+  draftId: string | null,
+): boolean {
+  if (!sessionId && !draftId) {
+    return false;
+  }
+  if (drafts.some((draft) => draft.id === draftId && draft.scope.kind === 'project')) {
+    return true;
+  }
+  for (const project of input.recentProjects) {
+    const hostSessions =
+      input.activeProjectPath === project.path && input.activeProjectSessions !== undefined
+        ? input.activeProjectSessions
+        : (input.projectSessionsByPath[project.path] ?? []);
+    if (hostSessions.some((session) => session.id === sessionId)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function mergeScopeRows(
@@ -207,7 +273,21 @@ function appendScopeHints(
   },
 ): void {
   const scopeKey = sessionScopeKey(options.scope);
+  const meta =
+    options.scope.kind === 'general'
+      ? options.sessionListScopes.general
+      : (options.sessionListScopes.projects[options.scope.projectPath] ?? null);
+  if (meta?.queryStatus === 'error') {
+    rows.push({
+      kind: 'query-error',
+      scope: options.scope,
+      key: `query-error:${scopeKey}`,
+    });
+  }
   if (options.merged.length === 0 && options.allowEmptyHint) {
+    if (meta?.queryStatus === 'error') {
+      return;
+    }
     rows.push({
       kind: 'empty-hint',
       scope: options.scope,
@@ -218,10 +298,6 @@ function appendScopeHints(
   if (options.searching || options.merged.length === 0) {
     return;
   }
-  const meta =
-    options.scope.kind === 'general'
-      ? options.sessionListScopes.general
-      : (options.sessionListScopes.projects[options.scope.projectPath] ?? null);
   if (meta === null) {
     return;
   }

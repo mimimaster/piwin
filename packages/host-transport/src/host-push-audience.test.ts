@@ -190,6 +190,23 @@ describe('classifyHostPushAudience', () => {
     ).toBe(true);
   });
 
+  it('classifies session name and index updates as global sidebar metadata', () => {
+    expect(
+      classifyHostPushAudience({
+        type: 'session/name-updated',
+        sessionId: 's-a',
+        name: 'Renamed',
+        nameSource: 'user',
+      }),
+    ).toEqual({ kind: 'global' });
+    expect(
+      hostPushPassesLiveFilter(
+        { kind: 'global' },
+        { sessionIds: new Set(['s-b']) },
+      ),
+    ).toBe(true);
+  });
+
   it('classifies study-round changes as global so other devices can refresh', () => {
     expect(
       classifyHostPushAudience({

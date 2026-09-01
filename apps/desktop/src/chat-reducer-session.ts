@@ -1,5 +1,4 @@
-import { isPlaceholderSessionName } from './title-display';
-import { setSessionListScopeMeta } from './session-list-scope';
+import { getSessionListScopeMeta, setSessionListScopeMeta } from './session-list-scope';
 import { retainRecordKeys } from './record-budget';
 import {
   measureTranscriptCacheBytes,
@@ -18,6 +17,11 @@ import {
   removeSessionIdMarker,
   removeWorkingSessionId,
 } from './chat-reducer-session-helpers';
+import {
+  isSessionTombstoned,
+  listableSessionItems,
+  upsertSessionEntities,
+} from './session-entities';
 import {
   buildRunRecordsFromTranscriptMessages,
   collectRetainedTranscriptMessageIds,
@@ -46,6 +50,7 @@ export type ChatUiSessionSelectionAction = Extract<
       | 'session/return-to-live'
       | 'session/hydrate'
       | 'session/hydrate-scope'
+      | 'session/hydrate-error'
       | 'session/hydrate-project'
       | 'session/retain-project-paths'
       | 'session/hydrate-general'
@@ -105,9 +110,10 @@ export function reduceChatSession(
         projectPath: action.path,
         projectTrusted: action.trusted,
         trustDialogOpen: !action.trusted,
-        // A project owns its own history. Do not leave another project's rows or
-        // transcript visible while the new project's session index is loading.
-        // Keep activeSessionId: composer must not treat this as New Agent.
+        // A project owns its own history. Do not leave another project's rows,
+        // transcript, or selected session as the send target while this project's
+        // index is loading. Composer snapshots park the previous owner separately.
+        activeSessionId: null,
         sessions: [],
         transcriptOwnerSessionId: null,
         messages: [],
@@ -139,6 +145,7 @@ export function reduceChatSession(
         projectPath: null,
         projectTrusted: false,
         trustDialogOpen: false,
+        activeSessionId: null,
         sessions: [],
         transcriptOwnerSessionId: null,
         messages: [],
@@ -166,6 +173,13 @@ export function reduceChatSession(
     case 'project/trusted':
       return { ...state, projectTrusted: true, trustDialogOpen: false };
     case 'session/set': {
+      if (
+        action.ifIdle === true &&
+        state.activeSessionId !== null &&
+        state.activeSessionId !== action.sessionId
+      ) {
+        return state;
+      }
       // Paint-first first send: draft mode may already show an optimistic user
       // bubble before session/create returns. Activating that new session must
       // keep the bubble instead of wiping the transcript.
@@ -444,11 +458,15 @@ export function reduceChatSession(
         ? { ...state, historyView: null }
         : state;
     case 'session/hydrate': {
-      const listable = action.sessions.filter((session) => !isPlaceholderSessionName(session.name));
+      const kept = action.sessions.filter(
+        (session) => !isSessionTombstoned(state.sessionTombstonesById, session.id),
+      );
+      const listable = listableSessionItems(kept);
       const activeProjectPath =
         state.activeScope.kind === 'project' ? state.activeScope.projectPath : null;
       return {
         ...state,
+        sessionEntitiesById: upsertSessionEntities(state.sessionEntitiesById, kept),
         sessions: listable,
         // Keep generalSessions in sync when general is the active scope.
         generalSessions: state.activeScope.kind === 'general' ? listable : state.generalSessions,
@@ -462,31 +480,45 @@ export function reduceChatSession(
           : null,
       };
     }
+    case 'session/hydrate-error': {
+      const current = getSessionListScopeMeta(state.sessionListScopes, action.scope);
+      return {
+        ...state,
+        sessionListScopes: setSessionListScopeMeta(state.sessionListScopes, action.scope, {
+          totalCount: current?.totalCount ?? 0,
+          truncated: current?.truncated ?? false,
+          mutationEpoch: current?.mutationEpoch ?? 0,
+          queryStatus: 'error',
+          queryError: action.error,
+        }),
+      };
+    }
     case 'session/hydrate-scope': {
-      // Drop hydrates that started before a local sidebar admit (first-send
-      // name upsert). Otherwise a stale session/list replace erases the live row
-      // while activeSessionId is intentionally preserved.
-      if (
-        action.mutationEpoch !== undefined &&
-        action.mutationEpoch !== state.sessionListMutationEpoch
-      ) {
+      const scopeEpoch =
+        getSessionListScopeMeta(state.sessionListScopes, action.scope)?.mutationEpoch ?? 0;
+      if (action.mutationEpoch !== undefined && action.mutationEpoch !== scopeEpoch) {
         return state;
       }
-      const listable = dedupeSessionsById(
-        action.sessions.filter((session) => !isPlaceholderSessionName(session.name)),
+      const kept = action.sessions.filter(
+        (session) => !isSessionTombstoned(state.sessionTombstonesById, session.id),
       );
+      const listable = dedupeSessionsById(listableSessionItems(kept));
       const meta = {
         totalCount: action.totalCount,
         truncated: action.truncated,
+        mutationEpoch: scopeEpoch,
+        queryStatus: 'ready' as const,
       };
       const nextSessionListScopes = setSessionListScopeMeta(
         state.sessionListScopes,
         action.scope,
         meta,
       );
+      const nextEntities = upsertSessionEntities(state.sessionEntitiesById, kept);
       if (action.scope.kind === 'general') {
         return {
           ...state,
+          sessionEntitiesById: nextEntities,
           sessionListScopes: nextSessionListScopes,
           generalSessions: listable,
           ...(state.activeScope.kind === 'general'
@@ -500,11 +532,11 @@ export function reduceChatSession(
         };
       }
       const fillsActiveProject =
-        action.fillActiveList === true ||
-        (state.activeScope.kind === 'project' &&
-          state.activeScope.projectPath === action.scope.projectPath);
+        state.activeScope.kind === 'project' &&
+        state.activeScope.projectPath === action.scope.projectPath;
       return {
         ...state,
+        sessionEntitiesById: nextEntities,
         sessionListScopes: nextSessionListScopes,
         projectSessionsByPath: {
           ...state.projectSessionsByPath,
@@ -519,9 +551,13 @@ export function reduceChatSession(
       };
     }
     case 'session/hydrate-project': {
-      const listable = action.sessions.filter((session) => !isPlaceholderSessionName(session.name));
+      const kept = action.sessions.filter(
+        (session) => !isSessionTombstoned(state.sessionTombstonesById, session.id),
+      );
+      const listable = listableSessionItems(kept);
       return {
         ...state,
+        sessionEntitiesById: upsertSessionEntities(state.sessionEntitiesById, kept),
         projectSessionsByPath: {
           ...state.projectSessionsByPath,
           [action.projectPath]: listable,
@@ -543,9 +579,13 @@ export function reduceChatSession(
       };
     }
     case 'session/hydrate-general': {
-      const listable = action.sessions.filter((session) => !isPlaceholderSessionName(session.name));
+      const kept = action.sessions.filter(
+        (session) => !isSessionTombstoned(state.sessionTombstonesById, session.id),
+      );
+      const listable = listableSessionItems(kept);
       return {
         ...state,
+        sessionEntitiesById: upsertSessionEntities(state.sessionEntitiesById, kept),
         generalSessions: listable,
         // If general is the active scope, also mirror into sessions so the
         // active session list and activeSessionId stay in sync.

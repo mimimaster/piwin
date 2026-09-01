@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { deriveDefaultNameFromMessage, extractUserFacingBody } from './derive-default-name.js';
+import { deriveDefaultNameFromMessage, deriveSessionListName, extractUserFacingBody } from './derive-default-name.js';
 
 describe('deriveDefaultNameFromMessage', () => {
   it('returns trimmed first line for a simple prompt', () => {
@@ -64,8 +64,14 @@ describe('deriveDefaultNameFromMessage', () => {
     expect(deriveDefaultNameFromMessage('   \n\n  ')).toBe('');
   });
 
-  it('returns empty string for input that is only markdown/urls', () => {
-    expect(deriveDefaultNameFromMessage('### `https://x.com`')).toBe('');
+  it('uses the URL hostname when the message is only a link', () => {
+    expect(deriveDefaultNameFromMessage('https://example.com/page')).toBe('example.com');
+  });
+
+  it('uses the first code line when the message is only a fence', () => {
+    expect(deriveDefaultNameFromMessage('```ts\nconst answer = 42;\n```')).toBe(
+      'const answer = 42;',
+    );
   });
 
   it('strips agent-mode injection wrappers and keeps the user body', () => {
@@ -140,5 +146,19 @@ describe('extractUserFacingBody', () => {
 
   it('preserves image-path notes that are not piwin wrappers', () => {
     expect(extractUserFacingBody('See the screenshot below')).toBe('See the screenshot below');
+  });
+});
+
+describe('deriveSessionListName', () => {
+  it('uses text, then attachment basename, then Conversation', () => {
+    expect(deriveSessionListName({ text: 'Fix login' })).toBe('Fix login');
+    expect(
+      deriveSessionListName({
+        text: '',
+        attachmentNames: ['/tmp/../secret/photo.png'],
+      }),
+    ).toBe('photo.png');
+    expect(deriveSessionListName({ text: 'https://example.com/x' })).toBe('example.com');
+    expect(deriveSessionListName({ text: '', attachmentNames: ['...'] })).toBe('Conversation');
   });
 });

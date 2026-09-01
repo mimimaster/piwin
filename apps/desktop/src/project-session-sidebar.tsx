@@ -20,6 +20,7 @@ import { SessionRowItem } from './session-row-item';
 import {
   buildSidebarTreeRows,
   DEFAULT_PROJECT_SESSION_VISIBLE_COUNT,
+  sidebarSearchHidesReveal,
   sidebarTreeRowKey,
   type SidebarTreeRow,
 } from './sidebar-tree-rows';
@@ -77,6 +78,7 @@ function estimateSidebarTreeRowSize(row: SidebarTreeRow | undefined): number {
     case 'project-show-more':
       return SIDEBAR_FOLDER_ROW_ESTIMATE_PX;
     case 'empty-hint':
+    case 'query-error':
     case 'truncation-hint':
       return SIDEBAR_HINT_ROW_ESTIMATE_PX;
   }
@@ -165,6 +167,7 @@ export type ProjectSessionSidebarProps = {
   /** Click the completed checkmark without opening the session. */
   onDismissCompletedAttention?: ((sessionId: string) => void) | undefined;
   sessionListScopes?: SessionListScopeState;
+  onRetrySessionList?: (scope: SessionScope) => void;
 };
 
 export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactElement {
@@ -207,12 +210,16 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
         sessionListScopes: props.sessionListScopes ?? createSessionListScopeState(),
         activeProjectPath: props.projectPath,
         activeProjectSessions: props.filteredSessions,
+        revealSessionId: props.activeSessionId,
+        revealDraftId: props.activeDraftId ?? null,
       }),
     [
       collapsedProjects,
       conversationsSectionExpanded,
       projectsSectionExpanded,
       projectSessionVisibleCounts,
+      props.activeDraftId,
+      props.activeSessionId,
       props.draftSessions,
       props.filteredSessions,
       props.generalSessions,
@@ -223,6 +230,12 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
       props.sessionSearch,
       sortBy,
     ],
+  );
+  const searchHidesCurrent = sidebarSearchHidesReveal(
+    treeRows,
+    props.sessionSearch.trim().length > 0,
+    props.activeSessionId,
+    props.activeDraftId ?? null,
   );
   const virtualizeTree = shouldVirtualizeSidebar(treeRows.length);
   const sessionRowIndexes = useMemo(
@@ -269,6 +282,22 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
     },
     [treeRows, virtualizeTree, virtualizer],
   );
+
+  useEffect(() => {
+    const targetId = props.activeSessionId ?? props.activeDraftId ?? null;
+    if (!targetId) {
+      return;
+    }
+    const rowIndex = treeRows.findIndex(
+      (row) => row.kind === 'session' && row.session.id === targetId,
+    );
+    if (rowIndex < 0) {
+      return;
+    }
+    if (virtualizeTree) {
+      virtualizer.scrollToIndex(rowIndex, { align: 'auto' });
+    }
+  }, [props.activeDraftId, props.activeSessionId, treeRows, virtualizeTree, virtualizer]);
 
   // Keyboard navigation for session list (↑↓ Enter) when focus is inside the sidebar.
   useEffect(() => {
@@ -702,6 +731,26 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
       );
     }
 
+    if (row.kind === 'query-error') {
+      const retryLabel = props.locale === 'en' ? 'Retry' : '重试';
+      const errorLabel =
+        props.locale === 'en' ? 'Could not load conversations.' : '会话列表加载失败。';
+      return (
+        <div className="sidebar-query-error muted" data-testid="sidebar-query-error">
+          <span>{errorLabel}</span>
+          {props.onRetrySessionList ? (
+            <button
+              type="button"
+              className="sidebar-query-error-retry"
+              onClick={() => props.onRetrySessionList?.(row.scope)}
+            >
+              {retryLabel}
+            </button>
+          ) : null}
+        </div>
+      );
+    }
+
     return (
       <div className="sidebar-truncation-hint muted" data-testid="sidebar-truncation-hint">
         {sidebarCopy.olderSessionsHidden(row.hiddenCount)}
@@ -807,6 +856,14 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
           </button>
         </div>
       </div>
+
+      {searchHidesCurrent ? (
+        <div className="sidebar-search-hides-current muted" data-testid="sidebar-search-hides-current">
+          {props.locale === 'en'
+            ? 'Search is hiding the current Chat. Clear search to locate it.'
+            : '搜索结果未包含当前会话，清除搜索后可定位。'}
+        </div>
+      ) : null}
 
       <div
         className="sidebar-folder-tree"

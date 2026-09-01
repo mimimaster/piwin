@@ -4,7 +4,6 @@
 import { useCallback, useRef, type Dispatch, type SetStateAction } from 'react';
 import type {
   ModelRef,
-  SessionListData,
   SessionListOrder,
   SessionScope,
   SessionSummary,
@@ -18,30 +17,29 @@ import { appendHostLogEntry, type HostLogEntry } from '../HostLogPanel';
 import type { SessionRowMenuAction } from '../session-row-menu';
 import { pickOrPromptWorkspaceFolder } from '../workspace-open';
 import { summaryToListItem } from './session-list-item';
-import { sessionHasListName } from '../title-display';
 import { chooseSessionExportPath } from '../session-export-dialog';
 import { isSessionBodyOffloaded } from '../session-storage-ui';
 import { forgetTranscriptScrollPosition } from '../transcript-scroll-memory';
 import { transcriptOwnerBlocksDangerousAction } from '../transcript-owner-guard';
-import { desktopSessionListMaxItems } from '../session-list-policy';
-import { sessionScopeKey } from '../session-scope-key';
 import { findSessionForLookup } from '../session-list-lookup';
 import {
   activateProjectOnHost,
-  isOpaqueRemoteProjectId,
-  isRemoteDesktopTransport,
-  mapListedSessionItems,
   sessionCreateInputForTransport,
-  sessionListCommandForTransport,
 } from '../remote-session-hydrate';
-import { isWorkbenchHostTeardownError } from '../workbench-host-teardown.js';
 import { useDesktopLocale } from '../desktop-locale-context';
 import { findAdjacentSessionId } from '../session-navigation';
 import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
+import { logSessionChain, sessionChainErrorCode } from '../session-chain-log.js';
 import { resolveKnownSessionScope } from './session-actions-helpers.js';
 import { useSessionResume } from './use-session-resume.js';
 import { useSessionRunActions } from './use-session-run-actions.js';
 import { useSessionTranscriptActions } from './use-session-transcript-actions.js';
+import {
+  hydrateSessionsFromHost,
+  nextScopeRequestGeneration,
+  resolveHydrateScope,
+} from '../session-list-hydrate.js';
+import { getSessionListScopeMeta } from '../session-list-scope.js';
 
 export type ModelOption = {
   providerId: string;
@@ -100,8 +98,8 @@ export function useSessionActions(args: UseSessionActionsArgs) {
   const { locale } = useDesktopLocale();
   const pendingSessionCreations = useRef(new Map<string, Promise<string | null>>());
   const sessionListRequestGenerations = useRef(new Map<string, number>());
-  const sessionListMutationEpochRef = useRef(state.sessionListMutationEpoch);
-  sessionListMutationEpochRef.current = state.sessionListMutationEpoch;
+  const sessionListScopesRef = useRef(state.sessionListScopes);
+  sessionListScopesRef.current = state.sessionListScopes;
   const {
     transcriptHistoryLoading,
     loadUserMessageIndex,
@@ -138,84 +136,30 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       options?: {
         includeArchived?: boolean;
         order?: SessionListOrder;
-        /**
-         * When true, an explicit project list also fills the active `sessions`
-         * array. Needed after `project/set` in the same tick: the hydrate
-         * closure still sees the previous activeScope, so isActiveProject
-         * would otherwise only update the folder map and leave the open
-         * project empty in the sidebar.
-         */
-        fillActiveList?: boolean;
       },
     ): Promise<SessionSummary[]> => {
-      const includeArchived = options?.includeArchived ?? showArchivedSessions;
-      const scope: SessionScope =
-        typeof projectPathOrScope === 'object' && projectPathOrScope !== null
-          ? projectPathOrScope
-          : typeof projectPathOrScope === 'string' && projectPathOrScope.trim().length > 0
-            ? { kind: 'project', projectPath: projectPathOrScope }
-            : state.activeScope;
-      const scopeKey = sessionScopeKey(scope);
-      const requestGeneration = (sessionListRequestGenerations.current.get(scopeKey) ?? 0) + 1;
-      sessionListRequestGenerations.current.set(scopeKey, requestGeneration);
-      const mutationEpochAtStart = sessionListMutationEpochRef.current;
-      const transport = hostClient.getTransport();
-      if (
-        isRemoteDesktopTransport(transport) &&
-        scope.kind === 'project' &&
-        !isOpaqueRemoteProjectId(scope.projectPath)
-      ) {
-        return [];
-      }
-      const listed = await hostClient.request(
-        sessionListCommandForTransport({
-          transport,
-          scope,
-          includeArchived,
-          order: options?.order ?? sessionListOrder,
-          maxItems: desktopSessionListMaxItems(transport),
-        }),
+      const scope = resolveHydrateScope(projectPathOrScope, state.activeScope);
+      const { scopeKey, requestGeneration } = nextScopeRequestGeneration(
+        sessionListRequestGenerations.current,
+        scope,
       );
-      if (!listed.success) {
-        if (
-          sessionListRequestGenerations.current.get(scopeKey) === requestGeneration &&
-          !isWorkbenchHostTeardownError(listed.error)
-        ) {
-          dispatch({ type: 'error', message: `Could not load sessions: ${listed.error}` });
-        }
-        return [];
-      }
-      const mapped = mapListedSessionItems(listed.data);
-      const named = mapped.sessions.filter((session) => sessionHasListName(session));
-      if (
-        sessionListRequestGenerations.current.get(scopeKey) === requestGeneration &&
-        sessionListMutationEpochRef.current === mutationEpochAtStart
-      ) {
-        dispatch({
-          type: 'session/hydrate-scope',
-          scope,
-          sessions: named,
-          totalCount: mapped.totalCount,
-          truncated: mapped.truncated,
-          mutationEpoch: mutationEpochAtStart,
-          ...(options?.fillActiveList === true ? { fillActiveList: true } : {}),
-        });
-      }
-      const data = listed.data as SessionListData;
-      if (Array.isArray(data.sessions) && typeof data.sessions[0]?.id === 'string') {
-        return data.sessions.filter((session) =>
-          named.some((item) => item.id === session.id),
-        );
-      }
-      return named.map((item) => ({
-        id: item.id,
-        name: item.name,
-        scope: item.scope ?? scope,
-        workingDirectory: item.scope?.kind === 'project' ? item.scope.projectPath : '',
-        projectPath: item.scope?.kind === 'project' ? item.scope.projectPath : '',
-        updatedAt: item.updatedAt ?? '',
-        messageCount: item.messageCount ?? 0,
-      }));
+      const mutationEpochAtStart =
+        getSessionListScopeMeta(sessionListScopesRef.current, scope)?.mutationEpoch ?? 0;
+      return hydrateSessionsFromHost({
+        hostClient,
+        dispatch,
+        showArchivedSessions,
+        sessionListOrder,
+        activeScope: state.activeScope,
+        ...(projectPathOrScope !== undefined ? { projectPathOrScope } : {}),
+        ...(options ? { options } : {}),
+        requestGeneration,
+        mutationEpoch: mutationEpochAtStart,
+        isCurrentGeneration: (generation) =>
+          sessionListRequestGenerations.current.get(scopeKey) === generation &&
+          (getSessionListScopeMeta(sessionListScopesRef.current, scope)?.mutationEpoch ?? 0) ===
+            mutationEpochAtStart,
+      });
     },
     [dispatch, hostClient, sessionListOrder, showArchivedSessions, state.activeScope],
   );
@@ -228,6 +172,8 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     clearColdRestorePrompt,
     setColdRestorePrompt,
     bumpToDraft,
+    beginNavigation,
+    navigationEpochMatches,
   } = useSessionResume({
     hostClient,
     state,
@@ -280,6 +226,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       }
 
       const createSession = async (): Promise<string | null> => {
+        const createStartedAt = Date.now();
         let createInput: {
           scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
           projectPath?: string;
@@ -325,22 +272,45 @@ export function useSessionActions(args: UseSessionActionsArgs) {
           { idempotencyKey: createGestureIdempotencyKey() },
         );
         if (!created.success) {
+          logSessionChain({
+            event: 'session/create-failed',
+            scopeKey,
+            elapsedMs: Date.now() - createStartedAt,
+            errorCode: sessionChainErrorCode(created.error),
+            hostInstanceId: hostClient.getHostInstanceId?.() ?? null,
+          });
           dispatchNotification(pushError(created.error));
           return null;
         }
         const sessionId = (created.data as { sessionId: string }).sessionId;
+        logSessionChain({
+          event: 'session/create-ok',
+          owner: sessionId,
+          scopeKey,
+          elapsedMs: Date.now() - createStartedAt,
+          hostInstanceId: hostClient.getHostInstanceId?.() ?? null,
+        });
+        const createScope: SessionScope = useGeneral
+          ? { kind: 'general' }
+          : { kind: 'project', projectPath: requestedProjectPath ?? '' };
         const explicitName = options?.sessionName?.trim();
         if (explicitName) {
-          // Named at create → listable immediately.
           dispatch({
             type: 'session/add',
             sessionId,
             name: explicitName,
+            scope: createScope,
           });
         } else {
-          // Unnamed until first user message assigns a text title. Activate
-          // without inserting a placeholder row into the sidebar.
-          dispatch({ type: 'session/set', sessionId });
+          dispatch({ type: 'session/set', sessionId, ifIdle: true });
+          dispatch({
+            type: 'session/update',
+            session: {
+              id: sessionId,
+              name: '',
+              scope: createScope,
+            },
+          });
         }
         return sessionId;
       };
@@ -374,6 +344,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       },
     ): Promise<void> => {
       const resumeSessionId = options?.resumeSessionId;
+      const navigationEpoch = beginNavigation(resumeSessionId ?? null);
       const openOptions =
         options?.autoTrust !== undefined ? { autoTrust: options.autoTrust } : undefined;
       const activation = await activateProjectOnHost(
@@ -382,6 +353,9 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         path,
         openOptions,
       );
+      if (!navigationEpochMatches(navigationEpoch)) {
+        return;
+      }
       if (!activation.ok) {
         if (options?.quiet !== true) {
           dispatchNotification(pushError(activation.error));
@@ -402,9 +376,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       dispatch({ type: 'project/set', path: openedPath, trusted: true });
       setProjectPickerOpen(false);
       // Hydrate sessions for opened project. Do not force-switch session when simply opening/expanding a folder.
-      const sessions = await hydrateSessions(openedPath, {
-        fillActiveList: true,
-      });
+      const sessions = await hydrateSessions(openedPath);
       // Also hydrate general sessions in the background so the Conversations
       // sidebar section stays populated while a project is active.
       void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
@@ -433,6 +405,8 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       hydrateSessions,
       setProjectPickerOpen,
       showArchivedSessions,
+      beginNavigation,
+      navigationEpochMatches,
     ],
   );
 

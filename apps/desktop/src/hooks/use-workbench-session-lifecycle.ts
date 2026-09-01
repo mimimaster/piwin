@@ -21,6 +21,7 @@ import {
   mergeRecentProjects,
 } from '../remote-session-hydrate';
 import {
+  mapWithConcurrency,
   planLastSessionRestore,
   planRecentProjectSessionHydration,
   planRemoteSessionCatchUp,
@@ -32,7 +33,6 @@ export type WorkbenchHydrateSessions = (
   options?: {
     includeArchived?: boolean;
     order?: SessionListOrder;
-    fillActiveList?: boolean;
   },
 ) => Promise<unknown>;
 
@@ -163,6 +163,7 @@ export function useWorkbenchSessionLifecycle(args: UseWorkbenchSessionLifecycleA
       hostReady,
       recentProjectPaths: recentProjects.map((project) => project.path),
       lastHydratedKey: hydratedProjectKeyRef.current,
+      catchUpEpoch: remoteCatchUpEpoch,
     });
     if (plan.kind === 'skip') {
       return;
@@ -177,7 +178,7 @@ export function useWorkbenchSessionLifecycle(args: UseWorkbenchSessionLifecycleA
     hydratedProjectKeyRef.current = plan.nextKey;
     let cancelled = false;
     void (async () => {
-      for (const path of plan.projectPaths) {
+      await mapWithConcurrency(plan.projectPaths, 3, async (path) => {
         if (cancelled) return;
         await hydrateSessions(
           { kind: 'project', projectPath: path },
@@ -185,14 +186,14 @@ export function useWorkbenchSessionLifecycle(args: UseWorkbenchSessionLifecycleA
         ).catch(() => {
           // A single project failing to load should not block the rest.
         });
-      }
+      });
     })();
     return () => {
       cancelled = true;
     };
     // hydrateSessions is intentionally omitted (its identity changes with UI state).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recentProjects, hostReady]);
+  }, [recentProjects, hostReady, remoteCatchUpEpoch]);
 
   useEffect(() => {
     const plan = planLastSessionRestore({

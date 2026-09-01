@@ -233,21 +233,20 @@ describe('useComposerMedia session transitions', () => {
     act(() => latest().setComposer('unsent text for s0'));
     expect(latest().pendingAttachments).toHaveLength(1);
 
-    // Leave enough sessions to push session-s0's snapshot past the LRU cap.
+    // Leave enough attachment-bearing sessions to exceed the attachment budget.
     for (let index = 1; index <= MAX_RETAINED_SESSION_COMPOSER_SNAPSHOTS; index += 1) {
       const sessionId = `session-s${index}`;
       act(() => root?.render(<Harness state={stateFor(sessionId)} />));
+      pasteImage(latest);
       act(() => latest().setComposer(`unsent text for ${sessionId}`));
     }
-    // Snapshots now hold s0..s7 (cap). Leaving s8 evicts s0 and must release
-    // its pinned blob instead of keeping the original image resident forever.
     act(() => root?.render(<Harness state={stateFor('session-s9')} />));
 
     expect(revokeObjectUrlSpy).toHaveBeenCalledWith('blob:mock-screenshot.png');
 
-    // The evicted session restores an empty composer.
+    // Attachment budget dropped the image; unsent text is not disposable cache.
     act(() => root?.render(<Harness state={stateFor('session-s0')} />));
-    expect(latest().composer).toBe('');
+    expect(latest().composer).toBe('unsent text for s0');
     expect(latest().pendingAttachments).toEqual([]);
 
     createObjectUrlSpy.mockRestore();

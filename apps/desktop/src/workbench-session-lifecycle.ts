@@ -57,6 +57,7 @@ export function planRecentProjectSessionHydration(input: {
   hostReady: boolean;
   recentProjectPaths: readonly string[];
   lastHydratedKey: string;
+  catchUpEpoch?: number;
 }): RecentProjectHydrationPlan {
   if (!input.hostReady) {
     return { kind: 'skip' };
@@ -65,7 +66,7 @@ export function planRecentProjectSessionHydration(input: {
   if (projectPaths.length === 0) {
     return { kind: 'retain-only', projectPaths };
   }
-  const nextKey = projectPaths.join('\0');
+  const nextKey = `${input.catchUpEpoch ?? 0}\0${projectPaths.join('\0')}`;
   if (nextKey === input.lastHydratedKey) {
     return { kind: 'retain-only', projectPaths };
   }
@@ -169,4 +170,31 @@ export function planLastSessionPersist(input: {
     return { kind: 'mark-synced', lastSession };
   }
   return { kind: 'persist', lastSession };
+}
+
+/**
+ * Bounded parallel map. One failed item must not prevent the rest.
+ */
+export async function mapWithConcurrency<T>(
+  items: readonly T[],
+  concurrency: number,
+  fn: (item: T) => Promise<void>,
+): Promise<void> {
+  if (items.length === 0) {
+    return;
+  }
+  const limit = Math.max(1, Math.min(concurrency, items.length));
+  let nextIndex = 0;
+  const workers = Array.from({ length: limit }, async () => {
+    while (nextIndex < items.length) {
+      const current = nextIndex;
+      nextIndex += 1;
+      const item = items[current];
+      if (item === undefined) {
+        return;
+      }
+      await fn(item);
+    }
+  });
+  await Promise.all(workers);
 }

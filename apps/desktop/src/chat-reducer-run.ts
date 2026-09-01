@@ -441,6 +441,21 @@ export function reduceChatRun(state: ChatUiState, action: ChatUiRunAction): Chat
             : { ...state.workingSessionIds, [state.activeSessionId]: true },
       };
     case 'run/accepted':
+      if (action.sessionId !== undefined && state.activeSessionId !== action.sessionId) {
+        return {
+          ...state,
+          workingSessionIds: { ...state.workingSessionIds, [action.sessionId]: true },
+          runRecordsById: {
+            ...state.runRecordsById,
+            [action.runId]: {
+              runId: action.runId,
+              phaseHistory: [{ phase: 'accepted', at: Date.now() }],
+              startedAt: action.acceptedAt ? parseAcceptedAt(action.acceptedAt) : Date.now(),
+              endedAt: null,
+            },
+          },
+        };
+      }
       if (state.activeRunId !== null && state.activeRunId !== action.runId) {
         return state;
       }

@@ -39,6 +39,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
   // State updates are asynchronous. This ref rejects a double click or an
   // Enter+click before the streaming state has reached the next render.
   const promptSubmissionInProgress = useRef(false);
+  const sendOwnerLocksRef = useRef(new Set<string>());
   /** Latest pending list for waiters that must not close over a stale render. */
   const pendingAttachmentsRef = useRef<PendingComposerAttachment[]>([]);
   pendingAttachmentsRef.current = pendingAttachments;
@@ -113,6 +114,8 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     preserveComposerOnSessionActivationRef: drafts.preserveComposerOnSessionActivationRef,
     draftTextRef: drafts.draftTextRef,
     currentDraftScopeRef: drafts.currentDraftScopeRef,
+    currentDraftIdRef: drafts.currentDraftIdRef,
+    sendOwnerLocksRef,
     clearPendingAttachments: attachments.clearPendingAttachments,
     disposeComposerAttachments: attachments.disposeComposerAttachments,
     markAttachmentUploadStatus: attachments.markAttachmentUploadStatus,

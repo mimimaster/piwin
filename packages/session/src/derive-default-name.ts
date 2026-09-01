@@ -119,6 +119,12 @@ export function extractUserFacingBody(text: string): string {
  */
 export function deriveDefaultNameFromMessage(text: string): string {
   let cleaned = extractUserFacingBody(text);
+  const urlHosts = [
+    ...cleaned.matchAll(/https?:\/\/([^/\s]+)/gi),
+  ].map((match) => (match[1] ?? '').replace(/^www\./i, ''));
+  const fenceBodies = [...cleaned.matchAll(/```(?:[^\n`]*)\n?([\s\S]*?)```/g)].map(
+    (match) => match[1] ?? '',
+  );
   // Strip injected walkthrough context directives (both XML and bracket formats).
   cleaned = cleaned.replace(/<walkthrough-context[\s\S]*?<\/walkthrough-context>/gi, '');
   cleaned = cleaned.replace(
@@ -139,6 +145,17 @@ export function deriveDefaultNameFromMessage(text: string): string {
   // Collapse whitespace.
   cleaned = cleaned.replace(/\s+/g, ' ').trim();
   if (cleaned.length === 0) {
+    const host = urlHosts.find((value) => value.length > 0);
+    if (host) {
+      return truncateAtWordBoundary(host);
+    }
+    const codeLine = fenceBodies
+      .flatMap((body) => body.split('\n'))
+      .map((line) => line.trim())
+      .find((line) => line.length > 0);
+    if (codeLine) {
+      return truncateAtWordBoundary(codeLine);
+    }
     return '';
   }
 
@@ -158,4 +175,34 @@ export function deriveDefaultNameFromMessage(text: string): string {
     ? deNoised.charAt(0).toUpperCase() + deNoised.slice(1)
     : deNoised;
   return truncateAtWordBoundary(restoredCase);
+}
+
+/** Listable fallback when text and attachments yield no title. Not a placeholder. */
+export const SESSION_LIST_NAME_FALLBACK = 'Conversation';
+
+function safeAttachmentDisplayName(raw: string): string {
+  const trimmed = raw.trim().replace(/\\/g, '/');
+  const base = (trimmed.split('/').pop() ?? '').replace(/^\.+/, '').trim();
+  return base;
+}
+
+/**
+ * Name that may appear in the session list immediately on first send.
+ * Prefers the text title, then a safe attachment basename, then a fixed fallback.
+ */
+export function deriveSessionListName(input: {
+  text?: string;
+  attachmentNames?: readonly string[];
+}): string {
+  const fromText = deriveDefaultNameFromMessage(input.text ?? '');
+  if (fromText.length > 0) {
+    return fromText;
+  }
+  const attachment = (input.attachmentNames ?? [])
+    .map(safeAttachmentDisplayName)
+    .find((name) => name.length > 0);
+  if (attachment) {
+    return truncateAtWordBoundary(attachment);
+  }
+  return SESSION_LIST_NAME_FALLBACK;
 }

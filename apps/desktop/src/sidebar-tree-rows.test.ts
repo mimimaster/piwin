@@ -36,6 +36,7 @@ function kinds(rows: SidebarTreeRow[]): string[] {
     if (row.kind === 'session') return `session:${row.session.id}`;
     if (row.kind === 'project-show-more') return `show-more:${row.projectPath}:${row.batchSize}`;
     if (row.kind === 'empty-hint') return `empty:${row.scope.kind}`;
+    if (row.kind === 'query-error') return `query-error:${row.scope.kind}`;
     return `truncation:${row.hiddenCount}`;
   });
 }
@@ -221,6 +222,29 @@ describe('buildSidebarTreeRows', () => {
     expect(projectAIds).toHaveLength(10);
     expect(kinds(expanded)).toContain('show-more:/a:3');
     expect(kinds(expanded)).toContain('show-more:/b:2');
+  });
+
+  it('keeps the revealed session visible beyond the five-row preview', () => {
+    const projectSessions = Array.from({ length: 8 }, (_, index) =>
+      session(`p-${index + 1}`, `Project ${index + 1}`, {
+        updatedAt: new Date(Date.UTC(2026, 7, 13 - index)).toISOString(),
+      }),
+    );
+    const rows = buildSidebarTreeRows({
+      recentProjects: [{ path: '/a' }],
+      projectSessionsByPath: { '/a': projectSessions },
+      generalSessions: [],
+      sessionSearch: '',
+      sessionListOrder: 'updated',
+      projectsSectionExpanded: true,
+      conversationsSectionExpanded: false,
+      collapsedProjects: { '/a': true },
+      sessionListScopes: createSessionListScopeState(),
+      revealSessionId: 'p-8',
+    });
+    const ids = rows.flatMap((row) => (row.kind === 'session' ? [row.session.id] : []));
+    expect(ids).toContain('p-8');
+    expect(rows.find((row) => row.kind === 'project-folder')?.collapsed).toBe(false);
   });
 
   it('does not hide project search results behind progressive disclosure', () => {

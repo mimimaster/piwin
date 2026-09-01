@@ -53,6 +53,34 @@ export function projectSessionList(data: unknown): RemoteSessionListData {
   };
 }
 
+/** Path-free session object for remote index pushes. Desktop maps `projectId` as the project key. */
+export function projectHostSessionForRemoteClient(session: unknown): Record<string, unknown> | undefined {
+  const [projected] = projectSessions({ sessions: [session] });
+  if (projected === undefined) {
+    return undefined;
+  }
+  const mapped: Record<string, unknown> = {
+    id: projected.sessionId,
+    sessionId: projected.sessionId,
+    scope: projected.scope,
+  };
+  if (projected.name !== undefined) mapped.name = projected.name;
+  if (projected.kind !== undefined) mapped.kind = projected.kind;
+  if (projected.updatedAt !== undefined) mapped.updatedAt = projected.updatedAt;
+  if (projected.lastPreview !== undefined) mapped.lastPreview = projected.lastPreview;
+  if (projected.messageCount !== undefined) mapped.messageCount = projected.messageCount;
+  if (projected.pinned !== undefined) mapped.isPinned = projected.pinned;
+  if (projected.archived !== undefined) mapped.isArchived = projected.archived;
+  if (projected.projectId !== undefined) mapped.projectId = projected.projectId;
+  if (projected.storage !== undefined) mapped.storage = projected.storage;
+  if (projected.scope === 'project' && projected.projectId) {
+    mapped.scope = { kind: 'project', projectPath: projected.projectId };
+  } else if (projected.scope === 'general') {
+    mapped.scope = { kind: 'general' };
+  }
+  return mapped;
+}
+
 export function projectSessionListPage(data: unknown): RemoteSessionListPageData {
   const record = asRecord(data);
   if (record?.status === 'stale-cursor') {
@@ -277,11 +305,11 @@ function projectSessions(data: unknown): RemoteSessionSummary[] {
     copyString(record, 'lastPreview', summary, 'lastPreview');
     copyString(record, 'parentSessionId', summary, 'parentSessionId');
     copyNumber(record, 'messageCount', summary, 'messageCount');
-    if (record.isPinned === true) {
-      summary.pinned = true;
+    if (record.isPinned === true || record.isPinned === false) {
+      summary.pinned = record.isPinned;
     }
-    if (record.isArchived === true) {
-      summary.archived = true;
+    if (record.isArchived === true || record.isArchived === false) {
+      summary.archived = record.isArchived;
     }
     if (scopeIsProject(record)) {
       const projectPath = projectPathFromSessionRecord(record);

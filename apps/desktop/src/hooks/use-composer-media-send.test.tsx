@@ -107,6 +107,7 @@ describe('useComposerMedia session transitions', () => {
       scope: { kind: 'project', projectPath },
       projectPath,
       alreadyTrusted: true,
+      sessionName: 'start in the clicked project',
     });
   });
 

@@ -26,6 +26,7 @@ import {
   parseComposerSlashSubmit,
 } from '../slash';
 import { deriveDefaultNameFromMessage } from '@piwin/session/derive-default-name';
+import { composerSessionListName } from '../composer-session-list-name';
 import { isPlaceholderSessionName } from '../title-display';
 import {
   foregroundMismatchNotice,
@@ -37,6 +38,9 @@ import { hostFailureNotice, hostReconnectNotice } from '../host-problem-copy.js'
 import { shouldBlockRemoteHostGesture } from '../host-reconnect-gate.js';
 import { desktopForegroundMutationsEnabled } from '../foreground-admission.js';
 import { flattenUnsafeRemoteContextRefs } from '../remote-context-refs.js';
+import { shouldRestoreLiveComposer, sendOwnerLockKey, acquireSendOwnerLock, releaseSendOwnerLock } from '../composer-send-owner.js';
+import { logSessionChain, sessionChainErrorCode } from '../session-chain-log.js';
+import { sessionScopeKey } from '../session-scope-key.js';
 import { isImagePromptAttachment, useComposerPromptInput } from './use-composer-prompt-input.js';
 import type { UseComposerMediaArgs } from './composer-media-args.js';
 import type { SessionComposerSnapshot } from './composer-session-snapshot.js';
@@ -58,12 +62,14 @@ export type UseComposerSendArgs = {
   activeSessionIdRef: MutableRefObject<string | null>;
   sessionComposerSnapshotsRef: MutableRefObject<Map<string, SessionComposerSnapshot>>;
   // Drafts domain.
-  upsertCurrentDraft: (text: string, scope: SessionScope) => void;
+  upsertCurrentDraft: (text: string, scope: SessionScope, options?: { select?: boolean }) => void;
   removeCurrentDraft: (reason?: 'discard' | 'send') => void;
   skipDraftSaveRef: MutableRefObject<boolean>;
   preserveComposerOnSessionActivationRef: MutableRefObject<boolean>;
   draftTextRef: MutableRefObject<string>;
   currentDraftScopeRef: MutableRefObject<SessionScope>;
+  currentDraftIdRef: MutableRefObject<string | null>;
+  sendOwnerLocksRef: MutableRefObject<Set<string>>;
   // Attachments domain.
   clearPendingAttachments: () => void;
   disposeComposerAttachments: (attachments: PendingComposerAttachment[]) => void;
@@ -93,6 +99,8 @@ export function useComposerSend(params: UseComposerSendArgs) {
     preserveComposerOnSessionActivationRef,
     draftTextRef,
     currentDraftScopeRef,
+    currentDraftIdRef,
+    sendOwnerLocksRef,
     clearPendingAttachments,
     disposeComposerAttachments,
     markAttachmentUploadStatus,
@@ -103,12 +111,13 @@ export function useComposerSend(params: UseComposerSendArgs) {
   const { buildPromptRequestInput } = useComposerPromptInput(args);
 
   const applyAcceptedRun = useCallback(
-    (responseData: unknown): void => {
+    (responseData: unknown, sessionId: string): void => {
       const accepted = responseData as { runId?: string; acceptedAt?: string };
       if (typeof accepted.runId === 'string') {
         args.dispatch({
           type: 'run/accepted',
           runId: accepted.runId,
+          sessionId,
           ...(accepted.acceptedAt ? { acceptedAt: accepted.acceptedAt } : {}),
         });
       }
@@ -157,30 +166,36 @@ export function useComposerSend(params: UseComposerSendArgs) {
     (
       clientMessageId: string,
       restoreText: string,
-      restoreAttachments?: PendingComposerAttachment[],
+      restoreAttachments: PendingComposerAttachment[] | undefined,
+      ownerSessionId: string | null,
+      ownerScope: SessionScope,
     ): void => {
       args.dispatch({ type: 'user/send-rollback', clientMessageId });
-      composerRef.current = restoreText;
-      setComposer(restoreText);
-      if (restoreAttachments && restoreAttachments.length > 0) {
-        pendingAttachmentsRef.current = [...restoreAttachments];
-        setPendingAttachments([...restoreAttachments]);
+      const restoreLive = shouldRestoreLiveComposer({
+        ownerSessionId,
+        liveSessionId: activeSessionIdRef.current,
+        liveComposer: composerRef.current,
+        restoreText,
+      });
+      if (restoreLive) {
+        composerRef.current = restoreText;
+        setComposer(restoreText);
+        if (restoreAttachments && restoreAttachments.length > 0) {
+          pendingAttachmentsRef.current = [...restoreAttachments];
+          setPendingAttachments([...restoreAttachments]);
+        }
       }
-      // Send from New Agent deletes the local draft before ACK. If Host never
-      // accepted the turn, park the unsent text: live session → composer
-      // snapshot, still-draft → draft row. Reconnect must not restore empty.
       skipDraftSaveRef.current = false;
-      const sessionId = activeSessionIdRef.current;
-      if (sessionId) {
-        sessionComposerSnapshotsRef.current.delete(sessionId);
-        sessionComposerSnapshotsRef.current.set(sessionId, {
+      if (ownerSessionId) {
+        sessionComposerSnapshotsRef.current.delete(ownerSessionId);
+        sessionComposerSnapshotsRef.current.set(ownerSessionId, {
           text: restoreText,
           attachments: [...(restoreAttachments ?? pendingAttachmentsRef.current)],
           contextRefs: [...pendingContextRefsRef.current],
         });
-      } else {
-        upsertCurrentDraft(restoreText, currentDraftScopeRef.current);
+        return;
       }
+      upsertCurrentDraft(restoreText, ownerScope, { select: restoreLive });
     },
     [args, upsertCurrentDraft],
   );
@@ -226,7 +241,7 @@ export function useComposerSend(params: UseComposerSendArgs) {
     setPendingAttachments([]);
   }, []);
 
-  const resolveSessionIdForComposer = useCallback(async (): Promise<string | null> => {
+  const resolveSessionIdForComposer = useCallback(async (sessionName?: string): Promise<string | null> => {
     if (args.state.activeSessionId) {
       return args.state.activeSessionId;
     }
@@ -252,11 +267,15 @@ export function useComposerSend(params: UseComposerSendArgs) {
     // the draft-exit effect and clears the composer. handleSend sets
     // skipDraftSaveRef first, so the send path still clears.
     const sessionId = isGeneral
-      ? await args.ensureSession({ scope: { kind: 'general' } })
+      ? await args.ensureSession({
+          scope: { kind: 'general' },
+          ...(sessionName !== undefined ? { sessionName } : {}),
+        })
       : await args.ensureSession({
           scope: draftScope,
           projectPath: draftScope.projectPath,
           alreadyTrusted: true,
+          ...(sessionName !== undefined ? { sessionName } : {}),
         });
     if (sessionId) {
       preserveComposerOnSessionActivationRef.current = true;
@@ -267,7 +286,11 @@ export function useComposerSend(params: UseComposerSendArgs) {
   const handleSend = useCallback(
     async (overrideText?: string): Promise<void> => {
       const text = (overrideText ?? composer).trim();
-      if (promptSubmissionInProgress.current) {
+      const ownerSessionIdAtEntry = args.state.activeSessionId;
+      const ownerDraftIdAtEntry = currentDraftIdRef.current;
+      const ownerScopeAtEntry = currentDraftScopeRef.current;
+      const ownerLockKey = sendOwnerLockKey(ownerSessionIdAtEntry, ownerDraftIdAtEntry);
+      if (sendOwnerLocksRef.current.has(ownerLockKey) || promptSubmissionInProgress.current) {
         return;
       }
       // `/compact` and `/stop` must intercept before Send gates. Admission
@@ -327,6 +350,18 @@ export function useComposerSend(params: UseComposerSendArgs) {
         return;
       }
 
+      if (!acquireSendOwnerLock(sendOwnerLocksRef.current, ownerLockKey)) {
+        return;
+      }
+      const sendStartedAt = Date.now();
+      logSessionChain({
+        event: 'send/start',
+        operationId: ownerLockKey,
+        owner: ownerLockKey,
+        scopeKey: sessionScopeKey(ownerScopeAtEntry),
+        hostInstanceId: args.hostClient.getHostInstanceId?.() ?? null,
+      });
+      try {
       // ADR 0045 compatibility path: pastes are queued locally and only reach
       // `media/save` here, after Send resolves the destination session. The
       // bubble must carry real Host attachment refs, so deferred saves run
@@ -340,6 +375,7 @@ export function useComposerSend(params: UseComposerSendArgs) {
 
       const wasInDraftMode = !args.state.activeSessionId;
       const isGeneral = args.state.activeScope.kind === 'general' || !args.state.projectPath;
+      const listName = composerSessionListName(text, pendingAttachmentsRef.current);
 
       // Sync gates before paint so we never flash a bubble that cannot send.
       // The check itself stays synchronous so a plain trusted send still paints
@@ -366,18 +402,15 @@ export function useComposerSend(params: UseComposerSendArgs) {
           }
           return;
         }
-        // Sending consumes the local draft row, if this composer was resumed
-        // from one. The newly created Host session will replace it in the list.
         if (wasInDraftMode) {
           skipDraftSaveRef.current = true;
           draftTextRef.current = '';
         }
-        removeCurrentDraft('send');
         markAttachmentUploadStatus(
           deferredChips.map((item) => item.localId),
           'saving',
         );
-        const sessionId = await resolveSessionIdForComposer();
+        const sessionId = await resolveSessionIdForComposer(listName);
         if (!sessionId) {
           if (wasInDraftMode) {
             skipDraftSaveRef.current = false;
@@ -388,6 +421,9 @@ export function useComposerSend(params: UseComposerSendArgs) {
             'queued',
           );
           return;
+        }
+        if (wasInDraftMode) {
+          removeCurrentDraft('send');
         }
         deferredSessionId = sessionId;
         await saveDeferredMediaChips(sessionId, deferredChips);
@@ -613,13 +649,10 @@ export function useComposerSend(params: UseComposerSendArgs) {
       // Session create / prompt ACK stay off the critical input path. A send
       // with deferred media already ensured the session above.
       if (deferredSessionId === null) {
-        // Sending consumes the local draft row, if this composer was resumed
-        // from one. The newly created Host session will replace it in the list.
         if (wasInDraftMode) {
           skipDraftSaveRef.current = true;
           draftTextRef.current = '';
         }
-        removeCurrentDraft('send');
       }
 
       let clientMessageId: string | null = null;
@@ -644,15 +677,26 @@ export function useComposerSend(params: UseComposerSendArgs) {
       pendingContextRefsRef.current = promptContextRefs;
 
       promptSubmissionInProgress.current = true;
+      let ownerSessionId: string | null = ownerSessionIdAtEntry;
       try {
-        const sessionId = deferredSessionId ?? (await resolveSessionIdForComposer());
+        const sessionId = deferredSessionId ?? (await resolveSessionIdForComposer(listName));
         if (!sessionId) {
           if (wasInDraftMode) {
             skipDraftSaveRef.current = false;
           }
-          rollbackOptimisticUserSend(clientMessageId, text, paintSnapshotAttachments);
+          rollbackOptimisticUserSend(
+            clientMessageId,
+            text,
+            paintSnapshotAttachments,
+            ownerSessionId,
+            ownerScopeAtEntry,
+          );
           return;
         }
+        if (wasInDraftMode && deferredSessionId === null) {
+          removeCurrentDraft('send');
+        }
+        ownerSessionId = sessionId;
 
         const input = buildPromptRequestInput({
           text: hostPromptText,
@@ -672,7 +716,13 @@ export function useComposerSend(params: UseComposerSendArgs) {
             ? { confirmReplace: args.confirmForegroundReplace }
             : {}),
           onQueue: async () => {
-            rollbackOptimisticUserSend(clientMessageId, text, paintSnapshotAttachments);
+            rollbackOptimisticUserSend(
+              clientMessageId,
+              text,
+              paintSnapshotAttachments,
+              sessionId,
+              ownerScopeAtEntry,
+            );
             const queuedTurnId = crypto.randomUUID();
             return args.hostClient.request(
               {
@@ -691,7 +741,13 @@ export function useComposerSend(params: UseComposerSendArgs) {
         });
         if (response.command === 'session/queued-turn-submit') {
           if (!response.success) {
-            rollbackOptimisticUserSend(clientMessageId, text, paintSnapshotAttachments);
+            rollbackOptimisticUserSend(
+              clientMessageId,
+              text,
+              paintSnapshotAttachments,
+              sessionId,
+              ownerScopeAtEntry,
+            );
             notifyError(hostFailureNotice(response, locale));
             return;
           }
@@ -713,13 +769,28 @@ export function useComposerSend(params: UseComposerSendArgs) {
           return;
         }
         if (!response.success) {
-          rollbackOptimisticUserSend(clientMessageId, text, paintSnapshotAttachments);
+          rollbackOptimisticUserSend(
+            clientMessageId,
+            text,
+            paintSnapshotAttachments,
+            sessionId,
+            ownerScopeAtEntry,
+          );
           const problem = readForegroundProblem(response);
           if (problem) {
             notifyError(foregroundMismatchNotice(problem, locale));
           } else {
             notifyError(hostFailureNotice(response, locale));
           }
+          logSessionChain({
+            event: 'send/failed',
+            operationId: clientMessageId ?? ownerLockKey,
+            owner: sessionId,
+            scopeKey: sessionScopeKey(ownerScopeAtEntry),
+            elapsedMs: Date.now() - sendStartedAt,
+            errorCode: sessionChainErrorCode(response.error),
+            hostInstanceId: args.hostClient.getHostInstanceId?.() ?? null,
+          });
           return;
         }
 
@@ -728,7 +799,15 @@ export function useComposerSend(params: UseComposerSendArgs) {
         disposeComposerAttachments(paintSnapshotAttachments);
         pendingContextRefsRef.current = [];
 
-        applyAcceptedRun(response.data);
+        applyAcceptedRun(response.data, sessionId);
+        logSessionChain({
+          event: 'send/accepted',
+          operationId: clientMessageId ?? ownerLockKey,
+          owner: sessionId,
+          scopeKey: sessionScopeKey(ownerScopeAtEntry),
+          elapsedMs: Date.now() - sendStartedAt,
+          hostInstanceId: args.hostClient.getHostInstanceId?.() ?? null,
+        });
         if (promptRefsSnapshot) {
           args.consumePendingContextRefs?.(promptRefsSnapshot);
         } else {
@@ -752,18 +831,36 @@ export function useComposerSend(params: UseComposerSendArgs) {
                 id: sessionId,
                 name: interim,
                 updatedAt: new Date().toISOString(),
-                scope: currentDraftScopeRef.current,
+                scope: ownerScopeAtEntry,
               },
             });
           }
         }
       } catch (error) {
         if (clientMessageId) {
-          rollbackOptimisticUserSend(clientMessageId, text, paintSnapshotAttachments);
+          rollbackOptimisticUserSend(
+            clientMessageId,
+            text,
+            paintSnapshotAttachments,
+            ownerSessionId,
+            ownerScopeAtEntry,
+          );
         }
         notifyError(formatError(error));
+        logSessionChain({
+          event: 'send/failed',
+          operationId: clientMessageId ?? ownerLockKey,
+          owner: ownerSessionId ?? ownerLockKey,
+          scopeKey: sessionScopeKey(ownerScopeAtEntry),
+          elapsedMs: Date.now() - sendStartedAt,
+          errorCode: sessionChainErrorCode(error),
+          hostInstanceId: args.hostClient.getHostInstanceId?.() ?? null,
+        });
       } finally {
         promptSubmissionInProgress.current = false;
+      }
+      } finally {
+        releaseSendOwnerLock(sendOwnerLocksRef.current, ownerLockKey);
       }
     },
     [
@@ -783,6 +880,7 @@ export function useComposerSend(params: UseComposerSendArgs) {
       resolveSessionIdForComposer,
       rollbackOptimisticUserSend,
       saveDeferredMediaChips,
+      sendOwnerLocksRef,
       upsertCurrentDraft,
     ],
   );
