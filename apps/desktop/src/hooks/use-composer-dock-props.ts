@@ -39,6 +39,7 @@ import {
   selectContextRingView,
 } from '../context-telemetry-selector.js';
 import { liveStartErrorLabel, useLiveCall, type LiveCallController } from '../live/use-live-call.js';
+import { useLiveIntendedSessionSync } from '../live/live-intended-session-sync.js';
 import { readDelegatedTurnResult } from '../live/live-session-result.js';
 import {
   clearDesktopRemoteHostTarget,
@@ -232,6 +233,11 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
     onFail: (error) => {
       showErrorNotification(liveStartErrorLabel(error, locale === 'zh-CN'));
     },
+  });
+  useLiveIntendedSessionSync({
+    hostClient,
+    callId: live.status?.call?.callId,
+    intendedSessionId: liveSessionId,
   });
 
   const composerLayoutMode = resolveComposerLayoutMode({
