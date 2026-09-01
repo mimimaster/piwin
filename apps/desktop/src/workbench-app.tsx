@@ -624,6 +624,8 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       error={live.error}
                       intendedSessionId={liveSessionId}
                       onRetry={() => {
+                        // Start-failure chrome only; LiveBar hides Retry while a call is up.
+                        if (live.call) return;
                         void live.start();
                       }}
                       onDismiss={live.dismissError}

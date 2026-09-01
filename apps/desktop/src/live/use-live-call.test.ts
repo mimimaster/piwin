@@ -111,6 +111,23 @@ describe('liveStartErrorLabel', () => {
     expect(liveStartErrorLabel('live-session-unavailable', true)).toContain('会话');
   });
 
+  it('uses rebind wording instead of start-again for active-call failures', () => {
+    expect(liveStartErrorLabel('live-session-unavailable', true, { kind: 'rebind' })).toContain(
+      '改绑',
+    );
+    expect(liveStartErrorLabel('live-session-unavailable', true, { kind: 'rebind' })).not.toContain(
+      '创建会话',
+    );
+    expect(liveStartErrorLabel('live-conflict', true, { kind: 'rebind' })).toMatch(/改绑|冲突/);
+    expect(liveStartErrorLabel('live-conflict', true, { kind: 'rebind' })).not.toContain('再点一次');
+    expect(liveStartErrorLabel('live-conflict', false, { kind: 'rebind' }).toLowerCase()).toMatch(
+      /rebind|conflict/,
+    );
+    expect(liveStartErrorLabel('live-conflict', false, { kind: 'rebind' }).toLowerCase()).not.toContain(
+      'start live again',
+    );
+  });
+
   it('explains a kept bind when focus is empty or elsewhere', () => {
     expect(liveStillBoundTargetLabel('Work', true)).toContain('Work');
     expect(liveStillBoundTargetLabel('Work', true)).toMatch(/仍绑定|工作目标/);

@@ -97,7 +97,7 @@ describe('LiveBar', () => {
     expect(container?.querySelector('.live-equalizer')).not.toBeNull();
   });
 
-  it('provides accessible retry and dismiss icon buttons on error', () => {
+  it('provides accessible retry and dismiss icon buttons on start failure', () => {
     render(<LiveBar call={null} {...controls} error="live-provider-access-denied" />);
     const bar = container?.querySelector('[data-testid="live-bar"]');
     expect(bar?.getAttribute('aria-label')).toContain('语音连接未建立');
@@ -116,6 +116,26 @@ describe('LiveBar', () => {
       dismissBtn.click();
     });
     expect(controls.onDismiss).toHaveBeenCalled();
+  });
+
+  it('keeps mute/end on rebind error and does not offer start-only Retry', () => {
+    render(<LiveBar call={call} {...controls} error="live-session-unavailable" />);
+    const bar = container?.querySelector('[data-testid="live-bar"]');
+    expect(bar?.getAttribute('aria-label')).toContain('工作目标改绑失败');
+    expect(bar?.getAttribute('aria-label')).not.toContain('语音连接未建立');
+    expect(container?.querySelector('.live-bar-error-copy')?.textContent).toContain('改绑');
+    expect(container?.querySelector('.live-bar-error-copy')?.textContent).not.toContain('创建会话');
+    expect(container?.querySelector('[data-testid="live-bar-retry"]')).toBeNull();
+    expect(container?.querySelector('[data-testid="live-bar-mute"]')).not.toBeNull();
+    expect(container?.querySelector('[data-testid="live-bar-end"]')).not.toBeNull();
+  });
+
+  it('uses rebind conflict copy instead of start-again wording while a call is up', () => {
+    render(<LiveBar call={call} {...controls} error="live-conflict" />);
+    const copy = container?.querySelector('.live-bar-error-copy')?.textContent ?? '';
+    expect(copy).toMatch(/改绑|冲突/);
+    expect(copy).not.toContain('再点一次');
+    expect(container?.querySelector('[data-testid="live-bar-retry"]')).toBeNull();
   });
 
   it('toggles mute and triggers hangup via pure icon buttons', () => {
