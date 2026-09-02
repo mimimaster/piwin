@@ -95,7 +95,10 @@ export async function executeSessionTurn(input: {
 
     if (input.requiresModelRuntimeReplacement) {
       try {
-        await context.replaceRuntimeForModel(command.sessionId);
+        // preparePromptInput has already persisted this user row. Exclude it
+        // from the replacement seed because it will be sent as the live
+        // prompt immediately after the new generation is activated.
+        await context.replaceRuntimeForModel(command.sessionId, userMessageId);
       } catch (error) {
         if (input.previousModel === undefined) {
           context.sessionModels.delete(command.sessionId);
@@ -122,7 +125,10 @@ export async function executeSessionTurn(input: {
       command.sessionId,
       run.runId,
       context.getRunSignal(run.runId),
-      promptInput.clientMessageId,
+      // The durable row id is generated during preparation when the caller
+      // did not provide one. Exclude that exact row from a cold replay seed;
+      // it is sent below as the live prompt and must not appear twice.
+      userMessageId,
     );
     if (context.getRunSignal(run.runId)?.aborted) {
       await finalizeAbortedRun(context, command.sessionId, run.runId);

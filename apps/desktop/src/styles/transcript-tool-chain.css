@@ -14,6 +14,8 @@
   display: inline-flex;
   align-items: center;
   height: 16px;
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   position: relative;
   font-size: var(--fs-mono);
@@ -22,10 +24,11 @@
 
 .action-marquee-text {
   display: inline-block;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 280px;
+  max-width: min(280px, 100%);
 }
 
 .action-marquee-text.is-animating {
@@ -66,6 +69,7 @@
   align-items: center;
   gap: var(--s-3);
   margin-left: auto;
+  min-width: 0;
   flex-shrink: 0;
   font-size: var(--fs-mono);
   color: var(--text-4);
@@ -441,6 +445,8 @@
   display: inline-flex;
   align-items: center;
   gap: var(--s-3);
+  min-width: 0;
+  max-width: 100%;
   padding: var(--s-1) var(--s-4);
   border-radius: var(--r-chip);
   background: var(--iris-wash);
@@ -465,6 +471,9 @@
 }
 
 .search-file-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 

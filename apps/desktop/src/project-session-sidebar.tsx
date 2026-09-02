@@ -656,7 +656,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
               title={sidebarCopy.newConversationInProject(displayName)}
               onClick={(event) => {
                 event.stopPropagation();
-                props.onOpenProject(row.projectPath);
+                // Scope only — workbench opens P inside handleStartNewSession.
                 props.onNewSession({ scope: projectScope });
               }}
             >

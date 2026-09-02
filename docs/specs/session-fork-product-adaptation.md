@@ -591,9 +591,14 @@ Defaults:
 - First fork: `<source name> · Branch`.
 - Later unnamed direct forks: `<source name> · Branch 2`, `Branch 3`, ...
 
-The first new user turn may run existing auto-naming only while the generated
-name remains `nameSource: 'default'` or another explicitly eligible source.
-A user-supplied name writes `nameSource: 'user'` and is never overwritten.
+The generated Duplicate label is a stable origin label, not an auto-name
+placeholder: the normal post-turn auto-naming pipeline must never overwrite
+it. A user-supplied rename writes `nameSource: 'user'` and remains the explicit
+way to replace it. The existing `session/auto-name` command is also an
+explicit opt-in action; it is not part of the automatic post-turn pipeline.
+
+Fork keeps the existing eligible-name policy: its generated text name may be
+upgraded by the normal LLM auto-naming path when that path is available.
 
 ---
 

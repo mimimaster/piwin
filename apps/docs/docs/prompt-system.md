@@ -73,7 +73,7 @@ flowchart TD
 
 ## 4. 全套系统提示词与双语对照规范
 
-本系统的提示词按模块职责划分为 **5 大核心类别**：
+本系统的提示词按模块职责划分为 **7 大核心类别**：
 
 ```text
 packages/ & apps/
@@ -81,7 +81,9 @@ packages/ & apps/
 ├── Group 2: 专项能力与协议提示词 (Capabilities & Protocol Prompts)
 ├── Group 3: 子智能体与专项模式 (Subagents & Orchestration Schemes)
 ├── Group 4: 后台自动化与轻量补全 (Background Automation & Completions)
-└── Group 5: 项目级规约与沙盒注入 (Project Rules & Context Injections)
+├── Group 5: 项目级规约与沙盒注入 (Project Rules & Context Injections)
+├── Group 6: 结构化领域工具契约 (Structured Domain Tool Contracts)
+└── Group 7: 内置核心技能系统 (Built-in Skills & System Instructions)
 ```
 
 ---
@@ -349,7 +351,7 @@ Rule: Output purely factual observations. Never invent unseen text, buttons, or 
 
 #### 2.4 实时语音说话面契约 (`PIWIN_LIVE_SPOKEN_CONTRACT`)
 * **源码位置**：`packages/contracts/src/live-spoken-contract.ts`
-* **规格**：[2026-08-31-live-language-layers.md](../../../docs/specs/2026-08-31-live-language-layers.md)
+* **规格文件**：`docs/specs/2026-08-31-live-language-layers.md`
 * **应用时机**：Live 通话 `instructions`。Codex 另挂 `native-delegation` 附录；Gemini / OpenAI Realtime 挂 `tool-handover` 附录。工作模型不看这份合同。
 * **设计意图**：说话面只负责闲聊与交接 brief；页面上的活由工作模型做。回传是接上一句的 takeaway，不是系统播报。
 
@@ -854,21 +856,12 @@ Generate short video clips from text prompts or reference images (inputImagePath
 
 ---
 
-#### 6.7 Artifact 渲染策略懒加载 (`artifact_instructions`)
-* **源码位置**：`packages/host-runtime/src/artifact-instructions-tool.ts`
-* **应用时机**：智能体决定输出交互式 HTML/SVG 小组件时单次按需调起。
+#### 6.7 Artifact 渲染策略（常驻 system prompt）
+* **源码位置**：`packages/host-runtime/src/artifact-instructions-tool.ts`、`packages/contracts/src/artifact.ts`
+* **应用时机**：`config.artifact.enabled` 打开时，完整决策策略 + runtime 契约直接注入 system prompt。
 
 ##### 英文生产原版
-```markdown
-Load the full HTML/SVG Artifact rendering policy and sandboxed output contract.
-- Call at most once per turn, ONLY when generating an interactive widget, dashboard, diagram, or standalone page.
-```
-
-##### 中文对照释义
-```markdown
-加载完整的 HTML/SVG Artifact 渲染策略与沙箱输出契约。
-- 每轮最多调用一次，仅在生成交互组件、看板、图表或独立页面时调起。
-```
+见 `DEFAULT_ARTIFACT_DECISION_PROMPT` 与 `formatArtifactProtocol()`。模型不再需要先调用 `artifact_instructions` 才能决定是否输出 Artifact。
 
 ---
 
@@ -986,7 +979,322 @@ Capture a visual page screenshot for UI layout verification. Multimodal models i
 
 ---
 
-## 7. 工程指标与体系收益
+### 第 7 组：内置核心技能系统 (Built-in Skills & System Instructions)
+
+#### 7.1 提示词重构与质量规范技能 (`optimize-prompt`)
+* **源码位置**：`skills/optimize-prompt/SKILL.md`
+* **应用时机**：重构系统提示词、工具描述与 Agent 操作指令，消除角色扮演废话与虚空索敌，转化为高密度 XML/契约格式。可通过 `/optimize-prompt` 触发。
+
+##### 英文生产原版
+```markdown
+---
+name: optimize-prompt
+description: Refactor system prompts, tool descriptors, and agent instructions into high-density, contract-driven, XML-structured production specifications. Trigger via /optimize-prompt.
+version: 1
+---
+
+# Optimize Prompt
+
+## Goal
+Transform conversational, bloated, or unstructured prompts into high-density, contract-driven production specifications with zero persona fluff, zero strawman arguments, and strict XML/bullet boundaries.
+
+## Done means
+- **4-Point Diagnostic Audit** executed on the original prompt:
+  1. *Persona & Filler Bloat*: Strip fluff like "You are a world-class...", "Take a deep breath...", "Please be smart/helpful".
+  2. *Strawman Lecturing*: Eliminate "why not" preambles, comparisons with non-existent competitors, or defensive justifications; state target architecture affirmatively.
+  3. *Attention Dilution*: Convert dense prose paragraphs (wall-of-text) into structured, scannable bullet points.
+  4. *Missing Data Envelopes*: Wrap dynamic inputs, tool results, and output schemas in standard `<tag>` boundaries.
+- **Production-Grade Rewrite Delivered**:
+  - **English Runtime Core**: Ultra-lean, high Token-density English instructions for model execution.
+  - **Structured Architecture**: Clear breakdown across `Scope / Trigger`, `Data Contracts`, `Hard Negative Boundaries`, and `Output Format`.
+  - **Colocated Chinese Translation**: 1:1 Chinese explanatory translation placed directly underneath for engineering review.
+- **1:1 Side-by-Side Comparison**:
+  - Direct before vs after diff clearly identifying pruned implementation leaks and token savings.
+- **Verification Probe**:
+  - Concrete test/probe case or edge scenario demonstrating that the optimized prompt eliminates failure modes (e.g. anti-hallucination, anti-deadlink, double-rendering).
+
+## Stop when
+- Prompt is already at peak density (<100 tokens, XML-isolated, bullet-point contracts) — report that no change is necessary.
+- Operational intent or domain boundaries are ambiguous — clarify the intended behavior; do not invent domain invariants.
+
+## Constraints
+- **Zero Persona / Emotional Fluff**: Models execute operational rules, not roleplay.
+- **Zero Negative Strawmen**: Never write "Unlike other bad frameworks..." or "We do this because X is stupid". Only declare what this system *is* and *does*.
+- **No Implementation Leaks**: Never expose host internals (e.g. database schema, UI CSS animations, scheduler algorithms) to model-facing tool descriptors.
+- **Dual-Language Colocation**: English for production runtime; Chinese for review and documentation.
+
+## Verify
+- Re-check the rewritten prompt against:
+  1. Token count reduction (typically 30%–60% savings).
+  2. Strict XML tag closure and markdown syntax validity.
+  3. Presence of explicit negative boundaries (what NOT to do) alongside positive capabilities.
+```
+
+##### 中文对照释义
+```markdown
+# 提示词优化技能 (Optimize Prompt)
+
+## 目标 (Goal)
+将口语化、臃肿或结构散乱的提示词重构为高信息密度、契约驱动的生产规范，彻底剔除人设废话、负向说教与虚空索敌，采用严谨的 XML 容器与要点边界。
+
+## 完成标志 (Done means)
+- 执行 **4 点结构化诊断**：
+  1. 剔除人设与口语废话（如“你是一个顶级专家”、“请深呼吸”、“务必聪明”等）；
+  2. 消除虚空索敌与负向辩解（删除“为什么不”前置说教，以纯正向方式声明目标架构）；
+  3. 消除注意力稀释（将大段纯文本散文拆解为清晰可扫视的结构化要点）；
+  4. 补齐数据隔离包络（将动态输入、工具执行日志与输出 Schema 包裹进标准 `<tag>` 标签）。
+- 交付 **生产级重构方案**：
+  - 英文生产内核：用于模型执行的高 Token 密度英文指令；
+  - 结构化架构：清晰拆解 `触发范围`、`数据契约`、`硬性负向边界` 与 `输出格式`；
+  - 同位置中文释义：紧随其后附带 1:1 中文对照便于人工审查。
+- 提供 **1:1 前后差异对比**，明确标记剔除的实现细节与 Token 缩减量；
+- 提供 **可验证测试探针**，给出反幻觉或防裂图的验证用例。
+
+## 约束条件 (Constraints)
+- 零人设废话：模型执行操作契约而非角色扮演；
+- 零负向索敌：不写对抗性说教，仅正向声明系统规范；
+- 严禁暴露宿主内部实现细节；
+- 双语同文对照归档。
+```
+
+---
+
+#### 7.2 工程规划与模块化解耦技能 (`writing-plans`)
+* **源码位置**：`skills/writing-plans/SKILL.md`
+* **应用时机**：在进行代码修改前调研工程上下文，并通过 `piwin_plan_create` 生成模块化 `SessionPlan` 执行蓝图供用户审查。可通过 `/writing-plans` 或 `/write-plan` 触发。
+
+##### 英文生产原版
+```markdown
+---
+name: writing-plans
+description: Explore codebase context and formulate a modular SessionPlan via piwin_plan_create for user review. Trigger via /writing-plans or /write-plan.
+version: 3
+---
+
+# Writing Plans
+
+## Goal
+Produce one reviewable `SessionPlan` the user can approve before any implementation. The plan is the deliverable — not a Markdown checklist and not code changes. Prefer modular, decoupled steps that maximize potential parallel subagent dispatch.
+
+## Decoupling Principles
+- **Modular Slicing**: Partition tasks by distinct files, packages, or domains to prevent concurrent editing conflicts on shared resources.
+- **Honest Dependency Modeling**: Add `dependsOn` ONLY when Step B strictly requires the output or type artifact of Step A. Leave naturally independent tasks (e.g. independent components, tests, distinct endpoints) unblocked.
+
+## Done means
+- Relevant code/docs/ADRs are grounded enough that steps are decision-complete (or open decisions are explicit questions).
+- `piwin_plan_create` succeeds with: `title`, `goal`, ordered `steps` (stable ids, short titles), and each step `detail` covering affected area, **acceptance criteria**, and **verification** (prefer an executable verification command).
+- `source: 'skill'`, `skillId: 'writing-plans'`.
+- `dependsOn` / `parallelGroup` set only when needed for honest sequencing or concurrent groups.
+- `independentSteps` lists only steps safe to run in isolated child sessions (no shared-file conflicts). Omit when work is sequential.
+- Optional `profileId` per step only when a non-default subagent role is needed (`explorer` | `reviewer` | `implementer` | `tester`).
+- Chat summary states plan size: **short** (<4 steps and <2 independent) or **long** (otherwise). The Host uses this to recommend `inline` vs `subagent-driven`.
+- No shell commands, scripts, or hooks as step fields — plans are reviewable artifacts, not executables.
+
+## Workflow
+1. **Explore & Scope**: Inspect relevant codebase files and interfaces to establish concrete boundaries.
+2. **Draft Blueprint**: Invoke `piwin_plan_create` with the fields above.
+3. **Acknowledge & Await**: Summarize the plan in chat and await user review on the workbench plan card.
+
+## Stop when
+- Goal, constraints, or technical choices are ambiguous in a way that would change the plan — surface the real options and ask; do not invent scope.
+- Plan is draft-created. Do **not** implement, mutate source, or start execution.
+- Do **not** ask the user in chat to pick `inline` or `subagent-driven`. The Host shows a mode picker. Summarize the plan and wait.
+
+## Constraints
+- Prefer thin, correct plans over speculative multi-week epics.
+- Host permissions and isolation are enforced by runtime; do not restate security policy.
+
+## Verify
+- Every step has checkable acceptance criteria and a concrete verification signal (command, test, or observable outcome).
+- Independent steps truly do not contend on the same files or external resources.
+- After approved execution (not during drafting), a bounded Walkthrough of changes + verification is appropriate when the host/plan flow produces one.
+```
+
+##### 中文对照释义
+```markdown
+# 编写工程计划 (Writing Plans)
+
+## 目标 (Goal)
+产出一个在开始实现前可供用户审批的结构化 `SessionPlan`。计划本身就是本次交互的最终交付物——而不是 Markdown 复选框列表，也不是实际的代码改动。优先采用模块化解耦步骤，以最大化子智能体并发执行的潜力。
+
+## 解耦原则 (Decoupling Principles)
+- **模块化切分**：按独立文件、模块或领域切分任务，避免多个步骤在并发时争抢修改同一资源；
+- **客观依赖建模**：仅在步骤 B 严格需要步骤 A 的产出物或类型定义时才声明 `dependsOn`。天然无依赖的任务（如独立组件、单测、独立接口）保持解耦，不人为施加多余串行阻塞。
+
+## 完成标志 (Done means)
+- 调研代码/文档/ADR 足够充分，步骤具有确定性（未决决策作为明确问题提出）；
+- 成功调用 `piwin_plan_create`：包含 `title`、`goal`、有序 `steps`（稳定 ID、简短标题），且每步 `detail` 覆盖影响范围、**验收标准**与**实测验证命令**；
+- `independentSteps` 仅列出可在隔离工作区安全运行的步骤（无共享文件冲突）；
+- 仅在需要特殊子智能体角色时指定 `profileId`（`explorer` | `reviewer` | `implementer` | `tester`）；
+- 严禁在步骤字段中写 shell 命令或脚本——计划是供人审查的设计物，而非执行脚本。
+
+## 执行流程 (Workflow)
+1. **调研与定界**：检查相关代码与接口，建立确凿的改造边界；
+2. **构建蓝图**：调用 `piwin_plan_create` 工具传入上述结构化字段；
+3. **确认与等待**：在对话中简要概述规划要点，等待用户在工作台计划卡片中审查并批准。
+```
+
+---
+
+#### 7.3 切片执行与断点推进技能 (`executing-plans`)
+* **源码位置**：`skills/executing-plans/SKILL.md`
+* **应用时机**：计划获批后按切片逐步执行，并在每个检查点汇报确凿实测证据。
+
+##### 英文生产原版
+```markdown
+---
+name: executing-plans
+description: Execute an approved plan slice-by-slice with evidence at each checkpoint.
+version: 2
+---
+
+# Executing Plans
+
+## Goal
+Implement only the current approved plan slice so its acceptance criteria pass, then stop at the next checkpoint.
+
+## Done means
+- Current step(s) match plan intent; no drive-by refactors or scope expansion.
+- Step progress is recorded with `piwin_plan_set_step` (mark `done` only with a short evidence note).
+- Required verification for the slice ran in this environment (tests, typecheck, or the plan’s stated check).
+- If a step has `profileId`, the Host-resolved profile bounds model/capabilities/isolation — do not widen them.
+
+## Stop when
+- Plan is wrong, blocked, or acceptance criteria cannot be met — fix the plan briefly or ask; do not silently diverge.
+- Checkpoint / user gate requires review before the next slice.
+
+## Constraints
+- Default profiles when unset: worktree + explicit apply. Built-ins: `explorer`, `reviewer` (readonly); `implementer`, `tester` (worktree).
+- Host owns isolation and permission; skill text is guidance only.
+
+## Verify
+- Re-run the failing or required path for the slice; summarize actual results before claiming the step done.
+```
+
+##### 中文对照释义
+```markdown
+# 执行工程计划 (Executing Plans)
+
+## 目标 (Goal)
+仅实现当前获批的计划切片并确保其验收标准通过，随后在下一个检查点暂停等待。
+
+## 完成标志 (Done means)
+- 当前步骤严格契合计划目标，严禁夹带无关重构或私自扩大范围；
+- 通过 `piwin_plan_set_step` 推进步骤状态（仅在附带简要实测证据 note 后标记为 `done`）；
+- 在当前环境中运行切片所需的实测验证（单元测试、类型检查或计划指定的验证命令）；
+- 步骤若指定 `profileId`，严格遵循 Host 解析出的模型、能力与隔离边界。
+
+## 熔断条件 (Stop when)
+- 发现计划有误、受阻或验收标准无法满足——简要修正计划或向用户提问，严禁私自偏离计划；
+- 遇到检查点或用户审核卡点，需等待审查后再推进下一阶段。
+```
+
+---
+
+#### 7.4 交付前实测与完整性验证 (`verification-before-completion`)
+* **源码位置**：`skills/verification-before-completion/SKILL.md`
+* **应用时机**：在声称任务完成、问题修复或测试通过前，强制要求在当前环境中运行实测并获取确凿证据。
+
+##### 英文生产原版
+```markdown
+---
+name: verification-before-completion
+description: Require fresh evidence before claiming work is done, fixed, or passing.
+version: 2
+---
+
+# Verification Before Completion
+
+## Goal
+A completion claim the user can trust because it is backed by checks run in this environment.
+
+## Done means
+- Relevant verification ran here (e.g. package typecheck/tests, e2e when warranted).
+- Result is summarized from **actual** output (pass/fail), not assumed.
+- If public API or user-visible behavior changed, exports/docs were checked.
+- Architecture boundaries still hold (no apps→Pi imports; no accidental god-module growth) when those surfaces moved.
+
+## Stop when
+- Required checks cannot run or fail — report the blocker; do not claim green.
+
+## Constraints
+- Prefer automated failing tests over manual-only checks when practical.
+
+## Verify
+- “Done / fixed / passing” appears only after the evidence above exists in this session.
+```
+
+##### 中文对照释义
+```markdown
+# 交付前实测验证 (Verification Before Completion)
+
+## 目标 (Goal)
+基于在当前环境中真实运行的检查证据，产出让用户完全可信赖的完工声明。
+
+## 完成标志 (Done means)
+- 关联的验证流程已在本地真实运行（如包级别类型检查、单元测试或必要的端到端测试）；
+- 结果必须基于**实际终端输出**（通过/失败）进行客观总结，严禁主观假设；
+- 若公共 API 或用户可见行为发生变化，同步检查并更新导出与文档；
+- 确保架构边界依然稳固（严禁 apps 依赖底层实现包，严禁上帝模块膨胀）。
+
+## 熔断条件 (Stop when)
+- 必要检查无法运行或失败——如实汇报阻塞点，严禁虚报通过。
+```
+
+---
+
+#### 7.5 技能编写与扩展规约 (`create-skill`)
+* **源码位置**：`skills/create-skill/SKILL.md`
+* **应用时机**：为系统创建并扩展新的 Agent Skill（`SKILL.md`）时遵循的标准规范。
+
+##### 英文生产原版
+```markdown
+---
+name: create-skill
+description: Create a new Agent Skill (SKILL.md) with correct frontmatter and outcome-oriented body.
+version: 2
+---
+
+# Create Skill
+
+## Goal
+A loadable skill at `~/.piwin/skills/<name>/SKILL.md` or `.pi/skills/<name>/SKILL.md` that strong models can follow without process theater.
+
+## Done means
+- Directory `skill-name/SKILL.md` with YAML frontmatter `name` + `description` (description states when to use it); optional `version` and `hidden`.
+- Body uses: **Goal**, **Done means**, **Stop when**, **Constraints**, **Verify** (omit empty sections).
+- States success criteria and stop conditions; names host tools only when required.
+- No repeated rules, long example farms, style essays, or absolute wording except real safety/invariants.
+- Result-oriented: ideal outcome first; let the model choose the path.
+
+## Stop when
+- Skill would only restate host-enforced policy — shrink or skip.
+
+## Constraints
+- Install path: user `~/.piwin/skills/<name>/` or project `.pi/skills/<name>/`.
+
+## Verify
+- Frontmatter parses; description is enough for skill discovery; body is short and checkable.
+```
+
+##### 中文对照释义
+```markdown
+# 创建技能 (Create Skill)
+
+## 目标 (Goal)
+在 `~/.piwin/skills/<name>/SKILL.md` 或 `.pi/skills/<name>/SKILL.md` 下生成一个可被宿主加载的技能，强模型可以直接遵循执行，无需形式化的流程表演。
+
+## 完成标志 (Done means)
+- 目录结构：`skill-name/SKILL.md`，带有 YAML 头部元数据 `name` + `description`（说明触发时机），可选 `version` 和 `hidden`；
+- 正文采用标准 5 段式结构：**Goal**（目标）、**Done means**（完成标志）、**Stop when**（熔断条件）、**Constraints**（硬性约束）、**Verify**（实测验收）；
+- 明确成功标准与终止条件；仅在必要时提及宿主工具名；
+- 严禁重复规则堆砌、冗长例子农场、风格小作文或非必要的绝对化措辞；
+- 结果导向：先声明理想交付结果，由模型自行决定最优执行路径。
+```
+
+---
+
+## 8. 工程指标与体系收益
 
 通过将提示词体系全面契约化与结构化，系统在运行时具备以下工程特性：
 

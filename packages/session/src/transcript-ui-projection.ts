@@ -57,6 +57,14 @@ export function slimToolPresentation(
     if (presentation.output !== undefined) {
       slim.output = presentation.output;
     }
+  } else if (presentation.output?.truncation !== undefined) {
+    // Keep the small status payload so a historical card can explain why its
+    // bulk output was omitted from the hydrate projection.
+    slim.output = {
+      text: '',
+      truncated: true,
+      truncation: presentation.output.truncation,
+    };
   }
   // Intentionally drop presentation.output for bulk tools (often hundreds of KB of web/bash text).
   return slim;

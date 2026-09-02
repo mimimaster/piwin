@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { ContextOccupancy, SessionContextSnapshot } from '@piwin/contracts';
 import {
   applyMeasurement,
+  applyCompactionEnd,
+  applyActivationRevalidate,
   applyResponseEvidence,
   applyRunStarted,
   applyRunTerminal,
@@ -45,6 +47,67 @@ function idleKnown(): SessionContextSnapshot {
 }
 
 describe('session context merge lastConfirmed promote', () => {
+  it('restores history evidence from a durable compaction boundary after a crash gap', () => {
+    const restored = applyActivationRevalidate(
+      {
+        ...idleKnown(),
+        responseEvidence: {
+          currentRunHasResponse: false,
+          historyHasDisplayableResponse: false,
+        },
+      },
+      {
+        nowIso: '2026-08-30T00:01:00.000Z',
+        runtimeGenerationId: 'generation-after-restart',
+        contextBoundary: {
+          activeLeafMessageId: 'leaf-1',
+          compactionBoundary: 'compact:80000:5000',
+        },
+      },
+    );
+
+    expect(restored.responseEvidence.historyHasDisplayableResponse).toBe(true);
+    expect(restored.contextBoundary.compactionBoundary).toBe('compact:80000:5000');
+  });
+
+  it('treats successful compaction as history evidence even without a visible response row', () => {
+    const snapshot: SessionContextSnapshot = {
+      ...idleKnown(),
+      responseEvidence: {
+        currentRunHasResponse: false,
+        historyHasDisplayableResponse: false,
+      },
+    };
+    const compacted = applyCompactionEnd(snapshot, {
+      nowIso: '2026-08-30T00:01:00.000Z',
+      ok: true,
+      tokensBefore: 80_000,
+      tokensAfter: 5_000,
+    });
+    expect(compacted.responseEvidence).toMatchObject({
+      currentRunHasResponse: false,
+      historyHasDisplayableResponse: true,
+    });
+    expect(compacted.occupancy).toMatchObject({ kind: 'known', tokensUsed: 5_000 });
+    expect(compacted.contextBoundary.compactionBoundary).toBe('compact:80000:5000');
+  });
+
+  it('keeps history evidence when a successful compact has no post-compact token sample', () => {
+    const compacted = applyCompactionEnd(
+      {
+        ...idleKnown(),
+        responseEvidence: {
+          currentRunHasResponse: false,
+          historyHasDisplayableResponse: false,
+        },
+      },
+      { nowIso: '2026-08-30T00:01:00.000Z', ok: true, tokensBefore: 80_000 },
+    );
+    expect(compacted.responseEvidence.historyHasDisplayableResponse).toBe(true);
+    expect(compacted.occupancy).toEqual({ kind: 'unknown', reason: 'compaction-unmeasured' });
+    expect(compacted.lastConfirmed).toBeUndefined();
+  });
+
   it('promotes lastConfirmed when response evidence arrives after waiting samples', () => {
     const waiting = applyRunStarted(idleKnown(), {
       nowIso: '2026-08-30T00:01:00.000Z',

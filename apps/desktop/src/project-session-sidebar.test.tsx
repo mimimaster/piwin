@@ -384,7 +384,7 @@ it('renders local drafts first with a hollow mark and restores the selected draf
   expect(onResumeDraft).toHaveBeenCalledWith('draft-new');
 });
 
-it('passes the clicked project scope explicitly when starting a project draft', () => {
+it('starts a project draft with the row scope and does not also open the project', () => {
   const onOpenProject = vi.fn();
   const onNewSession = vi.fn();
   const { container } = renderSidebar({ onOpenProject, onNewSession });
@@ -393,7 +393,8 @@ it('passes the clicked project scope explicitly when starting a project draft', 
     (container.querySelector('.tree-folder-add-btn') as HTMLButtonElement).click();
   });
 
-  expect(onOpenProject).toHaveBeenCalledWith('/Users/test/project-a');
+  // Opening/switching is owned by handleStartNewSession; the row only names P.
+  expect(onOpenProject).not.toHaveBeenCalled();
   expect(onNewSession).toHaveBeenCalledWith({
     scope: { kind: 'project', projectPath: '/Users/test/project-a' },
   });

@@ -30,6 +30,7 @@ import {
 } from './remote-projection-helpers.js';
 import {
   projectHostSessionForRemoteClient,
+  projectRemoteTranscriptAttachments,
   projectSessionList,
   projectSessionListPage,
   projectSessionMessages,
@@ -263,6 +264,7 @@ export function createRemoteCapabilities(
     sessionUserMessageIndex: true,
     sessionTranscriptSeek: true,
     contextSummary: true,
+    contextTelemetryVersion: 1,
     runInterventions: true,
     queuedTurns: true,
     foregroundRunAdmission: true,
@@ -291,11 +293,32 @@ export function projectRemotePush(
       ...(projectedSession === undefined ? {} : { session: projectedSession }),
     } as HostPush;
   }
-  const projected =
-    message.type === 'session/queued-turn-updated'
-      ? projectRemoteQueuedTurnPush(message, context?.remoteMediaPaths)
-      : sanitizeRemoteValue(message, undefined);
+  if (message.type === 'session/queued-turn-updated') {
+    return projectRemoteQueuedTurnPush(message, context?.remoteMediaPaths);
+  }
+  const projected = sanitizeRemoteValue(message, undefined);
+  if (message.type === 'event') {
+    return projectRemoteEventAttachments(projected, context?.remoteMediaPaths) as HostPush;
+  }
   return (projected ?? message) as HostPush;
+}
+
+function projectRemoteEventAttachments(
+  projected: unknown,
+  remoteMediaPaths: ReadonlyMap<string, string> | undefined,
+): unknown {
+  const record = asRecord(projected);
+  const event = asRecord(record?.event);
+  if (event === undefined || event.type !== 'tool/end' || !Array.isArray(event.attachments)) {
+    return projected;
+  }
+  return {
+    ...record,
+    event: {
+      ...event,
+      attachments: projectRemoteTranscriptAttachments(event.attachments, remoteMediaPaths),
+    },
+  };
 }
 
 export function projectRemoteStatusData(

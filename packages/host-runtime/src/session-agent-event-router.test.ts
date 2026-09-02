@@ -19,6 +19,7 @@ function createRouterKernel(input: {
   hookEvents: AgentEvent[];
   measurements: ContextMeasurement[];
   finalized: unknown[];
+  sessionFilesTouched: Map<string, string>;
 } {
   const pushes: HostPush[] = [];
   const petEvents: AgentEvent[] = [];
@@ -26,6 +27,7 @@ function createRouterKernel(input: {
   const hookEvents: AgentEvent[] = [];
   const measurements: ContextMeasurement[] = [];
   const finalized: unknown[] = [];
+  const sessionFilesTouched = new Map<string, string>();
   const correlator = input.correlator ?? new RunEventCorrelator();
   const deps = {
     runtimeController: {
@@ -40,6 +42,7 @@ function createRouterKernel(input: {
       pushes.push(message);
     },
     sessionProjects: new Map(),
+    sessionFilesTouched,
     sessionModels: new Map(),
     options: {},
     transcriptRecorders: new Map(),
@@ -69,7 +72,16 @@ function createRouterKernel(input: {
       noteCompactionEnd: async () => undefined,
     },
   } as unknown as HostRuntimeKernel;
-  return { deps, pushes, petEvents, ledgerWrites, hookEvents, measurements, finalized };
+  return {
+    deps,
+    pushes,
+    petEvents,
+    ledgerWrites,
+    hookEvents,
+    measurements,
+    finalized,
+    sessionFilesTouched,
+  };
 }
 
 describe('routeSessionAgentEvent', () => {
@@ -259,5 +271,39 @@ describe('routeSessionAgentEvent', () => {
     expect(ledgerWrites).toEqual([]);
     expect(hookEvents).toEqual([]);
     expect(pushes.some((push) => push.type === 'event')).toBe(false);
+  });
+
+  it('normalizes compaction FileOperations once at the Host boundary', () => {
+    const registry = new RunRegistry();
+    const { deps, pushes, sessionFilesTouched } = createRouterKernel({
+      sessionId: 'session-1',
+      registry,
+    });
+
+    routeSessionAgentEvent(
+      deps,
+      { id: 'session-1' },
+      {
+        type: 'compaction/end',
+        ok: true,
+        fileOps: {
+          readFiles: ['src/a.ts', 'src/a.ts', '\u0000bad'],
+          modifiedFiles: ['src/b.ts'],
+        },
+      },
+      'gen-1',
+      undefined,
+      undefined,
+    );
+
+    const eventPush = pushes.find(
+      (push): push is Extract<HostPush, { type: 'event' }> => push.type === 'event',
+    );
+    expect(eventPush?.event).toMatchObject({
+      type: 'compaction/end',
+      fileOps: { readFiles: ['src/a.ts', 'bad'], modifiedFiles: ['src/b.ts'] },
+    });
+    expect(sessionFilesTouched.get('session-1')).toContain('src/a.ts');
+    expect(sessionFilesTouched.get('session-1')).toContain('src/b.ts');
   });
 });

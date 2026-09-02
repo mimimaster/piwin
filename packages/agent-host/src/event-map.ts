@@ -12,7 +12,7 @@ import {
   mapMessageUpdateEvent,
 } from './message-event-map.js';
 import { buildNativeContextEvent } from './native-context-event-map.js';
-import { mapCompactionEndEvent } from './compaction-event-map.js';
+import { mapCompactionEndEvent, readCompactionReason } from './compaction-event-map.js';
 import { mapPiAutoRetryEvent } from './model-retry-event-map.js';
 import { readNestedId, readNestedRole, readRole, readString } from './pi-event-read.js';
 import {
@@ -185,7 +185,7 @@ export function mapPiSessionEvent(
     case 'auto_retry_end':
       return mapPiAutoRetryEvent(event);
     case 'compaction_start':
-      return [{ type: 'compaction/start' }];
+      return [mapCompactionStartEvent(event)];
     case 'compaction_end':
       return [mapCompactionEndEvent(event)];
     case 'error':
@@ -199,6 +199,27 @@ export function mapPiSessionEvent(
     default:
       return [];
   }
+}
+
+function mapCompactionStartEvent(
+  event: Record<string, unknown>,
+): Extract<AgentEvent, { type: 'compaction/start' }> {
+  const mapped: Extract<AgentEvent, { type: 'compaction/start' }> = {
+    type: 'compaction/start',
+  };
+  const operationId = readString(event.operationId) ?? readString(event.compactionId);
+  if (operationId) {
+    mapped.operationId = operationId;
+  }
+  const reason = readCompactionReason(event.reason);
+  if (reason) {
+    mapped.reason = reason;
+  }
+  const runId = readString(event.runId);
+  if (runId) {
+    mapped.runId = runId;
+  }
+  return mapped;
 }
 
 function mapAgentEndEvent(event: Record<string, unknown>): AgentEvent[] {

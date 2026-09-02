@@ -6,6 +6,35 @@ import {
 } from './seeded-pi-session.js';
 
 describe('createSeededPiSessionManager', () => {
+  it('prepends a native compaction summary before replayed messages', () => {
+    const appended: unknown[] = [];
+    const manager = {
+      appendCompaction: vi.fn((...args: unknown[]) => {
+        appended.push({ kind: 'compaction', args });
+        return 'compaction-entry';
+      }),
+      appendMessage: vi.fn((message: unknown) => {
+        appended.push(message);
+        return `entry-${appended.length}`;
+      }),
+    };
+
+    createSeededPiSessionManager(
+      { SessionManager: { inMemory: () => manager } },
+      '/tmp/project',
+      [{ role: 'user', text: 'new turn', timestamp: 1000 }],
+      { summary: 'Earlier decisions and unresolved work.', tokensBefore: 20_000 },
+    );
+
+    expect(manager.appendCompaction).toHaveBeenCalledWith(
+      'Earlier decisions and unresolved work.',
+      '__piwin_compaction_replay_boundary__',
+      20_000,
+    );
+    expect(appended[0]).toMatchObject({ kind: 'compaction' });
+    expect(appended[1]).toMatchObject({ role: 'user', content: 'new turn' });
+  });
+
   it('uses Pi in-memory history without creating a persisted session file', () => {
     const appended: unknown[] = [];
     const manager = {

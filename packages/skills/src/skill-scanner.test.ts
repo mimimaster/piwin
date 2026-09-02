@@ -74,11 +74,38 @@ describe('scanSkills', () => {
     expect(content).toContain('subagent-driven');
     expect(content).toContain('inline');
     expect(content).toContain('independentSteps');
+    expect(content).toContain('dependsOn');
+    expect(content).toContain('parallelGroup');
     expect(content).toContain('Walkthrough');
     expect(content).toContain('Do **not** ask the user in chat');
+    expect(content).toMatch(/^version:\s*3\b/m);
   });
-});
 
+  it('discovers the bundled optimize-prompt skill', async () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const repoSkillsRoot = resolve(here, '..', '..', '..', 'skills');
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-skills-optimize-prompt-'));
+    try {
+      const skills = await scanSkills({ piwinRoot: rootDir, bundledRoot: repoSkillsRoot });
+      const optimize = skills.find((skill) => skill.id === 'optimize-prompt');
+      expect(optimize).toBeTruthy();
+      expect(optimize?.source).toBe('bundled');
+      expect(optimize?.name).toBe('optimize-prompt');
+    } finally {
+      const { rm } = await import('node:fs/promises');
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
+  it('optimize-prompt SKILL.md documents density contracts', async () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const skillPath = resolve(here, '..', '..', '..', 'skills', 'optimize-prompt', 'SKILL.md');
+    const content = await readFile(skillPath, 'utf8');
+    expect(content).toContain('optimize-prompt');
+    expect(content).toContain('Zero Persona');
+    expect(content).toContain('No Implementation Leaks');
+    expect(content).toContain('Data Envelopes');
+  });
 
   it('discovers the bundled improve skill', async () => {
     const here = dirname(fileURLToPath(import.meta.url));
@@ -107,6 +134,7 @@ describe('scanSkills', () => {
     expect(content).toContain('STOP');
     expect(content).toContain('piwin_plan_create');
   });
+});
 
 describe('scanSkills hidden flag', () => {
   it('marks a skill hidden when frontmatter has hidden: true', async () => {

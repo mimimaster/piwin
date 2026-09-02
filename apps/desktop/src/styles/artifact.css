@@ -228,6 +228,37 @@
   }
 }
 
+/* A wide desktop can still contain a narrow pane. Mirror the global compact
+   layout at the pane boundary so an Artifact side rail never squeezes its
+   preview or becomes the source of hidden horizontal overflow. */
+@container conversation-pane (max-width: 640px) {
+  .artifact-frame.has-artifact-action {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .artifact-frame.has-artifact-action > :not(.artifact-frame-actions) {
+    order: 2;
+  }
+
+  .artifact-frame.has-artifact-action > .artifact-frame-actions {
+    order: 1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: 100%;
+    margin-top: 0;
+    margin-bottom: var(--s-3);
+  }
+
+  .artifact-frame-actions .artifact-frame-text-action {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
 .artifact-frame .muted {
   padding: 0;
   margin: 0;

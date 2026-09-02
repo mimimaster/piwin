@@ -408,6 +408,49 @@ describe('ConversationPaneSession', () => {
     expect(container?.querySelector('[data-testid="context-usage-ring"]')).not.toBeNull();
   });
 
+  it('keeps a legacy idle runtime-mismatch snapshot visible as stale', async () => {
+    const host = new FakeHostClient();
+    host.advertiseContextTelemetry = true;
+    host.contextSnapshot = {
+      sessionId: 'session-aux',
+      revision: 53,
+      contextVersion: 3,
+      contextBoundary: {
+        activeLeafMessageId: 'voice-live-leaf',
+        model: { providerId: 'xai', modelId: 'grok-4.5' },
+      },
+      responseEvidence: {
+        currentRunHasResponse: false,
+        historyHasDisplayableResponse: true,
+      },
+      phase: 'idle',
+      occupancy: { kind: 'unknown', reason: 'runtime-generation-mismatch' },
+      lastConfirmed: {
+        occupancy: {
+          kind: 'known',
+          tokensUsed: 7_797,
+          tokensLimit: 500_000,
+          quality: 'measured',
+          coverage: 'complete',
+          basis: 'current-request',
+          sampledAt: '2026-09-01T08:23:05.531Z',
+        },
+        contextBoundary: { activeLeafMessageId: 'piw-m-49611ee64295e86bfb3a34ac' },
+        sampledAt: '2026-09-01T08:23:05.531Z',
+      },
+      updatedAt: '2026-09-01T15:04:21.728Z',
+    };
+    ({ container, root } = renderSession(host));
+    await vi.waitFor(() =>
+      expect(
+        container?.querySelector<HTMLElement>('[data-testid="conversation-pane-session"]')?.dataset
+          .contextRing,
+      ).toBe('visible'),
+    );
+    expect(container?.querySelector('[data-testid="context-usage-ring"]')).not.toBeNull();
+    expect(container?.textContent).toContain('Last confirmed; current context pending measurement');
+  });
+
   it('hides occupancy when resume fails', async () => {
     const host = new FakeHostClient();
     host.advertiseContextTelemetry = true;

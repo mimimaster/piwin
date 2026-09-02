@@ -1,11 +1,73 @@
 import { describe, expect, it } from 'vitest';
-import {
-  chatUiReducer,
-  createInitialChatUiState,
-  mapTranscriptMessagesToUi,
-} from './chat-reducer';
+import { chatUiReducer, createInitialChatUiState, mapTranscriptMessagesToUi } from './chat-reducer';
 
 describe('chatUiReducer session and context', () => {
+  it('session/add from a draft send keeps the optimistic user bubble and leaves Send enabled', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, {
+      type: 'user/send',
+      text: 'test',
+      clientMessageId: 'u-test',
+      model: {
+        protocol: 'openai-compatible',
+        providerId: 'xgrok',
+        modelId: 'grok-4.6',
+      },
+    });
+    expect(state.activeSessionId).toBeNull();
+    expect(state.messages.map((message) => message.text)).toEqual(['test']);
+    expect(state.streaming).toBe(true);
+
+    state = chatUiReducer(state, {
+      type: 'session/add',
+      sessionId: 's-new',
+      name: 'test',
+      scope: { kind: 'general' },
+    });
+
+    expect(state.activeSessionId).toBe('s-new');
+    expect(state.messages).toHaveLength(1);
+    expect(state.messages[0]).toMatchObject({ id: 'u-test', role: 'user', text: 'test' });
+    expect(state.streaming).toBe(true);
+    expect(state.runPhase).toBe('streaming');
+    expect(state.foregroundAdmission).toBe('ready');
+    expect(state.pendingTurnModel?.modelId).toBe('grok-4.6');
+
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's-new',
+      event: {
+        type: 'message/start',
+        messageId: 'a1',
+        role: 'assistant',
+        runId: 'run-1',
+      },
+    });
+    expect(state.messages.map((message) => message.role)).toEqual(['user', 'assistant']);
+    expect(state.messages[0]?.text).toBe('test');
+  });
+
+  it('session/add does not wipe the painted transcript of the already-active session', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, {
+      type: 'user/send',
+      text: 'hello',
+      clientMessageId: 'u1',
+    });
+
+    state = chatUiReducer(state, {
+      type: 'session/add',
+      sessionId: 's1',
+      name: 'hello',
+      scope: { kind: 'general' },
+    });
+
+    expect(state.activeSessionId).toBe('s1');
+    expect(state.messages.map((message) => message.text)).toEqual(['hello']);
+    expect(state.streaming).toBe(true);
+  });
+
   it('keeps explicit Skill provenance on the active prompt until the run ends', () => {
     let state = chatUiReducer(createInitialChatUiState(), {
       type: 'session/set',
@@ -413,6 +475,82 @@ describe('chatUiReducer session and context', () => {
     });
     expect(state.compacting).toBe(false);
     expect(state.lastCompactionMessage).toBe('done');
+  });
+
+  it('clears the transient activity when Pi reports a no-op compact', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: { type: 'compaction/start', operationId: 'compact-no-op', reason: 'manual' },
+    });
+    expect(state.compacting).toBe(true);
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: {
+        type: 'compaction/end',
+        operationId: 'compact-no-op',
+        ok: false,
+        noOp: true,
+        message: 'Compaction failed: Nothing to compact (session too small)',
+      },
+    });
+    expect(state.compacting).toBe(false);
+    expect(state.compactionActivity).toBeNull();
+    expect(state.lastCompactionMessage).toBeNull();
+  });
+
+  it('keeps compaction lifecycle state bound to the current transcript and session', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: { type: 'message/start', messageId: 'assistant-1', role: 'assistant', runId: 'run-1' },
+    });
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: {
+        type: 'compaction/start',
+        operationId: 'compact-1',
+        reason: 'manual',
+        runId: 'run-1',
+      },
+    });
+    expect(state.compactionActivity).toMatchObject({
+      operationId: 'compact-1',
+      phase: 'running',
+      reason: 'manual',
+      anchorMessageId: 'assistant-1',
+      runId: 'run-1',
+    });
+
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: {
+        type: 'compaction/end',
+        operationId: 'compact-1',
+        aborted: true,
+        ok: false,
+        willRetry: true,
+        message: 'cancelled by user',
+      },
+    });
+    expect(state.compactionActivity).toMatchObject({
+      operationId: 'compact-1',
+      phase: 'cancelled',
+      willRetry: true,
+      message: 'cancelled by user',
+    });
+
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's2' });
+    expect(state.compactionActivity).toBeNull();
+    expect(state.lastCompactionMessage).toBeNull();
+    expect(state.compacting).toBe(false);
   });
 
   it('stores compaction detail fields without inventing tokens', () => {

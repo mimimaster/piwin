@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, readdir, readFile, realpath, stat, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, open, readdir, readFile, realpath, stat, unlink, writeFile } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
 import { contentKindForMimeType } from '@piwin/contracts';
 import type {
@@ -91,6 +91,8 @@ export type ReadMediaInput = {
   assetId: string;
   maxBytes: number;
   thumbEdge?: MediaThumbEdge;
+  offset?: number;
+  length?: number;
 };
 
 export type ReadMediaResult =
@@ -101,6 +103,7 @@ export type ReadMediaResult =
       mimeType: string;
       byteSize: number;
       bytes: Uint8Array;
+      offset?: number;
     }
   | {
       status: 'unavailable';
@@ -295,6 +298,18 @@ export async function readMediaAsset(
   if (!Number.isSafeInteger(input.maxBytes) || input.maxBytes <= 0) {
     return { status: 'unavailable', reason: 'invalid-request' };
   }
+  const ranged = input.offset !== undefined;
+  if (ranged) {
+    if (!Number.isSafeInteger(input.offset) || (input.offset ?? 0) < 0) {
+      return { status: 'unavailable', reason: 'invalid-request' };
+    }
+    if (
+      input.length !== undefined &&
+      (!Number.isSafeInteger(input.length) || input.length <= 0)
+    ) {
+      return { status: 'unavailable', reason: 'invalid-request' };
+    }
+  }
   const located = await locateVaultFile(options, input);
   if (located.status === 'unavailable') {
     return located;
@@ -303,19 +318,53 @@ export async function readMediaAsset(
   if (fileStat === null || !fileStat.isFile()) {
     return { status: 'unavailable', reason: 'not-found' };
   }
-  if (fileStat.size > input.maxBytes) {
-    return { status: 'unavailable', reason: 'too-large' };
+  const mimeType =
+    EXT_TO_MIME[extname(located.fileName).toLowerCase()] ?? 'application/octet-stream';
+  if (!ranged) {
+    if (fileStat.size > input.maxBytes) {
+      return { status: 'unavailable', reason: 'too-large' };
+    }
+    const bytes = await readFile(located.absolutePath);
+    return {
+      status: 'ready',
+      assetId: located.assetId,
+      sessionId: located.sessionId,
+      mimeType,
+      byteSize: bytes.byteLength,
+      bytes,
+    };
   }
 
-  const bytes = await readFile(located.absolutePath);
-  return {
-    status: 'ready',
-    assetId: located.assetId,
-    sessionId: located.sessionId,
-    mimeType: EXT_TO_MIME[extname(located.fileName).toLowerCase()] ?? 'application/octet-stream',
-    byteSize: bytes.byteLength,
-    bytes,
-  };
+  const offset = input.offset ?? 0;
+  const remaining = Math.max(0, fileStat.size - offset);
+  const length = Math.min(input.length ?? input.maxBytes, input.maxBytes, remaining);
+  if (length === 0) {
+    return {
+      status: 'ready',
+      assetId: located.assetId,
+      sessionId: located.sessionId,
+      mimeType,
+      byteSize: fileStat.size,
+      bytes: new Uint8Array(0),
+      offset,
+    };
+  }
+  const handle = await open(located.absolutePath, 'r');
+  try {
+    const buffer = new Uint8Array(length);
+    const { bytesRead } = await handle.read(buffer, 0, length, offset);
+    return {
+      status: 'ready',
+      assetId: located.assetId,
+      sessionId: located.sessionId,
+      mimeType,
+      byteSize: fileStat.size,
+      bytes: bytesRead === length ? buffer : buffer.subarray(0, bytesRead),
+      offset,
+    };
+  } finally {
+    await handle.close();
+  }
 }
 
 export async function deleteMediaAsset(

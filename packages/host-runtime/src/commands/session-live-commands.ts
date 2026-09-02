@@ -99,6 +99,7 @@ import {
   getPiwinRoot,
   getPiwinSessionDir,
   getPiwinSessionIndexPath,
+  getPiwinSessionMediaDir,
   getPiwinSessionModelContextDatabasePath,
   getPiwinSessionPlanPath,
 } from '../paths.js';
@@ -113,6 +114,7 @@ import {
   scopeFromIndexRecord,
   workingDirectoryFromIndexRecord,
 } from '../session-scope.js';
+import { bindOrphanGeneratedMediaToStore } from '../bind-orphan-generated-media.js';
 import { repairLegacySessionNames } from '../session-name-repair.js';
 import { settleOrphanStreamingMessages } from '../transcript-stream-settler.js';
 import { findEnabledModel } from '../provider-helpers.js';
@@ -519,7 +521,11 @@ export async function handleSessionLiveCommand(
       const data: SessionResumeData = {
         sessionId: command.sessionId,
         live,
-        messages: transcriptPage.messages,
+        messages: await bindOrphanGeneratedMediaToStore({
+          store,
+          sessionMediaDir: getPiwinSessionMediaDir(rootDir, command.sessionId),
+          messages: transcriptPage.messages,
+        }),
         transcriptPage: transcriptPage.page,
         projectPath: existing.projectPath,
         // ADR 0040 §9: bounded recent window, never the complete outline.
@@ -744,9 +750,8 @@ export async function handleSessionLiveCommand(
           return rejectedMessages;
         }
       }
-      const page = await (
-        await context.getTranscriptStore(command.sessionId)
-      ).transcriptPage({
+      const store = await context.getTranscriptStore(command.sessionId);
+      const page = await store.transcriptPage({
         sessionId: command.sessionId,
         limit: SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS,
         maximumBytes: SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
@@ -756,7 +761,14 @@ export async function handleSessionLiveCommand(
       }
       return ok(requestId, 'session/messages', {
         sessionId: command.sessionId,
-        messages: page.messages,
+        messages: await bindOrphanGeneratedMediaToStore({
+          store,
+          sessionMediaDir: getPiwinSessionMediaDir(
+            getPiwinRoot(context.piwinRoot),
+            command.sessionId,
+          ),
+          messages: page.messages,
+        }),
       });
     }
     case 'session/foreground-run': {

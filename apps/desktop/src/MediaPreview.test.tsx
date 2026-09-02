@@ -36,7 +36,12 @@ describe('MediaPreview', () => {
   it('resolves a local vault video when no preview URL is supplied', async () => {
     const resolveSpy = vi
       .spyOn(mediaUtils, 'resolveMediaPreviewUrl')
-      .mockResolvedValue('asset://video-1.mp4');
+      .mockResolvedValue('http://asset.localhost/video-1.mp4');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(new Uint8Array([1, 2, 3]), { status: 200 })),
+    );
+    const createSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:playable-local');
     const attachment: MediaAttachmentRef = {
       id: 'video-1',
       kind: 'media',
@@ -56,9 +61,11 @@ describe('MediaPreview', () => {
 
     const video = container.querySelector<HTMLVideoElement>('.media-preview-video');
     expect(video).not.toBeNull();
-    expect(video?.src).toContain('asset://video-1.mp4');
+    expect(video?.src).toContain('blob:playable-local');
     expect(container.textContent).not.toContain('video/mp4 · 2759590B');
     resolveSpy.mockRestore();
+    createSpy.mockRestore();
+    vi.unstubAllGlobals();
   });
 
   it('renders generated videos as an inline controllable video element', () => {
@@ -266,6 +273,37 @@ describe('MediaPreview', () => {
     limitSpy.mockRestore();
     revokeSpy.mockRestore();
     root = createRoot(container);
+  });
+
+  it('loads a redacted generated video through media/read instead of preview failed', async () => {
+    const resolveSpy = vi.spyOn(mediaUtils, 'resolveMediaPreviewUrl').mockResolvedValue(null);
+    const readMedia = vi.fn(async () => 'blob:host-video');
+    const attachment: MediaAttachmentRef = {
+      id: 'asset-vid',
+      kind: 'media',
+      path: '[host-path]',
+      mimeType: 'video/mp4',
+      byteSize: 1_475_051,
+      source: 'generated',
+    };
+
+    await act(async () => {
+      root.render(
+        <MediaPreview attachment={attachment} sessionId="sess-1" readMedia={readMedia} />,
+      );
+    });
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(readMedia).toHaveBeenCalledWith({ sessionId: 'sess-1', assetId: 'asset-vid' });
+      });
+    });
+    const video = container.querySelector<HTMLVideoElement>('.media-preview-video');
+    expect(video).not.toBeNull();
+    expect(video?.src).toContain('blob:host-video');
+    expect(container.textContent).not.toContain('preview failed');
+    expect(container.textContent).not.toContain('video/mp4 · 1475051B');
+
+    resolveSpy.mockRestore();
   });
 
   it('loads remote-asset thumbs through media/read when convertFileSrc cannot resolve', async () => {

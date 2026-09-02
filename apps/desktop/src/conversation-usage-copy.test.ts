@@ -59,6 +59,7 @@ describe('conversation usage copy', () => {
     expect(zh.settings).toContain('上下文');
     expect(zh.estimated).toBe('估算');
     expect(zh.confirmed).toBe('已确认');
+    expect(zh.pendingMeasurement).toBe('当前上下文待测量');
     expect(zh.realtimeEstimate).toBe('实时估算');
     expect(zh.limitUnknown).toBe('上限未知');
     expect(zh.exceedsLimit).toBe('超过上下文上限');

@@ -276,7 +276,7 @@ describe('useActiveDocument', () => {
     expect(latest.activeDocument?.status).toBe('ready');
     if (latest.activeDocument?.status === 'ready') {
       expect(latest.activeDocument.provenance).toBe('session-media');
-      expect(latest.activeDocument.media?.dataUrl).toContain('data:image/png;base64,AQIDBA==');
+      expect(latest.activeDocument.media?.dataUrl).toMatch(/^(blob:|data:)/);
     }
   });
 

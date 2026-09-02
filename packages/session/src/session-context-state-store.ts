@@ -261,21 +261,32 @@ export async function seedDerivedSessionContextState(input: {
   target: Pick<SessionTranscriptStore, 'replaceContextState' | 'getActiveLeaf'>;
   targetSessionId: string;
   updatedAt: string;
+  /**
+   * Durable compaction copied alongside the derived transcript. The source
+   * snapshot predates this boundary in older stores, so callers pass it
+   * explicitly when they have also copied the compaction record.
+   */
+  compactionBoundary?: string;
+  /**
+   * Transcript cloning can establish history evidence even when a legacy
+   * source has no persisted context snapshot yet.
+   */
+  historyHasDisplayableResponse?: boolean;
 }): Promise<SessionContextSnapshot | null> {
   const source = await input.source.readContextState();
-  if (source === null) {
-    return null;
-  }
   const leaf = await input.target.getActiveLeaf();
   const boundary: ContextBoundary = { activeLeafMessageId: leaf };
-  if (source.contextBoundary.model !== undefined) {
+  if (source?.contextBoundary.model !== undefined) {
     boundary.model = source.contextBoundary.model;
   }
-  if (source.contextBoundary.capabilityFingerprint !== undefined) {
+  if (source?.contextBoundary.capabilityFingerprint !== undefined) {
     boundary.capabilityFingerprint = source.contextBoundary.capabilityFingerprint;
   }
-  if (source.contextBoundary.seedFingerprint !== undefined) {
+  if (source?.contextBoundary.seedFingerprint !== undefined) {
     boundary.seedFingerprint = source.contextBoundary.seedFingerprint;
+  }
+  if (input.compactionBoundary !== undefined) {
+    boundary.compactionBoundary = input.compactionBoundary;
   }
   const snapshot = createUnknownSessionContextSnapshot({
     sessionId: input.targetSessionId,
@@ -286,7 +297,11 @@ export async function seedDerivedSessionContextState(input: {
     reason: 'derived-session',
     updatedAt: input.updatedAt,
   });
-  if (source.responseEvidence.historyHasDisplayableResponse) {
+  const historyHasDisplayableResponse =
+    input.historyHasDisplayableResponse ??
+    source?.responseEvidence.historyHasDisplayableResponse ??
+    false;
+  if (historyHasDisplayableResponse || input.compactionBoundary !== undefined) {
     snapshot.responseEvidence = {
       currentRunHasResponse: false,
       historyHasDisplayableResponse: true,

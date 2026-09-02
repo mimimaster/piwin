@@ -88,6 +88,53 @@ describe('projectTranscriptMessagesForUi', () => {
     });
   });
 
+  it('keeps compact truncation metadata when bulk output is omitted', () => {
+    const messages: SessionTranscriptMessage[] = [
+      {
+        id: 'a-truncated',
+        role: 'assistant',
+        text: 'done',
+        createdAt: '2026-08-25T00:00:00.000Z',
+        status: 'done',
+        tools: [
+          {
+            toolCallId: 'read-truncated',
+            toolName: 'read',
+            status: 'done',
+            output: 'large output',
+            presentation: {
+              kind: 'filesystem',
+              title: 'Read',
+              output: {
+                text: 'large output',
+                truncated: true,
+                truncation: {
+                  reason: 'line-limit',
+                  shownLines: { start: 1, end: 2000 },
+                  totalLines: 6280,
+                  nextOffset: 2001,
+                },
+              },
+            },
+          },
+        ],
+      },
+    ];
+
+    const tool = projectTranscriptMessagesForUi(messages)[0]?.tools?.[0];
+    expect(tool?.output).toBe('');
+    expect(tool?.presentation?.output).toEqual({
+      text: '',
+      truncated: true,
+      truncation: {
+        reason: 'line-limit',
+        shownLines: { start: 1, end: 2000 },
+        totalLines: 6280,
+        nextOffset: 2001,
+      },
+    });
+  });
+
   it('leaves messages without tools unchanged by reference shape', () => {
     const messages: SessionTranscriptMessage[] = [
       {

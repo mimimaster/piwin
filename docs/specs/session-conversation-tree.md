@@ -162,6 +162,13 @@ CREATE TABLE IF NOT EXISTS native_entry(
 >   exactly-once 标记路径。
 > - fork/duplicate 复制时 `cloneTranscriptMessage` 重生成行 id，副本按
 >   源id→新id 映射复制（`copyNativeEntries`）。
+> - 成功 compact 同步写入 session transcript 的 `session_compaction` 边界
+>   （摘要、anchor、token 证据与 runtime generation）。冷激活或换模型时先
+>   以 Pi 原生 compaction entry 恢复该摘要，再只重放 anchor 之后的 active
+>   path；摘要不会作为可见的 user/assistant transcript 行重复出现。
+> - 同一 compact 可能同时被命令结果与 recorder 观察，store 按 session、
+>   anchor、摘要和 token 证据幂等去重；有 native replay/compaction seed 时
+>   不再额外注入 product-history，避免恢复后上下文重复。
 
 ### 4.5 测试
 

@@ -157,11 +157,11 @@ describe('resolveTranscriptPreviewUrls', () => {
     expect(result.fullUrl).toBe('blob:host');
   });
 
-  it('reconstructs a redacted video path on the local vault instead of media/read', async () => {
+  it('uses media/read when a reconstructed video asset URL is not playable', async () => {
     const resolveSpy = vi.spyOn(mediaUtils, 'resolveMediaPreviewUrl').mockImplementation(async (path) => {
       return path.endsWith('/.piwin/media/sess-1/asset-1.mp4') ? 'asset://video-1.mp4' : null;
     });
-    const readMedia = vi.fn(async () => 'blob:host');
+    const readMedia = vi.fn(async () => 'blob:host-video');
 
     const result = await resolveTranscriptPreviewUrls({
       path: '[host-path]',
@@ -174,15 +174,15 @@ describe('resolveTranscriptPreviewUrls', () => {
     });
 
     expect(result).toEqual({
-      thumbUrl: 'asset://video-1.mp4',
-      fullUrl: 'asset://video-1.mp4',
+      thumbUrl: 'blob:host-video',
+      fullUrl: 'blob:host-video',
       ownedThumb: null,
     });
-    expect(readMedia).not.toHaveBeenCalled();
+    expect(readMedia).toHaveBeenCalledWith({ sessionId: 'sess-1', assetId: 'asset-1' });
     expect(resolveSpy).toHaveBeenCalledWith('/Users/me/.piwin/media/sess-1/asset-1.mp4');
   });
 
-  it('does not base64-read a video after convertFileSrc misses', async () => {
+  it('reads a video through media/read when convertFileSrc misses', async () => {
     vi.spyOn(mediaUtils, 'resolveMediaPreviewUrl').mockResolvedValue(null);
     const readMedia = vi.fn(async () => 'blob:host');
 
@@ -196,8 +196,12 @@ describe('resolveTranscriptPreviewUrls', () => {
       readMedia,
     });
 
-    expect(result).toEqual({ thumbUrl: null, fullUrl: null, ownedThumb: null });
-    expect(readMedia).not.toHaveBeenCalled();
+    expect(readMedia).toHaveBeenCalledWith({ sessionId: 'sess-1', assetId: 'asset-9' });
+    expect(result).toEqual({
+      thumbUrl: 'blob:host',
+      fullUrl: 'blob:host',
+      ownedThumb: null,
+    });
   });
 
   it('rewrites a local video asset URL to a blob URL so play() can start', async () => {

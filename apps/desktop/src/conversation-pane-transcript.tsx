@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, type ReactElement } from 'react';
+import { Fragment, useEffect, useMemo, useRef, type ReactElement } from 'react';
 import type { ModelRef, ThemeManifest } from '@piwin/contracts';
 import type { ChatMessageUi, ChatUiState } from './chat-reducer.js';
+import { CompactionActivity } from './compaction-activity.js';
 import { ConversationResponseContent } from './conversation-response-content.js';
 import { UserMessageContent } from './conversation-user-message.js';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model.js';
@@ -17,6 +18,8 @@ export type ConversationPaneTranscriptProps = {
   onOpenDocument?: (doc: DocumentOpenInput) => void;
   onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
   fileBrowseRoot?: string | null;
+  onCompactAbort?: () => void | Promise<void>;
+  onCompactDismiss?: () => void;
 };
 
 function createPendingAssistant(
@@ -83,7 +86,7 @@ export function ConversationPaneTranscript(props: ConversationPaneTranscriptProp
       ) : null}
       {messages.map((message, messageIndex) => {
         if (message.role === 'user') {
-          return (
+          const userRow = (
             <div
               key={message.id}
               className="conversation-pane-message role-user"
@@ -97,6 +100,19 @@ export function ConversationPaneTranscript(props: ConversationPaneTranscriptProp
               />
             </div>
           );
+          return (
+            <Fragment key={message.id}>
+              {userRow}
+              {props.state.compactionActivity?.anchorMessageId === message.id ? (
+                <CompactionActivity
+                  activity={props.state.compactionActivity}
+                  locale={props.locale}
+                  {...(props.onCompactAbort ? { onAbort: props.onCompactAbort } : {})}
+                  {...(props.onCompactDismiss ? { onDismiss: props.onCompactDismiss } : {})}
+                />
+              ) : null}
+            </Fragment>
+          );
         }
         if (message.role === 'assistant') {
           // A transcript row can remain marked streaming after a terminal push
@@ -104,7 +120,9 @@ export function ConversationPaneTranscript(props: ConversationPaneTranscriptProp
           // truth for live chrome; otherwise a historical row can keep the
           // spinner and suppress its settled identity forever.
           const isLiveMessage = props.state.streaming && message.status === 'streaming';
-          return (
+          const previous = messages[messageIndex - 1];
+          const showHeader = previous?.role !== 'assistant';
+          const assistantRow = (
             <div
               key={message.id}
               className="conversation-pane-message role-assistant"
@@ -121,6 +139,8 @@ export function ConversationPaneTranscript(props: ConversationPaneTranscriptProp
                 runRecordsById={props.state.runRecordsById}
                 activeRunId={props.state.activeRunId}
                 locale={props.locale}
+                showHeader={showHeader}
+                renderMediaChrome
                 {...(props.livePromptModel !== undefined
                   ? { livePromptModel: props.livePromptModel }
                   : {})}
@@ -134,6 +154,19 @@ export function ConversationPaneTranscript(props: ConversationPaneTranscriptProp
               />
             </div>
           );
+          return (
+            <Fragment key={message.id}>
+              {assistantRow}
+              {props.state.compactionActivity?.anchorMessageId === message.id ? (
+                <CompactionActivity
+                  activity={props.state.compactionActivity}
+                  locale={props.locale}
+                  {...(props.onCompactAbort ? { onAbort: props.onCompactAbort } : {})}
+                  {...(props.onCompactDismiss ? { onDismiss: props.onCompactDismiss } : {})}
+                />
+              ) : null}
+            </Fragment>
+          );
         }
         return (
           <div key={message.id} className="conversation-pane-system-message muted">
@@ -141,6 +174,15 @@ export function ConversationPaneTranscript(props: ConversationPaneTranscriptProp
           </div>
         );
       })}
+      {props.state.compactionActivity &&
+      !messages.some((message) => message.id === props.state.compactionActivity?.anchorMessageId) ? (
+        <CompactionActivity
+          activity={props.state.compactionActivity}
+          locale={props.locale}
+          {...(props.onCompactAbort ? { onAbort: props.onCompactAbort } : {})}
+          {...(props.onCompactDismiss ? { onDismiss: props.onCompactDismiss } : {})}
+        />
+      ) : null}
       <div ref={endRef} aria-hidden="true" />
     </div>
   );

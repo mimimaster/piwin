@@ -19,6 +19,8 @@ import {
   resolveModelDisplayName,
 } from './conversation-message-identity';
 import { CitationCards } from './CitationCards';
+import { ImageGenerationProgress } from './image-generation-progress';
+import { MessageAttachments } from './message-attachments';
 import { extractFlashcardItemIdsFromText } from './resolve-conversation-flashcards.js';
 import { FlashcardResultProjection } from './FlashcardResultProjection';
 import { extractFlashcardRecords, getMessageTools } from './flashcard-result-extract.js';
@@ -33,7 +35,12 @@ import { buildTurnPresentation } from './run-presentation.js';
 import { runtimeStatusText } from './run-activity-strings.js';
 import { conversationActivityLabel } from './conversation-activity.js';
 import { TurnToolGroup } from './turn-tool-group.js';
-import { resolveGenerationToolKind } from './generation-tool-kind.js';
+import {
+  getGenerationStatus,
+  resolveGenerationToolKind,
+  shouldRenderGenerationProgress,
+} from './generation-tool-kind.js';
+import { VideoGenerationProgress } from './video-generation-progress';
 import type { ToolCallDensity } from './ui-preferences.js';
 
 export {
@@ -80,6 +87,8 @@ export function ConversationResponseContent(props: {
   onResolveFlashcards?: (itemIds: string[]) => Promise<FlashcardReviewCard[]>;
   /** False for later completions in the same Conversation turn. Default true. */
   showHeader?: boolean;
+  /** Supplementary panes bypass ChatMessageRow, so they opt into media chrome here. */
+  renderMediaChrome?: boolean;
 }): ReactElement {
   const { message, locale } = props;
   const presentation = buildTurnPresentation({
@@ -140,6 +149,8 @@ export function ConversationResponseContent(props: {
   const conversationTools = message.tools.filter(
     (tool) => resolveGenerationToolKind(tool) === null,
   );
+  const imageGenerationStatus = getGenerationStatus(message, 'image');
+  const videoGenerationStatus = getGenerationStatus(message, 'video');
   const resolvedModel = resolveConversationMessageModel({
     message,
     livePromptModel: props.livePromptModel ?? null,
@@ -155,6 +166,7 @@ export function ConversationResponseContent(props: {
     : undefined;
 
   const showHeader = props.showHeader !== false;
+  const renderMediaChrome = props.renderMediaChrome === true;
 
   const isAwaitingFirstToken =
     liveStreaming &&
@@ -327,6 +339,24 @@ export function ConversationResponseContent(props: {
 
       {message.searchEvidence !== undefined ? (
         <CitationCards evidence={message.searchEvidence} />
+      ) : null}
+      {renderMediaChrome &&
+      imageGenerationStatus &&
+      shouldRenderGenerationProgress(imageGenerationStatus, message.attachments) ? (
+        <ImageGenerationProgress locale={locale} status={imageGenerationStatus} />
+      ) : null}
+      {renderMediaChrome &&
+      videoGenerationStatus &&
+      shouldRenderGenerationProgress(videoGenerationStatus, message.attachments) ? (
+        <VideoGenerationProgress locale={locale} status={videoGenerationStatus} />
+      ) : null}
+      {renderMediaChrome ? (
+        <MessageAttachments
+          attachments={message.attachments}
+          {...(message.contextRefs ? { contextRefs: message.contextRefs } : {})}
+          role="assistant"
+          locale={locale}
+        />
       ) : null}
     </div>
   );

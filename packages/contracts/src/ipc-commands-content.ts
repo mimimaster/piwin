@@ -80,6 +80,8 @@ export type MediaReadCommandInput = {
   variant?: MediaReadVariant;
   /** 256 (dense) or 384 (standard). Ignored unless variant is `thumb`. */
   thumbEdge?: MediaThumbEdge;
+  offset?: number;
+  length?: number;
 };
 
 export type HostContentCommand =

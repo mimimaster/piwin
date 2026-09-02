@@ -3,6 +3,7 @@ import type { ExtensionDeploymentRecord, SessionPlan, ThemeManifest } from '@piw
 import {
   cacheSessionPlan,
   describeExtensionDeploymentFailure,
+  hasContextTelemetryCapability,
   resolveShellHostReady,
   resolveThemeBootstrapResponse,
   selectSessionPlan,
@@ -34,6 +35,22 @@ describe('resolveShellHostReady', () => {
         statusSuccess: false,
       }),
     ).toBe(false);
+  });
+});
+
+describe('hasContextTelemetryCapability', () => {
+  it('accepts the remote status capability projection', () => {
+    expect(
+      hasContextTelemetryCapability({
+        capabilities: { contextTelemetryVersion: 1 },
+      }),
+    ).toBe(true);
+  });
+
+  it('fails closed for old or malformed status payloads', () => {
+    expect(hasContextTelemetryCapability({ capabilities: {} })).toBe(false);
+    expect(hasContextTelemetryCapability({ capabilities: null })).toBe(false);
+    expect(hasContextTelemetryCapability(undefined)).toBe(false);
   });
 });
 

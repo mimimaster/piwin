@@ -601,13 +601,13 @@ describe('conversation fast path (pure chat)', () => {
     expect(families).not.toContain('flashcards-write');
   });
 
-  it('CHT-205: exposes lazy Artifact instructions with a compact conversation hint', async () => {
+  it('CHT-205: exposes the resident Artifact contract on conversation sessions', async () => {
     const result = await compileBlueprintForWorker({ scope: generalScope }, conversationOptions);
 
     const appendSystemPrompt = result.blueprint.appendSystemPrompt ?? '';
-    expect(appendSystemPrompt).toContain('<artifact_policy>');
-    expect(appendSystemPrompt).toContain('artifact_instructions');
-    expect(appendSystemPrompt).not.toContain('## HTML Artifact Runtime Contract');
+    expect(appendSystemPrompt).toContain('## Decision Criteria');
+    expect(appendSystemPrompt).toContain('## HTML Artifact Runtime Contract');
+    expect(appendSystemPrompt).toContain('```artifact-html');
     expect(result.blueprint.tools.hostTools.map((tool) => tool.name)).toContain(
       'artifact_instructions',
     );

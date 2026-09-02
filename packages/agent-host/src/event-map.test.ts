@@ -2,7 +2,11 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { createPiSessionEventMapper, mapCompactionEndEvent, mapPiSessionEvent } from './event-map.js';
+import {
+  createPiSessionEventMapper,
+  mapCompactionEndEvent,
+  mapPiSessionEvent,
+} from './event-map.js';
 
 const fixtureDir = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
 
@@ -42,19 +46,17 @@ describe('mapPiSessionEvent', () => {
 
   it('reconstructs assistant content carried only by message_end', () => {
     const mapper = createPiSessionEventMapper();
-    const events = mapper
-      .map({
-        type: 'message_end',
-        messageId: 'm-final',
-        message: {
-          role: 'assistant',
-          content: [
-            { type: 'thinking', thinking: 'checking the provider' },
-            { type: 'text', text: 'The provider returned a quota error.' },
-          ],
-        },
-      })
-      ;
+    const events = mapper.map({
+      type: 'message_end',
+      messageId: 'm-final',
+      message: {
+        role: 'assistant',
+        content: [
+          { type: 'thinking', thinking: 'checking the provider' },
+          { type: 'text', text: 'The provider returned a quota error.' },
+        ],
+      },
+    });
 
     expect(events.slice(0, 4)).toEqual([
       { type: 'message/start', messageId: 'm-final', role: 'assistant' },
@@ -113,18 +115,16 @@ describe('mapPiSessionEvent', () => {
     // Provider rejections (e.g. instant 400) arrive as stopReason:'error' on
     // the recorded message, not as a standalone Pi error event.
     const mapper = createPiSessionEventMapper();
-    const events = mapper
-      .map({
-        type: 'message_end',
-        messageId: 'm-failed',
-        message: {
-          role: 'assistant',
-          content: [],
-          stopReason: 'error',
-          errorMessage: '400: model_not_found',
-        },
-      })
-      ;
+    const events = mapper.map({
+      type: 'message_end',
+      messageId: 'm-failed',
+      message: {
+        role: 'assistant',
+        content: [],
+        stopReason: 'error',
+        errorMessage: '400: model_not_found',
+      },
+    });
 
     expect(events[0]).toEqual({ type: 'message/end', messageId: 'm-failed' });
     expect(events.filter((event) => event.type === 'error')).toEqual([
@@ -181,20 +181,18 @@ describe('mapPiSessionEvent', () => {
 
   it('recovers provider errors from agent_end when message_end omitted stopReason', () => {
     const mapper = createPiSessionEventMapper();
-    const events = mapper
-      .map({
-        type: 'agent_end',
-        sessionId: 'session-1',
-        messages: [
-          {
-            role: 'assistant',
-            content: [],
-            stopReason: 'error',
-            errorMessage: '401: Invalid Authentication',
-          },
-        ],
-      })
-      ;
+    const events = mapper.map({
+      type: 'agent_end',
+      sessionId: 'session-1',
+      messages: [
+        {
+          role: 'assistant',
+          content: [],
+          stopReason: 'error',
+          errorMessage: '401: Invalid Authentication',
+        },
+      ],
+    });
 
     expect(events.filter((event) => event.type === 'error')).toEqual([
       expect.objectContaining({
@@ -210,32 +208,28 @@ describe('mapPiSessionEvent', () => {
 
   it('dedupes identical provider errors across message_end and agent_end', () => {
     const mapper = createPiSessionEventMapper();
-    const first = mapper
-      .map({
-        type: 'message_end',
-        messageId: 'm-dup',
-        message: {
+    const first = mapper.map({
+      type: 'message_end',
+      messageId: 'm-dup',
+      message: {
+        role: 'assistant',
+        content: [],
+        stopReason: 'error',
+        errorMessage: '429: rate limited',
+      },
+    });
+    const second = mapper.map({
+      type: 'agent_end',
+      sessionId: 'session-1',
+      messages: [
+        {
           role: 'assistant',
           content: [],
           stopReason: 'error',
           errorMessage: '429: rate limited',
         },
-      })
-      ;
-    const second = mapper
-      .map({
-        type: 'agent_end',
-        sessionId: 'session-1',
-        messages: [
-          {
-            role: 'assistant',
-            content: [],
-            stopReason: 'error',
-            errorMessage: '429: rate limited',
-          },
-        ],
-      })
-      ;
+      ],
+    });
 
     expect(first.filter((event) => event.type === 'error')).toHaveLength(1);
     expect(second.filter((event) => event.type === 'error')).toHaveLength(0);
@@ -246,19 +240,17 @@ describe('mapPiSessionEvent', () => {
     const errorMessage = '400: Provider returned error';
 
     mapper.map({ type: 'agent_start' });
-    const firstAttempt = mapper
-      .map({
-        type: 'agent_end',
-        messages: [
-          {
-            role: 'assistant',
-            content: [],
-            stopReason: 'error',
-            errorMessage,
-          },
-        ],
-      })
-      ;
+    const firstAttempt = mapper.map({
+      type: 'agent_end',
+      messages: [
+        {
+          role: 'assistant',
+          content: [],
+          stopReason: 'error',
+          errorMessage,
+        },
+      ],
+    });
 
     expect(
       mapper.map({ type: 'auto_retry_start', attempt: 1, delayMs: 250, maxAttempts: 3 }),
@@ -274,42 +266,36 @@ describe('mapPiSessionEvent', () => {
       ]),
     );
     mapper.map({ type: 'agent_start' });
-    const retryAttempt = mapper
-      .map({
-        type: 'agent_end',
-        messages: [
-          {
-            role: 'assistant',
-            content: [],
-            stopReason: 'error',
-            errorMessage,
-          },
-        ],
-      })
-      ;
+    const retryAttempt = mapper.map({
+      type: 'agent_end',
+      messages: [
+        {
+          role: 'assistant',
+          content: [],
+          stopReason: 'error',
+          errorMessage,
+        },
+      ],
+    });
 
     expect(firstAttempt.filter((event) => event.type === 'error')).toHaveLength(1);
     expect(retryAttempt.filter((event) => event.type === 'error')).toHaveLength(0);
 
     expect(mapper.map({ type: 'auto_retry_end', attempt: 1, success: false })).toEqual(
-      expect.arrayContaining([
-        { type: 'model/retry', phase: 'finished', attempt: 1 },
-      ]),
+      expect.arrayContaining([{ type: 'model/retry', phase: 'finished', attempt: 1 }]),
     );
     mapper.map({ type: 'agent_start' });
-    const nextPrompt = mapper
-      .map({
-        type: 'agent_end',
-        messages: [
-          {
-            role: 'assistant',
-            content: [],
-            stopReason: 'error',
-            errorMessage,
-          },
-        ],
-      })
-      ;
+    const nextPrompt = mapper.map({
+      type: 'agent_end',
+      messages: [
+        {
+          role: 'assistant',
+          content: [],
+          stopReason: 'error',
+          errorMessage,
+        },
+      ],
+    });
 
     expect(nextPrompt.filter((event) => event.type === 'error')).toHaveLength(1);
   });
@@ -608,6 +594,52 @@ describe('mapPiSessionEvent', () => {
     });
   });
 
+  it('normalizes Pi read truncation details into a compact continuation range', () => {
+    const mapper = createPiSessionEventMapper();
+    mapper.map({
+      type: 'tool_execution_start',
+      toolCallId: 'read-truncated-1',
+      toolName: 'read',
+      args: { path: 'src/large.ts', offset: 1285 },
+    });
+
+    const endEvents = mapper.map({
+      type: 'tool_execution_end',
+      toolCallId: 'read-truncated-1',
+      toolName: 'read',
+      isError: false,
+      result: {
+        content: [{ type: 'text', text: 'line 1285' }],
+        details: {
+          truncation: {
+            truncated: true,
+            truncatedBy: 'lines',
+            totalLines: 6280,
+            outputLines: 2000,
+            maxLines: 2000,
+            maxBytes: 50 * 1024,
+          },
+        },
+      },
+    });
+
+    expect(endEvents[0]).toMatchObject({
+      type: 'tool/end',
+      presentation: {
+        output: {
+          text: 'line 1285',
+          truncated: true,
+          truncation: {
+            reason: 'line-limit',
+            shownLines: { start: 1285, end: 3284 },
+            totalLines: 6280,
+            nextOffset: 3285,
+          },
+        },
+      },
+    });
+  });
+
   it('maps routed toolbox starts from the effective target without rewriting toolName', () => {
     const events = mapPiSessionEvent({
       type: 'tool_execution_start',
@@ -701,14 +733,12 @@ describe('mapPiSessionEvent', () => {
         arguments: { prompt: 'a paper boat crossing a river' },
       },
     });
-    const [end] = mapper
-      .map({
-        type: 'tool_execution_end',
-        toolCallId: 'call-routed-empty-error',
-        toolName: 'piwin_toolbox',
-        isError: true,
-      })
-      ;
+    const [end] = mapper.map({
+      type: 'tool_execution_end',
+      toolCallId: 'call-routed-empty-error',
+      toolName: 'piwin_toolbox',
+      isError: true,
+    });
     expect(end).toMatchObject({
       type: 'tool/end',
       isError: true,
@@ -750,15 +780,13 @@ describe('mapPiSessionEvent', () => {
       args: { action: 'call', target: 'video_gen', arguments: { prompt: 'before reset' } },
     });
     mapper.reset?.();
-    const [end] = mapper
-      .map({
-        type: 'tool_execution_end',
-        toolCallId: 'call-before-reset',
-        toolName: 'piwin_toolbox',
-        isError: true,
-        output: 'aborted',
-      })
-      ;
+    const [end] = mapper.map({
+      type: 'tool_execution_end',
+      toolCallId: 'call-before-reset',
+      toolName: 'piwin_toolbox',
+      isError: true,
+      output: 'aborted',
+    });
     expect(end).toMatchObject({ presentation: { kind: 'other', title: 'piwin_toolbox' } });
   });
 
@@ -946,7 +974,12 @@ describe('mapPiSessionEvent', () => {
       toolCallId: 'call-write-err',
       toolName: 'write_file',
       result: {
-        content: [{ type: 'text', text: 'Permission denied: Permission denied for write_file: piwin-config' }],
+        content: [
+          {
+            type: 'text',
+            text: 'Permission denied: Permission denied for write_file: piwin-config',
+          },
+        ],
         isError: true,
       },
       isError: true,
@@ -1091,6 +1124,33 @@ describe('mapPiSessionEvent', () => {
 });
 
 describe('mapCompactionEndEvent fixtures', () => {
+  it('keeps compaction operation metadata for the inline lifecycle node', () => {
+    const start = mapPiSessionEvent({
+      type: 'compaction_start',
+      operationId: 'compact-42',
+      reason: 'threshold',
+    });
+    expect(start).toEqual([
+      { type: 'compaction/start', operationId: 'compact-42', reason: 'threshold' },
+    ]);
+
+    const end = mapCompactionEndEvent({
+      type: 'compaction_end',
+      operationId: 'compact-42',
+      reason: 'threshold',
+      aborted: true,
+      willRetry: true,
+      result: undefined,
+    });
+    expect(end).toMatchObject({
+      type: 'compaction/end',
+      operationId: 'compact-42',
+      reason: 'threshold',
+      aborted: true,
+      willRetry: true,
+    });
+  });
+
   it('maps rich Pi compaction_end result fields', () => {
     const raw = JSON.parse(
       readFileSync(join(fixtureDir, 'compaction-end-rich.json'), 'utf8'),
@@ -1120,6 +1180,115 @@ describe('mapCompactionEndEvent fixtures', () => {
     expect(end.message).toMatch(/cancelled|aborted/i);
     expect(end.tokensBefore).toBeUndefined();
     expect(end.tokensAfter).toBeUndefined();
+  });
+
+  it('treats an aborted legacy event as failed even when ok is optimistic', () => {
+    const end = mapCompactionEndEvent({
+      type: 'compaction_end',
+      ok: true,
+      aborted: true,
+      result: { summary: 'should not become a boundary', tokensBefore: 1000 },
+    });
+    expect(end.ok).toBe(false);
+    expect(end.summary).toBe('should not become a boundary');
+  });
+
+  it('falls back to top-level summary fields when a shaped result omits them', () => {
+    const end = mapCompactionEndEvent({
+      type: 'compaction_end',
+      summary: 'summary from the adapter envelope',
+      firstKeptEntryId: 'entry-7',
+      result: { tokensBefore: 1000, estimatedTokensAfter: 300 },
+    });
+    expect(end).toMatchObject({
+      ok: true,
+      summary: 'summary from the adapter envelope',
+      firstKeptEntryId: 'entry-7',
+      tokensBefore: 1000,
+      tokensAfter: 300,
+    });
+  });
+
+  it('fails closed for Pi auto-compaction failures without a result', () => {
+    const end = mapCompactionEndEvent({
+      type: 'compaction_end',
+      reason: 'overflow',
+      aborted: false,
+      errorMessage: 'Auto-compaction failed: provider unavailable',
+      result: undefined,
+    });
+    expect(end.ok).toBe(false);
+    expect(end.message).toMatch(/provider unavailable/);
+  });
+
+  it('marks Pi no-op compaction failures without turning them into UI errors', () => {
+    const end = mapCompactionEndEvent({
+      type: 'compaction_end',
+      reason: 'manual',
+      aborted: false,
+      errorMessage: 'Compaction failed: Nothing to compact (session too small)',
+      result: undefined,
+    });
+    expect(end.ok).toBe(false);
+    expect(end.noOp).toBe(true);
+  });
+
+  it('does not let a legacy isError=false field hide a missing result', () => {
+    const end = mapCompactionEndEvent({
+      type: 'compaction_end',
+      isError: false,
+      result: undefined,
+    });
+    expect(end.ok).toBe(false);
+  });
+
+  it('fails closed when an error accompanies an otherwise shaped result', () => {
+    const end = mapCompactionEndEvent({
+      type: 'compaction_end',
+      errorMessage: 'summarizer failed after returning partial data',
+      result: { summary: 'partial', tokensBefore: 1000 },
+    });
+    expect(end.ok).toBe(false);
+  });
+
+  it('fails closed for an unusable native result object', () => {
+    const end = mapCompactionEndEvent({
+      type: 'compaction_end',
+      result: { unexpected: true },
+    });
+    expect(end.ok).toBe(false);
+  });
+
+  it('carries FileOperations from the native compaction result', () => {
+    const end = mapCompactionEndEvent({
+      type: 'compaction_end',
+      result: {
+        summary: 'summary',
+        tokensBefore: 1000,
+        estimatedTokensAfter: 300,
+        details: {
+          readFiles: ['src/a.ts'],
+          modifiedFiles: ['src/b.ts'],
+        },
+      },
+    });
+    expect(end.fileOps).toEqual({ readFiles: ['src/a.ts'], modifiedFiles: ['src/b.ts'] });
+  });
+
+  it('recognizes top-level FileOperations in the native compaction result', () => {
+    const end = mapCompactionEndEvent({
+      type: 'compaction_end',
+      result: {
+        summary: 'summary',
+        tokensBefore: 1000,
+        estimatedTokensAfter: 300,
+        fileOps: {
+          readFiles: ['src/a.ts'],
+          modifiedFiles: ['src/b.ts'],
+        },
+      },
+    });
+    expect(end.fileOps).toEqual({ readFiles: ['src/a.ts'], modifiedFiles: ['src/b.ts'] });
   });
 
   it('ignores junk fields', () => {

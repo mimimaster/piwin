@@ -257,6 +257,7 @@ export function MediaPreview(props: {
       }
       setFullUrl(resolved.fullUrl);
       setThumbUrl(resolved.thumbUrl);
+      setLoadFailed(false);
       ownedThumb = resolved.ownedThumb;
     })();
     return () => {
@@ -330,10 +331,15 @@ export function MediaPreview(props: {
   }
 
   if (!thumbUrl || loadFailed) {
+    const failedSuffix = loadFailed
+      ? isChinese
+        ? ' · 无法预览'
+        : ' · preview unavailable'
+      : '';
     return (
       <div className={props.compact ? 'media-chip-fallback' : 'media-preview-fallback'}>
         {props.attachment.mimeType} · {props.attachment.byteSize}B
-        {loadFailed ? ' · preview failed' : ''}
+        {failedSuffix}
       </div>
     );
   }
@@ -342,6 +348,7 @@ export function MediaPreview(props: {
     return (
       <div className={props.compact ? 'media-chip-video-container' : 'media-preview-video-container'}>
         <video
+          key={thumbUrl}
           className={
             props.compact
               ? 'media-chip-video'
@@ -354,7 +361,12 @@ export function MediaPreview(props: {
           preload="metadata"
           playsInline
           aria-label={fileLabel}
-          onError={() => setLoadFailed(true)}
+          onError={(event) => {
+            if (event.currentTarget.getAttribute('src') !== thumbUrl) {
+              return;
+            }
+            setLoadFailed(true);
+          }}
           onClick={(event) => event.stopPropagation()}
           onMouseDown={(event) => event.stopPropagation()}
         />

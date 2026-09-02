@@ -88,6 +88,7 @@ export * from './subagent-delivery.js';
 export * from './subagent-result.js';
 export * from './turn-change.js';
 export * from './compaction-fileops.js';
+export * from './compaction.js';
 export * from './pty.js';
 export * from './automation.js';
 export * from './marketplace-registry.js';

@@ -123,7 +123,7 @@ function TranscriptCardStates(): ReactElement {
               <span className="del">−4</span>
             </span>
             <span className="tool-call-err" aria-label="error" />
-            <span className="tool-call-truncated-tag">truncated</span>
+            <span className="tool-call-truncated-tag">Partial · L1–L2000 / 6280 lines</span>
           </button>
         </div>
       </GalleryStack>

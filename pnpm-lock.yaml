@@ -123,6 +123,9 @@ importers:
       '@piwin/ui-kit':
         specifier: workspace:*
         version: link:../../packages/ui-kit
+      '@piwin/voice':
+        specifier: workspace:*
+        version: link:../../packages/voice
       '@streamdown/cjk':
         specifier: 1.0.3
         version: 1.0.3(@types/mdast@4.0.4)(micromark-util-types@2.0.2)(micromark@4.0.2)(react@19.2.7)(unified@11.0.5)
@@ -260,6 +263,9 @@ importers:
       '@piwin/ui-kit':
         specifier: workspace:*
         version: link:../../packages/ui-kit
+      '@piwin/voice':
+        specifier: workspace:*
+        version: link:../../packages/voice
       '@streamdown/cjk':
         specifier: 1.0.3
         version: 1.0.3(@types/mdast@4.0.4)(micromark-util-types@2.0.2)(micromark@4.0.2)(react@19.2.7)(unified@11.0.5)
@@ -2099,7 +2105,6 @@ packages:
   '@lancedb/lancedb@0.37.1':
     resolution: {integrity: sha512-l+si3t+bQ1JNxrnEfbbfKt9gWk2HcWYWx0dzoEBTVAs8B0BP79OrAv+mKTJ0EwG5wRDS3MwEChEg0g0Wh8I3tQ==}
     engines: {node: '>= 18'}
-    cpu: [x64, arm64]
     os: [darwin, linux, win32]
     peerDependencies:
       '@types/node': '>=18'

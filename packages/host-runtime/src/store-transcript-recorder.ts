@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type {
   AgentEvent,
   AgentFailure,
@@ -157,6 +158,7 @@ export function createStoreTranscriptRecorder(options: {
         message.text.trim().length === 0 &&
         (message.thinking ?? '').trim().length === 0 &&
         (message.tools?.length ?? 0) === 0 &&
+        (message.attachments?.length ?? 0) === 0 &&
         (message.searchEvidence?.citations.length ?? 0) === 0
       ) {
         dirtyMessageIds.delete(messageId);
@@ -290,6 +292,26 @@ export function createStoreTranscriptRecorder(options: {
       : assistantIdsByRunId.get(event.runId);
   }
 
+  async function resolveToolAssistantId(
+    event: Extract<AgentEvent, { type: 'tool/start' | 'tool/update' | 'tool/end' }>,
+  ): Promise<string | undefined> {
+    const preferred = assistantTarget(event);
+    if (preferred !== undefined && (await loadActive(preferred, true)) !== undefined) {
+      return preferred;
+    }
+    const fallback =
+      lastAssistantId ??
+      (event.runId !== undefined ? assistantIdsByRunId.get(event.runId) : undefined);
+    if (
+      fallback !== undefined &&
+      fallback !== preferred &&
+      (await loadActive(fallback, true)) !== undefined
+    ) {
+      return fallback;
+    }
+    return undefined;
+  }
+
   return {
     async recordUserPrompt(input) {
       const clientMessageId = input.clientMessageId?.trim();
@@ -331,6 +353,23 @@ export function createStoreTranscriptRecorder(options: {
     async recordEvent(event) {
       await enqueue(async () => {
         switch (event.type) {
+          case 'compaction/end': {
+            const summary = event.summary?.trim();
+            if (event.ok !== true || event.noOp === true || !summary) {
+              break;
+            }
+            await options.store.recordCompaction({
+              compactionId: event.operationId ?? `compaction-${randomUUID()}`,
+              anchorMessageId: await options.store.getActiveLeaf(),
+              summary,
+              ...(event.firstKeptEntryId ? { firstKeptEntryId: event.firstKeptEntryId } : {}),
+              ...(event.tokensBefore !== undefined ? { tokensBefore: event.tokensBefore } : {}),
+              ...(event.tokensAfter !== undefined ? { tokensAfter: event.tokensAfter } : {}),
+              runtimeGenerationId: options.runtimeGenerationId,
+              createdAt: new Date().toISOString(),
+            });
+            break;
+          }
           case 'message/start': {
             if (event.role !== 'assistant') {
               break;
@@ -397,9 +436,7 @@ export function createStoreTranscriptRecorder(options: {
             await mutateActive(
               event.messageId,
               (message) => ({
-                ...(event.delta.length > 0
-                  ? finishTranscriptThinking(message, eventAt)
-                  : message),
+                ...(event.delta.length > 0 ? finishTranscriptThinking(message, eventAt) : message),
                 text: message.text + event.delta,
                 status: 'streaming',
               }),
@@ -493,7 +530,7 @@ export function createStoreTranscriptRecorder(options: {
             break;
           }
           case 'tool/start': {
-            const assistantId = assistantTarget(event);
+            const assistantId = await resolveToolAssistantId(event);
             if (assistantId === undefined) {
               options.onDiagnostic?.(`tool/start dropped: toolCallId=${event.toolCallId}`);
               break;
@@ -523,7 +560,7 @@ export function createStoreTranscriptRecorder(options: {
             break;
           }
           case 'tool/update': {
-            const assistantId = assistantTarget(event);
+            const assistantId = await resolveToolAssistantId(event);
             if (assistantId === undefined) break;
             await mutateActive(
               assistantId,
@@ -553,8 +590,9 @@ export function createStoreTranscriptRecorder(options: {
             break;
           }
           case 'tool/end': {
-            const assistantId = assistantTarget(event);
+            const assistantId = await resolveToolAssistantId(event);
             if (assistantId === undefined) break;
+            pendingEmptyMessageIds.delete(assistantId);
             await mutateActive(
               assistantId,
               (message) => {

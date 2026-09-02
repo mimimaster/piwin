@@ -6,7 +6,7 @@ import type {
   SessionPauseAcceptedData,
   SessionResumeRunAcceptedData,
 } from '@piwin/contracts';
-import { formatError, isPauseContinueUtterance } from '@piwin/contracts';
+import { classifyCompactionNoOp, formatError, isPauseContinueUtterance } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
 import type { ChatUiAction, ChatUiState } from '../chat-reducer';
 import type { Dispatch } from 'react';
@@ -274,11 +274,31 @@ export function useSessionRunActions(input: {
       try {
         const response = await hostClient.request(payload);
         if (!response.success) {
+          if (classifyCompactionNoOp(response.error) !== undefined) {
+            dispatchNotification(
+              pushInfo(
+                locale === 'zh-CN'
+                  ? '当前上下文无需压缩。'
+                  : 'There is nothing to compact yet.',
+              ),
+            );
+            return true;
+          }
           dispatchNotification(pushError(compactFailureMessage(response.error, locale)));
           return false;
         }
         const data = response.data as { ok?: boolean; message?: string } | undefined;
         if (data?.ok === false) {
+          if (classifyCompactionNoOp(data.message) !== undefined) {
+            dispatchNotification(
+              pushInfo(
+                locale === 'zh-CN'
+                  ? '当前上下文无需压缩。'
+                  : 'There is nothing to compact yet.',
+              ),
+            );
+            return true;
+          }
           dispatchNotification(
             pushError(compactFailureMessage(data.message ?? 'Compaction failed', locale)),
           );

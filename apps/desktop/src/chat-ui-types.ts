@@ -17,6 +17,7 @@ import type {
   SessionRunOutcome,
   SessionRunPhase,
   SessionScope,
+  CompactionReason,
   SearchEvidence,
   SessionSummary,
   SessionTranscriptMessage,
@@ -212,6 +213,30 @@ export type PermissionPromptUi = {
   context?: PermissionRequestContext;
 };
 
+export type CompactionActivityPhase = 'running' | 'succeeded' | 'failed' | 'cancelled';
+
+/** Transcript-bound projection of one context compaction operation. */
+export type CompactionActivityUi = {
+  operationId: string;
+  phase: CompactionActivityPhase;
+  reason: CompactionReason;
+  anchorMessageId: string | null;
+  startedAt: number;
+  endedAt?: number;
+  runId?: string;
+  message?: string;
+  summary?: string;
+  tokensBefore?: number;
+  tokensAfter?: number;
+  durationMs?: number;
+  fileOps?: {
+    readFiles: string[];
+    modifiedFiles: string[];
+    omittedCount?: number;
+  };
+  willRetry?: boolean;
+};
+
 /** Explicit Skill provenance for the currently submitted prompt. */
 export type SkillActivityView = {
   skillId: string;
@@ -359,6 +384,8 @@ export type ChatUiState = {
   runTerminal: RunTerminalState;
   /** True while model context compaction is running. */
   compacting: boolean;
+  /** Current/last compaction activity, rendered inline in the transcript chain. */
+  compactionActivity?: CompactionActivityUi | null | undefined;
   hostReady: boolean;
   hostMock: boolean;
   permissionPrompt: PermissionPromptUi | null;
@@ -498,7 +525,8 @@ export type ChatUiAction =
       queueRevision: number;
       queuedTurns: QueuedTurnRecord[];
     }
-  | { type: 'session/update'; session: SessionListItemUi }
+  /** `restore` revives a tombstoned id after Host unarchive. */
+  | { type: 'session/update'; session: SessionListItemUi; restore?: true }
   | { type: 'session/remove'; sessionId: string }
   | { type: 'session/mark-archived-active'; archived: boolean }
   | { type: 'session/hide-from-list'; sessionId: string }

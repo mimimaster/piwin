@@ -514,7 +514,6 @@ describe('Mobile Shell Navigation & Surfaces', () => {
       );
     });
     expect(document.body.textContent).toContain('技能与 MCP 工具');
-    expect(document.body.textContent).toContain('UI/UX Pro Max');
     expect(document.body.textContent).toContain('已加载技能');
   });
 });

@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
   CONVERSATION_PANE_MAX_RATIO,
+  CONVERSATION_PANE_MIN_HEIGHT,
+  CONVERSATION_PANE_MIN_WIDTH,
   CONVERSATION_PANE_MIN_RATIO,
   PRIMARY_CONVERSATION_PANE_ID,
   applyConversationPanePreset,
   bindConversationPaneSession,
   closeConversationPane,
+  constrainConversationPaneLayout,
   createConversationPaneLayout,
   focusConversationPane,
+  getConversationPaneMinimumSize,
   listConversationPaneLeaves,
   replacePrimaryConversationSession,
   resolveFocusedConversationSessionId,
@@ -94,6 +98,34 @@ describe('conversation pane layout', () => {
         CONVERSATION_PANE_MAX_RATIO,
       );
     }
+  });
+
+  it('keeps nested panes above their pixel minimum when the stage can fit them', () => {
+    const createId = createIds();
+    let layout = applyConversationPanePreset(createConversationPaneLayout(), 2, createId);
+    const minimumSize = getConversationPaneMinimumSize(layout.root);
+    expect(minimumSize).toEqual({
+      width: CONVERSATION_PANE_MIN_WIDTH * 2,
+      height: CONVERSATION_PANE_MIN_HEIGHT,
+    });
+
+    const rootSplit = layout.root.kind === 'split' ? layout.root : null;
+    if (!rootSplit) throw new Error('two-pane preset did not create a split');
+    layout = setConversationPaneSplitRatio(layout, rootSplit.splitId, 0.1);
+    const constrained = constrainConversationPaneLayout(layout, { width: 1_000, height: 500 });
+
+    expect(constrained.root.kind === 'split' ? constrained.root.ratio : null).toBeCloseTo(0.3);
+  });
+
+  it('keeps an impossible stage balanced instead of collapsing one branch', () => {
+    const createId = createIds();
+    let layout = applyConversationPanePreset(createConversationPaneLayout(), 2, createId);
+    const rootSplit = layout.root.kind === 'split' ? layout.root : null;
+    if (!rootSplit) throw new Error('two-pane preset did not create a split');
+    layout = setConversationPaneSplitRatio(layout, rootSplit.splitId, 0.1);
+    const constrained = constrainConversationPaneLayout(layout, { width: 500, height: 500 });
+
+    expect(constrained.root.kind === 'split' ? constrained.root.ratio : null).toBeCloseTo(0.5);
   });
 
   it('maximizes and restores without changing the tree', () => {

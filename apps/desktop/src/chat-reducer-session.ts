@@ -98,6 +98,14 @@ export function reduceChatSession(
         lastTerminalRunId: null,
         streaming: false,
         runTerminal: { kind: 'none' },
+        compacting: false,
+        compactionActivity: null,
+        lastCompactionMessage: null,
+        lastCompactionSummary: null,
+        lastCompactionTokensBefore: null,
+        lastCompactionTokensAfter: null,
+        lastCompactionDurationMs: null,
+        lastCompactionFileOps: null,
         activeSkill: null,
         error: null,
         walkthroughsByMessageId: {},
@@ -131,6 +139,14 @@ export function reduceChatSession(
         lastTerminalRunId: null,
         streaming: false,
         runTerminal: { kind: 'none' },
+        compacting: false,
+        compactionActivity: null,
+        lastCompactionMessage: null,
+        lastCompactionSummary: null,
+        lastCompactionTokensBefore: null,
+        lastCompactionTokensAfter: null,
+        lastCompactionDurationMs: null,
+        lastCompactionFileOps: null,
         activeSkill: null,
         error: null,
         walkthroughsByMessageId: {},
@@ -163,6 +179,14 @@ export function reduceChatSession(
         lastTerminalRunId: null,
         streaming: false,
         runTerminal: { kind: 'none' },
+        compacting: false,
+        compactionActivity: null,
+        lastCompactionMessage: null,
+        lastCompactionSummary: null,
+        lastCompactionTokensBefore: null,
+        lastCompactionTokensAfter: null,
+        lastCompactionDurationMs: null,
+        lastCompactionFileOps: null,
         activeSkill: null,
         error: null,
         walkthroughsByMessageId: {},
@@ -193,6 +217,7 @@ export function reduceChatSession(
       const awaitingTranscript = !preserveOptimisticDraftSend && action.awaitTranscript === true;
       const switchingAway =
         state.activeSessionId !== null && state.activeSessionId !== action.sessionId;
+      const preserveCompactionUi = state.activeSessionId === action.sessionId;
 
       // Stash the session we leave into the inactive warm LRU (message JSON only).
       let warmSessionCache = state.warmSessionCache;
@@ -271,6 +296,18 @@ export function reduceChatSession(
         awaitingTranscript,
         transcriptOwnerSessionId,
         runTerminal: { kind: 'none' },
+        compacting: preserveCompactionUi ? state.compacting : false,
+        compactionActivity: preserveCompactionUi ? state.compactionActivity : null,
+        lastCompactionMessage: preserveCompactionUi ? state.lastCompactionMessage : null,
+        lastCompactionSummary: preserveCompactionUi ? state.lastCompactionSummary : null,
+        lastCompactionTokensBefore: preserveCompactionUi
+          ? state.lastCompactionTokensBefore
+          : null,
+        lastCompactionTokensAfter: preserveCompactionUi ? state.lastCompactionTokensAfter : null,
+        lastCompactionDurationMs: preserveCompactionUi
+          ? state.lastCompactionDurationMs
+          : null,
+        lastCompactionFileOps: preserveCompactionUi ? state.lastCompactionFileOps : null,
         // C1: clear event id ring for the new session
         receivedEventIds: new Set<string>(),
         lastAcceptedSequenceByRun: {},
@@ -629,6 +666,14 @@ export function reduceChatSession(
         streaming: false,
         activeSkill: null,
         runTerminal: { kind: 'none' },
+        compacting: false,
+        compactionActivity: null,
+        lastCompactionMessage: null,
+        lastCompactionSummary: null,
+        lastCompactionTokensBefore: null,
+        lastCompactionTokensAfter: null,
+        lastCompactionDurationMs: null,
+        lastCompactionFileOps: null,
         walkthroughsByMessageId: {},
         ...CLEARED_SUBAGENT_UI,
       };
@@ -678,6 +723,14 @@ export function reduceChatSession(
         streaming: false,
         error: null,
         activeSkill: null,
+        compacting: false,
+        compactionActivity: null,
+        lastCompactionMessage: null,
+        lastCompactionSummary: null,
+        lastCompactionTokensBefore: null,
+        lastCompactionTokensAfter: null,
+        lastCompactionDurationMs: null,
+        lastCompactionFileOps: null,
         workingSessionIds: removeWorkingSessionId(state.workingSessionIds, action.sessionId),
         runRecordsById:
           action.clipBeforeMessageId !== undefined || action.clipAfterMessageId !== undefined

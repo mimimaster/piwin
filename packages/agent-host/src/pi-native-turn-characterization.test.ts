@@ -62,21 +62,21 @@ describe('Pi native turn characterization (current 0.84.2 mapping)', () => {
   it('surfaces missing finish as a mapped error event, not a throw', () => {
     const events = replayFixture('missing-finish.json');
     expect(events.filter((event) => event.type === 'error')).toEqual([
-      { type: 'error', message: 'Stream ended without finish_reason' },
+      expect.objectContaining({ type: 'error', message: 'Stream ended without finish_reason' }),
     ]);
   });
 
   it('surfaces a provider stopReason error without throwing from the mapper', () => {
     const events = replayFixture('provider-error.json');
     expect(events.filter((event) => event.type === 'error')).toEqual([
-      { type: 'error', message: '401: Invalid Authentication' },
+      expect.objectContaining({ type: 'error', message: '401: Invalid Authentication' }),
     ]);
   });
 
   it('surfaces an aborted assistant with the native abort detail', () => {
     const events = replayFixture('aborted.json');
     expect(events.filter((event) => event.type === 'error')).toEqual([
-      { type: 'error', message: 'Request was aborted' },
+      expect.objectContaining({ type: 'error', message: 'Request was aborted' }),
     ]);
   });
 

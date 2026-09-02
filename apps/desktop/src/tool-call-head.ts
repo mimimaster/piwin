@@ -18,6 +18,7 @@ export function toolHasExpandableBody(tool: ToolCardUi): boolean {
   const output = tool.presentation?.output?.text ?? tool.output;
   return Boolean(
     (typeof output === 'string' && output.length > 0) ||
+      tool.presentation?.output?.truncation ||
       tool.presentation?.command ||
       tool.presentation?.inputPreview ||
       (tool.presentation?.targetPaths && tool.presentation.targetPaths.length > 0) ||

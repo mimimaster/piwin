@@ -439,6 +439,9 @@ export type AgentEventEnvelope = {
   runId?: string;
 };
 
+/** Why the host started a context compaction operation. */
+export type CompactionReason = 'manual' | 'threshold' | 'overflow' | 'unknown';
+
 /** Host-normalized tool presentation for UI cards (Desktop must not re-infer semantics). */
 export const TOOL_KINDS = [
   'filesystem',
@@ -466,6 +469,21 @@ export type ToolOutputView = {
   text: string;
   truncated?: boolean;
   redacted?: boolean;
+  /** Host-normalized reason and range when the tool returned a partial result. */
+  truncation?: ToolOutputTruncation;
+};
+
+export type ToolOutputTruncation = {
+  reason: 'line-limit' | 'byte-limit' | 'output-limit';
+  shownLines?: {
+    start: number;
+    end: number;
+  };
+  totalLines?: number;
+  nextOffset?: number;
+  limitLines?: number;
+  limitBytes?: number;
+  firstLineExceedsLimit?: boolean;
 };
 
 export type ToolErrorView = {
@@ -598,10 +616,23 @@ export type AgentEvent =
       delayMs?: number;
       runId?: string;
     }
-  | { type: 'compaction/start'; runId?: string }
+  | {
+      type: 'compaction/start';
+      runId?: string;
+      /** Stable operation identity shared by start/end when available. */
+      operationId?: string;
+      reason?: CompactionReason;
+    }
   | {
       type: 'compaction/end';
+      /** Stable operation identity shared by start/end when available. */
+      operationId?: string;
       ok?: boolean;
+      /** True when the user or runtime aborted the operation. */
+      aborted?: boolean;
+      /** Whether the host intends to retry after an aborted/failed operation. */
+      willRetry?: boolean;
+      reason?: CompactionReason;
       message?: string;
       /** Model-facing summary text when Pi exposes it. */
       summary?: string;
@@ -609,8 +640,12 @@ export type AgentEvent =
       tokensAfter?: number;
       /** Host-measured wall time (ms) when available. */
       durationMs?: number;
+      /** Pi-native retained-entry boundary, when exposed by the adapter. */
+      firstKeptEntryId?: string;
       /** CE-COMP: deterministic file touch lists from Pi FileOperations. */
       fileOps?: CompactionFileOps;
+      /** True when Pi rejected the request because there was no eligible history. */
+      noOp?: boolean;
       runId?: string;
     }
   | {
@@ -642,6 +677,8 @@ export type SessionCompactResult = {
   tokensBefore?: number;
   tokensAfter?: number;
   durationMs?: number;
+  /** Pi-native retained-entry boundary, when exposed by the adapter. */
+  firstKeptEntryId?: string;
   fileOps?: CompactionFileOps;
 };
 
@@ -672,8 +709,8 @@ export interface SessionHandle {
    */
   compact?(customInstructions?: string): Promise<SessionCompactResult>;
   abortCompaction?(): void;
-  getAutoCompactionEnabled?(): boolean;
-  setAutoCompactionEnabled?(enabled: boolean): void;
+  getAutoCompactionEnabled?(): boolean | Promise<boolean>;
+  setAutoCompactionEnabled?(enabled: boolean): void | Promise<void>;
   /**
    * True only for a product-shell session's first live prompt after recovery.
    * Continuous Pi sessions already own their native conversation context.

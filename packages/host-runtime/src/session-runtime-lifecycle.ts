@@ -5,7 +5,7 @@
 
 import { join } from 'node:path';
 import type { CreateSessionOptions, SessionHandle } from '@piwin/contracts';
-import { deriveMemoryLowWaterMiB, formatError } from '@piwin/contracts';
+import { deriveMemoryLowWaterMiB, formatCompactionBoundary, formatError } from '@piwin/contracts';
 
 import { getSessionRecord } from '@piwin/session';
 import { buildColdActivationSeedOptions } from './cold-activation-seed.js';
@@ -154,11 +154,16 @@ export async function doActivateSessionRuntime(
   // Compact may stash product-history seeds here so a reconstructed backend
   // has a conversation to summarize instead of failing with "nothing to compact".
   let replaySeedOptions: CreateSessionOptions | undefined;
-  const compactSeeds = deps.pendingActivationSeedMessages.get(sessionId);
-  if (compactSeeds && compactSeeds.length > 0) {
-    // Compact snapshots must use `compaction` so Pi will summarize the seeded
-    // history. `replay` keeps seeded turns intact and compact then no-ops.
-    replaySeedOptions = { seedMessages: compactSeeds, seedMode: 'compaction' };
+  const pendingSeedOptions = deps.pendingActivationSeedMessages.get(sessionId);
+  if (pendingSeedOptions !== undefined) {
+    // Live compact replacement seeds a candidate with ordinary replay
+    // settings, then invokes Pi compact explicitly. The aggressive
+    // keepRecent/retry overrides are reserved for disposable snapshots and
+    // must not leak into the continuing user runtime.
+    replaySeedOptions = {
+      ...pendingSeedOptions,
+      seedMode: 'replay',
+    };
   } else {
     try {
       const store = await deps.getTranscriptStore(sessionId);
@@ -266,6 +271,10 @@ async function revalidateSessionContextAfterBind(
     const contextBoundary: import('@piwin/contracts').ContextBoundary = {
       activeLeafMessageId: await store.getActiveLeaf(),
     };
+    const latestCompaction = await store.readLatestCompaction();
+    if (latestCompaction !== undefined) {
+      contextBoundary.compactionBoundary = formatCompactionBoundary(latestCompaction);
+    }
     const model = deps.sessionModels.get(sessionId);
     if (model !== undefined) {
       contextBoundary.model = model;

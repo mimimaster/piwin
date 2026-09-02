@@ -156,11 +156,9 @@ describe('compileBlueprintForWorker', () => {
     const appendSystemPrompt = result.blueprint.appendSystemPrompt;
     expect(appendSystemPrompt).toBeDefined();
     expect(appendSystemPrompt).toContain('<agent_contract>');
-    expect(appendSystemPrompt).toContain('<artifact_policy>');
-    expect(appendSystemPrompt).toContain('invoke `artifact_instructions` once');
-    expect(appendSystemPrompt).toContain(ARTIFACT_INSTRUCTIONS_TOOL_NAME);
-    expect(appendSystemPrompt).not.toContain('artifact append sentinel');
-    expect(appendSystemPrompt).not.toContain('## HTML Artifact Runtime Contract');
+    expect(appendSystemPrompt).toContain('artifact append sentinel');
+    expect(appendSystemPrompt).toContain('## HTML Artifact Runtime Contract');
+    expect(appendSystemPrompt).toContain('```artifact-html');
     expect(appendSystemPrompt).toContain('<mcp_tools>');
     expect(appendSystemPrompt).toContain('## MCP Catalog');
     expect(appendSystemPrompt).toContain('`docs`: 1 cached tool(s)');
@@ -207,6 +205,7 @@ describe('compileBlueprintForWorker', () => {
 
     expect(result.blueprint.appendSystemPrompt).toContain('<agent_contract>');
     expect(result.blueprint.appendSystemPrompt).not.toContain('<artifact_policy>');
+    expect(result.blueprint.appendSystemPrompt).not.toContain('## HTML Artifact Runtime Contract');
     expect(result.blueprint.tools.hostTools.map((tool) => tool.name)).not.toContain(
       ARTIFACT_INSTRUCTIONS_TOOL_NAME,
     );
@@ -1677,15 +1676,13 @@ describe('conversation fast path (pure chat)', () => {
     expect(families).not.toContain('flashcards-write');
   });
 
-  it('CHT-205: conversation prompt requires at most one artifact_instructions load per run', async () => {
+  it('CHT-205: conversation prompt includes the resident Artifact contract', async () => {
     const result = await compileBlueprintForWorker({ scope: generalScope }, conversationOptions);
 
     const appendSystemPrompt = result.blueprint.appendSystemPrompt ?? '';
-    expect(appendSystemPrompt).toContain('<artifact_policy>');
-    expect(appendSystemPrompt).toContain('invoke `artifact_instructions` once');
-    expect(appendSystemPrompt).toContain(ARTIFACT_INSTRUCTIONS_TOOL_NAME);
-    expect(appendSystemPrompt).not.toContain('## HTML Artifact Runtime Contract');
-    expect(appendSystemPrompt).not.toContain('```artifact-html');
+    expect(appendSystemPrompt).toContain('## Decision Criteria');
+    expect(appendSystemPrompt).toContain('## HTML Artifact Runtime Contract');
+    expect(appendSystemPrompt).toContain('```artifact-html');
     expect(result.blueprint.tools.hostTools.map((tool) => tool.name)).toContain(
       ARTIFACT_INSTRUCTIONS_TOOL_NAME,
     );

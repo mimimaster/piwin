@@ -289,6 +289,52 @@ describe('projectTurnWorkDisclosure', () => {
     ).toBeNull();
   });
 
+  it('does not fold a toolbox image generation that carries the media', () => {
+    const transcriptTurn = turn([
+      message('user-1', { role: 'user', text: '随便生成张图片' }),
+      message('gen-1', {
+        text: '先看一下生图接口，再随便出一张。',
+        thinking: 'check the image API',
+        runId: 'run-1',
+        tools: [
+          {
+            toolCallId: 'tb-1',
+            toolName: 'piwin_toolbox',
+            status: 'done',
+            output: 'ok',
+            runId: 'run-1',
+            presentation: { kind: 'other', title: 'image_gen', actionVerb: 'Toolbox' },
+          },
+        ],
+        attachments: [
+          {
+            id: 'att-1',
+            kind: 'media',
+            path: '/tmp/a.png',
+            mimeType: 'image/png',
+            name: 'a.png',
+            byteSize: 12,
+            source: 'generated',
+          },
+        ],
+      }),
+      message('caption-1', {
+        text: '随手出了一张：黄昏乡间小路。',
+        thinking: 'wrap up',
+        runId: 'run-1',
+      }),
+    ]);
+
+    expect(
+      projectTurnWorkDisclosure({
+        turn: transcriptTurn,
+        runRecordsById: { 'run-1': completedRun() },
+        activeRunId: null,
+        currentTurnStreaming: false,
+      }),
+    ).toBeNull();
+  });
+
   it('folds earlier process rows when the settled conclusion is a generation result', () => {
     const transcriptTurn = turn([
       message('user-1', { role: 'user', text: 'Draw a pelican.' }),

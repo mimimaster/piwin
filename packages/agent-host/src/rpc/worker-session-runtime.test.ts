@@ -135,6 +135,53 @@ describe('WorkerSessionRuntime', () => {
     });
   });
 
+  it('round-trips the per-session auto-compaction setting', async () => {
+    const frames: WorkerFrame[] = [];
+    let enabled = true;
+    const session = createMockPiSession();
+    session.getAutoCompactionEnabled = () => enabled;
+    session.setAutoCompactionEnabled = (next) => {
+      enabled = next;
+    };
+    const runtime = new WorkerSessionRuntime({
+      sendFrame: (frame) => frames.push(frame),
+      createPiSession: async () => session,
+      eventMapper: fakeMapper(),
+    });
+
+    await runtime.handleRequest(createRequest());
+    await runtime.handleRequest({
+      type: 'request',
+      id: 'req-get-auto',
+      method: 'session/get-auto-compaction',
+      context: frameContext,
+      payload: { method: 'session/get-auto-compaction', sessionId: 'ps-1' },
+    });
+    expect(frames).toContainEqual({
+      type: 'response',
+      id: 'req-get-auto',
+      context: frameContext,
+      success: true,
+      data: { enabled: true },
+    });
+
+    await runtime.handleRequest({
+      type: 'request',
+      id: 'req-set-auto',
+      method: 'session/set-auto-compaction',
+      context: frameContext,
+      payload: { method: 'session/set-auto-compaction', sessionId: 'ps-1', enabled: false },
+    });
+    expect(enabled).toBe(false);
+    expect(frames).toContainEqual({
+      type: 'response',
+      id: 'req-set-auto',
+      context: frameContext,
+      success: true,
+      data: { enabled: false },
+    });
+  });
+
   it('waits for a parent permit before accepting a worker intervention claim', async () => {
     const frames: WorkerFrame[] = [];
     let interventionListener:

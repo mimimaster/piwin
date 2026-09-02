@@ -530,6 +530,29 @@ describe('buildToolPresentation', () => {
 
     expect(presentation.output?.truncated).toBe(true);
   });
+
+  it('keeps host-normalized truncation details beside bounded output', () => {
+    const truncation = {
+      reason: 'line-limit' as const,
+      shownLines: { start: 1285, end: 3284 },
+      totalLines: 6280,
+      nextOffset: 3285,
+      limitLines: 2000,
+      limitBytes: 50 * 1024,
+    };
+    const presentation = buildToolPresentation({
+      toolName: 'read',
+      args: { path: 'src/large.ts', offset: 1285 },
+      outputText: 'line 1285',
+      truncation,
+    });
+
+    expect(presentation.output).toMatchObject({
+      text: 'line 1285',
+      truncated: true,
+      truncation,
+    });
+  });
 });
 
 describe('redactToolText / boundToolOutput', () => {

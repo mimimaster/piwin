@@ -1,7 +1,6 @@
-/** Lazy Artifact policy/runtime delivery for model turns that actually need it. */
+/** Artifact policy/runtime delivery for sessions that have the capability enabled. */
 
 import {
-  ARTIFACT_EXPLICIT_ONLY_HINT,
   ARTIFACT_INSTRUCTIONS_TOOL_NAME,
   formatArtifactInstructions,
   type ArtifactConfig,
@@ -13,29 +12,15 @@ const MAX_TRACKED_INSTRUCTION_RUNS = 256;
 const ALREADY_LOADED_OUTPUT =
   'Artifact instructions are already loaded for this run. Reuse the previous result and produce the final response without calling this tool again.';
 
-const ARTIFACT_POLICY_BODY = [
-  'Emit HTML/SVG Artifacts only when interactive or visual content substantially outperforms Markdown.',
-  `Before generating, invoke \`${ARTIFACT_INSTRUCTIONS_TOOL_NAME}\` once to retrieve the specification, then reuse the result.`,
-].join('\n');
-
-/** Compact always-on routing hint; the full contract is loaded through the tool. */
+/** Resident decision policy + runtime contract. Injected when artifacts are enabled. */
 export function formatArtifactCapabilityPrompt(config: ArtifactConfig): string | undefined {
   if (!config.enabled) {
     return undefined;
   }
-  const hasCustomDecision =
-    config.decisionPrompt.mode === 'custom' && config.decisionPrompt.customPrompt.trim().length > 0;
-  const lines = [
-    config.triggerMode === 'explicit-only' ? ARTIFACT_EXPLICIT_ONLY_HINT : undefined,
-    ARTIFACT_POLICY_BODY,
-    hasCustomDecision
-      ? 'A custom Artifact decision policy is configured. Load it before deciding whenever an Artifact may be relevant.'
-      : undefined,
-  ].filter((part): part is string => part !== undefined && part.length > 0);
-  return `<artifact_policy>\n${lines.join('\n')}\n</artifact_policy>`;
+  return formatArtifactInstructions(config);
 }
 
-/** Compact routing hint only when the generation surface has a concrete executor. */
+/** Resident contract only when the generation surface has a concrete executor. */
 export function formatResidentArtifactPrompt(
   config: ArtifactConfig,
   hostTools: readonly HostToolDescriptor[],
@@ -53,8 +38,7 @@ export function buildArtifactInstructionsTool(config: ArtifactConfig): HostToolR
     descriptor: {
       name: ARTIFACT_INSTRUCTIONS_TOOL_NAME,
       description:
-        'Load the full HTML/SVG Artifact rendering policy and sandboxed output contract. ' +
-        'Call at most once per turn, ONLY when generating an interactive widget, dashboard, diagram, or standalone page.',
+        'Artifact decision policy and HTML/SVG output contract are already in the system prompt. Do not call this tool; emit the Artifact fence directly.',
       parameters: {
         type: 'object',
         properties: {},

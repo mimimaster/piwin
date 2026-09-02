@@ -137,6 +137,12 @@ Required Host Server protocol work before remote clients are considered usable:
    mobile client cannot block the Host or starve local clients.
 6. Client subscriptions and session access are evaluated at the Host boundary;
    a relay must not be the only authorization layer.
+7. Assistant transcript `model` is an immutable generation-time snapshot.
+   `session/resume`, `session/messages`, `session/transcript-page`, and snapshot
+   hydration must preserve the same `ModelRef`, including subscription refs
+   where `protocol` is legitimately absent. Remote projection may redact Host
+   paths and secrets, but it must not replace a missing snapshot with the
+   session's current model or drop a present snapshot.
 
 The current contracts and multi-sink seam are preparatory only. The missing
 runtime behavior is tracked by the implementation phases below.

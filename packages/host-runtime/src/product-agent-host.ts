@@ -38,6 +38,8 @@ export type PreparedProductSession = {
   settingsRevision: string;
   extensionSetRevision?: string;
   registrationMode: ProductAgentHostToolRegistrationMode;
+  /** Whether the backend already owns reconstructed native/product history. */
+  historySeeded: boolean;
 };
 
 type ProductAgentHostCommonOptions = {
@@ -182,8 +184,15 @@ export class ProductAgentHost implements AgentHost {
     sessionId: string,
     input: CreateSessionInput,
     runtimeGenerationId: string,
+    options: CreateSessionOptions = {},
   ): Promise<PreparedProductSession> {
-    return this.prepareSessionWithIdentity(input, sessionId, runtimeGenerationId, 'pending');
+    return this.prepareSessionWithIdentity(
+      input,
+      sessionId,
+      runtimeGenerationId,
+      'pending',
+      options,
+    );
   }
 
   /**
@@ -307,6 +316,8 @@ export class ProductAgentHost implements AgentHost {
         runtimeGenerationId,
         settingsRevision,
         registrationMode,
+        historySeeded:
+          options.compactionSeed !== undefined || (options.seedMessages?.length ?? 0) > 0,
       };
     }
     if (!this.backend) {
@@ -388,6 +399,7 @@ export class ProductAgentHost implements AgentHost {
         hostToolExecution,
         ...(options.seedMessages ? { seedMessages: options.seedMessages } : {}),
         ...(options.seedMode ? { seedMode: options.seedMode } : {}),
+        ...(options.compactionSeed ? { compactionSeed: options.compactionSeed } : {}),
       });
       const session = createProductSessionHandle(backendHandle, this.options.getCurrentRunId);
       return {
@@ -404,6 +416,8 @@ export class ProductAgentHost implements AgentHost {
             }
           : {}),
         registrationMode,
+        historySeeded:
+          options.compactionSeed !== undefined || (options.seedMessages?.length ?? 0) > 0,
       };
     } catch (error) {
       let cleanupError: unknown;

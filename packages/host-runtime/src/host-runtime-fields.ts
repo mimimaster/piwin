@@ -9,7 +9,7 @@ import type {
   PermissionDecision,
   PermissionMode,
   SessionHandle,
-  SessionSeedMessage,
+  CreateSessionOptions,
   PushSink,
   RemoteSinkId,
 } from '@piwin/contracts';
@@ -88,7 +88,7 @@ export class HostRuntimeFields {
    * When set, `doActivateSessionRuntime` seeds the reconstructed backend from
    * product transcript instead of native copies / empty history.
    */
-  pendingActivationSeedMessages = new Map<string, SessionSeedMessage[]>();
+  pendingActivationSeedMessages = new Map<string, CreateSessionOptions>();
   sessionProjects = new Map<string, string>();
   /** Transient child context available before a child has a persisted session. */
   subagentSessionContexts = new Map<

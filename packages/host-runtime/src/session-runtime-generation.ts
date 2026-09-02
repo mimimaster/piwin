@@ -4,9 +4,10 @@
  */
 
 import type { CreateSessionInput, ExecutionRunRecord } from '@piwin/contracts';
-import { formatError } from '@piwin/contracts';
+import { formatCompactionBoundary, formatError } from '@piwin/contracts';
 
 import { getSessionRecord } from '@piwin/session';
+import { buildColdActivationSeedOptions } from './cold-activation-seed.js';
 import { getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
 import { type RuntimeReplacementCandidate } from './session-runtime-replacement.js';
 
@@ -20,6 +21,7 @@ import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 export async function replaceRuntimeForModel(
   deps: HostRuntimeKernel,
   sessionId: string,
+  excludeSeedMessageId?: string,
 ): Promise<void> {
   const status = deps.runtimeController.getStatus(sessionId);
   if (status.generationId === undefined) {
@@ -36,6 +38,7 @@ export async function replaceRuntimeForModel(
     reason: 'model-change',
     targetSettingsRevision,
     expectedActiveGenerationId: status.generationId,
+    ...(excludeSeedMessageId !== undefined ? { excludeSeedMessageId } : {}),
     // The current prompt is deliberately not attached to the old
     // generation; descendants still correlated to it are drained first.
     when: 'after-current-run',
@@ -47,6 +50,7 @@ export async function compileRuntimeCandidate(
   sessionId: string,
   generationId: string,
   expectedSettingsRevision: string,
+  excludeSeedMessageId?: string,
 ): Promise<RuntimeReplacementCandidate> {
   const rootDir = getPiwinRoot(deps.options.piwinRoot);
   const record = await getSessionRecord(getPiwinSessionIndexPath(rootDir), sessionId);
@@ -58,7 +62,25 @@ export async function compileRuntimeCandidate(
   if (record.presentation) input.presentation = record.presentation;
   const model = deps.sessionModels.get(sessionId);
   if (model !== undefined) input.model = model;
-  const prepared = await deps.host.prepareSession(sessionId, input, generationId);
+  let seedOptions;
+  try {
+    seedOptions = await buildColdActivationSeedOptions(
+      await deps.getTranscriptStore(sessionId),
+      excludeSeedMessageId,
+    );
+  } catch (error) {
+    deps.push({
+      type: 'host/log',
+      level: 'warn',
+      message: `runtime replacement seed build failed for ${sessionId}: ${formatError(error)}`,
+    });
+  }
+  const prepared = await deps.host.prepareSession(
+    sessionId,
+    input,
+    generationId,
+    seedOptions ?? {},
+  );
   deps.preparedRuntimeGenerations.set(`${sessionId}\u0000${generationId}`, prepared);
   if (prepared.settingsRevision !== expectedSettingsRevision) {
     throw new Error('runtime-reload-revision-mismatch');
@@ -159,16 +181,31 @@ export async function createRuntimeGeneration(
     );
     // Settings replacement compiles outside a foreground run.
     deps.sessionRuntimeDelegationModes.set(sessionId, 'auto');
-    // A replacement backend has no native Pi conversation state. Its first
-    // prompt must reconstruct bounded context from the durable product
-    // transcript exactly once, just like a cold activation.
-    deps.coldStartHistoryBySession.set(sessionId, candidate.generationId);
+    if (prepared.historySeeded) {
+      // Native replay/compaction seed already owns the reconstructed context.
+      // Clear a stale marker left by an earlier unseeded generation so the
+      // next prompt does not inject the product transcript a second time.
+      deps.coldStartHistoryBySession.delete(sessionId);
+    } else {
+      // A replacement backend with no durable native state must reconstruct
+      // bounded context from the product transcript exactly once.
+      deps.coldStartHistoryBySession.set(sessionId, candidate.generationId);
+    }
     deps.preparedRuntimeGenerations.delete(key);
     try {
-      const leaf = await deps.getTranscriptStore(sessionId).then((store) => store.getActiveLeaf());
+      const store = await deps.getTranscriptStore(sessionId);
+      const leaf = await store.getActiveLeaf();
+      const latestCompaction = await store.readLatestCompaction();
+      const model = deps.sessionModels.get(sessionId);
       await deps.sessionContextCoordinator.revalidateAfterActivation(sessionId, {
         runtimeGenerationId: candidate.generationId,
-        contextBoundary: { activeLeafMessageId: leaf },
+        contextBoundary: {
+          activeLeafMessageId: leaf,
+          ...(latestCompaction !== undefined
+            ? { compactionBoundary: formatCompactionBoundary(latestCompaction) }
+            : {}),
+          ...(model !== undefined ? { model } : {}),
+        },
       });
     } catch (error) {
       deps.push({

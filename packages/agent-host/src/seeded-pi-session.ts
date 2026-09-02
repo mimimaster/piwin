@@ -1,7 +1,11 @@
 /** Build an in-memory Pi SessionManager from product transcript text. */
 
 import type { Api, AssistantMessage, UserMessage } from '@earendil-works/pi-ai';
-import type { NativeContextEntry, SessionSeedMessage } from '@piwin/contracts';
+import type {
+  NativeContextEntry,
+  SessionCompactionSeed,
+  SessionSeedMessage,
+} from '@piwin/contracts';
 
 /**
  * Pi `appendMessage` accepts the full native Message union (assistant,
@@ -12,6 +16,14 @@ type SeedablePiMessage = UserMessage | AssistantMessage | Record<string, unknown
 
 type SeededSessionManager = {
   appendMessage(message: SeedablePiMessage): string;
+  appendCompaction?(
+    summary: string,
+    firstKeptEntryId: string,
+    tokensBefore: number,
+    details?: unknown,
+    fromHook?: boolean,
+    usage?: unknown,
+  ): string;
 };
 
 type SessionManagerExport = {
@@ -31,6 +43,7 @@ export function createSeededPiSessionManager(
   piModule: Record<string, unknown>,
   cwd: string,
   seedMessages: readonly SessionSeedMessage[],
+  compactionSeed?: SessionCompactionSeed,
 ): SeededSessionManager {
   const sessionManager = piModule.SessionManager as SessionManagerExport | undefined;
   if (!sessionManager || typeof sessionManager.inMemory !== 'function') {
@@ -38,6 +51,19 @@ export function createSeededPiSessionManager(
   }
 
   const manager = sessionManager.inMemory(cwd);
+  if (compactionSeed !== undefined) {
+    if (typeof manager.appendCompaction !== 'function') {
+      throw new Error('SessionManager.appendCompaction export missing for compaction replay');
+    }
+    // The sentinel is intentionally not one of the seeded entries. Pi treats
+    // the compaction entry as the context root when the retained-entry id is
+    // absent, then keeps every message appended after it.
+    manager.appendCompaction(
+      compactionSeed.summary,
+      COMPACTION_REPLAY_SENTINEL,
+      finiteTokensBefore(compactionSeed.tokensBefore),
+    );
+  }
   for (const message of seedMessages) {
     const nativeMessages = parseNativeEntries(message.native);
     if (nativeMessages !== undefined) {
@@ -53,6 +79,12 @@ export function createSeededPiSessionManager(
     manager.appendMessage(toPiMessage(message, text));
   }
   return manager;
+}
+
+const COMPACTION_REPLAY_SENTINEL = '__piwin_compaction_replay_boundary__';
+
+function finiteTokensBefore(value: number | undefined): number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0;
 }
 
 /**

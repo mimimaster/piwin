@@ -5,6 +5,28 @@ import {
   resolveMcpHeaderPreview,
   resolveToolCallHeaderPreview,
 } from './tool-call-head';
+import { formatToolOutputTruncation } from './tool-output-truncation-display.js';
+
+describe('formatToolOutputTruncation', () => {
+  it('keeps the collapsed label on one line and explains continuation in detail', () => {
+    const copy = formatToolOutputTruncation({
+      locale: 'zh-CN',
+      isRead: true,
+      isWeb: false,
+      truncation: {
+        reason: 'line-limit',
+        shownLines: { start: 1, end: 2000 },
+        totalLines: 6280,
+        nextOffset: 2001,
+        limitLines: 2000,
+      },
+    });
+
+    expect(copy.summary).toBe('部分内容 · L1–L2000 / 共 6280 行');
+    expect(copy.notice).toContain('文件未修改');
+    expect(copy.notice).toContain('第 2001 行');
+  });
+});
 
 describe('resolveToolCallHeaderPreview', () => {
   const shellCommand =

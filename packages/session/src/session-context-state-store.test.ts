@@ -268,6 +268,38 @@ describe('session context state store', () => {
     target.store.close();
   });
 
+  it('seeds derived history evidence when a legacy source has no context snapshot', async () => {
+    const source = await openStore('derive-legacy-src');
+    const target = await openStore('derive-legacy-dst');
+    const appended = await target.store.appendMessage({
+      id: 'assistant-legacy',
+      runtimeGenerationId: 'gen-legacy',
+      backendMessageId: 'backend-legacy',
+      role: 'assistant',
+      text: 'A response from the copied transcript.',
+      status: 'done',
+      createdAt: '2026-08-30T00:00:00.000Z',
+    });
+    expect(appended.ok).toBe(true);
+
+    await seedDerivedSessionContextState({
+      source: source.store,
+      target: target.store,
+      targetSessionId: target.sessionId,
+      updatedAt: '2026-08-30T00:01:00.000Z',
+      historyHasDisplayableResponse: true,
+    });
+    const derived = await target.store.readContextState();
+    expect(derived?.occupancy).toEqual({ kind: 'unknown', reason: 'derived-session' });
+    expect(derived?.responseEvidence).toMatchObject({
+      currentRunHasResponse: false,
+      historyHasDisplayableResponse: true,
+    });
+    expect(derived?.contextBoundary.activeLeafMessageId).toBe('assistant-legacy');
+    source.store.close();
+    target.store.close();
+  });
+
   it('keeps derived occupancy unknown when the source only has lastConfirmed', async () => {
     const source = await openStore('derive-last-src');
     const target = await openStore('derive-last-dst');

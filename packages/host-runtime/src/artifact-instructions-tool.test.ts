@@ -29,39 +29,35 @@ const SOURCE_OR_UI_STATE_MARKERS = [
 ] as const;
 
 describe('Artifact instruction loading', () => {
-  it('keeps the resident capability hint compact and loads instructions once per run', () => {
+  it('injects the full decision policy and runtime contract when enabled', () => {
     const artifactConfig = config();
     const prompt = formatArtifactCapabilityPrompt(artifactConfig);
 
-    expect(prompt).toContain('<artifact_policy>');
-    expect(prompt).toContain('</artifact_policy>');
-    expect(prompt).toContain(ARTIFACT_INSTRUCTIONS_TOOL_NAME);
-    expect(prompt).toContain('invoke `artifact_instructions` once');
-    expect(prompt).not.toContain('## HTML Artifact Runtime Contract');
-    expect(prompt).not.toContain('## Artifact Decision Policy');
-    expect(prompt?.length).toBeLessThan(600);
-    expect(prompt?.length).toBeLessThan(formatArtifactInstructions(artifactConfig).length);
+    expect(prompt).toBe(formatArtifactInstructions(artifactConfig));
+    expect(prompt).toContain('## Decision Criteria');
+    expect(prompt).toContain('## HTML Artifact Runtime Contract');
+    expect(prompt).toContain('even without an explicit UI request');
+    expect(prompt).toContain('```artifact-html');
   });
 
-  it('does not keep a custom decision policy resident', () => {
+  it('keeps a custom decision policy resident', () => {
     const prompt = formatArtifactCapabilityPrompt(
       config({ decisionPrompt: { mode: 'custom', customPrompt: 'private custom sentinel' } }),
     );
 
-    expect(prompt).toContain('<artifact_policy>');
-    expect(prompt).toContain('A custom Artifact decision policy is configured');
-    expect(prompt).not.toContain('private custom sentinel');
-    expect(prompt).toContain('invoke `artifact_instructions` once');
+    expect(prompt).toContain('private custom sentinel');
+    expect(prompt).toContain('## HTML Artifact Runtime Contract');
   });
 
   it('preserves explicit-only routing and disappears when disabled', () => {
-    expect(formatArtifactCapabilityPrompt(config({ triggerMode: 'explicit-only' }))).toContain(
-      ARTIFACT_EXPLICIT_ONLY_HINT,
-    );
+    const explicit = formatArtifactCapabilityPrompt(config({ triggerMode: 'explicit-only' }));
+    expect(explicit).toContain(ARTIFACT_EXPLICIT_ONLY_HINT);
+    expect(explicit).toContain('## Decision Criteria');
+    expect(explicit).toContain('## HTML Artifact Runtime Contract');
     expect(formatArtifactCapabilityPrompt(config({ enabled: false }))).toBeUndefined();
   });
 
-  it('keeps explicit-only on the resident hint in custom-prompt mode', () => {
+  it('keeps explicit-only on the resident prompt in custom-prompt mode', () => {
     const prompt = formatArtifactCapabilityPrompt(
       config({
         triggerMode: 'explicit-only',
@@ -70,8 +66,8 @@ describe('Artifact instruction loading', () => {
     );
 
     expect(prompt).toContain(ARTIFACT_EXPLICIT_ONLY_HINT);
-    expect(prompt).toContain('A custom Artifact decision policy is configured');
-    expect(prompt).not.toContain('private custom sentinel');
+    expect(prompt).toContain('private custom sentinel');
+    expect(prompt).toContain('## HTML Artifact Runtime Contract');
   });
 
   it('stays off the resident prompt unless a concrete executor is present', () => {
@@ -102,6 +98,7 @@ describe('artifact_instructions golden', () => {
 
     expect(tool.family).toBe('artifact');
     expect(tool.permissionSpec.readOnly).toBe(true);
+    expect(tool.descriptor.description).toContain('already in the system prompt');
     expect(result.ok).toBe(true);
     if (!result.ok) {
       throw new Error(result.message);

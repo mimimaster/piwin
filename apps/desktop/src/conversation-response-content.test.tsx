@@ -1112,4 +1112,52 @@ describe('ConversationResponseContent', () => {
     expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
     expect(container.querySelector('.artifact-frame')).toBeNull();
   });
+
+  it('renders generation progress and assistant media in the conversation pane path', () => {
+    const message: ChatMessageUi = {
+      id: 'm-image-live',
+      role: 'assistant',
+      text: '正在生成图片。',
+      thinking: '',
+      tools: [
+        {
+          toolCallId: 'image-call',
+          toolName: 'piwin_toolbox',
+          status: 'running',
+          output: '',
+          presentation: { kind: 'image', title: 'image_gen' },
+        },
+      ],
+      attachments: [
+        {
+          id: 'image-result',
+          kind: 'media',
+          mimeType: 'image/png',
+          path: '/tmp/piwin/media/session-1/image-result.png',
+          byteSize: 1024,
+          source: 'generated',
+        },
+      ],
+      status: 'streaming',
+    };
+
+    const { container } = renderContent(
+      <ConversationResponseContent
+        message={message}
+        messageIndex={0}
+        showStreamingCaret={false}
+        activeTheme={null}
+        artifactThemeKey="default"
+        runRecordsById={{}}
+        activeRunId="run-image"
+        locale="zh-CN"
+        isStreaming
+        artifactPreviewEnabled
+        renderMediaChrome
+      />,
+    );
+
+    expect(container.querySelector('[data-testid="image-generation-progress"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="message-attachments"]')).not.toBeNull();
+  });
 });

@@ -38,6 +38,13 @@ export type MediaReadCommandInput = {
   variant?: MediaReadVariant;
   /** 256 (dense) or 384 (standard). Ignored unless variant is `thumb`. */
   thumbEdge?: MediaThumbEdge;
+  /**
+   * Byte offset into the vault file. With `length`, returns a slice so
+   * generated video can cross the Host wire cap without a 1 MiB JSON frame.
+   */
+  offset?: number;
+  /** Slice length in bytes. Capped by the Host to the media/read wire budget. */
+  length?: number;
 };
 
 /**

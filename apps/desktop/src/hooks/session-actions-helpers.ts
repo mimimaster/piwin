@@ -1,4 +1,5 @@
 import type { SessionScope } from '@piwin/contracts';
+import { classifyCompactionNoOp } from '@piwin/contracts';
 import type { ChatUiState } from '../chat-reducer';
 
 export function compactFailureMessage(error: string, locale: string): string {
@@ -29,9 +30,14 @@ export function compactFailureMessage(error: string, locale: string): string {
   return error;
 }
 
-/** Target-model compact: Pi "already compacted" is a no-op, not a blocked switch. */
+/** Target-model compact no-ops are not blocked model switches. */
 export function isTargetCompactNoOpFailure(error: string): boolean {
-  return error.toLowerCase().includes('already compacted');
+  return isCompactionNoOp(error);
+}
+
+/** Manual compact uses the same harmless Pi no-op classification. */
+export function isCompactionNoOp(error: string): boolean {
+  return classifyCompactionNoOp(error) !== undefined;
 }
 
 export function resolveKnownSessionScope(state: ChatUiState, sessionId: string): SessionScope {

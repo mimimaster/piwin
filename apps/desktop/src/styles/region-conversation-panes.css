@@ -34,6 +34,8 @@
   position: absolute;
   display: flex;
   flex-direction: column;
+  container-name: conversation-pane;
+  container-type: inline-size;
   min-width: 0;
   min-height: 0;
   padding: 3px;
@@ -308,6 +310,26 @@ html[data-theme-visual-style='ink-wash'] .conversation-pane {
 
   .conversation-pane-header {
     padding-inline: var(--s-3);
+  }
+}
+
+@container conversation-pane (max-width: 460px) {
+  .conversation-pane-header {
+    gap: var(--s-1);
+    padding-inline: var(--s-2);
+  }
+
+  .conversation-pane-actions {
+    gap: 0;
+  }
+
+  .conversation-pane-actions > .is-split-action,
+  .conversation-pane-active-label {
+    display: none;
+  }
+
+  .conversation-pane-title-button {
+    padding-inline: var(--s-1);
   }
 }
 

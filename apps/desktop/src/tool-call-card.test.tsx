@@ -107,6 +107,48 @@ describe('ToolCallCard openable file paths', () => {
     );
   });
 
+  it('replaces the raw truncation label with a compact localized summary', () => {
+    const tool = createReadTool({
+      presentation: {
+        title: 'Read',
+        kind: 'filesystem',
+        actionVerb: 'Read',
+        summary: 'large.ts',
+        targetPaths: ['src/large.ts'],
+        output: {
+          text: 'line 1',
+          truncated: true,
+          truncation: {
+            reason: 'line-limit',
+            shownLines: { start: 1, end: 2000 },
+            totalLines: 6280,
+            nextOffset: 2001,
+            limitLines: 2000,
+          },
+        },
+      },
+    });
+
+    act(() => {
+      root.render(<ToolCallCard tool={tool} density="compact" locale="zh-CN" />);
+    });
+
+    const tag = container.querySelector('[data-testid="tool-call-output-truncated"]');
+    expect(tag?.textContent).toBe('部分内容 · L1–L2000 / 共 6280 行');
+    expect(tag?.textContent).not.toContain('truncated');
+
+    act(() => {
+      container.querySelector<HTMLElement>('.tool-call-summary')?.click();
+    });
+
+    expect(
+      container.querySelector('[data-testid="tool-call-output-notice"]')?.textContent,
+    ).toContain('文件未修改');
+    expect(
+      container.querySelector('[data-testid="tool-call-output-notice"]')?.textContent,
+    ).toContain('第 2001 行');
+  });
+
   it('opens expanded body path links for multi-file tools', () => {
     const onOpenFile = vi.fn();
     const multiFileTool = createReadTool({

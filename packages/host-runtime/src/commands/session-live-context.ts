@@ -203,6 +203,11 @@ export type SessionLiveContext = {
     sessionId: string,
     operation: (store: SessionTranscriptStore) => Promise<T>,
   ) => Promise<T>;
+  /** Persist a successful compact boundary before a runtime can be replaced. */
+  recordCompactionBoundary: (
+    sessionId: string,
+    result: SessionCompactResult,
+  ) => Promise<void>;
   /** SIDE: resolved inherited context snapshot for a side-chat session (undefined otherwise). */
   loadSideChatSnapshot: (
     sessionId: string,
@@ -376,7 +381,7 @@ export type SessionLiveContext = {
     when: 'now' | 'after-current-run';
   }) => Promise<{ generationId: string; settingsRevision: string }>;
   /** Rebuild a resident generation when the next turn changes Provider. */
-  replaceRuntimeForModel: (sessionId: string) => Promise<void>;
+  replaceRuntimeForModel: (sessionId: string, excludeSeedMessageId?: string) => Promise<void>;
   /** Bind this run to a turn-change attempt after userMessageId is known. */
   beginTurnChangeRun?: (input: {
     sessionId: string;

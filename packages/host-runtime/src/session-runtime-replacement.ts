@@ -20,6 +20,12 @@ export type RuntimeReplacementRequest = {
   targetSettingsRevision?: string;
   /** Compare-and-swap token for the currently active generation. */
   expectedActiveGenerationId?: string;
+  /**
+   * Current prompt row to omit from a replacement seed. Prompt preparation
+   * persists the user row before a model switch, but the new runtime must not
+   * receive that row both as seeded history and as the live prompt.
+   */
+  excludeSeedMessageId?: string;
   when: RuntimeReplacementWhen;
 };
 
@@ -43,6 +49,7 @@ export type SessionRuntimeReplacementOptions = {
     sessionId: string,
     generationId: string,
     settingsRevision: string,
+    excludeSeedMessageId?: string,
   ) => Promise<RuntimeReplacementCandidate>;
   disposeGeneration: (sessionId: string, generationId: string) => Promise<void>;
   createGeneration: (sessionId: string, candidate: RuntimeReplacementCandidate) => Promise<void>;
@@ -77,7 +84,16 @@ export class SessionRuntimeReplacementEngine {
     if (pending) {
       // Settings saves are latest-wins. The running transaction will discard a
       // candidate compiled from an older target before it can be published.
-      pending.latestRequest = request;
+      pending.latestRequest = {
+        ...request,
+        // A settings update can coalesce with a prompt-triggered model
+        // replacement. Keep that prompt's exclusion through the coalesced
+        // candidate or the live user row is seeded twice.
+        ...(request.excludeSeedMessageId === undefined &&
+        pending.latestRequest.excludeSeedMessageId !== undefined
+          ? { excludeSeedMessageId: pending.latestRequest.excludeSeedMessageId }
+          : {}),
+      };
       return pending.promise;
     }
     const activeGenerationId = this.options.getActiveGenerationId(request.sessionId);
@@ -182,6 +198,7 @@ export class SessionRuntimeReplacementEngine {
           sessionId,
           generationId,
           targetSettingsRevision,
+          request.excludeSeedMessageId,
         );
         this.assertNotCancelled(sessionId, pending);
         if (!this.isTargetCurrent(sessionId, pending, targetSettingsRevision)) {

@@ -37,6 +37,7 @@ import {
   type AgentPromptOutcome,
   type BackendRunIntervention,
   type HostToolExecutionResult,
+  type SessionCompactionSeed,
   type SessionCompactResult,
   type SessionSeedMessage,
   type EphemeralProviderSecret,
@@ -389,6 +390,7 @@ export class RpcSdkWorkerClient extends EventEmitter {
     providers?: SerializableWorkerProviderRuntime[];
     seedMessages?: readonly SessionSeedMessage[];
     seedMode?: 'compaction' | 'replay';
+    compactionSeed?: SessionCompactionSeed;
   }): Promise<{ sessionId: string }>;
   async createSession(input: unknown): Promise<{ sessionId: string }> {
     const response = await this.request(
@@ -506,6 +508,34 @@ export class RpcSdkWorkerClient extends EventEmitter {
       this.options.abortTimeoutMs ?? 2000,
     );
     if (!response.success) throw new Error(response.error ?? 'session/compact-abort failed');
+  }
+
+  /** Read the per-worker-session auto-compaction setting. */
+  async getAutoCompactionEnabled(sessionId: string): Promise<boolean> {
+    const response = await this.request({
+      method: 'session/get-auto-compaction',
+      sessionId,
+    });
+    if (!response.success) {
+      throw new Error(response.error ?? 'session/get-auto-compaction failed');
+    }
+    const enabled = (response.data as { enabled?: unknown } | undefined)?.enabled;
+    if (typeof enabled !== 'boolean') {
+      throw new Error('session/get-auto-compaction returned an invalid value');
+    }
+    return enabled;
+  }
+
+  /** Update the per-worker-session auto-compaction setting. */
+  async setAutoCompactionEnabled(sessionId: string, enabled: boolean): Promise<void> {
+    const response = await this.request({
+      method: 'session/set-auto-compaction',
+      sessionId,
+      enabled,
+    });
+    if (!response.success) {
+      throw new Error(response.error ?? 'session/set-auto-compaction failed');
+    }
   }
 
   /** Drop a session in the worker (cleanup). */

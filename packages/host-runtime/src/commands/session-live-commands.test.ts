@@ -29,6 +29,32 @@ import {
 } from './session-live-test-context.js';
 
 describe('session live control commands', () => {
+  it('rejects a public target-model compact while a foreground Run is live', async () => {
+    const session = createDelayedSessionHandle();
+    const { context } = createControlContext(session);
+    context.sessionModels.set(session.id, largeModelRef());
+    context.loadSessionUsage = async () => ({
+      sessionId: session.id,
+      tokensUsed: 900_000,
+      tokensLimit: 1_000_000,
+      updatedAt: new Date().toISOString(),
+      source: 'pi-contextUsage',
+    });
+    context.loadConfig = async () => modelSwitchConfig();
+
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'session/compact',
+        sessionId: session.id,
+        targetModel: smallModelRef(),
+      },
+      undefined,
+      context,
+    );
+
+    expect(response).toMatchObject({ success: false, error: 'session-busy: foreground-run' });
+  });
+
   it('compacts an oversized live source context before a target-model switch', async () => {
     const baseSession = createDelayedSessionHandle();
     let compactCalls = 0;
@@ -40,6 +66,7 @@ describe('session live control commands', () => {
       },
     };
     const { context } = createControlContext(session);
+    context.getForegroundRun = () => undefined;
     context.sessionModels.set(session.id, largeModelRef());
     context.loadSessionUsage = async () => ({
       sessionId: session.id,
@@ -79,6 +106,7 @@ describe('session live control commands', () => {
       },
     };
     const { context } = createControlContext(session);
+    context.getForegroundRun = () => undefined;
     context.sessionModels.set(session.id, largeModelRef());
     context.loadSessionUsage = async () => ({
       sessionId: session.id,
@@ -117,6 +145,7 @@ describe('session live control commands', () => {
       },
     };
     const { context } = createControlContext(session);
+    context.getForegroundRun = () => undefined;
     context.sessionModels.set(session.id, largeModelRef());
     context.loadSessionUsage = async () => {
       usageReads += 1;
@@ -148,7 +177,50 @@ describe('session live control commands', () => {
     });
   });
 
-  it('treats a thrown already-compacted as a no-op when occupancy is unknown', async () => {
+  it('treats a too-small native context as a target-model no-op', async () => {
+    const baseSession = createDelayedSessionHandle();
+    let compactCalls = 0;
+    const session: SessionHandle = {
+      ...baseSession,
+      async compact(): Promise<import('@piwin/contracts').SessionCompactResult> {
+        compactCalls += 1;
+        throw new Error('Nothing to compact (session too small)');
+      },
+    };
+    const { context } = createControlContext(session);
+    context.getForegroundRun = () => undefined;
+    context.sessionModels.set(session.id, largeModelRef());
+    context.loadSessionUsage = async () => ({
+      sessionId: session.id,
+      tokensUsed: 900_000,
+      tokensLimit: 1_000_000,
+      updatedAt: new Date().toISOString(),
+      source: 'pi-contextUsage',
+    });
+    context.loadConfig = async () => modelSwitchConfig();
+
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'session/compact',
+        sessionId: session.id,
+        targetModel: smallModelRef(),
+      },
+      undefined,
+      context,
+    );
+
+    expect(compactCalls).toBe(1);
+    expect(response).toMatchObject({
+      success: true,
+      data: {
+        ok: true,
+        compacted: false,
+        targetInputBudget: 201_600,
+      },
+    });
+  });
+
+  it('fails closed when already-compacted occupancy is unknown', async () => {
     const baseSession = createDelayedSessionHandle();
     let compactCalls = 0;
     const session: SessionHandle = {
@@ -159,6 +231,7 @@ describe('session live control commands', () => {
       },
     };
     const { context } = createControlContext(session);
+    context.getForegroundRun = () => undefined;
     context.sessionModels.set(session.id, largeModelRef());
     let usageReads = 0;
     context.loadSessionUsage = async () => {
@@ -188,10 +261,48 @@ describe('session live control commands', () => {
 
     expect(compactCalls).toBe(1);
     expect(response).toMatchObject({
-      success: true,
-      data: { ok: true, compacted: false, targetInputBudget: 201_600 },
+      success: false,
+      error: expect.stringMatching(/context-limit-unverified/),
     });
-    expect((response as { data?: { message?: string } }).data?.message).toMatch(/already compacted/i);
+  });
+
+  it('allows a known-empty cold session to switch models without compacting', async () => {
+    const baseSession = createDelayedSessionHandle();
+    let compactCalls = 0;
+    const session: SessionHandle = {
+      ...baseSession,
+      async compact(): Promise<import('@piwin/contracts').SessionCompactResult> {
+        compactCalls += 1;
+        return { ok: true, tokensAfter: 0 };
+      },
+    };
+    const { context } = createControlContext(session);
+    context.getForegroundRun = () => undefined;
+    context.sessionModels.set(session.id, largeModelRef());
+    context.loadSessionUsage = async () => null;
+    context.withTranscriptStore = async (_sessionId, operation) =>
+      operation({ listTail: async () => [] } as unknown as SessionTranscriptStore);
+    context.loadConfig = async () => modelSwitchConfig();
+
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'session/compact',
+        sessionId: session.id,
+        targetModel: smallModelRef(),
+      },
+      undefined,
+      context,
+    );
+
+    expect(compactCalls).toBe(0);
+    expect(response).toMatchObject({
+      success: true,
+      data: {
+        ok: true,
+        compacted: false,
+        targetInputBudget: 201_600,
+      },
+    });
   });
 
   it('does not surface Already compacted when occupancy still exceeds the target', async () => {
@@ -203,6 +314,7 @@ describe('session live control commands', () => {
       },
     };
     const { context } = createControlContext(session);
+    context.getForegroundRun = () => undefined;
     context.sessionModels.set(session.id, largeModelRef());
     context.loadSessionUsage = async () => ({
       sessionId: session.id,
@@ -227,9 +339,9 @@ describe('session live control commands', () => {
       success: false,
       error: expect.stringMatching(/context-limit-exceeded/),
     });
-    expect(String((response as { error?: string } | null)?.error ?? '').toLowerCase()).not.toContain(
-      'already compacted',
-    );
+    expect(
+      String((response as { error?: string } | null)?.error ?? '').toLowerCase(),
+    ).not.toContain('already compacted');
   });
 
   it('wakes a cold session before compacting', async () => {
@@ -274,7 +386,7 @@ describe('session live control commands', () => {
     });
   });
 
-  it('reseeds reconstructed history when live compact finds nothing', async () => {
+  it('re-seeds a cold runtime from product history before compacting', async () => {
     const base = createSilentSessionHandle();
     let compactCalls = 0;
     const session: SessionHandle = {
@@ -285,6 +397,7 @@ describe('session live control commands', () => {
       },
     };
     const { context } = createPromptContext(session);
+    context.needsProductHistoryInjection = () => true;
     context.withTranscriptStore = async (_sessionId, operation) =>
       operation({
         buildHistoryWindow: async () => [
@@ -348,6 +461,50 @@ describe('session live control commands', () => {
         type: 'session/prompt',
         sessionId: session.id,
         input: { text: 'continue with the smaller model', model: smallModelRef() },
+      },
+      undefined,
+      context,
+    );
+
+    expect(response).toMatchObject({ success: true });
+    await vi.waitFor(() => expect(context.getForegroundRun(session.id)).toBeUndefined());
+    expect(order).toEqual(['compact-source', 'replace-runtime', 'prompt:small-252k']);
+    expect(context.sessionModels.get(session.id)).toEqual(smallModelRef());
+  });
+
+  it('continues the prompt when target migration finds no eligible native history', async () => {
+    const baseSession = createDelayedSessionHandle();
+    const order: string[] = [];
+    const session: SessionHandle = {
+      ...baseSession,
+      async compact(): Promise<import('@piwin/contracts').SessionCompactResult> {
+        order.push('compact-source');
+        throw new Error('Nothing to compact (session too small)');
+      },
+      async prompt(input) {
+        order.push(`prompt:${input.model?.modelId ?? 'default'}`);
+        return COMPLETED_STOP_OUTCOME;
+      },
+    };
+    const { context } = createPromptContext(session);
+    context.sessionModels.set(session.id, largeModelRef());
+    context.replaceRuntimeForModel = async () => {
+      order.push('replace-runtime');
+    };
+    context.loadSessionUsage = async () => ({
+      sessionId: session.id,
+      tokensUsed: 900_000,
+      tokensLimit: 1_000_000,
+      updatedAt: new Date().toISOString(),
+      source: 'pi-contextUsage',
+    });
+    context.loadConfig = async () => modelSwitchConfig();
+
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'session/prompt',
+        sessionId: session.id,
+        input: { text: 'continue despite the tiny native context', model: smallModelRef() },
       },
       undefined,
       context,
@@ -557,7 +714,10 @@ describe('session live control commands', () => {
       });
       expect(armRunIntervention).toHaveBeenCalledOnce();
       expect(armRunIntervention).toHaveBeenLastCalledWith(
-        expect.objectContaining({ interventionId: 'intervention-adopt-1', text: 'Adjust the model mapping' }),
+        expect.objectContaining({
+          interventionId: 'intervention-adopt-1',
+          text: 'Adjust the model mapping',
+        }),
       );
       expect(pushes.map((push) => push.type)).toContain('session/queued-turn-updated');
       expect(pushes.map((push) => push.type)).toContain('run/intervention-updated');
@@ -1242,8 +1402,7 @@ describe('session live control commands', () => {
   });
 
   it('terminalizes failed Agent outcomes with the structured failure', async () => {
-    const upstream =
-      'No endpoints available matching your guardrail restrictions and data policy';
+    const upstream = 'No endpoints available matching your guardrail restrictions and data policy';
     const failure = {
       code: 'provider-unavailable' as const,
       origin: 'provider' as const,
@@ -1685,9 +1844,7 @@ describe('session live control commands', () => {
 
       await session.promptSettled;
       await vi.waitFor(() => {
-        expect(modelFacingText).toContain(
-          '<context_ref type="selection" location="src/a.ts:2-4">',
-        );
+        expect(modelFacingText).toContain('<context_ref type="selection" location="src/a.ts:2-4">');
         expect(modelFacingText).toContain('<context_ref type="file" path="a.ts:1">');
         expect(modelFacingText).toContain('export const n = 1;');
       });
@@ -1982,9 +2139,7 @@ describe('Conversation prompt path (CHT-301~308)', () => {
     expect(response?.success).toBe(true);
     await session.promptSettled;
     await vi.waitFor(() => {
-      expect(modelFacingText).toContain(
-        '<context_ref type="selection" location="src/a.ts:2-4">',
-      );
+      expect(modelFacingText).toContain('<context_ref type="selection" location="src/a.ts:2-4">');
     });
     expect(modelFacingText).toContain('const value = 1;');
     expect(modelFacingText).toContain('explain this');
@@ -2127,9 +2282,13 @@ describe('session/create projectId binding', () => {
   it('strips projectId before createSession after resolving the Host path', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-create-project-id-'));
     const projectPath = join(rootDir, 'repo');
-    const created = await openOrCreateProject(getPiwinProjectsPath(getPiwinRoot(rootDir)), projectPath, {
-      displayName: 'repo',
-    });
+    const created = await openOrCreateProject(
+      getPiwinProjectsPath(getPiwinRoot(rootDir)),
+      projectPath,
+      {
+        displayName: 'repo',
+      },
+    );
     const session = createDelayedSessionHandle();
     const { context } = createControlContext(session);
     context.piwinRoot = rootDir;
@@ -2505,5 +2664,4 @@ describe('session/tool-output snapshot recovery', () => {
 
     expect(context.sideChatSnapshotInjectedVersions.get(session.id)).toBeUndefined();
   });
-
 });

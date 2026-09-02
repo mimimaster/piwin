@@ -398,6 +398,10 @@
    something — amber, the "needs your attention" role, not accent. */
 .tool-call-truncated-tag {
   flex: 0 0 auto;
+  max-width: min(42ch, 45%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--amber);
   font-size: var(--fs-micro);
   font-family: var(--font-mono);
@@ -556,6 +560,7 @@
   align-items: center;
   gap: var(--s-3);
   width: 100%;
+  min-width: 0;
   max-width: var(--chat-max, 680px);
   margin: var(--s-3) 0 var(--s-4);
   padding: var(--s-3) var(--s-4);
@@ -642,10 +647,15 @@
 .image-generation-progress-title-row {
   display: flex;
   align-items: center;
+  min-width: 0;
   gap: var(--s-2);
 }
 
 .image-generation-progress-copy strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--text-1);
   font-size: var(--fs-chrome);
   font-weight: 600;
@@ -654,6 +664,7 @@
 }
 
 .image-generation-progress-copy > span {
+  overflow-wrap: anywhere;
   color: var(--text-3);
   font-size: var(--fs-micro);
   line-height: 1.35;
@@ -836,6 +847,7 @@
   align-items: center;
   gap: var(--s-3);
   width: 100%;
+  min-width: 0;
   min-height: 22px;
   padding: 1px var(--s-2);
   border: none;
@@ -875,6 +887,7 @@
   flex-direction: column;
   justify-content: center;
   min-width: 0;
+  max-width: 100%;
   flex-shrink: 1;
 }
 

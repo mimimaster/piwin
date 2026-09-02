@@ -110,10 +110,22 @@ export function useWorkbenchSessionGestures(args: UseWorkbenchSessionGesturesArg
     async (options?: {
       scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
     }): Promise<void> => {
-      startNewDraft(options?.scope);
+      const scope = options?.scope;
+      // Mirror Conversations +: switch scope first, then enter the draft.
+      // Project-row + only passes scope; opening belongs here so it cannot
+      // race bumpToDraft and cancel project/set.
+      if (scope?.kind === 'project') {
+        const alreadyThere =
+          state.activeScope.kind === 'project' &&
+          state.activeScope.projectPath === scope.projectPath;
+        if (!alreadyThere) {
+          await handleOpenProject(scope.projectPath);
+        }
+      }
+      startNewDraft(scope);
       await handleNewSession(options);
     },
-    [handleNewSession, startNewDraft],
+    [handleNewSession, handleOpenProject, startNewDraft, state.activeScope],
   );
   const handleResumeDraft = useCallback(
     async (draftId: string): Promise<void> => {

@@ -2,7 +2,12 @@ import type { AgentEvent } from '@piwin/contracts';
 import { mergeSearchEvidence } from '@piwin/contracts';
 import { createBoundedTextAccumulator } from './bounded-text-accumulator';
 import { markLatestAssistantFailure } from './run-failure-message';
-import type { ChatMessageUi, ChatUiAction, ChatUiState } from './chat-ui-types';
+import type {
+  ChatMessageUi,
+  ChatUiAction,
+  ChatUiState,
+  CompactionActivityUi,
+} from './chat-ui-types';
 import { MAX_TOOL_CARDS_PER_MESSAGE } from './chat-ui-types';
 import {
   STREAMING_TEXT_RETENTION_OPTIONS,
@@ -427,19 +432,52 @@ export function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiSt
       if (isStaleOptionalRunEvent(state, event.runId)) {
         return state;
       }
-      return {
-        ...state,
-        compacting: true,
-        lastCompactionMessage: null,
-        lastCompactionSummary: null,
-        lastCompactionTokensBefore: null,
-        lastCompactionTokensAfter: null,
-        lastCompactionDurationMs: null,
-        lastCompactionFileOps: null,
-      };
+      {
+        const startedAt = Date.now();
+        const runId = event.runId ?? state.activeRunId ?? undefined;
+        const operationId =
+          event.operationId ?? `compaction:${state.activeSessionId ?? 'session'}:${startedAt}`;
+        const activity: CompactionActivityUi = {
+          operationId,
+          phase: 'running',
+          reason: event.reason ?? 'unknown',
+          anchorMessageId: state.messages.at(-1)?.id ?? null,
+          startedAt,
+          ...(runId !== undefined ? { runId } : {}),
+        };
+        return {
+          ...state,
+          compacting: true,
+          compactionActivity: activity,
+          lastCompactionMessage: null,
+          lastCompactionSummary: null,
+          lastCompactionTokensBefore: null,
+          lastCompactionTokensAfter: null,
+          lastCompactionDurationMs: null,
+          lastCompactionFileOps: null,
+        };
+      }
     case 'compaction/end': {
       if (isStaleOptionalRunEvent(state, event.runId)) {
         return state;
+      }
+      if (event.noOp) {
+        // Pi emits start/end even when manual compact finds no eligible
+        // history. Do not leave a transient no-op as a red terminal card.
+        if (!state.compacting && state.compactionActivity?.phase !== 'running') {
+          return state;
+        }
+        return {
+          ...state,
+          compacting: false,
+          compactionActivity: null,
+          lastCompactionMessage: null,
+          lastCompactionSummary: null,
+          lastCompactionTokensBefore: null,
+          lastCompactionTokensAfter: null,
+          lastCompactionDurationMs: null,
+          lastCompactionFileOps: null,
+        };
       }
       const message =
         typeof event.message === 'string' && event.message
@@ -449,10 +487,32 @@ export function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiSt
             : 'Context compacted';
       const fileOps = 'fileOps' in event && event.fileOps ? event.fileOps : null;
       const contextUsage = applyCompactionEndContextUsage(state.contextUsage, event);
+      const previousActivity = state.compactionActivity;
+      const startedAt = previousActivity?.startedAt ?? Date.now();
+      const runId = event.runId ?? previousActivity?.runId ?? state.activeRunId ?? undefined;
+      const operationId =
+        event.operationId ?? previousActivity?.operationId ?? `compaction:${startedAt}`;
+      const activity: CompactionActivityUi = {
+        operationId,
+        phase: event.aborted === true ? 'cancelled' : event.ok === false ? 'failed' : 'succeeded',
+        reason: event.reason ?? previousActivity?.reason ?? 'unknown',
+        anchorMessageId: previousActivity?.anchorMessageId ?? state.messages.at(-1)?.id ?? null,
+        startedAt,
+        endedAt: Date.now(),
+        ...(runId !== undefined ? { runId } : {}),
+        ...(message ? { message } : {}),
+        ...(typeof event.summary === 'string' && event.summary ? { summary: event.summary } : {}),
+        ...(typeof event.tokensBefore === 'number' ? { tokensBefore: event.tokensBefore } : {}),
+        ...(typeof event.tokensAfter === 'number' ? { tokensAfter: event.tokensAfter } : {}),
+        ...(typeof event.durationMs === 'number' ? { durationMs: event.durationMs } : {}),
+        ...(fileOps ? { fileOps } : {}),
+        ...(event.willRetry === true ? { willRetry: true } : {}),
+      };
       return {
         ...state,
         contextUsage,
         compacting: false,
+        compactionActivity: activity,
         lastCompactionMessage: message,
         lastCompactionSummary:
           typeof event.summary === 'string' && event.summary ? event.summary : null,
@@ -545,6 +605,8 @@ export function reduceChatEvents(state: ChatUiState, action: ChatUiEventAction):
     case 'compaction/dismiss':
       return {
         ...state,
+        compacting: false,
+        compactionActivity: null,
         lastCompactionMessage: null,
         lastCompactionSummary: null,
         lastCompactionTokensBefore: null,

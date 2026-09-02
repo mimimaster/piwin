@@ -15,6 +15,7 @@
 import type {
   AgentEvent,
   BackendRunInterventionEvent,
+  SessionCompactionSeed,
   SessionSeedMessage,
   ToolResult,
   ToolResultErrorCode,
@@ -35,6 +36,8 @@ export type WorkerRequestMethod =
   | 'session/intervention-cancel'
   | 'session/compact'
   | 'session/compact-abort'
+  | 'session/get-auto-compaction'
+  | 'session/set-auto-compaction'
   | 'session/drop';
 
 /** Worker request frame (parent → worker via stdin). */
@@ -222,6 +225,7 @@ export type WorkerRequestPayload =
       providers?: SerializableWorkerProviderRuntime[];
       seedMessages?: readonly SessionSeedMessage[];
       seedMode?: 'compaction' | 'replay';
+      compactionSeed?: SessionCompactionSeed;
     }
   | {
       method: 'session/prompt';
@@ -267,6 +271,15 @@ export type WorkerRequestPayload =
   | {
       method: 'session/compact-abort';
       sessionId: string;
+    }
+  | {
+      method: 'session/get-auto-compaction';
+      sessionId: string;
+    }
+  | {
+      method: 'session/set-auto-compaction';
+      sessionId: string;
+      enabled: boolean;
     }
   | {
       method: 'session/drop';

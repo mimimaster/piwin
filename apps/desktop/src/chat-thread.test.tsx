@@ -896,6 +896,87 @@ describe('ChatThread render isolation (E1)', () => {
     expect(container.textContent).toContain('Thought for 3s');
   });
 
+  it('folds the final answer thinking into the Work disclosure', () => {
+    const userMessage = createUserMessage('u-work-thinking', 'Inspect the project');
+    const workMessage: ChatMessageUi = {
+      id: 'a-work-thinking-step',
+      role: 'assistant',
+      text: '',
+      thinking: '',
+      tools: [{ toolCallId: 'tool-work-thinking', toolName: 'read', status: 'done', output: '' }],
+      attachments: [],
+      status: 'done',
+      runId: 'run-work-thinking',
+    };
+    const answerMessage: ChatMessageUi = {
+      id: 'a-work-thinking-answer',
+      role: 'assistant',
+      text: 'The project is ready.',
+      thinking: 'I should verify the result before answering.',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      runId: 'run-work-thinking',
+    };
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThreadHarness
+            messages={[userMessage, workMessage, answerMessage]}
+            streaming={false}
+            editingMessageId={null}
+            lastUserMessageId={userMessage.id}
+            activeTheme={null}
+            artifactThemeKey={0}
+            workDetailsExpanded="collapsed"
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onInspectSubagent={undefined}
+            composerCard={composerCard}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="turn-work-disclosure"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="work-folded-thinking"]')).toBeNull();
+    expect(container.querySelector('#msg-a-work-thinking-answer .markdown')?.textContent).toContain(
+      'The project is ready.',
+    );
+    expect(
+      container.querySelector('#msg-a-work-thinking-answer [data-testid="turn-work-details-summary"]'),
+    ).toBeNull();
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="turn-work-disclosure-trigger"]')
+        ?.click();
+    });
+
+    expect(container.querySelector('[data-testid="work-folded-thinking"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="work-folded-thinking"]')?.textContent).toContain(
+      'Thoughts',
+    );
+    expect(container.querySelector('[data-testid="turn-thinking"]')).toBeNull();
+    expect(container.querySelector('#msg-a-work-thinking-answer .markdown')?.textContent).toContain(
+      'The project is ready.',
+    );
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="turn-work-disclosure-trigger"]')
+        ?.click();
+    });
+    expect(container.querySelector('[data-testid="work-folded-thinking"]')).toBeNull();
+    expect(container.querySelector('#msg-a-work-thinking-answer .markdown')?.textContent).toContain(
+      'The project is ready.',
+    );
+  });
+
   it('renders every response segment in causal order without a Run summary', () => {
     const userMessage = createUserMessage('u-run-work', 'Create the SVG');
     const firstAssistant: ChatMessageUi = {
@@ -2197,6 +2278,212 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
     expect(thinkingOnly.thinking).toBe('raw thought that must stay in the reducer');
   });
 
+  it('keeps generated image and identity header after a settled Conversation reopen', () => {
+    const grok = {
+      protocol: 'openai-compatible' as const,
+      providerId: 'xai',
+      modelId: 'grok-4.6',
+    };
+    const userMessage = createUserMessage('u-reopen', '随便生成张图片');
+    const process: ChatMessageUi = {
+      id: 'a-reopen-1',
+      role: 'assistant',
+      text: '先看一下生图接口，再随便出一张。',
+      thinking: 'check the image API',
+      tools: [
+        {
+          toolCallId: 'tb-reopen',
+          toolName: 'piwin_toolbox',
+          status: 'done',
+          output: 'ok',
+          presentation: { kind: 'other', title: 'image_gen', actionVerb: 'Toolbox' },
+        },
+      ],
+      attachments: [
+        {
+          id: 'att-reopen',
+          kind: 'media',
+          path: '/tmp/a.png',
+          mimeType: 'image/png',
+          name: 'a.png',
+          byteSize: 12,
+          source: 'generated',
+        },
+      ],
+      status: 'done',
+      createdAt: '2026-08-20T12:55:00.000Z',
+      model: grok,
+    };
+    const caption: ChatMessageUi = {
+      id: 'a-reopen-2',
+      role: 'assistant',
+      text: '随手出了一张：黄昏乡间小路，自行车靠在木栅栏上。',
+      thinking: 'wrap up',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      createdAt: '2026-08-20T12:55:08.000Z',
+      model: grok,
+    };
+    renderConversation([userMessage, process, caption]);
+
+    expect(container.querySelector('#msg-a-reopen-1')).not.toBeNull();
+    expect(container.querySelector('#msg-a-reopen-1 .message-attachments')).not.toBeNull();
+    expect(container.querySelector('[data-testid="turn-work-disclosure"]')).toBeNull();
+    expect(container.querySelectorAll('[data-testid="conversation-message-header"]')).toHaveLength(
+      1,
+    );
+    expect(
+      container.querySelector('#msg-a-reopen-1 [data-testid="conversation-message-header"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="conversation-message-model-name"]')?.textContent,
+    ).toBe('grok-4.6');
+    expect(container.querySelector('.conversation-message-provider-icon')).not.toBeNull();
+  });
+
+  it('keeps the Conversation identity header on the first visible assistant after toolbox image generation', () => {
+    const grok = {
+      protocol: 'openai-compatible' as const,
+      providerId: 'xai',
+      modelId: 'grok-4.6',
+    };
+    const userMessage = createUserMessage('u-img', '随便生成张图片');
+    const process: ChatMessageUi = {
+      id: 'a-img-1',
+      role: 'assistant',
+      text: '先看一下生图接口，再随便出一张。',
+      thinking: 'check the image API',
+      tools: [
+        {
+          toolCallId: 'tb-1',
+          toolName: 'piwin_toolbox',
+          status: 'done',
+          output: 'ok',
+          presentation: { kind: 'other', title: 'image_gen', actionVerb: 'Toolbox' },
+        },
+      ],
+      attachments: [],
+      status: 'done',
+      createdAt: '2026-08-20T13:25:00.000Z',
+      model: grok,
+    };
+    const image: ChatMessageUi = {
+      id: 'a-img-2',
+      role: 'assistant',
+      text: '',
+      thinking: 'render the scene',
+      tools: [
+        {
+          toolCallId: 'tb-2',
+          toolName: 'piwin_toolbox',
+          status: 'done',
+          output: 'ok',
+          presentation: { kind: 'other', title: 'image_gen', actionVerb: 'Toolbox' },
+        },
+      ],
+      attachments: [
+        {
+          id: 'att-1',
+          kind: 'media',
+          path: '/tmp/a.png',
+          mimeType: 'image/png',
+          name: 'a.png',
+          byteSize: 12,
+          source: 'generated',
+        },
+      ],
+      status: 'done',
+      createdAt: '2026-08-20T13:25:04.000Z',
+      model: grok,
+    };
+    const caption: ChatMessageUi = {
+      id: 'a-img-3',
+      role: 'assistant',
+      text: '随手出了一张：黄昏乡间小路。',
+      thinking: 'wrap up',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      createdAt: '2026-08-20T13:25:08.000Z',
+      model: grok,
+    };
+    renderConversation([userMessage, process, image, caption], {
+      workDetailsExpanded: 'always',
+    });
+
+    expect(container.querySelectorAll('[data-testid="conversation-message-header"]')).toHaveLength(
+      1,
+    );
+    expect(
+      container.querySelector('#msg-a-img-1 [data-testid="conversation-message-header"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('#msg-a-img-2 [data-testid="conversation-message-header"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('#msg-a-img-3 [data-testid="conversation-message-header"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="conversation-message-model-name"]')?.textContent,
+    ).toBe('grok-4.6');
+    expect(container.textContent).toContain('先看一下生图接口');
+    expect(container.textContent).toContain('随手出了一张');
+  });
+
+  it('does not move the Conversation identity header onto a later streaming completion', () => {
+    const grok = {
+      protocol: 'openai-compatible' as const,
+      providerId: 'xai',
+      modelId: 'grok-4.6',
+    };
+    const userMessage = createUserMessage('u-live-loop', '随便生成张图片');
+    const first: ChatMessageUi = {
+      id: 'a-live-1',
+      role: 'assistant',
+      text: '先看一下生图接口，再随便出一张。',
+      thinking: '',
+      tools: [
+        {
+          toolCallId: 'tb-live',
+          toolName: 'piwin_toolbox',
+          status: 'done',
+          output: 'ok',
+          presentation: { kind: 'other', title: 'image_gen', actionVerb: 'Toolbox' },
+        },
+      ],
+      attachments: [],
+      status: 'done',
+      createdAt: '2026-08-20T13:25:00.000Z',
+      model: grok,
+    };
+    const later: ChatMessageUi = {
+      id: 'a-live-2',
+      role: 'assistant',
+      text: '',
+      thinking: 'rendering',
+      tools: [],
+      attachments: [],
+      status: 'streaming',
+      createdAt: '2026-08-20T13:25:04.000Z',
+      model: grok,
+    };
+    renderConversation([userMessage, first, later], {
+      streaming: true,
+      workDetailsExpanded: 'always',
+    });
+
+    expect(container.querySelectorAll('[data-testid="conversation-message-header"]')).toHaveLength(
+      1,
+    );
+    expect(
+      container.querySelector('#msg-a-live-1 [data-testid="conversation-message-header"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('#msg-a-live-2 [data-testid="conversation-message-header"]'),
+    ).toBeNull();
+  });
+
   it('uses one identity header for a Conversation tool-loop turn', () => {
     const userMessage = createUserMessage('u-fetch', 'read the page');
     const firstCall: ChatMessageUi = {
@@ -2225,11 +2512,16 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
 
     expect(container.querySelector('#msg-a-fetch-think')).toBeNull();
     expect(container.querySelector('#msg-a-fetch-final')).not.toBeNull();
-    expect(container.querySelectorAll('[data-testid="conversation-message-header"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-testid="conversation-message-header"]')).toHaveLength(
+      1,
+    );
+    expect(container.querySelector('[data-testid="conversation-turn-identity"]')).not.toBeNull();
     expect(
-      container.querySelector('#msg-a-fetch-final [data-testid="conversation-message-model-name"]')
-        ?.textContent,
+      container.querySelector('[data-testid="conversation-message-model-name"]')?.textContent,
     ).toBe('glm5.2');
+    expect(
+      container.querySelector('#msg-a-fetch-final [data-testid="conversation-message-header"]'),
+    ).toBeNull();
   });
 
   it('inherits model snapshot from later assistant message in the same Conversation turn', () => {
@@ -2257,13 +2549,15 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
     };
     renderConversation([userMessage, firstCallNoModel, finalReplyWithModel]);
 
+    expect(container.querySelector('[data-testid="conversation-turn-identity"]')).not.toBeNull();
     expect(
-      container.querySelector('#msg-a-fetch-final-withmodel [data-testid="conversation-message-header"]'),
-    ).not.toBeNull();
-    expect(
-      container.querySelector('#msg-a-fetch-final-withmodel [data-testid="conversation-message-model-name"]')
-        ?.textContent,
+      container.querySelector('[data-testid="conversation-message-model-name"]')?.textContent,
     ).toBe('gemini-3.7-flash');
+    expect(
+      container.querySelector(
+        '#msg-a-fetch-final-withmodel [data-testid="conversation-message-header"]',
+      ),
+    ).toBeNull();
   });
 
   it('does not follow livePromptModel on a completed latest Conversation reply', () => {
@@ -2273,7 +2567,9 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
       role: 'assistant',
       text: '',
       thinking: 'preparing tool',
-      tools: [{ toolCallId: 'tool-art', toolName: 'artifact_instructions', status: 'done', output: 'ok' }],
+      tools: [
+        { toolCallId: 'tool-art', toolName: 'artifact_instructions', status: 'done', output: 'ok' },
+      ],
       attachments: [],
       status: 'done',
       createdAt: '2026-08-20T13:25:00.000Z',
@@ -2296,11 +2592,10 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
       },
     });
 
+    expect(container.querySelector('[data-testid="conversation-message-header"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="conversation-message-model-name"]')).toBeNull();
     expect(
       container.querySelector('#msg-a-tool-reply [data-testid="conversation-message-header"]'),
-    ).not.toBeNull();
-    expect(
-      container.querySelector('#msg-a-tool-reply [data-testid="conversation-message-model-name"]'),
     ).toBeNull();
   });
 
@@ -2366,12 +2661,18 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
 
     expect(container.querySelector('#msg-a-two-1')).not.toBeNull();
     expect(container.querySelector('#msg-a-two-2')).not.toBeNull();
-    expect(container.querySelectorAll('[data-testid="conversation-message-header"]')).toHaveLength(1);
-    expect(container.querySelector('#msg-a-two-1 [data-testid="conversation-message-header"]')).not.toBeNull();
-    expect(container.querySelector('#msg-a-two-2 [data-testid="conversation-message-header"]')).toBeNull();
-    expect(container.querySelector('#msg-a-two-2')?.classList.contains('is-turn-continuation')).toBe(
-      true,
+    expect(container.querySelectorAll('[data-testid="conversation-message-header"]')).toHaveLength(
+      1,
     );
+    expect(
+      container.querySelector('#msg-a-two-1 [data-testid="conversation-message-header"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('#msg-a-two-2 [data-testid="conversation-message-header"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('#msg-a-two-2')?.classList.contains('is-turn-continuation'),
+    ).toBe(true);
   });
 
   it('keeps Conversation copy/regenerate dock on the last completion only', () => {
@@ -2426,8 +2727,12 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
       onForkFromMessage: vi.fn(),
     });
 
-    expect(container.querySelector('#msg-a-loop-1 [data-testid="assistant-response-actions"]')).toBeNull();
-    expect(container.querySelector('#msg-a-loop-2 [data-testid="assistant-response-actions"]')).toBeNull();
+    expect(
+      container.querySelector('#msg-a-loop-1 [data-testid="assistant-response-actions"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('#msg-a-loop-2 [data-testid="assistant-response-actions"]'),
+    ).toBeNull();
     expect(container.querySelector('#msg-a-loop-1 .markdown')).toBeNull();
     expect(container.querySelector('#msg-a-loop-2 .markdown')).toBeNull();
     expect(container.textContent).not.toContain('先读取 Artifact 规范');
@@ -2440,8 +2745,12 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
     ).not.toBeNull();
     expect(container.querySelectorAll('[data-testid="response-copy-btn"]')).toHaveLength(1);
     expect(container.querySelectorAll('[data-testid="response-regenerate-btn"]')).toHaveLength(1);
-    expect(container.querySelector('#msg-a-loop-3 [data-testid="response-copy-btn"]')).not.toBeNull();
-    expect(container.querySelector('#msg-a-loop-3 [data-testid="response-regenerate-btn"]')).not.toBeNull();
+    expect(
+      container.querySelector('#msg-a-loop-3 [data-testid="response-copy-btn"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('#msg-a-loop-3 [data-testid="response-regenerate-btn"]'),
+    ).not.toBeNull();
   });
 
   it('still shows every Agent lifecycle row without Conversation headers', () => {
@@ -2590,10 +2899,14 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
 
     const summary = container.querySelector('#msg-a-summary');
     expect(summary).not.toBeNull();
-    expect(summary?.querySelector('[data-testid="conversation-extracted-flashcard"]')).not.toBeNull();
+    expect(
+      summary?.querySelector('[data-testid="conversation-extracted-flashcard"]'),
+    ).not.toBeNull();
     expect(summary?.querySelector('[data-testid="chat-flashcard"]')).not.toBeNull();
     expect(summary?.textContent).toContain('[…]');
-    expect(container.querySelector('#msg-a-tool [data-testid="conversation-extracted-flashcard"]')).toBeNull();
+    expect(
+      container.querySelector('#msg-a-tool [data-testid="conversation-extracted-flashcard"]'),
+    ).toBeNull();
   });
 
   it('renders conversation assistant header with model snapshot and provider icon', () => {
@@ -2617,9 +2930,9 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
 
     const header = container.querySelector('[data-testid="conversation-message-header"]');
     expect(header).not.toBeNull();
-    expect(container.querySelector('[data-testid="conversation-message-model-name"]')?.textContent).toBe(
-      'claude-sonnet-4',
-    );
+    expect(
+      container.querySelector('[data-testid="conversation-message-model-name"]')?.textContent,
+    ).toBe('claude-sonnet-4');
   });
 
   it('renders turn usage chip only on the latest completed assistant message', () => {
@@ -2632,7 +2945,11 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
       tools: [],
       attachments: [],
       status: 'done',
-      model: { protocol: 'anthropic-compatible', providerId: 'anthropic', modelId: 'claude-sonnet-4' },
+      model: {
+        protocol: 'anthropic-compatible',
+        providerId: 'anthropic',
+        modelId: 'claude-sonnet-4',
+      },
     };
     const u2 = createUserMessage('u-2', 'second');
     const a2: ChatMessageUi = {
@@ -2643,7 +2960,11 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
       tools: [],
       attachments: [],
       status: 'done',
-      model: { protocol: 'anthropic-compatible', providerId: 'anthropic', modelId: 'claude-sonnet-4' },
+      model: {
+        protocol: 'anthropic-compatible',
+        providerId: 'anthropic',
+        modelId: 'claude-sonnet-4',
+      },
     };
 
     renderConversation([u1, a1, u2, a2], {
@@ -2702,10 +3023,13 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
       },
     });
 
-    expect(container.querySelector('#msg-a-usage-1 [data-testid="conversation-message-usage-chip"]')?.textContent).toBe(
-      '1.2K → 486',
-    );
-    expect(container.querySelector('#msg-a-usage-2 [data-testid="conversation-message-usage-chip"]')).toBeNull();
+    expect(
+      container.querySelector('#msg-a-usage-1 [data-testid="conversation-message-usage-chip"]')
+        ?.textContent,
+    ).toBe('1.2K → 486');
+    expect(
+      container.querySelector('#msg-a-usage-2 [data-testid="conversation-message-usage-chip"]'),
+    ).toBeNull();
   });
 
   it('renders user message with conversation bubble class and avatar monogram in Conversation mode', () => {
@@ -2735,7 +3059,9 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
 
     renderConversation([u1, a1], { onRetryTurn });
 
-    const regenerateBtn = container.querySelector('[data-testid="response-regenerate-btn"]') as HTMLButtonElement | null;
+    const regenerateBtn = container.querySelector(
+      '[data-testid="response-regenerate-btn"]',
+    ) as HTMLButtonElement | null;
     expect(regenerateBtn).not.toBeNull();
 
     act(() => {
@@ -2757,11 +3083,27 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
       attachments: [],
       status: 'error',
       error: 'Request was aborted',
+      runId: 'run-failed',
     };
 
-    renderConversation([u1, a1], { onRetryTurn, lastUserMessageId: 'u-1' });
+    renderConversation([u1, a1], {
+      onRetryTurn,
+      lastUserMessageId: 'u-1',
+      runRecordsById: {
+        'run-failed': {
+          runId: 'run-failed',
+          phaseHistory: [],
+          startedAt: 1,
+          endedAt: 2,
+          outcome: 'failed',
+          terminalMessage: 'Request was aborted',
+        },
+      },
+    });
 
-    const retryBtn = container.querySelector('[data-testid="turn-error-retry-btn"]') as HTMLButtonElement | null;
+    const retryBtn = container.querySelector(
+      '[data-testid="turn-error-retry-btn"]',
+    ) as HTMLButtonElement | null;
     expect(retryBtn).not.toBeNull();
 
     act(() => {
@@ -2809,10 +3151,14 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
     };
 
     renderConversation([u1, a2], { branchPoints: [point], onSwitchBranch });
-    expect(container.querySelector('[data-testid="message-branch-label"]')?.textContent).toBe('2/2');
+    expect(container.querySelector('[data-testid="message-branch-label"]')?.textContent).toBe(
+      '2/2',
+    );
 
     act(() => {
-      (container.querySelector('[data-testid="message-branch-prev"]') as HTMLButtonElement | null)?.click();
+      (
+        container.querySelector('[data-testid="message-branch-prev"]') as HTMLButtonElement | null
+      )?.click();
     });
     expect(onSwitchBranch).toHaveBeenCalledWith('a-1');
   });
