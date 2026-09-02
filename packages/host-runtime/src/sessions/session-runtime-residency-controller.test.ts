@@ -20,6 +20,7 @@ function createController(
   options: {
     retention?: Partial<SessionRuntimeRetentionConfig>;
     maxResidentRuntimes?: number;
+    resolveMaxResidentRuntimes?: () => number;
     sampleMemory?: () => ResidencyMemorySample;
     sweepIntervalMs?: number;
     isRuntimeProtected?: (sessionId: string) => boolean;
@@ -40,9 +41,11 @@ function createController(
     },
     nowMs: clock.nowMs,
     sweepIntervalMs: options.sweepIntervalMs ?? 30_000,
-    ...(maxResidentRuntimes !== undefined
-      ? { resolveMaxResidentRuntimes: () => maxResidentRuntimes }
-      : {}),
+    ...(options.resolveMaxResidentRuntimes
+      ? { resolveMaxResidentRuntimes: options.resolveMaxResidentRuntimes }
+      : maxResidentRuntimes !== undefined
+        ? { resolveMaxResidentRuntimes: () => maxResidentRuntimes }
+        : {}),
     ...(options.sampleMemory ? { sampleMemory: options.sampleMemory } : {}),
     ...(options.isRuntimeProtected ? { isRuntimeProtected: options.isRuntimeProtected } : {}),
     ...(options.suspendRuntime ? { suspendRuntime: options.suspendRuntime } : {}),
@@ -501,5 +504,180 @@ describe('session-runtime-residency-controller', () => {
     await activateAndCommit(controller, 's1', 'gen-1');
     expect(await controller.requestSuspend('s1', 'gen-1', 'manual')).toBe(true);
     expect(evicted).toEqual(['s1']);
+  });
+});
+
+async function beginEphemeral(
+  controller: ReturnType<typeof createSessionRuntimeResidencyController>,
+  sessionId: string,
+  generationId: string,
+  signal: AbortSignal = new AbortController().signal,
+) {
+  return controller.beginActivation(sessionId, generationId, signal, { ephemeral: true });
+}
+
+describe('session-runtime-residency-controller ephemeral', () => {
+  it('counts an ephemeral activation against capacity and commits to resident-busy', async () => {
+    const { controller } = createController({ maxResidentRuntimes: 2 });
+    const result = await beginEphemeral(controller, 'child-1', 'gen-1');
+    expect(result.ok).toBe(true);
+    expect(controller.getCounts().resident).toBe(1);
+    expect(controller.getResidency('child-1')).toBe('activating');
+
+    controller.commitActivation('child-1', 'gen-1');
+    expect(controller.getResidency('child-1')).toBe('resident-busy');
+    expect(controller.getCounts().residentIdle).toBe(0);
+    expect(controller.getCounts().residentBusy).toBe(1);
+    expect(controller.getCounts().ephemeral).toBe(1);
+  });
+
+  it('never idles an ephemeral entry or selects it as an eviction victim', async () => {
+    const { controller } = createController({ maxResidentRuntimes: 1 });
+    expect((await beginEphemeral(controller, 'e1', 'g1')).ok).toBe(true);
+    controller.commitActivation('e1', 'g1');
+    controller.markIdle('e1', 'g1');
+    expect(controller.getResidency('e1')).toBe('resident-busy');
+
+    const queuedSignal = new AbortController();
+    const queued = beginEphemeral(controller, 'e2', 'g2', queuedSignal.signal);
+    await Promise.resolve();
+    expect(controller.getCounts().waiterCount).toBe(1);
+    expect(controller.getResidency('e1')).toBe('resident-busy');
+    expect(controller.getCounters().evictedByMaxResident).toBe(0);
+
+    queuedSignal.abort();
+    await expect(queued).rejects.toThrow('aborted');
+  });
+
+  it('evicts an idle foreground session before queueing a third ephemeral in a pool of 3', async () => {
+    const { controller } = createController({ maxResidentRuntimes: 3 });
+    await activateAndCommit(controller, 'fg', 'gen-fg');
+    expect((await beginEphemeral(controller, 'e1', 'g1')).ok).toBe(true);
+    controller.commitActivation('e1', 'g1');
+    expect((await beginEphemeral(controller, 'e2', 'g2')).ok).toBe(true);
+    controller.commitActivation('e2', 'g2');
+
+    const before = controller.getCounters().evictedByMaxResident;
+    const third = await beginEphemeral(controller, 'e3', 'g3');
+    expect(third.ok).toBe(true);
+    expect(controller.getCounts().waiterCount).toBe(0);
+    expect(controller.getResidency('fg')).toBe('cold');
+    expect(controller.getCounters().evictedByMaxResident).toBe(before + 1);
+    expect(controller.getResidency('e3')).toBe('activating');
+  });
+
+  it('queues a fourth ephemeral when three are busy, grants on releaseEphemeral, and drops aborted waiters', async () => {
+    const { controller } = createController({ maxResidentRuntimes: 3 });
+    for (const [sessionId, generationId] of [
+      ['e1', 'g1'],
+      ['e2', 'g2'],
+      ['e3', 'g3'],
+    ] as const) {
+      expect((await beginEphemeral(controller, sessionId, generationId)).ok).toBe(true);
+      controller.commitActivation(sessionId, generationId);
+    }
+
+    const fourth = beginEphemeral(controller, 'e4', 'g4');
+    await Promise.resolve();
+    expect(controller.getCounts().waiterCount).toBe(1);
+
+    controller.releaseEphemeral('e2', 'g2');
+    expect(await fourth).toEqual({ ok: true });
+    expect(controller.getCounts().waiterCount).toBe(0);
+    expect(controller.getResidency('e4')).toBe('activating');
+    expect(controller.getEntry('e4')?.ephemeral).toBe(true);
+
+    controller.commitActivation('e4', 'g4');
+    const fifthSignal = new AbortController();
+    const fifth = beginEphemeral(controller, 'e5', 'g5', fifthSignal.signal);
+    await Promise.resolve();
+    expect(controller.getCounts().waiterCount).toBe(1);
+    fifthSignal.abort();
+    await expect(fifth).rejects.toThrow('aborted');
+    expect(controller.getCounts().waiterCount).toBe(0);
+  });
+
+  it('releaseEphemeral works in activating and resident-busy, grants waiters, and is idempotent', async () => {
+    const { controller } = createController({ maxResidentRuntimes: 1 });
+    expect((await beginEphemeral(controller, 'e1', 'g1')).ok).toBe(true);
+    expect(controller.getResidency('e1')).toBe('activating');
+
+    const waitingBusy = beginEphemeral(controller, 'e2', 'g2');
+    await Promise.resolve();
+    expect(controller.getCounts().waiterCount).toBe(1);
+
+    controller.releaseEphemeral('e1', 'g1');
+    expect(await waitingBusy).toEqual({ ok: true });
+    expect(controller.getResidency('e1')).toBe('cold');
+    expect(controller.getResidency('e2')).toBe('activating');
+    controller.releaseEphemeral('e1', 'g1');
+    expect(controller.getResidency('e2')).toBe('activating');
+
+    controller.commitActivation('e2', 'g2');
+    expect(controller.getResidency('e2')).toBe('resident-busy');
+    const waitingNext = beginEphemeral(controller, 'e3', 'g3');
+    await Promise.resolve();
+    expect(controller.getCounts().waiterCount).toBe(1);
+
+    controller.releaseEphemeral('e2', 'g2');
+    expect(await waitingNext).toEqual({ ok: true });
+    expect(controller.getResidency('e2')).toBe('cold');
+    expect(controller.getResidency('e3')).toBe('activating');
+    controller.releaseEphemeral('e2', 'g2');
+    controller.releaseEphemeral('e3', 'g3');
+    expect(controller.getResidency('e3')).toBe('cold');
+    expect(controller.getCounts().waiterCount).toBe(0);
+  });
+
+  it('revisitCapacity grants queued waiters when the resident cap rises and is a no-op without waiters', async () => {
+    let maxResidentRuntimes = 2;
+    const { controller } = createController({
+      resolveMaxResidentRuntimes: () => maxResidentRuntimes,
+    });
+    await activateAndCommit(controller, 's1', 'g1');
+    await activateAndCommit(controller, 's2', 'g2');
+    controller.markBusy('s1', 'g1');
+    controller.markBusy('s2', 'g2');
+
+    const waiting = beginEphemeral(controller, 'e1', 'ge1');
+    await Promise.resolve();
+    expect(controller.getCounts().waiterCount).toBe(1);
+
+    maxResidentRuntimes = 4;
+    controller.revisitCapacity();
+    expect(await waiting).toEqual({ ok: true });
+    expect(controller.getResidency('e1')).toBe('activating');
+    expect(controller.getCounts().waiterCount).toBe(0);
+
+    const counts = controller.getCounts();
+    const counters = controller.getCounters();
+    controller.revisitCapacity();
+    await controller.sweepNow();
+    expect(controller.getCounts()).toEqual(counts);
+    expect(controller.getCounters()).toEqual(counters);
+  });
+
+  it('applies the memory-pressure gate to ephemeral admissions', async () => {
+    let hostRssMiB = 100;
+    const { controller } = createController({
+      retention: { memoryHighWaterMiB: 512 },
+      maxResidentRuntimes: 8,
+      sampleMemory: () => ({
+        hostRssMiB,
+        workerRssMiB: 0,
+        sampleCompleteness: 'complete' as const,
+      }),
+    });
+    await activateAndCommit(controller, 's1', 'gen-1');
+    await activateAndCommit(controller, 's2', 'gen-2');
+
+    hostRssMiB = 600;
+    const result = await beginEphemeral(controller, 'e1', 'g1');
+    expect(result).toEqual({
+      ok: false,
+      code: 'memory-pressure',
+      message: expect.stringContaining('high water'),
+    });
+    expect(controller.getCounters().memoryPressureFailures).toBe(1);
   });
 });
