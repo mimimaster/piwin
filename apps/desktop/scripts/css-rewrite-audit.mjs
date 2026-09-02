@@ -34,6 +34,16 @@ const TURN_TELEMETRY_REMOVAL_REASON =
  * reinstating it would re-introduce the hardcoded color it replaced.
  */
 const DELIBERATE_SELECTOR_DROPS = new Map([
+  // The session row's right-hand reserve is now one constant padding instead
+  // of a hover-time swap. The timestamp and the action cluster are both
+  // absolutely positioned, so the hover rules only widened the padding that
+  // bounds the title -- which re-truncated the title in the same frame the
+  // actions faded in. The resting rule covers both states now.
+  ['.session-row:hover .session-item', 'right-hand reserve is constant; no hover padding swap'],
+  [
+    '.session-row:focus-within .session-item',
+    'right-hand reserve is constant; no hover padding swap',
+  ],
   ['.search-field', 'inline sidebar search replaced by the session search dialog'],
   ['.sidebar-search-field', 'inline sidebar search replaced by the session search dialog'],
   ['.search-field:focus-within', 'inline sidebar search replaced by the session search dialog'],
