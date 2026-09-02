@@ -431,7 +431,6 @@ export async function handleMockWorkspaceCommands(
       case 'git/unstage':
       case 'git/commit':
       case 'git/branch-create':
-      case 'git/checkout':
         return {
           id,
           type: 'response',
@@ -440,6 +439,21 @@ export async function handleMockWorkspaceCommands(
           data: {
             result: {
               kind: command.type.replace('git/', ''),
+              ok: true,
+              message: `mock ${command.type}`,
+            },
+          },
+        };
+      case 'git/checkout':
+        host.mockGitCurrentBranches.set(command.input.projectPath, command.input.ref);
+        return {
+          id,
+          type: 'response',
+          command: 'git/checkout',
+          success: true,
+          data: {
+            result: {
+              kind: 'checkout',
               ok: true,
               message: `mock ${command.type}`,
             },
@@ -455,7 +469,7 @@ export async function handleMockWorkspaceCommands(
             snapshot: {
               repository: { rootPath: command.projectPath, isRepository: true },
               branch: {
-                currentBranch: 'main',
+                currentBranch: host.mockGitCurrentBranches.get(command.projectPath) ?? 'main',
                 isDetached: false,
                 headCommit: 'abc1234',
                 upstreamBranch: 'origin/main',
@@ -486,8 +500,19 @@ export async function handleMockWorkspaceCommands(
             branches: {
               repository: { rootPath: command.projectPath, isRepository: true },
               branches: [
-                { name: 'main', current: true, shortHash: 'abc1234' },
-                { name: 'feat/demo', current: false, shortHash: 'def5678' },
+                {
+                  name: 'main',
+                  current:
+                    (host.mockGitCurrentBranches.get(command.projectPath) ?? 'main') === 'main',
+                  shortHash: 'abc1234',
+                },
+                {
+                  name: 'feat/demo',
+                  current:
+                    (host.mockGitCurrentBranches.get(command.projectPath) ?? 'main') ===
+                    'feat/demo',
+                  shortHash: 'def5678',
+                },
               ],
               truncated: false,
               totalBranches: 2,
@@ -746,4 +771,3 @@ export async function handleMockWorkspaceCommands(
       return null;
   }
 }
-
