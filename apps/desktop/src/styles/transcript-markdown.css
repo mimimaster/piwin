@@ -634,3 +634,41 @@
   word-break: break-word;
   color: var(--text-3);
 }
+
+.markdown .md-footnotes,
+.markdown section[data-footnotes] {
+  margin-top: 1.2em;
+  padding-top: 0.75em;
+  border-top: 1px solid var(--line-1);
+  color: var(--text-2);
+  font-size: 0.92em;
+}
+
+.markdown .md-footnotes > .md-h,
+.markdown .md-footnotes > h2,
+.markdown section[data-footnotes] > h2 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.markdown .md-footnotes > .md-list,
+.markdown .md-footnotes > ol,
+.markdown section[data-footnotes] > ol {
+  list-style: decimal;
+  padding-left: 1.5em;
+}
+
+.markdown .md-footnotes ul,
+.markdown section[data-footnotes] ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.markdown a[data-footnote-backref],
+.markdown a.data-footnote-backref {
+  margin-left: 0.35em;
+  text-decoration: none;
+}

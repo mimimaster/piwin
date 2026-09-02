@@ -347,6 +347,27 @@ export function createStreamdownComponents(optionsRef: {
     />
   );
 
+  const renderSection = ({
+    children,
+    node: _node,
+    className,
+    ...props
+  }: StreamdownElementProps<'section'> & {
+    'data-footnotes'?: string | boolean;
+  }): ReactElement => {
+    const isFootnotes =
+      (typeof className === 'string' && className.includes('footnotes')) ||
+      props['data-footnotes'] !== undefined;
+    return (
+      <section
+        {...props}
+        className={mergeMarkdownClassNames(isFootnotes ? 'md-footnotes' : '', className)}
+      >
+        {children}
+      </section>
+    );
+  };
+
   return {
     ...createMarkdownInlineRenderers(),
     p: renderParagraph,
@@ -377,6 +398,7 @@ export function createStreamdownComponents(optionsRef: {
     a: renderAnchor,
     img: renderImage,
     input: renderInput,
+    section: renderSection,
     hr: ({ node: _node, className, ...props }: StreamdownElementProps<'hr'>) => (
       <hr {...props} className={mergeMarkdownClassNames('md-hr', className)} />
     ),
