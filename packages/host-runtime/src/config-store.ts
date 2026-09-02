@@ -20,6 +20,7 @@ import type {
   SpeechConfig,
   SkillsConfig,
   SubagentConfig,
+  ExecutionConfig,
   SubagentProfileSettings,
   SubagentCapability,
   SubagentIsolationMode,
@@ -47,6 +48,8 @@ import {
   DEFAULT_COLD_STORAGE_MIN_ARCHIVED_AGE_DAYS,
   createDefaultSkillsConfig,
   createDefaultSubagentConfig,
+  createDefaultExecutionConfig,
+  normalizeExecutionConfig,
   createDefaultWalkthroughConfig,
   DEFAULT_ATTACHMENT_ALLOWED_MIME_TYPES,
   createDefaultWebConfig,
@@ -93,6 +96,7 @@ export function createDefaultPiwinConfig(): PiwinConfig {
     marketplace: createDefaultMarketplaceConfig(),
     walkthrough: createDefaultWalkthroughConfig(),
     subagents: createDefaultSubagentConfig(),
+    execution: createDefaultExecutionConfig(),
     permissions: createDefaultPermissionConfig(),
   };
 }
@@ -264,6 +268,9 @@ export function normalizePiwinConfig(value: unknown): PiwinConfig {
   normalized.permissions = normalizePermissionConfig(record.permissions);
   normalized.walkthrough = normalizeWalkthroughConfig(record.walkthrough);
   normalized.subagents = normalizeSubagentConfig(record.subagents);
+  normalized.execution = normalizeExecutionConfig(
+    asRecord(record.execution) as Partial<ExecutionConfig> | undefined,
+  );
   const imageGeneration = normalizeImageGenerationConfig(record.imageGeneration);
   if (imageGeneration) {
     normalized.imageGeneration = imageGeneration;
@@ -388,7 +395,9 @@ function normalizeSessionConfig(value: unknown, defaults: SessionConfig): Sessio
   return config;
 }
 
-function normalizeSessionColdStorageConfig(value: unknown): NonNullable<SessionConfig['coldStorage']> {
+function normalizeSessionColdStorageConfig(
+  value: unknown,
+): NonNullable<SessionConfig['coldStorage']> {
   const defaults = createDefaultSessionColdStorageConfig();
   const record = asRecord(value);
   if (!record) {
@@ -537,7 +546,11 @@ function normalizeReplyWriterConfig(value: unknown): ReplyWriterConfig | undefin
   if (model) {
     normalized.model = model;
   }
-  if (record.language === 'zh-CN' || record.language === 'en' || record.language === 'follow-user') {
+  if (
+    record.language === 'zh-CN' ||
+    record.language === 'en' ||
+    record.language === 'follow-user'
+  ) {
     normalized.language = record.language;
   }
   if (typeof record.systemPrompt === 'string' && record.systemPrompt.trim()) {

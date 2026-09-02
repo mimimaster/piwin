@@ -9,6 +9,7 @@ import {
   SessionHandle,
   SessionTreeView,
 } from '@piwin/contracts';
+import type { HostRuntimeTestFixture } from './host-runtime-types.js';
 
 type Listener = (event: AgentEvent) => void;
 
@@ -56,6 +57,42 @@ export type DelayedSessionOptions = {
   /** Size of each synthetic tool/update event. Default 64 KiB. */
   toolOutputChunkBytes?: number;
 };
+
+/** Build one of the explicit HostRuntime timing fixtures with stable identity. */
+export function createTestFixtureSession(
+  fixture: HostRuntimeTestFixture,
+  options: Pick<DelayedSessionOptions, 'projectPath' | 'sessionId'> = {},
+): SessionHandle & {
+  promptSettled: Promise<void>;
+  abortRequested: boolean;
+  emittedDeltaCount: number;
+} {
+  switch (fixture) {
+    case 'hang-until-abort':
+      return createDelayedSessionHandle({
+        ...options,
+        delays: { firstTokenMs: 60_000, hangUntilAbort: true, cancellationAckMs: 200 },
+        chunkCount: 0,
+      });
+    case 'slow-first-token':
+      return createDelayedSessionHandle({
+        ...options,
+        delays: { firstTokenMs: 750 },
+        chunkCount: 1,
+      });
+    case 'high-rate-tool-output':
+      return createDelayedSessionHandle({
+        ...options,
+        chunkCount: 1,
+        toolOutputBytes: 10 * 1024 * 1024,
+        toolOutputChunkBytes: 64 * 1024,
+      });
+    default: {
+      const unsupportedFixture: never = fixture;
+      throw new Error(`Unsupported HostRuntime test fixture: ${unsupportedFixture}`);
+    }
+  }
+}
 
 /**
  * A controllable SessionHandle fixture for responsiveness testing.

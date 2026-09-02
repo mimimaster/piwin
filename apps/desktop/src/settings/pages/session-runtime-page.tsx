@@ -13,9 +13,12 @@ import { useCallback, useEffect, useMemo, useState, type ReactElement } from 're
 import {
   ABSOLUTE_MAX_RESIDENT_RUNTIMES,
   DEFAULT_IDLE_TTL_SECONDS,
+  DEFAULT_MAX_CONCURRENT_RUNS,
   DEFAULT_MAX_IDLE_RUNTIMES,
+  MAX_CONCURRENT_RUNS,
   MAX_MEMORY_HIGH_WATER_MIB,
   MIN_MEMORY_HIGH_WATER_MIB,
+  normalizeExecutionConfig,
   normalizeSessionRuntimeRetentionConfig,
   type HostRuntimeResourcesData,
   type PiwinConfig,
@@ -29,10 +32,7 @@ import { useDesktopLocale } from '../../desktop-locale-context';
 import { FieldRow } from '../field-row';
 import { settingsHostSupportsCommand, useSettings } from '../settings-context';
 
-function residencyLabel(
-  residency: SessionRuntimeResidency | undefined,
-  isZh: boolean,
-): string {
+function residencyLabel(residency: SessionRuntimeResidency | undefined, isZh: boolean): string {
   switch (residency) {
     case 'activating':
       return isZh ? '启动中（Starting）' : 'Starting';
@@ -126,6 +126,10 @@ export function SessionRuntimePage(): ReactElement {
     () => normalizeSessionRuntimeRetentionConfig(config?.session?.runtimeRetention),
     [config?.session?.runtimeRetention],
   );
+  const savedExecution = useMemo(
+    () => normalizeExecutionConfig(config?.execution),
+    [config?.execution],
+  );
 
   const [idleTtlDraft, setIdleTtlDraft] = useState(String(savedRetention.idleTtlSeconds));
   const [maxIdleDraft, setMaxIdleDraft] = useState(String(savedRetention.maxIdleRuntimes));
@@ -138,6 +142,9 @@ export function SessionRuntimePage(): ReactElement {
     savedRetention.memoryHighWaterMiB !== undefined
       ? String(savedRetention.memoryHighWaterMiB)
       : '',
+  );
+  const [maxConcurrentDraft, setMaxConcurrentDraft] = useState(
+    String(savedExecution.maxConcurrentRuns),
   );
 
   useEffect(() => {
@@ -155,6 +162,10 @@ export function SessionRuntimePage(): ReactElement {
     );
   }, [savedRetention]);
 
+  useEffect(() => {
+    setMaxConcurrentDraft(String(savedExecution.maxConcurrentRuns));
+  }, [savedExecution]);
+
   const draftRetention: SessionRuntimeRetentionConfig = useMemo(
     () =>
       buildSessionRuntimeRetentionDraft({
@@ -171,6 +182,15 @@ export function SessionRuntimePage(): ReactElement {
     draftRetention.maxIdleRuntimes !== savedRetention.maxIdleRuntimes ||
     draftRetention.maxResidentRuntimes !== savedRetention.maxResidentRuntimes ||
     draftRetention.memoryHighWaterMiB !== savedRetention.memoryHighWaterMiB;
+
+  const draftExecution = useMemo(
+    () =>
+      normalizeExecutionConfig({
+        maxConcurrentRuns: parseNonNegativeInt(maxConcurrentDraft, DEFAULT_MAX_CONCURRENT_RUNS),
+      }),
+    [maxConcurrentDraft],
+  );
+  const executionDirty = draftExecution.maxConcurrentRuns !== savedExecution.maxConcurrentRuns;
 
   const refreshStatus = useCallback(async (): Promise<void> => {
     if (!canReadRuntimeStatus) {
@@ -249,6 +269,24 @@ export function SessionRuntimePage(): ReactElement {
     }
   }
 
+  async function handleSaveExecution(): Promise<void> {
+    if (!config) return;
+    const next: PiwinConfig = {
+      ...config,
+      execution: draftExecution,
+    };
+    if (await saveConfig(next)) {
+      setInfo(
+        isZh
+          ? '已保存同时执行任务数。正在运行的任务不会被杀掉。'
+          : 'Concurrent run limit saved. Active runs are not killed.',
+      );
+      void refreshResources();
+    } else {
+      setInfo(isZh ? '保存失败：无法写入配置文件。' : 'Save failed: could not write config.');
+    }
+  }
+
   async function handleRetryRuntime(): Promise<void> {
     if (!activeSessionId || !runtimeStatus?.settingsRevision) return;
     setRetryingRuntime(true);
@@ -263,7 +301,9 @@ export function SessionRuntimePage(): ReactElement {
         setInfo(isZh ? '已重新提交运行时更新。' : 'Runtime update retry submitted.', 'info');
       } else {
         setInfo(
-          isZh ? `运行时更新重试失败：${response.error}` : `Runtime retry failed: ${response.error}`,
+          isZh
+            ? `运行时更新重试失败：${response.error}`
+            : `Runtime retry failed: ${response.error}`,
           'warning',
         );
       }
@@ -388,7 +428,13 @@ export function SessionRuntimePage(): ReactElement {
                 disabled={retryingRuntime}
                 onClick={() => void handleRetryRuntime()}
               >
-                {retryingRuntime ? (isZh ? '重试中…' : 'Retrying…') : isZh ? '重试更新' : 'Retry update'}
+                {retryingRuntime
+                  ? isZh
+                    ? '重试中…'
+                    : 'Retrying…'
+                  : isZh
+                    ? '重试更新'
+                    : 'Retry update'}
               </Button>
             ) : null}
             <p className="muted" data-testid="runtime-reload-unavailable-note">
@@ -408,6 +454,47 @@ export function SessionRuntimePage(): ReactElement {
               : 'The current Agent matches the latest settings. Cold sessions keep history usable; the Host reactivates the runtime on the next prompt.'}
           </p>
         )}
+      </div>
+
+      <div
+        className="settings-section settings-section-card"
+        data-testid="execution-admission-section"
+      >
+        <h3 className="settings-section-title">{isZh ? '同时执行任务数' : 'Concurrent runs'}</h3>
+        <p className="muted">
+          {isZh
+            ? '限制同时调用模型/工具的叶子任务，不是会话数量，也不是 Worker 数量。'
+            : 'Caps simultaneous model/tool leaf tasks — not session count, and not workers.'}
+        </p>
+        <FieldRow
+          label={isZh ? '同时执行任务数' : 'Max concurrent runs'}
+          description={
+            isZh
+              ? `默认 ${DEFAULT_MAX_CONCURRENT_RUNS}，范围 1–${MAX_CONCURRENT_RUNS}。降低上限不会杀掉正在运行的任务。`
+              : `Default ${DEFAULT_MAX_CONCURRENT_RUNS}, range 1–${MAX_CONCURRENT_RUNS}. Lowering the cap does not kill active runs.`
+          }
+          testId="execution-max-concurrent-row"
+        >
+          <TextInput
+            testId="execution-max-concurrent"
+            type="number"
+            min={1}
+            max={MAX_CONCURRENT_RUNS}
+            value={maxConcurrentDraft}
+            onChange={(event) => setMaxConcurrentDraft(event.currentTarget.value)}
+          />
+        </FieldRow>
+        <div className="ui-field-row">
+          <Button
+            data-testid="execution-max-concurrent-save"
+            disabled={!executionDirty || saving || !config}
+            onClick={() => {
+              void handleSaveExecution();
+            }}
+          >
+            {isZh ? '保存同时执行任务数' : 'Save concurrent run limit'}
+          </Button>
+        </div>
       </div>
 
       <div
@@ -534,6 +621,21 @@ export function SessionRuntimePage(): ReactElement {
               {resources.counts.suspending})
             </span>
           </div>
+          <div className="ui-field-row" data-testid="runtime-resources-execution">
+            <span className="muted">{isZh ? '执行' : 'Execution'}:</span>
+            <span data-testid="runtime-resources-execution-counts">
+              {isZh ? '运行中' : 'running'} {resources.execution.activeRuns} /{' '}
+              {resources.execution.effectiveMaxConcurrentRuns} · {isZh ? '排队' : 'queued'}{' '}
+              {resources.execution.waitingRuns}
+            </span>
+          </div>
+          {resources.execution.limitingReason === 'runtime-residency' ? (
+            <p className="muted" data-testid="runtime-resources-execution-limit-reason">
+              {isZh
+                ? `配置 ${resources.execution.configuredMaxConcurrentRuns}，因运行时驻留限制实际为 ${resources.execution.effectiveMaxConcurrentRuns}`
+                : `Configured ${resources.execution.configuredMaxConcurrentRuns}, limited to ${resources.execution.effectiveMaxConcurrentRuns} by runtime residency`}
+            </p>
+          ) : null}
           <div className="ui-field-row">
             <span className="muted">{isZh ? '等待容量' : 'Waiters'}:</span>
             <span data-testid="runtime-resources-waiters">{resources.waiterCount}</span>

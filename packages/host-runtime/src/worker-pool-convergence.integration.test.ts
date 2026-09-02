@@ -16,10 +16,7 @@ async function occupyEphemeral(
   return handle;
 }
 
-async function waitForWaiters(
-  getCount: () => number,
-  expected: number,
-): Promise<void> {
+async function waitForWaiters(getCount: () => number, expected: number): Promise<void> {
   for (let attempt = 0; attempt < 50; attempt += 1) {
     if (getCount() === expected) return;
     await Promise.resolve();
@@ -109,7 +106,7 @@ describe('worker pool convergence', () => {
       workerPoolOverParallelismLogged: false,
       workerCapacityExhaustWarnLogged: false,
       agentWorkerSupervisor: { setMaxActiveWorkers: () => {} },
-      runtimeResourceCoordinator: { setConfiguredMaxConcurrency: () => {} },
+      runtimeResourceCoordinator: { setSubagentMaxConcurrency: () => {} },
       residencyController: {
         revisitCapacity: () => {
           poolSize = target.workerPoolSize;

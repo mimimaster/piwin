@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   ABSOLUTE_MAX_RESIDENT_RUNTIMES,
   createDefaultSubagentConfig,
+  createDefaultExecutionConfig,
   DEFAULT_SUBAGENT_MAX_CONCURRENCY,
+  DEFAULT_MAX_CONCURRENT_RUNS,
   deriveSubagentQuota,
   deriveSupervisorMaxWorkers,
   deriveWorkerPoolSize,
@@ -10,6 +12,7 @@ import {
   THINKING_LEVEL_OPTIONS,
   WORKER_POOL_FOREGROUND_RESERVE,
   WORKER_REPLACEMENT_HEADROOM,
+  normalizeExecutionConfig,
 } from './config.js';
 import type {
   ModelConfigEntry,
@@ -356,6 +359,17 @@ describe('HostRuntimeResourcesData.workers', () => {
       evictedByMemoryPressure: 0,
       memoryPressureFailures: 0,
     },
+    execution: {
+      configuredMaxConcurrentRuns: DEFAULT_MAX_CONCURRENT_RUNS,
+      effectiveMaxConcurrentRuns: DEFAULT_MAX_CONCURRENT_RUNS,
+      activeRuns: 0,
+      waitingRuns: 0,
+      activeForegroundRuns: 0,
+      waitingForegroundRuns: 0,
+      activeSubagentRuns: 0,
+      waitingSubagentRuns: 0,
+      subagentMaxConcurrency: DEFAULT_SUBAGENT_MAX_CONCURRENCY,
+    },
   };
 
   it('may omit workers, or carry a complete workers block including pool and max', () => {
@@ -393,6 +407,22 @@ describe('HostRuntimeResourcesData.workers', () => {
     };
     expect(withWorkersHost.workers?.pool).toBe(5);
     expect(withWorkersHost.workers?.max).toBe(6);
+  });
+});
+
+describe('ExecutionConfig', () => {
+  it('defaults missing config to 8 concurrent runs', () => {
+    expect(createDefaultExecutionConfig()).toEqual({
+      maxConcurrentRuns: DEFAULT_MAX_CONCURRENT_RUNS,
+    });
+    expect(normalizeExecutionConfig(undefined).maxConcurrentRuns).toBe(8);
+    expect(normalizeExecutionConfig({}).maxConcurrentRuns).toBe(8);
+  });
+
+  it('clamps values into 1–8', () => {
+    expect(normalizeExecutionConfig({ maxConcurrentRuns: 0 }).maxConcurrentRuns).toBe(1);
+    expect(normalizeExecutionConfig({ maxConcurrentRuns: 99 }).maxConcurrentRuns).toBe(8);
+    expect(normalizeExecutionConfig({ maxConcurrentRuns: 4.9 }).maxConcurrentRuns).toBe(4);
   });
 });
 

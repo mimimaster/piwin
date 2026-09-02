@@ -204,10 +204,7 @@ export type SessionLiveContext = {
     operation: (store: SessionTranscriptStore) => Promise<T>,
   ) => Promise<T>;
   /** Persist a successful compact boundary before a runtime can be replaced. */
-  recordCompactionBoundary: (
-    sessionId: string,
-    result: SessionCompactResult,
-  ) => Promise<void>;
+  recordCompactionBoundary: (sessionId: string, result: SessionCompactResult) => Promise<void>;
   /** SIDE: resolved inherited context snapshot for a side-chat session (undefined otherwise). */
   loadSideChatSnapshot: (
     sessionId: string,
@@ -223,10 +220,7 @@ export type SessionLiveContext = {
    * Abandoned-branch writes to inject on the next prompt after a confirmed
    * switch. Survives runtime dispose; consumed exactly once by calibration.
    */
-  pendingBranchCalibrationBySession: Map<
-    string,
-    import('@piwin/contracts').WorkspaceWrites
-  >;
+  pendingBranchCalibrationBySession: Map<string, import('@piwin/contracts').WorkspaceWrites>;
   /**
    * Active compact-export operations keyed by the source product session id.
    * Abort targets the temporary runtime registered here, not the source session.
@@ -351,6 +345,12 @@ export type SessionLiveContext = {
   settlePendingPermissionsForSession: (sessionId: string) => void;
   /** Resolve Extension UI waits so Stop cannot leave a Pi prompt suspended. */
   settlePendingExtensionUiForSession: (sessionId: string) => void;
+  acquireExecutionLease?: (request: {
+    runId: string;
+    executionClass: 'foreground' | 'subagent';
+    signal: AbortSignal;
+    onQueued?: () => void;
+  }) => Promise<{ release: () => void }>;
   setSessionPermissionOverride: (
     sessionId: string,
     mode: import('@piwin/contracts').PermissionMode,

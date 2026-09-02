@@ -24,10 +24,12 @@ import {
   type PiSessionBackend,
 } from '@piwin/agent-host';
 import { createMockSessionHandle } from './mock-session.js';
+import { createTestFixtureSession } from './delayed-session-fixture.js';
 import { compileBlueprintForWorker } from './blueprint-compiler.js';
 import { loadPromptImages } from './prompt-images.js';
 import { loadPiwinConfig } from './config-store.js';
 import { createSettingsSnapshot } from './settings/settings-service.js';
+import type { HostRuntimeTestFixture } from './host-runtime-types.js';
 
 export type ProductAgentHostToolRegistrationMode = 'active' | 'pending';
 
@@ -94,6 +96,8 @@ type ProductAgentHostCommonOptions = {
     toolboxTargetNames: readonly string[],
     mcpCatalogEnabled: boolean,
   ) => void;
+  /** Explicit timing fixture used by HostRuntime tests, never production. */
+  testFixture?: HostRuntimeTestFixture;
 };
 
 export type ProductAgentHostOptions =
@@ -304,11 +308,17 @@ export class ProductAgentHost implements AgentHost {
     options: CreateSessionOptions = {},
   ): Promise<PreparedProductSession> {
     if (this.options.mock) {
-      const session = createMockSessionHandle({
-        ...input,
-        sessionId,
-        ...(options.seedMessages ? { seedMessages: options.seedMessages } : {}),
-      });
+      const session =
+        this.options.testFixture !== undefined
+          ? createTestFixtureSession(this.options.testFixture, {
+              sessionId,
+              ...(input.projectPath ? { projectPath: input.projectPath } : {}),
+            })
+          : createMockSessionHandle({
+              ...input,
+              sessionId,
+              ...(options.seedMessages ? { seedMessages: options.seedMessages } : {}),
+            });
       const settingsRevision = this.options.piwinRoot
         ? createSettingsSnapshot(await loadPiwinConfig(this.options.piwinRoot)).runtimeRevision
         : 'live';

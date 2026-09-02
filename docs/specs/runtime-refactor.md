@@ -557,11 +557,13 @@ a terminal parent.
 - Effective Agent concurrency is:
 
 ```text
-backend processIsolation=false -> 1
-backend processIsolation=true  -> configured quota; pool admission via residency
+foreground leaf runs -> min(execution.maxConcurrentRuns, optional explicit maxResidentRuntimes)
+subagent-task subset -> also capped by subagents.maxConcurrency
+processIsolation does not clamp foreground concurrency
 ```
 
-The UI and CLI report configured and effective values separately.
+The UI and CLI report configured and effective values separately. Worker
+Supervisor size is not an input to this formula.
 
 ### 3.8 Resource coordination
 
@@ -570,7 +572,7 @@ combined status view. Ownership remains:
 
 | Resource | Counter authority |
 |---|---|
-| Agent execution | coordinator/worker supervisor contract |
+| Agent execution | `RuntimeResourceCoordinator` (product execution config) |
 | Process Jobs | `JobController` |
 | Browser contexts | browser broker |
 | MCP calls | MCP manager, per server |
@@ -804,12 +806,14 @@ export type AgentWorkerRuntimeSettings = {
 Defaults:
 
 ```text
-maxActiveWorkers = deriveSupervisorMaxWorkers(subagents.maxConcurrency)
-                 = deriveWorkerPoolSize(N) + 1 replacement headroom
+maxActiveWorkers = execution.maxConcurrentRuns + 1  (product default 9)
 startupTimeoutMs = 5_000
 shutdownTimeoutMs = 2_000
 maxFrameBytes = 8 MiB
 ```
+
+This is a process safety valve, not CPU-derived and not a Session or
+foreground-run product limit.
 
 Rules:
 

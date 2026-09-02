@@ -23,6 +23,7 @@
 
 import {
   ABSOLUTE_MAX_RESIDENT_RUNTIMES,
+  DEFAULT_MAX_CONCURRENT_RUNS,
   type SessionRuntimeEvictionReason,
   type SessionRuntimeResidency,
   type SessionRuntimeRetentionConfig,
@@ -113,9 +114,8 @@ export function createSessionRuntimeResidencyController(
       const resolved = options.resolveMaxResidentRuntimes();
       return Math.max(1, Math.min(resolved, ABSOLUTE_MAX_RESIDENT_RUNTIMES));
     }
-    // Adaptive default: effective concurrency (assumed at least 1) plus the
-    // idle allowance, clamped to the absolute ceiling of 8.
-    return Math.min(1 + maxIdleRuntimes, ABSOLUTE_MAX_RESIDENT_RUNTIMES);
+    // Adaptive default: product execution cap (8), never Worker or Sub Agent quotas.
+    return Math.min(DEFAULT_MAX_CONCURRENT_RUNS, ABSOLUTE_MAX_RESIDENT_RUNTIMES);
   }
 
   function makeEntry(
@@ -440,11 +440,7 @@ export function createSessionRuntimeResidencyController(
 
   function releaseEphemeral(sessionId: string, runtimeGenerationId: string): void {
     const entry = entries.get(sessionId);
-    if (
-      !entry ||
-      entry.ephemeral !== true ||
-      entry.runtimeGenerationId !== runtimeGenerationId
-    ) {
+    if (!entry || entry.ephemeral !== true || entry.runtimeGenerationId !== runtimeGenerationId) {
       return;
     }
     if (entry.state !== 'activating' && entry.state !== 'resident-busy') {

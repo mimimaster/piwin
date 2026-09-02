@@ -79,6 +79,18 @@ page history. The next prompt transparently activates a runtime.
 Organizational pinning, an open client view, and an archived/unarchived state
 do not pin a runtime in memory.
 
+`session/create` is a durable write. It returns `sessionId` after the
+SessionIndex record and session directory exist. It does not activate a
+Runtime, take an execution lease, or spawn a Worker. Runtime activation
+happens on the first prompt (or other live work) after the Run is accepted.
+
+Leaf execution admission is a third authority. `PiwinConfig.execution.maxConcurrentRuns`
+defaults to 8 and caps simultaneous `session-turn` / `subagent-task` leases.
+The 9th accepted prompt already has a `runId` and waits in
+`waiting-resource` until a slot frees. Parent plan/batch Runs do not take a
+lease. Worker Supervisor capacity is a downstream safety valve (default 9),
+not a Session or Run-acceptance limit.
+
 ### 2. Host Runtime owns one residency state machine
 
 Add a focused `SessionRuntimeResidencyController` under
@@ -116,7 +128,7 @@ export type SessionRuntimeRetentionConfig = {
   idleTtlSeconds: number;
   /** Default 2. Idle runtimes above this count are LRU candidates immediately. */
   maxIdleRuntimes: number;
-  /** Omitted means deriveWorkerPoolSize(subagents.maxConcurrency). Explicit values may only tighten. */
+  /** Omitted means derived from `execution.maxConcurrentRuns`. Never from Worker or Sub Agent quotas. */
   maxResidentRuntimes?: number;
   /** Omitted means an adaptive Host + worker RSS budget. */
   memoryHighWaterMiB?: number;
@@ -127,9 +139,9 @@ Defaults:
 
 - idle TTL: 10 minutes;
 - maximum idle runtimes: 2;
-- maximum resident runtimes: `deriveWorkerPoolSize(subagents.maxConcurrency)`
-  (`N + 1` foreground reserve, absolute ceiling 8). An explicit
-  `maxResidentRuntimes` may only tighten that value;
+- maximum resident runtimes: omitted means `execution.maxConcurrentRuns`
+  (product default 8). Never derived from Worker Supervisor size, CPU
+  parallelism, or `subagents.maxConcurrency`;
 - automatic RSS high water: 25% of system memory, clamped to 512–2048 MiB;
 - internal low-water target: 80% of high water;
 - internal sweep interval: 30 seconds while at least one runtime is resident.

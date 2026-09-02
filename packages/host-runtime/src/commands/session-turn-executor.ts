@@ -36,7 +36,23 @@ export async function executeSessionTurn(input: {
 }): Promise<void> {
   const { context, command, run } = input;
   let turnChangeBound = false;
+  let executionLease: { release: () => void } | undefined;
   try {
+    const runSignal = context.getRunSignal(run.runId);
+    if (context.acquireExecutionLease && runSignal) {
+      executionLease = await context.acquireExecutionLease({
+        runId: run.runId,
+        executionClass: 'foreground',
+        signal: runSignal,
+        onQueued: () => {
+          context.updateRunPhase(run.runId, 'waiting-resource', 'execution-slot');
+        },
+      });
+      if (runSignal.aborted) {
+        await finalizeAbortedRun(context, command.sessionId, run.runId);
+        return;
+      }
+    }
     if (!input.conversationChat) {
       const delegationMode = command.input.delegationMode === 'disabled' ? 'disabled' : 'auto';
       await context.prepareDelegationRuntime?.(command.sessionId, delegationMode);
@@ -245,6 +261,7 @@ export async function executeSessionTurn(input: {
       },
     );
   } finally {
+    executionLease?.release();
     if (turnChangeBound) {
       context.endTurnChangeRun?.(run.runId);
     }

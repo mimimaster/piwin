@@ -28,11 +28,23 @@ const sample: HostRuntimeResourcesData = {
     evictedByMemoryPressure: 0,
     memoryPressureFailures: 0,
   },
+  execution: {
+    configuredMaxConcurrentRuns: 8,
+    effectiveMaxConcurrentRuns: 8,
+    activeRuns: 0,
+    waitingRuns: 0,
+    activeForegroundRuns: 0,
+    waitingForegroundRuns: 0,
+    activeSubagentRuns: 0,
+    waitingSubagentRuns: 0,
+    subagentMaxConcurrency: 4,
+  },
 };
 
 describe('formatRuntimeResourcesLines', () => {
   it('matches the pre-extract output when workers is absent', () => {
     expect(formatRuntimeResourcesLines(sample)).toEqual([
+      'execution: running=0/8 queued=0 foreground=0 subagent=0/4',
       'runtime residency: resident=1 idle=1 busy=0 activating=0 suspending=0 waiters=0',
       'runtime budget: maxResident=5 maxIdle=2 highWaterMiB=1024 lowWaterMiB=819',
       'runtime memory: hostRssMiB=256 sample=missing',
@@ -53,9 +65,7 @@ describe('formatRuntimeResourcesLines', () => {
         subagentWaiting: 1,
       },
     });
-    expect(lines).toHaveLength(5);
-    expect(lines[4]).toBe(
-      'runtime workers: 3/5 active (0 starting) · subagents 2/4 · waiting 1',
-    );
+    expect(lines).toHaveLength(6);
+    expect(lines[5]).toBe('runtime workers: 3/5 active (0 starting) · subagents 2/4 · waiting 1');
   });
 });

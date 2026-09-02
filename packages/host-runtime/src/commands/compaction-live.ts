@@ -605,16 +605,35 @@ export async function handleCompactionCommand(
       return ok(requestId, 'session/compact-abort', { sessionId: command.sessionId });
     }
     case 'session/compaction-settings': {
-      const session = context.requireSession(command.sessionId);
-      const supported = typeof session.getAutoCompactionEnabled === 'function';
+      const session = context.sessions.get(command.sessionId);
+      if (!session) {
+        const record = await getSessionRecord(
+          getPiwinSessionIndexPath(getPiwinRoot(context.piwinRoot)),
+          command.sessionId,
+        );
+        if (!record) {
+          return fail(
+            requestId,
+            'session/compaction-settings',
+            `Unknown session: ${command.sessionId}`,
+          );
+        }
+      }
+      // A cold durable shell still has a valid Host policy even though no
+      // native backend handle exists yet. Report that policy without forcing
+      // activation merely to render the settings panel.
+      const supported =
+        session === undefined || typeof session.getAutoCompactionEnabled === 'function';
       const resolved = await context.resolveAutoCompaction(command.sessionId);
       // A lazy product shell reports a placeholder value until its first
       // activation. Prefer Host's resolved policy while no native runtime is
       // resident, otherwise the settings panel briefly shows a false value
       // even when the configured default is true.
-      const runtimeReady = session.needsProductHistoryInjection?.() !== true;
+      const runtimeReady = session?.needsProductHistoryInjection?.() !== true;
       const actual =
-        supported && runtimeReady ? await session.getAutoCompactionEnabled?.() : undefined;
+        session && supported && runtimeReady
+          ? await session.getAutoCompactionEnabled?.()
+          : undefined;
       const override = context.sessionAutoCompactionOverrides.get(command.sessionId);
       return ok(requestId, 'session/compaction-settings', {
         supported,
@@ -624,7 +643,27 @@ export async function handleCompactionCommand(
       });
     }
     case 'session/set-auto-compaction': {
-      const session = context.requireSession(command.sessionId);
+      const session = context.sessions.get(command.sessionId);
+      if (!session) {
+        const record = await getSessionRecord(
+          getPiwinSessionIndexPath(getPiwinRoot(context.piwinRoot)),
+          command.sessionId,
+        );
+        if (!record) {
+          return fail(
+            requestId,
+            'session/set-auto-compaction',
+            `Unknown session: ${command.sessionId}`,
+          );
+        }
+        // Keep the override Host-owned until the first activation. This
+        // avoids allocating a backend just to change a session preference.
+        context.sessionAutoCompactionOverrides.set(command.sessionId, command.enabled);
+        return ok(requestId, 'session/set-auto-compaction', {
+          enabled: command.enabled,
+          source: 'session' as const,
+        });
+      }
       if (!session.setAutoCompactionEnabled) {
         return fail(
           requestId,

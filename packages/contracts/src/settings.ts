@@ -14,6 +14,7 @@ import type {
   SessionConfig,
   SpeechConfig,
   SubagentConfig,
+  ExecutionConfig,
   VideoGenerationConfig,
   VisionDelegationConfig,
 } from './config.js';
@@ -56,6 +57,7 @@ export type SettingsDomain =
   | 'permissions'
   | 'walkthrough'
   | 'subagents'
+  | 'execution'
   | 'remote'
   | 'mcp';
 
@@ -90,6 +92,7 @@ export type SettingsDomainValueMap = {
   permissions: PermissionConfig | undefined;
   walkthrough: WalkthroughConfig | undefined;
   subagents: SubagentConfig | undefined;
+  execution: ExecutionConfig | undefined;
   remote: RemoteConfig | undefined;
   mcp: McpConfigDocument | undefined;
 };
@@ -153,6 +156,7 @@ export const REMOTE_SETTINGS_APPLY_DOMAINS = [
   'permissions',
   'walkthrough',
   'subagents',
+  'execution',
   'remote',
   'mcp',
   'desktop',
@@ -297,6 +301,7 @@ export const SETTINGS_DOMAINS = [
   'permissions',
   'walkthrough',
   'subagents',
+  'execution',
   'remote',
   'mcp',
 ] as const satisfies readonly SettingsDomain[];
@@ -331,6 +336,7 @@ const settingsDomainValueMap: Record<SettingsDomain, true> = {
   permissions: true,
   walkthrough: true,
   subagents: true,
+  execution: true,
   remote: true,
   mcp: true,
 };

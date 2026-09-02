@@ -27,7 +27,7 @@ function makeDeps(overrides: Partial<WorkerPoolApplyTarget> = {}): WorkerPoolApp
     workerPoolOverParallelismLogged: false,
     workerCapacityExhaustWarnLogged: false,
     agentWorkerSupervisor: { setMaxActiveWorkers: setMax },
-    runtimeResourceCoordinator: { setConfiguredMaxConcurrency: setQuota },
+    runtimeResourceCoordinator: { setSubagentMaxConcurrency: setQuota },
     residencyController: { revisitCapacity: revisit },
     push: (message) => {
       if (message.type === 'host/log') logs.push(message);

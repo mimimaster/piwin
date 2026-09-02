@@ -86,6 +86,8 @@ import { redactToolText } from '@piwin/agent-host';
 import { extractFileOpsFromUnknown, formatFilesTouchedBlock } from '../compaction-file-ops.js';
 import { formatPlanForModelContext } from '../format-plan-context.js';
 import { createProductShellSession } from '../product-shell-session.js';
+import { createProductSessionId } from '../product-agent-host.js';
+import { persistDurableSessionRecord } from '../durable-session-record.js';
 import { createModelPromptAssembly, type ModelPromptAssembly } from '../model-context-assembly.js';
 import { persistAndPushAssembly } from '../model-context-record.js';
 import { resolvePromptContextRefs } from '../prompt/resolve-prompt-context-refs.js';
@@ -120,17 +122,11 @@ import { settleOrphanStreamingMessages } from '../transcript-stream-settler.js';
 import { findEnabledModel } from '../provider-helpers.js';
 import type { SessionLiveContext } from './session-live-context.js';
 import { handleCompactionCommand } from './compaction-live.js';
-import {
-  createResolveRefsDeps,
-  persistSessionComposerProfile,
-} from './prompt-preparation.js';
+import { createResolveRefsDeps, persistSessionComposerProfile } from './prompt-preparation.js';
 import { resolveSessionOutputPath } from './compaction-live.js';
 import { handleRunControlCommand } from './run-control-commands.js';
 import { handleRunInterventionCommand } from './run-intervention-commands.js';
-import {
-  handleSessionBranchCommand,
-  pushBranchUpdated,
-} from './session-branch-commands.js';
+import { handleSessionBranchCommand, pushBranchUpdated } from './session-branch-commands.js';
 import { handleSessionPromptCommand } from './session-prompt-command.js';
 
 export type { SessionLiveContext } from './session-live-context.js';
@@ -186,7 +182,8 @@ export async function handleSessionLiveCommand(
 ): Promise<HostResponse | null> {
   if (!TYPES.has(command.type)) {
     return null;
-  }  const delegated =
+  }
+  const delegated =
     (await handleRunInterventionCommand(command, requestId, context)) ??
     (await handleCompactionCommand(command, requestId, context)) ??
     (await handleRunControlCommand(command, requestId, context)) ??
@@ -208,7 +205,7 @@ export async function handleSessionLiveCommand(
         const message = formatError(error);
         return fail(requestId, 'session/create', message);
       }
-      const session = await context.createSession(createInput);
+      const sessionId = createProductSessionId();
       const lineage: {
         parentSessionId?: string;
         kind?: 'main' | 'subagent';
@@ -230,51 +227,38 @@ export async function handleSessionLiveCommand(
       if (command.input.presentation) {
         lineage.presentation = command.input.presentation;
       }
+      const rootDir = getPiwinRoot(context.piwinRoot);
+      const indexPath = getPiwinSessionIndexPath(rootDir);
+      let createdRecord;
       try {
-        await context.bindSession(
-          session,
-          createInput.projectPath,
-          command.input.sessionName,
+        createdRecord = await persistDurableSessionRecord({
+          rootDir,
+          indexPath,
+          sessionId,
+          projectPath: createInput.projectPath ?? '',
+          ...(command.input.sessionName ? { sessionName: command.input.sessionName } : {}),
           lineage,
-        );
-      } catch (error) {
-        await context.disposeLiveSession(session.id).catch(() => undefined);
-        return fail(requestId, 'session/create', formatError(error));
-      }
-      // Seed the session composer profile at create time so a new session
-      // remembers the model even before the first prompt is sent.
-      if (command.input.model || command.input.thinkingLevel !== undefined) {
-        if (command.input.model) {
-          context.sessionModels.set(session.id, command.input.model);
-        }
-        await persistSessionComposerProfile(context, session.id, {
           ...(command.input.model ? { model: command.input.model } : {}),
           ...(command.input.thinkingLevel !== undefined
             ? { thinkingLevel: command.input.thinkingLevel }
             : {}),
         });
+      } catch (error) {
+        return fail(requestId, 'session/create', formatError(error));
+      }
+      if (command.input.model) {
+        context.sessionModels.set(sessionId, command.input.model);
       }
       context.pushStatus();
-      try {
-        const createdRecord = await getSessionRecord(
-          getPiwinSessionIndexPath(getPiwinRoot(context.piwinRoot)),
-          session.id,
-        );
-        context.push(
-          sessionIndexUpdatedPush({
-            op: 'created',
-            sessionId: session.id,
-            ...(createdRecord === undefined
-              ? {}
-              : { session: indexRecordToSummary(createdRecord) }),
-          }),
-        );
-      } catch {
-        // Bind already committed the durable row. A later index read must not
-        // turn a successful create into a false failure for clients.
-      }
+      context.push(
+        sessionIndexUpdatedPush({
+          op: 'created',
+          sessionId,
+          session: indexRecordToSummary(createdRecord),
+        }),
+      );
       return ok(requestId, 'session/create', {
-        sessionId: session.id,
+        sessionId,
       });
     }
     case 'session/list-children': {
@@ -325,114 +309,114 @@ export async function handleSessionLiveCommand(
         );
       }
       try {
-      const store = await context.getTranscriptStore(command.sessionId);
-      const truncationAnchor = await store.getMessage(command.messageId);
-      if (truncationAnchor === undefined) {
-        return fail(
-          requestId,
-          'session/truncate-from',
-          `Message not found in transcript: ${command.messageId}`,
-        );
-      }
-      // Ledger boundaries only exist on the active path (ADR 0055 R3): a
-      // side-branch subtree deletion must not cut the linear model-context
-      // ledger, so record whether the anchor is on-path while scanning.
-      let anchorOnActivePath = false;
-      let ledgerBoundaryMessageId: string | undefined;
-      let ledgerBoundaryCreatedAt = truncationAnchor.createdAt;
-      for await (const message of store.iterateActivePath(100)) {
-        if (message.id === truncationAnchor.id) {
-          anchorOnActivePath = true;
-          break;
+        const store = await context.getTranscriptStore(command.sessionId);
+        const truncationAnchor = await store.getMessage(command.messageId);
+        if (truncationAnchor === undefined) {
+          return fail(
+            requestId,
+            'session/truncate-from',
+            `Message not found in transcript: ${command.messageId}`,
+          );
         }
-        if (message.role === 'user') {
-          ledgerBoundaryMessageId = message.id;
-          ledgerBoundaryCreatedAt = message.createdAt;
-        }
-      }
-      if (truncationAnchor.role === 'user' && anchorOnActivePath) {
-        ledgerBoundaryMessageId = truncationAnchor.id;
-        ledgerBoundaryCreatedAt = truncationAnchor.createdAt;
-      }
-      // Runtime reset is a Host lifecycle transaction: it cancels replacement
-      // and active work, flushes/detaches the generation, releases residency,
-      // and preserves the durable session record that is about to be cut.
-      await context.disposeLiveSession(command.sessionId, 'manual');
-      const truncated = await store.truncateFrom(command.messageId);
-      if (!truncated.found) {
-        throw new Error(`Transcript changed before truncate: ${command.messageId}`);
-      }
-      if (anchorOnActivePath) {
-        const modelContextStore = await openModelContextStore({
-          dbPath: getPiwinSessionModelContextDatabasePath(rootDir, command.sessionId),
-          sessionId: command.sessionId,
-        });
-        try {
-          const events = await modelContextStore.listEvents();
-          const matchingUserEvent =
-            ledgerBoundaryMessageId !== undefined
-              ? events
-                  .filter((event) => {
-                    if (event.type !== 'turn/input') return false;
-                    if (
-                      event.payload === null ||
-                      typeof event.payload !== 'object' ||
-                      Array.isArray(event.payload)
-                    ) {
-                      return false;
-                    }
-                    return (
-                      (event.payload as { userMessageId?: unknown }).userMessageId ===
-                      ledgerBoundaryMessageId
-                    );
-                  })
-                  .at(-1)
-              : undefined;
-          const boundarySeq =
-            matchingUserEvent?.seq ??
-            events.find((event) =>
-              ledgerBoundaryMessageId !== undefined
-                ? event.createdAt >= ledgerBoundaryCreatedAt
-                : event.createdAt > truncationAnchor.createdAt,
-            )?.seq;
-          if (boundarySeq !== undefined) {
-            await modelContextStore.truncateEventsFrom(boundarySeq);
+        // Ledger boundaries only exist on the active path (ADR 0055 R3): a
+        // side-branch subtree deletion must not cut the linear model-context
+        // ledger, so record whether the anchor is on-path while scanning.
+        let anchorOnActivePath = false;
+        let ledgerBoundaryMessageId: string | undefined;
+        let ledgerBoundaryCreatedAt = truncationAnchor.createdAt;
+        for await (const message of store.iterateActivePath(100)) {
+          if (message.id === truncationAnchor.id) {
+            anchorOnActivePath = true;
+            break;
           }
-        } finally {
-          modelContextStore.close();
+          if (message.role === 'user') {
+            ledgerBoundaryMessageId = message.id;
+            ledgerBoundaryCreatedAt = message.createdAt;
+          }
         }
-      }
-      // ADR 0040 §7: no eager rebuild. The next session/prompt activates a
-      // fresh runtime generation for the stable product session id and
-      // injects the truncated product history exactly once. Keep the durable
-      // history requirement pending so a cold prompt rebuilds from the cut
-      // transcript only.
-      const remaining = await store.listTail(50);
-      record.messageCount = truncated.remainingCount;
-      const last = remaining.at(-1);
-      if (last?.text) {
-        record.lastPreview = last.text.slice(0, 160);
-      } else {
-        delete record.lastPreview;
-      }
-      record.updatedAt = new Date().toISOString();
-      await upsertSessionRecord(indexPath, record);
-      // Subtree deletion can move the leaf and dissolve branch points.
-      await pushBranchUpdated(context, command.sessionId, store);
-      // Leaf write and occupancy invalidate are consecutive store ops, not one
-      // SQLite transaction (`truncateFrom` does not accept context CAS).
-      await context.sessionContextCoordinator?.invalidate(command.sessionId, {
-        reason: 'truncate',
-        empty: truncated.remainingCount === 0,
-        contextBoundary: { activeLeafMessageId: await store.getActiveLeaf() },
-      });
-      return ok(requestId, 'session/truncate-from', {
-        sessionId: command.sessionId,
-        removedCount: truncated.removedCount,
-        remainingCount: truncated.remainingCount,
-        ...createSessionMessageResponse(command.sessionId, remaining, command.messageProjection),
-        session: indexRecordToSummary(record),
-      });
+        if (truncationAnchor.role === 'user' && anchorOnActivePath) {
+          ledgerBoundaryMessageId = truncationAnchor.id;
+          ledgerBoundaryCreatedAt = truncationAnchor.createdAt;
+        }
+        // Runtime reset is a Host lifecycle transaction: it cancels replacement
+        // and active work, flushes/detaches the generation, releases residency,
+        // and preserves the durable session record that is about to be cut.
+        await context.disposeLiveSession(command.sessionId, 'manual');
+        const truncated = await store.truncateFrom(command.messageId);
+        if (!truncated.found) {
+          throw new Error(`Transcript changed before truncate: ${command.messageId}`);
+        }
+        if (anchorOnActivePath) {
+          const modelContextStore = await openModelContextStore({
+            dbPath: getPiwinSessionModelContextDatabasePath(rootDir, command.sessionId),
+            sessionId: command.sessionId,
+          });
+          try {
+            const events = await modelContextStore.listEvents();
+            const matchingUserEvent =
+              ledgerBoundaryMessageId !== undefined
+                ? events
+                    .filter((event) => {
+                      if (event.type !== 'turn/input') return false;
+                      if (
+                        event.payload === null ||
+                        typeof event.payload !== 'object' ||
+                        Array.isArray(event.payload)
+                      ) {
+                        return false;
+                      }
+                      return (
+                        (event.payload as { userMessageId?: unknown }).userMessageId ===
+                        ledgerBoundaryMessageId
+                      );
+                    })
+                    .at(-1)
+                : undefined;
+            const boundarySeq =
+              matchingUserEvent?.seq ??
+              events.find((event) =>
+                ledgerBoundaryMessageId !== undefined
+                  ? event.createdAt >= ledgerBoundaryCreatedAt
+                  : event.createdAt > truncationAnchor.createdAt,
+              )?.seq;
+            if (boundarySeq !== undefined) {
+              await modelContextStore.truncateEventsFrom(boundarySeq);
+            }
+          } finally {
+            modelContextStore.close();
+          }
+        }
+        // ADR 0040 §7: no eager rebuild. The next session/prompt activates a
+        // fresh runtime generation for the stable product session id and
+        // injects the truncated product history exactly once. Keep the durable
+        // history requirement pending so a cold prompt rebuilds from the cut
+        // transcript only.
+        const remaining = await store.listTail(50);
+        record.messageCount = truncated.remainingCount;
+        const last = remaining.at(-1);
+        if (last?.text) {
+          record.lastPreview = last.text.slice(0, 160);
+        } else {
+          delete record.lastPreview;
+        }
+        record.updatedAt = new Date().toISOString();
+        await upsertSessionRecord(indexPath, record);
+        // Subtree deletion can move the leaf and dissolve branch points.
+        await pushBranchUpdated(context, command.sessionId, store);
+        // Leaf write and occupancy invalidate are consecutive store ops, not one
+        // SQLite transaction (`truncateFrom` does not accept context CAS).
+        await context.sessionContextCoordinator?.invalidate(command.sessionId, {
+          reason: 'truncate',
+          empty: truncated.remainingCount === 0,
+          contextBoundary: { activeLeafMessageId: await store.getActiveLeaf() },
+        });
+        return ok(requestId, 'session/truncate-from', {
+          sessionId: command.sessionId,
+          removedCount: truncated.removedCount,
+          remainingCount: truncated.remainingCount,
+          ...createSessionMessageResponse(command.sessionId, remaining, command.messageProjection),
+          session: indexRecordToSummary(record),
+        });
       } finally {
         context.releaseSessionBody(command.sessionId);
       }
@@ -778,10 +762,7 @@ export async function handleSessionLiveCommand(
 
       if (!context.sessions.has(command.sessionId)) {
         const rootDir = getPiwinRoot(context.piwinRoot);
-        const record = await getSessionRecord(
-          getPiwinSessionIndexPath(rootDir),
-          command.sessionId,
-        );
+        const record = await getSessionRecord(getPiwinSessionIndexPath(rootDir), command.sessionId);
         if (!record) {
           return fail(requestId, 'session/foreground-run', `Unknown session: ${command.sessionId}`);
         }
@@ -829,7 +810,10 @@ export async function handleSessionLiveCommand(
       const output = await open(outputPath, 'w');
       let byteLength = 0;
       try {
-        for await (const chunk of streamTranscriptExport(store.iterateActivePath(100), exportOptions)) {
+        for await (const chunk of streamTranscriptExport(
+          store.iterateActivePath(100),
+          exportOptions,
+        )) {
           await output.write(chunk, undefined, 'utf8');
           byteLength += Buffer.byteLength(chunk, 'utf8');
         }

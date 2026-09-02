@@ -2,6 +2,7 @@ import type { HostRuntimeResourcesData } from '@piwin/contracts';
 
 export function formatRuntimeResourcesLines(data: HostRuntimeResourcesData): string[] {
   const lines = [
+    `execution: running=${data.execution.activeRuns}/${data.execution.effectiveMaxConcurrentRuns} queued=${data.execution.waitingRuns} foreground=${data.execution.activeForegroundRuns} subagent=${data.execution.activeSubagentRuns}/${data.execution.subagentMaxConcurrency}${data.execution.limitingReason === 'runtime-residency' ? ` limitedBy=runtime-residency configured=${data.execution.configuredMaxConcurrentRuns}` : ''}`,
     `runtime residency: resident=${data.counts.resident} idle=${data.counts.idle} busy=${data.counts.busy} activating=${data.counts.activating} suspending=${data.counts.suspending} waiters=${data.waiterCount}`,
     `runtime budget: maxResident=${data.budget.maxResidentRuntimes} maxIdle=${data.budget.maxIdleRuntimes} highWaterMiB=${data.budget.memoryHighWaterMiB} lowWaterMiB=${data.budget.memoryLowWaterMiB}`,
     `runtime memory: hostRssMiB=${data.memory.hostRssMiB}${data.memory.workerRssMiB !== undefined ? ` workerRssMiB=${data.memory.workerRssMiB}` : ''} sample=${data.memory.sampleCompleteness}`,

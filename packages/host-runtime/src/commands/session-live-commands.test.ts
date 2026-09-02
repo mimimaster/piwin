@@ -10,13 +10,19 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  getSessionRecord,
   loadSessionPlan,
   openSessionTranscriptStore,
   saveSessionPlan,
   type SessionTranscriptStore,
 } from '@piwin/session';
 import { openOrCreateProject } from '@piwin/project';
-import { getPiwinProjectsPath, getPiwinRoot, getPiwinSessionPlanPath } from '../paths.js';
+import {
+  getPiwinProjectsPath,
+  getPiwinRoot,
+  getPiwinSessionIndexPath,
+  getPiwinSessionPlanPath,
+} from '../paths.js';
 import { createRemoteProjectId } from '../remote-project-id.js';
 import { createDelayedSessionHandle } from '../delayed-session-fixture.js';
 import { createDefaultPiwinConfig } from '../config-store.js';
@@ -2283,7 +2289,7 @@ describe('Conversation prompt path (CHT-301~308)', () => {
 });
 
 describe('session/create projectId binding', () => {
-  it('strips projectId before createSession after resolving the Host path', async () => {
+  it('persists a durable session from projectId without activating a runtime', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-create-project-id-'));
     const projectPath = join(rootDir, 'repo');
     const created = await openOrCreateProject(
@@ -2296,10 +2302,14 @@ describe('session/create projectId binding', () => {
     const session = createDelayedSessionHandle();
     const { context } = createControlContext(session);
     context.piwinRoot = rootDir;
-    const captured: Array<import('@piwin/contracts').CreateSessionInput> = [];
-    context.createSession = async (input) => {
-      captured.push(input);
+    let createSessionCalls = 0;
+    context.createSession = async () => {
+      createSessionCalls += 1;
       return session;
+    };
+    let bindCalls = 0;
+    context.bindSession = async () => {
+      bindCalls += 1;
     };
 
     const response = await handleSessionLiveCommand(
@@ -2315,21 +2325,29 @@ describe('session/create projectId binding', () => {
     );
 
     expect(response).toMatchObject({ success: true, command: 'session/create' });
-    expect(captured).toHaveLength(1);
-    expect(captured[0]?.projectId).toBeUndefined();
-    expect(captured[0]?.scope).toEqual({ kind: 'project', projectPath: created.path });
-    expect(captured[0]?.projectPath).toBe(created.path);
+    expect(createSessionCalls).toBe(0);
+    expect(bindCalls).toBe(0);
+    if (!response?.success) {
+      throw new Error(response?.error ?? 'session/create failed');
+    }
+    const sessionId = (response.data as { sessionId: string }).sessionId;
+    const record = await getSessionRecord(
+      getPiwinSessionIndexPath(getPiwinRoot(rootDir)),
+      sessionId,
+    );
+    expect(record?.projectPath).toBe(created.path);
+    expect(record?.name).toBe('New chat');
     await rm(rootDir, { recursive: true, force: true });
   });
 
-  it('returns a create failure when bind/index persistence throws', async () => {
+  it('returns a create failure when durable persist cannot write', async () => {
     const session = createDelayedSessionHandle();
     const { context } = createControlContext(session);
+    const blockerDir = await mkdtemp(join(tmpdir(), 'piwin-create-not-dir-'));
+    const blocker = join(blockerDir, 'not-a-directory');
+    await writeFile(blocker, 'not-a-directory');
+    context.piwinRoot = blocker;
     const disposed: string[] = [];
-    context.createSession = async () => session;
-    context.bindSession = async () => {
-      throw new Error('session index write failed: EACCES');
-    };
     context.disposeLiveSession = async (sessionId) => {
       disposed.push(sessionId);
     };
@@ -2343,12 +2361,16 @@ describe('session/create projectId binding', () => {
       context,
     );
 
+    expect(response).not.toBeNull();
+    if (response === null) {
+      throw new Error('session/create returned no response');
+    }
+    expect(response.success).toBe(false);
     expect(response).toMatchObject({
-      success: false,
       command: 'session/create',
-      error: 'session index write failed: EACCES',
     });
-    expect(disposed).toEqual([session.id]);
+    expect(disposed).toEqual([]);
+    await rm(blockerDir, { recursive: true, force: true });
   });
 });
 

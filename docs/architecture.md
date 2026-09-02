@@ -462,11 +462,19 @@ Runtime control follows [`runtime-refactor.md`](./specs/runtime-refactor.md):
 
 | Domain | Meaning | Authority |
 |---|---|---|
-| Runtime generation | One live Pi backend instance for a product session | `SessionRuntimeController` |
+| Session | Durable conversation identity | SessionIndex |
 | Run | Agent/orchestration work and structured cancellation | `RunRegistry` |
+| Execution lease | Permission for one leaf model/tool turn | `RuntimeResourceCoordinator` |
+| Runtime generation | One live Pi backend instance for a product session | `SessionRuntimeController` |
 | Job | User-visible non-interactive OS child process | `JobController` |
 | Worker | Internal isolated Pi process for one runtime generation. Pool size derives from `subagents.maxConcurrency` (supervisor cap adds +1 replacement headroom). | `AgentWorkerSupervisor` |
 | Terminal | Interactive desktop PTY | Tauri |
+
+Session count is unbounded. Local Host leaf execution defaults to 8 concurrent
+runs; further prompts are accepted with a real `runId` then queued. Worker
+count and `subagents.maxConcurrency` do not cap Sessions or foreground Runs.
+`session/create` writes the durable record only and never waits on Runtime or
+Worker capacity.
 
 Runs and Jobs are linked but are not a polymorphic state object. A parent Run
 cannot become terminal while a descendant remains non-terminal. Run

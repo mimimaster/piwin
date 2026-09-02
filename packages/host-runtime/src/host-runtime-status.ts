@@ -4,10 +4,11 @@
  */
 
 import { totalmem } from 'node:os';
-import type { HostStatusData } from '@piwin/contracts';
+import type { HostStatusData, PiwinConfig } from '@piwin/contracts';
 import {
   deriveMemoryHighWaterMiB,
   formatError,
+  normalizeExecutionConfig,
   normalizeSessionRuntimeRetentionConfig,
   type SessionRuntimeRetentionConfig,
 } from '@piwin/contracts';
@@ -68,6 +69,7 @@ export async function ensureRuntimeRetentionLoaded(deps: HostRuntimeKernel): Pro
       .then((config) => {
         deps.applyRuntimeRetention(config.session?.runtimeRetention);
         deps.applyWorkerPoolSize(config.subagents?.maxConcurrency);
+        applyExecutionAdmission(deps, config);
       })
       .catch((error: unknown) => {
         deps.push({
@@ -78,6 +80,17 @@ export async function ensureRuntimeRetentionLoaded(deps: HostRuntimeKernel): Pro
       });
   }
   await deps.runtimeRetentionInitialization;
+}
+
+export function applyExecutionAdmission(deps: HostRuntimeKernel, config: PiwinConfig): void {
+  const coordinator = deps.runtimeResourceCoordinator;
+  if (!coordinator) {
+    return;
+  }
+  const execution = normalizeExecutionConfig(config.execution);
+  coordinator.setConfiguredMaxConcurrentRuns(execution.maxConcurrentRuns);
+  coordinator.setSubagentMaxConcurrency(config.subagents?.maxConcurrency ?? 4);
+  coordinator.setResidentRuntimeLimit(deps.residencyController.getMaxResidentRuntimes());
 }
 
 export function applyRuntimeRetention(
@@ -93,6 +106,9 @@ export function applyRuntimeRetention(
     ...normalized,
     memoryHighWaterMiB,
   });
+  deps.runtimeResourceCoordinator?.setResidentRuntimeLimit(
+    deps.residencyController.getMaxResidentRuntimes(),
+  );
 }
 
 export function getStatus(deps: HostRuntimeKernel): HostStatusData {

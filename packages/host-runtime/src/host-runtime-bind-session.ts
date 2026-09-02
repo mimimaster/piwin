@@ -7,14 +7,13 @@ import { randomUUID } from 'node:crypto';
 import type { AgentEvent, SessionHandle } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
 
-import { createSessionRecord, getSessionRecord, upsertSessionRecord } from '@piwin/session';
 import { registerSessionRuntimeLease } from './session-runtime-lease.js';
-import { getPiwinGeneralWorkspacePath, getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
+import { getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
+import { persistDurableSessionRecord } from './durable-session-record.js';
 
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 import type { SessionLineage } from './host-runtime-types.js';
 import { routeSessionAgentEvent } from './session-agent-event-router.js';
-import { applySubagentLineage, copySubagentLineage } from './session-lineage-apply.js';
 
 export async function bindSession(
   deps: HostRuntimeKernel,
@@ -50,66 +49,14 @@ export async function bindSession(
     const rootDir = getPiwinRoot(deps.options.piwinRoot);
     const indexPath = getPiwinSessionIndexPath(rootDir);
     try {
-      const current = await getSessionRecord(indexPath, session.id);
-      if (current) {
-        current.updatedAt = new Date().toISOString();
-        if (sessionName) {
-          current.name = sessionName;
-        }
-        if (lineage?.parentSessionId) {
-          current.parentSessionId = lineage.parentSessionId;
-        }
-        if (lineage?.kind) {
-          current.kind = lineage.kind;
-        }
-        if (typeof lineage?.depth === 'number') {
-          current.depth = lineage.depth;
-        }
-        if (lineage?.subagentStatus) {
-          current.subagentStatus = lineage.subagentStatus;
-        }
-        if (lineage?.task) {
-          current.task = lineage.task;
-        }
-        if (lineage?.presentation) {
-          current.presentation = lineage.presentation;
-        }
-        applySubagentLineage(current, lineage);
-        await upsertSessionRecord(indexPath, current);
-      } else {
-        const recordInput: Parameters<typeof createSessionRecord>[0] = {
-          id: session.id,
-          projectPath,
-          ...(sessionName ? { name: sessionName } : {}),
-        };
-        if (!projectPath) {
-          recordInput.scope = { kind: 'general' };
-          recordInput.workingDirectory = getPiwinGeneralWorkspacePath(rootDir);
-        } else {
-          recordInput.scope = { kind: 'project', projectPath };
-          recordInput.workingDirectory = projectPath;
-        }
-        if (lineage?.parentSessionId) {
-          recordInput.parentSessionId = lineage.parentSessionId;
-        }
-        if (lineage?.kind) {
-          recordInput.kind = lineage.kind;
-        }
-        if (typeof lineage?.depth === 'number') {
-          recordInput.depth = lineage.depth;
-        }
-        if (lineage?.subagentStatus) {
-          recordInput.subagentStatus = lineage.subagentStatus;
-        }
-        if (lineage?.task) {
-          recordInput.task = lineage.task;
-        }
-        if (lineage?.presentation) {
-          recordInput.presentation = lineage.presentation;
-        }
-        copySubagentLineage(recordInput, lineage);
-        await upsertSessionRecord(indexPath, createSessionRecord(recordInput));
-      }
+      await persistDurableSessionRecord({
+        rootDir,
+        indexPath,
+        sessionId: session.id,
+        projectPath,
+        ...(sessionName ? { sessionName } : {}),
+        ...(lineage ? { lineage } : {}),
+      });
     } catch (error) {
       const detail = formatError(error);
       const warning = `session index write failed: ${detail}`;

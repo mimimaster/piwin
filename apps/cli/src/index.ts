@@ -397,6 +397,18 @@ function createAssistantCliDisplay() {
   };
 }
 
+function printCliWaitingResource(push: HostPush, seen: { printed: boolean }): void {
+  if (seen.printed || push.type !== 'run/updated' || push.run.phase !== 'waiting-resource') {
+    return;
+  }
+  seen.printed = true;
+  const reason =
+    push.run.phaseDetail === 'execution-slot'
+      ? 'waiting for an execution slot'
+      : 'waiting for runtime capacity';
+  console.error(`[run] ${push.run.runId} ${reason}`);
+}
+
 async function commandDoctor(args: string[] = []): Promise<void> {
   const root = getPiwinRoot();
   const config = await loadPiwinConfig(root);
@@ -1277,11 +1289,13 @@ async function commandChat(argv: string[]): Promise<void> {
       );
     }, attachedPromptTimeoutMs);
     const attachedDisplay = createAssistantCliDisplay();
+    const attachedWaiting = { printed: false };
     const unsubscribe = client.subscribePush((push) => {
       if (push.type === 'run/terminal') {
         resolveAttachedCompletion?.();
         return;
       }
+      printCliWaitingResource(push, attachedWaiting);
       if (push.type !== 'event') {
         return;
       }
@@ -1294,9 +1308,7 @@ async function commandChat(argv: string[]): Promise<void> {
       const createResponse = await client.request(
         {
           type: 'session/create',
-          input: projectPath
-            ? { projectId: projectPath }
-            : { scope: { kind: 'general' } },
+          input: projectPath ? { projectId: projectPath } : { scope: { kind: 'general' } },
         },
         { idempotencyKey: randomUUID() },
       );
@@ -1304,6 +1316,7 @@ async function commandChat(argv: string[]): Promise<void> {
         throw new Error(createResponse.error);
       }
       const sessionId = (createResponse.data as { sessionId: string }).sessionId;
+      console.error(`session ${sessionId}`);
       if (imagePath) {
         const saved = await saveAttachedCliImageAttachment({
           request: (command) => client.request(command),
@@ -1342,6 +1355,10 @@ async function commandChat(argv: string[]): Promise<void> {
       if (!promptResponse.success) {
         throw new Error(promptResponse.error);
       }
+      const attachedRunId = (promptResponse.data as { runId?: string } | undefined)?.runId;
+      if (typeof attachedRunId === 'string') {
+        console.error(`run ${attachedRunId}`);
+      }
       await attachedCompletion;
       process.stdout.write('\n');
     } finally {
@@ -1367,6 +1384,7 @@ async function commandChat(argv: string[]): Promise<void> {
     );
   }, localPromptTimeoutMs);
   const display = createAssistantCliDisplay();
+  const localWaiting = { printed: false };
   const runtime = new HostRuntime({
     mode,
     mock,
@@ -1375,6 +1393,7 @@ async function commandChat(argv: string[]): Promise<void> {
         resolvePromptCompletion?.();
         return;
       }
+      printCliWaitingResource(push, localWaiting);
       if (push.type !== 'event') {
         return;
       }
@@ -1397,6 +1416,7 @@ async function commandChat(argv: string[]): Promise<void> {
       throw new Error(createResponse.error);
     }
     const sessionId = (createResponse.data as { sessionId: string }).sessionId;
+    console.error(`session ${sessionId}`);
     const schemeId = readOption(argv, '--scheme')?.trim();
     // CM-18: `--ref <path>` (repeatable) maps to structured context refs.
     const refArgs = collectRefArgs(argv);
@@ -1421,6 +1441,10 @@ async function commandChat(argv: string[]): Promise<void> {
     });
     if (!promptResponse.success) {
       throw new Error(promptResponse.error);
+    }
+    const localRunId = (promptResponse.data as { runId?: string } | undefined)?.runId;
+    if (typeof localRunId === 'string') {
+      console.error(`run ${localRunId}`);
     }
     await promptCompletion;
     process.stdout.write('\n');

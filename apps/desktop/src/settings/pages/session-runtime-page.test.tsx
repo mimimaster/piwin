@@ -15,10 +15,7 @@ import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from '../../appearance-tokens';
 import { DesktopLocaleProvider } from '../../desktop-locale-context';
 import { SettingsProvider, type SettingsContextValue } from '../settings-context';
-import {
-  buildSessionRuntimeRetentionDraft,
-  SessionRuntimePage,
-} from './session-runtime-page';
+import { buildSessionRuntimeRetentionDraft, SessionRuntimePage } from './session-runtime-page';
 import { webToDraft } from '../web-draft';
 import { createDefaultWebConfig } from '@piwin/contracts';
 
@@ -73,6 +70,18 @@ function resourceSample(): HostRuntimeResourcesData {
       evictedByMaxResident: 0,
       evictedByMemoryPressure: 0,
       memoryPressureFailures: 0,
+    },
+    execution: {
+      configuredMaxConcurrentRuns: 8,
+      effectiveMaxConcurrentRuns: 8,
+      activeRuns: 0,
+      waitingRuns: 0,
+      activeForegroundRuns: 0,
+      waitingForegroundRuns: 0,
+      activeSubagentRuns: 0,
+      waitingSubagentRuns: 0,
+      subagentMaxConcurrency: 4,
+      limitingReason: 'execution-config',
     },
   };
 }
@@ -366,8 +375,7 @@ describe('SessionRuntimePage', () => {
     expect(saveConfig).not.toHaveBeenCalled();
   });
 
-  it('shows aggregate Host resource metrics'
-, async () => {
+  it('shows aggregate Host resource metrics', async () => {
     container = renderPage(createContextValue());
     await act(async () => {
       await Promise.resolve();
@@ -494,8 +502,8 @@ describe('SessionRuntimePage', () => {
       'Failed',
     );
     expect(container!.querySelector('[data-testid="runtime-failed-bar"]')).toBeTruthy();
-    expect(container!.querySelector('[data-testid="runtime-candidate-error"]')?.textContent).toContain(
-      'candidate backend failed',
-    );
+    expect(
+      container!.querySelector('[data-testid="runtime-candidate-error"]')?.textContent,
+    ).toContain('candidate backend failed');
   });
 });

@@ -44,11 +44,7 @@ export type HostResponse =
     };
 
 export type HostServerMessage =
-  | HostResponse
-  | HostPush
-  | HostPushBatchFrame
-  | HostHydrationFrame
-  | HostSnapshotFrame;
+  HostResponse | HostPush | HostPushBatchFrame | HostHydrationFrame | HostSnapshotFrame;
 
 export type HostStatusData = {
   mode: HostMode;
@@ -137,6 +133,22 @@ export type HostStatusData = {
  * Returned by `host/runtime-resources`. Metrics are aggregate; per-process
  * secrets/PIDs are never exposed. Worker samples may be incomplete.
  */
+export type ExecutionLimitingReason = 'execution-config' | 'runtime-residency';
+
+/** Leaf-run execution admission snapshot. Sessions are not counted here. */
+export type ExecutionResourceStatus = {
+  configuredMaxConcurrentRuns: number;
+  effectiveMaxConcurrentRuns: number;
+  activeRuns: number;
+  waitingRuns: number;
+  activeForegroundRuns: number;
+  waitingForegroundRuns: number;
+  activeSubagentRuns: number;
+  waitingSubagentRuns: number;
+  subagentMaxConcurrency: number;
+  limitingReason?: ExecutionLimitingReason;
+};
+
 export type HostRuntimeResourcesData = {
   /** Resident runtimes by residency state. */
   counts: {
@@ -187,6 +199,8 @@ export type HostRuntimeResourcesData = {
     /** Subagent tasks waiting on quota. Pool waits are in top-level waiterCount. */
     subagentWaiting: number;
   };
+  /** Leaf-run execution admission. Independent of Session count and Worker count. */
+  execution: ExecutionResourceStatus;
 };
 
 export type SessionCreateData = {

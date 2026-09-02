@@ -12,10 +12,7 @@ import {
   type HostPush,
   type HostRuntimeResourcesData,
 } from '@piwin/contracts';
-import {
-  WorkerCapacityExhaustedError,
-  type AgentWorkerSupervisor,
-} from '@piwin/agent-host';
+import { WorkerCapacityExhaustedError, type AgentWorkerSupervisor } from '@piwin/agent-host';
 
 /** Mutable Host fields the pool policy writes. */
 export type WorkerPoolApplyTarget = {
@@ -25,7 +22,7 @@ export type WorkerPoolApplyTarget = {
   workerPoolOverParallelismLogged: boolean;
   workerCapacityExhaustWarnLogged: boolean;
   agentWorkerSupervisor: { setMaxActiveWorkers(next: number): void } | null;
-  runtimeResourceCoordinator: { setConfiguredMaxConcurrency(max: number): void } | null;
+  runtimeResourceCoordinator: { setSubagentMaxConcurrency(max: number): void } | null;
   residencyController: { revisitCapacity(): void };
   push: (message: HostPush) => void;
 };
@@ -76,7 +73,7 @@ export function applyWorkerPoolSize(
   deps.supervisorMax = supervisorMax;
   deps.subagentQuota = quota;
   deps.agentWorkerSupervisor?.setMaxActiveWorkers(supervisorMax);
-  deps.runtimeResourceCoordinator?.setConfiguredMaxConcurrency(quota);
+  deps.runtimeResourceCoordinator?.setSubagentMaxConcurrency(quota);
   deps.residencyController.revisitCapacity();
   if (!deps.workerPoolOverParallelismLogged && poolSize > parallelism) {
     deps.workerPoolOverParallelismLogged = true;
@@ -89,7 +86,10 @@ export function applyWorkerPoolSize(
 }
 
 /** Log once and rethrow — hitting the supervisor cap means the ledger and process count disagree. */
-export function guardWorkerAcquire(supervisor: AgentWorkerSupervisor, deps: WorkerPoolApplyTarget): AgentWorkerSupervisor {
+export function guardWorkerAcquire(
+  supervisor: AgentWorkerSupervisor,
+  deps: WorkerPoolApplyTarget,
+): AgentWorkerSupervisor {
   const original = supervisor.acquireWorker.bind(supervisor);
   supervisor.acquireWorker = (sessionId, runtimeGenerationId, workerOptions) =>
     original(sessionId, runtimeGenerationId, workerOptions).catch((error: unknown) => {
