@@ -31,7 +31,12 @@ function makeConfig(overrides: Partial<PiwinConfig> = {}): PiwinConfig {
       },
     ],
     media: { maxPasteBytes: 0, allowedMimeTypes: [] },
-    artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 0 },
+    artifact: {
+      enabled: true,
+      triggerMode: 'automatic',
+      decisionPrompt: { mode: 'default', customPrompt: '' },
+      maxBytes: 0,
+    },
     ...overrides,
   };
 }
@@ -40,9 +45,7 @@ describe('resolveSubagentProfiles', () => {
   it('returns built-ins when Settings has no custom profiles', () => {
     const config = makeConfig();
     const profiles = resolveSubagentProfiles(config);
-    expect(profiles.map((p) => p.id)).toEqual(
-      BUILTIN_SUBAGENT_PROFILES.map((p) => p.id),
-    );
+    expect(profiles.map((p) => p.id)).toEqual(BUILTIN_SUBAGENT_PROFILES.map((p) => p.id));
     for (const profile of profiles) {
       expect(profile.source).toBe('builtin');
     }
@@ -201,6 +204,11 @@ describe('resolveSubagentModel', () => {
 });
 
 describe('resolveSubagentIsolation', () => {
+  it('honors an explicit caller mode when no profile is selected', () => {
+    expect(resolveSubagentIsolation(undefined, 'worktree')).toBe('worktree');
+    expect(resolveSubagentIsolation(undefined, 'readonly')).toBe('readonly');
+  });
+
   it('caller can make worktree profile stricter (readonly)', () => {
     const profile = BUILTIN_SUBAGENT_PROFILES.find((p) => p.id === 'implementer');
     expect(resolveSubagentIsolation(profile, 'readonly')).toBe('readonly');

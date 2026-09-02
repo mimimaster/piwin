@@ -83,9 +83,6 @@ describe('createSubagentRunTool', () => {
       invocationId: expect.any(String),
       parentRunId: 'run-1',
       task: 'explore the auth module',
-      mode: 'readonly',
-      deliveryIntent: 'report',
-      applyPolicy: 'none',
       signal: expect.any(AbortSignal),
     });
     expect(seam.merge).toHaveBeenCalledTimes(1);
@@ -94,11 +91,13 @@ describe('createSubagentRunTool', () => {
     expect(messageOf(result)).toContain('childSessionId=child-1');
   });
 
-  it('defaults to readonly mode', async () => {
+  it('leaves omitted mode for Host-side isolation resolution', async () => {
     const seam = fakeSeam();
     const tool = createSubagentRunTool({ sessionId: 's1', seam });
     await executeTool(tool, { task: 'test' });
-    expect(firstSpawnArg(seam).mode).toBe('readonly');
+    expect(firstSpawnArg(seam).mode).toBeUndefined();
+    expect(firstSpawnArg(seam).deliveryIntent).toBeUndefined();
+    expect(firstSpawnArg(seam).applyPolicy).toBeUndefined();
   });
 
   it('binds the Host-normalized parent tool call to the child task', async () => {
@@ -153,29 +152,34 @@ describe('createSubagentRunTool', () => {
     expect(firstSpawnArg(seam).applyPolicy).toBe('explicit');
   });
 
-  it('defaults omitted readonly spawn to report/none', async () => {
+  it('forwards explicit readonly delivery fields without resolving them locally', async () => {
     const seam = fakeSeam();
     const tool = createSubagentRunTool({ sessionId: 's1', seam });
-    await executeTool(tool, { task: 'test' });
+    await executeTool(tool, {
+      task: 'test',
+      mode: 'readonly',
+      deliveryIntent: 'report',
+      applyPolicy: 'none',
+    });
     expect(firstSpawnArg(seam).deliveryIntent).toBe('report');
     expect(firstSpawnArg(seam).applyPolicy).toBe('none');
   });
 
-  it('defaults omitted worktree spawn to integrate/auto', async () => {
+  it('leaves omitted worktree delivery defaults for Host-side resolution', async () => {
     const seam = fakeSeam();
     const tool = createSubagentRunTool({ sessionId: 's1', seam });
     await executeTool(tool, { task: 'test', mode: 'worktree' });
-    expect(firstSpawnArg(seam).applyPolicy).toBe('auto');
-    expect(firstSpawnArg(seam).deliveryIntent).toBe('integrate');
+    expect(firstSpawnArg(seam).applyPolicy).toBeUndefined();
+    expect(firstSpawnArg(seam).deliveryIntent).toBeUndefined();
     expect(firstSpawnArg(seam).mode).toBe('worktree');
   });
 
-  it('forwards an explicit none applyPolicy without inventing candidate intent', async () => {
+  it('forwards an explicit none applyPolicy without inventing an intent locally', async () => {
     const seam = fakeSeam();
     const tool = createSubagentRunTool({ sessionId: 's1', seam });
     await executeTool(tool, { task: 'test', mode: 'worktree', applyPolicy: 'none' });
     expect(firstSpawnArg(seam).applyPolicy).toBe('none');
-    expect(firstSpawnArg(seam).deliveryIntent).toBe('integrate');
+    expect(firstSpawnArg(seam).deliveryIntent).toBeUndefined();
   });
 
   it('forwards deliveryIntent when the model provides one', async () => {
@@ -183,7 +187,7 @@ describe('createSubagentRunTool', () => {
     const tool = createSubagentRunTool({ sessionId: 's1', seam });
     await executeTool(tool, { task: 'test', mode: 'worktree', deliveryIntent: 'candidate' });
     expect(firstSpawnArg(seam).deliveryIntent).toBe('candidate');
-    expect(firstSpawnArg(seam).applyPolicy).toBe('none');
+    expect(firstSpawnArg(seam).applyPolicy).toBeUndefined();
   });
 
   it('rejects unknown or conflicting delivery fields as invalid-input', async () => {
@@ -204,7 +208,7 @@ describe('createSubagentRunTool', () => {
     expect(seam.spawn).not.toHaveBeenCalled();
   });
 
-  it('rejects report with worktree and integrate with readonly', async () => {
+  it('forwards isolation-sensitive delivery fields for Host validation', async () => {
     const seam = fakeSeam();
     const tool = createSubagentRunTool({ sessionId: 's1', seam });
     const reportWrite = await executeTool(tool, {
@@ -212,16 +216,20 @@ describe('createSubagentRunTool', () => {
       mode: 'worktree',
       deliveryIntent: 'report',
     });
-    expect(reportWrite).toMatchObject({ ok: false, code: 'invalid-input' });
-    expect(messageOf(reportWrite)).toContain('worktree');
+    expect(reportWrite).toMatchObject({ ok: true });
+    expect(firstSpawnArg(seam).mode).toBe('worktree');
+    expect(firstSpawnArg(seam).deliveryIntent).toBe('report');
     const integrateReadonly = await executeTool(tool, {
       task: 'test',
       mode: 'readonly',
       deliveryIntent: 'integrate',
     });
-    expect(integrateReadonly).toMatchObject({ ok: false, code: 'invalid-input' });
-    expect(messageOf(integrateReadonly)).toContain('readonly');
-    expect(seam.spawn).not.toHaveBeenCalled();
+    expect(integrateReadonly).toMatchObject({ ok: true });
+    expect(seam.spawn.mock.calls as unknown as SpawnCall[][]).toHaveLength(2);
+    expect((seam.spawn.mock.calls as unknown as SpawnCall[][])[1]?.[0]).toMatchObject({
+      mode: 'readonly',
+      deliveryIntent: 'integrate',
+    });
   });
 
   it('maps later isolation policy failures to invalid-input', async () => {

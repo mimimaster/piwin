@@ -23,7 +23,12 @@ function makeConfig(overrides: Partial<PiwinConfig> = {}): PiwinConfig {
       },
     ],
     media: { maxPasteBytes: 0, allowedMimeTypes: [] },
-    artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 0 },
+    artifact: {
+      enabled: true,
+      triggerMode: 'automatic',
+      decisionPrompt: { mode: 'default', customPrompt: '' },
+      maxBytes: 0,
+    },
     ...overrides,
   };
 }
@@ -437,6 +442,31 @@ describe('planSubagentSpawn', () => {
       expect(result.snapshot.isolation).toBe('readonly');
     }
   });
+
+  it('allows an explicit worktree request without requiring a profile', () => {
+    const result = planSubagentSpawn({
+      config: makeConfig(),
+      request: {
+        parentSessionId: 'parent-1',
+        task: 'implement the requested change',
+        selector: {},
+        mode: 'worktree',
+        deliveryIntent: 'integrate',
+        source: 'model-tool',
+      },
+      parentDepth: 0,
+      parentKind: 'main',
+      workingDirectory: '/tmp/project',
+      enabledSkillIds: [],
+    });
+    expect('error' in result).toBe(false);
+    if (!('error' in result)) {
+      expect(result.snapshot.profileId).toBeUndefined();
+      expect(result.snapshot.isolation).toBe('worktree');
+      expect(result.spawnOptions.deliveryIntent).toBe('integrate');
+      expect(result.spawnOptions.applyPolicy).toBe('auto');
+    }
+  });
 });
 
 describe('buildSubagentSeedPrompt', () => {
@@ -493,20 +523,32 @@ describe('resolveSubagentChildPrompt', () => {
 
 describe('lifecycle state transitions', () => {
   it('transitions execution status without mutating input', () => {
-    const state = { executionStatus: 'queued', summaryStatus: 'not-requested', integrationStatus: 'not-requested' } as const;
+    const state = {
+      executionStatus: 'queued',
+      summaryStatus: 'not-requested',
+      integrationStatus: 'not-requested',
+    } as const;
     const next = transitionExecutionStatus(state, 'running');
     expect(next.executionStatus).toBe('running');
     expect(state.executionStatus).toBe('queued');
   });
 
   it('transitions summary status', () => {
-    const state = { executionStatus: 'completed', summaryStatus: 'pending', integrationStatus: 'not-requested' } as const;
+    const state = {
+      executionStatus: 'completed',
+      summaryStatus: 'pending',
+      integrationStatus: 'not-requested',
+    } as const;
     const next = transitionSummaryStatus(state, 'merged');
     expect(next.summaryStatus).toBe('merged');
   });
 
   it('transitions integration status', () => {
-    const state = { executionStatus: 'completed', summaryStatus: 'merged', integrationStatus: 'pending' } as const;
+    const state = {
+      executionStatus: 'completed',
+      summaryStatus: 'merged',
+      integrationStatus: 'pending',
+    } as const;
     const next = transitionIntegrationStatus(state, 'applied');
     expect(next.integrationStatus).toBe('applied');
   });

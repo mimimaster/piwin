@@ -174,14 +174,18 @@ export function resolveSubagentThinking(
 }
 
 /**
- * Resolve the effective isolation. A caller may make the profile stricter
- * (worktree → readonly) but cannot widen it (readonly → worktree).
+ * Resolve the effective isolation. With no selected profile, an explicit
+ * caller mode is authoritative; otherwise the legacy default stays readonly.
+ * A selected profile may make the request stricter (worktree → readonly) but
+ * cannot be widened (readonly → worktree).
  */
 export function resolveSubagentIsolation(
   profile: SubagentProfileSettings | undefined,
   callerMode: SubagentIsolationMode | undefined,
 ): SubagentIsolationMode {
-  const profileIsolation = profile?.isolation ?? 'readonly';
+  if (!profile) return callerMode ?? 'readonly';
+
+  const profileIsolation = profile.isolation;
   if (callerMode === 'readonly' && profileIsolation === 'worktree') {
     return 'readonly';
   }
