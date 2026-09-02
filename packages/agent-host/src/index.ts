@@ -136,7 +136,11 @@ export type { PiSdkBackendOptions } from './backends/sdk-backend-session.js';
 export { WorkerSessionBackend } from './backends/worker-rpc-session-backend.js';
 export type { WorkerSessionBackendOptions } from './backends/worker-rpc-session-backend.js';
 
-export { AgentWorkerSupervisor, computeDefaultWorkerSettings } from './agent-worker-supervisor.js';
+export {
+  AgentWorkerSupervisor,
+  computeDefaultWorkerSettings,
+  WorkerCapacityExhaustedError,
+} from './agent-worker-supervisor.js';
 export type {
   AgentWorkerRuntimeSettings,
   AgentWorkerSupervisorOptions,
