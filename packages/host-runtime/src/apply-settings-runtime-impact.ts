@@ -24,6 +24,7 @@ export function applySettingsRuntimeImpact(
   if (settingsConfig.session) {
     deps.applyRuntimeRetention(settingsConfig.session.runtimeRetention);
   }
+  deps.applyWorkerPoolSize(settingsConfig.subagents?.maxConcurrency);
   const runtimeChanges = result.changedDomains.filter(
     (change: SettingsDomainImpact) =>
       change.runtimeSchemaChanged ?? change.timing === 'new-runtime',

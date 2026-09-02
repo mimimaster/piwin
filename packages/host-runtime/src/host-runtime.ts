@@ -155,6 +155,7 @@ import {
   listForegroundRuns,
   listPendingPermissionRequests,
 } from './host-runtime-status.js';
+import { applyWorkerPoolSize } from './worker-pool-policy.js';
 import { bindSession } from './host-runtime-bind-session.js';
 import {
   resolveAutoCompaction,
@@ -185,13 +186,13 @@ import {
   pendingColdStartGenerationId,
   refreshWorkerRssSample,
   publishWaitingResourceWhileQueued,
-  getRuntimeResources,
   isSessionRuntimeProtected,
   suspendSessionRuntime,
   doSuspendSessionRuntime,
   ensureLiveSession,
   prepareDelegationRuntime,
 } from './session-runtime-lifecycle.js';
+import { getRuntimeResources } from './session-runtime-resources.js';
 import {
   recordUsageToLedger,
   enqueueUsageLedgerWrite,
@@ -662,6 +663,10 @@ export class HostRuntime extends HostRuntimeFields {
 
   applyRuntimeRetention(input: Partial<SessionRuntimeRetentionConfig> | undefined): void {
     return applyRuntimeRetention(this.asKernel(), input);
+  }
+
+  applyWorkerPoolSize(maxConcurrency: number | undefined): void {
+    return applyWorkerPoolSize(this.asKernel(), maxConcurrency);
   }
 
   getStatus(): HostStatusData {

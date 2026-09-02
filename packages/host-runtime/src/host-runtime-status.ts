@@ -67,6 +67,7 @@ export async function ensureRuntimeRetentionLoaded(deps: HostRuntimeKernel): Pro
     deps.runtimeRetentionInitialization = loadPiwinConfig(deps.options.piwinRoot)
       .then((config) => {
         deps.applyRuntimeRetention(config.session?.runtimeRetention);
+        deps.applyWorkerPoolSize(config.subagents?.maxConcurrency);
       })
       .catch((error: unknown) => {
         deps.push({

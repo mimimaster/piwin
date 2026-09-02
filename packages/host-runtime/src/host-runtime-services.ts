@@ -6,6 +6,7 @@
 import { join } from 'node:path';
 import type { AgentEvent, JobController } from '@piwin/contracts';
 import { AgentWorkerSupervisor } from '@piwin/agent-host';
+import { guardWorkerAcquire } from './worker-pool-policy.js';
 import { formatError, isRunTerminal } from '@piwin/contracts';
 import { createMcpLifecycleManager, type McpLifecycleManager } from '@piwin/mcp';
 import { type JobRegistryEvent } from '@piwin/process';
@@ -388,7 +389,9 @@ export async function runCronJob(
 }
 
 export function createAgentWorkerSupervisor(deps: HostRuntimeKernel): AgentWorkerSupervisor {
-  return new AgentWorkerSupervisor({
+  return guardWorkerAcquire(
+    new AgentWorkerSupervisor({
+    settings: { maxActiveWorkers: deps.supervisorMax },
     ...(deps.options.agentWorkerScript
       ? { worker: { workerScript: deps.options.agentWorkerScript } }
       : {}),
@@ -469,7 +472,9 @@ export function createAgentWorkerSupervisor(deps: HostRuntimeKernel): AgentWorke
           }),
       );
     },
-  });
+  }),
+    deps,
+  );
 }
 
 /**

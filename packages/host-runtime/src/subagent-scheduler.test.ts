@@ -8,6 +8,7 @@ import {
   isBatchSettled,
   deriveBatchStatus,
 } from './subagent-scheduler.js';
+import { DEFAULT_SUBAGENT_MAX_CONCURRENCY } from '@piwin/contracts';
 import type { SubagentBatchRequest, SubagentTaskSpec } from '@piwin/contracts';
 
 function makeTask(overrides: Partial<SubagentTaskSpec> = {}): SubagentTaskSpec {
@@ -29,6 +30,11 @@ function makeBatch(tasks: SubagentTaskSpec[], overrides: Partial<SubagentBatchRe
 }
 
 describe('initSchedulerState', () => {
+  it('defaults maxConcurrency to DEFAULT_SUBAGENT_MAX_CONCURRENCY', () => {
+    const state = initSchedulerState({ parentSessionId: 'parent-1', tasks: [makeTask()] });
+    expect(state.maxConcurrency).toBe(DEFAULT_SUBAGENT_MAX_CONCURRENCY);
+  });
+
   it('initializes all tasks as pending', () => {
     const state = initSchedulerState(makeBatch([makeTask({ id: 'a' }), makeTask({ id: 'b' })]));
     expect(state.status.get('a')).toBe('pending');
