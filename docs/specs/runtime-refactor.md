@@ -558,7 +558,7 @@ a terminal parent.
 
 ```text
 backend processIsolation=false -> 1
-backend processIsolation=true  -> min(configured limit, available worker capacity)
+backend processIsolation=true  -> configured quota; pool admission via residency
 ```
 
 The UI and CLI report configured and effective values separately.
@@ -667,7 +667,7 @@ for RPC mode, and no temporary environment switch selecting incomplete paths.
 | WI-06 | Worker owns only Pi session execution, streaming, selected Pi resources/extensions, and Pi event mapping. |
 | WI-07 | SDK and worker consume the same compiled blueprint and prepared prompt. |
 | WI-08 | Worker receives full Host tool descriptors and exact Pi built-in names. |
-| WI-09 | Capacity exhaustion waits or fails explicitly; it never changes backend mode. |
+| WI-09 | Capacity exhaustion waits or fails explicitly; it never changes backend mode. Subagent path waits on residency FIFO (landed 2026-09-02). |
 | WI-10 | Prompt acceptance and turn completion are separate protocol phases. |
 | WI-11 | Tool and turn cancellation have explicit protocol frames. |
 | WI-12 | Pi-native event shapes never cross the worker boundary. |
@@ -804,7 +804,8 @@ export type AgentWorkerRuntimeSettings = {
 Defaults:
 
 ```text
-maxActiveWorkers = min(max(2, availableParallelism - 1), 8)
+maxActiveWorkers = deriveSupervisorMaxWorkers(subagents.maxConcurrency)
+                 = deriveWorkerPoolSize(N) + 1 replacement headroom
 startupTimeoutMs = 5_000
 shutdownTimeoutMs = 2_000
 maxFrameBytes = 8 MiB

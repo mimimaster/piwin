@@ -22,8 +22,13 @@ Settings → **Session Runtime**:
 - Retention budgets (idle TTL, max idle, optional resident cap, optional memory high water)
 - Aggregate Host resource metrics (refreshable)
 
-Cold sessions keep history usable. Ordinary chat shows a subtle **Restoring runtime**
-phase only when a cold prompt is waiting for capacity (`waiting-resource`).
+Cold sessions keep history usable. Ordinary chat shows a subtle **Waiting for
+runtime capacity** phase when a prompt or subagent is queued on the residency
+ledger (`waiting-resource`).
+
+The resources snapshot may include a `workers` block: `pool` is the
+user-facing process ceiling (`N + 1`); `max` includes replacement headroom
+and is not shown in Desktop/CLI pool fractions.
 
 ## CLI doctor / status
 
@@ -33,7 +38,11 @@ piwin status [--mock]
 ```
 
 Both print a `runtime residency` block with resident/idle/busy counts, budgets,
-RSS samples, and eviction counters.
+RSS samples, and eviction counters. When workers are present:
+
+```text
+runtime workers: 3/5 active (0 starting) · subagents 2/4 · waiting 1
+```
 
 ## Soak / evidence
 

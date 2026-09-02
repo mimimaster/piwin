@@ -83,3 +83,9 @@ Implementation update (2026-08-05): `AgentWorkerSupervisor` is the sole
 production worker-client owner, the worker artifact is bundled as
 `agent-worker.mjs`, and unexpected worker exit terminalizes matching active
 Runs through the parent `RunRegistry` with `worker-crash`.
+
+Concurrency update (2026-09-02): supervisor process cap =
+`deriveSupervisorMaxWorkers(N)` = worker pool + 1. The extra slot is
+replacement headroom for generational overlap / compaction candidates
+(owner 2026-09-02). It is a final invariant: `WorkerCapacityExhaustedError`
+on the normal path is a bug (active + starting + max are on the error).
