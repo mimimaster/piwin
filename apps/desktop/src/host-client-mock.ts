@@ -89,6 +89,8 @@ export class MockHostBackend {
     Array<{ key: string; action: string; detail: string }>
   >();
   mockProjects = new Map<string, import('@piwin/contracts').ProjectRecord>();
+  /** Browser-mode git state used by the composer branch picker. */
+  mockGitCurrentBranches = new Map<string, string>();
   mockCronJobs: import('@piwin/contracts').CronJob[] = [];
   mockHooks: import('@piwin/contracts').HookDefinition[] = [];
   mockMcpDocument: import('@piwin/contracts').McpConfigDocument = { mcpServers: {} };
@@ -154,6 +156,7 @@ export class MockHostBackend {
     this.mockJobLogs.clear();
     this.mockPtys.clear();
     this.mockRememberedPermissions.clear();
+    this.mockGitCurrentBranches.clear();
     this.mockPromptAborts.clear();
     this.mockPauseCheckpointIds.clear();
     this.mockPauseRequested.clear();

@@ -31,6 +31,51 @@ describe('MockHostBackend usage', () => {
   });
 });
 
+describe('MockHostBackend git checkout', () => {
+  it('reports the checked-out branch in subsequent git reads', async () => {
+    const backend = new MockHostBackend(
+      () => {},
+      () => 'sdk',
+    );
+
+    const checkout = await backend.handle(
+      {
+        type: 'git/checkout',
+        input: { projectPath: '/tmp/mock-project', ref: 'feat/demo' },
+      },
+      'checkout',
+    );
+    expect(checkout.success).toBe(true);
+
+    const status = await backend.handle(
+      { type: 'git/status', projectPath: '/tmp/mock-project' },
+      'status',
+    );
+    expect(status.success).toBe(true);
+    if (!status.success) throw new Error(status.error);
+    expect(
+      (status.data as { snapshot: { branch: { currentBranch: string | null } } }).snapshot.branch
+        .currentBranch,
+    ).toBe('feat/demo');
+
+    const branches = await backend.handle(
+      { type: 'git/branch-list', projectPath: '/tmp/mock-project' },
+      'branches',
+    );
+    expect(branches.success).toBe(true);
+    if (!branches.success) throw new Error(branches.error);
+    expect(
+      (branches.data as { branches: { branches: Array<{ name: string; current: boolean }> } })
+        .branches.branches,
+    ).toEqual(
+      expect.arrayContaining([
+        { name: 'main', current: false, shortHash: 'abc1234' },
+        { name: 'feat/demo', current: true, shortHash: 'def5678' },
+      ]),
+    );
+  });
+});
+
 describe('MockHostBackend session/list', () => {
   it('sorts globally, truncates after sort, and returns Host metadata', async () => {
     const backend = new MockHostBackend(

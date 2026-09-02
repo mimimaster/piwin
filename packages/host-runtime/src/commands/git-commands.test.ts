@@ -52,6 +52,43 @@ describe('git commands projectId', () => {
   });
 });
 
+describe('git checkout', () => {
+  it('switches the repository worktree to the requested branch', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-git-checkout-'));
+    const projectPath = join(rootDir, 'workspace');
+    await mkdir(projectPath, { recursive: true });
+    await execFileAsync('git', ['init'], { cwd: projectPath });
+    await writeFile(join(projectPath, 'README.md'), 'hello\n', 'utf8');
+    await execFileAsync('git', ['add', 'README.md'], { cwd: projectPath });
+    await execFileAsync(
+      'git',
+      [
+        '-c',
+        'user.name=piwin-test',
+        '-c',
+        'user.email=piwin-test@example.com',
+        'commit',
+        '-m',
+        'initial',
+      ],
+      { cwd: projectPath },
+    );
+    await execFileAsync('git', ['branch', 'feat/demo'], { cwd: projectPath });
+
+    const checkout = await handleGitCommand(
+      { type: 'git/checkout', input: { projectPath, ref: 'feat/demo' } },
+      'checkout',
+      { piwinRoot: rootDir } as HostCommandContext,
+    );
+    expect(checkout?.success).toBe(true);
+
+    const currentBranch = await execFileAsync('git', ['branch', '--show-current'], {
+      cwd: projectPath,
+    });
+    expect(currentBranch.stdout.trim()).toBe('feat/demo');
+  });
+});
+
 describe('git mutation workspace write gate', () => {
   it('fails git/stage with workspace-busy when the workspace lease is held', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-git-busy-'));
