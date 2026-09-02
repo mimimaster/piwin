@@ -465,7 +465,7 @@ Runtime control follows [`runtime-refactor.md`](./specs/runtime-refactor.md):
 | Runtime generation | One live Pi backend instance for a product session | `SessionRuntimeController` |
 | Run | Agent/orchestration work and structured cancellation | `RunRegistry` |
 | Job | User-visible non-interactive OS child process | `JobController` |
-| Worker | Internal isolated Pi process for one runtime generation | `AgentWorkerSupervisor` |
+| Worker | Internal isolated Pi process for one runtime generation. Pool size derives from `subagents.maxConcurrency` (supervisor cap adds +1 replacement headroom). | `AgentWorkerSupervisor` |
 | Terminal | Interactive desktop PTY | Tauri |
 
 Runs and Jobs are linked but are not a polymorphic state object. A parent Run
@@ -475,7 +475,9 @@ Jobs, and joins children before the parent terminal transition.
 
 Parallel subagent scheduling is work-conserving and uses one orchestrator.
 Configured concurrency greater than one is effective only when the backend
-reports real process isolation. Write tasks use per-child worktrees and
+reports real process isolation. Worker pool size derives from
+`subagents.maxConcurrency` (`N + 1` foreground reserve; supervisor replacement
+headroom is not shown as pool). Write tasks use per-child worktrees and
 repository-keyed serialized integration.
 
 Delivery policy (ADR 0030 delivery update, 2026-08-30): Host resolves

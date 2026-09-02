@@ -116,7 +116,7 @@ export type SessionRuntimeRetentionConfig = {
   idleTtlSeconds: number;
   /** Default 2. Idle runtimes above this count are LRU candidates immediately. */
   maxIdleRuntimes: number;
-  /** Omitted means derived from effective execution concurrency and backend capacity. */
+  /** Omitted means deriveWorkerPoolSize(subagents.maxConcurrency). Explicit values may only tighten. */
   maxResidentRuntimes?: number;
   /** Omitted means an adaptive Host + worker RSS budget. */
   memoryHighWaterMiB?: number;
@@ -127,8 +127,9 @@ Defaults:
 
 - idle TTL: 10 minutes;
 - maximum idle runtimes: 2;
-- maximum resident runtimes: effective Agent execution concurrency plus the
-  idle allowance, clamped to the backend hard cap and an absolute ceiling of 8;
+- maximum resident runtimes: `deriveWorkerPoolSize(subagents.maxConcurrency)`
+  (`N + 1` foreground reserve, absolute ceiling 8). An explicit
+  `maxResidentRuntimes` may only tighten that value;
 - automatic RSS high water: 25% of system memory, clamped to 512–2048 MiB;
 - internal low-water target: 80% of high water;
 - internal sweep interval: 30 seconds while at least one runtime is resident.
@@ -155,10 +156,17 @@ after every idle runtime is released, activation fails with the stable
 does not wait for an operating-system OOM and does not kill arbitrary active
 work.
 
-The RPC worker supervisor keeps its own hard process cap as a final invariant,
-but normal foreground activation reaches that cap only after Host-level idle
+Task-scoped (ephemeral) runtimes — subagent workers — share this ledger. They
+count against capacity, follow the same order (evict idle, then FIFO wait,
+then memory gate), never enter idle retention, and are never eviction victims.
+Two busy foreground sessions may reduce effective subagent parallelism by one
+because the pool only reserves a single main-session slot.
+
+The RPC worker supervisor keeps its own hard process cap
+(`deriveSupervisorMaxWorkers(N)` = pool + 1 replacement headroom) as a final
+invariant. Normal admission reaches that cap only after Host-level idle
 eviction has run. An evictable idle worker must not produce
-`worker capacity exhausted`.
+`worker capacity exhausted`; if that error still appears it is a bug.
 
 ### 5. Busy work is never evicted
 
@@ -266,7 +274,9 @@ layer.
 
 Aggregate metrics are queried, not streamed at high frequency, in accordance
 with ADR 0038. Add a safe `host/runtime-resources` query returning counts,
-budget, sample completeness, queue depth, and cumulative eviction counters.
+budget, sample completeness, queue depth, cumulative eviction counters, and an
+optional `workers` block (`pool` is the user-facing ceiling;
+`max` = pool + replacement headroom).
 Per-session residency transitions continue through the existing
 `session/runtime-updated` push.
 

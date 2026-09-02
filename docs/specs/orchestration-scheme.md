@@ -406,7 +406,7 @@ Acceptance：v1 以 **Host 强制行为**为准；硬 schema 收窄可后置但�
 
 ### 8.4 并发
 
-方案 `maxConcurrency` / `maxTasksPerRun` 仅作用于**本 turn 主代理发起的 subagent batch**，经 run 上下文传入 Orchestrator，**不改全局 Settings 磁盘值**。
+方案 `maxConcurrency` / `maxTasksPerRun` 仅作用于**本 turn 主代理发起的 subagent batch**，经 run 上下文传入 Orchestrator，**不改全局 Settings 磁盘值**。生效值 `min(scheme?, global, hard caps)`，已实现于 contracts `resolveOrchestrationScheme`。
 
 ### 8.5 子代理思考上限
 

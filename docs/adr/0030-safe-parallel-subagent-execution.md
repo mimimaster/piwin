@@ -68,8 +68,12 @@ competing state machines.
 
 ### Bounded concurrency
 
-Default max concurrency: **4**. Hard task cap per batch: **8**. Both are
-configurable in Settings → Sub-agent profiles (`PiwinConfig.subagents`).
+Default max concurrency: **4** = subagent parallel ceiling (`subagents.maxConcurrency`).
+The worker process pool is `N + 1` (one foreground reserve), clamped to
+`ABSOLUTE_MAX_RESIDENT_RUNTIMES` (8). CPU core count no longer participates in
+the cap. Hard task cap per batch remains **8**. Configurable in Settings →
+Sub-agent profiles (`PiwinConfig.subagents`). `processIsolation` is unchanged:
+parallelism above one still requires a real isolated worker backend.
 
 ### Process isolation
 
