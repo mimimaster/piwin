@@ -144,6 +144,7 @@ export type {
 } from './agent-worker-supervisor.js';
 export { WorkerTaskRunner } from './worker-task-runner.js';
 export type { WorkerTaskRunnerOptions } from './worker-task-runner.js';
+export type { WorkerAdmission, WorkerAdmissionPort } from './worker-admission-port.js';
 
 export { RpcSdkWorkerClient } from './rpc-sdk-worker-client.js';
 export type { WorkerClientOptions } from './rpc-sdk-worker-client.js';

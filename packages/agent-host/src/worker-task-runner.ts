@@ -27,10 +27,13 @@ import {
   type SerializableBlueprint,
 } from './rpc/serializable-blueprint.js';
 import type { SerializableWorkerProviderRuntime } from './rpc/serializable-blueprint.js';
+import type { WorkerAdmission, WorkerAdmissionPort } from './worker-admission-port.js';
 
 /** Options for the worker task runner. */
 export type WorkerTaskRunnerOptions = {
   supervisor: AgentWorkerSupervisor;
+  /** Optional parent-owned admission; when omitted, behavior matches pre-admission runners. */
+  admission?: WorkerAdmissionPort;
 };
 
 /**
@@ -42,9 +45,11 @@ export type WorkerTaskRunnerOptions = {
  */
 export class WorkerTaskRunner implements SubagentTaskRunner {
   private readonly supervisor: AgentWorkerSupervisor;
+  private readonly admission: WorkerAdmissionPort | undefined;
 
   constructor(options: WorkerTaskRunnerOptions) {
     this.supervisor = options.supervisor;
+    this.admission = options.admission;
   }
 
   readonly capabilities = {
@@ -57,6 +62,7 @@ export class WorkerTaskRunner implements SubagentTaskRunner {
     let workerSessionId: string | undefined;
     let abortListener: (() => void) | undefined;
     let onWorkerEvent: ((sessionId: string, event: AgentEvent) => void) | undefined;
+    let admission: WorkerAdmission | undefined;
 
     // The contract is non-optional. Keep this runtime guard because older
     // orchestrator callers can still arrive through the transitional path;
@@ -79,6 +85,12 @@ export class WorkerTaskRunner implements SubagentTaskRunner {
     }
 
     try {
+      admission = await this.admission?.begin({
+        sessionId: childSessionId,
+        runtimeGenerationId,
+        runId: input.taskRunId,
+        signal,
+      });
       const blueprint: SerializableBlueprint = projectBackendBlueprintForWorker(
         input.sessionBlueprint,
       );
@@ -97,6 +109,7 @@ export class WorkerTaskRunner implements SubagentTaskRunner {
             }
           : undefined,
       );
+      admission?.commit();
       let summaryText = '';
       onWorkerEvent = (sessionId: string, event: AgentEvent): void => {
         if (sessionId !== childSessionId) return;
@@ -236,6 +249,8 @@ export class WorkerTaskRunner implements SubagentTaskRunner {
       }
       // Release the worker for this session/generation.
       await this.supervisor.releaseWorker(childSessionId, runtimeGenerationId).catch(() => {});
+      // Process exits before the ledger slot is freed.
+      admission?.release();
     }
   }
 }
