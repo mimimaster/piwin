@@ -14,6 +14,8 @@
 import type { ReactElement, ReactNode } from 'react';
 
 export type WorkspaceShellProps = {
+  /** Persistent top-level navigation column, placed in the grid's `rail` area. */
+  navRail?: ReactNode | undefined;
   sidebar: ReactNode;
   /** Full-window titlebar: window controls, history, title, right tools. */
   titlebar: ReactNode;
@@ -64,6 +66,7 @@ export function WorkspaceShell(props: WorkspaceShellProps): ReactElement {
   );
   return (
     <>
+      {props.navRail}
       {props.titlebar}
       {props.sidebar}
       <div
