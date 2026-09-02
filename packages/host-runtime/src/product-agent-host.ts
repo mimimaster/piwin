@@ -72,6 +72,7 @@ type ProductAgentHostCommonOptions = {
     runtimeGenerationId: string,
     model?: ModelRef,
     mode?: ProductAgentHostToolRegistrationMode,
+    projectPath?: string,
   ) => Promise<ReadonlyMap<SessionToolFamily, readonly string[]>>;
   /** Read the MCP document frozen for the same generation surface. */
   getMcpConfig?: (sessionId: string, runtimeGenerationId: string) => Promise<McpConfigDocument>;
@@ -121,6 +122,7 @@ export type ProductAgentHostOptions =
         runtimeGenerationId: string,
         model?: ModelRef,
         mode?: ProductAgentHostToolRegistrationMode,
+        projectPath?: string,
       ) => Promise<HostToolDescriptor[]>;
     });
 
@@ -339,17 +341,24 @@ export class ProductAgentHost implements AgentHost {
       // Build concrete tool descriptors from real executors before compiling
       // the blueprint. This ensures the model-visible manifest carries exact
       // descriptions and parameter schemas rather than name-only guesses.
+      const sessionProjectPath =
+        input.projectPath ??
+        (input.scope?.kind === 'project' ? input.scope.projectPath : undefined);
+      // Initial and cold generations may be prepared before bindSession has
+      // populated HostRuntime's resident session maps.
       const hostToolDescriptors = await this.options.buildToolDescriptors(
         sessionId,
         runtimeGenerationId,
         input.model,
         registrationMode,
+        sessionProjectPath,
       );
       const hostToolFamilyIndex = await this.options.buildToolFamilyIndex?.(
         sessionId,
         runtimeGenerationId,
         input.model,
         registrationMode,
+        sessionProjectPath,
       );
       const mcpConfig = await this.options.getMcpConfig?.(sessionId, runtimeGenerationId);
       const mcpCapabilityBrief = await this.options.getMcpCapabilityBrief?.(

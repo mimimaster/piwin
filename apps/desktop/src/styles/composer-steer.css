@@ -117,7 +117,9 @@
   border-radius: var(--r-control);
   background: var(--hover);
   border: 0;
-  transition: background-color var(--t-2) var(--ease-out);
+  transition:
+    background-color var(--t-2) var(--ease-out),
+    opacity var(--t-2) var(--ease-out);
 }
 
 .steer-queue-item:hover {
@@ -142,9 +144,29 @@
   min-width: 0;
   display: flex;
   align-items: center;
+  gap: var(--s-3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.steer-queue-item-content:disabled {
+  cursor: default;
+}
+
+.steer-queue-item-content:focus-visible {
+  outline: 2px solid var(--iris);
+  outline-offset: 2px;
+  border-radius: var(--r-chip);
 }
 
 .steer-queue-item-text {
+  min-width: 0;
   font-size: var(--fs-chrome);
   color: var(--text-1);
   line-height: 1.4;
@@ -153,19 +175,54 @@
   white-space: nowrap;
 }
 
-.steer-queue-edit-input {
-  width: 100%;
-  box-sizing: border-box;
-  background: var(--void);
-  border: 0;
-  box-shadow: inset 0 0 0 1px var(--iris);
-  border-radius: var(--r-control);
-  color: var(--text-1);
-  font-family: inherit;
-  font-size: var(--fs-chrome);
-  padding: var(--s-2) var(--s-3);
-  outline: none;
-  resize: none;
+.steer-queue-item-text.is-empty {
+  color: var(--text-3);
+  font-style: italic;
+}
+
+/* Queued media is edited in the composer; the row only reports how much. */
+.steer-queue-item-attachments {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: 0 0 auto;
+  height: 18px;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-chip);
+  background: var(--surface-4);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Row handed to the composer input ──────────────────────────────── */
+
+.steer-queue-item.is-editing,
+.steer-queue-item.is-editing:hover {
+  background: var(--iris-wash);
+}
+
+.steer-queue-item.is-editing .steer-queue-position {
+  background: var(--iris);
+  color: var(--void);
+}
+
+.steer-queue-item.is-editing .steer-queue-item-text {
+  color: var(--text-3);
+}
+
+.steer-queue-editing-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 var(--s-3);
+  margin-right: var(--s-2);
+  border-radius: var(--r-pill);
+  background: var(--iris);
+  color: var(--void);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .steer-queue-item-actions {
@@ -210,10 +267,92 @@
   background: color-mix(in srgb, var(--coral) 14%, transparent);
 }
 
-.steer-queue-action.is-confirm {
+/* ─── Queued-turn edit banner (inside the composer card) ─────────────── */
+
+/* The composer temporarily belongs to a queue row, so the card wears an iris
+   rim instead of the ordinary streaming ember. Under a queue lid the banner
+   stays square so the two surfaces stay one object. */
+.composer-card-v2.is-queued-edit,
+.composer-card-v2.is-queued-edit.is-streaming,
+.composer-card-v2.is-queued-edit:focus-within {
+  box-shadow:
+    var(--elev-3),
+    0 0 0 1px var(--iris);
+}
+
+.composer-queued-edit {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  box-sizing: border-box;
+  padding: var(--s-2) var(--s-5);
+  min-height: 32px;
+  border-bottom: 1px solid color-mix(in srgb, var(--iris) 22%, var(--line-1));
+  border-radius: var(--r-panel) var(--r-panel) 0 0;
+  background: var(--iris-wash);
+  color: var(--text-1);
+  font-size: var(--fs-chrome);
+  line-height: 1.3;
+}
+
+.composer-dock.has-steer-queue .composer-queued-edit {
+  border-radius: 0;
+}
+
+.composer-queued-edit-icon {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
   color: var(--iris-lift);
 }
 
-.steer-queue-action.is-confirm:hover {
-  background: var(--iris-wash);
+.composer-queued-edit-index {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  border-radius: var(--r-chip);
+  background: var(--iris);
+  color: var(--void);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.composer-queued-edit-title {
+  flex: 0 0 auto;
+  font-weight: 650;
+}
+
+.composer-queued-edit-hint {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-queued-edit-cancel {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: none;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition:
+    color var(--t-1) var(--ease-out),
+    background-color var(--t-1) var(--ease-out);
+}
+
+.composer-queued-edit-cancel:hover {
+  color: var(--text-1);
+  background: var(--hover);
 }

@@ -652,7 +652,7 @@ describe('ArtifactFrame chrome', () => {
 
   it('applies heights returned through WKWebView native frame messages', async () => {
     let nativeHandler: ((payload: unknown) => void) | null = null;
-    vi.mocked(subscribeNativeArtifactBridge).mockImplementation(async (handler) => {
+    vi.mocked(subscribeNativeArtifactBridge).mockImplementation(async (_channelId, handler) => {
       nativeHandler = handler;
       return () => undefined;
     });
@@ -664,7 +664,10 @@ describe('ArtifactFrame chrome', () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(subscribeNativeArtifactBridge).toHaveBeenCalledWith(expect.any(Function));
+    expect(subscribeNativeArtifactBridge).toHaveBeenCalledWith(
+      decision.intent.descriptor.id,
+      expect.any(Function),
+    );
 
     act(() => {
       const handler = nativeHandler as ((payload: unknown) => void) | null;
@@ -681,7 +684,7 @@ describe('ArtifactFrame chrome', () => {
     expect(stage?.style.height).toBe('684px');
   });
 
-  it('keeps the iframe visible in a bounded fallback viewport when height transport times out', async () => {
+  it('shows recovery chrome instead of marking a timed-out iframe done', async () => {
     vi.useFakeTimers();
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const { container, root } = renderFrame();
@@ -700,7 +703,7 @@ describe('ArtifactFrame chrome', () => {
     expect(container.querySelector('[data-testid="artifact-bridge-failure"]')).toBeNull();
     const stage = container.querySelector<HTMLElement>('.artifact-iframe-stage');
     expect(stage?.style.display).not.toBe('none');
-    expect(stage?.style.height).toBe('640px');
+    expect(stage?.style.height).toBe('360px');
     expect(container.querySelector('iframe.artifact-iframe')).not.toBeNull();
     expect(
       container
@@ -709,7 +712,8 @@ describe('ArtifactFrame chrome', () => {
     ).toBe('fallback');
     expect(
       container.querySelector('[data-testid="artifact-frame"]')?.getAttribute('data-tool-status'),
-    ).toBe('done');
+    ).toBe('error');
+    expect(container.querySelector('[data-testid="artifact-height-recovery"]')).not.toBeNull();
     expect(warn).toHaveBeenCalled();
   });
 

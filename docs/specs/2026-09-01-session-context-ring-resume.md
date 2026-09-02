@@ -14,7 +14,7 @@ ADR 0067 的「首响应前隐藏」仍然成立。本文记录已验证的占�
 
 不包含：改 Pi core、新 tokenizer、从 usage ledger 反推占用、为 `never-sampled` 会话编造百分比、重做用量统计页、分类 breakdown、缓存 TTL、改 compact/branch 的上下文失效权威语义。
 
-compact 展示规则：`compaction/start` 创建一个带稳定 operation id、触发原因和 transcript 锚点的活动节点；同一节点原位过渡到 succeeded / failed / cancelled。运行中沿用 Agent locator 的轮换文案与动效，并支持取消；终态只展示 Host 实际提供的摘要、token 与耗时，不伪造百分比。节点在主 transcript 与多窗格 transcript 使用同一投影，切换 session 时清除，避免旧结果串到新会话。Pi 对短会话返回 `Nothing to compact (session too small)` 时标记为 no-op：目标模型迁移继续执行，Desktop 清掉瞬时活动，不把它画成失败卡；真实 provider/compaction 错误仍按失败展示。
+compact 展示规则：`compaction/start` 创建一个带稳定 operation id、触发原因和 transcript 锚点的活动节点；同一节点原位过渡到 succeeded / failed / cancelled。运行中沿用 Agent locator 的轮换文案与动效，并支持取消；终态只展示 Host 实际提供的摘要、token 与耗时，不伪造百分比。节点在主 transcript 与多窗格 transcript 使用同一投影，切换 session 时清除，避免旧结果串到新会话。Pi 对短会话返回 `Nothing to compact (session too small)` 时，在显式目标模型压缩中标记为 no-op，后续模型操作继续执行，Desktop 清掉瞬时活动，不把它画成失败卡；`session/prompt` 的模型切换本身不启动这条压缩流程；真实 provider/compaction 错误仍按失败展示。
 
 ## 2. 已核实事实（不要再当「没落盘」修）
 
@@ -175,7 +175,7 @@ Host 当前权威与 Desktop 展示降级是两条路径。contracts `canPromote
 - current known：按 occupancy quality 显示「已确认」或「估算」
 - stale lastConfirmed：§4.2 待测量文案，不得伪装成 Confirmed current
 - derived-session pending：显示「当前上下文待测量」；环可见但数字、百分比和预算值均为空
-- `readContextOccupiedTokens` 只读 `occupancy.kind === 'known'`；unknown 不是 0，也不回退 `lastConfirmed`
+- `readContextOccupiedTokens` 只读 `occupancy.kind === 'known'`；unknown 不是 0，也不回退 `lastConfirmed`。它只服务于显式 `session/compact` 的目标模型预检；用户在 `session/prompt` 中切换模型不先等待源上下文压缩，模型应用与压缩是两个独立操作。
 
 ## 5. 设计（与实现对齐）
 

@@ -85,6 +85,7 @@ export type OrchestrationSchemeEditorCopy = {
   schemeInvalidId: string;
   schemeInvalidRole: string;
   schemeNeedMember: string;
+  schemeIncomplete: string;
   schemeCheapModelHint: string;
   schemeAdvanced: string;
 };
@@ -124,7 +125,9 @@ export function schemeToEditableDraft(scheme: OrchestrationScheme): Orchestratio
   return draft;
 }
 
-export function createEmptyUserScheme(existingIds: ReadonlySet<string>): OrchestrationSchemeSettings {
+export function createEmptyUserScheme(
+  existingIds: ReadonlySet<string>,
+): OrchestrationSchemeSettings {
   let suffix = 1;
   let id = `my-scheme-${suffix}`;
   while (existingIds.has(id) || !isValidOrchestrationSchemeId(id)) {
@@ -165,6 +168,52 @@ export function validateSchemeDraft(draft: OrchestrationSchemeSettings): string 
   }
   if (draft.defaultRole && !seen.has(draft.defaultRole)) return 'bad-default-role';
   return undefined;
+}
+
+/** Keep defaultRole on a live member after the roster is renamed. */
+export function healSchemeDefaultRole(
+  draft: OrchestrationSchemeSettings,
+): OrchestrationSchemeSettings {
+  const members = draft.members ?? [];
+  if (draft.defaultRole && members.some((member) => member.role === draft.defaultRole)) {
+    return draft;
+  }
+  const next: OrchestrationSchemeSettings = { ...draft };
+  if (members[0]) next.defaultRole = members[0].role;
+  else delete next.defaultRole;
+  return next;
+}
+
+/** Trim / lowercase at save time so typing is not rewritten on every keystroke. */
+export function cleanSchemeDraft(draft: OrchestrationSchemeSettings): OrchestrationSchemeSettings {
+  const members = (draft.members ?? []).map((member) =>
+    cloneMember({
+      ...member,
+      role: member.role.trim().toLowerCase(),
+      description: member.description.trim(),
+    }),
+  );
+  const next: OrchestrationSchemeSettings = {
+    id: draft.id.trim().toLowerCase(),
+    name: draft.name.trim(),
+    description: draft.description.trim(),
+    systemPreamble: draft.systemPreamble.trim(),
+    exposeSpawnMetadata: draft.exposeSpawnMetadata === true,
+    waitPolicy: 'await-all',
+    members,
+  };
+  if (draft.defaultRole?.trim()) {
+    next.defaultRole = draft.defaultRole.trim().toLowerCase();
+  }
+  if (draft.defaultProfileId?.trim()) {
+    next.defaultProfileId = draft.defaultProfileId.trim();
+  }
+  if (draft.maxConcurrency !== undefined) next.maxConcurrency = draft.maxConcurrency;
+  if (draft.maxTasksPerRun !== undefined) next.maxTasksPerRun = draft.maxTasksPerRun;
+  if (draft.maxSubagentThinkingLevel) {
+    next.maxSubagentThinkingLevel = draft.maxSubagentThinkingLevel;
+  }
+  return next;
 }
 
 function modelSelectValue(model: ModelRef | undefined): string {
@@ -254,20 +303,17 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
   function patchMember(index: number, patch: MemberPatch): void {
     setEditing((prev) => {
       if (!prev?.members) return prev;
+      const previousRole = prev.members[index]?.role;
       const rebuilt = prev.members.map((member, memberIndex) => {
         if (memberIndex !== index) return member;
         const merged: OrchestrationSchemeMember = {
-          role: (patch.role ?? member.role).trim(),
-          description: (patch.description ?? member.description).trim(),
+          role: patch.role ?? member.role,
+          description: patch.description ?? member.description,
         };
         // Keep profileId if present (internal seed); UI no longer edits it.
         if (member.profileId) merged.profileId = member.profileId;
         const nextModel =
-          patch.model === null
-            ? undefined
-            : patch.model !== undefined
-              ? patch.model
-              : member.model;
+          patch.model === null ? undefined : patch.model !== undefined ? patch.model : member.model;
         if (nextModel) merged.model = nextModel;
         const nextThinking =
           patch.thinkingLevel === null
@@ -289,7 +335,12 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
         }
         return merged;
       });
-      return { ...prev, members: rebuilt };
+      const next: OrchestrationSchemeSettings = { ...prev, members: rebuilt };
+      const nextRole = rebuilt[index]?.role;
+      if (previousRole && nextRole && prev.defaultRole === previousRole) {
+        next.defaultRole = nextRole;
+      }
+      return next;
     });
   }
 
@@ -338,7 +389,8 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
 
   async function saveEditing(): Promise<void> {
     if (!editing) return;
-    const code = validateSchemeDraft(editing);
+    const draft = healSchemeDefaultRole(cleanSchemeDraft(editing));
+    const code = validateSchemeDraft(draft);
     if (code === 'invalid-id') {
       setEditError(copy.schemeInvalidId);
       return;
@@ -347,32 +399,17 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
       setEditError(copy.schemeInvalidRole);
       return;
     }
+    if (code === 'incomplete') {
+      setEditError(copy.schemeIncomplete);
+      return;
+    }
     if (code) {
       setEditError(copy.schemeNeedMember);
       return;
     }
 
-    const cleaned: OrchestrationSchemeSettings = {
-      id: editing.id.trim(),
-      name: editing.name.trim(),
-      description: editing.description.trim(),
-      systemPreamble: editing.systemPreamble.trim(),
-      exposeSpawnMetadata: editing.exposeSpawnMetadata === true,
-      waitPolicy: 'await-all',
-      members: (editing.members ?? []).map(cloneMember),
-    };
-    if (editing.defaultRole?.trim()) cleaned.defaultRole = editing.defaultRole.trim();
-    if (editing.defaultProfileId?.trim()) {
-      cleaned.defaultProfileId = editing.defaultProfileId.trim();
-    }
-    if (editing.maxConcurrency !== undefined) cleaned.maxConcurrency = editing.maxConcurrency;
-    if (editing.maxTasksPerRun !== undefined) cleaned.maxTasksPerRun = editing.maxTasksPerRun;
-    if (editing.maxSubagentThinkingLevel) {
-      cleaned.maxSubagentThinkingLevel = editing.maxSubagentThinkingLevel;
-    }
-
-    const withoutSame = schemeDrafts.filter((scheme) => scheme.id !== cleaned.id);
-    const ok = await onPersistSchemes([...withoutSame, cleaned]);
+    const withoutSame = schemeDrafts.filter((scheme) => scheme.id !== draft.id);
+    const ok = await onPersistSchemes([...withoutSame, draft]);
     if (!ok) return;
     setEditing(null);
     setEditError(null);
@@ -428,9 +465,7 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
                 <TextInput
                   value={draft.id}
                   disabled={saving || overlayIds.has(draft.id)}
-                  onChange={(event) =>
-                    patchEditing({ id: event.target.value.trim().toLowerCase() })
-                  }
+                  onChange={(event) => patchEditing({ id: event.target.value })}
                 />
               </label>
             ) : null}
@@ -500,7 +535,7 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
 
             {(draft.members ?? []).map((member, index) => (
               <div
-                key={`${member.role}-${index}`}
+                key={`member-${index}`}
                 className="settings-section-card"
                 style={{ padding: 12, marginBottom: 8 }}
                 data-testid={`orchestration-member-row-${index}`}
@@ -531,23 +566,19 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
                   <label style={{ fontSize: 12 }}>
                     {copy.schemeRole}
                     <TextInput
+                      testId={`orchestration-member-role-${index}`}
                       value={member.role}
                       disabled={saving}
-                      onChange={(event) =>
-                        patchMember(index, {
-                          role: event.target.value.trim().toLowerCase(),
-                        })
-                      }
+                      onChange={(event) => patchMember(index, { role: event.target.value })}
                     />
                   </label>
                   <label style={{ fontSize: 12 }}>
                     {copy.schemeRoleDesc}
                     <TextInput
+                      testId={`orchestration-member-desc-${index}`}
                       value={member.description}
                       disabled={saving}
-                      onChange={(event) =>
-                        patchMember(index, { description: event.target.value })
-                      }
+                      onChange={(event) => patchMember(index, { description: event.target.value })}
                     />
                   </label>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -602,8 +633,7 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
                         onChange={(event) => {
                           const value = event.target.value;
                           patchMember(index, {
-                            isolation:
-                              value === 'worktree' || value === 'readonly' ? value : null,
+                            isolation: value === 'worktree' || value === 'readonly' ? value : null,
                           });
                         }}
                       >
@@ -649,8 +679,8 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
                   });
                 }}
               >
-                {(draft.members ?? []).map((member) => (
-                  <option key={member.role} value={member.role}>
+                {(draft.members ?? []).map((member, index) => (
+                  <option key={`default-role-${index}`} value={member.role}>
                     {member.role}
                   </option>
                 ))}
@@ -754,8 +784,7 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
     );
   }
 
-  const creatingNew =
-    editing !== null && !schemes.some((scheme) => scheme.id === editing.id);
+  const creatingNew = editing !== null && !schemes.some((scheme) => scheme.id === editing.id);
 
   return (
     <div className="settings-section" data-testid="orchestration-schemes-section">
@@ -770,7 +799,10 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
       >
         <div>
           <h3 style={{ margin: 0, fontSize: 16 }}>{copy.schemesTitle}</h3>
-          <p className="muted" style={{ marginTop: 8, marginBottom: 0, fontSize: 13, lineHeight: 1.45 }}>
+          <p
+            className="muted"
+            style={{ marginTop: 8, marginBottom: 0, fontSize: 13, lineHeight: 1.45 }}
+          >
             {copy.schemesDescription}
           </p>
         </div>
@@ -849,7 +881,9 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' }}>
+                <div
+                  style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' }}
+                >
                   <Button
                     variant="secondary"
                     disabled={saving || (editing !== null && !isEditingThis)}

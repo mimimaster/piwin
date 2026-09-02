@@ -122,9 +122,9 @@ This amendment supersedes the source-only streaming clauses in the 2026-07-25,
 - Inline Artifact title/status/byte chrome is not permanently visible. Source
   inspection remains available from an action overlay shown on hover or
   keyboard focus; activating `Show code` opens the source fully expanded.
-- Model-authored Artifact motion is disabled by a host-owned style placed after
-  model styles: CSS animations/transitions and SVG declarative motion do not
-  run in either streaming or completed inline previews.
+- Model-authored Artifact motion is preserved. A host-owned style placed after
+  model styles suppresses CSS animations/transitions and SVG declarative motion
+  only when `prefers-reduced-motion: reduce` is active.
 - Desktop completion stability (amended 2026-08-13): fence identity is sticky
   (`<messageId>-artifact-<ordinal>`, never a hash of the body). During token
   streaming the first lightweight document stays mounted while throttled body
@@ -150,8 +150,9 @@ This amendment supersedes the source-only streaming clauses in the 2026-07-25,
   There is no height phase state machine, MutationObserver, measurement ladder,
   interaction shrink confirmation, or grow-only lock.
 - Packaged macOS registers a frame-scoped `WKScriptMessageHandler`. It accepts
-  bounded, whitelisted messages only from non-main frames; the main UI then
-  requires an exact Artifact `channelId` match. Browser/dev keeps
+  bounded, whitelisted messages only from non-main frames; Desktop routes each
+  payload to subscribers for its exact Artifact `channelId` and retains the
+  latest early size per channel until that frame subscribes. Browser/dev keeps
   `window.postMessage` as a compatibility fallback. No Tauri invoke capability
   is exposed to Artifact HTML.
 - Height transport, iframe admission, final-document lifecycle, and React
@@ -161,9 +162,10 @@ This amendment supersedes the source-only streaming clauses in the 2026-07-25,
   attributes/viewBox may size the short-lived loading paint, but neither that
   seed nor an HTML/CSS source estimate is accepted as the measured height.
 - If no measurement arrives before the timeout, Desktop keeps the iframe
-  visible in a bounded 640px fallback viewport and allows clipping. This is a
-  diagnostic degradation, not a render error: no error card replaces content,
-  and a late valid measurement may still restore the real height.
+  visible in a compact 360px recovery viewport whose document owns scrolling.
+  The parent requests a fresh measurement on iframe load, native-listener
+  readiness, timeout, and explicit retry. A late valid measurement exits the
+  recovery viewport and restores exact Inline flow.
 - Canvas owns a fixed panel scrollport and therefore does not depend on the
   Inline height measurement. CSP, sandboxing, channel binding, message parsing,
   and action whitelisting remain unchanged.
@@ -196,9 +198,9 @@ the 2026-08-13 height observer bounds.
   resize listener, canvas/video budgets, scene detection, or CSS layout repair.
 - Browser messages must come from the current iframe `contentWindow`; the native
   frame handler remains bounded and the UI still requires the exact channel.
-  Out-of-order revisions are ignored. Timeout selects the explicit 640px
-  fallback instead of retaining a previously bad height; a later valid revision
-  may recover it.
+  Out-of-order revisions are ignored. Timeout selects the explicit 360px
+  scrollable recovery viewport instead of retaining a previously bad height; a
+  later valid revision restores exact flow height and clears recovery styling.
 - Canvas owns a fixed viewport and sends no size messages. It keeps the same
   sandbox/CSP/action transport, but is entirely outside the Inline height loop.
 - Transcript virtualization separates actual measurements from estimates:

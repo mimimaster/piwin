@@ -202,24 +202,27 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
     [readVisibleContextRefs, scheduleComposerDraftPersist, setActiveDraft],
   );
 
-  const removeCurrentDraft = useCallback((reason: ComposerDraftRemovalReason = 'discard'): void => {
-    const draftId = currentDraftIdRef.current ?? activeDraftIdRef.current;
-    currentDraftIdRef.current = null;
-    setActiveDraft(null);
-    draftTextRef.current = '';
-    if (!draftId) return;
-    const droppedSnapshot = draftComposerSnapshotsRef.current.get(draftId);
-    draftComposerSnapshotsRef.current.delete(draftId);
-    // Send still holds the live chips and their source Files. Dropping the
-    // draft row must not revoke those; ACK/failure paths release them.
-    if (droppedSnapshot && reason === 'discard') {
-      disposeComposerAttachments(droppedSnapshot.attachments);
-    }
-    const next = draftSessionsRef.current.filter((draft) => draft.id !== draftId);
-    draftSessionsRef.current = next;
-    setDraftSessions(next);
-    scheduleComposerDraftPersist();
-  }, [disposeComposerAttachments, scheduleComposerDraftPersist, setActiveDraft]);
+  const removeCurrentDraft = useCallback(
+    (reason: ComposerDraftRemovalReason = 'discard'): void => {
+      const draftId = currentDraftIdRef.current ?? activeDraftIdRef.current;
+      currentDraftIdRef.current = null;
+      setActiveDraft(null);
+      draftTextRef.current = '';
+      if (!draftId) return;
+      const droppedSnapshot = draftComposerSnapshotsRef.current.get(draftId);
+      draftComposerSnapshotsRef.current.delete(draftId);
+      // Send still holds the live chips and their source Files. Dropping the
+      // draft row must not revoke those; ACK/failure paths release them.
+      if (droppedSnapshot && reason === 'discard') {
+        disposeComposerAttachments(droppedSnapshot.attachments);
+      }
+      const next = draftSessionsRef.current.filter((draft) => draft.id !== draftId);
+      draftSessionsRef.current = next;
+      setDraftSessions(next);
+      scheduleComposerDraftPersist();
+    },
+    [disposeComposerAttachments, scheduleComposerDraftPersist, setActiveDraft],
+  );
 
   const saveSessionComposerSnapshot = useCallback(
     (sessionId: string): void => {
@@ -324,24 +327,6 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
       }
     }
   }, [args.hostClient, args.state.hostReady]);
-
-  // Teardown sweep: no holder may outlive the hook, so every retained blob
-  // URL and source File (session snapshots, draft snapshots, live chips) is
-  // released here instead of leaking until page reload.
-  useEffect(
-    () => () => {
-      for (const snapshot of sessionComposerSnapshotsRef.current.values()) {
-        disposeComposerAttachments(snapshot.attachments);
-      }
-      sessionComposerSnapshotsRef.current.clear();
-      for (const snapshot of draftComposerSnapshotsRef.current.values()) {
-        disposeComposerAttachments(snapshot.attachments);
-      }
-      draftComposerSnapshotsRef.current.clear();
-      disposeComposerAttachments(pendingAttachmentsRef.current);
-    },
-    [disposeComposerAttachments],
-  );
 
   useEffect(() => {
     const onHide = (): void => {
@@ -481,9 +466,7 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
     const existing = draftId
       ? draftSessionsRef.current.find((draft) => draft.id === draftId)
       : undefined;
-    const snapshot = existing
-      ? draftComposerSnapshotsRef.current.get(existing.id)
-      : undefined;
+    const snapshot = existing ? draftComposerSnapshotsRef.current.get(existing.id) : undefined;
     if (
       existing &&
       existing.text === composer &&

@@ -12,13 +12,13 @@ import type { MobileTranscriptMessage } from '../../hooks/use-mobile-host.js';
 
 type MobileMessageItemProps = {
   message: MobileTranscriptMessage;
-  htmlUiModeEnabled: boolean;
+  htmlUiModeEnabled?: boolean | undefined;
   onEnterFlashcardStudy?: ((payload: FlashcardDisplayPayload) => void) | undefined;
 };
 
 export function MobileMessageItem({
   message,
-  htmlUiModeEnabled,
+  htmlUiModeEnabled = true,
   onEnterFlashcardStudy,
 }: MobileMessageItemProps): ReactElement | null {
   const [copied, setCopied] = useState(false);
@@ -134,7 +134,11 @@ export function MobileMessageItem({
                     onClick={() => void handleCopyMessage()}
                     aria-label="复制消息"
                   >
-                    {copied ? <IconCheck size={13} className="copied-icon" /> : <IconCopy size={13} />}
+                    {copied ? (
+                      <IconCheck size={13} className="copied-icon" />
+                    ) : (
+                      <IconCopy size={13} />
+                    )}
                   </button>
                 </>
               )}

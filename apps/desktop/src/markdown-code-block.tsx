@@ -183,9 +183,9 @@ export function SourceCodeBlock(props: {
             {props.language || (props.isShell ? 'bash' : 'code')}
           </span>
         </div>
-        {!props.streaming ? (
+        {props.previewAction || !props.streaming ? (
           <div className="md-code-header-actions">
-            <CopyCodeButton text={props.source} />
+            {!props.streaming ? <CopyCodeButton text={props.source} /> : null}
             {props.previewAction}
           </div>
         ) : null}

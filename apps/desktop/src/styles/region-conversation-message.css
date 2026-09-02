@@ -97,7 +97,7 @@
 
 .conversation-message-time {
   font-size: var(--fs-micro);
-  color: var(--text-4);
+  color: var(--text-3);
   white-space: nowrap;
   flex-shrink: 0;
   margin-left: var(--s-1);
@@ -185,20 +185,14 @@
 
 .user-message-wrapper.is-conversation .user-message-bubble,
 .user-message-wrapper.is-conversation .user-message-collapsible {
-  --user-message-mask: var(
-    --user-bubble,
-    color-mix(in srgb, var(--iris) 12%, var(--surface-3))
-  );
+  --user-message-mask: var(--user-bubble, color-mix(in srgb, var(--iris) 12%, var(--surface-3)));
   position: relative;
   width: fit-content;
   max-width: 100%;
   padding: var(--s-5) var(--s-5);
   border-radius: 18px 4px 18px 18px;
   border: 0;
-  background: var(
-    --user-bubble,
-    color-mix(in srgb, var(--iris) 12%, var(--surface-3))
-  );
+  background: var(--user-bubble, color-mix(in srgb, var(--iris) 12%, var(--surface-3)));
   box-shadow: var(--elev-1);
   box-sizing: border-box;
   text-align: left;
@@ -314,11 +308,11 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--iris) 80%, var(--void)),
-    color-mix(in srgb, var(--iris) 40%, var(--void))
-  );
+  /* `--iris-fill` is the token authority's iris gradient and is the only fill
+     guaranteed to pair with `--on-iris`. Mixing iris toward `--void` looked
+     equivalent in Obsidian but inverted in Bone, where the void is paper: the
+     40% stop landed on a pale lavender and the white initial went with it. */
+  background: var(--iris-fill);
   color: var(--on-iris, #ffffff);
   border: 0;
   font-size: var(--fs-chrome);
@@ -397,11 +391,7 @@ html[data-theme-visual-style='ink-wash'] .user-message-quote-box {
 }
 
 html[data-theme-visual-style='ink-wash'] .user-message-avatar {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--iris) 80%, var(--void)),
-    color-mix(in srgb, var(--iris) 40%, var(--void))
-  );
+  background: var(--iris-fill);
   color: var(--on-iris, #ffffff);
   box-shadow: var(--elev-2);
 }

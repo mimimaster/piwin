@@ -55,7 +55,7 @@ describe('session live control commands', () => {
     expect(response).toMatchObject({ success: false, error: 'session-busy: foreground-run' });
   });
 
-  it('compacts an oversized live source context before a target-model switch', async () => {
+  it('explicitly compacts an oversized live source context for a target model', async () => {
     const baseSession = createDelayedSessionHandle();
     let compactCalls = 0;
     const session: SessionHandle = {
@@ -428,14 +428,15 @@ describe('session live control commands', () => {
     });
   });
 
-  it('rechecks and compacts before applying the target model on prompt', async () => {
+  it('applies the target model without pre-compacting the source context', async () => {
     const baseSession = createDelayedSessionHandle();
     const order: string[] = [];
+    let compactCalls = 0;
     const session: SessionHandle = {
       ...baseSession,
       async compact(): Promise<import('@piwin/contracts').SessionCompactResult> {
-        order.push('compact-source');
-        return { ok: true, tokensBefore: 900_000, tokensAfter: 120_000 };
+        compactCalls += 1;
+        throw new Error('source compaction must not gate model switching');
       },
       async prompt(input) {
         order.push(`prompt:${input.model?.modelId ?? 'default'}`);
@@ -468,17 +469,19 @@ describe('session live control commands', () => {
 
     expect(response).toMatchObject({ success: true });
     await vi.waitFor(() => expect(context.getForegroundRun(session.id)).toBeUndefined());
-    expect(order).toEqual(['compact-source', 'replace-runtime', 'prompt:small-252k']);
+    expect(compactCalls).toBe(0);
+    expect(order).toEqual(['replace-runtime', 'prompt:small-252k']);
     expect(context.sessionModels.get(session.id)).toEqual(smallModelRef());
   });
 
-  it('continues the prompt when target migration finds no eligible native history', async () => {
+  it('does not let native compaction eligibility block a model switch', async () => {
     const baseSession = createDelayedSessionHandle();
     const order: string[] = [];
+    let compactCalls = 0;
     const session: SessionHandle = {
       ...baseSession,
       async compact(): Promise<import('@piwin/contracts').SessionCompactResult> {
-        order.push('compact-source');
+        compactCalls += 1;
         throw new Error('Nothing to compact (session too small)');
       },
       async prompt(input) {
@@ -512,7 +515,8 @@ describe('session live control commands', () => {
 
     expect(response).toMatchObject({ success: true });
     await vi.waitFor(() => expect(context.getForegroundRun(session.id)).toBeUndefined());
-    expect(order).toEqual(['compact-source', 'replace-runtime', 'prompt:small-252k']);
+    expect(compactCalls).toBe(0);
+    expect(order).toEqual(['replace-runtime', 'prompt:small-252k']);
     expect(context.sessionModels.get(session.id)).toEqual(smallModelRef());
   });
 

@@ -18,10 +18,7 @@ import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
 import { hostFailureNotice } from '../host-problem-copy.js';
 import type { SteerQueueMessage } from '../steer-queue-model';
 import type { UseComposerMediaArgs } from './composer-media-args.js';
-import {
-  normalizeCompactCustomInstructions,
-  parseComposerSlashSubmit,
-} from '../slash';
+import { normalizeCompactCustomInstructions, parseComposerSlashSubmit } from '../slash';
 import type { ComposerPromptRequestInput } from './use-composer-send.js';
 
 type PromptRequestParams = {
@@ -60,93 +57,94 @@ export function useComposerSteerQueue(params: UseComposerSteerQueueArgs) {
     refreshQueuedTurnQueue,
   } = params;
 
-  const handleSteer = useCallback(async (overrideText?: string): Promise<boolean> => {
-    const text = (overrideText ?? composer).trim();
-    if (!text) {
-      return false;
-    }
-    const reserved = parseComposerSlashSubmit(text, []);
-    if (reserved.kind === 'command' && reserved.commandId === 'stop') {
+  const handleSteer = useCallback(
+    async (overrideText?: string): Promise<boolean> => {
+      const text = (overrideText ?? composer).trim();
+      if (!text) {
+        return false;
+      }
+      const reserved = parseComposerSlashSubmit(text, []);
+      if (reserved.kind === 'command' && reserved.commandId === 'stop') {
+        if (overrideText === undefined) {
+          setComposer('');
+        }
+        await args.onAbort?.();
+        return true;
+      }
+      if (reserved.kind === 'command' && reserved.commandId === 'compact') {
+        const compacted = await args.onCompact?.(normalizeCompactCustomInstructions(reserved.args));
+        if (compacted !== false && overrideText === undefined) {
+          setComposer('');
+        }
+        return compacted !== false;
+      }
+      if (!args.state.activeSessionId || !args.state.activeRunId || !args.state.streaming) {
+        notifyError(attachmentCopy.steerUnavailable);
+        return false;
+      }
+      if (promptSubmissionInProgress.current) {
+        return false;
+      }
+      promptSubmissionInProgress.current = true;
+      const clientMessageId = crypto.randomUUID();
+      const interventionId = crypto.randomUUID();
+      // A steer belongs to the active run, so it must not reset run ownership as
+      // a new `user/send` would. It is still a normal user row in the transcript.
+      args.dispatch({
+        type: 'user/steer',
+        text,
+        clientMessageId,
+        instructionId: interventionId,
+        targetRunId: args.state.activeRunId,
+      });
       if (overrideText === undefined) {
         setComposer('');
       }
-      await args.onAbort?.();
-      return true;
-    }
-    if (reserved.kind === 'command' && reserved.commandId === 'compact') {
-      const compacted = await args.onCompact?.(
-        normalizeCompactCustomInstructions(reserved.args),
-      );
-      if (compacted !== false && overrideText === undefined) {
-        setComposer('');
-      }
-      return compacted !== false;
-    }
-    if (!args.state.activeSessionId || !args.state.activeRunId || !args.state.streaming) {
-      notifyError(attachmentCopy.steerUnavailable);
-      return false;
-    }
-    if (promptSubmissionInProgress.current) {
-      return false;
-    }
-    promptSubmissionInProgress.current = true;
-    const clientMessageId = crypto.randomUUID();
-    const interventionId = crypto.randomUUID();
-    // A steer belongs to the active run, so it must not reset run ownership as
-    // a new `user/send` would. It is still a normal user row in the transcript.
-    args.dispatch({
-      type: 'user/steer',
-      text,
-      clientMessageId,
-      instructionId: interventionId,
-      targetRunId: args.state.activeRunId,
-    });
-    if (overrideText === undefined) {
-      setComposer('');
-    }
-    try {
-      const command = {
-        type: 'run/intervention-submit',
-        sessionId: args.state.activeSessionId,
-        runId: args.state.activeRunId,
-        interventionId,
-        userMessageId: clientMessageId,
-        input: { text },
-      } as const;
-      let response = await args.hostClient.request(command);
-      if (!response.success && response.error.toLowerCase().includes('host request timed out')) {
-        // Admission may already be durable when the local ACK times out. Retry
-        // once with the same stable identities; Host returns the existing
-        // record instead of ever applying the instruction twice.
-        response = await args.hostClient.request(command);
-      }
-      if (!response.success) {
+      try {
+        const command = {
+          type: 'run/intervention-submit',
+          sessionId: args.state.activeSessionId,
+          runId: args.state.activeRunId,
+          interventionId,
+          userMessageId: clientMessageId,
+          input: { text },
+        } as const;
+        let response = await args.hostClient.request(command);
+        if (!response.success && response.error.toLowerCase().includes('host request timed out')) {
+          // Admission may already be durable when the local ACK times out. Retry
+          // once with the same stable identities; Host returns the existing
+          // record instead of ever applying the instruction twice.
+          response = await args.hostClient.request(command);
+        }
+        if (!response.success) {
+          args.dispatch({ type: 'user/send-rollback', clientMessageId });
+          if (overrideText === undefined) {
+            setComposer(text);
+          }
+          notifyError(hostFailureNotice(response, locale));
+          return false;
+        }
+        const responseData = response.data as { intervention?: RunInterventionRecord } | undefined;
+        if (responseData?.intervention !== undefined) {
+          args.dispatch({
+            type: 'run/intervention-updated',
+            intervention: responseData.intervention,
+          });
+        }
+        return true;
+      } catch (error) {
         args.dispatch({ type: 'user/send-rollback', clientMessageId });
         if (overrideText === undefined) {
           setComposer(text);
         }
-        notifyError(hostFailureNotice(response, locale));
+        notifyError(formatError(error));
         return false;
+      } finally {
+        promptSubmissionInProgress.current = false;
       }
-      const responseData = response.data as { intervention?: RunInterventionRecord } | undefined;
-      if (responseData?.intervention !== undefined) {
-        args.dispatch({
-          type: 'run/intervention-updated',
-          intervention: responseData.intervention,
-        });
-      }
-      return true;
-    } catch (error) {
-      args.dispatch({ type: 'user/send-rollback', clientMessageId });
-      if (overrideText === undefined) {
-        setComposer(text);
-      }
-      notifyError(formatError(error));
-      return false;
-    } finally {
-      promptSubmissionInProgress.current = false;
-    }
-  }, [args, attachmentCopy, composer, notifyError]);
+    },
+    [args, attachmentCopy, composer, notifyError],
+  );
 
   const handleFollowUp = useCallback((): void => {
     const text = composer.trim();
@@ -179,12 +177,7 @@ export function useComposerSteerQueue(params: UseComposerSteerQueueArgs) {
       })();
       return;
     }
-    if (
-      !text ||
-      !sessionId ||
-      !args.state.streaming ||
-      pendingAttachmentsRef.current.length > 0
-    ) {
+    if (!text || !sessionId || !args.state.streaming || pendingAttachmentsRef.current.length > 0) {
       return;
     }
     if (promptSubmissionInProgress.current) {
@@ -236,36 +229,6 @@ export function useComposerSteerQueue(params: UseComposerSteerQueueArgs) {
   const hostQueueForActiveSession = args.state.activeSessionId
     ? (args.state.queuedTurnsBySession[args.state.activeSessionId] ?? [])
     : [];
-
-  const handleSteerQueueEdit = useCallback(
-    (messageId: string, text: string): void => {
-      const sessionId = args.state.activeSessionId;
-      if (!sessionId) return;
-      const queuedTurn = (args.state.queuedTurnsBySession[sessionId] ?? []).find(
-        (item) => item.queuedTurnId === messageId,
-      );
-      if (!queuedTurn || queuedTurn.status !== 'pending') return;
-      void args.hostClient
-        .request({
-          type: 'session/queued-turn-edit',
-          sessionId,
-          queuedTurnId: queuedTurn.queuedTurnId,
-          expectedRevision: queuedTurn.revision,
-          input: { ...queuedTurn.input, text, clientMessageId: queuedTurn.userMessageId },
-        })
-        .then((response) => {
-          if (!response.success) {
-            notifyError(hostFailureNotice(response, locale));
-            return;
-          }
-          const updated = (response.data as { queuedTurn?: QueuedTurnRecord } | undefined)
-            ?.queuedTurn;
-          if (updated) args.dispatch({ type: 'session/queued-turn-updated', queuedTurn: updated });
-        })
-        .catch((error: unknown) => notifyError(formatError(error)));
-    },
-    [args, notifyError],
-  );
 
   const handleSteerQueueRemove = useCallback(
     (messageId: string): void => {
@@ -323,7 +286,10 @@ export function useComposerSteerQueue(params: UseComposerSteerQueueArgs) {
         await args.onCompact?.(normalizeCompactCustomInstructions(reserved.args));
         return;
       }
-      if ((target.input.attachments?.length ?? 0) > 0 || (target.input.contextRefs?.length ?? 0) > 0) {
+      if (
+        (target.input.attachments?.length ?? 0) > 0 ||
+        (target.input.contextRefs?.length ?? 0) > 0
+      ) {
         notifyError('带附件或上下文引用的消息暂不支持调整为当前任务');
         return;
       }
@@ -350,8 +316,7 @@ export function useComposerSteerQueue(params: UseComposerSteerQueueArgs) {
         return;
       }
       const data = response.data as
-        | { intervention?: RunInterventionRecord; queuedTurn?: QueuedTurnRecord }
-        | undefined;
+        { intervention?: RunInterventionRecord; queuedTurn?: QueuedTurnRecord } | undefined;
       if (data?.queuedTurn) {
         args.dispatch({ type: 'session/queued-turn-updated', queuedTurn: data.queuedTurn });
       }
@@ -381,6 +346,9 @@ export function useComposerSteerQueue(params: UseComposerSteerQueueArgs) {
             createdAt: item.submittedAt,
             revision: item.revision,
             status: item.status,
+            ...((item.input.attachments?.length ?? 0) > 0
+              ? { attachmentCount: item.input.attachments?.length ?? 0 }
+              : {}),
           }))
       : [];
 
@@ -389,7 +357,6 @@ export function useComposerSteerQueue(params: UseComposerSteerQueueArgs) {
     handleFollowUp,
     steerQueueMessages,
     handleSteerQueueSendNow,
-    handleSteerQueueEdit,
     handleSteerQueueRemove,
   };
 }

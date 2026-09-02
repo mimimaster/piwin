@@ -133,12 +133,7 @@ describe('ComposerDock host status', () => {
 
   it('disables Pause while Host admission is not ready', () => {
     const rendered = renderDock(
-      <ComposerDock
-        {...baseProps}
-        streaming
-        runPhase="streaming"
-        mutationsEnabled={false}
-      />,
+      <ComposerDock {...baseProps} streaming runPhase="streaming" mutationsEnabled={false} />,
     );
     root = rendered.root;
     container = rendered.container;
@@ -263,12 +258,7 @@ describe('ComposerDock host status', () => {
   it('greys Pause only while pause is in flight', () => {
     const handlePause = vi.fn();
     const rendered = renderDock(
-      <ComposerDock
-        {...baseProps}
-        streaming={true}
-        runPhase="pausing"
-        onPause={handlePause}
-      />,
+      <ComposerDock {...baseProps} streaming={true} runPhase="pausing" onPause={handlePause} />,
     );
     root = rendered.root;
     container = rendered.container;
@@ -287,12 +277,7 @@ describe('ComposerDock host status', () => {
   it('keeps one primary Pause control while streaming', () => {
     const handlePause = vi.fn();
     const rendered = renderDock(
-      <ComposerDock
-        {...baseProps}
-        streaming={true}
-        runPhase="streaming"
-        onPause={handlePause}
-      />,
+      <ComposerDock {...baseProps} streaming={true} runPhase="streaming" onPause={handlePause} />,
     );
     root = rendered.root;
     container = rendered.container;
@@ -310,9 +295,10 @@ describe('ComposerDock host status', () => {
     expect(handlePause).toHaveBeenCalledTimes(1);
   });
 
-  it('renders a Steer control while streaming with text', () => {
+  it('renders Send while streaming with text', () => {
     const handleSteer = vi.fn();
     const handleFollowUp = vi.fn();
+    const handleSend = vi.fn();
     const rendered = renderDock(
       <ComposerDock
         {...baseProps}
@@ -321,28 +307,32 @@ describe('ComposerDock host status', () => {
         composer="change direction"
         onSteer={handleSteer}
         onFollowUp={handleFollowUp}
+        onSend={handleSend}
       />,
     );
     root = rendered.root;
     container = rendered.container;
 
-    const steerBtn = container.querySelector('[data-testid="steer-btn"]') as HTMLButtonElement;
-    expect(steerBtn).not.toBeNull();
-    expect(container.querySelector('[data-testid="send-btn"]')).toBeNull();
-    expect(container.querySelector('[data-testid="pause-btn"]')).not.toBeNull();
+    const sendBtn = container.querySelector('[data-testid="send-btn"]') as HTMLButtonElement;
+    expect(sendBtn).not.toBeNull();
+    expect(sendBtn.getAttribute('aria-label')).toBe('Queue follow-up');
+    expect(container.querySelector('[data-testid="steer-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="pause-btn"]')).toBeNull();
     expect(container.querySelector('[data-testid="stop-btn"]')).toBeNull();
     expect(circularActionCount(container)).toBe(1);
 
     act(() => {
-      steerBtn.click();
+      sendBtn.click();
     });
-    expect(handleSteer).toHaveBeenCalledTimes(1);
+    expect(handleSend).toHaveBeenCalledTimes(1);
+    expect(handleSteer).not.toHaveBeenCalled();
     expect(handleFollowUp).not.toHaveBeenCalled();
   });
 
-  it('keeps Pause available while drafting a follow-up during a live run', () => {
+  it('turns Pause into Send while drafting a follow-up during a live run', () => {
     const handleFollowUp = vi.fn();
     const handlePause = vi.fn();
+    const handleSend = vi.fn();
     const rendered = renderDock(
       <ComposerDock
         {...baseProps}
@@ -351,15 +341,16 @@ describe('ComposerDock host status', () => {
         composer="keep going"
         onFollowUp={handleFollowUp}
         onPause={handlePause}
+        onSend={handleSend}
       />,
     );
     root = rendered.root;
     container = rendered.container;
 
-    expect(container.querySelector('[data-testid="pause-btn"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="send-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="send-btn"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="pause-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="steer-btn"]')).toBeNull();
     expect(container.querySelector('[data-testid="stop-btn"]')).toBeNull();
-    expect(container.querySelectorAll('[data-testid="pause-btn"]').length).toBe(1);
     expect(circularActionCount(container)).toBe(1);
   });
 
@@ -379,12 +370,7 @@ describe('ComposerDock host status', () => {
     const handleResume = vi.fn();
     const handleAbort = vi.fn();
     const rendered = renderDock(
-      <ComposerDock
-        {...baseProps}
-        paused
-        onResume={handleResume}
-        onAbort={handleAbort}
-      />,
+      <ComposerDock {...baseProps} paused onResume={handleResume} onAbort={handleAbort} />,
     );
     root = rendered.root;
     container = rendered.container;
@@ -501,7 +487,7 @@ describe('ComposerDock host status', () => {
     expect(handleResolve).toHaveBeenCalledWith({ value: 'Use a new branch' });
   });
 
-  it('steers Enter and Command+Enter while streaming so chat can continue', () => {
+  it('queues Enter and steers Command+Enter while streaming', () => {
     const handleSteer = vi.fn();
     const handleFollowUp = vi.fn();
     const handleSend = vi.fn();
@@ -519,9 +505,9 @@ describe('ComposerDock host status', () => {
     root = rendered.root;
     container = rendered.container;
 
-    expect(container.querySelector('[data-testid="steer-btn"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="pause-btn"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="send-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="steer-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="pause-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="send-btn"]')).not.toBeNull();
     expect(circularActionCount(container)).toBe(1);
 
     act(() => {
@@ -530,7 +516,8 @@ describe('ComposerDock host status', () => {
       );
       textarea?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     });
-    expect(handleSteer).toHaveBeenCalledTimes(1);
+    expect(handleSend).toHaveBeenCalledTimes(1);
+    expect(handleSteer).not.toHaveBeenCalled();
     expect(handleFollowUp).not.toHaveBeenCalled();
 
     act(() => {
@@ -541,8 +528,9 @@ describe('ComposerDock host status', () => {
         new KeyboardEvent('keydown', { key: 'Enter', metaKey: true, bubbles: true }),
       );
     });
-    expect(handleSteer).toHaveBeenCalledTimes(2);
-    expect(handleSend).not.toHaveBeenCalled();
+    expect(handleSteer).toHaveBeenCalledTimes(1);
+    expect(handleSend).toHaveBeenCalledTimes(1);
+    expect(handleFollowUp).not.toHaveBeenCalled();
   });
 
   it('attaches stacked queued messages directly above the composer', () => {
@@ -569,6 +557,88 @@ describe('ComposerDock host status', () => {
     expect(dock?.children[1]?.getAttribute('data-testid')).toBe('composer-card');
     expect(container.textContent).toContain('First queued task');
     expect(container.textContent).toContain('Second queued task');
+  });
+
+  it('edits a queued turn in the composer input, including images', () => {
+    const handleSend = vi.fn();
+    const handleSteer = vi.fn();
+    const handleCancel = vi.fn();
+    const handleAttachImage = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        streaming={true}
+        runPhase="streaming"
+        composer="Rewrite this queued follow-up"
+        pendingAttachments={[
+          {
+            localId: 'queued-img',
+            previewUrl: 'blob:queued',
+            uploadStatus: 'ready',
+            attachment: {
+              id: 'asset-queued',
+              kind: 'media',
+              path: '/tmp/.piwin/media/s/shot.png',
+              mimeType: 'image/png',
+              byteSize: 80,
+              source: 'paste',
+            },
+          },
+        ]}
+        steerQueueMessages={[
+          {
+            id: 'one',
+            text: 'First queued task',
+            createdAt: '2026-08-09T00:00:00.000Z',
+            attachmentCount: 1,
+          },
+        ]}
+        queuedEdit={{ messageId: 'one', position: 1 }}
+        onQueuedEditCancel={handleCancel}
+        onSteer={handleSteer}
+        onSend={handleSend}
+        onAttachImage={handleAttachImage}
+        plusMenuOpen={true}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const dock = container.querySelector('[data-testid="composer-dock"]');
+    expect(dock?.classList.contains('is-queued-edit')).toBe(true);
+    expect(container.querySelector('[data-testid="composer-queued-edit-banner"]')).not.toBeNull();
+    expect(container.textContent).toContain('Editing queued message');
+    expect(container.textContent).toContain('Change text, add images');
+
+    const textarea = container.querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]');
+    expect(textarea?.placeholder).toContain('paste an image');
+    expect(textarea?.value).toBe('Rewrite this queued follow-up');
+    expect(container.querySelector('[data-testid="composer-plus-btn"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="plus-menu-image"]')).not.toBeNull();
+    expect(container.querySelector('[data-shelf-chip]')).not.toBeNull();
+
+    const send = container.querySelector<HTMLButtonElement>('[data-testid="send-btn"]');
+    expect(send?.getAttribute('aria-label')).toBe('Save changes');
+    expect(send?.getAttribute('title')).toBe('Save back to the queue (Enter)');
+
+    act(() => {
+      textarea?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    expect(handleSend).toHaveBeenCalledTimes(1);
+    expect(handleSteer).not.toHaveBeenCalled();
+
+    act(() => {
+      textarea?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', metaKey: true, bubbles: true }),
+      );
+    });
+    expect(handleSend).toHaveBeenCalledTimes(2);
+    expect(handleSteer).not.toHaveBeenCalled();
+
+    act(() => {
+      textarea?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(handleCancel).toHaveBeenCalledTimes(1);
   });
 
   it('shows text-only vision warning when media is attached without vision or delegation', () => {
@@ -803,6 +873,91 @@ describe('ComposerDock host status', () => {
       );
     });
     expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it('sends /compact on Enter even while the slash menu is open', () => {
+    const onSend = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock {...baseProps} composer="/compact" onSend={onSend} />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(container.querySelector('[data-testid="composer-slash-menu"]')).not.toBeNull();
+    const input = container.querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]');
+    act(() => {
+      input?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(onSend).toHaveBeenCalledTimes(1);
+    expect(onSend).toHaveBeenCalledWith('/compact');
+  });
+
+  it('sends /compact on Enter while a run is paused', () => {
+    const onSend = vi.fn();
+    const onResume = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        paused
+        composer="/compact"
+        onSend={onSend}
+        onResume={onResume}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const input = container.querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]');
+    act(() => {
+      input?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(onSend).toHaveBeenCalledTimes(1);
+    expect(onResume).not.toHaveBeenCalled();
+  });
+
+  it('keeps Send enabled for /compact while Host admission is reconciling', () => {
+    const onSend = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock {...baseProps} composer="/compact" mutationsEnabled={false} onSend={onSend} />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+    const send = container.querySelector('[data-testid="send-btn"]') as HTMLButtonElement;
+    expect(send.disabled).toBe(false);
+    act(() => {
+      send.click();
+    });
+    expect(onSend).toHaveBeenCalledTimes(1);
+  });
+
+  it('executes compact from the slash menu without a second Send', () => {
+    const onSend = vi.fn();
+    const onComposerChange = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        composer="/"
+        onComposerChange={onComposerChange}
+        onSend={onSend}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const compactItem = container.querySelector(
+      '[data-testid="slash-item-cmd:compact"]',
+    ) as HTMLButtonElement;
+    expect(compactItem).not.toBeNull();
+    act(() => {
+      compactItem.click();
+    });
+    expect(onSend).toHaveBeenCalledTimes(1);
+    expect(onSend).toHaveBeenCalledWith('/compact');
+    expect(onComposerChange).toHaveBeenCalledWith('/compact');
   });
 
   it('sends on Enter when textarea has non-empty text', () => {
@@ -1047,9 +1202,7 @@ describe('ComposerDock host status', () => {
     });
     expect(discardFailed).toHaveBeenCalledTimes(1);
     expect(handleSend).toHaveBeenCalledTimes(1);
-    expect(
-      document.querySelector('[data-testid="composer-attachment-failure-dialog"]'),
-    ).toBeNull();
+    expect(document.querySelector('[data-testid="composer-attachment-failure-dialog"]')).toBeNull();
   });
 
   it('retries failed attachments from the send confirmation before sending', () => {
@@ -1089,9 +1242,7 @@ describe('ComposerDock host status', () => {
         ?.click();
     });
     expect(handleSend).toHaveBeenCalledTimes(1);
-    expect(
-      document.querySelector('[data-testid="composer-attachment-failure-dialog"]'),
-    ).toBeNull();
+    expect(document.querySelector('[data-testid="composer-attachment-failure-dialog"]')).toBeNull();
   });
 
   it('puts initial confirmation focus on retry so Enter does not discard attachments', () => {
@@ -1143,9 +1294,7 @@ describe('ComposerDock host status', () => {
       sendBtn?.click();
     });
     // No dialog needed: retry everything, then send retries the save.
-    expect(
-      document.querySelector('[data-testid="composer-attachment-failure-dialog"]'),
-    ).toBeNull();
+    expect(document.querySelector('[data-testid="composer-attachment-failure-dialog"]')).toBeNull();
     expect(retryFailed).toHaveBeenCalledTimes(1);
     expect(handleSend).toHaveBeenCalledTimes(1);
   });
@@ -1245,7 +1394,7 @@ describe('ComposerDock host status', () => {
     expect(hint?.textContent).toMatch(/composer model|主模型/);
   });
 
-  it('hides Agent Mode, Run Mode, and Orchestration in Conversation', () => {
+  it('hides Run Mode and Orchestration in Conversation, but keeps Agent Mode', () => {
     const rendered = renderDock(
       <ComposerDock
         {...baseProps}
@@ -1264,12 +1413,24 @@ describe('ComposerDock host status', () => {
     root = rendered.root;
     container = rendered.container;
 
-    expect(container.querySelector('[data-testid="agent-mode-chip"]')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="agent-mode-trigger"]')?.getAttribute('data-mode'),
+    ).toBe('goal');
     expect(container.querySelector('[data-testid="run-mode-trigger"]')).toBeNull();
     expect(container.querySelector('[data-testid="orchestration-scheme-trigger"]')).toBeNull();
     const textarea = container.querySelector(
       '[data-testid="composer-input"]',
     ) as HTMLTextAreaElement;
-    expect(textarea.placeholder).toContain('Ask anything');
+    expect(textarea.placeholder).toMatch(/objective|目标/i);
+  });
+
+  it('shows Agent Mode in project sessions', () => {
+    const rendered = renderDock(<ComposerDock {...baseProps} />);
+    root = rendered.root;
+    container = rendered.container;
+
+    const trigger = container.querySelector('[data-testid="agent-mode-trigger"]');
+    expect(trigger).not.toBeNull();
+    expect(trigger?.getAttribute('data-mode')).toBe('agent');
   });
 });

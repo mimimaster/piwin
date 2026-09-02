@@ -1,12 +1,13 @@
-import { useEffect, useState, type KeyboardEvent, type ReactElement } from 'react';
+/**
+ * Queued follow-up turns, stacked as a lid on top of the composer card.
+ *
+ * The rows are a read-only preview: editing happens in the composer input
+ * below, so a queued turn can gain or lose images the same way a new prompt
+ * does. A row being edited only offers the exit back out of that edit.
+ */
+import type { ReactElement } from 'react';
 import { IconButton } from '@piwin/ui-kit';
-import {
-  IconArrowUp,
-  IconCheck,
-  IconClose,
-  IconEdit,
-  IconTrash,
-} from './shell-icons';
+import { IconArrowUp, IconClose, IconEdit, IconImage, IconTrash } from './shell-icons';
 import { getDesktopCopy } from './desktop-locale';
 import { useDesktopLocale } from './desktop-locale-context';
 import type { SteerQueueMessage } from './steer-queue-model';
@@ -16,59 +17,20 @@ export type { SteerQueueMessage } from './steer-queue-model';
 export type SteerQueueProps = {
   messages: readonly SteerQueueMessage[];
   onSendNow: (messageId: string) => void | Promise<void>;
-  onEdit: (messageId: string, text: string) => void;
+  /** Load this row into the composer input. */
+  onEdit: (messageId: string) => void;
   onRemove: (messageId: string) => void;
+  /** Row currently held by the composer input, if any. */
+  editingMessageId?: string | null | undefined;
+  onCancelEdit?: (() => void) | undefined;
 };
 
 export function SteerQueue(props: SteerQueueProps): ReactElement | null {
   const { locale } = useDesktopLocale();
   const copy = getDesktopCopy(locale).composer;
-  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  const [editingText, setEditingText] = useState('');
-
-  useEffect(() => {
-    if (editingMessageId && !props.messages.some((message) => message.id === editingMessageId)) {
-      setEditingMessageId(null);
-      setEditingText('');
-    }
-  }, [editingMessageId, props.messages]);
 
   if (props.messages.length === 0) {
     return null;
-  }
-
-  function startEditing(message: SteerQueueMessage): void {
-    setEditingMessageId(message.id);
-    setEditingText(message.text);
-  }
-
-  function cancelEditing(): void {
-    setEditingMessageId(null);
-    setEditingText('');
-  }
-
-  function saveEditing(messageId: string): void {
-    const nextText = editingText.trim();
-    if (!nextText) {
-      return;
-    }
-    props.onEdit(messageId, nextText);
-    cancelEditing();
-  }
-
-  function handleEditingKeyDown(
-    event: KeyboardEvent<HTMLTextAreaElement>,
-    messageId: string,
-  ): void {
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      cancelEditing();
-      return;
-    }
-    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-      event.preventDefault();
-      saveEditing(messageId);
-    }
   }
 
   return (
@@ -89,50 +51,50 @@ export function SteerQueue(props: SteerQueueProps): ReactElement | null {
 
       <ol className="steer-queue-list">
         {props.messages.map((message, index) => {
-          const isEditing = editingMessageId === message.id;
+          const isEditing = props.editingMessageId === message.id;
+          const attachmentCount = message.attachmentCount ?? 0;
           return (
             <li
               key={message.id}
-              className="steer-queue-item"
+              className={`steer-queue-item${isEditing ? ' is-editing' : ''}`}
               data-testid={`steer-queue-item-${message.id}`}
+              {...(isEditing ? { 'aria-current': 'true' as const } : {})}
             >
               <span className="steer-queue-position" aria-hidden>
                 {index + 1}
               </span>
-              <div className="steer-queue-item-content">
-                {isEditing ? (
-                  <textarea
-                    className="steer-queue-edit-input"
-                    data-testid={`steer-queue-edit-${message.id}`}
-                    value={editingText}
-                    onChange={(event) => setEditingText(event.target.value)}
-                    onKeyDown={(event) => handleEditingKeyDown(event, message.id)}
-                    rows={1}
-                    autoFocus
-                    aria-label={copy.editQueuedMessage}
-                  />
-                ) : (
-                  <span className="steer-queue-item-text">{message.text}</span>
-                )}
-              </div>
+              <button
+                type="button"
+                className="steer-queue-item-content"
+                data-testid={`steer-queue-open-${message.id}`}
+                disabled={isEditing}
+                title={isEditing ? undefined : copy.editQueuedMessageHint}
+                onClick={() => props.onEdit(message.id)}
+              >
+                <span className={`steer-queue-item-text${message.text.trim() ? '' : ' is-empty'}`}>
+                  {message.text.trim() || copy.queuedMediaOnly}
+                </span>
+                {attachmentCount > 0 ? (
+                  <span
+                    className="steer-queue-item-attachments"
+                    data-testid={`steer-queue-attachments-${message.id}`}
+                    title={copy.queuedAttachments(attachmentCount)}
+                  >
+                    <IconImage width={12} height={12} />
+                    {attachmentCount}
+                  </span>
+                ) : null}
+              </button>
               <div className="steer-queue-item-actions">
                 {isEditing ? (
                   <>
-                    <IconButton
-                      className="steer-queue-action is-confirm"
-                      data-testid={`steer-queue-save-${message.id}`}
-                      label={copy.saveQueuedMessage}
-                      title={copy.saveQueuedMessage}
-                      onClick={() => saveEditing(message.id)}
-                    >
-                      <IconCheck />
-                    </IconButton>
+                    <span className="steer-queue-editing-pill">{copy.queuedEditingBadge}</span>
                     <IconButton
                       className="steer-queue-action"
                       data-testid={`steer-queue-cancel-${message.id}`}
                       label={copy.cancelQueuedEdit}
                       title={copy.cancelQueuedEdit}
-                      onClick={cancelEditing}
+                      onClick={() => props.onCancelEdit?.()}
                     >
                       <IconClose />
                     </IconButton>
@@ -143,8 +105,8 @@ export function SteerQueue(props: SteerQueueProps): ReactElement | null {
                       className="steer-queue-action"
                       data-testid={`steer-queue-edit-button-${message.id}`}
                       label={copy.editQueuedMessage}
-                      title={copy.editQueuedMessage}
-                      onClick={() => startEditing(message)}
+                      title={copy.editQueuedMessageHint}
+                      onClick={() => props.onEdit(message.id)}
                     >
                       <IconEdit />
                     </IconButton>

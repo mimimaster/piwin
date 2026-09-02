@@ -304,8 +304,8 @@ export type HostSessionCommand =
       customInstructions?: string;
       /**
        * When present, compact only if needed and validate the result against
-       * this configured model's Host-resolved input budget before committing a
-       * client-side model selection.
+       * this configured model's Host-resolved input budget. This command does
+       * not change the session's selected model.
        */
       targetModel?: import('./host.js').ModelRef;
     }

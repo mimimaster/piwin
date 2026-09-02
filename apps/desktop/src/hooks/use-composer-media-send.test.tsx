@@ -8,6 +8,7 @@ import type { HostClient } from '../host-client';
 import { useComposerMedia } from './use-composer-media';
 import {
   createInitialTestChatUiState,
+  pasteImage,
   type ComposerMediaResult,
 } from './composer-media-test-harness';
 
@@ -184,18 +185,13 @@ describe('useComposerMedia session transitions', () => {
     });
 
     const requestMock = vi.mocked(hostClient.request);
-    const promptCalls = requestMock.mock.calls.filter(
-      (call) => call[0]?.type === 'session/prompt',
-    );
+    const promptCalls = requestMock.mock.calls.filter((call) => call[0]?.type === 'session/prompt');
     expect(requestMock).toHaveBeenCalledOnce();
     expect(promptCalls).toHaveLength(1);
-    const input = (promptCalls[0]?.[0] as Extract<
-      Parameters<typeof requestMock>[0],
-      { type: 'session/prompt' }
-    >)?.input;
-    expect(input?.contextRefs).toEqual([
-      expect.objectContaining({ title: 'Original' }),
-    ]);
+    const input = (
+      promptCalls[0]?.[0] as Extract<Parameters<typeof requestMock>[0], { type: 'session/prompt' }>
+    )?.input;
+    expect(input?.contextRefs).toEqual([expect.objectContaining({ title: 'Original' })]);
     expect(input?.contextRefs).not.toEqual([expect.objectContaining({ title: 'Changed' })]);
   });
 
@@ -268,7 +264,6 @@ describe('useComposerMedia session transitions', () => {
     expect(paintedText).toBe(promptInput?.text);
     expect(paintedText).toBe('quoting a local file\n\nindex.ts');
   });
-
 
   it('retries an intervention ACK timeout with the same stable identities', async () => {
     container = document.createElement('div');
@@ -518,6 +513,101 @@ describe('useComposerMedia session transitions', () => {
     expect(latest().composer).toBe('');
   });
 
+  it('runs /compact even when leftover attachment chips are present', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const onCompact = vi.fn(async () => true);
+    const hostClient = {
+      request: vi.fn(),
+    } as unknown as HostClient;
+    let captured: ComposerMediaResult | undefined;
+    function Harness(): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: {
+          ...createInitialTestChatUiState(),
+          activeSessionId: 'session-1',
+        },
+        dispatch: vi.fn(),
+        agentMode: 'agent',
+        onCompact,
+      });
+      return null;
+    }
+    act(() => root?.render(<Harness />));
+    const latest = (): ComposerMediaResult => {
+      if (captured === undefined) throw new Error('hook not rendered');
+      return captured;
+    };
+    pasteImage(latest);
+    act(() => latest().setComposer('/compact'));
+    await act(async () => {
+      await latest().handleSend();
+    });
+    expect(onCompact).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(hostClient.request)).not.toHaveBeenCalled();
+    expect(latest().composer).toBe('');
+    expect(latest().pendingAttachments).toHaveLength(0);
+  });
+
+  it('runs /compact instead of saving a queued-turn edit', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const onCompact = vi.fn(async () => true);
+    const hostClient = {
+      request: vi.fn(),
+    } as unknown as HostClient;
+    let captured: ComposerMediaResult | undefined;
+    function Harness(): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: {
+          ...createInitialTestChatUiState(),
+          activeSessionId: 'session-1',
+          activeRunId: 'run-1',
+          runPhase: 'streaming',
+          streaming: true,
+          queuedTurnsBySession: {
+            'session-1': [
+              {
+                queuedTurnId: 'queued-1',
+                revision: 1,
+                sessionId: 'session-1',
+                sequence: 1,
+                userMessageId: 'user-queued-1',
+                mode: 'next',
+                status: 'pending',
+                input: { text: 'follow up later' },
+                submittedAt: '2026-08-15T00:00:00.000Z',
+                updatedAt: '2026-08-15T00:00:00.000Z',
+              },
+            ],
+          },
+        },
+        dispatch: vi.fn(),
+        agentMode: 'agent',
+        onCompact,
+      });
+      return null;
+    }
+    act(() => root?.render(<Harness />));
+    const latest = (): ComposerMediaResult => {
+      if (captured === undefined) throw new Error('hook not rendered');
+      return captured;
+    };
+    act(() => {
+      latest().handleSteerQueueEdit('queued-1');
+    });
+    act(() => latest().setComposer('/compact keep the plan'));
+    await act(async () => {
+      await latest().handleSend();
+    });
+    expect(onCompact).toHaveBeenCalledWith('keep the plan');
+    expect(vi.mocked(hostClient.request)).not.toHaveBeenCalled();
+  });
+
   it('converts a queued message into a Run intervention on send-now', async () => {
     container = document.createElement('div');
     document.body.append(container);
@@ -680,7 +770,6 @@ describe('useComposerMedia session transitions', () => {
     expect(onCompact).toHaveBeenCalledWith('keep the plan');
     expect(vi.mocked(hostClient.request)).not.toHaveBeenCalled();
   });
-
 });
 
 describe('useComposerMedia Conversation send path', () => {
@@ -705,8 +794,7 @@ describe('useComposerMedia Conversation send path', () => {
     const requestMock = vi.mocked(hostClient.request);
     const promptCall = requestMock.mock.calls.find((call) => call[0]?.type === 'session/prompt');
     const command = promptCall?.[0] as
-      | { type: 'session/prompt'; input?: Record<string, unknown> }
-      | undefined;
+      { type: 'session/prompt'; input?: Record<string, unknown> } | undefined;
     return (command?.input ?? {}) as {
       text?: string;
       agentMode?: string;
@@ -738,7 +826,7 @@ describe('useComposerMedia Conversation send path', () => {
           activeScope: { kind: 'general' },
         },
         dispatch: vi.fn(),
-        agentMode: 'goal',
+        agentMode: 'agent',
         orchestrationSchemeId: 'ultra-code',
         conversationChat: true,
       });
@@ -758,6 +846,51 @@ describe('useComposerMedia Conversation send path', () => {
     expect(input.agentMode).toBeUndefined();
     expect(input.orchestrationSchemeId).toBeUndefined();
     expect(input.skillId).toBeUndefined();
+  });
+
+  it('sends Goal from Conversation slash `/goal`', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const onAgentModeChange = vi.fn();
+    const hostClient = {
+      request: vi.fn().mockResolvedValue({
+        type: 'response',
+        command: 'session/prompt',
+        success: true,
+        data: { runId: 'run-1', acceptedAt: '2026-08-16T00:00:00.000Z' },
+      }),
+    } as unknown as HostClient;
+    let captured: ComposerMediaResult | undefined;
+
+    function Harness(): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: {
+          ...createInitialTestChatUiState(),
+          activeSessionId: 'conversation-1',
+          activeScope: { kind: 'general' },
+        },
+        dispatch: vi.fn(),
+        agentMode: 'agent',
+        conversationChat: true,
+        onAgentModeChange,
+      });
+      return null;
+    }
+
+    act(() => root?.render(<Harness />));
+    act(() => {
+      captured?.setComposer('/goal ship the login flow');
+    });
+    await act(async () => {
+      await captured?.handleSend();
+    });
+
+    expect(onAgentModeChange).toHaveBeenCalledWith('goal');
+    const input = readPromptInput(hostClient);
+    expect(input.text).toBe('ship the login flow');
+    expect(input.agentMode).toBe('goal');
   });
 
   it('still sends Agent fields for Project sessions', async () => {
@@ -845,9 +978,6 @@ describe('useComposerMedia Conversation send path', () => {
     });
 
     expect(captured?.composer).toBe('keep this unsent prompt');
-    expect(dispatch).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'user/send-rollback' }),
-    );
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'user/send-rollback' }));
   });
 });
-

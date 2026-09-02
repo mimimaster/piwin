@@ -15,9 +15,8 @@ const copy: ComposerActionSlotCopy = {
   stopping: 'Stopping…',
   continueRun: 'Continue run',
   attachmentRetryOnly: 'Retry attachments',
-  steer: 'Steer',
-  sendSteerMessage: 'Steer message',
-  sendSteerHint: 'Steer hint',
+  queueFollowUp: 'Queue follow-up',
+  queueFollowUpHint: 'Queue next turn (Enter)',
 };
 
 const CIRCULAR =
@@ -32,7 +31,6 @@ const idle = {
   hasContent: false,
   onlyFailedAttachments: false,
   isExtensionUiActive: false,
-  composerHasText: false,
   onSend: vi.fn(),
   onPause: vi.fn(),
 };
@@ -71,19 +69,17 @@ describe('ComposerActionSlot', () => {
     expect(send.disabled).toBe(true);
   });
 
-  it('live run: one Pause, never a second Send or Stop circle', () => {
+  it('live empty: one Pause, never a second Send or Stop circle', () => {
     const onPause = vi.fn();
     const node = renderSlot({
       ...idle,
       isStreamingRun: true,
       runPhase: 'streaming',
-      hasContent: true,
-      composerHasText: true,
       onPause,
-      onSteer: vi.fn(),
     });
     expect(node.querySelectorAll(CIRCULAR).length).toBe(1);
     expect(node.querySelector('[data-testid="send-btn"]')).toBeNull();
+    expect(node.querySelector('[data-testid="steer-btn"]')).toBeNull();
     expect(node.querySelector('[data-testid="stop-btn"]')).toBeNull();
     expect(node.querySelector('[data-testid="discard-pause-btn"]')).toBeNull();
     const pause = node.querySelector('[data-testid="pause-btn"]') as HTMLButtonElement;
@@ -91,6 +87,50 @@ describe('ComposerActionSlot', () => {
       pause.click();
     });
     expect(onPause).toHaveBeenCalledTimes(1);
+  });
+
+  it('live draft: Send replaces Pause and queues on click', () => {
+    const onSend = vi.fn();
+    const onPause = vi.fn();
+    const node = renderSlot({
+      ...idle,
+      isStreamingRun: true,
+      runPhase: 'streaming',
+      hasContent: true,
+      onSend,
+      onPause,
+    });
+    expect(node.querySelectorAll(CIRCULAR).length).toBe(1);
+    expect(node.querySelector('[data-testid="pause-btn"]')).toBeNull();
+    expect(node.querySelector('[data-testid="steer-btn"]')).toBeNull();
+    const send = node.querySelector('[data-testid="send-btn"]') as HTMLButtonElement;
+    expect(send.getAttribute('aria-label')).toBe('Queue follow-up');
+    act(() => {
+      send.click();
+    });
+    expect(onSend).toHaveBeenCalledTimes(1);
+    expect(onPause).not.toHaveBeenCalled();
+  });
+
+  it('live pausing with draft: keeps disabled Pause', () => {
+    const onSend = vi.fn();
+    const onPause = vi.fn();
+    const node = renderSlot({
+      ...idle,
+      isStreamingRun: true,
+      runPhase: 'pausing',
+      hasContent: true,
+      onSend,
+      onPause,
+    });
+    expect(node.querySelector('[data-testid="send-btn"]')).toBeNull();
+    const pause = node.querySelector('[data-testid="pause-btn"]') as HTMLButtonElement;
+    expect(pause.disabled).toBe(true);
+    act(() => {
+      pause.click();
+    });
+    expect(onPause).not.toHaveBeenCalled();
+    expect(onSend).not.toHaveBeenCalled();
   });
 
   it('paused empty: one Continue, no Discard', () => {
@@ -115,7 +155,6 @@ describe('ComposerActionSlot', () => {
       ...idle,
       isPaused: true,
       hasContent: true,
-      composerHasText: true,
       onSend,
       onResume: vi.fn(),
     });

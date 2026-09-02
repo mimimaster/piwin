@@ -181,10 +181,15 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
       admitPrompt: (command) =>
         handleSessionLiveCommand(command, command.id, deps.buildSessionLiveContext()).then(
           (response) => {
-            const data = (response?.success ? response.data : undefined) as { runId?: unknown } | undefined;
-            if (response?.success && typeof data?.runId === 'string' &&
-                command.input.source === 'voice-delegation' && command.input.voiceCallId &&
-                command.input.clientMessageId) {
+            const data = (response?.success ? response.data : undefined) as
+              { runId?: unknown } | undefined;
+            if (
+              response?.success &&
+              typeof data?.runId === 'string' &&
+              command.input.source === 'voice-delegation' &&
+              command.input.voiceCallId &&
+              command.input.clientMessageId
+            ) {
               deps.liveCallCoordinator?.bindQueuedDelegationRun({
                 callId: command.input.voiceCallId,
                 sessionId: command.sessionId,
@@ -490,21 +495,35 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
         ...commonHostOptions,
         mock: false,
         hostToolExecution: deps.sessionHostToolPort,
-        buildToolDescriptors: async (sessionId, runtimeGenerationId, model, mode = 'active') => {
+        buildToolDescriptors: async (
+          sessionId,
+          runtimeGenerationId,
+          model,
+          mode = 'active',
+          projectPath,
+        ) => {
           const tools = await deps.buildSessionHostToolsForSession(
             sessionId,
             runtimeGenerationId,
             model,
             mode,
+            projectPath,
           );
           return descriptorsFromTools(tools);
         },
-        buildToolFamilyIndex: async (sessionId, runtimeGenerationId, model, mode = 'active') => {
+        buildToolFamilyIndex: async (
+          sessionId,
+          runtimeGenerationId,
+          model,
+          mode = 'active',
+          projectPath,
+        ) => {
           const tools = await deps.buildSessionHostToolsForSession(
             sessionId,
             runtimeGenerationId,
             model,
             mode,
+            projectPath,
           );
           return toolFamilyIndex(tools);
         },

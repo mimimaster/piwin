@@ -21,7 +21,7 @@ export type UseWorkbenchComposerSurfaceArgs = {
   activeCommentsCount: number;
   activeDocumentTitle: string | undefined;
   onRemoveDocComments: () => void;
-  onSendWithComments: () => void | Promise<unknown>;
+  onSendWithComments: (text?: string) => void | Promise<unknown>;
   handleExtensionUiResolve: (payload: ExtensionUiResolvePayload) => void | Promise<void>;
   handleExtensionUiAbort: () => void | Promise<void>;
   openSettingsSection: (section: ShellSettingsSection) => void;
@@ -144,6 +144,8 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
     onSteerQueueSendNow: composer.handleSteerQueueSendNow,
     onSteerQueueEdit: composer.handleSteerQueueEdit,
     onSteerQueueRemove: composer.handleSteerQueueRemove,
+    queuedTurnEditId: composer.queuedTurnEditId,
+    onQueuedEditCancel: composer.cancelQueuedTurnEdit,
     ensureSession: session.ensureSession,
     liveSessionId,
   });

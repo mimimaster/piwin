@@ -105,6 +105,55 @@ const DARK_TEXT_LUMINANCE = 0.3;
 export const readableOn = (fill: string): string =>
   luminance(fill) > DARK_TEXT_LUMINANCE ? '#141414' : '#ffffff';
 
+/** WCAG 2.1 contrast ratio, 1 (identical) → 21 (black on white). */
+export function contrastRatio(a: string, b: string): number {
+  const first = luminance(a);
+  const second = luminance(b);
+  const lighter = Math.max(first, second);
+  const darker = Math.min(first, second);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+/** Bisection depth: 12 steps resolve a 0–1 mix weight below one 8-bit step. */
+const CONTRAST_SOLVE_STEPS = 12;
+
+/**
+ * Least-changed variant of `color` that clears `ratio` against `background`.
+ *
+ * The muted end of a derived ramp is the one place an installed theme can
+ * produce output that is technically a color but functionally invisible, and
+ * the shell paints real information with it (timestamps, section labels, code
+ * gutters). Rather than trust a fixed mix weight to land somewhere readable
+ * for an arbitrary palette, walk toward `toward` only as far as the floor
+ * requires, so a theme that was already readable is returned untouched and its
+ * hue is preserved.
+ */
+export function ensureContrast(
+  color: string,
+  background: string,
+  ratio: number,
+  toward: string,
+): string {
+  if (contrastRatio(color, background) >= ratio) {
+    return color;
+  }
+  if (contrastRatio(toward, background) < ratio) {
+    // Even the endpoint cannot reach the floor; it is still the best available.
+    return toward;
+  }
+  let insufficient = 0;
+  let sufficient = 1;
+  for (let step = 0; step < CONTRAST_SOLVE_STEPS; step += 1) {
+    const midpoint = (insufficient + sufficient) / 2;
+    if (contrastRatio(mix(color, toward, midpoint), background) >= ratio) {
+      sufficient = midpoint;
+    } else {
+      insufficient = midpoint;
+    }
+  }
+  return mix(color, toward, sufficient);
+}
+
 /** `rgba()` string from a base color plus an alpha, for hairlines and washes. */
 export function alpha(color: string, value: number): string {
   const rgb = parseColor(color);

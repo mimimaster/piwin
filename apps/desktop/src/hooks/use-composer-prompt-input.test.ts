@@ -17,17 +17,21 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 function readPromptInput(
   args: Partial<UseComposerMediaArgs>,
+  promptAgentMode: 'agent' | 'goal' = 'agent',
 ): ComposerPromptRequestInput {
   let built: ComposerPromptRequestInput | undefined;
   function Probe(): null {
     const { buildPromptRequestInput } = useComposerPromptInput({
-      hostClient: { request: vi.fn(), subscribe: vi.fn() } as unknown as UseComposerMediaArgs['hostClient'],
+      hostClient: {
+        request: vi.fn(),
+        subscribe: vi.fn(),
+      } as unknown as UseComposerMediaArgs['hostClient'],
       state: createInitialChatUiState(),
       dispatch: vi.fn(),
       agentMode: 'agent',
       ...args,
     });
-    built = buildPromptRequestInput({ text: 'edit the file', agentMode: 'agent' });
+    built = buildPromptRequestInput({ text: 'edit the file', agentMode: promptAgentMode });
     return null;
   }
   const container = document.createElement('div');
@@ -48,10 +52,14 @@ describe('useComposerPromptInput permissionPreset', () => {
     expect(input.agentMode).toBe('agent');
   });
 
-  it('omits Run Mode on conversation chat', () => {
+  it('omits default Agent mode on conversation chat, but still sends Goal', () => {
     const input = readPromptInput({ permissionPreset: 'ask', conversationChat: true });
     expect(input.permissionPreset).toBeUndefined();
     expect(input.agentMode).toBeUndefined();
+
+    const goal = readPromptInput({ conversationChat: true }, 'goal');
+    expect(goal.agentMode).toBe('goal');
+    expect(goal.permissionPreset).toBeUndefined();
   });
 
   it('resolves model from selectedModelKey when present', () => {

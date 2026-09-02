@@ -36,6 +36,7 @@ describe('paused composer sends', () => {
       return createSavedMediaResponse(command.type);
     });
     const onResumeRun = vi.fn(async () => undefined);
+    const onCompact = vi.fn(async () => true);
     const dispatch = vi.fn();
     let captured: ComposerMediaResult | undefined;
     function Harness() {
@@ -50,6 +51,7 @@ describe('paused composer sends', () => {
         agentMode: 'agent',
         ensureSession: async () => 'session-1',
         onResumeRun,
+        onCompact,
       });
       return null;
     }
@@ -58,7 +60,11 @@ describe('paused composer sends', () => {
     root = createRoot(container);
     act(() => root?.render(<Harness />));
     return {
-      request, inputs, dispatch, onResumeRun,
+      request,
+      inputs,
+      dispatch,
+      onResumeRun,
+      onCompact,
       latest: (): ComposerMediaResult => {
         if (!captured) throw new Error('composer not rendered');
         return captured;
@@ -76,10 +82,22 @@ describe('paused composer sends', () => {
       expect(harness.inputs).toHaveLength(1);
       expect(harness.inputs[0]).toMatchObject({ text, clientMessageId: expect.any(String) });
       expect(harness.inputs[0]?.source).not.toBe('resume');
-      expect(harness.dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'user/send', text }));
+      expect(harness.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'user/send', text }),
+      );
       expect(harness.latest().composer).toBe('');
     },
   );
+
+  it('runs /compact while paused instead of prompting or resuming', async () => {
+    const harness = renderComposer();
+    act(() => harness.latest().setComposer('/compact keep tools'));
+    await act(async () => harness.latest().handleSend());
+    expect(harness.onCompact).toHaveBeenCalledWith('keep tools');
+    expect(harness.onResumeRun).not.toHaveBeenCalled();
+    expect(harness.inputs).toHaveLength(0);
+    expect(harness.latest().composer).toBe('');
+  });
 
   it('keeps the draft on rejection and does not resume the old task', async () => {
     const harness = renderComposer(true);
@@ -87,7 +105,9 @@ describe('paused composer sends', () => {
     await act(async () => harness.latest().handleSend());
     expect(harness.onResumeRun).not.toHaveBeenCalled();
     expect(harness.latest().composer).toBe('换一个办法');
-    expect(harness.dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'user/send-rollback' }));
+    expect(harness.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'user/send-rollback' }),
+    );
   });
 
   it.each([false, true])('preserves attachment delivery with rejected=%s', async (rejected) => {

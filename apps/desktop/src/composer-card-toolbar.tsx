@@ -1,17 +1,18 @@
 import type { ReactElement } from 'react';
 import { IconButton } from '@piwin/ui-kit';
 import { ComposerPlusMenu } from './composer-plus-menu';
-import { getAgentMode } from './agent-mode';
+import { AgentModeControl } from './AgentModeControl';
 import { ThinkingEffortControl } from './ThinkingEffortControl';
 import { RunModeControl } from './RunModeControl';
 import { OrchestrationSchemeControl } from './OrchestrationSchemeControl';
-import { IconClose, IconMic, IconPlus } from './shell-icons';
+import { IconMic, IconPlus } from './shell-icons';
 import { LiveComposerButton } from './live/LiveComposerButton.js';
 import { ComposerActionSlot } from './composer-run-actions';
 import { ComposerContextUsageControl } from './composer-context-controls';
 import type { ComposerDockProps } from './composer-dock-types';
 import type { getDesktopCopy } from './desktop-locale';
 import type { useSpeechInput } from './hooks/use-speech-input.js';
+import { isReservedComposerSlashCommand } from './slash';
 
 type ComposerCopy = ReturnType<typeof getDesktopCopy>['composer'] & {
   send: string;
@@ -41,7 +42,6 @@ export type ComposerCardToolbarProps = {
   }>;
   selectedModel: ComposerDockProps['modelOptions'][number] | undefined;
   triggerSend: () => void;
-  triggerSteer: () => void;
 };
 
 export function ComposerCardToolbar({
@@ -59,9 +59,8 @@ export function ComposerCardToolbar({
   thinkingModels,
   selectedModel,
   triggerSend,
-  triggerSteer,
 }: ComposerCardToolbarProps): ReactElement {
-  const agentModeDefinition = getAgentMode(props.agentMode);
+  const reservedCommand = isReservedComposerSlashCommand(props.composer);
   return (
     <div className="composer-v2-toolbar">
       <div className="composer-v2-toolbar-left">
@@ -156,30 +155,19 @@ export function ComposerCardToolbar({
             ) : null}
           </>
         ) : null}
-
-        {/* Agent mode chip (non-default only) */}
-        {props.isConversationSession !== true && props.agentMode !== 'agent' ? (
-          <span
-            className={`composer-v2-mode-chip mode-${props.agentMode}`}
-            data-testid="agent-mode-chip"
-            title={agentModeDefinition.description}
-          >
-            {agentModeDefinition.label}
-            <button
-              type="button"
-              className="composer-v2-mode-dismiss"
-              data-testid="agent-mode-dismiss"
-              disabled={isStreamingRun}
-              aria-label={copy.exitAgentMode(agentModeDefinition.label)}
-              onClick={() => props.onAgentModeChange('agent')}
-            >
-              <IconClose width={12} height={12} />
-            </button>
-          </span>
-        ) : null}
       </div>
 
       <div className="composer-v2-toolbar-right">
+        <AgentModeControl
+          disabled={isStreamingRun}
+          value={props.agentMode}
+          onChange={props.onAgentModeChange}
+          goalDisabled={props.goalExtensionEnabled === false}
+          {...(props.onOpenExtensionsSettings
+            ? { onOpenExtensionsSettings: props.onOpenExtensionsSettings }
+            : {})}
+        />
+
         {/* Run Mode pill (ADR 0024) */}
         {props.isConversationSession !== true && props.onRunModeChange && props.runModePreset ? (
           <RunModeControl
@@ -218,7 +206,9 @@ export function ComposerCardToolbar({
         {props.contextRingView ? (
           <ComposerContextUsageControl
             view={props.contextRingView}
-            {...(props.onOpenModelSettings ? { onOpenModelSettings: props.onOpenModelSettings } : {})}
+            {...(props.onOpenModelSettings
+              ? { onOpenModelSettings: props.onOpenModelSettings }
+              : {})}
           />
         ) : null}
 
@@ -231,14 +221,12 @@ export function ComposerCardToolbar({
           hasContent={hasContent}
           onlyFailedAttachments={onlyFailedAttachments}
           isExtensionUiActive={isExtensionUiActive}
-          composerHasText={props.composer.trim().length > 0}
           onSend={triggerSend}
           onPause={props.onPause}
           {...(props.onResume ? { onResume: props.onResume } : {})}
-          {...(props.onSteer ? { onSteer: triggerSteer } : {})}
-          {...(props.mutationsEnabled === undefined
+          {...(props.mutationsEnabled === undefined && !reservedCommand
             ? {}
-            : { mutationsEnabled: props.mutationsEnabled })}
+            : { mutationsEnabled: reservedCommand || props.mutationsEnabled !== false })}
         />
       </div>
     </div>

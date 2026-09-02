@@ -24,4 +24,21 @@ describe('at-match', () => {
     expect(groups.length).toBeGreaterThan(0);
     expect(groups.some((g) => g.groupLabel === 'System Context')).toBe(true);
   });
+
+  it('includes folder mentions from recentFolders', () => {
+    const catalog = buildAtCatalog({
+      recentFiles: ['src/App.tsx'],
+      recentFolders: ['src'],
+    });
+    const folder = catalog.find((item) => item.kind === 'folder');
+    expect(folder).toMatchObject({
+      id: 'folder-src',
+      name: 'src',
+      label: '@src',
+      groupLabel: 'Workspace File',
+    });
+    const matches = filterAtItems(catalog, 'src');
+    expect(matches.some((item) => item.kind === 'file' && item.name === 'src/App.tsx')).toBe(true);
+    expect(matches.some((item) => item.kind === 'folder' && item.name === 'src')).toBe(true);
+  });
 });

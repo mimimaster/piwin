@@ -38,7 +38,12 @@ import { hostFailureNotice, hostReconnectNotice } from '../host-problem-copy.js'
 import { shouldBlockRemoteHostGesture } from '../host-reconnect-gate.js';
 import { desktopForegroundMutationsEnabled } from '../foreground-admission.js';
 import { flattenUnsafeRemoteContextRefs } from '../remote-context-refs.js';
-import { shouldRestoreLiveComposer, sendOwnerLockKey, acquireSendOwnerLock, releaseSendOwnerLock } from '../composer-send-owner.js';
+import {
+  shouldRestoreLiveComposer,
+  sendOwnerLockKey,
+  acquireSendOwnerLock,
+  releaseSendOwnerLock,
+} from '../composer-send-owner.js';
 import { logSessionChain, sessionChainErrorCode } from '../session-chain-log.js';
 import { sessionScopeKey } from '../session-scope-key.js';
 import { isImagePromptAttachment, useComposerPromptInput } from './use-composer-prompt-input.js';
@@ -72,7 +77,7 @@ export type UseComposerSendArgs = {
   sendOwnerLocksRef: MutableRefObject<Set<string>>;
   // Attachments domain.
   clearPendingAttachments: () => void;
-  disposeComposerAttachments: (attachments: PendingComposerAttachment[]) => void;
+  forceDisposeComposerAttachments: (attachments: PendingComposerAttachment[]) => void;
   markAttachmentUploadStatus: (localIds: string[], status: PendingAttachmentUploadStatus) => void;
   readResolvedComposerChips: () => PendingComposerAttachment[];
   saveDeferredMediaChips: (sessionId: string, chips: PendingComposerAttachment[]) => Promise<void>;
@@ -102,7 +107,7 @@ export function useComposerSend(params: UseComposerSendArgs) {
     currentDraftIdRef,
     sendOwnerLocksRef,
     clearPendingAttachments,
-    disposeComposerAttachments,
+    forceDisposeComposerAttachments,
     markAttachmentUploadStatus,
     readResolvedComposerChips,
     saveDeferredMediaChips,
@@ -154,7 +159,7 @@ export function useComposerSend(params: UseComposerSendArgs) {
       setComposer('');
       // Hide chips without releasing them: File, blob URL and save results
       // survive until the session/prompt ACK. On failure the snapshot is
-      // restored; on ACK disposeComposerAttachments releases everything.
+      // restored; on ACK forceDisposeComposerAttachments releases everything.
       pendingAttachmentsRef.current = [];
       setPendingAttachments([]);
       return clientMessageId;
@@ -241,47 +246,50 @@ export function useComposerSend(params: UseComposerSendArgs) {
     setPendingAttachments([]);
   }, []);
 
-  const resolveSessionIdForComposer = useCallback(async (sessionName?: string): Promise<string | null> => {
-    if (args.state.activeSessionId) {
-      return args.state.activeSessionId;
-    }
-    // Explicit New Agent scope binding (clicked project folder / restored
-    // draft) wins over the latest navigation scope, so project first-send
-    // never falls back to a General session.
-    const draftScope = currentDraftScopeRef.current;
-    const isGeneral = draftScope.kind === 'general';
-    const draftProjectTrusted =
-      draftScope.kind === 'project' &&
-      args.state.projectPath === draftScope.projectPath &&
-      args.state.projectTrusted;
-    if (!isGeneral && !draftProjectTrusted) {
-      args.dispatch({ type: 'project/trust-dialog', open: true });
-      return null;
-    }
-    if (!args.ensureSession) {
-      notifyError('Create a session before sending');
-      return null;
-    }
-    // We only reach this point from draft mode (activeSessionId was null).
-    // Creating the session activates it in the reducer, which normally runs
-    // the draft-exit effect and clears the composer. handleSend sets
-    // skipDraftSaveRef first, so the send path still clears.
-    const sessionId = isGeneral
-      ? await args.ensureSession({
-          scope: { kind: 'general' },
-          ...(sessionName !== undefined ? { sessionName } : {}),
-        })
-      : await args.ensureSession({
-          scope: draftScope,
-          projectPath: draftScope.projectPath,
-          alreadyTrusted: true,
-          ...(sessionName !== undefined ? { sessionName } : {}),
-        });
-    if (sessionId) {
-      preserveComposerOnSessionActivationRef.current = true;
-    }
-    return sessionId;
-  }, [args]);
+  const resolveSessionIdForComposer = useCallback(
+    async (sessionName?: string): Promise<string | null> => {
+      if (args.state.activeSessionId) {
+        return args.state.activeSessionId;
+      }
+      // Explicit New Agent scope binding (clicked project folder / restored
+      // draft) wins over the latest navigation scope, so project first-send
+      // never falls back to a General session.
+      const draftScope = currentDraftScopeRef.current;
+      const isGeneral = draftScope.kind === 'general';
+      const draftProjectTrusted =
+        draftScope.kind === 'project' &&
+        args.state.projectPath === draftScope.projectPath &&
+        args.state.projectTrusted;
+      if (!isGeneral && !draftProjectTrusted) {
+        args.dispatch({ type: 'project/trust-dialog', open: true });
+        return null;
+      }
+      if (!args.ensureSession) {
+        notifyError('Create a session before sending');
+        return null;
+      }
+      // We only reach this point from draft mode (activeSessionId was null).
+      // Creating the session activates it in the reducer, which normally runs
+      // the draft-exit effect and clears the composer. handleSend sets
+      // skipDraftSaveRef first, so the send path still clears.
+      const sessionId = isGeneral
+        ? await args.ensureSession({
+            scope: { kind: 'general' },
+            ...(sessionName !== undefined ? { sessionName } : {}),
+          })
+        : await args.ensureSession({
+            scope: draftScope,
+            projectPath: draftScope.projectPath,
+            alreadyTrusted: true,
+            ...(sessionName !== undefined ? { sessionName } : {}),
+          });
+      if (sessionId) {
+        preserveComposerOnSessionActivationRef.current = true;
+      }
+      return sessionId;
+    },
+    [args],
+  );
 
   const handleSend = useCallback(
     async (overrideText?: string): Promise<void> => {
@@ -294,9 +302,9 @@ export function useComposerSend(params: UseComposerSendArgs) {
         return;
       }
       // `/compact` and `/stop` must intercept before Send gates. Admission
-      // reconciling, paused runs, and failed chips would otherwise swallow the
-      // command with an empty composer and no toast.
-      if (text.startsWith('/') && pendingAttachmentsRef.current.length === 0) {
+      // reconciling, paused runs, leftover chips, and failed chips would
+      // otherwise swallow the command with an empty composer and no toast.
+      if (text.startsWith('/')) {
         const parsed = parseComposerSlashSubmit(text, []);
         if (parsed.kind === 'command' && parsed.commandId === 'compact') {
           promptSubmissionInProgress.current = true;
@@ -362,384 +370,406 @@ export function useComposerSend(params: UseComposerSendArgs) {
         hostInstanceId: args.hostClient.getHostInstanceId?.() ?? null,
       });
       try {
-      // ADR 0045 compatibility path: pastes are queued locally and only reach
-      // `media/save` here, after Send resolves the destination session. The
-      // bubble must carry real Host attachment refs, so deferred saves run
-      // before the optimistic paint. Error chips stay visible for Retry.
-      const deferredChips = [...pendingAttachmentsRef.current].filter(
-        (item) =>
-          item.attachment.kind === 'media' &&
-          !isPendingAttachmentReady(item) &&
-          item.uploadStatus !== 'error',
-      );
-
-      const wasInDraftMode = !args.state.activeSessionId;
-      const isGeneral = args.state.activeScope.kind === 'general' || !args.state.projectPath;
-      const listName = composerSessionListName(text, pendingAttachmentsRef.current);
-
-      // Sync gates before paint so we never flash a bubble that cannot send.
-      // The check itself stays synchronous so a plain trusted send still paints
-      // in the same turn as Enter; only a missing workspace awaits the picker.
-      const checkSendGates = (): { ok: true } | { ok: false; awaitWorkspacePicker?: true } => {
-        if (!isGeneral) {
-          if (!args.state.projectPath) {
-            return { ok: false, awaitWorkspacePicker: true };
-          }
-          if (!args.state.projectTrusted) {
-            args.dispatch({ type: 'project/trust-dialog', open: true });
-            return { ok: false };
-          }
-        }
-        return { ok: true };
-      };
-
-      let deferredSessionId: string | null = null;
-      if (deferredChips.length > 0) {
-        const gates = checkSendGates();
-        if (!gates.ok) {
-          if (gates.awaitWorkspacePicker) {
-            await args.onNeedWorkspace?.();
-          }
-          return;
-        }
-        if (wasInDraftMode) {
-          skipDraftSaveRef.current = true;
-          draftTextRef.current = '';
-        }
-        markAttachmentUploadStatus(
-          deferredChips.map((item) => item.localId),
-          'saving',
+        // ADR 0045 compatibility path: pastes are queued locally and only reach
+        // `media/save` here, after Send resolves the destination session. The
+        // bubble must carry real Host attachment refs, so deferred saves run
+        // before the optimistic paint. Error chips stay visible for Retry.
+        const deferredChips = [...pendingAttachmentsRef.current].filter(
+          (item) =>
+            item.attachment.kind === 'media' &&
+            !isPendingAttachmentReady(item) &&
+            item.uploadStatus !== 'error',
         );
-        const sessionId = await resolveSessionIdForComposer(listName);
-        if (!sessionId) {
-          if (wasInDraftMode) {
-            skipDraftSaveRef.current = false;
-          }
-          // Nothing painted yet: text stays, unsaved chips return to queued.
-          markAttachmentUploadStatus(
-            deferredChips.map((item) => item.localId),
-            'queued',
-          );
-          return;
-        }
-        if (wasInDraftMode) {
-          removeCurrentDraft('send');
-        }
-        deferredSessionId = sessionId;
-        await saveDeferredMediaChips(sessionId, deferredChips);
-        const failed = readResolvedComposerChips().filter(isFailedMediaAttachment);
-        if (failed.length > 0) {
-          args.dispatch({
-            type: 'error',
-            message: attachmentCopy.attachmentSendBlocked(failed.length),
-          });
-          return;
-        }
-      }
 
-      // Include ready chips only; error chips stay visible for an explicit
-      // Retry and are never silently dropped into the prompt.
-      let attachments: PromptAttachment[] = readResolvedComposerChips()
-        .filter(isPendingAttachmentReady)
-        .map((item) => item.attachment);
-      if (!text && attachments.length === 0 && contextRefs.length === 0) {
-        return;
-      }
-      // Streaming is allowed: host supersedes the in-flight run when a newer
-      // message arrives (session/prompt interrupt). Users no longer need to
-      // press Stop first.
+        const wasInDraftMode = !args.state.activeSessionId;
+        const isGeneral = args.state.activeScope.kind === 'general' || !args.state.projectPath;
+        const listName = composerSessionListName(text, pendingAttachmentsRef.current);
 
-      const hasImage = attachments.some(isImagePromptAttachment);
-      if (hasImage) {
-        const selected = args.modelOptions?.find(
-          (option) => `${option.providerId}::${option.modelId}` === args.selectedModelKey,
-        );
-        const supportsImage = selected?.supportsImage === true;
-        if (!supportsImage && !args.visionDelegationEnabled) {
-          const message =
-            '当前模型是纯文本（无视觉）。图片只会以本地路径字符串注入，模型看不到像素。' +
-            '请切换到带「视觉」标签的模型，或在设置里开启视觉委派。仍要发送吗？';
-          if (args.confirmTextOnlyImageSend) {
-            const ok = await args.confirmTextOnlyImageSend(message);
-            if (!ok) {
-              return;
+        // Sync gates before paint so we never flash a bubble that cannot send.
+        // The check itself stays synchronous so a plain trusted send still paints
+        // in the same turn as Enter; only a missing workspace awaits the picker.
+        const checkSendGates = (): { ok: true } | { ok: false; awaitWorkspacePicker?: true } => {
+          if (!isGeneral) {
+            if (!args.state.projectPath) {
+              return { ok: false, awaitWorkspacePicker: true };
+            }
+            if (!args.state.projectTrusted) {
+              args.dispatch({ type: 'project/trust-dialog', open: true });
+              return { ok: false };
             }
           }
-        }
-      }
+          return { ok: true };
+        };
 
-      if (deferredChips.length === 0) {
-        const gates = checkSendGates();
-        if (!gates.ok) {
-          if (gates.awaitWorkspacePicker) {
-            await args.onNeedWorkspace?.();
-          }
-          return;
-        }
-      }
-
-      // Whole-message slash commands that must not paint a chat bubble.
-      if (text.startsWith('/') && attachments.length === 0) {
-        const skills = (args.menuSkills ?? []).map((skill) => ({
-          id: skill.id,
-          name: skill.name,
-          enabled: skill.enabled,
-        }));
-        const parsed = parseComposerSlashSubmit(text, skills);
-
-        if (parsed.kind === 'scheme') {
-          if (args.conversationChat === true) {
+        let deferredSessionId: string | null = null;
+        if (deferredChips.length > 0) {
+          const gates = checkSendGates();
+          if (!gates.ok) {
+            if (gates.awaitWorkspacePicker) {
+              await args.onNeedWorkspace?.();
+            }
             return;
           }
-          args.onOrchestrationSchemeChange?.(parsed.schemeId);
-          setComposer('');
-          clearPendingAttachments();
-          return;
-        }
-        if (parsed.kind === 'knowledge') {
-          setComposer('');
-          clearPendingAttachments();
-          args.onOpenKnowledge?.(parsed.subTab);
-          return;
-        }
-        if (parsed.kind === 'cards-panel') {
-          setComposer('');
-          clearPendingAttachments();
-          args.onOpenCardsPanel?.();
-          return;
-        }
-        if (parsed.kind === 'mode' && !parsed.args) {
-          if (args.conversationChat === true) {
+          if (wasInDraftMode) {
+            skipDraftSaveRef.current = true;
+            draftTextRef.current = '';
+          }
+          markAttachmentUploadStatus(
+            deferredChips.map((item) => item.localId),
+            'saving',
+          );
+          const sessionId = await resolveSessionIdForComposer(listName);
+          if (!sessionId) {
+            if (wasInDraftMode) {
+              skipDraftSaveRef.current = false;
+            }
+            // Nothing painted yet: text stays, unsaved chips return to queued.
+            markAttachmentUploadStatus(
+              deferredChips.map((item) => item.localId),
+              'queued',
+            );
             return;
           }
-          args.onAgentModeChange?.(parsed.modeId);
-          setComposer('');
-          clearPendingAttachments();
-          return;
-        }
-        if (parsed.kind === 'skill') {
-          if (args.conversationChat === true) {
-            return;
+          if (wasInDraftMode) {
+            removeCurrentDraft('send');
           }
-          const skillEnabled =
-            skills.find((skill) => skill.id === parsed.skillId)?.enabled !== false;
-          if (!skillEnabled) {
+          deferredSessionId = sessionId;
+          await saveDeferredMediaChips(sessionId, deferredChips);
+          const failed = readResolvedComposerChips().filter(isFailedMediaAttachment);
+          if (failed.length > 0) {
             args.dispatch({
               type: 'error',
-              message: `Skill "${parsed.skillName}" is disabled — enable it in Settings → Skills`,
+              message: attachmentCopy.attachmentSendBlocked(failed.length),
             });
             return;
           }
         }
-      }
 
-      // Freeze all model-facing prompt choices before either the queue or the
-      // ordinary prompt path. A slash-mode/skill send while a Run is active
-      // must carry the same transformed text and metadata as an idle send.
-      let displayText = text;
-      let hostPromptText = text;
-      let promptAgentMode: AgentModeId = args.agentMode;
-      let promptAttachments: PromptAttachment[] = attachments;
-      let promptContextRefs = contextRefs;
-      let skillActivity: SkillActivityView | undefined;
-      if (text.startsWith('/') && attachments.length === 0 && promptContextRefs.length === 0) {
-        const skills = (args.menuSkills ?? []).map((skill) => ({
-          id: skill.id,
-          name: skill.name,
-          enabled: skill.enabled,
-        }));
-        const parsed = parseComposerSlashSubmit(text, skills);
-        if (parsed.kind === 'mode' && parsed.args) {
-          if (args.conversationChat === true) {
-            return;
-          }
-          args.onAgentModeChange?.(parsed.modeId);
-          displayText = parsed.args;
-          hostPromptText = parsed.args;
-          promptAgentMode = parsed.modeId;
-          promptAttachments = [];
-        } else if (parsed.kind === 'skill') {
-          if (args.conversationChat === true) {
-            return;
-          }
-          hostPromptText = applySkillToPrompt(parsed.skillName, parsed.skillId, parsed.args);
-          promptAttachments = [];
-          skillActivity = { skillId: parsed.skillId, name: parsed.skillName };
-        }
-      }
-
-      if (args.hostClient.getTransport?.() === 'remote') {
-        const flattened = flattenUnsafeRemoteContextRefs(hostPromptText, promptContextRefs);
-        // The slash-mode/skill branch above only runs when promptContextRefs
-        // was empty, so whenever flattening actually appends text here,
-        // displayText still equals the pre-flatten hostPromptText. Mirror the
-        // same appended text into the bubble so what's shown immediately
-        // matches what the Host is actually asked to store and answer.
-        if (flattened.text !== hostPromptText) {
-          displayText = flattened.text;
-        }
-        hostPromptText = flattened.text;
-        promptContextRefs = flattened.contextRefs;
-      }
-
-      // Stage 4: an ordinary Send during an active Run is a Host-owned
-      // next-turn queue admission. The Host persists the same user identity
-      // and later drains it after the exact foreground Run terminalizes.
-      if (args.state.streaming && args.state.activeSessionId) {
-        const sessionId = args.state.activeSessionId;
-        const queuedTurnId = crypto.randomUUID();
-        const paintSnapshotAttachments = [...pendingAttachmentsRef.current];
-        const clientMessageId = crypto.randomUUID();
-        clearComposerForQueuedAdmission();
-        pendingContextRefsRef.current = contextRefs;
-        promptSubmissionInProgress.current = true;
-        try {
-          const response = await args.hostClient.request(
-            {
-              type: 'session/queued-turn-submit',
-              sessionId,
-              queuedTurnId,
-              userMessageId: clientMessageId,
-              input: buildPromptRequestInput({
-                text: hostPromptText,
-                attachments: promptAttachments,
-                contextRefs: promptContextRefs,
-                agentMode: promptAgentMode,
-                clientMessageId,
-                ...(skillActivity ? { skillId: skillActivity.skillId } : {}),
-              }),
-            },
-            { idempotencyKey: createGestureIdempotencyKey() },
-          );
-          if (!response.success) {
-            setComposer(text);
-            if (paintSnapshotAttachments.length > 0) {
-              pendingAttachmentsRef.current = [...paintSnapshotAttachments];
-              setPendingAttachments([...paintSnapshotAttachments]);
-            }
-            notifyError(hostFailureNotice(response, locale));
-            return;
-          }
-          disposeComposerAttachments(paintSnapshotAttachments);
-          pendingContextRefsRef.current = [];
-          const data = response.data as { queuedTurn?: QueuedTurnRecord } | undefined;
-          if (data?.queuedTurn) {
-            args.dispatch({ type: 'session/queued-turn-updated', queuedTurn: data.queuedTurn });
-          }
-          refreshQueuedTurnQueue(sessionId);
-          if (promptRefsSnapshot) {
-            args.consumePendingContextRefs?.(promptRefsSnapshot);
-          } else {
-            args.clearPendingContextRefs?.();
-          }
-        } catch (error) {
-          setComposer(text);
-          if (paintSnapshotAttachments.length > 0) {
-            pendingAttachmentsRef.current = [...paintSnapshotAttachments];
-            setPendingAttachments([...paintSnapshotAttachments]);
-          }
-          notifyError(formatError(error));
-        } finally {
-          promptSubmissionInProgress.current = false;
-        }
-        return;
-      }
-
-      // Paint-first: clear composer and show the user bubble before any IPC.
-      // Session create / prompt ACK stay off the critical input path. A send
-      // with deferred media already ensured the session above.
-      if (deferredSessionId === null) {
-        if (wasInDraftMode) {
-          skipDraftSaveRef.current = true;
-          draftTextRef.current = '';
-        }
-      }
-
-      let clientMessageId: string | null = null;
-
-      // Chips exactly as painted (deferred saves already resolved to ready).
-      // Kept alive until ACK so a failed prompt can restore them intact.
-      const paintSnapshotAttachments = [...pendingAttachmentsRef.current];
-      // Paint exactly what will be persisted: on a remote transport,
-      // promptContextRefs is already the post-flatten "safe" subset (see
-      // flattenUnsafeRemoteContextRefs above). Painting the pre-flatten
-      // `contextRefs` here would show chips that vanish the next time this
-      // message is hydrated from the Host's stored transcript.
-      clientMessageId = paintOptimisticUserSend({
-        text,
-        displayText,
-        attachments: promptAttachments,
-        contextRefs: promptContextRefs,
-        ...(skillActivity ? { skill: skillActivity } : {}),
-      });
-      // paintOptimisticUserSend hides attachment chips; workspace refs belong
-      // to this same prompt and must survive until the Host request is built.
-      pendingContextRefsRef.current = promptContextRefs;
-
-      promptSubmissionInProgress.current = true;
-      let ownerSessionId: string | null = ownerSessionIdAtEntry;
-      try {
-        const sessionId = deferredSessionId ?? (await resolveSessionIdForComposer(listName));
-        if (!sessionId) {
-          if (wasInDraftMode) {
-            skipDraftSaveRef.current = false;
-          }
-          rollbackOptimisticUserSend(
-            clientMessageId,
-            text,
-            paintSnapshotAttachments,
-            ownerSessionId,
-            ownerScopeAtEntry,
-          );
+        // Include ready chips only; error chips stay visible for an explicit
+        // Retry and are never silently dropped into the prompt.
+        let attachments: PromptAttachment[] = readResolvedComposerChips()
+          .filter(isPendingAttachmentReady)
+          .map((item) => item.attachment);
+        if (!text && attachments.length === 0 && contextRefs.length === 0) {
           return;
         }
-        if (wasInDraftMode && deferredSessionId === null) {
-          removeCurrentDraft('send');
-        }
-        ownerSessionId = sessionId;
+        // Streaming is allowed: host supersedes the in-flight run when a newer
+        // message arrives (session/prompt interrupt). Users no longer need to
+        // press Stop first.
 
-        const input = buildPromptRequestInput({
-          text: hostPromptText,
-          attachments: promptAttachments,
-          contextRefs: promptContextRefs,
-          agentMode: promptAgentMode,
-          clientMessageId,
-          ...(skillActivity ? { skillId: skillActivity.skillId } : {}),
-        });
-        const response = await requestPromptWithForeground({
-          request: (command, options) => args.hostClient.request(command, options),
-          sessionId,
-          input,
-          createIdempotencyKey: createGestureIdempotencyKey,
-          ...(args.confirmBusyRun ? { resolveBusy: args.confirmBusyRun } : {}),
-          ...(args.confirmForegroundReplace
-            ? { confirmReplace: args.confirmForegroundReplace }
-            : {}),
-          onQueue: async () => {
-            rollbackOptimisticUserSend(
-              clientMessageId,
-              text,
-              paintSnapshotAttachments,
-              sessionId,
-              ownerScopeAtEntry,
-            );
-            const queuedTurnId = crypto.randomUUID();
-            return args.hostClient.request(
+        const hasImage = attachments.some(isImagePromptAttachment);
+        if (hasImage) {
+          const selected = args.modelOptions?.find(
+            (option) => `${option.providerId}::${option.modelId}` === args.selectedModelKey,
+          );
+          const supportsImage = selected?.supportsImage === true;
+          if (!supportsImage && !args.visionDelegationEnabled) {
+            const message =
+              '当前模型是纯文本（无视觉）。图片只会以本地路径字符串注入，模型看不到像素。' +
+              '请切换到带「视觉」标签的模型，或在设置里开启视觉委派。仍要发送吗？';
+            if (args.confirmTextOnlyImageSend) {
+              const ok = await args.confirmTextOnlyImageSend(message);
+              if (!ok) {
+                return;
+              }
+            }
+          }
+        }
+
+        if (deferredChips.length === 0) {
+          const gates = checkSendGates();
+          if (!gates.ok) {
+            if (gates.awaitWorkspacePicker) {
+              await args.onNeedWorkspace?.();
+            }
+            return;
+          }
+        }
+
+        // Whole-message slash commands that must not paint a chat bubble.
+        if (text.startsWith('/') && attachments.length === 0) {
+          const skills = (args.menuSkills ?? []).map((skill) => ({
+            id: skill.id,
+            name: skill.name,
+            enabled: skill.enabled,
+          }));
+          const parsed = parseComposerSlashSubmit(text, skills);
+
+          if (parsed.kind === 'scheme') {
+            if (args.conversationChat === true) {
+              return;
+            }
+            args.onOrchestrationSchemeChange?.(parsed.schemeId);
+            setComposer('');
+            clearPendingAttachments();
+            return;
+          }
+          if (parsed.kind === 'knowledge') {
+            setComposer('');
+            clearPendingAttachments();
+            args.onOpenKnowledge?.(parsed.subTab);
+            return;
+          }
+          if (parsed.kind === 'cards-panel') {
+            setComposer('');
+            clearPendingAttachments();
+            args.onOpenCardsPanel?.();
+            return;
+          }
+          if (parsed.kind === 'mode' && !parsed.args) {
+            args.onAgentModeChange?.(parsed.modeId);
+            setComposer('');
+            clearPendingAttachments();
+            return;
+          }
+          if (parsed.kind === 'skill') {
+            if (args.conversationChat === true) {
+              return;
+            }
+            const skillEnabled =
+              skills.find((skill) => skill.id === parsed.skillId)?.enabled !== false;
+            if (!skillEnabled) {
+              args.dispatch({
+                type: 'error',
+                message: `Skill "${parsed.skillName}" is disabled — enable it in Settings → Skills`,
+              });
+              return;
+            }
+          }
+        }
+
+        // Freeze all model-facing prompt choices before either the queue or the
+        // ordinary prompt path. A slash-mode/skill send while a Run is active
+        // must carry the same transformed text and metadata as an idle send.
+        let displayText = text;
+        let hostPromptText = text;
+        let promptAgentMode: AgentModeId = args.agentMode;
+        let promptAttachments: PromptAttachment[] = attachments;
+        let promptContextRefs = contextRefs;
+        let skillActivity: SkillActivityView | undefined;
+        if (text.startsWith('/') && attachments.length === 0 && promptContextRefs.length === 0) {
+          const skills = (args.menuSkills ?? []).map((skill) => ({
+            id: skill.id,
+            name: skill.name,
+            enabled: skill.enabled,
+          }));
+          const parsed = parseComposerSlashSubmit(text, skills);
+          if (parsed.kind === 'mode' && parsed.args) {
+            args.onAgentModeChange?.(parsed.modeId);
+            displayText = parsed.args;
+            hostPromptText = parsed.args;
+            promptAgentMode = parsed.modeId;
+            promptAttachments = [];
+          } else if (parsed.kind === 'skill') {
+            if (args.conversationChat === true) {
+              return;
+            }
+            hostPromptText = applySkillToPrompt(parsed.skillName, parsed.skillId, parsed.args);
+            promptAttachments = [];
+            skillActivity = { skillId: parsed.skillId, name: parsed.skillName };
+          }
+        }
+
+        if (args.hostClient.getTransport?.() === 'remote') {
+          const flattened = flattenUnsafeRemoteContextRefs(hostPromptText, promptContextRefs);
+          // The slash-mode/skill branch above only runs when promptContextRefs
+          // was empty, so whenever flattening actually appends text here,
+          // displayText still equals the pre-flatten hostPromptText. Mirror the
+          // same appended text into the bubble so what's shown immediately
+          // matches what the Host is actually asked to store and answer.
+          if (flattened.text !== hostPromptText) {
+            displayText = flattened.text;
+          }
+          hostPromptText = flattened.text;
+          promptContextRefs = flattened.contextRefs;
+        }
+
+        // Stage 4: an ordinary Send during an active Run is a Host-owned
+        // next-turn queue admission. The Host persists the same user identity
+        // and later drains it after the exact foreground Run terminalizes.
+        if (args.state.streaming && args.state.activeSessionId) {
+          const sessionId = args.state.activeSessionId;
+          const queuedTurnId = crypto.randomUUID();
+          const paintSnapshotAttachments = [...pendingAttachmentsRef.current];
+          const clientMessageId = crypto.randomUUID();
+          clearComposerForQueuedAdmission();
+          pendingContextRefsRef.current = contextRefs;
+          promptSubmissionInProgress.current = true;
+          try {
+            const response = await args.hostClient.request(
               {
                 type: 'session/queued-turn-submit',
                 sessionId,
                 queuedTurnId,
                 userMessageId: clientMessageId,
-                input,
+                input: buildPromptRequestInput({
+                  text: hostPromptText,
+                  attachments: promptAttachments,
+                  contextRefs: promptContextRefs,
+                  agentMode: promptAgentMode,
+                  clientMessageId,
+                  ...(skillActivity ? { skillId: skillActivity.skillId } : {}),
+                }),
               },
               { idempotencyKey: createGestureIdempotencyKey() },
             );
-          },
-          ...(typeof args.hostClient.supportsForegroundAdmission === 'function'
-            ? { remoteForegroundAdmission: args.hostClient.supportsForegroundAdmission() }
-            : {}),
+            if (!response.success) {
+              setComposer(text);
+              if (paintSnapshotAttachments.length > 0) {
+                pendingAttachmentsRef.current = [...paintSnapshotAttachments];
+                setPendingAttachments([...paintSnapshotAttachments]);
+              }
+              notifyError(hostFailureNotice(response, locale));
+              return;
+            }
+            forceDisposeComposerAttachments(paintSnapshotAttachments);
+            pendingContextRefsRef.current = [];
+            const data = response.data as { queuedTurn?: QueuedTurnRecord } | undefined;
+            if (data?.queuedTurn) {
+              args.dispatch({ type: 'session/queued-turn-updated', queuedTurn: data.queuedTurn });
+            }
+            refreshQueuedTurnQueue(sessionId);
+            if (promptRefsSnapshot) {
+              args.consumePendingContextRefs?.(promptRefsSnapshot);
+            } else {
+              args.clearPendingContextRefs?.();
+            }
+          } catch (error) {
+            setComposer(text);
+            if (paintSnapshotAttachments.length > 0) {
+              pendingAttachmentsRef.current = [...paintSnapshotAttachments];
+              setPendingAttachments([...paintSnapshotAttachments]);
+            }
+            notifyError(formatError(error));
+          } finally {
+            promptSubmissionInProgress.current = false;
+          }
+          return;
+        }
+
+        // Paint-first: clear composer and show the user bubble before any IPC.
+        // Session create / prompt ACK stay off the critical input path. A send
+        // with deferred media already ensured the session above.
+        if (deferredSessionId === null) {
+          if (wasInDraftMode) {
+            skipDraftSaveRef.current = true;
+            draftTextRef.current = '';
+          }
+        }
+
+        let clientMessageId: string | null = null;
+
+        // Chips exactly as painted (deferred saves already resolved to ready).
+        // Kept alive until ACK so a failed prompt can restore them intact.
+        const paintSnapshotAttachments = [...pendingAttachmentsRef.current];
+        // Paint exactly what will be persisted: on a remote transport,
+        // promptContextRefs is already the post-flatten "safe" subset (see
+        // flattenUnsafeRemoteContextRefs above). Painting the pre-flatten
+        // `contextRefs` here would show chips that vanish the next time this
+        // message is hydrated from the Host's stored transcript.
+        clientMessageId = paintOptimisticUserSend({
+          text,
+          displayText,
+          attachments: promptAttachments,
+          contextRefs: promptContextRefs,
+          ...(skillActivity ? { skill: skillActivity } : {}),
         });
-        if (response.command === 'session/queued-turn-submit') {
+        // paintOptimisticUserSend hides attachment chips; workspace refs belong
+        // to this same prompt and must survive until the Host request is built.
+        pendingContextRefsRef.current = promptContextRefs;
+
+        promptSubmissionInProgress.current = true;
+        let ownerSessionId: string | null = ownerSessionIdAtEntry;
+        try {
+          const sessionId = deferredSessionId ?? (await resolveSessionIdForComposer(listName));
+          if (!sessionId) {
+            if (wasInDraftMode) {
+              skipDraftSaveRef.current = false;
+            }
+            rollbackOptimisticUserSend(
+              clientMessageId,
+              text,
+              paintSnapshotAttachments,
+              ownerSessionId,
+              ownerScopeAtEntry,
+            );
+            return;
+          }
+          if (wasInDraftMode && deferredSessionId === null) {
+            removeCurrentDraft('send');
+          }
+          ownerSessionId = sessionId;
+
+          const input = buildPromptRequestInput({
+            text: hostPromptText,
+            attachments: promptAttachments,
+            contextRefs: promptContextRefs,
+            agentMode: promptAgentMode,
+            clientMessageId,
+            ...(skillActivity ? { skillId: skillActivity.skillId } : {}),
+          });
+          const response = await requestPromptWithForeground({
+            request: (command, options) => args.hostClient.request(command, options),
+            sessionId,
+            input,
+            createIdempotencyKey: createGestureIdempotencyKey,
+            ...(args.confirmBusyRun ? { resolveBusy: args.confirmBusyRun } : {}),
+            ...(args.confirmForegroundReplace
+              ? { confirmReplace: args.confirmForegroundReplace }
+              : {}),
+            onQueue: async () => {
+              rollbackOptimisticUserSend(
+                clientMessageId,
+                text,
+                paintSnapshotAttachments,
+                sessionId,
+                ownerScopeAtEntry,
+              );
+              const queuedTurnId = crypto.randomUUID();
+              return args.hostClient.request(
+                {
+                  type: 'session/queued-turn-submit',
+                  sessionId,
+                  queuedTurnId,
+                  userMessageId: clientMessageId,
+                  input,
+                },
+                { idempotencyKey: createGestureIdempotencyKey() },
+              );
+            },
+            ...(typeof args.hostClient.supportsForegroundAdmission === 'function'
+              ? { remoteForegroundAdmission: args.hostClient.supportsForegroundAdmission() }
+              : {}),
+          });
+          if (response.command === 'session/queued-turn-submit') {
+            if (!response.success) {
+              rollbackOptimisticUserSend(
+                clientMessageId,
+                text,
+                paintSnapshotAttachments,
+                sessionId,
+                ownerScopeAtEntry,
+              );
+              notifyError(hostFailureNotice(response, locale));
+              return;
+            }
+            forceDisposeComposerAttachments(paintSnapshotAttachments);
+            pendingContextRefsRef.current = [];
+            const queuedData = response.data as { queuedTurn?: QueuedTurnRecord } | undefined;
+            if (queuedData?.queuedTurn) {
+              args.dispatch({
+                type: 'session/queued-turn-updated',
+                queuedTurn: queuedData.queuedTurn,
+              });
+            }
+            refreshQueuedTurnQueue(sessionId);
+            if (promptRefsSnapshot) {
+              args.consumePendingContextRefs?.(promptRefsSnapshot);
+            } else {
+              args.clearPendingContextRefs?.();
+            }
+            return;
+          }
           if (!response.success) {
             rollbackOptimisticUserSend(
               clientMessageId,
@@ -748,117 +778,89 @@ export function useComposerSend(params: UseComposerSendArgs) {
               sessionId,
               ownerScopeAtEntry,
             );
-            notifyError(hostFailureNotice(response, locale));
+            const problem = readForegroundProblem(response);
+            if (problem) {
+              notifyError(foregroundMismatchNotice(problem, locale));
+            } else {
+              notifyError(hostFailureNotice(response, locale));
+            }
+            logSessionChain({
+              event: 'send/failed',
+              operationId: clientMessageId ?? ownerLockKey,
+              owner: sessionId,
+              scopeKey: sessionScopeKey(ownerScopeAtEntry),
+              elapsedMs: Date.now() - sendStartedAt,
+              errorCode: sessionChainErrorCode(response.error),
+              hostInstanceId: args.hostClient.getHostInstanceId?.() ?? null,
+            });
             return;
           }
-          disposeComposerAttachments(paintSnapshotAttachments);
+
+          // ACK: the prompt now owns the attachments. Only here may the local
+          // File, blob preview and save results be released (ADR 0045 recovery).
+          forceDisposeComposerAttachments(paintSnapshotAttachments);
           pendingContextRefsRef.current = [];
-          const queuedData = response.data as { queuedTurn?: QueuedTurnRecord } | undefined;
-          if (queuedData?.queuedTurn) {
-            args.dispatch({
-              type: 'session/queued-turn-updated',
-              queuedTurn: queuedData.queuedTurn,
-            });
-          }
-          refreshQueuedTurnQueue(sessionId);
+
+          applyAcceptedRun(response.data, sessionId);
+          logSessionChain({
+            event: 'send/accepted',
+            operationId: clientMessageId ?? ownerLockKey,
+            owner: sessionId,
+            scopeKey: sessionScopeKey(ownerScopeAtEntry),
+            elapsedMs: Date.now() - sendStartedAt,
+            hostInstanceId: args.hostClient.getHostInstanceId?.() ?? null,
+          });
           if (promptRefsSnapshot) {
             args.consumePendingContextRefs?.(promptRefsSnapshot);
           } else {
             args.clearPendingContextRefs?.();
           }
-          return;
-        }
-        if (!response.success) {
-          rollbackOptimisticUserSend(
-            clientMessageId,
-            text,
-            paintSnapshotAttachments,
-            sessionId,
-            ownerScopeAtEntry,
-          );
-          const problem = readForegroundProblem(response);
-          if (problem) {
-            notifyError(foregroundMismatchNotice(problem, locale));
-          } else {
-            notifyError(hostFailureNotice(response, locale));
+
+          // Optimistic text title on send (host also persists nameSource:text).
+          // This inserts the row into the sidebar immediately; LLM may upgrade later.
+          const currentName =
+            args.state.sessions.find((session) => session.id === sessionId)?.name ??
+            args.state.generalSessions.find((session) => session.id === sessionId)?.name ??
+            Object.values(args.state.projectSessionsByPath)
+              .flat()
+              .find((session) => session.id === sessionId)?.name;
+          if (isPlaceholderSessionName(currentName)) {
+            const interim = deriveDefaultNameFromMessage(displayText);
+            if (interim) {
+              args.dispatch({
+                type: 'session/update',
+                session: {
+                  id: sessionId,
+                  name: interim,
+                  updatedAt: new Date().toISOString(),
+                  scope: ownerScopeAtEntry,
+                },
+              });
+            }
           }
+        } catch (error) {
+          if (clientMessageId) {
+            rollbackOptimisticUserSend(
+              clientMessageId,
+              text,
+              paintSnapshotAttachments,
+              ownerSessionId,
+              ownerScopeAtEntry,
+            );
+          }
+          notifyError(formatError(error));
           logSessionChain({
             event: 'send/failed',
             operationId: clientMessageId ?? ownerLockKey,
-            owner: sessionId,
+            owner: ownerSessionId ?? ownerLockKey,
             scopeKey: sessionScopeKey(ownerScopeAtEntry),
             elapsedMs: Date.now() - sendStartedAt,
-            errorCode: sessionChainErrorCode(response.error),
+            errorCode: sessionChainErrorCode(error),
             hostInstanceId: args.hostClient.getHostInstanceId?.() ?? null,
           });
-          return;
+        } finally {
+          promptSubmissionInProgress.current = false;
         }
-
-        // ACK: the prompt now owns the attachments. Only here may the local
-        // File, blob preview and save results be released (ADR 0045 recovery).
-        disposeComposerAttachments(paintSnapshotAttachments);
-        pendingContextRefsRef.current = [];
-
-        applyAcceptedRun(response.data, sessionId);
-        logSessionChain({
-          event: 'send/accepted',
-          operationId: clientMessageId ?? ownerLockKey,
-          owner: sessionId,
-          scopeKey: sessionScopeKey(ownerScopeAtEntry),
-          elapsedMs: Date.now() - sendStartedAt,
-          hostInstanceId: args.hostClient.getHostInstanceId?.() ?? null,
-        });
-        if (promptRefsSnapshot) {
-          args.consumePendingContextRefs?.(promptRefsSnapshot);
-        } else {
-          args.clearPendingContextRefs?.();
-        }
-
-        // Optimistic text title on send (host also persists nameSource:text).
-        // This inserts the row into the sidebar immediately; LLM may upgrade later.
-        const currentName =
-          args.state.sessions.find((session) => session.id === sessionId)?.name ??
-          args.state.generalSessions.find((session) => session.id === sessionId)?.name ??
-          Object.values(args.state.projectSessionsByPath)
-            .flat()
-            .find((session) => session.id === sessionId)?.name;
-        if (isPlaceholderSessionName(currentName)) {
-          const interim = deriveDefaultNameFromMessage(displayText);
-          if (interim) {
-            args.dispatch({
-              type: 'session/update',
-              session: {
-                id: sessionId,
-                name: interim,
-                updatedAt: new Date().toISOString(),
-                scope: ownerScopeAtEntry,
-              },
-            });
-          }
-        }
-      } catch (error) {
-        if (clientMessageId) {
-          rollbackOptimisticUserSend(
-            clientMessageId,
-            text,
-            paintSnapshotAttachments,
-            ownerSessionId,
-            ownerScopeAtEntry,
-          );
-        }
-        notifyError(formatError(error));
-        logSessionChain({
-          event: 'send/failed',
-          operationId: clientMessageId ?? ownerLockKey,
-          owner: ownerSessionId ?? ownerLockKey,
-          scopeKey: sessionScopeKey(ownerScopeAtEntry),
-          elapsedMs: Date.now() - sendStartedAt,
-          errorCode: sessionChainErrorCode(error),
-          hostInstanceId: args.hostClient.getHostInstanceId?.() ?? null,
-        });
-      } finally {
-        promptSubmissionInProgress.current = false;
-      }
       } finally {
         releaseSendOwnerLock(sendOwnerLocksRef.current, ownerLockKey);
       }
@@ -871,7 +873,7 @@ export function useComposerSend(params: UseComposerSendArgs) {
       clearPendingAttachments,
       clearComposerForQueuedAdmission,
       composer,
-      disposeComposerAttachments,
+      forceDisposeComposerAttachments,
       markAttachmentUploadStatus,
       paintOptimisticUserSend,
       readResolvedComposerChips,

@@ -135,7 +135,6 @@
   padding: 2px 7px;
   border-radius: var(--r-pill);
   background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(6px);
   color: #fff;
   font-size: 10px;
   font-family: var(--font-mono);
@@ -152,7 +151,6 @@
   border: 0;
   border-radius: var(--r-pill);
   background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(6px);
   color: #fff;
   font-size: 10.5px;
   font-weight: 500;

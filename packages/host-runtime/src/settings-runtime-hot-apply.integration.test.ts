@@ -115,7 +115,7 @@ describe('settings to runtime hot apply', () => {
       });
     } finally {
       await runtime.dispose();
-      await rm(piwinRoot, { recursive: true, force: true });
+      await rm(piwinRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 });
     }
   });
 
@@ -130,6 +130,12 @@ describe('settings to runtime hot apply', () => {
       expect(created.success).toBe(true);
       if (!created.success) throw new Error(created.error);
       const sessionId = (created.data as { sessionId: string }).sessionId;
+      const readMessages = async (): Promise<Array<{ role: string; text: string }>> => {
+        const response = await runtime.handleCommand({ type: 'session/messages', sessionId });
+        expect(response.success).toBe(true);
+        if (!response.success) throw new Error(response.error);
+        return (response.data as { messages: Array<{ role: string; text: string }> }).messages;
+      };
 
       const firstPrompt = await runtime.handleCommand({
         type: 'session/prompt',
@@ -144,6 +150,11 @@ describe('settings to runtime hot apply', () => {
         },
       });
       expect(firstPrompt.success).toBe(true);
+      await vi.waitFor(async () => {
+        expect(
+          (await readMessages()).filter((message) => message.role === 'assistant'),
+        ).toHaveLength(1);
+      });
 
       const beforeResponse = await runtime.handleCommand({ type: 'settings/get' });
       expect(beforeResponse.success).toBe(true);
@@ -196,9 +207,14 @@ describe('settings to runtime hot apply', () => {
         },
       });
       expect(secondPrompt.success, JSON.stringify(secondPrompt)).toBe(true);
+      await vi.waitFor(async () => {
+        expect(
+          (await readMessages()).filter((message) => message.role === 'assistant'),
+        ).toHaveLength(2);
+      });
     } finally {
       await runtime.dispose();
-      await rm(piwinRoot, { recursive: true, force: true });
+      await rm(piwinRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 });
     }
   });
 });

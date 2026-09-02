@@ -195,8 +195,11 @@
   border-top: 1px solid var(--line-1);
 }
 
+/* Struck-through text is still prose the reader is meant to parse — the line
+   through it already carries the "retracted" meaning, so the color does not
+   also have to drop to the disabled step. */
 .md-del {
-  color: var(--text-4);
+  color: var(--text-3);
   text-decoration-thickness: 1px;
 }
 
@@ -368,7 +371,7 @@
 
 .md-code-lang {
   font-size: var(--fs-micro);
-  color: var(--text-4);
+  color: var(--text-3);
   font-weight: 500;
   text-transform: lowercase;
 }

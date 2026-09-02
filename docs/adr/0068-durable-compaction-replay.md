@@ -51,6 +51,13 @@ visible transcript content or a second billing turn.
    prompt budgeting or compact decisions until a fresh compatible measurement
    arrives. Compaction, capability, seed, and active-path boundaries remain
    strict.
+7. **Do not make model switching a compaction barrier.** A prompt that selects
+   another model applies that selection (and replaces the runtime when the
+   provider requires it) without first running source-context compaction or
+   waiting for a target-budget proof. The selected Pi runtime owns its normal
+   automatic compaction/overflow recovery. Explicit target-model compaction
+   remains available through `session/compact`; its failure is not a reason to
+   reject an otherwise valid model selection.
 
 ## Consequences
 
@@ -61,6 +68,10 @@ visible transcript content or a second billing turn.
 - A store that cannot read the durable seed falls back to the existing bounded
   product-history path and logs a warning; it does not fabricate a successful
   compaction.
+- Changing models is responsive even when source-context compaction would be
+  slow, unavailable, or ineligible. If the selected model cannot accept the
+  resulting context, its bounded runtime recovery or an explicit compact/new
+  session remains the recovery path.
 - Native Pi runtime integration remains behind `agent-host`; contracts and
   host-runtime carry only product-shaped seed data.
 

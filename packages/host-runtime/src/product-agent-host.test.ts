@@ -48,6 +48,55 @@ describe('ProductAgentHost', () => {
     await host.dispose();
   });
 
+  it('passes the CreateSessionInput project path to Host tool composition', async () => {
+    const projectPath = '/tmp/project';
+    let receivedDescriptorProjectPath: string | undefined;
+    let receivedFamilyProjectPath: string | undefined;
+    const host = new ProductAgentHost({
+      mode: 'sdk',
+      mock: false,
+      hostToolExecution: {
+        execute: async () => ({
+          ok: false,
+          code: 'tool-not-available' as const,
+          message: 'test',
+        }),
+      },
+      restrictToolSurface: () => undefined,
+      buildToolDescriptors: async (
+        _sessionId,
+        _runtimeGenerationId,
+        _model,
+        _mode,
+        receivedProjectPath,
+      ) => {
+        receivedDescriptorProjectPath = receivedProjectPath;
+        return [];
+      },
+      buildToolFamilyIndex: async (
+        _sessionId,
+        _runtimeGenerationId,
+        _model,
+        _mode,
+        receivedProjectPath,
+      ) => {
+        receivedFamilyProjectPath = receivedProjectPath;
+        throw new Error('stop after project path assertion');
+      },
+    });
+
+    await expect(
+      host.prepareSession(
+        'session-test',
+        { scope: { kind: 'project', projectPath } },
+        'generation-test',
+      ),
+    ).rejects.toThrow('stop after project path assertion');
+    expect(receivedDescriptorProjectPath).toBe(projectPath);
+    expect(receivedFamilyProjectPath).toBe(projectPath);
+    await host.dispose();
+  });
+
   it('detaches only the expected quarantined session handle', async () => {
     const host = new ProductAgentHost({ mode: 'sdk', mock: true });
     const session = await host.createSession({ scope: { kind: 'general' } });

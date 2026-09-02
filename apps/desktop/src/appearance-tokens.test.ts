@@ -210,8 +210,7 @@ function emittedVariableNames(style: CSSStyleDeclaration): string[] {
   return names.sort();
 }
 
-const read = (name: string): string =>
-  document.documentElement.style.getPropertyValue(name).trim();
+const read = (name: string): string => document.documentElement.style.getPropertyValue(name).trim();
 
 describe('applyAppearanceToDocument', () => {
   beforeEach(() => {
@@ -325,7 +324,7 @@ describe('Deck ramp projection', () => {
     expect(read('--surface-3')).toBe('#1a1a21');
     expect(read('--surface-4')).toBe('#22222b');
     expect(read('--text-1')).toBe('#ededf2');
-    expect(read('--text-3')).toBe('#62626f');
+    expect(read('--text-3')).toBe('#898993');
     expect(read('--iris')).toBe('#6e5dff');
     expect(read('--ember')).toBe('#ff8a4c');
   });
@@ -397,9 +396,9 @@ describe('deriveDeckTokens', () => {
 
     expect(deck.iris).toBe('#40c0a0');
     expect(deck.mint).toBe('#30b070');
-    expect(deck.coral).toBe('#e04050');
+    expect(deck.coral).toBe('#e1505f');
     expect(deck.text1).toBe('#f0f0ff');
-    expect(deck.text2).toBe('#9090b0');
+    expect(deck.text2).toBe('#a0a0be');
   });
 
   it('places the field behind every surface', () => {

@@ -9,8 +9,7 @@
  * dead hyperlink; absolute filesystem paths stay as links for the `a` renderer.
  */
 
-const WEB_OR_SPECIAL_SCHEME =
-  /^(https?:|mailto:|javascript:|data:|blob:|tel:|#)/i;
+const WEB_OR_SPECIAL_SCHEME = /^(https?:|mailto:|javascript:|data:|blob:|tel:|#)/i;
 
 /** Extensions agents commonly offer as downloadable / openable deliverables. */
 const LOCAL_FILE_EXTENSION_PATTERN =
@@ -24,6 +23,14 @@ function stripAngleBrackets(href: string): string {
     return trimmed.slice(1, -1).trim();
   }
   return trimmed;
+}
+
+/**
+ * Globs are not openable files. Chipping `~/.piwin/sessions/**` shows a folder
+ * icon plus leftover `**` because PathChip labels with the last path segment.
+ */
+function containsGlobMeta(value: string): boolean {
+  return value.includes('*') || value.includes('?');
 }
 
 /**
@@ -56,7 +63,7 @@ export function normalizeLocalFileHref(href: string): string {
  */
 export function isLocalFileMarkdownHref(href: string): boolean {
   const raw = stripAngleBrackets(href);
-  if (!raw || WEB_OR_SPECIAL_SCHEME.test(raw)) {
+  if (!raw || WEB_OR_SPECIAL_SCHEME.test(raw) || containsGlobMeta(raw)) {
     return false;
   }
   if (/^file:/i.test(raw)) {
@@ -116,7 +123,7 @@ function isBareFilename(value: string): boolean {
  */
 export function isLocalPathChipCandidate(value: string): boolean {
   const trimmed = value.trim();
-  if (!trimmed || trimmed.includes('\n') || trimmed.length > 512) {
+  if (!trimmed || trimmed.includes('\n') || trimmed.length > 512 || containsGlobMeta(trimmed)) {
     return false;
   }
   if (WEB_OR_SPECIAL_SCHEME.test(trimmed) && !/^file:/i.test(trimmed)) {
@@ -162,7 +169,9 @@ export function rewriteLocalFileMarkdownLinks(markdown: string): string {
         path.startsWith('~/') ||
         path.startsWith('~\\');
       if (isAbsolute) {
-        const safeLabel = escapeMarkdownLinkLabel(label.trim() || path.split(/[\\/]/).pop() || path);
+        const safeLabel = escapeMarkdownLinkLabel(
+          label.trim() || path.split(/[\\/]/).pop() || path,
+        );
         return `${prefix}[${safeLabel}](${path})`;
       }
       // Relative: backticks. Escape any backticks inside the path.

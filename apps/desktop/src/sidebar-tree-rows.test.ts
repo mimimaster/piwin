@@ -90,6 +90,38 @@ describe('resolveSidebarProjectCollapsed', () => {
       }),
     ).toBe(false);
   });
+
+  it('auto-expands for the reveal session only when the user never touched it', () => {
+    // Reveal fallback: untouched non-active project expands when the active
+    // session lives inside it.
+    expect(
+      resolveSidebarProjectCollapsed({
+        projectPath: '/other',
+        collapsedProjects: {},
+        activeProjectPath: '/active',
+        revealInside: true,
+      }),
+    ).toBe(false);
+    // Explicit fold still wins over reveal — this is the fold-click regression.
+    expect(
+      resolveSidebarProjectCollapsed({
+        projectPath: '/active',
+        collapsedProjects: { '/active': true },
+        activeProjectPath: '/active',
+        revealInside: true,
+      }),
+    ).toBe(true);
+    // Search reveals everything, even explicitly folded folders.
+    expect(
+      resolveSidebarProjectCollapsed({
+        projectPath: '/active',
+        collapsedProjects: { '/active': true },
+        activeProjectPath: '/active',
+        revealInside: true,
+        searching: true,
+      }),
+    ).toBe(false);
+  });
 });
 
 describe('buildSidebarTreeRows', () => {
@@ -238,13 +270,32 @@ describe('buildSidebarTreeRows', () => {
       sessionListOrder: 'updated',
       projectsSectionExpanded: true,
       conversationsSectionExpanded: false,
-      collapsedProjects: { '/a': true },
+      collapsedProjects: {},
       sessionListScopes: createSessionListScopeState(),
       revealSessionId: 'p-8',
     });
     const ids = rows.flatMap((row) => (row.kind === 'session' ? [row.session.id] : []));
     expect(ids).toContain('p-8');
     expect(rows.find((row) => row.kind === 'project-folder')?.collapsed).toBe(false);
+  });
+
+  it('lets an explicit fold win even when the active session is inside the project', () => {
+    const rows = buildSidebarTreeRows({
+      recentProjects: [{ path: '/a' }],
+      projectSessionsByPath: { '/a': [session('a1', 'Active')] },
+      generalSessions: [],
+      sessionSearch: '',
+      sessionListOrder: 'updated',
+      projectsSectionExpanded: true,
+      conversationsSectionExpanded: false,
+      collapsedProjects: { '/a': true },
+      sessionListScopes: createSessionListScopeState(),
+      activeProjectPath: '/a',
+      activeProjectSessions: [session('a1', 'Active')],
+      revealSessionId: 'a1',
+    });
+    expect(rows.find((row) => row.kind === 'project-folder')?.collapsed).toBe(true);
+    expect(rows.filter((row) => row.kind === 'session')).toHaveLength(0);
   });
 
   it('does not hide project search results behind progressive disclosure', () => {

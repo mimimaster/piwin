@@ -2,8 +2,8 @@
  * Composer action slot: exactly one circular control.
  *
  * Idle Send → live Pause (`session/pause`) → paused Continue.
- * A draft while paused uses ordinary Send; only empty Continue resumes.
- * One circular control. Follow-up while live is Enter.
+ * A draft while live or paused uses ordinary Send; only empty Continue resumes.
+ * Live Send admits a Host queued turn. Cmd/Ctrl+Enter still steers.
  */
 import type { ReactElement } from 'react';
 import { IconPause, IconRefresh, IconSend } from './shell-icons';
@@ -17,9 +17,8 @@ export type ComposerActionSlotCopy = {
   stopping: string;
   continueRun: string;
   attachmentRetryOnly: string;
-  steer: string;
-  sendSteerMessage: string;
-  sendSteerHint: string;
+  queueFollowUp: string;
+  queueFollowUpHint: string;
 };
 
 export type ComposerActionSlotProps = {
@@ -32,18 +31,21 @@ export type ComposerActionSlotProps = {
   onlyFailedAttachments: boolean;
   mutationsEnabled?: boolean;
   isExtensionUiActive: boolean;
-  composerHasText: boolean;
   onSend: () => void;
   onPause: () => void;
   onResume?: () => void;
-  onSteer?: () => void;
 };
 
 function mutationsOff(props: ComposerActionSlotProps): boolean {
   return props.mutationsEnabled === false;
 }
 
+function isLiveControlPending(props: ComposerActionSlotProps): boolean {
+  return props.runPhase === 'pausing' || props.runPhase === 'aborting';
+}
+
 function ComposerSendButton(props: ComposerActionSlotProps): ReactElement {
+  const queued = props.isStreamingRun;
   return (
     <button
       type="button"
@@ -51,8 +53,8 @@ function ComposerSendButton(props: ComposerActionSlotProps): ReactElement {
       data-testid="send-btn"
       disabled={!props.hasContent || mutationsOff(props)}
       onClick={props.onSend}
-      aria-label={props.copy.send}
-      title={props.copy.sendShortcut}
+      aria-label={queued ? props.copy.queueFollowUp : props.copy.send}
+      title={queued ? props.copy.queueFollowUpHint : props.copy.sendShortcut}
     >
       <IconSend />
     </button>
@@ -93,7 +95,7 @@ function ComposerContinueButton(props: ComposerActionSlotProps): ReactElement {
 function ComposerPauseButton(props: ComposerActionSlotProps): ReactElement {
   const isPausing = props.runPhase === 'pausing';
   const isAborting = props.runPhase === 'aborting';
-  const isControlPending = isPausing || isAborting;
+  const isControlPending = isLiveControlPending(props);
   const label = isAborting
     ? props.copy.stopping
     : isPausing
@@ -117,6 +119,13 @@ function ComposerPauseButton(props: ComposerActionSlotProps): ReactElement {
 
 function renderPrimaryCircle(props: ComposerActionSlotProps): ReactElement {
   if (props.isStreamingRun) {
+    // Pause in flight, or Extension UI owning the textarea, keep Pause.
+    if (isLiveControlPending(props) || props.isExtensionUiActive) {
+      return <ComposerPauseButton {...props} />;
+    }
+    if (props.hasContent) {
+      return <ComposerSendButton {...props} />;
+    }
     return <ComposerPauseButton {...props} />;
   }
   if (props.isPaused && !props.hasContent) {
@@ -129,32 +138,5 @@ function renderPrimaryCircle(props: ComposerActionSlotProps): ReactElement {
 }
 
 export function ComposerActionSlot(props: ComposerActionSlotProps): ReactElement {
-  const showSteer =
-    props.isStreamingRun &&
-    !props.isExtensionUiActive &&
-    props.composerHasText &&
-    props.onSteer !== undefined;
-  const primary = renderPrimaryCircle(props);
-  if (!showSteer) {
-    return <div className="composer-v2-action-slot">{primary}</div>;
-  }
-  const steerPending = props.runPhase === 'pausing' || props.runPhase === 'aborting';
-  return (
-    <div className="composer-v2-action-slot">
-      <div className="composer-v2-action-group">
-        <button
-          type="button"
-          className="composer-v2-text-btn"
-          data-testid="steer-btn"
-          disabled={steerPending}
-          onClick={props.onSteer}
-          aria-label={props.copy.sendSteerMessage}
-          title={props.copy.sendSteerHint}
-        >
-          {props.copy.steer}
-        </button>
-        {primary}
-      </div>
-    </div>
-  );
+  return <div className="composer-v2-action-slot">{renderPrimaryCircle(props)}</div>;
 }

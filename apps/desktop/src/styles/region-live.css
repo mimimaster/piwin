@@ -34,16 +34,20 @@
   padding: 0 4px 0 8px !important;
   box-sizing: border-box !important;
 
-  border: 1px solid color-mix(in srgb, var(--live-tone) 45%, var(--line-2, rgba(255, 255, 255, 0.15))) !important;
+  border: 1px solid
+    color-mix(in srgb, var(--live-tone) 45%, var(--line-2, rgba(255, 255, 255, 0.15))) !important;
   border-radius: var(--r-pill, 999px) !important;
   background: color-mix(in srgb, var(--surface-3, #161620) 94%, transparent) !important;
-  backdrop-filter: blur(16px) !important;
-  box-shadow: var(--elev-3, 0 4px 14px rgba(0, 0, 0, 0.5)), 0 0 14px var(--live-glow) !important;
+  box-shadow:
+    var(--elev-3, 0 4px 14px rgba(0, 0, 0, 0.5)),
+    0 0 14px var(--live-glow) !important;
 
   cursor: grab;
   touch-action: none;
   user-select: none;
-  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+  transition:
+    box-shadow 0.15s ease,
+    border-color 0.15s ease;
   animation: live-capsule-enter 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -54,38 +58,40 @@
 
 .live-bar.is-dragging {
   cursor: grabbing !important;
-  box-shadow: var(--elev-4, 0 12px 30px rgba(0, 0, 0, 0.8)), 0 0 24px var(--live-glow) !important;
+  box-shadow:
+    var(--elev-4, 0 12px 30px rgba(0, 0, 0, 0.8)),
+    0 0 24px var(--live-glow) !important;
   transform: translate(-50%, -50%) scale(1.06) !important;
 }
 
 /* Tone Color Variations */
 .live-bar.is-active {
-  --live-tone: var(--mint, #3ECF8E);
+  --live-tone: var(--mint, #3ecf8e);
   --live-glow: rgba(62, 207, 142, 0.35);
 }
 
 .live-bar.is-speaking {
-  --live-tone: var(--iris, #6E5DFF);
+  --live-tone: var(--iris, #6e5dff);
   --live-glow: rgba(110, 93, 255, 0.35);
 }
 
 .live-bar.is-working {
-  --live-tone: var(--ember, #FF8A4C);
+  --live-tone: var(--ember, #ff8a4c);
   --live-glow: rgba(255, 138, 76, 0.35);
 }
 
 .live-bar.is-permission {
-  --live-tone: var(--amber, #F5B544);
+  --live-tone: var(--amber, #f5b544);
   --live-glow: rgba(245, 181, 68, 0.35);
 }
 
 .live-bar.is-muted {
-  --live-tone: var(--text-3, #5C5C6B);
+  --live-tone: var(--text-3, #5c5c6b);
   --live-glow: transparent;
 }
 
 .live-bar.is-error {
-  --live-tone: var(--coral, #FF5F56);
+  --live-tone: var(--coral, #ff5f56);
   --live-glow: rgba(255, 95, 86, 0.35);
 }
 
@@ -109,9 +115,8 @@
   overflow-wrap: anywhere;
 }
 
-
 .live-bar.is-connecting {
-  --live-tone: var(--sky, #4CC2FF);
+  --live-tone: var(--sky, #4cc2ff);
   --live-glow: rgba(76, 194, 255, 0.35);
 }
 
@@ -121,7 +126,7 @@
   flex-direction: column !important;
   gap: 2px !important;
   padding: 2px 1px !important;
-  color: var(--text-3, #8E8E9B) !important;
+  color: var(--text-3, #8e8e9b) !important;
   opacity: 0.5 !important;
   cursor: grab !important;
 }
@@ -160,7 +165,7 @@
   display: inline-block !important;
   width: 2.5px !important;
   height: 100% !important;
-  background: var(--live-tone, #3ECF8E) !important;
+  background: var(--live-tone, #3ecf8e) !important;
   border-radius: 999px !important;
   transform: scaleY(0.25) !important;
   transform-origin: center !important;
@@ -180,9 +185,18 @@
   animation: live-eq-bounce 1.35s ease-in-out infinite alternate !important;
 }
 
-.live-equalizer span:nth-child(2) { animation-delay: -0.15s !important; height: 80% !important; }
-.live-equalizer span:nth-child(3) { animation-delay: -0.3s !important; height: 100% !important; }
-.live-equalizer span:nth-child(4) { animation-delay: -0.45s !important; height: 65% !important; }
+.live-equalizer span:nth-child(2) {
+  animation-delay: -0.15s !important;
+  height: 80% !important;
+}
+.live-equalizer span:nth-child(3) {
+  animation-delay: -0.3s !important;
+  height: 100% !important;
+}
+.live-equalizer span:nth-child(4) {
+  animation-delay: -0.45s !important;
+  height: 65% !important;
+}
 
 .live-equalizer.is-flat span {
   animation: none !important;
@@ -206,8 +220,8 @@
   width: 8px !important;
   height: 8px !important;
   border-radius: 50% !important;
-  background: var(--coral, #FF5F56) !important;
-  box-shadow: 0 0 8px var(--coral, #FF5F56) !important;
+  background: var(--coral, #ff5f56) !important;
+  box-shadow: 0 0 8px var(--coral, #ff5f56) !important;
   animation: live-blink 0.8s infinite !important;
 }
 
@@ -216,7 +230,7 @@
   display: inline-block !important;
   font-size: 12px !important;
   line-height: 1 !important;
-  color: var(--amber, #F5B544) !important;
+  color: var(--amber, #f5b544) !important;
   animation: live-pulse-glyph 1.2s infinite alternate !important;
 }
 
@@ -243,23 +257,23 @@
   border-radius: 50% !important;
   background: transparent !important;
   border: 1px solid transparent !important;
-  color: var(--text-2, #9A9AA8) !important;
+  color: var(--text-2, #9a9aa8) !important;
   cursor: pointer !important;
   transition: all 0.12s ease !important;
   box-sizing: border-box !important;
 }
 
 .live-icon-btn:hover {
-  background: var(--surface-4, #2B2B3A) !important;
-  color: var(--text-1, #EDEDF2) !important;
+  background: var(--surface-4, #2b2b3a) !important;
+  color: var(--text-1, #ededf2) !important;
   border-color: var(--line-1, rgba(255, 255, 255, 0.1)) !important;
   transform: scale(1.08) !important;
 }
 
 .live-icon-btn.is-danger:hover {
   background: rgba(255, 95, 86, 0.2) !important;
-  color: var(--coral, #FF5F56) !important;
-  border-color: var(--coral, #FF5F56) !important;
+  color: var(--coral, #ff5f56) !important;
+  border-color: var(--coral, #ff5f56) !important;
 }
 
 .live-icon-btn.is-accent {
@@ -286,22 +300,37 @@
 }
 
 @keyframes live-eq-bounce {
-  0% { transform: scaleY(0.25); }
-  100% { transform: scaleY(1); }
+  0% {
+    transform: scaleY(0.25);
+  }
+  100% {
+    transform: scaleY(1);
+  }
 }
 
 @keyframes live-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes live-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.25; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
 }
 
 @keyframes live-pulse-glyph {
-  0% { transform: scale(0.92); }
-  100% { transform: scale(1.15); }
+  0% {
+    transform: scale(0.92);
+  }
+  100% {
+    transform: scale(1.15);
+  }
 }
 
 /* Reduced Motion Override */

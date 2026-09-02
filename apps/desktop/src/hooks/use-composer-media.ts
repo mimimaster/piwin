@@ -21,8 +21,10 @@ import {
   MAX_RETAINED_SESSION_COMPOSER_SNAPSHOTS,
   useComposerDrafts,
 } from './use-composer-drafts.js';
+import { useComposerQueuedEdit } from './use-composer-queued-edit.js';
 import { useComposerSend } from './use-composer-send.js';
 import { useComposerSteerQueue } from './use-composer-steer-queue.js';
+import { parseComposerSlashSubmit } from '../slash';
 import type { SessionComposerSnapshot } from './composer-session-snapshot.js';
 import type { UseComposerMediaArgs } from './composer-media-args.js';
 
@@ -51,8 +53,8 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
    * Per-session / per-draft unsent composer snapshots (text + chips + refs).
    * Declared here (rather than owned by drafts or attachments) because both
    * sides touch them: drafts persists/restores on session and draft
-   * transitions, attachments only peeks at them so a just-pasted preview
-   * commit can find a chip that already hopped to a parked snapshot.
+   * transitions, attachments checks and purges them so a just-pasted preview
+   * stays valid when a chip briefly has two holders.
    */
   const sessionComposerSnapshotsRef = useRef(new Map<string, SessionComposerSnapshot>());
   const draftComposerSnapshotsRef = useRef(new Map<string, SessionComposerSnapshot>());
@@ -77,6 +79,23 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     pendingContextRefsRef,
     sessionComposerSnapshotsRef,
     draftComposerSnapshotsRef,
+  });
+
+  // Declared before drafts so its session-change cleanup restores the parked
+  // draft into the shared refs before the drafts hook snapshots them.
+  const queuedEdit = useComposerQueuedEdit({
+    args,
+    locale,
+    attachmentCopy,
+    notifyError,
+    setComposer,
+    composerRef,
+    pendingAttachmentsRef,
+    setPendingAttachments,
+    promptSubmissionInProgress,
+    forceDisposeComposerAttachments: attachments.forceDisposeComposerAttachments,
+    readResolvedComposerChips: attachments.readResolvedComposerChips,
+    saveDeferredMediaChips: attachments.saveDeferredMediaChips,
   });
 
   const drafts = useComposerDrafts({
@@ -117,7 +136,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     currentDraftIdRef: drafts.currentDraftIdRef,
     sendOwnerLocksRef,
     clearPendingAttachments: attachments.clearPendingAttachments,
-    disposeComposerAttachments: attachments.disposeComposerAttachments,
+    forceDisposeComposerAttachments: attachments.forceDisposeComposerAttachments,
     markAttachmentUploadStatus: attachments.markAttachmentUploadStatus,
     readResolvedComposerChips: attachments.readResolvedComposerChips,
     saveDeferredMediaChips: attachments.saveDeferredMediaChips,
@@ -136,22 +155,47 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     refreshQueuedTurnQueue: send.refreshQueuedTurnQueue,
   });
 
+  /**
+   * A queued-turn edit owns the input box while it is active, so Send saves
+   * that row instead of admitting yet another turn.
+   */
+  const handleSend = useCallback(
+    async (overrideText?: string): Promise<void> => {
+      const text = (overrideText ?? composer).trim();
+      const reserved = parseComposerSlashSubmit(text, []);
+      if (reserved.kind === 'command') {
+        await send.handleSend(text);
+        return;
+      }
+      if (queuedEdit.queuedTurnEditId !== null) {
+        await queuedEdit.commitQueuedTurnEdit();
+        return;
+      }
+      await send.handleSend(overrideText);
+    },
+    [composer, queuedEdit.commitQueuedTurnEdit, queuedEdit.queuedTurnEditId, send.handleSend],
+  );
+
   // Teardown sweep: no holder may outlive the hook, so every retained blob
   // URL and source File (session snapshots, draft snapshots, live chips) is
   // released here instead of leaking until page reload.
   useEffect(
     () => () => {
-      for (const snapshot of sessionComposerSnapshotsRef.current.values()) {
-        attachments.disposeComposerAttachments(snapshot.attachments);
-      }
+      const retainedAttachments = [
+        ...[...sessionComposerSnapshotsRef.current.values()].flatMap(
+          (snapshot) => snapshot.attachments,
+        ),
+        ...[...draftComposerSnapshotsRef.current.values()].flatMap(
+          (snapshot) => snapshot.attachments,
+        ),
+        ...pendingAttachmentsRef.current,
+      ];
       sessionComposerSnapshotsRef.current.clear();
-      for (const snapshot of draftComposerSnapshotsRef.current.values()) {
-        attachments.disposeComposerAttachments(snapshot.attachments);
-      }
       draftComposerSnapshotsRef.current.clear();
-      attachments.disposeComposerAttachments(pendingAttachmentsRef.current);
+      pendingAttachmentsRef.current = [];
+      attachments.forceDisposeComposerAttachments(retainedAttachments);
     },
-    [attachments.disposeComposerAttachments],
+    [attachments.forceDisposeComposerAttachments],
   );
 
   return {
@@ -171,7 +215,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     handlePickFiles: attachments.handlePickFiles,
     handlePickImageFiles: attachments.handlePickImageFiles,
     addWebElement: attachments.addWebElement,
-    handleSend: send.handleSend,
+    handleSend,
     retryPendingAttachment: attachments.retryPendingAttachment,
     retryFailedAttachments: attachments.retryFailedAttachments,
     discardFailedAttachments: attachments.discardFailedAttachments,
@@ -179,7 +223,9 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     handleFollowUp: steerQueue.handleFollowUp,
     steerQueueMessages: steerQueue.steerQueueMessages,
     handleSteerQueueSendNow: steerQueue.handleSteerQueueSendNow,
-    handleSteerQueueEdit: steerQueue.handleSteerQueueEdit,
+    handleSteerQueueEdit: queuedEdit.beginQueuedTurnEdit,
     handleSteerQueueRemove: steerQueue.handleSteerQueueRemove,
+    queuedTurnEditId: queuedEdit.queuedTurnEditId,
+    cancelQueuedTurnEdit: queuedEdit.cancelQueuedTurnEdit,
   };
 }

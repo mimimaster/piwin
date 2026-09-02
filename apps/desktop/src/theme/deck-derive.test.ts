@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import type { ThemeManifest } from '@piwin/contracts';
+import type { ThemeDeckTokens, ThemeManifest } from '@piwin/contracts';
 
+import { contrastRatio } from './color.js';
 import { deriveDeckTokens } from './deck-derive.js';
 import { PIWIN_APPEARANCE_BONE, PIWIN_APPEARANCE_OBSIDIAN } from './deck-palette.js';
 
@@ -64,6 +65,67 @@ describe('deriveDeckTokens', () => {
       it('carries the accent through as iris', () => {
         expect(derived.iris).toBe(deck.iris);
       });
+
+      it('authors a readable ramp', () => {
+        expectRampFloors(deck, authored.mode === 'light');
+        expectRampSteps(deck, authored.mode === 'light');
+      });
+
+      // The derived ramp is what users actually see: `buildAppearanceTheme`
+      // drops the authored `deck` so the three Appearance colors can drive a
+      // fresh derivation, which means a floor enforced only in deck-palette.ts
+      // would never reach the default install.
+      it('keeps the muted steps readable', () => {
+        expectRampFloors(derived, authored.mode === 'light');
+        expectRampSteps(derived, authored.mode === 'light');
+      });
     });
   }
+
+  it('lifts a muted ramp that an installed theme left invisible', () => {
+    const washedOut: ThemeManifest = {
+      ...withoutDeck(PIWIN_APPEARANCE_OBSIDIAN),
+      id: 'washed-out',
+      tokens: {
+        ...PIWIN_APPEARANCE_OBSIDIAN.tokens,
+        // Muted only a hair off the field: the unclamped interpolation used to
+        // land text3/text4 inside a couple of RGB steps of the background.
+        muted: '#131318',
+        ok: '#0d2b1e',
+        danger: '#2b0f0d',
+      },
+    };
+    // Only the floors are promised here. A theme whose muted color is already
+    // at the floor leaves no headroom for a distinct third step, and inventing
+    // one would mean overriding a palette the user chose rather than repairing
+    // the part of it that cannot be read at all.
+    expectRampFloors(deriveDeckTokens(washedOut), false);
+  });
 });
+
+/** The reference surface is the one giving the muted steps the least contrast. */
+const mutedReferenceOf = (deck: ThemeDeckTokens, isLight: boolean): string =>
+  isLight ? deck.surface1 : deck.surface4;
+
+/** No step may be painted at a contrast the eye cannot resolve. */
+function expectRampFloors(deck: ThemeDeckTokens, isLight: boolean): void {
+  const reference = mutedReferenceOf(deck, isLight);
+  for (const readable of [deck.text1, deck.text2, deck.text3]) {
+    expect(contrastRatio(readable, reference)).toBeGreaterThanOrEqual(4.5);
+  }
+  expect(contrastRatio(deck.text4, reference)).toBeGreaterThanOrEqual(3);
+  for (const signal of [deck.mint, deck.coral, deck.ember, deck.amber, deck.sky]) {
+    expect(contrastRatio(signal, reference)).toBeGreaterThanOrEqual(3);
+  }
+}
+
+/** A ramp with room to spare must still read as a ramp, not four of one grey. */
+function expectRampSteps(deck: ThemeDeckTokens, isLight: boolean): void {
+  const reference = mutedReferenceOf(deck, isLight);
+  const steps = [deck.text1, deck.text2, deck.text3, deck.text4].map((step) =>
+    contrastRatio(step, reference),
+  );
+  for (let index = 1; index < steps.length; index += 1) {
+    expect(steps[index]!).toBeLessThan(steps[index - 1]!);
+  }
+}

@@ -7,6 +7,7 @@ import { useCallback, useState } from 'react';
 import type { ActiveDocument } from '../active-document';
 import type { LineCommentItem } from '../EnhancedMarkdownView';
 import { mergeComposerWithDocComments } from '../doc-comments';
+import { isReservedComposerSlashCommand } from '../slash/slash-parse.js';
 
 export type UseDocCommentsArgs = {
   activeDocument: ActiveDocument | null;
@@ -20,7 +21,7 @@ export type DocCommentsActions = {
   editDocComment: (id: string, nextText: string) => void;
   deleteDocComment: (id: string) => void;
   clearDocComments: () => void;
-  sendWithComments: () => Promise<void>;
+  sendWithComments: (text?: string) => Promise<void>;
 };
 
 export function documentCommentKey(document: ActiveDocument | null): string {
@@ -87,16 +88,24 @@ export function useDocComments(args: UseDocCommentsArgs): DocCommentsActions {
     setDocComments((prev) => ({ ...prev, [activeDocKey]: [] }));
   }, [activeDocKey]);
 
-  const sendWithComments = useCallback(async () => {
-    const docTitle = activeDocument?.title || 'Document';
-    const comments = activeComments;
-    const text =
-      comments.length > 0 ? mergeComposerWithDocComments(composer, docTitle, comments) : composer;
-    if (comments.length > 0) {
-      setDocComments((prev) => ({ ...prev, [activeDocKey]: [] }));
-    }
-    await send(text);
-  }, [activeDocument?.title, activeComments, composer, activeDocKey, send]);
+  const sendWithComments = useCallback(
+    async (overrideText?: string) => {
+      const base = overrideText ?? composer;
+      if (isReservedComposerSlashCommand(base)) {
+        await send(base);
+        return;
+      }
+      const docTitle = activeDocument?.title || 'Document';
+      const comments = activeComments;
+      const text =
+        comments.length > 0 ? mergeComposerWithDocComments(base, docTitle, comments) : base;
+      if (comments.length > 0) {
+        setDocComments((prev) => ({ ...prev, [activeDocKey]: [] }));
+      }
+      await send(text);
+    },
+    [activeDocument?.title, activeComments, composer, activeDocKey, send],
+  );
 
   return {
     activeComments,

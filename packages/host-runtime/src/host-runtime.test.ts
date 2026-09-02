@@ -141,9 +141,9 @@ describe('HostRuntime', () => {
     expect(resumed.success).toBe(true);
     if (resumed.success) {
       const data = resumed.data as { messages?: Array<{ role: string; text: string }> };
-      expect(data.messages?.some((message) => message.role === 'assistant' && message.text.length > 0)).toBe(
-        true,
-      );
+      expect(
+        data.messages?.some((message) => message.role === 'assistant' && message.text.length > 0),
+      ).toBe(true);
     }
 
     await runtime.dispose();
@@ -618,9 +618,11 @@ describe('HostRuntime', () => {
     abortController.abort();
 
     await expect(decisionPromise).resolves.toBe('deny');
-    expect(pushes.some((message) => message.type === 'permission/resolved' && message.decision === 'deny')).toBe(
-      true,
-    );
+    expect(
+      pushes.some(
+        (message) => message.type === 'permission/resolved' && message.decision === 'deny',
+      ),
+    ).toBe(true);
     await runtime.dispose();
   });
 
@@ -890,9 +892,9 @@ describe('HostRuntime', () => {
       deploymentId: 'wait-deployment-2',
     });
     expect(conflicting.success).toBe(false);
-    expect(conflicting.type === 'response' && !conflicting.success ? conflicting.error : '').toMatch(
-      /extension-deployment-in-progress/,
-    );
+    expect(
+      conflicting.type === 'response' && !conflicting.success ? conflicting.error : '',
+    ).toMatch(/extension-deployment-in-progress/);
 
     // Ending the run lets the background continuation finish and publish a
     // terminal deployment phase through the existing deployment push. The
@@ -959,7 +961,11 @@ describe('HostRuntime', () => {
     // Startup recovery must terminalize the leftover record instead of
     // leaving it permanently in-flight.
     let recovered = await store.readDeployment('interrupted-deployment-1');
-    for (let attempt = 0; attempt < 200 && recovered?.phase === 'waiting-current-run'; attempt += 1) {
+    for (
+      let attempt = 0;
+      attempt < 200 && recovered?.phase === 'waiting-current-run';
+      attempt += 1
+    ) {
       await new Promise((resolve) => setTimeout(resolve, 20));
       recovered = await store.readDeployment('interrupted-deployment-1');
     }
@@ -1245,7 +1251,11 @@ describe('HostRuntime', () => {
       piwinRoot: rootDir,
     });
     let recovered = await store.readDeployment('shared-deployment-1');
-    for (let attempt = 0; attempt < 200 && recovered?.phase === 'waiting-current-run'; attempt += 1) {
+    for (
+      let attempt = 0;
+      attempt < 200 && recovered?.phase === 'waiting-current-run';
+      attempt += 1
+    ) {
       await new Promise((resolve) => setTimeout(resolve, 20));
       recovered = await store.readDeployment('shared-deployment-1');
     }
@@ -1258,9 +1268,9 @@ describe('HostRuntime', () => {
       deploymentId: 'shared-deployment-1',
     });
     expect(conflicting.success).toBe(false);
-    expect(conflicting.type === 'response' && !conflicting.success ? conflicting.error : '').toMatch(
-      /extension-deployment-session-conflict/,
-    );
+    expect(
+      conflicting.type === 'response' && !conflicting.success ? conflicting.error : '',
+    ).toMatch(/extension-deployment-session-conflict/);
     const journal = await store.readDeployment('shared-deployment-1');
     expect(journal?.sessionId).toBe('session-a');
     expect(journal?.phase).toBe('active');
@@ -1404,8 +1414,7 @@ describe('HostRuntime', () => {
       input: { text: 'hello after create' },
     });
     expect(prompted.success).toBe(true);
-    // allow mock stream + transcript flushes
-    await new Promise((resolve) => setTimeout(resolve, 80));
+    await waitForContextUsage(runtimeA, sessionId);
     await runtimeA.dispose();
 
     const runtimeB = new HostRuntime({
@@ -2387,8 +2396,9 @@ describe('HostRuntime', () => {
     const latest = await runtime.handleCommand({ type: 'plan/get', sessionId });
     expect(latest.success).toBe(true);
     if (!latest.success) throw new Error(latest.error);
-    const latestPlan = (latest.data as { plan: { status: string; execution?: { status?: string } } })
-      .plan;
+    const latestPlan = (
+      latest.data as { plan: { status: string; execution?: { status?: string } } }
+    ).plan;
     expect(latestPlan.status).toBe('approved');
     expect(latestPlan.execution?.status).toBe('failed');
     await runtime.dispose();
@@ -3445,6 +3455,21 @@ async function waitForPushType(pushes: string[], type: string): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 5));
   }
   throw new Error(`Timed out waiting for push type ${type}`);
+}
+
+async function waitForContextUsage(runtime: HostRuntime, sessionId: string): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const resumed = await runtime.handleCommand({ type: 'session/resume', sessionId });
+    if (resumed.success) {
+      const contextUsage = (resumed.data as { contextUsage?: { totalTokens?: number } })
+        .contextUsage;
+      if (typeof contextUsage?.totalTokens === 'number' && contextUsage.totalTokens > 0) {
+        return;
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error('Timed out waiting for persisted context usage');
 }
 
 /** Test seam: the Host-owned residency controller (ADR 0040 §2). */

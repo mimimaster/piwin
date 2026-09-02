@@ -4,7 +4,12 @@ import { filterSlashItems } from './slash-match';
 
 const skills = [
   { id: 'writing-plans', name: 'writing-plans', description: 'Plan', enabled: true },
-  { id: 'optimize-prompt', name: 'optimize-prompt', description: 'Optimize prompts', enabled: true },
+  {
+    id: 'optimize-prompt',
+    name: 'optimize-prompt',
+    description: 'Optimize prompts',
+    enabled: true,
+  },
   { id: 'create-skill', name: 'create-skill', enabled: true },
 ];
 
@@ -71,15 +76,42 @@ describe('buildSlashCatalog — composer modes', () => {
 });
 
 describe('buildSlashCatalog — Conversation chat', () => {
-  it('keeps compact/stop and omits modes, skills, and orchestration', () => {
+  it('keeps compact/stop plus Agent/Goal, and omits skills and orchestration', () => {
     const catalog = buildSlashCatalog({
       skills,
       hasActiveSession: true,
       projectTrusted: true,
       conversationChat: true,
     });
-    expect(catalog.map((item) => item.id)).toEqual(['cmd:compact', 'cmd:stop']);
-    expect(catalog.some((item) => item.kind === 'mode')).toBe(false);
+    expect(catalog.map((item) => item.id)).toEqual([
+      'cmd:compact',
+      'cmd:stop',
+      'mode:agent',
+      'mode:goal',
+    ]);
     expect(catalog.some((item) => item.kind === 'skill')).toBe(false);
+  });
+
+  it('keeps /goal available before a session exists', () => {
+    const catalog = buildSlashCatalog({
+      skills: [],
+      hasActiveSession: false,
+      projectTrusted: false,
+      conversationChat: true,
+    });
+    const goal = catalog.find((item) => item.id === 'mode:goal');
+    expect(goal?.available).toBe(true);
+  });
+
+  it('disables /goal when the extension is off', () => {
+    const catalog = buildSlashCatalog({
+      skills: [],
+      hasActiveSession: true,
+      projectTrusted: true,
+      goalExtensionEnabled: false,
+    });
+    const goal = catalog.find((item) => item.id === 'mode:goal');
+    expect(goal?.available).toBe(false);
+    expect(goal?.unavailableReason).toMatch(/Settings → Extensions/);
   });
 });

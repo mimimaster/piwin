@@ -184,35 +184,104 @@ describe('useComposerMedia session transitions', () => {
     );
   });
 
+  it('keeps the source File after switching away from an existing session and back', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const requestCalls: string[] = [];
+    const dispatch = vi.fn();
+    const hostClient = {
+      request: vi.fn(async (command: { type: string }) => {
+        requestCalls.push(command.type);
+        return createSavedMediaResponse(command.type);
+      }),
+    } as unknown as HostClient;
+    let captured: ComposerMediaResult | undefined;
+
+    function Harness(props: { state: ChatUiState }): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: props.state,
+        dispatch,
+        agentMode: 'agent',
+      });
+      return null;
+    }
+
+    const latest = (): ComposerMediaResult => {
+      if (captured === undefined) throw new Error('hook not rendered');
+      return captured;
+    };
+    const sessionAState = {
+      ...createInitialTestChatUiState(),
+      activeSessionId: 'session-a',
+    };
+    const sessionBState = {
+      ...sessionAState,
+      activeSessionId: 'session-b',
+    };
+    const draftGapState = {
+      ...sessionAState,
+      activeSessionId: null,
+    };
+
+    act(() => root?.render(<Harness state={sessionAState} />));
+    pasteImage(latest);
+    act(() => root?.render(<Harness state={draftGapState} />));
+    act(() => root?.render(<Harness state={sessionBState} />));
+    act(() => root?.render(<Harness state={draftGapState} />));
+    act(() => root?.render(<Harness state={sessionAState} />));
+
+    await act(async () => {
+      await latest().handleSend();
+    });
+
+    expect(requestCalls).toEqual([
+      'media/save-begin',
+      'media/save-chunk',
+      'media/save-finish',
+      'session/prompt',
+    ]);
+    expect(latest().pendingAttachments).toEqual([]);
+    expect(
+      dispatch.mock.calls.some((call) => {
+        const action = call[0] as { type?: string; message?: string };
+        return action.type === 'error';
+      }),
+    ).toBe(false);
+  });
+
   it('sends remote-asset refs when media/save omits Host paths', async () => {
     container = document.createElement('div');
     document.body.append(container);
     root = createRoot(container);
     let promptAttachments: Array<{ path?: string }> | undefined;
     const hostClient = {
-      request: vi.fn(async (command: { type: string; input?: { attachments?: Array<{ path?: string }> } }) => {
-        if (command.type === 'media/save-finish' || command.type === 'media/save') {
-          return {
-            type: 'response' as const,
-            command: command.type,
-            success: true,
-            data: {
-              asset: {
-                id: 'asset-remote-1',
-                mimeType: 'image/png',
-                byteSize: 4,
-                contentKind: 'image',
-                name: 'screenshot.png',
+      request: vi.fn(
+        async (command: { type: string; input?: { attachments?: Array<{ path?: string }> } }) => {
+          if (command.type === 'media/save-finish' || command.type === 'media/save') {
+            return {
+              type: 'response' as const,
+              command: command.type,
+              success: true,
+              data: {
+                asset: {
+                  id: 'asset-remote-1',
+                  mimeType: 'image/png',
+                  byteSize: 4,
+                  contentKind: 'image',
+                  name: 'screenshot.png',
+                },
               },
-            },
-          };
-        }
-        if (command.type === 'session/prompt') {
-          promptAttachments = command.input?.attachments;
-          return createSavedMediaResponse('session/prompt');
-        }
-        return createSavedMediaResponse(command.type);
-      }),
+            };
+          }
+          if (command.type === 'session/prompt') {
+            promptAttachments = command.input?.attachments;
+            return createSavedMediaResponse('session/prompt');
+          }
+          return createSavedMediaResponse(command.type);
+        },
+      ),
     } as unknown as HostClient;
     const ensureSession = vi.fn().mockResolvedValue('session-1');
     let captured: ComposerMediaResult | undefined;
@@ -321,14 +390,14 @@ describe('useComposerMedia session transitions', () => {
     expect(latest().pendingAttachments).toEqual([]);
     expect(mediaSaveCalls).toBe(1);
     const requestMock = vi.mocked(hostClient.request);
-    const promptCalls = requestMock.mock.calls.filter(
-      (call) => call[0]?.type === 'session/prompt',
-    );
+    const promptCalls = requestMock.mock.calls.filter((call) => call[0]?.type === 'session/prompt');
     expect(promptCalls).toHaveLength(2);
-    const secondInput = (promptCalls[1]?.[0] as {
-      type: 'session/prompt';
-      input: { attachments?: Array<{ kind: string }> };
-    })?.input;
+    const secondInput = (
+      promptCalls[1]?.[0] as {
+        type: 'session/prompt';
+        input: { attachments?: Array<{ kind: string }> };
+      }
+    )?.input;
     expect(secondInput?.attachments).toEqual([expect.objectContaining({ kind: 'media' })]);
   });
 
@@ -393,7 +462,6 @@ describe('useComposerMedia session transitions', () => {
     expect(latest().pendingAttachments).toHaveLength(1);
     expect(latest().pendingAttachments[0]?.uploadStatus).toBe('error');
   });
-
 });
 
 describe('useComposerMedia failed attachment policy (Phase 0)', () => {
@@ -503,9 +571,7 @@ describe('useComposerMedia failed attachment policy (Phase 0)', () => {
     expect(harness.requestCalls().filter((type) => type === 'session/prompt')).toHaveLength(0);
     expect(harness.latest().composer).toBe('keep this text');
     expect(harness.latest().pendingAttachments).toHaveLength(1);
-    expect(harness.dispatch).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'error' }),
-    );
+    expect(harness.dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }));
   });
 
   it('discardFailedAttachments removes failed chips synchronously for a same-tick send', async () => {
@@ -553,4 +619,3 @@ describe('useComposerMedia failed attachment policy (Phase 0)', () => {
     expect(harness.latest().pendingAttachments[0]?.uploadErrorKind).toBe('connection');
   });
 });
-
