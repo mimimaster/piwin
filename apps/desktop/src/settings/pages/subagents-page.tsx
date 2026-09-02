@@ -96,6 +96,7 @@ export function SubagentProfilesPage(): ReactElement {
         schemeAdvanced: '本方案上限（可选）',
         advancedTitle: '高级 · 全局并行上限',
         maxConcurrency: '同时最多几个',
+        maxConcurrencyHint: '该值 + 1 = worker 进程池，上限 8，保存后立即生效',
         maxTasksPerRun: '一次最多派几个',
         saveAdvanced: '保存上限',
         saved: '已保存',
@@ -157,6 +158,7 @@ export function SubagentProfilesPage(): ReactElement {
         schemeAdvanced: 'Scheme caps (optional)',
         advancedTitle: 'Advanced · global concurrency',
         maxConcurrency: 'Max running at once',
+        maxConcurrencyHint: 'This value + 1 is the worker process pool (cap 8). Saves apply immediately.',
         maxTasksPerRun: 'Max per dispatch',
         saveAdvanced: 'Save limits',
         saved: 'Saved',
@@ -432,7 +434,11 @@ export function SubagentProfilesPage(): ReactElement {
         <summary style={{ cursor: 'pointer', fontWeight: 600, fontSize: 14 }}>
           {copy.advancedTitle}
         </summary>
-        <FieldRow label={copy.maxConcurrency} testId="subagents-max-concurrency-row">
+        <FieldRow
+          label={copy.maxConcurrency}
+          description={copy.maxConcurrencyHint}
+          testId="subagents-max-concurrency-row"
+        >
           <TextInput
             type="number"
             min={1}

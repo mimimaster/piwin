@@ -538,6 +538,19 @@ export function SessionRuntimePage(): ReactElement {
             <span className="muted">{isZh ? '等待容量' : 'Waiters'}:</span>
             <span data-testid="runtime-resources-waiters">{resources.waiterCount}</span>
           </div>
+          {resources.workers ? (
+            <div className="ui-field-row" data-testid="runtime-resources-workers">
+              <span className="muted">{isZh ? 'Worker 进程' : 'Workers'}:</span>
+              <span>
+                {resources.workers.active}/{resources.workers.pool}
+                {' · '}
+                {isZh ? '子代理' : 'subagents'} {resources.workers.subagent}/
+                {resources.workers.subagentMax}
+                {' · '}
+                {isZh ? '排队' : 'waiting'} {resources.workers.subagentWaiting}
+              </span>
+            </div>
+          ) : null}
           <div className="ui-field-row">
             <span className="muted">{isZh ? '预算' : 'Budget'}:</span>
             <span data-testid="runtime-resources-budget">
