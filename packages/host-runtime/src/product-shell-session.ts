@@ -165,15 +165,15 @@ export function createProductShellSession(options: ProductShellSessionOptions): 
         live.abortCompaction();
       }
     },
-    getAutoCompactionEnabled(): boolean {
+    getAutoCompactionEnabled(): boolean | Promise<boolean> {
       if (live?.getAutoCompactionEnabled) {
         return live.getAutoCompactionEnabled();
       }
       return false;
     },
-    setAutoCompactionEnabled(enabled: boolean): void {
+    setAutoCompactionEnabled(enabled: boolean): void | Promise<void> {
       if (live?.setAutoCompactionEnabled) {
-        live.setAutoCompactionEnabled(enabled);
+        return live.setAutoCompactionEnabled(enabled);
       }
     },
     needsProductHistoryInjection(): boolean {

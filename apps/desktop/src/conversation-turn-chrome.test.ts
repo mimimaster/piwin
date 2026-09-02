@@ -163,7 +163,7 @@ describe('resolveConversationTurnChrome', () => {
     expect(chrome.showUsageOnIdentity).toBe(true);
   });
 
-  it('pins identity to the conclusion when earlier rows are tool-loop work', () => {
+  it('keeps identity on the first visible assistant after tool-loop work and a later conclusion', () => {
     const process = assistant({
       id: 'a-work',
       text: 'I will fetch the page.',
@@ -176,7 +176,46 @@ describe('resolveConversationTurnChrome', () => {
       latestAssistantMessageId: 'a-final',
     });
 
-    expect(chrome.identityMessageId).toBe('a-final');
+    expect(chrome.identityMessageId).toBe('a-work');
+    expect(chrome.hiddenAssistantIds.size).toBe(0);
+  });
+
+  it('keeps identity on the first toolbox completion when a later caption arrives', () => {
+    const process = assistant({
+      id: 'a-gen-1',
+      text: '先看一下生图接口，再随便出一张。',
+      tools: [
+        {
+          toolCallId: 'tb-1',
+          toolName: 'piwin_toolbox',
+          status: 'done',
+          output: 'ok',
+          presentation: { kind: 'other', title: 'image_gen', actionVerb: 'Toolbox' },
+        },
+      ],
+    });
+    const image = assistant({
+      id: 'a-gen-2',
+      attachments: [
+        {
+          id: 'att-1',
+          kind: 'media',
+          path: '/tmp/a.png',
+          mimeType: 'image/png',
+          name: 'a.png',
+          byteSize: 12,
+          source: 'generated',
+        },
+      ],
+    });
+    const caption = assistant({ id: 'a-gen-3', text: '随手出了一张：黄昏乡间小路。' });
+    const chrome = resolveConversationTurnChrome({
+      messages: [process, image, caption],
+      lastAssistantMessageId: 'a-gen-3',
+      latestAssistantMessageId: 'a-gen-3',
+    });
+
+    expect(chrome.identityMessageId).toBe('a-gen-1');
     expect(chrome.hiddenAssistantIds.size).toBe(0);
   });
 

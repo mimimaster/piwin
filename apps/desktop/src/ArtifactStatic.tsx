@@ -1,5 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import {
+  MIN_ARTIFACT_IFRAME_HEIGHT,
   resolveArtifactViewportFrameHeight,
   shouldEnterArtifactInlineOverflow,
   type ArtifactThemeVariables,
@@ -86,6 +87,16 @@ const STATIC_ARTIFACT_BASE_CSS = `
 .piwin-artifact-root td { overflow-wrap: anywhere; }
 `;
 
+function resolveLocalArtifactViewportHeight(element: HTMLElement | null): number {
+  const windowHeight = typeof window === 'undefined' ? 640 : window.innerHeight;
+  const preferredHeight = resolveArtifactViewportFrameHeight(windowHeight);
+  if (element === null) return preferredHeight;
+  const paneHeight = element.closest<HTMLElement>('.conversation-pane-session')?.clientHeight;
+  return paneHeight !== undefined && paneHeight > 0
+    ? Math.min(preferredHeight, Math.max(MIN_ARTIFACT_IFRAME_HEIGHT, paneHeight))
+    : preferredHeight;
+}
+
 function escapeCssValue(value: string): string {
   return value.replace(/[;{}]/g, '').trim();
 }
@@ -109,8 +120,27 @@ export function ArtifactStatic({
 }: ArtifactStaticProps): ReactElement {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [overflows, setOverflows] = useState(false);
+  const [localViewportHeight, setLocalViewportHeight] = useState<number | null>(null);
   const sanitizedSource = useMemo(() => sanitizeStaticArtifactSource(source), [source]);
   const themeCss = useMemo(() => buildThemeCss(theme), [theme]);
+
+  useLayoutEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const update = (): void => {
+      const nextHeight = resolveLocalArtifactViewportHeight(host);
+      setLocalViewportHeight((current) => (current === nextHeight ? current : nextHeight));
+    };
+    update();
+    const pane = host.closest<HTMLElement>('.conversation-pane-session');
+    if (typeof ResizeObserver !== 'undefined' && pane) {
+      const observer = new ResizeObserver(update);
+      observer.observe(pane);
+      return () => observer.disconnect();
+    }
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
 
   useLayoutEffect(() => {
     const host = hostRef.current;
@@ -135,9 +165,7 @@ export function ArtifactStatic({
     return () => observer.disconnect();
   }, [sanitizedSource, themeCss]);
 
-  const chrome = resolveArtifactViewportFrameHeight(
-    typeof window === 'undefined' ? 640 : window.innerHeight,
-  );
+  const chrome = localViewportHeight ?? resolveLocalArtifactViewportHeight(hostRef.current);
   const hint = artifactOverflowHintCopy(locale);
 
   return (

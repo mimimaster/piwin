@@ -188,6 +188,11 @@ export function createSessionContextCoordinator(
   async function hydrate(sessionId: string): Promise<SessionEntry> {
     const existing = sessions.get(sessionId);
     if (existing !== undefined) {
+      // A live Host can keep an entry across a failed rebind. Re-run the
+      // persisted-shape repair on reuse so a malformed idle mismatch cannot
+      // remain hidden until the next process restart.
+      await repairPersistedOccupancy(existing);
+      await settlePersistedOccupancy(existing);
       return existing;
     }
     const store = await deps.getStore(sessionId);
@@ -444,17 +449,27 @@ export function createSessionContextCoordinator(
       if (entry.snapshot.runtimeGenerationId !== input.runtimeGenerationId) {
         entry.lastSampleSequence = 0;
       }
+      // Activation callers know the new leaf (and sometimes the selected
+      // model) but do not necessarily know every durable boundary axis. Keep
+      // omitted axes from the persisted snapshot so a restart/rebind cannot
+      // erase a successful compaction marker or seed/capability fingerprint.
+      // Explicit values still win, which lets model and branch changes
+      // invalidate the old occupancy as intended.
+      const contextBoundary: ContextBoundary = {
+        ...entry.snapshot.contextBoundary,
+        ...input.contextBoundary,
+      };
       const matched =
-        entry.snapshot.contextBoundary.activeLeafMessageId === input.contextBoundary.activeLeafMessageId &&
+        entry.snapshot.contextBoundary.activeLeafMessageId === contextBoundary.activeLeafMessageId &&
         (entry.snapshot.contextBoundary.compactionBoundary ?? '') ===
-          (input.contextBoundary.compactionBoundary ?? '');
+          (contextBoundary.compactionBoundary ?? '');
       if (!matched) {
         bumpBarrier(entry);
       }
       const snapshot = applyActivationRevalidate(entry.snapshot, {
         nowIso: deps.nowIso(),
         runtimeGenerationId: input.runtimeGenerationId,
-        contextBoundary: input.contextBoundary,
+        contextBoundary,
       });
       await commit(entry, snapshot, true);
     },

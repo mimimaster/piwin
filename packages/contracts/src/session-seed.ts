@@ -1,5 +1,7 @@
 /** Initial product-history messages for an ephemeral agent session. */
 
+import type { SessionCompactionSeed } from './compaction.js';
+
 /**
  * Opaque serialized Pi-native message copy (spec: session-conversation-tree §4.1).
  * Only `@piwin/agent-host` may encode or decode `payload`; product packages and
@@ -35,4 +37,9 @@ export type CreateSessionOptions = {
    * full-fidelity history and must not force compaction.
    */
   seedMode?: 'compaction' | 'replay';
+  /**
+   * Durable native compaction summary to prepend to a reconstructed runtime.
+   * The summary is kept out of the visible product transcript.
+   */
+  compactionSeed?: SessionCompactionSeed;
 };

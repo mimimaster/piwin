@@ -49,6 +49,7 @@ import { normalizeGenerationToolCallId } from '../generation-identity.js';
 import { runTrackedPiPrompt } from '../pi-prompt-outcome-tracker.js';
 import {
   createPiContextSampler,
+  type PiCompactionTimingState,
   occupancyModelIdentityFromRef,
   publishSampledPiSessionEvents,
   readPiContextUsageSample,
@@ -74,6 +75,8 @@ export type WorkerPiSessionLike = {
   abort?: () => Promise<void>;
   compact?: (customInstructions?: string) => Promise<SessionCompactResult>;
   abortCompaction?: () => void;
+  getAutoCompactionEnabled?: () => boolean;
+  setAutoCompactionEnabled?: (enabled: boolean) => void | Promise<void>;
   subscribe: (listener: (raw: unknown) => void) => () => void;
   setActiveRunId?(runId: string | undefined): void;
   consumeParsedStreamStall?(): AgentFailure | undefined;
@@ -96,6 +99,7 @@ export type CreateWorkerPiSessionInput = {
   seedMessages?: readonly SessionSeedMessage[];
   /** `compaction` (default) forces whole-history compaction; `replay` keeps seeds intact. */
   seedMode?: 'compaction' | 'replay';
+  compactionSeed?: import('@piwin/contracts').SessionCompactionSeed;
   extensionUi?: ExtensionUiPort;
   /**
    * Proxy tool definitions to register with the Pi session (WP4).
@@ -215,6 +219,12 @@ export class WorkerSessionRuntime {
         case 'session/compact-abort':
           await this.handleCompactAbort(id, payload, request.context);
           break;
+        case 'session/get-auto-compaction':
+          await this.handleGetAutoCompaction(id, payload, request.context);
+          break;
+        case 'session/set-auto-compaction':
+          await this.handleSetAutoCompaction(id, payload, request.context);
+          break;
         case 'session/drop':
           await this.handleDrop(id, payload, request.context);
           break;
@@ -276,6 +286,7 @@ export class WorkerSessionRuntime {
       ...(payload.providers ? { providers: payload.providers } : {}),
       ...(payload.seedMessages ? { seedMessages: payload.seedMessages } : {}),
       ...(payload.seedMode ? { seedMode: payload.seedMode } : {}),
+      ...(payload.compactionSeed ? { compactionSeed: payload.compactionSeed } : {}),
       extensionUi: this.createExtensionUiPort(payload.productSessionId),
       ...(proxyTools.length > 0 ? { proxyTools } : {}),
     });
@@ -526,10 +537,17 @@ export class WorkerSessionRuntime {
     if (!session.handle.compact) {
       throw new Error('session does not support compaction');
     }
-    const result = payload.customInstructions
-      ? await session.handle.compact(payload.customInstructions)
-      : await session.handle.compact();
-    this.sendResponse(id, true, result);
+    // Manual compact is not a continuation of the previous foreground Run.
+    // Clear the fallback identity before Pi emits compaction events.
+    session.trailingRunId = undefined;
+    try {
+      const result = payload.customInstructions
+        ? await session.handle.compact(payload.customInstructions)
+        : await session.handle.compact();
+      this.sendResponse(id, true, result);
+    } finally {
+      session.trailingRunId = undefined;
+    }
   }
 
   private async handleCompactAbort(
@@ -541,6 +559,35 @@ export class WorkerSessionRuntime {
     this.assertSessionContext(session, context);
     session.handle.abortCompaction?.();
     this.sendResponse(id, true, {});
+  }
+
+  private async handleGetAutoCompaction(
+    id: string,
+    payload: Extract<WorkerRequestPayload, { method: 'session/get-auto-compaction' }>,
+    context: WorkerFrameContext,
+  ): Promise<void> {
+    const session = this.requireSession(payload.sessionId);
+    this.assertSessionContext(session, context);
+    const enabled = session.handle.getAutoCompactionEnabled?.();
+    if (typeof enabled !== 'boolean') {
+      throw new Error('session does not support auto-compaction settings');
+    }
+    this.sendResponse(id, true, { enabled });
+  }
+
+  private async handleSetAutoCompaction(
+    id: string,
+    payload: Extract<WorkerRequestPayload, { method: 'session/set-auto-compaction' }>,
+    context: WorkerFrameContext,
+  ): Promise<void> {
+    const session = this.requireSession(payload.sessionId);
+    this.assertSessionContext(session, context);
+    const setter = session.handle.setAutoCompactionEnabled;
+    if (!setter) {
+      throw new Error('session does not support auto-compaction settings');
+    }
+    await setter(payload.enabled);
+    this.sendResponse(id, true, { enabled: payload.enabled });
   }
 
   private async handleDrop(
@@ -680,6 +727,7 @@ export class WorkerSessionRuntime {
         ? { getContextUsage: () => readPiContextUsageSample(handle.getContextUsage?.()) }
         : {}),
     });
+    const compactionTiming: PiCompactionTimingState = {};
     const unsubscribe = handle.subscribe((raw) => {
       const runtimeSession = this.sessions.get(sessionId);
       const publishRunId = runtimeSession?.activeRunId ?? runtimeSession?.trailingRunId;
@@ -697,6 +745,7 @@ export class WorkerSessionRuntime {
           runtimeGenerationId: context.runtimeGenerationId,
         },
         runId: publishRunId,
+        compactionTiming,
         emit: (event) => {
           const frame: WorkerEvent = {
             type: 'event',

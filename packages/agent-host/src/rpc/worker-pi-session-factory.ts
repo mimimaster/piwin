@@ -19,6 +19,7 @@ import { readFile } from 'node:fs/promises';
 import type {
   AgentFailure,
   ExtensionUiPort,
+  SessionCompactionSeed,
   SessionSeedMessage,
   ThinkingLevel,
 } from '@piwin/contracts';
@@ -51,6 +52,11 @@ import {
   createSeededPiSettingsManager,
 } from '../seeded-pi-session.js';
 import { createPiwinSettingsManager } from '../pi-settings-manager.js';
+import {
+  readPiAutoCompactionEnabled,
+  setPiAutoCompactionEnabled,
+  type PiCompactionSettingsManager,
+} from '../pi-compaction-settings.js';
 import { mapPiCompactionResult, type PiCompactionResult } from '../pi-compaction-result.js';
 import { buildPiSessionToolAllowlist } from '../pi-session-tool-allowlist.js';
 import {
@@ -75,6 +81,7 @@ export type WorkerPiSessionFactoryInput = {
   seedMessages?: readonly SessionSeedMessage[];
   /** `compaction` (default) forces whole-history compaction; `replay` keeps seeds intact. */
   seedMode?: 'compaction' | 'replay';
+  compactionSeed?: SessionCompactionSeed;
   extensionUi?: ExtensionUiPort;
   /** Proxy tools to register as Pi customTools (WP4). */
   proxyTools?: PiBackendCustomToolDefinition[];
@@ -354,11 +361,14 @@ export function createWorkerPiSessionFactory(
     }
     await modelRuntime.refresh({ allowNetwork: false });
 
-    const settingsManager = createPiwinSettingsManager(
+    let settingsManager = createPiwinSettingsManager(
       piModule,
       blueprint.workingDirectory,
       agentDir,
     );
+    // Preserve the configured transport idle policy for compact snapshots;
+    // the later in-memory manager intentionally contains only compact-only
+    // overrides.
     const streamProgressTimeoutMs = readPiHttpIdleTimeoutMs(settingsManager);
     const sessionOptions: Record<string, unknown> = {
       cwd: blueprint.workingDirectory,
@@ -367,20 +377,23 @@ export function createWorkerPiSessionFactory(
       modelRuntime,
       settingsManager,
     };
-    if (input.seedMessages) {
+    if (input.seedMessages || input.compactionSeed) {
       sessionOptions.sessionManager = createSeededPiSessionManager(
         piModule as Record<string, unknown>,
         blueprint.workingDirectory,
-        input.seedMessages,
+        input.seedMessages ?? [],
+        input.compactionSeed,
       );
       if (input.seedMode !== 'replay') {
         // Compaction/subagent snapshots want Pi to compact the whole seeded
         // history; full-fidelity replay must keep it intact.
-        sessionOptions.settingsManager = createSeededPiSettingsManager(
+        settingsManager = createSeededPiSettingsManager(
           piModule as Record<string, unknown>,
-        );
+        ) as object;
+        sessionOptions.settingsManager = settingsManager;
       }
     }
+    const compactionSettingsManager = settingsManager as PiCompactionSettingsManager;
 
     // Inject proxy tools as Pi customTools (WP4). The worker does NOT
     // import tool executors — proxy tools call back to the parent.
@@ -455,6 +468,7 @@ export function createWorkerPiSessionFactory(
         (blueprint.model
           ? inferProtocolFromProviderId(providers, blueprint.model.providerId)
           : undefined),
+      compactionSettingsManager,
     );
   };
 }
@@ -482,8 +496,9 @@ type WorkerPiSessionHandle = {
   abort?: () => Promise<void>;
   compact?: (customInstructions?: string) => Promise<PiCompactionResult>;
   abortCompaction?: () => void;
+  readonly autoCompactionEnabled?: boolean;
   getAutoCompactionEnabled?: () => boolean;
-  setAutoCompactionEnabled?: (enabled: boolean) => void;
+  setAutoCompactionEnabled?: (enabled: boolean) => void | Promise<void>;
   setModel?: (model: PiModelRegistration) => Promise<void> | void;
   setThinkingLevel?: (level: string) => Promise<void> | void;
   bindExtensions?: (bindings: Record<string, unknown>) => Promise<void>;
@@ -502,6 +517,7 @@ function adaptPiSessionForWorker(
   providers: SerializableWorkerProviderRuntime[] | undefined,
   streamProgressTimeoutMs: number,
   initialProtocol?: string,
+  compactionSettingsManager?: PiCompactionSettingsManager,
 ): WorkerPiSessionLike {
   let activeRunId: string | undefined;
   let lastPromptStall: AgentFailure | undefined;
@@ -588,13 +604,13 @@ function adaptPiSessionForWorker(
         }
       : {}),
     ...(piSession.abortCompaction ? { abortCompaction: () => piSession.abortCompaction?.() } : {}),
-    ...(piSession.getAutoCompactionEnabled
-      ? { getAutoCompactionEnabled: () => piSession.getAutoCompactionEnabled?.() ?? true }
-      : {}),
-    ...(piSession.setAutoCompactionEnabled
+    ...(compactionSettingsManager &&
+    readPiAutoCompactionEnabled(piSession, compactionSettingsManager) !== undefined
       ? {
+          getAutoCompactionEnabled: () =>
+            readPiAutoCompactionEnabled(piSession, compactionSettingsManager) ?? true,
           setAutoCompactionEnabled: (enabled: boolean) =>
-            piSession.setAutoCompactionEnabled?.(enabled),
+            setPiAutoCompactionEnabled(piSession, compactionSettingsManager, enabled),
         }
       : {}),
     subscribe: (listener) => piSession.subscribe(listener),

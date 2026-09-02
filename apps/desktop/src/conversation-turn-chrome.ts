@@ -1,15 +1,13 @@
 /**
  * Conversation turn chrome: one identity header per user turn, not per
- * model completion. Tool-loop rows stay in the transcript; after a
- * conclusion they fold behind work disclosure. Identity follows the
- * conclusion when one exists.
+ * model completion. The header stays on the first visible assistant so
+ * later tool-loop completions cannot move the avatar down the turn.
  */
 import { isFlashcardCreateToolName } from '@piwin/contracts';
-import { assistantHasWorkTools } from './assistant-text-role.js';
 import type { ChatMessageUi, ToolCardUi } from './chat-reducer';
 
 export type ConversationTurnChrome = {
-  /** Assistant row that owns the identity header (conclusion, else first visible). */
+  /** Assistant row that owns the identity header (first visible in the turn). */
   identityMessageId: string | null;
   hiddenAssistantIds: ReadonlySet<string>;
   /** Turn usage belongs on the identity header of the session's latest turn. */
@@ -18,8 +16,7 @@ export type ConversationTurnChrome = {
 
 /**
  * Content Conversation paints besides thinking / identity. Process markdown
- * and tools both count as visible body; the settled conclusion is a later
- * row without work tools.
+ * and tools both count as visible body.
  */
 export function conversationAssistantHasVisibleBody(message: ChatMessageUi): boolean {
   if (message.text.trim().length > 0) {
@@ -76,16 +73,6 @@ function toolNameLooksLikeFlashcard(tool: ToolCardUi): boolean {
   );
 }
 
-function assistantLooksLikeConclusion(message: ChatMessageUi): boolean {
-  return (
-    message.role === 'assistant' &&
-    message.status !== 'streaming' &&
-    message.error === undefined &&
-    !assistantHasWorkTools(message) &&
-    conversationAssistantHasVisibleBody(message)
-  );
-}
-
 export function resolveConversationTurnChrome(input: {
   messages: readonly ChatMessageUi[];
   lastAssistantMessageId: string | null;
@@ -93,8 +80,6 @@ export function resolveConversationTurnChrome(input: {
 }): ConversationTurnChrome {
   const hiddenAssistantIds = new Set<string>();
   let firstVisibleId: string | null = null;
-  let conclusionId: string | null = null;
-  let sawProcessPrefix = false;
   const lastAssistantMessageId = input.lastAssistantMessageId;
   const lastAssistant = lastAssistantMessageId
     ? input.messages.find((message) => message.id === lastAssistantMessageId)
@@ -120,16 +105,10 @@ export function resolveConversationTurnChrome(input: {
     if (firstVisibleId === null) {
       firstVisibleId = message.id;
     }
-    if (assistantHasWorkTools(message)) {
-      sawProcessPrefix = true;
-    } else if (assistantLooksLikeConclusion(message)) {
-      conclusionId = message.id;
-    }
   }
 
   return {
-    identityMessageId:
-      sawProcessPrefix && conclusionId !== null ? conclusionId : firstVisibleId,
+    identityMessageId: firstVisibleId,
     hiddenAssistantIds,
     showUsageOnIdentity,
   };

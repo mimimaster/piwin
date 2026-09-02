@@ -407,6 +407,79 @@ describe('session context coordinator', () => {
     store.close();
   });
 
+  it('cold hydrate repairs an interrupted idle waiting row without promoting it to current occupancy', async () => {
+    const harness = await createHarness('reopen-waiting-repair');
+    const { coordinator, sessionId, store } = harness;
+    const confirmed = knownOccupancy(7_797, '2026-09-01T08:23:05.531Z');
+    const persisted: SessionContextSnapshot = {
+      sessionId,
+      revision: 1,
+      contextVersion: 3,
+      contextBoundary: {
+        activeLeafMessageId: 'voice-live-leaf',
+        model: { providerId: 'xai', modelId: 'grok-4.5' },
+      },
+      runtimeGenerationId: 'generation-old',
+      responseEvidence: {
+        currentRunHasResponse: false,
+        historyHasDisplayableResponse: true,
+      },
+      phase: 'idle',
+      occupancy: { kind: 'unknown', reason: 'waiting-for-response' },
+      lastConfirmed: {
+        occupancy: confirmed,
+        contextBoundary: {
+          activeLeafMessageId: 'piw-old-leaf',
+          model: { providerId: 'xai', modelId: 'grok-4.5' },
+        },
+        sampledAt: confirmed.sampledAt,
+      },
+      updatedAt: '2026-09-01T16:24:27.674Z',
+    };
+    const seeded = await store.replaceContextState({
+      expectedContextVersion: persisted.contextVersion,
+      expectedBoundary: persisted.contextBoundary,
+      snapshot: persisted,
+    });
+    expect(seeded.ok).toBe(true);
+
+    const restored = await coordinator.getSnapshot(sessionId);
+
+    expect(restored.phase).toBe('invalidated');
+    expect(restored.occupancy).toEqual({
+      kind: 'unknown',
+      reason: 'runtime-generation-mismatch',
+    });
+    expect(restored.lastConfirmed?.occupancy).toEqual(confirmed);
+    expect(restored.contextBoundary.activeLeafMessageId).toBe('voice-live-leaf');
+    expect((await store.readContextState())?.phase).toBe('invalidated');
+    store.close();
+  });
+
+  it('preserves omitted durable boundary axes during activation revalidation', async () => {
+    const harness = await createHarness('revalidate-compact-axis');
+    const { coordinator, sessionId, store } = harness;
+    await coordinator.noteResponseEvidence({ sessionId, messageId: 'leaf-1' });
+    await coordinator.noteCompactionEnd(sessionId, {
+      ok: true,
+      tokensBefore: 80_000,
+      tokensAfter: 5_000,
+    });
+    const before = await coordinator.getSnapshot(sessionId);
+    expect(before.contextBoundary.compactionBoundary).toBe('compact:80000:5000');
+
+    coordinator.disposeSession(sessionId);
+    await coordinator.revalidateAfterActivation(sessionId, {
+      runtimeGenerationId: 'gen-after-restart',
+      contextBoundary: { activeLeafMessageId: 'leaf-1' },
+    });
+    const restored = await coordinator.getSnapshot(sessionId);
+    expect(restored.contextBoundary.compactionBoundary).toBe('compact:80000:5000');
+    expect(restored.occupancy).toMatchObject({ kind: 'known', tokensUsed: 5_000 });
+    expect(restored.phase).toBe('idle');
+    store.close();
+  });
+
   it('T19: truncate-to-empty hides occupancy and rejects pre-barrier samples', async () => {
     const harness = await createHarness('t19');
     const { coordinator, sessionId, store, pushes } = harness;
@@ -923,6 +996,51 @@ describe('session context coordinator', () => {
     expect(again.lastConfirmed?.occupancy.tokensUsed).toBe(7_797);
     const persistedAgain = await store.readContextState();
     expect(persistedAgain?.revision).toBe(repairedRevision);
+    store.close();
+  });
+
+  it('repairs idle runtime-mismatch rows on cold hydrate and exposes stale confirmation', async () => {
+    const harness = await createHarness('repair-idle-mismatch');
+    const { coordinator, sessionId, store } = harness;
+    const occupancy = knownOccupancy(7_797, '2026-09-01T08:23:05.531Z');
+    const written = await store.replaceContextState({
+      expectedContextVersion: 1,
+      expectedBoundary: { activeLeafMessageId: 'voice-live-leaf' },
+      snapshot: {
+        sessionId,
+        revision: 1,
+        contextVersion: 3,
+        contextBoundary: { activeLeafMessageId: 'voice-live-leaf' },
+        runtimeGenerationId: 'gen-voice',
+        responseEvidence: {
+          currentRunHasResponse: false,
+          historyHasDisplayableResponse: true,
+        },
+        phase: 'idle',
+        occupancy: { kind: 'unknown', reason: 'runtime-generation-mismatch' },
+        lastConfirmed: {
+          occupancy,
+          contextBoundary: { activeLeafMessageId: 'piw-old-leaf' },
+          sampledAt: '2026-09-01T08:23:05.531Z',
+        },
+        updatedAt: '2026-09-01T08:23:37.011Z',
+      },
+    });
+    expect(written.ok).toBe(true);
+
+    const repaired = await coordinator.getSnapshot(sessionId);
+    expect(repaired.phase).toBe('invalidated');
+    expect(repaired.occupancy).toEqual({
+      kind: 'unknown',
+      reason: 'runtime-generation-mismatch',
+    });
+    expect(repaired.lastConfirmed?.occupancy.tokensUsed).toBe(7_797);
+    const persisted = await store.readContextState();
+    expect(persisted?.phase).toBe('invalidated');
+    expect(persisted?.occupancy).toEqual({
+      kind: 'unknown',
+      reason: 'runtime-generation-mismatch',
+    });
     store.close();
   });
 });

@@ -27,9 +27,15 @@ import {
 } from '../seeded-pi-session.js';
 import { createPiwinSettingsManager } from '../pi-settings-manager.js';
 import { mapPiCompactionResult, type PiCompactionResult } from '../pi-compaction-result.js';
+import {
+  readPiAutoCompactionEnabled,
+  setPiAutoCompactionEnabled,
+  type PiCompactionSettingsManager,
+} from '../pi-compaction-settings.js';
 import { buildPiSessionToolAllowlist } from '../pi-session-tool-allowlist.js';
 import {
   createPiContextSampler,
+  type PiCompactionTimingState,
   occupancyModelIdentityFromRef,
   publishSampledPiSessionEvents,
   readPiContextUsageSample,
@@ -107,11 +113,13 @@ export async function createBackendSdkSession(
     piBuiltinToolNames: capabilitySnapshot.tools.piBuiltinToolNames,
     hostTools: capabilitySnapshot.tools.hostTools,
   });
-  const settingsManager = createPiwinSettingsManager(
+  let settingsManager = createPiwinSettingsManager(
     piModule,
     capabilitySnapshot.workingDirectory,
     agentDir,
   );
+  // Keep the transport idle policy from the normal settings manager even when
+  // a disposable seed later swaps in its compact-only in-memory manager.
   const streamProgressTimeoutMs = readPiHttpIdleTimeoutMs(settingsManager);
   const sessionOptions: Record<string, unknown> = {
     cwd: capabilitySnapshot.workingDirectory,
@@ -123,18 +131,23 @@ export async function createBackendSdkSession(
     customTools,
     settingsManager,
   };
-  if (input.seedMessages) {
+  const hasSeededHistory =
+    input.compactionSeed !== undefined || (input.seedMessages?.length ?? 0) > 0;
+  if (hasSeededHistory) {
     sessionOptions.sessionManager = createSeededPiSessionManager(
       piModule,
       capabilitySnapshot.workingDirectory,
-      input.seedMessages,
+      input.seedMessages ?? [],
+      input.compactionSeed,
     );
     if (input.seedMode !== 'replay') {
       // Compaction/subagent snapshots want Pi to compact the whole seeded
       // history; full-fidelity replay must keep it intact.
-      sessionOptions.settingsManager = createSeededPiSettingsManager(piModule);
+      settingsManager = createSeededPiSettingsManager(piModule) as object;
+      sessionOptions.settingsManager = settingsManager;
     }
   }
+  const compactionSettingsManager = settingsManager as PiCompactionSettingsManager;
 
   if (input.blueprint.model) {
     const selectedModel = modelRuntime.getModel(
@@ -183,6 +196,7 @@ export async function createBackendSdkSession(
     },
     () => activeRunId,
     streamProgressTimeoutMs,
+    compactionSettingsManager,
   );
 }
 
@@ -244,6 +258,7 @@ function wrapBackendPiSession(
   setActiveRunId: (runId: string | undefined) => void,
   getActiveRunId: () => string | undefined,
   streamProgressTimeoutMs: number,
+  compactionSettingsManager: PiCompactionSettingsManager,
 ): BackendSessionHandle {
   const eventMapper = createPiSessionEventMapper();
   const sampler = createPiContextSampler({
@@ -365,28 +380,35 @@ function wrapBackendPiSession(
     ...(piSession.compact
       ? {
           async compact(customInstructions?: string) {
-            const result = customInstructions
-              ? await piSession.compact?.(customInstructions)
-              : await piSession.compact?.();
-            if (!result) {
-              throw new Error('Pi session compact returned no result');
+            // A manual compact is not a late event from the previous
+            // foreground Run. Automatic compact remains owned by activeRunId.
+            trailingRunId = undefined;
+            try {
+              const result = customInstructions
+                ? await piSession.compact?.(customInstructions)
+                : await piSession.compact?.();
+              if (!result) {
+                throw new Error('Pi session compact returned no result');
+              }
+              return mapPiCompactionResult(result);
+            } finally {
+              trailingRunId = undefined;
             }
-            return mapPiCompactionResult(result);
           },
         }
       : {}),
     ...(piSession.abortCompaction ? { abortCompaction: () => piSession.abortCompaction?.() } : {}),
-    ...(piSession.getAutoCompactionEnabled
-      ? { getAutoCompactionEnabled: () => piSession.getAutoCompactionEnabled?.() ?? true }
-      : {}),
-    ...(piSession.setAutoCompactionEnabled
+    ...(readPiAutoCompactionEnabled(piSession, compactionSettingsManager) !== undefined
       ? {
+          getAutoCompactionEnabled: () =>
+            readPiAutoCompactionEnabled(piSession, compactionSettingsManager) ?? true,
           setAutoCompactionEnabled: (enabled: boolean) =>
-            piSession.setAutoCompactionEnabled?.(enabled),
+            setPiAutoCompactionEnabled(piSession, compactionSettingsManager, enabled),
         }
       : {}),
     subscribe(listener) {
       occupancyListeners.add(listener);
+      const compactionTiming: PiCompactionTimingState = {};
       const unsubscribe = piSession.subscribe((rawEvent) => {
         publishSampledPiSessionEvents({
           mapper: eventMapper,
@@ -397,6 +419,7 @@ function wrapBackendPiSession(
             runtimeGenerationId: input.blueprint.runtimeGenerationId,
           },
           runId: getActiveRunId() ?? trailingRunId,
+          compactionTiming,
           emit: listener,
         });
       });
@@ -423,8 +446,9 @@ type PiLikeSession = {
   abort?: () => Promise<void>;
   compact?: (customInstructions?: string) => Promise<PiCompactionResult>;
   abortCompaction?: () => void;
+  readonly autoCompactionEnabled?: boolean;
   getAutoCompactionEnabled?: () => boolean;
-  setAutoCompactionEnabled?: (enabled: boolean) => void;
+  setAutoCompactionEnabled?: (enabled: boolean) => void | Promise<void>;
   setModel?: (model: NonNullable<ReturnType<PiModelRuntime['getModel']>>) => Promise<void> | void;
   setThinkingLevel?: (level: string) => Promise<void> | void;
   bindExtensions?: (bindings: Record<string, unknown>) => Promise<void>;

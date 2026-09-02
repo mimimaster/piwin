@@ -34,12 +34,8 @@ export function usePlayableLibrarySrc(input: {
           return;
         }
       }
-      if (localSrc) {
+      if (localSrc && kind !== 'video') {
         if (!cancelled) setSrc(localSrc);
-        return;
-      }
-      if (kind === 'video') {
-        if (!cancelled) setSrc('');
         return;
       }
       const hostUrl = await readLibraryMediaViaHost(

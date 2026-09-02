@@ -20,8 +20,10 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--s-5);
+  min-width: 0;
   margin-bottom: var(--s-5);
   min-height: 32px;
+  flex-wrap: wrap;
   user-select: none;
 }
 
@@ -46,6 +48,7 @@
   gap: var(--s-3);
   min-width: 0;
   flex: 1 1 auto;
+  flex-wrap: wrap;
 }
 
 .conversation-message-provider-icon {

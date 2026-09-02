@@ -204,6 +204,7 @@ export function mergeToolPresentation(
   if (!existing) {
     return incoming;
   }
+  const outputTruncation = incoming.output?.truncation ?? existing.output?.truncation;
   const merged: ToolPresentation = {
     ...existing,
     ...incoming,
@@ -217,6 +218,7 @@ export function mergeToolPresentation(
             ...(incoming.output?.redacted || existing.output?.redacted
               ? { redacted: true as const }
               : {}),
+            ...(outputTruncation !== undefined ? { truncation: outputTruncation } : {}),
           },
         }
       : {}),

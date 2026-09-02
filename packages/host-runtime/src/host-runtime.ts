@@ -966,20 +966,22 @@ export class HostRuntime extends HostRuntimeFields {
     return createSession(this.asKernel(), input, options);
   }
 
-  async replaceRuntimeForModel(sessionId: string): Promise<void> {
-    return replaceRuntimeForModel(this.asKernel(), sessionId);
+  async replaceRuntimeForModel(sessionId: string, excludeSeedMessageId?: string): Promise<void> {
+    return replaceRuntimeForModel(this.asKernel(), sessionId, excludeSeedMessageId);
   }
 
   async compileRuntimeCandidate(
     sessionId: string,
     generationId: string,
     expectedSettingsRevision: string,
+    excludeSeedMessageId?: string,
   ): Promise<RuntimeReplacementCandidate> {
     return compileRuntimeCandidate(
       this.asKernel(),
       sessionId,
       generationId,
       expectedSettingsRevision,
+      excludeSeedMessageId,
     );
   }
 

@@ -28,6 +28,7 @@ import {
   resolveDocumentContentFromMessages,
   type DocumentContentMessage,
 } from '../resolve-document-content';
+import { readMediaObjectUrlViaHost } from '../media-host-read';
 
 export type UseActiveDocumentInput = {
   hostClient: HostClient;
@@ -212,47 +213,20 @@ export function useActiveDocument(input: UseActiveDocumentInput): UseActiveDocum
           target: doc.target,
         });
         void (async () => {
-          const response = await hostClient.request({
-            type: 'media/read',
-            input: { sessionId, assetId },
-          });
-          if (response.success && response.data) {
-            const readData = response.data as {
-              status?: string;
-              base64Data?: string;
-              mimeType?: string;
-              byteSize?: number;
-            };
-            if (
-              readData.status === 'ready' &&
-              typeof readData.base64Data === 'string' &&
-              readData.base64Data.length > 0
-            ) {
-              const mime = readData.mimeType || 'application/octet-stream';
-              applyDocument({
-                status: 'ready',
-                requestId,
-                title: cleanTitle,
-                content: '',
-                displayRef: displayRef || `media:${assetId}`,
-                provenance: 'session-media',
-                media: {
-                  path: displayRef || `media:${assetId}`,
-                  assetId,
-                  mimeType: mime,
-                  ...(readData.byteSize !== undefined ? { byteSize: readData.byteSize } : {}),
-                  dataUrl: `data:${mime};base64,${readData.base64Data}`,
-                },
-              });
-              return;
-            }
+          const objectUrl = await readMediaObjectUrlViaHost(hostClient, { sessionId, assetId });
+          if (objectUrl) {
             applyDocument({
-              status: 'unavailable',
+              status: 'ready',
               requestId,
               title: cleanTitle,
+              content: '',
               displayRef: displayRef || `media:${assetId}`,
-              reason: 'media-unavailable',
-              suggestion: '该媒体资源无法读取，可能已被清理或不可用。',
+              provenance: 'session-media',
+              media: {
+                path: displayRef || `media:${assetId}`,
+                assetId,
+                dataUrl: objectUrl,
+              },
             });
             return;
           }
@@ -262,7 +236,7 @@ export function useActiveDocument(input: UseActiveDocumentInput): UseActiveDocum
             title: cleanTitle,
             displayRef: displayRef || `media:${assetId}`,
             reason: 'media-unavailable',
-            suggestion: '媒体读取失败，请稍后重试。',
+            suggestion: '该媒体资源无法读取，可能已被清理或不可用。',
           });
         })();
         return;

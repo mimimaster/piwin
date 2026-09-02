@@ -17,6 +17,14 @@ export function resolveGenerationToolKind(tool: ToolCardUi): GenerationToolKind 
     return 'video';
   }
 
+  const title = tool.presentation?.title?.trim().toLowerCase();
+  if (title === 'image_gen') {
+    return 'image';
+  }
+  if (title === 'video_gen') {
+    return 'video';
+  }
+
   const invokedToolName = tool.toolName.trim().toLowerCase();
   if (invokedToolName === 'image_gen') {
     return 'image';
@@ -25,6 +33,25 @@ export function resolveGenerationToolKind(tool: ToolCardUi): GenerationToolKind 
     return 'video';
   }
   return null;
+}
+
+export function getGenerationStatus(
+  message: { tools: readonly ToolCardUi[] },
+  generationKind: GenerationToolKind,
+): ToolCardUi['status'] | null {
+  const generationTools = message.tools.filter(
+    (tool) => resolveGenerationToolKind(tool) === generationKind,
+  );
+  if (generationTools.length === 0) {
+    return null;
+  }
+  if (generationTools.some((tool) => tool.status === 'running')) {
+    return 'running';
+  }
+  if (generationTools.some((tool) => tool.status === 'error')) {
+    return 'error';
+  }
+  return 'done';
 }
 
 /** Done generation is the attachment itself; keep the card only while running or failed. */

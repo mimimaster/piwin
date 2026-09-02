@@ -7,6 +7,7 @@
  * - First user message → host writes a truncated text name (`nameSource: text`).
  * - After a completed exchange → host may upgrade to an LLM title (`nameSource: llm`).
  * - Manual rename → `nameSource: user` (never overwritten).
+ * - Duplicate origin labels stay stable in the automatic naming pipeline.
  */
 export type SessionNameSource = 'default' | 'text' | 'llm' | 'user' | 'auto';
 

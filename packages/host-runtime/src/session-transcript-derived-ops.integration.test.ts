@@ -51,6 +51,20 @@ describe('SQLite transcript derived operations', () => {
       expect(duplicated.success).toBe(true);
       if (!duplicated.success) throw new Error(duplicated.error);
       const duplicateSessionId = (duplicated.data as { sessionId: string }).sessionId;
+      const duplicateContext = await runtime.handleCommand({
+        type: 'session/context-get',
+        sessionId: duplicateSessionId,
+      });
+      expect(duplicateContext.success).toBe(true);
+      if (!duplicateContext.success) throw new Error(duplicateContext.error);
+      expect(duplicateContext.data).toMatchObject({
+        sessionId: duplicateSessionId,
+        occupancy: { kind: 'unknown', reason: 'derived-session' },
+        responseEvidence: {
+          currentRunHasResponse: false,
+          historyHasDisplayableResponse: true,
+        },
+      });
       const duplicateMessages = await runtime.handleCommand({
         type: 'session/messages',
         sessionId: duplicateSessionId,
@@ -69,9 +83,7 @@ describe('SQLite transcript derived operations', () => {
       });
       expect(duplicateSummaries.success).toBe(true);
       if (!duplicateSummaries.success) throw new Error(duplicateSummaries.error);
-      expect(
-        (duplicateSummaries.data as { summaries: unknown[] }).summaries.length,
-      ).toBe(2);
+      expect((duplicateSummaries.data as { summaries: unknown[] }).summaries.length).toBe(2);
       const duplicatePrompted = await runtime.handleCommand({
         type: 'session/prompt',
         sessionId: duplicateSessionId,
@@ -87,11 +99,9 @@ describe('SQLite transcript derived operations', () => {
       if (!duplicateSummariesAfterPrompt.success) {
         throw new Error(duplicateSummariesAfterPrompt.error);
       }
-      const duplicateOrdinals = (
-        duplicateSummariesAfterPrompt.data as {
-          summaries: Array<{ requestOrdinal: number }>;
-        }
-      ).summaries.map((summary) => summary.requestOrdinal);
+      const duplicateOrdinals = (duplicateSummariesAfterPrompt.data as {
+        summaries: Array<{ requestOrdinal: number }>;
+      }).summaries.map((summary) => summary.requestOrdinal);
       expect(duplicateOrdinals).toEqual([1, 2, 3]);
 
       const forked = await runtime.handleCommand({
@@ -118,6 +128,21 @@ describe('SQLite transcript derived operations', () => {
           (forkMessages.data as { messages: SessionTranscriptMessage[] }).messages,
         ),
       ).toEqual(comparableMessages(sourceMessages));
+
+      const forkContext = await runtime.handleCommand({
+        type: 'session/context-get',
+        sessionId: forkSessionId,
+      });
+      expect(forkContext.success).toBe(true);
+      if (!forkContext.success) throw new Error(forkContext.error);
+      expect(forkContext.data).toMatchObject({
+        sessionId: forkSessionId,
+        occupancy: { kind: 'unknown', reason: 'derived-session' },
+        responseEvidence: {
+          currentRunHasResponse: false,
+          historyHasDisplayableResponse: true,
+        },
+      });
 
       const forkSummaries = await runtime.handleCommand({
         type: 'session/model-context-summary',
@@ -246,6 +271,83 @@ describe('SQLite transcript derived operations', () => {
         const entries = await store.readNativeEntries(assistantRow.id);
         expect(entries.length).toBeGreaterThan(0);
         expect(JSON.parse(entries[0]?.payload ?? '{}')).toMatchObject({ role: 'assistant' });
+      } finally {
+        store.close();
+      }
+    }
+  });
+
+  it('copies the active durable compaction boundary into derived sessions', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-derived-compaction-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    const derivedSessionIds: string[] = [];
+    try {
+      const created = await runtime.handleCommand({
+        type: 'session/create',
+        input: { projectPath: '/project', sessionName: 'Compacted source' },
+      });
+      expect(created.success).toBe(true);
+      if (!created.success) throw new Error(created.error);
+      const sourceSessionId = (created.data as { sessionId: string }).sessionId;
+      const prompted = await runtime.handleCommand({
+        type: 'session/prompt',
+        sessionId: sourceSessionId,
+        input: { text: 'persist this compacted context' },
+      });
+      expect(prompted.success).toBe(true);
+      const sourceMessages = await waitForCompletedAssistant(runtime, sourceSessionId);
+      const assistant = sourceMessages.find(
+        (message) => message.role === 'assistant' && message.status === 'done',
+      );
+      if (assistant === undefined) throw new Error('completed assistant message missing');
+
+      const sourceStore = await openStoreFor(rootDir, sourceSessionId);
+      try {
+        await sourceStore.recordCompaction({
+          compactionId: 'source-compaction-1',
+          anchorMessageId: assistant.id,
+          summary: 'Keep the source decisions and continue from this turn.',
+          tokensBefore: 48_000,
+          tokensAfter: 3_200,
+          createdAt: '2026-09-01T00:01:00.000Z',
+        });
+      } finally {
+        sourceStore.close();
+      }
+
+      const duplicated = await runtime.handleCommand({
+        type: 'session/duplicate',
+        sessionId: sourceSessionId,
+        messageProjection: 'none',
+      });
+      expect(duplicated.success).toBe(true);
+      if (!duplicated.success) throw new Error(duplicated.error);
+      const duplicateSessionId = (duplicated.data as { sessionId: string }).sessionId;
+      derivedSessionIds.push(duplicateSessionId);
+
+      const forked = await runtime.handleCommand({
+        type: 'session/fork',
+        sessionId: sourceSessionId,
+        messageId: assistant.id,
+        workspaceStrategy: 'shared',
+        messageProjection: 'none',
+      });
+      expect(forked.success).toBe(true);
+      if (!forked.success) throw new Error(forked.error);
+      derivedSessionIds.push((forked.data as { sessionId: string }).sessionId);
+    } finally {
+      await runtime.dispose();
+    }
+
+    for (const sessionId of derivedSessionIds) {
+      const store = await openStoreFor(rootDir, sessionId);
+      try {
+        await expect(store.readLatestCompaction()).resolves.toMatchObject({
+          sessionId,
+          summary: 'Keep the source decisions and continue from this turn.',
+          tokensBefore: 48_000,
+          tokensAfter: 3_200,
+        });
       } finally {
         store.close();
       }

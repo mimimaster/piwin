@@ -3,7 +3,7 @@
  * Keep live prompt/spawn/compaction in HostRuntime — this module owns index lifecycle only.
  */
 import { rm } from 'node:fs/promises';
-import { formatError } from '@piwin/contracts';
+import { formatCompactionBoundary, formatError } from '@piwin/contracts';
 import { rejectUnavailableSessionBody } from '../session-body-guard.js';
 import type {
   CreateSessionInput,
@@ -17,6 +17,7 @@ import type {
   SessionLifecycleApplySkipReason,
   SessionLifecyclePlan,
   SessionTranscriptMessage,
+  SessionCompactionRecord,
 } from '@piwin/contracts';
 import {
   createSessionLifecyclePlan,
@@ -53,6 +54,7 @@ import { fail, ok } from '../response-helpers.js';
 import { sessionBusyResponse } from '../session-body-gate.js';
 import { sessionIndexUpdatedPush } from '../session-index-push.js';
 import { indexRecordToSummary } from '../session-summary-map.js';
+import { hasDisplayableAssistantResponse } from '../derived-session-context-evidence.js';
 import {
   getPiwinMediaDir,
   getPiwinRoot,
@@ -252,9 +254,7 @@ export async function handleSessionProductCommand(
         return fail(requestId, 'session/pin', `Unknown session: ${command.sessionId}`);
       }
       const session = indexRecordToSummary(record);
-      context.push?.(
-        sessionIndexUpdatedPush({ op: 'pinned', sessionId: record.id, session }),
-      );
+      context.push?.(sessionIndexUpdatedPush({ op: 'pinned', sessionId: record.id, session }));
       return ok(requestId, 'session/pin', {
         sessionId: record.id,
         isPinned: true,
@@ -268,9 +268,7 @@ export async function handleSessionProductCommand(
         return fail(requestId, 'session/unpin', `Unknown session: ${command.sessionId}`);
       }
       const session = indexRecordToSummary(record);
-      context.push?.(
-        sessionIndexUpdatedPush({ op: 'unpinned', sessionId: record.id, session }),
-      );
+      context.push?.(sessionIndexUpdatedPush({ op: 'unpinned', sessionId: record.id, session }));
       return ok(requestId, 'session/unpin', {
         sessionId: record.id,
         isPinned: false,
@@ -327,9 +325,7 @@ export async function handleSessionProductCommand(
         return fail(requestId, 'session/archive', `Unknown session: ${command.sessionId}`);
       }
       const session = indexRecordToSummary(record);
-      context.push?.(
-        sessionIndexUpdatedPush({ op: 'archived', sessionId: record.id, session }),
-      );
+      context.push?.(sessionIndexUpdatedPush({ op: 'archived', sessionId: record.id, session }));
       return ok(requestId, 'session/archive', {
         sessionId: record.id,
         isArchived: true,
@@ -393,9 +389,7 @@ export async function handleSessionProductCommand(
         return fail(requestId, 'session/unarchive', `Unknown session: ${command.sessionId}`);
       }
       const session = indexRecordToSummary(record);
-      context.push?.(
-        sessionIndexUpdatedPush({ op: 'unarchived', sessionId: record.id, session }),
-      );
+      context.push?.(sessionIndexUpdatedPush({ op: 'unarchived', sessionId: record.id, session }));
       return ok(requestId, 'session/unarchive', {
         sessionId: record.id,
         isArchived: false,
@@ -432,28 +426,26 @@ export async function handleSessionProductCommand(
         return sessionBusyResponse(requestId, 'session/delete', command.sessionId, 'body-job');
       }
       try {
-      if (existing.isArchived !== true && command.force !== true) {
-        return fail(
-          requestId,
-          'session/delete',
-          'Session must be archived before permanent delete (or pass force: true)',
-        );
-      }
-      if (liveRun !== undefined && command.force === true) {
-        await context.abortLiveSession(command.sessionId);
-      }
-      const deletion = await context.deleteSession(command.sessionId);
-      if (!deletion) {
-        return fail(requestId, 'session/delete', `Unknown session: ${command.sessionId}`);
-      }
-      context.push?.(
-        sessionIndexUpdatedPush({ op: 'deleted', sessionId: command.sessionId }),
-      );
-      return ok(requestId, 'session/delete', {
-        sessionId: command.sessionId,
-        deleted: true,
-        ...(deletion.cleanupWarning ? { cleanupWarning: deletion.cleanupWarning } : {}),
-      });
+        if (existing.isArchived !== true && command.force !== true) {
+          return fail(
+            requestId,
+            'session/delete',
+            'Session must be archived before permanent delete (or pass force: true)',
+          );
+        }
+        if (liveRun !== undefined && command.force === true) {
+          await context.abortLiveSession(command.sessionId);
+        }
+        const deletion = await context.deleteSession(command.sessionId);
+        if (!deletion) {
+          return fail(requestId, 'session/delete', `Unknown session: ${command.sessionId}`);
+        }
+        context.push?.(sessionIndexUpdatedPush({ op: 'deleted', sessionId: command.sessionId }));
+        return ok(requestId, 'session/delete', {
+          sessionId: command.sessionId,
+          deleted: true,
+          ...(deletion.cleanupWarning ? { cleanupWarning: deletion.cleanupWarning } : {}),
+        });
       } finally {
         context.releaseSessionBody?.(command.sessionId);
       }
@@ -513,8 +505,10 @@ export async function handleSessionProductCommand(
       try {
         const sourceStore = await context.getTranscriptStore(command.sessionId);
         const targetStore = await context.getTranscriptStore(created.id, targetProjectPath);
+        const latestCompaction = await sourceStore.readLatestCompaction();
         let messageCount = 0;
         let lastMessage: SessionTranscriptMessage | undefined;
+        let historyHasDisplayableResponse = false;
         const messageIdMap = new Map<string, string>();
         for await (const message of sourceStore.iterateActivePath(100)) {
           const cloned = cloneTranscriptMessage(message);
@@ -523,7 +517,14 @@ export async function handleSessionProductCommand(
           await copyNativeEntries(sourceStore, targetStore, message.id, cloned.id);
           messageCount += 1;
           lastMessage = cloned;
+          historyHasDisplayableResponse ||= hasDisplayableAssistantResponse(message);
         }
+        const copiedCompaction = await copyDerivedCompaction({
+          source: latestCompaction,
+          target: targetStore,
+          targetSessionId: created.id,
+          messageIdMap,
+        });
         await copyModelContextLedger({
           sourceDbPath: getPiwinSessionModelContextDatabasePath(rootDir, command.sessionId),
           sourceSessionId: command.sessionId,
@@ -536,6 +537,10 @@ export async function handleSessionProductCommand(
           target: targetStore,
           targetSessionId: created.id,
           updatedAt: new Date().toISOString(),
+          historyHasDisplayableResponse,
+          ...(copiedCompaction !== undefined
+            ? { compactionBoundary: formatCompactionBoundary(copiedCompaction) }
+            : {}),
         });
         const displayName =
           typeof command.name === 'string' && command.name.trim().length > 0
@@ -556,9 +561,7 @@ export async function handleSessionProductCommand(
               targetScope.kind === 'project'
                 ? { kind: 'project', projectPath: targetProjectPath }
                 : { kind: 'general' },
-            ...(targetScope.kind === 'project'
-              ? { workingDirectory: targetProjectPath }
-              : {}),
+            ...(targetScope.kind === 'project' ? { workingDirectory: targetProjectPath } : {}),
             name: displayName,
             kind: 'main',
             depth: 0,
@@ -638,8 +641,10 @@ export async function handleSessionProductCommand(
 
       try {
         const targetStore = await context.getTranscriptStore(created.id, source.projectPath);
+        const latestCompaction = await sourceStore.readLatestCompaction();
         let messageCount = 0;
         let lastMessage: SessionTranscriptMessage | undefined;
+        let historyHasDisplayableResponse = false;
         let reachedSelection = false;
         const messageIdMap = new Map<string, string>();
         const retainedRunIds = new Set<string>();
@@ -667,11 +672,18 @@ export async function handleSessionProductCommand(
           await copyNativeEntries(sourceStore, targetStore, message.id, cloned.id);
           messageCount += 1;
           lastMessage = cloned;
+          historyHasDisplayableResponse ||= hasDisplayableAssistantResponse(message);
           if (message.id === selected.id) {
             reachedSelection = true;
             break;
           }
         }
+        const copiedCompaction = await copyDerivedCompaction({
+          source: latestCompaction,
+          target: targetStore,
+          targetSessionId: created.id,
+          messageIdMap,
+        });
         await copyModelContextLedger({
           sourceDbPath: getPiwinSessionModelContextDatabasePath(rootDir, command.sessionId),
           sourceSessionId: command.sessionId,
@@ -692,11 +704,13 @@ export async function handleSessionProductCommand(
           target: targetStore,
           targetSessionId: created.id,
           updatedAt: new Date().toISOString(),
+          historyHasDisplayableResponse,
+          ...(copiedCompaction !== undefined
+            ? { compactionBoundary: formatCompactionBoundary(copiedCompaction) }
+            : {}),
         });
         if (!reachedSelection) {
-          throw new Error(
-            `Message not found while streaming source transcript: ${selected.id}`,
-          );
+          throw new Error(`Message not found while streaming source transcript: ${selected.id}`);
         }
         const displayName =
           typeof command.name === 'string' && command.name.trim().length > 0
@@ -778,10 +792,7 @@ export async function handleSessionProductCommand(
     }
     case 'session/model-context-summary': {
       const rootDir = getPiwinRoot(context.piwinRoot);
-      const record = await getSessionRecord(
-        getPiwinSessionIndexPath(rootDir),
-        command.sessionId,
-      );
+      const record = await getSessionRecord(getPiwinSessionIndexPath(rootDir), command.sessionId);
       if (!record) {
         return fail(
           requestId,
@@ -935,4 +946,46 @@ async function copyNativeEntries(
     targetMessageId,
     entries.map((entry, index) => ({ ordinal: index, entry })),
   );
+}
+
+/**
+ * Copy the active compaction boundary after derived message ids are remapped.
+ * A boundary anchored outside the retained fork prefix would make the target
+ * replay a summary for history it does not contain, so it is deliberately
+ * omitted in that case.
+ */
+async function copyDerivedCompaction(input: {
+  source: SessionCompactionRecord | undefined;
+  target: Pick<SessionTranscriptStore, 'recordCompaction'>;
+  targetSessionId: string;
+  messageIdMap: ReadonlyMap<string, string>;
+}): Promise<SessionCompactionRecord | undefined> {
+  const source = input.source;
+  if (source === undefined) {
+    return undefined;
+  }
+
+  const targetAnchor =
+    source.anchorMessageId === null ? null : input.messageIdMap.get(source.anchorMessageId);
+  if (targetAnchor === undefined) {
+    return undefined;
+  }
+
+  await input.target.recordCompaction({
+    compactionId: source.compactionId,
+    anchorMessageId: targetAnchor,
+    summary: source.summary,
+    ...(source.firstKeptEntryId !== undefined ? { firstKeptEntryId: source.firstKeptEntryId } : {}),
+    ...(source.tokensBefore !== undefined ? { tokensBefore: source.tokensBefore } : {}),
+    ...(source.tokensAfter !== undefined ? { tokensAfter: source.tokensAfter } : {}),
+    ...(source.runtimeGenerationId !== undefined
+      ? { runtimeGenerationId: source.runtimeGenerationId }
+      : {}),
+    createdAt: source.createdAt,
+  });
+  return {
+    ...source,
+    sessionId: input.targetSessionId,
+    anchorMessageId: targetAnchor,
+  };
 }

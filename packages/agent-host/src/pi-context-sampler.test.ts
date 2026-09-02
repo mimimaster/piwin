@@ -6,7 +6,12 @@ import {
   normalizeGenerationMessageId,
   type GenerationIdentityContext,
 } from './generation-identity.js';
-import { createPiContextSampler, type PiContextSampler } from './pi-context-sampler.js';
+import {
+  createPiContextSampler,
+  enrichPiCompactionDuration,
+  type PiCompactionTimingState,
+  type PiContextSampler,
+} from './pi-context-sampler.js';
 
 const identity: GenerationIdentityContext = {
   sessionId: 'session-1',
@@ -70,6 +75,75 @@ const validUsage = {
 };
 
 describe('pi-context-sampler', () => {
+  it('fills a missing compaction duration from the matching start event', () => {
+    const state: PiCompactionTimingState = {};
+    enrichPiCompactionDuration({ type: 'compaction/start' }, state, 100);
+    expect(
+      enrichPiCompactionDuration({ type: 'compaction/end', ok: true }, state, 145),
+    ).toEqual({ type: 'compaction/end', ok: true, durationMs: 45 });
+    expect(state.startedAtMs).toBeUndefined();
+  });
+
+  it('keeps the last trusted occupancy when compaction fails', () => {
+    let contextTokens: number | null = 90_000;
+    const sampler = createSampler({
+      getContextUsage: () => ({ tokens: contextTokens, contextWindow: 128_000 }),
+    });
+    replay(sampler, [
+      { type: 'message_start', messageId: 'm-1', role: 'assistant' },
+      {
+        type: 'message_end',
+        messageId: 'm-1',
+        message: {
+          role: 'assistant',
+          id: 'm-1',
+          usage: validUsage,
+          stopReason: 'stop',
+        },
+      },
+    ]);
+
+    contextTokens = null;
+    const failed = replay(sampler, [
+      { type: 'compaction_start', reason: 'overflow' },
+      {
+        type: 'compaction_end',
+        reason: 'overflow',
+        aborted: false,
+        errorMessage: 'Auto-compaction failed: provider unavailable',
+        result: undefined,
+      },
+    ]);
+
+    expect(measurements(failed).at(-1)?.occupancy).toMatchObject({
+      kind: 'known',
+      tokensUsed: 90_000,
+    });
+  });
+
+  it('records the stable product boundary from a successful compaction result', () => {
+    const sampler = createSampler({
+      getContextUsage: () => ({ tokens: 40_000, contextWindow: 128_000 }),
+    });
+    const events = replay(sampler, [
+      { type: 'compaction_start', reason: 'manual' },
+      {
+        type: 'compaction_end',
+        reason: 'manual',
+        result: {
+          summary: 'summary',
+          firstKeptEntryId: 'entry-42',
+          tokensBefore: 80_000,
+          estimatedTokensAfter: 40_000,
+        },
+      },
+    ]);
+
+    expect(measurements(events).at(-1)?.contextBoundary.compactionBoundary).toBe(
+      'compact:80000:40000',
+    );
+  });
+
   it('T07: tokensUsed increases across text, thinking, and tool-loop without waiting for agent_end', () => {
     const sampler = createSampler({
       getContextUsage: () => ({ tokens: 80_000, contextWindow: 128_000 }),

@@ -234,6 +234,34 @@ describe('readMediaAsset', () => {
     expect(badCap).toMatchObject({ status: 'unavailable', reason: 'invalid-request' });
   });
 
+  it('reads a byte range of an oversized asset instead of rejecting the whole file', async () => {
+    const mediaRoot = await mkdtemp(join(tmpdir(), 'piwin-media-'));
+    const bytes = new Uint8Array(64);
+    bytes.set([0, 1, 2, 3, 4, 5, 6, 7], 0);
+    const asset = await saveMediaAsset(
+      { mediaRoot, maxPasteBytes: 4096, allowedMimeTypes: ['video/mp4'] },
+      {
+        sessionId: 'sess-1',
+        bytes,
+        mimeType: 'video/mp4',
+        source: 'generated',
+      },
+    );
+    const result = await readMediaAsset(
+      { mediaRoot },
+      { sessionId: 'sess-1', assetId: asset.id, maxBytes: 16, offset: 0, length: 8 },
+    );
+    expect(result).toMatchObject({
+      status: 'ready',
+      byteSize: 64,
+      offset: 0,
+    });
+    if (result.status !== 'ready') {
+      throw new Error('expected a ranged ready payload');
+    }
+    expect([...result.bytes]).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+  });
+
   it('rejects assets over the byte cap whole, not truncated', async () => {
     const mediaRoot = await mkdtemp(join(tmpdir(), 'piwin-media-'));
     const asset = await saveMediaAsset(

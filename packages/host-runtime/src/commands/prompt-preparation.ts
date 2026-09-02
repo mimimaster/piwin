@@ -341,6 +341,12 @@ export async function preparePromptInput(
         : preparedFromHost.text,
     ...(preparedFromHost.attachments ? { attachments: [...preparedFromHost.attachments] } : {}),
   };
+  if (retryUserMessageId !== undefined && userMessageId !== undefined) {
+    // Retry reuses the durable user row. Keep its id on the prepared input so
+    // a cold-start product-history fallback can exclude that row just like a
+    // newly submitted prompt; otherwise the retry is sent twice after reload.
+    promptInput.clientMessageId = userMessageId;
+  }
   assembly.add({
     kind: 'user',
     label: 'User',

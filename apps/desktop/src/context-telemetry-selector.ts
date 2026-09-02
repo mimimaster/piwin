@@ -79,9 +79,22 @@ export function isChatCompactPendingOccupancy(state: {
   lastCompactionMessage: string | null;
   contextTelemetry: Pick<ContextTelemetryState, 'displayed'>;
 }): boolean {
+  const snapshot = state.contextTelemetry.displayed;
+  if (snapshot?.occupancy.kind !== 'unknown') {
+    return false;
+  }
+  if (state.lastCompactionMessage !== null) {
+    return true;
+  }
+  // `lastCompactionMessage` is intentionally transient UI state. After a
+  // restart, the Host can still expose the durable boundary and the
+  // post-compaction measurement gap, so keep the ring visible as an
+  // ellipsis/status affordance instead of making it disappear.
   return (
-    state.contextTelemetry.displayed?.occupancy.kind === 'unknown' &&
-    state.lastCompactionMessage !== null
+    (snapshot.occupancy.reason === 'compaction-unmeasured' ||
+      snapshot.occupancy.reason === 'runtime-generation-mismatch') &&
+    snapshot.contextBoundary.compactionBoundary !== undefined &&
+    snapshot.responseEvidence.historyHasDisplayableResponse
   );
 }
 
@@ -112,6 +125,10 @@ export function selectContextRingView(input: SelectContextRingViewInput): Contex
   const resolved = resolveRingOccupancy(snapshot);
   const known = resolved.occupancy;
   const occupancySource = resolved.occupancySource;
+  // A derived transcript has valid historical response evidence, but its
+  // runtime has not sampled the new active path yet. Keep the affordance
+  // visible without presenting a copied or guessed number.
+  const derivedPendingMeasurement = isDerivedPendingMeasurement(snapshot);
   const displayLimit = resolveDisplayLimit({
     snapshotLimit: known?.tokensLimit,
     selectedModelContextWindow: input.selectedModelContextWindow,
@@ -137,7 +154,7 @@ export function selectContextRingView(input: SelectContextRingViewInput): Contex
   if (emptyPhase || waitingWithoutResponse) {
     return hiddenView({ copy, phase: snapshot.phase, lastRequest, offline });
   }
-  if (snapshot.phase === 'invalidated' && known === null) {
+  if (snapshot.phase === 'invalidated' && known === null && !compactPending) {
     return hiddenView({ copy, phase: snapshot.phase, lastRequest, offline });
   }
 
@@ -145,7 +162,7 @@ export function selectContextRingView(input: SelectContextRingViewInput): Contex
     return hiddenView({ copy, phase: snapshot.phase, lastRequest, offline });
   }
 
-  if (!known && !compactPending && !offline && !compacting) {
+  if (!known && !compactPending && !offline && !compacting && !derivedPendingMeasurement) {
     return hiddenView({ copy, phase: snapshot.phase, lastRequest });
   }
 
@@ -175,22 +192,23 @@ export function selectContextRingView(input: SelectContextRingViewInput): Contex
       ? copy.compacting
       : offline
         ? copy.offline
-        : staleCopy
-          ? copy.lastConfirmedPending
-          : quality === 'estimated'
-            ? snapshot.phase === 'streaming' || snapshot.phase === 'waiting-response'
-              ? copy.realtimeEstimate
-              : copy.estimated
-            : quality === 'measured'
-              ? copy.confirmed
-              : copy.estimated;
+        : derivedPendingMeasurement
+          ? copy.pendingMeasurement
+          : staleCopy
+            ? copy.lastConfirmedPending
+            : quality === 'estimated'
+              ? snapshot.phase === 'streaming' || snapshot.phase === 'waiting-response'
+                ? copy.realtimeEstimate
+                : copy.estimated
+              : quality === 'measured'
+                ? copy.confirmed
+                : copy.estimated;
   const limitNote = estimatedAgainstSelectedModel
     ? copy.estimatedAgainstSelectedModel
     : displayLimit === undefined
       ? copy.limitUnknown
       : '';
-  const usedLabel =
-    typeof tokensUsed === 'number' ? formatUsageTokenCount(tokensUsed) : '—';
+  const usedLabel = typeof tokensUsed === 'number' ? formatUsageTokenCount(tokensUsed) : '—';
   const limitLabel =
     displayLimit !== undefined ? formatUsageTokenCount(displayLimit) : copy.limitUnknown;
   const percentLabel = percentText !== undefined ? `${percentText}%` : undefined;
@@ -210,15 +228,24 @@ export function selectContextRingView(input: SelectContextRingViewInput): Contex
       status,
       quality: staleCopy
         ? copy.lastConfirmedPending
-        : quality === 'measured'
-          ? copy.confirmed
-          : copy.estimated,
+        : derivedPendingMeasurement
+          ? copy.pendingMeasurement
+          : quality === 'measured'
+            ? copy.confirmed
+            : copy.estimated,
       limitNote,
       exceeds: exceedsLimit ? copy.exceedsLimit : '',
-      hover: copy.hover(usedLabel, limitLabel, percentLabel),
-      accessibleLabel: copy.accessibleLabel(usedLabel, limitLabel, percentLabel),
-      percentFull:
-        percentText === undefined ? copy.limitUnknown : copy.percentFull(percentText),
+      hover: derivedPendingMeasurement
+        ? copy.pendingMeasurement
+        : copy.hover(usedLabel, limitLabel, percentLabel),
+      accessibleLabel: derivedPendingMeasurement
+        ? copy.pendingMeasurement
+        : copy.accessibleLabel(usedLabel, limitLabel, percentLabel),
+      percentFull: derivedPendingMeasurement
+        ? copy.pendingMeasurement
+        : percentText === undefined
+          ? copy.limitUnknown
+          : copy.percentFull(percentText),
       capabilityMissing: copy.capabilityMissing,
       lastRequest: copy.lastRequest,
     },
@@ -232,6 +259,15 @@ export function selectContextRingView(input: SelectContextRingViewInput): Contex
     capabilityMissing: false,
     ...(lastRequest !== undefined ? { lastRequest } : {}),
   };
+}
+
+function isDerivedPendingMeasurement(snapshot: SessionContextSnapshot): boolean {
+  return (
+    snapshot.phase === 'idle' &&
+    snapshot.occupancy.kind === 'unknown' &&
+    snapshot.occupancy.reason === 'derived-session' &&
+    snapshot.responseEvidence.historyHasDisplayableResponse
+  );
 }
 
 function hiddenView(input: {
@@ -296,13 +332,27 @@ function resolveRingOccupancy(snapshot: SessionContextSnapshot): {
 function presentationLastConfirmedOccupancy(
   snapshot: SessionContextSnapshot,
 ): KnownOccupancy | null {
-  if (snapshot.phase !== 'invalidated') {
+  // Legacy Hosts can return either `idle + runtime-generation-mismatch` or
+  // `idle + waiting-for-response` after a response was interrupted while the
+  // active leaf moved. Both are safe to present only through this stale,
+  // read-only path; never promote them to current occupancy or feed them into
+  // prompt budgeting. A live `waiting-response` phase remains hidden above.
+  if (snapshot.phase !== 'invalidated' && snapshot.phase !== 'idle') {
     return null;
   }
   if (snapshot.occupancy.kind !== 'unknown') {
     return null;
   }
-  if (snapshot.occupancy.reason !== 'runtime-generation-mismatch') {
+  if (
+    snapshot.occupancy.reason !== 'runtime-generation-mismatch' &&
+    snapshot.occupancy.reason !== 'waiting-for-response'
+  ) {
+    return null;
+  }
+  if (snapshot.occupancy.reason === 'waiting-for-response' && snapshot.phase !== 'idle') {
+    return null;
+  }
+  if (snapshot.runId !== undefined || snapshot.responseEvidence.currentRunHasResponse) {
     return null;
   }
   if (!snapshot.responseEvidence.historyHasDisplayableResponse) {
@@ -312,12 +362,7 @@ function presentationLastConfirmedOccupancy(
   if (lastConfirmed === undefined || lastConfirmed.occupancy.kind !== 'known') {
     return null;
   }
-  if (
-    !nonLeafContextBoundaryCompatible(
-      lastConfirmed.contextBoundary,
-      snapshot.contextBoundary,
-    )
-  ) {
+  if (!nonLeafContextBoundaryCompatible(lastConfirmed.contextBoundary, snapshot.contextBoundary)) {
     return null;
   }
   return lastConfirmed.occupancy;
@@ -328,10 +373,22 @@ function nonLeafContextBoundaryCompatible(
   lastConfirmedBoundary: ContextBoundary,
   currentBoundary: ContextBoundary,
 ): boolean {
+  // A model switch invalidates the numeric sample for budgeting, but the
+  // last-confirmed value is still useful as an explicitly stale, read-only
+  // ring while the new model is measured. Compare every other boundary axis
+  // and let the caller label the result as pending measurement.
+  const lastWithoutModel = withoutModel(lastConfirmedBoundary);
+  const currentWithoutModel = withoutModel(currentBoundary);
   return contextBoundaryCompatible(
-    { ...lastConfirmedBoundary, activeLeafMessageId: currentBoundary.activeLeafMessageId },
-    currentBoundary,
+    { ...lastWithoutModel, activeLeafMessageId: currentBoundary.activeLeafMessageId },
+    currentWithoutModel,
   );
+}
+
+function withoutModel(boundary: ContextBoundary): ContextBoundary {
+  const result = { ...boundary };
+  delete result.model;
+  return result;
 }
 
 function resolveDisplayLimit(input: {

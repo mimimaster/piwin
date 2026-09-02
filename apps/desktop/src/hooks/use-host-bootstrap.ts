@@ -42,6 +42,7 @@ import {
   hydrationSessionApplyActions,
   mapListedSessionItem,
   mapListedSessionItems,
+  sessionUpdateFromIndexPush,
 } from '../remote-session-hydrate';
 import { readConfiguredChatModelsData } from '../model-options';
 import { resolveBootstrapSelectedModelKey } from '../composer-model-selection-policy.js';
@@ -207,6 +208,18 @@ export function resolveShellHostReady(input: {
     return input.wireReady || (input.statusSuccess && input.statusReady === true);
   }
   return input.statusSuccess && input.statusReady === true;
+}
+
+/** Read the negotiated context telemetry capability from either local or remote status data. */
+export function hasContextTelemetryCapability(data: unknown): boolean {
+  if (!isRecord(data) || !isRecord(data.capabilities)) {
+    return false;
+  }
+  return data.capabilities.contextTelemetryVersion === 1;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }
 
 export function resolveThemeBootstrapResponse(response: HostResponse): ThemeManifest {
@@ -455,7 +468,7 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         const listed =
           message.session === undefined ? undefined : mapListedSessionItem(message.session);
         if (listed) {
-          dispatch({ type: 'session/update', session: listed });
+          dispatch(sessionUpdateFromIndexPush(message.op, listed));
         }
         return;
       }
@@ -659,7 +672,7 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
           setHostStatus(statusData);
           dispatch({
             type: 'context-telemetry/capability',
-            supported: statusData.capabilities.contextTelemetryVersion === 1,
+            supported: hasContextTelemetryCapability(statusResponse.data),
           });
         }
         // Request path must update the shell pill; push-only left UI stuck offline after HMR.

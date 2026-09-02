@@ -10,6 +10,7 @@ import type {
   ToolErrorView,
   ToolKind,
   ToolOutputView,
+  ToolOutputTruncation,
   ToolPresentation,
 } from '@piwin/contracts';
 import { projectBoundedHealthToolCardSummary } from '@piwin/contracts';
@@ -40,6 +41,7 @@ export type BuildToolPresentationInput = {
   args?: unknown;
   routedToolName?: string;
   outputText?: string;
+  truncation?: ToolOutputTruncation;
   isError?: boolean;
   exitCode?: number | null;
   startedAt?: string;
@@ -291,9 +293,12 @@ export function buildToolPresentation(input: BuildToolPresentationInput): ToolPr
 
   if (typeof input.outputText === 'string' && input.outputText.length > 0) {
     const output = boundToolOutput(input.outputText);
-    presentation.output = hasSemanticTruncation(input.toolName, input.outputText)
-      ? { ...output, truncated: true }
-      : output;
+    const semanticallyTruncated = hasSemanticTruncation(input.toolName, input.outputText);
+    presentation.output = {
+      ...output,
+      ...(semanticallyTruncated || input.truncation !== undefined ? { truncated: true } : {}),
+      ...(input.truncation !== undefined ? { truncation: input.truncation } : {}),
+    };
   }
 
   let toolWasCancelled = false;

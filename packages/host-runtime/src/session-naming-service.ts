@@ -3,6 +3,7 @@ import { formatError } from '@piwin/contracts';
 import {
   deriveDefaultNameFromMessage,
   extractUserFacingBody,
+  getSessionRecord,
   setSessionAutoName,
 } from '@piwin/session';
 import { generateTitleViaProvider } from './lightweight-completion.js';
@@ -63,6 +64,13 @@ export async function maybeAutoNameSession(input: {
       return;
     }
     const indexPath = getPiwinSessionIndexPath(rootDir);
+    const record = await getSessionRecord(indexPath, sessionId);
+    // Duplicate titles communicate that this is a standalone copy. Keep that
+    // generated label stable in the automatic pipeline; explicit rename or
+    // opt-in commands remain separate user actions.
+    if (record?.origin?.kind === 'duplicate') {
+      return;
+    }
     // Treat PromptInput.text as untrusted legacy input at this boundary. New
     // clients send the human body cleanly, while older transcripts may still
     // contain mode/skill/model-facing wrappers.

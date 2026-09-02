@@ -170,6 +170,24 @@ describe('serializeWorkerRequest', () => {
     expect(JSON.parse(serializeWorkerRequest(steer)).method).toBe('session/steer');
     expect(JSON.parse(serializeWorkerRequest(followUp)).method).toBe('session/follow-up');
   });
+
+  it('serializes auto-compaction setting requests', () => {
+    const request: WorkerRequest = {
+      type: 'request',
+      id: 'r3',
+      method: 'session/set-auto-compaction',
+      context: frameContext,
+      payload: {
+        method: 'session/set-auto-compaction',
+        sessionId: 's1',
+        enabled: false,
+      },
+    };
+    expect(JSON.parse(serializeWorkerRequest(request))).toMatchObject({
+      method: 'session/set-auto-compaction',
+      payload: { sessionId: 's1', enabled: false },
+    });
+  });
 });
 
 describe('RpcSdkWorkerClient startup and framing', () => {

@@ -1,4 +1,10 @@
-import { useRef, useState, type CSSProperties, type ReactElement } from 'react';
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactElement,
+} from 'react';
 import {
   ARTIFACT_BOOTSTRAP_HEIGHT,
   MAX_ARTIFACT_INLINE_FLOW_HEIGHT,
@@ -40,13 +46,16 @@ function sandboxViewFromPlan(plan: ArtifactSandboxPlan): ArtifactSandboxView {
 function resolveBootstrapHeight(
   plan: ArtifactSandboxPlan,
   presentation: 'inline' | 'canvas',
+  containerWidth?: number | null,
 ): number {
   if (presentation === 'canvas' || plan.intent.descriptor.type !== 'svg') {
     return ARTIFACT_BOOTSTRAP_HEIGHT;
   }
   const source = plan.mode === 'stream-preview' ? plan.renderSource : plan.intent.descriptor.source;
-  const viewportWidth =
-    typeof window === 'undefined' ? 640 : Math.max(280, Math.min(window.innerWidth - 120, 780));
+  const fallbackWidth = typeof window === 'undefined' ? 640 : window.innerWidth - 120;
+  const measuredWidth =
+    containerWidth !== undefined && containerWidth !== null ? containerWidth : fallbackWidth;
+  const viewportWidth = Math.max(1, Math.min(measuredWidth, 780));
   return estimateSvgFenceHeight({
     source,
     containerWidth: viewportWidth,
@@ -92,7 +101,30 @@ export function ArtifactSandboxFrame(props: {
   onComposerProposal?: (payload: { text: string; label?: string }) => void;
   extraHeaderAction?: ReactElement;
 }): ReactElement {
+  const frameRef = useRef<HTMLDivElement | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const [frameWidth, setFrameWidth] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const frame = frameRef.current;
+    if (frame === null) return;
+    const observedFrame: HTMLDivElement = frame;
+
+    function updateFrameWidth(): void {
+      const width = observedFrame.clientWidth;
+      if (width > 0) {
+        setFrameWidth((current) => (current === width ? current : width));
+      }
+    }
+
+    updateFrameWidth();
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(updateFrameWidth);
+      observer.observe(observedFrame);
+      return () => observer.disconnect();
+    }
+    window.addEventListener('resize', updateFrameWidth);
+    return () => window.removeEventListener('resize', updateFrameWidth);
+  }, []);
   const view = sandboxViewFromPlan(props.plan);
   const channelId = view.descriptor.id;
   const nextFrameMode = requestedFrameMode(props.plan, props.presentation);
@@ -109,7 +141,7 @@ export function ArtifactSandboxFrame(props: {
     streaming: view.mode === 'stream-preview',
   });
   const scrollPort = useTranscriptScrollPort();
-  const bootstrapHeight = resolveBootstrapHeight(props.plan, props.presentation);
+  const bootstrapHeight = resolveBootstrapHeight(props.plan, props.presentation, frameWidth);
   const measureHeight = props.presentation === 'inline' && plannedFrameMode === 'inline-flow';
   const bridge = useArtifactFrameBridge({
     channelId,
@@ -150,6 +182,7 @@ export function ArtifactSandboxFrame(props: {
 
   return (
     <div
+      ref={frameRef}
       data-testid="artifact-frame"
       data-activity-id="artifact"
       data-activity-animation={ARTIFACT_ACTIVITY_ANIMATION}

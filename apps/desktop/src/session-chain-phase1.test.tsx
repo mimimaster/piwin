@@ -12,6 +12,7 @@ import {
 import type { HostClient } from './host-client';
 import { useComposerMedia } from './hooks/use-composer-media';
 import { createInitialTestChatUiState } from './hooks/composer-media-test-harness';
+import { useWorkbenchSessionGestures } from './hooks/use-workbench-session-gestures';
 import { WorkbenchSidebar, type WorkbenchSidebarProps } from './workbench-sidebar';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -109,10 +110,135 @@ describe('session chain phase 1', () => {
       (container?.querySelector('.tree-folder-add-btn') as HTMLButtonElement | null)?.click();
     });
 
-    expect(onOpenProject).toHaveBeenCalledWith('/Users/test/project-a');
+    // Row + only names the project; opening happens inside start-new-session.
+    expect(onOpenProject).not.toHaveBeenCalled();
     expect(onNewSession).toHaveBeenCalledWith({
       scope: { kind: 'project', projectPath: '/Users/test/project-a' },
     });
+  });
+
+  it('opens the project before starting a draft when New is scoped to another project', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const handleOpenProject = vi.fn(async () => undefined);
+    const startNewDraft = vi.fn();
+    const handleNewSession = vi.fn(async () => undefined);
+    const callOrder: string[] = [];
+    handleOpenProject.mockImplementation(async () => {
+      callOrder.push('open');
+    });
+    startNewDraft.mockImplementation(() => {
+      callOrder.push('draft');
+    });
+    handleNewSession.mockImplementation(async () => {
+      callOrder.push('new');
+    });
+
+    let captured: ReturnType<typeof useWorkbenchSessionGestures> | undefined;
+    function Harness(): null {
+      captured = useWorkbenchSessionGestures({
+        hostClient: stubHostClient(),
+        state: createInitialChatUiState(),
+        dispatch: vi.fn(),
+        inspectorFileDiff: { clear: vi.fn(), open: vi.fn() },
+        openDocumentBase: vi.fn(),
+        revealDocPreview: vi.fn(),
+        artifactCanvas: { openTarget: vi.fn() },
+        layoutMode: 'desktop',
+        rightPanelWidthPx: 360,
+        setRightPanelWidthPx: vi.fn(),
+        openInspector: vi.fn(),
+        startNewDraft,
+        handleNewSession,
+        draftSessions: [],
+        handleOpenProject,
+        hydrateSessions: async () => [],
+        resumeDraft: vi.fn(),
+        showArchivedSessions: false,
+        setEditingMessageId: vi.fn(),
+        extensionUiRequest: null,
+        clearExtensionUiRequest: vi.fn(),
+        handleAbort: async () => undefined,
+      });
+      return null;
+    }
+
+    act(() => {
+      root?.render(<Harness />);
+    });
+    await act(async () => {
+      await captured?.handleStartNewSession({
+        scope: { kind: 'project', projectPath: '/Users/test/project-a' },
+      });
+    });
+
+    expect(handleOpenProject).toHaveBeenCalledWith('/Users/test/project-a');
+    expect(startNewDraft).toHaveBeenCalledWith({
+      kind: 'project',
+      projectPath: '/Users/test/project-a',
+    });
+    expect(handleNewSession).toHaveBeenCalledWith({
+      scope: { kind: 'project', projectPath: '/Users/test/project-a' },
+    });
+    expect(callOrder).toEqual(['open', 'draft', 'new']);
+  });
+
+  it('skips re-opening when New is already in that project', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const handleOpenProject = vi.fn(async () => undefined);
+    const startNewDraft = vi.fn();
+    const handleNewSession = vi.fn(async () => undefined);
+    const projectPath = '/Users/test/project-a';
+
+    let captured: ReturnType<typeof useWorkbenchSessionGestures> | undefined;
+    function Harness(): null {
+      captured = useWorkbenchSessionGestures({
+        hostClient: stubHostClient(),
+        state: {
+          ...createInitialChatUiState(),
+          activeScope: { kind: 'project', projectPath },
+          projectPath,
+          projectTrusted: true,
+        },
+        dispatch: vi.fn(),
+        inspectorFileDiff: { clear: vi.fn(), open: vi.fn() },
+        openDocumentBase: vi.fn(),
+        revealDocPreview: vi.fn(),
+        artifactCanvas: { openTarget: vi.fn() },
+        layoutMode: 'desktop',
+        rightPanelWidthPx: 360,
+        setRightPanelWidthPx: vi.fn(),
+        openInspector: vi.fn(),
+        startNewDraft,
+        handleNewSession,
+        draftSessions: [],
+        handleOpenProject,
+        hydrateSessions: async () => [],
+        resumeDraft: vi.fn(),
+        showArchivedSessions: false,
+        setEditingMessageId: vi.fn(),
+        extensionUiRequest: null,
+        clearExtensionUiRequest: vi.fn(),
+        handleAbort: async () => undefined,
+      });
+      return null;
+    }
+
+    act(() => {
+      root?.render(<Harness />);
+    });
+    await act(async () => {
+      await captured?.handleStartNewSession({
+        scope: { kind: 'project', projectPath },
+      });
+    });
+
+    expect(handleOpenProject).not.toHaveBeenCalled();
+    expect(startNewDraft).toHaveBeenCalledWith({ kind: 'project', projectPath });
+    expect(handleNewSession).toHaveBeenCalled();
   });
 
   it('keeps an explicit project draft scope while navigation is still General', () => {

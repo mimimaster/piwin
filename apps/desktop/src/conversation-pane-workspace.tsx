@@ -11,13 +11,21 @@ import type { ThemeManifest } from '@piwin/contracts';
 import type { SessionListItemUi } from './chat-reducer.js';
 import type { HostClient } from './host-client.js';
 import {
+  CONVERSATION_PANE_MIN_HEIGHT,
   CONVERSATION_PANE_MAX_COUNT,
+  CONVERSATION_PANE_MIN_WIDTH,
   PRIMARY_CONVERSATION_PANE_ID,
+  constrainConversationPaneLayout,
   listConversationPaneLeaves,
+  setConversationPaneSplitRatio,
   type ConversationPaneLeaf,
+  type ConversationPaneLayout,
   type ConversationPanePreset,
 } from './conversation-pane-layout.js';
-import { listConversationPaneRects } from './conversation-pane-navigation.js';
+import {
+  listConversationPaneRects,
+  resizeFocusedConversationPane,
+} from './conversation-pane-navigation.js';
 import type { ConversationPaneLayoutController } from './use-conversation-pane-layout.js';
 import { resolveConversationPaneShortcut } from './conversation-pane-shortcuts.js';
 import {
@@ -31,9 +39,6 @@ import type { MediaPreviewReader } from './transcript-media-preview.js';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model.js';
 import type { DocumentOpenInput } from './tool-call-card.js';
 
-const MIN_PANE_WIDTH = 300;
-const MIN_PANE_HEIGHT = 220;
-
 export type ConversationPaneWorkspaceProps = {
   controller: ConversationPaneLayoutController;
   primaryPane: ReactNode;
@@ -46,17 +51,20 @@ export type ConversationPaneWorkspaceProps = {
   readMedia: MediaPreviewReader | null;
   locale: 'zh-CN' | 'en';
   keyboardEnabled?: boolean;
-  onCreateConversation: () => Promise<string | null>;
+  onCreateConversation: (paneId: string) => Promise<string | null>;
   onOpenDocument?: (doc: DocumentOpenInput, target?: 'stage' | 'inspector') => void;
   onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
   fileBrowseRoot?: string | null;
 };
 
 function requiredPresetSize(count: ConversationPanePreset): { width: number; height: number } {
-  if (count === 8) return { width: MIN_PANE_WIDTH * 4, height: MIN_PANE_HEIGHT * 2 };
-  if (count === 4) return { width: MIN_PANE_WIDTH * 2, height: MIN_PANE_HEIGHT * 2 };
-  if (count === 2) return { width: MIN_PANE_WIDTH * 2, height: MIN_PANE_HEIGHT };
-  return { width: MIN_PANE_WIDTH, height: MIN_PANE_HEIGHT };
+  if (count === 8)
+    return { width: CONVERSATION_PANE_MIN_WIDTH * 4, height: CONVERSATION_PANE_MIN_HEIGHT * 2 };
+  if (count === 4)
+    return { width: CONVERSATION_PANE_MIN_WIDTH * 2, height: CONVERSATION_PANE_MIN_HEIGHT * 2 };
+  if (count === 2)
+    return { width: CONVERSATION_PANE_MIN_WIDTH * 2, height: CONVERSATION_PANE_MIN_HEIGHT };
+  return { width: CONVERSATION_PANE_MIN_WIDTH, height: CONVERSATION_PANE_MIN_HEIGHT };
 }
 
 export function conversationPanePresetFits(
@@ -175,8 +183,8 @@ export function ConversationPaneWorkspace(props: ConversationPaneWorkspaceProps)
     const width = root.clientWidth * paneRect.width;
     const height = root.clientHeight * paneRect.height;
     if (
-      (orientation === 'row' && width < MIN_PANE_WIDTH * 2) ||
-      (orientation === 'column' && height < MIN_PANE_HEIGHT * 2)
+      (orientation === 'row' && width < CONVERSATION_PANE_MIN_WIDTH * 2) ||
+      (orientation === 'column' && height < CONVERSATION_PANE_MIN_HEIGHT * 2)
     ) {
       explainInsufficientSpace();
       return;
@@ -184,6 +192,54 @@ export function ConversationPaneWorkspace(props: ConversationPaneWorkspaceProps)
     controller.split(paneId, orientation);
     focusActivePaneSoon();
   }
+
+  function updateLayoutForStage(
+    transform: (layout: ConversationPaneLayout) => ConversationPaneLayout,
+  ): void {
+    const root = getStageElement();
+    controller.update((current) => {
+      const next = transform(current);
+      return root
+        ? constrainConversationPaneLayout(next, {
+            width: root.clientWidth,
+            height: root.clientHeight,
+          })
+        : next;
+    });
+  }
+
+  function setPaneRatio(splitId: string, ratio: number): void {
+    updateLayoutForStage((current) => setConversationPaneSplitRatio(current, splitId, ratio));
+  }
+
+  useEffect(() => {
+    const workspace = rootRef.current;
+    if (workspace === null) return;
+    const observedWorkspace: HTMLDivElement = workspace;
+
+    function reconcileLayoutSize(): void {
+      const stage =
+        observedWorkspace.clientWidth > 0 && observedWorkspace.clientHeight > 0
+          ? observedWorkspace
+          : observedWorkspace.parentElement;
+      if (!stage || stage.clientWidth <= 0 || stage.clientHeight <= 0) return;
+      controller.update((current) =>
+        constrainConversationPaneLayout(current, {
+          width: stage.clientWidth,
+          height: stage.clientHeight,
+        }),
+      );
+    }
+
+    reconcileLayoutSize();
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(reconcileLayoutSize);
+      observer.observe(observedWorkspace);
+      return () => observer.disconnect();
+    }
+    window.addEventListener('resize', reconcileLayoutSize);
+    return () => window.removeEventListener('resize', reconcileLayoutSize);
+  }, [controller.update, multiplePanes]);
 
   useEffect(() => {
     if (props.keyboardEnabled === false) return;
@@ -202,7 +258,11 @@ export function ConversationPaneWorkspace(props: ConversationPaneWorkspaceProps)
       if (command.type === 'split') splitPane(activePaneId, command.orientation);
       if (command.type === 'focus-adjacent') controller.focusAdjacent(command.offset);
       if (command.type === 'focus-direction') controller.focusDirection(command.direction);
-      if (command.type === 'resize') controller.resizeFocused(command.direction);
+      if (command.type === 'resize') {
+        updateLayoutForStage((current) =>
+          resizeFocusedConversationPane(current, command.direction),
+        );
+      }
       if (command.type === 'maximize' && multiplePanes) {
         controller.toggleMaximized(activePaneId);
       }
@@ -217,7 +277,7 @@ export function ConversationPaneWorkspace(props: ConversationPaneWorkspaceProps)
     if (creatingPaneId !== null) return;
     setCreatingPaneId(paneId);
     try {
-      const sessionId = await props.onCreateConversation();
+      const sessionId = await props.onCreateConversation(paneId);
       if (sessionId) controller.bindSession(paneId, sessionId);
     } finally {
       setCreatingPaneId(null);
@@ -342,7 +402,7 @@ export function ConversationPaneWorkspace(props: ConversationPaneWorkspaceProps)
               split={split}
               rootRef={rootRef}
               locale={props.locale}
-              onRatioChange={controller.setRatio}
+              onRatioChange={setPaneRatio}
             />
           ))
         : null}

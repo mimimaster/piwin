@@ -89,7 +89,10 @@ entry points stop carrying host paths and remote projection stays consistent.
   registration of generated media refs for remote projection, and a desktop
   viewer path that fetches remote bytes via `media/read` into a data URL. A
   bare `remote-asset:<id>` path (no session identity) stays unavailable; the
-  correct remote path is a structured media target.
+  correct remote path is a structured media target. Generated video that
+  exceeds the Host wire cap uses `offset`/`length` slices on the same
+  command; live `tool/end` attachments project to `remote-asset:<id>` like
+  resume. `<video>` never uses a raw `asset:` URL (no Range).
 - Slice 3 adds the trusted-domain read-only text channel.
   `preview/read-trusted-text` is addressed by a config-root-relative path
   only (never a host-absolute path). Host advertises `trustedTextPreview`,

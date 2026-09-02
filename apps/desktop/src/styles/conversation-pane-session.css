@@ -10,6 +10,88 @@
   background: var(--surface-2);
 }
 
+/* Pane-local layout rules. A desktop window may contain several narrow panes,
+   so these constraints must follow the pane rather than the viewport. */
+.conversation-pane-session .conversation-response,
+.conversation-pane-session .message-attachments,
+.conversation-pane-session .turn-tool-sequence,
+.conversation-pane-session .turn-work-details,
+.conversation-pane-session .tool-batch-capsule,
+.conversation-pane-session .tool-call-card {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.conversation-pane-session .conversation-message-header,
+.conversation-pane-session .conversation-message-identity,
+.conversation-pane-session .tool-call-summary,
+.conversation-pane-session .tool-batch-header,
+.conversation-pane-session .tool-batch-title-group,
+.conversation-pane-session .action-marquee-container {
+  min-width: 0;
+}
+
+.conversation-pane-session .turn-work-details-summary {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.conversation-pane-session .turn-work-details-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.conversation-pane-session .turn-thinking pre {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.conversation-pane-session .tool-call-action-verb {
+  min-width: 0;
+  max-width: 35%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 0 1 auto;
+}
+
+.conversation-pane-session .tool-call-file-pill {
+  min-width: 0;
+  max-width: min(52%, 100%);
+  overflow: hidden;
+  flex: 0 1 auto;
+}
+
+.conversation-pane-session .tool-call-file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-pane-session .action-marquee-container,
+.conversation-pane-session .action-marquee-text,
+.conversation-pane-session .search-file-pill-btn {
+  max-width: 100%;
+}
+
+.conversation-pane-session .action-marquee-text,
+.conversation-pane-session .search-file-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.conversation-pane-session .search-file-pill-btn {
+  min-width: 0;
+}
+
+.conversation-pane-session .search-file-path {
+  white-space: nowrap;
+}
+
 .conversation-pane-transcript {
   display: flex;
   flex: 1 1 auto;
@@ -39,7 +121,7 @@
 }
 
 .conversation-pane-message .conversation-message-model-name {
-  max-width: min(260px, 44vw);
+  max-width: min(260px, 100%);
 }
 
 .conversation-pane-message .user-message-wrapper.is-conversation {
@@ -118,6 +200,16 @@
   font-size: var(--fs-chrome);
 }
 
+.conversation-pane-error span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.conversation-pane-error button {
+  flex: 0 0 auto;
+}
+
 .conversation-pane-error button {
   border: 0;
   background: transparent;
@@ -177,6 +269,95 @@
 .conversation-pane-picker .piwin-select {
   width: 100%;
   text-align: left;
+}
+
+@container conversation-pane (max-width: 460px) {
+  .conversation-pane-session .conversation-response {
+    padding-left: 30px;
+  }
+
+  .conversation-pane-session .conversation-message-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: var(--s-2);
+  }
+
+  .conversation-pane-session .conversation-message-identity {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    row-gap: var(--s-1);
+  }
+
+  .conversation-pane-session .conversation-message-model-name {
+    max-width: min(180px, 100%);
+  }
+
+  .conversation-pane-session .conversation-message-usage-chip {
+    margin-left: 0;
+  }
+
+  .conversation-pane-session .message-attachments.is-pair-grid,
+  .conversation-pane-session .message-attachments.is-gallery-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s-4);
+  }
+
+  .conversation-pane-session .message-attachments.is-pair-grid
+    .media-preview-container,
+  .conversation-pane-session .message-attachments.is-pair-grid
+    .media-preview-image-button {
+    max-height: 220px;
+    aspect-ratio: 16 / 10;
+  }
+
+  .conversation-pane-session .message-attachments.is-gallery-grid
+    .media-preview-container,
+  .conversation-pane-session .message-attachments.is-gallery-grid
+    .media-preview-image-button {
+    max-height: 190px;
+    aspect-ratio: 16 / 10;
+  }
+
+  .conversation-pane-session .fc-quiet-header,
+  .conversation-pane-session .fc-quiet-nav {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .conversation-pane-session .fc-quiet-meta,
+  .conversation-pane-session .fc-quiet-tools {
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+
+  .conversation-pane-session .fc-quiet-rating-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .conversation-pane-session .fc-quiet-source-path,
+  .conversation-pane-session .fc-quiet-popover-path {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+}
+
+@container conversation-pane (max-width: 340px) {
+  .conversation-pane-session .conversation-pane-composer {
+    gap: var(--s-2);
+    padding-inline: var(--s-3);
+  }
+
+  .conversation-pane-session .conversation-pane-composer .piwin-text-area-field {
+    min-height: 46px;
+  }
+
+  .conversation-pane-session .conversation-message-provider-name,
+  .conversation-pane-session .conversation-reply-writer-chip {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 
 html[data-theme-visual-style='ink-wash'] .conversation-pane-session {

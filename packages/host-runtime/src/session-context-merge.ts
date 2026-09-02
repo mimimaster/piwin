@@ -1,5 +1,6 @@
 import {
   contextBoundaryCompatible,
+  formatCompactionBoundary,
   promoteLastConfirmed,
   type ContextBoundary,
   type ContextMeasurement,
@@ -27,10 +28,7 @@ export function occupancyEqual(left: ContextOccupancy, right: ContextOccupancy):
   return false;
 }
 
-function modelRefEqual(
-  left: ContextBoundary['model'],
-  right: ContextBoundary['model'],
-): boolean {
+function modelRefEqual(left: ContextBoundary['model'], right: ContextBoundary['model']): boolean {
   if (left === undefined && right === undefined) {
     return true;
   }
@@ -114,7 +112,8 @@ export function activationBoundaryMatches(
   incoming: ContextBoundary,
 ): boolean {
   return (
-    boundaryCompatible(current, incoming) && current.activeLeafMessageId === incoming.activeLeafMessageId
+    boundaryCompatible(current, incoming) &&
+    current.activeLeafMessageId === incoming.activeLeafMessageId
   );
 }
 
@@ -161,10 +160,7 @@ export function applyMeasurement(
     ...snapshot.contextBoundary,
     ...measurement.contextBoundary,
   };
-  let next = stampOwner(
-    { ...snapshot, contextBoundary, updatedAt: input.nowIso },
-    measurement,
-  );
+  let next = stampOwner({ ...snapshot, contextBoundary, updatedAt: input.nowIso }, measurement);
   if (isBlockedOccupancy(measurement.occupancy)) {
     next = {
       ...next,
@@ -307,12 +303,24 @@ export function applyCompactionEnd(
     };
   }
   const contextVersion = snapshot.contextVersion + 1;
-  const compactionBoundary = `compact:${input.tokensBefore ?? 'na'}:${input.tokensAfter ?? 'unknown'}`;
+  const compactionBoundary = formatCompactionBoundary(input);
   const contextBoundary: ContextBoundary = {
     ...snapshot.contextBoundary,
     compactionBoundary,
   };
-  if (typeof input.tokensAfter === 'number' && Number.isFinite(input.tokensAfter) && input.tokensAfter >= 0) {
+  // A successful compaction is itself durable response evidence: the model
+  // received a non-empty context and Pi produced a summary for it. Keep the
+  // ring eligible even when the transcript contains only media/tool rows and
+  // no displayable assistant text was observed by the UI.
+  const responseEvidence = {
+    ...snapshot.responseEvidence,
+    historyHasDisplayableResponse: true,
+  };
+  if (
+    typeof input.tokensAfter === 'number' &&
+    Number.isFinite(input.tokensAfter) &&
+    input.tokensAfter >= 0
+  ) {
     const occupancy: Extract<ContextOccupancy, { kind: 'known' }> = {
       kind: 'known',
       tokensUsed: input.tokensAfter,
@@ -328,6 +336,7 @@ export function applyCompactionEnd(
       ...snapshot,
       contextVersion,
       contextBoundary,
+      responseEvidence,
       occupancy,
       lastConfirmed: { occupancy, contextBoundary, sampledAt: input.nowIso },
       phase: 'idle',
@@ -338,6 +347,7 @@ export function applyCompactionEnd(
     ...snapshot,
     contextVersion,
     contextBoundary,
+    responseEvidence,
     occupancy: { kind: 'unknown', reason: 'compaction-unmeasured' },
     phase: 'idle',
     updatedAt: input.nowIso,
@@ -378,10 +388,21 @@ export function applyActivationRevalidate(
   snapshot: SessionContextSnapshot,
   input: { nowIso: string; runtimeGenerationId: string; contextBoundary: ContextBoundary },
 ): SessionContextSnapshot {
+  // A durable compaction boundary can outlive the in-memory context snapshot
+  // (for example when the Host crashed between the two writes). Its presence
+  // is itself proof that the session has displayable history, so a cold
+  // rebind must not hide the context ring while occupancy is re-measured.
+  const historyHasDisplayableResponse =
+    snapshot.responseEvidence.historyHasDisplayableResponse ||
+    input.contextBoundary.compactionBoundary !== undefined;
   const next: SessionContextSnapshot = {
     ...snapshot,
     runtimeGenerationId: input.runtimeGenerationId,
     updatedAt: input.nowIso,
+    responseEvidence: {
+      ...snapshot.responseEvidence,
+      historyHasDisplayableResponse,
+    },
   };
   delete next.runId;
   if (activationBoundaryMatches(snapshot.contextBoundary, input.contextBoundary)) {
@@ -397,7 +418,7 @@ export function applyActivationRevalidate(
   next.phase = 'invalidated';
   next.responseEvidence = {
     currentRunHasResponse: false,
-    historyHasDisplayableResponse: snapshot.responseEvidence.historyHasDisplayableResponse,
+    historyHasDisplayableResponse,
   };
   return next;
 }

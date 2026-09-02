@@ -92,6 +92,24 @@ describe('assistantTextRole', () => {
     ).toBe('reply');
   });
 
+  it('treats toolbox title image_gen as a reply when routed name is missing', () => {
+    expect(
+      assistantTextRole(
+        assistant({
+          id: 'toolbox-title',
+          text: '先看一下生图接口，再随便出一张。',
+          tools: [
+            tool({
+              toolCallId: 'tb1',
+              toolName: 'piwin_toolbox',
+              presentation: { kind: 'other', title: 'image_gen', actionVerb: 'Toolbox' },
+            }),
+          ],
+        }),
+      ),
+    ).toBe('reply');
+  });
+
   it('treats routed toolbox generation as a reply and mixed work tools as process', () => {
     expect(
       assistantTextRole(

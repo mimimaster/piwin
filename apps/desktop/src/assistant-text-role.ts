@@ -25,6 +25,14 @@ export function assistantHasWorkTools(message: ChatMessageUi): boolean {
   return message.tools.some((tool) => !isUserFacingResultTool(tool));
 }
 
+/** Generated media and image/video tools stay in the visible reply, not behind work fold. */
+export function assistantHasUserFacingGeneration(message: ChatMessageUi): boolean {
+  if (message.attachments.some((attachment) => attachment.kind === 'media')) {
+    return true;
+  }
+  return message.tools.some((tool) => resolveGenerationToolKind(tool) !== null);
+}
+
 export function assistantTextRole(message: ChatMessageUi): AssistantTextRole {
   if (message.role !== 'assistant') {
     return 'reply';

@@ -1,6 +1,6 @@
 # 会话上下文环：重启 / 重开后必须显示
 
-日期：2026-09-01。状态：S1–S6 代码已落地；自动化验收见 §8；手工 UI 矩阵未执行；全仓 `pnpm typecheck` 被无关 `@piwin/host-server` `ws` 类型错误阻塞。  
+日期：2026-09-01。状态：S1–S7 代码已落地；自动化验收见 §8；手工 UI 矩阵未执行；全仓 `pnpm typecheck` 被无关 `@piwin/host-server` `ws` 类型错误阻塞。
 上游：[ADR 0067](../adr/0067-session-context-telemetry.md)、[2026-08-30 占用遥测修复](./2026-08-30-context-usage-repair.md) §2.2。  
 问题来源：用户重开历史会话或重启 Desktop 后 composer 上下文环消失。
 
@@ -10,9 +10,11 @@ ADR 0067 的「首响应前隐藏」仍然成立。本文记录已验证的占�
 
 目标：有过可展示助手响应、且 Host 曾确认过占用的会话，在 **重启 Host、重开会话、A→B→A 切回** 后立刻显示上下文环；数值为该上下文版本的上次确认占用（measured 或 estimated），不是 0、不是账单 ledger。`runtime-generation-mismatch` 不得把旧值写成 Host 当前 occupancy；Desktop 仅在该精确场景以待测量文案展示 stale 数字。
 
-包含：contracts 权威提升规则、Host merge / publisher / hydrate / 污染修复、`session/resume` / `session/context-get`、Desktop selector 展示降级、切会话 warm 与 offline、派生会话 occupancy 隔离。
+包含：contracts 权威提升规则、Host merge / publisher / hydrate / 污染修复、`session/resume` / `session/context-get`、Desktop selector 展示降级、切会话 warm 与 offline、派生会话 occupancy 隔离；以及 compact 生命周期在 transcript 调用链中的展示。
 
-不包含：改 Pi core、新 tokenizer、从 usage ledger 反推占用、为 `never-sampled` 会话编造百分比、重做用量统计页、分类 breakdown、缓存 TTL、改 compact/branch 失效语义。
+不包含：改 Pi core、新 tokenizer、从 usage ledger 反推占用、为 `never-sampled` 会话编造百分比、重做用量统计页、分类 breakdown、缓存 TTL、改 compact/branch 的上下文失效权威语义。
+
+compact 展示规则：`compaction/start` 创建一个带稳定 operation id、触发原因和 transcript 锚点的活动节点；同一节点原位过渡到 succeeded / failed / cancelled。运行中沿用 Agent locator 的轮换文案与动效，并支持取消；终态只展示 Host 实际提供的摘要、token 与耗时，不伪造百分比。节点在主 transcript 与多窗格 transcript 使用同一投影，切换 session 时清除，避免旧结果串到新会话。Pi 对短会话返回 `Nothing to compact (session too small)` 时标记为 no-op：目标模型迁移继续执行，Desktop 清掉瞬时活动，不把它画成失败卡；真实 provider/compaction 错误仍按失败展示。
 
 ## 2. 已核实事实（不要再当「没落盘」修）
 
@@ -25,7 +27,7 @@ ADR 0067 的「首响应前隐藏」仍然成立。本文记录已验证的占�
 | 客户端 | 环只吃 `selectContextRingView`；当前 `occupancy.kind === 'known'` 显示为 current；仅精确 mismatch 可 presentation-only 读 `lastConfirmed` |
 | `lastConfirmed` | 写入快照。Host 只在 §4.1 提升为当前 occupancy。Desktop 只在 §4.2 展示，不改 snapshot |
 
-健康会话（idle + known，同边界）落盘完整，resume 后显示 current ring。用户体感「重开就没环」主要来自脏 unknown 行（idle + `waiting-for-response` + 有 `lastConfirmed`）以及被错误提升的跨 leaf known 行。
+健康会话（idle + known，同边界）落盘完整，resume 后显示 current ring。用户体感「重开就没环」主要来自脏 unknown 行（idle + `waiting-for-response` + 有 `lastConfirmed`）、重绑失败后遗留的 idle + `runtime-generation-mismatch`，以及被错误提升的跨 leaf known 行。
 
 ## 3. 根因
 
@@ -80,8 +82,8 @@ Host 当前权威与 Desktop 展示降级是两条路径。contracts `canPromote
 
 1. 当前 snapshot 经严格 `promoteLastConfirmed` 后 occupancy known 且 phase 不是 `invalidated`：显示为 **current**（「已确认」/「估算」）。
 2. 否则，仅在下列条件全部成立时显示 `lastConfirmed`，`occupancySource: 'last-confirmed'`：
-   - `phase === 'invalidated'`
-   - unknown reason **严格等于** `runtime-generation-mismatch`
+   - `phase === 'invalidated'`；兼容旧 Host 尚未冷修复的 `phase === 'idle'` 形状
+   - unknown reason **严格等于** `runtime-generation-mismatch`，或兼容旧 Host 的 `waiting-for-response`（仅限已结束的 `idle` 脏行）
    - `historyHasDisplayableResponse`
    - 没有 live waiting-response 首响应门槛
    - model、compaction boundary、capability fingerprint、seed fingerprint 兼容；只允许 active leaf 不同
@@ -102,6 +104,8 @@ Host 当前权威与 Desktop 展示降级是两条路径。contracts `canPromote
 - Host 无 `contextTelemetryVersion: 1`
 - compact 成功但占用 unknown（沿用「已压缩，用量待更新」）
 
+例外：`unknown(derived-session)` 且已有历史响应证据的派生会话可显示中性待测量环（见 §4.5）；这不包含真正的 `waiting-response`。
+
 ### 4.4 Publisher 持久语义
 
 `snapshotPersistEqual` 比较持久状态，不是「画面看起来一样」。必须比较：`sessionId`、`contextVersion`、`phase`、`runId`、`runtimeGenerationId`、occupancy（含 `sampledAt`）、`contextBoundary`、`coveredMessageId`、`coveredRequestId`、responseEvidence 标志与 `evidenceMessageId`、`lastConfirmed`（occupancy、boundary、`sampledAt`）。仅可忽略 `revision` / `updatedAt`。
@@ -113,8 +117,11 @@ Host 当前权威与 Desktop 展示降级是两条路径。contracts `canPromote
 `seedDerivedSessionContextState`：目标 occupancy 固定 `unknown(derived-session)`，直到针对目标 active path 有新测量。
 
 - 可以复制 `historyHasDisplayableResponse`
+- 若旧源会话没有上下文快照，Duplicate/Fork 可从实际复制的 assistant 历史建立该证据
 - 不得复制 occupancy、`lastConfirmed`、live owner（`runId` / `runtimeGenerationId`）、源 `revision` / `contextVersion`
 - 目标自己的 `sessionId`，`revision=1`，`contextVersion=1`，active leaf 用目标路径
+- 若目标已有可展示的历史响应，Desktop 可显示一个「当前上下文待测量」的中性环；它只表达测量待完成，不显示数字、不借用 `lastConfirmed`，也不改变 Host 的 unknown authority
+- 目标仍处于真正的 `waiting-response` 或没有可展示历史响应时，继续按 §4.3 隐藏
 
 截断 fork（目标 leaf 早于源末尾）同样 unknown，不继承源末尾数字。
 
@@ -128,7 +135,9 @@ Host 当前权威与 Desktop 展示降级是两条路径。contracts `canPromote
 
 ### 4.7 冷 hydrate：旧污染行修复
 
-仅当全部成立才自动修复（旧补丁特有的 idle+known 跨 leaf 错误提升）：
+仅当以下两类可识别脏形之一成立才自动修复；不会按 leaf 不同这一条单独改写：
+
+**A. 旧补丁的 idle+known 跨 leaf 错误提升：**
 
 - `phase === 'idle'`
 - 当前 `occupancy.kind === 'known'`
@@ -139,6 +148,16 @@ Host 当前权威与 Desktop 展示降级是两条路径。contracts `canPromote
 - `coveredMessageId !== contextBoundary.activeLeafMessageId`
 - 除 active leaf 外的 model / compaction / capability / seed 兼容
 
+**B. 重绑失败或响应中断后残留的 idle+unknown：**
+
+- `phase === 'idle'`
+- `occupancy === unknown(runtime-generation-mismatch)` 或 `unknown(waiting-for-response)`
+- 无 `runId`，`currentRunHasResponse === false`，`historyHasDisplayableResponse === true`
+- 存在 known `lastConfirmed`，且当前 leaf 与确认 leaf 都非空且不同
+- 除 active leaf 外的 model / compaction / capability / seed 兼容
+
+`waiting-for-response` 只在上述“空闲、无当前 Run、叶子已移动”的旧持久化形状中修复；真正的 `phase === 'waiting-response'` 首响应门槛仍隐藏上下文环。
+
 修复结果：
 
 - `phase = 'invalidated'`
@@ -146,7 +165,7 @@ Host 当前权威与 Desktop 展示降级是两条路径。contracts `canPromote
 - 保留当前 `contextBoundary`、`contextVersion`、`runtimeGenerationId` 和 `lastConfirmed`
 - 清除过时的 `coveredMessageId` / `coveredRequestId`
 - 不 bump `contextVersion`；CAS 写入获得新 revision
-- 只在 hydrate persisted row 时执行；修复后再 hydrate 幂等 no-op
+- 在 cold hydrate 与已缓存 Host entry 重用时执行；修复后幂等 no-op
 - 随后 settle 使用 §4.1，mismatch 不可提升
 
 不扫描全库、不升 schema、不按「leaf 不同」单一条件改写。正常当前测量（`coveredMessageId === current leaf`）不得修复。
@@ -155,6 +174,7 @@ Host 当前权威与 Desktop 展示降级是两条路径。contracts `canPromote
 
 - current known：按 occupancy quality 显示「已确认」或「估算」
 - stale lastConfirmed：§4.2 待测量文案，不得伪装成 Confirmed current
+- derived-session pending：显示「当前上下文待测量」；环可见但数字、百分比和预算值均为空
 - `readContextOccupiedTokens` 只读 `occupancy.kind === 'known'`；unknown 不是 0，也不回退 `lastConfirmed`
 
 ## 5. 设计（与实现对齐）
@@ -177,7 +197,8 @@ Host 当前权威与 Desktop 展示降级是两条路径。contracts `canPromote
 5. branch / compact-unmeasured / abort / store unavailable：不显示旧数字。
 6. A→B→A 在线立即恢复；离线切换仍显示 offline。
 7. fork 到较早 assistant：目标 occupancy unknown，不继承源末尾数值。
-8. compact/model-switch 的预算读取不使用 stale lastConfirmed。
+8. Duplicate/Fork 打开后，若有历史响应，显示中性待测量环；首次目标测量后替换为 current 数字。
+9. compact/model-switch 的预算读取不使用 stale lastConfirmed。
 
 ## 7. 完成定义
 

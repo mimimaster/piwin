@@ -94,6 +94,7 @@ export class WorkerSessionBackend implements PiSessionBackend {
         providers: input.providers,
         ...(input.seedMessages ? { seedMessages: input.seedMessages } : {}),
         ...(input.seedMode ? { seedMode: input.seedMode } : {}),
+        ...(input.compactionSeed ? { compactionSeed: input.compactionSeed } : {}),
       });
     } catch (error) {
       await this.options.supervisor
@@ -156,6 +157,12 @@ export class WorkerSessionBackend implements PiSessionBackend {
       },
       async compact(customInstructions?: string) {
         return client.compact(created.sessionId, customInstructions);
+      },
+      getAutoCompactionEnabled() {
+        return client.getAutoCompactionEnabled(created.sessionId);
+      },
+      setAutoCompactionEnabled(enabled: boolean) {
+        return client.setAutoCompactionEnabled(created.sessionId, enabled);
       },
       abortCompaction() {
         // Abort is a best-effort control message; the caller does not await it.

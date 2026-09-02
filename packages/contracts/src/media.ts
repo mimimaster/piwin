@@ -28,6 +28,18 @@ export type SaveMediaInput = {
  */
 export const MEDIA_SAVE_CHUNK_MAX_BYTES = 384 * 1024;
 
+/**
+ * Raw bytes per `media/read` slice. Same budget as save-chunk so a ranged
+ * video read stays inside one Host wire frame after base64 + envelope.
+ */
+export const MEDIA_READ_CHUNK_MAX_BYTES = MEDIA_SAVE_CHUNK_MAX_BYTES;
+
+/**
+ * Whole-file `media/read` raw-byte cap. Larger files return `too-large` unless
+ * the client retries with `offset`/`length`.
+ */
+export const MEDIA_READ_WIRE_SAFE_BYTES = 700 * 1024;
+
 export type MediaSaveBeginInput = {
   sessionId: string;
   mimeType: string;
@@ -87,9 +99,12 @@ export type MediaReadData =
       assetId: string;
       sessionId: string;
       mimeType: string;
+      /** Full vault file size. For a ranged read this is not the slice length. */
       byteSize: number;
       /** Bytes are base64 only while crossing the client-to-host transport. */
       base64Data: string;
+      /** Present when the client requested a byte range. */
+      offset?: number;
     }
   | {
       status: 'unavailable';

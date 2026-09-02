@@ -166,6 +166,18 @@ describe('ipc types', () => {
     }
   });
 
+  it('accepts media/read byte ranges for assets over the wire cap', () => {
+    const command: HostCommand = {
+      type: 'media/read',
+      input: { sessionId: 's1', assetId: 'asset-1', offset: 0, length: 384 * 1024 },
+    };
+    expect(command.type).toBe('media/read');
+    if (command.type === 'media/read') {
+      expect(command.input.offset).toBe(0);
+      expect(command.input.length).toBe(384 * 1024);
+    }
+  });
+
   it('accepts media/list command shape', () => {
     const command: HostCommand = {
       type: 'media/list',

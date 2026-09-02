@@ -20,6 +20,7 @@ import { MediaLightbox } from './MediaPreview';
 import { PreviewUnavailable } from './PreviewUnavailable';
 import { resolveMediaPreviewUrl } from './media-utils';
 import { mediaKindForPath } from './media-path';
+import { createPlayableMediaObjectUrl } from './playable-media-url';
 import { provenanceLabel, type ActiveDocumentMedia } from './active-document';
 import type { DesktopLocale } from './desktop-locale';
 
@@ -183,28 +184,56 @@ export function MediaDocPreview({
 
   useEffect(() => {
     let cancelled = false;
+    let owned: string | null = null;
     setResolutionFailed(false);
     setUrl(null);
     // Remote media targets carry pre-fetched bytes (media/read); local vault
-    // paths resolve lazily through the Tauri asset protocol.
+    // paths resolve lazily through the Tauri asset protocol. Videos need a
+    // blob: URL — asset: does not serve Range requests.
     if (media.dataUrl) {
       setUrl(media.dataUrl);
       return () => {
         cancelled = true;
       };
     }
-    void resolveMediaPreviewUrl(media.path).then((resolved) => {
-      if (!cancelled) {
-        setUrl(resolved);
-        if (!resolved) {
-          setResolutionFailed(true);
-        }
+    void (async () => {
+      const resolved = await resolveMediaPreviewUrl(media.path);
+      if (cancelled) {
+        return;
       }
-    });
+      if (!resolved) {
+        setResolutionFailed(true);
+        return;
+      }
+      const video = mediaKindForPath(media.path) === 'video';
+      if (video) {
+        const playable = await createPlayableMediaObjectUrl(
+          resolved,
+          media.mimeType ?? 'video/mp4',
+        );
+        if (cancelled) {
+          if (playable) {
+            URL.revokeObjectURL(playable);
+          }
+          return;
+        }
+        if (playable) {
+          owned = playable;
+          setUrl(playable);
+          return;
+        }
+        setResolutionFailed(true);
+        return;
+      }
+      setUrl(resolved);
+    })();
     return () => {
       cancelled = true;
+      if (owned) {
+        URL.revokeObjectURL(owned);
+      }
     };
-  }, [media.dataUrl, media.path]);
+  }, [media.dataUrl, media.mimeType, media.path]);
 
   const closeLightbox = useCallback((): void => {
     setLightboxOpen(false);

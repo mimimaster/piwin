@@ -60,6 +60,8 @@ export const RESERVED_SLASH_COMMAND_NAMES: ReadonlySet<string> = new Set([
  */
 export const SKILL_SLASH_ALIASES: Record<string, string> = {
   'write-plan': 'writing-plans',
+  'optimize-prompts': 'optimize-prompt',
+  'prompt-optimize': 'optimize-prompt',
 };
 
 export function buildSlashCatalog(options: BuildSlashCatalogOptions): SlashItem[] {

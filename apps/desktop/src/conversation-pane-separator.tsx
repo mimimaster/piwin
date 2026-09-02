@@ -9,7 +9,9 @@ import {
 import {
   CONVERSATION_PANE_MAX_RATIO,
   CONVERSATION_PANE_MIN_RATIO,
-  clampConversationPaneRatio,
+  clampConversationPaneRatioToBounds,
+  getConversationPaneMinimumSize,
+  getConversationPaneSplitRatioBounds,
   type ConversationPaneNode,
   type ConversationPaneOrientation,
   type ConversationPaneRect,
@@ -19,6 +21,8 @@ export type ConversationPaneSplitRect = Omit<ConversationPaneRect, 'paneId'> & {
   splitId: string;
   orientation: ConversationPaneOrientation;
   ratio: number;
+  firstMinimumSize: ReturnType<typeof getConversationPaneMinimumSize>;
+  secondMinimumSize: ReturnType<typeof getConversationPaneMinimumSize>;
 };
 
 export function listConversationPaneSplitRects(
@@ -30,6 +34,8 @@ export function listConversationPaneSplitRects(
     splitId: node.splitId,
     orientation: node.orientation,
     ratio: node.ratio,
+    firstMinimumSize: getConversationPaneMinimumSize(node.first),
+    secondMinimumSize: getConversationPaneMinimumSize(node.second),
     ...rect,
   };
   if (node.orientation === 'row') {
@@ -82,14 +88,33 @@ export function ConversationPaneSeparator(props: ConversationPaneSeparatorProps)
   const pointerIdRef = useRef<number | null>(null);
   const vertical = props.split.orientation === 'row';
 
+  function ratioBounds(rootRect: DOMRect): { min: number; max: number } {
+    return getConversationPaneSplitRatioBounds({
+      orientation: props.split.orientation,
+      availableSize: {
+        width: rootRect.width * props.split.width,
+        height: rootRect.height * props.split.height,
+      },
+      firstMinimumSize: props.split.firstMinimumSize,
+      secondMinimumSize: props.split.secondMinimumSize,
+    });
+  }
+
   function ratioFromPointer(event: PointerEvent<HTMLDivElement>): number | null {
     const rootRect = props.rootRef.current?.getBoundingClientRect();
     if (!rootRect || rootRect.width <= 0 || rootRect.height <= 0) return null;
     const normalizedX = (event.clientX - rootRect.left) / rootRect.width;
     const normalizedY = (event.clientY - rootRect.top) / rootRect.height;
+    const bounds = ratioBounds(rootRect);
     return vertical
-      ? clampConversationPaneRatio((normalizedX - props.split.left) / props.split.width)
-      : clampConversationPaneRatio((normalizedY - props.split.top) / props.split.height);
+      ? clampConversationPaneRatioToBounds(
+          (normalizedX - props.split.left) / props.split.width,
+          bounds,
+        )
+      : clampConversationPaneRatioToBounds(
+          (normalizedY - props.split.top) / props.split.height,
+          bounds,
+        );
   }
 
   function handlePointerDown(event: PointerEvent<HTMLDivElement>): void {
@@ -117,18 +142,26 @@ export function ConversationPaneSeparator(props: ConversationPaneSeparatorProps)
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
     let nextRatio: number | null = null;
-    if (event.key === 'Home') nextRatio = CONVERSATION_PANE_MIN_RATIO;
-    if (event.key === 'End') nextRatio = CONVERSATION_PANE_MAX_RATIO;
+    const rootRect = props.rootRef.current?.getBoundingClientRect();
+    const bounds = rootRect
+      ? ratioBounds(rootRect)
+      : { min: CONVERSATION_PANE_MIN_RATIO, max: CONVERSATION_PANE_MAX_RATIO };
+    if (event.key === 'Home') nextRatio = bounds.min;
+    if (event.key === 'End') nextRatio = bounds.max;
     if (vertical && event.key === 'ArrowLeft') nextRatio = props.split.ratio - 0.05;
     if (vertical && event.key === 'ArrowRight') nextRatio = props.split.ratio + 0.05;
     if (!vertical && event.key === 'ArrowUp') nextRatio = props.split.ratio - 0.05;
     if (!vertical && event.key === 'ArrowDown') nextRatio = props.split.ratio + 0.05;
     if (nextRatio === null) return;
     event.preventDefault();
-    props.onRatioChange(props.split.splitId, nextRatio);
+    props.onRatioChange(props.split.splitId, clampConversationPaneRatioToBounds(nextRatio, bounds));
   }
 
   const percentage = Math.round(props.split.ratio * 100);
+  const rootRect = props.rootRef.current?.getBoundingClientRect();
+  const bounds = rootRect
+    ? ratioBounds(rootRect)
+    : { min: CONVERSATION_PANE_MIN_RATIO, max: CONVERSATION_PANE_MAX_RATIO };
   return (
     <div
       className={`conversation-pane-separator is-${vertical ? 'vertical' : 'horizontal'}`}
@@ -145,8 +178,8 @@ export function ConversationPaneSeparator(props: ConversationPaneSeparatorProps)
             : 'Resize upper and lower Chat panes'
       }
       aria-orientation={vertical ? 'vertical' : 'horizontal'}
-      aria-valuemin={CONVERSATION_PANE_MIN_RATIO * 100}
-      aria-valuemax={CONVERSATION_PANE_MAX_RATIO * 100}
+      aria-valuemin={Math.round(bounds.min * 100)}
+      aria-valuemax={Math.round(bounds.max * 100)}
       aria-valuenow={percentage}
       data-testid={`conversation-pane-separator-${props.split.splitId}`}
       onPointerDown={handlePointerDown}

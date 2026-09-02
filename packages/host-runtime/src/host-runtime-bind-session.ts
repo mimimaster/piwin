@@ -119,7 +119,10 @@ export async function bindSession(
         level: 'warn',
         message: warning,
       });
-      throw error instanceof Error ? error : new Error(warning);
+      // Keep the live session usable when the optional index projection is
+      // temporarily unavailable. The transcript store and runtime lease are
+      // still established below; the warning makes the durability gap
+      // explicit and a later index write can repair the projection.
     }
   }
 
@@ -171,13 +174,20 @@ export async function bindSession(
     },
   });
 
-  // Apply durable auto-compaction default (or session override) when handle supports it.
-  void deps.applyAutoCompactionToSession(session).catch((error: unknown) => {
+  // Apply the resolved setting before activation returns. A prompt can be
+  // accepted immediately after bind; fire-and-forget here let Pi inspect its
+  // default first and made SDK/RPC auto-compaction timing nondeterministic.
+  // Settings persistence is still best-effort during bind: a transient
+  // setter failure must not turn an otherwise durable session create into a
+  // false failure. The warning keeps the policy drift observable.
+  try {
+    await deps.applyAutoCompactionToSession(session);
+  } catch (error) {
     const message = formatError(error);
     deps.push({
       type: 'host/log',
       level: 'warn',
       message: `auto-compaction apply failed: ${message}`,
     });
-  });
+  }
 }

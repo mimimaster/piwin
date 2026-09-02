@@ -2079,8 +2079,8 @@ describe('HostRuntime', () => {
     if (!compacted.success) throw new Error(compacted.error);
     const data = compacted.data as { ok: boolean; message?: string };
     expect(data.ok).toBe(true);
-    expect(events).toContain('compaction/start');
-    expect(events).toContain('compaction/end');
+    expect(events.filter((type) => type === 'compaction/start')).toHaveLength(1);
+    expect(events.filter((type) => type === 'compaction/end')).toHaveLength(1);
 
     const settings = await runtime.handleCommand({
       id: 'c3',

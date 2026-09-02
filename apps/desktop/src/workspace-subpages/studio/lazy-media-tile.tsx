@@ -127,8 +127,7 @@ export function LazyMediaTile(props: LazyMediaTileProps): ReactElement {
           setThumbUrl(playable);
           return;
         }
-      }
-      if (original) {
+      } else if (original) {
         if (!cancelled) {
           dropOwned();
           setThumbUrl(original);

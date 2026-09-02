@@ -3,6 +3,7 @@
  * the composition root and calls these functions with a kernel view of `this`.
  */
 
+import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 
 import { getSessionRecord } from '@piwin/session';
@@ -43,6 +44,26 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
     getTranscriptStore: (sessionId) => deps.getTranscriptStore(sessionId),
     nextModelRequestOrdinal: (sessionId) => deps.nextModelRequestOrdinal(sessionId),
     withTranscriptStore: (sessionId, operation) => deps.withTranscriptStore(sessionId, operation),
+    recordCompactionBoundary: async (sessionId, result) => {
+      const summary = result.summary?.trim();
+      if (!result.ok || !summary) {
+        return;
+      }
+      await deps.withTranscriptStore(sessionId, async (store) => {
+        const anchorMessageId = await store.getActiveLeaf();
+        const generationId = deps.runtimeController.getStatus(sessionId).generationId;
+        await store.recordCompaction({
+          compactionId: `compaction-${randomUUID()}`,
+          anchorMessageId,
+          summary,
+          ...(result.firstKeptEntryId ? { firstKeptEntryId: result.firstKeptEntryId } : {}),
+          ...(result.tokensBefore !== undefined ? { tokensBefore: result.tokensBefore } : {}),
+          ...(result.tokensAfter !== undefined ? { tokensAfter: result.tokensAfter } : {}),
+          ...(generationId !== undefined ? { runtimeGenerationId: generationId } : {}),
+          createdAt: new Date().toISOString(),
+        });
+      });
+    },
     loadSideChatSnapshot: async (sessionId) => {
       const rootDir = getPiwinRoot(deps.options.piwinRoot);
       const record = await getSessionRecord(getPiwinSessionIndexPath(rootDir), sessionId);
@@ -65,8 +86,26 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
       deps.pendingColdStartGenerationId(sessionId) !== undefined,
     ensureLiveSession: (sessionId) => deps.ensureLiveSession(sessionId),
     reactivateWithSeedMessages: async (sessionId, seedMessages) => {
+      // `disposeLiveSession` clears resident-only maps. Preserve the
+      // in-memory session state across this internal candidate rebuild so the
+      // newly bound generation receives the same Host policy and model.
+      const autoCompactionOverride = deps.sessionAutoCompactionOverrides.get(sessionId);
+      const activeModel = deps.sessionModels.get(sessionId);
+      const delegationMode = deps.sessionRuntimeDelegationModes.get(sessionId);
       await deps.disposeLiveSession(sessionId);
-      deps.pendingActivationSeedMessages.set(sessionId, [...seedMessages]);
+      if (autoCompactionOverride !== undefined) {
+        deps.sessionAutoCompactionOverrides.set(sessionId, autoCompactionOverride);
+      }
+      if (activeModel !== undefined) {
+        deps.sessionModels.set(sessionId, activeModel);
+      }
+      if (delegationMode !== undefined) {
+        deps.sessionRuntimeDelegationModes.set(sessionId, delegationMode);
+      }
+      deps.pendingActivationSeedMessages.set(sessionId, {
+        seedMessages: [...seedMessages],
+        seedMode: 'replay',
+      });
       try {
         return await deps.activateSessionRuntime(sessionId);
       } catch (error) {
@@ -228,7 +267,8 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
           settingsRevision: result.candidate.settingsRevision,
         }));
     },
-    replaceRuntimeForModel: (sessionId) => deps.replaceRuntimeForModel(sessionId),
+    replaceRuntimeForModel: (sessionId, excludeSeedMessageId) =>
+      deps.replaceRuntimeForModel(sessionId, excludeSeedMessageId),
     beginTurnChangeRun: (input) => {
       const runtime = deps.turnChangeRuntime;
       if (!runtime) {

@@ -4,9 +4,8 @@
 > 其余约束（主题修复、外部资源阻断、嵌入 guard、桥接测量）已由运行时处理，不重复塞进 prompt。
 >
 > 与 `formatArtifactProtocol()` / `ARTIFACT_RUNTIME_CONTRACT` 保持同构。
-> 生产路径：`config.artifact.enabled` 打开时，模型按需调用只读 Host 工具
-> `artifact_instructions` 加载决策策略 + 本契约。不要把 `evaluateCodeFence`
-> 或 `splitMarkdownBlocks` 写进 prompt。
+> 生产路径：`config.artifact.enabled` 打开时，决策策略 + 本契约直接注入
+> system prompt。不要把 `evaluateCodeFence` 或 `splitMarkdownBlocks` 写进 prompt。
 
 ## 最小可用的 system prompt 片段
 

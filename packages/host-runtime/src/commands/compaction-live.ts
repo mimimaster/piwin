@@ -55,6 +55,7 @@ import {
   isProviderEnabled,
   modelSupportsCapability,
   estimatePendingPromptTokens,
+  classifyCompactionNoOp,
   readContextOccupiedTokens,
   resolveModelContextBudget,
   type ResolvedOrchestrationScheme,
@@ -90,7 +91,7 @@ import {
 } from '@piwin/session';
 import { formatSideChatContextBlock, mergeSideChatContextIntoPrompt } from '@piwin/session';
 import { redactToolText } from '@piwin/agent-host';
-import { extractFileOpsFromUnknown, formatFilesTouchedBlock } from '../compaction-file-ops.js';
+import { extractFileOpsFromUnknown } from '../compaction-file-ops.js';
 import { formatPlanForModelContext } from '../format-plan-context.js';
 import { createProductShellSession } from '../product-shell-session.js';
 import { createModelPromptAssembly, type ModelPromptAssembly } from '../model-context-assembly.js';
@@ -121,16 +122,8 @@ import { repairLegacySessionNames } from '../session-name-repair.js';
 import { findEnabledModel } from '../provider-helpers.js';
 import type { SessionLiveContext } from './session-live-context.js';
 
-function isNothingToCompact(result: SessionCompactResult): boolean {
-  if (result.ok !== false) {
-    return false;
-  }
-  const message = (result.message ?? '').toLowerCase();
-  return message.includes('nothing to compact') || message.includes('session too small');
-}
-
 function isAlreadyCompactedMessage(message: string | undefined): boolean {
-  return (message ?? '').toLowerCase().includes('already compacted');
+  return classifyCompactionNoOp(message) === 'already-compacted';
 }
 
 type TargetCompactionResult = SessionCompactResult & {
@@ -147,7 +140,7 @@ async function compactLiveSessionForTargetAttempt(
     return await compactLiveSession(context, sessionId, customInstructions);
   } catch (error) {
     const message = formatError(error);
-    if (isAlreadyCompactedMessage(message)) {
+    if (isAlreadyCompactedMessage(message) || classifyCompactionNoOp(message) === 'too-small') {
       return { ok: false, message };
     }
     throw error;
@@ -165,13 +158,9 @@ async function resolveAlreadyCompactedTarget(
   const latestOccupied = readContextOccupiedTokens(latestUsage);
   const postCompactTokens = compactResult.tokensAfter ?? latestOccupied;
   if (postCompactTokens === undefined) {
-    return {
-      ok: true,
-      compacted: false,
-      targetInputBudget: targetBudget.inputBudget,
-      message:
-        'Native context is already compacted; occupancy could not be re-measured. Provider limits still apply.',
-    };
+    throw new Error(
+      `context-limit-unverified: native context is already compacted but occupancy could not be measured for target input budget ${targetBudget.inputBudget}`,
+    );
   }
   if (postCompactTokens + Math.max(0, pendingPromptTokens) > targetBudget.inputBudget) {
     throw new Error(
@@ -191,21 +180,17 @@ async function loadProductCompactionSeeds(
   context: SessionLiveContext,
   sessionId: string,
 ): Promise<SessionSeedMessage[]> {
-  try {
-    const history = await context.withTranscriptStore(sessionId, (store) =>
-      store.buildHistoryWindow({ maxMessages: 200, maxChars: 200_000 }),
-    );
-    const snapshotMessages: SessionTranscriptMessage[] = history.map((message, index) => ({
-      id: `compact-history-${index}`,
-      role: message.role as SessionTranscriptMessage['role'],
-      text: message.text,
-      createdAt: new Date().toISOString(),
-      status: 'done',
-    }));
-    return buildCompactionSeedMessages(snapshotMessages);
-  } catch {
-    return [];
-  }
+  const history = await context.withTranscriptStore(sessionId, (store) =>
+    store.buildHistoryWindow({ maxMessages: 200, maxChars: 200_000 }),
+  );
+  const snapshotMessages: SessionTranscriptMessage[] = history.map((message, index) => ({
+    id: `compact-history-${index}`,
+    role: message.role as SessionTranscriptMessage['role'],
+    text: message.text,
+    createdAt: new Date().toISOString(),
+    status: 'done',
+  }));
+  return buildCompactionSeedMessages(snapshotMessages);
 }
 
 async function compactLiveSession(
@@ -213,26 +198,21 @@ async function compactLiveSession(
   sessionId: string,
   customInstructions?: string,
 ): Promise<SessionCompactResult> {
-  // Resume/index sessions are often cold: requireSession would throw
-  // "Unknown session" even though the product transcript is on screen.
+  // A warm product runtime owns the authoritative native Pi branch. Do not
+  // infer its presence from getMessages(): the product handle deliberately
+  // keeps that surface opaque to HostRuntime.
   let session = await context.ensureLiveSession(sessionId);
-  const liveMessages = await session.getMessages().catch(() => []);
-  if (liveMessages.length < 2) {
+  // A cold runtime without native replay is the only case that needs a
+  // product-transcript seed. This replacement is safe because the runtime
+  // has no native context yet; warm runtimes stay untouched until compact
+  // itself succeeds or throws.
+  if (context.needsProductHistoryInjection(sessionId)) {
     const seedMessages = await loadProductCompactionSeeds(context, sessionId);
     if (seedMessages.length >= 2) {
       session = await context.reactivateWithSeedMessages(sessionId, seedMessages);
     }
   }
-  const first = await compactSessionHandle(context, sessionId, session, customInstructions, true);
-  if (!isNothingToCompact(first)) {
-    return first;
-  }
-  const seedMessages = await loadProductCompactionSeeds(context, sessionId);
-  if (seedMessages.length < 2) {
-    return first;
-  }
-  session = await context.reactivateWithSeedMessages(sessionId, seedMessages);
-  return compactSessionHandle(context, sessionId, session, customInstructions, true);
+  return compactSessionHandle(context, sessionId, session, customInstructions);
 }
 
 export async function compactLiveSessionForTarget(
@@ -272,9 +252,7 @@ export async function compactLiveSessionForTarget(
   // there is no native source-model context to mutate before the switch.
   if (
     alreadyUsingTarget ||
-    !context.sessions.has(sessionId) ||
-    requiredTokens === undefined ||
-    requiredTokens <= targetBudget.inputBudget
+    (requiredTokens !== undefined && requiredTokens <= targetBudget.inputBudget)
   ) {
     return {
       ok: true,
@@ -282,9 +260,22 @@ export async function compactLiveSessionForTarget(
       targetInputBudget: targetBudget.inputBudget,
       message: alreadyUsingTarget
         ? 'Session is already using the target model'
-        : requiredTokens === undefined
-          ? 'Target context could not be measured; final provider limits still apply'
-          : 'Current context fits the target model budget',
+        : 'Current context fits the target model budget',
+    };
+  }
+
+  if (requiredTokens === undefined) {
+    // A missing occupancy sample is not evidence that the target is over
+    // budget. In particular, a cold product shell may already have a native
+    // compaction seed queued for activation; eagerly waking it just to run
+    // another compact made every model switch look like a compaction. Keep
+    // the switch non-destructive and let the target provider enforce its own
+    // hard limit. A later measured sample can still trigger this guard.
+    return {
+      ok: true,
+      compacted: false,
+      targetInputBudget: targetBudget.inputBudget,
+      message: 'Target context occupancy is unavailable; preserving context for model switch',
     };
   }
 
@@ -296,12 +287,16 @@ export async function compactLiveSessionForTarget(
   ]
     .filter((value): value is string => Boolean(value))
     .join('\n');
-  const result = await compactLiveSessionForTargetAttempt(
-    context,
-    sessionId,
-    targetInstructions,
-  );
+  const result = await compactLiveSessionForTargetAttempt(context, sessionId, targetInstructions);
   if (!result.ok) {
+    if (classifyCompactionNoOp(result.message) === 'too-small') {
+      return {
+        ok: true,
+        compacted: false,
+        targetInputBudget: targetBudget.inputBudget,
+        message: 'Native context has nothing to compact; target model switch can proceed',
+      };
+    }
     if (isAlreadyCompactedMessage(result.message)) {
       return resolveAlreadyCompactedTarget(
         context,
@@ -338,7 +333,7 @@ async function compactSessionHandle(
   sessionId: string,
   session: SessionHandle,
   customInstructions: string | undefined,
-  emitSessionFacts: boolean,
+  options: { persistBoundary?: boolean } = {},
 ): Promise<SessionCompactResult> {
   const compact = session.compact;
   if (!compact) {
@@ -364,42 +359,13 @@ async function compactSessionHandle(
       ...(fileOps ? { fileOps } : {}),
     };
 
-    if (emitSessionFacts && fileOps) {
-      const block = formatFilesTouchedBlock(fileOps);
-      context.sessionFilesTouched.set(sessionId, block);
-      context.push({
-        type: 'event',
-        sessionId,
-        event: {
-          type: 'compaction/end',
-          ok: enrichedResult.ok,
-          ...(enrichedResult.message ? { message: enrichedResult.message } : {}),
-          ...(enrichedResult.summary ? { summary: enrichedResult.summary } : {}),
-          ...(typeof enrichedResult.tokensBefore === 'number'
-            ? { tokensBefore: enrichedResult.tokensBefore }
-            : {}),
-          ...(typeof enrichedResult.tokensAfter === 'number'
-            ? { tokensAfter: enrichedResult.tokensAfter }
-            : {}),
-          durationMs,
-          fileOps,
-        },
-      });
+    if (options.persistBoundary !== false && enrichedResult.ok) {
+      // Persist before returning to the caller. Model changes can replace the
+      // backend immediately after `/compact` resolves, so an asynchronous
+      // event-only write would race the replacement and lose the summary.
+      await context.recordCompactionBoundary(sessionId, enrichedResult);
     }
 
-    if (emitSessionFacts) {
-      void context.sessionContextCoordinator
-        ?.noteCompactionEnd(sessionId, {
-          ok: enrichedResult.ok !== false,
-          ...(typeof enrichedResult.tokensAfter === 'number'
-            ? { tokensAfter: enrichedResult.tokensAfter }
-            : {}),
-          ...(typeof enrichedResult.tokensBefore === 'number'
-            ? { tokensBefore: enrichedResult.tokensBefore }
-            : {}),
-        })
-        .catch(() => undefined);
-    }
     return enrichedResult;
   } finally {
     if (protectedRuntime) {
@@ -419,7 +385,10 @@ async function compactTranscriptSnapshot(
   customInstructions?: string,
 ): Promise<SessionCompactResult> {
   if (context.compactExportOperations.has(record.id)) {
-    return { ok: false, message: 'compaction-active: compact-export already running for this session' };
+    return {
+      ok: false,
+      message: 'compaction-active: compact-export already running for this session',
+    };
   }
   const operation: {
     sourceSessionId: string;
@@ -479,7 +448,7 @@ async function compactTranscriptSnapshot(
       temporarySession.id,
       temporarySession,
       customInstructions,
-      false,
+      { persistBoundary: false },
     );
   } catch (error) {
     operationFailed = true;
@@ -549,7 +518,11 @@ export async function handleCompactionCommand(
         (liveRun.status === 'queued' ||
           liveRun.status === 'running' ||
           liveRun.status === 'cancelling');
-      if (runLive && command.targetModel === undefined) {
+      // Internal pre-turn model migration calls compactLiveSessionForTarget
+      // directly after admitting its Run. The public command must remain
+      // exclusive for every form, including targetModel, so another client
+      // cannot compact/replace a generation owned by a live Run.
+      if (runLive) {
         return sessionBusyResponse(
           requestId,
           'session/compact',
@@ -636,11 +609,17 @@ export async function handleCompactionCommand(
       const session = context.requireSession(command.sessionId);
       const supported = typeof session.getAutoCompactionEnabled === 'function';
       const resolved = await context.resolveAutoCompaction(command.sessionId);
+      // A lazy product shell reports a placeholder value until its first
+      // activation. Prefer Host's resolved policy while no native runtime is
+      // resident, otherwise the settings panel briefly shows a false value
+      // even when the configured default is true.
+      const runtimeReady = session.needsProductHistoryInjection?.() !== true;
+      const actual =
+        supported && runtimeReady ? await session.getAutoCompactionEnabled?.() : undefined;
+      const override = context.sessionAutoCompactionOverrides.get(command.sessionId);
       return ok(requestId, 'session/compaction-settings', {
         supported,
-        autoCompactionEnabled: supported
-          ? Boolean(session.getAutoCompactionEnabled?.())
-          : resolved.enabled,
+        autoCompactionEnabled: override ?? actual ?? resolved.enabled,
         source: resolved.source,
         globalDefault: resolved.globalDefault,
       });
@@ -654,8 +633,8 @@ export async function handleCompactionCommand(
           'auto-compaction settings not supported on this session',
         );
       }
+      await session.setAutoCompactionEnabled(command.enabled);
       context.sessionAutoCompactionOverrides.set(command.sessionId, command.enabled);
-      session.setAutoCompactionEnabled(command.enabled);
       return ok(requestId, 'session/set-auto-compaction', {
         enabled: command.enabled,
         source: 'session' as const,

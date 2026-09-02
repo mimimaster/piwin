@@ -160,7 +160,9 @@ export function buildBasePhrases(input: RunActivityInput): string[] {
   const isZh = input.locale === 'zh-CN';
   switch (input.kind) {
     case 'compacting':
-      return isZh ? ['压缩上下文', '总结记忆'] : ['Trimming context', 'Summarizing memory'];
+      return isZh
+        ? ['整理上下文', '保留关键决策', '整理工具记录', '生成续接摘要']
+        : ['Trimming context', 'Preserving key decisions', 'Organizing tool history', 'Preparing a handoff summary'];
     case 'failed':
       return isZh ? ['出错了', '再试一次？'] : ['Hit a snag', 'Try again?'];
     case 'complete':

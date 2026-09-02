@@ -2,6 +2,7 @@ import type {
   AssistantUsageMeasurement,
   ContextUsageSnapshot,
   MediaAttachmentRef,
+  ModelRef,
   RemoteSessionListData,
   RemoteSessionListPageData,
   RemoteSessionMessagesData,
@@ -54,7 +55,9 @@ export function projectSessionList(data: unknown): RemoteSessionListData {
 }
 
 /** Path-free session object for remote index pushes. Desktop maps `projectId` as the project key. */
-export function projectHostSessionForRemoteClient(session: unknown): Record<string, unknown> | undefined {
+export function projectHostSessionForRemoteClient(
+  session: unknown,
+): Record<string, unknown> | undefined {
   const [projected] = projectSessions({ sessions: [session] });
   if (projected === undefined) {
     return undefined;
@@ -148,18 +151,9 @@ export function projectSessionResume(
   if (contextUsage !== undefined) {
     resume.contextUsage = contextUsage;
   }
-  const model = asRecord(record?.model);
-  if (
-    model !== undefined &&
-    typeof model.protocol === 'string' &&
-    typeof model.providerId === 'string' &&
-    typeof model.modelId === 'string'
-  ) {
-    resume.model = {
-      protocol: model.protocol,
-      providerId: model.providerId,
-      modelId: model.modelId,
-    };
+  const projectedModel = projectModelRef(record?.model);
+  if (projectedModel !== undefined) {
+    resume.model = projectedModel;
   }
   const outline = Array.isArray(record?.outline) ? record.outline : [];
   const projectedOutline: RemoteSessionOutlineNode[] = [];
@@ -433,6 +427,10 @@ function projectTranscriptMessages(
     copyBoundedString(item, 'endedAt', transcript, 'endedAt', 128);
     copyBoundedString(item, 'terminalMessage', transcript, 'terminalMessage', 16_384);
     copyBoundedString(item, 'thinking', transcript, 'thinking', 128_000);
+    const model = projectModelRef(item.model);
+    if (model !== undefined) {
+      transcript.model = model;
+    }
     if (isTranscriptOutcome(item.outcome)) {
       transcript.outcome = item.outcome;
     }
@@ -473,9 +471,39 @@ function projectTranscriptMessages(
   return projected;
 }
 
+function projectModelRef(value: unknown): ModelRef | undefined {
+  const record = asRecord(value);
+  if (
+    record === undefined ||
+    typeof record.providerId !== 'string' ||
+    record.providerId.trim().length === 0 ||
+    record.providerId.length > 256 ||
+    typeof record.modelId !== 'string' ||
+    record.modelId.trim().length === 0 ||
+    record.modelId.length > 512
+  ) {
+    return undefined;
+  }
+  const model: ModelRef = {
+    providerId: record.providerId,
+    modelId: record.modelId,
+  };
+  if (
+    record.protocol === 'openai-compatible' ||
+    record.protocol === 'anthropic-compatible' ||
+    record.protocol === 'google-gemini'
+  ) {
+    model.protocol = record.protocol;
+  }
+  if (record.source === 'channel' || record.source === 'subscription') {
+    model.source = record.source;
+  }
+  return model;
+}
+
 const MEDIA_ATTACHMENT_SOURCES = new Set(['paste', 'drop', 'file-picker', 'generated']);
 
-function projectRemoteTranscriptAttachments(
+export function projectRemoteTranscriptAttachments(
   attachmentsValue: unknown,
   remoteMediaPaths: ReadonlyMap<string, string> | undefined,
 ): MediaAttachmentRef[] {

@@ -1,9 +1,9 @@
-import type { MediaReadData } from '@piwin/contracts';
 import {
   createLimitedPreviewUrlFromHref,
   TRANSCRIPT_THUMB_MAX_EDGE_PX,
 } from './media-preview-bitmap';
 import { isRemoteMediaAssetRef, REMOTE_MEDIA_ASSET_PREFIX } from './media-path';
+import { readMediaObjectUrlViaHost, type MediaHostReadClient } from './media-host-read';
 import { resolveMediaPreviewUrl } from './media-utils';
 import { createPlayableMediaObjectUrl } from './playable-media-url';
 
@@ -12,13 +12,7 @@ export type MediaPreviewReader = (input: {
   assetId: string;
 }) => Promise<string | null>;
 
-export type MediaPreviewHost = {
-  supportsCommand?: (type: 'media/read') => boolean;
-  request: (command: {
-    type: 'media/read';
-    input: { sessionId: string; assetId: string };
-  }) => Promise<{ success: boolean; data?: unknown }>;
-};
+export type MediaPreviewHost = MediaHostReadClient;
 
 const previewObjectUrls = new Map<string, string>();
 
@@ -34,19 +28,11 @@ export function mediaPreviewAssetId(path: string, attachmentId: string): string 
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function objectUrlFromBase64(mimeType: string, base64Data: string): string {
-  const binary = atob(base64Data);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-  return URL.createObjectURL(new Blob([bytes], { type: mimeType }));
-}
-
 /**
  * Fetch vault bytes through `media/read` (ADR 0052). Used when the shell cannot
- * turn a Host path into a Tauri asset URL — remote projection (`remote-asset:`)
- * or a local convertFileSrc miss.
+ * turn a Host path into a Tauri asset URL — remote projection (`remote-asset:`),
+ * a local convertFileSrc miss, or a video whose asset URL is not playable.
+ * Oversized originals (generated mp4) are assembled from ranged slices.
  */
 export async function readMediaPreviewViaHost(
   host: MediaPreviewHost,
@@ -57,21 +43,10 @@ export async function readMediaPreviewViaHost(
   if (cached) {
     return cached;
   }
-  if (host.supportsCommand?.('media/read') === false) {
+  const url = await readMediaObjectUrlViaHost(host, input);
+  if (!url) {
     return null;
   }
-  const response = await host.request({
-    type: 'media/read',
-    input: { sessionId: input.sessionId, assetId: input.assetId },
-  });
-  if (!response.success || response.data === undefined) {
-    return null;
-  }
-  const data = response.data as MediaReadData;
-  if (data.status !== 'ready' || data.base64Data.length === 0) {
-    return null;
-  }
-  const url = objectUrlFromBase64(data.mimeType, data.base64Data);
   previewObjectUrls.set(cacheKey, url);
   return url;
 }
@@ -165,18 +140,19 @@ export async function resolveTranscriptPreviewUrls(input: {
   vaultHome?: string | undefined;
 }): Promise<TranscriptPreviewUrls> {
   if (input.skipLocal !== true) {
-    const local = await resolveMediaPreviewUrl(input.path);
+    const local =
+      (await resolveMediaPreviewUrl(input.path)) ?? (await resolveReconstructedVaultUrl(input));
     if (local) {
-      return finishPreviewUrls(local, input.isVideo, input.mimeType);
-    }
-    const reconstructed = await resolveReconstructedVaultUrl(input);
-    if (reconstructed) {
-      return finishPreviewUrls(reconstructed, input.isVideo, input.mimeType);
+      if (!input.isVideo) {
+        return finishImagePreview(local);
+      }
+      const playable = await createPlayableMediaObjectUrl(local, input.mimeType ?? 'video/mp4');
+      if (playable) {
+        return { thumbUrl: playable, fullUrl: playable, ownedThumb: playable };
+      }
     }
   }
-  // Videos miss the media/read wire cap (~700KB). A redacted path already
-  // tried the local vault layout above; do not base64-encode the mp4.
-  if (input.isVideo || !input.readMedia || !input.sessionId || !input.assetId) {
+  if (!input.readMedia || !input.sessionId || !input.assetId) {
     return { thumbUrl: null, fullUrl: null, ownedThumb: null };
   }
   const hostUrl = await input.readMedia({
@@ -186,21 +162,13 @@ export async function resolveTranscriptPreviewUrls(input: {
   if (!hostUrl) {
     return { thumbUrl: null, fullUrl: null, ownedThumb: null };
   }
-  return finishPreviewUrls(hostUrl, input.isVideo, input.mimeType);
+  if (input.isVideo) {
+    return { thumbUrl: hostUrl, fullUrl: hostUrl, ownedThumb: null };
+  }
+  return finishImagePreview(hostUrl);
 }
 
-async function finishPreviewUrls(
-  fullUrl: string,
-  isVideo: boolean,
-  mimeType?: string,
-): Promise<TranscriptPreviewUrls> {
-  if (isVideo) {
-    const playable = await createPlayableMediaObjectUrl(fullUrl, mimeType ?? 'video/mp4');
-    if (playable) {
-      return { thumbUrl: playable, fullUrl: playable, ownedThumb: playable };
-    }
-    return { thumbUrl: fullUrl, fullUrl, ownedThumb: null };
-  }
+async function finishImagePreview(fullUrl: string): Promise<TranscriptPreviewUrls> {
   const limited = await createLimitedPreviewUrlFromHref(fullUrl, TRANSCRIPT_THUMB_MAX_EDGE_PX);
   return {
     thumbUrl: limited.url,

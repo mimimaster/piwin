@@ -279,8 +279,13 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
       waitForRuns: async (runIds) => {
         await Promise.all(runIds.map((runId) => deps.runRegistry.join(runId)));
       },
-      compileCandidate: (sessionId, generationId, settingsRevision) =>
-        deps.compileRuntimeCandidate(sessionId, generationId, settingsRevision),
+      compileCandidate: (sessionId, generationId, settingsRevision, excludeSeedMessageId) =>
+        deps.compileRuntimeCandidate(
+          sessionId,
+          generationId,
+          settingsRevision,
+          excludeSeedMessageId,
+        ),
       disposeGeneration: (sessionId, generationId) =>
         deps.disposeRuntimeGeneration(sessionId, generationId),
       createGeneration: (sessionId, candidate) =>

@@ -3,7 +3,7 @@ import { mkdir, writeFile, mkdtemp } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { maybeAutoNameSession } from './session-naming-service.js';
-import { saveSessionIndex } from '@piwin/session';
+import { getSessionRecord, saveSessionIndex } from '@piwin/session';
 import type {
   OpenAiCompatibleProviderConfig,
   SessionIndexRecord,
@@ -175,6 +175,39 @@ describe('maybeAutoNameSession', () => {
       push: (msg) => pushes.push(msg),
     });
     expect(pushes).toEqual([]);
+  });
+
+  it('keeps the generated Duplicate title stable after a completed exchange', async () => {
+    const root = await makeRoot();
+    await seedSession(root, {
+      id: 'derived-duplicate',
+      name: 'Copy of Source Chat',
+      origin: {
+        kind: 'duplicate',
+        sourceSessionId: 'source',
+        sourceSessionNameSnapshot: 'Source Chat',
+        createdAt: '2026-08-30T00:00:00.000Z',
+      },
+    });
+    mockFetchTitle('Should not replace the duplicate title');
+    const pushes: HostPush[] = [];
+    await maybeAutoNameSession({
+      piwinRoot: root,
+      sessionId: 'derived-duplicate',
+      firstMessage: 'hello',
+      assistantReply: 'world',
+      modelRef: { protocol: 'openai-compatible', providerId: 'openai', modelId: 'gpt-4o-mini' },
+      providers: [provider],
+      secretResolver,
+      push: (msg) => pushes.push(msg),
+    });
+    expect(pushes).toEqual([]);
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+    const record = await getSessionRecord(
+      join(root, 'sessions-index', 'index.json'),
+      'derived-duplicate',
+    );
+    expect(record?.name).toBe('Copy of Source Chat');
   });
 
   it('falls back to text-derived name when LLM fetch fails', async () => {

@@ -121,6 +121,7 @@ export function createControlContext(
     withTranscriptStore: async () => {
       throw new Error('transcript store is not configured for this control-only test');
     },
+    recordCompactionBoundary: async () => undefined,
     loadSideChatSnapshot: async () => undefined,
     sideChatSnapshotInjectedVersions: new Map(),
     pendingBranchCalibrationBySession: new Map(),

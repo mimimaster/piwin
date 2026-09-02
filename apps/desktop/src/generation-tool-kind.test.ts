@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { ToolCardUi } from './chat-reducer';
-import { resolveGenerationToolKind, shouldRenderGenerationProgress } from './generation-tool-kind.js';
+import {
+  getGenerationStatus,
+  resolveGenerationToolKind,
+  shouldRenderGenerationProgress,
+} from './generation-tool-kind.js';
 
 function tool(input: Partial<ToolCardUi> = {}): ToolCardUi {
   return {
@@ -34,6 +38,14 @@ describe('resolveGenerationToolKind', () => {
     ).toBe('image');
   });
 
+  it('treats toolbox title image_gen as generation when routed name is missing', () => {
+    expect(
+      resolveGenerationToolKind(
+        tool({ presentation: { kind: 'other', title: 'image_gen', actionVerb: 'Toolbox' } }),
+      ),
+    ).toBe('image');
+  });
+
   it('keeps direct legacy generation calls working', () => {
     expect(resolveGenerationToolKind(tool({ toolName: 'image_gen' }))).toBe('image');
     expect(resolveGenerationToolKind(tool({ toolName: 'video_gen' }))).toBe('video');
@@ -63,5 +75,62 @@ describe('shouldRenderGenerationProgress', () => {
     expect(shouldRenderGenerationProgress('done', [])).toBe(true);
     expect(shouldRenderGenerationProgress('done', [{ kind: 'media' }])).toBe(false);
     expect(shouldRenderGenerationProgress(null, [{ kind: 'media' }])).toBe(false);
+  });
+});
+
+describe('getGenerationStatus', () => {
+  it('prioritizes running and failed generation calls', () => {
+    expect(
+      getGenerationStatus(
+        {
+          tools: [
+            tool({ status: 'done', presentation: { kind: 'image', title: 'image_gen' } }),
+            tool({
+              toolCallId: 'call-2',
+              status: 'running',
+              presentation: { kind: 'image', title: 'image_gen' },
+            }),
+          ],
+        },
+        'image',
+      ),
+    ).toBe('running');
+    expect(
+      getGenerationStatus(
+        {
+          tools: [
+            tool({ status: 'done', presentation: { kind: 'image', title: 'image_gen' } }),
+            tool({
+              toolCallId: 'call-2',
+              status: 'error',
+              presentation: { kind: 'image', title: 'image_gen' },
+            }),
+          ],
+        },
+        'image',
+      ),
+    ).toBe('error');
+  });
+
+  it('returns done only for matching generation calls', () => {
+    expect(
+      getGenerationStatus(
+        {
+          tools: [
+            tool({
+              status: 'done',
+              presentation: { kind: 'image', title: 'image_gen' },
+            }),
+            tool({
+              toolCallId: 'call-video',
+              status: 'running',
+              presentation: { kind: 'video', title: 'video_gen' },
+            }),
+          ],
+        },
+        'image',
+      ),
+    ).toBe('done');
+    expect(getGenerationStatus({ tools: [] }, 'video')).toBeNull();
   });
 });

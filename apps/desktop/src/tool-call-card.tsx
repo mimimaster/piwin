@@ -27,6 +27,7 @@ import {
   resolveToolCallHeaderPreview,
   toolHasExpandableBody,
 } from './tool-call-head';
+import { formatToolOutputTruncation } from './tool-output-truncation-display.js';
 import {
   behaviorTextClass,
   getBehaviorActivitySpec,
@@ -314,7 +315,9 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   }
 
   const displayOutput = tool.presentation?.output?.text ?? tool.output;
-  const outputTruncated = tool.presentation?.output?.truncated === true;
+  const outputTruncation = tool.presentation?.output?.truncation;
+  const outputTruncated =
+    tool.presentation?.output?.truncated === true || outputTruncation !== undefined;
   // Prefer the structured error row; hide the body pre when it only repeats that text.
   const bodyOutput = toolOutputDuplicatesError(displayOutput, tool.presentation?.error)
     ? undefined
@@ -355,6 +358,14 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const behaviorId = resolveToolBehaviorStateId(baseBehaviorId, tool.status);
   const behaviorSpec = getBehaviorActivitySpec(behaviorId);
   const locale = props.locale ?? 'en';
+  const truncationCopy = outputTruncated
+    ? formatToolOutputTruncation({
+        locale,
+        isRead: baseBehaviorId === 'read',
+        isWeb: kind === 'web' || baseBehaviorId === 'web.fetch',
+        ...(outputTruncation !== undefined ? { truncation: outputTruncation } : {}),
+      })
+    : undefined;
   const actionVerb = localizeBehaviorAction(behaviorId, locale, rawActionVerb);
   const multiPath = targetPaths.length > 1;
   const isQueryLike =
@@ -473,7 +484,8 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     Boolean(inputPreview) ||
     targetPaths.length > 0 ||
     hasChangedPaths ||
-    Boolean(tool.presentation?.error);
+    Boolean(tool.presentation?.error) ||
+    Boolean(outputTruncation);
 
   function activateSummary(): void {
     const path = primaryTargetPath;
@@ -583,13 +595,14 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
         {tool.presentation?.countTag && !previewText ? (
           <span className="tool-call-count-tag">{tool.presentation.countTag}</span>
         ) : null}
-        {outputTruncated ? (
+        {truncationCopy ? (
           <span
             className="tool-call-truncated-tag"
             data-testid="tool-call-output-truncated"
-            aria-label="Output truncated"
+            aria-label={truncationCopy.ariaLabel}
+            title={truncationCopy.notice}
           >
-            truncated
+            {truncationCopy.summary}
           </span>
         ) : null}
         <span className={previewClassName}>
@@ -640,15 +653,13 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
       </div>
       {expanded && hasBody ? (
         <div className="tool-call-body">
-          {outputTruncated ? (
+          {truncationCopy ? (
             <div
               className="tool-call-output-notice"
               data-testid="tool-call-output-notice"
               role="status"
             >
-              {kind === 'web'
-                ? 'The web response was too large; only a bounded partial result is shown.'
-                : 'The tool output was too large; only a bounded partial result is shown.'}
+              {truncationCopy.notice}
             </div>
           ) : null}
           {canRenderDiffCard

@@ -190,6 +190,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     handleOpenProject,
     handleTrustProject,
     handleResumeSession,
+    ensureSession,
     coldRestorePrompt,
     confirmColdRestore,
     clearColdRestorePrompt,
@@ -311,15 +312,16 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     paneLayout: conversationPaneController.layout,
     panesEnabled: conversationPanesEnabled,
   });
-  const handleCreatePaneConversation = useCallback(async (): Promise<string | null> => {
-    const scope =
-      state.activeScope.kind === 'project'
-        ? { kind: 'project' as const, projectPath: state.activeScope.projectPath }
-        : { kind: 'general' as const };
-    await handleStartNewSession({ scope });
-    conversationPaneController.focus(PRIMARY_CONVERSATION_PANE_ID);
-    return null;
-  }, [conversationPaneController, handleStartNewSession, state.activeScope]);
+  const handleCreatePaneConversation = useCallback(
+    async (_paneId: string): Promise<string | null> => {
+      const scope =
+        state.activeScope.kind === 'project'
+          ? { kind: 'project' as const, projectPath: state.activeScope.projectPath }
+          : { kind: 'general' as const };
+      return ensureSession({ scope, activate: false });
+    },
+    [ensureSession, state.activeScope],
+  );
 
   return (
     <DesktopLocaleProvider locale={desktopLocale} onLocaleChange={handleLocaleChange}>

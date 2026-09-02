@@ -21,7 +21,10 @@ const hostClient = {
   request: vi.fn(),
 } as unknown as HostClient;
 
-function Probe(props: { keyboardEnabled?: boolean }): React.ReactElement {
+function Probe(props: {
+  keyboardEnabled?: boolean;
+  onCreateConversation?: (paneId: string) => Promise<string | null>;
+}): React.ReactElement {
   const controller = useConversationPaneLayout({ enabled: true, primarySessionId: 'primary' });
   return (
     <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
@@ -37,7 +40,7 @@ function Probe(props: { keyboardEnabled?: boolean }): React.ReactElement {
         readMedia={null}
         locale="en"
         {...(props.keyboardEnabled === undefined ? {} : { keyboardEnabled: props.keyboardEnabled })}
-        onCreateConversation={async () => null}
+        onCreateConversation={props.onCreateConversation ?? (async () => null)}
       />
     </PiwinUiProvider>
   );
@@ -119,6 +122,38 @@ describe('ConversationPaneWorkspace', () => {
     expect(container?.querySelector('[role="separator"]')?.getAttribute('aria-valuenow')).toBe(
       '55',
     );
+  });
+
+  it('creates and binds a Chat in the pane that requested it', async () => {
+    const onCreateConversation = vi.fn(async (_paneId: string) => 'session-secondary');
+    act(() => {
+      root?.render(<Probe onCreateConversation={onCreateConversation} />);
+    });
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd', metaKey: true }));
+    });
+
+    const paneElements = container?.querySelectorAll<HTMLElement>('[data-pane-id]');
+    const secondaryPane = paneElements?.[1];
+    if (!secondaryPane) throw new Error('split did not create a secondary pane');
+    const secondaryPaneId = secondaryPane.dataset.paneId;
+    if (!secondaryPaneId) throw new Error('secondary pane has no id');
+
+    await act(async () => {
+      secondaryPane.querySelector<HTMLButtonElement>('.conversation-pane-picker button')?.click();
+      await Promise.resolve();
+    });
+
+    expect(onCreateConversation).toHaveBeenCalledWith(secondaryPaneId);
+    expect(
+      container?.querySelector(
+        `[data-pane-id="${secondaryPaneId}"] [data-testid="conversation-pane-session"]`,
+      ),
+    ).not.toBeNull();
+    expect(
+      container?.querySelector<HTMLElement>('[data-pane-id="conversation-pane-primary"]')?.dataset
+        .conversationPaneActive,
+    ).toBe('false');
   });
 
   it('handles pane shortcuts even when focus is inside the workspace', () => {

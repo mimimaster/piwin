@@ -9,6 +9,7 @@
  */
 import type {
   HostCommand,
+  HostPush,
   HostResponse,
   ModelRef,
   ProjectRecord,
@@ -330,6 +331,20 @@ export function mapListedProjects(data: unknown): ProjectRecord[] {
     }
   }
   return projects;
+}
+
+export function sessionUpdateFromIndexPush(
+  op: Extract<HostPush, { type: 'session/index-updated' }>['op'],
+  listed: SessionListItemUi,
+): Extract<ChatUiAction, { type: 'session/update' }> {
+  if (op === 'unarchived') {
+    return {
+      type: 'session/update',
+      session: { ...listed, isArchived: false },
+      restore: true,
+    };
+  }
+  return { type: 'session/update', session: listed };
 }
 
 export function mapListedSessionItem(value: unknown): SessionListItemUi | undefined {

@@ -45,13 +45,29 @@ function hostOwnsViewport(frameMode: ArtifactFrameMode): boolean {
   return frameMode === 'inline-viewport' || frameMode === 'inline-overflow';
 }
 
+function resolvePaneHeight(input: BridgeInput): number | null {
+  const paneHeight = input.iframeRef.current?.closest<HTMLElement>(
+    '.conversation-pane-session',
+  )?.clientHeight;
+  return paneHeight !== undefined && paneHeight > 0 ? paneHeight : null;
+}
+
+function resolveViewportFrameHeight(input: BridgeInput): number {
+  const paneHeight = resolvePaneHeight(input);
+  const viewportHeight =
+    paneHeight ?? (typeof window === 'undefined' ? 640 : window.innerHeight);
+  const preferredHeight = resolveArtifactViewportFrameHeight(viewportHeight);
+  return paneHeight === null
+    ? preferredHeight
+    : Math.min(preferredHeight, Math.max(MIN_ARTIFACT_IFRAME_HEIGHT, paneHeight));
+}
+
 function resolveStageHeight(input: BridgeInput): number {
   if (input.presentation === 'canvas') {
     return input.bootstrapHeight;
   }
   if (hostOwnsViewport(input.frameMode)) {
-    const viewportHeight = typeof window === 'undefined' ? 640 : window.innerHeight;
-    return resolveArtifactViewportFrameHeight(viewportHeight);
+    return resolveViewportFrameHeight(input);
   }
   return input.bootstrapHeight;
 }
@@ -143,8 +159,7 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
     setContentHeight(rawHeight);
     clearReadyTimer();
     if (shouldEnterArtifactInlineOverflow(rawHeight)) {
-      const viewportHeight = typeof window === 'undefined' ? 640 : window.innerHeight;
-      const chromeHeight = resolveArtifactViewportFrameHeight(viewportHeight);
+      const chromeHeight = resolveViewportFrameHeight(current);
       const grew = chromeHeight > heightRef.current;
       heightRef.current = chromeHeight;
       setOverflowsInlineFlow(true);

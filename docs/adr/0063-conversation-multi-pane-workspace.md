@@ -72,8 +72,10 @@ References:
 - Layout can differ safely between Desktop devices connected to one Host.
 - The primary pane continues to own global titlebar/sidebar integration during
   the first slice. Supplementary panes own their title, transcript, run state,
-  and text composer; richer attachments and per-pane history controls can be
-  added without changing the split-tree contract.
+  text composer, and the shared assistant media surface. Media galleries,
+  generation progress, activity labels, and Artifact previews size against the
+  pane container; per-pane history controls can be added without changing the
+  split-tree contract.
 - The protocol subscription ceiling is a compatibility-safe additive capacity
   change under protocol v1; older clients still send smaller lists.
 

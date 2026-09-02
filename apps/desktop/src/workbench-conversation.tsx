@@ -17,7 +17,6 @@ import type {
   TranscriptBranchPoint,
 } from '@piwin/contracts';
 import type { ArtifactActionMessage } from '@piwin/artifact';
-import { Button, Notice } from '@piwin/ui-kit';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model';
 import { ChatThread } from './chat-thread';
 import type {
@@ -285,6 +284,9 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
               : {})}
             onOpenDiff={onOpenDiff}
             onPlanAbort={onPlanAbort}
+            compactionActivity={state.compactionActivity}
+            onCompactAbort={onCompactAbort}
+            onCompactDismiss={() => dispatch({ type: 'compaction/dismiss' })}
             composerCard={composerCard}
             walkthroughsByMessageId={state.walkthroughsByMessageId}
             walkthroughEnabled={config?.walkthrough?.enabled !== false}
@@ -304,60 +306,6 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
           />
         ) : null}
       </TranscriptViewport>
-      {state.compacting ? (
-        <Notice
-          tone="info"
-          testId="compaction-progress-notice"
-          title="Compacting context…"
-          action={
-            <Button size="compact" onClick={() => void onCompactAbort()}>
-              Cancel
-            </Button>
-          }
-        />
-      ) : null}
-      {!state.compacting && state.lastCompactionMessage ? (
-        <Notice
-          tone="success"
-          testId="compaction-result-notice"
-          title={state.lastCompactionMessage}
-          action={
-            <Button
-              size="compact"
-              onClick={() => dispatch({ type: 'compaction/dismiss' })}
-            >
-              Dismiss
-            </Button>
-          }
-          details={
-            <>
-              {typeof state.lastCompactionDurationMs === 'number' ? (
-                <span className="muted">Duration {state.lastCompactionDurationMs}ms</span>
-              ) : null}
-              {typeof state.lastCompactionTokensBefore === 'number' ||
-              typeof state.lastCompactionTokensAfter === 'number' ? (
-                <div className="muted banner-meta">
-                  Tokens
-                  {typeof state.lastCompactionTokensBefore === 'number'
-                    ? ` before: ${state.lastCompactionTokensBefore}`
-                    : ''}
-                  {typeof state.lastCompactionTokensAfter === 'number'
-                    ? ` → after: ${state.lastCompactionTokensAfter}`
-                    : ''}
-                </div>
-              ) : null}
-              {state.lastCompactionSummary ? (
-                <details className="banner-details">
-                  <summary>Summary</summary>
-                  <pre className="banner-summary-pre">
-                    {state.lastCompactionSummary.slice(0, 500)}
-                  </pre>
-                </details>
-              ) : null}
-            </>
-          }
-        />
-      ) : null}
     </>
   );
 }

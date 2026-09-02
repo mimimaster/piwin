@@ -700,6 +700,32 @@ describe('chatUiReducer events (late stream)', () => {
     });
   });
 
+  it('does not resurrect a persisted compaction no-op as a generation failure', () => {
+    const [message] = mapTranscriptMessagesToUi([
+      {
+        id: 'assistant-compact-no-op',
+        role: 'assistant',
+        text: '',
+        status: 'done',
+        createdAt: '2026-09-01T16:24:27.675Z',
+        terminalMessage: 'Nothing to compact (session too small)',
+        failure: {
+          code: 'unknown-agent-failure',
+          origin: 'runtime',
+          message: 'Nothing to compact (session too small)',
+          retriable: false,
+        },
+      },
+    ]);
+
+    expect(message).toMatchObject({
+      status: 'done',
+      text: '',
+    });
+    expect(message?.error).toBeUndefined();
+    expect(message?.failure).toBeUndefined();
+  });
+
   it('clears a local error toast without inventing a Run terminal', () => {
     let state = chatUiReducer(createInitialChatUiState(), {
       type: 'error',

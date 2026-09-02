@@ -96,10 +96,17 @@ describe('MediaDocPreview', () => {
   });
 
   it('renders videos with a native video element', async () => {
-    render({ media: { path: '/Users/t/.piwin/media/session-1/clip.mp4' } });
+    render({
+      media: {
+        path: '/Users/t/.piwin/media/session-1/clip.mp4',
+        mimeType: 'video/mp4',
+        dataUrl: 'blob:doc-video',
+      },
+    });
     await act(async () => {});
 
     expect(query('media-doc-video')).not.toBeNull();
+    expect(query('media-doc-video')?.getAttribute('src')).toBe('blob:doc-video');
     expect(query('media-doc-image')).toBeNull();
   });
 

@@ -76,4 +76,34 @@ describe('buildColdActivationSeedOptions', () => {
     expect(options?.seedMessages?.some((seed) => seed.text.includes('right now'))).toBe(false);
     store.close();
   });
+
+  it('replays a durable compaction summary and only the active tail after its anchor', async () => {
+    const store = await openStore('compacted');
+    await appendRow(store, 'u1', 'user', 'old question');
+    await appendRow(store, 'a1', 'assistant', 'old answer');
+    await store.recordCompaction({
+      compactionId: 'compact-1',
+      anchorMessageId: 'a1',
+      summary: 'The earlier implementation is complete; keep the open follow-up.',
+      tokensBefore: 90_000,
+      tokensAfter: 4_000,
+      createdAt: new Date().toISOString(),
+    });
+    await appendRow(store, 'u2', 'user', 'follow-up question');
+    await appendRow(store, 'a2', 'assistant', 'follow-up answer');
+    await store.appendNativeEntries('a2', [
+      {
+        ordinal: 0,
+        entry: { format: 'pi-message-v1', payload: '{"role":"assistant"}', byteLength: 20 },
+      },
+    ]);
+
+    const options = await buildColdActivationSeedOptions(store);
+    expect(options?.compactionSeed).toEqual({
+      summary: 'The earlier implementation is complete; keep the open follow-up.',
+      tokensBefore: 90_000,
+    });
+    expect(options?.seedMessages?.map((seed) => seed.text)).toEqual(['follow-up question', 'follow-up answer']);
+    store.close();
+  });
 });

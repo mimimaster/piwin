@@ -501,5 +501,66 @@ describe('chatUiReducer sidebar', () => {
       ]);
       expect(state.sessions.map((item) => item.id)).toEqual([]);
     });
+
+    it('session/update clears pin on sidebar lists when isPinned is explicitly false', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, {
+        type: 'session/hydrate-general',
+        sessions: [
+          {
+            id: 'g1',
+            name: 'Git 常用命令总结',
+            scope: { kind: 'general' },
+            isPinned: true,
+            pinnedAt: '2026-09-02T00:00:00.000Z',
+          },
+        ],
+      });
+      expect(state.generalSessions[0]?.isPinned).toBe(true);
+      expect(state.sessions[0]?.isPinned).toBe(true);
+
+      state = chatUiReducer(state, {
+        type: 'session/update',
+        session: {
+          id: 'g1',
+          name: 'Git 常用命令总结',
+          scope: { kind: 'general' },
+          isPinned: false,
+        },
+      });
+
+      expect(state.generalSessions[0]?.isPinned).not.toBe(true);
+      expect(state.sessions[0]?.isPinned).not.toBe(true);
+      expect(state.sessionEntitiesById.g1?.isPinned).not.toBe(true);
+    });
+
+    it('session/update keeps pin when the patch omits isPinned', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, {
+        type: 'session/hydrate-general',
+        sessions: [
+          {
+            id: 'g1',
+            name: 'Pinned chat',
+            scope: { kind: 'general' },
+            isPinned: true,
+            pinnedAt: '2026-09-02T00:00:00.000Z',
+          },
+        ],
+      });
+
+      state = chatUiReducer(state, {
+        type: 'session/update',
+        session: {
+          id: 'g1',
+          name: 'Renamed pinned chat',
+          scope: { kind: 'general' },
+        },
+      });
+
+      expect(state.generalSessions[0]?.isPinned).toBe(true);
+      expect(state.sessions[0]?.isPinned).toBe(true);
+      expect(state.generalSessions[0]?.name).toBe('Renamed pinned chat');
+    });
   });
 });

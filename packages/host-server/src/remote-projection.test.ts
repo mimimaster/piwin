@@ -639,6 +639,7 @@ describe('remote skills/read + tool-output projection', () => {
       mediaRead: true,
       trustedTextPreview: true,
       contextSummary: true,
+      contextTelemetryVersion: 1,
     });
   });
 
@@ -733,6 +734,50 @@ describe('remote skills/read + tool-output projection', () => {
         prompt: 'cat',
         hasThumb: true,
       });
+  });
+});
+
+describe('remote live generated-media projection', () => {
+  it('rewrites tool/end attachment paths to remote-asset refs', () => {
+    const projected = projectRemotePush({
+      type: 'event',
+      sessionId: 'session-1',
+      event: {
+        type: 'tool/end',
+        toolCallId: 'call-video-1',
+        isError: false,
+        attachments: [
+          {
+            id: 'video-asset-1',
+            kind: 'media',
+            path: '/Users/private/.piwin/media/session-1/video-asset-1.mp4',
+            mimeType: 'video/mp4',
+            byteSize: 1_475_051,
+            source: 'generated',
+          },
+        ],
+      },
+    });
+
+    expect(JSON.stringify(projected)).not.toContain('/Users/private');
+    expect(JSON.stringify(projected)).not.toContain('[host-path]');
+    expect(projected).toMatchObject({
+      type: 'event',
+      sessionId: 'session-1',
+      event: {
+        type: 'tool/end',
+        attachments: [
+          {
+            id: 'video-asset-1',
+            kind: 'media',
+            path: 'remote-asset:video-asset-1',
+            mimeType: 'video/mp4',
+            byteSize: 1_475_051,
+            source: 'generated',
+          },
+        ],
+      },
+    });
   });
 });
 

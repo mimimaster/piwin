@@ -19,6 +19,7 @@ import type {
   ExtensionUiPort,
   HostToolExecutionPort,
   SessionCompactResult,
+  SessionCompactionSeed,
   SessionSeedMessage,
   EphemeralProviderSecret,
   BackendRunIntervention,
@@ -46,8 +47,8 @@ export type BackendSessionHandle = {
   abort(): Promise<void>;
   compact?(customInstructions?: string): Promise<SessionCompactResult>;
   abortCompaction?(): void;
-  getAutoCompactionEnabled?(): boolean;
-  setAutoCompactionEnabled?(enabled: boolean): void;
+  getAutoCompactionEnabled?(): boolean | Promise<boolean>;
+  setAutoCompactionEnabled?(enabled: boolean): void | Promise<void>;
   subscribe(listener: (event: AgentEvent) => void): () => void;
 };
 
@@ -76,6 +77,8 @@ export type CreateBackendSessionInput = {
    * override; `replay` seeds full-fidelity history without forcing compaction.
    */
   seedMode?: 'compaction' | 'replay';
+  /** Durable native compaction summary to restore before replay messages. */
+  compactionSeed?: SessionCompactionSeed;
 };
 
 /**

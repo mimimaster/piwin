@@ -42,9 +42,8 @@ import { ChatTurnFilesSummary, type FilesChangedBarRequest } from './chat-turn-f
 import { ImageGenerationProgress } from './image-generation-progress';
 import { VideoGenerationProgress } from './video-generation-progress';
 import {
-  resolveGenerationToolKind,
+  getGenerationStatus,
   shouldRenderGenerationProgress,
-  type GenerationToolKind,
 } from './generation-tool-kind.js';
 import { ConversationResponseContent } from './conversation-response-content.js';
 import { extractFlashcardRecords } from './flashcard-result-extract.js';
@@ -196,25 +195,6 @@ function areFilePathListsEqual(
     return false;
   }
   return left.every((path, index) => path === right[index]);
-}
-
-function getGenerationStatus(
-  message: ChatMessageUi,
-  generationKind: GenerationToolKind,
-): ToolCardUi['status'] | null {
-  const generationTools = message.tools.filter(
-    (tool) => resolveGenerationToolKind(tool) === generationKind,
-  );
-  if (generationTools.length === 0) {
-    return null;
-  }
-  if (generationTools.some((tool) => tool.status === 'running')) {
-    return 'running';
-  }
-  if (generationTools.some((tool) => tool.status === 'error')) {
-    return 'error';
-  }
-  return 'done';
 }
 
 export const ChatMessageRow = memo(

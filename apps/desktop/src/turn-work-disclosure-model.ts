@@ -1,4 +1,7 @@
-import { assistantHasWorkTools } from './assistant-text-role.js';
+import {
+  assistantHasUserFacingGeneration,
+  assistantHasWorkTools,
+} from './assistant-text-role.js';
 import type { ChatMessageUi, RunRecordUi } from './chat-reducer.js';
 import type { TranscriptTurn } from './transcript-turns.js';
 
@@ -37,13 +40,16 @@ function hasIntermediateWork(message: ChatMessageUi): boolean {
 }
 
 function isUserFacingReply(message: ChatMessageUi): boolean {
-  return (
-    message.role === 'assistant' &&
-    message.status !== 'streaming' &&
-    message.error === undefined &&
-    !assistantHasWorkTools(message) &&
-    hasVisibleFinalContent(message)
-  );
+  if (message.role !== 'assistant') {
+    return false;
+  }
+  if (message.status === 'streaming' || message.error !== undefined) {
+    return false;
+  }
+  if (assistantHasUserFacingGeneration(message)) {
+    return true;
+  }
+  return !assistantHasWorkTools(message) && hasVisibleFinalContent(message);
 }
 
 function isSubagentActive(activity: ChatMessageUi['subagentActivity']): boolean {

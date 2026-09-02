@@ -124,6 +124,51 @@ describe('handleCatalogCommand media/read', () => {
     expect((dense as { data?: { mimeType?: string } }).data?.mimeType).toBe('image/webp');
   });
 
+  it('returns a ranged slice and the full byteSize for oversized videos', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-media-read-range-'));
+    const config = createDefaultPiwinConfig();
+    config.providers = [];
+    await savePiwinConfig(config, rootDir);
+    const mediaRoot = join(rootDir, 'media');
+    const bytes = new Uint8Array(2048);
+    bytes[0] = 1;
+    bytes[100] = 9;
+    const asset = await saveMediaAsset(
+      {
+        mediaRoot,
+        maxPasteBytes: 4096,
+        allowedMimeTypes: ['video/mp4'],
+      },
+      {
+        sessionId: 'sess-1',
+        bytes,
+        mimeType: 'video/mp4',
+        source: 'generated',
+      },
+    );
+
+    const response = await handleCatalogCommand(
+      {
+        type: 'media/read',
+        input: { sessionId: 'sess-1', assetId: asset.id, offset: 0, length: 128 },
+      },
+      undefined,
+      createMinimalContext(rootDir),
+    );
+    expect(response?.success).toBe(true);
+    const data = (response as { data?: unknown }).data as {
+      status: string;
+      byteSize?: number;
+      offset?: number;
+      base64Data?: string;
+    };
+    expect(data.status).toBe('ready');
+    expect(data.byteSize).toBe(2048);
+    expect(data.offset).toBe(0);
+    expect(Buffer.from(data.base64Data ?? '', 'base64').byteLength).toBe(128);
+    expect(Buffer.from(data.base64Data ?? '', 'base64')[0]).toBe(1);
+  });
+
   it('maps unknown assets to an unavailable payload, not a transport error', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-media-read-'));
     const config = createDefaultPiwinConfig();

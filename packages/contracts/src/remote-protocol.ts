@@ -2,6 +2,7 @@ import type {
   AgentMessageRole,
   HostMode,
   MediaAttachmentRef,
+  ModelRef,
   PermissionDecision,
   ToolPresentation,
 } from './host.js';
@@ -210,6 +211,8 @@ export type RemoteCapabilitySummary = {
   sessionTranscriptSeek?: boolean;
   /** Assembly-only model context summaries (M1). */
   contextSummary?: boolean;
+  /** Host exposes live context occupancy snapshots (ADR 0067). */
+  contextTelemetryVersion?: 1;
   runInterventions?: boolean;
   queuedTurns?: boolean;
   /** Host honors session/prompt.foreground admission (if-idle / replace-run). */
@@ -329,6 +332,8 @@ export type RemoteTranscriptMessage = {
   outcome?: 'completed' | 'cancelled' | 'failed';
   terminalMessage?: string;
   thinking?: string;
+  /** Immutable generation-time identity used by shells after history reload. */
+  model?: ModelRef;
   tools?: RemoteTranscriptTool[];
   /**
    * Count kept for older clients / hydration size budgeting. Prefer
@@ -398,11 +403,7 @@ export type RemoteSessionResumeData = {
   transcriptPage?: RemoteSessionTranscriptPageInfo;
   scope: RemoteSessionScopeKind;
   name?: string;
-  model?: {
-    protocol: string;
-    providerId: string;
-    modelId: string;
-  };
+  model?: ModelRef;
   thinkingLevel?: string;
   contextUsage?: import('./usage.js').ContextUsageSnapshot;
   contextSnapshot: import('./context-telemetry.js').SessionContextSnapshot;

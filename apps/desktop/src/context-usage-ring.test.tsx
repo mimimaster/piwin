@@ -10,10 +10,7 @@ import {
   createInitialContextTelemetryState,
 } from './context-telemetry-reducer.js';
 import { selectContextRingView } from './context-telemetry-selector.js';
-import {
-  makeContextSnapshot,
-  makeKnownOccupancy,
-} from './context-telemetry-test-fixtures.js';
+import { makeContextSnapshot, makeKnownOccupancy } from './context-telemetry-test-fixtures.js';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -59,9 +56,7 @@ function render(props: ContextUsageRingProps, root: Root): void {
 }
 
 function queryTrigger(): HTMLButtonElement {
-  const trigger = document.querySelector<HTMLButtonElement>(
-    '[data-testid="context-usage-ring"]',
-  );
+  const trigger = document.querySelector<HTMLButtonElement>('[data-testid="context-usage-ring"]');
   if (!trigger) {
     throw new Error('context-usage-ring not rendered');
   }
@@ -164,6 +159,30 @@ describe('ContextUsageRing', () => {
     expect(document.querySelector('[data-testid="context-usage-ring"]')).not.toBeNull();
   });
 
+  it('renders a neutral ring while a derived session awaits its first measurement', () => {
+    const view = capableView(
+      makeContextSnapshot({
+        sessionId: 'session-test',
+        phase: 'idle',
+        contextBoundary: { activeLeafMessageId: 'derived-leaf' },
+        occupancy: { kind: 'unknown', reason: 'derived-session' },
+        responseEvidence: {
+          currentRunHasResponse: false,
+          historyHasDisplayableResponse: true,
+        },
+      }),
+      { selectedModelContextWindow: 128_000 },
+    );
+    expect(view.visible).toBe(true);
+    expect(view.numericHidden).toBe(true);
+    render({ view }, root);
+    const trigger = queryTrigger();
+    expect(trigger.getAttribute('aria-label')).toBe('Current context pending measurement');
+    activateTrigger();
+    expect(queryPopover()?.textContent).toContain('Current context pending measurement');
+    expect(document.querySelector('[data-testid="conversation-usage-row-occupied"]')).toBeNull();
+  });
+
   it('labels runtime-generation-mismatch lastConfirmed as pending measurement, not Confirmed', () => {
     const view = capableView(
       makeContextSnapshot({
@@ -203,13 +222,11 @@ describe('ContextUsageRing', () => {
     render({ view }, root);
     activateTrigger();
     const popover = queryPopover();
-    expect(popover?.textContent).toContain(
-      'Last confirmed; current context pending measurement',
-    );
+    expect(popover?.textContent).toContain('Last confirmed; current context pending measurement');
     expect(document.querySelector('[data-testid="conversation-usage-confirmed"]')).toBeNull();
-    expect(document.querySelector('[data-testid="conversation-usage-last-confirmed"]')?.textContent).toBe(
-      'Last confirmed; current context pending measurement',
-    );
+    expect(
+      document.querySelector('[data-testid="conversation-usage-last-confirmed"]')?.textContent,
+    ).toBe('Last confirmed; current context pending measurement');
   });
 
   it('renders a closed ring from selector labels', () => {

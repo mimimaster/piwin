@@ -8,6 +8,7 @@ import { enrichAgentEventSessionModel } from './agent-event-session-model.js';
 import { enrichAgentEventDocumentTargets } from './document-targets.js';
 import { shouldSuppressControlledAbortError } from './run-agent-event-policy.js';
 import { getPiwinRoot } from './paths.js';
+import { formatFilesTouchedBlock, normalizeCompactionFileOps } from './compaction-file-ops.js';
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 
 export function readEventRunId(event: AgentEvent): string | undefined {
@@ -105,13 +106,18 @@ export function routeSessionAgentEvent(
   // Attach logical documentTargets for Doc Preview without rewriting
   // targetPaths (actual tool evidence stays intact).
   const projectPathForTargets = deps.sessionProjects.get(session.id) ?? projectPath ?? null;
-  const eventForClients = enrichAgentEventSessionModel(
+  let eventForClients = enrichAgentEventSessionModel(
     enrichAgentEventDocumentTargets(correlatedEvent, {
       ...(projectPathForTargets ? { projectPath: projectPathForTargets } : {}),
       piwinRoot: getPiwinRoot(deps.options.piwinRoot),
     }),
     deps.sessionModels.get(session.id),
   );
+  if (eventForClients.type === 'compaction/end' && eventForClients.fileOps) {
+    const fileOps = normalizeCompactionFileOps(eventForClients.fileOps);
+    eventForClients = { ...eventForClients, fileOps };
+    deps.sessionFilesTouched.set(session.id, formatFilesTouchedBlock(fileOps));
+  }
   deps.push({ type: 'event', sessionId: session.id, event: eventForClients });
   // Forward child session events to parent for inline subagent stream UX.
   if (parentSessionId) {
@@ -146,7 +152,10 @@ export function routeSessionAgentEvent(
   if (eventForClients.type === 'compaction/end') {
     void deps.sessionContextCoordinator
       ?.noteCompactionEnd(session.id, {
-        ok: eventForClients.ok !== false,
+        // An omitted status is not proof that Pi committed a boundary. The
+        // mapper normally supplies a boolean, but fail closed for legacy or
+        // custom adapters so an unknown end cannot advance context state.
+        ok: eventForClients.ok === true,
         ...(typeof eventForClients.tokensAfter === 'number'
           ? { tokensAfter: eventForClients.tokensAfter }
           : {}),

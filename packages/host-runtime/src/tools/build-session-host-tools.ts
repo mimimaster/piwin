@@ -345,7 +345,7 @@ export async function buildSessionHostTools(
     );
   }
 
-  // --- Artifact instructions (full contract is lazy, not system-prompt resident) ---
+  // --- Artifact instructions (same contract as the resident system prompt) ---
   if (options.config?.artifact.enabled) {
     tools.push(buildArtifactInstructionsTool(options.config.artifact));
   }

@@ -85,6 +85,14 @@ keyboard-operable.
 - Pointer resizing uses Pointer Events with capture; keyboard and menu/button
   alternatives remain available.
 - Pane headers and controls keep stable bounds and theme-token contrast.
+- Supplementary panes use the same assistant media surface as the main
+  transcript: generated-image/video progress, final attachments, and Artifact
+  previews are rendered in the pane and sized from the pane's own width and
+  height rather than the desktop viewport.
+- Narrow panes switch media galleries to one column, wrap compact controls,
+  and ellipsize paths/status labels so activity animation never creates hidden
+  horizontal overflow. Reduced motion keeps the status content while removing
+  nonessential shimmer and pulse loops.
 - A split is rejected when the stage cannot preserve a 300 × 220 px minimum
   pane. Existing layouts are not destroyed when the window temporarily gets
   smaller; maximize is the compact escape hatch.

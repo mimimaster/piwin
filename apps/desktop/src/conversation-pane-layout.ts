@@ -1,5 +1,7 @@
 export const CONVERSATION_PANE_LAYOUT_VERSION = 1 as const;
 export const CONVERSATION_PANE_MAX_COUNT = 8;
+export const CONVERSATION_PANE_MIN_WIDTH = 300;
+export const CONVERSATION_PANE_MIN_HEIGHT = 220;
 export const CONVERSATION_PANE_MIN_RATIO = 0.2;
 export const CONVERSATION_PANE_MAX_RATIO = 0.8;
 export const PRIMARY_CONVERSATION_PANE_ID = 'conversation-pane-primary';
@@ -32,6 +34,16 @@ export type ConversationPaneLayout = {
   maximizedPaneId: string | null;
 };
 
+export type ConversationPaneSize = {
+  width: number;
+  height: number;
+};
+
+export type ConversationPaneRatioBounds = {
+  min: number;
+  max: number;
+};
+
 export type ConversationPaneIdFactory = (kind: 'pane' | 'split') => string;
 
 export type ConversationPaneRect = {
@@ -62,6 +74,109 @@ export function clampConversationPaneRatio(ratio: number): number {
     return 0.5;
   }
   return Math.min(CONVERSATION_PANE_MAX_RATIO, Math.max(CONVERSATION_PANE_MIN_RATIO, ratio));
+}
+
+export function getConversationPaneMinimumSize(node: ConversationPaneNode): ConversationPaneSize {
+  if (node.kind === 'leaf') {
+    return { width: CONVERSATION_PANE_MIN_WIDTH, height: CONVERSATION_PANE_MIN_HEIGHT };
+  }
+  const first = getConversationPaneMinimumSize(node.first);
+  const second = getConversationPaneMinimumSize(node.second);
+  return node.orientation === 'row'
+    ? {
+        width: first.width + second.width,
+        height: Math.max(first.height, second.height),
+      }
+    : {
+        width: Math.max(first.width, second.width),
+        height: first.height + second.height,
+      };
+}
+
+export function getConversationPaneSplitRatioBounds(input: {
+  orientation: ConversationPaneOrientation;
+  availableSize: ConversationPaneSize;
+  firstMinimumSize: ConversationPaneSize;
+  secondMinimumSize: ConversationPaneSize;
+}): ConversationPaneRatioBounds {
+  const available =
+    input.orientation === 'row' ? input.availableSize.width : input.availableSize.height;
+  const firstMinimum =
+    input.orientation === 'row' ? input.firstMinimumSize.width : input.firstMinimumSize.height;
+  const secondMinimum =
+    input.orientation === 'row' ? input.secondMinimumSize.width : input.secondMinimumSize.height;
+  if (!Number.isFinite(available) || available <= 0) {
+    return { min: CONVERSATION_PANE_MIN_RATIO, max: CONVERSATION_PANE_MAX_RATIO };
+  }
+
+  const minimumRatio = Math.max(CONVERSATION_PANE_MIN_RATIO, firstMinimum / available);
+  const maximumRatio = Math.min(CONVERSATION_PANE_MAX_RATIO, 1 - secondMinimum / available);
+  if (minimumRatio <= maximumRatio) {
+    return { min: minimumRatio, max: maximumRatio };
+  }
+
+  // The stage itself is smaller than the requested minimum for this subtree.
+  // Keep both branches proportional so neither side collapses completely; the
+  // next resize will reopen the normal pixel-based range automatically.
+  const totalMinimum = firstMinimum + secondMinimum;
+  const proportionalRatio = totalMinimum > 0 ? firstMinimum / totalMinimum : 0.5;
+  return { min: proportionalRatio, max: proportionalRatio };
+}
+
+export function clampConversationPaneRatioToBounds(
+  ratio: number,
+  bounds: ConversationPaneRatioBounds,
+): number {
+  const candidate = Number.isFinite(ratio) ? ratio : 0.5;
+  return Math.min(bounds.max, Math.max(bounds.min, candidate));
+}
+
+function constrainConversationPaneNode(
+  node: ConversationPaneNode,
+  availableSize: ConversationPaneSize,
+): ConversationPaneNode {
+  if (node.kind === 'leaf') {
+    return node;
+  }
+  const firstMinimumSize = getConversationPaneMinimumSize(node.first);
+  const secondMinimumSize = getConversationPaneMinimumSize(node.second);
+  const bounds = getConversationPaneSplitRatioBounds({
+    orientation: node.orientation,
+    availableSize,
+    firstMinimumSize,
+    secondMinimumSize,
+  });
+  const ratio = clampConversationPaneRatioToBounds(node.ratio, bounds);
+  const firstSize =
+    node.orientation === 'row'
+      ? { width: availableSize.width * ratio, height: availableSize.height }
+      : { width: availableSize.width, height: availableSize.height * ratio };
+  const secondSize =
+    node.orientation === 'row'
+      ? { width: availableSize.width * (1 - ratio), height: availableSize.height }
+      : { width: availableSize.width, height: availableSize.height * (1 - ratio) };
+  const first = constrainConversationPaneNode(node.first, firstSize);
+  const second = constrainConversationPaneNode(node.second, secondSize);
+  if (ratio === node.ratio && first === node.first && second === node.second) {
+    return node;
+  }
+  return { ...node, ratio, first, second };
+}
+
+export function constrainConversationPaneLayout(
+  layout: ConversationPaneLayout,
+  availableSize: ConversationPaneSize,
+): ConversationPaneLayout {
+  if (
+    !Number.isFinite(availableSize.width) ||
+    !Number.isFinite(availableSize.height) ||
+    availableSize.width <= 0 ||
+    availableSize.height <= 0
+  ) {
+    return layout;
+  }
+  const root = constrainConversationPaneNode(layout.root, availableSize);
+  return root === layout.root ? layout : { ...layout, root };
 }
 
 export function listConversationPaneLeaves(node: ConversationPaneNode): ConversationPaneLeaf[] {

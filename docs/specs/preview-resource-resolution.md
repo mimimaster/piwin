@@ -69,20 +69,23 @@ image vs video *rendering*.
     `MediaReadData = ready { base64Data, mimeType, byteSize } |
     unavailable { reason }` with stable reasons
     (`not-found | outside-media-root | too-large | invalid-request`).
-    No `mediaPath`, no `truncated`, no `session-mismatch`. Oversized files
-    are rejected whole (8 MiB hard cap).
+    No `mediaPath`, no `truncated`, no `session-mismatch`. Oversized whole-file
+    reads return `too-large`; clients retry with `offset`/`length`.
   - `DocumentTargetRef` gains `{ kind: 'media'; sessionId; assetId; displayRef }`.
 - `@piwin/media`: read API alongside `saveMediaAsset`, reusing
   `assertInsideMediaRoot` / `assertRealPathInsideMediaRoot`; byte cap
-  (initial 8 MiB; video stays local-only until ticketed transfer, ADR 0037 §4).
+  (whole-file cap is the Host wire budget; larger originals use ranged
+  `media/read`. Ticketed HTTP download remains the future remote streaming
+  path, ADR 0037 §4).
 - `@piwin/host-runtime`: command dispatch + session-ownership check.
 - `@piwin/host-server`: allowlist `media/read` for remote clients, resolve
   `remote-asset:<id>` through the existing id→path map (raise the 256-ref cap
   or persist refs if it proves limiting), advertise `mediaRead: true`
   capability, keep `sanitizeRemoteValue` masking host paths.
-- `apps/desktop`: media viewer falls back to `media/read` → blob URL when the
-  asset protocol can't serve (remote Host); `host-client-mock.ts` gains the
-  command.
+- `apps/desktop`: transcript and Studio fall back to `media/read` → blob URL
+  when convertFileSrc misses or `<video>` cannot play an `asset:` URL (no
+  Range). Oversized mp4s are assembled from ranged slices. `host-client-mock.ts`
+  gains the command.
 - Source fix: `image_gen` tool presentation emits `DocumentTargetRef`
   media targets (via `document-targets.ts` enrichment) instead of bare
   absolute-path pills.

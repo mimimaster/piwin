@@ -77,6 +77,29 @@ describe('SessionRuntimeReplacementEngine', () => {
     });
   });
 
+  it('passes the current prompt exclusion into the replacement candidate', async () => {
+    const exclusions: Array<string | undefined> = [];
+    const controller = new SessionRuntimeController({ isRunInFlight: () => false });
+    controller.attachGeneration('session-1', 'generation-old', 'settings-old');
+    controller.recordSettingsChange('session-1', ['web']);
+    const engine = new SessionRuntimeReplacementEngine({
+      ...createEngine([], controller),
+      compileCandidate: async (_sessionId, generationId, settingsRevision, excludeSeedMessageId) => {
+        exclusions.push(excludeSeedMessageId);
+        return { generationId, settingsRevision };
+      },
+    });
+
+    await engine.replace({
+      sessionId: 'session-1',
+      expectedSettingsRevision: 'settings-old',
+      excludeSeedMessageId: 'user-current',
+      when: 'now',
+    });
+
+    expect(exclusions).toEqual(['user-current']);
+  });
+
   it('coalesces after-current-run requests to the latest target revision', async () => {
     let release: (() => void) | undefined;
     const wait = new Promise<void>((resolve) => {

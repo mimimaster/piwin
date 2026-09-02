@@ -203,7 +203,10 @@ describe('repairPersistedCrossLeafKnownPollution', () => {
     const withoutCovered = pollutionSnapshot();
     delete withoutCovered.coveredMessageId;
     const cases: SessionContextSnapshot[] = [
-      pollutionSnapshot({ occupancy: { kind: 'unknown', reason: 'waiting-for-response' } }),
+      pollutionSnapshot({
+        occupancy: { kind: 'unknown', reason: 'waiting-for-response' },
+        contextBoundary: { activeLeafMessageId: LAST_LEAF },
+      }),
       withoutConfirmed,
       withoutCovered,
       pollutionSnapshot({ phase: 'invalidated' }),
@@ -213,6 +216,43 @@ describe('repairPersistedCrossLeafKnownPollution', () => {
     for (const snapshot of cases) {
       expect(repairPersistedCrossLeafKnownPollution(snapshot)).toBe(snapshot);
     }
+  });
+
+  it('repairs an interrupted idle waiting-for-response row after the active leaf moved', () => {
+    const snapshot = pollutionSnapshot({
+      occupancy: { kind: 'unknown', reason: 'waiting-for-response' },
+    });
+    delete snapshot.coveredMessageId;
+    delete snapshot.coveredRequestId;
+
+    const repaired = repairPersistedCrossLeafKnownPollution(snapshot);
+
+    expect(repaired.phase).toBe('invalidated');
+    expect(repaired.occupancy).toEqual({
+      kind: 'unknown',
+      reason: 'runtime-generation-mismatch',
+    });
+    expect(repaired.lastConfirmed).toEqual(snapshot.lastConfirmed);
+    expect(repaired.contextBoundary).toEqual(snapshot.contextBoundary);
+    expect(repaired.revision).toBe(snapshot.revision);
+    expect(repaired.contextVersion).toBe(snapshot.contextVersion);
+  });
+
+  it('repairs idle runtime-generation-mismatch rows that retain a stale confirmation', () => {
+    const snapshot = pollutionSnapshot({
+      occupancy: { kind: 'unknown', reason: 'runtime-generation-mismatch' },
+    });
+    delete snapshot.coveredMessageId;
+    delete snapshot.coveredRequestId;
+    const repaired = repairPersistedCrossLeafKnownPollution(snapshot);
+    expect(repaired.phase).toBe('invalidated');
+    expect(repaired.occupancy).toEqual({
+      kind: 'unknown',
+      reason: 'runtime-generation-mismatch',
+    });
+    expect(repaired.lastConfirmed).toEqual(snapshot.lastConfirmed);
+    expect(repaired.revision).toBe(snapshot.revision);
+    expect(repaired.contextVersion).toBe(snapshot.contextVersion);
   });
 
   it('still repairs when non-leaf model/capability/seed/compaction axes match', () => {

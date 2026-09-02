@@ -510,6 +510,72 @@ describe('createStoreTranscriptRecorder', () => {
     store.close();
   });
 
+  it('keeps an attachment-only assistant row instead of pruning it as empty', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-store-recorder-keep-media-'));
+    const store = await openSessionTranscriptStore({
+      dbPath: join(rootDir, 'transcript.sqlite3'),
+      sessionId: 'session-keep-media',
+      projectPath: '/project',
+    });
+    await store.markAuthoritative();
+    const recorder = createStoreTranscriptRecorder({
+      store,
+      runtimeGenerationId: 'generation-keep-media',
+    });
+    await recorder.recordEvent({
+      type: 'message/start',
+      messageId: 'assistant-media',
+      role: 'assistant',
+      runId: 'run-media',
+    });
+    await recorder.recordEvent({
+      type: 'message/end',
+      messageId: 'assistant-media',
+      runId: 'run-media',
+    });
+    await recorder.recordEvent({
+      type: 'tool/end',
+      toolCallId: 'tool-image',
+      isError: false,
+      responseMessageId: 'assistant-media',
+      runId: 'run-media',
+      attachments: [
+        {
+          id: 'asset-keep',
+          kind: 'media',
+          path: '/tmp/keep.jpg',
+          mimeType: 'image/jpeg',
+          byteSize: 12,
+          source: 'generated',
+        },
+      ],
+    });
+    await recorder.recordEvent({
+      type: 'message/start',
+      messageId: 'assistant-caption',
+      role: 'assistant',
+      runId: 'run-media',
+    });
+    await recorder.recordEvent({
+      type: 'message/text_delta',
+      messageId: 'assistant-caption',
+      delta: 'here it is',
+      runId: 'run-media',
+    });
+    await recorder.recordEvent({
+      type: 'message/end',
+      messageId: 'assistant-caption',
+      runId: 'run-media',
+    });
+    await recorder.flush();
+
+    expect(await store.getMessage('assistant-media')).toMatchObject({
+      attachments: [{ id: 'asset-keep', path: '/tmp/keep.jpg' }],
+    });
+    recorder.dispose();
+    store.close();
+  });
+
   it('persists routed generation semantics, prompt metadata, and generated attachments', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-store-recorder-routed-image-'));
     const store = await openSessionTranscriptStore({

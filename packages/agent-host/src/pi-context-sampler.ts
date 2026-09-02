@@ -10,10 +10,8 @@ import type {
   ContextMeasurement,
   ContextOccupancy,
 } from '@piwin/contracts';
-import {
-  mapFinalizedAssistantUsage,
-  occupancyUsageFromRawMessage,
-} from './agent-usage-map.js';
+import { formatCompactionBoundary } from '@piwin/contracts';
+import { mapFinalizedAssistantUsage, occupancyUsageFromRawMessage } from './agent-usage-map.js';
 import {
   estimateContextOccupancy,
   estimateTokensFromChars,
@@ -35,6 +33,43 @@ export type PiContextUsageSample = {
   tokens: number | null;
   contextWindow: number;
 };
+
+/** Per-subscription wall-clock state for compaction events. */
+export type PiCompactionTimingState = {
+  startedAtMs?: number | undefined;
+};
+
+type CompactionBaseline = {
+  lastCompleted: OccupancyRequestUsage | undefined;
+  blockedRequest: OccupancyRequestUsage | undefined;
+  baselineInvalidated: boolean;
+};
+
+/**
+ * Preserve a usable duration for clients even when Pi omits it from
+ * `compaction_end`. State is per subscription so multiple Host listeners do
+ * not consume one another's start marker.
+ */
+export function enrichPiCompactionDuration(
+  event: AgentEvent,
+  state: PiCompactionTimingState,
+  nowMs = Date.now(),
+): AgentEvent {
+  if (event.type === 'compaction/start') {
+    state.startedAtMs = nowMs;
+    return event;
+  }
+  if (event.type !== 'compaction/end') {
+    return event;
+  }
+
+  const startedAtMs = state.startedAtMs;
+  state.startedAtMs = undefined;
+  if (event.durationMs !== undefined || startedAtMs === undefined) {
+    return event;
+  }
+  return { ...event, durationMs: Math.max(0, nowMs - startedAtMs) };
+}
 
 /** Model identity used to decide occupancy baseline invalidation (§4.2.8). */
 export type OccupancyModelIdentity = {
@@ -116,12 +151,16 @@ export function publishSampledPiSessionEvents(input: {
   raw: unknown;
   identity: GenerationIdentityContext;
   runId: string | undefined;
+  compactionTiming?: PiCompactionTimingState;
   emit: (event: AgentEvent) => void;
 }): void {
   const publishedMapped: AgentEvent[] = [];
   for (const mapped of input.mapper.map(input.raw)) {
+    const timed = input.compactionTiming
+      ? enrichPiCompactionDuration(mapped, input.compactionTiming)
+      : mapped;
     const stamped = stampPublishedAgentEvent(
-      normalizeAgentEventIds(mapped, input.identity),
+      normalizeAgentEventIds(timed, input.identity),
       input.runId,
     );
     if (!stamped) {
@@ -164,6 +203,8 @@ export function createPiContextSampler(input: CreatePiContextSamplerInput): PiCo
   let blockedRequest: OccupancyRequestUsage | undefined;
   let assistantInFlight = false;
   let compactionBoundary: string | undefined;
+  let compactionBaseline: CompactionBaseline | undefined;
+  let compactionFailed = false;
   const finalizedIds = new Set<string>();
   const countedToolResults = new Set<string>();
 
@@ -212,6 +253,12 @@ export function createPiContextSampler(input: CreatePiContextSamplerInput): PiCo
         if (event.type === 'compaction/start') {
           compactionStarted = true;
           cancellationGeneration += 1;
+          compactionBaseline = {
+            lastCompleted,
+            blockedRequest,
+            baselineInvalidated,
+          };
+          compactionFailed = false;
           dropBaseline();
           trailingUserTokens = 0;
           trailingToolResultTokens = 0;
@@ -225,11 +272,28 @@ export function createPiContextSampler(input: CreatePiContextSamplerInput): PiCo
         if (event.type === 'compaction/end') {
           compactionEnded = true;
           cancellationGeneration += 1;
-          dropBaseline();
-          const boundary = readString(raw?.firstKeptEntryId) ?? readString(raw?.compactionBoundary);
-          if (boundary) {
-            compactionBoundary = boundary;
+          if (event.ok === true) {
+            dropBaseline();
+            // Keep the sampler's measurement boundary identical to the
+            // coordinator's durable boundary. Pi's first-kept entry id is a
+            // native replay detail, not a product context identity; using it
+            // here would make the post-compaction measurement incompatible
+            // with the `compact:<before>:<after>` boundary persisted by Host.
+            compactionBoundary = formatCompactionBoundary({
+              ...(event.tokensBefore !== undefined ? { tokensBefore: event.tokensBefore } : {}),
+              ...(event.tokensAfter !== undefined ? { tokensAfter: event.tokensAfter } : {}),
+            });
+            compactionFailed = false;
+          } else if (compactionBaseline !== undefined) {
+            // Pi reports auto-compaction failures as a normal end event with
+            // no result. Restore the pre-compaction baseline so a failed
+            // attempt cannot masquerade as a successful context rebuild.
+            lastCompleted = compactionBaseline.lastCompleted;
+            blockedRequest = compactionBaseline.blockedRequest;
+            baselineInvalidated = compactionBaseline.baselineInvalidated;
+            compactionFailed = true;
           }
+          compactionBaseline = undefined;
           shouldSample = true;
           continue;
         }
@@ -307,6 +371,7 @@ export function createPiContextSampler(input: CreatePiContextSamplerInput): PiCo
                 streamingThinking = '';
                 streamingToolArgs = '';
                 missingImageEstimate = false;
+                compactionFailed = false;
               } else {
                 blockedRequest = usage;
               }
@@ -389,8 +454,7 @@ export function createPiContextSampler(input: CreatePiContextSamplerInput): PiCo
         if (!record || record.role !== 'assistant') {
           continue;
         }
-        const backendId =
-          readString(record.id) ?? readString(record.messageId) ?? currentMessageId;
+        const backendId = readString(record.id) ?? readString(record.messageId) ?? currentMessageId;
         if (!backendId) {
           continue;
         }
@@ -451,12 +515,12 @@ export function createPiContextSampler(input: CreatePiContextSamplerInput): PiCo
     lastCompleted = undefined;
     blockedRequest = undefined;
     assistantInFlight = false;
+    compactionFailed = false;
   }
 
   function captureOccupancy(sampledAt: string): ContextOccupancy {
     const piUsage = input.getContextUsage?.();
-    const tokensLimit =
-      piUsage && piUsage.contextWindow > 0 ? piUsage.contextWindow : undefined;
+    const tokensLimit = piUsage && piUsage.contextWindow > 0 ? piUsage.contextWindow : undefined;
     if (blockedRequest) {
       return estimateContextOccupancy({
         sampledAt,
@@ -465,7 +529,9 @@ export function createPiContextSampler(input: CreatePiContextSamplerInput): PiCo
         ...(tokensLimit !== undefined ? { tokensLimit } : {}),
       });
     }
-    if (piUsage && piUsage.tokens === null) {
+    const canUseRestoredBaseline =
+      compactionFailed && isValidOccupancyBaseline(lastCompleted) && !baselineInvalidated;
+    if (piUsage && piUsage.tokens === null && !canUseRestoredBaseline) {
       return { kind: 'unknown', reason: 'post-compaction' };
     }
     const streamingOutputTokens = estimateTokensFromChars(

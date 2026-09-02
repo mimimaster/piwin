@@ -25,13 +25,6 @@ type McpServerInfo = {
 
 const SAMPLE_SKILLS: InstalledSkill[] = [
   {
-    id: 'ui-ux-pro-max',
-    name: 'UI/UX Pro Max',
-    description: 'UI/UX design intelligence for web, mobile, and desktop. 79 styles, 192 palettes, 119 UX guidelines.',
-    source: '.agents/skills/ui-ux-pro-max',
-    enabled: true,
-  },
-  {
     id: 'agy-customizations',
     name: 'AGY Customizations',
     description: 'Guide and reference for Antigravity rules, skills, plugins, hooks, and MCP servers.',

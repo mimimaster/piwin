@@ -70,6 +70,10 @@ import {
   createSessionContextStateOps,
 } from './session-context-state-store.js';
 import { createTranscriptStreamSettleOps } from './transcript-store-stream-settle.js';
+import {
+  SESSION_COMPACTION_DDL,
+  createTranscriptCompactionOps,
+} from './transcript-store-compaction.js';
 export { LEGACY_IMPORT_GENERATION, USER_AUTHORED_GENERATION };
 export type { SettleStreamingMessagesInput } from './transcript-store-stream-settle.js';
 export type TranscriptStoreMessageInput = {
@@ -353,6 +357,12 @@ export type SessionTranscriptStore = {
   >;
   /** Newest assistant model snapshot, if any. */
   recentModel(): Promise<ModelRef | undefined>;
+  /** Persist one successful compaction boundary for runtime reconstruction. */
+  recordCompaction(
+    input: import('@piwin/contracts').SessionCompactionRecordInput,
+  ): Promise<void>;
+  /** Newest compaction whose anchor remains on the active conversation path. */
+  readLatestCompaction(): Promise<import('@piwin/contracts').SessionCompactionRecord | undefined>;
   /** Bounded outline page without loading message bodies. */
   outlinePage(query: SessionOutlinePageQuery): Promise<SessionOutlinePageData>;
   /** Active leaf id of the conversation tree (null in an empty store). */
@@ -564,6 +574,7 @@ export async function openSessionTranscriptStore(
     CREATE INDEX IF NOT EXISTS idx_queued_turn_status
       ON queued_turn(session_id, status, sequence);
     ${SESSION_CONTEXT_STATE_DDL}
+    ${SESSION_COMPACTION_DDL}
   `);
   const contextColumns = db
     .prepare('PRAGMA table_info(session_context_state)')
@@ -753,6 +764,7 @@ export async function openSessionTranscriptStore(
     ...createTranscriptQueuedTurnsOps(core),
     ...createTranscriptHistoryOps(core),
     ...createTranscriptLegacyOps(core),
+    ...createTranscriptCompactionOps(core),
     ...createSessionContextStateOps(core),
       close() {
         if (!closed) {

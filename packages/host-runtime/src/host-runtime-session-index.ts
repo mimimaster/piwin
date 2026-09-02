@@ -54,7 +54,7 @@ export async function applyAutoCompactionToSession(
     return;
   }
   const resolved = await deps.resolveAutoCompaction(session.id);
-  session.setAutoCompactionEnabled(resolved.enabled);
+  await session.setAutoCompactionEnabled(resolved.enabled);
 }
 
 /**
@@ -157,6 +157,11 @@ export async function maybeAssignTextNameFromPrompt(
   const indexPath = getPiwinSessionIndexPath(rootDir);
   const record = await getSessionRecord(indexPath, sessionId);
   if (!record) {
+    return;
+  }
+  // Duplicate titles explain that this is a standalone copy and remain stable
+  // until the user explicitly renames the session.
+  if (record.origin?.kind === 'duplicate') {
     return;
   }
   // Never overwrite user renames, LLM titles, prior text names, or legacy auto.

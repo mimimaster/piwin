@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import type { ContextUsageSnapshot, ModelRef } from '@piwin/contracts';
+import type { ContextUsageSnapshot, ModelProviderConfig, ModelRef } from '@piwin/contracts';
 import type { ChatMessageUi } from './chat-reducer';
 import {
   conversationUsageEstimatedLabel,
@@ -7,7 +7,12 @@ import {
   formatUsageTokenCount,
   isHostEstimatedUsage,
 } from './conversation-usage-copy';
-import { formatMessageTime } from './conversation-message-identity';
+import {
+  formatMessageTime,
+  resolveConversationMessageModel,
+  resolveModelDisplayName,
+} from './conversation-message-identity';
+import type { ModelOption } from './model-options';
 import { ProviderIcon } from './provider-icons';
 
 export type ConversationUsageChipData = {
@@ -24,6 +29,16 @@ export type ConversationMessageHeaderProps = {
   modelLabel?: string;
   usageChip?: ConversationUsageChipData | null;
   locale?: 'zh-CN' | 'en';
+};
+
+export type ConversationTurnIdentityHeaderProps = {
+  message: ChatMessageUi;
+  livePromptModel?: ModelRef | null;
+  turnStreaming: boolean;
+  modelOptions?: readonly ModelOption[];
+  configProviders?: readonly ModelProviderConfig[];
+  usageChip?: ConversationUsageChipData | null;
+  locale: 'zh-CN' | 'en';
 };
 
 /**
@@ -142,6 +157,48 @@ export function ConversationMessageHeader(props: ConversationMessageHeaderProps)
           {usageChip.text}
         </span>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * Identity chrome rendered at the top of a Conversation turn when the
+ * first visible assistant row is folded behind work disclosure.
+ */
+export function ConversationTurnIdentityHeader(
+  props: ConversationTurnIdentityHeaderProps,
+): ReactElement {
+  const resolvedModel = resolveConversationMessageModel({
+    message: props.message,
+    livePromptModel: props.livePromptModel ?? null,
+    isStreaming: props.turnStreaming || props.message.status === 'streaming',
+  });
+  const modelDisplay = resolvedModel
+    ? resolveModelDisplayName({
+        model: resolvedModel,
+        ...(props.modelOptions !== undefined ? { modelOptions: props.modelOptions } : {}),
+        ...(props.configProviders !== undefined ? { configProviders: props.configProviders } : {}),
+      })
+    : undefined;
+
+  return (
+    <div
+      className="conversation-response conversation-turn-identity"
+      data-testid="conversation-turn-identity"
+    >
+      <ConversationMessageHeader
+        message={props.message}
+        {...(resolvedModel !== undefined ? { model: resolvedModel } : {})}
+        {...(modelDisplay?.providerName !== undefined
+          ? { providerName: modelDisplay.providerName }
+          : {})}
+        {...(modelDisplay?.shortModelName !== undefined
+          ? { shortModelName: modelDisplay.shortModelName }
+          : {})}
+        {...(modelDisplay?.modelLabel !== undefined ? { modelLabel: modelDisplay.modelLabel } : {})}
+        {...(props.usageChip !== undefined ? { usageChip: props.usageChip } : {})}
+        locale={props.locale}
+      />
     </div>
   );
 }

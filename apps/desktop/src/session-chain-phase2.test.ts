@@ -109,6 +109,61 @@ describe('session chain phase 2', () => {
     expect(state.sessionTombstonesById.gone).toBe(true);
   });
 
+  it('does not resurrect a tombstoned row from a regular session/update', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, {
+      type: 'session/hydrate-scope',
+      scope: { kind: 'general' },
+      sessions: [{ id: 'gone', name: 'Gone', scope: { kind: 'general' } }],
+      totalCount: 1,
+      truncated: false,
+      mutationEpoch: 0,
+    });
+    state = chatUiReducer(state, { type: 'session/remove', sessionId: 'gone' });
+    state = chatUiReducer(state, {
+      type: 'session/update',
+      session: { id: 'gone', name: 'Renamed after delete', scope: { kind: 'general' } },
+    });
+    expect(state.generalSessions.map((session) => session.id)).toEqual([]);
+    expect(state.sessionTombstonesById.gone).toBe(true);
+  });
+
+  it('restores an archived row that session/remove tombstoned', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, {
+      type: 'session/hydrate-scope',
+      scope: { kind: 'general' },
+      sessions: [
+        { id: 'keep', name: 'Keep', scope: { kind: 'general' } },
+        { id: 'archived-row', name: 'Archived chat', scope: { kind: 'general' } },
+      ],
+      totalCount: 2,
+      truncated: false,
+      mutationEpoch: 0,
+    });
+    state = chatUiReducer(state, { type: 'session/remove', sessionId: 'archived-row' });
+    expect(state.sessionTombstonesById['archived-row']).toBe(true);
+    expect(state.generalSessions.map((session) => session.id)).toEqual(['keep']);
+
+    state = chatUiReducer(state, {
+      type: 'session/update',
+      session: {
+        id: 'archived-row',
+        name: 'Archived chat',
+        isArchived: false,
+        scope: { kind: 'general' },
+      },
+      restore: true,
+    });
+    expect(state.sessionTombstonesById['archived-row']).toBeUndefined();
+    expect(state.generalSessions.map((session) => session.id)).toEqual([
+      'archived-row',
+      'keep',
+    ]);
+    expect(state.sessions.map((session) => session.id)).toEqual(['archived-row', 'keep']);
+    expect(state.generalSessions[0]?.isArchived).toBeUndefined();
+  });
+
   it('clears pin when a patch explicitly sets false', () => {
     const merged = mergeSessionListItem(
       { id: 's1', name: 'Pinned', isPinned: true },

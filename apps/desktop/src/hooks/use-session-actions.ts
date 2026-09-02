@@ -206,6 +206,8 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       alreadyTrusted?: boolean;
       scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
       sessionName?: string;
+      /** Create the Host session without selecting it in the primary workbench. */
+      activate?: boolean;
     }): Promise<string | null> => {
       const requestedScope = options?.scope;
       const requestedProjectPath =
@@ -294,7 +296,8 @@ export function useSessionActions(args: UseSessionActionsArgs) {
           ? { kind: 'general' }
           : { kind: 'project', projectPath: requestedProjectPath ?? '' };
         const explicitName = options?.sessionName?.trim();
-        if (explicitName) {
+        const shouldActivate = options?.activate !== false;
+        if (explicitName && shouldActivate) {
           dispatch({
             type: 'session/add',
             sessionId,
@@ -302,12 +305,14 @@ export function useSessionActions(args: UseSessionActionsArgs) {
             scope: createScope,
           });
         } else {
-          dispatch({ type: 'session/set', sessionId, ifIdle: true });
+          if (shouldActivate) {
+            dispatch({ type: 'session/set', sessionId, ifIdle: true });
+          }
           dispatch({
             type: 'session/update',
             session: {
               id: sessionId,
-              name: '',
+              name: explicitName ?? '',
               scope: createScope,
             },
           });
@@ -681,6 +686,16 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         dispatchNotification(pushError(response.error));
         return;
       }
+      const data = response.data as { session?: SessionSummary };
+      const restored = data.session
+        ? { ...summaryToListItem(data.session, sessionId), isArchived: false as const }
+        : {
+            id: sessionId,
+            name: '',
+            isArchived: false as const,
+            ...(sessionScope ? { scope: sessionScope } : {}),
+          };
+      dispatch({ type: 'session/update', session: restored, restore: true });
       if (state.activeSessionId === sessionId) {
         dispatch({ type: 'session/mark-archived-active', archived: false });
       }

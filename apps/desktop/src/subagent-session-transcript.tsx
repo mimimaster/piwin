@@ -20,9 +20,8 @@ import { FilesChangedBar, type FilesChangedBarRequest } from './files-changed-ba
 import { ImageGenerationProgress } from './image-generation-progress';
 import { VideoGenerationProgress } from './video-generation-progress';
 import {
-  resolveGenerationToolKind,
+  getGenerationStatus,
   shouldRenderGenerationProgress,
-  type GenerationToolKind,
 } from './generation-tool-kind';
 import { PermissionBar } from './permission-bar';
 import { SystemMessageContent } from './system-message-content';
@@ -154,19 +153,6 @@ function SubagentInspectorAssistant({
       ) : null}
     </div>
   );
-}
-
-function getGenerationStatus(
-  message: ChatMessageUi,
-  generationKind: GenerationToolKind,
-): import('./chat-reducer').ToolCardUi['status'] | null {
-  const tools = message.tools.filter(
-    (tool) => resolveGenerationToolKind(tool) === generationKind,
-  );
-  if (tools.length === 0) return null;
-  if (tools.some((tool) => tool.status === 'running')) return 'running';
-  if (tools.some((tool) => tool.status === 'error')) return 'error';
-  return 'done';
 }
 
 function streamToAssistantMessage(stream: SubagentStreamState): ChatMessageUi {

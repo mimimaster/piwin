@@ -10,6 +10,7 @@ import {
   mergeRecentProjects,
   sessionCreateInputForTransport,
   sessionListCommandForTransport,
+  sessionUpdateFromIndexPush,
 } from './remote-session-hydrate';
 
 describe('sessionListCommandForTransport', () => {
@@ -275,6 +276,33 @@ describe('hydrationSessionApplyActions', () => {
         truncated: false,
       },
     ]);
+  });
+});
+
+describe('sessionUpdateFromIndexPush', () => {
+  const listed = {
+    id: 's1',
+    name: 'Chat',
+    scope: { kind: 'general' as const },
+  };
+
+  it('marks an unarchived index push as a list restore', () => {
+    expect(sessionUpdateFromIndexPush('unarchived', listed)).toEqual({
+      type: 'session/update',
+      session: { ...listed, isArchived: false },
+      restore: true,
+    });
+  });
+
+  it('leaves archived and updated pushes as ordinary list patches', () => {
+    expect(sessionUpdateFromIndexPush('archived', listed)).toEqual({
+      type: 'session/update',
+      session: listed,
+    });
+    expect(sessionUpdateFromIndexPush('updated', listed)).toEqual({
+      type: 'session/update',
+      session: listed,
+    });
   });
 });
 

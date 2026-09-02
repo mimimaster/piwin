@@ -26,6 +26,7 @@ import type {
   PermissionPromptUi,
   RunRecordUi,
   SkillActivityView,
+  CompactionActivityUi,
   SubagentStreamState,
 } from './chat-reducer';
 import type { SubagentInspectorSelection } from './subagent-activity-model';
@@ -53,9 +54,15 @@ import { findStreamingCaretMessageId } from './streaming-caret';
 import { DocCardSequenceView, type DocCardSequenceRequest } from './DocCardSequenceView';
 import { ChatMessageRow } from './chat-message-row';
 import { collectFlashcardToolsFromMessages } from './conversation-response-content.js';
+import {
+  buildConversationTurnUsageChip,
+  ConversationTurnIdentityHeader,
+} from './conversation-message-header';
 import { resolveConversationTurnChrome } from './conversation-turn-chrome';
 import { projectTurnWorkDisclosure } from './turn-work-disclosure-model.js';
 import { TurnWorkDisclosure } from './turn-work-disclosure.js';
+import { TurnWorkDetails } from './turn-work-details.js';
+import { CompactionActivity } from './compaction-activity.js';
 
 /** Legacy helper retained for callers that still compute the old preference. */
 /** @deprecated Run Inspector disclosure is now explicitly user-owned. */
@@ -70,6 +77,20 @@ export function shouldCollapseTurnToolHistory(input: {
     input.workDetailsMessage.status === 'streaming' ||
     (runId !== undefined && input.activeRunId !== null && runId === input.activeRunId);
   return !runActive;
+}
+
+/** Render-only copy used to place the final answer's reasoning in Work. */
+function createThinkingOnlyMessage(message: ChatMessageUi): ChatMessageUi {
+  const thinkingMessage = { ...message };
+  delete thinkingMessage.searchEvidence;
+  delete thinkingMessage.subagentActivity;
+  return {
+    ...thinkingMessage,
+    id: `${message.id}:thinking`,
+    text: '',
+    tools: [],
+    attachments: [],
+  };
 }
 
 export type ChatThreadProps = {
@@ -155,6 +176,10 @@ export type ChatThreadProps = {
   onOpenDocument?: ((input: DocumentOpenInput) => void) | undefined;
   /** Called when the user aborts a running plan. */
   onPlanAbort?: (() => void | Promise<void>) | undefined;
+  /** Transcript-bound compaction lifecycle activity. */
+  compactionActivity?: CompactionActivityUi | null | undefined;
+  onCompactAbort?: (() => void | Promise<void>) | undefined;
+  onCompactDismiss?: (() => void) | undefined;
   /** Locale used by all run activity components. */
   locale?: 'zh-CN' | 'en';
   /** Walkthrough artifacts keyed by owning assistant messageId (spec §5.1). */
@@ -310,6 +335,21 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
     return undefined;
   }, [chatMessages]);
   const currentResponseTurnId = turnGroups[turnGroups.length - 1]?.id ?? null;
+  const compactionActivityTurnId = useMemo(() => {
+    const activity = props.compactionActivity;
+    if (!activity) {
+      return null;
+    }
+    if (activity.anchorMessageId) {
+      const anchoredTurn = turnGroups.find((turn) =>
+        turn.items.some((item) => item.message.id === activity.anchorMessageId),
+      );
+      if (anchoredTurn) {
+        return anchoredTurn.id;
+      }
+    }
+    return currentResponseTurnId;
+  }, [currentResponseTurnId, props.compactionActivity, turnGroups]);
   const transcriptTail = transcriptMessages[transcriptMessages.length - 1];
   // Providers open the assistant lifecycle before the first token, and a model
   // that reasons without streaming its reasoning keeps that bubble empty for
@@ -465,7 +505,13 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
         streaming={props.streaming === true}
         renderTurn={(turn) => {
           const turnMessages = turn.items.map((item) => item.message);
-          const turnModel = turnMessages.find((item) => item.model)?.model;
+          const currentTurnStreaming =
+            turn.id === currentResponseTurnId && props.streaming === true;
+          const turnModel =
+            turnMessages.find((item) => item.model)?.model ??
+            (conversationSession && currentTurnStreaming
+              ? (props.livePromptModel ?? undefined)
+              : undefined);
           const turnFlashcardTools = collectFlashcardToolsFromMessages(turnMessages);
           const conversationChrome = conversationSession
             ? resolveConversationTurnChrome({
@@ -478,12 +524,31 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
             turn,
             runRecordsById: props.runRecordsById ?? {},
             activeRunId: props.activeRunId ?? null,
-            currentTurnStreaming: turn.id === currentResponseTurnId && props.streaming === true,
+            currentTurnStreaming,
           });
           const workDisclosureKey = `${props.sessionId ?? 'session'}:${turn.id}`;
           const workDisclosureDefaultOpen = props.workDetailsExpanded === 'always';
           const workDisclosureOpen =
             workDisclosureOpenByTurnId[workDisclosureKey] ?? workDisclosureDefaultOpen;
+          const identityItemIndex = conversationChrome?.identityMessageId
+            ? turn.items.findIndex(
+                (item) => item.message.id === conversationChrome.identityMessageId,
+              )
+            : -1;
+          const identityHiddenByCollapsedDisclosure =
+            identityItemIndex >= 0 &&
+            workDisclosureProjection !== null &&
+            !workDisclosureOpen &&
+            identityItemIndex >= workDisclosureProjection.startIndex &&
+            identityItemIndex <= workDisclosureProjection.endIndex;
+          const identitySource =
+            identityItemIndex >= 0 ? turn.items[identityItemIndex]?.message : undefined;
+          const identityForHeader =
+            identitySource === undefined
+              ? undefined
+              : !identitySource.model && turnModel
+                ? { ...identitySource, model: turnModel }
+                : identitySource;
           return (
             <section
               key={turn.id}
@@ -515,8 +580,38 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                       }
                     />
                   ) : null;
+                const foldedIdentityHeader =
+                  identityHiddenByCollapsedDisclosure &&
+                  identityForHeader &&
+                  isDisclosureStart ? (
+                    <ConversationTurnIdentityHeader
+                      key={`turn-identity-${turn.id}`}
+                      message={identityForHeader}
+                      turnStreaming={currentTurnStreaming}
+                      locale={props.locale ?? 'zh-CN'}
+                      {...(props.livePromptModel !== undefined
+                        ? { livePromptModel: props.livePromptModel }
+                        : {})}
+                      {...(props.modelOptions !== undefined
+                        ? { modelOptions: props.modelOptions }
+                        : {})}
+                      {...(props.configProviders !== undefined
+                        ? { configProviders: props.configProviders }
+                        : {})}
+                      usageChip={
+                        conversationChrome?.showUsageOnIdentity === true
+                          ? buildConversationTurnUsageChip(
+                              props.contextUsage,
+                              props.locale ?? 'zh-CN',
+                            )
+                          : null
+                      }
+                    />
+                  ) : null;
                 if (isDisclosureWorkItem && !workDisclosureOpen) {
-                  return disclosureTrigger ? [disclosureTrigger] : [];
+                  return [foldedIdentityHeader, disclosureTrigger].filter(
+                    (node): node is ReactElement => node !== null,
+                  );
                 }
                 const followingAssistantRunId = turn.items
                   .slice(itemIndex + 1)
@@ -526,7 +621,9 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                   message.role === 'user'
                     ? resolveAssemblySummaryForUserMessage({
                         messageId: message.id,
-                        ...(message.runId !== undefined ? { messageRunId: message.runId } : {}),
+                        ...(message.runId !== undefined
+                          ? { messageRunId: message.runId }
+                          : {}),
                         lastUserMessageId: props.lastUserMessageId,
                         activeRunId: props.activeRunId ?? null,
                         ...(followingAssistantRunId !== undefined
@@ -544,12 +641,26 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                   latestAssistantMessageId === message.id ||
                   (conversationSession && isConversationIdentityMessage && isLatestTurn);
                 const onRegenerate =
-                  conversationSession && isLatestAssistant && precedingUser && props.onRetryTurn
+                  conversationSession &&
+                  isLatestAssistant &&
+                  precedingUser &&
+                  props.onRetryTurn
                     ? () => props.onRetryTurn?.(precedingUser.id, { keepPrevious: true })
                     : undefined;
                 const exploreRole = exploreRolesByMessageId.get(message.id);
+                const moveFinalThinkingIntoWork =
+                  !conversationSession &&
+                  workDisclosureProjection !== null &&
+                  itemIndex === workDisclosureProjection.endIndex + 1 &&
+                  message.role === 'assistant' &&
+                  message.thinking.trim().length > 0 &&
+                  props.showThinking !== false &&
+                  exploreRole === undefined;
                 const effectiveMessage =
-                  conversationSession && message.role === 'assistant' && !message.model && turnModel
+                  conversationSession &&
+                  message.role === 'assistant' &&
+                  !message.model &&
+                  turnModel
                     ? { ...message, model: turnModel }
                     : message;
                 const row = (
@@ -561,8 +672,11 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                     {...(conversationChrome
                       ? {
                           showConversationHeader:
-                            conversationChrome.identityMessageId === message.id,
-                          showConversationTurnUsage: conversationChrome.showUsageOnIdentity,
+                            conversationChrome.identityMessageId === message.id &&
+                            !identityHiddenByCollapsedDisclosure,
+                          showConversationTurnUsage:
+                            conversationChrome.showUsageOnIdentity &&
+                            !identityHiddenByCollapsedDisclosure,
                         }
                       : {})}
                     {...(props.onResolveFlashcards
@@ -609,8 +723,10 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                     permissionPrompt={props.permissionPrompt ?? null}
                     workDetailsExpanded={props.workDetailsExpanded ?? 'auto'}
                     toolDensity={props.toolDensity ?? 'comfortable'}
-                    showThinking={props.showThinking !== false}
-                    {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
+                    showThinking={moveFinalThinkingIntoWork ? false : props.showThinking !== false}
+                    {...(props.projectPath !== undefined
+                      ? { projectPath: props.projectPath }
+                      : {})}
                     {...(props.toolDiffRequest !== undefined
                       ? { toolDiffRequest: props.toolDiffRequest }
                       : {})}
@@ -624,7 +740,9 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                     onCancelEdit={props.onCancelEdit}
                     onEditResend={props.onEditResend}
                     onRetry={props.onRetry}
-                    {...(props.onRetryTurn !== undefined ? { onRetryTurn: props.onRetryTurn } : {})}
+                    {...(props.onRetryTurn !== undefined
+                      ? { onRetryTurn: props.onRetryTurn }
+                      : {})}
                     branchPoints={props.branchPoints ?? []}
                     {...(props.onSwitchBranch !== undefined
                       ? { onSwitchBranch: props.onSwitchBranch }
@@ -637,14 +755,18 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                       : {})}
                     onFeedback={props.onFeedback}
                     onInspectSubagent={props.onInspectSubagent}
-                    {...(props.docCardRequest ? { docCardRequest: props.docCardRequest } : {})}
+                    {...(props.docCardRequest
+                      ? { docCardRequest: props.docCardRequest }
+                      : {})}
                     {...(props.subagentChildren
                       ? { subagentChildren: props.subagentChildren }
                       : {})}
                     {...(props.subagentInvocations
                       ? { subagentInvocations: props.subagentInvocations }
                       : {})}
-                    {...(props.subagentStreams ? { subagentStreams: props.subagentStreams } : {})}
+                    {...(props.subagentStreams
+                      ? { subagentStreams: props.subagentStreams }
+                      : {})}
                     composerCard={props.composerCard}
                     {...(props.onArtifactAction
                       ? { onArtifactAction: props.onArtifactAction }
@@ -661,7 +783,9 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                       : {})}
                     {...(props.onOpenFile ? { onOpenFile: props.onOpenFile } : {})}
                     {...(props.onOpenDiff ? { onOpenDiff: props.onOpenDiff } : {})}
-                    {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
+                    {...(props.onOpenDocument
+                      ? { onOpenDocument: props.onOpenDocument }
+                      : {})}
                     {...(props.locale ? { locale: props.locale } : {})}
                     {...(props.walkthroughsByMessageId
                       ? { walkthroughsByMessageId: props.walkthroughsByMessageId }
@@ -694,25 +818,63 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                     {...(props.forkCountsByMessageId
                       ? { forkCountsByMessageId: props.forkCountsByMessageId }
                       : {})}
-                    {...(props.sessionLineage ? { sessionLineage: props.sessionLineage } : {})}
+                    {...(props.sessionLineage
+                      ? { sessionLineage: props.sessionLineage }
+                      : {})}
                     {...(props.onOpenSession ? { onOpenSession: props.onOpenSession } : {})}
                     {...(props.derivedActionsDisabled !== undefined
                       ? { derivedActionsDisabled: props.derivedActionsDisabled }
                       : {})}
                   />
                 );
-                return disclosureTrigger ? [disclosureTrigger, row] : [row];
+                const finalThinkingRow =
+                  moveFinalThinkingIntoWork && workDisclosureOpen ? (
+                    <div
+                      key={`work-thinking-${message.id}`}
+                      className="chat-work-thinking-row"
+                      data-testid="work-folded-thinking"
+                    >
+                      <TurnWorkDetails
+                        message={createThinkingOnlyMessage(effectiveMessage)}
+                        runRecordsById={props.runRecordsById ?? {}}
+                        activeRunId={null}
+                        permissionPrompt={null}
+                        workDetailsExpanded={props.workDetailsExpanded ?? 'auto'}
+                        toolDensity={props.toolDensity ?? 'comfortable'}
+                        showThinking
+                        locale={props.locale ?? 'zh-CN'}
+                      />
+                    </div>
+                  ) : null;
+                const rows = finalThinkingRow ? [finalThinkingRow, row] : [row];
+                return disclosureTrigger ? [disclosureTrigger, ...rows] : rows;
               })}
+              {turn.id === compactionActivityTurnId && props.compactionActivity ? (
+                <CompactionActivity
+                  activity={props.compactionActivity}
+                  locale={props.locale ?? 'zh-CN'}
+                  {...(props.onCompactAbort ? { onAbort: props.onCompactAbort } : {})}
+                  {...(props.onCompactDismiss ? { onDismiss: props.onCompactDismiss } : {})}
+                />
+              ) : null}
               {turn.id === currentResponseTurnId ? runActivitySlot : null}
             </section>
           );
         }}
       />
-      {currentResponseTurnId === null && runActivitySlot !== null ? (
+      {currentResponseTurnId === null && (runActivitySlot !== null || props.compactionActivity) ? (
         <section
           className="chat-turn-group is-current-response"
           data-testid="current-response-turn"
         >
+          {props.compactionActivity ? (
+            <CompactionActivity
+              activity={props.compactionActivity}
+              locale={props.locale ?? 'zh-CN'}
+              {...(props.onCompactAbort ? { onAbort: props.onCompactAbort } : {})}
+              {...(props.onCompactDismiss ? { onDismiss: props.onCompactDismiss } : {})}
+            />
+          ) : null}
           {runActivitySlot}
         </section>
       ) : null}

@@ -1,5 +1,5 @@
+import { classifyCompactionNoOp, SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS } from '@piwin/contracts';
 import type { SessionTranscriptMessage } from '@piwin/contracts';
-import { SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS } from '@piwin/contracts';
 import { extractUserFacingBody } from '@piwin/session/derive-default-name';
 import {
   appendBoundedText,
@@ -69,69 +69,90 @@ export function mapTranscriptMessagesToUi(
   messages: SessionTranscriptMessage[],
   options: { keepStreamingStatus?: boolean } = {},
 ): ChatMessageUi[] {
-  return messages.map((message) => ({
-    id: message.id,
-    role: message.role,
-    // Legacy transcripts may still store mode/skill wrappers that were once
-    // sent as input.text. Project only the human-authored body for display;
-    // attachments stay untouched so vision media still renders as originals.
-    text:
-      message.role === 'user'
-        ? extractUserFacingBody(typeof message.text === 'string' ? message.text : '')
-        : (message.text ?? ''),
-    thinking: message.thinking ?? '',
-    tools: (message.tools ?? []).map((tool) => {
-      const output = createBoundedToolOutput(tool.presentation?.output?.text ?? tool.output ?? '');
-      return {
-        toolCallId: tool.toolCallId,
-        toolName: tool.toolName,
-        status: tool.status,
-        output: output.text,
-        outputRetainedBytes: output.retainedBytes,
-        outputTruncated: output.truncated,
-        ...(tool.runId ? { runId: tool.runId } : {}),
-        ...(tool.responseMessageId ? { responseMessageId: tool.responseMessageId } : {}),
-        ...(tool.presentation
-          ? { presentation: projectBoundedToolPresentation(tool.presentation, output) }
-          : {}),
-      };
-    }),
-    attachments: message.attachments ?? [],
-    status:
-      options.keepStreamingStatus === true
-        ? message.status
-        : message.status === 'streaming'
-          ? 'done'
-          : message.status,
-    ...(message.searchEvidence ? { searchEvidence: message.searchEvidence } : {}),
-    ...(message.createdAt ? { createdAt: message.createdAt } : {}),
-    ...(message.runId ? { runId: message.runId } : {}),
-    ...(message.thinkingStartedAt !== undefined
-      ? { thinkingStartedAt: parseEventTime(message.thinkingStartedAt) }
-      : {}),
-    ...(message.thinkingEndedAt !== undefined
-      ? { thinkingEndedAt: parseEventTime(message.thinkingEndedAt) }
-      : {}),
-    ...(message.subagentActivity ? { subagentActivity: message.subagentActivity } : {}),
-    ...(message.instructionDelivery ? { instructionDelivery: message.instructionDelivery } : {}),
-    ...(message.docCardSequence ? { docCardSequence: message.docCardSequence } : {}),
-    ...(message.contextRefs && message.contextRefs.length > 0
-      ? { contextRefs: message.contextRefs }
-      : {}),
-    ...(message.source ? { source: message.source } : {}),
-    ...(message.voiceCallId ? { voiceCallId: message.voiceCallId } : {}),
-    ...(message.model ? { model: message.model } : {}),
-    ...(message.replyWriter
-      ? {
-          replyWriter: {
-            model: message.replyWriter.model,
-            language: message.replyWriter.language,
-          },
-        }
-      : {}),
-    ...(message.terminalMessage ? { error: message.terminalMessage } : {}),
-    ...(message.failure ? { failure: message.failure } : {}),
-  }));
+  return messages.map((message) => {
+    // Older Hosts persisted a harmless Pi compaction no-op as a failed
+    // assistant outcome. Keep the transcript row for identity/replay, but do
+    // not resurrect it as a red generation failure when reopening the session.
+    const persistedCompactionNoOp = isPersistedCompactionNoOp(message);
+    return {
+      id: message.id,
+      role: message.role,
+      // Legacy transcripts may still store mode/skill wrappers that were once
+      // sent as input.text. Project only the human-authored body for display;
+      // attachments stay untouched so vision media still renders as originals.
+      text:
+        message.role === 'user'
+          ? extractUserFacingBody(typeof message.text === 'string' ? message.text : '')
+          : (message.text ?? ''),
+      thinking: message.thinking ?? '',
+      tools: (message.tools ?? []).map((tool) => {
+        const output = createBoundedToolOutput(tool.presentation?.output?.text ?? tool.output ?? '');
+        return {
+          toolCallId: tool.toolCallId,
+          toolName: tool.toolName,
+          status: tool.status,
+          output: output.text,
+          outputRetainedBytes: output.retainedBytes,
+          outputTruncated: output.truncated,
+          ...(tool.runId ? { runId: tool.runId } : {}),
+          ...(tool.responseMessageId ? { responseMessageId: tool.responseMessageId } : {}),
+          ...(tool.presentation
+            ? { presentation: projectBoundedToolPresentation(tool.presentation, output) }
+            : {}),
+        };
+      }),
+      attachments: message.attachments ?? [],
+      status: persistedCompactionNoOp
+        ? 'done'
+        : options.keepStreamingStatus === true
+          ? message.status
+          : message.status === 'streaming'
+            ? 'done'
+            : message.status,
+      ...(message.searchEvidence ? { searchEvidence: message.searchEvidence } : {}),
+      ...(message.createdAt ? { createdAt: message.createdAt } : {}),
+      ...(message.runId ? { runId: message.runId } : {}),
+      ...(message.thinkingStartedAt !== undefined
+        ? { thinkingStartedAt: parseEventTime(message.thinkingStartedAt) }
+        : {}),
+      ...(message.thinkingEndedAt !== undefined
+        ? { thinkingEndedAt: parseEventTime(message.thinkingEndedAt) }
+        : {}),
+      ...(message.subagentActivity ? { subagentActivity: message.subagentActivity } : {}),
+      ...(message.instructionDelivery ? { instructionDelivery: message.instructionDelivery } : {}),
+      ...(message.docCardSequence ? { docCardSequence: message.docCardSequence } : {}),
+      ...(message.contextRefs && message.contextRefs.length > 0
+        ? { contextRefs: message.contextRefs }
+        : {}),
+      ...(message.source ? { source: message.source } : {}),
+      ...(message.voiceCallId ? { voiceCallId: message.voiceCallId } : {}),
+      ...(message.model ? { model: message.model } : {}),
+      ...(message.replyWriter
+        ? {
+            replyWriter: {
+              model: message.replyWriter.model,
+              language: message.replyWriter.language,
+            },
+          }
+        : {}),
+      ...(persistedCompactionNoOp || !message.terminalMessage
+        ? {}
+        : { error: message.terminalMessage }),
+      ...(persistedCompactionNoOp || !message.failure ? {} : { failure: message.failure }),
+    };
+  });
+}
+
+function isPersistedCompactionNoOp(message: SessionTranscriptMessage): boolean {
+  if (message.terminalMessage !== undefined) {
+    if (classifyCompactionNoOp(message.terminalMessage) !== undefined) {
+      return true;
+    }
+  }
+  if (message.failure !== undefined && message.failure !== null) {
+    return classifyCompactionNoOp(message.failure.message) !== undefined;
+  }
+  return false;
 }
 
 export function collectLiveTranscriptMessageIds(

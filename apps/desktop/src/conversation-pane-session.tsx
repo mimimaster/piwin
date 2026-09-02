@@ -420,6 +420,23 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
     }
   }
 
+  const handleCompactAbort = useCallback(async (): Promise<void> => {
+    if (!state.compacting) {
+      return;
+    }
+    try {
+      const response = await props.hostClient.request({
+        type: 'session/compact-abort',
+        sessionId: props.sessionId,
+      });
+      if (!response.success) {
+        dispatch({ type: 'error', message: response.error });
+      }
+    } catch (error) {
+      dispatch({ type: 'error', message: formatError(error) });
+    }
+  }, [dispatch, props.hostClient, props.sessionId, state.compacting]);
+
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
     if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
@@ -459,6 +476,8 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
           {...(props.fileBrowseRoot !== undefined
             ? { fileBrowseRoot: props.fileBrowseRoot }
             : {})}
+          onCompactAbort={handleCompactAbort}
+          onCompactDismiss={() => dispatch({ type: 'compaction/dismiss' })}
         />
         {state.error ? (
           <div className="conversation-pane-error" role="alert">

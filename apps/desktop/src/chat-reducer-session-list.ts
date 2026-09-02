@@ -40,6 +40,51 @@ export type ChatUiSessionListAction = Extract<
   }
 >;
 
+/**
+ * First send from New Chat names the session via `session/add`. That is a
+ * list insert + draft activation, not a session switch — keep the optimistic
+ * user bubble and in-flight run chrome.
+ */
+function sessionAddTranscriptPatch(
+  state: ChatUiState,
+  sessionId: string,
+): Partial<ChatUiState> {
+  const activatingDraft = state.activeSessionId === null;
+  const alreadyThisSession = state.activeSessionId === sessionId;
+  if (alreadyThisSession || (activatingDraft && (state.streaming || state.messages.length > 0))) {
+    return {
+      transcriptOwnerSessionId: sessionId,
+      ...(activatingDraft && state.streaming ? { foregroundAdmission: 'ready' as const } : {}),
+      ...(state.streaming
+        ? { workingSessionIds: { ...state.workingSessionIds, [sessionId]: true } }
+        : {}),
+    };
+  }
+  if (activatingDraft) {
+    return {
+      transcriptOwnerSessionId: sessionId,
+      foregroundAdmission: 'ready',
+      messages: [],
+      transcriptWindow: null,
+      historyView: null,
+      userMessageIndex: null,
+      userMessageIndexEpoch: state.userMessageIndexEpoch + 1,
+      runPhase: 'idle',
+      activeRunId: null,
+      activeRunPhase: null,
+      activeRunPhaseDetail: null,
+      activeRunStartedAt: null,
+      lastTerminalRunId: null,
+      streaming: false,
+      activeSkill: null,
+      outline: [],
+      activeSessionArchived: false,
+      runTerminal: { kind: 'none' },
+    };
+  }
+  return {};
+}
+
 export function reduceChatSessionList(
   state: ChatUiState,
   action: ChatUiSessionListAction,
@@ -122,22 +167,7 @@ export function reduceChatSessionList(
           state.activeSessionId === null || state.activeSessionId === action.sessionId
             ? action.sessionId
             : state.activeSessionId,
-        messages: [],
-        transcriptWindow: null,
-        historyView: null,
-        userMessageIndex: null,
-        userMessageIndexEpoch: state.userMessageIndexEpoch + 1,
-        runPhase: 'idle',
-        activeRunId: null,
-        activeRunPhase: null,
-        activeRunPhaseDetail: null,
-        activeRunStartedAt: null,
-        lastTerminalRunId: null,
-        streaming: false,
-        activeSkill: state.streaming ? state.activeSkill : null,
-        outline: [],
-        activeSessionArchived: false,
-        runTerminal: { kind: 'none' },
+        ...sessionAddTranscriptPatch(state, action.sessionId),
       };
     }
     case 'session/update': {
@@ -162,9 +192,16 @@ export function reduceChatSessionList(
       // Resolve ownership from the session itself, then the entity store, then
       // whichever sidebar list already tracks it. Never invent ownership from
       // activeScope — that is what dual-listed project rows into Conversations.
-      if (isSessionTombstoned(state.sessionTombstonesById, action.session.id)) {
+      // Archive uses session/remove (tombstone) so the follow-up
+      // index-updated/archived push cannot re-insert the row. Unarchive must
+      // explicitly revive; a regular name/pin patch must not.
+      const restore = action.restore === true;
+      if (isSessionTombstoned(state.sessionTombstonesById, action.session.id) && !restore) {
         return state;
       }
+      const nextTombstones = restore
+        ? clearSessionTombstone(state.sessionTombstonesById, action.session.id)
+        : state.sessionTombstonesById;
       const existingEntity = state.sessionEntitiesById[action.session.id];
       const existingForMerge =
         existingEntity ??
@@ -200,7 +237,9 @@ export function reduceChatSessionList(
         shouldOwn: boolean,
       ): SessionListItemUi[] => {
         let next = list.map((session) =>
-          session.id === action.session.id ? { ...session, ...patch } : session,
+          // Use the merged entity. Spreading onto the old row keeps flags
+          // (pin/archive) that mergeSessionListItem deleted.
+          session.id === action.session.id ? patch : session,
         );
         if (shouldOwn && listable) {
           if (!next.some((session) => session.id === action.session.id)) {
@@ -259,11 +298,18 @@ export function reduceChatSessionList(
         listable && !alreadyResident
           ? state.sessionListMutationEpoch + 1
           : state.sessionListMutationEpoch;
-      const nextEntities = upsertSessionEntity(state.sessionEntitiesById, patch);
+      // `patch` is already mergeSessionListItem(existing, action). Re-merging
+      // it into the entity store would treat a cleared `isPinned: false` as
+      // omitted and restore the previous pin.
+      const nextEntities = {
+        ...state.sessionEntitiesById,
+        [patch.id]: patch,
+      };
       if (owningScope === null) {
         return {
           ...state,
           sessionEntitiesById: nextEntities,
+          sessionTombstonesById: nextTombstones,
         };
       }
 
@@ -289,6 +335,7 @@ export function reduceChatSessionList(
         return {
           ...state,
           sessionEntitiesById: nextEntities,
+          sessionTombstonesById: nextTombstones,
           sessions: nextSessions,
           generalSessions: nextGeneral,
           projectSessionsByPath: nextProjectSessionsByPath,
@@ -299,6 +346,7 @@ export function reduceChatSessionList(
       return {
         ...state,
         sessionEntitiesById: nextEntities,
+        sessionTombstonesById: nextTombstones,
         sessions: nextSessions,
         generalSessions: nextGeneral,
         sessionListScopes: nextSessionListScopes,

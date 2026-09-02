@@ -8,6 +8,7 @@ import type {
   SpeechTranscribeData,
 } from '@piwin/contracts';
 import {
+  MEDIA_READ_WIRE_SAFE_BYTES,
   MEDIA_THUMB_EDGE_STANDARD_PX,
   SPEECH_MAX_DURATION_MS,
   createDefaultWebConfig,
@@ -197,11 +198,11 @@ export async function handleCatalogCommand(
       // ADR 0052: preview reads address the vault by logical identity only.
       // Cap must fit a single Host wire frame (1 MiB JSON). Base64 expands
       // ~4/3; leave headroom for the response envelope so Host does not 1011
-      // the whole WebSocket on encode.
-      const MAX_MEDIA_READ_WIRE_SAFE_BYTES = 700 * 1024;
+      // the whole WebSocket on encode. Generated video uses offset/length
+      // slices under the same cap.
       const maxBytes = Math.min(
-        MAX_MEDIA_READ_WIRE_SAFE_BYTES,
-        Math.max(1024, command.input.maxBytes ?? MAX_MEDIA_READ_WIRE_SAFE_BYTES),
+        MEDIA_READ_WIRE_SAFE_BYTES,
+        Math.max(1024, command.input.maxBytes ?? MEDIA_READ_WIRE_SAFE_BYTES),
       );
       const rootDir = getPiwinRoot(context.piwinRoot);
       const config = await loadPiwinConfig(rootDir);
@@ -210,6 +211,9 @@ export async function handleCatalogCommand(
         maxPasteBytes: config.media.maxPasteBytes,
         allowedMimeTypes: config.media.allowedMimeTypes,
       });
+      const rangeOffset = command.input.offset;
+      const rangeLength = command.input.length;
+      const ranged = command.input.variant !== 'thumb' && rangeOffset !== undefined;
       const result =
         command.input.variant === 'thumb'
           ? await mediaService.readMediaThumb({
@@ -224,6 +228,8 @@ export async function handleCatalogCommand(
               sessionId: command.input.sessionId,
               assetId: command.input.assetId,
               maxBytes,
+              ...(ranged ? { offset: rangeOffset } : {}),
+              ...(ranged && rangeLength !== undefined ? { length: rangeLength } : {}),
             });
       if (result.status === 'unavailable') {
         const data: MediaReadData = {
@@ -244,6 +250,7 @@ export async function handleCatalogCommand(
         mimeType: result.mimeType,
         byteSize: result.byteSize,
         base64Data: Buffer.from(result.bytes).toString('base64'),
+        ...(result.offset !== undefined ? { offset: result.offset } : {}),
       };
       return ok(requestId, 'media/read', data);
     }
