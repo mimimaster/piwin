@@ -170,6 +170,23 @@ export type HostRuntimeResourcesData = {
     evictedByMemoryPressure: number;
     memoryPressureFailures: number;
   };
+  /** Worker process pool (all Pi workers: foreground + subagent + starting). Absent in mock mode. */
+  workers?: {
+    /** Normal pool ceiling = deriveWorkerPoolSize(subagents.maxConcurrency). Shown to users. */
+    pool: number;
+    /** Supervisor process cap = pool + WORKER_REPLACEMENT_HEADROOM (replacement headroom, not shown as pool). */
+    max: number;
+    /** Live worker processes. */
+    active: number;
+    /** Workers still starting; counted against max. */
+    starting: number;
+    /** Task-scoped (subagent) runtimes among active. */
+    subagent: number;
+    /** Effective subagent quota = deriveSubagentQuota(subagents.maxConcurrency). */
+    subagentMax: number;
+    /** Subagent tasks waiting on quota. Pool waits are in top-level waiterCount. */
+    subagentWaiting: number;
+  };
 };
 
 export type SessionCreateData = {

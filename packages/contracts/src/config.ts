@@ -352,7 +352,11 @@ export type SubagentConfig = {
   profiles: SubagentProfileSettings[];
   /** Default profile id used when a caller omits `profileId`. */
   defaultProfileId?: string;
-  /** Hard ceiling on concurrently running children in one batch. */
+  /**
+   * 同时运行的子代理上限（跨所有 batch）。同时决定 worker 进程池大小
+   * `deriveWorkerPoolSize(N) = N + 1`（主会话预留，上限 `ABSOLUTE_MAX_RESIDENT_RUNTIMES`）与
+   * supervisor 进程上限 `deriveSupervisorMaxWorkers(N) = 池 + 1`（+1 为代际替换/compaction 候选并存余量）。
+   */
   maxConcurrency: number;
   /** Hard ceiling on total tasks in one batch request. */
   maxTasksPerRun: number;
@@ -366,11 +370,14 @@ export type SubagentConfig = {
   schemes?: OrchestrationSchemeSettings[];
 };
 
+/** Default `subagents.maxConcurrency` (user-facing parallel child ceiling). */
+export const DEFAULT_SUBAGENT_MAX_CONCURRENCY = 4;
+
 /** Safe defaults for `PiwinConfig.subagents` when absent or partial. */
 export function createDefaultSubagentConfig(): SubagentConfig {
   return {
     profiles: [],
-    maxConcurrency: 4,
+    maxConcurrency: DEFAULT_SUBAGENT_MAX_CONCURRENCY,
     maxTasksPerRun: 8,
     processIsolation: 'required',
     parallelWritePolicy: 'worktree-only',
@@ -440,6 +447,55 @@ export const DEFAULT_MAX_IDLE_RUNTIMES = 2;
 
 /** Absolute ceiling on resident runtimes (ADR 0040 §3). */
 export const ABSOLUTE_MAX_RESIDENT_RUNTIMES = 8;
+
+/** Foreground/main-session slots reserved inside the worker process pool. */
+export const WORKER_POOL_FOREGROUND_RESERVE = 1;
+
+/**
+ * Extra supervisor process slots beyond the pool for generational replacement /
+ * compaction-candidate overlap. Not shown as the user-facing pool size.
+ */
+export const WORKER_REPLACEMENT_HEADROOM = 1;
+
+/**
+ * Normalize a caller-supplied maxConcurrency: non-finite or below 1 falls back
+ * to {@link DEFAULT_SUBAGENT_MAX_CONCURRENCY}; otherwise floor to an integer ≥ 1.
+ */
+function normalizeMaxConcurrency(maxConcurrency: number): number {
+  if (!Number.isFinite(maxConcurrency) || maxConcurrency < 1) {
+    return DEFAULT_SUBAGENT_MAX_CONCURRENCY;
+  }
+  return Math.max(1, Math.floor(maxConcurrency));
+}
+
+/**
+ * Worker process pool ceiling from subagent maxConcurrency N:
+ * `clamp(N + WORKER_POOL_FOREGROUND_RESERVE, 2, ABSOLUTE_MAX_RESIDENT_RUNTIMES)`.
+ */
+export function deriveWorkerPoolSize(maxConcurrency: number): number {
+  const n = normalizeMaxConcurrency(maxConcurrency);
+  return Math.max(
+    2,
+    Math.min(ABSOLUTE_MAX_RESIDENT_RUNTIMES, n + WORKER_POOL_FOREGROUND_RESERVE),
+  );
+}
+
+/**
+ * Supervisor process cap = pool + {@link WORKER_REPLACEMENT_HEADROOM}
+ * (replacement headroom; normal path should not reach it).
+ */
+export function deriveSupervisorMaxWorkers(maxConcurrency: number): number {
+  return deriveWorkerPoolSize(maxConcurrency) + WORKER_REPLACEMENT_HEADROOM;
+}
+
+/**
+ * Effective subagent quota:
+ * `Math.min(N, deriveWorkerPoolSize(N) - WORKER_POOL_FOREGROUND_RESERVE)`.
+ */
+export function deriveSubagentQuota(maxConcurrency: number): number {
+  const n = normalizeMaxConcurrency(maxConcurrency);
+  return Math.min(n, deriveWorkerPoolSize(n) - WORKER_POOL_FOREGROUND_RESERVE);
+}
 
 /** Adaptive RSS high water: 25% of system memory. */
 export const MEMORY_HIGH_WATER_RATIO = 0.25;

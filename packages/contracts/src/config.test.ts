@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ABSOLUTE_MAX_RESIDENT_RUNTIMES,
   createDefaultSubagentConfig,
+  DEFAULT_SUBAGENT_MAX_CONCURRENCY,
+  deriveSubagentQuota,
+  deriveSupervisorMaxWorkers,
+  deriveWorkerPoolSize,
   modelSupportsCapability,
   THINKING_LEVEL_OPTIONS,
+  WORKER_POOL_FOREGROUND_RESERVE,
+  WORKER_REPLACEMENT_HEADROOM,
 } from './config.js';
 import type {
   ModelConfigEntry,
@@ -17,6 +24,8 @@ import {
   deriveMemoryLowWaterMiB,
   normalizeSessionRuntimeRetentionConfig,
 } from './config.js';
+import type { HostRuntimeResourcesData as HostRuntimeResourcesDataFromResponseData } from './ipc-response-data.js';
+import type { HostRuntimeResourcesData as HostRuntimeResourcesDataFromHostResponses } from './ipc-host-responses.js';
 
 describe('ModelConfigEntry capabilities + routes', () => {
   it('accepts capabilities and routes', () => {
@@ -269,6 +278,121 @@ describe('PiwinConfig.subagents', () => {
     };
     expect(cfg.profiles).toHaveLength(0);
     expect(cfg.processIsolation).toBe('best-effort');
+  });
+
+  it('createDefaultSubagentConfig.maxConcurrency equals DEFAULT_SUBAGENT_MAX_CONCURRENCY', () => {
+    expect(DEFAULT_SUBAGENT_MAX_CONCURRENCY).toBe(4);
+    expect(createDefaultSubagentConfig().maxConcurrency).toBe(DEFAULT_SUBAGENT_MAX_CONCURRENCY);
+  });
+});
+
+describe('worker pool derivation formulas', () => {
+  it('deriveWorkerPoolSize clamps N + foreground reserve into [2, ABSOLUTE_MAX_RESIDENT_RUNTIMES]', () => {
+    expect(WORKER_POOL_FOREGROUND_RESERVE).toBe(1);
+    expect(ABSOLUTE_MAX_RESIDENT_RUNTIMES).toBe(8);
+    expect(deriveWorkerPoolSize(4)).toBe(5);
+    expect(deriveWorkerPoolSize(1)).toBe(2);
+    expect(deriveWorkerPoolSize(7)).toBe(8);
+    expect(deriveWorkerPoolSize(12)).toBe(8);
+  });
+
+  it('deriveSupervisorMaxWorkers is pool + replacement headroom', () => {
+    expect(WORKER_REPLACEMENT_HEADROOM).toBe(1);
+    expect(deriveSupervisorMaxWorkers(4)).toBe(6);
+    expect(deriveSupervisorMaxWorkers(1)).toBe(3);
+    expect(deriveSupervisorMaxWorkers(7)).toBe(9);
+  });
+
+  it('illegal maxConcurrency falls back to DEFAULT_SUBAGENT_MAX_CONCURRENCY', () => {
+    const defaultPool = deriveWorkerPoolSize(DEFAULT_SUBAGENT_MAX_CONCURRENCY);
+    const defaultSupervisor = deriveSupervisorMaxWorkers(DEFAULT_SUBAGENT_MAX_CONCURRENCY);
+    const defaultQuota = deriveSubagentQuota(DEFAULT_SUBAGENT_MAX_CONCURRENCY);
+    expect(defaultPool).toBe(5);
+    expect(defaultSupervisor).toBe(6);
+    expect(defaultQuota).toBe(4);
+    for (const illegal of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(deriveWorkerPoolSize(illegal)).toBe(defaultPool);
+      expect(deriveSupervisorMaxWorkers(illegal)).toBe(defaultSupervisor);
+      expect(deriveSubagentQuota(illegal)).toBe(defaultQuota);
+    }
+  });
+
+  it('deriveSubagentQuota is min(N, pool - foreground reserve)', () => {
+    expect(deriveSubagentQuota(4)).toBe(4);
+    expect(deriveSubagentQuota(8)).toBe(7);
+    expect(deriveSubagentQuota(20)).toBe(7);
+    for (const n of [1, 4, 7, 8, 12, 20]) {
+      expect(deriveSubagentQuota(n)).toBe(
+        Math.min(n, deriveWorkerPoolSize(n) - WORKER_POOL_FOREGROUND_RESERVE),
+      );
+    }
+  });
+});
+
+describe('HostRuntimeResourcesData.workers', () => {
+  const baseResources = {
+    counts: {
+      resident: 0,
+      idle: 0,
+      busy: 0,
+      activating: 0,
+      suspending: 0,
+    },
+    waiterCount: 0,
+    budget: {
+      maxResidentRuntimes: 8,
+      maxIdleRuntimes: 2,
+      memoryHighWaterMiB: 1024,
+      memoryLowWaterMiB: 819,
+    },
+    memory: {
+      hostRssMiB: 100,
+      sampleCompleteness: 'missing' as const,
+    },
+    counters: {
+      evictedByIdleTtl: 0,
+      evictedByMaxIdle: 0,
+      evictedByMaxResident: 0,
+      evictedByMemoryPressure: 0,
+      memoryPressureFailures: 0,
+    },
+  };
+
+  it('may omit workers, or carry a complete workers block including pool and max', () => {
+    const omitted: HostRuntimeResourcesDataFromResponseData = { ...baseResources };
+    expect(omitted.workers).toBeUndefined();
+
+    const withWorkers: HostRuntimeResourcesDataFromResponseData = {
+      ...baseResources,
+      workers: {
+        pool: 5,
+        max: 6,
+        active: 2,
+        starting: 1,
+        subagent: 1,
+        subagentMax: 4,
+        subagentWaiting: 0,
+      },
+    };
+    expect(withWorkers.workers?.pool).toBe(5);
+    expect(withWorkers.workers?.max).toBe(6);
+
+    const omittedHost: HostRuntimeResourcesDataFromHostResponses = { ...baseResources };
+    expect(omittedHost.workers).toBeUndefined();
+    const withWorkersHost: HostRuntimeResourcesDataFromHostResponses = {
+      ...baseResources,
+      workers: {
+        pool: 5,
+        max: 6,
+        active: 2,
+        starting: 1,
+        subagent: 1,
+        subagentMax: 4,
+        subagentWaiting: 0,
+      },
+    };
+    expect(withWorkersHost.workers?.pool).toBe(5);
+    expect(withWorkersHost.workers?.max).toBe(6);
   });
 });
 
