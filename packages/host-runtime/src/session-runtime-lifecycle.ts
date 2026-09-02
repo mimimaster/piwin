@@ -5,7 +5,7 @@
 
 import { join } from 'node:path';
 import type { CreateSessionOptions, SessionHandle } from '@piwin/contracts';
-import { deriveMemoryLowWaterMiB, formatCompactionBoundary, formatError } from '@piwin/contracts';
+import { formatCompactionBoundary, formatError } from '@piwin/contracts';
 
 import { getSessionRecord } from '@piwin/session';
 import { buildColdActivationSeedOptions } from './cold-activation-seed.js';
@@ -355,43 +355,6 @@ export async function publishWaitingResourceWhileQueued(
       return;
     }
   }
-}
-
-export function getRuntimeResources(
-  deps: HostRuntimeKernel,
-): import('@piwin/contracts').HostRuntimeResourcesData {
-  const counts = deps.residencyController.getCounts();
-  const counters = deps.residencyController.getCounters();
-  const maxResidentRuntimes = deps.residencyController.getMaxResidentRuntimes();
-  const worker = deps.workerRssSample;
-  return {
-    counts: {
-      resident: counts.resident,
-      idle: counts.residentIdle,
-      busy: counts.residentBusy,
-      activating: counts.activating,
-      suspending: counts.suspending,
-    },
-    waiterCount: counts.waiterCount,
-    budget: {
-      maxResidentRuntimes,
-      maxIdleRuntimes: deps.runtimeRetention.maxIdleRuntimes,
-      memoryHighWaterMiB: deps.runtimeMemoryHighWaterMiB,
-      memoryLowWaterMiB: deriveMemoryLowWaterMiB(deps.runtimeMemoryHighWaterMiB),
-    },
-    memory: {
-      hostRssMiB: Math.max(1, Math.round(process.memoryUsage().rss / 1024 / 1024)),
-      ...(worker && worker.rssMiB > 0 ? { workerRssMiB: worker.rssMiB } : {}),
-      sampleCompleteness: worker?.completeness ?? 'missing',
-    },
-    counters: {
-      evictedByIdleTtl: counters.evictedByIdleTtl,
-      evictedByMaxIdle: counters.evictedByMaxIdle,
-      evictedByMaxResident: counters.evictedByMaxResident,
-      evictedByMemoryPressure: counters.evictedByMemoryPressure,
-      memoryPressureFailures: counters.memoryPressureFailures,
-    },
-  };
 }
 
 /**

@@ -8,7 +8,7 @@
  * task ids that can run concurrently.
  */
 
-import type { SubagentBatchRequest, SubagentTaskSpec } from '@piwin/contracts';
+import { DEFAULT_SUBAGENT_MAX_CONCURRENCY, type SubagentBatchRequest, type SubagentTaskSpec } from '@piwin/contracts';
 
 /** Task status tracked by the scheduler. */
 export type SchedulerTaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
@@ -46,7 +46,7 @@ export function initSchedulerState(request: SubagentBatchRequest): SchedulerStat
     status,
     remainingDeps,
     tasks,
-    maxConcurrency: request.maxConcurrency ?? 4,
+    maxConcurrency: request.maxConcurrency ?? DEFAULT_SUBAGENT_MAX_CONCURRENCY,
     failurePolicy: request.failurePolicy ?? 'continue',
     cancelled: false,
   };

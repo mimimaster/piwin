@@ -14,6 +14,8 @@
  * wait without consuming a slot.
  */
 
+import { ABSOLUTE_MAX_RESIDENT_RUNTIMES } from '@piwin/contracts';
+
 /** A lease on an agent execution slot. */
 export type ResourceLease = {
   resourceKind: 'agent-execution';
@@ -23,21 +25,23 @@ export type ResourceLease = {
 
 /** Combined status view for UI/CLI reporting. */
 export type ResourceCoordinatorStatus = {
-  /** Configured max concurrency from settings. */
+  /** Effective subagent quota derived from PiwinConfig.subagents. */
   configuredMaxConcurrency: number;
   /** Effective concurrency (clamped to 1 when no process isolation). */
   effectiveMaxConcurrency: number;
   /** Currently acquired leases. */
   activeLeases: number;
+  /** Subagent tasks waiting on quota. */
+  waiterCount: number;
   /** Whether process isolation is available. */
   processIsolation: boolean;
 };
 
 /** Options for constructing a `RuntimeResourceCoordinator`. */
 export type RuntimeResourceCoordinatorOptions = {
-  /** Configured max concurrency from PiwinConfig.subagents. */
+  /** Effective subagent quota derived from PiwinConfig.subagents. */
   configuredMaxConcurrency: number;
-  /** Hard cap per batch. Default 8. */
+  /** Hard cap per batch. Default ABSOLUTE_MAX_RESIDENT_RUNTIMES. */
   hardCapPerBatch?: number;
   /** Whether the backend reports process isolation. */
   processIsolation: boolean;
@@ -60,7 +64,7 @@ export type RuntimeResourceCoordinator = {
 };
 
 /** Default hard cap per batch. */
-const DEFAULT_HARD_CAP_PER_BATCH = 8;
+const DEFAULT_HARD_CAP_PER_BATCH = ABSOLUTE_MAX_RESIDENT_RUNTIMES;
 
 /**
  * Create a `RuntimeResourceCoordinator`.
@@ -174,6 +178,7 @@ export function createRuntimeResourceCoordinator(
       configuredMaxConcurrency,
       effectiveMaxConcurrency: computeEffectiveMaxConcurrency(),
       activeLeases: activeLeases.size,
+      waiterCount: waiters.size,
       processIsolation,
     };
   }

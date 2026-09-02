@@ -16,7 +16,14 @@ import type {
 import { type ExtensionUiKind, type ExtensionUiResponse, AgentWorkerSupervisor } from '@piwin/agent-host';
 import { createEventEnvelopeGenerator } from './host-event-envelope.js';
 import { FetchCache } from '@piwin/tools-web';
-import { type SessionColdStoragePlan, type SessionRuntimeRetentionConfig } from '@piwin/contracts';
+import {
+  DEFAULT_SUBAGENT_MAX_CONCURRENCY,
+  deriveSubagentQuota,
+  deriveSupervisorMaxWorkers,
+  deriveWorkerPoolSize,
+  type SessionColdStoragePlan,
+  type SessionRuntimeRetentionConfig,
+} from '@piwin/contracts';
 import { HealthToolRunBudget } from './health-tool-run-budget.js';
 import { createExtensionRevisionStore } from '@piwin/extensions';
 import { type McpGenerationSnapshot, type McpLifecycleManager } from '@piwin/mcp';
@@ -298,6 +305,16 @@ export class HostRuntimeFields {
   subagentStartupRecovery: Promise<void> | null = null;
   /** Worker supervisor for isolated Pi child processes. */
   agentWorkerSupervisor: AgentWorkerSupervisor | null = null;
+  /** deriveWorkerPoolSize(subagents.maxConcurrency). */
+  workerPoolSize = deriveWorkerPoolSize(DEFAULT_SUBAGENT_MAX_CONCURRENCY);
+  /** deriveSupervisorMaxWorkers(subagents.maxConcurrency). */
+  supervisorMax = deriveSupervisorMaxWorkers(DEFAULT_SUBAGENT_MAX_CONCURRENCY);
+  /** deriveSubagentQuota(subagents.maxConcurrency). */
+  subagentQuota = deriveSubagentQuota(DEFAULT_SUBAGENT_MAX_CONCURRENCY);
+  /** One-shot host/log when pool > os.availableParallelism(). */
+  workerPoolOverParallelismLogged = false;
+  /** One-shot host/log warn if the supervisor cap is actually hit. */
+  workerCapacityExhaustWarnLogged = false;
   /** Integration coordinator for worktree code integration. */
   subagentIntegrationCoordinator: SubagentIntegrationCoordinator | null = null;
   /** Turn-change store, coordinator, capture, and workspace write gate. */

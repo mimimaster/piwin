@@ -5,7 +5,8 @@
 
 import { join } from 'node:path';
 import { WorkerTaskRunner } from '@piwin/agent-host';
-import { formatError } from '@piwin/contracts';
+import { ABSOLUTE_MAX_RESIDENT_RUNTIMES, formatError } from '@piwin/contracts';
+import { createSubagentWorkerAdmission } from './subagent-worker-admission.js';
 import { removeWorktree, integrateWorktreeChanges, isWorktreeBaseClean } from '@piwin/git';
 
 import {
@@ -62,7 +63,10 @@ export function composeSubagentOrchestrator(deps: HostRuntimeKernel): void {
 
   // Create the worker task runner — adapter from SubagentTaskRunner to
   // the worker supervisor.
-  const taskRunner = new WorkerTaskRunner({ supervisor: deps.agentWorkerSupervisor });
+  const taskRunner = new WorkerTaskRunner({
+    supervisor: deps.agentWorkerSupervisor,
+    admission: createSubagentWorkerAdmission(deps),
+  });
 
   // Create the workspace service. Use a general-scope path as the default
   // project path; project-scoped sessions will override via the task spec's
@@ -128,10 +132,11 @@ export function composeSubagentOrchestrator(deps: HostRuntimeKernel): void {
   });
 
   // Create the runtime resource coordinator. The worker supervisor reports
-  // processIsolation=true, so effective concurrency equals the configured max.
+  // processIsolation=true, so effective concurrency equals the configured quota.
   const supervisorStatus = deps.agentWorkerSupervisor.getStatus();
   deps.runtimeResourceCoordinator = createRuntimeResourceCoordinator({
-    configuredMaxConcurrency: supervisorStatus.maxActiveWorkers,
+    configuredMaxConcurrency: deps.subagentQuota,
+    hardCapPerBatch: ABSOLUTE_MAX_RESIDENT_RUNTIMES,
     processIsolation: supervisorStatus.processIsolation,
   });
 

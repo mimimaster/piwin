@@ -226,13 +226,7 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
         ...deps.runtimeRetention,
         memoryHighWaterMiB: deps.runtimeMemoryHighWaterMiB,
       },
-      resolveMaxResidentRuntimes: () => {
-        const executionConcurrency =
-          deps.runtimeResourceCoordinator?.getStatus().effectiveMaxConcurrency ?? 1;
-        const adaptive = executionConcurrency + deps.runtimeRetention.maxIdleRuntimes;
-        const workerCapacity = deps.agentWorkerSupervisor?.getStatus().maxActiveWorkers;
-        return workerCapacity === undefined ? adaptive : Math.min(adaptive, workerCapacity);
-      },
+      resolveMaxResidentRuntimes: () => deps.workerPoolSize,
       isRuntimeProtected: (sessionId) => deps.isSessionRuntimeProtected(sessionId),
       onResidencyChanged: (entry) => {
         deps.runtimeController.setResidency(

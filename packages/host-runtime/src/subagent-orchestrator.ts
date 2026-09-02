@@ -138,7 +138,12 @@ export class SubagentOrchestrator {
       );
     }
 
-    const schedulerState = initSchedulerState(request);
+    const schedulerState = initSchedulerState({
+      ...request,
+      ...(request.maxConcurrency === undefined && this.resourceCoordinator
+        ? { maxConcurrency: this.resourceCoordinator.getStatus().effectiveMaxConcurrency }
+        : {}),
+    });
 
     // SC-06: Clamp effective concurrency based on processIsolation.
     if (!this.taskRunner.capabilities.processIsolation) {
@@ -418,29 +423,6 @@ export class SubagentOrchestrator {
   /** Check if a batch is still running. */
   isRunning(runId: string): boolean {
     return this.activeBatches.has(runId);
-  }
-
-  /** Get effective concurrency status. */
-  getConcurrencyStatus(): {
-    configured: number;
-    effective: number;
-    processIsolation: boolean;
-  } {
-    if (this.resourceCoordinator) {
-      const status = this.resourceCoordinator.getStatus();
-      return {
-        configured: status.configuredMaxConcurrency,
-        effective: status.effectiveMaxConcurrency,
-        processIsolation: status.processIsolation,
-      };
-    }
-    // Without a resource coordinator, report based on task runner capability.
-    const isolated = this.taskRunner.capabilities.processIsolation;
-    return {
-      configured: 4,
-      effective: isolated ? 4 : 1,
-      processIsolation: isolated,
-    };
   }
 
   /**
