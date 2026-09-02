@@ -160,6 +160,18 @@
   accent-color: var(--iris);
 }
 
+/* GFM task items already draw a checkbox. Drop the ul disc. */
+.markdown ul.contains-task-list,
+.markdown ul.md-list:has(> .md-list-item .md-task-checkbox) {
+  list-style: none;
+  padding-left: 0.2em;
+}
+
+.markdown li.task-list-item,
+.markdown li.md-list-item:has(> .md-task-checkbox) {
+  list-style: none;
+}
+
 .md-link {
   color: var(--iris-lift);
   text-decoration: underline;
