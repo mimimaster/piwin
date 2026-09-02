@@ -27,189 +27,49 @@ import {
   type SessionRuntimeResidency,
   type SessionRuntimeRetentionConfig,
 } from '@piwin/contracts';
+import {
+  aggregateRssMiB,
+  effectiveMemoryBudgetMiB,
+  evictIdleForAdmission,
+  suspendExpiredIdleEntries,
+  type EvictIdleForAdmissionDeps,
+} from './session-runtime-residency-eviction.js';
+import {
+  abortSuspend as abortSuspendEntry,
+  beginSuspend as beginSuspendEntry,
+  finishSuspend as finishSuspendEntry,
+  requestSuspend as requestSuspendEntry,
+  type ResidencySuspendDeps,
+} from './session-runtime-residency-suspend.js';
+import type {
+  ActivationResult,
+  ResidentRuntimeEntry,
+  ResidentRuntimeState,
+  ResidencyControllerOptions,
+  ResidencyCounts,
+  ResidencyCounters,
+  SessionRuntimeResidencyController,
+  SuspendResult,
+} from './session-runtime-residency-types.js';
+import {
+  grantCapacityWaiters,
+  queueCapacityWaiter,
+  waitForSuspension,
+  type CapacityWaiter,
+  type SuspensionWaiter,
+} from './session-runtime-residency-waiters.js';
 
-/** Residency state for one resident session (non-cold). */
-export type ResidentRuntimeState = Exclude<SessionRuntimeResidency, 'cold'>;
-
-/** Per-session residency bookkeeping. */
-export type ResidentRuntimeEntry = {
-  sessionId: string;
-  runtimeGenerationId: string;
-  state: ResidentRuntimeState;
-  /** Monotonic clock time of the most recent touch/transition (ms). */
-  lastUsedAtMs: number;
-  /** Absolute deadline (ms) for an idle runtime; undefined while busy. */
-  idleDeadlineMs?: number;
-  /** Count of explicit protection leases (compaction, backend ops). */
-  protectionCount: number;
-  /** Last eviction/suspension reason, retained only while resident. */
-  lastEvictionReason?: SessionRuntimeEvictionReason;
-};
-
-/** Aggregate memory sample for admission. */
-export type ResidencyMemorySample = {
-  /** Host process RSS in MiB. */
-  hostRssMiB: number;
-  /** Aggregate worker RSS in MiB; undefined when no workers are running. */
-  workerRssMiB?: number;
-  /** True when every expected worker sample is fresh. */
-  sampleCompleteness: 'complete' | 'partial' | 'missing';
-};
-
-/** Counts of a runtime by residency state (for metrics/doctor). */
-export type ResidencyCounts = {
-  resident: number;
-  activating: number;
-  residentIdle: number;
-  residentBusy: number;
-  suspending: number;
-  waiterCount: number;
-};
-
-/** Bounded aggregate eviction/failure counters. */
-export type ResidencyCounters = {
-  evictedByIdleTtl: number;
-  evictedByMaxIdle: number;
-  evictedByMaxResident: number;
-  evictedByMemoryPressure: number;
-  memoryPressureFailures: number;
-};
-
-export type ResidencyControllerOptions = {
-  /** Normalized retention policy (ADR 0040 §3). */
-  retention: SessionRuntimeRetentionConfig;
-  /** Injectable clock for deterministic tests. Defaults to Date.now. */
-  nowMs?: () => number;
-  /** Samples aggregate Host/worker RSS for admission. Omit to disable RSS pressure. */
-  sampleMemory?: () => ResidencyMemorySample;
-  /**
-   * Resolve the effective maximum resident runtimes. When omitted the
-   * controller derives it from the retention config plus idle allowance,
-   * clamped to the backend hard cap and the absolute ceiling.
-   */
-  resolveMaxResidentRuntimes?: () => number;
-  /** Sweep interval (ms). Defaults to 30s. Only runs while a runtime is resident. */
-  sweepIntervalMs?: number;
-  /** Callback for residency status changes (push emission). */
-  onResidencyChanged?: (entry: ResidentRuntimeEntry) => void;
-  /**
-   * Host-provided blocker predicate (ADR 0040 §5). Return true when a session
-   * must never be evicted: an active/cancelling Run, a pending permission or
-   * Extension UI request, an in-flight compaction or replacement, or any
-   * transition already in progress. The controller never evicts such a
-   * runtime, so admission prefers waiting over killing busy work.
-   */
-  isRuntimeProtected?: (sessionId: string) => boolean;
-  /**
-   * Performs the Host-owned suspension transaction while the entry remains in
-   * `suspending`. Return true only after recorder flush, backend drop, and
-   * resident-map cleanup have completed. Returning false restores residency.
-   */
-  suspendRuntime?: (input: {
-    sessionId: string;
-    runtimeGenerationId: string;
-    reason: SessionRuntimeEvictionReason;
-  }) => Promise<boolean>;
-  /**
-   * Fires on every periodic sweep while at least one runtime is resident
-   * (default every 30s). Used by the Host to refresh cross-process runtime
-   * lease heartbeats so a long-idle resident session never looks abandoned.
-   */
-  onSweep?: () => void;
-};
-
-/** A FIFO waiter blocked on capacity. */
-type CapacityWaiter = {
-  sessionId: string;
-  runtimeGenerationId: string;
-  signal: AbortSignal;
-  /** Resolves once capacity is granted and the activation is admitted. */
-  promise: Promise<ActivationResult>;
-  resolve: () => void;
-  reject: (error: Error) => void;
-  onAbort: () => void;
-};
-
-type SuspensionWaiter = {
-  resolve: () => void;
-  reject: (error: Error) => void;
-};
-
-/** Public controller surface. */
-export type SessionRuntimeResidencyController = {
-  /** Residency state for one session, or 'cold' when not resident. */
-  getResidency: (sessionId: string) => SessionRuntimeResidency;
-  /** Full resident entry snapshot for status composition. */
-  getEntry: (sessionId: string) => ResidentRuntimeEntry | undefined;
-  /** Touch (mark recently used) an existing resident runtime. */
-  touch: (sessionId: string, runtimeGenerationId: string) => void;
-  /** Apply a newly persisted normalized retention policy. */
-  updateRetention: (retention: SessionRuntimeRetentionConfig) => void;
-  /**
-   * Begin an activation. Resolves when capacity is reserved (may wait for an
-   * eviction or a busy runtime to finish). Rejects on abort or memory pressure.
-   */
-  beginActivation: (
-    sessionId: string,
-    runtimeGenerationId: string,
-    signal: AbortSignal,
-  ) => Promise<ActivationResult>;
-  /** Commit a successfully created generation (activating -> resident-idle). */
-  commitActivation: (sessionId: string, runtimeGenerationId: string) => void;
-  /** Abort a failed activation and release its reservation. */
-  abortActivation: (sessionId: string, runtimeGenerationId: string) => void;
-  /** Mark a runtime busy (protected operation in flight). */
-  markBusy: (sessionId: string, runtimeGenerationId: string) => void;
-  /** Mark a runtime idle again (protected operation finished). */
-  markIdle: (sessionId: string, runtimeGenerationId: string) => void;
-  /** Acquire an explicit protection lease (compaction/backend op). */
-  protect: (sessionId: string, runtimeGenerationId: string) => boolean;
-  /** Release one protection lease. */
-  releaseProtection: (sessionId: string, runtimeGenerationId: string) => void;
-  /** Whether a session holds an explicit protection lease or is busy. */
-  isProtected: (sessionId: string) => boolean;
-  /**
-   * Suspension transaction. Returns 'started' when the runtime is marked
-   * `suspending` and the caller must run cleanup, then call `finishSuspend`.
-   */
-  beginSuspend: (
-    sessionId: string,
-    runtimeGenerationId: string,
-    reason: SessionRuntimeEvictionReason,
-  ) => SuspendResult;
-  /** Complete a suspension and release the residency entry. */
-  finishSuspend: (sessionId: string, runtimeGenerationId: string) => void;
-  /**
-   * Restore a `suspending` runtime to `resident-idle` when Host cleanup fails
-   * (recorder flush error) so the runtime stays resident (ADR 0040 §6).
-   */
-  abortSuspend: (sessionId: string, runtimeGenerationId: string) => boolean;
-  /** Run and deduplicate the complete Host suspension transaction. */
-  requestSuspend: (
-    sessionId: string,
-    runtimeGenerationId: string,
-    reason: SessionRuntimeEvictionReason,
-  ) => Promise<boolean>;
-  /** Force an eviction sweep now (tests and host dispose). */
-  sweepNow: () => Promise<void>;
-  /** Stop the sweep timer and clear all state. */
-  dispose: () => void;
-  /** Aggregate counts for metrics/doctor. */
-  getCounts: () => ResidencyCounts;
-  /** Aggregate eviction/failure counters. */
-  getCounters: () => ResidencyCounters;
-  /** Effective resident-runtime ceiling after adaptive/default resolution. */
-  getMaxResidentRuntimes: () => number;
-  /** Whether at least one runtime is resident. */
-  hasResident: () => boolean;
-};
-
-export type ActivationResult =
-  { ok: true } | { ok: false; code: 'aborted' | 'memory-pressure'; message: string };
-
-export type SuspendResult =
-  | { ok: true; status: 'started' }
-  | { ok: false; reason: 'not-resident' | 'generation-mismatch' | 'protected' };
+export type {
+  ActivationResult,
+  ResidentRuntimeEntry,
+  ResidentRuntimeState,
+  ResidencyControllerOptions,
+  ResidencyCounts,
+  ResidencyCounters,
+  ResidencyMemorySample,
+  SessionRuntimeResidencyController,
+  SuspendResult,
+} from './session-runtime-residency-types.js';
 
 export function createSessionRuntimeResidencyController(
   options: ResidencyControllerOptions,
@@ -262,6 +122,7 @@ export function createSessionRuntimeResidencyController(
     sessionId: string,
     runtimeGenerationId: string,
     state: ResidentRuntimeState,
+    ephemeral?: boolean,
   ): ResidentRuntimeEntry {
     const now = nowMs();
     return {
@@ -270,6 +131,7 @@ export function createSessionRuntimeResidencyController(
       state,
       lastUsedAtMs: now,
       protectionCount: 0,
+      ...(ephemeral === true ? { ephemeral: true as const } : {}),
     };
   }
 
@@ -294,96 +156,52 @@ export function createSessionRuntimeResidencyController(
     }
   }
 
-  /** Highest-priority idle victim candidates. Never includes protected runtimes. */
-  function collectIdleVictims(): ResidentRuntimeEntry[] {
-    return [...entries.values()]
-      .filter(
-        (entry) =>
-          entry.state === 'resident-idle' &&
-          entry.protectionCount === 0 &&
-          options.isRuntimeProtected?.(entry.sessionId) !== true,
-      )
-      .sort((left, right) => {
-        // Expired idle first, then least-recently-used; tie-break by stable id.
-        const leftExpired = left.idleDeadlineMs !== undefined && left.idleDeadlineMs <= nowMs();
-        const rightExpired = right.idleDeadlineMs !== undefined && right.idleDeadlineMs <= nowMs();
-        if (leftExpired !== rightExpired) return leftExpired ? -1 : 1;
-        if (left.lastUsedAtMs !== right.lastUsedAtMs) {
-          return left.lastUsedAtMs - right.lastUsedAtMs;
-        }
-        return left.sessionId < right.sessionId ? -1 : left.sessionId > right.sessionId ? 1 : 0;
-      });
+  function suspendDeps(): ResidencySuspendDeps {
+    return {
+      entries,
+      counters,
+      suspensionWaiters,
+      suspensionTransitions,
+      nowMs,
+      getIdleTtlMs: () => idleTtlMs,
+      publish,
+      stopSweepTimerIfIdle,
+      grantWaiters,
+      suspendRuntime: options.suspendRuntime,
+    };
   }
 
-  function aggregateRssMiB(): number | undefined {
-    if (!sampleMemory) return undefined;
-    const sample = sampleMemory();
-    if (sample.sampleCompleteness !== 'complete') return undefined;
-    return sample.hostRssMiB + (sample.workerRssMiB ?? 0);
-  }
-
-  function effectiveMemoryBudgetMiB():
-    | {
-        highWaterMiB: number;
-        lowWaterMiB: number;
-      }
-    | undefined {
-    if (retention.memoryHighWaterMiB === undefined) return undefined;
-    const highWaterMiB = retention.memoryHighWaterMiB;
-    return { highWaterMiB, lowWaterMiB: Math.round(highWaterMiB * 0.8) };
-  }
-
-  /** Suspend idle victims in LRU order until count and memory are under target. */
-  async function evictIdleForAdmission(): Promise<void> {
-    const maxResident = resolveMaxResidentRuntimes();
-    const memoryBudget = effectiveMemoryBudgetMiB();
-
-    for (const victim of collectIdleVictims()) {
-      const countUnder = entries.size < maxResident;
-      const idleOver = idleCount() > maxIdleRuntimes;
-      const rssMiB = aggregateRssMiB();
-      // High-water eviction targets the low-water mark (ADR 0040 §3):
-      // release idle runtimes until aggregate RSS falls to the low water.
-      const memoryOver =
-        memoryBudget !== undefined && rssMiB !== undefined && rssMiB > memoryBudget.lowWaterMiB;
-      if (countUnder && !idleOver && !memoryOver) {
-        break;
-      }
-      // Deterministic reason: prefer the most specific binding constraint.
-      let reason: SessionRuntimeEvictionReason;
-      if (idleOver) reason = 'max-idle';
-      else if (memoryOver) reason = 'memory-pressure';
-      else reason = 'max-resident';
-      await requestSuspend(victim.sessionId, victim.runtimeGenerationId, reason);
-    }
-  }
-
-  function idleCount(): number {
-    let count = 0;
-    for (const entry of entries.values()) {
-      if (entry.state === 'resident-idle') count += 1;
-    }
-    return count;
+  function evictionDeps(): EvictIdleForAdmissionDeps {
+    return {
+      entries,
+      nowMs,
+      getMaxIdleRuntimes: () => maxIdleRuntimes,
+      resolveMaxResidentRuntimes,
+      sampleMemory,
+      getMemoryHighWaterMiB: () => retention.memoryHighWaterMiB,
+      isRuntimeProtected: options.isRuntimeProtected,
+      requestSuspend,
+    };
   }
 
   function grantWaiters(): void {
-    const maxResident = resolveMaxResidentRuntimes();
-    for (const [sessionId, waiter] of [...waiters]) {
-      if (disposed) break;
-      if (entries.size >= maxResident) break;
-      if (waiter.signal.aborted) {
-        waiters.delete(sessionId);
-        continue;
-      }
-      waiters.delete(sessionId);
-      waiter.signal.removeEventListener('abort', waiter.onAbort);
-      // Reserve capacity: the activation is now admitted.
-      const reservation = makeEntry(sessionId, waiter.runtimeGenerationId, 'activating');
-      entries.set(sessionId, reservation);
-      publish(reservation);
-      startSweepTimerIfNeeded();
-      waiter.resolve();
-    }
+    grantCapacityWaiters({
+      isDisposed: () => disposed,
+      waiters,
+      entries,
+      maxResident: resolveMaxResidentRuntimes(),
+      admit: (waiter) => {
+        const reservation = makeEntry(
+          waiter.sessionId,
+          waiter.runtimeGenerationId,
+          'activating',
+          waiter.ephemeral === true,
+        );
+        entries.set(waiter.sessionId, reservation);
+        publish(reservation);
+        startSweepTimerIfNeeded();
+      },
+    });
   }
 
   function getResidency(sessionId: string): SessionRuntimeResidency {
@@ -427,7 +245,9 @@ export function createSessionRuntimeResidencyController(
     sessionId: string,
     runtimeGenerationId: string,
     signal: AbortSignal,
+    activationOptions?: { ephemeral?: boolean },
   ): Promise<ActivationResult> {
+    const ephemeral = activationOptions?.ephemeral === true;
     if (disposed) {
       throw new Error('host-disposed');
     }
@@ -443,7 +263,7 @@ export function createSessionRuntimeResidencyController(
           return Promise.resolve({ ok: true });
         }
         if (existingEntry.state === 'suspending') {
-          await waitForSuspension(sessionId, runtimeGenerationId, signal);
+          await waitForSuspension(suspensionWaiters, sessionId, runtimeGenerationId, signal);
           return {
             ok: false,
             code: 'aborted',
@@ -478,7 +298,7 @@ export function createSessionRuntimeResidencyController(
     }
 
     // Admission: evict idle runtimes before capacity failure.
-    await evictIdleForAdmission();
+    await evictIdleForAdmission(evictionDeps());
     if (disposed) {
       throw new Error('host-disposed');
     }
@@ -488,8 +308,8 @@ export function createSessionRuntimeResidencyController(
 
     // Memory-pressure gate: fail the activation when idle eviction cannot
     // bring aggregate RSS below the high-water mark.
-    const memoryBudget = effectiveMemoryBudgetMiB();
-    const rssMiB = aggregateRssMiB();
+    const memoryBudget = effectiveMemoryBudgetMiB(retention.memoryHighWaterMiB);
+    const rssMiB = aggregateRssMiB(sampleMemory);
     if (memoryBudget && rssMiB !== undefined && rssMiB > memoryBudget.highWaterMiB) {
       counters.memoryPressureFailures += 1;
       return Promise.resolve({
@@ -501,7 +321,7 @@ export function createSessionRuntimeResidencyController(
 
     // Capacity is available: reserve immediately.
     if (entries.size < resolveMaxResidentRuntimes()) {
-      const reservation = makeEntry(sessionId, runtimeGenerationId, 'activating');
+      const reservation = makeEntry(sessionId, runtimeGenerationId, 'activating', ephemeral);
       entries.set(sessionId, reservation);
       publish(reservation);
       startSweepTimerIfNeeded();
@@ -509,85 +329,7 @@ export function createSessionRuntimeResidencyController(
     }
 
     // All capacity is occupied by non-idle runtimes: queue a FIFO waiter.
-    return queueCapacityWaiter(sessionId, runtimeGenerationId, signal);
-  }
-
-  /** Queue a cancellable FIFO capacity waiter and return its promise. */
-  function queueCapacityWaiter(
-    sessionId: string,
-    runtimeGenerationId: string,
-    signal: AbortSignal,
-  ): Promise<ActivationResult> {
-    let resolveActivation: (result: ActivationResult) => void = () => {
-      throw new Error('capacity waiter was not initialized');
-    };
-    let rejectActivation: (error: Error) => void = () => {
-      throw new Error('capacity waiter was not initialized');
-    };
-    const promise = new Promise<ActivationResult>((resolve, reject) => {
-      resolveActivation = resolve;
-      rejectActivation = reject;
-    });
-    const onAbort = () => {
-      if (waiters.get(sessionId)) {
-        waiters.delete(sessionId);
-        signal.removeEventListener('abort', onAbort);
-        rejectActivation(Object.assign(new Error('aborted'), { code: 'aborted' }));
-      }
-    };
-    const waiter: CapacityWaiter = {
-      sessionId,
-      runtimeGenerationId,
-      signal,
-      promise,
-      resolve: () => resolveActivation({ ok: true }),
-      reject: rejectActivation,
-      onAbort,
-    };
-    waiters.set(sessionId, waiter);
-    signal.addEventListener('abort', onAbort, { once: true });
-    return promise;
-  }
-
-  /** Wait for a same-generation suspension to finish before reactivating. */
-  function waitForSuspension(
-    sessionId: string,
-    runtimeGenerationId: string,
-    signal: AbortSignal,
-  ): Promise<ActivationResult> {
-    return new Promise<ActivationResult>((resolve, reject) => {
-      let waiter: SuspensionWaiter | undefined;
-      const onAbort = () => {
-        if (waiter) {
-          const currentWaiters = suspensionWaiters.get(sessionId);
-          const remainingWaiters = currentWaiters?.filter((candidate) => candidate !== waiter);
-          if (remainingWaiters && remainingWaiters.length > 0) {
-            suspensionWaiters.set(sessionId, remainingWaiters);
-          } else {
-            suspensionWaiters.delete(sessionId);
-          }
-        }
-        reject(Object.assign(new Error('aborted'), { code: 'aborted' }));
-      };
-      if (signal.aborted) {
-        onAbort();
-        return;
-      }
-      signal.addEventListener('abort', onAbort, { once: true });
-      const waitersList = suspensionWaiters.get(sessionId) ?? [];
-      waiter = {
-        resolve: () => {
-          signal.removeEventListener('abort', onAbort);
-          resolve({ ok: true });
-        },
-        reject: (error: Error) => {
-          signal.removeEventListener('abort', onAbort);
-          reject(error);
-        },
-      };
-      waitersList.push(waiter);
-      suspensionWaiters.set(sessionId, waitersList);
-    });
+    return queueCapacityWaiter(waiters, sessionId, runtimeGenerationId, signal, ephemeral);
   }
 
   function commitActivation(sessionId: string, runtimeGenerationId: string): void {
@@ -599,9 +341,14 @@ export function createSessionRuntimeResidencyController(
     ) {
       return;
     }
-    entry.state = 'resident-idle';
     entry.lastUsedAtMs = nowMs();
-    entry.idleDeadlineMs = idleTtlMs > 0 ? entry.lastUsedAtMs + idleTtlMs : entry.lastUsedAtMs;
+    if (entry.ephemeral === true) {
+      entry.state = 'resident-busy';
+      delete entry.idleDeadlineMs;
+    } else {
+      entry.state = 'resident-idle';
+      entry.idleDeadlineMs = idleTtlMs > 0 ? entry.lastUsedAtMs + idleTtlMs : entry.lastUsedAtMs;
+    }
     publish(entry);
   }
 
@@ -632,6 +379,9 @@ export function createSessionRuntimeResidencyController(
   function markIdle(sessionId: string, runtimeGenerationId: string): void {
     const entry = entries.get(sessionId);
     if (!entry || entry.runtimeGenerationId !== runtimeGenerationId) return;
+    if (entry.ephemeral === true) {
+      return;
+    }
     if (entry.state === 'resident-busy') {
       entry.state = 'resident-idle';
     }
@@ -639,7 +389,7 @@ export function createSessionRuntimeResidencyController(
     entry.idleDeadlineMs = idleTtlMs > 0 ? entry.lastUsedAtMs + idleTtlMs : entry.lastUsedAtMs;
     publish(entry);
     // A newly idle runtime is the immediate LRU candidate for queued work.
-    void evictIdleForAdmission().then(() => grantWaiters());
+    void evictIdleForAdmission(evictionDeps()).then(() => grantWaiters());
   }
 
   function protect(sessionId: string, runtimeGenerationId: string): boolean {
@@ -654,7 +404,7 @@ export function createSessionRuntimeResidencyController(
     if (!entry || entry.runtimeGenerationId !== runtimeGenerationId) return;
     entry.protectionCount = Math.max(0, entry.protectionCount - 1);
     if (entry.protectionCount === 0 && entry.state === 'resident-idle') {
-      void evictIdleForAdmission().then(() => grantWaiters());
+      void evictIdleForAdmission(evictionDeps()).then(() => grantWaiters());
     }
   }
 
@@ -669,88 +419,15 @@ export function createSessionRuntimeResidencyController(
     runtimeGenerationId: string,
     reason: SessionRuntimeEvictionReason,
   ): SuspendResult {
-    const entry = entries.get(sessionId);
-    if (!entry) return { ok: false, reason: 'not-resident' };
-    if (entry.runtimeGenerationId !== runtimeGenerationId) {
-      return { ok: false, reason: 'generation-mismatch' };
-    }
-    // Deduplicate a second suspension for the same in-flight transition.
-    if (entry.state === 'suspending') {
-      return { ok: true, status: 'started' };
-    }
-    if (entry.protectionCount > 0 || entry.state === 'resident-busy') {
-      return { ok: false, reason: 'protected' };
-    }
-    entry.state = 'suspending';
-    entry.lastEvictionReason = reason;
-    publish(entry);
-    return { ok: true, status: 'started' };
+    return beginSuspendEntry(suspendDeps(), sessionId, runtimeGenerationId, reason);
   }
 
   function finishSuspend(sessionId: string, runtimeGenerationId: string): void {
-    const entry = entries.get(sessionId);
-    if (
-      !entry ||
-      entry.state !== 'suspending' ||
-      entry.runtimeGenerationId !== runtimeGenerationId
-    ) {
-      return;
-    }
-    const reason = entry.lastEvictionReason ?? 'idle-ttl';
-    switch (reason) {
-      case 'idle-ttl':
-        counters.evictedByIdleTtl += 1;
-        break;
-      case 'max-idle':
-        counters.evictedByMaxIdle += 1;
-        break;
-      case 'max-resident':
-        counters.evictedByMaxResident += 1;
-        break;
-      case 'memory-pressure':
-        counters.evictedByMemoryPressure += 1;
-        break;
-      default:
-        break;
-    }
-    entries.delete(sessionId);
-    stopSweepTimerIfIdle();
-    const suspensionResolvers = suspensionWaiters.get(sessionId);
-    if (suspensionResolvers) {
-      suspensionWaiters.delete(sessionId);
-      for (const resolver of suspensionResolvers) {
-        resolver.resolve();
-      }
-    }
-    grantWaiters();
+    finishSuspendEntry(suspendDeps(), sessionId, runtimeGenerationId);
   }
 
-  /**
-   * Restore a `suspending` runtime to `resident-idle` when the Host cleanup
-   * transaction fails (e.g. recorder flush failed) so the runtime stays
-   * resident instead of leaking detached state (ADR 0040 §6).
-   */
   function abortSuspend(sessionId: string, runtimeGenerationId: string): boolean {
-    const entry = entries.get(sessionId);
-    if (
-      !entry ||
-      entry.state !== 'suspending' ||
-      entry.runtimeGenerationId !== runtimeGenerationId
-    ) {
-      return false;
-    }
-    entry.state = 'resident-idle';
-    entry.lastUsedAtMs = nowMs();
-    entry.idleDeadlineMs = idleTtlMs > 0 ? entry.lastUsedAtMs + idleTtlMs : entry.lastUsedAtMs;
-    publish(entry);
-    const suspensionResolvers = suspensionWaiters.get(sessionId);
-    if (suspensionResolvers) {
-      suspensionWaiters.delete(sessionId);
-      for (const resolver of suspensionResolvers) {
-        resolver.reject(new Error('runtime suspension aborted'));
-      }
-    }
-    return true;
+    return abortSuspendEntry(suspendDeps(), sessionId, runtimeGenerationId);
   }
 
   function requestSuspend(
@@ -758,39 +435,28 @@ export function createSessionRuntimeResidencyController(
     runtimeGenerationId: string,
     reason: SessionRuntimeEvictionReason,
   ): Promise<boolean> {
-    const existingTransition = suspensionTransitions.get(sessionId);
-    if (existingTransition) {
-      if (existingTransition.runtimeGenerationId === runtimeGenerationId) {
-        return existingTransition.promise;
-      }
-      return Promise.resolve(false);
+    return requestSuspendEntry(suspendDeps(), sessionId, runtimeGenerationId, reason);
+  }
+
+  function releaseEphemeral(sessionId: string, runtimeGenerationId: string): void {
+    const entry = entries.get(sessionId);
+    if (
+      !entry ||
+      entry.ephemeral !== true ||
+      entry.runtimeGenerationId !== runtimeGenerationId
+    ) {
+      return;
     }
-    const started = beginSuspend(sessionId, runtimeGenerationId, reason);
-    if (!started.ok) {
-      return Promise.resolve(false);
+    if (entry.state !== 'activating' && entry.state !== 'resident-busy') {
+      return;
     }
-    const transition = (async () => {
-      let suspended = true;
-      try {
-        suspended =
-          (await options.suspendRuntime?.({ sessionId, runtimeGenerationId, reason })) ?? true;
-      } catch {
-        suspended = false;
-      }
-      if (suspended) {
-        finishSuspend(sessionId, runtimeGenerationId);
-        return true;
-      }
-      abortSuspend(sessionId, runtimeGenerationId);
-      return false;
-    })().finally(() => {
-      const current = suspensionTransitions.get(sessionId);
-      if (current?.promise === transition) {
-        suspensionTransitions.delete(sessionId);
-      }
-    });
-    suspensionTransitions.set(sessionId, { runtimeGenerationId, promise: transition });
-    return transition;
+    entries.delete(sessionId);
+    stopSweepTimerIfIdle();
+    grantWaiters();
+  }
+
+  function revisitCapacity(): void {
+    void sweepNow().then(() => grantWaiters());
   }
 
   async function sweepNow(): Promise<void> {
@@ -799,15 +465,13 @@ export function createSessionRuntimeResidencyController(
     // Expired idle first (TTL), then capacity/idle/memory pressure. A runtime
     // blocked by Host work (active Run, pending permission/UI, compaction,
     // replacement, transition) is never an eviction victim.
-    const now = nowMs();
-    for (const entry of [...entries.values()]) {
-      if (entry.state !== 'resident-idle' || entry.protectionCount > 0) continue;
-      if (options.isRuntimeProtected?.(entry.sessionId) === true) continue;
-      if (entry.idleDeadlineMs !== undefined && entry.idleDeadlineMs <= now) {
-        await requestSuspend(entry.sessionId, entry.runtimeGenerationId, 'idle-ttl');
-      }
-    }
-    await evictIdleForAdmission();
+    await suspendExpiredIdleEntries({
+      entries,
+      nowMs: nowMs(),
+      isRuntimeProtected: options.isRuntimeProtected,
+      requestSuspend,
+    });
+    await evictIdleForAdmission(evictionDeps());
   }
 
   function dispose(): void {
@@ -836,7 +500,9 @@ export function createSessionRuntimeResidencyController(
     let residentIdle = 0;
     let residentBusy = 0;
     let suspending = 0;
+    let ephemeral = 0;
     for (const entry of entries.values()) {
+      if (entry.ephemeral === true) ephemeral += 1;
       switch (entry.state) {
         case 'activating':
           activating += 1;
@@ -859,6 +525,7 @@ export function createSessionRuntimeResidencyController(
       residentBusy,
       suspending,
       waiterCount: waiters.size,
+      ephemeral,
     };
   }
 
@@ -892,6 +559,8 @@ export function createSessionRuntimeResidencyController(
     abortSuspend,
     requestSuspend,
     sweepNow,
+    releaseEphemeral,
+    revisitCapacity,
     dispose,
     getCounts,
     getCounters,
