@@ -16,7 +16,14 @@
  */
 
 import { RpcSdkWorkerClient, type WorkerClientOptions } from './rpc-sdk-worker-client.js';
-import type { AgentEvent, HostToolExecutionResult } from '@piwin/contracts';
+import {
+  ABSOLUTE_MAX_RESIDENT_RUNTIMES,
+  DEFAULT_SUBAGENT_MAX_CONCURRENCY,
+  deriveSupervisorMaxWorkers,
+  WORKER_REPLACEMENT_HEADROOM,
+  type AgentEvent,
+  type HostToolExecutionResult,
+} from '@piwin/contracts';
 import type { WorkerToolCallFrame } from './rpc-sdk-worker-protocol.js';
 import type {
   SerializableBlueprint,
@@ -31,14 +38,27 @@ export type AgentWorkerRuntimeSettings = {
   maxFrameBytes: number;
 };
 
-/** Default settings computed from available parallelism. */
+const MAX_SUPERVISOR_WORKERS = ABSOLUTE_MAX_RESIDENT_RUNTIMES + WORKER_REPLACEMENT_HEADROOM;
+
+export class WorkerCapacityExhaustedError extends Error {
+  readonly name = 'WorkerCapacityExhaustedError';
+  readonly active: number;
+  readonly starting: number;
+  readonly max: number;
+
+  constructor(counts: { active: number; starting: number; max: number }) {
+    super(
+      `worker capacity exhausted (active ${counts.active} + starting ${counts.starting} >= max ${counts.max})`,
+    );
+    this.active = counts.active;
+    this.starting = counts.starting;
+    this.max = counts.max;
+  }
+}
+
 export function computeDefaultWorkerSettings(): AgentWorkerRuntimeSettings {
-  const maybeParallelism = (globalThis as unknown as Record<string, unknown>).availableParallelism;
-  const availableParallelism =
-    typeof maybeParallelism === 'function' ? (maybeParallelism as () => number)() : 4;
-  const maxActiveWorkers = Math.min(Math.max(2, availableParallelism - 1), 8);
   return {
-    maxActiveWorkers,
+    maxActiveWorkers: deriveSupervisorMaxWorkers(DEFAULT_SUBAGENT_MAX_CONCURRENCY),
     startupTimeoutMs: 5_000,
     shutdownTimeoutMs: 2_000,
     maxFrameBytes: 8 * 1024 * 1024,
@@ -52,6 +72,8 @@ interface ManagedWorker {
   runtimeGenerationId: string;
   /** Whether the worker has been disposed. */
   disposed: boolean;
+  /** False while `client.start()` is still in flight. */
+  ready: boolean;
 }
 
 /** Options for the supervisor. */
@@ -91,6 +113,7 @@ export type AgentWorkerSupervisorOptions = {
 /** Status of the worker supervisor. */
 export type WorkerSupervisorStatus = {
   activeWorkers: number;
+  startingWorkers: number;
   maxActiveWorkers: number;
   /** Always true — this supervisor reports process isolation. */
   processIsolation: boolean;
@@ -116,7 +139,7 @@ export type WorkerRssSample = {
  * It is NOT a JobController consumer (WI-13).
  */
 export class AgentWorkerSupervisor {
-  private readonly settings: AgentWorkerRuntimeSettings;
+  private settings: AgentWorkerRuntimeSettings;
   private readonly workerOptions: AgentWorkerSupervisorOptions['worker'];
   private readonly onToolCall: AgentWorkerSupervisorOptions['onToolCall'];
   private readonly onEvent: ((sessionId: string, event: AgentEvent) => void) | undefined;
@@ -147,15 +170,46 @@ export class AgentWorkerSupervisor {
   /** Get the current supervisor status. */
   getStatus(): WorkerSupervisorStatus {
     return {
-      activeWorkers: this.workers.size,
+      activeWorkers: this.activeWorkerCount(),
+      startingWorkers: this.pendingAcquires.size,
       maxActiveWorkers: this.settings.maxActiveWorkers,
       processIsolation: true,
     };
   }
 
+  /**
+   * Clamp the process cap to `[1, ABSOLUTE_MAX_RESIDENT_RUNTIMES + headroom]`.
+   * Lowering below the current active count does not terminate workers.
+   */
+  setMaxActiveWorkers(next: number): void {
+    const n = Number.isFinite(next) ? Math.trunc(next) : 1;
+    this.settings.maxActiveWorkers = Math.max(1, Math.min(MAX_SUPERVISOR_WORKERS, n));
+  }
+
   /** Check if capacity is available for a new worker. */
   hasCapacity(): boolean {
-    return this.workers.size < this.settings.maxActiveWorkers;
+    return this.remainingCapacity() > 0;
+  }
+
+  /** Remaining slots = max − ready workers − in-flight starts. */
+  private remainingCapacity(): number {
+    return this.settings.maxActiveWorkers - this.activeWorkerCount() - this.pendingAcquires.size;
+  }
+
+  private activeWorkerCount(): number {
+    let ready = 0;
+    for (const worker of this.workers.values()) {
+      if (worker.ready) ready += 1;
+    }
+    return ready;
+  }
+
+  private capacityExhausted(): WorkerCapacityExhaustedError {
+    return new WorkerCapacityExhaustedError({
+      active: this.activeWorkerCount(),
+      starting: this.pendingAcquires.size,
+      max: this.settings.maxActiveWorkers,
+    });
   }
 
   /**
@@ -186,10 +240,8 @@ export class AgentWorkerSupervisor {
     const pending = this.pendingAcquires.get(key);
     if (pending) return pending;
 
-    if (this.workers.size + this.pendingAcquires.size >= this.settings.maxActiveWorkers) {
-      throw new Error(
-        `worker capacity exhausted (${this.workers.size}/${this.settings.maxActiveWorkers})`,
-      );
+    if (this.remainingCapacity() <= 0) {
+      throw this.capacityExhausted();
     }
 
     const acquisition = this.startWorker(sessionId, runtimeGenerationId, key, workerOptions);
@@ -209,10 +261,8 @@ export class AgentWorkerSupervisor {
     key: string,
     workerOptions?: WorkerClientOptions,
   ): Promise<RpcSdkWorkerClient> {
-    if (!this.hasCapacity()) {
-      throw new Error(
-        `worker capacity exhausted (${this.workers.size}/${this.settings.maxActiveWorkers})`,
-      );
+    if (this.remainingCapacity() <= 0) {
+      throw this.capacityExhausted();
     }
 
     const configuredEnvironment = this.workerOptions?.env ?? {};
@@ -239,6 +289,7 @@ export class AgentWorkerSupervisor {
       sessionId,
       runtimeGenerationId,
       disposed: false,
+      ready: false,
     };
     this.workers.set(workerId, managed);
     this.bySessionGeneration.set(key, workerId);
@@ -258,6 +309,7 @@ export class AgentWorkerSupervisor {
 
     try {
       await client.start();
+      managed.ready = true;
     } catch (error) {
       // The worker is already registered before startup so an exit during
       // hello negotiation cannot escape the supervisor's lifecycle maps.
