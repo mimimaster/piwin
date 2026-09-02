@@ -38,6 +38,7 @@ import {
 } from '@piwin/contracts';
 import type { PromptAttachment } from '@piwin/contracts';
 import { connectCliAttachedHost, readCliHostAttachTarget } from './attach-existing-host.js';
+import { formatRuntimeResourcesLines } from './runtime-resources-format.js';
 import { openCliHost, type CliHostHandle } from './cli-host.js';
 import { saveAttachedCliImageAttachment, saveLocalCliImageAttachment } from './cli-prompt-image.js';
 import { ensureBundledSkillsInstalled, scanSkills } from '@piwin/skills';
@@ -394,15 +395,6 @@ function createAssistantCliDisplay() {
       }
     },
   };
-}
-
-function formatRuntimeResourcesLines(data: HostRuntimeResourcesData): string[] {
-  return [
-    `runtime residency: resident=${data.counts.resident} idle=${data.counts.idle} busy=${data.counts.busy} activating=${data.counts.activating} suspending=${data.counts.suspending} waiters=${data.waiterCount}`,
-    `runtime budget: maxResident=${data.budget.maxResidentRuntimes} maxIdle=${data.budget.maxIdleRuntimes} highWaterMiB=${data.budget.memoryHighWaterMiB} lowWaterMiB=${data.budget.memoryLowWaterMiB}`,
-    `runtime memory: hostRssMiB=${data.memory.hostRssMiB}${data.memory.workerRssMiB !== undefined ? ` workerRssMiB=${data.memory.workerRssMiB}` : ''} sample=${data.memory.sampleCompleteness}`,
-    `runtime evictions: ttl=${data.counters.evictedByIdleTtl} maxIdle=${data.counters.evictedByMaxIdle} maxResident=${data.counters.evictedByMaxResident} memory=${data.counters.evictedByMemoryPressure} pressureFail=${data.counters.memoryPressureFailures}`,
-  ];
 }
 
 async function commandDoctor(args: string[] = []): Promise<void> {
