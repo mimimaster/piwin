@@ -15,6 +15,7 @@ import { useWorkbenchShellChrome } from './hooks/use-workbench-shell-chrome';
 import { useWorkbenchAppModel } from './hooks/use-workbench-app-model';
 import { installRendererSelfHeal } from './renderer-self-heal';
 import { WorkspaceShell } from './workspace-shell';
+import { NavRail } from './nav-rail';
 import { WorkbenchInspector } from './workbench-inspector';
 import {
   WorkbenchComposerColumn,
@@ -342,6 +343,18 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                 data-studio-open={studioOpen ? 'true' : 'false'}
               >
                 <WorkspaceShell
+                  navRail={
+                    <NavRail
+                      locale={desktopLocale}
+                      activeSubPage={activeSubPage}
+                      settingsOpen={settingsOpen}
+                      onNavigateChat={() => setActiveSubPage(null)}
+                      onOpenLibrary={openLibrary}
+                      onOpenFlashcards={openFlashcards}
+                      onOpenSessionSearch={openSessionSearch}
+                      onOpenSettings={() => openSettingsSection('general')}
+                    />
+                  }
                   workspaceClassName={
                     settingsOpen || studioOpen ? 'settings-workspace-suspended' : undefined
                   }

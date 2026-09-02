@@ -1,0 +1,84 @@
+/* Region: navigation rail (nav-rail.tsx).
+   The persistent top-level navigation that deck-design-system.md §7.2 promises:
+   a 46px column that survives the sidebar collapsing to zero, so no layout
+   width ever strands the user without a way to reach the top-level
+   destinations (chat, library, flashcards, search, settings).
+
+   The rail is chrome: surface-1 like the sidebar, icon-only buttons, no text.
+   Active state is the same iris-wash language as the context bar. */
+
+/* ─── Column ────────────────────────────────────────────────────────
+   Grid placement (grid-area: rail) and the panel treatment (elevation,
+   bottom radius) come from region-shell.css, exactly like the sidebar. */
+
+.app-shell > .nav-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--s-2);
+  /* Top padding clears the titleband overlay, same as the sidebar. */
+  padding: calc(var(--titleband-height) + var(--s-4)) var(--s-2) var(--s-4);
+  background: var(--surface-1);
+}
+
+/* Full-window surfaces (settings, studio) replace the workbench chrome, so
+   the rail is part of the chrome they dismiss, not something they fight. */
+.app-shell.settings-open > .nav-rail,
+.app-shell.studio-open > .nav-rail {
+  display: none;
+}
+
+/* Compact is the drawer layout: the sidebar slides over the stage and the
+   rail has nowhere to hang. The drawer keeps navigation reachable. */
+.app-shell[data-layout='compact'] > .nav-rail {
+  display: none;
+}
+
+/* ─── Buttons ─────────────────────────────────────────────────────── */
+
+.nav-rail-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: var(--h-md);
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition:
+    color var(--t-1) var(--ease-out),
+    background-color var(--t-1) var(--ease-out);
+}
+
+.nav-rail-btn:hover {
+  color: var(--text-1);
+  background: var(--hover);
+}
+
+.nav-rail-btn:active {
+  background: var(--active);
+}
+
+.nav-rail-btn:focus-visible {
+  outline: 2px solid var(--iris);
+  outline-offset: -2px;
+}
+
+.nav-rail-btn.active,
+.nav-rail-btn[aria-pressed='true'] {
+  color: var(--iris-lift);
+  background: var(--iris-wash);
+}
+
+.nav-rail-btn svg {
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
+}
+
+/* Settings pins to the bottom of the column; the spacer is what keeps it
+   there while the top group stays flush under the titleband. */
+.nav-rail-spacer {
+  flex: 1 1 0;
+}

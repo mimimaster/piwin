@@ -47,13 +47,20 @@
   padding: 0;
 }
 
-/* The window controls belong over the sidebar; the title belongs over the
-   stage. With the sidebar open, hold the cluster to the sidebar's width so the
-   title starts at the seam instead of straddling it. Collapsed, there is no
-   seam and the title simply follows the arrows. */
+/* The window controls belong over the rail's chrome; the title belongs over
+   the stage. With the sidebar open, hold the cluster past rail + sidebar so
+   the title starts at the stage seam. Collapsed, the rail is still there, so
+   hold the title past rail + gap instead of letting it straddle that seam. */
 .app-shell.nav-open > .context-bar > .context-bar-leading {
   min-width: calc(
-    var(--deck-inset) + var(--sidebar-width) + var(--deck-gap) -
+    var(--deck-inset) + var(--rail-width) + var(--deck-gap) +
+      var(--sidebar-width) + var(--deck-gap) - var(--traffic-light-clearance)
+  );
+}
+
+.app-shell[data-layout='desktop']:not(.nav-open) > .context-bar > .context-bar-leading {
+  min-width: calc(
+    var(--deck-inset) + var(--rail-width) + var(--deck-gap) -
       var(--traffic-light-clearance)
   );
 }
