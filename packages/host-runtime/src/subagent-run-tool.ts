@@ -29,11 +29,7 @@ import type {
   ToolResult,
 } from '@piwin/contracts';
 import { formatError, parseSubagentDeliveryFields } from '@piwin/contracts';
-import {
-  ACTIVATE_NEW_INTEGRATE_DEFAULT,
-  isSubagentDeliveryPolicyError,
-  resolveSubagentDeliveryPolicy,
-} from './subagent-delivery-policy.js';
+import { isSubagentDeliveryPolicyError } from './subagent-delivery-policy.js';
 
 export type SubagentRunSeam = {
   /** Spawn a child subagent session and wait for it to finish. */
@@ -183,8 +179,9 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
       const profileIdRaw = String(args.profileId ?? '').trim();
       const profileId = profileIdRaw || undefined;
 
-      const modeRaw =
-        args.mode === undefined && profileId ? undefined : String(args.mode ?? 'readonly').trim();
+      // Leave omitted mode unresolved. The Host must apply the active scheme
+      // and profile before choosing an isolation or delivery default.
+      const modeRaw = args.mode === undefined ? undefined : String(args.mode ?? '').trim();
       let mode: SubagentIsolationMode | undefined;
       if (modeRaw !== undefined) {
         if (!ISOLATION_MODES.has(modeRaw)) {
@@ -206,32 +203,15 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
         ...(typeof args.applyPolicy === 'string' ? { applyPolicy: args.applyPolicy } : {}),
       });
       if (!parsedDelivery.ok) return invalidSubagentInput(parsedDelivery.message);
-      let deliveryIntent = parsedDelivery.deliveryIntent;
-      let applyPolicy = parsedDelivery.applyPolicy;
-      if (mode !== undefined) {
-        const policy = resolveSubagentDeliveryPolicy({
-          ...(parsedDelivery.deliveryIntent !== undefined
-            ? { deliveryIntent: parsedDelivery.deliveryIntent }
-            : {}),
-          ...(parsedDelivery.applyPolicy !== undefined
-            ? { applyPolicy: parsedDelivery.applyPolicy }
-            : {}),
-          isolation: mode,
-          source: 'model-tool',
-          activateNewIntegrateDefault: ACTIVATE_NEW_INTEGRATE_DEFAULT,
-        });
-        if (!policy.ok) return invalidSubagentInput(policy.message);
-        deliveryIntent = policy.policy.deliveryIntent;
-        applyPolicy = policy.policy.applyPolicy;
-      }
+      // Only validate syntax here. Effective delivery is resolved once by the
+      // Host after scheme/profile isolation has been applied.
+      const deliveryIntent = parsedDelivery.deliveryIntent;
+      const applyPolicy = parsedDelivery.applyPolicy;
 
       const modelRaw = args.model as
         { protocol?: string; providerId?: string; modelId?: string } | undefined;
       const model: ModelRef | undefined =
-        modelRaw &&
-        typeof modelRaw === 'object' &&
-        modelRaw.providerId &&
-        modelRaw.modelId
+        modelRaw && typeof modelRaw === 'object' && modelRaw.providerId && modelRaw.modelId
           ? {
               providerId: modelRaw.providerId,
               modelId: modelRaw.modelId,
@@ -244,9 +224,7 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
       const thinkingLevelRaw = String(args.thinkingLevel ?? '').trim();
       const thinkingLevel: ThinkingLevel | undefined =
         thinkingLevelRaw &&
-        ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(
-          thinkingLevelRaw,
-        )
+        ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(thinkingLevelRaw)
           ? (thinkingLevelRaw as ThinkingLevel)
           : undefined;
 
