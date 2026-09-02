@@ -43,7 +43,12 @@
   width: 100%;
   min-height: var(--h-md);
   padding: 0 var(--s-4);
-  padding-right: 48px;
+  /* One constant reserve for the whole right cluster, hover or not. The
+     timestamp and the action buttons are both absolutely positioned, so only
+     this padding bounds the title -- and swapping it on hover re-truncated the
+     title's ellipsis in the same frame the actions appeared. 84px clears the
+     widest occupant: 3 x 22px buttons + 2 x 2px gaps at right: var(--s-2). */
+  padding-right: 84px;
   border: none;
   border-radius: var(--r-control);
   background: transparent;
@@ -59,11 +64,6 @@
   transition:
     background-color var(--t-2) var(--ease-out),
     color var(--t-2) var(--ease-out);
-}
-
-.session-row:hover .session-item,
-.session-row:focus-within .session-item {
-  padding-right: 84px;
 }
 
 .session-item:hover:not(.active),

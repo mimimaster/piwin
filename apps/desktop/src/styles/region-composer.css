@@ -130,10 +130,14 @@
   overflow: visible;
 }
 
-/* Hover lifts the card a step without claiming focus; focus adds the iris rim
-   on top of that lift. */
+/* Hover holds level 3. --elev-4 is the overlay step (dialogs, menus, popovers,
+   command palette); borrowing it here made the resting -> hover -> focus
+   sequence non-monotonic, because :hover:focus-within below drops back to
+   level 3 -- so pointing at an already-focused composer read as the card
+   sinking. The composer is permanently present, so hover is not a discovery
+   cue: focus is the only state that changes this card's shadow. */
 .composer-card-v2:hover {
-  box-shadow: var(--elev-4);
+  box-shadow: var(--elev-3);
 }
 
 .composer-card-v2:focus-within,
