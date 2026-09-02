@@ -14,6 +14,7 @@ import {
   type ReactNode,
 } from 'react';
 import { formatError } from '@piwin/contracts';
+import { useMarkdownRenderingPhase } from './markdown-rendering-phase.js';
 
 const MERMAID_RENDER_TIMEOUT_MS = 8_000;
 
@@ -36,11 +37,17 @@ export function MermaidBlock({ source }: MermaidBlockProps): ReactElement {
 
 function MermaidInner({ source }: MermaidBlockProps): ReactElement {
   const reactId = useId().replace(/:/g, '');
+  const phase = useMarkdownRenderingPhase();
   const [state, setState] = useState<MermaidRenderState>({ status: 'loading' });
 
   useEffect(() => {
     let cancelled = false;
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    if (phase === 'streaming') {
+      setState({ status: 'loading' });
+      return;
+    }
 
     async function renderDiagram(): Promise<void> {
       timeoutId = setTimeout(() => {
@@ -90,7 +97,15 @@ function MermaidInner({ source }: MermaidBlockProps): ReactElement {
         clearTimeout(timeoutId);
       }
     };
-  }, [source, reactId]);
+  }, [source, reactId, phase]);
+
+  if (phase === 'streaming') {
+    return (
+      <pre className="md-code" data-testid="mermaid-stream-source">
+        <code data-language="mermaid">{source}</code>
+      </pre>
+    );
+  }
 
   if (state.status === 'loading') {
     return (

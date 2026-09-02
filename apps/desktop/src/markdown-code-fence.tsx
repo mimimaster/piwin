@@ -47,13 +47,6 @@ function FenceBody(props: MarkdownCodeFenceProps): ReactElement {
   const streamMode = props.renderingPhase === 'streaming';
 
   if (isMermaidFenceLanguage(props.language)) {
-    if (streamMode) {
-      return (
-        <pre className="md-code" data-testid="mermaid-stream-source">
-          <code data-language="mermaid">{props.source}</code>
-        </pre>
-      );
-    }
     return <MermaidBlock source={props.source} />;
   }
 

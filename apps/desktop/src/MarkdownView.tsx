@@ -15,6 +15,7 @@ import {
 } from './markdown-streamdown.js';
 import { escapeRawHtmlInMarkdown } from './markdown-html-escape.js';
 import { rewriteLocalFileMarkdownLinks } from './markdown-local-links.js';
+import { MarkdownRenderingPhaseProvider } from './markdown-rendering-phase.js';
 
 export type { MarkdownRenderingPhase } from './markdown-code-fence.js';
 
@@ -239,25 +240,27 @@ export function MarkdownView({
   );
 
   return (
-    <Streamdown
-      className={shouldShowStreamingCaret ? 'markdown has-stream-caret' : 'markdown'}
-      // Live tokens stay on Streamdown's streaming tree. `static` skips remend
-      // and re-parses a finished document on every delta. The animate object
-      // only disables startTransition; isAnimating stays false so word spans
-      // are never injected.
-      mode={streamdownMode}
-      parseMarkdownIntoBlocksFn={parseStreamdownAsSingleDocument}
-      parseIncompleteMarkdown={streamMode}
-      isAnimating={false}
-      animated={STREAMDOWN_IMMEDIATE_STREAMING}
-      plugins={STREAMDOWN_PLUGINS}
-      components={streamdownComponents}
-      controls={false}
-      lineNumbers={false}
-      skipHtml
-      linkSafety={MARKDOWN_LINK_SAFETY}
-    >
-      {streamdownTextForRender}
-    </Streamdown>
+    <MarkdownRenderingPhaseProvider phase={phase}>
+      <Streamdown
+        className={shouldShowStreamingCaret ? 'markdown has-stream-caret' : 'markdown'}
+        // Live tokens stay on Streamdown's streaming tree. `static` skips remend
+        // and re-parses a finished document on every delta. The animate object
+        // only disables startTransition; isAnimating stays false so word spans
+        // are never injected.
+        mode={streamdownMode}
+        parseMarkdownIntoBlocksFn={parseStreamdownAsSingleDocument}
+        parseIncompleteMarkdown={streamMode}
+        isAnimating={false}
+        animated={STREAMDOWN_IMMEDIATE_STREAMING}
+        plugins={STREAMDOWN_PLUGINS}
+        components={streamdownComponents}
+        controls={false}
+        lineNumbers={false}
+        skipHtml
+        linkSafety={MARKDOWN_LINK_SAFETY}
+      >
+        {streamdownTextForRender}
+      </Streamdown>
+    </MarkdownRenderingPhaseProvider>
   );
 }
