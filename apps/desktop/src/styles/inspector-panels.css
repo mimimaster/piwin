@@ -275,7 +275,7 @@
   font-weight: 700;
   color: var(--text-4);
   text-transform: uppercase;
-  letter-spacing: 0.07em;
+  letter-spacing: var(--tracking-micro);
   flex-shrink: 0;
 }
 

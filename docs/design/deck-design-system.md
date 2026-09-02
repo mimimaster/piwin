@@ -145,10 +145,14 @@ Columns: `--rail-w` 46 · `--sidebar-w` 246 · `--inspector-w` 320 · `--measure
 | `--fs-micro` | 10px | Section labels — uppercase, `600`, `0.09em` tracking, `--text-3` |
 | `--fs-mono` | 11.5px | Paths, counts, durations, code — tabular, `0.01em` |
 | `--fs-chrome` | 12.5px | All chrome: sidebar, buttons, tabs, status |
-| `--fs-body` | 14.5px | Transcript, at `1.68` line height |
+| `--fs-body` | 13.5px | Chrome that reads as sentences — notices, descriptions, card copy |
+| `--chat-font-size` | 14.5px | Transcript prose, at `--chat-line-height` `1.68` |
 
-The body size is a deliberate increase from the current 13.5px/1.45. Sessions run for
-hours; the stage is a reading surface and was set too tight.
+Transcript prose does **not** size from `--fs-body`. It is a user preference: App writes
+`--chat-font-size` / `--chat-line-height` inline from the Appearance setting, defaulting to
+14.5px / 1.68. That default is a deliberate increase over the pre-Deck 13.5px/1.45 — sessions
+run for hours and the stage is a reading surface that was set too tight. `--fs-body` keeps
+the 13.5px step for the chrome rows that read as sentences rather than as labels.
 
 **Micro-labels** are the signature chrome device. Uppercase, tracked, tiny, muted —
 they mark every section (`ACTIVE`, `ASSISTANT`, `PLAN`, `WORKING TREE`) and are what

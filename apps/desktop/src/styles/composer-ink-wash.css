@@ -309,7 +309,7 @@ html[data-theme-visual-style='ink-wash'] .thinking-effort-section-title {
   color: rgba(214, 185, 140, 0.85) !important;
   font-size: 11px !important;
   font-weight: 700 !important;
-  letter-spacing: 0.08em !important;
+  letter-spacing: var(--tracking-micro) !important;
 }
 
 html[data-theme-visual-style='ink-wash'] .thinking-effort-active-tag {
