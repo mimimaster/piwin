@@ -99,10 +99,23 @@ export function deriveRunStatus(input: DeriveRunStatusInput): RunStatusView {
   // ADR 0040: cold prompt waiting for runtime capacity — subtle restoring phase.
   if (activePhase === 'waiting-resource') {
     const isZh = input.locale === 'zh-CN';
+    const waitingExecution = input.chat.activeRunPhaseDetail === 'execution-slot';
     return {
       kind: 'waiting-resource',
-      label: isZh ? '等待运行时容量' : 'Waiting for runtime capacity',
-      summary: isZh ? '等待运行时容量…' : 'Waiting for runtime capacity…',
+      label: waitingExecution
+        ? isZh
+          ? '等待执行槽位'
+          : 'Waiting for a run slot'
+        : isZh
+          ? '等待运行时容量'
+          : 'Waiting for runtime capacity',
+      summary: waitingExecution
+        ? isZh
+          ? '任务已接受，正在等待执行槽位…'
+          : 'The run was accepted and is waiting for an execution slot…'
+        : isZh
+          ? '任务已接受，正在等待运行时容量…'
+          : 'The run was accepted and is waiting for runtime capacity…',
       ...baseCounts,
       canStop: true,
       ...(input.chat.activeRunStartedAt !== null

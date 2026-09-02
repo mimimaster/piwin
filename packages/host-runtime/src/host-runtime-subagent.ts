@@ -5,7 +5,11 @@
 
 import { join } from 'node:path';
 import { WorkerTaskRunner } from '@piwin/agent-host';
-import { ABSOLUTE_MAX_RESIDENT_RUNTIMES, formatError } from '@piwin/contracts';
+import {
+  formatError,
+  DEFAULT_MAX_CONCURRENT_RUNS,
+  createDefaultSubagentConfig,
+} from '@piwin/contracts';
 import { createSubagentWorkerAdmission } from './subagent-worker-admission.js';
 import { removeWorktree, integrateWorktreeChanges, isWorktreeBaseClean } from '@piwin/git';
 
@@ -131,14 +135,16 @@ export function composeSubagentOrchestrator(deps: HostRuntimeKernel): void {
     },
   });
 
-  // Create the runtime resource coordinator. The worker supervisor reports
-  // processIsolation=true, so effective concurrency equals the configured quota.
-  const supervisorStatus = deps.agentWorkerSupervisor.getStatus();
-  deps.runtimeResourceCoordinator = createRuntimeResourceCoordinator({
-    configuredMaxConcurrency: deps.subagentQuota,
-    hardCapPerBatch: ABSOLUTE_MAX_RESIDENT_RUNTIMES,
-    processIsolation: supervisorStatus.processIsolation,
-  });
+  // Create the runtime resource coordinator from product execution config,
+  // never from Worker Supervisor capacity.
+  if (!deps.runtimeResourceCoordinator) {
+    deps.runtimeResourceCoordinator = createRuntimeResourceCoordinator({
+      configuredMaxConcurrentRuns: DEFAULT_MAX_CONCURRENT_RUNS,
+      subagentMaxConcurrency: createDefaultSubagentConfig().maxConcurrency,
+      processIsolation: deps.agentWorkerSupervisor.getStatus().processIsolation,
+      residentRuntimeLimit: deps.residencyController.getMaxResidentRuntimes(),
+    });
+  }
 
   // Create the orchestrator with a dynamic generation ID getter.
   deps.subagentOrchestrator = new SubagentOrchestrator({

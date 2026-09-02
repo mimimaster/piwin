@@ -164,6 +164,11 @@ describe('Session runtime residency integration (WP8 / ADR 0040)', () => {
           input: { text: `hello session ${index}` },
         });
         expect(prompted.success).toBe(true);
+        await waitForGeneration(runtime, sessionId);
+        await waitForResources(
+          runtime,
+          (data) => data.counts.busy === 0 && data.execution.activeRuns === 0,
+        );
         await waitForIdleOrCold(runtime, sessionId);
 
         const resources = await runtime.handleCommand({ type: 'host/runtime-resources' });
@@ -231,8 +236,8 @@ describe('Session runtime residency integration (WP8 / ADR 0040)', () => {
     const sessionA = (coldA.data as { sessionId: string }).sessionId;
     const sessionB = (coldB.data as { sessionId: string }).sessionId;
 
-    // session/create materializes a runtime; suspend A/B so they are cold with
-    // durable history only (two history viewers).
+    // Prompt seeds durable history, then suspend A/B so they are cold with
+    // history only (two history viewers). create itself does not activate.
     for (const [sessionId, text] of [
       [sessionA, 'history for A'],
       [sessionB, 'history for B'],
@@ -270,6 +275,11 @@ describe('Session runtime residency integration (WP8 / ADR 0040)', () => {
       input: { text: 'stay busy' },
     });
     expect(busyPrompt.success).toBe(true);
+    await waitForGeneration(runtime, busyId);
+    await waitForResources(
+      runtime,
+      (data) => data.counts.busy === 0 && data.execution.activeRuns === 0,
+    );
     await waitForIdleOrCold(runtime, busyId);
     // Hold the third session busy without relying on the hang fixture (which
     // bypasses ProductAgentHost generation registration).
@@ -341,24 +351,7 @@ describe('Session runtime residency integration (WP8 / ADR 0040)', () => {
     }
     const holderId = (first.data as { sessionId: string }).sessionId;
     const waiterId = (second.data as { sessionId: string }).sessionId;
-    await waitForGeneration(runtime, holderId);
-    await waitForGeneration(runtime, waiterId);
-    // Capture generation ids before any prompt can trigger idle eviction of
-    // the peer session under a tight budget.
-    const holderGenerationAtCreate = generationOf(runtime, holderId);
-    const waiterGenerationAtCreate = generationOf(runtime, waiterId);
-
-    // If the waiter was already cold-evicted while holder was busy, skip the
-    // explicit suspend; otherwise suspend it for a deterministic cold prompt.
-    if (residencyOf(runtime).getResidency(waiterId) !== 'cold') {
-      // Pin holder busy first so max-idle eviction cannot race with suspend.
-      residencyOf(runtime).markBusy(holderId, holderGenerationAtCreate);
-      expect(
-        await residencyOf(runtime).requestSuspend(waiterId, waiterGenerationAtCreate, 'manual'),
-      ).toBe(true);
-      residencyOf(runtime).markIdle(holderId, holderGenerationAtCreate);
-    }
-    await waitForIdleOrCold(runtime, waiterId);
+    expect(residencyOf(runtime).getResidency(holderId)).toBe('cold');
     expect(residencyOf(runtime).getResidency(waiterId)).toBe('cold');
 
     const holderPrompt = await runtime.handleCommand({
@@ -367,11 +360,16 @@ describe('Session runtime residency integration (WP8 / ADR 0040)', () => {
       input: { text: 'hold capacity' },
     });
     expect(holderPrompt.success).toBe(true);
+    await waitForGeneration(runtime, holderId);
+    await waitForResources(
+      runtime,
+      (data) => data.counts.busy === 0 && data.execution.activeRuns === 0,
+    );
     await waitForIdleOrCold(runtime, holderId);
     await waitForIdleOrCold(runtime, waiterId);
     expect(residencyOf(runtime).getResidency(waiterId)).toBe('cold');
 
-    // Cold projection stays truthful after suspension (WP7 P1).
+    // Newly created waiter stays cold until its own prompt; no runtime yet.
     const coldStatus = await runtime.handleCommand({
       type: 'session/runtime-status',
       sessionId: waiterId,
@@ -381,7 +379,6 @@ describe('Session runtime residency integration (WP8 / ADR 0040)', () => {
       data: {
         status: {
           residency: 'cold',
-          lastEvictionReason: 'manual',
         },
       },
     });
@@ -443,5 +440,4 @@ describe('Session runtime residency integration (WP8 / ADR 0040)', () => {
     residencyOf(runtime).markIdle(holderId, holderGenerationId);
     await runtime.dispose();
   }, 60_000);
-
 });

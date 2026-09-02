@@ -9,6 +9,7 @@ import {
   createDefaultPromptsConfig,
   createDefaultSkillsConfig,
   createDefaultSubagentConfig,
+  createDefaultExecutionConfig,
   createDefaultWalkthroughConfig,
   createDefaultWebConfig,
   DEFAULT_ATTACHMENT_ALLOWED_MIME_TYPES,
@@ -39,6 +40,7 @@ export function createSettingsViewConfig(): PiwinConfig {
     marketplace: createDefaultMarketplaceConfig(),
     walkthrough: createDefaultWalkthroughConfig(),
     subagents: createDefaultSubagentConfig(),
+    execution: createDefaultExecutionConfig(),
     permissions: createDefaultPermissionConfig(),
   };
 }
@@ -70,11 +72,17 @@ export function mergeSettingsViewConfig(partial: unknown): PiwinConfig {
     artifact:
       artifactRecord === undefined
         ? fallback.artifact
-        : ({ ...fallback.artifact, ...(artifactRecord as Record<string, unknown>) } as PiwinConfig['artifact']),
+        : ({
+            ...fallback.artifact,
+            ...(artifactRecord as Record<string, unknown>),
+          } as PiwinConfig['artifact']),
     web:
       webRecord === undefined
         ? (fallback.web as WebConfig)
-        : ({ ...(fallback.web as WebConfig), ...(webRecord as Record<string, unknown>) } as WebConfig),
+        : ({
+            ...(fallback.web as WebConfig),
+            ...(webRecord as Record<string, unknown>),
+          } as WebConfig),
   };
   if (typeof record.defaultProviderId === 'string') {
     result.defaultProviderId = record.defaultProviderId;
@@ -151,6 +159,12 @@ export function mergeSettingsViewConfig(partial: unknown): PiwinConfig {
     result.subagents = {
       ...fallback.subagents,
       ...(record.subagents as NonNullable<PiwinConfig['subagents']>),
+    };
+  }
+  if (record.execution && typeof record.execution === 'object') {
+    result.execution = {
+      ...fallback.execution,
+      ...(record.execution as NonNullable<PiwinConfig['execution']>),
     };
   }
   if (record.remote && typeof record.remote === 'object') {
@@ -237,10 +251,7 @@ export function knowledgeWriteRetained(sent: PiwinConfig, stored: PiwinConfig): 
   const sentExtras = sent.notes?.knowledgeExtras;
   const storedExtras = stored.notes?.knowledgeExtras;
   if (sentKnowledge?.reranker?.enabled === true) {
-    if (
-      storedKnowledge?.reranker?.enabled !== true &&
-      storedExtras?.reranker?.enabled !== true
-    ) {
+    if (storedKnowledge?.reranker?.enabled !== true && storedExtras?.reranker?.enabled !== true) {
       return false;
     }
   }

@@ -62,24 +62,28 @@ export function activateSessionRuntime(
   }
   const existing = deps.sessions.get(sessionId);
   if (existing) {
-    if (runId !== undefined) {
-      const run = deps.runRegistry.get(runId);
-      const generationId = deps.runtimeController.getStatus(sessionId).generationId;
-      if (run?.runtimeGenerationId === undefined && generationId !== undefined) {
-        const attached = deps.runRegistry.attachRuntimeGeneration(runId, generationId);
-        if (!attached.ok) {
-          throw new Error(
-            `runtime generation attach failed for ${sessionId}: ${runId} -> ${generationId} (${attached.reason})`,
-          );
-        }
-        deps.residencyController.markBusy(sessionId, generationId);
-      }
-    }
+    attachRunToResidentGeneration(deps, sessionId, runId);
     return Promise.resolve(existing);
   }
   const inFlight = deps.sessionActivationPromises.get(sessionId);
   if (inFlight) {
-    return inFlight;
+    if (runId !== undefined) {
+      void deps.publishWaitingResourceWhileQueued(runId);
+    }
+    return inFlight
+      .then((handle) => {
+        attachRunToResidentGeneration(deps, sessionId, runId);
+        return handle;
+      })
+      .catch((error: unknown) => {
+        // The first caller owns the activation signal. If that Run is
+        // superseded while a cold activation is still in flight, retry once
+        // under the newer caller's signal instead of inheriting its abort.
+        if (runId !== undefined && signal?.aborted !== true && isActivationAbort(error)) {
+          return deps.activateSessionRuntime(sessionId, runId, signal, excludeSeedMessageId);
+        }
+        throw error;
+      });
   }
   const rootDir = getPiwinRoot(deps.options.piwinRoot);
   const activation = withSessionOperationLock({
@@ -97,11 +101,52 @@ export function activateSessionRuntime(
       }
       return deps.doActivateSessionRuntime(sessionId, runId, signal, excludeSeedMessageId);
     },
-  }).finally(() => {
-    deps.sessionActivationPromises.delete(sessionId);
-  });
+  })
+    .then((handle) => {
+      attachRunToResidentGeneration(deps, sessionId, runId);
+      return handle;
+    })
+    .finally(() => {
+      deps.sessionActivationPromises.delete(sessionId);
+    });
   deps.sessionActivationPromises.set(sessionId, activation);
+  if (runId !== undefined) {
+    void deps.publishWaitingResourceWhileQueued(runId);
+  }
   return activation;
+}
+
+function isActivationAbort(error: unknown): boolean {
+  return error instanceof Error && error.message === 'aborted';
+}
+
+function attachRunToResidentGeneration(
+  deps: HostRuntimeKernel,
+  sessionId: string,
+  runId: string | undefined,
+): void {
+  if (runId === undefined) {
+    return;
+  }
+  const run = deps.runRegistry.get(runId);
+  if (
+    run === undefined ||
+    (run.status !== 'queued' && run.status !== 'running') ||
+    run.runtimeGenerationId !== undefined
+  ) {
+    return;
+  }
+  const generationId = deps.runtimeController.getStatus(sessionId).generationId;
+  if (generationId === undefined) {
+    return;
+  }
+  const attached = deps.runRegistry.attachRuntimeGeneration(runId, generationId);
+  if (!attached.ok) {
+    throw new Error(
+      `runtime generation attach failed for ${sessionId}: ${runId} -> ${generationId} (${attached.reason})`,
+    );
+  }
+  deps.residencyController.markBusy(sessionId, generationId);
 }
 
 export async function doActivateSessionRuntime(
@@ -351,7 +396,7 @@ export async function publishWaitingResourceWhileQueued(
   for (let attempt = 0; attempt < 100; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 10));
     if (deps.residencyController.getCounts().waiterCount > 0) {
-      deps.runRegistry.updatePhase(runId, 'waiting-resource');
+      deps.runRegistry.updatePhase(runId, 'waiting-resource', 'runtime-capacity');
       return;
     }
   }

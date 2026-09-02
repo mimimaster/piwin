@@ -11,6 +11,8 @@ import {
   formatError,
   LEGACY_LOCAL_SINK_ID,
   normalizeSessionRuntimeRetentionConfig,
+  DEFAULT_MAX_CONCURRENT_RUNS,
+  createDefaultSubagentConfig,
 } from '@piwin/contracts';
 import { createExtensionRevisionStore } from '@piwin/extensions';
 import { createMcpLifecycleManager } from '@piwin/mcp';
@@ -36,6 +38,7 @@ import { createSubagentResultService } from './subagent-result-service.js';
 import { descriptorsFromTools } from './tools/build-session-host-tools.js';
 import { toolFamilyIndex } from './tools/tool-family-index.js';
 import { SubagentOrchestrator } from './subagent-orchestrator.js';
+import { createRuntimeResourceCoordinator } from './runtime-resource-coordinator.js';
 import { acquirePiwinRootLease } from './piwin-root-lease.js';
 import { openLocalAuthUrl } from './open-local-auth-url.js';
 import { SubscriptionAuthService } from './subscription-auth-service.js';
@@ -226,12 +229,21 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
     // cached and marked incomplete when missing/stale.
     deps.runtimeRetention = normalizeSessionRuntimeRetentionConfig(undefined);
     deps.runtimeMemoryHighWaterMiB = deriveMemoryHighWaterMiB(totalmem() / 1024 / 1024);
+    deps.runtimeResourceCoordinator = createRuntimeResourceCoordinator({
+      configuredMaxConcurrentRuns: DEFAULT_MAX_CONCURRENT_RUNS,
+      subagentMaxConcurrency: createDefaultSubagentConfig().maxConcurrency,
+    });
     deps.residencyController = createSessionRuntimeResidencyController({
       retention: {
         ...deps.runtimeRetention,
         memoryHighWaterMiB: deps.runtimeMemoryHighWaterMiB,
       },
-      resolveMaxResidentRuntimes: () => deps.workerPoolSize,
+      resolveMaxResidentRuntimes: () => {
+        return (
+          deps.runtimeResourceCoordinator?.getStatus().configuredMaxConcurrentRuns ??
+          DEFAULT_MAX_CONCURRENT_RUNS
+        );
+      },
       isRuntimeProtected: (sessionId) => deps.isSessionRuntimeProtected(sessionId),
       onResidencyChanged: (entry) => {
         deps.runtimeController.setResidency(
@@ -400,6 +412,7 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
         }
       },
       getCurrentRunId: () => deps.runExecutionContext.getStore(),
+      ...(options.testFixture !== undefined ? { testFixture: options.testFixture } : {}),
       getSubscriptionCompileContext: async () => {
         const accounts = (await deps.subscriptionAuth?.chatResolveInput()) ?? { accounts: [] };
         return {

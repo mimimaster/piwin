@@ -176,7 +176,9 @@ export function createSettingsSnapshot(config: PiwinConfig): SettingsSnapshot {
 }
 
 export function createSettingsDomainRevision(value: unknown): string {
-  return createHash('sha256').update(JSON.stringify(value ?? null)).digest('hex');
+  return createHash('sha256')
+    .update(JSON.stringify(value ?? null))
+    .digest('hex');
 }
 
 export function createSettingsDomainRevisions(
@@ -214,6 +216,7 @@ export function createSettingsDomainRevisions(
     'permissions',
     'walkthrough',
     'subagents',
+    'execution',
     'remote',
   ] as const satisfies readonly SettingsDomain[]) {
     revisions[domain] = createSettingsDomainRevision(readConfigDomain(normalized, domain));
@@ -254,9 +257,7 @@ export function createRuntimeSettingsRevision(config: PiwinConfig): string {
     schemaVersion: PIWIN_SETTINGS_SCHEMA_VERSION,
     config: runtimeConfig,
   };
-  return createHash('sha256')
-    .update(JSON.stringify(canonicalRuntimeConfig))
-    .digest('hex');
+  return createHash('sha256').update(JSON.stringify(canonicalRuntimeConfig)).digest('hex');
 }
 
 /**
@@ -337,6 +338,7 @@ export function classifySettingsImpact(
     'replyWriter',
     'automation',
     'desktop',
+    'execution',
   ]);
   const hostRestartDomains = new Set<SettingsDomain>(['hostMode', 'agentMock']);
   const timing = hostRestartDomains.has(domain)

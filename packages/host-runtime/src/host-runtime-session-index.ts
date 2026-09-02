@@ -15,7 +15,7 @@ import {
   setSessionAutoName,
   upsertSessionRecord,
 } from '@piwin/session';
-import { createDelayedSessionHandle } from './delayed-session-fixture.js';
+import { createTestFixtureSession } from './delayed-session-fixture.js';
 import { createProductSessionId, createRuntimeGenerationId } from './product-agent-host.js';
 import { loadPiwinConfig } from './config-store.js';
 import { maybeAutoNameSession } from './session-naming-service.js';
@@ -278,78 +278,58 @@ export async function createSession(
   input: CreateSessionInput,
   options: CreateSessionOptions = {},
 ): Promise<SessionHandle> {
-  switch (deps.options.testFixture) {
-    case 'hang-until-abort':
-      return createDelayedSessionHandle({
-        ...(input.projectPath ? { projectPath: input.projectPath } : {}),
-        delays: { firstTokenMs: 60_000, hangUntilAbort: true, cancellationAckMs: 200 },
-        chunkCount: 0,
+  if (deps.options.testFixture !== undefined) {
+    return createTestFixtureSession(deps.options.testFixture, {
+      ...(input.projectPath ? { projectPath: input.projectPath } : {}),
+    });
+  }
+  // Mock hosts expose no `browser_*` tools. Real hosts need the passive
+  // BrowserSession service registered before the Pi session so the tools
+  // appear; creating/subscribing it does not launch Chromium (ADR 0020).
+  // Best-effort: service initialization failure must not block session
+  // creation — the tools simply will not appear.
+  if (deps.options.mock !== true) {
+    try {
+      await deps.ensureBrowserSession();
+    } catch (error) {
+      const detail = formatError(error);
+      deps.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `browser session init failed: ${detail}`,
       });
-    case 'slow-first-token':
-      return createDelayedSessionHandle({
-        ...(input.projectPath ? { projectPath: input.projectPath } : {}),
-        delays: { firstTokenMs: 750 },
-        chunkCount: 1,
-      });
-    case 'high-rate-tool-output':
-      return createDelayedSessionHandle({
-        ...(input.projectPath ? { projectPath: input.projectPath } : {}),
-        chunkCount: 1,
-        toolOutputBytes: 10 * 1024 * 1024,
-        toolOutputChunkBytes: 64 * 1024,
-      });
-    case undefined: {
-      // Mock hosts expose no `browser_*` tools. Real hosts need the passive
-      // BrowserSession service registered before the Pi session so the tools
-      // appear; creating/subscribing it does not launch Chromium (ADR 0020).
-      // Best-effort: service initialization failure must not block session
-      // creation — the tools simply will not appear.
-      if (deps.options.mock !== true) {
-        try {
-          await deps.ensureBrowserSession();
-        } catch (error) {
-          const detail = formatError(error);
-          deps.push({
-            type: 'host/log',
-            level: 'warn',
-            message: `browser session init failed: ${detail}`,
-          });
-        }
-      }
-      const sessionId = createProductSessionId();
-      const runtimeGenerationId = createRuntimeGenerationId();
-      await deps.refreshWorkerRssSample();
-      const admission = await deps.residencyController.beginActivation(
-        sessionId,
-        runtimeGenerationId,
-        new AbortController().signal,
-      );
-      if (!admission.ok) {
-        const error = new Error(
-          admission.code === 'memory-pressure'
-            ? `runtime-memory-pressure: ${admission.message}`
-            : `activation aborted: ${admission.message}`,
-        );
-        (error as { code?: string }).code =
-          admission.code === 'memory-pressure' ? 'runtime-memory-pressure' : admission.code;
-        throw error;
-      }
-      deps.pendingDirectActivations.set(sessionId, runtimeGenerationId);
-      try {
-        // Direct create and cold activation share the same stable-identity
-        // backend path. The reservation remains `activating` until bindSession
-        // has installed the recorder/subscription and publishes the handle.
-        // Lease registration waits for bindSession success so a failed bind
-        // cannot leave a foreign Host thinking this session is live.
-        return await deps.host.activateSession(sessionId, input, runtimeGenerationId, options);
-      } catch (error) {
-        deps.pendingDirectActivations.delete(sessionId);
-        deps.residencyController.abortActivation(sessionId, runtimeGenerationId);
-        await deps.host.dropSession(sessionId).catch(() => undefined);
-        throw error;
-      }
     }
-    default:
-      throw new Error(`Unsupported host test fixture: ${deps.options.testFixture}`);
+  }
+  const sessionId = createProductSessionId();
+  const runtimeGenerationId = createRuntimeGenerationId();
+  await deps.refreshWorkerRssSample();
+  const admission = await deps.residencyController.beginActivation(
+    sessionId,
+    runtimeGenerationId,
+    new AbortController().signal,
+  );
+  if (!admission.ok) {
+    const error = new Error(
+      admission.code === 'memory-pressure'
+        ? `runtime-memory-pressure: ${admission.message}`
+        : `activation aborted: ${admission.message}`,
+    );
+    (error as { code?: string }).code =
+      admission.code === 'memory-pressure' ? 'runtime-memory-pressure' : admission.code;
+    throw error;
+  }
+  deps.pendingDirectActivations.set(sessionId, runtimeGenerationId);
+  try {
+    // Direct create and cold activation share the same stable-identity
+    // backend path. The reservation remains `activating` until bindSession
+    // has installed the recorder/subscription and publishes the handle.
+    // Lease registration waits for bindSession success so a failed bind
+    // cannot leave a foreign Host thinking this session is live.
+    return await deps.host.activateSession(sessionId, input, runtimeGenerationId, options);
+  } catch (error) {
+    deps.pendingDirectActivations.delete(sessionId);
+    deps.residencyController.abortActivation(sessionId, runtimeGenerationId);
+    await deps.host.dropSession(sessionId).catch(() => undefined);
+    throw error;
   }
 }

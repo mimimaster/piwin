@@ -425,6 +425,29 @@ export class SubagentOrchestrator {
     return this.activeBatches.has(runId);
   }
 
+  /** Get effective concurrency status. */
+  getConcurrencyStatus(): {
+    configured: number;
+    effective: number;
+    processIsolation: boolean;
+  } {
+    if (this.resourceCoordinator) {
+      const status = this.resourceCoordinator.getStatus();
+      return {
+        configured: status.configuredMaxConcurrentRuns,
+        effective: status.effectiveMaxConcurrentRuns,
+        processIsolation: status.processIsolation,
+      };
+    }
+    // Without a resource coordinator, report based on task runner capability.
+    const isolated = this.taskRunner.capabilities.processIsolation;
+    return {
+      configured: 4,
+      effective: isolated ? 4 : 1,
+      processIsolation: isolated,
+    };
+  }
+
   /**
    * Get a full projection of a batch: status + per-task results.
    * Returns a terminal projection when the batch is not active (already

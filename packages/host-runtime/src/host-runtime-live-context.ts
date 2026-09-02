@@ -241,6 +241,18 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
     },
     settlePendingExtensionUiForSession: (sessionId) =>
       deps.settlePendingExtensionUiForSession(sessionId),
+    acquireExecutionLease: async (request) => {
+      const coordinator = deps.runtimeResourceCoordinator;
+      if (!coordinator) {
+        return { release: () => undefined };
+      }
+      const lease = await coordinator.acquire(request);
+      return {
+        release: () => {
+          coordinator.release(lease);
+        },
+      };
+    },
     setSessionPermissionOverride: (sessionId, mode) =>
       deps.setSessionPermissionOverride(sessionId, mode),
     clearSessionPermissionOverride: (sessionId) => deps.clearSessionPermissionOverride(sessionId),

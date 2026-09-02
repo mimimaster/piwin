@@ -385,6 +385,38 @@ export function createDefaultSubagentConfig(): SubagentConfig {
   };
 }
 
+/**
+ * Product execution admission (local Host). Caps simultaneous leaf Runs
+ * (`session-turn` / `subagent-task`), not Session count or Worker count.
+ */
+export type ExecutionConfig = {
+  /** Default 8. Legal range 1–8 in v1. */
+  maxConcurrentRuns: number;
+};
+
+/** Default simultaneous leaf executions on a local Host. */
+export const DEFAULT_MAX_CONCURRENT_RUNS = 8;
+
+/** v1 product safety ceiling for {@link ExecutionConfig.maxConcurrentRuns}. */
+export const MAX_CONCURRENT_RUNS = 8;
+
+export function createDefaultExecutionConfig(): ExecutionConfig {
+  return { maxConcurrentRuns: DEFAULT_MAX_CONCURRENT_RUNS };
+}
+
+/** Clamp a user-provided execution block; omitted config becomes the default 8. */
+export function normalizeExecutionConfig(
+  input: Partial<ExecutionConfig> | undefined,
+): ExecutionConfig {
+  const raw = input?.maxConcurrentRuns;
+  if (raw === undefined || !Number.isFinite(raw)) {
+    return createDefaultExecutionConfig();
+  }
+  return {
+    maxConcurrentRuns: Math.max(1, Math.min(MAX_CONCURRENT_RUNS, Math.floor(raw))),
+  };
+}
+
 /** Restorable desktop navigation state, stored with the product config. */
 export type DesktopComposerProfile = {
   /** Per-next-turn model selection for the Desktop composer only. */
@@ -433,7 +465,7 @@ export type SessionRuntimeRetentionConfig = {
   idleTtlSeconds: number;
   /** Default 2. Idle runtimes above this count are LRU candidates immediately. */
   maxIdleRuntimes: number;
-  /** Omitted means derived from effective execution concurrency and backend capacity. */
+  /** Omitted means derived from `execution.maxConcurrentRuns`. Never from Worker or Sub Agent quotas. */
   maxResidentRuntimes?: number;
   /** Omitted means an adaptive Host + worker RSS budget. */
   memoryHighWaterMiB?: number;
@@ -474,10 +506,7 @@ function normalizeMaxConcurrency(maxConcurrency: number): number {
  */
 export function deriveWorkerPoolSize(maxConcurrency: number): number {
   const n = normalizeMaxConcurrency(maxConcurrency);
-  return Math.max(
-    2,
-    Math.min(ABSOLUTE_MAX_RESIDENT_RUNTIMES, n + WORKER_POOL_FOREGROUND_RESERVE),
-  );
+  return Math.max(2, Math.min(ABSOLUTE_MAX_RESIDENT_RUNTIMES, n + WORKER_POOL_FOREGROUND_RESERVE));
 }
 
 /**
@@ -674,6 +703,8 @@ export type PiwinConfig = {
   walkthrough?: WalkthroughConfig;
   /** Settings-backed subagent profiles and parallel execution limits. */
   subagents?: SubagentConfig;
+  /** Leaf-run execution admission. Omitted config normalizes to 8. */
+  execution?: ExecutionConfig;
   /** Personal remote gateway (ADR 0027). Default off; W4 future. */
   remote?: RemoteConfig;
 };

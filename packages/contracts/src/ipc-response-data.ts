@@ -110,62 +110,14 @@ export type HostStatusData = {
 };
 
 /**
- * Query-only aggregate residency/resource metrics (ADR 0040 §8).
- *
- * Returned by `host/runtime-resources`. Metrics are aggregate; per-process
- * secrets/PIDs are never exposed. Worker samples may be incomplete.
+ * Canonical runtime-resources types live in `ipc-host-responses.ts`.
+ * Re-exported here so this file does not grow a third copy.
  */
-export type HostRuntimeResourcesData = {
-  /** Resident runtimes by residency state. */
-  counts: {
-    resident: number;
-    idle: number;
-    busy: number;
-    activating: number;
-    suspending: number;
-  };
-  /** Activations queued for capacity (FIFO waiters). */
-  waiterCount: number;
-  /** Effective policy budgets. */
-  budget: {
-    maxResidentRuntimes: number;
-    maxIdleRuntimes: number;
-    memoryHighWaterMiB: number;
-    memoryLowWaterMiB: number;
-  };
-  /** Aggregate RSS in MiB. Incomplete when worker samples are missing/stale. */
-  memory: {
-    hostRssMiB: number;
-    workerRssMiB?: number;
-    /** True when every expected worker sample is fresh. */
-    sampleCompleteness: 'complete' | 'partial' | 'missing';
-  };
-  /** Cumulative eviction/failure counters by reason. */
-  counters: {
-    evictedByIdleTtl: number;
-    evictedByMaxIdle: number;
-    evictedByMaxResident: number;
-    evictedByMemoryPressure: number;
-    memoryPressureFailures: number;
-  };
-  /** Worker process pool (all Pi workers: foreground + subagent + starting). Absent in mock mode. */
-  workers?: {
-    /** Normal pool ceiling = deriveWorkerPoolSize(subagents.maxConcurrency). Shown to users. */
-    pool: number;
-    /** Supervisor process cap = pool + WORKER_REPLACEMENT_HEADROOM (replacement headroom, not shown as pool). */
-    max: number;
-    /** Live worker processes. */
-    active: number;
-    /** Workers still starting; counted against max. */
-    starting: number;
-    /** Task-scoped (subagent) runtimes among active. */
-    subagent: number;
-    /** Effective subagent quota = deriveSubagentQuota(subagents.maxConcurrency). */
-    subagentMax: number;
-    /** Subagent tasks waiting on quota. Pool waits are in top-level waiterCount. */
-    subagentWaiting: number;
-  };
-};
+export type {
+  ExecutionLimitingReason,
+  ExecutionResourceStatus,
+  HostRuntimeResourcesData,
+} from './ipc-host-responses.js';
 
 export type SessionCreateData = {
   sessionId: string;

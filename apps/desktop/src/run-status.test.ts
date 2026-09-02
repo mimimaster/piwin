@@ -140,7 +140,7 @@ describe('deriveRunStatus', () => {
     const status = deriveRunStatus({ chat, tools: [], plan: null, jobs: [] });
     expect(status.kind).toBe('waiting-resource');
     expect(status.label).toBe('Waiting for runtime capacity');
-    expect(status.summary).toMatch(/Waiting for runtime capacity/);
+    expect(status.summary).toMatch(/waiting for runtime capacity/i);
     expect(status.canStop).toBe(true);
 
     const zh = deriveRunStatus({
@@ -154,4 +154,25 @@ describe('deriveRunStatus', () => {
     expect(zh.summary).toContain('等待运行时容量');
   });
 
+  it('maps waiting-resource execution-slot to an explicit queue status', () => {
+    const chat = {
+      ...createInitialChatUiState(),
+      activeRunId: 'run-1',
+      activeRunPhase: 'waiting-resource' as const,
+      activeRunPhaseDetail: 'execution-slot',
+      activeRunStartedAt: Date.now() - 500,
+      runPhase: 'streaming' as const,
+      streaming: true,
+    };
+    const status = deriveRunStatus({ chat, tools: [], plan: null, jobs: [] });
+    expect(status.label).toBe('Waiting for a run slot');
+    const zh = deriveRunStatus({
+      chat,
+      tools: [],
+      plan: null,
+      jobs: [],
+      locale: 'zh-CN',
+    });
+    expect(zh.label).toBe('等待执行槽位');
+  });
 });

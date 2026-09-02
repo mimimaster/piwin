@@ -25,7 +25,13 @@ export async function dispatchTask(
 ): Promise<void> {
   let lease: SubagentWorkspaceLease | undefined;
   let resourceLease:
-    { resourceKind: 'agent-execution'; runId: string; acquiredAt: string } | undefined;
+    | {
+        resourceKind: 'agent-execution';
+        runId: string;
+        executionClass: 'foreground' | 'subagent';
+        acquiredAt: string;
+      }
+    | undefined;
   let taskRunId: string | undefined;
   let childSessionId: string | undefined;
   const runtimeGenerationId = batchState.runtimeGenerationId;
@@ -51,7 +57,11 @@ export async function dispatchTask(
       if (!signal) {
         throw new Error(`batch run signal unavailable: ${runId}`);
       }
-      resourceLease = await deps.resourceCoordinator.acquire(`${runId}:${task.id}`, signal);
+      resourceLease = await deps.resourceCoordinator.acquire({
+        runId: `${runId}:${task.id}`,
+        executionClass: 'subagent',
+        signal,
+      });
     }
 
     lease = await deps.workspaceService.acquire(task);
@@ -176,7 +186,9 @@ export async function dispatchTask(
     ) {
       const applyPolicy = task.applyPolicy ?? 'auto';
       const shouldIntegrate =
-        applyPolicy === 'auto' && task.deliveryIntent !== 'candidate' && task.deliveryIntent !== 'report';
+        applyPolicy === 'auto' &&
+        task.deliveryIntent !== 'candidate' &&
+        task.deliveryIntent !== 'report';
       if (shouldIntegrate) {
         result = await integrateTask(deps, result, lease, {
           signal,
@@ -303,11 +315,7 @@ export async function dispatchTask(
     // normal result path intentionally discards its late output. Persist a
     // cancellation result here so the child session does not remain stuck
     // in the running state and the durable manifest has a complete task.
-    if (
-      batchState.schedulerState.cancelled &&
-      childSessionId &&
-      !batchState.results.has(task.id)
-    ) {
+    if (batchState.schedulerState.cancelled && childSessionId && !batchState.results.has(task.id)) {
       const cancelled: SubagentTaskResult = {
         runId: batchState.runId,
         taskId: task.id,
@@ -361,8 +369,7 @@ async function integrateTask(
   try {
     const integrated = await deps.integrationCoordinator.integrate(result, lease, control);
     if (
-      (integrated.integrationStatus === 'conflict' ||
-        integrated.integrationStatus === 'failed') &&
+      (integrated.integrationStatus === 'conflict' || integrated.integrationStatus === 'failed') &&
       integrated.failure === undefined
     ) {
       return {

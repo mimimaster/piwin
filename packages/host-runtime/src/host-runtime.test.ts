@@ -174,6 +174,7 @@ describe('HostRuntime', () => {
     expect(prompted.success).toBe(true);
     if (!prompted.success) throw new Error(prompted.error);
     const runId = (prompted.data as { runId: string }).runId;
+    await waitForGeneration(runtime, sessionId);
 
     const submitted = await runtime.handleCommand({
       type: 'run/intervention-submit',
@@ -763,6 +764,8 @@ describe('HostRuntime', () => {
     expect(created.success).toBe(true);
     if (!created.success) throw new Error(created.error);
     const sessionId = (created.data as { sessionId: string }).sessionId;
+    await runtime.ensureLiveSession(sessionId);
+    await waitForGeneration(runtime, sessionId);
 
     const enabled = await runtime.handleCommand({
       type: 'extensions/set_enabled',
@@ -778,7 +781,10 @@ describe('HostRuntime', () => {
       sessionId,
       when: 'now',
     });
-    expect(applied.success).toBe(true);
+    expect(
+      applied.success,
+      applied.type === 'response' && !applied.success ? applied.error : undefined,
+    ).toBe(true);
     if (!applied.success) throw new Error(applied.error);
     expect((applied.data as { state: string }).state).toBe('active');
     expect(pushTypes).toContain('extension/catalog-updated');
@@ -839,6 +845,7 @@ describe('HostRuntime', () => {
     expect(prompted.success).toBe(true);
     if (!prompted.success) throw new Error(prompted.error);
     const runId = (prompted.data as { runId: string }).runId;
+    await waitForGeneration(runtime, sessionId);
 
     // The hanging fixture run keeps the session live. Its generation carries
     // the config-derived settings revision; Desktop passes the same value when
@@ -847,7 +854,7 @@ describe('HostRuntime', () => {
     const { createSettingsSnapshot } = await import('./settings/settings-service.js');
     const expectedSettingsRevision = createSettingsSnapshot(
       await loadPiwinConfig(rootDir),
-    ).revision;
+    ).runtimeRevision;
 
     // The run is still in flight; the apply must return immediately with a
     // durable waiting state instead of hanging on the 45s dispatcher deadline.
@@ -1657,7 +1664,14 @@ describe('HostRuntime', () => {
     expect(created.success).toBe(true);
     if (!created.success) throw new Error(created.error);
     const sessionId = (created.data as { sessionId: string }).sessionId;
-    const generationId = generationOf(runtime, sessionId);
+    const prompted = await runtime.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: { text: 'activate before flush failure' },
+    });
+    expect(prompted.success).toBe(true);
+    const generationId = await waitForGeneration(runtime, sessionId);
+    await waitForResidency(runtime, sessionId, 'resident-idle');
     const recorders = (
       runtime as unknown as {
         transcriptRecorders: Map<string, { flush: () => Promise<void> }>;
@@ -1690,10 +1704,16 @@ describe('HostRuntime', () => {
     expect(created.success).toBe(true);
     if (!created.success) throw new Error(created.error);
     const sessionId = (created.data as { sessionId: string }).sessionId;
+    const prompted = await runtime.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: { text: 'activate before generation conflict' },
+    });
+    expect(prompted.success).toBe(true);
+    const generationId = await waitForGeneration(runtime, sessionId);
+    await waitForResidency(runtime, sessionId, 'resident-idle');
     const residency = residencyOf(runtime);
-    expect(
-      await residency.requestSuspend(sessionId, generationOf(runtime, sessionId), 'manual'),
-    ).toBe(true);
+    expect(await residency.requestSuspend(sessionId, generationId, 'manual')).toBe(true);
 
     const registry = (
       runtime as unknown as {
@@ -1792,6 +1812,8 @@ describe('HostRuntime', () => {
     expect(initialData.counts.idle).toBe(0);
     expect(initialData.counts.busy).toBe(0);
     expect(initialData.waiterCount).toBe(0);
+    expect(initialData.execution.effectiveMaxConcurrentRuns).toBe(8);
+    expect(initialData.execution.activeRuns).toBe(0);
     expect(initialData.budget.maxIdleRuntimes).toBe(2);
     expect(initialData.budget.memoryHighWaterMiB).toBeGreaterThanOrEqual(512);
     expect(initialData.memory.hostRssMiB).toBeGreaterThan(0);
@@ -1866,7 +1888,7 @@ describe('HostRuntime', () => {
     await runtime.dispose();
   });
 
-  it('reserves residency capacity before a direct session backend is created', async () => {
+  it('creates sessions without waiting on residency capacity', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-create-admission-'));
     const { savePiwinConfig, createDefaultPiwinConfig } = await import('./config-store.js');
     const config = createDefaultPiwinConfig();
@@ -1887,25 +1909,24 @@ describe('HostRuntime', () => {
     expect(first.success).toBe(true);
     if (!first.success) throw new Error(first.error);
     const firstId = (first.data as { sessionId: string }).sessionId;
-    const residency = residencyOf(runtime);
-    residency.markBusy(firstId, generationOf(runtime, firstId));
 
-    const secondPromise = runtime.handleCommand({
+    const second = await runtime.handleCommand({
       type: 'session/create',
       input: { projectPath: '/tmp/create-admission', sessionName: 'waiter' },
     });
-    for (let attempt = 0; attempt < 100 && residency.getCounts().waiterCount === 0; attempt += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 10));
-    }
-    expect(residency.getCounts().waiterCount).toBe(1);
-    const productSessions = (runtime as unknown as { host: { sessions: Map<string, unknown> } })
-      .host.sessions;
-    expect(productSessions.size).toBe(1);
-
-    residency.markIdle(firstId, generationOf(runtime, firstId));
-    const second = await secondPromise;
     expect(second.success).toBe(true);
-    expect(residency.getCounts().resident).toBe(1);
+    if (!second.success) throw new Error(second.error);
+    const secondId = (second.data as { sessionId: string }).sessionId;
+    expect(secondId).not.toBe(firstId);
+    expect(residencyOf(runtime).getCounts().resident).toBe(0);
+    expect(residencyOf(runtime).getCounts().waiterCount).toBe(0);
+
+    const firstPrompt = await runtime.handleCommand({
+      type: 'session/prompt',
+      sessionId: firstId,
+      input: { text: 'hold the only slot' },
+    });
+    expect(firstPrompt.success).toBe(true);
     await runtime.dispose();
   });
 
@@ -1935,6 +1956,14 @@ describe('HostRuntime', () => {
     expect(created.success).toBe(true);
     if (!created.success) throw new Error(created.error);
     const sessionId = (created.data as { sessionId: string }).sessionId;
+    const prompted = await runtime.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: { text: 'activate before unsubscribe test' },
+    });
+    expect(prompted.success).toBe(true);
+    await waitForGeneration(runtime, sessionId);
+    await waitForResidency(runtime, sessionId, 'resident-idle');
     const unsubscribers = (runtime as unknown as { unsubscribers: Map<string, () => void> })
       .unsubscribers;
     const original = unsubscribers.get(sessionId);
@@ -1964,6 +1993,21 @@ describe('HostRuntime', () => {
     expect(created.success).toBe(true);
     if (!created.success) throw new Error(created.error);
     const sessionId = (created.data as { sessionId: string }).sessionId;
+    const prompted = await runtime.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: { text: 'activate recorder' },
+    });
+    expect(prompted.success).toBe(true);
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const internalsProbe = runtime as unknown as {
+        transcriptRecorders: Map<string, { flush: () => Promise<void> }>;
+      };
+      if (internalsProbe.transcriptRecorders.get(sessionId)) {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
     const internals = runtime as unknown as {
       host: { dispose: () => Promise<void> };
       transcriptRecorders: Map<string, { flush: () => Promise<void> }>;
@@ -2590,9 +2634,6 @@ describe('HostRuntime', () => {
     expect(created.success).toBe(true);
     if (!created.success) throw new Error(created.error);
     const sessionId = (created.data as { sessionId: string }).sessionId;
-
-    // Allow async applyAutoCompactionToSession to settle
-    await new Promise((resolve) => setTimeout(resolve, 20));
 
     const settings = await runtime.handleCommand({
       type: 'session/compaction-settings',
@@ -3274,10 +3315,10 @@ describe('HostRuntime', () => {
     if (!runtimeStatus.success) throw new Error(runtimeStatus.error);
     expect(
       (runtimeStatus.data as { status: { state: string; generationId?: string } }).status,
-    ).toMatchObject({ state: 'live' });
+    ).toMatchObject({ state: 'lazy-shell' });
     expect(
       (runtimeStatus.data as { status: { generationId?: string } }).status.generationId,
-    ).toMatch(/^generation-/);
+    ).toBeUndefined();
 
     const indexPath = getPiwinSessionIndexPath(rootDir);
     const record = await getSessionRecord(indexPath, sessionId);
@@ -3294,6 +3335,7 @@ describe('HostRuntime', () => {
       input: { text: 'hello general' },
     });
     expect(prompted.success).toBe(true);
+    await waitForGeneration(runtime, sessionId);
 
     // Wait for mock stream chunks
     await new Promise((resolve) => setTimeout(resolve, 600));
@@ -3324,7 +3366,7 @@ describe('HostRuntime', () => {
     await runtime.dispose();
   });
 
-  it('warns when session index write fails', async () => {
+  it('fails closed when session index write fails', async () => {
     // Create a piwinRoot where sessions-index is a FILE, not a directory,
     // so upsertSessionRecord fails with ENOTDIR.
     const badRoot = await mkdtemp(join(tmpdir(), 'piwin-bad-root-'));
@@ -3338,19 +3380,16 @@ describe('HostRuntime', () => {
         mock: true,
         piwinRoot: badRoot,
       });
-      // session/create → PiSdkAdapter.createSession → persistSessionMeta →
-      // upsertSessionRecord. With sessions-index as a file, the write fails
-      // and should warn via console.warn instead of crashing.
+      // A durable session must not be acknowledged when its index row cannot
+      // be written. This prevents a client from receiving a ghost session id.
       const result = await runtime.handleCommand({
         type: 'session/create',
         input: {
           projectPath: '/tmp/piwin-test-project',
         },
       });
-      // The session creation should succeed (index write is best-effort).
-      expect(result.success).toBe(true);
-      const indexWarn = warnings.find((message) => message.includes('session index'));
-      expect(indexWarn).toBeDefined();
+      expect(result.success).toBe(false);
+      expect(warnings).toEqual([]);
       await runtime.dispose();
     } finally {
       console.warn = originalWarn;
@@ -3495,4 +3534,35 @@ function generationOf(runtime: HostRuntime, sessionId: string): string {
     throw new Error(`no runtime generation for ${sessionId}`);
   }
   return generationId;
+}
+
+async function waitForGeneration(runtime: HostRuntime, sessionId: string): Promise<string> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const generationId = (
+      runtime as unknown as {
+        runtimeController: import('./sessions/session-runtime-controller.js').SessionRuntimeController;
+      }
+    ).runtimeController.getStatus(sessionId).generationId;
+    if (generationId !== undefined) {
+      return generationId;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error(`timed out waiting for runtime generation ${sessionId}`);
+}
+
+async function waitForResidency(
+  runtime: HostRuntime,
+  sessionId: string,
+  expected: import('@piwin/contracts').SessionRuntimeResidency,
+): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (residencyOf(runtime).getResidency(sessionId) === expected) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error(
+    `timed out waiting for ${sessionId} residency ${expected}, last=${residencyOf(runtime).getResidency(sessionId)}`,
+  );
 }

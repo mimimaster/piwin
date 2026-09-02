@@ -1,6 +1,7 @@
 import type { SettingsApplyResult, SettingsDomainImpact } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
+import { applyExecutionAdmission } from './host-runtime-status.js';
 
 /**
  * Shared post-apply hook for settings/apply and OAuth-driven SettingsService writes.
@@ -21,6 +22,7 @@ export function applySettingsRuntimeImpact(
   if (settingsConfig.permissions?.mode) {
     deps.permissionModeFromConfig = settingsConfig.permissions.mode;
   }
+  applyExecutionAdmission(deps, settingsConfig);
   if (settingsConfig.session) {
     deps.applyRuntimeRetention(settingsConfig.session.runtimeRetention);
   }

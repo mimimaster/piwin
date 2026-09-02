@@ -1,4 +1,8 @@
-import { deriveMemoryLowWaterMiB, type HostRuntimeResourcesData } from '@piwin/contracts';
+import {
+  DEFAULT_MAX_CONCURRENT_RUNS,
+  deriveMemoryLowWaterMiB,
+  type HostRuntimeResourcesData,
+} from '@piwin/contracts';
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 import { buildWorkersResourceBlock } from './worker-pool-policy.js';
 
@@ -7,12 +11,13 @@ export function getRuntimeResources(deps: HostRuntimeKernel): HostRuntimeResourc
   const counters = deps.residencyController.getCounters();
   const maxResidentRuntimes = deps.residencyController.getMaxResidentRuntimes();
   const worker = deps.workerRssSample;
+  const execution = deps.runtimeResourceCoordinator?.getStatus();
   const workers = buildWorkersResourceBlock({
     workerPoolSize: deps.workerPoolSize,
     subagentQuota: deps.subagentQuota,
     supervisor: deps.agentWorkerSupervisor,
     ephemeral: counts.ephemeral,
-    subagentWaiting: deps.runtimeResourceCoordinator?.getStatus().waiterCount ?? 0,
+    subagentWaiting: deps.runtimeResourceCoordinator?.getStatus().waitingSubagentRuns ?? 0,
   });
   return {
     counts: {
@@ -41,6 +46,36 @@ export function getRuntimeResources(deps: HostRuntimeKernel): HostRuntimeResourc
       evictedByMemoryPressure: counters.evictedByMemoryPressure,
       memoryPressureFailures: counters.memoryPressureFailures,
     },
+    execution: execution
+      ? {
+          configuredMaxConcurrentRuns: execution.configuredMaxConcurrentRuns,
+          effectiveMaxConcurrentRuns: execution.effectiveMaxConcurrentRuns,
+          activeRuns: execution.activeRuns,
+          waitingRuns: execution.waitingRuns,
+          activeForegroundRuns: execution.activeForegroundRuns,
+          waitingForegroundRuns: execution.waitingForegroundRuns,
+          activeSubagentRuns: execution.activeSubagentRuns,
+          waitingSubagentRuns: execution.waitingSubagentRuns,
+          subagentMaxConcurrency: execution.subagentMaxConcurrency,
+          ...(execution.limitingReason ? { limitingReason: execution.limitingReason } : {}),
+        }
+      : {
+          configuredMaxConcurrentRuns: DEFAULT_MAX_CONCURRENT_RUNS,
+          effectiveMaxConcurrentRuns: Math.min(
+            DEFAULT_MAX_CONCURRENT_RUNS,
+            Math.max(1, maxResidentRuntimes),
+          ),
+          activeRuns: 0,
+          waitingRuns: 0,
+          activeForegroundRuns: 0,
+          waitingForegroundRuns: 0,
+          activeSubagentRuns: 0,
+          waitingSubagentRuns: 0,
+          subagentMaxConcurrency: deps.subagentQuota,
+          ...(maxResidentRuntimes < DEFAULT_MAX_CONCURRENT_RUNS
+            ? { limitingReason: 'runtime-residency' as const }
+            : {}),
+        },
     ...(workers ? { workers } : {}),
   };
 }
