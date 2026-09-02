@@ -41,6 +41,12 @@ describe('filterSlashItems', () => {
     expect(filtered.some((item) => item.name === 'compact')).toBe(true);
   });
 
+  it('ranks Goal first for /goal query', () => {
+    const filtered = filterSlashItems(catalog(), 'goal');
+    expect(filtered[0]?.name).toBe('goal');
+    expect(filtered[0]?.kind).toBe('mode');
+  });
+
   it('includes modes and create-skill with empty query', () => {
     const filtered = filterSlashItems(catalog(), '');
     const names = filtered.map((item) => item.name);

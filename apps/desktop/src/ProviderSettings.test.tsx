@@ -10,6 +10,7 @@ import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
 import { DesktopLocaleProvider } from './desktop-locale-context.js';
 import { ProviderSettings, type ProviderSettingsProps } from './ProviderSettings.js';
+import { SettingsProvider, type SettingsContextValue } from './settings/settings-context.js';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -29,9 +30,7 @@ function readSwitch(
 ): { checked: boolean; disabled: boolean } {
   const root = container.querySelector(`[data-testid="${testId}"]`);
   const input =
-    root instanceof HTMLInputElement
-      ? root
-      : root?.querySelector('input[type="checkbox"], input');
+    root instanceof HTMLInputElement ? root : root?.querySelector('input[type="checkbox"], input');
   if (!(input instanceof HTMLInputElement)) {
     throw new Error(`missing switch ${testId}`);
   }
@@ -42,7 +41,12 @@ function makeConfig(): PiwinConfig {
   return {
     hostMode: 'sdk',
     media: { maxPasteBytes: 1_000_000, allowedMimeTypes: [] },
-    artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 1_000_000 },
+    artifact: {
+      enabled: true,
+      triggerMode: 'automatic',
+      decisionPrompt: { mode: 'default', customPrompt: '' },
+      maxBytes: 1_000_000,
+    },
     providers: [
       {
         id: 'openai',
@@ -77,7 +81,9 @@ function renderProviderSettings(props: ProviderSettingsProps): {
       (
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
           <DesktopLocaleProvider locale="en" onLocaleChange={() => {}}>
-            <ProviderSettings {...props} />
+            <SettingsProvider value={{ hostClient: undefined } as unknown as SettingsContextValue}>
+              <ProviderSettings {...props} />
+            </SettingsProvider>
           </DesktopLocaleProvider>
         </PiwinUiProvider>
       ) as ReactElement,
@@ -167,9 +173,7 @@ describe('ProviderSettings', () => {
     expect(removeButton?.title).toBe('Delete');
     expect(removeButton?.getAttribute('aria-label')).toBe('Delete');
     // The pencil edit icon was removed in favor of the row dropdown.
-    expect(
-      container.querySelector('[data-testid="provider-model-edit-gpt-4.1"]'),
-    ).toBeNull();
+    expect(container.querySelector('[data-testid="provider-model-edit-gpt-4.1"]')).toBeNull();
   });
 
   it('opens the provider editor when the edit button is clicked', () => {
@@ -302,9 +306,9 @@ describe('ProviderSettings', () => {
 
     const row = container.querySelector('[data-testid="provider-row-xgrok"]');
     expect(row?.className).toContain('provider-row--off');
-    expect(
-      container.querySelector('[data-testid="provider-model-row"]')?.className,
-    ).toContain('provider-model-row--off');
+    expect(container.querySelector('[data-testid="provider-model-row"]')?.className).toContain(
+      'provider-model-row--off',
+    );
     const modelSwitch = readSwitch(container, 'provider-model-toggle-grok-imagine-image-lite');
     expect(modelSwitch.checked).toBe(false);
     expect(modelSwitch.disabled).toBe(true);
@@ -461,10 +465,9 @@ describe('ProviderSettings', () => {
       testBtn?.click();
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
-    expect(onDiscoverModels).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'openai' }),
-      { apiKey: '123456' },
-    );
+    expect(onDiscoverModels).toHaveBeenCalledWith(expect.objectContaining({ id: 'openai' }), {
+      apiKey: '123456',
+    });
     expect(props.onStoreSecret).not.toHaveBeenCalled();
 
     await act(async () => {

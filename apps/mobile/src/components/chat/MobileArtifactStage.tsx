@@ -1,6 +1,10 @@
 import { useState, type ReactElement } from 'react';
 import { IconExpand, IconSpark } from '@piwin/ui-kit';
-import { mobileArtifactBlockedCopy, type MobileArtifactPreview } from '../../mobile-artifact-preview.js';
+import {
+  mobileArtifactBlockedCopy,
+  mobileArtifactSrcdoc,
+  type MobileArtifactPreview,
+} from '../../mobile-artifact-preview.js';
 import { MobileArtifactSheet } from '../modals/MobileArtifactSheet.js';
 
 export type MobileArtifactStageProps = {
@@ -13,8 +17,8 @@ export type MobileArtifactStageProps = {
  */
 export function MobileArtifactStage({ preview }: MobileArtifactStageProps): ReactElement {
   const [expanded, setExpanded] = useState(false);
-  const decision = preview.decision;
-  const canExpand = decision.kind === 'render';
+  const plan = preview.plan;
+  const canExpand = plan.kind === 'render';
 
   return (
     <>
@@ -26,9 +30,7 @@ export function MobileArtifactStage({ preview }: MobileArtifactStageProps): Reac
             </span>
             <div className="mobile-artifact-stage-copy">
               <h3 className="mobile-artifact-stage-title">{preview.title}</h3>
-              <p className="mobile-artifact-stage-meta">
-                {preview.language.toUpperCase()} · 沙箱
-              </p>
+              <p className="mobile-artifact-stage-meta">{preview.language.toUpperCase()} · 沙箱</p>
             </div>
           </div>
           {canExpand ? (
@@ -43,15 +45,13 @@ export function MobileArtifactStage({ preview }: MobileArtifactStageProps): Reac
           ) : null}
         </header>
 
-        {decision.kind === 'blocked' ? (
-          <p className="mobile-artifact-stage-blocked">
-            {mobileArtifactBlockedCopy(decision.reason)}
-          </p>
-        ) : decision.kind === 'render' && !expanded ? (
+        {plan.kind === 'blocked' ? (
+          <p className="mobile-artifact-stage-blocked">{mobileArtifactBlockedCopy(plan.reason)}</p>
+        ) : plan.kind === 'render' && !expanded ? (
           <div className="mobile-artifact-stage-viewport">
             <iframe
               title={preview.title}
-              srcDoc={decision.srcdoc}
+              srcDoc={mobileArtifactSrcdoc(plan)}
               className="mobile-artifact-stage-iframe"
               sandbox="allow-scripts"
               referrerPolicy="no-referrer"
@@ -64,10 +64,8 @@ export function MobileArtifactStage({ preview }: MobileArtifactStageProps): Reac
         isOpen={expanded}
         onClose={() => setExpanded(false)}
         title={preview.title}
-        srcdoc={decision.kind === 'render' ? decision.srcdoc : undefined}
-        blockedReason={
-          decision.kind === 'blocked' ? mobileArtifactBlockedCopy(decision.reason) : undefined
-        }
+        srcdoc={mobileArtifactSrcdoc(plan)}
+        blockedReason={plan.kind === 'blocked' ? mobileArtifactBlockedCopy(plan.reason) : undefined}
       />
     </>
   );

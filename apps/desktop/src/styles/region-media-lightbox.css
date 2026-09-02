@@ -5,8 +5,6 @@
   inset: 0;
   z-index: 100;
   background: rgba(5, 7, 12, 0.88);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
 }
 
 .vault-look {
@@ -33,16 +31,15 @@
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--r-pill);
   background: rgba(22, 27, 42, 0.85);
-  color: #CBD5E1;
+  color: #cbd5e1;
   cursor: pointer;
-  backdrop-filter: blur(8px);
   transition: all var(--t-1) var(--ease-out);
 }
 
 .vault-look-close:hover,
 .media-lightbox-close:hover {
   background: rgba(255, 255, 255, 0.18);
-  color: #FFFFFF;
+  color: #ffffff;
   transform: scale(1.06);
 }
 
@@ -82,7 +79,9 @@
   border-radius: 16px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.8), 0 0 32px rgba(99, 102, 241, 0.18);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.8),
+    0 0 32px rgba(99, 102, 241, 0.18);
 }
 
 .vault-video-theater-player {
@@ -119,8 +118,7 @@
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
   background: rgba(18, 23, 38, 0.75);
-  backdrop-filter: blur(10px);
-  color: #CBD5E1;
+  color: #cbd5e1;
   cursor: pointer;
   transform: translateY(-50%);
   transition: all var(--t-1) var(--ease-out);
@@ -129,7 +127,7 @@
 .vault-look-nav:hover {
   background: rgba(99, 102, 241, 0.35);
   border-color: rgba(99, 102, 241, 0.6);
-  color: #FFFFFF;
+  color: #ffffff;
   transform: translateY(-50%) scale(1.06);
 }
 
@@ -150,7 +148,6 @@
   padding: 16px 32px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(13, 16, 23, 0.92);
-  backdrop-filter: blur(16px);
 }
 
 .vault-look-copy {
@@ -166,14 +163,14 @@
 
 .vault-look-title {
   margin: 0;
-  color: #FFFFFF;
+  color: #ffffff;
   font-size: 14px;
   font-weight: 700;
   letter-spacing: -0.01em;
 }
 
 .vault-look-count {
-  color: #A5B4FC;
+  color: #a5b4fc;
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 600;
@@ -188,7 +185,7 @@
   display: -webkit-box;
   overflow: hidden;
   margin: 6px 0 0;
-  color: #E2E8F0;
+  color: #e2e8f0;
   font-size: 12px;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -199,7 +196,7 @@
 
 .vault-look-meta {
   margin: 4px 0 0;
-  color: #94A3B8;
+  color: #94a3b8;
   font-family: var(--font-mono);
   font-size: 11px;
 }
@@ -216,7 +213,7 @@
 .vault-look-close:focus-visible,
 .media-lightbox-close:focus-visible,
 .vault-look-nav:focus-visible {
-  outline: 2px solid #6366F1;
+  outline: 2px solid #6366f1;
   outline-offset: 2px;
 }
 
@@ -235,5 +232,3 @@
     max-height: 50vh;
   }
 }
-
-

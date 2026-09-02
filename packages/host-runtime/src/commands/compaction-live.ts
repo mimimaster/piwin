@@ -518,10 +518,9 @@ export async function handleCompactionCommand(
         (liveRun.status === 'queued' ||
           liveRun.status === 'running' ||
           liveRun.status === 'cancelling');
-      // Internal pre-turn model migration calls compactLiveSessionForTarget
-      // directly after admitting its Run. The public command must remain
-      // exclusive for every form, including targetModel, so another client
-      // cannot compact/replace a generation owned by a live Run.
+      // Model-switch prompts do not invoke target compaction. The public
+      // command remains exclusive for every form, including targetModel, so
+      // another client cannot compact/replace a generation owned by a live Run.
       if (runLive) {
         return sessionBusyResponse(
           requestId,

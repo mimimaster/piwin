@@ -4,7 +4,9 @@
 
 /* ── Section headers ──────────────────────────────────────────────────
    Small, wide-tracked, and dim: a label you read once to orient, never a
-   heading competing with session titles. */
+   heading competing with session titles. "Read once" still means read, so
+   these sit on `--text-3` (the readable muted step) rather than `--text-4`
+   (the disabled one) — at 11.5px the difference is legible vs decorative. */
 
 .sidebar-section {
   display: flex;
@@ -17,7 +19,7 @@
   margin: var(--s-5) 0 var(--s-1);
   min-height: 20px;
   padding: 0 var(--s-3);
-  color: var(--text-4);
+  color: var(--text-3);
   font-size: 11.5px;
   font-weight: 600;
   letter-spacing: var(--tracking-micro);
@@ -85,7 +87,7 @@
 }
 
 .sidebar-section-count {
-  color: var(--text-4);
+  color: var(--text-3);
   font-size: var(--fs-micro);
   font-weight: 600;
   letter-spacing: 0;

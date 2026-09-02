@@ -22,9 +22,10 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
     props.runPhase === 'pausing' ||
     props.runPhase === 'aborting';
   const hasSteerQueue = (props.steerQueueMessages?.length ?? 0) > 0;
+  const isQueuedEdit = props.queuedEdit != null;
   return (
     <footer
-      className={`composer-dock layout-${props.layoutMode}${hasSteerQueue ? ' has-steer-queue' : ''}`}
+      className={`composer-dock layout-${props.layoutMode}${hasSteerQueue ? ' has-steer-queue' : ''}${isQueuedEdit ? ' is-queued-edit' : ''}`}
       data-testid="composer-dock"
       data-layout={props.layoutMode}
     >
@@ -55,6 +56,8 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
           onSendNow={props.onSteerQueueSendNow || (() => {})}
           onEdit={props.onSteerQueueEdit || (() => {})}
           onRemove={props.onSteerQueueRemove || (() => {})}
+          editingMessageId={props.queuedEdit?.messageId ?? null}
+          onCancelEdit={props.onQueuedEditCancel}
         />
       ) : null}
       <ComposerCard {...props} />

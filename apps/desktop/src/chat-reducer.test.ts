@@ -1,10 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { QueuedTurnRecord } from '@piwin/contracts';
-import {
-  chatUiReducer,
-  createInitialChatUiState,
-  mapTranscriptMessagesToUi,
-} from './chat-reducer';
+import { chatUiReducer, createInitialChatUiState, mapTranscriptMessagesToUi } from './chat-reducer';
 import { makeRun } from './chat-reducer-test-harness';
 
 describe('chatUiReducer', () => {
@@ -890,5 +886,69 @@ describe('chatUiReducer', () => {
     expect(terminal).not.toBe(afterRunning);
     expect(terminal.activeRunId).toBeNull();
     expect(terminal.runRecordsById['run-1']?.outcome).toBe('completed');
+  });
+
+  it('re-applies an equal-revision foreground run when switching back to the still-running session', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, { type: 'user/send', text: 'run long' });
+    const running = makeRun('run-1', {
+      revision: 3,
+      status: 'running',
+      phase: 'streaming',
+      phaseUpdatedAt: '2026-07-24T00:00:01.000Z',
+    });
+    state = chatUiReducer(state, { type: 'run/updated', run: running });
+    expect(state.activeRunId).toBe('run-1');
+    expect(state.runPhase).toBe('streaming');
+    expect(state.streaming).toBe(true);
+
+    // Switch away: warm cache keeps the rev-3 record, live projection resets.
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's2' });
+    expect(state.runPhase).toBe('idle');
+    expect(state.activeRunId).toBeNull();
+    expect(state.warmSessionCache.byId.s1?.runRecordsById['run-1']?.revision).toBe(3);
+
+    // Switch back: warm hit restores the rev-3 record; projection is still idle.
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1', awaitTranscript: true });
+    expect(state.runPhase).toBe('idle');
+    expect(state.activeRunId).toBeNull();
+    expect(state.runRecordsById['run-1']?.revision).toBe(3);
+
+    // Admission snapshot returns the SAME revision (uninterrupted text stream
+    // never bumps it) — it must re-establish the live projection.
+    state = chatUiReducer(state, { type: 'run/updated', run: running });
+    expect(state.activeRunId).toBe('run-1');
+    expect(state.runPhase).toBe('streaming');
+    expect(state.streaming).toBe(true);
+    expect(state.workingSessionIds).toEqual({ s1: true });
+  });
+
+  it('still swallows an equal-revision replay of a run superseded by a newer terminal', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    const running = makeRun('run-1', {
+      revision: 3,
+      status: 'running',
+      phase: 'streaming',
+      phaseUpdatedAt: '2026-07-24T00:00:01.000Z',
+    });
+    state = chatUiReducer(state, { type: 'run/updated', run: running });
+    state = chatUiReducer(state, {
+      type: 'run/terminal',
+      run: makeRun('run-1', {
+        revision: 4,
+        status: 'cancelled',
+        endedAt: '2026-07-24T00:00:02.000Z',
+        terminalCode: 'cancelled',
+      }),
+    });
+    expect(state.activeRunId).toBeNull();
+
+    // A late duplicate of the pre-terminal record must not revive the run,
+    // even with a reset projection.
+    const before = state;
+    state = chatUiReducer(state, { type: 'run/updated', run: running });
+    expect(state).toBe(before);
   });
 });

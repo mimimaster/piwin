@@ -100,6 +100,16 @@
   min-width: 0;
 }
 
+.artifact-height-recovery {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-bottom: var(--s-2);
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+}
+
 .artifact-frame--static,
 .artifact-static {
   display: block;

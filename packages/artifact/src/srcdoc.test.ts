@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ARTIFACT_BRIDGE_MEASURE_REQUEST_TYPE,
   ARTIFACT_BRIDGE_SIZE_TYPE,
   ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
   ARTIFACT_FRAME_MODES,
@@ -96,6 +97,8 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(srcdoc).toContain('html[data-frame-mode="inline-flow"]');
     expect(srcdoc).toContain('overflow-y: hidden !important');
     expect(srcdoc).toContain('overflow-x: hidden !important');
+    expect(srcdoc).toContain('data-measurement-fallback="true"] body');
+    expect(srcdoc).toContain('overscroll-behavior: contain !important');
     expect(srcdoc).toContain('container-type: inline-size');
     expect(srcdoc.indexOf('data-piwin-artifact-frame-mode-policy')).toBeGreaterThan(
       srcdoc.indexOf(modelSource),
@@ -200,7 +203,7 @@ describe('buildHtmlArtifactSrcdoc', () => {
     }
   });
 
-  it('places the no-motion policy after fragment source', () => {
+  it('places the reduced-motion policy after fragment source', () => {
     const modelSource =
       '<style>@keyframes blink { from { opacity: 0 } }</style><div class="blink">Hi</div>';
     const { srcdoc } = buildHtmlArtifactSrcdoc({
@@ -210,6 +213,7 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(srcdoc.indexOf('data-piwin-artifact-motion-policy')).toBeGreaterThan(
       srcdoc.indexOf(modelSource),
     );
+    expect(srcdoc).toContain('@media (prefers-reduced-motion: reduce)');
     expect(srcdoc).toContain('animation: none !important');
     expect(srcdoc).toContain('transition: none !important');
   });
@@ -233,6 +237,23 @@ describe('buildHtmlArtifactSrcdoc', () => {
     root.height = 360;
     session.remeasure();
     expect(session.messages.at(-1)).toMatchObject({ height: 360, revision: 1 });
+  });
+
+  it('forces an unchanged height report when the parent requests remeasurement', () => {
+    const root = createMeasuredRoot(240);
+    const session = runBridgeSession(root);
+    expect(session.messages).toHaveLength(1);
+
+    session.dispatchRenderCommand({
+      type: ARTIFACT_BRIDGE_MEASURE_REQUEST_TYPE,
+      channelId: 'test-channel',
+      fallbackViewport: true,
+      force: true,
+    });
+
+    expect(session.documentElement.attributes['data-measurement-fallback']).toBe('true');
+    expect(session.messages).toHaveLength(2);
+    expect(session.messages.at(-1)).toMatchObject({ height: 240, revision: 1 });
   });
 
   it('switches flow to viewport: data-frame-mode, observer disconnect, one size', () => {
@@ -279,7 +300,7 @@ describe('buildHtmlArtifactSrcdoc', () => {
     });
     expect(session.scriptActivateCount()).toBe(1);
     expect(session.documentElement.attributes['data-frame-mode']).toBe('inline-flow');
-    expect(session.listenerCount()).toBe(1);
+    expect(session.listenerCount()).toBe(2);
 
     session.dispatchRenderCommand({
       type: ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,

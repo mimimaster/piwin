@@ -34,6 +34,7 @@ import { MediaSaveHostRejectedError, saveMediaOverHost } from '../media-save-ove
 import type { DesktopCopy } from '../desktop-locale.js';
 import { PIWIN_PATH_MIME } from '../workspace-path-drag';
 import type { UseComposerMediaArgs } from './composer-media-args.js';
+import { isComposerAttachmentRetained } from './composer-attachment-retention.js';
 import type { SessionComposerSnapshot } from './composer-session-snapshot.js';
 
 export type UseComposerAttachmentsArgs = {
@@ -43,7 +44,7 @@ export type UseComposerAttachmentsArgs = {
   setPendingAttachments: Dispatch<SetStateAction<PendingComposerAttachment[]>>;
   pendingAttachmentsRef: MutableRefObject<PendingComposerAttachment[]>;
   pendingContextRefsRef: MutableRefObject<PromptContextRef[]>;
-  /** Read-only: a just-pasted preview must stay live across a session/draft hop. */
+  /** Shared holder maps keep a just-pasted preview live across a session/draft hop. */
   sessionComposerSnapshotsRef: MutableRefObject<Map<string, SessionComposerSnapshot>>;
   draftComposerSnapshotsRef: MutableRefObject<Map<string, SessionComposerSnapshot>>;
 };
@@ -89,48 +90,97 @@ export function useComposerAttachments(params: UseComposerAttachmentsArgs) {
     >(),
   );
 
-  /**
-   * Release the local resources of detached attachments: object URL, retained
-   * source File, and any parked media/save result. Called after `session/prompt`
-   * ACKs, on snapshot eviction/clear, and on teardown.
-   */
-  const disposeComposerAttachments = useCallback(
-    (attachments: PendingComposerAttachment[]): void => {
+  const releaseComposerAttachments = useCallback(
+    (attachments: PendingComposerAttachment[], force: boolean): void => {
+      const attachmentsByLocalId = new Map<string, PendingComposerAttachment>();
       for (const item of attachments) {
+        attachmentsByLocalId.set(item.localId, item);
+      }
+      const localIds = new Set(attachmentsByLocalId.keys());
+      if (force) {
+        // A successful Send owns the attachments permanently. Remove any
+        // duplicate parked copies before releasing the source File so a later
+        // return to that session cannot resurrect an already-sent chip.
+        for (const [sessionId, snapshot] of sessionComposerSnapshotsRef.current) {
+          const remaining = snapshot.attachments.filter((item) => !localIds.has(item.localId));
+          if (remaining.length !== snapshot.attachments.length) {
+            sessionComposerSnapshotsRef.current.set(sessionId, {
+              ...snapshot,
+              attachments: remaining,
+            });
+          }
+        }
+        for (const [draftId, snapshot] of draftComposerSnapshotsRef.current) {
+          const remaining = snapshot.attachments.filter((item) => !localIds.has(item.localId));
+          if (remaining.length !== snapshot.attachments.length) {
+            draftComposerSnapshotsRef.current.set(draftId, {
+              ...snapshot,
+              attachments: remaining,
+            });
+          }
+        }
+      }
+      for (const item of attachmentsByLocalId.values()) {
+        if (
+          !force &&
+          isComposerAttachmentRetained({
+            localId: item.localId,
+            liveAttachments: pendingAttachmentsRef.current,
+            sessionSnapshots: sessionComposerSnapshotsRef.current,
+            draftSnapshots: draftComposerSnapshotsRef.current,
+          })
+        ) {
+          continue;
+        }
         cancelledAttachmentIdsRef.current.add(item.localId);
         sourceFilesRef.current.delete(item.localId);
         mediaSaveResultsRef.current.delete(item.localId);
         revokePendingAttachmentUrls(item);
       }
     },
-    [],
+    [draftComposerSnapshotsRef, pendingAttachmentsRef, sessionComposerSnapshotsRef],
   );
 
-  const revokePending = useCallback((localId: string): void => {
-    cancelledAttachmentIdsRef.current.add(localId);
-    sourceFilesRef.current.delete(localId);
-    mediaSaveResultsRef.current.delete(localId);
-    setPendingAttachments((current) => {
-      const target = current.find((item) => item.localId === localId);
+  /** Release only when no live or parked composer still owns the attachment. */
+  const disposeComposerAttachments = useCallback(
+    (attachments: PendingComposerAttachment[]): void => {
+      releaseComposerAttachments(attachments, false);
+    },
+    [releaseComposerAttachments],
+  );
+
+  /** Release after Send or an explicit user discard, purging duplicate holders. */
+  const forceDisposeComposerAttachments = useCallback(
+    (attachments: PendingComposerAttachment[]): void => {
+      releaseComposerAttachments(attachments, true);
+    },
+    [releaseComposerAttachments],
+  );
+
+  const revokePending = useCallback(
+    (localId: string): void => {
+      const target = pendingAttachmentsRef.current.find((item) => item.localId === localId);
+      const next = pendingAttachmentsRef.current.filter((item) => item.localId !== localId);
+      pendingAttachmentsRef.current = next;
+      setPendingAttachments(next);
       if (target) {
-        revokePendingAttachmentUrls(target);
+        forceDisposeComposerAttachments([target]);
+      } else {
+        cancelledAttachmentIdsRef.current.add(localId);
+        sourceFilesRef.current.delete(localId);
+        mediaSaveResultsRef.current.delete(localId);
       }
-      return current.filter((item) => item.localId !== localId);
-    });
-  }, []);
+    },
+    [forceDisposeComposerAttachments, pendingAttachmentsRef],
+  );
 
   const clearPendingAttachments = useCallback((): void => {
     pendingContextRefsRef.current = [];
-    setPendingAttachments((current) => {
-      for (const item of current) {
-        cancelledAttachmentIdsRef.current.add(item.localId);
-        sourceFilesRef.current.delete(item.localId);
-        mediaSaveResultsRef.current.delete(item.localId);
-        revokePendingAttachmentUrls(item);
-      }
-      return [];
-    });
-  }, []);
+    const current = pendingAttachmentsRef.current;
+    pendingAttachmentsRef.current = [];
+    setPendingAttachments([]);
+    forceDisposeComposerAttachments(current);
+  }, [forceDisposeComposerAttachments, pendingAttachmentsRef]);
 
   /**
    * Save one attachment to the Host media store for an already-resolved
@@ -165,15 +215,17 @@ export function useComposerAttachments(params: UseComposerAttachmentsArgs) {
       };
 
       const removeLocalChip = (): void => {
-        sourceFilesRef.current.delete(localId);
-        mediaSaveResultsRef.current.delete(localId);
-        setPendingAttachments((current) => {
-          const target = current.find((item) => item.localId === localId);
-          if (target) {
-            revokePendingAttachmentUrls(target);
-          }
-          return current.filter((item) => item.localId !== localId);
-        });
+        const target = pendingAttachmentsRef.current.find((item) => item.localId === localId);
+        const next = pendingAttachmentsRef.current.filter((item) => item.localId !== localId);
+        pendingAttachmentsRef.current = next;
+        setPendingAttachments(next);
+        if (target) {
+          forceDisposeComposerAttachments([target]);
+        } else {
+          cancelledAttachmentIdsRef.current.add(localId);
+          sourceFilesRef.current.delete(localId);
+          mediaSaveResultsRef.current.delete(localId);
+        }
       };
 
       let headerBytes: Uint8Array | undefined;
@@ -315,7 +367,7 @@ export function useComposerAttachments(params: UseComposerAttachmentsArgs) {
         markError(formatError(error), 'local');
       }
     },
-    [args, attachmentCopy],
+    [args, attachmentCopy, forceDisposeComposerAttachments, pendingAttachmentsRef],
   );
 
   const enqueueAttachmentFile = useCallback(
@@ -363,33 +415,37 @@ export function useComposerAttachments(params: UseComposerAttachmentsArgs) {
               });
               pendingAttachmentsRef.current = committed.live;
               if (committed.keep) {
-                setPendingAttachments((current) =>
-                  applyChipPreviewUrl(current, localId, previewUrl).next,
+                setPendingAttachments(
+                  (current) => applyChipPreviewUrl(current, localId, previewUrl).next,
                 );
               }
             },
             () => cancelledAttachmentIdsRef.current.has(localId),
           );
-          setPendingAttachments((current) => [
-            ...current,
+          const next = [
+            ...pendingAttachmentsRef.current,
             {
               localId,
               attachment: placeholderAttachment,
               previewUrl: '',
               lightboxUrl,
-              uploadStatus: 'queued',
+              uploadStatus: 'queued' as const,
             },
-          ]);
+          ];
+          pendingAttachmentsRef.current = next;
+          setPendingAttachments(next);
         } else {
-          setPendingAttachments((current) => [
-            ...current,
+          const next = [
+            ...pendingAttachmentsRef.current,
             {
               localId,
               attachment: placeholderAttachment,
               previewUrl: URL.createObjectURL(file),
-              uploadStatus: 'queued',
+              uploadStatus: 'queued' as const,
             },
-          ]);
+          ];
+          pendingAttachmentsRef.current = next;
+          setPendingAttachments(next);
         }
       } else {
         // Retry: drop the failed terminal state back to queued. The save runs
@@ -446,16 +502,11 @@ export function useComposerAttachments(params: UseComposerAttachmentsArgs) {
     if (failed.length === 0) {
       return;
     }
-    for (const item of failed) {
-      cancelledAttachmentIdsRef.current.add(item.localId);
-      sourceFilesRef.current.delete(item.localId);
-      mediaSaveResultsRef.current.delete(item.localId);
-      revokePendingAttachmentUrls(item);
-    }
     const next = pendingAttachmentsRef.current.filter((item) => !isFailedMediaAttachment(item));
     pendingAttachmentsRef.current = next;
     setPendingAttachments(next);
-  }, []);
+    forceDisposeComposerAttachments(failed);
+  }, [forceDisposeComposerAttachments]);
 
   /**
    * Merge terminal save results into the chip list so Send never depends on
@@ -695,22 +746,27 @@ export function useComposerAttachments(params: UseComposerAttachmentsArgs) {
    * Builds a WebElementAttachmentRef with conditional-spread optional
    * fields (exactOptionalPropertyTypes: no ref: undefined).
    */
-  const addWebElement = useCallback((pick: WebElementPickResult): void => {
-    const attachment: WebElementAttachmentRef = {
-      id: crypto.randomUUID(),
-      kind: 'web-element',
-      url: pick.url,
-      selector: pick.selector,
-      text: pick.text,
-      ...(pick.ref !== undefined ? { ref: pick.ref } : {}),
-      ...(pick.html !== undefined ? { html: pick.html } : {}),
-      ...(pick.screenshotPath !== undefined ? { screenshotPath: pick.screenshotPath } : {}),
-    };
-    setPendingAttachments((current) => [
-      ...current,
-      { localId: attachment.id, attachment, previewUrl: '', uploadStatus: 'ready' },
-    ]);
-  }, []);
+  const addWebElement = useCallback(
+    (pick: WebElementPickResult): void => {
+      const attachment: WebElementAttachmentRef = {
+        id: crypto.randomUUID(),
+        kind: 'web-element',
+        url: pick.url,
+        selector: pick.selector,
+        text: pick.text,
+        ...(pick.ref !== undefined ? { ref: pick.ref } : {}),
+        ...(pick.html !== undefined ? { html: pick.html } : {}),
+        ...(pick.screenshotPath !== undefined ? { screenshotPath: pick.screenshotPath } : {}),
+      };
+      const next = [
+        ...pendingAttachmentsRef.current,
+        { localId: attachment.id, attachment, previewUrl: '', uploadStatus: 'ready' as const },
+      ];
+      pendingAttachmentsRef.current = next;
+      setPendingAttachments(next);
+    },
+    [pendingAttachmentsRef],
+  );
 
   return {
     dropActive,
@@ -726,6 +782,7 @@ export function useComposerAttachments(params: UseComposerAttachmentsArgs) {
     readResolvedComposerChips,
     markAttachmentUploadStatus,
     saveDeferredMediaChips,
+    forceDisposeComposerAttachments,
     handleComposerPaste,
     handleComposerDrop,
     canAttachFiles,

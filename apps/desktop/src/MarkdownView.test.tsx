@@ -646,7 +646,59 @@ describe('MarkdownView artifact preview policy', () => {
         .querySelector('.artifact-with-source')
         ?.classList.contains('artifact-with-source--preview'),
     ).toBe(false);
+    const previewAgain = container.querySelector<HTMLButtonElement>(
+      '[data-testid="artifact-preview-toggle"]',
+    );
+    expect(previewAgain?.textContent).toContain('Preview');
     scrollHeight.mockRestore();
+  });
+
+  it('default mode: Show code keeps a Preview toggle so the frame can come back', () => {
+    const { container } = renderMarkdown(
+      <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="completed" />,
+    );
+    const showCode = container.querySelector<HTMLButtonElement>(
+      '[data-testid="artifact-preview-toggle"]',
+    );
+    expect(showCode?.getAttribute('aria-label')).toBe('Show code');
+    act(() => {
+      showCode?.click();
+    });
+    expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
+    expect(container.querySelector('.artifact-frame')).toBeNull();
+    const preview = container.querySelector<HTMLButtonElement>(
+      '[data-testid="artifact-preview-toggle"]',
+    );
+    expect(preview?.textContent).toContain('Preview');
+    act(() => {
+      preview?.click();
+    });
+    expect(container.querySelector('.artifact-frame')).not.toBeNull();
+    expect(container.querySelector('[data-testid="code-fence-source"]')).toBeNull();
+  });
+
+  it('streaming Show code still offers Preview to switch back', async () => {
+    const { container } = renderMarkdown(
+      <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="streaming" />,
+    );
+    await flushMarkdownEffects();
+    const showCode = container.querySelector<HTMLButtonElement>(
+      '[data-testid="artifact-preview-toggle"]',
+    );
+    expect(showCode?.getAttribute('aria-label')).toBe('Show code');
+    act(() => {
+      showCode?.click();
+    });
+    expect(container.querySelector('.artifact-frame')).toBeNull();
+    const preview = container.querySelector<HTMLButtonElement>(
+      '[data-testid="artifact-preview-toggle"]',
+    );
+    expect(preview?.textContent).toContain('Preview');
+    act(() => {
+      preview?.click();
+    });
+    await flushMarkdownEffects();
+    expect(container.querySelector('.artifact-frame')).not.toBeNull();
   });
 
   it('in-place toggle: static SVG replaces source without mounting an iframe', () => {
@@ -958,10 +1010,7 @@ describe('MarkdownView file references', () => {
 
   it('shows HTML tag mentions as text instead of creating DOM nodes', () => {
     const { container } = renderMarkdown(
-      <MarkdownView
-        text="Use the <div> element and </div> to wrap."
-        renderingPhase="completed"
-      />,
+      <MarkdownView text="Use the <div> element and </div> to wrap." renderingPhase="completed" />,
     );
     const markdown = container.querySelector('.markdown');
     expect(markdown?.querySelector('div')).toBeNull();
@@ -977,8 +1026,8 @@ describe('MarkdownView file references', () => {
         onOpenDocument={vi.fn()}
       />,
     );
-    const chips = [...container.querySelectorAll('.md-doc-chip')].map(
-      (el) => el.getAttribute('data-full-path'),
+    const chips = [...container.querySelectorAll('.md-doc-chip')].map((el) =>
+      el.getAttribute('data-full-path'),
     );
     expect(chips).toEqual(['.svg']);
     expect(container.querySelector('.md-inline-code')?.textContent).toBe('main.ts');

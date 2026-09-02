@@ -44,7 +44,9 @@ export function useComposerPromptInput(args: UseComposerMediaArgs) {
   const resolveTurnModel = useCallback((): ModelRef | undefined => {
     const key = args.selectedModelKey?.trim();
     if (key && args.modelOptions?.length) {
-      const option = args.modelOptions.find((item) => `${item.providerId}::${item.modelId}` === key);
+      const option = args.modelOptions.find(
+        (item) => `${item.providerId}::${item.modelId}` === key,
+      );
       if (option) {
         return toModelRef({
           providerId: option.providerId,
@@ -77,6 +79,10 @@ export function useComposerPromptInput(args: UseComposerMediaArgs) {
         if (args.permissionPreset) {
           input.permissionPreset = args.permissionPreset;
         }
+      } else if (params.agentMode === 'goal') {
+        // Conversation omits the default Agent contract, but `/goal` is a
+        // real mode switch and must reach Host prompt preparation.
+        input.agentMode = params.agentMode;
       }
       if (params.clientMessageId && params.clientMessageId.trim().length > 0) {
         input.clientMessageId = params.clientMessageId.trim();

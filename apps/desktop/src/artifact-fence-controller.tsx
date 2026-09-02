@@ -28,8 +28,7 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
   }
   const stickyFenceId = stickyFenceIdRef.current;
   const [artifactPreviewOpen, setArtifactPreviewOpen] = useState(
-    props.renderingPhase === 'explicit-artifact-review' ||
-      !artifactCodeFirst,
+    props.renderingPhase === 'explicit-artifact-review' || !artifactCodeFirst,
   );
   const [artifactSourceExpanded, setArtifactSourceExpanded] = useState(false);
   const showArtifactSource = (): void => {
@@ -96,6 +95,32 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
 
   const decisionLanguage = analysis.kind === 'code' ? analysis.language : undefined;
   const isShell = isShellLanguage(props.language || decisionLanguage);
+  const previewLabel =
+    analysis.kind === 'intent' && analysis.intent.descriptor.type === 'svg'
+      ? 'Preview SVG'
+      : 'Preview';
+  const previewToggle = (
+    <Button
+      size="compact"
+      data-testid="artifact-preview-toggle"
+      aria-expanded={false}
+      onClick={() => setArtifactPreviewOpen(true)}
+    >
+      {previewLabel}
+    </Button>
+  );
+  const boundSource = (
+    <div className="artifact-with-source" data-artifact-id={stickyFenceId}>
+      <SourceCodeBlock
+        language={props.language}
+        source={props.source}
+        isShell={isShell}
+        previewAction={previewToggle}
+        defaultCollapsed={!artifactSourceExpanded}
+        {...(streamMode ? { streaming: true } : {})}
+      />
+    </div>
+  );
 
   if (streamMode) {
     if (willMountInlineFrame && plan) {
@@ -117,6 +142,10 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
           />
         </div>
       );
+    }
+
+    if (analysis.kind === 'intent' && mountsInline && props.artifactPreviewEnabled) {
+      return boundSource;
     }
 
     return (
@@ -165,18 +194,12 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     return <SourceCodeBlock language={props.language} source={props.source} isShell={isShell} />;
   }
 
-  const previewLabel = analysis.intent.descriptor.type === 'svg' ? 'Preview SVG' : 'Preview';
-
-  return (
-    <div
-      className={
-        willMountInlineFrame && plan
-          ? 'artifact-with-source artifact-with-source--preview'
-          : 'artifact-with-source'
-      }
-      data-artifact-id={stickyFenceId}
-    >
-      {willMountInlineFrame && plan ? (
+  if (willMountInlineFrame && plan) {
+    return (
+      <div
+        className="artifact-with-source artifact-with-source--preview"
+        data-artifact-id={stickyFenceId}
+      >
         <ArtifactInlinePreview
           plan={plan}
           fenceId={stickyFenceId}
@@ -187,24 +210,9 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
           {...(props.artifactTheme ? { artifactTheme: props.artifactTheme } : {})}
           {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
         />
-      ) : (
-        <SourceCodeBlock
-          language={props.language}
-          source={props.source}
-          isShell={isShell}
-          defaultCollapsed={!artifactSourceExpanded}
-          previewAction={
-            <Button
-              size="compact"
-              data-testid="artifact-preview-toggle"
-              aria-expanded={false}
-              onClick={() => setArtifactPreviewOpen(true)}
-            >
-              {previewLabel}
-            </Button>
-          }
-        />
-      )}
-    </div>
-  );
+      </div>
+    );
+  }
+
+  return boundSource;
 }

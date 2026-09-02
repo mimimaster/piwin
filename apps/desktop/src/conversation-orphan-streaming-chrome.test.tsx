@@ -5,11 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import type { SessionTranscriptMessage } from '@piwin/contracts';
-import {
-  chatUiReducer,
-  createInitialChatUiState,
-  type ChatMessageUi,
-} from './chat-reducer';
+import { chatUiReducer, createInitialChatUiState, type ChatMessageUi } from './chat-reducer';
 import { ConversationPaneTranscript } from './conversation-pane-transcript';
 import { ConversationResponseContent } from './conversation-response-content';
 
@@ -73,7 +69,9 @@ describe('orphan streaming chrome', () => {
         artifactPreviewEnabled={false}
       />,
     );
-    expect(container.querySelector('[data-testid="conversation-thinking-active-animation"]')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="conversation-thinking-active-animation"]'),
+    ).toBeNull();
     expect(container.querySelector('[data-tool-status="running"]')).toBeNull();
   });
 
@@ -142,7 +140,11 @@ describe('orphan streaming chrome', () => {
         },
       },
     ];
-    const state = chatUiReducer(createInitialChatUiState(), {
+    let state = chatUiReducer(createInitialChatUiState(), {
+      type: 'session/set',
+      sessionId: 'session-mtaymv82-9wz6ccco',
+    });
+    state = chatUiReducer(state, {
       type: 'session/load-messages',
       sessionId: 'session-mtaymv82-9wz6ccco',
       messages,

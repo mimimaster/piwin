@@ -16,6 +16,18 @@ const COMMAND_ALIASES: Record<string, 'compact' | 'stop'> = {
   abort: 'stop',
 };
 
+const RESERVED_SLASH_EXECUTE_NAMES: ReadonlySet<string> = new Set(Object.keys(COMMAND_ALIASES));
+
+/** True for `/compact` `/stop` and their aliases — product commands, not prompts. */
+export function isReservedSlashExecuteName(name: string): boolean {
+  return RESERVED_SLASH_EXECUTE_NAMES.has(name.trim().toLowerCase());
+}
+
+/** Whole-message reserved command (`/compact`, `/stop`, aliases, optional args). */
+export function isReservedComposerSlashCommand(trimmedText: string): boolean {
+  return parseComposerSlashSubmit(trimmedText.trim(), []).kind === 'command';
+}
+
 /** Composer slash modes. Plan/Ask were removed; `/plan` and `/ask` are not modes. */
 const MODE_NAMES: ReadonlySet<string> = new Set(['agent', 'goal']);
 

@@ -91,8 +91,8 @@ export function SubagentProfilesPage(): ReactElement {
         schemeInvalidId: 'ID 须为小写字母、数字与连字符',
         schemeInvalidRole: 'role 非法或重复',
         schemeNeedMember: '至少要有一个带职责描述的角色',
-        schemeCheapModelHint:
-          '探子角色建议选更便宜的已配置模型；留空可能与主模型同价。',
+        schemeIncomplete: '名称、简介、主纪律和每个角色的职责都不能为空',
+        schemeCheapModelHint: '探子角色建议选更便宜的已配置模型；留空可能与主模型同价。',
         schemeAdvanced: '本方案上限（可选）',
         advancedTitle: '高级 · 全局并行上限',
         maxConcurrency: '同时最多几个',
@@ -153,12 +153,14 @@ export function SubagentProfilesPage(): ReactElement {
         schemeInvalidId: 'ID must be lowercase letters, digits, hyphens',
         schemeInvalidRole: 'Invalid or duplicate role',
         schemeNeedMember: 'Need at least one role with a duty description',
+        schemeIncomplete: 'Name, summary, discipline, and every role duty are required',
         schemeCheapModelHint:
           'Pin a cheaper model on scout roles when possible; empty may match main model cost.',
         schemeAdvanced: 'Scheme caps (optional)',
         advancedTitle: 'Advanced · global concurrency',
         maxConcurrency: 'Max running at once',
-        maxConcurrencyHint: 'This value + 1 is the worker process pool (cap 8). Saves apply immediately.',
+        maxConcurrencyHint:
+          'This value + 1 is the worker process pool (cap 8). Saves apply immediately.',
         maxTasksPerRun: 'Max per dispatch',
         saveAdvanced: 'Save limits',
         saved: 'Saved',
@@ -246,9 +248,7 @@ export function SubagentProfilesPage(): ReactElement {
     return candidate;
   }
 
-  function baseSubagentPayload(
-    schemes: OrchestrationSchemeSettings[] | undefined,
-  ): SubagentConfig {
+  function baseSubagentPayload(schemes: OrchestrationSchemeSettings[] | undefined): SubagentConfig {
     const payload: SubagentConfig = {
       profiles: subagents.profiles ?? [],
       maxConcurrency,
@@ -398,6 +398,7 @@ export function SubagentProfilesPage(): ReactElement {
     schemeInvalidId: copy.schemeInvalidId,
     schemeInvalidRole: copy.schemeInvalidRole,
     schemeNeedMember: copy.schemeNeedMember,
+    schemeIncomplete: copy.schemeIncomplete,
     schemeCheapModelHint: copy.schemeCheapModelHint,
     schemeAdvanced: copy.schemeAdvanced,
   };
@@ -443,9 +444,7 @@ export function SubagentProfilesPage(): ReactElement {
             type="number"
             min={1}
             value={String(maxConcurrency)}
-            onChange={(event) =>
-              setMaxConcurrency(Math.max(1, Number(event.target.value) || 1))
-            }
+            onChange={(event) => setMaxConcurrency(Math.max(1, Number(event.target.value) || 1))}
           />
         </FieldRow>
         <FieldRow label={copy.maxTasksPerRun} testId="subagents-max-tasks-row">
@@ -453,9 +452,7 @@ export function SubagentProfilesPage(): ReactElement {
             type="number"
             min={1}
             value={String(maxTasksPerRun)}
-            onChange={(event) =>
-              setMaxTasksPerRun(Math.max(1, Number(event.target.value) || 1))
-            }
+            onChange={(event) => setMaxTasksPerRun(Math.max(1, Number(event.target.value) || 1))}
           />
         </FieldRow>
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>

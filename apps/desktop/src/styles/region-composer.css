@@ -301,47 +301,13 @@
   cursor: default;
 }
 
-/* Agent mode chip (non-default modes only) */
-.composer-v2-mode-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-  height: 22px;
-  padding: 0 var(--s-4);
-  border: none;
-  border-radius: var(--r-pill);
-  font-size: var(--fs-mono);
-  font-weight: 600;
-  background: var(--iris-wash);
-  color: var(--iris-lift);
-}
-
-.composer-v2-mode-dismiss {
-  display: grid;
-  place-items: center;
-  width: 14px;
-  height: 14px;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: inherit;
-  font-size: var(--fs-chrome);
-  cursor: pointer;
-  line-height: 1;
-  opacity: 0.7;
-}
-
-.composer-v2-mode-dismiss:hover {
-  opacity: 1;
-  background: color-mix(in srgb, var(--iris) 22%, transparent);
-}
-
 /* ─── Toolbar pills ───────────────────────────────────────────────────
-   Model, thinking effort, run mode, and orchestration share one shape so the
-   toolbar reads as a row of peers. Only the value carries emphasis; labels,
-   separators, and chevrons stay at text-3 or below. */
+   Model, thinking effort, agent mode, run mode, and orchestration share one
+   shape so the toolbar reads as a row of peers. Only the value carries
+   emphasis; labels, separators, and chevrons stay at text-3 or below. */
 
 .thinking-effort-control,
+.agent-mode-control,
 .run-mode-control,
 .orchestration-scheme-control {
   position: relative;
@@ -350,6 +316,7 @@
 }
 
 .thinking-effort-trigger,
+.agent-mode-trigger,
 .run-mode-trigger,
 .orchestration-scheme-trigger {
   display: inline-flex;
@@ -376,6 +343,7 @@
 }
 
 .thinking-effort-trigger:hover:not(:disabled),
+.agent-mode-trigger:hover:not(:disabled),
 .run-mode-trigger:hover:not(:disabled),
 .orchestration-scheme-trigger:hover:not(:disabled) {
   color: var(--text-1);
@@ -383,6 +351,7 @@
 }
 
 .thinking-effort-trigger[aria-expanded='true'],
+.agent-mode-trigger[aria-expanded='true'],
 .run-mode-trigger[aria-expanded='true'],
 .orchestration-scheme-trigger[aria-expanded='true'] {
   color: var(--text-1);
@@ -390,6 +359,7 @@
 }
 
 .thinking-effort-trigger:disabled,
+.agent-mode-trigger:disabled,
 .run-mode-trigger:disabled,
 .orchestration-scheme-trigger:disabled {
   color: var(--text-4);
@@ -397,6 +367,7 @@
 }
 
 .thinking-effort-model,
+.agent-mode-value,
 .run-mode-value,
 .orchestration-scheme-value {
   min-width: 0;
@@ -410,6 +381,7 @@
 }
 
 .thinking-effort-trigger:hover .thinking-effort-model,
+.agent-mode-trigger:hover .agent-mode-value,
 .run-mode-trigger:hover .run-mode-value,
 .orchestration-scheme-trigger:hover .orchestration-scheme-value {
   color: var(--text-1);
@@ -442,6 +414,7 @@
 }
 
 .thinking-effort-chevron,
+.agent-mode-chevron,
 .run-mode-chevron,
 .orchestration-scheme-chevron {
   flex-shrink: 0;
@@ -457,6 +430,7 @@
 }
 
 .thinking-effort-trigger[aria-expanded='true'] .thinking-effort-chevron,
+.agent-mode-trigger[aria-expanded='true'] .agent-mode-chevron,
 .run-mode-trigger[aria-expanded='true'] .run-mode-chevron,
 .orchestration-scheme-trigger[aria-expanded='true'] .orchestration-scheme-chevron {
   transform: rotate(180deg);
@@ -621,18 +595,21 @@
 
 /* ─── Run mode / orchestration popovers ───────────────────────────────── */
 
-.ui-popover-content.run-mode-popover {
+.ui-popover-content.run-mode-popover,
+.ui-popover-content.agent-mode-popover {
   min-width: 260px;
   padding: var(--s-4);
 }
 
-.run-mode-section {
+.run-mode-section,
+.agent-mode-section {
   display: flex;
   flex-direction: column;
   gap: var(--s-1);
 }
 
-.run-mode-section-title {
+.run-mode-section-title,
+.agent-mode-section-title {
   font-size: var(--fs-micro);
   font-weight: 600;
   color: var(--text-4);
@@ -641,7 +618,8 @@
   letter-spacing: var(--tracking-micro);
 }
 
-.run-mode-option {
+.run-mode-option,
+.agent-mode-option {
   display: flex;
   align-items: center;
   gap: var(--s-4);
@@ -658,25 +636,30 @@
   transition: background-color var(--t-1) var(--ease-out);
 }
 
-.run-mode-option:hover:not(:disabled) {
+.run-mode-option:hover:not(:disabled),
+.agent-mode-option:hover:not(:disabled) {
   background: var(--hover);
 }
 
-.run-mode-option:disabled {
+.run-mode-option:disabled,
+.agent-mode-option:disabled {
   color: var(--text-4);
   cursor: not-allowed;
 }
 
-.run-mode-option.is-selected {
+.run-mode-option.is-selected,
+.agent-mode-option.is-selected {
   background: var(--iris-wash);
 }
 
-.run-mode-option-label {
+.run-mode-option-label,
+.agent-mode-option-label {
   font-weight: 560;
   min-width: 48px;
 }
 
-.run-mode-option-desc {
+.run-mode-option-desc,
+.agent-mode-option-desc {
   flex: 1;
   font-size: var(--fs-mono);
   color: var(--text-3);
@@ -694,6 +677,7 @@
 }
 
 .run-mode-footer,
+.agent-mode-footer,
 .orchestration-scheme-footer {
   display: flex;
   justify-content: flex-end;
@@ -703,6 +687,7 @@
 }
 
 .run-mode-footer-btn,
+.agent-mode-footer-btn,
 .orchestration-scheme-footer-btn {
   border: 0;
   border-radius: var(--r-control);
@@ -718,18 +703,22 @@
 }
 
 .run-mode-footer-btn:hover,
+.agent-mode-footer-btn:hover,
 .orchestration-scheme-footer-btn:hover {
   background: var(--hover);
   color: var(--text-1);
 }
 
-/* Orchestration is "active" when a non-default scheme is pinned. */
-.orchestration-scheme-control.is-active .orchestration-scheme-trigger {
+/* Orchestration is "active" when a non-default scheme is pinned. Goal uses
+   the same standing tint so the toolbar mode is visible without a chip. */
+.orchestration-scheme-control.is-active .orchestration-scheme-trigger,
+.agent-mode-control.is-active .agent-mode-trigger {
   color: var(--iris-lift);
   background: var(--iris-wash);
 }
 
-.orchestration-scheme-control.is-active .orchestration-scheme-value {
+.orchestration-scheme-control.is-active .orchestration-scheme-value,
+.agent-mode-control.is-active .agent-mode-value {
   color: var(--iris-lift);
 }
 

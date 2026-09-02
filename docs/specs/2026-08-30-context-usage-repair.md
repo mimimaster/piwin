@@ -192,7 +192,7 @@ publisher 的持久状态相等比较必须包含 `lastConfirmed`、`contextBoun
 - 同一 HostInstance 下丢弃旧 revision；HostInstance 变化时清除传输 cursor/待处理回调与该 Host 的 warm，再读取持久状态，不能用本机 Date.now 排序。
 - 环只吃 selector 产物：可见性、数值、质量、状态、模型上限、`occupancySource`。selector 验证 session/版本/首响应资格；仅 exact `runtime-generation-mismatch` + 非 leaf 兼容边界可 presentation-only 使用 `lastConfirmed`。React 组件不猜计量口径。
 - 主 Workbench、Conversation 多窗格使用同一个 selector/reducer；快照仅当前已订阅/可见或有限 warm 集合持有，遵守原有有界缓存。
-- `readContextOccupiedTokens` 的模型迁移预检改用同一 Host snapshot 语义，只读当前 `occupancy.kind === 'known'`（含缓存和输出）；未知不当 0，不消费 `lastConfirmed`。保留 provider 最终约束与现有保守预算。
+- 显式目标模型压缩预检中的 `readContextOccupiedTokens` 改用同一 Host snapshot 语义，只读当前 `occupancy.kind === 'known'`（含缓存和输出）；未知不当 0，不消费 `lastConfirmed`。`session/prompt` 的模型切换不以源上下文压缩为前置门槛；保留 provider 最终约束与现有保守预算。
 - CLI 使用 `session/context-get` 输出“已确认/估算/未知”，不需要新做 TUI 环；mobile 无环时可只正确接收/忽略新遥测并继续聊天，不能继续从账单制造实时占用。
 
 ## 8. 可执行工作包（按顺序，小提交）

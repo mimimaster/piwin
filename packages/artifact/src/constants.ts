@@ -18,8 +18,8 @@ export const STREAMING_ARTIFACT_FENCE_MARKER = 'piwin-stream-artifact' as const;
 export const MIN_ARTIFACT_IFRAME_HEIGHT = 40;
 /** Temporary paint size while the sandbox reports its real content height. */
 export const ARTIFACT_BOOTSTRAP_HEIGHT = 80;
-/** Visible bounded degradation when an Inline iframe cannot report height. */
-export const ARTIFACT_FALLBACK_HEIGHT = 640;
+/** Compact recovery viewport when an Inline iframe cannot report height. */
+export const ARTIFACT_FALLBACK_HEIGHT = 360;
 /**
  * Defensive ceiling for an Inline Artifact that flows with the transcript.
  * Inline no longer owns a 900px scrollport, but model HTML is untrusted and
@@ -48,6 +48,8 @@ export const ARTIFACT_LIVE_PRIORITY_CANVAS = 1_000;
 
 /** Single content-size message from an Inline sandbox → parent. */
 export const ARTIFACT_BRIDGE_SIZE_TYPE = 'piwin-artifact:size' as const;
+/** Parent request for a fresh size report and optional recovery viewport. */
+export const ARTIFACT_BRIDGE_MEASURE_REQUEST_TYPE = 'piwin-artifact:measure-request' as const;
 /** Sanitized body snapshots from parent → a streaming Artifact iframe. */
 export const ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE = 'piwin-artifact:stream-update' as const;
 /** User-intent actions from artifact UI → product (strict whitelist). */

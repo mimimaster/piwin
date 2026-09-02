@@ -911,6 +911,14 @@ describe('FileTreePanel context menu (CM-05)', () => {
         new MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
       );
     });
+    const moreItem = menuItem('context-menu-sub-more');
+    expect(moreItem).not.toBeNull();
+    act(() => {
+      moreItem?.click();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
     const explainItem = menuItem('context-menu-explain') as HTMLElement | null;
     expect(explainItem).not.toBeNull();
     act(() => {

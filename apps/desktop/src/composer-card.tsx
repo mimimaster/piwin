@@ -15,6 +15,8 @@ import {
   buildSlashCatalog,
   detectActiveSlashToken,
   filterSlashItems,
+  isReservedComposerSlashCommand,
+  isReservedSlashExecuteName,
   replaceActiveSlashToken,
   SlashMenu,
   type SlashItem,
@@ -29,6 +31,7 @@ import {
   type AtItem,
 } from './at';
 import { ComposerModalEditor } from './ComposerModalEditor';
+import { ComposerQueuedEditBanner } from './composer-queued-edit-banner';
 import { getDesktopCopy } from './desktop-locale';
 import { useDesktopLocale } from './desktop-locale-context';
 import { useSpeechInput } from './hooks/use-speech-input.js';
@@ -48,17 +51,29 @@ function getAgentPlaceholder(
   copy: ReturnType<typeof getDesktopCopy>['composer'],
   conversationSession = false,
 ): string {
+  if (mode === 'goal') return copy.goalPlaceholder;
   if (conversationSession) {
     return copy.chatPlaceholder;
   }
-  if (mode === 'goal') return copy.goalPlaceholder;
   return copy.agentPlaceholder;
 }
 
 export function ComposerCard(props: ComposerDockProps): ReactElement {
   const { locale, translator } = useDesktopLocale();
+  const queuedEdit = props.queuedEdit ?? null;
+  const baseCopy = getDesktopCopy(locale).composer;
   const copy = {
-    ...getDesktopCopy(locale).composer,
+    ...baseCopy,
+    // A queued-turn edit reuses the Send control, so every send-flavoured
+    // label has to say "save" instead of "queue another turn".
+    ...(queuedEdit
+      ? {
+          send: baseCopy.saveQueuedMessage,
+          sendShortcut: baseCopy.queuedEditSaveHint,
+          queueFollowUp: baseCopy.saveQueuedMessage,
+          queueFollowUpHint: baseCopy.queuedEditSaveHint,
+        }
+      : {}),
     ...(props.sendAriaLabel
       ? { send: props.sendAriaLabel, sendShortcut: props.sendAriaLabel }
       : {}),
@@ -93,7 +108,12 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     props.pendingAttachments.some((item) => !isFailedMediaAttachment(item)) ||
     (props.pendingContextRefs?.length ?? 0) > 0;
   const onlyFailedAttachments = failedAttachments.length > 0 && !hasSendableContentBesidesFailures;
-  const canKeyboardSend = props.composer.trim().length > 0 || props.hasCarryContent === true;
+  // A queued turn may legitimately end up image-only, so Enter still saves it
+  // when the text has been cleared but chips remain.
+  const canKeyboardSend =
+    props.composer.trim().length > 0 ||
+    props.hasCarryContent === true ||
+    (queuedEdit !== null && props.pendingAttachments.length > 0);
   const selectedModel = props.modelOptions.find(
     (model) => `${model.providerId}::${model.modelId}` === props.selectedModelKey,
   );
@@ -177,6 +197,19 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     }
   }, [extensionUiRequest?.requestId, isExtensionUiInput]);
 
+  // Entering a queued-turn edit hands the caret to the loaded text.
+  useEffect(() => {
+    if (props.queuedEdit === null || props.queuedEdit === undefined) {
+      return;
+    }
+    const element = textareaRef.current;
+    if (!element) {
+      return;
+    }
+    element.focus();
+    element.setSelectionRange(element.value.length, element.value.length);
+  }, [props.queuedEdit?.messageId]);
+
   const isGoalEnabled = props.goalExtensionEnabled !== false;
 
   // Catalog: Slash Menu items
@@ -243,8 +276,14 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       buildAtCatalog({
         projectPath: props.projectPath,
         mcpServers: props.menuMcp.map((m) => ({ id: m.id, name: m.name })),
+        recentFiles: (props.atWorkspaceFiles ?? [])
+          .filter((entry) => entry.kind === 'file')
+          .map((entry) => entry.relativePath),
+        recentFolders: (props.atWorkspaceFiles ?? [])
+          .filter((entry) => entry.kind === 'directory')
+          .map((entry) => entry.relativePath),
       }),
-    [props.projectPath, props.menuMcp],
+    [props.projectPath, props.menuMcp, props.atWorkspaceFiles],
   );
 
   const activeAtToken = useMemo(
@@ -260,11 +299,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   }, [activeAtToken, canComposeText, atCatalog]);
 
   const atMenuOpen =
-    atItems.length > 0 &&
-    activeAtToken !== null &&
-    canComposeText &&
-    !atMenuForcedClosed &&
-    !slashMenuOpen;
+    activeAtToken !== null && canComposeText && !atMenuForcedClosed && !slashMenuOpen;
 
   useEffect(() => {
     setAtSelectedIndex(0);
@@ -336,7 +371,14 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   const showSpeechInput = props.speechConfigured === true && props.speechRequest !== undefined;
 
   function applySlashItem(item: SlashItem): void {
-    if (!activeSlashToken || !item.available) {
+    if (!activeSlashToken) {
+      return;
+    }
+    if (isReservedSlashExecuteName(item.name)) {
+      executeReservedSlashItem(item);
+      return;
+    }
+    if (!item.available) {
       return;
     }
     if (item.kind === 'mode') {
@@ -355,6 +397,17 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     setSlashMenuForcedClosed(true);
   }
 
+  function executeReservedSlashItem(item: SlashItem): void {
+    if (!activeSlashToken) {
+      return;
+    }
+    const suffix = props.composer.slice(activeSlashToken.endIndex);
+    const next = `/${item.name}${suffix}`.replace(/[ \t]+$/u, '').trimStart();
+    props.onComposerChange(next);
+    setSlashMenuForcedClosed(true);
+    proceedSend(next);
+  }
+
   function applyAtItem(item: AtItem): void {
     if (!activeAtToken) {
       return;
@@ -371,14 +424,14 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     setAtMenuForcedClosed(true);
   }
 
-  function proceedSend(): void {
-    const trimmed = props.composer.trim();
+  function proceedSend(overrideText?: string): void {
+    const trimmed = (overrideText ?? props.composer).trim();
     if (trimmed) {
       pushHistoryEntry(trimmed);
     }
     setHistoryMenuOpen(false);
     draftBeforeHistoryRef.current = '';
-    props.onSend();
+    props.onSend(overrideText);
   }
 
   function triggerSend(): void {
@@ -395,7 +448,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       }
       return;
     }
-    if (failedAttachments.length > 0) {
+    if (failedAttachments.length > 0 && !isReservedComposerSlashCommand(props.composer)) {
       // Failed chips are the only content: the action is a plain retry — the
       // send path re-runs the deferred saves for the re-queued chips.
       if (onlyFailedAttachments) {
@@ -485,7 +538,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       }
       if (event.key === 'Tab') {
         const selected = slashItems[slashSelectedIndex];
-        if (selected?.available) {
+        if (selected && (selected.available || isReservedSlashExecuteName(selected.name))) {
           event.preventDefault();
           applySlashItem(selected);
           return;
@@ -493,6 +546,11 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       }
       if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
         const selected = slashItems[slashSelectedIndex];
+        if (selected && isReservedSlashExecuteName(selected.name)) {
+          event.preventDefault();
+          applySlashItem(selected);
+          return;
+        }
         const query = (activeSlashToken?.query ?? '').toLowerCase();
         const exactMatch =
           selected &&
@@ -623,23 +681,34 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       }
     }
 
-    // 4. ⌘Enter submits a run intervention (bypasses IME protection).
+    // 4. Escape leaves a queued-turn edit; the parked draft comes back.
+    if (event.key === 'Escape' && queuedEdit && !slashMenuOpen && !atMenuOpen && !historyMenuOpen) {
+      event.preventDefault();
+      props.onQueuedEditCancel?.();
+      return;
+    }
+
+    // 5. ⌘Enter submits a run intervention (bypasses IME protection). While a
+    // queued turn owns the input box there is nothing to steer with — both
+    // Enter flavours save the edit.
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !event.shiftKey) {
       event.preventDefault();
-      if (isPaused) {
+      const reserved = isReservedComposerSlashCommand(props.composer);
+      if (isPaused && !reserved) {
         return;
       }
-      if (isStreamingRun) {
+      if (isStreamingRun && !queuedEdit && !reserved) {
         if (props.composer.trim().length > 0) {
           triggerSteer();
         }
-      } else if (canKeyboardSend) {
+      } else if (canKeyboardSend || reserved) {
         triggerSend();
       }
       return;
     }
 
-    // 5. Enter Send handling with strict IME protection
+    // 6. Enter queues a follow-up while a Run is live; Cmd/Ctrl+Enter above
+    // steers the current Run. Ordinary Send stays non-destructive.
     const now = Date.now();
     const isRecentlyComposing = isComposingRef.current || now - lastCompositionEndRef.current < 100;
 
@@ -650,14 +719,11 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       !event.nativeEvent.isComposing
     ) {
       event.preventDefault();
-      if (isPaused) {
+      const reserved = isReservedComposerSlashCommand(props.composer);
+      if (isPaused && !reserved) {
         return;
       }
-      if (isStreamingRun) {
-        if (props.composer.trim().length > 0) {
-          triggerSteer();
-        }
-      } else if (canKeyboardSend) {
+      if (canKeyboardSend || reserved) {
         triggerSend();
       }
     }
@@ -681,7 +747,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
 
   return (
     <div
-      className={`composer-card-v2${props.dropActive ? ' drop-active' : ''}${isStreamingRun ? ' is-streaming' : ''}`}
+      className={`composer-card-v2${props.dropActive ? ' drop-active' : ''}${isStreamingRun ? ' is-streaming' : ''}${queuedEdit ? ' is-queued-edit' : ''}`}
       data-testid="composer-card"
       onDragEnter={(event) => {
         event.preventDefault();
@@ -715,6 +781,16 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
             <span className="composer-v2-drop-text">{copy.dropFiles}</span>
           </div>
         </div>
+      ) : null}
+
+      {queuedEdit ? (
+        <ComposerQueuedEditBanner
+          position={queuedEdit.position}
+          title={copy.queuedEditTitle}
+          hint={copy.queuedEditHint}
+          cancelLabel={copy.cancelQueuedEdit}
+          onCancel={() => props.onQueuedEditCancel?.()}
+        />
       ) : null}
 
       <ComposerAttachmentShelf
@@ -803,7 +879,9 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
               ? (extensionUiRequest?.placeholder ?? copy.typeYourAnswer)
               : isExtensionUiActive
                 ? interruptionCopy.selectOrCustomPlaceholder
-                : getAgentPlaceholder(props.agentMode, copy, props.isConversationSession === true)
+                : queuedEdit
+                  ? copy.queuedEditPlaceholder
+                  : getAgentPlaceholder(props.agentMode, copy, props.isConversationSession === true)
           }
           rows={1}
         />
@@ -824,7 +902,6 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
         thinkingModels={thinkingModels}
         selectedModel={selectedModel}
         triggerSend={triggerSend}
-        triggerSteer={triggerSteer}
       />
 
       {/* Expanded Modal Editor */}

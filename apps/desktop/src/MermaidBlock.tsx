@@ -15,17 +15,27 @@ import {
 } from 'react';
 import { formatError } from '@piwin/contracts';
 import { useMarkdownRenderingPhase } from './markdown-rendering-phase.js';
+import { useThemeMode, type ThemeMode } from './theme/theme-mode.js';
 
 const MERMAID_RENDER_TIMEOUT_MS = 8_000;
+
+/**
+ * Mermaid bakes colors into the SVG it emits, so it cannot inherit the Deck
+ * ramp and has to be told which face is active. Pinning `dark` here painted
+ * near-white diagram labels onto Bone's paper surfaces at ~1:1 contrast, which
+ * is invisible rather than merely off-palette.
+ */
+const MERMAID_THEME: Record<ThemeMode, 'dark' | 'default'> = {
+  dark: 'dark',
+  light: 'default',
+};
 
 type MermaidBlockProps = {
   source: string;
 };
 
 type MermaidRenderState =
-  | { status: 'loading' }
-  | { status: 'ready'; svg: string }
-  | { status: 'error'; message: string };
+  { status: 'loading' } | { status: 'ready'; svg: string } | { status: 'error'; message: string };
 
 export function MermaidBlock({ source }: MermaidBlockProps): ReactElement {
   return (
@@ -38,6 +48,7 @@ export function MermaidBlock({ source }: MermaidBlockProps): ReactElement {
 function MermaidInner({ source }: MermaidBlockProps): ReactElement {
   const reactId = useId().replace(/:/g, '');
   const phase = useMarkdownRenderingPhase();
+  const themeMode = useThemeMode();
   const [state, setState] = useState<MermaidRenderState>({ status: 'loading' });
 
   useEffect(() => {
@@ -66,7 +77,7 @@ function MermaidInner({ source }: MermaidBlockProps): ReactElement {
           startOnLoad: false,
           // Strict: no click handlers / loose HTML in diagram labels.
           securityLevel: 'strict',
-          theme: 'dark',
+          theme: MERMAID_THEME[themeMode],
           fontFamily: 'ui-sans-serif, system-ui, sans-serif',
         });
         const diagramId = `piwin-mermaid-${reactId}-${Date.now().toString(36)}`;
@@ -97,7 +108,9 @@ function MermaidInner({ source }: MermaidBlockProps): ReactElement {
         clearTimeout(timeoutId);
       }
     };
-  }, [source, reactId, phase]);
+    // themeMode re-renders the diagram on a theme flip: the colors are already
+    // inside the emitted SVG, so nothing else can repaint them.
+  }, [source, reactId, phase, themeMode]);
 
   if (phase === 'streaming') {
     return (
@@ -150,10 +163,7 @@ type MermaidErrorBoundaryState = {
   errorMessage: string | null;
 };
 
-class MermaidErrorBoundary extends Component<
-  MermaidErrorBoundaryProps,
-  MermaidErrorBoundaryState
-> {
+class MermaidErrorBoundary extends Component<MermaidErrorBoundaryProps, MermaidErrorBoundaryState> {
   override state: MermaidErrorBoundaryState = { errorMessage: null };
 
   static getDerivedStateFromError(error: Error): MermaidErrorBoundaryState {

@@ -1,6 +1,7 @@
 import { useCallback, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import {
   ARTIFACT_BOOTSTRAP_HEIGHT,
+  ARTIFACT_BRIDGE_MEASURE_REQUEST_TYPE,
   ARTIFACT_FALLBACK_HEIGHT,
   ARTIFACT_READY_TIMEOUT_MS,
   MAX_ARTIFACT_INLINE_FLOW_HEIGHT,
@@ -24,6 +25,7 @@ export type ArtifactFrameBridge = {
   overflowsInlineFlow: boolean;
   status: ArtifactBridgeStatus;
   onIframeLoad: () => void;
+  retryMeasurement: () => void;
 };
 
 type BridgeInput = {
@@ -54,8 +56,7 @@ function resolvePaneHeight(input: BridgeInput): number | null {
 
 function resolveViewportFrameHeight(input: BridgeInput): number {
   const paneHeight = resolvePaneHeight(input);
-  const viewportHeight =
-    paneHeight ?? (typeof window === 'undefined' ? 640 : window.innerHeight);
+  const viewportHeight = paneHeight ?? (typeof window === 'undefined' ? 640 : window.innerHeight);
   const preferredHeight = resolveArtifactViewportFrameHeight(viewportHeight);
   return paneHeight === null
     ? preferredHeight
@@ -88,7 +89,27 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
   const readyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heightRef = useRef(input.bootstrapHeight);
   const lastRevisionRef = useRef(-1);
+  const statusRef = useRef<ArtifactBridgeStatus>(initialStatus);
   const dataHandlerRef = useRef<(data: unknown, trustedSource: boolean) => void>(() => undefined);
+
+  const updateStatus = useCallback((nextStatus: ArtifactBridgeStatus): void => {
+    statusRef.current = nextStatus;
+    setStatus(nextStatus);
+  }, []);
+
+  const requestMeasurement = useCallback((fallbackViewport: boolean, force = true): void => {
+    const current = latestRef.current;
+    if (!current.measureHeight || hostOwnsViewport(current.frameMode)) return;
+    current.iframeRef.current?.contentWindow?.postMessage(
+      {
+        type: ARTIFACT_BRIDGE_MEASURE_REQUEST_TYPE,
+        channelId: current.channelId,
+        fallbackViewport,
+        force,
+      },
+      '*',
+    );
+  }, []);
 
   const clearReadyTimer = useCallback((): void => {
     if (readyTimerRef.current) {
@@ -100,29 +121,25 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
   const startReadyTimer = useCallback((): void => {
     clearReadyTimer();
     const current = latestRef.current;
-    if (!current.measureHeight || current.decision.mode === 'stream-preview') {
+    if (!current.measureHeight) {
       return;
     }
     readyTimerRef.current = setTimeout(() => {
       readyTimerRef.current = null;
-      const fallbackHeight = clampArtifactHeight(
-        ARTIFACT_FALLBACK_HEIGHT,
-        MIN_ARTIFACT_IFRAME_HEIGHT,
-        MAX_ARTIFACT_INLINE_FLOW_HEIGHT,
-        ARTIFACT_BOOTSTRAP_HEIGHT,
-      );
+      const fallbackHeight = ARTIFACT_FALLBACK_HEIGHT;
       heightRef.current = fallbackHeight;
       setHeight(fallbackHeight);
-      setStatus('fallback');
+      updateStatus('fallback');
+      requestMeasurement(true);
       console.warn(
-        'Artifact height bridge timed out; keeping the preview in a bounded fallback viewport.',
+        'Artifact height bridge timed out; keeping the preview in a scrollable recovery viewport.',
         {
           channelId: current.channelId,
           fallbackHeight,
         },
       );
     }, ARTIFACT_READY_TIMEOUT_MS);
-  }, [clearReadyTimer]);
+  }, [clearReadyTimer, requestMeasurement, updateStatus]);
 
   dataHandlerRef.current = (data, trustedSource): void => {
     const current = latestRef.current;
@@ -155,6 +172,7 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
       return;
     }
     lastRevisionRef.current = message.revision;
+    const wasRecovering = statusRef.current === 'fallback';
     const rawHeight = message.height;
     setContentHeight(rawHeight);
     clearReadyTimer();
@@ -164,7 +182,8 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
       heightRef.current = chromeHeight;
       setOverflowsInlineFlow(true);
       setHeight(chromeHeight);
-      setStatus(current.decision.mode === 'stream-preview' ? 'streaming' : 'ready');
+      updateStatus(current.decision.mode === 'stream-preview' ? 'streaming' : 'ready');
+      if (wasRecovering) requestMeasurement(false, false);
       if (grew) current.onContentGrew?.();
       return;
     }
@@ -177,13 +196,21 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
     const grew = measuredHeight > heightRef.current;
     heightRef.current = measuredHeight;
     setHeight(measuredHeight);
-    setStatus(current.decision.mode === 'stream-preview' ? 'streaming' : 'ready');
+    updateStatus(current.decision.mode === 'stream-preview' ? 'streaming' : 'ready');
+    if (wasRecovering) requestMeasurement(false, false);
     if (grew) current.onContentGrew?.();
   };
 
   const onIframeLoad = useCallback((): void => {
+    lastRevisionRef.current = -1;
     startReadyTimer();
-  }, [startReadyTimer]);
+    requestMeasurement(false);
+  }, [requestMeasurement, startReadyTimer]);
+
+  const retryMeasurement = useCallback((): void => {
+    startReadyTimer();
+    requestMeasurement(true);
+  }, [requestMeasurement, startReadyTimer]);
 
   useLayoutEffect(() => {
     if (!input.enabled) {
@@ -193,7 +220,7 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
     heightRef.current = nextHeight;
     lastRevisionRef.current = -1;
     setHeight(nextHeight);
-    setStatus(initialStatus);
+    updateStatus(initialStatus);
     if (!hostOwnsViewport(input.frameMode)) {
       setOverflowsInlineFlow(false);
       setContentHeight(input.bootstrapHeight);
@@ -209,10 +236,15 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
 
     let disposed = false;
     let unlistenNative: (() => void) | null = null;
-    void subscribeNativeArtifactBridge((payload) => dataHandlerRef.current(payload, true))
+    void subscribeNativeArtifactBridge(input.channelId, (payload) =>
+      dataHandlerRef.current(payload, true),
+    )
       .then((unlisten) => {
         if (disposed) unlisten();
-        else unlistenNative = unlisten;
+        else {
+          unlistenNative = unlisten;
+          requestMeasurement(false);
+        }
       })
       .catch((error: unknown) => {
         console.warn('Unable to attach native Artifact bridge.', error);
@@ -224,7 +256,15 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
       unlistenNative?.();
       clearReadyTimer();
     };
-  }, [clearReadyTimer, input.documentKey, input.enabled, input.frameMode]);
+  }, [
+    clearReadyTimer,
+    input.channelId,
+    input.documentKey,
+    input.enabled,
+    input.frameMode,
+    requestMeasurement,
+    updateStatus,
+  ]);
 
-  return { height, contentHeight, overflowsInlineFlow, status, onIframeLoad };
+  return { height, contentHeight, overflowsInlineFlow, status, onIframeLoad, retryMeasurement };
 }

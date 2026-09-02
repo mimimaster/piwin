@@ -133,6 +133,7 @@ html[data-frame-mode="inline-flow"] .piwin-artifact-root td {
 
 export function buildArtifactMotionPolicyCss(): string {
   return `
+@media (prefers-reduced-motion: reduce) {
 .piwin-artifact-root,
 .piwin-artifact-root *,
 .piwin-artifact-root *::before,
@@ -146,6 +147,7 @@ export function buildArtifactMotionPolicyCss(): string {
 .piwin-artifact-root animateTransform,
 .piwin-artifact-root set {
   display: none !important;
+}
 }
 `;
 }
@@ -209,6 +211,16 @@ html[data-frame-mode="inline-flow"] body {
   height: auto !important;
   overflow-x: hidden !important;
   overflow-y: hidden !important;
+}
+html[data-frame-mode="inline-flow"][data-measurement-fallback="true"] {
+  min-height: 100% !important;
+  height: 100% !important;
+}
+html[data-frame-mode="inline-flow"][data-measurement-fallback="true"] body {
+  min-height: 100% !important;
+  height: 100% !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
 }
 html[data-frame-mode="inline-flow"] body > *,
 html[data-frame-mode="inline-flow"] body > div {

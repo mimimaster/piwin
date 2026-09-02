@@ -29,9 +29,9 @@ describe('settings view config', () => {
       ...mergeSettingsViewConfig(snapshot),
       permissions: { mode: 'auto' as const, preset: 'auto' as const },
     };
-    expect(settingsMutationsFromViewDraft(snapshot, next).map((mutation) => mutation.domain)).toEqual(
-      ['permissions'],
-    );
+    expect(
+      settingsMutationsFromViewDraft(snapshot, next).map((mutation) => mutation.domain),
+    ).toEqual(['permissions']);
   });
 
   it('keeps the Host permission preset instead of inventing YOLO over Auto', () => {
@@ -62,7 +62,7 @@ describe('settings view config', () => {
     expect(merged.web?.fetchApiKeyEnv).toBe('FIRECRAWL_API_KEY');
     expect(merged.web?.fetchReturnMaxChars).toBe(18_000);
     expect(merged.web?.fetchStoreMaxChars).toBe(200_000);
-    expect(merged.web?.searchSources.length).toBeGreaterThan(0);
+    expect(merged.web?.searchSources).toEqual([]);
   });
 
   it('keeps Host reply-writer and vision-delegation settings', () => {
@@ -144,10 +144,26 @@ describe('settings view config', () => {
 
   it('keeps and diffs knowledge and notes settings', () => {
     const snapshot = {
-      notes: { embedding: { provider: 'openai-compatible' as const, baseUrl: 'https://api.openai.com/v1', model: 'text-embedding-3-small' } },
+      notes: {
+        embedding: {
+          provider: 'openai-compatible' as const,
+          baseUrl: 'https://api.openai.com/v1',
+          model: 'text-embedding-3-small',
+        },
+      },
       knowledge: {
-        embedding: { enabled: true, provider: 'openai-compatible' as const, baseUrl: 'https://api.openai.com/v1', model: 'text-embedding-3-small' },
-        reranker: { enabled: true, provider: 'openai-compatible', baseUrl: 'https://api.example.com/v1', model: 'rerank-v1' },
+        embedding: {
+          enabled: true,
+          provider: 'openai-compatible' as const,
+          baseUrl: 'https://api.openai.com/v1',
+          model: 'text-embedding-3-small',
+        },
+        reranker: {
+          enabled: true,
+          provider: 'openai-compatible',
+          baseUrl: 'https://api.example.com/v1',
+          model: 'rerank-v1',
+        },
       },
     };
     const merged = mergeSettingsViewConfig(snapshot);
@@ -157,10 +173,21 @@ describe('settings view config', () => {
 
     const next = {
       ...merged,
-      notes: { embedding: { provider: 'ollama' as const, baseUrl: 'http://127.0.0.1:11434/v1', model: 'nomic-embed-text' } },
+      notes: {
+        embedding: {
+          provider: 'ollama' as const,
+          baseUrl: 'http://127.0.0.1:11434/v1',
+          model: 'nomic-embed-text',
+        },
+      },
       knowledge: {
         ...merged.knowledge,
-        embedding: { enabled: true, provider: 'ollama' as const, baseUrl: 'http://127.0.0.1:11434/v1', model: 'nomic-embed-text' },
+        embedding: {
+          enabled: true,
+          provider: 'ollama' as const,
+          baseUrl: 'http://127.0.0.1:11434/v1',
+          model: 'nomic-embed-text',
+        },
       },
     };
     const mutations = settingsMutationsFromViewDraft(snapshot, next);
@@ -200,9 +227,9 @@ describe('settings view config', () => {
       models: [] as { id: string }[],
     };
     const sent = mergeSettingsViewConfig({ providers: [kept] });
-    expect(providerListWriteRetained(sent, mergeSettingsViewConfig({ providers: [kept, dropped] }))).toBe(
-      false,
-    );
+    expect(
+      providerListWriteRetained(sent, mergeSettingsViewConfig({ providers: [kept, dropped] })),
+    ).toBe(false);
     expect(providerListWriteRetained(sent, sent)).toBe(true);
     expect(
       providerListWriteRetained(

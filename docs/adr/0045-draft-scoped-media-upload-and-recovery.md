@@ -205,6 +205,15 @@ and leaves send-held chips intact. Successful ACK, prompt-failure rollback,
 and explicit discard/remove keep using the existing disposal path. No staging
 protocol change.
 
+### Compatibility-path correction (2026-09-02)
+
+Session navigation can briefly hold one pending chip in both the live composer
+and a parked session/draft snapshot. Attachment disposal is now holder-aware:
+snapshot eviction releases a local `File` only after every holder is gone,
+while a successful Send or explicit user removal purges duplicate holders
+before releasing it. This prevents a visible chip from reaching Send with its
+source already disposed; the staged upload protocol remains the long-term fix.
+
 ### Known debt on the compatibility path (recorded 2026-08-13)
 
 - A `media/save` that succeeds and is then abandoned (chip removed, draft

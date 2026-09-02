@@ -43,15 +43,25 @@ export function applyRunRecord(
 ): ChatUiState {
   const previousRecord = state.runRecordsById[run.runId];
   if (previousRecord !== undefined && !isTerminalEvent) {
-    if (
-      run.revision !== undefined &&
-      previousRecord.revision !== undefined &&
-      run.revision <= previousRecord.revision
-    ) {
-      return state;
-    }
-    if (run.revision === undefined && isLegacyRunProjectionEqual(previousRecord, run)) {
-      return state;
+    const sameOrOlderRevision =
+      (run.revision !== undefined &&
+        previousRecord.revision !== undefined &&
+        run.revision <= previousRecord.revision) ||
+      (run.revision === undefined && isLegacyRunProjectionEqual(previousRecord, run));
+    if (sameOrOlderRevision) {
+      // Dedup only while the projection is already live / resting at a known
+      // terminal. After switching back to a still-running session, session/set
+      // reset activeRunId and lastTerminalRunId to null while the warm cache
+      // restored the last record (revision N). Host's
+      // `session/foreground-run` snapshot carries the SAME revision — the run
+      // registry only bumps on phase transitions, so an uninterrupted text
+      // stream never advances it — and must re-establish the projection
+      // instead of being swallowed as a duplicate. At-rest state is the only
+      // shape where re-applying a same-revision record is legitimate; any
+      // remembered terminal or live run keeps the replay guard.
+      if (state.activeRunId !== null || state.lastTerminalRunId !== null) {
+        return state;
+      }
     }
   }
   const phaseAt = parseEventTime(run.phaseUpdatedAt ?? run.startedAt ?? run.endedAt ?? '');

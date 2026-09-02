@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   applySkillToPrompt,
   detectActiveSlashToken,
+  isReservedComposerSlashCommand,
+  isReservedSlashExecuteName,
   normalizeCompactCustomInstructions,
   parseComposerSlashSubmit,
   replaceActiveSlashToken,
@@ -55,6 +57,18 @@ describe('parseComposerSlashSubmit', () => {
     expect(parseComposerSlashSubmit('/compress', skills)).toMatchObject({
       commandId: 'compact',
     });
+  });
+
+  it('recognizes reserved compact/stop submits', () => {
+    expect(isReservedSlashExecuteName('compact')).toBe(true);
+    expect(isReservedSlashExecuteName('summarize')).toBe(true);
+    expect(isReservedSlashExecuteName('stop')).toBe(true);
+    expect(isReservedSlashExecuteName('agent')).toBe(false);
+    expect(isReservedComposerSlashCommand('/compact')).toBe(true);
+    expect(isReservedComposerSlashCommand('/compact keep tools')).toBe(true);
+    expect(isReservedComposerSlashCommand('/stop')).toBe(true);
+    expect(isReservedComposerSlashCommand('/agent')).toBe(false);
+    expect(isReservedComposerSlashCommand('hello')).toBe(false);
   });
 
   it('runs reserved compact/stop handlers for whole-message submits', async () => {
@@ -173,56 +187,56 @@ describe('applySkillToPrompt', () => {
   });
 });
 
-  it('parses /scheme and /ultra-code as scheme selection', () => {
-    expect(parseComposerSlashSubmit('/scheme', skills)).toEqual({
-      kind: 'scheme',
-      schemeId: 'off',
-      name: 'scheme',
-      args: '',
-    });
-    expect(parseComposerSlashSubmit('/scheme ultra-code', skills)).toMatchObject({
-      kind: 'scheme',
-      schemeId: 'ultra-code',
-    });
-    expect(parseComposerSlashSubmit('/ultra-code', skills)).toMatchObject({
-      kind: 'scheme',
-      schemeId: 'ultra-code',
-    });
+it('parses /scheme and /ultra-code as scheme selection', () => {
+  expect(parseComposerSlashSubmit('/scheme', skills)).toEqual({
+    kind: 'scheme',
+    schemeId: 'off',
+    name: 'scheme',
+    args: '',
   });
+  expect(parseComposerSlashSubmit('/scheme ultra-code', skills)).toMatchObject({
+    kind: 'scheme',
+    schemeId: 'ultra-code',
+  });
+  expect(parseComposerSlashSubmit('/ultra-code', skills)).toMatchObject({
+    kind: 'scheme',
+    schemeId: 'ultra-code',
+  });
+});
 
-  it('parses /knowledge, /flashcards, and /notes as knowledge submits', () => {
-    expect(parseComposerSlashSubmit('/knowledge', skills)).toEqual({
-      kind: 'knowledge',
-      subTab: 'doccards',
-      name: 'knowledge',
-      args: '',
-    });
-    expect(parseComposerSlashSubmit('/doccards', skills)).toEqual({
-      kind: 'knowledge',
-      subTab: 'doccards',
-      name: 'doccards',
-      args: '',
-    });
-    expect(parseComposerSlashSubmit('/flashcards', skills)).toEqual({
-      kind: 'cards-panel',
-      name: 'flashcards',
-      args: '',
-    });
-    expect(parseComposerSlashSubmit('/cards', skills)).toEqual({
-      kind: 'cards-panel',
-      name: 'cards',
-      args: '',
-    });
-    expect(parseComposerSlashSubmit('/notes', skills)).toEqual({
-      kind: 'knowledge',
-      subTab: 'wiki',
-      name: 'notes',
-      args: '',
-    });
-    expect(parseComposerSlashSubmit('/wiki', skills)).toEqual({
-      kind: 'knowledge',
-      subTab: 'wiki',
-      name: 'wiki',
-      args: '',
-    });
+it('parses /knowledge, /flashcards, and /notes as knowledge submits', () => {
+  expect(parseComposerSlashSubmit('/knowledge', skills)).toEqual({
+    kind: 'knowledge',
+    subTab: 'doccards',
+    name: 'knowledge',
+    args: '',
   });
+  expect(parseComposerSlashSubmit('/doccards', skills)).toEqual({
+    kind: 'knowledge',
+    subTab: 'doccards',
+    name: 'doccards',
+    args: '',
+  });
+  expect(parseComposerSlashSubmit('/flashcards', skills)).toEqual({
+    kind: 'cards-panel',
+    name: 'flashcards',
+    args: '',
+  });
+  expect(parseComposerSlashSubmit('/cards', skills)).toEqual({
+    kind: 'cards-panel',
+    name: 'cards',
+    args: '',
+  });
+  expect(parseComposerSlashSubmit('/notes', skills)).toEqual({
+    kind: 'knowledge',
+    subTab: 'wiki',
+    name: 'notes',
+    args: '',
+  });
+  expect(parseComposerSlashSubmit('/wiki', skills)).toEqual({
+    kind: 'knowledge',
+    subTab: 'wiki',
+    name: 'wiki',
+    args: '',
+  });
+});

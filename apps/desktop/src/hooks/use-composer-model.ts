@@ -1,6 +1,7 @@
 /**
- * Composer model picker: persist last-used model/thinking, compact when the
- * next model cannot hold the occupied context, and restore from session resume.
+ * Composer model picker: persist last-used model/thinking and restore from
+ * session resume. Context compaction is an explicit session operation, not a
+ * prerequisite for changing the selected model.
  * State (selectedModelKey / thinkingLevel) stays in App because Host bootstrap
  * and session actions both need the setters before this controller can run.
  */
@@ -13,16 +14,7 @@ import {
   type MutableRefObject,
   type SetStateAction,
 } from 'react';
-import {
-  formatError,
-  readContextOccupiedTokens,
-  resolveModelContextBudget,
-  type ContextUsageSnapshot,
-  toModelRef,
-  type ModelRef,
-  type PiwinConfig,
-  type ThinkingLevel,
-} from '@piwin/contracts';
+import { toModelRef, type ModelRef, type PiwinConfig, type ThinkingLevel } from '@piwin/contracts';
 import { composerProfileSettingsMutations } from '../host-request-adapters';
 import {
   findComposerModelByKey,
@@ -31,16 +23,11 @@ import {
   resolveComposerModelSelection,
 } from '../composer-model-selection-policy';
 import type { HostClient } from '../host-client';
-import type { ChatUiAction, SessionListItemUi } from '../chat-reducer';
+import type { SessionListItemUi } from '../chat-reducer';
 import { pushError, type NotificationAction } from '../notification-queue';
-import { useDesktopLocale } from '../desktop-locale-context';
 import { resolveThinkingLevelForModel } from '../model-thinking-policy';
 import type { ModelOption } from '../model-options';
 import { commitSessionComposerProfile } from './commit-session-composer-profile.js';
-import {
-  compactFailureMessage,
-  isTargetCompactNoOpFailure,
-} from './session-actions-helpers.js';
 
 export type ComposerModelRestoreProfile = {
   model?: ModelRef;
@@ -61,11 +48,6 @@ export type UseComposerModelControllerArgs = {
   sessions: readonly SessionListItemUi[];
   generalSessions: readonly SessionListItemUi[];
   activeSessionId: string | null;
-  contextUsage: ContextUsageSnapshot | null;
-  contextSnapshot?: import('@piwin/contracts').SessionContextSnapshot | null;
-  streaming: boolean;
-  compacting: boolean;
-  dispatch: Dispatch<ChatUiAction>;
   dispatchNotification: Dispatch<NotificationAction>;
   saveSettingsInOrder: import('./use-settings-save-queue').SaveSettingsInOrder;
   sessionComposerProfileRestoredRef: MutableRefObject<
@@ -122,22 +104,12 @@ export function useComposerModelController(args: UseComposerModelControllerArgs)
     sessions,
     generalSessions,
     activeSessionId,
-    contextUsage,
-    contextSnapshot,
-    streaming,
-    compacting,
-    dispatch,
     dispatchNotification,
     saveSettingsInOrder,
     sessionComposerProfileRestoredRef,
   } = args;
 
-  const { locale } = useDesktopLocale();
   const modelSwitchInFlightRef = useRef(false);
-  const activeSessionIdRef = useRef<string | null>(activeSessionId);
-  useEffect(() => {
-    activeSessionIdRef.current = activeSessionId;
-  }, [activeSessionId]);
   const lastAppliedSessionModelIdRef = useRef<string | null>(null);
 
   const applyComposerModelSelection = useCallback(
@@ -329,98 +301,46 @@ export function useComposerModelController(args: UseComposerModelControllerArgs)
       if (!nextModel || nextModelKey === selectedModelKey || modelSwitchInFlightRef.current) {
         return;
       }
-      const occupiedTokens = readContextOccupiedTokens(contextSnapshot ?? contextUsage);
-      const targetBudget = resolveModelContextBudget({
-        ...(nextModel.contextWindow !== undefined
-          ? { contextWindow: nextModel.contextWindow }
-          : {}),
-        ...(nextModel.maxOutputTokens !== undefined
-          ? { maxOutputTokens: nextModel.maxOutputTokens }
-          : {}),
-      });
-      if (
-        activeSessionId &&
-        occupiedTokens !== undefined &&
-        occupiedTokens > targetBudget.inputBudget
-      ) {
-        if (streaming || compacting) {
-          dispatch({
-            type: 'error',
-            message: 'Wait for the current operation to finish before switching models.',
-          });
+      modelSwitchInFlightRef.current = true;
+      try {
+        const nextThinkingLevel =
+          resolveThinkingLevelForModel(
+            nextModel,
+            thinkingLevel,
+            config?.thinking?.ultraEnabled === true,
+          ) ?? 'off';
+        const profileResult = await commitSessionComposerProfile({
+          request: (command) => hostClient.request(command),
+          sessionId: activeSessionId,
+          model: toModelRef({
+            providerId: nextModel.providerId,
+            modelId: nextModel.modelId,
+            ...(nextModel.protocol !== undefined ? { protocol: nextModel.protocol } : {}),
+            ...(nextModel.source !== undefined ? { source: nextModel.source } : {}),
+          }),
+          thinkingLevel: nextThinkingLevel,
+        });
+        if (!profileResult.ok) {
+          dispatchNotification(pushError(profileResult.error));
           return;
         }
-        modelSwitchInFlightRef.current = true;
-        const preparedSessionId = activeSessionId;
-        try {
-          const response = await hostClient.request({
-            type: 'session/compact',
-            sessionId: preparedSessionId,
-            targetModel: toModelRef({
-              providerId: nextModel.providerId,
-              modelId: nextModel.modelId,
-              ...(nextModel.protocol !== undefined ? { protocol: nextModel.protocol } : {}),
-              ...(nextModel.source !== undefined ? { source: nextModel.source } : {}),
-            }),
-          });
-          if (!response.success && !isTargetCompactNoOpFailure(response.error)) {
-            dispatchNotification(pushError(compactFailureMessage(response.error, locale)));
-            return;
-          }
-          if (activeSessionIdRef.current !== preparedSessionId) {
-            return;
-          }
-        } catch (error) {
-          const message = formatError(error);
-          if (!isTargetCompactNoOpFailure(message)) {
-            dispatchNotification(pushError(compactFailureMessage(message, locale)));
-            return;
-          }
-        } finally {
-          modelSwitchInFlightRef.current = false;
-        }
+        setSelectedModelKey(nextModelKey);
+        setThinkingLevel(nextThinkingLevel);
+        persistComposerProfile(nextModelKey, nextThinkingLevel);
+      } finally {
+        modelSwitchInFlightRef.current = false;
       }
-      const nextThinkingLevel =
-        resolveThinkingLevelForModel(
-          nextModel,
-          thinkingLevel,
-          config?.thinking?.ultraEnabled === true,
-        ) ?? 'off';
-      const profileResult = await commitSessionComposerProfile({
-        request: (command) => hostClient.request(command),
-        sessionId: activeSessionId,
-        model: toModelRef({
-          providerId: nextModel.providerId,
-          modelId: nextModel.modelId,
-          ...(nextModel.protocol !== undefined ? { protocol: nextModel.protocol } : {}),
-          ...(nextModel.source !== undefined ? { source: nextModel.source } : {}),
-        }),
-        thinkingLevel: nextThinkingLevel,
-      });
-      if (!profileResult.ok) {
-        dispatchNotification(pushError(profileResult.error));
-        return;
-      }
-      setSelectedModelKey(nextModelKey);
-      setThinkingLevel(nextThinkingLevel);
-      persistComposerProfile(nextModelKey, nextThinkingLevel);
     },
     [
       activeSessionId,
-      compacting,
       config?.thinking?.ultraEnabled,
-      contextUsage,
-      contextSnapshot,
-      dispatch,
       dispatchNotification,
       hostClient,
-      locale,
       modelOptions,
       persistComposerProfile,
       selectedModelKey,
       setSelectedModelKey,
       setThinkingLevel,
-      streaming,
       thinkingLevel,
     ],
   );

@@ -4,16 +4,11 @@
  */
 
 import type { ExecutionRunRecord, ModelRef, ThinkingLevel } from '@piwin/contracts';
-import {
-  createUnknownAgentFailure,
-  estimatePendingPromptTokens,
-  formatError,
-} from '@piwin/contracts';
+import { createUnknownAgentFailure, formatError } from '@piwin/contracts';
 import { loadSessionPlan } from '@piwin/session';
 import { createModelPromptAssembly } from '../model-context-assembly.js';
 import { persistAndPushAssembly } from '../model-context-record.js';
 import type { SessionLiveContext } from './session-live-context.js';
-import { compactLiveSessionForTarget } from './compaction-live.js';
 import {
   injectProductHistoryOnce,
   preparePromptInput,
@@ -22,10 +17,7 @@ import {
 import { injectBranchCalibrationOnce } from './branch-calibration.js';
 import { finalizeAbortedRun } from './run-control-commands.js';
 import { scheduleReplyWriterAfterRun } from './reply-writer-live.js';
-import {
-  applyAgentPromptOutcome,
-  persistHostRuntimeFailure,
-} from './session-turn-outcome.js';
+import { applyAgentPromptOutcome, persistHostRuntimeFailure } from './session-turn-outcome.js';
 
 export async function executeSessionTurn(input: {
   context: SessionLiveContext;
@@ -53,22 +45,9 @@ export async function executeSessionTurn(input: {
         return;
       }
     }
-    if (input.desiredModel !== undefined) {
-      await compactLiveSessionForTarget(
-        context,
-        command.sessionId,
-        input.desiredModel,
-        estimatePendingPromptTokens({
-          text: command.input.text,
-          ...(command.input.attachments
-            ? { attachmentCount: command.input.attachments.length }
-            : {}),
-          ...(command.input.contextRefs
-            ? { contextRefCount: command.input.contextRefs.length }
-            : {}),
-        }),
-      );
-    }
+    // Model selection is independent from compaction. A source-generation
+    // compact may be slow or fail, so it must not gate applying the requested
+    // target model. The selected runtime owns its normal Pi compaction path.
     const assembly = createModelPromptAssembly();
     const { promptInput, userMessageId } = await preparePromptInput(
       context,
@@ -255,9 +234,16 @@ export async function executeSessionTurn(input: {
       runId: run.runId,
       failure,
     });
-    await context.terminateRun(command.sessionId, run.runId, 'failed', terminalCode, failure.message, {
-      failure,
-    });
+    await context.terminateRun(
+      command.sessionId,
+      run.runId,
+      'failed',
+      terminalCode,
+      failure.message,
+      {
+        failure,
+      },
+    );
   } finally {
     if (turnChangeBound) {
       context.endTurnChangeRun?.(run.runId);

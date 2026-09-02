@@ -3,6 +3,7 @@ import {
   createDefaultArtifactIframePolicy,
   indexArtifactFences,
   materializeArtifact,
+  type ArtifactFenceRecord,
   type ArtifactRenderPlan,
 } from '@piwin/artifact';
 
@@ -14,6 +15,66 @@ export type MobileArtifactPreview = {
   language: string;
   plan: Extract<ArtifactRenderPlan, { kind: 'render' } | { kind: 'blocked' }>;
 };
+
+export type MobileArtifactFenceDecision =
+  | { kind: 'code' }
+  | { kind: 'preparing'; title: string }
+  | { kind: 'ready'; preview: MobileArtifactPreview };
+
+/**
+ * Analyze one fence with the same policy used by the mobile artifact catalog.
+ * Streaming callers get a lightweight pending decision so they do not
+ * materialize an iframe before the assistant turn has settled.
+ */
+export function evaluateMobileArtifactFence(
+  fence: ArtifactFenceRecord,
+  isStreaming: boolean,
+): MobileArtifactFenceDecision {
+  const analysis = analyzeArtifactFence(fence, {
+    htmlUiModeEnabled: true,
+    iframePolicy: MOBILE_ARTIFACT_IFRAME_POLICY,
+    ...(isStreaming ? { mode: 'stream-preview' as const, allowIncompleteSource: true } : {}),
+  });
+  if (analysis.kind === 'code') {
+    return { kind: 'code' };
+  }
+
+  const title =
+    analysis.kind === 'blocked' ? analysis.descriptor.title : analysis.intent.descriptor.title;
+  if (isStreaming) {
+    return { kind: 'preparing', title };
+  }
+
+  if (analysis.kind === 'blocked') {
+    return {
+      kind: 'ready',
+      preview: {
+        id: analysis.descriptor.id,
+        title: analysis.descriptor.title,
+        language: analysis.descriptor.alias || fence.language,
+        plan: analysis,
+      },
+    };
+  }
+
+  const intent =
+    analysis.intent.renderer === 'static'
+      ? { ...analysis.intent, renderer: 'sandbox' as const }
+      : analysis.intent;
+  const plan = materializeArtifact(intent, {
+    mode: 'interactive',
+    iframePolicy: MOBILE_ARTIFACT_IFRAME_POLICY,
+  });
+  return {
+    kind: 'ready',
+    preview: {
+      id: plan.intent.descriptor.id,
+      title: plan.intent.descriptor.title,
+      language: plan.intent.descriptor.alias || fence.language,
+      plan,
+    },
+  };
+}
 
 /**
  * Fence → card data. `htmlUiModeEnabled` is `config.artifact.enabled`.
@@ -28,36 +89,10 @@ export function collectMobileArtifacts(
   }
   const previews: MobileArtifactPreview[] = [];
   for (const fence of indexArtifactFences(text)) {
-    const analysis = analyzeArtifactFence(fence, {
-      htmlUiModeEnabled,
-      iframePolicy: MOBILE_ARTIFACT_IFRAME_POLICY,
-    });
-    if (analysis.kind === 'code') {
-      continue;
+    const decision = evaluateMobileArtifactFence(fence, false);
+    if (decision.kind === 'ready') {
+      previews.push(decision.preview);
     }
-    if (analysis.kind === 'blocked') {
-      previews.push({
-        id: analysis.descriptor.id,
-        title: analysis.descriptor.title,
-        language: analysis.descriptor.alias || fence.language,
-        plan: analysis,
-      });
-      continue;
-    }
-    const intent =
-      analysis.intent.renderer === 'static'
-        ? { ...analysis.intent, renderer: 'sandbox' as const }
-        : analysis.intent;
-    const plan = materializeArtifact(intent, {
-      mode: 'interactive',
-      iframePolicy: MOBILE_ARTIFACT_IFRAME_POLICY,
-    });
-    previews.push({
-      id: plan.intent.descriptor.id,
-      title: plan.intent.descriptor.title,
-      language: plan.intent.descriptor.alias || fence.language,
-      plan,
-    });
   }
   return previews;
 }

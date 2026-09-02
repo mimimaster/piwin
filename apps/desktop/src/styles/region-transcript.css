@@ -373,7 +373,9 @@
   line-height: 1;
   font-variant-numeric: tabular-nums;
   font-family: inherit;
-  color: var(--text-4);
+  /* Also carries the delivery status ("applied to current task"), which is a
+     sentence the user needs to be able to read, not a decorative timestamp. */
+  color: var(--text-3);
 }
 
 .user-message-avatar {

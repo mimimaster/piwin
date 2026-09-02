@@ -51,28 +51,75 @@ function applyInkWashAssets(root: HTMLElement, theme: ThemeManifest): void {
 }
 
 /**
- * Elevation is a rim light plus a dark outer hairline — never a `border`.
- * The rim is white in both modes; in light mode it reads as the sheen on a
- * raised paper edge, which is why it stays near-opaque there.
+ * Elevation is a rim light plus an outer hairline — never a `border`.
+ *
+ * The two modes are not symmetric, and pretending otherwise is what made Bone
+ * read flat. A white rim over near-black surfaces is the strongest depth cue
+ * Obsidian has; over Bone's surfaces it is a no-op on `--surface-3`/`4`
+ * (both pure white) and barely visible on the tinted chrome below them. So in
+ * light mode the rim is kept for the surfaces it can still catch, and the
+ * actual separation is carried by a two-part shadow — a tight contact shadow
+ * plus a wide ambient one, which is how a raised sheet reads on paper.
  */
-function elevation(isLight: boolean): Vars {
+type ElevationLevel = 1 | 2 | 3 | 4;
+
+/**
+ * The cast-shadow half of each level, without the rim or edge.
+ *
+ * Split out because the legacy `--shadow` / `--shadow-overlay` aliases are
+ * drop shadows only — regions that read them draw their own border — while
+ * `--elev-*` is the whole composite. Deriving both from one table keeps a
+ * shadow tweak from landing on only one of them.
+ */
+function dropShadows(isLight: boolean): Record<ElevationLevel, string> {
+  if (isLight) {
+    return {
+      1: '',
+      2: '0 1px 2px -1px rgba(40, 34, 20, 0.1), 0 4px 10px -3px rgba(40, 34, 20, 0.14)',
+      3: '0 2px 4px -2px rgba(40, 34, 20, 0.12), 0 16px 32px -12px rgba(40, 34, 20, 0.26)',
+      4: '0 4px 8px -4px rgba(40, 34, 20, 0.14), 0 30px 64px -16px rgba(40, 34, 20, 0.34)',
+    };
+  }
+  return {
+    1: '',
+    2: '0 2px 8px -2px rgba(0, 0, 0, 0.5)',
+    3: '0 12px 32px -8px rgba(0, 0, 0, 0.7)',
+    4: '0 24px 64px -12px rgba(0, 0, 0, 0.85)',
+  };
+}
+
+/** Rim light plus outer hairline, per level. */
+function elevationRims(isLight: boolean): Record<ElevationLevel, string> {
   if (isLight) {
     const rim = 'inset 0 1px 0 rgba(255, 255, 255, 0.9)';
     const edge = (a: number): string => `0 0 0 1px rgba(20, 18, 30, ${a})`;
     return {
-      '--elev-1': `${rim}, ${edge(0.08)}`,
-      '--elev-2': `${rim}, ${edge(0.09)}, 0 2px 6px -2px rgba(40, 34, 20, 0.12)`,
-      '--elev-3': `${rim}, ${edge(0.1)}, 0 12px 28px -10px rgba(40, 34, 20, 0.22)`,
-      '--elev-4': `${rim}, ${edge(0.11)}, 0 24px 56px -14px rgba(40, 34, 20, 0.3)`,
+      1: `${rim}, ${edge(0.1)}`,
+      2: `${rim}, ${edge(0.1)}`,
+      3: `${rim}, ${edge(0.11)}`,
+      4: `${rim}, ${edge(0.12)}`,
     };
   }
   const rim = (a: number): string => `inset 0 1px 0 rgba(255, 255, 255, ${a})`;
   const edge = (a: number): string => `0 0 0 1px rgba(0, 0, 0, ${a})`;
   return {
-    '--elev-1': `${rim(0.05)}, ${edge(0.5)}`,
-    '--elev-2': `${rim(0.06)}, ${edge(0.55)}, 0 2px 8px -2px rgba(0, 0, 0, 0.5)`,
-    '--elev-3': `${rim(0.07)}, ${edge(0.6)}, 0 12px 32px -8px rgba(0, 0, 0, 0.7)`,
-    '--elev-4': `${rim(0.08)}, ${edge(0.65)}, 0 24px 64px -12px rgba(0, 0, 0, 0.85)`,
+    1: `${rim(0.05)}, ${edge(0.5)}`,
+    2: `${rim(0.06)}, ${edge(0.55)}`,
+    3: `${rim(0.07)}, ${edge(0.6)}`,
+    4: `${rim(0.08)}, ${edge(0.65)}`,
+  };
+}
+
+function elevation(isLight: boolean): Vars {
+  const rims = elevationRims(isLight);
+  const drops = dropShadows(isLight);
+  const compose = (level: ElevationLevel): string =>
+    drops[level] === '' ? rims[level] : `${rims[level]}, ${drops[level]}`;
+  return {
+    '--elev-1': compose(1),
+    '--elev-2': compose(2),
+    '--elev-3': compose(3),
+    '--elev-4': compose(4),
   };
 }
 
@@ -207,12 +254,8 @@ function legacyVariables(d: ThemeDeckTokens, theme: ThemeManifest, isLight: bool
     '--del-text': isLight ? mix(d.coral, '#000000', 0.1) : mix(d.coral, '#ffffff', 0.36),
 
     // Chrome
-    '--shadow': isLight
-      ? '0 12px 28px -10px rgba(40, 34, 20, 0.22)'
-      : '0 12px 32px -8px rgba(0, 0, 0, 0.7)',
-    '--shadow-overlay': isLight
-      ? '0 24px 56px -14px rgba(40, 34, 20, 0.3)'
-      : '0 24px 64px -12px rgba(0, 0, 0, 0.85)',
+    '--shadow': dropShadows(isLight)[3],
+    '--shadow-overlay': dropShadows(isLight)[4],
     '--overlay-backdrop': isLight ? 'rgba(70, 60, 40, 0.24)' : 'rgba(6, 6, 9, 0.62)',
 
     // Radius

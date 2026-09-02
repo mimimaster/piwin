@@ -45,9 +45,7 @@ test('composer shows the drop zone over the whole card and accepts an image drop
 
   // Drop on the CARD container, not the textarea: the full-card drop zone
   // must actually accept the drop (dragenter → dragover → drop on card).
-  const overlayShown = await page.evaluate(
-    dropImagePageScript('[data-testid="composer-card"]'),
-  );
+  const overlayShown = await page.evaluate(dropImagePageScript('[data-testid="composer-card"]'));
   expect(overlayShown).toBe(true);
 
   // Optimistic chip paints with a decoded preview from the object URL.
@@ -67,4 +65,35 @@ test('composer still accepts a drop directly on the textarea (bubbles to card)',
   const chip = page.getByTestId('composer-card').locator('.composer-v2-attachment-chip');
   await expect(chip).toBeVisible({ timeout: 5000 });
   await expect(chip.locator('img')).toBeVisible({ timeout: 5000 });
+});
+
+test('a pending image remains sendable after switching sessions', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem('piwin.desktop.host-launch-mode', 'sidecar');
+  });
+  await page.goto('/?e2eSeedSessions=2');
+  await expect(page.getByTestId('composer-input')).toBeEnabled({ timeout: 20_000 });
+
+  const sessionOne = page.getByTestId('session-item').filter({ hasText: 'E2E Session 001' });
+  const sessionTwo = page.getByTestId('session-item').filter({ hasText: 'E2E Session 002' });
+  await sessionOne.click();
+  await expect(sessionOne).toHaveAttribute('aria-current', 'page');
+
+  await page.evaluate(dropImagePageScript('[data-testid="composer-input"]'));
+  const chip = page.getByTestId('composer-card').locator('.composer-v2-attachment-chip');
+  await expect(chip).toBeVisible();
+
+  await sessionTwo.click();
+  await expect(sessionTwo).toHaveAttribute('aria-current', 'page');
+  await expect(chip).toHaveCount(0);
+  await sessionOne.click();
+  await expect(sessionOne).toHaveAttribute('aria-current', 'page');
+  await expect(chip).toBeVisible();
+
+  page.on('dialog', (dialog) => void dialog.accept());
+  await page.getByTestId('composer-input').fill('inspect the attachment');
+  await page.locator('.composer-v2-send-btn').click();
+
+  await expect(page.getByTestId('composer-attachment-failure')).toHaveCount(0);
+  await expect(chip).toHaveCount(0);
 });

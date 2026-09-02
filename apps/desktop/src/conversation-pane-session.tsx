@@ -29,6 +29,7 @@ import { ComposerContextUsageControl } from './composer-context-controls.js';
 import type { HostClient } from './host-client.js';
 import { createGestureIdempotencyKey } from './gesture-idempotency.js';
 import { hostFailureNotice } from './host-problem-copy.js';
+import { normalizeCompactCustomInstructions, parseComposerSlashSubmit } from './slash/index.js';
 import {
   foregroundMismatchNotice,
   readForegroundProblem,
@@ -173,8 +174,9 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
       try {
         const statusResponse = await props.hostClient.request({ type: 'host/status' });
         if (!cancelled && statusResponse.success) {
-          const capabilities = (statusResponse.data as { capabilities?: { contextTelemetryVersion?: 1 } } | undefined)
-            ?.capabilities;
+          const capabilities = (
+            statusResponse.data as { capabilities?: { contextTelemetryVersion?: 1 } } | undefined
+          )?.capabilities;
           dispatch({
             type: 'context-telemetry/capability',
             supported: capabilities?.contextTelemetryVersion === 1,
@@ -317,6 +319,38 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
     event?.preventDefault();
     const text = composer.trim();
     if (!text || busy) return;
+    const reserved = parseComposerSlashSubmit(text, []);
+    if (reserved.kind === 'command' && reserved.commandId === 'compact') {
+      setComposer('');
+      setBusy(true);
+      try {
+        const payload: {
+          type: 'session/compact';
+          sessionId: string;
+          customInstructions?: string;
+        } = { type: 'session/compact', sessionId: props.sessionId };
+        const instructions = normalizeCompactCustomInstructions(reserved.args);
+        if (instructions) {
+          payload.customInstructions = instructions;
+        }
+        const response = await props.hostClient.request(payload);
+        if (!response.success) {
+          dispatch({ type: 'error', message: hostFailureNotice(response, props.locale) });
+          setComposer(text);
+        }
+      } catch (error) {
+        dispatch({ type: 'error', message: formatError(error) });
+        setComposer(text);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+    if (reserved.kind === 'command' && reserved.commandId === 'stop') {
+      setComposer('');
+      await handleStop();
+      return;
+    }
     const clientMessageId = crypto.randomUUID();
     setComposer('');
     setBusy(true);
@@ -473,9 +507,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
           {...(props.onOpenArtifactCanvas
             ? { onOpenArtifactCanvas: props.onOpenArtifactCanvas }
             : {})}
-          {...(props.fileBrowseRoot !== undefined
-            ? { fileBrowseRoot: props.fileBrowseRoot }
-            : {})}
+          {...(props.fileBrowseRoot !== undefined ? { fileBrowseRoot: props.fileBrowseRoot } : {})}
           onCompactAbort={handleCompactAbort}
           onCompactDismiss={() => dispatch({ type: 'compaction/dismiss' })}
         />

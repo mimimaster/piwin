@@ -80,8 +80,21 @@ describe('Mobile Shell Navigation & Surfaces', () => {
             onClose={onClose}
             projects={[{ projectId: 'p1', displayName: 'Project 1', trust: 'trusted' }]}
             sessions={[
-              { sessionId: 's1', name: 'Refactor Core', updatedAt: '2026-08-16T12:00:00Z', scope: 'project', projectId: 'p1', messageCount: 5 },
-              { sessionId: 's2', name: 'Fix Bug', updatedAt: '2026-08-16T12:05:00Z', scope: 'project', messageCount: 2 },
+              {
+                sessionId: 's1',
+                name: 'Refactor Core',
+                updatedAt: '2026-08-16T12:00:00Z',
+                scope: 'project',
+                projectId: 'p1',
+                messageCount: 5,
+              },
+              {
+                sessionId: 's2',
+                name: 'Fix Bug',
+                updatedAt: '2026-08-16T12:05:00Z',
+                scope: 'project',
+                messageCount: 2,
+              },
             ]}
             activeSessionId="s1"
             onSelectSession={onSelectSession}
@@ -289,8 +302,20 @@ describe('Mobile Shell Navigation & Surfaces', () => {
             onClose={onClose}
             sessionTitle="重构核心逻辑"
             messages={[
-              { id: 'm1', role: 'user', text: '请优化代码', createdAt: '2026-08-16T12:00:00Z', status: 'done' },
-              { id: 'm2', role: 'assistant', text: '好的，这是优化方案', createdAt: '2026-08-16T12:01:00Z', status: 'done' },
+              {
+                id: 'm1',
+                role: 'user',
+                text: '请优化代码',
+                createdAt: '2026-08-16T12:00:00Z',
+                status: 'done',
+              },
+              {
+                id: 'm2',
+                role: 'assistant',
+                text: '好的，这是优化方案',
+                createdAt: '2026-08-16T12:01:00Z',
+                status: 'done',
+              },
             ]}
           />
         </PiwinUiProvider>,
@@ -463,6 +488,7 @@ describe('Mobile Shell Navigation & Surfaces', () => {
             isResolvingPermission={false}
             onResolvePermission={() => undefined}
             onNavigateToSessions={() => undefined}
+            htmlUiModeEnabled
             healthEnabled={true}
             includeAppleHealth={false}
             onToggleAppleHealth={onToggleAppleHealth}
@@ -470,7 +496,9 @@ describe('Mobile Shell Navigation & Surfaces', () => {
         </PiwinUiProvider>,
       );
     });
-    const chip = document.body.querySelector('[data-testid="mobile-health-chip"]') as HTMLButtonElement;
+    const chip = document.body.querySelector(
+      '[data-testid="mobile-health-chip"]',
+    ) as HTMLButtonElement;
     expect(chip).not.toBeNull();
     expect(chip.textContent).toContain('@Health');
     act(() => {
@@ -505,11 +533,7 @@ describe('Mobile Shell Navigation & Surfaces', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={MOBILE_THEME}>
-          <SkillsInspectorSheet
-            isOpen={true}
-            onClose={onClose}
-            endpoint="ws://127.0.0.1:8787"
-          />
+          <SkillsInspectorSheet isOpen={true} onClose={onClose} endpoint="ws://127.0.0.1:8787" />
         </PiwinUiProvider>,
       );
     });

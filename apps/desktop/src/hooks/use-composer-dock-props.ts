@@ -38,7 +38,11 @@ import {
   isChatCompactPendingOccupancy,
   selectContextRingView,
 } from '../context-telemetry-selector.js';
-import { liveStartErrorLabel, useLiveCall, type LiveCallController } from '../live/use-live-call.js';
+import {
+  liveStartErrorLabel,
+  useLiveCall,
+  type LiveCallController,
+} from '../live/use-live-call.js';
 import { useLiveIntendedSessionSync } from '../live/live-intended-session-sync.js';
 import { readDelegatedTurnResult } from '../live/live-session-result.js';
 import {
@@ -54,6 +58,7 @@ import {
   resolveComposerLayoutMode,
 } from '../composer-dock-assembly';
 import { desktopForegroundMutationsEnabled } from '../foreground-admission.js';
+import { useAtWorkspaceFiles } from './use-at-workspace-files';
 
 export type UseComposerDockPropsArgs = {
   hostClient: HostClient;
@@ -96,7 +101,7 @@ export type UseComposerDockPropsArgs = {
   onPickImageFiles: () => void | Promise<void>;
   onComposerPaste: (event: ClipboardEvent<HTMLTextAreaElement>) => void | Promise<void>;
   onComposerDrop: (event: DragEvent<HTMLElement>) => void | Promise<void>;
-  onSendWithComments: () => void | Promise<unknown>;
+  onSendWithComments: (text?: string) => void | Promise<unknown>;
   onSteer: () => void | Promise<unknown>;
   onFollowUp: () => void | Promise<unknown>;
   onPause: () => void | Promise<unknown>;
@@ -132,8 +137,11 @@ export type UseComposerDockPropsArgs = {
   openInspector: (tab?: RightPanelTab | null) => void;
   steerQueueMessages: readonly SteerQueueMessage[];
   onSteerQueueSendNow: (messageId: string) => void | Promise<void>;
-  onSteerQueueEdit: (messageId: string, text: string) => void;
+  onSteerQueueEdit: (messageId: string) => void;
   onSteerQueueRemove: (messageId: string) => void;
+  /** Queued turn currently loaded into the composer input, if any. */
+  queuedTurnEditId: string | null;
+  onQueuedEditCancel: () => void;
   ensureSession: () => Promise<string | null>;
   /** Focused conversation pane session; Live follows this while a call is up. */
   liveSessionId: string | null;
@@ -219,6 +227,8 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
     onSteerQueueSendNow,
     onSteerQueueEdit,
     onSteerQueueRemove,
+    queuedTurnEditId,
+    onQueuedEditCancel,
     ensureSession,
     liveSessionId,
   } = args;
@@ -274,6 +284,9 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
   const handleOpenOrchestrationSchemeSettings = useCallback((): void => {
     openSettingsSection('subagents');
   }, [openSettingsSection]);
+  const handleOpenExtensionsSettings = useCallback((): void => {
+    openSettingsSection('extensions');
+  }, [openSettingsSection]);
   const handleComposerAttachImage = useCallback((): void => {
     void onPickImageFiles();
   }, [onPickImageFiles]);
@@ -292,9 +305,12 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
     },
     [onComposerDrop],
   );
-  const handleComposerSend = useCallback((): void => {
-    void onSendWithComments();
-  }, [onSendWithComments]);
+  const handleComposerSend = useCallback(
+    (text?: string): void => {
+      void onSendWithComments(text);
+    },
+    [onSendWithComments],
+  );
   const handleComposerSteer = useCallback((): void => {
     void onSteer();
   }, [onSteer]);
@@ -319,9 +335,12 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
   const handleComposerAbort = useCallback((): void => {
     void onAbort();
   }, [onAbort]);
-  const handleComposerCompact = useCallback((customInstructions?: string): void => {
-    void onCompact(customInstructions);
-  }, [onCompact]);
+  const handleComposerCompact = useCallback(
+    (customInstructions?: string): void => {
+      void onCompact(customInstructions);
+    },
+    [onCompact],
+  );
 
   const docCommentsAttachment = useMemo(
     () =>
@@ -339,6 +358,14 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
     [state.messages],
   );
 
+  const queuedEdit = useMemo(() => {
+    if (queuedTurnEditId === null) {
+      return null;
+    }
+    const index = steerQueueMessages.findIndex((message) => message.id === queuedTurnEditId);
+    return index < 0 ? null : { messageId: queuedTurnEditId, position: index + 1 };
+  }, [queuedTurnEditId, steerQueueMessages]);
+
   const goalExtensionEnabled = useMemo(
     () => isGoalExtensionEnabled(config?.extensions?.disabledIds),
     [config?.extensions?.disabledIds],
@@ -354,6 +381,12 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
   const runtimeRemoteHostLabel = runtimeRemoteConnected
     ? formatDesktopRemoteHostDisplay(hostClient.getRemoteTarget()?.endpoint ?? '')
     : undefined;
+
+  const atWorkspaceFiles = useAtWorkspaceFiles({
+    hostClient,
+    projectPath: state.projectPath,
+    projectTrusted: state.projectTrusted,
+  });
 
   const composerCard: ComposerDockProps = useMemo(
     () => ({
@@ -377,6 +410,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       agentMode,
       onAgentModeChange: setAgentMode,
       goalExtensionEnabled,
+      onOpenExtensionsSettings: handleOpenExtensionsSettings,
       pendingAttachments,
       onRemoveAttachment: revokePending,
       onRetryAttachment: retryPendingAttachment,
@@ -387,6 +421,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       onAddContextRef: (ref) => {
         addContextRef(ref);
       },
+      atWorkspaceFiles,
       docCommentsAttachment,
       onRemoveDocComments,
       dropActive,
@@ -422,6 +457,8 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       onSteerQueueSendNow,
       onSteerQueueEdit,
       onSteerQueueRemove,
+      queuedEdit,
+      onQueuedEditCancel,
       extensionUiRequest,
       extensionUiInput,
       onExtensionUiInputChange: setExtensionUiInput,
@@ -437,9 +474,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       contextRingView: selectContextRingView({
         telemetry: state.contextTelemetry,
         locale: locale === 'en' ? 'en' : 'zh-CN',
-        ...(typeof selectedModelContextWindow === 'number'
-          ? { selectedModelContextWindow }
-          : {}),
+        ...(typeof selectedModelContextWindow === 'number' ? { selectedModelContextWindow } : {}),
         ...(selectedModelKey.includes('::')
           ? {
               selectedModel: {
@@ -509,6 +544,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
     [
       addContextRef,
       agentMode,
+      atWorkspaceFiles,
       composer,
       composerLayoutMode,
       config?.thinking?.ultraEnabled,
@@ -533,6 +569,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       handleComposerResumeRun,
       handleComposerSend,
       handleComposerSteer,
+      handleOpenExtensionsSettings,
       handleOpenHostSettings,
       handleOpenMcpPanel,
       handleOpenModelSettings,
@@ -554,6 +591,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       onRunModeChange,
       onRunModeSetDefault,
       onSelectModel,
+      onQueuedEditCancel,
       onSteerQueueEdit,
       onSteerQueueRemove,
       onSteerQueueSendNow,
@@ -565,6 +603,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       pendingContextRefs,
       plusMenuOpen,
       plusSubmenu,
+      queuedEdit,
       recentProjects,
       removeContextRef,
       requestGit,

@@ -5,6 +5,7 @@
 import {
   ARTIFACT_ACTION_NAMES,
   ARTIFACT_BRIDGE_ACTION_TYPE,
+  ARTIFACT_BRIDGE_MEASURE_REQUEST_TYPE,
   ARTIFACT_BRIDGE_SIZE_TYPE,
   ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
   DEFAULT_MAX_ARTIFACT_BYTES,
@@ -21,6 +22,7 @@ export function buildArtifactBridgeBootstrapScript(
   const serializedChannelId = JSON.stringify(channelId);
   const serializedFrameMode = JSON.stringify(initialFrameMode);
   const sizeType = JSON.stringify(ARTIFACT_BRIDGE_SIZE_TYPE);
+  const measureRequestType = JSON.stringify(ARTIFACT_BRIDGE_MEASURE_REQUEST_TYPE);
   const renderType = JSON.stringify(ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE);
   const maxSourceBytes = JSON.stringify(DEFAULT_MAX_ARTIFACT_BYTES);
 
@@ -91,6 +93,7 @@ export function buildArtifactBridgeBootstrapScript(
   };
 
   var sizeType = ${sizeType};
+  var measureRequestType = ${measureRequestType};
   var sizeEnabled = currentFrameMode !== 'canvas';
   var sizeRevision = 0;
   var lastReportedHeight = -1;
@@ -118,6 +121,27 @@ export function buildArtifactBridgeBootstrapScript(
     if (!sizeEnabled || heightFrame !== null) return;
     heightFrame = requestAnimationFrame(reportHeight);
   };
+  var onMeasureRequest = function (event) {
+    var data = event.data;
+    if (
+      !data ||
+      data.type !== measureRequestType ||
+      data.channelId !== channelId ||
+      typeof data.fallbackViewport !== 'boolean' ||
+      typeof data.force !== 'boolean'
+    ) return;
+    if (document.documentElement) {
+      document.documentElement.setAttribute(
+        'data-measurement-fallback',
+        data.fallbackViewport ? 'true' : 'false'
+      );
+    }
+    if (data.force) {
+      lastReportedHeight = -1;
+      scheduleHeight();
+    }
+  };
+  window.addEventListener('message', onMeasureRequest);
   var stopHeightObserver = function () {
     if (heightObserver) {
       heightObserver.disconnect();

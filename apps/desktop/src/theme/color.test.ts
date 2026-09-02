@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { alpha, darken, lighten, luminance, mix, parseColor, readableOn, toHex } from './color';
+import {
+  alpha,
+  contrastRatio,
+  darken,
+  ensureContrast,
+  lighten,
+  luminance,
+  mix,
+  parseColor,
+  readableOn,
+  toHex,
+} from './color';
 
 describe('parseColor', () => {
   it('parses the notations theme manifests actually use', () => {
@@ -73,6 +84,44 @@ describe('readableOn', () => {
   it('switches to dark text on bright accents', () => {
     expect(readableOn('#40c0a0')).toBe('#141414');
     expect(readableOn('#f5b544')).toBe('#141414');
+  });
+});
+
+describe('contrastRatio', () => {
+  it('anchors at the WCAG extremes', () => {
+    expect(contrastRatio('#000000', '#ffffff')).toBeCloseTo(21, 2);
+    expect(contrastRatio('#6e5dff', '#6e5dff')).toBeCloseTo(1, 5);
+  });
+
+  it('is symmetric', () => {
+    expect(contrastRatio('#101014', '#9a9aa8')).toBeCloseTo(contrastRatio('#9a9aa8', '#101014'), 9);
+  });
+});
+
+describe('ensureContrast', () => {
+  it('returns a color that already clears the floor untouched', () => {
+    expect(ensureContrast('#ededf2', '#101014', 4.5, '#ffffff')).toBe('#ededf2');
+  });
+
+  it('lifts a color that does not, and stops as soon as the floor is met', () => {
+    const lifted = ensureContrast('#414150', '#22222b', 3, '#ededf2');
+    expect(contrastRatio(lifted, '#22222b')).toBeGreaterThanOrEqual(3);
+    // "Least-changed" matters: overshooting collapses the ramp's steps into
+    // each other, which is the failure this helper exists to avoid.
+    expect(contrastRatio(lifted, '#22222b')).toBeLessThan(3.4);
+  });
+
+  it('works in both directions of the ramp', () => {
+    const darkened = ensureContrast('#b4b1bc', '#f3f1ed', 3, '#17161b');
+    expect(contrastRatio(darkened, '#f3f1ed')).toBeGreaterThanOrEqual(3);
+    expect(luminance(darkened)).toBeLessThan(luminance('#b4b1bc'));
+  });
+
+  it('falls back to the endpoint when the floor is unreachable', () => {
+    // A theme whose text color cannot clear the floor against its own surface
+    // has no readable answer; returning the endpoint beats returning the
+    // invisible input.
+    expect(ensureContrast('#7f7f7f', '#808080', 7, '#818181')).toBe('#818181');
   });
 });
 

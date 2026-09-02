@@ -62,11 +62,6 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     sessions: state.sessions,
     generalSessions: state.generalSessions,
     activeSessionId: state.activeSessionId,
-    contextUsage: state.contextUsage,
-    contextSnapshot: state.contextTelemetry.displayed,
-    streaming: state.streaming,
-    compacting: state.compacting,
-    dispatch,
     dispatchNotification: host.dispatchNotification,
     saveSettingsInOrder: session.saveSettingsInOrder,
     sessionComposerProfileRestoredRef,
@@ -109,6 +104,8 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     handleSteerQueueSendNow,
     handleSteerQueueEdit,
     handleSteerQueueRemove,
+    queuedTurnEditId,
+    cancelQueuedTurnEdit,
   } = useComposerMedia({
     hostClient,
     state,
@@ -205,6 +202,8 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     handleSteerQueueSendNow,
     handleSteerQueueEdit,
     handleSteerQueueRemove,
+    queuedTurnEditId,
+    cancelQueuedTurnEdit,
   };
 }
 

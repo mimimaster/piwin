@@ -24,6 +24,13 @@ describe('isLocalFileMarkdownHref', () => {
     expect(isLocalFileMarkdownHref('#section')).toBe(false);
     expect(isLocalFileMarkdownHref('javascript:alert(1)')).toBe(false);
   });
+
+  it('rejects glob patterns even when they start with ~/', () => {
+    expect(isLocalFileMarkdownHref('~/.piwin/**')).toBe(false);
+    expect(isLocalFileMarkdownHref('~/.piwin/sessions/**')).toBe(false);
+    expect(isLocalFileMarkdownHref('~/.piwin/*.json')).toBe(false);
+    expect(isLocalFileMarkdownHref('~/Downloads/*.png')).toBe(false);
+  });
 });
 
 describe('normalizeLocalFileHref', () => {
@@ -80,5 +87,17 @@ describe('isLocalPathChipCandidate', () => {
     expect(isLocalPathChipCandidate('.md')).toBe(false);
     expect(isLocalPathChipCandidate('src/utils.ts')).toBe(true);
   });
-});
 
+  it('does not chip glob patterns as folder chips leftover **', () => {
+    expect(isLocalPathChipCandidate('~/.piwin/**')).toBe(false);
+    expect(isLocalPathChipCandidate('~/.piwin/workspace/**')).toBe(false);
+    expect(isLocalPathChipCandidate('~/.piwin/sessions/**')).toBe(false);
+    expect(isLocalPathChipCandidate('~/.piwin/sessions-index/**')).toBe(false);
+    expect(isLocalPathChipCandidate('~/.piwin/media/**')).toBe(false);
+    expect(isLocalPathChipCandidate('~/.piwin/skills/**')).toBe(false);
+    expect(isLocalPathChipCandidate('~/.piwin/*.json')).toBe(false);
+    expect(isLocalPathChipCandidate('sessions/**')).toBe(false);
+    expect(isLocalPathChipCandidate('*.json')).toBe(false);
+    expect(isLocalPathChipCandidate('~/.piwin/config.json')).toBe(true);
+  });
+});

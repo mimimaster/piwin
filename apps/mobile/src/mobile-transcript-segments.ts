@@ -1,4 +1,4 @@
-import { splitMarkdownBlocks, type ParsedMarkdownBlock } from '@piwin/artifact';
+import { indexArtifactFences } from '@piwin/artifact';
 import {
   evaluateMobileArtifactFence,
   type MobileArtifactPreview,
@@ -22,77 +22,46 @@ export function partitionMobileTranscript(
   const markdownParts: string[] = [];
 
   const flushMarkdown = () => {
-    const joined = markdownParts.join('\n\n').trim();
+    const joined = markdownParts.join('').trim();
     if (joined.length > 0) {
       segments.push({ kind: 'markdown', text: joined });
     }
     markdownParts.length = 0;
   };
 
-  for (const block of splitMarkdownBlocks(text)) {
-    if (block.type !== 'code') {
-      markdownParts.push(serializeMarkdownBlock(block));
-      continue;
-    }
+  let copiedTo = 0;
+  for (const fence of indexArtifactFences(text)) {
+    const removalStart = getFenceRemovalStart(text, fence.startOffset);
+    const fenceEnd = fence.endOffset ?? text.length;
+    markdownParts.push(text.slice(copiedTo, removalStart));
 
-    const decision = evaluateMobileArtifactFence(block.language, block.source);
+    const decision = evaluateMobileArtifactFence(fence, isStreaming);
     if (decision.kind === 'code') {
-      markdownParts.push(serializeMarkdownBlock(block));
+      markdownParts.push(text.slice(removalStart, fenceEnd));
+      copiedTo = fenceEnd;
       continue;
     }
 
     flushMarkdown();
-    if (isStreaming || decision.kind === 'preparing') {
-      segments.push({ kind: 'artifact-pending', title: decision.descriptor.title });
+    if (decision.kind === 'preparing') {
+      segments.push({ kind: 'artifact-pending', title: decision.title });
+      copiedTo = fenceEnd;
       continue;
     }
-    segments.push({
-      kind: 'artifact',
-      preview: {
-        id: decision.descriptor.id,
-        title: decision.descriptor.title,
-        language: decision.descriptor.alias || block.language,
-        decision,
-      },
-    });
+    segments.push({ kind: 'artifact', preview: decision.preview });
+    copiedTo = fenceEnd;
   }
 
+  markdownParts.push(text.slice(copiedTo));
   flushMarkdown();
   return segments;
 }
 
-function serializeMarkdownBlock(block: ParsedMarkdownBlock): string {
-  switch (block.type) {
-    case 'paragraph':
-      return block.value;
-    case 'heading':
-      return `${'#'.repeat(block.level)} ${block.text}`;
-    case 'blockquote':
-      return block.text
-        .split('\n')
-        .map((line) => `> ${line}`)
-        .join('\n');
-    case 'list':
-      return block.items
-        .map((item, index) => (block.ordered ? `${index + 1}. ${item}` : `- ${item}`))
-        .join('\n');
-    case 'table': {
-      const header = `| ${block.headers.join(' | ')} |`;
-      const divider = `| ${block.alignments
-        .map((alignment) => {
-          if (alignment === 'center') {
-            return ':---:';
-          }
-          if (alignment === 'right') {
-            return '---:';
-          }
-          return '---';
-        })
-        .join(' | ')} |`;
-      const rows = block.rows.map((row) => `| ${row.join(' | ')} |`).join('\n');
-      return `${header}\n${divider}\n${rows}`;
-    }
-    case 'code':
-      return `\`\`\`${block.language}\n${block.source}\n\`\`\``;
+function getFenceRemovalStart(text: string, fenceStart: number): number {
+  const lineStart = text.lastIndexOf('\n', fenceStart - 1) + 1;
+  const linePrefix = text.slice(lineStart, fenceStart);
+  if (/^(?: {0,3}> ?)*(?:(?: {0,3})(?:[-+*]|\d+[.)]) )? *$/.test(linePrefix)) {
+    return lineStart;
   }
+  return fenceStart;
 }

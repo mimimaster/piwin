@@ -21,14 +21,17 @@ const queueMessages: SteerQueueMessage[] = [
     id: 'queued-2',
     text: 'Then summarize the root cause',
     createdAt: '2026-08-09T00:00:01.000Z',
+    attachmentCount: 2,
   },
 ];
 
 function Harness(props: {
   messages: readonly SteerQueueMessage[];
   onSendNow: (messageId: string) => void;
-  onEdit: (messageId: string, text: string) => void;
+  onEdit: (messageId: string) => void;
   onRemove: (messageId: string) => void;
+  editingMessageId?: string | null;
+  onCancelEdit?: () => void;
 }): ReactElement {
   return (
     <DesktopLocaleProvider locale="en" onLocaleChange={() => undefined}>
@@ -76,7 +79,7 @@ describe('SteerQueue', () => {
     expect(container.textContent).toContain('Then summarize the root cause');
   });
 
-  it('sends, edits, and removes individual queued messages', () => {
+  it('sends, opens composer edit, and removes individual queued messages', () => {
     const onSendNow = vi.fn();
     const onEdit = vi.fn();
     const onRemove = vi.fn();
@@ -98,38 +101,82 @@ describe('SteerQueue', () => {
       container
         .querySelector<HTMLButtonElement>('[data-testid="steer-queue-edit-button-queued-2"]')
         ?.click();
-    });
-    expect(onSendNow).toHaveBeenCalledWith('queued-1');
-    expect(container.querySelector('[data-testid="steer-queue-edit-queued-2"]')).not.toBeNull();
-
-    const editInput = container.querySelector<HTMLTextAreaElement>(
-      '[data-testid="steer-queue-edit-queued-2"]',
-    );
-    act(() => {
-      if (editInput) {
-        const valueSetter = Object.getOwnPropertyDescriptor(
-          HTMLTextAreaElement.prototype,
-          'value',
-        )?.set;
-        valueSetter?.call(editInput, 'Updated instruction');
-        editInput.dispatchEvent(
-          new InputEvent('input', {
-            bubbles: true,
-            inputType: 'insertText',
-            data: 'Updated instruction',
-          }),
-        );
-        editInput.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-      container
-        .querySelector<HTMLButtonElement>('[data-testid="steer-queue-save-queued-2"]')
-        ?.click();
       container
         .querySelector<HTMLButtonElement>('[data-testid="steer-queue-remove-queued-1"]')
         ?.click();
     });
-    expect(onEdit).toHaveBeenCalledWith('queued-2', 'Updated instruction');
+    expect(onSendNow).toHaveBeenCalledWith('queued-1');
+    expect(onEdit).toHaveBeenCalledWith('queued-2');
     expect(onRemove).toHaveBeenCalledWith('queued-1');
+    expect(container.querySelector('[data-testid="steer-queue-edit-queued-2"]')).toBeNull();
+  });
+
+  it('opens composer edit from the row body', () => {
+    const onEdit = vi.fn();
+    act(() =>
+      root.render(
+        <Harness messages={queueMessages} onSendNow={vi.fn()} onEdit={onEdit} onRemove={vi.fn()} />,
+      ),
+    );
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="steer-queue-open-queued-1"]')
+        ?.click();
+    });
+    expect(onEdit).toHaveBeenCalledWith('queued-1');
+  });
+
+  it('marks the handed-off row and only offers cancel', () => {
+    const onCancelEdit = vi.fn();
+    act(() =>
+      root.render(
+        <Harness
+          messages={queueMessages}
+          onSendNow={vi.fn()}
+          onEdit={vi.fn()}
+          onRemove={vi.fn()}
+          editingMessageId="queued-2"
+          onCancelEdit={onCancelEdit}
+        />,
+      ),
+    );
+
+    const row = container.querySelector('[data-testid="steer-queue-item-queued-2"]');
+    expect(row?.classList.contains('is-editing')).toBe(true);
+    expect(row?.getAttribute('aria-current')).toBe('true');
+    expect(container.textContent).toContain('Editing');
+    expect(container.querySelector('[data-testid="steer-queue-edit-button-queued-2"]')).toBeNull();
+    expect(container.querySelector('[data-testid="steer-queue-send-queued-2"]')).toBeNull();
+    expect(container.querySelector('[data-testid="steer-queue-remove-queued-2"]')).toBeNull();
+    expect(
+      container.querySelector<HTMLButtonElement>('[data-testid="steer-queue-open-queued-2"]')
+        ?.disabled,
+    ).toBe(true);
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="steer-queue-cancel-queued-2"]')
+        ?.click();
+    });
+    expect(onCancelEdit).toHaveBeenCalledOnce();
+  });
+
+  it('reports queued attachments on the preview row', () => {
+    act(() =>
+      root.render(
+        <Harness
+          messages={queueMessages}
+          onSendNow={vi.fn()}
+          onEdit={vi.fn()}
+          onRemove={vi.fn()}
+        />,
+      ),
+    );
+
+    const badge = container.querySelector('[data-testid="steer-queue-attachments-queued-2"]');
+    expect(badge?.textContent).toContain('2');
+    expect(container.querySelector('[data-testid="steer-queue-attachments-queued-1"]')).toBeNull();
   });
 
   it('returns null when the queue is empty', () => {

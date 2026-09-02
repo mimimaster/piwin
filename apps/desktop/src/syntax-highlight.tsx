@@ -6,8 +6,8 @@
  *   init. Languages load on demand (`ensureLanguage`) so we don't bundle every
  *   grammar upfront; first use of a language pays a one-time load cost.
  * - Two themes: `github-dark` for dark mode, `github-light` for light mode.
- *   Theme is read from `document.documentElement.dataset.themeMode` so it
- *   tracks the active desktop appearance without extra React context.
+ *   The active mode comes from `theme/theme-mode.ts`, so highlighting tracks
+ *   the desktop appearance without extra React context.
  * - `useHighlight` returns `null` until the first tokens are ready (plain-text
  *   fallback). Theme switches keep the previous tokens painted until the new
  *   highlight resolves, avoiding a plain-text flash / reflow.
@@ -26,6 +26,7 @@ import { desktopMetrics } from './diagnostic-metrics';
 import { globalMemoryGovernor } from './memory-governor';
 import { globalHighlightCache } from './syntax/highlight-cache';
 import { hashSource, type TokenLine } from './syntax/highlight-protocol';
+import { readThemeMode, useThemeMode } from './theme/theme-mode.js';
 
 export type { ThemedToken, TokenLine };
 
@@ -96,34 +97,12 @@ const loadedLanguages = new Set<string>(PRELOAD_LANGS);
 
 /** Pick a shiki theme that contrasts with the active desktop mode. */
 export function getShikiTheme(): typeof DARK_THEME | typeof LIGHT_THEME {
-  const root = typeof document !== 'undefined' ? document.documentElement : null;
-  return root?.dataset.themeMode === 'light' ? LIGHT_THEME : DARK_THEME;
-}
-
-function getThemeSnapshot(): typeof DARK_THEME | typeof LIGHT_THEME {
-  return getShikiTheme();
-}
-
-function subscribeToTheme(callback: () => void): () => void {
-  if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') {
-    return () => {};
-  }
-  const target = document.documentElement;
-  const observer = new MutationObserver((mutations) => {
-    for (const mutation of mutations) {
-      if (mutation.attributeName === 'data-theme-mode') {
-        callback();
-        return;
-      }
-    }
-  });
-  observer.observe(target, { attributes: true, attributeFilter: ['data-theme-mode'] });
-  return () => observer.disconnect();
+  return readThemeMode() === 'light' ? LIGHT_THEME : DARK_THEME;
 }
 
 /** React hook that tracks the active shiki theme across desktop mode switches. */
 export function useShikiTheme(): typeof DARK_THEME | typeof LIGHT_THEME {
-  return useSyncExternalStore(subscribeToTheme, getThemeSnapshot, () => DARK_THEME);
+  return useThemeMode() === 'light' ? LIGHT_THEME : DARK_THEME;
 }
 
 function getHighlighter(): Promise<Highlighter> {

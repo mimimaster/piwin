@@ -4,6 +4,8 @@ export type SteerQueueMessage = {
   createdAt: string;
   revision?: number;
   status?: 'pending' | 'starting';
+  /** Media/web-element refs the queued turn carries; edited in the composer. */
+  attachmentCount?: number;
 };
 
 export type SteerQueuesBySession = Readonly<Record<string, readonly SteerQueueMessage[]>>;

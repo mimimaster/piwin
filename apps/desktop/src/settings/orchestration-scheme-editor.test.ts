@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { BUILTIN_ULTRA_CODE_SCHEME } from '@piwin/contracts';
 import {
+  cleanSchemeDraft,
   createEmptyUserScheme,
+  healSchemeDefaultRole,
   schemeToEditableDraft,
   validateSchemeDraft,
 } from './orchestration-scheme-editor';
@@ -27,5 +29,39 @@ describe('orchestration scheme editor helpers', () => {
     const draft = schemeToEditableDraft(BUILTIN_ULTRA_CODE_SCHEME);
     draft.members = [];
     expect(validateSchemeDraft(draft)).toBe('need-member');
+  });
+
+  it('rejects a renamed default role that no longer exists', () => {
+    const draft = createEmptyUserScheme(new Set());
+    const member = draft.members?.[0];
+    expect(member).toBeDefined();
+    expect(draft.defaultRole).toBe(member!.role);
+    member!.role = 'w';
+    expect(validateSchemeDraft(draft)).toBe('bad-default-role');
+    expect(validateSchemeDraft(healSchemeDefaultRole(draft))).toBeUndefined();
+    expect(healSchemeDefaultRole(draft).defaultRole).toBe('w');
+  });
+
+  it('treats empty scheme fields as incomplete, not missing members', () => {
+    const draft = createEmptyUserScheme(new Set());
+    draft.name = '   ';
+    expect(validateSchemeDraft(draft)).toBe('incomplete');
+  });
+
+  it('trims and lowercases ids and roles only at save-time clean', () => {
+    const draft = createEmptyUserScheme(new Set());
+    const member = draft.members?.[0];
+    expect(member).toBeDefined();
+    draft.id = 'My-Scheme-9';
+    member!.role = 'Scout ';
+    member!.description = 'Look around ';
+    draft.defaultRole = 'Scout ';
+    expect(validateSchemeDraft(draft)).toBeDefined();
+    const cleaned = cleanSchemeDraft(draft);
+    expect(cleaned.id).toBe('my-scheme-9');
+    expect(cleaned.members?.[0]?.role).toBe('scout');
+    expect(cleaned.members?.[0]?.description).toBe('Look around');
+    expect(cleaned.defaultRole).toBe('scout');
+    expect(validateSchemeDraft(cleaned)).toBeUndefined();
   });
 });

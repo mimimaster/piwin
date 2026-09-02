@@ -1,10 +1,6 @@
 /** Session / run / subagent / side-chat HostCommand variants. */
 
-import type {
-  CreateSessionInput,
-  PromptInput,
-  SessionScope,
-} from './host.js';
+import type { CreateSessionInput, PromptInput, SessionScope } from './host.js';
 import type { SessionListOrder, SessionListPageQuery } from './session-list-page.js';
 import type {
   SessionMessageProjection,
@@ -279,8 +275,8 @@ export type SessionHostCommand =
       customInstructions?: string;
       /**
        * When present, compact only if needed and validate the result against
-       * this configured model's Host-resolved input budget before committing a
-       * client-side model selection.
+       * this configured model's Host-resolved input budget. This command does
+       * not change the session's selected model.
        */
       targetModel?: import('./host.js').ModelRef;
     }

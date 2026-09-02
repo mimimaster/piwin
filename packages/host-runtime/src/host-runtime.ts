@@ -526,6 +526,7 @@ export class HostRuntime extends HostRuntimeFields {
     runtimeGenerationId: string,
     model?: ModelRef,
     mode: ProductAgentHostToolRegistrationMode = 'active',
+    projectPath?: string,
   ): Promise<HostToolRegistration[]> {
     return buildSessionHostToolsForSession(
       this.asKernel(),
@@ -533,6 +534,7 @@ export class HostRuntime extends HostRuntimeFields {
       runtimeGenerationId,
       model,
       mode,
+      projectPath,
     );
   }
 
@@ -540,12 +542,14 @@ export class HostRuntime extends HostRuntimeFields {
     sessionId: string,
     runtimeGenerationId: string,
     model?: ModelRef,
+    projectPath?: string,
   ): Promise<ComposedSessionHostTools> {
     return composeSessionHostToolsForSession(
       this.asKernel(),
       sessionId,
       runtimeGenerationId,
       model,
+      projectPath,
     );
   }
 

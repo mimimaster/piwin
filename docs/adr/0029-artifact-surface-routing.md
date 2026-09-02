@@ -255,6 +255,13 @@ flow fragments emit one revisioned root-box size stream; `inline-viewport` and
 above the 16384px ceiling enters `inline-overflow`; the runtime does not
 silently crop.
 
+The Inline flow size stream is recoverable. Desktop subscribes to native size
+events by exact Artifact channel, caches an early size for that channel, and
+requests an unchanged height to be re-emitted after iframe load and native
+listener readiness. Completed and streaming frames share the same timeout. A
+timeout temporarily uses a 360px internally scrollable recovery viewport; it is
+not marked complete, and any later valid revision restores exact flow height.
+
 `config.artifact.enabled` is the only product capability switch. Surface
 routing is `indexArtifactFences` → `analyzeArtifactFence` → `RenderIntent`
 (`layout: flow | viewport | canvas`). Desktop MarkdownView, Canvas auto-reveal,

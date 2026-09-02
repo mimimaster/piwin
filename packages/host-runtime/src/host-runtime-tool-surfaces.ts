@@ -48,11 +48,17 @@ export async function buildSessionHostToolsForSession(
   runtimeGenerationId: string,
   model?: ModelRef,
   mode: ProductAgentHostToolRegistrationMode = 'active',
+  projectPath?: string,
 ): Promise<HostToolRegistration[]> {
   const surfaceKey = `${sessionId}\u0000${runtimeGenerationId}`;
   let surfacePromise = deps.generationToolSurfaces.get(surfaceKey);
   if (!surfacePromise) {
-    surfacePromise = deps.composeSessionHostToolsForSession(sessionId, runtimeGenerationId, model);
+    surfacePromise = deps.composeSessionHostToolsForSession(
+      sessionId,
+      runtimeGenerationId,
+      model,
+      projectPath,
+    );
     deps.generationToolSurfaces.set(surfaceKey, surfacePromise);
   }
   try {
@@ -84,9 +90,13 @@ export async function composeSessionHostToolsForSession(
   sessionId: string,
   runtimeGenerationId: string,
   model?: ModelRef,
+  projectPathOverride?: string,
 ): Promise<ComposedSessionHostTools> {
   const childContext = deps.subagentSessionContexts.get(sessionId);
-  const projectPath = childContext?.workingDirectory ?? deps.sessionProjects.get(sessionId);
+  // Initial and cold generations are composed before bindSession installs the
+  // resident map, so prefer the creation-time path when one is supplied.
+  const projectPath =
+    childContext?.workingDirectory ?? projectPathOverride ?? deps.sessionProjects.get(sessionId);
   const rootDir = getPiwinRoot(deps.options.piwinRoot);
   let config: import('@piwin/contracts').PiwinConfig | undefined;
   try {

@@ -11,13 +11,25 @@
  */
 
 import type { ThemeDeckTokens, ThemeManifest } from '@piwin/contracts';
-import { alpha, darken, lighten, mix, readableOn } from './color.js';
+import { alpha, darken, ensureContrast, lighten, mix, readableOn } from './color.js';
 
 /** Semantic signals a twelve-token manifest cannot express. */
 const SIGNALS = {
   dark: { ember: '#ff8a4c', amber: '#f5b544', sky: '#4cc2ff' },
-  light: { ember: '#dd6318', amber: '#c7860b', sky: '#1a8fd0' },
+  light: { ember: '#dd6318', amber: '#956408', sky: '#1a8fd0' },
 } as const;
+
+/**
+ * Readability floors for the muted end of the content ramp.
+ *
+ * text3 carries body-sized information and text4 carries the 10–11.5px
+ * micro-labels and gutters, so text3 takes the AA normal-text floor and text4
+ * the large-text / non-text floor. Signals take the non-text floor because
+ * they appear as dots and rules as often as words.
+ */
+const TEXT3_MIN_CONTRAST = 4.5;
+const TEXT4_MIN_CONTRAST = 3;
+const SIGNAL_MIN_CONTRAST = 3;
 
 export function deriveDeckTokens(manifest: ThemeManifest): ThemeDeckTokens {
   const { tokens, mode } = manifest;
@@ -39,9 +51,24 @@ export function deriveDeckTokens(manifest: ThemeManifest): ThemeDeckTokens {
   const surface4 = isLight ? '#ffffff' : lighten(tokens.panel2, 0.04);
 
   // The content ramp interpolates the theme's own text→muted direction two
-  // steps further toward the canvas rather than inventing new greys.
-  const text3 = mix(tokens.muted, tokens.bg, 0.42);
-  const text4 = mix(tokens.muted, tokens.bg, 0.66);
+  // steps further toward the canvas rather than inventing new greys — then
+  // stops short of invisibility. Read against the surface that gives the muted
+  // steps the *least* contrast (the lightest one in dark mode, the darkest one
+  // in light mode), because that is where menus and chrome actually paint them.
+  const mutedReference = isLight ? surface1 : surface4;
+  const text2 = ensureContrast(tokens.muted, mutedReference, TEXT3_MIN_CONTRAST, tokens.text);
+  const text3 = ensureContrast(
+    mix(text2, tokens.bg, 0.42),
+    mutedReference,
+    TEXT3_MIN_CONTRAST,
+    tokens.text,
+  );
+  const text4 = ensureContrast(
+    mix(text2, tokens.bg, 0.66),
+    mutedReference,
+    TEXT4_MIN_CONTRAST,
+    tokens.text,
+  );
 
   const strokeBase = isLight ? '#141420' : '#ffffff';
 
@@ -53,7 +80,7 @@ export function deriveDeckTokens(manifest: ThemeManifest): ThemeDeckTokens {
     surface4,
 
     text1: tokens.text,
-    text2: tokens.muted,
+    text2,
     text3,
     text4,
 
@@ -67,9 +94,12 @@ export function deriveDeckTokens(manifest: ThemeManifest): ThemeDeckTokens {
     onIris: readableOn(tokens.accent),
 
     ember: signals.ember,
-    mint: tokens.ok,
+    // `ok` and `danger` are the theme's own opinion, so they get the floor
+    // applied rather than replaced: an installed palette may hand us a pastel
+    // green that vanishes on its own surface.
+    mint: ensureContrast(tokens.ok, mutedReference, SIGNAL_MIN_CONTRAST, tokens.text),
     amber: signals.amber,
-    coral: tokens.danger,
+    coral: ensureContrast(tokens.danger, mutedReference, SIGNAL_MIN_CONTRAST, tokens.text),
     sky: signals.sky,
   };
 }

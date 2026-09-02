@@ -13,6 +13,7 @@ import type { OrchestrationSchemeOption } from './OrchestrationSchemeControl';
 import type { ExtensionUiResolvePayload } from './extension-ui-prompt';
 import type { ExtensionUiRequestState } from './hooks/use-host-bootstrap';
 import type { BranchChipRequest } from './branch-chip';
+import type { AtWorkspaceEntry } from './at/at-file-index';
 import type { SteerQueueMessage } from './steer-queue';
 
 export type ComposerModelOption = {
@@ -50,6 +51,8 @@ export type ComposerDockProps = {
   onAgentModeChange: (mode: AgentModeId) => void;
   /** Whether the bundled goal extension is enabled in settings. */
   goalExtensionEnabled?: boolean;
+  /** Open Settings → Extensions (Goal picker footer when the extension is off). */
+  onOpenExtensionsSettings?: () => void;
   pendingAttachments: PendingComposerAttachment[];
   onRemoveAttachment: (localId: string) => void;
   /**
@@ -68,6 +71,8 @@ export type ComposerDockProps = {
   onRemoveContextRef?: (key: string) => void;
   /** CM-17: `@` mention file/folder items also become structured refs. */
   onAddContextRef?: ((ref: import('@piwin/contracts').PromptContextRef) => void) | undefined;
+  /** Bounded workspace file/folder index backing `@` mention completion. */
+  atWorkspaceFiles?: readonly AtWorkspaceEntry[];
   docCommentsAttachment?: { docTitle: string; commentCount: number } | null | undefined;
   onRemoveDocComments?: (() => void) | undefined;
   dropActive: boolean;
@@ -94,7 +99,7 @@ export type ComposerDockProps = {
   onAttachImage: () => void;
   onPaste: (event: ClipboardEvent<HTMLTextAreaElement>) => void;
   onDrop: (event: DragEvent<HTMLElement>) => void;
-  onSend: () => void;
+  onSend: (text?: string) => void;
   /** Save the active turn as a resumable Host checkpoint. */
   onPause: () => void;
   /** Irreversible cancel. Esc / `stop-run` only — never a second composer circle. */
@@ -180,8 +185,15 @@ export type ComposerDockProps = {
   /** Steer messages queued for execution */
   steerQueueMessages?: readonly SteerQueueMessage[];
   onSteerQueueSendNow?: (messageId: string) => void | Promise<void>;
-  onSteerQueueEdit?: (messageId: string, text: string) => void;
+  /** Load a queued turn into this composer; editing happens in the input box. */
+  onSteerQueueEdit?: (messageId: string) => void;
   onSteerQueueRemove?: (messageId: string) => void;
+  /**
+   * Queued turn currently held by the composer input. Send saves it back to
+   * the queue instead of admitting a new turn; `position` is 1-based.
+   */
+  queuedEdit?: { messageId: string; position: number } | null;
+  onQueuedEditCancel?: () => void;
   /**
    * Newest-first user prompts from the active session transcript.
    * Merged under the live stack when listing history (max 10).
@@ -194,8 +206,8 @@ export type ComposerDockProps = {
   /** AJB: open the right Terminal panel with the job's logs. */
   onViewJobLogs?: (jobId: string) => void;
   /**
-   * CHT-501: general Conversation hides Agent Mode / Run Mode / Orchestration /
-   * Skills-MCP chrome. Default false so Project callers stay unchanged.
+   * CHT-501: general Conversation hides Run Mode / Orchestration /
+   * Skills-MCP chrome. Agent / Goal stay available via slash and toolbar.
    */
   isConversationSession?: boolean;
   /** Override the Send control label (edit card: Retry vs Send new version). */

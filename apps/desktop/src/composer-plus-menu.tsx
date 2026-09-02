@@ -1,6 +1,6 @@
 /**
  * Composer "+" menu: P0/P1 attachments plus Skills, MCP, and Flashcards.
- * Modes are always Agent; orchestration lives on the toolbar.
+ * Modes live on the toolbar (Agent / Goal); this menu is attachments + Skills/MCP.
  * Built on ui-kit menu primitives (Radix portal, positioning, Escape, arrow nav).
  */
 

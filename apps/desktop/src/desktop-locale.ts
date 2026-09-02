@@ -190,8 +190,16 @@ export type DesktopCopy = {
     queuedCount: (count: number) => string;
     queuedHint: string;
     editQueuedMessage: string;
+    editQueuedMessageHint: string;
     saveQueuedMessage: string;
     cancelQueuedEdit: string;
+    queuedEditingBadge: string;
+    queuedEditTitle: string;
+    queuedEditHint: string;
+    queuedEditSaveHint: string;
+    queuedEditPlaceholder: string;
+    queuedMediaOnly: string;
+    queuedAttachments: (count: number) => string;
     steerQueuedMessage: string;
     removeQueuedMessage: string;
     pause: string;
@@ -753,8 +761,16 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       queuedCount: (count) => `${count} 条等待中`,
       queuedHint: '当前任务结束后依次发送 · ⌘↵ 改为当前步骤后调整',
       editQueuedMessage: '编辑后续消息',
+      editQueuedMessageHint: '在下方输入框中编辑（可增删图片）',
       saveQueuedMessage: '保存修改',
       cancelQueuedEdit: '取消编辑',
+      queuedEditingBadge: '编辑中',
+      queuedEditTitle: '编辑后续消息',
+      queuedEditHint: '改文字、加图片 · ↵ 保存 · Esc 取消',
+      queuedEditSaveHint: '保存回队列 (Enter)',
+      queuedEditPlaceholder: '修改这条后续消息，或粘贴图片…',
+      queuedMediaOnly: '（仅附件）',
+      queuedAttachments: (count) => `${count} 个附件`,
       steerQueuedMessage: '改为调整当前任务（当前步骤完成后应用）',
       removeQueuedMessage: '移除后续消息',
       pause: '暂停',
@@ -1076,8 +1092,16 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       queuedCount: (count) => `${count} waiting`,
       queuedHint: 'Sent in order after this run · ⌘↵ to adjust after the current step',
       editQueuedMessage: 'Edit queued message',
-      saveQueuedMessage: 'Save queued message',
+      editQueuedMessageHint: 'Edit in the composer below (images welcome)',
+      saveQueuedMessage: 'Save changes',
       cancelQueuedEdit: 'Cancel queued message edit',
+      queuedEditingBadge: 'Editing',
+      queuedEditTitle: 'Editing queued message',
+      queuedEditHint: 'Change text, add images · ↵ save · Esc cancel',
+      queuedEditSaveHint: 'Save back to the queue (Enter)',
+      queuedEditPlaceholder: 'Rewrite this queued message, or paste an image…',
+      queuedMediaOnly: '(attachments only)',
+      queuedAttachments: (count) => `${count} attachment${count === 1 ? '' : 's'}`,
       steerQueuedMessage: 'Adjust current run after this step',
       removeQueuedMessage: 'Remove queued message',
       pause: 'Pause',

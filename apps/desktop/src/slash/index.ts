@@ -12,6 +12,8 @@ export {
   applySkillToPrompt,
   COMPACT_CUSTOM_INSTRUCTIONS_MAX_CHARS,
   detectActiveSlashToken,
+  isReservedComposerSlashCommand,
+  isReservedSlashExecuteName,
   normalizeCompactCustomInstructions,
   parseComposerSlashSubmit,
   replaceActiveSlashToken,

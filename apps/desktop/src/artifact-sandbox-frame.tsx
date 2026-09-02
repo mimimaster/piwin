@@ -1,10 +1,4 @@
-import {
-  useLayoutEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type ReactElement,
-} from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactElement } from 'react';
 import {
   ARTIFACT_BOOTSTRAP_HEIGHT,
   MAX_ARTIFACT_INLINE_FLOW_HEIGHT,
@@ -176,7 +170,8 @@ export function ArtifactSandboxFrame(props: {
   const showOverflowHint = !canvas && appliedFrameMode === 'inline-overflow';
   const preparingStableSnapshot =
     view.mode === 'stream-preview' && props.plan.renderSource.trim().length === 0;
-  const toolStatus = bridge.status === 'ready' || bridge.status === 'fallback' ? 'done' : 'running';
+  const toolStatus =
+    bridge.status === 'ready' ? 'done' : bridge.status === 'fallback' ? 'error' : 'running';
   const pausedLabel =
     props.locale === 'zh-CN' ? '预览已暂停以节省内存' : 'Preview paused to save memory';
 
@@ -235,6 +230,22 @@ export function ArtifactSandboxFrame(props: {
             >
               {artifactOverflowHintCopy(props.locale)}
             </p>
+          ) : null}
+          {!canvas && bridge.status === 'fallback' ? (
+            <div
+              className="artifact-height-recovery"
+              data-testid="artifact-height-recovery"
+              role="status"
+            >
+              <span>
+                {props.locale === 'zh-CN'
+                  ? '预览高度仍在恢复，内容可在框内滚动。'
+                  : 'Preview height is still recovering; content remains scrollable.'}
+              </span>
+              <Button size="compact" onClick={bridge.retryMeasurement}>
+                {props.locale === 'zh-CN' ? '重新测量' : 'Measure again'}
+              </Button>
+            </div>
           ) : null}
           <div
             className="artifact-iframe-stage"

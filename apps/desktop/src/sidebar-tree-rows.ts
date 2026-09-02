@@ -62,9 +62,7 @@ function revealIndexInRows(
   if (!sessionId && !draftId) {
     return -1;
   }
-  return rows.findIndex(
-    (row) => row.session.id === sessionId || row.session.id === draftId,
-  );
+  return rows.findIndex((row) => row.session.id === sessionId || row.session.id === draftId);
 }
 
 export function sidebarSearchHidesReveal(
@@ -77,28 +75,36 @@ export function sidebarSearchHidesReveal(
     return false;
   }
   return !rows.some(
-    (row) =>
-      row.kind === 'session' &&
-      (row.session.id === sessionId || row.session.id === draftId),
+    (row) => row.kind === 'session' && (row.session.id === sessionId || row.session.id === draftId),
   );
 }
 
 /**
- * Untouched project folders stay collapsed except the active/last-session
- * project. Explicit entries in `collapsedProjects` always win. Search mode
- * temporarily reveals every folder so matches are not hidden behind folds.
+ * Effective collapse policy, priority order (first match wins):
+ * 1. Searching — reveal every folder so matches are not hidden behind folds.
+ * 2. Explicit user fold/unfold (`collapsedProjects`) — always wins, even
+ *    against reveal; this is the only rule that can fold the active project.
+ * 3. Reveal fallback — if the active/revealed session lives inside this
+ *    project and the user never touched it, auto-expand so the session is
+ *    visible (navigation convenience only, never overrides user intent).
+ * 4. Default — untouched folders are collapsed except the active project.
  */
 export function resolveSidebarProjectCollapsed(input: {
   projectPath: string;
   collapsedProjects: Readonly<Record<string, boolean>>;
   activeProjectPath?: string | null;
   searching?: boolean;
+  /** Active/revealed session lives inside this project. */
+  revealInside?: boolean;
 }): boolean {
   if (input.searching === true) {
     return false;
   }
   if (Object.prototype.hasOwnProperty.call(input.collapsedProjects, input.projectPath)) {
     return input.collapsedProjects[input.projectPath] === true;
+  }
+  if (input.revealInside === true) {
+    return false;
   }
   return input.projectPath !== input.activeProjectPath;
 }
@@ -140,15 +146,15 @@ export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRo
         input.sessionListOrder,
       );
       const selectedIndex = revealIndexInRows(merged, revealSessionId, revealDraftId);
-      const collapsed =
-        resolveSidebarProjectCollapsed({
-          projectPath: project.path,
-          collapsedProjects: input.collapsedProjects,
-          ...(input.activeProjectPath !== undefined
-            ? { activeProjectPath: input.activeProjectPath }
-            : {}),
-          searching,
-        }) && selectedIndex < 0;
+      const collapsed = resolveSidebarProjectCollapsed({
+        projectPath: project.path,
+        collapsedProjects: input.collapsedProjects,
+        ...(input.activeProjectPath !== undefined
+          ? { activeProjectPath: input.activeProjectPath }
+          : {}),
+        searching,
+        revealInside: selectedIndex >= 0,
+      });
       rows.push({
         kind: 'project-folder',
         projectPath: project.path,

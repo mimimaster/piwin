@@ -32,8 +32,13 @@ const OBSIDIAN_DECK: ThemeDeckTokens = {
 
   text1: '#ededf2',
   text2: '#9a9aa8',
-  text3: '#62626f',
-  text4: '#414150',
+  // text3/text4 are readability floors, not free choices: 318 declarations
+  // paint real information with text4 (timestamps, section titles, code
+  // gutters, control values), so the bottom of the ramp has to stay legible
+  // against the *lightest* surface it lands on — surface4, where menus and
+  // tooltips sit. text3 clears 4.5:1 there and text4 clears 3:1.
+  text3: '#898993',
+  text4: '#6b6b78',
 
   line1: 'rgba(255, 255, 255, 0.055)',
   line2: 'rgba(255, 255, 255, 0.09)',
@@ -66,8 +71,10 @@ const BONE_DECK: ThemeDeckTokens = {
 
   text1: '#17161b',
   text2: '#5c5a66',
-  text3: '#8b8896',
-  text4: '#b4b1bc',
+  // Mirrors Obsidian's floors against the darkest light surface — surface1,
+  // the chrome columns — so the sidebar's own labels and timestamps read.
+  text3: '#6f6d78',
+  text4: '#8d8a94',
 
   line1: 'rgba(20, 18, 30, 0.06)',
   line2: 'rgba(20, 18, 30, 0.10)',
@@ -79,8 +86,13 @@ const BONE_DECK: ThemeDeckTokens = {
   onIris: '#ffffff',
 
   ember: '#dd6318',
-  mint: '#17a672',
-  amber: '#c7860b',
+  // Mint and amber carry status *text* ("3 additions", "needs your input"), so
+  // on paper they have to clear 4.5:1 rather than the 3:1 a dot would need.
+  // The published Bone values sat at 2.7:1 — brighter than the field but not
+  // readable on it. Ember, sky, and coral already clear 3:1 and are only ever
+  // dots, washes, and rules, so they keep their authored hue.
+  mint: '#117d56',
+  amber: '#956408',
   coral: '#dc4438',
   sky: '#1a8fd0',
 };

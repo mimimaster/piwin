@@ -7,6 +7,7 @@ export type AtCatalogOptions = {
   projectPath?: string | null;
   mcpServers?: Array<{ id: string; name: string; status?: string }>;
   recentFiles?: string[];
+  recentFolders?: string[];
 };
 
 export function buildAtCatalog(options: AtCatalogOptions = {}): AtItem[] {
@@ -79,6 +80,21 @@ export function buildAtCatalog(options: AtCatalogOptions = {}): AtItem[] {
         insertValue: `@${file} `,
         groupLabel: 'Workspace File',
         badge: 'File',
+      });
+    }
+  }
+
+  if (options.recentFolders && options.recentFolders.length > 0) {
+    for (const folder of options.recentFolders) {
+      catalog.push({
+        id: `folder-${folder}`,
+        kind: 'folder',
+        name: folder,
+        label: `@${folder}`,
+        description: `Include folder content: ${folder}`,
+        insertValue: `@${folder} `,
+        groupLabel: 'Workspace File',
+        badge: 'Folder',
       });
     }
   }

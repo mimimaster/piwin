@@ -3,6 +3,7 @@
  */
 import { useEffect, useRef, type ReactElement } from 'react';
 import { groupSlashItems } from './slash-match';
+import { isReservedSlashExecuteName } from './slash-parse';
 import type { SlashItem } from './slash-types';
 
 export type SlashMenuProps = {
@@ -85,17 +86,13 @@ export function SlashMenu(props: SlashMenuProps): ReactElement | null {
                   aria-selected={selected}
                   data-testid={`slash-item-${item.id}`}
                   data-slash-id={item.id}
-                  className={
-                    selected
-                      ? 'slash-menu-item active'
-                      : 'slash-menu-item'
-                  }
-                  disabled={!item.available}
+                  className={selected ? 'slash-menu-item active' : 'slash-menu-item'}
+                  disabled={!item.available && !isReservedSlashExecuteName(item.name)}
                   title={item.unavailableReason ?? item.description}
                   ref={selected ? selectedRef : undefined}
                   onMouseEnter={() => props.onSelectIndex(index)}
                   onClick={() => {
-                    if (!item.available) {
+                    if (!item.available && !isReservedSlashExecuteName(item.name)) {
                       return;
                     }
                     props.onApply(item);

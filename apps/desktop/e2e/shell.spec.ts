@@ -253,15 +253,19 @@ test.describe('desktop shell (vite + host mock)', () => {
     ).toBeVisible();
   });
 
-  test('composer plus menu selects Plan mode', async ({ page }) => {
+  test('composer toolbar selects Goal mode', async ({ page }) => {
     await page.goto('/');
     await waitForHostReady(page);
-    await openTrustedSession(page, '/tmp/piwin-e2e-plan-mode');
-    await page.getByTestId('composer-input').fill('/plan');
-    await page.getByTestId('send-btn').click();
-    await expect(page.getByTestId('agent-mode-chip')).toContainText('Plan');
-    await page.getByTestId('agent-mode-dismiss').click();
-    await expect(page.getByTestId('agent-mode-chip')).toHaveCount(0);
+    await openTrustedSession(page, '/tmp/piwin-e2e-goal-mode');
+    const trigger = page.getByTestId('agent-mode-trigger');
+    await expect(trigger).toBeVisible();
+    await expect(trigger).toHaveAttribute('data-mode', 'agent');
+    await trigger.click();
+    await page.getByTestId('agent-mode-option-goal').click();
+    await expect(trigger).toHaveAttribute('data-mode', 'goal');
+    await trigger.click();
+    await page.getByTestId('agent-mode-option-agent').click();
+    await expect(trigger).toHaveAttribute('data-mode', 'agent');
   });
 
   test('Inspector opens Activity Terminal without a competing bottom dock', async ({ page }) => {
@@ -589,16 +593,12 @@ test.describe('desktop shell (vite + host mock)', () => {
     await composer.fill('/');
     await expect(page.getByTestId('composer-slash-menu')).toBeVisible();
     await expect(page.getByTestId('slash-item-cmd:compact')).toBeVisible();
-    await expect(page.getByTestId('slash-item-mode:plan')).toBeVisible();
+    await expect(page.getByTestId('slash-item-mode:agent')).toBeVisible();
+    await expect(page.getByTestId('slash-item-mode:goal')).toBeVisible();
     await expect(page.getByTestId('slash-item-skill:create-skill')).toBeVisible();
 
     await composer.fill('/compact');
     await composer.press('Enter');
-    // Compaction may complete quickly in mock; accept progress or result notice.
-    await expect(
-      page
-        .getByTestId('compaction-progress-notice')
-        .or(page.getByTestId('compaction-result-notice')),
-    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId('compaction-activity')).toBeVisible({ timeout: 10_000 });
   });
 });
