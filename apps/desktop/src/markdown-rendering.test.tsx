@@ -65,4 +65,19 @@ describe('MarkdownView semantic rendering', () => {
     expect(container.querySelectorAll('ul.md-list > li.md-list-item')).toHaveLength(2);
     expect(container.querySelector('li strong.md-strong')?.textContent).toBe('第二项');
   });
+
+  it('renders GFM task items as checkboxes inside list items', () => {
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text={['- [x] shipped', '- [ ] pending'].join('\n')}
+        renderingPhase="completed"
+      />,
+    );
+
+    expect(container.querySelectorAll('.md-task-checkbox')).toHaveLength(2);
+    expect(container.querySelector('.md-task-checkbox:checked')).not.toBeNull();
+    const items = container.querySelectorAll('li.md-list-item');
+    expect(items.length).toBeGreaterThanOrEqual(2);
+    expect(items[0]?.querySelector('.md-task-checkbox')).not.toBeNull();
+  });
 });
