@@ -382,6 +382,45 @@ describe('SessionRuntimePage', () => {
     expect(
       container!.querySelector('[data-testid="runtime-resources-counters"]')?.textContent,
     ).toContain('idle=1');
+    expect(container!.querySelector('[data-testid="runtime-resources-workers"]')).toBeNull();
+  });
+
+  it('renders the workers pool block when host/runtime-resources includes workers', async () => {
+    const request = vi.fn(async (command: { type: string }) => {
+      if (command.type === 'host/runtime-resources') {
+        return {
+          type: 'response' as const,
+          command: 'host/runtime-resources',
+          success: true as const,
+          data: {
+            ...resourceSample(),
+            workers: {
+              pool: 5,
+              max: 6,
+              active: 3,
+              starting: 0,
+              subagent: 2,
+              subagentMax: 4,
+              subagentWaiting: 1,
+            },
+          },
+        };
+      }
+      return {
+        type: 'response' as const,
+        command: 'session/runtime-status',
+        success: true as const,
+        data: { status: liveStatus() },
+      };
+    });
+    container = renderPage(createContextValue({ request }));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const workers = container!.querySelector('[data-testid="runtime-resources-workers"]');
+    expect(workers?.textContent).toContain('3/5');
+    expect(workers?.textContent).toContain('2/4');
+    expect(workers?.textContent).toMatch(/waiting 1/);
   });
 
   it('applies a pushed runtime status without polling', async () => {

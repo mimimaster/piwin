@@ -128,7 +128,7 @@ describe('deriveRunStatus', () => {
     expect(status.planStep).toBe('Add login');
   });
 
-  it('maps waiting-resource to a subtle restoring-runtime status', () => {
+  it('maps waiting-resource to waiting for runtime capacity', () => {
     const chat = {
       ...createInitialChatUiState(),
       activeRunId: 'run-1',
@@ -139,8 +139,8 @@ describe('deriveRunStatus', () => {
     };
     const status = deriveRunStatus({ chat, tools: [], plan: null, jobs: [] });
     expect(status.kind).toBe('waiting-resource');
-    expect(status.label).toBe('Restoring runtime');
-    expect(status.summary).toMatch(/Restoring the session runtime/);
+    expect(status.label).toBe('Waiting for runtime capacity');
+    expect(status.summary).toMatch(/Waiting for runtime capacity/);
     expect(status.canStop).toBe(true);
 
     const zh = deriveRunStatus({
@@ -150,8 +150,8 @@ describe('deriveRunStatus', () => {
       jobs: [],
       locale: 'zh-CN',
     });
-    expect(zh.label).toBe('正在恢复运行时');
-    expect(zh.summary).toContain('恢复会话运行时');
+    expect(zh.label).toBe('等待运行时容量');
+    expect(zh.summary).toContain('等待运行时容量');
   });
 
 });

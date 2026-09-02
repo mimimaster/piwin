@@ -101,8 +101,8 @@ export function deriveRunStatus(input: DeriveRunStatusInput): RunStatusView {
     const isZh = input.locale === 'zh-CN';
     return {
       kind: 'waiting-resource',
-      label: isZh ? '正在恢复运行时' : 'Restoring runtime',
-      summary: isZh ? '正在恢复会话运行时…' : 'Restoring the session runtime…',
+      label: isZh ? '等待运行时容量' : 'Waiting for runtime capacity',
+      summary: isZh ? '等待运行时容量…' : 'Waiting for runtime capacity…',
       ...baseCounts,
       canStop: true,
       ...(input.chat.activeRunStartedAt !== null
