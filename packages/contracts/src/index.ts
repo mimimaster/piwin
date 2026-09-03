@@ -73,6 +73,7 @@ export * from './session-branches.js';
 export * from './workspace-writes.js';
 export * from './notes.js';
 export * from './flashcards.js';
+export * from './goal.js';
 export * from './flashcard-study.js';
 export * from './flashcard-study-commands.js';
 export * from './flashcard-study-events.js';

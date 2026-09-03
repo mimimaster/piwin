@@ -284,9 +284,6 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
   const handleOpenOrchestrationSchemeSettings = useCallback((): void => {
     openSettingsSection('subagents');
   }, [openSettingsSection]);
-  const handleOpenExtensionsSettings = useCallback((): void => {
-    openSettingsSection('extensions');
-  }, [openSettingsSection]);
   const handleComposerAttachImage = useCallback((): void => {
     void onPickImageFiles();
   }, [onPickImageFiles]);
@@ -410,7 +407,6 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       agentMode,
       onAgentModeChange: setAgentMode,
       goalExtensionEnabled,
-      onOpenExtensionsSettings: handleOpenExtensionsSettings,
       pendingAttachments,
       onRemoveAttachment: revokePending,
       onRetryAttachment: retryPendingAttachment,
@@ -569,7 +565,6 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       handleComposerResumeRun,
       handleComposerSend,
       handleComposerSteer,
-      handleOpenExtensionsSettings,
       handleOpenHostSettings,
       handleOpenMcpPanel,
       handleOpenModelSettings,

@@ -253,19 +253,19 @@ test.describe('desktop shell (vite + host mock)', () => {
     ).toBeVisible();
   });
 
-  test('composer toolbar selects Goal mode', async ({ page }) => {
+  test('/goal arms Goal mode and the chip exits it', async ({ page }) => {
     await page.goto('/');
     await waitForHostReady(page);
     await openTrustedSession(page, '/tmp/piwin-e2e-goal-mode');
-    const trigger = page.getByTestId('agent-mode-trigger');
-    await expect(trigger).toBeVisible();
-    await expect(trigger).toHaveAttribute('data-mode', 'agent');
-    await trigger.click();
-    await page.getByTestId('agent-mode-option-goal').click();
-    await expect(trigger).toHaveAttribute('data-mode', 'goal');
-    await trigger.click();
-    await page.getByTestId('agent-mode-option-agent').click();
-    await expect(trigger).toHaveAttribute('data-mode', 'agent');
+    // No mode picker at rest: Goal is entered through the slash command only.
+    await expect(page.getByTestId('composer-goal-chip')).toHaveCount(0);
+    await page.getByTestId('composer-input').fill('/goal');
+    await page.getByTestId('send-btn').click();
+    const chip = page.getByTestId('composer-goal-chip');
+    await expect(chip).toBeVisible();
+    await expect(page.getByTestId('composer-input')).toHaveValue('');
+    await chip.click();
+    await expect(page.getByTestId('composer-goal-chip')).toHaveCount(0);
   });
 
   test('Inspector opens Activity Terminal without a competing bottom dock', async ({ page }) => {

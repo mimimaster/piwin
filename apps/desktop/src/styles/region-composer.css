@@ -302,12 +302,11 @@
 }
 
 /* ─── Toolbar pills ───────────────────────────────────────────────────
-   Model, thinking effort, agent mode, run mode, and orchestration share one
+   Model, thinking effort, run mode, and orchestration share one
    shape so the toolbar reads as a row of peers. Only the value carries
    emphasis; labels, separators, and chevrons stay at text-3 or below. */
 
 .thinking-effort-control,
-.agent-mode-control,
 .run-mode-control,
 .orchestration-scheme-control {
   position: relative;
@@ -316,7 +315,6 @@
 }
 
 .thinking-effort-trigger,
-.agent-mode-trigger,
 .run-mode-trigger,
 .orchestration-scheme-trigger {
   display: inline-flex;
@@ -343,7 +341,6 @@
 }
 
 .thinking-effort-trigger:hover:not(:disabled),
-.agent-mode-trigger:hover:not(:disabled),
 .run-mode-trigger:hover:not(:disabled),
 .orchestration-scheme-trigger:hover:not(:disabled) {
   color: var(--text-1);
@@ -351,7 +348,6 @@
 }
 
 .thinking-effort-trigger[aria-expanded='true'],
-.agent-mode-trigger[aria-expanded='true'],
 .run-mode-trigger[aria-expanded='true'],
 .orchestration-scheme-trigger[aria-expanded='true'] {
   color: var(--text-1);
@@ -359,7 +355,6 @@
 }
 
 .thinking-effort-trigger:disabled,
-.agent-mode-trigger:disabled,
 .run-mode-trigger:disabled,
 .orchestration-scheme-trigger:disabled {
   color: var(--text-4);
@@ -367,13 +362,12 @@
 }
 
 .thinking-effort-model,
-.agent-mode-value,
 .run-mode-value,
 .orchestration-scheme-value {
   min-width: 0;
   overflow: hidden;
   color: var(--text-2);
-  font-weight: 550;
+  font-weight: 500;
   font-size: var(--fs-chrome);
   line-height: 1.4;
   text-overflow: ellipsis;
@@ -381,7 +375,6 @@
 }
 
 .thinking-effort-trigger:hover .thinking-effort-model,
-.agent-mode-trigger:hover .agent-mode-value,
 .run-mode-trigger:hover .run-mode-value,
 .orchestration-scheme-trigger:hover .orchestration-scheme-value {
   color: var(--text-1);
@@ -392,7 +385,7 @@
 .orchestration-scheme-prefix {
   flex-shrink: 0;
   color: var(--text-4);
-  font-weight: 450;
+  font-weight: 400;
   font-size: var(--fs-chrome);
   line-height: 1.4;
   background: transparent;
@@ -414,7 +407,6 @@
 }
 
 .thinking-effort-chevron,
-.agent-mode-chevron,
 .run-mode-chevron,
 .orchestration-scheme-chevron {
   flex-shrink: 0;
@@ -430,7 +422,6 @@
 }
 
 .thinking-effort-trigger[aria-expanded='true'] .thinking-effort-chevron,
-.agent-mode-trigger[aria-expanded='true'] .agent-mode-chevron,
 .run-mode-trigger[aria-expanded='true'] .run-mode-chevron,
 .orchestration-scheme-trigger[aria-expanded='true'] .orchestration-scheme-chevron {
   transform: rotate(180deg);
@@ -495,9 +486,14 @@
   transform: scale(0.94);
 }
 
+/* Disabled still has to be readable: this is the control the user looks at to
+   confirm the composer is empty, not a permanently dead affordance. `--text-4`
+   is the disabled ink step and on the `--hover` wash it fell to roughly 2.3:1,
+   which read as a missing glyph. `--text-3` on the firmer `--active` fill keeps
+   the arrow legible while staying obviously inert next to the iris fill. */
 .composer-v2-send-btn:disabled {
-  background: var(--hover);
-  color: var(--text-4);
+  background: var(--active);
+  color: var(--text-3);
   box-shadow: none;
   cursor: default;
 }
@@ -576,7 +572,7 @@
   background: var(--hover);
   color: var(--text-3);
   font-size: var(--fs-mono);
-  font-weight: 560;
+  font-weight: 600;
   cursor: pointer;
   transition:
     background-color var(--t-1) var(--ease-out),
@@ -595,21 +591,18 @@
 
 /* ─── Run mode / orchestration popovers ───────────────────────────────── */
 
-.ui-popover-content.run-mode-popover,
-.ui-popover-content.agent-mode-popover {
+.ui-popover-content.run-mode-popover {
   min-width: 260px;
   padding: var(--s-4);
 }
 
-.run-mode-section,
-.agent-mode-section {
+.run-mode-section {
   display: flex;
   flex-direction: column;
   gap: var(--s-1);
 }
 
-.run-mode-section-title,
-.agent-mode-section-title {
+.run-mode-section-title {
   font-size: var(--fs-micro);
   font-weight: 600;
   color: var(--text-4);
@@ -618,8 +611,7 @@
   letter-spacing: var(--tracking-micro);
 }
 
-.run-mode-option,
-.agent-mode-option {
+.run-mode-option {
   display: flex;
   align-items: center;
   gap: var(--s-4);
@@ -636,30 +628,25 @@
   transition: background-color var(--t-1) var(--ease-out);
 }
 
-.run-mode-option:hover:not(:disabled),
-.agent-mode-option:hover:not(:disabled) {
+.run-mode-option:hover:not(:disabled) {
   background: var(--hover);
 }
 
-.run-mode-option:disabled,
-.agent-mode-option:disabled {
+.run-mode-option:disabled {
   color: var(--text-4);
   cursor: not-allowed;
 }
 
-.run-mode-option.is-selected,
-.agent-mode-option.is-selected {
+.run-mode-option.is-selected {
   background: var(--iris-wash);
 }
 
-.run-mode-option-label,
-.agent-mode-option-label {
-  font-weight: 560;
+.run-mode-option-label {
+  font-weight: 600;
   min-width: 48px;
 }
 
-.run-mode-option-desc,
-.agent-mode-option-desc {
+.run-mode-option-desc {
   flex: 1;
   font-size: var(--fs-mono);
   color: var(--text-3);
@@ -677,7 +664,6 @@
 }
 
 .run-mode-footer,
-.agent-mode-footer,
 .orchestration-scheme-footer {
   display: flex;
   justify-content: flex-end;
@@ -687,7 +673,6 @@
 }
 
 .run-mode-footer-btn,
-.agent-mode-footer-btn,
 .orchestration-scheme-footer-btn {
   border: 0;
   border-radius: var(--r-control);
@@ -703,23 +688,72 @@
 }
 
 .run-mode-footer-btn:hover,
-.agent-mode-footer-btn:hover,
 .orchestration-scheme-footer-btn:hover {
   background: var(--hover);
   color: var(--text-1);
 }
 
-/* Orchestration is "active" when a non-default scheme is pinned. Goal uses
-   the same standing tint so the toolbar mode is visible without a chip. */
-.orchestration-scheme-control.is-active .orchestration-scheme-trigger,
-.agent-mode-control.is-active .agent-mode-trigger {
+/* Orchestration is "active" when a non-default scheme is pinned. */
+.orchestration-scheme-control.is-active .orchestration-scheme-trigger {
   color: var(--iris-lift);
   background: var(--iris-wash);
 }
 
-.orchestration-scheme-control.is-active .orchestration-scheme-value,
-.agent-mode-control.is-active .agent-mode-value {
+.orchestration-scheme-control.is-active .orchestration-scheme-value {
   color: var(--iris-lift);
+}
+
+/* ─── Goal mode chip ──────────────────────────────────────────────────
+   Goal is armed by `/goal`, so there is no picker at rest. While armed, this
+   chip is the standing signal and the single way out: an iris wash (the mode
+   is an affordance state, not a run state — ember stays reserved) with a
+   trailing × so the exit is legible without a hover. */
+
+.composer-goal-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: var(--h-sm);
+  padding: 0 var(--s-3) 0 var(--s-4);
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--iris-wash);
+  color: var(--iris-lift);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-chrome);
+  font-weight: 500;
+  white-space: nowrap;
+  animation: deck-fade-in var(--t-2) var(--ease-out);
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.composer-goal-chip:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--iris) 22%, transparent);
+}
+
+.composer-goal-chip:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.composer-goal-chip:focus-visible {
+  outline: 2px solid var(--iris);
+  outline-offset: 1px;
+}
+
+.composer-goal-chip-exit {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  color: var(--iris-lift);
+  opacity: 0.7;
+}
+
+.composer-goal-chip:hover:not(:disabled) .composer-goal-chip-exit {
+  opacity: 1;
 }
 
 .ui-popover-content.orchestration-scheme-popover {
@@ -763,7 +797,7 @@
 }
 
 .orchestration-scheme-option-label {
-  font-weight: 560;
+  font-weight: 600;
   min-width: 56px;
 }
 

@@ -1394,7 +1394,7 @@ describe('ComposerDock host status', () => {
     expect(hint?.textContent).toMatch(/composer model|主模型/);
   });
 
-  it('hides Run Mode and Orchestration in Conversation, but keeps Agent Mode', () => {
+  it('hides Run Mode and Orchestration in Conversation, but keeps the Goal chip', () => {
     const rendered = renderDock(
       <ComposerDock
         {...baseProps}
@@ -1413,9 +1413,7 @@ describe('ComposerDock host status', () => {
     root = rendered.root;
     container = rendered.container;
 
-    expect(
-      container.querySelector('[data-testid="agent-mode-trigger"]')?.getAttribute('data-mode'),
-    ).toBe('goal');
+    expect(container.querySelector('[data-testid="composer-goal-chip"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="run-mode-trigger"]')).toBeNull();
     expect(container.querySelector('[data-testid="orchestration-scheme-trigger"]')).toBeNull();
     const textarea = container.querySelector(
@@ -1424,13 +1422,29 @@ describe('ComposerDock host status', () => {
     expect(textarea.placeholder).toMatch(/objective|目标/i);
   });
 
-  it('shows Agent Mode in project sessions', () => {
+  it('shows no mode control in Agent mode; Goal is entered through /goal', () => {
     const rendered = renderDock(<ComposerDock {...baseProps} />);
     root = rendered.root;
     container = rendered.container;
 
-    const trigger = container.querySelector('[data-testid="agent-mode-trigger"]');
-    expect(trigger).not.toBeNull();
-    expect(trigger?.getAttribute('data-mode')).toBe('agent');
+    expect(container.querySelector('[data-testid="composer-goal-chip"]')).toBeNull();
+  });
+
+  it('Goal chip exits back to Agent', () => {
+    const onAgentModeChange = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock {...baseProps} agentMode="goal" onAgentModeChange={onAgentModeChange} />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const chip = container.querySelector<HTMLButtonElement>(
+      '[data-testid="composer-goal-chip"]',
+    );
+    expect(chip).not.toBeNull();
+    act(() => {
+      chip?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(onAgentModeChange).toHaveBeenCalledWith('agent');
   });
 });

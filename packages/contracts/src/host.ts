@@ -508,6 +508,8 @@ export type ToolPresentation = {
   documentTargets?: import('./skills.js').DocumentTargetRef[];
   /** Structured flashcard create/batch-create display; not Generic Artifact HTML. */
   flashcard?: import('./flashcards.js').FlashcardDisplayPayload;
+  /** Structured goal signal lifted from a `goal_*` tool's details. */
+  goal?: import('./goal.js').GoalDisplayPayload;
   startedAt?: string;
   endedAt?: string;
   durationMs?: number;

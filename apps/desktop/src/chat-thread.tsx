@@ -34,7 +34,13 @@ import type { DocumentOpenInput } from './tool-call-card';
 import { RunActivitySlot } from './RunActivitySlot.js';
 import { isAssistantContentEmpty } from './assistant-message-content.js';
 import { PlanCard } from './plan-card';
-import { GoalStickyStrip } from './goal';
+import {
+  deriveGoalSessionView,
+  GoalActionsProvider,
+  GoalStickyStrip,
+  type GoalActions,
+} from './goal';
+import { focusComposerInput } from './context-menu/desktop-context-menu-value';
 import { resolveAssemblySummaryForUserMessage } from './assembly-summary-capsule';
 import { isWalkthroughEligible } from './walkthrough-action';
 import type { FilesChangedBarRequest } from './files-changed-bar';
@@ -448,6 +454,31 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
     );
   }, [chatMessages, props.activeRunId, props.runRecordsById, props.streaming]);
 
+  // The Goal loop's real phase, derived from the goal_* tool calls in the
+  // transcript rather than from run streaming state (see goal-session-model).
+  const goalView = useMemo(
+    () =>
+      deriveGoalSessionView({
+        messages: props.messages,
+        streaming: props.streaming,
+        agentMode: props.composerCard.agentMode,
+      }),
+    [props.messages, props.streaming, props.composerCard.agentMode],
+  );
+
+  // Goal cards sit several levels down the transcript; their actions travel by
+  // context rather than through every intermediate component's props.
+  const onAgentModeChange = props.composerCard.onAgentModeChange;
+  const onReviewChanges = props.onReviewChanges;
+  const goalActions = useMemo<GoalActions>(
+    () => ({
+      focusComposer: () => focusComposerInput(),
+      leaveGoalMode: () => onAgentModeChange('agent'),
+      ...(onReviewChanges ? { reviewChanges: onReviewChanges } : {}),
+    }),
+    [onAgentModeChange, onReviewChanges],
+  );
+
   // SF-04: The newest completed assistant response gets the lineage tree in its action row.
   const latestAssistantMessageId = useMemo(() => {
     for (let i = chatMessages.length - 1; i >= 0; i--) {
@@ -460,6 +491,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
   }, [chatMessages]);
 
   return (
+    <GoalActionsProvider actions={goalActions}>
     <div
       className={`chat-thread${conversationSession ? ' is-conversation' : ''}`}
       data-testid="chat-thread"
@@ -485,18 +517,12 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
           {...(props.onPlanAbort ? { onAbort: props.onPlanAbort } : {})}
         />
       ) : null}
-      {props.composerCard.agentMode === 'goal' && props.messages.length > 0 ? (
+      {goalView.phase !== 'idle' && props.messages.length > 0 ? (
         <GoalStickyStrip
-          goalTitle={
-            [...props.messages].reverse().find((m) => m.role === 'user')?.text ||
-            (props.locale === 'zh-CN' ? '目标自主执行循环' : 'Autonomous Goal Execution')
-          }
-          status={props.streaming ? 'running' : 'paused'}
-          turnsCount={props.messages.filter((m) => m.role === 'user').length}
-          onAbort={() => {
-            props.composerCard.onAbort();
-            props.composerCard.onAgentModeChange('agent');
-          }}
+          view={goalView}
+          messages={props.messages}
+          onAbort={props.composerCard.onAbort}
+          onExit={() => props.composerCard.onAgentModeChange('agent')}
         />
       ) : null}
       <TranscriptTurnList
@@ -878,6 +904,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
           {runActivitySlot}
         </section>
       ) : null}
-    </div>
+      </div>
+    </GoalActionsProvider>
   );
 }

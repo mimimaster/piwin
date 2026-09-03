@@ -107,6 +107,7 @@ export function mapToolExecutionEndEvent(
     invocation.effectiveArgs,
     invocation.effectiveToolName,
   );
+  const resultDetails = result?.details ?? event.details;
   const presentation = buildToolPresentation({
     toolName: invocation.effectiveToolName,
     isError,
@@ -115,6 +116,7 @@ export function mapToolExecutionEndEvent(
       ? { routedToolName: invocation.routedToolName }
       : {}),
     ...(outputText !== undefined ? { outputText } : {}),
+    ...(resultDetails !== undefined ? { details: resultDetails } : {}),
     ...(exitCode !== undefined ? { exitCode } : {}),
     ...(healthFields.health !== undefined ? { health: healthFields.health } : {}),
     ...(healthFields.sensitivity !== undefined ? { sensitivity: healthFields.sensitivity } : {}),

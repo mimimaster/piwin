@@ -26,6 +26,7 @@ import {
   PIWIN_APPEARANCE_INK_WASH,
   PIWIN_APPEARANCE_LIGHT,
 } from '../appearance-tokens';
+import { GoalGalleryStates } from './primitive-gallery-goal';
 
 export type PrimitiveGalleryProps = {
   /** Root theme application callback owned by DesktopThemeRoot. */
@@ -802,6 +803,7 @@ export function PrimitiveGallery(props: PrimitiveGalleryProps): ReactElement {
       <TranscriptLeafStates />
       <ComposerLeafStates />
       <KnowledgeCardStates />
+      <GoalGalleryStates />
     </div>
   );
 }

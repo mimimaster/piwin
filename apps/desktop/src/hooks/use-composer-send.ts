@@ -137,13 +137,20 @@ export function useComposerSend(params: UseComposerSendArgs) {
       contextRefs?: PromptContextRef[];
       displayText?: string;
       skill?: SkillActivityView;
+      /**
+       * Mode this turn is actually sent under. `/goal <objective>` switches
+       * mode and sends in one gesture, so the caller's parsed value is the
+       * truth — `args.agentMode` is still the pre-switch state here.
+       */
+      agentMode?: AgentModeId;
     }): string => {
       const clientMessageId = crypto.randomUUID();
+      const turnAgentMode = params.agentMode ?? args.agentMode;
       // Same model resolution as the Host prompt — Conversation needs it on
       // the optimistic turn so the avatar survives after streaming ends.
       const turnModel = buildPromptRequestInput({
         text: params.text,
-        agentMode: args.agentMode,
+        agentMode: turnAgentMode,
       }).model;
       args.dispatch({
         type: 'user/send',
@@ -155,6 +162,7 @@ export function useComposerSend(params: UseComposerSendArgs) {
         clientMessageId,
         ...(params.skill ? { skill: params.skill } : {}),
         ...(turnModel ? { model: turnModel } : {}),
+        agentMode: turnAgentMode,
       });
       setComposer('');
       // Hide chips without releasing them: File, blob URL and save results
@@ -673,6 +681,7 @@ export function useComposerSend(params: UseComposerSendArgs) {
           attachments: promptAttachments,
           contextRefs: promptContextRefs,
           ...(skillActivity ? { skill: skillActivity } : {}),
+          agentMode: promptAgentMode,
         });
         // paintOptimisticUserSend hides attachment chips; workspace refs belong
         // to this same prompt and must survive until the Host request is built.

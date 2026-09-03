@@ -10,7 +10,7 @@ import type { ToolCallDensity } from './ui-preferences';
 import type { ModelOption } from './model-options';
 import { clusterToolCalls, resolveToolClusterKind } from './tool-group-clustering';
 import { ToolBatchCapsule } from './tool-batch-capsule';
-import { GoalDeliveryCard, GoalBlockedCard } from './goal';
+import { GoalDeliveryCard, GoalBlockedCard, GoalWaitCard, useGoalActions } from './goal';
 import { useSubagentInspectorToggle } from './subagent-inspector-context';
 import { SubagentInlineSession } from './subagent-inline-session';
 
@@ -37,6 +37,7 @@ export type TurnToolGroupProps = {
 export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
   const clusters = useMemo(() => clusterToolCalls(props.tools), [props.tools]);
   const inspectorToggle = useSubagentInspectorToggle();
+  const goalActions = useGoalActions();
 
   if (props.tools.length === 0) {
     return null;
@@ -114,11 +115,67 @@ export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
           );
         }
 
+        // Structured signal first (Host lifted the tool's details onto
+        // `presentation.goal`); the text-output branches below are the fallback
+        // for sessions recorded before that mapping existed.
+        const goal = tool.presentation?.goal;
+        if (goal?.phase === 'completed') {
+          return (
+            <GoalDeliveryCard
+              key={tool.toolCallId}
+              summary={goal.summary}
+              toolCallId={tool.toolCallId}
+              {...(goal.verification !== undefined ? { verification: goal.verification } : {})}
+              {...(goal.artifacts !== undefined ? { artifacts: goal.artifacts } : {})}
+              {...(props.onOpenFile ? { onOpenFile: (path) => props.onOpenFile?.(path) } : {})}
+              {...(goalActions?.reviewChanges
+                ? { onOpenDiff: goalActions.reviewChanges }
+                : {})}
+            />
+          );
+        }
+        if (goal?.phase === 'blocked') {
+          return (
+            <GoalBlockedCard
+              key={tool.toolCallId}
+              reason={goal.reason}
+              toolCallId={tool.toolCallId}
+              {...(goal.unblockAction !== undefined ? { unblockAction: goal.unblockAction } : {})}
+              {...(goalActions ? { onProvideInput: goalActions.focusComposer } : {})}
+              {...(goalActions ? { onSwitchToAgent: goalActions.leaveGoalMode } : {})}
+            />
+          );
+        }
+        if (goal?.phase === 'waited') {
+          return (
+            <GoalWaitCard
+              key={tool.toolCallId}
+              reason={goal.reason}
+              toolCallId={tool.toolCallId}
+              {...(goal.durationSeconds !== undefined
+                ? { durationSeconds: goal.durationSeconds }
+                : {})}
+              running={false}
+            />
+          );
+        }
+        if (tool.toolName === 'goal_wait' && tool.status === 'running') {
+          return (
+            <GoalWaitCard
+              key={tool.toolCallId}
+              reason={tool.presentation?.summary || tool.output || 'Waiting'}
+              toolCallId={tool.toolCallId}
+              running
+            />
+          );
+        }
+
         if (tool.toolName === 'goal_complete' && tool.status === 'done') {
           return (
             <GoalDeliveryCard
               key={tool.toolCallId}
               summary={tool.output || 'Goal accomplished'}
+              toolCallId={tool.toolCallId}
               {...(props.onOpenFile ? { onOpenFile: (path) => props.onOpenFile?.(path) } : {})}
             />
           );
@@ -129,6 +186,7 @@ export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
             <GoalBlockedCard
               key={tool.toolCallId}
               reason={tool.output || 'Goal execution is blocked'}
+              toolCallId={tool.toolCallId}
             />
           );
         }

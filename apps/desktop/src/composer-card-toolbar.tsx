@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { IconButton } from '@piwin/ui-kit';
 import { ComposerPlusMenu } from './composer-plus-menu';
-import { AgentModeControl } from './AgentModeControl';
+import { GoalModeChip } from './goal';
 import { ThinkingEffortControl } from './ThinkingEffortControl';
 import { RunModeControl } from './RunModeControl';
 import { OrchestrationSchemeControl } from './OrchestrationSchemeControl';
@@ -158,15 +158,13 @@ export function ComposerCardToolbar({
       </div>
 
       <div className="composer-v2-toolbar-right">
-        <AgentModeControl
-          disabled={isStreamingRun}
-          value={props.agentMode}
-          onChange={props.onAgentModeChange}
-          goalDisabled={props.goalExtensionEnabled === false}
-          {...(props.onOpenExtensionsSettings
-            ? { onOpenExtensionsSettings: props.onOpenExtensionsSettings }
-            : {})}
-        />
+        {/* Goal is entered via `/goal`; the toolbar only shows the way out. */}
+        {props.agentMode === 'goal' ? (
+          <GoalModeChip
+            disabled={isStreamingRun}
+            onExit={() => props.onAgentModeChange('agent')}
+          />
+        ) : null}
 
         {/* Run Mode pill (ADR 0024) */}
         {props.isConversationSession !== true && props.onRunModeChange && props.runModePreset ? (
