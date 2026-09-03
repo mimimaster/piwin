@@ -19,9 +19,9 @@
   display: grid;
   padding: 0 var(--deck-inset) var(--deck-inset);
   gap: var(--deck-gap);
-  grid-template-columns: var(--rail-width) var(--sidebar-width) minmax(0, 1fr);
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
-  grid-template-areas: 'rail nav stage';
+  grid-template-areas: 'nav stage';
   min-width: 0;
   overflow: hidden;
   background: var(--void);
@@ -30,18 +30,18 @@
 
 .app-shell.has-right-panel,
 .app-shell[data-layout='desktop'].has-right-panel {
-  grid-template-columns: var(--rail-width) var(--sidebar-width) minmax(0, 1fr) var(--right-panel-width, 320px);
-  grid-template-areas: 'rail nav stage signal';
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--right-panel-width, 320px);
+  grid-template-areas: 'nav stage signal';
 }
 
 .app-shell[data-layout='desktop']:not(.nav-open) {
-  grid-template-columns: var(--rail-width) minmax(0, 1fr);
-  grid-template-areas: 'rail stage';
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'stage';
 }
 
 .app-shell[data-layout='desktop']:not(.nav-open).has-right-panel {
-  grid-template-columns: var(--rail-width) minmax(0, 1fr) var(--right-panel-width, 320px);
-  grid-template-areas: 'rail stage signal';
+  grid-template-columns: minmax(0, 1fr) var(--right-panel-width, 320px);
+  grid-template-areas: 'stage signal';
 }
 
 /* Compact collapses to a single stage column; the sidebar becomes a drawer. */
@@ -56,7 +56,6 @@
    never a flat 1px border. The child combinator lets the frame own these
    three properties while region files keep ownership of panel interiors. */
 
-.app-shell > .nav-rail,
 .app-shell > .sidebar,
 .app-shell > .workspace,
 .app-shell > .right-panel {
@@ -88,10 +87,6 @@
 
 .app-shell.has-right-panel > .context-bar {
   grid-column: 1 / -2;
-}
-
-.app-shell > .nav-rail {
-  grid-area: rail;
 }
 
 .app-shell > .sidebar {

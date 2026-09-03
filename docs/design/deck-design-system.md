@@ -134,7 +134,7 @@ Control heights: `--h-xs` 24 · `--h-sm` 28 · `--h-md` 32 · `--h-lg` 38.
 
 Deck frame: `--deck-inset` 7px (window edge), `--deck-gap` 7px (between panels).
 
-Columns: `--rail-w` 46 · `--sidebar-w` 246 · `--inspector-w` 320 · `--measure` 720.
+Columns: `--sidebar-width` 246 · `--right-panel-width` 320 · `--conversation-width` 760.
 
 ---
 
@@ -234,9 +234,16 @@ Changes from the current three-column grid:
    is held to the sidebar's live width so it starts at the stage column's edge instead of
    straddling the seam. Panels are square at the top for the same reason — macOS's own
    corner rounding is the only rounding that belongs at the window edge.
-2. **A persistent 46px rail** carries top-level navigation (sessions, files, knowledge,
-   skills, settings). The sidebar can now collapse to zero without losing navigation —
-   today collapsing it strands the user.
+2. **No navigation rail.** An earlier revision of this deck called for a persistent 46px
+   rail carrying top-level navigation, on the premise that collapsing the sidebar strands
+   the user. It does not: the titleband's `rail-chats-btn` (`IconPanelLeft`) is full-width
+   and always mounted, the command palette is a keystroke away, and `toggle-sidebar` /
+   `search-sessions` / `open-settings` all have bindings. A rail was built against that
+   premise and removed — four of its five buttons duplicated `sidebar-library-btn`,
+   `sidebar-flashcards-btn`, the sidebar search row, and `settings-open-btn`, so the
+   default state showed every top-level entry point twice and spent 53px of stage width
+   serving a non-default one. Top-level navigation lives in the sidebar; collapse recovery
+   lives in the titleband.
 3. **Panels float** with 7px gaps over `--void`, instead of sitting flush with hairline
    dividers.
 4. **The composer ends the stage chrome.** Per-turn duration, token, and cache metrics do
@@ -325,6 +332,24 @@ strip) are now rewritten too. Decisions worth carrying forward:
 - **Running jobs pulse ember, not accent.** Active-jobs strip dots use
   `--ember` for running state — same signal as the status bar and streaming
   caret.
+
+### Goal mode: slash-only entry, truthful strip
+
+Goal is not a toolbar picker. Agent is the resting composer mode; Goal is
+armed by `/goal` (or `/goal <objective>`). While it is armed the composer
+shows one exit chip (`GoalModeChip`); after the first turn a sticky strip
+reports the real loop phase, derived from `goal_*` tool presentation rather
+than from `streaming`.
+
+| Phase | Signal | Colour |
+| --- | --- | --- |
+| running | the agent is working | ember, on the shared `breath` |
+| waiting | parked on an external condition | sky, on `breath` |
+| blocked | the model asked for a decision | coral, static |
+| completed | acceptance criteria declared met | mint, static |
+
+The round pill on the strip opens a timeline of those events. Abort cancels
+the current run; Leave Goal exits the mode. They are not the same gesture.
 
 ### Transcript leaves: one card gets to break the recess rule
 

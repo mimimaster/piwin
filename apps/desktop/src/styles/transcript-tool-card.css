@@ -788,7 +788,7 @@
   gap: var(--s-3);
   color: var(--text-4);
   font-size: var(--fs-chrome);
-  font-weight: 450;
+  font-weight: 400;
 }
 
 .turn-work-details .tool-call-card.density-compact .tool-call-summary:hover {
@@ -817,7 +817,7 @@
 .turn-work-details .tool-call-card .tool-call-action-verb {
   color: var(--text-4);
   font-size: var(--fs-chrome);
-  font-weight: 450;
+  font-weight: 400;
 }
 
 .turn-work-details .tool-call-card .tool-call-file-pill {

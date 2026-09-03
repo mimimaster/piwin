@@ -11,7 +11,6 @@
   --deck-gap: 7px;
 
   /* ── Shell geometry — single source of truth; never hardcode in cascade files. */
-  --rail-width: 46px;
   --sidebar-width: 246px;
   --signal-rail-width: 46px;
   --right-panel-width: 320px;
@@ -135,6 +134,10 @@
      and a light scrim over the Bone theme has too little contrast to signal
      that the surface behind it is inert. */
   --scrim: rgba(0, 0, 0, 0.55);
+  /* Ink for chrome that sits on a scrim or directly on media (thumbnail
+     badges, player pills). Because the scrim is theme-invariant, this ink is
+     too — `--text-1` would go black-on-black under Bone. */
+  --on-scrim: #f4f4f7;
 
   /* ── Stacking contract — shell overlays use these only ────────── */
   --layer-shell: 1;

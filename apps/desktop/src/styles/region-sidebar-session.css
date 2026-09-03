@@ -112,9 +112,11 @@
 }
 
 .session-item-name {
-  font-size: 14px;
-  font-weight: 450;
-  line-height: 1.4;
+  /* Every clickable row in the sidebar shares one size (actions, folders,
+     sessions); hierarchy comes from colour and indent, not from type. */
+  font-size: var(--fs-body);
+  font-weight: 400;
+  line-height: var(--lh-tight);
   color: var(--text-2);
   white-space: nowrap;
   overflow: hidden;
@@ -131,13 +133,13 @@
   color: var(--text-1);
 }
 
-.session-item.active .session-item-name {
-  color: var(--text-1);
-  font-weight: 530;
-}
-
+.session-item.active .session-item-name,
 .session-item[data-completed='true'] .session-item-name {
   font-weight: 500;
+}
+
+.session-item.active .session-item-name {
+  color: var(--text-1);
 }
 
 .session-item-title-text {
@@ -152,7 +154,8 @@
   right: var(--s-5);
   top: 50%;
   transform: translateY(-50%);
-  font-size: 12px;
+  font-family: var(--mono, var(--font-mono));
+  font-size: var(--fs-mono);
   font-weight: 400;
   color: var(--text-4);
   font-variant-numeric: tabular-nums;
@@ -196,7 +199,7 @@
 .session-item[data-draft='true'].active .session-item-name,
 .session-item[data-archived='true'].active .session-item-name {
   color: var(--text-2);
-  font-weight: 450;
+  font-weight: 500;
 }
 
 .session-item[data-archived='true']:hover .session-item-name,
@@ -265,20 +268,24 @@
     visibility var(--t-1) var(--ease-out);
 }
 
-.session-item-activity--working {
-  border: 2px solid color-mix(in srgb, var(--ember) 85%, transparent);
-  border-right-color: color-mix(in srgb, var(--ember) 20%, transparent);
-  border-bottom-color: color-mix(in srgb, var(--ember) 20%, transparent);
+/* A running session is a liveness indicator, so it breathes on the shell cycle
+   instead of spinning on its own clock — Deck §6 requires every "alive" mark to
+   share one animation name and duration so they pulse in phase. The dot is
+   solid rather than a ring: `breath` scales, and a scaling ring reads as a
+   wobble. Absolute centring lives on the parent, so the keyframe's own
+   `scale()` cannot own `translateY`; the extra element keeps them separate. */
+.session-item-activity--working::before {
+  content: '';
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  animation: session-working-spin 0.85s linear infinite;
+  background: var(--ember);
+  animation: breath var(--breath) var(--ease-in-out) infinite;
 }
 
-@keyframes session-working-spin {
-  from {
-    transform: translateY(-50%) rotate(0deg);
-  }
-  to {
-    transform: translateY(-50%) rotate(360deg);
+@media (prefers-reduced-motion: reduce) {
+  .session-item-activity--working::before {
+    animation: none;
   }
 }
 

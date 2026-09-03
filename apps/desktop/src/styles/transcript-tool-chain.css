@@ -313,7 +313,7 @@
   color: var(--text-4);
   font: inherit;
   font-size: 1em;
-  font-weight: 450;
+  font-weight: 400;
   cursor: pointer;
   text-align: left;
   transition:
@@ -416,7 +416,7 @@
   color: var(--text-4);
   font: inherit;
   font-size: 1em;
-  font-weight: 450;
+  font-weight: 400;
   cursor: pointer;
   text-align: left;
   overflow: hidden;
@@ -522,7 +522,7 @@
   color: var(--text-3);
   font-family: inherit;
   font-size: var(--chat-font-size);
-  font-weight: 450;
+  font-weight: 400;
   justify-content: flex-start;
   transition:
     background-color var(--t-1) var(--ease-out),
@@ -582,7 +582,7 @@
   background: transparent;
   color: var(--text-4);
   font-size: var(--fs-chrome);
-  font-weight: 450;
+  font-weight: 400;
   cursor: pointer;
   width: fit-content;
   font-family: inherit;

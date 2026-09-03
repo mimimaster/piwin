@@ -14,8 +14,8 @@
   width: 100%;
   padding: 36px 32px;
   border-radius: 20px;
-  background: rgba(18, 22, 34, 0.75);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--surface-2) 75%, transparent);
+  border: 1px solid var(--line-1);
   text-align: center;
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
 }
@@ -24,9 +24,9 @@
   width: 56px;
   height: 56px;
   border-radius: 16px;
-  background: rgba(99, 102, 241, 0.15);
-  border: 1px solid rgba(99, 102, 241, 0.3);
-  color: #818cf8;
+  background: color-mix(in srgb, var(--iris) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--iris) 30%, transparent);
+  color: var(--iris-lift);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -35,7 +35,7 @@
 
 .lib-empty-title {
   margin: 0 0 8px;
-  color: #ffffff;
+  color: var(--text-1);
   font-size: 18px;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -44,7 +44,7 @@
 .lib-empty-detail {
   max-width: 480px;
   margin: 0 auto 24px;
-  color: #94a3b8;
+  color: var(--text-3);
   font-size: 13px;
   line-height: 1.6;
 }
@@ -64,18 +64,22 @@
   padding: 0 20px;
   border: 0;
   border-radius: 12px;
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%);
-  color: #ffffff;
-  font-size: 13px;
+  /* Matches .lib-new-btn: iris is the product's only accent, so the primary
+     CTA cannot introduce a violet→pink ramp of its own. */
+  background: var(--iris-fill, var(--iris));
+  color: var(--on-iris);
+  font-size: var(--fs-body);
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 0 20px rgba(99, 102, 241, 0.35);
-  transition: all var(--t-1) var(--ease-out);
+  box-shadow: var(--elev-2);
+  transition:
+    filter var(--t-1) var(--ease-out),
+    box-shadow var(--t-1) var(--ease-out);
 }
 
 .lib-cta-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 0 28px rgba(99, 102, 241, 0.55);
+  filter: brightness(1.06);
+  box-shadow: var(--elev-3);
 }
 
 .lib-cta-secondary {
@@ -84,10 +88,10 @@
   gap: 6px;
   height: 38px;
   padding: 0 16px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--line-2);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #e2e8f0;
+  background: var(--hover);
+  color: var(--text-2);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -95,8 +99,8 @@
 }
 
 .lib-cta-secondary:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: #ffffff;
+  background: var(--active);
+  color: var(--text-1);
 }
 
 /* Inspiration presets grid */
@@ -114,7 +118,7 @@
 }
 
 .lib-inspiration-title {
-  color: #94a3b8;
+  color: var(--text-3);
   font-size: 11.5px;
   font-weight: 600;
   text-transform: uppercase;
@@ -130,8 +134,8 @@
 .lib-inspiration-card {
   padding: 14px 16px;
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(22, 27, 42, 0.5);
+  border: 1px solid var(--line-1);
+  background: color-mix(in srgb, var(--surface-2) 50%, transparent);
   cursor: pointer;
   transition: all var(--t-1) var(--ease-out);
   display: flex;
@@ -141,8 +145,8 @@
 }
 
 .lib-inspiration-card:hover {
-  border-color: rgba(99, 102, 241, 0.4);
-  background: rgba(28, 35, 54, 0.8);
+  border-color: color-mix(in srgb, var(--iris) 40%, transparent);
+  background: color-mix(in srgb, var(--surface-3) 80%, transparent);
   transform: translateY(-2px);
 }
 
@@ -150,12 +154,12 @@
   font-size: 10px;
   font-family: var(--font-mono);
   font-weight: 600;
-  color: #818cf8;
+  color: var(--iris-lift);
 }
 
 .lib-inspiration-card-prompt {
   font-size: 12px;
-  color: #e2e8f0;
+  color: var(--text-2);
   line-height: 1.45;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -165,7 +169,7 @@
 
 .lib-inspiration-card-action {
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--text-3);
   font-weight: 500;
 }
 
@@ -182,12 +186,12 @@
   gap: 8px;
   padding: 10px 20px;
   border-radius: var(--r-pill);
-  background: rgba(99, 102, 241, 0.95);
-  color: #ffffff;
+  background: color-mix(in srgb, var(--iris) 95%, transparent);
+  color: var(--on-iris);
   font-size: 12.5px;
   font-weight: 600;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--line-3);
   animation: lib-toast-in 200ms var(--ease-out);
 }
 
@@ -219,7 +223,7 @@
 
 .lib-more {
   margin: var(--s-6) 0 0;
-  color: #94a3b8;
+  color: var(--text-3);
   font-size: 12px;
   text-align: center;
 }

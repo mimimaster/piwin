@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>piwin 架构图 · 逐层下钻</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --line: #2a2f3a;
+    --text: #e6e8ee;
+    --muted: #8b93a7;
+    --accent: #6ea8fe;
+    --accent-soft: rgba(110, 168, 254, 0.14);
+    --shell: #f7b267;
+    --host: #6ea8fe;
+    --kernel: #b28dff;
+    --leaf: #7bd88f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Helvetica Neue", system-ui, sans-serif;
+    background: radial-gradient(1200px 600px at 50% -10%, #1b2030 0%, var(--bg) 60%);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  header {
+    padding: 28px 32px 8px;
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 20px; margin: 0; font-weight: 600; letter-spacing: 0.2px; }
+  header .hint { color: var(--muted); font-size: 13px; }
+  nav.crumbs {
+    padding: 4px 32px 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--muted);
+    flex-wrap: wrap;
+  }
+  nav.crumbs button {
+    background: none; border: 0; color: var(--accent); cursor: pointer;
+    font: inherit; padding: 4px 6px; border-radius: 6px;
+  }
+  nav.crumbs button:hover { background: var(--accent-soft); }
+  nav.crumbs .sep { opacity: 0.5; }
+  nav.crumbs .current { color: var(--text); padding: 4px 6px; }
+
+  main { padding: 20px 32px 48px; max-width: 1100px; margin: 0 auto; }
+
+  .intro {
+    color: var(--muted);
+    font-size: 14px;
+    margin: 0 0 22px;
+    line-height: 1.6;
+    border-left: 3px solid var(--line);
+    padding-left: 12px;
+  }
+
+  .layer { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; }
+  .layer-label {
+    text-align: center; color: var(--muted); font-size: 12px;
+    letter-spacing: 0.6px; text-transform: uppercase; margin: 0 0 10px;
+  }
+  .arrow {
+    display: flex; justify-content: center; align-items: center;
+    height: 44px; color: var(--muted); font-size: 22px; position: relative;
+  }
+  .arrow::before {
+    content: ""; position: absolute; top: 6px; bottom: 18px; width: 2px;
+    background: var(--line); left: 50%; transform: translateX(-50%);
+  }
+  .arrow span { position: relative; top: 8px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-top: 3px solid var(--card-color, var(--accent));
+    border-radius: 12px;
+    padding: 14px 16px;
+    min-width: 180px;
+    max-width: 260px;
+    flex: 1 1 180px;
+    text-align: left;
+    color: var(--text);
+    font: inherit;
+    cursor: default;
+    transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+    position: relative;
+  }
+  .card.drillable { cursor: pointer; }
+  .card.drillable:hover {
+    transform: translateY(-2px);
+    border-color: var(--card-color, var(--accent));
+    background: #1b1f28;
+  }
+  .card .title { font-weight: 600; font-size: 15px; margin: 0 0 4px; word-break: break-word; }
+  .card .sub { color: var(--muted); font-size: 12.5px; line-height: 1.5; margin: 0; }
+  .card .more {
+    position: absolute; right: 10px; top: 10px; font-size: 11px;
+    color: var(--card-color, var(--accent)); background: var(--accent-soft);
+    border-radius: 999px; padding: 2px 8px;
+  }
+  .card.compact { min-width: 120px; max-width: 170px; padding: 10px 12px; flex: 0 1 150px; }
+  .card.compact .title { font-size: 13.5px; }
+
+  .side-note {
+    margin-top: 28px;
+    background: var(--panel);
+    border: 1px dashed var(--line);
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+  .side-note strong { color: var(--text); font-weight: 600; }
+  .side-note ul { margin: 6px 0 0; padding-left: 18px; }
+  .side-note code {
+    background: #22262f; padding: 1px 6px; border-radius: 4px;
+    font-size: 12px; color: var(--text);
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>piwin 架构图</h1>
+  <span class="hint">点击带「展开」标记的方块逐层下钻，面包屑可返回上一层</span>
+</header>
+<nav class="crumbs" id="crumbs"></nav>
+<main id="main"></main>
+
+<script>
+  // 结构说明：每个节点有 layers（自上而下的行，行之间画箭头表示依赖方向）
+  // 有 layers 的节点可以下钻。数据来自各包 package.json 的 @piwin/* 依赖。
+  const COLORS = { shell: '#f7b267', host: '#6ea8fe', kernel: '#b28dff', leaf: '#7bd88f' };
+
+  const APP_PACKAGES = [
+    ['session', '会话树 / 历史索引'],
+    ['project', '打开项目 / 信任'],
+    ['skills', 'Skills 安装与列表'],
+    ['marketplace', '扩展市场 → 依赖 extensions'],
+    ['extensions', '扩展定义'],
+    ['mcp', 'MCP 配置与服务器'],
+    ['media', '粘贴图片 / 媒体存储'],
+    ['artifact', 'HTML Artifact 策略'],
+    ['git', 'Git 操作'],
+    ['process', '子进程'],
+    ['browser', '浏览器自动化'],
+    ['tools-web', 'web_search / web_fetch'],
+    ['notes', '笔记'],
+    ['doc-rag', '文档检索 → 依赖 notes'],
+    ['flashcards', '闪卡'],
+    ['automation', '自动化任务'],
+    ['pet', '桌宠'],
+    ['speech', '语音合成'],
+    ['voice', '语音输入'],
+    ['theme', '主题'],
+  ];
+
+  const ROOT = {
+    id: 'root',
+    title: 'piwin',
+    intro: 'piwin 是一个基于 Pi 的私有 coding-agent 外壳。最粗的粒度只有三层：多个客户端 Shell 连到唯一的 Host，Host 内部再由 agent-host 唯一地对接 Pi 内核。依赖方向只允许自上而下。',
+    layers: [
+      { label: '客户端', items: [
+        { id: 'shells', title: '客户端 Shells', sub: 'Desktop / Mobile / CLI，都只能 import 公共 @piwin/*，永远不碰 Pi', color: COLORS.shell,
+          intro: '所有 Shell 通过同一套 HostCommand / HostPush 协议连接 Host。CLI 附着到同一个 Host 时与 Desktop 拥有相同的配置与会话权威。',
+          layers: [
+            { label: '应用', items: [
+              { id: 'desktop', title: 'apps/desktop', sub: 'Tauri 2 桌面端，UI 走 @piwin/ui-kit', color: COLORS.shell },
+              { id: 'mobile', title: 'apps/mobile', sub: '移动端 Shell', color: COLORS.shell },
+              { id: 'cli', title: 'apps/cli', sub: '命令行；可作为客户端连 Host，也可内嵌 host-server 独立运行', color: COLORS.shell },
+            ]},
+            { label: '连接层', items: [
+              { id: 'host-client', title: '@piwin/host-client', sub: '客户端侧的 Host 连接封装', color: COLORS.shell },
+              { id: 'host-transport', title: '@piwin/host-transport', sub: '纯传输：不 import Pi、不执行工具、不持有会话、不存密钥', color: COLORS.shell },
+              { id: 'ui-kit', title: '@piwin/ui-kit', sub: 'Mantine 封装的 UI 原语，纯 UI，无 Node/Host API', color: COLORS.shell },
+            ]},
+          ],
+          note: { title: '边界规则', items: [
+            'Shell 只能依赖 <code>host-client</code> / <code>host-transport</code> / <code>ui-kit</code> / <code>contracts</code> 以及少量纯逻辑包。',
+            '当前 <code>apps/desktop</code> 直接依赖了 <code>@piwin/session</code>，<code>apps/cli</code> 直接依赖多个应用包，是可以收敛的边。',
+          ]},
+        },
+      ]},
+      { label: '服务端', items: [
+        { id: 'host', title: 'Host', sub: '唯一权威：Job / Run / 会话 / 配置都在这里，可本地 sidecar 也可远程部署', color: COLORS.host,
+          intro: 'apps/host 是可部署的 Node 服务。host-server 负责协议，host-runtime 是唯一的组合根，把所有业务包和 agent-host 拼起来。',
+          layers: [
+            { label: '入口', items: [
+              { id: 'host-app', title: 'apps/host', sub: '可部署的 Node 进程', color: COLORS.host },
+              { id: 'host-server', title: '@piwin/host-server', sub: '实现 HostCommand / HostPush 协议，转发给 runtime', color: COLORS.host },
+            ]},
+            { label: '组合根', items: [
+              { id: 'host-runtime', title: '@piwin/host-runtime', sub: '唯一的组合根：注入 20 个应用包 + agent-host，编排 Job / Run / Plan', color: COLORS.host },
+            ]},
+            { label: '业务能力', items: [
+              { id: 'app-packages', title: '应用包 × 20', sub: 'session / project / mcp / media / artifact / git …，每个只依赖 contracts', color: COLORS.host,
+                intro: '每个包负责一个业务域，只依赖 @piwin/contracts；包之间只有两条横向边（marketplace → extensions、doc-rag → notes）。不能依赖 host-runtime 或 agent-host。',
+                layers: [
+                  { label: '20 个业务域', compact: true, items: APP_PACKAGES.map(([name, sub]) => ({ id: name, title: name, sub, color: COLORS.host })) },
+                ],
+              },
+              { id: 'agent-host', title: '@piwin/agent-host', sub: '唯一允许 import Pi 的包（详见「Pi 内核」层）', color: COLORS.kernel },
+            ]},
+          ],
+          note: { title: '为什么这样分', items: [
+            '业务包保持纯粹可测；FS / 进程 / 网络放在各自的服务包里，由 <code>host-runtime</code> 组合。',
+            '<code>agent-host</code> 只做 Pi 后端与事件适配，需要的产品能力由 <code>host-runtime</code> 以 port 形式注入，不反向依赖业务包。',
+          ]},
+        },
+      ]},
+      { label: '内核', items: [
+        { id: 'kernel', title: 'Pi 内核', sub: 'SDK + RPC 双模式，只被 agent-host 触碰', color: COLORS.kernel,
+          intro: 'agent-host 把 Pi 的 SDK / RPC 两种形态适配成同一套 contracts，向上只输出归一化的 AgentEvent，UI 永远不解析 Pi 原生结构。',
+          layers: [
+            { label: '适配层', items: [
+              { id: 'sdk-adapter', title: 'PiSdkAdapter', sub: '进程内直接调用 Pi SDK', color: COLORS.kernel },
+              { id: 'rpc-adapter', title: 'PiRpcAdapter', sub: '通过 RPC 连接 Pi worker', color: COLORS.kernel },
+            ]},
+            { label: 'Pi 包', items: [
+              { id: 'pi-ai', title: '@earendil-works/pi-ai', sub: '模型与 provider 层', color: COLORS.kernel },
+              { id: 'pi-coding-agent', title: '@earendil-works/pi-coding-agent', sub: 'agent 循环与工具', color: COLORS.kernel },
+            ]},
+          ],
+          note: { title: '不变量', items: [
+            '两个 adapter 实现同一套 contracts，双模式必须都是真实可用的。',
+            '图片以原生 <code>ImageContent</code> 传给 Pi，不在文本 prompt 里塞路径或 base64。',
+          ]},
+        },
+      ]},
+    ],
+    note: { title: '横切的一层：@piwin/contracts', items: [
+      '所有包（Shell、Host、业务包、agent-host）都依赖它；它自己不依赖任何 <code>@piwin/*</code>，是整棵依赖树的叶子。',
+      '任何跨边界的新能力先在 <code>contracts</code> 里定义类型，再落到各自的包。',
+    ]},
+  };
+
+  const stack = [ROOT];
+  const mainEl = document.getElementById('main');
+  const crumbsEl = document.getElementById('crumbs');
+
+  function renderCrumbs() {
+    crumbsEl.innerHTML = '';
+    stack.forEach((node, index) => {
+      const isLast = index === stack.length - 1;
+      if (isLast) {
+        const span = document.createElement('span');
+        span.className = 'current';
+        span.textContent = node.title;
+        crumbsEl.appendChild(span);
+      } else {
+        const button = document.createElement('button');
+        button.textContent = node.title;
+        button.addEventListener('click', () => { stack.length = index + 1; render(); });
+        crumbsEl.appendChild(button);
+        const sep = document.createElement('span');
+        sep.className = 'sep';
+        sep.textContent = '›';
+        crumbsEl.appendChild(sep);
+      }
+    });
+  }
+
+  function renderCard(item, compact) {
+    const drillable = Array.isArray(item.layers) && item.layers.length > 0;
+    const card = document.createElement(drillable ? 'button' : 'div');
+    card.className = 'card' + (drillable ? ' drillable' : '') + (compact ? ' compact' : '');
+    card.style.setProperty('--card-color', item.color);
+    card.innerHTML =
+      (drillable ? '<span class="more">展开</span>' : '') +
+      '<p class="title">' + item.title + '</p>' +
+      (item.sub ? '<p class="sub">' + item.sub + '</p>' : '');
+    if (drillable) card.addEventListener('click', () => { stack.push(item); render(); });
+    return card;
+  }
+
+  function renderNote(note) {
+    const box = document.createElement('div');
+    box.className = 'side-note';
+    box.innerHTML = '<strong>' + note.title + '</strong><ul>' +
+      note.items.map((text) => '<li>' + text + '</li>').join('') + '</ul>';
+    return box;
+  }
+
+  function render() {
+    const node = stack[stack.length - 1];
+    renderCrumbs();
+    mainEl.innerHTML = '';
+
+    if (node.intro) {
+      const intro = document.createElement('p');
+      intro.className = 'intro';
+      intro.textContent = node.intro;
+      mainEl.appendChild(intro);
+    }
+
+    node.layers.forEach((layer, index) => {
+      if (index > 0) {
+        const arrow = document.createElement('div');
+        arrow.className = 'arrow';
+        arrow.innerHTML = '<span>▼</span>';
+        mainEl.appendChild(arrow);
+      }
+      if (layer.label) {
+        const label = document.createElement('p');
+        label.className = 'layer-label';
+        label.textContent = layer.label;
+        mainEl.appendChild(label);
+      }
+      const row = document.createElement('div');
+      row.className = 'layer';
+      layer.items.forEach((item) => row.appendChild(renderCard(item, layer.compact)));
+      mainEl.appendChild(row);
+    });
+
+    if (node.note) mainEl.appendChild(renderNote(node.note));
+    window.scrollTo({ top: 0 });
+  }
+
+  render();
+</script>
+</body>
+</html>

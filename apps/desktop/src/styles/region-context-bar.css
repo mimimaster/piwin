@@ -47,20 +47,14 @@
   padding: 0;
 }
 
-/* The window controls belong over the rail's chrome; the title belongs over
-   the stage. With the sidebar open, hold the cluster past rail + sidebar so
-   the title starts at the stage seam. Collapsed, the rail is still there, so
-   hold the title past rail + gap instead of letting it straddle that seam. */
+/* The window controls belong over the sidebar; the title belongs over the
+   stage. With the sidebar open, hold the cluster to the sidebar's width so the
+   title starts at the seam instead of straddling it. Collapsed, there is no
+   seam and the title simply follows the arrows. */
 .app-shell.nav-open > .context-bar > .context-bar-leading {
   min-width: calc(
-    var(--deck-inset) + var(--rail-width) + var(--deck-gap) + var(--sidebar-width) +
-      var(--deck-gap) - var(--traffic-light-clearance)
-  );
-}
-
-.app-shell[data-layout='desktop']:not(.nav-open) > .context-bar > .context-bar-leading {
-  min-width: calc(
-    var(--deck-inset) + var(--rail-width) + var(--deck-gap) - var(--traffic-light-clearance)
+    var(--deck-inset) + var(--sidebar-width) + var(--deck-gap) -
+      var(--traffic-light-clearance)
   );
 }
 
@@ -130,8 +124,8 @@
 .context-bar-title {
   flex: 1 1 auto;
   min-width: 0;
-  font-size: 13px;
-  font-weight: 560;
+  font-size: var(--fs-chrome);
+  font-weight: 600;
   line-height: 1.2;
   color: var(--text-1);
   white-space: nowrap;
@@ -161,7 +155,7 @@
   background: var(--hover);
   color: var(--text-3);
   font: inherit;
-  font-size: 11px;
+  font-size: var(--fs-mono);
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
@@ -193,8 +187,8 @@
   border-radius: var(--r-pill);
   background: var(--active);
   color: var(--text-3);
-  font-size: 10px;
-  font-weight: 560;
+  font-size: var(--fs-micro);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
@@ -235,7 +229,7 @@
   background: var(--hover);
   color: var(--text-3);
   font-size: var(--fs-micro);
-  font-weight: 560;
+  font-weight: 600;
   letter-spacing: 0.03em;
   line-height: 1;
   white-space: nowrap;

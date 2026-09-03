@@ -57,7 +57,7 @@
 .files-changed-bar-count {
   flex-shrink: 0;
   color: var(--text-1);
-  font-weight: 550;
+  font-weight: 500;
 }
 
 .files-changed-bar-file-inline {
@@ -78,7 +78,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text-1);
-  font-weight: 550;
+  font-weight: 500;
 }
 
 .files-changed-bar-file-dir {
@@ -132,7 +132,7 @@
   background: var(--surface-3);
   color: var(--text-1);
   font-size: var(--fs-micro);
-  font-weight: 550;
+  font-weight: 500;
   cursor: pointer;
   transition: all var(--t-1) var(--ease-out);
 }
@@ -185,7 +185,7 @@
 .files-changed-bar-row-name {
   flex-shrink: 0;
   font-family: var(--font-mono);
-  font-weight: 550;
+  font-weight: 500;
   color: var(--text-1);
 }
 

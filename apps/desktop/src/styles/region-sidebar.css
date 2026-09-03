@@ -143,8 +143,8 @@
   background: transparent;
   color: var(--text-2);
   cursor: pointer;
-  font-size: 13.5px;
-  font-weight: 450;
+  font-size: var(--fs-body);
+  font-weight: 500;
   text-align: left;
   box-shadow: none;
   transition:
@@ -157,10 +157,11 @@
   color: var(--text-1);
 }
 
+/* Selection is carried by fill, text-1 and the iris glyph — not by a heavier
+   weight, which made the active row read as a heading over its siblings. */
 .sidebar-action-row.active {
   background: var(--surface-2);
   color: var(--text-1);
-  font-weight: 600;
 }
 
 .sidebar-action-row.active svg {
@@ -246,8 +247,8 @@
   border-radius: var(--r-control);
   background: transparent;
   color: var(--text-2);
-  font-size: 13.5px;
-  font-weight: 450;
+  font-size: var(--fs-body);
+  font-weight: 500;
   cursor: pointer;
   transition:
     background-color var(--t-1) var(--ease-out),

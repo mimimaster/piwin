@@ -23,9 +23,11 @@ import type {
   ChatMessageUi,
   ChatUiAction,
   ChatUiState,
+  SessionListItemUi,
 } from './chat-reducer';
 import { ComposerDock, type ComposerDockProps } from './composer-dock';
 import type { DesktopLocale } from './desktop-locale';
+import { EmptyStageLanding } from './empty-stage-landing';
 import { ExtensionUiPrompt, type ExtensionUiResolvePayload } from './extension-ui-prompt';
 import type { HostClient } from './host-client';
 import { HostReconnectBanner } from './host-reconnect-banner';
@@ -100,6 +102,8 @@ export type WorkbenchTranscriptProps = {
   onForkFromMessage: (sessionId: string, messageId: string) => void | Promise<void>;
   onOpenSession: (sessionId: string) => void | Promise<void>;
   onCompactAbort: () => void | Promise<void>;
+  /** Scope-matched sessions offered as resume targets on an empty stage. */
+  scopeSessions: readonly SessionListItemUi[];
 };
 
 export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactElement {
@@ -156,6 +160,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
     onForkFromMessage,
     onOpenSession,
     onCompactAbort,
+    scopeSessions,
   } = props;
   const activeSessionId = state.activeSessionId;
 
@@ -304,7 +309,13 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
             onOpenSession={(sessionId: string) => void onOpenSession(sessionId)}
             derivedActionsDisabled={!activeSessionId || state.streaming || state.awaitingTranscript}
           />
-        ) : null}
+        ) : (
+          <EmptyStageLanding
+            locale={locale}
+            sessions={scopeSessions}
+            onResumeSession={(sessionId) => void onOpenSession(sessionId)}
+          />
+        )}
       </TranscriptViewport>
     </>
   );
