@@ -290,7 +290,10 @@ export function mergeRecentProjects(
     next.every(
       (project, index) =>
         project.path === previous[index]?.path &&
-        project.displayName === previous[index]?.displayName,
+        project.displayName === previous[index]?.displayName &&
+        project.gitRepositoryId === previous[index]?.gitRepositoryId &&
+        project.currentBranch === previous[index]?.currentBranch &&
+        project.isPrimaryWorktree === previous[index]?.isPrimaryWorktree,
     )
   ) {
     return previous;
@@ -444,6 +447,7 @@ function mapListedProject(value: unknown): ProjectRecord | undefined {
   if (!isRecord(value)) {
     return undefined;
   }
+  const gitFields = readListedGitWorkspaceFields(value);
   const projectId = typeof value.projectId === 'string' ? value.projectId.trim() : '';
   if (projectId.length > 0) {
     const displayName =
@@ -456,6 +460,7 @@ function mapListedProject(value: unknown): ProjectRecord | undefined {
       trust: value.trust === 'trusted' ? 'trusted' : 'untrusted',
       lastOpenedAt: typeof value.lastOpenedAt === 'string' ? value.lastOpenedAt : '',
       createdAt: typeof value.createdAt === 'string' ? value.createdAt : '',
+      ...gitFields,
     };
   }
   if (typeof value.path === 'string' && value.path.trim().length > 0) {
@@ -466,9 +471,27 @@ function mapListedProject(value: unknown): ProjectRecord | undefined {
       lastOpenedAt: typeof value.lastOpenedAt === 'string' ? value.lastOpenedAt : '',
       createdAt: typeof value.createdAt === 'string' ? value.createdAt : '',
       ...(typeof value.displayName === 'string' ? { displayName: value.displayName } : {}),
+      ...gitFields,
     };
   }
   return undefined;
+}
+
+function readListedGitWorkspaceFields(value: Record<string, unknown>): Pick<
+  ProjectRecord,
+  'gitRepositoryId' | 'isPrimaryWorktree' | 'currentBranch'
+> {
+  const fields: Pick<ProjectRecord, 'gitRepositoryId' | 'isPrimaryWorktree' | 'currentBranch'> = {};
+  if (typeof value.gitRepositoryId === 'string' && value.gitRepositoryId.trim().length > 0) {
+    fields.gitRepositoryId = value.gitRepositoryId.trim();
+  }
+  if (value.isPrimaryWorktree === true || value.isPrimaryWorktree === false) {
+    fields.isPrimaryWorktree = value.isPrimaryWorktree;
+  }
+  if (typeof value.currentBranch === 'string' && value.currentBranch.trim().length > 0) {
+    fields.currentBranch = value.currentBranch.trim();
+  }
+  return fields;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

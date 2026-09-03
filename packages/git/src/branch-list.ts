@@ -8,6 +8,7 @@ import type {
   GitRepositoryIdentity,
 } from '@piwin/contracts';
 import { runGitCommand } from './git-command-runner.js';
+import { annotateBranchesWithWorktreeOccupancy, listGitWorktrees } from './worktree-list.js';
 
 const FIELD_SEP = '\x1f';
 
@@ -81,9 +82,15 @@ export async function readGitBranchList(
   const parsed = parseGitBranchListOutput(result.stdout);
   const truncated = parsed.length > limit;
   const branches = truncated ? parsed.slice(0, limit) : parsed;
+  const worktrees = await listGitWorktrees(options.repository);
+  const annotated = annotateBranchesWithWorktreeOccupancy(
+    branches,
+    worktrees.worktrees,
+    options.repository.rootPath,
+  );
   return {
     repository: options.repository,
-    branches,
+    branches: annotated,
     truncated,
     totalBranches: truncated ? parsed.length : branches.length,
   };

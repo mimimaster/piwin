@@ -427,6 +427,11 @@ export type SessionHostCommand =
       redactTools?: boolean;
       /** Absolute path; when omitted host writes under session exports dir. */
       outputPath?: string;
+      /**
+       * Defaults to `file`. `content` returns the rendered document without
+       * writing a host-side file (clipboard copy).
+       */
+      destination?: import('./session-ops.js').SessionExportDestination;
     }
   /** Cold Storage R1: non-destructive one-session pack backup. */
   | {

@@ -1,9 +1,14 @@
+import { execFile } from 'node:child_process';
 import { access, mkdir, mkdtemp, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
+import type { ProjectRecord } from '@piwin/contracts';
 import { handleProjectCommand } from './project-commands.js';
 import { getPiwinGeneralWorkspacePath } from '../paths.js';
+
+const execFileAsync = promisify(execFile);
 
 describe('project commands', () => {
   it('removes a remembered project without deleting its project directory', async () => {
@@ -232,5 +237,111 @@ describe('project commands', () => {
       content: '<h1>Hello</h1>\n',
       isBinary: false,
     });
+  });
+
+  it('inherits trust when opening a worktree of a trusted repository', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-project-trust-inherit-'));
+    const projectPath = join(rootDir, 'workspace');
+    await mkdir(projectPath, { recursive: true });
+    await execFileAsync('git', ['init', '-b', 'main'], { cwd: projectPath });
+    await execFileAsync('git', ['config', 'user.email', 'piwin-test@example.com'], {
+      cwd: projectPath,
+    });
+    await execFileAsync('git', ['config', 'user.name', 'piwin test'], { cwd: projectPath });
+    await writeFile(join(projectPath, 'README.md'), 'hello\n', 'utf8');
+    await execFileAsync('git', ['add', 'README.md'], { cwd: projectPath });
+    await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: projectPath });
+    await execFileAsync('git', ['branch', 'feat/x'], { cwd: projectPath });
+    const linkedPath = join(rootDir, 'linked');
+    await execFileAsync('git', ['worktree', 'add', linkedPath, 'feat/x'], { cwd: projectPath });
+
+    await handleProjectCommand({ type: 'project/open', path: projectPath }, 'open-main', rootDir);
+    await handleProjectCommand(
+      { type: 'project/trust', path: projectPath },
+      'trust-main',
+      rootDir,
+    );
+
+    const opened = await handleProjectCommand(
+      { type: 'project/open', path: linkedPath },
+      'open-linked',
+      rootDir,
+    );
+    expect(opened?.success).toBe(true);
+    expect(opened && 'data' in opened ? opened.data : null).toMatchObject({
+      trusted: true,
+      trust: 'trusted',
+    });
+  });
+
+  it('does not inherit trust from a different repository', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-project-trust-foreign-'));
+    const trustedPath = join(rootDir, 'trusted');
+    const foreignPath = join(rootDir, 'foreign');
+    await mkdir(trustedPath, { recursive: true });
+    await mkdir(foreignPath, { recursive: true });
+    for (const repoPath of [trustedPath, foreignPath]) {
+      await execFileAsync('git', ['init', '-b', 'main'], { cwd: repoPath });
+      await execFileAsync('git', ['config', 'user.email', 'piwin-test@example.com'], {
+        cwd: repoPath,
+      });
+      await execFileAsync('git', ['config', 'user.name', 'piwin test'], { cwd: repoPath });
+      await writeFile(join(repoPath, 'README.md'), 'hello\n', 'utf8');
+      await execFileAsync('git', ['add', 'README.md'], { cwd: repoPath });
+      await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: repoPath });
+    }
+
+    await handleProjectCommand({ type: 'project/open', path: trustedPath }, 'open-trusted', rootDir);
+    await handleProjectCommand(
+      { type: 'project/trust', path: trustedPath },
+      'trust-trusted',
+      rootDir,
+    );
+
+    const opened = await handleProjectCommand(
+      { type: 'project/open', path: foreignPath },
+      'open-foreign',
+      rootDir,
+    );
+    expect(opened?.success).toBe(true);
+    expect(opened && 'data' in opened ? opened.data : null).toMatchObject({
+      trusted: false,
+      trust: 'untrusted',
+    });
+  });
+
+  it('enriches project/list with a shared gitRepositoryId for linked worktrees', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-project-list-git-'));
+    const projectPath = join(rootDir, 'workspace');
+    await mkdir(projectPath, { recursive: true });
+    await execFileAsync('git', ['init', '-b', 'main'], { cwd: projectPath });
+    await execFileAsync('git', ['config', 'user.email', 'piwin-test@example.com'], {
+      cwd: projectPath,
+    });
+    await execFileAsync('git', ['config', 'user.name', 'piwin test'], { cwd: projectPath });
+    await writeFile(join(projectPath, 'README.md'), 'hello\n', 'utf8');
+    await execFileAsync('git', ['add', 'README.md'], { cwd: projectPath });
+    await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: projectPath });
+    await execFileAsync('git', ['branch', 'feat/x'], { cwd: projectPath });
+    const linkedPath = join(rootDir, 'linked');
+    await execFileAsync('git', ['worktree', 'add', linkedPath, 'feat/x'], { cwd: projectPath });
+
+    await handleProjectCommand({ type: 'project/open', path: projectPath }, 'open-main', rootDir);
+    await handleProjectCommand({ type: 'project/open', path: linkedPath }, 'open-linked', rootDir);
+
+    const listed = await handleProjectCommand({ type: 'project/list' }, 'list-git', rootDir);
+    expect(listed?.success).toBe(true);
+    const projects =
+      listed && 'data' in listed
+        ? ((listed.data as { projects: ProjectRecord[] }).projects ?? [])
+        : [];
+    const main = projects.find((item) => item.path === projectPath);
+    const linked = projects.find((item) => item.path === linkedPath);
+    expect(main?.currentBranch).toBe('main');
+    expect(main?.isPrimaryWorktree).toBe(true);
+    expect(linked?.currentBranch).toBe('feat/x');
+    expect(linked?.isPrimaryWorktree).toBe(false);
+    expect(linked?.gitRepositoryId).toBe(main?.gitRepositoryId);
+    expect(main?.gitRepositoryId).toMatch(/^[a-f0-9]{16}$/);
   });
 });

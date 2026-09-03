@@ -157,6 +157,69 @@ describe('chatUiReducer', () => {
     }
   });
 
+  it('ends thinking and records tool-arg progress before tool/start', () => {
+    const now = vi.spyOn(Date, 'now');
+    try {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+      state = chatUiReducer(state, {
+        type: 'event',
+        sessionId: 's1',
+        event: {
+          type: 'message/start',
+          messageId: 'compose-a1',
+          role: 'assistant',
+          runId: 'run-1',
+        },
+      });
+      now.mockReturnValue(1_000);
+      state = chatUiReducer(state, {
+        type: 'event',
+        sessionId: 's1',
+        event: {
+          type: 'message/thinking_delta',
+          messageId: 'compose-a1',
+          delta: 'write the prototype',
+          runId: 'run-1',
+        },
+      });
+      now.mockReturnValue(4_000);
+      state = chatUiReducer(state, {
+        type: 'event',
+        sessionId: 's1',
+        event: {
+          type: 'message/tool_args_progress',
+          messageId: 'compose-a1',
+          argumentCharCount: 2400,
+          toolName: 'write_file',
+          runId: 'run-1',
+        },
+      });
+      expect(state.messages[0]?.thinkingEndedAt).toBe(4_000);
+      expect(state.messages[0]?.toolArgsProgress).toEqual({
+        argumentCharCount: 2400,
+        toolName: 'write_file',
+      });
+
+      now.mockReturnValue(5_000);
+      state = chatUiReducer(state, {
+        type: 'event',
+        sessionId: 's1',
+        event: {
+          type: 'tool/start',
+          toolCallId: 'tool-1',
+          toolName: 'write_file',
+          responseMessageId: 'compose-a1',
+          runId: 'run-1',
+        },
+      });
+      expect(state.messages[0]?.toolArgsProgress).toBeUndefined();
+      expect(state.messages[0]?.tools[0]?.toolName).toBe('write_file');
+    } finally {
+      now.mockRestore();
+    }
+  });
+
   it('accumulates assistant text deltas', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });

@@ -78,7 +78,8 @@ describe('deriveRunStatus', () => {
       ...createInitialChatUiState(),
       activeRunId: 'run-1',
       activeRunPhase: 'waiting-first-token' as const,
-      activeRunStartedAt: Date.now() - 2_000,
+      activeRunStartedAt: Date.now() - 4_000,
+      activeRunPhaseUpdatedAt: Date.now() - 4_000,
       runPhase: 'streaming' as const,
       streaming: true,
     };
@@ -86,7 +87,24 @@ describe('deriveRunStatus', () => {
     expect(status.kind).toBe('waiting-first-token');
     expect(status.summary).toContain('first model token');
     expect(status.canStop).toBe(true);
-    expect(status.elapsedMs).toBeGreaterThanOrEqual(2_000);
+    expect(status.elapsedMs).toBeGreaterThanOrEqual(4_000);
+  });
+
+  it('uses the phase clock for continuation-turn waits and hints when the provider is slow', () => {
+    const chat = {
+      ...createInitialChatUiState(),
+      activeRunId: 'run-1',
+      activeRunPhase: 'waiting-first-token' as const,
+      activeRunStartedAt: Date.now() - 120_000,
+      activeRunPhaseUpdatedAt: Date.now() - 35_000,
+      runPhase: 'streaming' as const,
+      streaming: true,
+    };
+    const status = deriveRunStatus({ chat, tools: [], plan: null, jobs: [] });
+    expect(status.kind).toBe('waiting-first-token');
+    expect(status.summary).toMatch(/slow|waited/i);
+    expect(status.elapsedMs).toBeGreaterThanOrEqual(30_000);
+    expect(status.elapsedMs).toBeLessThan(60_000);
   });
 
   it('surfaces preparing detail for vision description', () => {

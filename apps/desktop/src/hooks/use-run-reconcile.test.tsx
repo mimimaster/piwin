@@ -170,6 +170,7 @@ describe('useRunReconcile', () => {
     });
 
     expect(fake.requests.map((command) => command.type)).toEqual([
+      'permission/pending-list',
       'session/foreground-run',
       'session/messages',
     ]);
@@ -230,7 +231,10 @@ describe('useRunReconcile', () => {
       fake.emitGap();
     });
 
-    expect(fake.requests.map((command) => command.type)).toEqual(['session/foreground-run']);
+    expect(fake.requests.map((command) => command.type)).toEqual([
+      'permission/pending-list',
+      'session/foreground-run',
+    ]);
     expect(dispatch).not.toHaveBeenCalled();
     root.unmount();
     container.remove();

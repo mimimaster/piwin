@@ -509,7 +509,6 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
             : {})}
           {...(props.fileBrowseRoot !== undefined ? { fileBrowseRoot: props.fileBrowseRoot } : {})}
           onCompactAbort={handleCompactAbort}
-          onCompactDismiss={() => dispatch({ type: 'compaction/dismiss' })}
         />
         {state.error ? (
           <div className="conversation-pane-error" role="alert">

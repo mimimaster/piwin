@@ -43,6 +43,8 @@ interface RunNode {
    * never a completion input.
    */
   hasAgentErrorEvidence?: boolean;
+  /** In-flight toolCallIds; tool/end must not leave tool-running until empty. */
+  inFlightToolIds: Set<string>;
 }
 
 export type TerminateRunRecordOptions = {
@@ -171,6 +173,7 @@ export class RunRegistry {
       children: new Set(),
       admissionClosed: false,
       joinResolvers: [],
+      inFlightToolIds: new Set(),
     };
 
     this.nodes.set(runId, node);
@@ -340,6 +343,7 @@ export class RunRegistry {
       case 'message/text_delta':
       case 'message/text_snapshot':
       case 'message/thinking_delta':
+      case 'message/tool_args_progress':
         if (node.record.firstTokenReceived !== true) {
           node.record.firstTokenReceived = true;
           changed = true;
@@ -349,10 +353,24 @@ export class RunRegistry {
         }
         break;
       case 'tool/start':
+        if (event.toolCallId) {
+          node.inFlightToolIds.add(event.toolCallId);
+        }
         nextPhase = 'tool-running';
         break;
       case 'tool/end':
-        if (node.record.phase === 'tool-running') nextPhase = 'streaming';
+        if (event.toolCallId) {
+          node.inFlightToolIds.delete(event.toolCallId);
+        }
+        if (node.inFlightToolIds.size > 0) {
+          nextPhase = 'tool-running';
+        } else if (node.record.phase === 'tool-running') {
+          nextPhase = 'waiting-first-token';
+          if (node.record.firstTokenReceived === true) {
+            node.record.firstTokenReceived = false;
+            changed = true;
+          }
+        }
         break;
       case 'permission/request':
         nextPhase = 'waiting-permission';

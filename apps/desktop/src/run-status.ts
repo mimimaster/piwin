@@ -44,6 +44,26 @@ export type DeriveRunStatusInput = {
   locale?: 'en' | 'zh-CN';
 };
 
+const PHASE_ELAPSED_VISIBLE_MS = 3_000;
+const SLOW_PROVIDER_HINT_MS = 30_000;
+
+function resolvePhaseElapsedMs(chat: ChatUiState): number | undefined {
+  if (chat.activeRunPhaseUpdatedAt !== null) {
+    return Math.max(0, Date.now() - chat.activeRunPhaseUpdatedAt);
+  }
+  if (chat.activeRunStartedAt !== null) {
+    return Math.max(0, Date.now() - chat.activeRunStartedAt);
+  }
+  return undefined;
+}
+
+function visibleElapsedMs(elapsedMs: number | undefined): number | undefined {
+  if (elapsedMs === undefined || elapsedMs < PHASE_ELAPSED_VISIBLE_MS) {
+    return undefined;
+  }
+  return elapsedMs;
+}
+
 export function deriveRunStatus(input: DeriveRunStatusInput): RunStatusView {
   const tools = input.tools;
   const completedToolCount = tools.filter((tool) => tool.status === 'done').length;
@@ -80,6 +100,19 @@ export function deriveRunStatus(input: DeriveRunStatusInput): RunStatusView {
     };
     const status = labels[activePhase];
     const detail = input.chat.activeRunPhaseDetail?.trim();
+    const phaseElapsedMs = resolvePhaseElapsedMs(input.chat);
+    const isZh = input.locale === 'zh-CN';
+    let summary = status.summary;
+    if (activePhase === 'waiting-first-token') {
+      summary = isZh ? '正在等待模型响应…' : 'Waiting for the first model token…';
+      if (phaseElapsedMs !== undefined && phaseElapsedMs >= SLOW_PROVIDER_HINT_MS) {
+        const seconds = Math.floor(phaseElapsedMs / 1000);
+        summary = isZh
+          ? `provider 响应缓慢 · 已等待 ${seconds}s`
+          : `Provider is slow · waited ${seconds}s`;
+      }
+    }
+    const shownElapsed = visibleElapsedMs(phaseElapsedMs);
     return {
       ...status,
       ...(detail
@@ -87,12 +120,10 @@ export function deriveRunStatus(input: DeriveRunStatusInput): RunStatusView {
             label: activePhase === 'preparing' ? 'Describing' : status.label,
             summary: detail,
           }
-        : {}),
+        : { summary }),
       ...baseCounts,
       canStop: true,
-      ...(input.chat.activeRunStartedAt !== null
-        ? { elapsedMs: Math.max(0, Date.now() - input.chat.activeRunStartedAt) }
-        : {}),
+      ...(shownElapsed !== undefined ? { elapsedMs: shownElapsed } : {}),
     };
   }
 

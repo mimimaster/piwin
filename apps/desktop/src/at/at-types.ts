@@ -13,7 +13,7 @@ export type AtItem = {
   name: string;
   label: string;
   description: string;
-  /** Text inserted into composer when selected (e.g. "@src/App.tsx "). */
+  /** Text inserted into composer when selected (file/folder chips clear instead). */
   insertValue: string;
   groupLabel: AtGroupLabel;
   badge?: string;

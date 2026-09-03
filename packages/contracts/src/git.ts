@@ -25,6 +25,10 @@ export type GitRepositoryIdentity = {
   rootPath: string;
   /** True when projectPath is inside a git work tree. */
   isRepository: boolean;
+  /** Shared git dir (`--git-common-dir`). Same for every worktree of this repo. */
+  commonDir?: string;
+  /** True when this work tree is the primary (non-linked) worktree. */
+  isPrimaryWorktree?: boolean;
 };
 
 export type GitBranchStatus = {
@@ -53,6 +57,13 @@ export type GitBranchListEntry = {
   /** True when this branch is the current HEAD. */
   current: boolean;
   shortHash: string | null;
+  /**
+   * Absolute path of another worktree that currently has this branch checked
+   * out. Omitted for the current worktree and for unoccupied branches.
+   */
+  checkedOutWorktreePath?: string;
+  /** True when `checkedOutWorktreePath` is registered but missing on disk. */
+  checkedOutWorktreeMissing?: boolean;
 };
 
 /** Local branch list for session branch switching (read-only). */
@@ -63,6 +74,27 @@ export type GitBranchList = {
   truncated: boolean;
   totalBranches: number;
 };
+
+/** One `git worktree list --porcelain` record. */
+export type GitWorktreeEntry = {
+  worktreePath: string;
+  /** Local branch name; null when detached. */
+  branch: string | null;
+  headCommit: string;
+  isPrimary: boolean;
+  locked: boolean;
+  /** False when the worktree path is missing or not a directory. */
+  reachable: boolean;
+};
+
+export type GitWorktreeList = {
+  repository: GitRepositoryIdentity;
+  worktrees: GitWorktreeEntry[];
+};
+
+/** Host error prefix when checkout is refused because another worktree holds the branch. */
+export const BRANCH_CHECKED_OUT_IN_WORKTREE_PREFIX =
+  'branch already checked out in worktree:';
 
 export type GitDiffFileStat = {
   path: string;

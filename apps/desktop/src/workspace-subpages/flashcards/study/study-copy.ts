@@ -5,8 +5,6 @@ export type FlashcardStudyCopy = {
   answer: string;
   next: string;
   lastCard: string;
-  pause: string;
-  resume: string;
   undo: string;
   endRound: string;
   endRoundTitle: string;
@@ -26,8 +24,6 @@ export type FlashcardStudyCopy = {
   saving: string;
   saved: string;
   pending: string;
-  pausedTitle: string;
-  pausedBody: string;
   disconnected: string;
   pendingConfirmation: string;
   readOnly: string;
@@ -56,8 +52,6 @@ const ZH: FlashcardStudyCopy = {
   answer: '解答',
   next: '下一张',
   lastCard: '结束浏览',
-  pause: '暂停',
-  resume: '继续',
   undo: '撤销',
   endRound: '结束本轮',
   endRoundTitle: '结束本轮？',
@@ -77,8 +71,6 @@ const ZH: FlashcardStudyCopy = {
   saving: '保存中',
   saved: '已保存',
   pending: '待确认',
-  pausedTitle: '已暂停',
-  pausedBody: '题面已隐藏。继续后回到同一张卡。',
   disconnected: '已断开 Host，进度仍保留。',
   pendingConfirmation: '结果待确认，重连后核对。',
   readOnly: '已在另一设备继续。',
@@ -109,8 +101,6 @@ const EN: FlashcardStudyCopy = {
   answer: 'Answer',
   next: 'Next',
   lastCard: 'End browsing',
-  pause: 'Pause',
-  resume: 'Resume',
   undo: 'Undo',
   endRound: 'End round',
   endRoundTitle: 'End this round?',
@@ -130,8 +120,6 @@ const EN: FlashcardStudyCopy = {
   saving: 'Saving',
   saved: 'Saved',
   pending: 'Pending',
-  pausedTitle: 'Paused',
-  pausedBody: 'The card is hidden. Resume returns to the same face.',
   disconnected: 'Host disconnected. Saved progress is kept.',
   pendingConfirmation: 'Result pending confirmation. It will be reconciled on reconnect.',
   readOnly: 'Continued on another device.',

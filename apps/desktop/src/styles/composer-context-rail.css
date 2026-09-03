@@ -246,6 +246,15 @@
   opacity: 0.9;
 }
 
+.branch-picker-item-meta {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: var(--s-4);
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
 .branch-picker-empty,
 .branch-picker-error {
   padding: var(--s-4) var(--s-5);

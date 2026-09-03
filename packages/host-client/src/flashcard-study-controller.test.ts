@@ -418,6 +418,60 @@ describe('flashcard study controller', () => {
     expect(requests).toEqual([]);
   });
 
+  it('resumes a paused round it controls when opened, so no pause button is needed', async () => {
+    const pending = createMemoryFlashcardStudyPendingStore();
+    const requests: HostCommand[] = [];
+    const paused = snapshot(3, { round: { ...snapshot(3).round, status: 'paused', face: 'answer' } });
+    const controller = createFlashcardStudyController({
+      request: async (command) => {
+        requests.push(command);
+        if (command.type === 'flashcards/study/get') {
+          return { type: 'response', command: command.type, success: true, data: paused };
+        }
+        if (command.type === 'flashcards/study/resume') {
+          return {
+            type: 'response',
+            command: command.type,
+            success: true,
+            data: snapshot(4, { round: { ...snapshot(4).round, status: 'active', face: 'answer' } }),
+          };
+        }
+        return { type: 'response', command: command.type, success: true, data: paused };
+      },
+      pending,
+      clock: clock(),
+      visibility: visibility(),
+    });
+    await controller.open('round-1');
+    expect(requests.map((command) => command.type)).toEqual([
+      'flashcards/study/get',
+      'flashcards/study/resume',
+    ]);
+    expect(controller.getViewModel().phase).toBe('answer');
+    expect(controller.getViewModel().snapshot?.round.face).toBe('answer');
+  });
+
+  it('does not resume a paused round controlled by another device', async () => {
+    const pending = createMemoryFlashcardStudyPendingStore();
+    const requests: HostCommand[] = [];
+    const paused = snapshot(3, {
+      round: { ...snapshot(3).round, status: 'paused' },
+      access: { hasControl: false, controllerIdentity: 'device-b', controlEpoch: 2 },
+    });
+    const controller = createFlashcardStudyController({
+      request: async (command) => {
+        requests.push(command);
+        return { type: 'response', command: command.type, success: true, data: paused };
+      },
+      pending,
+      clock: clock(),
+      visibility: visibility(),
+    });
+    await controller.open('round-1');
+    expect(requests.map((command) => command.type)).toEqual(['flashcards/study/get']);
+    expect(controller.getViewModel().phase).toBe('read-only');
+  });
+
   it('checkpoints needsReview without tearing', async () => {
     const pending = createMemoryFlashcardStudyPendingStore();
     const requests: HostCommand[] = [];

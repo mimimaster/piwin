@@ -4,6 +4,8 @@
 状态：**规格仍是验收权威。** P0–P6 已在 `feat/flashcard-review-workbench` 落地（桌面复习页、移动端卡库+复习页、CLI `piwin study`、Host `flashcards/study/*`、持久 rounds/operations、`ReviewState.revision`）。P7 **未完成**：V04/V09/V22 真机未跑、视觉夹具未拍、根目录 typecheck / Mobile build 仍因既有 artifact 类型失败。ADR：[0066](../adr/0066-host-owned-flashcard-study-rounds.md)（Implemented in tree — verification incomplete，**不是** Accepted / 已上线）。交付记录：[delivery notes](../evidence/2026-08-30-flashcard-review-workbench-delivery.md)。  
 执行清单：[复习台实施计划](../plans/2026-08-30-flashcard-review-workbench-execution-plan.md)（`docs/plans/` 被 gitignore，勿 force-add）。
 
+> **2026-09-03 修订**：owner 确认 [闪卡体验重构](./2026-09-03-flashcard-experience-redesign.md) 后，§5.3 / §6.1 中“点击正文不翻面”与“显式暂停 / 继续按钮”两条**作废**：点卡任何位置翻面（拖选不翻），复习台不再有暂停按钮（返回即保存，再进入自动恢复）。Host 契约、撕卡契约、其余条目不变。
+
 ## 0. 必须遵守的边界
 
 1. **保留现在的卡片 UI。** 现有卡面、正反面呈现、排版、主题、Markdown、标签和来源视觉是实现基线。不得采用上一版原型的卡面，不改为问答上下平铺，不重新设计颜色、字体、边框、圆角或卡片皮肤。
@@ -123,6 +125,8 @@ UI 不解析 cloze 字符串；不把多个空当作多个原始卡片。两种�
 
 卡面拖选、长按复制、纵向滚动、代码块横向滚动、iOS 边缘返回，不触发 next / rate。原有可选择文本与伴学能力保留；新增进度壳不能覆盖其命中区。
 
+**2026-09-03 修订**：卡面任意位置的“点击”（pointerdown 到 click 位移小于阈值，且松开时卡内无文字选区，且目标不是链接 / 按钮 / 输入控件）触发**翻面**；拖选文字不翻面。翻面仍不触发 next / rate。
+
 ## 6. 退出、暂停、恢复和撤销
 
 ### 6.1 正常离开
@@ -131,7 +135,7 @@ UI 不解析 cloze 字符串；不把多个空当作多个原始卡片。两种�
 - 不依赖 hover、遮罩外点击、滚到卡片底部或学习完成才能退出。
 - 有顶层辅助浮层时先关闭该层；没有时退出复习。一次事件只退一层，不能多个全局监听器各退一次。
 - 返回等于暂停保留当前轮次；不是结束、不清空历史、不删除卡片。显式「结束本轮」才进入提前结束小结。
-- 暂停时遮住题面 / 答案；继续恢复同一卡面。暂不新增学习计时功能。
+- ~~暂停时遮住题面 / 答案；继续恢复同一卡面。~~ **2026-09-03 修订**：复习台不再提供用户可见的暂停 / 继续按钮。离开路径仍调用 Host `pause` 保存；再次打开一个 `paused` 轮次时客户端自动 `resume`，直接回到同一张同一面。Host `pause` / `resume` 命令保留（CLI、离开路径、Mobile 切后台隐私遮挡仍使用）。暂不新增学习计时功能。
 
 ### 6.2 自动持久化
 

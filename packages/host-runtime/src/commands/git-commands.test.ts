@@ -1,9 +1,10 @@
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
+import { BRANCH_CHECKED_OUT_IN_WORKTREE_PREFIX } from '@piwin/contracts';
 import { handleProjectCommand } from './project-commands.js';
 import { handleGitCommand } from './git-commands.js';
 import { createRemoteProjectId } from '../remote-project-id.js';
@@ -86,6 +87,58 @@ describe('git checkout', () => {
       cwd: projectPath,
     });
     expect(currentBranch.stdout.trim()).toBe('feat/demo');
+  });
+
+  it('returns a readable error when the branch is already used by another worktree', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-git-occupied-'));
+    const projectPath = join(rootDir, 'workspace');
+    await mkdir(projectPath, { recursive: true });
+    await execFileAsync('git', ['init', '-b', 'main'], { cwd: projectPath });
+    await execFileAsync('git', ['config', 'user.email', 'piwin-test@example.com'], {
+      cwd: projectPath,
+    });
+    await execFileAsync('git', ['config', 'user.name', 'piwin test'], { cwd: projectPath });
+    await writeFile(join(projectPath, 'README.md'), 'hello\n', 'utf8');
+    await execFileAsync('git', ['add', 'README.md'], { cwd: projectPath });
+    await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: projectPath });
+    await execFileAsync('git', ['branch', 'feat/occupied'], { cwd: projectPath });
+    const linkedPath = join(rootDir, 'linked');
+    await execFileAsync('git', ['worktree', 'add', linkedPath, 'feat/occupied'], {
+      cwd: projectPath,
+    });
+
+    const checkout = await handleGitCommand(
+      { type: 'git/checkout', input: { projectPath, ref: 'feat/occupied' } },
+      'checkout-occupied',
+      { piwinRoot: rootDir } as HostCommandContext,
+    );
+    expect(checkout?.success).toBe(false);
+    expect(String(checkout && 'error' in checkout ? checkout.error : '')).toContain(
+      BRANCH_CHECKED_OUT_IN_WORKTREE_PREFIX,
+    );
+
+    const listed = await handleGitCommand(
+      { type: 'git/branch-list', projectPath, limit: 20 },
+      'branches-occupied',
+      { piwinRoot: rootDir } as HostCommandContext,
+    );
+    expect(listed?.success).toBe(true);
+    const branches =
+      listed && 'data' in listed
+        ? (
+            listed.data as {
+              branches: {
+                branches: Array<{
+                  name: string;
+                  checkedOutWorktreePath?: string;
+                }>;
+              };
+            }
+          ).branches.branches
+        : [];
+    const occupied = branches.find((branch) => branch.name === 'feat/occupied');
+    expect(occupied?.checkedOutWorktreePath).toBeTruthy();
+    expect(await realpath(occupied?.checkedOutWorktreePath ?? '')).toBe(await realpath(linkedPath));
   });
 });
 

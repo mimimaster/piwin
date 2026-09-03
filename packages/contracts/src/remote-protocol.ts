@@ -276,6 +276,10 @@ export type RemoteProjectSummary = {
   displayName: string;
   trust?: 'trusted' | 'untrusted' | 'unknown';
   lastOpenedAt?: string;
+  /** Opaque shared-repo id. Same for worktrees of one git repository. */
+  gitRepositoryId?: string;
+  isPrimaryWorktree?: boolean;
+  currentBranch?: string;
 };
 
 export type RemoteSessionScopeKind = 'general' | 'project' | 'unknown';

@@ -380,6 +380,50 @@ describe('WorkbenchPermissionBar plan execution gate', () => {
     container.remove();
   });
 
+  it('renders approval controls for a general-scope session', () => {
+    const onPermission = vi.fn();
+    const state = {
+      ...createInitialChatUiState(),
+      permissionPrompt: {
+        requestId: 'req-general',
+        sessionId: 's-general',
+        action: 'web_search',
+        detail: 'query',
+        defaultDecision: 'ask' as const,
+      },
+      permissionQueue: [
+        {
+          requestId: 'req-general',
+          sessionId: 's-general',
+          action: 'web_search',
+          detail: 'query',
+          defaultDecision: 'ask' as const,
+        },
+      ],
+    };
+    const { container, root } = renderNode(
+      <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => undefined}>
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <WorkbenchPermissionBar
+            state={state}
+            extensionUiRequest={null}
+            onPermission={onPermission}
+            onExtensionUiResolve={() => undefined}
+          />
+        </PiwinUiProvider>
+      </DesktopLocaleProvider>,
+    );
+    expect(container.querySelector('[data-testid="permission-bar"]')).not.toBeNull();
+    const allowOnce = container.querySelector<HTMLButtonElement>(
+      '[data-testid="permission-bar-allow-once"]',
+    );
+    expect(allowOnce).not.toBeNull();
+    act(() => allowOnce?.click());
+    expect(onPermission).toHaveBeenCalledWith('allow', 'once');
+    act(() => root.unmount());
+    container.remove();
+  });
+
   it('does not show the gate while a run is paused', () => {
     const state = {
       ...projectState(),

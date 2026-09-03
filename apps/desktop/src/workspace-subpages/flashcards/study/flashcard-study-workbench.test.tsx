@@ -119,11 +119,11 @@ describe('Flashcard study workbench', () => {
 
   async function openSet(): Promise<ReturnType<typeof makeRequester>> {
     const fake = await renderWorkspace();
-    const setTile = container.querySelector<HTMLButtonElement>(
-      '[data-testid="flashcard-tile-seq_os"] .fcws-tile-face',
+    const openButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="flashcard-open-seq_os"]',
     );
     act(() => {
-      setTile?.click();
+      openButton?.click();
     });
     await flush();
     return fake;
@@ -150,7 +150,7 @@ describe('Flashcard study workbench', () => {
   it('opens a sequence round from a single card tile', async () => {
     const fake = await renderWorkspace();
     act(() => {
-      container.querySelector<HTMLButtonElement>('[data-testid="flashcard-tile-card-1"] .fcws-tile-face')?.click();
+      container.querySelector<HTMLButtonElement>('[data-testid="flashcard-open-card-1"]')?.click();
     });
     await flush();
     const start = fake.calls.find((command) => command.type === 'flashcards/study/start');
@@ -301,7 +301,7 @@ describe('Flashcard study workbench', () => {
     });
     await flush();
     act(() => {
-      container.querySelector<HTMLButtonElement>('[data-testid="flashcard-tile-seq_os"] .fcws-tile-face')?.click();
+      container.querySelector<HTMLButtonElement>('[data-testid="flashcard-open-seq_os"]')?.click();
     });
     await flush();
     expect(container.querySelector('[data-testid="flashcards-study-page"]')).not.toBeNull();
@@ -316,8 +316,9 @@ describe('Flashcard study workbench', () => {
     ).toMatch(/is-on/);
   });
 
-  it('pauses by hiding faces and resumes the same card and face', async () => {
-    await openSet();
+  it('has no pause button; leaving saves and re-entering resumes the same card and face', async () => {
+    const fake = await openSet();
+    expect(container.querySelector('[data-testid="flashcards-study-pause"]')).toBeNull();
     act(() => {
       Array.from(container.querySelectorAll('button'))
         .find((button) => button.textContent?.includes('解答'))
@@ -325,21 +326,57 @@ describe('Flashcard study workbench', () => {
     });
     await flush();
     expect(container.querySelector('[data-testid="flashcards-tear-back"]')).not.toBeNull();
+
     act(() => {
-      container.querySelector<HTMLButtonElement>('[data-testid="flashcards-study-pause"]')?.click();
+      container.querySelector<HTMLButtonElement>('[data-testid="flashcards-study-back-btn"]')?.click();
     });
-    await flush();
-    expect(container.querySelector('[data-testid="flashcards-study-paused"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="flashcards-tear-back"]')).toBeNull();
-    expect(container.querySelector('[data-testid="flashcards-tear-front"]')).toBeNull();
+    await flush(16);
+    expect(container.querySelector('[data-testid="flashcards-study-page"]')).toBeNull();
+    expect(fake.calls.filter((command) => command.type === 'flashcards/study/pause')).toHaveLength(1);
+
     act(() => {
-      container.querySelector<HTMLButtonElement>('[data-testid="flashcards-study-resume"]')?.click();
+      container.querySelector<HTMLButtonElement>('[data-testid="flashcard-tile-seq_os"] .fcws-tile-face')?.click();
     });
-    await flush();
+    await flush(16);
+    expect(fake.calls.filter((command) => command.type === 'flashcards/study/resume')).toHaveLength(1);
     expect(container.querySelector('[data-testid="flashcards-study-paused"]')).toBeNull();
     expect(container.querySelector('[data-testid="flashcards-tear-back"]')?.textContent).toContain(
       'physical map',
     );
+  });
+
+  it('flips when the card body is clicked', async () => {
+    await openSet();
+    const content = container.querySelector<HTMLElement>('[data-testid="flashcards-tear-front"]');
+    expect(content).not.toBeNull();
+    act(() => {
+      content?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: 10, clientY: 10 }));
+      content?.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 10, clientY: 10 }));
+    });
+    await flush();
+    expect(container.querySelector('[data-testid="flashcards-tear-back"]')?.textContent).toContain(
+      'physical map',
+    );
+  });
+
+  it('keeps the rate bar in place before reveal and enables it after', async () => {
+    await renderWorkspace();
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="flashcards-study-due"]')?.click();
+    });
+    await flush();
+    const good = container.querySelector<HTMLButtonElement>('[data-testid="flashcards-study-rate-good"]');
+    expect(good).not.toBeNull();
+    expect(good?.disabled).toBe(true);
+    act(() => {
+      Array.from(container.querySelectorAll('button'))
+        .find((button) => button.textContent?.includes('解答'))
+        ?.click();
+    });
+    await flush();
+    expect(
+      container.querySelector<HTMLButtonElement>('[data-testid="flashcards-study-rate-good"]')?.disabled,
+    ).toBe(false);
   });
 
   it('undoes the last advance', async () => {

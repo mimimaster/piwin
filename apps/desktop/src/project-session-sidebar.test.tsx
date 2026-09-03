@@ -1030,3 +1030,41 @@ describe('ProjectSessionSidebar settings prefetch', () => {
     expect(onPrefetchSettings).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('ProjectSessionSidebar repo grouping', () => {
+  it('renders a repo group label and branch names for linked worktrees', () => {
+    const now = new Date().toISOString();
+    const { container } = renderSidebar({
+      projectPath: '/Users/me/piwin',
+      recentProjects: [
+        {
+          path: '/Volumes/disk/piwin-cc',
+          displayName: 'piwin-cc',
+          trust: 'trusted',
+          lastOpenedAt: now,
+          createdAt: now,
+          gitRepositoryId: 'repo1',
+          currentBranch: 'plan/x',
+        },
+        {
+          path: '/Users/me/piwin',
+          displayName: 'piwin',
+          trust: 'trusted',
+          lastOpenedAt: now,
+          createdAt: now,
+          gitRepositoryId: 'repo1',
+          isPrimaryWorktree: true,
+          currentBranch: 'main',
+        },
+      ],
+    });
+    expect(container.querySelector('[data-testid="sidebar-repo-group"]')?.textContent).toBe(
+      'piwin',
+    );
+    const names = Array.from(container.querySelectorAll('[data-testid="repository-item"]')).map(
+      (item) => item.textContent,
+    );
+    expect(names.some((text) => text?.includes('piwin') && text.includes('main'))).toBe(true);
+    expect(names.some((text) => text?.includes('piwin-cc') && text.includes('plan/x'))).toBe(true);
+  });
+});

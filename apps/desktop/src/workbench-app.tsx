@@ -499,7 +499,6 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       locale={desktopLocale}
                       hostClient={hostClient}
                       state={state}
-                      dispatch={dispatch}
                       visibleMessages={visibleTranscriptMessages}
                       visibleRunRecordsById={visibleRunRecordsById}
                       historyViewActive={historyViewActive}

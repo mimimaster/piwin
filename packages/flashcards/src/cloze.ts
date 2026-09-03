@@ -137,6 +137,14 @@ export function itemPreviewText(item: FlashcardItem): string {
   return (item.front ?? '').trim();
 }
 
+/** The answer side for a lightweight preview flip (tile / gallery). */
+export function itemAnswerText(item: FlashcardItem): string {
+  if (item.model === 'cloze') {
+    return stripClozeMarkers(item.text ?? '').trim();
+  }
+  return (item.back ?? '').trim();
+}
+
 /**
  * One face-up card per item for chat preview. Cloze keeps a single flip
  * even when several holes exist; FSRS still uses expandItemToReviewCards.

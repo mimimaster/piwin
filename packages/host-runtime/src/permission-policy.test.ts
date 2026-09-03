@@ -158,6 +158,33 @@ describe('evaluateBashPermission', () => {
     expect(result.reason).toBe('safe-pnpm-test');
   });
 
+  it('allows compound cd && ls under ask-all by evaluating each segment', () => {
+    const result = evaluateBashPermission('cd /tmp && ls foo/', 'ask-all');
+    expect(result).toEqual({ decision: 'allow', reason: 'chain-all-allow' });
+  });
+
+  it('does not let a cd * allow swallow a dangerous trailing segment', () => {
+    const result = evaluateBashPermission('cd /tmp && python malware.py', 'ask-all');
+    expect(result.decision).toBe('ask');
+    expect(result.reason).toBe('chain-ask:ask-all-no-match');
+  });
+
+  it('allows pwd && ls under ask-all via per-segment matching', () => {
+    const result = evaluateBashPermission('pwd && ls foo/', 'ask-all');
+    expect(result).toEqual({ decision: 'allow', reason: 'chain-all-allow' });
+  });
+
+  it('denies a compound command when any segment is deny', () => {
+    const custom = createEmptyRuleSet();
+    custom.deny.push({
+      target: { kind: 'bash', pattern: 'evil' },
+      decision: 'deny',
+      reason: 'evil-cmd',
+    });
+    const result = evaluateBashPermission('cd /tmp && evil', 'ask-all', custom);
+    expect(result).toEqual({ decision: 'deny', reason: 'chain-deny:evil-cmd' });
+  });
+
   it('honors a custom rule set over the bundled defaults', () => {
     const custom: PermissionRuleSet = {
       deny: [],

@@ -11,6 +11,7 @@ export type BehaviorActivityId =
   | 'run.fail'
   | 'run.compacting'
   | 'tool.other'
+  | 'tool.compose'
   | 'thinking'
   | 'plan'
   | 'explore'
@@ -164,6 +165,14 @@ export const BEHAVIOR_ACTIVITY_REGISTRY: Readonly<
     labelEn: 'Running tool…',
     keepInHistory: true,
     expandable: true,
+  }),
+  'tool.compose': spec('tool.compose', {
+    surface: 'timeline-row',
+    animation: 'text-shimmer',
+    labelZh: '正在生成内容…',
+    labelEn: 'Composing content…',
+    keepInHistory: false,
+    expandable: false,
   }),
   thinking: spec('thinking', {
     surface: 'group',

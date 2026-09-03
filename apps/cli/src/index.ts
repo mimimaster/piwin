@@ -313,6 +313,7 @@ function parseHostServeTestFixture(argv: string[]): HostRuntimeTestFixture | und
 function createAssistantCliDisplay() {
   let thinkingBuffer = '';
   let sawTextDelta = false;
+  let composingAnnounced = false;
 
   return {
     /** Process one AgentEvent, return the string to write (or null for no-op). */
@@ -341,7 +342,13 @@ function createAssistantCliDisplay() {
 
         case 'message/start':
           sawTextDelta = false;
+          composingAnnounced = false;
           return '\n';
+
+        case 'message/tool_args_progress':
+          if (composingAnnounced) return null;
+          composingAnnounced = true;
+          return event.toolName ? `\n[composing:${event.toolName}]` : '\n[composing]';
 
         case 'message/end': {
           // Flush remaining thinking buffer

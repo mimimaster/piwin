@@ -13,6 +13,10 @@ import {
   parseAcceptedAt,
   parseEventTime,
 } from './chat-reducer-transcript';
+import {
+  dropPermissionPromptsForRun,
+  permissionQueueFields,
+} from './permission-queue';
 
 export type ChatUiRunAction = Extract<
   ChatUiAction,
@@ -144,6 +148,9 @@ export function applyRunRecord(
       activeRunPhase: run.phase ?? state.activeRunPhase,
       activeRunPhaseDetail: run.phaseDetail ?? null,
       activeRunStartedAt: run.startedAt ? parseEventTime(run.startedAt) : state.activeRunStartedAt,
+      activeRunPhaseUpdatedAt: run.phaseUpdatedAt
+        ? parseEventTime(run.phaseUpdatedAt)
+        : state.activeRunPhaseUpdatedAt,
       runPhase:
         run.phase === 'pausing' || state.runPhase === 'pausing'
           ? 'pausing'
@@ -236,12 +243,13 @@ export function applyRunRecord(
     activeRunPhase: null,
     activeRunPhaseDetail: null,
     activeRunStartedAt: null,
+    activeRunPhaseUpdatedAt: null,
     lastTerminalRunId: run.runId,
     runPhase: 'idle',
     streaming: false,
     activeSkill: null,
     pendingTurnModel: null,
-    permissionPrompt: state.permissionPrompt?.runId === run.runId ? null : state.permissionPrompt,
+    ...permissionQueueFields(dropPermissionPromptsForRun(state.permissionQueue, run.runId)),
     error: outcome === 'failed' ? (run.error ?? 'Run failed') : state.error,
     runTerminal:
       outcome === 'paused'
@@ -326,6 +334,7 @@ export function reduceChatRun(state: ChatUiState, action: ChatUiRunAction): Chat
         activeRunPhase: null,
         activeRunPhaseDetail: null,
         activeRunStartedAt: null,
+        activeRunPhaseUpdatedAt: null,
         streaming: true,
         runTerminal: { kind: 'none' },
         error: null,
@@ -395,6 +404,7 @@ export function reduceChatRun(state: ChatUiState, action: ChatUiRunAction): Chat
               activeRunPhase: null,
               activeRunPhaseDetail: null,
               activeRunStartedAt: null,
+              activeRunPhaseUpdatedAt: null,
               activeSkill: null,
               workingSessionIds: removeWorkingSessionId(
                 state.workingSessionIds,
@@ -478,6 +488,7 @@ export function reduceChatRun(state: ChatUiState, action: ChatUiRunAction): Chat
           activeRunId: action.runId,
           activeRunPhase: 'accepted',
           activeRunStartedAt: startedAt,
+          activeRunPhaseUpdatedAt: startedAt,
           lastTerminalRunId: null,
           runPhase: 'streaming',
           streaming: true,
@@ -558,6 +569,7 @@ export function reduceChatRun(state: ChatUiState, action: ChatUiRunAction): Chat
         activeRunPhase: null,
         activeRunPhaseDetail: null,
         activeRunStartedAt: null,
+        activeRunPhaseUpdatedAt: null,
         lastTerminalRunId: null,
         activeSkill: null,
         workingSessionIds: removeWorkingSessionId(state.workingSessionIds, action.sessionId),

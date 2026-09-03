@@ -206,6 +206,8 @@ export type DesktopCopy = {
     pausing: string;
     continueRun: string;
     discardPause: string;
+    pauseContinueHint: string;
+    pauseContinueHintAction: string;
     stop: string;
     stopping: string;
     stopJob: string;
@@ -229,6 +231,12 @@ export type DesktopCopy = {
     branchCheckoutConfirm: (branch: string) => string;
     branchCheckoutDirtyConfirm: (branch: string) => string;
     branchCheckoutAction: string;
+    branchOccupiedInWorktree: (folderName: string) => string;
+    branchOccupiedConfirmTitle: string;
+    branchOccupiedConfirm: (branch: string, folderName: string) => string;
+    branchOccupiedAction: string;
+    branchOccupiedToast: (folderName: string) => string;
+    branchOccupiedUnreachable: (path: string) => string;
     runtimeTargetGroupLabel: string;
     runtimeLocalLabel: string;
     runtimeLocalTooltip: string;
@@ -264,6 +272,7 @@ export type DesktopCopy = {
     deny: string;
     expandDetails: string;
     collapseDetails: string;
+    queuedRemaining: (count: number) => string;
   };
   appearance: {
     pageTitle: string;
@@ -354,6 +363,7 @@ export type DesktopTranslator = {
     deny: string;
     expandDetails: string;
     collapseDetails: string;
+    queuedRemaining: (count: number) => string;
   };
   settings: {
     application: string;
@@ -777,6 +787,8 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       pausing: '正在暂停…',
       continueRun: '继续运行',
       discardPause: '丢弃暂停',
+      pauseContinueHint: '输入「继续」会开新一轮，不会接上刚才暂停的任务。',
+      pauseContinueHintAction: '从检查点继续',
       stop: '停止',
       stopping: '正在停止…',
       stopJob: '停止程序',
@@ -802,6 +814,13 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       branchCheckoutDirtyConfirm: (branch) =>
         `工作区有未提交更改。仍要切换到「${branch}」吗？若有冲突，git 可能会拒绝切换。`,
       branchCheckoutAction: '切换',
+      branchOccupiedInWorktree: (folderName) => `已在 ${folderName}`,
+      branchOccupiedConfirmTitle: '去那里工作',
+      branchOccupiedConfirm: (branch, folderName) =>
+        `「${branch}」已在工作区「${folderName}」检出。打开那个工作区继续？`,
+      branchOccupiedAction: '去那里工作',
+      branchOccupiedToast: (folderName) => `该分支已在工作区「${folderName}」检出`,
+      branchOccupiedUnreachable: (path) => `该工作区路径不可用：${path}`,
       runtimeTargetGroupLabel: '运行位置',
       runtimeLocalLabel: '本机',
       runtimeLocalTooltip: '在本机运行（This Mac）',
@@ -838,6 +857,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       deny: '拒绝',
       expandDetails: '展开详情',
       collapseDetails: '收起详情',
+      queuedRemaining: (count) => `还有 ${count} 条待审批`,
     },
     appearance: {
       pageTitle: '外观',
@@ -1108,6 +1128,9 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       pausing: 'Pausing…',
       continueRun: 'Continue run',
       discardPause: 'Discard pause',
+      pauseContinueHint:
+        'Sending "continue" starts a new turn; it does not resume the paused checkpoint.',
+      pauseContinueHintAction: 'Resume checkpoint',
       stop: 'Stop',
       stopping: 'Stopping…',
       stopJob: 'Stop program',
@@ -1133,6 +1156,13 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       branchCheckoutDirtyConfirm: (branch) =>
         `You have uncommitted changes. Still check out “${branch}”? Git may refuse if files conflict.`,
       branchCheckoutAction: 'Switch',
+      branchOccupiedInWorktree: (folderName) => `Already in ${folderName}`,
+      branchOccupiedConfirmTitle: 'Work there',
+      branchOccupiedConfirm: (branch, folderName) =>
+        `“${branch}” is already checked out in “${folderName}”. Open that workspace?`,
+      branchOccupiedAction: 'Work there',
+      branchOccupiedToast: (folderName) => `This branch is already checked out in “${folderName}”`,
+      branchOccupiedUnreachable: (path) => `Workspace path is unavailable: ${path}`,
       runtimeTargetGroupLabel: 'Run location',
       runtimeLocalLabel: 'This Mac',
       runtimeLocalTooltip: 'This Mac (local)',
@@ -1171,6 +1201,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       deny: 'Deny',
       expandDetails: 'Expand details',
       collapseDetails: 'Collapse details',
+      queuedRemaining: (count) => `${count} more waiting for approval`,
     },
     appearance: {
       pageTitle: 'Appearance',
@@ -1272,6 +1303,8 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
       deny: isChinese ? '拒绝' : 'Deny',
       expandDetails: isChinese ? '展开详情' : 'Expand details',
       collapseDetails: isChinese ? '收起详情' : 'Collapse details',
+      queuedRemaining: (count) =>
+        isChinese ? `还有 ${count} 条待审批` : `${count} more waiting for approval`,
     },
     settings: {
       application: isChinese ? '应用' : 'Application',

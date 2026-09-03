@@ -248,6 +248,24 @@ Remembered entries are stored in `~/.piwin/projects.json`:
 Revoke remembered permissions in Settings → Permissions (remembered list) or
 via `project/permissions-revoke`. MCP has no permission remember/revoke entry.
 
+### Concurrent prompts
+
+One assistant turn can emit several gated tool calls at once. Host keeps a
+pending ticket per `requestId`. Desktop shows them as a queue: the docked
+approval bar is the head, with a "N more waiting" counter when siblings are
+queued. Approving or denying the head surfaces the next ticket.
+
+Desktop also calls `permission/pending-list` after reconnect, after a push
+sequence gap, and after each resolve, so a dropped prompt can be recovered
+instead of leaving the tool stuck in `running`.
+
+Ask / general sessions use the same docked bar. A session that can trigger
+gated tools (`web_search` under `ask-all`) must be able to resolve them.
+
+Compound bash (`cd /x && ls foo/`) is evaluated per `&&` / `;` segment against
+bundled allow rules; any segment that matches a deny rule still denies the
+whole command. Session-scoped bash remembering stays **exact string match**.
+
 ---
 
 ## Where settings live

@@ -40,7 +40,7 @@ export function detectActiveAtToken(
 }
 
 /**
- * Replace the active `@` token with `replacement` (e.g. "@src/App.tsx ").
+ * Replace the active `@` token with `replacement` (empty string clears it).
  */
 export function replaceActiveAtToken(
   text: string,

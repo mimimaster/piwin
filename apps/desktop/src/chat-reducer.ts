@@ -10,6 +10,12 @@ import { reduceChatRun } from './chat-reducer-run';
 import { reduceChatEvents } from './chat-reducer-events';
 import { reduceChatSubagent } from './chat-reducer-subagent';
 import { isStaleRunEvent } from './chat-reducer-envelope';
+import {
+  dequeuePermissionPrompt,
+  enqueuePermissionPrompt,
+  permissionQueueFields,
+  reconcilePermissionQueue,
+} from './permission-queue';
 
 export type {
   ChatMessageUi,
@@ -85,6 +91,7 @@ export function createInitialChatUiState(): ChatUiState {
     activeRunPhase: null,
     activeRunPhaseDetail: null,
     activeRunStartedAt: null,
+    activeRunPhaseUpdatedAt: null,
     lastTerminalRunId: null,
     streaming: false,
     runTerminal: { kind: 'none' },
@@ -93,6 +100,7 @@ export function createInitialChatUiState(): ChatUiState {
     hostReady: false,
     hostMock: true,
     permissionPrompt: null,
+    permissionQueue: [],
     activeSkill: null,
     error: null,
     lastCompactionMessage: null,
@@ -251,13 +259,30 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
       if (action.prompt.runId !== undefined && isStaleRunEvent(state, action.prompt.runId)) {
         return state;
       }
-      return { ...state, permissionPrompt: action.prompt };
+      {
+        const nextQueue = enqueuePermissionPrompt(state.permissionQueue, action.prompt);
+        if (nextQueue === state.permissionQueue) {
+          return state;
+        }
+        return { ...state, ...permissionQueueFields(nextQueue) };
+      }
     case 'permission/clear':
       // A resolve response can arrive after the host has already emitted the
       // next MCP permission prompt. Clear only the prompt this response settled.
-      return state.permissionPrompt?.requestId === action.requestId
-        ? { ...state, permissionPrompt: null }
-        : state;
+      {
+        const nextQueue = dequeuePermissionPrompt(state.permissionQueue, action.requestId);
+        if (nextQueue === state.permissionQueue) {
+          return state;
+        }
+        return { ...state, ...permissionQueueFields(nextQueue) };
+      }
+    case 'permission/reconcile': {
+      const nextQueue = reconcilePermissionQueue(state.permissionQueue, action.permissions);
+      if (nextQueue === state.permissionQueue) {
+        return state;
+      }
+      return { ...state, ...permissionQueueFields(nextQueue) };
+    }
     case 'error':
       return {
         ...state,

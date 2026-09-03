@@ -460,6 +460,51 @@ describe('remote session/list projection', () => {
       trust: 'trusted',
     });
   });
+
+  it('keeps opaque gitRepositoryId on project/list and drops Host paths', () => {
+    const projected = projectRemoteResponse(
+      { type: 'project/list' },
+      {
+        type: 'response',
+        command: 'project/list',
+        success: true,
+        data: {
+          projects: [
+            {
+              path: '/home/host/work/app',
+              displayName: 'app',
+              trust: 'trusted',
+              lastOpenedAt: 't',
+              createdAt: 'c',
+              gitRepositoryId: 'abcd1234abcd1234',
+              isPrimaryWorktree: true,
+              currentBranch: 'main',
+            },
+          ],
+        },
+      },
+      {
+        hostInstanceId: 'host-1',
+        mode: 'sdk',
+        capabilities: createRemoteCapabilities(),
+      },
+    );
+    expect(projected.success).toBe(true);
+    if (!projected.success) {
+      throw new Error(projected.error);
+    }
+    expect(JSON.stringify(projected.data)).not.toContain('/home/host');
+    expect(projected.data).toMatchObject({
+      projects: [
+        {
+          displayName: 'app',
+          gitRepositoryId: 'abcd1234abcd1234',
+          isPrimaryWorktree: true,
+          currentBranch: 'main',
+        },
+      ],
+    });
+  });
 });
 
 describe('remote models/configured projection', () => {

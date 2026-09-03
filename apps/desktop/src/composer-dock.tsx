@@ -37,6 +37,7 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
         recentProjects={props.recentProjects}
         onOpenProject={props.onOpenProject}
         branchRequest={props.branchRequest}
+        onOpenWorktreeProject={props.onOpenWorktreeProject}
         isStreamingRun={isStreamingRun}
         runtimeRemoteConnected={props.runtimeRemoteConnected}
         runtimeRemoteHostLabel={props.runtimeRemoteHostLabel}

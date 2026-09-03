@@ -307,9 +307,7 @@ export function createTranscriptRecorder(options: {
             updateMessage(
               event.messageId,
               (message) => ({
-                ...(event.delta.length > 0
-                  ? finishTranscriptThinking(message, eventAt)
-                  : message),
+                ...(event.delta.length > 0 ? finishTranscriptThinking(message, eventAt) : message),
                 text: message.text + event.delta,
                 status: 'streaming',
               }),
@@ -345,6 +343,17 @@ export function createTranscriptRecorder(options: {
               `thinking_delta runId=${event.runId ?? 'none'} deltaLen=${event.delta.length}`,
             );
             scheduleFlush();
+            break;
+          }
+          case 'message/tool_args_progress': {
+            if (quarantinedMessageIds.has(event.messageId)) break;
+            const eventAt = new Date().toISOString();
+            updateMessage(
+              event.messageId,
+              (message) => finishTranscriptThinking(message, eventAt),
+              `tool_args_progress runId=${event.runId ?? 'none'}`,
+            );
+            await persistDocument();
             break;
           }
           case 'message/search_evidence': {

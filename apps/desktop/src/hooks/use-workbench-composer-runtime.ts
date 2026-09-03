@@ -1,7 +1,8 @@
 /**
  * Composer model, context chips, and media/send stack.
  */
-import type { Dispatch } from 'react';
+import { useCallback, type Dispatch } from 'react';
+import { ORCHESTRATION_SCHEME_OFF_ID } from '@piwin/contracts';
 import type { ChatUiAction, ChatUiState } from '../chat-reducer';
 import type { HostClient } from '../host-client';
 import { useComposerContextRefs } from './use-composer-context-refs';
@@ -28,6 +29,7 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     orchestrationSchemeId,
     setOrchestrationSchemeId,
     delegationDisabled,
+    setDelegationDisabled,
     composerSetterRef,
     selectedModelKey,
     setSelectedModelKey,
@@ -41,6 +43,11 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     confirmForegroundReplace,
   } = chrome;
   const { menuSkills } = plusMenu;
+
+  const resetComposerTurnControls = useCallback(() => {
+    setOrchestrationSchemeId(ORCHESTRATION_SCHEME_OFF_ID);
+    setDelegationDisabled(false);
+  }, [setDelegationDisabled, setOrchestrationSchemeId]);
 
   const {
     handleSelectModel,
@@ -115,6 +122,7 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     permissionPreset: session.effectiveRunMode,
     orchestrationSchemeId,
     onOrchestrationSchemeChange: setOrchestrationSchemeId,
+    onResetComposerTurnControls: resetComposerTurnControls,
     onAgentModeChange: setAgentMode,
     menuSkills,
     conversationChat: state.activeScope.kind === 'general',

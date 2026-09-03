@@ -21,6 +21,15 @@ export type ProjectRecord = {
   bashAllowlist?: string[];
   /** Project-scoped file write paths allowed without prompting (ADR 0019). */
   fileWriteAllowlist?: string[];
+  /**
+   * Opaque id of the shared git dir. Same for every worktree of one repo.
+   * Host-only listing enrichment — not a filesystem path.
+   */
+  gitRepositoryId?: string;
+  /** True when this path is the primary (non-linked) worktree. */
+  isPrimaryWorktree?: boolean;
+  /** Current branch, or a detached HEAD short label. */
+  currentBranch?: string;
 };
 
 export type ProjectStoreDocument = {

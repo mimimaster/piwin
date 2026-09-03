@@ -397,7 +397,14 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
                 );
               }}
               onDeleteTile={(tile) => void deleteTile(tile.id)}
-              deleteLabel={t('Delete tile', '删除此项')}
+              labels={{
+                delete: t('Delete tile', '删除此项'),
+                openSet: t('Study set →', '过一遍 →'),
+                openOne: t('Study →', '过一遍 →'),
+                flipToAnswer: t('Show answer', '看答案'),
+                flipToQuestion: t('Show question', '看问题'),
+                answerFace: t('Answer', '答案'),
+              }}
             />
           )}
         </main>

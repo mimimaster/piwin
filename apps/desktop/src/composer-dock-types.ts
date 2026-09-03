@@ -153,6 +153,8 @@ export type ComposerDockProps = {
   recentProjects?: readonly ProjectRecord[];
   /** Switch directly to a project selected from the path dropdown. */
   onOpenProject?: ((path: string) => void) | undefined;
+  /** Occupied git branch: open that worktree as a project and switch/create a session. */
+  onOpenWorktreeProject?: ((worktreePath: string) => void | Promise<void>) | undefined;
   /** True when Desktop is attached to a saved standalone Host. */
   runtimeRemoteConnected?: boolean;
   /** Hostname:port of the attached Host, when known. */

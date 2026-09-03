@@ -306,6 +306,18 @@ export function createFlashcardStudyController(
     }
   }
 
+  /**
+   * Leaving a round pauses it on the Host (2026-08-30 spec §6.1). Since 2026-09-03
+   * there is no user-visible pause button, so reopening a paused round we control
+   * must resume it transparently; otherwise flip / next / rate stay blocked.
+   */
+  async function resumeIfPaused(): Promise<void> {
+    const snapshot = state.snapshot;
+    if (!snapshot || snapshot.round.status !== 'paused' || !snapshot.access.hasControl) return;
+    if (inFlight || state.error) return;
+    await simple('resume');
+  }
+
   function requireCapability(): boolean {
     if (ports.hasStudyCapability && !ports.hasStudyCapability()) {
       fail('host-too-old', '需要更新 Host');
@@ -340,6 +352,7 @@ export function createFlashcardStudyController(
       },
       false,
     );
+    await resumeIfPaused();
   }
 
   async function open(roundId: string): Promise<void> {
@@ -351,6 +364,7 @@ export function createFlashcardStudyController(
     } finally {
       restoring = false;
     }
+    await resumeIfPaused();
   }
 
   function currentRound(): FlashcardStudySnapshot | null {
@@ -379,6 +393,7 @@ export function createFlashcardStudyController(
       pendingFrom(command, snapshot, newKey()),
       false,
     );
+    await resumeIfPaused();
   }
 
   function beginInFlight(attempt: HostRequestAttempt): void {

@@ -19,7 +19,6 @@ export type ConversationPaneTranscriptProps = {
   onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
   fileBrowseRoot?: string | null;
   onCompactAbort?: () => void | Promise<void>;
-  onCompactDismiss?: () => void;
 };
 
 function createPendingAssistant(
@@ -108,7 +107,6 @@ export function ConversationPaneTranscript(props: ConversationPaneTranscriptProp
                   activity={props.state.compactionActivity}
                   locale={props.locale}
                   {...(props.onCompactAbort ? { onAbort: props.onCompactAbort } : {})}
-                  {...(props.onCompactDismiss ? { onDismiss: props.onCompactDismiss } : {})}
                 />
               ) : null}
             </Fragment>
@@ -162,7 +160,6 @@ export function ConversationPaneTranscript(props: ConversationPaneTranscriptProp
                   activity={props.state.compactionActivity}
                   locale={props.locale}
                   {...(props.onCompactAbort ? { onAbort: props.onCompactAbort } : {})}
-                  {...(props.onCompactDismiss ? { onDismiss: props.onCompactDismiss } : {})}
                 />
               ) : null}
             </Fragment>
@@ -180,7 +177,6 @@ export function ConversationPaneTranscript(props: ConversationPaneTranscriptProp
           activity={props.state.compactionActivity}
           locale={props.locale}
           {...(props.onCompactAbort ? { onAbort: props.onCompactAbort } : {})}
-          {...(props.onCompactDismiss ? { onDismiss: props.onCompactDismiss } : {})}
         />
       ) : null}
       <div ref={endRef} aria-hidden="true" />

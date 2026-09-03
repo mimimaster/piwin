@@ -69,6 +69,22 @@ export type { ReadGitStatusOptions } from './status-reader.js';
 export { readGitBranchList, parseGitBranchListOutput } from './branch-list.js';
 export type { ReadGitBranchListOptions } from './branch-list.js';
 
+export {
+  listGitWorktrees,
+  parseGitWorktreeListPorcelain,
+  annotateBranchesWithWorktreeOccupancy,
+} from './worktree-list.js';
+
+export { formatGitCheckoutFailure } from './checkout-failure.js';
+
+export { findTrustedSameRepositoryRoot, resolveGitCommonDir } from './same-repository.js';
+
+export {
+  gitRepositoryIdFromCommonDir,
+  readGitWorkspaceListing,
+} from './workspace-listing.js';
+export type { GitWorkspaceListing } from './workspace-listing.js';
+
 export { readGitDiffSummary, parseNumstat } from './diff-summary.js';
 export type { ReadGitDiffSummaryOptions } from './diff-summary.js';
 

@@ -125,6 +125,13 @@ export type { CardProps } from './card.js';
 
 export { FlashcardFace } from './flashcard-face.js';
 export type { FlashcardFaceProps } from './flashcard-face.js';
+export {
+  FLIP_CLICK_MAX_DISTANCE_PX,
+  hasSelectionInside,
+  isInteractiveClickTarget,
+  shouldFlipOnClick,
+} from './flashcard-face-click.js';
+export type { FlipClickFacts } from './flashcard-face-click.js';
 
 export { TearDeckSurface, FLASHCARD_TEAR_DURATION_MS } from './tear-deck-surface.js';
 export type { TearDeckSurfaceProps } from './tear-deck-surface.js';

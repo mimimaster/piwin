@@ -477,6 +477,21 @@ export async function handleMockSessionReadCommands(
           }
         }
         const content = lines.join('\n');
+        if (command.destination === 'content') {
+          return {
+            id,
+            type: 'response',
+            command: 'session/export',
+            success: true,
+            data: {
+              sessionId: command.sessionId,
+              format,
+              redactTools,
+              content,
+              byteLength: content.length,
+            },
+          };
+        }
         const path =
           command.outputPath?.trim() ||
           `/mock/exports/piwin-export-${command.sessionId.slice(0, 8)}.${format === 'html' ? 'html' : 'md'}`;

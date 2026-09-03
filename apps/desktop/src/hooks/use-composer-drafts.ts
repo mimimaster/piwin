@@ -23,6 +23,7 @@ import {
   sortDraftSessions,
   type DraftSessionItemUi,
 } from '../draft-session';
+import { shouldResetComposerOrchestrationOnSessionChange } from '../composer-orchestration-session';
 import type { UseComposerMediaArgs } from './composer-media-args.js';
 import type { SessionComposerSnapshot } from './composer-session-snapshot.js';
 import {
@@ -518,6 +519,17 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
       explicitDraftScopeRef.current = null;
     }
 
+    if (
+      shouldResetComposerOrchestrationOnSessionChange({
+        previousSessionId: prevId,
+        nextSessionId: currentId,
+        skipDraftSave: skipDraftSaveRef.current,
+        preserveComposerOnSessionActivation: preserveComposerOnSessionActivationRef.current,
+      })
+    ) {
+      args.onResetComposerTurnControls?.();
+    }
+
     const hasComposerContent =
       composerRef.current.trim().length > 0 ||
       pendingAttachmentsRef.current.length > 0 ||
@@ -602,6 +614,7 @@ export function useComposerDrafts(params: UseComposerDraftsArgs) {
   }, [
     args.state.activeSessionId,
     args.state.activeScope,
+    args.onResetComposerTurnControls,
     readVisibleContextRefs,
     removeCurrentDraft,
     restoreDraftComposerSnapshot,

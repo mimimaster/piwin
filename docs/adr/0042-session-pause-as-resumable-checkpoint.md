@@ -2,7 +2,7 @@
 
 - Status: accepted
 - Date: 2026-08-10
-- Updated: 2026-09-01
+- Updated: 2026-09-03
 - Related: ADR 0012, ADR 0015, ADR 0040, `docs/specs/runtime-refactor.md`
 
 ## Context
@@ -63,6 +63,9 @@ The composer action slot holds **exactly one circular button** in every state:
    a real user message, not a keyword that changes the transport command.
    A failed send retains the draft and attachments. No extra Stop / Discard
    button or confirmation is required.
+   When the draft is a continue-utterance, Desktop may show a non-blocking
+   hint with an explicit Resume-checkpoint action. That action clears the
+   draft and calls `session/resume-run`. It must not change what Enter does.
 4. While a run is **live**, the circular control is Pause, not Stop. Follow-up
    while live is Enter.
 

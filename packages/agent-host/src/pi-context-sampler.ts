@@ -28,6 +28,7 @@ import {
 import { asRecord, readRole, readString } from './pi-event-read.js';
 import { extractToolResultText } from './tool-result-extract.js';
 import { readToolCallArgs } from './tool-event-map.js';
+import { readAssistantToolArgProgress } from './assistant-tool-arg-progress.js';
 
 export type PiContextUsageSample = {
   tokens: number | null;
@@ -388,7 +389,7 @@ export function createPiContextSampler(input: CreatePiContextSamplerInput): PiCo
 
       if (raw?.type === 'message_update' && assistantInFlight) {
         const assistantEvent = asRecord(raw.assistantMessageEvent);
-        const toolArgs = readAssistantToolArgUpdate(assistantEvent);
+        const toolArgs = readAssistantToolArgProgress(assistantEvent);
         if (toolArgs) {
           if (toolArgs.kind === 'snapshot') {
             streamingToolArgs = 'x'.repeat(toolArgs.chars);
@@ -641,29 +642,4 @@ function stringifyChars(value: unknown): number {
   } catch {
     return 0;
   }
-}
-
-function readAssistantToolArgUpdate(
-  assistantEvent: Record<string, unknown> | null,
-): { kind: 'snapshot' | 'delta'; chars: number } | null {
-  if (!assistantEvent) {
-    return null;
-  }
-  const type = readString(assistantEvent.type);
-  if (
-    type !== 'toolcall_delta' &&
-    type !== 'tool_call' &&
-    type !== 'tool_call_delta' &&
-    type !== 'toolCall'
-  ) {
-    return null;
-  }
-  const snapshot = assistantEvent.arguments ?? assistantEvent.args;
-  if (snapshot !== undefined && snapshot !== null) {
-    const chars = stringifyChars(snapshot);
-    return chars > 0 ? { kind: 'snapshot', chars } : null;
-  }
-  const delta = assistantEvent.delta ?? assistantEvent.partialArgs;
-  const chars = stringifyChars(delta);
-  return chars > 0 ? { kind: 'delta', chars } : null;
 }

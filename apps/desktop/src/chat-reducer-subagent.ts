@@ -34,6 +34,12 @@ import {
   isTerminalSubagentChild,
   isTerminalSubagentInvocation,
 } from './chat-reducer-session-helpers';
+import {
+  applyPermissionQueueToStream,
+  dequeuePermissionPrompt,
+  enqueuePermissionPrompt,
+  streamPermissionQueue,
+} from './permission-queue';
 
 export type ChatUiSubagentAction = Extract<
   ChatUiAction,
@@ -202,6 +208,7 @@ function applySubagentStreamEvent(
     streaming: false,
     currentMessageId: null,
     permissionPrompt: null,
+    permissionQueue: [],
   };
 
   switch (event.type) {
@@ -416,20 +423,19 @@ function applySubagentStreamEvent(
     }
     case 'session/aborted':
     case 'session/ended': {
-      const updated: SubagentStreamState = {
-        ...existing,
-        streaming: false,
-        permissionPrompt: null,
-      };
+      const updated: SubagentStreamState = applyPermissionQueueToStream(
+        { ...existing, streaming: false },
+        [],
+      );
       return {
         ...state,
         subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },
       };
     }
     case 'permission/request': {
-      const updated: SubagentStreamState = {
-        ...existing,
-        permissionPrompt: {
+      const updated = applyPermissionQueueToStream(
+        existing,
+        enqueuePermissionPrompt(streamPermissionQueue(existing), {
           requestId: event.requestId,
           sessionId: childSessionId,
           ...(event.runId ? { runId: event.runId } : {}),
@@ -437,16 +443,18 @@ function applySubagentStreamEvent(
           detail: event.detail,
           defaultDecision: event.defaultDecision,
           ...(event.context ? { context: event.context } : {}),
-        },
-      };
+        }),
+      );
       return {
         ...state,
         subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },
       };
     }
     case 'permission/resolved': {
-      if (existing.permissionPrompt?.requestId !== event.requestId) return state;
-      const updated: SubagentStreamState = { ...existing, permissionPrompt: null };
+      const currentQueue = streamPermissionQueue(existing);
+      const nextQueue = dequeuePermissionPrompt(currentQueue, event.requestId);
+      if (nextQueue === currentQueue) return state;
+      const updated = applyPermissionQueueToStream(existing, nextQueue);
       return {
         ...state,
         subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },

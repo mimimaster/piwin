@@ -413,11 +413,7 @@ export type SessionRunPhase =
 
 /** ADR 0015: stable terminal codes for run outcomes. */
 export type SessionRunTerminalCode =
-  | 'cancelled'
-  | 'paused'
-  | 'job-cleanup-failed'
-  | 'host-shutdown'
-  | 'runtime-memory-pressure';
+  'cancelled' | 'paused' | 'job-cleanup-failed' | 'host-shutdown' | 'runtime-memory-pressure';
 
 /** ADR 0015: immediate acknowledgement returned by session/prompt. */
 export type SessionRunAcceptedData = {
@@ -550,6 +546,19 @@ export type AgentEvent =
   /** C1: complete snapshot emitted when host detects cumulative text (replaces, does not append). */
   | { type: 'message/text_snapshot'; messageId: string; text: string; runId?: string }
   | { type: 'message/thinking_delta'; messageId: string; delta: string; runId?: string }
+  /**
+   * Tool-call argument tokens are streaming. Count-only: never carry the
+   * argument body (write_file HTML would otherwise flood every shell).
+   */
+  | {
+      type: 'message/tool_args_progress';
+      messageId: string;
+      /** Cumulative characters of tool-call arguments streamed so far. */
+      argumentCharCount: number;
+      /** Present once the provider reveals the tool name. */
+      toolName?: string;
+      runId?: string;
+    }
   | {
       type: 'message/search_evidence';
       messageId: string;
@@ -660,8 +669,14 @@ export type AgentEvent =
     }
   /** CE-OBS: mapped from Pi contextUsage / assistant usage. */
   | { type: 'usage/update'; sessionId: string; usage: ContextUsageSnapshot }
-  | { type: 'context/measurement'; measurement: import('./context-telemetry.js').ContextMeasurement }
-  | { type: 'usage/finalized'; measurement: import('./assistant-usage.js').AssistantUsageMeasurement }
+  | {
+      type: 'context/measurement';
+      measurement: import('./context-telemetry.js').ContextMeasurement;
+    }
+  | {
+      type: 'usage/finalized';
+      measurement: import('./assistant-usage.js').AssistantUsageMeasurement;
+    }
   /** CE-MEM-05 optional silent extract progress. */
   | { type: 'memory/extraction_start'; sessionId: string }
   | {

@@ -11,6 +11,7 @@ export function ComposerContextRail(props: {
   recentProjects: ComposerDockProps['recentProjects'];
   onOpenProject: ComposerDockProps['onOpenProject'];
   branchRequest: ComposerDockProps['branchRequest'];
+  onOpenWorktreeProject: ComposerDockProps['onOpenWorktreeProject'];
   isStreamingRun: boolean;
   runtimeRemoteConnected: ComposerDockProps['runtimeRemoteConnected'];
   runtimeRemoteHostLabel: ComposerDockProps['runtimeRemoteHostLabel'];
@@ -44,6 +45,7 @@ export function ComposerContextRail(props: {
           projectPath={props.projectPath}
           disabled={props.isStreamingRun}
           request={props.branchRequest}
+          {...(props.onOpenWorktreeProject ? { onOpenWorktreeProject: props.onOpenWorktreeProject } : {})}
         />
       ) : null}
       <RuntimeTargetChip

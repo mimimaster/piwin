@@ -4,7 +4,7 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import type { HostCommand, HostResponse, ProjectReadFileData } from '@piwin/contracts';
+import type { HostCommand, HostResponse, ProjectReadFileData, ProjectRecord } from '@piwin/contracts';
 import { formatError, inferAttachmentMimeType } from '@piwin/contracts';
 import {
   listProjects,
@@ -19,6 +19,7 @@ import {
   revokeRememberedPermission,
   setProjectTrust,
 } from '@piwin/project';
+import { findTrustedSameRepositoryRoot, readGitWorkspaceListing } from '@piwin/git';
 import { fail, ok } from '../response-helpers.js';
 import { getPiwinGeneralWorkspacePath, getPiwinProjectsPath, getPiwinRoot } from '../paths.js';
 import { ensureGeneralWorkspace } from '../general-workspace.js';
@@ -55,14 +56,29 @@ export async function handleProjectCommand(
   switch (command.type) {
     case 'project/list': {
       const projects = await listProjects(projectsPath);
-      return ok(requestId, 'project/list', { projects });
+      const enriched = await enrichProjectsWithGitWorkspace(projects);
+      return ok(requestId, 'project/list', { projects: enriched });
     }
     case 'project/open': {
       const openPath = await resolveOpenProjectPath(projectsPath, command.path, requestId);
       if (!openPath.ok) {
         return openPath.response;
       }
-      const project = await openOrCreateProject(projectsPath, openPath.path);
+      const document = await loadProjectStore(projectsPath);
+      const absoluteOpenPath = path.resolve(openPath.path);
+      const existing = document.projects.find((item) => item.path === absoluteOpenPath);
+      let project: ProjectRecord;
+      if (existing) {
+        project = await openOrCreateProject(projectsPath, openPath.path);
+      } else {
+        const trustedPaths = document.projects
+          .filter((item) => item.trust === 'trusted')
+          .map((item) => item.path);
+        const inheritedFrom = await findTrustedSameRepositoryRoot(openPath.path, trustedPaths);
+        project = inheritedFrom
+          ? await openOrCreateProject(projectsPath, openPath.path, { trust: 'trusted' })
+          : await openOrCreateProject(projectsPath, openPath.path);
+      }
       return ok(requestId, 'project/open', {
         path: project.path,
         projectId: createRemoteProjectId(project.path),
@@ -144,6 +160,28 @@ export async function handleProjectCommand(
     default:
       return null;
   }
+}
+
+async function enrichProjectsWithGitWorkspace(
+  projects: readonly ProjectRecord[],
+): Promise<ProjectRecord[]> {
+  return Promise.all(projects.map((project) => enrichProjectWithGitWorkspace(project)));
+}
+
+async function enrichProjectWithGitWorkspace(project: ProjectRecord): Promise<ProjectRecord> {
+  const listing = await readGitWorkspaceListing(project.path);
+  if (!listing) {
+    return project;
+  }
+  const enriched: ProjectRecord = {
+    ...project,
+    gitRepositoryId: listing.gitRepositoryId,
+    isPrimaryWorktree: listing.isPrimaryWorktree,
+  };
+  if (listing.currentBranch) {
+    enriched.currentBranch = listing.currentBranch;
+  }
+  return enriched;
 }
 
 const IGNORED_DIR_NAMES = new Set([

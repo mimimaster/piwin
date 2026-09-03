@@ -1,13 +1,8 @@
 import type { AgentEvent, AgentMessageRole } from '@piwin/contracts';
 import { normalizeNativeSearchCitations } from './native-web-search.js';
 import { mapAssistantStopReasonFailure } from './agent-failure-map.js';
-import {
-  asRecord,
-  readNestedId,
-  readNestedRole,
-  readRole,
-  readString,
-} from './pi-event-read.js';
+import { readAssistantToolArgProgress } from './assistant-tool-arg-progress.js';
+import { asRecord, readNestedId, readNestedRole, readRole, readString } from './pi-event-read.js';
 
 export function mapMessageStartEvent(
   event: Record<string, unknown>,
@@ -36,6 +31,15 @@ export function mapMessageUpdateEvent(
   } else if (assistantType === 'thinking_delta') {
     mapped.push({ type: 'message/thinking_delta', messageId, delta });
   }
+  const toolArgProgress = readAssistantToolArgProgress(assistantEvent);
+  if (toolArgProgress) {
+    mapped.push({
+      type: 'message/tool_args_progress',
+      messageId,
+      argumentCharCount: toolArgProgress.chars,
+      ...(toolArgProgress.toolName !== undefined ? { toolName: toolArgProgress.toolName } : {}),
+    });
+  }
   const evidence = normalizeNativeSearchCitations(assistantEvent);
   if (evidence) {
     mapped.push({ type: 'message/search_evidence', messageId, evidence });
@@ -49,10 +53,7 @@ export function mapMessageEndEvent(
   activeMessageRole?: AgentMessageRole | null,
 ): AgentEvent[] {
   const messageId =
-    readString(event.messageId) ??
-    readNestedId(event, 'message') ??
-    activeMessageId ??
-    'unknown';
+    readString(event.messageId) ?? readNestedId(event, 'message') ?? activeMessageId ?? 'unknown';
   const messagePayload = event.message ?? event.assistantMessage ?? event;
   const evidence = normalizeNativeSearchCitations(messagePayload);
   const endedMessageRole =

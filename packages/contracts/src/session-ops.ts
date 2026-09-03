@@ -59,6 +59,8 @@ export type SessionTruncateFromResult = {
 /** CE-SHARE-01: local session export (MD/HTML). */
 export type SessionExportFormat = 'md' | 'html';
 
+export type SessionExportDestination = 'file' | 'content';
+
 export type SessionExportInput = {
   sessionId: string;
   format?: SessionExportFormat;
@@ -69,14 +71,21 @@ export type SessionExportInput = {
    * When omitted, host writes under ~/.piwin/sessions/<id>/exports/.
    */
   outputPath?: string;
+  /**
+   * Defaults to `file`. `content` returns the rendered document in the
+   * response and does not write a host-side file.
+   */
+  destination?: SessionExportDestination;
 };
 
 export type SessionExportData = {
   sessionId: string;
   format: SessionExportFormat;
   redactTools: boolean;
-  /** Absolute path of the written export file. */
-  path: string;
+  /** Absolute path of the written export file. Omitted for `content`. */
+  path?: string;
+  /** Rendered document. Present when `destination` is `content`. */
+  content?: string;
   byteLength: number;
 };
 

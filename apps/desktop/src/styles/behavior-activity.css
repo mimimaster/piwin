@@ -224,145 +224,24 @@
   min-height: 30px;
 }
 
-/* Compaction is a transcript activity, not a detached notification. Keep the
- * footprint quiet and stable while the locator phrase cycles in place. */
-.chat-compaction-activity {
+/* Compaction is one row of the agent's tool chain, so it inherits the whole
+ * tool-call treatment (head row, status dot, duration, expandable body) from
+ * transcript-tool-card.css. Only the chain's own left/right rhythm belongs
+ * here — no surface, no border, no bespoke phase colors. */
+.chat-compaction-row {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  min-height: 34px;
-  margin: 6px 0 2px;
-  padding: 4px 10px;
-  border-left: 2px solid color-mix(in srgb, var(--iris) 68%, transparent);
-  border-radius: 0 var(--r-sm) var(--r-sm) 0;
-  color: color-mix(in srgb, var(--text-1) 72%, transparent);
-  background: color-mix(in srgb, var(--iris) 7%, transparent);
-  transition:
-    background-color 180ms ease,
-    border-color 180ms ease;
-}
-
-.chat-compaction-activity-main {
-  display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--s-3);
   min-width: 0;
 }
 
-.chat-compaction-activity-body {
-  display: grid;
+.chat-compaction-row .tool-call-card {
   flex: 1 1 auto;
-  gap: 2px;
-  min-width: 0;
-  align-self: center;
-}
-
-.chat-compaction-activity-line {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
   min-width: 0;
 }
 
-.chat-compaction-activity .agent-locator {
-  min-height: 26px;
-  color: inherit;
-}
-
-.chat-compaction-activity-icon {
-  display: inline-flex;
-  flex: 0 0 16px;
-  align-items: center;
-  justify-content: center;
-  color: var(--iris-lift);
-}
-
-.chat-compaction-activity[data-phase='running'] .chat-compaction-activity-icon {
-  animation: compaction-icon-breathe 1.8s ease-in-out infinite;
-}
-
-.chat-compaction-activity.is-succeeded {
-  border-left-color: color-mix(in srgb, var(--mint) 64%, transparent);
-  background: color-mix(in srgb, var(--mint) 6%, transparent);
-}
-
-.chat-compaction-activity.is-succeeded .chat-compaction-activity-icon {
-  color: var(--mint);
-}
-
-.chat-compaction-activity.is-failed {
-  border-left-color: color-mix(in srgb, var(--coral) 72%, transparent);
-  background: color-mix(in srgb, var(--coral) 7%, transparent);
-}
-
-.chat-compaction-activity.is-failed .chat-compaction-activity-icon {
-  color: var(--coral);
-}
-
-.chat-compaction-activity.is-cancelled {
-  border-left-color: color-mix(in srgb, var(--amber) 62%, transparent);
-  background: color-mix(in srgb, var(--amber) 6%, transparent);
-}
-
-.chat-compaction-activity.is-cancelled .chat-compaction-activity-icon {
-  color: var(--amber);
-}
-
-.chat-compaction-activity-copy {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.chat-compaction-activity-meta {
-  color: color-mix(in srgb, var(--text-1) 45%, transparent);
-  font-size: var(--fs-mono);
-  white-space: nowrap;
-}
-
-.chat-compaction-activity-details {
-  min-width: 0;
-  max-width: 100%;
-  color: color-mix(in srgb, var(--text-1) 52%, transparent);
-  font-size: var(--fs-mono);
-}
-
-.chat-compaction-activity-details summary {
-  cursor: pointer;
-}
-
-.chat-compaction-activity-details pre {
-  max-width: 100%;
-  max-height: 240px;
-  margin: 6px 0 0;
-  overflow: auto;
-  white-space: pre-wrap;
-}
-
-.chat-compaction-activity-action {
+.chat-compaction-row-cancel {
   flex: 0 0 auto;
-  margin-left: auto;
-}
-
-@keyframes compaction-icon-breathe {
-  0%,
-  100% {
-    opacity: 0.55;
-    transform: scale(0.92);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.06);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .chat-compaction-activity,
-  .chat-compaction-activity[data-phase='running'] .chat-compaction-activity-icon {
-    animation: none;
-    transition: none;
-  }
 }
 
 .skill-activity-chip {

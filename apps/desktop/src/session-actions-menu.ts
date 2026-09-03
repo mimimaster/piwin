@@ -10,6 +10,21 @@ export type SessionActionItem = {
   testId: string;
 };
 
+function copyItems(canExport: boolean | undefined): SessionActionItem[] {
+  return [
+    { action: 'copy-id', label: 'Copy ID', testId: 'session-menu-copy-id' },
+    ...(canExport === false
+      ? []
+      : [
+          {
+            action: 'copy-transcript' as const,
+            label: 'Copy Transcript',
+            testId: 'session-menu-copy-transcript',
+          },
+        ]),
+  ];
+}
+
 export function sessionActionItems(options: {
   isPinned: boolean;
   isArchived: boolean;
@@ -30,7 +45,7 @@ export function sessionActionItems(options: {
     return [
       { action: 'unarchive', label: 'Restore', testId: 'session-menu-unarchive' },
       { action: 'rename', label: 'Rename', testId: 'session-menu-rename' },
-      { action: 'copy-id', label: 'Copy ID', testId: 'session-menu-copy-id' },
+      ...copyItems(options.canExport),
       ...(options.canExport === false
         ? []
         : [{ action: 'export' as const, label: 'Export…', testId: 'session-menu-export' }]),
@@ -49,7 +64,7 @@ export function sessionActionItems(options: {
       testId: 'session-menu-pin',
     },
     { action: 'rename', label: 'Rename', testId: 'session-menu-rename' },
-    { action: 'copy-id', label: 'Copy ID', testId: 'session-menu-copy-id' },
+    ...copyItems(options.canExport),
     ...(options.canDuplicate === false
       ? []
       : [{ action: 'duplicate' as const, label: 'Duplicate', testId: 'session-menu-duplicate' }]),

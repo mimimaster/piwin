@@ -185,7 +185,6 @@ export type ChatThreadProps = {
   /** Transcript-bound compaction lifecycle activity. */
   compactionActivity?: CompactionActivityUi | null | undefined;
   onCompactAbort?: (() => void | Promise<void>) | undefined;
-  onCompactDismiss?: (() => void) | undefined;
   /** Locale used by all run activity components. */
   locale?: 'zh-CN' | 'en';
   /** Walkthrough artifacts keyed by owning assistant messageId (spec §5.1). */
@@ -880,7 +879,6 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                   activity={props.compactionActivity}
                   locale={props.locale ?? 'zh-CN'}
                   {...(props.onCompactAbort ? { onAbort: props.onCompactAbort } : {})}
-                  {...(props.onCompactDismiss ? { onDismiss: props.onCompactDismiss } : {})}
                 />
               ) : null}
               {turn.id === currentResponseTurnId ? runActivitySlot : null}
@@ -898,7 +896,6 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
               activity={props.compactionActivity}
               locale={props.locale ?? 'zh-CN'}
               {...(props.onCompactAbort ? { onAbort: props.onCompactAbort } : {})}
-              {...(props.onCompactDismiss ? { onDismiss: props.onCompactDismiss } : {})}
             />
           ) : null}
           {runActivitySlot}

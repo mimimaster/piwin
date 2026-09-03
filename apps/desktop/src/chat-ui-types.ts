@@ -67,6 +67,11 @@ export type ChatMessageUi = {
   thinkingStartedAt?: number;
   /** Boundary where this response moved from reasoning to work/answer. */
   thinkingEndedAt?: number;
+  /** Live tool-call argument progress; omitted after tool/start. */
+  toolArgsProgress?: {
+    argumentCharCount: number;
+    toolName?: string;
+  };
   searchEvidence?: SearchEvidence;
   createdAt?: string;
   /** Run that produced this assistant message when host provided run identity. */
@@ -192,6 +197,8 @@ export type SubagentStreamState = {
   currentMessageId: string | null;
   /** Live child permission gate shown inside the child-session window. */
   permissionPrompt?: PermissionPromptUi | null;
+  /** Concurrent child-session permission requests, head shown as `permissionPrompt`. */
+  permissionQueue?: PermissionPromptUi[];
 };
 
 /** C2: per-run historical record for turn-local work presentation. */
@@ -386,6 +393,8 @@ export type ChatUiState = {
   /** Optional detail from latest run/phase (e.g. "Describing image…"). */
   activeRunPhaseDetail: string | null;
   activeRunStartedAt: number | null;
+  /** Timestamp of the latest Host phase transition for the active run. */
+  activeRunPhaseUpdatedAt: number | null;
   lastTerminalRunId: string | null;
   streaming: boolean;
   runTerminal: RunTerminalState;
@@ -396,6 +405,11 @@ export type ChatUiState = {
   hostReady: boolean;
   hostMock: boolean;
   permissionPrompt: PermissionPromptUi | null;
+  /**
+   * Concurrent permission requests. `permissionPrompt` is the queue head so
+   * existing readers keep working; the reducer is the only writer of both.
+   */
+  permissionQueue: PermissionPromptUi[];
   /** Explicit slash Skill currently associated with the foreground prompt. */
   activeSkill: SkillActivityView | null;
   error: string | null;
@@ -600,6 +614,7 @@ export type ChatUiAction =
   | { type: 'host/status'; ready: boolean; mock: boolean }
   | { type: 'permission/show'; prompt: PermissionPromptUi }
   | { type: 'permission/clear'; requestId: string }
+  | { type: 'permission/reconcile'; permissions: PermissionPromptUi[] }
   | {
       type: 'event';
       sessionId: string;
