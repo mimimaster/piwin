@@ -32,12 +32,12 @@ export function mapComposerMenuMcp(
 export type UseComposerPlusMenuArgs = {
   hostClient: HostClient;
   projectPath: string | null;
-  projectTrusted: boolean;
-  activeSessionId: string | null;
+  /** Skip the first fetch until Host can answer `skills/list`. */
+  hostReady?: boolean;
 };
 
 export function useComposerPlusMenu(args: UseComposerPlusMenuArgs) {
-  const { hostClient, projectPath, projectTrusted, activeSessionId } = args;
+  const { hostClient, projectPath, hostReady } = args;
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
   const [plusSubmenu, setPlusSubmenu] = useState<ComposerPlusSubmenu>('none');
   const [menuSkills, setMenuSkills] = useState<ComposerMenuSkill[]>([]);
@@ -66,10 +66,13 @@ export function useComposerPlusMenu(args: UseComposerPlusMenuArgs) {
   }, [hostClient, projectPath]);
 
   useEffect(() => {
-    if (activeSessionId && projectTrusted) {
-      void refreshComposerMenus();
+    // Skills live under ~/.piwin, not the current session. Draft composers
+    // (no session yet) still need the catalog so `/` can list them.
+    if (hostReady === false) {
+      return;
     }
-  }, [activeSessionId, projectTrusted, projectPath, refreshComposerMenus]);
+    void refreshComposerMenus();
+  }, [hostReady, refreshComposerMenus]);
 
   return {
     plusMenuOpen,

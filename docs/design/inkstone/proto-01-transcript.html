@@ -1,0 +1,829 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inkstone（砚）· 增量 1 · 转录全解剖</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:#e6e1d7;overflow:hidden}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-align:inherit}
+a{color:inherit;text-decoration:none}
+u{text-decoration:none;cursor:pointer}u:hover{text-decoration:underline}
+.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.s12{width:12px;height:12px}.s14{width:14px;height:14px}
+.ml{margin-left:auto}
+.app{--sans:Inter,"PingFang SC","Noto Sans SC",-apple-system,system-ui,sans-serif;--serif:"Noto Serif SC","Songti SC","STSong","Source Han Serif SC","Source Serif 4",Georgia,serif;--mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;--spring:cubic-bezier(.34,1.4,.64,1);height:100dvh;width:100%;display:grid;grid-template-rows:28px minmax(0,1fr);background:var(--void);color:var(--t1);font:13.5px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+.app[data-face=paper]{color-scheme:light;--void:#e6e1d7;--s1:#f0ece4;--s2:#f8f6f0;--s3:#fffdf8;--s4:#fff;--t1:#1d1b17;--t2:#5a554d;--t3:#726b61;--t4:#8f887d;--l1:rgba(29,27,23,.06);--l2:rgba(29,27,23,.11);--l3:rgba(29,27,23,.2);--zhu:#c6412a;--zhu-lift:#d4553d;--on-zhu:#fff7f0;--zhu-wash:rgba(198,65,42,.1);--lamp:#b8801f;--lamp-glow:rgba(184,128,31,.4);--lamp-wash:rgba(184,128,31,.14);--pine:#3d7c5e;--pine-wash:rgba(61,124,94,.12);--ochre:#94611a;--ochre-wash:rgba(148,97,26,.12);--crimson:#9c2e3d;--crimson-wash:rgba(156,46,61,.1);--azure:#3a7797;--azure-wash:rgba(58,119,151,.12);--code:#efece4;--sh1:0 1px 2px rgba(60,45,20,.06),0 0 0 1px var(--l2);--sh2:0 2px 8px -2px rgba(60,45,20,.12),0 0 0 1px var(--l2);--sh3:0 14px 34px -12px rgba(50,35,15,.3),0 0 0 1px var(--l3)}
+.app[data-face=ink]{color-scheme:dark;--void:#0b0a09;--s1:#141210;--s2:#191714;--s3:#201d19;--s4:#2a2621;--t1:#ebe5da;--t2:#a59d92;--t3:#8b8378;--t4:#6a6259;--l1:rgba(235,229,218,.06);--l2:rgba(235,229,218,.1);--l3:rgba(235,229,218,.17);--zhu:#e25a3d;--zhu-lift:#f07054;--on-zhu:#1c0b07;--zhu-wash:rgba(226,90,61,.14);--lamp:#e7b352;--lamp-glow:rgba(231,179,82,.35);--lamp-wash:rgba(231,179,82,.12);--pine:#5fad85;--pine-wash:rgba(95,173,133,.14);--ochre:#c88f3c;--ochre-wash:rgba(200,143,60,.14);--crimson:#d95f6e;--crimson-wash:rgba(217,95,110,.14);--azure:#6ba4c3;--azure-wash:rgba(107,164,195,.14);--code:#0f0e0c;--sh1:inset 0 1px 0 rgba(255,255,255,.04),0 0 0 1px rgba(0,0,0,.6);--sh2:inset 0 1px 0 rgba(255,255,255,.04),0 0 0 1px rgba(0,0,0,.6),0 2px 8px -2px rgba(0,0,0,.5);--sh3:inset 0 1px 0 rgba(255,255,255,.06),0 0 0 1px rgba(0,0,0,.7),0 14px 34px -10px rgba(0,0,0,.7)}
+.proto{display:flex;align-items:center;gap:10px;padding:0 12px;font:11px var(--mono);color:var(--t3);border-bottom:1px dashed var(--l2);white-space:nowrap;overflow:hidden}
+.proto .pt{color:var(--t1);margin-right:8px}.proto .pl{color:var(--t4)}.proto .pn{margin-left:auto;color:var(--t4)}
+.seg{display:inline-flex;border:1px solid var(--l2);border-radius:5px;overflow:hidden;flex:none}
+.seg button{font:11px var(--mono);padding:3px 8px;color:var(--t3)}.seg button.on{background:var(--s3);color:var(--t1)}
+.body{display:grid;grid-template-columns:232px minmax(0,1fr);gap:8px;padding:0 8px 8px;min-height:0}
+.panel{background:var(--s1);border-radius:12px;box-shadow:var(--sh2);min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.idx-h{padding:12px 12px 4px;font:500 15px var(--serif);color:var(--t1)}
+.idx-h small{display:block;font:11px var(--mono);color:var(--t4);margin-top:2px;white-space:normal;line-height:1.5}
+.idx-scroll{flex:1;overflow:auto;min-height:0;padding:0 6px 8px}
+.ig{display:flex;align-items:center;gap:6px;height:22px;padding:0 8px;margin-top:8px;font:600 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--t3)}
+.ir{display:flex;align-items:center;gap:8px;height:26px;padding:0 8px;border-radius:6px;font-size:12.5px;color:var(--t2);white-space:nowrap;overflow:hidden;width:100%}
+.ir:hover{background:var(--s2);color:var(--t1)}.ir.on{background:var(--s3);box-shadow:var(--sh1);color:var(--t1)}
+.n{font:11px var(--mono);color:var(--t4);font-variant-numeric:tabular-nums}
+.ir .n{width:18px;flex:none}
+.legend{border-top:1px solid var(--l1);padding:8px 10px 10px;display:grid;grid-template-columns:1fr 1fr;gap:2px 8px;font:11px var(--mono);color:var(--t3);flex:none}
+.legend div{display:flex;align-items:center;gap:7px;height:20px}
+.lg{width:9px;height:9px;border-radius:50%;background:var(--s2);border:1.5px solid var(--l3);flex:none}
+.lg.done{background:var(--pine);border-color:var(--pine)}.lg.run{background:var(--lamp);border-color:var(--lamp);box-shadow:0 0 0 3px var(--lamp-wash)}.lg.wait{border-radius:1px;background:var(--zhu);border-color:var(--zhu)}.lg.bg{background:var(--azure);border-color:var(--azure)}.lg.fail{background:var(--crimson);border-color:var(--crimson)}
+.stage{background:var(--s2);position:relative;container-type:inline-size}
+.stage::after{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;opacity:.035;mix-blend-mode:multiply;background:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>") 0 0/200px 200px}
+.app[data-face=ink] .stage::after{mix-blend-mode:screen;opacity:.02}
+.scroll{--mg:0px;flex:1;overflow:auto;min-height:0;padding:16px 76px 60px 28px;scroll-behavior:smooth}
+@container (min-width:1080px){.app[data-marg=auto] .scroll{--mg:160px}.app[data-marg=auto] .marg{display:flex}.app[data-marg=auto] .head{display:none}}
+.app[data-marg=on] .scroll{--mg:160px}.app[data-marg=on] .marg{display:flex}.app[data-marg=on] .head{display:none}
+.scroll::-webkit-scrollbar,.idx-scroll::-webkit-scrollbar{width:8px}
+.scroll::-webkit-scrollbar-thumb,.idx-scroll::-webkit-scrollbar-thumb{background:var(--l2);border-radius:4px}
+.st{display:flex;align-items:baseline;gap:10px;width:100%;max-width:calc(var(--mg) + 720px);margin:30px auto 14px;padding-left:var(--mg)}
+.st:first-child{margin-top:6px}
+.st h2{font:500 20px/1.3 var(--serif);color:var(--t1)}
+.st .sn{font:11px var(--mono);color:var(--t4)}
+.turn{display:grid;grid-template-columns:var(--mg) minmax(0,1fr);width:100%;max-width:calc(var(--mg) + 720px);margin:0 auto 26px}
+.turn > *{min-width:0}
+.marg{display:none;flex-direction:column;align-items:flex-end;gap:4px;padding:5px 18px 0 0;font:11px var(--mono);color:var(--t4);text-align:right;position:sticky;top:0;align-self:start}
+.marg .av{width:22px;height:22px;line-height:22px;font-size:12px;margin-bottom:2px}
+.marg .who,.head .who{font:500 12.5px var(--serif);color:var(--t2)}
+.head{display:flex;align-items:center;gap:8px;font:11px var(--mono);color:var(--t4);margin-bottom:8px}
+.av{width:18px;height:18px;border-radius:50%;background:var(--s3);box-shadow:var(--sh1);font:600 10.5px/18px var(--serif);text-align:center;color:var(--t1);display:inline-block;flex:none}
+.blk{position:relative;scroll-margin-top:14px}
+.blk + .blk{margin-top:12px}
+.thread .blk{margin-top:0}
+.app[data-notes=on] .blk::after{content:attr(data-n);position:absolute;right:-40px;top:0;width:24px;height:20px;border-radius:3px;background:var(--s3);box-shadow:var(--sh1);font:600 10.5px/20px var(--mono);text-align:center;color:var(--t3);pointer-events:none}
+.app[data-notes=on] .blk.flash::after{background:var(--zhu);color:var(--on-zhu);box-shadow:none}
+.var{font:600 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--t4);margin:14px 0 6px;display:flex;align-items:center;gap:8px}
+.m{font:11px var(--mono);color:var(--t4);font-variant-numeric:tabular-nums}
+.acts{display:inline-flex;gap:2px;align-items:center}
+.ib{width:26px;height:26px;border-radius:6px;display:inline-grid;place-items:center;color:var(--t3);flex:none}
+.ib:hover{background:var(--s2);color:var(--t1)}.ib.s20{width:20px;height:20px;border-radius:4px}.ib.s22{width:22px;height:22px}
+.btn{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 10px;border-radius:6px;font-size:12.5px;color:var(--t2);white-space:nowrap;flex:none}
+.btn:hover{background:var(--s2);color:var(--t1)}
+.btn.pri{background:var(--zhu);color:var(--on-zhu)}.btn.pri:hover{background:var(--zhu-lift);color:var(--on-zhu)}
+.btn.dan{color:var(--crimson)}.btn.dan:hover{background:var(--crimson-wash);color:var(--crimson)}
+.btn.ok{color:var(--pine);cursor:default}.btn.ok:hover{background:none;color:var(--pine)}
+.btn.sm{height:22px;padding:0 7px;font-size:11.5px}
+.link{font-size:12px;color:var(--t2);padding:2px 6px;border-radius:4px;white-space:nowrap}.link:hover{background:var(--s2);color:var(--t1)}
+.chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 7px;border-radius:3px;background:var(--s1);box-shadow:var(--sh1);font:11.5px var(--mono);color:var(--t2);white-space:nowrap;flex:none}
+.chip .av{width:14px;height:14px;line-height:14px;font-size:8.5px}
+.tag{display:inline-flex;align-items:center;height:18px;padding:0 5px;border-radius:3px;background:var(--s1);box-shadow:var(--sh1);font:10.5px var(--mono);color:var(--t3);white-space:nowrap}
+.tag.az{color:var(--azure)}
+.pill{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 8px;border-radius:999px;font:600 10.5px var(--sans);letter-spacing:.04em;white-space:nowrap}
+.pill i{width:6px;height:6px;border-radius:50%;background:currentColor}
+.pill.lamp-p{background:var(--lamp-wash);color:var(--lamp)}.pill.lamp-p i{animation:breath 2.4s ease-in-out infinite}
+.pill.pine-p{background:var(--pine-wash);color:var(--pine)}.pill.cr-p{background:var(--crimson-wash);color:var(--crimson)}.pill.zhu-p{background:var(--zhu-wash);color:var(--zhu)}
+.lamp{width:7px;height:7px;border-radius:50%;background:var(--lamp);box-shadow:0 0 8px 2px var(--lamp-glow);animation:breath 2.4s ease-in-out infinite;flex:none}
+.sq{width:8px;height:8px;border-radius:1px;background:var(--zhu);flex:none}
+.grind{width:11px;height:11px;border-radius:50%;border:1.5px solid var(--l3);border-top-color:var(--lamp);animation:grind 1.4s linear infinite;flex:none}
+.grind.s9{width:9px;height:9px}
+.pm{font:11.5px var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}.plus{color:var(--pine)}.minus{color:var(--crimson)}
+.run-m{display:inline-flex;gap:6px;align-items:center;color:var(--lamp)}
+code{font:12.5px var(--mono);color:var(--t1);background:var(--code);padding:1px 5px;border-radius:3px}
+.pc{display:inline-flex;align-items:center;gap:4px;font:12px var(--mono);color:var(--t1);background:var(--s3);box-shadow:var(--sh1);padding:1px 6px;border-radius:3px;vertical-align:-1px;cursor:pointer;white-space:nowrap;max-width:100%}
+.pc:hover{background:var(--s4)}
+.pc .i{color:var(--t3)}
+.ucard{position:relative;background:var(--s3);box-shadow:var(--sh1);border-radius:8px;padding:12px 14px;font-size:14.5px;line-height:1.72;color:var(--t1)}
+.ucard code{background:var(--s1)}
+.ucard .hov{position:absolute;top:6px;right:6px;display:none;gap:2px}.ucard:hover .hov{display:flex}
+.atts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.att{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;border-radius:3px;background:var(--s1);box-shadow:var(--sh1);font:11.5px var(--mono);color:var(--t2)}
+.att .th{width:16px;height:16px;border-radius:2px;background:linear-gradient(135deg,var(--azure),var(--pine));margin-left:-3px}
+.ufoot{display:flex;align-items:center;gap:8px;margin-top:6px;font:11px var(--mono);color:var(--t4)}
+.bsw{display:inline-flex;align-items:center;gap:2px;height:20px;border-radius:3px;background:var(--s3);box-shadow:var(--sh1);padding:0 2px;font:11px var(--mono);color:var(--t2)}
+.bsw button{width:18px;height:18px;border-radius:2px;display:grid;place-items:center;color:var(--t3);font-size:13px}.bsw button:hover{background:var(--s1);color:var(--t1)}
+.bsw span{padding:0 4px;font-variant-numeric:tabular-nums}
+.ucard.steer{padding-left:17px}.ucard.steer::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:2px;background:var(--lamp);animation:breath 2.4s ease-in-out infinite}
+.ucard.steer.settled::before{background:var(--pine);animation:none}
+.steer-st{display:flex;align-items:center;gap:8px;margin-top:8px;font:11px var(--mono);color:var(--t3)}
+.steer-st .lamp{width:6px;height:6px}
+.ucard.edit{box-shadow:var(--sh1),0 0 0 1.5px var(--zhu);padding:10px 14px}
+.ucard.edit textarea{display:block;width:100%;min-height:74px;border:0;background:transparent;resize:none;outline:0;color:var(--t1);font:14.5px/1.72 var(--sans)}
+.efoot{display:flex;align-items:center;gap:6px;margin-top:6px;font:11px var(--mono);color:var(--t4);white-space:nowrap}
+.efoot span:first-child{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.cap{display:flex;align-items:center;gap:8px;height:24px;margin:8px 0 0 4px;font:11.5px var(--mono);color:var(--t3);white-space:nowrap;overflow:hidden;width:100%}
+.cap:hover{color:var(--t1)}
+.cap i{width:5px;height:5px;border-radius:50%;background:var(--t4);flex:none}
+.cap .lamp{width:6px;height:6px}
+.cap span{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.cap .chev{flex:none}
+.cap-d{margin:4px 0 0 4px;padding:10px 12px;border-radius:8px;background:var(--s1);box-shadow:var(--sh1);font-size:12.5px}
+.cap-d p{font-size:11.5px;color:var(--t3);margin-bottom:6px}
+.cap-d ul{list-style:none}
+.cap-d li{display:flex;gap:8px;align-items:baseline;padding:4px 0;border-top:1px solid var(--l1);font:11.5px var(--mono);color:var(--t3);white-space:nowrap}
+.cap-d li b{font:500 12.5px var(--sans);color:var(--t1);min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cap-d li .src{flex:none}.cap-d li .src.warn{color:var(--ochre)}
+.cap-d li .ml{flex:none;color:var(--t4)}
+.fw > .fb{display:none}.fw.open > .fb{display:block}
+.chev{margin-left:auto;color:var(--t4);transition:transform .24s ease-out;flex:none}
+.fw.open > [data-fold] .chev{transform:rotate(180deg)}
+.work{margin:2px 0 4px -6px}
+.work-h{display:flex;align-items:center;gap:8px;height:30px;padding:0 6px;border-radius:6px;font-size:12.5px;color:var(--t2);cursor:pointer;white-space:nowrap;overflow:hidden;width:100%}
+.work-h:hover{background:var(--s3)}.work-h b{color:var(--t1);font-weight:500}.work-h .i{color:var(--t3)}
+.work-h .fail{color:var(--crimson)}
+.work-h code{font-size:11.5px}
+.mq{display:inline-block;max-width:220px;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom;white-space:nowrap}
+.think{margin:2px 0 8px 30px;padding-left:10px;border-left:1.5px solid var(--l2);color:var(--t2);font-size:12.5px;line-height:1.6;max-width:600px}
+.thread{position:relative;padding-left:22px;margin-left:6px}
+.thread::before{content:"";position:absolute;left:8px;top:8px;bottom:8px;width:1.5px;border-radius:1px;background:var(--l3)}
+.thread.az::before{background:var(--azure);opacity:.5}
+.node{position:absolute;left:-18px;top:50%;margin-top:-4.5px;width:9px;height:9px;border-radius:50%;background:var(--s2);border:1.5px solid var(--l3);z-index:1}
+.node.done{background:var(--pine);border-color:var(--pine)}.node.bg{background:var(--azure);border-color:var(--azure)}.node.fail{background:var(--crimson);border-color:var(--crimson)}
+.node.run{background:var(--lamp);border-color:var(--lamp);box-shadow:0 0 0 3px var(--lamp-wash);animation:breath 2.4s ease-in-out infinite}
+.node.wait{border-radius:1px;background:var(--zhu);border-color:var(--zhu)}
+.node.dash{border-style:dashed}
+.node.skip{background:linear-gradient(135deg,transparent 42%,var(--t4) 42%,var(--t4) 58%,transparent 58%)}
+.node.sm{width:7px;height:7px;margin-top:-3.5px;left:-17px}
+.tr{position:relative;display:flex;align-items:center;gap:8px;height:28px;padding:0 8px;border-radius:6px;font-size:12.5px;color:var(--t2);white-space:nowrap;width:100%;cursor:default}
+.tr:hover{background:var(--s3);box-shadow:var(--sh1)}
+.tr b{color:var(--t1);font-weight:600}
+.tr code{overflow:hidden;text-overflow:ellipsis;min-width:0;font-size:11.5px}
+.tr .i{color:var(--t3)}
+.tr .meta{margin-left:auto;display:flex;gap:8px;align-items:center;font:11.5px var(--mono);color:var(--t4);font-variant-numeric:tabular-nums;flex:none}
+.tr.fail b,.tr.fail .meta{color:var(--crimson)}
+.tr.sub{padding-left:14px}
+.tr .chev{margin-left:0}
+.tb{margin:2px 0 6px 8px;padding:8px 10px;border-radius:6px;background:var(--code);box-shadow:var(--sh1);font:11.5px/1.6 var(--mono);color:var(--t2);white-space:pre-wrap;word-break:break-word}
+.tb.err{color:var(--crimson)}.tb .k{color:var(--t3)}
+.seal{width:36px;height:36px;border-radius:4px;background:var(--zhu);color:var(--on-zhu);font:600 17px/1 var(--serif);display:grid;place-items:center;position:relative;transform:rotate(-1.5deg);box-shadow:0 1px 0 rgba(0,0,0,.18),inset 0 0 0 1px rgba(255,255,255,.35);flex:none}
+.seal::after{content:"";position:absolute;inset:3px;border:1px solid rgba(255,255,255,.6);border-radius:2px}
+.seal:hover{background:var(--zhu-lift)}
+.seal.ghost{background:transparent;color:var(--t2);box-shadow:inset 0 0 0 1.5px var(--l3);transform:none}
+.seal.ghost::after{display:none}.seal.ghost:hover{background:var(--s2);color:var(--t1)}
+.seal.mini{width:17px;height:17px;font-size:9px;border-radius:2px;transform:rotate(-3deg);box-shadow:inset 0 0 0 1px rgba(255,255,255,.35)}
+.seal.mini::after{inset:2px;border-radius:1px}
+.seal.stamping{animation:stamp .16s var(--spring) both}
+.tr-gate{position:relative;padding:4px 0 6px}.tr-gate .node{top:26px;margin-top:0}
+.gate{position:relative;margin-left:-8px;padding:12px 14px;background:var(--s3);box-shadow:var(--sh2);border-radius:8px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 16px;align-items:center}
+.gate > div{min-width:0}
+.gate::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:2px;background:var(--zhu)}
+.gate .mic{font:600 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--zhu)}
+.gate .cmd{margin-top:4px;font-size:13.5px;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gate .facts{margin-top:5px;display:flex;gap:12px;flex-wrap:wrap;font:11.5px var(--mono);color:var(--t3)}
+.gate .facts .dg{color:var(--crimson)}
+.gate .seals{display:flex;gap:8px;align-items:center}
+.gate .gh{grid-column:1/-1;font:11px var(--mono);color:var(--t4)}.gate .gh u{color:var(--t3);margin-left:2px}
+.dc{margin:4px 0 8px 8px;border-radius:8px;background:var(--s3);box-shadow:var(--sh1);overflow:hidden}
+.dc-h{display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border-bottom:1px solid var(--l1);font:11.5px var(--mono);color:var(--t3);white-space:nowrap}
+.dc-h .pc{font-size:11.5px}
+.dc-b{font:11.5px/1.75 var(--mono);background:var(--code)}
+.dl{display:flex;gap:10px;padding:0 10px;white-space:pre;color:var(--t2);overflow:hidden}
+.dl.a{background:var(--pine-wash);color:var(--t1)}.dl.d{background:var(--crimson-wash)}.dl.hk{color:var(--t4);background:var(--s1)}
+.dl .ln{width:24px;text-align:right;color:var(--t4);flex:none}
+.dc-f{display:flex;align-items:center;gap:6px;height:36px;padding:0 8px;border-top:1px solid var(--l1);font:11.5px var(--mono);color:var(--t4)}
+.vd{font:11.5px var(--mono);padding-left:4px}.vd.ok{color:var(--pine)}.vd.no{color:var(--crimson)}
+.prose{font-size:14.5px;line-height:1.72;color:var(--t1)}
+.prose h3{font:600 15px/1.4 var(--sans);margin:2px 0 8px}.prose p{margin:0 0 10px}
+.prose.streaming{color:var(--t2)}
+.caret{display:inline-block;width:2px;height:1em;background:var(--lamp);vertical-align:-2px;margin-left:2px;animation:breath 1s ease-in-out infinite}
+.prose sup.fnr{font:11px var(--mono);color:var(--zhu);margin-left:1px}
+.prose table{border-collapse:collapse;width:100%;margin:6px 0 12px;font-size:13px}
+.prose th{font:600 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--t3);text-align:left;padding:6px 8px;border-bottom:1px solid var(--l2)}
+.prose td{padding:6px 8px;border-bottom:1px solid var(--l1);vertical-align:top}
+.prose td.m{font:12px var(--mono);color:var(--t1)}
+.prose blockquote{margin:6px 0 12px;padding:2px 0 2px 12px;border-left:2px solid var(--l3);color:var(--t2);font-size:13.5px}
+.prose ul.task{list-style:none;margin:0 0 10px 2px}
+.prose ul.task li{display:flex;gap:8px;align-items:center;margin:3px 0;font-size:13.5px}
+.prose ul.task li.done{color:var(--t3)}
+.ck{width:14px;height:14px;border-radius:3px;border:1.5px solid var(--l3);display:inline-grid;place-items:center;flex:none;color:#fff}
+.ck.on{background:var(--pine);border-color:var(--pine)}
+.code,.mer{background:var(--code);border-radius:8px;box-shadow:var(--sh1);margin:8px 0 12px;overflow:hidden}
+.code-h{display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;border-bottom:1px solid var(--l1);font:11.5px var(--mono);color:var(--t3);white-space:nowrap}
+.code-h .i{color:var(--t3)}
+.sep{color:var(--t4)}
+.code pre{font:12.5px/1.6 var(--mono);color:var(--t1);overflow:auto;tab-size:2;padding:8px 0;white-space:normal}
+.cl{display:flex}.cl .g{width:36px;flex:none;text-align:right;padding-right:12px;color:var(--t4);user-select:none;font-variant-numeric:tabular-nums}.cl .l{white-space:pre;padding-right:14px}
+.code .k{color:var(--azure)}.code .s{color:var(--pine)}.code .c{color:var(--t4)}.code .fx{color:var(--ochre)}
+.mer svg{display:block;margin:0 auto;padding:12px 0;max-width:100%}
+.mer .nd{fill:var(--s3);stroke:var(--l3);stroke-width:1}
+.mer .nd.zhu{fill:var(--zhu-wash);stroke:var(--zhu)}
+.mer text{font:12px var(--sans);fill:var(--t1);text-anchor:middle;dominant-baseline:middle}
+.mer .ed{stroke:var(--l3);stroke-width:1.5;fill:none}.mer .ar{fill:var(--l3)}
+.mer .lb{font:10.5px var(--mono);fill:var(--t3)}
+.math{margin:10px 0 12px;padding:12px 0;border-top:1px solid var(--l1);border-bottom:1px solid var(--l1);text-align:center;font:italic 500 17px var(--serif);color:var(--t1)}
+.math .eq{margin-left:16px;font:11px var(--mono);color:var(--t4);font-style:normal;vertical-align:middle}
+.fnotes{margin-top:8px;padding-top:8px;border-top:1px solid var(--l1);font-size:12.5px;color:var(--t2);line-height:1.6;list-style:none}
+.fnotes li{margin:2px 0;padding-left:18px;position:relative}
+.fnotes sup{position:absolute;left:0;top:.35em;font:11px var(--mono);color:var(--t3)}
+.fnotes u{color:var(--t3);margin-left:4px}
+.fcb{display:flex;align-items:center;gap:8px;min-height:32px;padding:4px 10px;border-radius:8px;background:var(--s3);box-shadow:var(--sh1);font-size:12.5px;color:var(--t2);flex-wrap:wrap}
+.fcb .i{color:var(--t3)}
+.acts-f{display:flex;align-items:center;gap:2px}
+.fk{font:11.5px var(--mono);color:var(--t4);margin-left:6px}
+.card{position:relative;display:block;width:100%;background:var(--s3);box-shadow:var(--sh1);border-radius:8px;padding:12px 14px}
+.card + .card{margin-top:8px}
+.card.line{padding-left:17px}.card.line::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:2px}
+.card.az::before{background:var(--azure)}.card.cr::before{background:var(--crimson)}
+.ch{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ch .ttl{font-weight:600;font-size:13.5px;color:var(--t1)}
+.ex{margin-top:8px;font-size:13.5px;line-height:1.65;color:var(--t2);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.cf{display:flex;align-items:center;gap:4px;margin-top:10px;flex-wrap:wrap}
+.cf .m{margin-left:auto}.cf .m.l0{margin-left:0}
+.thread.steps{margin:10px 0 0 2px}
+.step{position:relative;display:flex;gap:8px;align-items:flex-start;padding:5px 8px;border-radius:6px;font-size:13px;color:var(--t1)}
+.step:hover{background:var(--s2)}
+.step .node{top:11px;margin-top:0}
+.step .tx{flex:1;min-width:0}
+.step .d{display:block;font:11px var(--mono);color:var(--t3);margin-top:2px}
+.step.done{color:var(--t3)}.step.done .d{color:var(--t4)}
+.step.skip .tx{color:var(--t4)}
+.bds{display:inline-flex;gap:4px;flex:none;margin-top:1px}
+.prog{height:3px;border-radius:2px;background:var(--l1);margin-top:10px;overflow:hidden}.prog i{display:block;height:100%;background:var(--lamp);border-radius:2px}
+.intr{background:var(--s3);box-shadow:var(--sh2);border-radius:8px;padding:12px 14px}
+.intr h3{font:600 15px/1.4 var(--sans);color:var(--t1);margin:8px 0 2px}
+.intr .desc{font-size:12.5px;color:var(--t2)}
+.choices{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.choice{display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 10px 0 6px;border-radius:6px;background:var(--s2);box-shadow:var(--sh1);font-size:12.5px;color:var(--t1)}
+.choice:hover{background:var(--s4)}
+.bd{width:20px;height:20px;border-radius:4px;display:inline-grid;place-items:center;font:600 11px var(--mono);background:var(--s1);color:var(--t2);flex:none}
+.choice.rec .bd{background:var(--zhu);color:var(--on-zhu)}
+.intr .kb{margin-top:8px;font:11px var(--mono);color:var(--t4)}
+.sub-n{color:var(--azure);font-weight:600;font-size:13.5px}
+.sum{margin-top:6px;font-size:13px;color:var(--t2);line-height:1.6}
+.subs{margin-top:6px;padding:10px 12px;border-radius:8px;background:var(--s1);box-shadow:var(--sh1)}
+.subs-h{display:flex;align-items:center;gap:8px;font:11px var(--mono);color:var(--t3);margin-bottom:6px}
+.subs .tr:hover{background:var(--s2);box-shadow:none}
+.subs .tr code{background:var(--s2)}
+.subs .concl{font-size:13px;line-height:1.6;color:var(--t2);margin:8px 0 0 30px;max-width:600px}
+.subs .link{margin:6px 0 0 24px;display:inline-flex}
+.candl{margin-top:8px;border-top:1px solid var(--l1);padding-top:6px}
+.cand{display:flex;align-items:center;gap:10px;height:36px;padding:0 8px;border-radius:6px;font-size:13px;color:var(--t1);white-space:nowrap}
+.cand:hover{background:var(--s2)}
+.cand .nm{font-weight:500;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.cand .acts{margin-left:auto;gap:4px}
+.cites{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.cite{background:var(--s3);box-shadow:var(--sh1);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;min-width:0;transition:box-shadow .15s}
+.cite:hover{box-shadow:var(--sh2)}
+.cite .dom{display:flex;align-items:center;gap:6px;font:11px var(--mono);color:var(--t3);white-space:nowrap;overflow:hidden}
+.fav{width:16px;height:16px;border-radius:3px;display:grid;place-items:center;font:600 9px var(--mono);background:var(--s1);box-shadow:var(--sh1);color:var(--t2);flex:none}
+.cite .t{font-size:12.5px;font-weight:500;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cite .x{font-size:11.5px;line-height:1.5;color:var(--t2);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.gen{display:flex;align-items:center;gap:10px;min-height:44px;padding:6px 10px;border-radius:8px;background:var(--s3);box-shadow:var(--sh1);font-size:12.5px;color:var(--t1)}
+.gen + .gen{margin-top:6px}
+.gen .tx{flex:1;min-width:0}.gen .tx small{display:block;font:11px var(--mono);color:var(--t3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gen .bar{height:3px;border-radius:2px;background:var(--l1);margin-top:6px;overflow:hidden;position:relative}
+.gen .bar i{position:absolute;top:0;bottom:0;width:30%;border-radius:2px;background:var(--lamp);animation:slide 1.6s ease-in-out infinite alternate}
+.thumb{width:36px;height:36px;border-radius:4px;background:linear-gradient(135deg,var(--azure),var(--pine) 60%,var(--ochre));flex:none;box-shadow:var(--sh1)}
+.bdg{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;flex:none}
+.bdg.err{background:var(--crimson-wash);color:var(--crimson)}
+.fc-h{display:flex;align-items:center;gap:8px;font:11.5px var(--mono);color:var(--t3);white-space:nowrap}
+.fc-h b{color:var(--t1);font-weight:500}.fc-h .i{color:var(--t3)}
+.flip{position:relative;height:150px;margin-top:8px;perspective:1000px;cursor:pointer}
+.face{position:absolute;inset:0;border-radius:8px;box-shadow:var(--sh1);padding:14px 16px;backface-visibility:hidden;-webkit-backface-visibility:hidden;transition:transform .38s var(--spring);display:flex;flex-direction:column}
+.face.front{background:var(--s3)}.face.back{background:var(--s4);transform:rotateY(180deg)}
+.flip.is-back .face.front{transform:rotateY(180deg)}.flip.is-back .face.back{transform:rotateY(0)}
+.face .mic{font:600 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--t4)}
+.face .q{font:500 16px/1.5 var(--serif);color:var(--t1);margin-top:6px;flex:1}
+.face .a{font-size:13.5px;line-height:1.65;color:var(--t1);margin-top:6px;flex:1}
+.face .tags{display:flex;gap:4px;flex-wrap:wrap}
+.face .hint{margin-top:auto;font:11px var(--mono);color:var(--t4);align-self:flex-end}
+.rate{display:flex;align-items:center;gap:6px;margin-top:8px}
+.rate .bd{width:16px;height:16px;font-size:10px;border-radius:3px}
+.rate .m{margin-left:auto}
+.cmp{display:flex;align-items:center;gap:8px;min-height:28px;font-size:12.5px;color:var(--t2)}
+.cmp + .cmp{margin-top:6px}
+.cmp .i{color:var(--pine)}
+.err-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.err-ic{width:24px;height:24px;border-radius:50%;background:var(--crimson-wash);color:var(--crimson);display:grid;place-items:center;flex:none}
+.err-t{font-weight:600;color:var(--t1)}
+.err-m{margin-top:8px;padding:8px 10px;border-radius:6px;background:var(--code);font:11.5px/1.6 var(--mono);color:var(--t2);white-space:pre-wrap;word-break:break-word}
+.arts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.art{background:var(--s3);box-shadow:var(--sh1);border-radius:8px;overflow:hidden;display:flex;flex-direction:column;min-width:0}
+.art-h{display:flex;align-items:center;gap:6px;height:34px;padding:0 6px 0 10px;border-bottom:1px solid var(--l1);font-size:12.5px;color:var(--t1);white-space:nowrap}
+.art-h .ttl{font-weight:500;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.abg{display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:3px;font:600 10px var(--mono);letter-spacing:.04em;background:var(--s1);color:var(--t3);flex:none}
+.abg.oc{background:transparent;box-shadow:inset 0 0 0 1px var(--ochre);color:var(--ochre)}
+.abg.az{background:var(--azure-wash);color:var(--azure)}
+.art-b{background:var(--s2);min-height:100px;padding:12px;font-size:12px;color:var(--t2);flex:1;line-height:1.55}
+.mock{display:grid;gap:6px}.mock i{display:block;height:8px;border-radius:2px;background:var(--l2)}
+.mock .w60{width:60%}.mock .w80{width:80%}
+.mock .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.mock .grid i{height:36px;background:var(--s3);box-shadow:var(--sh1);border-radius:4px}
+.art-b pre{font:11.5px/1.6 var(--mono);color:var(--t1);white-space:pre-wrap;word-break:break-word}
+.art-b .facts{display:flex;gap:10px;flex-wrap:wrap;font:11.5px var(--mono);color:var(--t3);margin-top:8px}
+.launch{display:flex;align-items:center;gap:8px;min-height:76px}
+.launch .i{color:var(--t3)}
+.loc{display:flex;align-items:center;gap:8px;height:28px;font-size:12.5px;color:var(--t2);white-space:nowrap}
+.loc .ph{background:linear-gradient(90deg,var(--t3) 0,var(--t1) 50%,var(--t3) 100%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:sheen 2.4s linear infinite}
+.draw{animation:draw .24s ease-out both;animation-delay:var(--d,0ms)}
+.draw .node{animation:nodein .22s ease-out both;animation-delay:calc(var(--d,0ms) + 200ms)}
+.live .last .node{background:var(--s2)}
+.app[data-state=running] .live .last .node{background:var(--lamp);border-color:var(--lamp);box-shadow:0 0 0 3px var(--lamp-wash);animation:breath 2.4s ease-in-out infinite}
+.app[data-state=idle] .live .last .node{background:var(--pine);border-color:var(--pine)}
+.app[data-state=waiting] .live .last{opacity:.5}
+.rail{position:absolute;right:10px;top:40px;bottom:64px;width:32px;z-index:3;display:flex;flex-direction:column;align-items:flex-end;padding:8px 6px 0 0;gap:10px}
+.tick{width:10px;height:1px;background:var(--t4);border-radius:1px;transition:width .15s,background .15s;position:relative;cursor:pointer;flex:none}
+.tick:hover{width:30px;background:var(--t2)}
+.tick:hover + .tick,.tick:has(+ .tick:hover){width:22px}
+.tick.on{width:30px;height:2px;background:var(--zhu)}
+.rail.pulse .tick{background:var(--zhu);width:30px}
+.pv{display:none;position:absolute;right:38px;top:-14px;width:220px;padding:8px 10px;border-radius:8px;background:var(--s4);box-shadow:var(--sh3);font:12px/1.5 var(--sans);color:var(--t1);white-space:normal;text-align:left}
+.pv small{display:block;font:10.5px var(--mono);color:var(--t4);margin-bottom:2px}
+.tick.on .pv,.tick:hover .pv{display:block}
+.app[data-notes=on] .rail::after{content:"26";position:absolute;right:2px;bottom:-26px;width:24px;height:20px;border-radius:3px;background:var(--s3);box-shadow:var(--sh1);font:600 10.5px/20px var(--mono);text-align:center;color:var(--t3)}
+@keyframes breath{0%,100%{opacity:.6}50%{opacity:1}}
+@keyframes grind{to{transform:rotate(360deg)}}
+@keyframes sheen{from{background-position:200% 0}to{background-position:-200% 0}}
+@keyframes stamp{0%{transform:scale(.88) rotate(-7deg);opacity:.5}60%{transform:scale(1.05) rotate(-1deg);opacity:1}100%{transform:scale(1) rotate(-1.5deg)}}
+@keyframes draw{from{clip-path:inset(0 0 100% 0);opacity:0}to{clip-path:inset(0);opacity:1}}
+@keyframes nodein{from{transform:scale(.3);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes slide{from{left:0}to{left:70%}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head><body>
+<svg width="0" height="0" style="position:absolute"><defs>
+<symbol id="panelr" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M10 3v10"/></symbol>
+<symbol id="search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></symbol>
+<symbol id="chevd" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></symbol>
+<symbol id="copy" viewBox="0 0 16 16"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M3 10.5V4a1.5 1.5 0 0 1 1.5-1.5H10.5"/></symbol>
+<symbol id="fork" viewBox="0 0 16 16"><circle cx="8" cy="3" r="1.5"/><circle cx="4" cy="13" r="1.5"/><circle cx="12" cy="13" r="1.5"/><path d="M8 4.5v2c0 1.5-4 1.5-4 5M8 6.5c0 1.5 4 1.5 4 5"/></symbol>
+<symbol id="refresh" viewBox="0 0 16 16"><path d="M13 8A5 5 0 1 1 11.6 4.5M13.5 2.5v3h-3"/></symbol>
+<symbol id="file" viewBox="0 0 16 16"><path d="M4 2h5l3 3v9H4zM9 2v3h3"/></symbol>
+<symbol id="expand" viewBox="0 0 16 16"><path d="M9.5 2H14v4.5M6.5 14H2V9.5M14 2L9 7M2 14l5-5"/></symbol>
+<symbol id="cards" viewBox="0 0 16 16"><rect x="3" y="4.5" width="8.5" height="9" rx="1.5"/><path d="M6 4.5V3.5A1.5 1.5 0 0 1 7.5 2h4A1.5 1.5 0 0 1 13 3.5V10"/></symbol>
+<symbol id="bulb" viewBox="0 0 16 16"><path d="M8 2.5A4.2 4.2 0 0 0 3.8 6.7c0 1.7 1 2.6 1.7 3.4.4.5.5.9.5 1.4h4c0-.5.1-.9.5-1.4.7-.8 1.7-1.7 1.7-3.4A4.2 4.2 0 0 0 8 2.5zM6.5 13.5h3"/></symbol>
+<symbol id="brain" viewBox="0 0 16 16"><path d="M7.5 3.2A2.2 2.2 0 0 0 4 4.5a2 2 0 0 0-1 3.4A2.2 2.2 0 0 0 4.2 11.8 2.1 2.1 0 0 0 7.5 12.8zM8.5 3.2A2.2 2.2 0 0 1 12 4.5a2 2 0 0 1 1 3.4 2.2 2.2 0 0 1-1.2 3.9 2.1 2.1 0 0 1-3.3 1zM8 3v10"/></symbol>
+<symbol id="git" viewBox="0 0 16 16"><circle cx="8" cy="4" r="1.6"/><circle cx="8" cy="12" r="1.6"/><path d="M8 5.6v4.8"/></symbol>
+<symbol id="edit" viewBox="0 0 16 16"><path d="M11.5 2.5l2 2L6 12H4v-2z"/></symbol>
+<symbol id="check" viewBox="0 0 16 16"><path d="M3 8.5l3.2 3L13 4.5"/></symbol>
+<symbol id="alert" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5M8 11v.01"/></symbol>
+<symbol id="ext" viewBox="0 0 16 16"><path d="M7 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V9M9 2h5v5M14 2L7.5 8.5"/></symbol>
+<symbol id="doc" viewBox="0 0 16 16"><path d="M4 2h5l3 3v9H4zM9 2v3h3M6 8h4M6 11h4"/></symbol>
+<symbol id="eye" viewBox="0 0 16 16"><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></symbol>
+<symbol id="flow" viewBox="0 0 16 16"><rect x="2" y="3" width="5" height="4" rx="1"/><rect x="9" y="9" width="5" height="4" rx="1"/><path d="M7 5h2.5a1.5 1.5 0 0 1 1.5 1.5V9"/></symbol>
+</defs></svg>
+
+<div class="app" id="app" data-face="paper" data-state="idle" data-marg="auto" data-notes="on">
+<div class="proto">
+ <span class="pt">Inkstone（砚）· 增量 1 · 转录全解剖</span>
+ <span class="pl">面</span><span class="seg"><button class="on" data-set="face" data-v="paper">纸</button><button data-set="face" data-v="ink">墨</button></span>
+ <span class="pl">状态</span><span class="seg"><button class="on" data-set="state" data-v="idle">就绪</button><button data-set="state" data-v="running">运行中</button><button data-set="state" data-v="waiting">等待批准</button></span>
+ <span class="pl">批注列</span><span class="seg"><button class="on" data-set="marg" data-v="auto">自动 ≥1080</button><button data-set="marg" data-v="on">开</button><button data-set="marg" data-v="off">关</button></span>
+ <span class="pl">标注</span><span class="seg"><button class="on" data-set="notes" data-v="on">开</button><button data-set="notes" data-v="off">关</button></span>
+ <span class="pn">状态只作用于第四节 · 等待批准时 Enter 盖印允许 · Esc 拒绝</span>
+</div>
+
+<div class="body">
+ <aside class="panel">
+  <div class="idx-h">转录解剖<small>26 块 · 点击跳转 · 右缘编号对应 02-transcript-anatomy.md §1–§2</small></div>
+  <div class="idx-scroll">
+   <div class="ig">一 · 一轮的解剖</div>
+   <button class="ir on" data-go="b01"><span class="n">01</span>用户消息 · 附件 · 分支</button>
+   <button class="ir" data-go="b02"><span class="n">02</span>上下文装配胶囊</button>
+   <button class="ir" data-go="b03"><span class="n">03</span>工作折叠头</button>
+   <button class="ir" data-go="b04"><span class="n">04</span>墨线工具链</button>
+   <button class="ir" data-go="b05"><span class="n">05</span>差异卡</button>
+   <button class="ir" data-go="b06"><span class="n">06</span>助手正文 · 页边批注</button>
+   <button class="ir" data-go="b07"><span class="n">07</span>文件变更条</button>
+   <button class="ir" data-go="b08"><span class="n">08</span>走查报告</button>
+   <button class="ir" data-go="b09"><span class="n">09</span>消息操作</button>
+   <button class="ir" data-go="b10"><span class="n">10</span>介入 / 转向消息</button>
+   <button class="ir" data-go="b11"><span class="n">11</span>就地编辑</button>
+   <div class="ig">二 · 卡片目录</div>
+   <button class="ir" data-go="b12"><span class="n">12</span>计划卡</button>
+   <button class="ir" data-go="b13"><span class="n">13</span>计划执行门</button>
+   <button class="ir" data-go="b14"><span class="n">14</span>子代理卡 · 内联子会话</button>
+   <button class="ir" data-go="b15"><span class="n">15</span>候选方案</button>
+   <button class="ir" data-go="b16"><span class="n">16</span>引用卡</button>
+   <button class="ir" data-go="b17"><span class="n">17</span>媒体生成进度</button>
+   <button class="ir" data-go="b18"><span class="n">18</span>知识卡片投影</button>
+   <button class="ir" data-go="b19"><span class="n">19</span>压缩活动</button>
+   <button class="ir" data-go="b20"><span class="n">20</span>错误卡</button>
+   <div class="ig">三 · Markdown 与 Artifact</div>
+   <button class="ir" data-go="b21"><span class="n">21</span>Markdown 基础块</button>
+   <button class="ir" data-go="b22"><span class="n">22</span>Mermaid · 公式 · 脚注</button>
+   <button class="ir" data-go="b23"><span class="n">23</span>Artifact 三态 · 拦截</button>
+   <div class="ig">四 · 实时</div>
+   <button class="ir" data-go="b24" data-state="waiting"><span class="n">24</span>权限门（印）</button>
+   <button class="ir" data-go="b25" data-state="running"><span class="n">25</span>流式 · 定位器 · 下描</button>
+   <button class="ir" data-go="rail"><span class="n">26</span>历史刻度</button>
+  </div>
+  <div class="legend">
+   <div><i class="lg"></i>待</div><div><i class="lg done"></i>成</div><div><i class="lg run"></i>跑</div><div><i class="lg wait"></i>等你</div><div><i class="lg bg"></i>后台</div><div><i class="lg fail"></i>失败</div>
+  </div>
+ </aside>
+
+ <main class="panel stage">
+  <div class="scroll" id="scroll">
+
+   <div class="st" id="s1"><h2>一 · 一轮的解剖</h2><span class="sn">01–11 · 自上而下 · 用户消息是唯一有卡底的正文</span></div>
+
+   <article class="turn">
+    <aside class="marg"><span class="who">我</span><span>14:02</span><span>分支 2 / 3</span></aside>
+    <div>
+     <div class="head"><span class="who">我</span><span>14:02</span><span>分支 2 / 3</span></div>
+     <div class="blk" id="b01" data-n="01">
+      <div class="ucard">
+       <span class="hov"><button class="ib s22" title="编辑"><svg class="i s14"><use href="#edit"/></svg></button><button class="ib s22" title="复制"><svg class="i s14"><use href="#copy"/></svg></button></span>
+       把作曲器运行中的 <code>Enter</code> 改成排队，<code>⌘Enter</code> 保持介入；补回归测试，别动侧栏。
+       <div class="atts"><span class="att"><svg class="i s12"><use href="#file"/></svg>composer-dock.test.tsx</span><span class="att"><span class="th"></span>截图 2026-09-03.png</span><span class="att">@ AGENTS.md §3.3</span></div>
+      </div>
+      <div class="ufoot"><span class="bsw"><button title="上一个分支">‹</button><span>2 / 3</span><button title="下一个分支">›</button></span><span>· 分叉的提问 · 运行中禁用切换 · 双击进入就地编辑</span></div>
+     </div>
+     <div class="blk" id="b02" data-n="02">
+      <div class="var">准备中</div>
+      <div class="cap"><span class="lamp"></span><span>正在装配 · 收集本轮 Host 注入…</span></div>
+      <div class="var">就绪 · 点击展开</div>
+      <div class="fw">
+       <div class="cap" data-fold><i></i><span>本轮装配内容 · 约 12.4k tokens（估算）· 系统提示 · AGENTS.md · composer-card.tsx · 技能 ×1</span><svg class="i s12 chev"><use href="#chevd"/></svg></div>
+       <div class="cap-d fb">
+        <p>以下是 Host 装配层收集的内容，不是模型最终收到的请求。</p>
+        <ul>
+         <li><b>系统提示</b><span class="src">Host 装配</span><span class="ml">约 3.1k</span></li>
+         <li><b>AGENTS.md</b><span class="src">项目</span><span class="ml">约 4.6k</span></li>
+         <li><b>apps/desktop/src/composer-card.tsx</b><span class="src">本地文件</span><span class="ml">约 3.9k</span></li>
+         <li><b>技能 · karpathy-guidelines</b><span class="src">Host 装配</span><span class="ml">约 0.6k</span></li>
+         <li><b>web_fetch · docs.claude.com</b><span class="src warn">外部网页（不可信）</span><span class="ml">约 0.2k</span></li>
+        </ul>
+       </div>
+      </div>
+     </div>
+    </div>
+   </article>
+
+   <article class="turn">
+    <aside class="marg"><span class="av">C</span><span>Sonnet 4.6</span><span>14:03</span><span>3.1k · 41s</span></aside>
+    <div>
+     <div class="head"><span class="av">C</span><span>Sonnet 4.6</span><span>14:03</span><span>3.1k · 41s</span></div>
+     <div class="blk work fw open" id="b03" data-n="03">
+      <div class="work-h" data-fold><svg class="i"><use href="#bulb"/></svg><span><b>已工作 41s</b> · 5 个工具 · 2 个文件 · <span class="fail">1 次失败</span></span><svg class="i s12 chev"><use href="#chevd"/></svg></div>
+      <div class="fb">
+       <div class="var" style="margin:6px 0 4px 6px">其余两态 · 图标即状态 · 灯 = 运行 · 朱方 = 等你</div>
+       <div class="work-h" style="cursor:default"><span class="lamp"></span><span><b>正在运行</b> · 第 5 个工具 · <code>pnpm typecheck</code></span><svg class="i s12 chev"><use href="#chevd"/></svg></div>
+       <div class="work-h" style="cursor:default"><span class="sq"></span><span><b>等待你批准</b> · 写入 <code>composer-run-actions.tsx</code></span><svg class="i s12 chev"><use href="#chevd"/></svg></div>
+       <div class="think">Enter 在运行中应进 SteerQueue 而不是 transcript；⌘Enter 仍走 triggerSteer。先读 composer-card.tsx 第 5 段的键盘分发，再改 handleSend 的 streaming 分支。</div>
+       <div class="thread">
+        <div class="blk" id="b04" data-n="04">
+         <div class="tr"><span class="node done"></span><b>read</b><code>apps/desktop/src/composer-card.tsx</code><span class="meta">1.2k 行 · 40ms</span></div>
+         <div class="fw open">
+          <div class="tr" data-fold style="cursor:pointer"><span class="node done"></span><svg class="i s14"><use href="#search"/></svg><b>探索了 3 个文件</b><span>· 2 次搜索</span><span class="meta">6 工具 · 1.8s<svg class="i s12 chev"><use href="#chevd"/></svg></span></div>
+          <div class="fb">
+           <div class="tr sub"><span class="node sm done"></span><b>grep</b><code>"queued-turn"</code><span class="meta">7 处 · 3 文件</span></div>
+           <div class="tr sub"><span class="node sm done"></span><svg class="i s14"><use href="#brain"/></svg><span>已思考 3 秒</span><span class="meta">思考</span></div>
+           <div class="tr sub"><span class="node sm done"></span><b>read</b><code>apps/desktop/src/steer-queue-model.ts</code><span class="meta">88 行</span></div>
+           <div class="tr sub"><span class="node sm done"></span><b>grep</b><code>triggerSteer</code><span class="meta">4 处</span></div>
+           <div class="tr sub"><span class="node sm done"></span><b>read</b><code>apps/desktop/src/composer-run-actions.tsx</code><span class="meta">212 行</span></div>
+          </div>
+         </div>
+         <div class="fw open">
+          <div class="tr fail" data-fold style="cursor:pointer"><span class="node fail"></span><b>bash</b><code>pnpm vitest composer-dock</code><span class="meta">1 失败 · 6.2s<svg class="i s12 chev"><use href="#chevd"/></svg></span></div>
+          <div class="fb"><div class="tb err"><span class="k">FAIL</span> composer-dock.test.tsx › queues Enter while streaming
+  expected "steer" to be "queue"
+  at composer-dock.test.tsx:148:7</div></div>
+         </div>
+         <div class="tr"><span class="node done"></span><b>write_file</b><code>apps/desktop/src/composer-run-actions.tsx</code><span class="meta"><span class="pm"><span class="plus">+48</span> <span class="minus">−12</span></span><span class="seal mini" title="已批准 · 允许一次">允</span></span></div>
+        </div>
+        <div class="blk" id="b05" data-n="05">
+         <div class="dc">
+          <div class="dc-h"><span class="pc"><svg class="i s12"><use href="#file"/></svg>composer-run-actions.tsx</span><span class="pm"><span class="plus">+48</span> <span class="minus">−12</span></span><span class="sep">·</span><span>@@ 85,7 @@</span><span class="acts ml"><button class="btn sm">打开</button><button class="btn sm">回滚</button><button class="btn sm">全部差异 ↗</button></span></div>
+          <div class="dc-b">
+           <div class="dl hk"><span class="ln"></span>@@ -85,7 +85,9 @@ resolvePrimaryAction(input)</div>
+           <div class="dl"><span class="ln">85</span>  if (streaming) {</div>
+           <div class="dl d"><span class="ln">86</span>-   return { kind: 'pause', label: t.pause };</div>
+           <div class="dl a"><span class="ln">86</span>+   if (draft.trim()) return { kind: 'queue', label: t.queueFollowUp };</div>
+           <div class="dl a"><span class="ln">87</span>+   return { kind: 'pause', label: t.pause };</div>
+           <div class="dl"><span class="ln">88</span>  }</div>
+          </div>
+          <div class="dc-f"><span>2 处修改 · 已写入磁盘 · 拒绝 = 回滚此文件</span><span class="acts ml"><button class="btn sm dan" data-verdict="no">拒绝</button><button class="btn sm pri" data-verdict="ok">接受</button></span></div>
+         </div>
+        </div>
+        <div class="tr"><span class="node done"></span><b>bash</b><code>pnpm typecheck</code><span class="meta">4.1s</span></div>
+       </div>
+      </div>
+     </div>
+     <div class="blk prose" id="b06" data-n="06">
+      <h3>已改为排队语义</h3>
+      <p>运行中的 <code>Enter</code> 现在走 <code>handleSend → session/queued-turn-submit</code>，消息进 SteerQueue 而不进 transcript；<code>⌘Enter</code> 仍触发 <code>triggerSteer</code>。IME 组合期间两者都被抑制。</p>
+      <p>回归测试在 <span class="pc"><svg class="i s12"><use href="#file"/></svg>composer-dock.test.tsx</span> 新增「queues Enter and steers Command+Enter while streaming」；<span class="pc"><svg class="i s12"><use href="#file"/></svg>composer-run-actions.test.tsx</span> 覆盖 Pause / 排队发送的 aria 文案。没有触碰侧栏。</p>
+     </div>
+     <div class="blk" id="b07" data-n="07">
+      <div class="fcb"><svg class="i"><use href="#git"/></svg><span>2 个文件已更改</span><span class="pm"><span class="plus">+48</span> <span class="minus">−12</span></span><span class="pc"><svg class="i s12"><use href="#file"/></svg>composer-run-actions.tsx</span><span class="pc"><svg class="i s12"><use href="#file"/></svg>composer-dock.test.tsx</span><button class="btn sm ml">审查 ↗</button></div>
+     </div>
+     <div class="blk" id="b08" data-n="08">
+      <div class="card">
+       <div class="ch"><span class="ttl">走查报告</span><span class="pill pine-p"><i></i>就绪</span><span class="m">默认 · anthropic/claude-sonnet-4-6 · 14:04</span></div>
+       <div class="ex">本轮把作曲器运行中的 Enter 从「介入」改为「排队」：handleSend 在 streaming 时转发 session/queued-turn-submit，⌘Enter 保留 triggerSteer。新增 2 条回归测试并全部通过；typecheck 无回归。未触碰侧栏与 Host 契约。</div>
+       <div class="cf"><button class="btn sm">作为文档查看 ↗</button><button class="btn sm">重新生成</button><button class="btn sm">复制</button><span class="m">1.2k tokens · 9s</span></div>
+      </div>
+      <div class="var">其余状态</div>
+      <div class="card" style="padding:8px 14px"><div class="ch"><span class="ttl">走查报告</span><span class="pill lamp-p"><i></i>生成中</span><span class="m">默认 · claude-sonnet-4-6</span><span class="run-m ml"><span class="grind"></span>6s</span></div></div>
+      <div class="card" style="padding:8px 14px"><div class="ch"><span class="ttl">走查报告</span><span class="pill cr-p"><i></i>错误</span><span class="m">provider timeout · 30s</span><button class="btn sm pri ml">重试</button></div></div>
+     </div>
+     <div class="blk" id="b09" data-n="09">
+      <div class="acts-f"><button class="ib" title="复制消息内容"><svg class="i"><use href="#copy"/></svg></button><button class="ib" title="分叉会话"><svg class="i"><use href="#fork"/></svg></button><button class="ib" title="另生成一版"><svg class="i"><use href="#refresh"/></svg></button><span class="fk">1 个分叉 · 3.1k tokens · 41s</span></div>
+     </div>
+    </div>
+   </article>
+
+   <article class="turn">
+    <aside class="marg"><span class="who">我</span><span>14:03</span><span>介入</span></aside>
+    <div>
+     <div class="head"><span class="who">我</span><span>14:03</span><span>介入</span></div>
+     <div class="blk" id="b10" data-n="10">
+      <div class="ucard steer">别动 <code>permission-bar.tsx</code>，权限条本轮不合并。<div class="steer-st"><span class="lamp"></span><span>正在应用到下一次回复</span><span class="acts ml"><button class="link">编辑这条调整</button><button class="link">取消这条调整</button></span></div></div>
+      <div class="var">落定 · 左线转松</div>
+      <div class="ucard steer settled">别动 <code>permission-bar.tsx</code>，权限条本轮不合并。<div class="steer-st"><svg class="i s12" style="color:var(--pine)"><use href="#check"/></svg><span>已应用到当前任务</span><span class="m ml">14:03</span></div></div>
+      <div class="var">其余状态 mono · 等待当前步骤完成 · 当前任务已结束，未应用 · 已取消 · 是否应用无法确认 · 未能应用</div>
+     </div>
+    </div>
+   </article>
+
+   <article class="turn">
+    <aside class="marg"><span class="who">我</span><span>14:02</span><span>编辑中</span></aside>
+    <div>
+     <div class="head"><span class="who">我</span><span>14:02</span><span>编辑中</span></div>
+     <div class="blk" id="b11" data-n="11">
+      <div class="ucard edit">
+       <textarea rows="3">把作曲器运行中的 Enter 改成排队，⌘Enter 保持介入；补回归测试，别动侧栏，也别动权限条。</textarea>
+       <div class="efoot"><span>Enter 发送新版本 · ⇧Enter 换行 · Esc 取消 · 将作为分支 3 / 3</span><span class="acts ml"><button class="btn sm">取消</button><button class="btn sm pri">发送新版本</button></span></div>
+      </div>
+     </div>
+    </div>
+   </article>
+
+   <div class="st" id="s2"><h2>二 · 卡片目录</h2><span class="sn">12–20 · 同级并列 · 禁止卡中卡</span></div>
+
+   <article class="turn">
+    <aside class="marg"><span class="av">C</span><span>Sonnet 4.6</span><span>14:06</span></aside>
+    <div>
+     <div class="head"><span class="av">C</span><span>Sonnet 4.6</span><span>14:06</span></div>
+     <div class="blk" id="b12" data-n="12">
+      <div class="card">
+       <div class="ch"><span class="ttl">计划 · 作曲器排队语义</span><span class="pill lamp-p"><i></i>执行中</span><span class="m">2 / 4</span><button class="ib s22 ml" title="打开计划文档"><svg class="i s14"><use href="#doc"/></svg></button></div>
+       <div class="thread steps">
+        <div class="step done"><span class="node done"></span><span class="tx">读取键盘分发与 SteerQueue 模型<span class="d">composer-card.tsx §5 · steer-queue-model.ts · 验收：列出 Enter / ⌘Enter 分支</span></span></div>
+        <div class="step done"><span class="node done"></span><span class="tx">改 handleSend 的 streaming 分支为 queued-turn<span class="d">验收：pnpm vitest composer-dock 通过</span></span><span class="bds"><span class="tag">并行 A</span></span></div>
+        <div class="step"><span class="node run"></span><span class="tx">补回归测试与 aria 文案<span class="d">composer-dock.test.tsx · composer-run-actions.test.tsx</span></span><span class="bds"><span class="tag">并行 A</span></span></div>
+        <div class="step"><span class="node dash"></span><span class="tx">typecheck + 更新 ADR 0045 说明<span class="d">验收：pnpm typecheck 绿</span></span><span class="bds"><span class="tag">依赖 2 3</span></span></div>
+        <div class="step skip"><span class="node skip"></span><span class="tx">合并权限条<span class="d">已跳过 · 用户介入</span></span></div>
+       </div>
+       <div class="prog"><i style="width:50%"></i></div>
+       <div class="cf"><span class="m l0">2 / 4 完成 · 1 跳过 · 已运行 1m 12s</span><button class="btn sm dan ml">中止</button></div>
+      </div>
+     </div>
+     <div class="blk" id="b13" data-n="13">
+      <div class="intr">
+       <span class="pill zhu-p"><i></i>选择执行方式</span>
+       <h3>怎么执行这个计划？</h3>
+       <div class="desc">作曲器排队语义 · 4 步 · 2 步可并行</div>
+       <div class="choices"><button class="choice rec"><span class="bd">A</span>推荐 · 子代理执行</button><button class="choice"><span class="bd">B</span>当前会话直接做</button></div>
+       <div class="kb">A / B 直接按键 · 出现在作曲器上方 · 安全提示占位时让位 · Conversation 会话不显示</div>
+      </div>
+     </div>
+     <div class="blk fw open" id="b14" data-n="14">
+      <div class="card line az" data-fold style="cursor:pointer">
+       <div class="ch"><span class="sub-n">reviewer · 审查作曲器改动</span><span class="chip">reviewer</span><span class="chip"><span class="av">C</span>Sonnet 4.6</span><span class="m">已完成 · 38s · 2.4k</span><svg class="i s12 chev"><use href="#chevd"/></svg></div>
+       <div class="sum">检查 handleSend 的 streaming 分支与 SteerQueue 契约；确认 ⌘Enter 仍走 triggerSteer；建议补 IME 组合期测试。</div>
+      </div>
+      <div class="subs fb">
+       <div class="subs-h"><svg class="i s12"><use href="#eye"/></svg>只读子会话 · 12 条 · 只观察，不导航</div>
+       <div class="thread az">
+        <div class="tr"><span class="node bg"></span><b>read</b><code>apps/desktop/src/composer-card.tsx</code><span class="meta">1.2k 行</span></div>
+        <div class="tr"><span class="node bg"></span><b>grep</b><code>triggerSteer</code><span class="meta">4 处</span></div>
+        <div class="tr"><span class="node bg"></span><b>bash</b><code>pnpm vitest composer-dock --run</code><span class="meta">46 通过</span></div>
+       </div>
+       <div class="concl">结论：语义正确。<code>isComposingRef</code> 在 Enter 分支被检查，但 ⌘Enter 分支绕过 IME 保护是有意的（第 5 段注释）。建议新增「组合期间 Enter 不排队」用例。</div>
+       <button class="link">查看完整会话 ↗</button>
+      </div>
+      <div class="var">其余状态 · 名称青色 · 状态 mono 中文</div>
+      <div class="card line az" style="padding:8px 14px 8px 17px"><div class="ch"><span class="sub-n">tester · 补 IME 用例</span><span class="chip">tester</span><span class="m"><span class="run-m"><span class="grind s9"></span>运行中 · 12s</span></span></div></div>
+      <div class="card line cr" style="padding:8px 14px 8px 17px"><div class="ch"><span class="sub-n" style="color:var(--crimson)">scout · 扫描 Host 契约</span><span class="chip">scout</span><span class="m" style="color:var(--crimson)">失败 · 超时 120s</span><button class="btn sm ml">重试</button></div></div>
+     </div>
+     <div class="blk" id="b15" data-n="15">
+      <div class="card">
+       <div class="ch"><span class="ttl">候选方案</span><span class="m">2 个工作树 · 采用后合并到当前分支</span></div>
+       <div class="candl">
+        <div class="cand"><i class="lg bg"></i><span class="nm">coder-A · 排队走 SteerQueue</span><span class="m">3 个文件</span><span class="pm"><span class="plus">+62</span> <span class="minus">−14</span></span><span class="acts"><button class="btn sm">查看差异</button><button class="btn sm ok">✓ 已采用</button></span></div>
+        <div class="cand"><i class="lg bg"></i><span class="nm">coder-B · 排队走 pendingIntervention</span><span class="m">2 个文件</span><span class="pm"><span class="plus">+40</span> <span class="minus">−31</span></span><span class="acts"><button class="btn sm">查看差异</button><button class="btn sm pri">采用此方案</button><button class="btn sm">手动合并</button></span></div>
+       </div>
+      </div>
+     </div>
+    </div>
+   </article>
+
+   <article class="turn">
+    <aside class="marg"><span class="av">G</span><span>GPT-5.4</span><span>14:07</span></aside>
+    <div>
+     <div class="head"><span class="av">G</span><span>GPT-5.4</span><span>14:07</span></div>
+     <div class="blk" id="b16" data-n="16">
+      <div class="prose"><p>关于流式期间 Enter 的处理，主流 Agent 客户端分为「排队」与「介入」两派<sup class="fnr">[1]</sup>：</p></div>
+      <div class="cites">
+       <a class="cite" href="#"><span class="dom"><span class="fav">GH</span>github.com</span><span class="t">Cursor Agent · queue follow-up messages</span><span class="x">Follow-up prompts typed while the agent runs are queued and sent after the current step finishes…</span></a>
+       <a class="cite" href="#"><span class="dom"><span class="fav">CL</span>docs.claude.com</span><span class="t">Claude Code · Interrupting and steering</span><span class="x">Press Escape to interrupt; typing while Claude works adds the message to the queue.</span></a>
+       <a class="cite" href="#"><span class="dom"><span class="fav">Z</span>zed.dev</span><span class="t">Agent Panel — follow-ups and cancellation</span><span class="x">Follow-up messages are held until the assistant finishes the current turn…</span></a>
+      </div>
+     </div>
+     <div class="blk" id="b17" data-n="17">
+      <div class="gen"><span class="grind"></span><div class="tx">正在生成图片<small>gpt-image-1 · 1024×1024 · 「砚台上的一盏铜灯，宣纸背景」</small><div class="bar"><i></i></div></div><button class="btn sm">取消</button></div>
+      <div class="gen"><span class="thumb"></span><div class="tx">图片生成完成<small>gpt-image-1 · 1024×1024 · 8.4s · ~/.piwin/media/gen/0192a…png</small></div><span class="acts"><button class="btn sm">打开</button><button class="btn sm">资料库 ↗</button></span></div>
+      <div class="gen"><span class="bdg err"><svg class="i s12"><use href="#alert"/></svg></span><div class="tx">视频生成失败<small>veo-3 · 生成接口返回错误，可以重试 · 429 rate_limited</small></div><button class="btn sm pri">重试</button></div>
+     </div>
+     <div class="blk" id="b18" data-n="18">
+      <div class="fc-h"><svg class="i s14"><use href="#cards"/></svg><b>生成了 3 张知识卡片</b><span>· 牌组 piwin/composer · 点击翻转</span><span class="ml">1 / 3</span></div>
+      <div class="flip" id="flip1">
+       <div class="face front"><span class="mic">问</span><div class="q">作曲器运行中按 Enter 与 ⌘Enter 分别触发什么？</div><div class="tags"><span class="tag">composer</span><span class="tag">keyboard</span><span class="tag">ADR 0045</span></div><span class="hint">点击翻转</span></div>
+       <div class="face back"><span class="mic">答</span><div class="a">Enter → 排队为后续轮（SteerQueue，不进 transcript）；⌘Enter → 介入当前运行（triggerSteer）。IME 组合期间 Enter 被抑制。</div><span class="hint">Leitner 盒 1 · 下次 明天</span></div>
+      </div>
+      <div class="rate"><button class="btn sm"><span class="bd">1</span>忘了</button><button class="btn sm"><span class="bd">2</span>模糊</button><button class="btn sm"><span class="bd">3</span>记得</button><button class="btn sm"><span class="bd">4</span>熟练</button><span class="m">评分后进入下一张 · 1–4 直接按键</span></div>
+     </div>
+    </div>
+   </article>
+
+   <article class="turn">
+    <aside class="marg"><span class="av">C</span><span>Sonnet 4.6</span><span>14:08</span></aside>
+    <div>
+     <div class="head"><span class="av">C</span><span>Sonnet 4.6</span><span>14:08</span></div>
+     <div class="blk" id="b19" data-n="19">
+      <div class="cmp"><span class="grind"></span><span>正在整理上下文</span><span class="m">12s</span><button class="btn sm ml">取消</button></div>
+      <div class="var">落定 · 同一节点，不换横幅</div>
+      <div class="fw">
+       <div class="cmp"><svg class="i s14"><use href="#check"/></svg><span>上下文已整理</span><span class="m">耗时 3.2s · Tokens 128k → 41k</span><button class="link" data-fold>查看整理摘要</button><button class="btn sm ml">收起</button></div>
+       <div class="tb fb" style="margin-left:22px">摘要：用户要求把作曲器运行中的 Enter 改为排队、⌘Enter 保留介入；已读 composer-card.tsx §5、steer-queue-model.ts；决定 D1 走 session/queued-turn-submit，D2 保留 triggerSteer，D3 不动权限条。保留 2 个 @ 引用与 AGENTS.md §3.3。</div>
+      </div>
+     </div>
+     <div class="blk" id="b20" data-n="20">
+      <div class="card line cr">
+       <div class="err-h"><span class="err-ic"><svg class="i s14"><use href="#alert"/></svg></span><span class="err-t">供应商拒绝了请求</span><span class="tag">auth</span><span class="m">14:08 · 第 2 次</span></div>
+       <div class="err-m">401 authentication_error: invalid x-api-key
+provider=anthropic model=claude-sonnet-4-6 request_id=req_01J8…</div>
+       <div class="cf"><button class="btn sm pri">重试</button><button class="btn sm">配置密钥</button><button class="btn sm">切换模型</button><button class="btn sm">复制报错</button></div>
+      </div>
+      <div class="var">类别决定第二个动作 · auth → 配置密钥 · quota → 切换模型 · network → 仅重试</div>
+     </div>
+    </div>
+   </article>   <div class="st" id="s3"><h2>三 · Markdown 与 Artifact</h2><span class="sn">21–23 · 代码块进文件里 · 拦截用赭不用绛</span></div>
+
+   <article class="turn">
+    <aside class="marg"><span class="av">C</span><span>Sonnet 4.6</span><span>14:10</span></aside>
+    <div>
+     <div class="head"><span class="av">C</span><span>Sonnet 4.6</span><span>14:10</span></div>
+     <div class="blk prose" id="b21" data-n="21">
+      <h3>键盘分发对照</h3>
+      <table>
+       <thead><tr><th>按键</th><th>空闲</th><th>运行中</th><th>编辑队列项</th></tr></thead>
+       <tbody>
+        <tr><td class="m">Enter</td><td>发送</td><td>排队为后续轮</td><td>保存修改</td></tr>
+        <tr><td class="m">⌘Enter</td><td>发送</td><td>介入当前运行</td><td>保存修改</td></tr>
+        <tr><td class="m">⇧Enter</td><td colspan="3">换行（三态相同）</td></tr>
+        <tr><td class="m">Esc</td><td>关菜单</td><td>关菜单</td><td>退出编辑，恢复草稿</td></tr>
+       </tbody>
+      </table>
+      <blockquote>IME 组合期间（<code>isComposing</code> 或 compositionend 后 100ms 内）Enter 不触发任何发送——这是 CJK 输入的硬契约，不随主题变化。</blockquote>
+      <ul class="task">
+       <li class="done"><span class="ck on"><svg class="i s12"><use href="#check"/></svg></span>改 handleSend 的 streaming 分支</li>
+       <li class="done"><span class="ck on"><svg class="i s12"><use href="#check"/></svg></span>补两条回归测试</li>
+       <li><span class="ck"></span>更新 ADR 0045 的键盘说明</li>
+      </ul>
+      <div class="code">
+       <div class="code-h"><svg class="i s12"><use href="#file"/></svg>composer-card.tsx<span class="sep">·</span>TypeScript<span class="sep">·</span>L612–618<button class="ib s20 ml" title="复制"><svg class="i s12"><use href="#copy"/></svg></button></div>
+       <pre><div class="cl"><span class="g">612</span><span class="l"><span class="k">if</span> (event.key === <span class="s">'Enter'</span> && !event.shiftKey && !isRecentlyComposing) {</span></div><div class="cl"><span class="g">613</span><span class="l">  event.<span class="fx">preventDefault</span>();</span></div><div class="cl"><span class="g">614</span><span class="l">  <span class="c">// streaming 时 handleSend 自己会转成 queued-turn</span></span></div><div class="cl"><span class="g">615</span><span class="l">  <span class="k">if</span> (canKeyboardSend || reserved) <span class="fx">triggerSend</span>();</span></div><div class="cl"><span class="g">616</span><span class="l">}</span></div></pre>
+      </div>
+      <p>路径成芯片：<span class="pc"><svg class="i s12"><use href="#file"/></svg>apps/desktop/src/steer-queue.tsx</span>；glob 不成芯片：<code>apps/desktop/src/**/*.test.tsx</code>。</p>
+     </div>
+     <div class="blk prose" id="b22" data-n="22">
+      <div class="mer">
+       <div class="code-h"><svg class="i s12"><use href="#flow"/></svg>Mermaid<span class="sep">·</span>flowchart LR<button class="ib s20 ml" title="放大"><svg class="i s12"><use href="#expand"/></svg></button><button class="ib s20" title="复制源码"><svg class="i s12"><use href="#copy"/></svg></button></div>
+       <svg width="560" height="120" viewBox="0 0 560 120" aria-label="Enter 键分发流程">
+        <defs><marker id="arw" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L8 4L0 8z" class="ar"/></marker></defs>
+        <rect class="nd" x="12" y="42" width="96" height="36" rx="6"/><text x="60" y="60">Enter</text>
+        <rect class="nd" x="160" y="42" width="124" height="36" rx="6"/><text x="222" y="60">streaming?</text>
+        <rect class="nd zhu" x="352" y="10" width="190" height="36" rx="6"/><text x="447" y="28">queued-turn-submit</text>
+        <rect class="nd" x="352" y="74" width="190" height="36" rx="6"/><text x="447" y="92">session/send</text>
+        <path class="ed" d="M108 60H160" marker-end="url(#arw)"/>
+        <path class="ed" d="M284 60C320 60 320 28 352 28" marker-end="url(#arw)"/>
+        <path class="ed" d="M284 60C320 60 320 92 352 92" marker-end="url(#arw)"/>
+        <text class="lb" x="318" y="18">是</text><text class="lb" x="318" y="106">否</text>
+       </svg>
+      </div>
+      <p>去抖窗口按组合结束时刻取值<sup class="fnr">[2]</sup>：</p>
+      <div class="math">send(t) = ¬composing ∧ (t − t<sub>compositionEnd</sub>) ≥ 100 ms<span class="eq">(1)</span></div>
+      <ol class="fnotes">
+       <li><sup>1</sup>Cursor 与 Claude Code 均为排队派；Zed 在 0.190 之后改为排队。<u>↩</u></li>
+       <li><sup>2</sup>100 ms 来自 WebKit 在 compositionend 之后仍可能派发一次 keydown 的经验值，见 <code>lastCompositionEndRef</code>。<u>↩</u></li>
+      </ol>
+     </div>
+     <div class="blk" id="b23" data-n="23">
+      <div class="arts">
+       <div class="art">
+        <div class="art-h"><span class="ttl">键盘分发速查</span><span class="abg">INLINE</span><span class="acts ml"><button class="btn sm">查看源码</button><button class="btn sm">在画布打开 ↗</button></span></div>
+        <div class="art-b"><div class="mock"><i class="w60"></i><i class="w80"></i><div class="grid"><i></i><i></i><i></i></div><i class="w60"></i></div></div>
+       </div>
+       <div class="art">
+        <div class="art-h"><span class="ttl">键盘分发速查</span><span class="abg">源码</span><span class="acts ml"><button class="btn sm">Preview</button><button class="ib s22" title="复制"><svg class="i s14"><use href="#copy"/></svg></button></span></div>
+        <div class="art-b"><pre>&lt;style&gt;
+  .grid { display:grid; gap:8px;
+    grid-template-columns:repeat(3,1fr) }
+&lt;/style&gt;
+&lt;div class="grid"&gt;…&lt;/div&gt;</pre></div>
+       </div>
+       <div class="art">
+        <div class="art-h"><span class="ttl">排队 / 介入 演示</span><span class="abg az">CANVAS</span><span class="acts ml"><button class="btn sm pri">在画布打开 ↗</button></span></div>
+        <div class="art-b launch"><svg class="i"><use href="#panelr"/></svg><span>交互式原型在检视器「画布」页签渲染；转录里只保留这条启动条与源码入口。画布本体见增量 4。</span></div>
+       </div>
+       <div class="art">
+        <div class="art-h"><span class="ttl">第三方图表</span><span class="abg oc">已拦截</span><span class="acts ml"><button class="btn sm">查看源码</button></span></div>
+        <div class="art-b"><span>按 Artifact 策略未渲染。源码仍可查看与复制；策略在 设置 › Agent › Artifact。</span><div class="facts"><span>外链脚本 ×1</span><span>cdn.jsdelivr.net</span><span>38 KB</span></div></div>
+       </div>
+      </div>
+     </div>
+    </div>
+   </article>
+
+   <div class="st" id="s4"><h2>四 · 实时</h2><span class="sn">24–26 · 顶栏「状态」在此生效 · 等待批准时 Enter / Esc</span></div>
+
+   <article class="turn live">
+    <aside class="marg"><span class="av">C</span><span>Sonnet 4.6</span><span>14:12</span><span data-st="running">运行中</span><span data-st="waiting">等待批准</span></aside>
+    <div>
+     <div class="head"><span class="av">C</span><span>Sonnet 4.6</span><span>14:12</span><span data-st="running">运行中</span><span data-st="waiting">等待批准</span></div>
+     <div class="work fw open">
+      <div class="work-h" data-fold>
+       <svg class="i" data-st="idle"><use href="#bulb"/></svg><span class="lamp" data-st="running"></span><span class="sq" data-st="waiting"></span>
+       <span data-st="idle"><b>已工作 12s</b> · 3 个工具 · 1 个文件</span>
+       <span data-st="running"><b>正在运行</b> · 第 3 个工具 · <code class="mq">pnpm vitest composer-run-actions --run</code></span>
+       <span data-st="waiting"><b>等待你批准</b> · 命令 <code>git push --force-with-lease</code></span>
+       <svg class="i s12 chev"><use href="#chevd"/></svg>
+      </div>
+      <div class="fb">
+       <div class="thread" id="livethread">
+        <div class="tr"><span class="node done"></span><b>write_file</b><code>apps/desktop/src/composer-run-actions.test.tsx</code><span class="meta"><span class="pm"><span class="plus">+31</span></span><span class="seal mini" title="已批准 · 允许本次会话">允</span></span></div>
+        <div class="blk tr-gate" id="b24" data-n="24" data-st="waiting"><span class="node wait"></span>
+         <div class="gate">
+          <div><div class="mic">需要你批准 · 命令</div><div class="cmd"><b>bash</b> <code>git push --force-with-lease origin feat/composer-queue</code></div><div class="facts"><span>工作目录 · ~/Projects/piwin</span><span class="dg">风险 · 破坏性命令模式</span><span>规则 · ask-all</span></div></div>
+          <div class="seals"><button class="seal ghost" id="deny" title="拒绝 (Esc)">否</button><button class="seal" id="allow" title="允许一次 (Enter)">允</button></div>
+          <div class="gh">Enter 盖印允许一次 · Esc 拒绝 · <u>允 · 本会话</u> · <u>允 · 项目</u></div>
+         </div>
+        </div>
+        <div class="tr last"><span class="node"></span><b>bash</b><code>pnpm vitest composer-run-actions --run</code><span class="meta"><span data-st="idle">12 通过 · 3.9s</span><span data-st="running" class="run-m"><span class="grind"></span>4s</span><span data-st="waiting">待</span></span></div>
+       </div>
+      </div>
+     </div>
+     <div class="blk" id="b25" data-n="25">
+      <div class="loc" data-st="running"><span class="lamp"></span><span class="ph" id="phrase">正在跑回归测试…</span><span class="chip"><span class="grind s9"></span>技能 · karpathy-guidelines</span><span class="m ml">00:16</span></div>
+      <p class="prose streaming" data-st="running">测试全部通过，正在确认 aria 文案与 Pause 状态的快照没有回归<span class="caret"></span></p>
+      <div class="prose" data-st="idle"><p>回归测试通过，aria 文案与 Pause 快照均无变化。切到「运行中」可看定位器、流式光标与工具行「下描」进入。</p></div>
+      <div class="prose" data-st="waiting" style="color:var(--t3);font-size:12.5px">等待批准时正文停笔；只有门在等你。</div>
+     </div>
+    </div>
+   </article>
+
+  </div>
+
+  <nav class="rail" id="rail" aria-label="历史刻度">
+   <span class="tick" data-go="b01"><span class="pv"><small>14:02 · 我</small>把作曲器运行中的 Enter 改成排队，⌘Enter 保持介入…</span></span>
+   <span class="tick" data-go="b10"><span class="pv"><small>14:03 · 介入</small>别动 permission-bar.tsx，权限条本轮不合并。</span></span>
+   <span class="tick" data-go="b11"><span class="pv"><small>14:02 · 分支 3 / 3</small>…别动侧栏，也别动权限条。</span></span>
+   <span class="tick" data-go="b12"><span class="pv"><small>14:05 · 我</small>先出计划，我看看再决定怎么跑。</span></span>
+   <span class="tick" data-go="b16"><span class="pv"><small>14:07 · 我</small>查一下别家客户端流式期间 Enter 怎么处理。</span></span>
+   <span class="tick" data-go="b19"><span class="pv"><small>14:08 · 我</small>/compact</span></span>
+   <span class="tick" data-go="b21"><span class="pv"><small>14:10 · 我</small>给我一张键盘分发对照表。</span></span>
+   <span class="tick" data-go="b24"><span class="pv"><small>14:12 · 我</small>跑一遍测试然后推上去。</span></span>
+  </nav>
+ </main>
+</div>
+</div>
+<script>
+(function(){
+var app=document.getElementById('app');
+var each=function(list,fn){Array.prototype.forEach.call(list,fn)};
+function show(state){each(document.querySelectorAll('[data-st]'),function(el){el.hidden=el.getAttribute('data-st').split(' ').indexOf(state)===-1})}
+function setSeg(k,v){each(document.querySelectorAll('[data-set="'+k+'"]'),function(b){b.classList.toggle('on',b.getAttribute('data-v')===v)})}
+function setState(s){app.setAttribute('data-state',s);show(s);setSeg('state',s);if(s==='running'){drawIn()}}
+each(document.querySelectorAll('[data-set]'),function(b){b.addEventListener('click',function(){var k=b.getAttribute('data-set'),v=b.getAttribute('data-v');if(k==='state'){setState(v);return}app.setAttribute('data-'+k,v);setSeg(k,v)})});
+
+/* 折叠：工作头 / 探索胶囊 / 装配胶囊 / 失败行 / 子代理卡 / 压缩摘要 */
+each(document.querySelectorAll('[data-fold]'),function(h){h.addEventListener('click',function(e){if(e.target.closest('button')&&!h.matches('button')&&!e.target.closest('[data-fold]'))return;var w=h.closest('.fw');if(w)w.classList.toggle('open')})});
+
+/* 索引跳转 + 标注闪烁 */
+var scroll=document.getElementById('scroll');
+function go(id){var el=document.getElementById(id);if(!el)return;var b=document.querySelector('[data-set="notes"].on');el.scrollIntoView({block:'start'});el.classList.add('flash');setTimeout(function(){el.classList.remove('flash')},1200);each(document.querySelectorAll('.ir'),function(x){x.classList.toggle('on',x.getAttribute('data-go')===id)})}
+each(document.querySelectorAll('.ir'),function(b){b.addEventListener('click',function(){var st=b.getAttribute('data-state');if(st)setState(st);var id=b.getAttribute('data-go');if(id==='rail'){var r=document.getElementById('rail');r.classList.add('pulse');setTimeout(function(){r.classList.remove('pulse')},900);each(document.querySelectorAll('.ir'),function(x){x.classList.toggle('on',x===b)});return}go(id)})});
+each(document.querySelectorAll('.tick'),function(t){t.addEventListener('click',function(){var id=t.getAttribute('data-go');if(id==='b24')setState('waiting');go(id);each(document.querySelectorAll('.tick'),function(x){x.classList.toggle('on',x===t)})})});
+
+/* 印：Enter 盖印允许 · Esc 拒绝 */
+var allow=document.getElementById('allow'),deny=document.getElementById('deny');
+allow.addEventListener('click',function(){allow.classList.add('stamping');setTimeout(function(){allow.classList.remove('stamping');setState('running')},420)});
+deny.addEventListener('click',function(){setState('idle')});
+document.addEventListener('keydown',function(e){if(e.target&&(e.target.tagName==='TEXTAREA'||e.target.tagName==='INPUT'))return;if(app.getAttribute('data-state')!=='waiting')return;if(e.key==='Enter'){e.preventDefault();allow.click()}if(e.key==='Escape'){deny.click()}});
+
+/* 差异卡裁决落定为文字 */
+each(document.querySelectorAll('[data-verdict]'),function(b){b.addEventListener('click',function(){var f=b.closest('.dc-f'),ok=b.getAttribute('data-verdict')==='ok';var acts=b.parentNode;var s=document.createElement('span');s.className='vd '+(ok?'ok':'no');s.textContent=ok?'✓ 已接受':'已拒绝 · 已回滚';acts.parentNode.replaceChild(s,acts);var meta=f.querySelector('span');if(meta)meta.textContent=ok?'2 处修改 · 已接受':'2 处修改 · 已回滚此文件'})});
+
+/* 知识卡片翻转 */
+var flip=document.getElementById('flip1');flip.addEventListener('click',function(){flip.classList.toggle('is-back')});
+
+/* 运行中：新工具行「下描」进入 + 定位器短语轮换 */
+var phrases=['正在跑回归测试…','读取测试输出…','对照 aria 文案…','检查 Pause 快照…'],pi=0,ptimer=null;
+function drawIn(){var th=document.getElementById('livethread');var last=th.querySelector('.tr.last');if(!last)return;last.classList.remove('draw');void last.offsetWidth;last.classList.add('draw')}
+function cycle(){clearInterval(ptimer);ptimer=setInterval(function(){if(app.getAttribute('data-state')!=='running')return;pi=(pi+1)%phrases.length;var p=document.getElementById('phrase');if(p)p.textContent=phrases[pi]},2200)}
+cycle();
+setState('idle');
+})();
+</script>
+</body>
+</html>

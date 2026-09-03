@@ -8,22 +8,26 @@ import { formatSkillPrompt } from '@piwin/contracts';
 /** Max length for compact customInstructions (plan: 2KB). */
 export const COMPACT_CUSTOM_INSTRUCTIONS_MAX_CHARS = 2048;
 
-const COMMAND_ALIASES: Record<string, 'compact' | 'stop'> = {
+const COMMAND_ALIASES: Record<string, 'compact'> = {
   compact: 'compact',
   summarize: 'compact',
   compress: 'compact',
-  stop: 'stop',
-  abort: 'stop',
 };
 
-const RESERVED_SLASH_EXECUTE_NAMES: ReadonlySet<string> = new Set(Object.keys(COMMAND_ALIASES));
+/** Product commands that run on the first Enter/click from the slash menu. */
+const RESERVED_SLASH_EXECUTE_NAMES: ReadonlySet<string> = new Set([
+  ...Object.keys(COMMAND_ALIASES),
+  // Scheme shortcut: `/ultra-code` must not wait for a second Enter, or the
+  // token stays active, the menu reopens, and the composer toolbar reflows.
+  'ultra-code',
+]);
 
-/** True for `/compact` `/stop` and their aliases — product commands, not prompts. */
+/** True for `/compact` and its aliases — product commands, not prompts. */
 export function isReservedSlashExecuteName(name: string): boolean {
   return RESERVED_SLASH_EXECUTE_NAMES.has(name.trim().toLowerCase());
 }
 
-/** Whole-message reserved command (`/compact`, `/stop`, aliases, optional args). */
+/** Whole-message reserved command (`/compact`, aliases, optional args). */
 export function isReservedComposerSlashCommand(trimmedText: string): boolean {
   return parseComposerSlashSubmit(trimmedText.trim(), []).kind === 'command';
 }
@@ -181,17 +185,13 @@ export function parseComposerSlashSubmit(
 }
 
 /**
- * Cap and sanitize compact customInstructions.
- */
-/**
- * Run whole-message `/compact` / `/stop` (and aliases) without painting a bubble.
+ * Run whole-message `/compact` (and aliases) without painting a bubble.
  * Returns true when the text was consumed as a reserved command.
  */
 export async function runReservedComposerSlashCommand(
   trimmedText: string,
   handlers: {
     compact?: (customInstructions?: string) => Promise<unknown>;
-    abort?: () => Promise<unknown>;
   },
 ): Promise<boolean> {
   if (!trimmedText.startsWith('/')) {
@@ -201,15 +201,8 @@ export async function runReservedComposerSlashCommand(
   if (parsed.kind !== 'command') {
     return false;
   }
-  if (parsed.commandId === 'compact') {
-    await handlers.compact?.(normalizeCompactCustomInstructions(parsed.args));
-    return true;
-  }
-  if (parsed.commandId === 'stop') {
-    await handlers.abort?.();
-    return true;
-  }
-  return false;
+  await handlers.compact?.(normalizeCompactCustomInstructions(parsed.args));
+  return true;
 }
 
 export function normalizeCompactCustomInstructions(args: string): string | undefined {

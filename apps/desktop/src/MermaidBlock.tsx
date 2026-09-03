@@ -8,6 +8,8 @@ import {
   Component,
   useEffect,
   useId,
+  useLayoutEffect,
+  useRef,
   useState,
   type ErrorInfo,
   type ReactElement,
@@ -16,6 +18,12 @@ import {
 import { formatError } from '@piwin/contracts';
 import { useMarkdownRenderingPhase } from './markdown-rendering-phase.js';
 import { useThemeMode, type ThemeMode } from './theme/theme-mode.js';
+import {
+  getOrCreateMermaidDiagramRender,
+  readMermaidDiagramHeight,
+  readMermaidDiagramSvg,
+  rememberMermaidDiagramHeight,
+} from './mermaid-diagram-cache.js';
 
 const MERMAID_RENDER_TIMEOUT_MS = 8_000;
 
@@ -37,6 +45,14 @@ type MermaidBlockProps = {
 type MermaidRenderState =
   { status: 'loading' } | { status: 'ready'; svg: string } | { status: 'error'; message: string };
 
+function mermaidStateFromCache(source: string, themeMode: ThemeMode): MermaidRenderState {
+  const cachedSvg = readMermaidDiagramSvg(source, themeMode);
+  if (cachedSvg !== null) {
+    return { status: 'ready', svg: cachedSvg };
+  }
+  return { status: 'loading' };
+}
+
 export function MermaidBlock({ source }: MermaidBlockProps): ReactElement {
   return (
     <MermaidErrorBoundary source={source}>
@@ -49,7 +65,10 @@ function MermaidInner({ source }: MermaidBlockProps): ReactElement {
   const reactId = useId().replace(/:/g, '');
   const phase = useMarkdownRenderingPhase();
   const themeMode = useThemeMode();
-  const [state, setState] = useState<MermaidRenderState>({ status: 'loading' });
+  const diagramRef = useRef<HTMLDivElement | null>(null);
+  const [state, setState] = useState<MermaidRenderState>(() =>
+    mermaidStateFromCache(source, themeMode),
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -57,6 +76,16 @@ function MermaidInner({ source }: MermaidBlockProps): ReactElement {
 
     if (phase === 'streaming') {
       setState({ status: 'loading' });
+      return;
+    }
+
+    const cachedSvg = readMermaidDiagramSvg(source, themeMode);
+    if (cachedSvg !== null) {
+      setState((current) =>
+        current.status === 'ready' && current.svg === cachedSvg
+          ? current
+          : { status: 'ready', svg: cachedSvg },
+      );
       return;
     }
 
@@ -71,17 +100,20 @@ function MermaidInner({ source }: MermaidBlockProps): ReactElement {
       }, MERMAID_RENDER_TIMEOUT_MS);
 
       try {
-        const mermaidModule = await import('mermaid');
-        const mermaid = mermaidModule.default;
-        mermaid.initialize({
-          startOnLoad: false,
-          // Strict: no click handlers / loose HTML in diagram labels.
-          securityLevel: 'strict',
-          theme: MERMAID_THEME[themeMode],
-          fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+        const svg = await getOrCreateMermaidDiagramRender(source, themeMode, async () => {
+          const mermaidModule = await import('mermaid');
+          const mermaid = mermaidModule.default;
+          mermaid.initialize({
+            startOnLoad: false,
+            // Strict: no click handlers / loose HTML in diagram labels.
+            securityLevel: 'strict',
+            theme: MERMAID_THEME[themeMode],
+            fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+          });
+          const diagramId = `piwin-mermaid-${reactId}-${Date.now().toString(36)}`;
+          const rendered = await mermaid.render(diagramId, source);
+          return rendered.svg;
         });
-        const diagramId = `piwin-mermaid-${reactId}-${Date.now().toString(36)}`;
-        const { svg } = await mermaid.render(diagramId, source);
         if (timeoutId !== undefined) {
           clearTimeout(timeoutId);
         }
@@ -112,6 +144,17 @@ function MermaidInner({ source }: MermaidBlockProps): ReactElement {
     // inside the emitted SVG, so nothing else can repaint them.
   }, [source, reactId, phase, themeMode]);
 
+  useLayoutEffect(() => {
+    if (state.status !== 'ready') {
+      return;
+    }
+    const element = diagramRef.current;
+    if (!element) {
+      return;
+    }
+    rememberMermaidDiagramHeight(source, themeMode, element.getBoundingClientRect().height);
+  }, [source, state, themeMode]);
+
   if (phase === 'streaming') {
     return (
       <pre className="md-code" data-testid="mermaid-stream-source">
@@ -121,8 +164,18 @@ function MermaidInner({ source }: MermaidBlockProps): ReactElement {
   }
 
   if (state.status === 'loading') {
+    const reservedHeightPx = readMermaidDiagramHeight(source, themeMode);
     return (
-      <div className="md-mermaid-loading" data-testid="mermaid-loading">
+      <div
+        className="md-mermaid-loading"
+        data-testid="mermaid-loading"
+        {...(reservedHeightPx !== null
+          ? {
+              'data-reserved-height': String(reservedHeightPx),
+              style: { minHeight: `${reservedHeightPx}px` },
+            }
+          : {})}
+      >
         Rendering diagram…
       </div>
     );
@@ -134,6 +187,7 @@ function MermaidInner({ source }: MermaidBlockProps): ReactElement {
 
   return (
     <div
+      ref={diagramRef}
       className="md-mermaid"
       data-testid="mermaid-diagram"
       // mermaid securityLevel:strict sanitizes output; still never treat as free HTML from the model.

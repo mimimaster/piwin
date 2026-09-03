@@ -309,9 +309,10 @@ export function useComposerSend(params: UseComposerSendArgs) {
       if (sendOwnerLocksRef.current.has(ownerLockKey) || promptSubmissionInProgress.current) {
         return;
       }
-      // `/compact` and `/stop` must intercept before Send gates. Admission
-      // reconciling, paused runs, leftover chips, and failed chips would
-      // otherwise swallow the command with an empty composer and no toast.
+      // `/compact` must intercept before Send gates. Admission reconciling,
+      // paused runs, leftover chips, and failed chips would otherwise swallow
+      // the command with an empty composer and no toast. Stop is a toolbar
+      // action (⌘.), not a slash command.
       if (text.startsWith('/')) {
         const parsed = parseComposerSlashSubmit(text, []);
         if (parsed.kind === 'command' && parsed.commandId === 'compact') {
@@ -324,17 +325,6 @@ export function useComposerSend(params: UseComposerSendArgs) {
               setComposer('');
               clearPendingAttachments();
             }
-          } finally {
-            promptSubmissionInProgress.current = false;
-          }
-          return;
-        }
-        if (parsed.kind === 'command' && parsed.commandId === 'stop') {
-          promptSubmissionInProgress.current = true;
-          try {
-            setComposer('');
-            clearPendingAttachments();
-            await args.onAbort?.();
           } finally {
             promptSubmissionInProgress.current = false;
           }
@@ -531,9 +521,6 @@ export function useComposerSend(params: UseComposerSendArgs) {
             return;
           }
           if (parsed.kind === 'skill') {
-            if (args.conversationChat === true) {
-              return;
-            }
             const skillEnabled =
               skills.find((skill) => skill.id === parsed.skillId)?.enabled !== false;
             if (!skillEnabled) {
@@ -569,9 +556,6 @@ export function useComposerSend(params: UseComposerSendArgs) {
             promptAgentMode = parsed.modeId;
             promptAttachments = [];
           } else if (parsed.kind === 'skill') {
-            if (args.conversationChat === true) {
-              return;
-            }
             hostPromptText = applySkillToPrompt(parsed.skillName, parsed.skillId, parsed.args);
             promptAttachments = [];
             skillActivity = { skillId: parsed.skillId, name: parsed.skillName };

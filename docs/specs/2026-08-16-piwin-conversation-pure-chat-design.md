@@ -497,7 +497,6 @@ Conversation Composer 隐藏：
 - Agent Mode；
 - Goal/Plan/Ask；
 - Orchestration；
-- Skill selector / slash Pi Skills；
 - Permissions preset；
 - 与 Project 工作区相关的入口。
 
@@ -508,6 +507,7 @@ Conversation Composer 隐藏：
 - 文本；
 - 图片/文件附件；
 - 显式 context ref；
+- 显式 `/skill` slash（用户主动调用；不自动注入 skill 正文 / Pi resource catalog）；
 - Chat 能力入口（如图片、Artifact 等，如果 UI 需要显式按钮）。
 
 ### 9.6 Chrome 简化

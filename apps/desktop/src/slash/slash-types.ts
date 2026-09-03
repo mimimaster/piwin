@@ -42,7 +42,7 @@ export type ParsedSlashSubmit =
   | { kind: 'none' }
   | {
       kind: 'command';
-      commandId: 'compact' | 'stop';
+      commandId: 'compact';
       /** Primary name used (may be an alias). */
       name: string;
       args: string;

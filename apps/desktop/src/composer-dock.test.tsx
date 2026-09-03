@@ -927,6 +927,104 @@ describe('ComposerDock host status', () => {
     expect(onSend).toHaveBeenCalledWith('/compact');
   });
 
+  it('executes a partial slash token on one Enter (skill)', () => {
+    const onSend = vi.fn();
+    const onComposerChange = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        composer="/cre"
+        onComposerChange={onComposerChange}
+        onSend={onSend}
+        menuSkills={[{ id: 'create-skill', name: 'create-skill', enabled: true }]}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(container.querySelector('[data-testid="composer-slash-menu"]')).not.toBeNull();
+    const input = container.querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]');
+    act(() => {
+      input?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(onComposerChange).toHaveBeenCalledWith('/create-skill');
+    expect(onSend).toHaveBeenCalledTimes(1);
+    expect(onSend).toHaveBeenCalledWith('/create-skill');
+  });
+
+  it('does not send on Tab after selecting a partial slash token', () => {
+    const onSend = vi.fn();
+    const onComposerChange = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        composer="/cre"
+        onComposerChange={onComposerChange}
+        onSend={onSend}
+        menuSkills={[{ id: 'create-skill', name: 'create-skill', enabled: true }]}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const input = container.querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]');
+    act(() => {
+      input?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(onComposerChange).toHaveBeenCalledWith('/create-skill ');
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it('executes a mode on Enter without args and keeps args for send', () => {
+    const onSend = vi.fn();
+    const onAgentModeChange = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        composer="/goal"
+        onSend={onSend}
+        onAgentModeChange={onAgentModeChange}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const input = container.querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]');
+    act(() => {
+      input?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(onAgentModeChange).toHaveBeenCalledWith('goal');
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it('sends mode args on one Enter', () => {
+    const onSend = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        composer="/goal fix the bug"
+        onSend={onSend}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const input = container.querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]');
+    act(() => {
+      input?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(onSend).toHaveBeenCalledTimes(1);
+    expect(onSend).toHaveBeenCalledWith('/goal fix the bug');
+  });
+
   it('sends /compact on Enter while a run is paused', () => {
     const onSend = vi.fn();
     const onResume = vi.fn();
@@ -965,6 +1063,70 @@ describe('ComposerDock host status', () => {
       send.click();
     });
     expect(onSend).toHaveBeenCalledTimes(1);
+  });
+
+  it('executes /ultra-code from the slash menu without a second Enter', () => {
+    const onSend = vi.fn();
+    const onComposerChange = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        composer="/"
+        onComposerChange={onComposerChange}
+        onSend={onSend}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const ultraItem = container.querySelector(
+      '[data-testid="slash-item-cmd:ultra-code"]',
+    ) as HTMLButtonElement;
+    expect(ultraItem).not.toBeNull();
+    act(() => {
+      ultraItem.click();
+    });
+    expect(onSend).toHaveBeenCalledTimes(1);
+    expect(onSend).toHaveBeenCalledWith('/ultra-code');
+  });
+
+  it('keeps the slash menu closed after applying a non-execute command', () => {
+    const onComposerChange = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        composer="/"
+        onComposerChange={onComposerChange}
+        onSend={vi.fn()}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const knowledgeItem = container.querySelector(
+      '[data-testid="slash-item-cmd:knowledge"]',
+    ) as HTMLButtonElement;
+    expect(knowledgeItem).not.toBeNull();
+    act(() => {
+      knowledgeItem.click();
+    });
+    expect(onComposerChange).toHaveBeenCalledWith('/knowledge');
+
+    act(() => {
+      rendered.root.render(
+        <DesktopLocaleProvider locale="en" onLocaleChange={() => undefined}>
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <ComposerDock
+              {...baseProps}
+              composer="/knowledge"
+              onComposerChange={onComposerChange}
+              onSend={vi.fn()}
+            />
+          </PiwinUiProvider>
+        </DesktopLocaleProvider>,
+      );
+    });
+    expect(container.querySelector('[data-testid="composer-slash-menu"]')).toBeNull();
   });
 
   it('executes compact from the slash menu without a second Send', () => {
@@ -1420,11 +1582,26 @@ describe('ComposerDock host status', () => {
         onOpenOrchestrationSchemeSettings={vi.fn()}
       />,
     );
-    const hint = active.container.querySelector(
-      '[data-testid="orchestration-scheme-unpinned-hint"]',
+    root = active.root;
+    container = active.container;
+    const toolbar = active.container.querySelector('.composer-v2-toolbar');
+    expect(toolbar?.textContent ?? '').not.toMatch(/未指定模型|no pinned model/);
+    const trigger = active.container.querySelector(
+      '[data-testid="orchestration-scheme-trigger"]',
     );
+    expect(trigger?.getAttribute('title')).toMatch(/scout/);
+    expect(trigger?.getAttribute('title')).toMatch(/composer model|主模型/);
+    expect(
+      active.container.querySelector('[data-testid="orchestration-scheme-unpinned-hint"]'),
+    ).toBeNull();
+
+    act(() => {
+      (trigger as HTMLButtonElement | null)?.click();
+    });
+    const hint = document.querySelector('[data-testid="orchestration-scheme-unpinned-hint"]');
     expect(hint?.textContent).toContain('scout');
     expect(hint?.textContent).toMatch(/composer model|主模型/);
+    expect(toolbar?.contains(hint)).toBe(false);
   });
 
   it('hides Run Mode and Orchestration in Conversation, but keeps the Goal chip', () => {

@@ -702,7 +702,7 @@ const GROUPS = [
       {
         id: "composer.stop",
         title: "能中止正在进行的回复",
-        steps: ["发送后立刻停止/Abort（按钮或 /stop）"],
+        steps: ["发送后立刻停止/Abort（按钮或 ⌘.）"],
         expect: "生成停下，界面回到可输入状态",
       },
       {
@@ -809,9 +809,9 @@ const GROUPS = [
       },
       {
         id: "slash.stop-compact",
-        title: "/stop 与 /compact 在项目会话可用",
-        steps: ["生成中执行 /stop", "空闲时执行 /compact"],
-        expect: "分别停止生成、触发压缩；不可用时有灰态原因",
+        title: "/compact 在项目会话可用",
+        steps: ["空闲时执行 /compact"],
+        expect: "触发压缩；不可用时有灰态原因",
       },
       {
         id: "slash.open-flashcards",

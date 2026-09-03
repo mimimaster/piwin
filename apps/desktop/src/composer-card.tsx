@@ -313,10 +313,22 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     }
   }, [atItems.length, atSelectedIndex]);
 
+  // Reset forced-close only after the token is gone. Resetting on every
+  // composer change reopened the menu after applying `/ultra-code` (the
+  // token is still active), which is the two-Enter layout-break path.
+  const hasActiveSlashToken = activeSlashToken !== null;
   useEffect(() => {
-    setSlashMenuForcedClosed(false);
-    setAtMenuForcedClosed(false);
-  }, [props.composer]);
+    if (!hasActiveSlashToken) {
+      setSlashMenuForcedClosed(false);
+    }
+  }, [hasActiveSlashToken]);
+
+  const hasActiveAtToken = activeAtToken !== null;
+  useEffect(() => {
+    if (!hasActiveAtToken) {
+      setAtMenuForcedClosed(false);
+    }
+  }, [hasActiveAtToken]);
 
   function syncCaretFromTextarea(): void {
     const element = textareaRef.current;
@@ -376,19 +388,20 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     if (!activeSlashToken) {
       return;
     }
-    if (isReservedSlashExecuteName(item.name)) {
-      executeReservedSlashItem(item);
+    if (isReservedSlashExecuteName(item.name) || item.kind === 'mode') {
+      // Menu click on a reserved command or a mode performs it immediately.
+      executeSlashItem(item);
+      return;
+    }
+    completeSlashItem(item);
+  }
+
+  /** Tab / click-into-box semantics: fill the token, never send. */
+  function completeSlashItem(item: SlashItem): void {
+    if (!activeSlashToken) {
       return;
     }
     if (!item.available) {
-      return;
-    }
-    if (item.kind === 'mode') {
-      props.onAgentModeChange(item.name as AgentModeId);
-      const next = replaceActiveSlashToken(props.composer, activeSlashToken, '');
-      props.onComposerChange(next);
-      focusCaret(activeSlashToken.startIndex);
-      setSlashMenuForcedClosed(true);
       return;
     }
     const insert =
@@ -399,11 +412,32 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     setSlashMenuForcedClosed(true);
   }
 
-  function executeReservedSlashItem(item: SlashItem): void {
+  /**
+   * Enter semantics: perform the selected item now. Modes switch in place;
+   * commands/skills keep any user-typed args after the token and send.
+   */
+  function executeSlashItem(item: SlashItem): void {
     if (!activeSlashToken) {
       return;
     }
-    const suffix = props.composer.slice(activeSlashToken.endIndex);
+    if (item.kind === 'mode') {
+      const suffix = props.composer.slice(activeSlashToken.endIndex);
+      if (suffix.trim().length > 0) {
+        // `/goal fix the bug` — the send layer parses mode + args.
+        executeSlashItemSend(item, suffix);
+        return;
+      }
+      props.onAgentModeChange(item.name as AgentModeId);
+      const next = replaceActiveSlashToken(props.composer, activeSlashToken, '');
+      props.onComposerChange(next);
+      focusCaret(activeSlashToken.startIndex);
+      setSlashMenuForcedClosed(true);
+      return;
+    }
+    executeSlashItemSend(item, props.composer.slice(activeSlashToken.endIndex));
+  }
+
+  function executeSlashItemSend(item: SlashItem, suffix: string): void {
     const next = `/${item.name}${suffix}`.replace(/[ \t]+$/u, '').trimStart();
     props.onComposerChange(next);
     setSlashMenuForcedClosed(true);
@@ -544,32 +578,22 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       if (event.key === 'Tab') {
         const selected = slashItems[slashSelectedIndex];
         if (selected && (selected.available || isReservedSlashExecuteName(selected.name))) {
+          // Tab completes the token only; Enter performs it.
           event.preventDefault();
-          applySlashItem(selected);
+          completeSlashItem(selected);
           return;
         }
       }
       if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
         const selected = slashItems[slashSelectedIndex];
-        if (selected && isReservedSlashExecuteName(selected.name)) {
+        if (selected && (selected.available || isReservedSlashExecuteName(selected.name))) {
+          // One Enter performs the selected item: no fill-then-Enter dance.
           event.preventDefault();
-          applySlashItem(selected);
+          executeSlashItem(selected);
           return;
         }
-        const query = (activeSlashToken?.query ?? '').toLowerCase();
-        const exactMatch =
-          selected &&
-          selected.available &&
-          [selected.name, ...(selected.aliases ?? [])]
-            .map((name) => name.toLowerCase())
-            .includes(query);
-        if (exactMatch) {
-          setSlashMenuForcedClosed(true);
-        } else if (selected?.available) {
-          event.preventDefault();
-          applySlashItem(selected);
-          return;
-        }
+        // Unavailable / nothing selected falls through to the ordinary
+        // Enter send path below (e.g. sends the typed text as-is).
       }
     }
 

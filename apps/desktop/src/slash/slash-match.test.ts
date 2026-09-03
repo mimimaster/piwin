@@ -96,20 +96,24 @@ describe('buildSlashCatalog availability', () => {
     expect(compact?.available).toBe(false);
   });
 
-  it('marks stop available only while streaming', () => {
-    const idle = buildSlashCatalog({
-      skills: [],
-      hasActiveSession: true,
+  it('keeps skills available in draft before a session exists', () => {
+    const items = buildSlashCatalog({
+      skills: [{ id: 'create-skill', name: 'create-skill', enabled: true }],
+      hasActiveSession: false,
       projectTrusted: true,
-      streaming: false,
     });
-    const streaming = buildSlashCatalog({
-      skills: [],
-      hasActiveSession: true,
-      projectTrusted: true,
-      streaming: true,
+    expect(items.find((item) => item.id === 'skill:create-skill')?.available).toBe(true);
+  });
+
+  it('marks skills unavailable until the project is trusted', () => {
+    const items = buildSlashCatalog({
+      skills: [{ id: 'create-skill', name: 'create-skill', enabled: true }],
+      hasActiveSession: false,
+      projectTrusted: false,
+      requireProjectTrust: true,
     });
-    expect(idle.find((item) => item.name === 'stop')?.available).toBe(false);
-    expect(streaming.find((item) => item.name === 'stop')?.available).toBe(true);
+    const skill = items.find((item) => item.id === 'skill:create-skill');
+    expect(skill?.available).toBe(false);
+    expect(skill?.unavailableReason).toMatch(/Trust the project/);
   });
 });

@@ -3,6 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PromptContextRef } from '@piwin/contracts';
+import { formatSkillPrompt } from '@piwin/contracts';
 import type { ChatUiState } from '../chat-reducer';
 import type { HostClient } from '../host-client';
 import { useComposerMedia } from './use-composer-media';
@@ -891,6 +892,52 @@ describe('useComposerMedia Conversation send path', () => {
     const input = readPromptInput(hostClient);
     expect(input.text).toBe('ship the login flow');
     expect(input.agentMode).toBe('goal');
+  });
+
+  it('sends an explicit skill from Conversation slash `/create-skill`', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const hostClient = {
+      request: vi.fn().mockResolvedValue({
+        type: 'response',
+        command: 'session/prompt',
+        success: true,
+        data: { runId: 'run-1', acceptedAt: '2026-08-16T00:00:00.000Z' },
+      }),
+    } as unknown as HostClient;
+    let captured: ComposerMediaResult | undefined;
+
+    function Harness(): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: {
+          ...createInitialTestChatUiState(),
+          activeSessionId: 'conversation-1',
+          activeScope: { kind: 'general' },
+        },
+        dispatch: vi.fn(),
+        agentMode: 'agent',
+        conversationChat: true,
+        menuSkills: [{ id: 'create-skill', name: 'create-skill', enabled: true }],
+      });
+      return null;
+    }
+
+    act(() => root?.render(<Harness />));
+    act(() => {
+      captured?.setComposer('/create-skill write a search skill');
+    });
+    await act(async () => {
+      await captured?.handleSend();
+    });
+
+    const input = readPromptInput(hostClient);
+    expect(input.text).toBe(
+      formatSkillPrompt('create-skill', 'create-skill', 'write a search skill'),
+    );
+    expect(input.skillId).toBeUndefined();
+    expect(input.agentMode).toBeUndefined();
   });
 
   it('still sends Agent fields for Project sessions', async () => {
