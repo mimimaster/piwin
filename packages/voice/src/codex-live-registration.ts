@@ -1,4 +1,8 @@
-import { PIWIN_LIVE_INSTRUCTIONS, type LiveProviderDescriptor } from '@piwin/contracts';
+import {
+  PIWIN_LIVE_INSTRUCTIONS,
+  renderLiveStartupContext,
+  type LiveProviderDescriptor,
+} from '@piwin/contracts';
 import { CodexLiveAdapter } from './codex-live-adapter.js';
 import type { LiveProviderRegistration } from './live-provider-registration.js';
 import { codexLiveSettingFields, validateCodexLiveSettings } from './live-settings-schema.js';
@@ -39,6 +43,9 @@ export function createCodexLiveRegistration(deps: {
         instructions: PIWIN_LIVE_INSTRUCTIONS,
         signal: input.signal,
         ...(voice ? { voice } : {}),
+        ...(input.startupContext
+          ? { startupContext: renderLiveStartupContext(input.startupContext) }
+          : {}),
       });
       return {
         voiceModelId: 'gpt-live-1-codex',

@@ -1,5 +1,5 @@
 import type { LiveProviderDescriptor } from '@piwin/contracts';
-import { isLiveCallErrorCode } from '@piwin/contracts';
+import { isLiveCallErrorCode, renderLiveStartupContext } from '@piwin/contracts';
 import {
   openaiRealtimeOwnerBootstrap,
   tryMintOpenaiRealtimeClientSecret,
@@ -86,6 +86,9 @@ export function createOpenaiRealtimeLiveRegistration(deps: {
             bearerToken: minted ?? apiKey,
             modelId: settings.route.modelId,
             voice,
+            ...(input.startupContext
+              ? { startupContext: renderLiveStartupContext(input.startupContext) }
+              : {}),
           }),
           close: async () => undefined,
         };

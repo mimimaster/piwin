@@ -561,7 +561,6 @@ export async function doSuspendSessionRuntime(
   // Remove resident-only maps.
   deps.sessionProjects.delete(sessionId);
   deps.sessionModels.delete(sessionId);
-  deps.sessionLastAssistantReply.delete(sessionId);
   deps.sessionUsage.delete(sessionId);
   deps.sessionLastPromptText.delete(sessionId);
   deps.sessionAutoCompactionOverrides.delete(sessionId);

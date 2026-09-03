@@ -1,10 +1,8 @@
 import {
   LIVE_DELEGATION_INSTRUCTION_MAX_BYTES,
-  composeLiveSpokenInstructions,
-  PIWIN_LIVE_DELEGATE_INSTRUCTION_DESCRIPTION,
-  PIWIN_LIVE_DELEGATE_TOOL_DESCRIPTION,
   type LiveOwnerEvent,
 } from '@piwin/contracts';
+import { openaiRealtimeSessionUpdatePayload } from '@piwin/voice/wire';
 
 export type MobileOpenaiRealtimeMessage =
   | { kind: 'session-created' }
@@ -26,7 +24,6 @@ export const GEMINI_LIVE_FIXED_ENDPOINT =
   'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained';
 
 const DELEGATE_TOOL = 'delegate_to_work_session';
-const LIVE_INSTRUCTIONS = composeLiveSpokenInstructions('tool-handover');
 
 export function floatToPcm16Base64(input: Float32Array<ArrayBufferLike>): string {
   const bytes = new Uint8Array(input.length * 2);
@@ -54,35 +51,10 @@ export function pcm16Base64ToFloat(base64: string): Float32Array {
   return samples;
 }
 
-export function openaiSessionUpdatePayload(voice: string): string {
-  return JSON.stringify({
-    type: 'session.update',
-    session: {
-      voice,
-      modalities: ['audio', 'text'],
-      instructions: LIVE_INSTRUCTIONS,
-      turn_detection: { type: 'server_vad' },
-      input_audio_format: 'pcm16',
-      output_audio_format: 'pcm16',
-      tool_choice: 'auto',
-      tools: [
-        {
-          type: 'function',
-          name: DELEGATE_TOOL,
-          description: PIWIN_LIVE_DELEGATE_TOOL_DESCRIPTION,
-          parameters: {
-            type: 'object',
-            properties: {
-              instruction: {
-                type: 'string',
-                description: PIWIN_LIVE_DELEGATE_INSTRUCTION_DESCRIPTION,
-              },
-            },
-            required: ['instruction'],
-          },
-        },
-      ],
-    },
+export function openaiSessionUpdatePayload(voice: string, startupContext?: string): string {
+  return openaiRealtimeSessionUpdatePayload({
+    voice,
+    ...(startupContext ? { startupContext } : {}),
   });
 }
 

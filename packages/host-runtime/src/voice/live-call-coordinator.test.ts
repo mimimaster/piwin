@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { LiveProviderRegistry, createFakeCodexRegistration } from '@piwin/voice';
 import { LiveCallCoordinator } from './live-call-coordinator.js';
 import { makeLiveCoordinator, readyLiveSnapshot } from './live-coordinator-test-harness.js';
@@ -444,6 +444,153 @@ describe('LiveCallCoordinator', () => {
       ok: false,
       errorCode: 'live-start-throttled',
     });
+    await coordinator.dispose();
+  });
+});
+
+describe('LiveCallCoordinator session context', () => {
+  it('passes startup context to the provider registration', async () => {
+    const received: Array<string | undefined> = [];
+    const fake = createFakeCodexRegistration();
+    const originalStart = fake.start.bind(fake);
+    fake.start = async (input) => {
+      received.push(input.startupContext);
+      return originalStart(input);
+    };
+    const coordinator = new LiveCallCoordinator({
+      registry: new LiveProviderRegistry([fake]),
+      resolveSnapshot: async () => readyLiveSnapshot(),
+      resolveSessionLabel: () => 'Work',
+      review: async (request) => ({ kind: 'work', brief: request.instruction }),
+      admission: createVoiceDelegationAdmission({
+        busy: { isSessionBusy: () => false },
+        prompt: { admitVoiceDelegation: async () => ({ queued: false, runId: 'r1', messageId: 'm1' }) },
+      }),
+      resolveStartupContext: async () => 'User is fixing Live voice.',
+    });
+    const started = await coordinator.start(startArgs({ idempotencyKey: 'ctx-1' }));
+    expect(started.ok).toBe(true);
+    expect(received).toEqual(['User is fixing Live voice.']);
+    await coordinator.dispose();
+  });
+
+  it('still starts when summarization throws', async () => {
+    const coordinator = makeLiveCoordinator({
+      resolveStartupContext: async () => {
+        throw new Error('model-down');
+      },
+    });
+    await expect(coordinator.start(startArgs({ idempotencyKey: 'ctx-fail' }))).resolves.toMatchObject({
+      ok: true,
+    });
+    await coordinator.dispose();
+  });
+
+  it('fails start when summarization is aborted', async () => {
+    const abort = new AbortController();
+    const coordinator = makeLiveCoordinator({
+      resolveStartupContext: async (_sessionId, signal) => {
+        abort.abort();
+        signal.throwIfAborted();
+        return 'late';
+      },
+    });
+    await expect(
+      coordinator.start({ ...startArgs({ idempotencyKey: 'ctx-abort' }), signal: abort.signal }),
+    ).resolves.toEqual({ ok: false, errorCode: 'live-protocol-failed' });
+    await coordinator.dispose();
+  });
+
+  it('announces a rebind immediately and delivers the new summary afterwards', async () => {
+    const ownerActions: Array<{ content?: string }> = [];
+    let releaseSummary: (() => void) | undefined;
+    const coordinator = makeLiveCoordinator({
+      resolveSessionLabel: (sessionId) => (sessionId === 's2' ? 'Other' : 'Work'),
+      resolveStartupContext: async (sessionId) => {
+        if (sessionId !== 's2') return 'User is fixing Live voice.';
+        await new Promise<void>((resolve) => { releaseSummary = resolve; });
+        return 'Docs rewrite in progress.';
+      },
+      pushOwnerAction: (action) => ownerActions.push(action),
+    });
+    const started = await coordinator.start(startArgs({ idempotencyKey: 'ctx-rebind' }));
+    expect(started.ok).toBe(true);
+    if (!started.ok) return;
+    ownerActions.length = 0;
+    const rebound = await coordinator.rebind({
+      sessionId: 's2',
+      callId: started.call.callId,
+      ownerDeviceId: 'd1',
+    });
+    // The shell is unblocked before the summary model answers.
+    expect(rebound.ok).toBe(true);
+    expect(ownerActions).toHaveLength(1);
+    expect(ownerActions[0]?.content).toContain('Other');
+    await vi.waitFor(() => expect(releaseSummary).toBeTypeOf('function'));
+    releaseSummary?.();
+    await vi.waitFor(() => {
+      expect(ownerActions).toHaveLength(2);
+      expect(ownerActions[1]?.content).toContain('Docs rewrite in progress.');
+    });
+    await coordinator.dispose();
+  });
+
+  it('drops a rebind summary that resolves after the call ended', async () => {
+    const ownerActions: Array<{ content?: string }> = [];
+    let releaseSummary: (() => void) | undefined;
+    const coordinator = makeLiveCoordinator({
+      resolveSessionLabel: (sessionId) => (sessionId === 's2' ? 'Other' : 'Work'),
+      resolveStartupContext: async (sessionId) => {
+        if (sessionId !== 's2') return 'User is fixing Live voice.';
+        await new Promise<void>((resolve) => { releaseSummary = resolve; });
+        return 'Docs rewrite in progress.';
+      },
+      pushOwnerAction: (action) => ownerActions.push(action),
+    });
+    const started = await coordinator.start(startArgs({ idempotencyKey: 'ctx-rebind-end' }));
+    expect(started.ok).toBe(true);
+    if (!started.ok) return;
+    const rebound = await coordinator.rebind({
+      sessionId: 's2',
+      callId: started.call.callId,
+      ownerDeviceId: 'd1',
+    });
+    expect(rebound.ok).toBe(true);
+    await coordinator.end({ ownerDeviceId: 'd1' });
+    ownerActions.length = 0;
+    await vi.waitFor(() => expect(releaseSummary).toBeTypeOf('function'));
+    releaseSummary?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(ownerActions.some((action) => action.content?.includes('Docs rewrite'))).toBe(false);
+    await coordinator.dispose();
+  });
+});
+
+describe('LiveCallCoordinator typed input relay', () => {
+  it('relays typed and queued turns on the bound session only', async () => {
+    const ownerActions: Array<{ action: string; content?: string }> = [];
+    const coordinator = makeLiveCoordinator({
+      pushOwnerAction: (action) => ownerActions.push(action),
+    });
+    const started = await coordinator.start(startArgs({ idempotencyKey: 'typed' }));
+    expect(started.ok).toBe(true);
+    if (!started.ok) return;
+    ownerActions.length = 0;
+
+    coordinator.notifyBoundSessionUserInput({ sessionId: 's1', text: '把标题改大' });
+    coordinator.notifyBoundSessionUserInput({ sessionId: 's1', text: '排队的活', source: 'queued-turn' });
+    // Another session, this call's own handover, Host-authored resume, and blank
+    // text must never reach the speaking surface.
+    coordinator.notifyBoundSessionUserInput({ sessionId: 's2', text: '别的会话' });
+    coordinator.notifyBoundSessionUserInput({ sessionId: 's1', text: '语音派的活', source: 'voice-delegation' });
+    coordinator.notifyBoundSessionUserInput({ sessionId: 's1', text: '继续', source: 'resume' });
+    coordinator.notifyBoundSessionUserInput({ sessionId: 's1', text: '   ' });
+
+    const relayed = ownerActions.filter((action) => action.action === 'append-context');
+    expect(relayed).toHaveLength(2);
+    expect(relayed[0]?.content).toContain('把标题改大');
+    expect(relayed[0]?.content).toContain('do not delegate it');
+    expect(relayed[1]?.content).toContain('排队的活');
     await coordinator.dispose();
   });
 });

@@ -1,9 +1,11 @@
 import {
-  composeLiveSpokenInstructions,
-  PIWIN_LIVE_DELEGATE_INSTRUCTION_DESCRIPTION,
-  PIWIN_LIVE_DELEGATE_TOOL_DESCRIPTION,
   type LiveOwnerEvent,
 } from '@piwin/contracts';
+import {
+  OPENAI_REALTIME_DELEGATE_TOOL,
+  OPENAI_REALTIME_LIVE_INSTRUCTIONS,
+  openaiRealtimeSessionUpdatePayload,
+} from '@piwin/voice/wire';
 
 export type OpenaiRealtimeParsedMessage =
   | { kind: 'session-created' }
@@ -14,44 +16,7 @@ export type OpenaiRealtimeParsedMessage =
   | { kind: 'error'; message: string }
   | { kind: 'ignore' };
 
-export const OPENAI_REALTIME_DELEGATE_TOOL = 'delegate_to_work_session';
-
-export const OPENAI_REALTIME_LIVE_INSTRUCTIONS = composeLiveSpokenInstructions('tool-handover');
-
-export function openaiRealtimeSessionUpdatePayload(input: {
-  voice: string;
-  instructions?: string;
-}): string {
-  return JSON.stringify({
-    type: 'session.update',
-    session: {
-      voice: input.voice,
-      modalities: ['audio', 'text'],
-      instructions: input.instructions ?? OPENAI_REALTIME_LIVE_INSTRUCTIONS,
-      turn_detection: { type: 'server_vad' },
-      input_audio_format: 'pcm16',
-      output_audio_format: 'pcm16',
-      tool_choice: 'auto',
-      tools: [
-        {
-          type: 'function',
-          name: OPENAI_REALTIME_DELEGATE_TOOL,
-          description: PIWIN_LIVE_DELEGATE_TOOL_DESCRIPTION,
-          parameters: {
-            type: 'object',
-            properties: {
-              instruction: {
-                type: 'string',
-                description: PIWIN_LIVE_DELEGATE_INSTRUCTION_DESCRIPTION,
-              },
-            },
-            required: ['instruction'],
-          },
-        },
-      ],
-    },
-  });
-}
+export { OPENAI_REALTIME_DELEGATE_TOOL, OPENAI_REALTIME_LIVE_INSTRUCTIONS, openaiRealtimeSessionUpdatePayload };
 
 export function openaiRealtimeAudioAppendPayload(base64Pcm16: string): string {
   return JSON.stringify({

@@ -1,5 +1,5 @@
 import type { LiveGeminiThinkingLevel, LiveProviderDescriptor } from '@piwin/contracts';
-import { isLiveCallErrorCode } from '@piwin/contracts';
+import { isLiveCallErrorCode, renderLiveStartupContext } from '@piwin/contracts';
 import {
   GEMINI_LIVE_PROVIDER_ID,
   geminiLiveSettingFields,
@@ -43,6 +43,9 @@ export function createGeminiLiveRegistration(deps: {
             voice: settings.normalized.voice ?? '',
             thinkingLevel,
             signal: input.signal,
+            ...(input.startupContext
+              ? { startupContext: renderLiveStartupContext(input.startupContext) }
+              : {}),
           },
           deps.fetchImpl,
         );

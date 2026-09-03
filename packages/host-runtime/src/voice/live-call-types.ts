@@ -1,4 +1,4 @@
-import type { LiveCallErrorCode, LiveCallView, LiveOwnerBootstrap, LiveStartData, LiveDelegationReviewer } from '@piwin/contracts';
+import type { LiveCallErrorCode, LiveCallView, LiveOwnerBootstrap, LiveStartData, LiveDelegationReviewer, LiveReviewSessionTurn } from '@piwin/contracts';
 import type { FakeRealtimeVoiceAdapter, LiveCallState, LiveProviderRegistry } from '@piwin/voice';
 import type { LiveChannelSnapshot } from './live-settings-service.js';
 
@@ -47,6 +47,8 @@ export type LiveCoordinatorDeps = {
   resolveSnapshot: (providerId?: string) => Promise<LiveChannelSnapshot>;
   resolveSessionLabel: (sessionId: string) => Promise<string | null> | string | null;
   admission: LiveDelegationAdmissionPort;
+  resolveStartupContext?: (sessionId: string, signal: AbortSignal) => Promise<string | null>;
+  getRecentTurns?: (sessionId: string) => Promise<readonly LiveReviewSessionTurn[]> | readonly LiveReviewSessionTurn[];
   getFakeAdapter?: () => FakeRealtimeVoiceAdapter | null;
   now?: () => string;
   pushUpdated?: (call: LiveCallView | null) => void;

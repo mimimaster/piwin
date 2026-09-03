@@ -139,6 +139,25 @@ describe('CodexLiveAdapter', () => {
     ).not.toHaveProperty('intelligence');
   });
 
+  it('emits developer initial_items only when startup context is present', () => {
+    expect(buildCodexLiveCallBody({ sdp: 'v=0', instructions: 'hi' }).session).not.toHaveProperty(
+      'initial_items',
+    );
+    expect(
+      buildCodexLiveCallBody({
+        sdp: 'v=0',
+        instructions: 'hi',
+        startupContext: 'Startup context from the bound work session',
+      }).session.initial_items,
+    ).toEqual([
+      {
+        type: 'message',
+        role: 'developer',
+        content: [{ type: 'input_text', text: 'Startup context from the bound work session' }],
+      },
+    ]);
+  });
+
   it('unwraps a JSON SDP answer body', async () => {
     const adapter = new CodexLiveAdapter({
       fetchImpl: async () =>

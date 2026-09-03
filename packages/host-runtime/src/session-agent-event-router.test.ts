@@ -56,7 +56,7 @@ function createRouterKernel(input: {
       ledgerWrites.push(usage);
     },
     assistantTextBuffers: new Map(),
-    sessionLastAssistantReply: new Map(),
+    runAssistantReply: new Map(),
     dispatchHooksForAgentEvent: async (_sessionId: string, event: AgentEvent) => {
       hookEvents.push(event);
     },

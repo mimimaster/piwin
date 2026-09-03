@@ -308,6 +308,9 @@ export function createMobilePcmLiveDriver(
             ? geminiSetupPayload()
             : openaiSessionUpdatePayload(
                 bootstrap.mediaDriverId === 'openai-realtime-ws-v1' ? bootstrap.voice : 'eve',
+                bootstrap.mediaDriverId === 'openai-realtime-ws-v1'
+                  ? bootstrap.startupContext
+                  : undefined,
               ),
         );
       } else {
@@ -317,6 +320,9 @@ export function createMobilePcmLiveDriver(
               ? geminiSetupPayload()
               : openaiSessionUpdatePayload(
                   bootstrap.mediaDriverId === 'openai-realtime-ws-v1' ? bootstrap.voice : 'eve',
+                  bootstrap.mediaDriverId === 'openai-realtime-ws-v1'
+                    ? bootstrap.startupContext
+                    : undefined,
                 ),
           );
         };

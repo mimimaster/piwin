@@ -13,10 +13,17 @@ export type LiveDelegationContext = {
   result?: string;
 };
 
+export type LiveReviewSessionTurn = {
+  role: 'user' | 'assistant';
+  text: string;
+};
+
 export type LiveDelegationReviewInput = {
   sessionId: string;
   instruction: string;
   tasks: readonly LiveDelegationContext[];
+  /** Bounded excerpt of the bound session, for resolving spoken references. */
+  recentTurns?: readonly LiveReviewSessionTurn[];
   signal: AbortSignal;
 };
 

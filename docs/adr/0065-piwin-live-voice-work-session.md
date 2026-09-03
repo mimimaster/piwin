@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | Status | **Accepted — multi-provider; supersedes Codex-only same-week wording** |
-| Date | 2026-08-28; revised 2026-08-29; language layers + intent admission 2026-08-31; retarget / failure visibility / Mobile follow 2026-09-01 |
+| Date | 2026-08-28; revised 2026-08-29; language layers + intent admission 2026-08-31; retarget / failure visibility / Mobile follow 2026-09-01; session context 2026-09-03 |
 | Scope | `@piwin/contracts`, `@piwin/voice`, `@piwin/host-runtime`, `@piwin/host-server`, `@piwin/host-transport`, `apps/desktop`, `apps/mobile` |
 | Product | [2026-08-28 product](../specs/2026-08-28-codex-live-product.md) · [2026-08-29 provider adapter](../specs/2026-08-29-live-provider-adapter.md) · [2026-08-31 language layers](../specs/2026-08-31-live-language-layers.md) |
 | Architecture | [2026-08-28 voice lane](../specs/2026-08-28-codex-live-voice-lane.md) |
@@ -15,6 +15,8 @@
 2026-08-31 稳定性修订：[Live reliability](../specs/2026-08-31-live-reliability.md)。已落实 owner-scoped bootstrap 重放、settingsRevision 校验、晚到取消清理、真实媒体就绪门、Host 唯一结果回传与可恢复失败 UI。原生 bridge 已验证当前适配器 HTTP 201 → connected；真实设备听感验收仍单独进行。
 
 2026-09-01 retarget / failure visibility / Mobile follow：通话中 Desktop 焦点与 paired Mobile owner 当前工作会话均 auto-rebind；空焦点保持旧绑且 owner UI 必须标出绑定目标；改绑失败可见；成功改 session 后 Host 发短 `append-context` retarget，不 abort 已接纳 Run。
+
+2026-09-03 session context：①说话面在 call-create 时拿到绑定会话的续接摘要（Codex `initial_items` / Gemini systemInstruction 第二段 / OpenAI owner bootstrap），通话中同步绑定会话打字与任意 Run 短结果。摘要仅内存，不上 `LiveCallView`。
 
 ## Context
 
@@ -104,7 +106,8 @@ Live owner events, `LiveCallSlot`, and `admit-voice-delegation` must not
 carry a work `ModelRef`.
 
 Language-model boundaries (2026-08-31): the voice model sees only
-`PIWIN_LIVE_SPOKEN_CONTRACT` plus a channel appendix; the work model sees a
+`PIWIN_LIVE_SPOKEN_CONTRACT` plus a channel appendix, plus a bounded startup
+summary of the bound session and later Host context updates; the work model sees a
 one-time `live_work_session` preamble and per-turn `voice_brief`; results
 return as a speakable takeaway, not a “session finished” announcement.
 Desktop shows a handover card, not a typed user bubble. Host still must
@@ -128,6 +131,7 @@ Sending a frame still does not prove upstream receipt or audible playback.
 | Raw audio | Not persisted |
 | Casual Live transcript | Not persisted |
 | Delegated instruction + `voice-delegation` source | Persisted |
+| Session continuity summary | Memory only (owner bootstrap / provider request / owner actions) |
 | Token / SDP / upstream payloads | Memory only |
 
 ### 6. Multi-client (MVP)

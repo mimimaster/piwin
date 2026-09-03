@@ -7,6 +7,8 @@ import { createSecretResolver } from '../secret-resolver.js';
 import { LiveCallCoordinator } from './live-call-coordinator.js';
 import { composeLiveSettings } from './compose-live-settings.js';
 import { composeLiveReviewer } from './compose-live-reviewer.js';
+import { createLiveSessionModelCompletion } from './compose-live-completion.js';
+import { createLiveSessionContextSource, listRecentLiveReviewTurns } from './live-session-context-source.js';
 import { readOpenaiCodexLiveAuth } from './codex-live-token.js';
 import { createVoiceDelegationAdmission } from './voice-delegation-admission.js';
 import { createHostVoiceDelegationPrompt } from './admit-voice-delegation.js';
@@ -27,6 +29,23 @@ export function composeHostLive(deps: HostRuntimeKernel): void {
     getCoordinator: () => deps.liveCallCoordinator ?? null,
   });
   deps.liveSettings = composed.service;
+  const completionInput = {
+    loadConfig: () => loadPiwinConfig(piwinRoot),
+    resolveAccounts: async () => await deps.subscriptionAuth?.chatResolveInput() ?? { accounts: [] },
+    resolveSessionModel: async (sessionId: string) => {
+      const record = await getRecord(sessionId);
+      if (!record) throw new Error('live-session-unavailable');
+      return record.model ?? deps.sessionModels.get(sessionId);
+    },
+    secrets: createSecretResolver(piwinRoot === undefined ? {} : { piwinRoot }),
+  };
+  const startupContext =
+    deps.options.mock === true
+      ? { resolve: async () => null }
+      : createLiveSessionContextSource({
+          getTranscriptStore: (sessionId) => deps.getTranscriptStore(sessionId),
+          completion: createLiveSessionModelCompletion(completionInput),
+        });
   deps.liveCallCoordinator = new LiveCallCoordinator({
     registry: composed.registry,
     resolveSnapshot: (providerId) => composed.service.snapshot(providerId),
@@ -43,16 +62,15 @@ export function composeHostLive(deps: HostRuntimeKernel): void {
     },
     review: deps.options.mock === true
       ? async (request) => ({ kind: 'work', brief: request.instruction })
-      : composeLiveReviewer({
-          loadConfig: () => loadPiwinConfig(piwinRoot),
-          resolveAccounts: async () => await deps.subscriptionAuth?.chatResolveInput() ?? { accounts: [] },
-          resolveSessionModel: async (sessionId) => {
-            const record = await getRecord(sessionId);
-            if (!record) throw new Error('live-session-unavailable');
-            return record.model ?? deps.sessionModels.get(sessionId);
-          },
-          secrets: createSecretResolver(piwinRoot === undefined ? {} : { piwinRoot }),
-        }),
+      : composeLiveReviewer(completionInput),
+    resolveStartupContext: (sessionId, signal) => startupContext.resolve(sessionId, signal),
+    getRecentTurns: async (sessionId) => {
+      try {
+        return await listRecentLiveReviewTurns(await deps.getTranscriptStore(sessionId));
+      } catch {
+        return [];
+      }
+    },
     admission: createVoiceDelegationAdmission({
       busy: { isSessionBusy: (sessionId) => Boolean(deps.runRegistry.getForegroundRun(sessionId)) },
       prompt: createHostVoiceDelegationPrompt({ handleCommand: (command) => deps.handleCommand(command) }),

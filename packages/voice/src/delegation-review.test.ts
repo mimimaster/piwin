@@ -15,8 +15,29 @@ describe('tool-free voice intent reviewer', () => {
     expect(decision).toEqual({ kind: 'work', brief: request.instruction });
     const input = complete.mock.calls[0]?.[0];
     expect(input).toMatchObject({ systemPrompt: LIVE_DELEGATION_REVIEW_PROMPT, sessionId: 'session' });
-    expect(JSON.parse(input?.userPrompt ?? '{}')).toEqual({ instruction: request.instruction, tasks: request.tasks });
+    expect(JSON.parse(input?.userPrompt ?? '{}')).toEqual({
+      instruction: request.instruction,
+      tasks: request.tasks,
+      recentTurns: [],
+    });
     expect(input).not.toHaveProperty('tools');
+  });
+
+  it('includes recent session turns so a follow-up can resolve as work', async () => {
+    const complete = vi.fn<Parameters<typeof createLiveDelegationReviewer>[0]['complete']>(
+      async () => JSON.stringify({ kind: 'work', brief: '把动画改成白天' }),
+    );
+    const decision = await createLiveDelegationReviewer({ complete })({
+      ...request,
+      instruction: '改成白天',
+      recentTurns: [{ role: 'user', text: '做一个骑车的HTML动画' }],
+    });
+    expect(decision).toEqual({ kind: 'work', brief: '把动画改成白天' });
+    const payload = complete.mock.calls[0]?.[0];
+    expect(payload).toBeDefined();
+    expect(JSON.parse(payload?.userPrompt ?? '{}').recentTurns).toEqual([
+      { role: 'user', text: '做一个骑车的HTML动画' },
+    ]);
   });
 
   it.each([

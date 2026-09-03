@@ -21,6 +21,7 @@ export type GeminiLiveTokenInput = {
   voice: string;
   thinkingLevel: LiveGeminiThinkingLevel;
   signal: AbortSignal;
+  startupContext?: string;
 };
 
 export type GeminiLiveTokenResult = {
@@ -33,10 +34,13 @@ export function buildGeminiLiveTokenRequest(input: {
   voice: string;
   thinkingLevel: LiveGeminiThinkingLevel;
   now?: Date;
+  startupContext?: string;
 }): Record<string, unknown> {
   const now = input.now ?? new Date();
   const sessionExpire = new Date(now.getTime() + 60_000).toISOString();
   const tokenExpire = new Date(now.getTime() + 30 * 60_000).toISOString();
+  const instructionParts: Array<{ text: string }> = [{ text: GEMINI_LIVE_SYSTEM_INSTRUCTION }];
+  if (input.startupContext) instructionParts.push({ text: input.startupContext });
   // Raw REST AuthToken uses proto names. `liveConnectConstraints` is SDK-only
   // and Google 400s it: Unknown name "liveConnectConstraints".
   return {
@@ -46,7 +50,7 @@ export function buildGeminiLiveTokenRequest(input: {
     bidiGenerateContentSetup: {
       model: `models/${input.modelId}`,
       systemInstruction: {
-        parts: [{ text: GEMINI_LIVE_SYSTEM_INSTRUCTION }],
+        parts: instructionParts,
       },
       generationConfig: {
         responseModalities: ['AUDIO'],
@@ -135,6 +139,7 @@ export async function mintGeminiLiveToken(
           modelId: input.modelId,
           voice: input.voice,
           thinkingLevel: input.thinkingLevel,
+          ...(input.startupContext ? { startupContext: input.startupContext } : {}),
         }),
       ),
       signal: controller.signal,

@@ -194,6 +194,9 @@ export function createOpenaiRealtimeDriver(
           sendJson(
             openaiRealtimeSessionUpdatePayload({
               voice: bootstrap.voice,
+              ...(bootstrap.startupContext
+                ? { startupContext: bootstrap.startupContext }
+                : {}),
             }),
           );
         };

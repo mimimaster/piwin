@@ -170,23 +170,24 @@ export function routeSessionAgentEvent(
   noteResponseEvidenceFromEvent(deps, session.id, eventForClients, correlatedRunId ?? activeRunId);
   // CE-NAME: capture the assistant reply from the event stream so
   // auto-naming can give the LLM title generator exchange context.
+  const replyRunId = correlatedRunId ?? activeRunId;
   if (correlatedEvent.type === 'message/start' && correlatedEvent.role === 'assistant') {
     deps.assistantTextBuffers.set(correlatedEvent.messageId, '');
   } else if (correlatedEvent.type === 'message/text_delta') {
     const buffer = deps.assistantTextBuffers.get(correlatedEvent.messageId);
     if (buffer !== undefined) {
-      deps.assistantTextBuffers.set(correlatedEvent.messageId, buffer + correlatedEvent.delta);
+      recordAssistantReply(deps, correlatedEvent.messageId, buffer + correlatedEvent.delta, replyRunId);
     }
   } else if (correlatedEvent.type === 'message/text_snapshot') {
     const buffer = deps.assistantTextBuffers.get(correlatedEvent.messageId);
     if (buffer !== undefined) {
-      deps.assistantTextBuffers.set(correlatedEvent.messageId, correlatedEvent.text);
+      recordAssistantReply(deps, correlatedEvent.messageId, correlatedEvent.text, replyRunId);
     }
   } else if (correlatedEvent.type === 'message/end') {
     const reply = deps.assistantTextBuffers.get(correlatedEvent.messageId);
     if (reply !== undefined) {
       deps.assistantTextBuffers.delete(correlatedEvent.messageId);
-      deps.sessionLastAssistantReply.set(session.id, reply);
+      if (replyRunId) deps.runAssistantReply.set(replyRunId, reply);
     }
   }
   // CE-HOOK: arm matching hooks on normalized AgentEvent (best-effort, never fails turn).
@@ -290,6 +291,21 @@ function noteResponseEvidenceFromEvent(
     .catch((error: unknown) => {
       logCoordinatorFailure(deps, error);
     });
+}
+
+/**
+ * Mirror the streaming reply onto the Run as it grows. `run/terminal` can fire
+ * before the final `message/end` (cancellation, late async callbacks) and Live
+ * reads this map at terminal time, so an end-only write would deliver no text.
+ */
+function recordAssistantReply(
+  deps: HostRuntimeKernel,
+  messageId: string,
+  text: string,
+  runId: string | undefined,
+): void {
+  deps.assistantTextBuffers.set(messageId, text);
+  if (runId) deps.runAssistantReply.set(runId, text);
 }
 
 function logCoordinatorFailure(deps: HostRuntimeKernel, error: unknown): void {
