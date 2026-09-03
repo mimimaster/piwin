@@ -127,8 +127,6 @@ export function resolveSidebarProjectCollapsed(input: {
 export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRow[] {
   const searching = input.sessionSearch.trim().length > 0;
   const drafts = input.draftSessions ?? [];
-  const revealSessionId = input.revealSessionId ?? null;
-  const revealDraftId = input.revealDraftId ?? null;
   const rows: SidebarTreeRow[] = [
     { kind: 'section-header', sectionId: 'projects', key: 'section:projects' },
   ];
@@ -140,11 +138,11 @@ export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRo
     input.sessionSearch,
     input.sessionListOrder,
   );
-  const revealGeneral = revealIndexInRows(generalMerged, revealSessionId, revealDraftId) >= 0;
-  const showProjects =
-    input.projectsSectionExpanded ||
-    projectSectionContainsReveal(input, drafts, revealSessionId, revealDraftId);
-  const showConversations = input.conversationsSectionExpanded || revealGeneral;
+  // Section collapse is an explicit user gesture. Reveal (active session)
+  // must not keep the list open after the user folds it — same policy as
+  // project folders. Search still unfolds so matches are not hidden.
+  const showProjects = searching || input.projectsSectionExpanded;
+  const showConversations = searching || input.conversationsSectionExpanded;
 
   if (showProjects) {
     for (const cluster of clusterProjectsByRepository(input.recentProjects)) {
@@ -256,30 +254,6 @@ function appendProjectFolderRows(
     sessionListScopes: input.sessionListScopes,
     allowEmptyHint: !searching,
   });
-}
-
-function projectSectionContainsReveal(
-  input: SidebarTreeRowsInput,
-  drafts: readonly DraftSessionItemUi[],
-  sessionId: string | null,
-  draftId: string | null,
-): boolean {
-  if (!sessionId && !draftId) {
-    return false;
-  }
-  if (drafts.some((draft) => draft.id === draftId && draft.scope.kind === 'project')) {
-    return true;
-  }
-  for (const project of input.recentProjects) {
-    const hostSessions =
-      input.activeProjectPath === project.path && input.activeProjectSessions !== undefined
-        ? input.activeProjectSessions
-        : (input.projectSessionsByPath[project.path] ?? []);
-    if (hostSessions.some((session) => session.id === sessionId)) {
-      return true;
-    }
-  }
-  return false;
 }
 
 function mergeScopeRows(

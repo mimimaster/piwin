@@ -141,6 +141,39 @@ describe('buildSidebarTreeRows', () => {
     expect(kinds(rows)).toEqual(['header:projects', 'header:conversations']);
   });
 
+  it('lets an explicit section fold win even when the active session is inside it', () => {
+    const rows = buildSidebarTreeRows({
+      recentProjects: [{ path: '/p' }],
+      projectSessionsByPath: { '/p': [session('p1', 'P')] },
+      generalSessions: [session('g1', 'G')],
+      sessionSearch: '',
+      sessionListOrder: 'updated',
+      projectsSectionExpanded: false,
+      conversationsSectionExpanded: false,
+      collapsedProjects: {},
+      sessionListScopes: createSessionListScopeState(),
+      revealSessionId: 'g1',
+      activeProjectPath: '/p',
+      activeProjectSessions: [session('p1', 'P')],
+    });
+    expect(kinds(rows)).toEqual(['header:projects', 'header:conversations']);
+  });
+
+  it('still reveals collapsed section matches while searching', () => {
+    const rows = buildSidebarTreeRows({
+      recentProjects: [],
+      projectSessionsByPath: {},
+      generalSessions: [session('g1', 'Docker notes')],
+      sessionSearch: 'Docker',
+      sessionListOrder: 'updated',
+      projectsSectionExpanded: false,
+      conversationsSectionExpanded: false,
+      collapsedProjects: {},
+      sessionListScopes: createSessionListScopeState(),
+    });
+    expect(kinds(rows)).toEqual(['header:projects', 'header:conversations', 'session:g1']);
+  });
+
   it('expands only the active project folder by default', () => {
     const rows = buildSidebarTreeRows({
       recentProjects: [{ path: '/a' }, { path: '/b' }, { path: '/c' }],
