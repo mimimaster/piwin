@@ -346,11 +346,6 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
       }
       return;
     }
-    if (reserved.kind === 'command' && reserved.commandId === 'stop') {
-      setComposer('');
-      await handleStop();
-      return;
-    }
     const clientMessageId = crypto.randomUUID();
     setComposer('');
     setBusy(true);

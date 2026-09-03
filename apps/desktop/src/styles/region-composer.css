@@ -231,6 +231,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: nowrap;
   gap: var(--s-4);
   padding: var(--s-2) var(--s-4) var(--s-4);
   border-radius: 0 0 var(--r-panel) var(--r-panel);
@@ -242,6 +243,7 @@
 .composer-v2-toolbar-right {
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
   gap: var(--s-2);
   min-width: 0;
   overflow: visible;
@@ -309,6 +311,10 @@
 .thinking-effort-control,
 .run-mode-control,
 .orchestration-scheme-control {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 1 auto;
+  min-width: 0;
   position: relative;
   overflow: visible;
   z-index: 3;
@@ -809,11 +815,16 @@
 }
 
 .orchestration-scheme-unpinned-hint {
+  display: block;
+  width: 100%;
   border: 0;
   background: transparent;
   color: var(--text-4);
   font: inherit;
   font-size: var(--fs-mono);
+  line-height: 1.4;
+  text-align: left;
+  white-space: normal;
   cursor: pointer;
   padding: var(--s-2) var(--s-4);
   border-radius: var(--r-control);

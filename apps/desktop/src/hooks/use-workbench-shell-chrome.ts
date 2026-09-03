@@ -197,8 +197,7 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
   const plusMenu = useComposerPlusMenu({
     hostClient,
     projectPath: state.projectPath,
-    projectTrusted: state.projectTrusted,
-    activeSessionId: state.activeSessionId,
+    hostReady: state.hostReady,
   });
   const [selectedModelKey, setSelectedModelKey] = useState('');
   const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevel>('off');

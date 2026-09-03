@@ -64,13 +64,6 @@ export function useComposerSteerQueue(params: UseComposerSteerQueueArgs) {
         return false;
       }
       const reserved = parseComposerSlashSubmit(text, []);
-      if (reserved.kind === 'command' && reserved.commandId === 'stop') {
-        if (overrideText === undefined) {
-          setComposer('');
-        }
-        await args.onAbort?.();
-        return true;
-      }
       if (reserved.kind === 'command' && reserved.commandId === 'compact') {
         const compacted = await args.onCompact?.(normalizeCompactCustomInstructions(reserved.args));
         if (compacted !== false && overrideText === undefined) {
@@ -150,14 +143,6 @@ export function useComposerSteerQueue(params: UseComposerSteerQueueArgs) {
     const text = composer.trim();
     const sessionId = args.state.activeSessionId;
     const reserved = parseComposerSlashSubmit(text, []);
-    if (reserved.kind === 'command' && reserved.commandId === 'stop') {
-      if (promptSubmissionInProgress.current) {
-        return;
-      }
-      setComposer('');
-      void args.onAbort?.();
-      return;
-    }
     if (reserved.kind === 'command' && reserved.commandId === 'compact') {
       if (promptSubmissionInProgress.current) {
         return;
@@ -278,10 +263,6 @@ export function useComposerSteerQueue(params: UseComposerSteerQueueArgs) {
         return;
       }
       const reserved = parseComposerSlashSubmit(target.input.text, []);
-      if (reserved.kind === 'command' && reserved.commandId === 'stop') {
-        await args.onAbort?.();
-        return;
-      }
       if (reserved.kind === 'command' && reserved.commandId === 'compact') {
         await args.onCompact?.(normalizeCompactCustomInstructions(reserved.args));
         return;

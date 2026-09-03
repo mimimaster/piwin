@@ -85,7 +85,7 @@ export type UseComposerMediaArgs = {
    * ref. Return false to fall back to inserting the path text into the composer.
    */
   addContextRefFromDrop?: (payload: { absolutePath: string; relativePath: string }) => boolean;
-  /** Conversation chat ignores skills and orchestration; Agent/Goal slash still applies. */
+  /** Conversation chat ignores orchestration; Agent/Goal and explicit `/skill` still apply. */
   conversationChat?: boolean;
   /** Open the flashcards home on slash command submit (/knowledge, /notes). */
   onOpenKnowledge?: (subTab?: 'doccards' | 'cards' | 'wiki') => void;

@@ -76,7 +76,7 @@ describe('buildSlashCatalog — composer modes', () => {
 });
 
 describe('buildSlashCatalog — Conversation chat', () => {
-  it('keeps compact/stop plus Agent/Goal, and omits skills and orchestration', () => {
+  it('keeps compact plus Agent/Goal/skills, and omits orchestration', () => {
     const catalog = buildSlashCatalog({
       skills,
       hasActiveSession: true,
@@ -85,11 +85,16 @@ describe('buildSlashCatalog — Conversation chat', () => {
     });
     expect(catalog.map((item) => item.id)).toEqual([
       'cmd:compact',
-      'cmd:stop',
       'mode:agent',
       'mode:goal',
+      'skill:writing-plans',
+      'skill:optimize-prompt',
+      'skill:create-skill',
     ]);
-    expect(catalog.some((item) => item.kind === 'skill')).toBe(false);
+    expect(catalog.some((item) => item.id === 'cmd:ultra-code')).toBe(false);
+    expect(catalog.some((item) => item.id === 'cmd:scheme')).toBe(false);
+    const writingPlans = catalog.find((item) => item.id === 'skill:writing-plans');
+    expect(writingPlans?.available).toBe(true);
   });
 
   it('keeps /goal available before a session exists', () => {

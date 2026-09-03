@@ -98,6 +98,7 @@ export function OrchestrationSchemeControl({
             type="button"
             className="orchestration-scheme-trigger"
             disabled={disabled}
+            {...(unpinnedHint ? { title: unpinnedHint } : {})}
             aria-label={
               isZh ? `编排方案: ${selectedLabel}` : `Orchestration scheme: ${selectedLabel}`
             }
@@ -142,6 +143,24 @@ export function OrchestrationSchemeControl({
               </button>
             );
           })}
+          {unpinnedHint ? (
+            <button
+              type="button"
+              className="orchestration-scheme-unpinned-hint"
+              data-testid="orchestration-scheme-unpinned-hint"
+              onClick={() => {
+                if (!onOpenSettings) {
+                  return;
+                }
+                setOpen(false);
+                onOpenSettings();
+              }}
+              disabled={!onOpenSettings}
+              title={unpinnedHint}
+            >
+              {unpinnedHint}
+            </button>
+          ) : null}
         </div>
         {onDelegationDisabledChange ? (
           <div className="orchestration-scheme-section">
@@ -183,18 +202,6 @@ export function OrchestrationSchemeControl({
           </div>
         ) : null}
       </Popover>
-      {unpinnedHint ? (
-        <button
-          type="button"
-          className="orchestration-scheme-unpinned-hint"
-          data-testid="orchestration-scheme-unpinned-hint"
-          onClick={() => onOpenSettings?.()}
-          disabled={!onOpenSettings}
-          title={unpinnedHint}
-        >
-          {unpinnedHint}
-        </button>
-      ) : null}
     </div>
   );
 }

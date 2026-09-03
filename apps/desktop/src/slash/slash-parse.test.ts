@@ -59,35 +59,32 @@ describe('parseComposerSlashSubmit', () => {
     });
   });
 
-  it('recognizes reserved compact/stop submits', () => {
+  it('recognizes reserved compact submits', () => {
     expect(isReservedSlashExecuteName('compact')).toBe(true);
     expect(isReservedSlashExecuteName('summarize')).toBe(true);
-    expect(isReservedSlashExecuteName('stop')).toBe(true);
+    expect(isReservedSlashExecuteName('ultra-code')).toBe(true);
     expect(isReservedSlashExecuteName('agent')).toBe(false);
     expect(isReservedComposerSlashCommand('/compact')).toBe(true);
     expect(isReservedComposerSlashCommand('/compact keep tools')).toBe(true);
-    expect(isReservedComposerSlashCommand('/stop')).toBe(true);
     expect(isReservedComposerSlashCommand('/agent')).toBe(false);
     expect(isReservedComposerSlashCommand('hello')).toBe(false);
   });
 
-  it('runs reserved compact/stop handlers for whole-message submits', async () => {
+  it('runs reserved compact handler for whole-message submits', async () => {
     const compact = vi.fn(async () => true);
-    const abort = vi.fn(async () => undefined);
     expect(await runReservedComposerSlashCommand('/compact keep tools', { compact })).toBe(true);
     expect(compact).toHaveBeenCalledWith('keep tools');
-    expect(await runReservedComposerSlashCommand('/stop', { abort })).toBe(true);
-    expect(abort).toHaveBeenCalledTimes(1);
-    expect(await runReservedComposerSlashCommand('hello', { compact, abort })).toBe(false);
+    expect(await runReservedComposerSlashCommand('hello', { compact })).toBe(false);
   });
 
-  it('parses stop and abort', () => {
+  it('treats /stop as unknown (removed command, not a reserved submit)', () => {
     expect(parseComposerSlashSubmit('/stop', skills)).toMatchObject({
-      kind: 'command',
-      commandId: 'stop',
+      kind: 'unknown',
+      name: 'stop',
     });
     expect(parseComposerSlashSubmit('/abort', skills)).toMatchObject({
-      commandId: 'stop',
+      kind: 'unknown',
+      name: 'abort',
     });
   });
 

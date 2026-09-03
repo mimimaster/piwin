@@ -25,7 +25,7 @@ export type BuildSlashCatalogOptions = {
   agentMode?: AgentModeId;
   /** Whether the goal extension is enabled (defaults to true). */
   goalExtensionEnabled?: boolean;
-  /** Conversation chat hides skills and orchestration commands. */
+  /** Conversation chat hides orchestration commands. Skills stay slash-callable. */
   conversationChat?: boolean;
 };
 
@@ -36,8 +36,6 @@ export const RESERVED_SLASH_COMMAND_NAMES: ReadonlySet<string> = new Set([
   'compact',
   'summarize',
   'compress',
-  'stop',
-  'abort',
   'agent',
   'goal',
   // Retired composer modes — keep reserved so a skill cannot claim the tokens.
@@ -72,6 +70,9 @@ export function buildSlashCatalog(options: BuildSlashCatalogOptions): SlashItem[
   const projectTrusted = options.projectTrusted === true;
   const requireProjectTrust = options.requireProjectTrust !== false;
   const interactive = hasActiveSession && (!requireProjectTrust || projectTrusted);
+  // Skills are callable in drafts once the project is trusted: they only need
+  // trust, not an active session (draft submit resolves the session).
+  const skillsReady = projectTrusted || !requireProjectTrust;
   const conversationChat = options.conversationChat === true;
 
   const items: SlashItem[] = [];
@@ -111,35 +112,6 @@ export function buildSlashCatalog(options: BuildSlashCatalogOptions): SlashItem[
       compactItem.unavailableReason = unavailableReason;
     }
     items.push(compactItem);
-  }
-
-  {
-    let available = true;
-    let unavailableReason: string | undefined;
-    if (!interactive) {
-      available = false;
-      unavailableReason = !hasActiveSession
-        ? 'Start or select a session first'
-        : 'Trust the project first';
-    } else if (!streaming) {
-      available = false;
-      unavailableReason = 'Nothing is running to stop';
-    }
-    const stopItem: SlashItem = {
-      id: 'cmd:stop',
-      kind: 'command',
-      name: 'stop',
-      aliases: ['abort'],
-      label: 'Stop',
-      description: 'Abort the current agent run',
-      keywords: ['abort', 'cancel', 'halt'],
-      groupLabel: 'Command',
-      available,
-    };
-    if (unavailableReason) {
-      stopItem.unavailableReason = unavailableReason;
-    }
-    items.push(stopItem);
   }
 
   // --- Flashcards (legacy /knowledge /wiki aliases open the same home) ---
@@ -235,53 +207,45 @@ export function buildSlashCatalog(options: BuildSlashCatalogOptions): SlashItem[
   }
 
   // --- Skills (skip names reserved by commands/modes) ---
-  if (!conversationChat) {
-    for (const skill of options.skills) {
-      const token = skill.name.trim() || skill.id;
-      const lower = token.toLowerCase();
-      if (RESERVED_SLASH_COMMAND_NAMES.has(lower)) {
-        continue;
-      }
-      const enabled = skill.enabled !== false;
-      let available = interactive && enabled;
-      let unavailableReason: string | undefined;
-      if (!interactive) {
-        unavailableReason = !hasActiveSession
-          ? 'Start or select a session first'
-          : 'Trust the project first';
-        available = false;
-      } else if (!enabled) {
-        unavailableReason = 'Enable this skill in Settings → Skills';
-        available = false;
-      }
-      const skillItem: SlashItem = {
-        id: `skill:${skill.id}`,
-        kind: 'skill',
-        name: token,
-        label: token,
-        description: skill.description?.trim() || `Run skill ${token}`,
-        keywords: [skill.id, token],
-        groupLabel: 'Skill',
-        enabled,
-        available,
-      };
-      // Attach any aliases registered for this canonical skill id.
-      const aliasNames = Object.entries(SKILL_SLASH_ALIASES)
-        .filter(([, target]) => target.toLowerCase() === skill.id.toLowerCase())
-        .map(([alias]) => alias);
-      if (aliasNames.length > 0) {
-        skillItem.aliases = aliasNames;
-        for (const alias of aliasNames) {
-          if (skillItem.keywords && !skillItem.keywords.includes(alias)) {
-            skillItem.keywords.push(alias);
+  for (const skill of options.skills) {
+    const token = skill.name.trim() || skill.id;
+    const lower = token.toLowerCase();
+    if (RESERVED_SLASH_COMMAND_NAMES.has(lower)) {
+      continue;
+    }
+    const enabled = skill.enabled !== false;
+    const available = enabled && skillsReady;
+    const skillItem: SlashItem = {
+      id: `skill:${skill.id}`,
+      kind: 'skill',
+      name: token,
+      label: token,
+      description: skill.description?.trim() || `Run skill ${token}`,
+      keywords: [skill.id, token],
+      groupLabel: 'Skill',
+      enabled,
+      available,
+      ...(!available
+        ? {
+            unavailableReason: !enabled
+              ? 'Enable this skill in Settings → Skills'
+              : 'Trust the project first',
           }
+        : {}),
+    };
+    // Attach any aliases registered for this canonical skill id.
+    const aliasNames = Object.entries(SKILL_SLASH_ALIASES)
+      .filter(([, target]) => target.toLowerCase() === skill.id.toLowerCase())
+      .map(([alias]) => alias);
+    if (aliasNames.length > 0) {
+      skillItem.aliases = aliasNames;
+      for (const alias of aliasNames) {
+        if (skillItem.keywords && !skillItem.keywords.includes(alias)) {
+          skillItem.keywords.push(alias);
         }
       }
-      if (unavailableReason) {
-        skillItem.unavailableReason = unavailableReason;
-      }
-      items.push(skillItem);
     }
+    items.push(skillItem);
   }
 
   return items;
