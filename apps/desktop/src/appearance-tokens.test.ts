@@ -191,7 +191,6 @@ const REMOVED_LEGACY_ALIASES = ['blue', 'panel-2'].map((name) => `--${name}`);
 const GEOMETRY_VARIABLES = [
   '--topbar-height',
   '--titleband-height',
-  '--rail-width',
   '--signal-rail-width',
   '--sidebar-width',
   '--right-panel-width',

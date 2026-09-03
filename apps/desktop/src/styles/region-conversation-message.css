@@ -463,5 +463,5 @@ html[data-theme-visual-style='ink-wash']
 .message-branch-switcher-btn {
   width: 22px;
   height: 22px;
-  font-size: 14px;
+  font-size: var(--fs-body);
 }

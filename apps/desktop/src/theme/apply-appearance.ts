@@ -300,7 +300,6 @@ function legacyVariables(d: ThemeDeckTokens, theme: ThemeManifest, isLight: bool
 const GEOMETRY_VARIABLES = [
   '--topbar-height',
   '--titleband-height',
-  '--rail-width',
   '--signal-rail-width',
   '--sidebar-width',
   '--right-panel-width',

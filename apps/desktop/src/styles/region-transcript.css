@@ -34,13 +34,98 @@
   display: none;
 }
 
-/* Empty sessions have no landing content; collapse the transcript so the
-   composer can occupy the center of the stage. */
+/* Empty sessions collapse the transcript so the composer can occupy the centre
+   of the stage. `:has()` keeps that behaviour for a first-ever session while
+   letting the resume landing point size itself when there is history to offer. */
 .chat-column-empty .transcript-viewport {
   flex: 0 0 0;
   min-height: 0;
   height: 0;
   overflow: hidden;
+}
+
+.chat-column-empty .transcript-viewport:has(.empty-stage-landing) {
+  flex: 0 0 auto;
+  height: auto;
+  overflow: visible;
+}
+
+/* ─── Empty-stage landing point ───────────────────────────────────────
+   Sits above the centred composer on a session with no turns. Deliberately
+   the quietest thing on the stage: a micro-label and ghost rows, so the
+   composer keeps the visual weight (see empty-stage-landing.tsx). */
+
+.empty-stage-landing {
+  width: var(--chat-max);
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 0 var(--chat-inline-pad) var(--s-6);
+  animation: deck-rise var(--t-4) var(--ease-out);
+}
+
+.empty-stage-landing-label {
+  margin: 0 0 var(--s-2);
+  padding: 0 var(--s-2);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: var(--tracking-micro);
+  text-transform: uppercase;
+}
+
+.empty-stage-landing-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.empty-stage-landing-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+  width: 100%;
+  min-height: var(--h-md);
+  padding: 0 var(--s-2);
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  /* Primary ink: this is the row's own content and the only reason the landing
+     point exists. `--text-2` measured 3.09:1 against the Bone stage, under the
+     4.5:1 floor — the muted step belongs to the timestamp beside it, not here. */
+  color: var(--text-1);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-body);
+  text-align: left;
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.empty-stage-landing-row:hover,
+.empty-stage-landing-row:focus-visible {
+  background: var(--hover);
+  color: var(--text-1);
+  outline: none;
+}
+
+.empty-stage-landing-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty-stage-landing-time {
+  flex: 0 0 auto;
+  color: var(--text-4);
+  font-family: var(--mono, var(--font-mono));
+  font-size: var(--fs-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ─── Scrollport ──────────────────────────────────────────────────────── */
@@ -439,7 +524,7 @@
 
 .assembly-summary-kicker {
   flex: 0 0 auto;
-  font-weight: 560;
+  font-weight: 600;
   color: var(--text-3);
 }
 

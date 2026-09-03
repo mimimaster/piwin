@@ -107,7 +107,7 @@
   margin-bottom: var(--s-2);
   color: var(--text-4);
   font-size: var(--fs-micro);
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: var(--tracking-micro);
   text-transform: uppercase;
 }

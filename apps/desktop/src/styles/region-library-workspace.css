@@ -3,8 +3,8 @@
    ========================================================================== */
 
 .vault-stage.lib-page {
-  background: #090b10 !important;
-  color: #f3f4f6 !important;
+  background: var(--void) !important;
+  color: var(--text-1) !important;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -29,8 +29,8 @@
   height: 56px;
   min-height: 56px;
   padding: 0 24px;
-  background: rgba(13, 16, 23, 0.95);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--surface-1) 95%, transparent);
+  border-bottom: 1px solid var(--line-1);
 }
 
 .lib-page .vault-bar-leading {
@@ -46,16 +46,16 @@
   width: 32px;
   height: 32px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.04);
-  color: #94a3b8;
+  border: 1px solid var(--line-1);
+  background: var(--hover);
+  color: var(--text-3);
   cursor: pointer;
   transition: all var(--t-1) var(--ease-out);
 }
 
 .lib-page .vault-back.is-icon:hover {
-  background: rgba(255, 255, 255, 0.09);
-  color: #ffffff;
+  background: var(--active);
+  color: var(--text-1);
 }
 
 .lib-page .vault-bar-context {
@@ -64,7 +64,7 @@
   gap: 8px;
   font-size: 15px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text-1);
   letter-spacing: -0.02em;
 }
 
@@ -73,9 +73,9 @@
   align-items: center;
   padding: 2px 8px;
   border-radius: var(--r-pill);
-  background: rgba(99, 102, 241, 0.15);
-  color: #a5b4fc;
-  border: 1px solid rgba(99, 102, 241, 0.3);
+  background: color-mix(in srgb, var(--iris) 15%, transparent);
+  color: var(--iris-lift);
+  border: 1px solid color-mix(in srgb, var(--iris) 30%, transparent);
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 600;
@@ -96,17 +96,17 @@
   min-height: 34px;
   padding: 0 12px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: #141824;
-  color: #94a3b8;
+  border: 1px solid var(--line-1);
+  background: var(--surface-3);
+  color: var(--text-3);
   transition: all var(--t-1) var(--ease-out);
 }
 
 .lib-page .vault-search:focus-within {
   width: 100%;
-  border-color: rgba(99, 102, 241, 0.7);
-  background: #181d2c;
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+  border-color: color-mix(in srgb, var(--iris) 70%, transparent);
+  background: var(--surface-4);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--iris) 20%, transparent);
 }
 
 .lib-page .vault-search input {
@@ -114,21 +114,21 @@
   min-width: 0;
   border: 0;
   background: transparent;
-  color: #f1f5f9;
+  color: var(--text-1);
   font-size: 12px;
   outline: none;
 }
 
 .lib-page .vault-search input::placeholder {
-  color: #64748b;
+  color: var(--text-4);
 }
 
 .vault-search-kbd {
   padding: 2px 6px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--line-2);
   border-radius: 5px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #94a3b8;
+  background: var(--hover);
+  color: var(--text-3);
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 600;
@@ -146,10 +146,10 @@
   align-items: center;
   height: 34px;
   padding: 0 14px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--line-1);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.05);
-  color: #cbd5e1;
+  background: var(--hover);
+  color: var(--text-2);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -157,16 +157,16 @@
 }
 
 .lib-batch-toggle-btn:hover {
-  background: rgba(255, 255, 255, 0.09);
-  color: #ffffff;
+  background: var(--active);
+  color: var(--text-1);
 }
 
 .lib-batch-toggle-btn.is-active {
-  background: #6366f1;
-  border-color: #6366f1;
-  color: #ffffff;
+  background: var(--iris);
+  border-color: var(--iris);
+  color: var(--on-iris);
   font-weight: 600;
-  box-shadow: 0 0 12px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--iris) 40%, transparent);
 }
 
 .lib-new-btn {
@@ -177,20 +177,22 @@
   padding: 0 14px;
   border: 0;
   border-radius: 12px;
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%);
-  color: #ffffff;
-  font-size: 12px;
+  /* One accent means "you can act" (Deck §2). The three-stop violet→pink ramp
+     and its glow were a second brand language competing with iris. */
+  background: var(--iris-fill, var(--iris));
+  color: var(--on-iris);
+  font-size: var(--fs-chrome);
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 0 18px rgba(99, 102, 241, 0.35);
+  box-shadow: var(--elev-2);
   transition:
-    transform var(--t-1) var(--ease-out),
+    filter var(--t-1) var(--ease-out),
     box-shadow var(--t-1) var(--ease-out);
 }
 
 .lib-new-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 0 24px rgba(99, 102, 241, 0.55);
+  filter: brightness(1.06);
+  box-shadow: var(--elev-3);
 }
 
 /* ── Tier 2: Subbar Filter & Control Strip ──────────────────────────── */
@@ -202,8 +204,8 @@
   height: 48px;
   min-height: 48px;
   padding: 0 24px;
-  background: rgba(10, 13, 20, 0.85);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--void) 85%, transparent);
+  border-bottom: 1px solid var(--line-1);
 }
 
 .lib-page .vault-filters-leading {
@@ -217,9 +219,9 @@
   align-items: center;
   gap: 2px;
   padding: 3px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--line-1);
   border-radius: 12px;
-  background: #121622;
+  background: var(--surface-3);
 }
 
 .lib-segmented-tab {
@@ -231,7 +233,7 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: #94a3b8;
+  color: var(--text-3);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -239,12 +241,12 @@
 }
 
 .lib-segmented-tab:hover {
-  color: #f1f5f9;
+  color: var(--text-1);
 }
 
 .lib-segmented-tab.is-active {
-  background: rgba(255, 255, 255, 0.12);
-  color: #ffffff;
+  background: var(--active);
+  color: var(--text-1);
   font-weight: 600;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
@@ -257,10 +259,10 @@
 .lib-filter-select {
   height: 32px;
   padding: 0 10px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--line-1);
   border-radius: 10px;
-  background: #121622;
-  color: #cbd5e1;
+  background: var(--surface-3);
+  color: var(--text-2);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -272,8 +274,8 @@
 
 .lib-filter-select:hover,
 .lib-filter-select:focus {
-  border-color: rgba(99, 102, 241, 0.5);
-  color: #ffffff;
+  border-color: color-mix(in srgb, var(--iris) 50%, transparent);
+  color: var(--text-1);
 }
 
 .lib-view-toggle {
@@ -281,9 +283,9 @@
   align-items: center;
   gap: 2px;
   padding: 2px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line-1);
   border-radius: 10px;
-  background: #121622;
+  background: var(--surface-3);
 }
 
 .lib-view-btn {
@@ -295,18 +297,18 @@
   border: 0;
   border-radius: 7px;
   background: transparent;
-  color: #94a3b8;
+  color: var(--text-3);
   cursor: pointer;
   transition: all var(--t-1) var(--ease-out);
 }
 
 .lib-view-btn:hover {
-  color: #ffffff;
+  color: var(--text-1);
 }
 
 .lib-view-btn.is-active {
-  background: rgba(255, 255, 255, 0.12);
-  color: #ffffff;
+  background: var(--active);
+  color: var(--text-1);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
@@ -340,9 +342,9 @@
   justify-content: space-between;
   margin-bottom: 20px;
   padding: 10px 18px;
-  border: 1px solid rgba(99, 102, 241, 0.35);
+  border: 1px solid color-mix(in srgb, var(--iris) 35%, transparent);
   border-radius: 14px;
-  background: rgba(18, 23, 38, 0.95);
+  background: color-mix(in srgb, var(--surface-3) 95%, transparent);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   animation: lib-slide-down 200ms var(--ease-out);
 }
@@ -362,7 +364,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #ffffff;
+  color: var(--text-1);
   font-size: 12.5px;
 }
 
@@ -378,10 +380,10 @@
   gap: 6px;
   height: 30px;
   padding: 0 12px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--line-2);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #e2e8f0;
+  background: var(--hover);
+  color: var(--text-2);
   font-size: 11.5px;
   font-weight: 500;
   cursor: pointer;
@@ -389,29 +391,29 @@
 }
 
 .lib-batch-act-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: #ffffff;
+  background: var(--active);
+  color: var(--text-1);
 }
 
 .lib-batch-act-btn.is-danger {
-  border-color: rgba(244, 63, 94, 0.35);
-  background: rgba(244, 63, 94, 0.15);
-  color: #fb7185;
+  border-color: color-mix(in srgb, var(--coral) 35%, transparent);
+  background: color-mix(in srgb, var(--coral) 15%, transparent);
+  color: var(--coral);
 }
 
 .lib-batch-act-btn.is-danger:hover {
-  background: #f43f5e;
-  color: #ffffff;
+  background: var(--coral);
+  color: var(--on-coral, var(--text-1));
 }
 
 .lib-batch-act-btn.is-quiet {
   border-color: transparent;
   background: transparent;
-  color: #94a3b8;
+  color: var(--text-3);
 }
 
 .lib-batch-act-btn.is-quiet:hover {
-  color: #ffffff;
+  color: var(--text-1);
 }
 
 /* ── Grid View & Cards ────────────────────────────────────────────── */
@@ -427,21 +429,21 @@
   min-width: 0;
   border-radius: 16px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  background: rgba(22, 27, 42, 0.6);
+  border: 1px solid var(--line-1);
+  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
   transition: all var(--t-1) var(--ease-out);
 }
 
 .lib-card:hover {
-  border-color: rgba(255, 255, 255, 0.2);
-  background: rgba(28, 35, 54, 0.85);
+  border-color: var(--line-3);
+  background: color-mix(in srgb, var(--surface-3) 85%, transparent);
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
 .lib-card.is-active {
-  border-color: #6366f1;
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.4);
+  border-color: var(--iris);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--iris) 40%, transparent);
 }
 
 .lib-card-open {
@@ -504,7 +506,7 @@
   font-size: 10px;
   font-family: var(--font-mono);
   font-weight: 600;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--line-3);
 }
 
 .lib-card-play {
@@ -519,7 +521,7 @@
   border-radius: var(--r-pill);
   background: rgba(0, 0, 0, 0.75);
   color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--line-3);
 }
 
 /* ── Card Hover Overlay ───────────────────────────────────────────── */
@@ -575,17 +577,17 @@
   gap: 4px;
   padding: 3px 9px;
   border-radius: 6px;
-  background: #6366f1;
-  color: #ffffff;
+  background: var(--iris);
+  color: var(--on-iris);
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--iris) 40%, transparent);
   transition: background var(--t-1) var(--ease-out);
 }
 
 .lib-card-theater-btn:hover {
-  background: #4f46e5;
+  background: var(--iris);
 }
 
 .lib-card-overlay-bar {
@@ -604,7 +606,7 @@
   height: 28px;
   place-items: center;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--line-3);
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.65);
   color: #ffffff;
@@ -612,20 +614,24 @@
   transition: all var(--t-1) var(--ease-out);
 }
 
+/* Inverting to literal white/black read correctly over a dark thumbnail but
+   became white-on-white under Bone. Iris is the affordance signal and its
+   paired ink is theme-correct in both faces. */
 .lib-card-hover-btn:hover {
-  background: #ffffff;
-  color: #000000;
+  background: var(--iris);
+  border-color: var(--iris);
+  color: var(--on-iris);
   transform: scale(1.08);
 }
 
 .lib-card-hover-btn.is-favorite {
-  color: #f59e0b;
+  color: var(--amber);
 }
 
 .lib-card-hover-btn.is-danger:hover {
-  background: #f43f5e;
-  border-color: #f43f5e;
-  color: #ffffff;
+  background: var(--coral);
+  border-color: var(--coral);
+  color: var(--on-coral, var(--text-1));
 }
 
 .lib-card-batch-cb,
@@ -633,7 +639,7 @@
   width: 16px;
   height: 16px;
   cursor: pointer;
-  accent-color: #6366f1;
+  accent-color: var(--iris);
 }
 
 .lib-card-wait {
@@ -641,9 +647,9 @@
   inset: 0;
   background: linear-gradient(
     90deg,
-    rgba(255, 255, 255, 0.03) 0%,
-    rgba(255, 255, 255, 0.08) 50%,
-    rgba(255, 255, 255, 0.03) 100%
+    var(--hover) 0%,
+    var(--hover) 50%,
+    var(--hover) 100%
   );
   background-size: 200% 100%;
   animation: lib-shimmer 2s infinite;
@@ -664,19 +670,19 @@
   gap: 12px;
   padding: 10px 16px;
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  background: rgba(22, 27, 42, 0.6);
+  border: 1px solid var(--line-1);
+  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
   transition: all var(--t-1) var(--ease-out);
 }
 
 .lib-row-card:hover {
-  border-color: rgba(255, 255, 255, 0.16);
-  background: rgba(28, 35, 54, 0.85);
+  border-color: var(--line-3);
+  background: color-mix(in srgb, var(--surface-3) 85%, transparent);
 }
 
 .lib-row-card.is-active {
-  border-color: #6366f1;
-  box-shadow: 0 0 0 1px #6366f1;
+  border-color: var(--iris);
+  box-shadow: 0 0 0 1px var(--iris);
 }
 
 .lib-row-open {
@@ -701,8 +707,8 @@
   flex-shrink: 0;
   border-radius: 10px;
   overflow: hidden;
-  background: #141824;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface-3);
+  border: 1px solid var(--line-1);
 }
 
 .lib-row-img {
@@ -735,7 +741,7 @@
 
 .lib-row-title {
   overflow: hidden;
-  color: #f1f5f9;
+  color: var(--text-1);
   font-size: 13px;
   font-weight: 600;
   text-overflow: ellipsis;
@@ -746,7 +752,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #94a3b8;
+  color: var(--text-3);
   font-size: 11px;
   font-family: var(--font-mono);
 }
@@ -754,8 +760,8 @@
 .lib-model-tag {
   padding: 1px 7px;
   border-radius: var(--r-pill);
-  background: rgba(255, 255, 255, 0.08);
-  color: #cbd5e1;
+  background: var(--hover);
+  color: var(--text-2);
   font-size: 10px;
 }
 
@@ -774,20 +780,20 @@
   border: 0;
   border-radius: 7px;
   background: transparent;
-  color: #94a3b8;
+  color: var(--text-3);
   cursor: pointer;
   transition: all var(--t-1) var(--ease-out);
 }
 
 .lib-action-btn:hover {
-  background: rgba(255, 255, 255, 0.09);
-  color: #ffffff;
+  background: var(--active);
+  color: var(--text-1);
 }
 
 .lib-action-btn.is-favorite {
-  color: #f59e0b;
+  color: var(--amber);
 }
 
 .lib-action-btn.is-danger:hover {
-  color: #f43f5e;
+  color: var(--coral);
 }

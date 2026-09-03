@@ -53,12 +53,12 @@
 
 .subagent-unresolved-entry-kicker {
   font-size: var(--fs-micro);
-  font-weight: 650;
+  font-weight: 600;
   color: var(--amber);
 }
 
 .subagent-unresolved-entry-title {
-  font-weight: 650;
+  font-weight: 600;
   color: var(--text-1);
 }
 
@@ -80,7 +80,7 @@
 .subagent-candidate-card-head {
   padding: var(--s-4) var(--s-5);
   font-size: var(--fs-chrome);
-  font-weight: 650;
+  font-weight: 600;
   color: var(--text-3);
 }
 
@@ -130,7 +130,7 @@
 }
 
 .subagent-candidate-option-title {
-  font-weight: 650;
+  font-weight: 600;
   color: var(--text-1);
 }
 
@@ -409,7 +409,7 @@
 .diff-head .file {
   font-family: var(--font-mono);
   font-size: var(--fs-chrome);
-  font-weight: 550;
+  font-weight: 500;
   color: var(--text-1);
 }
 
@@ -477,7 +477,7 @@
   padding: 0 var(--s-3);
   border-radius: var(--r-chip);
   font-size: var(--fs-micro);
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: var(--tracking-micro);
 }
 
@@ -852,7 +852,7 @@
   color: var(--text-4);
   font: inherit;
   font-size: var(--fs-chrome);
-  font-weight: 450;
+  font-weight: 400;
   text-align: left;
   cursor: pointer;
   transition: background-color var(--t-1) var(--ease-out);
@@ -874,7 +874,7 @@
 .activity-call-chain-label {
   flex: none;
   color: var(--text-3);
-  font-weight: 520;
+  font-weight: 500;
   white-space: nowrap;
 }
 
@@ -890,7 +890,7 @@
   flex: none;
   color: var(--coral);
   font-size: var(--fs-micro);
-  font-weight: 550;
+  font-weight: 500;
   white-space: nowrap;
 }
 
