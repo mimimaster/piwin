@@ -41,7 +41,6 @@ export async function disposeLiveSession(
   }
   deps.sessionProjects.delete(sessionId);
   deps.sessionModels.delete(sessionId);
-  deps.sessionLastAssistantReply.delete(sessionId);
   const recorder = deps.transcriptRecorders.get(sessionId);
   if (recorder) {
     try {

@@ -26,6 +26,8 @@ export type CreateRealtimeCallInput = {
   intelligence?: string;
   instructions: string;
   signal: AbortSignal;
+  /** Already-rendered startup context for Codex `initial_items`. */
+  startupContext?: string;
 };
 
 export type CreateRealtimeCallResult = {

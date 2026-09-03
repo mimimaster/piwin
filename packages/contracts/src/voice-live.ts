@@ -196,6 +196,11 @@ export type LiveOwnerBootstrap =
       outputSampleRateHz: 24_000;
       modelId: string;
       voice: string;
+      /**
+       * Rendered bound-session continuity summary. Owner bootstrap only;
+       * observers never receive this field.
+       */
+      startupContext?: string;
     };
 
 export type LiveStartData = {

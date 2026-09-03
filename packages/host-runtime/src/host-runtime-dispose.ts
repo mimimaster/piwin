@@ -240,7 +240,7 @@ export async function disposeHostRuntime(deps: HostRuntimeKernel): Promise<void>
   deps.subscriptionAuth = undefined;
   deps.sessionModels.clear();
   deps.healthTurnBySession.clear();
-  deps.sessionLastAssistantReply.clear();
+  deps.runAssistantReply.clear();
   deps.assistantTextBuffers.clear();
   deps.sessionAutoCompactionOverrides.clear();
   deps.sessionFilesTouched.clear();

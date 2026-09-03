@@ -16,6 +16,17 @@ describe('openai realtime events', () => {
     expect(payload.session.instructions).toContain('STOP_CURRENT_RUN');
   });
 
+  it('appends startup context to session instructions', () => {
+    const payload = JSON.parse(
+      openaiRealtimeSessionUpdatePayload({
+        voice: 'eve',
+        startupContext: 'User is fixing Live voice.',
+      }),
+    ) as { session: { instructions: string } };
+    expect(payload.session.instructions).toContain('User is fixing Live voice.');
+    expect(payload.session.instructions).toContain('speaking face of this work session');
+  });
+
   it('parses function-call arguments as a delegation', () => {
     expect(
       parseOpenaiRealtimeMessage(

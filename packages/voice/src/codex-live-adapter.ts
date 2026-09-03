@@ -87,6 +87,7 @@ export function buildCodexLiveCallBody(input: {
   instructions: string;
   voice?: string;
   intelligence?: string;
+  startupContext?: string;
 }): {
   sdp: string;
   session: {
@@ -95,6 +96,11 @@ export function buildCodexLiveCallBody(input: {
     audio: { output: { voice: CodexLiveVoice } };
     intelligence?: CodexLiveIntelligence;
     delegation: { type: 'client'; ack_filler: false };
+    initial_items?: Array<{
+      type: 'message';
+      role: 'developer';
+      content: Array<{ type: 'input_text'; text: string }>;
+    }>;
   };
 } {
   return {
@@ -109,6 +115,17 @@ export function buildCodexLiveCallBody(input: {
         ? { intelligence: resolveCodexLiveIntelligence(input.intelligence) }
         : {}),
       delegation: { type: 'client', ack_filler: false },
+      ...(input.startupContext
+        ? {
+            initial_items: [
+              {
+                type: 'message' as const,
+                role: 'developer' as const,
+                content: [{ type: 'input_text' as const, text: input.startupContext }],
+              },
+            ],
+          }
+        : {}),
     },
   };
 }
@@ -147,6 +164,7 @@ export class CodexLiveAdapter implements RealtimeVoiceAdapter {
             instructions: input.instructions,
             ...(input.voice ? { voice: input.voice } : {}),
             ...(input.intelligence ? { intelligence: input.intelligence } : {}),
+            ...(input.startupContext ? { startupContext: input.startupContext } : {}),
           }),
         ),
         signal: controller.signal,

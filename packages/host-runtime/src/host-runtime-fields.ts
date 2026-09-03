@@ -142,8 +142,8 @@ export class HostRuntimeFields {
   /** CE-NAME: ModelRef used for the most recent prompt, for auto-naming. */
   sessionModels = new Map<string, ModelRef>();
   healthTurnBySession = new Map<string, { explicit: boolean }>();
-  /** CE-NAME: latest assistant reply text per session (captured from events). */
-  sessionLastAssistantReply = new Map<string, string>();
+  /** Latest assistant reply text keyed by Run, for Live takeaway delivery. */
+  runAssistantReply = new Map<string, string>();
   /** CE-NAME: in-flight assistant text per messageId (text_delta accumulation). */
   assistantTextBuffers = new Map<string, string>();
   /** Runtime-only session override for auto-compaction (not persisted). */

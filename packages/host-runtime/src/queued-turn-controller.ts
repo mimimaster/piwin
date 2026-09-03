@@ -42,6 +42,11 @@ export type QueuedTurnControllerOptions = {
     command: Extract<HostCommand, { type: 'session/prompt' }>,
   ) => Promise<HostResponse>;
   push: (message: HostPush) => void;
+  /**
+   * A queued turn never goes through `recordUserPrompt`, so Live would not
+   * otherwise hear text the user typed while a call is bound to this session.
+   */
+  notifyUserInput?: (input: { sessionId: string; text: string; source: 'queued-turn' }) => void;
   replacementCancellationTimeoutMs?: number;
 };
 
@@ -155,6 +160,13 @@ export class QueuedTurnController {
       return fail(requestId, command.type, `queued-turn-${result.outcome}`);
     }
     await this.publishCreated(store, result.queuedTurn);
+    if (normalized.source !== 'voice-delegation') {
+      this.options.notifyUserInput?.({
+        sessionId: command.sessionId,
+        text: normalized.text,
+        source: 'queued-turn',
+      });
+    }
     this.requestDrain(command.sessionId);
     return ok(requestId, command.type, { queuedTurn: result.queuedTurn });
   }

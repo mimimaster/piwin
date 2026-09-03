@@ -1,4 +1,8 @@
-import { PIWIN_LIVE_INSTRUCTIONS, type LiveProviderDescriptor } from '@piwin/contracts';
+import {
+  PIWIN_LIVE_INSTRUCTIONS,
+  renderLiveStartupContext,
+  type LiveProviderDescriptor,
+} from '@piwin/contracts';
 import {
   FakeRealtimeVoiceAdapter,
   type FakeRealtimeVoiceAdapterControls,
@@ -39,6 +43,9 @@ export function createFakeCodexRegistration(
         accountId: 'fake',
         instructions: PIWIN_LIVE_INSTRUCTIONS,
         signal: input.signal,
+        ...(input.startupContext
+          ? { startupContext: renderLiveStartupContext(input.startupContext) }
+          : {}),
       });
       return {
         voiceModelId: 'gpt-live-1-codex',

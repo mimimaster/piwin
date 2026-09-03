@@ -242,6 +242,11 @@ export async function recordUserPrompt(
       message: `interim session name failed: ${detail}`,
     });
   }
+  deps.liveCallCoordinator?.notifyBoundSessionUserInput({
+    sessionId,
+    text: input.text,
+    ...(input.source !== undefined ? { source: input.source } : {}),
+  });
 }
 
 export async function nextModelRequestOrdinal(

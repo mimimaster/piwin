@@ -61,6 +61,12 @@ export async function handleVoiceLiveCommand(
     await context.refreshLivePrereqs?.();
     await coordinator.prepare();
     const data: LiveStatusData = coordinator.status(command.input);
+    // A shell polls status before offering to start a call, so warming the
+    // summary here usually turns `start` into a cache hit instead of making the
+    // user wait on a model round trip after they press the button.
+    if (data.ready && command.input.sessionId) {
+      coordinator.warmStartupContext(command.input.sessionId);
+    }
     return ok(requestId, command.type, data);
   }
 

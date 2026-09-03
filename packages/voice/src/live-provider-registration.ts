@@ -26,5 +26,7 @@ export type LiveProviderRegistration = {
     settings: Readonly<Record<string, string>>;
     clientBootstrap: LiveClientBootstrapInput;
     signal: AbortSignal;
+    /** Raw continuity summary; adapters wrap it for the provider. */
+    startupContext?: string;
   }): Promise<LiveProviderStartResult>;
 };

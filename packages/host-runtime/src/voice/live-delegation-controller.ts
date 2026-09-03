@@ -1,12 +1,12 @@
 import {
   isLiveStopInstruction, PIWIN_LIVE_STOP_INSTRUCTION,
-  type LiveOwnerActionPush, type LiveDelegationReviewer,
+  sanitizeLiveSpeakableResult,
+  type LiveOwnerActionPush, type LiveDelegationReviewer, type LiveReviewSessionTurn,
 } from '@piwin/contracts';
 import { transitionLiveCall, type VoiceDelegationEvent } from '@piwin/voice';
 import type { LiveCallSlot, LiveDelegationAdmissionPort } from './live-call-types.js';
 import { LiveDelegationLedger, type LiveDelegationRecord } from './live-delegation-ledger.js';
 import { liveHoldSpeakableReason, resolveLiveWorkReuse } from './live-delegation-reuse.js';
-import { sanitizeLiveSpeakableResult } from './live-speakable-result.js';
 import { reviewLiveDelegation, LIVE_DELEGATION_REVIEW_TIMEOUT_MS } from './review-live-delegation.js';
 
 /** Call-scoped admission and result delivery; never reads a shell's visible transcript. */
@@ -17,6 +17,7 @@ export class LiveDelegationController {
   private reviewTail = Promise.resolve();
   private reviewAbort = new AbortController();
   private readonly reviewed = new Set<string>();
+  private readonly spokenRunIds = new Set<string>();
 
   constructor(private readonly deps: {
     admission: LiveDelegationAdmissionPort;
@@ -24,6 +25,7 @@ export class LiveDelegationController {
     pushOwnerAction?: (action: LiveOwnerActionPush) => void;
     getSlot: () => LiveCallSlot | null;
     onChanged: () => void;
+    getRecentTurns?: (sessionId: string) => Promise<readonly LiveReviewSessionTurn[]> | readonly LiveReviewSessionTurn[];
   }) {}
 
   private get slot(): LiveCallSlot | null { return this.deps.getSlot(); }
@@ -37,6 +39,7 @@ export class LiveDelegationController {
     this.ledger.clear();
     this.queuedRuns.clear();
     this.earlyResults.clear();
+    this.spokenRunIds.clear();
   }
 
   bindQueuedRun(input: { callId: string; sessionId: string; messageId: string; runId: string }): void {
@@ -83,10 +86,14 @@ export class LiveDelegationController {
           this.reviewed.add(inflightKey);
           return;
         }
+        const recentTurns = this.deps.getRecentTurns
+          ? await Promise.resolve(this.deps.getRecentTurns(targetSessionId)).catch(() => [])
+          : [];
         const decision = stopping ? { kind: 'stop' as const } : await reviewLiveDelegation(this.deps.review, {
           sessionId: targetSessionId,
           instruction: delegation.instruction,
           tasks: this.ledger.contextForSession(targetSessionId),
+          ...(recentTurns.length > 0 ? { recentTurns } : {}),
           signal: AbortSignal.any([epoch.signal, slot.startAbort.signal]),
         }, expiresAt - Date.now());
         if (this.slot !== slot || epoch.signal.aborted || slot.startAbort.signal.aborted) return;
@@ -133,6 +140,27 @@ export class LiveDelegationController {
       // the same ID later in this call. A genuinely new retry gets a new ID.
       if (this.slot === slot) this.reviewed.add(inflightKey);
       this.inFlightDelegations.delete(inflightKey);
+      this.flushUnmatchedEarlyResults();
+    }
+  }
+
+  /**
+   * A Run whose result arrived while a review was pending is held in case the
+   * review admits work onto it. Once no review is left to claim it, the Run
+   * belongs to the chat page (typed prompt, queued turn) and must still be
+   * spoken — otherwise its takeaway is lost for the rest of the call.
+   */
+  private flushUnmatchedEarlyResults(): void {
+    if (this.inFlightDelegations.size > 0) return;
+    const slot = this.slot;
+    const pending = [...this.earlyResults.values()];
+    this.earlyResults.clear();
+    if (!slot) return;
+    for (const result of pending) {
+      if (result.sessionId !== slot.sessionId) continue;
+      if (this.ledger.findForTurn(result)) continue;
+      if (isUserAbandonedRun(result.status)) continue;
+      this.speakBoundRunResult(slot, result, 'session');
     }
   }
 
@@ -254,16 +282,24 @@ export class LiveDelegationController {
 
   notifyBoundSessionTurnEnded(input: LiveTurnResult): void {
     const slot = this.slot;
-    if (!slot || input.kind !== 'session-turn') return;
+    if (!slot || input.kind !== 'session-turn' || input.sessionId !== slot.sessionId) return;
     let record = this.ledger.findForTurn(input);
     if (!record) {
       // A fast Run may finish before its admission acknowledgement. Retain
       // only bounded, sanitized text while a matching admission is pending.
+      // `flushUnmatchedEarlyResults` speaks anything still unclaimed once the
+      // review settles, so a typed-prompt Run is never silently swallowed.
       if (this.inFlightDelegations.size > 0 && this.earlyResults.size < 64) {
         this.earlyResults.set(input.runId, { ...input, assistantText: '', speakableContent: sanitizeLiveSpeakableResult({
           assistantText: input.assistantText, completed: input.status === 'completed',
         }) });
+        return;
       }
+      // Nothing in this call asked for the Run, so a cancellation is the user
+      // acting on the chat page. Announcing "it did not finish" would talk over
+      // a decision they just made themselves.
+      if (isUserAbandonedRun(input.status)) return;
+      this.speakBoundRunResult(slot, input, 'session');
       return;
     }
     this.earlyResults.delete(input.runId);
@@ -281,15 +317,7 @@ export class LiveDelegationController {
       this.ledger.markDelivered(record);
       nextRecord = this.ledger.findForTurn(input);
     }
-    this.deps.pushOwnerAction?.({
-      type: 'voice/live-owner-action',
-      callId: slot.callId,
-      action: 'append-context',
-      channel: 'speakable',
-      target: 'delegation',
-      providerDelegationId: record.providerDelegationId,
-      content,
-    });
+    this.speakBoundRunResult(slot, input, 'delegation', record.providerDelegationId, content);
     const next = transitionLiveCall(slot.state, {
       type: 'set-activity',
       activity: slot.muted ? 'muted' : 'listening',
@@ -298,6 +326,36 @@ export class LiveDelegationController {
       slot.state = next;
       this.emit();
     }
+  }
+
+  private speakBoundRunResult(
+    slot: LiveCallSlot,
+    input: LiveTurnResult,
+    target: 'session' | 'delegation',
+    providerDelegationId?: string,
+    content?: string,
+  ): void {
+    if (this.spokenRunIds.has(input.runId)) return;
+    if (this.spokenRunIds.size >= 64) {
+      const oldest = this.spokenRunIds.values().next().value;
+      if (oldest !== undefined) this.spokenRunIds.delete(oldest);
+    }
+    this.spokenRunIds.add(input.runId);
+    this.deps.pushOwnerAction?.({
+      type: 'voice/live-owner-action',
+      callId: slot.callId,
+      action: 'append-context',
+      channel: 'speakable',
+      target,
+      ...(providerDelegationId ? { providerDelegationId } : {}),
+      content:
+        content ??
+        input.speakableContent ??
+        sanitizeLiveSpeakableResult({
+          assistantText: input.assistantText,
+          completed: input.status === 'completed',
+        }),
+    });
   }
 
 }
@@ -310,3 +368,8 @@ type LiveTurnResult = {
   assistantText: string;
   speakableContent?: string;
 };
+
+/** The user stopped or replaced this turn themselves; there is nothing to report. */
+function isUserAbandonedRun(status: string): boolean {
+  return status === 'cancelled' || status === 'interrupted';
+}

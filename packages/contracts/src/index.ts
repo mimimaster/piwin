@@ -19,6 +19,7 @@ export * from './live-intended-session.js';
 export * from './live-speakable-result.js';
 export * from './live-delegation-instruction.js';
 export * from './live-delegation-review.js';
+export * from './live-session-context.js';
 export * from './provider-auth.js';
 export * from './image-generation.js';
 export * from './vision-delegation.js';

@@ -78,4 +78,24 @@ describe('openai realtime registration', () => {
       }),
     );
   });
+
+  it('copies rendered startup context onto owner bootstrap', async () => {
+    const registration = createOpenaiRealtimeLiveRegistration({
+      listRoutes: () => [route],
+      resolveApiKey: async () => 'g2a_test',
+      fetchImpl: async () => new Response('404', { status: 404 }),
+    });
+    const started = await registration.start({
+      callId: 'c1',
+      sessionId: 's1',
+      settings: { route: route.routeId, voice: 'eve' },
+      clientBootstrap: { mediaDriverId: 'openai-realtime-ws-v1' },
+      signal: new AbortController().signal,
+      startupContext: 'User is fixing Live voice.',
+    });
+    expect(started.ownerBootstrap).toMatchObject({
+      mediaDriverId: 'openai-realtime-ws-v1',
+      startupContext: expect.stringContaining('User is fixing Live voice.'),
+    });
+  });
 });

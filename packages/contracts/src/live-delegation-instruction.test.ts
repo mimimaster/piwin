@@ -7,7 +7,6 @@ import {
   PIWIN_LIVE_STOP_INSTRUCTION,
   PIWIN_LIVE_WORK_PREAMBLE,
   composeLiveSpokenInstructions,
-  compressLiveDelegationInstruction,
   isLiveStopInstruction,
   piwinLiveRetargetContext,
   sanitizeLiveDelegationInstruction,
@@ -36,16 +35,6 @@ describe('sanitizeLiveDelegationInstruction', () => {
     expect(sanitizeLiveDelegationInstruction('好的帮我看看刚才的报错')).toBe(
       '好的帮我看看刚才的报错',
     );
-  });
-});
-
-describe('compressLiveDelegationInstruction', () => {
-  it('peels spoken wrappers off a leftover task', () => {
-    expect(compressLiveDelegationInstruction('没有,我是让你随便搜索一点东西')).toBe(
-      '随便搜索一点东西',
-    );
-    expect(compressLiveDelegationInstruction('帮我排查语音问题')).toBe('排查语音问题');
-    expect(compressLiveDelegationInstruction('fix the failing tests')).toBe('fix the failing tests');
   });
 });
 

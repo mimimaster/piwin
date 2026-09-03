@@ -147,11 +147,13 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
           runId: run.runId,
           kind: run.kind,
           status: run.status,
-          assistantText: deps.sessionLastAssistantReply.get(run.sessionId) ?? '',
+          assistantText: deps.runAssistantReply.get(run.runId) ?? '',
         });
+        deps.runAssistantReply.delete(run.runId);
       },
     });
     deps.queuedTurnController = new QueuedTurnController({
+      notifyUserInput: (input) => deps.liveCallCoordinator?.notifyBoundSessionUserInput(input),
       getTranscriptStore: (sessionId) => deps.getTranscriptStore(sessionId),
       hasSession: async (sessionId) => {
         if (deps.sessions.has(sessionId)) return true;

@@ -9,6 +9,7 @@ export function openaiRealtimeOwnerBootstrap(input: {
   bearerToken: string;
   modelId: string;
   voice: string;
+  startupContext?: string;
 }): LiveOwnerBootstrap {
   return {
     mediaDriverId: OPENAI_REALTIME_MEDIA_DRIVER_ID,
@@ -18,6 +19,7 @@ export function openaiRealtimeOwnerBootstrap(input: {
     outputSampleRateHz: 24_000,
     modelId: input.modelId,
     voice: input.voice,
+    ...(input.startupContext ? { startupContext: input.startupContext } : {}),
   };
 }
 
