@@ -67,9 +67,7 @@ export function classifyHostPush(push: HostPushVariant): HostPushPolicy {
         deliveryKey('subagent', push.parentSessionId, 'result', push.result.resultId),
       );
     case 'turn-changes/updated':
-      return control([
-        deliveryKey('workspace', push.workspaceId, 'turn-change', push.changeSetId),
-      ]);
+      return control([deliveryKey('workspace', push.workspaceId, 'turn-change', push.changeSetId)]);
     case 'turn-changes/operation-updated':
       return projection(
         deliveryKey('workspace', push.workspaceId, 'turn-change-operation', push.operationId),
@@ -212,7 +210,11 @@ export function classifyHostPush(push: HostPushVariant): HostPushPolicy {
     case 'auth/prompt':
       return { kind: 'control', barrierKeys: [], journal: false };
     case 'auth/login-finished':
-      return { kind: 'control', barrierKeys: [deliveryKey('auth', 'login', push.result.loginId)], journal: false };
+      return {
+        kind: 'control',
+        barrierKeys: [deliveryKey('auth', 'login', push.result.loginId)],
+        journal: false,
+      };
     case 'auth/updated':
       return projection(deliveryKey('auth', 'accounts'));
     case 'voice/live-updated':
@@ -248,6 +250,11 @@ function classifyAgentEvent(scope: HostDeliveryKey, event: AgentEvent): HostPush
         deliveryKey(...scope, 'run', runPart, 'message', event.messageId, 'thinking'),
         runId,
       );
+    case 'message/tool_args_progress':
+      return projection(
+        deliveryKey(...scope, 'run', runPart, 'message', event.messageId, 'tool-args'),
+        runId,
+      );
     case 'message/search_evidence':
       return append(
         deliveryKey(...scope, 'run', runPart, 'message', event.messageId, 'search-evidence'),
@@ -276,6 +283,7 @@ function classifyAgentEvent(scope: HostDeliveryKey, event: AgentEvent): HostPush
           deliveryKey(...scope, 'run', runPart, 'message', event.messageId, 'thinking'),
           deliveryKey(...scope, 'run', runPart, 'message', event.messageId, 'search-evidence'),
           deliveryKey(...scope, 'run', runPart, 'message', event.messageId, 'text-snapshot'),
+          deliveryKey(...scope, 'run', runPart, 'message', event.messageId, 'tool-args'),
         ],
         runId,
       );

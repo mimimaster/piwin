@@ -492,6 +492,15 @@ function projectProjects(data: unknown): RemoteProjectSummary[] {
     if (typeof record.lastOpenedAt === 'string') {
       summary.lastOpenedAt = record.lastOpenedAt;
     }
+    if (typeof record.gitRepositoryId === 'string' && record.gitRepositoryId.length > 0) {
+      summary.gitRepositoryId = record.gitRepositoryId;
+    }
+    if (record.isPrimaryWorktree === true || record.isPrimaryWorktree === false) {
+      summary.isPrimaryWorktree = record.isPrimaryWorktree;
+    }
+    if (typeof record.currentBranch === 'string' && record.currentBranch.length > 0) {
+      summary.currentBranch = record.currentBranch;
+    }
     projected.push(summary);
   }
   return projected;

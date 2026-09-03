@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
-import { Button, IconBack, IconCheck, IconPause, IconPlay, IconRefresh, IconRevert, Notice, Spinner, TearDeckSurface } from '@piwin/ui-kit';
+import { Button, IconBack, IconCheck, IconRefresh, IconRevert, Notice, Spinner, TearDeckSurface } from '@piwin/ui-kit';
 import type { FlashcardStudySnapshot } from '@piwin/contracts';
 import type { FlashcardStudyController, FlashcardStudyViewModel } from '@piwin/host-client';
 import {
@@ -245,14 +245,17 @@ function renderStudyBody(input: {
   const snapshot = view.snapshot;
   const status = snapshot?.round.status;
   const completed = view.phase === 'completed' || status === 'completed' || status === 'ended';
-  const paused = view.phase === 'paused' || input.facesConcealed;
+  // Faces are hidden only while the app is backgrounded (privacy). A Host `paused`
+  // status is transient: the controller auto-resumes on open (no pause button).
+  const concealed = input.facesConcealed;
   const counts = snapshot?.counts;
   const displayCurrent = hold.current;
   const hasNext = Boolean(snapshot?.nextShell);
   const busy =
     view.phase === 'saving' ||
     view.phase === 'transitioning' ||
-    view.phase === 'pending-confirmation';
+    view.phase === 'pending-confirmation' ||
+    view.phase === 'paused';
   const mode = snapshot?.round.mode ?? 'sequence';
 
   if (view.phase === 'loading' && !snapshot) {
@@ -364,28 +367,6 @@ function renderStudyBody(input: {
                   <span>{copy.undo}</span>
                 </Button>
               ) : null}
-              {paused && !input.facesConcealed ? (
-                <Button
-                  variant="secondary"
-                  size="compact"
-                  data-testid="flashcards-study-resume"
-                  onClick={() => void controller?.resume()}
-                >
-                  <IconPlay size={13} />
-                  <span>{copy.resume}</span>
-                </Button>
-              ) : (
-                <Button
-                  variant="ghost"
-                  size="compact"
-                  data-testid="flashcards-study-pause"
-                  disabled={busy || view.readOnly || input.facesConcealed}
-                  onClick={() => void controller?.pause()}
-                >
-                  <IconPause size={13} />
-                  <span>{copy.pause}</span>
-                </Button>
-              )}
               <Button
                 variant="ghost"
                 size="compact"
@@ -399,10 +380,9 @@ function renderStudyBody(input: {
           </header>
         }
         current={
-          paused ? (
-            <article className="fcws-tear-card fcws-study-paused" data-testid="flashcards-study-paused">
-              <h3>{copy.pausedTitle}</h3>
-              <p>{copy.pausedBody}</p>
+          concealed ? (
+            <article className="fcws-tear-card fcws-study-concealed" data-testid="flashcards-study-concealed">
+              <h3>{copy.concealedTitle}</h3>
             </article>
           ) : displayCurrent ? (
             renderStudyFace(displayCurrent, copy, {
@@ -418,15 +398,8 @@ function renderStudyBody(input: {
           )
         }
         actions={
-          paused || !displayCurrent ? (
-            <footer className="fcws-tear-actions">
-              {paused && !input.facesConcealed ? (
-                <Button variant="primary" onClick={() => void controller?.resume()}>
-                  <IconPlay size={14} />
-                  <span>{copy.resume}</span>
-                </Button>
-              ) : null}
-            </footer>
+          concealed || !displayCurrent ? (
+            <footer className="fcws-tear-actions" />
           ) : (
             renderStudyActions({
               copy,

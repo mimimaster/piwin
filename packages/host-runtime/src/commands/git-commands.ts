@@ -186,8 +186,15 @@ async function withGitWriteGate(
   commandType: HostCommand['type'],
   run: () => Promise<HostResponse>,
 ): Promise<HostResponse> {
+  const execute = async (): Promise<HostResponse> => {
+    try {
+      return await run();
+    } catch (error) {
+      return fail(requestId, commandType, formatError(error));
+    }
+  };
   if (!gate) {
-    return run();
+    return execute();
   }
   const acquired = await gate.tryAcquire({
     workspaceId: projectPath,
@@ -198,7 +205,7 @@ async function withGitWriteGate(
     return fail(requestId, commandType, acquired.reason);
   }
   try {
-    return await run();
+    return await execute();
   } finally {
     acquired.lease.release();
   }

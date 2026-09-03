@@ -60,4 +60,10 @@ describe('sessionActionItems', () => {
     });
     expect(items.some((item) => item.action === 'fork-chat')).toBe(false);
   });
+
+  it('offers Copy Transcript immediately after Copy ID', () => {
+    const items = sessionActionItems({ isPinned: false, isArchived: false });
+    const actions = items.map((item) => item.action);
+    expect(actions.indexOf('copy-transcript')).toBe(actions.indexOf('copy-id') + 1);
+  });
 });

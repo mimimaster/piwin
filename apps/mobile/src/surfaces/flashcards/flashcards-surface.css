@@ -250,7 +250,8 @@
   gap: 6px;
 }
 
-.fcws-study-paused {
+/* Backgrounded-app privacy cover: no card text may show in the app switcher. */
+.fcws-study-concealed {
   align-items: center;
   justify-content: center;
   text-align: center;
@@ -260,6 +261,7 @@
 .fcws-study-rate-actions {
   width: min(600px, 100%);
   margin: 0 auto;
+  flex-direction: column;
 }
 
 .mobile-flashcards-source-excerpt,

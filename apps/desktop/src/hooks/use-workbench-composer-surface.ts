@@ -118,6 +118,8 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
     onAbort: session.handleAbort,
     onCompact: session.handleCompact,
     onOpenProject: session.handleOpenProject,
+    onOpenWorktreeProject: (worktreePath) =>
+      session.handleOpenProject(worktreePath, { switchSession: true }),
     onExtensionUiResolve: handleExtensionUiResolve,
     onExtensionUiAbort: handleExtensionUiAbort,
     extensionUiRequest: host.extensionUiRequest,

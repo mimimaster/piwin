@@ -123,14 +123,12 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
     rightPanelOpen && rightPanelTab === 'terminal' && rightPanelView === 'detail';
   const sessionListChrome = useSessionListChrome();
   const [agentMode, setAgentMode] = useState<AgentModeId>('agent');
+  // Conversation-scoped UI memory. Reset on real session switches happens in
+  // useComposerDrafts — first-send (draft → created session) must keep the pill.
   const [orchestrationSchemeId, setOrchestrationSchemeId] = useState<string>(
     ORCHESTRATION_SCHEME_OFF_ID,
   );
   const [delegationDisabled, setDelegationDisabled] = useState(false);
-  useEffect(() => {
-    setOrchestrationSchemeId(ORCHESTRATION_SCHEME_OFF_ID);
-    setDelegationDisabled(false);
-  }, [state.activeSessionId]);
   const sessionListQuery = useSessionListQuery({
     hostClient,
     sessionSearch: sessionListChrome.sessionSearch,

@@ -2,10 +2,12 @@
 import type { ReactElement } from 'react';
 import type { ToolKind } from '@piwin/contracts';
 import type { BehaviorActivityId } from './behavior-activity.js';
+import { COMPACTION_TOOL_NAME } from './compaction-tool-row.js';
 import {
   IconActivity,
   IconBook,
   IconBrowser,
+  IconCompress,
   IconFile,
   IconGit,
   IconPlug,
@@ -51,6 +53,12 @@ export function toolCallKindIcon(
   }
   const verb = (actionVerb ?? '').toLowerCase();
   const name = (toolName ?? '').toLowerCase();
+
+  // Exact synthetic identities resolve before the verb/name heuristics below,
+  // which are deliberately fuzzy and would otherwise claim these rows.
+  if (name === COMPACTION_TOOL_NAME) {
+    return <IconCompress className="tool-call-kind-icon" />;
+  }
 
   if (verb.startsWith('searched') || verb.startsWith('explored')) {
     return <IconSearch className="tool-call-kind-icon" />;

@@ -32,6 +32,7 @@ function draft(id: string, name: string, scope: DraftSessionItemUi['scope']): Dr
 function kinds(rows: SidebarTreeRow[]): string[] {
   return rows.map((row) => {
     if (row.kind === 'section-header') return `header:${row.sectionId}`;
+    if (row.kind === 'repo-group') return `repo:${row.title}`;
     if (row.kind === 'project-folder') return `folder:${row.projectPath}:${row.collapsed}`;
     if (row.kind === 'session') return `session:${row.session.id}`;
     if (row.kind === 'project-show-more') return `show-more:${row.projectPath}:${row.batchSize}`;
@@ -487,5 +488,58 @@ describe('buildSidebarTreeRows', () => {
     });
     const afterHint = after.find((row) => row.kind === 'truncation-hint');
     expect(afterHint?.kind === 'truncation-hint' ? afterHint.hiddenCount : 0).toBe(4);
+  });
+
+  it('groups linked worktrees and leaves a single-worktree repo flat', () => {
+    const rows = buildSidebarTreeRows({
+      recentProjects: [
+        {
+          path: '/piwin-cc',
+          displayName: 'piwin-cc',
+          gitRepositoryId: 'repo1',
+          currentBranch: 'plan/x',
+        },
+        {
+          path: '/piwin',
+          displayName: 'piwin',
+          gitRepositoryId: 'repo1',
+          isPrimaryWorktree: true,
+          currentBranch: 'main',
+        },
+        {
+          path: '/notes',
+          displayName: 'notes',
+          gitRepositoryId: 'repo2',
+          isPrimaryWorktree: true,
+        },
+      ],
+      projectSessionsByPath: {},
+      generalSessions: [],
+      sessionSearch: '',
+      sessionListOrder: 'updated',
+      projectsSectionExpanded: true,
+      conversationsSectionExpanded: true,
+      collapsedProjects: { '/piwin': true, '/piwin-cc': true, '/notes': true },
+      sessionListScopes: createSessionListScopeState(),
+    });
+    expect(kinds(rows)).toEqual([
+      'header:projects',
+      'repo:piwin',
+      'folder:/piwin:true',
+      'folder:/piwin-cc:true',
+      'folder:/notes:true',
+      'header:conversations',
+      'empty:general',
+    ]);
+    const grouped = rows.filter(
+      (row): row is Extract<SidebarTreeRow, { kind: 'project-folder' }> =>
+        row.kind === 'project-folder' && row.grouped,
+    );
+    expect(grouped.map((row) => row.projectPath)).toEqual(['/piwin', '/piwin-cc']);
+    const notes = rows.find(
+      (row): row is Extract<SidebarTreeRow, { kind: 'project-folder' }> =>
+        row.kind === 'project-folder' && row.projectPath === '/notes',
+    );
+    expect(notes?.grouped).toBe(false);
   });
 });

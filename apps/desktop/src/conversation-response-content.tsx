@@ -108,10 +108,32 @@ export function ConversationResponseContent(props: {
   // thinking inactive as soon as a caption or tool appears, which hid grok
   // xhigh reasoning behind a frozen locator for minutes. Durable
   // `status=streaming` after a missed terminal must not keep the spinner.
-  const thinkingStreaming = liveStreaming && message.status === 'streaming' && hasThinking;
+  const thinkingStreaming =
+    liveStreaming &&
+    message.status === 'streaming' &&
+    hasThinking &&
+    message.thinkingEndedAt === undefined;
   const thinkingOpen =
-    thinkingIntent === 'user-open' || (thinkingIntent === 'automatic' && thinkingStreaming);
+    thinkingIntent === 'user-open' ||
+    (thinkingIntent === 'automatic' &&
+      liveStreaming &&
+      message.status === 'streaming' &&
+      hasThinking);
   const thinkingLabelClass = behaviorTextClass('thinking', thinkingStreaming);
+  const composingToolArgs =
+    liveStreaming &&
+    message.status === 'streaming' &&
+    message.tools.length === 0 &&
+    message.text.trim().length === 0 &&
+    (message.toolArgsProgress !== undefined ||
+      (hasThinking && message.thinkingEndedAt !== undefined));
+  const composingLabel = formatToolArgsProgressLabel({
+    locale,
+    argumentCharCount: message.toolArgsProgress?.argumentCharCount ?? 0,
+    ...(message.toolArgsProgress?.toolName !== undefined
+      ? { toolName: message.toolArgsProgress.toolName }
+      : {}),
+  });
 
   const extractedCards =
     props.renderExtractedFlashcards === false
@@ -285,6 +307,31 @@ export function ConversationResponseContent(props: {
         </div>
       ) : null}
 
+      {composingToolArgs ? (
+        <div
+          className="conversation-thinking-wrapper is-open"
+          data-testid="conversation-tool-args-progress"
+        >
+          <div
+            className="turn-work-details-summary conversation-thinking-summary"
+            data-activity-id="tool.compose"
+            data-activity-animation={getBehaviorActivitySpec('tool.compose').animation}
+            data-tool-status="running"
+          >
+            <span className="turn-summary-active-animation" aria-hidden="true">
+              <RadialBellow
+                size="sm"
+                label={composingLabel}
+                testId="conversation-tool-args-radial-bellow"
+              />
+            </span>
+            <span className={`turn-work-details-label ${behaviorTextClass('tool.compose', true)}`}>
+              {composingLabel}
+            </span>
+          </div>
+        </div>
+      ) : null}
+
       {message.text.trim().length > 0 ? (
         <MarkdownView
           text={message.text}
@@ -360,4 +407,42 @@ export function ConversationResponseContent(props: {
       ) : null}
     </div>
   );
+}
+
+function formatToolArgsProgressLabel(input: {
+  locale: 'zh-CN' | 'en';
+  argumentCharCount: number;
+  toolName?: string;
+}): string {
+  const sizeLabel = formatArgumentCharCount(input.argumentCharCount);
+  if (input.locale === 'zh-CN') {
+    if (input.toolName !== undefined && sizeLabel !== undefined) {
+      return `正在生成 ${input.toolName}… ${sizeLabel}`;
+    }
+    if (input.toolName !== undefined) {
+      return `正在生成 ${input.toolName}…`;
+    }
+    return sizeLabel !== undefined ? `正在生成内容… ${sizeLabel}` : '正在生成内容…';
+  }
+  if (input.toolName !== undefined && sizeLabel !== undefined) {
+    return `Composing ${input.toolName}… ${sizeLabel}`;
+  }
+  if (input.toolName !== undefined) {
+    return `Composing ${input.toolName}…`;
+  }
+  return sizeLabel !== undefined ? `Composing content… ${sizeLabel}` : 'Composing content…';
+}
+
+function formatArgumentCharCount(count: number): string | undefined {
+  if (count <= 0) {
+    return undefined;
+  }
+  if (count < 1000) {
+    return `${count}`;
+  }
+  const thousands = count / 1000;
+  if (thousands < 100) {
+    return `${thousands.toFixed(1).replace(/\.0$/, '')}k`;
+  }
+  return `${Math.round(thousands)}k`;
 }

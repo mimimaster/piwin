@@ -20,6 +20,58 @@ describe('mapPiSessionEvent', () => {
     expect(events).toEqual([{ type: 'message/text_delta', messageId: 'm1', delta: 'hello' }]);
   });
 
+  it('maps tool-call argument streaming without carrying the argument body', () => {
+    const events = mapPiSessionEvent({
+      type: 'message_update',
+      messageId: 'm-args',
+      assistantMessageEvent: {
+        type: 'toolcall_delta',
+        name: 'write_file',
+        delta: '{"path":"proto.html","content":"<!doctype',
+      },
+    });
+    expect(events).toEqual([
+      {
+        type: 'message/tool_args_progress',
+        messageId: 'm-args',
+        argumentCharCount: '{"path":"proto.html","content":"<!doctype'.length,
+        toolName: 'write_file',
+      },
+    ]);
+    expect(JSON.stringify(events)).not.toContain('<!doctype');
+  });
+
+  it('accumulates tool-call argument deltas across live updates', () => {
+    const mapper = createPiSessionEventMapper();
+    mapper.map({ type: 'message_start', messageId: 'm-live-args', role: 'assistant' });
+    const first = mapper.map({
+      type: 'message_update',
+      messageId: 'm-live-args',
+      assistantMessageEvent: { type: 'toolcall_delta', name: 'write_file', delta: 'aaaa' },
+    });
+    const second = mapper.map({
+      type: 'message_update',
+      messageId: 'm-live-args',
+      assistantMessageEvent: { type: 'toolcall_delta', delta: 'bbbb' },
+    });
+    expect(first).toEqual([
+      {
+        type: 'message/tool_args_progress',
+        messageId: 'm-live-args',
+        argumentCharCount: 4,
+        toolName: 'write_file',
+      },
+    ]);
+    expect(second).toEqual([
+      {
+        type: 'message/tool_args_progress',
+        messageId: 'm-live-args',
+        argumentCharCount: 8,
+        toolName: 'write_file',
+      },
+    ]);
+  });
+
   it('reads nested tool args so silent shell/file tools still get a transcript', () => {
     const nested = mapPiSessionEvent({
       type: 'tool_execution_start',

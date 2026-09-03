@@ -8,6 +8,10 @@ export function subagentInvocationActivityFromEvent(
       return { kind: 'thinking' };
     case 'message/text_delta':
       return { kind: 'responding' };
+    case 'message/tool_args_progress':
+      return event.toolName === undefined
+        ? { kind: 'thinking' }
+        : { kind: 'tool', toolName: event.toolName };
     case 'tool/start':
       return {
         kind: 'tool',

@@ -109,6 +109,7 @@ export type UseComposerDockPropsArgs = {
   onAbort: () => void | Promise<unknown>;
   onCompact: (customInstructions?: string) => void | Promise<unknown>;
   onOpenProject: (path: string) => void | Promise<void>;
+  onOpenWorktreeProject?: (worktreePath: string) => void | Promise<void>;
   onExtensionUiResolve: (payload: {
     confirmed?: boolean;
     value?: string;
@@ -201,6 +202,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
     onAbort,
     onCompact,
     onOpenProject,
+    onOpenWorktreeProject,
     onExtensionUiResolve,
     onExtensionUiAbort,
     extensionUiRequest,
@@ -529,6 +531,9 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
         ? { branchRequest: requestGit as ComposerDockProps['branchRequest'] }
         : {}),
       recentProjects,
+      ...(onOpenWorktreeProject
+        ? { onOpenWorktreeProject }
+        : {}),
       onOpenProject: (path) => {
         void onOpenProject(path);
       },
@@ -582,6 +587,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       onOpenCardsPanel,
       onOpenKnowledge,
       onOpenProject,
+      onOpenWorktreeProject,
       onRemoveDocComments,
       onRunModeChange,
       onRunModeSetDefault,

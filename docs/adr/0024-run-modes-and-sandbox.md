@@ -78,6 +78,10 @@ Today: once / project. Add **session** (in-memory, per session). Default focus
 on the permission prompt is "Allow for session" — the narrowest scope that
 unblocks the task without persisting to disk.
 
+**Amendment (2026-09-03):** concurrent permission tickets queue in Desktop
+(FIFO, keyed by `requestId`). Session-scoped bash allows remain exact-match
+on the full command string so a remembered `ls foo` cannot widen to `ls foo; rm`.
+
 ### 5. Composer pill is the primary control
 
 Run Mode lives in the composer toolbar as a pill + popover (like the existing

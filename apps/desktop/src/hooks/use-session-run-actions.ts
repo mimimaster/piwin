@@ -17,6 +17,7 @@ import { desktopForegroundMutationsEnabled } from '../foreground-admission.js';
 import { hostFailureNotice, hostReconnectNotice } from '../host-problem-copy.js';
 import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
 import { compactFailureMessage } from './session-actions-helpers.js';
+import { reconcilePendingPermissions } from './reconcile-pending-permissions.js';
 
 export function useSessionRunActions(input: {
   hostClient: HostClient;
@@ -362,6 +363,7 @@ export function useSessionRunActions(input: {
       if (!response.success) {
         dispatchNotification(pushError(response.error));
       }
+      void reconcilePendingPermissions({ hostClient, dispatch });
     },
     [dispatch, dispatchNotification, hostClient, state.permissionPrompt],
   );

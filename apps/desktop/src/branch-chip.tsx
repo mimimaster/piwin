@@ -22,6 +22,11 @@ import { useConfirmDialog } from './use-confirm-dialog';
 import { useDesktopLocale } from './desktop-locale-context';
 import { getDesktopCopy } from './desktop-locale';
 import { IconChevronDown, IconGit } from './shell-icons';
+import {
+  localizeCheckoutError,
+  reportBranchChipError,
+  worktreeFolderName,
+} from './branch-chip-errors';
 
 export type BranchChipRequest =
   | { type: 'git/status'; projectPath: string }
@@ -33,6 +38,10 @@ export type BranchChipProps = {
   /** When true, hide switch actions (e.g. agent is streaming). */
   disabled?: boolean;
   request: (command: BranchChipRequest) => Promise<HostResponse>;
+  /** Occupied-branch navigation: open that worktree as a project and start/resume a session. */
+  onOpenWorktreeProject?: (worktreePath: string) => void | Promise<void>;
+  /** Test seam; production toasts via ui-kit when omitted. */
+  onError?: (message: string) => void;
 };
 
 function branchLabel(snapshot: GitStatusSnapshot | null, fallback: string): string {
@@ -158,6 +167,39 @@ export function BranchChip(props: BranchChipProps): ReactElement | null {
         return;
       }
 
+      const selected = branches.find((entry) => entry.name === branchName);
+      const occupiedPath = selected?.checkedOutWorktreePath;
+      if (occupiedPath) {
+        setMenuOpen(false);
+        if (selected?.checkedOutWorktreeMissing === true) {
+          const message = copy.branchOccupiedUnreachable(occupiedPath);
+          setError(message);
+          reportBranchChipError(message, props.onError);
+          return;
+        }
+        const folderName = worktreeFolderName(occupiedPath);
+        const confirmed = await confirmDialog.confirm({
+          title: copy.branchOccupiedConfirmTitle,
+          description: copy.branchOccupiedConfirm(branchName, folderName),
+          confirmLabel: copy.branchOccupiedAction,
+          tone: 'default',
+        });
+        if (!confirmed) {
+          return;
+        }
+        if (!props.onOpenWorktreeProject) {
+          const message = copy.branchOccupiedToast(folderName);
+          setError(message);
+          reportBranchChipError(message, props.onError);
+          return;
+        }
+        setSwitching(true);
+        setError(null);
+        await props.onOpenWorktreeProject(occupiedPath);
+        setSwitching(false);
+        return;
+      }
+
       const dirty = status?.branch?.dirty === true;
       const description = dirty
         ? copy.branchCheckoutDirtyConfirm(branchName)
@@ -180,13 +222,26 @@ export function BranchChip(props: BranchChipProps): ReactElement | null {
       });
       setSwitching(false);
       if (!response.success) {
-        setError(response.error);
+        const message = localizeCheckoutError(response.error, copy);
+        setError(message);
+        reportBranchChipError(message, props.onError);
         return;
       }
       setMenuOpen(false);
       await reloadStatus();
     },
-    [confirmDialog, copy, disabled, projectPath, request, reloadStatus, status],
+    [
+      branches,
+      confirmDialog,
+      copy,
+      disabled,
+      projectPath,
+      props.onError,
+      props.onOpenWorktreeProject,
+      request,
+      reloadStatus,
+      status,
+    ],
   );
 
   const handleSearchKeyDown = useCallback((event: KeyboardEvent<HTMLInputElement>): void => {
@@ -287,12 +342,19 @@ export function BranchChip(props: BranchChipProps): ReactElement | null {
                   }}
                 >
                   <span
-                    className={`branch-picker-item${entry.current ? ' is-current' : ''}`}
+                    className={`branch-picker-item${entry.current ? ' is-current' : ''}${entry.checkedOutWorktreePath ? ' is-occupied' : ''}`}
                   >
                     <span className="branch-picker-item-name">{entry.name}</span>
                     {entry.current ? (
                       <span className="branch-picker-item-check" aria-hidden>
                         ✓
+                      </span>
+                    ) : null}
+                    {entry.checkedOutWorktreePath ? (
+                      <span className="branch-picker-item-meta">
+                        {copy.branchOccupiedInWorktree(
+                          worktreeFolderName(entry.checkedOutWorktreePath),
+                        )}
                       </span>
                     ) : null}
                   </span>

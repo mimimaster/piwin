@@ -243,6 +243,47 @@ describe('ConversationResponseContent', () => {
     expect(container.textContent).toContain('正在把鹈鹕画进循环骑行动画。');
   });
 
+  it('stops the thinking spinner and shows composing progress while tool args stream', () => {
+    const message: ChatMessageUi = {
+      id: 'm-compose-args',
+      role: 'assistant',
+      text: '',
+      thinking: 'Writing the escaped prototype file.',
+      thinkingStartedAt: 1_000,
+      thinkingEndedAt: 5_000,
+      toolArgsProgress: { argumentCharCount: 38900, toolName: 'write_file' },
+      tools: [],
+      attachments: [],
+      status: 'streaming',
+    };
+
+    const { container } = renderContent(
+      <ConversationResponseContent
+        message={message}
+        messageIndex={0}
+        showStreamingCaret={false}
+        activeTheme={null}
+        artifactThemeKey="default"
+        runRecordsById={{}}
+        activeRunId="run-compose"
+        locale="zh-CN"
+        isStreaming
+        artifactPreviewEnabled={true}
+      />,
+    );
+
+    expect(container.querySelector('[data-testid="conversation-thinking-wrapper"]')).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="conversation-thinking-active-animation"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="conversation-tool-args-progress"]')?.textContent,
+    ).toContain('write_file');
+    expect(
+      container.querySelector('[data-testid="conversation-tool-args-progress"]')?.textContent,
+    ).toContain('38.9k');
+  });
+
   it('renders Conversation web_search as a tool card', () => {
     const message: ChatMessageUi = {
       id: 'm-search',
@@ -370,7 +411,9 @@ describe('ConversationResponseContent', () => {
 
     const card = container.querySelector('.fc-quiet-card-container');
     act(() => {
-      card?.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }));
+      card?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }),
+      );
     });
 
     expect(container.textContent).toContain('光能转化为化学能');

@@ -58,9 +58,10 @@ describe('createStoreTranscriptRecorder', () => {
       await recorder.flush();
 
       const entries = await store.readNativeEntries('assistant-native');
-      expect(
-        entries.map((entry) => (JSON.parse(entry.payload) as { role: string }).role),
-      ).toEqual(['assistant', 'toolResult']);
+      expect(entries.map((entry) => (JSON.parse(entry.payload) as { role: string }).role)).toEqual([
+        'assistant',
+        'toolResult',
+      ]);
     } finally {
       recorder.dispose();
       store.close();
@@ -142,6 +143,55 @@ describe('createStoreTranscriptRecorder', () => {
       await expect(store.getMessage('assistant-thinking')).resolves.toMatchObject({
         thinkingStartedAt: '2026-08-12T08:00:01.000Z',
         thinkingEndedAt: '2026-08-12T08:00:05.000Z',
+      });
+    } finally {
+      recorder.dispose();
+      store.close();
+      vi.useRealTimers();
+    }
+  });
+
+  it('closes persisted reasoning when tool-call arguments start streaming', async () => {
+    vi.useFakeTimers();
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-store-recorder-tool-args-'));
+    const store = await openSessionTranscriptStore({
+      dbPath: join(rootDir, 'transcript.sqlite3'),
+      sessionId: 'session-tool-args',
+      projectPath: '/project',
+    });
+    const recorder = createStoreTranscriptRecorder({
+      store,
+      runtimeGenerationId: 'generation-tool-args',
+    });
+
+    try {
+      await recorder.recordEvent({
+        type: 'message/start',
+        messageId: 'assistant-tool-args',
+        role: 'assistant',
+        runId: 'run-tool-args',
+      });
+      vi.setSystemTime('2026-08-12T08:00:01.000Z');
+      await recorder.recordEvent({
+        type: 'message/thinking_delta',
+        messageId: 'assistant-tool-args',
+        delta: 'designing the shell',
+        runId: 'run-tool-args',
+      });
+      vi.setSystemTime('2026-08-12T08:00:04.000Z');
+      await recorder.recordEvent({
+        type: 'message/tool_args_progress',
+        messageId: 'assistant-tool-args',
+        argumentCharCount: 1200,
+        toolName: 'write_file',
+        runId: 'run-tool-args',
+      });
+      await recorder.flush();
+
+      await expect(store.getMessage('assistant-tool-args')).resolves.toMatchObject({
+        thinkingStartedAt: '2026-08-12T08:00:01.000Z',
+        thinkingEndedAt: '2026-08-12T08:00:04.000Z',
+        thinking: 'designing the shell',
       });
     } finally {
       recorder.dispose();

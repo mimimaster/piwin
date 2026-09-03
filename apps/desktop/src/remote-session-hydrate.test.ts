@@ -226,6 +226,32 @@ describe('mapListedProjects', () => {
       },
     ]);
   });
+
+  it('keeps git workspace listing fields for sidebar grouping', () => {
+    expect(
+      mapListedProjects({
+        projects: [
+          {
+            path: '/Users/me/piwin',
+            trust: 'trusted',
+            lastOpenedAt: 't',
+            createdAt: 'c',
+            displayName: 'piwin',
+            gitRepositoryId: 'abcd1234abcd1234',
+            isPrimaryWorktree: true,
+            currentBranch: 'main',
+          },
+        ],
+      }),
+    ).toMatchObject([
+      {
+        path: '/Users/me/piwin',
+        gitRepositoryId: 'abcd1234abcd1234',
+        isPrimaryWorktree: true,
+        currentBranch: 'main',
+      },
+    ]);
+  });
 });
 
 describe('isRemoteDesktopTransport', () => {

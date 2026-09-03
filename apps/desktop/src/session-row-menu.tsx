@@ -10,6 +10,7 @@ import {
   IconDownload,
   IconEdit,
   IconFolderOpen,
+  IconListDots,
   IconPin,
   IconRefresh,
   IconTrash,
@@ -22,6 +23,7 @@ export type SessionRowMenuAction =
   | 'unpin'
   | 'rename'
   | 'copy-id'
+  | 'copy-transcript'
   | 'duplicate'
   | 'fork-chat'
   | 'continue-in-project'
@@ -55,6 +57,8 @@ function renderSessionActionIcon(action: SessionRowMenuAction): ReactNode {
       return <IconEdit width={14} height={14} />;
     case 'copy-id':
       return <IconCopy width={14} height={14} />;
+    case 'copy-transcript':
+      return <IconListDots width={14} height={14} />;
     case 'duplicate':
       return <IconArrowFork width={14} height={14} />;
     case 'fork-chat':

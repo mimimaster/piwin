@@ -3,6 +3,7 @@ import { escapesRoot } from '@piwin/project';
 import { isPrivateOrLocalHostname } from '@piwin/tools-web';
 import { findMatchingRule } from './permission-rule-engine.js';
 import { createBundledRuleSet } from './permission-defaults.js';
+import { splitBashCommandChain } from './bash-command-chain.js';
 
 export type PermissionEvaluation = {
   decision: PermissionDecision;
@@ -60,8 +61,29 @@ export function evaluateBashPermission(
 
   const ruleSet = rules ?? createBundledRuleSet();
   const matched = findMatchingRule({ kind: 'bash', command: normalized }, ruleSet);
-  if (matched) {
+  const segments = splitBashCommandChain(normalized);
+  // Prefix globs like `cd *` / `ls *` match across `&&` / `;`. A whole-command
+  // allow would auto-approve `cd /tmp && python malware.py` under ask-all.
+  // Deny/ask still apply to the full string so circuit breakers keep firing.
+  if (matched && !(matched.decision === 'allow' && segments.length > 1)) {
     return applyModeToMatchedRule(matched, mode);
+  }
+
+  if (segments.length > 1) {
+    let firstAsk: PermissionEvaluation | undefined;
+    for (const segment of segments) {
+      const segmentResult = evaluateBashPermission(segment, mode, rules);
+      if (segmentResult.decision === 'deny') {
+        return { decision: 'deny', reason: `chain-deny:${segmentResult.reason}` };
+      }
+      if (segmentResult.decision === 'ask' && firstAsk === undefined) {
+        firstAsk = segmentResult;
+      }
+    }
+    if (firstAsk) {
+      return { decision: 'ask', reason: `chain-ask:${firstAsk.reason}` };
+    }
+    return { decision: 'allow', reason: 'chain-all-allow' };
   }
 
   // No rule matched: ask-all escalates everything to ask; auto/bypass allow.

@@ -8,6 +8,7 @@ import {
   type ReactElement,
 } from 'react';
 import { Button, Dialog } from '@piwin/ui-kit';
+import { isPauseContinueUtterance } from '@piwin/contracts';
 import type { AgentModeId } from './agent-mode';
 import { isFailedMediaAttachment } from './media-utils';
 import { ComposerAttachmentShelf } from './composer-attachment-shelf';
@@ -32,6 +33,7 @@ import {
 } from './at';
 import { ComposerModalEditor } from './ComposerModalEditor';
 import { ComposerQueuedEditBanner } from './composer-queued-edit-banner';
+import { ComposerPauseContinueHint } from './composer-pause-continue-hint';
 import { getDesktopCopy } from './desktop-locale';
 import { useDesktopLocale } from './desktop-locale-context';
 import { useSpeechInput } from './hooks/use-speech-input.js';
@@ -418,9 +420,12 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     if (props.onAddContextRef && mentionRef) {
       props.onAddContextRef(mentionRef);
     }
-    const next = replaceActiveAtToken(props.composer, activeAtToken, item.insertValue);
+    // File/folder chips live on the shelf; keep the textarea as plain
+    // prompt text instead of duplicating `@path` next to the capsule.
+    const insertValue = props.onAddContextRef && mentionRef ? '' : item.insertValue;
+    const next = replaceActiveAtToken(props.composer, activeAtToken, insertValue);
     props.onComposerChange(next);
-    focusCaret(activeAtToken.startIndex + item.insertValue.length);
+    focusCaret(activeAtToken.startIndex + insertValue.length);
     setAtMenuForcedClosed(true);
   }
 
@@ -790,6 +795,20 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
           hint={copy.queuedEditHint}
           cancelLabel={copy.cancelQueuedEdit}
           onCancel={() => props.onQueuedEditCancel?.()}
+        />
+      ) : null}
+
+      {isPaused &&
+      !queuedEdit &&
+      isPauseContinueUtterance(props.composer) &&
+      props.composer.trim().length > 0 ? (
+        <ComposerPauseContinueHint
+          hint={copy.pauseContinueHint}
+          actionLabel={copy.pauseContinueHintAction}
+          onResumeCheckpoint={() => {
+            props.onComposerChange('');
+            void props.onResume?.();
+          }}
         />
       ) : null}
 

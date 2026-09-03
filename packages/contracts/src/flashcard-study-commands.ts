@@ -23,6 +23,7 @@ export const FLASHCARD_STUDY_COMMAND_TYPES = [
   'flashcards/study/claim',
   'flashcards/study/checkpoint',
   'flashcards/study/next',
+  'flashcards/study/goto',
   'flashcards/study/rate',
   'flashcards/study/undo',
   'flashcards/study/pause',
@@ -38,6 +39,7 @@ export const FLASHCARD_STUDY_MUTATION_TYPES = [
   'flashcards/study/claim',
   'flashcards/study/checkpoint',
   'flashcards/study/next',
+  'flashcards/study/goto',
   'flashcards/study/rate',
   'flashcards/study/undo',
   'flashcards/study/pause',
@@ -102,6 +104,15 @@ export type FlashcardStudyNextCommand = {
   contentVersion: string;
 };
 
+export type FlashcardStudyGotoCommand = {
+  id?: string;
+  type: 'flashcards/study/goto';
+  roundId: string;
+  expectedRevision: number;
+  controlEpoch: number;
+  entryId: string;
+};
+
 export type FlashcardStudyRateCommand = {
   id?: string;
   type: 'flashcards/study/rate';
@@ -160,6 +171,7 @@ export type FlashcardStudyHostCommand =
   | FlashcardStudyClaimCommand
   | FlashcardStudyCheckpointCommand
   | FlashcardStudyNextCommand
+  | FlashcardStudyGotoCommand
   | FlashcardStudyRateCommand
   | FlashcardStudyUndoCommand
   | FlashcardStudyPauseCommand
@@ -221,6 +233,8 @@ export function parseFlashcardStudyCommand(
       return parseCheckpoint(value, id.value);
     case 'flashcards/study/next':
       return parseNext(value, id.value);
+    case 'flashcards/study/goto':
+      return parseGoto(value, id.value);
     case 'flashcards/study/rate':
       return parseRate(value, id.value);
     case 'flashcards/study/undo':
@@ -359,6 +373,28 @@ function parseNext(
   const base = parseAdvanceBase(value);
   if (!base.ok) return base;
   return ok({ ...withId(id), type: 'flashcards/study/next', ...base.value });
+}
+
+function parseGoto(
+  value: Record<string, unknown>,
+  id: string | undefined,
+): FlashcardStudyParseResult<FlashcardStudyGotoCommand> {
+  const roundId = parseStudyId(value.roundId, 'roundId');
+  if (!roundId.ok) return roundId;
+  const expectedRevision = parseNonNegativeInt(value.expectedRevision, 'expectedRevision');
+  if (!expectedRevision.ok) return expectedRevision;
+  const controlEpoch = parseNonNegativeInt(value.controlEpoch, 'controlEpoch');
+  if (!controlEpoch.ok) return controlEpoch;
+  const entryId = parseStudyId(value.entryId, 'entryId');
+  if (!entryId.ok) return entryId;
+  return ok({
+    ...withId(id),
+    type: 'flashcards/study/goto',
+    roundId: roundId.value,
+    expectedRevision: expectedRevision.value,
+    controlEpoch: controlEpoch.value,
+    entryId: entryId.value,
+  });
 }
 
 function parseRate(

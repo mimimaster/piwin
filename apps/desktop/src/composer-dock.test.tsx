@@ -419,6 +419,39 @@ describe('ComposerDock host status', () => {
     expect(handleResume).not.toHaveBeenCalled();
   });
 
+  it('hints that typed 继续 is a new send and can resume the checkpoint instead', () => {
+    const handleSend = vi.fn();
+    const handleResume = vi.fn();
+    const handleComposerChange = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        paused
+        composer="继续"
+        onComposerChange={handleComposerChange}
+        onSend={handleSend}
+        onResume={handleResume}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(container.querySelector('[data-testid="composer-pause-continue-hint"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="send-btn"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="resume-run-btn"]')).toBeNull();
+    expect(circularActionCount(container)).toBe(1);
+
+    const hintResume = container.querySelector(
+      '[data-testid="composer-pause-continue-hint-resume"]',
+    ) as HTMLButtonElement;
+    act(() => {
+      hintResume.click();
+    });
+    expect(handleComposerChange).toHaveBeenCalledWith('');
+    expect(handleResume).toHaveBeenCalledOnce();
+    expect(handleSend).not.toHaveBeenCalled();
+  });
+
   it('reuses the Composer textarea for Other input and keeps Pause instead of Steer', () => {
     const handleResolve = vi.fn();
     const handleAbort = vi.fn();
@@ -1438,9 +1471,7 @@ describe('ComposerDock host status', () => {
     root = rendered.root;
     container = rendered.container;
 
-    const chip = container.querySelector<HTMLButtonElement>(
-      '[data-testid="composer-goal-chip"]',
-    );
+    const chip = container.querySelector<HTMLButtonElement>('[data-testid="composer-goal-chip"]');
     expect(chip).not.toBeNull();
     act(() => {
       chip?.dispatchEvent(new MouseEvent('click', { bubbles: true }));

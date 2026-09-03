@@ -25,6 +25,8 @@ export type PermissionBarProps = {
   projectPath: string | null;
   /** Existing respond handler from use-session-actions (allow / deny / ask). */
   onPermission: (decision: PermissionDecision, rememberScope?: PermissionRememberScope) => void;
+  /** Remaining prompts after the one currently shown. */
+  queuedRemaining?: number;
 };
 
 /** Compact one-line subject shown before the details disclosure. */
@@ -62,12 +64,16 @@ export function PermissionBar(props: PermissionBarProps): ReactElement {
   const tone: AgentInterruptionTone = isDanger ? 'danger' : 'warning';
   const subject = permissionSubject(prompt);
   const detailId = `permission-detail-${prompt.requestId}`;
+  const queuedRemaining = props.queuedRemaining ?? 0;
 
   return (
     <AgentInterruptionFrame
       tone={tone}
       statusLabel={copy.approvalRequired}
       title={subject}
+      {...(queuedRemaining > 0
+        ? { description: copy.queuedRemaining(queuedRemaining) }
+        : {})}
       testId="permission-bar"
       activityId="permission"
       activityAnimation={getBehaviorActivitySpec('permission').animation}

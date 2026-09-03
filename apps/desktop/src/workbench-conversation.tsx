@@ -3,7 +3,7 @@
  * Host commands stay with App; this file owns transcript, permission, and
  * composer-dock chrome.
  */
-import type { Dispatch, ReactElement } from 'react';
+import type { ReactElement } from 'react';
 import type {
   ContextSummaryPush,
   FlashcardReviewCard,
@@ -19,12 +19,7 @@ import type {
 import type { ArtifactActionMessage } from '@piwin/artifact';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model';
 import { ChatThread } from './chat-thread';
-import type {
-  ChatMessageUi,
-  ChatUiAction,
-  ChatUiState,
-  SessionListItemUi,
-} from './chat-reducer';
+import type { ChatMessageUi, ChatUiState, SessionListItemUi } from './chat-reducer';
 import { ComposerDock, type ComposerDockProps } from './composer-dock';
 import type { DesktopLocale } from './desktop-locale';
 import { EmptyStageLanding } from './empty-stage-landing';
@@ -49,7 +44,6 @@ export type WorkbenchTranscriptProps = {
   locale: DesktopLocale;
   hostClient: HostClient;
   state: ChatUiState;
-  dispatch: Dispatch<ChatUiAction>;
   visibleMessages: ChatMessageUi[];
   visibleRunRecordsById: ChatUiState['runRecordsById'];
   historyViewActive: boolean;
@@ -111,7 +105,6 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
     locale,
     hostClient,
     state,
-    dispatch,
     visibleMessages,
     visibleRunRecordsById,
     historyViewActive,
@@ -291,7 +284,6 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
             onPlanAbort={onPlanAbort}
             compactionActivity={state.compactionActivity}
             onCompactAbort={onCompactAbort}
-            onCompactDismiss={() => dispatch({ type: 'compaction/dismiss' })}
             composerCard={composerCard}
             walkthroughsByMessageId={state.walkthroughsByMessageId}
             walkthroughEnabled={config?.walkthrough?.enabled !== false}
@@ -345,11 +337,13 @@ export function WorkbenchPermissionBar(
     onExtensionUiResolve,
   } = props;
   const isConversationSession = state.activeScope.kind === 'general';
-  if (!isConversationSession && state.permissionPrompt) {
+  if (state.permissionPrompt) {
     return (
       <PermissionBar
+        key={state.permissionPrompt.requestId}
         prompt={state.permissionPrompt}
         projectPath={state.projectPath}
+        queuedRemaining={Math.max(0, state.permissionQueue.length - 1)}
         onPermission={(decision, scope) => {
           void onPermission(decision, scope);
         }}

@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -91,6 +91,64 @@ describe('HostRuntime session/export', () => {
     expect(content).toContain('assistant reply body');
     expect(content).toContain('[tool output redacted]');
     expect(content).not.toContain('SECRET_VALUE=42');
+
+    await runtime.dispose();
+  });
+
+  it('returns Markdown content without writing a file', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-export-content-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/export-content-project' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+    const seeded = await runtime.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: { text: 'copy this transcript' },
+    });
+    expect(seeded.success).toBe(true);
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const messages = await runtime.handleCommand({
+        type: 'session/messages',
+        sessionId,
+      });
+      if (
+        messages.success &&
+        (messages.data as { messages: Array<{ text: string }> }).messages.some((row) =>
+          row.text.includes('copy this transcript'),
+        )
+      ) {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+
+    const response = await runtime.handleCommand({
+      type: 'session/export',
+      sessionId,
+      format: 'md',
+      destination: 'content',
+    });
+    expect(response.success, JSON.stringify(response)).toBe(true);
+    if (!response.success) throw new Error(response.error);
+    const data = response.data as {
+      path?: string;
+      content?: string;
+      format: string;
+      byteLength: number;
+    };
+    expect(data.path).toBeUndefined();
+    expect(data.format).toBe('md');
+    expect(data.content).toContain('copy this transcript');
+    expect(data.byteLength).toBeGreaterThan(0);
+    expect(data.byteLength).toBe(Buffer.byteLength(data.content ?? '', 'utf8'));
+
+    const exportsDir = join(rootDir, 'sessions', sessionId, 'exports');
+    await expect(access(exportsDir)).rejects.toMatchObject({ code: 'ENOENT' });
 
     await runtime.dispose();
   });

@@ -5,8 +5,10 @@
  * Default selection is freehand (`off`) — no scheme preamble is injected, but
  * the model may still delegate when useful. Delegation can be disabled
  * independently for the current turn.
- * Choosing Ultra Code (or a user scheme) sets PromptInput.orchestrationSchemeId
- * for that send only. No "set as default"; no cross-session persistence.
+ * Choosing Ultra Code (or a user scheme) attaches PromptInput.orchestrationSchemeId
+ * to that send. The pill stays on the chosen scheme for this conversation,
+ * including New Agent first-send (Host session creation is not a session switch).
+ * Switching conversations or New Agent returns to freehand. No "set as default".
  */
 import { useState, type ReactElement } from 'react';
 import { Popover } from '@piwin/ui-kit';

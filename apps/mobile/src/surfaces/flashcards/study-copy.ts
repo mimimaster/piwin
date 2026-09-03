@@ -7,8 +7,6 @@ export type MobileFlashcardStudyCopy = {
   answer: string;
   next: string;
   lastCard: string;
-  pause: string;
-  resume: string;
   undo: string;
   endRound: string;
   endRoundTitle: string;
@@ -32,8 +30,8 @@ export type MobileFlashcardStudyCopy = {
   saving: string;
   saved: string;
   pending: string;
-  pausedTitle: string;
-  pausedBody: string;
+  /** Shown while the app is backgrounded so card text is not visible in the app switcher. */
+  concealedTitle: string;
   disconnected: string;
   pendingConfirmation: string;
   readOnly: string;
@@ -74,8 +72,6 @@ export const MOBILE_FLASHCARD_STUDY_COPY: MobileFlashcardStudyCopy = {
   answer: '解答',
   next: '下一张',
   lastCard: '结束浏览',
-  pause: '暂停',
-  resume: '继续',
   undo: '撤销',
   endRound: '结束本轮',
   endRoundTitle: '结束本轮？',
@@ -99,8 +95,7 @@ export const MOBILE_FLASHCARD_STUDY_COPY: MobileFlashcardStudyCopy = {
   saving: '保存中',
   saved: '已保存',
   pending: '待确认',
-  pausedTitle: '已暂停',
-  pausedBody: '题面已隐藏。继续后回到同一张卡。',
+  concealedTitle: '闪卡',
   disconnected: '已断开 Host，进度仍保留。',
   pendingConfirmation: '结果待确认，重连后核对。',
   readOnly: '已在另一设备继续。',

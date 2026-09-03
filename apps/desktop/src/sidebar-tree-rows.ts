@@ -4,10 +4,29 @@ import type { DraftSessionItemUi } from './draft-session';
 import { draftSessionMatchesQuery, sortDraftSessions } from './draft-session';
 import { hiddenSessionCount, type SessionListScopeState } from './session-list-scope';
 import { sessionScopeKey } from './session-scope-key';
+import {
+  clusterProjectsByRepository,
+  type SidebarProjectRef,
+} from './sidebar-repo-groups';
+
+export type { SidebarProjectRef } from './sidebar-repo-groups';
 
 export type SidebarTreeRow =
   | { kind: 'section-header'; sectionId: 'projects' | 'conversations'; key: string }
-  | { kind: 'project-folder'; projectPath: string; collapsed: boolean; key: string }
+  | {
+      kind: 'repo-group';
+      gitRepositoryId: string;
+      title: string;
+      key: string;
+    }
+  | {
+      kind: 'project-folder';
+      projectPath: string;
+      collapsed: boolean;
+      grouped: boolean;
+      currentBranch: string | null;
+      key: string;
+    }
   | {
       kind: 'session';
       scope: SessionScope;
@@ -27,10 +46,6 @@ export type SidebarTreeRow =
 
 export const DEFAULT_PROJECT_SESSION_VISIBLE_COUNT = 5;
 export const PROJECT_SESSION_VISIBLE_INCREMENT = 5;
-
-export type SidebarProjectRef = {
-  path: string;
-};
 
 export type SidebarTreeRowsInput = {
   recentProjects: readonly SidebarProjectRef[];
@@ -132,65 +147,20 @@ export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRo
   const showConversations = input.conversationsSectionExpanded || revealGeneral;
 
   if (showProjects) {
-    for (const project of input.recentProjects) {
-      const scope: SessionScope = { kind: 'project', projectPath: project.path };
-      const hostSessions =
-        input.activeProjectPath === project.path && input.activeProjectSessions !== undefined
-          ? input.activeProjectSessions
-          : (input.projectSessionsByPath[project.path] ?? []);
-      const merged = mergeScopeRows(
-        scope,
-        drafts,
-        hostSessions,
-        input.sessionSearch,
-        input.sessionListOrder,
-      );
-      const selectedIndex = revealIndexInRows(merged, revealSessionId, revealDraftId);
-      const collapsed = resolveSidebarProjectCollapsed({
-        projectPath: project.path,
-        collapsedProjects: input.collapsedProjects,
-        ...(input.activeProjectPath !== undefined
-          ? { activeProjectPath: input.activeProjectPath }
-          : {}),
-        searching,
-        revealInside: selectedIndex >= 0,
-      });
-      rows.push({
-        kind: 'project-folder',
-        projectPath: project.path,
-        collapsed,
-        key: `project:${project.path}`,
-      });
-      if (collapsed) {
+    for (const cluster of clusterProjectsByRepository(input.recentProjects)) {
+      if (cluster.kind === 'group') {
+        rows.push({
+          kind: 'repo-group',
+          gitRepositoryId: cluster.gitRepositoryId,
+          title: cluster.title,
+          key: `repo:${cluster.gitRepositoryId}`,
+        });
+        for (const project of cluster.members) {
+          appendProjectFolderRows(rows, input, project, drafts, searching, true);
+        }
         continue;
       }
-      const visibleCount = Math.max(
-        input.projectSessionVisibleCounts?.[project.path] ?? DEFAULT_PROJECT_SESSION_VISIBLE_COUNT,
-        DEFAULT_PROJECT_SESSION_VISIBLE_COUNT,
-        selectedIndex + 1,
-      );
-      const visible = searching ? merged : merged.slice(0, visibleCount);
-      rows.push(...visible);
-      if (!searching && visible.length < merged.length) {
-        const batchSize = Math.min(
-          PROJECT_SESSION_VISIBLE_INCREMENT,
-          merged.length - visible.length,
-        );
-        rows.push({
-          kind: 'project-show-more',
-          projectPath: project.path,
-          batchSize,
-          nextVisibleCount: visible.length + batchSize,
-          key: `project-show-more:${project.path}`,
-        });
-      }
-      appendScopeHints(rows, {
-        scope,
-        merged,
-        searching,
-        sessionListScopes: input.sessionListScopes,
-        allowEmptyHint: !searching,
-      });
+      appendProjectFolderRows(rows, input, cluster.project, drafts, searching, false);
     }
   }
 
@@ -212,6 +182,80 @@ export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRo
   }
 
   return rows;
+}
+
+function appendProjectFolderRows(
+  rows: SidebarTreeRow[],
+  input: SidebarTreeRowsInput,
+  project: SidebarProjectRef,
+  drafts: readonly DraftSessionItemUi[],
+  searching: boolean,
+  grouped: boolean,
+): void {
+  const scope: SessionScope = { kind: 'project', projectPath: project.path };
+  const hostSessions =
+    input.activeProjectPath === project.path && input.activeProjectSessions !== undefined
+      ? input.activeProjectSessions
+      : (input.projectSessionsByPath[project.path] ?? []);
+  const merged = mergeScopeRows(
+    scope,
+    drafts,
+    hostSessions,
+    input.sessionSearch,
+    input.sessionListOrder,
+  );
+  const selectedIndex = revealIndexInRows(
+    merged,
+    input.revealSessionId ?? null,
+    input.revealDraftId ?? null,
+  );
+  const collapsed = resolveSidebarProjectCollapsed({
+    projectPath: project.path,
+    collapsedProjects: input.collapsedProjects,
+    ...(input.activeProjectPath !== undefined
+      ? { activeProjectPath: input.activeProjectPath }
+      : {}),
+    searching,
+    revealInside: selectedIndex >= 0,
+  });
+  rows.push({
+    kind: 'project-folder',
+    projectPath: project.path,
+    collapsed,
+    grouped,
+    currentBranch: project.currentBranch ?? null,
+    key: `project:${project.path}`,
+  });
+  if (collapsed) {
+    return;
+  }
+  const visibleCount = Math.max(
+    input.projectSessionVisibleCounts?.[project.path] ?? DEFAULT_PROJECT_SESSION_VISIBLE_COUNT,
+    DEFAULT_PROJECT_SESSION_VISIBLE_COUNT,
+    selectedIndex + 1,
+  );
+  const visible = searching ? merged : merged.slice(0, visibleCount);
+  rows.push(...visible);
+  if (!searching && visible.length < merged.length) {
+    const batchSize = Math.min(
+      PROJECT_SESSION_VISIBLE_INCREMENT,
+      merged.length - visible.length,
+    );
+    rows.push({
+      kind: 'project-show-more',
+      projectPath: project.path,
+      batchSize,
+      nextVisibleCount: visible.length + batchSize,
+      key: `project-show-more:${project.path}`,
+    });
+  }
+  appendScopeHints(rows, {
+    scope,
+    merged,
+    searching,
+    sessionListScopes: input.sessionListScopes,
+    allowEmptyHint: !searching,
+  });
 }
 
 function projectSectionContainsReveal(

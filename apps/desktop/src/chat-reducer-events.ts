@@ -40,6 +40,11 @@ import {
   updateMessage,
   updateOwnedTool,
 } from './chat-reducer-tools';
+import {
+  dequeuePermissionPrompt,
+  enqueuePermissionPrompt,
+  permissionQueueFields,
+} from './permission-queue';
 
 export type ChatUiEventAction = Extract<
   ChatUiAction,
@@ -177,6 +182,27 @@ export function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiSt
           ...(nextThinking.truncated || message.uiTruncated ? { uiTruncated: true } : {}),
         };
       });
+    case 'message/tool_args_progress': {
+      if (isStaleOptionalRunEvent(state, event.runId)) {
+        return state;
+      }
+      if (!state.messages.some((message) => message.id === event.messageId)) {
+        return state;
+      }
+      return updateMessage(state, event.messageId, (message) => {
+        if (message.tools.length > 0) {
+          return message;
+        }
+        const nextMessage = finishMessageThinking(message, Date.now());
+        return {
+          ...nextMessage,
+          toolArgsProgress: {
+            argumentCharCount: event.argumentCharCount,
+            ...(event.toolName !== undefined ? { toolName: event.toolName } : {}),
+          },
+        };
+      });
+    }
     case 'message/search_evidence': {
       if (isStaleOptionalRunEvent(state, event.runId)) {
         return state;
@@ -235,6 +261,7 @@ export function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiSt
         activeRunPhase: null,
         activeRunPhaseDetail: null,
         activeRunStartedAt: null,
+        activeRunPhaseUpdatedAt: null,
         lastTerminalRunId: null,
         streaming: false,
         activeSkill: null,
@@ -279,6 +306,7 @@ export function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiSt
         activeRunPhase: null,
         activeRunPhaseDetail: null,
         activeRunStartedAt: null,
+        activeRunPhaseUpdatedAt: null,
         lastTerminalRunId: event.runId ?? null,
         streaming: false,
         activeSkill: null,
@@ -305,8 +333,10 @@ export function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiSt
           return message;
         }
         const output = createBoundedToolOutput(event.presentation?.output?.text ?? '');
+        const finished = finishMessageThinking(message, Date.now());
+        const { toolArgsProgress: _clearedProgress, ...withoutToolArgsProgress } = finished;
         return {
-          ...finishMessageThinking(message, Date.now()),
+          ...withoutToolArgsProgress,
           tools: [
             ...message.tools,
             {
@@ -409,9 +439,8 @@ export function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiSt
       if (!state.activeSessionId) {
         return state;
       }
-      return {
-        ...state,
-        permissionPrompt: {
+      {
+        const nextQueue = enqueuePermissionPrompt(state.permissionQueue, {
           requestId: event.requestId,
           sessionId: state.activeSessionId,
           action: event.action,
@@ -419,14 +448,19 @@ export function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiSt
           defaultDecision: event.defaultDecision,
           ...(event.runId ? { runId: event.runId } : {}),
           ...(event.context ? { context: event.context } : {}),
-        },
-      };
+        });
+        if (nextQueue === state.permissionQueue) {
+          return state;
+        }
+        return { ...state, ...permissionQueueFields(nextQueue) };
+      }
     }
     case 'permission/resolved': {
-      if (state.permissionPrompt?.requestId !== event.requestId) {
+      const nextQueue = dequeuePermissionPrompt(state.permissionQueue, event.requestId);
+      if (nextQueue === state.permissionQueue) {
         return state;
       }
-      return { ...state, permissionPrompt: null };
+      return { ...state, ...permissionQueueFields(nextQueue) };
     }
     case 'compaction/start':
       if (isStaleOptionalRunEvent(state, event.runId)) {

@@ -282,6 +282,39 @@
 
 /* ── Project folders ─────────────────────────────────────────────────── */
 
+.tree-repo-group {
+  display: flex;
+  align-items: center;
+  min-height: 22px;
+  padding: var(--s-2) var(--s-3) 0;
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: var(--tracking-micro);
+}
+
+.tree-repo-group-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-folder-summary.is-grouped {
+  padding-left: var(--s-3);
+}
+
+.tree-folder-branch {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-4);
+  font-size: var(--fs-micro);
+  font-weight: 400;
+  font-family: var(--font-mono);
+}
+
 .tree-folder-details {
   display: flex;
   flex-direction: column;

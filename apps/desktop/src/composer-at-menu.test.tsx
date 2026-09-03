@@ -121,6 +121,54 @@ describe('composer @ mention menu', () => {
       relativePath: 'src/App.tsx',
       label: 'src/App.tsx',
     });
-    expect(onComposerChange).toHaveBeenCalledWith('@src/App.tsx ');
+    expect(onComposerChange).toHaveBeenCalledWith('');
+  });
+
+  it('clears the @ token when a folder pick becomes a context-ref chip', () => {
+    const onAddContextRef = vi.fn();
+    const onComposerChange = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        composer="@src"
+        onAddContextRef={onAddContextRef}
+        onComposerChange={onComposerChange}
+        atWorkspaceFiles={[{ relativePath: 'src', kind: 'directory' }]}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    act(() => {
+      container?.querySelector<HTMLButtonElement>('[data-testid="at-item-folder-src"]')?.click();
+    });
+    expect(onAddContextRef).toHaveBeenCalledWith({
+      kind: 'folder',
+      projectPath: '/p',
+      relativePath: 'src',
+      label: 'src',
+    });
+    expect(onComposerChange).toHaveBeenCalledWith('');
+  });
+
+  it('still inserts @text for mentions that do not become a chip', () => {
+    const onAddContextRef = vi.fn();
+    const onComposerChange = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        composer="@work"
+        onAddContextRef={onAddContextRef}
+        onComposerChange={onComposerChange}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    act(() => {
+      container?.querySelector<HTMLButtonElement>('[data-testid="at-item-ctx-workspace"]')?.click();
+    });
+    expect(onAddContextRef).not.toHaveBeenCalled();
+    expect(onComposerChange).toHaveBeenCalledWith('@workspace ');
   });
 });

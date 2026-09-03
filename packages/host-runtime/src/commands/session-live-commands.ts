@@ -800,6 +800,24 @@ export async function handleSessionLiveCommand(
         ...(record.name ? { title: record.name } : {}),
         exportedAt: new Date().toISOString(),
       };
+      if (command.destination === 'content') {
+        let content = '';
+        let byteLength = 0;
+        for await (const chunk of streamTranscriptExport(
+          store.iterateActivePath(100),
+          exportOptions,
+        )) {
+          content += chunk;
+          byteLength += Buffer.byteLength(chunk, 'utf8');
+        }
+        return ok(requestId, 'session/export', {
+          sessionId: command.sessionId,
+          format,
+          redactTools,
+          content,
+          byteLength,
+        });
+      }
       const outputPath = resolveSessionOutputPath(
         rootDir,
         command.sessionId,

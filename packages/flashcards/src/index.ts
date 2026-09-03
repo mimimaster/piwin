@@ -30,6 +30,7 @@ export {
   parseReviewCardId,
   reviewStateFileName,
   itemPreviewText,
+  itemAnswerText,
 } from './cloze.js';
 export type { ClozeMarker } from './cloze.js';
 export {

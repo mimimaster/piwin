@@ -182,7 +182,7 @@
   display: flex;
   width: 100%;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   padding-top: 8px;
 }
 
@@ -194,6 +194,64 @@
 }
 
 .vault-card-face:hover .vault-card-cue {
+  color: var(--iris);
+}
+
+/* In-place tile flip: answer side gets a subtle tint + the flip cue. */
+.vault-card.is-answer .vault-card-face {
+  background: color-mix(in srgb, var(--iris) 6%, var(--surface-2));
+}
+
+.vault-card-side {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--iris) 15%, transparent);
+  color: var(--iris);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+}
+
+.vault-card-flip-cue {
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  transition: color var(--t-1) var(--ease-out);
+}
+
+.vault-card-face:hover .vault-card-flip-cue {
+  color: var(--iris);
+}
+
+/* Corner "study" cue — the only path into the review desk. */
+.vault-card-open {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-pill);
+  background: var(--surface-1);
+  color: var(--text-2);
+  font-size: var(--fs-micro);
+  font-weight: 560;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--t-1) var(--ease-out), border-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.vault-card:hover .vault-card-open,
+.vault-card-open:focus-visible {
+  opacity: 1;
+}
+
+.vault-card-open:hover {
+  border-color: var(--iris);
   color: var(--iris);
 }
 
@@ -281,26 +339,10 @@
   gap: var(--s-2);
 }
 
-.fcws-study-paused {
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  cursor: default;
-}
-
-.fcws-study-paused h3 {
-  margin: 0 0 var(--s-3);
-  color: var(--text-1);
-}
-
-.fcws-study-paused p {
-  margin: 0;
-  color: var(--text-3);
-}
-
 .fcws-study-rate-actions {
   width: min(600px, 92vw);
   margin: 0 auto;
+  flex-direction: column;
 }
 
 /* Face / tear / completion styles live in @piwin/ui-kit/flashcards.css. */

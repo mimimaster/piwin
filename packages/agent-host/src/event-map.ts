@@ -14,7 +14,7 @@ import {
 import { buildNativeContextEvent } from './native-context-event-map.js';
 import { mapCompactionEndEvent, readCompactionReason } from './compaction-event-map.js';
 import { mapPiAutoRetryEvent } from './model-retry-event-map.js';
-import { readNestedId, readNestedRole, readRole, readString } from './pi-event-read.js';
+import { asRecord, readNestedId, readNestedRole, readRole, readString } from './pi-event-read.js';
 import {
   enrichMappedToolEvent,
   mapToolExecutionEndEvent,
@@ -22,6 +22,13 @@ import {
   mapToolExecutionUpdateEvent,
   type ToolPresentationSeed,
 } from './tool-event-map.js';
+import {
+  clearToolArgProgress,
+  createToolArgProgressAccumulator,
+  readAssistantToolArgProgress,
+  resetToolArgProgress,
+  rewriteCumulativeToolArgProgress,
+} from './assistant-tool-arg-progress.js';
 
 export type PiSessionEventMapper = {
   map: (raw: unknown) => AgentEvent[];
@@ -40,6 +47,7 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
   const citationUrlsByMessageId = new Map<string, Set<string>>();
   const surfacedProviderErrorMessages = new Set<string>();
   const streamedThinkingMessageIds = new Set<string>();
+  const toolArgProgress = createToolArgProgressAccumulator();
   let retryLifecycleActive = false;
 
   const reset = (): void => {
@@ -53,6 +61,7 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
     citationUrlsByMessageId.clear();
     surfacedProviderErrorMessages.clear();
     streamedThinkingMessageIds.clear();
+    resetToolArgProgress(toolArgProgress);
     retryLifecycleActive = false;
   };
 
@@ -122,18 +131,30 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
           }
         }
       }
+      if (type === 'message_update') {
+        const assistantEvent = asRecord(record.assistantMessageEvent);
+        const rawProgress = readAssistantToolArgProgress(assistantEvent);
+        mappedEvents = mappedEvents.map((event) => {
+          if (event.type !== 'message/tool_args_progress') {
+            return event;
+          }
+          return rewriteCumulativeToolArgProgress(event, rawProgress, toolArgProgress);
+        });
+      }
       if (type === 'agent_end') {
         toolNamesById.clear();
         presentationSeedsByToolId.clear();
         responseMessageIdsByToolId.clear();
         rawToolOutputById.clear();
         streamedThinkingMessageIds.clear();
+        resetToolArgProgress(toolArgProgress);
       }
       if (type === 'message_end') {
         const endedMessage = mappedEvents.find((event) => event.type === 'message/end');
         const endedMessageRole =
           readRole(record.role) ?? readNestedRole(record, 'message') ?? activeMessageRole;
         if (endedMessage?.type === 'message/end') {
+          clearToolArgProgress(toolArgProgress, endedMessage.messageId);
           const nativeEvent = buildNativeContextEvent(
             record,
             endedMessage.messageId,

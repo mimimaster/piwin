@@ -47,6 +47,104 @@ describe('FlashcardFace', () => {
     expect(markup).toContain('fcws-tear-source-line');
   });
 
+  describe('whole-card click flips', () => {
+    let container: HTMLDivElement;
+    let root: Root;
+
+    beforeEach(() => {
+      container = document.createElement('div');
+      document.body.appendChild(container);
+      root = createRoot(container);
+    });
+
+    afterEach(() => {
+      act(() => {
+        root.unmount();
+      });
+      container.remove();
+      window.getSelection()?.removeAllRanges();
+    });
+
+    function renderFace(onFlip: () => void): void {
+      act(() => {
+        root.render(
+          createElement(PiwinUiProvider, {
+            manifest: TEST_THEME_DARK,
+            children: createElement(FlashcardFace, {
+              deckName: 'deck',
+              onFlip,
+              content: createElement(
+                'p',
+                null,
+                'question text ',
+                createElement('a', { href: 'https://example.com', id: 'face-link' }, 'link'),
+              ),
+            }),
+          }),
+        );
+      });
+    }
+
+    function press(target: Element, x: number, y: number): void {
+      act(() => {
+        target.dispatchEvent(
+          new PointerEvent('pointerdown', { bubbles: true, clientX: x, clientY: y }),
+        );
+      });
+    }
+
+    function click(target: Element, x: number, y: number): void {
+      act(() => {
+        target.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: x, clientY: y }));
+      });
+    }
+
+    it('flips when the content body is clicked', () => {
+      const flips: number[] = [];
+      renderFace(() => flips.push(1));
+      const paragraph = container.querySelector('.fcws-tear-content p');
+      expect(paragraph).not.toBeNull();
+      press(paragraph as Element, 10, 10);
+      click(paragraph as Element, 12, 11);
+      expect(flips).toHaveLength(1);
+    });
+
+    it('does not flip after a drag', () => {
+      const flips: number[] = [];
+      renderFace(() => flips.push(1));
+      const paragraph = container.querySelector('.fcws-tear-content p') as Element;
+      press(paragraph, 10, 10);
+      click(paragraph, 60, 12);
+      expect(flips).toHaveLength(0);
+    });
+
+    it('does not flip when text inside the card is selected', () => {
+      const flips: number[] = [];
+      renderFace(() => flips.push(1));
+      const paragraph = container.querySelector('.fcws-tear-content p') as Element;
+      const textNode = paragraph.firstChild;
+      expect(textNode).not.toBeNull();
+      const range = document.createRange();
+      range.setStart(textNode as Node, 0);
+      range.setEnd(textNode as Node, 5);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      press(paragraph, 10, 10);
+      click(paragraph, 10, 10);
+      expect(flips).toHaveLength(0);
+    });
+
+    it('does not flip when a link inside the card is clicked', () => {
+      const flips: number[] = [];
+      renderFace(() => flips.push(1));
+      const link = container.querySelector('#face-link') as Element;
+      press(link, 10, 10);
+      click(link, 10, 10);
+      expect(flips).toHaveLength(0);
+    });
+  });
+
   it('does not import Host or filesystem APIs', () => {
     const face = readFileSync(join(SRC_DIR, 'flashcard-face.tsx'), 'utf8');
     const surface = readFileSync(join(SRC_DIR, 'tear-deck-surface.tsx'), 'utf8');

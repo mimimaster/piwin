@@ -6,7 +6,7 @@ import type {
   ReviewRating,
 } from '@piwin/contracts';
 import type { FlashcardStudyController, FlashcardStudyViewModel } from '@piwin/host-client';
-import { IconCheck, IconPause, IconPlay, IconRefresh, IconRevert } from '../../../shell-icons';
+import { IconCheck, IconRefresh, IconRevert } from '../../../shell-icons';
 import { MarkdownView } from '../../../MarkdownView';
 import type { FlashcardStudyCopy } from './study-copy';
 import { resolveStudyKeyboard, type StudyKeyboardTarget } from './study-keyboard';
@@ -126,14 +126,16 @@ export function FlashcardStudyView(props: FlashcardStudyViewProps): ReactElement
 
   const status = snapshot?.round.status;
   const completed = view.phase === 'completed' || status === 'completed' || status === 'ended';
-  const paused = view.phase === 'paused';
   const counts = snapshot?.counts;
   const displayCurrent = hold.current;
   const hasNext = Boolean(snapshot?.nextShell);
+  // `paused` is transient here: the controller auto-resumes a paused round it
+  // controls right after open / start / claim (no user-facing pause button).
   const busy =
     view.phase === 'saving' ||
     view.phase === 'transitioning' ||
-    view.phase === 'pending-confirmation';
+    view.phase === 'pending-confirmation' ||
+    view.phase === 'paused';
 
   if (view.phase === 'loading' && !snapshot) {
     return (
@@ -237,28 +239,6 @@ export function FlashcardStudyView(props: FlashcardStudyViewProps): ReactElement
                   <span>{copy.undo}</span>
                 </Button>
               ) : null}
-              {paused ? (
-                <Button
-                  variant="secondary"
-                  size="compact"
-                  data-testid="flashcards-study-resume"
-                  onClick={() => void controller?.resume()}
-                >
-                  <IconPlay width={13} height={13} />
-                  <span>{copy.resume}</span>
-                </Button>
-              ) : (
-                <Button
-                  variant="ghost"
-                  size="compact"
-                  data-testid="flashcards-study-pause"
-                  disabled={busy || view.readOnly}
-                  onClick={() => void controller?.pause()}
-                >
-                  <IconPause width={13} height={13} />
-                  <span>{copy.pause}</span>
-                </Button>
-              )}
               <Button
                 variant="ghost"
                 size="compact"
@@ -272,12 +252,7 @@ export function FlashcardStudyView(props: FlashcardStudyViewProps): ReactElement
           </header>
         }
         current={
-          paused ? (
-            <article className="fcws-tear-card fcws-study-paused" data-testid="flashcards-study-paused">
-              <h3>{copy.pausedTitle}</h3>
-              <p>{copy.pausedBody}</p>
-            </article>
-          ) : displayCurrent ? (
+          displayCurrent ? (
             renderFace(displayCurrent, copy, {
               tearing: hold.tearing,
               revealed: hold.revealed,
@@ -292,15 +267,8 @@ export function FlashcardStudyView(props: FlashcardStudyViewProps): ReactElement
           )
         }
         actions={
-          paused || !displayCurrent ? (
-            <footer className="fcws-tear-actions">
-              {paused ? (
-                <Button variant="primary" onClick={() => void controller?.resume()}>
-                  <IconPlay width={14} height={14} />
-                  <span>{copy.resume}</span>
-                </Button>
-              ) : null}
-            </footer>
+          !displayCurrent ? (
+            <footer className="fcws-tear-actions" />
           ) : (
             renderActions({
               copy,
@@ -415,19 +383,30 @@ function renderActions(input: {
   onNeedsReview: () => void;
 }): ReactElement {
   const { copy } = input;
-  if (input.mode === 'scheduled' && input.revealed) {
+  // Flip is a secondary action: the card itself flips on click (spec 2026-09-03 §3).
+  const flipButton = (
+    <Button variant="ghost" size="compact" onClick={input.onFlip} disabled={input.busy}>
+      <span>{input.revealed ? copy.question : copy.answer}</span>
+      <kbd className="fc-rate-key">Space</kbd>
+    </Button>
+  );
+  if (input.mode === 'scheduled') {
+    // The rate bar always occupies its slot so the layout does not jump on reveal;
+    // it only becomes actionable once the answer is showing.
     return (
       <footer className="fcws-tear-actions fcws-study-rate-actions">
-        <StudyRateBar copy={copy} disabled={input.busy} onRate={input.onRate} />
+        <StudyRateBar
+          copy={copy}
+          disabled={input.busy || !input.revealed}
+          onRate={input.onRate}
+        />
+        {flipButton}
       </footer>
     );
   }
   return (
     <footer className="fcws-tear-actions">
-      <Button variant="secondary" size="default" onClick={input.onFlip} disabled={input.busy}>
-        <span>{input.revealed ? copy.question : copy.answer}</span>
-        <kbd className="fc-rate-key">Space</kbd>
-      </Button>
+      {flipButton}
       {input.mode === 'sequence' ? (
         input.hasNext ? (
           <Button

@@ -71,6 +71,8 @@ function estimateSidebarTreeRowSize(row: SidebarTreeRow | undefined): number {
   switch (row.kind) {
     case 'section-header':
       return SIDEBAR_SECTION_ROW_ESTIMATE_PX;
+    case 'repo-group':
+      return SIDEBAR_HINT_ROW_ESTIMATE_PX;
     case 'project-folder':
       return SIDEBAR_FOLDER_ROW_ESTIMATE_PX;
     case 'session':
@@ -572,6 +574,18 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
       );
     }
 
+    if (row.kind === 'repo-group') {
+      return (
+        <div
+          className="tree-repo-group"
+          data-testid="sidebar-repo-group"
+          title={row.title}
+        >
+          <span className="tree-repo-group-title">{row.title}</span>
+        </div>
+      );
+    }
+
     if (row.kind === 'project-folder') {
       const project = props.recentProjects.find((item) => item.path === row.projectPath);
       const displayName = project?.displayName ?? projectDisplayName(row.projectPath);
@@ -615,7 +629,9 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
             </ContextMenuItem>
           }
         >
-          <div className={isActiveProject ? 'tree-folder-summary active' : 'tree-folder-summary'}>
+          <div
+            className={`tree-folder-summary${isActiveProject ? ' active' : ''}${row.grouped ? ' is-grouped' : ''}`}
+          >
             {hasChildSessions ? (
               <button
                 type="button"
@@ -648,6 +664,11 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
             >
               <span className="tree-folder-title">
                 <span>{displayName}</span>
+                {row.currentBranch ? (
+                  <span className="tree-folder-branch" title={row.currentBranch}>
+                    {row.currentBranch}
+                  </span>
+                ) : null}
               </span>
             </button>
             <IconButton

@@ -38,6 +38,7 @@ import { resolveFileBrowseRoot } from '../file-browse-root';
 import { useActiveDocument } from './use-active-document';
 import { useArtifactCanvas } from './use-artifact-canvas';
 import { useHostBootstrap } from './use-host-bootstrap';
+import { usePendingPermissionReconcile } from './use-pending-permission-reconcile';
 import { useJobs } from './use-jobs';
 import { useRunReconcile } from './use-run-reconcile';
 import { useSessionLineage } from './use-session-lineage';
@@ -193,6 +194,11 @@ export function useWorkbenchHostRuntime(args: UseWorkbenchHostRuntimeArgs) {
     hostReady: state.hostReady,
     catchUpEpoch: remoteCatchUpEpoch,
     foregroundAdmission: state.foregroundAdmission,
+  });
+  usePendingPermissionReconcile({
+    hostClient,
+    dispatch,
+    hostReady: state.hostReady,
   });
 
   const orchestrationSchemeOptions = useMemo(() => {

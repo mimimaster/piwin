@@ -108,6 +108,22 @@ export type FlashcardStudyNextShell = {
   contentVersion: string;
 };
 
+/**
+ * Full-set projection for sequence browse rounds only. Powers the stacked
+ * thumbnail strip and the overview grid, both of which flip locally without
+ * touching Host state. Scheduled rounds omit the roster so the due queue can
+ * never be previewed ahead of rating (anti-cheat, tear contract §5).
+ */
+export type FlashcardStudyRosterEntry = {
+  entryId: string;
+  itemId: string;
+  state: FlashcardStudyEntryState;
+  needsReview: boolean;
+  deck: string;
+  front: string;
+  back?: string;
+};
+
 export type FlashcardStudyAccessState = {
   hasControl: boolean;
   controllerIdentity: string;
@@ -118,6 +134,8 @@ export type FlashcardStudySnapshot = {
   round: FlashcardStudyRoundSummary;
   current?: FlashcardStudyContentProjection;
   nextShell?: FlashcardStudyNextShell;
+  /** Sequence browse only; absent in scheduled rounds. */
+  roster?: FlashcardStudyRosterEntry[];
   counts: FlashcardStudyCounts;
   canUndo: boolean;
   nextDueAt?: string;

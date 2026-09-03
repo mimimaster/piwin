@@ -474,6 +474,21 @@ export function createStoreTranscriptRecorder(options: {
             scheduleFlush();
             break;
           }
+          case 'message/tool_args_progress': {
+            if (quarantinedMessageIds.has(event.messageId)) break;
+            const current = await loadActive(event.messageId);
+            if (current === undefined || current.thinkingEndedAt !== undefined) {
+              break;
+            }
+            const eventAt = new Date().toISOString();
+            await mutateActive(
+              event.messageId,
+              (message) => finishTranscriptThinking(message, eventAt),
+              `tool_args_progress runId=${event.runId ?? 'none'}`,
+            );
+            await flushNow();
+            break;
+          }
           case 'message/search_evidence': {
             if (quarantinedMessageIds.has(event.messageId)) break;
             await mutateActive(

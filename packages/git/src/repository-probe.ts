@@ -28,8 +28,28 @@ export async function probeGitRepository(projectPath: string): Promise<GitReposi
     };
   }
 
-  return {
+  const identity: GitRepositoryIdentity = {
     rootPath: resolve(rootPath),
     isRepository: true,
   };
+
+  const meta = await runGitCommand({
+    cwd: identity.rootPath,
+    args: ['rev-parse', '--git-common-dir', '--git-dir'],
+    allowFailure: true,
+  });
+  if (meta.exitCode === 0) {
+    const lines = meta.stdout.split('\n').map((line) => line.trim()).filter((line) => line.length > 0);
+    const commonDirRaw = lines[0];
+    const gitDirRaw = lines[1];
+    if (commonDirRaw) {
+      identity.commonDir = resolve(identity.rootPath, commonDirRaw);
+    }
+    if (commonDirRaw && gitDirRaw) {
+      identity.isPrimaryWorktree =
+        resolve(identity.rootPath, gitDirRaw) === resolve(identity.rootPath, commonDirRaw);
+    }
+  }
+
+  return identity;
 }

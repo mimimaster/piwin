@@ -195,6 +195,16 @@ export const BUNDLED_ALLOW: PermissionRule[] = [
     reason: 'safe-ls',
   },
   {
+    target: { kind: 'bash', pattern: 'cd *' },
+    decision: 'allow',
+    reason: 'safe-cd',
+  },
+  {
+    target: { kind: 'bash', pattern: 'pwd' },
+    decision: 'allow',
+    reason: 'safe-pwd',
+  },
+  {
     target: { kind: 'bash', pattern: 'cat *' },
     decision: 'allow',
     reason: 'safe-cat',

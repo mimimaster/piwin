@@ -4,6 +4,7 @@ import { isRunActive } from '@piwin/contracts';
 import type { HostClient } from '../host-client.js';
 import type { ChatUiAction } from '../chat-reducer.js';
 import { planRunReconcile } from '../run-reconcile.js';
+import { reconcilePendingPermissions } from './reconcile-pending-permissions.js';
 
 // A prompt acknowledgement arrives before provider execution. These are
 // bounded convergence checks for a terminal push that was lost after the Run
@@ -199,9 +200,12 @@ export function useRunReconcile(args: UseRunReconcileArgs): void {
   );
 
   useEffect(() => {
-    hostClient.registerSequenceGapHandler(() => schedule('live'));
+    hostClient.registerSequenceGapHandler(() => {
+      void reconcilePendingPermissions({ hostClient, dispatch });
+      schedule('live');
+    });
     return () => hostClient.registerSequenceGapHandler(null);
-  }, [hostClient, schedule]);
+  }, [dispatch, hostClient, schedule]);
 
   useEffect(() => {
     // The prompt acknowledgement establishes the Run id before the provider

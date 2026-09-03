@@ -69,18 +69,28 @@ export function renderStudyActions(input: {
   onNeedsReview: () => void;
 }): ReactElement {
   const { copy } = input;
-  if (input.mode === 'scheduled' && input.revealed) {
+  // Flip is secondary: tapping the card flips it (spec 2026-09-03 §3).
+  const flipButton = (
+    <Button variant="ghost" size="compact" onClick={input.onFlip} disabled={input.busy}>
+      <span>{input.revealed ? copy.question : copy.answer}</span>
+    </Button>
+  );
+  if (input.mode === 'scheduled') {
+    // Rate bar keeps its slot before reveal so the layout does not jump.
     return (
       <footer className="fcws-tear-actions fcws-study-rate-actions">
-        <StudyRateBar copy={copy} disabled={input.busy} onRate={input.onRate} />
+        <StudyRateBar
+          copy={copy}
+          disabled={input.busy || !input.revealed}
+          onRate={input.onRate}
+        />
+        {flipButton}
       </footer>
     );
   }
   return (
     <footer className="fcws-tear-actions">
-      <Button variant="secondary" size="default" onClick={input.onFlip} disabled={input.busy}>
-        <span>{input.revealed ? copy.question : copy.answer}</span>
-      </Button>
+      {flipButton}
       {input.mode === 'sequence' ? (
         input.hasNext ? (
           <Button

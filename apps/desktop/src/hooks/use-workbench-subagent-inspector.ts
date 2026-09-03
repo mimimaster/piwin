@@ -124,9 +124,7 @@ export function useWorkbenchSubagentInspector(args: UseWorkbenchSubagentInspecto
         },
         { idempotencyKey: createGestureIdempotencyKey() },
       );
-      if (state.permissionPrompt?.requestId === prompt.requestId) {
-        dispatch({ type: 'permission/clear', requestId: prompt.requestId });
-      }
+      dispatch({ type: 'permission/clear', requestId: prompt.requestId });
       if (!response.success) {
         dispatchNotification(pushError(hostFailureNotice(response, desktopLocale)));
       }

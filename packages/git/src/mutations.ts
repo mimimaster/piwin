@@ -11,7 +11,8 @@ import type {
   GitUnstageInput,
 } from '@piwin/contracts';
 import { probeGitRepository } from './repository-probe.js';
-import { runGitCommand } from './git-command-runner.js';
+import { GitCommandError, runGitCommand } from './git-command-runner.js';
+import { formatGitCheckoutFailure } from './checkout-failure.js';
 import {
   assertSafeBranchName,
   assertSafeCommitMessage,
@@ -96,6 +97,13 @@ export async function createBranch(input: GitBranchCreateInput): Promise<GitMuta
 export async function checkoutRef(input: GitCheckoutInput): Promise<GitMutationResult> {
   const root = await requireRepo(input.projectPath);
   const ref = assertSafeRef(input.ref);
-  await runGitCommand({ cwd: root, args: ['checkout', ref] });
+  try {
+    await runGitCommand({ cwd: root, args: ['checkout', ref] });
+  } catch (error) {
+    if (error instanceof GitCommandError) {
+      throw new Error(formatGitCheckoutFailure(error.stderr, error.message));
+    }
+    throw error;
+  }
   return { kind: 'checkout', ok: true, message: `checked out ${ref}` };
 }

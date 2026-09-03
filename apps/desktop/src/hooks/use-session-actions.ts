@@ -18,6 +18,7 @@ import type { SessionRowMenuAction } from '../session-row-menu';
 import { pickOrPromptWorkspaceFolder } from '../workspace-open';
 import { summaryToListItem } from './session-list-item';
 import { chooseSessionExportPath } from '../session-export-dialog';
+import { copySessionTranscript } from '../copy-session-transcript';
 import { isSessionBodyOffloaded } from '../session-storage-ui';
 import { forgetTranscriptScrollPosition } from '../transcript-scroll-memory';
 import { transcriptOwnerBlocksDangerousAction } from '../transcript-owner-guard';
@@ -891,6 +892,19 @@ export function useSessionActions(args: UseSessionActionsArgs) {
             dispatchNotification(pushError('Could not copy session ID'));
           }
           break;
+        case 'copy-transcript': {
+          const copied = await copySessionTranscript({ hostClient, sessionId });
+          if (copied.ok) {
+            dispatchNotification(
+              pushSuccess(
+                locale === 'zh-CN' ? '已复制会话记录到剪贴板' : 'Transcript copied to clipboard',
+              ),
+            );
+          } else {
+            dispatchNotification(pushError(copied.message));
+          }
+          break;
+        }
         case 'duplicate':
           await handleDuplicateSession(sessionId);
           break;
@@ -928,6 +942,8 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       handleArchiveSession,
       confirmDeleteSession,
       dispatchNotification,
+      hostClient,
+      locale,
       handleDuplicateSession,
       handleForkSession,
       handleExportSession,

@@ -65,8 +65,25 @@ describe('classifyHostPush', () => {
         ['session', 'session-1', 'run', 'run-1', 'message', 'message-1', 'thinking'],
         ['session', 'session-1', 'run', 'run-1', 'message', 'message-1', 'search-evidence'],
         ['session', 'session-1', 'run', 'run-1', 'message', 'message-1', 'text-snapshot'],
+        ['session', 'session-1', 'run', 'run-1', 'message', 'message-1', 'tool-args'],
       ],
       runBarrierId: 'run-1',
+    });
+  });
+
+  it('classifies tool-arg progress as a replaceable projection', () => {
+    const event: AgentEvent = {
+      type: 'message/tool_args_progress',
+      messageId: 'message-1',
+      argumentCharCount: 2400,
+      toolName: 'write_file',
+      runId: 'run-1',
+    };
+
+    expect(classifyHostPush({ type: 'event', sessionId: 'session-1', event })).toEqual({
+      kind: 'projection',
+      key: ['session', 'session-1', 'run', 'run-1', 'message', 'message-1', 'tool-args'],
+      runId: 'run-1',
     });
   });
 

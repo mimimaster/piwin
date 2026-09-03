@@ -8,6 +8,7 @@
 | Product | [2026-08-30 flashcard review workbench spec](../specs/2026-08-30-flashcard-review-workbench-spec.md) |
 | Related | ADR 0018 (CardStore / review JSON), ADR 0054 (item vs review card), ADR 0037 (Mobile is a Host client) |
 | Delivery | [2026-08-30 delivery notes](../evidence/2026-08-30-flashcard-review-workbench-delivery.md) |
+| Amended | 2026-09-03 [flashcard experience redesign](../specs/2026-09-03-flashcard-experience-redesign.md): whole-card click flips (drag-select does not); no user-visible pause button — leave still calls `pause`, reopening a `paused` round auto-`resume`s. Commands and data model unchanged. |
 
 This ADR is **not Accepted** and must not be read as 已上线. Desktop / Mobile / CLI study code is in the tree. Required dual-device evidence and visual fixtures have not been captured. See Status meaning.
 

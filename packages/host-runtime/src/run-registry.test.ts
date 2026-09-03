@@ -230,7 +230,8 @@ describe('RunRegistry semantic AgentEvent publication', () => {
       isError: false,
     };
     const streaming = reg.noteAgentEvent(run.runId, toolEnd);
-    expect(streaming?.phase).toBe('streaming');
+    expect(streaming?.phase).toBe('waiting-first-token');
+    expect(streaming?.firstTokenReceived).toBe(false);
     expect(streaming?.revision).toBe(4);
     expect(updates).toHaveLength(3);
 
@@ -269,6 +270,63 @@ describe('RunRegistry semantic AgentEvent publication', () => {
     expect(result?.firstTokenReceived).toBe(true);
     expect(result?.revision).toBe(2);
     expect(updates).toHaveLength(1);
+  });
+
+  it('keeps tool-running until the last parallel tool ends', () => {
+    const reg = new RunRegistry({ createId: makeIdGen() });
+    const run = reg.create({ kind: 'session-turn', sessionId: 'sess-parallel' });
+    reg.noteAgentEvent(run.runId, {
+      type: 'tool/start',
+      toolCallId: 't1',
+      toolName: 'bash',
+    });
+    reg.noteAgentEvent(run.runId, {
+      type: 'tool/start',
+      toolCallId: 't2',
+      toolName: 'bash',
+    });
+    const afterFirstEnd = reg.noteAgentEvent(run.runId, {
+      type: 'tool/end',
+      toolCallId: 't1',
+      isError: false,
+    });
+    expect(afterFirstEnd?.phase).toBe('tool-running');
+    const afterLastEnd = reg.noteAgentEvent(run.runId, {
+      type: 'tool/end',
+      toolCallId: 't2',
+      isError: false,
+    });
+    expect(afterLastEnd?.phase).toBe('waiting-first-token');
+    expect(afterLastEnd?.firstTokenReceived).toBe(false);
+  });
+
+  it('re-arms waiting-first-token after a tool ends until the next token', () => {
+    const reg = new RunRegistry({ createId: makeIdGen() });
+    const run = reg.create({ kind: 'session-turn', sessionId: 'sess-continue' });
+    reg.noteAgentEvent(run.runId, {
+      type: 'message/text_delta',
+      messageId: 'm1',
+      delta: 'hi',
+    });
+    reg.noteAgentEvent(run.runId, {
+      type: 'tool/start',
+      toolCallId: 't1',
+      toolName: 'bash',
+    });
+    const waiting = reg.noteAgentEvent(run.runId, {
+      type: 'tool/end',
+      toolCallId: 't1',
+      isError: false,
+    });
+    expect(waiting?.phase).toBe('waiting-first-token');
+    expect(waiting?.firstTokenReceived).toBe(false);
+    const resumed = reg.noteAgentEvent(run.runId, {
+      type: 'message/text_delta',
+      messageId: 'm2',
+      delta: 'done',
+    });
+    expect(resumed?.phase).toBe('streaming');
+    expect(resumed?.firstTokenReceived).toBe(true);
   });
 
   it('projects native retry activity as a non-terminal connecting-model phase', () => {

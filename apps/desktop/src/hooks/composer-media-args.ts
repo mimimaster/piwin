@@ -55,6 +55,11 @@ export type UseComposerMediaArgs = {
   /** ORCH: slash /scheme sets the composer scheme without sending. */
   onOrchestrationSchemeChange?: (schemeId: string) => void;
   /**
+   * ORCH: leave the current conversation (switch session / New Agent).
+   * First-send session creation is not a leave — keep the chosen scheme.
+   */
+  onResetComposerTurnControls?: () => void;
+  /**
    * When true, text-only + media is allowed (host will describe or path-inject).
    * When false/undefined and selected model lacks vision, confirm before send.
    */

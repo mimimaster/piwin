@@ -25,4 +25,10 @@ describe('at-parse', () => {
     const result = replaceActiveAtToken(text, token, '@src/components/Main.tsx ');
     expect(result).toBe('Hello @src/components/Main.tsx  world');
   });
+
+  it('clears the active @ token and keeps surrounding prompt text', () => {
+    const text = 'Hello @src world';
+    const token = detectActiveAtToken(text, 10)!;
+    expect(replaceActiveAtToken(text, token, '')).toBe('Hello  world');
+  });
 });
