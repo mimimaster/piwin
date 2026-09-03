@@ -1,18 +1,24 @@
 /**
- * GoalDeliveryCard — delivery summary card shown when a goal is completed.
- * Renders outcomes, verification evidence, changed files, and follow-up actions.
+ * GoalDeliveryCard — delivery report shown when the model declares the
+ * objective met (`goal_complete`).
+ *
+ * Everything here comes from the structured signal the Host lifted onto
+ * `ToolPresentation.goal`, so the evidence and artifact list are real fields
+ * rather than a re-parse of the tool's text output.
  */
 import { type ReactElement } from 'react';
 import { Button } from '@piwin/ui-kit';
+import { IconCheckCircle, IconFile } from '../shell-icons';
 import { useDesktopLocale } from '../desktop-locale-context';
 
 export type GoalDeliveryCardProps = {
   summary: string;
   verification?: string;
-  artifacts?: string[];
+  artifacts?: readonly string[];
   onOpenDiff?: () => void;
-  onStartNextGoal?: () => void;
   onOpenFile?: (path: string) => void;
+  /** Owning tool call; used by the Goal timeline to jump here. */
+  toolCallId?: string;
 };
 
 export function GoalDeliveryCard({
@@ -20,49 +26,57 @@ export function GoalDeliveryCard({
   verification,
   artifacts = [],
   onOpenDiff,
-  onStartNextGoal,
   onOpenFile,
+  toolCallId,
 }: GoalDeliveryCardProps): ReactElement {
   const { locale } = useDesktopLocale();
   const isZh = locale === 'zh-CN';
 
   return (
-    <div className="goal-delivery-card" data-testid="goal-delivery-card">
+    <div
+      className="goal-delivery-card"
+      data-testid="goal-delivery-card"
+      {...(toolCallId !== undefined ? { 'data-tool-call-id': toolCallId } : {})}
+    >
       <div className="goal-delivery-header">
-        <div className="goal-delivery-badge">
-          <span className="goal-delivery-icon">✅</span>
+        <span className="goal-delivery-badge">
+          <IconCheckCircle className="goal-delivery-icon" />
           <span className="goal-delivery-title">
-            {isZh ? '目标达成交付报告' : 'Goal Accomplished & Delivered'}
+            {isZh ? '目标已达成' : 'Goal accomplished'}
           </span>
-        </div>
+        </span>
       </div>
 
       <div className="goal-delivery-body">
         <div className="goal-delivery-section">
-          <div className="goal-section-label">{isZh ? '成果总结' : 'Summary'}</div>
-          <div className="goal-summary-text">{summary}</div>
+          <p className="goal-section-label">{isZh ? '成果' : 'Summary'}</p>
+          <p className="goal-summary-text">{summary}</p>
         </div>
 
         {verification ? (
           <div className="goal-delivery-section">
-            <div className="goal-section-label">{isZh ? '验收验证证据' : 'Verification Evidence'}</div>
-            <pre className="goal-verification-pre">{verification}</pre>
+            <p className="goal-section-label">{isZh ? '验收证据' : 'Verification'}</p>
+            <pre className="goal-verification-pre" data-testid="goal-verification">
+              {verification}
+            </pre>
           </div>
         ) : null}
 
         {artifacts.length > 0 ? (
           <div className="goal-delivery-section">
-            <div className="goal-section-label">{isZh ? '涉及文件与产物' : 'Changed Artifacts'}</div>
-            <ul className="goal-artifacts-list">
+            <p className="goal-section-label">{isZh ? '涉及文件' : 'Artifacts'}</p>
+            <ul className="goal-artifacts-list" data-testid="goal-artifacts">
               {artifacts.map((path) => (
                 <li key={path}>
                   <button
                     type="button"
                     className="goal-artifact-link"
                     onClick={() => onOpenFile?.(path)}
+                    disabled={onOpenFile === undefined}
                     title={path}
                   >
-                    📄 {path}
+                    <IconFile className="goal-artifact-icon" />
+                    <span className="goal-artifact-path">{path}</span>
                   </button>
                 </li>
               ))}
@@ -71,19 +85,13 @@ export function GoalDeliveryCard({
         ) : null}
       </div>
 
-      <div className="goal-delivery-actions">
-        {onOpenDiff ? (
-          <Button size="compact" variant="primary" onClick={onOpenDiff}>
-            {isZh ? '查看 Git 变更' : 'Review Changes'}
+      {onOpenDiff ? (
+        <div className="goal-delivery-actions">
+          <Button size="compact" variant="secondary" onClick={onOpenDiff}>
+            {isZh ? '查看变更' : 'Review changes'}
           </Button>
-        ) : null}
-
-        {onStartNextGoal ? (
-          <Button size="compact" variant="secondary" onClick={onStartNextGoal}>
-            {isZh ? '开始下一目标' : 'Start Next Goal'}
-          </Button>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }

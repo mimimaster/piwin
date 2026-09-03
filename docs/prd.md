@@ -126,6 +126,17 @@ The accepted behavior and keyboard contract are specified in
 [`conversation-multi-pane-workspace.md`](./specs/conversation-multi-pane-workspace.md)
 and ADR 0063.
 
+### 4.1.2 Goal mode
+
+Goal is a collaboration mode, not a second composer. It is entered only by
+`/goal` or `/goal <objective>`. While armed, Desktop shows an exit chip on the
+composer and, after the first turn, a sticky strip whose phase is derived from
+the `goal_*` tools the model actually called (`running` / `waiting` /
+`blocked` / `completed`). Delivery, blocked, and wait cards render the
+structured fields the Host lifts onto `ToolPresentation.goal`. Abort cancels
+the in-flight run; leaving Goal is a separate mode change. See
+[`2026-09-03-goal-mode-display-plan.md`](./plans/2026-09-03-goal-mode-display-plan.md).
+
 ### 4.2 Skills panel (P0)
 
 | ID | Requirement | Priority |

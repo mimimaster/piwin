@@ -15,6 +15,7 @@ import type {
 } from '@piwin/contracts';
 import { projectBoundedHealthToolCardSummary } from '@piwin/contracts';
 import { attachFlashcardPresentation } from './flashcard-presentation.js';
+import { attachGoalPresentation } from './goal-presentation.js';
 
 function looksLikeCancelledToolOutput(text: string): boolean {
   const normalized = text.trim().toLowerCase();
@@ -41,6 +42,8 @@ export type BuildToolPresentationInput = {
   args?: unknown;
   routedToolName?: string;
   outputText?: string;
+  /** Raw tool result details; mined for structured goal signals. */
+  details?: unknown;
   truncation?: ToolOutputTruncation;
   isError?: boolean;
   exitCode?: number | null;
@@ -350,10 +353,16 @@ export function buildToolPresentation(input: BuildToolPresentationInput): ToolPr
     presentation.summary = 'Cancelled before completion';
   }
 
-  return attachFlashcardPresentation(presentation, {
+  const withFlashcard = attachFlashcardPresentation(presentation, {
     toolName: input.toolName,
     ...(input.routedToolName !== undefined ? { routedToolName: input.routedToolName } : {}),
     ...(input.outputText !== undefined ? { outputText: input.outputText } : {}),
+  });
+
+  return attachGoalPresentation(withFlashcard, {
+    toolName: input.toolName,
+    ...(input.routedToolName !== undefined ? { routedToolName: input.routedToolName } : {}),
+    ...(input.details !== undefined ? { details: input.details } : {}),
   });
 }
 

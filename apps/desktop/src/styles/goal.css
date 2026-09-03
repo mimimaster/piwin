@@ -57,14 +57,31 @@
   white-space: nowrap;
 }
 
+.goal-sticky-strip.goal-status-waiting {
+  background: color-mix(in srgb, var(--sky) 6%, var(--surface-2));
+  box-shadow:
+    var(--elev-1),
+    inset 0 0 0 1px color-mix(in srgb, var(--sky) 35%, transparent);
+}
+
 .goal-status-dot {
+  flex: 0 0 auto;
   width: 8px;
   height: 8px;
   border-radius: 50%;
+  background: var(--text-4);
 }
 
-.goal-status-dot.dot-paused {
-  background: var(--amber);
+/* Running is the agent working: ember on the shared breath so it pulses in
+   phase with every other liveness mark in the shell (Deck §6). */
+.goal-status-dot.dot-running {
+  background: var(--ember);
+  animation: breath var(--breath) var(--ease-in-out) infinite;
+}
+
+.goal-status-dot.dot-waiting {
+  background: var(--sky);
+  animation: breath var(--breath) var(--ease-in-out) infinite;
 }
 
 .goal-status-dot.dot-blocked {
@@ -75,12 +92,33 @@
   background: var(--mint);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .goal-status-dot.dot-running,
+  .goal-status-dot.dot-waiting {
+    animation: none;
+  }
+}
+
 .goal-turn-pill {
   font-size: var(--fs-micro);
   padding: 1px var(--s-3);
   border-radius: var(--r-pill);
   background: var(--hover);
   color: var(--text-3);
+}
+
+button.goal-turn-pill {
+  font: inherit;
+  font-size: var(--fs-micro);
+  line-height: inherit;
+  border: 0;
+  cursor: pointer;
+}
+
+button.goal-turn-pill:hover,
+button.goal-turn-pill[aria-expanded='true'] {
+  color: var(--text-1);
+  background: var(--active);
 }
 
 .goal-strip-title {
@@ -178,20 +216,52 @@
 }
 
 .goal-artifact-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  max-width: 100%;
   background: none;
   border: none;
   padding: var(--s-2) var(--s-4);
   border-radius: var(--r-chip);
-  font-family: var(--font-mono);
-  font-size: var(--fs-chrome);
+  font-family: var(--mono, var(--font-mono));
+  font-size: var(--fs-mono);
   color: var(--iris-lift);
   text-align: left;
   cursor: pointer;
   transition: background-color var(--t-1) var(--ease-out);
 }
 
-.goal-artifact-link:hover {
+.goal-artifact-link:hover:not(:disabled) {
   background: var(--hover);
+}
+
+/* Without a file-open handler the path is still evidence worth reading, so it
+   stays legible rather than dropping to the disabled ink step. */
+.goal-artifact-link:disabled {
+  color: var(--text-2);
+  cursor: default;
+}
+
+.goal-artifact-icon {
+  flex: 0 0 auto;
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
+  color: var(--text-3);
+}
+
+.goal-artifact-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.goal-delivery-icon,
+.goal-blocked-icon {
+  flex: 0 0 auto;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
 }
 
 .goal-delivery-actions {
@@ -237,4 +307,175 @@
   margin-top: var(--s-6);
   padding-top: var(--s-5);
   border-top: 1px solid color-mix(in srgb, var(--coral) 15%, transparent);
+}
+
+/* ── Goal wait row ────────────────────────────────────────────────────
+   A wait is not a failure and not an achievement, so it gets the quietest
+   treatment in the goal family: one recessed row, no card frame. While in
+   flight the dot breathes on the shell cycle (Deck §6) in sky — the "waiting"
+   signal — so it never competes with an ember run state. */
+
+.goal-wait-card {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  margin: var(--s-3) 0;
+  padding: var(--s-3) var(--s-5);
+  border-radius: var(--r-control);
+  background: var(--surface-2);
+  box-shadow: var(--elev-1);
+  font-size: var(--fs-chrome);
+}
+
+.goal-wait-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-4);
+}
+
+.goal-wait-card.is-running .goal-wait-dot {
+  background: var(--sky);
+  animation: breath var(--breath) var(--ease-in-out) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .goal-wait-card.is-running .goal-wait-dot {
+    animation: none;
+  }
+}
+
+.goal-wait-label {
+  flex: 0 0 auto;
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: var(--tracking-micro);
+  text-transform: uppercase;
+}
+
+.goal-wait-card.is-running .goal-wait-label {
+  color: var(--sky);
+}
+
+.goal-wait-reason {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-2);
+}
+
+.goal-wait-duration {
+  flex: 0 0 auto;
+  color: var(--text-4);
+  font-family: var(--mono, var(--font-mono));
+  font-size: var(--fs-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Goal timeline popover ──────────────────────────────────────────── */
+
+.goal-timeline {
+  list-style: none;
+  margin: 0;
+  padding: var(--s-2);
+  min-width: 280px;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.goal-timeline-row {
+  margin: 0;
+  padding: 0;
+}
+
+.goal-timeline-jump,
+.goal-timeline-row.is-static {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  gap: var(--s-3);
+  align-items: start;
+  width: 100%;
+  padding: var(--s-3) var(--s-4);
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.goal-timeline-jump {
+  font: inherit;
+  cursor: pointer;
+}
+
+.goal-timeline-jump:hover {
+  background: var(--hover);
+}
+
+.goal-timeline-dot {
+  width: 7px;
+  height: 7px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--text-4);
+}
+
+.goal-timeline-dot.dot-running {
+  background: var(--ember);
+}
+
+.goal-timeline-dot.dot-waiting,
+.goal-timeline-dot.dot-waited {
+  background: var(--sky);
+}
+
+.goal-timeline-dot.dot-blocked {
+  background: var(--coral);
+}
+
+.goal-timeline-dot.dot-completed {
+  background: var(--mint);
+}
+
+.goal-timeline-dot.dot-objective {
+  background: var(--iris);
+}
+
+.goal-timeline-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.goal-timeline-kind {
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: var(--tracking-micro);
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.goal-timeline-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-chrome);
+  color: var(--text-1);
+}
+
+.goal-timeline-clock {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  font-family: var(--mono, var(--font-mono));
+  font-size: var(--fs-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-4);
+  white-space: nowrap;
 }

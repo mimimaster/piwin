@@ -2,6 +2,7 @@ import type {
   AgentEvent,
   AgentEventEnvelope,
   AgentFailure,
+  AgentModeId,
   AssistantUsageMeasurement,
   ContextUsageSnapshot,
   ExecutionRunRecord,
@@ -98,6 +99,12 @@ export type ChatMessageUi = {
   error?: string;
   /** Structured Agent failure when Host provided one. */
   failure?: AgentFailure;
+  /**
+   * Collaboration mode this user turn was sent under. Only stamped on user
+   * rows, and only by the live send path — resumed history has no stamp, so
+   * Goal display falls back to a heuristic (goal/goal-session-model.ts).
+   */
+  agentMode?: AgentModeId;
 };
 
 export type TranscriptHistoryViewUi = {
@@ -556,6 +563,11 @@ export type ChatUiAction =
        * streaming ends (livePromptModel no longer applies to completed rows).
        */
       model?: ModelRef;
+      /**
+       * Collaboration mode this turn was sent under. Goal display reads it to
+       * find the objective that armed the loop; see goal/goal-session-model.ts.
+       */
+      agentMode?: AgentModeId;
     }
   | {
       type: 'user/steer';

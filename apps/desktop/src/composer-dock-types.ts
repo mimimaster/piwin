@@ -49,10 +49,8 @@ export type ComposerDockProps = {
   onComposerChange: (value: string) => void;
   agentMode: AgentModeId;
   onAgentModeChange: (mode: AgentModeId) => void;
-  /** Whether the bundled goal extension is enabled in settings. */
+  /** Whether the bundled goal extension is enabled; gates `/goal` in the slash menu. */
   goalExtensionEnabled?: boolean;
-  /** Open Settings → Extensions (Goal picker footer when the extension is off). */
-  onOpenExtensionsSettings?: () => void;
   pendingAttachments: PendingComposerAttachment[];
   onRemoveAttachment: (localId: string) => void;
   /**
@@ -207,7 +205,7 @@ export type ComposerDockProps = {
   onViewJobLogs?: (jobId: string) => void;
   /**
    * CHT-501: general Conversation hides Run Mode / Orchestration /
-   * Skills-MCP chrome. Agent / Goal stay available via slash and toolbar.
+   * Skills-MCP chrome. `/goal` stays available, as does its exit chip.
    */
   isConversationSession?: boolean;
   /** Override the Send control label (edit card: Retry vs Send new version). */

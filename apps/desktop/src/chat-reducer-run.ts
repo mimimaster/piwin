@@ -313,6 +313,7 @@ export function reduceChatRun(state: ChatUiState, action: ChatUiRunAction): Chat
           : {}),
         status: 'done',
         createdAt: new Date().toISOString(),
+        ...(action.agentMode !== undefined ? { agentMode: action.agentMode } : {}),
       };
       return enforceBoundedTranscriptWindow({
         ...state,

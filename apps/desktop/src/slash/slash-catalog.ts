@@ -215,8 +215,8 @@ export function buildSlashCatalog(options: BuildSlashCatalogOptions): SlashItem[
   }
 
   // --- Modes ---
-  // Agent / Goal stay in the slash menu for Conversation too: `/goal` is the
-  // discoverable entry, unlike Run Mode / skills / orchestration chrome.
+  // The slash menu is the only mode entry point in either session kind: there
+  // is no toolbar picker, so `/goal` has to be discoverable here.
   for (const mode of AGENT_MODES) {
     const isGoalDisabled = mode.id === 'goal' && options.goalExtensionEnabled === false;
     items.push({
