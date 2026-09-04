@@ -99,6 +99,22 @@ export function isLocalFileMarkdownHref(href: string): boolean {
 }
 
 /**
+ * Directory mentions (trailing slash) are not openable documents.
+ * Keep them as local *paths* for rewrite, but never as hyperlinks/chips.
+ */
+export function isLocalDirectoryPath(value: string): boolean {
+  const trimmed = stripAngleBrackets(value).trim();
+  if (!trimmed || WEB_OR_SPECIAL_SCHEME.test(trimmed) || containsGlobMeta(trimmed)) {
+    return false;
+  }
+  const normalized = normalizeLocalFileHref(trimmed).replace(/\\/g, '/');
+  if (!normalized.endsWith('/')) {
+    return false;
+  }
+  return isLocalFileMarkdownHref(trimmed) || isLocalFileMarkdownHref(normalized);
+}
+
+/**
  * Archives / media / markup agents offer as clickable deliverables.
  * Source and config extensions (`ts`, `md`, `json`, …) are not chips unless
  * the mention is an actual path (`src/app.ts`, `/Users/…/README.md`).
@@ -117,9 +133,10 @@ function isBareFilename(value: string): boolean {
 
 /**
  * True when an inline-code / bare-text string should render as a PathChip.
- * Paths (separators, `file:`, `~`) stay clickable. Bare names only chip when
- * they look like a downloadable artifact (`.zip`, `.svg`, `.html`, …), not a
- * source-file mention such as `main.ts` or `.md`.
+ * Specific files (separators, `file:`, `~`) stay clickable. Directory mentions
+ * (`docs/plans/`) stay plain text/code. Bare names only chip when they look
+ * like a downloadable artifact (`.zip`, `.svg`, `.html`, …), not a source-file
+ * mention such as `main.ts` or `.md`.
  */
 export function isLocalPathChipCandidate(value: string): boolean {
   const trimmed = value.trim();
@@ -127,6 +144,9 @@ export function isLocalPathChipCandidate(value: string): boolean {
     return false;
   }
   if (WEB_OR_SPECIAL_SCHEME.test(trimmed) && !/^file:/i.test(trimmed)) {
+    return false;
+  }
+  if (isLocalDirectoryPath(trimmed)) {
     return false;
   }
   if (isLocalFileMarkdownHref(trimmed)) {

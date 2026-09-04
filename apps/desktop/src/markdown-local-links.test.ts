@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isLocalDirectoryPath,
   isLocalFileMarkdownHref,
   isLocalPathChipCandidate,
   normalizeLocalFileHref,
@@ -30,6 +31,15 @@ describe('isLocalFileMarkdownHref', () => {
     expect(isLocalFileMarkdownHref('~/.piwin/sessions/**')).toBe(false);
     expect(isLocalFileMarkdownHref('~/.piwin/*.json')).toBe(false);
     expect(isLocalFileMarkdownHref('~/Downloads/*.png')).toBe(false);
+  });
+});
+
+describe('isLocalDirectoryPath', () => {
+  it('detects trailing-slash local directories and ignores web URLs', () => {
+    expect(isLocalDirectoryPath('docs/plans/')).toBe(true);
+    expect(isLocalDirectoryPath('/Users/me/docs/plans/')).toBe(true);
+    expect(isLocalDirectoryPath('docs/plans/foo.md')).toBe(false);
+    expect(isLocalDirectoryPath('https://example.com/docs/plans/')).toBe(false);
   });
 });
 
@@ -99,5 +109,15 @@ describe('isLocalPathChipCandidate', () => {
     expect(isLocalPathChipCandidate('sessions/**')).toBe(false);
     expect(isLocalPathChipCandidate('*.json')).toBe(false);
     expect(isLocalPathChipCandidate('~/.piwin/config.json')).toBe(true);
+  });
+
+  it('does not chip directory mentions — only specific files are hyperlinks', () => {
+    expect(isLocalPathChipCandidate('docs/plans/')).toBe(false);
+    expect(isLocalPathChipCandidate('cropped-portraits/')).toBe(false);
+    expect(isLocalPathChipCandidate('/Users/me/docs/plans/')).toBe(false);
+    expect(isLocalPathChipCandidate('~/Downloads/')).toBe(false);
+    expect(isLocalPathChipCandidate('file:///Users/me/out/')).toBe(false);
+    expect(isLocalPathChipCandidate('src/utils.ts')).toBe(true);
+    expect(isLocalPathChipCandidate('/Users/me/a.md')).toBe(true);
   });
 });
