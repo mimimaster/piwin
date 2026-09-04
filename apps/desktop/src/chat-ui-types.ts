@@ -586,6 +586,8 @@ export type ChatUiAction =
   | {
       type: 'user/steer';
       text: string;
+      attachments?: PromptAttachment[];
+      contextRefs?: PromptContextRef[];
       /** Client-generated id shared with Host transcript persistence. */
       clientMessageId: string;
       /** Optimistic Host intervention identity; reconciled by the first push. */

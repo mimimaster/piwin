@@ -357,4 +357,35 @@ describe('run intervention stager', () => {
     );
     stager.dispose();
   });
+
+  it('injects native image parts with the prepared text', async () => {
+    const fixture = createFixture();
+    const stager = createRunInterventionStager({
+      session: fixture.session,
+      sessionId: 'session-1',
+      runtimeGenerationId: 'generation-1',
+      getActiveRunId: () => 'run-1',
+    });
+    stager.subscribe(async () => ({ accepted: true }));
+    await stager.arm({
+      interventionId: 'intervention-image-1',
+      revision: 1,
+      sessionId: 'session-1',
+      runId: 'run-1',
+      runtimeGenerationId: 'generation-1',
+      sequence: 1,
+      text: 'look at this screenshot',
+      images: [{ dataBase64: 'aW1n', mimeType: 'image/png' }],
+    });
+    await fixture.agent.prepareNextTurnWithContext?.({});
+    expect(fixture.steer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: [
+          { type: 'text', text: 'look at this screenshot' },
+          { type: 'image', data: 'aW1n', mimeType: 'image/png' },
+        ],
+      }),
+    );
+    stager.dispose();
+  });
 });

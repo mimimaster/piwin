@@ -4,6 +4,7 @@
 
 import {
   USER_AUTHORED_GENERATION,
+  type MediaAttachmentRef,
   type RunInterventionRecord,
   RunInterventionStatus,
   RunInterventionTerminalReason,
@@ -118,6 +119,7 @@ export function createTranscriptInterventionsOps(
             status: 'done',
             createdAt: record.submittedAt,
             runId: record.runId,
+            ...instructionTranscriptExtras(record.input),
             metadata: instructionMetadata(record),
           });
           bumpRevision(1, isIndexedUserMessage('user', record.input.text) ? 1 : 0);
@@ -197,8 +199,15 @@ export function createTranscriptInterventionsOps(
             fingerprint: input.fingerprint,
             updated_at: input.updatedAt,
           });
-          db.prepare('UPDATE transcript_message SET text = ?, metadata_json = ? WHERE id = ?').run(
+          const extras = instructionTranscriptExtras(input.input);
+          db.prepare(
+            `UPDATE transcript_message
+             SET text = ?, attachments_json = ?, context_refs_json = ?, metadata_json = ?
+             WHERE id = ?`,
+          ).run(
             input.input.text,
+            extras.attachments === undefined ? null : JSON.stringify(extras.attachments),
+            extras.contextRefs === undefined ? null : JSON.stringify(extras.contextRefs),
             JSON.stringify(instructionMetadata(updated)),
             row.user_message_id,
           );
@@ -443,4 +452,21 @@ export function createTranscriptInterventionsOps(
       }
   };
   return ops;
+}
+
+function instructionTranscriptExtras(input: UserInstructionPayload): {
+  attachments?: MediaAttachmentRef[];
+  contextRefs?: UserInstructionPayload['contextRefs'];
+} {
+  const mediaAttachments = input.attachments?.filter(
+    (attachment): attachment is MediaAttachmentRef => attachment.kind === 'media',
+  );
+  return {
+    ...(mediaAttachments === undefined || mediaAttachments.length === 0
+      ? {}
+      : { attachments: mediaAttachments }),
+    ...(input.contextRefs === undefined || input.contextRefs.length === 0
+      ? {}
+      : { contextRefs: input.contextRefs }),
+  };
 }

@@ -355,7 +355,10 @@ export function reduceChatRun(state: ChatUiState, action: ChatUiRunAction): Chat
         text: action.text,
         thinking: '',
         tools: [],
-        attachments: [],
+        attachments: action.attachments ?? [],
+        ...(action.contextRefs && action.contextRefs.length > 0
+          ? { contextRefs: action.contextRefs }
+          : {}),
         status: 'done',
         createdAt: new Date().toISOString(),
         ...(action.instructionId && action.targetRunId

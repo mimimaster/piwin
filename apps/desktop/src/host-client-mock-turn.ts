@@ -463,7 +463,11 @@ export async function handleMockTurnCommands(
             !target ||
             target.sessionId !== command.sessionId ||
             target.userMessageId !== command.userMessageId ||
-            target.input.text !== command.input.text
+            target.input.text !== command.input.text ||
+            JSON.stringify(target.input.attachments ?? []) !==
+              JSON.stringify(command.input.attachments ?? []) ||
+            JSON.stringify(target.input.contextRefs ?? []) !==
+              JSON.stringify(command.input.contextRefs ?? [])
           ) {
             return {
               id,
@@ -757,4 +761,3 @@ export async function handleMockTurnCommands(
       return null;
   }
 }
-

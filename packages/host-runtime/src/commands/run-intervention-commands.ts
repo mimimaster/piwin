@@ -60,7 +60,6 @@ import {
   type ResolvedOrchestrationScheme,
   RUN_INTERVENTION_MAX_PENDING_BYTES_PER_RUN,
   RUN_INTERVENTION_MAX_PENDING_PER_RUN,
-  RUN_INTERVENTION_MAX_TEXT_BYTES,
 } from '@piwin/contracts';
 import type { RunAbortReason } from '../run-abort-reason.js';
 import {
@@ -95,7 +94,6 @@ import { formatPlanForModelContext } from '../format-plan-context.js';
 import { createProductShellSession } from '../product-shell-session.js';
 import { createModelPromptAssembly, type ModelPromptAssembly } from '../model-context-assembly.js';
 import { persistAndPushAssembly } from '../model-context-record.js';
-import { resolvePromptContextRefs } from '../prompt/resolve-prompt-context-refs.js';
 import { fail, ok } from '../response-helpers.js';
 import { indexRecordToSummary } from '../session-summary-map.js';
 import {
@@ -121,21 +119,14 @@ import { findEnabledModel } from '../provider-helpers.js';
 import type { SessionLiveContext } from './session-live-context.js';
 import { shouldInjectLiveWorkPreamble } from '../voice/live-work-preamble.js';
 
-function validateRunInterventionInput(
-  input: import('@piwin/contracts').UserInstructionPayload,
-): string | undefined {
-  if (input.text.trim().length === 0) return 'intervention-empty: instruction text is required';
-  if (Buffer.byteLength(input.text, 'utf8') > RUN_INTERVENTION_MAX_TEXT_BYTES) {
-    return `intervention-too-large: text exceeds ${RUN_INTERVENTION_MAX_TEXT_BYTES} bytes`;
-  }
-  if (input.text.trimStart().startsWith('/')) {
-    return 'intervention-command-unsupported: slash commands must be sent as a normal turn';
-  }
-  if ((input.attachments?.length ?? 0) > 0 || (input.contextRefs?.length ?? 0) > 0) {
-    return 'intervention-structured-input-unsupported: attachments and context references are not enabled yet';
-  }
-  return undefined;
-}
+import {
+  instructionPayloadFromPromptInput,
+  prepareRunInterventionPayload,
+  sameInstructionPayload,
+  toBackendRunIntervention,
+  validateRunInterventionInput,
+  type PreparedRunIntervention,
+} from './prepare-run-intervention.js';
 
 function fingerprintRunIntervention(input: {
   sessionId: string;
@@ -177,11 +168,23 @@ function validateInterventionTarget(
   return active;
 }
 
+async function armPendingIntervention(
+  context: SessionLiveContext,
+  intervention: RunInterventionRecord,
+  prepared: PreparedRunIntervention,
+): Promise<void> {
+  const session = context.requireSession(intervention.sessionId);
+  if (!session.armRunIntervention) {
+    throw new Error('run-intervention-backend-unsupported');
+  }
+  await session.armRunIntervention(toBackendRunIntervention(intervention, prepared));
+}
+
 /**
  * Pre-flight the durable queued turn an adoption wants to convert. The store
  * conversion re-checks status/revision atomically; this guard exists to fail
- * before any mutation when the request targets the wrong record or a payload
- * interventions cannot represent (attachments, replace-mode, edited text).
+ * before any mutation when the request targets the wrong record, a replace-mode
+ * turn, or a payload that drifted from the frozen queued input.
  */
 async function validateQueuedTurnAdoption(
   command: Extract<HostCommand, { type: 'run/intervention-submit' }>,
@@ -207,12 +210,11 @@ async function validateQueuedTurnAdoption(
   if (queuedTurn.mode !== 'next') {
     return new Error('queued-turn-mode-invalid: only a normal next turn can be converted');
   }
-  if (queuedTurn.input.text !== command.input.text) {
-    return new Error('intervention-adopt-text-mismatch: input text must equal the queued turn text');
-  }
-  if ((queuedTurn.input.attachments?.length ?? 0) > 0 || (queuedTurn.input.contextRefs?.length ?? 0) > 0) {
+  if (
+    !sameInstructionPayload(instructionPayloadFromPromptInput(queuedTurn.input), command.input)
+  ) {
     return new Error(
-      'intervention-structured-input-unsupported: attachments and context references are not enabled yet',
+      'intervention-adopt-payload-mismatch: input must equal the queued turn text, attachments, and context references',
     );
   }
   return undefined;
@@ -287,22 +289,14 @@ export async function handleRunInterventionCommand(
               context.push({ type: 'run/intervention-updated', intervention: expired });
             }
           } else {
-            const session = context.requireSession(command.sessionId);
             try {
-              if (!session.armRunIntervention) {
-                throw new Error('run-intervention-backend-unsupported');
-              }
               // Recover the narrow window where Host persistence succeeded but
               // the first ACK/arm did not. Backend arming is revision-idempotent.
-              await session.armRunIntervention({
-                interventionId: replayedIntervention.interventionId,
-                revision: replayedIntervention.revision,
-                sessionId: replayedIntervention.sessionId,
-                runId: replayedIntervention.runId,
-                runtimeGenerationId: replayedIntervention.runtimeGenerationId,
-                sequence: replayedIntervention.sequence,
-                text: replayedIntervention.input.text,
-              });
+              const prepared = await prepareRunInterventionPayload(
+                context,
+                replayedIntervention.input,
+              );
+              await armPendingIntervention(context, replayedIntervention, prepared);
             } catch {
               const latest = await store.getRunIntervention(replayedIntervention.interventionId);
               if (latest !== undefined && latest.status !== 'pending') {
@@ -353,6 +347,29 @@ export async function handleRunInterventionCommand(
       if (runtimeGenerationId === undefined) {
         return fail(requestId, command.type, 'runtime-generation-unavailable');
       }
+      if (command.adoptQueuedTurn !== undefined) {
+        const adoptError = await validateQueuedTurnAdoption(command, store);
+        if (adoptError instanceof Error) {
+          return fail(requestId, command.type, adoptError.message);
+        }
+      }
+      let prepared: PreparedRunIntervention;
+      try {
+        prepared = await prepareRunInterventionPayload(context, command.input);
+      } catch (error) {
+        return fail(requestId, command.type, formatError(error));
+      }
+      const preparedTarget = validateInterventionTarget(context, command.sessionId, command.runId);
+      if (
+        typeof preparedTarget === 'string' ||
+        preparedTarget.runtimeGenerationId !== runtimeGenerationId
+      ) {
+        return fail(
+          requestId,
+          command.type,
+          typeof preparedTarget === 'string' ? preparedTarget : 'runtime-generation-unavailable',
+        );
+      }
       const existingItems = await store.listRunInterventions(command.runId);
       const pendingItems = existingItems.filter(
         (item) => item.status === 'pending' || item.status === 'applying',
@@ -365,7 +382,7 @@ export async function handleRunInterventionCommand(
         0,
       );
       if (
-        pendingBytes + Buffer.byteLength(command.input.text, 'utf8') >
+        pendingBytes + Buffer.byteLength(prepared.preparedText, 'utf8') >
           RUN_INTERVENTION_MAX_PENDING_BYTES_PER_RUN
       ) {
         return fail(requestId, command.type, 'intervention-queue-bytes-exceeded');
@@ -382,10 +399,6 @@ export async function handleRunInterventionCommand(
       let cancelledQueuedTurn: QueuedTurnRecord | undefined;
       let intervention: RunInterventionRecord;
       if (command.adoptQueuedTurn !== undefined) {
-        const adoptError = await validateQueuedTurnAdoption(command, store);
-        if (adoptError instanceof Error) {
-          return fail(requestId, command.type, adoptError.message);
-        }
         const converted = await store.convertQueuedTurnToIntervention({
           queuedTurnId: command.adoptQueuedTurn.queuedTurnId,
           expectedRevision: command.adoptQueuedTurn.expectedRevision,
@@ -394,7 +407,7 @@ export async function handleRunInterventionCommand(
           runtimeGenerationId,
           userMessageId: command.userMessageId,
           input: command.input,
-          preparedText: command.input.text,
+          preparedText: prepared.preparedText,
           fingerprint,
           updatedAt: submittedAt,
         });
@@ -423,7 +436,7 @@ export async function handleRunInterventionCommand(
           runtimeGenerationId,
           userMessageId: command.userMessageId,
           input: command.input,
-          preparedText: command.input.text,
+          preparedText: prepared.preparedText,
           fingerprint,
           submittedAt,
         });
@@ -483,32 +496,8 @@ export async function handleRunInterventionCommand(
         }
         return ok(requestId, command.type, withAdoptedQueuedTurn());
       }
-      const session = context.requireSession(command.sessionId);
-      if (!session.armRunIntervention) {
-        const failed = await store.transitionRunIntervention({
-          interventionId: intervention.interventionId,
-          expectedRevision: intervention.revision,
-          from: ['pending'],
-          to: 'failed',
-          updatedAt: new Date().toISOString(),
-          terminalReason: 'backend-rejected',
-        });
-        if (failed) {
-          intervention = failed;
-          context.push({ type: 'run/intervention-updated', intervention });
-        }
-        return ok(requestId, command.type, withAdoptedQueuedTurn());
-      }
       try {
-        await session.armRunIntervention({
-          interventionId: intervention.interventionId,
-          revision: intervention.revision,
-          sessionId: intervention.sessionId,
-          runId: intervention.runId,
-          runtimeGenerationId: intervention.runtimeGenerationId,
-          sequence: intervention.sequence,
-          text: intervention.input.text,
-        });
+        await armPendingIntervention(context, intervention, prepared);
       } catch {
         const failed = await store.transitionRunIntervention({
           interventionId: intervention.interventionId,
@@ -535,11 +524,17 @@ export async function handleRunInterventionCommand(
       if (!existing || existing.runId !== command.runId) {
         return fail(requestId, command.type, 'intervention-not-found');
       }
+      let prepared: PreparedRunIntervention;
+      try {
+        prepared = await prepareRunInterventionPayload(context, command.input);
+      } catch (error) {
+        return fail(requestId, command.type, formatError(error));
+      }
       const updated = await store.updatePendingRunIntervention({
         interventionId: command.interventionId,
         expectedRevision: command.expectedRevision,
         input: command.input,
-        preparedText: command.input.text,
+        preparedText: prepared.preparedText,
         fingerprint: fingerprintRunIntervention({
           sessionId: command.sessionId,
           runId: command.runId,
@@ -549,29 +544,8 @@ export async function handleRunInterventionCommand(
         updatedAt: new Date().toISOString(),
       });
       if (!updated) return fail(requestId, command.type, 'intervention-revision-conflict');
-      const session = context.requireSession(command.sessionId);
-      if (!session.armRunIntervention) {
-        const failed = await store.transitionRunIntervention({
-          interventionId: updated.interventionId,
-          expectedRevision: updated.revision,
-          from: ['pending'],
-          to: 'failed',
-          updatedAt: new Date().toISOString(),
-          terminalReason: 'backend-rejected',
-        });
-        if (failed) context.push({ type: 'run/intervention-updated', intervention: failed });
-        return fail(requestId, command.type, 'intervention-backend-unsupported');
-      }
       try {
-        await session.armRunIntervention({
-          interventionId: updated.interventionId,
-          revision: updated.revision,
-          sessionId: updated.sessionId,
-          runId: updated.runId,
-          runtimeGenerationId: updated.runtimeGenerationId,
-          sequence: updated.sequence,
-          text: updated.input.text,
-        });
+        await armPendingIntervention(context, updated, prepared);
       } catch {
         const failed = await store.transitionRunIntervention({
           interventionId: updated.interventionId,

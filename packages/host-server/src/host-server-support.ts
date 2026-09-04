@@ -16,6 +16,7 @@ import {
   LIVE_SUBSCRIPTION_MAX_SESSION_IDS,
   parseFlashcardStudyCommand,
   QUEUED_TURN_MAX_TEXT_BYTES,
+  RUN_INTERVENTION_MAX_TEXT_BYTES,
   SESSION_LIST_PAGE_MAX_ITEMS,
   SESSION_TRANSCRIPT_PAGE_MAX_BYTES,
   SESSION_TRANSCRIPT_PAGE_MAX_ITEMS,
@@ -468,9 +469,7 @@ export function isSafeRemoteCommand(command: HostCommand): boolean {
         command.interventionId.length <= 256 &&
         command.userMessageId.length > 0 &&
         command.userMessageId.length <= 256 &&
-        command.input.text.length <= 64 * 1024 &&
-        (command.input.attachments === undefined || command.input.attachments.length === 0) &&
-        (command.input.contextRefs === undefined || command.input.contextRefs.length === 0) &&
+        isSafeInterventionInput(command.input) &&
         (command.adoptQueuedTurn === undefined ||
           (command.adoptQueuedTurn.queuedTurnId.length > 0 &&
             command.adoptQueuedTurn.queuedTurnId.length <= 256 &&
@@ -487,9 +486,7 @@ export function isSafeRemoteCommand(command: HostCommand): boolean {
         command.interventionId.length <= 256 &&
         Number.isSafeInteger(command.expectedRevision) &&
         command.expectedRevision > 0 &&
-        command.input.text.length <= 64 * 1024 &&
-        (command.input.attachments === undefined || command.input.attachments.length === 0) &&
-        (command.input.contextRefs === undefined || command.input.contextRefs.length === 0)
+        isSafeInterventionInput(command.input)
       );
     case 'run/intervention-cancel':
       return (
@@ -707,7 +704,9 @@ export function resolveRemoteCommand(
     command.type !== 'session/prompt' &&
     command.type !== 'session/queued-turn-submit' &&
     command.type !== 'session/queued-turn-edit' &&
-    command.type !== 'session/replace-run'
+    command.type !== 'session/replace-run' &&
+    command.type !== 'run/intervention-submit' &&
+    command.type !== 'run/intervention-edit'
   ) {
     return command;
   }
@@ -724,6 +723,17 @@ export function resolveRemoteCommand(
     return { ...attachment, path: absolutePath } satisfies MediaAttachmentRef;
   });
   return { ...command, input: { ...command.input, attachments } };
+}
+
+function isSafeInterventionInput(
+  input: import('@piwin/contracts').UserInstructionPayload,
+): boolean {
+  return (
+    Buffer.byteLength(input.text, 'utf8') <= RUN_INTERVENTION_MAX_TEXT_BYTES &&
+    (input.attachments === undefined ||
+      (input.attachments.length <= 8 && input.attachments.every(isSafeRemoteAttachment))) &&
+    areSafeRemoteContextRefs(input.contextRefs)
+  );
 }
 
 export function isSafeQueuedTurnCommand(
