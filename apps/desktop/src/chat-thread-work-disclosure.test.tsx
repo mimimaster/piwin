@@ -76,6 +76,7 @@ function renderThread(
     streaming?: boolean;
     activeRunId?: string | null;
     runRecordsById?: Record<string, RunRecordUi>;
+    isConversationSession?: boolean;
   } = {},
 ): ReactElement {
   return (
@@ -108,6 +109,9 @@ function renderThread(
         artifactPreviewEnabled
         composerCard={composerCard}
         locale="en"
+        {...(extras.isConversationSession === true
+          ? { isConversationSession: true }
+          : {})}
       />
     </PiwinUiProvider>
   );
@@ -384,5 +388,72 @@ describe('ChatThread completed work disclosure', () => {
     expect(container.querySelector('#msg-work-2')).not.toBeNull();
     expect(container.querySelector('#msg-work-1 .markdown')?.textContent).toContain(earlierCaption);
     expect(container.querySelector('#msg-work-2 .markdown')?.textContent).toContain(lastCaption);
+  });
+
+  it('keeps the Conversation identity header above 已工作 after expand', () => {
+    const messages = [
+      message('user-1', { role: 'user', text: 'read the page' }),
+      message('work-1', {
+        thinking: 'I will fetch the URL',
+        runId: 'run-1',
+        model: { protocol: 'openai-compatible', providerId: 'xai', modelId: 'grok-4.6' },
+        tools: [
+          {
+            toolCallId: 'fetch-1',
+            toolName: 'web_fetch',
+            status: 'done',
+            output: 'ok',
+            runId: 'run-1',
+          },
+        ],
+      }),
+      message('answer-1', {
+        text: '页首内容已读取。',
+        runId: 'run-1',
+        model: { protocol: 'openai-compatible', providerId: 'xai', modelId: 'grok-4.6' },
+      }),
+    ];
+
+    act(() => root.render(renderThread(messages, { isConversationSession: true })));
+
+    const orderOf = (): string[] =>
+      [...container.querySelectorAll(
+        '[data-testid="conversation-turn-identity"], [data-testid="turn-work-disclosure"], #msg-work-1, #msg-answer-1',
+      )].map((node) => node.id || node.getAttribute('data-testid') || '');
+
+    expect(orderOf()).toEqual([
+      'conversation-turn-identity',
+      'turn-work-disclosure',
+      'msg-answer-1',
+    ]);
+    expect(container.querySelector('#msg-work-1')).toBeNull();
+    expect(container.querySelectorAll('[data-testid="conversation-message-header"]')).toHaveLength(
+      1,
+    );
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="turn-work-disclosure-trigger"]')
+        ?.click();
+    });
+
+    expect(orderOf()).toEqual([
+      'conversation-turn-identity',
+      'turn-work-disclosure',
+      'msg-work-1',
+      'msg-answer-1',
+    ]);
+    expect(
+      container.querySelector('#msg-work-1 [data-testid="conversation-message-header"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('#msg-answer-1 [data-testid="conversation-message-header"]'),
+    ).toBeNull();
+    expect(container.querySelectorAll('[data-testid="conversation-message-header"]')).toHaveLength(
+      1,
+    );
+    expect(
+      container.querySelector('[data-testid="conversation-message-model-name"]')?.textContent,
+    ).toBe('grok-4.6');
   });
 });

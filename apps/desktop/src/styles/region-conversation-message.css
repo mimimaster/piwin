@@ -15,6 +15,14 @@
   box-sizing: border-box;
 }
 
+/* Work disclosure is not a .conversation-response, so it needs the same
+   avatar gutter or 已工作 sits in the icon column — visually in front of
+   the provider avatar. */
+.chat-thread.is-conversation .turn-work-disclosure {
+  padding-left: 44px;
+  box-sizing: border-box;
+}
+
 .conversation-message-header {
   display: flex;
   align-items: center;
@@ -416,6 +424,10 @@ html[data-theme-visual-style='ink-wash']
   .conversation-response {
     padding-left: 36px;
     min-height: 28px;
+  }
+
+  .chat-thread.is-conversation .turn-work-disclosure {
+    padding-left: 36px;
   }
 
   .conversation-message-provider-icon {

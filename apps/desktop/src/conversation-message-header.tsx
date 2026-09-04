@@ -162,8 +162,9 @@ export function ConversationMessageHeader(props: ConversationMessageHeaderProps)
 }
 
 /**
- * Identity chrome rendered at the top of a Conversation turn when the
- * first visible assistant row is folded behind work disclosure.
+ * Turn-level identity chrome. Rendered above work disclosure whenever the
+ * first visible assistant lives inside the folded work range, so expanding
+ * work details cannot move the avatar under the trigger.
  */
 export function ConversationTurnIdentityHeader(
   props: ConversationTurnIdentityHeaderProps,

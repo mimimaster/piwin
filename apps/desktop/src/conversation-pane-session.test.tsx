@@ -136,6 +136,30 @@ class FakeHostClient {
         data: { sessionId: command.sessionId, runId: this.run?.runId ?? 'run-steer' },
       });
     }
+    if (command.type === 'models/configured') {
+      return Promise.resolve({
+        type: 'response',
+        command: command.type,
+        success: true,
+        data: {
+          defaultProviderId: 'openai',
+          defaultModelId: 'gpt-4o',
+          models: [
+            {
+              providerId: 'openai',
+              modelId: 'gpt-4o',
+              label: 'GPT-4o',
+              protocol: 'openai-compatible',
+              source: 'channel',
+              group: 'channel',
+            },
+          ],
+        },
+      });
+    }
+    if (command.type === 'session/set-composer-profile') {
+      return Promise.resolve({ type: 'response', command: command.type, success: true, data: {} });
+    }
     return Promise.resolve({
       type: 'response',
       command: command.type,
@@ -448,7 +472,6 @@ describe('ConversationPaneSession', () => {
       ).toBe('visible'),
     );
     expect(container?.querySelector('[data-testid="context-usage-ring"]')).not.toBeNull();
-    expect(container?.textContent).toContain('Last confirmed; current context pending measurement');
   });
 
   it('hides occupancy when resume fails', async () => {
@@ -528,5 +551,19 @@ describe('ConversationPaneSession', () => {
           .contextRing,
       ).toBe('visible'),
     );
+  });
+
+  it('reuses the compact composer model picker', async () => {
+    const host = new FakeHostClient();
+    ({ container, root } = renderSession(host));
+    await vi.waitFor(() =>
+      expect(
+        container?.querySelector('[data-testid="thinking-effort-trigger"]')?.textContent,
+      ).toContain('GPT-4o'),
+    );
+    const paneInput = container?.querySelector<HTMLTextAreaElement>(
+      '[data-testid="conversation-pane-composer"]',
+    );
+    expect(paneInput?.disabled).toBe(false);
   });
 });

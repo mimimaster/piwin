@@ -27,6 +27,24 @@ describe('sendSideChatPrompt', () => {
     });
     expect(sent[0]?.key).toBe('gesture-side-1');
   });
+
+  it('forwards the selected model on the prompt input', async () => {
+    const sent: Array<{ command: HostCommand }> = [];
+    await sendSideChatPrompt({
+      request: async (command) => {
+        sent.push({ command });
+        return { type: 'response', command: command.type, success: true, data: { runId: 'run-1' } };
+      },
+      sessionId: 'side-1',
+      text: 'hello',
+      createIdempotencyKey: () => 'gesture-side-1',
+      model: { providerId: 'openai', modelId: 'gpt-4o' },
+    });
+    expect(sent[0]?.command).toMatchObject({
+      type: 'session/prompt',
+      input: { text: 'hello', model: { providerId: 'openai', modelId: 'gpt-4o' } },
+    });
+  });
 });
 
 describe('abortSideChatRun', () => {

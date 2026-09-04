@@ -171,7 +171,7 @@ SessionHandle、Product transcript、RunRegistry 和 capability blueprint
 | SIDE-D9 | Side Chat transcript 持久化，但默认不出现在主会话列表 |
 | SIDE-D10 | 关闭右侧栏不 abort Side Chat；只有用户点击 Stop 才取消运行 |
 | SIDE-D11 | Side Chat 只能普通 Send + Stop；不提供 steer、follow-up、manual compact |
-| SIDE-D12 | model/thinking profile 默认继承创建时的主会话快照，v1 不提供侧聊独立选择器 |
+| SIDE-D12 | model/thinking profile 默认继承创建时的主会话快照；侧聊 composer 复用主输入框的模型选择器，可按 session 覆盖并写入 `session/set-composer-profile` |
 | SIDE-D13 | Side Chat 结果通过 ContextRef 或显式 Insert 回主 Composer，不自动发送 |
 | SIDE-D14 | source session archive/delete 不级联删除 Side Chat；Side Chat 保留 frozen context |
 | SIDE-D15 | source session 不可用时，Side Chat 仍可阅读/继续对话，但不能 Sync |
@@ -191,8 +191,8 @@ SessionHandle、Product transcript、RunRegistry 和 capability blueprint
 | 读取 git diff/status | Yes | Context-first | 默认通过 ContextRef；不开放写 git |
 | 读取主会话错误/终端输出 | Yes | Yes | 使用捕获快照，不依赖活跃 PTY |
 | 新增图片附件 | Yes | P1 | 复用 media contract；仍走 native image path |
-| 模型选择 | Per turn/session | Inherited | v1 不提供 Side Chat 独立选择器 |
-| Thinking level | Selectable | Inherited | 固定创建时快照 |
+| 模型选择 | Per turn/session | Per side session | 默认继承创建快照；composer 复用主输入框选择器 |
+| Thinking level | Selectable | Per side session | 与模型选择器一起覆盖 |
 | Agent mode | Agent/Plan/Ask | Ask only | UI + Host 双重约束 |
 | 文件 write/edit | Yes | No | 不注册工具；提示用户 Handoff |
 | bash/Shell | Yes | No | 不注册工具 |
@@ -586,7 +586,7 @@ Side Chat composer：
 - context chip 展示和移除；
 - media image paste/drop 为 P1；
 - 没有 Agent/Plan mode selector；
-- 没有 model/thinking selector；
+- 复用主 composer 的 model/thinking selector；
 - run 中禁用普通 Send，避免隐式 supersede；
 - 不支持 steer/follow-up。
 
@@ -742,7 +742,7 @@ CLI v1：
 | state | Add side-specific reducer/hook keyed by side session id |
 | panel | Replace local scratchpad with Host-backed transcript |
 | context | Header, chips, snapshot/live labels, Sync |
-| composer | Send/Stop only, inherited model/mode badge |
+| composer | Reuse compact prompt card: Send/Stop + model/thinking picker |
 | picker | List/create/rename/archive/delete side chats |
 | handoff | Insert and reference actions |
 | render | Reuse shared Markdown/message components; compact read cards |
@@ -855,4 +855,3 @@ The spec is implemented only when all of the following are true:
 - [piwin architecture](../architecture.md)
 - [Product-level session fork](./session-fork-product-adaptation.md)
 - [Runtime refactor](./runtime-refactor.md)
-

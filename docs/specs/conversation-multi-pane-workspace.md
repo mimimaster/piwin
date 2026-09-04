@@ -48,6 +48,8 @@ Shrinking closes views only; it never changes the sessions.
 - Prompt sends use the existing foreground-admission and idempotency path.
 - A pane may send only when its own session is idle. Stop targets that pane's
   exact foreground `runId`.
+- Supplementary panes reuse the compact prompt card, including the shared
+  model/thinking picker; the selected profile is persisted per session.
 - Host event, transcript, run, and reply-writer pushes are filtered by the
   pane's bound session before entering its reducer.
 - A deleted session leaves an empty pane instead of silently rebinding.

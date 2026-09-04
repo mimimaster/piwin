@@ -560,10 +560,12 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                 (item) => item.message.id === conversationChrome.identityMessageId,
               )
             : -1;
-          const identityHiddenByCollapsedDisclosure =
+          // Lift identity above the work trigger in both states. Collapsing
+          // used to park the avatar above the trigger, then expanding put it
+          // back on the first work row — the focused trigger jumped in front.
+          const identityLiftedAboveWorkDisclosure =
             identityItemIndex >= 0 &&
             workDisclosureProjection !== null &&
-            !workDisclosureOpen &&
             identityItemIndex >= workDisclosureProjection.startIndex &&
             identityItemIndex <= workDisclosureProjection.endIndex;
           const identitySource =
@@ -605,8 +607,8 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                       }
                     />
                   ) : null;
-                const foldedIdentityHeader =
-                  identityHiddenByCollapsedDisclosure &&
+                const liftedIdentityHeader =
+                  identityLiftedAboveWorkDisclosure &&
                   identityForHeader &&
                   isDisclosureStart ? (
                     <ConversationTurnIdentityHeader
@@ -634,7 +636,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                     />
                   ) : null;
                 if (isDisclosureWorkItem && !workDisclosureOpen) {
-                  return [foldedIdentityHeader, disclosureTrigger].filter(
+                  return [liftedIdentityHeader, disclosureTrigger].filter(
                     (node): node is ReactElement => node !== null,
                   );
                 }
@@ -698,10 +700,10 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                       ? {
                           showConversationHeader:
                             conversationChrome.identityMessageId === message.id &&
-                            !identityHiddenByCollapsedDisclosure,
+                            !identityLiftedAboveWorkDisclosure,
                           showConversationTurnUsage:
                             conversationChrome.showUsageOnIdentity &&
-                            !identityHiddenByCollapsedDisclosure,
+                            !identityLiftedAboveWorkDisclosure,
                         }
                       : {})}
                     {...(props.onResolveFlashcards
@@ -872,7 +874,13 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                     </div>
                   ) : null;
                 const rows = finalThinkingRow ? [finalThinkingRow, row] : [row];
-                return disclosureTrigger ? [disclosureTrigger, ...rows] : rows;
+                const leadingChrome = [
+                  liftedIdentityHeader,
+                  disclosureTrigger,
+                ].filter((node): node is ReactElement => node !== null);
+                return leadingChrome.length > 0
+                  ? [...leadingChrome, ...rows]
+                  : rows;
               })}
               {turn.id === compactionActivityTurnId && props.compactionActivity ? (
                 <CompactionActivity
