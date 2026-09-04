@@ -8,6 +8,8 @@ import {
   shouldVirtualizeTranscript,
   TRANSCRIPT_VIRTUALIZATION_THRESHOLD,
   TranscriptTurnList,
+  buildTranscriptTurnsStructureKey,
+  transcriptVirtualizerMeasurePolicy,
 } from './transcript-turn-list';
 import { groupTranscriptTurns, type TranscriptTurn } from './transcript-turns';
 import type { ChatMessageUi } from './chat-reducer';
@@ -273,5 +275,85 @@ describe('transcript virtualization policy', () => {
     expect(extractRange({ startIndex: 4, endIndex: 6, overscan: 1, count: 50 })).toEqual([
       3, 4, 5, 6, 7, 30, 47, 48, 49,
     ]);
+  });
+});
+
+describe('transcript virtualizer measure policy', () => {
+  it('never defers ResizeObserver measure through rAF', () => {
+    expect(transcriptVirtualizerMeasurePolicy(false)).toEqual({
+      useAnimationFrameWithResizeObserver: false,
+      useFlushSync: false,
+    });
+    expect(transcriptVirtualizerMeasurePolicy(true)).toEqual({
+      useAnimationFrameWithResizeObserver: false,
+      useFlushSync: true,
+    });
+  });
+
+  it('changes structure key when live text grows, a bash tool aborts, or an error row is appended', () => {
+    const user: ChatMessageUi = {
+      id: 'user-pause',
+      role: 'user',
+      text: 'continue',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+    };
+    const streamingAssistant: ChatMessageUi = {
+      id: 'assistant-live',
+      role: 'assistant',
+      text: 'first tokens',
+      thinking: '',
+      tools: [
+        {
+          toolCallId: 'bash-1',
+          toolName: 'bash',
+          status: 'running',
+          output: '',
+        },
+      ],
+      attachments: [],
+      status: 'streaming',
+    };
+    const turns = groupTranscriptTurns([user, streamingAssistant]);
+    const streamingKey = buildTranscriptTurnsStructureKey(turns);
+
+    const grown = groupTranscriptTurns([
+      user,
+      { ...streamingAssistant, text: 'first tokens, more spit-out' },
+    ]);
+    expect(buildTranscriptTurnsStructureKey(grown)).not.toBe(streamingKey);
+
+    const abortedTool: ChatMessageUi = {
+      ...streamingAssistant,
+      status: 'done',
+      tools: [
+        {
+          toolCallId: 'bash-1',
+          toolName: 'bash',
+          status: 'error',
+          output: 'Tool execution aborted',
+        },
+      ],
+    };
+    const errorRow: ChatMessageUi = {
+      id: 'assistant-error',
+      role: 'assistant',
+      text: '',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      failure: {
+        code: 'unknown-agent-failure',
+        origin: 'runtime',
+        message: 'This operation was aborted',
+        retriable: false,
+      },
+    };
+    const afterPause = groupTranscriptTurns([user, abortedTool, errorRow]);
+    expect(buildTranscriptTurnsStructureKey(afterPause)).not.toBe(streamingKey);
+    expect(buildTranscriptTurnsStructureKey(afterPause)).not.toBe(buildTranscriptTurnsStructureKey(grown));
   });
 });

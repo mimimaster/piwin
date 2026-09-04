@@ -250,6 +250,10 @@
   top: 0;
   left: 0;
   width: 100%;
+  /* Absolute slots share one stacking context. If measure lags (pause → error
+     row → new query), overflowing markdown from the previous turn paints on
+     top of the live spit-out. Clip to the reserved box; measure must grow it. */
+  overflow: hidden;
 }
 
 @media (max-width: 820px) {
