@@ -26,6 +26,51 @@ const TRANSCRIPT_TURN_OVERSCAN = 6;
 /** Always keep the newest N items/turns mounted so the live call chain never unmounts. */
 const TRANSCRIPT_LIVE_TAIL_PIN_COUNT = 3;
 
+/**
+ * WKWebView starves `requestAnimationFrame` under a steady Host stream — the
+ * same trap Streamdown's `startTransition` path hit. TanStack's default
+ * ResizeObserver → rAF measure therefore never runs while tokens (or a
+ * pause/error row) change height, so the next turn is placed on top of the
+ * previous markdown.
+ */
+export function transcriptVirtualizerMeasurePolicy(streaming: boolean): {
+  useAnimationFrameWithResizeObserver: false;
+  useFlushSync: boolean;
+} {
+  return {
+    useAnimationFrameWithResizeObserver: false,
+    useFlushSync: streaming,
+  };
+}
+
+function transcriptTurnItemStructureKey(turn: TranscriptTurn): string {
+  return turn.items
+    .map((item) => {
+      const message = item.message;
+      const toolSig =
+        message.tools?.map((tool) => `${tool.toolCallId}:${tool.status}`).join(',') ?? '';
+      const failureCode = message.failure?.code ?? '';
+      const errorSig = message.error ?? '';
+      return [
+        message.id,
+        message.status,
+        String(message.text.length),
+        String(message.thinking.length),
+        toolSig,
+        errorSig,
+        failureCode,
+      ].join(':');
+    })
+    .join(';');
+}
+
+/** Identity of mounted turn bodies so a pause/error/new-query remasures before paint. */
+export function buildTranscriptTurnsStructureKey(turns: readonly TranscriptTurn[]): string {
+  return turns
+    .map((turn) => `${turn.id}:${turn.items.length}:${transcriptTurnItemStructureKey(turn)}`)
+    .join('|');
+}
+
 export function shouldVirtualizeTranscript(
   turnCount: number,
   options?: { streaming?: boolean },
@@ -178,6 +223,7 @@ function VirtualizedTranscriptTurns(
     [props.scrollPort.sessionId],
   );
 
+  const measurePolicy = transcriptVirtualizerMeasurePolicy(props.streaming === true);
   const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: props.turns.length,
     getScrollElement: () => props.scrollPort.scrollElementRef.current,
@@ -188,25 +234,12 @@ function VirtualizedTranscriptTurns(
     overscan: TRANSCRIPT_TURN_OVERSCAN,
     rangeExtractor,
     scrollMargin,
-    useAnimationFrameWithResizeObserver: true,
-    useFlushSync: false,
+    useAnimationFrameWithResizeObserver: measurePolicy.useAnimationFrameWithResizeObserver,
+    useFlushSync: measurePolicy.useFlushSync,
   });
 
   const turnsStructureKey = useMemo(
-    () =>
-      props.turns
-        .map((turn) => {
-          const last = turn.items[turn.items.length - 1]?.message;
-          const toolSig = turn.items
-            .map(
-              (item) =>
-                item.message.tools?.map((tool) => `${tool.toolCallId}:${tool.status}`).join(',') ??
-                '',
-            )
-            .join(';');
-          return `${turn.id}:${turn.items.length}:${last?.id ?? ''}:${last?.status ?? ''}:${toolSig}`;
-        })
-        .join('|'),
+    () => buildTranscriptTurnsStructureKey(props.turns),
     [props.turns],
   );
   useLayoutEffect(() => {
