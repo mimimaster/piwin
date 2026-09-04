@@ -154,9 +154,10 @@ they reach `started`.
 
 An intervention is literal structured user input. Slash commands, prompt
 templates, model changes, and thinking-level changes are not interpreted by
-Pi during intervention delivery. Future Skill, context-reference, or image
-support must enter through Host prompt preparation and be represented in the
-stored prepared payload before backend arming.
+Pi during intervention delivery. Attachments and context references enter
+through Host prompt preparation: resolved context is folded into prepared
+text, and native images are loaded at arm time. The backend injects that
+already-prepared payload; Pi never expands Skills or templates on the way.
 
 ## Consequences
 

@@ -6,7 +6,10 @@ import type {
 
 type MarkedUserMessage = {
   role: 'user';
-  content: Array<{ type: 'text'; text: string }>;
+  content: Array<
+    | { type: 'text'; text: string }
+    | { type: 'image'; data: string; mimeType: string }
+  >;
   timestamp: number;
   /** Backend-only identity removed by Pi's provider conversion. */
   piwinIntervention: { interventionId: string; revision: number };
@@ -147,7 +150,7 @@ export function createRunInterventionStager(options: {
     }
     options.session.agent.steer({
       role: 'user',
-      content: [{ type: 'text', text: candidate.text }],
+      content: buildSteerContent(candidate),
       timestamp: Date.now(),
       piwinIntervention: {
         interventionId: candidate.interventionId,
@@ -201,7 +204,8 @@ export function createRunInterventionStager(options: {
           intervention.runtimeGenerationId !== existing.runtimeGenerationId ||
           intervention.runId !== existing.runId ||
           intervention.sequence !== existing.sequence ||
-          intervention.text !== existing.text
+          intervention.text !== existing.text ||
+          !sameInterventionImages(intervention.images, existing.images)
         ) {
           throw new Error('run-intervention-revision-payload-mismatch');
         }
@@ -275,4 +279,31 @@ function readAppliedMarker(
   return typeof identity.interventionId === 'string' && Number.isSafeInteger(identity.revision)
     ? { interventionId: identity.interventionId, revision: identity.revision as number }
     : undefined;
+}
+
+function buildSteerContent(
+  intervention: BackendRunIntervention,
+): MarkedUserMessage['content'] {
+  const content: MarkedUserMessage['content'] = [];
+  if (intervention.text.length > 0) {
+    content.push({ type: 'text', text: intervention.text });
+  }
+  for (const image of intervention.images ?? []) {
+    content.push({
+      type: 'image',
+      data: image.dataBase64,
+      mimeType: image.mimeType,
+    });
+  }
+  if (content.length === 0) {
+    content.push({ type: 'text', text: intervention.text });
+  }
+  return content;
+}
+
+function sameInterventionImages(
+  left: BackendRunIntervention['images'],
+  right: BackendRunIntervention['images'],
+): boolean {
+  return JSON.stringify(left ?? []) === JSON.stringify(right ?? []);
 }

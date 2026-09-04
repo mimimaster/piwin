@@ -114,9 +114,10 @@ checkpoint of the current Run, not after the Run ends.
 
 Adoption is a deliberate shell action, never a fallback: the Host rejects it
 when the queued turn is not `pending` (a drain may have won the race), when
-the revision is stale, when the record carries attachments or context refs
-(interventions are text-only today), or when the payload text differs from the
-frozen queued text. An ACK-timeout retry replays the same durable outcome.
+the revision is stale, or when the submitted payload differs from the frozen
+queued text, attachments, and context references. Host prepares those
+attachments and refs the same way as a direct intervention. An ACK-timeout
+retry replays the same durable outcome.
 
 ### Pending intervention presentation
 
@@ -365,9 +366,10 @@ finish as `pending` even if the next checkpoint is minutes away.
 
 1. ProductAgentHost arms the backend with exact session, generation, Run,
    sequence, intervention, revision, and the already-prepared literal text.
-   Phase 1 rejects attachments and context references; a later structured-input
-   revision may replace the text field with a Host-issued payload reference so
-   prepared secrets, resolved bodies, and image bytes never live in the queue.
+   Attachments and context references are resolved by Host before arming:
+   context bodies are folded into prepared text, and native image bytes are
+   attached only to the in-memory staging slot for that exact Run. Durable
+   records keep Host-owned media paths, not base64.
 2. SDK backend or worker stores that reference in a bounded run-scoped staging
    queue. This is not Pi's native steering queue. Staging is allowed while the
    exact Host Run is still preparing; claim and injection still require that

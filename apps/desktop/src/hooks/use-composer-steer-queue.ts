@@ -10,6 +10,7 @@ import type {
   PromptContextRef,
   QueuedTurnRecord,
   RunInterventionRecord,
+  UserInstructionPayload,
 } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
 import type { PendingComposerAttachment } from '../media-utils.js';
@@ -60,7 +61,8 @@ export function useComposerSteerQueue(params: UseComposerSteerQueueArgs) {
   const handleSteer = useCallback(
     async (overrideText?: string): Promise<boolean> => {
       const text = (overrideText ?? composer).trim();
-      if (!text) {
+      const contextRefs = args.getPendingContextRefs?.() ?? [];
+      if (!text && contextRefs.length === 0) {
         return false;
       }
       const reserved = parseComposerSlashSubmit(text, []);
@@ -89,6 +91,7 @@ export function useComposerSteerQueue(params: UseComposerSteerQueueArgs) {
         clientMessageId,
         instructionId: interventionId,
         targetRunId: args.state.activeRunId,
+        ...(contextRefs.length > 0 ? { contextRefs } : {}),
       });
       if (overrideText === undefined) {
         setComposer('');
@@ -100,7 +103,10 @@ export function useComposerSteerQueue(params: UseComposerSteerQueueArgs) {
           runId: args.state.activeRunId,
           interventionId,
           userMessageId: clientMessageId,
-          input: { text },
+          input: {
+            text,
+            ...(contextRefs.length > 0 ? { contextRefs } : {}),
+          },
         } as const;
         let response = await args.hostClient.request(command);
         if (!response.success && response.error.toLowerCase().includes('host request timed out')) {
@@ -124,6 +130,7 @@ export function useComposerSteerQueue(params: UseComposerSteerQueueArgs) {
             intervention: responseData.intervention,
           });
         }
+        args.clearPendingContextRefs?.();
         return true;
       } catch (error) {
         args.dispatch({ type: 'user/send-rollback', clientMessageId });
@@ -267,20 +274,13 @@ export function useComposerSteerQueue(params: UseComposerSteerQueueArgs) {
         await args.onCompact?.(normalizeCompactCustomInstructions(reserved.args));
         return;
       }
-      if (
-        (target.input.attachments?.length ?? 0) > 0 ||
-        (target.input.contextRefs?.length ?? 0) > 0
-      ) {
-        notifyError('带附件或上下文引用的消息暂不支持调整为当前任务');
-        return;
-      }
       const command = {
         type: 'run/intervention-submit',
         sessionId,
         runId: args.state.activeRunId,
         interventionId: crypto.randomUUID(),
         userMessageId: target.userMessageId,
-        input: { text: target.input.text },
+        input: instructionPayloadFromQueuedTurn(target.input),
         adoptQueuedTurn: {
           queuedTurnId: target.queuedTurnId,
           expectedRevision: target.revision,
@@ -340,4 +340,17 @@ export function useComposerSteerQueue(params: UseComposerSteerQueueArgs) {
     handleSteerQueueSendNow,
     handleSteerQueueRemove,
   };
+}
+
+function instructionPayloadFromQueuedTurn(
+  input: QueuedTurnRecord['input'],
+): UserInstructionPayload {
+  const payload: UserInstructionPayload = { text: input.text };
+  if (input.attachments && input.attachments.length > 0) {
+    payload.attachments = input.attachments;
+  }
+  if (input.contextRefs && input.contextRefs.length > 0) {
+    payload.contextRefs = input.contextRefs;
+  }
+  return payload;
 }

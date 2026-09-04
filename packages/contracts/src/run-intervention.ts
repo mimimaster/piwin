@@ -48,6 +48,12 @@ export type BackendRunIntervention = {
   runtimeGenerationId: string;
   sequence: number;
   text: string;
+  /**
+   * Native vision parts loaded by Host at arm time. Image bytes stay off the
+   * durable intervention record; the staging queue holds them only for the
+   * exact Run they were armed for.
+   */
+  images?: Array<{ dataBase64: string; mimeType: string }>;
 };
 
 /** Sibling backend lifecycle channel; never projected as an AgentEvent. */
