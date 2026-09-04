@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ARTIFACT_BRIDGE_SIZE_TYPE, ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE } from './constants.js';
-import { parseArtifactBridgeMessage, parseArtifactRenderSnapshot } from './bridge-protocol.js';
+import { parseArtifactBridgeMessage, parseArtifactRenderSnapshot, readArtifactPostSeq } from './bridge-protocol.js';
 
 describe('parseArtifactBridgeMessage', () => {
   it('accepts and normalizes a valid revisioned size message', () => {
@@ -65,6 +65,39 @@ describe('parseArtifactBridgeMessage', () => {
         revision: 1,
       }),
     ).toBeNull();
+  });
+
+  it('ignores dual-channel seq when parsing the size envelope', () => {
+    expect(
+      parseArtifactBridgeMessage({
+        type: ARTIFACT_BRIDGE_SIZE_TYPE,
+        channelId: 'ch-1',
+        height: 120,
+        viewportHeight: 80,
+        revision: 0,
+        seq: 4,
+      }),
+    ).toEqual({
+      type: ARTIFACT_BRIDGE_SIZE_TYPE,
+      channelId: 'ch-1',
+      height: 120,
+      viewportHeight: 80,
+      revision: 0,
+    });
+  });
+});
+
+describe('readArtifactPostSeq', () => {
+  it('accepts a non-negative safe integer seq', () => {
+    expect(readArtifactPostSeq({ seq: 0 })).toBe(0);
+    expect(readArtifactPostSeq({ seq: 7 })).toBe(7);
+  });
+
+  it('rejects missing and invalid seq values', () => {
+    expect(readArtifactPostSeq(null)).toBeNull();
+    expect(readArtifactPostSeq({})).toBeNull();
+    expect(readArtifactPostSeq({ seq: -1 })).toBeNull();
+    expect(readArtifactPostSeq({ seq: 1.5 })).toBeNull();
   });
 });
 

@@ -54,7 +54,7 @@ For every sandbox case (`script-fragment`, `flow-6000`, `overflow-20000`, Canvas
 ## Native bridge (required)
 
 1. Height: Inline sandbox must leave the 80px bootstrap. A persistent 360px recovery viewport is a **fail** for `flow-6000` / `overflow-20000`; a brief recovery state must remain scrollable and clear after a valid size arrives.
-2. Listen for `piwin-artifact-bridge` / `piwin-artifact:size` on the WKWebView return channel (`artifact-native-bridge`). Packaged WebKit often cannot use `parent.postMessage`; the native handler is the product path.
+2. Listen for `piwin-artifact-bridge` / `piwin-artifact:size` on the WKWebView return channel (`artifact-native-bridge`). The iframe must also `parent.postMessage` the same envelope (`seq` shared). A persistent recovery banner after five seconds is a fail even if one of the two channels is silent.
 3. Canvas: open `explicit-canvas`, confirm the stage is live (`data-artifact-host="live"`, `data-artifact-layout="canvas"`), and a size/action message still arrives.
 4. After a parent re-render (focus composer, switch inspector tab back), height must not jump back to bootstrap.
 5. Switch from a session with a live Artifact to another Artifact session. The second frame must receive its own first size immediately; wait beyond five seconds and confirm no large blank recovery box appears below short content.

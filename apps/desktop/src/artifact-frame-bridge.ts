@@ -9,6 +9,7 @@ import {
   clampArtifactHeight,
   parseArtifactActionMessage,
   parseArtifactBridgeMessage,
+  readArtifactPostSeq,
   resolveArtifactViewportFrameHeight,
   shouldEnterArtifactInlineOverflow,
   type ArtifactActionMessage,
@@ -45,6 +46,22 @@ type BridgeInput = {
 
 function hostOwnsViewport(frameMode: ArtifactFrameMode): boolean {
   return frameMode === 'inline-viewport' || frameMode === 'inline-overflow';
+}
+
+/**
+ * Browser-channel trust. Prefer Window identity when WKWebView preserves it.
+ * Sandboxed data: frames often fail `event.source === iframe.contentWindow`,
+ * so a non-parent source is accepted and bound by channelId — the same
+ * selector the native handler already uses.
+ */
+function isTrustedArtifactFrameSource(
+  event: MessageEvent,
+  iframeWindow: Window | null | undefined,
+): boolean {
+  if (event.source === iframeWindow) {
+    return true;
+  }
+  return event.source !== null && event.source !== undefined && event.source !== window;
 }
 
 function resolvePaneHeight(input: BridgeInput): number | null {
@@ -89,6 +106,7 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
   const readyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heightRef = useRef(input.bootstrapHeight);
   const lastRevisionRef = useRef(-1);
+  const lastPostSeqRef = useRef(-1);
   const statusRef = useRef<ArtifactBridgeStatus>(initialStatus);
   const dataHandlerRef = useRef<(data: unknown, trustedSource: boolean) => void>(() => undefined);
 
@@ -143,10 +161,17 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
 
   dataHandlerRef.current = (data, trustedSource): void => {
     const current = latestRef.current;
+    const postSeq = readArtifactPostSeq(data);
+    if (postSeq !== null && postSeq <= lastPostSeqRef.current) {
+      return;
+    }
     const action = parseArtifactActionMessage(data);
     if (action) {
       if (!trustedSource || action.channelId !== current.channelId) {
         return;
+      }
+      if (postSeq !== null) {
+        lastPostSeqRef.current = postSeq;
       }
       if (
         current.presentation === 'canvas' &&
@@ -170,6 +195,9 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
       message.revision <= lastRevisionRef.current
     ) {
       return;
+    }
+    if (postSeq !== null) {
+      lastPostSeqRef.current = postSeq;
     }
     lastRevisionRef.current = message.revision;
     const wasRecovering = statusRef.current === 'fallback';
@@ -203,6 +231,7 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
 
   const onIframeLoad = useCallback((): void => {
     lastRevisionRef.current = -1;
+    lastPostSeqRef.current = -1;
     startReadyTimer();
     requestMeasurement(false);
   }, [requestMeasurement, startReadyTimer]);
@@ -219,8 +248,15 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
     const nextHeight = resolveStageHeight(input);
     heightRef.current = nextHeight;
     lastRevisionRef.current = -1;
+    lastPostSeqRef.current = -1;
     setHeight(nextHeight);
-    updateStatus(initialStatus);
+    updateStatus(
+      input.measureHeight
+        ? input.decision.mode === 'stream-preview'
+          ? 'streaming'
+          : 'loading'
+        : 'ready',
+    );
     if (!hostOwnsViewport(input.frameMode)) {
       setOverflowsInlineFlow(false);
       setContentHeight(input.bootstrapHeight);
@@ -228,9 +264,7 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
 
     const onWindowMessage = (event: MessageEvent): void => {
       const iframeWindow = latestRef.current.iframeRef.current?.contentWindow;
-      const trustedSource =
-        iframeWindow !== null && iframeWindow !== undefined && event.source === iframeWindow;
-      dataHandlerRef.current(event.data, trustedSource);
+      dataHandlerRef.current(event.data, isTrustedArtifactFrameSource(event, iframeWindow));
     };
     window.addEventListener('message', onWindowMessage);
 
@@ -262,6 +296,7 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
     input.documentKey,
     input.enabled,
     input.frameMode,
+    input.measureHeight,
     requestMeasurement,
     updateStatus,
   ]);

@@ -56,9 +56,11 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(srcdoc).toContain('post(actionType, { action: action, payload: payload || {} })');
     expect(srcdoc).toContain("parent.postMessage(message, '*')");
     expect(srcdoc).toContain('window.ResizeObserver');
-    expect(srcdoc).toContain('heightObserver.observe(root)');
-    expect(srcdoc).toContain('root.getBoundingClientRect().height');
-    expect(srcdoc).not.toContain('document.body.getBoundingClientRect');
+    expect(srcdoc).toContain('seq: postSeq');
+    expect(srcdoc).not.toMatch(/nativeHandler\.postMessage\([^)]+\);\s*return;/);
+    expect(srcdoc).toContain('heightObserver.observe(node)');
+    expect(srcdoc).toContain('node.getBoundingClientRect().height');
+    expect(srcdoc).toContain('var body = document.body');
     expect(srcdoc).not.toContain('document.documentElement.scrollHeight');
     expect(srcdoc).toContain('revision: sizeRevision');
     expect(srcdoc).toContain('height === lastReportedHeight');
@@ -121,7 +123,7 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(srcdoc).toContain('height: 100% !important');
     expect(srcdoc).not.toContain('<div class="piwin-artifact-root">');
     expect(srcdoc).toContain('var currentFrameMode = "inline-viewport";');
-    expect(srcdoc).toContain('if (!root || !root.getBoundingClientRect) return;');
+    expect(srcdoc).toContain('var measureNode = function ()');
     expect(srcdoc).toContain('window.ResizeObserver');
     expect(srcdoc).toContain(ARTIFACT_BRIDGE_SIZE_TYPE);
   });
@@ -228,6 +230,7 @@ describe('buildHtmlArtifactSrcdoc', () => {
         height: 240,
         viewportHeight: 80,
         revision: 0,
+        seq: 0,
       },
     ]);
 
@@ -433,6 +436,24 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(session.observerCount()).toBe(0);
     expect(session.messages.length - sizeCountAfterOverflow).toBeLessThanOrEqual(1);
   });
+
+  it('delivers the same size on native and parent channels', () => {
+    const root = createMeasuredRoot(240);
+    const session = runBridgeSession(root, { nativeHandler: true });
+    expect(session.messages).toHaveLength(1);
+    expect(session.nativeMessages).toEqual(session.messages);
+  });
+
+  it('reports body height when the fragment root is absent', () => {
+    const session = runBridgeSession(null, { bodyHeight: 512 });
+    expect(session.messages.at(-1)).toMatchObject({ height: 512, revision: 0 });
+  });
+
+  it('prefers the fragment root over body height', () => {
+    const root = createMeasuredRoot(240);
+    const session = runBridgeSession(root, { bodyHeight: 900 });
+    expect(session.messages.at(-1)).toMatchObject({ height: 240 });
+  });
 });
 
 type MeasuredRoot = {
@@ -446,6 +467,7 @@ type SizeMessage = {
   height: number;
   viewportHeight: number;
   revision: number;
+  seq?: number;
 };
 
 function createMeasuredRoot(height: number): MeasuredRoot {
@@ -457,10 +479,16 @@ function createMeasuredRoot(height: number): MeasuredRoot {
 }
 
 function runBridgeSession(
-  root: MeasuredRoot,
-  options: { enableRenderCommand?: boolean; frameMode?: ArtifactFrameMode } = {},
+  root: MeasuredRoot | null,
+  options: {
+    enableRenderCommand?: boolean;
+    frameMode?: ArtifactFrameMode;
+    nativeHandler?: boolean;
+    bodyHeight?: number;
+  } = {},
 ): {
   messages: SizeMessage[];
+  nativeMessages: SizeMessage[];
   documentElement: { attributes: Record<string, string> };
   observerCount: () => number;
   listenerCount: () => number;
@@ -471,6 +499,7 @@ function runBridgeSession(
   dispatchRenderCommand: (data: unknown) => void;
 } {
   const messages: SizeMessage[] = [];
+  const nativeMessages: SizeMessage[] = [];
   const resizeCallbacks = new Set<() => void>();
   const animationCallbacks: Array<() => void> = [];
   const messageListeners: Array<(event: { data: unknown }) => void> = [];
@@ -503,19 +532,43 @@ function runBridgeSession(
         resizeCallbacks.delete(this.callback);
       }
     },
+    webkit: undefined as
+      | {
+          messageHandlers: {
+            piwinArtifact: { postMessage: (body: string) => void };
+          };
+        }
+      | undefined,
   };
+  if (options.nativeHandler === true) {
+    windowObject.webkit = {
+      messageHandlers: {
+        piwinArtifact: {
+          postMessage(body: string): void {
+            const parsed: unknown = JSON.parse(body);
+            if (isSizeMessage(parsed)) nativeMessages.push(parsed);
+          },
+        },
+      },
+    };
+  }
   let scriptActivations = 0;
-  const fragmentRoot = {
-    ...root,
-    firstChild: null as unknown,
-    querySelectorAll: (selector: string) =>
-      selector === 'script'
-        ? [{ attributes: [], textContent: '', replaceWith: () => undefined }]
-        : [],
-  };
+  const fragmentRoot =
+    root === null
+      ? null
+      : {
+          ...root,
+          firstChild: null as unknown,
+          querySelectorAll: (selector: string) =>
+            selector === 'script'
+              ? [{ attributes: [], textContent: '', replaceWith: () => undefined }]
+              : [],
+        };
+  const bodyNode = createMeasuredRoot(options.bodyHeight ?? (root === null ? 0 : root.height));
   const documentObject = {
     readyState: 'complete',
     documentElement,
+    body: bodyNode,
     querySelector: (selector: string) =>
       selector === '.piwin-artifact-root' ? fragmentRoot : null,
     addEventListener: () => undefined,
@@ -577,6 +630,7 @@ function runBridgeSession(
 
   return {
     messages,
+    nativeMessages,
     documentElement,
     observerCount: () => resizeCallbacks.size,
     listenerCount: () => messageListeners.length,
