@@ -4,6 +4,7 @@ import {
   fileNameFromLocalPath,
   parentDirectoryOf,
   resolveLocalFileAbsolutePath,
+  revealLocalFileInFolder,
   saveLocalFileAs,
 } from './local-file-actions.js';
 
@@ -29,6 +30,15 @@ describe('parentDirectoryOf', () => {
   it('returns the parent folder', () => {
     expect(parentDirectoryOf('/Users/me/proj/a.zip')).toBe('/Users/me/proj');
     expect(parentDirectoryOf('/Users/me/proj/')).toBe('/Users/me');
+  });
+});
+
+describe('revealLocalFileInFolder', () => {
+  it('does not open a file manager outside the desktop window', async () => {
+    await expect(revealLocalFileInFolder('/Users/me/proj/a.zip')).resolves.toEqual({
+      ok: false,
+      reason: 'not-desktop',
+    });
   });
 });
 

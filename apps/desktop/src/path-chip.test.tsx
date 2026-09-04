@@ -286,4 +286,36 @@ describe('PathChip context menu (CM-06)', () => {
 
     expect(writeText).toHaveBeenCalledWith('src/a.ts');
   });
+
+  it('tells the user reveal needs the desktop window in the browser preview', async () => {
+    const onNotify = vi.fn();
+    const rendered = renderPathChip(
+      <PathChip
+        fullPath="/p/src/a.ts"
+        label="a.ts"
+        projectPath="/p"
+        relativePath="src/a.ts"
+        data-testid="path-chip-a"
+        onOpen={() => undefined}
+        onNotify={onNotify}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    openContextMenu(container.querySelector('[data-testid="path-chip-a"]') as HTMLElement);
+    const revealItem = menuItem('context-menu-reveal') as HTMLElement | null;
+    expect(revealItem).not.toBeNull();
+    act(() => {
+      revealItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(onNotify).toHaveBeenCalledWith(
+      'Show in Finder needs the desktop window, not the browser preview.',
+      'error',
+    );
+  });
 });

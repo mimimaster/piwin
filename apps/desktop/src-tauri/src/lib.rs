@@ -3,6 +3,7 @@ mod host_bridge;
 mod memory_pressure;
 mod pet_overlay;
 mod pty_host;
+mod reveal_in_file_manager;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -173,6 +174,7 @@ pub fn run() {
             pet_overlay_hide,
             pet_overlay_toggle,
             show_main_window,
+            reveal_in_file_manager::reveal_in_file_manager,
             memory_pressure::purge_webview_memory,
             memory_pressure::relaunch_webview_renderer
         ])
