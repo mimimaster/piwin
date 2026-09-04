@@ -3,8 +3,12 @@
  *
  * Save As prefers asset-protocol fetch, then Host `preview/export-local-file`
  * for workspace paths outside the Tauri asset scope. Last resort: copy path +
- * open the parent folder. Reveal uses plugin-shell `open` (macOS + Windows).
+ * open the parent folder. Reveal uses a desktop `open -R` command (Finder /
+ * Explorer); plugin-shell `open` cannot be used because its default scope is
+ * http(s)/mailto/tel only.
  */
+
+import { isTauriRuntime } from './tauri-pty.js';
 
 export function fileNameFromLocalPath(path: string): string {
   const trimmed = path.replace(/[\\/]+$/, '');
@@ -179,21 +183,28 @@ export async function saveLocalFileAs(
     // ignore clipboard failures; still try reveal
   }
   const revealed = await revealLocalFileInFolder(absolutePath);
-  return revealed ? { kind: 'revealed-fallback' } : { kind: 'failed' };
+  return revealed.ok ? { kind: 'revealed-fallback' } : { kind: 'failed' };
 }
 
+export type RevealLocalFileResult =
+  | { ok: true }
+  | { ok: false; reason: 'not-desktop' | 'failed' };
+
 /**
- * Open the file's parent folder in the OS file manager (Finder / Explorer).
- * Selecting the file itself needs shell execute scopes we do not enable yet;
- * opening the folder is the portable subset.
+ * Reveal the file in the OS file manager (Finder selects the file on macOS).
+ * Browser / mock preview has no desktop shell, so this returns `not-desktop`.
  */
-export async function revealLocalFileInFolder(absolutePath: string): Promise<boolean> {
-  const folder = parentDirectoryOf(absolutePath);
+export async function revealLocalFileInFolder(
+  absolutePath: string,
+): Promise<RevealLocalFileResult> {
+  if (!isTauriRuntime()) {
+    return { ok: false, reason: 'not-desktop' };
+  }
   try {
-    const { open } = await import('@tauri-apps/plugin-shell');
-    await open(folder);
-    return true;
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('reveal_in_file_manager', { path: absolutePath });
+    return { ok: true };
   } catch {
-    return false;
+    return { ok: false, reason: 'failed' };
   }
 }

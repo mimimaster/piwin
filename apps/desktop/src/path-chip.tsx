@@ -96,13 +96,23 @@ export function PathChip({
         onOpen();
       },
       revealPath: (path) => {
-        void revealLocalFileInFolder(path).then((ok) => {
-          if (!ok) {
+        void revealLocalFileInFolder(path).then((result) => {
+          if (result.ok) {
+            return;
+          }
+          if (result.reason === 'not-desktop') {
             notify?.(
-              locale === 'zh-CN' ? '无法在文件管理器中打开' : 'Could not show in file manager',
+              locale === 'zh-CN'
+                ? '当前是浏览器预览，无法打开 Finder。请用桌面窗口。'
+                : 'Show in Finder needs the desktop window, not the browser preview.',
               'error',
             );
+            return;
           }
+          notify?.(
+            locale === 'zh-CN' ? '无法在文件管理器中打开' : 'Could not show in file manager',
+            'error',
+          );
         });
       },
       savePathAs: (path) => {
