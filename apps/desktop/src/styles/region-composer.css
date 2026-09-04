@@ -162,6 +162,29 @@
     0 0 0 1px color-mix(in srgb, var(--ember) 55%, transparent);
 }
 
+/* Side chat + supplementary panes reuse the same card, but they sit in a
+   narrow column so the chat-max width and stage padding must not apply. */
+.composer-card-v2.is-compact-session {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+  pointer-events: auto;
+}
+
+.composer-card-v2.is-compact-session .composer-v2-input-area {
+  padding: var(--s-4) var(--s-5) var(--s-2);
+}
+
+.composer-card-v2.is-compact-session .composer-v2-textarea {
+  min-height: 40px;
+}
+
+.composer-card-v2.is-compact-session .composer-v2-toolbar {
+  padding: var(--s-1) var(--s-4) var(--s-3);
+}
+
 /* Empty session: a single focused prompt card, without landing-page chrome. */
 .chat-column-empty .composer-dock.layout-centered .composer-card-v2 {
   width: var(--chat-max);

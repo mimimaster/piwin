@@ -153,40 +153,11 @@
 
 .conversation-pane-composer {
   display: flex;
+  flex-direction: column;
   flex: 0 0 auto;
-  align-items: flex-end;
-  gap: var(--s-3);
   padding: var(--s-4) var(--s-5) var(--s-5);
-  background: var(--surface-1);
-  box-shadow: inset 0 1px 0 var(--line-1);
-}
-
-.conversation-pane-composer .piwin-text-area {
-  min-width: 0;
-  flex: 1 1 auto;
-}
-
-.conversation-pane-composer .piwin-text-area-field {
-  min-height: 54px;
-  max-height: 140px;
-  resize: vertical;
-  background: var(--surface-2);
-}
-
-.conversation-pane-send {
-  width: var(--h-md);
-  min-width: var(--h-md);
-  height: var(--h-md);
-  min-height: var(--h-md);
-  margin-bottom: var(--s-1);
-  border-radius: var(--r-control);
-  background: var(--iris-fill);
-  color: var(--on-iris);
-}
-
-.conversation-pane-send.is-stop {
-  background: var(--danger);
-  color: var(--on-iris);
+  background: transparent;
+  box-shadow: none;
 }
 
 .conversation-pane-error {

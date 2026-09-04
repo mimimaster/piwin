@@ -31,6 +31,7 @@ import { createHostToolAdmission } from './tools/tool-admission.js';
 
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
 import type { ComposedSessionHostTools } from './host-runtime-types.js';
+import { ensureBrowserSessionBestEffort } from './host-runtime-services.js';
 
 /**
  * Compose Host-owned tools for one session for the parent tool execution port.
@@ -158,6 +159,10 @@ export async function composeSessionHostToolsForSession(
     piwinRoot: deps.options.piwinRoot,
   });
   const turnChangeRuntime = deps.turnChangeRuntime;
+  // Cold activate / generation rebuild skip createSession, which used to be
+  // the only caller of ensureBrowserSession. Compose is the shared path, so
+  // register the passive session here or `browser_*` never reach the model.
+  await ensureBrowserSessionBestEffort(deps);
   const tools = await buildSessionHostTools({
     sessionId,
     piwinRoot: rootDir,

@@ -5,7 +5,6 @@
 
 import { join } from 'node:path';
 import type { CreateSessionInput, CreateSessionOptions, SessionHandle } from '@piwin/contracts';
-import { formatError } from '@piwin/contracts';
 
 import {
   createSessionRecord,
@@ -25,6 +24,7 @@ import { getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
 import { ok } from './response-helpers.js';
 
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
+import { ensureBrowserSessionBestEffort } from './host-runtime-services.js';
 
 export async function resolveAutoCompaction(
   deps: HostRuntimeKernel,
@@ -288,18 +288,7 @@ export async function createSession(
   // appear; creating/subscribing it does not launch Chromium (ADR 0020).
   // Best-effort: service initialization failure must not block session
   // creation — the tools simply will not appear.
-  if (deps.options.mock !== true) {
-    try {
-      await deps.ensureBrowserSession();
-    } catch (error) {
-      const detail = formatError(error);
-      deps.push({
-        type: 'host/log',
-        level: 'warn',
-        message: `browser session init failed: ${detail}`,
-      });
-    }
-  }
+  await ensureBrowserSessionBestEffort(deps);
   const sessionId = createProductSessionId();
   const runtimeGenerationId = createRuntimeGenerationId();
   await deps.refreshWorkerRssSample();

@@ -590,8 +590,10 @@ export function getMcpManager(deps: HostRuntimeKernel): McpLifecycleManager {
  * and its push subscription are passive — Chromium launches only when the
  * desktop acquires its mirror lease or an agent performs a browser operation.
  * Frame/state events are forwarded to `this.push` so the desktop panel
- * mirrors the agent's page. Called before the first Pi session creation so
- * `browser_*` tools register without making Chromium resident.
+ * mirrors the agent's page. Must run before Host tool composition so
+ * `browser_*` tools register without making Chromium resident. Create, cold
+ * activate, and generation rebuild all compose tools; skipping this omits
+ * the browser family even though bash/fs still appear.
  */
 export async function ensureBrowserSession(
   deps: HostRuntimeKernel,
@@ -607,6 +609,26 @@ export async function ensureBrowserSession(
     })();
   }
   return deps.browserSessionInit;
+}
+
+/**
+ * Best-effort BrowserSession registration for tool composition. Mock hosts
+ * stay tool-less. Failure must not block session create/activate — the
+ * `browser_*` family is simply omitted.
+ */
+export async function ensureBrowserSessionBestEffort(
+  deps: HostRuntimeKernel,
+): Promise<void> {
+  if (deps.options.mock === true) return;
+  try {
+    await ensureBrowserSession(deps);
+  } catch (error) {
+    deps.push({
+      type: 'host/log',
+      level: 'warn',
+      message: `browser session init failed: ${formatError(error)}`,
+    });
+  }
 }
 
 export function isRpcWorkerMode(deps: HostRuntimeKernel): boolean {

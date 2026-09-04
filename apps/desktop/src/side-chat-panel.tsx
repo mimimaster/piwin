@@ -11,22 +11,27 @@
  *  - Offers handoff: insert side chat response into the main composer.
  */
 
-import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactElement } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import { Button, RadialBellow } from '@piwin/ui-kit';
 import { formatError } from '@piwin/contracts';
 import type {
   AgentEvent,
   HostServerMessage,
+  ModelRef,
   SessionSummary,
   SideChatOpenData,
   SideChatSyncData,
+  ThinkingLevel,
 } from '@piwin/contracts';
 import type { HostClient } from './host-client';
 import {
   appendBoundedLiveText,
   STREAMING_TEXT_RETENTION_OPTIONS,
 } from './chat-reducer';
+import { CompactPromptComposer } from './compact-prompt-composer.js';
 import { foregroundMismatchNotice, readForegroundProblem } from './prompt-foreground';
+import { commitSessionComposerProfile } from './hooks/commit-session-composer-profile.js';
+import { useSessionComposerProfile } from './hooks/use-session-composer-profile.js';
 import { abortSideChatRun, sendSideChatPrompt } from './side-chat-host-requests.js';
 import { createGestureIdempotencyKey } from './gesture-idempotency.js';
 import { useDesktopLocale } from './desktop-locale-context';
@@ -83,31 +88,61 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
   const [assistantBuffer, setAssistantBuffer] = useState('');
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
 
-  // Refresh side chat list when the main session changes.
-  const refreshList = useCallback(async () => {
+  const [resumeModel, setResumeModel] = useState<ModelRef | null>(null);
+  const [resumeThinkingLevel, setResumeThinkingLevel] = useState<ThinkingLevel | undefined>(
+    undefined,
+  );
+  const composer = useSessionComposerProfile({
+    hostClient,
+    sessionId: activeSideChatId,
+    ...(resumeModel ? { resumeModel } : {}),
+    ...(resumeThinkingLevel !== undefined ? { resumeThinkingLevel } : {}),
+  });
+
+  const refreshList = useCallback(async (): Promise<SessionSummary[]> => {
     if (!sessionId) {
       setSideChats([]);
-      return;
+      return [];
     }
     try {
-      const response = await hostClient.sideChatList(sessionId);
+      const response = await hostClient.request({
+        type: 'side-chat/list',
+        sourceSessionId: sessionId,
+      });
       if (response.success) {
         const data = response.data as { sessions: SessionSummary[] } | undefined;
-        setSideChats(data?.sessions ?? []);
+        const sessions = data?.sessions ?? [];
+        setSideChats(sessions);
+        return sessions;
       }
     } catch {
       // Non-fatal: list refresh is best-effort.
     }
+    return [];
   }, [hostClient, sessionId]);
 
   useEffect(() => {
-    void refreshList();
-    // Clear messages when main session changes.
+    let cancelled = false;
     setActiveSideChatId(null);
     setMessages([]);
     setContextVersion(0);
     setSourceState('active');
     setActiveRunId(null);
+    setResumeModel(null);
+    setResumeThinkingLevel(undefined);
+    void (async () => {
+      const sessions = await refreshList();
+      if (cancelled) return;
+      const newest = sessions[0];
+      if (!newest) return;
+      setActiveSideChatId(newest.id);
+      setContextVersion(newest.sideChatRelation?.contextVersion ?? 0);
+      setSourceState(newest.sideChatRelation?.sourceState ?? 'active');
+      await hydrateSideChat(newest);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [sessionId, refreshList]);
 
   // Subscribe to agent events for the active side chat.
@@ -185,50 +220,24 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
     }
   }
 
-  async function handleOpenSideChat(): Promise<void> {
-    if (!sessionId) return;
-    setError(null);
-    try {
-      const response = await hostClient.sideChatOpen(sessionId);
-      if (!response.success) {
-        setError(response.error);
-        return;
-      }
-      const data = response.data as SideChatOpenData | undefined;
-      if (!data) return;
-      setActiveSideChatId(data.sideChatSessionId);
-      setMessages([]);
-      setContextVersion(data.relation.contextVersion);
-      setSourceState(data.relation.sourceState);
-      await refreshList();
-    } catch (err) {
-      setError(formatError(err));
-    }
-  }
-
-  async function handleSelectSideChat(sideChatId: string): Promise<void> {
-    const selected = sideChats.find((chat) => chat.id === sideChatId);
-    if (!selected) return;
-    setActiveSideChatId(sideChatId);
+  async function hydrateSideChat(chat: SessionSummary): Promise<void> {
+    setActiveSideChatId(chat.id);
     setMessages([]);
-    setContextVersion(selected.sideChatRelation?.contextVersion ?? 0);
-    setSourceState(selected.sideChatRelation?.sourceState ?? 'active');
+    setContextVersion(chat.sideChatRelation?.contextVersion ?? 0);
+    setSourceState(chat.sideChatRelation?.sourceState ?? 'active');
     setActiveRunId(null);
     setError(null);
-
-    // Resume the session in the host.
+    setResumeModel(chat.model ?? null);
+    setResumeThinkingLevel(chat.thinkingLevel);
     try {
-      await hostClient.request({ type: 'session/resume', sessionId: sideChatId });
+      await hostClient.request({ type: 'session/resume', sessionId: chat.id });
     } catch {
       // Non-fatal: resume failure means the host will create a fresh handle on prompt.
     }
-
-    // SIDE §11.4(4): hydrate the existing transcript so the user sees prior
-    // side-chat messages after switching panels or reconnecting.
     try {
       const messagesResponse = await hostClient.request({
         type: 'session/messages',
-        sessionId: sideChatId,
+        sessionId: chat.id,
       });
       if (messagesResponse.success) {
         const data = messagesResponse.data as
@@ -251,12 +260,54 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
     }
   }
 
+  async function openSideChat(): Promise<string | null> {
+    if (!sessionId) return null;
+    setError(null);
+    try {
+      const response = await hostClient.request({
+        type: 'side-chat/open',
+        sourceSessionId: sessionId,
+      });
+      if (!response.success) {
+        setError(response.error);
+        return null;
+      }
+      const data = response.data as SideChatOpenData | undefined;
+      if (!data) return null;
+      setActiveSideChatId(data.sideChatSessionId);
+      setMessages([]);
+      setContextVersion(data.relation.contextVersion);
+      setSourceState(data.relation.sourceState);
+      setResumeModel(composer.promptFields.model ?? data.session.model ?? null);
+      setResumeThinkingLevel(composer.thinkingLevel);
+      await commitSessionComposerProfile({
+        request: (command) => hostClient.request(command),
+        sessionId: data.sideChatSessionId,
+        ...composer.promptFields,
+      });
+      await refreshList();
+      return data.sideChatSessionId;
+    } catch (err) {
+      setError(formatError(err));
+      return null;
+    }
+  }
+
+  async function handleSelectSideChat(sideChatId: string): Promise<void> {
+    const selected = sideChats.find((chat) => chat.id === sideChatId);
+    if (!selected) return;
+    await hydrateSideChat(selected);
+  }
+
   async function handleSync(): Promise<void> {
     if (!activeSideChatId) return;
     setSyncing(true);
     setError(null);
     try {
-      const response = await hostClient.sideChatSync(activeSideChatId);
+      const response = await hostClient.request({
+        type: 'side-chat/sync',
+        sideChatSessionId: activeSideChatId,
+      });
       if (!response.success) {
         setError(response.error);
         return;
@@ -275,10 +326,15 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
     }
   }
 
-  async function handleSend(event: FormEvent): Promise<void> {
-    event.preventDefault();
+  async function handleSend(): Promise<void> {
     const text = input.trim();
-    if (!text || !activeSideChatId || streaming) return;
+    if (!text || !sessionId || streaming) return;
+    const promptFields = composer.promptFields;
+    let targetId = activeSideChatId;
+    if (!targetId) {
+      targetId = await openSideChat();
+      if (!targetId) return;
+    }
 
     const userMessage: SideChatMessage = {
       id: `${Date.now()}-u`,
@@ -294,10 +350,11 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
     try {
       const response = await sendSideChatPrompt({
         request: (command, options) => hostClient.request(command, options),
-        sessionId: activeSideChatId,
+        sessionId: targetId,
         text,
         createIdempotencyKey: createGestureIdempotencyKey,
         remoteForegroundAdmission: hostClient.supportsForegroundAdmission(),
+        ...promptFields,
       });
       if (!response.success) {
         const problem = readForegroundProblem(response);
@@ -350,7 +407,6 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
 
 
   const canSync = activeSideChatId !== null && sourceState === 'active' && !syncing;
-  const canSend = activeSideChatId !== null && !streaming && input.trim().length > 0;
 
   return (
     <div className="side-chat-panel" data-testid="side-chat-panel">
@@ -360,6 +416,7 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
           <>
             <select
               className="side-chat-picker"
+              data-testid="side-chat-picker"
               value={activeSideChatId}
               onChange={(event) => void handleSelectSideChat(event.target.value)}
               aria-label="Select side chat"
@@ -379,12 +436,21 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
             >
               {syncing ? 'Syncing…' : 'Sync'}
             </Button>
+            <Button
+              size="compact"
+              variant="ghost"
+              onClick={() => void openSideChat()}
+              disabled={!sessionId}
+              data-testid="side-chat-new"
+            >
+              New
+            </Button>
           </>
         ) : (
           <Button
             size="compact"
             variant="secondary"
-            onClick={() => void handleOpenSideChat()}
+            onClick={() => void openSideChat()}
             disabled={!sessionId}
             data-testid="side-chat-new"
           >
@@ -417,7 +483,9 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
           <div className="muted side-chat-empty">
             {activeSideChatId
               ? 'Ask a question about the current context. The side chat is read-only — it can search and read files but cannot modify them.'
-              : 'Open a side chat to ask questions about the current session context.'}
+              : sessionId
+                ? 'Ask about the current session context. Sending will open a side chat.'
+                : 'Open a main session first, then ask about its context.'}
           </div>
         ) : (
           <>
@@ -459,28 +527,37 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
         </div>
       )}
 
-      {/* Composer: Send / Stop only (no attachments, no mode toggle) */}
-      <form className="side-chat-composer" onSubmit={handleSend}>
-        <input
-          className="side-chat-input"
+      <div className="side-chat-composer">
+        <CompactPromptComposer
           value={input}
-          onChange={(event) => setInput(event.target.value)}
-          placeholder={activeSideChatId ? 'Ask about the context…' : 'Open a side chat first'}
-          aria-label="Side chat input"
-          spellCheck={false}
-          autoComplete="off"
-          disabled={!activeSideChatId}
+          onChange={setInput}
+          placeholder={
+            sessionId
+              ? 'Ask about the context…'
+              : locale === 'zh-CN'
+                ? '先打开一个主会话'
+                : 'Open a main session first'
+          }
+          ariaLabel="Side chat input"
+          testId="side-chat-input"
+          disabled={!sessionId}
+          streaming={streaming}
+          showStop={streaming}
+          sendLabel={locale === 'zh-CN' ? '发送' : 'Send'}
+          stopLabel={locale === 'zh-CN' ? '停止' : 'Stop'}
+          sendTestId="side-chat-send"
+          stopTestId="side-chat-stop"
+          onSend={() => void handleSend()}
+          onStop={() => void handleStop()}
+          modelOptions={composer.modelOptions}
+          selectedModelKey={composer.selectedModelKey}
+          selectedModelLabel={composer.selectedModelLabel}
+          thinkingLevel={composer.thinkingLevel}
+          onSelectModel={(key: string) => void composer.selectModel(key)}
+          onThinkingLevelChange={(level) => void composer.setThinkingLevel(level)}
+          modelPickerDisabled={!sessionId}
         />
-        {streaming ? (
-          <Button type="button" variant="danger" onClick={() => void handleStop()} data-testid="side-chat-stop">
-            Stop
-          </Button>
-        ) : (
-          <Button type="submit" data-testid="side-chat-send" disabled={!canSend}>
-            Send
-          </Button>
-        )}
-      </form>
+      </div>
     </div>
   );
 }

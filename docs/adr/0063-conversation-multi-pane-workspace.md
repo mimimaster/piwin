@@ -59,8 +59,9 @@ References:
    preset, close, and maximize actions remain available as buttons or menus.
 9. The first leaf is the primary pane and reuses the existing full Conversation
    stage. Supplementary leaves use the same Host contract and shared message
-   renderers with a compact text composer. Project-only Agent chrome is never
-   mounted in supplementary panes.
+   renderers with a compact prompt card that reuses the main composer input
+   and model/thinking picker. Project-only Agent chrome is never mounted in
+   supplementary panes.
 10. A one-pane layout is visually identical to the pre-feature Conversation
     stage. Pane borders, headers, numbering, and controls appear only after the
     first split.
@@ -72,10 +73,10 @@ References:
 - Layout can differ safely between Desktop devices connected to one Host.
 - The primary pane continues to own global titlebar/sidebar integration during
   the first slice. Supplementary panes own their title, transcript, run state,
-  text composer, and the shared assistant media surface. Media galleries,
-  generation progress, activity labels, and Artifact previews size against the
-  pane container; per-pane history controls can be added without changing the
-  split-tree contract.
+  compact prompt card (including per-session model selection), and the shared
+  assistant media surface. Media galleries, generation progress, activity
+  labels, and Artifact previews size against the pane container; per-pane
+  history controls can be added without changing the split-tree contract.
 - The protocol subscription ceiling is a compatibility-safe additive capacity
   change under protocol v1; older clients still send smaller lists.
 

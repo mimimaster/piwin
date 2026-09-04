@@ -4,11 +4,8 @@ import {
   useReducer,
   useRef,
   useState,
-  type FormEvent,
-  type KeyboardEvent,
   type ReactElement,
 } from 'react';
-import { IconButton, TextArea } from '@piwin/ui-kit';
 import {
   formatError,
   parseSessionContextSnapshot,
@@ -18,6 +15,7 @@ import {
   type SessionResumeData,
   type SessionScope,
   type SessionTranscriptMessage,
+  type ThinkingLevel,
   type ThemeManifest,
 } from '@piwin/contracts';
 import { chatUiReducer, createInitialChatUiState } from './chat-reducer.js';
@@ -25,7 +23,7 @@ import {
   isChatCompactPendingOccupancy,
   selectContextRingView,
 } from './context-telemetry-selector.js';
-import { ComposerContextUsageControl } from './composer-context-controls.js';
+import { CompactPromptComposer } from './compact-prompt-composer.js';
 import type { HostClient } from './host-client.js';
 import { createGestureIdempotencyKey } from './gesture-idempotency.js';
 import { hostFailureNotice } from './host-problem-copy.js';
@@ -37,12 +35,12 @@ import {
 } from './prompt-foreground.js';
 import { ConversationPaneTranscript } from './conversation-pane-transcript.js';
 import { createStreamEventBuffer } from './stream-event-buffer.js';
-import { IconSend, IconStop } from './shell-icons.js';
 
 import { MediaPreviewReadProvider } from './media-preview-read-context.js';
 import type { MediaPreviewReader } from './transcript-media-preview.js';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model.js';
 import type { DocumentOpenInput } from './tool-call-card.js';
+import { useSessionComposerProfile } from './hooks/use-session-composer-profile.js';
 
 type PaneResumeData = Omit<SessionResumeData, 'scope'> & {
   scope?: SessionScope | 'general' | 'project' | 'unknown';
@@ -106,7 +104,16 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
   const stateRef = useRef(state);
   stateRef.current = state;
   const [composer, setComposer] = useState('');
-  const [model, setModel] = useState<ModelRef | null>(null);
+  const [resumeModel, setResumeModel] = useState<ModelRef | null>(null);
+  const [resumeThinkingLevel, setResumeThinkingLevel] = useState<ThinkingLevel | undefined>(
+    undefined,
+  );
+  const sessionComposer = useSessionComposerProfile({
+    hostClient: props.hostClient,
+    sessionId: props.sessionId,
+    ...(resumeModel ? { resumeModel } : {}),
+    ...(resumeThinkingLevel !== undefined ? { resumeThinkingLevel } : {}),
+  });
   const [busy, setBusy] = useState(false);
   const onNameChangeRef = useRef(props.onNameChange);
   const onSessionDeletedRef = useRef(props.onSessionDeleted);
@@ -169,7 +176,8 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
     let cancelled = false;
     dispatch({ type: 'host/status', ready: props.hostClient.isReady(), mock: false });
     setComposer('');
-    setModel(null);
+    setResumeModel(null);
+    setResumeThinkingLevel(undefined);
     void (async () => {
       try {
         const statusResponse = await props.hostClient.request({ type: 'host/status' });
@@ -233,7 +241,8 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
             usage: data.lastRequestUsage ?? null,
           });
         }
-        setModel(data.model ?? null);
+        setResumeModel(data.model ?? null);
+        setResumeThinkingLevel(data.thinkingLevel);
         if (data.name) onNameChangeRef.current?.(data.name);
         await hydrateForegroundRun(() => cancelled);
       } catch (error) {
@@ -315,8 +324,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
     };
   }, [hydrateForegroundRun, props.hostClient, props.sessionId]);
 
-  async function handleSend(event?: FormEvent): Promise<void> {
-    event?.preventDefault();
+  async function handleSend(): Promise<void> {
     const text = composer.trim();
     if (!text || busy) return;
     const reserved = parseComposerSlashSubmit(text, []);
@@ -384,7 +392,9 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
       type: 'user/send',
       text,
       clientMessageId,
-      ...(model ? { model } : {}),
+      ...(sessionComposer.promptFields.model
+        ? { model: sessionComposer.promptFields.model }
+        : {}),
     });
     try {
       const response = await requestPromptWithForeground({
@@ -393,7 +403,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
         input: {
           text,
           clientMessageId,
-          ...(model ? { model } : {}),
+          ...sessionComposer.promptFields,
         },
         allowReplaceConfirm: false,
         createIdempotencyKey: createGestureIdempotencyKey,
@@ -466,14 +476,6 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
     }
   }, [dispatch, props.hostClient, props.sessionId, state.compacting]);
 
-  function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
-    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-      event.preventDefault();
-      void handleSend();
-    }
-  }
-
-  const canSend = composer.trim().length > 0 && !busy;
   const contextRingView = selectContextRingView({
     telemetry: state.contextTelemetry,
     locale: props.locale,
@@ -513,47 +515,38 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
             </button>
           </div>
         ) : null}
-        <form className="conversation-pane-composer" onSubmit={(event) => void handleSend(event)}>
-          <TextArea
+        <div className="conversation-pane-composer">
+          <CompactPromptComposer
             value={composer}
             onChange={setComposer}
-            rows={2}
-            disabled={!state.hostReady}
             placeholder={props.locale === 'zh-CN' ? '输入消息…' : 'Message…'}
+            ariaLabel={props.locale === 'zh-CN' ? 'Chat 输入框' : 'Chat composer'}
             testId="conversation-pane-composer"
-            nativeProps={{
-              'aria-label': props.locale === 'zh-CN' ? 'Chat 输入框' : 'Chat composer',
-              onKeyDown: handleComposerKeyDown,
-            }}
+            disabled={!state.hostReady || busy}
+            streaming={state.streaming}
+            showStop={state.streaming && composer.trim().length === 0}
+            sendLabel={
+              state.streaming
+                ? props.locale === 'zh-CN'
+                  ? '调整当前任务'
+                  : 'Steer current run'
+                : props.locale === 'zh-CN'
+                  ? '发送消息'
+                  : 'Send message'
+            }
+            stopLabel={props.locale === 'zh-CN' ? '停止生成' : 'Stop response'}
+            onSend={() => void handleSend()}
+            onStop={() => void handleStop()}
+            modelOptions={sessionComposer.modelOptions}
+            selectedModelKey={sessionComposer.selectedModelKey}
+            selectedModelLabel={sessionComposer.selectedModelLabel}
+            thinkingLevel={sessionComposer.thinkingLevel}
+            onSelectModel={(key: string) => void sessionComposer.selectModel(key)}
+            onThinkingLevelChange={(level) => void sessionComposer.setThinkingLevel(level)}
+            modelPickerDisabled={!state.hostReady || busy}
+            contextRingView={contextRingView}
           />
-          <ComposerContextUsageControl view={contextRingView} />
-          {state.streaming && !composer.trim() ? (
-            <IconButton
-              label={props.locale === 'zh-CN' ? '停止生成' : 'Stop response'}
-              className="conversation-pane-send is-stop"
-              onClick={() => void handleStop()}
-            >
-              <IconStop width={15} height={15} />
-            </IconButton>
-          ) : (
-            <IconButton
-              label={
-                state.streaming
-                  ? props.locale === 'zh-CN'
-                    ? '调整当前任务'
-                    : 'Steer current run'
-                  : props.locale === 'zh-CN'
-                    ? '发送消息'
-                    : 'Send message'
-              }
-              className="conversation-pane-send"
-              type="submit"
-              disabled={!canSend}
-            >
-              <IconSend width={16} height={16} />
-            </IconButton>
-          )}
-        </form>
+        </div>
         {!state.hostReady ? (
           <div className="conversation-pane-connection" role="status">
             {props.locale === 'zh-CN' ? '正在等待 Host 连接…' : 'Waiting for Host connection…'}

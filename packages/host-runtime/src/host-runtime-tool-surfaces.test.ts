@@ -28,4 +28,45 @@ describe('HostRuntime tool surfaces', () => {
       await rm(piwinRoot, { recursive: true, force: true });
     }
   });
+
+  it('registers browser_* tools on cold composition without createSession', async () => {
+    const piwinRoot = await mkdtemp(join(tmpdir(), 'piwin-tool-surface-browser-'));
+    const projectPath = join(piwinRoot, 'project');
+    await mkdir(projectPath, { recursive: true });
+    const runtime = new HostRuntime({ mode: 'sdk', mock: false, piwinRoot });
+
+    try {
+      const tools = await runtime.buildSessionHostToolsForSession(
+        'session-cold-browser',
+        'generation-cold-browser',
+        undefined,
+        'active',
+        projectPath,
+      );
+
+      expect(tools.map((tool) => tool.descriptor.name)).toEqual(
+        expect.arrayContaining(['browser_navigate', 'browser_click', 'browser_snapshot']),
+      );
+    } finally {
+      await runtime.dispose();
+      await rm(piwinRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('omits browser_* tools on mock hosts', async () => {
+    const piwinRoot = await mkdtemp(join(tmpdir(), 'piwin-tool-surface-mock-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot });
+
+    try {
+      const tools = await runtime.buildSessionHostToolsForSession(
+        'session-mock-browser',
+        'generation-mock-browser',
+      );
+
+      expect(tools.some((tool) => tool.descriptor.name.startsWith('browser_'))).toBe(false);
+    } finally {
+      await runtime.dispose();
+      await rm(piwinRoot, { recursive: true, force: true });
+    }
+  });
 });
