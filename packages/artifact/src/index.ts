@@ -44,6 +44,7 @@ export {
   parseArtifactBridgeMessage,
   parseArtifactActionMessage,
   parseArtifactRenderSnapshot,
+  readArtifactPostSeq,
 } from './bridge-protocol.js';
 
 export { advanceArtifactFrameMode } from './frame-mode.js';

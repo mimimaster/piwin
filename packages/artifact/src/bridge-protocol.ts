@@ -62,6 +62,21 @@ export function parseArtifactBridgeMessage(data: unknown): ArtifactBridgeMessage
   };
 }
 
+/**
+ * Optional copy id stamped by the iframe `post()` helper. The same seq on
+ * native + `parent.postMessage` is one logical event, not two.
+ */
+export function readArtifactPostSeq(data: unknown): number | null {
+  if (!isRecord(data)) {
+    return null;
+  }
+  const seq = data['seq'];
+  if (typeof seq !== 'number' || !Number.isSafeInteger(seq) || seq < 0) {
+    return null;
+  }
+  return seq;
+}
+
 function isArtifactFrameMode(value: unknown): value is ArtifactFrameMode {
   return (ARTIFACT_FRAME_MODES as readonly string[]).includes(value as string);
 }

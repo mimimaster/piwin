@@ -31,17 +31,32 @@ export function buildArtifactBridgeBootstrapScript(
 (function () {
   var channelId = ${serializedChannelId};
   var currentFrameMode = ${serializedFrameMode};
+  var postSeq = 0;
+  var warnBridge = function (label, error) {
+    if (window.console && window.console.warn) window.console.warn(label, error);
+  };
   var post = function (type, payload) {
-    var message = Object.assign({ type: type, channelId: channelId }, payload || {});
+    var message = Object.assign(
+      { type: type, channelId: channelId, seq: postSeq },
+      payload || {},
+    );
+    postSeq += 1;
     var nativeHandler =
       window.webkit &&
       window.webkit.messageHandlers &&
       window.webkit.messageHandlers.piwinArtifact;
     if (nativeHandler) {
-      nativeHandler.postMessage(JSON.stringify(message));
-      return;
+      try {
+        nativeHandler.postMessage(JSON.stringify(message));
+      } catch (error) {
+        warnBridge('piwin artifact native post failed', error);
+      }
     }
-    parent.postMessage(message, '*');
+    try {
+      parent.postMessage(message, '*');
+    } catch (error) {
+      warnBridge('piwin artifact parent post failed', error);
+    }
   };
   var actionType = ${JSON.stringify(ARTIFACT_BRIDGE_ACTION_TYPE)};
   var allowedActions = ${JSON.stringify([...ARTIFACT_ACTION_NAMES])};
@@ -102,12 +117,19 @@ export function buildArtifactBridgeBootstrapScript(
   var readHeight = function (height) {
     return Math.max(0, Math.ceil(height || 0));
   };
+  var measureNode = function () {
+    var root = document.querySelector('.piwin-artifact-root');
+    if (root && root.getBoundingClientRect) return root;
+    var body = document.body;
+    if (body && body.getBoundingClientRect) return body;
+    return null;
+  };
   var reportHeight = function () {
     heightFrame = null;
     if (!sizeEnabled || currentFrameMode === 'canvas') return;
-    var root = document.querySelector('.piwin-artifact-root');
-    if (!root || !root.getBoundingClientRect) return;
-    var height = readHeight(root.getBoundingClientRect().height);
+    var node = measureNode();
+    if (!node) return;
+    var height = readHeight(node.getBoundingClientRect().height);
     if (height === lastReportedHeight) return;
     lastReportedHeight = height;
     post(sizeType, {
@@ -155,14 +177,14 @@ export function buildArtifactBridgeBootstrapScript(
       scheduleHeight();
       return;
     }
-    var root = document.querySelector('.piwin-artifact-root');
-    if (!root) {
+    var node = measureNode();
+    if (!node) {
       scheduleHeight();
       return;
     }
     if (window.ResizeObserver) {
       heightObserver = new window.ResizeObserver(scheduleHeight);
-      heightObserver.observe(root);
+      heightObserver.observe(node);
     }
     scheduleHeight();
   };

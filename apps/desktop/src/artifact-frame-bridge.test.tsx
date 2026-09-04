@@ -154,4 +154,67 @@ describe('useArtifactFrameBridge recovery', () => {
     expect(state?.dataset['status']).toBe('fallback');
     expect(state?.dataset['height']).toBe('360');
   });
+
+  it('ignores a dual-channel copy with the same seq', async () => {
+    const iframe = await renderBridge('interactive');
+    const state = container.querySelector<HTMLOutputElement>('[data-testid="bridge-state"]');
+    act(() => {
+      iframe.dispatchEvent(new Event('load'));
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          source: iframe.contentWindow,
+          data: {
+            type: 'piwin-artifact:size',
+            channelId: 'height-bridge-test',
+            height: 200,
+            viewportHeight: 80,
+            revision: 0,
+            seq: 0,
+          },
+        }),
+      );
+    });
+    expect(state?.dataset['status']).toBe('ready');
+    expect(state?.dataset['height']).toBe('200');
+
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          source: iframe.contentWindow,
+          data: {
+            type: 'piwin-artifact:size',
+            channelId: 'height-bridge-test',
+            height: 800,
+            viewportHeight: 80,
+            revision: 1,
+            seq: 0,
+          },
+        }),
+      );
+    });
+    expect(state?.dataset['height']).toBe('200');
+  });
+
+  it('rejects a size posted by the parent window', async () => {
+    const iframe = await renderBridge('interactive');
+    const state = container.querySelector<HTMLOutputElement>('[data-testid="bridge-state"]');
+    act(() => {
+      iframe.dispatchEvent(new Event('load'));
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          source: window,
+          data: {
+            type: 'piwin-artifact:size',
+            channelId: 'height-bridge-test',
+            height: 999,
+            viewportHeight: 80,
+            revision: 0,
+            seq: 0,
+          },
+        }),
+      );
+    });
+    expect(state?.dataset['status']).not.toBe('ready');
+    expect(state?.dataset['height']).not.toBe('999');
+  });
 });

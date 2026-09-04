@@ -33,16 +33,10 @@ mod macos {
                 _controller: &WKUserContentController,
                 message: &WKScriptMessage,
             ) {
-                // The handler runs on WKWebView's main thread. WKWebView may
-                // report sandbox data frames as about:blank, so frame URL is
-                // not a stable trust signal. Main-frame rejection plus the
-                // bounded protocol parser and UI channelId match are stable.
+                // Sandboxed data: frames may be mis-reported as the main frame
+                // or about:blank, so frame identity is not a stable trust signal.
+                // The bounded protocol parser plus UI channelId match remain.
                 unsafe {
-                    let frame = message.frameInfo();
-                    if frame.isMainFrame() {
-                        return;
-                    }
-
                     let body = message.body();
                     let Ok(body) = body.downcast::<NSString>() else {
                         return;
@@ -119,6 +113,10 @@ mod macos {
         fn accepts_only_bounded_known_messages() {
             assert!(parse_artifact_bridge_message(
                 r#"{"type":"piwin-artifact:size","channelId":"artifact-1","height":684,"viewportHeight":80,"revision":0}"#
+            )
+            .is_some());
+            assert!(parse_artifact_bridge_message(
+                r#"{"type":"piwin-artifact:size","channelId":"artifact-1","height":684,"viewportHeight":80,"revision":0,"seq":0}"#
             )
             .is_some());
             assert!(parse_artifact_bridge_message(

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-07-19; amended 2026-08-24; amended 2026-08-26)
+Accepted (2026-07-19; amended 2026-08-24; amended 2026-08-26; amended 2026-09-04)
 
 ## Context
 
@@ -192,15 +192,23 @@ the 2026-08-13 height observer bounds.
   theme policy, and action bootstrap are injected into the existing document;
   the document is not stripped and nested under an Inline root wrapper.
 - Sandboxed Inline uses one message shape only:
-  `piwin-artifact:size { channelId, height, viewportHeight, revision }`. One
-  `ResizeObserver` watches `.piwin-artifact-root` and reports its root rectangle
-  when the distinct height changes. There are no ready/resize phases, viewport
-  resize listener, canvas/video budgets, scene detection, or CSS layout repair.
-- Browser messages must come from the current iframe `contentWindow`; the native
-  frame handler remains bounded and the UI still requires the exact channel.
-  Out-of-order revisions are ignored. Timeout selects the explicit 360px
-  scrollable recovery viewport instead of retaining a previously bad height; a
-  later valid revision restores exact flow height and clears recovery styling.
+  `piwin-artifact:size { channelId, height, viewportHeight, revision, seq }`.
+  `seq` is a per-frame monotonic copy id. One `ResizeObserver` watches
+  `.piwin-artifact-root` when present, otherwise `document.body`, and reports
+  that box when the distinct height changes. There are no ready/resize phases,
+  viewport resize listener, canvas/video budgets, scene detection, or CSS
+  layout repair.
+- The iframe posts size/actions on **both** the native WK handler (when present)
+  and `parent.postMessage`. Exclusive native delivery is forbidden: WK may
+  expose `messageHandlers` and then drop the script message. Host ignores
+  duplicate `seq` values so dual delivery is one event. Browser-channel trust
+  prefers `event.source === iframe.contentWindow`; WK sandboxed data: frames
+  often fail Window identity, so a non-parent source is accepted and bound by
+  `channelId` — the same selector the native handler already uses. The parent
+  page posting to itself is rejected. Native payloads stay trusted after the
+  bounded protocol parse. Out-of-order revisions are ignored. Timeout selects
+  the explicit 360px scrollable recovery viewport; a later valid revision
+  restores exact flow height and clears recovery styling.
 - Canvas owns a fixed viewport and sends no size messages. It keeps the same
   sandbox/CSP/action transport, but is entirely outside the Inline height loop.
 - Transcript virtualization separates actual measurements from estimates:
@@ -208,6 +216,19 @@ the 2026-08-13 height observer bounds.
   bounded at 4000px and is distrusted when implausible. This prevents the outer
   row from truncating a correctly measured tall Artifact without making stale
   cache entries reserve large blank regions.
+
+
+## Amendment (2026-09-04): Dual-channel sandbox height delivery
+
+WKWebView packaged Desktop was trapping Inline sandbox previews in the 360px
+recovery banner: the iframe rendered, but Host never received `piwin-artifact:size`.
+The iframe treated `webkit.messageHandlers.piwinArtifact` as exclusive and
+returned without `parent.postMessage`; the Rust handler also dropped messages
+when WK mis-labeled a sandbox data: frame as `isMainFrame()`.
+
+Decision: always post on both transports; Host dedupes by `seq`; measure
+`.piwin-artifact-root` or `document.body`; native handler trusts the bounded
+parser + channelId, not frame identity.
 
 ## Amendment (2026-08-24): Rendering convergence
 

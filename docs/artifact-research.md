@@ -275,8 +275,9 @@ amendments are superseded by the convergence plan. Current contract:
 - Full documents and viewport-coupled source use `inline-viewport` in the
   transcript; explicit `surface="canvas"` auto-opens the live Canvas panel and
   stream-previews until a successful completion.
-- Canvas has no Inline height bridge. Sandboxed Inline observes one root
-  rectangle and emits one revisioned size stream. Overflow above 16 384 px
-  switches to `inline-overflow` with a host-owned viewport — content is not
-  silently cropped.
+- Canvas has no Inline height bridge. Sandboxed Inline observes
+  `.piwin-artifact-root` or `document.body` and emits one revisioned size
+  stream on both the native WK handler and `parent.postMessage`. Overflow
+  above 16 384 px switches to `inline-overflow` with a host-owned viewport —
+  content is not silently cropped.
 - Theme/CSS repairs never rewrite stored descriptor source.
