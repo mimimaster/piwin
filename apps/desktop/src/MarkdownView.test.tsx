@@ -193,6 +193,45 @@ describe('MarkdownView artifact preview policy', () => {
     expect(wrapper?.querySelector('iframe')).toBeNull();
   });
 
+  it('preview overlay downloads original model HTML, never srcdoc', async () => {
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:artifact-source');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    const clickAnchor = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined);
+
+    const { container } = renderMarkdown(
+      <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="completed" />,
+    );
+    const download = container.querySelector<HTMLButtonElement>(
+      '[data-testid="artifact-download-source"]',
+    );
+    expect(download).not.toBeNull();
+    expect(download?.getAttribute('aria-label')).toBe('Download HTML');
+    expect(download?.disabled).toBe(false);
+
+    act(() => {
+      download?.click();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(createObjectURL).toHaveBeenCalledOnce();
+    const blob = createObjectURL.mock.calls[0]?.[0];
+    expect(blob).toBeInstanceOf(Blob);
+    const downloaded = await (blob as Blob).text();
+    expect(downloaded).toContain('<h1>Hi</h1>');
+    expect(downloaded).not.toContain('piwin-artifact');
+    expect(downloaded).not.toContain('<iframe');
+    expect(clickAnchor).toHaveBeenCalledOnce();
+    const anchor = clickAnchor.mock.instances[0] as unknown as HTMLAnchorElement;
+    expect(anchor.download).toBe('HTML-UI.html');
+
+    createObjectURL.mockRestore();
+    clickAnchor.mockRestore();
+  });
+
   it('assigns distinct canonical ordinals to two artifact fences', () => {
     const text = [
       '```artifact-html title="First"',
@@ -853,10 +892,11 @@ describe('MarkdownView file references', () => {
     );
     expect(container.textContent ?? '').not.toContain('[blocked]');
     const chips = [...container.querySelectorAll<HTMLElement>('.md-doc-chip')];
-    expect(chips.length).toBeGreaterThanOrEqual(2);
+    expect(chips).toHaveLength(1);
     const paths = chips.map((chip) => chip.getAttribute('data-full-path'));
     expect(paths).toContain('cropped-portraits-16.zip');
-    expect(paths).toContain('cropped-portraits/');
+    expect(paths).not.toContain('cropped-portraits/');
+    expect(container.textContent ?? '').toContain('cropped-portraits/');
     act(() => {
       chips
         .find((chip) => chip.getAttribute('data-full-path') === 'cropped-portraits-16.zip')
@@ -866,6 +906,47 @@ describe('MarkdownView file references', () => {
       title: 'cropped-portraits-16.zip',
       path: 'cropped-portraits-16.zip',
     });
+  });
+
+  it('does not hyperlink a directory mention that is not a specific file', () => {
+    const onOpenDocument = vi.fn();
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text="修复方案写进 `docs/plans/` 或者直接定位到具体文件。"
+        renderingPhase="completed"
+        onOpenDocument={onOpenDocument}
+      />,
+    );
+    expect(container.querySelector('.md-doc-chip')).toBeNull();
+    expect(container.querySelector('a.md-link')).toBeNull();
+    expect(container.textContent ?? '').toContain('docs/plans/');
+    const inlineCode = container.querySelector('.md-inline-code');
+    expect(inlineCode?.textContent).toBe('docs/plans/');
+  });
+
+  it('does not hyperlink an absolute directory path in prose', () => {
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text="See /Users/me/proj/docs/plans/ for drafts."
+        renderingPhase="completed"
+        onOpenDocument={vi.fn()}
+      />,
+    );
+    expect(container.querySelector('.md-doc-chip')).toBeNull();
+    expect(container.textContent ?? '').toContain('/Users/me/proj/docs/plans/');
+  });
+
+  it('does not hyperlink an absolute directory markdown link', () => {
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text="[docs/plans/](/Users/me/proj/docs/plans/)"
+        renderingPhase="completed"
+        onOpenDocument={vi.fn()}
+      />,
+    );
+    expect(container.querySelector('.md-doc-chip')).toBeNull();
+    expect(container.querySelector('a.md-link')).toBeNull();
+    expect(container.querySelector('.md-inline-code')?.textContent).toBe('docs/plans/');
   });
 
   it('resolves relative deliverable chips against projectPath', () => {

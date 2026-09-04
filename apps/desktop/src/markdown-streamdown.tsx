@@ -21,7 +21,11 @@ import {
   type MarkdownRenderingPhase,
 } from './markdown-code-fence.js';
 import { isLocalFilesystemMarkdownMediaSrc } from './media-path.js';
-import { isLocalFileMarkdownHref, isLocalPathChipCandidate } from './markdown-local-links.js';
+import {
+  isLocalDirectoryPath,
+  isLocalFileMarkdownHref,
+  isLocalPathChipCandidate,
+} from './markdown-local-links.js';
 import {
   mergeMarkdownClassNames,
   plainTextFromReactNode,
@@ -220,6 +224,12 @@ export function createStreamdownComponents(optionsRef: {
       label.includes('Document') ||
       label.startsWith('📄');
     const isLocalPathLink = isLocalFileMarkdownHref(url);
+
+    if (isLocalDirectoryPath(url)) {
+      return (
+        <code className={mergeMarkdownClassNames('md-inline-code', className)}>{children}</code>
+      );
+    }
 
     if ((isDocumentLink || isLocalPathLink) && options.onOpenDocument) {
       return (

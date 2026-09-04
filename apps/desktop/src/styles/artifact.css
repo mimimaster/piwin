@@ -18,6 +18,8 @@
   max-width: 100%;
   margin: 0;
   box-sizing: border-box;
+  /* Two 24px icons + flyout padding + inset + gaps so chrome cannot sit under the overlay. */
+  --artifact-flyout-reserve: calc(24px * 2 + var(--s-2) + var(--s-1) * 2 + var(--s-4) + var(--s-3));
 }
 
 .artifact-preview-surface {
@@ -103,11 +105,17 @@
 .artifact-height-recovery {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  flex-wrap: wrap;
   gap: var(--s-3);
   margin-bottom: var(--s-2);
+  padding-right: var(--artifact-flyout-reserve, 0);
   color: var(--text-3);
   font-size: var(--fs-chrome);
+}
+
+.artifact-height-recovery .piwin-button {
+  flex-shrink: 0;
 }
 
 .artifact-frame--static,
@@ -350,7 +358,7 @@
 
 .artifact-overflow-hint {
   margin: 0 0 var(--s-3);
-  padding: 0;
+  padding: 0 var(--artifact-flyout-reserve, 0) 0 0;
   color: var(--text-3);
   font-size: var(--fs-chrome);
   line-height: 1.45;
