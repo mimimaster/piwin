@@ -1,0 +1,710 @@
+/* Session list, conversation, composer, and permission gate surfaces, transcribed from docs/design/inkstone/proto-08-mobile.html (surfaces.css). Values are canonical. */
+
+/* Mobile surfaces, transcribed from docs/design/inkstone/proto-08-mobile.html
+   (surfaces.css + the phone-scoped rules in layout.css). Values are canonical. */
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+
+.back-button .icon {
+  transform: rotate(180deg);
+}
+
+
+.continue-meta button {
+  display: flex;
+  align-items: center;
+}
+
+
+.phone[data-route='sessions'] .screen-heading {
+  margin-bottom: 14px;
+}
+
+
+.phone[data-route='sessions'] .host-card {
+  padding: 11px 13px;
+}
+
+
+.phone[data-route='sessions'] .continue-card {
+  padding-top: 13px;
+  padding-bottom: 10px;
+  margin-bottom: 15px;
+}
+
+
+.phone[data-route='sessions'] .continue-meta {
+  margin-top: 10px;
+  padding-top: 7px;
+}
+
+
+.phone[data-route='sessions'] .tabs {
+  margin-top: 8px;
+}
+
+
+.continue-card {
+  padding: 17px 17px 14px;
+  background: var(--s3);
+  box-shadow: var(--sh2);
+  border-radius: 9px;
+  position: relative;
+  margin: 16px 0 25px;
+}
+
+
+.continue-card::before {
+  content: '';
+  position: absolute;
+  top: 17px;
+  bottom: 17px;
+  left: 0;
+  width: 2px;
+  background: var(--lamp);
+}
+
+
+.continue-card h3 {
+  font: 600 18px/1.6 var(--serif);
+  margin: 10px 0 5px;
+}
+
+
+.continue-card p {
+  color: var(--t2);
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+
+.continue-meta {
+  border-top: 1px solid var(--l1);
+  margin-top: 14px;
+  padding-top: 11px;
+  font-size: 11px;
+  color: var(--t3);
+}
+
+
+.continue-meta button {
+  color: var(--zhu);
+  font-size: 12px;
+  min-height: 32px;
+}
+
+
+.project-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 18px 0 5px;
+  font-size: 14px;
+}
+
+
+.project-heading .icon {
+  width: 16px;
+  height: 16px;
+  color: var(--t3);
+}
+
+
+.project-heading small {
+  color: var(--t3);
+  font: 11px var(--mono);
+  margin-left: auto;
+}
+
+
+.session-tree {
+  margin-left: 6px;
+  padding-left: 15px;
+  border-left: 1px solid var(--l3);
+}
+
+
+.session-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 71px;
+  border-bottom: 1px solid var(--l1);
+}
+
+
+.session-item > .dot {
+  position: absolute;
+  left: -19px;
+  top: 28px;
+}
+
+
+.session-open {
+  flex: 1;
+  text-align: left;
+  min-width: 0;
+  padding: 12px 0 10px 2px;
+}
+
+
+.session-open strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+
+.session-open small {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 11px;
+  color: var(--t3);
+  margin-top: 5px;
+}
+
+
+.session-item .icon-button {
+  min-width: 34px;
+  width: 34px;
+  color: var(--t3);
+}
+
+
+.session-item .icon {
+  width: 16px;
+  height: 16px;
+}
+
+
+.notice-strip {
+  width: 100%;
+  padding: 11px 13px;
+  border-radius: 7px;
+  margin-top: 20px;
+  background: var(--zhu-wash);
+  color: var(--zhu);
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  font-size: 12px;
+  text-align: left;
+}
+
+
+.notice-strip .icon {
+  width: 16px;
+  height: 16px;
+}
+
+
+.notice-strip span {
+  flex: 1;
+}
+
+
+.chat-scroll {
+  padding-top: 7px;
+}
+
+
+.chat-context {
+  padding: 0 22px 10px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  border-bottom: 1px solid var(--l1);
+  flex: none;
+}
+
+
+.chat-context button {
+  min-height: 30px;
+}
+
+
+.message-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--t2);
+  margin: 14px 0 8px;
+}
+
+
+.message-head time {
+  margin-left: auto;
+  color: var(--t3);
+  font-size: 10px;
+}
+
+
+.avatar {
+  font: 13px var(--serif);
+  width: 23px;
+  height: 23px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--l2);
+  border-radius: 50%;
+  background: var(--s3);
+}
+
+
+.user-message {
+  background: var(--s3);
+  box-shadow: var(--sh1);
+  border-radius: 8px;
+  padding: 13px 14px;
+  font-size: 14px;
+  line-height: 1.85;
+}
+
+
+.context-note {
+  font-size: 10px;
+  color: var(--t3);
+  margin: 11px 0 18px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+
+.context-note button {
+  font-size: 10px;
+  color: var(--t3);
+  padding: 0;
+}
+
+
+.work-disclosure {
+  margin-bottom: 15px;
+}
+
+
+.work-disclosure summary {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  min-height: 35px;
+  color: var(--t2);
+  font-size: 12px;
+}
+
+
+.work-disclosure summary .icon {
+  width: 14px;
+  margin-left: auto;
+}
+
+
+.tool-thread {
+  border-left: 1px solid var(--l3);
+  margin-left: 3px;
+  padding: 3px 0 2px 16px;
+}
+
+
+.tool-step {
+  display: flex;
+  gap: 6px;
+  position: relative;
+  color: var(--t3);
+  font-size: 11px;
+  align-items: center;
+  min-height: 29px;
+}
+
+
+.tool-step .dot {
+  position: absolute;
+  left: -20px;
+  width: 6px;
+  height: 6px;
+}
+
+
+.tool-step code {
+  color: var(--t2);
+  font-size: 10px;
+}
+
+
+.tool-step span:last-child {
+  margin-left: auto;
+}
+
+
+.assistant-prose {
+  font-size: 15px;
+  line-height: 1.9;
+}
+
+
+.assistant-prose p + p {
+  margin-top: 10px;
+}
+
+
+.assistant-prose h3 {
+  font-weight: 600;
+  font-size: 15px;
+  margin-bottom: 7px;
+}
+
+
+.assistant-prose code {
+  background: var(--code);
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+
+.inline-preview {
+  padding: 12px 13px;
+  border: 1px solid var(--l2);
+  border-radius: 7px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 16px;
+  text-align: left;
+}
+
+
+.inline-preview strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+
+.inline-preview small {
+  display: block;
+  color: var(--t3);
+  font-size: 10px;
+  margin-top: 3px;
+}
+
+
+.inline-preview .icon {
+  width: 18px;
+}
+
+
+.message-actions {
+  display: flex;
+  gap: 0;
+  margin-top: 7px;
+  color: var(--t3);
+}
+
+
+.message-actions .icon-button {
+  min-width: 33px;
+  height: 36px;
+}
+
+
+.message-actions .icon {
+  width: 15px;
+}
+
+
+.message-actions small {
+  font: 10px var(--mono);
+  margin: auto 0 auto auto;
+}
+
+
+.composer-dock {
+  padding: 6px 14px 3px;
+  background: var(--s2);
+  flex: none;
+}
+
+
+.composer {
+  background: var(--slab);
+  color: var(--slab-t);
+  border-radius: 13px;
+  box-shadow: var(--sh3);
+  overflow: hidden;
+  border-top: 1px solid var(--slab-line);
+}
+
+
+.composer.running {
+  border-top-color: var(--lamp);
+}
+
+
+.composer textarea {
+  display: block;
+  resize: none;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  color: var(--slab-t);
+  padding: 13px 14px 0;
+  font-size: 16px;
+  line-height: 1.6;
+  min-height: 61px;
+}
+
+
+.composer textarea::placeholder {
+  color: #aaa196;
+  font-size: 14px;
+}
+
+
+.composer-actions {
+  display: flex;
+  align-items: center;
+  padding: 2px 7px 7px;
+  gap: 0;
+}
+
+
+.composer-actions .icon-button {
+  min-width: 39px;
+  width: 39px;
+  height: 40px;
+  color: #bcb3a7;
+}
+
+
+.composer-actions .icon-button:hover {
+  background: var(--slab-chip);
+}
+
+
+.model-button {
+  font-size: 11px;
+  color: #c5bcaf;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 2px;
+  min-height: 40px;
+  flex: 1;
+}
+
+
+.model-button .icon {
+  width: 12px;
+}
+
+
+.composer-actions .send-button {
+  margin-left: 4px;
+  width: 35px;
+  min-width: 35px;
+  height: 35px;
+  color: var(--on-zhu);
+  background: var(--zhu);
+  border-radius: 50%;
+}
+
+
+.composer-actions .send-button.pause {
+  background: var(--slab-chip);
+  color: var(--lamp);
+  outline: 1px solid var(--lamp);
+}
+
+
+.composer-foot {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  color: var(--t3);
+  font-size: 10px;
+  padding-top: 6px;
+  min-height: 25px;
+}
+
+
+.composer-foot button {
+  color: var(--t3);
+  font-size: 10px;
+}
+
+
+.attachment-chip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 10px 12px 0;
+  width: fit-content;
+  padding: 4px 7px;
+  font-size: 11px;
+  background: var(--slab-chip);
+  border-radius: 4px;
+}
+
+
+.attachment-chip button {
+  padding: 2px 4px;
+}
+
+
+.queue-strip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  padding: 8px 5px;
+  color: var(--t2);
+}
+
+
+.queue-strip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+.queue-strip button {
+  color: var(--zhu);
+  margin-left: auto;
+  flex: none;
+}
+
+
+.gate {
+  border-radius: 8px;
+  background: var(--s3);
+  box-shadow: var(--sh2);
+  padding: 17px;
+  border-left: 2px solid var(--zhu);
+  margin-top: 17px;
+}
+
+
+.gate h3 {
+  font: 600 18px/1.5 var(--serif);
+  margin: 10px 0 7px;
+}
+
+
+.gate p {
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--t2);
+}
+
+
+.command {
+  padding: 11px;
+  background: var(--code);
+  border-radius: 5px;
+  font: 11px/1.8 var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 13px 0;
+}
+
+
+.facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 16px;
+  font-size: 11px;
+  margin: 12px 0;
+}
+
+
+.facts dt {
+  color: var(--t3);
+}
+
+
+.facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+
+.gate-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid var(--l2);
+  padding-top: 12px;
+  margin-top: 16px;
+}
+
+
+.gate-footer span {
+  flex: 1;
+  font-size: 11px;
+  color: var(--t3);
+}
+
+
+.seal-button {
+  width: 48px;
+  height: 48px;
+  background: var(--zhu);
+  color: var(--on-zhu);
+  font: 23px var(--serif);
+  border-radius: 4px;
+  outline: 1px solid var(--on-zhu);
+  outline-offset: -5px;
+  transform: rotate(-2deg);
+}
+
+
+.seal-button.ghost {
+  background: transparent;
+  color: var(--t2);
+  outline-color: var(--l3);
+  border: 1px solid var(--l2);
+  transform: none;
+}
+
+
+.banner-offline {
+  background: var(--zhu-wash);
+  color: var(--zhu);
+  padding: 8px 18px;
+  font-size: 11px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+
+.banner-offline button {
+  color: var(--zhu);
+  text-decoration: underline;
+}
+
+
+.quote-note {
+  border-left: 2px solid var(--l3);
+  padding: 8px 14px;
+  color: var(--t2);
+  font-size: 13px;
+  line-height: 1.9;
+  margin: 18px 0;
+}
