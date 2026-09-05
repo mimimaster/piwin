@@ -20,6 +20,10 @@ import {
   WalkthroughPage,
 } from './pages/extras.js';
 import { SHEETS } from './sheets/index.js';
+import {
+  InkstoneHostProvider,
+  type InkstoneHostContextValue,
+} from './host/inkstone-host-context.js';
 
 const PAGES: Record<InkstoneRoute, () => ReactElement> = {
   sessions: SessionsPage,
@@ -54,7 +58,11 @@ function initFromHash(state: typeof INITIAL_INKSTONE_STATE): typeof INITIAL_INKS
   return { ...state, route: readHashRoute() };
 }
 
-export function InkstoneApp(): ReactElement {
+export function InkstoneApp({
+  hostContext,
+}: {
+  hostContext: InkstoneHostContextValue | null;
+}): ReactElement {
   const [state, dispatch] = useReducer(inkstoneReducer, INITIAL_INKSTONE_STATE, initFromHash);
   const [toastVisible, setToastVisible] = useState(false);
   const dialogRef = useRef<HTMLDialogElement | null>(null);
@@ -90,6 +98,13 @@ export function InkstoneApp(): ReactElement {
     return () => window.clearTimeout(timer);
   }, [state.toast.seq, state.toast.message]);
 
+  const hostErrorMessage = hostContext?.host.errorMessage;
+  useEffect(() => {
+    if (hostErrorMessage !== undefined && hostErrorMessage.length > 0) {
+      dispatch({ type: 'toast', message: hostErrorMessage });
+    }
+  }, [hostErrorMessage]);
+
   useEffect(() => {
     const dialog = dialogRef.current;
     if (dialog === null) {
@@ -107,52 +122,54 @@ export function InkstoneApp(): ReactElement {
 
   return (
     <InkstoneContext.Provider value={{ state, dispatch }}>
-      <div className="inkstone-root">
-        <InkstoneIconSprite />
-        <div className="phone" data-route={state.route}>
-          <Page />
+      <InkstoneHostProvider value={hostContext}>
+        <div className="inkstone-root">
+          <InkstoneIconSprite />
+          <div className="phone" data-route={state.route}>
+            <Page />
+          </div>
+          <div
+            className={`toast ${toastVisible ? 'show' : ''}`.trim()}
+            role="status"
+            aria-live="polite"
+          >
+            {state.toast.message}
+          </div>
+          <dialog
+            className="inkstone-sheet"
+            ref={dialogRef}
+            aria-label={sheet?.title}
+            onClick={(event) => {
+              if (event.target === dialogRef.current) {
+                dispatch({ type: 'close-sheet' });
+              }
+            }}
+            onClose={() => {
+              if (state.sheet !== null) {
+                dispatch({ type: 'close-sheet' });
+              }
+            }}
+          >
+            {sheet !== undefined ? (
+              <>
+                <div className="sheet-grab" />
+                <div className="sheet-head">
+                  <h2>{sheet.title}</h2>
+                  <button
+                    className="icon-button"
+                    onClick={() => dispatch({ type: 'close-sheet' })}
+                    aria-label="关闭弹层"
+                    type="button"
+                  >
+                    <Icon name="close" />
+                  </button>
+                </div>
+                <div className="sheet-body">{sheet.render()}</div>
+              </>
+            ) : null}
+          </dialog>
         </div>
-        <div
-          className={`toast ${toastVisible ? 'show' : ''}`.trim()}
-          role="status"
-          aria-live="polite"
-        >
-          {state.toast.message}
-        </div>
-        <dialog
-          className="inkstone-sheet"
-          ref={dialogRef}
-          aria-label={sheet?.title}
-          onClick={(event) => {
-            if (event.target === dialogRef.current) {
-              dispatch({ type: 'close-sheet' });
-            }
-          }}
-          onClose={() => {
-            if (state.sheet !== null) {
-              dispatch({ type: 'close-sheet' });
-            }
-          }}
-        >
-          {sheet !== undefined ? (
-            <>
-              <div className="sheet-grab" />
-              <div className="sheet-head">
-                <h2>{sheet.title}</h2>
-                <button
-                  className="icon-button"
-                  onClick={() => dispatch({ type: 'close-sheet' })}
-                  aria-label="关闭弹层"
-                  type="button"
-                >
-                  <Icon name="close" />
-                </button>
-              </div>
-              <div className="sheet-body">{sheet.render()}</div>
-            </>
-          ) : null}
-        </dialog>
-      </div>
+      </InkstoneHostProvider>
     </InkstoneContext.Provider>
   );
 }

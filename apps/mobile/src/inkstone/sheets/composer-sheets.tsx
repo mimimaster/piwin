@@ -1,11 +1,68 @@
 import { useState, type ReactElement } from 'react';
 import { useInkstone } from '../inkstone-context.js';
 import { type InkstoneRoute } from '../demo-state.js';
+import type { ThinkingLevel } from '@piwin/contracts';
 import { FullButton, ListRow, RadioOptions, SectionLabel } from '../inkstone-ui.js';
 import { VoiceBars } from './voice-bits.js';
+import { useInkstoneHost } from '../host/inkstone-host-context.js';
+
+/** Curated thinking levels shown in the prototype's 轻量 / 标准 / 深入 grammar. */
+const EFFORT_LEVELS: [string, ThinkingLevel][] = [
+  ['轻量', 'minimal'],
+  ['标准', 'medium'],
+  ['深入', 'high'],
+];
+
+function RealModelSheet(): ReactElement {
+  const { dispatch } = useInkstone();
+  const hostCtx = useInkstoneHost();
+  if (hostCtx === null) {
+    return <></>;
+  }
+  const { host, modelSelection } = hostCtx;
+  return (
+    <>
+      <p>为接下来的一轮选择模型。历史消息保留生成时的模型。</p>
+      {host.configuredModels.map((model) => {
+        const selected =
+          model.providerId === modelSelection.providerId &&
+          model.modelId === modelSelection.modelId;
+        return (
+          <ListRow
+            key={`${model.providerId}:${model.modelId}`}
+            name="bulb"
+            title={model.label?.trim() || model.modelId}
+            subtitle={model.providerId}
+            onClick={() => modelSelection.select(model.providerId, model.modelId)}
+            trailing={selected ? '✓' : undefined}
+            selected={selected}
+          />
+        );
+      })}
+      {host.configuredModels.length === 0 ? <p className="muted">Host 尚未配置可用模型。</p> : null}
+      <SectionLabel>思考强度</SectionLabel>
+      <div className="radio-options">
+        {EFFORT_LEVELS.map(([label, value]) => (
+          <button
+            key={value}
+            aria-pressed={modelSelection.thinkingLevel === value}
+            onClick={() => modelSelection.selectThinking(value)}
+            type="button"
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <FullButton onClick={() => dispatch({ type: 'close-sheet' })}>完成</FullButton>
+    </>
+  );
+}
 
 export function ModelSheet(): ReactElement {
   const { state, dispatch } = useInkstone();
+  if (useInkstoneHost() !== null) {
+    return <RealModelSheet />;
+  }
   return (
     <>
       <p>为接下来的一轮选择模型。历史消息保留生成时的模型。</p>

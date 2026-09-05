@@ -1,9 +1,14 @@
 import { Fragment, useEffect, useRef, type ReactElement } from 'react';
+import { toModelRef } from '@piwin/contracts';
 import { useInkstone } from '../inkstone-context.js';
 import { type InkstoneRoute } from '../demo-state.js';
 import { Icon } from '../icons.js';
 import { Dot, IconButton, Pill, TopBar } from '../inkstone-ui.js';
 import { useCopyText } from '../use-copy-text.js';
+import { MobileMarkdown } from '../../components/chat/MobileMarkdown.js';
+import { endpointLabel } from './sessions.js';
+import { mapPermissionGate, mapTranscriptRows } from '../host/host-bridge.js';
+import { useInkstoneHost, type InkstoneHostContextValue } from '../host/inkstone-host-context.js';
 
 function ComposerDock(): ReactElement {
   const { state, dispatch } = useInkstone();
@@ -91,8 +96,266 @@ function ComposerDock(): ReactElement {
   );
 }
 
+function RealMessageRows({ hostCtx }: { hostCtx: InkstoneHostContextValue }): ReactElement {
+  const copyText = useCopyText();
+  const host = hostCtx.host;
+  const rows = mapTranscriptRows(host.messages);
+  const lastAssistantIndex = rows.reduce(
+    (found, row, index) => (row.kind === 'assistant' ? index : found),
+    -1,
+  );
+  return (
+    <>
+      {rows.map((row, index) => {
+        if (row.kind === 'user') {
+          return (
+            <Fragment key={row.id}>
+              <div className="message-head">
+                <span className="avatar">予</span>你
+                {row.time !== '' ? <time>{row.time}</time> : null}
+              </div>
+              <div className="user-message">
+                {row.text}
+                {row.attachments.map((name) => (
+                  <span
+                    key={name}
+                    className="pill"
+                    style={{ marginTop: 9, display: 'inline-flex' }}
+                  >
+                    <Icon name="file" />
+                    {name}
+                  </span>
+                ))}
+              </div>
+            </Fragment>
+          );
+        }
+        if (row.kind === 'tools') {
+          const runningTool = row.steps.some((step) => step.status === 'running');
+          return (
+            <details className="work-disclosure" open key={row.id}>
+              <summary>
+                <Dot status={runningTool ? 'running' : 'done'} />
+                <span>
+                  {row.label} · {row.steps.length} 次工具调用
+                </span>
+                <Icon name="chevd" />
+              </summary>
+              <div className="tool-thread">
+                {row.steps.map((step, stepIndex) => (
+                  <div className="tool-step" key={`${row.id}:${stepIndex}`}>
+                    <Dot
+                      status={
+                        step.status === 'error'
+                          ? 'waiting'
+                          : step.status === 'running'
+                            ? 'running'
+                            : 'done'
+                      }
+                    />
+                    {step.label}
+                    {step.meta !== '' ? <span>{step.meta}</span> : null}
+                  </div>
+                ))}
+              </div>
+            </details>
+          );
+        }
+        return (
+          <Fragment key={row.id}>
+            <div className="message-head">
+              <span className="avatar">π</span>
+              {row.model}
+            </div>
+            <div className="assistant-prose">
+              <MobileMarkdown content={row.text} isStreaming={row.streaming} />
+            </div>
+            {index === lastAssistantIndex ? (
+              <div className="message-actions">
+                <IconButton
+                  name="copy"
+                  label="复制回复"
+                  onClick={() => {
+                    void copyText(row.text);
+                  }}
+                />
+                <small>点按复制正文</small>
+              </div>
+            ) : null}
+          </Fragment>
+        );
+      })}
+      {rows.length === 0 ? (
+        <div className="context-note">新的会话 · 以当前项目和模型开始</div>
+      ) : null}
+      {rows.every((row) => row.kind !== 'assistant') && rows.length > 0 ? (
+        <p className="context-note">
+          <Dot status="running" />
+          Agent 正在工作，正文稍后出现在这里
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+function ConnectedChat({ hostCtx }: { hostCtx: InkstoneHostContextValue }): ReactElement {
+  const { state, dispatch } = useInkstone();
+  const { host, modelSelection } = hostCtx;
+  const chatScrollRef = useRef<HTMLDivElement | null>(null);
+  const session = host.sessions.find((item) => item.sessionId === host.activeSessionId);
+  const running = host.activeRunId !== undefined;
+  const paused = host.pausedCheckpointId !== undefined;
+  const gate = mapPermissionGate(host.permissionRequest);
+  const selectedModel = host.configuredModels.find(
+    (model) =>
+      model.providerId === modelSelection.providerId && model.modelId === modelSelection.modelId,
+  );
+  const rowCount = host.messages.length;
+  const messageCountTotal = host.messages.reduce((sum, message) => sum + message.text.length, 0);
+
+  useEffect(() => {
+    chatScrollRef.current?.scrollTo(0, 100000);
+  }, [rowCount, messageCountTotal]);
+
+  const onSend = (): void => {
+    const draft = host.composerText.trim();
+    const hasAttachments = host.attachments.length > 0;
+    if (running && draft.length === 0) {
+      void host.handleAbort();
+      return;
+    }
+    if (!running && draft.length === 0 && !hasAttachments) {
+      dispatch({ type: 'toast', message: '先写一句话，再发送' });
+      return;
+    }
+    const level = modelSelection.thinkingLevel;
+    void host.handleSend(
+      {
+        text: host.composerText,
+        ...(selectedModel !== undefined
+          ? {
+              model: toModelRef({
+                providerId: selectedModel.providerId,
+                modelId: selectedModel.modelId,
+                ...(selectedModel.protocol !== undefined
+                  ? { protocol: selectedModel.protocol }
+                  : {}),
+                ...(selectedModel.source !== undefined ? { source: selectedModel.source } : {}),
+              }),
+            }
+          : {}),
+        ...(level !== undefined ? { thinkingLevel: level } : {}),
+      },
+      undefined,
+      running ? host.activeRunId : undefined,
+    );
+  };
+
+  const pauseMode = running && host.composerText.trim().length === 0;
+  return (
+    <>
+      <TopBar
+        title={session?.name?.trim() || '会话'}
+        subtitle={
+          <>
+            <Dot status={running ? 'running' : paused ? 'waiting' : 'done'} />{' '}
+            {running ? '正在工作' : paused ? '已暂停' : '等待你的下一笔'} ·{' '}
+            {endpointLabel(host.endpoint)}
+          </>
+        }
+        onBack={() => dispatch({ type: 'navigate', route: 'sessions' })}
+        right={
+          <>
+            <IconButton
+              name="panelr"
+              label="打开工作区"
+              onClick={() => dispatch({ type: 'navigate', route: 'workspace' })}
+            />
+            <IconButton
+              name="more"
+              label="会话操作"
+              onClick={() => dispatch({ type: 'open-sheet', key: 'session-menu' })}
+            />
+          </>
+        }
+      />
+      {gate !== undefined ? (
+        <div className="chat-context">
+          <Pill variant="zhu" onClick={() => dispatch({ type: 'navigate', route: 'inbox' })}>
+            <Dot status="waiting" />
+            等待批准 · 查看请求
+          </Pill>
+        </div>
+      ) : null}
+      <div className="screen-scroll chat-scroll" ref={chatScrollRef}>
+        <RealMessageRows hostCtx={hostCtx} />
+      </div>
+      <div className="composer-dock">
+        {host.attachments.length > 0 ? (
+          <div className="attachment-chip">
+            <Icon name="file" />
+            {host.attachments.length} 个附件
+            <button
+              onClick={() => host.removeAttachment(host.attachments[0]?.id ?? '')}
+              aria-label="移除附件"
+              type="button"
+            >
+              ×
+            </button>
+          </div>
+        ) : null}
+        <div className={`composer ${running ? 'running' : ''}`.trim()}>
+          <textarea
+            aria-label="消息内容"
+            placeholder="写下你的想法，或捎来一句话…"
+            rows={2}
+            value={host.composerText}
+            onChange={(event) => host.setComposerText(event.target.value)}
+          />
+          <div className="composer-actions">
+            <IconButton
+              name="plus"
+              label="添加附件与上下文"
+              onClick={() => dispatch({ type: 'open-sheet', key: 'attach' })}
+            />
+            <button
+              className="model-button"
+              onClick={() => dispatch({ type: 'open-sheet', key: 'model' })}
+              type="button"
+            >
+              {selectedModel?.label?.trim() || selectedModel?.modelId || '模型'}{' '}
+              <Icon name="chevd" />
+            </button>
+            <IconButton
+              name="mic"
+              label="语音输入"
+              onClick={() => dispatch({ type: 'open-sheet', key: 'dictation' })}
+            />
+            <button
+              className={`icon-button send-button ${pauseMode ? 'pause' : ''}`.trim()}
+              onClick={onSend}
+              disabled={host.isSending}
+              aria-label={pauseMode ? '暂停运行' : running ? '排队发送' : '发送消息'}
+              type="button"
+            >
+              <Icon name={pauseMode ? 'pause' : 'up'} />
+            </button>
+          </div>
+        </div>
+        <div className="composer-foot">
+          <span>{state.offline ? '' : '已同步'}</span>
+        </div>
+      </div>
+    </>
+  );
+}
+
 export function ChatPage(): ReactElement {
   const { state, dispatch } = useInkstone();
+  const hostCtx = useInkstoneHost();
+  if (hostCtx !== null) {
+    return <ConnectedChat hostCtx={hostCtx} />;
+  }
   const copyText = useCopyText();
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const go = (route: InkstoneRoute) => () => dispatch({ type: 'navigate', route });

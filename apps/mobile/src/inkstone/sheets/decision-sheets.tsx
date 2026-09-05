@@ -1,10 +1,64 @@
 import { useState, type ReactElement } from 'react';
 import { useInkstone } from '../inkstone-context.js';
 import { Dot, Facts, FullButton, ListRow, Pill } from '../inkstone-ui.js';
+import { useInkstoneHost } from '../host/inkstone-host-context.js';
+import { mapPermissionGate } from '../host/host-bridge.js';
+
+function RealPermissionSheet(): ReactElement {
+  const { dispatch } = useInkstone();
+  const hostCtx = useInkstoneHost();
+  if (hostCtx === null) {
+    return <></>;
+  }
+  const { host } = hostCtx;
+  const gate = mapPermissionGate(host.permissionRequest);
+  if (gate === undefined) {
+    return (
+      <>
+        <p>这项请求已经处理完毕。</p>
+        <FullButton variant="secondary" onClick={() => dispatch({ type: 'close-sheet' })}>
+          知道了
+        </FullButton>
+      </>
+    );
+  }
+  return (
+    <>
+      <Pill variant="zhu">Host 正在等待你</Pill>
+      <Facts
+        items={[
+          ['动作', gate.title],
+          ['说明', gate.detail],
+          ...(gate.cwd !== undefined
+            ? ([['目录', <span className="mono">{gate.cwd}</span>]] as [string, ReactElement][])
+            : []),
+        ]}
+      />
+      {gate.command !== undefined ? <div className="command">{gate.command}</div> : null}
+      <p>原型只模拟决定；这里是真实请求，落印后 Host 立即继续。</p>
+      <FullButton
+        onClick={() => void host.handleResolvePermission('allow', gate.requestId)}
+        disabled={host.isResolvingPermission}
+      >
+        允 · 批准本次操作
+      </FullButton>
+      <FullButton
+        variant="secondary"
+        onClick={() => void host.handleResolvePermission('deny', gate.requestId)}
+        disabled={host.isResolvingPermission}
+      >
+        否 · 拒绝这次操作
+      </FullButton>
+    </>
+  );
+}
 
 export function PermissionSheet(): ReactElement {
   const { dispatch } = useInkstone();
   const [scope, setScope] = useState('once');
+  if (useInkstoneHost() !== null) {
+    return <RealPermissionSheet />;
+  }
   return (
     <>
       <Pill variant="zhu">Host 正在等待你</Pill>
