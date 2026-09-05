@@ -2,7 +2,8 @@ import { useState, type ReactElement } from 'react';
 import { useInkstone } from '../inkstone-context.js';
 import { Dot, FullButton, ListRow, SwitchRow } from '../inkstone-ui.js';
 import { Icon } from '../icons.js';
-import { SessionRows } from '../pages/sessions.js';
+import { SessionRows, endpointLabel, hostConnectionSubtitle } from '../pages/sessions.js';
+import { useInkstoneHost } from '../host/inkstone-host-context.js';
 
 export function SessionMenuSheet(): ReactElement {
   const { state, dispatch } = useInkstone();
@@ -265,6 +266,34 @@ export function HandoffSheet(): ReactElement {
 
 export function HostSheet(): ReactElement {
   const { state, dispatch } = useInkstone();
+  const hostCtx = useInkstoneHost();
+  if (hostCtx !== null) {
+    const { host, onOpenConnection } = hostCtx;
+    const ready = host.connectionState.kind === 'ready';
+    return (
+      <>
+        <ListRow
+          name="panel"
+          title={endpointLabel(host.endpoint)}
+          subtitle={hostConnectionSubtitle(host)}
+          onClick={() =>
+            dispatch({ type: 'toast', message: ready ? '已连接这台 Host' : '正在连接…' })
+          }
+          trailing={ready ? '✓' : '重连'}
+          selected={ready}
+        />
+        <ListRow
+          name="plus"
+          title="管理连接"
+          subtitle="地址 · 配对 · 凭据"
+          onClick={onOpenConnection}
+        />
+        <FullButton variant="secondary" onClick={() => void host.handleDisconnect()}>
+          断开连接
+        </FullButton>
+      </>
+    );
+  }
   return (
     <>
       <ListRow

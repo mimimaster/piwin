@@ -1,6 +1,5 @@
 /* Shared surfaces, transcribed from docs/design/inkstone/proto-08-mobile.html (surfaces.css). Values are canonical. */
 
-
 .spread {
   display: flex;
   align-items: center;
@@ -8,12 +7,10 @@
   gap: 12px;
 }
 
-
 .grow {
   flex: 1;
   min-width: 0;
 }
-
 
 .section-label {
   display: flex;
@@ -25,13 +22,11 @@
   margin: 24px 0 11px;
 }
 
-
 .section-label button {
   font-size: 12px;
   color: var(--t2);
   padding: 7px 0 7px 12px;
 }
-
 
 .pill {
   display: inline-flex;
@@ -45,29 +40,24 @@
   white-space: nowrap;
 }
 
-
 .pill .icon {
   width: 13px;
   height: 13px;
 }
-
 
 .pill.pine {
   color: var(--pine);
   background: var(--pine-wash);
 }
 
-
 .pill.zhu {
   color: var(--zhu);
   background: var(--zhu-wash);
 }
 
-
 .pill.azure {
   color: var(--azure);
 }
-
 
 .dot {
   display: inline-block;
@@ -78,7 +68,6 @@
   flex: none;
 }
 
-
 .dot.running {
   background: var(--lamp);
   border-color: var(--lamp);
@@ -86,12 +75,10 @@
   animation: breathe 2.4s ease-in-out infinite;
 }
 
-
 .dot.done {
   background: var(--pine);
   border-color: var(--pine);
 }
-
 
 .dot.waiting {
   background: var(--zhu);
@@ -99,12 +86,10 @@
   border-radius: 1px;
 }
 
-
 .dot.background {
   background: var(--azure);
   border-color: var(--azure);
 }
-
 
 .search-field {
   width: 100%;
@@ -119,7 +104,6 @@
   color: var(--t3);
 }
 
-
 .search-field input {
   border: 0;
   background: transparent;
@@ -130,12 +114,10 @@
   font-size: 14px;
 }
 
-
 .search-field .icon {
   width: 17px;
   height: 17px;
 }
-
 
 .tabs {
   display: flex;
@@ -146,7 +128,6 @@
   scrollbar-width: none;
 }
 
-
 .tabs button {
   flex: none;
   min-height: 44px;
@@ -156,12 +137,10 @@
   border-bottom: 2px solid transparent;
 }
 
-
 .tabs button.active {
   color: var(--t1);
   border-color: var(--zhu);
 }
-
 
 .full-button {
   display: flex;
@@ -177,19 +156,16 @@
   font-size: 14px;
 }
 
-
 .full-button.secondary {
   background: var(--s1);
   color: var(--t1);
   border: 1px solid var(--l2);
 }
 
-
 .full-button.subtle {
   background: none;
   color: var(--t2);
 }
-
 
 .list-row {
   display: flex;
@@ -202,19 +178,16 @@
   padding: 12px 0;
 }
 
-
 .list-row > .icon {
   width: 19px;
   color: var(--t2);
 }
-
 
 .list-row strong {
   font-size: 14px;
   font-weight: 500;
   display: block;
 }
-
 
 .list-row small {
   font-size: 11px;
@@ -224,7 +197,6 @@
   line-height: 1.6;
 }
 
-
 .list-row .trailing {
   margin-left: auto;
   color: var(--t3);
@@ -232,22 +204,18 @@
   flex: none;
 }
 
-
 .list-row .trailing .icon {
   width: 14px;
 }
-
 
 .list-row.selected {
   color: var(--zhu);
 }
 
-
 .list-row.selected > .icon,
 .list-row.selected .trailing {
   color: var(--zhu);
 }
-
 
 .host-card {
   display: flex;
@@ -260,12 +228,10 @@
   text-align: left;
 }
 
-
 .host-card strong {
   font-weight: 500;
   font-size: 14px;
 }
-
 
 .host-card small {
   display: block;
@@ -273,7 +239,6 @@
   color: var(--t3);
   margin-top: 4px;
 }
-
 
 .host-monogram {
   display: grid;
@@ -285,14 +250,12 @@
   font: 23px var(--serif);
 }
 
-
 .field {
   display: block;
   font-size: 12px;
   color: var(--t2);
   margin: 17px 0;
 }
-
 
 .field input,
 .field select,
@@ -309,12 +272,10 @@
   font-size: 16px;
 }
 
-
 .field textarea {
   min-height: 100px;
   resize: vertical;
 }
-
 
 .radio-options {
   display: flex;
@@ -322,7 +283,6 @@
   flex-wrap: wrap;
   margin: 14px 0;
 }
-
 
 .radio-options button {
   flex: 1;
@@ -333,13 +293,11 @@
   font-size: 12px;
 }
 
-
 .radio-options button[aria-pressed='true'] {
   color: var(--zhu);
   background: var(--zhu-wash);
   border-color: var(--zhu);
 }
-
 
 .switch {
   width: 36px;
@@ -348,7 +306,6 @@
   border-radius: 14px;
   position: relative;
 }
-
 
 .switch::after {
   content: '';
@@ -361,23 +318,19 @@
   left: 3px;
 }
 
-
 [aria-checked='true'] .switch {
   background: var(--pine);
 }
 
-
 [aria-checked='true'] .switch::after {
   left: 17px;
 }
-
 
 .empty-state {
   padding: 42px 10px;
   text-align: center;
   color: var(--t2);
 }
-
 
 .empty-state .brand-seal {
   width: 44px;
@@ -386,19 +339,16 @@
   margin-bottom: 24px;
 }
 
-
 .empty-state h2 {
   font: 26px/1.6 var(--serif);
   margin-bottom: 13px;
 }
-
 
 .empty-state p {
   font-size: 13px;
   line-height: 1.9;
   color: var(--t3);
 }
-
 
 .metric-grid {
   display: grid;
@@ -409,18 +359,15 @@
   margin: 20px 0;
 }
 
-
 .metric-grid strong {
   font: 24px var(--serif);
   display: block;
 }
 
-
 .metric-grid small {
   color: var(--t3);
   font-size: 10px;
 }
-
 
 .usage-chart {
   height: 100px;
@@ -432,7 +379,6 @@
   margin-top: 25px;
 }
 
-
 .usage-chart span {
   flex: 1;
   height: var(--height);
@@ -440,7 +386,6 @@
   opacity: 0.7;
   border-radius: 2px 2px 0 0;
 }
-
 
 @keyframes breathe {
   0%,

@@ -166,13 +166,20 @@ export function FullButton({
   children,
   variant = '',
   onClick,
+  disabled = false,
 }: {
   children: ReactNode;
   variant?: '' | 'secondary' | 'subtle';
   onClick: () => void;
+  disabled?: boolean;
 }): ReactElement {
   return (
-    <button className={`full-button ${variant}`.trim()} onClick={onClick} type="button">
+    <button
+      className={`full-button ${variant}`.trim()}
+      onClick={onClick}
+      disabled={disabled}
+      type="button"
+    >
       {children}
     </button>
   );

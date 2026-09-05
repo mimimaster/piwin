@@ -12,9 +12,53 @@ import {
   TabsRow,
   TopBar,
 } from '../inkstone-ui.js';
+import { useInkstoneHost, type InkstoneHostContextValue } from '../host/inkstone-host-context.js';
+
+function ConnectedConnectPage({ hostCtx }: { hostCtx: InkstoneHostContextValue }): ReactElement {
+  const { dispatch } = useInkstone();
+  const { host, onOpenConnection } = hostCtx;
+  const ready = host.connectionState.kind === 'ready';
+  return (
+    <>
+      <TopBar
+        title="私有 Host"
+        subtitle="设备与连接"
+        onBack={() => dispatch({ type: 'navigate', route: 'settings' })}
+      />
+      <div className="screen-scroll">
+        <div className="empty-state">
+          <span className="brand-seal">砚</span>
+          <h2>连回自己的书案。</h2>
+          <p>
+            项目、模型和会话都在你的 Host。
+            <br />
+            手机只是另一扇窗。
+          </p>
+        </div>
+        <button className="host-card" type="button">
+          <span className="host-monogram">书</span>
+          <span className="grow">
+            <strong>{(host.endpoint ?? '').replace(/^wss?:\/\//, '') || '私有 Host'}</strong>
+            <small>{ready ? '已连接 · 正在与桌面同步' : '连接中…'}</small>
+          </span>
+          <Dot status={ready ? 'done' : 'waiting'} />
+        </button>
+        <FullButton onClick={onOpenConnection}>管理连接</FullButton>
+        <FullButton variant="secondary" onClick={() => void host.handleDisconnect()}>
+          断开连接
+        </FullButton>
+        <div className="quote-note">凭据保存在设备密钥库，连接由现有配对流程负责。</div>
+      </div>
+    </>
+  );
+}
 
 export function ConnectPage(): ReactElement {
   const { state, dispatch } = useInkstone();
+  const hostCtx = useInkstoneHost();
+  if (hostCtx !== null) {
+    return <ConnectedConnectPage hostCtx={hostCtx} />;
+  }
   const go = (route: InkstoneRoute) => () => dispatch({ type: 'navigate', route });
   const openSheet = (key: string) => () => dispatch({ type: 'open-sheet', key });
   return (
@@ -50,9 +94,87 @@ export function ConnectPage(): ReactElement {
   );
 }
 
+function ConnectedNewSession({ hostCtx }: { hostCtx: InkstoneHostContextValue }): ReactElement {
+  const { state, dispatch } = useInkstone();
+  const { host } = hostCtx;
+  const [prompt, setPrompt] = useState(state.draft);
+  const selectedModel = host.configuredModels.find(
+    (model) =>
+      model.providerId === hostCtx.modelSelection.providerId &&
+      model.modelId === hostCtx.modelSelection.modelId,
+  );
+  const start = (): void => {
+    const text = prompt.trim();
+    if (text.length === 0) {
+      dispatch({ type: 'toast', message: '先写一句你想做的事' });
+      return;
+    }
+    dispatch({ type: 'navigate', route: 'chat' });
+    void host.handleCreateSession(undefined).then(() => {
+      void host.handleSend({ text });
+    });
+  };
+  return (
+    <>
+      <TopBar
+        title="新的一页"
+        subtitle="会话将在你的 Host 上开始"
+        onBack={() => dispatch({ type: 'navigate', route: 'sessions' })}
+      />
+      <div className="screen-scroll">
+        <div className="empty-state">
+          <span className="brand-seal">砚</span>
+          <h2>今天，想做点什么？</h2>
+          <p>一句话，也可以是一个开始。</p>
+        </div>
+        <ListRow
+          name="bulb"
+          title="模型"
+          subtitle={selectedModel?.label?.trim() || selectedModel?.modelId || '使用 Host 默认'}
+          onClick={() => dispatch({ type: 'open-sheet', key: 'model' })}
+        />
+        <label className="field">
+          写下你的想法
+          <textarea
+            placeholder="例如，帮我梳理这个项目的会话恢复逻辑…"
+            value={prompt}
+            onChange={(event) => setPrompt(event.target.value)}
+          />
+        </label>
+        <FullButton onClick={start}>开始这段会话</FullButton>
+        <FullButton
+          variant="secondary"
+          onClick={() => dispatch({ type: 'open-sheet', key: 'dictation' })}
+        >
+          先说一句
+        </FullButton>
+        <div className="section-label">也可以从这里开始</div>
+        <ListRow
+          name="git"
+          title="审阅最近的变更"
+          onClick={() => {
+            setPrompt('帮我审阅最近的变更，先给出问题和建议。');
+          }}
+        />
+        <ListRow
+          name="cards"
+          title="把一个想法写成计划"
+          onClick={() => {
+            setPrompt('帮我把移动端的离线草稿功能整理成一份计划。');
+          }}
+        />
+      </div>
+    </>
+  );
+}
+
 export function NewSessionPage(): ReactElement {
   const { state, dispatch } = useInkstone();
+  const hostCtx = useInkstoneHost();
   const [prompt, setPrompt] = useState(state.draft);
+  if (hostCtx !== null) {
+    return <ConnectedNewSession hostCtx={hostCtx} />;
+  }
   const openSheet = (key: string) => () => dispatch({ type: 'open-sheet', key });
   return (
     <>

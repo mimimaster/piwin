@@ -1,6 +1,5 @@
 /* Plan, review, workspace, shelf, cards, and voice surfaces, transcribed from docs/design/inkstone/proto-08-mobile.html (surfaces.css). Values are canonical. */
 
-
 .shelf-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -9,7 +8,6 @@
   margin-top: 20px;
 }
 
-
 .shelf-tile {
   text-align: left;
   padding: 19px 15px;
@@ -17,19 +15,16 @@
   border-bottom: 1px solid var(--l2);
 }
 
-
 .shelf-tile .icon {
   display: block;
   margin-bottom: 16px;
   color: var(--t2);
 }
 
-
 .shelf-tile strong {
   display: block;
   font: 500 18px var(--serif);
 }
-
 
 .shelf-tile small {
   display: block;
@@ -38,7 +33,6 @@
   margin-top: 8px;
 }
 
-
 .plan-step {
   padding: 3px 0 22px 24px;
   border-left: 1px solid var(--l3);
@@ -46,13 +40,11 @@
   margin-left: 5px;
 }
 
-
 .plan-step > .dot {
   position: absolute;
   left: -4px;
   top: 10px;
 }
-
 
 .plan-step h3 {
   font-size: 15px;
@@ -60,18 +52,15 @@
   margin-bottom: 5px;
 }
 
-
 .plan-step p {
   color: var(--t3);
   font-size: 12px;
   line-height: 1.8;
 }
 
-
 .plan-step .pill {
   margin-top: 8px;
 }
-
 
 .progress-track {
   height: 3px;
@@ -81,13 +70,11 @@
   overflow: hidden;
 }
 
-
 .progress-track span {
   height: 100%;
   display: block;
   background: var(--pine);
 }
-
 
 .diff-stats {
   display: flex;
@@ -96,16 +83,13 @@
   margin: 12px 0 23px;
 }
 
-
 .diff-stats strong {
   font: 36px var(--serif);
 }
 
-
 .diff-stats span {
   font: 13px var(--mono);
 }
-
 
 .diff-card {
   border: 1px solid var(--l2);
@@ -113,7 +97,6 @@
   overflow: hidden;
   margin: 14px 0;
 }
-
 
 .diff-heading {
   display: flex;
@@ -124,14 +107,12 @@
   background: var(--s1);
 }
 
-
 .diff-lines {
   overflow-x: auto;
   background: var(--code);
   padding: 9px 0;
   font: 11px/1.85 var(--mono);
 }
-
 
 .diff-line {
   display: flex;
@@ -141,7 +122,6 @@
   white-space: pre;
 }
 
-
 .diff-line em {
   color: var(--t3);
   font-style: normal;
@@ -149,21 +129,17 @@
   text-align: right;
 }
 
-
 .diff-line.add {
   background: var(--pine-wash);
 }
-
 
 .diff-line.remove {
   background: var(--crimson-wash);
 }
 
-
 .diff-line.commentable {
   cursor: pointer;
 }
-
 
 .bottom-action {
   padding: 12px 20px 3px;
@@ -172,18 +148,15 @@
   background: var(--s2);
 }
 
-
 .workspace-tabs {
   margin: 0 22px;
   gap: 20px;
   flex: none;
 }
 
-
 .workspace-tabs button {
   font-size: 12px;
 }
-
 
 .terminal {
   background: var(--code);
@@ -195,7 +168,6 @@
   margin: 13px 0;
 }
 
-
 .note-paper {
   border: 1px solid var(--l2);
   background: var(--s3);
@@ -203,12 +175,10 @@
   margin: 18px 0;
 }
 
-
 .note-paper h3 {
   font: 22px/1.5 var(--serif);
   margin-bottom: 15px;
 }
-
 
 .note-paper p {
   font-size: 14px;
@@ -216,13 +186,11 @@
   color: var(--t2);
 }
 
-
 .note-paper hr {
   border: 0;
   border-top: 1px solid var(--l2);
   margin: 20px 0;
 }
-
 
 .flashcard {
   display: flex;
@@ -238,25 +206,21 @@
   margin: 20px 0;
 }
 
-
 .flashcard h2 {
   font: 24px/1.7 var(--serif);
   margin: 30px 0;
 }
-
 
 .flashcard p {
   font-size: 15px;
   line-height: 1.9;
 }
 
-
 .rating-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 7px;
 }
-
 
 .rating-grid button {
   border: 1px solid var(--l2);
@@ -266,7 +230,6 @@
   font-size: 12px;
 }
 
-
 .rating-grid small {
   display: block;
   font-size: 10px;
@@ -274,12 +237,10 @@
   margin-top: 5px;
 }
 
-
 .live-stage {
   padding: 30px 12px;
   text-align: center;
 }
-
 
 .live-orbit {
   width: 124px;
@@ -294,13 +255,11 @@
     0 0 0 15px var(--l1);
 }
 
-
 .live-orbit .brand-seal {
   width: 45px;
   height: 48px;
   font-size: 29px;
 }
-
 
 .voice-bars {
   display: flex;
@@ -311,7 +270,6 @@
   margin: 30px 0;
 }
 
-
 .voice-bars i {
   width: 3px;
   height: calc(8px + var(--level) * 4px);
@@ -321,18 +279,15 @@
   animation-delay: calc(var(--level) * -80ms);
 }
 
-
 .live-stage h2 {
   font: 24px var(--serif);
   margin: 20px 0 13px;
 }
 
-
 .live-stage p {
   color: var(--t3);
   font-size: 13px;
 }
-
 
 .live-controls {
   display: flex;
@@ -340,7 +295,6 @@
   gap: 24px;
   margin-top: 35px;
 }
-
 
 .live-controls button {
   border: 1px solid var(--l2);
@@ -350,13 +304,11 @@
   border-radius: 50%;
 }
 
-
 .live-controls button.end-call {
   color: var(--on-zhu);
   background: var(--zhu);
   border-color: var(--zhu);
 }
-
 
 .asset-grid {
   display: grid;
@@ -364,7 +316,6 @@
   gap: 12px;
   margin: 18px 0;
 }
-
 
 .asset-item {
   background: var(--s3);
@@ -374,7 +325,6 @@
   border-radius: 5px;
 }
 
-
 .asset-item .icon {
   width: 30px;
   height: 30px;
@@ -382,12 +332,10 @@
   color: var(--t3);
 }
 
-
 .asset-item strong {
   display: block;
   font-size: 12px;
 }
-
 
 .asset-item small {
   display: block;
