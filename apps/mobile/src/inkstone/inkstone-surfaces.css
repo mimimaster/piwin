@@ -1,0 +1,453 @@
+/* Shared surfaces, transcribed from docs/design/inkstone/proto-08-mobile.html (surfaces.css). Values are canonical. */
+
+
+.spread {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+
+.section-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--t3);
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  margin: 24px 0 11px;
+}
+
+
+.section-label button {
+  font-size: 12px;
+  color: var(--t2);
+  padding: 7px 0 7px 12px;
+}
+
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  background: var(--s1);
+  color: var(--t2);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+
+.pill .icon {
+  width: 13px;
+  height: 13px;
+}
+
+
+.pill.pine {
+  color: var(--pine);
+  background: var(--pine-wash);
+}
+
+
+.pill.zhu {
+  color: var(--zhu);
+  background: var(--zhu-wash);
+}
+
+
+.pill.azure {
+  color: var(--azure);
+}
+
+
+.dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border: 1px solid var(--t4);
+  border-radius: 50%;
+  flex: none;
+}
+
+
+.dot.running {
+  background: var(--lamp);
+  border-color: var(--lamp);
+  box-shadow: 0 0 0 3px var(--lamp-wash);
+  animation: breathe 2.4s ease-in-out infinite;
+}
+
+
+.dot.done {
+  background: var(--pine);
+  border-color: var(--pine);
+}
+
+
+.dot.waiting {
+  background: var(--zhu);
+  border-color: var(--zhu);
+  border-radius: 1px;
+}
+
+
+.dot.background {
+  background: var(--azure);
+  border-color: var(--azure);
+}
+
+
+.search-field {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  height: 44px;
+  gap: 9px;
+  border: 1px solid var(--l2);
+  border-radius: 8px;
+  background: var(--s1);
+  color: var(--t3);
+}
+
+
+.search-field input {
+  border: 0;
+  background: transparent;
+  min-width: 0;
+  width: 100%;
+  outline: none;
+  color: var(--t1);
+  font-size: 14px;
+}
+
+
+.search-field .icon {
+  width: 17px;
+  height: 17px;
+}
+
+
+.tabs {
+  display: flex;
+  gap: 18px;
+  border-bottom: 1px solid var(--l2);
+  margin-top: 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+
+.tabs button {
+  flex: none;
+  min-height: 44px;
+  font-size: 13px;
+  color: var(--t3);
+  padding: 4px 0 10px;
+  border-bottom: 2px solid transparent;
+}
+
+
+.tabs button.active {
+  color: var(--t1);
+  border-color: var(--zhu);
+}
+
+
+.full-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 46px;
+  width: 100%;
+  padding: 10px 15px;
+  border-radius: 7px;
+  background: var(--zhu);
+  color: var(--on-zhu);
+  font-size: 14px;
+}
+
+
+.full-button.secondary {
+  background: var(--s1);
+  color: var(--t1);
+  border: 1px solid var(--l2);
+}
+
+
+.full-button.subtle {
+  background: none;
+  color: var(--t2);
+}
+
+
+.list-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  min-height: 65px;
+  border-bottom: 1px solid var(--l1);
+  padding: 12px 0;
+}
+
+
+.list-row > .icon {
+  width: 19px;
+  color: var(--t2);
+}
+
+
+.list-row strong {
+  font-size: 14px;
+  font-weight: 500;
+  display: block;
+}
+
+
+.list-row small {
+  font-size: 11px;
+  color: var(--t3);
+  display: block;
+  margin-top: 4px;
+  line-height: 1.6;
+}
+
+
+.list-row .trailing {
+  margin-left: auto;
+  color: var(--t3);
+  font-size: 12px;
+  flex: none;
+}
+
+
+.list-row .trailing .icon {
+  width: 14px;
+}
+
+
+.list-row.selected {
+  color: var(--zhu);
+}
+
+
+.list-row.selected > .icon,
+.list-row.selected .trailing {
+  color: var(--zhu);
+}
+
+
+.host-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px;
+  border: 1px solid var(--l2);
+  border-radius: 8px;
+  width: 100%;
+  text-align: left;
+}
+
+
+.host-card strong {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+
+.host-card small {
+  display: block;
+  font-size: 11px;
+  color: var(--t3);
+  margin-top: 4px;
+}
+
+
+.host-monogram {
+  display: grid;
+  place-items: center;
+  height: 42px;
+  width: 42px;
+  border-radius: 9px;
+  background: var(--s1);
+  font: 23px var(--serif);
+}
+
+
+.field {
+  display: block;
+  font-size: 12px;
+  color: var(--t2);
+  margin: 17px 0;
+}
+
+
+.field input,
+.field select,
+.field textarea {
+  display: block;
+  width: 100%;
+  margin-top: 7px;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid var(--l2);
+  border-radius: 7px;
+  background: var(--s2);
+  color: var(--t1);
+  font-size: 16px;
+}
+
+
+.field textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+
+.radio-options {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin: 14px 0;
+}
+
+
+.radio-options button {
+  flex: 1;
+  min-width: 60px;
+  min-height: 44px;
+  border: 1px solid var(--l2);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+
+.radio-options button[aria-pressed='true'] {
+  color: var(--zhu);
+  background: var(--zhu-wash);
+  border-color: var(--zhu);
+}
+
+
+.switch {
+  width: 36px;
+  height: 22px;
+  background: var(--l3);
+  border-radius: 14px;
+  position: relative;
+}
+
+
+.switch::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  background: var(--s4);
+  border-radius: 50%;
+  top: 3px;
+  left: 3px;
+}
+
+
+[aria-checked='true'] .switch {
+  background: var(--pine);
+}
+
+
+[aria-checked='true'] .switch::after {
+  left: 17px;
+}
+
+
+.empty-state {
+  padding: 42px 10px;
+  text-align: center;
+  color: var(--t2);
+}
+
+
+.empty-state .brand-seal {
+  width: 44px;
+  height: 48px;
+  font-size: 29px;
+  margin-bottom: 24px;
+}
+
+
+.empty-state h2 {
+  font: 26px/1.6 var(--serif);
+  margin-bottom: 13px;
+}
+
+
+.empty-state p {
+  font-size: 13px;
+  line-height: 1.9;
+  color: var(--t3);
+}
+
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  border-block: 1px solid var(--l2);
+  padding: 20px 0;
+  margin: 20px 0;
+}
+
+
+.metric-grid strong {
+  font: 24px var(--serif);
+  display: block;
+}
+
+
+.metric-grid small {
+  color: var(--t3);
+  font-size: 10px;
+}
+
+
+.usage-chart {
+  height: 100px;
+  display: flex;
+  align-items: end;
+  gap: 8px;
+  border-bottom: 1px solid var(--l2);
+  padding: 0 6px;
+  margin-top: 25px;
+}
+
+
+.usage-chart span {
+  flex: 1;
+  height: var(--height);
+  background: var(--pine);
+  opacity: 0.7;
+  border-radius: 2px 2px 0 0;
+}
+
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}

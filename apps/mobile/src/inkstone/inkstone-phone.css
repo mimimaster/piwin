@@ -1,0 +1,395 @@
+/* Phone shell, transcribed from docs/design/inkstone/proto-08-mobile.html (layout.css).
+   Only the in-app styles are kept; the desktop exhibition chrome (device frame,
+   scene nav, specimen labels) is prototype-only and intentionally not carried over.
+   Fullscreen behavior follows the prototype's real-phone (max-width: 700px) branch:
+   no fake status bar, safe-area padding, hidden home-indicator bar. */
+
+* {
+  box-sizing: border-box;
+}
+
+.inkstone-root {
+  background: var(--void);
+  color: var(--t1);
+  font: 14px/1.55 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Element-level reset, matching the prototype: component classes such as
+   .pill / .full-button / .seal-button must be able to set background and padding. */
+button {
+  color: inherit;
+  cursor: pointer;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.inkstone-root a,
+.inkstone-root input,
+.inkstone-root textarea,
+.inkstone-root select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.inkstone-root button:focus-visible,
+.inkstone-root a:focus-visible,
+.inkstone-root summary:focus-visible,
+.inkstone-root input:focus-visible,
+.inkstone-root textarea:focus-visible,
+.inkstone-root select:focus-visible {
+  outline: 2px solid var(--zhu);
+  outline-offset: 3px;
+}
+
+.inkstone-root a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.inkstone-root svg {
+  flex: none;
+}
+
+.icon {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.45;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.inkstone-root h1,
+.inkstone-root h2,
+.inkstone-root h3,
+.inkstone-root p {
+  margin: 0;
+}
+
+.inkstone-root .mono,
+.inkstone-root code,
+.inkstone-root time {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.muted {
+  color: var(--t3);
+}
+
+.red {
+  color: var(--zhu);
+}
+
+.green {
+  color: var(--pine);
+}
+
+.blue {
+  color: var(--azure);
+}
+
+.eyebrow {
+  font: 11px/1.6 var(--mono);
+  letter-spacing: 0.14em;
+  color: var(--t3);
+}
+
+summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Fullscreen app shell (real-phone branch of the prototype). */
+.phone {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-height: 0;
+  background: var(--s2);
+  padding-top: env(safe-area-inset-top);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 17px 9px;
+  min-height: 61px;
+  flex: none;
+}
+
+.topbar .brand-seal {
+  width: 25px;
+  height: 28px;
+  font-size: 18px;
+}
+
+.topbar-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.topbar-title h2 {
+  font: 500 18px/1.45 var(--serif);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar-title small {
+  color: var(--t3);
+  font-size: 11px;
+  display: flex;
+  gap: 7px;
+  align-items: center;
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  flex: none;
+}
+
+.icon-button:hover {
+  background: var(--s1);
+}
+
+.icon-button.red-fill {
+  color: var(--on-zhu);
+  background: var(--zhu);
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  border-radius: 9px;
+}
+
+.screen-scroll {
+  flex: 1;
+  overflow: auto;
+  overscroll-behavior: contain;
+  min-height: 0;
+  padding: 10px 22px 24px;
+  scrollbar-width: none;
+}
+
+.screen-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.screen-heading {
+  margin-bottom: 20px;
+}
+
+.screen-heading h1 {
+  font: 500 29px/1.5 var(--serif);
+  letter-spacing: 0.01em;
+}
+
+.screen-heading p {
+  color: var(--t3);
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.bottom-nav {
+  display: flex;
+  justify-content: space-around;
+  padding: 5px 12px 0;
+  border-top: 1px solid var(--l2);
+  background: var(--s2);
+  flex: none;
+}
+
+.bottom-nav button {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 78px;
+  min-height: 52px;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--t3);
+  position: relative;
+}
+
+.bottom-nav button.active {
+  color: var(--zhu);
+}
+
+.nav-counter {
+  position: absolute;
+  right: 15px;
+  top: 0;
+  background: var(--zhu);
+  color: var(--on-zhu);
+  font: 9px var(--mono);
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.brand-seal {
+  width: 33px;
+  height: 35px;
+  background: var(--zhu);
+  color: var(--on-zhu);
+  display: inline-grid;
+  place-items: center;
+  font: 21px var(--serif);
+  border-radius: 3px;
+  outline: 1px solid var(--on-zhu);
+  outline-offset: -4px;
+  transform: rotate(-2deg);
+  flex: none;
+}
+
+.home-indicator {
+  height: max(12px, env(safe-area-inset-bottom));
+  flex: none;
+  background: var(--s2);
+  position: relative;
+}
+
+.face-switch {
+  display: flex;
+  width: fit-content;
+  gap: 3px;
+  padding: 4px;
+  border: 1px solid var(--l2);
+  border-radius: 7px;
+}
+
+.face-switch button {
+  padding: 7px 11px;
+  font-size: 12px;
+  border-radius: 4px;
+  color: var(--t3);
+}
+
+.face-switch button[aria-pressed='true'] {
+  background: var(--s2);
+  color: var(--t1);
+  box-shadow: var(--sh1);
+}
+
+.toast {
+  position: fixed;
+  z-index: 40;
+  left: 16px;
+  right: 16px;
+  bottom: 89px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  color: var(--slab-t);
+  background: var(--slab);
+  box-shadow: var(--sh3);
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  font-size: 13px;
+  transition: 180ms ease;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+dialog.inkstone-sheet {
+  color: var(--t1);
+  background: var(--s3);
+  padding: 0;
+  border: 0;
+  border-radius: 22px 22px 0 0;
+  width: 100%;
+  max-width: 100vw;
+  max-height: 90dvh;
+  margin: 0;
+  top: auto;
+  bottom: 0;
+  left: 0;
+  box-shadow: var(--sh3);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+dialog.inkstone-sheet::backdrop {
+  background: rgba(20, 17, 12, 0.32);
+  backdrop-filter: blur(2px);
+}
+
+.sheet-grab {
+  width: 32px;
+  height: 4px;
+  background: var(--l3);
+  border-radius: 4px;
+  margin: 9px auto 3px;
+}
+
+.sheet-head {
+  padding: 4px 15px 8px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sheet-head h2 {
+  font: 500 23px var(--serif);
+}
+
+.sheet-body {
+  padding: 0 22px 28px;
+}
+
+.sheet-body p {
+  color: var(--t2);
+  line-height: 1.8;
+  margin-bottom: 16px;
+}
+
+.sheet-body .full-button {
+  margin-top: 12px;
+}
+
+.sheet-feedback.inline-error {
+  color: var(--crimson);
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inkstone-root *,
+  .inkstone-root *::before,
+  .inkstone-root *::after {
+    transition: none !important;
+    animation: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Neutralize legacy Deck classes that share names with Inkstone surfaces. */
+.inkstone-root .empty-state {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  max-width: none;
+}
