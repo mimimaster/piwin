@@ -174,44 +174,46 @@
   margin: var(--s-5) auto;
 }
 
-/* Deck rule: the error card is the one place in the transcript that gets a
-   real coral surface rather than just coral text — an error is a distinct
-   object you need to notice mid-document, not a status word. */
+/* Inkstone proto #20: card + left crimson bar + shaded mono detail. */
 .turn-error-card-inner {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: var(--s-4);
-  padding: var(--s-4) var(--s-5);
-  border-radius: var(--r-card);
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: var(--r-card, 8px);
   border: 0;
-  background: color-mix(in srgb, var(--coral) 6%, var(--surface-2));
-  box-shadow:
-    var(--elev-1),
-    inset 0 0 0 1px color-mix(in srgb, var(--coral) 28%, transparent);
+  background: var(--surface-2);
+  box-shadow: var(--elev-1);
+}
+
+.turn-error-card-inner::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--coral);
 }
 
 .turn-error-header {
   display: flex;
   align-items: center;
-  gap: var(--s-4);
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .turn-error-icon-badge {
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
-  border-radius: var(--r-chip);
-  background: color-mix(in srgb, var(--coral) 16%, transparent);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--coral) 14%, transparent);
   color: var(--coral);
   flex-shrink: 0;
-}
-
-.turn-error-header-text {
-  display: flex;
-  align-items: center;
-  gap: var(--s-4);
-  flex: 1;
 }
 
 .turn-error-title {
@@ -224,31 +226,32 @@
   font-size: var(--fs-micro);
   font-family: var(--font-mono);
   text-transform: uppercase;
-  padding: 1px var(--s-3);
-  border-radius: var(--r-chip);
+  padding: 1px 6px;
+  border-radius: var(--r-chip, 3px);
   background: color-mix(in srgb, var(--coral) 14%, transparent);
   color: var(--coral);
   letter-spacing: var(--tracking-micro);
 }
 
-.turn-error-body {
-  padding-left: 30px;
-}
-
-.turn-error-message {
-  font-size: var(--fs-chrome);
-  line-height: var(--lh-normal);
-  word-break: break-word;
+.turn-error-detail {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--text-1) 4%, var(--surface-1, var(--surface-0, #0f0e0c)));
+  box-shadow: var(--elev-1);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--text-2);
   white-space: pre-wrap;
-  color: var(--text-3);
+  word-break: break-word;
 }
 
 .turn-error-actions {
   display: inline-flex;
   align-items: center;
-  gap: var(--s-4);
+  gap: 6px;
   flex-wrap: wrap;
-  padding-left: 30px;
   margin-top: 2px;
 }
 

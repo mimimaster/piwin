@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveTurnErrorMessage } from './turn-error-presentation';
+import { presentTurnErrorCard, resolveTurnErrorMessage } from './turn-error-presentation';
 
 const failedRun = {
   messageStatus: 'error' as const,
@@ -8,6 +8,75 @@ const failedRun = {
   runTerminalMessage: 'Provider returned error',
   locale: 'zh-CN',
 };
+
+describe('presentTurnErrorCard', () => {
+  it('uses a human title and strips Unknown: labels from vague failures', () => {
+    expect(
+      presentTurnErrorCard({
+        error: 'Unknown: Unexpected error.',
+        failure: {
+          code: 'unknown-agent-failure',
+          origin: 'runtime',
+          message: 'Unexpected error.',
+          retriable: false,
+        },
+        locale: 'zh-CN',
+      }),
+    ).toEqual({
+      title: '生成失败',
+      detail: 'Unexpected error.',
+      category: 'unknown',
+      showCategoryTag: false,
+    });
+  });
+
+  it('falls back when the detail shell is empty after stripping', () => {
+    expect(
+      presentTurnErrorCard({
+        error: 'Unknown:',
+        locale: 'zh-CN',
+      }),
+    ).toMatchObject({
+      title: '生成失败',
+      detail: '没有更多详细信息。',
+      showCategoryTag: false,
+    });
+  });
+
+  it('keeps concrete detail prose under a structured title', () => {
+    expect(
+      presentTurnErrorCard({
+        error: 'Connection error (spacexai · https://api.example/v1)',
+        failure: {
+          code: 'provider-unavailable',
+          origin: 'provider',
+          message: 'Connection error (spacexai · https://api.example/v1)',
+          retriable: true,
+        },
+        locale: 'zh-CN',
+      }),
+    ).toMatchObject({
+      title: '无法连接模型服务',
+      detail: 'Connection error (spacexai · https://api.example/v1)',
+      category: 'http',
+      showCategoryTag: true,
+    });
+  });
+
+  it('strips an Unknown: prefix when the remainder is useful', () => {
+    expect(
+      presentTurnErrorCard({
+        error: 'Unknown: provider returned 502 bad gateway',
+        locale: 'en',
+      }),
+    ).toMatchObject({
+      title: 'Generation failed',
+      detail: 'provider returned 502 bad gateway',
+      category: 'unknown',
+      showCategoryTag: false,
+    });
+  });
+});
 
 describe('resolveTurnErrorMessage', () => {
   it('hides a run-level error from earlier assistant responses', () => {

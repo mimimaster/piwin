@@ -717,57 +717,49 @@ export function resolveRunBehaviorId(kind: RunStatusKind): BehaviorActivityId {
   }
 }
 
+/**
+ * Tool-call row chips are tool names, not sentences. Keep them short English
+ * in every locale — "命令"/"读取"/"修改" ate the preview and looked forced.
+ */
+const TOOL_CALL_KIND_CHIP: Partial<Record<BehaviorActivityId, string>> = {
+  explore: 'Explore',
+  search: 'Search',
+  read: 'Read',
+  edit: 'Edit',
+  shell: 'Bash',
+  test: 'Test',
+  build: 'Build',
+  process: 'Process',
+  git: 'Git',
+  'mcp.discovery': 'MCP',
+  'mcp.call': 'MCP',
+  'mcp.call.done': 'MCP',
+  'mcp.call.error': 'MCP',
+  'web.search': 'Search',
+  'web.fetch': 'Fetch',
+  browser: 'Browser',
+  image: 'Image',
+  video: 'Video',
+  subagent: 'Subagent',
+};
+
 export function localizeBehaviorAction(
   id: BehaviorActivityId,
   locale: 'zh-CN' | 'en',
   fallback?: string,
 ): string {
+  const kindChip = TOOL_CALL_KIND_CHIP[id];
+  if (kindChip) {
+    return kindChip;
+  }
   if (locale === 'en') {
     switch (id) {
-      case 'explore':
-        return 'Explored';
-      case 'search':
-        return 'Searched';
-      case 'read':
-        return 'Read';
-      case 'edit':
-        return 'Edited';
-      case 'shell':
-        return 'Ran command';
-      case 'test':
-        return 'Ran tests';
-      case 'build':
-        return 'Built';
-      case 'process':
-        return 'Process';
-      case 'git':
-        return fallback?.startsWith('Git') ? fallback : 'Git';
       case 'mcp.server.connect':
         return 'Connecting to MCP';
       case 'mcp.server.stop':
         return 'Stopped MCP server';
       case 'mcp.server.status':
         return 'MCP status';
-      case 'mcp.discovery':
-        return 'Discovering MCP tools';
-      case 'mcp.call':
-        return 'Calling';
-      case 'mcp.call.done':
-        return 'Called';
-      case 'mcp.call.error':
-        return 'MCP call failed';
-      case 'web.search':
-        return 'Searched web';
-      case 'web.fetch':
-        return 'Fetched';
-      case 'browser':
-        return 'Opened page';
-      case 'image':
-        return 'Generated image';
-      case 'video':
-        return 'Generated video';
-      case 'subagent':
-        return 'Delegated';
       case 'subagent.batch.prepare':
         return 'Preparing delegation';
       case 'subagent.batch.running':
@@ -796,50 +788,12 @@ export function localizeBehaviorAction(
   }
 
   switch (id) {
-    case 'explore':
-      return '探索';
-    case 'search':
-      return '搜索';
-    case 'read':
-      return '读取';
-    case 'edit':
-      return '修改';
-    case 'shell':
-      return '命令';
-    case 'test':
-      return '测试';
-    case 'build':
-      return '构建';
-    case 'process':
-      return '进程';
-    case 'git':
-      return 'Git';
     case 'mcp.server.connect':
       return '连接 MCP';
     case 'mcp.server.stop':
       return '停止 MCP';
     case 'mcp.server.status':
       return 'MCP 状态';
-    case 'mcp.discovery':
-      return '发现 MCP 工具';
-    case 'mcp.call':
-      return '调用';
-    case 'mcp.call.done':
-      return '已调用';
-    case 'mcp.call.error':
-      return 'MCP 调用失败';
-    case 'web.search':
-      return '搜索网页';
-    case 'web.fetch':
-      return '获取网页';
-    case 'browser':
-      return '打开页面';
-    case 'image':
-      return '生成图片';
-    case 'video':
-      return '生成视频';
-    case 'subagent':
-      return '委派';
     case 'subagent.batch.prepare':
       return '准备委派';
     case 'subagent.batch.running':

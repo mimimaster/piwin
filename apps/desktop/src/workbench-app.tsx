@@ -596,7 +596,6 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                           ? state.generalSessions
                           : state.sessions
                       }
-                      sessionPlan={sessionPlan}
                       modelOptions={modelOptions}
                       requestKnowledgeCenter={requestKnowledgeCenter}
                       resolveFlashcards={resolveConversationFlashcards}
@@ -629,12 +628,13 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       onOpenDocument={handleOpenDocument}
                       onOpenDiff={handleOpenDiff}
                       fileBrowseRoot={fileBrowseRoot}
-                      onPlanAbort={handlePlanAbort}
                       onGenerateWalkthrough={handleGenerateWalkthrough}
                       onCancelWalkthrough={handleCancelWalkthrough}
                       onForkFromMessage={handleForkSession}
                       onOpenSession={handleResumeSession}
                       onCompactAbort={handleCompactAbort}
+                      sessionPlan={sessionPlan}
+                      onPlanExecute={handlePlanExecute}
                     />
                   }
                   permissionBar={
@@ -642,7 +642,8 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       state={state}
                       extensionUiRequest={extensionUiRequest}
                       sessionPlan={sessionPlan}
-                      onPlanExecute={handlePlanExecute}
+                      onPlanAbort={handlePlanAbort}
+                      onOpenDocument={handleOpenDocument}
                       onPermission={handlePermission}
                       onExtensionUiResolve={handleExtensionUiResolve}
                     />

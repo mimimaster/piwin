@@ -262,21 +262,23 @@ html[data-theme-id='piwin-inkstone-paper'] .stage-header .context-bar-mode-badge
 html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-bar-mode-badge,
 html[data-theme-id='piwin-inkstone-paper'] .stage-header .context-bar-origin-badge,
 html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-bar-origin-badge {
-  font-family: var(--sans);
-  font-size: 10px;
-  font-weight: 600;
+  font: 10px var(--mono);
+  font-weight: 500;
   height: 16px;
   padding: 0 5px;
   border-radius: 3px;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
+  background: transparent;
+  color: var(--t3);
+  box-shadow: none;
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .tb .context-bar-mode-badge.is-warning,
 html[data-theme-id='piwin-inkstone-ink'] .tb .context-bar-mode-badge.is-warning,
 html[data-theme-id='piwin-inkstone-paper'] .stage-header .context-bar-mode-badge.is-warning,
 html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-bar-mode-badge.is-warning {
-  background: color-mix(in srgb, var(--ochre) 14%, transparent);
-  color: var(--ochre);
+  background: transparent;
+  color: var(--zhu);
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .tb .context-session-tree-trigger,

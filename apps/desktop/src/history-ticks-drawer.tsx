@@ -1,5 +1,5 @@
 /**
- * Thin history ticks for the transcript viewport.
+ * Thin history ticks for the transcript viewport (left-edge ruler).
  *
  * Each tick represents one user message. Moving vertically across the rail
  * selects the nearest message, applies a symmetric horizontal length wave, and
@@ -12,6 +12,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type FocusEvent as ReactFocusEvent,
   type MouseEvent as ReactMouseEvent,
   type ReactElement,
@@ -48,8 +49,9 @@ export function truncateMessageText(text: string, maxLength: number = 100): stri
   return `${trimmed.slice(0, maxLength)}...`;
 }
 
-// Keep these geometry values in sync with the compact rail CSS. They let the
-// pointer map to a tick without measuring every tick on every mouse event.
+// Keep these geometry values in sync with the compact rail CSS variables
+// (--history-tick-gap / --history-tick-pad-y). They let the pointer map to a
+// tick without measuring every tick on every mouse event.
 const COLLAPSED_TICK_HEIGHT_PX = 1;
 const COLLAPSED_TICK_GAP_PX = 10;
 const COLLAPSED_TICK_PADDING_TOP_PX = 8;
@@ -84,7 +86,7 @@ type CollapsedBubbleAnchor = {
 type CollapsedRailMetrics = {
   rail: HTMLDivElement;
   top: number;
-  right: number;
+  bubbleLeft: number;
   tickCount: number;
 };
 
@@ -111,7 +113,7 @@ function clampCollapsedBubbleTop(centerY: number): number {
   return Math.min(Math.max(centerY, minTop), maxTop);
 }
 
-/** Viewport X just past the peak wave tip for a given rail left edge. */
+/** Viewport X just past the peak wave tip for a left-edge rail. */
 function getBubbleLeftFromRailLeft(railLeft: number): number {
   return railLeft + HISTORY_TICK_WAVE_MAX_WIDTH_PX + COLLAPSED_BUBBLE_OFFSET_PX;
 }
@@ -218,13 +220,10 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
 
   const refreshRailMetrics = useCallback((rail: HTMLDivElement): CollapsedRailMetrics => {
     const bounds = rail.getBoundingClientRect();
-    // Anchor at the peak wave tip (base left + max wave width). Do not add the
-    // strip's right padding — that pushed the bubble far into the stage gutter,
-    // especially when a parent backdrop-filter rebased fixed coordinates.
     const metrics: CollapsedRailMetrics = {
       rail,
       top: bounds.top,
-      right: getBubbleLeftFromRailLeft(bounds.left),
+      bubbleLeft: getBubbleLeftFromRailLeft(bounds.left),
       tickCount: userMessages.length,
     };
     railMetricsRef.current = metrics;
@@ -258,7 +257,7 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
         if (message) {
           setHoveredMessageId(message.id);
           setCollapsedBubbleAnchor({
-            left: metrics.right,
+            left: metrics.bubbleLeft,
             top: clampCollapsedBubbleTop(
               metrics.top +
                 COLLAPSED_TICK_PADDING_TOP_PX +
@@ -419,6 +418,12 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
       <div
         className="history-ticks-border-strip"
         data-testid="history-drawer-handle"
+        style={
+          {
+            '--history-tick-gap': `${COLLAPSED_TICK_GAP_PX}px`,
+            '--history-tick-pad-y': `${COLLAPSED_TICK_PADDING_TOP_PX}px`,
+          } as CSSProperties
+        }
         onMouseEnter={(event) => {
           updateRailPreview(event.currentTarget, event.clientY);
         }}

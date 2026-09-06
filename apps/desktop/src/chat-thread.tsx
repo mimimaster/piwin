@@ -8,7 +8,7 @@ import { pickArtifactFenceSecurity } from './artifact-fence-security';
 import type { ChatMessageUi } from './chat-reducer';
 import { RunActivitySlot } from './RunActivitySlot.js';
 import { isAssistantContentEmpty } from './assistant-message-content.js';
-import { PlanCard } from './plan-card';
+
 import {
   deriveGoalSessionView,
   GoalActionsProvider,
@@ -44,6 +44,10 @@ import {
   ChatTurnMarginalia,
   resolveTurnMarginalia,
 } from './chat-turn-marginalia.js';
+import {
+  canShowPlanExecutionGate,
+  findPlanExecutionGateMessageId,
+} from './plan-execution-gate.js';
 
 /** Legacy helper retained for callers that still compute the old preference. */
 /** @deprecated Run Inspector disclosure is now explicitly user-owned. */
@@ -153,6 +157,19 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
         : effectiveMessages,
     [docCardSequence, effectiveMessages],
   );
+
+  const planExecutionGateMessageId = useMemo(() => {
+    if (!props.onPlanExecute || !props.sessionPlan) return null;
+    if (
+      !canShowPlanExecutionGate({
+        plan: props.sessionPlan,
+        isConversationSession: props.isConversationSession === true,
+      })
+    ) {
+      return null;
+    }
+    return findPlanExecutionGateMessageId(chatMessages);
+  }, [chatMessages, props.isConversationSession, props.onPlanExecute, props.sessionPlan]);
 
   const activeToolName = useMemo(() => {
     for (let i = transcriptMessages.length - 1; i >= 0; i--) {
@@ -348,22 +365,6 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
         <div className="chat-doc-card-sequence-slot">
           <DocCardSequenceView sequence={docCardSequence} request={props.docCardRequest} />
         </div>
-      ) : null}
-      {props.plan && !conversationSession ? (
-        <PlanCard
-          plan={props.plan}
-          {...(props.onOpenDocument
-            ? {
-                onOpenDocument: (doc) =>
-                  props.onOpenDocument?.({
-                    title: doc.title,
-                    path: doc.title,
-                    ...(doc.content !== undefined ? { content: doc.content } : {}),
-                  }),
-              }
-            : {})}
-          {...(props.onPlanAbort ? { onAbort: props.onPlanAbort } : {})}
-        />
       ) : null}
       {goalView.phase !== 'idle' && props.messages.length > 0 ? (
         <GoalStickyStrip
@@ -585,6 +586,16 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                       ? { contextUsage: props.contextUsage }
                       : {})}
                     {...(onRegenerate !== undefined ? { onRegenerate } : {})}
+                    {...(planExecutionGateMessageId === message.id &&
+                    props.sessionPlan &&
+                    props.onPlanExecute
+                      ? {
+                          planExecutionGate: {
+                            plan: props.sessionPlan,
+                            onExecute: props.onPlanExecute,
+                          },
+                        }
+                      : {})}
                     isNew={enteringIds.has(message.id)}
                     knownFilePaths={changedFilePathsByTurnId.get(turn.id) ?? []}
                     streaming={props.streaming}
@@ -765,7 +776,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                 (currentTurnStreaming && (props.activeRunId !== null || runActivitySlot !== null));
 
               const userMarginaliaData =
-                conversationSession || renderedUserItems.length === 0
+                renderedUserItems.length === 0
                   ? null
                   : resolveTurnMarginalia(userMessages, {
                       editingMessageId: props.editingMessageId,
@@ -784,7 +795,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                 : null;
 
               const assistantMarginaliaData =
-                conversationSession || !hasAssistantActivity
+                !hasAssistantActivity
                   ? null
                   : resolveTurnMarginalia(
                       assistantMessages.length > 0 ? assistantMessages : turnMessages,
@@ -798,23 +809,6 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                       },
                     );
 
-              if (conversationSession) {
-                return (
-                  <section
-                    key={turn.id}
-                    className={`chat-turn-group turn${turn.id === currentResponseTurnId ? ' is-current-response' : ''}`}
-                    {...(turn.id === currentResponseTurnId
-                      ? { 'data-testid': 'current-response-turn' }
-                      : {})}
-                  >
-                    <div className="chat-turn-body">
-                      {renderedUserItems}
-                      {renderedAssistantItems}
-                    </div>
-                  </section>
-                );
-              }
-
               return (
                 <section
                   key={turn.id}
@@ -825,11 +819,11 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                 >
                   {renderedUserItems.length > 0 ? (
                     <article key="user-turn" className="turn chat-turn chat-turn-user">
-                      {userMarginaliaData !== null ? <ChatTurnMarginalia data={userMarginaliaData} /> : null}
                       <div className="chat-turn-body">
                         {userMarginaliaData !== null ? <ChatTurnHead data={userMarginaliaData} /> : null}
                         {renderedUserItems}
                       </div>
+                      {userMarginaliaData !== null ? <ChatTurnMarginalia data={userMarginaliaData} /> : null}
                     </article>
                   ) : null}
                   {hasAssistantActivity ? (

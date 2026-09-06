@@ -410,14 +410,10 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const rawSummary =
     tool.status === 'error'
       ? (command ??
-        (targetPaths.length > 0
-          ? targetPaths.map((path) => path.split(/[\\/]/).pop() || path).join(', ')
-          : displayName))
+        (targetPaths.length > 0 ? targetPaths.join(', ') : displayName))
       : (tool.presentation?.summary ??
         command ??
-        (targetPaths.length > 0
-          ? targetPaths.map((path) => path.split(/[\\/]/).pop() || path).join(', ')
-          : displayName));
+        (targetPaths.length > 0 ? targetPaths.join(', ') : displayName));
   // Prefer host inputPreview; fall back when legacy presentations stuffed JSON into summary.
   const inputPreview =
     tool.presentation?.inputPreview ||
@@ -433,12 +429,14 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   // Cursor-style head:
   //  - Read/Edited/Git path tools → file pill (single or "a and N other files")
   //  - Searched/Explored/Fetched/shell → mono query/command preview
-  const singleBasename = targetPaths[0]?.split(/[\\/]/).pop() || targetPaths[0] || '';
+  // Prefer the full Host path in the pill; basename-only hid too much for remote.
+  const primaryPathLabel = targetPaths[0] ?? '';
   const summaryLooksLikeToolName = summary === displayName || summary === tool.toolName;
   const showFilePill =
-    isPathLike &&
-    (targetPaths.length >= 1 || (Boolean(summary) && !summaryLooksLikeToolName));
-  const pillLabel = multiPath || (isPathLike && !targetPaths[0]) ? summary : singleBasename;
+    !isQueryLike &&
+    (targetPaths.length >= 1 ||
+      (isPathLike && Boolean(summary) && !summaryLooksLikeToolName));
+  const pillLabel = multiPath || (isPathLike && !targetPaths[0]) ? summary : primaryPathLabel;
   const primaryTargetPath = targetPaths[0];
   const primaryOpenPath = primaryTargetPath
     ? resolveToolOpenPath(primaryTargetPath, props.projectPath)
@@ -456,7 +454,6 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     request: props.request,
     fallback: isEditTool && tool.status !== 'error' ? recoveredArgs.diffStats : undefined,
   });
-  const hasDetailInBody = Boolean(command || inputPreview);
   const isArgsDumpSummary =
     !recoveredSummary &&
     (Boolean(inputPreview && summary === inputPreview) || looksLikeArgsDumpSummary(summary));
@@ -477,23 +474,15 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
         ...(inputPreview !== undefined ? { inputPreview } : {}),
       })
     : shellHeaderSummary;
-  const baseDisplayActionVerb =
-    isFetchStyle && baseBehaviorId === 'shell' && locale === 'en' ? 'Ran' : actionVerb;
-  const displayActionVerb =
-    tool.status === 'error' && behaviorId !== 'mcp.call.error'
-      ? locale === 'zh-CN'
-        ? `${baseDisplayActionVerb}失败`
-        : `${baseDisplayActionVerb} failed`
-      : baseDisplayActionVerb;
+  const displayActionVerb = actionVerb;
   const previewText = resolveToolCallHeaderPreview({
     summary: headerSummary,
     displayName,
     showFilePill,
     pillLabel: pillLabel || '',
-    singleBasename: singleBasename || '',
+    singleBasename: primaryPathLabel || '',
     isPathLike,
     expanded,
-    hasDetailInBody: isFetchStyle ? false : hasDetailInBody,
     isArgsDumpSummary: isMcpBehavior ? false : isArgsDumpSummary,
     keepTitlePreview: isMcpBehavior,
   });
@@ -610,7 +599,7 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
         />
         {toolCallKindIcon(kind, tool.toolName, rawActionVerb, baseBehaviorId)}
         <b className={`tool-call-action-verb ${behaviorClassName}`}>{displayActionVerb}</b>
-        {showFilePill && pillLabel ? (
+        {!expanded && showFilePill && pillLabel ? (
           <span
             className={`tool-call-file-pill${canOpenPath ? ' is-link' : ''}`}
             data-testid="tool-call-file-pill"
@@ -624,7 +613,7 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
             ) : null}
           </span>
         ) : null}
-        {previewText ? (
+        {!expanded && previewText ? (
           <code className={previewClassName}>
             {previewText}
             {tool.presentation?.countTag ? (
@@ -634,7 +623,7 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
               </span>
             ) : null}
           </code>
-        ) : tool.presentation?.countTag ? (
+        ) : !expanded && tool.presentation?.countTag ? (
           <span className="tool-call-count-tag">{tool.presentation.countTag}</span>
         ) : null}
         {tool.status === 'done' ? (

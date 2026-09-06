@@ -24,4 +24,25 @@ describe('Inkstone composer.css context capsules', () => {
       /\.slab[\s\S]{0,80}\.composer-v2-context-chip[\s\S]{0,120}iris-wash/,
     );
   });
+
+  it('keeps the slab sheen track idle-invisible and lamp-lit when active', () => {
+    expect(composer).toMatch(
+      /\.slab::before \{[\s\S]*?background: transparent;/,
+    );
+    expect(composer).not.toMatch(
+      /\.slab::before \{[\s\S]*?background: var\(--slab-line\);/,
+    );
+    expect(composer).toMatch(
+      /\.slab\.is-streaming::before[\s\S]*?animation: sheen/,
+    );
+  });
+
+  it('keeps focus-within on --sh3 without a Deck iris/zhu ring', () => {
+    expect(composer).toMatch(
+      /\.slab:is\(:focus-within, :hover:focus-within\) \{\s*box-shadow: var\(--sh3\);/,
+    );
+    expect(composer).not.toMatch(
+      /\.slab:is\(:focus-within[\s\S]{0,80}0 0 0 1px var\(--(?:iris|zhu)\)/,
+    );
+  });
 });

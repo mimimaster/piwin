@@ -59,7 +59,7 @@ export function PermissionsPage(): ReactElement {
           label={isChinese ? '当前模式' : 'Active mode'}
           description={
             isChinese
-              ? 'Auto — 沙箱内低打扰；Ask — 几乎每次都确认；YOLO — 关闭沙箱，跳过常规确认。'
+              ? 'Auto — 沙箱内自动执行，低干扰；Ask — 几乎每次都确认；YOLO — 关闭沙箱，跳过常规确认。'
               : 'Auto — low friction inside sandbox; Ask — confirm almost everything; YOLO — no sandbox, skip routine prompts.'
           }
         >
@@ -151,7 +151,7 @@ export function PermissionsPage(): ReactElement {
                   {' '}
                   —{' '}
                   {isChinese
-                    ? '沙箱内低打扰；离开工作区或出网时询问，适合更谨慎的日常开发。'
+                    ? '沙箱内自动执行；涉及工作区外部文件或网络请求时向您确认，适合更谨慎的日常开发。'
                     : 'low friction inside the sandbox; asks before leaving the workspace or opening network, for safer daily coding.'}
                 </span>
               </span>

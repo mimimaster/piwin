@@ -71,10 +71,17 @@
 }
 
 .enhanced-line-wrapper:hover > .line-comment-btn,
-.enhanced-line-wrapper:hover .line-comment-btn,
 .enhanced-line-wrapper.popover-open > .line-comment-btn {
   opacity: 1;
   visibility: visible;
+}
+
+/* Nested review lines (lists inside lists, paragraphs inside quotes): only
+   the deepest hovered wrapper may show its button. A descendant selector
+   would light every nested icon at once. */
+.enhanced-line-wrapper:hover:has(.enhanced-line-wrapper:hover) > .line-comment-btn {
+  opacity: 0;
+  visibility: hidden;
 }
 
 .line-comment-popover-anchor {

@@ -116,6 +116,7 @@ html:is(
     border-radius: 12px;
     box-shadow: var(--sh2);
     position: relative;
+    min-width: 0;
   }
 
   .settings-main::after {
@@ -144,9 +145,10 @@ html:is(
 
   .settings-main-header,
   .settings-main-content {
-    width: min(100%, 840px);
-    max-width: 840px;
-    margin-inline: auto;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    margin-inline: 0;
     box-sizing: border-box;
     padding-inline: 28px;
   }
@@ -170,6 +172,9 @@ html:is(
     padding: 12px 14px;
     margin-top: 0;
     margin-bottom: 14px;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
   }
 
   /* The page is a document; only the sections inside it are raised cards. */
@@ -265,10 +270,11 @@ html:is(
 
   .rules-visual-row {
     display: grid;
-    grid-template-columns: 110px 1fr 88px 1fr 28px;
+    grid-template-columns: minmax(72px, 110px) minmax(0, 1fr) minmax(64px, 88px) minmax(0, 1fr) 28px;
     gap: 6px;
     align-items: center;
     margin-bottom: 6px;
+    min-width: 0;
   }
 
   .rules-visual-row select,

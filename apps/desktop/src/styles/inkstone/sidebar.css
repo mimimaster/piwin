@@ -5,7 +5,7 @@
 html[data-theme-id='piwin-inkstone-paper'] .sidebar,
 html[data-theme-id='piwin-inkstone-ink'] .sidebar {
   background: var(--s1);
-  border-radius: 12px;
+  border-radius: 8px;
   box-shadow: var(--sh2);
   min-height: 0;
   display: flex;
@@ -32,7 +32,8 @@ html[data-theme-id='piwin-inkstone-ink'] .sidebar-footer {
 
 /* Non-Inkstone themes hide the new .sb-top and .shelf */
 .sidebar-sb-top,
-.sidebar-shelf {
+.sidebar-shelf,
+.sidebar-host {
   display: none;
 }
 
@@ -41,12 +42,12 @@ html[data-theme-id='piwin-inkstone-paper'] :is(.sidebar-sb-top, .sb-top),
 html[data-theme-id='piwin-inkstone-ink'] :is(.sidebar-sb-top, .sb-top) {
   display: flex !important;
   align-items: center !important;
-  height: var(--card-header-height, 30px) !important;
-  min-height: var(--card-header-height, 30px) !important;
-  max-height: var(--card-header-height, 30px) !important;
-  padding: 3px 8px !important;
+  height: auto !important;
+  min-height: 42px !important;
+  max-height: none !important;
+  padding: 7px 10px !important;
   border-bottom: 1px solid var(--l1) !important;
-  gap: 5px !important;
+  gap: 6px !important;
   flex: none !important;
   box-sizing: border-box !important;
 }
@@ -58,19 +59,19 @@ html[data-theme-id='piwin-inkstone-ink'] .sidebar-shelf {
 
 html[data-theme-id='piwin-inkstone-paper'] .sb-top .search,
 html[data-theme-id='piwin-inkstone-ink'] .sb-top .search {
-  height: 24px !important;
+  height: 28px !important;
   background: var(--s2) !important;
   box-shadow: var(--sh1) !important;
-  border-radius: 5px !important;
+  border-radius: 6px !important;
   border: 0 !important;
   display: flex !important;
   align-items: center !important;
-  gap: 5px !important;
-  padding: 0 7px !important;
+  gap: 6px !important;
+  padding: 0 8px !important;
   flex: 1 !important;
   min-width: 0 !important;
   color: var(--t4);
-  font: 12px/1 var(--sans);
+  font: 12.5px/1 var(--sans);
   white-space: nowrap;
   overflow: hidden;
   cursor: pointer;
@@ -95,23 +96,23 @@ html[data-theme-id='piwin-inkstone-ink'] .sb-top .search:hover {
 html[data-theme-id='piwin-inkstone-paper'] .sb-top .search kbd,
 html[data-theme-id='piwin-inkstone-ink'] .sb-top .search kbd {
   margin-left: auto;
-  font: 10.5px var(--mono);
+  font: 9px var(--mono);
   color: var(--t4);
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .sb-top .new,
 html[data-theme-id='piwin-inkstone-ink'] .sb-top .new {
-  width: 24px !important;
-  min-width: 24px !important;
-  max-width: 24px !important;
-  height: 24px !important;
-  min-height: 24px !important;
-  border-radius: 5px;
+  width: 28px !important;
+  min-width: 28px !important;
+  max-width: 28px !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  border-radius: 6px;
   background: var(--zhu);
   color: var(--on-zhu);
   display: grid;
   place-items: center;
-  flex: 0 0 24px;
+  flex: 0 0 28px;
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.12);
   border: 0;
   cursor: pointer;
@@ -143,7 +144,7 @@ html[data-theme-id='piwin-inkstone-paper'] .shelf,
 html[data-theme-id='piwin-inkstone-ink'] .shelf {
   margin-top: auto;
   border-top: 1px solid var(--l1);
-  padding: 8px 8px 10px;
+  padding: 6px 8px 8px;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 4px;
@@ -220,8 +221,9 @@ html[data-theme-id='piwin-inkstone-ink'] .session-row .session-item {
   display: flex;
   align-items: center;
   gap: 7px;
-  height: 28px;
-  min-height: 28px;
+  height: 31px;
+  min-height: 31px;
+  max-height: 31px;
   padding: 0 8px;
   border-radius: 6px;
   font-size: 12.5px;
@@ -255,6 +257,33 @@ html[data-theme-id='piwin-inkstone-ink'] .tree-folder-summary {
   border-radius: 6px;
 }
 
+/* Repo-group caption must outrank the folder padding reset above, or every
+   later project looks nested under the first worktree cluster. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-repo-group {
+  min-height: 18px;
+  padding: 4px 8px 0;
+  color: var(--t4);
+  font: 11px var(--mono);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+/* Folder icon center is 8px pad + 7px half-icon = 15px. The ink line/node
+   already sit on that origin; clustered worktrees add one shared shift so
+   the spine stays under the folder instead of the ungrouped gutter. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-folder-tree {
+  --tree-cluster-shift: 0px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-flow-item.is-grouped,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-virtual-item.is-grouped {
+  --tree-cluster-shift: 12px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-summary.is-grouped {
+  padding-left: calc(8px + var(--tree-cluster-shift));
+}
+
 html[data-theme-id='piwin-inkstone-paper'] .tree-folder-summary:hover,
 html[data-theme-id='piwin-inkstone-ink'] .tree-folder-summary:hover {
   background: var(--s2);
@@ -285,19 +314,21 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-time-group {
   padding: 8px 8px 2px;
-  font: 11px var(--mono);
-  color: var(--t4);
+  font: 600 10px var(--sans);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--t3);
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--project-session {
   position: relative;
-  padding-left: 28px;
+  padding-left: calc(28px + var(--tree-cluster-shift));
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--project-session::before {
   content: '';
   position: absolute;
-  left: 14.25px;
+  left: calc(14.25px + var(--tree-cluster-shift));
   top: 0;
   bottom: 0;
   width: 1.5px;
@@ -307,7 +338,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--project-session::after {
   content: '';
   position: absolute;
-  left: 11px;
+  left: calc(11px + var(--tree-cluster-shift));
   top: 10px;
   width: 8px;
   height: 8px;
@@ -332,10 +363,10 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 24px;
-  min-height: 24px;
+  height: 22px;
+  min-height: 22px;
   padding: 0 8px;
-  margin: 10px 0 4px;
+  margin: 8px 0 2px;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-section-toggle {
@@ -347,13 +378,17 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   padding: 0;
   cursor: pointer;
   color: var(--t3);
-  font: 600 11.5px var(--sans);
+  font: 600 10px var(--sans);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-section-title {
   color: var(--t3);
-  font-size: 11.5px;
+  font-size: 10px;
   font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-section-count {
@@ -407,8 +442,9 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   display: flex;
   align-items: center;
   gap: 7px;
-  height: 28px;
-  min-height: 28px;
+  height: 31px;
+  min-height: 31px;
+  max-height: 31px;
   padding: 0 8px;
   border-radius: 6px;
   font-size: 12.5px;
@@ -474,4 +510,31 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--general-session .session-item.active .session-item-time {
   display: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .session-item-project-subtitle {
+  display: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .host,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-host {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 11px var(--mono);
+  color: var(--t4);
+  padding: 4px 6px 0;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-host-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--t4);
+  flex: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-host-dot.on {
+  background: var(--pine);
 }

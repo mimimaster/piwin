@@ -13,8 +13,12 @@ export type RightPanelHomeProps = {
 };
 
 export function RightPanelHome(props: RightPanelHomeProps): ReactElement {
+  const heading =
+    props.locale === 'zh-CN' ? '为这次对话添一件工具' : 'Add a tool to this conversation';
   return (
-    <div className="right-panel-home" data-testid="right-panel-home">
+    <div className="right-panel-home blank-tool" data-testid="right-panel-home">
+      <span className="eyebrow">YOUR WORKSPACE</span>
+      <h3>{heading}</h3>
       <div className="right-panel-home-grid home-grid" role="list">
         {SECTION_META.filter(isHomeLauncherSection).map((tab) => {
           const label = sectionLabel(tab.id, props.locale);

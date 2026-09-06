@@ -506,9 +506,6 @@
 
 .collapsible-content-block.has-overflow.is-collapsed {
   cursor: pointer;
-}
-
-.collapsible-content-block.is-collapsed .collapsible-content-inner {
   overflow: hidden;
   -webkit-mask-image: linear-gradient(
     to bottom,
@@ -524,15 +521,13 @@
     rgba(0, 0, 0, 0.25) 75%,
     transparent 100%
   );
-  transition: max-height var(--t-4) var(--ease-out);
 }
 
-.collapsible-content-block.is-expanded .collapsible-content-inner {
+.collapsible-content-block.is-expanded {
   overflow: visible;
-  max-height: none !important;
+  max-height: none;
   -webkit-mask-image: none;
   mask-image: none;
-  transition: max-height var(--t-4) var(--ease-out);
 }
 
 /* Floats over faded-out content, so it needs real separation from whatever it

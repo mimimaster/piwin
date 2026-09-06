@@ -12,9 +12,16 @@ import type { ChatMessageUi } from './chat-reducer';
 describe('chat-turn-marginalia', () => {
   it('formats short model labels cleanly', () => {
     expect(shortModelLabel('claude-sonnet-4-6')).toBe('Sonnet 4.6');
-    expect(shortModelLabel('openai-gpt-5-4')).toBe('Gpt 5.4');
+    expect(shortModelLabel('claude-3-7-sonnet-20250219')).toBe('Sonnet 3.7');
+    expect(shortModelLabel('anthropic/claude-3-5-sonnet-20241022')).toBe('Sonnet 3.5');
+    expect(shortModelLabel('openai-gpt-5-4')).toBe('GPT-5.4');
+    expect(shortModelLabel('gpt-4o-2024-11-20')).toBe('GPT-4o');
+    expect(shortModelLabel('gpt-4o-mini')).toBe('GPT-4o mini');
     expect(shortModelLabel('custom-model')).toBe('Custom model');
-    expect(shortModelLabel('gemini-2-5-pro')).toBe('2 5 pro');
+    expect(shortModelLabel('gemini-2-5-pro')).toBe('Gemini 2.5 Pro');
+    expect(shortModelLabel('gemini-2.0-flash-thinking-exp-01-21')).toBe('Gemini 2.0 Flash');
+    expect(shortModelLabel('deepseek-reasoner')).toBe('DeepSeek R1');
+    expect(shortModelLabel('deepseek-chat')).toBe('DeepSeek V3');
   });
 
   it('formats tokens and duration', () => {
@@ -30,7 +37,7 @@ describe('chat-turn-marginalia', () => {
     expect(formatTurnClock('invalid')).toBe('');
   });
 
-  it('resolves user turn marginalia with "我"', () => {
+  it('resolves user turn marginalia with "你"', () => {
     const userMsg: ChatMessageUi = {
       id: 'msg-1',
       role: 'user',
@@ -42,7 +49,7 @@ describe('chat-turn-marginalia', () => {
       attachments: [],
     };
     const data = resolveTurnMarginalia([userMsg]);
-    expect(data.who).toBe('我');
+    expect(data.who).toBe('你');
     expect(data.avatar).toBeNull();
     expect(data.usage).toBeNull();
   });
@@ -59,10 +66,11 @@ describe('chat-turn-marginalia', () => {
       attachments: [],
     };
     const dataZh = resolveTurnMarginalia([userMsg], { editingMessageId: 'msg-1', locale: 'zh-CN' });
-    expect(dataZh.who).toBe('我');
+    expect(dataZh.who).toBe('你');
     expect(dataZh.usage).toBe('编辑中');
 
     const dataEn = resolveTurnMarginalia([userMsg], { editingMessageId: 'msg-1', locale: 'en' });
+    expect(dataEn.who).toBe('You');
     expect(dataEn.usage).toBe('Editing');
   });
 
@@ -82,7 +90,8 @@ describe('chat-turn-marginalia', () => {
     };
     const data = resolveTurnMarginalia([asstMsg]);
     expect(data.who).toBe('Sonnet 4.6');
-    expect(data.avatar).toBe('墨');
+    expect(data.fullModelId).toBe('claude-sonnet-4-6');
+    expect(data.avatar).toBe('C');
     expect(data.usage).toBe('41s · 1 工具');
   });
 
@@ -109,12 +118,15 @@ describe('chat-turn-marginalia', () => {
       status: '运行中',
     });
     expect(data.who).toBe('Sonnet 4.6');
-    expect(data.avatar).toBe('墨');
+    expect(data.avatar).toBe('C');
     expect(data.usage).toBe('3.1k · 41s');
     expect(data.status).toBe('运行中');
 
-    const dataDeck = resolveTurnMarginalia([asstMsg], { themeId: 'piwin-deck-dark' });
-    expect(dataDeck.avatar).toBe('智');
+    const dataUnknown = resolveTurnMarginalia(
+      [{ ...asstMsg, model: { providerId: 'custom', modelId: 'my-model' } }],
+      { themeId: 'piwin-deck-dark' },
+    );
+    expect(dataUnknown.avatar).toBe('智');
   });
 
   it('builds proto-00 colophon meta from model and usage', () => {

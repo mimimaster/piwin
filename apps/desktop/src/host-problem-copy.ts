@@ -34,7 +34,7 @@ export function hostFailureNotice(response: HostResponse, locale: DesktopLocale)
   }
   if (response.error.includes('intervention-command-unsupported')) {
     return locale === 'zh-CN'
-      ? '斜杠命令不能插入当前回合。等这轮结束再发 /compact。'
+      ? '当前对话轮次正在执行中，无法插入斜杠命令。请等待本轮结束再发送 /compact。'
       : 'Slash commands cannot steer the current run. Wait for it to finish, then send /compact.';
   }
   if (response.error.startsWith('Host request timed out:')) {
@@ -58,7 +58,7 @@ function remoteAdmissionNotice(error: string, locale: DesktopLocale): string | u
   }
   if (error.includes('does not expose') && error.includes('to remote clients')) {
     return locale === 'zh-CN'
-      ? '当前 Host 还没对远程壳开放这条操作（不是系统权限）。重启壳子再连一次。'
+      ? '当前 Host 尚未对远程客户端开放此操作（不是系统权限问题）。请重新连接客户端后再试。'
       : 'This Host has not opened that remote command yet. Reconnect the shell.';
   }
   if (error.startsWith('Remote command payload was rejected:')) {

@@ -7,7 +7,9 @@ import type {
   ContextUsageSnapshot,
   ModelProviderConfig,
   ModelRef,
+  PlanExecutionMode,
   ProductSessionLineageView,
+  SessionPlan,
   SessionSummary,
   TranscriptBranchPoint,
   SubagentInvocation,
@@ -154,4 +156,9 @@ export type ChatMessageRowProps = {
   showConversationHeader?: boolean;
   /** Conversation only: turn usage chip on that identity header. */
   showConversationTurnUsage?: boolean;
+  /** Call-chain execution picker for a draft/approved plan created on this turn. */
+  planExecutionGate?: {
+    plan: SessionPlan;
+    onExecute: (mode: PlanExecutionMode) => void | Promise<void>;
+  };
 };

@@ -23,7 +23,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .stage-header .title {
-  font: 500 12.5px/1.2 var(--serif) !important;
+  font: 500 13px/1.2 var(--serif) !important;
   color: var(--t1);
   letter-spacing: 0.01em;
   display: flex;
@@ -38,7 +38,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   font: inherit !important;
   font-family: var(--serif) !important;
   font-weight: 500 !important;
-  font-size: 12.5px !important;
+  font-size: 13px !important;
   line-height: 1.2 !important;
   color: var(--t1);
   overflow: hidden;
@@ -92,7 +92,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .stage-header .status {
-  font-size: 11px;
+  font: 10px var(--mono);
   color: var(--t3);
   display: flex;
   align-items: center;
@@ -111,8 +111,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 
 html[data-theme-id='piwin-inkstone-paper'] .stage-header .context-bar-mode-badge.is-warning,
 html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-bar-mode-badge.is-warning {
-  background: color-mix(in srgb, var(--ochre) 14%, transparent);
-  color: var(--ochre);
+  background: transparent;
+  color: var(--zhu);
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .stage-header .context-session-tree-trigger,

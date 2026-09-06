@@ -219,15 +219,13 @@ describe('ToolCallCard openable file paths', () => {
 
     const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
     expect(card?.getAttribute('data-activity-id')).toBe('mcp.call');
-    expect(card?.querySelector('.tool-call-action-verb')?.textContent).toBe('调用');
+    expect(card?.querySelector('.tool-call-action-verb')?.textContent).toBe('MCP');
     expect(card?.querySelector('.tool-call-action-verb')?.className).toContain(
       'behavior-mcp-active',
     );
     expect(card?.getAttribute('data-activity-animation')).toBe('breath-dot');
-    expect(card?.querySelector('.tool-call-preview')?.textContent).toContain('github / search');
-    expect(card?.querySelector('.tool-call-preview')?.textContent).toContain('piwin');
-    expect(card?.querySelector('.tool-call-preview')?.textContent).not.toContain('query');
-    expect(card?.querySelector('.tool-call-preview')?.textContent).not.toContain('{');
+    expect(card?.classList.contains('is-expanded')).toBe(true);
+    expect(card?.querySelector('.tool-call-preview')).toBeNull();
   });
 
   it('uses a terminal MCP behavior id and past-tense label after completion', () => {
@@ -251,12 +249,12 @@ describe('ToolCallCard openable file paths', () => {
 
     const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
     expect(card?.getAttribute('data-activity-id')).toBe('mcp.call.done');
-    expect(card?.querySelector('.tool-call-action-verb')?.textContent).toBe('Called');
+    expect(card?.querySelector('.tool-call-action-verb')?.textContent).toBe('MCP');
     expect(card?.querySelector('.tool-call-preview')?.textContent).toContain('github / search');
     expect(card?.getAttribute('data-activity-animation')).toBe('none');
   });
 
-  it('shows a collapsed MCP identity instead of a bare 已调用', () => {
+  it('shows a collapsed MCP identity instead of a bare MCP chip', () => {
     const mcpTool: ToolCardUi = {
       toolCallId: 'mcp-memory-1',
       toolName: 'mcp__agent-memory__agent_memory_get_context',
@@ -277,7 +275,7 @@ describe('ToolCallCard openable file paths', () => {
     });
 
     const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
-    expect(card?.querySelector('.tool-call-action-verb')?.textContent).toBe('已调用');
+    expect(card?.querySelector('.tool-call-action-verb')?.textContent).toBe('MCP');
     expect(card?.querySelector('.tool-call-preview')?.textContent).toBe(
       'agent-memory / agent_memory_get_context',
     );
@@ -305,7 +303,7 @@ describe('ToolCallCard openable file paths', () => {
     });
 
     const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
-    expect(card?.querySelector('.tool-call-action-verb')?.textContent).toBe('命令失败');
+    expect(card?.querySelector('.tool-call-action-verb')?.textContent).toBe('Bash');
     expect(card?.querySelector('.tool-call-summary')?.textContent).not.toContain('Tool error');
     expect(card?.querySelector('.tool-call-body')?.textContent).toContain('Command failed');
     expect(card?.querySelector('[data-testid="tool-call-error"]')?.textContent).toContain(
@@ -436,10 +434,8 @@ describe('ToolCallCard openable file paths', () => {
 
     const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
     expect(card?.getAttribute('data-tool-visual')).toBe('fetch');
-    expect(card?.querySelector('.tool-call-action-verb')?.textContent).toBe('Ran');
-    expect(card?.querySelector('.tool-call-preview')?.textContent).toBe(
-      'Fetch new subscription link',
-    );
+    expect(card?.querySelector('.tool-call-action-verb')?.textContent).toBe('Bash');
+    expect(card?.querySelector('.tool-call-preview')).toBeNull();
     expect(card?.querySelector('[data-testid="tool-call-fetch-panel"]')?.textContent).toContain(
       '$# Fetch new subscription link',
     );
@@ -833,6 +829,118 @@ describe('ToolCallCard shared six-state node vocabulary', () => {
       root.render(<ToolCallCard tool={createReadTool()} density="compact" />);
     });
     expect(container.querySelector('[data-testid="tool-approved-seal"]')).toBeNull();
+  });
+
+  it('shows the path on a collapsed row when Host provided targetPaths', () => {
+    const tool: ToolCardUi = {
+      toolCallId: 'patch-1',
+      toolName: 'apply_workspace_patch',
+      status: 'done',
+      output: 'ok',
+      presentation: {
+        title: 'apply_workspace_patch',
+        kind: 'other',
+        targetPaths: ['apps/desktop/src/tool-call-card.tsx'],
+      },
+    };
+
+    act(() => {
+      root.render(<ToolCallCard tool={tool} density="compact" locale="zh-CN" />);
+    });
+
+    const pill = container.querySelector('[data-testid="tool-call-file-pill"]');
+    expect(pill?.textContent).toContain('apps/desktop/src/tool-call-card.tsx');
+    expect(container.querySelector('.tool-call-action-verb')?.textContent).not.toBe(
+      'apply_workspace_patch',
+    );
+  });
+
+  it('uses the Bash chip in Chinese locale instead of 命令', () => {
+    act(() => {
+      root.render(
+        <ToolCallCard
+          tool={{
+            toolCallId: 'bash-zh-1',
+            toolName: 'bash',
+            status: 'done',
+            output: 'ok',
+            presentation: {
+              title: 'Bash',
+              kind: 'shell',
+              actionVerb: 'Ran command',
+              summary: 'pnpm typecheck',
+              command: 'pnpm typecheck',
+            },
+          }}
+          density="compact"
+          locale="zh-CN"
+        />,
+      );
+    });
+
+    const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
+    expect(card?.querySelector('.tool-call-action-verb')?.textContent).toBe('Bash');
+    expect(card?.querySelector('.tool-call-preview')?.textContent).toContain('pnpm typecheck');
+  });
+
+  it('drops the command preview from the header once the row is expanded', () => {
+    act(() => {
+      root.render(
+        <ToolCallCard
+          tool={{
+            toolCallId: 'bash-expand-1',
+            toolName: 'bash',
+            status: 'done',
+            output: 'HTTP 200',
+            presentation: {
+              title: 'Bash',
+              kind: 'shell',
+              actionVerb: 'Ran command',
+              summary:
+                'cd /tmp && (nohup pnpm exec vite --port 1466 & ; sleep 6; curl -s http://127.0.0.1:1466)',
+              command:
+                'cd /tmp && (nohup pnpm exec vite --port 1466 & ; sleep 6; curl -s http://127.0.0.1:1466)',
+              output: { text: 'HTTP 200' },
+            },
+          }}
+          density="compact"
+          locale="zh-CN"
+        />,
+      );
+    });
+
+    const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
+    expect(card?.classList.contains('is-expanded')).toBe(false);
+    expect(card?.querySelector('.tool-call-preview')?.textContent).toContain('cd /tmp');
+
+    act(() => {
+      card?.querySelector<HTMLElement>('.tool-call-summary')?.click();
+    });
+
+    expect(card?.classList.contains('is-expanded')).toBe(true);
+    expect(card?.querySelector('.tool-call-preview')).toBeNull();
+    expect(card?.querySelector('[data-testid="tool-call-command"]')?.textContent).toContain(
+      'cd /tmp',
+    );
+  });
+
+  it('drops the file pill from the header once a read row is expanded', () => {
+    act(() => {
+      root.render(<ToolCallCard tool={createReadTool()} density="compact" locale="zh-CN" />);
+    });
+
+    const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
+    expect(card?.querySelector('[data-testid="tool-call-file-pill"]')?.textContent).toContain(
+      'pelican-bicycle-animation.html',
+    );
+
+    act(() => {
+      card?.querySelector<HTMLElement>('[aria-label="Expand"]')?.click();
+    });
+
+    expect(card?.classList.contains('is-expanded')).toBe(true);
+    expect(card?.querySelector('[data-testid="tool-call-file-pill"]')).toBeNull();
+    expect(card?.querySelector('.tool-call-action-verb')?.textContent).toBe('Read');
   });
 });
 

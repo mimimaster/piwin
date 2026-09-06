@@ -8,7 +8,7 @@ import {
 } from './context-menu';
 import { showErrorNotification, showSuccessNotification } from '@piwin/ui-kit';
 import type { AgentFailure } from '@piwin/contracts';
-import { classifyAgentFailure } from './turn-error-classification.js';
+import { presentTurnErrorCard } from './turn-error-presentation.js';
 
 export type TurnErrorCardProps = {
   messageId: string;
@@ -16,21 +16,15 @@ export type TurnErrorCardProps = {
   failure?: AgentFailure | undefined;
   locale?: string | undefined;
   onRetry?: (() => void) | undefined;
-  onSwitchModel?: (() => void) | undefined;
-  onOpenSettings?: ((section?: string) => void) | undefined;
   onFeedback?: ((message: string, level: 'info' | 'success' | 'error') => void) | undefined;
 };
 
+/**
+ * Transcript error card — inkstone proto #20 structure, subtracted:
+ * title + shaded detail + retry/copy. No auth/quota special-case actions.
+ */
 export function TurnErrorCard(props: TurnErrorCardProps): ReactElement | null {
-  const {
-    error,
-    failure,
-    locale = 'zh-CN',
-    onRetry,
-    onSwitchModel,
-    onOpenSettings,
-    onFeedback,
-  } = props;
+  const { error, failure, locale = 'zh-CN', onRetry, onFeedback } = props;
   const [copied, setCopied] = useState(false);
   const contextMenu = useDesktopContextMenu();
 
@@ -39,12 +33,12 @@ export function TurnErrorCard(props: TurnErrorCardProps): ReactElement | null {
   }
 
   const isChinese = locale === 'zh-CN' || locale.startsWith('zh');
-  const classification = classifyAgentFailure(failure);
-  const title = isChinese ? classification.titleZh : classification.titleEn;
+  const presentation = presentTurnErrorCard({ error, failure, locale });
+  const { title, detail, category, showCategoryTag } = presentation;
 
   const handleCopy = async (): Promise<void> => {
     try {
-      await navigator.clipboard.writeText(error);
+      await navigator.clipboard.writeText(detail);
       setCopied(true);
       const msg = isChinese ? '报错详情已复制到剪贴板' : 'Error details copied to clipboard';
       if (onFeedback) {
@@ -67,7 +61,7 @@ export function TurnErrorCard(props: TurnErrorCardProps): ReactElement | null {
     ? {
         surface: 'error',
         title,
-        detail: error,
+        detail,
         label: title,
       }
     : null;
@@ -76,22 +70,20 @@ export function TurnErrorCard(props: TurnErrorCardProps): ReactElement | null {
     <div
       className="turn-error-card"
       data-testid="turn-error-card"
-      data-category={classification.category}
+      data-category={category}
       role="alert"
     >
       <div className="turn-error-card-inner">
         <div className="turn-error-header">
-          <div className="turn-error-icon-badge">
-            <IconAlertCircle width={15} height={15} />
+          <div className="turn-error-icon-badge" aria-hidden>
+            <IconAlertCircle width={14} height={14} />
           </div>
-          <div className="turn-error-header-text">
-            <span className="turn-error-title">{title}</span>
-            <span className="turn-error-category-tag">{classification.category}</span>
-          </div>
+          <span className="turn-error-title">{title}</span>
+          {showCategoryTag ? <span className="turn-error-category-tag">{category}</span> : null}
         </div>
 
-        <div className="turn-error-body">
-          <div className="turn-error-message">{error}</div>
+        <div className="turn-error-detail" data-testid="turn-error-detail">
+          {detail}
         </div>
 
         <div className="turn-error-actions">
@@ -106,36 +98,14 @@ export function TurnErrorCard(props: TurnErrorCardProps): ReactElement | null {
               {isChinese ? '重试' : 'Retry'}
             </Button>
           ) : null}
-          {classification.primaryAction === 'settings' && onOpenSettings ? (
-            <Button
-              variant="secondary"
-              size="compact"
-              className="turn-error-settings-btn"
-              data-testid="turn-error-settings-btn"
-              onClick={() => onOpenSettings('providers')}
-            >
-              {isChinese ? '配置密钥' : 'Configure Key'}
-            </Button>
-          ) : null}
-          {classification.category === 'quota' && onSwitchModel ? (
-            <Button
-              variant="secondary"
-              size="compact"
-              className="turn-error-switch-model-btn"
-              data-testid="turn-error-switch-model-btn"
-              onClick={onSwitchModel}
-            >
-              {isChinese ? '切换模型' : 'Switch Model'}
-            </Button>
-          ) : null}
           <Button
-            variant="ghost"
+            variant="secondary"
             size="compact"
             className="turn-error-copy-btn"
             data-testid="turn-error-copy-btn"
             onClick={() => void handleCopy()}
           >
-            {copied ? (isChinese ? '已复制' : 'Copied') : isChinese ? '复制报错' : 'Copy'}
+            {copied ? (isChinese ? '已复制' : 'Copied') : isChinese ? '复制报错' : 'Copy error'}
           </Button>
         </div>
       </div>

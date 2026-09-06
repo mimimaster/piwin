@@ -83,15 +83,21 @@ describe('behavior activity registry', () => {
     ).toBe('tool.other');
   });
 
-  it('localizes the action family with dedicated MCP and Subagent labels', () => {
-    expect(localizeBehaviorAction('mcp.call', 'zh-CN', 'MCP (github)')).toBe('调用');
-    expect(localizeBehaviorAction('mcp.call', 'en', 'MCP (github)')).toBe('Calling');
-    expect(localizeBehaviorAction('mcp.discovery', 'zh-CN')).toBe('发现 MCP 工具');
+  it('keeps tool-call chips as short English names in every locale', () => {
+    expect(localizeBehaviorAction('mcp.call', 'zh-CN', 'MCP (github)')).toBe('MCP');
+    expect(localizeBehaviorAction('mcp.call', 'en', 'MCP (github)')).toBe('MCP');
+    expect(localizeBehaviorAction('mcp.discovery', 'zh-CN')).toBe('MCP');
+    expect(localizeBehaviorAction('mcp.call.done', 'zh-CN')).toBe('MCP');
     expect(localizeBehaviorAction('subagent.task.running', 'en')).toBe('Working');
-    expect(localizeBehaviorAction('edit', 'zh-CN')).toBe('修改');
-    expect(localizeBehaviorAction('edit', 'en')).toBe('Edited');
-    expect(localizeBehaviorAction('test', 'zh-CN')).toBe('测试');
-    expect(localizeBehaviorAction('build', 'en')).toBe('Built');
+    expect(localizeBehaviorAction('edit', 'zh-CN')).toBe('Edit');
+    expect(localizeBehaviorAction('edit', 'en')).toBe('Edit');
+    expect(localizeBehaviorAction('read', 'zh-CN')).toBe('Read');
+    expect(localizeBehaviorAction('shell', 'zh-CN')).toBe('Bash');
+    expect(localizeBehaviorAction('shell', 'en')).toBe('Bash');
+    expect(localizeBehaviorAction('test', 'zh-CN')).toBe('Test');
+    expect(localizeBehaviorAction('build', 'en')).toBe('Build');
+    expect(localizeBehaviorAction('search', 'zh-CN')).toBe('Search');
+    expect(localizeBehaviorAction('web.fetch', 'zh-CN')).toBe('Fetch');
   });
 
   it('uses motion only while a behavior is active', () => {

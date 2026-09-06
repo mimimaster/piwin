@@ -3,22 +3,16 @@
    + work fold .work + ink-line tool chain .thread/.tr + permission gate .gate
    + prose + diff .dc + files changed bar .fcb + action buttons. */
 
-/* Stage geometry — proto-01 puts `container-type` on `.stage`, tokens on
-   `.scroll`. A container cannot query itself, and querying the scrollport
-   lets the 1080 rail swap change turn height → virtualizer remesure →
-   width crosses 1080 again → the layout oscillates. `.chat-stage` is the
-   only container; tokens live on its children so the query is stable.
-   Measure follows `--chat-max` so Narrow/Wide stay aligned with the composer. */
+/* Stage geometry — proto-01 puts `container-type` on `.stage`. A container
+   cannot query itself; querying the scrollport lets the 1080 rail swap change
+   turn height → virtualizer remesure → width crosses 1080 again → layout
+   oscillates. `.chat-stage` is the only container. Geometry tokens also live
+   here so the composer-adjacent permission / plan-execution slot (sibling of
+   `.composer-dock`, not a child) inherits --card-x/--card-y like the proto. */
 html[data-theme-id='piwin-inkstone-paper'] .chat-stage,
 html[data-theme-id='piwin-inkstone-ink'] .chat-stage {
   container-type: inline-size;
   container-name: transcript-stage;
-}
-
-html[data-theme-id='piwin-inkstone-paper'] .chat-stage .transcript-viewport,
-html[data-theme-id='piwin-inkstone-ink'] .chat-stage .transcript-viewport,
-html[data-theme-id='piwin-inkstone-paper'] .chat-stage .composer-dock,
-html[data-theme-id='piwin-inkstone-ink'] .chat-stage .composer-dock {
   --mg: 0px;
   --measure: var(--chat-max, 720px);
   --rail: 0px;
@@ -51,7 +45,7 @@ html[data-theme-id='piwin-inkstone-paper'] .marg,
 html[data-theme-id='piwin-inkstone-ink'] .marg,
 html[data-theme-id='piwin-inkstone-paper'] .chat-marginalia,
 html[data-theme-id='piwin-inkstone-ink'] .chat-marginalia {
-  display: none !important;
+  display: none;
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .head,
@@ -64,6 +58,13 @@ html[data-theme-id='piwin-inkstone-ink'] .chat-turn-head {
   font: 11px var(--mono);
   color: var(--t4);
   margin-bottom: 8px;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .chat-turn-user .head,
+html[data-theme-id='piwin-inkstone-ink'] .chat-turn-user .head,
+html[data-theme-id='piwin-inkstone-paper'] .chat-turn-user .chat-turn-head,
+html[data-theme-id='piwin-inkstone-ink'] .chat-turn-user .chat-turn-head {
+  justify-content: flex-end;
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .head .who,
@@ -99,11 +100,52 @@ html[data-theme-id='piwin-inkstone-paper'] .chat-turn-head .av {
   font-family: var(--serif);
 }
 
-/* 00.2: every session keeps the unified inline role label — the wide-viewport
-   marginalia swap (rail in, head out) is not part of the accepted look, and
-   Composition turns have no rail to show. The `.marg` stays display:none. */
+/* Wide-viewport marginalia swap (rail in, head out) per proto-01.
+   --mg / --gut MUST be set on *descendants* of `.chat-stage`. A size
+   container cannot style itself, so writing `--mg` on `.chat-stage` inside
+   `@container transcript-stage` never applied — rail showed at width 0,
+   `.who` (overflow:hidden) vanished, and usage like "1 工具" wrapped into a
+   vertical stack. */
+@container transcript-stage (min-width: 960px) {
+  html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+    .chat-stage
+    :is(.chat-thread, .chat-turn, .turn) {
+    --mg: 140px;
+    --gut: clamp(0px, max(var(--mg), var(--rail)), calc((100% - 24rem) / 2));
+  }
+  html[data-theme-id='piwin-inkstone-paper'] .marg,
+  html[data-theme-id='piwin-inkstone-ink'] .marg,
+  html[data-theme-id='piwin-inkstone-paper'] .chat-marginalia,
+  html[data-theme-id='piwin-inkstone-ink'] .chat-marginalia {
+    display: flex !important;
+  }
+  html[data-theme-id='piwin-inkstone-paper'] .head,
+  html[data-theme-id='piwin-inkstone-ink'] .head,
+  html[data-theme-id='piwin-inkstone-paper'] .chat-turn-head,
+  html[data-theme-id='piwin-inkstone-ink'] .chat-turn-head {
+    display: none !important;
+  }
+}
+
 @container transcript-stage (min-width: 1080px) {
-  /* Named stage query so the 1080 rail cannot oscillate on the scrollport */
+  html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+    .chat-stage
+    :is(.chat-thread, .chat-turn, .turn) {
+    --mg: 160px;
+    --gut: clamp(0px, max(var(--mg), var(--rail)), calc((100% - 24rem) / 2));
+  }
+  html[data-theme-id='piwin-inkstone-paper'] .marg,
+  html[data-theme-id='piwin-inkstone-ink'] .marg,
+  html[data-theme-id='piwin-inkstone-paper'] .chat-marginalia,
+  html[data-theme-id='piwin-inkstone-ink'] .chat-marginalia {
+    display: flex !important;
+  }
+  html[data-theme-id='piwin-inkstone-paper'] .head,
+  html[data-theme-id='piwin-inkstone-ink'] .head,
+  html[data-theme-id='piwin-inkstone-paper'] .chat-turn-head,
+  html[data-theme-id='piwin-inkstone-ink'] .chat-turn-head {
+    display: none !important;
+  }
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .chat-turn-group,
@@ -139,13 +181,15 @@ html[data-theme-id='piwin-inkstone-ink'] .chat-turn-group > .chat-turn-body {
   min-width: 0;
 }
 
-/* S5.2: Margin rail */
-html[data-theme-id='piwin-inkstone-paper'] .turn .marg,
-html[data-theme-id='piwin-inkstone-ink'] .turn .marg,
-html[data-theme-id='piwin-inkstone-paper'] .chat-turn .marg,
-html[data-theme-id='piwin-inkstone-ink'] .chat-turn .marg,
-html[data-theme-id='piwin-inkstone-paper'] .chat-turn .chat-marginalia,
-html[data-theme-id='piwin-inkstone-ink'] .chat-turn .chat-marginalia,
+/* S5.2: Margin rail — Assistant on the left (col 1), User on the right (col 3) */
+html[data-theme-id='piwin-inkstone-paper'] .turn:not(.chat-turn-user) .marg,
+html[data-theme-id='piwin-inkstone-ink'] .turn:not(.chat-turn-user) .marg,
+html[data-theme-id='piwin-inkstone-paper'] .chat-turn:not(.chat-turn-user) .marg,
+html[data-theme-id='piwin-inkstone-ink'] .chat-turn:not(.chat-turn-user) .marg,
+html[data-theme-id='piwin-inkstone-paper'] .chat-turn-assistant .marg,
+html[data-theme-id='piwin-inkstone-ink'] .chat-turn-assistant .marg,
+html[data-theme-id='piwin-inkstone-paper'] .chat-turn-assistant .chat-marginalia,
+html[data-theme-id='piwin-inkstone-ink'] .chat-turn-assistant .chat-marginalia,
 html[data-theme-id='piwin-inkstone-paper'] .chat-turn-group .marg,
 html[data-theme-id='piwin-inkstone-ink'] .chat-turn-group .marg,
 html[data-theme-id='piwin-inkstone-paper'] .chat-turn-group .chat-marginalia,
@@ -166,12 +210,51 @@ html[data-theme-id='piwin-inkstone-ink'] .chat-turn-group .chat-marginalia {
   box-sizing: border-box;
 }
 
+html[data-theme-id='piwin-inkstone-paper'] .chat-turn-user .marg,
+html[data-theme-id='piwin-inkstone-ink'] .chat-turn-user .marg,
+html[data-theme-id='piwin-inkstone-paper'] .chat-turn-user .chat-marginalia,
+html[data-theme-id='piwin-inkstone-ink'] .chat-turn-user .chat-marginalia {
+  grid-column: 3;
+  justify-self: start;
+  width: var(--mg);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 5px 0 0 18px;
+  font: 11px var(--mono);
+  color: var(--t4);
+  text-align: left;
+  position: sticky;
+  top: 0;
+  align-self: start;
+  box-sizing: border-box;
+}
+
 html[data-theme-id='piwin-inkstone-paper'] .turn .marg .who,
 html[data-theme-id='piwin-inkstone-ink'] .turn .marg .who,
 html[data-theme-id='piwin-inkstone-paper'] .chat-marginalia .who,
 html[data-theme-id='piwin-inkstone-ink'] .chat-marginalia .who {
   font: 500 12.5px var(--serif);
   color: var(--t2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  display: block;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .marg > span,
+html[data-theme-id='piwin-inkstone-ink'] .marg > span,
+html[data-theme-id='piwin-inkstone-paper'] .chat-marginalia > span,
+html[data-theme-id='piwin-inkstone-ink'] .chat-marginalia > span {
+  white-space: nowrap;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .turn .marg .who.is-user,
+html[data-theme-id='piwin-inkstone-ink'] .turn .marg .who.is-user,
+html[data-theme-id='piwin-inkstone-paper'] .chat-marginalia .who.is-user,
+html[data-theme-id='piwin-inkstone-ink'] .chat-marginalia .who.is-user {
+  font-family: var(--sans);
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .marg .av,
@@ -516,20 +599,23 @@ html[data-theme-id='piwin-inkstone-ink'] .cap-d li .ml {
 }
 
 /* ── History ruler ticks ─────────────────────────────────────────────
-   The accepted prototype stage has no permanent left ruler: resting ticks
-   read as stray dashes. Keep the jump affordance, rest it invisible, and
-   surface the ticks while the pointer (or focus) is on the rail. */
-html[data-theme-id='piwin-inkstone-paper'] .history-ticks-border-strip .border-tick-line,
-html[data-theme-id='piwin-inkstone-ink'] .history-ticks-border-strip .border-tick-line {
-  opacity: 0;
-  transition: opacity var(--t-1) var(--ease-out);
+   Left-edge hairlines stay visible at rest (t4), darken on hover. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .history-ticks-border-strip
+  .border-tick-line {
+  background: var(--t4);
+  opacity: 1;
+  transform-origin: left center;
+  transition: background-color var(--t-1) var(--ease-out);
 }
 
-html[data-theme-id='piwin-inkstone-paper'] .history-ticks-drawer:hover .border-tick-line,
-html[data-theme-id='piwin-inkstone-ink'] .history-ticks-drawer:hover .border-tick-line,
-html[data-theme-id='piwin-inkstone-paper'] .history-ticks-border-strip:focus-within .border-tick-line,
-html[data-theme-id='piwin-inkstone-ink'] .history-ticks-border-strip:focus-within .border-tick-line {
-  opacity: 1;
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .history-ticks-border-strip
+  .border-tick-line.is-hovered,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .history-ticks-border-strip
+  .border-tick-line:focus-visible {
+  background: var(--t2);
 }
 
 /* ── Assistant message actions — proto-00 `.turn-colophon` / `.acts-f` ── */

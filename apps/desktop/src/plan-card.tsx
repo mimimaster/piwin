@@ -1,18 +1,9 @@
 /**
- * PlanCard — inline rendering of the agent's execution plan in the chat thread.
- * Ported from docs/proto-shell.css plan-card block. The plan is session-level
- * (not anchored to a message), so ChatThread mounts a single card at the top
- * of the assistant area when `sessionPlan` is present.
- *
- * Progress + abort only. Execution-mode choice lives on PlanExecutionGate
- * above the composer (draft/approved → inline | subagent-driven).
- *   executing → progress + [Abort]
- *   done/abandoned → final state, no actions
+ * Plan display helpers shared by the composer-adjacent todo tray and inspector.
+ * Live progress UI lives in plan-todo-tray.tsx (Claude Code placement).
  */
-import { useState, type ReactElement } from 'react';
+import type { ReactElement } from 'react';
 import type { PlanStepStatus, SessionPlan } from '@piwin/contracts';
-import { Collapse } from '@piwin/ui-kit';
-import { behaviorTextClass, getBehaviorActivitySpec } from './behavior-activity.js';
 
 export type PlanStepVisual = 'done' | 'run' | 'pending' | 'skipped';
 
@@ -43,16 +34,6 @@ export function planStepVisual(status: PlanStepStatus): PlanStepVisual {
       return 'pending';
   }
 }
-
-export type PlanCardProps = {
-  plan: SessionPlan;
-  defaultOpen?: boolean;
-  onOpenDocument?: ((doc: { title: string; content?: string }) => void) | undefined;
-  /** Called when the user aborts a running plan. */
-  onAbort?: () => void | Promise<void>;
-  /** Disable action buttons (e.g. while a host request is in flight). */
-  actionInProgress?: boolean;
-};
 
 export function StepIcon({ visual }: { visual: PlanStepVisual }): ReactElement {
   switch (visual) {
@@ -91,112 +72,4 @@ export function StepIcon({ visual }: { visual: PlanStepVisual }): ReactElement {
         </svg>
       );
   }
-}
-
-export function PlanCard({
-  plan,
-  defaultOpen = true,
-  onOpenDocument,
-  onAbort,
-  actionInProgress = false,
-}: PlanCardProps): ReactElement {
-  const [open, setOpen] = useState(defaultOpen);
-  const execution = plan.execution;
-  const isRunning =
-    execution?.status === 'running' ||
-    execution?.status === 'queued' ||
-    plan.status === 'executing';
-  const isTerminal = plan.status === 'done' || plan.status === 'abandoned';
-
-  const totalCount = plan.steps.length;
-  const doneCount = plan.steps.filter((s) => s.status === 'done').length;
-
-  function handleOpenDoc(event: React.MouseEvent): void {
-    event.stopPropagation();
-    if (!onOpenDocument) return;
-    onOpenDocument({
-      title: plan.title || 'Implementation Plan',
-      content: formatPlanMarkdown(plan),
-    });
-  }
-
-  async function handleAbort(): Promise<void> {
-    if (!onAbort || actionInProgress) return;
-    await onAbort();
-  }
-
-  return (
-    <div
-      className={`plan-card${open ? '' : ' closed'}`}
-      data-testid="plan-card"
-      data-activity-id="plan"
-      data-activity-animation={getBehaviorActivitySpec('plan').animation}
-      data-tool-status={isTerminal ? 'done' : isRunning ? 'running' : 'idle'}
-    >
-      <button
-        type="button"
-        className="plan-head"
-        onClick={() => setOpen(!open)}
-        aria-expanded={open}
-      >
-        <svg className="chev ic" viewBox="0 0 24 24">
-          <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        <span className={`plan-title ${behaviorTextClass('plan', isRunning)}`}>
-          {doneCount} / {totalCount} tasks done{plan.title ? ` · ${plan.title}` : ''}
-        </span>
-        {plan.source === 'skill' && plan.skillId ? (
-          <span
-            className="skill-activity-chip plan-skill-chip"
-            data-activity-id="skill.use"
-            data-activity-animation={getBehaviorActivitySpec('skill.use').animation}
-          >
-            Using skill: <strong>{plan.skillId}</strong>
-          </span>
-        ) : null}
-        {onOpenDocument ? (
-          <span className="plan-doc-link" title="在右侧面板中打开增强文档" onClick={handleOpenDoc}>
-            📄 Implementation Plan
-          </span>
-        ) : null}
-      </button>
-      <Collapse expanded={open}>
-        <div className="plan-steps">
-          {plan.steps.map((step) => {
-            const visual = planStepVisual(step.status);
-            return (
-              <div key={step.id} className={`step ${visual === 'pending' ? '' : visual}`}>
-                <StepIcon visual={visual} />
-                <span className="step-label">{step.title}</span>
-              </div>
-            );
-          })}
-        </div>
-        {isRunning && onAbort ? (
-          <div className="plan-actions" data-testid="plan-running-actions">
-            <span className="plan-running-label" data-testid="plan-running-label">
-              {execution?.status === 'queued' ? 'Queued…' : 'Executing…'}
-              {execution?.currentStepId ? ` (step ${execution.currentStepId})` : ''}
-              {execution?.mode ? ` · ${execution.mode}` : ''}
-            </span>
-            <button
-              type="button"
-              className="plan-btn plan-btn-danger"
-              data-testid="plan-abort"
-              disabled={actionInProgress}
-              onClick={() => void handleAbort()}
-            >
-              Abort
-            </button>
-          </div>
-        ) : null}
-        {isTerminal ? (
-          <div className="plan-terminal" data-testid="plan-terminal">
-            {plan.status === 'done' ? '✓ Completed' : '✗ Abandoned'}
-            {execution?.error ? ` — ${execution.error}` : ''}
-          </div>
-        ) : null}
-      </Collapse>
-    </div>
-  );
 }

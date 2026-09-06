@@ -164,6 +164,9 @@ describe('HistoryTicksDrawer component', () => {
 
     expect(container?.querySelector('.history-ticks-drawer')).not.toBeNull();
     expect(container?.querySelectorAll('.border-tick-line').length).toBe(2);
+    const rail = container?.querySelector('[data-testid="history-drawer-handle"]') as HTMLElement;
+    expect(rail.style.getPropertyValue('--history-tick-gap')).toBe('10px');
+    expect(rail.style.getPropertyValue('--history-tick-pad-y')).toBe('8px');
   });
 
   it('renders the Host index instead of assistant rows and exposes the global position', () => {

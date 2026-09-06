@@ -174,7 +174,7 @@ export const PIWIN_APPEARANCE_BONE: ThemeManifest = {
  */
 const INKSTONE_PAPER_DECK: ThemeDeckTokens = {
   void: '#e6e1d7',
-  surface1: '#e6e1d7',
+  surface1: '#f0ece4',
   surface2: '#f8f6f0',
   surface3: '#fffdf8',
   surface4: '#ffffff',

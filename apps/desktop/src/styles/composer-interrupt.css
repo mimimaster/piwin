@@ -395,9 +395,10 @@
 }
 
 .intr.plan-execution-gate {
-  width: var(--chat-max, 720px);
-  max-width: calc(100% - 32px);
-  margin: 0 auto 8px;
+  width: 100%;
+  max-width: 100%;
+  margin: 8px 0 0;
+  box-sizing: border-box;
 }
 
 .intr h3 {
@@ -475,26 +476,29 @@
   color: var(--t4, var(--intr-t4));
 }
 
-.pill {
+/* Scoped under .intr so ui-foundations .pill does not restyle the gate badge */
+.intr .pill {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   height: 20px;
   padding: 0 8px;
   border-radius: 999px;
+  border: 0;
   font: 600 10.5px var(--sans, sans-serif);
   letter-spacing: 0.04em;
   white-space: nowrap;
 }
 
-.pill i {
+.intr .pill i {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: currentColor;
+  flex: none;
 }
 
-.pill.zhu-p {
+.intr .pill.zhu-p {
   background: var(--zhu-wash, var(--intr-zhu-wash));
   color: var(--zhu, var(--intr-zhu));
 }

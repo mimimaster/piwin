@@ -38,7 +38,7 @@ describe('TurnErrorCard', () => {
     expect(container.querySelector('[data-testid="turn-error-card"]')).toBeNull();
   });
 
-  it('renders structured authentication failures', () => {
+  it('renders structured authentication failures with title and shaded detail', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
@@ -60,7 +60,10 @@ describe('TurnErrorCard', () => {
 
     expect(container.querySelector('[data-testid="turn-error-card"]')).not.toBeNull();
     expect(container.textContent).toContain('模型认证失败');
-    expect(container.textContent).toContain('Invalid API key');
+    expect(container.querySelector('[data-testid="turn-error-detail"]')?.textContent).toContain(
+      'Invalid API key',
+    );
+    expect(container.querySelector('.turn-error-category-tag')?.textContent).toBe('auth');
   });
 
   it('does not classify a structured stream stall as network', () => {
@@ -88,6 +91,34 @@ describe('TurnErrorCard', () => {
     expect(container.textContent).not.toContain('网络请求或连接超时');
   });
 
+  it('intercepts Unknown / Unexpected prose with a human title and clean detail', () => {
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <TurnErrorCard
+            messageId="m1"
+            error="Unknown: Unexpected error."
+            failure={{
+              code: 'unknown-agent-failure',
+              origin: 'runtime',
+              message: 'Unexpected error.',
+              retriable: false,
+            }}
+            locale="zh-CN"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const card = container.querySelector('[data-testid="turn-error-card"]');
+    expect(card?.getAttribute('data-category')).toBe('unknown');
+    expect(container.textContent).toContain('生成失败');
+    expect(container.querySelector('.turn-error-category-tag')).toBeNull();
+    expect(container.querySelector('[data-testid="turn-error-detail"]')?.textContent).toBe(
+      'Unexpected error.',
+    );
+  });
+
   it('shows a generic generation failure for legacy message-only errors', () => {
     act(() => {
       root.render(
@@ -101,6 +132,9 @@ describe('TurnErrorCard', () => {
       'unknown',
     );
     expect(container.textContent).toContain('生成失败');
+    expect(container.querySelector('[data-testid="turn-error-detail"]')?.textContent).toBe(
+      'fetch failed: ECONNREFUSED',
+    );
   });
 
   it('renders retry button and triggers onRetry callback', () => {
@@ -127,39 +161,7 @@ describe('TurnErrorCard', () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
-  it('renders switch model button for quota errors', () => {
-    const onSwitchModel = vi.fn();
-    act(() => {
-      root.render(
-        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <TurnErrorCard
-            messageId="m1"
-            error="Rate limit exceeded 429: out of quota"
-            failure={{
-              code: 'provider-quota',
-              origin: 'provider',
-              message: 'Rate limit exceeded 429: out of quota',
-              retriable: true,
-              httpStatus: 429,
-            }}
-            onSwitchModel={onSwitchModel}
-            locale="zh-CN"
-          />
-        </PiwinUiProvider>,
-      );
-    });
-
-    const switchBtn = container.querySelector<HTMLButtonElement>('[data-testid="turn-error-switch-model-btn"]');
-    expect(switchBtn).not.toBeNull();
-    expect(switchBtn?.textContent).toBe('切换模型');
-    act(() => {
-      switchBtn?.click();
-    });
-    expect(onSwitchModel).toHaveBeenCalledTimes(1);
-  });
-
-  it('renders configure key button for auth errors', () => {
-    const onOpenSettings = vi.fn();
+  it('does not render configure-key or switch-model special-case actions', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
@@ -173,20 +175,14 @@ describe('TurnErrorCard', () => {
               retriable: false,
               httpStatus: 401,
             }}
-            onOpenSettings={onOpenSettings}
             locale="zh-CN"
           />
         </PiwinUiProvider>,
       );
     });
 
-    const settingsBtn = container.querySelector<HTMLButtonElement>('[data-testid="turn-error-settings-btn"]');
-    expect(settingsBtn).not.toBeNull();
-    expect(settingsBtn?.textContent).toBe('配置密钥');
-    act(() => {
-      settingsBtn?.click();
-    });
-    expect(onOpenSettings).toHaveBeenCalledWith('providers');
+    expect(container.querySelector('[data-testid="turn-error-settings-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="turn-error-switch-model-btn"]')).toBeNull();
   });
 
   it('allows copying the error details to clipboard', async () => {

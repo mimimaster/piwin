@@ -76,6 +76,14 @@
   animation: deck-rise var(--t-4) var(--ease-out);
 }
 
+.empty-stage-welcome {
+  display: none;
+}
+
+.empty-stage-landing:not(:has(.empty-stage-landing-list)) {
+  display: none;
+}
+
 .empty-stage-landing-header {
   display: flex;
   align-items: center;

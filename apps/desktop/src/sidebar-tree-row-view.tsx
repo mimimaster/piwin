@@ -14,7 +14,7 @@ import type {
 import type { SessionListItemUi } from './chat-reducer';
 import type { DesktopCopy, DesktopLocale } from './desktop-locale';
 import type { SessionRowRunPhase } from './session-row-working';
-import { resolveProjectFolderSessions, type SidebarTreeRow } from './sidebar-tree-rows';
+import { type SidebarTreeRow } from './sidebar-tree-rows';
 import { projectDisplayName } from './project-display-name';
 import { SessionRowItem } from './session-row-item';
 import {
@@ -128,13 +128,11 @@ export function SidebarTreeRowView(props: SidebarTreeRowViewProps): ReactElement
           <span className="sidebar-section-title" data-testid="pinned-section-title">
             {sidebarCopy.pinned}
           </span>
-          <IconChevronDown className="sidebar-section-chevron" width={15} height={15} />
-        </button>
-        <div className="sidebar-section-label-actions">
           <span className="sidebar-section-count muted" data-testid="pinned-section-count">
             {props.pinnedCount}
           </span>
-        </div>
+          <IconChevronDown className="sidebar-section-chevron" width={15} height={15} />
+        </button>
       </div>
     );
   }
@@ -159,10 +157,10 @@ export function SidebarTreeRowView(props: SidebarTreeRowViewProps): ReactElement
           <span className="sidebar-section-title" data-testid="projects-section-title">
             {sidebarCopy.projects}
           </span>
+          <span className="sidebar-section-count muted">{props.recentProjectsCount}</span>
           <IconChevronDown className="sidebar-section-chevron" width={15} height={15} />
         </button>
         <div className="sidebar-section-label-actions">
-          <span className="sidebar-section-count muted">{props.recentProjectsCount}</span>
           <DropdownMenu
             trigger={
               <IconButton
@@ -346,13 +344,14 @@ export function SidebarTreeRowView(props: SidebarTreeRowViewProps): ReactElement
   }
 
   if (row.kind === 'repo-group') {
+    const groupLabel = sidebarCopy.repoWorktreeGroup(row.title, row.memberCount);
     return (
       <div
         className="tree-repo-group"
         data-testid="sidebar-repo-group"
-        title={row.title}
+        title={groupLabel}
       >
-        <span className="tree-repo-group-title">{row.title}</span>
+        <span className="tree-repo-group-title">{groupLabel}</span>
       </div>
     );
   }
@@ -385,13 +384,11 @@ export function SidebarTreeRowView(props: SidebarTreeRowViewProps): ReactElement
     const displayName = project?.displayName ?? projectDisplayName(row.projectPath);
     const isActiveProject = row.projectPath === props.projectPath;
     const projectScope: SessionScope = { kind: 'project', projectPath: row.projectPath };
-    const hasChildSessions =
-      resolveProjectFolderSessions({
-        projectPath: row.projectPath,
-        projectSessionsByPath: props.projectSessionsByPath ?? {},
-        activeProjectPath: props.projectPath,
-        activeProjectSessions: props.filteredSessions,
-      }).length > 0;
+    const folderIcon = row.collapsed ? (
+      <IconFolder className="tree-folder-icon" data-testid="tree-folder-icon-closed" />
+    ) : (
+      <IconFolderOpen className="tree-folder-icon" data-testid="tree-folder-icon-open" />
+    );
     return (
       <ContextMenu
         label={sidebarCopy.projects}
@@ -410,27 +407,17 @@ export function SidebarTreeRowView(props: SidebarTreeRowViewProps): ReactElement
         <div
           className={`tree-folder-summary${isActiveProject ? ' active' : ''}${row.grouped ? ' is-grouped' : ''}`}
         >
-          {hasChildSessions ? (
-            <button
-              type="button"
-              className="tree-folder-toggle"
-              data-testid="project-fold-toggle"
-              aria-expanded={!row.collapsed}
-              aria-label={row.collapsed ? sidebarCopy.expandProject : sidebarCopy.collapseProject}
-              title={row.collapsed ? sidebarCopy.expandProject : sidebarCopy.collapseProject}
-              onClick={() => props.onToggleProjectCollapsed(row.projectPath, row.collapsed)}
-            >
-              {row.collapsed ? (
-                <IconFolder className="tree-folder-icon" />
-              ) : (
-                <IconFolderOpen className="tree-folder-icon" />
-              )}
-            </button>
-          ) : (
-            <span className="tree-folder-toggle-spacer" aria-hidden>
-              <IconFolder className="tree-folder-icon" />
-            </span>
-          )}
+          <button
+            type="button"
+            className="tree-folder-toggle"
+            data-testid="project-fold-toggle"
+            aria-expanded={!row.collapsed}
+            aria-label={row.collapsed ? sidebarCopy.expandProject : sidebarCopy.collapseProject}
+            title={row.collapsed ? sidebarCopy.expandProject : sidebarCopy.collapseProject}
+            onClick={() => props.onToggleProjectCollapsed(row.projectPath, row.collapsed)}
+          >
+            {folderIcon}
+          </button>
           <button
             type="button"
             className="tree-folder-main"

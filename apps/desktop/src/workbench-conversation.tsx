@@ -32,7 +32,8 @@ import { InkWashEmptyVignette } from './ink-wash-empty-vignette';
 import type { DoccardsHostRequest } from './knowledge/knowledge-host-request';
 import type { ModelOption } from './model-options';
 import { PermissionBar } from './permission-bar';
-import { canShowPlanExecutionGate, PlanExecutionGate } from './plan-execution-gate';
+import { shouldShowPlanTodoTray } from './plan-todo-model.js';
+import { PlanTodoTray } from './plan-todo-tray.js';
 import { ProjectTrustNotice } from './project-trust-notice';
 import { SessionArchivedBanner } from './session-archived-banner';
 import type { SubagentInspectorSelection } from './subagent-activity-model';
@@ -54,7 +55,7 @@ export type WorkbenchTranscriptProps = {
   composerCard: ComposerDockProps;
   config: PiwinConfig | null;
   preferences: DesktopPreferences;
-  sessionPlan: SessionPlan | null | undefined;
+
   modelOptions: ModelOption[];
   requestKnowledgeCenter: DoccardsHostRequest;
   resolveFlashcards: (itemIds: string[]) => Promise<FlashcardReviewCard[]>;
@@ -91,12 +92,14 @@ export type WorkbenchTranscriptProps = {
   onOpenDiff: (absolutePath: string, relativePath?: string) => void;
   /** Project root, or the General workspace when Chat has no project. */
   fileBrowseRoot?: string | null;
-  onPlanAbort: () => void | Promise<void>;
+
   onGenerateWalkthrough: (messageId: string, force?: boolean) => void | Promise<void>;
   onCancelWalkthrough: (messageId: string, generationId?: string) => void | Promise<void>;
   onForkFromMessage: (sessionId: string, messageId: string) => void | Promise<void>;
   onOpenSession: (sessionId: string) => void | Promise<void>;
   onCompactAbort: () => void | Promise<void>;
+  sessionPlan?: SessionPlan | null;
+  onPlanExecute?: (mode: PlanExecutionMode) => void | Promise<void>;
   /** Scope-matched sessions offered as resume targets on an empty stage. */
   scopeSessions: readonly SessionListItemUi[];
 };
@@ -115,7 +118,6 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
     composerCard,
     config,
     preferences,
-    sessionPlan,
     modelOptions,
     requestKnowledgeCenter,
     resolveFlashcards,
@@ -148,12 +150,14 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
     onOpenDocument,
     onOpenDiff,
     fileBrowseRoot,
-    onPlanAbort,
+
     onGenerateWalkthrough,
     onCancelWalkthrough,
     onForkFromMessage,
     onOpenSession,
     onCompactAbort,
+    sessionPlan,
+    onPlanExecute,
     scopeSessions,
   } = props;
   const activeSessionId = state.activeSessionId;
@@ -244,7 +248,6 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
             showThinking={preferences.verboseAgentChat}
             artifactPreviewEnabled={config?.artifact?.enabled ?? true}
             artifactCodeFirst={preferences.artifactCodeFirst}
-            plan={sessionPlan ?? null}
             {...artifactFenceSecurityProps(config?.artifact)}
             locale={locale}
             assemblySummariesByRunId={assemblySummariesByRunId}
@@ -282,7 +285,6 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
                 }
               : {})}
             onOpenDiff={onOpenDiff}
-            onPlanAbort={onPlanAbort}
             compactionActivity={state.compactionActivity}
             onCompactAbort={onCompactAbort}
             composerCard={composerCard}
@@ -301,6 +303,8 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
             forkCountsByMessageId={forkCountsByMessageId}
             onOpenSession={(sessionId: string) => void onOpenSession(sessionId)}
             derivedActionsDisabled={!activeSessionId || state.streaming || state.awaitingTranscript}
+            {...(sessionPlan ? { sessionPlan } : {})}
+            {...(onPlanExecute ? { onPlanExecute } : {})}
           />
         ) : (
           <EmptyStageLanding
@@ -319,7 +323,8 @@ export type WorkbenchPermissionBarProps = {
   state: ChatUiState;
   extensionUiRequest: ExtensionUiRequestState | null;
   sessionPlan?: SessionPlan | null;
-  onPlanExecute?: (mode: PlanExecutionMode) => void | Promise<void>;
+  onPlanAbort?: () => void | Promise<void>;
+  onOpenDocument?: (doc: DocumentOpenInput) => void;
   onPermission: (
     decision: PermissionDecision,
     scope?: PermissionRememberScope,
@@ -334,13 +339,33 @@ export function WorkbenchPermissionBar(
     state,
     extensionUiRequest,
     sessionPlan,
-    onPlanExecute,
+    onPlanAbort,
+    onOpenDocument,
     onPermission,
     onExtensionUiResolve,
   } = props;
   const isConversationSession = state.activeScope.kind === 'general';
+  const tray =
+    sessionPlan && shouldShowPlanTodoTray({ plan: sessionPlan, isConversationSession }) ? (
+      <PlanTodoTray
+        plan={sessionPlan}
+        {...(onOpenDocument
+          ? {
+              onOpenDocument: (doc) =>
+                onOpenDocument({
+                  title: doc.title,
+                  path: doc.title,
+                  ...(doc.content !== undefined ? { content: doc.content } : {}),
+                }),
+            }
+          : {})}
+        {...(onPlanAbort ? { onAbort: onPlanAbort } : {})}
+      />
+    ) : null;
+
+  let interruption: ReactElement | null = null;
   if (state.permissionPrompt) {
-    return (
+    interruption = (
       <PermissionBar
         key={state.permissionPrompt.requestId}
         prompt={state.permissionPrompt}
@@ -351,29 +376,24 @@ export function WorkbenchPermissionBar(
         }}
       />
     );
-  }
-  if (!isConversationSession && extensionUiRequest) {
-    return (
+  } else if (!isConversationSession && extensionUiRequest) {
+    interruption = (
       <ExtensionUiPrompt
         request={extensionUiRequest}
         onResolve={(payload) => void onExtensionUiResolve(payload)}
       />
     );
   }
-  if (
-    onPlanExecute &&
-    sessionPlan &&
-    canShowPlanExecutionGate({
-      plan: sessionPlan,
-      isConversationSession,
-      streaming: state.streaming,
-      paused: state.runTerminal.kind === 'paused',
-      hasPermissionPrompt: Boolean(state.permissionPrompt),
-    })
-  ) {
-    return <PlanExecutionGate plan={sessionPlan} onExecute={onPlanExecute} />;
-  }
-  return null;
+
+  if (!tray && !interruption) return null;
+  if (!tray) return interruption;
+  if (!interruption) return tray;
+  return (
+    <div className="composer-plan-stack">
+      {tray}
+      {interruption}
+    </div>
+  );
 }
 
 export type WorkbenchComposerColumnProps = {

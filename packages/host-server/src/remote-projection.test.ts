@@ -1242,7 +1242,7 @@ describe('remote activity/summary projection', () => {
 });
 
 describe('projectRemotePush session index', () => {
-  it('keeps absolute Host paths on live tool presentation and args', () => {
+  it('keeps absolute Host paths on live tool presentation', () => {
     const projected = projectRemotePush({
       type: 'event',
       sessionId: 'session-1',
@@ -1250,12 +1250,12 @@ describe('projectRemotePush session index', () => {
         type: 'tool/start',
         toolCallId: 'call-1',
         toolName: 'bash',
-        args: { path: '/Users/me/Developer/piwin/docs' },
         presentation: {
           kind: 'shell',
           title: '命令',
           command: 'ls /Users/me/Developer/piwin/docs /Users/me/Developer/piwin/docs 2>/dev/null | tail -20',
           summary: 'ls /Users/me/Developer/piwin/docs',
+          targetPaths: ['/Users/me/Developer/piwin/docs'],
         },
       },
     });
@@ -1264,10 +1264,10 @@ describe('projectRemotePush session index', () => {
     expect(serialized).not.toContain('[host-path]');
     expect(projected).toMatchObject({
       event: {
-        args: { path: '/Users/me/Developer/piwin/docs' },
         presentation: {
           command:
             'ls /Users/me/Developer/piwin/docs /Users/me/Developer/piwin/docs 2>/dev/null | tail -20',
+          targetPaths: ['/Users/me/Developer/piwin/docs'],
         },
       },
     });

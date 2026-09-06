@@ -91,10 +91,6 @@ function TranscriptCardStates(): ReactElement {
         <div className="tool-call-card density-compact status-ok is-expanded">
           <button type="button" className="tool-call-summary">
             <span className="tool-call-action-verb">Read</span>
-            <span className="tool-call-file-pill is-link">
-              <span className="tool-call-file-name">src/host-runtime.ts</span>
-              <span className="tool-call-line-range">1-120</span>
-            </span>
             <span className="tool-call-ok" aria-label="done" />
             <span className="tool-call-duration">240ms</span>
           </button>
@@ -107,7 +103,7 @@ function TranscriptCardStates(): ReactElement {
 
         <div className="tool-call-card density-compact status-running">
           <button type="button" className="tool-call-summary">
-            <span className="tool-call-action-verb">Ran command</span>
+            <span className="tool-call-action-verb">Bash</span>
             <span className="tool-call-preview is-query">pnpm typecheck</span>
             <span className="tool-status-dot status-running" />
             <span className="tool-call-duration tool-call-duration-live">…</span>
@@ -116,7 +112,7 @@ function TranscriptCardStates(): ReactElement {
 
         <div className="tool-call-card density-compact status-error">
           <button type="button" className="tool-call-summary">
-            <span className="tool-call-action-verb">Edited</span>
+            <span className="tool-call-action-verb">Edit</span>
             <span className="tool-call-file-pill">
               <span className="tool-call-file-name">packages/contracts/src/theme.ts</span>
             </span>
@@ -232,7 +228,7 @@ function TranscriptCardStates(): ReactElement {
             <div className="activity-call-chain-item">
               <div className="tool-call-card density-compact">
                 <button type="button" className="tool-call-summary">
-                  <span className="tool-call-action-verb">Searched</span>
+                  <span className="tool-call-action-verb">Search</span>
                   <span className="tool-call-preview is-query">backdrop-filter</span>
                 </button>
               </div>
@@ -248,7 +244,7 @@ function TranscriptCardStates(): ReactElement {
             <div className="activity-call-chain-item is-latest">
               <div className="tool-call-card density-compact">
                 <button type="button" className="tool-call-summary">
-                  <span className="tool-call-action-verb">Edited</span>
+                  <span className="tool-call-action-verb">Edit</span>
                   <span className="tool-call-preview">transcript-cards.css</span>
                 </button>
               </div>
@@ -347,18 +343,16 @@ function TranscriptLeafStates(): ReactElement {
         <div className="turn-error-card">
           <div className="turn-error-card-inner">
             <div className="turn-error-header">
-              <span className="turn-error-icon-badge">✕</span>
-              <div className="turn-error-header-text">
-                <span className="turn-error-title">Command failed</span>
-                <span className="turn-error-category-tag">exit 1</span>
-              </div>
+              <span className="turn-error-icon-badge">!</span>
+              <span className="turn-error-title">生成失败</span>
             </div>
-            <div className="turn-error-body">
-              <p className="turn-error-message">pnpm typecheck exited with a non-zero status.</p>
-            </div>
+            <div className="turn-error-detail">pnpm typecheck exited with a non-zero status.</div>
             <div className="turn-error-actions">
               <button type="button" className="msg-action-btn">
-                Retry
+                重试
+              </button>
+              <button type="button" className="msg-action-btn">
+                复制报错
               </button>
             </div>
           </div>

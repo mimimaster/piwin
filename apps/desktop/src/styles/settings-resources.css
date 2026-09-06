@@ -12,6 +12,10 @@
    on void — see region-settings-shell.css. */
 
 .settings-card {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   margin-bottom: var(--s-6);
 }
 

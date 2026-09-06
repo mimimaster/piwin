@@ -98,7 +98,7 @@
   stroke-width: var(--icon-stroke);
 }
 
-/* The verb is scaffolding ("Read", "Ran command"); the path or query that
+/* The verb is scaffolding ("Read", "Bash"); the path or query that
    follows is the actual information, so the verb stays a step quieter. */
 .tool-call-action-verb {
   font-weight: 500;

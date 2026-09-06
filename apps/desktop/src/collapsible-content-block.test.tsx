@@ -63,6 +63,22 @@ describe('CollapsibleContentBlock expandable override', () => {
     expect(host.querySelector('[data-testid="collapsible-content-toggle"]')).toBeNull();
   });
 
+  it('clips the outer box and does not unclamp the inner node to measure', () => {
+    scrollHeightSpy = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(400);
+    act(() => {
+      root.render(
+        <CollapsibleContentBlock maxCollapsedHeight={130} defaultCollapsed>
+          <pre>{'line\n'.repeat(40)}</pre>
+        </CollapsibleContentBlock>,
+      );
+    });
+    const block = host.querySelector<HTMLElement>('[data-testid="collapsible-content-block"]');
+    const inner = host.querySelector<HTMLElement>('.collapsible-content-inner');
+    expect(block?.classList.contains('is-collapsed')).toBe(true);
+    expect(block?.style.maxHeight).toBe('130px');
+    expect(inner?.style.maxHeight).toBe('');
+  });
+
   it('stays collapsible when the caller marked the fence tall', () => {
     act(() => {
       root.render(

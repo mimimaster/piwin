@@ -87,9 +87,11 @@ describe('EmptyStageLanding', () => {
     return container;
   }
 
-  it('renders nothing when there is no history to resume', () => {
+  it('still renders the welcome chrome when there is no history to resume', () => {
     const container = renderLanding([]);
-    expect(container.querySelector('[data-testid="empty-stage-landing"]')).toBeNull();
+    expect(container.querySelector('[data-testid="empty-stage-landing"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="empty-stage-landing-row"]')).toBeNull();
+    expect(container.querySelector('[data-testid="empty-stage-inkstone-seal"]')).not.toBeNull();
   });
 
   it('resumes the clicked session', () => {
@@ -114,9 +116,9 @@ describe('EmptyStageLanding', () => {
     expect(container.textContent).toContain('Untitled session');
   });
 
-  it('does not render the removed Inkstone seal vignette', () => {
+  it('renders the Inkstone seal next to the welcome heading', () => {
     const container = renderLanding([session({ id: 'abc', name: 'Notes' })]);
-    expect(container.querySelector('[data-testid="empty-stage-inkstone-seal"]')).toBeNull();
-    expect(container.textContent).not.toContain('砚');
+    expect(container.querySelector('[data-testid="empty-stage-inkstone-seal"]')).not.toBeNull();
+    expect(container.textContent).toContain('砚');
   });
 });

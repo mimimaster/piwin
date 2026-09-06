@@ -9,6 +9,7 @@ import type { DiffCardRequest } from './diff-card';
 import type { ToolCallDensity } from './ui-preferences';
 import type { ModelOption } from './model-options';
 import { clusterToolCalls, resolveToolClusterKind } from './tool-group-clustering';
+import { isPlanProgressTool } from './plan-todo-model.js';
 import { ToolBatchCapsule } from './tool-batch-capsule';
 import { GoalDeliveryCard, GoalBlockedCard, GoalWaitCard, useGoalActions } from './goal';
 import { useSubagentInspectorToggle } from './subagent-inspector-context';
@@ -35,11 +36,15 @@ export type TurnToolGroupProps = {
  * read-only / exploratory actions into compact collapsible batch capsules.
  */
 export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
-  const clusters = useMemo(() => clusterToolCalls(props.tools), [props.tools]);
+  const tools = useMemo(
+    () => props.tools.filter((tool) => !isPlanProgressTool(tool)),
+    [props.tools],
+  );
+  const clusters = useMemo(() => clusterToolCalls(tools), [tools]);
   const inspectorToggle = useSubagentInspectorToggle();
   const goalActions = useGoalActions();
 
-  if (props.tools.length === 0) {
+  if (tools.length === 0) {
     return null;
   }
 

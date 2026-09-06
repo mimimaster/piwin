@@ -504,4 +504,25 @@ describe('TurnToolGroup causal tool sequence', () => {
     expect(block?.getAttribute('data-status')).toBe('needs-integration');
     expect(block?.textContent).toContain('Changes need attention');
   });
+
+  it('omits plan create and set-step tools from the call chain', () => {
+    const create: ToolCardUi = {
+      toolCallId: 'plan-create',
+      toolName: 'piwin_plan_create',
+      status: 'done',
+      output: 'draft plan created',
+    };
+    const step: ToolCardUi = {
+      toolCallId: 'plan-step',
+      toolName: 'piwin_plan_set_step',
+      status: 'done',
+      output: 'step 1 → done',
+    };
+    act(() => renderGroup([create, tool('bash-1'), step]));
+    const cards = container.querySelectorAll('[data-testid="tool-call-card"]');
+    expect(cards).toHaveLength(1);
+    expect(cards[0]?.getAttribute('data-tool-name')).toBe('bash');
+    expect(container.querySelector('[data-tool-name="piwin_plan_create"]')).toBeNull();
+    expect(container.querySelector('[data-tool-name="piwin_plan_set_step"]')).toBeNull();
+  });
 });

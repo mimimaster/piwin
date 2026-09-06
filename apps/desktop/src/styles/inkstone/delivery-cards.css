@@ -352,14 +352,30 @@ html[data-theme-id='piwin-inkstone-ink'] [data-artifact-blocked] {
   color: var(--ochre);
 }
 
-/* Error card */
-html[data-theme-id='piwin-inkstone-paper'] .turn-error-card,
-html[data-theme-id='piwin-inkstone-ink'] .turn-error-card {
-  border-left: 3px solid var(--crimson);
-  background: var(--s3);
-  box-shadow: var(--sh1);
-  border-radius: 8px;
-  padding: var(--card-y) var(--card-x);
+/* Error card — proto #20: s3 surface, crimson rail, code-well detail */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) {
+  .turn-error-card-inner {
+    background: var(--s3);
+    box-shadow: var(--sh1);
+    border-radius: 8px;
+    padding: var(--card-y, 12px) var(--card-x, 14px);
+  }
+  .turn-error-card-inner::before {
+    background: var(--crimson);
+  }
+  .turn-error-icon-badge {
+    background: var(--crimson-wash);
+    color: var(--crimson);
+  }
+  .turn-error-category-tag {
+    background: var(--crimson-wash);
+    color: var(--crimson);
+  }
+  .turn-error-detail {
+    background: var(--code);
+    box-shadow: var(--sh1);
+    color: var(--t2);
+  }
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .fcb .pc,

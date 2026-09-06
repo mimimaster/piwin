@@ -363,6 +363,17 @@ describe('Deck ramp projection', () => {
     expect(read('--on-iris')).toBe('#ffffff');
   });
 
+  it('projects Inkstone paper with a void darker than the panel surface', () => {
+    applyAppearanceToDocument(PIWIN_APPEARANCE_INKSTONE_PAPER);
+
+    expect(read('--void')).toBe('#e6e1d7');
+    expect(read('--surface-1')).toBe('#f0ece4');
+    expect(read('--void')).not.toBe(read('--surface-1'));
+    expect(PIWIN_APPEARANCE_INKSTONE_PAPER.deck?.void).not.toBe(
+      PIWIN_APPEARANCE_INKSTONE_PAPER.deck?.surface1,
+    );
+  });
+
   it('maps every legacy surface name onto a Deck role', () => {
     applyAppearanceToDocument(PIWIN_APPEARANCE_OBSIDIAN);
 

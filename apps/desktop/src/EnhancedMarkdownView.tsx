@@ -1,4 +1,5 @@
 import {
+  Children,
   cloneElement,
   isValidElement,
   useMemo,
@@ -130,6 +131,66 @@ function enhancedPlainText(value: ReactNode): string {
 function enhancedLineId(kind: string, node: ExtraProps['node'], text: string): string {
   const line = node?.position?.start.line ?? 0;
   return `${kind}-${line}-${text.slice(0, 40)}`;
+}
+
+function flattenReactNodes(value: ReactNode): ReactNode[] {
+  return Children.toArray(value);
+}
+
+function classNameTokens(value: unknown): string[] {
+  if (typeof value !== 'string') return [];
+  return value.split(/\s+/).filter(Boolean);
+}
+
+function hastTagName(node: ReactNode): string | undefined {
+  if (!isValidElement(node)) return undefined;
+  const tagName = (node.props as { node?: { tagName?: unknown } }).node?.tagName;
+  return typeof tagName === 'string' ? tagName : undefined;
+}
+
+function isEnhancedListElement(node: ReactNode): boolean {
+  const tagName = hastTagName(node);
+  if (tagName === 'ul' || tagName === 'ol') return true;
+  if (!isValidElement(node)) return false;
+  if (node.type === 'ul' || node.type === 'ol') return true;
+  return classNameTokens((node.props as { className?: unknown }).className).includes('enhanced-list');
+}
+
+function isSelfWrappingMarkdownBlock(node: ReactNode): boolean {
+  const tagName = hastTagName(node);
+  return tagName === 'p' || tagName === 'blockquote' || tagName === 'pre' || Boolean(tagName && /^h[1-6]$/.test(tagName));
+}
+
+function isEnhancedLineWrapperElement(node: ReactNode): boolean {
+  if (!isValidElement(node)) return false;
+  const props = node.props as { className?: unknown; lineId?: unknown };
+  if (typeof props.lineId === 'string') return true;
+  return classNameTokens(props.className).includes('enhanced-line-wrapper');
+}
+
+function isWhitespaceNode(node: ReactNode): boolean {
+  return typeof node === 'string' && node.trim() === '';
+}
+
+function splitEnhancedListItemChildren(children: ReactNode): {
+  own: ReactNode[];
+  nested: ReactNode[];
+} {
+  const own: ReactNode[] = [];
+  const nested: ReactNode[] = [];
+  for (const node of flattenReactNodes(children)) {
+    if (isEnhancedListElement(node)) nested.push(node);
+    else own.push(node);
+  }
+  return { own, nested };
+}
+
+function listItemOwnContentIsWrapped(own: ReactNode[]): boolean {
+  const meaningful = own.filter((node) => !isWhitespaceNode(node));
+  return (
+    meaningful.length > 0 &&
+    meaningful.every((node) => isEnhancedLineWrapperElement(node) || isSelfWrappingMarkdownBlock(node))
+  );
 }
 
 function isEnhancedDocumentPath(value: string): boolean {
@@ -276,14 +337,20 @@ function createEnhancedStreamdownComponents(
     children,
     node,
   }: EnhancedStreamdownElementProps<'li'>): ReactElement => {
-    const lineText = enhancedPlainText(children);
-    return wrapReviewLine(
-      'list',
-      node,
-      lineText,
-      <div className="item-text">{children}</div>,
-      'enhanced-list-item',
-      'li',
+    const { own, nested } = splitEnhancedListItemChildren(children);
+    const meaningfulOwn = own.filter((child) => !isWhitespaceNode(child));
+    const lineText = enhancedPlainText(own);
+    const ownRow =
+      meaningfulOwn.length === 0 ? null : listItemOwnContentIsWrapped(own) ? (
+        <div className="item-text">{own}</div>
+      ) : (
+        wrapReviewLine('list', node, lineText, <div className="item-text">{own}</div>)
+      );
+    return (
+      <li className="enhanced-list-item">
+        {ownRow}
+        {nested}
+      </li>
     );
   };
 

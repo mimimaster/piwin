@@ -60,7 +60,7 @@ function getClusterIcon(kind: ToolClusterKind): ReactElement {
 export function formatActiveToolLabel(tool: ToolCardUi, isChinese: boolean): string {
   const verb = tool.presentation?.actionVerb || tool.toolName;
   const target =
-    tool.presentation?.targetPaths?.[0]?.split(/[/\\]/).pop() ||
+    tool.presentation?.targetPaths?.[0] ||
     tool.presentation?.summary ||
     tool.presentation?.title ||
     tool.toolName;

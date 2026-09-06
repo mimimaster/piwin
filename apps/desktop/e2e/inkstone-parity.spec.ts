@@ -9,7 +9,7 @@ async function boot(page: Page, path = '/'): Promise<void> {
 
 async function switchToPaper(page: Page): Promise<void> {
   if (await page.locator('html').getAttribute('data-theme-id') === 'piwin-inkstone-ink') {
-    await page.getByRole('button', { name: '切换到浅色主题', exact: true }).click();
+    await page.getByTestId('titlebar-theme-toggle').click();
   }
   await expect(page.locator('html')).toHaveAttribute('data-theme-id', 'piwin-inkstone-paper');
 }
@@ -17,18 +17,18 @@ async function switchToPaper(page: Page): Promise<void> {
 async function assertShellGeometry(page: Page): Promise<void> {
   const shell = page.getByTestId('app-shell');
   await expect(shell).toHaveCSS('row-gap', '0px');
-  await expect(page.locator('.workspace')).toHaveCSS('border-radius', '12px');
+  await expect(page.locator('.workspace')).toHaveCSS('border-radius', '8px');
   // The titleband owns the window-top row; the three panels start below it.
   await expect(page.locator('.chat-column')).toHaveCSS('padding-top', '0px');
-  await expect(page.getByTestId('composer-input')).toHaveCSS('min-height', '48px');
-  await expect(page.locator('.slab')).toHaveCSS('border-radius', '12px');
+  await expect(page.getByTestId('composer-input')).toHaveCSS('min-height', '52px');
+  await expect(page.locator('.slab')).toHaveCSS('border-radius', '10px');
   const title = await page.getByTestId('workspace-context-header').boundingBox();
   const workspace = await page.locator('.workspace').boundingBox();
   expect(title).not.toBeNull();
   expect(workspace).not.toBeNull();
   if (!title || !workspace) throw new Error('Missing shell panels');
   expect(workspace.y).toBe(title.y + title.height);
-  expect(title.height).toBe(34);
+  expect(title.height).toBe(30);
 }
 
 test('default startup, paper/ink flips and empty slab retain prototype geometry', async ({ page }) => {
@@ -37,7 +37,7 @@ test('default startup, paper/ink flips and empty slab retain prototype geometry'
   await switchToPaper(page);
   await assertShellGeometry(page);
   await expect(page.locator('.slab')).toHaveCSS('background-color', 'rgb(31, 28, 24)');
-  await page.getByRole('button', { name: '切换到深色主题', exact: true }).click();
+  await page.getByTestId('titlebar-theme-toggle').click();
   await expect(page.locator('html')).toHaveAttribute('data-theme-id', 'piwin-inkstone-ink');
   await expect(page.locator('.slab')).toHaveCSS('background-color', 'rgb(14, 13, 11)');
   await assertShellGeometry(page);
@@ -77,7 +77,7 @@ test('inspector does not remove the full-window titlebar tools', async ({ page }
   await page.getByTestId('workspace-context-header').getByTestId('right-panel-open-btn').click();
   await expect(page.getByRole('complementary', { name: '工作区面板' })).toBeVisible();
   await expect(page.getByTestId('titlebar-theme-toggle')).toBeVisible();
-  await expect(page.getByTestId('titlebar-search-btn')).toBeVisible();
+  await expect(page.getByTestId('session-search-btn-sb-top')).toBeVisible();
   await assertShellGeometry(page);
   await page.setViewportSize({ width: 1000, height: 760 });
   await expect(page.getByTestId('composer-input')).toBeVisible();
@@ -91,9 +91,21 @@ test('appearance settings stay readable and the product mode controls work', asy
   await switchToPaper(page);
   await page.getByRole('button', { name: '设置', exact: true }).click();
   await expect(page.getByTestId('settings-appearance')).toBeVisible();
-  const content = await page.locator('.settings-main-content').boundingBox();
-  expect(content).not.toBeNull();
-  expect(content?.width).toBeLessThanOrEqual(840);
+  const content = page.locator('.settings-main-content');
+  const main = page.locator('.settings-main');
+  const at1440 = await content.boundingBox();
+  const mainAt1440 = await main.boundingBox();
+  expect(at1440).not.toBeNull();
+  expect(mainAt1440).not.toBeNull();
+  if (!at1440 || !mainAt1440) throw new Error('Missing settings layout');
+  expect(at1440.width).toBeGreaterThan(840);
+  expect(Math.abs(mainAt1440.width - at1440.width)).toBeLessThan(24);
+  await page.setViewportSize({ width: 1800, height: 900 });
+  const at1800 = await content.boundingBox();
+  expect(at1800).not.toBeNull();
+  if (!at1800) throw new Error('Missing settings layout after resize');
+  expect(at1800.width).toBeGreaterThan(at1440.width);
+  await page.setViewportSize({ width: 1440, height: 900 });
   const paper = page.getByTestId('light-theme-preview');
   const ink = page.getByTestId('dark-theme-preview');
   const paperBox = await paper.boundingBox();
@@ -143,6 +155,6 @@ test('prototype Agent scene keeps body, process, composer and keyboard tabs alig
   // Read from the start of the fixture, independent of the normal follow-tail position.
   await page.locator('.chat-stream').evaluate(element => { element.scrollTop = 0; });
   await page.screenshot({ path: testInfo.outputPath('inkstone-agent-paper.png') });
-  await page.getByRole('button', { name: '切换到深色主题', exact: true }).click();
+  await page.getByTestId('titlebar-theme-toggle').click();
   await page.screenshot({ path: testInfo.outputPath('inkstone-agent-ink.png') });
 });

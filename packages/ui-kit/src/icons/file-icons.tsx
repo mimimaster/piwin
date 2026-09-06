@@ -5,11 +5,9 @@ export const IconFolder = createIcon(
   </>,
 );
 
+/** Same outline family as `IconFolder`: one stroke, tab + open flap. */
 export const IconFolderOpen = createIcon(
-  <>
-    <path d="M3.75 16V6.9c0-1.2.95-2.15 2.15-2.15h3.2c.57 0 1.12.23 1.52.63l1.3 1.32h5.43c1.19 0 2.15.96 2.15 2.15v1.15" />
-    <path d="M6.35 10h11.5a1.9 1.9 0 0 1 1.85 2.33l-1.15 4.9a1.9 1.9 0 0 1-1.85 1.47H5.15c-.8 0-1.43-.68-1.36-1.48l.68-5.48A1.9 1.9 0 0 1 6.35 10Z" />
-  </>,
+  <path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2" />,
 );
 
 export const IconFolderPlus = createIcon(

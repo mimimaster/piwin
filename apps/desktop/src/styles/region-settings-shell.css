@@ -397,6 +397,7 @@ html:not([data-theme-mode='light']) .settings-nav-mark-img--for-dark {
   position: relative;
   display: flex;
   flex-direction: column;
+  min-width: 0;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -509,11 +510,14 @@ html:not([data-theme-mode='light']) .settings-nav-mark-img--for-dark {
   display: flex;
   align-items: flex-start;
   justify-content: flex-end;
-  width: min(100%, 1180px);
+  width: 100%;
+  max-width: none;
+  min-width: 0;
   min-height: 44px;
-  margin: 0 auto var(--s-9);
+  margin: 0 0 var(--s-9);
   padding-bottom: 0;
   border-bottom: none;
+  box-sizing: border-box;
 }
 
 .settings-main-heading {
@@ -531,9 +535,11 @@ html:not([data-theme-mode='light']) .settings-nav-mark-img--for-dark {
 }
 
 .settings-main-content {
-  width: min(100%, 1180px);
+  width: 100%;
+  max-width: none;
   min-width: 0;
-  margin: 0 auto;
+  margin: 0;
+  box-sizing: border-box;
 }
 
 /* Models page: directory list uses the full content width. */

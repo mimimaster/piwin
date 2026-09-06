@@ -2270,21 +2270,7 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
         ],
       },
     };
-    renderConversation([userMessage, searchCall, assistant], {
-      plan: {
-        id: 'plan-1',
-        sessionId: 's-chat',
-        projectPath: '/tmp/unused',
-        title: 'Hidden plan',
-        status: 'approved',
-        steps: [],
-        goal: 'unused',
-        revision: 1,
-        createdAt: '2026-08-16T00:00:00.000Z',
-        updatedAt: '2026-08-16T00:00:00.000Z',
-        source: 'user',
-      },
-    });
+    renderConversation([userMessage, searchCall, assistant]);
 
     expect(container.querySelector('[data-testid="conversation-response"]')).not.toBeNull();
     expect(container.textContent).toContain('Here is the answer.');

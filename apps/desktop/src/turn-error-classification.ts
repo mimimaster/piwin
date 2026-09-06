@@ -82,12 +82,27 @@ export function classifyAgentFailure(failure: AgentFailure | undefined): TurnErr
         titleEn: 'Could not reach model service',
         primaryAction: 'retry',
       };
+    case 'backend-worker-crash':
+      return {
+        category: 'unknown',
+        titleZh: '后端进程异常',
+        titleEn: 'Backend process crashed',
+        primaryAction: 'retry',
+      };
+    case 'backend-protocol-error':
+      return {
+        category: 'unknown',
+        titleZh: '协议错误',
+        titleEn: 'Protocol error',
+        primaryAction: 'retry',
+      };
+    case 'unknown-agent-failure':
     default:
       return {
         category: 'unknown',
         titleZh: '生成失败',
         titleEn: 'Generation failed',
-        primaryAction: 'copy',
+        primaryAction: 'retry',
       };
   }
 }

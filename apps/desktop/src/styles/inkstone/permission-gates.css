@@ -189,23 +189,78 @@ html[data-theme-id='piwin-inkstone-ink'] .seal.mini::after {
   animation: draw 0.24s ease-out 0.2s both;
 }
 
-/* S5.9: Plan execution gate (.intr) per docs/design/inkstone/proto-01-transcript.html */
+/* S5.9: Plan execution gate (.intr) — verbatim from proto-01-transcript.html
+   lines 244–252 + pill 81–84. Solo card above the composer; never stacked
+   under the live todo tray for draft/approved plans. */
 html[data-theme-id='piwin-inkstone-paper'] .intr,
 html[data-theme-id='piwin-inkstone-ink'] .intr {
   position: relative;
+  display: block;
+  box-sizing: border-box;
   background: var(--s3);
   box-shadow: var(--sh2);
   border-radius: 8px;
-  padding: var(--card-y) var(--card-x);
+  padding: var(--card-y, 12px) var(--card-x, 14px);
   border: 0;
   animation: agent-interruption-slide-in var(--t-2, 0.2s) var(--ease-out, ease-out);
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .intr.plan-execution-gate,
 html[data-theme-id='piwin-inkstone-ink'] .intr.plan-execution-gate {
+  width: 100%;
+  max-width: 100%;
+  margin: 8px 0 0;
+  box-sizing: border-box;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .plan-todo-tray,
+html[data-theme-id='piwin-inkstone-ink'] .plan-todo-tray {
   width: var(--chat-max, 720px);
   max-width: calc(100% - 32px);
-  margin: 0 auto 8px;
+  padding: 4px 0 8px;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .plan-todo-tray-label,
+html[data-theme-id='piwin-inkstone-ink'] .plan-todo-tray-label,
+html[data-theme-id='piwin-inkstone-paper'] .plan-todo-tray-count,
+html[data-theme-id='piwin-inkstone-ink'] .plan-todo-tray-count,
+html[data-theme-id='piwin-inkstone-paper'] .plan-todo-tray-doc,
+html[data-theme-id='piwin-inkstone-ink'] .plan-todo-tray-doc,
+html[data-theme-id='piwin-inkstone-paper'] .plan-todo-tray-more,
+html[data-theme-id='piwin-inkstone-ink'] .plan-todo-tray-more {
+  font: 11px var(--mono);
+  color: var(--t4);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .plan-todo-tray-count,
+html[data-theme-id='piwin-inkstone-ink'] .plan-todo-tray-count {
+  color: var(--t3);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .plan-todo-tray-title,
+html[data-theme-id='piwin-inkstone-ink'] .plan-todo-tray-title,
+html[data-theme-id='piwin-inkstone-paper'] .plan-todo-step,
+html[data-theme-id='piwin-inkstone-ink'] .plan-todo-step {
+  font-family: var(--sans);
+  color: var(--t2);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .plan-todo-step.run,
+html[data-theme-id='piwin-inkstone-ink'] .plan-todo-step.run {
+  color: var(--t1);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .plan-todo-step.done,
+html[data-theme-id='piwin-inkstone-ink'] .plan-todo-step.done,
+html[data-theme-id='piwin-inkstone-paper'] .plan-todo-step.skipped,
+html[data-theme-id='piwin-inkstone-ink'] .plan-todo-step.skipped {
+  color: var(--t4);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .plan-todo-tray-abort,
+html[data-theme-id='piwin-inkstone-ink'] .plan-todo-tray-abort {
+  font: 11px var(--mono);
+  color: var(--zhu);
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .intr h3,
@@ -244,7 +299,7 @@ html[data-theme-id='piwin-inkstone-ink'] .intr .choice {
   color: var(--t1);
   border: 0;
   cursor: pointer;
-  font-family: inherit;
+  font-family: var(--sans);
   transition: background-color var(--t-2, 0.15s) ease, box-shadow var(--t-2, 0.15s) ease;
 }
 
@@ -291,30 +346,32 @@ html[data-theme-id='piwin-inkstone-ink'] .intr .kb {
   color: var(--t4);
 }
 
-/* Pill badge per proto-01 lines 81-84 */
-html[data-theme-id='piwin-inkstone-paper'] .pill,
-html[data-theme-id='piwin-inkstone-ink'] .pill {
+/* Pill scoped to .intr so ui-foundations .pill cannot restyle the gate badge */
+html[data-theme-id='piwin-inkstone-paper'] .intr .pill,
+html[data-theme-id='piwin-inkstone-ink'] .intr .pill {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   height: 20px;
   padding: 0 8px;
   border-radius: 999px;
+  border: 0;
   font: 600 10.5px var(--sans);
   letter-spacing: 0.04em;
   white-space: nowrap;
 }
 
-html[data-theme-id='piwin-inkstone-paper'] .pill i,
-html[data-theme-id='piwin-inkstone-ink'] .pill i {
+html[data-theme-id='piwin-inkstone-paper'] .intr .pill i,
+html[data-theme-id='piwin-inkstone-ink'] .intr .pill i {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: currentColor;
+  flex: none;
 }
 
-html[data-theme-id='piwin-inkstone-paper'] .pill.zhu-p,
-html[data-theme-id='piwin-inkstone-ink'] .pill.zhu-p {
+html[data-theme-id='piwin-inkstone-paper'] .intr .pill.zhu-p,
+html[data-theme-id='piwin-inkstone-ink'] .intr .pill.zhu-p {
   background: var(--zhu-wash);
   color: var(--zhu);
 }

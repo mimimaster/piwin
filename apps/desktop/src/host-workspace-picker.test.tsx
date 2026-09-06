@@ -182,4 +182,137 @@ describe('HostWorkspacePicker', () => {
     });
     expect(onConfirm).toHaveBeenCalledWith('/tmp/typed-workspace');
   });
+
+  it('opens a nested path as columns from home', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const listDirectory = vi.fn(async (path?: string) => {
+      if (path === '/Users/host/Projects') {
+        return projects;
+      }
+      return home;
+    });
+
+    await act(async () => {
+      root?.render(
+        <HostWorkspacePicker
+          locale="zh-CN"
+          currentPath="/Users/host/Projects"
+          onCurrentPathChange={() => undefined}
+          listDirectory={listDirectory}
+          onConfirm={() => undefined}
+          onCancel={() => undefined}
+        />,
+      );
+    });
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(container?.querySelectorAll('[data-testid="host-workspace-column"]').length).toBe(2);
+      });
+    });
+    expect(listDirectory).toHaveBeenCalledWith('/Users/host/Projects');
+    expect(listDirectory).toHaveBeenCalledWith('/Users/host');
+    expect(container?.querySelector('.host-workspace-column.is-last')).toBeTruthy();
+    expect(container?.querySelector('[data-testid="host-workspace-col-resizer"]')).toBeTruthy();
+    expect(container?.querySelector('[data-testid="host-workspace-sidebar-resizer"]')).toBeTruthy();
+    expect(container?.querySelector('[data-testid="host-workspace-dialog-resizer"]')).toBeTruthy();
+    const selected = [...(container?.querySelectorAll('.host-workspace-row.is-selected') ?? [])];
+    expect(selected.some((node) => node.textContent?.includes('Projects'))).toBe(true);
+  });
+
+  it('drops later columns when a file is selected', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const listDirectory = vi.fn(async (path?: string) => {
+      if (path === '/Users/host/Projects') {
+        return projects;
+      }
+      return home;
+    });
+
+    await act(async () => {
+      root?.render(
+        <HostWorkspacePicker
+          locale="en"
+          currentPath=""
+          onCurrentPathChange={() => undefined}
+          listDirectory={listDirectory}
+          onConfirm={() => undefined}
+          onCancel={() => undefined}
+        />,
+      );
+    });
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(container?.querySelector('[data-testid="host-workspace-dir"]')).toBeTruthy();
+      });
+    });
+    const projectsFolder = [...(container?.querySelectorAll('[data-testid="host-workspace-dir"]') ?? [])].find(
+      (node) => node.textContent?.includes('Projects'),
+    );
+    await act(async () => {
+      (projectsFolder as HTMLButtonElement).click();
+    });
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(container?.querySelectorAll('[data-testid="host-workspace-column"]').length).toBe(2);
+      });
+    });
+
+    const fileRow = [...(container?.querySelectorAll('[data-testid="host-workspace-file"]') ?? [])].find(
+      (node) => node.textContent?.includes('readme.md'),
+    );
+    expect(fileRow).toBeTruthy();
+    await act(async () => {
+      (fileRow as HTMLButtonElement).click();
+    });
+    expect(container?.querySelectorAll('[data-testid="host-workspace-column"]').length).toBe(1);
+  });
+
+  it('widens a column when the divider is dragged', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const listDirectory = vi.fn(async (path?: string) => {
+      if (path === '/Users/host/Projects') {
+        return projects;
+      }
+      return home;
+    });
+
+    await act(async () => {
+      root?.render(
+        <HostWorkspacePicker
+          locale="en"
+          currentPath="/Users/host/Projects"
+          onCurrentPathChange={() => undefined}
+          listDirectory={listDirectory}
+          onConfirm={() => undefined}
+          onCancel={() => undefined}
+        />,
+      );
+    });
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(container?.querySelector('[data-testid="host-workspace-col-resizer"]')).toBeTruthy();
+      });
+    });
+
+    const resizer = container?.querySelector(
+      '[data-testid="host-workspace-col-resizer"]',
+    ) as HTMLDivElement;
+    const column = resizer.parentElement as HTMLElement;
+    await act(async () => {
+      resizer.dispatchEvent(
+        new PointerEvent('pointerdown', { button: 0, clientX: 200, pointerId: 1, bubbles: true }),
+      );
+      window.dispatchEvent(new PointerEvent('pointermove', { clientX: 260, pointerId: 1 }));
+      window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1 }));
+    });
+    expect(column.style.minWidth).toBe('260px');
+  });
 });

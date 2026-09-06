@@ -127,7 +127,7 @@ export function SessionColdStoragePage(): ReactElement {
       setPlan(null);
       setInfo(
         isZh
-          ? `已卸载 ${result.offloaded.length} 个会话，失败 ${result.failed.length} 个。`
+          ? `已转储 ${result.offloaded.length} 个会话，失败 ${result.failed.length} 个。`
           : `Offloaded ${result.offloaded.length}, failed ${result.failed.length}.`,
         result.failed.length > 0 ? 'warning' : 'success',
       );
@@ -151,7 +151,7 @@ export function SessionColdStoragePage(): ReactElement {
       const result = response.data as SessionColdStorageReconcileResult;
       setInfo(
         isZh
-          ? `对账完成：恢复 ${result.recovered.length}，报告 ${result.reports.length}。`
+          ? `数据校验完成：已恢复 ${result.recovered.length} 个会话，生成 ${result.reports.length} 份报告。`
           : `Reconciled: recovered ${result.recovered.length}, reports ${result.reports.length}.`,
       );
       await refreshStatus();
@@ -229,7 +229,7 @@ export function SessionColdStoragePage(): ReactElement {
           title={isZh ? '会话冷存储' : 'Session cold storage'}
           description={
             isZh
-              ? '手动备份并卸载已归档主会话。输出目录是 Host 机器路径。执行前必须先保存配置并确认计划摘要。'
+              ? '手动备份并转储已归档的主会话。输出目录为 Host 绝对路径。执行前必须先保存配置并确认计划摘要。'
               : 'Manually back up and offload archived main sessions. The output directory is a Host filesystem path. Save config and confirm a plan digest before execute.'
           }
         />
@@ -237,7 +237,7 @@ export function SessionColdStoragePage(): ReactElement {
           label={isZh ? '启用冷存储' : 'Enable cold storage'}
           description={
             isZh
-              ? '关闭时不会生成或执行卸载计划。不会自动调度。'
+              ? '关闭后不会生成或执行转储计划。不会进行自动后台调度。'
               : 'When off, Host will not plan or execute offload. There is no schedule.'
           }
           testId="cold-storage-enabled-row"
@@ -293,7 +293,7 @@ export function SessionColdStoragePage(): ReactElement {
           label={isZh ? '本地预算（字节，可选）' : 'Local budget (bytes, optional)'}
           description={
             isZh
-              ? '仅用于状态展示，不会自动卸载。'
+              ? '仅用于容量参考展示，不会自动触发转储。'
               : 'Status only. This never auto-executes offload.'
           }
           testId="cold-storage-budget-row"
@@ -339,7 +339,7 @@ export function SessionColdStoragePage(): ReactElement {
             {isZh ? '确认并执行' : 'Confirm & execute'}
           </Button>
           <Button variant="ghost" data-testid="cold-storage-reconcile-button" disabled={busy !== null} onClick={() => void handleReconcile()}>
-            {isZh ? '对账' : 'Reconcile'}
+            {isZh ? '校验同步' : 'Reconcile'}
           </Button>
         </div>
         {status ? (
@@ -359,7 +359,7 @@ export function SessionColdStoragePage(): ReactElement {
           title={isZh ? '外部包' : 'External packs'}
           description={
             isZh
-              ? '列出已保存输出目录中的包，或从包导入缺失的索引桩。Piwin 不会删除外部包。'
+              ? '列出已保存输出目录中的备份包，或从中恢复缺失的会话索引。Piwin 不会删除外部备份包。'
               : 'List packs in the saved output directory, or import a missing index stub from a pack. Piwin never deletes external packs.'
           }
         />

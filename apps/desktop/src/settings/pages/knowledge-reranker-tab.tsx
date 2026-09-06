@@ -49,7 +49,7 @@ export function KnowledgeRerankerTab(props: KnowledgeRerankerTabProps): ReactEle
           title={isZh ? '二次重排 (Reranker)' : 'Precision Reranker'}
           description={
             isZh
-              ? '可选。配上后检索会先混合召回候选切片，再使用重排模型二次打分。'
+              ? '可选。开启后系统将先初步检索候选文档片段，再使用重排模型按语义相关度精细重新排序。'
               : 'Optional cross-encoder ranking. When enabled, hybrid search retrieves top candidates, then reranks them for optimal precision.'
           }
         />
@@ -95,7 +95,7 @@ export function KnowledgeRerankerTab(props: KnowledgeRerankerTabProps): ReactEle
         label={isZh ? '启用精准重排' : 'Enable reranker'}
         description={
           isZh
-            ? '针对召回候选进行交叉编码二次打分增强。'
+            ? '对候选文档片段进行交叉编码精细评分，提升命中准确度。'
             : 'Cross-encoder secondary scoring for search candidates.'
         }
         testId="knowledge-reranker-enabled-row"

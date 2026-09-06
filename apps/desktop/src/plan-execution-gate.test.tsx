@@ -9,10 +9,14 @@ import { createInitialChatUiState } from './chat-reducer';
 import { DesktopLocaleProvider } from './desktop-locale-context';
 import {
   canShowPlanExecutionGate,
+  findPlanExecutionGateMessageId,
+  isPlanCreateTool,
   PlanExecutionGate,
   recommendedPlanExecutionMode,
 } from './plan-execution-gate';
+import { TurnWorkDetails } from './turn-work-details';
 import { WorkbenchPermissionBar } from './workbench-conversation';
+import type { ChatMessageUi } from './chat-ui-types';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -41,12 +45,11 @@ function draftPlan(overrides: Partial<SessionPlan> = {}): SessionPlan {
 }
 
 describe('canShowPlanExecutionGate', () => {
-  it('shows for a draft plan in a project session that is idle', () => {
+  it('shows for a draft plan in a project session', () => {
     expect(
       canShowPlanExecutionGate({
         plan: draftPlan(),
         isConversationSession: false,
-        streaming: false,
       }),
     ).toBe(true);
   });
@@ -69,24 +72,13 @@ describe('canShowPlanExecutionGate', () => {
     ).toBe(false);
   });
 
-  it('hides while the agent is still streaming', () => {
+  it('stays on the call chain while the user keeps chatting', () => {
     expect(
       canShowPlanExecutionGate({
         plan: draftPlan(),
         isConversationSession: false,
-        streaming: true,
       }),
-    ).toBe(false);
-  });
-
-  it('hides while the previous run is paused', () => {
-    expect(
-      canShowPlanExecutionGate({
-        plan: draftPlan(),
-        isConversationSession: false,
-        paused: true,
-      }),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it('shows a stuck executing plan after execution failed so the user can retry', () => {
@@ -108,15 +100,7 @@ describe('canShowPlanExecutionGate', () => {
     ).toBe(true);
   });
 
-  it('hides when a permission prompt is already occupying the interruption slot', () => {
-    expect(
-      canShowPlanExecutionGate({
-        plan: draftPlan(),
-        isConversationSession: false,
-        hasPermissionPrompt: true,
-      }),
-    ).toBe(false);
-  });
+
 
   it('hides while the plan is executing, done, or abandoned', () => {
     expect(
@@ -191,6 +175,57 @@ describe('recommendedPlanExecutionMode', () => {
   });
 });
 
+function assistantMessage(
+  id: string,
+  tools: ChatMessageUi['tools'] = [],
+): ChatMessageUi {
+  return {
+    id,
+    role: 'assistant',
+    text: '',
+    thinking: '',
+    tools,
+    attachments: [],
+    status: 'done',
+  };
+}
+
+describe('findPlanExecutionGateMessageId', () => {
+  it('pins the gate to the assistant message that created the plan', () => {
+    expect(
+      findPlanExecutionGateMessageId([
+        assistantMessage('a1', [
+          { toolCallId: 't1', toolName: 'bash', status: 'done', output: '' },
+        ]),
+        assistantMessage('a2', [
+          { toolCallId: 't2', toolName: 'piwin_plan_create', status: 'done', output: '' },
+        ]),
+        assistantMessage('a3', [
+          { toolCallId: 't3', toolName: 'bash', status: 'done', output: 'later' },
+        ]),
+      ]),
+    ).toBe('a2');
+  });
+
+  it('falls back to the latest assistant when no create tool is in the transcript', () => {
+    expect(
+      findPlanExecutionGateMessageId([
+        assistantMessage('a1'),
+        assistantMessage('a2'),
+      ]),
+    ).toBe('a2');
+  });
+
+  it('matches routed plan_create aliases', () => {
+    expect(
+      isPlanCreateTool({
+        toolName: 'piwin_toolbox',
+        presentation: { kind: 'other', title: 'Plan', routedToolName: 'plan_create' },
+      }),
+    ).toBe(true);
+  });
+});
+
 function renderNode(node: ReactElement): { container: HTMLElement; root: Root } {
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -222,7 +257,7 @@ describe('PlanExecutionGate', () => {
       </DesktopLocaleProvider>,
     );
     expect(container.querySelector('[data-testid="plan-execution-gate"]')).not.toBeNull();
-    expect(container.textContent).toContain('怎么执行这个计划');
+    expect(container.textContent).toContain('选择计划执行方式');
     expect(container.textContent).toContain('Add auth');
     expect(container.querySelector('[data-testid="plan-mode-inline"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="plan-mode-subagent"]')).not.toBeNull();
@@ -316,7 +351,7 @@ describe('PlanExecutionGate', () => {
     expect(pill?.textContent).toContain('选择执行方式');
 
     const heading = gate?.querySelector('h3');
-    expect(heading?.textContent).toBe('怎么执行这个计划？');
+    expect(heading?.textContent).toBe('选择计划执行方式');
 
     const desc = gate?.querySelector('.desc');
     expect(desc?.textContent).toBe('作曲器排队语义 · 4 步 · 2 步可并行');
@@ -334,11 +369,11 @@ describe('PlanExecutionGate', () => {
     expect(inlineBtn?.classList.contains('choice')).toBe(true);
     expect(inlineBtn?.classList.contains('rec')).toBe(false);
     expect(inlineBtn?.querySelector('.bd')?.textContent).toBe('B');
-    expect(inlineBtn?.textContent).toContain('当前会话直接做');
+    expect(inlineBtn?.textContent).toContain('在当前会话直接执行');
 
     const kb = gate?.querySelector('.kb');
     expect(kb?.textContent).toBe(
-      'A / B 直接按键 · 出现在作曲器上方 · 安全提示占位时让位 · Conversation 会话不显示',
+      '按 A / B 键快速执行 · 也可以直接在输入框继续提问',
     );
 
     act(() => root.unmount());
@@ -384,6 +419,48 @@ describe('PlanExecutionGate', () => {
   });
 });
 
+describe('PlanExecutionGate on the call chain', () => {
+  let previousActEnvironment: boolean | undefined;
+
+  beforeEach(() => {
+    previousActEnvironment = globalThis.IS_REACT_ACT_ENVIRONMENT;
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  });
+
+  afterEach(() => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
+  });
+
+  it('renders after the turn tool group and hides plan-create rows', () => {
+    const message = assistantMessage('a1', [
+      { toolCallId: 't1', toolName: 'bash', status: 'done', output: 'ok' },
+      { toolCallId: 't2', toolName: 'piwin_plan_create', status: 'done', output: 'draft' },
+    ]);
+    const { container, root } = renderNode(
+      <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => undefined}>
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <TurnWorkDetails
+            message={message}
+            runRecordsById={{}}
+            activeRunId={null}
+            permissionPrompt={null}
+            workDetailsExpanded="always"
+            planExecutionGate={{ plan: draftPlan(), onExecute: () => undefined }}
+          />
+        </PiwinUiProvider>
+      </DesktopLocaleProvider>,
+    );
+    const group = container.querySelector('[data-testid="turn-tool-group"]');
+    const gate = container.querySelector('[data-testid="plan-execution-gate"]');
+    expect(group).not.toBeNull();
+    expect(gate).not.toBeNull();
+    expect(group && gate && group.compareDocumentPosition(gate) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(container.querySelector('[data-tool-name="piwin_plan_create"]')).toBeNull();
+    act(() => root.unmount());
+    container.remove();
+  });
+});
+
 describe('WorkbenchPermissionBar plan execution gate', () => {
   let previousActEnvironment: boolean | undefined;
 
@@ -405,7 +482,7 @@ describe('WorkbenchPermissionBar plan execution gate', () => {
     };
   }
 
-  it('shows the gate above the composer for a draft plan in a project session', () => {
+  it('does not dock the gate above the composer for a draft plan', () => {
     const { container, root } = renderNode(
       <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => undefined}>
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
@@ -413,14 +490,14 @@ describe('WorkbenchPermissionBar plan execution gate', () => {
             state={projectState()}
             extensionUiRequest={null}
             sessionPlan={draftPlan()}
-            onPlanExecute={() => undefined}
             onPermission={() => undefined}
             onExtensionUiResolve={() => undefined}
           />
         </PiwinUiProvider>
       </DesktopLocaleProvider>,
     );
-    expect(container.querySelector('[data-testid="plan-execution-gate"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="plan-execution-gate"]')).toBeNull();
+    expect(container.querySelector('[data-testid="plan-todo-tray"]')).toBeNull();
     act(() => root.unmount());
     container.remove();
   });
@@ -433,7 +510,6 @@ describe('WorkbenchPermissionBar plan execution gate', () => {
             state={createInitialChatUiState()}
             extensionUiRequest={null}
             sessionPlan={draftPlan()}
-            onPlanExecute={() => undefined}
             onPermission={() => undefined}
             onExtensionUiResolve={() => undefined}
           />
@@ -441,11 +517,12 @@ describe('WorkbenchPermissionBar plan execution gate', () => {
       </DesktopLocaleProvider>,
     );
     expect(container.querySelector('[data-testid="plan-execution-gate"]')).toBeNull();
+    expect(container.querySelector('[data-testid="plan-todo-tray"]')).toBeNull();
     act(() => root.unmount());
     container.remove();
   });
 
-  it('lets a permission prompt occupy the slot instead of the plan gate', () => {
+  it('lets a permission prompt occupy the composer slot', () => {
     const state = {
       ...projectState(),
       permissionPrompt: {
@@ -463,7 +540,6 @@ describe('WorkbenchPermissionBar plan execution gate', () => {
             state={state}
             extensionUiRequest={null}
             sessionPlan={draftPlan()}
-            onPlanExecute={() => undefined}
             onPermission={() => undefined}
             onExtensionUiResolve={() => undefined}
           />
@@ -472,6 +548,8 @@ describe('WorkbenchPermissionBar plan execution gate', () => {
     );
     expect(container.querySelector('[data-testid="permission-bar"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="plan-execution-gate"]')).toBeNull();
+    // Draft plans do not show the live tray; permission owns the slot alone.
+    expect(container.querySelector('[data-testid="plan-todo-tray"]')).toBeNull();
     act(() => root.unmount());
     container.remove();
   });
@@ -520,26 +598,58 @@ describe('WorkbenchPermissionBar plan execution gate', () => {
     container.remove();
   });
 
-  it('does not show the gate while a run is paused', () => {
-    const state = {
-      ...projectState(),
-      runTerminal: { kind: 'paused' as const, at: Date.now(), checkpointId: 'ckpt-1' },
-    };
+
+
+  it('shows the live plan list above the composer for an executing plan', () => {
     const { container, root } = renderNode(
       <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => undefined}>
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
           <WorkbenchPermissionBar
-            state={state}
+            state={{ ...projectState(), streaming: true }}
             extensionUiRequest={null}
-            sessionPlan={draftPlan()}
-            onPlanExecute={() => undefined}
+            sessionPlan={draftPlan({
+              status: 'executing',
+              execution: {
+                sessionId: 's1',
+                planId: 'p1',
+                mode: 'inline',
+                status: 'running',
+                childSessionIds: [],
+              },
+            })}
             onPermission={() => undefined}
             onExtensionUiResolve={() => undefined}
           />
         </PiwinUiProvider>
       </DesktopLocaleProvider>,
     );
+    expect(container.querySelector('[data-testid="plan-todo-tray"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="plan-execution-gate"]')).toBeNull();
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('hides the live plan list once every step is complete', () => {
+    const { container, root } = renderNode(
+      <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => undefined}>
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <WorkbenchPermissionBar
+            state={projectState()}
+            extensionUiRequest={null}
+            sessionPlan={draftPlan({
+              status: 'executing',
+              steps: [
+                { id: '1', title: 'Design', status: 'done' },
+                { id: '2', title: 'Implement', status: 'done' },
+              ],
+            })}
+            onPermission={() => undefined}
+            onExtensionUiResolve={() => undefined}
+          />
+        </PiwinUiProvider>
+      </DesktopLocaleProvider>,
+    );
+    expect(container.querySelector('[data-testid="plan-todo-tray"]')).toBeNull();
     act(() => root.unmount());
     container.remove();
   });

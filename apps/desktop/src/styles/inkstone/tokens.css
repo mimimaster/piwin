@@ -134,4 +134,16 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   --font: var(--sans);
   --font-sans: var(--sans);
   --font-mono: var(--mono);
+  /* Deck geometry tokens that region CSS still reads. Prototype: 8px panels,
+     10px slab, 6px gutter, 31px rows, 13.5px body. */
+  --r-panel: 8px;
+  --r-card: 8px;
+  --r-overlay: 10px;
+  --r-control: 6px;
+  --h-sm: 28px;
+  --h-md: 31px;
+  --h-lg: 32px;
+  --deck-inset: 8px;
+  --deck-gap: 6px;
+  --measure: 760px;
 }

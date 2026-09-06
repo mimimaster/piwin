@@ -3,7 +3,7 @@
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .right-panel.outward-column {
   background: var(--s1);
-  border-radius: 12px;
+  border-radius: 8px;
   box-shadow: var(--sh2);
   overflow: hidden;
 }
@@ -144,7 +144,30 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 /* ── 2x2 launcher — proto-04 `.home-grid` / `.home-tile` ───────────── */
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .right-panel-home {
-  padding: 0;
+  padding: 14px;
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .right-panel-home.blank-tool {
+  margin: 0;
+  text-align: left;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .right-panel-home .eyebrow {
+  display: block;
+  font: 10px var(--mono);
+  letter-spacing: 0.08em;
+  color: var(--t4);
+  margin: 8px 4px 10px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .right-panel-home h3 {
+  display: block;
+  font: 500 20px/1.3 var(--serif);
+  color: var(--t1);
+  margin: 0 4px 18px;
+  letter-spacing: 0.01em;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .home-grid,
@@ -152,40 +175,42 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 8px;
-  padding: 20px;
-  max-width: 230px;
-  margin: 0 auto;
-  width: min(100%, 230px);
+  padding: 0;
+  max-width: none;
+  margin: 0;
+  width: 100%;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .home-tile,
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .right-panel-home-tile.home-tile {
-  aspect-ratio: 1;
-  border-radius: 8px;
-  background: var(--s2) !important;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  color: var(--t3) !important;
+  aspect-ratio: auto;
+  min-height: 0;
+  border-radius: 7px;
+  background: transparent !important;
+  border: 1px solid var(--l2) !important;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 10px;
+  color: var(--t2) !important;
   box-shadow: none !important;
   transform: none !important;
-  padding: 0;
+  padding: 18px 8px;
+  font-size: 12px;
   font-weight: 400;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .home-tile:hover,
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .right-panel-home-tile.home-tile:hover {
   background: var(--s3) !important;
-  box-shadow: var(--sh1) !important;
+  box-shadow: none !important;
   color: var(--t1) !important;
   transform: none !important;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .home-tile span,
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .right-panel-home-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 400;
 }
 

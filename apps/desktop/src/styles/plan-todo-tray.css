@@ -1,0 +1,145 @@
+/* Claude Code-style plan list: quiet strip above the composer, not a transcript card. */
+
+.composer-plan-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.plan-todo-tray {
+  width: var(--chat-max);
+  max-width: 100%;
+  margin: 0 auto;
+  padding: var(--s-3) var(--chat-inline-pad) var(--s-4);
+  box-sizing: border-box;
+}
+
+.plan-todo-tray-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 22px;
+}
+
+.plan-todo-tray-toggle {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  min-width: 0;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-4);
+}
+
+.plan-todo-tray-label {
+  font: 11px var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  letter-spacing: 0.04em;
+  flex: none;
+}
+
+.plan-todo-tray-count {
+  font: 11px var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  color: var(--text-3);
+  flex: none;
+}
+
+.plan-todo-tray-title {
+  font-size: var(--fs-chrome, 12.5px);
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.plan-todo-tray-doc,
+.plan-todo-tray-abort,
+.plan-todo-tray-more {
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: 11px var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  color: var(--text-4);
+  flex: none;
+}
+
+.plan-todo-tray-doc:hover,
+.plan-todo-tray-more:hover {
+  color: var(--text-2);
+}
+
+.plan-todo-tray-abort {
+  color: var(--coral, var(--danger, #c2410c));
+}
+
+.plan-todo-tray-abort:hover {
+  color: var(--text-1);
+}
+
+.plan-todo-tray-abort:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.plan-todo-tray-steps {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.plan-todo-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-2);
+  min-width: 0;
+}
+
+.plan-todo-step .step-icon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.plan-todo-step.done,
+.plan-todo-step.skipped {
+  color: var(--text-4);
+}
+
+.plan-todo-step.skipped .plan-todo-step-label {
+  text-decoration: line-through;
+}
+
+.plan-todo-step.run {
+  color: var(--text-1);
+}
+
+.plan-todo-step-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.plan-todo-tray-more {
+  margin-top: 4px;
+}
+
+.plan-todo-tray .step-icon-run .pulse-dot {
+  animation: breath var(--breath, 2.4s) var(--ease-in-out, ease-in-out) infinite;
+  transform-origin: center;
+}
