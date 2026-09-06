@@ -72,10 +72,13 @@ native window-close meaning.
 
 With one Chat, the existing workbench is visually unchanged and pane chrome is
 not mounted. The first split uses the documented shortcut. Once two or more
-panes exist, each pane exposes visible controls for split right/down,
-maximize/restore, and close; the layout menu exposes 1/2/4/8 presets. Resizing
-never relies on dragging alone because separators and pane-resize chords are
-keyboard-operable.
+panes exist, headers appear: the primary pane keeps a layout menu plus
+maximize, and supplementary panes keep split right/down, maximize, and close
+(primary can never be closed). A 1/2/4/8 preset chip bar sits under the stage;
+applying a preset always keeps primary in the first slot. Empty supplementary
+panes offer a create affordance in the body; switching to an unbound session
+is done from the header title dropdown. Resizing never relies on dragging
+alone because separators and pane-resize chords are keyboard-operable.
 
 ## 5. Accessibility and responsive policy
 

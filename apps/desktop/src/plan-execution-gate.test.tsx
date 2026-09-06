@@ -286,6 +286,102 @@ describe('PlanExecutionGate', () => {
     act(() => root.unmount());
     container.remove();
   });
+
+  it('matches proto-01-transcript.html DOM elements, classes, and step metrics', () => {
+    const protoPlan = draftPlan({
+      title: '作曲器排队语义',
+      steps: [
+        { id: '1', title: 'Step 1', status: 'pending' },
+        { id: '2', title: 'Step 2', status: 'pending' },
+        { id: '3', title: 'Step 3', status: 'pending' },
+        { id: '4', title: 'Step 4', status: 'pending' },
+      ],
+      independentSteps: ['2', '3'],
+      complexity: 'long',
+    });
+    const { container, root } = renderNode(
+      <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => undefined}>
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <PlanExecutionGate plan={protoPlan} onExecute={() => undefined} />
+        </PiwinUiProvider>
+      </DesktopLocaleProvider>,
+    );
+
+    const gate = container.querySelector('[data-testid="plan-execution-gate"]');
+    expect(gate?.classList.contains('intr')).toBe(true);
+
+    const pill = gate?.querySelector('.pill.zhu-p');
+    expect(pill).not.toBeNull();
+    expect(pill?.querySelector('i')).not.toBeNull();
+    expect(pill?.textContent).toContain('选择执行方式');
+
+    const heading = gate?.querySelector('h3');
+    expect(heading?.textContent).toBe('怎么执行这个计划？');
+
+    const desc = gate?.querySelector('.desc');
+    expect(desc?.textContent).toBe('作曲器排队语义 · 4 步 · 2 步可并行');
+
+    const choices = gate?.querySelector('.choices');
+    expect(choices).not.toBeNull();
+
+    const subagentBtn = gate?.querySelector('[data-testid="plan-mode-subagent"]');
+    expect(subagentBtn?.classList.contains('choice')).toBe(true);
+    expect(subagentBtn?.classList.contains('rec')).toBe(true);
+    expect(subagentBtn?.querySelector('.bd')?.textContent).toBe('A');
+    expect(subagentBtn?.textContent).toContain('推荐 · 子代理执行');
+
+    const inlineBtn = gate?.querySelector('[data-testid="plan-mode-inline"]');
+    expect(inlineBtn?.classList.contains('choice')).toBe(true);
+    expect(inlineBtn?.classList.contains('rec')).toBe(false);
+    expect(inlineBtn?.querySelector('.bd')?.textContent).toBe('B');
+    expect(inlineBtn?.textContent).toContain('当前会话直接做');
+
+    const kb = gate?.querySelector('.kb');
+    expect(kb?.textContent).toBe(
+      'A / B 直接按键 · 出现在作曲器上方 · 安全提示占位时让位 · Conversation 会话不显示',
+    );
+
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('triggers options via A and B keyboard shortcuts outside input fields', () => {
+    const onExecute = vi.fn();
+    const { container, root } = renderNode(
+      <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => undefined}>
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <div>
+            <input data-testid="test-input" />
+            <PlanExecutionGate plan={draftPlan()} onExecute={onExecute} />
+          </div>
+        </PiwinUiProvider>
+      </DesktopLocaleProvider>,
+    );
+
+    // Pressing 'a' triggers option A (inline for short draftPlan)
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
+    });
+    expect(onExecute).toHaveBeenCalledWith('inline');
+
+    // Pressing 'b' triggers option B (subagent-driven for short draftPlan)
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'b', bubbles: true }));
+    });
+    expect(onExecute).toHaveBeenCalledWith('subagent-driven');
+
+    // Typing inside an input element does NOT trigger execution
+    const input = container.querySelector<HTMLInputElement>('[data-testid="test-input"]')!;
+    input.focus();
+    onExecute.mockClear();
+    act(() => {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
+    });
+    expect(onExecute).not.toHaveBeenCalled();
+
+    act(() => root.unmount());
+    container.remove();
+  });
 });
 
 describe('WorkbenchPermissionBar plan execution gate', () => {

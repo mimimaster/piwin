@@ -1,24 +1,34 @@
-import { useState, useEffect, useRef, type ReactElement, type KeyboardEvent, type MouseEvent } from 'react';
+import {
+  useState,
+  useEffect,
+  useRef,
+  type ReactElement,
+  type KeyboardEvent,
+  type MouseEvent,
+} from 'react';
 import type { FlashcardReviewCard } from '@piwin/contracts';
 import type { ArtifactActionMessage } from '@piwin/artifact';
 import { flashcardChatCopy, flashcardRateLabel } from './flashcard-chat-copy';
 import { FlashcardChatFaces } from './flashcard-chat-faces';
-import type { FlashcardRateName } from './flashcard-rate-bar';
+import { FlashcardRateBar, type FlashcardRateName } from './flashcard-rate-bar';
 
 export type FlashcardViewProps = {
   card: FlashcardReviewCard;
   onAction?: (action: ArtifactActionMessage) => void;
+  /** Called after a successful rate so stacks can advance. */
+  onRated?: () => void;
   locale?: 'zh-CN' | 'en' | undefined;
   cardIndex?: number | undefined;
   totalCards?: number | undefined;
 };
 
+const FLIP_MS = 400;
+
 export function FlashcardView({
   card,
   onAction,
+  onRated,
   locale = 'zh-CN',
-  cardIndex,
-  totalCards,
 }: FlashcardViewProps): ReactElement {
   const [flipped, setFlipped] = useState(false);
   const [isFlipping, setIsFlipping] = useState(false);
@@ -39,6 +49,13 @@ export function FlashcardView({
     };
   }, []);
 
+  useEffect(() => {
+    setFlipped(false);
+    setIsFlipping(false);
+    setRated(null);
+    setSourceOpen(false);
+  }, [card.cardId]);
+
   const hasSource = Boolean(card.sourceFolder || card.sourceNoteId);
   const sourcePath = card.sourceFile
     ? `${card.sourceFile}${card.sourceLine && card.sourceLine > 0 ? `:${card.sourceLine}` : ''}`
@@ -55,7 +72,7 @@ export function FlashcardView({
     flipTimerRef.current = window.setTimeout(() => {
       setIsFlipping(false);
       flipTimerRef.current = null;
-    }, 550);
+    }, FLIP_MS);
   };
 
   const handleRate = (rating: FlashcardRateName): void => {
@@ -72,6 +89,7 @@ export function FlashcardView({
         },
       });
     }
+    onRated?.();
   };
 
   const handleOpenSource = (event: MouseEvent): void => {
@@ -102,7 +120,7 @@ export function FlashcardView({
     if (event.key === ' ') {
       event.preventDefault();
       handleToggleFlip();
-    } else if (flipped && rated === null && card.ordinal > 0) {
+    } else if (rated === null && card.ordinal > 0) {
       if (event.key === '1') {
         event.preventDefault();
         handleRate('again');
@@ -122,7 +140,7 @@ export function FlashcardView({
   return (
     <div
       ref={cardRef}
-      className="fc-quiet-card-container"
+      className="fc-card"
       data-card-id={card.cardId}
       data-testid="chat-flashcard"
       tabIndex={0}
@@ -134,41 +152,35 @@ export function FlashcardView({
         locale={locale}
         flipped={flipped}
         isFlipping={isFlipping}
-        cardIndex={cardIndex}
-        totalCards={totalCards}
         frontBodyRef={frontBodyRef}
         backBodyRef={backBodyRef}
         sourcePath={sourcePath}
         hasSource={hasSource}
-        rated={rated}
-        onRate={handleRate}
-        onChangeRated={() => setRated(null)}
+        onToggleFlip={handleToggleFlip}
         onToggleSource={() => setSourceOpen((prev) => !prev)}
       />
 
-      <div className="fc-quiet-controls">
-        <button
-          type="button"
-          className="fc-quiet-control-btn"
-          data-testid="chat-flashcard-flip"
-          onClick={handleToggleFlip}
-        >
-          {flipped ? chatCopy.flipBack : chatCopy.flipToAnswer}
-        </button>
-      </div>
+      {card.ordinal > 0 ? (
+        <FlashcardRateBar
+          copy={chatCopy}
+          rated={rated}
+          onRate={handleRate}
+          onChange={() => setRated(null)}
+        />
+      ) : null}
 
       {sourceOpen && hasSource ? (
-        <div className="fc-quiet-source-popover">
-          <div className="fc-quiet-popover-header">
-            <span className="fc-quiet-popover-path">{sourcePath}</span>
+        <div className="fc-source-popover">
+          <div className="fc-source-popover-header">
+            <span className="fc-source-popover-path">{sourcePath}</span>
             {card.sourceFile ? (
-              <button type="button" className="fc-quiet-open-btn" onClick={handleOpenSource}>
+              <button type="button" className="btn sm" onClick={handleOpenSource}>
                 {chatCopy.openSource}
               </button>
             ) : null}
           </div>
           {card.sourceExcerpt ? (
-            <div className="fc-quiet-popover-excerpt">{card.sourceExcerpt}</div>
+            <div className="fc-source-popover-excerpt">{card.sourceExcerpt}</div>
           ) : null}
         </div>
       ) : null}

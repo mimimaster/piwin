@@ -70,6 +70,9 @@ describe('LiveBar', () => {
     const bar = container?.querySelector('[data-testid="live-bar"]');
     expect(bar).not.toBeNull();
     expect(bar?.getAttribute('aria-label')).toContain('语音正在倾听');
+    expect(container?.querySelector('[data-testid="live-bar-label"]')?.textContent).toBe(
+      '语音正在倾听',
+    );
     expect(container?.querySelector('[data-testid="live-bar-session"]')?.textContent).toBe(
       '图片生成被审核拦截',
     );
@@ -85,8 +88,31 @@ describe('LiveBar', () => {
     );
     const bar = container?.querySelector('[data-testid="live-bar"]');
     expect(bar?.getAttribute('aria-label')).toContain('正在连接');
+    expect(container?.querySelector('[data-testid="live-bar-label"]')?.textContent).toContain(
+      '正在连接',
+    );
     expect(bar?.classList.contains('is-connecting')).toBe(true);
     expect(container?.querySelector('.live-spinner')).not.toBeNull();
+  });
+
+  it('announces remaining reconnect budget while media is down', () => {
+    render(
+      <LiveBar
+        call={{ ...call, phase: 'reconnecting' }}
+        {...controls}
+        peer={{ phase: 'negotiating', muted: false, errorCode: null }}
+      />,
+    );
+    const bar = container?.querySelector('[data-testid="live-bar"]');
+    expect(bar?.getAttribute('aria-label')).toContain('正在重新连接语音');
+    expect(bar?.getAttribute('aria-label')).toContain('还剩');
+    // Visible label has no countdown (proto-06 b19)
+    expect(container?.querySelector('[data-testid="live-bar-label"]')?.textContent).toBe(
+      '正在重新连接语音',
+    );
+    expect(container?.querySelector('[data-testid="live-bar-label"]')?.textContent).not.toContain(
+      '还剩',
+    );
   });
 
   it('leaves the connecting spinner once local media is up', () => {

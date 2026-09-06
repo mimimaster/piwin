@@ -2,6 +2,8 @@
  * Workbench composition root: shell chrome + host/session owners + slot tree.
  */
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { HostLogProvider } from './host-log-context';
+import { artifactFenceSecurityProps } from './artifact-fence-security';
 import type { ThemeManifest } from '@piwin/contracts';
 import { chatUiReducer, createInitialChatUiState } from './chat-reducer';
 import { useWorkbenchHostClient } from './use-workbench-host-client';
@@ -15,7 +17,12 @@ import { useWorkbenchShellChrome } from './hooks/use-workbench-shell-chrome';
 import { useWorkbenchAppModel } from './hooks/use-workbench-app-model';
 import { installRendererSelfHeal } from './renderer-self-heal';
 import { WorkspaceShell } from './workspace-shell';
+import { StageHeader } from './stage-header';
+import { ConversationTreeHeaderPopover } from './conversation-tree-popover';
+import { resolveWorkbenchSessionTitle } from './workbench-chrome-assembly';
+import { projectLabel } from './project-display-name';
 import { WorkbenchInspector } from './workbench-inspector';
+import { SessionContextRow } from './session-context-row';
 import {
   WorkbenchComposerColumn,
   WorkbenchPermissionBar,
@@ -52,7 +59,10 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
   const [state, dispatch] = useReducer(chatUiReducer, undefined, createInitialChatUiState);
   const selfHealBusyRef = useRef(false);
   useEffect(() => installRendererSelfHeal(() => selfHealBusyRef.current), []);
-  const [, setHostLogEntries] = useState<HostLogEntry[]>([]);
+  const [hostLogEntries, setHostLogEntries] = useState<HostLogEntry[]>([]);
+  const clearHostLog = useCallback(() => {
+    setHostLogEntries([]);
+  }, []);
   const chrome = useWorkbenchShellChrome({ hostClient, state });
   const {
     projectInput,
@@ -77,6 +87,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     openVideos,
     openFlashcards,
     closeSubPage,
+    flashcardsEntry,
     sessionListChrome,
     sessionListQuery,
     editingMessageId,
@@ -213,6 +224,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     pendingSwitchConfirm,
     confirmSwitchBranch,
     cancelSwitchBranch,
+    stashThenSwitchBranch,
     pendingRetryDiscard,
     confirmRetryDiscard,
     cancelRetryDiscard,
@@ -286,6 +298,22 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
   const mediaStudioOpen =
     activeSubPage === 'library' || activeSubPage === 'images' || activeSubPage === 'videos';
   const studioOpen = mediaStudioOpen || activeSubPage === 'flashcards';
+  const subPageTitle = mediaStudioOpen
+    ? desktopLocale === 'zh-CN'
+      ? '资料库'
+      : 'Library'
+    : activeSubPage === 'flashcards'
+      ? desktopLocale === 'zh-CN'
+        ? '闪卡'
+        : 'Flashcards'
+      : null;
+  const stageSessionTitle =
+    subPageTitle ??
+    resolveWorkbenchSessionTitle({
+      projectPath: state.projectPath,
+      projectLabel: state.projectPath ? projectLabel(state.projectPath, recentProjects) : null,
+      sessionName: activeSessionName,
+    });
   const [mediaLibraryEpoch, setMediaLibraryEpoch] = useState(0);
   const wasStreamingRef = useRef(false);
   useEffect(() => {
@@ -306,6 +334,21 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     />
   );
 
+  // Stage-top context line (proto-00 .session-context): project/branch/path for
+  // project sessions; general conversations keep the stage clean.
+  const sessionContextRow =
+    hostClient.supportsCommand('git/status') &&
+    state.activeScope.kind === 'project' &&
+    state.activeScope.projectPath ? (
+      <SessionContextRow
+        projectPath={state.activeScope.projectPath}
+        recentProjects={recentProjects}
+        request={requestGit}
+        onOpenProject={(path) => void handleOpenProject(path)}
+        disabled={state.streaming}
+      />
+    ) : null;
+
   useConversationPaneSubscriptions({
     hostClient,
     activeSessionId: state.activeSessionId,
@@ -325,6 +368,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
 
   return (
     <DesktopLocaleProvider locale={desktopLocale} onLocaleChange={handleLocaleChange}>
+      <HostLogProvider value={{ entries: hostLogEntries, onClear: clearHostLog }}>
       <LocalFileActionsProvider request={(command) => hostClient.request(command)}>
         <MediaPreviewReadProvider sessionId={state.activeSessionId} readMedia={readTranscriptMedia}>
           <DesktopContextMenuProvider value={desktopContextMenuValue}>
@@ -424,6 +468,39 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       shell={shell}
                     />
                   }
+                  stageHeader={
+                    activeTheme.id === 'piwin-inkstone-paper' ||
+                    activeTheme.id === 'piwin-inkstone-ink' ||
+                    activeTheme.visualStyle === 'paper' ? (
+                      <StageHeader
+                        title={stageSessionTitle}
+                        runState={runStatus}
+                        sessionTreeControl={
+                          state.activeSessionId && !subPageTitle ? (
+                            <ConversationTreeHeaderPopover
+                              branchPoints={branchPoints}
+                              disabled={state.streaming === true}
+                              onSwitch={(headMessageId) => {
+                                void switchBranch(headMessageId);
+                              }}
+                              locale={desktopLocale}
+                            />
+                          ) : undefined
+                        }
+                        permissionMode={effectiveRunMode}
+                        onOpenPermissions={() => openSettingsSection('permissions')}
+                        origin={activeSessionOrigin}
+                        onReturnToRoot={
+                          activeSessionOrigin?.kind === 'fork'
+                            ? () => void handleResumeSession(activeSessionOrigin.rootSessionId)
+                            : undefined
+                        }
+                        locale={desktopLocale}
+                        onStop={handleAbort}
+                      />
+                    ) : undefined
+                  }
+                  sessionContext={sessionContextRow}
                   titlebar={
                     <WorkbenchContextBar
                       state={state}
@@ -453,6 +530,12 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       onRetryLastUser={(messageId) => {
                         void retryTurn(messageId, { keepPrevious: false });
                       }}
+                      onOpenSessionSearch={openSessionSearch}
+                      isInkstone={
+                        activeTheme.id === 'piwin-inkstone-paper' ||
+                        activeTheme.id === 'piwin-inkstone-ink' ||
+                        activeTheme.visualStyle === 'paper'
+                      }
                     />
                   }
                   chatColumnClassName={
@@ -598,9 +681,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       setComposer={setComposer}
                       artifactTarget={artifactCanvas.activeTarget}
                       artifactThemeKey={artifactThemeKey}
-                      {...(config?.artifact?.maxBytes !== undefined
-                        ? { artifactMaxBytes: config.artifact.maxBytes }
-                        : {})}
+                      {...artifactFenceSecurityProps(config?.artifact)}
                       addWebElement={addWebElement}
                       inspectorDiff={inspectorFileDiff.diff}
                       activeMedia={activeMedia}
@@ -697,6 +778,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                   pendingSwitchConfirm={pendingSwitchConfirm}
                   cancelSwitchBranch={cancelSwitchBranch}
                   confirmSwitchBranch={confirmSwitchBranch}
+                  stashThenSwitchBranch={stashThenSwitchBranch}
                   pendingRetryDiscard={pendingRetryDiscard}
                   cancelRetryDiscard={cancelRetryDiscard}
                   confirmRetryDiscard={confirmRetryDiscard}
@@ -728,6 +810,8 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                 hasStudyCapability={() =>
                   hostStatus?.capabilities.flashcardStudy === true
                 }
+                flashcardsEntry={flashcardsEntry}
+                onOpenSession={handleResumeSession}
               />
               <WorkbenchSettingsOverlay
                 settingsOpen={settingsOpen}
@@ -760,6 +844,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
           </DesktopContextMenuProvider>
         </MediaPreviewReadProvider>
       </LocalFileActionsProvider>
+      </HostLogProvider>
     </DesktopLocaleProvider>
   );
 }

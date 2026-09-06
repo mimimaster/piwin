@@ -9,6 +9,7 @@ import { formatMessageTime } from './conversation-message-identity';
 import { MessageAttachments } from './message-attachments';
 import { IconCheck, IconClose, IconCopy, IconEdit } from './shell-icons';
 import { VoiceHandoverCard } from './voice-handover-card.js';
+import { InkstoneMessageIdentity } from './inkstone-message-identity.js';
 
 export const USER_MESSAGE_COLLAPSE_THRESHOLD = 78;
 
@@ -25,6 +26,23 @@ export type UserMessageContentProps = {
   isConversationSession?: boolean;
 };
 
+function UserMessageForkFoot(props: {
+  branchSwitcher: ReactNode;
+  locale?: 'zh-CN' | 'en';
+}): ReactElement {
+  const isChinese = props.locale !== 'en';
+  return (
+    <div className="ufoot" data-testid="user-message-fork-foot">
+      {props.branchSwitcher}
+      <span className="ufoot-hint">
+        {isChinese
+          ? '· 分叉的提问 · 运行中禁用切换 · 双击进入就地编辑'
+          : '· forked prompt · switching disabled while running · double-click to edit'}
+      </span>
+    </div>
+  );
+}
+
 export function UserMessageContent(props: UserMessageContentProps): ReactElement {
   const { message, isConversationSession } = props;
   const [copied, setCopied] = useState(false);
@@ -33,7 +51,6 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
   const textRef = useRef<HTMLDivElement | null>(null);
   const formattedTime = formatMessageTime(message.createdAt);
   const hasMediaAttachments = message.attachments.length > 0;
-  const hasContextRefs = Boolean(message.contextRefs && message.contextRefs.length > 0);
   const interventionStatus = message.instructionDelivery?.status;
   const isChinese = props.locale !== 'en';
 
@@ -132,6 +149,7 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
         data-testid="user-message-wrapper"
       >
         <div className="user-message-main">
+          <InkstoneMessageIdentity message={message} locale={props.locale ?? 'zh-CN'} />
           <div
             className={`user-message-bubble user-message-collapsible ${collapsed ? 'is-collapsed' : 'is-expanded'} ${isCollapsible ? 'is-clickable' : ''} ${hasMediaAttachments ? 'has-attachments' : ''}`}
             data-testid="user-message-collapsible-body"
@@ -149,26 +167,17 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
                 : undefined
             }
           >
-            {hasContextRefs && message.contextRefs ? (
-              <div className="user-message-quote-box" data-testid="user-message-quote-box">
-                <MessageAttachments
-                  attachments={[]}
-                  contextRefs={message.contextRefs}
-                  role="user"
-                  {...(props.locale !== undefined ? { locale: props.locale } : {})}
-                />
-              </div>
-            ) : null}
-            <MessageAttachments
-              attachments={message.attachments}
-              role="user"
-              {...(props.locale !== undefined ? { locale: props.locale } : {})}
-            />
             {message.text ? (
               <div ref={textRef} className="user-message-text message-text">
                 {message.text}
               </div>
             ) : null}
+            <MessageAttachments
+              attachments={message.attachments}
+              {...(message.contextRefs ? { contextRefs: message.contextRefs } : {})}
+              role="user"
+              {...(props.locale !== undefined ? { locale: props.locale } : {})}
+            />
 
             <div
               className="user-message-footer user-message-actions"
@@ -233,7 +242,6 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
                   </button>
                 ) : null}
               </div>
-              {props.branchSwitcher}
               {formattedTime ? (
                 <span className="user-message-time" data-testid="user-message-time">
                   {formattedTime}
@@ -241,6 +249,12 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
               ) : null}
             </div>
           </div>
+          {props.branchSwitcher ? (
+            <UserMessageForkFoot
+              branchSwitcher={props.branchSwitcher}
+              {...(props.locale !== undefined ? { locale: props.locale } : {})}
+            />
+          ) : null}
         </div>
 
         <div
@@ -257,11 +271,11 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
   // Classic Project / Agent Mode layout: full-width bar, no avatar, trailing actions
   return (
     <div
-      className="user-message-wrapper"
+      className="user-message-wrapper blk"
       data-testid="user-message-wrapper"
     >
       <div
-        className={`user-message-collapsible ${collapsed ? 'is-collapsed' : 'is-expanded'} ${isCollapsible ? 'is-clickable' : ''} ${hasMediaAttachments ? 'has-attachments' : ''}`}
+        className={`ucard user-message-collapsible ${collapsed ? 'is-collapsed' : 'is-expanded'} ${isCollapsible ? 'is-clickable' : ''} ${hasMediaAttachments ? 'has-attachments' : ''}${interventionStatus ? ' steer' : ''}${interventionStatus === 'applied' ? ' settled' : ''}`}
         data-testid="user-message-collapsible-body"
         onClick={handleToggle}
         role={isCollapsible ? 'button' : undefined}
@@ -277,18 +291,24 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
             : undefined
         }
       >
+        {message.text ? (
+          <div ref={textRef} className="message-text">
+            {message.text}
+          </div>
+        ) : null}
         <MessageAttachments
           attachments={message.attachments}
           {...(message.contextRefs ? { contextRefs: message.contextRefs } : {})}
           role="user"
           {...(props.locale !== undefined ? { locale: props.locale } : {})}
         />
-        {message.text ? (
-          <div ref={textRef} className="message-text">
-            {message.text}
-          </div>
-        ) : null}
       </div>
+      {props.branchSwitcher ? (
+        <UserMessageForkFoot
+          branchSwitcher={props.branchSwitcher}
+          {...(props.locale !== undefined ? { locale: props.locale } : {})}
+        />
+      ) : null}
 
       <div
         className="user-message-actions"
@@ -356,7 +376,6 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
             <IconEdit />
           </button>
         ) : null}
-        {props.branchSwitcher}
       </div>
     </div>
   );

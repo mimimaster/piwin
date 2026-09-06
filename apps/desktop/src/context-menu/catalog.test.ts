@@ -116,7 +116,7 @@ describe('buildContextMenuItems', () => {
     expect(actionIds(target)).toContain('truncate-after');
   });
 
-  it('hides reveal when unsupported and shows it when available', () => {
+  it('shows reveal disabled when unsupported and enabled when available', () => {
     const target: ContextMenuTarget = {
       surface: 'file-tree-file',
       projectPath: '/p',
@@ -124,7 +124,9 @@ describe('buildContextMenuItems', () => {
       absolutePath: '/p/a.ts',
       label: 'a.ts',
     };
-    expect(actionIds(target, { ...baseCaps, canReveal: false })).not.toContain('reveal');
+    const hidden = buildContextMenuItems(target, { ...baseCaps, canReveal: false });
+    const reveal = hidden.find((item) => item.type === 'item' && item.id === 'reveal');
+    expect(reveal && reveal.type === 'item' && reveal.disabled).toBe(true);
     expect(actionIds(target, { ...baseCaps, canReveal: true })).toContain('reveal');
   });
 

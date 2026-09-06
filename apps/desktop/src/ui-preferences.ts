@@ -4,7 +4,12 @@
  */
 import type { ThemeManifest } from '@piwin/contracts';
 
-import { PIWIN_APPEARANCE_BONE, PIWIN_APPEARANCE_OBSIDIAN } from './theme/deck-palette.js';
+import {
+  PIWIN_APPEARANCE_BONE,
+  PIWIN_APPEARANCE_INKSTONE_INK,
+  PIWIN_APPEARANCE_INKSTONE_PAPER,
+  PIWIN_APPEARANCE_OBSIDIAN,
+} from './theme/deck-palette.js';
 
 export type ToolCallDensity = 'compact' | 'comfortable' | 'detailed';
 
@@ -17,9 +22,9 @@ export type AppearanceMode = 'system' | 'light' | 'dark';
 export type AgentLocatorAnimation = 'radial-bellow' | 'asterisk-breath' | 'breath-dot' | 'none';
 
 const CONVERSATION_WIDTH_VALUES: Record<ConversationWidth, string> = {
-  narrow: '620px',
-  default: '780px',
-  wide: '1040px',
+  narrow: '640px',
+  default: '720px',
+  wide: '840px',
 };
 
 /** Returns the selected readable measure for transcript and Composer content. */
@@ -54,10 +59,10 @@ function appearanceDefaults(theme: ThemeManifest): AppearanceThemeSettings {
 }
 
 export const DEFAULT_LIGHT_THEME_SETTINGS: AppearanceThemeSettings =
-  appearanceDefaults(PIWIN_APPEARANCE_BONE);
+  appearanceDefaults(PIWIN_APPEARANCE_INKSTONE_PAPER);
 
 export const DEFAULT_DARK_THEME_SETTINGS: AppearanceThemeSettings =
-  appearanceDefaults(PIWIN_APPEARANCE_OBSIDIAN);
+  appearanceDefaults(PIWIN_APPEARANCE_INKSTONE_INK);
 
 /**
  * Pre-Deck appearance defaults shipped before the Obsidian/Bone palettes.
@@ -106,7 +111,10 @@ export function migrateStoredAppearanceTheme(
 ): AppearanceThemeSettings {
   const normalized = normalizeAppearanceTheme(settings);
   const legacy = mode === 'light' ? LEGACY_LIGHT_APPEARANCE : LEGACY_DARK_APPEARANCE;
-  if (appearanceThemesEqual(normalized, legacy)) {
+  const deckDefault = appearanceDefaults(
+    mode === 'light' ? PIWIN_APPEARANCE_BONE : PIWIN_APPEARANCE_OBSIDIAN,
+  );
+  if (appearanceThemesEqual(normalized, legacy) || appearanceThemesEqual(normalized, deckDefault)) {
     return mode === 'light'
       ? { ...DEFAULT_LIGHT_THEME_SETTINGS }
       : { ...DEFAULT_DARK_THEME_SETTINGS };

@@ -15,7 +15,7 @@ import { computeLiveReadiness } from './live-call-readiness.js';
 import { LiveDelegationController } from './live-delegation-controller.js';
 import type { LiveChannelSnapshot } from './live-settings-service.js';
 import { forgetLiveWorkPreamble } from './live-work-preamble.js';
-import { createLiveStartBudget } from './live-call-budgets.js';
+import { createLiveReconnectBudget, createLiveStartBudget } from './live-call-budgets.js';
 import { decideLiveStart } from './live-start-gate.js';
 import { LiveContextRelay } from './live-context-relay.js';
 import { planLiveOwnerEvent } from './live-owner-event-plan.js';
@@ -42,6 +42,7 @@ export class LiveCallCoordinator {
   private readonly delegations: LiveDelegationController;
   private readonly contextRelay: LiveContextRelay;
   private readonly startBudget = createLiveStartBudget();
+  private readonly reconnectBudget = createLiveReconnectBudget();
   private readonly deps: LiveCoordinatorDeps;
   private readonly now: () => string;
 
@@ -268,6 +269,11 @@ export class LiveCallCoordinator {
       });
       return { ok: true };
     }
+    if (plan.kind === 'transition' && plan.transition.type === 'reconnect') {
+      if (!this.reconnectBudget.tryConsume()) {
+        return { ok: false, errorCode: 'live-start-throttled' };
+      }
+    }
     const next = transitionLiveCall(gate.slot.state, plan.transition);
     if (next) gate.slot.state = next;
     if (plan.kind === 'terminate') {
@@ -291,6 +297,7 @@ export class LiveCallCoordinator {
     this.startInFlight?.abort.abort();
     this.warmAbort.abort();
     this.startBudget.reset();
+    this.reconnectBudget.reset();
     await this.cleanup();
   }
 

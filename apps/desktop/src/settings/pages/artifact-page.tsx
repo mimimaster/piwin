@@ -42,6 +42,12 @@ export function ArtifactPage(): ReactElement {
     artifactConfig.decisionPrompt.customPrompt,
   );
   const [maxBytes, setMaxBytes] = useState<number>(artifactConfig.maxBytes);
+  const [blockExternalScripts, setBlockExternalScripts] = useState<boolean>(
+    artifactConfig.blockExternalScripts !== false,
+  );
+  const [blockExternalResources, setBlockExternalResources] = useState<boolean>(
+    artifactConfig.blockExternalResources !== false,
+  );
   const [editing, setEditing] = useState<boolean>(false);
 
   useEffect(() => {
@@ -50,6 +56,8 @@ export function ArtifactPage(): ReactElement {
     setPromptMode(artifactConfig.decisionPrompt.mode);
     setCustomPrompt(artifactConfig.decisionPrompt.customPrompt);
     setMaxBytes(artifactConfig.maxBytes);
+    setBlockExternalScripts(artifactConfig.blockExternalScripts !== false);
+    setBlockExternalResources(artifactConfig.blockExternalResources !== false);
     setEditing(false);
   }, [artifactConfig]);
 
@@ -62,8 +70,18 @@ export function ArtifactPage(): ReactElement {
         customPrompt,
       },
       maxBytes,
+      blockExternalScripts,
+      blockExternalResources,
     }),
-    [enabled, triggerMode, promptMode, customPrompt, maxBytes],
+    [
+      enabled,
+      triggerMode,
+      promptMode,
+      customPrompt,
+      maxBytes,
+      blockExternalScripts,
+      blockExternalResources,
+    ],
   );
 
   async function handleSave(): Promise<void> {
@@ -258,6 +276,44 @@ export function ArtifactPage(): ReactElement {
               </summary>
               <div style={{ marginTop: 8 }}>
                 <FieldRow
+                  label={isZh ? '拦截外部脚本' : 'Block external scripts'}
+                  description={
+                    isZh
+                      ? '拦截带外部 src 的 script。关闭后仍受沙箱 CSP 约束。'
+                      : 'Block <script src> to other origins. Off still keeps the sandbox CSP.'
+                  }
+                  testId="artifact-block-scripts-row"
+                >
+                  <Switch
+                    checked={blockExternalScripts}
+                    onCheckedChange={(checked) => {
+                      setBlockExternalScripts(checked);
+                      setEditing(true);
+                    }}
+                    aria-label={isZh ? '拦截外部脚本' : 'Block external scripts'}
+                    testId="artifact-block-scripts-switch"
+                  />
+                </FieldRow>
+                <FieldRow
+                  label={isZh ? '拦截外部资源' : 'Block external resources'}
+                  description={
+                    isZh
+                      ? '拦截图片、样式、媒体等外链。默认开启。关闭后仅按「拦截外部脚本」处理脚本。'
+                      : 'Block images, styles, and other remote URLs. Default on. When off, scripts still follow the script switch.'
+                  }
+                  testId="artifact-block-resources-row"
+                >
+                  <Switch
+                    checked={blockExternalResources}
+                    onCheckedChange={(checked) => {
+                      setBlockExternalResources(checked);
+                      setEditing(true);
+                    }}
+                    aria-label={isZh ? '拦截外部资源' : 'Block external resources'}
+                    testId="artifact-block-resources-switch"
+                  />
+                </FieldRow>
+                <FieldRow
                   label={isZh ? '最大 Artifact 大小' : 'Max artifact size'}
                   description={
                     isZh
@@ -299,6 +355,8 @@ export function ArtifactPage(): ReactElement {
                     setPromptMode(artifactConfig.decisionPrompt.mode);
                     setCustomPrompt(artifactConfig.decisionPrompt.customPrompt);
                     setMaxBytes(artifactConfig.maxBytes);
+                    setBlockExternalScripts(artifactConfig.blockExternalScripts !== false);
+                    setBlockExternalResources(artifactConfig.blockExternalResources !== false);
                     setEditing(false);
                   }}
                 >

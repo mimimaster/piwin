@@ -71,6 +71,7 @@ describe('FileTreePanel', () => {
     onOpenFile?: (absolutePath: string, relativePath: string) => void;
     onInsertPath?: (absolutePath: string, relativePath: string) => void;
     onAddContextRef?: (ref: import('@piwin/contracts').PromptContextRef) => void;
+    onOpenHtmlInBrowser?: (absolutePath: string, relativePath: string) => void;
   }): void {
     const tree: ReactElement = (
       <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
@@ -80,6 +81,9 @@ describe('FileTreePanel', () => {
           {...(props.onOpenFile ? { onOpenFile: props.onOpenFile } : {})}
           {...(props.onInsertPath ? { onInsertPath: props.onInsertPath } : {})}
           {...(props.onAddContextRef ? { onAddContextRef: props.onAddContextRef } : {})}
+          {...(props.onOpenHtmlInBrowser
+            ? { onOpenHtmlInBrowser: props.onOpenHtmlInBrowser }
+            : {})}
         />
       </PiwinUiProvider>
     );
@@ -235,6 +239,39 @@ describe('FileTreePanel', () => {
     });
     expect(queryByTestId('markup-preview')).not.toBeNull();
     expect(queryByTestId('code-preview-view')).toBeNull();
+  });
+
+  it('opens HTML files in the workbench browser instead of the in-tab preview', async () => {
+    const onOpenHtmlInBrowser = vi.fn();
+    const request = vi.fn(async (cmd: FileTreeRequest): Promise<HostResponse> => {
+      if (cmd.type === 'project/list-dir') {
+        return okList([{ name: 'card.html', relativePath: 'card.html', kind: 'file' }]);
+      }
+      return {
+        id: '1',
+        type: 'response',
+        command: cmd.type,
+        success: false,
+        error: 'unexpected command',
+      };
+    });
+
+    renderPanel({ request, onOpenHtmlInBrowser });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    const htmlRow = Array.from(document.querySelectorAll<HTMLElement>('.file-tree-row')).find(
+      (row) => row.textContent?.includes('card.html'),
+    );
+    await act(async () => {
+      htmlRow?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(onOpenHtmlInBrowser).toHaveBeenCalledWith('/proj/card.html', 'card.html');
+    expect(request.mock.calls.some((call) => call[0]?.type === 'project/read-file')).toBe(false);
+    expect(queryByTestId('markup-preview')).toBeNull();
+    expect(queryByTestId('file-tree-preview')).toBeNull();
   });
 
   it('previews PNG files via host previewDataUrl instead of the binary stub', async () => {
@@ -765,8 +802,10 @@ describe('FileTreePanel context menu (CM-05)', () => {
     expect(menuItem('context-menu-open')).not.toBeNull();
     expect(menuItem('context-menu-copy-relative-path')).not.toBeNull();
     expect(menuItem('context-menu-copy-absolute-path')).not.toBeNull();
-    // Reveal is hidden (not shown disabled) until the OS reveal hook is wired.
-    expect(menuItem('context-menu-reveal')).toBeNull();
+    // Reveal stays in the catalog as a disabled item until the OS hook is wired.
+    const reveal = menuItem('context-menu-reveal');
+    expect(reveal).not.toBeNull();
+    expect(reveal?.getAttribute('aria-disabled')).toBe('true');
   });
 
   it('Add to Chat on a file row emits a file ref', async () => {

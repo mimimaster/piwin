@@ -42,6 +42,10 @@ export type McpServerEditorDialogProps = {
   }>;
   onSaveRaw: (document: McpConfigDocument) => Promise<boolean>;
   onPreviewTools: (serverId: string, config: McpServerConfig) => Promise<McpToolSummary[]>;
+  onTestConnection: (
+    serverId: string,
+    config: McpServerConfig,
+  ) => Promise<{ ok: boolean; message: string }>;
   onTogglePinned: (selector: string, pinned: boolean) => Promise<boolean>;
 };
 
@@ -100,6 +104,7 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
   const [saving, setSaving] = useState(false);
   const [tools, setTools] = useState<McpToolSummary[]>([]);
   const [loadingTools, setLoadingTools] = useState(false);
+  const [testingConnection, setTestingConnection] = useState(false);
   const [togglingPinSelector, setTogglingPinSelector] = useState<string | null>(null);
   const pinnedSelectors = props.document.pinnedSelectors ?? [];
 
@@ -111,6 +116,7 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
     setError(null);
     setInfo(null);
     setTools([]);
+    setTestingConnection(false);
     setTab('form');
     setTogglingPinSelector(null);
 
@@ -221,6 +227,27 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
           ? `已从 ${id} 加载 ${result.length} 个工具`
           : `Loaded ${result.length} tool(s) from ${id}`,
     );
+  }
+
+  async function handleTestConnection(): Promise<void> {
+    const id = draft.id.trim();
+    if (!id) {
+      setError(isChinese ? '请先填写服务器 ID。' : 'Enter a server ID first.');
+      return;
+    }
+    if (!draft.command.trim()) {
+      setError(isChinese ? '请填写命令。' : 'Command is required.');
+      return;
+    }
+    setTestingConnection(true);
+    setError(null);
+    const result = await props.onTestConnection(id, draftToServer(draft));
+    setTestingConnection(false);
+    if (result.ok) {
+      setInfo(result.message);
+    } else {
+      setError(result.message);
+    }
   }
 
   async function handleTogglePinned(selector: string, nextPinned: boolean): Promise<void> {
@@ -356,6 +383,21 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
                         : ` · ${pinnedCountForServer} pinned`
                       : null}
                 </h5>
+                <Button
+                  variant="ghost"
+                  size="compact"
+                  disabled={testingConnection || !draft.id.trim() || !draft.command.trim()}
+                  onClick={() => void handleTestConnection()}
+                  data-testid="mcp-editor-test-connection"
+                >
+                  {testingConnection
+                    ? isChinese
+                      ? '测试中…'
+                      : 'Testing…'
+                    : isChinese
+                      ? '测试连接'
+                      : 'Test connection'}
+                </Button>
                 <Button
                   variant="ghost"
                   size="compact"

@@ -4,33 +4,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 
 import { RadialBellow } from '@piwin/ui-kit';
-import type {
-  ContextSummaryPush,
-  ContextUsageSnapshot,
-  ModelProviderConfig,
-  ModelRef,
-  PermissionDecision,
-  PermissionRememberScope,
-  ProductSessionLineageView,
-  SessionPlan,
-  SessionSummary,
-  TranscriptBranchPoint,
-  SubagentInvocation,
-  ThemeManifest,
-  WalkthroughArtifact,
-} from '@piwin/contracts';
-import type { ArtifactActionMessage } from '@piwin/artifact';
-import type { ArtifactCanvasTarget } from './artifact-canvas-model';
-import type {
-  ChatMessageUi,
-  PermissionPromptUi,
-  RunRecordUi,
-  SkillActivityView,
-  CompactionActivityUi,
-  SubagentStreamState,
-} from './chat-reducer';
-import type { SubagentInspectorSelection } from './subagent-activity-model';
-import type { DocumentOpenInput } from './tool-call-card';
+import { pickArtifactFenceSecurity } from './artifact-fence-security';
+import type { ChatMessageUi } from './chat-reducer';
 import { RunActivitySlot } from './RunActivitySlot.js';
 import { isAssistantContentEmpty } from './assistant-message-content.js';
 import { PlanCard } from './plan-card';
@@ -43,21 +18,16 @@ import {
 import { focusComposerInput } from './context-menu/desktop-context-menu-value';
 import { resolveAssemblySummaryForUserMessage } from './assembly-summary-capsule';
 import { isWalkthroughEligible } from './walkthrough-action';
-import type { FilesChangedBarRequest } from './files-changed-bar';
 import {
   conversationActivityLabel,
   resolveConversationActivityKind,
 } from './conversation-activity.js';
-import type { AgentLocatorAnimation, ToolCallDensity, WorkDetailsExpanded } from './ui-preferences';
-import type { ComposerDockProps } from './composer-dock';
-import type { DiffCardRequest } from './diff-card';
-import type { ModelOption } from './model-options';
 import { TranscriptTurnList } from './transcript-turn-list';
 import { groupTranscriptTurns } from './transcript-turns';
 import { buildExploreFlowRoles } from './explore-flow';
 import { collectMessageChangedFiles } from './collect-message-changed-files';
 import { findStreamingCaretMessageId } from './streaming-caret';
-import { DocCardSequenceView, type DocCardSequenceRequest } from './DocCardSequenceView';
+import { DocCardSequenceView } from './DocCardSequenceView';
 import { ChatMessageRow } from './chat-message-row';
 import { collectFlashcardToolsFromMessages } from './conversation-response-content.js';
 import {
@@ -69,6 +39,11 @@ import { projectTurnWorkDisclosure } from './turn-work-disclosure-model.js';
 import { TurnWorkDisclosure } from './turn-work-disclosure.js';
 import { TurnWorkDetails } from './turn-work-details.js';
 import { CompactionActivity } from './compaction-activity.js';
+import {
+  ChatTurnHead,
+  ChatTurnMarginalia,
+  resolveTurnMarginalia,
+} from './chat-turn-marginalia.js';
 
 /** Legacy helper retained for callers that still compute the old preference. */
 /** @deprecated Run Inspector disclosure is now explicitly user-owned. */
@@ -99,146 +74,20 @@ function createThinkingOnlyMessage(message: ChatMessageUi): ChatMessageUi {
   };
 }
 
-export type ChatThreadProps = {
-  messages: ChatMessageUi[];
-  /** Active product session owning the rendered transcript. */
-  sessionId?: string;
-  streaming: boolean;
-  editingMessageId: string | null;
-  lastUserMessageId: string | null;
-  activeTheme: ThemeManifest | null;
-  artifactThemeKey: string | number;
-  /** Active session id — CM-10 message context menu source session. */
-  activeSessionId?: string | null;
-
-  /** Session-level plan rendered once at the top of the thread (not per-message). */
-  plan?: SessionPlan | null;
-  runRecordsById?: Record<string, RunRecordUi>;
-  activeRunId?: string | null;
-  /** Explicit slash Skill currently associated with the foreground prompt. */
-  activeSkill?: SkillActivityView | null;
-  /** Animation used by the compact live agent locator. */
-  agentLocatorAnimation?: AgentLocatorAnimation;
-  permissionPrompt?: PermissionPromptUi | null;
-  /** Project path used to gate "always allow" (project remember) availability. */
-  projectPath?: string | null;
-  /** Host git request adapter forwarded to tool cards → DiffCard. */
-  toolDiffRequest?: DiffCardRequest;
-  /**
-   * Host git request for turn-level files-changed stats (`git/diff-summary`).
-   * Same adapter as ChangesPanel; optional so the bar still lists paths without stats.
-   */
-  filesChangedRequest?: FilesChangedBarRequest;
-  onReviewChanges?: () => void;
-  onPermission?: (decision: PermissionDecision, rememberScope?: PermissionRememberScope) => void;
-  workDetailsExpanded?: WorkDetailsExpanded;
-  toolDensity?: ToolCallDensity;
-  /** Whether intermediate Agent thinking should be rendered in the timeline. */
-  showThinking?: boolean;
-  onEdit: (messageId: string) => void;
-  onCancelEdit: () => void;
-  onEditResend: (messageId: string, text: string) => void;
-  onRetry: (messageId: string) => void;
-  /** Resend a user turn as a sibling branch (changed-text edit). */
-  onBranchResend?: (messageId: string, text: string) => void;
-  /** Re-run the same user turn without creating a prompt sibling. */
-  onRetryTurn?: (userMessageId: string, options: { keepPrevious: boolean }) => void;
-  branchPoints?: TranscriptBranchPoint[];
-  onSwitchBranch?: (headMessageId: string) => void;
-  /** Edit a still-pending instruction without rewinding conversation history. */
-  onInterventionEdit?: (messageId: string, text: string) => void | Promise<void>;
-  /** Cancel a still-pending instruction without cancelling its target Run. */
-  onInterventionCancel?: (messageId: string) => void | Promise<void>;
-  onFeedback?: ((message: string, level: 'info' | 'success' | 'error') => void) | undefined;
-  /** Open the read-only subagent session inspector for a transcript card. */
-  onInspectSubagent: ((selection: SubagentInspectorSelection) => void) | undefined;
-  /** Load / rate / open-source for Doc Cards sequence messages. */
-  docCardRequest?: DocCardSequenceRequest;
-  /** Child projections bound to delegation tool calls in the transcript. */
-  subagentChildren?: Record<string, SessionSummary>;
-  subagentInvocations?: Record<string, SubagentInvocation>;
-  /** Live child tails used for each inline block's latest activity. */
-  subagentStreams?: Record<string, SubagentStreamState>;
-  /** Whitelisted artifact actions, e.g. flashcard rating (ADR 0018 S5c). */
-  onArtifactAction?: (action: ArtifactActionMessage) => void;
-  /** Open a fence explicitly declared with surface="canvas". */
-  onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
-  /**
-   * Artifact capability from `config.artifact.enabled`. Required boolean —
-   * never a truthy spread that drops `false`.
-   */
-  artifactPreviewEnabled: boolean;
-  /** When true, MarkdownView displays source code first for artifact blocks. */
-  artifactCodeFirst?: boolean;
-  /** Security byte cap forwarded to analyzeArtifactFence. */
-  artifactMaxBytes?: number;
-  /** Global composer configuration so the in-place edit card matches the bottom dock. */
-  composerCard: ComposerDockProps;
-  /** Callback when clicking a search result file or file link. */
-  onOpenFile?: ((absolutePath: string, relativePath?: string) => void) | undefined;
-  /** Open an edited file's diff in the right inspector. */
-  onOpenDiff?: ((absolutePath: string, relativePath?: string) => void) | undefined;
-  /** Callback when clicking a markdown document link or plan document chip. */
-  onOpenDocument?: ((input: DocumentOpenInput) => void) | undefined;
-  /** Called when the user aborts a running plan. */
-  onPlanAbort?: (() => void | Promise<void>) | undefined;
-  /** Transcript-bound compaction lifecycle activity. */
-  compactionActivity?: CompactionActivityUi | null | undefined;
-  onCompactAbort?: (() => void | Promise<void>) | undefined;
-  /** Locale used by all run activity components. */
-  locale?: 'zh-CN' | 'en';
-  /** Walkthrough artifacts keyed by owning assistant messageId (spec §5.1). */
-  walkthroughsByMessageId?: Record<string, WalkthroughArtifact>;
-  /** Whether the Generate Walkthrough action is enabled (config walkthrough.enabled). */
-  walkthroughEnabled?: boolean;
-  /** Whether auto-generation is active (config walkthrough.autoGenerate). */
-  walkthroughAutoGenerate?: boolean;
-  /** Generate a walkthrough for a message; force overwrites an existing artifact. */
-  onGenerateWalkthrough?:
-    ((messageId: string, force?: boolean) => void | Promise<void>) | undefined;
-  /** Cancel an in-flight walkthrough generation. */
-  onCancelWalkthrough?:
-    ((messageId: string, generationId?: string) => void | Promise<void>) | undefined;
-  /** SF-03: Duplicate the entire session. */
-  /** SF-03: Fork from a specific assistant response. */
-  onForkFromMessage?: ((messageId: string) => void | Promise<void>) | undefined;
-  /** SF-03: Open the lineage / branch list for a message. */
-  onOpenForks?: ((messageId: string) => void) | undefined;
-  /** SF-03: Map of messageId → direct fork count (for badge display). */
-  forkCountsByMessageId?: Record<string, number>;
-  /** SF-04: Product lineage projection for the active session. */
-  sessionLineage?: ProductSessionLineageView | null;
-  /** SF-04: Navigate to another product session from the lineage tree. */
-  onOpenSession?: ((sessionId: string) => void) | undefined;
-  /** SF-03: Whether derived-session actions are disabled (e.g. no host). */
-  derivedActionsDisabled?: boolean;
-  /** M1 assembly summaries keyed by runId. Never claims model-visible. */
-  assemblySummariesByRunId?: Record<string, ContextSummaryPush>;
-  /**
-   * CHT-401: general-scope main session. Default false so Project callers and
-   * existing tests keep the Agent presentation.
-   */
-  isConversationSession?: boolean;
-  onResolveFlashcards?: (
-    itemIds: string[],
-  ) => Promise<import('@piwin/contracts').FlashcardReviewCard[]>;
-  /** Frozen send-time model for the in-flight turn's pending assistant row. */
-  livePromptModel?: ModelRef | null;
-  /** Active model options for name resolution. */
-  modelOptions?: readonly ModelOption[];
-  /** Configured providers for display names. */
-  configProviders?: readonly ModelProviderConfig[];
-  /** Session last turn context usage snapshot for turn usage chip. */
-  contextUsage?: ContextUsageSnapshot | null;
-};
+export type { ChatThreadProps } from './chat-thread-types.js';
+import type { ChatThreadProps } from './chat-thread-types.js';
 
 export function ChatThread(props: ChatThreadProps): ReactElement {
   // Quiet workbench: msg-in only for messages that arrive after first mount
   // (history hydrate must not replay entrance animation).
   const knownIdsRef = useRef<Set<string> | null>(null);
   const isInitialMountRef = useRef(true);
-  if (knownIdsRef.current === null) {
+  const knownSessionRef = useRef(props.sessionId ?? 'none');
+  const sessionKey = props.sessionId ?? 'none';
+  if (knownIdsRef.current === null || knownSessionRef.current !== sessionKey || props.hydrating) {
+    knownSessionRef.current = sessionKey;
     knownIdsRef.current = new Set(props.messages.map((message) => message.id));
+    isInitialMountRef.current = true;
   }
   const enteringIds = new Set<string>();
   if (!isInitialMountRef.current) {
@@ -576,70 +425,78 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
               : !identitySource.model && turnModel
                 ? { ...identitySource, model: turnModel }
                 : identitySource;
-          return (
-            <section
-              key={turn.id}
-              className={`chat-turn-group${turn.id === currentResponseTurnId ? ' is-current-response' : ''}`}
-              {...(turn.id === currentResponseTurnId
-                ? { 'data-testid': 'current-response-turn' }
-                : {})}
-            >
-              {turn.items.flatMap(({ message, messageIndex }, itemIndex) => {
-                const isDisclosureWorkItem =
-                  workDisclosureProjection !== null &&
-                  itemIndex >= workDisclosureProjection.startIndex &&
-                  itemIndex <= workDisclosureProjection.endIndex;
-                const isDisclosureStart = workDisclosureProjection?.startIndex === itemIndex;
-                const disclosureTrigger =
-                  isDisclosureStart && workDisclosureProjection ? (
-                    <TurnWorkDisclosure
-                      key={`work-disclosure-${turn.id}`}
-                      projection={workDisclosureProjection}
-                      open={workDisclosureOpen}
-                      locale={props.locale ?? 'zh-CN'}
-                      onToggle={() =>
-                        setWorkDisclosureOpenByTurnId((current) => ({
-                          ...current,
-                          [workDisclosureKey]: !(
-                            current[workDisclosureKey] ?? workDisclosureDefaultOpen
-                          ),
-                        }))
-                      }
-                    />
-                  ) : null;
-                const liftedIdentityHeader =
-                  identityLiftedAboveWorkDisclosure &&
-                  identityForHeader &&
-                  isDisclosureStart ? (
-                    <ConversationTurnIdentityHeader
-                      key={`turn-identity-${turn.id}`}
-                      message={identityForHeader}
-                      turnStreaming={currentTurnStreaming}
-                      locale={props.locale ?? 'zh-CN'}
-                      {...(props.livePromptModel !== undefined
-                        ? { livePromptModel: props.livePromptModel }
-                        : {})}
-                      {...(props.modelOptions !== undefined
-                        ? { modelOptions: props.modelOptions }
-                        : {})}
-                      {...(props.configProviders !== undefined
-                        ? { configProviders: props.configProviders }
-                        : {})}
-                      usageChip={
-                        conversationChrome?.showUsageOnIdentity === true
-                          ? buildConversationTurnUsageChip(
-                              props.contextUsage,
-                              props.locale ?? 'zh-CN',
-                            )
-                          : null
-                      }
-                    />
-                  ) : null;
-                if (isDisclosureWorkItem && !workDisclosureOpen) {
-                  return [liftedIdentityHeader, disclosureTrigger].filter(
-                    (node): node is ReactElement => node !== null,
-                  );
-                }
+          const userMessages = turn.items
+            .filter((item) => item.message.role === 'user')
+            .map((item) => item.message);
+          const assistantMessages = turn.items
+            .filter((item) => item.message.role !== 'user')
+            .map((item) => item.message);
+
+          const renderedUserItems: ReactElement[] = [];
+          const renderedAssistantItems: ReactElement[] = [];
+
+          turn.items.forEach(({ message, messageIndex }, itemIndex) => {
+            const isDisclosureWorkItem =
+              workDisclosureProjection !== null &&
+              itemIndex >= workDisclosureProjection.startIndex &&
+              itemIndex <= workDisclosureProjection.endIndex;
+            const isDisclosureStart = workDisclosureProjection?.startIndex === itemIndex;
+            const disclosureTrigger =
+              isDisclosureStart && workDisclosureProjection ? (
+                <TurnWorkDisclosure
+                  key={`work-disclosure-${turn.id}`}
+                  projection={workDisclosureProjection}
+                  open={workDisclosureOpen}
+                  locale={props.locale ?? 'zh-CN'}
+                  onToggle={() =>
+                    setWorkDisclosureOpenByTurnId((current) => ({
+                      ...current,
+                      [workDisclosureKey]: !(
+                        current[workDisclosureKey] ?? workDisclosureDefaultOpen
+                      ),
+                    }))
+                  }
+                />
+              ) : null;
+            const liftedIdentityHeader =
+              identityLiftedAboveWorkDisclosure &&
+              identityForHeader &&
+              isDisclosureStart ? (
+                <ConversationTurnIdentityHeader
+                  key={`turn-identity-${turn.id}`}
+                  message={identityForHeader}
+                  turnStreaming={currentTurnStreaming}
+                  locale={props.locale ?? 'zh-CN'}
+                  {...(props.livePromptModel !== undefined
+                    ? { livePromptModel: props.livePromptModel }
+                    : {})}
+                  {...(props.modelOptions !== undefined
+                    ? { modelOptions: props.modelOptions }
+                    : {})}
+                  {...(props.configProviders !== undefined
+                    ? { configProviders: props.configProviders }
+                    : {})}
+                  usageChip={
+                    conversationChrome?.showUsageOnIdentity === true
+                      ? buildConversationTurnUsageChip(
+                          props.contextUsage,
+                          props.locale ?? 'zh-CN',
+                        )
+                      : null
+                  }
+                />
+              ) : null;
+            if (isDisclosureWorkItem && !workDisclosureOpen) {
+              const collapsedNodes = [liftedIdentityHeader, disclosureTrigger].filter(
+                (node): node is ReactElement => node !== null,
+              );
+              if (message.role === 'user') {
+                renderedUserItems.push(...collapsedNodes);
+              } else {
+                renderedAssistantItems.push(...collapsedNodes);
+              }
+              return;
+            }
                 const followingAssistantRunId = turn.items
                   .slice(itemIndex + 1)
                   .find((item) => item.message.role === 'assistant' && item.message.runId)
@@ -668,7 +525,6 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                   latestAssistantMessageId === message.id ||
                   (conversationSession && isConversationIdentityMessage && isLatestTurn);
                 const onRegenerate =
-                  conversationSession &&
                   isLatestAssistant &&
                   precedingUser &&
                   props.onRetryTurn
@@ -748,6 +604,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                       ? { agentLocatorAnimation: props.agentLocatorAnimation }
                       : {})}
                     permissionPrompt={props.permissionPrompt ?? null}
+                    {...(props.onPermission !== undefined ? { onPermission: props.onPermission } : {})}
                     workDetailsExpanded={props.workDetailsExpanded ?? 'auto'}
                     toolDensity={props.toolDensity ?? 'comfortable'}
                     showThinking={moveFinalThinkingIntoWork ? false : props.showThinking !== false}
@@ -805,9 +662,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                     {...(props.artifactCodeFirst !== undefined
                       ? { artifactCodeFirst: props.artifactCodeFirst }
                       : {})}
-                    {...(props.artifactMaxBytes !== undefined
-                      ? { artifactMaxBytes: props.artifactMaxBytes }
-                      : {})}
+                    {...pickArtifactFenceSecurity(props)}
                     {...(props.onOpenFile ? { onOpenFile: props.onOpenFile } : {})}
                     {...(props.onOpenDiff ? { onOpenDiff: props.onOpenDiff } : {})}
                     {...(props.onOpenDocument
@@ -866,9 +721,10 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                         runRecordsById={props.runRecordsById ?? {}}
                         activeRunId={null}
                         permissionPrompt={null}
-                        workDetailsExpanded={props.workDetailsExpanded ?? 'auto'}
+                        workDetailsExpanded="always"
                         toolDensity={props.toolDensity ?? 'comfortable'}
                         showThinking
+                        hideFoldHeader
                         locale={props.locale ?? 'zh-CN'}
                       />
                     </div>
@@ -878,21 +734,116 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                   liftedIdentityHeader,
                   disclosureTrigger,
                 ].filter((node): node is ReactElement => node !== null);
-                return leadingChrome.length > 0
+                const itemNodes = leadingChrome.length > 0
                   ? [...leadingChrome, ...rows]
                   : rows;
-              })}
-              {turn.id === compactionActivityTurnId && props.compactionActivity ? (
-                <CompactionActivity
-                  activity={props.compactionActivity}
-                  locale={props.locale ?? 'zh-CN'}
-                  {...(props.onCompactAbort ? { onAbort: props.onCompactAbort } : {})}
-                />
-              ) : null}
-              {turn.id === currentResponseTurnId ? runActivitySlot : null}
-            </section>
-          );
-        }}
+                if (message.role === 'user') {
+                  renderedUserItems.push(...itemNodes);
+                } else {
+                  renderedAssistantItems.push(...itemNodes);
+                }
+              });
+
+              if (turn.id === compactionActivityTurnId && props.compactionActivity) {
+                const compactionNode = (
+                  <CompactionActivity
+                    key={`compaction-${turn.id}`}
+                    activity={props.compactionActivity}
+                    locale={props.locale ?? 'zh-CN'}
+                    {...(props.onCompactAbort ? { onAbort: props.onCompactAbort } : {})}
+                  />
+                );
+                renderedAssistantItems.push(compactionNode);
+              }
+
+              if (turn.id === currentResponseTurnId && runActivitySlot) {
+                renderedAssistantItems.push(runActivitySlot);
+              }
+
+              const hasAssistantActivity =
+                renderedAssistantItems.length > 0 ||
+                (currentTurnStreaming && (props.activeRunId !== null || runActivitySlot !== null));
+
+              const userMarginaliaData =
+                conversationSession || renderedUserItems.length === 0
+                  ? null
+                  : resolveTurnMarginalia(userMessages, {
+                      editingMessageId: props.editingMessageId,
+                      locale: props.locale,
+                      forceRole: 'user',
+                    });
+
+              const assistantStatus = currentTurnStreaming
+                ? props.permissionPrompt
+                  ? props.locale === 'en'
+                    ? 'Waiting'
+                    : '等待批准'
+                  : props.locale === 'en'
+                    ? 'Running'
+                    : '运行中'
+                : null;
+
+              const assistantMarginaliaData =
+                conversationSession || !hasAssistantActivity
+                  ? null
+                  : resolveTurnMarginalia(
+                      assistantMessages.length > 0 ? assistantMessages : turnMessages,
+                      {
+                        locale: props.locale,
+                        forceRole: 'assistant',
+                        model: turnModel,
+                        elapsedMs: workDisclosureProjection?.elapsedMs,
+                        contextUsage: props.contextUsage,
+                        status: assistantStatus,
+                      },
+                    );
+
+              if (conversationSession) {
+                return (
+                  <section
+                    key={turn.id}
+                    className={`chat-turn-group turn${turn.id === currentResponseTurnId ? ' is-current-response' : ''}`}
+                    {...(turn.id === currentResponseTurnId
+                      ? { 'data-testid': 'current-response-turn' }
+                      : {})}
+                  >
+                    <div className="chat-turn-body">
+                      {renderedUserItems}
+                      {renderedAssistantItems}
+                    </div>
+                  </section>
+                );
+              }
+
+              return (
+                <section
+                  key={turn.id}
+                  className={`chat-turn-group${turn.id === currentResponseTurnId ? ' is-current-response' : ''}`}
+                  {...(turn.id === currentResponseTurnId
+                    ? { 'data-testid': 'current-response-turn' }
+                    : {})}
+                >
+                  {renderedUserItems.length > 0 ? (
+                    <article key="user-turn" className="turn chat-turn chat-turn-user">
+                      {userMarginaliaData !== null ? <ChatTurnMarginalia data={userMarginaliaData} /> : null}
+                      <div className="chat-turn-body">
+                        {userMarginaliaData !== null ? <ChatTurnHead data={userMarginaliaData} /> : null}
+                        {renderedUserItems}
+                      </div>
+                    </article>
+                  ) : null}
+                  {hasAssistantActivity ? (
+                    <article key="assistant-turn" className="turn chat-turn chat-turn-assistant">
+                      {assistantMarginaliaData !== null ? <ChatTurnMarginalia data={assistantMarginaliaData} /> : null}
+                      <div className="chat-turn-body">
+                        {assistantMarginaliaData !== null ? <ChatTurnHead data={assistantMarginaliaData} /> : null}
+                        {renderedAssistantItems}
+                      </div>
+                    </article>
+                  ) : null}
+                </section>
+              );
+            }}
       />
       {currentResponseTurnId === null && (runActivitySlot !== null || props.compactionActivity) ? (
         <section

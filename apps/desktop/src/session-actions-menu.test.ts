@@ -66,4 +66,14 @@ describe('sessionActionItems', () => {
     const actions = items.map((item) => item.action);
     expect(actions.indexOf('copy-transcript')).toBe(actions.indexOf('copy-id') + 1);
   });
+
+  it('localizes actions to Chinese when locale is zh-CN', () => {
+    const items = sessionActionItems({ isPinned: false, isArchived: false, locale: 'zh-CN' });
+    const pin = items.find((i) => i.action === 'pin');
+    const fork = items.find((i) => i.action === 'fork-chat');
+    const del = items.find((i) => i.action === 'delete');
+    expect(pin?.label).toBe('置顶');
+    expect(fork?.label).toBe('分叉');
+    expect(del?.label).toBe('删除');
+  });
 });

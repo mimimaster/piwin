@@ -13,7 +13,7 @@ import {
   type MessageChangedFile,
   type MessageChangedFileStat,
 } from './collect-message-changed-files';
-import { IconChevronDown, IconFileDiff, IconMore } from './shell-icons';
+import { IconChevronDown, IconFile, IconFileDiff, IconMore } from './shell-icons';
 import {
   formatDisplayPathParts,
   getRelativeFilePath,
@@ -177,7 +177,7 @@ export function FilesChangedBar(props: FilesChangedBarProps): ReactElement | nul
   const hiddenCount = files.length - visibleFiles.length;
 
   return (
-    <div className="files-changed-bar" data-testid="files-changed-bar">
+    <div className="fcb files-changed-bar" data-testid="files-changed-bar">
       <div className="files-changed-bar-head">
         <button
           type="button"
@@ -189,11 +189,20 @@ export function FilesChangedBar(props: FilesChangedBarProps): ReactElement | nul
           <span className="files-changed-bar-summary">
             <span className="files-changed-bar-count">{countLabel}</span>
             {stats ? (
-              <span className="files-changed-bar-stat" data-testid="files-changed-bar-stat">
-                <span className="add">+{stats.additions}</span>
-                <span className="del">-{stats.deletions}</span>
+              <span className="files-changed-bar-stat pm" data-testid="files-changed-bar-stat">
+                <span className="add plus">+{stats.additions}</span>
+                <span className="del minus">-{stats.deletions}</span>
               </span>
             ) : null}
+            {files.slice(0, 4).map((file) => {
+              const parts = formatDisplayPathParts(file.path, props.projectPath);
+              return (
+                <span key={file.path} className="pc files-changed-bar-chip" title={file.path}>
+                  <IconFile className="i s12 files-changed-bar-chip-icon" />
+                  {parts.fileName}
+                </span>
+              );
+            })}
             <IconChevronDown
               className={expanded ? 'files-changed-bar-chevron open' : 'files-changed-bar-chevron'}
             />

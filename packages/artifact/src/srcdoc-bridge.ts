@@ -114,6 +114,7 @@ export function buildArtifactBridgeBootstrapScript(
   var lastReportedHeight = -1;
   var heightFrame = null;
   var heightObserver = null;
+  var contentObserver = null;
   var readHeight = function (height) {
     return Math.max(0, Math.ceil(height || 0));
   };
@@ -129,7 +130,12 @@ export function buildArtifactBridgeBootstrapScript(
     if (!sizeEnabled || currentFrameMode === 'canvas') return;
     var node = measureNode();
     if (!node) return;
-    var height = readHeight(node.getBoundingClientRect().height);
+    // The root box excludes visible overflow from constrained descendants.
+    // Measure the content root, never documentElement (viewport feedback).
+    var height = Math.max(
+      readHeight(node.getBoundingClientRect().height),
+      readHeight(node.scrollHeight)
+    );
     if (height === lastReportedHeight) return;
     lastReportedHeight = height;
     post(sizeType, {
@@ -169,6 +175,10 @@ export function buildArtifactBridgeBootstrapScript(
       heightObserver.disconnect();
       heightObserver = null;
     }
+    if (contentObserver) {
+      contentObserver.disconnect();
+      contentObserver = null;
+    }
   };
   var startHeightObserver = function () {
     stopHeightObserver();
@@ -186,8 +196,18 @@ export function buildArtifactBridgeBootstrapScript(
       heightObserver = new window.ResizeObserver(scheduleHeight);
       heightObserver.observe(node);
     }
+    // An overflowing child can change without resizing the root box.
+    // Coalesce DOM changes into the same one-per-frame measurement stream.
+    if (window.MutationObserver) {
+      contentObserver = new window.MutationObserver(scheduleHeight);
+      contentObserver.observe(node, { subtree: true, childList: true, attributes: true, characterData: true });
+    }
     scheduleHeight();
   };
+
+  document.addEventListener('load', function () {
+    if (currentFrameMode === 'inline-flow') scheduleHeight();
+  }, true);
   var acceptFrameMode = function (mode) {
     if (mode === currentFrameMode) return currentFrameMode;
     if (currentFrameMode === 'canvas' || mode === 'canvas') return currentFrameMode;

@@ -75,14 +75,22 @@ export function detectExternalArtifactResources(
   );
 }
 
+export type ArtifactSecurityPolicy = {
+  blockExternalScripts?: boolean;
+  blockExternalResources?: boolean;
+};
+
 export function classifyArtifactSecurity(
   source: string,
   iframePolicy: ArtifactIframePolicy = createDefaultArtifactIframePolicy(),
   maxBytes: number = DEFAULT_MAX_ARTIFACT_BYTES,
+  policy: ArtifactSecurityPolicy = {},
 ): ArtifactSecurityResult {
   const trimmedSource = source.trim();
   const byteSize = getUtf8ByteSize(trimmedSource);
   const externalResources = detectExternalArtifactResources(trimmedSource, iframePolicy);
+  const blockExternalResources = policy.blockExternalResources !== false;
+  const blockExternalScripts = policy.blockExternalScripts !== false;
 
   if (isPlaceholderArtifactSource(trimmedSource)) {
     return {
@@ -102,7 +110,11 @@ export function classifyArtifactSecurity(
     };
   }
 
-  if (externalResources.length > 0) {
+  const scriptResources = externalResources.filter((resource) => resource.kind === 'script');
+  const shouldBlock = blockExternalResources
+    ? externalResources.length > 0
+    : blockExternalScripts && scriptResources.length > 0;
+  if (shouldBlock) {
     return {
       canRender: false,
       blockReason: 'blocked-external-resource',

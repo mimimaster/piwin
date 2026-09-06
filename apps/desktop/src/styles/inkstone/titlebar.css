@@ -1,0 +1,316 @@
+/* Inkstone titleband (.proto) per docs/design/inkstone/shell-layout.css.
+   34px strip; icons are proto `.i.s14` (14px) inside `.ib` 26px hit targets —
+   never inherit the band's 10px chrome font (that shrunk 1em glyphs to ~10px
+   and made the bar look empty/tall). */
+
+html[data-theme-id='piwin-inkstone-paper'] .context-bar,
+html[data-theme-id='piwin-inkstone-ink'] .context-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px !important;
+  color: var(--t2);
+  font-size: 12px;
+  font-family: var(--sans);
+  height: var(--titleband-height, 30px) !important;
+  min-height: var(--titleband-height, 30px) !important;
+  max-height: var(--titleband-height, 30px) !important;
+  box-sizing: border-box !important;
+  -webkit-app-region: drag;
+  app-region: drag;
+  background: transparent !important;
+  border: 0 !important;
+  border-bottom: 0 !important;
+  box-shadow: none !important;
+  overflow: visible;
+  z-index: 3;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .context-bar [data-no-window-drag],
+html[data-theme-id='piwin-inkstone-ink'] .context-bar [data-no-window-drag],
+html[data-theme-id='piwin-inkstone-paper'] .context-bar button,
+html[data-theme-id='piwin-inkstone-ink'] .context-bar button {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+/* ── Left cluster (.proto-nav) ─────────────────────────────────────── */
+html[data-theme-id='piwin-inkstone-paper'] .context-bar .traffic,
+html[data-theme-id='piwin-inkstone-ink'] .context-bar .traffic {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 8px;
+  /* Native traffic lights sit in this clearance; keep width stable. */
+  min-width: 52px;
+  height: 100%;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .context-bar .traffic-dot,
+html[data-theme-id='piwin-inkstone-ink'] .context-bar .traffic-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+  flex: none;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .context-bar .traffic-dot.close,
+html[data-theme-id='piwin-inkstone-ink'] .context-bar .traffic-dot.close {
+  background: #ff5f57;
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.2);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .context-bar .traffic-dot.minimize,
+html[data-theme-id='piwin-inkstone-ink'] .context-bar .traffic-dot.minimize {
+  background: #febc2e;
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.2);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .context-bar .traffic-dot.maximize,
+html[data-theme-id='piwin-inkstone-ink'] .context-bar .traffic-dot.maximize {
+  background: #28c840;
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.2);
+}
+
+.traffic.is-native .traffic-dot {
+  opacity: 0 !important;
+  pointer-events: none;
+}
+
+html:not([data-theme-id='piwin-inkstone-paper']):not([data-theme-id='piwin-inkstone-ink']) .traffic {
+  display: none !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .app-shell.nav-open > .context-bar > .context-bar-leading,
+html[data-theme-id='piwin-inkstone-paper'] .context-bar .proto-nav,
+html[data-theme-id='piwin-inkstone-ink'] .context-bar .proto-nav,
+html[data-theme-id='piwin-inkstone-paper'] .context-bar .context-bar-leading,
+html[data-theme-id='piwin-inkstone-ink'] .context-bar .context-bar-leading {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: var(--sidebar-width, 240px) !important;
+  min-width: var(--sidebar-width, 240px) !important;
+  max-width: var(--sidebar-width, 240px) !important;
+  box-sizing: border-box !important;
+  flex: none;
+  /* Kill Deck's min-width calc that stretched the leading cluster. */
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .app-shell:not(.nav-open) > .context-bar .proto-nav,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .app-shell:not(.nav-open) > .context-bar .context-bar-leading {
+  width: auto !important;
+  min-width: auto !important;
+  max-width: none !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .proto-nav-spacer {
+  flex: 1;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-history {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar > .context-bar-drag {
+  flex: 1 1 auto;
+  min-width: 16px;
+  height: 100%;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-identity,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-status {
+  display: none !important;
+}
+
+/* ── Buttons and icons (proto `.ib` + `.i.s14`) ─────────────────────── */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) :is(.tb, .proto, .context-bar) .ib,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .piwin-icon-button {
+  width: 22px !important;
+  height: 22px !important;
+  min-width: 22px !important;
+  min-height: 22px !important;
+  border-radius: 5px;
+  display: inline-grid;
+  place-items: center;
+  color: var(--t3);
+  flex: none;
+  border: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+  cursor: pointer;
+  padding: 0;
+  box-sizing: border-box;
+  transition: background var(--t-1) var(--ease-out), color var(--t-1) var(--ease-out);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) :is(.tb, .proto, .context-bar) .ib:hover,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) :is(.tb, .proto, .context-bar) .ib.active,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .piwin-icon-button:hover,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .piwin-icon-button.active,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .piwin-icon-button[aria-pressed='true'] {
+  background: var(--s3) !important;
+  color: var(--t1) !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) :is(.tb, .proto, .context-bar) .ib:disabled,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .piwin-icon-button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  background: transparent !important;
+  color: var(--t4) !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) :is(.tb, .proto, .context-bar) .ib.s20 {
+  width: 20px !important;
+  height: 20px !important;
+  min-width: 20px !important;
+  border-radius: 4px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) :is(.tb, .proto, .context-bar) .ib.s22 {
+  width: 22px !important;
+  height: 22px !important;
+  min-width: 22px !important;
+}
+
+/* Glyph size — fill the denser 22px hit targets without floating air. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .ib svg,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .piwin-icon-button svg,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .stage-header .ib svg {
+  width: 14px !important;
+  height: 14px !important;
+  flex: none;
+  stroke-width: 1.6;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-history .ib svg,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-history-btn svg {
+  width: 14px !important;
+  height: 14px !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .ib.s20 svg,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .stage-header .ib.s20 svg {
+  width: 12px !important;
+  height: 12px !important;
+}
+
+/* Kill Deck iris pressed wash on titleband — Inkstone uses warm s3 wash only. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .piwin-icon-button.active,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .piwin-icon-button[aria-pressed='true'] {
+  color: var(--t1) !important;
+  background: var(--s3) !important;
+}
+
+/* ── Right cluster ─────────────────────────────────────────────────── */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) :is(.tb, .proto, .context-bar) .context-bar-right-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) :is(.tb, .proto, .context-bar) .seg {
+  display: inline-flex;
+  border: 1px solid var(--l2);
+  border-radius: 4px;
+  overflow: hidden;
+  height: 20px;
+  align-items: center;
+  flex: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) :is(.tb, .proto, .context-bar) .seg button {
+  /* Proto layout `.proto .seg button`: mono 10px / pad 2px 7px. */
+  font: 500 10px/1 var(--mono);
+  padding: 0 7px;
+  height: 100%;
+  color: var(--t3);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  box-sizing: border-box;
+  letter-spacing: 0.02em;
+  transition: background var(--t-1) var(--ease-out), color var(--t-1) var(--ease-out);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) :is(.tb, .proto, .context-bar) .seg button:hover {
+  color: var(--t1);
+  background: var(--s2);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) :is(.tb, .proto, .context-bar) .seg button.on {
+  background: var(--s3);
+  color: var(--t1);
+  box-shadow: var(--sh1);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .tb .context-bar-mode-badge,
+html[data-theme-id='piwin-inkstone-ink'] .tb .context-bar-mode-badge,
+html[data-theme-id='piwin-inkstone-paper'] .tb .context-bar-origin-badge,
+html[data-theme-id='piwin-inkstone-ink'] .tb .context-bar-origin-badge,
+html[data-theme-id='piwin-inkstone-paper'] .stage-header .context-bar-mode-badge,
+html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-bar-mode-badge,
+html[data-theme-id='piwin-inkstone-paper'] .stage-header .context-bar-origin-badge,
+html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-bar-origin-badge {
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 600;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 3px;
+  letter-spacing: 0.02em;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .tb .context-bar-mode-badge.is-warning,
+html[data-theme-id='piwin-inkstone-ink'] .tb .context-bar-mode-badge.is-warning,
+html[data-theme-id='piwin-inkstone-paper'] .stage-header .context-bar-mode-badge.is-warning,
+html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-bar-mode-badge.is-warning {
+  background: color-mix(in srgb, var(--ochre) 14%, transparent);
+  color: var(--ochre);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .tb .context-session-tree-trigger,
+html[data-theme-id='piwin-inkstone-ink'] .tb .context-session-tree-trigger,
+html[data-theme-id='piwin-inkstone-paper'] .stage-header .context-session-tree-trigger,
+html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-session-tree-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--t3);
+  cursor: pointer;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .tb .context-session-tree-trigger:hover,
+html[data-theme-id='piwin-inkstone-ink'] .tb .context-session-tree-trigger:hover,
+html[data-theme-id='piwin-inkstone-paper'] .stage-header .context-session-tree-trigger:hover,
+html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-session-tree-trigger:hover {
+  background: var(--s3);
+  color: var(--t1);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .tb .context-session-tree-label,
+html[data-theme-id='piwin-inkstone-ink'] .tb .context-session-tree-label,
+html[data-theme-id='piwin-inkstone-paper'] .tb .context-session-tree-count,
+html[data-theme-id='piwin-inkstone-ink'] .tb .context-session-tree-count,
+html[data-theme-id='piwin-inkstone-paper'] .stage-header .context-session-tree-label,
+html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-session-tree-label,
+html[data-theme-id='piwin-inkstone-paper'] .stage-header .context-session-tree-count,
+html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-session-tree-count {
+  display: none;
+}

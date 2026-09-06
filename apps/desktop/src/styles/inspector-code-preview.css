@@ -28,10 +28,15 @@
   contain: layout style;
 }
 
+.code-preview-group {
+  flex: 0 0 auto;
+}
+
 .code-preview-row {
   display: flex;
   white-space: pre;
   padding: 0 var(--s-4);
+  min-height: 1lh;
   content-visibility: auto;
   contain-intrinsic-size: auto 19px;
 }

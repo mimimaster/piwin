@@ -113,7 +113,11 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
     shell.openFlashcards?.();
   }, [shell]);
   const handleOpenKnowledge = useCallback(
-    (_subTab: 'doccards' | 'cards' | 'wiki' = 'doccards') => {
+    (subTab: 'doccards' | 'cards' | 'wiki' = 'doccards') => {
+      if (subTab === 'wiki') {
+        shell.openFlashcardsWiki?.();
+        return;
+      }
       shell.openFlashcards?.();
     },
     [shell],
@@ -242,6 +246,7 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
     closeSubPage,
     handleOpenCardsPanel,
     handleOpenKnowledge,
+    flashcardsEntry: shell.flashcardsEntry ?? 'gallery',
     sessionListChrome,
     agentMode,
     setAgentMode,

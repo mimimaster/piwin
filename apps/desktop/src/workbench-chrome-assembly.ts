@@ -43,9 +43,8 @@ export function resolveWorkbenchSessionTitle(input: {
   projectLabel: string | null;
   sessionName: string;
 }): string {
-  if (input.projectPath && input.projectLabel) {
-    return `${input.projectLabel} / ${input.sessionName}`;
-  }
+  // The project owns a separate titlebar chip; the document title stays
+  // readable when that chip and the inspector are both present.
   return input.sessionName;
 }
 

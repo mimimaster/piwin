@@ -323,6 +323,138 @@ describe('useSessionResume continue-in-project', () => {
     );
   });
 
+  it('selects the session before project activation and does not wait on list hydrate', async () => {
+    let releaseOpen: (() => void) | undefined;
+    const hydrateSessions = vi.fn(async () => []);
+    const hostClient = liveHost(async (command) => {
+      if (command.type === 'project/open') {
+        await new Promise<void>((resolve) => {
+          releaseOpen = resolve;
+        });
+        return ok(command, { path: projectPath, trusted: true, trust: 'trusted' });
+      }
+      if (command.type === 'session/resume') {
+        return ok(command, projectResumeData(continuedId));
+      }
+      if (command.type === 'session/queued-turn-list') {
+        return ok(command, { queueRevision: 0, queuedTurns: [] });
+      }
+      if (command.type === 'session/list-children') {
+        return ok(command, { sessions: [], invocations: [] });
+      }
+      return ok(command);
+    });
+    const dispatch = vi.fn();
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const state: ChatUiState = {
+      ...createInitialChatUiState(),
+      activeScope: { kind: 'general' },
+      generalSessions: [sessionItem('session-old')],
+      sessions: [sessionItem('session-old')],
+    };
+    let captured: ResumeHook | undefined;
+    function Harness(): null {
+      captured = useSessionResume({
+        hostClient,
+        state,
+        dispatch: dispatch as (action: ChatUiAction) => void,
+        dispatchNotification: vi.fn(),
+        locale: 'en',
+        showArchivedSessions: false,
+        hydrateSessions,
+      });
+      return null;
+    }
+    act(() => {
+      root?.render(<Harness />);
+    });
+
+    let finished: Promise<void> | undefined;
+    act(() => {
+      finished = captured?.handleResumeSession(continuedId, {
+        scope: { kind: 'project', projectPath },
+      });
+    });
+    await vi.waitFor(() => {
+      expect(dispatch).toHaveBeenCalledWith({
+        type: 'session/set',
+        sessionId: continuedId,
+        awaitTranscript: true,
+      });
+    });
+    expect(dispatch.mock.calls.some((call) => (call[0] as ChatUiAction).type === 'project/set')).toBe(
+      false,
+    );
+
+    await act(async () => {
+      releaseOpen?.();
+      await finished;
+    });
+
+    expect(hydrateSessions).toHaveBeenCalled();
+    const projectSets = dispatch.mock.calls.filter(
+      (call) => (call[0] as ChatUiAction).type === 'project/set',
+    );
+    expect(projectSets[0]?.[0]).toEqual({
+      type: 'project/set',
+      path: projectPath,
+      trusted: true,
+      keepActiveSession: true,
+    });
+  });
+
+  it('does not resume again when the same loaded session is clicked', async () => {
+    const request = vi.fn(async (command: HostCommand): Promise<HostResponse> => {
+      if (command.type === 'session/resume') {
+        return ok(command, resumeSuccessData('session-old'));
+      }
+      return ok(command);
+    });
+    const hostClient = {
+      getHostInstanceId: () => 'host-1',
+      getTransport: () => 'live',
+      isReady: () => true,
+      request,
+    } as unknown as HostClient;
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const dispatch = vi.fn();
+    const state: ChatUiState = {
+      ...chatState(),
+      activeSessionId: 'session-old',
+      transcriptOwnerSessionId: 'session-old',
+      awaitingTranscript: false,
+    };
+    let captured: ResumeHook | undefined;
+    function Harness(): null {
+      captured = useSessionResume({
+        hostClient,
+        state,
+        dispatch: dispatch as (action: ChatUiAction) => void,
+        dispatchNotification: vi.fn(),
+        locale: 'en',
+        showArchivedSessions: false,
+        hydrateSessions: vi.fn(async () => []),
+      });
+      return null;
+    }
+    act(() => {
+      root?.render(<Harness />);
+    });
+
+    await act(async () => {
+      await captured?.handleResumeSession('session-old');
+    });
+
+    expect(request).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'session/resume' }));
+    expect(dispatch).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'session/set', sessionId: 'session-old' }),
+    );
+  });
+
   it('does not re-set the same session after discovering project scope from resume', async () => {
     const hostClient = liveHost(async (command) => {
       if (command.type === 'project/open') {

@@ -14,12 +14,22 @@
 import type { ThemeManifest } from '@piwin/contracts';
 import inkWashManifest from '@piwin/theme/bundled/piwin-ink-wash';
 import type { AppearanceThemeSettings } from './ui-preferences';
-import { PIWIN_APPEARANCE_BONE, PIWIN_APPEARANCE_OBSIDIAN } from './theme/deck-palette';
+import {
+  PIWIN_APPEARANCE_BONE,
+  PIWIN_APPEARANCE_INKSTONE_INK,
+  PIWIN_APPEARANCE_INKSTONE_PAPER,
+  PIWIN_APPEARANCE_OBSIDIAN,
+} from './theme/deck-palette';
 
 export { applyAppearanceToDocument, appearanceVariableNames } from './theme/apply-appearance';
 export { beginThemeSwitch } from './theme/theme-switch';
 export { deriveDeckTokens, resolveDeckTokens } from './theme/deck-derive';
-export { PIWIN_APPEARANCE_BONE, PIWIN_APPEARANCE_OBSIDIAN } from './theme/deck-palette';
+export {
+  PIWIN_APPEARANCE_BONE,
+  PIWIN_APPEARANCE_INKSTONE_INK,
+  PIWIN_APPEARANCE_INKSTONE_PAPER,
+  PIWIN_APPEARANCE_OBSIDIAN,
+} from './theme/deck-palette';
 
 /** Browser-safe projection of the bundled token-only ink-wash manifest. */
 export const PIWIN_APPEARANCE_INK_WASH: ThemeManifest = inkWashManifest as ThemeManifest;
@@ -36,6 +46,8 @@ export const BUILTIN_APPEARANCES: ThemeManifest[] = [
   PIWIN_APPEARANCE_OBSIDIAN,
   PIWIN_APPEARANCE_BONE,
   PIWIN_APPEARANCE_INK_WASH,
+  PIWIN_APPEARANCE_INKSTONE_PAPER,
+  PIWIN_APPEARANCE_INKSTONE_INK,
 ];
 
 /**
@@ -87,17 +99,33 @@ export function isAppearanceFaceId(themeId: string): boolean {
     return true;
   }
   const id = migrateThemeId(themeId);
-  return id === 'piwin-obsidian' || id === 'piwin-bone';
+  return (
+    id === 'piwin-obsidian' ||
+    id === 'piwin-bone' ||
+    id === 'piwin-inkstone-paper' ||
+    id === 'piwin-inkstone-ink'
+  );
+}
+
+/** Installed visual packages own their colors; built-in product faces can flip. */
+export function isThemeAppearanceLocked(theme: Pick<ThemeManifest, 'id' | 'visualStyle'>): boolean {
+  return theme.visualStyle !== undefined && !isAppearanceFaceId(theme.id);
 }
 
 export function resolveBuiltinAppearance(themeId: string | undefined): ThemeManifest {
   switch (themeId === undefined ? '' : migrateThemeId(themeId)) {
     case 'piwin-bone':
       return PIWIN_APPEARANCE_BONE;
+    case 'piwin-obsidian':
+      return PIWIN_APPEARANCE_OBSIDIAN;
     case 'piwin-ink-wash':
       return PIWIN_APPEARANCE_INK_WASH;
+    case 'piwin-inkstone-paper':
+      return PIWIN_APPEARANCE_INKSTONE_PAPER;
+    case 'piwin-inkstone-ink':
+      return PIWIN_APPEARANCE_INKSTONE_INK;
     default:
-      return PIWIN_APPEARANCE_OBSIDIAN;
+      return PIWIN_APPEARANCE_INKSTONE_PAPER;
   }
 }
 
@@ -115,7 +143,7 @@ export function resolveSystemThemeMode(): 'light' | 'dark' {
   if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
     return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
   }
-  return 'dark';
+  return 'light';
 }
 
 /**
@@ -130,7 +158,17 @@ export function buildAppearanceTheme(
   mode: 'light' | 'dark',
   settings: AppearanceThemeSettings,
 ): ThemeManifest {
-  const base = mode === 'light' ? PIWIN_APPEARANCE_BONE : PIWIN_APPEARANCE_OBSIDIAN;
+  const base =
+    mode === 'light' ? PIWIN_APPEARANCE_INKSTONE_PAPER : PIWIN_APPEARANCE_INKSTONE_INK;
+  // Default colors must retain the authored manifest identity: structural
+  // Inkstone selectors and the dark slab depend on it, not just the colors.
+  if (
+    settings.background.toLowerCase() === base.tokens.bg.toLowerCase() &&
+    settings.foreground.toLowerCase() === base.tokens.text.toLowerCase() &&
+    settings.accent.toLowerCase() === base.tokens.accent.toLowerCase()
+  ) {
+    return base;
+  }
   // Built without spreading `base`, so the authored `deck` ramp is absent and
   // the custom colors drive a fresh derivation instead of being half-overridden.
   return {

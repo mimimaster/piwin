@@ -474,45 +474,52 @@
   background: color-mix(in srgb, var(--iris) 22%, transparent);
 }
 
-/* File paths remain clickable, with crisp file badges and precise baseline alignment. */
-.md-doc-chip {
+/* File paths (.pc / .md-doc-chip) render as clean capsule cards with neutral typography per proto-01-transcript.html:92-94. */
+.md-doc-chip,
+.pc {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 1px 3px;
-  margin: 0 2px;
-  font-family: var(--font-mono);
-  font-size: 0.95em;
-  font-weight: 500;
-  text-decoration: none;
+  gap: 4px;
+  font: 12px var(--mono, var(--font-mono, monospace));
+  color: var(--t1, var(--text-1, #1d1b17));
+  background: var(--s3, var(--surface-3, var(--hover, #fffdf8)));
+  box-shadow: var(--sh1, 0 1px 2px rgba(60, 45, 20, 0.06), 0 0 0 1px var(--l2, rgba(29, 27, 23, 0.11)));
+  padding: 1px 6px;
+  border-radius: 3px;
+  vertical-align: -1px;
   cursor: pointer;
-  vertical-align: -2px;
-  transition: color var(--t-1) var(--ease-out);
-  line-height: 1.35;
-  background: transparent;
-  color: var(--iris-lift);
-  border: none;
-  box-shadow: none;
+  white-space: nowrap;
+  max-width: 100%;
+  text-decoration: none;
+  border: 0;
+  box-sizing: border-box;
 }
 
-.md-doc-chip .file-icon {
-  width: 1.05em;
-  height: 1.05em;
-  min-width: 15px;
-  min-height: 15px;
-  flex-shrink: 0;
+.md-doc-chip:hover,
+.pc:hover {
+  background: var(--s4, var(--surface-2, #ffffff));
+  color: var(--t1, var(--text-1, #1d1b17));
+  text-decoration: none;
+}
+
+.md-doc-chip .i,
+.md-doc-chip svg,
+.md-doc-chip .path-chip-icon,
+.md-doc-chip .file-icon,
+.pc .i,
+.pc svg,
+.pc .path-chip-icon,
+.pc .file-icon {
+  width: 12px;
+  height: 12px;
+  color: var(--t3, var(--text-3, #726b61));
+  flex: none;
+  stroke-width: 1.6;
 }
 
 .md-doc-chip span,
-.md-doc-chip .chip-text {
+.md-doc-chip .chip-text,
+.pc span,
+.pc .chip-text {
   color: inherit !important;
-}
-
-.md-doc-chip:hover {
-  background: transparent;
-  color: var(--iris);
-  transform: none;
-  box-shadow: none;
-  text-decoration: underline;
-  text-underline-offset: 2px;
 }

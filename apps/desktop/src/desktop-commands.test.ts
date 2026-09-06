@@ -41,4 +41,10 @@ describe('desktop-commands', () => {
     expect(hits.some((item) => item.id === 'open-activity')).toBe(true);
     expect(hits.some((item) => item.title.toLowerCase().includes('dock'))).toBe(false);
   });
+
+  it('matches Chinese titles and groups commands', () => {
+    const hits = filterDesktopCommands('新建');
+    expect(hits.some((item) => item.id === 'new-session')).toBe(true);
+    expect(hits[0]?.group).toBe('session');
+  });
 });

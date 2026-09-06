@@ -9,7 +9,7 @@ import {
   encodeTokensToCompact,
   type HighlightWorkerRequest,
   type HighlightWorkerResponse,
-} from './highlight-protocol';
+} from './highlight-protocol.js';
 
 const DARK_THEME = 'github-dark' as const;
 const LIGHT_THEME = 'github-light' as const;
@@ -55,7 +55,8 @@ if (typeof self !== 'undefined') {
         try {
           await hl.loadLanguage(lang as never);
           loadedLanguages.add(lang);
-        } catch {
+        } catch (error: unknown) {
+          console.warn(`[highlight-worker] Unable to load '${lang}', using typescript.`, error);
           lang = 'typescript';
         }
       }
@@ -65,27 +66,30 @@ if (typeof self !== 'undefined') {
         theme: req.theme,
       });
 
+      const lineStart = req.lineStart ?? 0;
+      const lineEnd = req.lineEnd ?? result.tokens.length;
       const { palette, runs } = encodeTokensToCompact(
-        result.tokens,
-        req.lineStart ?? 0,
+        result.tokens.slice(lineStart, lineEnd),
+        lineStart,
       );
 
       const response: HighlightWorkerResponse = {
         requestId: req.requestId,
         sourceHash: req.sourceHash,
-        lineStart: req.lineStart ?? 0,
-        lineEnd: req.lineEnd ?? result.tokens.length,
+        lineStart,
+        lineEnd,
         palette,
         runs,
       };
 
       // Transfer Uint32Array buffer for zero-copy IPC
-      (self as any).postMessage(response, [runs.buffer]);
-    } catch {
+      self.postMessage(response, { transfer: [runs.buffer] });
+    } catch (error: unknown) {
+      console.warn('[highlight-worker] Tokenization failed, keeping plain source.', error);
       // In case of error, produce plain-text token fallback in worker
       const lines = req.code.split('\n');
       const { palette, runs } = encodeTokensToCompact(
-        lines.map((l) => [{ content: l, offset: 0 } as any]),
+        lines.slice(req.lineStart ?? 0, req.lineEnd).map((line) => [{ content: line, offset: 0 }]),
         req.lineStart ?? 0,
       );
       const response: HighlightWorkerResponse = {
@@ -96,7 +100,7 @@ if (typeof self !== 'undefined') {
         palette,
         runs,
       };
-      (self as any).postMessage(response, [runs.buffer]);
+      self.postMessage(response, { transfer: [runs.buffer] });
     }
   };
 }

@@ -8,5 +8,6 @@ describe('LiveReconnectBudget', () => {
     expect(budget.tryConsume(1)).toBe(true);
     expect(budget.tryConsume(2)).toBe(false);
     expect(budget.tryConsume(10_001)).toBe(true);
+    expect(budget.remaining(10_001)).toBe(1);
   });
 });

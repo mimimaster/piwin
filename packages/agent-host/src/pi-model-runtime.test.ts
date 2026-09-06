@@ -59,7 +59,7 @@ describe('pi-model-runtime', () => {
     const grokCompat = {
       supportsStore: false,
       supportsDeveloperRole: false,
-      supportsReasoningEffort: false,
+      supportsReasoningEffort: true,
     };
     expect(openAiRegistration.models[0]?.compat).toEqual(grokCompat);
     expect(openAiRegistration.models[1]?.compat).toEqual(grokCompat);
@@ -130,7 +130,7 @@ describe('pi-model-runtime', () => {
     expect(registration.models[0]?.compat).toEqual({
       supportsStore: false,
       supportsDeveloperRole: false,
-      supportsReasoningEffort: false,
+      supportsReasoningEffort: true,
     });
     expect(registration.models[0]).not.toHaveProperty('thinkingLevels');
     expect(registration.models[0]?.thinkingLevelMap).toEqual({

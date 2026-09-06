@@ -18,7 +18,7 @@ import type { HostClient } from '../host-client';
 import { reviewCardsForItemIds } from '../resolve-conversation-flashcards';
 import type { FileTreeRequest } from '../file-tree-panel';
 import type { FlashcardsPanelProps } from '../FlashcardsPanel';
-import type { KnowledgeCenterPanelProps } from '../KnowledgeCenterPanel';
+import type { DoccardsHostRequest } from '../knowledge/knowledge-host-request';
 import type { NotesPanelProps } from '../NotesPanel';
 
 export function isSpeechConfigured(config: PiwinConfig | null): boolean {
@@ -66,7 +66,7 @@ export function useWorkbenchPanelRequests(args: UseWorkbenchPanelRequestsArgs) {
     [hostClient],
   );
   const requestKnowledgeCenter = useCallback(
-    async (command: Parameters<KnowledgeCenterPanelProps['request']>[0]) => {
+    async (command: Parameters<DoccardsHostRequest>[0]) => {
       const response = await hostClient.request(
         command as unknown as Parameters<typeof hostClient.request>[0],
       );

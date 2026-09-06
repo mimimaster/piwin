@@ -106,6 +106,37 @@ export function cloneSessionWarmSnapshot(
  * Insert or refresh a snapshot and trim inactive warm set.
  * Skips empty transcripts (nothing useful to restore).
  */
+/**
+ * Cache the painted transcript under its real owner. Waiting placeholders
+ * must not be stored as the destination session's body.
+ */
+export function stashOwnedTranscript(
+  cache: WarmSessionCache,
+  snapshot: {
+    transcriptOwnerSessionId: string | null;
+    messages: ChatMessageUi[];
+    transcriptWindow: SessionWarmSnapshot['transcriptWindow'];
+    outline: SessionWarmSnapshot['outline'];
+    runRecordsById: SessionWarmSnapshot['runRecordsById'];
+    walkthroughsByMessageId: SessionWarmSnapshot['walkthroughsByMessageId'];
+    contextUsage: SessionWarmSnapshot['contextUsage'];
+  },
+): WarmSessionCache {
+  const ownerSessionId = snapshot.transcriptOwnerSessionId;
+  if (!ownerSessionId || snapshot.messages.length === 0) {
+    return cache;
+  }
+  return putWarmSessionSnapshot(cache, {
+    sessionId: ownerSessionId,
+    messages: snapshot.messages,
+    transcriptWindow: snapshot.transcriptWindow,
+    outline: snapshot.outline,
+    runRecordsById: snapshot.runRecordsById,
+    walkthroughsByMessageId: snapshot.walkthroughsByMessageId,
+    contextUsage: snapshot.contextUsage,
+  });
+}
+
 export function putWarmSessionSnapshot(
   cache: WarmSessionCache,
   snapshot: Omit<SessionWarmSnapshot, 'touchedAt'> & { touchedAt?: number },

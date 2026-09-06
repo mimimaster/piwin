@@ -84,6 +84,18 @@ describe('shell navigation stack', () => {
     expect(resolveShellSubPage({ kind: 'workspace' })).toBeNull();
   });
 
+  it('treats flashcards gallery and wiki as distinct stack entries', () => {
+    const opened = pushShellRoute(createInitialShellNavigation(), {
+      kind: 'flashcards',
+      entry: 'gallery',
+    });
+    const wiki = pushShellRoute(opened, { kind: 'flashcards', entry: 'wiki' });
+    expect(wiki.entries).toHaveLength(3);
+    expect(currentShellRoute(wiki)).toEqual({ kind: 'flashcards', entry: 'wiki' });
+    const sameWiki = pushShellRoute(wiki, { kind: 'flashcards', entry: 'wiki' });
+    expect(sameWiki).toBe(wiki);
+  });
+
   it('leaveSettingsRoute returns to workspace without inventing extra entries', () => {
     const opened = pushShellRoute(createInitialShellNavigation(), {
       kind: 'settings',

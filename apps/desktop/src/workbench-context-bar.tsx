@@ -57,6 +57,8 @@ export type WorkbenchContextBarProps = {
   onToggleAppearance: () => void;
   onResumeSession: (sessionId: string) => void | Promise<void>;
   onRetryLastUser: (messageId: string) => void | Promise<void>;
+  onOpenSessionSearch?: () => void;
+  isInkstone?: boolean;
 };
 
 export function WorkbenchContextBar(props: WorkbenchContextBarProps): ReactElement {
@@ -136,8 +138,8 @@ export function WorkbenchContextBar(props: WorkbenchContextBarProps): ReactEleme
       onStop={() => void onStop()}
       onViewActivity={() => onOpenInspector('terminal')}
       onReviewPermission={() => {
-        // Focus the inline permission gate in the stream when present.
-        const gate = document.querySelector<HTMLElement>('[data-testid="permission-gate"]');
+        // Focus the inline permission card in the stream when present.
+        const gate = document.querySelector<HTMLElement>('[data-testid="permission-bar"]');
         gate?.focus?.();
         gate?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
       }}
@@ -178,6 +180,8 @@ export function WorkbenchContextBar(props: WorkbenchContextBarProps): ReactEleme
             onReturnToRoot: () => void onResumeSession(activeSessionOrigin.rootSessionId),
           }
         : {})}
+      {...(props.onOpenSessionSearch ? { onOpenSearch: props.onOpenSessionSearch } : {})}
+      hideIdentity={props.isInkstone}
     />
   );
 }

@@ -112,6 +112,7 @@ export function ThinkingEffortControl({
             aria-label={`Model ${modelLabel}${showThinking ? `, thinking ${effortLabel}` : ''}`}
             data-testid="thinking-effort-trigger"
           >
+            <span className="thinking-effort-avatar" aria-hidden="true">{Array.from(shortModelLabel)[0] ?? 'M'}</span>
             <span className="thinking-effort-model">{shortModelLabel}</span>
             {showThinking ? (
               <>

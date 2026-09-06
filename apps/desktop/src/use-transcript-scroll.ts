@@ -68,8 +68,19 @@ export function shouldDetachFollowTailFromScrollDelta(options: {
   scrollTopDelta: number;
   programmatic: boolean;
   nearBottom: boolean;
+  scrollHeightDelta?: number;
 }): boolean {
   if (options.nearBottom) {
+    return false;
+  }
+  const heightDelta = options.scrollHeightDelta ?? 0;
+  // Virtualizer / image / Artifact height corrections move scrollTop with
+  // content height. Layout, not a user history gesture. Wheel-away is
+  // handled separately by shouldDetachFollowTailFromWheelDelta.
+  if (heightDelta > 0 && options.scrollTopDelta >= -heightDelta) {
+    return false;
+  }
+  if (options.programmatic && heightDelta !== 0) {
     return false;
   }
   if (options.scrollTopDelta <= -USER_SCROLL_AWAY_DELTA_PX) {
@@ -216,6 +227,8 @@ export function useTranscriptScroll(options: {
     applyMetrics(element);
   }, [applyMetrics]);
 
+  const isFollowingTail = useCallback((): boolean => followTailRef.current, []);
+
   const jumpToLatest = useCallback(() => {
     const element = containerRef.current;
     userDetachedRef.current = false;
@@ -254,6 +267,7 @@ export function useTranscriptScroll(options: {
         scrollTopDelta,
         programmatic: programmaticScrollRef.current,
         nearBottom: metrics.nearBottom,
+        scrollHeightDelta,
       })
     ) {
       detachFromTail();
@@ -265,15 +279,14 @@ export function useTranscriptScroll(options: {
       return;
     }
 
-    // Content grew under a following viewport (Artifact iframe / virtualizer)
-    // while scrollTop stayed put. That is not user navigation — re-stick and
-    // keep follow-tail rather than locking onto historical turns.
+    // Content grew under a following viewport (Artifact iframe / virtualizer
+    // measure). Re-stick rather than locking onto the old estimated bottom,
+    // which reads as "opened in the middle of the conversation".
     if (
       followTailRef.current &&
       !userDetachedRef.current &&
       !metrics.nearBottom &&
-      scrollHeightDelta > 0 &&
-      Math.abs(scrollTopDelta) < 1
+      scrollHeightDelta > 0
     ) {
       stickToBottomAcrossFrames();
       return;
@@ -430,6 +443,7 @@ export function useTranscriptScroll(options: {
     handleScroll,
     setFollowTail,
     detachFromTail,
+    isFollowingTail,
     restorePosition,
     /** Immediate follow-tail stick for nested growers (Artifact iframe height). */
     notifyContentGrew: stickToBottomAcrossFrames,

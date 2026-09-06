@@ -6,9 +6,8 @@
  * when a safety prompt is active; Conversation (general scope) never shows
  * this gate.
  */
-import type { ReactElement } from 'react';
+import { useEffect, useRef, type ReactElement } from 'react';
 import type { PlanExecutionMode, SessionPlan } from '@piwin/contracts';
-import { AgentInterruptionFrame } from './agent-interruption-frame';
 import { getBehaviorActivitySpec } from './behavior-activity.js';
 import { useDesktopLocale } from './desktop-locale-context';
 
@@ -64,7 +63,7 @@ type GateCopy = {
   recommended: string;
   inline: string;
   subagent: string;
-  description: (title: string) => string;
+  kb: string;
 };
 
 const COPY_ZH: GateCopy = {
@@ -73,7 +72,7 @@ const COPY_ZH: GateCopy = {
   recommended: '推荐',
   inline: '当前会话直接做',
   subagent: '子代理执行',
-  description: (title) => title,
+  kb: 'A / B 直接按键 · 出现在作曲器上方 · 安全提示占位时让位 · Conversation 会话不显示',
 };
 
 const COPY_EN: GateCopy = {
@@ -82,8 +81,25 @@ const COPY_EN: GateCopy = {
   recommended: 'Recommended',
   inline: 'Inline in this session',
   subagent: 'Subagent-driven',
-  description: (title) => title,
+  kb: 'Press A / B · Docked above composer · Yields to safety prompt · Hidden in Conversation',
 };
+
+export function formatPlanDescription(
+  plan: Pick<SessionPlan, 'title' | 'steps' | 'independentSteps'>,
+  locale: string,
+): string {
+  const title = plan.title ? plan.title.trim() : '';
+  const totalSteps = plan.steps.length;
+  const parallelSteps = countIndependentSteps(plan);
+  if (locale === 'en') {
+    const stepPart = `${totalSteps} ${totalSteps === 1 ? 'step' : 'steps'}`;
+    const parallelPart = parallelSteps > 0 ? ` · ${parallelSteps} parallelizable` : '';
+    return title ? `${title} · ${stepPart}${parallelPart}` : `${stepPart}${parallelPart}`;
+  }
+  const stepPart = `${totalSteps} 步`;
+  const parallelPart = parallelSteps > 0 ? ` · ${parallelSteps} 步可并行` : '';
+  return title ? `${title} · ${stepPart}${parallelPart}` : `${stepPart}${parallelPart}`;
+}
 
 export function PlanExecutionGate(props: PlanExecutionGateProps): ReactElement {
   const { plan, onExecute, actionInProgress = false } = props;
@@ -101,38 +117,77 @@ export function PlanExecutionGate(props: PlanExecutionGateProps): ReactElement {
           { mode: 'subagent-driven', badge: 'B', label: copy.subagent },
         ];
 
+  const onExecuteRef = useRef(onExecute);
+  onExecuteRef.current = onExecute;
+
+  useEffect(() => {
+    function isEditableTarget(target: EventTarget | null): boolean {
+      if (!(target instanceof HTMLElement)) return false;
+      return (
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'INPUT' ||
+        target.isContentEditable
+      );
+    }
+
+    function onKeyDown(event: KeyboardEvent): void {
+      if (actionInProgress) return;
+      if (isEditableTarget(event.target)) return;
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+      const key = event.key.toUpperCase();
+      if (key === 'A') {
+        event.preventDefault();
+        const modeA = modes[0]?.mode;
+        if (modeA) void onExecuteRef.current(modeA);
+      } else if (key === 'B') {
+        event.preventDefault();
+        const modeB = modes[1]?.mode;
+        if (modeB) void onExecuteRef.current(modeB);
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [actionInProgress, modes]);
+
+  const description = formatPlanDescription(plan, locale);
+
   return (
-    <AgentInterruptionFrame
-      tone="question"
-      statusLabel={copy.status}
-      title={copy.title}
-      description={plan.title ? copy.description(plan.title) : undefined}
-      testId="plan-execution-gate"
-      activityId="plan"
-      activityAnimation={getBehaviorActivitySpec('plan').animation}
-      activityStatus="idle"
+    <div
+      className="intr plan-execution-gate"
+      data-testid="plan-execution-gate"
+      data-activity-id="plan"
+      data-activity-animation={getBehaviorActivitySpec('plan').animation}
+      data-tool-status="idle"
+      aria-label={copy.status}
     >
-      <div className="agent-interruption-choices">
+      <span className="pill zhu-p">
+        <i />
+        {copy.status}
+      </span>
+      <h3>{copy.title}</h3>
+      <div className="desc">{description}</div>
+      <div className="choices">
         {modes.map((entry) => {
           const isRecommended = entry.mode === recommended;
           return (
             <button
               type="button"
               key={entry.mode}
-              className="agent-interruption-choice"
+              className={`choice${isRecommended ? ' rec' : ''}`}
               data-testid={entry.mode === 'inline' ? 'plan-mode-inline' : 'plan-mode-subagent'}
               data-recommended={isRecommended ? 'true' : 'false'}
               disabled={actionInProgress}
               onClick={() => void onExecute(entry.mode)}
             >
-              <span className="agent-interruption-choice-badge">{entry.badge}</span>
-              <span className="agent-interruption-choice-label">
-                {isRecommended ? `${copy.recommended} · ${entry.label}` : entry.label}
-              </span>
+              <span className="bd">{entry.badge}</span>
+              <span>{isRecommended ? `${copy.recommended} · ${entry.label}` : entry.label}</span>
             </button>
           );
         })}
       </div>
-    </AgentInterruptionFrame>
+      <div className="kb">{copy.kb}</div>
+    </div>
   );
 }
+

@@ -35,6 +35,7 @@ import {
 import { ConversationPaneSession } from './conversation-pane-session.js';
 import { ConversationPaneEmptyState } from './conversation-pane-empty-state.js';
 import { ConversationPaneHeader } from './conversation-pane-header.js';
+import { ConversationPaneLayoutPresets } from './conversation-pane-layout-presets.js';
 import type { MediaPreviewReader } from './transcript-media-preview.js';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model.js';
 import type { DocumentOpenInput } from './tool-call-card.js';
@@ -140,9 +141,12 @@ export function ConversationPaneWorkspace(props: ConversationPaneWorkspaceProps)
   }
 
   function getStageElement(): HTMLElement | null {
-    const root = rootRef.current;
-    if (!root) return null;
-    return root.clientWidth > 0 && root.clientHeight > 0 ? root : root.parentElement;
+    let node: HTMLElement | null = rootRef.current;
+    while (node) {
+      if (node.clientWidth > 0 && node.clientHeight > 0) return node;
+      node = node.parentElement;
+    }
+    return null;
   }
 
   function explainInsufficientSpace(): void {
@@ -218,10 +222,7 @@ export function ConversationPaneWorkspace(props: ConversationPaneWorkspaceProps)
     const observedWorkspace: HTMLDivElement = workspace;
 
     function reconcileLayoutSize(): void {
-      const stage =
-        observedWorkspace.clientWidth > 0 && observedWorkspace.clientHeight > 0
-          ? observedWorkspace
-          : observedWorkspace.parentElement;
+      const stage = getStageElement();
       if (!stage || stage.clientWidth <= 0 || stage.clientHeight <= 0) return;
       controller.update((current) =>
         constrainConversationPaneLayout(current, {
@@ -299,11 +300,11 @@ export function ConversationPaneWorkspace(props: ConversationPaneWorkspaceProps)
   const maximizedPaneId = controller.layout.maximizedPaneId;
   return (
     <div
-      ref={rootRef}
       className={`conversation-pane-workspace${multiplePanes ? '' : ' is-single-pane'}${maximizedPaneId && multiplePanes ? ' has-maximized-pane' : ''}`}
       data-testid="conversation-pane-workspace"
       data-pane-count={leaves.length}
     >
+      <div ref={rootRef} className="conversation-pane-stage">
       {leaves.map((leaf, index) => {
         const rect = rectangles.find((item) => item.paneId === leaf.paneId);
         if (!rect) return null;
@@ -335,6 +336,7 @@ export function ConversationPaneWorkspace(props: ConversationPaneWorkspaceProps)
             onFocus={() => controller.focus(leaf.paneId)}
             onPointerDownCapture={() => controller.focus(leaf.paneId)}
           >
+            <div className="conversation-pane-frame">
             {multiplePanes ? (
               <ConversationPaneHeader
                 paneId={leaf.paneId}
@@ -346,7 +348,7 @@ export function ConversationPaneWorkspace(props: ConversationPaneWorkspaceProps)
                 splitDisabled={leaves.length >= CONVERSATION_PANE_MAX_COUNT}
                 locale={props.locale}
                 sessionId={sessionId}
-                sessions={props.sessions}
+                sessions={availableSessions}
                 onApplyPreset={applyPreset}
                 onSplit={splitPane}
                 onToggleMaximized={controller.toggleMaximized}
@@ -383,14 +385,13 @@ export function ConversationPaneWorkspace(props: ConversationPaneWorkspaceProps)
               ) : (
                 <ConversationPaneEmptyState
                   paneId={leaf.paneId}
-                  sessions={availableSessions}
                   creating={creatingPaneId === leaf.paneId}
                   createDisabled={creatingPaneId !== null}
                   locale={props.locale}
                   onCreate={(paneId) => void createConversation(paneId)}
-                  onSelect={controller.bindSession}
                 />
               )}
+            </div>
             </div>
           </section>
         );
@@ -410,6 +411,14 @@ export function ConversationPaneWorkspace(props: ConversationPaneWorkspaceProps)
         <div className="conversation-pane-notice" role="status" aria-live="polite">
           {notice}
         </div>
+      ) : null}
+      </div>
+      {multiplePanes ? (
+        <ConversationPaneLayoutPresets
+          currentCount={leaves.length}
+          locale={props.locale}
+          onApplyPreset={applyPreset}
+        />
       ) : null}
     </div>
   );

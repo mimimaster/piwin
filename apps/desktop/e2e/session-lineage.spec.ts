@@ -8,7 +8,6 @@ async function waitForHostReady(page: Page): Promise<void> {
 
 async function openSession(page: Page): Promise<void> {
   await page.getByTestId('open-workspace-btn').click();
-  await page.getByRole('menuitem', { name: /打开工作区文件夹|open workspace folder/i }).click();
   await page.getByTestId('project-path-input').fill('/tmp/piwin-e2e-session-lineage');
   await page.getByTestId('open-project-btn').click();
   await expect(page.getByTestId('workspace-path-dialog')).toHaveCount(0);

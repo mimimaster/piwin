@@ -347,16 +347,15 @@ export type ChatUiState = {
    * True after resume `session/set({ awaitTranscript: true })` until
    * `session/load-messages` arrives. Ignores stream events for the new
    * session until hydrate completes. Paint policy on set:
-   * warm hit → that session's rows; cold + awaiting → keep previous rows
-   * under a loading banner (no empty flash); Host load replaces them.
+   * warm hit → that session's rows; cold → empty placeholder until Host load.
    * New empty sessions leave this false (no load-messages is coming).
    */
   awaitingTranscript: boolean;
   /**
-   * Session that owns the rows currently painted in `messages`. During a cold
-   * resume, `activeSessionId` moves to the new session while old rows remain
-   * visible; derived actions (fork/duplicate/retry) must not combine an old
-   * message id with the new session id, so they verify this field first.
+   * Session that owns the rows currently painted in `messages`. Cold switches
+   * clear the previous body, so this should match `activeSessionId` unless a
+   * draft send is still painting optimistic user rows. Derived actions verify
+   * this field before combining a message id with the selected session.
    */
   transcriptOwnerSessionId: string | null;
   /**
@@ -472,6 +471,14 @@ export type ChatUiState = {
    */
   completedAttentionSessionIds: Record<string, true>;
   /**
+   * Session IDs whose latest session-turn failed while the user was looking
+   * elsewhere. Tracked separately from `completedAttentionSessionIds` so the
+   * sidebar's ink-line node can distinguish "done" from "failed" (Inkstone
+   * six-state vocabulary) instead of collapsing both into one green mark.
+   * Same lifecycle as the completed marker: cleared on open or dismissal.
+   */
+  failedAttentionSessionIds: Record<string, true>;
+  /**
    * Frozen composer model for the in-flight turn. Stamped onto assistant rows
    * when Host omits `message/start.model`. Historic headers must not read the
    * live composer selection.
@@ -481,8 +488,8 @@ export type ChatUiState = {
 
 export type ChatUiAction =
   | { type: 'scope/set'; scope: SessionScope }
-  | { type: 'project/set'; path: string; trusted: boolean }
-  | { type: 'project/clear' }
+  | { type: 'project/set'; path: string; trusted: boolean; keepActiveSession?: boolean }
+  | { type: 'project/clear'; keepActiveSession?: boolean }
   | { type: 'project/trust-dialog'; open: boolean }
   | { type: 'project/trusted' }
   | { type: 'session/set'; sessionId: string; awaitTranscript?: boolean; ifIdle?: boolean }

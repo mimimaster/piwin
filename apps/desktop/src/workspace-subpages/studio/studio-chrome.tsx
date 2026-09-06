@@ -85,7 +85,13 @@ export function StudioTopbar(props: StudioTopbarProps): ReactElement {
           <span className="vault-bar-context">
             <span>{title}</span>
             {props.titleCount !== undefined ? (
-              <span className="vault-bar-count">{props.titleCount}</span>
+              <span className="vault-bar-count">
+                {props.kind === 'flashcards'
+                  ? t(`${props.titleCount}`, `${props.titleCount} 张`)
+                  : props.kind === 'library'
+                    ? t(`${props.titleCount}`, `${props.titleCount} 项`)
+                    : props.titleCount}
+              </span>
             ) : null}
           </span>
         </div>

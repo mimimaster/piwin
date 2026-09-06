@@ -3,7 +3,7 @@
  */
 import { DEFAULT_MAX_ARTIFACT_BYTES } from './constants.js';
 import { createDefaultArtifactIframePolicy } from './iframe-policy.js';
-import { classifyArtifactSecurity } from './security.js';
+import { classifyArtifactSecurity, type ArtifactSecurityPolicy } from './security.js';
 import type { ArtifactCapabilityReport, ArtifactIframePolicy } from './types.js';
 
 const SCRIPT_PATTERN =
@@ -82,11 +82,13 @@ export function inspectArtifactCapabilities(
   source: string,
   iframePolicy?: ArtifactIframePolicy,
   maxBytes?: number,
+  policy?: ArtifactSecurityPolicy,
 ): ArtifactCapabilityReport {
   const security = classifyArtifactSecurity(
     source,
     iframePolicy ?? createDefaultArtifactIframePolicy(),
     maxBytes ?? DEFAULT_MAX_ARTIFACT_BYTES,
+    policy ?? {},
   );
 
   const attributeRefs = collectNonInlineReferences(source, RESOURCE_ATTRIBUTE_PATTERN);

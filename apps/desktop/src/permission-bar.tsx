@@ -9,7 +9,7 @@
  *     .permission-bar-detail    — collapsible full facts (PermissionFacts)
  *     .permission-bar-actions   — Allow session / once / project / Deny
  */
-import { useState, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { Button, Collapse } from '@piwin/ui-kit';
 import type { PermissionDecision, PermissionRememberScope } from '@piwin/contracts';
 import type { PermissionPromptUi } from './chat-reducer';
@@ -57,6 +57,7 @@ export function PermissionBar(props: PermissionBarProps): ReactElement {
   const { translator } = useDesktopLocale();
   const copy = translator.interruption;
   const [expanded, setExpanded] = useState(() => shouldDefaultExpand(prompt));
+  const [stamping, setStamping] = useState(false);
   const context = prompt.context ?? null;
   const canRemember =
     canRememberPermissionForProject(context, prompt.action) && Boolean(projectPath);
@@ -65,6 +66,39 @@ export function PermissionBar(props: PermissionBarProps): ReactElement {
   const subject = permissionSubject(prompt);
   const detailId = `permission-detail-${prompt.requestId}`;
   const queuedRemaining = props.queuedRemaining ?? 0;
+
+  // Seal-stamp keyboard contract: Enter grants (session-scoped) with a stamp
+  // flourish before the decision fires, Esc denies immediately. Skipped while
+  // focus is in an editable field so it never fights the composer or an
+  // in-place edit textarea. Each prompt (keyed by requestId) re-arms once.
+  const onPermissionRef = useRef(props.onPermission);
+  onPermissionRef.current = props.onPermission;
+  useEffect(() => {
+    setStamping(false);
+    function isEditableTarget(target: EventTarget | null): boolean {
+      if (!(target instanceof HTMLElement)) return false;
+      return (
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'INPUT' ||
+        target.isContentEditable
+      );
+    }
+    function onKeyDown(event: KeyboardEvent): void {
+      if (isEditableTarget(event.target)) return;
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        setStamping(true);
+        window.setTimeout(() => {
+          onPermissionRef.current('allow', 'session');
+        }, 160);
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        onPermissionRef.current('deny');
+      }
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [prompt.requestId]);
 
   return (
     <AgentInterruptionFrame
@@ -105,9 +139,13 @@ export function PermissionBar(props: PermissionBarProps): ReactElement {
         <Button
           variant="primary"
           size="compact"
-          className="permission-bar-btn-allow-session"
+          className={`permission-bar-btn-allow-session permission-bar-seal${stamping ? ' is-stamping' : ''}`}
           data-testid="permission-bar-allow-session"
-          onClick={() => props.onPermission('allow', 'session')}
+          title={`${copy.allowForSession} (Enter)`}
+          onClick={() => {
+            setStamping(true);
+            window.setTimeout(() => props.onPermission('allow', 'session'), 160);
+          }}
         >
           <span className="agent-interruption-choice-badge">A</span>
           <span>{copy.allowForSession}</span>
@@ -140,12 +178,16 @@ export function PermissionBar(props: PermissionBarProps): ReactElement {
           size="compact"
           className="permission-bar-btn-deny"
           data-testid="permission-bar-deny"
+          title={`${copy.deny} (Esc)`}
           onClick={() => props.onPermission('deny')}
         >
           <span className="agent-interruption-choice-badge">{canRemember ? 'D' : 'C'}</span>
           <span>{copy.deny}</span>
         </Button>
       </div>
+      <p className="permission-bar-kbd-hint" aria-hidden="true">
+        <kbd>Enter</kbd> {copy.allowForSession} · <kbd>Esc</kbd> {copy.deny}
+      </p>
     </AgentInterruptionFrame>
   );
 }

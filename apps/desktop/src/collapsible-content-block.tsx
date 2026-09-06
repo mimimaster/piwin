@@ -16,29 +16,50 @@ export type CollapsibleContentBlockProps = {
   className?: string;
 };
 
+/**
+ * `expandable` is a hard override. OR-ing it with a live measurement of the
+ * collapsed preview (shorter than the full fence) is what made code blocks
+ * flip expand/collapse every frame when the column was squeezed.
+ */
+export function resolveCollapsibleOverflow(
+  expandable: boolean | undefined,
+  measuredOverflow: boolean,
+): boolean {
+  return expandable !== undefined ? expandable : measuredOverflow;
+}
+
 export function CollapsibleContentBlock(props: CollapsibleContentBlockProps): ReactElement {
   const maxCollapsedHeight = props.maxCollapsedHeight ?? 130;
   const [collapsed, setCollapsed] = useState(props.defaultCollapsed ?? true);
   const [measuredOverflow, setMeasuredOverflow] = useState(false);
   const contentRef = useRef<HTMLDivElement | null>(null);
+  const expandable = props.expandable;
 
-  const isOverflowing =
-    props.expandable !== undefined ? props.expandable || measuredOverflow : measuredOverflow;
+  const isOverflowing = resolveCollapsibleOverflow(expandable, measuredOverflow);
 
   useEffect(() => {
+    if (expandable !== undefined) {
+      return;
+    }
     const node = contentRef.current;
     if (!node) return;
 
     function checkOverflow(): void {
       if (!node) return;
-      setMeasuredOverflow(node.scrollHeight > maxCollapsedHeight + 12);
+      // Measure the unclamped box. scrollHeight of a max-height preview is
+      // the preview, not the content, so it chatters around the threshold.
+      const previousMaxHeight = node.style.maxHeight;
+      node.style.maxHeight = 'none';
+      const naturalHeight = node.scrollHeight;
+      node.style.maxHeight = previousMaxHeight;
+      setMeasuredOverflow(naturalHeight > maxCollapsedHeight + 12);
     }
 
     checkOverflow();
     const observer = new ResizeObserver(checkOverflow);
     observer.observe(node);
     return () => observer.disconnect();
-  }, [maxCollapsedHeight, props.children]);
+  }, [expandable, maxCollapsedHeight, props.children]);
 
   useEffect(() => {
     if (props.defaultCollapsed !== undefined) {

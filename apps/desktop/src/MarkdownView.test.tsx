@@ -640,9 +640,6 @@ describe('MarkdownView artifact preview policy', () => {
     expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
     expect(container.querySelector('.artifact-frame')).toBeNull();
     expect(
-      container.querySelector('.md-code-collapsible')?.classList.contains('is-collapsed'),
-    ).toBe(true);
-    expect(
       container
         .querySelector('.artifact-with-source')
         ?.classList.contains('artifact-with-source--preview'),

@@ -16,6 +16,8 @@ import {
   AUTH_LOGIN_IDLE_MS,
   AUTH_UPDATED_DEBOUNCE_MS,
   allocateRelocateChannelId,
+  isModelEnabled,
+  isProviderEnabled,
   isV1SubscriptionProviderId,
 } from '@piwin/contracts';
 import {
@@ -364,6 +366,12 @@ export class SubscriptionAuthService {
     return {};
   }
 
+  /**
+   * Overlay Pi catalog metadata onto the secret-free picker list.
+   * Do not resurrect providers/models the user disabled on the Models page:
+   * `projectConfiguredChatModels` already dropped them, and putting them back
+   * made Composer keep showing subscription rows after the toggle was turned off.
+   */
   async mergeConfiguredModels(channelModels: {
     defaultProviderId?: string;
     defaultModelId?: string;
@@ -375,6 +383,10 @@ export class SubscriptionAuthService {
   }> {
     const port = await this.ensurePort();
     const accounts = await this.readAccounts();
+    const config = await this.loadConfig();
+    const providerById = new Map(
+      config.providers.map((provider) => [provider.id, provider] as const),
+    );
     const models = [...channelModels.models];
     const existing = new Set(models.map((model) => `${model.providerId}::${model.modelId}`));
     for (const account of accounts) {
@@ -384,7 +396,15 @@ export class SubscriptionAuthService {
       if (account.state !== 'logged-in' && account.state !== 'sync-error') {
         continue;
       }
+      const provider = providerById.get(account.providerId);
+      if (provider !== undefined && !isProviderEnabled(provider)) {
+        continue;
+      }
       for (const model of port.getChatCatalog(account.providerId)) {
+        const configuredModel = provider?.models.find((entry) => entry.id === model.id);
+        if (configuredModel !== undefined && !isModelEnabled(configuredModel)) {
+          continue;
+        }
         const key = `${account.providerId}::${model.id}`;
         if (existing.has(key)) {
           const current = models.find(

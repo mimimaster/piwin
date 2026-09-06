@@ -262,8 +262,7 @@
    The strip itself stays hidden (user preference); the stage ember wash in
    region-shell.css is the visible run indicator and keys off this dot. */
 
-.context-bar-status,
-[data-testid='run-status-strip'] {
+html:not([data-theme-id='piwin-inkstone-paper']):not([data-theme-id='piwin-inkstone-ink']) .context-bar-status {
   display: none !important;
 }
 
@@ -329,6 +328,11 @@
   flex: 0 0 auto;
   margin: 0;
   padding: 0;
+}
+
+/* Deck shares its titleband with inspector tabs; Inkstone has a separate row. */
+html:not([data-theme-id='piwin-inkstone-paper']):not([data-theme-id='piwin-inkstone-ink']) .context-bar[data-inspector-open='true'] .context-bar-controls {
+  display: none;
 }
 
 .context-bar-more-wrap {

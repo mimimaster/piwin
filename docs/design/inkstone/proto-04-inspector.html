@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inkstone（砚）· 增量 4 · 检视器</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:#e6e1d7;overflow:hidden}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-align:inherit}
+u{text-decoration:none;cursor:pointer}u:hover{text-decoration:underline}
+.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.s12{width:12px;height:12px}.s14{width:14px;height:14px}
+.ml{margin-left:auto}.grow{flex:1}
+.app{--sans:Inter,"PingFang SC","Noto Sans SC",-apple-system,system-ui,sans-serif;--serif:"Noto Serif SC","Songti SC","STSong","Source Han Serif SC","Source Serif 4",Georgia,serif;--mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;--spring:cubic-bezier(.34,1.4,.64,1);height:100dvh;width:100%;display:grid;grid-template-rows:28px minmax(0,1fr);background:var(--void);color:var(--t1);font:13.5px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+.app[data-face=paper]{color-scheme:light;--void:#e6e1d7;--s1:#f0ece4;--s2:#f8f6f0;--s3:#fffdf8;--s4:#fff;--t1:#1d1b17;--t2:#5a554d;--t3:#726b61;--t4:#8f887d;--l1:rgba(29,27,23,.06);--l2:rgba(29,27,23,.11);--l3:rgba(29,27,23,.2);--zhu:#c6412a;--zhu-lift:#d4553d;--on-zhu:#fff7f0;--zhu-wash:rgba(198,65,42,.1);--lamp:#b8801f;--lamp-glow:rgba(184,128,31,.4);--lamp-wash:rgba(184,128,31,.14);--pine:#3d7c5e;--pine-wash:rgba(61,124,94,.12);--ochre:#94611a;--ochre-wash:rgba(148,97,26,.12);--crimson:#9c2e3d;--crimson-wash:rgba(156,46,61,.1);--azure:#3a7797;--azure-wash:rgba(58,119,151,.12);--code:#efece4;--sh1:0 1px 2px rgba(60,45,20,.06),0 0 0 1px var(--l2);--sh2:0 2px 8px -2px rgba(60,45,20,.12),0 0 0 1px var(--l2);--sh3:0 14px 34px -12px rgba(50,35,15,.3),0 0 0 1px var(--l3)}
+.app[data-face=ink]{color-scheme:dark;--void:#0b0a09;--s1:#141210;--s2:#191714;--s3:#201d19;--s4:#2a2621;--t1:#ebe5da;--t2:#a59d92;--t3:#8b8378;--t4:#6a6259;--l1:rgba(235,229,218,.06);--l2:rgba(235,229,218,.1);--l3:rgba(235,229,218,.17);--zhu:#e25a3d;--zhu-lift:#f07054;--on-zhu:#1c0b07;--zhu-wash:rgba(226,90,61,.14);--lamp:#e7b352;--lamp-glow:rgba(231,179,82,.35);--lamp-wash:rgba(231,179,82,.12);--pine:#5fad85;--pine-wash:rgba(95,173,133,.14);--ochre:#c88f3c;--ochre-wash:rgba(200,143,60,.14);--crimson:#d95f6e;--crimson-wash:rgba(217,95,110,.14);--azure:#6ba4c3;--azure-wash:rgba(107,164,195,.14);--code:#0f0e0c;--sh1:inset 0 1px 0 rgba(255,255,255,.04),0 0 0 1px rgba(0,0,0,.6);--sh2:inset 0 1px 0 rgba(255,255,255,.04),0 0 0 1px rgba(0,0,0,.6),0 2px 8px -2px rgba(0,0,0,.5);--sh3:inset 0 1px 0 rgba(255,255,255,.06),0 0 0 1px rgba(0,0,0,.7),0 14px 34px -10px rgba(0,0,0,.7)}
+.proto{display:flex;align-items:center;gap:10px;padding:0 12px;font:11px var(--mono);color:var(--t3);border-bottom:1px dashed var(--l2);white-space:nowrap;overflow:hidden}
+.proto .pt{color:var(--t1);margin-right:8px}.proto .pl{color:var(--t4)}.proto .pn{margin-left:auto;color:var(--t4)}
+.seg{display:inline-flex;border:1px solid var(--l2);border-radius:5px;overflow:hidden;flex:none}
+.seg button{font:11px var(--mono);padding:3px 8px;color:var(--t3)}.seg button.on{background:var(--s3);color:var(--t1)}
+.body{display:grid;grid-template-columns:232px minmax(0,1fr);gap:8px;padding:0 8px 8px;min-height:0}
+.panel{background:var(--s1);border-radius:12px;box-shadow:var(--sh2);min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.idx-h{padding:12px 12px 4px;font:500 15px var(--serif);color:var(--t1)}
+.idx-h small{display:block;font:11px var(--mono);color:var(--t4);margin-top:2px;white-space:normal;line-height:1.5}
+.idx-scroll{flex:1;overflow:auto;min-height:0;padding:0 6px 8px}
+.ig{display:flex;align-items:center;gap:6px;height:22px;padding:0 8px;margin-top:8px;font:600 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--t3)}
+.ir{display:flex;align-items:center;gap:8px;height:26px;padding:0 8px;border-radius:6px;font-size:12.5px;color:var(--t2);white-space:nowrap;overflow:hidden;width:100%}
+.ir:hover{background:var(--s2);color:var(--t1)}.ir.on{background:var(--s3);box-shadow:var(--sh1);color:var(--t1)}
+.n{font:11px var(--mono);color:var(--t4);font-variant-numeric:tabular-nums}
+.ir .n{width:18px;flex:none}
+.stage{background:var(--s2);position:relative;container-type:inline-size;display:flex;flex-direction:column}
+.stage::after{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;opacity:.035;mix-blend-mode:multiply;background:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>") 0 0/200px 200px}
+.app[data-face=ink] .stage::after{mix-blend-mode:screen;opacity:.02}
+.scroll{--measure:800px;--card-x:14px;--card-y:12px;flex:1;overflow:auto;min-height:0;padding:16px 28px 24px;scroll-behavior:smooth}
+.scroll::-webkit-scrollbar,.idx-scroll::-webkit-scrollbar{width:8px}
+.scroll::-webkit-scrollbar-thumb,.idx-scroll::-webkit-scrollbar-thumb{background:var(--l2);border-radius:4px}
+.st{display:flex;align-items:baseline;gap:10px;width:100%;max-width:var(--measure);margin:26px auto 14px}
+.st:first-child{margin-top:6px}
+.st h2{font:500 20px/1.3 var(--serif);color:var(--t1)}
+.st .sn{font:11px var(--mono);color:var(--t4)}
+.blk{width:100%;max-width:var(--measure);margin:0 auto 22px;scroll-margin-top:14px;position:relative}
+.app[data-notes=on] .blk::after{content:attr(data-n);position:absolute;right:-40px;top:0;width:24px;height:20px;border-radius:3px;background:var(--s3);box-shadow:var(--sh1);font:600 10.5px/20px var(--mono);text-align:center;color:var(--t3);pointer-events:none}
+.app[data-notes=on] .blk.flash::after{background:var(--zhu);color:var(--on-zhu);box-shadow:none}
+.exh-h{font:600 15px/1.3 var(--sans);color:var(--t1);margin-bottom:2px}
+.exh-d{font-size:12.5px;color:var(--t3);margin-bottom:10px;max-width:700px}
+.exh-d code{font:11.5px var(--mono);background:var(--code);color:var(--t1);padding:1px 5px;border-radius:3px}
+.exh-d b.warn{color:var(--zhu);font-weight:600}
+.card{position:relative;background:var(--s3);box-shadow:var(--sh1);border-radius:8px;padding:var(--card-y) var(--card-x)}
+.card+.card{margin-top:8px}
+.row-cmp{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;border-radius:6px;color:var(--t2);font-size:12.5px;white-space:nowrap}
+.chip:hover{background:var(--s2);color:var(--t1)}
+.ib{width:26px;height:26px;border-radius:6px;display:inline-grid;place-items:center;color:var(--t3);flex:none}
+.ib:hover{background:var(--s2);color:var(--t1)}.ib.s22{width:22px;height:22px}
+.btn{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 10px;border-radius:6px;font-size:12.5px;color:var(--t2);white-space:nowrap;flex:none}
+.btn:hover{background:var(--s2);color:var(--t1)}
+.btn.pri{background:var(--zhu);color:var(--on-zhu)}.btn.pri:hover{background:var(--zhu-lift);color:var(--on-zhu)}
+.btn.dan{color:var(--crimson)}.btn.sm{height:22px;padding:0 7px;font-size:11.5px}
+.badge-dormant{display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:3px;background:var(--ochre-wash);color:var(--ochre);font:10px var(--mono);flex:none}
+/* ── 检视器外壳展台 ── */
+.insp-mock{background:var(--s1);border-radius:10px;box-shadow:var(--sh2);overflow:hidden;display:flex;flex-direction:column}
+.insp-tabbar{display:flex;align-items:center;gap:2px;height:34px;padding:0 6px 0 8px;border-bottom:1px solid var(--l1)}
+.insp-plus{width:22px;height:22px;border-radius:5px;color:var(--t3);display:grid;place-items:center;flex:none}
+.itab{display:flex;align-items:center;gap:5px;height:24px;padding:0 8px;border-radius:6px;font-size:11.5px;color:var(--t3);max-width:110px;flex:none}
+.itab .i{color:var(--t3)}
+.itab.act{background:var(--s3);box-shadow:var(--sh1);color:var(--t1)}.itab.act .i{color:var(--t1)}
+.itab .cx{margin-left:2px;width:14px;height:14px;border-radius:3px;display:grid;place-items:center;opacity:0}
+.itab:hover .cx{opacity:1}
+.itab .att{width:6px;height:6px;border-radius:50%;background:var(--azure);animation:breath 2.4s ease-in-out infinite;margin-left:2px}
+.insp-actions{margin-left:auto;display:flex;gap:2px;flex:none}
+.home-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;padding:20px;max-width:230px;margin:0 auto}
+.home-tile{aspect-ratio:1;border-radius:8px;background:var(--s2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--t3)}
+.home-tile:hover{background:var(--s3);box-shadow:var(--sh1);color:var(--t1)}
+.home-tile span{font-size:11px}
+.width-scale{display:flex;align-items:center;gap:2px;height:20px;margin-top:6px}
+.width-tick{height:6px;background:var(--l2);flex:1;border-radius:1px}
+.width-tick.on{background:var(--zhu)}
+/* ── 文件树 ── */
+.ft-mock{background:var(--s1);border-radius:8px;overflow:hidden}
+.ft-h{display:flex;align-items:center;gap:6px;height:30px;padding:0 8px;border-bottom:1px solid var(--l1);font-size:12px;color:var(--t2)}
+.ft-row{display:flex;align-items:center;gap:6px;height:26px;padding:0 8px;font-size:12px;color:var(--t1);border-radius:5px}
+.ft-row:hover{background:var(--s2)}
+.ft-row .gs{margin-left:auto;font:600 10px var(--mono);width:14px;text-align:center;flex:none}
+.ft-row .gs.m{color:var(--ochre)}.ft-row .gs.a{color:var(--pine)}.ft-row .gs.d{color:var(--crimson)}
+.ft-in{padding-left:22px}
+/* ── 终端 ── */
+.term-mock{display:flex;background:var(--code);border-radius:8px;overflow:hidden;height:150px}
+.term-sb{width:140px;background:var(--s1);border-right:1px solid var(--l1);display:flex;flex-direction:column}
+.term-sb-h{display:flex;align-items:center;height:26px;padding:0 8px;font:11px var(--mono);color:var(--t3);border-bottom:1px solid var(--l1)}
+.term-item{display:flex;align-items:center;gap:6px;height:24px;padding:0 8px;font:11.5px var(--mono);color:var(--t2)}
+.term-item.act{background:var(--s2);color:var(--t1)}
+.term-dot{width:6px;height:6px;border-radius:50%;background:var(--l3);flex:none}
+.term-dot.starting{background:var(--azure);animation:breath 2.4s ease-in-out infinite}
+.term-body{flex:1;padding:8px 10px;font:11.5px/1.6 var(--mono);color:var(--t1)}
+.term-body .p{color:var(--pine)}
+.term-toolbar{display:flex;align-items:center;gap:6px;margin-top:6px}
+.term-dirpill{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;border-radius:6px;background:var(--s2);font:11.5px var(--mono);color:var(--t2)}
+/* ── 变更 ── */
+.subtab{display:inline-flex;border-radius:6px;background:var(--s1);padding:2px;gap:2px}
+.subtab button{height:24px;padding:0 10px;border-radius:5px;font-size:11.5px;color:var(--t3)}
+.subtab button.on{background:var(--s3);color:var(--t1);box-shadow:var(--sh1)}
+.ch-row{display:flex;align-items:center;gap:8px;height:28px;padding:0 8px;border-radius:5px;font-size:12px}
+.ch-row:hover{background:var(--s2)}
+.ch-ck{width:13px;height:13px;border-radius:3px;border:1.5px solid var(--l3);flex:none}
+.ch-m{font:600 10.5px var(--mono);width:14px;text-align:center;flex:none}
+.ch-m.m{color:var(--ochre)}.ch-m.a{color:var(--pine)}.ch-m.d{color:var(--crimson)}
+.ch-path{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--t1)}
+.ch-path .dir{color:var(--t4)}
+.ch-stat{font:11px var(--mono);flex:none}
+.ch-stat .p{color:var(--pine)}.ch-stat .m{color:var(--crimson)}
+.ch-schip{display:inline-flex;align-items:center;height:16px;padding:0 5px;border-radius:3px;background:var(--pine-wash);color:var(--pine);font:9.5px var(--mono);flex:none}
+.diff-mock{background:var(--code);border-radius:6px;overflow:hidden;font:11.5px/1.7 var(--mono);margin-top:8px}
+.dl2{display:flex;gap:10px;padding:0 10px;white-space:pre;color:var(--t2)}
+.dl2.a{background:var(--pine-wash);color:var(--t1)}.dl2.d{background:var(--crimson-wash)}
+.dl2 .ln{width:24px;text-align:right;color:var(--t4);flex:none}
+.cand-row{display:flex;align-items:center;gap:8px;height:34px;padding:0 8px;border-radius:6px}
+.cand-row:hover{background:var(--s1)}
+.radio{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--l3);flex:none}
+.radio.sel{border-color:var(--zhu);box-shadow:inset 0 0 0 3px var(--zhu)}
+/* ── 浏览器 ── */
+.br-mock{background:var(--s1);border-radius:8px;overflow:hidden}
+.br-bar{display:flex;align-items:center;gap:6px;height:32px;padding:0 8px;border-bottom:1px solid var(--l1)}
+.br-url{flex:1;height:22px;background:var(--s2);border-radius:5px;padding:0 8px;font:11.5px var(--mono);color:var(--t2);display:flex;align-items:center;overflow:hidden;white-space:nowrap}
+.br-banner{display:flex;align-items:center;gap:8px;height:28px;padding:0 10px;font-size:11.5px;color:var(--t1)}
+.br-banner.agent{background:var(--lamp-wash)}
+.br-banner.user{background:var(--s2)}
+.br-toolbar{display:flex;align-items:center;gap:6px;height:28px;padding:0 8px;border-top:1px solid var(--l1)}
+.br-toggle{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:5px;background:var(--s2);font-size:11px;color:var(--t2)}
+.br-toggle.act{background:var(--zhu-wash);color:var(--zhu)}
+.br-frame{height:100px;background:var(--s2);display:flex;align-items:center;justify-content:center;color:var(--t4);font-size:11px}
+.br-dev{border-top:1px solid var(--l1);padding:6px 10px;font:11px var(--mono);color:var(--t3);background:var(--void)}
+.br-dev .err{color:var(--crimson)}.br-dev .warn{color:var(--lamp)}
+/* ── 画布 ── */
+.canvas-mock{background:var(--s2);border-radius:8px;height:140px;display:flex;align-items:center;justify-content:center;color:var(--t4);font-size:11.5px;position:relative}
+.canvas-proposal{background:var(--s4);box-shadow:var(--sh2);border-radius:8px;padding:10px 12px;margin-top:8px}
+.canvas-proposal pre{font:11.5px var(--mono);background:var(--code);color:var(--t1);padding:8px;border-radius:5px;margin-top:6px;white-space:pre-wrap}
+/* ── 文档预览 ── */
+.doc-mock{background:var(--s1);border-radius:8px;overflow:hidden}
+.doc-h{display:flex;align-items:center;gap:8px;height:34px;padding:0 10px;border-bottom:1px solid var(--l1)}
+.doc-h .tt{font:500 12.5px var(--sans);color:var(--t1)}
+.doc-h .cbadge{display:inline-flex;align-items:center;gap:3px;color:var(--zhu-lift);font:11px var(--mono)}
+.doc-line{position:relative;padding:4px 30px 4px 8px;font-size:13px;color:var(--t2);border-radius:4px}
+.doc-line:hover{background:color-mix(in srgb, var(--zhu) 6%, transparent)}
+.doc-line.has{background:color-mix(in srgb, var(--zhu) 10%, transparent)}
+.doc-line .cbtn{position:absolute;right:6px;top:4px;width:18px;height:18px;border-radius:4px;color:var(--zhu);opacity:0}
+.doc-line:hover .cbtn,.doc-line.has .cbtn{opacity:1}
+.comment-pop{background:var(--s4);box-shadow:var(--sh3);border-radius:8px;padding:10px;margin-top:6px;max-width:320px}
+.comment-pop textarea{width:100%;min-height:50px;border:0;background:var(--s1);border-radius:5px;padding:6px 8px;font:12px var(--sans);color:var(--t1);resize:none;outline:0}
+.zoom-hud{display:inline-flex;align-items:center;gap:8px;height:26px;padding:0 10px;border-radius:6px;background:var(--s4);box-shadow:var(--sh2);font:11px var(--mono);color:var(--t2)}
+/* ── 笔记/卡片/侧聊 ── */
+.reach-note{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px;background:var(--ochre-wash);color:var(--ochre);font-size:11.5px;margin-bottom:10px}
+.note-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.note-card{background:var(--s3);box-shadow:var(--sh1);border-radius:8px;padding:10px 12px}
+.note-card .tt{font:500 12.5px var(--sans);color:var(--t1)}
+.note-card .pv{font-size:11px;color:var(--t3);margin-top:4px;line-height:1.5}
+.fc-stage{background:var(--s1);border-radius:8px;padding:16px;text-align:center}
+.fc-q{font:500 15px var(--serif);color:var(--t1);margin:10px 0}
+.fc-rate{display:flex;gap:6px;justify-content:center;margin-top:10px}
+.fc-rate button{height:28px;padding:0 12px;border-radius:6px;font-size:11.5px;background:var(--s2)}
+.fc-rate button:nth-child(1){color:var(--crimson)}.fc-rate button:nth-child(4){color:var(--pine)}
+.sc-msg{display:flex;flex-direction:column;gap:2px;margin-bottom:8px}
+.sc-msg .who{font:11px var(--mono);color:var(--t4)}
+.sc-msg .tx{font-size:12.5px;color:var(--t1)}
+.sc-handoff{display:flex;justify-content:flex-end;padding-top:6px;border-top:1px solid var(--l1)}
+@keyframes breath{0%,100%{opacity:.6}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs>
+<symbol id="search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></symbol>
+<symbol id="plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></symbol>
+<symbol id="chevd" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></symbol>
+<symbol id="chevr" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></symbol>
+<symbol id="refresh" viewBox="0 0 16 16"><path d="M13 8A5 5 0 1 1 11.6 4.5M13.5 2.5v3h-3"/></symbol>
+<symbol id="file" viewBox="0 0 16 16"><path d="M4 2h5l3 3v9H4zM9 2v3h3"/></symbol>
+<symbol id="folder" viewBox="0 0 16 16"><path d="M2 5.5A1.5 1.5 0 0 1 3.5 4H6l1.5 1.5h5A1.5 1.5 0 0 1 14 7v4.5A1.5 1.5 0 0 1 12.5 13h-9A1.5 1.5 0 0 1 2 11.5z"/></symbol>
+<symbol id="term" viewBox="0 0 16 16"><path d="M3 4l4 4-4 4M8.5 12h4.5"/></symbol>
+<symbol id="git" viewBox="0 0 16 16"><circle cx="8" cy="4" r="1.6"/><circle cx="8" cy="12" r="1.6"/><path d="M8 5.6v4.8"/></symbol>
+<symbol id="globe" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M2 8h12M8 2c2.5 3 2.5 9 0 12M8 2c-2.5 3-2.5 9 0 12"/></symbol>
+<symbol id="close" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+<symbol id="expand" viewBox="0 0 16 16"><path d="M9.5 2H14v4.5M6.5 14H2V9.5M14 2L9 7M2 14l5-5"/></symbol>
+<symbol id="panel" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M6 3v10"/></symbol>
+<symbol id="cards" viewBox="0 0 16 16"><rect x="3" y="4.5" width="8.5" height="9" rx="1.5"/><path d="M6 4.5V3.5A1.5 1.5 0 0 1 7.5 2h4A1.5 1.5 0 0 1 13 3.5V10"/></symbol>
+<symbol id="cursor" viewBox="0 0 16 16"><path d="M3 2l4.5 12 1.6-4.8L14 7.5z"/></symbol>
+<symbol id="doc" viewBox="0 0 16 16"><path d="M4 2h5l3 3v9H4zM9 2v3h3M6 8h4M6 11h4"/></symbol>
+<symbol id="chat" viewBox="0 0 16 16"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h9A1.5 1.5 0 0 1 14 4.5v5A1.5 1.5 0 0 1 12.5 11H8l-3 2.5V11H3.5A1.5 1.5 0 0 1 2 9.5z"/></symbol>
+<symbol id="image" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="1.5"/><circle cx="6" cy="7" r="1.2"/><path d="M14 11l-3.5-3.5L5 13"/></symbol>
+<symbol id="edit" viewBox="0 0 16 16"><path d="M11.5 2.5l2 2L6 12H4v-2z"/></symbol>
+<symbol id="lock" viewBox="0 0 16 16"><rect x="3.5" y="7" width="9" height="7" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></symbol>
+</defs></svg>
+
+<div class="app" id="app" data-face="paper" data-notes="on">
+<div class="proto">
+ <span class="pt">Inkstone（砚）· 增量 4 · 检视器</span>
+ <span class="pl">面</span><span class="seg"><button class="on" data-set="face" data-v="paper">纸</button><button data-set="face" data-v="ink">墨</button></span>
+ <span class="pl">标注</span><span class="seg"><button class="on" data-set="notes" data-v="on">开</button><button data-set="notes" data-v="off">关</button></span>
+ <span class="pn">全部为静态展台 · 橙色「现状」标注表示代码里存在但导航当前不可达</span>
+</div>
+
+<div class="body">
+ <aside class="panel">
+  <div class="idx-h">检视器<small>20 块 · 点击跳转 · 对应 05-inspector.md §1–§8</small></div>
+  <div class="idx-scroll">
+   <div class="ig">一 · 外壳</div>
+   <button class="ir on" data-go="b01"><span class="n">01</span>页签条 · 2×2 启动器</button>
+   <button class="ir" data-go="b02"><span class="n">02</span>宽度 · 展开 · 收起</button>
+   <div class="ig">二 · 文件树</div>
+   <button class="ir" data-go="b03"><span class="n">03</span>树形 · 搜索 · Git 状态</button>
+   <button class="ir" data-go="b04"><span class="n">04</span>右键菜单（含禁用项标注）</button>
+   <div class="ig">三 · 终端</div>
+   <button class="ir" data-go="b05"><span class="n">05</span>会话侧栏（非顶部标签）</button>
+   <button class="ir" data-go="b06"><span class="n">06</span>CWD 下拉 · 工具条</button>
+   <div class="ig">四 · 变更</div>
+   <button class="ir" data-go="b07"><span class="n">07</span>三个子页签</button>
+   <button class="ir" data-go="b08"><span class="n">08</span>文件列表 · 暂存</button>
+   <button class="ir" data-go="b09"><span class="n">09</span>文件差异审查</button>
+   <button class="ir" data-go="b10"><span class="n">10</span>候选方案 · 未解决结果</button>
+   <div class="ig">五 · 浏览器</div>
+   <button class="ir" data-go="b11"><span class="n">11</span>地址栏 · 控制者横幅</button>
+   <button class="ir" data-go="b12"><span class="n">12</span>取元素 · 控制台抽屉</button>
+   <div class="ig">六 · 画布</div>
+   <button class="ir" data-go="b13"><span class="n">13</span>画布本体 · 提案卡</button>
+   <div class="ig">七 · 文档预览</div>
+   <button class="ir" data-go="b14"><span class="n">14</span>文档头 · 侧边栏</button>
+   <button class="ir" data-go="b15"><span class="n">15</span>行内评论三态</button>
+   <button class="ir" data-go="b16"><span class="n">16</span>媒体预览变体</button>
+   <div class="ig">八 · 笔记 · 卡片 · 侧聊</div>
+   <button class="ir" data-go="b17"><span class="n">17</span>笔记</button>
+   <button class="ir" data-go="b18"><span class="n">18</span>知识卡片复习</button>
+   <button class="ir" data-go="b19"><span class="n">19</span>侧聊</button>
+   <button class="ir" data-go="b20"><span class="n">20</span>导航可达性速查</button>
+  </div>
+ </aside>
+
+ <main class="panel stage">
+  <div class="scroll" id="scroll">
+
+   <div class="st" id="s1"><h2>一 · 检视器外壳</h2><span class="sn">01–02 · 只有 4 个页签在 2×2 启动器与页签条里出现</span></div>
+
+   <div class="blk" id="b01" data-n="01">
+    <div class="exh-h">页签条 · 2×2 启动器</div>
+    <div class="exh-d"><code>right-panel.tsx</code> + <code>right-panel-home.tsx</code>：常驻可见的只有 <b>文件 / zsh / 变更 / 浏览器</b> 四项——页签标签直接写「zsh」，不是泛化的「终端」。画布 / 文档 / 知识卡片三个页签标为 <code>hidden:true</code>，只能被工具调用或 slash 命令程序化打开，不出现在这里；关掉所有页签后回到同一张 2×2 网格。</div>
+    <div class="insp-mock">
+     <div class="insp-tabbar">
+      <span class="insp-plus"><svg class="i s14"><use href="#plus"/></svg></span>
+      <span class="itab act"><svg class="i s12"><use href="#file"/></svg>文件<span class="cx"><svg class="i s12"><use href="#close"/></svg></span></span>
+      <span class="itab"><svg class="i s12"><use href="#term"/></svg>zsh<span class="att"></span><span class="cx"><svg class="i s12"><use href="#close"/></svg></span></span>
+      <span class="itab"><svg class="i s12"><use href="#git"/></svg>变更<span class="cx"><svg class="i s12"><use href="#close"/></svg></span></span>
+      <span class="ml"></span>
+      <span class="insp-actions"><button class="ib s22"><svg class="i s14"><use href="#expand"/></svg></button><button class="ib s22"><svg class="i s14"><use href="#panel"/></svg></button></span>
+     </div>
+     <div class="home-grid">
+      <div class="home-tile"><svg class="i"><use href="#file"/></svg><span>文件</span></div>
+      <div class="home-tile"><svg class="i"><use href="#term"/></svg><span>zsh</span></div>
+      <div class="home-tile"><svg class="i"><use href="#git"/></svg><span>变更</span></div>
+      <div class="home-tile"><svg class="i"><use href="#globe"/></svg><span>浏览器</span></div>
+     </div>
+    </div>
+   </div>
+
+   <div class="blk" id="b02" data-n="02">
+    <div class="exh-h">宽度 · 展开 · 收起</div>
+    <div class="exh-d"><b class="warn">修正</b>：increment 0 文档写的「320px（240–720）」与实际不符——真实常量（<code>right-panel-width.ts</code>）是<b>默认 280px，可拖 200–1600px</b>；「展开」按钮只是在 280 与 600 两个定值之间切换，不是自由拖到最大。收起时面板整体塌缩为 0 但 DOM 不卸载；除终端外，其余页签只在自己是当前激活页签时才挂载内容——切走或收起都会卸载（终端因为要保活 PTY 进程是唯一例外）。</div>
+    <div class="row-cmp" style="align-items:flex-start;gap:20px">
+     <div><div style="font:11px var(--mono);color:var(--t4);margin-bottom:4px">默认 280px</div><div class="width-scale" style="width:120px"><div class="width-tick"></div><div class="width-tick on"></div><div class="width-tick"></div><div class="width-tick"></div><div class="width-tick"></div></div></div>
+     <div><div style="font:11px var(--mono);color:var(--t4);margin-bottom:4px">展开 600px</div><div class="width-scale" style="width:120px"><div class="width-tick"></div><div class="width-tick"></div><div class="width-tick"></div><div class="width-tick on"></div><div class="width-tick"></div></div></div>
+     <div><div style="font:11px var(--mono);color:var(--t4);margin-bottom:4px">拖拽边界 200–1600px</div><div class="width-scale" style="width:160px"><div class="width-tick on" style="background:var(--l3)"></div><div class="width-tick"></div><div class="width-tick"></div><div class="width-tick"></div><div class="width-tick"></div><div class="width-tick"></div><div class="width-tick on" style="background:var(--l3)"></div></div></div>
+    </div>
+   </div>
+
+   <div class="st" id="s2"><h2>二 · 文件树</h2><span class="sn">03–04 · 单字母 Git 状态 · 部分右键项现状禁用</span></div>
+
+   <div class="blk" id="b03" data-n="03">
+    <div class="exh-h">树形 · 搜索 · Git 状态</div>
+    <div class="exh-d"><code>file-tree-panel.tsx</code>：头部固定标题「Workspace」（未本地化）+ 搜索/刷新；搜索只过滤<b>已加载</b>节点，不触发新的 Host 查询。单字母状态：<code>M</code> 改动（赭）· <code>A</code>/<code>U</code> 新增/未跟踪（松）· <code>D</code>/<code>C</code> 删除/冲突（绛）· <code>R</code> 重命名或复制（青）。选中文件在同一页签内拆分预览，不跳到文档页签。</div>
+    <div class="ft-mock">
+     <div class="ft-h"><span>Workspace</span><span class="ml"></span><button class="ib s22"><svg class="i s12"><use href="#search"/></svg></button><button class="ib s22"><svg class="i s12"><use href="#refresh"/></svg></button></div>
+     <div class="ft-row"><svg class="i s12"><use href="#chevd"/></svg><svg class="i s12"><use href="#folder"/></svg>apps/desktop/src</div>
+     <div class="ft-row ft-in"><svg class="i s12"><use href="#file"/></svg>composer-run-actions.tsx<span class="gs m">M</span></div>
+     <div class="ft-row ft-in"><svg class="i s12"><use href="#file"/></svg>composer-dock.test.tsx<span class="gs a">A</span></div>
+     <div class="ft-row ft-in"><svg class="i s12"><use href="#file"/></svg>ink-wash-assets.ts<span class="gs d">D</span></div>
+    </div>
+   </div>
+
+   <div class="blk" id="b04" data-n="04">
+    <div class="exh-h">右键菜单（含禁用项标注）</div>
+    <div class="exh-d"><b class="warn">如实呈现</b>：右键菜单文件行完整顺序是「加入聊天 → 询问… → 打开 → 在文件管理器中显示 → 复制相对/完整路径 → 更多（解释/审查/生成测试）」，但当前 <code>file-tree-panel.tsx</code> 把 <code>canReveal</code>/<code>applyAvailable</code> 硬编码为 false——「打开」「在文件管理器中显示」「更多」子菜单目前<b>始终禁用</b>，只有加入聊天、询问、两个复制路径是活的。原型按设计意图画出全部项，禁用项用橙色小徽标标注「现状禁用」，不假装它们已经能点。</div>
+    <div class="card" style="max-width:260px">
+     <div class="pop-item" style="height:28px;font-size:12px;color:var(--t1)">加入聊天</div>
+     <div class="pop-item" style="height:28px;font-size:12px;color:var(--t1)">询问…</div>
+     <div style="height:1px;background:var(--l1);margin:4px 0"></div>
+     <div class="pop-item" style="height:28px;font-size:12px;color:var(--t4)">打开<span class="badge-dormant ml">现状禁用</span></div>
+     <div class="pop-item" style="height:28px;font-size:12px;color:var(--t4)">在文件管理器中显示<span class="badge-dormant ml">现状禁用</span></div>
+     <div style="height:1px;background:var(--l1);margin:4px 0"></div>
+     <div class="pop-item" style="height:28px;font-size:12px;color:var(--t1)">复制相对路径</div>
+     <div class="pop-item" style="height:28px;font-size:12px;color:var(--t1)">复制完整路径</div>
+     <div class="pop-item" style="height:28px;font-size:12px;color:var(--t4)">更多（解释/审查/生成测试）<span class="badge-dormant ml">现状禁用</span></div>
+    </div>
+   </div>
+
+   <div class="st" id="s3"><h2>三 · 终端</h2><span class="sn">05–06 · 会话切换是侧栏，不是顶部页签</span></div>
+
+   <div class="blk" id="b05" data-n="05">
+    <div class="exh-h">会话侧栏（非顶部标签）</div>
+    <div class="exh-d"><b class="warn">修正</b>：increment 0 文档写的「多页签 · 上限 8」不准确——真实上限是 <b>4 个 PTY 会话</b>（<code>MAX_TERMINAL_SESSIONS=4</code>），且切换入口是可收起的右侧<b>会话侧栏</b>，不是顶部横排页签；已打开的会话全部同时挂载，切换只是切换 CSS <code>hidden</code>，后台会话继续跑并缓存输出。「注意点」不在会话行本身，只出现在检视器最外层的「zsh」页签上（呼吸小圆点）。</div>
+    <div class="term-mock">
+     <div class="term-sb">
+      <div class="term-sb-h">3 个终端<span class="ml"><svg class="i s12"><use href="#plus"/></svg></span></div>
+      <div class="term-item act"><span class="term-dot"></span>zsh 1</div>
+      <div class="term-item"><span class="term-dot starting"></span>zsh 2</div>
+      <div class="term-item"><span class="term-dot"></span>zsh 3</div>
+     </div>
+     <div class="term-body">$ pnpm vitest composer-run-actions --run<br><span class="p">✓ 12 passed</span> · 3.9s<br>$ <span style="opacity:.5">▊</span></div>
+    </div>
+   </div>
+
+   <div class="blk" id="b06" data-n="06">
+    <div class="exh-h">CWD 下拉 · 工具条</div>
+    <div class="exh-d">CWD 药丸点击展开：项目根 / Home(~) / 去重后的最近目录 + 一个可直接输入路径的「前往」行；选择只影响<b>下一个</b>新会话的起始目录，不会挪动已经打开的 PTY。工具条另有「重启当前终端」——重启会换连接但保留同一个会话 id/名称/cwd。</div>
+    <div class="term-toolbar"><span class="term-dirpill"><svg class="i s12"><use href="#folder"/></svg>~/Developer/piwin<svg class="i s12"><use href="#chevd"/></svg></span><button class="ib s22" title="重启当前终端"><svg class="i s14"><use href="#refresh"/></svg></button></div>
+    <div class="card" style="max-width:220px;margin-top:6px">
+     <div class="pop-item" style="height:26px;font-size:11.5px">项目根</div>
+     <div class="pop-item" style="height:26px;font-size:11.5px">Home (~)</div>
+     <div style="height:1px;background:var(--l1);margin:4px 0"></div>
+     <div class="pop-item" style="height:26px;font-size:11.5px">~/Developer/piwin/apps/desktop</div>
+    </div>
+   </div>
+
+   <div class="st" id="s4"><h2>四 · 变更</h2><span class="sn">07–10 · 差异只有统一视图，并排模式代码存在但未接线</span></div>
+
+   <div class="blk" id="b07" data-n="07">
+    <div class="exh-h">三个子页签</div>
+    <div class="exh-d"><code>review-panel.tsx</code>：变更页内部还有一层子页签——「本轮变更」（文件列表）· 「子任务结果」（只在有子代理结果时出现）· 「Git」（独立的提交图/分支视图）。「本轮变更（n）」的徽标计数目前没有任何调用方传入真实数字，恒为 0，原型按设计画出徽标位但标注现状。</div>
+    <div class="subtab"><button class="on">本轮变更<span class="badge-dormant" style="margin-left:4px">0</span></button><button>子任务结果</button><button>Git</button></div>
+   </div>
+
+   <div class="blk" id="b08" data-n="08">
+    <div class="exh-h">文件列表 · 暂存</div>
+    <div class="exh-d">不分「已暂存/未暂存」两个区块——每行一个复选框，已暂存的行末尾多一个 <code>S</code> 小徽标；底部提交条显示「已暂存 N / 共 M」，「暂存所选」/「暂存全部」按钮文案随是否有勾选切换。</div>
+    <div class="card">
+     <div class="ch-row"><span class="ch-ck"></span><span class="ch-m m">M</span><span class="ch-path"><span class="dir">apps/desktop/src/</span>composer-run-actions.tsx</span><span class="ch-stat"><span class="p">+48</span> <span class="m">−12</span></span><span class="ch-schip">S</span></div>
+     <div class="ch-row"><span class="ch-ck"></span><span class="ch-m a">A</span><span class="ch-path"><span class="dir">apps/desktop/src/</span>composer-dock.test.tsx</span><span class="ch-stat"><span class="p">+31</span></span></div>
+     <div class="row-cmp" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--l1)"><span style="font-size:11.5px;color:var(--t3)">已暂存 1 / 共 2</span><u style="font-size:11.5px;margin-left:auto">暂存所选</u><u style="font-size:11.5px">暂存全部</u></div>
+    </div>
+   </div>
+
+   <div class="blk" id="b09" data-n="09">
+    <div class="exh-h">文件差异审查</div>
+    <div class="exh-d">点行进入同页签内审查（不是新页签）：返回箭头 + 文件类型图标 + 路径 + 状态徽标 + 「⋯更多」（只有复制相对/完整路径两项）。<b class="warn">如实呈现</b>：<code>DiffView</code> 组件本身支持统一/并排两种模式且样式都写好了，但这里唯一实际调用的是统一模式——并排切换目前没有任何入口能触达，原型不画一个假的切换开关。</div>
+    <div class="row-cmp" style="margin-bottom:6px"><button class="ib s22"><svg class="i s14" style="transform:rotate(180deg)"><use href="#chevr"/></svg></button><svg class="i s14"><use href="#file"/></svg><b style="font-size:12.5px">composer-run-actions.tsx</b><span class="ch-stat"><span class="p">+48</span> <span class="m">−12</span></span><span class="ch-m m ml" style="margin-left:auto">M</span><button class="ib s22"><svg class="i s14"><use href="#chevd"/></svg></button></div>
+    <div class="diff-mock">
+     <div class="dl2"><span class="ln">85</span>if (streaming) {</div>
+     <div class="dl2 d"><span class="ln">86</span>-  return { kind: 'pause' }</div>
+     <div class="dl2 a"><span class="ln">86</span>+  if (draft.trim()) return { kind: 'queue' }</div>
+     <div class="dl2"><span class="ln">87</span>}</div>
+    </div>
+   </div>
+
+   <div class="blk" id="b10" data-n="10">
+    <div class="exh-h">候选方案 · 未解决结果</div>
+    <div class="exh-d">「子任务结果」子页签用的是<b>另一个组件</b>，不是转录里子代理卡的复用：候选方案卡是单选 radiogroup，选中即「采用」并对工作树打补丁，按钮文案从「采用此方案」变「已采用」；不属于候选组的结果走「未解决结果」条——只有一个「让主代理处理」的追问按钮。<b class="warn">如实呈现</b>：代码里没有"手动合并"这个动作，只有 设计文档 提过这个说法，本原型不画一个不存在的按钮。</div>
+    <div class="card">
+     <div style="font:600 12.5px var(--sans);margin-bottom:6px">候选方案</div>
+     <div class="cand-row"><span class="radio sel"></span><span style="flex:1">方案 A · 排队语义（3 个文件）</span><button class="btn sm pri">已采用</button></div>
+     <div class="cand-row"><span class="radio"></span><span style="flex:1">方案 B · 转向语义（2 个文件）</span><button class="btn sm">采用此方案</button></div>
+    </div>
+    <div class="card" style="margin-top:8px">
+     <div class="row-cmp"><svg class="i s14" style="color:var(--ochre)"><use href="#edit"/></svg><span style="font-size:12.5px">未合入结果 · 侧栏折叠重排</span><button class="btn sm ml">让主代理处理</button></div>
+    </div>
+   </div>
+
+   <div class="st" id="s5"><h2>五 · 浏览器</h2><span class="sn">11–12 · 控制者是三态锁，不是流式状态派生</span></div>
+
+   <div class="blk" id="b11" data-n="11">
+    <div class="exh-h">地址栏 · 控制者横幅</div>
+    <div class="exh-d"><code>browser-session-panel.tsx</code>：Agent/User 谁在控制浏览器是显式三态锁（idle/user/agent，ADR 0057），<b>不是根据模型是否在流式输出推断的</b>。Agent 持锁时横幅在标题带下方常显「Agent is using the browser」+「Take over」；User 持锁时是「You have control」+「Give back」（agent 在等）或「Release」。<b class="warn">文案</b>：这两条横幅目前是纯英文，没有 zh-CN 分支。</div>
+    <div class="br-mock">
+     <div class="br-bar"><svg class="i s12"><use href="#globe"/></svg><span class="br-url">localhost:3000/composer-preview</span><button class="ib s22"><svg class="i s12"><use href="#refresh"/></svg></button></div>
+     <div class="br-banner agent">Agent is using the browser<u class="ml">Take over</u></div>
+     <div class="br-frame">镶镜画面（JPEG 屏幕投递）</div>
+    </div>
+   </div>
+
+   <div class="blk" id="b12" data-n="12">
+    <div class="exh-h">取元素 · 控制台抽屉</div>
+    <div class="exh-d">「取元素」是修饰态而非独立工具——开启后点击镶镜画面不再转发真实点击，而是解析该坐标对应的 DOM 元素并生成一枚上下文引用芯片。控制台/网络抽屉是定长环形缓冲区（最多 100 行控制台 + 50 行网络），没有筛选/清空按钮，最老的记录静默丢弃。</div>
+    <div class="br-toolbar"><span class="br-toggle act"><svg class="i s12"><use href="#cursor"/></svg>取元素中</span></div>
+    <div class="br-dev">Console / Network<div style="margin-top:4px"><span class="err">✕ GET /api/session 404</span><br><span class="warn">⚠ deprecated: use session/queued-turn-submit</span><br>POST 200 /api/telemetry (42ms)</div></div>
+   </div>
+
+   <div class="st" id="s6"><h2>六 · 画布</h2><span class="sn">13 · 与文档预览、终端不同：画布没有专属工具条</span></div>
+
+   <div class="blk" id="b13" data-n="13">
+    <div class="exh-h">画布本体 · Composer 提案卡</div>
+    <div class="exh-d"><b class="warn">如实呈现</b>：画布页签<b>没有</b>刷新/外部打开/设备宽度预设工具条——这些在浏览器页签里存在，但画布页签目前就是一个铺满容器的沙箱 iframe，关闭靠页签条自己的 ✕。画布内容可以通过 <code>composer/propose-text</code> 桥接向外提议一段文字，渲染成提案卡：「插入到作曲器」把文字追加进主输入框草稿（不自动发送），「忽略」关掉卡片。</div>
+    <div class="canvas-mock">交互式 iframe（sandbox="allow-scripts"）填满容器</div>
+    <div class="canvas-proposal">
+     <div style="font:500 12.5px var(--sans)">键盘分发速查表 · 建议补充说明</div>
+     <pre>建议在「⌘Enter 转向」这行后加一句：
+IME 组合期间 ⌘Enter 不受影响。</pre>
+     <div class="row-cmp" style="margin-top:8px;justify-content:flex-end"><button class="btn sm">忽略</button><button class="btn sm pri">插入到作曲器</button></div>
+    </div>
+   </div>
+
+   <div class="st" id="s7"><h2>七 · 文档预览</h2><span class="sn">14–16 · 行内评论是暂存态，发送后即清空</span></div>
+
+   <div class="blk" id="b14" data-n="14">
+    <div class="exh-h">文档头 · 侧边栏</div>
+    <div class="exh-d"><code>DocPreviewPanel.tsx</code>：标题条上的评论数徽标只在有暂存评论时出现；「更多」下拉只有复制/复制路径/导出 Artifact 三项；侧边栏按钮展开会话内其它可预览文档的清单。Markdown/纯文本走增强 Markdown 视图，HTML/SVG 走标记预览，其余走带行号的代码预览。</div>
+    <div class="doc-mock">
+     <div class="doc-h"><svg class="i s14"><use href="#doc"/></svg><span class="tt">02-transcript-anatomy</span><span class="cbadge">· 2<svg class="i s12"><use href="#chat"/></svg></span><span class="ml"></span><button class="ib s22"><svg class="i s14"><use href="#panel"/></svg></button><button class="ib s22"><svg class="i s14"><use href="#close"/></svg></button></div>
+     <div style="padding:10px">
+      <div class="doc-line has">工具行按动词加粗 + code 参数展示，节点落在墨线上。<button class="cbtn"><svg class="i s12"><use href="#chat"/></svg></button></div>
+      <div class="doc-line">失败行的节点与动词一起转绛色，展开体是 code 底 + 绛字。<button class="cbtn"><svg class="i s12"><use href="#chat"/></svg></button></div>
+     </div>
+    </div>
+   </div>
+
+   <div class="blk" id="b15" data-n="15">
+    <div class="exh-h">行内评论三态</div>
+    <div class="exh-d">悬停任意可评论行才会露出评论图标按钮，已有评论的行常显该按钮并保持背景轻微染色。三态：新建（空文本框 + 取消/添加评论）、查看（已有文字 + 删除/编辑）、编辑（预填文本框 + 取消/保存）。发消息时会把本文档全部暂存评论合并进提示词文本，随后清空——这是喂给 Agent 的一次性素材，不是长期批注库。</div>
+    <div class="row-cmp" style="align-items:flex-start;gap:16px;flex-wrap:wrap">
+     <div><div style="font:11px var(--mono);color:var(--t4);margin-bottom:4px">新建</div><div class="comment-pop"><textarea placeholder="留下评论"></textarea><div class="row-cmp" style="margin-top:6px;justify-content:flex-end"><button class="btn sm">取消</button><button class="btn sm pri">添加评论</button></div></div></div>
+     <div><div style="font:11px var(--mono);color:var(--t4);margin-bottom:4px">查看</div><div class="comment-pop"><div style="font-size:12.5px">节点语言这段建议配一张对照图。</div><div class="row-cmp" style="margin-top:6px;justify-content:flex-end"><button class="btn sm dan">删除</button><button class="btn sm">编辑评论</button></div></div></div>
+    </div>
+   </div>
+
+   <div class="blk" id="b16" data-n="16">
+    <div class="exh-h">媒体预览变体</div>
+    <div class="exh-d">图片/视频走完全独立的 <code>MediaDocPreview.tsx</code>，不是 <code>DocPreviewPanel</code> 的一个分支——头部只剩文件名 + 一个返回按钮，没有评论/更多/侧边栏。图片：自定义缩放（滚轮 1–8×，双击复位），悬浮 HUD 显示当前百分比 + 「重置」；视频：原生 <code>&lt;video controls&gt;</code>，没有自定义工具条。<b class="warn">如实呈现</b>：代码里没有音频分支，这里不画不存在的音频播放器。</div>
+    <div class="row-cmp" style="gap:16px">
+     <div class="card" style="width:160px;height:100px;display:flex;align-items:center;justify-content:center;position:relative"><span style="color:var(--t4);font-size:11px">缩略图</span><span class="zoom-hud" style="position:absolute;bottom:6px;right:6px;height:22px;padding:0 8px">180%<u style="margin-left:6px">重置</u></span></div>
+     <div class="card" style="width:200px;height:100px;display:flex;align-items:center;justify-content:center;color:var(--t4);font-size:11px">原生 video 控件</div>
+    </div>
+   </div>
+
+   <div class="st" id="s8"><h2>八 · 笔记 · 卡片 · 侧聊</h2><span class="sn">17–20 · 三个组件都是真实功能，但当前都没有检视器内的可点入口</span></div>
+
+   <div class="blk" id="b17" data-n="17">
+    <div class="exh-h">笔记</div>
+    <div class="reach-note"><svg class="i s14"><use href="#lock"/></svg>现状：<code>notes</code> 不在页签清单里，2×2 启动器、＋菜单都进不去；仅能靠 Agent 调用 <code>note_write</code> 工具间接产生。本增量按设计蓝图画出这个页面，供负责人决定要不要在增量 3/4 实施时补一个入口。</div>
+    <div class="card">
+     <div class="row-cmp" style="margin-bottom:8px"><span style="flex:1;height:24px;background:var(--s1);border-radius:5px;padding:0 8px;display:flex;align-items:center;font-size:11.5px;color:var(--t4)">检索笔记…</span><button class="btn sm">新建笔记</button><button class="btn sm">重建索引</button></div>
+     <div class="note-grid">
+      <div class="note-card"><div class="tt">CJK 字距踩坑记录</div><div class="pv">宋体做显示字号时字距明显偏大，需要单独校准 letter-spacing…</div></div>
+      <div class="note-card"><div class="tt">Leitner 参数草案</div><div class="pv">盒位间隔倍数暂定 1/3/7/14/30 天，配合 FSRS 评分…</div></div>
+     </div>
+    </div>
+   </div>
+
+   <div class="blk" id="b18" data-n="18">
+    <div class="exh-h">知识卡片复习</div>
+    <div class="reach-note"><svg class="i s14"><use href="#lock"/></svg>现状：同上，<code>cards</code> 页签标了 <code>hidden:true</code>，只能从作曲器 ＋ 菜单或 <code>/flashcards</code> 打开——但那条路径实际落在独立的全窗口知识卡片工作台，不是这个检视器内页签。</div>
+    <div class="fc-stage">
+     <div style="font:11px var(--mono);color:var(--t4)">3 / 12 · 空格翻面 · 1–4 评分</div>
+     <div class="fc-q">「已批准」小印出现在哪个层级？</div>
+     <div class="fc-rate"><button>Again</button><button>Hard</button><button>Good</button><button>Easy</button></div>
+    </div>
+   </div>
+
+   <div class="blk" id="b19" data-n="19">
+    <div class="exh-h">侧聊</div>
+    <div class="reach-note"><svg class="i s14"><use href="#lock"/></svg>现状：<code>sideChat</code> 同样不在页签清单里，代码功能完整但没有任何按钮/命令能打开它。</div>
+    <div class="card">
+     <div class="row-cmp" style="margin-bottom:8px"><span class="chip" style="background:var(--pine-wash);color:var(--pine)"><svg class="i s12"><use href="#lock"/></svg>只读</span><span style="font-size:11px;color:var(--t4)">Context v3 · 源会话：活跃</span><button class="btn sm ml">同步</button></div>
+     <div class="sc-msg"><span class="who">我</span><span class="tx">这个模块除了 composer-card.tsx 还依赖哪些文件？</span></div>
+     <div class="sc-msg"><span class="who">Sonnet 4.6</span><span class="tx">还依赖 steer-queue-model.ts 和 composer-run-actions.tsx，均为只读检索。</span></div>
+     <div class="sc-handoff"><button class="btn sm">Insert to main</button></div>
+    </div>
+   </div>
+
+   <div class="blk" id="b20" data-n="20">
+    <div class="exh-h">导航可达性速查</div>
+    <div class="exh-d">本增量 10 个页签里，只有 4 个能从页签条 / 2×2 启动器直接打开；画布与文档预览能被程序化打开（工具调用、点文件）；笔记/卡片/侧聊三个虽然功能完整，目前在检视器导航里完全没有入口——留给 §6 待确认。</div>
+    <div class="card">
+     <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <tr><th style="text-align:left;padding:5px 8px;color:var(--t3);font:600 10px var(--sans);border-bottom:1px solid var(--l2)">页签</th><th style="text-align:left;padding:5px 8px;color:var(--t3);font:600 10px var(--sans);border-bottom:1px solid var(--l2)">可达方式</th></tr>
+      <tr><td style="padding:5px 8px;border-bottom:1px solid var(--l1)">文件 / zsh / 变更 / 浏览器</td><td style="padding:5px 8px;border-bottom:1px solid var(--l1);color:var(--pine)">页签条 · 2×2 启动器</td></tr>
+      <tr><td style="padding:5px 8px;border-bottom:1px solid var(--l1)">画布</td><td style="padding:5px 8px;border-bottom:1px solid var(--l1);color:var(--lamp)">仅转录内「在画布打开」启动条</td></tr>
+      <tr><td style="padding:5px 8px;border-bottom:1px solid var(--l1)">文档预览</td><td style="padding:5px 8px;border-bottom:1px solid var(--l1);color:var(--lamp)">仅点击文件/引用触发</td></tr>
+      <tr><td style="padding:5px 8px">笔记 / 知识卡片 / 侧聊</td><td style="padding:5px 8px;color:var(--crimson)">检视器内无入口（知识卡片另有独立全窗口工作台）</td></tr>
+     </table>
+    </div>
+   </div>
+
+  </div>
+ </main>
+</div>
+</div>
+
+<script>
+(function(){
+var app=document.getElementById('app');
+var each=function(list,fn){Array.prototype.forEach.call(list,fn)};
+function setSeg(k,v){each(document.querySelectorAll('[data-set="'+k+'"]'),function(b){b.classList.toggle('on',b.getAttribute('data-v')===v)})}
+each(document.querySelectorAll('[data-set]'),function(b){b.addEventListener('click',function(){var k=b.getAttribute('data-set'),v=b.getAttribute('data-v');app.setAttribute('data-'+k,v);setSeg(k,v)})});
+function go(id){var el=document.getElementById(id);if(!el)return;el.scrollIntoView({block:'start'});el.classList.add('flash');setTimeout(function(){el.classList.remove('flash')},1200);each(document.querySelectorAll('.ir'),function(x){x.classList.toggle('on',x.getAttribute('data-go')===id)})}
+each(document.querySelectorAll('.ir'),function(b){b.addEventListener('click',function(){go(b.getAttribute('data-go'))})});
+})();
+</script>
+</body>
+</html>

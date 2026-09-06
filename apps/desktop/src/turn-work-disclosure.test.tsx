@@ -138,4 +138,28 @@ describe('TurnWorkDisclosure', () => {
       container.querySelector('[data-testid="turn-work-disclosure-trigger"]')?.textContent,
     ).toContain('已工作 · 2 次失败');
   });
+
+  it('renders prototype-matching tool count, file count, and failure badges', () => {
+    act(() =>
+      renderHarness(
+        {
+          startIndex: 1,
+          endIndex: 2,
+          elapsedMs: 41_000,
+          toolCount: 5,
+          fileCount: 2,
+          failureCount: 1,
+        },
+        { defaultOpen: false, locale: 'zh-CN' },
+      ),
+    );
+
+    const trigger = container.querySelector<HTMLElement>(
+      '[data-testid="turn-work-disclosure-trigger"]',
+    );
+    expect(trigger?.textContent).toBe('已工作 41s · 5 个工具 · 2 个文件 · 1 次失败');
+    expect(trigger?.querySelector('.fail')?.textContent).toBe('1 次失败');
+    expect(trigger?.querySelector('svg.i')).not.toBeNull();
+    expect(trigger?.querySelector('svg.chev')).not.toBeNull();
+  });
 });

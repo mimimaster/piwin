@@ -4,8 +4,9 @@
 > 其余约束（主题修复、外部资源阻断、嵌入 guard、桥接测量）已由运行时处理，不重复塞进 prompt。
 >
 > 与 `formatArtifactProtocol()` / `ARTIFACT_RUNTIME_CONTRACT` 保持同构。
-> 生产路径：`config.artifact.enabled` 打开时，决策策略 + 本契约直接注入
-> system prompt。不要把 `evaluateCodeFence` 或 `splitMarkdownBlocks` 写进 prompt。
+> 生产路径：`config.artifact.enabled` 打开时，system prompt 保留简短路由提示；
+> 模型通过 `artifact_instructions` 按需获取决策策略和本契约。
+> 不要把 `evaluateCodeFence` 或 `splitMarkdownBlocks` 写进 prompt。
 
 ## 最小可用的 system prompt 片段
 
@@ -54,6 +55,19 @@ SVG:
 Flashcards are structured tool results (`display.cards`), not `artifact-html`
 fences. Code-first is an Inline preview preference and does not change Canvas
 routing.
+
+## 具现质量建议（2026-09-05 review）
+
+现有协议已包含 CSS First / Static First，不建议重复加尺寸约束来掩盖渲染问题。
+可在可编辑的决策提示词里试用下面的质量要求，再用真实对话对比效果：
+
+> 当空间关系、状态变化或交互探索能帮助理解时，主动用 Artifact 将核心信息具现。
+> 先确定用户需要比较、观察或操作什么，再选择图表、示意图或交互组件。
+> 第一屏直接呈现核心关系和可读结果，避免把普通文字拆成大量装饰卡片。
+> 控件必须改变有意义的结果；关键内容先写在静态 HTML 中，再增强交互。
+> 数据不足时标注假设，不捏造数值。内容较长本身不是进入 Canvas 的理由。
+
+这属于生成质量建议，尚未做模型对照验证，不自动覆盖用户已有决策提示词。
 
 ---
 

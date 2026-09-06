@@ -30,6 +30,7 @@ import {
 import { Button, TextInput } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { FieldRow } from '../field-row';
+import { SettingsHostLogSection } from '../settings-host-log';
 import { settingsHostSupportsCommand, useSettings } from '../settings-context';
 
 function residencyLabel(residency: SessionRuntimeResidency | undefined, isZh: boolean): string {
@@ -693,6 +694,7 @@ export function SessionRuntimePage(): ReactElement {
           </div>
         </div>
       ) : null}
+      <SettingsHostLogSection />
     </div>
   );
 }

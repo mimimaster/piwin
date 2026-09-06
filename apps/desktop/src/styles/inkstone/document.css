@@ -1,0 +1,128 @@
+/* The prototype's prose rules applied to the actual Markdown renderer.
+   Display headings, readable paragraphs and recessed technical objects form
+   one document; headings are not separate, ruled application sections. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) {
+  .chat-stage {
+    --chat-line-height: 1.72;
+  }
+  .chat-stream {
+    --transcript-top-pad: 26px;
+  }
+  .markdown {
+    font-size: var(--chat-font-size);
+    line-height: 1.72;
+    color: var(--t1);
+  }
+  .markdown :is(h1, h2, h3, h4, h5, h6) {
+    font-family: var(--sans);
+    font-weight: 600;
+    line-height: 1.4;
+    letter-spacing: 0;
+    border: 0;
+    padding: 0;
+    margin: 20px 0 8px;
+  }
+  .markdown h1 {
+    font-size: 1.2em;
+  }
+  .markdown h2 {
+    font-size: 1.1em;
+  }
+  .markdown :is(h3, h4, h5, h6) {
+    font-size: 1.03em;
+  }
+  .markdown > :first-child {
+    margin-top: 0;
+  }
+  .markdown :is(strong, b) {
+    font-weight: 600;
+  }
+  .markdown :is(p, .md-p) {
+    margin: 0 0 10px;
+  }
+  .markdown :is(ul, ol) {
+    margin: 0 0 12px;
+    padding-left: 1.4em;
+  }
+  .markdown li + li {
+    margin-top: 3px;
+  }
+  .markdown .md-inline-code {
+    display: inline;
+    border: 0;
+    background: var(--code);
+    padding: 1px 5px;
+    font-size: 0.86em;
+    border-radius: 3px;
+  }
+  .markdown .md-code-block {
+    background: var(--code);
+    border-radius: 8px;
+    box-shadow: var(--sh1);
+    margin: 8px 0 12px;
+  }
+  .markdown .md-code-header,
+  .markdown .md-code-block[data-is-shell='true'] .md-code-header {
+    min-height: 30px;
+    padding: 0 10px;
+    border-bottom: 1px solid var(--l1);
+    font: 11.5px var(--mono);
+    color: var(--t3);
+  }
+  .markdown .md-code-lang {
+    font: inherit;
+    letter-spacing: 0;
+  }
+  .markdown .md-code-block .md-code {
+    padding: 10px 12px;
+    font-size: var(--code-font-size);
+    line-height: 1.6;
+    background: transparent;
+  }
+  .markdown .md-code-line {
+    line-height: 1.6;
+  }
+  .markdown .md-code-line-num {
+    color: var(--t4);
+    padding-right: 14px;
+  }
+  .markdown .md-table-wrapper {
+    background: var(--s3);
+    box-shadow: var(--sh1);
+    border-radius: 8px;
+  }
+  .markdown .md-table {
+    font-size: 12.5px;
+    line-height: 1.6;
+  }
+  .markdown .md-table th {
+    background: var(--s1);
+    font: 500 11.5px var(--sans);
+    padding: 7px 10px;
+  }
+  .markdown .md-table td {
+    padding: 7px 10px;
+  }
+  .markdown .md-table tbody tr:nth-child(even) {
+    background: transparent;
+  }
+  .markdown .md-blockquote {
+    background: transparent;
+    border-left: 1.5px solid var(--l3);
+    border-radius: 0;
+    padding: 2px 0 2px 14px;
+    color: var(--t2);
+    font-style: normal;
+  }
+  .markdown .md-mermaid {
+    background: var(--s3);
+    box-shadow: var(--sh1);
+  }
+  .chat-thread .turn-thinking .markdown {
+    font-size: 12.5px;
+    color: var(--t2);
+  }
+  .user-message-wrapper.is-conversation .user-message-bubble {
+    font-size: var(--chat-font-size);
+  }
+}

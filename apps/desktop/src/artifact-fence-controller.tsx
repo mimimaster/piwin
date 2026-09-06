@@ -50,6 +50,12 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
         htmlUiModeEnabled: props.htmlUiModeEnabled,
         mode: streamMode ? 'stream-preview' : 'interactive',
         ...(props.artifactMaxBytes !== undefined ? { maxBytes: props.artifactMaxBytes } : {}),
+        ...(props.artifactBlockExternalScripts !== undefined
+          ? { blockExternalScripts: props.artifactBlockExternalScripts }
+          : {}),
+        ...(props.artifactBlockExternalResources !== undefined
+          ? { blockExternalResources: props.artifactBlockExternalResources }
+          : {}),
       },
     );
   }, [
@@ -60,6 +66,8 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     streamMode,
     props.htmlUiModeEnabled,
     props.artifactMaxBytes,
+    props.artifactBlockExternalScripts,
+    props.artifactBlockExternalResources,
   ]);
 
   const layout = analysis?.kind === 'intent' ? analysis.intent.layout : null;

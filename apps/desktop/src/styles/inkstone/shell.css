@@ -1,0 +1,185 @@
+/* Inkstone (砚) shell skeleton — the `.app` frame of proto-00-shell.html,
+   ported onto the app's real containers (.app-shell grid, .context-bar,
+   .sidebar/.workspace/.right-panel). Scoped to the two Inkstone theme ids so
+   Obsidian/Bone/ink-wash keep their Deck frame untouched.
+
+   Frame structure (proto-00-shell.html rendered, the accepted look):
+     .app = grid rows [ titleband | .deck 1fr ]
+     .deck = padding 0 8px 8px, gap 8px, three floating .panel (s1, r12, sh2);
+             the stage panel is s2 with a film-grain ::after.
+     The titleband spans the window top with the centered serif title;
+     panels start below it on one shared edge. */
+
+html[data-theme-id='piwin-inkstone-paper'] .app-shell,
+html[data-theme-id='piwin-inkstone-ink'] .app-shell {
+  /* Dense chrome: titleband + panel heads share one tight rhythm.
+     Proto's 42px panel heads read as empty air once real content is sparse. */
+  --titleband-height: 30px;
+  --card-header-height: 30px;
+  --sidebar-width: 240px;
+  --right-panel-width: 360px;
+  padding: 0 8px 8px !important;
+  gap: 6px !important;
+  row-gap: 0 !important;
+  column-gap: 6px !important;
+  grid-template-rows: var(--titleband-height) minmax(0, 1fr) !important;
+  grid-template-columns: var(--sidebar-width, 240px) minmax(0, 1fr) !important;
+  grid-template-areas:
+    'tb tb'
+    'nav stage' !important;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .app-shell.has-right-panel,
+html[data-theme-id='piwin-inkstone-ink'] .app-shell.has-right-panel {
+  grid-template-columns: var(--sidebar-width, 240px) minmax(0, 1fr) var(--right-panel-width, 360px) !important;
+  grid-template-areas:
+    'tb tb tb'
+    'nav stage signal' !important;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .app-shell[data-layout='desktop']:not(.nav-open),
+html[data-theme-id='piwin-inkstone-ink'] .app-shell[data-layout='desktop']:not(.nav-open) {
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-areas:
+    'tb'
+    'stage' !important;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .app-shell[data-layout='desktop']:not(.nav-open).has-right-panel,
+html[data-theme-id='piwin-inkstone-ink'] .app-shell[data-layout='desktop']:not(.nav-open).has-right-panel {
+  grid-template-columns: minmax(0, 1fr) var(--right-panel-width, 360px) !important;
+  grid-template-areas:
+    'tb tb'
+    'stage signal' !important;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .app-shell[data-layout='compact'],
+html[data-theme-id='piwin-inkstone-ink'] .app-shell[data-layout='compact'],
+html[data-theme-id='piwin-inkstone-paper'] .app-shell[data-layout='compact'].has-right-panel,
+html[data-theme-id='piwin-inkstone-ink'] .app-shell[data-layout='compact'].has-right-panel {
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-areas:
+    'tb'
+    'stage' !important;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .app-shell > .context-bar,
+html[data-theme-id='piwin-inkstone-ink'] .app-shell > .context-bar {
+  grid-area: tb;
+}
+
+/* The titleband owns its row; panels sit strictly on row 2. */
+html[data-theme-id='piwin-inkstone-paper'] .app-shell > .sidebar,
+html[data-theme-id='piwin-inkstone-ink'] .app-shell > .sidebar {
+  grid-area: nav;
+  grid-row: 2;
+  /* Kill Deck overlay clearance — titleband is its own grid row under Inkstone. */
+  padding: 0 !important;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .app-shell > .workspace,
+html[data-theme-id='piwin-inkstone-ink'] .app-shell > .workspace {
+  grid-area: stage;
+  grid-row: 2;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .app-shell > .right-panel,
+html[data-theme-id='piwin-inkstone-ink'] .app-shell > .right-panel {
+  grid-area: signal;
+  grid-row: 2;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .app-shell .conversation-pane-body > .chat-column,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .app-shell .chat-column {
+  padding-top: 0 !important;
+}
+
+/* Titleband is a real grid row under Inkstone — never clear it again with Deck overlay margin. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .conversation-pane-workspace {
+  margin-top: 0 !important;
+  height: 100%;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .conversation-pane {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+/* Three floating panels. Radius 12 and --sh2 are the prototype's .panel
+   treatment; backgrounds already resolve: sidebar/right-panel s1, stage s2
+   (region-shell.css reads --surface-1/2, authored to the same hex). */
+html[data-theme-id='piwin-inkstone-paper'] .app-shell > .sidebar,
+html[data-theme-id='piwin-inkstone-ink'] .app-shell > .sidebar,
+html[data-theme-id='piwin-inkstone-paper'] .app-shell > .workspace,
+html[data-theme-id='piwin-inkstone-ink'] .app-shell > .workspace,
+html[data-theme-id='piwin-inkstone-paper'] .app-shell > .right-panel,
+html[data-theme-id='piwin-inkstone-ink'] .app-shell > .right-panel {
+  border-radius: 12px !important;
+  box-shadow: var(--sh2) !important;
+  overflow: hidden;
+}
+
+/* ── Session context row (proto-00 .session-context) ───────────────────
+   Stage-top line: project chip · branch chip · workspace path. Rendered only
+   for project sessions; general conversations keep the stage clean. */
+
+html[data-theme-id='piwin-inkstone-paper'] .session-context,
+html[data-theme-id='piwin-inkstone-ink'] .session-context {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  flex: none;
+  padding: 3px 14px;
+  color: var(--t3);
+  font: 10px/1.2 var(--mono);
+  border-bottom: 1px solid var(--l1);
+  box-sizing: border-box;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .session-context .chip,
+html[data-theme-id='piwin-inkstone-ink'] .session-context .chip,
+html[data-theme-id='piwin-inkstone-paper'] .session-context .composer-context-link,
+html[data-theme-id='piwin-inkstone-ink'] .session-context .composer-context-link {
+  font: 11px/1 var(--sans);
+  height: 22px;
+  padding: 0 5px;
+  border-radius: 6px;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .session-context svg,
+html[data-theme-id='piwin-inkstone-ink'] .session-context svg {
+  width: 14px !important;
+  height: 14px !important;
+  flex: none;
+}
+
+
+/* Film grain over the stage (proto-00 .stage::after), verbatim. It sits above
+   static transcript content and below positioned layers (composer z-10),
+   pointer-transparent, exactly as in the prototype. */
+html[data-theme-id='piwin-inkstone-paper'] .app-shell > .workspace::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.035;
+  mix-blend-mode: multiply;
+  background: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>")
+    0 0 / 200px 200px;
+}
+
+html[data-theme-id='piwin-inkstone-ink'] .app-shell > .workspace::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.02;
+  mix-blend-mode: screen;
+  background: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>")
+    0 0 / 200px 200px;
+}

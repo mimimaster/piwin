@@ -45,6 +45,8 @@ export type TabsTriggerProps = {
   className?: string;
   testId?: string;
   disabled?: boolean;
+  /** A panel mounted by a separate lifecycle owner (for example a terminal). */
+  controlsId?: string;
 };
 
 export function TabsTrigger(props: TabsTriggerProps): ReactElement {
@@ -54,6 +56,7 @@ export function TabsTrigger(props: TabsTriggerProps): ReactElement {
       className={props.className ? `ui-tabs-trigger ${props.className}` : 'ui-tabs-trigger'}
       data-testid={props.testId}
       disabled={props.disabled}
+      {...(props.controlsId ? { 'aria-controls': props.controlsId } : {})}
     >
       {props.children}
     </TabsPrimitive.Trigger>

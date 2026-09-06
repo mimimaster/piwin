@@ -15,6 +15,8 @@ export default defineConfig({
   },
 
   plugins: [react()],
+  // Shiki loads grammars on demand inside the module worker.
+  worker: { format: 'es' },
   clearScreen: false,
   server: {
     port: 1420,

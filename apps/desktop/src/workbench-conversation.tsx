@@ -18,6 +18,7 @@ import type {
 } from '@piwin/contracts';
 import type { ArtifactActionMessage } from '@piwin/artifact';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model';
+import { artifactFenceSecurityProps } from './artifact-fence-security';
 import { ChatThread } from './chat-thread';
 import type { ChatMessageUi, ChatUiState, SessionListItemUi } from './chat-reducer';
 import { ComposerDock, type ComposerDockProps } from './composer-dock';
@@ -28,7 +29,7 @@ import type { HostClient } from './host-client';
 import { HostReconnectBanner } from './host-reconnect-banner';
 import { shouldShowHostReconnectBanner } from './host-reconnect-gate.js';
 import { InkWashEmptyVignette } from './ink-wash-empty-vignette';
-import type { KnowledgeCenterPanelProps } from './KnowledgeCenterPanel';
+import type { DoccardsHostRequest } from './knowledge/knowledge-host-request';
 import type { ModelOption } from './model-options';
 import { PermissionBar } from './permission-bar';
 import { canShowPlanExecutionGate, PlanExecutionGate } from './plan-execution-gate';
@@ -55,7 +56,7 @@ export type WorkbenchTranscriptProps = {
   preferences: DesktopPreferences;
   sessionPlan: SessionPlan | null | undefined;
   modelOptions: ModelOption[];
-  requestKnowledgeCenter: KnowledgeCenterPanelProps['request'];
+  requestKnowledgeCenter: DoccardsHostRequest;
   resolveFlashcards: (itemIds: string[]) => Promise<FlashcardReviewCard[]>;
   requestGit: HostClient['request'];
   editingMessageId: string | null;
@@ -165,18 +166,19 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
       }) ? (
         <HostReconnectBanner locale={locale} />
       ) : null}
-      {state.awaitingTranscript ? (
-        <div
-          className="transcript-awaiting-banner"
-          data-testid="transcript-awaiting-banner"
-          role="status"
-          aria-live="polite"
-        >
-          {locale === 'zh-CN' ? '正在加载会话…' : 'Loading session…'}
-        </div>
-      ) : null}
-      <TranscriptViewport
-        key={activeSessionId ?? 'no-session'}
+      <div className="transcript-stage">
+        {state.awaitingTranscript ? (
+          <div
+            className="transcript-awaiting-banner"
+            data-testid="transcript-awaiting-banner"
+            role="status"
+            aria-live="polite"
+          >
+            {locale === 'zh-CN' ? '正在加载会话…' : 'Loading session…'}
+          </div>
+        ) : null}
+        <TranscriptViewport
+          key={activeSessionId ?? 'no-session'}
         messageCount={visibleMessages.length}
         activitySignal={historyViewActive ? 'history-view' : activitySignal}
         messages={visibleMessages}
@@ -205,6 +207,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
           <ChatThread
             messages={visibleMessages}
             {...(activeSessionId ? { sessionId: activeSessionId } : {})}
+            hydrating={state.awaitingTranscript}
             streaming={!historyViewActive && state.streaming}
             activeSessionId={activeSessionId}
             docCardRequest={requestKnowledgeCenter as never}
@@ -242,9 +245,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
             artifactPreviewEnabled={config?.artifact?.enabled ?? true}
             artifactCodeFirst={preferences.artifactCodeFirst}
             plan={sessionPlan ?? null}
-            {...(config?.artifact?.maxBytes !== undefined
-              ? { artifactMaxBytes: config.artifact.maxBytes }
-              : {})}
+            {...artifactFenceSecurityProps(config?.artifact)}
             locale={locale}
             assemblySummariesByRunId={assemblySummariesByRunId}
             onInspectSubagent={onInspectSubagent}
@@ -308,7 +309,8 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
             onResumeSession={(sessionId) => void onOpenSession(sessionId)}
           />
         )}
-      </TranscriptViewport>
+        </TranscriptViewport>
+      </div>
     </>
   );
 }

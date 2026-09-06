@@ -672,10 +672,18 @@ function sanitizeRemoteValue(value: unknown, key: string | undefined): unknown {
     return '[redacted]';
   }
   if (key !== undefined && REMOTE_PATH_KEYS.has(key)) {
-    if (typeof value === 'string' && isRemoteAssetRef(value)) {
-      return value;
+    if (typeof value === 'string') {
+      return isRemoteAssetRef(value) ? value : boundedString(value, 16_384);
     }
-    return Array.isArray(value) ? [] : '[host-path]';
+    if (Array.isArray(value)) {
+      return value.slice(0, 100).map((item) => {
+        if (typeof item === 'string') {
+          return isRemoteAssetRef(item) ? item : boundedString(item, 16_384);
+        }
+        return sanitizeRemoteValue(item, undefined);
+      });
+    }
+    return value;
   }
   if (typeof value === 'string') {
     return boundedString(redactRemoteHostPaths(value), 256_000);

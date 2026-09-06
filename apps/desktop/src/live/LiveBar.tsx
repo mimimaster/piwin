@@ -1,10 +1,11 @@
 import { IconButton } from '@piwin/ui-kit';
-import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
 import type { LiveCallView } from '@piwin/contracts';
 import { useDesktopLocale } from '../desktop-locale-context.js';
 import { IconClose, IconMic, IconRefresh } from '../shell-icons.js';
 import type { LivePeerSnapshot } from './live-peer.js';
 import { liveStillBoundTargetLabel, liveStartErrorLabel } from './live-call-copy.js';
+import { LiveReconnectBudget } from './live-reconnect-budget.js';
 
 export type LiveBarProps = {
   call: LiveCallView | null;
@@ -23,7 +24,17 @@ export function LiveBar(props: LiveBarProps): ReactElement {
   const { locale } = useDesktopLocale();
   const isChinese = locale === 'zh-CN';
   const muted = props.call?.activity === 'muted' || props.peer.muted;
-  const presentation = presentLiveState(props, isChinese);
+  const reconnectBudgetRef = useRef(new LiveReconnectBudget());
+  const [reconnectLeft, setReconnectLeft] = useState<number | null>(null);
+  useEffect(() => {
+    if (props.call?.phase !== 'reconnecting') {
+      setReconnectLeft(null);
+      return;
+    }
+    const allowed = reconnectBudgetRef.current.tryConsume();
+    setReconnectLeft(allowed ? reconnectBudgetRef.current.remaining() : 0);
+  }, [props.call?.phase]);
+  const presentation = presentLiveState(props, isChinese, reconnectLeft);
   const intendedRaw = props.intendedSessionId;
   const intendedSessionId =
     intendedRaw === undefined ? undefined : intendedRaw?.trim() ? intendedRaw.trim() : null;
@@ -142,6 +153,13 @@ export function LiveBar(props: LiveBarProps): ReactElement {
         )}
       </div>
 
+      {/* Detailed start/rebind errors already render as live-bar-error-copy. */}
+      {!errorCopy ? (
+        <span className="live-bar-label" data-testid="live-bar-label">
+          {presentation.label}
+        </span>
+      ) : null}
+
       {props.call?.boundSessionLabel ? (
         <span className="live-bar-session" data-testid="live-bar-session">
           {props.call.boundSessionLabel}
@@ -222,6 +240,8 @@ export function LiveBar(props: LiveBarProps): ReactElement {
 }
 
 type LivePresentation = {
+  /** Short visible status (proto-06 `.live-lbl`). Keep reconnect attempt count in aria only. */
+  label: string;
   accessibleLabel: string;
   tone: 'connecting' | 'active' | 'speaking' | 'muted' | 'working' | 'permission' | 'error';
   motion:
@@ -237,12 +257,17 @@ type LivePresentation = {
   fxType: 'spinner' | 'equalizer' | 'equalizer-flat' | 'warning' | 'alert-dot';
 };
 
-function presentLiveState(props: LiveBarProps, isChinese: boolean): LivePresentation {
+function presentLiveState(
+  props: LiveBarProps,
+  isChinese: boolean,
+  reconnectLeft: number | null,
+): LivePresentation {
   if (props.error) {
     const kind = props.call ? 'rebind' : 'start';
     const detail = liveStartErrorLabel(props.error, isChinese, { kind });
     if (props.call) {
       return {
+        label: isChinese ? '工作目标改绑失败' : 'Rebind failed',
         accessibleLabel: `${isChinese ? '工作目标改绑失败' : 'Work target rebind failed'}: ${detail}`,
         tone: 'error',
         motion: 'error',
@@ -250,6 +275,7 @@ function presentLiveState(props: LiveBarProps, isChinese: boolean): LivePresenta
       };
     }
     return {
+      label: isChinese ? '语音连接未建立' : 'Connection error',
       accessibleLabel: `${isChinese ? '语音连接未建立' : 'Voice connection error'}: ${detail}`,
       tone: 'error',
       motion: 'error',
@@ -259,6 +285,7 @@ function presentLiveState(props: LiveBarProps, isChinese: boolean): LivePresenta
   const mediaUp = props.peer.phase === 'connected';
   if ((props.starting || props.call?.phase === 'starting') && !mediaUp) {
     return {
+      label: isChinese ? '正在连接…' : 'Connecting…',
       accessibleLabel: isChinese ? '正在连接 piwin Live' : 'Connecting to piwin Live',
       tone: 'connecting',
       motion: 'connecting',
@@ -266,8 +293,16 @@ function presentLiveState(props: LiveBarProps, isChinese: boolean): LivePresenta
     };
   }
   if (props.call?.phase === 'reconnecting' && !mediaUp) {
+    const remaining =
+      reconnectLeft === null
+        ? ''
+        : isChinese
+          ? `，还剩 ${reconnectLeft} 次`
+          : `, ${reconnectLeft} left`;
     return {
-      accessibleLabel: isChinese ? '正在重新连接语音' : 'Reconnecting voice',
+      // proto-06 b19: no visible countdown — attempt budget stays in aria/title only
+      label: isChinese ? '正在重新连接语音' : 'Reconnecting voice',
+      accessibleLabel: `${isChinese ? '正在重新连接语音' : 'Reconnecting voice'}${remaining}`,
       tone: 'connecting',
       motion: 'connecting',
       fxType: 'spinner',
@@ -275,6 +310,7 @@ function presentLiveState(props: LiveBarProps, isChinese: boolean): LivePresenta
   }
   if (props.call?.activity === 'user-speaking') {
     return {
+      label: isChinese ? '正在听你说' : 'Listening to you',
       accessibleLabel: isChinese ? '正在听你说' : 'Listening to you',
       tone: 'active',
       motion: 'user-speaking',
@@ -283,6 +319,7 @@ function presentLiveState(props: LiveBarProps, isChinese: boolean): LivePresenta
   }
   if (props.call?.activity === 'assistant-speaking') {
     return {
+      label: isChinese ? '模型正在回复' : 'Assistant responding',
       accessibleLabel: isChinese ? '模型正在回复' : 'Assistant responding',
       tone: 'speaking',
       motion: 'assistant-speaking',
@@ -291,6 +328,7 @@ function presentLiveState(props: LiveBarProps, isChinese: boolean): LivePresenta
   }
   if (props.call?.activity === 'waiting-for-permission') {
     return {
+      label: isChinese ? '等待权限确认' : 'Waiting for permission',
       accessibleLabel: isChinese ? '等待终端权限确认' : 'Waiting for permission',
       tone: 'permission',
       motion: 'permission',
@@ -299,6 +337,7 @@ function presentLiveState(props: LiveBarProps, isChinese: boolean): LivePresenta
   }
   if (props.call?.activity === 'agent-working') {
     return {
+      label: isChinese ? 'Agent 工作中' : 'Agent working',
       accessibleLabel: isChinese ? 'Agent 正在处理工作' : 'Agent working',
       tone: 'working',
       motion: 'working',
@@ -307,6 +346,7 @@ function presentLiveState(props: LiveBarProps, isChinese: boolean): LivePresenta
   }
   if (props.call?.activity === 'muted' || props.peer.muted) {
     return {
+      label: isChinese ? '已静音' : 'Muted',
       accessibleLabel: isChinese ? '麦克风已静音' : 'Microphone muted',
       tone: 'muted',
       motion: 'muted',
@@ -314,6 +354,7 @@ function presentLiveState(props: LiveBarProps, isChinese: boolean): LivePresenta
     };
   }
   return {
+    label: isChinese ? '语音正在倾听' : 'Voice listening',
     accessibleLabel: isChinese ? '语音正在倾听' : 'Voice listening',
     tone: 'active',
     motion: 'listening',

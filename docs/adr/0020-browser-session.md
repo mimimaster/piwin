@@ -2,8 +2,9 @@
 
 ## Status
 
-Accepted (2026-07-31) · lifecycle amendment accepted 2026-08-09 · supersedes
-the iframe-based `BrowserPanel` preview
+Accepted (2026-07-31) · lifecycle amendment accepted 2026-08-09 · local HTML
+file-open amendment accepted 2026-09-04 · supersedes the iframe-based
+`BrowserPanel` preview
 
 ## Context
 
@@ -197,6 +198,12 @@ an SSRF hole. Classification reuses `isPrivateOrLocalHostname` /
 `isPrivateOrLocalIpAddress` from `@piwin/tools-web` (exported; host-side only).
 Element pick/attach is **user-initiated** — no permission prompt (the user is
 pointing at what they already see).
+
+User-initiated `browser/navigate` (panel URL bar, clicking a local `.html` /
+`.htm` file) may open a `file:` URL in the same Chromium. Agent `browser_navigate`
+still hard-denies non-http(s) schemes. Bare transcript chips such as `.html` or
+`card.html` stay on Doc Preview so recovered fences are not forced through
+`file:`.
 
 ### 6. Desktop panel
 

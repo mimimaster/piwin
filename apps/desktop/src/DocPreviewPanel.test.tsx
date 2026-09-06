@@ -69,6 +69,36 @@ describe('DocPreviewPanel', () => {
     expect(container.querySelector('[data-testid="doc-preview-close"]')).toBeNull();
   });
 
+  it('shows only the filename in the header, not the path or provenance', () => {
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <DocPreviewPanel
+            title="live-call-coordinator.ts"
+            content="export {}"
+            filePath="/Users/me/piwin/packages/host-runtime/src/voice/live-call-coordinator.ts"
+            displayRef="packages/host-runtime/src/voice/live-call-coordinator.ts"
+            provenance="project-current"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const heading = container.querySelector('.doc-preview-title');
+    expect(heading?.textContent).toBe('live-call-coordinator.ts');
+    expect(heading?.getAttribute('title')).toBe(
+      'packages/host-runtime/src/voice/live-call-coordinator.ts',
+    );
+    expect(container.querySelector('[data-testid="doc-preview-provenance"]')).toBeNull();
+    expect(container.querySelector('[data-testid="doc-preview-meta"]')).toBeNull();
+    expect(container.querySelector('.doc-preview-header')?.textContent).not.toContain(
+      'packages/host-runtime/src/voice/live-call-coordinator.ts',
+    );
+    expect(container.querySelector('.doc-preview-header')?.textContent).not.toContain(
+      '当前磁盘版本',
+    );
+  });
+
   it('shows the outside-project read-only badge for trusted-config previews', () => {
     act(() => {
       root.render(

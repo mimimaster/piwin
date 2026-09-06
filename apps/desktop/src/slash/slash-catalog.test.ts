@@ -108,6 +108,21 @@ describe('buildSlashCatalog — Conversation chat', () => {
     expect(goal?.available).toBe(true);
   });
 
+  it('lists one flashcards command and a separate wiki command', () => {
+    const catalog = buildSlashCatalog({
+      skills: [],
+      hasActiveSession: true,
+      projectTrusted: true,
+    });
+    const flashcards = catalog.filter((item) => item.label === 'Flashcards');
+    expect(flashcards).toHaveLength(1);
+    expect(flashcards[0]?.id).toBe('cmd:flashcards');
+    expect(flashcards[0]?.aliases).toEqual(expect.arrayContaining(['knowledge', 'doccards', 'cards']));
+    expect(catalog.some((item) => item.id === 'cmd:wiki')).toBe(true);
+    expect(catalog.some((item) => item.id === 'cmd:knowledge')).toBe(false);
+    expect(catalog.some((item) => item.id === 'cmd:notes')).toBe(false);
+  });
+
   it('disables /goal when the extension is off', () => {
     const catalog = buildSlashCatalog({
       skills: [],

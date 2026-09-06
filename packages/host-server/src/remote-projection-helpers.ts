@@ -95,5 +95,5 @@ export function projectRemoteMediaRef(
       return `remote-asset:${assetId}`;
     }
   }
-  return '[host-path]';
+  return value;
 }

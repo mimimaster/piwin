@@ -50,6 +50,9 @@ html[data-memory-pressure='critical'] {
 html[data-memory-pressure='moderate'] .chat-flashcard-container,
 html[data-memory-pressure='critical'] .chat-flashcard-container,
 html[data-memory-parked] .chat-flashcard-container,
+html[data-memory-pressure='moderate'] .fc-card,
+html[data-memory-pressure='critical'] .fc-card,
+html[data-memory-parked] .fc-card,
 html[data-memory-pressure='moderate'] .fc-quiet-card-container,
 html[data-memory-pressure='critical'] .fc-quiet-card-container,
 html[data-memory-parked] .fc-quiet-card-container {
@@ -59,9 +62,13 @@ html[data-memory-parked] .fc-quiet-card-container {
 html[data-memory-pressure='moderate'] .chat-flashcard-frame,
 html[data-memory-pressure='critical'] .chat-flashcard-frame,
 html[data-memory-parked] .chat-flashcard-frame,
+html[data-memory-pressure='moderate'] .flip,
+html[data-memory-pressure='critical'] .flip,
+html[data-memory-parked] .flip,
 html[data-memory-pressure='moderate'] .fc-quiet-frame,
 html[data-memory-pressure='critical'] .fc-quiet-frame,
 html[data-memory-parked] .fc-quiet-frame {
+  perspective: none !important;
   transform-style: flat !important;
   transition: none !important;
   transform: none !important;
@@ -71,6 +78,9 @@ html[data-memory-parked] .fc-quiet-frame {
 html[data-memory-pressure='moderate'] .chat-flashcard-face,
 html[data-memory-pressure='critical'] .chat-flashcard-face,
 html[data-memory-parked] .chat-flashcard-face,
+html[data-memory-pressure='moderate'] .flip .face,
+html[data-memory-pressure='critical'] .flip .face,
+html[data-memory-parked] .flip .face,
 html[data-memory-pressure='moderate'] .fc-quiet-face,
 html[data-memory-pressure='critical'] .fc-quiet-face,
 html[data-memory-parked] .fc-quiet-face {
@@ -78,11 +88,15 @@ html[data-memory-parked] .fc-quiet-face {
   -webkit-backface-visibility: visible !important;
   transform: none !important;
   box-shadow: none !important;
+  transition: none !important;
 }
 
 html[data-memory-pressure='moderate'] .chat-flashcard-frame.is-flipped .chat-flashcard-face-front,
 html[data-memory-pressure='critical'] .chat-flashcard-frame.is-flipped .chat-flashcard-face-front,
 html[data-memory-parked] .chat-flashcard-frame.is-flipped .chat-flashcard-face-front,
+html[data-memory-pressure='moderate'] .flip:not(.is-back) .face.back,
+html[data-memory-pressure='critical'] .flip:not(.is-back) .face.back,
+html[data-memory-parked] .flip:not(.is-back) .face.back,
 html[data-memory-pressure='moderate'] .fc-quiet-frame.is-flipped .fc-quiet-front,
 html[data-memory-pressure='critical'] .fc-quiet-frame.is-flipped .fc-quiet-front,
 html[data-memory-parked] .fc-quiet-frame.is-flipped .fc-quiet-front {
@@ -92,6 +106,9 @@ html[data-memory-parked] .fc-quiet-frame.is-flipped .fc-quiet-front {
 html[data-memory-pressure='moderate'] .chat-flashcard-face-back,
 html[data-memory-pressure='critical'] .chat-flashcard-face-back,
 html[data-memory-parked] .chat-flashcard-face-back,
+html[data-memory-pressure='moderate'] .flip.is-back .face.front,
+html[data-memory-pressure='critical'] .flip.is-back .face.front,
+html[data-memory-parked] .flip.is-back .face.front,
 html[data-memory-pressure='moderate'] .fc-quiet-back,
 html[data-memory-pressure='critical'] .fc-quiet-back,
 html[data-memory-parked] .fc-quiet-back {
@@ -102,6 +119,9 @@ html[data-memory-parked] .fc-quiet-back {
 html[data-memory-pressure='moderate'] .chat-flashcard-frame.is-flipped .chat-flashcard-face-back,
 html[data-memory-pressure='critical'] .chat-flashcard-frame.is-flipped .chat-flashcard-face-back,
 html[data-memory-parked] .chat-flashcard-frame.is-flipped .chat-flashcard-face-back,
+html[data-memory-pressure='moderate'] .flip.is-back .face.back,
+html[data-memory-pressure='critical'] .flip.is-back .face.back,
+html[data-memory-parked] .flip.is-back .face.back,
 html[data-memory-pressure='moderate'] .fc-quiet-frame.is-flipped .fc-quiet-back,
 html[data-memory-pressure='critical'] .fc-quiet-frame.is-flipped .fc-quiet-back,
 html[data-memory-parked] .fc-quiet-frame.is-flipped .fc-quiet-back {
@@ -111,6 +131,9 @@ html[data-memory-parked] .fc-quiet-frame.is-flipped .fc-quiet-back {
 html[data-memory-pressure='moderate'] .chat-flashcard-rate-btn,
 html[data-memory-pressure='critical'] .chat-flashcard-rate-btn,
 html[data-memory-parked] .chat-flashcard-rate-btn,
+html[data-memory-pressure='moderate'] .rate .btn,
+html[data-memory-pressure='critical'] .rate .btn,
+html[data-memory-parked] .rate .btn,
 html[data-memory-pressure='moderate'] .fc-quiet-rate-btn,
 html[data-memory-pressure='critical'] .fc-quiet-rate-btn,
 html[data-memory-parked] .fc-quiet-rate-btn {

@@ -1,15 +1,14 @@
 /**
  * WorkspaceShell — pure layout for the product shell.
  *
- * The titlebar is a full-window row above the deck, not a panel child. macOS
- * pins the Overlay traffic lights to a fixed offset from the *window* top, so
- * the only row that can share their line is one flush with the window top.
- * Panels start below it and keep the deck inset.
+ * The titlebar overlays the deck's top strip; under the Inkstone themes it is
+ * confined to the stage column (proto-00-shell.html 00.2), where each column
+ * owns its own 42px header strip.
  *
  * Rows / columns:
- *   - Titlebar: window controls, history, title, right tools (spans all columns)
- *   - Sidebar (collapsible) | Stage (transcript/permission/composer)
- *     | Right panel / inspector (optional)
+ *   - Titlebar: window controls, history, title, right tools
+ *   - Sidebar (collapsible) | Stage (context row + transcript/permission/
+ *     composer) | Right panel / inspector (optional)
  */
 import type { ReactElement, ReactNode } from 'react';
 
@@ -17,6 +16,10 @@ export type WorkspaceShellProps = {
   sidebar: ReactNode;
   /** Full-window titlebar: window controls, history, title, right tools. */
   titlebar: ReactNode;
+  /** Stage-top header (42px) in Inkstone themes: session title, lamp, sq, tree. */
+  stageHeader?: ReactNode | undefined;
+  /** Stage-top context line (project / branch / path) for project sessions. */
+  sessionContext?: ReactNode;
   transcript: ReactNode;
   activityDock?: ReactNode | undefined;
   permissionBar?: ReactNode | undefined;
@@ -30,6 +33,8 @@ export type WorkspaceShellProps = {
 
 type WorkspaceChatColumnProps = Pick<
   WorkspaceShellProps,
+  | 'stageHeader'
+  | 'sessionContext'
   | 'transcript'
   | 'activityDock'
   | 'permissionBar'
@@ -42,6 +47,8 @@ function WorkspaceChatColumn(props: WorkspaceChatColumnProps): ReactElement {
     <section
       className={`chat-column${props.chatColumnClassName !== undefined ? ` ${props.chatColumnClassName}` : ''}`}
     >
+      {props.stageHeader}
+      {props.sessionContext}
       <div className="chat-stage">
         {props.transcript}
         {props.activityDock !== undefined ? props.activityDock : null}
@@ -55,6 +62,8 @@ function WorkspaceChatColumn(props: WorkspaceChatColumnProps): ReactElement {
 export function WorkspaceShell(props: WorkspaceShellProps): ReactElement {
   const primaryChatColumn = (
     <WorkspaceChatColumn
+      stageHeader={props.stageHeader}
+      sessionContext={props.sessionContext}
       transcript={props.transcript}
       activityDock={props.activityDock}
       permissionBar={props.permissionBar}

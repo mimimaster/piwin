@@ -1,5 +1,10 @@
 export type FlashcardChatCopy = {
   unnamedDeck: string;
+  generatedCards: (count: number) => string;
+  deckSep: (deck: string) => string;
+  clickToFlip: string;
+  questionMic: string;
+  answerMic: string;
   flipToAnswer: string;
   flipBack: string;
   answer: string;
@@ -7,7 +12,7 @@ export type FlashcardChatCopy = {
   openSource: string;
   rated: (label: string) => string;
   change: string;
-  cardsCount: (count: number) => string;
+  rateHint: string;
   previous: string;
   next: string;
   again: string;
@@ -18,38 +23,49 @@ export type FlashcardChatCopy = {
 
 const ZH: FlashcardChatCopy = {
   unnamedDeck: '闪卡',
-  flipToAnswer: '翻看解答',
-  flipBack: '翻回',
-  answer: '解答',
+  generatedCards: (count) => `生成了 ${count} 张知识卡片`,
+  deckSep: (deck) => `· 牌组 ${deck} · 点击翻转`,
+  clickToFlip: '点击翻转',
+  questionMic: '问',
+  answerMic: '答',
+  flipToAnswer: '点击翻转',
+  flipBack: '点击翻回',
+  answer: '答',
   source: '来源',
   openSource: '打开源文件',
   rated: (label) => `已记录：${label}`,
   change: '修改',
-  cardsCount: (count) => `卡片 (${count})`,
+  rateHint: '评分后进入下一张 · 1–4 直接按键',
   previous: '上一张',
   next: '下一张',
   again: '忘了',
-  hard: '较难',
-  good: '记住了',
-  easy: '简单',
+  hard: '模糊',
+  good: '记得',
+  easy: '熟练',
 };
 
 const EN: FlashcardChatCopy = {
   unnamedDeck: 'Card',
-  flipToAnswer: 'Flip',
-  flipBack: 'Flip back',
-  answer: 'Answer',
+  generatedCards: (count) =>
+    count === 1 ? 'Generated 1 knowledge card' : `Generated ${count} knowledge cards`,
+  deckSep: (deck) => `· Deck ${deck} · Click to flip`,
+  clickToFlip: 'Click to flip',
+  questionMic: 'Q',
+  answerMic: 'A',
+  flipToAnswer: 'Click to flip',
+  flipBack: 'Click to flip back',
+  answer: 'A',
   source: 'Source',
   openSource: 'Open',
   rated: (label) => `Rated: ${label}`,
   change: 'Change',
-  cardsCount: (count) => `Cards (${count})`,
+  rateHint: 'Rate to advance · keys 1–4',
   previous: 'Previous',
   next: 'Next',
-  again: 'Again',
-  hard: 'Hard',
-  good: 'Good',
-  easy: 'Easy',
+  again: 'Forgot',
+  hard: 'Fuzzy',
+  good: 'Remembered',
+  easy: 'Fluent',
 };
 
 export function flashcardChatCopy(locale: 'zh-CN' | 'en'): FlashcardChatCopy {

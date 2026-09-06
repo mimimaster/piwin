@@ -159,4 +159,105 @@ describe('MessageEditCard carry-through send', () => {
     const sendBtn = container.querySelector<HTMLButtonElement>('[data-testid="send-btn"]');
     expect(sendBtn?.getAttribute('aria-label')).toBe('Send new version');
   });
+
+  it('submits on Enter and ignores Shift+Enter', () => {
+    const onResend = vi.fn();
+    const rendered = renderCard(
+      <MessageEditCard
+        messageId="u1"
+        initialText="initial text"
+        onCancel={vi.fn()}
+        onResend={onResend}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const textarea = container.querySelector<HTMLTextAreaElement>('textarea');
+    expect(textarea).not.toBeNull();
+
+    act(() => {
+      textarea?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, bubbles: true }),
+      );
+    });
+    expect(onResend).not.toHaveBeenCalled();
+
+    act(() => {
+      textarea?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', shiftKey: false, bubbles: true }),
+      );
+    });
+    expect(onResend).toHaveBeenCalledWith('initial text');
+  });
+
+  it('cancels on Escape and cancel button click', () => {
+    const onCancel = vi.fn();
+    const rendered = renderCard(
+      <MessageEditCard
+        messageId="u1"
+        initialText="initial text"
+        onCancel={onCancel}
+        onResend={vi.fn()}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const cancelBtn = container.querySelector<HTMLButtonElement>('[data-testid="cancel-edit-btn"]');
+    act(() => {
+      cancelBtn?.click();
+    });
+    expect(onCancel).toHaveBeenCalledTimes(1);
+
+    const textarea = container.querySelector<HTMLTextAreaElement>('textarea');
+    act(() => {
+      textarea?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+      );
+    });
+    expect(onCancel).toHaveBeenCalledTimes(2);
+  });
+
+  it('displays branch hint when editing earlier message or branching', () => {
+    const rendered = renderCard(
+      <MessageEditCard
+        messageId="u1"
+        initialText="text"
+        locale="zh-CN"
+        currentTurn={false}
+        branchPoint={{
+          anchorMessageId: 'p1',
+          activeIndex: 0,
+          siblings: [
+            {
+              headMessageId: 'u1',
+              role: 'user',
+              preview: '1',
+              leafPreview: '1',
+              messageCount: 1,
+              writesWorkspace: false,
+              updatedAt: '2026-09-05T14:02:00.000Z',
+            },
+            {
+              headMessageId: 'u2',
+              role: 'user',
+              preview: '2',
+              leafPreview: '2',
+              messageCount: 1,
+              writesWorkspace: false,
+              updatedAt: '2026-09-05T14:03:00.000Z',
+            },
+          ],
+        }}
+        onCancel={vi.fn()}
+        onResend={vi.fn()}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const efoot = container.querySelector('.efoot');
+    expect(efoot?.textContent).toContain('将作为分支 3 / 3');
+  });
 });

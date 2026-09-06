@@ -14,9 +14,7 @@ async function waitForHostReady(page: Page): Promise<void> {
 }
 
 async function openTrustedSession(page: Page, projectPath: string): Promise<void> {
-  // This branch's open-workspace button opens a menu; first item opens the folder dialog.
   await page.getByTestId('open-workspace-btn').click();
-  await page.getByRole('menuitem').first().click();
   await expect(page.getByTestId('workspace-path-dialog')).toBeVisible();
   await page.getByTestId('project-path-input').fill(projectPath);
   await page.getByTestId('open-project-btn').click();

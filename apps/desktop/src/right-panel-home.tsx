@@ -3,7 +3,7 @@
  */
 
 import { type ReactElement } from 'react';
-import { SECTION_META, sectionLabel } from './right-panel-sections';
+import { SECTION_META, isHomeLauncherSection, sectionLabel } from './right-panel-sections';
 import type { DesktopLocale } from './desktop-locale';
 import type { RightPanelTab } from './right-panel-sections';
 
@@ -15,14 +15,14 @@ export type RightPanelHomeProps = {
 export function RightPanelHome(props: RightPanelHomeProps): ReactElement {
   return (
     <div className="right-panel-home" data-testid="right-panel-home">
-      <div className="right-panel-home-grid" role="list">
-        {SECTION_META.filter((tab) => !tab.hidden).map((tab) => {
+      <div className="right-panel-home-grid home-grid" role="list">
+        {SECTION_META.filter(isHomeLauncherSection).map((tab) => {
           const label = sectionLabel(tab.id, props.locale);
           return (
             <button
               key={tab.id}
               type="button"
-              className="right-panel-home-tile"
+              className="right-panel-home-tile home-tile"
               data-testid={`right-panel-home-${tab.id}`}
               aria-label={label}
               onClick={() => props.onSelect(tab.id)}

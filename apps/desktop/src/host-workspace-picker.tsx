@@ -2,7 +2,7 @@
  * Host directory browser: sidebar + column view, same shape as the OS
  * "Open workspace" window.
  */
-import { useEffect, useState, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 import type { HostDirEntry, HostListDirData } from '@piwin/contracts';
 import {
   IconChevronLeft,
@@ -75,12 +75,18 @@ export function HostWorkspacePicker(props: HostWorkspacePickerProps): ReactEleme
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryState>({ paths: [], index: -1 });
   const [pathDraft, setPathDraft] = useState(props.currentPath);
+  const pathDraftDirty = useRef(false);
 
   const directoryPath = directoryPathForOpen(columns, selectedPath);
   const filePath = selectedFilePath(columns, selectedPath);
-  const confirmPath = pickerMode === 'file' ? filePath : directoryPath;
+  const typedPath = pathDraft.trim();
+  const confirmPath =
+    pickerMode === 'file' ? filePath : typedPath.length > 0 ? typedPath : directoryPath;
   const openDisabled =
-    confirmPath.length === 0 || (pickerMode === 'directory' && selectedEntryIsFile(columns, selectedPath));
+    confirmPath.length === 0 ||
+    (pickerMode === 'directory' &&
+      typedPath.length === 0 &&
+      selectedEntryIsFile(columns, selectedPath));
   const favorites = homeListing ? favoritePathsFromListing(homeListing) : [];
   const recents = (props.recents ?? []).filter((path) => path.trim().length > 0).slice(0, 8);
 
@@ -103,7 +109,9 @@ export function HostWorkspacePicker(props: HostWorkspacePickerProps): ReactEleme
       setColumns([data]);
     }
     setSelectedPath(data.path);
-    setPathDraft(data.path);
+    if (!pathDraftDirty.current) {
+      setPathDraft(data.path);
+    }
     props.onCurrentPathChange(data.path);
     if (!homeListing && data.path === data.homePath) {
       setHomeListing(data);
@@ -150,6 +158,7 @@ export function HostWorkspacePicker(props: HostWorkspacePickerProps): ReactEleme
       setSelectedPath(entry.path);
       return;
     }
+    pathDraftDirty.current = false;
     setSelectedPath(entry.path);
     setPathDraft(entry.path);
     props.onCurrentPathChange(entry.path);
@@ -157,6 +166,7 @@ export function HostWorkspacePicker(props: HostWorkspacePickerProps): ReactEleme
   }
 
   async function jumpTo(path: string): Promise<void> {
+    pathDraftDirty.current = false;
     setSearch('');
     await load(path);
   }
@@ -173,7 +183,6 @@ export function HostWorkspacePicker(props: HostWorkspacePickerProps): ReactEleme
   return (
     <div className="host-workspace-picker" data-testid="host-workspace-picker">
       <header className="host-workspace-chrome">
-        <h3>{pickerMode === 'file' ? (zh ? '选择脚本' : 'Choose script') : zh ? '打开工作区' : 'Open workspace'}</h3>
         <div className="host-workspace-toolbar">
           <button
             type="button"
@@ -186,6 +195,7 @@ export function HostWorkspacePicker(props: HostWorkspacePickerProps): ReactEleme
               if (!path) {
                 return;
               }
+              pathDraftDirty.current = false;
               setHistory((prev) => ({ ...prev, index: prev.index - 1 }));
               void load(path, { history: false });
             }}
@@ -203,6 +213,7 @@ export function HostWorkspacePicker(props: HostWorkspacePickerProps): ReactEleme
               if (!path) {
                 return;
               }
+              pathDraftDirty.current = false;
               setHistory((prev) => ({ ...prev, index: prev.index + 1 }));
               void load(path, { history: false });
             }}
@@ -211,10 +222,13 @@ export function HostWorkspacePicker(props: HostWorkspacePickerProps): ReactEleme
           </button>
           <input
             className="host-workspace-path-input"
-            data-testid="host-workspace-current-path"
+            data-testid="project-path-input"
             value={pathDraft}
             spellCheck={false}
-            onChange={(event) => setPathDraft(event.target.value)}
+            onChange={(event) => {
+              pathDraftDirty.current = true;
+              setPathDraft(event.target.value);
+            }}
             onKeyDown={(event) => {
               if (event.key === 'Enter') {
                 event.preventDefault();

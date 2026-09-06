@@ -59,6 +59,7 @@ describe('TranscriptViewport session scroll recovery', () => {
       historyViewActive?: boolean;
       onReturnToLatest?: () => void;
       liveTurnId?: string;
+      messageCount?: number;
     } = {},
   ): Promise<void> {
     await act(async () => {
@@ -67,7 +68,7 @@ describe('TranscriptViewport session scroll recovery', () => {
           <TranscriptViewport
             key={sessionId}
             sessionId={sessionId}
-            messageCount={1}
+            messageCount={options.messageCount ?? 1}
             activitySignal={options.activitySignal ?? 'idle'}
             messages={[]}
             locale="en"
@@ -85,7 +86,7 @@ describe('TranscriptViewport session scroll recovery', () => {
     });
   }
 
-  it('restores a scrolled-away offset after switching sessions', async () => {
+  it('opens at the latest tail after switching sessions', async () => {
     await renderSession('session-a');
     const firstSessionElement = container.querySelector<HTMLDivElement>('.chat-stream');
     if (!firstSessionElement) {
@@ -100,7 +101,8 @@ describe('TranscriptViewport session scroll recovery', () => {
     await renderSession('session-a');
 
     const restoredElement = container.querySelector<HTMLDivElement>('.chat-stream');
-    expect(restoredElement?.scrollTop).toBe(240);
+    expect(restoredElement?.scrollTop).toBe(1_000);
+    expect(container.querySelector('[data-testid="jump-to-latest-btn"]')).toBeNull();
   });
 
   it('follows a growing tail but stays stable through 100 updates after scroll-away', async () => {
@@ -125,7 +127,7 @@ describe('TranscriptViewport session scroll recovery', () => {
     }
 
     expect(scrollElement.scrollTop).toBe(240);
-    expect(container.querySelector('[data-testid="jump-to-latest-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="jump-to-latest-btn"]')).not.toBeNull();
   });
 
   it('keeps follow-tail when a programmatic stick fires mid-growth', async () => {
@@ -192,7 +194,30 @@ describe('TranscriptViewport session scroll recovery', () => {
     expect(container.querySelector('[data-testid="jump-to-latest-btn"]')).toBeNull();
   });
 
-  it.skip('keeps a return-to-latest control visible for a bounded history view', async () => {
+  it('stays on the live tail when virtualizer measures grow after opening a session', async () => {
+    await renderSession('cold-open-session', { activitySignal: 'open-0', scrollHeight: 800 });
+    const scrollElement = container.querySelector<HTMLDivElement>('.chat-stream');
+    if (!scrollElement) {
+      throw new Error('Expected the transcript scroll element');
+    }
+    expect(scrollElement.scrollTop).toBe(800);
+
+    await act(async () => {
+      Object.defineProperty(scrollElement, 'scrollHeight', {
+        configurable: true,
+        value: 2_400,
+      });
+      scrollElement.scrollTop = 776;
+      scrollElement.dispatchEvent(new Event('scroll'));
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    });
+
+    expect(scrollElement.scrollTop).toBe(2_400);
+    expect(container.querySelector('[data-testid="jump-to-latest-btn"]')).toBeNull();
+  });
+
+  it('keeps a return-to-latest control visible for a bounded history view', async () => {
     const onReturnToLatest = vi.fn();
     await renderSession('history-focus-session', {
       historyViewActive: true,
@@ -265,7 +290,7 @@ describe('TranscriptViewport session scroll recovery', () => {
     expect(onLoadOlder).toHaveBeenCalled();
   });
 
-  it('auto-loads when content is too short to expose a manual scroll gesture', async () => {
+  it('does not auto-load older pages while following the live tail', async () => {
     const onLoadOlder = vi.fn(async () => undefined);
     await renderSession('short-session', {
       scrollHeight: 300,
@@ -289,6 +314,15 @@ describe('TranscriptViewport session scroll recovery', () => {
       await new Promise<void>((resolve) => setTimeout(resolve, 0));
     });
 
-    expect(onLoadOlder).toHaveBeenCalled();
+    expect(onLoadOlder).not.toHaveBeenCalled();
+  });
+
+  it('never displays jump-to-latest button when messageCount is zero', async () => {
+    await renderSession('empty-session', {
+      messageCount: 0,
+      historyViewActive: true,
+      scrollHeight: 2_000,
+    });
+    expect(container.querySelector('[data-testid="jump-to-latest-btn"]')).toBeNull();
   });
 });

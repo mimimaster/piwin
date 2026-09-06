@@ -44,7 +44,7 @@ export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
   }
 
   return (
-    <div className="turn-tool-sequence" data-testid="turn-tool-group">
+    <div className="thread turn-tool-sequence" data-testid="turn-tool-group">
       {clusters.map((item, index) => {
         if (item.kind === 'batch') {
           return (

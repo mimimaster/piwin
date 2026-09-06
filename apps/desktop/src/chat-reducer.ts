@@ -122,6 +122,7 @@ export function createInitialChatUiState(): ChatUiState {
     walkthroughsByMessageId: {},
     workingSessionIds: {},
     completedAttentionSessionIds: {},
+    failedAttentionSessionIds: {},
     pendingTurnModel: null,
   };
 }

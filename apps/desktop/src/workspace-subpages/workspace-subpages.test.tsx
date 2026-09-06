@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import type { FlashcardModel, HostCommand, HostResponse, MediaLibraryItem } from '@piwin/contracts';
 import { PIWIN_APPEARANCE_DARK } from '../appearance-tokens';
+import { DesktopLocaleProvider } from '../desktop-locale-context';
 import { LibraryWorkspaceView, FlashcardsWorkspaceView } from './index';
 import type { FlashcardsHomeCommand } from './FlashcardsWorkspaceView';
 import { createStudyHostFake } from './flashcards/study/study-test-harness';
@@ -319,7 +320,7 @@ describe('LibraryWorkspaceView', () => {
     await flushLibrary();
 
     expect(container.querySelector('[data-testid="library-tab-all"]')).toBeNull();
-    expect(container.querySelector('[data-testid="library-tab-file"]')).toBeNull();
+    expect(container.querySelector('[data-testid="library-tab-files"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="library-tab-images"]')?.getAttribute('aria-pressed')).toBe(
       'true',
     );
@@ -604,12 +605,14 @@ describe('FlashcardsWorkspaceView', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <FlashcardsWorkspaceView
-            locale="zh-CN"
-            onClose={vi.fn()}
-            request={fake.request}
-            {...overrides}
-          />
+          <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => undefined}>
+            <FlashcardsWorkspaceView
+              locale="zh-CN"
+              onClose={vi.fn()}
+              request={fake.request}
+              {...overrides}
+            />
+          </DesktopLocaleProvider>
         </PiwinUiProvider>,
       );
     });
@@ -648,11 +651,11 @@ describe('FlashcardsWorkspaceView', () => {
   it('opens a set into the study page, not a dismissible overlay', async () => {
     await renderWith(structuredClone(BASE_STORE));
 
-    const setTile = container.querySelector<HTMLButtonElement>(
-      '[data-testid="flashcard-tile-seq_os"] .fcws-tile-face',
+    const openSet = container.querySelector<HTMLButtonElement>(
+      '[data-testid="flashcard-open-seq_os"]',
     );
     act(() => {
-      setTile?.click();
+      openSet?.click();
     });
     await flush(8);
 
@@ -759,5 +762,18 @@ describe('FlashcardsWorkspaceView', () => {
 
     expect(container.textContent).toContain('Special Question');
     expect(container.textContent).not.toContain('page table');
+  });
+
+  it('opens Wiki search from the gallery toolbar', async () => {
+    await renderWith(structuredClone(BASE_STORE));
+    const wikiBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="flashcards-open-wiki"]',
+    );
+    expect(wikiBtn).not.toBeNull();
+    act(() => {
+      wikiBtn?.click();
+    });
+    await flush(2);
+    expect(container.querySelector('[data-testid="knowledge-wiki-view"]')).not.toBeNull();
   });
 });

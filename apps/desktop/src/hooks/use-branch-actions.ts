@@ -62,6 +62,7 @@ export type UseBranchActionsArgs = {
   orchestrationSchemeId?: string;
   delegationDisabled?: boolean;
   confirmForegroundReplace?: (problem: ForegroundRunMismatchProblem) => Promise<boolean>;
+  projectPath?: string | null;
 };
 
 export function useBranchActions(args: UseBranchActionsArgs) {
@@ -85,6 +86,7 @@ export function useBranchActions(args: UseBranchActionsArgs) {
     orchestrationSchemeId,
     delegationDisabled,
     confirmForegroundReplace,
+    projectPath,
   } = args;
 
   const [branchPoints, setBranchPoints] = useState<TranscriptBranchPoint[]>([]);
@@ -517,6 +519,25 @@ export function useBranchActions(args: UseBranchActionsArgs) {
       if (pendingSwitchConfirm) {
         void switchBranch(pendingSwitchConfirm.targetMessageId, true);
       }
+    },
+    stashThenSwitchBranch: () => {
+      const pending = pendingSwitchConfirm;
+      if (!pending) {
+        return;
+      }
+      void (async () => {
+        if (projectPath) {
+          const response = await hostClient.request({
+            type: 'git/stash',
+            input: { projectPath },
+          });
+          if (!response.success) {
+            dispatchNotification(pushError(response.error));
+            return;
+          }
+        }
+        await switchBranch(pending.targetMessageId, true);
+      })();
     },
     cancelSwitchBranch: () => setPendingSwitchConfirm(null),
     pendingRetryDiscard,

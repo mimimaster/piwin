@@ -3,6 +3,8 @@
  * Lazy-loads children via host project/list-dir.
  * File click → single split rail inside the right panel (left: content, right: tree).
  * Preview never leaves this panel for the chat stage; switching files reuses the same rail.
+ * HTML files skip the in-tab markup preview and open in the workbench Browser tab when
+ * `onOpenHtmlInBrowser` is provided.
  * Directory rows are pure-text expand/collapse controls (no folder icon).
  * Optional onOpenFile still fires for host/App integration; drag / Insert path → composer.
  */
@@ -99,6 +101,11 @@ export type FileTreePanelProps = {
    * split preview inside this panel — content stays in the right column.
    */
   onOpenFile?: (absolutePath: string, relativePath: string) => void;
+  /**
+   * HTML special case: skip the in-tab markup preview and open the file in
+   * the workbench Browser tab instead of Doc Preview.
+   */
+  onOpenHtmlInBrowser?: (absolutePath: string, relativePath: string) => void;
   /** Desktop locale for locale-aware UI strings. */
   locale?: DesktopLocale;
   /** Host filesystem style. Required when `projectPath` is an opaque remote id. */
@@ -489,6 +496,14 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
   async function openFilePreview(relativePath: string): Promise<void> {
     if (!props.projectPath) return;
     const absolutePath = absoluteFor(relativePath);
+    if (props.onOpenHtmlInBrowser && markupPreviewKind(relativePath) === 'html') {
+      setSelectedPath(relativePath);
+      setPreview(null);
+      setPreviewLoading(false);
+      setPreviewError(null);
+      props.onOpenHtmlInBrowser(absolutePath, relativePath);
+      return;
+    }
     setSelectedPath(relativePath);
     setPreviewLoading(true);
     setPreviewError(null);
@@ -797,7 +812,7 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
             }}
           />
         ) : null}
-        <header className="file-tree-header">
+        <header className="file-tree-header ft-h">
           <span className="file-tree-header-title">Workspace</span>
           <div className="file-tree-header-actions">
             <IconButton
@@ -928,4 +943,3 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
     </div>
   );
 }
-

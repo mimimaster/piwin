@@ -146,9 +146,12 @@ This amendment supersedes the source-only streaming clauses in the 2026-07-25,
 - Allowed YouTube/Google Maps embeds remain sandboxed. External scripts,
   stylesheets, images, fonts, APIs, and other network resources remain blocked
   by the existing classifier/CSP policy.
-- Sandboxed Inline content uses one ResizeObserver-driven measurement stream.
-  There is no height phase state machine, MutationObserver, measurement ladder,
-  interaction shrink confirmation, or grow-only lock.
+- Sandboxed Inline content uses one coalesced measurement stream. A root
+  ResizeObserver and a root-subtree MutationObserver schedule the same
+  animation-frame measurement; captured resource loads also request it.
+  The mutation observer covers overflowing descendants whose changes do not
+  resize the root box. Both observers disconnect on promotion to a viewport.
+  There is no measurement ladder, interaction shrink confirmation, or grow-only lock.
 - Packaged macOS registers a frame-scoped `WKScriptMessageHandler`. It accepts
   bounded, whitelisted messages only from non-main frames; Desktop routes each
   payload to subscribers for its exact Artifact `channelId` and retains the
@@ -195,7 +198,9 @@ the 2026-08-13 height observer bounds.
   `piwin-artifact:size { channelId, height, viewportHeight, revision, seq }`.
   `seq` is a per-frame monotonic copy id. One `ResizeObserver` watches
   `.piwin-artifact-root` when present, otherwise `document.body`, and reports
-  that box when the distinct height changes. There are no ready/resize phases,
+  the larger of its border-box height and its scroll content height when that
+  value changes. Never measure documentElement.scrollHeight: it includes the
+  iframe viewport and can prevent shrinking. There are no ready/resize phases,
   viewport resize listener, canvas/video budgets, scene detection, or CSS
   layout repair.
 - The iframe posts size/actions on **both** the native WK handler (when present)

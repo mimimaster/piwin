@@ -12,6 +12,7 @@ import type {
   GitFileDiff,
   GitMutationResult,
   GitStageInput,
+  GitStashInput,
   GitStatusSnapshot,
   GitUnstageInput,
 } from '@piwin/contracts';
@@ -26,6 +27,7 @@ import {
   commitChanges,
   createBranch,
   stagePaths,
+  stashChanges,
   unstagePaths,
 } from './mutations.js';
 
@@ -44,6 +46,7 @@ export type GitService = {
   commit(input: GitCommitInput): Promise<GitMutationResult>;
   createBranch(input: GitBranchCreateInput): Promise<GitMutationResult>;
   checkout(input: GitCheckoutInput): Promise<GitMutationResult>;
+  stash(input: GitStashInput): Promise<GitMutationResult>;
 };
 
 export function createGitService(): GitService {
@@ -88,5 +91,6 @@ export function createGitService(): GitService {
     commit: commitChanges,
     createBranch,
     checkout: checkoutRef,
+    stash: stashChanges,
   };
 }

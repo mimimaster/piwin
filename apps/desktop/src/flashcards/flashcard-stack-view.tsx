@@ -2,6 +2,7 @@ import { useCallback, useState, type ReactElement } from 'react';
 import type { FlashcardReviewCard } from '@piwin/contracts';
 import type { ArtifactActionMessage } from '@piwin/artifact';
 import { collapseToPhysicalCards } from '@piwin/flashcards/cloze';
+import { IconCards } from '../shell-icons';
 import { FlashcardView } from './flashcard-chat-view';
 import { flashcardChatCopy } from './flashcard-chat-copy';
 
@@ -17,66 +18,39 @@ export function FlashcardStackView(props: {
 
   const safeIndex = Math.min(Math.max(0, activeIndex), Math.max(0, cards.length - 1));
   const activeCard = cards[safeIndex];
+  const deckName = activeCard?.deck || copy.unnamedDeck;
 
-  const handlePrev = useCallback((): void => {
-    setActiveIndex((prev) => (prev > 0 ? prev - 1 : cards.length - 1));
-  }, [cards.length]);
-
-  const handleNext = useCallback((): void => {
+  const handleNextAfterRate = useCallback((): void => {
+    if (cards.length <= 1) return;
     setActiveIndex((prev) => (prev < cards.length - 1 ? prev + 1 : 0));
   }, [cards.length]);
 
   if (!cards || cards.length === 0 || !activeCard) {
-    return <div className="fc-quiet-empty" />;
-  }
-
-  if (cards.length === 1) {
-    return (
-      <div className="fc-quiet-stack">
-        <FlashcardView card={activeCard} {...(onAction ? { onAction } : {})} locale={locale} />
-      </div>
-    );
+    return <div className="fc-empty" />;
   }
 
   return (
-    <div className="fc-quiet-stack is-multi">
-      <div className="fc-quiet-nav">
-        <span className="fc-quiet-nav-label">{copy.cardsCount(cards.length)}</span>
-        <div className="fc-quiet-nav-actions">
-          <button
-            type="button"
-            className="fc-quiet-nav-btn"
-            onClick={handlePrev}
-            aria-label={copy.previous}
-            title={copy.previous}
-          >
-            ‹
-          </button>
-          <span className="fc-quiet-nav-count">
+    <div className={`fc-stack${cards.length > 1 ? ' is-multi' : ''}`}>
+      <div className="fc-h">
+        <IconCards width={14} height={14} aria-hidden="true" className="i" />
+        <b>{copy.generatedCards(cards.length)}</b>
+        <span>{copy.deckSep(deckName)}</span>
+        {cards.length > 1 ? (
+          <span className="ml">
             {safeIndex + 1} / {cards.length}
           </span>
-          <button
-            type="button"
-            className="fc-quiet-nav-btn"
-            onClick={handleNext}
-            aria-label={copy.next}
-            title={copy.next}
-          >
-            ›
-          </button>
-        </div>
+        ) : null}
       </div>
 
-      <div className="fc-quiet-stage">
-        <FlashcardView
-          key={activeCard.cardId}
-          card={activeCard}
-          cardIndex={safeIndex}
-          totalCards={cards.length}
-          {...(onAction ? { onAction } : {})}
-          locale={locale}
-        />
-      </div>
+      <FlashcardView
+        key={activeCard.cardId}
+        card={activeCard}
+        cardIndex={safeIndex}
+        totalCards={cards.length}
+        {...(onAction ? { onAction } : {})}
+        onRated={handleNextAfterRate}
+        locale={locale}
+      />
     </div>
   );
 }

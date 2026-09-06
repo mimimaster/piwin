@@ -29,14 +29,14 @@ export type LibraryInspectorDrawerProps = {
   onRemix?: ((prompt: string) => void) | undefined;
 };
 
-// Preset dynamic color extraction mockup for visual fidelity
+// Decorative mock palettes — warm Inkstone-ish presets (not pixel-extracted).
 const DEFAULT_PALETTES: Record<string, string[]> = {
-  flux: ['#0B0E14', '#6366F1', '#EC4899', '#06B6D4', '#F59E0B'],
-  midjourney: ['#111827', '#4F46E5', '#38BDF8', '#E2E8F0', '#64748B'],
-  dalle: ['#0F172A', '#8B5CF6', '#38BDF8', '#EC4899', '#F8FAFC'],
-  runway: ['#030712', '#9333EA', '#F43F5E', '#3B82F6', '#E0E7FF'],
-  kling: ['#031024', '#06B6D4', '#3B82F6', '#67E8F9', '#1E3A8A'],
-  default: ['#0F172A', '#6366F1', '#EC4899', '#F59E0B', '#10B981'],
+  flux: ['#c6412a', '#3a7797', '#3d7c5e', '#94611a', '#726b61'],
+  midjourney: ['#1d1b17', '#3a7797', '#5fad85', '#c88f3c', '#8b8378'],
+  dalle: ['#141210', '#e25a3d', '#6ba4c3', '#94611a', '#a59d92'],
+  runway: ['#0b0a09', '#d95f6e', '#3d7c5e', '#b8801f', '#726b61'],
+  kling: ['#191714', '#3a7797', '#5fad85', '#c6412a', '#8f887d'],
+  default: ['#c6412a', '#3a7797', '#3d7c5e', '#94611a', '#726b61'],
 };
 
 function getPalette(model?: string): string[] {

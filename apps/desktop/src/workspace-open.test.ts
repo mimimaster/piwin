@@ -49,6 +49,19 @@ describe('shouldPromptHostBrowser', () => {
     expect(shouldPromptHostBrowser({ desktopShell: false })).toBe(true);
     expect(shouldPromptHostBrowser({ desktopShell: true, hostFilesystemRemote: true })).toBe(true);
   });
+
+  it('prefers the in-app picker whenever the Host can list directories', () => {
+    expect(
+      shouldPromptHostBrowser({ desktopShell: true, hostListDirAvailable: true }),
+    ).toBe(true);
+    expect(
+      shouldPromptHostBrowser({
+        desktopShell: true,
+        hostFilesystemRemote: false,
+        hostListDirAvailable: true,
+      }),
+    ).toBe(true);
+  });
 });
 
 describe('looksLikeFilesystemWorkspacePath', () => {

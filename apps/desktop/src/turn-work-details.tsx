@@ -1,7 +1,11 @@
 /** One Assistant response segment rendered in causal order. */
 import { useState, type ReactElement, type ReactNode } from 'react';
-import { RadialBellow } from '@piwin/ui-kit';
-import type { SessionSummary, SubagentInvocation } from '@piwin/contracts';
+import type {
+  PermissionDecision,
+  PermissionRememberScope,
+  SessionSummary,
+  SubagentInvocation,
+} from '@piwin/contracts';
 import type {
   ChatMessageUi,
   PermissionPromptUi,
@@ -15,19 +19,25 @@ import {
   type TurnPresentation,
 } from './run-presentation';
 import { turnPresentationToActivityInput } from './run-activity-mappers.js';
-import { buildActivityPhrases, runtimeStatusText } from './run-activity-strings.js';
-import { behaviorTextClass, getBehaviorActivitySpec } from './behavior-activity.js';
+import { runtimeStatusText } from './run-activity-strings.js';
+import { getBehaviorActivitySpec } from './behavior-activity.js';
 import { AgentLocator, SkillActivityChip } from './agent-locator.js';
 import { TurnToolGroup } from './turn-tool-group';
+import { GateCard } from './gate-card';
 import { ExploreFlowCapsule } from './explore-flow-capsule';
 import type { ExploreFlowRole } from './explore-flow';
 import type { DocumentOpenInput } from './tool-call-card';
 import type { DiffCardRequest } from './diff-card';
 import type { AgentLocatorAnimation, WorkDetailsExpanded } from './ui-preferences.js';
-import { IconChevronRight, IconBrain } from './shell-icons';
 import { resolveGenerationToolKind } from './generation-tool-kind.js';
 import type { SubagentInspectorSelection } from './subagent-activity-model';
 import type { ModelOption } from './model-options';
+import {
+  fileNameFromDetail,
+  resolveWorkFoldCode,
+  WorkFoldHeader,
+  type WorkFoldHeaderState,
+} from './work-fold-header.js';
 
 export type TurnWorkDetailsProps = {
   message: ChatMessageUi;
@@ -36,6 +46,7 @@ export type TurnWorkDetailsProps = {
   runRecordsById: Record<string, RunRecordUi>;
   activeRunId: string | null;
   permissionPrompt: PermissionPromptUi | null;
+  onPermission?: ((decision: PermissionDecision, rememberScope?: PermissionRememberScope) => void) | undefined;
   workDetailsExpanded: WorkDetailsExpanded;
   toolDensity?: 'compact' | 'comfortable' | 'detailed';
   showThinking?: boolean;
@@ -58,6 +69,8 @@ export type TurnWorkDetailsProps = {
   subagentInvocations?: Record<string, SubagentInvocation>;
   subagentStreams?: Record<string, SubagentStreamState>;
   onInspectSubagent?: (selection: SubagentInspectorSelection) => void;
+  /** Folded thinking under an outer 已工作 header — proto shows `.think` only. */
+  hideFoldHeader?: boolean;
 };
 
 function thinkingSummaryLabel(input: {
@@ -94,12 +107,15 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
     'automatic',
   );
   const thinkingOpen =
-    thinkingIntent === 'user-open' || (thinkingIntent === 'automatic' && defaultOpen);
+    props.hideFoldHeader === true ||
+    thinkingIntent === 'user-open' ||
+    (thinkingIntent === 'automatic' && defaultOpen);
   const tools = presentation.workItems
     .filter((item): item is Extract<typeof item, { kind: 'tool' }> => item.kind === 'tool')
     .map((item) => item.tool);
   const exploreRole = props.exploreRole;
   const isFlowAnchor = exploreRole?.kind === 'anchor';
+  const anchorHasText = isFlowAnchor && props.message.text.trim().length > 0;
   const workFoldedIntoFlow = isFlowAnchor || exploreRole?.kind === 'member';
   // Anchor/member tools and folded thoughts render inside the flow capsule.
   const inlineTools = workFoldedIntoFlow
@@ -110,12 +126,31 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
   const hasThinking =
     props.showThinking !== false &&
     thinkingItem?.kind === 'thinking' &&
-    exploreRole === undefined;
+    (exploreRole === undefined || anchorHasText);
   const thinkingIsStreaming = presentation.isThinkingActive && Boolean(hasThinking);
-  const thinkingLabelClass = behaviorTextClass('thinking', thinkingIsStreaming);
-  const liveActivityLabel = buildActivityPhrases(
-    turnPresentationToActivityInput(presentation, props.message, locale),
-  )[0];
+  const permissionWaiting = permissionItem?.kind === 'permission';
+  const foldState: WorkFoldHeaderState = permissionWaiting
+    ? 'waiting'
+    : presentation.isActive
+      ? 'running'
+      : 'done';
+  const runningToolIndex = tools.findIndex((tool) => tool.status === 'running');
+  const runningTool =
+    runningToolIndex >= 0 ? tools[runningToolIndex] : tools[tools.length - 1];
+  const runningCode = runningTool ? resolveWorkFoldCode(runningTool) : undefined;
+  const runningOrdinal =
+    tools.length === 0
+      ? undefined
+      : runningToolIndex >= 0
+        ? runningToolIndex + 1
+        : tools.length;
+  const waitingCode =
+    permissionItem?.kind === 'permission'
+      ? fileNameFromDetail(permissionItem.detail)
+      : undefined;
+  const showFoldHeader =
+    props.hideFoldHeader !== true &&
+    (hasThinking || foldState === 'running' || foldState === 'waiting');
   const hasVisibleWork =
     isFlowAnchor ||
     hasThinking ||
@@ -130,18 +165,9 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
     return <>{props.children}</>;
   }
 
-  return (
-    <div
-      className={`turn-work-details${presentation.hasFailure ? ' has-failure' : ''}${
-        presentation.isActive ? ' is-active' : ''
-      }${hasThinking && thinkingOpen ? ' is-open' : ' is-collapsed'}${
-        presentation.isWaitingForModel ? ' is-waiting' : ''
-      }`}
-      data-testid="turn-work-details"
-      data-run-id={presentation.runId ?? undefined}
-      data-open={hasThinking && thinkingOpen ? 'true' : 'false'}
-    >
-      {isFlowAnchor && exploreRole?.kind === 'anchor' ? (
+  const exploreCapsule =
+    isFlowAnchor && exploreRole?.kind === 'anchor' ? (
+      <div className="thread turn-tool-sequence">
         <ExploreFlowCapsule
           group={exploreRole.group}
           locale={locale}
@@ -154,67 +180,68 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
             ? { onOpenDocument: props.onOpenDocument }
             : {})}
         />
+      </div>
+    ) : null;
+
+  return (
+    <div
+      className={`work turn-work-details${presentation.hasFailure ? ' has-failure' : ''}${
+        foldState === 'running' ? ' is-active' : ''
+      }${hasThinking && thinkingOpen ? ' is-open' : ' is-collapsed'}${
+        foldState === 'waiting' ? ' is-waiting' : ''
+      }`}
+      data-testid="turn-work-details"
+      data-run-id={presentation.runId ?? undefined}
+      data-open={hasThinking && thinkingOpen ? 'true' : 'false'}
+    >
+      {!anchorHasText ? exploreCapsule : null}
+      {showFoldHeader ? (
+        <WorkFoldHeader
+          state={foldState}
+          locale={locale}
+          className="turn-work-details-summary"
+          testId="turn-work-details-summary"
+          ariaLabel={locale === 'zh-CN' ? '思考过程' : 'Thoughts'}
+          {...(hasThinking
+            ? {
+                open: thinkingOpen,
+                onToggle: () => setThinkingIntent(thinkingOpen ? 'user-closed' : 'user-open'),
+              }
+            : {})}
+          {...(foldState === 'running'
+            ? {
+                ...(runningOrdinal !== undefined ? { runningToolIndex: runningOrdinal } : {}),
+                ...(runningCode !== undefined ? { runningCode } : {}),
+              }
+            : {})}
+          {...(foldState === 'waiting' && permissionItem?.kind === 'permission'
+            ? {
+                waitingAction: permissionItem.action,
+                ...(waitingCode !== undefined ? { waitingCode } : {}),
+              }
+            : {})}
+        >
+          {foldState === 'done'
+            ? thinkingSummaryLabel({
+                isRunActive: presentation.isActive,
+                isThinkingActive: thinkingIsStreaming,
+                locale,
+                ...(presentation.thoughtSeconds !== undefined
+                  ? { thoughtSeconds: presentation.thoughtSeconds }
+                  : {}),
+              })
+            : undefined}
+        </WorkFoldHeader>
       ) : null}
-      {hasThinking && thinkingItem?.kind === 'thinking' ? (
-        <>
-          <button
-            type="button"
-            className="turn-work-details-summary"
-            data-activity-id="thinking"
-            data-activity-animation={getBehaviorActivitySpec('thinking').animation}
-            data-tool-status={thinkingIsStreaming ? 'running' : 'done'}
-            aria-label={locale === 'zh-CN' ? '思考过程' : 'Thoughts'}
-            aria-expanded={thinkingOpen}
-            data-testid="turn-work-details-summary"
-            onClick={() => setThinkingIntent(thinkingOpen ? 'user-closed' : 'user-open')}
+      {hasThinking && thinkingItem?.kind === 'thinking' && (thinkingOpen || props.hideFoldHeader) ? (
+        <div className="turn-work-details-body">
+          <div
+            className={`think turn-thinking${thinkingIsStreaming ? ' is-streaming' : ''}`}
+            data-testid="turn-thinking"
           >
-            {thinkingIsStreaming ? (
-              <span
-                className="turn-summary-active-animation"
-                data-testid="turn-summary-active-animation"
-                aria-hidden="true"
-              >
-                <RadialBellow
-                  size="sm"
-                  label={locale === 'zh-CN' ? '代理思考中' : 'Agent is thinking'}
-                  testId="turn-summary-radial-bellow"
-                />
-              </span>
-            ) : (
-              <IconBrain className="turn-summary-brain-icon" />
-            )}
-            <span className={`turn-work-details-label ${thinkingLabelClass}`}>
-              {thinkingIsStreaming && liveActivityLabel
-                ? liveActivityLabel
-                : thinkingSummaryLabel({
-                    isRunActive: presentation.isActive,
-                    isThinkingActive: thinkingIsStreaming,
-                    locale,
-                    ...(presentation.thoughtSeconds !== undefined
-                      ? { thoughtSeconds: presentation.thoughtSeconds }
-                      : {}),
-                  })}
-            </span>
-            <span
-              className={`turn-work-details-chevron${thinkingOpen ? ' is-open' : ''}`}
-              aria-hidden
-            >
-              <IconChevronRight />
-            </span>
-          </button>
-          {thinkingOpen ? (
-            <div className="turn-work-details-body">
-              <div
-                className={`turn-thinking${thinkingIsStreaming ? ' is-streaming' : ''}`}
-                data-testid="turn-thinking"
-              >
-                <pre>
-                  {thinkingItem.text}
-                </pre>
-              </div>
-            </div>
-          ) : null}
-        </>
+            <pre>{thinkingItem.text}</pre>
+          </div>
+        </div>
       ) : null}
 
       {presentation.isWaitingForModel && tools.length === 0 && !hasThinking ? (
@@ -233,6 +260,8 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
 
       {props.children}
 
+      {anchorHasText ? exploreCapsule : null}
+
       {props.activeSkill && presentation.isActive && tools.length > 0 ? (
         <div className="turn-skill-activity-line" data-testid="turn-skill-activity-line">
           <SkillActivityChip
@@ -243,7 +272,15 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
         </div>
       ) : null}
 
-      {permissionItem?.kind === 'permission' ? (
+      {permissionItem?.kind === 'permission' &&
+      props.permissionPrompt !== null &&
+      props.onPermission !== undefined ? (
+        <GateCard
+          prompt={props.permissionPrompt}
+          projectPath={props.projectPath ?? null}
+          onPermission={props.onPermission}
+        />
+      ) : permissionItem?.kind === 'permission' ? (
         <div
           className="turn-permission-wait behavior-gate-surface"
           data-testid="turn-permission-wait"

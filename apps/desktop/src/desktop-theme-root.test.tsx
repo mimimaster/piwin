@@ -13,7 +13,7 @@ import {
   PIWIN_APPEARANCE_LIGHT,
   applyAppearanceToDocument,
 } from './appearance-tokens';
-import { PIWIN_APPEARANCE_OBSIDIAN } from './theme/deck-palette';
+import { PIWIN_APPEARANCE_INKSTONE_INK } from './theme/deck-palette';
 import { DEFAULT_DARK_THEME_SETTINGS } from './ui-preferences';
 
 declare global {
@@ -63,24 +63,24 @@ describe('DesktopThemeRoot', () => {
 
     expect(capturedProps).not.toBeNull();
     const props = capturedProps as unknown as AppProps;
-    expect(props.activeTheme.id).toBe('piwin-dark-appearance');
+    expect(props.activeTheme.id).toBe('piwin-inkstone-ink');
     expect(props.activeTheme.mode).toBe('dark');
 
     const documentRoot = document.documentElement;
-    expect(documentRoot.dataset.themeId).toBe('piwin-dark-appearance');
+    expect(documentRoot.dataset.themeId).toBe('piwin-inkstone-ink');
     expect(documentRoot.dataset.themeMode).toBe('dark');
     // The Appearance background is the *field* the deck floats over, not the
     // panels themselves: panels come from the palette one step above it. At
-    // default settings that field is Obsidian's own void, so a stock install
+    // default settings that field is Inkstone's authored void, so a stock install
     // renders the authored face rather than an approximation of it.
     expect(documentRoot.style.getPropertyValue('--void')).toBe(
-      DEFAULT_DARK_THEME_SETTINGS.background,
+      DEFAULT_DARK_THEME_SETTINGS.background.toLowerCase(),
     );
     expect(documentRoot.style.getPropertyValue('--void').toLowerCase()).toBe(
-      PIWIN_APPEARANCE_OBSIDIAN.deck?.void,
+      PIWIN_APPEARANCE_INKSTONE_INK.deck?.void,
     );
     expect(documentRoot.style.getPropertyValue('--surface-1')).toBe(
-      PIWIN_APPEARANCE_OBSIDIAN.deck?.surface1,
+      PIWIN_APPEARANCE_INKSTONE_INK.deck?.surface1,
     );
   });
 

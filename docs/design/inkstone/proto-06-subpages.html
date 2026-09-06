@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inkstone（砚）· 增量 6 · 子页与伴随物</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:#e6e1d7;overflow:hidden}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-align:inherit}
+u{text-decoration:none;cursor:pointer}u:hover{text-decoration:underline}
+.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.s12{width:12px;height:12px}.s14{width:14px;height:14px}
+.ml{margin-left:auto}.grow{flex:1}
+.app{--sans:Inter,"PingFang SC","Noto Sans SC",-apple-system,system-ui,sans-serif;--serif:"Noto Serif SC","Songti SC","STSong","Source Han Serif SC","Source Serif 4",Georgia,serif;--mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;--spring:cubic-bezier(.34,1.4,.64,1);height:100dvh;width:100%;display:grid;grid-template-rows:28px minmax(0,1fr);background:var(--void);color:var(--t1);font:13.5px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+.app[data-face=paper]{color-scheme:light;--void:#e6e1d7;--s1:#f0ece4;--s2:#f8f6f0;--s3:#fffdf8;--s4:#fff;--t1:#1d1b17;--t2:#5a554d;--t3:#726b61;--t4:#8f887d;--l1:rgba(29,27,23,.06);--l2:rgba(29,27,23,.11);--l3:rgba(29,27,23,.2);--zhu:#c6412a;--zhu-lift:#d4553d;--on-zhu:#fff7f0;--zhu-wash:rgba(198,65,42,.1);--lamp:#b8801f;--lamp-glow:rgba(184,128,31,.4);--lamp-wash:rgba(184,128,31,.14);--pine:#3d7c5e;--pine-wash:rgba(61,124,94,.12);--ochre:#94611a;--ochre-wash:rgba(148,97,26,.12);--crimson:#9c2e3d;--crimson-wash:rgba(156,46,61,.1);--azure:#3a7797;--azure-wash:rgba(58,119,151,.12);--code:#efece4;--sh1:0 1px 2px rgba(60,45,20,.06),0 0 0 1px var(--l2);--sh2:0 2px 8px -2px rgba(60,45,20,.12),0 0 0 1px var(--l2);--sh3:0 14px 34px -12px rgba(50,35,15,.3),0 0 0 1px var(--l3)}
+.app[data-face=ink]{color-scheme:dark;--void:#0b0a09;--s1:#141210;--s2:#191714;--s3:#201d19;--s4:#2a2621;--t1:#ebe5da;--t2:#a59d92;--t3:#8b8378;--t4:#6a6259;--l1:rgba(235,229,218,.06);--l2:rgba(235,229,218,.1);--l3:rgba(235,229,218,.17);--zhu:#e25a3d;--zhu-lift:#f07054;--on-zhu:#1c0b07;--zhu-wash:rgba(226,90,61,.14);--lamp:#e7b352;--lamp-glow:rgba(231,179,82,.35);--lamp-wash:rgba(231,179,82,.12);--pine:#5fad85;--pine-wash:rgba(95,173,133,.14);--ochre:#c88f3c;--ochre-wash:rgba(200,143,60,.14);--crimson:#d95f6e;--crimson-wash:rgba(217,95,110,.14);--azure:#6ba4c3;--azure-wash:rgba(107,164,195,.14);--code:#0f0e0c;--sh1:inset 0 1px 0 rgba(255,255,255,.04),0 0 0 1px rgba(0,0,0,.6);--sh2:inset 0 1px 0 rgba(255,255,255,.04),0 0 0 1px rgba(0,0,0,.6),0 2px 8px -2px rgba(0,0,0,.5);--sh3:inset 0 1px 0 rgba(255,255,255,.06),0 0 0 1px rgba(0,0,0,.7),0 14px 34px -10px rgba(0,0,0,.7)}
+.proto{display:flex;align-items:center;gap:10px;padding:0 12px;font:11px var(--mono);color:var(--t3);border-bottom:1px dashed var(--l2);white-space:nowrap;overflow:hidden}
+.proto .pt{color:var(--t1);margin-right:8px}.proto .pl{color:var(--t4)}.proto .pn{margin-left:auto;color:var(--t4)}
+.seg{display:inline-flex;border:1px solid var(--l2);border-radius:5px;overflow:hidden;flex:none}
+.seg button{font:11px var(--mono);padding:3px 8px;color:var(--t3)}.seg button.on{background:var(--s3);color:var(--t1)}
+.body{display:grid;grid-template-columns:232px minmax(0,1fr);gap:8px;padding:0 8px 8px;min-height:0}
+.panel{background:var(--s1);border-radius:12px;box-shadow:var(--sh2);min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.idx-h{padding:12px 12px 4px;font:500 15px var(--serif);color:var(--t1)}
+.idx-h small{display:block;font:11px var(--mono);color:var(--t4);margin-top:2px;white-space:normal;line-height:1.5}
+.idx-scroll{flex:1;overflow:auto;min-height:0;padding:0 6px 8px}
+.ig{display:flex;align-items:center;gap:6px;height:22px;padding:0 8px;margin-top:8px;font:600 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--t3)}
+.ir{display:flex;align-items:center;gap:8px;height:26px;padding:0 8px;border-radius:6px;font-size:12.5px;color:var(--t2);white-space:nowrap;overflow:hidden;width:100%}
+.ir:hover{background:var(--s2);color:var(--t1)}.ir.on{background:var(--s3);box-shadow:var(--sh1);color:var(--t1)}
+.n{font:11px var(--mono);color:var(--t4);font-variant-numeric:tabular-nums}
+.ir .n{width:18px;flex:none}
+.stage{background:var(--s2);position:relative;container-type:inline-size;display:flex;flex-direction:column}
+.stage::after{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;opacity:.035;mix-blend-mode:multiply;background:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>") 0 0/200px 200px}
+.app[data-face=ink] .stage::after{mix-blend-mode:screen;opacity:.02}
+.scroll{--measure:820px;--card-x:14px;--card-y:12px;flex:1;overflow:auto;min-height:0;padding:16px 28px 24px;scroll-behavior:smooth}
+.scroll::-webkit-scrollbar,.idx-scroll::-webkit-scrollbar{width:8px}
+.scroll::-webkit-scrollbar-thumb,.idx-scroll::-webkit-scrollbar-thumb{background:var(--l2);border-radius:4px}
+.st{display:flex;align-items:baseline;gap:10px;width:100%;max-width:var(--measure);margin:26px auto 14px}
+.st:first-child{margin-top:6px}
+.st h2{font:500 20px/1.3 var(--serif);color:var(--t1)}
+.st .sn{font:11px var(--mono);color:var(--t4)}
+.blk{width:100%;max-width:var(--measure);margin:0 auto 22px;scroll-margin-top:14px;position:relative}
+.app[data-notes=on] .blk::after{content:attr(data-n);position:absolute;right:-40px;top:0;width:24px;height:20px;border-radius:3px;background:var(--s3);box-shadow:var(--sh1);font:600 10.5px/20px var(--mono);text-align:center;color:var(--t3);pointer-events:none}
+.app[data-notes=on] .blk.flash::after{background:var(--zhu);color:var(--on-zhu);box-shadow:none}
+.exh-h{font:600 15px/1.3 var(--sans);color:var(--t1);margin-bottom:2px}
+.exh-d{font-size:12.5px;color:var(--t3);margin-bottom:10px;max-width:760px}
+.exh-d code{font:11.5px var(--mono);background:var(--code);color:var(--t1);padding:1px 5px;border-radius:3px}
+.exh-d b.warn{color:var(--zhu);font-weight:600}
+.card{position:relative;background:var(--s3);box-shadow:var(--sh1);border-radius:8px;padding:var(--card-y) var(--card-x)}
+.card+.card{margin-top:8px}
+.row-cmp{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 10px;border-radius:6px;font-size:12.5px;color:var(--t2);white-space:nowrap;flex:none}
+.btn:hover{background:var(--s2);color:var(--t1)}
+.btn.pri{background:var(--zhu);color:var(--on-zhu)}.btn.pri:hover{background:var(--zhu-lift);color:var(--on-zhu)}
+.btn.dan{color:var(--crimson)}.btn.sm{height:22px;padding:0 7px;font-size:11.5px}
+.ib{width:26px;height:26px;border-radius:6px;display:inline-grid;place-items:center;color:var(--t3);flex:none}
+.ib:hover{background:var(--s2);color:var(--t1)}.ib.s22{width:22px;height:22px}
+.badge-dormant{display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:3px;background:var(--ochre-wash);color:var(--ochre);font:10px var(--mono);flex:none}
+.reach-note{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px;background:var(--ochre-wash);color:var(--ochre);font-size:11.5px;margin-bottom:10px}
+.chip{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;border-radius:6px;color:var(--t2);font-size:12px;background:var(--s1)}
+.chip.on{background:var(--zhu-wash);color:var(--zhu)}
+/* ── flashcards workspace ── */
+.studio-mock{background:var(--s1);border-radius:10px;box-shadow:var(--sh2);overflow:hidden}
+.studio-tb{display:flex;align-items:center;gap:8px;height:40px;padding:0 12px;border-bottom:1px solid var(--l1)}
+.studio-tb .tt{font:500 13.5px var(--serif);color:var(--t1)}
+.studio-tb .cnt{font:11px var(--mono);color:var(--t4)}
+.studio-search{height:26px;width:140px;background:var(--s2);border-radius:6px;padding:0 8px;display:flex;align-items:center;font-size:11px;color:var(--t4)}
+.studio-tb2{display:flex;align-items:center;gap:6px;height:34px;padding:0 12px;border-bottom:1px solid var(--l1);overflow:auto}
+.vault-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:12px}
+.vault-tile{background:var(--s3);box-shadow:var(--sh1);border-radius:8px;height:96px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;font-size:11px;color:var(--t3)}
+.vault-tile .open{position:absolute;bottom:6px;right:6px;font:10px var(--mono);color:var(--zhu)}
+.tear-demo{display:flex;align-items:center;gap:20px}
+.tear-stack{position:relative;width:90px;height:64px}
+.tear-card{position:absolute;inset:0;background:var(--s3);box-shadow:var(--sh1);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--t2)}
+.tear-card.back{transform:translate(4px,4px) rotate(2deg);opacity:.6}
+.tear-card.front{transform:rotate(-8deg) translateX(30px);opacity:.4;box-shadow:var(--sh2)}
+.produce-mock{display:flex;height:220px;background:var(--s1);border-radius:10px;overflow:hidden}
+.produce-side{width:150px;border-right:1px solid var(--l1);padding:8px;overflow:auto}
+.folder-row{display:flex;align-items:center;gap:6px;height:26px;padding:0 6px;border-radius:5px;font-size:11.5px}
+.folder-row.act{background:var(--s3);box-shadow:var(--sh1)}
+.produce-body{flex:1;padding:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.ring-mock{width:56px;height:56px;border-radius:50%;background:conic-gradient(var(--lamp) 62%,var(--l2) 0);position:relative;display:grid;place-items:center;margin-bottom:8px}
+.ring-mock::after{content:"";position:absolute;inset:6px;border-radius:50%;background:var(--s1)}
+.ring-mock span{position:relative;font:600 11px var(--mono);color:var(--t1)}
+/* ── study ── */
+.study-mock{background:var(--s1);border-radius:10px;padding:20px;text-align:center}
+.study-q{font:500 16px var(--serif);color:var(--t1);margin:10px 0}
+.rate-bar{display:flex;gap:6px;justify-content:center;margin-top:10px}
+.rate-bar button{height:30px;padding:0 14px;border-radius:6px;font-size:11.5px;background:var(--s2)}
+.rate-bar button:nth-child(1){color:var(--crimson)}.rate-bar button:nth-child(2){color:var(--ochre)}.rate-bar button:nth-child(3){color:var(--pine)}.rate-bar button:nth-child(4){color:var(--azure)}
+/* ── library ── */
+.lib-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.lib-tile{background:var(--s3);box-shadow:var(--sh1);border-radius:8px;height:90px;display:flex;align-items:center;justify-content:center;color:var(--t4);font-size:11px}
+.insp-drawer{background:var(--s1);border-radius:10px;padding:12px;max-width:260px}
+.insp-drawer .prev{height:100px;background:var(--s2);border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--t4);font-size:11px;margin-bottom:8px}
+.palette-row{display:flex;gap:5px;margin-top:6px}
+.sw{width:20px;height:20px;border-radius:4px;flex:none}
+.meta-tbl{width:100%;font-size:11px;color:var(--t3);margin-top:8px}
+.meta-tbl td{padding:2px 0}
+.meta-tbl td:first-child{color:var(--t4)}
+/* ── pet ── */
+.pet-mock{display:flex;align-items:flex-end;gap:0;position:relative;height:100px}
+.pet-sprite{width:44px;height:44px;border-radius:10px;background:var(--s3);box-shadow:var(--sh2);display:grid;place-items:center;font-size:20px}
+.pet-bubble{background:var(--s4);box-shadow:var(--sh3);border-radius:8px;padding:6px 10px;font-size:11px;color:var(--t1);position:relative;margin-bottom:44px;margin-left:8px;max-width:180px}
+.pet-bubble .st{font:600 10px var(--mono);color:var(--lamp);display:block}
+.pet-states{display:flex;gap:6px;flex-wrap:wrap}
+/* ── live ── */
+.live-pill{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 8px 0 12px;border-radius:999px;background:var(--slab,#1f1c18);color:#efe9df;box-shadow:var(--sh3)}
+.live-eq{display:inline-flex;gap:2px;align-items:center;height:14px}
+.live-eq i{width:2.5px;background:currentColor;border-radius:1px}
+.live-eq i:nth-child(1){height:6px}.live-eq i:nth-child(2){height:12px}.live-eq i:nth-child(3){height:8px}.live-eq i:nth-child(4){height:14px}
+.live-lbl{font-size:12px}
+.live-btn{width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.1);display:grid;place-items:center;flex:none}
+.kb-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.kb-tbl th{text-align:left;padding:5px 8px;color:var(--t3);font:600 10px var(--sans);border-bottom:1px solid var(--l2)}
+.kb-tbl td{padding:5px 8px;border-bottom:1px solid var(--l1);color:var(--t2)}
+@keyframes breath{0%,100%{opacity:.6}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs>
+<symbol id="search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></symbol>
+<symbol id="plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></symbol>
+<symbol id="chevd" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></symbol>
+<symbol id="chevr" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></symbol>
+<symbol id="chevl" viewBox="0 0 16 16"><path d="M10 4l-4 4 4 4"/></symbol>
+<symbol id="close" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+<symbol id="folder" viewBox="0 0 16 16"><path d="M2 5.5A1.5 1.5 0 0 1 3.5 4H6l1.5 1.5h5A1.5 1.5 0 0 1 14 7v4.5A1.5 1.5 0 0 1 12.5 13h-9A1.5 1.5 0 0 1 2 11.5z"/></symbol>
+<symbol id="check" viewBox="0 0 16 16"><path d="M3 8.5l3.2 3L13 4.5"/></symbol>
+<symbol id="copy" viewBox="0 0 16 16"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M3 10.5V4a1.5 1.5 0 0 1 1.5-1.5H10.5"/></symbol>
+<symbol id="download" viewBox="0 0 16 16"><path d="M8 2v8M4.5 7L8 10.5 11.5 7M3 13.5h10"/></symbol>
+<symbol id="trash" viewBox="0 0 16 16"><path d="M3 4.5h10M6 4.5V3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.5M4.5 4.5V13a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V4.5M6.5 7v4M9.5 7v4"/></symbol>
+<symbol id="image" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="1.5"/><circle cx="6" cy="7" r="1.2"/><path d="M14 11l-3.5-3.5L5 13"/></symbol>
+<symbol id="mic" viewBox="0 0 16 16"><rect x="6" y="2" width="4" height="8" rx="2"/><path d="M3.5 8a4.5 4.5 0 0 0 9 0M8 12.5V14"/></symbol>
+<symbol id="pause" viewBox="0 0 16 16"><path d="M6 4v8M10 4v8" stroke-width="2"/></symbol>
+<symbol id="drag" viewBox="0 0 16 16"><circle cx="5" cy="5" r="1" fill="currentColor" stroke="none"/><circle cx="8" cy="5" r="1" fill="currentColor" stroke="none"/><circle cx="11" cy="5" r="1" fill="currentColor" stroke="none"/><circle cx="5" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="11" cy="8" r="1" fill="currentColor" stroke="none"/></symbol>
+<symbol id="alert" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5M8 11v.01"/></symbol>
+</defs></svg>
+
+<div class="app" id="app" data-face="paper" data-notes="on">
+<div class="proto">
+ <span class="pt">Inkstone（砚）· 增量 6 · 子页与伴随物</span>
+ <span class="pl">面</span><span class="seg"><button class="on" data-set="face" data-v="paper">纸</button><button data-set="face" data-v="ink">墨</button></span>
+ <span class="pl">标注</span><span class="seg"><button class="on" data-set="notes" data-v="on">开</button><button data-set="notes" data-v="off">关</button></span>
+ <span class="pn">全部为静态展台 · 橙色「现状」标注表示孤儿代码/入口收编/文档偏差</span>
+</div>
+
+<div class="body">
+ <aside class="panel">
+  <div class="idx-h">子页与伴随物<small>19 块 · 点击跳转 · 对应 07-subpages.md §1–§7</small></div>
+  <div class="idx-scroll">
+   <div class="ig">一 · 知识卡片工作台</div>
+   <button class="ir on" data-go="b01"><span class="n">01</span>五个入口，同一个目的地</button>
+   <button class="ir" data-go="b02"><span class="n">02</span>画廊 · 工具条</button>
+   <button class="ir" data-go="b03"><span class="n">03</span>撕卡动效（非拆分牌组）</button>
+   <div class="ig">二 · 学习流程</div>
+   <button class="ir" data-go="b04"><span class="n">04</span>浏览模式 vs 计划复习模式</button>
+   <button class="ir" data-go="b05"><span class="n">05</span>FSRS，不是 Leitner</button>
+   <div class="ig">三 · 生产阶段与 Doc Cards</div>
+   <button class="ir" data-go="b06"><span class="n">06</span>生产阶段主从结构</button>
+   <button class="ir" data-go="b07"><span class="n">07</span>进度环 · 文件清单</button>
+   <button class="ir" data-go="b08"><span class="n">08</span>会话内卡片序列（现状：断链）</button>
+   <div class="ig">四 · 知识中心</div>
+   <button class="ir" data-go="b09"><span class="n">09</span>现状：整套面板已下线</button>
+   <div class="ig">五 · 资料库 · 媒体工作室</div>
+   <button class="ir" data-go="b10"><span class="n">10</span>图片/视频是同一工作台的两个入口</button>
+   <button class="ir" data-go="b11"><span class="n">11</span>工具条 · 空态</button>
+   <button class="ir" data-go="b12"><span class="n">12</span>检视抽屉</button>
+   <button class="ir" data-go="b13"><span class="n">13</span>生成进度在转录里，不在网格里</button>
+   <div class="ig">六 · 宠物浮窗</div>
+   <button class="ir" data-go="b14"><span class="n">14</span>独立透明系统窗口</button>
+   <button class="ir" data-go="b15"><span class="n">15</span>七态精灵（非文档写的五态）</button>
+   <button class="ir" data-go="b16"><span class="n">16</span>气泡：状态芯片，非消息预览</button>
+   <div class="ig">七 · Live 条</div>
+   <button class="ir" data-go="b17"><span class="n">17</span>浮动药丸 · 拖拽</button>
+   <button class="ir" data-go="b18"><span class="n">18</span>状态呈现（活动驱动，非四态机）</button>
+   <button class="ir" data-go="b19"><span class="n">19</span>现状：重连倒计时不存在</button>
+  </div>
+ </aside>
+
+ <main class="panel stage">
+  <div class="scroll" id="scroll">
+
+   <div class="st" id="s1"><h2>一 · 知识卡片工作台</h2><span class="sn">01–03 · 全窗口子页，取代了旧的独立知识中心面板</span></div>
+
+   <div class="blk" id="b01" data-n="01">
+    <div class="exh-h">五个入口，同一个目的地</div>
+    <div class="exh-d"><b class="warn">如实呈现</b>：<code>/flashcards</code>、<code>/knowledge</code>、<code>/wiki</code>、<code>/doccards</code>、<code>/notes</code> 以及作曲器 ＋ 菜单里的「Flashcards」——<b>现在全部落到同一个目的地</b>：<code>FlashcardsWorkspaceView</code>。路由函数 <code>handleOpenKnowledge</code> 接收 <code>subTab</code> 参数但直接丢弃，不做任何区分。这是比设计文档描述更进一步的收编，原型按现状呈现，不区分五个"入口"对应五种不同界面。</div>
+    <div class="row-cmp"><span class="chip">/flashcards</span><span class="chip">/knowledge</span><span class="chip">/wiki</span><span class="chip">/doccards</span><span class="chip">/notes</span><span class="chip">＋菜单</span><svg class="i s14" style="color:var(--t4)"><use href="#chevr"/></svg><span class="chip on">同一个 Flashcards 工作台</span></div>
+   </div>
+
+   <div class="blk" id="b02" data-n="02">
+    <div class="exh-h">画廊 · 工具条</div>
+    <div class="exh-d"><code>FlashcardsWorkspaceView.tsx</code> + <code>flashcard-gallery.tsx</code>：顶栏是标题「Flashcards」+ 卡片计数 + 搜索框 + 牌组筛选芯片（按 <code>deck</code> 字段客观分组，没有真正的"牌组"实体）+ 三个动作：待复习（带到期数徽标）/ 出卡 / 新增。网格里点卡片主体只是本地翻面（不写 Host，不计入学习进度）；只有角落的「过一遍 →」按钮才真正进入学习流程。</div>
+    <div class="studio-mock">
+     <div class="studio-tb"><span class="tt">Flashcards</span><span class="cnt">12 张</span><span class="ml"></span><span class="studio-search"><svg class="i s12"><use href="#search"/></svg>搜索闪卡…</span></div>
+     <div class="studio-tb2"><span class="chip on">全部 12</span><span class="chip">CJK 排版 4</span><span class="chip">Leitner 草案 3</span><span class="ml"></span><button class="btn sm">待复习 · 5</button><button class="btn sm">出卡</button><button class="btn sm pri">新增</button></div>
+     <div class="vault-grid">
+      <div class="vault-tile">节点语言含义<span class="open">过一遍 →</span></div>
+      <div class="vault-tile">CJK 字距校准<span class="open">过一遍 →</span></div>
+      <div class="vault-tile">FSRS 评分含义<span class="open">过一遍 →</span></div>
+     </div>
+    </div>
+   </div>
+
+   <div class="blk" id="b03" data-n="03">
+    <div class="exh-h">撕卡动效（非拆分牌组）</div>
+    <div class="exh-d"><b class="warn">修正</b>：设计文档里的「撕卡牌组 tear-deck」<b>不是拆分或复制牌组</b>——它是翻到下一张卡片的视觉隐喻：顶牌像被撕走一样平移+旋转+淡出（200ms）。<code>tear-deck.tsx</code> 组件本身<b>是孤儿代码</b>，真实学习流程走的是另一套 Host 持久化的实现，只是复用了同一个底层撕卡动效原件。中文文案特意避开"撕掉/掌握"这类词，固定用"下一张 / 结束浏览 / 已浏览 N 张"。</div>
+    <div class="tear-demo">
+     <div class="tear-stack"><div class="tear-card back">下一张</div><div class="tear-card front">已浏览 3 张</div></div>
+     <span style="font-size:11.5px;color:var(--t3)">→ 顶牌撕走式过渡，不是牌组本身被撕开</span>
+    </div>
+   </div>
+
+   <div class="st" id="s2"><h2>二 · 学习流程</h2><span class="sn">04–05 · 浏览模式没有评分，只有计划复习模式才有</span></div>
+
+   <div class="blk" id="b04" data-n="04">
+    <div class="exh-h">浏览模式 vs 计划复习模式</div>
+    <div class="exh-d">同一个 <code>FlashcardStudyView</code> 组件，两种入口走出两种不同的动作栏。从卡片「过一遍 →」进入的是<b>浏览模式</b>（sequence）：翻面 + 下一张/结束浏览 + 「标记需再看」，<b>完全没有评分按钮</b>。从工具条「待复习」进入的才是<b>计划复习模式</b>（scheduled）：翻面后出现 Again/Hard/Good/Easy 四键评分。设计文档一句话「提问面→揭示→评分→回合完成」只描述了后一种，容易让人误以为所有学习路径都有评分。</div>
+    <div class="row-cmp" style="align-items:flex-start;gap:20px">
+     <div><div style="font:11px var(--mono);color:var(--t4);margin-bottom:4px">浏览模式（无评分）</div><div class="study-mock" style="width:220px"><div class="study-q" style="font-size:14px">节点语言这段建议配图</div><div class="row-cmp" style="justify-content:center;margin-top:8px"><button class="btn sm">标记需再看</button><button class="btn sm pri">下一张</button></div></div></div>
+     <div><div style="font:11px var(--mono);color:var(--t4);margin-bottom:4px">计划复习模式（FSRS 评分）</div><div class="study-mock" style="width:260px"><div class="study-q">「已批准」小印出现在哪个层级？</div><div class="rate-bar"><button>忘了</button><button>较难</button><button>记住了</button><button>简单</button></div></div></div>
+    </div>
+   </div>
+
+   <div class="blk" id="b05" data-n="05">
+    <div class="exh-h">FSRS，不是 Leitner</div>
+    <div class="exh-d"><b class="warn">修正</b>：文档里反复出现的「Leitner 间隔重复」是<b>设计草稿阶段留下的说法，代码里从未实现</b>——真实调度算法是 <code>ts-fsrs</code>（<code>scheduler.ts</code> 文件头注释直接写 "FSRS scheduling via ts-fsrs"），状态字段是 stability/difficulty/reps/lapses，没有任何"盒位"或固定间隔倍数的痕迹。原型统一用「FSRS」或泛称「间隔重复」标注，不再提盒位。</div>
+    <div class="card"><span class="badge-dormant" style="background:var(--pine-wash);color:var(--pine)">FSRS Engine</span><span style="margin-left:8px;font-size:12px;color:var(--t3)">stability · difficulty · reps · lapses — 没有 box/盒位字段</span></div>
+   </div>
+
+   <div class="st" id="s3"><h2>三 · 生产阶段与 Doc Cards</h2><span class="sn">06–08 · 单一状态视图，不是分步向导</span></div>
+
+   <div class="blk" id="b06" data-n="06">
+    <div class="exh-h">生产阶段主从结构</div>
+    <div class="exh-d"><code>produce-stage.tsx</code>：工具条「出卡」进入的其实是旧「知识中心」折叠迁移进来的产卡循环，注释原话「作为一个页面，不是一张浮层」。布局是主从两栏，不是分步向导——没有任何"步骤 1/2/3"的组件存在（对应的 CSS 类名还留着，但没有 JSX 使用它）。左栏是多文件夹列表（近期 + 当前项目），右栏内容随状态切换：未选择/选文件/索引中/就绪/生成中/结果，全部是同一个视图的不同渲染分支。</div>
+    <div class="produce-mock">
+     <div class="produce-side">
+      <div class="folder-row act"><svg class="i s12"><use href="#folder"/></svg>piwin<span class="ml badge-dormant" style="background:var(--pine-wash);color:var(--pine)">当前</span></div>
+      <div class="folder-row"><svg class="i s12"><use href="#folder"/></svg>openwebui_m</div>
+     </div>
+     <div class="produce-body">
+      <div class="ring-mock"><span>62%</span></div>
+      <div style="font-size:12.5px;color:var(--t2)">入库 6/10 · 解析中</div>
+     </div>
+    </div>
+   </div>
+
+   <div class="blk" id="b07" data-n="07">
+    <div class="exh-h">进度环 · 文件清单</div>
+    <div class="exh-d">进度环只在「索引中」或「生成中」两个状态出现，其余状态右栏换成对应的静态视图（未索引英雄区 / 文件勾选清单 / 主题输入+生成按钮 / 结果摘要）。左栏「近期文件夹」与「文件夹列表」是<b>同一个组件</b>，不是两个独立列表——近期只是给它多喂了几条 localStorage 记录。</div>
+    <div class="row-cmp"><span class="chip">未索引英雄区</span><svg class="i s12"><use href="#chevr"/></svg><span class="chip">文件清单 + 进度环</span><svg class="i s12"><use href="#chevr"/></svg><span class="chip">就绪（输入主题）</span><svg class="i s12"><use href="#chevr"/></svg><span class="chip on">结果</span></div>
+   </div>
+
+   <div class="blk" id="b08" data-n="08">
+    <div class="exh-h">会话内卡片序列（现状：断链）</div>
+    <div class="exh-d"><b class="warn">如实呈现</b>：生成完成后 Host 本应创建一个复习会话并返回 <code>sessionId</code>，转录里会嵌入一个上一张/下一张的卡片序列查看器（<code>DocCardSequenceView</code>，前后翻页 + 完成后的 FSRS 评分 + 「打开源文件」）。但生产阶段这一侧把 <code>sessionId</code> 和打开会话的回调都硬编码成 <code>undefined</code>——这条路径目前从产卡页出发永远走不到。原型如实画出这个查看器的样子，标注它现在够不着。</div>
+    <div class="reach-note"><svg class="i s14"><use href="#alert"/></svg>现状：<code>produce-stage.tsx</code> 硬编码 <code>sessionId=undefined</code>，「打开复习会话」入口从产卡页永远不可达</div>
+    <div class="card" style="max-width:340px">
+     <div class="row-cmp"><span style="font-size:11px;color:var(--t4)">02-transcript-anatomy · 3/12</span><span class="ml"></span><button class="ib s22"><svg class="i s12"><use href="#chevl"/></svg></button><button class="ib s22"><svg class="i s12"><use href="#chevr"/></svg></button></div>
+     <div style="font:500 13.5px var(--serif);margin-top:6px">节点语言里"跑"用什么颜色？</div>
+     <div class="row-cmp" style="margin-top:8px"><button class="btn sm">显示答案</button><u style="font-size:11px;margin-left:auto">打开源文件</u></div>
+    </div>
+   </div>
+
+   <div class="st" id="s4"><h2>四 · 知识中心</h2><span class="sn">09 · 曾经的独立面板，现已完全下线</span></div>
+
+   <div class="blk" id="b09" data-n="09">
+    <div class="exh-h">现状：整套面板已下线</div>
+    <div class="exh-d"><b class="warn">修正</b>：<code>KnowledgeCenterPanel.tsx</code> 及其子视图——未索引英雄区/就绪/结果/<b>Wiki 检索抽屉</b>/资料库列表——<b>没有任何地方在渲染它</b>，全代码库只有它自己的测试文件引用它。它的大部分状态机（未索引→索引中→就绪→生成中→结果）已被搬进上面的「生产阶段」（§三）；但 Wiki 检索抽屉（纯文本/向量检索框 + 结果摘录卡，不是页面树或知识图谱）和资料库列表视图<b>没有被迁移，跟着母面板一起变成孤儿代码</b>。设计文档 <code>00-scope-inventory.md</code> 仍把它列为现役实现，需要更新。</div>
+    <div class="reach-note"><svg class="i s14"><use href="#alert"/></svg>现状：<code>KnowledgeCenterPanel</code> 及其 Wiki/资料库子视图均为孤儿代码，全部功能不可达</div>
+    <div class="card">
+     <div style="font-size:11.5px;color:var(--t3);margin-bottom:6px">Wiki 检索抽屉的真实形态（仅供参考，当前不可达）：</div>
+     <div style="height:26px;background:var(--s1);border-radius:6px;padding:0 8px;display:flex;align-items:center;font-size:11.5px;color:var(--t4)">自然语言检索或提问项目知识库…</div>
+     <div style="font-size:11px;color:var(--t3);margin-top:6px">02-transcript-anatomy.md · 匹配度 87% · "…工具行按动词加粗+code参数展示…"</div>
+    </div>
+   </div>
+
+   <div class="st" id="s5"><h2>五 · 资料库 · 媒体工作室</h2><span class="sn">10–13 · 图片/视频共用一个组件，生成进度活在转录里</span></div>
+
+   <div class="blk" id="b10" data-n="10">
+    <div class="exh-h">图片/视频是同一工作台的两个入口</div>
+    <div class="exh-d"><code>LibraryWorkspaceView.tsx</code> 只是薄包装，真身是 <code>MediaLibraryWorkspace</code>；「资料库」「图片」「视频」三个入口只是给它不同的 <code>initialKind</code> 初始标签，<b>不是三个不同的组件</b>。工作台顶部固定三个标签：图片/视频/收藏——「收藏」是纯本地 localStorage 筛选，不是服务端字段。</div>
+    <div class="row-cmp"><span class="chip on">图片</span><span class="chip">视频</span><span class="chip">收藏</span><span style="font-size:11px;color:var(--t3);margin-left:8px">← 同一个 MediaLibraryWorkspace，三个标签</span></div>
+   </div>
+
+   <div class="blk" id="b11" data-n="11">
+    <div class="exh-h">工具条 · 空态</div>
+    <div class="exh-d">工具条：返回 + 标题 + 资产计数、居中搜索框（⌘K）、右侧「批量管理」切换 + 「新建」下拉（生成图片/生成视频——点击只是关闭工作台回到对话，不直接触发生成）。空态不是简单占位，是一整块引导：标题+说明+两个 CTA + 下方 4 条硬编码的提示词灵感卡片，点击直接把提示词复制进剪贴板并关闭工作台。</div>
+    <div class="card">
+     <div style="font:500 13px var(--serif);margin-bottom:4px">还没有图片</div>
+     <div style="font-size:11.5px;color:var(--t3);margin-bottom:8px">会话里生成的图片会出现在这里。在对话中输入提示词让 AI 为你生成作品。</div>
+     <div class="row-cmp"><button class="btn sm pri">在会话中生成</button><button class="btn sm">使用提示词模板</button></div>
+    </div>
+   </div>
+
+   <div class="blk" id="b12" data-n="12">
+    <div class="exh-h">检视抽屉</div>
+    <div class="exh-d">选中一张素材后滑出的侧栏：大预览图 + 模型徽标 + 「全屏剧场」按钮；提示词区块（复制按钮点击后变「已复制」）；「在会话中重绘」+「下载素材」；<b class="warn">如实呈现</b>：「主题色板」五个色块是<b>装饰性假数据</b>——源码注释直接写"预设动态取色的视觉效果模拟"，按模型名字符串子串匹配一张预设色板，不是从像素真实提取的颜色；技术参数表（类型/模型/体积/创建时间/来源会话）是真实数据。</div>
+    <div class="insp-drawer">
+     <div class="prev">大预览</div>
+     <div class="row-cmp"><span style="font-size:11.5px;color:var(--t3)">提示词</span><u class="ml" style="font-size:11px">复制提示词</u></div>
+     <div class="palette-row"><span class="sw" style="background:#c6412a"></span><span class="sw" style="background:#3a7797"></span><span class="sw" style="background:#3d7c5e"></span><span class="sw" style="background:#94611a"></span><span class="sw" style="background:#726b61"></span><span class="badge-dormant ml">装饰性</span></div>
+     <table class="meta-tbl"><tr><td>模型</td><td>FLUX.1 Pro</td></tr><tr><td>体积</td><td>2.4 MB</td></tr><tr><td>来源会话</td><td>a1b2···</td></tr></table>
+    </div>
+   </div>
+
+   <div class="blk" id="b13" data-n="13">
+    <div class="exh-h">生成进度在转录里，不在网格里</div>
+    <div class="exh-d"><b class="warn">如实呈现</b>：资料库网格里<b>没有"正在生成"的占位卡片或专区</b>——生成中的进度条完全渲染在聊天转录里（增量 1 已覆盖的媒体生成进度卡），资料库只会在生成完成、素材真正落盘后的下一次刷新里出现这张图。如果原型画一张"生成中"骨架卡片摆在网格里，那是虚构的行为。</div>
+    <div class="row-cmp"><span class="chip">转录里：生成进度条（研墨动效）</span><svg class="i s14"><use href="#chevr"/></svg><span class="chip">完成落盘</span><svg class="i s14"><use href="#chevr"/></svg><span class="chip on">下次刷新后出现在资料库网格</span></div>
+   </div>
+
+   <div class="st" id="s6"><h2>六 · 宠物浮窗</h2><span class="sn">14–16 · 独立系统窗口，状态枚举与文档不同</span></div>
+
+   <div class="blk" id="b14" data-n="14">
+    <div class="exh-h">独立透明系统窗口</div>
+    <div class="exh-d">这不是应用内浮层——是 Tauri 层面独立的透明、无边框、置顶、跳过任务栏的 OS 窗口，加载一份完全独立的前端入口（不复用主应用模块图，避免为了一个精灵启动第二份完整 Desktop）。它没有自己的 Host 连接，靠跨窗口事件向主窗口要快照。默认开启，本地存了「false」才会隐藏。设置里显示为「显示桌面宠物」开关，位置在通用与外观页的伴侣子标签——<b class="warn">如实呈现</b>：文档提到的独立 <code>pets-page.tsx</code> 是孤儿文件，没被注册。</div>
+    <div class="row-cmp"><span class="chip">独立 Tauri 窗口</span><span class="chip">transparent+alwaysOnTop</span><span class="chip">跨窗口事件通信，无 Host 连接</span></div>
+   </div>
+
+   <div class="blk" id="b15" data-n="15">
+    <div class="exh-h">七态精灵（非文档写的五态）</div>
+    <div class="exh-d"><b class="warn">修正</b>：文档写的「sleeping/idle/thinking/celebrating/error」五态<b>与代码枚举不符</b>——真实状态是 idle/running/waiting/failed/waving/jumping/review 七态。没有 sleeping，没有 celebrating；"thinking"只是气泡文字，精灵姿态本身在思考和运行工具时都是同一个 running；waving/jumping 是空闲时随机触发的小动作，不是稳定状态；review 是完成子代理/计划复审后的姿态，是最接近"庆祝"的东西但命名不同。</div>
+    <div class="pet-states">
+     <span class="chip on">idle</span><span class="chip on">running</span><span class="chip on">waiting</span><span class="chip on">failed</span><span class="chip on">waving</span><span class="chip on">jumping</span><span class="chip on">review</span>
+     <span class="badge-dormant">sleeping（不存在）</span><span class="badge-dormant">celebrating（不存在）</span>
+    </div>
+   </div>
+
+   <div class="blk" id="b16" data-n="16">
+    <div class="exh-h">气泡：状态芯片，非消息预览</div>
+    <div class="exh-d">气泡在真正空闲时完全隐藏，不常驻。内容是紧凑的两层结构：一个短状态标签（思考中/运行中/等待确认/失败/完成/停止中/准备中）+ 一行标题（如"运行 read_file"）+ 可选的细节行（裁剪到 80 字符，路径类文本从末尾裁）。源码注释特别强调：不像聊天区的落地闪念语轮播，气泡必须实时反映当下正在发生的事，不做氛围性轮播。</div>
+    <div class="pet-mock">
+     <div class="pet-bubble"><span class="st">运行中</span>运行 read_file<div style="color:var(--t3);font-size:10px;margin-top:2px">···composer-run-actions.tsx</div></div>
+     <div class="pet-sprite">🐾</div>
+    </div>
+   </div>
+
+   <div class="st" id="s7"><h2>七 · Live 条</h2><span class="sn">17–19 · 装饰性均衡器代替真实波形，重连倒计时文档写了但代码没有</span></div>
+
+   <div class="blk" id="b17" data-n="17">
+    <div class="exh-h">浮动药丸 · 拖拽</div>
+    <div class="exh-d">固定定位在标题带下方居中，一个小胶囊而不是通栏——左侧拖拽把手（三点）、中间视觉效果位（旋转/均衡器/警示点，随状态切换）、右侧动作按钮。可拖拽移动，位置只存在组件本地状态，重新挂载会回到居中默认位。</div>
+    <div class="live-pill">
+     <svg class="i s12" style="color:rgba(255,255,255,.5)"><use href="#drag"/></svg>
+     <span class="live-eq" style="color:#e7b352"><i></i><i></i><i></i><i></i></span>
+     <span class="live-lbl">模型正在回复</span>
+     <span class="live-btn"><svg class="i s12"><use href="#mic"/></svg></span>
+     <span class="live-btn" style="background:rgba(198,65,42,.5)"><svg class="i s12"><use href="#pause"/></svg></span>
+    </div>
+   </div>
+
+   <div class="blk" id="b18" data-n="18">
+    <div class="exh-h">状态呈现（活动驱动，非四态机）</div>
+    <div class="exh-d"><b class="warn">如实呈现</b>：底层 <code>LiveCallPhase</code> 类型确实是 starting/active/reconnecting/ending/ended/failed 六态，但界面实际呈现按九条优先级分支渲染（错误 → 连接中 → 重连中 → 用户说话 → 模型回复 → 等待权限 → Agent 工作中 → 已静音 → 默认倾听），不是干净的四态机切换。视觉效果也没有真实的音频波形或通话时长计时器——「均衡器」只是绑定 <code>data-activity</code> 字符串的纯 CSS 动画，不响应真实麦克风电平。</div>
+    <div class="row-cmp" style="gap:6px;flex-wrap:wrap">
+     <span class="chip">错误</span><span class="chip">连接中</span><span class="chip">重连中</span><span class="chip">用户说话</span><span class="chip">模型回复</span><span class="chip">等待权限</span><span class="chip">Agent 工作中</span><span class="chip">已静音</span><span class="chip on">默认倾听</span>
+    </div>
+   </div>
+
+   <div class="blk" id="b19" data-n="19">
+    <div class="exh-h">现状：重连倒计时不存在</div>
+    <div class="exh-d"><b class="warn">修正</b>：设计文档反复提到"重连预算倒计时"，但<b>桌面端与 Host 端代码里都找不到任何倒计时或"剩余次数"的可见文案</b>——桌面端的 <code>LiveReconnectBudget</code> 类只被自己的测试引用，从未在应用代码里被调用；Host 端等价的预算类也没有接进真正的重连流程。用户能看到的重连提示只有一个通用旋转指示器 + "正在重新连接语音"文案，没有数字。原型不画不存在的倒计时。</div>
+    <div class="reach-note"><svg class="i s14"><use href="#alert"/></svg>现状：「重连预算」只是内部限流概念，从未渲染成用户可见的倒计时或次数提示</div>
+    <div class="live-pill" style="opacity:.7">
+     <span style="width:14px;height:14px;border-radius:50%;border:1.5px solid rgba(255,255,255,.3);border-top-color:#e7b352;display:inline-block" class="grind-demo"></span>
+     <span class="live-lbl">正在重新连接语音</span>
+    </div>
+   </div>
+
+  </div>
+ </main>
+</div>
+</div>
+
+<script>
+(function(){
+var app=document.getElementById('app');
+var each=function(list,fn){Array.prototype.forEach.call(list,fn)};
+function setSeg(k,v){each(document.querySelectorAll('[data-set="'+k+'"]'),function(b){b.classList.toggle('on',b.getAttribute('data-v')===v)})}
+each(document.querySelectorAll('[data-set]'),function(b){b.addEventListener('click',function(){var k=b.getAttribute('data-set'),v=b.getAttribute('data-v');app.setAttribute('data-'+k,v);setSeg(k,v)})});
+function go(id){var el=document.getElementById(id);if(!el)return;el.scrollIntoView({block:'start'});el.classList.add('flash');setTimeout(function(){el.classList.remove('flash')},1200);each(document.querySelectorAll('.ir'),function(x){x.classList.toggle('on',x.getAttribute('data-go')===id)})}
+each(document.querySelectorAll('.ir'),function(b){b.addEventListener('click',function(){go(b.getAttribute('data-go'))})});
+})();
+</script>
+</body>
+</html>

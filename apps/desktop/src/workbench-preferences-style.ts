@@ -10,18 +10,21 @@ export function desktopPreferencesCssVars(preferences: DesktopPreferences): CSSP
       ? '13px'
       : preferences.assistantTextSize === 'large'
         ? '17px'
-        : '15px';
+        : '14.5px';
   const codeFontSize =
     preferences.codeTextSize === 'small'
       ? '11.5px'
       : preferences.codeTextSize === 'large'
         ? '14.5px'
-        : '13px';
+        : '12.5px';
   return {
     '--chat-font-size': chatFontSize,
     '--code-font-size': codeFontSize,
     '--code-wrap': preferences.codeWrap ? 'break-word' : 'unset',
     '--conversation-width': resolveConversationWidth(preferences.conversationWidth),
+    // Resolve on the preference owner: a :root alias otherwise freezes the
+    // nested width variable before the user's shell override is inherited.
+    '--chat-max': 'min(100%, var(--conversation-width))',
   } as CSSProperties;
 }
 

@@ -1,0 +1,321 @@
+/* S5.7: Permission gate on the ink line */
+html[data-theme-id='piwin-inkstone-paper'] .tr-gate,
+html[data-theme-id='piwin-inkstone-ink'] .tr-gate {
+  position: relative;
+  padding: 4px 0 6px;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .tr-gate .node,
+html[data-theme-id='piwin-inkstone-ink'] .tr-gate .node {
+  top: 26px;
+  margin-top: 0;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .gate,
+html[data-theme-id='piwin-inkstone-ink'] .gate {
+  position: relative;
+  margin-left: var(--row-pad);
+  padding: var(--card-y) var(--card-x);
+  background: var(--s3);
+  box-shadow: var(--sh2);
+  border-radius: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 16px;
+  align-items: center;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .gate::before,
+html[data-theme-id='piwin-inkstone-ink'] .gate::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--zhu);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .gate .mic,
+html[data-theme-id='piwin-inkstone-ink'] .gate .mic {
+  font: 600 10.5px var(--sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--zhu);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .gate .cmd,
+html[data-theme-id='piwin-inkstone-ink'] .gate .cmd {
+  margin-top: 4px;
+  font-size: 13.5px;
+  color: var(--t1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .gate .facts,
+html[data-theme-id='piwin-inkstone-ink'] .gate .facts {
+  margin-top: 5px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font: 11.5px var(--mono);
+  color: var(--t3);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .gate .facts .dg,
+html[data-theme-id='piwin-inkstone-ink'] .gate .facts .dg {
+  color: var(--crimson);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .gate .seals,
+html[data-theme-id='piwin-inkstone-ink'] .gate .seals {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .gate .gh,
+html[data-theme-id='piwin-inkstone-ink'] .gate .gh {
+  grid-column: 1 / -1;
+  font: 11px var(--mono);
+  color: var(--t4);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .gate .gh u,
+html[data-theme-id='piwin-inkstone-ink'] .gate .gh u {
+  color: var(--t3);
+  margin-left: 2px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .gate .gh u:hover,
+html[data-theme-id='piwin-inkstone-ink'] .gate .gh u:hover {
+  color: var(--t1);
+}
+
+/* S5.8: Square seals (印) */
+html[data-theme-id='piwin-inkstone-paper'] .seal,
+html[data-theme-id='piwin-inkstone-ink'] .seal {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  background: var(--zhu);
+  color: var(--on-zhu);
+  font: 600 17px / 1 var(--serif);
+  display: grid;
+  place-items: center;
+  position: relative;
+  transform: rotate(-1.5deg);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.18), inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+  flex: none;
+  border: 0;
+  cursor: pointer;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .seal.is-stamping,
+html[data-theme-id='piwin-inkstone-ink'] .seal.is-stamping {
+  animation: stamp 160ms var(--spring) forwards;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .seal::after,
+html[data-theme-id='piwin-inkstone-ink'] .seal::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 2px;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .seal:hover,
+html[data-theme-id='piwin-inkstone-ink'] .seal:hover {
+  background: var(--zhu-lift);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .seal.ghost,
+html[data-theme-id='piwin-inkstone-ink'] .seal.ghost {
+  background: transparent;
+  color: var(--t2);
+  box-shadow: inset 0 0 0 1.5px var(--l3);
+  transform: none;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .seal.ghost::after,
+html[data-theme-id='piwin-inkstone-ink'] .seal.ghost::after {
+  display: none;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .seal.mini,
+html[data-theme-id='piwin-inkstone-ink'] .seal.mini {
+  width: 17px;
+  height: 17px;
+  font-size: 9px;
+  border-radius: 2px;
+  transform: rotate(-3deg);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+  display: inline-grid;
+  place-items: center;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .seal.mini::after,
+html[data-theme-id='piwin-inkstone-ink'] .seal.mini::after {
+  inset: 2px;
+  border-radius: 1px;
+}
+
+.grind {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1.5px solid var(--l3);
+  border-top-color: var(--lamp);
+  animation: grind 1.4s linear infinite;
+  flex: none;
+}
+
+.grind.s9 {
+  width: 9px;
+  height: 9px;
+}
+
+.tr.draw {
+  animation: draw 0.24s ease-out both;
+}
+
+.tr.draw .node {
+  animation: draw 0.24s ease-out 0.2s both;
+}
+
+/* S5.9: Plan execution gate (.intr) per docs/design/inkstone/proto-01-transcript.html */
+html[data-theme-id='piwin-inkstone-paper'] .intr,
+html[data-theme-id='piwin-inkstone-ink'] .intr {
+  position: relative;
+  background: var(--s3);
+  box-shadow: var(--sh2);
+  border-radius: 8px;
+  padding: var(--card-y) var(--card-x);
+  border: 0;
+  animation: agent-interruption-slide-in var(--t-2, 0.2s) var(--ease-out, ease-out);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .intr.plan-execution-gate,
+html[data-theme-id='piwin-inkstone-ink'] .intr.plan-execution-gate {
+  width: var(--chat-max, 720px);
+  max-width: calc(100% - 32px);
+  margin: 0 auto 8px;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .intr h3,
+html[data-theme-id='piwin-inkstone-ink'] .intr h3 {
+  font: 600 15px/1.4 var(--sans);
+  color: var(--t1);
+  margin: 8px 0 2px;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .intr .desc,
+html[data-theme-id='piwin-inkstone-ink'] .intr .desc {
+  font-size: 12.5px;
+  color: var(--t2);
+  line-height: 1.5;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .intr .choices,
+html[data-theme-id='piwin-inkstone-ink'] .intr .choices {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .intr .choice,
+html[data-theme-id='piwin-inkstone-ink'] .intr .choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px 0 6px;
+  border-radius: 6px;
+  background: var(--s2);
+  box-shadow: var(--sh1);
+  font-size: 12.5px;
+  color: var(--t1);
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background-color var(--t-2, 0.15s) ease, box-shadow var(--t-2, 0.15s) ease;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .intr .choice:hover,
+html[data-theme-id='piwin-inkstone-ink'] .intr .choice:hover {
+  background: var(--s4);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .intr .choice:disabled,
+html[data-theme-id='piwin-inkstone-ink'] .intr .choice:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .intr .choice:focus-visible,
+html[data-theme-id='piwin-inkstone-ink'] .intr .choice:focus-visible {
+  outline: 2px solid var(--zhu);
+  outline-offset: 1px;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .intr .bd,
+html[data-theme-id='piwin-inkstone-ink'] .intr .bd {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  display: inline-grid;
+  place-items: center;
+  font: 600 11px var(--mono);
+  background: var(--s1);
+  color: var(--t2);
+  flex: none;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .intr .choice.rec .bd,
+html[data-theme-id='piwin-inkstone-ink'] .intr .choice.rec .bd {
+  background: var(--zhu);
+  color: var(--on-zhu);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .intr .kb,
+html[data-theme-id='piwin-inkstone-ink'] .intr .kb {
+  margin-top: 8px;
+  font: 11px var(--mono);
+  color: var(--t4);
+}
+
+/* Pill badge per proto-01 lines 81-84 */
+html[data-theme-id='piwin-inkstone-paper'] .pill,
+html[data-theme-id='piwin-inkstone-ink'] .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font: 600 10.5px var(--sans);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .pill i,
+html[data-theme-id='piwin-inkstone-ink'] .pill i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .pill.zhu-p,
+html[data-theme-id='piwin-inkstone-ink'] .pill.zhu-p {
+  background: var(--zhu-wash);
+  color: var(--zhu);
+}
+

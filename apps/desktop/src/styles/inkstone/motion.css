@@ -1,0 +1,168 @@
+/* Inkstone motion + component sheet — proto-07-components.html.
+   Keyframes are the single Inkstone source of truth. Region files may
+   apply them; they must not redefine breath/grind/sheen/stamp/draw. */
+
+@keyframes breath {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes grind {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes slide {
+  from {
+    left: 0;
+  }
+  to {
+    left: 70%;
+  }
+}
+
+@keyframes sheen {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes stamp {
+  0% {
+    transform: scale(0.88) rotate(-7deg);
+    opacity: 0.5;
+  }
+  60% {
+    transform: scale(1.05) rotate(-1deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(-1.5deg);
+  }
+}
+
+@keyframes draw {
+  from {
+    clip-path: inset(0 0 100% 0);
+    opacity: 0;
+  }
+  to {
+    clip-path: inset(0);
+    opacity: 1;
+  }
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) {
+  /* S11.9 — same 2px / 2px ring, vermillion instead of iris. */
+  :focus-visible {
+    outline-color: var(--zhu);
+  }
+
+  /* S11.7 — Ghost default; primary = zhu + on-zhu; danger = crimson ink,
+     crimson fill on confirm; disabled keeps hue at 40%. */
+  .piwin-button--primary:not(:disabled):not([data-disabled='true']) {
+    background: var(--zhu);
+    color: var(--on-zhu);
+    border-color: transparent;
+  }
+
+  .piwin-button--primary:not(:disabled):not([data-disabled='true']):hover {
+    background: var(--zhu-lift);
+  }
+
+  .piwin-button--danger:not(:disabled):not([data-disabled='true']) {
+    color: var(--crimson);
+    background: transparent;
+    border-color: transparent;
+  }
+
+  .piwin-button--danger[data-confirm='true']:not(:disabled):not([data-disabled='true']),
+  .piwin-button--danger.is-confirm:not(:disabled):not([data-disabled='true']) {
+    background: var(--crimson);
+    color: var(--on-zhu);
+  }
+
+  .piwin-button:disabled,
+  .piwin-button[data-disabled='true'] {
+    opacity: 0.4;
+  }
+
+  /* S11.8 — first-letter avatars stay serif; selected chips use 朱洗. */
+  .av,
+  .user-message-avatar {
+    font-family: var(--serif);
+  }
+
+  .chip.on,
+  .chip[aria-pressed='true'],
+  .perm-pill.on,
+  .itab.act {
+    background: var(--zhu-wash);
+    color: var(--zhu);
+  }
+
+  /* S11.6 — one fold rhythm for work / capsules / native details. */
+  .turn-work-details-body,
+  .explore-flow-capsule-body,
+  .assembly-summary-detail,
+  details > :not(summary) {
+    transition:
+      max-height 240ms ease-out,
+      opacity 240ms ease-out,
+      margin 240ms ease-out,
+      padding 240ms ease-out;
+  }
+
+  /* S11.3 — permission-bar seal uses the same stamp as the gate 印. */
+  .permission-bar-seal.is-stamping {
+    animation: stamp 160ms var(--spring) both;
+  }
+
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  textarea,
+  .field,
+  .settings-search-container {
+    border-radius: 6px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) {
+    .grind,
+    .tr.draw,
+    .tr.draw .node,
+    .slab::before,
+    .slab.is-streaming::before,
+    .slab.is-queued-edit::before,
+    .seal.is-stamping,
+    .permission-bar-seal.is-stamping,
+    .work-h .lamp,
+    .turn-work-details-summary .lamp,
+    .has-stream-caret::after,
+    .caret {
+      animation: none;
+    }
+
+    .seal.is-stamping,
+    .permission-bar-seal.is-stamping {
+      opacity: 1;
+      transform: rotate(-1.5deg);
+    }
+
+    .grind,
+    .gen .bar i,
+    .work-h .lamp,
+    .turn-work-details-summary .lamp {
+      opacity: 1;
+    }
+  }
+}

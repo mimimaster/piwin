@@ -26,6 +26,7 @@ import {
   PIWIN_APPEARANCE_INK_WASH,
   PIWIN_APPEARANCE_LIGHT,
 } from '../appearance-tokens';
+import { FlashcardStackView } from '../FlashcardView';
 import { GoalGalleryStates } from './primitive-gallery-goal';
 
 export type PrimitiveGalleryProps = {
@@ -78,10 +79,10 @@ function GalleryStack(props: { title: string; children: ReactNode }): ReactEleme
 
 /**
  * Static transcript-card markup mirroring tool-call-card.tsx, diff-card.tsx,
- * plan-card.tsx, and gate-card.tsx. These states (expanded tool body, pending
- * diff verdict, blocked permission gate) depend on live agent traffic, so the
- * mock host cannot reach them — the fixture reproduces the DOM instead so the
- * Deck stylesheets stay under visual regression.
+ * and plan-card.tsx. These states (expanded tool body, pending diff verdict)
+ * depend on live agent traffic, so the mock host cannot reach them — the
+ * fixture reproduces the DOM instead so the Deck stylesheets stay under
+ * visual regression.
  */
 function TranscriptCardStates(): ReactElement {
   return (
@@ -172,23 +173,6 @@ function TranscriptCardStates(): ReactElement {
               <span className="add">+64</span>
             </span>
             <span className="review-badge accepted">Accepted</span>
-          </div>
-        </div>
-      </GalleryStack>
-
-      <GalleryStack title="Permission gate">
-        <div className="gate" data-kind="command">
-          <div className="gate-head">
-            <span className="gate-head-icon">⚠</span>
-            Run a shell command?
-          </div>
-          <div className="gate-cmd">
-            <div className="permission-detail">rm -rf ./dist</div>
-          </div>
-          <div className="gate-actions">
-            <Button variant="secondary">Deny</Button>
-            <Button variant="primary">Allow once</Button>
-            <span className="gate-hint">Esc to deny</span>
           </div>
         </div>
       </GalleryStack>
@@ -625,48 +609,23 @@ function KnowledgeCardStates(): ReactElement {
       </GalleryStack>
 
       <GalleryStack title="Inline flip card (transcript)">
-        <div className="fc-quiet-stack" style={{ maxWidth: '420px' }}>
-          <div className="fc-quiet-nav">
-            <span>Card 2 of 5</span>
-            <div className="fc-quiet-nav-actions">
-              <button type="button" className="fc-quiet-nav-btn">
-                ‹
-              </button>
-              <button type="button" className="fc-quiet-nav-btn">
-                ›
-              </button>
-            </div>
-          </div>
-          <div className="fc-quiet-card-container">
-            <div className="fc-quiet-frame">
-              <div className="fc-quiet-face fc-quiet-front is-active">
-                <div className="fc-quiet-header">
-                  <div className="fc-quiet-meta">
-                    <span className="fc-quiet-deck">Deck design</span>
-                    <span className="fc-quiet-tag">#tokens</span>
-                  </div>
-                  <div className="fc-quiet-tools">
-                    <span className="fc-quiet-flip-badge">
-                      <kbd>Space</kbd> flip
-                    </span>
-                  </div>
-                </div>
-                <div className="fc-quiet-body fc-quiet-question">
-                  <p>Which token is the field every panel floats over?</p>
-                </div>
-                <div className="fc-quiet-footer">
-                  <div className="fc-quiet-rating-bar">
-                    <button type="button" className="fc-quiet-rate-btn">
-                      Again <span className="fc-rate-key">1</span>
-                    </button>
-                    <button type="button" className="fc-quiet-rate-btn">
-                      Good <span className="fc-rate-key">3</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+        <div style={{ maxWidth: '420px' }}>
+          <FlashcardStackView
+            locale="zh-CN"
+            cards={[
+              {
+                cardId: 'gallery-fc-1',
+                itemId: 'gallery-fc-1',
+                model: 'basic',
+                ordinal: 1,
+                deck: 'design',
+                front: 'Which token is the field every panel floats over?',
+                back: 'bg is the field; panel is surface1.',
+                tags: ['tokens'],
+                createdAt: '2026-09-06T00:00:00.000Z',
+              },
+            ]}
+          />
         </div>
       </GalleryStack>
     </>

@@ -98,6 +98,8 @@ export type WorkbenchInspectorProps = {
   artifactTarget: ArtifactCanvasTarget | null;
   artifactThemeKey: string;
   artifactMaxBytes?: number;
+  artifactBlockExternalScripts?: boolean;
+  artifactBlockExternalResources?: boolean;
   addWebElement: (pick: WebElementPickResult) => void;
   inspectorDiff: { relativePath: string } | null;
   activeMedia: ActiveDocumentMedia | undefined;
@@ -151,6 +153,8 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
     artifactTarget,
     artifactThemeKey,
     artifactMaxBytes,
+    artifactBlockExternalScripts,
+    artifactBlockExternalResources,
     addWebElement,
     inspectorDiff,
     activeMedia,
@@ -268,6 +272,16 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
                       : absolutePath,
                   );
                 }}
+                {...(hostClient.supportsCommand('browser/navigate')
+                  ? {
+                      onOpenHtmlInBrowser: (absolutePath: string) => {
+                        handleOpenDocument({
+                          title: absolutePath.split(/[\\/]/).pop() || absolutePath,
+                          path: absolutePath,
+                        });
+                      },
+                    }
+                  : {})}
                 locale={locale}
               />
             ) : (
@@ -279,8 +293,12 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
               activeTarget={artifactTarget}
               artifactTheme={mapThemeToArtifactVariables(activeTheme)}
               artifactThemeKey={artifactThemeKey}
-              {...(artifactMaxBytes !== undefined
-                ? { artifactMaxBytes }
+              {...(artifactMaxBytes !== undefined ? { artifactMaxBytes } : {})}
+              {...(artifactBlockExternalScripts !== undefined
+                ? { artifactBlockExternalScripts }
+                : {})}
+              {...(artifactBlockExternalResources !== undefined
+                ? { artifactBlockExternalResources }
                 : {})}
               onInsertProposal={(proposal) =>
                 setComposer((current) => appendComposerProposal(current, proposal.text))

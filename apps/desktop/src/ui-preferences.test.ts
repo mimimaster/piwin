@@ -300,9 +300,9 @@ describe('appearance theme migration', () => {
 
 describe('conversation width', () => {
   it('maps every width preference to its desktop conversation measure', () => {
-    expect(resolveConversationWidth('narrow')).toBe('620px');
-    expect(resolveConversationWidth('default')).toBe('780px');
-    expect(resolveConversationWidth('wide')).toBe('1040px');
+    expect(resolveConversationWidth('narrow')).toBe('640px');
+    expect(resolveConversationWidth('default')).toBe('720px');
+    expect(resolveConversationWidth('wide')).toBe('840px');
   });
 });
 

@@ -19,10 +19,11 @@ import {
 } from './transcript-turn-height';
 import { indexTranscriptTurnsByMessageId, type TranscriptTurn } from './transcript-turns';
 
-export const TRANSCRIPT_VIRTUALIZATION_THRESHOLD = 20;
+/** Virtualize any non-empty transcript. Off-screen history must not mount. */
+export const TRANSCRIPT_VIRTUALIZATION_THRESHOLD = 0;
 export { TRANSCRIPT_TURN_ESTIMATED_HEIGHT_PX };
 const TRANSCRIPT_TURN_GAP_PX = 20;
-const TRANSCRIPT_TURN_OVERSCAN = 6;
+const TRANSCRIPT_TURN_OVERSCAN = 2;
 /** Always keep the newest N items/turns mounted so the live call chain never unmounts. */
 const TRANSCRIPT_LIVE_TAIL_PIN_COUNT = 3;
 
@@ -51,15 +52,7 @@ function transcriptTurnItemStructureKey(turn: TranscriptTurn): string {
         message.tools?.map((tool) => `${tool.toolCallId}:${tool.status}`).join(',') ?? '';
       const failureCode = message.failure?.code ?? '';
       const errorSig = message.error ?? '';
-      return [
-        message.id,
-        message.status,
-        String(message.text.length),
-        String(message.thinking.length),
-        toolSig,
-        errorSig,
-        failureCode,
-      ].join(':');
+      return [message.id, message.status, toolSig, errorSig, failureCode].join(':');
     })
     .join(';');
 }

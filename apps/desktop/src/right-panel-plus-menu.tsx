@@ -6,7 +6,12 @@ import { type ReactElement } from 'react';
 import { DropdownMenu, DropdownMenuItem, DropdownMenuLabel } from '@piwin/ui-kit';
 import { IconPlus } from './shell-icons';
 import type { DesktopLocale } from './desktop-locale';
-import { SECTION_META, sectionLabel, type RightPanelTab } from './right-panel-sections';
+import {
+  SECTION_META,
+  isPlusMenuSection,
+  sectionLabel,
+  type RightPanelTab,
+} from './right-panel-sections';
 
 export type RightPanelPlusMenuProps = {
   open: boolean;
@@ -24,7 +29,11 @@ export function RightPanelPlusMenu(props: RightPanelPlusMenuProps): ReactElement
   const trigger = (
     <button
       type="button"
-      className={props.open || props.active ? 'right-panel-tab-add active' : 'right-panel-tab-add'}
+      className={
+        props.open || props.active
+          ? 'right-panel-tab-add insp-plus active'
+          : 'right-panel-tab-add insp-plus'
+      }
       aria-label={label}
       title={label}
       data-testid="right-panel-tab-add"
@@ -48,7 +57,7 @@ export function RightPanelPlusMenu(props: RightPanelPlusMenuProps): ReactElement
       <DropdownMenuLabel className="right-panel-plus-caption muted">
         {props.locale === 'zh-CN' ? '打开' : 'Open'}
       </DropdownMenuLabel>
-      {SECTION_META.filter((tab) => !tab.hidden).map((tab) => {
+      {SECTION_META.filter(isPlusMenuSection).map((tab) => {
         const labelText = sectionLabel(tab.id, props.locale);
         const alreadyOpen = props.openTabs.includes(tab.id);
         return (

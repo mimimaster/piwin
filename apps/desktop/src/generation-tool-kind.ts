@@ -39,19 +39,34 @@ export function getGenerationStatus(
   message: { tools: readonly ToolCardUi[] },
   generationKind: GenerationToolKind,
 ): ToolCardUi['status'] | null {
-  const generationTools = message.tools.filter(
-    (tool) => resolveGenerationToolKind(tool) === generationKind,
-  );
-  if (generationTools.length === 0) {
+  const tool = getGenerationTool(message, generationKind);
+  if (!tool) {
     return null;
   }
-  if (generationTools.some((tool) => tool.status === 'running')) {
+  const generationTools = message.tools.filter(
+    (candidate) => resolveGenerationToolKind(candidate) === generationKind,
+  );
+  if (generationTools.some((candidate) => candidate.status === 'running')) {
     return 'running';
   }
-  if (generationTools.some((tool) => tool.status === 'error')) {
+  if (generationTools.some((candidate) => candidate.status === 'error')) {
     return 'error';
   }
   return 'done';
+}
+
+/** Newest matching generation tool for presentation metadata. */
+export function getGenerationTool(
+  message: { tools: readonly ToolCardUi[] },
+  generationKind: GenerationToolKind,
+): ToolCardUi | null {
+  for (let index = message.tools.length - 1; index >= 0; index -= 1) {
+    const tool = message.tools[index];
+    if (tool && resolveGenerationToolKind(tool) === generationKind) {
+      return tool;
+    }
+  }
+  return null;
 }
 
 /** Done generation is the attachment itself; keep the card only while running or failed. */

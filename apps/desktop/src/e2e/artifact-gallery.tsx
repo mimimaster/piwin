@@ -12,11 +12,9 @@ import {
   type ArtifactFixtureId,
 } from '@piwin/artifact/fixtures';
 import { ArtifactCanvasPanel } from '../artifact-canvas-panel';
-import {
-  createArtifactCanvasTarget,
-  type ArtifactCanvasTarget,
-} from '../artifact-canvas-model';
+import { createArtifactCanvasTarget, type ArtifactCanvasTarget } from '../artifact-canvas-model';
 import { MarkdownView } from '../MarkdownView';
+import { CodePreviewGallery } from './code-preview-gallery.js';
 
 const GALLERY_ROOT_STYLE: CSSProperties = {
   minHeight: '100vh',
@@ -127,12 +125,18 @@ function isFixtureId(value: string): value is ArtifactFixtureId {
 
 export function ArtifactGallery(): ReactElement {
   const selection = useMemo(() => readGallerySelection(), []);
+  const constrainedPane = window.location.hash.includes('&pane=1');
+  if (selection === 'code-preview') return <CodePreviewGallery />;
   const cases: ArtifactFixture[] =
     selection && isFixtureId(selection) ? [getArtifactFixture(selection)] : [...ARTIFACT_FIXTURES];
   const showStreaming = selection === null || selection === 'streaming';
 
   return (
-    <div style={GALLERY_ROOT_STYLE} data-testid="artifact-gallery">
+    <div
+      style={{ ...GALLERY_ROOT_STYLE, ...(constrainedPane ? { height: 500, minHeight: 0 } : {}) }}
+      className={constrainedPane ? 'conversation-pane-session' : undefined}
+      data-testid="artifact-gallery"
+    >
       <nav style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '24px' }}>
         <a href="#/e2e/artifacts" data-testid="artifact-gallery-link-all">
           All

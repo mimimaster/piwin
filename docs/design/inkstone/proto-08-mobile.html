@@ -1,0 +1,889 @@
+<!doctype html>
+<html lang="zh-CN" data-face="paper">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f8f6f0">
+<title>Inkstone · 随身砚 — piwin 移动端原型</title>
+<style>
+/* theme.css */
+/* Canonical Inkstone tokens copied from proto-00-shell.html; prototype only. */
+:root[data-face=paper]{color-scheme:light;--void:#e6e1d7;--s1:#f0ece4;--s2:#f8f6f0;--s3:#fffdf8;--s4:#fff;--t1:#1d1b17;--t2:#5a554d;--t3:#726b61;--t4:#8f887d;--l1:rgba(29,27,23,.06);--l2:rgba(29,27,23,.11);--l3:rgba(29,27,23,.2);--zhu:#c6412a;--zhu-lift:#d4553d;--on-zhu:#fff7f0;--zhu-wash:rgba(198,65,42,.1);--lamp:#b8801f;--lamp-glow:rgba(184,128,31,.4);--lamp-wash:rgba(184,128,31,.14);--pine:#3d7c5e;--pine-wash:rgba(61,124,94,.12);--ochre:#94611a;--crimson:#9c2e3d;--crimson-wash:rgba(156,46,61,.1);--azure:#3a7797;--code:#efece4;--slab:#1f1c18;--slab-t:#efe9df;--slab-ph:#8d857a;--slab-chip:rgba(255,255,255,.07);--slab-line:rgba(255,255,255,.1);--sh1:0 1px 2px rgba(60,45,20,.06),0 0 0 1px var(--l2);--sh2:0 2px 8px -2px rgba(60,45,20,.12),0 0 0 1px var(--l2);--sh3:0 14px 34px -12px rgba(50,35,15,.3),0 0 0 1px var(--l3)}
+:root[data-face=ink]{color-scheme:dark;--void:#0b0a09;--s1:#141210;--s2:#191714;--s3:#201d19;--s4:#2a2621;--t1:#ebe5da;--t2:#a59d92;--t3:#8b8378;--t4:#6a6259;--l1:rgba(235,229,218,.06);--l2:rgba(235,229,218,.1);--l3:rgba(235,229,218,.17);--zhu:#e25a3d;--zhu-lift:#f07054;--on-zhu:#1c0b07;--zhu-wash:rgba(226,90,61,.14);--lamp:#e7b352;--lamp-glow:rgba(231,179,82,.35);--lamp-wash:rgba(231,179,82,.12);--pine:#5fad85;--pine-wash:rgba(95,173,133,.14);--ochre:#c88f3c;--crimson:#d95f6e;--crimson-wash:rgba(217,95,110,.14);--azure:#6ba4c3;--code:#0f0e0c;--slab:#0e0d0b;--slab-t:#ebe5da;--slab-ph:#6f685f;--slab-chip:rgba(235,229,218,.07);--slab-line:rgba(235,229,218,.1);--sh1:inset 0 1px 0 rgba(255,255,255,.04),0 0 0 1px rgba(0,0,0,.6);--sh2:inset 0 1px 0 rgba(255,255,255,.04),0 0 0 1px rgba(0,0,0,.6),0 2px 8px -2px rgba(0,0,0,.5);--sh3:inset 0 1px 0 rgba(255,255,255,.06),0 0 0 1px rgba(0,0,0,.7),0 14px 34px -10px rgba(0,0,0,.7)}
+
+</style>
+<style>
+/* layout.css */
+/* Exhibition and portable mobile shell. No runtime application styles. */
+* { box-sizing: border-box; }
+:root { --sans: Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", system-ui, sans-serif; --serif: "Songti SC", "STSong", Georgia, serif; --mono: "SF Mono", Menlo, Consolas, monospace; }
+body { margin: 0; background: var(--void); color: var(--t1); font: 14px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+button, input, textarea, select { font: inherit; }
+button, a, input, textarea, select { -webkit-tap-highlight-color: transparent; }
+button { color: inherit; cursor: pointer; border: 0; background: none; }
+button:disabled { cursor: default; opacity: .45; }
+button:focus-visible, a:focus-visible, summary:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--zhu); outline-offset: 3px; }
+a { color: inherit; text-decoration: none; }
+svg { flex: none; }
+.icon { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.45; stroke-linecap: round; stroke-linejoin: round; }
+h1, h2, h3, p { margin: 0; }
+.mono, code, time { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--t3); }
+.red { color: var(--zhu); }
+.green { color: var(--pine); }
+.blue { color: var(--azure); }
+.eyebrow { font: 11px/1.6 var(--mono); letter-spacing: .14em; color: var(--t3); }
+.exhibition { max-width: 1460px; min-height: 100dvh; margin: auto; padding: 38px 52px; display: grid; grid-template-columns: 250px minmax(400px, 1fr) 240px; gap: 40px; align-items: center; }
+.exhibit-nav { min-height: 810px; display: flex; flex-direction: column; }
+.wordmark { display: flex; align-items: center; gap: 11px; }
+.wordmark b { font: 600 25px var(--serif); letter-spacing: -.03em; }
+.brand-seal { width: 33px; height: 35px; background: var(--zhu); color: var(--on-zhu); display: inline-grid; place-items: center; font: 21px var(--serif); border-radius: 3px; outline: 1px solid var(--on-zhu); outline-offset: -4px; transform: rotate(-2deg); flex: none; }
+.edition { margin-left: auto; font: 10px var(--mono); color: var(--t3); letter-spacing: .08em; }
+.exhibit-intro { margin: 59px 0 32px; }
+.exhibit-intro h1 { font: 400 43px/1.4 var(--serif); letter-spacing: -.03em; margin: 15px 0; }
+.exhibit-intro p { font-size: 13px; line-height: 1.9; color: var(--t2); }
+#scene-nav { border-top: 1px solid var(--l2); padding-top: 13px; }
+.scene-link { display: flex; width: 100%; gap: 17px; align-items: center; padding: 9px 8px 9px 0; color: var(--t3); text-align: left; }
+.scene-link .scene-index { font: 11px var(--mono); opacity: .7; }
+.scene-link .scene-arrow { margin-left: auto; opacity: 0; }
+.scene-link.active { color: var(--zhu); }
+.scene-link.active .scene-arrow { opacity: 1; }
+.scene-link:hover { color: var(--t1); }
+.exhibit-bottom { margin-top: auto; padding-top: 28px; }
+.face-switch { display: flex; width: fit-content; gap: 3px; padding: 4px; border: 1px solid var(--l2); border-radius: 7px; }
+.face-switch button { padding: 7px 11px; font-size: 12px; border-radius: 4px; color: var(--t3); }
+.face-switch button[aria-pressed=true] { background: var(--s2); color: var(--t1); box-shadow: var(--sh1); }
+.exhibit-bottom p { font-size: 11px; line-height: 1.9; margin-top: 17px; color: var(--t3); }
+.specimen { min-width: 0; display: flex; flex-direction: column; align-items: center; }
+.specimen-label { width: 390px; display: flex; gap: 16px; margin: 0 0 17px; font: 10px var(--mono); color: var(--t3); }
+.specimen-label button { margin-left: auto; font-size: 10px; padding: 0; }
+.device { width: 390px; height: 824px; background: var(--s2); border-radius: 39px; position: relative; overflow: hidden; display: flex; flex-direction: column; border: 6px solid var(--s1); box-shadow: 0 0 0 1px var(--l3), 0 24px 60px -25px rgba(39,28,15,.28), 0 4px 12px rgba(39,28,15,.06); transition: width 240ms ease; isolation: isolate; }
+.device.compact { width: 360px; }
+.phone-status { display: flex; justify-content: space-between; align-items: center; height: 46px; flex: none; padding: 3px 26px 0; font: 600 13px var(--sans); }
+.status-hardware { display: flex; align-items: center; gap: 6px; }
+.signal-bars { font-size: 10px; letter-spacing: -1px; }
+.wifi { font-size: 22px; line-height: 1; transform: rotate(180deg); }
+.battery { display: inline-block; width: 21px; height: 10px; border: 1px solid currentColor; border-radius: 3px; position: relative; padding: 1px; }
+.battery::before { content: ""; position: absolute; inset: 1px; right: 3px; background: currentColor; border-radius: 1px; }
+.battery::after { content: ""; position: absolute; height: 4px; width: 2px; top: 2px; right: -4px; background: currentColor; border-radius: 1px; }
+.phone { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.home-indicator { height: 19px; flex: none; background: var(--s2); position: relative; }
+.home-indicator::after { content: ""; position: absolute; top: 8px; height: 4px; width: 118px; border-radius: 4px; background: var(--t1); left: calc(50% - 59px); }
+.specimen-footer { display: flex; width: 390px; align-items: center; gap: 7px; margin-top: 18px; font-size: 11px; color: var(--t3); }
+.specimen-footer .mono { margin-left: auto; font-size: 10px; }
+.small-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--pine); display: inline-block; }
+.exhibit-notes { align-self: center; padding-top: 100px; }
+.exhibit-notes h2 { font: 26px/1.5 var(--serif); margin: 18px 0; }
+.exhibit-notes p { font-size: 12px; color: var(--t2); line-height: 1.9; }
+.note-rule { width: 30px; height: 2px; background: var(--zhu); margin-bottom: 24px; }
+.note-item { margin-top: 26px; padding-top: 17px; border-top: 1px solid var(--l2); }
+.note-item b { display: block; margin-bottom: 7px; font-size: 12px; font-weight: 550; }
+.note-tag { display: inline-block; font-size: 10px; color: var(--zhu); background: var(--zhu-wash); padding: 2px 6px; border-radius: 3px; margin-top: 18px; }
+.note-bottom { font: 10px/1.8 var(--mono); color: var(--t3); margin-top: 38px; }
+.topbar { display: flex; align-items: center; gap: 6px; padding: 3px 17px 9px; min-height: 51px; flex: none; }
+.topbar .brand-seal { width: 25px; height: 28px; font-size: 18px; }
+.topbar-title { flex: 1; min-width: 0; }
+.topbar-title h2 { font: 500 18px/1.45 var(--serif); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbar-title small { color: var(--t3); font-size: 11px; display: flex; gap: 7px; align-items: center; }
+.icon-button { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; height: 44px; border-radius: 8px; flex: none; }
+.icon-button:hover { background: var(--s1); }
+.icon-button.red-fill { color: var(--on-zhu); background: var(--zhu); width: 40px; min-width: 40px; height: 40px; border-radius: 9px; }
+.screen-scroll { flex: 1; overflow: auto; overscroll-behavior: contain; min-height: 0; padding: 10px 22px 24px; scrollbar-width: none; }
+.screen-scroll::-webkit-scrollbar { display: none; }
+.screen-heading { margin-bottom: 20px; }
+.screen-heading h1 { font: 500 29px/1.5 var(--serif); letter-spacing: .01em; }
+.screen-heading p { color: var(--t3); font-size: 12px; margin-top: 3px; }
+.bottom-nav { display: flex; justify-content: space-around; padding: 5px 12px 0; border-top: 1px solid var(--l2); background: var(--s2); flex: none; }
+.bottom-nav button { display: flex; align-items: center; flex-direction: column; justify-content: center; min-width: 78px; min-height: 52px; gap: 3px; font-size: 11px; color: var(--t3); position: relative; }
+.bottom-nav button.active { color: var(--zhu); }
+.nav-counter { position: absolute; right: 15px; top: 0; background: var(--zhu); color: var(--on-zhu); font: 9px var(--mono); padding: 2px 4px; border-radius: 4px; }
+.toast { position: absolute; z-index: 20; left: 16px; right: 16px; bottom: 89px; padding: 12px 16px; border-radius: 8px; color: var(--slab-t); background: var(--slab); box-shadow: var(--sh3); opacity: 0; transform: translateY(8px); pointer-events: none; font-size: 13px; transition: 180ms ease; }
+.toast.show { opacity: 1; transform: translateY(0); }
+dialog { color: var(--t1); background: var(--s3); padding: 0; border: 0; border-radius: 22px 22px 0 0; width: var(--dialog-width, 378px); max-width: 100vw; max-height: min(700px, 90dvh); margin: 0; top: auto; bottom: var(--dialog-bottom, 0px); left: var(--dialog-left, 0px); box-shadow: var(--sh3); overflow: auto; overscroll-behavior: contain; }
+dialog::backdrop { background: rgba(20,17,12,.32); backdrop-filter: blur(2px); }
+.sheet-grab { width: 32px; height: 4px; background: var(--l3); border-radius: 4px; margin: 9px auto 3px; }
+.sheet-head { padding: 4px 15px 8px 22px; display: flex; align-items: center; justify-content: space-between; }
+.sheet-head h2 { font: 500 23px var(--serif); }
+.sheet-body { padding: 0 22px 28px; }
+.sheet-body p { color: var(--t2); line-height: 1.8; margin-bottom: 16px; }
+.sheet-body .full-button { margin-top: 12px; }
+@media (min-width: 1100px) and (max-height: 920px) { .exhibition { padding-top: 22px; padding-bottom: 22px; } .device { height: calc(100dvh - 110px); min-height: 560px; } .exhibit-nav { min-height: calc(100dvh - 44px); } .exhibit-intro { margin-top: 28px; margin-bottom: 20px; } .scene-link { padding-top: 6px; padding-bottom: 6px; } .exhibit-bottom { padding-top: 20px; } }
+@media (min-width: 1100px) and (max-height: 790px) { .exhibit-intro { margin: 20px 0 14px; } .exhibit-intro h1 { font-size: 34px; line-height: 1.25; margin: 12px 0; } .exhibit-intro p { font-size: 12px; } .scene-link { font-size: 12px; padding: 5px 0; } .exhibit-bottom { padding-top: 14px; } .exhibit-bottom p { margin-top: 10px; font-size: 10px; } .exhibit-notes { padding-top: 30px; } }
+@media (max-width: 1150px) { .exhibition { grid-template-columns: 230px minmax(380px, 1fr); padding: 30px; gap: 35px; max-width: 850px; } .exhibit-notes { display: none; } }
+@media (max-width: 700px) { .exhibition { display: block; padding: 0; height: 100dvh; } .exhibit-nav, .specimen-label, .specimen-footer { display: none; } .specimen { height: 100%; } .device, .device.compact { border: 0; box-shadow: none; border-radius: 0; width: 100%; height: 100%; min-height: 0; padding-top: env(safe-area-inset-top); } .phone-status { display: none; } .topbar { padding-top: 8px; min-height: 61px; } .home-indicator { height: max(12px, env(safe-area-inset-bottom)); } .home-indicator::after { display: none; } dialog { max-height: 90dvh; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+
+</style>
+<style>
+/* surfaces.css */
+/* Mobile-native compositions, sharing Inkstone's paper / ink vocabulary. */
+.row { display: flex; align-items: center; gap: 10px; }
+.back-button .icon { transform: rotate(180deg); }
+.continue-meta button { display: flex; align-items: center; }
+.phone[data-route=sessions] .screen-heading { margin-bottom: 14px; }
+.phone[data-route=sessions] .host-card { padding: 11px 13px; }
+.phone[data-route=sessions] .continue-card { padding-top: 13px; padding-bottom: 10px; margin-bottom: 15px; }
+.phone[data-route=sessions] .continue-meta { margin-top: 10px; padding-top: 7px; }
+.phone[data-route=sessions] .tabs { margin-top: 8px; }
+.spread { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.grow { flex: 1; min-width: 0; }
+.section-label { display: flex; justify-content: space-between; align-items: center; color: var(--t3); font-size: 12px; letter-spacing: .03em; margin: 24px 0 11px; }
+.section-label button { font-size: 12px; color: var(--t2); padding: 7px 0 7px 12px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 5px; background: var(--s1); color: var(--t2); font-size: 11px; white-space: nowrap; }
+.pill .icon { width: 13px; height: 13px; }
+.pill.pine { color: var(--pine); background: var(--pine-wash); }
+.pill.zhu { color: var(--zhu); background: var(--zhu-wash); }
+.pill.azure { color: var(--azure); }
+.dot { display: inline-block; width: 7px; height: 7px; border: 1px solid var(--t4); border-radius: 50%; flex: none; }
+.dot.running { background: var(--lamp); border-color: var(--lamp); box-shadow: 0 0 0 3px var(--lamp-wash); animation: breathe 2.4s ease-in-out infinite; }
+.dot.done { background: var(--pine); border-color: var(--pine); }
+.dot.waiting { background: var(--zhu); border-color: var(--zhu); border-radius: 1px; }
+.dot.background { background: var(--azure); border-color: var(--azure); }
+.search-field { width: 100%; display: flex; align-items: center; padding: 0 12px; height: 44px; gap: 9px; border: 1px solid var(--l2); border-radius: 8px; background: var(--s1); color: var(--t3); }
+.search-field input { border: 0; background: transparent; min-width: 0; width: 100%; outline: none; color: var(--t1); font-size: 14px; }
+.search-field .icon { width: 17px; height: 17px; }
+.tabs { display: flex; gap: 18px; border-bottom: 1px solid var(--l2); margin-top: 16px; overflow-x: auto; scrollbar-width: none; }
+.tabs button { flex: none; min-height: 44px; font-size: 13px; color: var(--t3); padding: 4px 0 10px; border-bottom: 2px solid transparent; }
+.tabs button.active { color: var(--t1); border-color: var(--zhu); }
+.continue-card { padding: 17px 17px 14px; background: var(--s3); box-shadow: var(--sh2); border-radius: 9px; position: relative; margin: 16px 0 25px; }
+.continue-card::before { content: ""; position: absolute; top: 17px; bottom: 17px; left: 0; width: 2px; background: var(--lamp); }
+.continue-card h3 { font: 600 18px/1.6 var(--serif); margin: 10px 0 5px; }
+.continue-card p { color: var(--t2); font-size: 12px; line-height: 1.8; }
+.continue-meta { border-top: 1px solid var(--l1); margin-top: 14px; padding-top: 11px; font-size: 11px; color: var(--t3); }
+.continue-meta button { color: var(--zhu); font-size: 12px; min-height: 32px; }
+.project-heading { display: flex; align-items: center; gap: 8px; margin: 18px 0 5px; font-size: 14px; }
+.project-heading .icon { width: 16px; height: 16px; color: var(--t3); }
+.project-heading small { color: var(--t3); font: 11px var(--mono); margin-left: auto; }
+.session-tree { margin-left: 6px; padding-left: 15px; border-left: 1px solid var(--l3); }
+.session-item { position: relative; display: flex; align-items: center; gap: 5px; min-height: 71px; border-bottom: 1px solid var(--l1); }
+.session-item > .dot { position: absolute; left: -19px; top: 28px; }
+.session-open { flex: 1; text-align: left; min-width: 0; padding: 12px 0 10px 2px; }
+.session-open strong { display: block; font-size: 14px; font-weight: 500; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.session-open small { display: flex; gap: 8px; align-items: center; font-size: 11px; color: var(--t3); margin-top: 5px; }
+.session-item .icon-button { min-width: 34px; width: 34px; color: var(--t3); }
+.session-item .icon { width: 16px; height: 16px; }
+.notice-strip { width: 100%; padding: 11px 13px; border-radius: 7px; margin-top: 20px; background: var(--zhu-wash); color: var(--zhu); display: flex; gap: 9px; align-items: center; font-size: 12px; text-align: left; }
+.notice-strip .icon { width: 16px; height: 16px; }
+.notice-strip span { flex: 1; }
+.chat-scroll { padding-top: 7px; }
+.chat-context { padding: 0 22px 10px; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid var(--l1); flex: none; }
+.chat-context button { min-height: 30px; }
+.message-head { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--t2); margin: 14px 0 8px; }
+.message-head time { margin-left: auto; color: var(--t3); font-size: 10px; }
+.avatar { font: 13px var(--serif); width: 23px; height: 23px; display: grid; place-items: center; border: 1px solid var(--l2); border-radius: 50%; background: var(--s3); }
+.user-message { background: var(--s3); box-shadow: var(--sh1); border-radius: 8px; padding: 13px 14px; font-size: 14px; line-height: 1.85; }
+.context-note { font-size: 10px; color: var(--t3); margin: 11px 0 18px; display: flex; align-items: center; gap: 6px; }
+.context-note button { font-size: 10px; color: var(--t3); padding: 0; }
+.work-disclosure { margin-bottom: 15px; }
+summary { cursor: pointer; list-style: none; }
+summary::-webkit-details-marker { display: none; }
+.work-disclosure summary { display: flex; gap: 9px; align-items: center; min-height: 35px; color: var(--t2); font-size: 12px; }
+.work-disclosure summary .icon { width: 14px; margin-left: auto; }
+.tool-thread { border-left: 1px solid var(--l3); margin-left: 3px; padding: 3px 0 2px 16px; }
+.tool-step { display: flex; gap: 6px; position: relative; color: var(--t3); font-size: 11px; align-items: center; min-height: 29px; }
+.tool-step .dot { position: absolute; left: -20px; width: 6px; height: 6px; }
+.tool-step code { color: var(--t2); font-size: 10px; }
+.tool-step span:last-child { margin-left: auto; }
+.assistant-prose { font-size: 15px; line-height: 1.9; }
+.assistant-prose p + p { margin-top: 10px; }
+.assistant-prose h3 { font-weight: 600; font-size: 15px; margin-bottom: 7px; }
+.assistant-prose code { background: var(--code); padding: 2px 4px; border-radius: 3px; font-size: 12px; overflow-wrap: anywhere; }
+.inline-preview { padding: 12px 13px; border: 1px solid var(--l2); border-radius: 7px; width: 100%; display: flex; align-items: center; gap: 9px; margin-top: 16px; text-align: left; }
+.inline-preview strong { display: block; font-size: 13px; font-weight: 500; }
+.inline-preview small { display: block; color: var(--t3); font-size: 10px; margin-top: 3px; }
+.inline-preview .icon { width: 18px; }
+.message-actions { display: flex; gap: 0; margin-top: 7px; color: var(--t3); }
+.message-actions .icon-button { min-width: 33px; height: 36px; }
+.message-actions .icon { width: 15px; }
+.message-actions small { font: 10px var(--mono); margin: auto 0 auto auto; }
+.composer-dock { padding: 6px 14px 3px; background: var(--s2); flex: none; }
+.composer { background: var(--slab); color: var(--slab-t); border-radius: 13px; box-shadow: var(--sh3); overflow: hidden; border-top: 1px solid var(--slab-line); }
+.composer.running { border-top-color: var(--lamp); }
+.composer textarea { display: block; resize: none; width: 100%; background: transparent; border: 0; color: var(--slab-t); padding: 13px 14px 0; font-size: 16px; line-height: 1.6; min-height: 61px; }
+.composer textarea::placeholder { color: #aaa196; font-size: 14px; }
+.composer-actions { display: flex; align-items: center; padding: 2px 7px 7px; gap: 0; }
+.composer-actions .icon-button { min-width: 39px; width: 39px; height: 40px; color: #bcb3a7; }
+.composer-actions .icon-button:hover { background: var(--slab-chip); }
+.model-button { font-size: 11px; color: #c5bcaf; display: flex; align-items: center; gap: 3px; padding: 0 2px; min-height: 40px; flex: 1; }
+.model-button .icon { width: 12px; }
+.composer-actions .send-button { margin-left: 4px; width: 35px; min-width: 35px; height: 35px; color: var(--on-zhu); background: var(--zhu); border-radius: 50%; }
+.composer-actions .send-button.pause { background: var(--slab-chip); color: var(--lamp); outline: 1px solid var(--lamp); }
+.composer-foot { display: flex; justify-content: center; align-items: center; gap: 12px; color: var(--t3); font-size: 10px; padding-top: 6px; min-height: 25px; }
+.composer-foot button { color: var(--t3); font-size: 10px; }
+.attachment-chip { display: flex; align-items: center; gap: 7px; margin: 10px 12px 0; width: fit-content; padding: 4px 7px; font-size: 11px; background: var(--slab-chip); border-radius: 4px; }
+.attachment-chip button { padding: 2px 4px; }
+.queue-strip { display: flex; align-items: center; gap: 7px; font-size: 11px; padding: 8px 5px; color: var(--t2); }
+.queue-strip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.queue-strip button { color: var(--zhu); margin-left: auto; flex: none; }
+.gate { border-radius: 8px; background: var(--s3); box-shadow: var(--sh2); padding: 17px; border-left: 2px solid var(--zhu); margin-top: 17px; }
+.gate h3 { font: 600 18px/1.5 var(--serif); margin: 10px 0 7px; }
+.gate p { font-size: 12px; line-height: 1.8; color: var(--t2); }
+.command { padding: 11px; background: var(--code); border-radius: 5px; font: 11px/1.8 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; margin: 13px 0; }
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; font-size: 11px; margin: 12px 0; }
+.facts dt { color: var(--t3); }
+.facts dd { margin: 0; overflow-wrap: anywhere; }
+.gate-footer { display: flex; align-items: center; gap: 10px; border-top: 1px solid var(--l2); padding-top: 12px; margin-top: 16px; }
+.gate-footer span { flex: 1; font-size: 11px; color: var(--t3); }
+.seal-button { width: 48px; height: 48px; background: var(--zhu); color: var(--on-zhu); font: 23px var(--serif); border-radius: 4px; outline: 1px solid var(--on-zhu); outline-offset: -5px; transform: rotate(-2deg); }
+.seal-button.ghost { background: transparent; color: var(--t2); outline-color: var(--l3); border: 1px solid var(--l2); transform: none; }
+.full-button { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 46px; width: 100%; padding: 10px 15px; border-radius: 7px; background: var(--zhu); color: var(--on-zhu); font-size: 14px; }
+.full-button.secondary { background: var(--s1); color: var(--t1); border: 1px solid var(--l2); }
+.full-button.subtle { background: none; color: var(--t2); }
+.list-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; min-height: 65px; border-bottom: 1px solid var(--l1); padding: 12px 0; }
+.list-row > .icon { width: 19px; color: var(--t2); }
+.list-row strong { font-size: 14px; font-weight: 500; display: block; }
+.list-row small { font-size: 11px; color: var(--t3); display: block; margin-top: 4px; line-height: 1.6; }
+.list-row .trailing { margin-left: auto; color: var(--t3); font-size: 12px; flex: none; }
+.list-row .trailing .icon { width: 14px; }
+.list-row.selected { color: var(--zhu); }
+.list-row.selected > .icon, .list-row.selected .trailing { color: var(--zhu); }
+.shelf-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); border-top: 1px solid var(--l2); border-left: 1px solid var(--l2); margin-top: 20px; }
+.shelf-tile { text-align: left; padding: 19px 15px; border-right: 1px solid var(--l2); border-bottom: 1px solid var(--l2); }
+.shelf-tile .icon { display: block; margin-bottom: 16px; color: var(--t2); }
+.shelf-tile strong { display: block; font: 500 18px var(--serif); }
+.shelf-tile small { display: block; font-size: 11px; color: var(--t3); margin-top: 8px; }
+.host-card { display: flex; align-items: center; gap: 12px; padding: 15px; border: 1px solid var(--l2); border-radius: 8px; width: 100%; text-align: left; }
+.host-card strong { font-weight: 500; font-size: 14px; }
+.host-card small { display: block; font-size: 11px; color: var(--t3); margin-top: 4px; }
+.host-monogram { display: grid; place-items: center; height: 42px; width: 42px; border-radius: 9px; background: var(--s1); font: 23px var(--serif); }
+.plan-step { padding: 3px 0 22px 24px; border-left: 1px solid var(--l3); position: relative; margin-left: 5px; }
+.plan-step > .dot { position: absolute; left: -4px; top: 10px; }
+.plan-step h3 { font-size: 15px; font-weight: 500; margin-bottom: 5px; }
+.plan-step p { color: var(--t3); font-size: 12px; line-height: 1.8; }
+.plan-step .pill { margin-top: 8px; }
+.progress-track { height: 3px; background: var(--l2); border-radius: 3px; margin: 16px 0 25px; overflow: hidden; }
+.progress-track span { height: 100%; display: block; background: var(--pine); }
+.diff-stats { display: flex; align-items: baseline; gap: 10px; margin: 12px 0 23px; }
+.diff-stats strong { font: 36px var(--serif); }
+.diff-stats span { font: 13px var(--mono); }
+.diff-card { border: 1px solid var(--l2); border-radius: 8px; overflow: hidden; margin: 14px 0; }
+.diff-heading { display: flex; justify-content: space-between; gap: 6px; font: 10px var(--mono); padding: 12px; background: var(--s1); }
+.diff-lines { overflow-x: auto; background: var(--code); padding: 9px 0; font: 11px/1.85 var(--mono); }
+.diff-line { display: flex; gap: 10px; padding: 0 10px; min-width: max-content; white-space: pre; }
+.diff-line em { color: var(--t3); font-style: normal; width: 17px; text-align: right; }
+.diff-line.add { background: var(--pine-wash); }
+.diff-line.remove { background: var(--crimson-wash); }
+.diff-line.commentable { cursor: pointer; }
+.bottom-action { padding: 12px 20px 3px; border-top: 1px solid var(--l2); flex: none; background: var(--s2); }
+.workspace-tabs { margin: 0 22px; gap: 20px; flex: none; }
+.workspace-tabs button { font-size: 12px; }
+.terminal { background: var(--code); padding: 15px; border-radius: 7px; font: 11px/1.9 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; margin: 13px 0; }
+.note-paper { border: 1px solid var(--l2); background: var(--s3); padding: 22px; margin: 18px 0; }
+.note-paper h3 { font: 22px/1.5 var(--serif); margin-bottom: 15px; }
+.note-paper p { font-size: 14px; line-height: 2; color: var(--t2); }
+.note-paper hr { border: 0; border-top: 1px solid var(--l2); margin: 20px 0; }
+.flashcard { display: flex; flex-direction: column; justify-content: space-between; min-height: 310px; width: 100%; text-align: left; background: var(--s3); box-shadow: var(--sh2); padding: 24px; border-radius: 4px; margin: 20px 0; }
+.flashcard h2 { font: 24px/1.7 var(--serif); margin: 30px 0; }
+.flashcard p { font-size: 15px; line-height: 1.9; }
+.rating-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 7px; }
+.rating-grid button { border: 1px solid var(--l2); border-radius: 5px; padding: 11px 0; background: var(--s3); font-size: 12px; }
+.rating-grid small { display: block; font-size: 10px; color: var(--t3); margin-top: 5px; }
+.field { display: block; font-size: 12px; color: var(--t2); margin: 17px 0; }
+.field input, .field select, .field textarea { display: block; width: 100%; margin-top: 7px; min-height: 46px; padding: 10px 12px; border: 1px solid var(--l2); border-radius: 7px; background: var(--s2); color: var(--t1); font-size: 16px; }
+.field textarea { min-height: 100px; resize: vertical; }
+.radio-options { display: flex; gap: 7px; flex-wrap: wrap; margin: 14px 0; }
+.radio-options button { flex: 1; min-width: 60px; min-height: 44px; border: 1px solid var(--l2); border-radius: 6px; font-size: 12px; }
+.radio-options button[aria-pressed=true] { color: var(--zhu); background: var(--zhu-wash); border-color: var(--zhu); }
+.switch { width: 36px; height: 22px; background: var(--l3); border-radius: 14px; position: relative; }
+.switch::after { content: ""; position: absolute; width: 16px; height: 16px; background: var(--s4); border-radius: 50%; top: 3px; left: 3px; }
+[aria-checked=true] .switch { background: var(--pine); }
+[aria-checked=true] .switch::after { left: 17px; }
+.empty-state { padding: 42px 10px; text-align: center; color: var(--t2); }
+.empty-state .brand-seal { width: 44px; height: 48px; font-size: 29px; margin-bottom: 24px; }
+.empty-state h2 { font: 26px/1.6 var(--serif); margin-bottom: 13px; }
+.empty-state p { font-size: 13px; line-height: 1.9; color: var(--t3); }
+.live-stage { padding: 30px 12px; text-align: center; }
+.live-orbit { width: 124px; height: 124px; border-radius: 50%; border: 1px solid var(--l2); margin: 32px auto; display: grid; place-items: center; box-shadow: 0 0 0 14px var(--s1),0 0 0 15px var(--l1); }
+.live-orbit .brand-seal { width: 45px; height: 48px; font-size: 29px; }
+.voice-bars { display: flex; align-items: center; justify-content: center; height: 48px; gap: 4px; margin: 30px 0; }
+.voice-bars i { width: 3px; height: calc(8px + var(--level) * 4px); background: var(--lamp); border-radius: 4px; animation: breathe 1.4s ease-in-out infinite alternate; animation-delay: calc(var(--level) * -80ms); }
+.live-stage h2 { font: 24px var(--serif); margin: 20px 0 13px; }
+.live-stage p { color: var(--t3); font-size: 13px; }
+.live-controls { display: flex; justify-content: center; gap: 24px; margin-top: 35px; }
+.live-controls button { border: 1px solid var(--l2); background: var(--s3); width: 60px; height: 60px; border-radius: 50%; }
+.live-controls button.end-call { color: var(--on-zhu); background: var(--zhu); border-color: var(--zhu); }
+.banner-offline { background: var(--zhu-wash); color: var(--zhu); padding: 8px 18px; font-size: 11px; display: flex; justify-content: space-between; align-items: center; }
+.banner-offline button { color: var(--zhu); text-decoration: underline; }
+.asset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 18px 0; }
+.asset-item { background: var(--s3); border: 1px solid var(--l2); padding: 16px; text-align: left; border-radius: 5px; }
+.asset-item .icon { width: 30px; height: 30px; margin: 12px 0 26px; color: var(--t3); }
+.asset-item strong { display: block; font-size: 12px; }
+.asset-item small { display: block; font-size: 10px; color: var(--t3); margin-top: 5px; }
+.quote-note { border-left: 2px solid var(--l3); padding: 8px 14px; color: var(--t2); font-size: 13px; line-height: 1.9; margin: 18px 0; }
+.metric-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; border-block: 1px solid var(--l2); padding: 20px 0; margin: 20px 0; }
+.metric-grid strong { font: 24px var(--serif); display: block; }
+.metric-grid small { color: var(--t3); font-size: 10px; }
+.usage-chart { height: 100px; display: flex; align-items: end; gap: 8px; border-bottom: 1px solid var(--l2); padding: 0 6px; margin-top: 25px; }
+.usage-chart span { flex: 1; height: var(--height); background: var(--pine); opacity: .7; border-radius: 2px 2px 0 0; }
+.inline-error { color: var(--crimson); font-size: 12px; margin-top: 8px; }
+@keyframes breathe { 0%,100% { opacity: .6; } 50% { opacity: 1; } }
+
+</style>
+
+
+
+
+
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs>
+<symbol id="panel" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M6 3v10"/></symbol>
+<symbol id="panelr" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M10 3v10"/></symbol>
+<symbol id="folder" viewBox="0 0 16 16"><path d="M2 5.5A1.5 1.5 0 0 1 3.5 4H6l1.5 1.5h5A1.5 1.5 0 0 1 14 7v4.5A1.5 1.5 0 0 1 12.5 13h-9A1.5 1.5 0 0 1 2 11.5z"/></symbol>
+<symbol id="folderp" viewBox="0 0 16 16"><path d="M2 5.5A1.5 1.5 0 0 1 3.5 4H6l1.5 1.5h5A1.5 1.5 0 0 1 14 7v4.5A1.5 1.5 0 0 1 12.5 13h-9A1.5 1.5 0 0 1 2 11.5zM8 7.5v3M6.5 9h3"/></symbol>
+<symbol id="branch" viewBox="0 0 16 16"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5.5" r="1.5"/><path d="M4.5 5v6M11.5 7c0 2.5-3 3-7 3.5"/></symbol>
+<symbol id="search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></symbol>
+<symbol id="plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></symbol>
+<symbol id="chevd" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></symbol>
+<symbol id="chevr" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></symbol>
+<symbol id="more" viewBox="0 0 16 16"><path d="M8 3.5v.01M8 8v.01M8 12.5v.01" stroke-width="2.2"/></symbol>
+<symbol id="pin" viewBox="0 0 16 16"><path d="M8 14V9.5M4.5 9.5h7L10 5.5V3H6v2.5z"/></symbol>
+<symbol id="archive" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="3" rx="1"/><path d="M3 6v6.5A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5V6M6.5 9h3"/></symbol>
+<symbol id="copy" viewBox="0 0 16 16"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M3 10.5V4a1.5 1.5 0 0 1 1.5-1.5H10.5"/></symbol>
+<symbol id="fork" viewBox="0 0 16 16"><circle cx="8" cy="3" r="1.5"/><circle cx="4" cy="13" r="1.5"/><circle cx="12" cy="13" r="1.5"/><path d="M8 4.5v2c0 1.5-4 1.5-4 5M8 6.5c0 1.5 4 1.5 4 5"/></symbol>
+<symbol id="refresh" viewBox="0 0 16 16"><path d="M13 8A5 5 0 1 1 11.6 4.5M13.5 2.5v3h-3"/></symbol>
+<symbol id="file" viewBox="0 0 16 16"><path d="M4 2h5l3 3v9H4zM9 2v3h3"/></symbol>
+<symbol id="term" viewBox="0 0 16 16"><path d="M3 4l4 4-4 4M8.5 12h4.5"/></symbol>
+<symbol id="globe" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M2 8h12M8 2c2.5 3 2.5 9 0 12M8 2c-2.5 3-2.5 9 0 12"/></symbol>
+<symbol id="expand" viewBox="0 0 16 16"><path d="M9.5 2H14v4.5M6.5 14H2V9.5M14 2L9 7M2 14l5-5"/></symbol>
+<symbol id="close" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+<symbol id="mic" viewBox="0 0 16 16"><rect x="6" y="2" width="4" height="8" rx="2"/><path d="M3.5 8a4.5 4.5 0 0 0 9 0M8 12.5V14"/></symbol>
+<symbol id="up" viewBox="0 0 16 16"><path d="M8 13V3M4 7l4-4 4 4"/></symbol>
+<symbol id="pause" viewBox="0 0 16 16"><path d="M6 4v8M10 4v8" stroke-width="2"/></symbol>
+<symbol id="image" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="1.5"/><circle cx="6" cy="7" r="1.2"/><path d="M14 11l-3.5-3.5L5 13"/></symbol>
+<symbol id="cards" viewBox="0 0 16 16"><rect x="3" y="4.5" width="8.5" height="9" rx="1.5"/><path d="M6 4.5V3.5A1.5 1.5 0 0 1 7.5 2h4A1.5 1.5 0 0 1 13 3.5V10"/></symbol>
+<symbol id="gear" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></symbol>
+<symbol id="sliders" viewBox="0 0 16 16"><path d="M2 4h12M2 8h12M2 12h12"/><circle cx="10" cy="4" r="1.5"/><circle cx="5" cy="8" r="1.5"/><circle cx="11" cy="12" r="1.5"/></symbol>
+<symbol id="bulb" viewBox="0 0 16 16"><path d="M8 2.5A4.2 4.2 0 0 0 3.8 6.7c0 1.7 1 2.6 1.7 3.4.4.5.5.9.5 1.4h4c0-.5.1-.9.5-1.4.7-.8 1.7-1.7 1.7-3.4A4.2 4.2 0 0 0 8 2.5zM6.5 13.5h3"/></symbol>
+<symbol id="git" viewBox="0 0 16 16"><circle cx="8" cy="4" r="1.6"/><circle cx="8" cy="12" r="1.6"/><path d="M8 5.6v4.8"/></symbol>
+</defs></svg>
+<div class="exhibition">
+  <aside class="exhibit-nav">
+    <a class="wordmark" href="#sessions"><span class="brand-seal">砚</span><b>piwin</b><span class="edition">MOBILE / 01</span></a>
+    <div class="exhibit-intro"><div class="eyebrow">INKSTONE · 随身砚</div><h1>把书案，<br>带在身边。</h1><p>纸上的思路，掌中的继续。<br>同一台 Host，同一份工作。</p></div>
+    <nav id="scene-nav" aria-label="原型场景"></nav>
+    <div class="exhibit-bottom"><div class="face-switch" aria-label="原型主题"><button data-action="theme" data-value="paper" aria-pressed="true">纸 · Paper</button><button data-action="theme" data-value="ink" aria-pressed="false">墨 · Ink</button></div><p>可交互设计原型 · 所有数据均为演示<br>2026.09 · 基于 Inkstone Desktop</p></div>
+  </aside>
+  <main class="specimen">
+    <div class="specimen-label"><span id="scene-number">01 / 10</span><span id="scene-caption">会话 · 从这里继续</span><button data-action="compact" aria-label="切换手机宽度">390 ↔ 360</button></div>
+    <div class="device" id="device">
+      <div class="phone-status"><span>9:41</span><div class="status-hardware"><span class="signal-bars">▂▄▆</span><span class="wifi">⌁</span><span class="battery"></span></div></div>
+      <div id="phone" class="phone"></div>
+      <div class="home-indicator" aria-hidden="true"></div>
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+      <dialog id="sheet" aria-labelledby="sheet-title"><div id="sheet-content"></div></dialog>
+    </div>
+    <div class="specimen-footer"><span class="small-dot"></span>点击手机内的控件，体验完整动线<span class="mono">1 : 1</span></div>
+  </main>
+  <aside class="exhibit-notes" id="scene-notes"></aside>
+</div>
+<noscript>请启用 JavaScript 以体验交互原型。</noscript>
+<script>
+/* foundation.js */
+/* Shared presentation helpers and deliberately fictional prototype state. */
+const Inkstone = (() => {
+  const state = {
+    route: 'sessions', sessionFilter: '全部', inboxFilter: '待处理', workspaceTab: '文件',
+    model: 'Claude Sonnet', effort: '标准', mode: 'Auto', scheme: '单 Agent',
+    run: 'running', permission: 'pending', planApproved: false, offline: false,
+    draft: '', attachment: '', queue: '', messages: [], currentTitle: '让会话拥有记忆',
+    cardFlipped: false, studied: 0, browsed: 0, freshSession: false, studyMode: 'review', reviewDone: false,
+    muted: false, libraryFilter: '全部', pinned: false, archived: false,
+    notifications: true, handoff: true, comment: '', note: '把每次对话当成一张纸。\n\n状态在页边，内容在中央。\n朱色只留给真正需要我动手的地方。',
+    selectedProject: 'piwin', terminalInput: '', settingsSection: '模型配置', search: '',
+  };
+  const escape = (value) => String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
+  const icon = (name, extra = '') => `<svg class="icon ${extra}" aria-hidden="true"><use href="#${name}"></use></svg>`;
+  const iconButton = (name, label, action, value = '', extra = '') => `<button class="icon-button ${extra}" data-action="${action}" data-value="${escape(value)}" aria-label="${escape(label)}">${icon(name)}</button>`;
+  const dot = (status) => `<i class="dot ${status}" aria-hidden="true"></i>`;
+  const row = (name, title, subtitle, action, value = '', trailing = '') => `<button class="list-row" data-action="${action}" data-value="${escape(value)}">${icon(name)}<span class="grow"><strong>${title}</strong>${subtitle ? `<small>${subtitle}</small>` : ''}</span><span class="trailing">${trailing || icon('chevr')}</span></button>`;
+  const header = (title, subtitle = '', back = '', right = '') => `<header class="topbar">${back ? iconButton('chevr', '返回', 'navigate', back, 'back-button') : '<span class="brand-seal">砚</span>'}<div class="topbar-title"><h2>${title}</h2>${subtitle ? `<small>${subtitle}</small>` : ''}</div>${right}</header>`;
+  const nav = (selected) => `<nav class="bottom-nav" aria-label="手机主导航">${[['sessions','panel','会话'],['inbox','bulb','待办'],['shelf','cards','案头']].map(([route, name, title]) => `<button class="${route === selected ? 'active' : ''}" data-action="navigate" data-value="${route}" ${route === selected ? 'aria-current="page"' : ''}>${icon(name)}<span>${title}</span>${route === 'inbox' && ((state.permission === 'pending' ? 1 : 0) + (state.planApproved ? 0 : 1)) > 0 ? `<b class="nav-counter">${(state.permission === 'pending' ? 1 : 0) + (state.planApproved ? 0 : 1)}</b>` : ''}</button>`).join('')}</nav>`;
+  const heading = (title, subtitle = '') => `<div class="screen-heading"><h1>${title}</h1>${subtitle ? `<p>${subtitle}</p>` : ''}</div>`;
+  const tabs = (items, selected, action) => `<div class="tabs">${items.map((item) => `<button data-action="${action}" data-value="${item}" class="${selected === item ? 'active' : ''}" aria-pressed="${selected === item}">${item}</button>`).join('')}</div>`;
+  const fullButton = (title, action, value = '', extra = '') => `<button class="full-button ${extra}" data-action="${action}" data-value="${escape(value)}">${title}</button>`;
+  const field = (label, name, value = '', type = 'text') => `<label class="field">${label}<input name="${name}" type="${type}" value="${escape(value)}" autocomplete="off"></label>`;
+  const sessionRows = (query = '') => {
+    const sessions = [
+      [state.currentTitle, state.run === 'running' ? '正在整理会话索引' : '等待继续', state.run === 'running' ? 'running' : 'done', '刚刚'],
+      ['Inkstone · 桌面主题', '设计稿已更新 · 4 个文件', 'done', '12 分钟'],
+      ['修复移动端重连', state.permission === 'pending' ? '等你批准 1 项操作' : '已处理权限请求', state.permission === 'pending' ? 'waiting' : 'done', '26 分钟'],
+      ['Host 的边界与职责', '一份关于架构的讨论', 'background', '昨天'],
+    ].filter(([title,,status]) => title.toLowerCase().includes(query.toLowerCase()) && (state.sessionFilter !== '进行中' || status === 'running') && (state.sessionFilter !== '置顶' || title === state.currentTitle));
+    if (!sessions.length) return '<div class="empty-state"><h2>这一页还是空的</h2><p>换个关键词，或开始一段新对话。</p></div>';
+    return sessions.map(([title, subtitle, status, time]) => `<div class="session-item">${dot(status)}<button class="session-open" data-action="open-session" data-value="${escape(title)}"><strong>${escape(title)}${state.pinned && title === state.currentTitle ? ' · 置顶' : ''}</strong><small>${subtitle}<span>· ${time}</span></small></button>${iconButton('more', `${title}的更多操作`, 'sheet', 'session-menu')}</div>`).join('');
+  };
+  const scenes = [
+    ['sessions','会话与项目','从这里继续','一根墨线，连起桌面与掌心。项目、会话和运行状态都在熟悉的位置。','续接的入口','把桌面上正在进行的工作放在第一张纸条，一次点击就回到同一个会话。','安静的导航','会话、待办、案头三个入口。进入对话后收起主导航，把空间还给正文。'],
+    ['chat','对话与砚台','思路，不被打断','批注回到行内，过程折入墨线。底部的砚台始终在拇指够得到的位置。','同一块砚','附件、模型、思考强度、运行模式和语音都有入口。工作中可暂停，也可把下一句话排队。','阅读优先','正文 15–16 px，元数据降噪；不把手机做成缩小的 IDE。'],
+    ['inbox','待办与批准','只在需要你时','把等待批准、执行失败和完成交付汇集到一页。先读上下文，再落印。','每次批准都有边界','显示命令、目录和本次作用范围。允许一次是默认值，其他授权另行展开。','建议 · 集中决策','在手机上处理待办后返回原会话；桌面继续执行，不重复启动任务。'],
+    ['plan','计划与子代理','远处的工作，看得见','用同一根墨线表达计划步骤、子代理进度和执行依赖。','计划与报告分开','这里是正在执行的结构化计划；交付后的走查报告在独立阅读页。','随时介入','可检视子代理、追加要求、暂停主任务。明确每个动作作用于哪段工作。'],
+    ['review','变更与审阅','在掌心，细读一笔','文件清单先给全貌，统一差异给细节。移动审阅不依赖并排窗口。','逐行展开','增删保留符号与行号，长代码横向滚动。点新增行可写一条审阅意见。','建议 · 轻审阅','记录已看过的变更、把意见带回对话。应用、提交和发布始终是不同的动作。'],
+    ['workspace','文件与工作区','把检视器，摊成一页','文件、终端输出、浏览器、画布、文档、笔记和侧聊都在会话的工作区里。','按需展开','横向标签切换单个检视器；返回后仍然是刚才的对话。','诚实的能力边界','终端展示 Host 输出快照；远程输入与浏览器控制标为移动端扩展提议。'],
+    ['shelf','案头与资料库','把值得留下的，收好','资料、知识卡片、自动化和设置归于案头。工具退后，常用内容在前。','沿用桌面入口','资料库保留图片、视频与收藏；卡片保留浏览和计划复习两种流程。','不另建一套知识中心','保留现有卡片工作台，不把已下线的知识中心重新包装成现成功能。'],
+    ['cards','知识卡片','把碎片时间，留给理解','纸卡、翻面和四档复习反馈。手机适合读一张，也适合把今天待复习的过一遍。','浏览与复习','随便看看只有翻面与下一张；计划复习翻面后才出现评分。','进度仍属于 Host','演示的是同一份卡片和学习记录。这里没有另一套手机调度器。'],
+    ['settings','设置与连接','自己的工具，自己的主机','继承桌面设置分组，改成一级目录加二级页面。手机外观与 Host 配置区分说明。','纸与墨，同样完整','切换主题会覆盖每个页面、弹层、代码和砚台，而不只换一个背景。','建议 · 离线草稿','断线可阅读快照和写草稿，不能批准或执行；恢复连接后由用户确认发送。'],
+    ['voice','语音与随手记','让一句话，接上思路','语音转文字与 Live 分开。先看识别文字，再决定发送或排队。','随手说，认真落笔','语音内容进入砚台，可编辑、附图、指定项目，再发给当前会话。','移动 Live 提议','全屏会话有静音、返回和结束。所有音频与连接状态仅为原型演示。'],
+  ];
+  return { state, escape, icon, iconButton, dot, row, header, nav, heading, tabs, fullButton, field, sessionRows, scenes, pages: {}, sheets: {} };
+})();
+
+</script>
+<script>
+/* pages.js */
+/* Main reading, conversation, decision, and shelf surfaces. */
+(() => {
+  const { state, escape, icon, iconButton, dot, row, header, nav, heading, tabs, fullButton, sessionRows, pages } = Inkstone;
+  pages.sessions = () => `${header('piwin', '', '', iconButton('search','搜索会话','sheet','search') + iconButton('plus','新建会话','navigate','new','red-fill'))}
+    <div class="screen-scroll">${heading('会话', '九月五日，周六 · 思路仍在继续')}
+      <button class="host-card" data-action="sheet" data-value="host">${dot(state.offline ? 'waiting' : 'done')}<span class="grow"><strong>书房的 Mac Studio</strong><small>${state.offline ? '连接已断开 · 显示上次快照' : '私有连接 · 与桌面同步'}</small></span>${icon('chevd')}</button>
+      <div class="continue-card"><div class="spread"><span class="eyebrow">从桌面继续</span><span class="pill">${dot('running')}工作中</span></div><h3>${escape(state.currentTitle)}</h3><p>已梳理会话索引，正在补全恢复逻辑。<br>你离开后，Agent 又完成了 2 个步骤。</p><div class="spread continue-meta"><span class="mono">piwin / main</span><button data-action="open-session" data-value="${escape(state.currentTitle)}">接着看 ${icon('chevr')}</button></div></div>
+      ${tabs(['全部','进行中','置顶'],state.sessionFilter,'session-filter')}
+      <div class="project-heading">${icon('folder')}<b>${escape(state.selectedProject)}</b><small>4</small><button data-action="sheet" data-value="projects" aria-label="切换项目">${icon('chevd')}</button></div>
+      <div class="session-tree" id="session-results">${state.archived ? '<p class="muted">当前会话已归档，可从设置恢复。</p>' : sessionRows()}</div>
+      <div class="project-heading">${icon('folder')}<b>日常与灵感</b><small>2</small></div>
+      ${row('file','写给未来的自己','今天 · 一段新的产品想法','open-session','写给未来的自己')}
+      <button class="notice-strip" data-action="navigate" data-value="inbox">${icon('bulb')}<span>${state.permission === 'pending' ? '有 2 件事，等你落笔。' : '今日待办已更新。'}</span>${icon('chevr')}</button>
+    </div>${nav('sessions')}`;
+
+  const composer = () => `<div class="composer-dock">${state.queue ? `<div class="queue-strip"><span class="pill">排队 1</span><span>${escape(state.queue)}</span><button data-action="edit-queue">编辑</button><button data-action="cancel-queue" aria-label="取消排队">×</button></div>` : ''}
+    <div class="composer ${state.run === 'running' ? 'running' : ''}">${state.attachment ? `<div class="attachment-chip">${icon('file')}${escape(state.attachment)}<button data-action="remove-attachment" aria-label="移除附件">×</button></div>` : ''}
+      <textarea id="composer-input" aria-label="消息内容" placeholder="${state.offline ? '先记下来，连接后再发送…' : '写下你的想法，或捎来一句话…'}" rows="2">${escape(state.draft)}</textarea>
+      <div class="composer-actions">${iconButton('plus','添加附件与上下文','sheet','attach')}<button class="model-button" data-action="sheet" data-value="model">${escape(state.model)} ${icon('chevd')}</button>${iconButton('mic','语音输入','sheet','dictation')}<button class="icon-button send-button ${state.run === 'running' && !state.draft ? 'pause' : ''}" data-action="send" aria-label="${state.run === 'running' && !state.draft ? '暂停运行' : state.run === 'running' ? '排队发送' : '发送消息'}">${icon(state.run === 'running' && !state.draft ? 'pause' : 'up')}</button></div>
+    </div><div class="composer-foot"><button data-action="sheet" data-value="mode">${escape(state.mode)} · ${escape(state.scheme)}</button><span>上下文 <span class="mono">37%</span></span><button data-action="sheet" data-value="context">${state.offline ? '草稿保留在当前预览' : '已同步'}</button></div></div>`;
+
+  pages.chat = () => `${header(escape(state.currentTitle), `${dot(state.run === 'running' ? 'running' : 'done')} ${state.run === 'running' ? (state.offline ? '上次状态：工作中' : '正在工作') : state.run === 'paused' ? '已暂停' : '等待你的下一笔'} · piwin`, 'sessions', iconButton('panelr','打开工作区','navigate','workspace') + iconButton('more','会话操作','sheet','session-menu'))}
+    ${state.offline ? '<div class="banner-offline"><span>连接中断 · 上次同步 09:38</span><button data-action="reconnect">重新连接</button></div>' : ''}
+    ${!state.freshSession ? `<div class="chat-context"><button class="pill" data-action="sheet" data-value="branches">${icon('branch')}main</button><button class="pill" data-action="navigate" data-value="plan">${icon('cards')}计划 2/4</button><button class="pill" data-action="navigate" data-value="review">${icon('git')}变更 3</button></div>` : ''}
+    <div class="screen-scroll chat-scroll" id="chat-scroll">
+      ${!state.freshSession ? `<div class="message-head"><span class="avatar">予</span>你<time>09:32</time></div>
+      <div class="user-message">让会话拥有记忆。重新打开项目时，回到上次读到的地方，保留草稿，也记得展开过的工具。<br><span class="pill" style="margin-top:9px">${icon('file')}session-notes.md</span></div>
+      <div class="context-note">${dot('done')}<button data-action="sheet" data-value="context">已装配上下文 · 3 个文件 · 12.8k tokens</button></div>
+      <details class="work-disclosure" open><summary>${dot(state.run === 'running' ? 'running' : 'done')}<span>${state.run === 'running' ? '正在整理恢复逻辑' : '已完成本轮梳理'} · 3 次工具调用</span>${icon('chevd')}</summary><div class="tool-thread"><div class="tool-step">${dot('done')}读取 <code>session-index.ts</code><span>0.2s</span></div><div class="tool-step">${dot('done')}检索 <code>restoreSession</code><span>0.6s</span></div><div class="tool-step">${dot('running')}检查 <code>draft-store.ts</code><span>进行中</span></div></div></details>
+      <div class="message-head"><span class="avatar">π</span>Claude Sonnet<time>09:34</time></div>
+      <div class="assistant-prose"><p>记忆应该安静地发生。</p><p>我把恢复分成两层：Host 记住会话本身，设备记住你阅读的位置。再次打开时，先还原上次的纸面，再接上新的内容。</p></div>
+      <button class="inline-preview" data-action="navigate" data-value="plan">${icon('cards')}<span class="grow"><strong>会话恢复 · 实施计划</strong><small>2 / 4 步已完成 · 1 个子代理工作中</small></span>${icon('chevr')}</button>
+      <button class="inline-preview" data-action="navigate" data-value="review">${icon('git')}<span class="grow"><strong>3 个文件已变更</strong><small><span class="green">+48</span> <span class="red">−12</span> · 点开审阅</small></span>${icon('chevr')}</button>
+      ${state.permission === 'approved' ? '<p class="context-note green">允 · 已允许本次操作，Host 继续工作。</p>' : ''}
+      ${state.comment ? `<div class="quote-note">审阅意见：${escape(state.comment)}</div>` : ''}
+      <div class="message-actions">${iconButton('copy','复制回复','copy-response')}${iconButton('fork','从这里分叉','sheet','branches')}${iconButton('refresh','重新生成','regenerate')}<small>2.4k tokens · 12s</small></div>` : '<div class="context-note">新的会话 · 以当前项目和模型开始</div>'}
+      ${state.messages.map((message) => `<div class="message-head"><span class="avatar">予</span>你<time>刚刚</time></div><div class="user-message">${escape(message)}</div><p class="context-note">${dot('running')}已进入本轮演示，等待 Agent 继续</p>`).join('')}
+    </div>${composer()}`;
+
+  pages.inbox = () => `${header('待办', '', '', iconButton('sliders','待办通知偏好','sheet','notifications'))}<div class="screen-scroll">${heading('等你，一方印。', '需要决定的先来，其他的慢慢看。')}
+    ${tabs(['待处理','进行中','已完成'],state.inboxFilter,'inbox-filter')}
+    ${state.inboxFilter === '待处理' ? `${state.permission === 'pending' ? `<article class="gate"><div class="spread"><span class="pill zhu">${dot('waiting')}等待批准</span><span class="muted" style="font-size:10px">2 分钟前</span></div><h3>修复移动端重连</h3><p>Agent 需要执行测试，验证断线后的会话恢复。</p><pre class="command">pnpm --filter @piwin/host-client test</pre><dl class="facts"><dt>工作目录</dt><dd class="mono">~/Developer/piwin</dd><dt>作用范围</dt><dd>仅本次命令 · Host 执行</dd></dl><button class="pill" data-action="sheet" data-value="permission">查看完整请求 ${icon('chevr')}</button><div class="gate-footer"><span>${state.offline ? '已断线，请先恢复连接' : '读过之后，再落印。'}</span><button class="seal-button ghost" data-action="permission" data-value="denied" aria-label="拒绝本次操作" ${state.offline ? 'disabled' : ''}>否</button><button class="seal-button" data-action="permission" data-value="approved" aria-label="允许本次操作" ${state.offline ? 'disabled' : ''}>允</button></div></article>` : `<div class="notice-strip">${dot('done')}<span>已${state.permission === 'approved' ? '允许' : '拒绝'}本次请求</span><button data-action="reset-permission">重演</button></div>`}
+    <div class="section-label">下一件事</div>${row('cards','计划已经写好','会话记忆 · 4 个步骤，等待选择执行方式','sheet','execute-plan',state.planApproved ? '已执行' : '待确认')}` : state.inboxFilter === '进行中' ? `${row('bulb','让会话拥有记忆','正在整理恢复逻辑 · piwin','navigate','chat')}${row('fork','补全恢复路径测试','子代理工作中 · 1 分 32 秒','sheet','subagent')}` : `${row('git','Inkstone · 桌面主题','4 个文件 · 检查完成','navigate','walkthrough')}${row('file','Host 会话梳理','交付报告可阅读 · 昨天','navigate','walkthrough')}`}
+    <div class="section-label">最近完成 <span class="mono">09:18</span></div>${row('file','一份新的走查报告','Inkstone · 桌面主题','navigate','walkthrough')}
+    </div>${nav('inbox')}`;
+
+  pages.plan = () => `${header('实施计划','piwin · 会话记忆','chat',iconButton('more','计划选项','sheet','execute-plan'))}<div class="screen-scroll">${heading('让每次回来，\n都有迹可循。','4 个步骤 · 单 Agent + 按需子代理')}<div class="spread"><span class="pill pine">已完成 2 / 4</span><span class="muted mono" style="font-size:11px">03:42</span></div><div class="progress-track"><span style="width:50%"></span></div>
+    ${[['done','01','梳理会话恢复边界','阅读 Host 会话索引，区分持久状态与设备阅读状态。'],['done','02','保留输入中的草稿','恢复草稿、附件引用与当前模型选择。'],['running','03','补全恢复路径测试','交给测试子代理，覆盖断线、重连与空会话。'],['','04','走查并交付','检查变更，生成与本轮消息绑定的走查报告。']].map(([status,number,title,text]) => `<div class="plan-step">${dot(status)}<span class="eyebrow">STEP ${number}</span><h3>${title}</h3><p>${text}</p>${status === 'running' ? '<button class="pill azure" data-action="sheet" data-value="subagent">子代理 · test-runner →</button>' : ''}</div>`).join('')}
+    <div class="section-label">编排</div>${row('fork','主 Agent + test-runner','独立工作树 · 变更经主会话审阅','sheet','subagent')}${fullButton(state.run === 'paused' ? '继续计划' : '暂停计划','toggle-run','','secondary')}${fullButton('补充一条要求','sheet','intervene','subtle')}</div>`;
+
+  pages.shelf = () => `${header('案头','','',iconButton('gear','打开设置','navigate','settings'))}<div class="screen-scroll">${heading('一方小案头。','收下成果，也留住灵感。')}<button class="host-card" data-action="sheet" data-value="host"><span class="host-monogram">书</span><span class="grow"><strong>书房的 Mac Studio</strong><small>${state.offline ? '连接已断开' : '已连接 · 2 台设备在线'}</small></span>${dot(state.offline ? 'waiting' : 'done')}</button>
+    <div class="shelf-grid">${[['image','资料库','图片 · 视频 · 收藏','library'],['cards','知识卡片','12 张待复习','cards'],['refresh','自动化','2 条定时任务','automations'],['gear','设置','模型 · 权限 · 扩展','settings']].map(([name,title,subtitle,route])=>`<button class="shelf-tile" data-action="navigate" data-value="${route}">${icon(name)}<strong>${title}</strong><small>${subtitle}</small></button>`).join('')}</div>
+    <div class="section-label">最近留在案头</div>${row('file','Inkstone 设计走查','报告 · 今天 09:18','navigate','walkthrough')}${row('cards','Host 的边界','知识卡片 · 今天','navigate','cards')}${row('file','移动端的三点想法','笔记 · 昨天','open-workspace','笔记')}
+    <div class="section-label">随手记</div>${fullButton(`${icon('mic')} 说一句，留在当前会话`,'sheet','dictation','secondary')}
+    </div>${nav('shelf')}`;
+
+  const cardIndex = () => state.studyMode === 'review' ? state.studied : state.browsed;
+  const cardQuestions = ['为什么会话状态\n应该属于 Host？','断线以后，\n草稿应该如何发送？','Plan 与 Walkthrough\n有什么不同？'];
+  const cardAnswers = ['因为桌面、手机和 CLI 需要读写同一份会话。Host 是执行与状态的唯一权威，设备只负责呈现与输入。','先保留设备上的草稿。连接恢复后，先同步最新状态，再由用户确认发送，避免重复执行。','Plan 是结构化的步骤与执行状态；Walkthrough 是与会话和消息绑定、面向用户的交付报告。'];
+  pages.cards = () => state.studied >= 12 && state.studyMode === 'review' ? `${header('知识卡片','','shelf')}<div class="screen-scroll"><div class="empty-state"><span class="brand-seal">砚</span><h2>今天的十二张，读完了。</h2><p>歇一会儿，让知识慢慢沉淀。</p></div>${fullButton('回到案头','navigate','shelf')}${fullButton('重新体验这轮复习','reset-study','','secondary')}</div>` : `${header('知识卡片','piwin · 架构与设计','shelf',iconButton('more','卡片选项','sheet','card-options'))}<div class="screen-scroll">${heading(state.studyMode === 'review' ? '今日，读懂一点。' : '随便翻翻。',state.studyMode === 'review' ? `待复习 ${Math.max(0,12-state.studied)} 张 · 进度随 Host 同步` : '浏览模式 · 不写入复习评分')}
+    ${tabs(['计划复习','随便看看'],state.studyMode === 'review' ? '计划复习' : '随便看看','study-mode')}
+    <div class="section-label"><span>架构 · Host</span><span class="mono">${String(cardIndex() + 1).padStart(2,'0')} / 12</span></div>
+    <button class="flashcard" data-action="flip-card" aria-label="${state.cardFlipped ? '查看问题' : '翻面查看答案'}"><span class="eyebrow">${state.cardFlipped ? 'ANSWER / 答案' : 'QUESTION / 问题'}</span>${state.cardFlipped ? `<p>${cardAnswers[cardIndex() % 3]}</p>` : `<h2>${cardQuestions[cardIndex() % 3].replace('\n','<br>')}</h2>`}<span class="muted" style="font-size:11px">${state.cardFlipped ? '来自 docs/architecture.md' : '轻点纸面，翻看答案'} ↗</span></button>
+    ${state.cardFlipped ? (state.studyMode === 'review' ? `<p class="muted" style="font-size:12px;margin:20px 0 12px">这次记得怎么样？</p><div class="rating-grid">${[['重来','Again'],['较难','Hard'],['记得','Good'],['轻松','Easy']].map(([label,english])=>`<button data-action="rate-card" data-value="${label}">${label}<small>${english}</small></button>`).join('')}</div>` : fullButton('下一张','next-card','','secondary')) : fullButton('翻看答案','flip-card','','secondary')}
+    <div class="quote-note">${state.studyMode === 'review' ? '不用急着记住全部。每一次回想，都会留下新的痕迹。' : '只翻阅，不评分。遇到想再看的内容，可以留个记号。'}</div></div>`;
+
+  pages.voice = () => `${header('piwin Live','移动语音 · 演示场景','chat',iconButton('sliders','语音设置','sheet','voice-settings'))}<div class="screen-scroll"><div class="live-stage"><span class="pill">${dot('running')}与当前会话连接</span><div class="live-orbit"><span class="brand-seal">砚</span></div><h2>${state.muted ? '安静一会儿。' : '我在听，你慢慢说。'}</h2><p>${escape(state.currentTitle)} · piwin</p><div class="voice-bars" aria-hidden="true">${[1,2,4,7,5,3,8,6,4,2,5,7,3,2,1].map((level)=>`<i style="--level:${state.muted ? 0 : level}"></i>`).join('')}</div><div class="quote-note" style="text-align:left">“把刚才的恢复方案整理一下，<br>先列计划，不要开始修改。”</div><p>演示转录 · 未使用麦克风</p><div class="live-controls"><button data-action="mute-voice" aria-label="${state.muted ? '取消静音' : '静音'}">${icon(state.muted ? 'close' : 'mic')}</button><button class="end-call" data-action="end-voice" aria-label="结束语音">${icon('close')}</button></div><p style="margin-top:17px">${state.muted ? '已静音' : '麦克风'}　　结束</p></div></div>`;
+})();
+
+</script>
+<script>
+/* workspace.js */
+/* Full-page inspectors and secondary destinations, kept out of conversation rendering. */
+(() => {
+  const { state, escape, icon, iconButton, dot, row, header, nav, heading, tabs, fullButton, field, pages } = Inkstone;
+  const fileRows = () => `${row('folder','packages','Host 的项目文件','sheet','folder')}${row('folder','apps','desktop · mobile · cli','sheet','folder')}${row('folder','docs','设计、计划与架构','sheet','folder')}${row('file','session-index.ts','packages/session/src · 已修改','sheet','file')}${row('file','draft-store.ts','packages/session/src · 新增','sheet','file')}${row('file','README.md','项目说明 · 4.2 KB','open-workspace','文档')}`;
+  const diff = () => `<div class="diff-card"><div class="diff-heading"><span>session-index.ts</span><span><span class="green">+24</span> <span class="red">−6</span></span></div><div class="diff-lines" aria-label="统一代码差异"><div class="diff-line"><em>41</em>  async restoreSession(id) {</div><div class="diff-line remove"><em>42</em>−   return createSession(id);</div><div class="diff-line add commentable" role="button" tabindex="0" data-action="sheet" data-value="comment" aria-label="评论第42行"><em>42</em>+   const saved = await store.get(id);</div><div class="diff-line add"><em>43</em>+   if (!saved) return createSession(id);</div><div class="diff-line add"><em>44</em>+   return hydrateSession(saved);</div><div class="diff-line"><em>45</em>  }</div></div></div>`;
+  pages.review = () => `${header('审阅变更','piwin · 当前会话','chat',iconButton('more','审阅选项','sheet','review-options'))}<div class="screen-scroll">${heading('看看这一轮，\n落下了哪些笔。','统一差异 · 点击新增行可留下意见')}<div class="diff-stats"><strong>3</strong><span class="muted">个文件</span><span class="green">+48</span><span class="red">−12</span></div>
+    ${row('file','session-index.ts','会话恢复 · +24 −6','sheet','file','M')}${row('file','draft-store.ts','草稿存储 · +18 −0','sheet','file','A')}${row('file','session-index.test.ts','恢复路径测试 · +6 −6','sheet','file','M')}
+    ${diff()}${state.comment ? `<div class="quote-note">你的批注<br>${escape(state.comment)}</div>` : '<p class="muted" style="font-size:11px">↳ 点绿色新增行，写一条批注</p>'}
+    <div class="section-label">验证结果 <span class="pill pine">已通过</span></div><div class="command">✓ session restore　8 tests<br>✓ draft persistence　6 tests<br>✓ typecheck</div><p class="muted" style="font-size:11px">以上为原型示例结果。</p></div><div class="bottom-action">${fullButton(state.reviewDone ? '已标记看过 ✓' : '标记已看过','mark-reviewed','','secondary')}${fullButton('继续对话','navigate','chat','subtle')}</div>`;
+
+  const inspectors = {
+    '文件': () => `${heading('项目文件','piwin / main')}${fileRows()}`,
+    '终端': () => `${heading('终端输出','Host · zsh · 只读快照')}<div class="pill">${dot('done')}退出码 0</div><pre class="terminal"><span class="muted">~/Developer/piwin</span>\n$ pnpm --filter @piwin/session test\n\n RUN  v3.0.5\n\n<span class="green"> ✓ session-index.test.ts (8)</span>\n<span class="green"> ✓ draft-store.test.ts (6)</span>\n\n Test Files  2 passed (2)\n      Tests  14 passed (14)\n   Duration  1.42s\n\n<span class="muted">输出快照 · 09:38:12</span></pre>${fullButton('请 Agent 执行下一条命令','sheet','terminal-command','secondary')}<div class="quote-note">手机查看 Host 上的输出。命令先回到会话，由 Agent 执行。</div>`,
+    '变更': () => `${heading('本轮变更','3 个文件 · +48 −12')}${diff()}${fullButton('打开完整审阅','navigate','review','secondary')}`,
+    '浏览器': () => `${heading('Host 浏览器','当前标签页 · 预览快照')}<div class="search-field">${icon('globe')}<span class="mono" style="font-size:11px">localhost:5173</span></div><div class="note-paper"><span class="eyebrow">PIWIN / INKSTONE</span><h3 style="margin-top:20px">一张纸，一块砚。</h3><p>让思路有安放的地方。</p><hr><p>会话 · 项目 · 案头</p><span class="pill pine" style="margin-top:20px">示例页面快照</span></div>${fullButton('把页面加入对话','add-context','浏览器页面快照','secondary')}${row('term','控制台','0 条错误 · 查看示例输出','sheet','console')}`,
+    '画布': () => `${heading('Artifact 画布','阅读预览 · 按需查看源码')}<div class="note-paper"><span class="eyebrow">SESSION MEMORY / 01</span><h3 style="margin-top:20px">一份安静的记忆</h3><p>会话内容交给 Host，<br>阅读位置留在设备，<br>每次回来，都从这里开始。</p><hr><div class="spread"><span class="pill">Host · 会话</span>→<span class="pill">设备 · 视图</span></div></div>${fullButton('查看源码','sheet','artifact-source','secondary')}<p class="muted" style="font-size:11px;margin-top:16px">原型为静态画布。产品中的 Artifact 使用隔离预览。</p>`,
+    '文档': () => `${heading('会话记忆设计','session-memory.md · 阅读模式')}<article class="note-paper"><span class="eyebrow">设计笔记 / 2026.09</span><h3 style="margin-top:18px">恢复的是思路，<br>也是上下文。</h3><p>同一个会话可以在不同的设备继续。手机带走的是观察和输入的能力，执行仍然留在 Host。</p><hr><p>一、先恢复历史与草稿。<br>二、再接上最新的活动。<br>三、不重复发送旧的命令。</p></article>${fullButton('引用这段到会话','add-context','session-memory.md · 恢复设计','secondary')}`,
+    '笔记': () => `${heading('随手记','与当前会话关联')}<label class="field">移动端的三点想法<textarea id="note-editor" rows="9">${escape(state.note)}</textarea></label>${fullButton('保存笔记','save-note','','secondary')}${fullButton('把笔记加入对话','add-context','移动端的三点想法','subtle')}`,
+    '卡片': () => `${heading('本次对话的卡片','3 张 · 架构与设计')}${row('cards','Host 为什么是唯一权威？','翻面、浏览或加入计划复习','navigate','cards')}${row('cards','阅读状态由谁记录？','来自本轮会话','navigate','cards')}${fullButton('打开知识卡片','navigate','cards','secondary')}`,
+    '侧聊': () => `${heading('另起一页，问个细节。','关联当前会话 · 不干扰主任务')}<div class="quote-note">“Host 记住会话本身，设备记住你阅读的位置。”</div><div class="user-message">为什么阅读位置不也放在 Host？</div><div class="assistant-prose" style="margin-top:20px"><p>因为两台设备可能正在读不同的地方。正文共享，视图独立，就不会相互打断。</p></div>${fullButton('把这段结论带回主会话','add-context','侧聊结论：正文共享，视图独立。','secondary')}`,
+  };
+  pages.workspace = () => `${header('工作区','piwin · 与当前会话关联','chat',iconButton('plus','工作区入口','sheet','workspace-menu'))}<div class="tabs workspace-tabs">${Object.keys(inspectors).map((title)=>`<button data-action="workspace-tab" data-value="${title}" class="${state.workspaceTab === title ? 'active' : ''}" aria-pressed="${state.workspaceTab === title}">${title}</button>`).join('')}</div><div class="screen-scroll">${inspectors[state.workspaceTab]()}</div>`;
+
+  pages.walkthrough = () => `${header('走查报告','Inkstone · 桌面主题','shelf',iconButton('copy','复制走查报告','copy-report'))}<div class="screen-scroll"><div class="section-label"><span class="eyebrow">WALKTHROUGH / 01</span><span class="pill pine">已交付</span></div>${heading('纸与墨，\n终于有了同一种语气。','09:18 · 本次会话的交付记录')}<article class="assistant-prose"><p>这次把暖纸、深墨和朱色操作统一到桌面的主工作区。主内容继续保持安静，状态退到细线与页边。</p><h3 style="margin-top:24px">交付了什么</h3><p>主题色、会话节点、砚台输入区与权限印章。纸墨双面使用同一套语义。</p><h3 style="margin-top:24px">怎样确认</h3><p>检查纸墨两面的正文、输入、权限请求和文件变更。验证正常、工作中与待批准三种状态。</p><div class="command">示例验证记录\n✓ 4 个文件审阅完成\n✓ 主题切换检查通过\n✓ 页面状态检查通过</div><h3 style="margin-top:24px">仍需关注</h3><p>窄屏下的长路径与系统字体回退，需要在真机阶段再验证。</p></article><div class="section-label">证据与关联</div>${row('git','查看 4 个文件的变更','当前报告的示例证据','navigate','review')}${row('panel','回到原会话','报告绑定会话与消息','navigate','chat')}</div>`;
+
+  pages.library = () => `${header('资料库','共享 Host 的成果','shelf',iconButton('plus','生成新的图片或视频','sheet','media-new'))}<div class="screen-scroll">${heading('留下来的，\n都在这里。','图片、视频与收藏')}${tabs(['全部','图片','视频','收藏'],state.libraryFilter,'library-filter')}<div class="asset-grid">${(state.libraryFilter === '视频' ? [['file','会话恢复演示','视频 · 00:24']] : state.libraryFilter === '图片' ? [['image','纸面外壳','图片 · 1440 × 900'],['image','墨面外壳','图片 · 1440 × 900']] : state.libraryFilter === '收藏' ? [['image','纸面外壳','已收藏 · 设计参考']] : [['image','纸面外壳','图片 · 1440 × 900'],['image','墨面外壳','图片 · 1440 × 900'],['file','会话恢复演示','视频 · 00:24'],['image','砚台输入区','图片 · 720 × 200']]).map(([name,title,meta])=>`<button class="asset-item" data-action="sheet" data-value="asset">${icon(name)}<strong>${title}</strong><small>${meta}</small></button>`).join('')}</div><p class="muted" style="font-size:11px">演示资产使用类型占位，不加载私人媒体。</p><div class="section-label">最近生成</div>${row('image','Inkstone 移动端设计参考','已完成 · 来自设计会话','sheet','asset')}${fullButton('回到会话生成图片','media-prompt','请生成一张 Inkstone 纸面设计参考。','secondary')}</div>`;
+
+  pages.automations = () => `${header('自动化','定时交给 Host','shelf',iconButton('plus','新建自动化','sheet','automation-new'))}<div class="screen-scroll">${heading('小事，按时发生。','Host 在线时执行，手机随时查看。')}${row('refresh','每天回看未完成的工作','每天 09:00 · 下次明天','sheet','automation-edit','已启用')}${row('git','每周检查项目依赖','每周一 10:00 · piwin','sheet','automation-edit','已暂停')}<div class="section-label">最近一次</div><div class="continue-card"><span class="pill pine">完成 · 今天 09:00</span><h3>今日还有 2 件待办</h3><p>1 项操作等待批准，1 份计划等待执行方式。</p>${fullButton('查看待办','navigate','inbox','subtle')}</div></div>`;
+
+  const settingsGroups = [
+    ['应用',['通用与外观','权限与安全']],
+    ['Agent',['模型配置','OAuth 登录','Hooks','智能体策略']],
+    ['集成',['技能与扩展','网络搜索与抓取','知识库与向量']],
+    ['系统',['会话与运行时','冷存储','用量统计','归档管理']],
+  ];
+  pages.settings = () => `${header('设置','','shelf',iconButton('search','搜索设置','sheet','settings-search'))}<div class="screen-scroll">${heading('让工具，顺手。','手机偏好与 Host 配置，各归其位。')}<div class="face-switch" style="width:100%;margin:18px 0"><button style="flex:1" data-action="theme" data-value="paper" aria-pressed="${document.documentElement.dataset.face === 'paper'}">纸 · Paper</button><button style="flex:1" data-action="theme" data-value="ink" aria-pressed="${document.documentElement.dataset.face === 'ink'}">墨 · Ink</button></div>${settingsGroups.map(([group,items])=>`<div class="section-label">${group}</div>${items.map((title)=>row(title.includes('模型') ? 'bulb' : 'sliders', title,'','settings-section',title)).join('')}`).join('')}<div class="section-label">设备与连接</div>${row('globe','私有 Host','书房的 Mac Studio','navigate','connect')}${row('bulb','移动端通知','只在需要我时提醒 · 提议','sheet','notifications')}</div>`;
+
+  const settingsContent = {
+    '通用与外观': () => `${row('globe','私有 Host','书房的 Mac Studio','navigate','connect')}${row('panel','纸 / 墨外观','当前设备的显示偏好','toggle-theme')}${row('bulb','通知与接续','移动端建议功能','sheet','notifications')}<div class="quote-note">桌面宠物浮窗在手机上改为案头的状态入口，不占用对话正文。</div>`,
+    '权限与安全': () => `<p class="muted">运行模式 · 保存到 Host</p><div class="radio-options">${['Auto','Ask','YOLO'].map((mode)=>`<button data-action="choose-mode" data-value="${mode}" aria-pressed="${state.mode===mode}">${mode}</button>`).join('')}</div><div class="quote-note">Auto：按规则询问。Ask：每次询问。YOLO：跳过权限询问。仅演示选择，不改变真实权限。</div>${row('file','权限规则','permissions.json · Host 规则文件','sheet','rules')}${row('folder','项目可信状态','piwin · 已信任','sheet','trust')}`,
+    '模型配置': () => `${row('bulb','Anthropic','已配置 · Claude Sonnet / Opus','sheet','provider')}${row('bulb','OpenAI','已配置 · 用户自定义模型','sheet','provider')}${fullButton('选择默认模型','sheet','model','secondary')}${row('plus','添加供应商','预设或自定义兼容服务','sheet','provider')}`,
+    'OAuth 登录': () => `${row('bulb','OpenAI Codex','尚未登录 · 由 Host 管理凭据','sheet','oauth')}${row('bulb','Google Gemini','尚未登录','sheet','oauth')}`,
+    'Hooks': () => `${row('refresh','会话结束后运行检查','生命周期钩子 · 当前已关闭','sheet','hook')}${fullButton('新增 Hook','sheet','hook','secondary')}`,
+    '智能体策略': () => `${row('fork','子代理编排','单 Agent / Ultra Code','sheet','scheme')}${row('refresh','自动化','定时触发','navigate','automations')}${row('panelr','Artifact 渲染','已启用 · 自动识别','sheet','artifact-settings')}`,
+    '技能与扩展': () => `${tabs(['技能','MCP','扩展','提示词','插件'],'技能','extension-tab')}${row('cards','karpathy-guidelines','已安装 · 项目技能','sheet','skill-detail')}${row('globe','GitHub MCP','已连接 · 工具由 Host 运行','sheet','mcp')}${row('file','代码审查','提示词模板','sheet','prompt-template')}${row('plus','添加扩展','安装路径 / 仓库地址','sheet','extension-install')}`,
+    '网络搜索与抓取': () => `${row('search','搜索来源','DuckDuckGo · 当前默认','sheet','web-search')}${row('globe','网页抓取','Supermarkdown · 当前默认','sheet','web-fetch')}`,
+    '知识库与向量': () => `${['嵌入模型','重排模型','文档解析器','专用模型'].map((title)=>row('cards',title,'Host 统一配置','sheet','knowledge-model')).join('')}`,
+    '会话与运行时': () => `${row('panel','会话策略','上下文压缩 · 历史恢复','sheet','session-policy')}${row('bulb','运行时驻留','当前 2 个活跃会话','sheet','runtime')}`,
+    '冷存储': () => `${row('archive','归档包配置','尚未设置外部存储位置','sheet','cold-storage')}${row('file','外部包','2 个包 · 不会自动删除','sheet','storage-pack')}${fullButton('查看转存计划','sheet','cold-storage','secondary')}`,
+    '用量统计': () => `<span class="pill">最近 30 天 · 所有模型</span><div class="metric-grid"><div><strong>2.8M</strong><small>输入 token</small></div><div><strong>428k</strong><small>输出 token</small></div><div><strong>36</strong><small>会话</small></div></div><div class="usage-chart" aria-label="示例最近七天用量柱状图">${[30,55,45,80,62,95,68].map((height)=>`<span style="--height:${height}%"></span>`).join('')}</div><div class="spread muted" style="font-size:10px;margin-top:8px"><span>8 月 30 日</span><span>9 月 5 日</span></div>${row('bulb','Claude Sonnet','输入 1.8M · 输出 312k','sheet','usage-model')}`,
+    '归档管理': () => `${row('archive',state.archived ? escape(state.currentTitle) : '早期移动端探索','已归档 · 可以恢复','restore-archive','', '恢复')}`,
+  };
+  pages['settings-detail'] = () => `${header(escape(state.settingsSection),'设置 · Host 配置为演示','settings')}<div class="screen-scroll">${heading(escape(state.settingsSection))}${settingsContent[state.settingsSection]()}</div>`;
+  Inkstone.settingsGroups = settingsGroups;
+
+  pages.connect = () => `${header('私有 Host','设备与连接','settings')}<div class="screen-scroll"><div class="empty-state"><span class="brand-seal">砚</span><h2>连回自己的书案。</h2><p>项目、模型和会话都在你的 Host。<br>手机只是另一扇窗。</p></div><button class="host-card" data-action="pair-demo"><span class="host-monogram">书</span><span class="grow"><strong>书房的 Mac Studio</strong><small>已配对 · ${state.offline ? '离线' : '可连接'}</small></span>${dot(state.offline ? 'waiting' : 'done')}</button>${fullButton('扫描桌面配对码','sheet','pairing')}${fullButton('手动输入连接信息','sheet','manual-connect','secondary')}<div class="quote-note">原型不访问相机、私有网络或真实凭据。可通过示例配对体验连接流程。</div></div>`;
+  pages.new = () => `${header('新的一页','会话将在你的 Host 上开始','sessions')}<div class="screen-scroll"><div class="empty-state"><span class="brand-seal">砚</span><h2>今天，想做点什么？</h2><p>一句话，也可以是一个开始。</p></div>${row('folder','项目',escape(state.selectedProject),'sheet','projects')}${row('bulb','模型',escape(state.model),'sheet','model')}<label class="field">写下你的想法<textarea id="new-prompt" placeholder="例如，帮我梳理这个项目的会话恢复逻辑…">${escape(state.draft)}</textarea></label>${fullButton('开始这段会话','start-session')}${fullButton('先说一句','sheet','dictation','secondary')}<div class="section-label">也可以从这里开始</div>${row('git','审阅最近的变更','','prefill','帮我审阅最近的变更，先给出问题和建议。')}${row('cards','把一个想法写成计划','','prefill','帮我把移动端的离线草稿功能整理成一份计划。')}</div>`;
+})();
+
+</script>
+<script>
+/* sheets.js */
+/* Bottom sheets retain desktop capabilities while giving touch controls room. */
+(() => {
+  const { state, escape, icon, dot, row, tabs, fullButton, field, sheets } = Inkstone;
+  const options = (values, selected, action) => `<div class="radio-options">${values.map((value)=>`<button data-action="${action}" data-value="${value}" aria-pressed="${selected === value}">${value}</button>`).join('')}</div>`;
+  const define = (key, title, render) => { sheets[key] = { title, render }; };
+  define('model','模型与思考',()=>`<p>为接下来的一轮选择模型。历史消息保留生成时的模型。</p>${['Claude Sonnet','Claude Opus','GPT · 自定义'].map((model)=>row('bulb',model,model === 'Claude Sonnet' ? '日常编码 · 支持图片' : '使用 Host 上已有的供应商配置','choose-model',model,state.model === model ? '✓' : '')).join('')}<div class="section-label">思考强度</div>${options(['轻量','标准','深入'],state.effort,'choose-effort')}${fullButton('完成','close-sheet')}`);
+  define('mode','运行与编排',()=>`<div class="section-label">权限模式</div>${options(['Auto','Ask','YOLO'],state.mode,'choose-mode')}<p>Auto 按规则询问；Ask 每次询问；YOLO 跳过询问。这里仅切换演示状态。</p><div class="section-label">编排方式</div>${options(['单 Agent','Ultra Code'],state.scheme,'choose-scheme')}${row('bulb','Goal 模式','持续推进到目标完成','sheet','goal')}${fullButton('完成','close-sheet')}`);
+  define('scheme','子代理编排',()=>`<p>职责和隔离方式由 Host 上的方案定义。</p>${options(['单 Agent','Ultra Code'],state.scheme,'choose-scheme')}${row('fork','test-runner','职责：测试恢复路径 · 独立工作树','sheet','subagent')}${fullButton('应用到演示会话','close-sheet')}`);
+  define('attach','把上下文捎进来',()=>`${row('image','照片或截图','演示选择一张图片','attach','mobile-reference.png')}${row('file','文件','演示附加一份设计说明','attach','session-notes.md')}${row('folder','@ 引用项目文件','从 Host 的项目中选取','sheet','references')}${row('cards','技能','使用已安装的技能','sheet','skills')}${row('globe','MCP 工具','工具在 Host 上执行','sheet','mcp')}${row('term','/ 命令','常用动作与提示词','sheet','commands')}${row('mic','piwin Live','进入语音会话演示','navigate','voice')}`);
+  define('references','引用项目文件',()=>`${row('file','session-index.ts','packages/session/src','attach','@session-index.ts')}${row('file','architecture.md','docs','attach','@architecture.md')}${row('file','session-memory.md','docs/plans','attach','@session-memory.md')}`);
+  define('skills','已安装的技能',()=>`${row('cards','karpathy-guidelines','简单、明确、可验证','attach','/skill karpathy-guidelines')}${row('cards','code-review','检查变更与回归风险','attach','/skill code-review')}${fullButton('管理技能','open-settings','技能与扩展','secondary')}`);
+  define('commands','常用命令',()=>`${row('cards','/plan','先写计划，再决定怎么执行','command','先整理一份计划，暂时不要修改文件。')}${row('git','/review','审阅当前变更','navigate','review')}${row('cards','/flashcards','打开知识卡片工作台','navigate','cards')}${row('file','/compact','整理并压缩当前上下文','sheet','compact-context')}`);
+  define('context','这一轮带了什么',()=>`<div class="metric-grid"><div><strong>37%</strong><small>上下文占用</small></div><div><strong>12.8k</strong><small>已装配 token</small></div><div><strong>3</strong><small>引用文件</small></div></div>${row('file','AGENTS.md','项目约束 · 自动带入','sheet','file')}${row('file','session-notes.md','手动附件','sheet','file')}${row('cards','karpathy-guidelines','已启用技能','sheet','skill-detail')}${fullButton('压缩上下文','sheet','compact-context','secondary')}`);
+  define('session-menu','这一段会话',()=>`${row('pin',state.pinned ? '取消置顶' : '置顶会话','','pin-session')}${row('file','重命名','','sheet','rename')}${row('fork','会话树与分叉','','sheet','branches')}${row('folder','继续到项目','','sheet','projects')}${row('file','历史刻度','','sheet','history')}${row('panel','在桌面继续','演示接续入口','sheet','handoff')}${row('archive','归档会话','归档后可从设置恢复','archive-session')}${row('copy','导出会话','下载本原型的示例文本','export-session')}`);
+  define('rename','给这页换个名字',()=>`${field('会话名称','session-title',state.currentTitle)}${fullButton('保存名称','rename-session')}`);
+  define('branches','会话的来路',()=>`<p>分叉保留此前上下文，从选定位置另起一页。</p><div class="tool-thread"><div class="tool-step">${dot('done')}最初的想法 <span>09:20</span></div><div class="tool-step">${dot('done')}会话恢复方案 <span>09:28</span></div><div class="tool-step">${dot('running')}${escape(state.currentTitle)} <span>当前</span></div></div>${row('branch','只恢复阅读位置','已有分支 · 2 条消息','switch-branch','只恢复阅读位置')}${fullButton('从当前消息分叉','fork-session')}`);
+  define('history','历史刻度',()=>`${row('panel','用户提出会话记忆','09:32 · 检查点','history-jump')}${row('cards','实施计划生成','09:33 · 4 个步骤','navigate','plan')}${row('git','第一组文件变更','09:34 · 3 个文件','navigate','review')}${fullButton('在当前检查点分叉','fork-session','','secondary')}`);
+  define('projects','选择项目',()=>`${row('folder','piwin','~/Developer/piwin','choose-project','piwin',state.selectedProject === 'piwin' ? '✓' : '')}${row('folder','日常与灵感','~/Documents/ideas','choose-project','日常与灵感',state.selectedProject === '日常与灵感' ? '✓' : '')}${row('plus','打开 Host 工作区','选择 Host 上的目录','sheet','workspace-picker')}`);
+  define('workspace-picker','Host 工作区',()=>`${field('目录路径','workspace-path','~/Developer/piwin')}${row('folder','Developer','Host 上的常用位置','choose-project','piwin')}${row('folder','Documents','Host 上的常用位置','choose-project','日常与灵感')}${fullButton('选择并查看信任提示','sheet','trust')}`);
+  define('trust','信任这个项目？',()=>`<p>信任后，Agent 可以按 Host 的权限策略使用这个项目中的工具与指令。</p><div class="command">~/Developer/piwin</div>${fullButton('信任并打开 · 演示','trust-project')}${fullButton('返回','close-sheet','','subtle')}`);
+  define('search','找一段思路',()=>`<label class="search-field">${icon('search')}<input id="session-search" aria-label="搜索会话" placeholder="搜索会话名称…"></label><div class="section-label">最近的会话</div><div class="session-tree" id="sheet-search-results">${Inkstone.sessionRows()}</div>`);
+  define('permission','读清楚，再批准',()=>`<span class="pill zhu">Host 正在等待你</span><div class="command">pnpm --filter @piwin/host-client test</div><dl class="facts"><dt>项目</dt><dd>piwin · 已信任</dd><dt>目录</dt><dd class="mono">~/Developer/piwin</dd><dt>触发原因</dt><dd>Ask 模式要求手动确认命令</dd><dt>授权对象</dt><dd>本次 bash 工具请求</dd></dl><label class="field">批准的范围<select id="permission-scope"><option value="once">仅本次操作（默认）</option><option value="session">本会话中的同类操作</option><option value="project">本项目中的同类操作</option></select></label><p>原型只模拟决定，不会执行命令或修改真实权限。</p>${fullButton('允 · 按所选范围批准','permission','approved')}${fullButton('否 · 拒绝这次操作','permission','denied','secondary')}`);
+  define('execute-plan','让计划开始工作',()=>`<p>会话记忆 · 4 个步骤。先审阅计划，再选择执行方式。</p>${row('cards','查看完整计划','步骤、依赖与预期交付','navigate','plan')}${fullButton('普通执行','execute-plan','single')}${fullButton('子代理驱动','execute-plan','agents','secondary')}${fullButton('暂时不执行','close-sheet','','subtle')}`);
+  define('subagent','test-runner',()=>`<span class="pill azure">${dot('background')}子代理 · 工作中</span><h3 style="font-family:var(--serif);font-size:22px;margin:18px 0">补全恢复路径测试</h3><p>正在检查断线后草稿、历史与工具展开状态的恢复。工作位于独立工作树。</p><dl class="facts"><dt>模型</dt><dd>Claude Sonnet</dd><dt>已完成</dt><dd>覆盖空会话与已归档会话</dd><dt>当前</dt><dd>检查重连后重复发送的防护</dd></dl>${fullButton('追加一条要求','sheet','intervene')}${fullButton('查看子代理输出','sheet','subagent-output','secondary')}`);
+  define('subagent-output','子代理的工作记录',()=>`<div class="tool-thread"><div class="tool-step">${dot('done')}读取 reconnect-policy.ts</div><div class="tool-step">${dot('done')}补全断线恢复测试</div><div class="tool-step">${dot('running')}运行 session-index.test.ts</div></div><div class="quote-note">当前没有需要人工处理的失败。完成后将提交变更给主会话审阅。</div>${fullButton('查看变更','navigate','review','secondary')}`);
+  define('intervene','补充一条要求',()=>`<p>这条消息会进入当前工作的介入流程，不会另开一个任务。</p><label class="field">追加要求<textarea id="intervene-input" placeholder="例如，也覆盖手机在后台时的恢复场景。"></textarea></label>${fullButton('排队追加','intervene')}${fullButton('先暂停工作','toggle-run','','secondary')}`);
+  define('goal','持续目标',()=>`${field('目标','goal-title','让会话恢复逻辑通过完整走查')}<div class="quote-note">Goal 追踪持续目标。计划步骤和交付报告仍各有自己的页面。</div>${fullButton('设置演示目标','save-demo','目标已显示在当前演示中')}`);
+  define('comment','在这一行，留一笔',()=>`<span class="pill mono">session-index.ts · L42</span><div class="command">+ const saved = await store.get(id);</div><label class="field">审阅意见<textarea id="review-comment" placeholder="例如，这里也考虑一下旧格式的会话数据。">${escape(state.comment)}</textarea></label>${fullButton('保存批注','save-comment')}`);
+  define('review-options','审阅选项',()=>`${row('file','统一差异','手机默认视图','close-sheet')}${row('copy','把审阅结论带回对话','','navigate','chat')}${row('refresh','重新查看这组变更','','reset-review')}`);
+  define('workspace-menu','展开哪一页？',()=>`${[['folder','文件'],['term','终端'],['git','变更'],['globe','浏览器'],['panelr','画布'],['file','文档'],['file','笔记'],['cards','卡片'],['panel','侧聊']].map(([name,title])=>row(name,title,'','open-workspace',title)).join('')}`);
+  define('folder','项目目录',()=>`${row('file','session-index.ts','src/session','sheet','file')}${row('file','draft-store.ts','src/session','sheet','file')}${row('file','README.md','项目文档','open-workspace','文档')}`);
+  define('file','session-index.ts',()=>`<span class="pill mono">packages/session/src</span><pre class="terminal">export async function restoreSession(id) {\n  const saved = await store.get(id);\n  if (!saved) return createSession(id);\n  return hydrateSession(saved);\n}</pre><p>文件内容为原型示例。</p>${fullButton('引用到对话','add-context','@session-index.ts')}${fullButton('查看差异','navigate','review','secondary')}`);
+  define('terminal-command','让 Agent 执行',()=>`<p>这里不会直接连接远程终端。命令作为一条要求回到当前会话。</p>${field('命令','terminal-command','pnpm typecheck')}${fullButton('加入对话草稿','terminal-draft')}`);
+  define('console','浏览器控制台',()=>`<pre class="terminal">[09:37:02] Page loaded\n[09:37:03] Host connected\n[09:37:03] Session restored\n\n0 errors · 0 warnings</pre><p>示例控制台快照。</p>${fullButton('关闭','close-sheet','','secondary')}`);
+  define('artifact-source','Artifact 源码',()=>`<pre class="terminal">&lt;article&gt;\n  &lt;h1&gt;一份安静的记忆&lt;/h1&gt;\n  &lt;p&gt;会话内容交给 Host。&lt;/p&gt;\n  &lt;p&gt;阅读位置留在设备。&lt;/p&gt;\n&lt;/article&gt;</pre>${fullButton('回到画布','close-sheet','','secondary')}`);
+  define('dictation','先说，再落笔',()=>`<div class="voice-bars" aria-hidden="true">${[2,4,6,3,8,5,4,7,2].map((level)=>`<i style="--level:${level}"></i>`).join('')}</div><p>语音转文字演示 · 未使用麦克风</p><label class="field">识别文字，可继续修改<textarea id="dictation-text">把刚才的恢复方案整理一下，先列计划，不要开始修改。</textarea></label>${fullButton('放入砚台','use-dictation')}${fullButton('进入 Live 会话','navigate','voice','secondary')}`);
+  define('voice-settings','语音会话',()=>`${row('mic','语音输入','中文 · 自动识别','save-demo','已选择中文语音演示')}${row('bulb','Live 连接','使用当前 Host 的配置','save-demo','移动 Live 尚为设计提议')}${fullButton('完成','close-sheet','','secondary')}`);
+  define('host','连着自己的书案',()=>`${row('panel','书房的 Mac Studio',state.offline ? '连接已断开' : '已连接 · 私有网络','pair-demo','',state.offline ? '重连' : '✓')}${row('panel','MacBook Pro','上次连接 · 昨天','pair-demo')}${row('plus','配对一台 Host','','navigate','connect')}${fullButton(state.offline ? '恢复连接演示' : '体验断线状态',state.offline ? 'reconnect' : 'disconnect','','secondary')}`);
+  define('pairing','扫描桌面配对码',()=>`<div class="empty-state"><span class="brand-seal">砚</span><h2>在桌面打开「手机接入」。</h2><p>真实使用时，在这里扫描一次性配对码。<br>本原型不调用相机。</p></div>${fullButton('使用示例配对码体验','pair-demo')}${fullButton('手动连接','sheet','manual-connect','secondary')}`);
+  define('manual-connect','手动连接',()=>`${field('Host 地址','host-address','wss://studio.example.test')}${field('配对码（仅用演示数据）','pairing-code','INKSTONE-DEMO')}<p>本表单仅演示，不发送任何网络请求。</p>${fullButton('连接示例 Host','manual-connect')}`);
+  define('handoff','在桌面接着写',()=>`<div class="host-card"><span class="host-monogram">书</span><span><strong>书房的 Mac Studio</strong><small>同一 Host · ${escape(state.currentTitle)}</small></span></div><p style="margin-top:18px">建议功能：桌面收到定位请求后打开这段会话，不重启 Agent，也不重新发送消息。</p>${fullButton('演示定位到桌面','save-demo','演示：桌面定位请求已展示，未发送真实请求')}`);
+  define('notifications','只在需要时，来敲门',()=>`<p>移动端建议：完成、失败和需要批准时提醒。安静的工作不必打断你。</p><button class="list-row" role="switch" aria-checked="${state.notifications}" data-action="toggle-notifications"><span class="grow"><strong>重要事件通知</strong><small>完成 · 失败 · 等待批准</small></span><span class="switch"></span></button><button class="list-row" role="switch" aria-checked="${state.handoff}" data-action="toggle-handoff"><span class="grow"><strong>跨设备接续入口</strong><small>回到桌面上那段正在进行的工作</small></span><span class="switch"></span></button><p style="font-size:11px;margin-top:18px">仅改变原型偏好，不申请系统通知权限。</p>${fullButton('完成','close-sheet')}`);
+  define('card-options','怎样读这叠卡片',()=>`${row('cards','计划复习','翻面后给出四档评分','set-study-mode','review')}${row('cards','随便看看','只翻阅，不产生复习评分','set-study-mode','browse')}${row('plus','从项目文件出卡','保留桌面的产卡流程','sheet','produce-cards')}`);
+  define('produce-cards','从文件里，留下一点知识',()=>`${field('来源文件夹','card-source','docs/adr')}<label class="field">出卡方向<textarea>Host 边界、会话恢复和移动端职责。</textarea></label>${fullButton('演示出卡完成','produce-cards')}`);
+  define('asset','资料详情',()=>`<div class="empty-state" style="padding:20px"><span class="brand-seal">砚</span><h2>纸面外壳</h2><p>类型占位 · 无真实媒体文件</p></div><dl class="facts"><dt>尺寸</dt><dd>1440 × 900</dd><dt>提示词</dt><dd>暖纸、朱印与一块深色砚台。</dd><dt>来源</dt><dd>Inkstone · 桌面主题</dd></dl>${fullButton('引用到会话','add-context','纸面外壳 · 示例图片')}${fullButton('收藏这份资料','save-demo','已收藏示例资料','secondary')}`);
+  define('media-new','想生成什么？',()=>`${row('image','图片','在会话中写下画面描述','media-prompt','请生成一张 Inkstone 风格的图片。')}${row('file','视频','在会话中描述镜头与时长','media-prompt','请生成一段展示 Inkstone 界面的短视频。')}`);
+  define('settings-search','查找设置',()=>`<label class="search-field">${icon('search')}<input id="settings-search" aria-label="搜索设置" placeholder="模型、权限、冷存储…"></label><div id="settings-results">${Inkstone.settingsGroups.flatMap(([,items])=>items).map((title)=>row('sliders',title,'','settings-section',title)).join('')}</div>`);
+
+  // Representative settings expose editable, local demonstration fields, not real credentials.
+  const forms = [
+    ['provider','供应商配置','配置保存在 Host；请勿在原型中填写真实密钥。', [['显示名','Anthropic'],['API 地址','https://api.example.test'],['环境变量引用','ANTHROPIC_API_KEY']]],
+    ['automation-new','新建自动化','由 Host 定时执行。', [['任务名称','每天回看未完成的工作'],['运行时间','每天 09:00'],['执行要求','汇总待批准与失败的会话。']]],
+    ['automation-edit','编辑自动化','示例配置，不会创建真实定时任务。', [['任务名称','每天回看未完成的工作'],['运行时间','每天 09:00']]],
+    ['hook','生命周期 Hook','Host 上的会话事件触发。', [['名称','会话完成检查'],['事件','session:end'],['命令','pnpm typecheck']]],
+    ['mcp','MCP 工具','MCP 在 Host 上运行，独立于工具权限层。', [['服务器 ID','github'],['命令','npx'],['参数','-y @modelcontextprotocol/server-github'],['环境变量引用','GITHUB_TOKEN']]],
+    ['extension-install','添加扩展','使用 Host 上的本地路径或仓库地址。', [['安装来源','~/Developer/piwin/.agents/skills']]],
+    ['prompt-template','提示词模板','在下一轮输入时使用。', [['名称','代码审查'],['提示词','检查本次变更中的回归与边界问题。']]],
+    ['web-search','搜索来源','搜索在 Host 上执行。', [['默认来源','DuckDuckGo'],['路由','外部搜索优先']]],
+    ['web-fetch','网页抓取','保留桌面的抓取配置。', [['默认服务','Supermarkdown'],['JS 站兜底','浏览器快照']]],
+    ['knowledge-model','知识处理配置','嵌入、重排、解析与专用模型由 Host 统一管理。', [['模型 / 服务','使用 Host 默认配置']]],
+    ['session-policy','会话策略','恢复历史与上下文管理。', [['上下文压缩','自动'],['历史恢复','打开时恢复']]],
+    ['cold-storage','冷存储配置','展示计划后由用户执行，不自动删除外部包。', [['存储目录','~/piwin-archives'],['计划','手动执行']]],
+    ['artifact-settings','Artifact 渲染','隔离与外部资源限制属于产品策略。', [['总开关','启用'],['触发模式','自动'],['最大字节数','1048576']]],
+  ];
+  forms.forEach(([key,title,description,fields])=>define(key,title,()=>`<p>${description}</p>${fields.map(([label,value],index)=>field(label,`demo-field-${index}`,value)).join('')}${fullButton('保存演示配置','save-demo','配置已保留在本次演示中')}`));
+  const readouts = [
+    ['oauth','OAuth 登录','真实流程会在 Host 发起登录，并让用户在浏览器完成授权。原型不打开认证站点，也不收集凭据。'],
+    ['skill-detail','karpathy-guidelines','思考再动手，简单优先，最小修改，验证结果。技能在 Host 中加载，手机只选择是否引用。'],
+    ['rules','权限规则','{\n  "mode": "auto",\n  "rules": []\n}'],
+    ['runtime','运行时驻留','当前活跃 2 个会话。闲置会话按 Host 策略释放运行时，历史记录仍然保留。'],
+    ['storage-pack','外部归档包','piwin-2026-09-01.pack\npiwin-2026-08-25.pack\n\n2 个示例包 · 未执行任何存储操作'],
+    ['usage-model','模型用量','Claude Sonnet\n输入：1.8M token\n输出：312k token\n范围：最近 30 天\n\n示例数据，不推算费用。'],
+    ['compact-context','压缩上下文','将此前已完成的工作整理为摘要，保留后续需要的上下文。本原型只演示压缩后的反馈。'],
+  ];
+  readouts.forEach(([key,title,description])=>define(key,title,()=>`<div class="command">${escape(description)}</div>${fullButton(key === 'compact-context' ? '演示压缩完成' : '知道了',key === 'compact-context' ? 'save-demo' : 'close-sheet','演示上下文已整理','','secondary')}`));
+})();
+
+</script>
+<script>
+/* app.js */
+/* Local prototype controller. No Host calls, permissions, microphones, or private data. */
+(() => {
+  const { state, escape, icon, row, pages, sheets, scenes } = Inkstone;
+  const phone = document.querySelector('#phone');
+  const dialog = document.querySelector('#sheet');
+  const device = document.querySelector('#device');
+  const savedForms = new Map();
+  let currentSheet = '';
+  let previousFocus = null;
+  let toastTimer;
+
+  function toast(message) {
+    if (dialog.open) {
+      dialog.querySelector('.sheet-feedback')?.remove();
+      const feedback = document.createElement('p');
+      feedback.className = 'sheet-feedback inline-error';
+      feedback.setAttribute('role','status');
+      feedback.textContent = message;
+      dialog.querySelector('.sheet-body').prepend(feedback);
+      return;
+    }
+    const element = document.querySelector('#toast');
+    element.textContent = message;
+    element.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => element.classList.remove('show'), 3000);
+  }
+
+  function positionSheet() {
+    const bounds = device.getBoundingClientRect();
+    const inset = window.innerWidth <= 700 ? 0 : 6;
+    dialog.style.setProperty('--dialog-width', `${bounds.width - inset * 2}px`);
+    dialog.style.setProperty('--dialog-left', `${bounds.left + inset}px`);
+    dialog.style.setProperty('--dialog-bottom', `${Math.max(0,window.innerHeight - bounds.bottom + inset)}px`);
+  }
+
+  function paintSheet() {
+    const sheet = sheets[currentSheet];
+    if (!sheet) return;
+    document.querySelector('#sheet-content').innerHTML = `<div class="sheet-grab"></div><div class="sheet-head"><h2 id="sheet-title">${sheet.title}</h2><button class="icon-button" data-action="close-sheet" aria-label="关闭弹层">${icon('close')}</button></div><div class="sheet-body">${sheet.render()}</div>`;
+    const values = savedForms.get(currentSheet);
+    if (values) dialog.querySelectorAll('input[name],textarea[name]').forEach((input) => { if (values[input.name] !== undefined) input.value = values[input.name]; });
+    positionSheet();
+  }
+
+  function openSheet(key) {
+    if (!sheets[key]) { toast('这个入口的演示暂未定义'); return; }
+    if (!dialog.open) previousFocus = document.activeElement;
+    currentSheet = key;
+    paintSheet();
+    if (!dialog.open) dialog.showModal();
+  }
+
+  function closeSheet() {
+    if (dialog.open) dialog.close();
+    currentSheet = '';
+    if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
+  }
+
+  function sceneForRoute() {
+    const aliases = { new: 'sessions', 'settings-detail': 'settings', connect: 'settings', library: 'shelf', automations: 'shelf', walkthrough: 'review' };
+    return scenes.findIndex(([route]) => route === (aliases[state.route] || state.route));
+  }
+
+  function render() {
+    const scroller = phone.querySelector('.screen-scroll');
+    const previousScroll = scroller?.scrollTop || 0;
+    const previousRoute = phone.dataset.route;
+    phone.innerHTML = pages[state.route]();
+    phone.dataset.route = state.route;
+    if (previousRoute === state.route) phone.querySelector('.screen-scroll')?.scrollTo(0, previousScroll);
+    const sceneIndex = Math.max(0,sceneForRoute());
+    const scene = scenes[sceneIndex];
+    document.querySelector('#scene-nav').innerHTML = scenes.map(([route,title],index)=>`<button class="scene-link ${index===sceneIndex ? 'active' : ''}" data-action="navigate" data-value="${route}" ${index===sceneIndex ? 'aria-current="page"' : ''}><span class="scene-index">${String(index+1).padStart(2,'0')}</span><span>${title}</span><span class="scene-arrow">↗</span></button>`).join('');
+    document.querySelector('#scene-number').textContent = `${String(sceneIndex+1).padStart(2,'0')} / 10`;
+    document.querySelector('#scene-caption').textContent = scene[1];
+    document.querySelector('#scene-notes').innerHTML = `<div class="note-rule"></div><div class="eyebrow">DESIGN NOTE / ${String(sceneIndex+1).padStart(2,'0')}</div><h2>${scene[2]}</h2><p>${scene[3]}</p><div class="note-item"><b>${scene[4]}</b><p>${scene[5]}</p></div><div class="note-item"><b>${scene[6]}</b><p>${scene[7]}</p></div><span class="note-tag">延续 Inkstone · 为拇指重排</span><div class="note-bottom">纸 / 墨 · 朱 / 灯<br>触控入口 · 独立检视页<br>PROTOTYPE — LOCAL DEMO</div>`;
+    document.querySelectorAll('[data-action="theme"]').forEach((button)=>button.setAttribute('aria-pressed',String(button.dataset.value === document.documentElement.dataset.face)));
+    if (dialog.open) positionSheet();
+  }
+
+  function navigate(route) {
+    if (!pages[route]) return;
+    closeSheet();
+    state.route = route;
+    if (location.hash !== `#${route}`) history.pushState(null,'',`#${route}`);
+    render();
+  }
+
+  function updateSheet() { render(); if (dialog.open) paintSheet(); }
+  function theme(face) {
+    document.documentElement.dataset.face = face;
+    document.querySelector('meta[name="theme-color"]').content = face === 'ink' ? '#191714' : '#f8f6f0';
+    render();
+  }
+  function online() {
+    if (!state.offline) return true;
+    toast('连接已断开。草稿可继续写，恢复连接后再操作。');
+    return false;
+  }
+  function inputValue(selector) { return document.querySelector(selector)?.value.trim() || ''; }
+  function putDraft(text) { state.draft = text; navigate('chat'); toast('已放入砚台，可修改后再发送'); }
+
+  const actions = {
+    navigate,
+    sheet: openSheet,
+    'close-sheet': closeSheet,
+    theme,
+    'toggle-theme': () => theme(document.documentElement.dataset.face === 'ink' ? 'paper' : 'ink'),
+    compact: () => { device.classList.toggle('compact'); },
+    'open-session': (title) => { state.currentTitle = title; state.archived = false; state.freshSession = false; navigate('chat'); },
+    'session-filter': (filter) => { state.sessionFilter = filter; render(); },
+    'inbox-filter': (filter) => { state.inboxFilter = filter; render(); },
+    'workspace-tab': (tab) => { state.workspaceTab = tab; render(); phone.querySelector('.screen-scroll')?.scrollTo(0,0); phone.querySelector('.workspace-tabs .active')?.scrollIntoView({block:'nearest',inline:'center'}); },
+    'open-workspace': (tab) => { state.workspaceTab = tab; navigate('workspace'); },
+    'library-filter': (filter) => { state.libraryFilter = filter; render(); },
+    'settings-section': (section) => { state.settingsSection = section; navigate('settings-detail'); },
+    'open-settings': (section) => { state.settingsSection = section; navigate('settings-detail'); },
+    'choose-model': (model) => { state.model = model; updateSheet(); },
+    'choose-effort': (effort) => { state.effort = effort; updateSheet(); },
+    'choose-mode': (mode) => { state.mode = mode; updateSheet(); },
+    'choose-scheme': (scheme) => { state.scheme = scheme; updateSheet(); },
+    'choose-project': (project) => { state.selectedProject = project; closeSheet(); render(); toast(`已选择项目：${project}`); },
+    'trust-project': () => { closeSheet(); render(); toast('示例项目已打开，未改变真实项目权限'); },
+    attach: (name) => { state.attachment = name; navigate('chat'); toast('已加入示例附件，可随消息发送'); },
+    'remove-attachment': () => { state.attachment = ''; render(); },
+    'add-context': (text) => { state.attachment = text; navigate('chat'); toast('已加入对话上下文'); },
+    command: putDraft,
+    prefill: (text) => { state.draft = text; render(); },
+    'media-prompt': putDraft,
+    'use-dictation': () => { const text = inputValue('#dictation-text'); if (text) putDraft(text); else toast('先留下一句文字'); },
+    'terminal-draft': () => { const command = inputValue('[name="terminal-command"]'); if (command) putDraft(`请执行并检查结果：${command}`); else toast('请先输入命令'); },
+    send: () => {
+      if (!online()) return;
+      if (state.run === 'running' && !state.draft.trim()) { state.run = 'paused'; render(); toast('演示已暂停，可以修改要求或继续'); return; }
+      if (!state.draft.trim()) {
+        if (state.run === 'paused') { state.run = 'running'; render(); toast('演示继续运行'); }
+        else toast('先写一句话，再发送');
+        return;
+      }
+      if (state.run === 'running') { state.queue = state.draft; state.draft = ''; render(); toast('已排到当前工作之后'); return; }
+      state.messages.push(state.draft + (state.attachment ? ` [${state.attachment}]` : ''));
+      state.draft = ''; state.attachment = ''; state.run = 'running';
+      render(); phone.querySelector('#chat-scroll')?.scrollTo(0,100000); toast('演示消息已发出，Agent 继续工作');
+    },
+    'toggle-run': () => { if (!online()) return; state.run = state.run === 'running' ? 'paused' : 'running'; closeSheet(); render(); toast(state.run === 'running' ? '演示继续运行' : '演示工作已暂停'); },
+    'edit-queue': () => { state.draft = state.queue; state.queue = ''; render(); toast('已取回砚台，修改后可重新排队'); },
+    'cancel-queue': () => { state.queue = ''; render(); toast('已取消这条排队消息'); },
+    intervene: () => { if (!online()) return; const text = inputValue('#intervene-input'); if (!text) { toast('先写下追加的要求'); return; } state.queue = text; navigate('chat'); toast('补充要求已进入演示队列'); },
+    permission: (choice) => {
+      if (!online()) return;
+      const scope = inputValue('#permission-scope') || 'once';
+      state.permission = choice; closeSheet(); render();
+      toast(choice === 'approved' ? `允 · 演示已批准${scope === 'once' ? '本次操作' : scope === 'session' ? '本会话同类操作' : '本项目同类操作'}` : '否 · 演示请求已拒绝');
+    },
+    'reset-permission': () => { state.permission = 'pending'; render(); },
+    'execute-plan': (mode) => { if (!online()) return; state.planApproved = true; state.scheme = mode === 'agents' ? 'Ultra Code' : '单 Agent'; state.run = 'running'; navigate('plan'); toast('演示计划开始执行'); },
+    'save-comment': () => { const comment = inputValue('#review-comment'); if (!comment) { toast('先写下你的审阅意见'); return; } state.comment = comment; closeSheet(); render(); toast('批注已保存到当前演示，并关联主会话'); },
+    'mark-reviewed': () => { state.reviewDone = !state.reviewDone; render(); toast(state.reviewDone ? '已标记看过 · 未提交或发布代码' : '已取消审阅标记'); },
+    'reset-review': () => { state.reviewDone = false; closeSheet(); render(); },
+    'save-note': () => { state.note = inputValue('#note-editor'); toast('笔记已保存在当前演示中'); },
+    'flip-card': () => { state.cardFlipped = !state.cardFlipped; render(); },
+    'rate-card': (rating) => { state.studied += 1; state.cardFlipped = false; render(); toast(`已记录「${rating}」· 演示下一张`); },
+    'reset-study': () => { state.studied = 0; state.cardFlipped = false; render(); },
+    'next-card': () => { state.browsed = (state.browsed + 1) % 12; state.cardFlipped = false; render(); },
+    'study-mode': (mode) => { state.studyMode = mode === '计划复习' ? 'review' : 'browse'; state.cardFlipped = false; render(); },
+    'set-study-mode': (mode) => { state.studyMode = mode; state.cardFlipped = false; navigate('cards'); },
+    'produce-cards': () => { navigate('cards'); toast('演示生成了 3 张卡片，已进入卡片工作台'); },
+    'mute-voice': () => { state.muted = !state.muted; render(); },
+    'end-voice': () => { state.muted = false; navigate('chat'); toast('语音演示已结束，对话仍在这里'); },
+    'toggle-notifications': () => { state.notifications = !state.notifications; paintSheet(); },
+    'toggle-handoff': () => { state.handoff = !state.handoff; paintSheet(); },
+    disconnect: () => { state.offline = true; navigate('chat'); toast('正在演示断线状态，可以继续写草稿'); },
+    reconnect: () => { state.offline = false; closeSheet(); render(); toast('演示连接已恢复；草稿保留，未自动发送'); },
+    'pair-demo': () => { state.offline = false; navigate('sessions'); toast('已连接示例 Host，未访问真实网络'); },
+    'manual-connect': () => { if (!inputValue('[name="host-address"]') || !inputValue('[name="pairing-code"]')) { toast('请填写示例地址和配对码'); return; } actions['pair-demo'](); },
+    'pin-session': () => { state.pinned = !state.pinned; closeSheet(); render(); toast(state.pinned ? '已置顶示例会话' : '已取消置顶'); },
+    'archive-session': () => { state.archived = true; navigate('sessions'); toast('会话已归档，可在设置的归档管理恢复'); },
+    'restore-archive': () => { state.archived = false; navigate('sessions'); toast('示例会话已恢复'); },
+    'rename-session': () => { const title = inputValue('[name="session-title"]'); if (!title) { toast('名字不能为空'); return; } state.currentTitle = title; closeSheet(); render(); },
+    'switch-branch': (title) => { state.currentTitle = title; navigate('chat'); toast('已打开示例分支'); },
+    'fork-session': () => { state.currentTitle = `${state.currentTitle} · 分叉`; state.run = 'idle'; navigate('chat'); toast('已在原型中另起一个分支'); },
+    'history-jump': () => { navigate('chat'); phone.querySelector('#chat-scroll')?.scrollTo(0,0); toast('已定位到最初的用户消息'); },
+    'start-session': () => { if (!online()) return; const text = inputValue('#new-prompt'); if (!text) { toast('先写一句你想做的事'); return; } state.freshSession = true; state.currentTitle = text.slice(0,16); state.messages = [text]; state.draft = ''; state.run = 'running'; navigate('chat'); toast('新的演示会话已开始'); },
+    regenerate: () => { if (!online()) return; state.run = 'running'; render(); toast('正在演示重新生成，历史回复仍保留'); },
+    'save-demo': (message) => {
+      const values = {};
+      dialog.querySelectorAll('input[name],textarea[name]').forEach((input)=>{ values[input.name] = input.value; });
+      if (currentSheet) savedForms.set(currentSheet,values);
+      closeSheet(); toast(message || '已保存当前演示');
+    },
+    'copy-response': async () => copyText('记忆应该安静地发生。Host 记住会话本身，设备记住你阅读的位置。'),
+    'copy-report': async () => copyText('Inkstone 走查报告（原型示例）\n主题色、会话节点、砚台输入区与权限印章已统一。'),
+    'export-session': () => {
+      const blob = new Blob([`# ${state.currentTitle}\n\nInkstone 移动端原型 · 示例数据\n\n${state.messages.join('\n\n')}`],{type:'text/markdown;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a'); link.href = url; link.download = 'inkstone-demo-session.md'; link.click();
+      setTimeout(()=>URL.revokeObjectURL(url),1000); closeSheet(); toast('已导出演示会话');
+    },
+    'extension-tab': (tab) => openSheet(({技能:'skills',MCP:'mcp',扩展:'extension-install',提示词:'prompt-template',插件:'extension-install'})[tab]),
+  };
+
+  async function copyText(text) {
+    try { await navigator.clipboard.writeText(text); toast('示例内容已复制'); }
+    catch (error) { console.warn('Prototype clipboard unavailable:', error.name); toast('浏览器未允许复制，可直接选择正文复制'); }
+  }
+
+  document.addEventListener('click', async (event) => {
+    const control = event.target.closest('[data-action]');
+    if (!control || control.disabled) return;
+    const action = actions[control.dataset.action];
+    if (action) await action(control.dataset.value || '');
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && event.target.matches('[role="button"][data-action]')) { event.preventDefault(); event.target.click(); }
+  });
+  document.addEventListener('input', (event) => {
+    if (event.target.id === 'composer-input' || event.target.id === 'new-prompt') {
+      state.draft = event.target.value;
+      const send = phone.querySelector('[data-action="send"]');
+      if (send) { const pause = state.run === 'running' && !state.draft; send.innerHTML = icon(pause ? 'pause' : 'up'); send.classList.toggle('pause',pause); send.setAttribute('aria-label',pause ? '暂停运行' : state.run === 'running' ? '排队发送' : '发送消息'); }
+    }
+    if (event.target.id === 'session-search') document.querySelector('#sheet-search-results').innerHTML = Inkstone.sessionRows(event.target.value);
+    if (event.target.id === 'settings-search') {
+      const matches = Inkstone.settingsGroups.flatMap(([,items])=>items).filter((title)=>title.toLowerCase().includes(event.target.value.toLowerCase()));
+      document.querySelector('#settings-results').innerHTML = matches.length ? matches.map((title)=>row('sliders',title,'','settings-section',title)).join('') : '<div class="empty-state"><p>没有找到这项设置。</p></div>';
+    }
+  });
+  dialog.addEventListener('click', (event) => { if (event.target === dialog) { const bounds = dialog.getBoundingClientRect(); if (event.clientY < bounds.top || event.clientX < bounds.left || event.clientX > bounds.right) closeSheet(); } });
+  dialog.addEventListener('close', () => { currentSheet = ''; });
+  window.addEventListener('resize', positionSheet);
+  new ResizeObserver(positionSheet).observe(device);
+  window.addEventListener('popstate',()=>{ closeSheet(); const route=location.hash.slice(1); state.route=pages[route] ? route : 'sessions'; render(); });
+  const route = location.hash.slice(1);
+  if (pages[route]) state.route = route;
+  const face = new URLSearchParams(location.search).get('face');
+  if (face === 'ink') document.documentElement.dataset.face = 'ink';
+  render();
+})();
+
+</script>
+</body></html>

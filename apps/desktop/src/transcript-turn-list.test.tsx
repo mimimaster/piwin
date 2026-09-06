@@ -13,6 +13,7 @@ import {
 } from './transcript-turn-list';
 import { groupTranscriptTurns, type TranscriptTurn } from './transcript-turns';
 import type { ChatMessageUi } from './chat-reducer';
+import { rememberTranscriptTurnHeight } from './transcript-scroll-memory';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -123,7 +124,7 @@ describe('transcript turn window', () => {
     }
   });
 
-  it('keeps short transcripts fully mounted', () => {
+  it('falls back to a full mount only when no scroll port is available', () => {
     const turns = createTurns(10);
     act(() => {
       root.render(
@@ -133,6 +134,36 @@ describe('transcript turn window', () => {
 
     expect(container.querySelectorAll('[data-testid="rendered-turn"]')).toHaveLength(10);
     expect(container.querySelector('[data-testid="transcript-turn-window"]')).toBeNull();
+  });
+
+  it('windows a short heavy transcript instead of mounting every turn', async () => {
+    const turns = createTurns(12);
+    for (const turn of turns) {
+      rememberTranscriptTurnHeight('session-short-heavy', turn.id, 2_000);
+    }
+    const scrollElementRef: RefObject<HTMLDivElement | null> = { current: container };
+    Object.defineProperties(container, {
+      offsetHeight: { configurable: true, writable: true, value: 640 },
+      offsetWidth: { configurable: true, writable: true, value: 900 },
+      clientHeight: { configurable: true, writable: true, value: 640 },
+      scrollHeight: { configurable: true, writable: true, value: 28_000 },
+      scrollTop: { configurable: true, writable: true, value: 27_000 },
+    });
+
+    await act(async () => {
+      root.render(
+        <TranscriptScrollProvider sessionId="session-short-heavy" scrollElementRef={scrollElementRef}>
+          <TranscriptTurnList turns={turns} pinnedMessageId={null} renderTurn={renderTurn} />
+        </TranscriptScrollProvider>,
+      );
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    });
+
+    expect(container.querySelector('[data-testid="transcript-turn-window"]')).not.toBeNull();
+    const mountedCount = container.querySelectorAll('[data-testid="rendered-turn"]').length;
+    expect(mountedCount).toBeGreaterThan(0);
+    expect(mountedCount).toBeLessThan(12);
+    expect(container.querySelector('#msg-user-11')).not.toBeNull();
   });
 
   it('bounds mounted rows during streaming while keeping live tail pinned', async () => {
@@ -260,14 +291,16 @@ describe('transcript turn window', () => {
 });
 
 describe('transcript virtualization policy', () => {
-  it('virtualizes after a short exchange so everyday coding sessions stay windowed', () => {
+  it('virtualizes any non-empty transcript so short heavy sessions stay windowed', () => {
     expect(shouldVirtualizeTranscript(0)).toBe(false);
-    expect(shouldVirtualizeTranscript(3)).toBe(false);
-    expect(shouldVirtualizeTranscript(20)).toBe(false);
+    expect(shouldVirtualizeTranscript(1)).toBe(true);
+    expect(shouldVirtualizeTranscript(3)).toBe(true);
+    expect(shouldVirtualizeTranscript(12)).toBe(true);
+    expect(shouldVirtualizeTranscript(20)).toBe(true);
     expect(shouldVirtualizeTranscript(21)).toBe(true);
     expect(shouldVirtualizeTranscript(200, { streaming: true })).toBe(true);
     expect(shouldVirtualizeTranscript(200, { streaming: false })).toBe(true);
-    expect(TRANSCRIPT_VIRTUALIZATION_THRESHOLD).toBe(20);
+    expect(TRANSCRIPT_VIRTUALIZATION_THRESHOLD).toBe(0);
   });
 
   it('range extractor still pins edit + live tail when virtualizer is re-enabled later', () => {
@@ -290,7 +323,7 @@ describe('transcript virtualizer measure policy', () => {
     });
   });
 
-  it('changes structure key when live text grows, a bash tool aborts, or an error row is appended', () => {
+  it('keeps the structure key stable when only live text grows', () => {
     const user: ChatMessageUi = {
       id: 'user-pause',
       role: 'user',
@@ -323,7 +356,7 @@ describe('transcript virtualizer measure policy', () => {
       user,
       { ...streamingAssistant, text: 'first tokens, more spit-out' },
     ]);
-    expect(buildTranscriptTurnsStructureKey(grown)).not.toBe(streamingKey);
+    expect(buildTranscriptTurnsStructureKey(grown)).toBe(streamingKey);
 
     const abortedTool: ChatMessageUi = {
       ...streamingAssistant,

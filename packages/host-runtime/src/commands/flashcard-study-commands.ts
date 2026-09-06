@@ -194,6 +194,12 @@ function runMutation(
         expectedRevision: command.expectedRevision,
         controlEpoch: command.controlEpoch,
       });
+    case 'flashcards/study/goto':
+      // Declared in contracts but no client sends it yet and the study
+      // service has no jump semantics — refuse explicitly instead of
+      // guessing one (AGENTS.md §7.3). The IPC boundary maps this to a
+      // fail response with code 'not-implemented'.
+      throw new PiwinError('not-implemented', 'flashcards/study/goto is not implemented yet');
     case 'flashcards/study/end':
       return study.end({
         ...base,

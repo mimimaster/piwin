@@ -1,0 +1,21 @@
+/* Inkstone (砚) — signature overrides that apply only to the `paper`
+   visualStyle (both `piwin-inkstone-paper` and `piwin-inkstone-ink` set
+   `visualStyle: 'paper'` on their manifest — see deck-palette.ts). Every
+   rule here is additive: it narrows an existing generic selector to this one
+   visual style, so Obsidian/Bone/ink-wash render exactly as before.
+
+   Increment 7 (`08-motion-and-components.md` §2 row 07): switches read "on"
+   as zhu (vermillion), not green — green/pine is reserved for "completed /
+   added" elsewhere in the shell, so a switch cannot borrow that meaning. */
+
+html[data-theme-visual-style='paper'] .piwin-switch-input:checked
+  + .piwin-switch-track.piwin-switch-track,
+html[data-theme-visual-style='paper'] .piwin-switch-track[data-checked='true'],
+html[data-theme-visual-style='paper']
+  .piwin-switch-root[data-checked='true']
+  .piwin-switch-track {
+  background-color: var(--iris);
+}
+
+/* The `--slab*` family moved to styles/inkstone/tokens.css, which now owns
+   the whole verbatim prototype token set for both faces. */

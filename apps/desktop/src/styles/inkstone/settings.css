@@ -1,0 +1,298 @@
+/* Inkstone settings chrome — proto-05 `.shell-nav` / `.perm-pill` / cards.
+   Scoped to the two 砚 theme ids so Deck settings stay untouched. */
+
+html:is(
+  [data-theme-id='piwin-inkstone-paper'],
+  [data-theme-id='piwin-inkstone-ink']
+) {
+  .settings-page {
+    background: var(--void);
+    font: 13.5px/1.5 var(--sans);
+    letter-spacing: 0;
+    color: var(--t1);
+  }
+
+  .settings-modal-dialog {
+    background: transparent;
+    grid-template-columns: 232px minmax(0, 1fr);
+    gap: 8px;
+    padding: 0 8px 8px;
+  }
+
+  .settings-titlebar,
+  .settings-titlebar-box {
+    background: transparent;
+    border-bottom: 0;
+    color: var(--t3);
+  }
+
+  .settings-titlebar-title {
+    font: 500 15px var(--serif);
+    color: var(--t1);
+  }
+
+  .settings-nav {
+    background: var(--s1);
+    border-radius: 12px;
+    box-shadow: var(--sh2);
+    padding: 0;
+    gap: 0;
+  }
+
+  .settings-search-container,
+  .shell-search {
+    height: 26px;
+    margin: 6px 8px;
+    background: var(--s3);
+    box-shadow: var(--sh1);
+    border-radius: 6px;
+    padding: 0 8px;
+    font-size: 11px;
+    color: var(--t4);
+  }
+
+  .settings-search-input {
+    background: transparent;
+    border: 0;
+    color: var(--t1);
+    font: 11px var(--sans);
+    box-shadow: none;
+    height: 26px;
+    min-height: 26px;
+    padding: 0 6px 0 22px;
+  }
+
+  .settings-nav-group-label,
+  .shell-grp {
+    font: 600 10px var(--sans);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--t3);
+    padding: 8px 10px 2px;
+  }
+
+  .settings-nav-item,
+  .shell-item {
+    display: flex;
+    align-items: center;
+    height: 24px;
+    padding: 0 10px;
+    margin: 0 4px;
+    border-radius: 5px;
+    font-size: 11.5px;
+    color: var(--t2);
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .settings-nav-item:hover,
+  .shell-item:hover {
+    background: var(--s2);
+    color: var(--t1);
+  }
+
+  .settings-nav-item.active,
+  .shell-item.on {
+    background: var(--s3);
+    box-shadow: var(--sh1);
+    color: var(--t1);
+  }
+
+  .settings-nav-icon {
+    width: 14px;
+    height: 14px;
+    color: var(--t3);
+  }
+
+  .settings-nav-footer {
+    font: 11px var(--mono);
+    color: var(--t4);
+    padding: 8px 10px 10px;
+  }
+
+  .settings-main {
+    padding: 0;
+    background: var(--s2);
+    border-radius: 12px;
+    box-shadow: var(--sh2);
+    position: relative;
+  }
+
+  .settings-main::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0.035;
+    mix-blend-mode: multiply;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E")
+      0 0 / 200px 200px;
+  }
+
+  .settings-main-header,
+  .settings-main-content,
+  .settings-main > .piwin-notice {
+    position: relative;
+    z-index: 2;
+  }
+
+  .settings-main-heading h1 {
+    font: 500 20px/1.3 var(--serif);
+    color: var(--t1);
+  }
+
+  .settings-main-header,
+  .settings-main-content {
+    width: min(100%, 840px);
+    max-width: 840px;
+    margin-inline: auto;
+    box-sizing: border-box;
+    padding-inline: 28px;
+  }
+
+  .settings-main-header {
+    padding-top: 24px;
+    padding-bottom: 18px;
+    min-height: 0;
+  }
+
+  .settings-main-content {
+    padding-top: 0;
+    padding-bottom: 28px;
+  }
+
+  .settings-main .settings-section-card {
+    background: var(--s3);
+    box-shadow: var(--sh1);
+    border-radius: 8px;
+    border: 0;
+    padding: 12px 14px;
+    margin-top: 0;
+    margin-bottom: 14px;
+  }
+
+  /* The page is a document; only the sections inside it are raised cards. */
+  .settings-main .settings-card {
+    background: transparent;
+    box-shadow: none;
+    border: 0;
+  }
+
+  .settings-main .settings-section + .settings-section {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 0;
+  }
+
+  .settings-main .settings-section-card > .settings-card-heading {
+    margin-bottom: 8px;
+  }
+
+  .settings-card-heading h4 {
+    font: 600 13px/1.5 var(--sans);
+  }
+
+  .settings-card-heading p,
+  .ui-field-row-description {
+    font: 12px/1.6 var(--sans);
+    color: var(--t3);
+    margin-top: 3px;
+  }
+
+  .settings-main .ui-field-row {
+    padding-block: 10px;
+    gap: 16px;
+  }
+
+  .ui-field-row-label {
+    font: 500 12.5px/1.5 var(--sans);
+  }
+
+  .appearance-theme-setting-row,
+  .appearance-theme-color-row {
+    min-height: 36px;
+    font-size: 12.5px;
+    gap: 16px;
+  }
+
+  .settings-main .piwin-select-field,
+  .settings-main .piwin-text-input-field {
+    background: var(--s1);
+    box-shadow: var(--sh1);
+    border: 0;
+    border-radius: 6px;
+    font-size: 12.5px;
+  }
+
+  .settings-nav-list {
+    gap: 0;
+  }
+
+  .settings-nav-group {
+    gap: 2px;
+    margin-bottom: 6px;
+  }
+
+  .permission-mode-pill,
+  .perm-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 12px;
+    border-radius: 8px;
+    background: var(--s1);
+    font-size: 12.5px;
+    color: var(--t2);
+    border: 0;
+    box-shadow: none;
+  }
+
+  .permission-mode-pill.is-active,
+  .perm-pill.sel {
+    background: var(--zhu-wash);
+    color: var(--zhu);
+    box-shadow: inset 0 0 0 1px var(--zhu);
+  }
+
+  .mode-pill-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  .rules-visual-row {
+    display: grid;
+    grid-template-columns: 110px 1fr 88px 1fr 28px;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+
+  .rules-visual-row select,
+  .rules-visual-row input {
+    height: 28px;
+    border: 0;
+    background: var(--s1);
+    box-shadow: var(--sh1);
+    border-radius: 6px;
+    padding: 0 8px;
+    color: var(--t1);
+    font: 12.5px var(--sans);
+  }
+
+  .rules-visual-tier {
+    font: 600 10px var(--sans);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--t3);
+    margin: 12px 0 6px;
+  }
+}
+
+html[data-theme-id='piwin-inkstone-ink'] .settings-main::after {
+  mix-blend-mode: screen;
+  opacity: 0.02;
+}

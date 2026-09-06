@@ -16,6 +16,8 @@ export type WorkbenchSubpageStageProps = {
   subscribePush?: (listener: (push: HostPush) => void) => () => void;
   subscribeConnected?: (listener: (connected: boolean) => void) => () => void;
   hasStudyCapability?: () => boolean;
+  flashcardsEntry?: 'gallery' | 'wiki';
+  onOpenSession?: ((sessionId: string) => void) | undefined;
 };
 
 /**
@@ -56,6 +58,8 @@ export function WorkbenchSubpageStage(props: WorkbenchSubpageStageProps): ReactE
         {...(props.subscribePush ? { subscribePush: props.subscribePush } : {})}
         {...(props.subscribeConnected ? { subscribeConnected: props.subscribeConnected } : {})}
         {...(props.hasStudyCapability ? { hasStudyCapability: props.hasStudyCapability } : {})}
+        {...(props.flashcardsEntry ? { entry: props.flashcardsEntry } : {})}
+        {...(props.onOpenSession ? { onOpenSession: props.onOpenSession } : {})}
       />
     );
   }

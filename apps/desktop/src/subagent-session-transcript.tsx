@@ -21,6 +21,7 @@ import { ImageGenerationProgress } from './image-generation-progress';
 import { VideoGenerationProgress } from './video-generation-progress';
 import {
   getGenerationStatus,
+  getGenerationTool,
   shouldRenderGenerationProgress,
 } from './generation-tool-kind';
 import { PermissionBar } from './permission-bar';
@@ -49,6 +50,8 @@ export type SubagentSessionTranscriptProps = {
   onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
   artifactPreviewEnabled: boolean;
   artifactMaxBytes?: number;
+  artifactBlockExternalScripts?: boolean;
+  artifactBlockExternalResources?: boolean;
   onPermission?: (
     prompt: import('./chat-reducer').PermissionPromptUi,
     decision: PermissionDecision,
@@ -75,6 +78,8 @@ function SubagentInspectorAssistant({
   onOpenArtifactCanvas,
   artifactPreviewEnabled,
   artifactMaxBytes,
+  artifactBlockExternalScripts,
+  artifactBlockExternalResources,
 }: {
   message: ChatMessageUi;
   streaming: boolean;
@@ -92,9 +97,13 @@ function SubagentInspectorAssistant({
   onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
   artifactPreviewEnabled: boolean;
   artifactMaxBytes?: number;
+  artifactBlockExternalScripts?: boolean;
+  artifactBlockExternalResources?: boolean;
 }): ReactElement {
   const imageGenerationStatus = getGenerationStatus(message, 'image');
   const videoGenerationStatus = getGenerationStatus(message, 'video');
+  const imageGenerationTool = getGenerationTool(message, 'image');
+  const videoGenerationTool = getGenerationTool(message, 'video');
   return (
     <div className="subagent-inspector-message role-assistant" data-streaming={streaming}>
       <TurnWorkDetails
@@ -120,6 +129,12 @@ function SubagentInspectorAssistant({
             locale={locale}
             artifactPreviewEnabled={artifactPreviewEnabled}
             {...(artifactMaxBytes !== undefined ? { artifactMaxBytes } : {})}
+            {...(artifactBlockExternalScripts !== undefined
+              ? { artifactBlockExternalScripts }
+              : {})}
+            {...(artifactBlockExternalResources !== undefined
+              ? { artifactBlockExternalResources }
+              : {})}
             {...(onArtifactAction ? { onArtifactAction } : {})}
             {...(childSessionId
               ? { artifactOrigin: { sessionId: childSessionId, messageId: message.id } }
@@ -132,11 +147,19 @@ function SubagentInspectorAssistant({
       </TurnWorkDetails>
       {imageGenerationStatus &&
       shouldRenderGenerationProgress(imageGenerationStatus, message.attachments) ? (
-        <ImageGenerationProgress locale={locale} status={imageGenerationStatus} />
+        <ImageGenerationProgress
+          locale={locale}
+          status={imageGenerationStatus}
+          {...(imageGenerationTool ? { tool: imageGenerationTool } : {})}
+        />
       ) : null}
       {videoGenerationStatus &&
       shouldRenderGenerationProgress(videoGenerationStatus, message.attachments) ? (
-        <VideoGenerationProgress locale={locale} status={videoGenerationStatus} />
+        <VideoGenerationProgress
+          locale={locale}
+          status={videoGenerationStatus}
+          {...(videoGenerationTool ? { tool: videoGenerationTool } : {})}
+        />
       ) : null}
       <MessageAttachments
         attachments={message.attachments}
@@ -342,5 +365,11 @@ function sharedAssistantProps(props: SubagentSessionTranscriptProps) {
     ...(props.onOpenArtifactCanvas ? { onOpenArtifactCanvas: props.onOpenArtifactCanvas } : {}),
     artifactPreviewEnabled: props.artifactPreviewEnabled,
     ...(props.artifactMaxBytes !== undefined ? { artifactMaxBytes: props.artifactMaxBytes } : {}),
+    ...(props.artifactBlockExternalScripts !== undefined
+      ? { artifactBlockExternalScripts: props.artifactBlockExternalScripts }
+      : {}),
+    ...(props.artifactBlockExternalResources !== undefined
+      ? { artifactBlockExternalResources: props.artifactBlockExternalResources }
+      : {}),
   };
 }

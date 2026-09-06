@@ -1,0 +1,621 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inkstone（砚）· 增量 3 · 导航与入口</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:#e6e1d7;overflow:hidden}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-align:inherit}
+u{text-decoration:none;cursor:pointer}u:hover{text-decoration:underline}
+.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.s12{width:12px;height:12px}.s14{width:14px;height:14px}
+.ml{margin-left:auto}.grow{flex:1}
+.app{--sans:Inter,"PingFang SC","Noto Sans SC",-apple-system,system-ui,sans-serif;--serif:"Noto Serif SC","Songti SC","STSong","Source Han Serif SC","Source Serif 4",Georgia,serif;--mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;--spring:cubic-bezier(.34,1.4,.64,1);height:100dvh;width:100%;display:grid;grid-template-rows:28px minmax(0,1fr);background:var(--void);color:var(--t1);font:13.5px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+.app[data-face=paper]{color-scheme:light;--void:#e6e1d7;--s1:#f0ece4;--s2:#f8f6f0;--s3:#fffdf8;--s4:#fff;--t1:#1d1b17;--t2:#5a554d;--t3:#726b61;--t4:#8f887d;--l1:rgba(29,27,23,.06);--l2:rgba(29,27,23,.11);--l3:rgba(29,27,23,.2);--zhu:#c6412a;--zhu-lift:#d4553d;--on-zhu:#fff7f0;--zhu-wash:rgba(198,65,42,.1);--lamp:#b8801f;--lamp-glow:rgba(184,128,31,.4);--lamp-wash:rgba(184,128,31,.14);--pine:#3d7c5e;--pine-wash:rgba(61,124,94,.12);--ochre:#94611a;--ochre-wash:rgba(148,97,26,.12);--crimson:#9c2e3d;--crimson-wash:rgba(156,46,61,.1);--azure:#3a7797;--azure-wash:rgba(58,119,151,.12);--code:#efece4;--sh1:0 1px 2px rgba(60,45,20,.06),0 0 0 1px var(--l2);--sh2:0 2px 8px -2px rgba(60,45,20,.12),0 0 0 1px var(--l2);--sh3:0 14px 34px -12px rgba(50,35,15,.3),0 0 0 1px var(--l3)}
+.app[data-face=ink]{color-scheme:dark;--void:#0b0a09;--s1:#141210;--s2:#191714;--s3:#201d19;--s4:#2a2621;--t1:#ebe5da;--t2:#a59d92;--t3:#8b8378;--t4:#6a6259;--l1:rgba(235,229,218,.06);--l2:rgba(235,229,218,.1);--l3:rgba(235,229,218,.17);--zhu:#e25a3d;--zhu-lift:#f07054;--on-zhu:#1c0b07;--zhu-wash:rgba(226,90,61,.14);--lamp:#e7b352;--lamp-glow:rgba(231,179,82,.35);--lamp-wash:rgba(231,179,82,.12);--pine:#5fad85;--pine-wash:rgba(95,173,133,.14);--ochre:#c88f3c;--ochre-wash:rgba(200,143,60,.14);--crimson:#d95f6e;--crimson-wash:rgba(217,95,110,.14);--azure:#6ba4c3;--azure-wash:rgba(107,164,195,.14);--code:#0f0e0c;--sh1:inset 0 1px 0 rgba(255,255,255,.04),0 0 0 1px rgba(0,0,0,.6);--sh2:inset 0 1px 0 rgba(255,255,255,.04),0 0 0 1px rgba(0,0,0,.6),0 2px 8px -2px rgba(0,0,0,.5);--sh3:inset 0 1px 0 rgba(255,255,255,.06),0 0 0 1px rgba(0,0,0,.7),0 14px 34px -10px rgba(0,0,0,.7)}
+.proto{display:flex;align-items:center;gap:10px;padding:0 12px;font:11px var(--mono);color:var(--t3);border-bottom:1px dashed var(--l2);white-space:nowrap;overflow:hidden}
+.proto .pt{color:var(--t1);margin-right:8px}.proto .pl{color:var(--t4)}.proto .pn{margin-left:auto;color:var(--t4)}
+.seg{display:inline-flex;border:1px solid var(--l2);border-radius:5px;overflow:hidden;flex:none}
+.seg button{font:11px var(--mono);padding:3px 8px;color:var(--t3)}.seg button.on{background:var(--s3);color:var(--t1)}
+.body{display:grid;grid-template-columns:232px minmax(0,1fr);gap:8px;padding:0 8px 8px;min-height:0}
+.panel{background:var(--s1);border-radius:12px;box-shadow:var(--sh2);min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.idx-h{padding:12px 12px 4px;font:500 15px var(--serif);color:var(--t1)}
+.idx-h small{display:block;font:11px var(--mono);color:var(--t4);margin-top:2px;white-space:normal;line-height:1.5}
+.idx-scroll{flex:1;overflow:auto;min-height:0;padding:0 6px 8px}
+.ig{display:flex;align-items:center;gap:6px;height:22px;padding:0 8px;margin-top:8px;font:600 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--t3)}
+.ir{display:flex;align-items:center;gap:8px;height:26px;padding:0 8px;border-radius:6px;font-size:12.5px;color:var(--t2);white-space:nowrap;overflow:hidden;width:100%}
+.ir:hover{background:var(--s2);color:var(--t1)}.ir.on{background:var(--s3);box-shadow:var(--sh1);color:var(--t1)}
+.n{font:11px var(--mono);color:var(--t4);font-variant-numeric:tabular-nums}
+.ir .n{width:18px;flex:none}
+.stage{background:var(--s2);position:relative;container-type:inline-size;display:flex;flex-direction:column}
+.stage::after{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;opacity:.035;mix-blend-mode:multiply;background:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>") 0 0/200px 200px}
+.app[data-face=ink] .stage::after{mix-blend-mode:screen;opacity:.02}
+.scroll{--measure:760px;--card-x:14px;--card-y:12px;--surf-x:12px;--surf-y:10px;flex:1;overflow:auto;min-height:0;padding:16px 28px 24px;scroll-behavior:smooth}
+.scroll::-webkit-scrollbar,.idx-scroll::-webkit-scrollbar{width:8px}
+.scroll::-webkit-scrollbar-thumb,.idx-scroll::-webkit-scrollbar-thumb{background:var(--l2);border-radius:4px}
+.st{display:flex;align-items:baseline;gap:10px;width:100%;max-width:var(--measure);margin:26px auto 14px}
+.st:first-child{margin-top:6px}
+.st h2{font:500 20px/1.3 var(--serif);color:var(--t1)}
+.st .sn{font:11px var(--mono);color:var(--t4)}
+.blk{width:100%;max-width:var(--measure);margin:0 auto 22px;scroll-margin-top:14px;position:relative}
+.app[data-notes=on] .blk::after{content:attr(data-n);position:absolute;right:-40px;top:0;width:24px;height:20px;border-radius:3px;background:var(--s3);box-shadow:var(--sh1);font:600 10.5px/20px var(--mono);text-align:center;color:var(--t3);pointer-events:none}
+.app[data-notes=on] .blk.flash::after{background:var(--zhu);color:var(--on-zhu);box-shadow:none}
+.exh-h{font:600 15px/1.3 var(--sans);color:var(--t1);margin-bottom:2px}
+.exh-d{font-size:12.5px;color:var(--t3);margin-bottom:10px;max-width:640px}
+.exh-d code{font:11.5px var(--mono);background:var(--code);color:var(--t1);padding:1px 5px;border-radius:3px}
+.card{position:relative;background:var(--s3);box-shadow:var(--sh1);border-radius:8px;padding:var(--card-y) var(--card-x)}
+.card+.card{margin-top:8px}
+.row-cmp{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;border-radius:6px;color:var(--t2);font-size:12.5px;white-space:nowrap}
+.chip:hover{background:var(--s2);color:var(--t1)}
+.ib{width:26px;height:26px;border-radius:6px;display:inline-grid;place-items:center;color:var(--t3);flex:none}
+.ib:hover{background:var(--s2);color:var(--t1)}.ib.s22{width:22px;height:22px}
+.btn{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 10px;border-radius:6px;font-size:12.5px;color:var(--t2);white-space:nowrap;flex:none}
+.btn:hover{background:var(--s2);color:var(--t1)}
+.btn.pri{background:var(--zhu);color:var(--on-zhu)}.btn.pri:hover{background:var(--zhu-lift);color:var(--on-zhu)}
+.btn.dan{color:var(--crimson)}.btn.dan:hover{background:var(--crimson-wash);color:var(--crimson)}
+.btn.sm{height:22px;padding:0 7px;font-size:11.5px}
+.av{width:18px;height:18px;border-radius:50%;background:var(--s1);box-shadow:var(--sh1);font:600 10.5px/18px var(--serif);text-align:center;color:var(--t1);display:inline-block;flex:none}
+.lamp{width:7px;height:7px;border-radius:50%;background:var(--lamp);box-shadow:0 0 8px 2px var(--lamp-glow);animation:breath 2.4s ease-in-out infinite;flex:none}
+.wave{display:inline-flex;gap:2px;align-items:center;flex:none}
+.wave i{width:4px;height:4px;border-radius:50%;background:var(--azure);animation:breath 1.4s ease-in-out infinite}
+.wave i:nth-child(2){animation-delay:.15s}.wave i:nth-child(3){animation-delay:.3s}
+/* ── 一 · 侧栏参照面 ── */
+.mini-sb{width:236px;background:var(--s1);border-radius:12px;box-shadow:var(--sh2);display:flex;flex-direction:column;overflow:hidden;flex:none}
+.mini-top{display:flex;flex-direction:column;gap:1px;padding:6px}
+.mini-act{display:flex;align-items:center;gap:8px;height:30px;padding:0 8px;border-radius:6px;font-size:12.5px;color:var(--t1)}
+.mini-act:hover{background:var(--s2)}
+.mini-act .kbd{margin-left:auto;font:10.5px var(--mono);color:var(--t4)}
+.mini-act .i{color:var(--t3)}
+.sec{padding:8px 6px 0}
+.sec-h{display:flex;align-items:center;gap:6px;height:22px;padding:0 8px;font:600 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--t3)}
+.sec-h .ib{opacity:0}.sec:hover .sec-h .ib{opacity:1}
+.row{display:flex;align-items:center;gap:7px;height:28px;padding:0 8px;border-radius:6px;font-size:12.5px;color:var(--t1);position:relative}
+.row:hover,.row.hov{background:var(--s2)}.row.sel{background:var(--s3);box-shadow:var(--sh1)}
+.row .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .end{width:70px;display:flex;justify-content:flex-end;align-items:center;flex:none;gap:5px}
+.tm{font:11px var(--mono);color:var(--t4);font-variant-numeric:tabular-nums}
+.row .acts{display:none;gap:2px}.row:hover .acts,.row.hov .acts{display:flex}.row:hover .tm,.row.hov .tm{display:none}
+.row .i.s14{color:var(--t4);flex:none}
+.dm{width:7px;height:7px;border-radius:50%;border:1.5px solid var(--l3);opacity:.7;flex:none}
+.pinm{color:var(--zhu);flex:none}
+.badge-off{display:inline-flex;align-items:center;height:16px;padding:0 5px;border-radius:3px;background:var(--s1);box-shadow:var(--sh1);font:10px var(--mono);color:var(--t3);flex:none;white-space:nowrap}
+.badge-off.miss{background:var(--crimson-wash);color:var(--crimson);box-shadow:none}
+.done-mark{width:16px;height:16px;border-radius:50%;background:var(--pine);color:#fff;display:grid;place-items:center;flex:none}
+.folder{display:flex;align-items:center;gap:6px;height:26px;padding:0 8px;font-size:12.5px;color:var(--t2)}
+.folder b{color:var(--t1);font-weight:500}.folder .br{font:10.5px var(--mono);color:var(--t4);margin-left:2px}
+.folder .fp{margin-left:auto;opacity:0}.folder:hover .fp{opacity:1}
+.thread{position:relative;padding-left:22px}
+.thread::before{content:"";position:absolute;left:8px;top:8px;bottom:8px;width:1.5px;border-radius:1px;background:var(--l3)}
+.node{position:absolute;left:-18px;top:50%;margin-top:-4.5px;width:9px;height:9px;border-radius:50%;background:var(--s2);border:1.5px solid var(--l3)}
+.node.cur{background:var(--zhu);border-color:var(--zhu);box-shadow:0 0 0 3px var(--zhu-wash)}
+.node.done{background:var(--pine);border-color:var(--pine)}.node.bg{background:var(--azure);border-color:var(--azure)}
+.more-row{display:flex;align-items:center;gap:6px;height:24px;padding:0 8px 0 22px;font-size:11.5px;color:var(--t3)}
+.more-row:hover{color:var(--t1)}
+.repo-g{padding:2px 8px;font:11px var(--mono);color:var(--t4)}
+.mini-shelf{margin-top:auto;border-top:1px solid var(--l1);padding:6px}
+.mini-shelf .mini-act{color:var(--t2)}
+/* ── 弹层 / 菜单 ── */
+.trigrow{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.trigrow .lbl{font:11px var(--mono);color:var(--t4)}
+.pop-trig{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 9px;border-radius:6px;background:var(--s2);box-shadow:var(--sh1);font-size:12.5px;color:var(--t1);white-space:nowrap}
+.pop{background:var(--s4);box-shadow:var(--sh3);border-radius:12px;padding:6px;max-width:340px}
+.pop-cap{font:600 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:6px 8px 4px}
+.pop-item{display:flex;align-items:center;gap:8px;height:32px;padding:0 8px;border-radius:6px;font-size:12.5px;color:var(--t1);width:100%}
+.pop-item:hover{background:var(--s2)}
+.pop-item.dan{color:var(--crimson)}.pop-item.dan:hover{background:var(--crimson-wash)}
+.pop-item .desc{margin-left:auto;font-size:11px;color:var(--t4)}
+.pop-item .ck{margin-left:auto;color:var(--zhu)}
+.pop-sep{height:1px;background:var(--l1);margin:4px 0}
+.pop-opt{display:block;padding:7px 8px;border-radius:8px;width:100%}
+.pop-opt:hover{background:var(--s2)}
+.pop-opt.sel{background:var(--s2);box-shadow:inset 0 0 0 1px var(--l2)}
+.pop-opt .ol{font-weight:500;font-size:12.5px;color:var(--t1);display:flex;align-items:center;gap:6px}
+.pop-opt .od{font-size:11px;color:var(--t3);margin-top:2px}
+.at-menu{background:var(--s4);box-shadow:var(--sh3);border-radius:12px;padding:6px;max-width:420px}
+.at-sec-t{font:600 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:8px 8px 2px;display:flex;justify-content:space-between}
+.at-item{display:flex;flex-direction:column;gap:1px;padding:6px 8px;border-radius:6px;width:100%}
+.at-item:hover{background:var(--s2)}.at-item.sel{background:var(--zhu-wash)}
+.at-item .r{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--t1);font-weight:500}
+.at-item .r .i{color:var(--t3)}
+.at-item .d{font-size:11px;color:var(--t3);padding-left:22px;display:flex;gap:6px}
+.at-foot{display:flex;gap:14px;justify-content:center;padding:8px 4px 2px;font:11px var(--mono);color:var(--t4);border-top:1px solid var(--l1);margin-top:4px}
+.pal{background:var(--s4);box-shadow:var(--sh3);border-radius:12px;padding:10px;max-width:420px}
+.pal input{width:100%;height:30px;border:0;background:var(--s2);border-radius:6px;padding:0 10px;color:var(--t1);font:13px var(--sans);outline:0;margin-bottom:6px}
+.pal-item{display:flex;align-items:center;gap:8px;height:30px;padding:0 8px;border-radius:6px;font-size:12.5px;color:var(--t1)}
+.pal-item:hover,.pal-item.sel{background:var(--s2)}
+.pal-item.off{color:var(--t4)}
+.pal-item .rs{margin-left:8px;font-size:11px;color:var(--t4)}
+.pal-item .kbd{margin-left:auto;font:10.5px var(--mono);color:var(--t3);background:var(--s1);padding:1px 5px;border-radius:3px;flex:none}
+/* ── 二 · 多窗格 ── */
+.pane-stage{display:grid;gap:6px;background:var(--s1);border-radius:10px;padding:6px;height:220px}
+.pane{background:var(--s3);border-radius:6px;box-shadow:var(--sh1);display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.pane.act{box-shadow:var(--sh2),0 0 0 1.5px var(--zhu)}
+.pane-h{display:flex;align-items:center;gap:6px;height:26px;padding:0 6px;border-bottom:1px solid var(--l1);font-size:11.5px;color:var(--t2);white-space:nowrap}
+.pane-idx{width:16px;height:16px;border-radius:4px;background:var(--s1);color:var(--t3);font:600 10px var(--mono);display:grid;place-items:center;flex:none}
+.pane.act .pane-idx{background:var(--zhu);color:var(--on-zhu)}
+.pane-h .ttl{font-weight:500;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:3px}
+.pane-h .tag{font-size:10px;color:var(--zhu);font-weight:600}
+.pane-h .acts{margin-left:auto;display:flex;gap:2px}
+.pane-h .ib{width:18px;height:18px}
+.pane-b{flex:1;display:flex;align-items:center;justify-content:center;padding:8px;font-size:11px;color:var(--t3);text-align:center}
+.pane-empty{display:flex;flex-direction:column;align-items:center;gap:4px}
+.pane-empty .pi{width:22px;height:22px;border-radius:50%;background:var(--s1);display:grid;place-items:center;color:var(--t3)}
+/* ── 三 · 落地与连接 ── */
+.landing-mock{background:var(--s2);border-radius:10px;padding:16px;min-height:120px}
+.land-lbl{font:11px var(--mono);color:var(--t4);margin-bottom:8px}
+.land-row{display:flex;align-items:center;height:28px;padding:0 10px;border-radius:6px;font-size:12.5px;color:var(--t1)}
+.land-row:hover{background:var(--s3)}
+.land-row .tm{margin-left:auto}
+.vignette{margin-top:12px;display:flex;flex-direction:column;align-items:center;gap:6px;padding-top:12px}
+.van-art{width:120px;height:64px;border-radius:6px;background:linear-gradient(135deg,var(--s1),var(--s3) 60%,var(--l2));box-shadow:var(--sh1);position:relative}
+.van-seal{position:absolute;right:-6px;bottom:-6px;width:22px;height:22px;border-radius:3px;background:var(--zhu);color:var(--on-zhu);font:600 11px var(--serif);display:grid;place-items:center;transform:rotate(3deg);box-shadow:var(--sh1)}
+.van-badge{font:11px var(--mono);color:var(--t4);letter-spacing:.02em}
+.host-card{background:var(--s3);box-shadow:var(--sh2);border-radius:10px;padding:16px;max-width:360px}
+.host-card h4{font:500 15px var(--serif);color:var(--t1);margin-bottom:6px}
+.host-card p{font-size:12px;color:var(--t3);line-height:1.6;margin-bottom:10px}
+.host-card p.mut{color:var(--t4);font-size:11.5px}
+.hf{display:flex;flex-direction:column;gap:3px;margin-bottom:10px}
+.hf label{font:11px var(--mono);color:var(--t3)}
+.hf input{height:28px;border:0;background:var(--s1);box-shadow:var(--sh1);border-radius:6px;padding:0 8px;color:var(--t1);font:12.5px var(--mono);outline:0}
+.hf input::placeholder{color:var(--t4)}
+.notice-err{margin-top:8px;padding:8px 10px;border-radius:6px;background:var(--crimson-wash);color:var(--crimson);font-size:11.5px}
+.picker-mock{background:var(--s3);box-shadow:var(--sh2);border-radius:10px;overflow:hidden;max-width:640px}
+.pk-tb{display:flex;align-items:center;gap:6px;height:32px;padding:0 8px;border-bottom:1px solid var(--l1)}
+.pk-path{flex:1;height:22px;background:var(--s1);border-radius:4px;padding:0 8px;font:11.5px var(--mono);color:var(--t2);display:flex;align-items:center;overflow:hidden;white-space:nowrap}
+.pk-search{width:100px;height:22px;background:var(--s1);border-radius:4px;padding:0 6px;font:11px var(--mono);color:var(--t4);display:flex;align-items:center;gap:4px;flex:none}
+.pk-body{display:flex;height:190px}
+.pk-side{width:120px;border-right:1px solid var(--l1);padding:6px 4px;overflow:auto;flex:none}
+.pk-side p{font:10px var(--sans);letter-spacing:.04em;text-transform:uppercase;color:var(--t4);padding:6px 6px 2px}
+.pk-srow{display:flex;align-items:center;gap:6px;height:24px;padding:0 6px;border-radius:5px;font-size:11.5px;color:var(--t2);white-space:nowrap}
+.pk-srow.act{background:var(--zhu-wash);color:var(--zhu)}
+.pk-col{width:150px;border-right:1px solid var(--l1);overflow:auto;padding:4px;flex:none}
+.pk-row{display:flex;align-items:center;gap:6px;height:24px;padding:0 6px;border-radius:5px;font-size:11.5px;color:var(--t1);white-space:nowrap}
+.pk-row:hover{background:var(--s2)}.pk-row.sel{background:var(--s2);box-shadow:inset 0 0 0 1px var(--l2)}
+.pk-row .chv{margin-left:auto;color:var(--t4)}
+.pk-ft{display:flex;justify-content:flex-end;gap:6px;height:36px;align-items:center;padding:0 8px;border-top:1px solid var(--l1)}
+/* ── 四 · 对话框 ── */
+.modal-mock{background:var(--s4);box-shadow:var(--sh3);border-radius:12px;overflow:hidden}
+.mm-h{display:flex;align-items:center;justify-content:space-between;height:38px;padding:0 12px;border-bottom:1px solid var(--l1)}
+.mm-h .tt{font:500 13.5px var(--sans);color:var(--t1)}
+.mm-b{padding:14px;font-size:13px;line-height:1.65;color:var(--t2)}
+.mm-b code{font:11.5px var(--mono);background:var(--code);color:var(--t1);padding:1px 5px;border-radius:3px}
+.mm-input{width:100%;height:30px;border:0;background:var(--s1);box-shadow:var(--sh1);border-radius:6px;padding:0 10px;color:var(--t1);font:13px var(--sans);outline:0;margin-top:8px}
+.mm-list{list-style:none;margin-top:8px;max-height:110px;overflow:auto;font:11.5px var(--mono);color:var(--t2);background:var(--code);border-radius:6px;padding:6px 10px}
+.mm-list li{padding:2px 0}
+.mm-f{display:flex;align-items:center;justify-content:flex-end;gap:6px;height:44px;padding:0 12px;border-top:1px solid var(--l1)}
+.bwarn{margin-top:8px;font-size:11.5px;color:var(--t3)}
+.trust-banner{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:var(--lamp-wash);box-shadow:var(--sh1);font-size:12.5px;color:var(--t1)}
+.trust-banner .i{color:var(--lamp)}
+.proj-list{display:flex;flex-direction:column;gap:4px;margin-top:8px}
+.proj-btn{height:30px;border-radius:6px;background:var(--s1);box-shadow:var(--sh1);padding:0 10px;font-size:12.5px;color:var(--t1);text-align:left}
+.proj-btn:hover{background:var(--s2)}
+@keyframes breath{0%,100%{opacity:.6}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs>
+<symbol id="search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></symbol>
+<symbol id="plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></symbol>
+<symbol id="chevd" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></symbol>
+<symbol id="chevr" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></symbol>
+<symbol id="chevl" viewBox="0 0 16 16"><path d="M10 4l-4 4 4 4"/></symbol>
+<symbol id="more" viewBox="0 0 16 16"><path d="M8 3.5v.01M8 8v.01M8 12.5v.01" stroke-width="2.2"/></symbol>
+<symbol id="pin" viewBox="0 0 16 16"><path d="M8 14V9.5M4.5 9.5h7L10 5.5V3H6v2.5z"/></symbol>
+<symbol id="archive" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="3" rx="1"/><path d="M3 6v6.5A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5V6M6.5 9h3"/></symbol>
+<symbol id="copy" viewBox="0 0 16 16"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M3 10.5V4a1.5 1.5 0 0 1 1.5-1.5H10.5"/></symbol>
+<symbol id="fork" viewBox="0 0 16 16"><circle cx="8" cy="3" r="1.5"/><circle cx="4" cy="13" r="1.5"/><circle cx="12" cy="13" r="1.5"/><path d="M8 4.5v2c0 1.5-4 1.5-4 5M8 6.5c0 1.5 4 1.5 4 5"/></symbol>
+<symbol id="refresh" viewBox="0 0 16 16"><path d="M13 8A5 5 0 1 1 11.6 4.5M13.5 2.5v3h-3"/></symbol>
+<symbol id="file" viewBox="0 0 16 16"><path d="M4 2h5l3 3v9H4zM9 2v3h3"/></symbol>
+<symbol id="folder" viewBox="0 0 16 16"><path d="M2 5.5A1.5 1.5 0 0 1 3.5 4H6l1.5 1.5h5A1.5 1.5 0 0 1 14 7v4.5A1.5 1.5 0 0 1 12.5 13h-9A1.5 1.5 0 0 1 2 11.5z"/></symbol>
+<symbol id="folderp" viewBox="0 0 16 16"><path d="M2 5.5A1.5 1.5 0 0 1 3.5 4H6l1.5 1.5h5A1.5 1.5 0 0 1 14 7v4.5A1.5 1.5 0 0 1 12.5 13h-9A1.5 1.5 0 0 1 2 11.5zM8 7.5v3M6.5 9h3"/></symbol>
+<symbol id="folderopen" viewBox="0 0 16 16"><path d="M2 5.5A1.5 1.5 0 0 1 3.5 4H6l1.5 1.5h5A1.5 1.5 0 0 1 14 7v4.5A1.5 1.5 0 0 1 12.5 13h-9A1.5 1.5 0 0 1 2 11.5z"/><path d="M2 8h12"/></symbol>
+<symbol id="branch" viewBox="0 0 16 16"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5.5" r="1.5"/><path d="M4.5 5v6M11.5 7c0 2.5-3 3-7 3.5"/></symbol>
+<symbol id="close" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+<symbol id="expand" viewBox="0 0 16 16"><path d="M9.5 2H14v4.5M6.5 14H2V9.5M14 2L9 7M2 14l5-5"/></symbol>
+<symbol id="compress" viewBox="0 0 16 16"><path d="M2 6.5h4.5V2M14 9.5H9.5V14M2 2l4.5 4.5M14 14l-4.5-4.5"/></symbol>
+<symbol id="panel" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M6 3v10"/></symbol>
+<symbol id="arrowdown" viewBox="0 0 16 16"><path d="M8 3v10M4 9l4 4 4-4"/></symbol>
+<symbol id="sliders" viewBox="0 0 16 16"><path d="M2 4h12M2 8h12M2 12h12"/><circle cx="10" cy="4" r="1.5"/><circle cx="5" cy="8" r="1.5"/><circle cx="11" cy="12" r="1.5"/></symbol>
+<symbol id="check" viewBox="0 0 16 16"><path d="M3 8.5l3.2 3L13 4.5"/></symbol>
+<symbol id="edit" viewBox="0 0 16 16"><path d="M11.5 2.5l2 2L6 12H4v-2z"/></symbol>
+<symbol id="trash" viewBox="0 0 16 16"><path d="M3 4.5h10M6 4.5V3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.5M4.5 4.5V13a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V4.5M6.5 7v4M9.5 7v4"/></symbol>
+<symbol id="download" viewBox="0 0 16 16"><path d="M8 2v8M4.5 7L8 10.5 11.5 7M3 13.5h10"/></symbol>
+<symbol id="laptop" viewBox="0 0 16 16"><rect x="2.5" y="3" width="11" height="7" rx="1"/><path d="M1.5 13h13"/></symbol>
+<symbol id="grid" viewBox="0 0 16 16"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></symbol>
+<symbol id="image" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="1.5"/><circle cx="6" cy="7" r="1.2"/><path d="M14 11l-3.5-3.5L5 13"/></symbol>
+<symbol id="cards" viewBox="0 0 16 16"><rect x="3" y="4.5" width="8.5" height="9" rx="1.5"/><path d="M6 4.5V3.5A1.5 1.5 0 0 1 7.5 2h4A1.5 1.5 0 0 1 13 3.5V10"/></symbol>
+<symbol id="gear" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></symbol>
+<symbol id="chat" viewBox="0 0 16 16"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h9A1.5 1.5 0 0 1 14 4.5v5A1.5 1.5 0 0 1 12.5 11H8l-3 2.5V11H3.5A1.5 1.5 0 0 1 2 9.5z"/></symbol>
+<symbol id="git" viewBox="0 0 16 16"><circle cx="8" cy="4" r="1.6"/><circle cx="8" cy="12" r="1.6"/><path d="M8 5.6v4.8"/></symbol>
+<symbol id="server" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="4" rx="1"/><rect x="2" y="9" width="12" height="4" rx="1"/><circle cx="4.5" cy="5" r=".6" fill="currentColor" stroke="none"/><circle cx="4.5" cy="11" r=".6" fill="currentColor" stroke="none"/></symbol>
+<symbol id="alert" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5M8 11v.01"/></symbol>
+</defs></svg>
+
+<div class="app" id="app" data-face="paper" data-notes="on">
+<div class="proto">
+ <span class="pt">Inkstone（砚）· 增量 3 · 导航与入口</span>
+ <span class="pl">面</span><span class="seg"><button class="on" data-set="face" data-v="paper">纸</button><button data-set="face" data-v="ink">墨</button></span>
+ <span class="pl">标注</span><span class="seg"><button class="on" data-set="notes" data-v="on">开</button><button data-set="notes" data-v="off">关</button></span>
+ <span class="pn">本增量无运行态 · 侧栏/窗格/对话框均为静态展台，并排对照各状态</span>
+</div>
+
+<div class="body">
+ <aside class="panel">
+  <div class="idx-h">导航与入口<small>19 块 · 点击跳转 · 对应 04-navigation.md §1–§5</small></div>
+  <div class="idx-scroll">
+   <div class="ig">一 · 侧栏</div>
+   <button class="ir on" data-go="b01"><span class="n">01</span>顶部操作行 · 案头</button>
+   <button class="ir" data-go="b02"><span class="n">02</span>会话行全状态</button>
+   <button class="ir" data-go="b03"><span class="n">03</span>右键菜单三变体</button>
+   <button class="ir" data-go="b04"><span class="n">04</span>项目树 · worktree 聚类</button>
+   <button class="ir" data-go="b05"><span class="n">05</span>显示选项弹层</button>
+   <button class="ir" data-go="b06"><span class="n">06</span>拖拽宽度 · 紧凑抽屉</button>
+   <div class="ig">二 · 搜索与命令</div>
+   <button class="ir" data-go="b07"><span class="n">07</span>会话搜索 ⇧⌘F</button>
+   <button class="ir" data-go="b08"><span class="n">08</span>命令面板 ⌘K</button>
+   <div class="ig">三 · 多窗格</div>
+   <button class="ir" data-go="b09"><span class="n">09</span>窗格头</button>
+   <button class="ir" data-go="b10"><span class="n">10</span>空窗格 · 布局预设</button>
+   <button class="ir" data-go="b11"><span class="n">11</span>键盘契约速查</button>
+   <div class="ig">四 · 起始与连接</div>
+   <button class="ir" data-go="b12"><span class="n">12</span>空舞台落地页</button>
+   <button class="ir" data-go="b13"><span class="n">13</span>Host 选择 · 连接墙</button>
+   <button class="ir" data-go="b14"><span class="n">14</span>工作区选择器</button>
+   <div class="ig">五 · 对话框</div>
+   <button class="ir" data-go="b15"><span class="n">15</span>信任横幅 · 信任对话框</button>
+   <button class="ir" data-go="b16"><span class="n">16</span>重命名</button>
+   <button class="ir" data-go="b17"><span class="n">17</span>继续到项目</button>
+   <button class="ir" data-go="b18"><span class="n">18</span>分支切换确认</button>
+   <button class="ir" data-go="b19"><span class="n">19</span>删除确认</button>
+  </div>
+ </aside>
+
+ <main class="panel stage">
+  <div class="scroll" id="scroll">
+
+   <div class="st" id="s1"><h2>一 · 侧栏</h2><span class="sn">01–06 · 置顶是排序行为，不是独立分区 · 一根墨线贯穿项目内会话</span></div>
+
+   <div class="blk" id="b01" data-n="01">
+    <div class="exh-h">顶部操作行 · 案头</div>
+    <div class="exh-d">四行扁平动作（<code>project-session-sidebar.tsx</code>），取代增量 0 草图里旧版搜索条 + 新建键：<b>新建</b>／<b>资料库</b>／<b>闪卡</b>／<b>搜索</b>；设置沉到页脚案头。这是本增量对 proto-00 的修正，见 04-navigation.md §6 差异清单。</div>
+    <div class="mini-sb" style="height:auto">
+     <div class="mini-top">
+      <div class="mini-act"><svg class="i s14"><use href="#plus"/></svg>新建 Chat</div>
+      <div class="mini-act"><svg class="i s14"><use href="#image"/></svg>资料库</div>
+      <div class="mini-act"><svg class="i s14"><use href="#cards"/></svg>闪卡</div>
+      <div class="mini-act"><svg class="i s14"><use href="#search"/></svg>搜索<span class="kbd">⇧⌘F</span></div>
+     </div>
+     <div class="mini-shelf"><div class="mini-act"><svg class="i s14"><use href="#gear"/></svg>设置</div></div>
+    </div>
+   </div>
+
+   <div class="blk" id="b02" data-n="02">
+    <div class="exh-h">会话行全状态</div>
+    <div class="exh-d">十一种标记并排对照（<code>session-row-item.tsx</code>）；同一时刻只会看到其中几种叠加。悬停时操作簇替换掉右侧时间戳，草稿行没有任何悬停操作。</div>
+    <div class="mini-sb" style="height:auto">
+     <div class="sec" style="padding-top:6px">
+      <div class="row"><span class="t">分支选择器 mock 修复</span><span class="end"><span class="tm">2h</span></span></div>
+      <div class="row hov sel"><span class="pinm"><svg class="i s12"><use href="#pin"/></svg></span><span class="t">Composer 忙会话队列</span><span class="end"><span class="acts"><button class="ib s22" title="更多"><svg class="i s12"><use href="#more"/></svg></button><button class="ib s22" title="置顶"><svg class="i s12"><use href="#pin"/></svg></button><button class="ib s22" title="归档"><svg class="i s12"><use href="#archive"/></svg></button></span></span></div>
+      <div class="row"><span class="dm"></span><span class="t" style="color:var(--t3)">草稿：还没想好怎么改…</span></div>
+      <div class="row"><span class="t">侧栏项目折叠 · 子代理审查</span><span class="end"><span class="lamp"></span></span></div>
+      <div class="row"><span class="t">离线转存的旧会话</span><span class="end"><span class="badge-off">已卸载</span></span></div>
+      <div class="row"><span class="t">丢了本地包的会话</span><span class="end"><span class="badge-off miss">包缺失</span></span></div>
+      <div class="row"><span class="t">后台服务在跑</span><span class="end"><span class="wave"><i></i><i></i><i></i></span></span></div>
+      <div class="row"><span class="t">刚完成的走查</span><span class="end"><span class="done-mark" title="会话已完成 · 点击确认"><svg class="i s12" style="width:9px;height:9px"><use href="#check"/></svg></span></span></div>
+      <div class="row" style="color:var(--t3)"><svg class="i s14"><use href="#file"/></svg><span class="t">已归档 · 周报草稿</span></div>
+     </div>
+    </div>
+   </div>
+
+   <div class="blk" id="b03" data-n="03">
+    <div class="exh-h">右键菜单三变体</div>
+    <div class="exh-d"><code>session-actions-menu.ts</code> 按会话状态给出三套菜单；源码目前是纯英文（无 zh-CN 分支），这里按 Inkstone 中文优先原则译出，列入 04-navigation.md 差异清单 · 文案。</div>
+    <div class="row-cmp" style="align-items:flex-start;gap:16px;flex-wrap:wrap">
+     <div>
+      <div class="var" style="font:600 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--t3);margin-bottom:6px">普通会话 · 10 项</div>
+      <div class="pop" style="max-width:200px">
+       <div class="pop-item"><svg class="i s14"><use href="#pin"/></svg>置顶</div>
+       <div class="pop-item"><svg class="i s14"><use href="#edit"/></svg>重命名</div>
+       <div class="pop-item"><svg class="i s14"><use href="#copy"/></svg>复制 ID</div>
+       <div class="pop-item"><svg class="i s14"><use href="#copy"/></svg>复制转录</div>
+       <div class="pop-item"><svg class="i s14"><use href="#fork"/></svg>创建副本</div>
+       <div class="pop-item"><svg class="i s14"><use href="#git"/></svg>分叉会话</div>
+       <div class="pop-item"><svg class="i s14"><use href="#folderopen"/></svg>继续到项目…</div>
+       <div class="pop-item"><svg class="i s14"><use href="#download"/></svg>导出…</div>
+       <div class="pop-item"><svg class="i s14"><use href="#archive"/></svg>归档</div>
+       <div class="pop-item dan"><svg class="i s14"><use href="#trash"/></svg>删除</div>
+      </div>
+     </div>
+     <div>
+      <div class="var" style="font:600 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--t3);margin-bottom:6px">已归档 · 6 项</div>
+      <div class="pop" style="max-width:200px">
+       <div class="pop-item"><svg class="i s14"><use href="#refresh"/></svg>恢复</div>
+       <div class="pop-item"><svg class="i s14"><use href="#edit"/></svg>重命名</div>
+       <div class="pop-item"><svg class="i s14"><use href="#copy"/></svg>复制 ID</div>
+       <div class="pop-item"><svg class="i s14"><use href="#copy"/></svg>复制转录</div>
+       <div class="pop-item"><svg class="i s14"><use href="#download"/></svg>导出…</div>
+       <div class="pop-item dan"><svg class="i s14"><use href="#trash"/></svg>彻底删除</div>
+      </div>
+     </div>
+     <div>
+      <div class="var" style="font:600 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--t3);margin-bottom:6px">已卸载 / 包缺失 · 3 项</div>
+      <div class="pop" style="max-width:200px">
+       <div class="pop-item"><svg class="i s14"><use href="#refresh"/></svg>从包恢复…</div>
+       <div class="pop-item"><svg class="i s14"><use href="#edit"/></svg>重命名</div>
+       <div class="pop-item"><svg class="i s14"><use href="#copy"/></svg>复制 ID</div>
+      </div>
+     </div>
+    </div>
+   </div>
+
+   <div class="blk" id="b04" data-n="04">
+    <div class="exh-h">项目树 · worktree 聚类</div>
+    <div class="exh-d">文件夹图标本身就是折叠开关（<code>IconFolder</code> ↔ <code>IconFolderOpen</code>），不叠加 chevron；同一仓库的多个 worktree 聚到一个纯文字仓库组标题下；子会话共用一根墨线，超过 5 条给「显示更多」。</div>
+    <div class="mini-sb" style="height:auto">
+     <div class="sec" style="padding-top:6px">
+      <div class="sec-h">项目<span class="n">3</span><button class="ib s22 ml" title="显示选项"><svg class="i s12"><use href="#sliders"/></svg></button><button class="ib s22" title="打开工作区文件夹…"><svg class="i s12"><use href="#folderp"/></svg></button></div>
+      <div class="repo-g">piwin（仓库 · 2 个 worktree）</div>
+      <div class="folder"><svg class="i s14"><use href="#folderopen"/></svg><b>piwin</b><span class="br">main</span><button class="ib s22 fp" title="在项目中新建会话"><svg class="i s12"><use href="#plus"/></svg></button></div>
+      <div class="thread">
+       <div class="row sel"><span class="node cur"></span><span class="t">Composer 忙会话队列</span><span class="end"><span class="tm">现在</span></span></div>
+       <div class="row"><span class="node done"></span><span class="t">分支选择器 mock 修复</span><span class="end"><span class="tm">2h</span></span></div>
+       <div class="more-row"><svg class="i s12"><use href="#chevd"/></svg>显示更多（还有 3 个会话）</div>
+      </div>
+      <div class="folder"><svg class="i s14"><use href="#folder"/></svg><b>piwin</b><span class="br">feat/composer-queue</span></div>
+      <div class="folder"><svg class="i s14"><use href="#folder"/></svg><b>openwebui_m</b></div>
+     </div>
+    </div>
+   </div>
+
+   <div class="blk" id="b05" data-n="05">
+    <div class="exh-h">显示选项弹层</div>
+    <div class="exh-d"><code>IconSliders</code> 触发，标题「自定义」。「分组方式」目前只是菜单里的选中态展示，尚未接到真实分组渲染——原样标注，不假装它已生效。</div>
+    <div class="trigrow"><span class="lbl">触发</span><span class="pop-trig"><svg class="i s14"><use href="#sliders"/></svg>显示选项</span></div>
+    <div class="pop" style="max-width:230px">
+     <div class="pop-cap">自定义</div>
+     <div class="pop-cap" style="padding-top:2px">排序</div>
+     <div class="pop-item sel">最后更新<svg class="i s12 ck"><use href="#check"/></svg></div>
+     <div class="pop-item">按字母排序 (A-Z)</div>
+     <div class="pop-cap">分组方式</div>
+     <div class="pop-item sel">日期 / 时间<svg class="i s12 ck"><use href="#check"/></svg></div>
+     <div class="pop-item">无（无分组列表）</div>
+     <div class="pop-sep"></div>
+     <div class="pop-cap">筛选</div>
+     <div class="pop-item">已归档<svg class="i s12 ck"><use href="#check"/></svg></div>
+    </div>
+   </div>
+
+   <div class="blk" id="b06" data-n="06">
+    <div class="exh-h">拖拽宽度 · 紧凑抽屉</div>
+    <div class="exh-d">默认 240px（200–420 可拖，双击手柄恢复默认）。视口 ≤1023px 时侧栏改为固定叠层抽屉：毛玻璃背景 + 独立关闭行，不再是常驻栏。</div>
+    <div class="row-cmp" style="align-items:flex-start;gap:16px">
+     <div class="card" style="width:200px"><div style="font:11px var(--mono);color:var(--t3);margin-bottom:6px">常驻栏 · 240px</div><div style="height:80px;border-radius:6px;background:var(--s1);box-shadow:var(--sh1);position:relative"><div style="position:absolute;right:-4px;top:8px;bottom:8px;width:3px;border-radius:2px;background:var(--l3)"></div></div><div style="font:11px var(--mono);color:var(--t4);margin-top:6px">调整侧边栏宽度 · 拖动调整宽度，双击恢复默认</div></div>
+     <div class="card" style="width:180px"><div style="font:11px var(--mono);color:var(--t3);margin-bottom:6px">紧凑抽屉 · ≤1023px</div><div style="height:80px;border-radius:6px;background:var(--s1);box-shadow:var(--sh3);position:relative;backdrop-filter:blur(2px)"><div style="display:flex;justify-content:flex-end;padding:4px"><span class="ib s22"><svg class="i s12"><use href="#close"/></svg></span></div></div><div style="font:11px var(--mono);color:var(--t4);margin-top:6px">叠层 + 毛玻璃 + 关闭行，覆盖舞台而非挤占</div></div>
+    </div>
+   </div>
+
+   <div class="st" id="s2"><h2>二 · 搜索与命令</h2><span class="sn">07–08 · ⌘O 打开的是工作区文件夹，不是会话搜索</span></div>
+
+   <div class="blk" id="b07" data-n="07">
+    <div class="exh-h">会话搜索 ⇧⌘F</div>
+    <div class="exh-d">对话框搜索由 Host 排序结果决定，不在前端做模糊匹配；空查询显示最近会话。<b style="color:var(--zhu)">修正</b>：increment 0/1 文档里写的「⌘O 唤出会话搜索」不准确——⌘O 是「打开工作区文件夹」，真正的会话搜索快捷键是 <code>⇧⌘F</code>（也可从侧栏「搜索」行或 ⌘K 里进入）。</div>
+    <div class="at-menu">
+     <div class="at-sec-t">搜索结果<span>3</span></div>
+     <div class="at-item sel"><span class="r"><svg class="i s14"><use href="#chat"/></svg>Composer 忙会话队列</span><span class="d">把作曲器运行中的 Enter 改成排队…<span class="ml" style="margin-left:auto;color:var(--t4)">piwin · 现在</span></span></div>
+     <div class="at-item"><span class="r"><svg class="i s14"><use href="#chat"/></svg>分支选择器 mock 修复</span><span class="d">mock 数据里分支列表排序不稳定…<span class="ml" style="margin-left:auto;color:var(--t4)">piwin · 2h</span></span></div>
+     <div class="at-item"><span class="r"><svg class="i s14"><use href="#chat"/></svg>宋体在 CJK 排版里的字距</span><span class="d">正文用 Noto Serif SC 时字距偏大…<span class="ml" style="margin-left:auto;color:var(--t4)">通用会话 · 1d</span></span></div>
+     <div class="at-foot"><span>↑↓ 选择</span><span>↵ 打开</span><span>Esc 关闭</span></div>
+    </div>
+   </div>
+
+   <div class="blk" id="b08" data-n="08">
+    <div class="exh-h">命令面板 ⌘K</div>
+    <div class="exh-d">现状是扁平列表，<b>没有分类、没有图标</b>；不可用项常显但置灰，附一行灰字理由，不会被过滤掉。这套子系统（<code>desktop-commands.ts</code>）目前也是纯英文，未接入 zh-CN 分支——原样呈现，不在原型里假装已本地化。</div>
+    <div class="pal">
+     <input placeholder="Type a command…" readonly>
+     <div class="pal-item sel">New session<span class="kbd">⌘N</span></div>
+     <div class="pal-item">Search sessions<span class="kbd">⇧⌘F</span></div>
+     <div class="pal-item off">Focus Composer<span class="rs">Start or select a session first</span></div>
+     <div class="pal-item">Toggle Inspector<span class="kbd">⇧⌘I</span></div>
+     <div class="pal-item">Open Workspace<span class="kbd">⌘O</span></div>
+     <div class="pal-item">Toggle Sidebar<span class="kbd">⌘B</span></div>
+    </div>
+   </div>
+
+   <div class="st" id="s3"><h2>三 · 多窗格</h2><span class="sn">09–11 · 二叉树分栏，最多 8 叶，primary 窗格永不可关闭</span></div>
+
+   <div class="blk" id="b09" data-n="09">
+    <div class="exh-h">窗格头</div>
+    <div class="exh-d">仅在 2 叶以上才出现；双击头部（非按钮区）即最大化 / 还原。序号徽标当前窗格用朱底；标题是「切换会话」下拉，列出未绑定会话并支持「+ 新建 Chat」。</div>
+    <div class="pane-stage" style="grid-template-columns:1fr 1fr;height:96px">
+     <div class="pane act">
+      <div class="pane-h"><span class="pane-idx">1</span><span class="ttl">Composer 忙会话队列<svg class="i s12"><use href="#chevd"/></svg></span><span class="tag">当前</span><span class="acts"><button class="ib" title="Chat 布局"><svg class="i s12"><use href="#panel"/></svg></button><button class="ib" title="最大化窗格"><svg class="i s12"><use href="#expand"/></svg></button></span></div>
+      <div class="pane-b">转录内容…</div>
+     </div>
+     <div class="pane">
+      <div class="pane-h"><span class="pane-idx">2</span><span class="ttl">分支选择器 mock 修复<svg class="i s12"><use href="#chevd"/></svg></span><span class="acts"><button class="ib" title="向右拆分"><svg class="i s12"><use href="#panel"/></svg></button><button class="ib" title="向下拆分"><svg class="i s12"><use href="#arrowdown"/></svg></button><button class="ib" title="最大化窗格"><svg class="i s12"><use href="#expand"/></svg></button><button class="ib" title="关闭窗格"><svg class="i s12"><use href="#close"/></svg></button></span></div>
+      <div class="pane-b">转录内容…</div>
+     </div>
+    </div>
+   </div>
+
+   <div class="blk" id="b10" data-n="10">
+    <div class="exh-h">空窗格 · 布局预设</div>
+    <div class="exh-d">拆分出的新窗格默认是空的，提供「新建 Chat」和一个下拉选已有会话；布局预设固定为 1 / 2 / 4 / 8，套用时把 primary 永远排在第一位。</div>
+    <div class="pane-stage" style="grid-template-columns:1fr 1fr;height:110px">
+     <div class="pane">
+      <div class="pane-h"><span class="pane-idx">3</span><span class="ttl">空 Chat</span></div>
+      <div class="pane-b"><div class="pane-empty"><span class="pi"><svg class="i s14"><use href="#plus"/></svg></span><b style="color:var(--t1);font-size:11.5px">在这里打开 Chat</b><span style="font-size:10.5px">新建对话，或选择尚未显示的会话</span></div></div>
+     </div>
+     <div class="pane">
+      <div class="pane-h"><span class="pane-idx">4</span><span class="ttl">空 Chat</span></div>
+      <div class="pane-b"><div class="pane-empty"><span class="pi"><svg class="i s14"><use href="#plus"/></svg></span><b style="color:var(--t1);font-size:11.5px">在这里打开 Chat</b><span style="font-size:10.5px">新建对话，或选择尚未显示的会话</span></div></div>
+     </div>
+    </div>
+    <div class="row-cmp" style="margin-top:8px"><span style="font:11px var(--mono);color:var(--t4)">布局预设</span><button class="chip">1 个 Chat</button><button class="chip" style="background:var(--s3);box-shadow:var(--sh1);color:var(--t1)">2 个 Chat</button><button class="chip">4 个 Chat</button><button class="chip">8 个 Chat</button></div>
+   </div>
+
+   <div class="blk" id="b11" data-n="11">
+    <div class="exh-h">键盘契约速查</div>
+    <div class="exh-d">拆分 / 关闭 / 最大化不响应按键连发（<code>repeat</code> 时忽略）；聚焦移动与调整比例可以连发。</div>
+    <div class="card">
+     <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+      <tr><th style="text-align:left;padding:6px 8px;color:var(--t3);font:600 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid var(--l2)">按键</th><th style="text-align:left;padding:6px 8px;color:var(--t3);font:600 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid var(--l2)">动作</th></tr>
+      <tr><td style="padding:6px 8px;border-bottom:1px solid var(--l1)"><span class="kbd" style="background:var(--s1);padding:2px 6px;border-radius:4px">⌘D</span> / <span class="kbd" style="background:var(--s1);padding:2px 6px;border-radius:4px">⇧⌘D</span></td><td style="padding:6px 8px;border-bottom:1px solid var(--l1);color:var(--t2)">向右拆分 / 向下拆分（8 叶后拒绝）</td></tr>
+      <tr><td style="padding:6px 8px;border-bottom:1px solid var(--l1)"><span class="kbd" style="background:var(--s1);padding:2px 6px;border-radius:4px">⌘[</span> / <span class="kbd" style="background:var(--s1);padding:2px 6px;border-radius:4px">⌘]</span></td><td style="padding:6px 8px;border-bottom:1px solid var(--l1);color:var(--t2)">聚焦上一个 / 下一个窗格（循环）</td></tr>
+      <tr><td style="padding:6px 8px;border-bottom:1px solid var(--l1)"><span class="kbd" style="background:var(--s1);padding:2px 6px;border-radius:4px">⌥⌘方向</span></td><td style="padding:6px 8px;border-bottom:1px solid var(--l1);color:var(--t2)">按空间方向聚焦最近窗格</td></tr>
+      <tr><td style="padding:6px 8px;border-bottom:1px solid var(--l1)"><span class="kbd" style="background:var(--s1);padding:2px 6px;border-radius:4px">⌘⌃方向</span></td><td style="padding:6px 8px;border-bottom:1px solid var(--l1);color:var(--t2)">微调相邻分栏比例（±5%）</td></tr>
+      <tr><td style="padding:6px 8px;border-bottom:1px solid var(--l1)"><span class="kbd" style="background:var(--s1);padding:2px 6px;border-radius:4px">⇧⌘↩</span></td><td style="padding:6px 8px;border-bottom:1px solid var(--l1);color:var(--t2)">最大化 / 还原当前窗格（还原也可 Esc）</td></tr>
+      <tr><td style="padding:6px 8px">⌥⌘W</td><td style="padding:6px 8px;color:var(--t2)">关闭当前窗格（primary 窗格拒绝关闭）</td></tr>
+     </table>
+    </div>
+   </div>
+
+   <div class="st" id="s4"><h2>四 · 起始与连接</h2><span class="sn">12–14 · 空舞台、Host 门、工作区选择器</span></div>
+
+   <div class="blk" id="b12" data-n="12">
+    <div class="exh-h">空舞台落地页</div>
+    <div class="exh-d">只在有可续会话时出现（≤4 条，按最近更新排序，草稿与已归档不计入），首轮消息一出现即消失。水墨点缀（砚印章 + 「泼墨写意 · 深夜书案」）仅在水墨主题下渲染，是历史母题的孑遗，Inkstone 里作为空态的签名物件保留。</div>
+    <div class="landing-mock">
+     <div class="land-lbl">继续上次</div>
+     <div class="land-row">Composer 忙会话队列<span class="tm">现在</span></div>
+     <div class="land-row">分支选择器 mock 修复<span class="tm">2h</span></div>
+     <div class="land-row">Artifact 源码 Preview 切回<span class="tm">5h</span></div>
+     <div class="vignette"><div class="van-art"><span class="van-seal">砚</span></div><span class="van-badge">泼墨写意 · 深夜书案</span></div>
+    </div>
+   </div>
+
+   <div class="blk" id="b13" data-n="13">
+    <div class="exh-h">Host 选择 · 连接墙</div>
+    <div class="exh-d">先选「使用本机」或「连接已有 Host」；选连接后才出现地址/令牌表单。同一份数据根一次只能有一个 Host——两者不能同时开。</div>
+    <div class="row-cmp" style="align-items:flex-start;gap:16px;flex-wrap:wrap">
+     <div class="host-card">
+      <h4>选择 Host</h4>
+      <p>本机自带一份，或连接已经在跑的 Host。同一时间只能有一份。</p>
+      <div class="row-cmp"><button class="btn pri">使用本机</button><button class="btn">连接已有 Host</button></div>
+     </div>
+     <div class="host-card">
+      <h4>连接 Host</h4>
+      <p>先起好 Host，再填地址。连上之前不会在本机再起一份。</p>
+      <p class="mut">同一份数据根一次只能有一个 Host。本机 sidecar 和独立 Host 不能同时开。第二个进程会启动失败。</p>
+      <div class="hf"><label>WebSocket 地址</label><input value="ws://127.0.0.1:8787"></div>
+      <div class="hf"><label>Token</label><input placeholder="本机未设门令可留空" type="password"></div>
+      <div class="row-cmp"><button class="btn pri">连接</button><button class="btn">使用本机</button></div>
+      <div class="notice-err">请输入 ws:// 或 wss:// 地址</div>
+     </div>
+    </div>
+   </div>
+
+   <div class="blk" id="b14" data-n="14">
+    <div class="exh-h">工作区选择器</div>
+    <div class="exh-d">Finder 式多列浏览，不是面包屑——路径靠可编辑输入框 + 逐级新增的列自身表达；侧栏「常用」按 Desktop / Documents / Downloads / Applications / Developer 逐一匹配是否存在于主目录，缺一项就少一行。</div>
+    <div class="picker-mock">
+     <div class="pk-tb"><button class="ib s22"><svg class="i s12"><use href="#chevl"/></svg></button><button class="ib s22" style="color:var(--t4)"><svg class="i s12"><use href="#chevr"/></svg></button><span class="pk-path">~/Developer/piwin</span><span class="pk-search"><svg class="i s12"><use href="#search"/></svg>搜索</span></div>
+     <div class="pk-body">
+      <div class="pk-side">
+       <p>最近</p>
+       <div class="pk-srow"><svg class="i s12"><use href="#folder"/></svg>piwin</div>
+       <p>常用</p>
+       <div class="pk-srow act"><svg class="i s12"><use href="#laptop"/></svg>Desktop</div>
+       <div class="pk-srow"><svg class="i s12"><use href="#file"/></svg>Documents</div>
+       <div class="pk-srow"><svg class="i s12"><use href="#download"/></svg>Downloads</div>
+       <div class="pk-srow"><svg class="i s12"><use href="#grid"/></svg>Applications</div>
+       <p>位置</p>
+       <div class="pk-srow"><svg class="i s12"><use href="#laptop"/></svg>yorickjue</div>
+      </div>
+      <div class="pk-col">
+       <div class="pk-row sel"><svg class="i s12"><use href="#folder"/></svg>Developer<span class="chv"><svg class="i s12"><use href="#chevr"/></svg></span></div>
+       <div class="pk-row"><svg class="i s12"><use href="#folder"/></svg>Desktop<span class="chv"><svg class="i s12"><use href="#chevr"/></svg></span></div>
+      </div>
+      <div class="pk-col">
+       <div class="pk-row sel"><svg class="i s12"><use href="#folder"/></svg>piwin<span class="chv"><svg class="i s12"><use href="#chevr"/></svg></span></div>
+       <div class="pk-row"><svg class="i s12"><use href="#folder"/></svg>other-project<span class="chv"><svg class="i s12"><use href="#chevr"/></svg></span></div>
+      </div>
+     </div>
+     <div class="pk-ft"><button class="btn">取消</button><button class="btn pri">打开</button></div>
+    </div>
+   </div>
+
+   <div class="st" id="s5"><h2>五 · 对话框</h2><span class="sn">15–19 · 三个静态展台目前源码是纯英文，按中文优先译出并标注</span></div>
+
+   <div class="blk" id="b15" data-n="15">
+    <div class="exh-h">信任横幅 · 信任对话框</div>
+    <div class="exh-d">两个入口做同一件事：作曲器上方的常驻横幅（<code>ProjectTrustNotice</code>），和打开未信任项目时立刻弹出的模态。<b style="color:var(--zhu)">文案</b>：两处源码目前均为纯英文，此处按中文优先原则译出。</div>
+    <div class="trust-banner"><svg class="i s14"><use href="#alert"/></svg><span>需要信任才能运行 — Agent 工具与 Shell 预览在你信任 <code style="background:var(--s1);padding:1px 5px;border-radius:3px">~/Developer/other-project</code> 之前保持锁定（信任按项目生效）。</span><button class="btn sm ml">不用了</button><button class="btn sm pri">信任项目</button></div>
+    <div class="modal-mock" style="margin-top:10px;max-width:360px">
+     <div class="mm-h"><span class="tt">信任这个项目？</span><button class="ib s22"><svg class="i s14"><use href="#close"/></svg></button></div>
+     <div class="mm-b">允许 Agent 在这里运行工具：<br><code>~/Developer/other-project</code></div>
+     <div class="mm-f"><button class="btn">不用了</button><button class="btn pri">信任项目</button></div>
+    </div>
+   </div>
+
+   <div class="blk" id="b16" data-n="16">
+    <div class="exh-h">重命名</div>
+    <div class="exh-d">最简单的一个：一个必填文本框，Enter 或「保存」提交。源码同样是纯英文，按中文优先译出。</div>
+    <div class="modal-mock" style="max-width:320px">
+     <div class="mm-h"><span class="tt">重命名会话</span><button class="ib s22"><svg class="i s14"><use href="#close"/></svg></button></div>
+     <div class="mm-b">名称<input class="mm-input" value="Composer 忙会话队列"></div>
+     <div class="mm-f"><button class="btn">取消</button><button class="btn pri">保存</button></div>
+    </div>
+   </div>
+
+   <div class="blk" id="b17" data-n="17">
+    <div class="exh-h">继续到项目</div>
+    <div class="exh-d">这是<b>复制</b>，不是移动——把通用会话的完整历史复制进项目会话，原会话原样留着。没有可信项目时给出「请先打开并信任一个项目」。</div>
+    <div class="modal-mock" style="max-width:340px">
+     <div class="mm-h"><span class="tt">继续到项目</span><button class="ib s22"><svg class="i s14"><use href="#close"/></svg></button></div>
+     <div class="mm-b">选择目标项目<div style="margin-top:4px;color:var(--t3);font-size:11.5px">将"宋体在 CJK 排版里的字距"的完整历史复制到项目会话；原会话会保留。</div>
+      <div class="proj-list"><button class="proj-btn">piwin</button><button class="proj-btn">openwebui_m</button></div>
+     </div>
+     <div class="mm-f"><button class="btn">取消</button></div>
+    </div>
+   </div>
+
+   <div class="blk" id="b18" data-n="18">
+    <div class="exh-h">分支切换确认</div>
+    <div class="exh-d">「切换分支」与「重试会丢弃这次尝试」共用同一个组件，只换标题与按钮文案。<b style="color:var(--zhu)">如实呈现</b>：目前只有两个按钮——取消 / 继续切换，没有第三个「先暂存再切换」选项（ADR 0055 SF-06 待定，源码注释里写明了）。</div>
+    <div class="modal-mock" style="max-width:380px">
+     <div class="mm-h"><span class="tt">切换分支？磁盘不会跟随</span><button class="ib s22"><svg class="i s14"><use href="#close"/></svg></button></div>
+     <div class="mm-b">当前分支改过工作区文件。对话会切到另一条时间线，磁盘上的改动不会撤销。
+      <ul class="mm-list"><li>apps/desktop/src/composer-run-actions.tsx</li><li>apps/desktop/src/composer-dock.test.tsx</li></ul>
+      <div class="bwarn">还有未能解析路径的写操作（例如 shell）。</div>
+     </div>
+     <div class="mm-f"><button class="btn">取消</button><button class="btn pri">继续切换</button></div>
+    </div>
+   </div>
+
+   <div class="blk" id="b19" data-n="19">
+    <div class="exh-h">删除确认</div>
+    <div class="exh-d">通用弹层组件在 <code>app-dialogs.tsx</code> 里是纯英文；<code>archive-page.tsx</code> 里已经有一版中文措辞。这里采用后者，作为「已经在产品里、只是另一个入口没接上」的现有文案，而不是新造。</div>
+    <div class="modal-mock" style="max-width:340px">
+     <div class="mm-h"><span class="tt" style="color:var(--crimson)">彻底删除？</span><button class="ib s22"><svg class="i s14"><use href="#close"/></svg></button></div>
+     <div class="mm-b">确定要彻底删除会话"周报草稿"吗？此操作不可撤销，所有对话记录将被永久删除。</div>
+     <div class="mm-f"><button class="btn">取消</button><button class="btn dan">彻底删除</button></div>
+    </div>
+   </div>
+
+  </div>
+ </main>
+</div>
+</div>
+
+<script>
+(function(){
+var app=document.getElementById('app');
+var each=function(list,fn){Array.prototype.forEach.call(list,fn)};
+function setSeg(k,v){each(document.querySelectorAll('[data-set="'+k+'"]'),function(b){b.classList.toggle('on',b.getAttribute('data-v')===v)})}
+each(document.querySelectorAll('[data-set]'),function(b){b.addEventListener('click',function(){var k=b.getAttribute('data-set'),v=b.getAttribute('data-v');app.setAttribute('data-'+k,v);setSeg(k,v)})});
+
+/* 索引跳转 + 标注闪烁（与 proto-01/02 同一套） */
+function go(id){var el=document.getElementById(id);if(!el)return;el.scrollIntoView({block:'start'});el.classList.add('flash');setTimeout(function(){el.classList.remove('flash')},1200);each(document.querySelectorAll('.ir'),function(x){x.classList.toggle('on',x.getAttribute('data-go')===id)})}
+each(document.querySelectorAll('.ir'),function(b){b.addEventListener('click',function(){go(b.getAttribute('data-go'))})});
+})();
+</script>
+</body>
+</html>

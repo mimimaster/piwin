@@ -3,18 +3,15 @@ import type { ChatUiState } from './chat-ui-types';
 
 export function contextUsageForSessionSet(input: {
   warmHit: { contextUsage: ContextUsageSnapshot | null } | null;
-  keepPreviousWhileLoading: boolean;
   activeSessionId: string | null;
   nextSessionId: string;
   current: ContextUsageSnapshot | null;
 }): ContextUsageSnapshot | null {
   return input.warmHit
     ? input.warmHit.contextUsage
-    : input.keepPreviousWhileLoading
+    : input.activeSessionId === input.nextSessionId
       ? input.current
-      : input.activeSessionId === input.nextSessionId
-        ? input.current
-        : null;
+      : null;
 }
 
 export function contextUsageForLoadMessages(

@@ -121,6 +121,47 @@ describe('shouldDetachFollowTailFromScrollDelta', () => {
       }),
     ).toBe(true);
   });
+
+  it('does not treat programmatic layout height changes as user intent', () => {
+    expect(
+      shouldDetachFollowTailFromScrollDelta({
+        scrollTopDelta: -24,
+        programmatic: true,
+        nearBottom: false,
+        scrollHeightDelta: 400,
+      }),
+    ).toBe(false);
+  });
+
+  it('does not treat virtualizer height growth as a user history gesture', () => {
+    expect(
+      shouldDetachFollowTailFromScrollDelta({
+        scrollTopDelta: -24,
+        programmatic: false,
+        nearBottom: false,
+        scrollHeightDelta: 400,
+      }),
+    ).toBe(false);
+    expect(
+      shouldDetachFollowTailFromScrollDelta({
+        scrollTopDelta: -400,
+        programmatic: false,
+        nearBottom: false,
+        scrollHeightDelta: 400,
+      }),
+    ).toBe(false);
+  });
+
+  it('still detaches when the user moves up more than content grew', () => {
+    expect(
+      shouldDetachFollowTailFromScrollDelta({
+        scrollTopDelta: -80,
+        programmatic: false,
+        nearBottom: false,
+        scrollHeightDelta: 10,
+      }),
+    ).toBe(true);
+  });
 });
 
 describe('shouldDetachFollowTailFromWheelDelta', () => {

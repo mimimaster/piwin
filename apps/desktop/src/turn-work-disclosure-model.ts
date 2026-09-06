@@ -12,6 +12,8 @@ export type TurnWorkDisclosureProjection = {
   endIndex: number;
   elapsedMs?: number;
   failureCount: number;
+  toolCount?: number;
+  fileCount?: number;
 };
 
 export type ProjectTurnWorkDisclosureInput = {
@@ -193,6 +195,50 @@ function isTurnSettled(
   return true;
 }
 
+function countToolsAndFiles(
+  turn: TranscriptTurn,
+  startIndex: number,
+  endIndex: number,
+): { toolCount: number; fileCount: number } {
+  let toolCount = 0;
+  const filesSeen = new Set<string>();
+
+  for (let index = startIndex; index <= endIndex; index += 1) {
+    const message = turn.items[index]?.message;
+    if (!message) continue;
+    toolCount += message.tools.length;
+    for (const tool of message.tools) {
+      const presentation = tool.presentation;
+      if (presentation?.changedPaths) {
+        for (const p of presentation.changedPaths) {
+          if (p && p.trim()) filesSeen.add(p.trim());
+        }
+      }
+      if (presentation?.targetPaths) {
+        for (const p of presentation.targetPaths) {
+          if (p && p.trim()) filesSeen.add(p.trim());
+        }
+      }
+      const legacyTargetPath = (presentation as { targetPath?: unknown } | undefined)?.targetPath;
+      if (typeof legacyTargetPath === 'string' && legacyTargetPath.trim()) {
+        filesSeen.add(legacyTargetPath.trim());
+      }
+      const input = (tool as { input?: unknown }).input;
+      if (input && typeof input === 'object') {
+        const record = input as Record<string, unknown>;
+        for (const key of ['path', 'filePath', 'targetFile', 'file']) {
+          const val = record[key];
+          if (typeof val === 'string' && val.trim().length > 0) {
+            filesSeen.add(val.trim());
+          }
+        }
+      }
+    }
+  }
+
+  return { toolCount, fileCount: filesSeen.size };
+}
+
 /**
  * Wrap intermediate Agent work only after the user query has settled.
  * Returning `null` keeps the original causal stream fully mounted.
@@ -222,10 +268,13 @@ export function projectTurnWorkDisclosure(
     runIds,
     input.runRecordsById,
   );
+  const { toolCount, fileCount } = countToolsAndFiles(input.turn, startIndex, endIndex);
   return {
     startIndex,
     endIndex,
     failureCount: countFailures(input.turn, startIndex, endIndex, runIds, input.runRecordsById),
+    ...(toolCount > 0 ? { toolCount } : {}),
+    ...(fileCount > 0 ? { fileCount } : {}),
     ...(elapsedMs !== undefined ? { elapsedMs } : {}),
   };
 }

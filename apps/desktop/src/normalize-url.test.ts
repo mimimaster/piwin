@@ -29,4 +29,10 @@ describe('normalizeUrl', () => {
   it('returns empty for whitespace-only input', () => {
     expect(normalizeUrl('   ')).toBe('');
   });
+
+  it('keeps a file URL as-is so local HTML can stay in the workbench browser', () => {
+    expect(normalizeUrl('file:///Users/me/site/index.html')).toBe(
+      'file:///Users/me/site/index.html',
+    );
+  });
 });

@@ -25,6 +25,7 @@ import {
   useTerminalSessions,
   type TerminalSession,
 } from './use-terminal-sessions';
+import { useDesktopLocale } from './desktop-locale-context';
 
 export type PtyOutputLine = {
   id: string;
@@ -68,6 +69,8 @@ function truncatePath(path: string, maxLen: number = 30): string {
 }
 
 export function TerminalDock(props: TerminalDockProps): ReactElement {
+  const { locale } = useDesktopLocale();
+  const isZh = locale === 'zh-CN';
   const useInteractivePty = isTauriPtyAvailable();
   const [inputLine, setInputLine] = useState('');
   const [ptyId, setPtyId] = useState<string | null>(null);
@@ -168,9 +171,9 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
   // Collect quick directory options.
   const dirOptions: Array<{ label: string; path: string }> = [];
   if (props.projectPath) {
-    dirOptions.push({ label: 'Project root', path: props.projectPath });
+    dirOptions.push({ label: isZh ? '项目根' : 'Project root', path: props.projectPath });
   }
-  dirOptions.push({ label: 'Home (~)', path: '' });
+  dirOptions.push({ label: isZh ? '主目录 (~)' : 'Home (~)', path: '' });
   // Add recent dirs (excluding duplicates with current project/home).
   const seen = new Set([props.projectPath, ''].filter(Boolean));
   for (const dir of props.recentDirs) {
@@ -187,7 +190,7 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
       data-testid="terminal-dock"
       data-variant="panel"
       data-pty-mode={useInteractivePty ? 'tauri' : 'shell-preview'}
-      aria-label="Terminal"
+      aria-label={isZh ? '终端' : 'Terminal'}
     >
       <header className="terminal-dock-toolbar" data-testid="terminal-dock-toolbar">
         <div className="terminal-dock-title muted">
@@ -200,7 +203,7 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
             <div className="terminal-dir-switcher" ref={dirDropdownRef}>
               <button
                 type="button"
-                className="terminal-dir-btn"
+                className="terminal-dir-btn term-dirpill"
                 data-testid="terminal-dir-btn"
                 title={props.currentCwd}
                 aria-label={`Current directory: ${props.currentCwd}`}
@@ -212,7 +215,7 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
               </button>
               {dirDropdownOpen ? (
                 <div className="terminal-dir-dropdown" data-testid="terminal-dir-dropdown">
-                  <div className="terminal-dir-dropdown-header">Quick directories</div>
+                  <div className="terminal-dir-dropdown-header">{isZh ? '快捷目录' : 'Quick directories'}</div>
                   {dirOptions.map((option) => (
                     <button
                       key={option.path}
@@ -231,12 +234,12 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
                       type="text"
                       value={dirInput}
                       onChange={(event) => setDirInput(event.target.value)}
-                      placeholder="Type a path…"
+                      placeholder={isZh ? '输入路径…' : 'Type a path…'}
                       autoComplete="off"
                       spellCheck={false}
                     />
                     <Button type="submit" size="compact" disabled={!dirInput.trim()}>
-                      Go
+                      {isZh ? '前往' : 'Go'}
                     </Button>
                   </form>
                 </div>
@@ -249,8 +252,8 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
               type="button"
               className="terminal-icon-button"
               data-testid="pty-restart-btn"
-              title="Restart active terminal"
-              aria-label="Restart active terminal"
+              title={isZh ? '重启当前终端' : 'Restart active terminal'}
+              aria-label={isZh ? '重启当前终端' : 'Restart active terminal'}
               onClick={() => {
                 if (activeSession) {
                   restartSession(activeSession.id);
@@ -376,20 +379,22 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
 
           {useInteractivePty && sidebarOpen ? (
             <aside
-              className="terminal-sessions-sidebar"
+              className="terminal-sessions-sidebar term-sb"
               data-testid="terminal-sessions-sidebar"
-              aria-label="Terminal sessions"
+              aria-label={isZh ? '终端会话' : 'Terminal sessions'}
             >
-              <div className="terminal-sessions-sidebar-header">
+              <div className="terminal-sessions-sidebar-header term-sb-h">
                 <span className="terminal-sessions-count">
-                  {sessions.length} Terminal{sessions.length > 1 ? 's' : ''}
+                  {isZh
+                    ? `${sessions.length} 个终端`
+                    : `${sessions.length} Terminal${sessions.length > 1 ? 's' : ''}`}
                 </span>
                 <button
                   type="button"
                   className="terminal-icon-button"
                   data-testid="terminal-session-add"
-                  aria-label="New terminal session"
-                  title="New terminal session"
+                  aria-label={isZh ? '新建终端会话' : 'New terminal session'}
+                  title={isZh ? '新建终端会话' : 'New terminal session'}
                   onClick={() => {
                     const session = addSession();
                     if (session) {
@@ -397,7 +402,9 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
                       return;
                     }
                     setSessionCapNotice(
-                      `At most ${MAX_TERMINAL_SESSIONS} terminal sessions can stay open.`,
+                      isZh
+                        ? `最多同时打开 ${MAX_TERMINAL_SESSIONS} 个终端会话。`
+                        : `At most ${MAX_TERMINAL_SESSIONS} terminal sessions can stay open.`,
                     );
                   }}
                 >
@@ -415,7 +422,7 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
                     <div
                       key={session.id}
                       className={
-                        isActive ? 'terminal-session-item active' : 'terminal-session-item'
+                        isActive ? 'terminal-session-item term-item act active' : 'terminal-session-item term-item'
                       }
                       role="tab"
                       aria-selected={isActive}
@@ -427,9 +434,9 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
                       </span>
                       <span className="terminal-session-item-name">{session.name}</span>
                       {session.status === 'error' ? (
-                        <span className="terminal-dock-session-dot error" aria-hidden />
+                        <span className="terminal-dock-session-dot error term-dot" aria-hidden />
                       ) : session.status === 'starting' ? (
-                        <span className="terminal-dock-session-dot" aria-hidden />
+                        <span className="terminal-dock-session-dot term-dot starting" aria-hidden />
                       ) : null}
                       {sessions.length > 1 ? (
                         <button

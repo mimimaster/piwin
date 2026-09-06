@@ -9,6 +9,7 @@ import type {
   PiwinConfig,
 } from '@piwin/contracts';
 import type { ArtifactActionMessage } from '@piwin/artifact';
+import { artifactFenceSecurityProps } from '../artifact-fence-security';
 import type { ArtifactCanvasTarget } from '../artifact-canvas-model';
 import type { ChatUiAction, ChatUiState, PermissionPromptUi } from '../chat-reducer';
 import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
@@ -185,9 +186,7 @@ export function useWorkbenchSubagentInspector(args: UseWorkbenchSubagentInspecto
       onArtifactAction: handleArtifactAction,
       onOpenArtifactCanvas: handleOpenArtifactCanvas,
       artifactPreviewEnabled: config?.artifact?.enabled ?? true,
-      ...(config?.artifact?.maxBytes !== undefined
-        ? { artifactMaxBytes: config.artifact.maxBytes }
-        : {}),
+      ...artifactFenceSecurityProps(config?.artifact),
       onPermission: (prompt, decision, rememberScope) => {
         void handleSubagentPermission(prompt, decision, rememberScope);
       },
@@ -217,6 +216,8 @@ export function useWorkbenchSubagentInspector(args: UseWorkbenchSubagentInspecto
       handleOpenArtifactCanvas,
       config?.artifact?.enabled,
       config?.artifact?.maxBytes,
+      config?.artifact?.blockExternalScripts,
+      config?.artifact?.blockExternalResources,
       handleSubagentPermission,
       handleSubagentWorktreeAction,
     ],

@@ -1,0 +1,144 @@
+/* Inkstone Stage Header (.stage-header) per docs/design/inkstone/proto-00-shell.html line 201-207.
+   Sits atop the stage column inside .chat-column: 42px height, serif title, lamp/sq state dots,
+   fork button, and hairline bottom border. */
+
+.stage-header {
+  display: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .stage-header {
+  display: flex !important;
+  align-items: center !important;
+  height: var(--card-header-height, 30px) !important;
+  min-height: var(--card-header-height, 30px) !important;
+  max-height: var(--card-header-height, 30px) !important;
+  padding: 0 10px !important;
+  gap: 4px !important;
+  min-width: 0 !important;
+  border-bottom: 1px solid var(--l1) !important;
+  background: transparent !important;
+  box-sizing: border-box !important;
+  flex: none !important;
+  z-index: 4;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .stage-header .title {
+  font: 500 12.5px/1.2 var(--serif) !important;
+  color: var(--t1);
+  letter-spacing: 0.01em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  margin: 0 6px 0 0;
+  min-width: 0;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .stage-header .tt {
+  font: inherit !important;
+  font-family: var(--serif) !important;
+  font-weight: 500 !important;
+  font-size: 12.5px !important;
+  line-height: 1.2 !important;
+  color: var(--t1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .stage-header .lamp {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--lamp);
+  box-shadow: 0 0 8px 2px var(--lamp-glow);
+  animation: breath 2.4s ease-in-out infinite;
+  flex: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .stage-header .sq {
+  width: 8px;
+  height: 8px;
+  border-radius: 1px;
+  background: var(--zhu);
+  flex: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .stage-header .ib {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  display: inline-grid;
+  place-items: center;
+  color: var(--t3);
+  flex: none;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  box-sizing: border-box;
+  transition: background var(--t-1) var(--ease-out), color var(--t-1) var(--ease-out);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .stage-header .ib.s22 {
+  width: 20px;
+  height: 20px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .stage-header .ib:hover {
+  background: var(--s3);
+  color: var(--t1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .stage-header .status {
+  font-size: 11px;
+  color: var(--t3);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .stage-header .context-bar-mode-badge,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .stage-header .context-bar-origin-badge {
+  font-family: var(--sans);
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .stage-header .context-bar-mode-badge.is-warning,
+html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-bar-mode-badge.is-warning {
+  background: color-mix(in srgb, var(--ochre) 14%, transparent);
+  color: var(--ochre);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .stage-header .context-session-tree-trigger,
+html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-session-tree-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--t3);
+  cursor: pointer;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .stage-header .context-session-tree-trigger:hover,
+html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-session-tree-trigger:hover {
+  background: var(--s3);
+  color: var(--t1);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .stage-header .context-session-tree-label,
+html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-session-tree-label,
+html[data-theme-id='piwin-inkstone-paper'] .stage-header .context-session-tree-count,
+html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-session-tree-count {
+  display: none;
+}

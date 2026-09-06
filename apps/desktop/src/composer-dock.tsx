@@ -11,6 +11,7 @@ import { ActiveJobsStrip } from './active-jobs-strip';
 import { ComposerCard } from './composer-card';
 import { ComposerContextRail } from './composer-context-rail';
 import type { ComposerDockProps } from './composer-dock-types';
+import { useDesktopLocale } from './desktop-locale-context';
 
 export type { ComposerDockProps, ComposerModelOption } from './composer-dock-types';
 export { ComposerCard } from './composer-card';
@@ -23,6 +24,9 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
     props.runPhase === 'aborting';
   const hasSteerQueue = (props.steerQueueMessages?.length ?? 0) > 0;
   const isQueuedEdit = props.queuedEdit != null;
+  const { locale } = useDesktopLocale();
+  const isChinese = locale === 'zh-CN';
+
   return (
     <footer
       className={`composer-dock layout-${props.layoutMode}${hasSteerQueue ? ' has-steer-queue' : ''}${isQueuedEdit ? ' is-queued-edit' : ''}`}
@@ -62,6 +66,25 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
         />
       ) : null}
       <ComposerCard {...props} />
+      <div className="hint composer-hint" data-testid="composer-hint">
+        {isStreamingRun ? (
+          <>
+            <span>{isChinese ? '运行中 Enter 排队' : 'Enter queues while running'}</span>
+            <span>{isChinese ? '⌘Enter 介入' : '⌘Enter steers'}</span>
+          </>
+        ) : isQueuedEdit ? (
+          <>
+            <span>{isChinese ? 'Enter 保存回队列' : 'Enter saves to queue'}</span>
+            <span>{isChinese ? 'Esc 取消' : 'Esc cancels'}</span>
+          </>
+        ) : (
+          <>
+            <span>{isChinese ? 'Enter 发送' : 'Enter sends'}</span>
+            <span>{isChinese ? '⇧Enter 换行' : '⇧Enter new line'}</span>
+            <span>{isChinese ? '⌘Enter 介入' : '⌘Enter steers'}</span>
+          </>
+        )}
+      </div>
     </footer>
   );
 }

@@ -355,7 +355,12 @@
   border-radius: var(--r-chip);
 }
 
-.tool-call-paths {
+.tool-call-paths,
+.tool-call-doc-targets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
   margin-bottom: var(--s-3);
   font-size: var(--fs-mono);
   font-family: var(--font-mono);
@@ -364,29 +369,61 @@
 
 .tool-call-paths-prefix {
   color: var(--text-4);
+  margin-right: 2px;
 }
 
-.tool-call-path-link {
-  display: inline;
-  margin: 0;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--iris-lift);
-  font: inherit;
-  font-family: var(--font-mono);
+.tool-call-path-link,
+.tool-call-doc-target-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: 12px var(--mono, var(--font-mono, monospace));
+  color: var(--t1, var(--text-1, #1d1b17));
+  background: var(--s3, var(--surface-3, var(--hover, #fffdf8)));
+  box-shadow: var(--sh1, 0 1px 2px rgba(60, 45, 20, 0.06), 0 0 0 1px var(--l2, rgba(29, 27, 23, 0.11)));
+  padding: 1px 6px;
+  border-radius: 3px;
+  vertical-align: -1px;
   cursor: pointer;
+  white-space: nowrap;
+  max-width: 100%;
+  text-decoration: none;
+  border: 0;
+  box-sizing: border-box;
+}
+
+.tool-call-path-link:hover,
+.tool-call-doc-target-link:hover {
+  background: var(--s4, var(--surface-2, #ffffff));
+  color: var(--t1, var(--text-1, #1d1b17));
   text-decoration: none;
 }
 
-.tool-call-path-link:hover {
-  text-decoration: underline;
+.tool-call-path-link.static,
+.tool-call-doc-target-link.static {
+  cursor: default;
 }
 
-.tool-call-path-link:focus-visible {
+.tool-call-path-link:focus-visible,
+.tool-call-doc-target-link:focus-visible {
   outline: var(--focus-ring);
   outline-offset: 1px;
-  border-radius: 2px;
+}
+
+.tool-call-path-link .i,
+.tool-call-path-link svg,
+.tool-call-doc-target-link .i,
+.tool-call-doc-target-link svg {
+  width: 12px;
+  height: 12px;
+  color: var(--t3, var(--text-3, #726b61));
+  flex: none;
+  stroke-width: 1.6;
+}
+
+.tool-call-path-link span,
+.tool-call-doc-target-link span {
+  color: inherit !important;
 }
 
 .tool-call-error {

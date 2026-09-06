@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inkstone（砚）· 增量 0 · 外壳原型 · 墨（黑夜版）</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:#e6e1d7;overflow:hidden}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+u{text-decoration:none;cursor:pointer}u:hover{text-decoration:underline}
+.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.s12{width:12px;height:12px}.s14{width:14px;height:14px}
+.ml{margin-left:auto}.grow{flex:1}
+.app{--sans:Inter,"PingFang SC","Noto Sans SC",-apple-system,system-ui,sans-serif;--serif:"Noto Serif SC","Songti SC","STSong","Source Han Serif SC","Source Serif 4",Georgia,serif;--mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;--spring:cubic-bezier(.34,1.4,.64,1);height:100dvh;width:100%;display:grid;grid-template-rows:28px 36px minmax(0,1fr);background:var(--void);color:var(--t1);font:13.5px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+.app[data-face=paper]{color-scheme:light;--void:#e6e1d7;--s1:#f0ece4;--s2:#f8f6f0;--s3:#fffdf8;--s4:#fff;--t1:#1d1b17;--t2:#5a554d;--t3:#726b61;--t4:#8f887d;--l1:rgba(29,27,23,.06);--l2:rgba(29,27,23,.11);--l3:rgba(29,27,23,.2);--zhu:#c6412a;--zhu-lift:#d4553d;--on-zhu:#fff7f0;--zhu-wash:rgba(198,65,42,.1);--lamp:#b8801f;--lamp-glow:rgba(184,128,31,.4);--lamp-wash:rgba(184,128,31,.14);--pine:#3d7c5e;--pine-wash:rgba(61,124,94,.12);--ochre:#94611a;--crimson:#9c2e3d;--crimson-wash:rgba(156,46,61,.1);--azure:#3a7797;--code:#efece4;--slab:#1f1c18;--slab-t:#efe9df;--slab-ph:#8d857a;--slab-chip:rgba(255,255,255,.07);--slab-line:rgba(255,255,255,.1);--sh1:0 1px 2px rgba(60,45,20,.06),0 0 0 1px var(--l2);--sh2:0 2px 8px -2px rgba(60,45,20,.12),0 0 0 1px var(--l2);--sh3:0 14px 34px -12px rgba(50,35,15,.3),0 0 0 1px var(--l3)}
+.app[data-face=ink]{color-scheme:dark;--void:#0b0a09;--s1:#141210;--s2:#191714;--s3:#201d19;--s4:#2a2621;--t1:#ebe5da;--t2:#a59d92;--t3:#8b8378;--t4:#6a6259;--l1:rgba(235,229,218,.06);--l2:rgba(235,229,218,.1);--l3:rgba(235,229,218,.17);--zhu:#e25a3d;--zhu-lift:#f07054;--on-zhu:#1c0b07;--zhu-wash:rgba(226,90,61,.14);--lamp:#e7b352;--lamp-glow:rgba(231,179,82,.35);--lamp-wash:rgba(231,179,82,.12);--pine:#5fad85;--pine-wash:rgba(95,173,133,.14);--ochre:#c88f3c;--crimson:#d95f6e;--crimson-wash:rgba(217,95,110,.14);--azure:#6ba4c3;--code:#0f0e0c;--slab:#0e0d0b;--slab-t:#ebe5da;--slab-ph:#6f685f;--slab-chip:rgba(235,229,218,.07);--slab-line:rgba(235,229,218,.1);--sh1:inset 0 1px 0 rgba(255,255,255,.04),0 0 0 1px rgba(0,0,0,.6);--sh2:inset 0 1px 0 rgba(255,255,255,.04),0 0 0 1px rgba(0,0,0,.6),0 2px 8px -2px rgba(0,0,0,.5);--sh3:inset 0 1px 0 rgba(255,255,255,.06),0 0 0 1px rgba(0,0,0,.7),0 14px 34px -10px rgba(0,0,0,.7)}
+.app[data-slab=paper]{--slab:var(--s3);--slab-t:var(--t1);--slab-ph:var(--t4);--slab-chip:var(--s1);--slab-line:var(--l2)}
+.proto{display:flex;align-items:center;gap:10px;padding:0 12px;font:11px var(--mono);color:var(--t3);border-bottom:1px dashed var(--l2);white-space:nowrap;overflow:hidden}
+.proto .pt{color:var(--t1);margin-right:8px}.proto .pl{color:var(--t4)}.proto .pn{margin-left:auto;color:var(--t4)}
+.seg{display:inline-flex;border:1px solid var(--l2);border-radius:5px;overflow:hidden}
+.seg button{font:11px var(--mono);padding:3px 8px;color:var(--t3)}.seg button.on{background:var(--s3);color:var(--t1)}
+.tb{display:flex;align-items:center;gap:4px;padding:0 10px 0 84px;color:var(--t2);font-size:12.5px}
+.chip{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;border-radius:6px;color:var(--t2);font-size:12.5px;white-space:nowrap}
+.chip:hover{background:var(--s3);box-shadow:var(--sh1);color:var(--t1)}
+.ib{width:26px;height:26px;border-radius:6px;display:inline-grid;place-items:center;color:var(--t3);flex:none}
+.ib:hover{background:var(--s3);color:var(--t1)}
+.ib.s20{width:20px;height:20px;border-radius:4px}.ib.s22{width:22px;height:22px}
+.tb .title{margin:0 auto;min-width:0;display:flex;align-items:center;gap:8px;font:500 14px var(--serif);color:var(--t1);letter-spacing:.01em}
+.tt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.status{font:11.5px var(--mono);color:var(--t3);font-variant-numeric:tabular-nums;margin-right:4px;white-space:nowrap}
+.app[data-state=waiting] .status{color:var(--zhu)}.app[data-state=running] .status{color:var(--lamp)}
+.av{width:18px;height:18px;border-radius:50%;background:var(--s3);box-shadow:var(--sh1);font:600 10.5px/18px var(--serif);text-align:center;color:var(--t1);display:inline-block;flex:none}
+.lamp{width:7px;height:7px;border-radius:50%;background:var(--lamp);box-shadow:0 0 8px 2px var(--lamp-glow);animation:breath 2.4s ease-in-out infinite;flex:none}
+.sq{width:8px;height:8px;border-radius:1px;background:var(--zhu);flex:none}
+.deck{display:grid;grid-template-columns:236px minmax(0,1fr) 304px;gap:8px;padding:0 8px 8px;min-height:0}
+.panel{background:var(--s1);border-radius:12px;box-shadow:var(--sh2);min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.app[data-inspector=off] .deck{grid-template-columns:236px minmax(0,1fr)}.app[data-inspector=off] .insp{display:none}
+@media (max-width:1040px){.deck{grid-template-columns:236px minmax(0,1fr)}.insp{display:none}}
+.sb-top{display:flex;gap:6px;padding:10px 10px 6px}
+.search{flex:1;min-width:0;height:28px;border-radius:6px;background:var(--s2);box-shadow:var(--sh1);display:flex;align-items:center;gap:6px;padding:0 8px;color:var(--t4);font-size:12.5px;white-space:nowrap;overflow:hidden}
+.search kbd{margin-left:auto;font:10.5px var(--mono);color:var(--t4)}
+.new{width:28px;height:28px;border-radius:6px;background:var(--zhu);color:var(--on-zhu);display:grid;place-items:center;flex:none;box-shadow:0 1px 0 rgba(0,0,0,.12)}.new:hover{background:var(--zhu-lift)}
+.sb-scroll{flex:1;overflow:auto;min-height:0;padding-bottom:6px}
+.sec{padding:8px 6px 0}
+.sec-h{display:flex;align-items:center;gap:6px;height:22px;padding:0 8px;font:600 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--t3)}
+.n{font:11px var(--mono);color:var(--t4);font-variant-numeric:tabular-nums}
+.sec-h .ib{opacity:0}.sec:hover .sec-h .ib{opacity:1}
+.row{display:flex;align-items:center;gap:7px;height:28px;padding:0 8px;border-radius:6px;font-size:12.5px;color:var(--t1);position:relative}
+.row:hover{background:var(--s2)}.row.sel{background:var(--s3);box-shadow:var(--sh1)}
+.row .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .end{width:64px;display:flex;justify-content:flex-end;align-items:center;flex:none}
+.tm{font:11px var(--mono);color:var(--t4);font-variant-numeric:tabular-nums}
+.row .acts{display:none}.row:hover .acts{display:flex}.row:hover .tm{display:none}
+.row .i.s14{color:var(--t4)}
+.folder{display:flex;align-items:center;gap:6px;height:26px;padding:0 8px;font-size:12.5px;color:var(--t2)}
+.folder b{color:var(--t1);font-weight:500}.folder .fp{margin-left:auto;opacity:0}.folder:hover .fp{opacity:1}
+.thread{position:relative;padding-left:22px}
+.thread::before{content:"";position:absolute;left:8px;top:8px;bottom:8px;width:1.5px;border-radius:1px;background:var(--l3)}
+.node{position:absolute;left:-18px;top:50%;margin-top:-4.5px;width:9px;height:9px;border-radius:50%;background:var(--s2);border:1.5px solid var(--l3)}
+.sb .thread{margin-left:0;padding-left:22px}.sb .thread::before{left:4px}.sb .node{left:-17.5px;width:8px;height:8px;margin-top:-4px}
+.node.done{background:var(--pine);border-color:var(--pine)}.node.bg{background:var(--azure);border-color:var(--azure)}
+.node.run,.app[data-state=running] .row.cur .node,.app[data-state=running] .tr.last .node{background:var(--lamp);border-color:var(--lamp);box-shadow:0 0 0 3px var(--lamp-wash);animation:breath 2.4s ease-in-out infinite}
+.node.wait,.app[data-state=waiting] .row.cur .node{border-radius:1px;background:var(--zhu);border-color:var(--zhu)}
+.app[data-state=idle] .tr.last .node{background:var(--pine);border-color:var(--pine)}
+.app[data-state=waiting] .tr.last{opacity:.5}
+.tr{position:relative;display:flex;align-items:center;gap:8px;height:28px;padding:0 8px;border-radius:6px;font-size:12.5px;color:var(--t2);white-space:nowrap}
+.tr:hover{background:var(--s3);box-shadow:var(--sh1)}
+.tr b{color:var(--t1);font-weight:600}
+.tr code,.gate code,.work-h code,.prose code{font:11.5px var(--mono);color:var(--t1);background:var(--code);padding:1px 5px;border-radius:3px}
+.tr code{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tr .meta{margin-left:auto;display:flex;gap:8px;align-items:center;font:11.5px var(--mono);color:var(--t4);font-variant-numeric:tabular-nums;flex:none}
+.pm{font:11.5px var(--mono);font-variant-numeric:tabular-nums}.plus{color:var(--pine)}.minus{color:var(--crimson)}
+.run-m{display:inline-flex;gap:6px;align-items:center;color:var(--lamp)}
+.grind{width:11px;height:11px;border-radius:50%;border:1.5px solid var(--l3);border-top-color:var(--lamp);animation:grind 1.4s linear infinite}
+.seal{width:36px;height:36px;border-radius:4px;background:var(--zhu);color:var(--on-zhu);font:600 17px/1 var(--serif);display:grid;place-items:center;position:relative;transform:rotate(-1.5deg);box-shadow:0 1px 0 rgba(0,0,0,.18),inset 0 0 0 1px rgba(255,255,255,.35)}
+.seal::after{content:"";position:absolute;inset:3px;border:1px solid rgba(255,255,255,.6);border-radius:2px}
+.seal:hover{background:var(--zhu-lift)}
+.seal.ghost{background:transparent;color:var(--t2);box-shadow:inset 0 0 0 1.5px var(--l3);transform:none}
+.seal.ghost::after{display:none}.seal.ghost:hover{background:var(--s2);color:var(--t1)}
+.seal.mini{width:17px;height:17px;font-size:9px;border-radius:2px;transform:rotate(-3deg);box-shadow:inset 0 0 0 1px rgba(255,255,255,.35)}
+.seal.mini::after{inset:2px;border-radius:1px}
+.seal.stamping{animation:stamp .16s var(--spring) both}
+.tr-gate{position:relative;padding:4px 0 6px}.tr-gate .node{top:26px;margin-top:0}
+.gate{position:relative;margin-left:8px;padding:12px 14px;background:var(--s3);box-shadow:var(--sh2);border-radius:8px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 16px;align-items:center}
+.gate::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:2px;background:var(--zhu)}
+.gate .mic{font:600 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--zhu)}
+.gate .cmd{margin-top:4px;font-size:13.5px;color:var(--t1)}
+.gate .facts{margin-top:5px;display:flex;gap:12px;flex-wrap:wrap;font:11.5px var(--mono);color:var(--t3)}
+.gate .seals{display:flex;gap:8px;align-items:center}
+.gate .gh{grid-column:1/-1;font:11px var(--mono);color:var(--t4)}.gate .gh u{color:var(--t3);margin-left:2px}
+.stage{background:var(--s2);position:relative;container-type:inline-size}
+.stage::after{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;opacity:.035;mix-blend-mode:multiply;background:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>") 0 0/200px 200px}
+.app[data-face=ink] .stage::after{mix-blend-mode:screen;opacity:.02}
+.scroll,.dock{--mg:0px;--measure:720px;--rail:0px;--gut:clamp(0px,max(var(--mg),var(--rail)),calc((100% - 24rem)/2))}
+@container (min-width:1080px){.scroll,.dock{--mg:160px}.stage .marg{display:flex}.stage .head{display:none}}
+.scroll{flex:1;overflow:auto;padding:26px 28px 6px}
+.scroll::-webkit-scrollbar,.sb-scroll::-webkit-scrollbar{width:8px}
+.scroll::-webkit-scrollbar-thumb,.sb-scroll::-webkit-scrollbar-thumb{background:var(--l2);border-radius:4px}
+.turn{display:grid;grid-template-columns:minmax(0,var(--gut)) minmax(0,var(--measure)) minmax(0,var(--gut));width:100%;max-width:calc(var(--gut)*2 + var(--measure));margin:0 auto 22px}
+.turn>div{grid-column:2;min-width:0}
+.marg{display:none;grid-column:1;justify-self:end;width:var(--mg);flex-direction:column;align-items:flex-end;gap:4px;padding:5px 18px 0 0;font:11px var(--mono);color:var(--t4);text-align:right;position:sticky;top:0;align-self:start}
+.marg .av{width:22px;height:22px;line-height:22px;font-size:12px;margin-bottom:2px}
+.marg .who,.head .who{font:500 12.5px var(--serif);color:var(--t2)}
+.head{display:flex;align-items:center;gap:8px;font:11px var(--mono);color:var(--t4);margin-bottom:8px}
+.ucard{background:var(--s3);box-shadow:var(--sh1);border-radius:8px;padding:12px 14px;font-size:14.5px;line-height:1.72}
+.ucard code{font:12.5px var(--mono);background:var(--s1);padding:1px 5px;border-radius:3px}
+.att{display:inline-flex;align-items:center;gap:5px;margin-top:8px;height:24px;padding:0 8px;border-radius:3px;background:var(--s1);box-shadow:var(--sh1);font:11.5px var(--mono);color:var(--t2)}
+.cap{display:flex;align-items:center;gap:8px;height:24px;margin:8px 0 0;font:11.5px var(--mono);color:var(--t3);white-space:nowrap;overflow:hidden}
+.cap i{width:5px;height:5px;border-radius:50%;background:var(--t4);flex:none}
+.work{margin:2px 0 10px}
+.work-h{display:flex;align-items:center;gap:8px;height:30px;padding:0 8px;margin-left:-8px;width:calc(100% + 16px);border-radius:6px;font-size:12.5px;color:var(--t2);cursor:pointer;white-space:nowrap;overflow:hidden}
+.work-h:hover{background:var(--s3)}.work-h b{color:var(--t1);font-weight:500}.work-h .i{color:var(--t3)}
+.chev{margin-left:auto;color:var(--t4)}
+.think{margin:2px 0 8px 30px;padding-left:10px;border-left:1.5px solid var(--l2);color:var(--t2);font-size:12.5px;line-height:1.6;max-width:600px}
+.work .thread{margin-left:0}
+.prose{font-size:14.5px;line-height:1.72;color:var(--t1)}
+.prose h3{font:600 15px/1.4 var(--sans);margin:2px 0 8px}.prose p{margin:0 0 10px}.prose code{font-size:12.5px}
+.prose.streaming{margin-top:6px;color:var(--t2)}
+.caret{display:inline-block;width:2px;height:1em;background:var(--lamp);vertical-align:-2px;margin-left:2px;animation:breath 1s ease-in-out infinite}
+.pc{display:inline-flex;align-items:center;gap:4px;font:12px var(--mono);color:var(--t1);background:var(--s3);box-shadow:var(--sh1);padding:1px 6px;border-radius:3px;vertical-align:-1px;cursor:pointer}
+.code{background:var(--code);border-radius:8px;box-shadow:var(--sh1);margin:8px 0 12px;overflow:hidden}
+.code-h{display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;border-bottom:1px solid var(--l1);font:11.5px var(--mono);color:var(--t3)}
+.sep{color:var(--t4)}
+.code pre{padding:10px 12px;font:12.5px/1.6 var(--mono);color:var(--t1);overflow:auto;tab-size:2}
+.k{color:var(--azure)}.s{color:var(--pine)}.c{color:var(--t4)}
+.fcb{display:flex;align-items:center;gap:10px;height:32px;padding:0 10px;border-radius:8px;background:var(--s3);box-shadow:var(--sh1);font-size:12.5px;color:var(--t2);margin-top:4px}
+.fcb .i{color:var(--t3)}
+.acts-f{display:flex;align-items:center;gap:2px;margin-top:8px}
+.fk{font:11.5px var(--mono);color:var(--t4);margin-left:6px}
+.dock{padding:8px 28px 12px;background:linear-gradient(to bottom,transparent,var(--s2) 40%);position:relative;z-index:2}
+.dock-in{width:100%;max-width:calc(var(--gut)*2 + var(--measure));margin:0 auto;padding:0 var(--gut)}
+.queued{display:flex;align-items:center;gap:8px;height:30px;margin:0 12px 6px;padding:0 10px;border-radius:6px;background:var(--s3);box-shadow:var(--sh1);font-size:12px;color:var(--t2)}
+.queued .qm{font:11px var(--mono);color:var(--t3);flex:none}
+.queued b{color:var(--t1);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.queued .ln{margin-left:auto;display:flex;gap:10px;font-size:11.5px;color:var(--t3);flex:none}
+.slab{background:var(--slab);color:var(--slab-t);border-radius:12px;box-shadow:var(--sh3);position:relative;overflow:hidden}
+.slab::before{content:"";position:absolute;left:0;right:0;top:0;height:1px;background:var(--slab-line)}
+.app[data-state=running] .slab::before{background:linear-gradient(90deg,transparent 0,var(--lamp) 45%,var(--lamp-glow) 55%,transparent 100%);background-size:200% 100%;animation:sheen 4.8s linear infinite}
+.refs{display:flex;gap:6px;padding:10px 12px 0;flex-wrap:wrap}
+.ref{display:inline-flex;align-items:center;height:22px;padding:0 7px;border-radius:3px;background:var(--slab-chip);font:11.5px var(--mono);color:var(--slab-t)}
+.ta{display:block;width:100%;min-height:56px;padding:10px 14px 2px;background:transparent;border:0;color:var(--slab-t);font:14.5px/1.6 var(--sans);resize:none;outline:0}
+.ta::placeholder{color:var(--slab-ph)}
+.bar{display:flex;align-items:center;gap:2px;padding:4px 8px 8px}
+.sb-chip{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 8px;border-radius:6px;color:var(--slab-ph);font-size:12.5px;white-space:nowrap}
+.sb-chip:hover{background:var(--slab-chip);color:var(--slab-t)}.sb-chip.on{color:var(--slab-t)}
+.sb-chip.ic{width:28px;padding:0;justify-content:center}
+.sb-chip .av{background:var(--slab-chip);color:var(--slab-t);box-shadow:none;width:16px;height:16px;line-height:16px;font-size:9.5px}
+.dot{color:var(--slab-ph)}
+.ring{width:18px;height:18px;border-radius:50%;margin:0 8px 0 4px;background:conic-gradient(var(--slab-t) 37%,var(--slab-chip) 0);-webkit-mask:radial-gradient(farthest-side,transparent 58%,#000 60%);mask:radial-gradient(farthest-side,transparent 58%,#000 60%);flex:none}
+.send{width:32px;height:32px;border-radius:50%;background:var(--zhu);color:var(--on-zhu);display:grid;place-items:center;flex:none}
+.send:hover{background:var(--zhu-lift)}.send .ic-pause{display:none}
+.app[data-state=running] .send{background:var(--slab-chip);color:var(--slab-t);box-shadow:0 0 0 2px var(--lamp);animation:breath 2.4s ease-in-out infinite}
+.app[data-state=running] .send .ic-send{display:none}.app[data-state=running] .send .ic-pause{display:block}
+.hint{display:flex;gap:14px;justify-content:center;margin-top:8px;font:11px var(--mono);color:var(--t4);flex-wrap:wrap}
+.insp-h{display:flex;align-items:center;gap:2px;height:38px;padding:0 6px 0 8px;border-bottom:1px solid var(--l1);flex:none}
+.tab{height:26px;padding:0 9px;border-radius:6px;color:var(--t3);font-size:12.5px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.tab:hover{color:var(--t1)}.tab.on{background:var(--s3);color:var(--t1);box-shadow:var(--sh1)}
+.tab .b{font:10.5px/16px var(--mono);background:var(--s2);color:var(--t3);padding:0 5px;border-radius:3px}.tab.on .b{background:var(--s1)}
+.dot-att{width:5px;height:5px;border-radius:50%;background:var(--zhu)}
+.chg{padding:8px}
+.file{display:flex;align-items:center;gap:8px;height:28px;padding:0 8px;border-radius:6px;font:12px var(--mono);color:var(--t1);white-space:nowrap}
+.file:hover,.file.on{background:var(--s3);box-shadow:var(--sh1)}
+.file .m{width:12px;font-weight:600;font-size:10.5px;color:var(--ochre)}.file .pm{margin-left:auto}
+.diff{margin:0 8px 8px;border-radius:8px;background:var(--code);box-shadow:var(--sh1);overflow:hidden;font:11.5px/1.75 var(--mono)}
+.dh{display:flex;gap:8px;padding:5px 10px;border-bottom:1px solid var(--l1);color:var(--t3);white-space:nowrap}.dh .r{margin-left:auto;color:var(--t4)}
+.dl{display:flex;gap:10px;padding:0 10px;white-space:pre;color:var(--t2);overflow:hidden}
+.dl.a{background:var(--pine-wash);color:var(--t1)}.dl.d{background:var(--crimson-wash)}
+.dl .ln{width:22px;text-align:right;color:var(--t4);flex:none}
+@keyframes breath{0%,100%{opacity:.6}50%{opacity:1}}
+@keyframes grind{to{transform:rotate(360deg)}}
+@keyframes sheen{from{background-position:200% 0}to{background-position:-200% 0}}
+@keyframes stamp{0%{transform:scale(.88) rotate(-7deg);opacity:.5}60%{transform:scale(1.05) rotate(-1deg);opacity:1}100%{transform:scale(1) rotate(-1.5deg)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs>
+<symbol id="panel" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M6 3v10"/></symbol>
+<symbol id="panelr" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M10 3v10"/></symbol>
+<symbol id="folder" viewBox="0 0 16 16"><path d="M2 5.5A1.5 1.5 0 0 1 3.5 4H6l1.5 1.5h5A1.5 1.5 0 0 1 14 7v4.5A1.5 1.5 0 0 1 12.5 13h-9A1.5 1.5 0 0 1 2 11.5z"/></symbol>
+<symbol id="folderp" viewBox="0 0 16 16"><path d="M2 5.5A1.5 1.5 0 0 1 3.5 4H6l1.5 1.5h5A1.5 1.5 0 0 1 14 7v4.5A1.5 1.5 0 0 1 12.5 13h-9A1.5 1.5 0 0 1 2 11.5zM8 7.5v3M6.5 9h3"/></symbol>
+<symbol id="branch" viewBox="0 0 16 16"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5.5" r="1.5"/><path d="M4.5 5v6M11.5 7c0 2.5-3 3-7 3.5"/></symbol>
+<symbol id="search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></symbol>
+<symbol id="plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></symbol>
+<symbol id="chevd" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></symbol>
+<symbol id="chevr" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></symbol>
+<symbol id="more" viewBox="0 0 16 16"><path d="M8 3.5v.01M8 8v.01M8 12.5v.01" stroke-width="2.2"/></symbol>
+<symbol id="pin" viewBox="0 0 16 16"><path d="M8 14V9.5M4.5 9.5h7L10 5.5V3H6v2.5z"/></symbol>
+<symbol id="archive" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="3" rx="1"/><path d="M3 6v6.5A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5V6M6.5 9h3"/></symbol>
+<symbol id="copy" viewBox="0 0 16 16"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M3 10.5V4a1.5 1.5 0 0 1 1.5-1.5H10.5"/></symbol>
+<symbol id="fork" viewBox="0 0 16 16"><circle cx="8" cy="3" r="1.5"/><circle cx="4" cy="13" r="1.5"/><circle cx="12" cy="13" r="1.5"/><path d="M8 4.5v2c0 1.5-4 1.5-4 5M8 6.5c0 1.5 4 1.5 4 5"/></symbol>
+<symbol id="refresh" viewBox="0 0 16 16"><path d="M13 8A5 5 0 1 1 11.6 4.5M13.5 2.5v3h-3"/></symbol>
+<symbol id="file" viewBox="0 0 16 16"><path d="M4 2h5l3 3v9H4zM9 2v3h3"/></symbol>
+<symbol id="term" viewBox="0 0 16 16"><path d="M3 4l4 4-4 4M8.5 12h4.5"/></symbol>
+<symbol id="globe" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M2 8h12M8 2c2.5 3 2.5 9 0 12M8 2c-2.5 3-2.5 9 0 12"/></symbol>
+<symbol id="expand" viewBox="0 0 16 16"><path d="M9.5 2H14v4.5M6.5 14H2V9.5M14 2L9 7M2 14l5-5"/></symbol>
+<symbol id="close" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+<symbol id="mic" viewBox="0 0 16 16"><rect x="6" y="2" width="4" height="8" rx="2"/><path d="M3.5 8a4.5 4.5 0 0 0 9 0M8 12.5V14"/></symbol>
+<symbol id="up" viewBox="0 0 16 16"><path d="M8 13V3M4 7l4-4 4 4"/></symbol>
+<symbol id="pause" viewBox="0 0 16 16"><path d="M6 4v8M10 4v8" stroke-width="2"/></symbol>
+<symbol id="image" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="1.5"/><circle cx="6" cy="7" r="1.2"/><path d="M14 11l-3.5-3.5L5 13"/></symbol>
+<symbol id="cards" viewBox="0 0 16 16"><rect x="3" y="4.5" width="8.5" height="9" rx="1.5"/><path d="M6 4.5V3.5A1.5 1.5 0 0 1 7.5 2h4A1.5 1.5 0 0 1 13 3.5V10"/></symbol>
+<symbol id="gear" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></symbol>
+<symbol id="sliders" viewBox="0 0 16 16"><path d="M2 4h12M2 8h12M2 12h12"/><circle cx="10" cy="4" r="1.5"/><circle cx="5" cy="8" r="1.5"/><circle cx="11" cy="12" r="1.5"/></symbol>
+<symbol id="bulb" viewBox="0 0 16 16"><path d="M8 2.5A4.2 4.2 0 0 0 3.8 6.7c0 1.7 1 2.6 1.7 3.4.4.5.5.9.5 1.4h4c0-.5.1-.9.5-1.4.7-.8 1.7-1.7 1.7-3.4A4.2 4.2 0 0 0 8 2.5zM6.5 13.5h3"/></symbol>
+<symbol id="git" viewBox="0 0 16 16"><circle cx="8" cy="4" r="1.6"/><circle cx="8" cy="12" r="1.6"/><path d="M8 5.6v4.8"/></symbol>
+</defs></svg>
+
+<div class="app" id="app" data-face="ink" data-state="idle" data-inspector="on" data-slab="ink">
+<div class="proto">
+ <span class="pt">Inkstone（砚）· 增量 0 · 外壳 · 墨（黑夜版）</span>
+ <span class="pl">面</span><span class="seg"><button data-set="face" data-v="paper">纸</button><button class="on" data-set="face" data-v="ink">墨</button></span>
+ <span class="pl">状态</span><span class="seg"><button class="on" data-set="state" data-v="idle">就绪</button><button data-set="state" data-v="running">运行中</button><button data-set="state" data-v="waiting">等待批准</button></span>
+ <span class="pl">石板</span><span class="seg"><button class="on" data-set="slab" data-v="ink">砚</button><button data-set="slab" data-v="paper">纸</button></span>
+ <span class="pl">检视器</span><span class="seg"><button class="on" data-set="inspector" data-v="on">开</button><button data-set="inspector" data-v="off">关</button></span>
+ <span class="pn">等待批准时：Enter 盖印允许 · Esc 拒绝</span>
+</div>
+
+<header class="tb">
+ <button class="ib" title="收起侧栏"><svg class="i"><use href="#panel"/></svg></button>
+ <button class="chip"><svg class="i"><use href="#folder"/></svg>piwin</button>
+ <button class="chip"><svg class="i"><use href="#branch"/></svg>main<svg class="i s12"><use href="#chevd"/></svg></button>
+ <div class="title"><span class="lamp" data-st="running"></span><span class="sq" data-st="waiting"></span><span class="tt">Composer 忙会话队列</span><button class="ib s22" title="会话树"><svg class="i"><use href="#fork"/></svg></button></div>
+ <span class="status"><span data-st="idle">就绪 · 上次 41s</span><span data-st="running">运行中 · 00:42</span><span data-st="waiting">等待批准</span></span>
+ <button class="chip"><span class="av">C</span>Sonnet 4.6</button>
+ <button class="ib" title="搜索 ⌘K"><svg class="i"><use href="#search"/></svg></button>
+ <button class="ib" title="检视器"><svg class="i"><use href="#panelr"/></svg></button>
+</header>
+
+<div class="deck">
+ <aside class="panel sb">
+  <div class="sb-top"><div class="search"><svg class="i"><use href="#search"/></svg>搜索或跳转…<kbd>⌘K</kbd></div><button class="new" title="新建 Chat"><svg class="i"><use href="#plus"/></svg></button></div>
+  <div class="sb-scroll">
+  <section class="sec">
+   <div class="sec-h">置顶<span class="n">2</span></div>
+   <div class="row"><svg class="i s14"><use href="#pin"/></svg><span class="t">Deck → Inkstone 重设计</span><span class="end"><span class="tm">昨天</span></span></div>
+   <div class="row"><svg class="i s14"><use href="#pin"/></svg><span class="t">Live 语音重连预算</span><span class="end"><span class="tm">3d</span></span></div>
+  </section>
+  <section class="sec">
+   <div class="sec-h">项目<span class="n">2</span><button class="ib s20 ml" title="显示选项"><svg class="i s12"><use href="#sliders"/></svg></button><button class="ib s20" title="打开工作区文件夹…"><svg class="i s12"><use href="#folderp"/></svg></button></div>
+   <div class="folder"><svg class="i s14"><use href="#chevd"/></svg><b>piwin</b><span class="n">4</span><button class="ib s20 fp" title="在项目中新建 Chat"><svg class="i s12"><use href="#plus"/></svg></button></div>
+   <div class="thread">
+    <div class="row sel cur"><span class="node"></span><span class="t">Composer 忙会话队列</span><span class="end"><span class="tm">现在</span><span class="acts"><button class="ib s20" title="置顶"><svg class="i s12"><use href="#pin"/></svg></button><button class="ib s20" title="归档"><svg class="i s12"><use href="#archive"/></svg></button><button class="ib s20" title="更多"><svg class="i s12"><use href="#more"/></svg></button></span></span></div>
+    <div class="row"><span class="node done"></span><span class="t">分支选择器 mock 修复</span><span class="end"><span class="tm">2h</span></span></div>
+    <div class="row"><span class="node"></span><span class="t">Artifact 源码 Preview 切回</span><span class="end"><span class="tm">5h</span></span></div>
+    <div class="row"><span class="node bg"></span><span class="t">侧栏项目折叠 · 子代理审查</span><span class="end"><span class="tm">6h</span></span></div>
+   </div>
+   <div class="folder"><svg class="i s14"><use href="#chevr"/></svg><b>openwebui_m</b><span class="n">3</span></div>
+  </section>
+  <section class="sec">
+   <div class="sec-h">对话<span class="n">3</span><button class="ib s20 ml" title="新建对话"><svg class="i s12"><use href="#plus"/></svg></button></div>
+   <div class="row"><span class="t">宋体在 CJK 排版里的字距</span><span class="end"><span class="tm">1d</span></span></div>
+   <div class="row"><span class="t">Leitner 间隔复习参数</span><span class="end"><span class="tm">2d</span></span></div>
+   <div class="row"><span class="t">周报草稿</span><span class="end"><span class="tm">4d</span></span></div>
+  </section>
+  </div>
+  <footer class="shelf">
+   <button><svg class="i"><use href="#image"/></svg>资料库</button>
+   <button><svg class="i"><use href="#cards"/></svg>知识卡片</button>
+   <button><svg class="i"><use href="#gear"/></svg>设置</button>
+   <div class="host"><i></i>本机 Host · 8787</div>
+  </footer>
+ </aside>
+
+ <main class="panel stage">
+  <div class="scroll">
+   <article class="turn">
+    <aside class="marg"><span class="who">你</span><span>14:02</span></aside>
+    <div>
+     <div class="head"><span class="who">你</span><span>14:02</span></div>
+     <div class="ucard">把作曲器运行中的 <code>Enter</code> 改成排队，<code>⌘Enter</code> 保持介入；补回归测试，别动侧栏。<div><span class="att"><svg class="i s12"><use href="#file"/></svg>composer-dock.test.tsx</span></div></div>
+     <div class="cap"><i></i>上下文已装配 · 12.4k tokens · 系统提示 · AGENTS.md · 2 个 @ 引用 · 技能 ×1</div>
+    </div>
+   </article>
+   <article class="turn">
+    <aside class="marg"><span class="av">C</span><span>Sonnet 4.6</span><span>14:03</span><span data-st="idle">3.1k · 41s</span></aside>
+    <div>
+     <div class="head"><span class="av">C</span><span>Sonnet 4.6</span><span>14:03</span><span data-st="idle">3.1k · 41s</span></div>
+     <div class="work">
+      <div class="work-h">
+       <svg class="i" data-st="idle"><use href="#bulb"/></svg><span class="lamp" data-st="running"></span><span class="sq" data-st="waiting"></span>
+       <span data-st="idle"><b>思考了 8 秒</b> · 5 个工具 · 2 个文件</span>
+       <span data-st="running"><b>正在运行</b> · 第 5 个工具 · <code>pnpm typecheck</code></span>
+       <span data-st="waiting"><b>等待你批准</b> · 写入 <code>composer-run-actions.tsx</code></span>
+       <svg class="i s12 chev"><use href="#chevd"/></svg>
+      </div>
+      <div class="think">Enter 在运行中应进 SteerQueue 而不是 transcript；⌘Enter 仍走 triggerSteer。先读 composer-card.tsx 第 5 段的键盘分发，再改 handleSend 的 streaming 分支。</div>
+      <div class="thread">
+       <div class="tr done"><span class="node"></span><b>read</b><code>apps/desktop/src/composer-card.tsx</code><span class="meta">1.2k 行 · 40ms</span></div>
+       <div class="tr done"><span class="node"></span><b>grep</b><code>"queued-turn"</code><span class="meta">7 处 · 3 文件</span></div>
+       <div class="tr done"><span class="node"></span><b>bash</b><code>pnpm vitest composer-dock</code><span class="meta">45 通过 · 6.2s</span></div>
+       <div class="tr done" data-st="idle running"><span class="node"></span><b>write_file</b><code>apps/desktop/src/composer-run-actions.tsx</code><span class="meta"><span class="pm"><span class="plus">+48</span> <span class="minus">−12</span></span><span class="seal mini" title="已批准 · 允许一次">允</span></span></div>
+       <div class="tr-gate" data-st="waiting"><span class="node wait"></span>
+        <div class="gate">
+         <div><div class="mic">需要你批准 · 写文件</div><div class="cmd"><b>write_file</b> <code>apps/desktop/src/composer-run-actions.tsx</code></div><div class="facts"><span>工作区内</span><span>规则 · 文件写入门</span><span>风险 · 低</span><span>+48 −12</span></div></div>
+         <div class="seals"><button class="seal ghost" id="deny" title="拒绝 (Esc)">否</button><button class="seal" id="allow" title="允许一次 (Enter)">允</button></div>
+         <div class="gh">Enter 盖印允许 · Esc 拒绝 · <u>允 · 本会话</u> · <u>允 · 项目</u></div>
+        </div>
+       </div>
+       <div class="tr last"><span class="node"></span><b>bash</b><code>pnpm typecheck</code><span class="meta"><span data-st="idle">4.1s</span><span data-st="running" class="run-m"><span class="grind"></span>12s</span><span data-st="waiting">待</span></span></div>
+      </div>
+     </div>
+     <div class="prose" data-st="idle">
+      <h3>已改为排队语义</h3>
+      <p>运行中的 <code>Enter</code> 现在走 <code>handleSend → session/queued-turn-submit</code>，消息进 SteerQueue 而不进 transcript；<code>⌘Enter</code> 仍触发 <code>triggerSteer</code>。IME 组合期间两者都被抑制。</p>
+      <div class="code"><div class="code-h"><svg class="i s12"><use href="#file"/></svg>composer-card.tsx<span class="sep">·</span>TypeScript<button class="ib s20 ml" title="复制"><svg class="i s12"><use href="#copy"/></svg></button></div>
+<pre><span class="k">if</span> (event.key === <span class="s">'Enter'</span> &amp;&amp; !event.shiftKey &amp;&amp; !isComposing) {
+  event.preventDefault();
+  <span class="c">// streaming 时 handleSend 自己会转成 queued-turn</span>
+  <span class="k">return</span> event.metaKey ? triggerSteer() : triggerSend();
+}</pre></div>
+      <p>回归测试在 <span class="pc"><svg class="i s12"><use href="#file"/></svg>composer-dock.test.tsx</span> 新增「queues Enter and steers Command+Enter while streaming」；<span class="pc"><svg class="i s12"><use href="#file"/></svg>composer-run-actions.test.tsx</span> 覆盖 Pause / 排队发送的 aria 文案。没有触碰侧栏。</p>
+     </div>
+     <p class="prose streaming" data-st="running">测试全部通过，正在跑 <code>pnpm typecheck</code> 确认没有类型回归<span class="caret"></span></p>
+     <div class="fcb" data-st="idle"><svg class="i"><use href="#git"/></svg>2 个文件已修改<span class="pm"><span class="plus">+48</span> <span class="minus">−12</span></span><button class="chip ml">查看变更</button><button class="chip">走查报告</button></div>
+     <div class="acts-f" data-st="idle"><button class="ib" title="复制"><svg class="i"><use href="#copy"/></svg></button><button class="ib" title="从这里分叉"><svg class="i"><use href="#fork"/></svg></button><button class="ib" title="重新生成"><svg class="i"><use href="#refresh"/></svg></button><span class="fk">1 个分叉</span></div>
+    </div>
+   </article>
+  </div>
+  <div class="dock"><div class="dock-in">
+   <div class="queued" data-st="running"><span class="qm">已排队 1</span><b>再补一个 IME 组合期间不触发排队的测试</b><span class="ln"><u>编辑</u><u>撤回</u></span></div>
+   <div class="slab">
+    <div class="refs"><span class="ref">@ composer-card.tsx</span><span class="ref">@ AGENTS.md §3.3</span></div>
+    <textarea class="ta" rows="2" placeholder="问点什么，或 @ 引用文件、/ 调用技能…"></textarea>
+    <div class="bar">
+     <button class="sb-chip ic" title="附件 · 技能 · MCP"><svg class="i"><use href="#plus"/></svg></button>
+     <button class="sb-chip on"><span class="av">C</span>Sonnet 4.6<span class="dot">·</span>思考 中<svg class="i s12"><use href="#chevd"/></svg></button>
+     <button class="sb-chip">Auto<svg class="i s12"><use href="#chevd"/></svg></button>
+     <button class="sb-chip">编排 · 关<svg class="i s12"><use href="#chevd"/></svg></button>
+     <span class="grow"></span>
+     <button class="sb-chip ic" title="语音"><svg class="i"><use href="#mic"/></svg></button>
+     <span class="ring" title="上下文 37%"></span>
+     <button class="send" title="发送 (Enter)"><svg class="i ic-send"><use href="#up"/></svg><svg class="i ic-pause"><use href="#pause"/></svg></button>
+    </div>
+   </div>
+   <div class="hint"><span>Enter 发送</span><span>⇧Enter 换行</span><span>运行中 Enter 排队</span><span>⌘Enter 介入</span></div>
+  </div></div>
+ </main>
+
+ <aside class="panel insp">
+  <div class="insp-h">
+   <button class="tab"><svg class="i s14"><use href="#file"/></svg>文件</button>
+   <button class="tab"><svg class="i s14"><use href="#term"/></svg>zsh<span class="dot-att"></span></button>
+   <button class="tab on"><svg class="i s14"><use href="#git"/></svg>变更<span class="b">2</span></button>
+   <button class="tab"><svg class="i s14"><use href="#globe"/></svg>浏览器</button>
+   <button class="ib ml"><svg class="i"><use href="#plus"/></svg></button><button class="ib"><svg class="i"><use href="#expand"/></svg></button><button class="ib"><svg class="i"><use href="#close"/></svg></button>
+  </div>
+  <div class="chg">
+   <div class="sec-h">未暂存<span class="n">2</span></div>
+   <div class="file on"><span class="m">M</span>composer-run-actions.tsx<span class="pm"><span class="plus">+48</span> <span class="minus">−12</span></span></div>
+   <div class="file"><span class="m">M</span>composer-dock.test.tsx<span class="pm"><span class="plus">+31</span></span></div>
+  </div>
+  <div class="diff">
+   <div class="dh">composer-run-actions.tsx<span class="r">@@ 85,7 @@</span></div>
+   <div class="dl"><span class="ln">85</span> if (streaming) {</div>
+   <div class="dl d"><span class="ln">86</span>-  return { kind: 'pause', label: t.pause }</div>
+   <div class="dl a"><span class="ln">86</span>+  if (draft.trim()) return { kind: 'queue', label: t.queueFollowUp }</div>
+   <div class="dl a"><span class="ln">87</span>+  return { kind: 'pause', label: t.pause }</div>
+   <div class="dl"><span class="ln">88</span> }</div>
+  </div>
+ </aside>
+</div>
+</div>
+<style>
+.shelf{margin-top:auto;border-top:1px solid var(--l1);padding:8px 8px 10px;display:grid;grid-template-columns:repeat(3,1fr);gap:4px;flex:none}
+.shelf button{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;border-radius:6px;color:var(--t3);font-size:11px}
+.shelf button:hover{background:var(--s2);color:var(--t1)}
+.host{grid-column:1/-1;display:flex;align-items:center;gap:6px;font:11px var(--mono);color:var(--t4);padding:4px 6px 0}
+.host i{width:6px;height:6px;border-radius:50%;background:var(--pine)}
+</style>
+<script>
+(function(){
+var app=document.getElementById('app');
+var each=function(list,fn){Array.prototype.forEach.call(list,fn)};
+function show(state){each(document.querySelectorAll('[data-st]'),function(el){el.hidden=el.getAttribute('data-st').split(' ').indexOf(state)===-1})}
+function setState(s){app.setAttribute('data-state',s);show(s);each(document.querySelectorAll('[data-set="state"]'),function(b){b.classList.toggle('on',b.getAttribute('data-v')===s)})}
+each(document.querySelectorAll('[data-set]'),function(b){b.addEventListener('click',function(){var k=b.getAttribute('data-set'),v=b.getAttribute('data-v');if(k==='state'){setState(v);return}app.setAttribute('data-'+k,v);each(b.parentNode.children,function(x){x.classList.toggle('on',x===b)})})});
+var allow=document.getElementById('allow'),deny=document.getElementById('deny');
+allow.addEventListener('click',function(){allow.classList.add('stamping');setTimeout(function(){allow.classList.remove('stamping');setState('running')},420)});
+deny.addEventListener('click',function(){setState('idle')});
+document.addEventListener('keydown',function(e){if(app.getAttribute('data-state')!=='waiting'){return}if(e.key==='Enter'){e.preventDefault();allow.click()}if(e.key==='Escape'){deny.click()}});
+setState('idle');
+})();
+</script>
+</body>
+</html>

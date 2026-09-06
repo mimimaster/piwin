@@ -26,7 +26,7 @@ const projects: HostListDirData = {
 };
 
 function pathInputValue(container: HTMLDivElement | null): string {
-  return (container?.querySelector('[data-testid="host-workspace-current-path"]') as HTMLInputElement | null)
+  return (container?.querySelector('[data-testid="project-path-input"]') as HTMLInputElement | null)
     ?.value ?? '';
 }
 
@@ -133,5 +133,53 @@ describe('HostWorkspacePicker', () => {
     });
     expect(onConfirm).toHaveBeenCalledWith('/Users/host/readme.md');
     expect(container?.querySelector('[data-testid="open-project-btn"]')?.textContent).toBe('Choose');
+  });
+
+  it('opens the path typed in the location field', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const onConfirm = vi.fn();
+    const listDirectory = vi.fn(async (path?: string) => {
+      if (path === '/tmp/typed-workspace') {
+        return {
+          path: '/tmp/typed-workspace',
+          parentPath: '/tmp',
+          homePath: '/Users/host',
+          entries: [],
+        };
+      }
+      return home;
+    });
+
+    await act(async () => {
+      root?.render(
+        <HostWorkspacePicker
+          locale="zh-CN"
+          currentPath=""
+          onCurrentPathChange={() => undefined}
+          listDirectory={listDirectory}
+          onConfirm={onConfirm}
+          onCancel={() => undefined}
+        />,
+      );
+    });
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(pathInputValue(container)).toBe('/Users/host');
+      });
+    });
+
+    const pathInput = container?.querySelector('[data-testid="project-path-input"]') as HTMLInputElement;
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+      setter?.call(pathInput, '/tmp/typed-workspace');
+      pathInput.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => {
+      (container?.querySelector('[data-testid="open-project-btn"]') as HTMLButtonElement).click();
+    });
+    expect(onConfirm).toHaveBeenCalledWith('/tmp/typed-workspace');
   });
 });

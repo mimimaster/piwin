@@ -5,10 +5,8 @@
    Deck rule: badges are semantic chips (iris-wash / mint / amber / coral);
    subagent cards are quiet objects — surface-2 + elev-1, no border. */
 
-.context-bar-status,
 .run-activity-inline,
-.run-activity-splash,
-[data-testid='run-status-strip'] {
+.run-activity-splash {
   display: none !important;
 }
 

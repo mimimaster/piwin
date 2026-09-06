@@ -1,7 +1,6 @@
 import { useMemo, useState, type ReactElement } from 'react';
 import type { ProductSessionLineageNode, ProductSessionLineageView } from '@piwin/contracts';
 import { IconGit, Popover } from '@piwin/ui-kit';
-import { IconSessionTree } from './shell-icons';
 import { buildSessionLineageTree, type SessionLineageTreeNode } from './session-lineage-tree';
 
 export type SessionLineagePopoverProps = {
@@ -196,6 +195,7 @@ export function SessionLineagePopover(props: SessionLineagePopoverProps): ReactE
 
   const isChinese = props.locale === 'zh-CN';
   const { branchCount } = getLineageCounts(props.lineage);
+  const count = props.directForkCount > 0 ? props.directForkCount : branchCount;
   const triggerLabel =
     props.directForkCount > 0
       ? isChinese
@@ -217,17 +217,17 @@ export function SessionLineagePopover(props: SessionLineagePopoverProps): ReactE
       trigger={
         <button
           type="button"
-          className="msg-action-btn fork-count-badge session-lineage-trigger"
+          className="fk session-lineage-trigger"
           title={triggerLabel}
           aria-label={triggerLabel}
           aria-haspopup="dialog"
           data-testid="response-session-tree-btn"
           onClick={() => props.onOpenForks?.(props.messageId)}
         >
-          <IconSessionTree width={12} height={12} />
           <span {...(props.directForkCount > 0 ? { 'data-testid': 'response-fork-count' } : {})}>
-            {props.directForkCount > 0 ? props.directForkCount : branchCount}
+            {count}
           </span>
+          {isChinese ? ' 个分支' : count === 1 ? ' branch' : ' branches'}
         </button>
       }
     >

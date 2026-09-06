@@ -1,0 +1,698 @@
+/* Inkstone transcript (.stage .scroll) per docs/design/inkstone/proto-01-transcript.html
+   Turn structure: margin rail .marg (>=1080px) + user card .ucard + assembly .cap
+   + work fold .work + ink-line tool chain .thread/.tr + permission gate .gate
+   + prose + diff .dc + files changed bar .fcb + action buttons. */
+
+/* Stage geometry — proto-01 puts `container-type` on `.stage`, tokens on
+   `.scroll`. A container cannot query itself, and querying the scrollport
+   lets the 1080 rail swap change turn height → virtualizer remesure →
+   width crosses 1080 again → the layout oscillates. `.chat-stage` is the
+   only container; tokens live on its children so the query is stable.
+   Measure follows `--chat-max` so Narrow/Wide stay aligned with the composer. */
+html[data-theme-id='piwin-inkstone-paper'] .chat-stage,
+html[data-theme-id='piwin-inkstone-ink'] .chat-stage {
+  container-type: inline-size;
+  container-name: transcript-stage;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .chat-stage .transcript-viewport,
+html[data-theme-id='piwin-inkstone-ink'] .chat-stage .transcript-viewport,
+html[data-theme-id='piwin-inkstone-paper'] .chat-stage .composer-dock,
+html[data-theme-id='piwin-inkstone-ink'] .chat-stage .composer-dock {
+  --mg: 0px;
+  --measure: var(--chat-max, 720px);
+  --rail: 0px;
+  --row-pad: 8px;
+  --card-x: 14px;
+  --card-y: 12px;
+  --surf-x: 12px;
+  --surf-y: 10px;
+  --line-x: 8px;
+  --row-in: 30px;
+  --gut: clamp(0px, max(var(--mg), var(--rail)), calc((100% - 24rem) / 2));
+}
+
+/* Deck locks the thread to `--chat-max`, which puts the 160px rail *inside*
+   the 720 measure and reflows every turn at the 1080 threshold. Proto keeps
+   the thread full-stage; the turn grid centers the measure and spends leftover
+   width on gutters. */
+html[data-theme-id='piwin-inkstone-paper'] .chat-thread,
+html[data-theme-id='piwin-inkstone-ink'] .chat-thread {
+  width: 100%;
+  max-width: none;
+}
+
+/* Base states: margin rail hidden, inline head shown */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .chat-thread:not(.is-conversation) .chat-turn-group {
+  column-gap: 0;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .marg,
+html[data-theme-id='piwin-inkstone-ink'] .marg,
+html[data-theme-id='piwin-inkstone-paper'] .chat-marginalia,
+html[data-theme-id='piwin-inkstone-ink'] .chat-marginalia {
+  display: none !important;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .head,
+html[data-theme-id='piwin-inkstone-ink'] .head,
+html[data-theme-id='piwin-inkstone-paper'] .chat-turn-head,
+html[data-theme-id='piwin-inkstone-ink'] .chat-turn-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 11px var(--mono);
+  color: var(--t4);
+  margin-bottom: 8px;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .head .who,
+html[data-theme-id='piwin-inkstone-ink'] .head .who,
+html[data-theme-id='piwin-inkstone-paper'] .chat-turn-head .who,
+html[data-theme-id='piwin-inkstone-ink'] .chat-turn-head .who {
+  font: 500 12.5px var(--serif);
+  color: var(--t2);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .head .who.is-user,
+html[data-theme-id='piwin-inkstone-ink'] .head .who.is-user,
+html[data-theme-id='piwin-inkstone-paper'] .chat-turn-head .who.is-user,
+html[data-theme-id='piwin-inkstone-ink'] .chat-turn-head .who.is-user {
+  font-family: var(--sans);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .head .av,
+html[data-theme-id='piwin-inkstone-ink'] .head .av,
+html[data-theme-id='piwin-inkstone-ink'] .chat-turn-head .av,
+html[data-theme-id='piwin-inkstone-paper'] .chat-turn-head .av {
+  width: 18px;
+  height: 18px;
+  line-height: 18px;
+  font-size: 10.5px;
+  border-radius: 50%;
+  background: var(--s3);
+  box-shadow: var(--sh1);
+  color: var(--t1);
+  display: inline-grid;
+  place-items: center;
+  font-weight: 600;
+  font-family: var(--serif);
+}
+
+/* 00.2: every session keeps the unified inline role label — the wide-viewport
+   marginalia swap (rail in, head out) is not part of the accepted look, and
+   Composition turns have no rail to show. The `.marg` stays display:none. */
+@container transcript-stage (min-width: 1080px) {
+  /* Named stage query so the 1080 rail cannot oscillate on the scrollport */
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .chat-turn-group,
+html[data-theme-id='piwin-inkstone-ink'] .chat-turn-group {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+/* Turn grid */
+html[data-theme-id='piwin-inkstone-paper'] .turn,
+html[data-theme-id='piwin-inkstone-ink'] .turn,
+html[data-theme-id='piwin-inkstone-paper'] .chat-turn,
+html[data-theme-id='piwin-inkstone-ink'] .chat-turn {
+  display: grid;
+  grid-template-columns: minmax(0, var(--gut)) minmax(0, var(--measure)) minmax(0, var(--gut));
+  width: 100%;
+  max-width: calc(var(--gut) * 2 + var(--measure));
+  margin: 0 auto 26px;
+  column-gap: 0;
+  box-sizing: border-box;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .turn > div,
+html[data-theme-id='piwin-inkstone-ink'] .turn > div,
+html[data-theme-id='piwin-inkstone-paper'] .chat-turn > div,
+html[data-theme-id='piwin-inkstone-ink'] .chat-turn > div,
+html[data-theme-id='piwin-inkstone-paper'] .chat-turn > .chat-turn-body,
+html[data-theme-id='piwin-inkstone-ink'] .chat-turn > .chat-turn-body,
+html[data-theme-id='piwin-inkstone-paper'] .chat-turn-group > .chat-turn-body,
+html[data-theme-id='piwin-inkstone-ink'] .chat-turn-group > .chat-turn-body {
+  grid-column: 2;
+  min-width: 0;
+}
+
+/* S5.2: Margin rail */
+html[data-theme-id='piwin-inkstone-paper'] .turn .marg,
+html[data-theme-id='piwin-inkstone-ink'] .turn .marg,
+html[data-theme-id='piwin-inkstone-paper'] .chat-turn .marg,
+html[data-theme-id='piwin-inkstone-ink'] .chat-turn .marg,
+html[data-theme-id='piwin-inkstone-paper'] .chat-turn .chat-marginalia,
+html[data-theme-id='piwin-inkstone-ink'] .chat-turn .chat-marginalia,
+html[data-theme-id='piwin-inkstone-paper'] .chat-turn-group .marg,
+html[data-theme-id='piwin-inkstone-ink'] .chat-turn-group .marg,
+html[data-theme-id='piwin-inkstone-paper'] .chat-turn-group .chat-marginalia,
+html[data-theme-id='piwin-inkstone-ink'] .chat-turn-group .chat-marginalia {
+  grid-column: 1;
+  justify-self: end;
+  width: var(--mg);
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  padding: 5px 18px 0 0;
+  font: 11px var(--mono);
+  color: var(--t4);
+  text-align: right;
+  position: sticky;
+  top: 0;
+  align-self: start;
+  box-sizing: border-box;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .turn .marg .who,
+html[data-theme-id='piwin-inkstone-ink'] .turn .marg .who,
+html[data-theme-id='piwin-inkstone-paper'] .chat-marginalia .who,
+html[data-theme-id='piwin-inkstone-ink'] .chat-marginalia .who {
+  font: 500 12.5px var(--serif);
+  color: var(--t2);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .marg .av,
+html[data-theme-id='piwin-inkstone-ink'] .marg .av,
+html[data-theme-id='piwin-inkstone-paper'] .chat-marginalia .av,
+html[data-theme-id='piwin-inkstone-ink'] .chat-marginalia .av {
+  width: 22px;
+  height: 22px;
+  line-height: 22px;
+  font-size: 12px;
+  border-radius: 50%;
+  background: var(--s3);
+  box-shadow: var(--sh1);
+  color: var(--t1);
+  display: inline-grid;
+  place-items: center;
+  font-weight: 600;
+  font-family: var(--serif);
+  margin-bottom: 2px;
+}
+
+/* User card (.ucard) */
+html[data-theme-id='piwin-inkstone-paper'] .ucard,
+html[data-theme-id='piwin-inkstone-ink'] .ucard,
+html[data-theme-id='piwin-inkstone-paper'] .user-message-collapsible,
+html[data-theme-id='piwin-inkstone-ink'] .user-message-collapsible {
+  position: relative;
+  background: var(--s3);
+  box-shadow: var(--sh1);
+  border-radius: 8px;
+  padding: var(--card-y) var(--card-x);
+  font-size: 14.5px;
+  line-height: 1.72;
+  color: var(--t1);
+  border: 0;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .ucard code,
+html[data-theme-id='piwin-inkstone-ink'] .ucard code,
+html[data-theme-id='piwin-inkstone-paper'] .user-message-collapsible code,
+html[data-theme-id='piwin-inkstone-ink'] .user-message-collapsible code {
+  background: var(--s1);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .ucard.steer,
+html[data-theme-id='piwin-inkstone-ink'] .ucard.steer,
+html[data-theme-id='piwin-inkstone-paper'] .user-message-collapsible.steer,
+html[data-theme-id='piwin-inkstone-ink'] .user-message-collapsible.steer {
+  padding-left: var(--card-x);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .ucard.steer::before,
+html[data-theme-id='piwin-inkstone-ink'] .ucard.steer::before,
+html[data-theme-id='piwin-inkstone-paper'] .user-message-collapsible.steer::before,
+html[data-theme-id='piwin-inkstone-ink'] .user-message-collapsible.steer::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--lamp);
+  animation: breath 2.4s ease-in-out infinite;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .ucard.steer.settled::before,
+html[data-theme-id='piwin-inkstone-ink'] .ucard.steer.settled::before,
+html[data-theme-id='piwin-inkstone-paper'] .user-message-collapsible.steer.settled::before,
+html[data-theme-id='piwin-inkstone-ink'] .user-message-collapsible.steer.settled::before {
+  background: var(--pine);
+  animation: none;
+}
+
+/* S5.11: Steer mono status text */
+html[data-theme-id='piwin-inkstone-paper'] .user-message-time[data-testid='intervention-delivery-status'],
+html[data-theme-id='piwin-inkstone-ink'] .user-message-time[data-testid='intervention-delivery-status'] {
+  font: 11px var(--mono);
+  color: var(--t3);
+  background: transparent;
+  padding: 0;
+  border: 0;
+}
+
+/* User edit mode resets outer bubble container so only .ucard.edit renders the card (ADR: 禁止卡中卡) */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .bubble.role-user.is-editing,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .bubble.is-editing,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .bubble.role-user:not(.is-conversation-bubble).is-editing {
+  background: transparent !important;
+  background-image: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 2px 0 !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .bubble.role-user.is-editing:hover,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .bubble.role-user:not(.is-conversation-bubble).is-editing:hover {
+  box-shadow: none !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .bubble.role-user.is-editing::before,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .bubble.role-user.is-editing::after,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .bubble.role-user:not(.is-conversation-bubble).is-editing::before,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .bubble.role-user:not(.is-conversation-bubble).is-editing::after {
+  content: none !important;
+  display: none !important;
+}
+
+/* User edit card (.ucard.edit) per proto-01 */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ucard.edit {
+  position: relative;
+  background: var(--s3);
+  box-shadow: 0 0 0 1.5px var(--zhu), var(--sh1);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 2px 0;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ucard.edit textarea,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ucard.edit textarea:focus,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ucard.edit textarea:focus-visible,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ucard.edit textarea:active {
+  display: block;
+  width: 100%;
+  min-height: 74px;
+  border: 0 !important;
+  background: transparent !important;
+  resize: none;
+  outline: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  color: var(--t1);
+  font: 14.5px/1.72 var(--sans);
+  box-sizing: border-box;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font: 11px var(--mono);
+  color: var(--t4);
+  white-space: nowrap;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .acts {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .ml {
+  margin-left: auto;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--t2);
+  white-space: nowrap;
+  flex: none;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .btn:hover {
+  background: var(--s2);
+  color: var(--t1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .btn.pri {
+  background: var(--zhu);
+  color: var(--on-zhu);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .btn.pri:hover {
+  background: var(--zhu-lift);
+  color: var(--on-zhu);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .btn.sm {
+  height: 22px;
+  padding: 0 7px;
+  font-size: 11.5px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+
+/* Context assembly capsule (.cap) — header only. Expanded panel is .cap-d. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .assembly-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  text-align: left;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .cap,
+html[data-theme-id='piwin-inkstone-ink'] .cap {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  height: 24px;
+  margin: 8px 0 0;
+  padding: 0;
+  font: 11.5px var(--mono);
+  color: var(--t3);
+  white-space: nowrap;
+  overflow: hidden;
+  width: 100%;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  text-align: left;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .cap:hover,
+html[data-theme-id='piwin-inkstone-ink'] .cap:hover,
+html[data-theme-id='piwin-inkstone-paper'] .cap:focus-visible,
+html[data-theme-id='piwin-inkstone-ink'] .cap:focus-visible {
+  color: var(--t1);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .cap i,
+html[data-theme-id='piwin-inkstone-ink'] .cap i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--t4);
+  flex: none;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .cap .lamp,
+html[data-theme-id='piwin-inkstone-ink'] .cap .lamp {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--lamp);
+  box-shadow: 0 0 8px 2px var(--lamp-glow);
+  animation: breath 2.4s ease-in-out infinite;
+  flex: none;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .cap span,
+html[data-theme-id='piwin-inkstone-ink'] .cap span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .cap .chev,
+html[data-theme-id='piwin-inkstone-ink'] .cap .chev {
+  flex: none;
+  margin-left: auto;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .cap-d,
+html[data-theme-id='piwin-inkstone-ink'] .cap-d,
+html[data-theme-id='piwin-inkstone-paper'] .assembly-summary-detail,
+html[data-theme-id='piwin-inkstone-ink'] .assembly-summary-detail {
+  margin: 4px 0 0;
+  padding: var(--surf-y) var(--surf-x);
+  border-radius: 8px;
+  background: var(--s1);
+  box-shadow: var(--sh1);
+  font-size: 12.5px;
+  color: var(--t2);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .cap-d p,
+html[data-theme-id='piwin-inkstone-ink'] .cap-d p {
+  font-size: 11.5px;
+  color: var(--t3);
+  margin-bottom: 6px;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .cap-d ul,
+html[data-theme-id='piwin-inkstone-ink'] .cap-d ul {
+  list-style: none;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .cap-d li,
+html[data-theme-id='piwin-inkstone-ink'] .cap-d li {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 4px 0;
+  border-top: 1px solid var(--l1);
+  font: 11.5px var(--mono);
+  color: var(--t3);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .cap-d li b,
+html[data-theme-id='piwin-inkstone-ink'] .cap-d li b {
+  font: 500 12.5px var(--sans);
+  color: var(--t1);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .cap-d li .src,
+html[data-theme-id='piwin-inkstone-ink'] .cap-d li .src {
+  flex: none;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .cap-d li .src.warn,
+html[data-theme-id='piwin-inkstone-ink'] .cap-d li .src.warn {
+  color: var(--ochre);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .cap-d li .ml,
+html[data-theme-id='piwin-inkstone-ink'] .cap-d li .ml {
+  flex: none;
+  color: var(--t4);
+}
+
+/* ── History ruler ticks ─────────────────────────────────────────────
+   The accepted prototype stage has no permanent left ruler: resting ticks
+   read as stray dashes. Keep the jump affordance, rest it invisible, and
+   surface the ticks while the pointer (or focus) is on the rail. */
+html[data-theme-id='piwin-inkstone-paper'] .history-ticks-border-strip .border-tick-line,
+html[data-theme-id='piwin-inkstone-ink'] .history-ticks-border-strip .border-tick-line {
+  opacity: 0;
+  transition: opacity var(--t-1) var(--ease-out);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .history-ticks-drawer:hover .border-tick-line,
+html[data-theme-id='piwin-inkstone-ink'] .history-ticks-drawer:hover .border-tick-line,
+html[data-theme-id='piwin-inkstone-paper'] .history-ticks-border-strip:focus-within .border-tick-line,
+html[data-theme-id='piwin-inkstone-ink'] .history-ticks-border-strip:focus-within .border-tick-line {
+  opacity: 1;
+}
+
+/* ── Assistant message actions — proto-00 `.turn-colophon` / `.acts-f` ── */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .turn-colophon {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--l1);
+  font: 11.5px var(--mono);
+  color: var(--t3);
+  width: 100%;
+  max-width: var(--chat-max, 100%);
+  box-sizing: border-box;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .turn-colophon .colo-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .turn-colophon .acts-f,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .acts-f {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 0;
+  width: auto;
+  flex: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .chat-thread.is-conversation .turn-colophon {
+  padding-left: 0;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .acts-f .ib {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  display: inline-grid;
+  place-items: center;
+  color: var(--t3);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  flex: none;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .acts-f .ib:hover:not(:disabled) {
+  background: var(--s3);
+  color: var(--t1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .acts-f .ib:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .acts-f .ib svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .fk {
+  font: 11.5px var(--mono);
+  color: var(--t4);
+  margin-left: 6px;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) button.fk {
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: var(--t4);
+  font: 11.5px var(--mono);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) button.fk:hover {
+  color: var(--t2);
+}
+
+/* File path capsule (.pc) per proto-01-transcript.html:92-94 */
+.pc,
+.md-doc-chip,
+.tool-call-path-link,
+.tool-call-doc-target-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: 12px var(--mono, monospace);
+  color: var(--t1, var(--text-1, #1d1b17));
+  background: var(--s3, var(--surface-3, #fffdf8));
+  box-shadow: var(--sh1, 0 1px 2px rgba(60, 45, 20, 0.06), 0 0 0 1px var(--l2, rgba(29, 27, 23, 0.11)));
+  padding: 1px 6px;
+  border-radius: 3px;
+  vertical-align: -1px;
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: 100%;
+  text-decoration: none;
+  border: 0;
+  box-sizing: border-box;
+}
+
+.pc:hover,
+.md-doc-chip:hover,
+.tool-call-path-link:hover,
+.tool-call-doc-target-link:hover {
+  background: var(--s4, #fff);
+  color: var(--t1, var(--text-1, #1d1b17));
+  text-decoration: none;
+}
+
+.pc.static,
+.tool-call-path-link.static,
+.tool-call-doc-target-link.static {
+  cursor: default;
+}
+
+.pc .i,
+.pc svg,
+.pc .path-chip-icon,
+.pc .file-icon,
+.md-doc-chip .i,
+.md-doc-chip svg,
+.md-doc-chip .path-chip-icon,
+.md-doc-chip .file-icon,
+.tool-call-path-link .i,
+.tool-call-path-link svg,
+.tool-call-doc-target-link .i,
+.tool-call-doc-target-link svg {
+  width: 12px;
+  height: 12px;
+  color: var(--t3, var(--text-3, #726b61));
+  flex: none;
+  stroke-width: 1.6;
+}
+
+.pc span,
+.pc .chip-text,
+.md-doc-chip span,
+.md-doc-chip .chip-text,
+.tool-call-path-link span,
+.tool-call-doc-target-link span {
+  color: inherit !important;
+}
+

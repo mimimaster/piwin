@@ -524,6 +524,8 @@ After Pi login it enables models itself. If a model is still “not supported”
 
 `login('oauth')` only (not api_key). Image/video remain CPA. Thinking/compat for grok **channels** stays `GROK_OPENAI_COMPAT`; native `xai` builtin is Pi’s problem, not our openai-completions wrapper.
 
+`GROK_OPENAI_COMPAT` keeps `store` / developer-role off. `supportsReasoningEffort` is **on** so OpenAI-compat grok channels (CPA) send `reasoning_effort` from the UI thinking level. Omitting it lets CPA hard-default upstream `reasoning.effort` to `medium`.
+
 ### 21.6 Thinking levels
 
 Use Pi model `api` / thinking map. Codex high/xhigh as Pi exposes. Do not invent levels.

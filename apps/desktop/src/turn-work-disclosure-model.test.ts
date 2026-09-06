@@ -83,6 +83,7 @@ describe('projectTurnWorkDisclosure', () => {
       endIndex: 2,
       elapsedMs: 94_000,
       failureCount: 1,
+      toolCount: 2,
     });
   });
 
@@ -364,6 +365,7 @@ describe('projectTurnWorkDisclosure', () => {
       endIndex: 1,
       elapsedMs: 94_000,
       failureCount: 0,
+      toolCount: 1,
     });
   });
 

@@ -7,6 +7,7 @@ import {
   ToolStatusDot,
   type DocumentOpenInput,
 } from './tool-call-card';
+import { inkLineNodeClass, toolStatusToNodeStatus } from './session-node-status.js';
 import type { ToolClusterKind, BatchClusterSummary } from './tool-group-clustering';
 import { ActionMarquee } from './action-marquee';
 import {
@@ -107,10 +108,10 @@ export function formatExploreCapsuleTitle(input: {
   const files = input.fileCount;
   const searches = input.searchCount;
   if (input.isChinese) {
-    if (files > 0 && searches > 0) return `已探索 ${files} 个文件 · ${searches} 次检索`;
-    if (files > 0) return `已探索 ${files} 个文件`;
-    if (searches > 0) return `检索了 ${searches} 处代码`;
-    return `已探索 ${input.totalCount} 项`;
+    if (files > 0 && searches > 0) return `探索了 ${files} 个文件 · ${searches} 次搜索`;
+    if (files > 0) return `探索了 ${files} 个文件`;
+    if (searches > 0) return `搜索了 ${searches} 处代码`;
+    return `探索了 ${input.totalCount} 项`;
   }
   if (files > 0 && searches > 0) {
     return `Explored ${files} file${files === 1 ? '' : 's'} · ${searches} search${
@@ -212,15 +213,23 @@ export function ToolBatchCapsule(props: ToolBatchCapsuleProps): ReactElement {
     ? formatActiveToolLabel(summary.activeTool, isChinese)
     : undefined;
 
+  const headerStatus = summary.hasError ? 'error' : summary.hasRunning ? 'running' : 'done';
+  const headerNodeKind = toolStatusToNodeStatus(headerStatus);
+  const headerNodeClass = inkLineNodeClass(headerNodeKind);
   return (
     <div
-      className={`tool-batch-capsule${expanded ? ' is-expanded' : ' is-collapsed'}${
-        summary.hasError ? ' has-error' : ''
+      className={`tr tool-batch-capsule${expanded ? ' is-expanded' : ' is-collapsed'}${
+        summary.hasError ? ' has-error fail' : ''
       }${summary.hasRunning ? ' is-running' : ''}`}
       data-testid="tool-batch-capsule"
       data-cluster-kind={props.clusterKind}
       data-expanded={expanded ? 'true' : 'false'}
     >
+      <span
+        className={`node${headerNodeClass ? ` ${headerNodeClass}` : ''}`}
+        data-kind={headerNodeKind}
+        aria-hidden="true"
+      />
       <button
         type="button"
         className="tool-batch-header"
@@ -285,6 +294,7 @@ export function ToolBatchCapsule(props: ToolBatchCapsuleProps): ReactElement {
                 tool={tool}
                 density="compact"
                 expandWhileRunning={false}
+                inkLineSubrow
                 {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
                 {...(props.request !== undefined ? { request: props.request } : {})}
                 {...(props.onOpenFile !== undefined ? { onOpenFile: props.onOpenFile } : {})}

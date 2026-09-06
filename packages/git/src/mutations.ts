@@ -8,6 +8,7 @@ import type {
   GitCommitInput,
   GitMutationResult,
   GitStageInput,
+  GitStashInput,
   GitUnstageInput,
 } from '@piwin/contracts';
 import { probeGitRepository } from './repository-probe.js';
@@ -106,4 +107,24 @@ export async function checkoutRef(input: GitCheckoutInput): Promise<GitMutationR
     throw error;
   }
   return { kind: 'checkout', ok: true, message: `checked out ${ref}` };
+}
+
+export async function stashChanges(input: GitStashInput): Promise<GitMutationResult> {
+  const root = await requireRepo(input.projectPath);
+  const message = assertSafeCommitMessage(
+    input.message?.trim() || 'piwin: stash before conversation branch switch',
+  );
+  const result = await runGitCommand({
+    cwd: root,
+    args: ['stash', 'push', '-u', '-m', message],
+    allowFailure: true,
+  });
+  if (result.exitCode !== 0) {
+    const detail = `${result.stderr} ${result.stdout}`.toLowerCase();
+    if (detail.includes('no local changes') || detail.includes('no changes added')) {
+      return { kind: 'stash', ok: true, message: 'nothing to stash' };
+    }
+    throw new Error(result.stderr.trim() || result.stdout.trim() || 'stash failed');
+  }
+  return { kind: 'stash', ok: true, message: 'stashed working tree' };
 }

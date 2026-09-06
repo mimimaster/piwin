@@ -336,11 +336,13 @@
 
 /* ─── Assistant Response Actions (Unified Dock) in Conversation Mode ── */
 
-.chat-message-row.role-assistant .assistant-response-actions {
+.chat-message-row.role-assistant .assistant-response-actions,
+.chat-message-row.role-assistant .turn-colophon {
   opacity: 1;
 }
 
-.chat-thread.is-conversation .chat-message-row.role-assistant .assistant-response-actions {
+.chat-thread.is-conversation .chat-message-row.role-assistant .assistant-response-actions,
+.chat-thread.is-conversation .chat-message-row.role-assistant .turn-colophon {
   padding-left: 44px;
   box-sizing: border-box;
 }
@@ -446,7 +448,8 @@ html[data-theme-visual-style='ink-wash']
     max-width: calc(100% - 36px);
   }
 
-  .chat-thread.is-conversation .chat-message-row.role-assistant .assistant-response-actions {
+  .chat-thread.is-conversation .chat-message-row.role-assistant .assistant-response-actions,
+  .chat-thread.is-conversation .chat-message-row.role-assistant .turn-colophon {
     padding-left: 36px;
   }
 

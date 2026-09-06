@@ -9,8 +9,11 @@
  *   - Consecutive "pure explore steps" (assistant messages whose visible work
  *     is only thinking + read/search tools, with no answer text) merge into
  *     one flow group anchored at the first step.
- *   - Answer text, edits, commands, subagents, errors, or user/system rows
- *     break the run.
+ *   - A narration step (visible answer text whose tools are still only
+ *     read/search) starts a *new* run: the text stays on the bubble, and its
+ *     tools merge with following pure explore steps. Closing the previous run
+ *     keeps earlier tools above that sentence.
+ *   - Edits, commands, subagents, errors, or user/system rows break the run.
  *   - A trailing thought (message with reasoning but no tools, e.g. the final
  *     answer's own thinking) folds its thought row into the preceding group.
  *   - An empty streaming assistant (`message/start` before the first token)
@@ -80,18 +83,39 @@ function messageThoughtSeconds(message: ChatMessageUi): number | undefined {
   return Math.max(1, Math.round(elapsedMs / 1000));
 }
 
+function isExploreEligibleShell(message: ChatMessageUi): boolean {
+  return (
+    message.role === 'assistant' &&
+    !message.subagentActivity &&
+    !message.docCardSequence &&
+    message.status !== 'error' &&
+    !message.error &&
+    message.attachments.length === 0 &&
+    (message.searchEvidence?.citations.length ?? 0) === 0 &&
+    !hasGenerationTools(message)
+  );
+}
+
+function canCarryExploreTools(message: ChatMessageUi): boolean {
+  if (!isExploreEligibleShell(message)) return false;
+  const tools = inlineTools(message);
+  return tools.length > 0 && tools.every((tool) => isFlowExploratoryTool(tool));
+}
+
 /** Assistant step whose entire visible work can live inside an explore group. */
 function isPureExploreStep(message: ChatMessageUi): boolean {
-  if (message.role !== 'assistant') return false;
-  if (message.subagentActivity || message.docCardSequence) return false;
-  if (message.status === 'error' || message.error) return false;
   if (message.text.trim().length > 0) return false;
-  if (message.attachments.length > 0) return false;
-  if ((message.searchEvidence?.citations.length ?? 0) > 0) return false;
-  if (hasGenerationTools(message)) return false;
-  const tools = inlineTools(message);
-  if (tools.length === 0 && message.thinking.trim().length === 0) return false;
-  return tools.every((tool) => isFlowExploratoryTool(tool));
+  if (canCarryExploreTools(message)) return true;
+  return (
+    isExploreEligibleShell(message) &&
+    inlineTools(message).length === 0 &&
+    message.thinking.trim().length > 0
+  );
+}
+
+/** Status prose plus explore tools — text stays visible; tools start a new run. */
+function isExploreNarrationOpener(message: ChatMessageUi): boolean {
+  return message.text.trim().length > 0 && canCarryExploreTools(message);
 }
 
 /**
@@ -123,8 +147,14 @@ type OpenRun = {
   foldThoughtMessageIds: string[];
 };
 
-function appendMessageItems(run: OpenRun, message: ChatMessageUi, streamActive: boolean): void {
-  if (message.thinking.trim().length > 0) {
+function appendMessageItems(
+  run: OpenRun,
+  message: ChatMessageUi,
+  streamActive: boolean,
+  options?: { includeThinking?: boolean },
+): void {
+  const includeThinking = options?.includeThinking !== false;
+  if (includeThinking && message.thinking.trim().length > 0) {
     const seconds = messageThoughtSeconds(message);
     const live =
       streamActive && message.status === 'streaming' && message.thinkingEndedAt === undefined;
@@ -238,6 +268,17 @@ export function buildExploreFlowRoles(
       }
       openRun.memberMessageIds.push(message.id);
       appendMessageItems(openRun, message, streamActive);
+      continue;
+    }
+    if (isExploreNarrationOpener(message)) {
+      closeRun(false);
+      openRun = {
+        anchorMessageId: message.id,
+        memberMessageIds: [message.id],
+        items: [],
+        foldThoughtMessageIds: [],
+      };
+      appendMessageItems(openRun, message, streamActive, { includeThinking: false });
       continue;
     }
     if (openRun && canFoldTrailingThought(message)) {

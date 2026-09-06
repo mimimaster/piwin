@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import type { ChatMessageUi } from './chat-reducer';
+import type { ExploreFlowRole } from './explore-flow';
 import { ConversationResponseContent } from './conversation-response-content';
 import {
   collectFlashcardToolsFromMessages,
@@ -329,6 +330,78 @@ describe('ConversationResponseContent', () => {
     );
   });
 
+  it('renders a narration explore flow as one capsule after the status text', () => {
+    const grepTool = {
+      toolCallId: 't-grep-1',
+      toolName: 'grep',
+      status: 'done' as const,
+      output: '76',
+      presentation: {
+        kind: 'filesystem' as const,
+        title: 'Search',
+        actionVerb: 'Searched',
+        summary: 'voice|realtime',
+        countTag: '76 matches',
+      },
+    };
+    const laterGrep = {
+      ...grepTool,
+      toolCallId: 't-grep-2',
+    };
+    const message: ChatMessageUi = {
+      id: 'm-narrate',
+      role: 'assistant',
+      text: '我先查一下实时语音和会话绑定相关的实现/文档。',
+      thinking: 'look up the binder',
+      tools: [grepTool],
+      attachments: [],
+      status: 'done',
+    };
+    const exploreRole: ExploreFlowRole = {
+      kind: 'anchor',
+      group: {
+        anchorMessageId: message.id,
+        memberMessageIds: [message.id, 'm-later'],
+        items: [
+          { kind: 'tool', messageId: message.id, tool: grepTool },
+          { kind: 'tool', messageId: 'm-later', tool: laterGrep },
+        ],
+        toolCount: 2,
+        fileCount: 2,
+        searchCount: 2,
+        thoughtCount: 0,
+        hasRunning: false,
+        isLive: false,
+        errorCount: 0,
+      },
+    };
+
+    const { container } = renderContent(
+      <ConversationResponseContent
+        message={message}
+        messageIndex={0}
+        showStreamingCaret={false}
+        activeTheme={null}
+        artifactThemeKey="default"
+        runRecordsById={{}}
+        activeRunId={null}
+        locale="zh-CN"
+        artifactPreviewEnabled={true}
+        exploreRole={exploreRole}
+      />,
+    );
+
+    expect(container.querySelector('.markdown')?.textContent).toContain(
+      '我先查一下实时语音和会话绑定相关的实现/文档。',
+    );
+    expect(container.querySelector('[data-testid="explore-flow-capsule"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="explore-flow-title"]')?.textContent).toContain(
+      '探索了 2 个文件 · 2 次搜索',
+    );
+    expect(container.querySelector('[data-testid="turn-tool-group"]')).toBeNull();
+    expect(container.querySelectorAll('[data-testid="explore-flow-capsule"]')).toHaveLength(1);
+  });
+
   it('collapses completed reasoning so history stays compact', () => {
     const message: ChatMessageUi = {
       id: 'm-think-done',
@@ -404,12 +477,12 @@ describe('ConversationResponseContent', () => {
       />,
     );
 
-    const frame = container.querySelector('.fc-quiet-frame');
+    const frame = container.querySelector('.flip');
     expect(frame).not.toBeNull();
     expect(container.textContent).toContain('什么是光合作用？');
     expect(container.textContent).not.toContain('光能转化为化学能');
 
-    const card = container.querySelector('.fc-quiet-card-container');
+    const card = container.querySelector('.fc-card');
     act(() => {
       card?.dispatchEvent(
         new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }),
@@ -419,14 +492,13 @@ describe('ConversationResponseContent', () => {
     expect(container.textContent).toContain('光能转化为化学能');
     expect(container.querySelector('.chat-flashcard-rate-section')).not.toBeNull();
 
-    // Click '记住了' (good) rating
-    const goodBtn = container.querySelector('.fc-quiet-rate-btn.btn-good');
+    const goodBtn = container.querySelector('.rate .btn-good');
     expect(goodBtn).not.toBeNull();
     act(() => {
       goodBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    expect(container.textContent).toContain('已记录：记住了');
+    expect(container.textContent).toContain('已记录：记得');
     expect(capturedAction).toEqual({
       type: 'piwin-artifact:action',
       channelId: 'card-photo',
@@ -531,7 +603,7 @@ describe('ConversationResponseContent', () => {
     expect(container.querySelector('[data-testid="chat-flashcard"]')).not.toBeNull();
     expect(container.textContent).toContain('什么是光合作用？');
     expect(container.textContent).toContain('生物');
-    expect(container.textContent).toContain('#生物学');
+    expect(container.textContent).toContain('生物学');
   });
 
   it('extracts cloze review cards from a piwin_toolbox batch-create payload', () => {

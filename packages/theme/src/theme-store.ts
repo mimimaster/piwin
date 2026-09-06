@@ -12,6 +12,8 @@ const BUNDLED_THEME_IDS = new Set([
   'piwin-light',
   'piwin-orange-white',
   'piwin-ink-wash',
+  'piwin-inkstone-paper',
+  'piwin-inkstone-ink',
 ]);
 
 /**
@@ -57,7 +59,7 @@ export async function loadThemePreference(piwinRoot: string): Promise<ThemePrefe
   } catch {
     // default
   }
-  return { activeThemeId: 'piwin-dark' };
+  return { activeThemeId: 'piwin-inkstone-paper' };
 }
 
 export async function saveThemePreference(

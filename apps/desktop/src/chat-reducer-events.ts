@@ -273,6 +273,10 @@ export function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiSt
           state.completedAttentionSessionIds,
           state.activeSessionId,
         ),
+        failedAttentionSessionIds: removeSessionIdMarker(
+          state.failedAttentionSessionIds,
+          state.activeSessionId,
+        ),
       });
     }
     case 'session/aborted': {

@@ -1,6 +1,6 @@
 import { useMemo, type ReactElement } from 'react';
 import type { PromptContextRef } from '@piwin/contracts';
-import { FileTypeIcon } from '@piwin/ui-kit';
+import { IconFile, IconFolder } from './shell-icons.js';
 import {
   ContextMenuFromCatalog,
   useDesktopContextMenu,
@@ -178,10 +178,22 @@ export function PathChip({
   };
 
   const targetProjectPath = projectPath ?? '';
+  const chipClass = className
+    ? className.includes('pc')
+      ? className
+      : `pc ${className}`
+    : 'pc md-doc-chip';
+  const isFolder = fullPath.endsWith('/') || displayText.endsWith('/');
+  const icon = isFolder ? (
+    <IconFolder className="i s12 path-chip-icon" />
+  ) : (
+    <IconFile className="i s12 path-chip-icon" />
+  );
+
   const chip = (
     <a
       href="#"
-      className={className}
+      className={chipClass}
       title={absolutePath}
       data-testid={testId}
       data-full-path={absolutePath}
@@ -190,7 +202,7 @@ export function PathChip({
         onOpen();
       }}
     >
-      {showIcon ? <FileTypeIcon filePathOrExt={fullPath} size="1.05em" /> : null}
+      {showIcon ? icon : null}
       <span className="chip-text">{displayText}</span>
     </a>
   );

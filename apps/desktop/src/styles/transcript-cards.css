@@ -205,80 +205,15 @@
   font-size: var(--fs-chrome);
 }
 
-/* ── Inline permission gate ───────────────────────────────────────────
-   The agent is stopped and waiting on you. This is the one card in the
-   transcript allowed to shout: a full-height amber rail on the leading edge,
-   escalating to coral when the gate is guarding a shell command. */
-
-.gate {
-  border-radius: var(--r-panel);
-  margin: var(--s-4) 0 var(--s-5);
-  overflow: hidden;
-  border: 0;
-  border-left: 3px solid var(--amber);
-  background: var(--surface-3);
-  box-shadow: var(--elev-2);
-}
-
-.gate[data-kind='command'] {
-  border-left-color: var(--coral);
-}
-
-.gate-head {
+.transcript-stage {
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: var(--s-4);
-  padding: var(--s-5) var(--s-6);
-  font-size: var(--fs-body);
-  font-weight: 600;
-  color: var(--text-1);
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
 }
 
-.gate-head-icon {
-  width: 15px;
-  height: 15px;
-  flex: 0 0 auto;
-  color: var(--amber);
-}
-
-.gate[data-kind='command'] .gate-head-icon {
-  color: var(--coral);
-}
-
-.gate-cmd {
-  margin: 0 var(--s-6) var(--s-5);
-  padding: 0;
-  border-radius: var(--r-control);
-  background: transparent;
-  border: none;
-  font-family: var(--font-mono);
-  font-size: var(--fs-chrome);
-}
-
-.gate-cmd .permission-facts {
-  font-size: var(--fs-chrome);
-}
-
-.gate-cmd .permission-detail {
-  margin: 0;
-}
-
-.gate-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s-4);
-  padding: 0 var(--s-6) var(--s-5);
-}
-
-.gate-hint {
-  margin-left: auto;
-  align-self: center;
-  font-size: var(--fs-mono);
-  color: var(--text-3);
-}
-
-/* Session resume in flight — sits above the transcript, not empty-chat UI. */
 .transcript-awaiting-banner {
   flex: none;
   margin: 0 auto var(--s-4);
@@ -293,6 +228,17 @@
   font-weight: 500;
   text-align: center;
   box-sizing: border-box;
+}
+
+/* Overlay so session-load chrome does not change transcript viewport height. */
+.transcript-stage .transcript-awaiting-banner {
+  position: absolute;
+  top: var(--s-4);
+  left: 0;
+  right: 0;
+  z-index: 2;
+  pointer-events: none;
+  margin: 0 auto;
 }
 
 /* ── Citation cards ───────────────────────────────────────────────────── */

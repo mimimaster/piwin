@@ -344,6 +344,8 @@ function normalizeArtifactConfig(value: unknown, defaults: ArtifactConfig): Arti
     triggerMode,
     decisionPrompt: { mode: promptMode, customPrompt },
     maxBytes,
+    blockExternalScripts: record.blockExternalScripts === false ? false : true,
+    blockExternalResources: record.blockExternalResources === false ? false : true,
   };
 }
 

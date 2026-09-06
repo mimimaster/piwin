@@ -135,6 +135,7 @@ export function useWorkbenchSessionRuntime(args: UseWorkbenchSessionRuntimeArgs)
     cancelTruncateAfter,
     pendingSwitchConfirm,
     confirmSwitchBranch,
+    stashThenSwitchBranch,
     cancelSwitchBranch,
     pendingRetryDiscard,
     confirmRetryDiscard,
@@ -159,6 +160,7 @@ export function useWorkbenchSessionRuntime(args: UseWorkbenchSessionRuntimeArgs)
     orchestrationSchemeId,
     delegationDisabled,
     confirmForegroundReplace,
+    projectPath: state.projectPath,
   });
 
   useEffect(() => {
@@ -251,6 +253,7 @@ export function useWorkbenchSessionRuntime(args: UseWorkbenchSessionRuntimeArgs)
     cancelTruncateAfter,
     pendingSwitchConfirm,
     confirmSwitchBranch,
+    stashThenSwitchBranch,
     cancelSwitchBranch,
     pendingRetryDiscard,
     confirmRetryDiscard,

@@ -154,6 +154,11 @@ Model generation requirements (Inline targets **320–760 CSS px**):
 
 Runtime guarantees:
 
+- Host-owned Inline viewport/overflow chrome follows window and conversation
+  pane resizes. Once an Inline flow enters overflow recovery, later smaller
+  content measurements keep that bounded viewport; they cannot expand the
+  outer iframe back into a multi-thousand-pixel scroll region.
+
 - The Inline root becomes a size container (`container-type: inline-size`).
 - Common direct children, media, form controls, grids, and flex descendants
   are prevented from widening the root where safe.

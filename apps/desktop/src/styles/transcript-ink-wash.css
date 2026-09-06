@@ -319,22 +319,15 @@ html[data-theme-visual-style='ink-wash'] .role-assistant .markdown h4 {
   border-bottom-color: rgba(216, 184, 136, 0.25) !important;
 }
 
-html[data-theme-visual-style='ink-wash'] .role-assistant .markdown a,
-html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .md-doc-chip,
-html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .system-file-link,
-html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .system-file-reference,
-html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .enhanced-link,
-html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .md-link {
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown a:not(.pc):not(.md-doc-chip):not(.system-file-link),
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .enhanced-link:not(.pc),
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .md-link:not(.pc) {
   color: #70a6b4 !important;
 }
 
-html[data-theme-visual-style='ink-wash'] .role-assistant .markdown a span,
-html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .md-doc-chip span,
-html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .system-file-link span,
-html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .system-file-reference span,
-html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .enhanced-link span,
-html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .md-link span,
-html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .chip-text {
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown a:not(.pc):not(.md-doc-chip):not(.system-file-link) span,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .enhanced-link:not(.pc) span,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .md-link:not(.pc) span {
   color: inherit !important;
 }
 

@@ -959,9 +959,11 @@ describe('ChatThread render isolation (E1)', () => {
 
     expect(container.querySelector('[data-testid="work-folded-thinking"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="work-folded-thinking"]')?.textContent).toContain(
-      'Thoughts',
+      'I should verify the result before answering.',
     );
-    expect(container.querySelector('[data-testid="turn-thinking"]')).toBeNull();
+    expect(container.querySelector('[data-testid="turn-thinking"]')?.textContent).toContain(
+      'I should verify the result before answering.',
+    );
     expect(container.querySelector('#msg-a-work-thinking-answer .markdown')?.textContent).toContain(
       'The project is ready.',
     );
@@ -1452,7 +1454,7 @@ describe('ChatThread render isolation (E1)', () => {
       );
     });
     expect(container.querySelector('[data-testid="message-branch-label"]')?.textContent).toBe(
-      '1/2',
+      '1 / 2',
     );
     act(() => {
       (container.querySelector('[data-testid="message-branch-next"]') as HTMLButtonElement).click();
@@ -1896,13 +1898,11 @@ describe('ChatThread render isolation (E1)', () => {
     }
 
     renderMessage(liveMessage);
-    expect(container.querySelector('[data-testid="native-search-citations"]')).toMatchObject({
-      textContent: expect.stringContaining('Native search'),
-    });
-    expect(container.querySelector('.citation-url')?.textContent).toBe('https://example.com/piwin');
-    expect(container.querySelector('.citation-snippet')?.textContent).toContain(
-      'A normalized citation.',
-    );
+    expect(container.querySelector('[data-testid="native-search-citations"]')).not.toBeNull();
+    expect(container.querySelector('.cite .dom')?.textContent).toContain('example.com');
+    expect(container.querySelector('.cite .t')?.textContent).toContain('Piwin');
+    expect(container.querySelector('.cite .x')?.textContent).toContain('A normalized citation.');
+    expect(container.querySelector('.fav')?.textContent).toBe('EX');
 
     renderMessage(hydratedMessage);
     expect(container.querySelector('[data-testid="native-search-citations"]')).not.toBeNull();
@@ -2022,9 +2022,9 @@ describe('ChatThread render isolation (E1)', () => {
 
     act(() => renderThread('run-thinking-timer', null));
     let summary = container.querySelector<HTMLElement>('[data-testid="turn-work-details-summary"]');
-    expect(summary?.textContent).toContain('正在处理…');
+    expect(summary?.textContent).toContain('正在运行');
     expect(summary?.textContent).not.toContain('已思考');
-    expect(container.querySelector('[data-testid="turn-summary-active-animation"]')).toBeNull();
+    expect(summary?.querySelector('.lamp')).not.toBeNull();
 
     act(() => renderThread(null, 1_707_000));
     summary = container.querySelector<HTMLElement>('[data-testid="turn-work-details-summary"]');
@@ -2070,10 +2070,9 @@ describe('ChatThread render isolation (E1)', () => {
     expect(
       container.querySelector('[data-testid="turn-work-details"]')?.getAttribute('data-open'),
     ).toBe('false');
-    expect(container.querySelector('[data-testid="turn-summary-active-animation"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="turn-summary-radial-bellow"]')).toMatchObject({
-      className: expect.stringContaining('ui-anim--sm'),
-    });
+    const liveHeader = container.querySelector('[data-testid="turn-work-details-summary"]');
+    expect(liveHeader?.querySelector('.lamp')).not.toBeNull();
+    expect(liveHeader?.textContent).toContain('正在运行');
   });
 
   it('Goal strip separates Abort (cancel the run) from Leave Goal (exit the mode)', () => {
@@ -3216,7 +3215,7 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
 
     renderConversation([u1, a2], { branchPoints: [point], onSwitchBranch });
     expect(container.querySelector('[data-testid="message-branch-label"]')?.textContent).toBe(
-      '2/2',
+      '2 / 2',
     );
 
     act(() => {

@@ -507,48 +507,55 @@
    height; the chevron carries the state change without layout thrash. */
 .turn-work-disclosure {
   width: 100%;
-  max-width: var(--chat-max, 760px);
-  margin: 0 auto;
+  margin: 2px 0 4px;
 }
 
-.turn-work-disclosure-trigger.piwin-button {
-  width: 100%;
-  min-height: 44px;
-  height: auto;
-  padding: var(--s-2);
-  border: 0;
-  border-radius: var(--r-control);
-  background: transparent;
-  color: var(--text-3);
-  font-family: inherit;
-  font-size: var(--chat-font-size);
-  font-weight: 400;
-  justify-content: flex-start;
-  transition:
-    background-color var(--t-1) var(--ease-out),
-    color var(--t-1) var(--ease-out);
-}
-
-.turn-work-disclosure-trigger.piwin-button:hover {
-  background: var(--hover);
-  color: var(--text-2);
-}
-
-.turn-work-disclosure-trigger.piwin-button .mantine-Button-inner,
-.turn-work-disclosure-trigger.piwin-button .mantine-Button-label {
-  width: 100%;
-  justify-content: flex-start;
-  overflow: visible;
-}
-
-.turn-work-disclosure-trigger-content {
-  display: inline-flex;
+.turn-work-disclosure-trigger {
+  display: flex;
   align-items: center;
-  gap: var(--s-3);
-  min-width: 0;
+  gap: 8px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0 var(--row-pad, 8px);
+  margin-left: calc(-1 * var(--row-pad, 8px));
+  width: calc(100% + var(--row-pad, 8px) * 2);
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--t2, var(--text-2));
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  box-sizing: border-box;
+  background: transparent;
+  border: 0;
+  font-family: inherit;
+  text-align: left;
+  line-height: 1.4;
+  outline: none;
+  transition: background var(--t-1, 0.15s) var(--ease-out, ease-out);
+}
+
+.turn-work-disclosure-trigger:hover {
+  background: var(--s3, var(--hover));
+}
+
+.turn-work-disclosure-trigger b {
+  color: var(--t1, var(--text-1));
+  font-weight: 500;
+}
+
+.turn-work-disclosure-trigger .i {
+  color: var(--t3, var(--text-3));
+  flex: none;
+}
+
+.turn-work-disclosure-trigger .fail {
+  color: var(--crimson, #c93b3b);
 }
 
 .turn-work-disclosure-label {
+  display: inline-flex;
+  align-items: center;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -556,18 +563,17 @@
 
 .turn-work-disclosure-chevron {
   display: inline-flex;
-  flex: 0 0 auto;
-  color: var(--text-4);
-  transition: transform var(--t-3) var(--ease-out);
+  flex: none;
+  margin-left: auto;
+  color: var(--t4, var(--text-4));
+  transition: transform var(--t-3, 0.24s) var(--ease-out, ease-out);
 }
 
-.turn-work-disclosure-chevron svg {
-  width: 14px;
-  height: 14px;
-}
-
-.turn-work-disclosure-chevron.is-open {
-  transform: rotate(90deg);
+.turn-work-disclosure-chevron.is-open,
+.turn-work-disclosure.is-open .turn-work-disclosure-chevron,
+.turn-work-disclosure-trigger.is-open .turn-work-disclosure-chevron,
+.turn-work-disclosure[data-open="true"] .turn-work-disclosure-chevron {
+  transform: rotate(180deg);
 }
 
 .turn-work-details-summary {

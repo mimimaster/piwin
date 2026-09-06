@@ -22,6 +22,7 @@ import {
 import { Button } from '@piwin/ui-kit';
 import { ArtifactFrame } from './ArtifactFrame';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model';
+import { useDesktopLocale } from './desktop-locale-context';
 
 export type ArtifactCanvasProposal = ComposerProposeTextActionPayload;
 
@@ -33,6 +34,8 @@ export type ArtifactCanvasPanelProps = {
   artifactThemeKey?: string | number;
   /** Security byte cap forwarded when the stored intent is materialized. */
   artifactMaxBytes?: number;
+  artifactBlockExternalScripts?: boolean;
+  artifactBlockExternalResources?: boolean;
   /**
    * Insert the accepted proposal into the Composer. The caller appends using
    * `appendComposerProposal` and never auto-sends.
@@ -42,6 +45,8 @@ export type ArtifactCanvasPanelProps = {
 
 export function ArtifactCanvasPanel(props: ArtifactCanvasPanelProps): ReactElement {
   const { activeTarget } = props;
+  const { locale } = useDesktopLocale();
+  const isZh = locale === 'zh-CN';
   const [pendingProposal, setPendingProposal] = useState<ArtifactCanvasProposal | null>(null);
 
   const plan = useMemo(() => {
@@ -71,8 +76,9 @@ export function ArtifactCanvasPanel(props: ArtifactCanvasPanelProps): ReactEleme
     return (
       <div className="artifact-canvas-panel" data-testid="artifact-canvas-panel">
         <div className="artifact-canvas-empty muted" data-testid="artifact-canvas-empty">
-          No Canvas artifact open. A new Canvas appears here automatically; use its conversation
-          launcher to reopen it later.
+          {isZh
+            ? '当前没有打开的画布。新画布会自动出现在这里；之后可从对话里的画布入口再次打开。'
+            : 'No Canvas artifact open. A new Canvas appears here automatically; use its conversation launcher to reopen it later.'}
         </div>
       </div>
     );
@@ -83,7 +89,7 @@ export function ArtifactCanvasPanel(props: ArtifactCanvasPanelProps): ReactEleme
       {pendingProposal ? (
         <div className="artifact-canvas-proposal" data-testid="artifact-canvas-proposal">
           <div className="artifact-canvas-proposal-head">
-            <strong>{pendingProposal.label ?? 'Composer proposal'}</strong>
+            <strong>{pendingProposal.label ?? (isZh ? '作曲器提案' : 'Composer proposal')}</strong>
           </div>
           <pre
             className="artifact-canvas-proposal-text"
@@ -98,14 +104,14 @@ export function ArtifactCanvasPanel(props: ArtifactCanvasPanelProps): ReactEleme
               data-testid="artifact-canvas-proposal-dismiss"
               onClick={handleDismiss}
             >
-              Dismiss
+              {isZh ? '忽略' : 'Dismiss'}
             </Button>
             <Button
               size="compact"
               data-testid="artifact-canvas-proposal-insert"
               onClick={handleInsert}
             >
-              Insert into Composer
+              {isZh ? '插入到作曲器' : 'Insert into Composer'}
             </Button>
           </div>
         </div>
@@ -119,7 +125,9 @@ export function ArtifactCanvasPanel(props: ArtifactCanvasPanelProps): ReactEleme
           onComposerProposal={setPendingProposal}
         />
       ) : (
-        <div className="artifact-canvas-empty muted">Preparing “{activeTarget.title}”…</div>
+        <div className="artifact-canvas-empty muted">
+          {isZh ? `正在准备「${activeTarget.title}」…` : `Preparing “${activeTarget.title}”…`}
+        </div>
       )}
     </div>
   );

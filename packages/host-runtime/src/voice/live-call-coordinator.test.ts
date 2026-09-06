@@ -446,6 +446,36 @@ describe('LiveCallCoordinator', () => {
     });
     await coordinator.dispose();
   });
+
+  it('refuses a third reconnect inside the ten-second window', async () => {
+    const coordinator = makeLiveCoordinator();
+    const started = await coordinator.start(startArgs({ idempotencyKey: 'reconnect-budget' }));
+    expect(started.ok).toBe(true);
+    if (!started.ok) return;
+    const event = { type: 'media-reconnecting' as const };
+    expect(
+      coordinator.reportOwnerEvent({
+        callId: started.call.callId,
+        ownerDeviceId: 'd1',
+        event,
+      }).ok,
+    ).toBe(true);
+    expect(
+      coordinator.reportOwnerEvent({
+        callId: started.call.callId,
+        ownerDeviceId: 'd1',
+        event,
+      }).ok,
+    ).toBe(true);
+    expect(
+      coordinator.reportOwnerEvent({
+        callId: started.call.callId,
+        ownerDeviceId: 'd1',
+        event,
+      }),
+    ).toEqual({ ok: false, errorCode: 'live-start-throttled' });
+    await coordinator.dispose();
+  });
 });
 
 describe('LiveCallCoordinator session context', () => {

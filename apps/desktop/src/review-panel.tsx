@@ -68,7 +68,7 @@ export function ReviewPanel(props: ReviewPanelProps): ReactElement {
       {...(props.changeSetId !== undefined ? { 'data-change-set-id': props.changeSetId } : {})}
     >
       <div
-        className="review-subtabs"
+        className="review-subtabs subtab"
         role="tablist"
         aria-label={isZh ? '审查分区' : 'Review sections'}
       >

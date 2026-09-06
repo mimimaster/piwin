@@ -1,22 +1,17 @@
-/* Host "Open workspace" window: sidebar + Miller columns. */
+/* Host "Open workspace" window — Inkstone proto-03 §14 Miller columns. */
 
 .modal.ui-dialog-content.workspace-open-dialog {
-  width: min(880px, calc(100vw - 40px));
-  max-width: min(880px, calc(100vw - 40px));
-  height: min(540px, calc(100dvh - 48px));
-  max-height: min(540px, calc(100dvh - 48px));
+  width: min(720px, calc(100vw - 40px));
+  max-width: min(720px, calc(100vw - 40px));
+  height: min(480px, calc(100dvh - 48px));
+  max-height: min(480px, calc(100dvh - 48px));
   padding: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-}
-
-.modal.ui-dialog-content.workspace-open-dialog h3 {
-  margin: 0;
-  padding: 12px 16px 0;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0;
+  background: var(--s3, var(--surface-3));
+  border-radius: 10px;
+  box-shadow: var(--sh2, var(--elev-4));
 }
 
 .host-workspace-picker {
@@ -29,59 +24,71 @@
 
 .host-workspace-chrome {
   flex: 0 0 auto;
-  border-bottom: 1px solid var(--line-1);
+  border-bottom: 1px solid var(--l1, var(--line-1));
 }
 
 .host-workspace-toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 16px 10px;
+  gap: 6px;
+  height: 32px;
+  padding: 0 8px;
 }
 
 .host-workspace-nav-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
   padding: 0;
-  border: 1px solid var(--line-1);
-  border-radius: 7px;
-  background: var(--surface-3);
-  color: var(--text-1);
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--t3, var(--text-3));
   cursor: pointer;
 }
 
+.host-workspace-nav-btn:hover:not(:disabled) {
+  background: var(--s2, var(--surface-2));
+  color: var(--t1, var(--text-1));
+}
+
 .host-workspace-nav-btn:disabled {
-  opacity: 0.4;
+  color: var(--t4, var(--text-4));
+  opacity: 0.55;
   cursor: default;
 }
 
 .host-workspace-path-input {
   flex: 1 1 12rem;
   min-width: 0;
-  height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--line-1);
-  border-radius: 7px;
-  background: var(--surface-2);
-  color: var(--text-1);
-  font-size: 12px;
-  font-family: var(--font-mono);
+  height: 22px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--s1, var(--surface-1));
+  color: var(--t2, var(--text-2));
+  font-size: 11.5px;
+  font-family: var(--mono, var(--font-mono));
+  outline: none;
+}
+
+.host-workspace-path-input:focus {
+  color: var(--t1, var(--text-1));
+  box-shadow: inset 0 0 0 1px var(--l2, var(--line-2));
 }
 
 .host-workspace-search {
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex: 0 0 160px;
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid var(--line-1);
-  border-radius: 7px;
-  background: var(--surface-2);
-  color: var(--text-3);
+  gap: 4px;
+  flex: 0 0 100px;
+  height: 22px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--s1, var(--surface-1));
+  color: var(--t4, var(--text-4));
 }
 
 .host-workspace-search input {
@@ -89,9 +96,14 @@
   min-width: 0;
   border: 0;
   background: transparent;
-  color: var(--text-1);
-  font-size: 12px;
+  color: var(--t1, var(--text-1));
+  font-size: 11px;
+  font-family: var(--mono, var(--font-mono));
   outline: none;
+}
+
+.host-workspace-search input::placeholder {
+  color: var(--t4, var(--text-4));
 }
 
 .host-workspace-body {
@@ -101,38 +113,41 @@
 }
 
 .host-workspace-sidebar {
-  flex: 0 0 168px;
+  flex: 0 0 120px;
   overflow: auto;
-  padding: 10px 8px;
-  border-right: 1px solid var(--line-1);
-  background: var(--surface-3);
+  padding: 6px 4px;
+  border-right: 1px solid var(--l1, var(--line-1));
 }
 
 .host-workspace-sidebar-group {
-  margin-bottom: 12px;
+  margin-bottom: 4px;
 }
 
 .host-workspace-sidebar-group p {
-  margin: 0 8px 4px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-3);
+  margin: 0;
+  padding: 6px 6px 2px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--t4, var(--text-4));
 }
 
 .host-workspace-sidebar-group button {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
-  min-height: 28px;
-  padding: 0 8px;
+  height: 24px;
+  padding: 0 6px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 5px;
   background: transparent;
-  color: var(--text-1);
-  font-size: 12px;
+  color: var(--t2, var(--text-2));
+  font-size: 11.5px;
   text-align: left;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .host-workspace-sidebar-group button span {
@@ -141,9 +156,14 @@
   white-space: nowrap;
 }
 
-.host-workspace-sidebar-group button.is-active,
 .host-workspace-sidebar-group button:hover {
-  background: var(--iris-wash);
+  background: var(--s2, var(--surface-2));
+  color: var(--t1, var(--text-1));
+}
+
+.host-workspace-sidebar-group button.is-active {
+  background: var(--zhu-wash, var(--iris-wash));
+  color: var(--zhu, var(--iris));
 }
 
 .host-workspace-columns {
@@ -154,30 +174,33 @@
 }
 
 .host-workspace-column {
-  flex: 0 0 220px;
+  flex: 0 0 150px;
   overflow: auto;
-  border-right: 1px solid var(--line-1);
+  padding: 4px;
+  border-right: 1px solid var(--l1, var(--line-1));
 }
 
 .host-workspace-error,
 .host-workspace-empty {
   margin: 12px;
-  font-size: 12px;
+  font-size: 11.5px;
 }
 
 .host-workspace-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
-  min-height: 26px;
-  padding: 0 10px;
+  height: 24px;
+  padding: 0 6px;
   border: 0;
+  border-radius: 5px;
   background: transparent;
-  color: var(--text-1);
-  font-size: 12px;
+  color: var(--t1, var(--text-1));
+  font-size: 11.5px;
   text-align: left;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .host-workspace-row span {
@@ -189,46 +212,62 @@
 }
 
 .host-workspace-row.is-file {
-  color: var(--text-2);
-}
-
-.host-workspace-row.is-selected {
-  background: var(--iris-wash);
-  color: var(--text-1);
+  color: var(--t2, var(--text-2));
 }
 
 .host-workspace-row:hover {
-  background: var(--iris-wash);
+  background: var(--s2, var(--surface-2));
+}
+
+.host-workspace-row.is-selected {
+  background: var(--s2, var(--surface-2));
+  box-shadow: inset 0 0 0 1px var(--l2, var(--line-2));
+}
+
+.host-workspace-row svg:last-child {
+  color: var(--t4, var(--text-4));
+  flex: none;
 }
 
 .host-workspace-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  flex: 0 0 auto;
-  padding: 10px 16px 12px;
-  border-top: 1px solid var(--line-1);
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 36px;
+  padding: 0 8px;
+  border-top: 1px solid var(--l1, var(--line-1));
 }
 
 .host-workspace-footer-ghost,
 .host-workspace-footer-open {
-  min-height: 28px;
-  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 10px;
+  border: 0;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: 12.5px;
   cursor: pointer;
 }
 
 .host-workspace-footer-ghost {
-  border: 0;
   background: transparent;
-  color: var(--text-2);
+  color: var(--t2, var(--text-2));
+}
+
+.host-workspace-footer-ghost:hover {
+  background: var(--s2, var(--surface-2));
+  color: var(--t1, var(--text-1));
 }
 
 .host-workspace-footer-open {
-  border: 0;
-  background: var(--iris);
-  color: var(--on-iris);
+  background: var(--zhu, var(--iris));
+  color: var(--on-zhu, var(--on-iris));
+}
+
+.host-workspace-footer-open:hover:not(:disabled) {
+  background: var(--zhu-lift, var(--iris-lift));
 }
 
 .host-workspace-footer-open:disabled {

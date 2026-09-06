@@ -38,6 +38,7 @@ function kinds(rows: SidebarTreeRow[]): string[] {
     if (row.kind === 'project-show-more') return `show-more:${row.projectPath}:${row.batchSize}`;
     if (row.kind === 'empty-hint') return `empty:${row.scope.kind}`;
     if (row.kind === 'query-error') return `query-error:${row.scope.kind}`;
+    if (row.kind === 'time-group') return `time-group:${row.id}`;
     return `truncation:${row.hiddenCount}`;
   });
 }
@@ -313,6 +314,45 @@ describe('buildSidebarTreeRows', () => {
     expect(rows.find((row) => row.kind === 'project-folder')?.collapsed).toBe(false);
   });
 
+  it('keeps cached project sessions when the live active list is still empty', () => {
+    const rows = buildSidebarTreeRows({
+      recentProjects: [{ path: '/a' }],
+      projectSessionsByPath: {
+        '/a': [session('a1', 'One'), session('a2', 'Two')],
+      },
+      generalSessions: [],
+      sessionSearch: '',
+      sessionListOrder: 'updated',
+      projectsSectionExpanded: true,
+      conversationsSectionExpanded: false,
+      collapsedProjects: { '/a': false },
+      sessionListScopes: createSessionListScopeState(),
+      activeProjectPath: '/a',
+      activeProjectSessions: [],
+    });
+    expect(rows.flatMap((row) => (row.kind === 'session' ? [row.session.id] : []))).toEqual([
+      'a1',
+      'a2',
+    ]);
+  });
+
+  it('does not revive cached rows when search filtered the active project to empty', () => {
+    const rows = buildSidebarTreeRows({
+      recentProjects: [{ path: '/a' }],
+      projectSessionsByPath: { '/a': [session('a1', 'Alpha')] },
+      generalSessions: [],
+      sessionSearch: 'nomatch',
+      sessionListOrder: 'updated',
+      projectsSectionExpanded: true,
+      conversationsSectionExpanded: false,
+      collapsedProjects: { '/a': false },
+      sessionListScopes: createSessionListScopeState(),
+      activeProjectPath: '/a',
+      activeProjectSessions: [],
+    });
+    expect(rows.filter((row) => row.kind === 'session')).toHaveLength(0);
+  });
+
   it('lets an explicit fold win even when the active session is inside the project', () => {
     const rows = buildSidebarTreeRows({
       recentProjects: [{ path: '/a' }],
@@ -419,7 +459,7 @@ describe('buildSidebarTreeRows', () => {
     });
     expect(
       alphabetical.filter((row) => row.kind === 'session').map((row) => row.session.name),
-    ).toEqual(['AAA Zulu', 'Alpha', 'Pinned']);
+    ).toEqual(['Pinned', 'AAA Zulu', 'Alpha']);
   });
 
   it('filters drafts locally during search and suppresses truncation hints', () => {
@@ -574,5 +614,85 @@ describe('buildSidebarTreeRows', () => {
         row.kind === 'project-folder' && row.projectPath === '/notes',
     );
     expect(notes?.grouped).toBe(false);
+  });
+
+  it('aggregates pinned sessions at the top and attaches projectSubtitle for project sessions', () => {
+    const projectPinned = session('proj-pinned', 'Project Pinned Chat', {
+      isPinned: true,
+      pinnedAt: '2026-08-05T10:00:00.000Z',
+    });
+    const projectNormal = session('proj-normal', 'Project Normal Chat', {
+      isPinned: false,
+      updatedAt: '2026-08-04T10:00:00.000Z',
+    });
+    const generalPinned = session('gen-pinned', 'General Pinned Chat', {
+      isPinned: true,
+      pinnedAt: '2026-08-05T12:00:00.000Z',
+    });
+    const generalNormal = session('gen-normal', 'General Normal Chat', {
+      isPinned: false,
+      updatedAt: '2026-08-04T12:00:00.000Z',
+    });
+
+    const rows = buildSidebarTreeRows({
+      recentProjects: [{ path: '/Users/test/piwin', displayName: 'piwin' }],
+      projectSessionsByPath: {
+        '/Users/test/piwin': [projectPinned, projectNormal],
+      },
+      generalSessions: [generalPinned, generalNormal],
+      sessionSearch: '',
+      sessionListOrder: 'updated',
+      pinnedSectionExpanded: true,
+      projectsSectionExpanded: true,
+      conversationsSectionExpanded: true,
+      collapsedProjects: { '/Users/test/piwin': false },
+      sessionListScopes: createSessionListScopeState(),
+    });
+
+    // 1. Pinned header is at the very top
+    expect(rows[0]).toEqual({
+      kind: 'section-header',
+      sectionId: 'pinned',
+      key: 'section:pinned',
+    });
+
+    // 2. Pinned sessions are sorted (gen-pinned at 12:00 is newer than proj-pinned at 10:00)
+    const sessionRows = rows.filter((r): r is Extract<SidebarTreeRow, { kind: 'session' }> => r.kind === 'session');
+    expect(sessionRows[0]?.session.id).toBe('gen-pinned');
+    expect(sessionRows[0]?.projectSubtitle).toBeUndefined();
+
+    expect(sessionRows[1]?.session.id).toBe('proj-pinned');
+    expect(sessionRows[1]?.projectSubtitle).toBe('piwin');
+
+    // 3. Pinned sessions are excluded from their original project folder and conversation list
+    const projectSectionSessions = rows
+      .filter((r): r is Extract<SidebarTreeRow, { kind: 'session' }> => r.kind === 'session' && r.scope.kind === 'project' && r.key !== 'session:pinned:proj-pinned');
+    expect(projectSectionSessions.map((r) => r.session.id)).toEqual(['proj-normal']);
+
+    const conversationSectionSessions = rows
+      .filter((r): r is Extract<SidebarTreeRow, { kind: 'session' }> => r.kind === 'session' && r.scope.kind === 'general' && r.key !== 'session:pinned:gen-pinned');
+    expect(conversationSectionSessions.map((r) => r.session.id)).toEqual(['gen-normal']);
+  });
+
+  it('hides pinned sessions when pinnedSectionExpanded is false', () => {
+    const pinnedSession = session('p1', 'Pinned Chat', { isPinned: true });
+    const rows = buildSidebarTreeRows({
+      recentProjects: [],
+      projectSessionsByPath: {},
+      generalSessions: [pinnedSession],
+      sessionSearch: '',
+      sessionListOrder: 'updated',
+      pinnedSectionExpanded: false,
+      projectsSectionExpanded: false,
+      conversationsSectionExpanded: false,
+      collapsedProjects: {},
+      sessionListScopes: createSessionListScopeState(),
+    });
+
+    expect(rows).toEqual([
+      { kind: 'section-header', sectionId: 'pinned', key: 'section:pinned' },
+      { kind: 'section-header', sectionId: 'projects', key: 'section:projects' },
+      { kind: 'section-header', sectionId: 'conversations', key: 'section:conversations' },
+    ]);
   });
 });

@@ -5,8 +5,10 @@
  * monospace rows, line numbers, and Shiki syntax highlighting (same highlighter
  * singleton used by diff-view and EnhancedMarkdownView).
  */
-import { useEffect, useRef, useState, type ReactElement } from 'react';
-import { useHighlight, languageFromPath, TokenSpans } from './syntax-highlight';
+import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import { languageFromPath } from './syntax-highlight.js';
+import { useFileHighlight } from './syntax/file-highlight.js';
+import { CodePreviewLines } from './code-preview-lines.js';
 import {
   ContextMenuFromCatalog,
   type ContextMenuCapabilities,
@@ -47,8 +49,7 @@ function computeSelectionTarget(
 
   const startContainer = range.startContainer;
   const endContainer = range.endContainer;
-  const startEl =
-    startContainer instanceof Element ? startContainer : startContainer.parentElement;
+  const startEl = startContainer instanceof Element ? startContainer : startContainer.parentElement;
   const endEl = endContainer instanceof Element ? endContainer : endContainer.parentElement;
   const startRow = startEl?.closest<HTMLElement>('.code-preview-row');
   const endRow = endEl?.closest<HTMLElement>('.code-preview-row');
@@ -78,8 +79,8 @@ export function CodePreviewView({
   projectPath,
 }: CodePreviewViewProps): ReactElement {
   const lang = languageFromPath(filePath);
-  const tokens = useHighlight(code, lang);
-  const lines = code.split('\n');
+  const tokens = useFileHighlight(code, lang);
+  const lines = useMemo(() => code.split('\n'), [code]);
   // Width of the line-number gutter in characters (min 2, so single-digit
   // lines don't jitter the column as the file grows).
   const gutterWidth = Math.max(2, String(lines.length).length);
@@ -117,19 +118,7 @@ export function CodePreviewView({
 
   const pre = (
     <pre className="code-preview-view" data-testid="code-preview-view" ref={preRef}>
-      {lines.map((line, index) => {
-        const lineTokens = tokens?.[index] ?? null;
-        return (
-          <div key={index} className="code-preview-row" data-line={index + 1}>
-            <span className="code-preview-lineno" aria-hidden="true">
-              {String(index + 1).padStart(gutterWidth, ' ')}
-            </span>
-            <span className="code-preview-text">
-              {lineTokens ? <TokenSpans tokens={lineTokens} /> : line}
-            </span>
-          </div>
-        );
-      })}
+      <CodePreviewLines lines={lines} tokens={tokens} gutterWidth={gutterWidth} preRef={preRef} />
     </pre>
   );
 

@@ -97,6 +97,19 @@ describe('createBrowserSession navigation validation', () => {
     expect(page.goto).toHaveBeenNthCalledWith(1, 'https://example.com/path?q=1');
     expect(page.goto).toHaveBeenNthCalledWith(2, 'http://localhost:1420/');
   });
+
+  it('allows file URLs only for the user actor', async () => {
+    const session = createBrowserSession();
+    await expect(session.navigate('file:///tmp/index.html')).rejects.toBeInstanceOf(
+      NavigateError,
+    );
+    expect(launchMock).not.toHaveBeenCalled();
+
+    const userSession = createBrowserSession();
+    const { page } = installWorkingBrowser();
+    await userSession.navigate('file:///tmp/index.html', { actor: 'user' });
+    expect(page.goto).toHaveBeenCalledWith('file:///tmp/index.html');
+  });
 });
 
 describe('lazy launch', () => {

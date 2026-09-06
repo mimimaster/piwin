@@ -113,20 +113,26 @@ export function applyBackgroundSessionTurnWorkingMarker(
     isRunTerminal(run.status) || run.status === 'cancelling' || run.phase === 'pausing';
   if (stopWorking) {
     const nextWorking = removeWorkingSessionId(state.workingSessionIds, run.sessionId);
-    const shouldMarkCompletedAttention = run.status === 'completed' || run.status === 'failed';
-    const nextAttention: Record<string, true> = shouldMarkCompletedAttention
-      ? { ...state.completedAttentionSessionIds, [run.sessionId]: true }
-      : removeSessionIdMarker(state.completedAttentionSessionIds, run.sessionId);
+    const nextCompletedAttention: Record<string, true> =
+      run.status === 'completed'
+        ? { ...state.completedAttentionSessionIds, [run.sessionId]: true }
+        : removeSessionIdMarker(state.completedAttentionSessionIds, run.sessionId);
+    const nextFailedAttention: Record<string, true> =
+      run.status === 'failed'
+        ? { ...state.failedAttentionSessionIds, [run.sessionId]: true }
+        : removeSessionIdMarker(state.failedAttentionSessionIds, run.sessionId);
     if (
       nextWorking === state.workingSessionIds &&
-      nextAttention === state.completedAttentionSessionIds
+      nextCompletedAttention === state.completedAttentionSessionIds &&
+      nextFailedAttention === state.failedAttentionSessionIds
     ) {
       return state;
     }
     return {
       ...state,
       workingSessionIds: nextWorking,
-      completedAttentionSessionIds: nextAttention,
+      completedAttentionSessionIds: nextCompletedAttention,
+      failedAttentionSessionIds: nextFailedAttention,
     };
   }
   if (run.status !== 'queued' && run.status !== 'running') {

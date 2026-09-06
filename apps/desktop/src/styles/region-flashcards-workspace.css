@@ -18,6 +18,35 @@
   padding: var(--s-3) 0;
 }
 
+/* Produce / index progress ring (proto-06 §07) — base tokens; Inkstone retunes stroke. */
+.doc-cards-progress {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.doc-cards-progress-track {
+  stroke: var(--line-2);
+}
+
+.doc-cards-progress-fill {
+  stroke: var(--iris);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 200ms var(--ease-out, ease);
+}
+
+.doc-cards-progress-ring text {
+  fill: var(--text-1);
+  font: 600 11px var(--font-mono, monospace);
+}
+
+.doc-cards-progress-label {
+  font-size: var(--fs-chrome, 12.5px);
+  color: var(--text-2);
+}
+
 /* ── Main Canvas ──────────────────────────────────────────────────── */
 
 .flashcards-main {

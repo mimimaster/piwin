@@ -99,7 +99,7 @@ describe('TurnToolGroup causal tool sequence', () => {
     expect(capsule).not.toBeNull();
     expect(capsule?.getAttribute('data-cluster-kind')).toBe('explore');
     expect(capsule?.getAttribute('data-expanded')).toBe('false');
-    expect(container.textContent).toContain('已探索 1 个文件 · 1 次检索');
+    expect(container.textContent).toContain('探索了 1 个文件 · 1 次搜索');
     expect(container.querySelector('[data-testid="tool-call-card"]')).toBeNull();
   });
 

@@ -59,7 +59,7 @@ describe('MessageBranchSwitcher', () => {
       );
     });
     expect(container.querySelector('[data-testid="message-branch-label"]')?.textContent).toBe(
-      '1/2',
+      '1 / 2',
     );
     const prev = container.querySelector(
       '[data-testid="message-branch-prev"]',

@@ -120,7 +120,7 @@ export function ComposerAttachmentShelf(props: ComposerAttachmentShelfProps): Re
       ) : null}
 
       <div
-        className="composer-attachment-shelf-chips"
+        className="refs composer-attachment-shelf-chips"
         data-testid="composer-attachment-shelf-chips"
         onKeyDown={(event) => handleShelfChipsKeyDown(event, props)}
       >
@@ -261,7 +261,7 @@ function DocCommentChip(props: {
 }): ReactElement {
   return (
     <div
-      className="composer-v2-attachment-chip composer-v2-doc-comment-chip"
+      className="ref composer-v2-attachment-chip composer-v2-doc-comment-chip"
       data-testid="doc-comment-chip"
       data-shelf-chip=""
       data-shelf-kind="doc-comments"

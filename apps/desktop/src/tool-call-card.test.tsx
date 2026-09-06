@@ -744,6 +744,98 @@ describe('ToolCallCard openable file paths', () => {
   });
 });
 
+describe('ToolCallCard shared six-state node vocabulary', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it('tags the status dot with the shared session-node-status kind for each outcome', () => {
+    act(() => {
+      root.render(<ToolCallCard tool={createReadTool({ status: 'done' })} density="compact" />);
+    });
+    expect(container.querySelector('[data-testid="tool-call-ok"]')?.getAttribute('data-kind')).toBe(
+      'success',
+    );
+
+    act(() => {
+      root.render(<ToolCallCard tool={createReadTool({ status: 'error' })} density="compact" />);
+    });
+    expect(
+      container.querySelector('[data-testid="tool-call-err"]')?.getAttribute('data-kind'),
+    ).toBe('failed');
+
+    act(() => {
+      root.render(<ToolCallCard tool={createReadTool({ status: 'running' })} density="compact" />);
+    });
+    expect(container.querySelector('.tool-status-dot')?.getAttribute('data-kind')).toBe('running');
+  });
+
+  it('renders proto-01 ink-line classes and an approved seal on write rows', () => {
+    act(() => {
+      root.render(
+        <ToolCallCard
+          tool={{
+            toolCallId: 'w1',
+            toolName: 'write_file',
+            status: 'done',
+            output: 'ok',
+            presentation: {
+              kind: 'filesystem',
+              title: 'write_file',
+              actionVerb: 'Edited',
+              targetPaths: ['apps/desktop/src/composer-run-actions.tsx'],
+            },
+          }}
+          density="compact"
+        />,
+      );
+    });
+    const card = container.querySelector('[data-testid="tool-call-card"]');
+    expect(card?.classList.contains('tr')).toBe(true);
+    expect(container.querySelector('.node.done')).not.toBeNull();
+    expect(container.querySelector('[data-testid="tool-approved-seal"]')?.textContent).toBe('允');
+  });
+
+  it('stamps auto-authorized shell rows and leaves reads unmarked', () => {
+    act(() => {
+      root.render(
+        <ToolCallCard
+          tool={{
+            toolCallId: 'b1',
+            toolName: 'bash',
+            status: 'done',
+            output: 'ok',
+            presentation: {
+              kind: 'shell',
+              title: 'bash',
+              command: 'pnpm typecheck',
+            },
+          }}
+          density="compact"
+        />,
+      );
+    });
+    expect(container.querySelector('[data-testid="tool-approved-seal"]')?.textContent).toBe('允');
+
+    act(() => {
+      root.render(<ToolCallCard tool={createReadTool()} density="compact" />);
+    });
+    expect(container.querySelector('[data-testid="tool-approved-seal"]')).toBeNull();
+  });
+});
+
 describe('collectSessionTools', () => {
   it('flattens tools from all messages in order', () => {
     const first: ToolCardUi = {

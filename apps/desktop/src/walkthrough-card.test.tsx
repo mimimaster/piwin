@@ -137,7 +137,9 @@ describe('WalkthroughCard', () => {
     );
     expect(btn).toBeTruthy();
     expect(btn?.getAttribute('role')).toBe('button');
-    expect(btn?.textContent).toContain('Open full document');
+    expect(btn?.getAttribute('aria-label')).toBe('View as document');
+    expect(btn?.querySelector('button')).toBeNull();
+    expect(container.querySelector('.walkthrough-card-footer')?.textContent).toContain('Open full document');
     act(() => {
       btn?.click();
     });
@@ -213,11 +215,17 @@ describe('WalkthroughCard', () => {
     expect(container.querySelector('[data-testid="walkthrough-status-a1"]')?.textContent).toBe(
       '就绪',
     );
-    expect(container.querySelector('.walkthrough-card-title')?.textContent).toBe('演练');
+    expect(container.querySelector('.walkthrough-card-title')?.textContent).toBe('走查报告');
     const docBtn = container.querySelector<HTMLButtonElement>(
       '[data-testid="walkthrough-doc-btn-a1"]',
     );
     expect(docBtn?.textContent).toContain('作为文档查看');
+    expect(container.querySelector('[data-testid="walkthrough-footer-a1"]')?.textContent).toContain(
+      '作为文档查看',
+    );
+    expect(container.querySelector('[data-testid="walkthrough-footer-a1"]')?.textContent).toContain(
+      '复制',
+    );
   });
 
   it('renders zh-CN generating status and loading text', () => {
@@ -228,7 +236,7 @@ describe('WalkthroughCard', () => {
       '生成中',
     );
     expect(container.querySelector('[data-testid="walkthrough-loading-a1"]')?.textContent).toBe(
-      '正在生成演练…',
+      '正在生成走查报告…',
     );
   });
 });

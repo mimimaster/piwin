@@ -423,6 +423,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       projectInput,
       title: locale === 'zh-CN' ? '打开工作区' : 'Open workspace',
       ...(hostHomeDirectory ? { hostHomeDirectory } : {}),
+      hostListDirAvailable: hostClient.supportsCommand('host/list-dir'),
     });
     if (result.kind === 'picked') {
       await handleOpenProject(result.path);

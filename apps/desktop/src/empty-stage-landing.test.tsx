@@ -30,14 +30,14 @@ describe('selectResumableSessions', () => {
     expect(selected.map((entry) => entry.id)).toEqual(['newest', 'middle', 'older']);
   });
 
-  it('drops sessions with no turns so an empty draft is never offered', () => {
-    const { messageCount: _dropped, ...withoutCount } = session({ id: 'missing-count' });
+  it('drops sessions with no turns or content so an empty draft is never offered', () => {
     const selected = selectResumableSessions([
-      session({ id: 'empty', messageCount: 0 }),
-      withoutCount,
-      session({ id: 'has-turns', messageCount: 1 }),
+      session({ id: 'empty', messageCount: 0, name: 'Untitled session' }),
+      session({ id: 'missing-count', messageCount: 0, name: '' }),
+      session({ id: 'has-turns', messageCount: 1, updatedAt: '2026-09-01T10:00:00.000Z' }),
+      session({ id: 'named', messageCount: 0, name: 'TEST', updatedAt: '2026-09-02T10:00:00.000Z' }),
     ]);
-    expect(selected.map((entry) => entry.id)).toEqual(['has-turns']);
+    expect(selected.map((entry) => entry.id)).toEqual(['named', 'has-turns']);
   });
 
   it('drops archived sessions', () => {
@@ -110,7 +110,13 @@ describe('EmptyStageLanding', () => {
   });
 
   it('falls back to a placeholder title for an unnamed session', () => {
-    const container = renderLanding([session({ id: 'blank', name: '   ' })]);
+    const container = renderLanding([session({ id: 'blank', name: '   ', messageCount: 1 })]);
     expect(container.textContent).toContain('Untitled session');
+  });
+
+  it('does not render the removed Inkstone seal vignette', () => {
+    const container = renderLanding([session({ id: 'abc', name: 'Notes' })]);
+    expect(container.querySelector('[data-testid="empty-stage-inkstone-seal"]')).toBeNull();
+    expect(container.textContent).not.toContain('砚');
   });
 });

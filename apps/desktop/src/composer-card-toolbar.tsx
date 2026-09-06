@@ -62,7 +62,7 @@ export function ComposerCardToolbar({
 }: ComposerCardToolbarProps): ReactElement {
   const reservedCommand = isReservedComposerSlashCommand(props.composer);
   return (
-    <div className="composer-v2-toolbar">
+    <div className="bar composer-v2-toolbar">
       <div className="composer-v2-toolbar-left">
         {/* Plus / attach button */}
         <div className="plus-anchor">
@@ -111,6 +111,43 @@ export function ComposerCardToolbar({
           onSelectModel={props.onSelectModel}
         />
 
+        {/* Run Mode pill (ADR 0024) */}
+        {props.isConversationSession !== true && props.onRunModeChange && props.runModePreset ? (
+          <RunModeControl
+            disabled={isStreamingRun}
+            value={props.runModePreset}
+            onChange={props.onRunModeChange}
+            {...(props.onRunModeSetDefault ? { onSetDefault: props.onRunModeSetDefault } : {})}
+            {...(props.onOpenPermissionsSettings
+              ? { onOpenSettings: props.onOpenPermissionsSettings }
+              : {})}
+            {...(props.runModeYoloDisabled ? { yoloDisabled: true } : {})}
+          />
+        ) : null}
+
+        {/* Always visible: scheme is a mode picker, not a feature switch.
+              Default `off` = freehand (no injection); Ultra Code etc. inject on send. */}
+        {props.isConversationSession !== true &&
+        props.onOrchestrationSchemeChange &&
+        props.orchestrationSchemeOptions ? (
+          <OrchestrationSchemeControl
+            disabled={false}
+            value={props.orchestrationSchemeId ?? 'off'}
+            options={props.orchestrationSchemeOptions}
+            onChange={props.onOrchestrationSchemeChange}
+            delegationDisabled={props.delegationDisabled ?? false}
+            {...(props.onDelegationDisabledChange
+              ? { onDelegationDisabledChange: props.onDelegationDisabledChange }
+              : {})}
+            {...(props.onOpenOrchestrationSchemeSettings
+              ? { onOpenSettings: props.onOpenOrchestrationSchemeSettings }
+              : {})}
+          />
+        ) : null}
+
+      </div>
+
+      <div className="composer-v2-toolbar-right">
         <LiveComposerButton
           enabled={true}
           canStart={props.live?.canStart === true}
@@ -155,48 +192,12 @@ export function ComposerCardToolbar({
             ) : null}
           </>
         ) : null}
-      </div>
 
-      <div className="composer-v2-toolbar-right">
         {/* Goal is entered via `/goal`; the toolbar only shows the way out. */}
         {props.agentMode === 'goal' ? (
           <GoalModeChip
             disabled={isStreamingRun}
             onExit={() => props.onAgentModeChange('agent')}
-          />
-        ) : null}
-
-        {/* Run Mode pill (ADR 0024) */}
-        {props.isConversationSession !== true && props.onRunModeChange && props.runModePreset ? (
-          <RunModeControl
-            disabled={isStreamingRun}
-            value={props.runModePreset}
-            onChange={props.onRunModeChange}
-            {...(props.onRunModeSetDefault ? { onSetDefault: props.onRunModeSetDefault } : {})}
-            {...(props.onOpenPermissionsSettings
-              ? { onOpenSettings: props.onOpenPermissionsSettings }
-              : {})}
-            {...(props.runModeYoloDisabled ? { yoloDisabled: true } : {})}
-          />
-        ) : null}
-
-        {/* Always visible: scheme is a mode picker, not a feature switch.
-              Default `off` = freehand (no injection); Ultra Code etc. inject on send. */}
-        {props.isConversationSession !== true &&
-        props.onOrchestrationSchemeChange &&
-        props.orchestrationSchemeOptions ? (
-          <OrchestrationSchemeControl
-            disabled={false}
-            value={props.orchestrationSchemeId ?? 'off'}
-            options={props.orchestrationSchemeOptions}
-            onChange={props.onOrchestrationSchemeChange}
-            delegationDisabled={props.delegationDisabled ?? false}
-            {...(props.onDelegationDisabledChange
-              ? { onDelegationDisabledChange: props.onDelegationDisabledChange }
-              : {})}
-            {...(props.onOpenOrchestrationSchemeSettings
-              ? { onOpenSettings: props.onOpenOrchestrationSchemeSettings }
-              : {})}
           />
         ) : null}
 

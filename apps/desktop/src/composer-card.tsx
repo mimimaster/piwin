@@ -776,7 +776,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
 
   return (
     <div
-      className={`composer-card-v2${props.dropActive ? ' drop-active' : ''}${isStreamingRun ? ' is-streaming' : ''}${queuedEdit ? ' is-queued-edit' : ''}`}
+      className={`slab composer-card-v2${props.dropActive ? ' drop-active' : ''}${isStreamingRun ? ' is-streaming' : ''}${queuedEdit ? ' is-queued-edit' : ''}`}
       data-testid="composer-card"
       onDragEnter={(event) => {
         event.preventDefault();
@@ -889,7 +889,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
         />
         <textarea
           ref={textareaRef}
-          className="composer-v2-textarea"
+          className="ta composer-v2-textarea"
           data-testid="composer-input"
           value={composerValue}
           onChange={(event) => {

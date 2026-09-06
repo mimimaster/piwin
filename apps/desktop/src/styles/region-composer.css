@@ -121,7 +121,10 @@
   margin: 0 auto;
   border: 0;
   border-radius: var(--r-panel);
-  background: var(--surface-3);
+  /* `--slab` defaults to `--surface-3` (see apply-appearance.ts) so this is a
+     no-op fill for every non-Inkstone theme; only inkstone-overrides.css
+     repoints it to the prototype's dark hex. */
+  background: var(--slab);
   box-shadow: var(--elev-3);
   transition:
     box-shadow var(--t-3) var(--ease-out),
@@ -148,7 +151,9 @@
 }
 
 .composer-card-v2.drop-active {
-  background: var(--surface-4);
+  /* `--slab-raised` defaults to `--surface-4` (see apply-appearance.ts); on
+     Inkstone the drop highlight must stay on the slab, not flash paper. */
+  background: var(--slab-raised);
   box-shadow:
     var(--elev-4),
     0 0 0 2px var(--iris);
@@ -226,7 +231,11 @@
   box-shadow: none;
   resize: none;
   background: transparent;
-  color: var(--text-1);
+  /* `--slab-text` defaults to `--text-1` (see apply-appearance.ts) — a no-op
+     for every non-Inkstone theme. On the slab it must not read `--text-1`
+     directly: Inkstone paper's `--text-1` is near-black, illegible on the
+     slab's dark fill. */
+  color: var(--slab-text);
   font-family: var(--font);
   font-size: var(--chat-font-size);
   line-height: 1.55;
@@ -239,11 +248,11 @@
 }
 
 .composer-v2-textarea::placeholder {
-  color: var(--text-4);
+  color: var(--slab-placeholder);
 }
 
 .composer-v2-textarea:disabled {
-  color: var(--text-4);
+  color: var(--slab-placeholder);
 }
 
 /* ─── Toolbar ─────────────────────────────────────────────────────────
@@ -275,7 +284,7 @@
 .composer-speech-status {
   max-width: 150px;
   overflow: hidden;
-  color: var(--text-3);
+  color: var(--slab-text-3);
   font-size: var(--fs-mono);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -294,7 +303,12 @@
   border: none;
   border-radius: var(--r-control);
   background: transparent;
-  color: var(--text-3);
+  /* Rest/hover/active/disabled all read the slab-scoped tokens (default to
+     the ambient text/hover/active roles — no-op outside Inkstone) rather than
+     `--text-3`/`--hover`/`--active` directly, for the same reason as the
+     textarea above. `.active` keeps `--iris-lift`/`--iris-wash`: iris is a
+     brand color, legible against the slab on every face already. */
+  color: var(--slab-text-3);
   cursor: pointer;
   flex-shrink: 0;
   transition:
@@ -308,12 +322,12 @@
 }
 
 .composer-v2-icon-btn:hover:not(:disabled) {
-  color: var(--text-1);
-  background: var(--hover);
+  color: var(--slab-text);
+  background: var(--slab-hover);
 }
 
 .composer-v2-icon-btn:active:not(:disabled) {
-  background: var(--active);
+  background: var(--slab-active);
 }
 
 .composer-v2-icon-btn.active {
@@ -322,7 +336,7 @@
 }
 
 .composer-v2-icon-btn:disabled {
-  color: var(--text-4);
+  color: var(--slab-placeholder);
   cursor: default;
 }
 
@@ -357,7 +371,7 @@
   border: none;
   border-radius: var(--r-control);
   background: transparent;
-  color: var(--text-3);
+  color: var(--slab-text-3);
   cursor: pointer;
   font-family: inherit;
   font-size: var(--fs-chrome);
@@ -372,21 +386,21 @@
 .thinking-effort-trigger:hover:not(:disabled),
 .run-mode-trigger:hover:not(:disabled),
 .orchestration-scheme-trigger:hover:not(:disabled) {
-  color: var(--text-1);
-  background: var(--hover);
+  color: var(--slab-text);
+  background: var(--slab-hover);
 }
 
 .thinking-effort-trigger[aria-expanded='true'],
 .run-mode-trigger[aria-expanded='true'],
 .orchestration-scheme-trigger[aria-expanded='true'] {
-  color: var(--text-1);
-  background: var(--active);
+  color: var(--slab-text);
+  background: var(--slab-active);
 }
 
 .thinking-effort-trigger:disabled,
 .run-mode-trigger:disabled,
 .orchestration-scheme-trigger:disabled {
-  color: var(--text-4);
+  color: var(--slab-placeholder);
   cursor: not-allowed;
 }
 
@@ -395,7 +409,9 @@
 .orchestration-scheme-value {
   min-width: 0;
   overflow: hidden;
-  color: var(--text-2);
+  /* The value span used to read `--text-2`; `--slab-text-2` keeps that exact
+     shade off-Inkstone and follows the prototype's pill treatment on it. */
+  color: var(--slab-text-2);
   font-weight: 500;
   font-size: var(--fs-chrome);
   line-height: 1.4;
@@ -406,14 +422,14 @@
 .thinking-effort-trigger:hover .thinking-effort-model,
 .run-mode-trigger:hover .run-mode-value,
 .orchestration-scheme-trigger:hover .orchestration-scheme-value {
-  color: var(--text-1);
+  color: var(--slab-text);
 }
 
 .thinking-effort-sep,
 .thinking-effort-value,
 .orchestration-scheme-prefix {
   flex-shrink: 0;
-  color: var(--text-4);
+  color: var(--slab-placeholder);
   font-weight: 400;
   font-size: var(--fs-chrome);
   line-height: 1.4;
@@ -445,7 +461,7 @@
   border-left: 3px solid transparent;
   border-right: 3px solid transparent;
   border-top: 4px solid currentColor;
-  color: var(--text-4);
+  color: var(--slab-placeholder);
   opacity: 0.8;
   transition: transform var(--t-2) var(--ease-out);
 }
@@ -519,10 +535,13 @@
    confirm the composer is empty, not a permanently dead affordance. `--text-4`
    is the disabled ink step and on the `--hover` wash it fell to roughly 2.3:1,
    which read as a missing glyph. `--text-3` on the firmer `--active` fill keeps
-   the arrow legible while staying obviously inert next to the iris fill. */
+   the arrow legible while staying obviously inert next to the iris fill. Both
+   read the slab-scoped tokens (`--slab-text-3` defaults to `--text-3`,
+   `--slab-active` to `--active`), so this contrast fix survives the dark slab
+   on Inkstone without changing any other theme. */
 .composer-v2-send-btn:disabled {
-  background: var(--active);
-  color: var(--text-3);
+  background: var(--slab-active);
+  color: var(--slab-text-3);
   box-shadow: none;
   cursor: default;
 }
@@ -572,8 +591,11 @@
 }
 
 .composer-v2-stop-btn:disabled {
-  background: var(--hover);
-  color: var(--text-4);
+  /* Slab-scoped like the icon buttons: the `--hover`/`--text-4` pair is
+     computed for the page surface, not the dark slab (defaults keep other
+     themes byte-identical). */
+  background: var(--slab-hover);
+  color: var(--slab-placeholder);
   cursor: default;
 }
 
@@ -598,8 +620,8 @@
   padding: 0 var(--s-5);
   border: 0;
   border-radius: var(--r-control);
-  background: var(--hover);
-  color: var(--text-3);
+  background: var(--slab-hover);
+  color: var(--slab-text-3);
   font-size: var(--fs-mono);
   font-weight: 600;
   cursor: pointer;
@@ -609,12 +631,12 @@
 }
 
 .composer-v2-text-btn:hover:not(:disabled) {
-  color: var(--text-1);
-  background: var(--active);
+  color: var(--slab-text);
+  background: var(--slab-active);
 }
 
 .composer-v2-text-btn:disabled {
-  color: var(--text-4);
+  color: var(--slab-placeholder);
   cursor: default;
 }
 

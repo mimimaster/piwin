@@ -269,7 +269,7 @@ describe('buildWorkerProviderRegistration', () => {
     expect(registration.models[0]?.compat).toEqual({
       supportsStore: false,
       supportsDeveloperRole: false,
-      supportsReasoningEffort: false,
+      supportsReasoningEffort: true,
     });
   });
 
