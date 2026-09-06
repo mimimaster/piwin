@@ -353,7 +353,27 @@ describe('MarkdownView artifact preview policy', () => {
     expect(container.querySelector('[data-testid="artifact-static"]')).toBeNull();
   });
 
-  it('keeps Canvas fences source-only in the transcript while the response is streaming', () => {
+  it('keeps an open Canvas fence as source in the transcript while streaming', () => {
+    const openCanvasFence = [
+      '```artifact-html title="Wide workspace" surface="canvas"',
+      '<div>Wide',
+    ].join('\n');
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text={openCanvasFence}
+        renderingPhase="streaming"
+        artifactOrigin={{ sessionId: 'session-1', messageId: 'message-2' }}
+        onOpenArtifactCanvas={vi.fn()}
+      />,
+    );
+
+    expect(container.querySelector('[data-testid="code-fence-streaming"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="code-download-button"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="artifact-canvas-launcher"]')).toBeNull();
+    expect(container.querySelector('.artifact-frame')).toBeNull();
+  });
+
+  it('folds a closed Canvas fence to the launcher when phase is still streaming', () => {
     const { container } = renderMarkdown(
       <MarkdownView
         text={CANVAS_ARTIFACT_FENCE}
@@ -363,8 +383,33 @@ describe('MarkdownView artifact preview policy', () => {
       />,
     );
 
-    expect(container.querySelector('[data-testid="code-fence-streaming"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="artifact-canvas-launcher"]')).toBeNull();
+    expect(container.querySelector('[data-testid="artifact-canvas-launcher"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="code-fence-streaming"]')).toBeNull();
+    expect(container.querySelector('.artifact-frame')).toBeNull();
+  });
+
+  it('routes a titled Canvas document fence to the launcher when completed', () => {
+    const pelicanFence = [
+      '```artifact-html title="2D 鹈鹕骑自行车动画 (Pelican on a Bicycle)" surface="canvas"',
+      '<!DOCTYPE html>',
+      '<html lang="zh-CN"><body><main>骑行</main></body></html>',
+      '```',
+    ].join('\n');
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text={pelicanFence}
+        renderingPhase="completed"
+        artifactOrigin={{ sessionId: 'session-pelican', messageId: 'message-pelican' }}
+        onOpenArtifactCanvas={vi.fn()}
+        locale="zh-CN"
+      />,
+    );
+
+    expect(container.querySelector('[data-testid="artifact-canvas-launcher"]')).not.toBeNull();
+    expect(container.querySelector('.artifact-canvas-launcher-title')?.textContent).toContain(
+      '鹈鹕骑自行车',
+    );
+    expect(container.querySelector('[data-testid="code-fence-source"]')).toBeNull();
     expect(container.querySelector('.artifact-frame')).toBeNull();
   });
 

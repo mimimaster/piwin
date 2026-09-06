@@ -42,6 +42,8 @@ export function LazyMediaTile(props: LazyMediaTileProps): ReactElement {
   const { item, request } = props;
   const resolveSrc = useLocalMediaSrc();
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const requestRef = useRef(request);
+  requestRef.current = request;
   const [visible, setVisible] = useState(false);
   const [thumbUrl, setThumbUrl] = useState('');
   const [localFailed, setLocalFailed] = useState(false);
@@ -63,6 +65,8 @@ export function LazyMediaTile(props: LazyMediaTileProps): ReactElement {
     return () => observer.disconnect();
   }, []);
 
+  // Workbench passes a new `request` lambda every render. Keep it off the
+  // dep list — rebuilding the object URL retargets <video src> and flashes.
   useEffect(() => {
     let cancelled = false;
     const dropOwned = () => {
@@ -98,7 +102,7 @@ export function LazyMediaTile(props: LazyMediaTileProps): ReactElement {
 
       if (item.kind === 'image') {
         const thumb = await readLibraryMediaViaHost(
-          { request },
+          { request: (command) => requestRef.current(command) },
           { sessionId: item.sessionId, assetId: item.assetId, variant: 'thumb', thumbEdge: edge },
         );
         if (cancelled) {
@@ -136,7 +140,7 @@ export function LazyMediaTile(props: LazyMediaTileProps): ReactElement {
       }
 
       const full = await readLibraryMediaViaHost(
-        { request },
+        { request: (command) => requestRef.current(command) },
         { sessionId: item.sessionId, assetId: item.assetId, variant: 'full' },
       );
       if (cancelled) {
@@ -162,7 +166,6 @@ export function LazyMediaTile(props: LazyMediaTileProps): ReactElement {
     item.thumbAbsolutePath,
     item.sessionId,
     item.assetId,
-    request,
     resolveSrc,
   ]);
 

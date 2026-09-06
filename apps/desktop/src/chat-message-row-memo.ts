@@ -30,6 +30,7 @@ export function areChatMessageRowPropsEqual(
         previous.onEditResend === next.onEditResend &&
         previous.onRetry === next.onRetry &&
         previous.onRetryTurn === next.onRetryTurn &&
+        previous.onBranchResend === next.onBranchResend &&
         previous.onSwitchBranch === next.onSwitchBranch &&
         previous.branchPoints === next.branchPoints &&
         previous.onInterventionEdit === next.onInterventionEdit &&

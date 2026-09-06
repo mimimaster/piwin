@@ -18,6 +18,12 @@ export type MarkdownCodeFenceProps = {
   htmlUiModeEnabled: boolean;
   /** Canonical index ordinal. Null means this fence is not bound — render as ordinary code. */
   fenceIndex: number | null;
+  /**
+   * Canonical index `open` flag. Canvas dumps source while the fence is still
+   * open; once closed it folds to the launcher even if renderingPhase is still
+   * stuck on streaming.
+   */
+  fenceOpen?: boolean;
   renderingPhase: MarkdownRenderingPhase;
   artifactTheme?: ArtifactThemeVariables;
   initPriority: number;

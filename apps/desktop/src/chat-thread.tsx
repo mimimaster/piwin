@@ -635,6 +635,9 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                     onCancelEdit={props.onCancelEdit}
                     onEditResend={props.onEditResend}
                     onRetry={props.onRetry}
+                    {...(props.onBranchResend !== undefined
+                      ? { onBranchResend: props.onBranchResend }
+                      : {})}
                     {...(props.onRetryTurn !== undefined
                       ? { onRetryTurn: props.onRetryTurn }
                       : {})}

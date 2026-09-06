@@ -37,6 +37,10 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   box-shadow: var(--sh1);
   font-size: 14.5px;
   line-height: 1.72;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 8px;
+  align-items: end;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .user-message-wrapper.is-conversation .user-message-avatar,
@@ -58,16 +62,44 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 /* Action controls remain keyboard reachable and no longer mask the final
-   words of a short prompt. They reveal on hover/focus in the normal flow. */
+   words of a short prompt. One-line cards keep copy/edit on the same row
+   at the bottom-right instead of growing a second in-flow row. */
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .user-message-wrapper.is-conversation .user-message-footer {
   position: static;
-  padding: 6px 0 0;
-  min-height: 24px;
+  grid-column: 2;
+  grid-row: 1;
+  align-self: end;
+  justify-self: end;
+  width: auto;
+  padding: 0;
+  min-height: 0;
   background: transparent;
+  white-space: nowrap;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .user-message-wrapper.is-conversation .user-message-footer > .user-message-time {
   display: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .user-message-wrapper.is-conversation
+  .user-message-bubble
+  > .user-message-text,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .user-message-wrapper.is-conversation
+  .user-message-bubble
+  > .message-attachments {
+  grid-column: 1;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .user-message-wrapper.is-conversation
+  .user-message-footer:has([data-testid='intervention-delivery-status']) {
+  grid-column: 1 / -1;
+  grid-row: auto;
+  width: 100%;
+  padding: 6px 0 0;
+  justify-content: flex-end;
 }
 
 /* proto-01 `.atts` / `.att` — history capsules on the paper user card */
@@ -121,7 +153,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   min-width: 0;
 }
 
-/* proto-01 `.ufoot` / `.bsw` — forked prompt sits under the paper card */
+/* proto-01 `.ufoot` — forked prompt sits under the paper card */
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ufoot {
   display: flex;
   align-items: center;
@@ -131,8 +163,9 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   color: var(--t4);
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ufoot .bsw,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ufoot .message-branch-switcher {
+/* Chip is the same on user `.ufoot` and assistant rows (not gated on `.ufoot`). */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .bsw,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .message-branch-switcher {
   display: inline-flex;
   align-items: center;
   gap: 2px;
@@ -146,8 +179,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   color: var(--t2);
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ufoot .bsw button,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ufoot .message-branch-switcher-btn {
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .message-branch-switcher-btn {
   width: 18px;
   height: 18px;
   min-width: 18px;
@@ -162,14 +194,24 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   font-size: 13px;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ufoot .bsw button:hover:not(:disabled),
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ufoot .message-branch-switcher-btn:hover:not(:disabled) {
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .message-branch-switcher-btn:hover:not(:disabled) {
   background: var(--s1);
   color: var(--t1);
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ufoot .message-branch-switcher-label {
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .message-branch-switcher-label {
+  height: 18px;
   padding: 0 4px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
   color: var(--t2);
+  font: inherit;
   font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .message-branch-switcher-label:hover {
+  background: var(--s1);
+  color: var(--t1);
 }

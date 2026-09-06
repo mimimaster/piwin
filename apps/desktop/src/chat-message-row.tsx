@@ -389,6 +389,9 @@ export const ChatMessageRow = memo(
               }
               props.onEditResend(message.id, text);
             }}
+            {...(props.onBranchResend
+              ? { onOpenBranch: (text) => props.onBranchResend?.(message.id, text) }
+              : {})}
             interventionEdit={canEditPendingIntervention}
             currentTurn={props.lastUserMessageId === message.id}
             branchPoint={findActiveBranchPoint(props.branchPoints ?? [], message.id)}

@@ -9,7 +9,7 @@ import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
-import { ThinkingEffortControl } from './ThinkingEffortControl.js';
+import { ThinkingEffortControl, toThinkingEffortModels } from './ThinkingEffortControl.js';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -129,6 +129,42 @@ function queryModelOptions(): Array<HTMLButtonElement> {
     ),
   );
 }
+
+describe('toThinkingEffortModels', () => {
+  it('maps composer rows onto picker keys without dropping optional fields', () => {
+    expect(
+      toThinkingEffortModels([
+        {
+          providerId: 'acme',
+          modelId: 'gpt-test',
+          label: 'Acme / gpt-test',
+          thinkingLevels: ['off', 'medium'],
+          reasoning: true,
+          supportsImage: true,
+        },
+        {
+          providerId: 'acme',
+          modelId: 'gpt-mini',
+          label: 'Acme / gpt-mini',
+        },
+      ]),
+    ).toEqual([
+      {
+        key: 'acme::gpt-test',
+        label: 'Acme / gpt-test',
+        providerId: 'acme',
+        thinkingLevels: ['off', 'medium'],
+        reasoning: true,
+        supportsImage: true,
+      },
+      {
+        key: 'acme::gpt-mini',
+        label: 'Acme / gpt-mini',
+        providerId: 'acme',
+      },
+    ]);
+  });
+});
 
 describe('ThinkingEffortControl', () => {
   let container: HTMLElement;

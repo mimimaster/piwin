@@ -311,8 +311,6 @@ html[data-theme-id='piwin-inkstone-ink'] .tb .context-session-tree-label,
 html[data-theme-id='piwin-inkstone-paper'] .tb .context-session-tree-count,
 html[data-theme-id='piwin-inkstone-ink'] .tb .context-session-tree-count,
 html[data-theme-id='piwin-inkstone-paper'] .stage-header .context-session-tree-label,
-html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-session-tree-label,
-html[data-theme-id='piwin-inkstone-paper'] .stage-header .context-session-tree-count,
-html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-session-tree-count {
+html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-session-tree-label {
   display: none;
 }

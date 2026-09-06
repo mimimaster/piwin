@@ -36,7 +36,7 @@ const mockForkOrigin: ForkSessionOrigin = {
 };
 
 describe('StageHeader', () => {
-  it('renders session title and fork button when idle', () => {
+  it('renders session title when idle and omits a dead session-tree button', () => {
     const markup = renderToStaticMarkup(
       <StageHeader title="Composer 忙会话队列" />,
     );
@@ -46,6 +46,24 @@ describe('StageHeader', () => {
     expect(markup).toContain('data-state="idle"');
     expect(markup).not.toContain('class="lamp"');
     expect(markup).not.toContain('class="sq"');
+    expect(markup).not.toContain('context-bar-session-tree-slot');
+    expect(markup).not.toContain('aria-label="会话树"');
+  });
+
+  it('renders the provided session-tree control', () => {
+    const markup = renderToStaticMarkup(
+      <StageHeader
+        title="Branched Session"
+        sessionTreeControl={
+          <button type="button" data-testid="context-session-tree-control">
+            tree
+          </button>
+        }
+      />,
+    );
+
+    expect(markup).toContain('context-bar-session-tree-slot');
+    expect(markup).toContain('data-testid="context-session-tree-control"');
   });
 
   it('renders lamp dot when state is running', () => {

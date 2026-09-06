@@ -9,7 +9,7 @@ import { ComposerContextUsageControl } from './composer-context-controls.js';
 import type { ContextRingViewModel } from './context-telemetry-selector.js';
 import type { ModelOption } from './model-options.js';
 import { IconSend, IconStop } from './shell-icons.js';
-import { ThinkingEffortControl } from './ThinkingEffortControl.js';
+import { ThinkingEffortControl, toThinkingEffortModels } from './ThinkingEffortControl.js';
 
 export type CompactPromptComposerProps = {
   value: string;
@@ -44,17 +44,7 @@ export function CompactPromptComposer(props: CompactPromptComposerProps): ReactE
   const selectedModel = props.modelOptions.find(
     (model) => `${model.providerId}::${model.modelId}` === props.selectedModelKey,
   );
-  const thinkingModels = props.modelOptions.map((model) => ({
-    key: `${model.providerId}::${model.modelId}`,
-    label: model.label,
-    providerId: model.providerId,
-    ...(model.source !== undefined ? { source: model.source } : {}),
-    ...(model.protocol !== undefined ? { protocol: model.protocol } : {}),
-    ...(model.thinkingLevels !== undefined ? { thinkingLevels: model.thinkingLevels } : {}),
-    ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
-    ...(model.supportsImage ? { supportsImage: true } : {}),
-    ...(model.supportsImageGeneration ? { supportsImageGeneration: true } : {}),
-  }));
+  const thinkingModels = toThinkingEffortModels(props.modelOptions);
 
   const autoResize = useCallback(() => {
     const field = textareaRef.current;

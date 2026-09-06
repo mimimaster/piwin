@@ -676,6 +676,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       requestPty={requestPty}
                       projectPath={state.projectPath}
                       fileBrowseRoot={fileBrowseRoot}
+                      onOpenWorkspace={handleOpenWorkspaceClick}
                       projectTrusted={state.projectTrusted}
                       activeSessionId={state.activeSessionId}
                       walkthroughsByMessageId={state.walkthroughsByMessageId}

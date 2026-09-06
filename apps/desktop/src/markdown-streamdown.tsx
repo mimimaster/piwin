@@ -184,6 +184,7 @@ export function createStreamdownComponents(optionsRef: {
       source: record?.source ?? plainTextFromReactNode(children).replace(/\n$/, ''),
       htmlUiModeEnabled: options.htmlUiModeEnabled,
       fenceIndex: record?.ordinal ?? null,
+      fenceOpen: record?.open === true,
       renderingPhase: options.phase,
       initPriority:
         record === null ? options.initPriorityBase : options.initPriorityBase + record.ordinal,

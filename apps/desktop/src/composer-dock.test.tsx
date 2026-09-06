@@ -172,6 +172,31 @@ describe('ComposerDock host status', () => {
     expect(container.querySelector('[data-testid="composer-speech-btn"]')).not.toBeNull();
   });
 
+  it('places Live as an icon-only control after the model chip, not beside Send', () => {
+    const rendered = renderDock(<ComposerDock {...baseProps} />);
+    root = rendered.root;
+    container = rendered.container;
+
+    const live = container.querySelector('[data-testid="composer-live-btn"]');
+    const plus = container.querySelector('[data-testid="composer-plus-btn"]');
+    const send = container.querySelector('[data-testid="send-btn"]');
+    const left = container.querySelector('.composer-v2-toolbar-left');
+    const right = container.querySelector('.composer-v2-toolbar-right');
+
+    expect(live).not.toBeNull();
+    expect(left?.contains(live)).toBe(true);
+    expect(right?.contains(live)).toBe(false);
+    expect(right?.contains(send)).toBe(true);
+    expect(live?.classList.contains('composer-v2-icon-btn')).toBe(true);
+    expect(live?.textContent ?? '').not.toMatch(/Live|Retry/);
+
+    const leftButtons = [...(left?.querySelectorAll('button') ?? [])];
+    expect(leftButtons.indexOf(plus as HTMLButtonElement)).toBeGreaterThanOrEqual(0);
+    expect(leftButtons.indexOf(live as HTMLButtonElement)).toBeGreaterThan(
+      leftButtons.indexOf(plus as HTMLButtonElement),
+    );
+  });
+
   it('resets textarea height when composer text is cleared or changed', async () => {
     const rendered = renderDock(<ComposerDock {...baseProps} composer="Hello world" />);
     root = rendered.root;

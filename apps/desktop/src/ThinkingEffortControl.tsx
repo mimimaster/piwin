@@ -5,9 +5,51 @@
  */
 import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { Popover } from '@piwin/ui-kit';
-import type { ModelProviderConfig, ThinkingLevel } from '@piwin/contracts';
+import type { ModelProviderConfig, ModelSource, ThinkingLevel } from '@piwin/contracts';
+import { formatComposerModelKey } from './composer-model-selection-policy';
 import { IconClose, IconSearch, IconSpark } from './shell-icons';
 import { getSupportedThinkingLevels } from './model-thinking-policy';
+
+export type ThinkingEffortModelOption = {
+  key: string;
+  label: string;
+  providerId?: string;
+  source?: ModelSource;
+  protocol?: ModelProviderConfig['protocol'];
+  thinkingLevels?: readonly ThinkingLevel[];
+  reasoning?: boolean;
+  supportsImage?: boolean;
+  supportsImageGeneration?: boolean;
+};
+
+type ComposerLikeModel = {
+  providerId: string;
+  modelId: string;
+  label: string;
+  source?: ModelSource;
+  protocol?: ModelProviderConfig['protocol'];
+  thinkingLevels?: readonly ThinkingLevel[];
+  reasoning?: boolean;
+  supportsImage?: boolean;
+  supportsImageGeneration?: boolean;
+};
+
+/** Flatten composer/session model rows into the picker list the control renders. */
+export function toThinkingEffortModels(
+  models: readonly ComposerLikeModel[],
+): ThinkingEffortModelOption[] {
+  return models.map((model) => ({
+    key: formatComposerModelKey(model.providerId, model.modelId),
+    label: model.label,
+    providerId: model.providerId,
+    ...(model.source !== undefined ? { source: model.source } : {}),
+    ...(model.protocol !== undefined ? { protocol: model.protocol } : {}),
+    ...(model.thinkingLevels !== undefined ? { thinkingLevels: model.thinkingLevels } : {}),
+    ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
+    ...(model.supportsImage ? { supportsImage: true } : {}),
+    ...(model.supportsImageGeneration ? { supportsImageGeneration: true } : {}),
+  }));
+}
 
 type ThinkingEffortControlProps = {
   disabled: boolean;
@@ -15,17 +57,7 @@ type ThinkingEffortControlProps = {
   ultraEnabled: boolean;
   value: ThinkingLevel;
   onChange: (level: ThinkingLevel) => void;
-  models?: Array<{
-    key: string;
-    label: string;
-    providerId?: string;
-    source?: import('@piwin/contracts').ModelSource;
-    protocol?: ModelProviderConfig['protocol'];
-    thinkingLevels?: readonly ThinkingLevel[];
-    reasoning?: boolean;
-    supportsImage?: boolean;
-    supportsImageGeneration?: boolean;
-  }>;
+  models?: ThinkingEffortModelOption[];
   selectedModelKey?: string;
   onSelectModel?: (key: string) => void;
 };

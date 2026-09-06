@@ -48,7 +48,8 @@
 | UI 入口 | 现在 | 改成 | 写入 |
 |---------|------|------|------|
 | user 气泡 ↺ 图标（`message-revert-btn`） | 进编辑卡，实为 branchResend | **删除该图标**，改为 ✎ 编辑 | — |
-| 编辑卡「发送」，文本/附件**未变** | 新 user 兄弟 | **重试**：复用原 user 行 | `retryUserMessageId` |
+| 编辑卡「重试」，文本/附件**未变**（含只换模型） | 新 user 兄弟 | **重试**：复用原 user 行，丢掉上一份回答 | `retryUserMessageId` |
+| 编辑卡「开分支」，文本未变 | （无此按钮） | **探索**：保留当前回答，新 user 兄弟 | `branchFromMessageId` |
 | 编辑卡「发送」，文本/附件**已变** | 新 user 兄弟 | 不变（真·提问分叉） | `branchFromMessageId` |
 | 错误卡 / 中断后「重试」 | 新 user 兄弟 | **重试**：删掉失败尝试再跑 | `retryUserMessageId`, `keepPreviousAttempt: false` |
 | 助手操作条「再生成」 | 新 user 兄弟 | **另生成一版**：保留旧回答作兄弟 | `retryUserMessageId`, `keepPreviousAttempt: true` |

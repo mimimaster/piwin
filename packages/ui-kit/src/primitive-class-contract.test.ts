@@ -51,6 +51,14 @@ describe('primitive class contract', () => {
     expect(markup).toContain('aria-pressed="true"');
   });
 
+  it('IconButton forwards a numeric size to ActionIcon', () => {
+    const markup = renderWithProvider(
+      createElement(IconButton, { label: 'Mute', size: 26 }, 'x'),
+    );
+    // Mantine stores numeric sizes as rem: 26px → 1.625rem.
+    expect(markup).toContain('--ai-size:calc(1.625rem');
+  });
+
   it('Field exposes ui-field structure classes and error slot', () => {
     const markup = renderToStaticMarkup(
       createElement(Field, {

@@ -75,6 +75,12 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     font: inherit;
     letter-spacing: 0;
   }
+  .markdown .md-code-header-actions .piwin-button {
+    height: 22px;
+    min-height: 22px;
+    padding: 0 7px;
+    font-size: 11.5px;
+  }
   .markdown .md-code-block .md-code {
     padding: 10px 12px;
     font-size: var(--code-font-size);
@@ -125,6 +131,47 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   .markdown .md-mermaid {
     background: var(--s3);
     box-shadow: var(--sh1);
+  }
+  /* proto-01 `.art` CANVAS launcher — full conversation width, not `.arts` 2-up. */
+  .markdown .artifact-canvas-launcher {
+    margin: 8px 0 12px;
+    border-radius: 8px;
+    background: var(--s3);
+    box-shadow: var(--sh1);
+  }
+  .markdown .artifact-canvas-launcher-head {
+    height: 34px;
+    min-height: 34px;
+    padding: 0 6px 0 10px;
+    border-bottom: 1px solid var(--l1);
+    font-size: 12.5px;
+    color: var(--t1);
+  }
+  .markdown .artifact-canvas-launcher-head .piwin-button {
+    height: 22px;
+    min-height: 22px;
+    padding: 0 7px;
+    font-size: 11.5px;
+    border-radius: 6px;
+  }
+  .markdown .artifact-canvas-launcher-head .piwin-icon-button {
+    width: 22px;
+    height: 22px;
+    min-height: 22px;
+  }
+  .markdown .artifact-canvas-launcher-badge {
+    background: var(--azure-wash);
+    color: var(--azure);
+  }
+  .markdown .artifact-canvas-launcher-body {
+    min-height: 76px;
+    padding: var(--surf-y, 10px) var(--surf-x, 12px);
+    background: var(--s2);
+    font-size: 12px;
+    color: var(--t2);
+  }
+  .markdown .artifact-canvas-launcher-icon {
+    color: var(--t3);
   }
   .chat-thread .turn-thinking .markdown {
     font-size: 12.5px;

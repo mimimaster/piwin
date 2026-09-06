@@ -78,6 +78,17 @@ describe('LiveBar', () => {
     );
   });
 
+  it('renders mute and hang as proto live-btn chips, not Mantine ActionIcons', () => {
+    render(<LiveBar call={call} {...controls} />);
+    const mute = container?.querySelector('[data-testid="live-bar-mute"]');
+    const hang = container?.querySelector('[data-testid="live-bar-end"]');
+    expect(mute?.tagName).toBe('BUTTON');
+    expect(hang?.tagName).toBe('BUTTON');
+    expect(mute?.className).toContain('live-icon-btn');
+    expect(hang?.className).toContain('is-danger');
+    expect(mute?.className).not.toContain('mantine-ActionIcon');
+  });
+
   it('renders spinner only while media is still coming up', () => {
     render(
       <LiveBar

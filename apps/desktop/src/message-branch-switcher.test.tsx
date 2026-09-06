@@ -7,6 +7,10 @@ import type { TranscriptBranchPoint } from '@piwin/contracts';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { MessageBranchSwitcher } from './message-branch-switcher.js';
 
+declare global {
+  var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
+}
+
 const point: TranscriptBranchPoint = {
   anchorMessageId: 'a1',
   activeIndex: 0,
@@ -37,6 +41,7 @@ describe('MessageBranchSwitcher', () => {
   let root: Root;
 
   beforeEach(() => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true;
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -47,6 +52,7 @@ describe('MessageBranchSwitcher', () => {
       root.unmount();
     });
     container.remove();
+    document.querySelector('[data-testid="message-branch-tree-popover"]')?.remove();
   });
 
   it('renders ‹n/m›, clicks the open side, and disables while streaming', () => {
@@ -85,5 +91,58 @@ describe('MessageBranchSwitcher', () => {
       (container.querySelector('[data-testid="message-branch-next"]') as HTMLButtonElement)
         .disabled,
     ).toBe(true);
+  });
+
+  it('opens this fork’s sibling list from the n/m label', () => {
+    const onSwitch = vi.fn();
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <MessageBranchSwitcher point={point} onSwitch={onSwitch} locale="en" />
+        </PiwinUiProvider>,
+      );
+    });
+    const label = container.querySelector<HTMLButtonElement>(
+      '[data-testid="message-branch-label"]',
+    );
+    expect(label).not.toBeNull();
+    act(() => {
+      label?.click();
+    });
+    const popover = document.querySelector('[data-testid="message-branch-tree-popover"]');
+    expect(popover).not.toBeNull();
+    const items = document.querySelectorAll<HTMLButtonElement>('[data-testid="branch-point-item"]');
+    expect(items).toHaveLength(2);
+    act(() => {
+      items[1]?.click();
+    });
+    expect(onSwitch).toHaveBeenCalledWith('u2-b');
+  });
+
+  it('keeps the label openable while streaming and disables panel rows', () => {
+    const onSwitch = vi.fn();
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <MessageBranchSwitcher point={point} disabled onSwitch={onSwitch} locale="en" />
+        </PiwinUiProvider>,
+      );
+    });
+    const label = container.querySelector<HTMLButtonElement>(
+      '[data-testid="message-branch-label"]',
+    );
+    expect(label?.disabled).toBe(false);
+    act(() => {
+      label?.click();
+    });
+    const items = document.querySelectorAll<HTMLButtonElement>('[data-testid="branch-point-item"]');
+    expect(items.length).toBeGreaterThan(0);
+    for (const item of items) {
+      expect(item.disabled).toBe(true);
+    }
+    act(() => {
+      items[1]?.click();
+    });
+    expect(onSwitch).not.toHaveBeenCalled();
   });
 });

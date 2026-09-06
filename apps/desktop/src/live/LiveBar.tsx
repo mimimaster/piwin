@@ -1,4 +1,3 @@
-import { IconButton } from '@piwin/ui-kit';
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactElement } from 'react';
 import type { LiveCallView } from '@piwin/contracts';
 import { useDesktopLocale } from '../desktop-locale-context.js';
@@ -19,6 +18,31 @@ export type LiveBarProps = {
   onMute: (muted: boolean) => void;
   onEnd: () => void;
 };
+
+/** proto-06 `.live-btn` — native chip, not Mantine ActionIcon (size=md overflows the pill). */
+function LiveBarChip(props: {
+  className: string;
+  label: string;
+  title?: string;
+  testId: string;
+  pressed?: boolean;
+  onClick: () => void;
+  children: ReactElement;
+}): ReactElement {
+  return (
+    <button
+      type="button"
+      className={props.className}
+      aria-label={props.label}
+      title={props.title ?? props.label}
+      data-testid={props.testId}
+      onClick={props.onClick}
+      {...(props.pressed === undefined ? {} : { 'aria-pressed': props.pressed })}
+    >
+      {props.children}
+    </button>
+  );
+}
 
 export function LiveBar(props: LiveBarProps): ReactElement {
   const { locale } = useDesktopLocale();
@@ -178,61 +202,57 @@ export function LiveBar(props: LiveBarProps): ReactElement {
       <div className="live-bar-actions">
         {startFailureChrome ? (
           <>
-            <IconButton
-              type="button"
+            <LiveBarChip
               className="live-icon-btn is-accent"
               label={isChinese ? '重试' : 'Retry'}
               title={isChinese ? '重试连接' : 'Retry connection'}
+              testId="live-bar-retry"
               onClick={props.onRetry}
-              data-testid="live-bar-retry"
             >
-              <IconRefresh size={13} aria-hidden="true" />
-            </IconButton>
-            <IconButton
-              type="button"
+              <IconRefresh size={12} aria-hidden="true" />
+            </LiveBarChip>
+            <LiveBarChip
               className="live-icon-btn is-danger"
               label={isChinese ? '关闭 Live 提示' : 'Dismiss Live message'}
               title={isChinese ? '关闭' : 'Dismiss'}
+              testId="live-bar-dismiss"
               onClick={props.onDismiss}
-              data-testid="live-bar-dismiss"
             >
-              <IconClose size={14} aria-hidden="true" />
-            </IconButton>
+              <IconClose size={12} aria-hidden="true" />
+            </LiveBarChip>
           </>
         ) : props.call ? (
           <>
-            <IconButton
-              className={`live-icon-btn ${muted ? 'is-muted' : ''}`}
-              aria-pressed={muted}
+            <LiveBarChip
+              className={`live-icon-btn${muted ? ' is-muted' : ''}`}
               label={muted ? (isChinese ? '取消静音' : 'Unmute') : isChinese ? '静音' : 'Mute'}
+              pressed={muted}
+              testId="live-bar-mute"
               onClick={() => props.onMute(!muted)}
-              data-testid="live-bar-mute"
             >
-              <IconMic size={16} aria-hidden="true" />
-            </IconButton>
+              <IconMic size={12} aria-hidden="true" />
+            </LiveBarChip>
 
-            <IconButton
-              type="button"
+            <LiveBarChip
               className="live-icon-btn is-danger"
               label={isChinese ? '挂断通话' : 'Hang up'}
               title={isChinese ? '挂断' : 'Hang up'}
+              testId="live-bar-end"
               onClick={props.onEnd}
-              data-testid="live-bar-end"
             >
-              <IconClose size={14} aria-hidden="true" />
-            </IconButton>
+              <IconClose size={12} aria-hidden="true" />
+            </LiveBarChip>
           </>
         ) : (
-          <IconButton
-            type="button"
+          <LiveBarChip
             className="live-icon-btn is-danger"
             label={isChinese ? '取消连接' : 'Cancel'}
             title={isChinese ? '取消' : 'Cancel'}
+            testId="live-bar-cancel"
             onClick={props.onEnd}
-            data-testid="live-bar-cancel"
           >
-            <IconClose size={14} aria-hidden="true" />
-          </IconButton>
+            <IconClose size={12} aria-hidden="true" />
+          </LiveBarChip>
         )}
       </div>
     </section>

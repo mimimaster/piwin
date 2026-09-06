@@ -7,6 +7,8 @@ import type {
 
 export type IconButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'aria-label'> & {
   label: string;
+  /** Mantine ActionIcon size. Default md; compact chrome (Live bar) passes pixels. */
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | number;
 };
 
 /** Secondary visual actions always provide an accessible label and tooltip. */
@@ -16,6 +18,7 @@ export function IconButton({
   title,
   type = 'button',
   color: _nativeColor,
+  size = 'md',
   ...buttonProps
 }: IconButtonProps): ReactElement {
   // Keep the stable piwin HTML-button API while adapting Mantine's narrower
@@ -29,7 +32,7 @@ export function IconButton({
       aria-label={label}
       title={title ?? label}
       variant="subtle"
-      size="md"
+      size={size}
     />
   );
 }

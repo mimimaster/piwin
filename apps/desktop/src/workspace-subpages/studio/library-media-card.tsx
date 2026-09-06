@@ -43,6 +43,12 @@ export type LibraryMediaCardActions = {
   onOpenLightbox?: (() => void) | undefined;
 };
 
+function seekPosterFrame(video: HTMLVideoElement): void {
+  if (video.paused && video.currentTime === 0) {
+    video.currentTime = 0.001;
+  }
+}
+
 export function LibraryMediaCard(props: {
   item: LibraryMediaCardModel;
   actions: LibraryMediaCardActions;
@@ -81,11 +87,12 @@ export function LibraryMediaCard(props: {
             {hasThumb ? (
               isVideo ? (
                 <video
-                  src={`${item.imageUrl}#t=0.001`}
+                  src={item.imageUrl}
                   className="lib-row-img is-video"
                   preload="metadata"
                   muted
                   playsInline
+                  onLoadedMetadata={(event) => seekPosterFrame(event.currentTarget)}
                   onError={actions.onImageError}
                 />
               ) : (
@@ -183,19 +190,19 @@ export function LibraryMediaCard(props: {
           {hasThumb ? (
             isVideo ? (
               <video
-                src={`${item.imageUrl}#t=0.001`}
+                src={item.imageUrl}
                 className="lib-card-img is-video"
                 preload="metadata"
                 muted
                 playsInline
-                loop
+                onLoadedMetadata={(event) => seekPosterFrame(event.currentTarget)}
                 onError={actions.onImageError}
-                onMouseEnter={(e) => {
-                  e.currentTarget.play().catch(() => {});
+                onMouseEnter={(event) => {
+                  void event.currentTarget.play().catch(() => undefined);
                 }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.pause();
-                  e.currentTarget.currentTime = 0.001;
+                onMouseLeave={(event) => {
+                  event.currentTarget.pause();
+                  event.currentTarget.currentTime = 0.001;
                 }}
               />
             ) : (

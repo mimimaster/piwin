@@ -74,7 +74,7 @@ export type ChatThreadProps = {
   onCancelEdit: () => void;
   onEditResend: (messageId: string, text: string) => void;
   onRetry: (messageId: string) => void;
-  /** Resend a user turn as a sibling branch (changed-text edit). */
+  /** Resend a user turn as a sibling branch (changed-text or explicit 开分支). */
   onBranchResend?: (messageId: string, text: string) => void;
   /** Re-run the same user turn without creating a prompt sibling. */
   onRetryTurn?: (userMessageId: string, options: { keepPrevious: boolean }) => void;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { MediaLibraryItem } from '@piwin/contracts';
 import { createPlayableMediaObjectUrl } from '../../playable-media-url';
 import { readLibraryMediaViaHost, type MediaLibraryHost } from './media-library-src';
@@ -12,7 +12,9 @@ export function usePlayableLibrarySrc(input: {
   const [src, setSrc] = useState('');
   const enabled = input.enabled !== false;
   const { kind, mimeType, sessionId, assetId } = input.item;
-  const { localSrc, request } = input;
+  const { localSrc } = input;
+  const requestRef = useRef(input.request);
+  requestRef.current = input.request;
 
   useEffect(() => {
     if (!enabled) {
@@ -39,7 +41,7 @@ export function usePlayableLibrarySrc(input: {
         return;
       }
       const hostUrl = await readLibraryMediaViaHost(
-        { request },
+        { request: (command) => requestRef.current(command) },
         { sessionId, assetId, variant: 'full' },
       );
       if (cancelled) {
@@ -53,7 +55,7 @@ export function usePlayableLibrarySrc(input: {
       cancelled = true;
       if (owned) URL.revokeObjectURL(owned);
     };
-  }, [enabled, kind, mimeType, sessionId, assetId, localSrc, request]);
+  }, [enabled, kind, mimeType, sessionId, assetId, localSrc]);
 
   return src;
 }

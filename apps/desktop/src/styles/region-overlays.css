@@ -566,6 +566,12 @@ input.project-path-input {
   padding: var(--s-4);
 }
 
+.ui-popover-content.session-lineage-popover .branch-points-panel,
+.ui-popover-content.message-branch-tree-popover .branch-points-panel {
+  height: auto;
+  max-height: min(50vh, 360px);
+}
+
 .session-lineage-popover-header {
   display: flex;
   align-items: center;

@@ -7,6 +7,7 @@ import {
   artifactExportFileName,
   artifactExportMimeType,
   downloadArtifactSource,
+  downloadTextFile,
 } from './artifact-source-export.js';
 
 describe('artifactExportFileName', () => {
@@ -73,5 +74,30 @@ describe('downloadArtifactSource', () => {
 
     vi.advanceTimersByTime(2_000);
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:artifact-source');
+  });
+});
+
+describe('downloadTextFile', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('downloads the provided bytes under the given file name', async () => {
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:code-source');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+
+    downloadTextFile({
+      text: '<!DOCTYPE html>',
+      fileName: 'code.html',
+      mimeType: 'text/html;charset=utf-8',
+    });
+    await Promise.resolve();
+
+    expect(createObjectURL).toHaveBeenCalledOnce();
+    const blob = createObjectURL.mock.calls[0]?.[0];
+    expect(await (blob as Blob).text()).toBe('<!DOCTYPE html>');
+    const anchor = click.mock.instances[0] as unknown as HTMLAnchorElement;
+    expect(anchor.download).toBe('code.html');
   });
 });

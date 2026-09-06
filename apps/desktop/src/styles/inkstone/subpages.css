@@ -65,14 +65,48 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .live-icon-btn {
   width: 26px !important;
   height: 26px !important;
+  min-width: 26px !important;
+  min-height: 26px !important;
+  max-width: 26px !important;
+  max-height: 26px !important;
+  padding: 0 !important;
+  --ai-size: 26px !important;
+  --ai-icon-size: 12px !important;
   border-radius: 50% !important;
   background: rgba(255, 255, 255, 0.1) !important;
   color: #efe9df !important;
   box-shadow: none !important;
+  border: 0 !important;
+  flex: none;
+  transform: none !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .live-icon-btn:hover,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .live-icon-btn.is-accent:hover {
+  background: rgba(255, 255, 255, 0.16) !important;
+  color: #efe9df !important;
+  border-color: transparent !important;
+  transform: none !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .live-icon-btn svg {
+  width: 12px !important;
+  height: 12px !important;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .live-icon-btn.is-danger {
   background: color-mix(in srgb, var(--zhu) 50%, transparent) !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .live-icon-btn.is-danger:hover {
+  background: color-mix(in srgb, var(--zhu) 70%, transparent) !important;
+  color: #efe9df !important;
+  border-color: transparent !important;
+  transform: none !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .live-bar-actions {
+  gap: 6px !important;
 }
 
 /* ── Flashcards workspace (proto-06 §01–05) ─────────────────────────── */
@@ -216,7 +250,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .lib-inspector {
-  width: 280px;
+  width: 360px;
   background: var(--s1);
   border-left: 1px solid var(--l1);
 }
@@ -546,4 +580,3 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .lib-page .vault-search:focus-within {
   box-shadow: 0 0 0 1px var(--l2);
 }
-

@@ -31,6 +31,7 @@ function renderLauncher(props: Partial<Parameters<typeof ArtifactCanvasLauncher>
             source="<div>config</div>"
             rawLanguage="artifact-html"
             onOpenCanvas={() => {}}
+            locale="en"
             {...props}
           />
         </PiwinUiProvider>
@@ -57,6 +58,7 @@ describe('ArtifactCanvasLauncher', () => {
       });
       container.remove();
     }
+    vi.restoreAllMocks();
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
   });
 
@@ -68,13 +70,50 @@ describe('ArtifactCanvasLauncher', () => {
     expect(container.querySelector('.artifact-frame')).toBeNull();
   });
 
-  it('shows the title and a canvas pill', () => {
+  it('shows the canvas title, CANVAS badge, and description well', () => {
     const { container, root } = renderLauncher({ title: 'Stack picker' });
     instances.push({ container, root });
-    expect(container.querySelector('.artifact-canvas-launcher-title strong')?.textContent).toBe(
+    expect(container.querySelector('.artifact-canvas-launcher-title')?.textContent).toBe(
       'Stack picker',
     );
-    expect(container.querySelector('.pill')?.textContent).toBe('canvas');
+    expect(container.querySelector('.artifact-canvas-launcher-badge')?.textContent).toBe('CANVAS');
+    expect(container.querySelector('.artifact-canvas-launcher-description')?.textContent).toContain(
+      'inspector Canvas tab',
+    );
+  });
+
+  it('downloads original source from the launcher header', async () => {
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:canvas-source');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    const clickAnchor = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined);
+
+    const { container, root } = renderLauncher({
+      title: '2D 鹈鹕骑自行车动画',
+      source: '<!DOCTYPE html><html><body>骑行</body></html>',
+      locale: 'zh-CN',
+    });
+    instances.push({ container, root });
+    const download = container.querySelector<HTMLButtonElement>(
+      '[data-testid="artifact-canvas-download-source"]',
+    );
+    expect(download).not.toBeNull();
+    expect(download?.getAttribute('aria-label')).toBe('下载 HTML');
+
+    act(() => {
+      download?.click();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(createObjectURL).toHaveBeenCalledOnce();
+    const blob = createObjectURL.mock.calls[0]?.[0];
+    expect(blob).toBeInstanceOf(Blob);
+    expect(await (blob as Blob).text()).toContain('骑行');
+    const anchor = clickAnchor.mock.instances[0] as unknown as HTMLAnchorElement;
+    expect(anchor.download).toBe('2D-鹈鹕骑自行车动画.html');
   });
 
   it('invokes onOpenCanvas when Open Canvas is clicked', () => {
@@ -100,5 +139,22 @@ describe('ArtifactCanvasLauncher', () => {
     expect(container.textContent).toContain('secret-config');
     // No iframe is mounted even with the source disclosure present.
     expect(container.querySelector('iframe')).toBeNull();
+  });
+
+  it('uses the canvas title and Chinese description in zh-CN', () => {
+    const { container, root } = renderLauncher({
+      title: '部署配置器',
+      locale: 'zh-CN',
+    });
+    instances.push({ container, root });
+    expect(container.querySelector('.artifact-canvas-launcher-title')?.textContent).toBe(
+      '部署配置器',
+    );
+    expect(container.querySelector('.artifact-canvas-launcher-description')?.textContent).toContain(
+      '检视器「画布」页签',
+    );
+    expect(container.querySelector('[data-testid="artifact-canvas-open"]')?.textContent).toContain(
+      '在画布打开',
+    );
   });
 });

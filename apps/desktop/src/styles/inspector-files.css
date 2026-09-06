@@ -550,3 +550,160 @@
   font-variant-numeric: tabular-nums;
   margin-left: 2px;
 }
+
+/* ── File Tree Empty Fallback ──────────────────────────────────────── */
+
+.file-tree-empty-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 240px;
+  width: 100%;
+  padding: var(--s-6) var(--s-5);
+  box-sizing: border-box;
+  text-align: center;
+  user-select: none;
+}
+
+.file-tree-empty-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 280px;
+  margin: 0 auto;
+}
+
+/* Modern visual card */
+.file-tree-empty-visual.modern {
+  margin-bottom: var(--s-4);
+}
+
+.file-tree-empty-icon-box {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--r-surface, 12px);
+  background: var(--surface-3, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--line-2, rgba(255, 255, 255, 0.08));
+  display: grid;
+  place-items: center;
+  color: var(--text-3);
+  box-shadow: var(--elev-1);
+  transition: all var(--t-1) var(--ease-out);
+}
+
+.file-tree-empty-icon-box:hover {
+  border-color: var(--iris-lift, var(--iris));
+  color: var(--iris-lift, var(--iris));
+  transform: translateY(-1px);
+}
+
+/* Inkstone seal */
+.file-tree-empty-visual.inkstone {
+  margin-bottom: var(--s-4);
+}
+
+.file-tree-empty-seal {
+  width: 38px;
+  height: 38px;
+  border-radius: 4px;
+  background: var(--zhu, #c6412a);
+  color: var(--on-zhu, #fff7f0);
+  font: 600 18px/1 var(--serif, serif);
+  display: grid;
+  place-items: center;
+  position: relative;
+  transform: rotate(-1.5deg);
+  box-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+  transition: transform var(--t-1) var(--ease-out);
+}
+
+.file-tree-empty-seal::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 2px;
+}
+
+.file-tree-empty-fallback:hover .file-tree-empty-seal {
+  transform: rotate(0deg) scale(1.04);
+}
+
+/* Typography */
+.file-tree-empty-title {
+  margin: 0 0 var(--s-2);
+  font-size: var(--fs-title, 15px);
+  font-weight: 600;
+  color: var(--text-1);
+  letter-spacing: var(--tracking-tight);
+}
+
+.file-tree-empty-desc {
+  margin: 0 0 var(--s-5);
+  font-size: var(--fs-chrome, 12px);
+  color: var(--text-3);
+  line-height: var(--lh-normal, 1.55);
+  text-wrap: balance;
+}
+
+.file-tree-empty-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.file-tree-empty-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: 28px;
+  padding: 0 var(--s-4);
+  font-size: var(--fs-caption, 12px);
+  font-weight: 500;
+  border-radius: var(--r-control, 6px);
+  transition: all var(--t-1) var(--ease-out);
+}
+
+/* Inkstone specific styling */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .file-tree-empty-fallback .file-tree-empty-title {
+  font: 500 17px/1.4 var(--serif);
+  color: var(--t1);
+  letter-spacing: 0.02em;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .file-tree-empty-fallback .file-tree-empty-desc {
+  font-family: var(--sans);
+  color: var(--t3);
+  line-height: 1.7;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .file-tree-empty-fallback .file-tree-empty-btn {
+  background: var(--s2);
+  border: 1px solid var(--l2);
+  color: var(--t2);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .file-tree-empty-fallback .file-tree-empty-btn:hover {
+  background: var(--s3);
+  border-color: var(--zhu);
+  color: var(--zhu);
+  box-shadow: var(--sh1);
+}
+
+html[data-theme-id='piwin-inkstone-ink'] .file-tree-empty-fallback .file-tree-empty-btn {
+  background: var(--s3);
+  border: 1px solid var(--l2);
+  color: var(--t2);
+}
+
+html[data-theme-id='piwin-inkstone-ink'] .file-tree-empty-fallback .file-tree-empty-btn:hover {
+  background: var(--s4);
+  border-color: var(--zhu);
+  color: var(--t1);
+  box-shadow: var(--sh1);
+}
+

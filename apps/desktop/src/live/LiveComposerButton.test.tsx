@@ -87,13 +87,53 @@ describe('LiveComposerButton', () => {
         onEnd={onEnd}
       />,
     );
-    expect(container?.querySelector('[data-testid="composer-live-btn"]')?.textContent).toContain(
-      '连接中',
-    );
+    expect(
+      container?.querySelector('[data-testid="composer-live-btn"]')?.getAttribute('aria-label'),
+    ).toBe('取消 piwin Live 连接');
     act(() => {
       container?.querySelector<HTMLButtonElement>('[data-testid="composer-live-btn"]')?.click();
     });
     expect(onEnd).toHaveBeenCalledTimes(1);
     expect(onStart).not.toHaveBeenCalled();
+  });
+
+  it('renders an icon-only toolbar peer instead of a Live label', () => {
+    render(
+      <LiveComposerButton
+        enabled={true}
+        canStart={true}
+        starting={false}
+        call={null}
+        error={null}
+        missing={[]}
+        isChinese={true}
+        onStart={vi.fn()}
+        onEnd={vi.fn()}
+      />,
+    );
+    const button = container?.querySelector('[data-testid="composer-live-btn"]');
+    expect(button?.className).toContain('composer-v2-icon-btn');
+    expect(button?.textContent ?? '').not.toMatch(/Live|连接中|Retry/);
+    expect(button?.getAttribute('aria-label')).toBe('开始 piwin Live');
+    expect(container?.querySelector('[data-testid="composer-live-hint"]')).toBeNull();
+  });
+
+  it('keeps unreadiness in the tooltip instead of a status chip', () => {
+    render(
+      <LiveComposerButton
+        enabled={true}
+        canStart={false}
+        starting={false}
+        call={null}
+        error={null}
+        missing={['provider-auth']}
+        isChinese={true}
+        onStart={vi.fn()}
+        onEnd={vi.fn()}
+      />,
+    );
+    const button = container?.querySelector('[data-testid="composer-live-btn"]');
+    expect(button?.getAttribute('title')).toContain('登录或密钥');
+    expect(container?.querySelector('[data-testid="composer-live-hint"]')).toBeNull();
   });
 });

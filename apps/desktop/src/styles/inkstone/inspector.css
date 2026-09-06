@@ -62,6 +62,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .itab .right-panel-tab-icon,
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .itab .i {
   color: var(--t3);
+  width: 12px;
+  height: 12px;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .itab.act .right-panel-tab-icon,
@@ -607,6 +609,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     background: transparent;
     box-shadow: none;
     position: relative;
+    border-radius: 5px;
   }
   .right-panel .right-panel-tab.active,
   .right-panel .right-panel-tab.act {
@@ -633,10 +636,19 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     white-space: nowrap;
     min-width: 0;
   }
+  .right-panel .right-panel-tab-icon,
+  .right-panel .right-panel-tab-icon svg {
+    width: 12px;
+    height: 12px;
+    flex: none;
+  }
+  /* ui-kit TabsTrigger paints --elev-1 on [data-state=active]. That second
+     chip shadow sat inside proto `--sh1` and read as a dirty halo. */
+  .right-panel .right-panel-tab-main.ui-tabs-trigger,
   .right-panel-tab-main[data-state='active'] {
     color: var(--t1);
     background: transparent;
-    box-shadow: none;
+    box-shadow: none !important;
   }
   .right-panel .right-panel-titlebar-drag {
     flex: 1 1 auto;
@@ -681,26 +693,48 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     transform: translateY(-50%);
     margin: 0;
     flex: none;
-    width: 14px;
-    min-width: 14px;
-    height: 14px;
+    width: 14px !important;
+    min-width: 14px !important;
+    height: 14px !important;
+    min-height: 14px !important;
+    padding: 0 !important;
+    --ai-size: 14px;
+    --ai-icon-size: 12px;
     opacity: 0;
-    transition: opacity var(--t-1) var(--ease-out);
     color: var(--t3);
     z-index: 1;
+    overflow: hidden;
+    background: transparent !important;
+    box-shadow: none !important;
+    border: 0 !important;
+    border-radius: 3px !important;
+    transition:
+      opacity var(--t-1) var(--ease-out),
+      background-color var(--t-1) var(--ease-out),
+      color var(--t-1) var(--ease-out);
   }
   .right-panel .right-panel-tab:hover .right-panel-tab-close {
     opacity: 1;
+    /* Plate covers the label the X sits on top of. */
+    background: var(--s2) !important;
+  }
+  .right-panel .right-panel-tab.active:hover .right-panel-tab-close,
+  .right-panel .right-panel-tab.act:hover .right-panel-tab-close {
+    background: var(--s3) !important;
   }
   .right-panel .right-panel-tab-close:hover {
-    color: var(--t1);
-    background: var(--s2);
+    color: var(--t1) !important;
+    background: color-mix(in srgb, var(--t1) 10%, var(--s3)) !important;
+  }
+  .right-panel .right-panel-tab-close svg {
+    width: 12px !important;
+    height: 12px !important;
   }
   .right-panel-tabstrip .right-panel-tab-add,
   .right-panel-tab-add {
-    width: 20px;
-    height: 20px;
-    border-radius: 4px;
+    width: 22px;
+    height: 22px;
+    border-radius: 5px;
     color: var(--t3);
     display: grid;
     place-items: center;
@@ -708,6 +742,12 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     background: transparent;
     border: 0;
     padding: 0;
+    box-shadow: none;
+  }
+  .right-panel-tabstrip .right-panel-tab-add svg,
+  .right-panel-tab-add svg {
+    width: 14px !important;
+    height: 14px !important;
   }
   .right-panel-tabstrip .right-panel-tab-add:hover:not(:disabled),
   .right-panel-tab-add:hover {

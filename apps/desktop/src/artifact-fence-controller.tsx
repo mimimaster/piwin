@@ -15,9 +15,17 @@ import type { MarkdownCodeFenceProps } from './markdown-code-fence.js';
 /**
  * Bound-fence source/preview/Canvas controller.
  * Routing comes from analyzeArtifactFence; this module does not re-classify.
+ *
+ * Canvas product split: while the fence is still open, dump source in the
+ * transcript (right panel stream-previews via auto-reveal). Once the closing
+ * fence arrives, fold to the launcher — even if renderingPhase is still
+ * stuck on streaming because activeRunId has not cleared.
  */
 export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactElement {
   const streamMode = props.renderingPhase === 'streaming';
+  const fenceOpen = props.fenceOpen === true;
+  /** Live growing fence: stream-preview analysis + Canvas source dump. */
+  const liveFence = streamMode && fenceOpen;
   const artifactCodeFirst = props.artifactCodeFirst ?? false;
   const boundFenceIndex = props.fenceIndex;
   // Freeze fence identity on first mount. Source growth must not remount an iframe.
@@ -43,12 +51,12 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
         info: props.fenceInfo,
         source: props.source,
         ordinal: boundFenceIndex,
-        open: streamMode,
+        open: liveFence,
       }),
       {
         id: stickyFenceId,
         htmlUiModeEnabled: props.htmlUiModeEnabled,
-        mode: streamMode ? 'stream-preview' : 'interactive',
+        mode: liveFence ? 'stream-preview' : 'interactive',
         ...(props.artifactMaxBytes !== undefined ? { maxBytes: props.artifactMaxBytes } : {}),
         ...(props.artifactBlockExternalScripts !== undefined
           ? { blockExternalScripts: props.artifactBlockExternalScripts }
@@ -63,7 +71,7 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     stickyFenceId,
     props.fenceInfo,
     props.source,
-    streamMode,
+    liveFence,
     props.htmlUiModeEnabled,
     props.artifactMaxBytes,
     props.artifactBlockExternalScripts,
@@ -78,17 +86,17 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     props.artifactPreviewEnabled &&
     artifactPreviewOpen &&
     mountsInline &&
-    !(streamMode && artifactCodeFirst);
+    !(liveFence && artifactCodeFirst);
 
   const plan = useMemo((): Extract<ArtifactRenderPlan, { kind: 'render' }> | null => {
     if (!willMountInlineFrame || analysis?.kind !== 'intent') return null;
     return materializeArtifact(analysis.intent, {
-      mode: streamMode ? 'stream-preview' : 'interactive',
+      mode: liveFence ? 'stream-preview' : 'interactive',
       source: props.source,
       presentation: 'inline',
       ...(props.artifactTheme ? { theme: props.artifactTheme } : {}),
     });
-  }, [willMountInlineFrame, analysis, streamMode, props.source, props.artifactTheme]);
+  }, [willMountInlineFrame, analysis, liveFence, props.source, props.artifactTheme]);
 
   if (boundFenceIndex === null || stickyFenceId === null || analysis === null) {
     return (
@@ -130,7 +138,35 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     </div>
   );
 
-  if (streamMode) {
+  const origin = props.artifactOrigin;
+  const onOpenCanvas = props.onOpenArtifactCanvas;
+  let canvasLauncher: ReactElement | null = null;
+  if (
+    analysis.kind === 'intent' &&
+    layout === 'canvas' &&
+    props.artifactPreviewEnabled &&
+    origin &&
+    onOpenCanvas
+  ) {
+    const target = createArtifactCanvasTarget({
+      sessionId: origin.sessionId,
+      messageId: origin.messageId,
+      fenceIndex: boundFenceIndex,
+      intent: analysis.intent,
+      ...(liveFence ? { streaming: true } : {}),
+    });
+    canvasLauncher = (
+      <ArtifactCanvasLauncher
+        title={analysis.intent.descriptor.title}
+        source={analysis.intent.descriptor.source}
+        rawLanguage={analysis.intent.descriptor.rawLanguage}
+        onOpenCanvas={() => onOpenCanvas(target)}
+        locale={props.locale}
+      />
+    );
+  }
+
+  if (liveFence) {
     if (willMountInlineFrame && plan) {
       return (
         <div
@@ -156,6 +192,7 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
       return boundSource;
     }
 
+    // Canvas (and anything else not mounting inline): dump growing source.
     return (
       <SourceCodeBlock
         language={props.language}
@@ -166,8 +203,17 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     );
   }
 
+  const streamingProps = streamMode ? ({ streaming: true } as const) : {};
+
   if (analysis.kind === 'code' || !props.artifactPreviewEnabled) {
-    return <SourceCodeBlock language={props.language} source={props.source} isShell={isShell} />;
+    return (
+      <SourceCodeBlock
+        language={props.language}
+        source={props.source}
+        isShell={isShell}
+        {...streamingProps}
+      />
+    );
   }
 
   if (analysis.kind === 'blocked') {
@@ -178,28 +224,25 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
           source={props.source}
           isShell={isShell}
           blockedReason={analysis.reason}
+          {...streamingProps}
         />
       </div>
     );
   }
 
+  if (canvasLauncher) {
+    return canvasLauncher;
+  }
+
   if (layout === 'canvas') {
-    if (props.artifactOrigin && props.onOpenArtifactCanvas) {
-      const target = createArtifactCanvasTarget({
-        ...props.artifactOrigin,
-        fenceIndex: boundFenceIndex,
-        intent: analysis.intent,
-      });
-      return (
-        <ArtifactCanvasLauncher
-          title={analysis.intent.descriptor.title}
-          source={analysis.intent.descriptor.source}
-          rawLanguage={analysis.intent.descriptor.rawLanguage}
-          onOpenCanvas={() => props.onOpenArtifactCanvas?.(target)}
-        />
-      );
-    }
-    return <SourceCodeBlock language={props.language} source={props.source} isShell={isShell} />;
+    return (
+      <SourceCodeBlock
+        language={props.language}
+        source={props.source}
+        isShell={isShell}
+        {...streamingProps}
+      />
+    );
   }
 
   if (willMountInlineFrame && plan) {

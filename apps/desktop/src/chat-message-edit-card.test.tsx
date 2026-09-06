@@ -143,6 +143,50 @@ describe('MessageEditCard carry-through send', () => {
     expect(sendBtn?.getAttribute('aria-label')).toBe('Retry');
   });
 
+  it('offers Open branch next to Retry on an unchanged current turn', () => {
+    const onResend = vi.fn();
+    const onOpenBranch = vi.fn();
+    const rendered = renderCard(
+      <MessageEditCard
+        messageId="u1"
+        initialText="same turn"
+        composerCard={composerCard}
+        currentTurn
+        onCancel={vi.fn()}
+        onResend={onResend}
+        onOpenBranch={onOpenBranch}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+    const branchBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="open-branch-btn"]',
+    );
+    expect(branchBtn?.getAttribute('aria-label')).toBe('Open branch');
+    act(() => {
+      branchBtn?.click();
+    });
+    expect(onOpenBranch).toHaveBeenCalledWith('same turn');
+    expect(onResend).not.toHaveBeenCalled();
+  });
+
+  it('hides Open branch when the send is already a new version', () => {
+    const rendered = renderCard(
+      <MessageEditCard
+        messageId="u1"
+        initialText="same turn"
+        composerCard={composerCard}
+        currentTurn={false}
+        onCancel={vi.fn()}
+        onResend={vi.fn()}
+        onOpenBranch={vi.fn()}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+    expect(container.querySelector('[data-testid="open-branch-btn"]')).toBeNull();
+  });
+
   it('labels an older unchanged send as a new version', () => {
     const rendered = renderCard(
       <MessageEditCard
@@ -259,5 +303,120 @@ describe('MessageEditCard carry-through send', () => {
 
     const efoot = container.querySelector('.efoot');
     expect(efoot?.textContent).toContain('将作为分支 3 / 3');
+  });
+
+  it('renders the composer model picker on the edit footer', () => {
+    const onSelectModel = vi.fn();
+    const rendered = renderCard(
+      <MessageEditCard
+        messageId="u1"
+        initialText="retry me"
+        currentTurn
+        composerCard={{
+          ...composerCard,
+          modelOptions: [
+            {
+              providerId: 'acme',
+              modelId: 'gpt-test',
+              label: 'Acme / gpt-test',
+              thinkingLevels: ['off', 'medium', 'high'],
+              reasoning: true,
+            },
+            {
+              providerId: 'acme',
+              modelId: 'gpt-mini',
+              label: 'Acme / gpt-mini',
+            },
+          ],
+          selectedModelKey: 'acme::gpt-test',
+          thinkingLevel: 'medium',
+          onSelectModel,
+          onThinkingLevelChange: vi.fn(),
+        }}
+        onCancel={vi.fn()}
+        onResend={vi.fn()}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-testid="thinking-effort-trigger"]',
+    );
+    expect(trigger).not.toBeNull();
+    expect(trigger?.textContent).toContain('gpt-test');
+
+    act(() => {
+      trigger?.focus();
+      trigger?.click();
+    });
+    const option = document.querySelector<HTMLButtonElement>(
+      '[data-testid="thinking-model-select"] [role="option"][aria-selected="false"]',
+    );
+    expect(option).not.toBeNull();
+    act(() => {
+      option?.dispatchEvent(
+        new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 }),
+      );
+    });
+    expect(onSelectModel).toHaveBeenCalledWith('acme::gpt-mini');
+  });
+
+  it('does not show the model picker while editing a pending intervention', () => {
+    const rendered = renderCard(
+      <MessageEditCard
+        messageId="u1"
+        initialText="steer this"
+        interventionEdit
+        composerCard={{
+          ...composerCard,
+          modelOptions: [
+            { providerId: 'acme', modelId: 'gpt-test', label: 'Acme / gpt-test' },
+          ],
+          selectedModelKey: 'acme::gpt-test',
+        }}
+        onCancel={vi.fn()}
+        onResend={vi.fn()}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(container.querySelector('[data-testid="thinking-effort-trigger"]')).toBeNull();
+  });
+
+  it('does not cancel editing when using the model popover', () => {
+    const onCancel = vi.fn();
+    const rendered = renderCard(
+      <MessageEditCard
+        messageId="u1"
+        initialText="retry me"
+        composerCard={{
+          ...composerCard,
+          modelOptions: [
+            { providerId: 'acme', modelId: 'gpt-test', label: 'Acme / gpt-test' },
+          ],
+          selectedModelKey: 'acme::gpt-test',
+        }}
+        onCancel={onCancel}
+        onResend={vi.fn()}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-testid="thinking-effort-trigger"]',
+    );
+    act(() => {
+      trigger?.focus();
+      trigger?.click();
+    });
+    const popover = document.querySelector('[data-testid="thinking-effort-popover"]');
+    expect(popover).not.toBeNull();
+    act(() => {
+      popover?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    });
+    expect(onCancel).not.toHaveBeenCalled();
   });
 });

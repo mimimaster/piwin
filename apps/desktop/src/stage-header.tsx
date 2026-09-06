@@ -8,7 +8,7 @@
  *       <span class="lamp" data-st="running" />
  *       <span class="sq" data-st="waiting" />
  *       <span class="tt">{title}</span>
- *       <button class="ib s22" title="会话树"><IconGit /></button>
+ *       {sessionTreeControl}
  *       {modeBadge}
  *       {originBadge}
  *     </div>
@@ -72,16 +72,7 @@ export function StageHeader(props: StageHeaderProps): ReactElement {
         </span>
         {props.sessionTreeControl ? (
           <span className="context-bar-session-tree-slot">{props.sessionTreeControl}</span>
-        ) : (
-          <button
-            type="button"
-            className="ib s22"
-            title={isChinese ? '会话树' : 'Session tree'}
-            aria-label={isChinese ? '会话树' : 'Session tree'}
-          >
-            <IconGit width={14} height={14} />
-          </button>
-        )}
+        ) : null}
         {mode ? (
           <button
             type="button"

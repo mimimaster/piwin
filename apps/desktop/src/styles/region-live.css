@@ -26,12 +26,12 @@
   align-items: center !important;
   justify-content: flex-start !important;
   gap: 8px !important;
-  height: auto !important;
-  min-height: 48px !important;
+  height: 40px !important;
+  min-height: 40px !important;
   width: auto !important;
   min-width: auto !important;
   max-width: fit-content !important;
-  padding: 0 4px 0 8px !important;
+  padding: 0 8px 0 12px !important;
   box-sizing: border-box !important;
 
   border: 1px solid
@@ -118,10 +118,10 @@
 
 .live-bar-error-copy {
   max-width: min(28rem, 55vw);
-  padding-block: 8px;
+  padding-block: 0;
   color: var(--text-1);
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 12px;
+  line-height: 1.2;
   overflow-wrap: anywhere;
 }
 
@@ -244,11 +244,11 @@
   animation: live-pulse-glyph 1.2s infinite alternate !important;
 }
 
-/* The visual icons stay compact; their interaction targets are 44px. */
+/* proto-06 `.live-pill` / `.live-btn`: compact chips inside the capsule. */
 .live-bar-actions {
   display: flex !important;
   align-items: center !important;
-  gap: 2px !important;
+  gap: 6px !important;
   padding: 0 !important;
   margin: 0 !important;
 }
@@ -257,44 +257,58 @@
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  width: 44px !important;
-  height: 44px !important;
-  min-width: 44px !important;
-  min-height: 44px !important;
+  /* proto-06 `.live-btn`: 26px chip inside a 40px pill. Do not use the 44px
+     touch-target size here — it overflows the capsule. */
+  width: 26px !important;
+  height: 26px !important;
+  min-width: 26px !important;
+  min-height: 26px !important;
+  max-width: 26px !important;
+  max-height: 26px !important;
   flex-shrink: 0;
   padding: 0 !important;
   margin: 0 !important;
   border-radius: 50% !important;
-  background: transparent !important;
-  border: 1px solid transparent !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 0 !important;
   color: var(--text-2, #9a9aa8) !important;
   cursor: pointer !important;
   transition: all 0.12s ease !important;
   box-sizing: border-box !important;
+  appearance: none;
+  -webkit-appearance: none;
+  font: inherit;
+  line-height: 1;
 }
 
 .live-icon-btn:hover {
-  background: var(--surface-4, #2b2b3a) !important;
+  background: rgba(255, 255, 255, 0.16) !important;
   color: var(--text-1, #ededf2) !important;
-  border-color: var(--line-1, rgba(255, 255, 255, 0.1)) !important;
-  transform: scale(1.08) !important;
+  transform: none !important;
+}
+
+.live-icon-btn.is-danger {
+  background: color-mix(in srgb, var(--coral, #ff5f56) 50%, transparent) !important;
+  color: var(--text-1, #ededf2) !important;
 }
 
 .live-icon-btn.is-danger:hover {
-  background: rgba(255, 95, 86, 0.2) !important;
+  background: color-mix(in srgb, var(--coral, #ff5f56) 70%, transparent) !important;
   color: var(--coral, #ff5f56) !important;
-  border-color: var(--coral, #ff5f56) !important;
 }
 
 .live-icon-btn.is-accent {
   background: color-mix(in srgb, var(--live-tone) 16%, transparent) !important;
   color: var(--live-tone) !important;
-  border-color: color-mix(in srgb, var(--live-tone) 40%, transparent) !important;
 }
 
 .live-icon-btn.is-accent:hover {
   background: color-mix(in srgb, var(--live-tone) 30%, transparent) !important;
-  border-color: var(--live-tone) !important;
+}
+
+.live-icon-btn svg {
+  width: 12px !important;
+  height: 12px !important;
 }
 
 /* Keyframe Animations */

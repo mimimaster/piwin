@@ -83,13 +83,27 @@ async function saveBlobWithPicker(blob: Blob, fileName: string): Promise<'saved'
   }
 }
 
+/** Offer a UTF-8 text file through the save picker, with blob download fallback. */
+export function downloadTextFile(input: {
+  text: string;
+  fileName: string;
+  mimeType?: string;
+}): void {
+  const blob = new Blob([input.text], {
+    type: input.mimeType ?? 'text/plain;charset=utf-8',
+  });
+  void saveBlobWithPicker(blob, input.fileName);
+}
+
 /** Offer original model source as an HTML/SVG file. */
 export function downloadArtifactSource(input: {
   source: string;
   title: string;
   kind: ArtifactExportKind;
 }): void {
-  const fileName = artifactExportFileName(input.title, input.kind);
-  const blob = new Blob([input.source], { type: artifactExportMimeType(input.kind) });
-  void saveBlobWithPicker(blob, fileName);
+  downloadTextFile({
+    text: input.source,
+    fileName: artifactExportFileName(input.title, input.kind),
+    mimeType: artifactExportMimeType(input.kind),
+  });
 }

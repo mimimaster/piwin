@@ -267,11 +267,14 @@ type SessionBranchSwitchCommand = {
 
 - **Desktop**：
   - 分叉点消息侧 `‹ n/m ›` 切换器（ui-kit 既有组件组合，不造新原语）；
-    切换时走 branch-switch，`needs-confirmation` 弹确认卡（S3）。
+    `‹ ›` 切相邻兄弟；点 `n / m` 打开**该分叉点**的 `BranchPointsPanel`。
+    切换时走 branch-switch，`needs-confirmation` 弹确认卡（S3）。流式时
+    `‹ ›` 与清单行禁用，标签仍可打开只读列表。
   - 树面板（**已落地 2026-08-21，首版=分叉点清单**；**2026-08-27 升到顶栏会话树**）：
-    顶栏「会话树」挂 `BranchPointsPanel`。按分叉点分组，每行 = 一条兄弟分支，
-    显示首条预览 + 叶预览 + 消息数/时间 + 写标记（`writesWorkspace`），点击
-    即走 branch-switch。可视化树仍后置。入口是顶栏「会话树」与消息侧 `‹ n/m ›`。
+    顶栏「会话树」挂完整 `BranchPointsPanel`（会话内全部分叉点）。按分叉点分组，
+    每行 = 一条兄弟分支，显示首条预览 + 叶预览 + 消息数/时间 + 写标记
+    （`writesWorkspace`），点击即走 branch-switch。可视化树仍后置。入口是顶栏
+    「会话树」（全图）与消息侧 `‹ n/m ›`（展开当前分叉点）。
     - 写标记是**提示不是判据**：由 `listBranchPoints` 在兄弟子树上聚合
       `metadata_json.workspaceWrites` 是否存在；写边界上线前的旧行没有该
       metadata，一律显示为"无写"。切换时的 `needs-confirmation` 检查才是权威。
