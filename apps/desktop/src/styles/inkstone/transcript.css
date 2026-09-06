@@ -628,6 +628,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   padding-top: 6px;
   border-top: 1px dashed var(--l1);
   font: 11.5px var(--mono);
+  font-variant-numeric: tabular-nums;
   color: var(--t3);
   width: 100%;
   max-width: var(--chat-max, 100%);

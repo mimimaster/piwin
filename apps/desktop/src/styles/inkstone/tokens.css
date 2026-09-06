@@ -11,9 +11,9 @@
    pine ↔ mint (completed) · crimson ↔ coral · azure ↔ sky. */
 
 html[data-theme-id='piwin-inkstone-paper'] {
-  --sans: Inter, 'PingFang SC', 'Noto Sans SC', -apple-system, system-ui, sans-serif;
+  --sans: Inter, -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif;
   --serif: 'Noto Serif SC', 'Songti SC', 'STSong', 'Source Han Serif SC', 'Source Serif 4', Georgia, serif;
-  --mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+  --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   --spring: cubic-bezier(0.34, 1.4, 0.64, 1);
 
   --void: #e6e1d7;
@@ -69,9 +69,9 @@ html[data-theme-id='piwin-inkstone-paper'] {
 /* Ink face: one step darker than the surrounding surfaces rather than
    contrasting against them (01-inkstone-theme.md §3). */
 html[data-theme-id='piwin-inkstone-ink'] {
-  --sans: Inter, 'PingFang SC', 'Noto Sans SC', -apple-system, system-ui, sans-serif;
+  --sans: Inter, -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif;
   --serif: 'Noto Serif SC', 'Songti SC', 'STSong', 'Source Han Serif SC', 'Source Serif 4', Georgia, serif;
-  --mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+  --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   --spring: cubic-bezier(0.34, 1.4, 0.64, 1);
 
   --void: #0b0a09;
@@ -130,12 +130,20 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   font-size: 13.5px;
   line-height: 1.5;
   letter-spacing: 0;
+  font-kerning: normal;
+  font-synthesis: none;
   -webkit-font-smoothing: antialiased;
   --font: var(--sans);
   --font-sans: var(--sans);
+  --font-serif: var(--serif);
   --font-mono: var(--mono);
+  /* proto-01: chrome 13.5/1.5, reading 14.5/1.72, UI rows 12.5, meta 11–11.5 tabular. */
+  --chat-line-height: 1.72;
+  --fs-ui: 12.5px;
+  --fs-meta: 11.5px;
+  --fs-micro: 10.5px;
   /* Deck geometry tokens that region CSS still reads. Prototype: 8px panels,
-     10px slab, 6px gutter, 31px rows, 13.5px body. */
+     10px slab, 6px gutter, 28px session rows, 13.5px chrome. */
   --r-panel: 8px;
   --r-card: 8px;
   --r-overlay: 10px;

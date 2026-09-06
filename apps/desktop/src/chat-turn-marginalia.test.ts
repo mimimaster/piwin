@@ -92,10 +92,11 @@ describe('chat-turn-marginalia', () => {
     expect(data.who).toBe('Sonnet 4.6');
     expect(data.fullModelId).toBe('claude-sonnet-4-6');
     expect(data.avatar).toBe('C');
+    // Tokens belong in the colophon foot, not the rail.
     expect(data.usage).toBe('41s · 1 工具');
   });
 
-  it('resolves assistant turn marginalia with tokens and duration matching prototype', () => {
+  it('resolves assistant turn marginalia with duration only — tokens stay off the rail', () => {
     const asstMsg: ChatMessageUi = {
       id: 'msg-3',
       role: 'assistant',
@@ -119,7 +120,7 @@ describe('chat-turn-marginalia', () => {
     });
     expect(data.who).toBe('Sonnet 4.6');
     expect(data.avatar).toBe('C');
-    expect(data.usage).toBe('3.1k · 41s');
+    expect(data.usage).toBe('41s');
     expect(data.status).toBe('运行中');
 
     const dataUnknown = resolveTurnMarginalia(
@@ -129,7 +130,7 @@ describe('chat-turn-marginalia', () => {
     expect(dataUnknown.avatar).toBe('智');
   });
 
-  it('builds proto-00 colophon meta from model and usage', () => {
+  it('builds colophon meta as tokens-only — never repeats the model label', () => {
     const asstMsg: ChatMessageUi = {
       id: 'msg-2',
       role: 'assistant',
@@ -152,8 +153,20 @@ describe('chat-turn-marginalia', () => {
           source: 'assistant-usage',
         },
       }),
-    ).toBe('Sonnet 4.6 · 本轮消耗 1.8k tokens');
+    ).toBe('本轮消耗 1.8k tokens');
 
-    expect(buildAssistantColophonMeta({ message: asstMsg, locale: 'zh-CN' })).toBe('Sonnet 4.6');
+    expect(buildAssistantColophonMeta({ message: asstMsg, locale: 'zh-CN' })).toBeNull();
+    expect(
+      buildAssistantColophonMeta({
+        message: asstMsg,
+        locale: 'en',
+        contextUsage: {
+          sessionId: 's',
+          updatedAt: '2026-09-05T14:03:00.000Z',
+          totalTokens: 13000,
+          source: 'assistant-usage',
+        },
+      }),
+    ).toBe('13k tokens this turn');
   });
 });

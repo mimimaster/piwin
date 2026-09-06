@@ -1,10 +1,7 @@
 /**
- * SessionContextRow — the stage-top context line of proto-00-shell.html
- * (`.session-context`). Project sessions show project chip · branch chip.
- * General conversations render nothing to keep the stage clean and increase
- * available chat display height.
- * The chips reuse the composer rail controls so recent-project switching and
- * branch checkout behave identically in both places.
+ * SessionContextRow — project · branch chips (proto-00 `.session-context`).
+ * Project sessions only. Inkstone mounts this in StageHeader trailing; Deck
+ * still uses it as a stage-top row. Controls reuse the composer rail chips.
  */
 import type { ReactElement } from 'react';
 import type { HostResponse, ProjectRecord } from '@piwin/contracts';

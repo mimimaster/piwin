@@ -334,8 +334,8 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     />
   );
 
-  // Stage-top context line (proto-00 .session-context): project/branch/path for
-  // project sessions; general conversations keep the stage clean.
+  // Project · branch chips: Inkstone parks them in StageHeader trailing so
+  // the transcript is not capped by a second chrome row. Deck keeps the row.
   const sessionContextRow =
     hostClient.supportsCommand('git/status') &&
     state.activeScope.kind === 'project' &&
@@ -348,6 +348,10 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
         disabled={state.streaming}
       />
     ) : null;
+  const inkstoneStage =
+    activeTheme.id === 'piwin-inkstone-paper' ||
+    activeTheme.id === 'piwin-inkstone-ink' ||
+    activeTheme.visualStyle === 'paper';
 
   useConversationPaneSubscriptions({
     hostClient,
@@ -469,9 +473,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                     />
                   }
                   stageHeader={
-                    activeTheme.id === 'piwin-inkstone-paper' ||
-                    activeTheme.id === 'piwin-inkstone-ink' ||
-                    activeTheme.visualStyle === 'paper' ? (
+                    inkstoneStage ? (
                       <StageHeader
                         title={stageSessionTitle}
                         runState={runStatus}
@@ -495,12 +497,13 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                             ? () => void handleResumeSession(activeSessionOrigin.rootSessionId)
                             : undefined
                         }
+                        trailing={sessionContextRow}
                         locale={desktopLocale}
                         onStop={handleAbort}
                       />
                     ) : undefined
                   }
-                  sessionContext={sessionContextRow}
+                  sessionContext={inkstoneStage ? null : sessionContextRow}
                   titlebar={
                     <WorkbenchContextBar
                       state={state}

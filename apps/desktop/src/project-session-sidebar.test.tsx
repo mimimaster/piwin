@@ -484,6 +484,11 @@ it('keeps the three session actions available when the session is idle', () => {
   expect(container.querySelector('[data-testid="session-pin-btn"]')).not.toBeNull();
   expect(container.querySelector('[data-testid="session-archive-btn"]')).not.toBeNull();
   expect(container.querySelector('[data-testid="session-working-indicator"]')).toBeNull();
+  for (const testId of ['session-menu-btn', 'session-pin-btn', 'session-archive-btn'] as const) {
+    const icon = container.querySelector(`[data-testid="${testId}"] svg`);
+    expect(icon?.getAttribute('width'), testId).toBe('12');
+    expect(icon?.getAttribute('height'), testId).toBe('12');
+  }
 });
 
 it('renders the three-dot service indicator in preference to the working spinner', () => {
@@ -1000,7 +1005,7 @@ describe('ProjectSessionSidebar virtualization gate', () => {
       .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
       .mockImplementation(function getTestBounds(this: HTMLElement): DOMRect {
         const isTree = this.classList.contains('sidebar-folder-tree');
-        const height = isTree ? 400 : 31;
+        const height = isTree ? 400 : 28;
         return {
           top: 0,
           right: 280,
@@ -1016,13 +1021,13 @@ describe('ProjectSessionSidebar virtualization gate', () => {
     Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
       configurable: true,
       get(this: HTMLElement) {
-        return this.classList.contains('sidebar-folder-tree') ? 400 : 31;
+        return this.classList.contains('sidebar-folder-tree') ? 400 : 28;
       },
     });
     Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
       configurable: true,
       get(this: HTMLElement) {
-        return this.classList.contains('sidebar-folder-tree') ? 400 : 31;
+        return this.classList.contains('sidebar-folder-tree') ? 400 : 28;
       },
     });
   });

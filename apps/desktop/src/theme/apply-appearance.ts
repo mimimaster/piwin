@@ -21,10 +21,12 @@ import { resolveDeckTokens } from './deck-derive.js';
 import { FONT_MONO } from './deck-palette.js';
 
 const INKSTONE_THEME_IDS = new Set(['piwin-inkstone-paper', 'piwin-inkstone-ink']);
-/** Matches docs/design/inkstone/proto-00-shell.html `.app { --sans / --mono }`. */
+/** Latin first, then system sans, then CJK. PingFang before -apple-system
+ *  makes Inter-missing machines render Latin with PingFang's Western glyphs. */
 const INKSTONE_FONT_SANS =
-  'Inter, "PingFang SC", "Noto Sans SC", -apple-system, system-ui, sans-serif';
-const INKSTONE_FONT_MONO = '"JetBrains Mono", "SF Mono", Menlo, Consolas, monospace';
+  'Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", system-ui, sans-serif';
+const INKSTONE_FONT_MONO =
+  '"JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace';
 
 type Vars = Record<string, string>;
 

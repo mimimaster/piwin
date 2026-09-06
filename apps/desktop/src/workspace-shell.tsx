@@ -7,8 +7,10 @@
  *
  * Rows / columns:
  *   - Titlebar: window controls, history, title, right tools
- *   - Sidebar (collapsible) | Stage (context row + transcript/permission/
+ *   - Sidebar (collapsible) | Stage (header + transcript/permission/
  *     composer) | Right panel / inspector (optional)
+ *   Inkstone parks project/branch chips in the stage header trailing slot
+ *   (no separate session-context row) so the transcript keeps height.
  */
 import type { ReactElement, ReactNode } from 'react';
 

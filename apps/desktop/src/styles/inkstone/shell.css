@@ -123,20 +123,27 @@ html[data-theme-id='piwin-inkstone-ink'] .app-shell > .right-panel {
 }
 
 /* ── Session context row (proto-00 .session-context) ───────────────────
-   Stage-top line: project chip · branch chip · workspace path. Rendered only
-   for project sessions; general conversations keep the stage clean. */
+   Deck / non-header mount only. Inkstone parks the same node inside
+   `.stage-header-trailing` (see stage-header.css) so this row stays empty
+   and the transcript keeps its full height — no second chrome band/mask. */
+
+html[data-theme-id='piwin-inkstone-paper'] .chat-column > .session-context,
+html[data-theme-id='piwin-inkstone-ink'] .chat-column > .session-context {
+  display: none;
+}
 
 html[data-theme-id='piwin-inkstone-paper'] .session-context,
 html[data-theme-id='piwin-inkstone-ink'] .session-context {
   display: flex;
   align-items: center;
   gap: 6px;
-  min-height: 28px;
   flex: none;
-  padding: 3px 14px;
+  min-height: 0;
+  padding: 2px 14px 4px;
   color: var(--t3);
   font: 10px/1.2 var(--mono);
-  border-bottom: 1px solid var(--l1);
+  background: transparent;
+  border: 0;
   box-sizing: border-box;
 }
 

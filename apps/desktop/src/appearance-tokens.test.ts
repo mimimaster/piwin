@@ -374,6 +374,16 @@ describe('Deck ramp projection', () => {
     );
   });
 
+  it('keeps Inkstone Latin system sans ahead of PingFang so CJK is a fallback, not the Latin face', () => {
+    applyAppearanceToDocument(PIWIN_APPEARANCE_INKSTONE_PAPER);
+
+    const sans = read('--font');
+    expect(sans.startsWith('Inter')).toBe(true);
+    expect(sans.indexOf('-apple-system')).toBeGreaterThan(0);
+    expect(sans.indexOf('-apple-system')).toBeLessThan(sans.indexOf('PingFang'));
+    expect(read('--font-mono')).toMatch(/^"JetBrains Mono"/);
+  });
+
   it('maps every legacy surface name onto a Deck role', () => {
     applyAppearanceToDocument(PIWIN_APPEARANCE_OBSIDIAN);
 
