@@ -1,9 +1,9 @@
 /**
  * Empty-stage landing point.
  *
- * Sits above the centered composer on a session with no turns, offering
- * quick resumption of recent work. The column shares the composer card's
- * measure so titles line up with the slab's left edge.
+ * Sits above the centered composer on a session with no turns. Inkstone
+ * shows a seal + serif heading; every theme can list recent sessions on
+ * the composer measure so titles line up with the slab's left edge.
  */
 import type { ReactElement } from 'react';
 import type { SessionListItemUi } from './chat-ui-types';
@@ -77,41 +77,50 @@ export function selectResumableSessions(
     .slice(0, limit);
 }
 
-export function EmptyStageLanding(props: EmptyStageLandingProps): ReactElement | null {
+export function EmptyStageLanding(props: EmptyStageLandingProps): ReactElement {
   const recentSessions = selectResumableSessions(props.sessions);
-  if (recentSessions.length === 0) {
-    return null;
-  }
+  const isChinese = props.locale === 'zh-CN';
+  const heading = isChinese ? '继续上次' : 'Pick up where you left off';
 
   return (
     <div className="empty-stage-landing" data-testid="empty-stage-landing">
-      <div className="empty-stage-landing-header">
-        <p className="empty-stage-landing-label">
-          {props.locale === 'zh-CN' ? '继续上次' : 'Pick up where you left off'}
-        </p>
+      <div className="welcome empty-stage-welcome">
+        <span className="seal" data-testid="empty-stage-inkstone-seal" aria-hidden>
+          砚
+        </span>
+        <h1>{heading}</h1>
+        {recentSessions.length === 0 ? (
+          <p>
+            {isChinese
+              ? '问任何问题，或从左侧开始一次新对话。'
+              : 'Ask anything, or start a new chat from the sidebar.'}
+          </p>
+        ) : null}
       </div>
-      <ul className="empty-stage-landing-list">
-        {recentSessions.map((session) => {
-          const relativeTime = formatSessionRelativeTime(session.updatedAt);
-          const title = resolveSessionTitle(session, props.locale);
-          return (
-            <li key={session.id}>
-              <button
-                type="button"
-                className="empty-stage-landing-row"
-                data-testid="empty-stage-landing-row"
-                onClick={() => props.onResumeSession(session.id)}
-                title={title}
-              >
-                <span className="empty-stage-landing-title">{title}</span>
-                {relativeTime ? (
-                  <span className="empty-stage-landing-time">{relativeTime}</span>
-                ) : null}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+      {recentSessions.length > 0 ? (
+        <ul className="empty-stage-landing-list">
+          {recentSessions.map((session) => {
+            const relativeTime = formatSessionRelativeTime(session.updatedAt);
+            const title = resolveSessionTitle(session, props.locale);
+            return (
+              <li key={session.id}>
+                <button
+                  type="button"
+                  className="empty-stage-landing-row"
+                  data-testid="empty-stage-landing-row"
+                  onClick={() => props.onResumeSession(session.id)}
+                  title={title}
+                >
+                  <span className="empty-stage-landing-title">{title}</span>
+                  {relativeTime ? (
+                    <span className="empty-stage-landing-time">{relativeTime}</span>
+                  ) : null}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
     </div>
   );
 }

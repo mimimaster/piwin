@@ -241,7 +241,7 @@ describe('ProjectSessionSidebar resident session lists', () => {
     expect(container.textContent).not.toContain('View all projects');
   });
 
-  it('renders a fold toggle for projects that have child sessions', () => {
+  it('renders a fold toggle for every project folder', () => {
     const projects = createMockProjects(8);
     const { container } = renderSidebar({
       recentProjects: projects,
@@ -251,9 +251,43 @@ describe('ProjectSessionSidebar resident session lists', () => {
 
     // Every project remains rendered; only a project's child list folds.
     expect(container.querySelectorAll('[data-testid="repository-item"]')).toHaveLength(8);
-    expect(container.querySelectorAll('[data-testid="project-fold-toggle"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-testid="project-fold-toggle"]')).toHaveLength(8);
     expect(container.querySelectorAll('.tree-folder-icon')).toHaveLength(8);
     expect(container.querySelector('[data-testid="projects-section-title"]')).not.toBeNull();
+  });
+
+  it('does not show an empty hint under an expanded project with no sessions', () => {
+    const { container } = renderSidebar({
+      generalSessions: createMockSessions(1),
+    });
+
+    expect(container.querySelector('[data-testid="sidebar-empty-hint"]')).toBeNull();
+    expect(container.textContent).not.toContain('No general conversations');
+    expect(container.querySelector('[data-testid="tree-folder-icon-open"]')).not.toBeNull();
+
+    act(() =>
+      container.querySelector<HTMLButtonElement>('[data-testid="project-fold-toggle"]')?.click(),
+    );
+    expect(container.querySelector('[data-testid="tree-folder-icon-closed"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="tree-folder-icon-open"]')).toBeNull();
+  });
+
+  it('swaps the project folder glyph between open and closed', () => {
+    const { container } = renderSidebar({
+      filteredSessions: createMockSessions(1),
+    });
+
+    const toggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="project-fold-toggle"]',
+    );
+    expect(toggle?.getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelector('[data-testid="tree-folder-icon-open"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="tree-folder-icon-closed"]')).toBeNull();
+
+    act(() => toggle?.click());
+    expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelector('[data-testid="tree-folder-icon-closed"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="tree-folder-icon-open"]')).toBeNull();
   });
 
   it('renders the full Conversations list without See all', () => {
@@ -1121,13 +1155,93 @@ describe('ProjectSessionSidebar repo grouping', () => {
       ],
     });
     expect(container.querySelector('[data-testid="sidebar-repo-group"]')?.textContent).toBe(
-      'piwin',
+      'piwin (repo · 2 worktrees)',
     );
     const names = Array.from(container.querySelectorAll('[data-testid="repository-item"]')).map(
       (item) => item.textContent,
     );
     expect(names.some((text) => text?.includes('piwin') && text.includes('main'))).toBe(true);
     expect(names.some((text) => text?.includes('piwin-cc') && text.includes('plan/x'))).toBe(true);
+  });
+
+  it('does not nest unrelated projects under a worktree group', () => {
+    const now = new Date().toISOString();
+    const { container } = renderSidebar({
+      projectPath: '/Users/me/piwin',
+      projectSessionsByPath: {
+        '/Users/me/piwin': [
+          {
+            id: 'piwin-session',
+            name: 'Clustered session',
+            updatedAt: now,
+            isPinned: false,
+            isArchived: false,
+          },
+        ],
+      },
+      recentProjects: [
+        {
+          path: '/Users/me/piwin',
+          displayName: 'piwin',
+          trust: 'trusted',
+          lastOpenedAt: now,
+          createdAt: now,
+          gitRepositoryId: 'repo1',
+          isPrimaryWorktree: true,
+          currentBranch: 'main',
+        },
+        {
+          path: '/Users/me/piwin-inkstone-v2',
+          displayName: 'piwin-inkstone-v2',
+          trust: 'trusted',
+          lastOpenedAt: now,
+          createdAt: now,
+          gitRepositoryId: 'repo1',
+          currentBranch: 'feat/inkstone-1to1',
+        },
+        {
+          path: '/Volumes/disk/grok_reg_clean',
+          displayName: 'grok_reg_clean',
+          trust: 'trusted',
+          lastOpenedAt: now,
+          createdAt: now,
+        },
+        {
+          path: '/Volumes/disk/planora',
+          displayName: 'planora',
+          trust: 'trusted',
+          lastOpenedAt: now,
+          createdAt: now,
+          gitRepositoryId: 'repo-planora',
+          isPrimaryWorktree: true,
+          currentBranch: 'main',
+        },
+      ],
+    });
+    expect(container.querySelector('[data-testid="sidebar-repo-group"]')?.textContent).toBe(
+      'piwin (repo · 2 worktrees)',
+    );
+    const folders = Array.from(container.querySelectorAll('.tree-folder-summary'));
+    const groupedNames = folders
+      .filter((folder) => folder.classList.contains('is-grouped'))
+      .map((folder) => folder.querySelector('[data-testid="repository-item"]')?.textContent ?? '');
+    const soloNames = folders
+      .filter((folder) => !folder.classList.contains('is-grouped'))
+      .map((folder) => folder.querySelector('[data-testid="repository-item"]')?.textContent ?? '');
+    expect(groupedNames.some((text) => text.includes('piwin') && text.includes('main'))).toBe(true);
+    expect(groupedNames.some((text) => text.includes('piwin-inkstone-v2'))).toBe(true);
+    expect(soloNames.some((text) => text.includes('grok_reg_clean'))).toBe(true);
+    expect(soloNames.some((text) => text.includes('planora'))).toBe(true);
+    expect(groupedNames.some((text) => text.includes('grok_reg_clean'))).toBe(false);
+    expect(groupedNames.some((text) => text.includes('planora'))).toBe(false);
+    expect(
+      container.querySelector('[data-session-id="piwin-session"]')?.closest('.is-grouped'),
+    ).not.toBeNull();
+    expect(
+      container
+        .querySelector('[data-project-path="/Volumes/disk/grok_reg_clean"]')
+        ?.closest('.is-grouped'),
+    ).toBeNull();
   });
 });
 
@@ -1178,7 +1292,9 @@ describe('ProjectSessionSidebar Inkstone layout and grouping', () => {
     act(() => settingsBtn?.click());
     expect(onOpenSettings).toHaveBeenCalledTimes(1);
 
-    expect(container.querySelector('[data-testid="sidebar-host-status"]')).toBeNull();
+    const hostStatus = container.querySelector('[data-testid="sidebar-host-status"]');
+    expect(hostStatus).not.toBeNull();
+    expect(hostStatus?.textContent).toContain('本机 Host · 8787');
   });
 
   it('renders time group headers when sessions span multiple days', () => {

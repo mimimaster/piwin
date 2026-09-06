@@ -5,7 +5,7 @@
 
    Frame structure (proto-00-shell.html rendered, the accepted look):
      .app = grid rows [ titleband | .deck 1fr ]
-     .deck = padding 0 8px 8px, gap 8px, three floating .panel (s1, r12, sh2);
+     .deck = padding 0 8px 8px, gap 6px, three floating .panel (s1, r8, sh2);
              the stage panel is s2 with a film-grain ::after.
      The titleband spans the window top with the centered serif title;
      panels start below it on one shared edge. */
@@ -107,7 +107,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   padding-bottom: 0 !important;
 }
 
-/* Three floating panels. Radius 12 and --sh2 are the prototype's .panel
+/* Three floating panels. Radius 8 and --sh2 are the prototype's .panel
    treatment; backgrounds already resolve: sidebar/right-panel s1, stage s2
    (region-shell.css reads --surface-1/2, authored to the same hex). */
 html[data-theme-id='piwin-inkstone-paper'] .app-shell > .sidebar,
@@ -116,9 +116,10 @@ html[data-theme-id='piwin-inkstone-paper'] .app-shell > .workspace,
 html[data-theme-id='piwin-inkstone-ink'] .app-shell > .workspace,
 html[data-theme-id='piwin-inkstone-paper'] .app-shell > .right-panel,
 html[data-theme-id='piwin-inkstone-ink'] .app-shell > .right-panel {
-  border-radius: 12px !important;
+  border-radius: 8px !important;
   box-shadow: var(--sh2) !important;
   overflow: hidden;
+  border: 0 !important;
 }
 
 /* ── Session context row (proto-00 .session-context) ───────────────────

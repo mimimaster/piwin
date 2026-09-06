@@ -152,7 +152,7 @@ describe('host problem copy', () => {
         },
         'zh-CN',
       ),
-    ).toMatch(/斜杠命令不能插入当前回合/);
+    ).toMatch(/无法插入斜杠命令/);
   });
 
   it('maps a dropped Host socket to reconnecting copy', () => {

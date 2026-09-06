@@ -69,7 +69,7 @@ export function KnowledgeEmbeddingTab(props: KnowledgeEmbeddingTabProps): ReactE
           title={isZh ? '向量检索 (Embedding)' : 'Vector Embedding'}
           description={
             isZh
-              ? '将 Markdown 文档与源码片段转化为向量进行语义检索。未启用时，笔记与知识库将无缝降级为 FTS5 关键词全文检索。'
+              ? '将 Markdown 文档与源码片段转化为语义向量以支持相似度检索。未启用时，笔记与知识库将自动回退为本地全文检索。'
               : 'Vectorize markdown documents and code snippets for semantic retrieval. If disabled, notes and knowledge bases will seamlessly use FTS5 keyword full-text search.'
           }
         />

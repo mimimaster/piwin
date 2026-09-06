@@ -118,6 +118,23 @@ describe('EnhancedMarkdownView', () => {
     expect(elem.querySelector('ol.enhanced-ordered-list')).not.toBeNull();
   });
 
+  it('keeps nested list comment buttons off the parent line wrapper', () => {
+    const md = `4. Add bounded, Host-owned client commands for Desktop reads:
+   - \`project/tree\` ;
+   - \`project/read\` ;
+   - \`artifact/read\` .
+`;
+    const elem = renderView(md);
+    const parentItem = elem.querySelector('ol.enhanced-list > li.enhanced-list-item');
+    expect(parentItem).not.toBeNull();
+    const parentWrapper = parentItem?.querySelector(':scope > .enhanced-line-wrapper');
+    expect(parentWrapper).not.toBeNull();
+    expect(parentWrapper?.querySelectorAll(':scope > .line-comment-btn')).toHaveLength(1);
+    expect(parentWrapper?.querySelectorAll('.line-comment-btn')).toHaveLength(1);
+    expect(parentItem?.querySelectorAll(':scope > ul.enhanced-list')).toHaveLength(1);
+    expect(parentItem?.querySelectorAll('.line-comment-btn')).toHaveLength(4);
+  });
+
   it('parses plain blockquotes', () => {
     const elem = renderView('> quoted evidence\n');
     expect(elem.querySelector('.enhanced-blockquote')).not.toBeNull();

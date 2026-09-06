@@ -65,6 +65,13 @@ export function SidebarShelfFooter(props: SidebarShelfFooterProps) {
           <IconSettings width={16} height={16} />
           <span>{props.settingsTitle}</span>
         </button>
+        <div className="host sidebar-host" data-testid="sidebar-host-status">
+          <span
+            className={`sidebar-host-dot${props.hostReady ? ' on' : ''}`}
+            aria-hidden
+          />
+          <span>{props.transportLabel}</span>
+        </div>
       </footer>
 
       <div className="sidebar-footer">

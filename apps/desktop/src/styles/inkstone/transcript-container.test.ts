@@ -20,4 +20,22 @@ describe('Inkstone transcript container query', () => {
     expect(css).toContain('width: 100%;');
     expect(css).toContain('max-width: none;');
   });
+
+  it('sets --mg/--gut on stage descendants, not the container itself', () => {
+    // A size container cannot style itself — --mg on `.chat-stage` inside
+    // `@container transcript-stage` never applied (rail width 0 → vertical "1 工具").
+    expect(css).toMatch(
+      /@container transcript-stage \(min-width: 960px\)[\s\S]*?\.chat-stage\s+:is\(\.chat-thread, \.chat-turn, \.turn\)[\s\S]*?--mg: 140px/,
+    );
+    expect(css).toMatch(
+      /@container transcript-stage \(min-width: 1080px\)[\s\S]*?\.chat-stage\s+:is\(\.chat-thread, \.chat-turn, \.turn\)[\s\S]*?--mg: 160px/,
+    );
+    expect(css).not.toMatch(
+      /@container transcript-stage[\s\S]{0,200}\.chat-stage \{\s*--mg:/,
+    );
+  });
+
+  it('keeps marginalia meta lines from wrapping into a vertical stack', () => {
+    expect(css).toMatch(/\.chat-marginalia > span \{\s*white-space: nowrap;/);
+  });
 });

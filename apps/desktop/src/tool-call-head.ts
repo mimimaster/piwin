@@ -61,8 +61,15 @@ export function kindVerb(kind: ToolKind | 'unknown', toolName: string): string {
     case 'video':
       return 'Generated video';
     default:
-      return toolName;
+      return humanizeToolCallName(toolName);
   }
+}
+
+/** Fallback label when Host didn't give a verb. Never keep `foo_bar` as the row text. */
+export function humanizeToolCallName(toolName: string): string {
+  const trimmed = toolName.trim();
+  if (!trimmed) return 'Tool';
+  return trimmed.replace(/[_-]+/g, ' ').trim();
 }
 
 /** True for shell commands that are acting as a fetch/request transcript. */
@@ -213,8 +220,8 @@ function mcpToolIdentity(input: {
 
 /**
  * Header mono preview (query / command / path summary).
- * Detail payloads (shell command / MCP args) are shown only while collapsed —
- * expanded body already owns the full detail block.
+ * Collapsed rows show a one-line preview; expanded rows do not — the body
+ * already owns the full command, path list, or output.
  */
 export function resolveToolCallHeaderPreview(input: {
   summary: string;
@@ -224,13 +231,11 @@ export function resolveToolCallHeaderPreview(input: {
   singleBasename: string;
   isPathLike: boolean;
   expanded: boolean;
-  /** True when body will render command and/or inputPreview. */
-  hasDetailInBody: boolean;
   /** True when summary is just a raw args dump (same text as inputPreview). */
   isArgsDumpSummary?: boolean;
   /**
-   * MCP verbs are generic ("Called" / "已调用"); the title *is* the preview.
-   * Keep a summary that repeats displayName in that case.
+   * MCP chips are generic ("MCP"); collapsed rows still need the tool identity
+   * even when it repeats displayName.
    */
   keepTitlePreview?: boolean;
 }): string {
@@ -242,18 +247,14 @@ export function resolveToolCallHeaderPreview(input: {
     singleBasename,
     isPathLike,
     expanded,
-    hasDetailInBody,
     isArgsDumpSummary = false,
     keepTitlePreview = false,
   } = input;
   if (!summary) return '';
+  if (expanded) return '';
   if (summary === displayName && !keepTitlePreview) return '';
   // Never promote raw JSON/args dumps into the title row (MCP legacy presentations).
   if (isArgsDumpSummary) return '';
-  // Expanded body already renders the full detail — keep the head as verb-only
-  // so long shell lines do not wrap into a multi-line "title". MCP identity is
-  // short and is the only label besides the generic 调用/已调用 verb.
-  if (expanded && hasDetailInBody && !keepTitlePreview) return '';
   if (showFilePill && pillLabel && (summary === pillLabel || summary === singleBasename)) {
     return '';
   }

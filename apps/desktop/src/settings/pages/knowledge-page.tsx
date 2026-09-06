@@ -381,12 +381,12 @@ function KnowledgeBaseWorkspace(): ReactElement {
           <p>
             {t(
               'Configure vector embedding, reranker, document parsers, and dedicated models. All capabilities share the same knowledge index. Falls back to full-text search when unconfigured.',
-              '配置向量嵌入 (Embedding)、精准重排 (Reranker)、文档解析器与专用模型。所有能力共用同一套知识索引体系。未配置向量时无缝降级为全文检索。',
+              '配置向量嵌入 (Embedding)、精准重排 (Reranker)、文档解析器与专用模型。所有能力共用同一套知识索引体系。未配置向量时自动使用全文检索。',
             )}
           </p>
           <StatusBadge
             tone={isEmbeddingReady ? 'success' : 'warning'}
-            label={isEmbeddingReady ? t('Vector Ready', '向量检索就绪') : t('FTS Fallback', '全文检索降级')}
+            label={isEmbeddingReady ? t('Vector Ready', '向量检索就绪') : t('FTS Fallback', '全文检索模式')}
             testId="knowledge-workspace-health"
           />
         </div>
@@ -401,7 +401,7 @@ function KnowledgeBaseWorkspace(): ReactElement {
                 ? draft.provider === 'ollama'
                   ? 'Ollama'
                   : 'OpenAI-compatible'
-                : t('FTS5 Full-text fallback', 'FTS5 全文检索降级')
+                : t('FTS5 Full-text fallback', '全文检索模式')
             }
             statusTone={isEmbeddingReady ? 'green' : 'amber'}
             onClick={() => setActiveTab('embedding')}

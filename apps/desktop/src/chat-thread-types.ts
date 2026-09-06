@@ -6,6 +6,7 @@ import type {
   ModelRef,
   PermissionDecision,
   PermissionRememberScope,
+  PlanExecutionMode,
   ProductSessionLineageView,
   SessionPlan,
   SessionSummary,
@@ -47,8 +48,6 @@ export type ChatThreadProps = {
   /** Active session id — CM-10 message context menu source session. */
   activeSessionId?: string | null;
 
-  /** Session-level plan rendered once at the top of the thread (not per-message). */
-  plan?: SessionPlan | null;
   runRecordsById?: Record<string, RunRecordUi>;
   activeRunId?: string | null;
   /** Explicit slash Skill currently associated with the foreground prompt. */
@@ -118,8 +117,6 @@ export type ChatThreadProps = {
   onOpenDiff?: ((absolutePath: string, relativePath?: string) => void) | undefined;
   /** Callback when clicking a markdown document link or plan document chip. */
   onOpenDocument?: ((input: DocumentOpenInput) => void) | undefined;
-  /** Called when the user aborts a running plan. */
-  onPlanAbort?: (() => void | Promise<void>) | undefined;
   /** Transcript-bound compaction lifecycle activity. */
   compactionActivity?: CompactionActivityUi | null | undefined;
   onCompactAbort?: (() => void | Promise<void>) | undefined;
@@ -168,4 +165,7 @@ export type ChatThreadProps = {
   configProviders?: readonly ModelProviderConfig[];
   /** Session last turn context usage snapshot for turn usage chip. */
   contextUsage?: ContextUsageSnapshot | null;
+  /** Draft/approved plan waiting on the creating turn's call chain. */
+  sessionPlan?: SessionPlan | null;
+  onPlanExecute?: (mode: PlanExecutionMode) => void | Promise<void>;
 };

@@ -19,6 +19,7 @@ export type SidebarTreeRow =
       kind: 'repo-group';
       gitRepositoryId: string;
       title: string;
+      memberCount: number;
       key: string;
     }
   | {
@@ -40,6 +41,7 @@ export type SidebarTreeRow =
       scope: SessionScope;
       session: SessionListItemUi | DraftSessionItemUi;
       projectSubtitle?: string;
+      grouped?: true;
       key: string;
     }
   | {
@@ -47,11 +49,18 @@ export type SidebarTreeRow =
       projectPath: string;
       batchSize: number;
       nextVisibleCount: number;
+      grouped?: true;
       key: string;
     }
-  | { kind: 'empty-hint'; scope: SessionScope; key: string }
-  | { kind: 'query-error'; scope: SessionScope; key: string }
-  | { kind: 'truncation-hint'; scope: SessionScope; hiddenCount: number; key: string };
+  | { kind: 'empty-hint'; scope: SessionScope; grouped?: true; key: string }
+  | { kind: 'query-error'; scope: SessionScope; grouped?: true; key: string }
+  | {
+      kind: 'truncation-hint';
+      scope: SessionScope;
+      hiddenCount: number;
+      grouped?: true;
+      key: string;
+    };
 
 export const DEFAULT_PROJECT_SESSION_VISIBLE_COUNT = 5;
 export const PROJECT_SESSION_VISIBLE_INCREMENT = 5;
@@ -78,6 +87,20 @@ export type SidebarTreeRowsInput = {
 
 export function sidebarTreeRowKey(row: SidebarTreeRow): string {
   return row.key;
+}
+
+/** Worktree-cluster members share one indent so the ink line stays on the folder icon. */
+export function sidebarTreeRowInWorktreeCluster(row: SidebarTreeRow): boolean {
+  if (row.kind === 'project-folder') {
+    return row.grouped;
+  }
+  return row.kind === 'session' ||
+    row.kind === 'project-show-more' ||
+    row.kind === 'empty-hint' ||
+    row.kind === 'query-error' ||
+    row.kind === 'truncation-hint'
+    ? row.grouped === true
+    : false;
 }
 
 function revealIndexInRows(
@@ -205,6 +228,7 @@ export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRo
           kind: 'repo-group',
           gitRepositoryId: cluster.gitRepositoryId,
           title: cluster.title,
+          memberCount: cluster.members.length,
           key: `repo:${cluster.gitRepositoryId}`,
         });
         for (const project of cluster.members) {
@@ -393,6 +417,7 @@ function appendProjectFolderRows(
     hostSessions,
     input.sessionSearch,
     input.sessionListOrder,
+    grouped,
   );
   const selectedIndex = revealIndexInRows(
     merged,
@@ -437,6 +462,7 @@ function appendProjectFolderRows(
       batchSize,
       nextVisibleCount: visible.length + batchSize,
       key: `project-show-more:${project.path}`,
+      ...(grouped ? { grouped: true as const } : {}),
     });
   }
   appendScopeHints(rows, {
@@ -444,7 +470,9 @@ function appendProjectFolderRows(
     merged,
     searching,
     sessionListScopes: input.sessionListScopes,
-    allowEmptyHint: !searching,
+    // An empty open folder stays quiet; the open/closed glyph is the only cue.
+    allowEmptyHint: false,
+    grouped,
   });
 }
 
@@ -454,6 +482,7 @@ function mergeScopeRows(
   sessions: readonly SessionListItemUi[],
   sessionSearch: string,
   order: SessionListOrder,
+  grouped = false,
 ): Extract<SidebarTreeRow, { kind: 'session' }>[] {
   const scopeDrafts = sortDraftSessions(
     drafts.filter(
@@ -475,6 +504,7 @@ function mergeScopeRows(
     scope,
     session,
     key: `session:${scopeKey}:${session.id}`,
+    ...(grouped ? { grouped: true as const } : {}),
   }));
 }
 
@@ -486,9 +516,11 @@ function appendScopeHints(
     searching: boolean;
     sessionListScopes: SessionListScopeState;
     allowEmptyHint: boolean;
+    grouped?: boolean;
   },
 ): void {
   const scopeKey = sessionScopeKey(options.scope);
+  const groupedFields = options.grouped === true ? { grouped: true as const } : {};
   const meta =
     options.scope.kind === 'general'
       ? options.sessionListScopes.general
@@ -498,6 +530,7 @@ function appendScopeHints(
       kind: 'query-error',
       scope: options.scope,
       key: `query-error:${scopeKey}`,
+      ...groupedFields,
     });
   }
   if (options.merged.length === 0 && options.allowEmptyHint) {
@@ -508,6 +541,7 @@ function appendScopeHints(
       kind: 'empty-hint',
       scope: options.scope,
       key: `empty:${scopeKey}`,
+      ...groupedFields,
     });
     return;
   }
@@ -531,6 +565,7 @@ function appendScopeHints(
     scope: options.scope,
     hiddenCount,
     key: `truncation:${scopeKey}`,
+    ...groupedFields,
   });
 }
 

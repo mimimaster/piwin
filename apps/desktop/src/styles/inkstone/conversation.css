@@ -1,12 +1,11 @@
 /* General Chat shares the prototype's document measure and square paper
    cards. Keep these refinements separate from Agent tool/permission anatomy. */
 .inkstone-message-identity {
-  display: none;
+  display: none !important;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .inkstone-message-identity,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .chat-stage .inkstone-message-identity .chat-turn-head {
-  display: flex;
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .inkstone-message-identity {
+  display: none !important;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .user-message-wrapper.is-conversation {
@@ -69,12 +68,6 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .user-message-wrapper.is-conversation .user-message-footer > .user-message-time {
   display: none;
-}
-
-/* Conversation has inline bylines, so it needs no invisible 160px author
-   rail. Its paper card and composer both use the same centered measure. */
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .chat-thread.is-conversation :is(.chat-turn-group, .turn, .chat-turn) {
-  --gut: 0px;
 }
 
 /* proto-01 `.atts` / `.att` — history capsules on the paper user card */

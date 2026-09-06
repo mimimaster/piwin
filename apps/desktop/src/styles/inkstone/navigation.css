@@ -15,11 +15,59 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .empty-stage-landing {
-  width: var(--chat-max, 720px);
+  width: var(--chat-max, var(--measure, 760px));
   max-width: 100%;
   margin: 0 auto;
   padding: 0 0 8px;
   box-sizing: border-box;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .empty-stage-landing:not(:has(.empty-stage-landing-list)) {
+  display: block;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .empty-stage-welcome {
+  display: block;
+  max-width: 490px;
+  margin: 0 0 16px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .empty-stage-welcome .seal {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  background: var(--zhu);
+  color: var(--on-zhu);
+  font: 600 17px/1 var(--serif);
+  display: grid;
+  place-items: center;
+  position: relative;
+  transform: rotate(-1.5deg);
+  box-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+  margin-bottom: 18px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .empty-stage-welcome .seal::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 2px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .empty-stage-welcome h1 {
+  font: 500 32px/1.4 var(--serif);
+  letter-spacing: 0.03em;
+  color: var(--t1);
+  margin: 0;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .empty-stage-welcome p {
+  font: 13px/1.9 var(--sans);
+  color: var(--t3);
+  margin: 12px 0 0;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .empty-stage-landing-header {
@@ -51,15 +99,16 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   justify-content: space-between;
   gap: 16px;
   width: 100%;
-  min-height: 28px;
-  padding: 4px 10px;
+  height: 31px;
+  min-height: 31px;
+  padding: 0 10px;
   border: 0;
   border-radius: 6px;
   background: transparent;
   color: var(--t1);
   cursor: pointer;
   font: inherit;
-  font-size: 13px;
+  font-size: 12.5px;
   text-align: left;
   box-sizing: border-box;
   transition: background-color 0.15s ease, color 0.15s ease;
@@ -73,7 +122,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .empty-stage-landing-title {
-  font-size: 13px;
+  font-size: 12.5px;
   color: var(--t1);
   font-family: var(--sans);
   min-width: 0;
@@ -83,7 +132,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .empty-stage-landing-time {
-  font: 11.5px var(--mono);
+  font: 11px var(--mono);
   color: var(--t4);
   flex: 0 0 auto;
 }

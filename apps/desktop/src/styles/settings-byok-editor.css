@@ -884,8 +884,13 @@
 
 .ext-list-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--s-3) var(--s-5);
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   padding: var(--s-5) var(--s-6);
   background: var(--surface-2);
   border: 0;
@@ -910,14 +915,23 @@
 
 .ext-list-title {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--s-4);
+  gap: var(--s-3) var(--s-4);
+  min-width: 0;
   margin-bottom: var(--s-1);
 }
 
 .ext-list-title strong {
+  flex: none;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   font-size: 14px;
   font-weight: 600;
+}
+
+.ext-list-title .pill {
+  flex: none;
 }
 
 .ext-desc {

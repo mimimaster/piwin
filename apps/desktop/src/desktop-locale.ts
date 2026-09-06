@@ -131,6 +131,7 @@ export type DesktopCopy = {
     flatList: string;
     filters: string;
     openWorkspaceFolder: string;
+    repoWorktreeGroup: (repoName: string, worktreeCount: number) => string;
     newConversationInProject: (projectName: string) => string;
     removeProjectFromSidebar: string;
     collapseProjects: string;
@@ -604,7 +605,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       endpointLabel: 'WebSocket 地址',
       endpointPlaceholder: 'ws://127.0.0.1:8787',
       tokenLabel: 'Token',
-      tokenPlaceholder: '本机未设门令可留空',
+      tokenPlaceholder: '未配置访问密码/Token 时可留空',
       connect: '连接',
       connecting: '正在连接…',
       useThisMac: '使用本机',
@@ -613,19 +614,19 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
     },
     hostGate: {
       chooserTitle: '选择 Host',
-      chooserDescription: '本机自带一份，或连接已经在跑的 Host。同一时间只能有一份。',
+      chooserDescription: '使用本机内置 Host 服务，或连接已运行的独立 Host 进程。同一数据目录只允许运行一个 Host。',
       chooseSidecar: '使用本机',
       chooseAttach: '连接已有 Host',
       connectTitle: '连接 Host',
-      connectDescription: '先起好 Host，再填地址。连上之前不会在本机再起一份。',
+      connectDescription: '请先启动目标 Host 服务后再填入地址。连接成功前不会在本机重复启动服务。',
       rootLockNote:
-        '同一份数据根一次只能有一个 Host。本机 sidecar 和独立 Host 不能同时开。第二个进程会启动失败。',
+        '同一个数据目录只允许一个 Host 实例运行。本机内置服务与独立 Host 无法同时访问同一配置根。',
     },
     mobileAccess: {
       title: '手机接入',
       description: '让本机 sidecar 监听配对。远程 Host 不能打开这个开关；手机必须连到这个进程。',
       listenLabel: '允许手机接入',
-      listenDescription: '绑定 127.0.0.1:8787。真机请用 Tailscale / SSH 隧道把该端口暴露出去。',
+      listenDescription: '绑定 127.0.0.1:8787。移动设备请使用 Tailscale 或 SSH 隧道转发该端口。',
       advertisedLabel: '手机可达地址',
       advertisedPlaceholder: 'ws://127.0.0.1:8787 或 wss://mac.tailnet.ts.net:8787',
       generate: '生成配对码',
@@ -635,7 +636,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       devices: '已配对设备',
       noDevices: '还没有配对设备',
       revoke: '撤销',
-      lastSeen: (at) => `最近见到：${at}`,
+      lastSeen: (at) => `最后活跃：${at}`,
       sidecarOnly: '手机接入只在本机 sidecar 上可用。请先点「使用本机」。',
       invalidAdvertised: '请输入 ws:// 或 wss:// 地址',
       pairingExpires: (at) => `配对码有效至 ${at}`,
@@ -688,7 +689,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       unpinSession: '取消置顶',
       restoreSession: '恢复会话',
       restoreFromPack: '从包恢复…',
-      offloaded: '已卸载',
+      offloaded: '已转储',
       missingPack: '包缺失',
       deleteSessionPermanently: '永久删除会话',
       sessionActions: '会话操作',
@@ -712,6 +713,8 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       flatList: '无分组列表',
       filters: '筛选',
       openWorkspaceFolder: '打开工作区文件夹',
+      repoWorktreeGroup: (repoName, worktreeCount) =>
+        `${repoName}（仓库 · ${worktreeCount} 个 worktree）`,
       newConversationInProject: (projectName) => `在 ${projectName} 中新建会话`,
       removeProjectFromSidebar: '从侧栏移除项目',
       collapseProjects: '收起项目列表',
@@ -794,7 +797,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       pause: '暂停',
       pausing: '正在暂停…',
       continueRun: '继续运行',
-      discardPause: '丢弃暂停',
+      discardPause: '放弃恢复',
       pauseContinueHint: '输入「继续」会开新一轮，不会接上刚才暂停的任务。',
       pauseContinueHintAction: '从检查点继续',
       stop: '停止',
@@ -870,31 +873,31 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
     appearance: {
       pageTitle: '外观',
       pageDescription: '配置 Agent 的视觉主题和显示偏好。',
-      chatSettings: 'Chat Settings',
-      chatSettingsDescription: '调整 Chat 显示和对话宽度。',
-      verboseAgentChat: 'Verbose Agent Chat',
+      chatSettings: '聊天显示',
+      chatSettingsDescription: '调整对话内容显示与宽度。',
+      verboseAgentChat: '完整思考过程',
       verboseAgentChatDescription:
-        '显示并保留中间 thinking steps。关闭后仅隐藏显示，不会删除 transcript。',
+        '显示并保留中间思考过程。关闭后仅隐藏显示，不会删除历史记录。',
       conversationWidth: '对话宽度',
-      conversationWidthDescription: '设置 conversation panel 的最大宽度。',
-      default: 'Default',
-      narrow: 'Narrow',
-      wide: 'Wide',
-      appearance: 'Appearance',
-      appearanceDescription: '选择 Light、Dark，或跟随系统设置。',
-      system: 'System',
-      light: 'Light',
-      dark: 'Dark',
-      lightTheme: 'Light Theme',
-      darkTheme: 'Dark Theme',
+      conversationWidthDescription: '设置对话面板的最大宽度。',
+      default: '默认',
+      narrow: '紧凑',
+      wide: '宽松',
+      appearance: '色彩模式',
+      appearanceDescription: '选择浅色、深色，或跟随系统设置。',
+      system: '跟随系统',
+      light: '浅色',
+      dark: '深色',
+      lightTheme: '浅色主题',
+      darkTheme: '深色主题',
       themeLibrary: '主题包',
-      themeLibraryDescription: '选择只含 token 的主题包；视觉资产是可选的，也可以随时移除。',
+      themeLibraryDescription: '选择设计主题；背景壁纸等视觉资产为可选项，可随时移除。',
       themeLibraryLoading: '正在加载主题…',
-      themeLibraryFallback: '如果可选图像资产不可用，此主题会自动退回纯 token 渲染。',
-      preset: 'Preset',
-      background: 'Background',
-      foreground: 'Foreground',
-      accent: 'Accent',
+      themeLibraryFallback: '若自定义图片资源不可用，将自动使用基础主题配色。',
+      preset: '预设',
+      background: '背景色',
+      foreground: '前景色',
+      accent: '强调色',
       typography: '字体与排印',
       typographyDescription: '调整助手文本和代码块的字体大小与换行策略。',
       assistantTextSize: '助手文本大小',
@@ -902,26 +905,26 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       small: '小',
       large: '大',
       codeBlockSize: '代码块大小',
-      codeBlockSizeDescription: '代码和 Tool output 中的等宽字体大小。',
+      codeBlockSizeDescription: '代码和工具输出中的等宽字体大小。',
       codeWrap: '代码自动换行',
       codeWrapDescription: '代码块自动换行，而非水平滚动。',
       interactionRendering: '交互与渲染',
       interactionRenderingDescription:
-        '自定义 Tool call 详细度、工作详情展开策略和 Artifact 动态渲染。',
-      toolCallDensity: 'Tool call 密度',
-      toolCallDensityDescription: '调整 Tool call 显示的详细程度。',
+        '自定义工具调用详细度、工作详情展开策略和产物（Artifact）渲染。',
+      toolCallDensity: '工具调用显示密度',
+      toolCallDensityDescription: '调整工具调用信息的展示详细程度。',
       compact: '紧凑',
       comfortable: '适中',
       detailed: '详细',
       workDetailsDefault: '工作详情默认展开',
-      workDetailsDefaultDescription: '控制 assistant message 中工作详情的默认展开方式。',
+      workDetailsDefaultDescription: '控制助手回复中工作过程与步骤的默认展开状态。',
       auto: '自动',
       always: '始终展开',
       collapsed: '默认收起',
       codeFirstMode: '代码优先',
       codeFirstModeDescription:
-        '仅影响 Inline Artifact：默认展示源代码，并提供 Preview 切换。显式 Canvas 仍会在回复完成后自动打开。',
-      resetDefaults: '重置 Appearance 默认值',
+        '仅影响行内产物：默认展示源代码，可手动切换预览；画布（Canvas）仍会在回复完成后自动展开。',
+      resetDefaults: '恢复外观默认设置',
     },
   },
   en: {
@@ -1053,6 +1056,8 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       flatList: 'Flat list',
       filters: 'Filters',
       openWorkspaceFolder: 'Open workspace folder',
+      repoWorktreeGroup: (repoName, worktreeCount) =>
+        `${repoName} (repo · ${worktreeCount} worktrees)`,
       newConversationInProject: (projectName) => `New conversation in ${projectName}`,
       removeProjectFromSidebar: 'Remove from sidebar',
       collapseProjects: 'Collapse project list',
@@ -1326,13 +1331,13 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
       personalization: isChinese ? '个性化' : 'Personalization',
       backToWorkspace: isChinese ? '返回工作区' : 'Back to workspace',
       configuredLocally: isChinese ? '已保存在本地' : 'Saved locally',
-      remoteHostViewOnly: isChinese ? '远程 Host · 只能看' : 'Remote Host · View only',
+      remoteHostViewOnly: isChinese ? '远程 Host · 只读' : 'Remote Host · View only',
       remoteSavedOnHost: isChinese ? '已保存到 Host' : 'Saved on Host',
       remoteSettingsViewOnly: isChinese
-        ? '这个 Host 没有开放远程改设置。连上能写的 Host 后再改。'
+        ? '当前 Host 未开启远程配置修改权限。请连接具备写权限的 Host。'
         : 'This Host is not accepting remote settings writes. Connect to a Host that does.',
       remoteSettingsSaveBlocked: isChinese
-        ? '这个 Host 没有开放远程改设置。'
+        ? '当前 Host 未开启远程配置修改权限。'
         : 'This Host is not accepting remote settings writes.',
       domainConflict: isChinese
         ? '这部分设置已被另一端改过，请先重新加载再保存'
@@ -1375,7 +1380,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
       web: {
         searchRoute: isChinese ? '搜索路由' : 'Search route',
         searchRouteDescription: isChinese
-          ? '每次生成只选择一个搜索出口；不会在请求失败后静默重试另一个出口。'
+          ? '每次请求仅使用一种搜索渠道；若失败不会静默切换至其他渠道重试。'
           : 'Each generation uses one search outlet; a completed or failed request is never silently retried through the other outlet.',
         nativeSearchFirst: isChinese ? '模型内置搜索优先' : 'Native search first',
         externalSearchFirst: isChinese ? '外部搜索优先（默认）' : 'External search first (default)',

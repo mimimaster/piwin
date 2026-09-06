@@ -8,6 +8,72 @@ export const HOST_PICKER_FAVORITES = [
   'Developer',
 ] as const;
 
+export const HOST_PICKER_COLUMN_WIDTH = 200;
+export const HOST_PICKER_COLUMN_MIN = 128;
+export const HOST_PICKER_COLUMN_MAX = 560;
+export const HOST_PICKER_SIDEBAR_WIDTH = 148;
+export const HOST_PICKER_SIDEBAR_MIN = 108;
+export const HOST_PICKER_SIDEBAR_MAX = 280;
+export const HOST_PICKER_DIALOG_MIN_WIDTH = 520;
+export const HOST_PICKER_DIALOG_MIN_HEIGHT = 300;
+export const HOST_PICKER_MAX_ANCESTOR_COLUMNS = 8;
+
+export function clampPickerMeasure(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, Math.round(value)));
+}
+
+/** Slash-normalize Host paths so POSIX and Windows listings compare the same way. */
+export function normalizeHostPickerPath(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return '';
+  }
+  const slash = trimmed.replace(/\\/g, '/');
+  if (slash === '/') {
+    return '/';
+  }
+  return slash.replace(/\/+$/, '');
+}
+
+export function hostPathContains(parentPath: string, childPath: string): boolean {
+  const parent = normalizeHostPickerPath(parentPath);
+  const child = normalizeHostPickerPath(childPath);
+  if (parent.length === 0 || child.length === 0) {
+    return false;
+  }
+  if (parent === child) {
+    return true;
+  }
+  if (parent === '/') {
+    return child.startsWith('/');
+  }
+  return child.startsWith(`${parent}/`);
+}
+
+export function shouldListParentColumn(listing: HostListDirData): boolean {
+  const parentPath = listing.parentPath;
+  if (!parentPath) {
+    return false;
+  }
+  if (!hostPathContains(listing.homePath, listing.path)) {
+    return false;
+  }
+  if (normalizeHostPickerPath(listing.path) === normalizeHostPickerPath(listing.homePath)) {
+    return false;
+  }
+  return hostPathContains(listing.homePath, parentPath);
+}
+
+export function pickerRowSelected(entry: HostDirEntry, focusPath: string): boolean {
+  if (entry.path === focusPath) {
+    return true;
+  }
+  if (entry.kind !== 'directory') {
+    return false;
+  }
+  return hostPathContains(entry.path, focusPath);
+}
+
 export type HostPickerSidebarItem = {
   name: string;
   path: string;

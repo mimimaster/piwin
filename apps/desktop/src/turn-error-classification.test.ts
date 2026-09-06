@@ -115,6 +115,34 @@ describe('classifyAgentFailure', () => {
       category: 'unknown',
       titleZh: '生成失败',
       titleEn: 'Generation failed',
+      primaryAction: 'retry',
+    });
+  });
+
+  it('maps backend crashes and protocol errors to concrete titles', () => {
+    expect(
+      classifyAgentFailure({
+        code: 'backend-worker-crash',
+        origin: 'runtime',
+        message: 'worker exited',
+        retriable: true,
+      }),
+    ).toMatchObject({
+      category: 'unknown',
+      titleZh: '后端进程异常',
+      primaryAction: 'retry',
+    });
+    expect(
+      classifyAgentFailure({
+        code: 'backend-protocol-error',
+        origin: 'protocol',
+        message: 'bad frame',
+        retriable: false,
+      }),
+    ).toMatchObject({
+      category: 'unknown',
+      titleZh: '协议错误',
+      primaryAction: 'retry',
     });
   });
 });

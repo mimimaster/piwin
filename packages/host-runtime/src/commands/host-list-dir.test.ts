@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, realpath, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -81,5 +81,24 @@ describe('handleHostListDir', () => {
     );
     expect(visibleNames).not.toContain('.piwin');
     expect(visibleNames).toContain('visible.txt');
+  });
+
+  it('lists symlink files and directories as their targets', async () => {
+    const rootDir = await mkdtemp(join(os.tmpdir(), 'piwin-host-list-dir-link-'));
+    const realDir = join(rootDir, 'real-dir');
+    const realFile = join(rootDir, 'real.txt');
+    await mkdir(realDir);
+    await writeFile(realFile, 'ok');
+    await symlink(realDir, join(rootDir, 'link-dir'));
+    await symlink(realFile, join(rootDir, 'link.txt'));
+
+    const response = await handleHostListDir({ type: 'host/list-dir', path: rootDir }, 'list-link');
+    expect(response.success).toBe(true);
+    if (!response.success) {
+      throw new Error(response.error);
+    }
+    const entries = (response.data as { entries: Array<{ name: string; kind: string }> }).entries;
+    expect(entries.find((entry) => entry.name === 'link-dir')?.kind).toBe('directory');
+    expect(entries.find((entry) => entry.name === 'link.txt')?.kind).toBe('file');
   });
 });

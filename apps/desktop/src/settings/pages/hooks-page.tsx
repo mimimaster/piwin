@@ -31,9 +31,9 @@ function eventLabel(event: string, isChinese: boolean): string {
     case 'agent_end':
       return isChinese ? '会话结束' : 'Agent end';
     case 'turn_start':
-      return isChinese ? '回合开始' : 'Turn start';
+      return isChinese ? '一轮问答开始' : 'Turn start';
     case 'turn_end':
-      return isChinese ? '回合结束' : 'Turn end';
+      return isChinese ? '一轮问答结束' : 'Turn end';
     case 'tool_execution_end':
       return isChinese ? '工具执行后' : 'After tool';
     case 'tool_call':
@@ -168,7 +168,7 @@ export function HooksPage(): ReactElement {
         title="Hooks"
         description={
           isChinese
-            ? '拦截 Agent 生命周期：扩展用 pi.on 注册运行时钩子（可拦工具）；你也可以加回合结束后的 shell / HTTP 钩子。视觉委托是提示阶段的内置拦截。'
+            ? '管理 Agent 生命周期钩子：扩展可注册运行时钩子（支持拦截工具调用）；也可配置在对话轮次结束后执行 Shell 或 HTTP 动作。'
             : 'Intercept the agent lifecycle. Extensions register runtime hooks with pi.on (they can block tools). You can also add post-event shell or HTTP hooks. Vision delegation is a built-in prompt intercept.'
         }
       />
@@ -177,25 +177,25 @@ export function HooksPage(): ReactElement {
 
       <div className="settings-section settings-section-card">
         <FieldRow
-          label={isChinese ? '启用事件钩子' : 'Arm event hooks'}
+          label={isChinese ? '启用事件钩子' : 'Enable event hooks'}
           description={
             isChinese
-              ? '打开后，下面配置的 shell / HTTP 钩子才会在回合事件上开火。扩展拦截不依赖这个开关。'
-              : 'Post-event shell/HTTP hooks only fire when this is on. Extension intercepts follow the extension toggle.'
+              ? '启用后，下方配置的 Shell / HTTP 钩子才会在所选时机执行，例如一轮问答开始或结束。扩展拦截不受此开关控制。'
+              : 'When enabled, the shell and HTTP hooks configured below will run at the selected moments, such as the start or end of a conversation turn. Extension intercepts are not controlled by this switch.'
           }
         >
           <Switch
             checked={armed}
             onCheckedChange={(checked) => void armHooks(checked)}
-            aria-label={isChinese ? '启用事件钩子' : 'Arm event hooks'}
+            aria-label={isChinese ? '启用事件钩子' : 'Enable event hooks'}
             testId="hooks-arm-switch"
           />
         </FieldRow>
         {!armed && hooks.length > 0 ? (
           <Notice tone="warning">
             {isChinese
-              ? '钩子已保存但未启用，回合事件不会触发它们。'
-              : 'Hooks are saved but not armed — turn events will not run them.'}
+              ? '钩子已保存但尚未启用，到达所选时机时不会执行。'
+              : 'Hooks are saved but not enabled. They will not run at the selected moments.'}
           </Notice>
         ) : null}
       </div>
@@ -205,7 +205,7 @@ export function HooksPage(): ReactElement {
           title={isChinese ? '扩展拦截' : 'Extension intercepts'}
           description={
             isChinese
-              ? '从已安装扩展源码里扫到的 pi.on 事件，不会执行扩展。'
+              ? '已安装扩展中静态检测到的 pi.on 事件钩子（仅做展示，不会主动执行扩展代码）。'
               : 'pi.on events detected in installed extension source. Modules are not executed.'
           }
         />
@@ -240,7 +240,7 @@ export function HooksPage(): ReactElement {
           title={isChinese ? '相关拦截' : 'Related intercepts'}
           description={
             isChinese
-              ? '主模型看不见像素时，视觉委托在发提示前用视觉模型描述图片。'
+              ? '当主模型不支持视觉能力时，视觉委托将在发送提示前自动调用视觉模型生成图片描述。'
               : 'When the primary model cannot see pixels, vision delegation describes images before the prompt is sent.'
           }
         />
@@ -252,7 +252,7 @@ export function HooksPage(): ReactElement {
                 <span className="pill">{visionEnabled ? (isChinese ? '开' : 'On') : isChinese ? '关' : 'Off'}</span>
               </div>
               <div className="muted ext-desc">
-                {isChinese ? '提示准备阶段拦截图片附件' : 'Prompt-prep intercept for image attachments'}
+                {isChinese ? '在提示准备阶段自动转换图片附件' : 'Prompt-prep intercept for image attachments'}
               </div>
             </div>
             <Button size="compact" variant="ghost" onClick={() => selectSection('models')}>
@@ -267,8 +267,8 @@ export function HooksPage(): ReactElement {
           title={isChinese ? '事件钩子' : 'Event hooks'}
           description={
             isChinese
-              ? '回合结束后跑本地命令或 HTTP，不会挡住工具，也不替代权限规则。'
-              : 'Run a local command or HTTP after a turn event. These never block tools and are not a permission policy.'
+              ? '在一轮问答结束后运行本地命令或发送 HTTP 请求。这些钩子不会拦截工具，也不能替代权限规则。'
+              : 'Run a local command or HTTP request after a conversation turn. These never block tools and are not a permission policy.'
           }
         />
         <div

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  humanizeToolCallName,
+  kindVerb,
   looksLikeArgsDumpSummary,
   recoverSummaryFromInputPreview,
   resolveMcpHeaderPreview,
@@ -42,7 +44,6 @@ describe('resolveToolCallHeaderPreview', () => {
         singleBasename: '',
         isPathLike: false,
         expanded: false,
-        hasDetailInBody: true,
       }),
     ).toBe(shellCommand);
   });
@@ -57,12 +58,11 @@ describe('resolveToolCallHeaderPreview', () => {
         singleBasename: '',
         isPathLike: false,
         expanded: true,
-        hasDetailInBody: true,
       }),
     ).toBe('');
   });
 
-  it('keeps search query preview while expanded when body has no command block', () => {
+  it('hides search query preview while expanded', () => {
     expect(
       resolveToolCallHeaderPreview({
         summary: 'lru cache ttl',
@@ -72,9 +72,8 @@ describe('resolveToolCallHeaderPreview', () => {
         singleBasename: '',
         isPathLike: false,
         expanded: true,
-        hasDetailInBody: false,
       }),
-    ).toBe('lru cache ttl');
+    ).toBe('');
   });
 
   it('never shows raw MCP args dump in the header (collapsed or expanded)', () => {
@@ -88,7 +87,6 @@ describe('resolveToolCallHeaderPreview', () => {
         singleBasename: '',
         isPathLike: false,
         expanded: false,
-        hasDetailInBody: true,
         isArgsDumpSummary: true,
       }),
     ).toBe('');
@@ -101,7 +99,6 @@ describe('resolveToolCallHeaderPreview', () => {
         singleBasename: '',
         isPathLike: false,
         expanded: true,
-        hasDetailInBody: true,
         isArgsDumpSummary: true,
       }),
     ).toBe('');
@@ -117,13 +114,12 @@ describe('resolveToolCallHeaderPreview', () => {
         singleBasename: '',
         isPathLike: false,
         expanded: false,
-        hasDetailInBody: true,
         isArgsDumpSummary: false,
       }),
     ).toBe('agent_memory_get_context');
   });
 
-  it('keeps MCP identity preview while expanded (body owns JSON args, not the name)', () => {
+  it('hides MCP identity preview while expanded', () => {
     expect(
       resolveToolCallHeaderPreview({
         summary: 'github / search · piwin',
@@ -133,13 +129,12 @@ describe('resolveToolCallHeaderPreview', () => {
         singleBasename: '',
         isPathLike: false,
         expanded: true,
-        hasDetailInBody: true,
         keepTitlePreview: true,
       }),
-    ).toBe('github / search · piwin');
+    ).toBe('');
   });
 
-  it('keeps MCP identity preview when it repeats the title (verb is generic 已调用)', () => {
+  it('keeps MCP identity preview when it repeats the title on a collapsed row', () => {
     expect(
       resolveToolCallHeaderPreview({
         summary: 'agent-memory / agent_memory_get_context',
@@ -149,7 +144,6 @@ describe('resolveToolCallHeaderPreview', () => {
         singleBasename: '',
         isPathLike: false,
         expanded: false,
-        hasDetailInBody: true,
         keepTitlePreview: true,
       }),
     ).toBe('agent-memory / agent_memory_get_context');
@@ -217,6 +211,14 @@ describe('looksLikeArgsDumpSummary', () => {
     ).toBe(true);
     expect(looksLikeArgsDumpSummary('{"prompt":"a long prompt that got cut…')).toBe(true);
     expect(looksLikeArgsDumpSummary('[ "/tmp/a.png", "/tmp/b…')).toBe(true);
+  });
+});
+
+describe('kindVerb', () => {
+  it('does not leave a snake_case tool name as the fallback verb', () => {
+    expect(kindVerb('unknown', 'custom_debugger')).toBe('custom debugger');
+    expect(humanizeToolCallName('search_replace')).toBe('search replace');
+    expect(kindVerb('filesystem', 'read_file')).toBe('Read');
   });
 });
 

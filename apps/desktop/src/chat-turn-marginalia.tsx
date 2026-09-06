@@ -19,11 +19,86 @@ export function formatTurnClock(iso: string): string {
   return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
-/** 'claude-sonnet-4-6' → 'Sonnet 4.6'; 'gpt-5.4' → 'GPT-5.4'; fallback: capitalize. */
+/**
+ * Short, clean label for display in marginalia.
+ *
+ * Normalizes vendor prefixes, snapshot dates, and version patterns:
+ * - 'claude-3-7-sonnet-20250219' → 'Sonnet 3.7'
+ * - 'claude-sonnet-4-6' → 'Sonnet 4.6'
+ * - 'gemini-2-5-pro' → 'Gemini 2.5 Pro'
+ * - 'deepseek-reasoner' → 'DeepSeek R1'
+ * - 'deepseek-chat' → 'DeepSeek V3'
+ * - 'openai-gpt-5-4' → 'GPT-5.4'
+ * - 'gpt-4o-2024-11-20' → 'GPT-4o'
+ */
 export function shortModelLabel(modelId: string): string {
-  const stripped = modelId.replace(/^(claude|anthropic|openai|google|gemini|deepseek|gpt)-/i, '');
+  if (!modelId) return '';
+  const trimmed = modelId.trim();
+
+  // Strip org prefix before slash (e.g. 'anthropic/claude-3-7-sonnet' -> 'claude-3-7-sonnet')
+  const afterSlash = trimmed.split(/[\\/]/).pop() ?? trimmed;
+
+  // Specific canonical mappings first
+  if (/^deepseek-reasoner/i.test(afterSlash)) return 'DeepSeek R1';
+  if (/^deepseek-chat/i.test(afterSlash)) return 'DeepSeek V3';
+
+  // Strip date stamps at the end: e.g. -20250219, -2024-11-20, -20241022, -01-21, -latest, -preview
+  const clean = afterSlash
+    .replace(/[-_]\d{4}[-_]\d{2}[-_]\d{2}$/, '')
+    .replace(/[-_]\d{8}$/, '')
+    .replace(/[-_]\d{2}-\d{2}$/, '')
+    .replace(/[-_](latest|preview|exp)$/i, '');
+
+  // Claude: claude-3-7-sonnet -> Sonnet 3.7; claude-sonnet-4-6 -> Sonnet 4.6
+  const claudeMatch = clean.match(/^claude-(?:(\d+)[-_](\d+)[-_])?([a-z]+)(?:[-_](\d+)(?:[-_](\d+))?)?/i);
+  if (claudeMatch) {
+    const major = claudeMatch[1] ?? claudeMatch[4];
+    const minor = claudeMatch[2] ?? claudeMatch[5];
+    const familyRaw = claudeMatch[3] ?? '';
+    const family = familyRaw.charAt(0).toUpperCase() + familyRaw.slice(1).toLowerCase();
+    if (major && minor) return `${family} ${major}.${minor}`;
+    if (major) return `${family} ${major}`;
+    if (family) return family;
+  }
+
+  // Gemini: gemini-2-5-pro -> Gemini 2.5 Pro; gemini-2.0-flash... -> Gemini 2.0 Flash
+  const geminiMatch = clean.match(/^gemini[-_](\d+)(?:[._-](\d+))?[-_]([a-z]+)/i);
+  if (geminiMatch) {
+    const major = geminiMatch[1];
+    const minor = geminiMatch[2] ?? '0';
+    const tierRaw = geminiMatch[3] ?? '';
+    const tier = tierRaw.charAt(0).toUpperCase() + tierRaw.slice(1).toLowerCase();
+    return `Gemini ${major}.${minor} ${tier}`;
+  }
+
+  // GPT: gpt-4o, gpt-4o-mini, gpt-5-4, openai-gpt-5-4
+  const gptMatch = clean.match(/^(?:openai[-_])?gpt[-_]([0-9a-z.-]+)/i);
+  if (gptMatch) {
+    const rest = gptMatch[1] ?? '';
+    if (/^\d+[-_.]\d+$/.test(rest)) {
+      return `GPT-${rest.replace(/[-_]/g, '.')}`;
+    }
+    if (/^4o[-_]mini$/i.test(rest)) return 'GPT-4o mini';
+    if (/^4o$/i.test(rest)) return 'GPT-4o';
+    return `GPT-${rest}`;
+  }
+
+  // o1 / o3: o1-mini, o3-mini, o1
+  if (/^o[13](?:-mini)?$/i.test(clean)) {
+    return clean;
+  }
+
+  // DeepSeek: DeepSeek-V3, DeepSeek-R1
+  const dsMatch = clean.match(/^deepseek[-_](r1|v3)/i);
+  if (dsMatch) {
+    const ver = dsMatch[1]?.toUpperCase() ?? '';
+    return `DeepSeek ${ver}`;
+  }
+
+  // Fallback cleanup: strip leading vendor prefixes
+  const stripped = clean.replace(/^(claude|anthropic|openai|google|gemini|deepseek|gpt)-/i, '');
   const parts = stripped.split(/[-_.]/).filter(Boolean);
-  if (parts.length === 0) return modelId;
+  if (parts.length === 0) return clean;
   const head = parts[0] ?? '';
   const tailParts = parts.slice(1);
   const name = head.charAt(0).toUpperCase() + head.slice(1);
@@ -35,10 +110,16 @@ export function shortModelLabel(modelId: string): string {
 }
 
 export function resolveModelAvatarInitial(
-  _modelId?: string,
-  _providerId?: string,
+  modelId?: string,
+  providerId?: string,
   themeId?: string,
 ): string {
+  const target = `${providerId ?? ''} ${modelId ?? ''}`.toLowerCase();
+  if (target.includes('claude') || target.includes('anthropic')) return 'C';
+  if (target.includes('gemini') || target.includes('google')) return 'G';
+  if (target.includes('deepseek')) return 'D';
+  if (target.includes('qwen')) return 'Q';
+  if (target.includes('openai') || target.includes('gpt') || target.includes('o1') || target.includes('o3')) return 'O';
   if (themeId && !themeId.includes('inkstone')) {
     return '智';
   }
@@ -60,6 +141,7 @@ export function formatDurationSeconds(ms: number): string {
 
 export type TurnMarginaliaData = {
   who: string;
+  fullModelId?: string | null | undefined;
   avatar: string | null;
   clock: string;
   usage: string | null;
@@ -103,7 +185,7 @@ export function resolveTurnMarginalia(
           : 'Intervention'
         : null;
     return {
-      who: options?.locale === 'en' ? 'You' : '我',
+      who: options?.locale === 'en' ? 'You' : '你',
       avatar: null,
       clock: formatTurnClock(lead?.createdAt ?? ''),
       usage,
@@ -146,6 +228,7 @@ export function resolveTurnMarginalia(
 
   return {
     who: label,
+    fullModelId: modelId.length > 0 ? modelId : label,
     avatar,
     clock: formatTurnClock(assistantMsg?.createdAt ?? ''),
     usage,
@@ -155,10 +238,19 @@ export function resolveTurnMarginalia(
 
 export function ChatTurnMarginalia(props: { data: TurnMarginaliaData }): ReactElement {
   const { data } = props;
+  const isAssistant = data.avatar !== null;
   return (
-    <aside className="marg chat-marginalia" aria-hidden="true">
+    <aside
+      className={`marg chat-marginalia ${isAssistant ? 'is-assistant' : 'is-user'}`}
+      aria-hidden="true"
+    >
       {data.avatar !== null ? <div className="av">{data.avatar}</div> : null}
-      <span className={data.avatar !== null ? 'who' : 'who is-user'}>{data.who}</span>
+      <span
+        className={isAssistant ? 'who' : 'who is-user'}
+        {...(data.fullModelId ? { title: data.fullModelId } : {})}
+      >
+        {data.who}
+      </span>
       {data.clock.length > 0 ? <span>{data.clock}</span> : null}
       {data.usage !== null ? <span>{data.usage}</span> : null}
       {data.status ? <span data-st="status">{data.status}</span> : null}
@@ -168,10 +260,19 @@ export function ChatTurnMarginalia(props: { data: TurnMarginaliaData }): ReactEl
 
 export function ChatTurnHead(props: { data: TurnMarginaliaData }): ReactElement {
   const { data } = props;
+  const isAssistant = data.avatar !== null;
   return (
-    <div className="head chat-turn-head" aria-hidden="true">
+    <div
+      className={`head chat-turn-head ${isAssistant ? 'is-assistant' : 'is-user'}`}
+      aria-hidden="true"
+    >
       {data.avatar !== null ? <span className="av">{data.avatar}</span> : null}
-      <span className={data.avatar !== null ? 'who' : 'who is-user'}>{data.who}</span>
+      <span
+        className={isAssistant ? 'who' : 'who is-user'}
+        {...(data.fullModelId ? { title: data.fullModelId } : {})}
+      >
+        {data.who}
+      </span>
       {data.clock.length > 0 ? <span>{data.clock}</span> : null}
       {data.usage !== null ? <span>{data.usage}</span> : null}
       {data.status ? <span data-st="status">{data.status}</span> : null}

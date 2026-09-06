@@ -279,7 +279,7 @@ export function SessionRuntimePage(): ReactElement {
     if (await saveConfig(next)) {
       setInfo(
         isZh
-          ? '已保存同时执行任务数。正在运行的任务不会被杀掉。'
+          ? '已保存并发任务上限。正在运行的任务将继续执行，不会被强制终止。'
           : 'Concurrent run limit saved. Active runs are not killed.',
       );
       void refreshResources();
@@ -339,7 +339,7 @@ export function SessionRuntimePage(): ReactElement {
                 ? '运行中（Live）'
                 : 'Live'
               : isZh
-                ? '惰性外壳（Lazy shell）'
+                ? '轻量外壳（Lazy shell）'
                 : 'Lazy shell';
 
   const residencyValue = runtimeStatus?.residency;
@@ -366,7 +366,7 @@ export function SessionRuntimePage(): ReactElement {
 
         {runtimeStatus?.generationId ? (
           <div className="ui-field-row">
-            <span className="muted">{isZh ? '运行时代次' : 'Generation'}:</span>
+            <span className="muted">{isZh ? '运行时版本' : 'Generation'}:</span>
             <code data-testid="runtime-generation-id">{runtimeStatus.generationId}</code>
           </div>
         ) : null}
@@ -382,7 +382,7 @@ export function SessionRuntimePage(): ReactElement {
 
         {evictionLabel ? (
           <div className="ui-field-row" data-testid="runtime-eviction-row">
-            <span className="muted">{isZh ? '上次挂起原因' : 'Last eviction'}:</span>
+            <span className="muted">{isZh ? '上次置换原因' : 'Last eviction'}:</span>
             <span data-testid="runtime-eviction-value">{evictionLabel}</span>
           </div>
         ) : null}
@@ -442,7 +442,7 @@ export function SessionRuntimePage(): ReactElement {
               {isZh
                 ? failed
                   ? '请检查错误后重试运行时更新；新消息不会静默使用旧配置。'
-                  : '当前 Run 完成后 Host 会自动应用最新设置；真正的安全收紧会立即生效。'
+                  : '高危安全限制将立即生效；其余常规设置将在当前任务执行完成后自动应用。'
                 : failed
                   ? 'Retry the runtime update after resolving the error; new prompts will not silently use stale configuration.'
                   : 'The Host applies the latest settings after the current Run; genuine safety tightening takes effect immediately.'}
@@ -451,7 +451,7 @@ export function SessionRuntimePage(): ReactElement {
         ) : (
           <p className="muted" data-testid="runtime-fresh-note">
             {isZh
-              ? '当前 Agent 与最新设置一致。冷态会话仍可浏览历史；发送消息时 Host 会透明恢复运行时。'
+              ? '当前 Agent 已应用最新配置。已转储会话仍可浏览历史记录；发送新消息时将自动恢复运行时。'
               : 'The current Agent matches the latest settings. Cold sessions keep history usable; the Host reactivates the runtime on the next prompt.'}
           </p>
         )}
@@ -464,14 +464,14 @@ export function SessionRuntimePage(): ReactElement {
         <h3 className="settings-section-title">{isZh ? '同时执行任务数' : 'Concurrent runs'}</h3>
         <p className="muted">
           {isZh
-            ? '限制同时调用模型/工具的叶子任务，不是会话数量，也不是 Worker 数量。'
+            ? '限制同时调用模型与工具的并发操作数，而非限制会话数或 Worker 进程数。'
             : 'Caps simultaneous model/tool leaf tasks — not session count, and not workers.'}
         </p>
         <FieldRow
           label={isZh ? '同时执行任务数' : 'Max concurrent runs'}
           description={
             isZh
-              ? `默认 ${DEFAULT_MAX_CONCURRENT_RUNS}，范围 1–${MAX_CONCURRENT_RUNS}。降低上限不会杀掉正在运行的任务。`
+              ? `默认 ${DEFAULT_MAX_CONCURRENT_RUNS}，范围 1–${MAX_CONCURRENT_RUNS}。调低上限不会强制终止正在运行的任务。`
               : `Default ${DEFAULT_MAX_CONCURRENT_RUNS}, range 1–${MAX_CONCURRENT_RUNS}. Lowering the cap does not kill active runs.`
           }
           testId="execution-max-concurrent-row"
@@ -533,7 +533,7 @@ export function SessionRuntimePage(): ReactElement {
           label={isZh ? '最大空闲运行时数' : 'Max idle runtimes'}
           description={
             isZh
-              ? `默认 ${DEFAULT_MAX_IDLE_RUNTIMES}。超出部分按 LRU 立即成为挂起候选。`
+              ? `默认 ${DEFAULT_MAX_IDLE_RUNTIMES}。超出部分将按最久未使用原则（LRU）优先置换休眠。`
               : `Default ${DEFAULT_MAX_IDLE_RUNTIMES}. Idle runtimes above this count become LRU victims immediately.`
           }
           testId="runtime-retention-max-idle-row"
@@ -638,7 +638,7 @@ export function SessionRuntimePage(): ReactElement {
             </p>
           ) : null}
           <div className="ui-field-row">
-            <span className="muted">{isZh ? '等待容量' : 'Waiters'}:</span>
+            <span className="muted">{isZh ? '排队请求' : 'Waiters'}:</span>
             <span data-testid="runtime-resources-waiters">{resources.waiterCount}</span>
           </div>
           {resources.workers ? (
@@ -673,7 +673,7 @@ export function SessionRuntimePage(): ReactElement {
             </span>
           </div>
           <div className="ui-field-row">
-            <span className="muted">{isZh ? '挂起计数' : 'Evictions'}:</span>
+            <span className="muted">{isZh ? '置换次数' : 'Evictions'}:</span>
             <span data-testid="runtime-resources-counters">
               ttl={resources.counters.evictedByIdleTtl} · idle=
               {resources.counters.evictedByMaxIdle} · resident=

@@ -1,6 +1,7 @@
 /**
  * host/list-dir — Host filesystem listing for the shell workspace picker.
  */
+import type { Dirent } from 'node:fs';
 import { readdir, realpath, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -9,6 +10,33 @@ import { formatError } from '@piwin/contracts';
 import { fail, ok } from '../response-helpers.js';
 
 const MAX_ENTRIES = 800;
+
+async function classifyDirent(
+  dirent: Dirent,
+  parentPath: string,
+): Promise<'directory' | 'file' | null> {
+  if (dirent.isDirectory()) {
+    return 'directory';
+  }
+  if (dirent.isFile()) {
+    return 'file';
+  }
+  if (!dirent.isSymbolicLink()) {
+    return null;
+  }
+  try {
+    const target = await stat(path.join(parentPath, dirent.name));
+    if (target.isDirectory()) {
+      return 'directory';
+    }
+    if (target.isFile()) {
+      return 'file';
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 export async function handleHostListDir(
   command: Extract<HostCommand, { type: 'host/list-dir' }>,
@@ -36,6 +64,7 @@ export async function handleHostListDir(
   }
 
   const entries: HostDirEntry[] = [];
+  const unresolved: Dirent[] = [];
   for (const dirent of directoryEntries) {
     if (dirent.name === '.' || dirent.name === '..') {
       continue;
@@ -43,17 +72,47 @@ export async function handleHostListDir(
     if (!command.includeHidden && dirent.name.startsWith('.')) {
       continue;
     }
-    const kind = dirent.isDirectory() ? 'directory' : dirent.isFile() ? 'file' : null;
-    if (kind === null) {
-      continue;
+    if (dirent.isDirectory()) {
+      entries.push({
+        name: dirent.name,
+        kind: 'directory',
+        path: path.join(targetAbsolute, dirent.name),
+      });
+    } else if (dirent.isFile()) {
+      entries.push({
+        name: dirent.name,
+        kind: 'file',
+        path: path.join(targetAbsolute, dirent.name),
+      });
+    } else if (dirent.isSymbolicLink()) {
+      unresolved.push(dirent);
     }
-    entries.push({
-      name: dirent.name,
-      kind,
-      path: path.join(targetAbsolute, dirent.name),
-    });
     if (entries.length >= MAX_ENTRIES) {
       break;
+    }
+  }
+  if (entries.length < MAX_ENTRIES && unresolved.length > 0) {
+    const linked = await Promise.all(
+      unresolved.map(async (dirent) => {
+        const kind = await classifyDirent(dirent, targetAbsolute);
+        if (kind === null) {
+          return null;
+        }
+        return {
+          name: dirent.name,
+          kind,
+          path: path.join(targetAbsolute, dirent.name),
+        } satisfies HostDirEntry;
+      }),
+    );
+    for (const entry of linked) {
+      if (!entry) {
+        continue;
+      }
+      entries.push(entry);
+      if (entries.length >= MAX_ENTRIES) {
+        break;
+      }
     }
   }
   entries.sort((left, right) => {

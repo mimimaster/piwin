@@ -92,7 +92,7 @@ export function ReplyWriterSettings(): ReactElement {
         title={isChinese ? '输出委托' : 'Reply Writer'}
         description={
           isChinese
-            ? '干活模型跑完后，用另一个模型把可见回复改写成能读的人话。工具和改文件仍由当前会话模型完成。'
+            ? '主模型完成任务推理与工具调用后，由写作模型优化最终回复的表达方式，使其更通顺易读。'
             : 'After the worker model finishes, rewrite the visible reply with another model. Tools and edits still use the session model.'
         }
         trailing={
@@ -120,7 +120,7 @@ export function ReplyWriterSettings(): ReactElement {
           label={isChinese ? '启用输出委托' : 'Enable reply writer'}
           description={
             isChinese
-              ? '开启后，每轮成功结束都会多一次写作模型调用，并替换气泡正文。原草稿会留在记录里。'
+              ? '开启后，每轮对话完成后将调用写作模型重写回复正文，原始草稿仍会保留在历史记录中。'
               : 'When on, each successful turn makes one extra writer call and replaces the bubble text. The worker draft is kept on the record.'
           }
           checked={draftEnabled}
@@ -175,7 +175,7 @@ export function ReplyWriterSettings(): ReactElement {
           >
             <option value="zh-CN">{isChinese ? '简体中文' : 'Simplified Chinese'}</option>
             <option value="en">{isChinese ? '英文' : 'English'}</option>
-            <option value="follow-user">{isChinese ? '跟用户语言' : 'Follow the user'}</option>
+            <option value="follow-user">{isChinese ? '跟随提问语言' : 'Follow the user'}</option>
           </select>
         </Field>
 
@@ -198,7 +198,7 @@ export function ReplyWriterSettings(): ReactElement {
 
         <p className="vision-settings-note">
           {isChinese
-            ? '写作模型和干活模型相同时会跳过。子代理和侧边对话不会改写。失败时保留原来的正文。'
+            ? '写作模型与主执行模型相同时会自动跳过。子代理与侧边会话不进行改写；调用失败时保留原始回复。'
             : 'Skipped when the writer is the same as the worker. Subagents and side chats are not rewritten. Failures keep the original text.'}
         </p>
       </div>

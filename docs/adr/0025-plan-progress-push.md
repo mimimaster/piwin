@@ -46,7 +46,8 @@ HostRuntime
   → PiSdkAdapter / RPC-SDK-fallback options
   → createPlanCreateTool / createPlanStepTool({ onUpdated })
   → this.push({ type: 'plan/updated', sessionId, plan })
-  → Desktop plansBySessionId[sessionId] → active-session PlanCard
+  → Desktop plansBySessionId[sessionId] → composer-adjacent plan todo tray
+    (Claude Code placement: above the input, not the transcript top)
 ```
 
 Scope of this ADR:
@@ -64,7 +65,9 @@ Prefer one thin seam over a new subsystem. Restore the same SessionPlan with
 
 ## Consequences
 
-- Model `piwin_plan_set_step` updates become live on PlanCard without reload.
+- Model `piwin_plan_set_step` updates become live on the composer-adjacent
+  plan list without reload. Plan-progress tool rows are hidden from the call
+  chain; the list mutates in place (Claude Code TodoWrite display).
 - Session activation/reconnect hydrates `plan/get`; background pushes remain
   cached under their own session and never replace the active PlanCard.
 - Draft Process carries `expectedRevision + approveDraft` so Host atomically

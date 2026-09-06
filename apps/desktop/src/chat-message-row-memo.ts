@@ -106,6 +106,7 @@ export function areChatMessageRowPropsEqual(
     previous.contextUsage === next.contextUsage &&
     previous.modelOptions === next.modelOptions &&
     previous.configProviders === next.configProviders &&
+    previous.planExecutionGate === next.planExecutionGate &&
     callbackPropsAreStable
   );
 }

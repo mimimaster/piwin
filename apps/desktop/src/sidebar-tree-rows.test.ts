@@ -5,6 +5,7 @@ import { createSessionListScopeState, setSessionListScopeMeta } from './session-
 import {
   buildSidebarTreeRows,
   resolveSidebarProjectCollapsed,
+  sidebarTreeRowInWorktreeCluster,
   sidebarTreeRowKey,
   type SidebarTreeRow,
 } from './sidebar-tree-rows';
@@ -522,6 +523,27 @@ describe('buildSidebarTreeRows', () => {
     expect(kinds(expanded)).toContain('empty:general');
   });
 
+  it('does not show an empty hint under an expanded project folder', () => {
+    const rows = buildSidebarTreeRows({
+      recentProjects: [{ path: '/p' }],
+      projectSessionsByPath: { '/p': [] },
+      generalSessions: [session('g1', 'G')],
+      sessionSearch: '',
+      sessionListOrder: 'updated',
+      projectsSectionExpanded: true,
+      conversationsSectionExpanded: true,
+      collapsedProjects: {},
+      sessionListScopes: createSessionListScopeState(),
+      activeProjectPath: '/p',
+    });
+    expect(kinds(rows)).toEqual([
+      'header:projects',
+      'folder:/p:false',
+      'header:conversations',
+      'session:g1',
+    ]);
+  });
+
   it('reduces the truncation hint after an out-of-bound active upsert', () => {
     const scopes = setSessionListScopeMeta(
       createSessionListScopeState(),
@@ -609,11 +631,60 @@ describe('buildSidebarTreeRows', () => {
         row.kind === 'project-folder' && row.grouped,
     );
     expect(grouped.map((row) => row.projectPath)).toEqual(['/piwin', '/piwin-cc']);
+    const repoGroup = rows.find(
+      (row): row is Extract<SidebarTreeRow, { kind: 'repo-group' }> => row.kind === 'repo-group',
+    );
+    expect(repoGroup?.title).toBe('piwin');
+    expect(repoGroup?.memberCount).toBe(2);
     const notes = rows.find(
       (row): row is Extract<SidebarTreeRow, { kind: 'project-folder' }> =>
         row.kind === 'project-folder' && row.projectPath === '/notes',
     );
     expect(notes?.grouped).toBe(false);
+  });
+
+  it('marks clustered worktree sessions so the ink line can follow the folder', () => {
+    const rows = buildSidebarTreeRows({
+      recentProjects: [
+        {
+          path: '/piwin',
+          displayName: 'piwin',
+          gitRepositoryId: 'repo1',
+          isPrimaryWorktree: true,
+        },
+        { path: '/piwin-v2', displayName: 'piwin-v2', gitRepositoryId: 'repo1' },
+        { path: '/notes', displayName: 'notes' },
+      ],
+      projectSessionsByPath: {
+        '/piwin': [session('clustered', 'Clustered')],
+        '/notes': [session('solo', 'Solo')],
+      },
+      generalSessions: [],
+      sessionSearch: '',
+      sessionListOrder: 'updated',
+      projectsSectionExpanded: true,
+      conversationsSectionExpanded: true,
+      collapsedProjects: { '/piwin': false, '/piwin-v2': true, '/notes': false },
+      sessionListScopes: createSessionListScopeState(),
+    });
+    const clustered = rows.find(
+      (row): row is Extract<SidebarTreeRow, { kind: 'session' }> =>
+        row.kind === 'session' && row.session.id === 'clustered',
+    );
+    const solo = rows.find(
+      (row): row is Extract<SidebarTreeRow, { kind: 'session' }> =>
+        row.kind === 'session' && row.session.id === 'solo',
+    );
+    expect(clustered?.grouped).toBe(true);
+    expect(solo?.grouped).toBeUndefined();
+    expect(clustered ? sidebarTreeRowInWorktreeCluster(clustered) : false).toBe(true);
+    expect(solo ? sidebarTreeRowInWorktreeCluster(solo) : true).toBe(false);
+    expect(
+      rows.some(
+        (row) =>
+          row.kind === 'project-folder' && row.projectPath === '/piwin' && row.grouped,
+      ),
+    ).toBe(true);
   });
 
   it('aggregates pinned sessions at the top and attaches projectSubtitle for project sessions', () => {

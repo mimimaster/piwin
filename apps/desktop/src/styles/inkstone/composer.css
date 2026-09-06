@@ -6,12 +6,21 @@ html[data-theme-id='piwin-inkstone-paper'] .slab,
 html[data-theme-id='piwin-inkstone-ink'] .slab {
   background: var(--slab);
   color: var(--slab-t);
-  border-radius: 12px;
+  border-radius: 10px;
   box-shadow: var(--sh3);
   position: relative;
   /* Slash/mention menus are anchored children and must escape the slab. */
   overflow: visible;
   border: 0;
+}
+
+/* Kill Deck's `.composer-card-v2:focus-within` iris ring. On Inkstone --iris
+   remaps to --zhu, so focus painted a vermillion frame around the dark slab —
+   not in the proto (elevation alone marks the object). Drop-active / queued-
+   edit keep their own rims; those are deliberate state cues. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .slab:is(:focus-within, :hover:focus-within) {
+  box-shadow: var(--sh3);
 }
 
 html[data-slab='paper'] .slab,
@@ -30,22 +39,35 @@ html[data-slab='paper'] .slab,
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .chat-column-empty .composer-dock.layout-centered .slab {
-  border-radius: 12px;
+  border-radius: 10px;
   box-shadow: var(--sh3);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .chat-column-empty .composer-dock.layout-centered .composer-card-v2 {
+  border-radius: 10px;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .chat-column-empty .composer-dock.layout-centered .slab .composer-v2-input-area {
   padding: 10px 14px 2px;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .chat-column-empty .composer-dock.layout-centered .slab .ta {
-  min-height: 48px;
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .chat-column-empty .composer-dock.layout-centered .slab .ta,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .chat-column-empty .composer-dock.layout-centered .slab .composer-v2-textarea {
+  min-height: 52px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .chat-column-empty .composer-context-rail {
+  display: none;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .chat-column-empty .composer-dock.layout-centered .slab .bar {
   padding: 4px 8px 8px;
 }
 
+/* Sheen track (S6.3): idle stays invisible. Paper remap makes --slab-line a
+   visible grey hairline; even on dark slab the idle rim reads as dirt next to
+   --sh3's ring. Keep the ::before mounted so running/streaming/queued-edit can
+   paint the lamp sweep without layout thrash. */
 html[data-theme-id='piwin-inkstone-paper'] .slab::before,
 html[data-theme-id='piwin-inkstone-ink'] .slab::before {
   content: '';
@@ -54,11 +76,11 @@ html[data-theme-id='piwin-inkstone-ink'] .slab::before {
   right: 0;
   top: 0;
   height: 1px;
-  background: var(--slab-line);
+  background: transparent;
   z-index: 2;
+  pointer-events: none;
 }
 
-/* Sheen animation for streaming and queued runs (S6.3) */
 html[data-theme-id='piwin-inkstone-paper'] .app-shell[data-state='running'] .slab::before,
 html[data-theme-id='piwin-inkstone-ink'] .app-shell[data-state='running'] .slab::before,
 html[data-theme-id='piwin-inkstone-paper'] .slab.is-streaming::before,
@@ -157,12 +179,12 @@ html[data-theme-id='piwin-inkstone-paper'] .slab .composer-v2-textarea,
 html[data-theme-id='piwin-inkstone-ink'] .slab .composer-v2-textarea {
   display: block;
   width: 100%;
-  min-height: 48px;
+  min-height: 52px;
   padding: 0;
   background: transparent;
   border: 0;
   color: var(--slab-t);
-  font: 14.5px / 1.6 var(--sans);
+  font: 13.5px / 1.6 var(--sans);
   resize: none;
   outline: 0;
   box-shadow: none;
@@ -309,14 +331,17 @@ html[data-theme-id='piwin-inkstone-ink'] .composer-hint {
   display: flex;
   gap: 14px;
   justify-content: center;
-  margin-top: 6px;
-  font: 11px var(--mono);
+  margin-top: 8px;
+  font: 10px var(--mono);
   color: var(--t4);
   flex-wrap: wrap;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) {
-  .composer-dock { padding: 8px 28px 12px; }
+  .composer-dock {
+    padding: 8px 28px 12px;
+    background: linear-gradient(to bottom, transparent, var(--s2) 40%);
+  }
   .composer-v2-toolbar { justify-content: space-between; }
   .composer-v2-toolbar-left { gap: 2px; flex: 1 1 auto; min-width: 0; }
   .composer-v2-toolbar-right { gap: 2px; flex: 0 0 auto; margin-left: 6px; }

@@ -475,6 +475,11 @@
   overflow: auto;
 }
 
+.right-panel-home > .eyebrow,
+.right-panel-home > h3 {
+  display: none;
+}
+
 .right-panel-home-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

@@ -200,7 +200,7 @@ export function ModelsPage(): ReactElement {
         <div className="model-workspace-intro">
           <p>
             {isChinese
-              ? '集中管理对话、视觉、生图、视频与语音模型。支持多通道挂载、端点协议自定义与默认模型调度。'
+              ? '集中管理对话、视觉、生图、视频与语音模型。支持多提供商接入、协议自定义与默认模型分流。'
               : 'Centrally configure chat, vision, image, video, and speech models with custom wire protocols and defaults.'}
           </p>
           <StatusBadge
@@ -273,7 +273,7 @@ export function ModelsPage(): ReactElement {
               kind="writer"
               title={isChinese ? '输出委托' : 'Reply writer'}
               description={
-                isChinese ? '干活模型之后用写作模型改写可见回复' : 'Rewrite the visible reply after the worker turn'
+                isChinese ? '主模型完成任务后由写作模型润色回复表达' : 'Rewrite the visible reply after the worker turn'
               }
               count={config.replyWriter?.enabled ? 1 : 0}
               defaultLabel={config.replyWriter?.enabled ? (isChinese ? '已启用' : 'Enabled') : (isChinese ? '未启用' : 'Disabled')}

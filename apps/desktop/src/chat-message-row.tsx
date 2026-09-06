@@ -299,6 +299,9 @@ export const ChatMessageRow = memo(
               {...(props.onInspectSubagent ? { onInspectSubagent: props.onInspectSubagent } : {})}
               {...(props.locale ? { locale: props.locale } : {})}
               {...(props.modelOptions ? { modelOptions: props.modelOptions } : {})}
+              {...(props.planExecutionGate
+                ? { planExecutionGate: props.planExecutionGate }
+                : {})}
             >
               {message.text.trim().length > 0 ? (
                 <MarkdownView

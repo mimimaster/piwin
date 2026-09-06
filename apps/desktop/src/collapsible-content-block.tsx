@@ -1,8 +1,12 @@
 /**
  * Collapsible content block with bottom mask-gradient blur and centered toggle icon.
  * Used for long bash outputs, diff blocks, and code panels.
+ *
+ * Clip lives on the outer box. Measuring the inner natural height must not
+ * unclamp the live node — that spike remasures the transcript virtualizer and
+ * reads as a page refresh when a tool row expands.
  */
-import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { IconChevronDown, IconChevronUp } from './shell-icons';
 
 export type CollapsibleContentBlockProps = {
@@ -31,13 +35,15 @@ export function resolveCollapsibleOverflow(
 export function CollapsibleContentBlock(props: CollapsibleContentBlockProps): ReactElement {
   const maxCollapsedHeight = props.maxCollapsedHeight ?? 130;
   const [collapsed, setCollapsed] = useState(props.defaultCollapsed ?? true);
-  const [measuredOverflow, setMeasuredOverflow] = useState(false);
+  // Optimistic clip when the caller did not decide: first paint stays at the
+  // collapsed cap so a tool-row expand does not flash full output height.
+  const [measuredOverflow, setMeasuredOverflow] = useState(props.expandable !== false);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const expandable = props.expandable;
 
   const isOverflowing = resolveCollapsibleOverflow(expandable, measuredOverflow);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (expandable !== undefined) {
       return;
     }
@@ -46,16 +52,13 @@ export function CollapsibleContentBlock(props: CollapsibleContentBlockProps): Re
 
     function checkOverflow(): void {
       if (!node) return;
-      // Measure the unclamped box. scrollHeight of a max-height preview is
-      // the preview, not the content, so it chatters around the threshold.
-      const previousMaxHeight = node.style.maxHeight;
-      node.style.maxHeight = 'none';
-      const naturalHeight = node.scrollHeight;
-      node.style.maxHeight = previousMaxHeight;
-      setMeasuredOverflow(naturalHeight > maxCollapsedHeight + 12);
+      setMeasuredOverflow(node.scrollHeight > maxCollapsedHeight + 12);
     }
 
     checkOverflow();
+    if (typeof ResizeObserver === 'undefined') {
+      return;
+    }
     const observer = new ResizeObserver(checkOverflow);
     observer.observe(node);
     return () => observer.disconnect();
@@ -91,12 +94,9 @@ export function CollapsibleContentBlock(props: CollapsibleContentBlockProps): Re
       } ${props.className ?? ''}`}
       onClick={handleContainerClick}
       data-testid="collapsible-content-block"
+      style={shouldCollapse ? { maxHeight: `${maxCollapsedHeight}px` } : undefined}
     >
-      <div
-        ref={contentRef}
-        className="collapsible-content-inner"
-        style={shouldCollapse ? { maxHeight: `${maxCollapsedHeight}px` } : undefined}
-      >
+      <div ref={contentRef} className="collapsible-content-inner">
         {renderedContent}
       </div>
       {isOverflowing ? (

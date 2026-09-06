@@ -520,7 +520,7 @@ export function WebPage(): ReactElement {
                           label={zh ? '实例 URL' : 'Instance URL'}
                           description={
                             zh
-                              ? 'Host 会请求 /search?format=json。不必再包一层 CLI。'
+                              ? 'Host 将直接发起 HTTP 请求访问 /search?format=json，无需通过 CLI 包装。'
                               : 'Host calls /search?format=json. No CLI wrapper needed.'
                           }
                           className="web-source-field"
@@ -554,7 +554,7 @@ export function WebPage(): ReactElement {
                                   );
                                   setInfo(
                                     zh
-                                      ? `解析到 ${result.resultCount} 条 hits · ${result.durationMs}ms`
+                                      ? `检索到 ${result.resultCount} 条结果 · 耗时 ${result.durationMs}ms`
                                       : `${result.resultCount} hits · ${result.durationMs}ms`,
                                     'success',
                                   );
@@ -655,7 +655,7 @@ export function WebPage(): ReactElement {
                   />
                 </FieldRow>
 
-                <FieldRow label={zh ? '整次超时 (ms)' : 'Overall timeout (ms)'}>
+                <FieldRow label={zh ? '总超时时间 (ms)' : 'Overall timeout (ms)'}>
                   <TextInput
                     value={webDraft.searchTimeoutMs}
                     onChange={(event) =>
@@ -696,7 +696,7 @@ export function WebPage(): ReactElement {
               label={zh ? 'web_fetch 聚焦提取模型' : 'web_fetch extract model'}
               description={
                 zh
-                  ? '可选：用小型聊天模型按问题从页面里抽出约 4,000 字相关段。未配置或提取失败时回退到页首窗口。'
+                  ? '可选：使用轻量对话模型提取与问题相关的重点段落（约 4,000 字符）。未配置或提取失败时回退为读取页面头部内容。'
                   : 'Optional: a small chat model extracts about 4,000 characters relevant to the query. Missing or failed extraction falls back to the page head.'
               }
               className="web-search-route-field"
@@ -708,7 +708,7 @@ export function WebPage(): ReactElement {
                 data={[
                   {
                     value: '',
-                    label: zh ? '不提取（返回页首窗口）' : 'No extract (return the page head)',
+                    label: zh ? '不提取（返回页面头部内容）' : 'No extract (return the page head)',
                   },
                   ...(webDraft.fetchDelegateModel &&
                   !fetchDelegateOptions.some(
@@ -732,7 +732,7 @@ export function WebPage(): ReactElement {
             {webDraft.fetchDelegateModel ? (
               <Notice tone="info" testId="web-fetch-delegate-active">
                 {zh
-                  ? '配置后，web_fetch 带 query 时会抽出相关段；outline / offset 仍走机械窗口。'
+                  ? '配置后，web_fetch 附带查询词时将提取重点内容；获取目录或分页时仍按固定字符截取。'
                   : 'When set, web_fetch with query returns a focused excerpt. outline and offset still use the mechanical window.'}
               </Notice>
             ) : fetchDelegateOptions.length === 0 ? (
@@ -777,14 +777,14 @@ export function WebPage(): ReactElement {
             </FieldRow>
             <p className="muted web-tools-tip">
               {zh
-                ? '返回上限控制每次塞进对话的字数；缓存全文可更长，用 offset 续读或 spillPath 搜全文。'
+                ? '返回上限控制单次载入对话的最大字符数；完整缓存内容可通过 offset 偏移量续读，或在文件中检索全文。'
                 : 'Return window is what one call injects. The cache can be longer — continue with offset or search spillPath.'}
             </p>
             <Field
               label={zh ? 'JS 站兜底' : 'JS-page fallback'}
               description={
                 zh
-                  ? '本地提取正文过薄时，自动再用 Jina 或本机 Chromium 读一次。结果会标注实际 provider。'
+                  ? '当本地解析提取到的正文内容过少时，自动使用 Jina 或本地 Chromium 重新抓取渲染结果。结果会标注实际使用的抓取服务。'
                   : 'When the local extract looks empty (SPA / JS-rendered), retry once with Jina or local Chromium. The result names the provider that actually produced the text.'
               }
               className="web-search-route-field"
@@ -801,7 +801,7 @@ export function WebPage(): ReactElement {
                 }}
                 testId="web-fetch-fallback"
                 data={[
-                  { value: 'none', label: zh ? '不兜底' : 'No fallback' },
+                  { value: 'none', label: zh ? '不使用备用抓取' : 'No fallback' },
                   { value: 'jina', label: 'Jina' },
                   {
                     value: 'browser',

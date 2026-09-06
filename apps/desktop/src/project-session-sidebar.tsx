@@ -22,6 +22,7 @@ import {
   collectPinnedSessionRows,
   DEFAULT_PROJECT_SESSION_VISIBLE_COUNT,
   sidebarSearchHidesReveal,
+  sidebarTreeRowInWorktreeCluster,
   sidebarTreeRowKey,
   type SidebarTreeRow,
 } from './sidebar-tree-rows';
@@ -37,10 +38,10 @@ import {
 } from './shell-icons';
 import { getDesktopCopy, type DesktopLocale } from './desktop-locale';
 
-const SIDEBAR_SESSION_ROW_ESTIMATE_PX = 33;
-const SIDEBAR_SECTION_ROW_ESTIMATE_PX = 34;
-const SIDEBAR_FOLDER_ROW_ESTIMATE_PX = 32;
-const SIDEBAR_HINT_ROW_ESTIMATE_PX = 28;
+const SIDEBAR_SESSION_ROW_ESTIMATE_PX = 31;
+const SIDEBAR_SECTION_ROW_ESTIMATE_PX = 22;
+const SIDEBAR_FOLDER_ROW_ESTIMATE_PX = 26;
+const SIDEBAR_HINT_ROW_ESTIMATE_PX = 22;
 const SIDEBAR_VIRTUAL_OVERSCAN = 8;
 
 function estimateSidebarTreeRowSize(row: SidebarTreeRow | undefined): number {
@@ -56,7 +57,7 @@ function estimateSidebarTreeRowSize(row: SidebarTreeRow | undefined): number {
     case 'project-folder':
       return SIDEBAR_FOLDER_ROW_ESTIMATE_PX;
     case 'session':
-      return row.projectSubtitle ? 48 : SIDEBAR_SESSION_ROW_ESTIMATE_PX;
+      return SIDEBAR_SESSION_ROW_ESTIMATE_PX;
     case 'project-show-more':
       return SIDEBAR_FOLDER_ROW_ESTIMATE_PX;
     case 'empty-hint':
@@ -612,7 +613,11 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                   key={virtualRow.key}
                   data-index={virtualRow.index}
                   ref={virtualizer.measureElement}
-                  className="sidebar-tree-virtual-item"
+                  className={
+                    sidebarTreeRowInWorktreeCluster(row)
+                      ? 'sidebar-tree-virtual-item is-grouped'
+                      : 'sidebar-tree-virtual-item'
+                  }
                   style={{ transform: `translateY(${virtualRow.start}px)` }}
                 >
                   {renderSidebarTreeRow(row)}
@@ -622,7 +627,14 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
           </div>
         ) : (
           treeRows.map((row) => (
-            <div key={sidebarTreeRowKey(row)} className="sidebar-tree-flow-item">
+            <div
+              key={sidebarTreeRowKey(row)}
+              className={
+                sidebarTreeRowInWorktreeCluster(row)
+                  ? 'sidebar-tree-flow-item is-grouped'
+                  : 'sidebar-tree-flow-item'
+              }
+            >
               {renderSidebarTreeRow(row)}
             </div>
           ))

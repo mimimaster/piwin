@@ -3,6 +3,8 @@ import { useState, type ReactElement, type ReactNode } from 'react';
 import type {
   PermissionDecision,
   PermissionRememberScope,
+  PlanExecutionMode,
+  SessionPlan,
   SessionSummary,
   SubagentInvocation,
 } from '@piwin/contracts';
@@ -23,6 +25,8 @@ import { runtimeStatusText } from './run-activity-strings.js';
 import { getBehaviorActivitySpec } from './behavior-activity.js';
 import { AgentLocator, SkillActivityChip } from './agent-locator.js';
 import { TurnToolGroup } from './turn-tool-group';
+import { PlanExecutionGate } from './plan-execution-gate.js';
+import { isPlanProgressTool } from './plan-todo-model.js';
 import { GateCard } from './gate-card';
 import { ExploreFlowCapsule } from './explore-flow-capsule';
 import type { ExploreFlowRole } from './explore-flow';
@@ -71,6 +75,10 @@ export type TurnWorkDetailsProps = {
   onInspectSubagent?: (selection: SubagentInspectorSelection) => void;
   /** Folded thinking under an outer 已工作 header — proto shows `.think` only. */
   hideFoldHeader?: boolean;
+  planExecutionGate?: {
+    plan: SessionPlan;
+    onExecute: (mode: PlanExecutionMode) => void | Promise<void>;
+  };
 };
 
 function thinkingSummaryLabel(input: {
@@ -121,6 +129,7 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
   const inlineTools = workFoldedIntoFlow
     ? []
     : tools.filter((tool) => resolveGenerationToolKind(tool) === null);
+  const callChainTools = inlineTools.filter((tool) => !isPlanProgressTool(tool));
   const thinkingItem = presentation.workItems.find((item) => item.kind === 'thinking');
   const permissionItem = presentation.workItems.find((item) => item.kind === 'permission');
   const hasThinking =
@@ -154,12 +163,20 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
   const hasVisibleWork =
     isFlowAnchor ||
     hasThinking ||
-    inlineTools.length > 0 ||
+    callChainTools.length > 0 ||
     presentation.isWaitingForModel ||
     presentation.outcome !== undefined ||
     Boolean(presentation.terminalMessage) ||
     Boolean(permissionItem) ||
-    Boolean(props.activeSkill && presentation.isActive);
+    Boolean(props.activeSkill && presentation.isActive) ||
+    Boolean(props.planExecutionGate);
+
+  const planGate = props.planExecutionGate ? (
+    <PlanExecutionGate
+      plan={props.planExecutionGate.plan}
+      onExecute={props.planExecutionGate.onExecute}
+    />
+  ) : null;
 
   if (!hasVisibleWork) {
     return <>{props.children}</>;
@@ -296,7 +313,7 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
       ) : null}
 
       <TurnToolGroup
-        tools={inlineTools}
+        tools={callChainTools}
         density={props.toolDensity ?? 'compact'}
         locale={locale}
         {...(props.modelOptions ? { modelOptions: props.modelOptions } : {})}
@@ -314,6 +331,8 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
           ? { onInspectSubagent: props.onInspectSubagent }
           : {})}
       />
+
+      {planGate}
 
       {presentation.terminalMessage ? (
         <div className="turn-terminal-message muted">{presentation.terminalMessage}</div>

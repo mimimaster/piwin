@@ -173,6 +173,7 @@
 
 .sidebar-folder-tree,
 .sidebar-sessions {
+  --tree-cluster-shift: 0px;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -300,8 +301,9 @@
   white-space: nowrap;
 }
 
-.tree-folder-summary.is-grouped {
-  padding-left: var(--s-3);
+.sidebar-tree-flow-item.is-grouped,
+.sidebar-tree-virtual-item.is-grouped {
+  --tree-cluster-shift: 12px;
 }
 
 .tree-folder-branch {
@@ -429,6 +431,7 @@
   height: 17px;
   flex-shrink: 0;
   color: var(--text-3);
+  stroke-width: 1.35;
   transition: color var(--t-1) var(--ease-out);
 }
 

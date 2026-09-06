@@ -1,29 +1,24 @@
 /**
- * Composer-adjacent plan execution picker.
+ * Call-chain plan execution picker (proto-01 #13).
  *
- * Draft/approved SessionPlans wait here — not in chat prose, and not behind
- * PlanCard's old Process click. PermissionBar keeps the interruption slot
- * when a safety prompt is active; Conversation (general scope) never shows
- * this gate.
+ * Draft/approved SessionPlans sit on the assistant turn that created them —
+ * after that turn's tool sequence, not above the composer. The composer stays
+ * free so the user can ignore the plan and keep working. Conversation
+ * (general scope) never shows this gate.
  */
 import { useEffect, useRef, type ReactElement } from 'react';
 import type { PlanExecutionMode, SessionPlan } from '@piwin/contracts';
 import { getBehaviorActivitySpec } from './behavior-activity.js';
+import type { ChatMessageUi, ToolCardUi } from './chat-ui-types.js';
 import { useDesktopLocale } from './desktop-locale-context';
 
 export type PlanExecutionGateVisibility = {
   plan: SessionPlan | null | undefined;
   isConversationSession: boolean;
-  streaming?: boolean;
-  paused?: boolean;
-  hasPermissionPrompt?: boolean;
 };
 
 export function canShowPlanExecutionGate(input: PlanExecutionGateVisibility): boolean {
   if (input.isConversationSession) return false;
-  if (input.streaming === true) return false;
-  if (input.paused === true) return false;
-  if (input.hasPermissionPrompt === true) return false;
   const plan = input.plan;
   if (!plan) return false;
   const executionStatus = plan.execution?.status;
@@ -33,6 +28,29 @@ export function canShowPlanExecutionGate(input: PlanExecutionGateVisibility): bo
     (executionStatus === 'failed' || executionStatus === 'aborted');
   if (plan.status !== 'draft' && plan.status !== 'approved' && !retryableStuck) return false;
   return true;
+}
+
+export function isPlanCreateTool(tool: Pick<ToolCardUi, 'toolName' | 'presentation'>): boolean {
+  const names = [tool.toolName, tool.presentation?.routedToolName];
+  return names.some((name) => {
+    if (!name) return false;
+    const key = name.trim().toLowerCase();
+    return key === 'piwin_plan_create' || key === 'plan_create';
+  });
+}
+
+/** Assistant message that owns the gate: the one that created the plan, else the latest. */
+export function findPlanExecutionGateMessageId(
+  messages: readonly Pick<ChatMessageUi, 'id' | 'role' | 'tools'>[],
+): string | null {
+  let lastAssistantId: string | null = null;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (!message || message.role !== 'assistant') continue;
+    if (lastAssistantId === null) lastAssistantId = message.id;
+    if (message.tools.some((tool) => isPlanCreateTool(tool))) return message.id;
+  }
+  return lastAssistantId;
 }
 
 function countIndependentSteps(plan: Pick<SessionPlan, 'steps' | 'independentSteps'>): number {
@@ -68,11 +86,11 @@ type GateCopy = {
 
 const COPY_ZH: GateCopy = {
   status: '选择执行方式',
-  title: '怎么执行这个计划？',
+  title: '选择计划执行方式',
   recommended: '推荐',
-  inline: '当前会话直接做',
+  inline: '在当前会话直接执行',
   subagent: '子代理执行',
-  kb: 'A / B 直接按键 · 出现在作曲器上方 · 安全提示占位时让位 · Conversation 会话不显示',
+  kb: '按 A / B 键快速执行 · 也可以直接在输入框继续提问',
 };
 
 const COPY_EN: GateCopy = {
@@ -81,7 +99,7 @@ const COPY_EN: GateCopy = {
   recommended: 'Recommended',
   inline: 'Inline in this session',
   subagent: 'Subagent-driven',
-  kb: 'Press A / B · Docked above composer · Yields to safety prompt · Hidden in Conversation',
+  kb: 'Press A / B to run · Or continue typing in the prompt bar',
 };
 
 export function formatPlanDescription(
@@ -181,7 +199,7 @@ export function PlanExecutionGate(props: PlanExecutionGateProps): ReactElement {
               onClick={() => void onExecute(entry.mode)}
             >
               <span className="bd">{entry.badge}</span>
-              <span>{isRecommended ? `${copy.recommended} · ${entry.label}` : entry.label}</span>
+              {isRecommended ? `${copy.recommended} · ${entry.label}` : entry.label}
             </button>
           );
         })}

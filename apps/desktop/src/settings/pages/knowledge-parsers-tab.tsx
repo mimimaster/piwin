@@ -338,7 +338,7 @@ export function KnowledgeLlmsTab(props: {
         title={isZh ? '专用生成模型' : 'Dedicated Generation Models'}
         description={
           isZh
-            ? '抽取知识要点和编写原子闪卡可以分别指定专用模型。留空时默认继承当前会话的主对话模型。'
+            ? '知识要点提炼与记忆闪卡制作可分别指定专用模型。留空时默认使用当前会话的主对话模型。'
             : 'Knowledge-point extraction and flashcard writing can use specialized chat models. Both default to the current active chat model if unspecified.'
         }
       />
@@ -365,7 +365,7 @@ export function KnowledgeLlmsTab(props: {
         label={isZh ? '闪卡生成模型' : 'Flashcard model'}
         description={
           isZh
-            ? '用于编写原子记忆闪卡的专用模型。'
+            ? '用于生成问答记忆闪卡的专用模型。'
             : 'Dedicated model for flashcard question-answer cards.'
         }
         testId="knowledge-flashcard-model-row"

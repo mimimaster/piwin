@@ -6,6 +6,7 @@ import {
   IconClock,
   IconDatabase,
   IconFlame,
+  IconFolderOpen,
   IconMcp,
   IconServer,
   IconStop,
@@ -13,6 +14,12 @@ import {
 } from './shell-icons.js';
 
 describe('shared shell icons', () => {
+  it('renders IconFolderOpen as a single thin outline path', () => {
+    const markup = renderToStaticMarkup(createElement(IconFolderOpen));
+    expect(markup).toContain('stroke-width="1.6"');
+    expect(markup.match(/<path /g)).toHaveLength(1);
+  });
+
   it('preserves the shared outline defaults', () => {
     const markup = renderToStaticMarkup(createElement(IconChat));
 

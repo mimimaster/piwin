@@ -624,9 +624,9 @@ function dedupePaths(paths: string[]): string[] {
   return out;
 }
 
-/** Basename-first path list for head rows: `a.tsx and 2 other files`. */
+/** Full-path list for head rows: `/abs/a.tsx and 2 other files`. */
 export function formatPathsSummary(paths: readonly string[]): string {
-  const names = paths.map((path) => basename(path)).filter((name) => name.length > 0);
+  const names = paths.map((path) => path.trim()).filter((name) => name.length > 0);
   if (names.length === 0) {
     return '';
   }
@@ -637,10 +637,6 @@ export function formatPathsSummary(paths: readonly string[]): string {
     return `${names[0]} and ${names[1]}`;
   }
   return `${names[0]} and ${names.length - 1} other files`;
-}
-
-function basename(path: string): string {
-  return path.split(/[\\/]/).pop() || path;
 }
 
 function isGlobPattern(value: string): boolean {

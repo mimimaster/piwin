@@ -29,10 +29,10 @@ describe('classifyToolKind', () => {
 });
 
 describe('formatPathsSummary', () => {
-  it('formats multi-file lists like Cursor', () => {
-    expect(formatPathsSummary(['a/b/c.tsx'])).toBe('c.tsx');
-    expect(formatPathsSummary(['a/x.ts', 'b/y.ts'])).toBe('x.ts and y.ts');
-    expect(formatPathsSummary(['a/x.ts', 'b/y.ts', 'c/z.ts'])).toBe('x.ts and 2 other files');
+  it('keeps the full path for tool head rows', () => {
+    expect(formatPathsSummary(['a/b/c.tsx'])).toBe('a/b/c.tsx');
+    expect(formatPathsSummary(['a/x.ts', 'b/y.ts'])).toBe('a/x.ts and b/y.ts');
+    expect(formatPathsSummary(['a/x.ts', 'b/y.ts', 'c/z.ts'])).toBe('a/x.ts and 2 other files');
   });
 });
 
@@ -155,7 +155,7 @@ describe('buildToolPresentation', () => {
     expect(presentation.kind).toBe('filesystem');
     expect(presentation.actionVerb).toBe('Read');
     expect(presentation.targetPaths).toEqual(['src/App.tsx']);
-    expect(presentation.summary).toBe('App.tsx');
+    expect(presentation.summary).toBe('src/App.tsx');
     expect(presentation.changedPaths).toBeUndefined();
   });
 
@@ -247,7 +247,7 @@ describe('buildToolPresentation', () => {
       outputText: 'export function TurnWorkDetails() { /* huge body */ }',
     });
     expect(presentation.actionVerb).toBe('Read');
-    expect(presentation.summary).toBe('turn-work-details.tsx');
+    expect(presentation.summary).toBe('apps/desktop/src/turn-work-details.tsx');
     expect(presentation.targetPaths).toEqual(['apps/desktop/src/turn-work-details.tsx']);
   });
 
@@ -271,7 +271,7 @@ describe('buildToolPresentation', () => {
       },
     });
     expect(presentation.actionVerb).toBe('Read');
-    expect(presentation.summary).toBe('turn-work-details.tsx and 2 other files');
+    expect(presentation.summary).toBe('apps/desktop/src/turn-work-details.tsx and 2 other files');
     expect(presentation.countTag).toBe('3 files');
   });
 
