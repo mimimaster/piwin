@@ -6,7 +6,6 @@ import { useEffect, useState, type ReactElement } from 'react';
 import {
   Button,
   Field,
-  IconButton,
   Modal,
   Notice,
   Tabs,
@@ -17,7 +16,8 @@ import {
 } from '@piwin/ui-kit';
 import type { McpConfigDocument, McpServerConfig, McpToolSummary } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
-import { IconPin } from './shell-icons';
+import { McpToolCatalogRow } from './mcp-tool-catalog-row.js';
+import { buildMcpToolCatalogEntries } from './mcp-visibility-model.js';
 import { getBehaviorActivitySpec } from './behavior-activity.js';
 
 export type McpServerEditorDialogProps = {
@@ -290,8 +290,14 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
             };
           });
   const displayTools = [...tools, ...dormantPinnedTools];
-  const pinnedCountForServer = displayTools.filter((tool) =>
-    pinnedSelectors.includes(formatToolSelector(tool.serverId, tool.name)),
+  const catalogEntries = buildMcpToolCatalogEntries({
+    serverId: draftServerId || 'server',
+    tools: displayTools,
+    pinnedSelectors,
+    source: 'live',
+  });
+  const pinnedCountForServer = catalogEntries.filter(
+    (entry) => entry.exposure === 'direct' || entry.exposure === 'dormant-pin',
   ).length;
 
   return (
@@ -434,64 +440,19 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
                     : 'No tools loaded yet. Save the server, then click "Probe tools" to list and pin high-frequency tools.'}
                 </p>
               ) : null}
-              {displayTools.length > 0 ? (
-                <ul className="mcp-tools-list">
-                  {displayTools.map((tool) => {
-                    const selector = formatToolSelector(tool.serverId, tool.name);
-                    const isPinned = pinnedSelectors.includes(selector);
-                    const pinLabel = isPinned
-                      ? isChinese
-                        ? '取消固定直接调用'
-                        : 'Unpin direct call'
-                      : isChinese
-                        ? '固定为直接调用工具'
-                        : 'Pin as direct tool';
-                    return (
-                      <li key={tool.exposedName} className="mcp-tool-row">
-                        <IconButton
-                          className={
-                            isPinned
-                              ? 'mcp-tool-pin-btn mcp-tool-pin-btn--active'
-                              : 'mcp-tool-pin-btn'
-                          }
-                          label={pinLabel}
-                          title={pinLabel}
-                          aria-pressed={isPinned}
-                          disabled={togglingPinSelector === selector}
-                          data-testid={`mcp-pin-${selector}`}
-                          onClick={() => {
-                            void handleTogglePinned(selector, !isPinned);
-                          }}
-                        >
-                          <IconPin
-                            className={
-                              isPinned
-                                ? 'mcp-tool-pin-icon mcp-tool-pin-icon--filled'
-                                : 'mcp-tool-pin-icon'
-                            }
-                            width={16}
-                            height={16}
-                          />
-                        </IconButton>
-                        <div className="mcp-tool-row-body">
-                          <div className="mcp-tool-row-title">
-                            <strong>{tool.exposedName}</strong>
-                            {isPinned ? (
-                              <span className="mcp-tool-pin-pill">
-                                {isChinese ? '直调' : 'direct'}
-                              </span>
-                            ) : (
-                              <span className="mcp-tool-gateway-pill">gateway</span>
-                            )}
-                          </div>
-                          <span className="muted mcp-tool-row-desc">
-                            {tool.description || tool.name}
-                          </span>
-                          <code className="mcp-tool-selector muted">{selector}</code>
-                        </div>
-                      </li>
-                    );
-                  })}
+              {catalogEntries.length > 0 ? (
+                <ul className="mcp-tools-list mcp-tool-catalog-list">
+                  {catalogEntries.map((entry) => (
+                    <McpToolCatalogRow
+                      key={entry.selector}
+                      entry={entry}
+                      isChinese={isChinese}
+                      pinning={togglingPinSelector === entry.selector}
+                      onTogglePinned={(selector, pinned) => {
+                        void handleTogglePinned(selector, pinned);
+                      }}
+                    />
+                  ))}
                 </ul>
               ) : null}
             </section>

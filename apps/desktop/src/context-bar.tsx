@@ -76,6 +76,8 @@ export type ContextBarProps = {
   isConversationSession?: boolean;
   /** When true, do not render title or identity in the top band (title lives in stage card header). */
   hideIdentity?: boolean | undefined;
+  /** Optional trailing chips (e.g. project & git branch). */
+  trailing?: ReactNode | undefined;
 };
 
 function modeBadgeLabel(preset: PermissionPreset): string {
@@ -306,6 +308,7 @@ export function ContextBar(props: ContextBarProps): ReactElement {
             </span>
           </button>
         ) : null}
+        {props.trailing}
       </div>
 
       <div

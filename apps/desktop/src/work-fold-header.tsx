@@ -1,4 +1,5 @@
 import type { ReactElement, ReactNode } from 'react';
+import { IconBrain, IconChevronDown, IconChevronRight } from './shell-icons';
 
 export type WorkFoldHeaderState = 'done' | 'running' | 'waiting';
 
@@ -18,6 +19,8 @@ export type WorkFoldHeaderProps = {
   className?: string;
   testId?: string;
   ariaLabel?: string;
+  /** Done-state glyph. Work disclosure keeps the proto bulb; thinking uses brain. */
+  doneIcon?: 'bulb' | 'brain';
   /** Extra nodes before the label (Deck RadialBellow, kept for non-Inkstone). */
   leading?: ReactNode;
   children?: ReactNode;
@@ -69,10 +72,21 @@ export function resolveWorkFoldCode(tool: {
   return undefined;
 }
 
+function WorkFoldChevron(props: { isOpen: boolean }): ReactElement {
+  const Icon = props.isOpen ? IconChevronDown : IconChevronRight;
+  return (
+    <Icon
+      className={`i s12 chev${props.isOpen ? ' is-open' : ''}`}
+      width={12}
+      height={12}
+    />
+  );
+}
+
 function IconBulb(): ReactElement {
   return (
     <svg
-      className="i"
+      className="i work-fold-bulb"
       viewBox="0 0 16 16"
       width="16"
       height="16"
@@ -88,31 +102,18 @@ function IconBulb(): ReactElement {
   );
 }
 
-function IconChevronDown(props: { isOpen: boolean }): ReactElement {
-  return (
-    <svg
-      className={`i s12 chev${props.isOpen ? ' is-open' : ''}`}
-      viewBox="0 0 16 16"
-      width="12"
-      height="12"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M4 6l4 4 4-4" />
-    </svg>
-  );
-}
-
-function WorkFoldIcon(props: { state: WorkFoldHeaderState }): ReactElement {
+function WorkFoldIcon(props: {
+  state: WorkFoldHeaderState;
+  doneIcon: 'bulb' | 'brain';
+}): ReactElement {
   if (props.state === 'running') {
     return <span className="lamp" aria-hidden="true" />;
   }
   if (props.state === 'waiting') {
     return <span className="sq" aria-hidden="true" />;
+  }
+  if (props.doneIcon === 'brain') {
+    return <IconBrain className="i work-fold-brain" width={16} height={16} />;
   }
   return <IconBulb />;
 }
@@ -204,7 +205,7 @@ function WaitingLabel(props: {
   );
 }
 
-/** Proto-01 `.work-h` — bulb / lamp / zhu square, then status · code · chevron. */
+/** Proto-01 `.work-h` — bulb (work) / brain (thinking) / lamp / zhu square. */
 export function WorkFoldHeader(props: WorkFoldHeaderProps): ReactElement {
   const open = props.open === true;
   const className = [
@@ -243,10 +244,10 @@ export function WorkFoldHeader(props: WorkFoldHeaderProps): ReactElement {
 
   const inner = (
     <>
-      <WorkFoldIcon state={props.state} />
+      <WorkFoldIcon state={props.state} doneIcon={props.doneIcon ?? 'bulb'} />
       {props.leading}
       {label}
-      <IconChevronDown isOpen={open} />
+      <WorkFoldChevron isOpen={open} />
     </>
   );
 

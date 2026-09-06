@@ -219,6 +219,7 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
           className="turn-work-details-summary"
           testId="turn-work-details-summary"
           ariaLabel={locale === 'zh-CN' ? '思考过程' : 'Thoughts'}
+          doneIcon="brain"
           {...(hasThinking
             ? {
                 open: thinkingOpen,

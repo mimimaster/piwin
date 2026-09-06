@@ -532,3 +532,257 @@
 .ext-list-check--empty {
   visibility: hidden;
 }
+
+/* ── Expandable server detail + tool catalog ─────────────────────────── */
+
+.mcp-server-card {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.mcp-server-card-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--s-6);
+}
+
+.mcp-server-card-body {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 0;
+  width: 100%;
+}
+
+.mcp-server-expand-chevron {
+  margin-left: auto;
+  color: var(--text-4);
+  font-size: var(--fs-chrome);
+}
+
+.mcp-server-detail {
+  margin-top: var(--s-5);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--line-1);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+}
+
+.mcp-server-detail-section h5 {
+  margin: 0 0 var(--s-3);
+  font-size: var(--fs-chrome);
+  font-weight: 600;
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.mcp-server-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--s-4);
+  margin: 0;
+}
+
+.mcp-server-detail-grid dt {
+  margin: 0;
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+}
+
+.mcp-server-detail-grid dd {
+  margin: var(--s-1) 0 0;
+  font-size: var(--fs-chrome);
+  color: var(--text-1);
+}
+
+.mcp-server-detail-error dd {
+  color: var(--coral);
+}
+
+.mcp-server-detail-command {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  background: var(--void);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-chip);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.mcp-server-detail-env {
+  margin: var(--s-3) 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  align-items: center;
+}
+
+.mcp-env-key {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  background: var(--hover);
+  padding: 1px var(--s-2);
+  border-radius: var(--r-chip);
+}
+
+.mcp-server-detail-tools-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  margin-bottom: var(--s-3);
+}
+
+.mcp-server-detail-tools-header h5 {
+  margin: 0;
+}
+
+.mcp-server-detail-tools-actions {
+  display: flex;
+  gap: var(--s-3);
+}
+
+.mcp-server-detail-tools-error {
+  color: var(--coral);
+  font-size: var(--fs-chrome);
+}
+
+.mcp-server-detail-tools-loading {
+  padding: var(--s-6);
+  display: flex;
+  justify-content: center;
+}
+
+.mcp-tool-catalog-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.mcp-tool-catalog-row {
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-card);
+  background: var(--void);
+  overflow: hidden;
+}
+
+.mcp-tool-catalog-row-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+}
+
+.mcp-tool-catalog-toggle {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.mcp-tool-catalog-title {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--s-1);
+}
+
+.mcp-tool-catalog-desc {
+  display: block;
+  font-size: var(--fs-chrome);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mcp-tool-catalog-chevron {
+  color: var(--text-4);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.mcp-tool-catalog-body {
+  padding: 0 var(--s-5) var(--s-5);
+  border-top: 1px solid var(--line-1);
+}
+
+.mcp-tool-catalog-full-desc {
+  margin: var(--s-4) 0;
+  font-size: var(--fs-chrome);
+  color: var(--text-2);
+  white-space: pre-wrap;
+}
+
+.mcp-tool-catalog-exposed {
+  margin: 0 0 var(--s-4);
+  font-size: var(--fs-micro);
+}
+
+.mcp-tool-schema-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-chrome);
+  margin-bottom: var(--s-4);
+}
+
+.mcp-tool-schema-table th,
+.mcp-tool-schema-table td {
+  text-align: left;
+  padding: var(--s-2) var(--s-3);
+  border-bottom: 1px solid var(--line-1);
+  vertical-align: top;
+}
+
+.mcp-tool-schema-table th {
+  color: var(--text-4);
+  font-weight: 600;
+  font-size: var(--fs-micro);
+}
+
+.mcp-tool-required {
+  margin-left: var(--s-2);
+  font-size: var(--fs-micro);
+  color: var(--amber);
+}
+
+.mcp-tool-schema-raw {
+  margin: 0;
+  padding: var(--s-3);
+  background: var(--surface-2);
+  border-radius: var(--r-chip);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  overflow: auto;
+  max-height: 240px;
+}
+
+.mcp-tool-schema-details {
+  margin-top: var(--s-3);
+  font-size: var(--fs-chrome);
+  color: var(--text-3);
+}
+
+.mcp-tool-dormant-pill {
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+  background: var(--hover);
+  padding: 1px var(--s-3);
+  border-radius: var(--r-chip);
+}
+
+.mcp-tool-catalog-empty-schema {
+  margin: 0 0 var(--s-3);
+}

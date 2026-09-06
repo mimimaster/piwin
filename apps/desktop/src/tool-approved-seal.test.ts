@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { shouldShowApprovedSeal } from './tool-approved-seal.js';
 
 describe('shouldShowApprovedSeal', () => {
-  it('stamps completed writes and shell commands', () => {
+  it('stamps completed writes and leaves shell unmarked', () => {
     expect(
       shouldShowApprovedSeal({
         status: 'done',
@@ -16,7 +16,7 @@ describe('shouldShowApprovedSeal', () => {
         toolName: 'bash',
         presentation: { kind: 'shell', title: 'bash', command: 'pnpm typecheck' },
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('does not stamp reads, searches, or unfinished work', () => {

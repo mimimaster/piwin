@@ -30,6 +30,8 @@ function looksLikeCancelledToolOutput(text: string): boolean {
 
 const MAX_TOOL_OUTPUT_CHARS = 8_000;
 const MAX_SUMMARY_CHARS = 96;
+/** Expanded MCP tool cards need more than the 96-char head clip. */
+const MAX_MCP_ARGS_PREVIEW_CHARS = 32_000;
 
 const SECRET_PATTERNS: RegExp[] = [
   /\b(?:api[_-]?key|token|secret|password|authorization)\b['"]?\s*[:=]\s*['"]?[^\s'"]+/gi,
@@ -503,6 +505,9 @@ function formatArgsPreview(args: unknown, family?: ToolActionFamily): string | u
     if (family === 'edit') {
       return clipSummary(redacted, MAX_WRITE_ARGS_PREVIEW_CHARS);
     }
+    if (family === 'mcp') {
+      return clipSummary(redacted, MAX_MCP_ARGS_PREVIEW_CHARS);
+    }
     return clipSummary(redacted);
   }
   try {
@@ -536,7 +541,11 @@ function formatArgsPreview(args: unknown, family?: ToolActionFamily): string | u
       const redacted = redactToolText(raw).text;
       return clipSummary(redacted, MAX_WRITE_ARGS_PREVIEW_CHARS);
     }
-    return clipSummary(redactToolText(JSON.stringify(args)).text);
+    const serialized = redactToolText(JSON.stringify(args)).text;
+    if (family === 'mcp') {
+      return clipSummary(serialized, MAX_MCP_ARGS_PREVIEW_CHARS);
+    }
+    return clipSummary(serialized);
   } catch {
     return undefined;
   }

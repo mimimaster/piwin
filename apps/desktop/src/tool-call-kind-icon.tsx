@@ -4,17 +4,19 @@ import type { ToolKind } from '@piwin/contracts';
 import type { BehaviorActivityId } from './behavior-activity.js';
 import { COMPACTION_TOOL_NAME } from './compaction-tool-row.js';
 import {
-  IconActivity,
-  IconBook,
-  IconBrowser,
-  IconCompress,
-  IconFile,
-  IconGit,
-  IconPlug,
-  IconSearch,
-  IconSpark,
-  IconTerminal,
-} from './shell-icons';
+  ChainIconEdit,
+  ChainIconGit,
+  ChainIconMcp,
+  ChainIconMedia,
+  ChainIconRead,
+  ChainIconSearch,
+  ChainIconShell,
+  ChainIconTool,
+  ChainIconWeb,
+} from './inkstone-chain-icons.js';
+import { IconBrain, IconCompress } from './shell-icons';
+
+const KIND_CLASS = 'tool-call-kind-icon';
 
 /** Map action verb / kind / tool name → head-row icon. Prefer presentation verb. */
 export function toolCallKindIcon(
@@ -27,27 +29,28 @@ export function toolCallKindIcon(
     case 'mcp.server.connect':
     case 'mcp.discovery':
     case 'mcp.call':
-      return <IconPlug className="tool-call-kind-icon" />;
+      return <ChainIconMcp className={KIND_CLASS} />;
     case 'web.search':
     case 'web.fetch':
     case 'browser':
-      return <IconBrowser className="tool-call-kind-icon" />;
+      return <ChainIconWeb className={KIND_CLASS} />;
     case 'search':
     case 'explore':
-      return <IconSearch className="tool-call-kind-icon" />;
+      return <ChainIconSearch className={KIND_CLASS} />;
     case 'read':
+      return <ChainIconRead className={KIND_CLASS} />;
     case 'edit':
-      return <IconFile className="tool-call-kind-icon" />;
+      return <ChainIconEdit className={KIND_CLASS} />;
     case 'shell':
     case 'test':
     case 'build':
     case 'process':
-      return <IconTerminal className="tool-call-kind-icon" />;
+      return <ChainIconShell className={KIND_CLASS} />;
     case 'git':
-      return <IconGit className="tool-call-kind-icon" />;
+      return <ChainIconGit className={KIND_CLASS} />;
     case 'image':
     case 'video':
-      return <IconSpark className="tool-call-kind-icon" />;
+      return <ChainIconMedia className={KIND_CLASS} />;
     default:
       break;
   }
@@ -57,32 +60,38 @@ export function toolCallKindIcon(
   // Exact synthetic identities resolve before the verb/name heuristics below,
   // which are deliberately fuzzy and would otherwise claim these rows.
   if (name === COMPACTION_TOOL_NAME) {
-    return <IconCompress className="tool-call-kind-icon" />;
+    return <IconCompress className={KIND_CLASS} />;
   }
 
   if (verb.startsWith('searched') || verb.startsWith('explored')) {
-    return <IconSearch className="tool-call-kind-icon" />;
+    return <ChainIconSearch className={KIND_CLASS} />;
   }
-  if (verb.startsWith('read') || verb.startsWith('edited')) {
-    return <IconFile className="tool-call-kind-icon" />;
+  if (verb.startsWith('edited') || verb === 'write_file' || verb.includes('write')) {
+    return <ChainIconEdit className={KIND_CLASS} />;
+  }
+  if (verb.startsWith('read')) {
+    return <ChainIconRead className={KIND_CLASS} />;
   }
   if (verb.startsWith('ran command') || verb === 'bash') {
-    return <IconTerminal className="tool-call-kind-icon" />;
+    return <ChainIconShell className={KIND_CLASS} />;
   }
   if (verb.startsWith('ran test') || verb.startsWith('built')) {
-    return <IconTerminal className="tool-call-kind-icon" />;
+    return <ChainIconShell className={KIND_CLASS} />;
   }
   if (verb.startsWith('git')) {
-    return <IconGit className="tool-call-kind-icon" />;
+    return <ChainIconGit className={KIND_CLASS} />;
   }
-  if (verb.startsWith('fetched') || verb.startsWith('searched') || verb.includes('web')) {
-    return <IconBrowser className="tool-call-kind-icon" />;
+  if (verb.startsWith('fetched') || verb.includes('web')) {
+    return <ChainIconWeb className={KIND_CLASS} />;
   }
   if (verb.startsWith('mcp') || verb.includes('mcp')) {
-    return <IconPlug className="tool-call-kind-icon" />;
+    return <ChainIconMcp className={KIND_CLASS} />;
   }
-  if (verb.includes('image') || verb.includes('generated')) {
-    return <IconSpark className="tool-call-kind-icon" />;
+  if (verb.includes('image') || verb.includes('generated') || verb.includes('video')) {
+    return <ChainIconMedia className={KIND_CLASS} />;
+  }
+  if (verb.includes('think') || name.includes('think')) {
+    return <IconBrain className={KIND_CLASS} />;
   }
 
   if (
@@ -91,7 +100,7 @@ export function toolCallKindIcon(
     name.includes('fetch') ||
     name.includes('http')
   ) {
-    return <IconBrowser className="tool-call-kind-icon" />;
+    return <ChainIconWeb className={KIND_CLASS} />;
   }
   if (
     name.includes('search') ||
@@ -99,15 +108,13 @@ export function toolCallKindIcon(
     name.includes('glob') ||
     name.includes('find')
   ) {
-    return <IconSearch className="tool-call-kind-icon" />;
+    return <ChainIconSearch className={KIND_CLASS} />;
   }
-  if (
-    name.includes('read') ||
-    name.includes('view') ||
-    name.includes('write') ||
-    name.includes('edit')
-  ) {
-    return <IconFile className="tool-call-kind-icon" />;
+  if (name.includes('write') || name.includes('edit') || name.includes('patch') || name.includes('replace')) {
+    return <ChainIconEdit className={KIND_CLASS} />;
+  }
+  if (name.includes('read') || name.includes('view')) {
+    return <ChainIconRead className={KIND_CLASS} />;
   }
   if (
     name.includes('bash') ||
@@ -117,33 +124,36 @@ export function toolCallKindIcon(
     name.includes('build') ||
     name === 'shell'
   ) {
-    return <IconTerminal className="tool-call-kind-icon" />;
+    return <ChainIconShell className={KIND_CLASS} />;
   }
   if (name.includes('git')) {
-    return <IconGit className="tool-call-kind-icon" />;
+    return <ChainIconGit className={KIND_CLASS} />;
   }
-  if (name.startsWith('goal')) {
-    return <IconSpark className="tool-call-kind-icon" />;
+  if (name.includes('mcp') || name.startsWith('mcp__')) {
+    return <ChainIconMcp className={KIND_CLASS} />;
+  }
+  if (name.startsWith('goal') || name.includes('image') || name.includes('video')) {
+    return <ChainIconMedia className={KIND_CLASS} />;
   }
 
   switch (kind) {
     case 'filesystem':
-      return <IconFile className="tool-call-kind-icon" />;
+      return <ChainIconRead className={KIND_CLASS} />;
     case 'shell':
     case 'process':
-      return <IconTerminal className="tool-call-kind-icon" />;
+      return <ChainIconShell className={KIND_CLASS} />;
     case 'git':
-      return <IconGit className="tool-call-kind-icon" />;
+      return <ChainIconGit className={KIND_CLASS} />;
     case 'web':
-      return <IconBrowser className="tool-call-kind-icon" />;
+      return <ChainIconWeb className={KIND_CLASS} />;
     case 'mcp':
-      return <IconPlug className="tool-call-kind-icon" />;
+      return <ChainIconMcp className={KIND_CLASS} />;
     case 'image':
     case 'video':
-      return <IconSpark className="tool-call-kind-icon" />;
+      return <ChainIconMedia className={KIND_CLASS} />;
     case 'other':
-      return <IconActivity className="tool-call-kind-icon" />;
+      return <ChainIconTool className={KIND_CLASS} />;
     default:
-      return <IconBook className="tool-call-kind-icon" />;
+      return <ChainIconTool className={KIND_CLASS} />;
   }
 }

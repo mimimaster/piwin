@@ -121,6 +121,14 @@
   padding: 0;
 }
 
+.context-bar-title-card {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+  max-width: 100%;
+}
+
 .context-bar-title {
   flex: 1 1 auto;
   min-width: 0;

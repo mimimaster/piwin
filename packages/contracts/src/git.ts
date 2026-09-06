@@ -96,6 +96,10 @@ export type GitWorktreeList = {
 export const BRANCH_CHECKED_OUT_IN_WORKTREE_PREFIX =
   'branch already checked out in worktree:';
 
+/** Host error prefix when checkout would overwrite uncommitted or untracked files. */
+export const CHECKOUT_BLOCKED_BY_LOCAL_CHANGES_PREFIX =
+  'checkout blocked by local changes';
+
 export type GitDiffFileStat = {
   path: string;
   status: GitFileStatusCode;

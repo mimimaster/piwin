@@ -103,4 +103,77 @@ describe('MessageAttachments', () => {
     expect(variants).toContain('image');
     expect(container.querySelector('[data-testid="message-attachments"]')).not.toBeNull();
   });
+
+  it('expands an image capsule downward into a media preview and collapses on second click', () => {
+    const attachments: MediaAttachmentRef[] = [
+      {
+        id: 'att-1',
+        kind: 'media',
+        mimeType: 'image/png',
+        path: '/tmp/piwin/media/session-1/screen.png',
+        name: 'screen.png',
+        byteSize: 1024,
+        source: 'paste',
+      },
+    ];
+
+    const rendered = renderComponent(
+      <MessageAttachments attachments={attachments} role="user" />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const chip = container.querySelector<HTMLButtonElement>(
+      '[data-testid="transcript-att-chip"][data-att-variant="image"]',
+    );
+    const slot = container.querySelector('[data-testid="att-image-preview-slot"]');
+    expect(chip?.tagName).toBe('BUTTON');
+    expect(chip?.getAttribute('aria-expanded')).toBe('false');
+    expect(slot?.getAttribute('data-open')).toBe('false');
+    expect(container.querySelector('[data-testid="media-preview-container"]')).toBeNull();
+
+    act(() => {
+      chip?.click();
+    });
+    expect(chip?.getAttribute('aria-expanded')).toBe('true');
+    expect(slot?.getAttribute('data-open')).toBe('true');
+    expect(
+      container.querySelector('[data-testid="media-preview-container"]') ??
+        container.querySelector('.media-preview-fallback'),
+    ).not.toBeNull();
+
+    act(() => {
+      chip?.click();
+    });
+    expect(chip?.getAttribute('aria-expanded')).toBe('false');
+    expect(slot?.getAttribute('data-open')).toBe('false');
+    expect(
+      slot?.querySelector('[data-testid="media-preview-container"], .media-preview-fallback'),
+    ).not.toBeNull();
+  });
+
+  it('keeps non-image media capsules as static tags', () => {
+    const attachments: MediaAttachmentRef[] = [
+      {
+        id: 'doc-1',
+        kind: 'media',
+        mimeType: 'application/pdf',
+        path: '/tmp/piwin/media/session-1/notes.pdf',
+        name: 'notes.pdf',
+        byteSize: 2048,
+        source: 'file-picker',
+      },
+    ];
+
+    const rendered = renderComponent(
+      <MessageAttachments attachments={attachments} role="user" />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const chip = container.querySelector('[data-testid="transcript-att-chip"]');
+    expect(chip?.tagName).toBe('SPAN');
+    expect(chip?.getAttribute('aria-expanded')).toBeNull();
+    expect(container.querySelector('[data-testid="att-image-preview-slot"]')).toBeNull();
+  });
 });

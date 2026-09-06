@@ -226,7 +226,7 @@ describe('BranchChip', () => {
         type: 'response',
         command: 'git/checkout',
         success: false,
-        error: 'Your local changes would be overwritten by checkout',
+        error: 'checkout blocked by local changes',
       };
     });
 
@@ -265,7 +265,9 @@ describe('BranchChip', () => {
       await Promise.resolve();
     });
 
-    expect(onError).toHaveBeenCalledWith('Your local changes would be overwritten by checkout');
+    expect(onError).toHaveBeenCalledWith(
+      'Uncommitted changes would be overwritten. Commit or stash them, then try again.',
+    );
   });
 
   it('opens the occupying worktree instead of checking out', async () => {

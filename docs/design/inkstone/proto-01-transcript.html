@@ -115,7 +115,7 @@ code{font:12.5px var(--mono);color:var(--t1);background:var(--code);padding:1px 
 .cap i{width:5px;height:5px;border-radius:50%;background:var(--t4);flex:none}
 .cap .lamp{width:6px;height:6px}
 .cap span{overflow:hidden;text-overflow:ellipsis;min-width:0}
-.cap .chev{flex:none}
+.cap .chev{flex:none;transform:rotate(-90deg)}
 .cap-d{margin:4px 0 0;padding:var(--surf-y) var(--surf-x);border-radius:8px;background:var(--s1);box-shadow:var(--sh1);font-size:12.5px}
 .cap-d p{font-size:11.5px;color:var(--t3);margin-bottom:6px}
 .cap-d ul{list-style:none}
@@ -126,6 +126,7 @@ code{font:12.5px var(--mono);color:var(--t1);background:var(--code);padding:1px 
 .fw > .fb{display:none}.fw.open > .fb{display:block}
 .chev{margin-left:auto;color:var(--t4);transition:transform .24s ease-out;flex:none}
 .fw.open > [data-fold] .chev{transform:rotate(180deg)}
+.fw.open > .cap .chev{transform:rotate(0)}
 .work{margin:2px 0 4px}
 .work-h{display:flex;align-items:center;gap:8px;height:30px;padding:0 var(--row-pad);margin-left:calc(-1*var(--row-pad));width:calc(100% + var(--row-pad)*2);border-radius:6px;font-size:12.5px;color:var(--t2);cursor:pointer;white-space:nowrap;overflow:hidden}
 .work-h:hover{background:var(--s3)}.work-h b{color:var(--t1);font-weight:500}.work-h .i{color:var(--t3)}

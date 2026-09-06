@@ -55,7 +55,7 @@ html[data-theme-id='piwin-inkstone-ink'] .chat-turn-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  font: 11px var(--mono);
+  font: 11px/var(--mono-lh, 1.4) var(--mono);
   color: var(--t4);
   margin-bottom: 8px;
 }
@@ -587,6 +587,17 @@ html[data-theme-id='piwin-inkstone-paper'] .cap .chev,
 html[data-theme-id='piwin-inkstone-ink'] .cap .chev {
   flex: none;
   margin-left: auto;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .fw.assembly-summary > .cap .chev,
+html[data-theme-id='piwin-inkstone-ink'] .fw.assembly-summary > .cap .chev {
+  transform: rotate(-90deg);
+  transition: transform 0.24s ease-out;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .fw.assembly-summary.open > [data-fold].cap .chev,
+html[data-theme-id='piwin-inkstone-ink'] .fw.assembly-summary.open > [data-fold].cap .chev {
+  transform: rotate(0deg);
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .cap-d,

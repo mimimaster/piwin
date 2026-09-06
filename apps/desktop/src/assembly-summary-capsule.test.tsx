@@ -78,6 +78,7 @@ describe('AssemblySummaryCapsule', () => {
     expect(toggle?.textContent).toContain('约 13 tokens');
     expect(toggle?.textContent).toContain('User');
     expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+    expect(capsule?.classList.contains('open')).toBe(false);
     expect(container.querySelector('[data-testid="assembly-summary-detail"]')).toBeNull();
 
     act(() => {

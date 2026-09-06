@@ -96,11 +96,10 @@ export const IconSpark = createIcon(
   </>,
 );
 
+/* Two-hemisphere brain; 16-grid like search/file so 14px transcript rows share stroke weight. */
 export const IconBrain = createIcon(
-  <>
-    <rect x="6.25" y="6.25" width="11.5" height="11.5" rx="2.5" />
-    <path d="M12 8.85c.32 1.85 1.33 2.86 3.18 3.18-1.85.32-2.86 1.33-3.18 3.18-.32-1.85-1.33-2.86-3.18-3.18 1.85-.32 2.86-1.33 3.18-3.18Z" />
-  </>,
+  <path d="M7.5 3.2A2.2 2.2 0 0 0 4 4.5a2 2 0 0 0-1 3.4A2.2 2.2 0 0 0 4.2 11.8 2.1 2.1 0 0 0 7.5 12.8zM8.5 3.2A2.2 2.2 0 0 1 12 4.5a2 2 0 0 1 1 3.4 2.2 2.2 0 0 1-1.2 3.9 2.1 2.1 0 0 1-3.3 1zM8 3v10" />,
+  16,
 );
 
 export const IconAgent = createIcon(

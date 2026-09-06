@@ -489,7 +489,7 @@ export function SidebarTreeRowView(props: SidebarTreeRowViewProps): ReactElement
 
   if (row.kind === 'project-show-more') {
     return (
-      <div className="sidebar-tree-row sidebar-tree-row--project-session">
+      <div className="sidebar-tree-row sidebar-tree-row--project-show-more">
         <button
           type="button"
           className="project-session-show-more"

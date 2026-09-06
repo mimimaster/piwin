@@ -15,11 +15,21 @@ function isPreservedToolOutput(
   toolName?: string,
   routedToolName?: string,
   title?: string,
+  kind?: string,
 ): boolean {
+  if (kind === 'mcp') {
+    return true;
+  }
   const names = [toolName, routedToolName, title].filter(Boolean) as string[];
   return names.some((n) => {
     const lower = n.toLowerCase();
-    return lower.includes('flashcard_create') || lower.includes('flashcard_batch_create');
+    return (
+      lower.includes('flashcard_create') ||
+      lower.includes('flashcard_batch_create') ||
+      lower.startsWith('mcp__') ||
+      lower.startsWith('mcp:') ||
+      lower === 'mcp_gateway'
+    );
   });
 }
 
@@ -53,7 +63,14 @@ export function slimToolPresentation(
   if (presentation.flashcard !== undefined) slim.flashcard = presentation.flashcard;
   if (presentation.health !== undefined) slim.health = presentation.health;
   if (presentation.sensitivity !== undefined) slim.sensitivity = presentation.sensitivity;
-  if (isPreservedToolOutput(presentation.title, presentation.routedToolName)) {
+  if (
+    isPreservedToolOutput(
+      presentation.title,
+      presentation.routedToolName,
+      undefined,
+      presentation.kind,
+    )
+  ) {
     if (presentation.output !== undefined) {
       slim.output = presentation.output;
     }
@@ -76,6 +93,7 @@ export function slimToolCardForUi(tool: SessionToolCardView): SessionToolCardVie
     tool.toolName,
     tool.presentation?.routedToolName,
     tool.presentation?.title,
+    tool.presentation?.kind,
   );
   const card: SessionToolCardView = {
     toolCallId: tool.toolCallId,

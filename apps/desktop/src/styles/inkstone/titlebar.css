@@ -125,8 +125,178 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   height: 100%;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-identity,
+/* ── Identity cards (.context-bar-identity) ────────────────────────── */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-identity {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: calc(100% - 340px);
+  margin: 0 0 0 6px !important;
+  padding: 0 !important;
+  overflow: visible;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-identity .lamp {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--lamp);
+  box-shadow: 0 0 6px 1.5px var(--lamp-glow);
+  animation: breath 2.4s ease-in-out infinite;
+  flex: none;
+  margin-right: -2px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-identity .sq {
+  width: 6px;
+  height: 6px;
+  border-radius: 1px;
+  background: var(--zhu);
+  flex: none;
+  margin-right: -2px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-title {
+  display: inline-flex !important;
+  align-items: center !important;
+  height: 20px !important;
+  padding: 0 1px !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-family: var(--serif) !important;
+  font-weight: 500 !important;
+  font-size: 13.5px !important;
+  line-height: 20px !important;
+  color: var(--t1) !important;
+  letter-spacing: 0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: none;
+  box-sizing: border-box;
+  flex: 0 1 auto;
+  max-width: 260px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-scope-pill {
+  display: none !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .session-context {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 2px !important;
+  margin: 0 0 0 4px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  flex: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .session-context .composer-context-link,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .session-context .branch-chip-trigger {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 2px !important;
+  height: 20px !important;
+  max-height: 20px !important;
+  padding: 0 4px !important;
+  border-radius: 4px !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+  font: 500 11.5px/20px var(--mono) !important;
+  color: var(--t2) !important;
+  box-sizing: border-box !important;
+  cursor: pointer;
+  transition: color var(--t-1) var(--ease-out), background var(--t-1) var(--ease-out);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .session-context .composer-context-link:hover,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .session-context .branch-chip-trigger:hover {
+  color: var(--t1) !important;
+  background: var(--s2) !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .session-context .composer-context-link-label {
+  line-height: 20px !important;
+  font-size: 11.5px !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .session-context .composer-context-link-icon {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 12px !important;
+  height: 12px !important;
+  color: var(--t3) !important;
+  margin-right: 2px !important;
+  flex: none !important;
+  transition: color var(--t-1) var(--ease-out);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .session-context .composer-context-link:hover .composer-context-link-icon {
+  color: var(--t1) !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .session-context .composer-context-link-icon svg {
+  width: 12px !important;
+  height: 12px !important;
+  display: block !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .session-context .composer-context-link-caret {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 8px !important;
+  height: 8px !important;
+  color: inherit !important;
+  opacity: 0.45 !important;
+  margin-left: 1px !important;
+  flex: none !important;
+  transform: translateY(0.5px) !important;
+  transition: opacity var(--t-1) var(--ease-out);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .session-context .composer-context-link:hover .composer-context-link-caret {
+  opacity: 0.85 !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .session-context .composer-context-link-caret svg {
+  width: 8px !important;
+  height: 8px !important;
+  stroke-width: 1.8 !important;
+  display: block !important;
+}
+
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-status {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  height: 20px !important;
+  max-height: 20px !important;
+  padding: 0 7px !important;
+  border-radius: 4px !important;
+  border: 1px solid var(--l2) !important;
+  background: var(--s3) !important;
+  box-shadow: none !important;
+  outline: none !important;
+  font: 500 10.5px/1 var(--mono) !important;
+  color: var(--t2) !important;
+  margin-left: 4px !important;
+  box-sizing: border-box !important;
+  flex: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-status[data-kind='idle']:not(:has(button)) {
   display: none !important;
 }
 
@@ -225,8 +395,10 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   border-radius: 4px;
   overflow: hidden;
   height: 20px;
+  max-height: 20px;
   align-items: center;
   flex: none;
+  box-sizing: border-box;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) :is(.tb, .proto, .context-bar) .seg button {
@@ -254,63 +426,142 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   box-shadow: var(--sh1);
 }
 
-html[data-theme-id='piwin-inkstone-paper'] .tb .context-bar-mode-badge,
-html[data-theme-id='piwin-inkstone-ink'] .tb .context-bar-mode-badge,
-html[data-theme-id='piwin-inkstone-paper'] .tb .context-bar-origin-badge,
-html[data-theme-id='piwin-inkstone-ink'] .tb .context-bar-origin-badge,
-html[data-theme-id='piwin-inkstone-paper'] .stage-header .context-bar-mode-badge,
-html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-bar-mode-badge,
-html[data-theme-id='piwin-inkstone-paper'] .stage-header .context-bar-origin-badge,
-html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-bar-origin-badge {
-  font: 10px var(--mono);
-  font-weight: 500;
-  height: 16px;
-  padding: 0 5px;
-  border-radius: 3px;
-  letter-spacing: 0.04em;
-  background: transparent;
-  color: var(--t3);
-  box-shadow: none;
-}
-
-html[data-theme-id='piwin-inkstone-paper'] .tb .context-bar-mode-badge.is-warning,
-html[data-theme-id='piwin-inkstone-ink'] .tb .context-bar-mode-badge.is-warning,
-html[data-theme-id='piwin-inkstone-paper'] .stage-header .context-bar-mode-badge.is-warning,
-html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-bar-mode-badge.is-warning {
-  background: transparent;
-  color: var(--zhu);
-}
-
-html[data-theme-id='piwin-inkstone-paper'] .tb .context-session-tree-trigger,
-html[data-theme-id='piwin-inkstone-ink'] .tb .context-session-tree-trigger,
-html[data-theme-id='piwin-inkstone-paper'] .stage-header .context-session-tree-trigger,
-html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-session-tree-trigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 4px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--t3);
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) :is(.tb, .context-bar, .stage-header) .context-bar-mode-badge {
+  font: 600 10.5px/1 var(--mono) !important;
+  height: 20px !important;
+  max-height: 20px !important;
+  padding: 0 7px !important;
+  border-radius: 4px !important;
+  letter-spacing: 0.04em !important;
+  background: var(--s3) !important;
+  border: 1px solid var(--l2) !important;
+  color: var(--t2) !important;
+  box-shadow: none !important;
+  outline: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
   cursor: pointer;
+  box-sizing: border-box !important;
+  flex: none;
+  margin: 0 0 0 2px !important;
+  transition: background var(--t-1) var(--ease-out), color var(--t-1) var(--ease-out);
 }
 
-html[data-theme-id='piwin-inkstone-paper'] .tb .context-session-tree-trigger:hover,
-html[data-theme-id='piwin-inkstone-ink'] .tb .context-session-tree-trigger:hover,
-html[data-theme-id='piwin-inkstone-paper'] .stage-header .context-session-tree-trigger:hover,
-html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-session-tree-trigger:hover {
-  background: var(--s3);
-  color: var(--t1);
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) :is(.tb, .context-bar, .stage-header) .context-bar-mode-badge:hover {
+  background: var(--s2) !important;
+  color: var(--t1) !important;
 }
 
-html[data-theme-id='piwin-inkstone-paper'] .tb .context-session-tree-label,
-html[data-theme-id='piwin-inkstone-ink'] .tb .context-session-tree-label,
-html[data-theme-id='piwin-inkstone-paper'] .tb .context-session-tree-count,
-html[data-theme-id='piwin-inkstone-ink'] .tb .context-session-tree-count,
-html[data-theme-id='piwin-inkstone-paper'] .stage-header .context-session-tree-label,
-html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-session-tree-label {
-  display: none;
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) :is(.tb, .context-bar, .stage-header) .context-bar-origin-badge {
+  font: 500 10.5px/1 var(--mono) !important;
+  height: 20px !important;
+  max-height: 20px !important;
+  padding: 0 6px !important;
+  border-radius: 4px !important;
+  letter-spacing: 0.02em !important;
+  background: var(--s3) !important;
+  border: 1px solid var(--l2) !important;
+  color: var(--t2) !important;
+  box-shadow: none !important;
+  outline: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  cursor: pointer;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+  flex: none;
+  transition: background var(--t-1) var(--ease-out), color var(--t-1) var(--ease-out);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) :is(.tb, .context-bar, .stage-header) .context-bar-origin-badge:hover {
+  background: var(--s2) !important;
+  color: var(--t1) !important;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] :is(.tb, .context-bar, .stage-header) .context-bar-mode-badge.is-warning {
+  background: var(--zhu-wash) !important;
+  color: var(--zhu) !important;
+  border-color: rgba(198, 65, 42, 0.28) !important;
+}
+
+html[data-theme-id='piwin-inkstone-ink'] :is(.tb, .context-bar, .stage-header) .context-bar-mode-badge.is-warning {
+  background: var(--zhu-wash) !important;
+  color: var(--zhu) !important;
+  border-color: rgba(226, 90, 61, 0.35) !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-session-tree-slot {
+  display: inline-flex !important;
+  align-items: center !important;
+  flex: none;
+  margin-left: -1px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) :is(.tb, .context-bar, .stage-header) .context-session-tree-trigger {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 20px !important;
+  height: 20px !important;
+  min-width: 20px !important;
+  border-radius: 4px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--t3) !important;
+  cursor: pointer;
+  box-sizing: border-box;
+  flex: none;
+  transition: background var(--t-1) var(--ease-out), color var(--t-1) var(--ease-out);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) :is(.tb, .context-bar, .stage-header) .context-session-tree-trigger:hover {
+  background: var(--s2) !important;
+  color: var(--t1) !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) :is(.tb, .context-bar, .stage-header) .context-session-tree-trigger[aria-expanded='true'] {
+  background: var(--s3) !important;
+  color: var(--t1) !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) :is(.tb, .context-bar, .stage-header) .context-session-tree-trigger svg {
+  width: 14px !important;
+  height: 14px !important;
+  flex: none;
+  display: block;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) :is(.tb, .context-bar, .stage-header) .context-session-tree-label,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) :is(.tb, .context-bar, .stage-header) .context-session-tree-count {
+  display: none !important;
+}
+
+/* D1 — Titleband congestion relief on mid-width screens.
+   At 1024–1280px with right-panel open the 30px band is severely cramped.
+   Progressive hide: branch chip → cap title → collapse status to dot. */
+@media (max-width: 1280px) {
+  html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .branch-chip-trigger {
+    display: none !important;
+  }
+  html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .session-title {
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .status-label {
+    display: none;
+  }
+}
+
+@media (max-width: 1080px) {
+  html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .session-title {
+    max-width: 120px;
+  }
+  html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .project-chip-label {
+    display: none;
+  }
 }

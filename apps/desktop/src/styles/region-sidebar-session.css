@@ -46,9 +46,9 @@
   /* One constant reserve for the whole right cluster, hover or not. The
      timestamp and the action buttons are both absolutely positioned, so only
      this padding bounds the title -- and swapping it on hover re-truncated the
-     title's ellipsis in the same frame the actions appeared. 84px clears the
-     widest occupant: 3 x 22px buttons + 2 x 2px gaps at right: var(--s-2). */
-  padding-right: 84px;
+     title's ellipsis in the same frame the actions appeared. 108px clears the
+     widest occupant: 4 x 22px buttons + 3 x 2px gaps at right: var(--s-2). */
+  padding-right: 108px;
   border: none;
   border-radius: var(--r-control);
   background: transparent;
@@ -179,6 +179,10 @@
   white-space: nowrap;
 }
 
+.sidebar-tree-row--project-session .session-item-preview {
+  display: none;
+}
+
 /* Subtitle for pinned project sessions */
 .session-row .session-item.has-project-subtitle {
   min-height: 48px;
@@ -229,9 +233,12 @@
   transform: none;
 }
 
-/* Time yields to the hover action cluster. */
+/* Time yields to the hover action cluster, and to the close control that
+   stays up on the shaded (selected) row. */
 .session-row:not(.session-row--working):hover .session-item-time,
-.session-row:not(.session-row--working):focus-within .session-item-time {
+.session-row:not(.session-row--working):focus-within .session-item-time,
+.session-row--active:not(.session-row--working):not(.session-row--completed):not(.session-row--failed)
+  .session-item-time {
   opacity: 0;
   visibility: hidden;
 }
@@ -464,12 +471,9 @@
   align-items: center;
   gap: var(--s-1);
   z-index: 2;
-  opacity: 0;
-  visibility: hidden;
+  /* Cluster stays in layout so the selected-row close can paint at rest;
+     individual buttons hide, because a parent opacity:0 would hide close too. */
   pointer-events: none;
-  transition:
-    opacity var(--t-1) var(--ease-out),
-    visibility var(--t-1) var(--ease-out);
 }
 
 .session-row--draft .session-row-actions--draft {
@@ -478,8 +482,6 @@
 
 .session-row:hover .session-row-actions,
 .session-row:focus-within .session-row-actions {
-  opacity: 1;
-  visibility: visible;
   pointer-events: auto;
 }
 
@@ -496,9 +498,37 @@
   align-items: center;
   justify-content: center;
   padding: 0;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
   transition:
     color var(--t-1) var(--ease-out),
-    background-color var(--t-1) var(--ease-out);
+    background-color var(--t-1) var(--ease-out),
+    opacity var(--t-1) var(--ease-out),
+    visibility var(--t-1) var(--ease-out);
+}
+
+.session-row:hover .session-action-btn,
+.session-row:focus-within .session-action-btn {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* Shaded selected row: close stays up so the session can be deleted without
+   opening the overflow menu. Status marks keep the slot at rest. */
+.session-row--active .session-close-btn {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.session-row--working:not(:hover):not(:focus-within) .session-close-btn,
+.session-row--completed:not(:hover):not(:focus-within) .session-close-btn,
+.session-row--failed:not(:hover):not(:focus-within) .session-close-btn {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .session-action-btn:hover,
@@ -513,7 +543,9 @@
 }
 
 .session-action-btn.session-delete-btn:hover,
-.session-action-btn.session-delete-btn:focus-visible {
+.session-action-btn.session-delete-btn:focus-visible,
+.session-action-btn.session-close-btn:hover,
+.session-action-btn.session-close-btn:focus-visible {
   color: var(--coral);
   background: color-mix(in srgb, var(--coral) 14%, transparent);
 }

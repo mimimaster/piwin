@@ -12,6 +12,9 @@
  * - User scroll-away (wheel up / trackpad / intentional scrollTop drop) must
  *   win over Artifact/virtualizer ResizeObserver sticks — otherwise history
  *   is unreachable while content keeps growing (reads as "can't scroll up").
+ * - A fitted transcript (no overflow, no scrollbar) cannot leave the tail:
+ *   wheel events still fire, but they are not history navigation. Jump-to-latest
+ *   is a "reading older turns" control, same as Cursor / ChatGPT.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { TranscriptScrollPosition } from './transcript-scroll-memory';
@@ -94,9 +97,18 @@ export function shouldDetachFollowTailFromScrollDelta(options: {
 
 /**
  * Pure helper: wheel / trackpad gesture that reveals earlier content.
+ * Vacuous wheels on a fitted (non-overflowing) transcript are ignored —
+ * browsers still emit them, but scrollTop cannot change, so the viewport
+ * would otherwise stick in a detached state with no way to re-pin.
  */
-export function shouldDetachFollowTailFromWheelDelta(deltaY: number): boolean {
-  return deltaY <= USER_WHEEL_AWAY_DELTA_Y;
+export function shouldDetachFollowTailFromWheelDelta(options: {
+  deltaY: number;
+  overflowing: boolean;
+}): boolean {
+  if (!options.overflowing) {
+    return false;
+  }
+  return options.deltaY <= USER_WHEEL_AWAY_DELTA_Y;
 }
 
 function readScrollMetrics(element: HTMLElement): {
@@ -335,7 +347,18 @@ export function useTranscriptScroll(options: {
     }
 
     const onWheel = (event: WheelEvent): void => {
-      if (!shouldDetachFollowTailFromWheelDelta(event.deltaY)) {
+      const overflowing = isScrollOverflowing(readScrollMetrics(element).ratio);
+      if (
+        !shouldDetachFollowTailFromWheelDelta({
+          deltaY: event.deltaY,
+          overflowing,
+        })
+      ) {
+        // Fitted transcript: any leftover detached state is unrecoverable by
+        // scrolling (there is no scroll). Re-pin so jump-to-latest cannot stick.
+        if (!overflowing && (userDetachedRef.current || !followTailRef.current)) {
+          setFollowTail(true);
+        }
         return;
       }
       detachFromTail();
@@ -346,7 +369,7 @@ export function useTranscriptScroll(options: {
     return () => {
       element.removeEventListener('wheel', onWheel);
     };
-  }, [detachFromTail, options.messageCount]);
+  }, [detachFromTail, options.messageCount, setFollowTail]);
 
   useLayoutEffect(() => {
     const nextLiveTurnId = options.liveTurnId?.trim() || null;
@@ -438,7 +461,7 @@ export function useTranscriptScroll(options: {
   return {
     containerRef,
     followTail,
-    showJumpToLatest: !followTail,
+    showJumpToLatest: !followTail && isScrollOverflowing(scrollRatio),
     jumpToLatest,
     handleScroll,
     setFollowTail,

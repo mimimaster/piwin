@@ -581,11 +581,13 @@
   height: 12px;
   margin-left: auto;
   color: var(--text-4);
+  /* IconChevronDown: collapsed points right, open points down. */
+  transform: rotate(-90deg);
   transition: transform var(--t-2) var(--ease-out);
 }
 
 .assembly-summary.open > .cap .chev {
-  transform: rotate(180deg);
+  transform: rotate(0deg);
 }
 
 .assembly-summary-detail {

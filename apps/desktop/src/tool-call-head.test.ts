@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  formatChainPreviewChip,
   humanizeToolCallName,
   kindVerb,
   looksLikeArgsDumpSummary,
@@ -8,6 +9,24 @@ import {
   resolveToolCallHeaderPreview,
 } from './tool-call-head';
 import { formatToolOutputTruncation } from './tool-output-truncation-display.js';
+
+describe('formatChainPreviewChip', () => {
+  it('strips a leading cd && so the chip shows the real command', () => {
+    expect(formatChainPreviewChip("cd /Users/me/Developer/piwin && pnpm typecheck")).toBe(
+      'pnpm typecheck',
+    );
+  });
+
+  it('clips long commands after stripping cd', () => {
+    const clipped = formatChainPreviewChip(
+      'cd /Users/me/piwin && pnpm exec vitest run src/styles/inkstone/tool-timeline.test.ts src/explore-flow-capsule.test.tsx',
+      40,
+    );
+    expect(clipped.endsWith('…')).toBe(true);
+    expect(clipped.length).toBeLessThanOrEqual(40);
+    expect(clipped.startsWith('pnpm')).toBe(true);
+  });
+});
 
 describe('formatToolOutputTruncation', () => {
   it('keeps the collapsed label on one line and explains continuation in detail', () => {

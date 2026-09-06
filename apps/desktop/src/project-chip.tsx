@@ -40,7 +40,7 @@ export function ProjectChip(props: ProjectChipProps): ReactElement {
         >
           <span className="composer-context-link-label">{chipLabel}</span>
           <span className="composer-context-link-caret" aria-hidden>
-            <IconChevronDown width={13} height={13} />
+            <IconChevronDown width={10} height={10} />
           </span>
         </button>
       }

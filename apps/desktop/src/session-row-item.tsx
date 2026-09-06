@@ -5,6 +5,7 @@ import type { DesktopCopy } from './desktop-locale';
 import {
   IconArchive,
   IconCheck,
+  IconClose,
   IconDocument,
   IconFolder,
   IconMoreVertical,
@@ -74,6 +75,52 @@ function SessionActivityIndicator(props: {
   return null;
 }
 
+/**
+ * Cleans up raw preview strings (e.g. stripping prompt metadata, XML context refs,
+ * transcript history preambles, and message headers) before showing in session cards.
+ */
+export function sanitizePreviewSnippet(raw: string): string {
+  if (!raw) return '';
+  let text = raw.trim();
+
+  // If there is "--- Current user message:", prioritize whatever comes after it
+  const currentMsgMatch = text.match(/(?:---|___)\s*Current user message:\s*([\s\S]*)$/i);
+  if (currentMsgMatch && currentMsgMatch[1]) {
+    text = currentMsgMatch[1].trim();
+  }
+
+  // Strip XML-style context refs: <context_ref ...> ... </context_ref>
+  text = text.replace(/<context_ref[^>]*>[\s\S]*?<\/context_ref>/gi, '').trim();
+  text = text.replace(/<[^>]+>/g, '').trim();
+
+  // Strip piwin wrappers and history markers
+  text = text.replace(/\[\/?piwin-product-history\]/gi, '').trim();
+  text = text.replace(/\[\/?piwin[^\]]*\]/gi, '').trim();
+  text = text.replace(/Prior conversation \([^)]*\):?/gi, '').trim();
+  text = text.replace(/^[^[\]\n]*?not Pi JSONL\)?:\s*/gi, '').trim();
+
+  // If there is a "User: ... \nAssistant:", take the User's input
+  const userToAssistantMatch = text.match(/(?:^|\n)\s*User:\s*([\s\S]*?)(?=(?:\n\s*Assistant:|$))/i);
+  if (userToAssistantMatch && userToAssistantMatch[1]?.trim()) {
+    text = userToAssistantMatch[1].trim();
+  } else {
+    text = text.replace(/^(?:User|Assistant):\s*/gi, '').trim();
+  }
+
+  // Strip system prompt / orchestrator boilerplates if leaked without user message
+  if (
+    text.startsWith('Operating contract for this turn') ||
+    text.startsWith('Orchestration scheme') ||
+    text.startsWith('A detailed walkthrough will be auto-generated')
+  ) {
+    return '';
+  }
+
+  text = text.replace(/\[\/?piwin[^\]]*\]/gi, '').trim();
+  text = text.replace(/\s+/g, ' ').trim();
+  return text;
+}
+
 export function SessionRowItem({
   session,
   activeSessionId,
@@ -139,15 +186,27 @@ export function SessionRowItem({
   const hasFailedAttention =
     !isDraft && failedAttentionSessionIds != null && session.id in failedAttentionSessionIds;
 
+
+  const rawPreview = isDraft
+    ? session.text.trim()
+    : 'lastPreview' in session && typeof session.lastPreview === 'string'
+      ? session.lastPreview.trim()
+      : '';
+  const cleanedPreview = sanitizePreviewSnippet(rawPreview);
+  const unquoted = cleanedPreview.replace(/^[“"']+|[”"']+$/g, '').trim();
+  const formattedPreview = unquoted ? `“${unquoted}”` : null;
+
   return (
     <div
       key={session.id}
       className={[
         'session-row',
+        ...(isActive ? ['session-row--active'] : []),
         ...(hasActiveSessionWork ? ['session-row--working'] : []),
         ...(hasCompletedAttention ? ['session-row--completed'] : []),
         ...(hasFailedAttention ? ['session-row--failed'] : []),
         ...(isDraft ? ['session-row--draft'] : []),
+        ...(formattedPreview ? ['session-row--has-preview'] : []),
       ].join(' ')}
     >
       <button
@@ -175,6 +234,7 @@ export function SessionRowItem({
                 ? 'session-item context-active'
                 : 'session-item',
           ...(projectSubtitle ? ['has-project-subtitle'] : []),
+          ...(formattedPreview ? ['has-preview'] : []),
         ].join(' ')}
         onClick={() => (isDraft ? onResumeDraft?.(session.id) : onResumeSession(session.id))}
         onContextMenu={(event) => {
@@ -187,7 +247,9 @@ export function SessionRowItem({
           className={
             projectSubtitle
               ? 'session-item-body has-project-subtitle'
-              : 'session-item-body'
+              : formattedPreview
+                ? 'session-item-body has-preview'
+                : 'session-item-body'
           }
         >
           <span className="session-item-name">
@@ -226,6 +288,14 @@ export function SessionRowItem({
             <span className="session-item-project-subtitle" data-testid="session-project-subtitle">
               <IconFolder width={12} height={12} className="session-item-project-icon" />
               <span className="session-item-project-name">{projectSubtitle}</span>
+            </span>
+          ) : formattedPreview ? (
+            <span
+              className="session-item-preview"
+              data-testid="session-item-preview"
+              title={cleanedPreview}
+            >
+              {formattedPreview}
             </span>
           ) : null}
         </span>
@@ -383,6 +453,21 @@ export function SessionRowItem({
             >
               <IconArchive width={SESSION_ACTION_ICON_PX} height={SESSION_ACTION_ICON_PX} />
             </button>
+            {isDraft ? null : (
+              <button
+                type="button"
+                className="session-action-btn session-close-btn"
+                data-testid="session-close-btn"
+                title={copy.deleteSessionPermanently}
+                aria-label={copy.deleteSessionPermanently}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onDeleteSession?.(session.id);
+                }}
+              >
+                <IconClose width={SESSION_ACTION_ICON_PX} height={SESSION_ACTION_ICON_PX} />
+              </button>
+            )}
           </>
         )}
       </div>

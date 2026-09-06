@@ -38,7 +38,7 @@ import {
 } from './shell-icons';
 import { getDesktopCopy, type DesktopLocale } from './desktop-locale';
 
-const SIDEBAR_SESSION_ROW_ESTIMATE_PX = 28;
+const SIDEBAR_SESSION_ROW_ESTIMATE_PX = 46;
 const SIDEBAR_SECTION_ROW_ESTIMATE_PX = 22;
 const SIDEBAR_FOLDER_ROW_ESTIMATE_PX = 26;
 const SIDEBAR_HINT_ROW_ESTIMATE_PX = 22;
@@ -163,7 +163,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
   const copy = getDesktopCopy(props.locale ?? 'zh-CN');
   const sidebarCopy = copy.sidebar;
   const disclosureCopy = getProjectSessionDisclosureCopy(props.locale ?? 'zh-CN');
-  const newConversationLabel = props.locale === 'en' ? 'New Chat' : '新建 Chat';
+  const newConversationLabel = props.locale === 'en' ? 'Clean Slate' : '素笺';
   const newSessionLabel = props.generalActive ? newConversationLabel : copy.newSession;
   const [localSortBy, setLocalSortBy] = useState<SessionListOrder>('updated');
   const sortBy = props.sessionListOrder ?? localSortBy;

@@ -293,7 +293,7 @@ export function BranchChip(props: BranchChipProps): ReactElement | null {
             </span>
             <span className="composer-context-link-label">{label}</span>
             <span className="composer-context-link-caret" aria-hidden>
-              <IconChevronDown width={13} height={13} />
+              <IconChevronDown width={10} height={10} />
             </span>
           </button>
         }

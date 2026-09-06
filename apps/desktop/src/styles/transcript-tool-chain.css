@@ -561,19 +561,12 @@
   white-space: nowrap;
 }
 
+.turn-work-disclosure-trigger .chev,
 .turn-work-disclosure-chevron {
   display: inline-flex;
   flex: none;
   margin-left: auto;
   color: var(--t4, var(--text-4));
-  transition: transform var(--t-3, 0.24s) var(--ease-out, ease-out);
-}
-
-.turn-work-disclosure-chevron.is-open,
-.turn-work-disclosure.is-open .turn-work-disclosure-chevron,
-.turn-work-disclosure-trigger.is-open .turn-work-disclosure-chevron,
-.turn-work-disclosure[data-open="true"] .turn-work-disclosure-chevron {
-  transform: rotate(180deg);
 }
 
 .turn-work-details-summary {

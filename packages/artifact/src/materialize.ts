@@ -6,7 +6,10 @@
  */
 import { createDefaultArtifactIframePolicy } from './iframe-policy.js';
 import { buildHtmlArtifactSrcdoc } from './srcdoc.js';
-import { buildStreamableArtifactPreview } from './streamable-preview.js';
+import {
+  buildStreamableArtifactPreview,
+  projectHtmlSourceForStreamRoot,
+} from './streamable-preview.js';
 import { createDefaultArtifactTheme } from './theme.js';
 import { applyArtifactThemeContract } from './theme-contract.js';
 import type {
@@ -61,6 +64,14 @@ export function materializeArtifact(
     bodySource = streamPreview.canStream ? streamPreview.previewSource : '';
   }
 
+  // Stream updates sync into `.piwin-artifact-root`. Full documents have no such
+  // root when hosted as documentKind=document, so stream-preview always uses the
+  // fragment shell and flattens doctype/html/head/body into that root.
+  const streamFragmentShell = mode === 'stream-preview';
+  if (streamFragmentShell && bodySource && intent.descriptor.documentKind === 'document') {
+    bodySource = projectHtmlSourceForStreamRoot(bodySource);
+  }
+
   const contract = applyArtifactThemeContract(bodySource);
   if (contract.changed) {
     bodySource = contract.source;
@@ -92,7 +103,7 @@ export function materializeArtifact(
     includeBridge: true,
     enableStreamUpdates: true,
     freezeSource: mode !== 'stream-preview',
-    documentKind: intent.descriptor.documentKind,
+    documentKind: streamFragmentShell ? 'fragment' : intent.descriptor.documentKind,
   });
 
   return {

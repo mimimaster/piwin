@@ -17,7 +17,14 @@ export type SessionNameSource = 'default' | 'text' | 'llm' | 'user' | 'auto';
  */
 const PLACEHOLDER_SESSION_RE = /^session-.+/i;
 
-const DEFAULT_LABELS = new Set(['new chat', '新会话', 'new session', '新对话']);
+const DEFAULT_LABELS = new Set([
+  'new chat',
+  '新会话',
+  'new session',
+  '新对话',
+  '素笺',
+  'clean slate',
+]);
 
 /**
  * Internal prompt wrappers that older Desktop builds accidentally persisted as

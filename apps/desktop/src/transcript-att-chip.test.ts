@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isTranscriptMediaPreviewable,
   transcriptAttFromContextRef,
   transcriptAttFromMedia,
 } from './transcript-att-chip';
@@ -51,5 +52,40 @@ describe('transcriptAttFromMedia', () => {
         source: 'paste',
       }),
     ).toEqual({ variant: 'image', text: '截图 2026-09-03.png' });
+  });
+});
+
+describe('isTranscriptMediaPreviewable', () => {
+  it('allows images and videos, not documents', () => {
+    expect(
+      isTranscriptMediaPreviewable({
+        id: 'a1',
+        kind: 'media',
+        mimeType: 'image/png',
+        path: '/tmp/a.png',
+        byteSize: 12,
+        source: 'paste',
+      }),
+    ).toBe(true);
+    expect(
+      isTranscriptMediaPreviewable({
+        id: 'a2',
+        kind: 'media',
+        mimeType: 'video/mp4',
+        path: '/tmp/a.mp4',
+        byteSize: 12,
+        source: 'generated',
+      }),
+    ).toBe(true);
+    expect(
+      isTranscriptMediaPreviewable({
+        id: 'a3',
+        kind: 'media',
+        mimeType: 'application/pdf',
+        path: '/tmp/a.pdf',
+        byteSize: 12,
+        source: 'file-picker',
+      }),
+    ).toBe(false);
   });
 });
