@@ -4,7 +4,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
-import { BRANCH_CHECKED_OUT_IN_WORKTREE_PREFIX } from '@piwin/contracts';
+import {
+  BRANCH_CHECKED_OUT_IN_WORKTREE_PREFIX,
+  CHECKOUT_BLOCKED_BY_LOCAL_CHANGES_PREFIX,
+} from '@piwin/contracts';
 import { handleProjectCommand } from './project-commands.js';
 import { handleGitCommand } from './git-commands.js';
 import { createRemoteProjectId } from '../remote-project-id.js';
@@ -139,6 +142,36 @@ describe('git checkout', () => {
     const occupied = branches.find((branch) => branch.name === 'feat/occupied');
     expect(occupied?.checkedOutWorktreePath).toBeTruthy();
     expect(await realpath(occupied?.checkedOutWorktreePath ?? '')).toBe(await realpath(linkedPath));
+  });
+
+  it('returns a classified error when local changes would be overwritten', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-git-dirty-'));
+    const projectPath = join(rootDir, 'workspace');
+    await mkdir(projectPath, { recursive: true });
+    await execFileAsync('git', ['init', '-b', 'main'], { cwd: projectPath });
+    await execFileAsync('git', ['config', 'user.email', 'piwin-test@example.com'], {
+      cwd: projectPath,
+    });
+    await execFileAsync('git', ['config', 'user.name', 'piwin test'], { cwd: projectPath });
+    await writeFile(join(projectPath, 'README.md'), 'hello\n', 'utf8');
+    await execFileAsync('git', ['add', 'README.md'], { cwd: projectPath });
+    await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: projectPath });
+    await execFileAsync('git', ['checkout', '-b', 'feat/other'], { cwd: projectPath });
+    await writeFile(join(projectPath, 'README.md'), 'other\n', 'utf8');
+    await execFileAsync('git', ['commit', '-am', 'other'], { cwd: projectPath });
+    await execFileAsync('git', ['checkout', 'main'], { cwd: projectPath });
+    await writeFile(join(projectPath, 'README.md'), 'dirty\n', 'utf8');
+
+    const checkout = await handleGitCommand(
+      { type: 'git/checkout', input: { projectPath, ref: 'feat/other' } },
+      'checkout-dirty',
+      { piwinRoot: rootDir } as HostCommandContext,
+    );
+    expect(checkout?.success).toBe(false);
+    expect(String(checkout && 'error' in checkout ? checkout.error : '')).toBe(
+      CHECKOUT_BLOCKED_BY_LOCAL_CHANGES_PREFIX,
+    );
+    expect(String(checkout && 'error' in checkout ? checkout.error : '')).not.toContain('README.md');
   });
 });
 

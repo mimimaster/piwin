@@ -2,6 +2,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import {
+  IconBrain,
   IconChat,
   IconClock,
   IconDatabase,
@@ -14,6 +15,14 @@ import {
 } from './shell-icons.js';
 
 describe('shared shell icons', () => {
+  it('renders IconBrain as the two-hemisphere thinking glyph', () => {
+    const markup = renderToStaticMarkup(createElement(IconBrain));
+    expect(markup).toContain('viewBox="0 0 16 16"');
+    expect(markup).toContain('M7.5 3.2');
+    expect(markup).toContain('M8 3v10');
+    expect(markup).not.toContain('<rect');
+  });
+
   it('renders IconFolderOpen as a single thin outline path', () => {
     const markup = renderToStaticMarkup(createElement(IconFolderOpen));
     expect(markup).toContain('stroke-width="1.6"');

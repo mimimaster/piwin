@@ -227,6 +227,37 @@ function buildPreviewFromSafePrefix(source: string, safeEndIndex: number): Strea
   };
 }
 
+/**
+ * Full HTML documents stream into `.piwin-artifact-root` (fragment shell).
+ * Flatten doctype/html/head/body so styles and body markup land under that root.
+ * Incomplete documents (no `</style>` / no `<body>` yet) may still return a
+ * style-less or empty body — callers gate on `canStream` first.
+ */
+export function projectHtmlSourceForStreamRoot(source: string): string {
+  const trimmed = source.trim();
+  if (!trimmed) {
+    return source;
+  }
+  if (!/<(?:!doctype\s+html\b|html\b)/i.test(trimmed)) {
+    return source;
+  }
+
+  const styles = [...source.matchAll(/<style\b[\s\S]*?<\/style\s*>/gi)].map((match) => match[0]);
+  const bodyOpen = /<body\b[^>]*>/i.exec(source);
+  let body: string;
+  if (bodyOpen && bodyOpen.index !== undefined) {
+    body = source.slice(bodyOpen.index + bodyOpen[0].length);
+    body = body.replace(/<\/body\s*>\s*(?:<\/html\s*>)?\s*$/i, '');
+  } else {
+    body = source
+      .replace(/<!doctype\s+html[^>]*>/i, '')
+      .replace(/<\/?html\b[^>]*>/gi, '')
+      .replace(/<head\b[\s\S]*?(?:<\/head\s*>|$)/i, '')
+      .replace(/<\/?body\b[^>]*>/gi, '');
+  }
+  return `${styles.join('\n')}${body}`;
+}
+
 export function buildStreamableArtifactPreview(source: string): StreamablePreviewResult {
   if (!source.trim()) {
     return { canStream: false, previewSource: source };

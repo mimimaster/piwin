@@ -512,6 +512,18 @@ describe('buildToolPresentation', () => {
     expect(serverOnly.inputPreview).toBe('{"project":"piwin"}');
   });
 
+  it('keeps MCP args previews larger than the 96-char head clip for expanded cards', () => {
+    const longQuery = 'q'.repeat(200);
+    const presentation = buildToolPresentation({
+      toolName: 'mcp__agent-memory__agent_memory_search',
+      args: { project: 'piwin', query: longQuery },
+    });
+    expect(presentation.inputPreview?.length ?? 0).toBeGreaterThan(96);
+    expect(presentation.inputPreview).toContain(longQuery);
+    expect(presentation.summary).toBe('agent_memory_search');
+    expect(presentation.summary).not.toContain(longQuery);
+  });
+
   it('marks a successful web fetch result as truncated in the tool view', () => {
     const presentation = buildToolPresentation({
       toolName: 'web_fetch',

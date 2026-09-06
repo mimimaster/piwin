@@ -49,11 +49,11 @@ html[data-theme-id='piwin-inkstone-paper'] {
      non-Inkstone themes never change, collapsing text-2/3 onto ph here. */
   --slab: #1f1c18;
   --slab-t: #efe9df;
-  --slab-ph: #8d857a;
+  --slab-ph: #9a928a;
   --slab-text: #efe9df;
-  --slab-text-2: #8d857a;
-  --slab-text-3: #8d857a;
-  --slab-placeholder: #8d857a;
+  --slab-text-2: #9a928a;
+  --slab-text-3: #9a928a;
+  --slab-placeholder: #9a928a;
   --slab-chip: rgba(255, 255, 255, 0.07);
   --slab-line: rgba(255, 255, 255, 0.1);
   /* No prototype source (static mockup has no interaction/drag states) —
@@ -101,15 +101,15 @@ html[data-theme-id='piwin-inkstone-ink'] {
   --crimson-wash: rgba(217, 95, 110, 0.14);
   --azure: #6ba4c3;
   --azure-wash: rgba(107, 164, 195, 0.14);
-  --code: #0f0e0c;
+  --code: #15120f;
 
   --slab: #0e0d0b;
   --slab-t: #ebe5da;
-  --slab-ph: #6f685f;
+  --slab-ph: #7a7268;
   --slab-text: #ebe5da;
-  --slab-text-2: #6f685f;
-  --slab-text-3: #6f685f;
-  --slab-placeholder: #6f685f;
+  --slab-text-2: #7a7268;
+  --slab-text-3: #7a7268;
+  --slab-placeholder: #7a7268;
   --slab-chip: rgba(235, 229, 218, 0.07);
   --slab-line: rgba(235, 229, 218, 0.1);
   --slab-raised: rgba(235, 229, 218, 0.08);
@@ -144,16 +144,19 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   --fs-ui: 12.5px;
   --fs-meta: 11.5px;
   --fs-micro: 10.5px;
-  /* Deck geometry tokens that region CSS still reads. Prototype: 8px panels,
-     10px slab, 6px gutter, 28px session rows, 13.5px chrome. */
-  --r-panel: 8px;
+  /* Mono line-height: explicit value avoids CJK mixed-script jitter
+     when JetBrains Mono ascenders differ from PingFang SC. */
+  --mono-lh: 1.4;
+  /* Deck geometry tokens that region CSS still reads. Prototype: 12px panels
+     (proto-00 shell-foundation.css:303), 12px slab, 6px gutter, 28px rows. */
+  --r-panel: 12px;
   --r-card: 8px;
-  --r-overlay: 10px;
+  --r-overlay: 12px;
   --r-control: 6px;
   --h-sm: 28px;
   --h-md: 31px;
   --h-lg: 32px;
   --deck-inset: 8px;
-  --deck-gap: 6px;
+  --deck-gap: 8px;
   --measure: 760px;
 }

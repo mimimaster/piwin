@@ -1,4 +1,4 @@
-/* S5.4: Work fold (.work-h) with bulb/lamp/square three-state header */
+/* S5.4: Work fold (.work-h) with bulb/brain/lamp/square header */
 html[data-theme-id='piwin-inkstone-paper'] .work,
 html[data-theme-id='piwin-inkstone-ink'] .work,
 html[data-theme-id='piwin-inkstone-paper'] .turn-work-details,
@@ -78,21 +78,26 @@ html[data-theme-id='piwin-inkstone-ink'] .turn-work-details-summary .sq {
   flex: none;
 }
 
-html[data-theme-id='piwin-inkstone-paper'] .work-h code,
-html[data-theme-id='piwin-inkstone-ink'] .work-h code,
-html[data-theme-id='piwin-inkstone-paper'] .turn-work-details-summary code,
-html[data-theme-id='piwin-inkstone-ink'] .turn-work-details-summary code,
-html[data-theme-id='piwin-inkstone-paper'] .tr code,
-html[data-theme-id='piwin-inkstone-ink'] .tr code,
-html[data-theme-id='piwin-inkstone-paper'] .tool-call-file-pill,
-html[data-theme-id='piwin-inkstone-ink'] .tool-call-file-pill,
-html[data-theme-id='piwin-inkstone-paper'] .tool-call-preview,
-html[data-theme-id='piwin-inkstone-ink'] .tool-call-preview {
+/* Proto `.tr code` / global `code`: mono chip on --code. Beat Deck's
+   `.turn-work-details .tool-call-card .tool-call-file-pill { background:transparent; padding:0 }`. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  :is(
+    .work-h code,
+    .turn-work-details-summary code,
+    .tr code,
+    .turn-work-details .tool-call-card .tool-call-file-pill,
+    .turn-work-details .tool-call-card .tool-call-preview,
+    .tool-call-card .tool-call-file-pill,
+    .tool-call-card .tool-call-preview
+  ) {
   font: 11.5px var(--mono);
+  font-weight: 400;
   color: var(--t1);
   background: var(--code);
   padding: 1px 5px;
   border-radius: 3px;
+  box-shadow: none;
+  border: 0;
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .work-h b,
@@ -126,17 +131,7 @@ html[data-theme-id='piwin-inkstone-paper'] .turn-work-disclosure .chev,
 html[data-theme-id='piwin-inkstone-ink'] .turn-work-disclosure .chev {
   margin-left: auto;
   color: var(--t4);
-  transition: transform 0.24s ease-out;
   flex: none;
-}
-
-html[data-theme-id='piwin-inkstone-paper'] .work-h.is-open .chev,
-html[data-theme-id='piwin-inkstone-ink'] .work-h.is-open .chev,
-html[data-theme-id='piwin-inkstone-paper'] .turn-work-disclosure.is-open .chev,
-html[data-theme-id='piwin-inkstone-ink'] .turn-work-disclosure.is-open .chev,
-html[data-theme-id='piwin-inkstone-paper'] .fw.open > [data-fold] .chev,
-html[data-theme-id='piwin-inkstone-ink'] .fw.open > [data-fold] .chev {
-  transform: rotate(180deg);
 }
 
 /* Thinking body */
@@ -175,28 +170,21 @@ html[data-theme-id='piwin-inkstone-ink'] .thread,
 html[data-theme-id='piwin-inkstone-paper'] .turn-tool-sequence,
 html[data-theme-id='piwin-inkstone-ink'] .turn-tool-sequence {
   position: relative;
-  padding-left: calc(var(--row-in) - var(--row-pad));
+  /* Icons live in the row flex now; no left gutter for a spine/nodes. */
+  padding-left: 0;
   margin-left: 0;
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .thread::before,
 html[data-theme-id='piwin-inkstone-ink'] .thread::before,
 html[data-theme-id='piwin-inkstone-paper'] .turn-tool-sequence::before,
-html[data-theme-id='piwin-inkstone-ink'] .turn-tool-sequence::before {
-  content: '';
-  position: absolute;
-  left: var(--line-x);
-  top: 8px;
-  bottom: 8px;
-  width: 1.5px;
-  border-radius: 1px;
-  background: var(--l3);
-}
-
+html[data-theme-id='piwin-inkstone-ink'] .turn-tool-sequence::before,
 html[data-theme-id='piwin-inkstone-paper'] .thread.az::before,
 html[data-theme-id='piwin-inkstone-ink'] .thread.az::before {
-  background: var(--azure);
-  opacity: 0.5;
+  /* Kind icons replaced the status balls; the ink spine through the glyphs
+     reads as noise, so drop the rail line. */
+  display: none !important;
+  content: none !important;
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .tr,
@@ -251,17 +239,18 @@ html[data-theme-id='piwin-inkstone-ink'] .tool-call-card .tool-call-name {
   font-weight: 600;
 }
 
-/* S5.5: Six-state status nodes */
+/* S5.5: Six-state status nodes — smaller ink dots when a row still uses them
+   (explore header fallback). Tool rows use kind icons on the rail instead. */
 html[data-theme-id='piwin-inkstone-paper'] .node,
 html[data-theme-id='piwin-inkstone-ink'] .node,
 html[data-theme-id='piwin-inkstone-paper'] .tool-status-dot,
 html[data-theme-id='piwin-inkstone-ink'] .tool-status-dot {
   position: absolute;
-  left: -18px;
+  left: -16px;
   top: 50%;
-  margin-top: -4.5px;
-  width: 9px;
-  height: 9px;
+  margin-top: -3px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: var(--s2);
   border: 1.5px solid var(--l3);
@@ -330,47 +319,95 @@ html[data-theme-id='piwin-inkstone-ink'] .tool-status-dot[data-kind='background'
 
 html[data-theme-id='piwin-inkstone-paper'] .node.sm,
 html[data-theme-id='piwin-inkstone-ink'] .node.sm {
-  width: 7px;
-  height: 7px;
-  margin-top: -3.5px;
-  left: -17px;
+  width: 5px;
+  height: 5px;
+  margin-top: -2.5px;
+  left: -15.5px;
 }
 
 
-/* A single ink line is the structure. Remove the older nested card/icon
-   shell so the action, path and elapsed time share one 28px baseline. */
+/* Proto `.tr`: one 28px flex baseline — pad 8 · gap 8 · b 600/12.5 sans ·
+   code 11.5 mono chip · meta 11.5 mono t4. Node at left:-18 sits on the
+   thread ::before (line-x 8). Do not zero the left pad: that collapses the
+   measured ~17px node→verb gap down to ~9px and reads as “邯郸学步”. */
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) {
   .turn-tool-sequence { gap: 0; }
-  .tool-call-card.tr { display: block; padding: 0; height: auto; overflow: visible; animation: none; }
+  .tool-call-card.tr {
+    display: block;
+    padding: 0;
+    height: auto;
+    min-height: 28px;
+    overflow: visible;
+    animation: none;
+    font-size: 12.5px;
+    color: var(--t2);
+  }
   .tool-call-card .tool-call-summary,
   .turn-work-details .tool-call-card.density-compact .tool-call-summary {
     display: flex;
     align-items: center;
+    height: 28px;
     min-height: 28px;
-    /* Compact chain padding (4–12px) sat between the ink node and the verb
-       and read as a blank column. Keep the right pad for meta; sit the verb
-       on the row edge so the node-to-label gap is just the rail. */
-    padding: 0 var(--row-pad) 0 0;
+    padding: 0 var(--row-pad);
     gap: 8px;
     line-height: 28px;
     position: relative;
     white-space: nowrap;
+    font-size: 12.5px;
+    font-weight: 400;
+    color: var(--t2);
+    background: transparent;
   }
-  .tool-call-card .tool-call-kind-icon { display: none !important; }
-  .tool-call-card .tool-call-action-verb {
+  /* Proto `.tr.sub { padding-left: 14px }` — nested explore/grep rows. */
+  .tool-call-card.sub .tool-call-summary,
+  .turn-work-details .tool-call-card.sub.density-compact .tool-call-summary {
+    padding-left: 14px;
+  }
+  .tool-call-card .tool-call-action-verb,
+  .turn-work-details .tool-call-card .tool-call-action-verb {
     color: var(--t1);
-    font: 600 12.5px var(--sans);
+    font: 600 12.5px / 1.5 var(--sans);
+    letter-spacing: normal;
+    flex: none;
   }
   .tool-call-card .tool-call-preview,
-  .tool-call-card .tool-call-file-pill {
+  .tool-call-card .tool-call-file-pill,
+  .turn-work-details .tool-call-card .tool-call-preview,
+  .turn-work-details .tool-call-card .tool-call-file-pill {
+    display: inline-flex;
+    align-items: center;
     overflow: hidden;
     text-overflow: ellipsis;
     min-width: 0;
+    /* Proto `.mq` caps at 220px; keep chips short so meta stays visible. */
+    max-width: min(240px, 48%);
+    flex: 0 1 auto;
+    flex-shrink: 1;
+    font: 11.5px var(--mono);
+    font-weight: 400;
+    color: var(--t1);
+    background: var(--code);
+    padding: 1px 5px;
+    border-radius: 3px;
     border: 0;
     box-shadow: none;
+    white-space: nowrap;
+  }
+  .tool-call-card .tool-call-file-name,
+  .turn-work-details .tool-call-card .tool-call-file-pill .tool-call-file-name {
+    font: inherit;
+    color: inherit;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tool-call-card .tool-call-line-range,
+  .tool-call-card .tool-call-count-inline,
+  .tool-call-card .tool-call-count-tag {
+    display: none;
   }
   .tool-call-card .meta,
-  .tr .meta {
+  .tr .meta,
+  .turn-work-details .tool-call-card .meta {
     margin-left: auto;
     display: flex;
     gap: 8px;
@@ -380,7 +417,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     font-variant-numeric: tabular-nums;
     flex: none;
   }
-  .tool-call-card .tool-call-duration {
+  .tool-call-card .tool-call-duration,
+  .tool-call-card .tool-call-count-meta {
     font: 11.5px var(--mono);
     color: inherit;
     margin-left: 0;
@@ -393,7 +431,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   .tool-call-card .tool-call-body,
   .tb {
     margin: 2px 0 6px var(--row-pad);
-    padding: 10px 12px;
+    padding: var(--surf-y) var(--surf-x);
     border-radius: 6px;
     background: var(--code);
     box-shadow: var(--sh1);
@@ -406,8 +444,39 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   .tb.err,
   .tool-call-card.fail .tool-call-body { color: var(--crimson); }
   .tool-call-card .tool-call-body pre { font: inherit; background: transparent; color: inherit; }
-  .tool-call-summary > .node { left: -18px; top: 14px; }
-  .tool-call-summary > .node.sm { left: -17px; }
+  /* Kind icon is the rail marker now (no status ball, no spine). Keep it in
+     flex flow so it shares align-items:center with the verb — absolute
+     left:-21px was for sitting on the old ink line and drifted by parent. */
+  .tool-call-card .tool-call-summary > .node {
+    display: none;
+  }
+  .tool-call-card .tool-call-kind-icon {
+    display: block !important;
+    position: static;
+    left: auto;
+    top: auto;
+    margin: 0;
+    width: 14px;
+    height: 14px;
+    flex: none;
+    color: var(--pine);
+    stroke-width: 1.5;
+  }
+  .tool-call-card.sub .tool-call-kind-icon {
+    width: 12px;
+    height: 12px;
+  }
+  .tool-call-card.fail .tool-call-kind-icon,
+  .tool-call-card.status-error .tool-call-kind-icon {
+    color: var(--crimson);
+  }
+  .tool-call-card.status-running .tool-call-kind-icon {
+    color: var(--lamp);
+  }
+  .tool-call-card.status-pending .tool-call-kind-icon,
+  .tool-call-card.status-waiting .tool-call-kind-icon {
+    color: var(--t3);
+  }
   .tool-call-summary .seal.mini { width: 17px; height: 17px; flex: none; }
   .tool-call-chevron-hit {
     opacity: 1;
@@ -423,12 +492,15 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     min-height: 28px;
     padding: 0;
     align-items: stretch;
+    font-size: 12.5px;
+    color: var(--t2);
   }
   .explore-flow-capsule .tool-batch-header,
   .tool-batch-capsule .tool-batch-header {
     display: flex;
     align-items: center;
     gap: 8px;
+    height: 28px;
     min-height: 28px;
     padding: 0 var(--row-pad);
     width: 100%;
@@ -436,8 +508,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     background: transparent;
     border: 0;
     box-shadow: none;
-    font: inherit;
-    color: inherit;
+    font: 12.5px var(--sans);
+    color: var(--t2);
   }
   .explore-flow-capsule .tool-batch-body,
   .tool-batch-capsule .tool-batch-body {
@@ -446,19 +518,28 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   }
   /* The thread already draws the ink line; a second track inside the
      expanded batch makes the header look nested under a child rail. */
-  .thread .tool-batch-timeline-track {
+  .thread .tool-batch-timeline-track,
+  .turn-tool-sequence .tool-batch-timeline-track {
     display: none;
+  }
+  .explore-flow-capsule .tool-batch-title-group,
+  .tool-batch-capsule .tool-batch-title-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    min-width: 0;
+    overflow: hidden;
   }
   .explore-flow-capsule .tool-batch-title,
   .tool-batch-capsule .tool-batch-title {
     color: var(--t1);
-    font: 600 12.5px var(--sans);
+    font: 600 12.5px / 1.5 var(--sans);
   }
-  .explore-flow-capsule .tool-batch-icon-wrapper,
-  .tool-batch-capsule .tool-batch-icon-wrapper {
-    color: var(--t3);
-    width: 14px;
-    height: 14px;
+  .explore-flow-capsule .tool-batch-title-rest,
+  .tool-batch-capsule .tool-batch-title-rest {
+    color: var(--t2);
+    font: 400 12.5px / 1.5 var(--sans);
+    margin-left: 0;
   }
   .explore-flow-capsule .tool-batch-meta,
   .tool-batch-capsule .tool-batch-meta {
@@ -468,12 +549,124 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     align-items: center;
     font: 11.5px var(--mono);
     color: var(--t4);
+    font-variant-numeric: tabular-nums;
+    flex: none;
   }
-  .explore-flow-capsule .node,
+  /* Capsule / explore: kind icon in the header flex row (same as tool rows). */
+  .explore-flow-capsule > .node,
   .tool-batch-capsule > .node {
-    left: -18px;
-    top: 14px;
+    display: none;
+  }
+  .explore-flow-capsule .tool-batch-icon-wrapper,
+  .tool-batch-capsule .tool-batch-icon-wrapper {
+    position: static;
+    left: auto;
+    top: auto;
+    margin: 0;
+    width: 14px;
+    height: 14px;
+    color: var(--pine);
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+  }
+  .explore-flow-capsule.fail .tool-batch-icon-wrapper,
+  .tool-batch-capsule.has-error .tool-batch-icon-wrapper {
+    color: var(--crimson);
+  }
+  .explore-flow-capsule.is-running .tool-batch-icon-wrapper {
+    color: var(--lamp);
+  }
+  .explore-flow-capsule .tool-batch-kind-icon,
+  .tool-batch-capsule .tool-batch-kind-icon {
+    width: 14px;
+    height: 14px;
+  }
+  /* Deck hides nested kind icons; Inkstone puts them on the rail. */
+  .tool-batch-body .tool-call-card .tool-call-kind-icon {
+    display: block !important;
   }
   .turn-work-details .tool-batch-capsule { background: transparent; box-shadow: none; border: 0; border-radius: 6px; }
-  .turn-work-details .tool-batch-items { padding: 2px 0 4px; margin-left: 0; border: 0; }
+  .turn-work-details .tool-batch-items { padding: 0; margin-left: 0; border: 0; }
+
+  /* Proto thought row: brain icon + label + meta「思考」 on the same 28px .tr. */
+  .explore-thought.tr {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    height: auto;
+    min-height: 28px;
+    padding: 0;
+    gap: 0;
+    position: relative;
+  }
+  .explore-thought-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 28px;
+    min-height: 28px;
+    padding: 0 var(--row-pad) 0 14px;
+    width: 100%;
+    margin: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    font: 12.5px var(--sans);
+    color: var(--t2);
+    cursor: pointer;
+  }
+  .explore-thought-row:hover {
+    background: var(--s3);
+    box-shadow: var(--sh1);
+    color: var(--t2);
+  }
+  .explore-thought-row > .node {
+    display: none;
+  }
+  .explore-thought-icon {
+    position: static;
+    left: auto;
+    top: auto;
+    margin: 0;
+    width: 14px;
+    height: 14px;
+    color: var(--t3);
+    flex: none;
+  }
+  .explore-thought.is-live .explore-thought-icon {
+    color: var(--lamp);
+  }
+  .explore-thought-label {
+    font: 400 12.5px / 1.5 var(--sans);
+    color: var(--t2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .explore-thought-row .meta {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    font: 11.5px var(--mono);
+    color: var(--t4);
+    flex: none;
+  }
+  .explore-thought-chevron {
+    width: 12px;
+    height: 12px;
+    color: var(--t4);
+    flex: none;
+  }
+  .explore-thought-chevron.open {
+    transform: rotate(180deg);
+  }
+  .explore-thought-body {
+    margin: 2px 0 8px var(--row-in);
+    padding-left: 10px;
+    border-left: 1.5px solid var(--l2);
+    max-width: 600px;
+  }
 }

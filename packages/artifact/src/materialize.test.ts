@@ -58,6 +58,37 @@ describe('materializeArtifact', () => {
     expect(analysis.intent.descriptor.source).toContain('background: white');
   });
 
+  it('hosts full-document stream-preview in a fragment root so updates can land', () => {
+    const source = [
+      '<!DOCTYPE html>',
+      '<html><head><style>.scene{display:grid}</style></head>',
+      '<body><div class="scene"><svg class="bird"><circle cx="8" cy="8" r="6"/></svg></div>',
+      '<script>window.boot=1</script></body></html>',
+    ].join('');
+    const analysis = analyze('artifact-html title="Pelican" surface="canvas"', source, {
+      id: 'doc-stream',
+      mode: 'stream-preview',
+    });
+    expect(analysis.kind).toBe('intent');
+    if (analysis.kind !== 'intent') return;
+    expect(analysis.intent.descriptor.documentKind).toBe('document');
+
+    const plan = materializeArtifact(analysis.intent, {
+      mode: 'stream-preview',
+      source,
+      presentation: 'canvas',
+    });
+    expect(plan.renderSource).toContain('<style>.scene{display:grid}</style>');
+    expect(plan.renderSource).toContain('<div class="scene">');
+    expect(plan.renderSource).not.toContain('<!DOCTYPE');
+    expect(plan.renderSource).not.toContain('<script');
+    if (plan.document.kind === 'sandbox') {
+      expect(plan.document.srcdoc).toContain('piwin-artifact-root');
+      expect(plan.document.srcdoc).toContain('<div class="scene">');
+      expect(plan.document.srcdoc).toContain('piwin-artifact:stream-update');
+    }
+  });
+
   it('returns stream-preview sandbox and strips scripts', () => {
     const analysis = analyze(
       'html',

@@ -61,4 +61,8 @@ export { analyzeArtifactFence } from './render-intent.js';
 
 export { materializeArtifact } from './materialize.js';
 
-export { buildStableArtifactRevealFrames } from './streamable-preview.js';
+export {
+  buildStableArtifactRevealFrames,
+  buildStreamableArtifactPreview,
+  projectHtmlSourceForStreamRoot,
+} from './streamable-preview.js';

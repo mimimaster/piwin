@@ -71,7 +71,8 @@ export function useWorkbenchDerivedView(input: {
     state.activeSessionMetadata ??
     state.sessions.find((item) => item.id === state.activeSessionId) ??
     null;
-  const activeSessionName = activeSessionListItem?.name ?? 'New chat';
+  const activeSessionName =
+    activeSessionListItem?.name ?? (desktopLocale === 'zh-CN' ? '素笺' : 'Clean Slate');
   const activeSessionOrigin = activeSessionListItem?.origin ?? null;
   return {
     sessionTools,

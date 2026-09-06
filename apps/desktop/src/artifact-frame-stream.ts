@@ -3,6 +3,7 @@ import {
   ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
   buildStableArtifactRevealFrames,
   parseArtifactRenderSnapshot,
+  projectHtmlSourceForStreamRoot,
   type ArtifactDescriptor,
   type ArtifactFrameMode,
   type ArtifactRenderMode,
@@ -141,13 +142,17 @@ export function useArtifactStreamPublisher(input: StreamPublisherInput): StreamP
   const postSnapshot = useCallback(
     (source: string, frameMode: ArtifactFrameMode, final: boolean): boolean => {
       const current = latestRef.current;
+      // Stream shells are fragment roots. Flatten full HTML documents so
+      // styles/body/scripts land under `.piwin-artifact-root` (including the
+      // final interactive commit on a streamLifecycle iframe).
+      const rootSource = projectHtmlSourceForStreamRoot(source);
       if (
         !current.enabled ||
         !postStreamSnapshot(
           current.iframeRef.current,
           current.channelId,
           revisionRef.current,
-          source,
+          rootSource,
           frameMode,
           final,
         )

@@ -48,6 +48,43 @@ describe('projectTranscriptMessagesForUi', () => {
     expect(slimSize).toBeLessThan(fullSize / 10);
   });
 
+  it('preserves MCP tool args and results across UI hydrate', () => {
+    const memoryResult = JSON.stringify([
+      { content: 'Canvas stream-preview needs a fragment root', category: 'bugfix' },
+    ]);
+    const messages: SessionTranscriptMessage[] = [
+      {
+        id: 'a-mcp',
+        role: 'assistant',
+        text: 'done',
+        createdAt: '2026-09-07T00:00:00.000Z',
+        status: 'done',
+        tools: [
+          {
+            toolCallId: 'mcp-1',
+            toolName: 'mcp__agent-memory__agent_memory_search',
+            status: 'done',
+            output: memoryResult,
+            presentation: {
+              kind: 'mcp',
+              title: 'agent-memory / agent_memory_search',
+              actionVerb: 'MCP (agent-memory)',
+              summary: 'agent_memory_search',
+              inputPreview: '{"project":"piwin","query":"canvas white"}',
+              output: { text: memoryResult },
+            },
+          },
+        ],
+      },
+    ];
+
+    const tool = projectTranscriptMessagesForUi(messages)[0]?.tools?.[0];
+    expect(tool?.output).toBe(memoryResult);
+    expect(tool?.presentation?.inputPreview).toContain('canvas white');
+    expect(tool?.presentation?.output?.text).toContain('fragment root');
+    expect(tool?.presentation?.title).toBe('agent-memory / agent_memory_search');
+  });
+
   it('keeps Health card fields when slimming UI hydrate', () => {
     const messages: SessionTranscriptMessage[] = [
       {

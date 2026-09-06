@@ -43,12 +43,12 @@ export const IconArrowFork = createIcon(
 
 export const IconSessionTree = createIcon(
   <>
-    <circle cx="6.4" cy="5.75" r="1.9" />
-    <circle cx="17.6" cy="12" r="1.9" />
-    <circle cx="17.6" cy="18.25" r="1.9" />
-    <path d="M8.3 5.75H10a3.25 3.25 0 0 1 3.25 3.25v6.8c0 1.35 1.1 2.45 2.45 2.45" />
-    <path d="M13.25 12h2.45" />
+    <circle cx="8" cy="3" r="1.5" />
+    <circle cx="4" cy="13" r="1.5" />
+    <circle cx="12" cy="13" r="1.5" />
+    <path d="M8 4.5v2c0 1.5-4 1.5-4 5M8 6.5c0 1.5 4 1.5 4 5" />
   </>,
+  16,
 );
 
 export const IconBrowser = createIcon(

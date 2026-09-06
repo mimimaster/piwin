@@ -18,8 +18,8 @@ import {
   IconAlertCircle,
   IconBrain,
   IconChevronDown,
-  IconSearch,
 } from './shell-icons';
+import { ChainIconSearch } from './inkstone-chain-icons.js';
 
 export type ExploreFlowCapsuleProps = {
   group: ExploreFlowGroup;
@@ -49,6 +49,31 @@ export function exploreFlowTitle(group: ExploreFlowGroup, isChinese: boolean): s
   });
 }
 
+/** Proto: `<b>探索了 N 个文件</b><span>· M 次搜索</span>` — bold lead, quiet rest. */
+export function exploreFlowTitleParts(
+  group: ExploreFlowGroup,
+  isChinese: boolean,
+): { lead: string; rest: string | null } {
+  if (group.isLive) {
+    return { lead: exploreFlowTitle(group, isChinese), rest: null };
+  }
+  const files = group.fileCount;
+  const searches = group.searchCount;
+  if (isChinese) {
+    if (files > 0 && searches > 0) {
+      return { lead: `探索了 ${files} 个文件`, rest: ` · ${searches} 次搜索` };
+    }
+    return { lead: exploreFlowTitle(group, isChinese), rest: null };
+  }
+  if (files > 0 && searches > 0) {
+    return {
+      lead: `Explored ${files} file${files === 1 ? '' : 's'}`,
+      rest: ` · ${searches} search${searches === 1 ? '' : 'es'}`,
+    };
+  }
+  return { lead: exploreFlowTitle(group, isChinese), rest: null };
+}
+
 function thoughtLabel(
   item: Extract<ExploreFlowItem, { kind: 'thought' }>,
   isChinese: boolean,
@@ -68,12 +93,7 @@ function ThoughtFlowRow(props: {
 }): ReactElement {
   const [open, setOpen] = useState(false);
   return (
-    <div className={`tr sub explore-thought${props.item.live ? ' is-live' : ''}`}>
-      <span
-        className={`node sm ${props.item.live ? 'run' : 'done'}`}
-        data-kind={props.item.live ? 'running' : 'success'}
-        aria-hidden="true"
-      />
+    <div className={`tr sub explore-thought${props.item.live ? ' is-live' : ''}${open ? ' is-open' : ''}`}>
       <button
         type="button"
         className="explore-thought-row"
@@ -81,7 +101,12 @@ function ThoughtFlowRow(props: {
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
       >
-        <IconBrain className="explore-thought-icon" />
+        <span
+          className={`node sm ${props.item.live ? 'run' : 'done'}`}
+          data-kind={props.item.live ? 'running' : 'success'}
+          aria-hidden="true"
+        />
+        <IconBrain className="explore-thought-icon i s14" />
         <span
           className={`explore-thought-label${
             props.item.live ? ' behavior-thinking-active' : ''
@@ -89,10 +114,13 @@ function ThoughtFlowRow(props: {
         >
           {thoughtLabel(props.item, props.isChinese)}
         </span>
-        <IconChevronDown
-          className={open ? 'explore-thought-chevron open' : 'explore-thought-chevron'}
-          aria-hidden="true"
-        />
+        <span className="meta">
+          {props.isChinese ? '思考' : 'Thought'}
+          <IconChevronDown
+            className={open ? 'explore-thought-chevron chev open' : 'explore-thought-chevron chev'}
+            aria-hidden="true"
+          />
+        </span>
       </button>
       {open ? (
         <div className="turn-thinking explore-thought-body" data-testid="explore-thought-body">
@@ -169,22 +197,30 @@ export function ExploreFlowCapsule(props: ExploreFlowCapsuleProps): ReactElement
         onClick={toggleExpanded}
       >
         <span className="tool-batch-icon-wrapper" aria-hidden="true">
-          <IconSearch className="tool-batch-kind-icon" />
+          <ChainIconSearch className="tool-batch-kind-icon" />
         </span>
 
         <div className="tool-batch-title-group">
-          <span
-            className={`tool-batch-title${group.isLive ? ' behavior-explore-active' : ''}`}
-            data-testid="explore-flow-title"
-          >
-            {exploreFlowTitle(group, isChinese)}
-          </span>
+          {(() => {
+            const parts = exploreFlowTitleParts(group, isChinese);
+            return (
+              <>
+                <b
+                  className={`tool-batch-title${group.isLive ? ' behavior-explore-active' : ''}`}
+                  data-testid="explore-flow-title"
+                >
+                  {parts.lead}
+                </b>
+                {parts.rest ? <span className="tool-batch-title-rest">{parts.rest}</span> : null}
+              </>
+            );
+          })()}
           {group.isLive && !expanded && activeLabel ? (
             <ActionMarquee className="tool-batch-marquee" activeText={activeLabel} />
           ) : null}
         </div>
 
-        <div className="tool-batch-meta">
+        <div className="tool-batch-meta meta">
           {group.isLive ? (
             <span className="tool-batch-status-running" aria-label="running">
               <ToolStatusDot status="running" />
@@ -202,14 +238,17 @@ export function ExploreFlowCapsule(props: ExploreFlowCapsuleProps): ReactElement
             </span>
           ) : null}
 
-          {!group.isLive && typeof group.totalDurationMs === 'number' ? (
+          {!group.isLive ? (
             <span className="tool-call-duration" data-testid="explore-flow-duration">
-              {formatDuration(group.totalDurationMs)}
+              {isChinese ? `${group.toolCount} 工具` : `${group.toolCount} tools`}
+              {typeof group.totalDurationMs === 'number'
+                ? ` · ${formatDuration(group.totalDurationMs)}`
+                : ''}
             </span>
           ) : null}
 
           <IconChevronDown
-            className={expanded ? 'tool-batch-chevron open' : 'tool-batch-chevron'}
+            className={`i s12 chev${expanded ? ' tool-batch-chevron open' : ' tool-batch-chevron'}`}
             aria-hidden="true"
           />
         </div>

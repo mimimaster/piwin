@@ -19,9 +19,9 @@ html[data-theme-id='piwin-inkstone-ink'] .app-shell {
   --sidebar-width: 240px;
   --right-panel-width: 360px;
   padding: 0 8px 8px !important;
-  gap: 6px !important;
+  gap: 8px !important;
   row-gap: 0 !important;
-  column-gap: 6px !important;
+  column-gap: 8px !important;
   grid-template-rows: var(--titleband-height) minmax(0, 1fr) !important;
   grid-template-columns: var(--sidebar-width, 240px) minmax(0, 1fr) !important;
   grid-template-areas:
@@ -157,10 +157,10 @@ html[data-theme-id='piwin-inkstone-ink'] .session-context .composer-context-link
   border-radius: 6px;
 }
 
-html[data-theme-id='piwin-inkstone-paper'] .session-context svg,
-html[data-theme-id='piwin-inkstone-ink'] .session-context svg {
-  width: 14px !important;
-  height: 14px !important;
+html[data-theme-id='piwin-inkstone-paper'] .session-context :not(.composer-context-link-caret) > svg,
+html[data-theme-id='piwin-inkstone-ink'] .session-context :not(.composer-context-link-caret) > svg {
+  width: 13px !important;
+  height: 13px !important;
   flex: none;
 }
 

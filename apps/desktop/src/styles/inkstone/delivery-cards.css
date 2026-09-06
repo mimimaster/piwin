@@ -354,6 +354,13 @@ html[data-theme-id='piwin-inkstone-ink'] [data-artifact-blocked] {
 
 /* Error card — proto #20: s3 surface, crimson rail, code-well detail */
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) {
+  .turn-error-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 8px 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
   .turn-error-card-inner {
     background: var(--s3);
     box-shadow: var(--sh1);

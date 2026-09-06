@@ -3,7 +3,7 @@
  * Host commands stay with App; this file owns title/scope labels, lineage
  * popover, and run-status chrome callbacks.
  */
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import type {
   PermissionPreset,
   ProductSessionOrigin,
@@ -59,6 +59,7 @@ export type WorkbenchContextBarProps = {
   onRetryLastUser: (messageId: string) => void | Promise<void>;
   onOpenSessionSearch?: () => void;
   isInkstone?: boolean;
+  trailing?: ReactNode | undefined;
 };
 
 export function WorkbenchContextBar(props: WorkbenchContextBarProps): ReactElement {
@@ -181,7 +182,7 @@ export function WorkbenchContextBar(props: WorkbenchContextBarProps): ReactEleme
           }
         : {})}
       {...(props.onOpenSessionSearch ? { onOpenSearch: props.onOpenSessionSearch } : {})}
-      hideIdentity={props.isInkstone}
+      trailing={props.trailing}
     />
   );
 }

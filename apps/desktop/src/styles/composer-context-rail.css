@@ -80,11 +80,21 @@
 }
 
 .composer-context-link-caret {
-  font-size: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 10px;
+  height: 10px;
   color: inherit;
-  opacity: 0.7;
+  opacity: 0.6;
   flex-shrink: 0;
   line-height: 1;
+}
+
+.composer-context-link-caret svg {
+  width: 10px;
+  height: 10px;
+  display: block;
 }
 
 .composer-context-link.is-dirty .composer-context-link-dot {

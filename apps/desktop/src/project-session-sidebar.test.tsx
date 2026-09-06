@@ -215,15 +215,15 @@ describe('ProjectSessionSidebar resident session lists', () => {
     container.remove();
   });
 
-  it('labels general-scope creation as New Chat', () => {
+  it('labels general-scope creation as Clean Slate', () => {
     const { container, root } = renderSidebar({ generalActive: true });
 
     expect(container.querySelector('[data-testid="new-session-btn"]')?.textContent).toContain(
-      'New Chat',
+      'Clean Slate',
     );
     expect(
       container.querySelector('[data-testid="general-workspace-btn"]')?.getAttribute('aria-label'),
-    ).toBe('New Chat');
+    ).toBe('Clean Slate');
 
     act(() => root.unmount());
     container.remove();
@@ -413,6 +413,14 @@ it('renders local drafts first with a hollow mark and restores the selected draf
   expect(container.querySelectorAll('.session-draft-mark')).toHaveLength(2);
   expect(container.querySelector('[data-session-id="draft-new"]')?.className).toContain('active');
   expect(container.querySelector('.session-row--draft .session-row-actions--draft')).not.toBeNull();
+  expect(
+    container.querySelector('.session-row--draft [data-testid="session-close-btn"]'),
+  ).toBeNull();
+  expect(
+    container.querySelector(
+      '[data-session-id="real-session"]',
+    )?.parentElement?.querySelector('[data-testid="session-close-btn"]'),
+  ).not.toBeNull();
 
   (sessionItems[0] as HTMLButtonElement).click();
   expect(onResumeDraft).toHaveBeenCalledWith('draft-new');
@@ -483,12 +491,40 @@ it('keeps the three session actions available when the session is idle', () => {
   expect(container.querySelector('[data-testid="session-menu-btn"]')).not.toBeNull();
   expect(container.querySelector('[data-testid="session-pin-btn"]')).not.toBeNull();
   expect(container.querySelector('[data-testid="session-archive-btn"]')).not.toBeNull();
+  expect(container.querySelector('[data-testid="session-close-btn"]')).not.toBeNull();
   expect(container.querySelector('[data-testid="session-working-indicator"]')).toBeNull();
-  for (const testId of ['session-menu-btn', 'session-pin-btn', 'session-archive-btn'] as const) {
+  for (const testId of [
+    'session-menu-btn',
+    'session-pin-btn',
+    'session-archive-btn',
+    'session-close-btn',
+  ] as const) {
     const icon = container.querySelector(`[data-testid="${testId}"] svg`);
     expect(icon?.getAttribute('width'), testId).toBe('12');
     expect(icon?.getAttribute('height'), testId).toBe('12');
   }
+});
+
+it('lets the shaded selected row delete from the close control without opening the session', () => {
+  const onDeleteSession = vi.fn();
+  const onResumeSession = vi.fn();
+  const { container } = renderSidebar({
+    filteredSessions: createMockSessions(1),
+    activeSessionId: 'session-1',
+    onDeleteSession,
+    onResumeSession,
+  });
+
+  expect(container.querySelector('.session-row--active')).not.toBeNull();
+  const close = container.querySelector<HTMLButtonElement>('[data-testid="session-close-btn"]');
+  expect(close).not.toBeNull();
+  expect(close?.getAttribute('aria-label')).toBe('Delete session permanently');
+
+  act(() => {
+    close?.click();
+  });
+  expect(onDeleteSession).toHaveBeenCalledWith('session-1');
+  expect(onResumeSession).not.toHaveBeenCalled();
 });
 
 it('renders the three-dot service indicator in preference to the working spinner', () => {
@@ -668,6 +704,7 @@ it('archived row shows pin, unarchive, and delete actions', () => {
   expect(container.querySelector('[data-testid="session-pin-btn"]')).not.toBeNull();
   expect(container.querySelector('[data-testid="session-unarchive-btn"]')).not.toBeNull();
   expect(container.querySelector('[data-testid="session-delete-btn"]')).not.toBeNull();
+  expect(container.querySelector('[data-testid="session-close-btn"]')).toBeNull();
   expect(container.querySelector('[data-testid="session-menu-btn"]')).toBeNull();
   expect(container.querySelector('[data-testid="session-archive-btn"]')).toBeNull();
 });

@@ -185,7 +185,7 @@ describe('ToolCallCard openable file paths', () => {
     expect(onOpenFile).toHaveBeenCalledWith('/workspace/docs/a.html', 'docs/a.html');
   });
 
-  it('keeps the file pill a non-nested span so the row can expand', () => {
+  it('keeps the file pill a non-nested code chip so the row can expand', () => {
     act(() => {
       root.render(
         <ToolCallCard tool={createReadTool()} projectPath="/workspace" density="comfortable" />,
@@ -194,7 +194,7 @@ describe('ToolCallCard openable file paths', () => {
 
     const filePill = container.querySelector<HTMLElement>('[data-testid="tool-call-file-pill"]');
     expect(filePill).not.toBeNull();
-    expect(filePill?.tagName).toBe('SPAN');
+    expect(filePill?.tagName).toBe('CODE');
     expect(filePill?.classList.contains('is-openable')).toBe(false);
   });
 
@@ -225,7 +225,11 @@ describe('ToolCallCard openable file paths', () => {
     );
     expect(card?.getAttribute('data-activity-animation')).toBe('breath-dot');
     expect(card?.classList.contains('is-expanded')).toBe(true);
-    expect(card?.querySelector('.tool-call-preview')).toBeNull();
+    // Expanded MCP rows keep server/tool identity in the header preview.
+    expect(card?.querySelector('.tool-call-preview')?.textContent).toContain('github / search');
+    expect(card?.querySelector('[data-testid="tool-call-input-preview"]')?.textContent).toContain(
+      'piwin',
+    );
   });
 
   it('uses a terminal MCP behavior id and past-tense label after completion', () => {
@@ -280,6 +284,37 @@ describe('ToolCallCard openable file paths', () => {
       'agent-memory / agent_memory_get_context',
     );
     expect(card?.querySelector('.tool-call-preview')?.textContent).not.toContain('project');
+  });
+
+  it('keeps agent-memory identity and shows args plus result when expanded', () => {
+    const mcpTool: ToolCardUi = {
+      toolCallId: 'mcp-memory-expanded',
+      toolName: 'mcp__agent-memory__agent_memory_search',
+      status: 'done',
+      output: '[{"content":"remembered fact"}]',
+      presentation: {
+        title: 'agent-memory / agent_memory_search',
+        kind: 'mcp',
+        actionVerb: 'MCP (agent-memory)',
+        summary: 'agent_memory_search',
+        inputPreview: '{"project":"piwin","query":"how did we fix canvas"}',
+        output: { text: '[{"content":"remembered fact"}]' },
+      },
+    };
+
+    act(() => {
+      root.render(<ToolCallCard tool={mcpTool} density="detailed" locale="zh-CN" />);
+    });
+
+    const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
+    expect(card?.classList.contains('is-expanded')).toBe(true);
+    expect(card?.querySelector('.tool-call-preview')?.textContent).toContain(
+      'agent-memory / agent_memory_search',
+    );
+    expect(card?.querySelector('[data-testid="tool-call-input-preview"]')?.textContent).toContain(
+      'how did we fix canvas',
+    );
+    expect(card?.querySelector('.tool-call-output')?.textContent).toContain('remembered fact');
   });
 
   it('keeps raw execution errors out of the summary row', () => {
@@ -804,7 +839,7 @@ describe('ToolCallCard shared six-state node vocabulary', () => {
     expect(container.querySelector('[data-testid="tool-approved-seal"]')?.textContent).toBe('允');
   });
 
-  it('stamps auto-authorized shell rows and leaves reads unmarked', () => {
+  it('stamps write rows and leaves shell unmarked (proto-01)', () => {
     act(() => {
       root.render(
         <ToolCallCard
@@ -823,7 +858,7 @@ describe('ToolCallCard shared six-state node vocabulary', () => {
         />,
       );
     });
-    expect(container.querySelector('[data-testid="tool-approved-seal"]')?.textContent).toBe('允');
+    expect(container.querySelector('[data-testid="tool-approved-seal"]')).toBeNull();
 
     act(() => {
       root.render(<ToolCallCard tool={createReadTool()} density="compact" />);
@@ -911,7 +946,9 @@ describe('ToolCallCard shared six-state node vocabulary', () => {
 
     const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
     expect(card?.classList.contains('is-expanded')).toBe(false);
-    expect(card?.querySelector('.tool-call-preview')?.textContent).toContain('cd /tmp');
+    // Collapsed chip drops a leading `cd … &&` so the gray pill stays short.
+    expect(card?.querySelector('.tool-call-preview')?.textContent).toContain('nohup pnpm exec vite');
+    expect(card?.querySelector('.tool-call-preview')?.getAttribute('title')).toContain('cd /tmp');
 
     act(() => {
       card?.querySelector<HTMLElement>('.tool-call-summary')?.click();

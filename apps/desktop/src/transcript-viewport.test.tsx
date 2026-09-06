@@ -325,4 +325,36 @@ describe('TranscriptViewport session scroll recovery', () => {
     });
     expect(container.querySelector('[data-testid="jump-to-latest-btn"]')).toBeNull();
   });
+
+  it('ignores wheel gestures on a fitted transcript that cannot scroll', async () => {
+    await renderSession('fitted-session', { scrollHeight: 180 });
+    const scrollElement = container.querySelector<HTMLDivElement>('.chat-stream');
+    if (!scrollElement) {
+      throw new Error('Expected the fitted transcript scroll element');
+    }
+    expect(scrollElement.scrollHeight).toBeLessThanOrEqual(scrollElement.clientHeight);
+
+    act(() => {
+      scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: -120, bubbles: true }));
+    });
+    expect(container.querySelector('[data-testid="jump-to-latest-btn"]')).toBeNull();
+
+    act(() => {
+      scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: 120, bubbles: true }));
+    });
+    expect(container.querySelector('[data-testid="jump-to-latest-btn"]')).toBeNull();
+  });
+
+  it('shows jump-to-latest after wheeling away on an overflowing transcript', async () => {
+    await renderSession('overflow-wheel-session', { scrollHeight: 1_000 });
+    const scrollElement = container.querySelector<HTMLDivElement>('.chat-stream');
+    if (!scrollElement) {
+      throw new Error('Expected the overflowing transcript scroll element');
+    }
+
+    act(() => {
+      scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: -80, bubbles: true }));
+    });
+    expect(container.querySelector('[data-testid="jump-to-latest-btn"]')).not.toBeNull();
+  });
 });

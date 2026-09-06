@@ -66,7 +66,11 @@ export type { ParsedGitStatus } from './status-parser.js';
 export { readGitStatus } from './status-reader.js';
 export type { ReadGitStatusOptions } from './status-reader.js';
 
-export { readGitBranchList, parseGitBranchListOutput } from './branch-list.js';
+export {
+  readGitBranchList,
+  parseGitBranchListOutput,
+  excludeStaleMergedBranches,
+} from './branch-list.js';
 export type { ReadGitBranchListOptions } from './branch-list.js';
 
 export {

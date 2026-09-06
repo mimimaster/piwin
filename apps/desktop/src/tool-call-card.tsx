@@ -17,6 +17,7 @@ import { IconChevronDown, IconFile, IconMore } from './shell-icons';
 import { toolCallKindIcon } from './tool-call-kind-icon';
 import {
   extractCommandDescription,
+  formatChainPreviewChip,
   formatToolDuration,
   isFetchLikeShellCommand,
   kindVerb,
@@ -394,6 +395,14 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
       })
     : undefined;
   const actionVerb = localizeBehaviorAction(behaviorId, locale, rawActionVerb);
+  // Proto-01 labels the chain with tool ids (`read` / `grep` / `bash` / `write_file`),
+  // not Deck's Title-Case behavior verbs (`Read` / `Search` / `Bash`).
+  const inkstoneTheme =
+    typeof document !== 'undefined' &&
+    (document.documentElement.getAttribute('data-theme-id')?.startsWith('piwin-inkstone') ??
+      false);
+  const displayActionVerb =
+    inkstoneTheme && !tool.toolName.includes('__') ? tool.toolName : actionVerb;
   const multiPath = targetPaths.length > 1;
   const isQueryLike =
     baseBehaviorId === 'search' ||
@@ -466,26 +475,31 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     : undefined;
   const shellHeaderSummary =
     baseBehaviorId === 'shell' ? (extractCommandDescription(command) ?? summary) : summary;
+  // Collapsed MCP rows append a short query snippet; expanded rows keep the
+  // server/tool identity in the header while the body owns full args/result.
   const headerSummary = isMcpBehavior
     ? resolveMcpHeaderPreview({
         displayName,
         toolName: tool.toolName,
         summary: shellHeaderSummary,
-        ...(inputPreview !== undefined ? { inputPreview } : {}),
+        ...(inputPreview !== undefined && !expanded ? { inputPreview } : {}),
       })
     : shellHeaderSummary;
-  const displayActionVerb = actionVerb;
-  const previewText = resolveToolCallHeaderPreview({
-    summary: headerSummary,
-    displayName,
-    showFilePill,
-    pillLabel: pillLabel || '',
-    singleBasename: primaryPathLabel || '',
-    isPathLike,
-    expanded,
-    isArgsDumpSummary: isMcpBehavior ? false : isArgsDumpSummary,
-    keepTitlePreview: isMcpBehavior,
-  });
+  const previewText = formatChainPreviewChip(
+    resolveToolCallHeaderPreview({
+      summary: headerSummary,
+      displayName,
+      showFilePill,
+      pillLabel: pillLabel || '',
+      singleBasename: primaryPathLabel || '',
+      isPathLike,
+      // MCP identity must remain visible while expanded (criterion: server / tool).
+      expanded: isMcpBehavior ? false : expanded,
+      isArgsDumpSummary: isMcpBehavior ? false : isArgsDumpSummary,
+      keepTitlePreview: isMcpBehavior,
+    }),
+  );
+  const displayPillLabel = pillLabel ? formatChainPreviewChip(pillLabel, 52) : '';
   const previewClassName =
     isQueryLike || baseBehaviorId === 'shell' ? 'tool-call-preview is-query' : 'tool-call-preview';
   const behaviorClassName =
@@ -599,32 +613,24 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
         />
         {toolCallKindIcon(kind, tool.toolName, rawActionVerb, baseBehaviorId)}
         <b className={`tool-call-action-verb ${behaviorClassName}`}>{displayActionVerb}</b>
-        {!expanded && showFilePill && pillLabel ? (
-          <span
+        {!expanded && showFilePill && displayPillLabel ? (
+          <code
             className={`tool-call-file-pill${canOpenPath ? ' is-link' : ''}`}
             data-testid="tool-call-file-pill"
             title={primaryOpenPath?.absolutePath ?? pillLabel}
           >
-            <span className="tool-call-file-name">{pillLabel}</span>
+            <span className="tool-call-file-name">{displayPillLabel}</span>
             {!multiPath && lineRange ? (
               <span className="tool-call-line-range" data-testid="tool-call-line-range">
                 {lineRange}
               </span>
             ) : null}
-          </span>
-        ) : null}
-        {!expanded && previewText ? (
-          <code className={previewClassName}>
-            {previewText}
-            {tool.presentation?.countTag ? (
-              <span className="tool-call-count-inline" data-testid="tool-call-count-inline">
-                {' · '}
-                {tool.presentation.countTag}
-              </span>
-            ) : null}
           </code>
-        ) : !expanded && tool.presentation?.countTag ? (
-          <span className="tool-call-count-tag">{tool.presentation.countTag}</span>
+        ) : null}
+        {previewText && (!expanded || isMcpBehavior) ? (
+          <code className={previewClassName} title={headerSummary || previewText}>
+            {previewText}
+          </code>
         ) : null}
         {tool.status === 'done' ? (
           <span
@@ -667,13 +673,27 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
               允
             </span>
           ) : null}
-          {typeof tool.presentation?.durationMs === 'number' ? (
-            <span className="tool-call-duration" data-testid="tool-call-duration">
-              {formatToolDuration(tool.presentation.durationMs)}
-            </span>
-          ) : tool.status === 'running' ? (
-            <span className="tool-call-duration tool-call-duration-live">…</span>
-          ) : null}
+          {(() => {
+            // Proto `.meta` is one mono string: `7 处 · 3 文件` / `1.2k 行 · 40ms`.
+            const parts: string[] = [];
+            if (!expanded && tool.presentation?.countTag) {
+              parts.push(tool.presentation.countTag);
+            }
+            if (typeof tool.presentation?.durationMs === 'number') {
+              parts.push(formatToolDuration(tool.presentation.durationMs));
+            }
+            if (parts.length > 0) {
+              return (
+                <span className="tool-call-duration" data-testid="tool-call-duration">
+                  {parts.join(' · ')}
+                </span>
+              );
+            }
+            if (tool.status === 'running') {
+              return <span className="tool-call-duration tool-call-duration-live">…</span>;
+            }
+            return null;
+          })()}
           {hasBody ? (
             <span
               className="tool-call-chevron-hit chev"

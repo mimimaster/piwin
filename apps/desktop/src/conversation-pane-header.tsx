@@ -118,7 +118,7 @@ export function ConversationPaneHeader(props: ConversationPaneHeaderProps): Reac
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => props.onCreateSession?.(props.paneId)}>
-                {isChinese ? '+ 新建 Chat' : '+ New Chat'}
+                {isChinese ? '+ 素笺' : '+ Clean Slate'}
               </DropdownMenuItem>
             </>
           ) : null}

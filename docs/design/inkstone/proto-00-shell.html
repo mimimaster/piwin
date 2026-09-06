@@ -48,6 +48,488 @@
       .model-reask:hover { background: var(--s3); color: var(--t1); border-color: var(--l2); }
       .model-reask .av { width: 13px; height: 13px; font-size: 8.5px; line-height: 13px; }
       .send.stamping { animation: stamp 160ms ease; }
+
+      /* ══════════════════════════════════════════════════════════════════
+         Inkstone 调用链（Tool Invocation Chain）核心重构体系
+         ══════════════════════════════════════════════════════════════════ */
+      .tc-chain {
+        margin: 12px 0 16px;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .tc-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 6px 10px;
+        border-radius: 6px;
+        background: var(--s2);
+        border: 1px solid var(--l1);
+        font: 11.5px/1.4 var(--mono);
+        color: var(--t3);
+      }
+      .tc-header-summary {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+      }
+      .tc-header-summary .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--pine);
+        box-shadow: 0 0 0 2px var(--pine-wash);
+      }
+      .tc-view-modes {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        background: var(--s1);
+        padding: 2px;
+        border-radius: 5px;
+        border: 1px solid var(--l1);
+      }
+      .tc-mode-btn {
+        font: 500 10.5px var(--sans);
+        padding: 2px 7px;
+        border-radius: 4px;
+        color: var(--t3);
+        cursor: pointer;
+        transition: all 120ms ease;
+      }
+      .tc-mode-btn:hover { color: var(--t1); }
+      .tc-mode-btn.active {
+        background: var(--s3);
+        color: var(--t1);
+        box-shadow: var(--sh1);
+        font-weight: 600;
+      }
+
+      /* 时间线脊柱（Timeline Spine） */
+      .tc-stream {
+        position: relative;
+        padding-left: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .tc-stream::before {
+        content: "";
+        position: absolute;
+        left: 5.5px;
+        top: 14px;
+        bottom: 14px;
+        width: 1.5px;
+        background: var(--l2);
+        border-radius: 1px;
+      }
+
+      /* 单个工具容器 */
+      .tc-item {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        border-radius: 7px;
+        background: var(--s3);
+        border: 1px solid var(--l1);
+        box-shadow: var(--sh1);
+        transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
+        overflow: hidden;
+      }
+      .tc-item:hover {
+        border-color: var(--l2);
+        box-shadow: var(--sh2);
+      }
+      .tc-item.expanded {
+        border-color: var(--l2);
+      }
+
+      /* 时间线墨点 */
+      .tc-node {
+        position: absolute;
+        left: -20px;
+        top: 16px;
+        margin-top: -4.5px;
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--s3);
+        border: 1.5px solid var(--l3);
+        transition: all 140ms ease;
+        z-index: 1;
+      }
+      .tc-item.ok .tc-node {
+        background: var(--pine);
+        border-color: var(--pine);
+      }
+      .tc-item.fail .tc-node {
+        background: var(--crimson);
+        border-color: var(--crimson);
+      }
+      .tc-item.fail {
+        border-color: rgba(156, 46, 61, 0.3);
+      }
+      .tc-item.run .tc-node {
+        background: var(--lamp);
+        border-color: var(--lamp);
+        box-shadow: 0 0 0 3px var(--lamp-wash);
+        animation: breath 2.4s ease-in-out infinite;
+      }
+      .tc-item[data-kind="batch"] .tc-badge {
+        background: var(--s2);
+        color: var(--t1);
+        border: 1px solid var(--l2);
+      }
+      .tc-sub-stream {
+        padding-left: 12px;
+        border-left: 1.5px dashed var(--l2);
+        margin: 4px 0 4px 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .tc-sub-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font: 11px var(--mono);
+        color: var(--t2);
+      }
+      .tc-sub-node {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: var(--pine);
+        flex: none;
+      }
+      .tc-exit-code.err {
+        background: var(--crimson-wash);
+        color: var(--crimson);
+        border-color: rgba(156, 46, 61, 0.3);
+      }
+
+      /* ── 折叠行（Collapsed Row） ── */
+      .tc-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 32px;
+        padding: 5px 10px;
+        cursor: pointer;
+        user-select: none;
+        font-size: 12px;
+        color: var(--t2);
+        background: transparent;
+        transition: background 120ms ease;
+      }
+      .tc-row:hover {
+        background: var(--s2);
+      }
+
+      /* 类型徽标（各工具不同风格） */
+      .tc-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font: 600 11px/1 var(--mono);
+        padding: 3px 6px;
+        border-radius: 4px;
+        flex: none;
+      }
+      /* Bash: 终端黑岩灰 */
+      .tc-item[data-kind="bash"] .tc-badge {
+        background: rgba(29, 27, 23, 0.08);
+        color: var(--t1);
+        border: 1px solid rgba(29, 27, 23, 0.12);
+      }
+      .app[data-face="ink"] .tc-item[data-kind="bash"] .tc-badge {
+        background: rgba(255, 255, 255, 0.09);
+        color: var(--t1);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+      }
+      /* Read: 宣纸卷册 */
+      .tc-item[data-kind="read"] .tc-badge {
+        background: var(--s2);
+        color: var(--t2);
+        border: 1px solid var(--l2);
+      }
+      /* Edit: 朱砂刻刀印 */
+      .tc-item[data-kind="edit"] .tc-badge {
+        background: var(--zhu-wash);
+        color: var(--zhu);
+        border: 1px solid rgba(198, 65, 42, 0.25);
+      }
+      /* Grep: 霁蓝寻迹 */
+      .tc-item[data-kind="grep"] .tc-badge {
+        background: rgba(58, 119, 151, 0.1);
+        color: var(--azure);
+        border: 1px solid rgba(58, 119, 151, 0.22);
+      }
+      /* Memory: 忆事卷轴 */
+      .tc-item[data-kind="memory"] .tc-badge {
+        background: rgba(148, 97, 26, 0.1);
+        color: var(--ochre);
+        border: 1px solid rgba(148, 97, 26, 0.22);
+      }
+
+      /* 核心命令/目标展示 */
+      .tc-snippet {
+        font: 11.5px/1.35 var(--mono);
+        color: var(--t1);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        min-width: 0;
+        flex: 1;
+      }
+      .tc-cmd-kw { color: var(--azure); font-weight: 600; }
+      .tc-cmd-path { color: var(--t2); }
+      .tc-cmd-str { color: var(--pine); }
+      .tc-cmd-op { color: var(--ochre); font-weight: 600; }
+      .tc-target-pill { font-weight: 500; color: var(--t1); }
+      .tc-range-pill {
+        font-size: 10px;
+        color: var(--t3);
+        background: var(--s1);
+        padding: 1px 4px;
+        border-radius: 3px;
+        margin-left: 4px;
+        border: 1px solid var(--l1);
+      }
+
+      /* 尾部元数据 */
+      .tc-meta {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        flex: none;
+        font: 11px var(--mono);
+        color: var(--t4);
+      }
+      .tc-exit-code {
+        font: 600 10px var(--mono);
+        padding: 1px 4px;
+        border-radius: 3px;
+        background: var(--pine-wash);
+        color: var(--pine);
+        border: 1px solid rgba(61, 124, 94, 0.25);
+      }
+      .tc-diff-stats {
+        display: inline-flex;
+        gap: 4px;
+        font: 600 11px var(--mono);
+      }
+      .tc-diff-add { color: var(--pine); }
+      .tc-diff-del { color: var(--crimson); }
+
+      /* 朱印「允」：精致微小公章印记 */
+      .tc-seal-stamp {
+        width: 17px;
+        height: 17px;
+        border-radius: 2px;
+        background: var(--zhu);
+        color: var(--on-zhu);
+        font: 700 9.5px/17px var(--serif);
+        text-align: center;
+        display: inline-block;
+        position: relative;
+        transform: rotate(-2deg);
+        box-shadow: 0 1px 0 rgba(0,0,0,0.18), inset 0 0 0 0.8px rgba(255,255,255,0.4);
+        flex: none;
+        cursor: help;
+      }
+      .tc-seal-stamp::after {
+        content: "";
+        position: absolute;
+        inset: 1.5px;
+        border: 0.8px solid rgba(255,255,255,0.55);
+        border-radius: 1px;
+      }
+
+      /* 展开折叠箭头 */
+      .tc-chev {
+        width: 13px;
+        height: 13px;
+        color: var(--t4);
+        transition: transform 180ms ease, color 120ms ease;
+        flex: none;
+      }
+      .tc-item.expanded .tc-chev {
+        transform: rotate(180deg);
+        color: var(--t2);
+      }
+
+      /* ── 展开态详情区（Expanded Details） ── */
+      .tc-detail {
+        display: none;
+        flex-direction: column;
+        border-top: 1px dashed var(--l2);
+        background: var(--s2);
+        padding: 9px 12px 11px;
+        gap: 8px;
+        animation: tcFadeIn 150ms ease;
+      }
+      .tc-item.expanded .tc-detail {
+        display: flex;
+      }
+      @keyframes tcFadeIn {
+        from { opacity: 0; transform: translateY(-2px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      .tc-detail-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font: 11px/1.3 var(--mono);
+        color: var(--t3);
+        padding-bottom: 5px;
+        border-bottom: 1px solid var(--l1);
+      }
+      .tc-detail-path {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        color: var(--t2);
+      }
+      .tc-detail-actions {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .tc-mini-btn {
+        font: 500 11px var(--sans);
+        padding: 2px 7px;
+        border-radius: 4px;
+        background: var(--s3);
+        border: 1px solid var(--l2);
+        color: var(--t2);
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        transition: all 120ms ease;
+      }
+      .tc-mini-btn:hover {
+        background: var(--s1);
+        color: var(--t1);
+        border-color: var(--l3);
+      }
+      .tc-mini-btn.pri {
+        background: var(--zhu);
+        color: var(--on-zhu);
+        border-color: var(--zhu);
+      }
+      .tc-mini-btn.pri:hover {
+        background: var(--zhu-lift);
+      }
+
+      /* 终端输出视窗（Terminal Window） */
+      .tc-terminal-box {
+        border-radius: 6px;
+        background: #171512;
+        color: #e3ddd3;
+        font: 11.5px/1.55 var(--mono);
+        padding: 9px 12px;
+        overflow-x: auto;
+        box-shadow: inset 0 1px 3px rgba(0,0,0,0.35);
+        border: 1px solid rgba(255,255,255,0.06);
+      }
+      .tc-terminal-cmd {
+        color: #8bb38d;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding-bottom: 6px;
+        margin-bottom: 6px;
+        border-bottom: 1px solid rgba(255,255,255,0.08);
+      }
+      .tc-terminal-cmd .prompt {
+        color: #d88939;
+      }
+      .tc-terminal-out {
+        color: #aaa296;
+        white-space: pre;
+      }
+      .tc-terminal-out .hl {
+        color: #f6c177;
+        font-weight: 600;
+        background: rgba(246, 193, 119, 0.15);
+        padding: 0 2px;
+        border-radius: 2px;
+      }
+
+      /* 代码差异视窗（Diff Viewer） */
+      .tc-diff-box {
+        border-radius: 6px;
+        background: var(--code);
+        font: 11.5px/1.55 var(--mono);
+        overflow: hidden;
+        border: 1px solid var(--l2);
+      }
+      .tc-diff-hunk-h {
+        background: var(--s1);
+        color: var(--azure);
+        font-weight: 500;
+        padding: 3px 10px;
+        border-bottom: 1px solid var(--l1);
+      }
+      .tc-diff-line {
+        display: flex;
+        padding: 1px 10px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+      .tc-diff-line.del {
+        background: var(--crimson-wash);
+        color: var(--crimson);
+      }
+      .tc-diff-line.add {
+        background: var(--pine-wash);
+        color: var(--pine);
+      }
+      .tc-diff-ln {
+        width: 28px;
+        flex: none;
+        color: var(--t4);
+        user-select: none;
+      }
+
+      /* 代码与记忆检阅 */
+      .tc-code-preview {
+        border-radius: 6px;
+        background: var(--code);
+        padding: 8px 11px;
+        font: 11.5px/1.55 var(--mono);
+        color: var(--t1);
+        border: 1px solid var(--l1);
+        overflow-x: auto;
+      }
+      .tc-memory-card {
+        padding: 7px 9px;
+        border-radius: 5px;
+        background: var(--s3);
+        border: 1px solid var(--l1);
+        font: 11.5px/1.5 var(--sans);
+        color: var(--t2);
+      }
+      .tc-memory-card b {
+        color: var(--t1);
+      }
+
+      /* 授权批注尾注 */
+      .tc-auth-colophon {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font: 10.5px var(--mono);
+        color: var(--t3);
+        padding-top: 3px;
+      }
     </style>
   </head>
   <body>
@@ -155,6 +637,15 @@
         <symbol id="chat" viewBox="0 0 16 16">
           <path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h9A1.5 1.5 0 0 1 14 3.5v7a1.5 1.5 0 0 1-1.5 1.5H6.5L3 14.5v-2.5H3.5A1.5 1.5 0 0 1 2 10.5z" />
         </symbol>
+        <symbol id="edit" viewBox="0 0 16 16">
+          <path d="M11.5 2.5a1.414 1.414 0 0 1 2 2L4.5 13.5l-3 1 1-3 9-9z"/>
+        </symbol>
+        <symbol id="scroll" viewBox="0 0 16 16">
+          <path d="M3 4.5A2.5 2.5 0 0 1 5.5 2H12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5.5A2.5 2.5 0 0 1 3 11.5v-7zM3 11.5a2.5 2.5 0 0 0 2.5 2.5H12M5.5 2v9.5"/><path d="M7 6h5M7 9h3"/>
+        </symbol>
+        <symbol id="check" viewBox="0 0 16 16">
+          <path d="M3.5 8.5l3 3 6-7"/>
+        </symbol>
       </defs>
     </svg>
 
@@ -200,7 +691,7 @@
       <div class="deck">
         <header class="tb">
           <div class="title">
-            <span class="lamp" data-st="running"></span><span class="sq" data-st="waiting"></span><span class="tt" id="session-title">手写简单 Agent 实现引导</span><button class="ib s22" title="会话树">
+            <span class="lamp" data-st="running"></span><span class="sq" data-st="waiting"></span><span class="tt" id="session-title">UI 增量重构与转录调用链设计</span><button class="ib s22" title="会话树">
               <svg class="i"><use href="#fork" /></svg>
             </button>
           </div>
@@ -246,7 +737,7 @@
                 </button>
               </div>
               <div class="thread">
-                <div class="row">
+                <div class="row cur">
                   <span class="node"></span><span class="t">Composer 忙会话队列</span><span class="end"><span class="tm">现在</span><span class="acts"><button class="ib s20" title="置顶"><svg class="i s12"><use href="#pin" /></svg></button><button class="ib s20" title="归档"><svg class="i s12"><use href="#archive" /></svg></button><button class="ib s20" title="更多"><svg class="i s12"><use href="#more" /></svg></button></span></span>
                 </div>
                 <div class="row">
@@ -331,8 +822,8 @@
                       </span>
                     </span>
                   </div>
-                  <span class="t conv-title">手写简单 Agent 实现引导</span>
-                  <div class="conv-snippet">“那就用python吧，我常年用java”</div>
+                  <span class="t conv-title">UI 增量重构与转录调用链设计</span>
+                  <div class="conv-snippet">“分析这个项目所有显示的UI功能…调用链长得不是很好看，给我重新设计…”</div>
                 </div>
 
                 <div class="row conv-card" data-user="Yorick" data-client="手机">
@@ -425,101 +916,273 @@
 
         <main class="panel stage">
           <div class="session-context" id="session-context">
-            <span class="chip conv-chip"><svg class="i s14"><use href="#chat" /></svg>随笔对谈</span>
+            <span class="chip conv-chip"><svg class="i s14"><use href="#chat" /></svg><span id="context-label">项目会话</span></span>
             <span class="context-dot">·</span>
+            <button class="chip scope-chip" data-action="scope" style="display:none"><svg class="i"><use href="#folder" /></svg><span id="scope-label">piwin</span></button>
+            <button class="chip branch-chip" data-action="branch" style="display:none"><svg class="i"><use href="#branch" /></svg>main<svg class="i s12"><use href="#chevd" /></svg></button>
             <span class="u-tag"><span class="u-av">Y</span>Yorick</span>
             <span class="context-dot">·</span>
-            <span class="conv-stats-desc" id="conv-stats">3 轮对谈 · 3 位模型协同 · 5.4k tokens</span>
+            <span id="context-detail" style="display:none">~/Developer/piwin</span>
+            <span class="conv-stats-desc" id="conv-stats">3 轮对谈 · 5 个工具执行 · 6.8k tokens</span>
             <span class="grow"></span>
             <button class="chip" id="context-model-chip" title="切换当前聚焦模型">
-              <span class="av av-d">D</span>DeepSeek V4<svg class="i s12"><use href="#chevd" /></svg>
+              <span class="av av-c">C</span>Sonnet 4.6<svg class="i s12"><use href="#chevd" /></svg>
             </button>
-            <button class="chip ml" title="题跋导出 (导出为 Markdown)">题跋导出</button>
+            <button class="chip ml" data-open="files">文件</button>
+            <button class="chip" data-open="terminal">命令行</button>
+            <button class="chip" title="题跋导出 (导出为 Markdown)">题跋导出</button>
             <button class="chip" title="清空当前墨迹">清墨</button>
           </div>
           <div class="scroll" id="transcript">
-            <!-- 轮次 1: 概念与骨架 · 由 Claude Sonnet 4.6 答复 -->
+            <!-- 轮次 1: 真实 Host 会话 · 分析 UI 功能与调用链重构 -->
             <article class="turn">
-              <aside class="marg"><span class="who">我</span><span>14:02</span></aside>
+              <aside class="marg"><span class="who">我</span><span>15:20</span></aside>
               <div>
-                <div class="head"><span class="u-tag"><span class="u-av">Y</span>Yorick</span><span>14:02</span></div>
+                <div class="head"><span class="u-tag"><span class="u-av">Y</span>Yorick</span><span>15:20</span></div>
                 <div class="ucard">
-                  想理清 Agent 循环、工具调用与上下文整理的极简骨架。不要框架黑盒，用 Python 最清晰的代码讲透它的本质闭环。
+                  分析这个项目所有显示的 UI 功能。之前命令行和调用链长得不是很好看（生硬药丸套药丸、长命令截断成 <code>ap...</code>、印章与折叠挤成一团），请给我设计一版更好的！要求有折叠在调用链中的展示，还有一个展开的展示。不同类型（Bash、Read、Edit、Grep、Memory）长相要有明显区分，延续 Inkstone（砚）纸墨雅致的风格，直接改在当前原型上看效果。
                   <div class="hov">
                     <button class="ib s20" title="就地编辑 (朱笔)"><svg class="i s12"><use href="#file" /></svg></button>
                     <button class="ib s20" title="复制"><svg class="i s12"><use href="#copy" /></svg></button>
                   </div>
                 </div>
                 <div class="cap">
-                  <i></i>上下文已研墨装配 · 1.8k tokens · 记忆条目 ×2
+                  <i></i>工作区上下文已装配 · 检索到 15 条 Inkstone 规范记忆 · 本机 Host 直连 (8787)
                 </div>
               </div>
             </article>
             <article class="turn">
               <aside class="marg">
-                <span class="av">C</span><span>Sonnet 4.6</span><span>14:02</span>
-                <span data-st="idle">1.8k · 6s</span>
+                <span class="av">C</span><span>Sonnet 4.6</span><span>15:20</span>
+                <span data-st="idle">4.2k · 8s</span>
               </aside>
               <div>
                 <div class="head">
-                  <span class="av">C</span><span>Sonnet 4.6</span><span>14:02</span>
-                  <span data-st="idle">1.8k · 6s</span>
+                  <span class="av">C</span><span>Sonnet 4.6</span><span>15:20</span>
+                  <span data-st="idle">4.2k · 8s</span>
                 </div>
                 <div class="work">
                   <div class="work-h">
                     <span class="grind"></span>
-                    <span data-st="idle"><b>研墨深思</b> · 剥离抽象黑盒，收敛为感知-决策-执行三元循环</span>
+                    <span data-st="idle"><b>研墨深思</b> · 针对 Bash、Read、Edit、Grep 建立专属性语义编码，打破单一药丸，提供折叠链与详阅卡双态机制</span>
                     <span data-st="running"><b>正在研墨</b> · 思考中…</span>
                     <span data-st="waiting"><b>待定</b></span>
                     <svg class="i s12 chev"><use href="#chevd" /></svg>
                   </div>
                   <div class="think">
-                    去掉各类外部框架的包装，Agent 的本质就是一个基于工具调用的 while 循环：将带有 tools 描述的消息数组发给模型，若模型产生 tool_calls，则在本地执行并将结果以 role: tool 消息追加回上下文，再次请求，直至模型给出最终自然语言回答。
+                    原版调用的视觉痛点在于将操作目标、长文本命令、状态印章、折叠箭头强行压入同一条僵硬的药丸框内，不仅命令过早被截断，且各工具千篇一律。重构策略：在时间线（Spine）上保持单行折叠节奏，不同工具赋予专用徽标（Bash 终端灰、Read 宣纸白、Edit 朱笔印、Grep 霁蓝）；展开时就地展开为专业卡片（Terminal 终端带行号输出、Diff 雕版带增删行与朱砂印「允」）。
                   </div>
                 </div>
-                <div class="prose" data-st="idle">
-                  <p>去掉繁杂包装，单 Agent 核心运转闭环只需这十数行精炼代码：</p>
-                  <div class="code">
-                    <div class="code-h">
-                      <svg class="i s12"><use href="#file" /></svg>minimal_agent.py<span class="sep">·</span>Python
-                      <button class="ib s20 ml" title="复制"><svg class="i s12"><use href="#copy" /></svg></button>
+
+                <!-- ════════════════════════════════════════════════════════════
+                     全新 Inkstone 调用链展示核心区
+                     ════════════════════════════════════════════════════════════ -->
+                <div class="tc-chain">
+                  <div class="tc-header">
+                    <div class="tc-header-summary">
+                      <span class="dot"></span>
+                      <span><b>调用链执行完毕</b> · 5 个工具 · 2 终端 · 1 检阅 · 1 落笔 (盖印 允) · 1 记忆 · 耗时 3.4s</span>
                     </div>
-                    <pre><span class="k">def</span> <span class="f">run_agent_loop</span>(client, prompt: <span class="s">str</span>, tools: <span class="s">list</span>):
-    messages = [{<span class="s">"role"</span>: <span class="s">"user"</span>, <span class="s">"content"</span>: prompt}]
-    <span class="k">while</span> <span class="k">True</span>:
-        res = client.chat.completions.create(model=<span class="s">"claude-sonnet-4-6"</span>, messages=messages, tools=tools)
-        msg = res.choices[<span class="s">0</span>].message
-        messages.append(msg)
-        <span class="k">if not</span> msg.tool_calls:
-            <span class="k">return</span> msg.content
-        <span class="k">for</span> call <span class="k">in</span> msg.tool_calls:
-            out = execute_local_tool(call.function.name, call.function.arguments)
-            messages.append({<span class="s">"role"</span>: <span class="s">"tool"</span>, <span class="s">"tool_call_id"</span>: call.id, <span class="s">"content"</span>: str(out)})</pre>
+                    <div class="tc-view-modes" role="radiogroup" aria-label="调用链模式切换">
+                      <button class="tc-mode-btn" data-tc-mode="collapsed" title="全部折叠：紧凑高扫描性">全部折叠</button>
+                      <button class="tc-mode-btn" data-tc-mode="expanded" title="全部展开：平铺终端输出与代码差异">全部展开</button>
+                      <button class="tc-mode-btn active" data-tc-mode="mixed" title="混合态：日常实战推荐">混合现实态</button>
+                    </div>
                   </div>
-                  <p>外壳负责驱动这个循环，并通过流式推送将思考与工具产物呈现在舞台纸面上。</p>
+
+                  <div class="tc-stream">
+                    <!-- 节点 1: Memory (折叠态) -->
+                    <div class="tc-item ok" data-kind="memory">
+                      <span class="tc-node" title="执行成功"></span>
+                      <div class="tc-row" title="点击展开/收起忆事详情">
+                        <span class="tc-badge"><svg class="i s12"><use href="#scroll" /></svg>Memory</span>
+                        <div class="tc-snippet"><span class="tc-cmd-kw">mcp</span>::agent-memory::get_context <span class="tc-target-pill">project: piwin · "Inkstone 视觉规范"</span></div>
+                        <div class="tc-meta">
+                          <span>15 条记忆</span><span class="sep">·</span><span>120ms</span>
+                          <svg class="i s12 tc-chev"><use href="#chevd" /></svg>
+                        </div>
+                      </div>
+                      <div class="tc-detail">
+                        <div class="tc-detail-head">
+                          <span class="tc-detail-path"><svg class="i s12"><use href="#scroll" /></svg>记忆库上下文 · agent-memory MCP</span>
+                          <div class="tc-detail-actions"><span class="tc-exit-code">MATCH 0.94</span></div>
+                        </div>
+                        <div class="tc-memory-card">
+                          <b>[1] Inkstone 视觉语义</b>：纸面 (--s1/s2/s3) 暖灰色温，墨面深岩沉着。写操作必须由朱砂印「允」加盖确认。
+                        </div>
+                        <div class="tc-memory-card" style="margin-top:4px">
+                          <b>[2] 调用链规范</b>：禁止在聊天正文中塞满无意义的原始堆栈；长输出需就地折叠并保留后 30 行精华。
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- 节点 2: Bash (展开态演示 · 真实用户命令！) -->
+                    <div class="tc-item ok expanded" data-kind="bash">
+                      <span class="tc-node" title="执行成功"></span>
+                      <div class="tc-row" title="点击展开/收起终端执行卡">
+                        <span class="tc-badge"><svg class="i s12"><use href="#term" /></svg>Bash <small style="opacity:0.7">zsh</small></span>
+                        <div class="tc-snippet">
+                          <span class="tc-cmd-kw">sleep 4; cd</span> <span class="tc-cmd-path">/Users/yorickjue/Developer/piwin-inkstone-v2</span> <span class="tc-cmd-op">&amp;&amp;</span> <span class="tc-cmd-kw">grep</span> -rn <span class="tc-cmd-str">"解答"</span> apps/desktop/src
+                        </div>
+                        <div class="tc-meta">
+                          <span class="tc-seal-stamp" title="已批准 · 自动放行">允</span>
+                          <span class="tc-exit-code">0 OK</span>
+                          <span>4.2s</span>
+                          <svg class="i s12 tc-chev"><use href="#chevd" /></svg>
+                        </div>
+                      </div>
+                      <div class="tc-detail">
+                        <div class="tc-detail-head">
+                          <span class="tc-detail-path"><svg class="i s12"><use href="#folder" /></svg>~/Developer/piwin-inkstone-v2</span>
+                          <div class="tc-detail-actions">
+                            <span class="tc-exit-code">0 OK</span>
+                            <span>耗时 4.2s</span>
+                            <button class="tc-mini-btn" data-tc-copy='sleep 4; cd /Users/yorickjue/Developer/piwin-inkstone-v2 &amp;&amp; grep -rn "解答" apps/desktop/src' title="复制完整命令行">
+                              <svg class="i s12"><use href="#copy" /></svg>复制命令
+                            </button>
+                          </div>
+                        </div>
+                        <div class="tc-terminal-box">
+                          <div class="tc-terminal-cmd"><span class="prompt">❯</span> sleep 4; cd /Users/yorickjue/Developer/piwin-inkstone-v2 &amp;&amp; grep -rn "解答" apps/desktop/src</div>
+                          <div class="tc-terminal-out">apps/desktop/src/composer-card.tsx:142:  // <span class="hl">解答</span>与流式渲染逻辑 - 确保打字与状态切换不产生跳动
+apps/desktop/src/tool-call-card.tsx:88:   // 工具链<span class="hl">解答</span>卡片 - 单行折叠与多行展开渲染
+apps/desktop/src/turn-tool-group.tsx:45:  // 聚合<span class="hl">解答</span>流与时间线状态机收敛</div>
+                        </div>
+                        <div class="tc-auth-colophon">
+                          <span>执行策略：工作区路径已加入信任目录 · 自动授权执行</span>
+                          <span class="tc-seal-stamp" title="经由会话策略自动放行">允</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- 节点 3: Read (折叠态演示) -->
+                    <div class="tc-item ok" data-kind="read">
+                      <span class="tc-node" title="执行成功"></span>
+                      <div class="tc-row" title="点击展开/收起代码检阅预览">
+                        <span class="tc-badge"><svg class="i s12"><use href="#file" /></svg>Read</span>
+                        <div class="tc-snippet">
+                          <span class="tc-target-pill">apps/desktop/src/settings/section-registry.ts</span>
+                          <span class="tc-range-pill">L1-65</span>
+                        </div>
+                        <div class="tc-meta">
+                          <span>65 行</span><span class="sep">·</span><span>3.2 KB</span><span class="sep">·</span><span>18ms</span>
+                          <svg class="i s12 tc-chev"><use href="#chevd" /></svg>
+                        </div>
+                      </div>
+                      <div class="tc-detail">
+                        <div class="tc-detail-head">
+                          <span class="tc-detail-path"><svg class="i s12"><use href="#file" /></svg>apps/desktop/src/settings/section-registry.ts</span>
+                          <div class="tc-detail-actions">
+                            <span class="client-pill">TypeScript</span>
+                            <button class="tc-mini-btn" title="在检视器中打开">打开文件 ↗</button>
+                          </div>
+                        </div>
+                        <div class="tc-code-preview">
+<span class="k">export const</span> <span class="f">SETTINGS_SECTIONS</span>: <span class="s">SettingsSectionDefinition</span>[] = [
+  { <span class="s">id</span>: <span class="s">'general'</span>, <span class="s">title</span>: <span class="s">'通用设置'</span>, <span class="s">group</span>: <span class="s">'basic'</span> },
+  { <span class="s">id</span>: <span class="s">'appearance'</span>, <span class="s">title</span>: <span class="s">'外观与纸墨'</span>, <span class="s">group</span>: <span class="s">'basic'</span> },
+  { <span class="s">id</span>: <span class="s">'tools'</span>, <span class="s">title</span>: <span class="s">'工具与调用链'</span>, <span class="s">group</span>: <span class="s">'advanced'</span> },
+  { <span class="s">id</span>: <span class="s">'models'</span>, <span class="s">title</span>: <span class="s">'协同模型'</span>, <span class="s">group</span>: <span class="s">'advanced'</span> },
+];</div>
+                      </div>
+                    </div>
+
+                    <!-- 节点 4: Edit (展开态演示 · 差异卡与朱红方印) -->
+                    <div class="tc-item ok expanded" data-kind="edit">
+                      <span class="tc-node" title="执行成功"></span>
+                      <div class="tc-row" title="点击展开/收起代码落笔差异卡">
+                        <span class="tc-badge"><svg class="i s12"><use href="#edit" /></svg>Edit</span>
+                        <div class="tc-snippet"><span class="tc-target-pill">docs/design/inkstone/proto-00-shell.html</span></div>
+                        <div class="tc-meta">
+                          <span class="tc-diff-stats"><span class="tc-diff-add">+54</span> <span class="tc-diff-del">−18</span></span>
+                          <span class="tc-seal-stamp" title="写入授权 · 允许本次会话">允</span>
+                          <span>32ms</span>
+                          <svg class="i s12 tc-chev"><use href="#chevd" /></svg>
+                        </div>
+                      </div>
+                      <div class="tc-detail">
+                        <div class="tc-detail-head">
+                          <span class="tc-detail-path"><svg class="i s12"><use href="#edit" /></svg>docs/design/inkstone/proto-00-shell.html</span>
+                          <div class="tc-detail-actions">
+                            <span class="tc-diff-stats"><span class="tc-diff-add">+54</span> <span class="tc-diff-del">−18</span></span>
+                            <button class="tc-mini-btn" title="查看完整文件差异">审查 ↗</button>
+                            <button class="tc-mini-btn" title="撤回本次修改">回滚</button>
+                            <button class="tc-mini-btn pri" title="确认接受修改">接受改动</button>
+                          </div>
+                        </div>
+                        <div class="tc-diff-box">
+                          <div class="tc-diff-hunk-h">@@ -85,6 +85,12 @@ 替换原有的粗硬胶囊药丸调用链</div>
+                          <div class="tc-diff-line del"><span class="tc-diff-ln">85</span>-   &lt;div class="old-clunky-pill"&gt;Bash sleep 4; cd ... [允] &gt;&lt;/div&gt;</div>
+                          <div class="tc-diff-line add"><span class="tc-diff-ln">85</span>+   &lt;div class="tc-item" data-kind="bash"&gt;</div>
+                          <div class="tc-diff-line add"><span class="tc-diff-ln">86</span>+     &lt;div class="tc-row"&gt;&lt;span class="tc-badge"&gt;Bash&lt;/span&gt;...&lt;/div&gt;</div>
+                          <div class="tc-diff-line add"><span class="tc-diff-ln">87</span>+     &lt;div class="tc-detail"&gt;&lt;div class="tc-terminal-box"&gt;...&lt;/div&gt;&lt;/div&gt;</div>
+                          <div class="tc-diff-line add"><span class="tc-diff-ln">88</span>+   &lt;/div&gt;</div>
+                        </div>
+                        <div class="tc-auth-colophon">
+                          <span>已安全写入磁盘 · 随时可点「回滚」就地撤销</span>
+                          <span class="tc-seal-stamp" title="已批准落笔">允</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- 节点 5: Bash (自动化校验测试 · 折叠态演示) -->
+                    <div class="tc-item ok" data-kind="bash">
+                      <span class="tc-node" title="执行成功"></span>
+                      <div class="tc-row" title="点击展开/收起终端测试报告">
+                        <span class="tc-badge"><svg class="i s12"><use href="#term" /></svg>Bash <small style="opacity:0.7">vitest</small></span>
+                        <div class="tc-snippet"><span class="tc-cmd-kw">pnpm</span> vitest run tool-timeline</div>
+                        <div class="tc-meta">
+                          <span class="tc-exit-code">0 OK</span>
+                          <span>12 通过</span><span class="sep">·</span><span>1.8s</span>
+                          <svg class="i s12 tc-chev"><use href="#chevd" /></svg>
+                        </div>
+                      </div>
+                      <div class="tc-detail">
+                        <div class="tc-detail-head">
+                          <span class="tc-detail-path"><svg class="i s12"><use href="#term" /></svg>回归校验测试套件</span>
+                          <div class="tc-detail-actions"><span class="tc-exit-code">ALL PASSED</span></div>
+                        </div>
+                        <div class="tc-terminal-box">
+                          <div class="tc-terminal-out">✓ tool-timeline.test.ts (12 tests) 178ms
+  ✓ renders collapsed row with semantic badges
+  ✓ expands terminal sheet on click
+  ✓ shows authenticated vermillion seal 允
+Test Files  1 passed (1)
+Tests  12 passed (12)</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="prose" data-st="idle">
+                  <p>我已经根据 Inkstone 墨韵设计语言完成调用链重构：</p>
+                  <p>1. <strong>告别生硬药丸套药丸</strong>：折叠行不再用一个灰框将命令粗暴截断，而是作为时间线脊柱上的呼吸节点，语法关键词（<code>cd</code>、<code>grep</code>、参数字符串）错落有致，信息一目了然。<br>
+                  2. <strong>各类型工具长相鲜明区分</strong>：Bash 终端带有黑色提示符徽标，Read 呈现书卷标尺与行号，Edit 呈现松柏绿/朱红差异数与朱砂印「允」，Memory 带有卷轴暗金；<br>
+                  3. <strong>折叠态与展开态从容切换</strong>：你可以点击任意工具行就地展开查看深色终端输出或 Diff 高清卡片，也可以使用顶部的「全部折叠 / 全部展开 / 混合现实态」一键切换预览！</p>
                 </div>
                 <div class="turn-colophon" data-st="idle">
-                  <span class="colo-meta">Sonnet 4.6 · 本轮消耗 1.8k tokens</span>
+                  <span class="colo-meta">Sonnet 4.6 · 本轮消耗 4.2k tokens · 5 项工具协同</span>
                   <div class="acts-f">
-                    <button class="ib" title="复制"><svg class="i"><use href="#copy" /></svg></button>
-                    <button class="chip model-reask" data-target-model="DeepSeek V4" data-target-av="D" title="换用 DeepSeek 重新探讨此题"><span class="av av-d">D</span>换 DeepSeek 辨析</button>
-                    <button class="chip model-reask" data-target-model="Gemini 3.8" data-target-av="G" title="换用 Gemini 校验此题"><span class="av av-g">G</span>换 Gemini 校验</button>
+                    <button class="ib" title="复制回答"><svg class="i"><use href="#copy" /></svg></button>
+                    <button class="chip model-reask" data-target-model="DeepSeek V4" data-target-av="D" title="换用 DeepSeek 深入分析长输出截断"><span class="av av-d">D</span>换 DeepSeek 辨析</button>
+                    <button class="chip model-reask" data-target-model="Gemini 3.8" data-target-av="G" title="换用 Gemini 绘制调用链状态机"><span class="av av-g">G</span>换 Gemini 图解</button>
                     <button class="ib" title="从这里分叉"><svg class="i"><use href="#fork" /></svg></button>
                   </div>
                 </div>
               </div>
             </article>
 
-            <!-- 轮次 2: 深入推导与自愈 · 切换为 DeepSeek V4 答复 -->
+            <!-- 轮次 2: 深入推导与异常自愈 · 切换为 DeepSeek V4 答复 -->
             <article class="turn">
-              <aside class="marg"><span class="who">我</span><span>14:05</span></aside>
+              <aside class="marg"><span class="who">我</span><span>15:25</span></aside>
               <div>
                 <div class="head">
-                  <span class="u-tag"><span class="u-av">Y</span>Yorick</span><span>14:05</span>
+                  <span class="u-tag"><span class="u-av">Y</span>Yorick</span><span>15:25</span>
                   <span class="turn-model-tag"><span class="av av-d">D</span>换选 DeepSeek V4 深入推演</span>
                 </div>
                 <div class="ucard">
-                  如果模型在工具调用时吐出了残缺的 JSON 或不存在的参数，在不中断主循环的前提下，如何让模型“自我修正”（Self-Correction）？
+                  如果调用链中遇到密集的多文件读取，或者某个 Bash 命令行执行失败，调用链在视觉上如何呈现「批量聚合胶囊」与「报错中断自愈」？
                   <div class="hov">
                     <button class="ib s20" title="就地编辑 (朱笔)"><svg class="i s12"><use href="#file" /></svg></button>
                     <button class="ib s20" title="复制"><svg class="i s12"><use href="#copy" /></svg></button>
@@ -529,39 +1192,103 @@
             </article>
             <article class="turn">
               <aside class="marg">
-                <span class="av av-d">D</span><span style="color:var(--azure)">DeepSeek V4</span><span>14:05</span>
+                <span class="av av-d">D</span><span style="color:var(--azure)">DeepSeek V4</span><span>15:25</span>
                 <span data-st="idle">2.4k · 12s</span>
               </aside>
               <div>
                 <div class="head">
-                  <span class="av av-d">D</span><span style="color:var(--azure)">DeepSeek V4</span><span>14:05</span>
+                  <span class="av av-d">D</span><span style="color:var(--azure)">DeepSeek V4</span><span>15:25</span>
                   <span data-st="idle">2.4k · 12s</span>
                 </div>
                 <div class="work">
                   <div class="work-h">
                     <span class="grind"></span>
-                    <span data-st="idle"><b>研墨深思</b> · 结构化报错反馈与状态机自愈反馈环（Reflection Loop）</span>
+                    <span data-st="idle"><b>研墨深思</b> · 批量探索降噪与断言报错反射自愈环（Reflection Loop）</span>
                     <svg class="i s12 chev"><use href="#chevd" /></svg>
                   </div>
                   <div class="think">
-                    绝不能在本地直接 throw 异常中断进程。关键是将异常包装为一条特殊的 role: "tool" 消息反哺给模型：包含报错原因与期望的 JSON Schema，让模型在下一轮循环中阅读自己的调用失误并自动修正。
+                    密集的探索调用（如连读 5 个文件、多次 grep）若平铺在时间线上会造成严重的信噪比下降。Inkstone 的对策是「批次胶囊（Batch Capsule）」：在主链上折叠为单行概览，展开后呈递进式子轨（Sub-stream）。而对于失败命令，绝不能直接 throw 崩掉界面，而是通过朱红警戒态精准呈现退出码与堆栈关键行，将报错作为工具产物喂回模型自我修复。
                   </div>
                 </div>
-                <div class="prose" data-st="idle">
-                  <p>自愈修正的核心是<strong>「报错即工具产物」</strong>。不要中断循环，将解析异常捕获并回填：</p>
-                  <div class="code">
-                    <div class="code-h">
-                      <svg class="i s12"><use href="#file" /></svg>self_healing_agent.py<span class="sep">·</span>Python
-                      <button class="ib s20 ml" title="复制"><svg class="i s12"><use href="#copy" /></svg></button>
+
+                <!-- ════════════════════════════════════════════════════════════
+                     胶囊聚合态与报错自愈态调用链展示
+                     ════════════════════════════════════════════════════════════ -->
+                <div class="tc-chain">
+                  <div class="tc-header">
+                    <div class="tc-header-summary">
+                      <span class="dot" style="background:var(--crimson);box-shadow:0 0 0 2px var(--crimson-wash)"></span>
+                      <span><b>调用链遇阻自愈</b> · 1 个批量聚合胶囊 (3 文件) · 1 个失败终端测试 · 耗时 7.8s</span>
                     </div>
-                    <pre><span class="k">try</span>:
-    args = json.loads(call.function.arguments)
-    result = execute_local_tool(call.function.name, args)
-<span class="k">except</span> Exception <span class="k">as</span> err:
-    <span class="c"># 自愈反馈：让模型在下一轮看到具体语法/参数错误并自我纠偏</span>
-    result = {<span class="s">"status"</span>: <span class="s">"error"</span>, <span class="s">"message"</span>: f<span class="s">"参数解析失败: {err}，请严格按照Schema修正后重试"</span>}</pre>
                   </div>
-                  <p>设置最大连续错误预算（如 3 次），模型通常在第 2 次循环即可完成自我纠偏。</p>
+
+                  <div class="tc-stream">
+                    <!-- 节点 A: 批量探索聚合胶囊 (展开子轨演示) -->
+                    <div class="tc-item ok expanded" data-kind="batch">
+                      <span class="tc-node"></span>
+                      <div class="tc-row" title="点击展开/收起聚合探索子轨">
+                        <span class="tc-badge"><svg class="i s12"><use href="#search" /></svg>探索了 3 个文件</span>
+                        <div class="tc-snippet">2 次检索 · 3 次检阅 · 关联队列与状态机模型</div>
+                        <div class="tc-meta">
+                          <span>6 工具</span><span class="sep">·</span><span>1.8s</span>
+                          <svg class="i s12 tc-chev"><use href="#chevd" /></svg>
+                        </div>
+                      </div>
+                      <div class="tc-detail">
+                        <div class="tc-detail-head">
+                          <span class="tc-detail-path">只读探测子时间线（递进式子轨）</span>
+                          <span class="tc-meta">全部成功</span>
+                        </div>
+                        <div class="tc-sub-stream">
+                          <div class="tc-sub-row"><span class="tc-sub-node"></span><b style="color:var(--azure)">grep</b> <code>"queued-turn"</code> <span class="tc-meta ml">7 处 · 3 文件</span></div>
+                          <div class="tc-sub-row"><span class="tc-sub-node"></span><b style="color:var(--t1)">read</b> <code>apps/desktop/src/steer-queue-model.ts</code> <span class="tc-meta ml">88 行</span></div>
+                          <div class="tc-sub-row"><span class="tc-sub-node"></span><b style="color:var(--azure)">grep</b> <code>triggerSteer</code> <span class="tc-meta ml">4 处</span></div>
+                          <div class="tc-sub-row"><span class="tc-sub-node"></span><b style="color:var(--t1)">read</b> <code>apps/desktop/src/composer-run-actions.tsx</code> <span class="tc-meta ml">212 行</span></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- 节点 B: 命令报错失败态 (Fail State 演示) -->
+                    <div class="tc-item fail expanded" data-kind="bash">
+                      <span class="tc-node" title="执行失败"></span>
+                      <div class="tc-row" title="点击展开/收起报错终端">
+                        <span class="tc-badge" style="background:var(--crimson-wash);color:var(--crimson);border-color:rgba(156,46,61,0.3)"><svg class="i s12"><use href="#term" /></svg>Bash <small>vitest</small></span>
+                        <div class="tc-snippet"><span class="tc-cmd-kw">pnpm</span> vitest composer-dock --run</div>
+                        <div class="tc-meta">
+                          <span class="tc-exit-code err">1 FAIL</span>
+                          <span style="color:var(--crimson)">断言失败</span><span class="sep">·</span><span>6.2s</span>
+                          <svg class="i s12 tc-chev"><use href="#chevd" /></svg>
+                        </div>
+                      </div>
+                      <div class="tc-detail">
+                        <div class="tc-detail-head">
+                          <span class="tc-detail-path" style="color:var(--crimson)"><svg class="i s12"><use href="#term" /></svg>测试套件未通过 · 退出码 1</span>
+                          <div class="tc-detail-actions">
+                            <button class="tc-mini-btn" data-tc-copy="pnpm vitest composer-dock --run"><svg class="i s12"><use href="#copy" /></svg>重试</button>
+                          </div>
+                        </div>
+                        <div class="tc-terminal-box">
+                          <div class="tc-terminal-cmd" style="color:#e06c75"><span class="prompt">❯</span> pnpm vitest composer-dock --run</div>
+                          <div class="tc-terminal-out"><span style="color:#e06c75;font-weight:bold">FAIL</span> composer-dock.test.tsx › queues Enter while streaming
+  AssertionError: expected "steer" to be "queue"
+  - Expected: "queue"
+  + Received: "steer"
+    at composer-dock.test.tsx:148:7</div>
+                        </div>
+                        <div class="tc-auth-colophon">
+                          <span style="color:var(--crimson)">报错信息已自动包装为 ToolResult 反哺模型 · 启动自我修正</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="prose" data-st="idle">
+                  <h3>已改为排队语义</h3>
+                  <p>运行中的 <code>Enter</code> 现在走 <code>handleSend → session/queued-turn-submit</code>，已改为排队语义；消息进 SteerQueue 而不打断转录流；<code>⌘Enter</code> 仍触发 <code>triggerSteer</code>。</p>
+                  <p>如上图所示，当面对高噪或异常场景时：</p>
+                  <p>1. <strong>批量胶囊收敛</strong>：连续 4~6 次的探索性搜索被聚合为一行沉着的「探索了 3 个文件」，点开后在子轨中清晰罗列，不喧宾夺主；<br>
+                  2. <strong>醒目的朱红报错态</strong>：时间线墨点与退出码转换为朱红警示，终端直接高亮 <code>AssertionError</code> 关键行与差异行，模型在下一轮循环中阅读该报错并就地自愈修正。</p>
                 </div>
                 <div class="turn-colophon" data-st="idle">
                   <span class="colo-meta">DeepSeek V4 · 本轮消耗 2.4k tokens</span>
@@ -641,6 +1368,7 @@
             <div class="dock-in">
               <div class="queued" hidden></div>
               <div class="slab">
+                <div class="refs"><span class="ref">@ composer-card.tsx</span><span class="ref">@ AGENTS.md §3.3</span></div>
                 <textarea
                   aria-label="消息"
                   class="ta"
@@ -806,6 +1534,60 @@
           });
         }
 
+        // ── 调用链交互：单项展开/收起、全局模式切换与复制 ──
+        document.addEventListener('click', (e) => {
+          // 单项折叠/展开点击
+          const row = e.target.closest('.tc-row');
+          if (row) {
+            const item = row.closest('.tc-item');
+            if (item) {
+              item.classList.toggle('expanded');
+            }
+            return;
+          }
+
+          // 全局模式切换按钮
+          const modeBtn = e.target.closest('.tc-mode-btn');
+          if (modeBtn) {
+            const chain = modeBtn.closest('.tc-chain');
+            if (!chain) return;
+            const mode = modeBtn.dataset.tcMode;
+            chain.querySelectorAll('.tc-mode-btn').forEach(b => b.classList.remove('active'));
+            modeBtn.classList.add('active');
+
+            const items = chain.querySelectorAll('.tc-item');
+            if (mode === 'collapsed') {
+              items.forEach(it => it.classList.remove('expanded'));
+            } else if (mode === 'expanded') {
+              items.forEach(it => it.classList.add('expanded'));
+            } else if (mode === 'mixed') {
+              items.forEach(it => {
+                const kind = it.dataset.kind;
+                // 混合态：展开落笔(edit)与核心终端(bash #2)，其余折叠
+                if (kind === 'edit' || (kind === 'bash' && it.querySelector('.tc-detail-path')?.textContent.includes('piwin-inkstone-v2'))) {
+                  it.classList.add('expanded');
+                } else {
+                  it.classList.remove('expanded');
+                }
+              });
+            }
+            return;
+          }
+
+          // 复制命令按钮
+          const copyBtn = e.target.closest('[data-tc-copy]');
+          if (copyBtn) {
+            const text = copyBtn.dataset.tcCopy;
+            if (navigator.clipboard && text) {
+              navigator.clipboard.writeText(text).catch(() => {});
+            }
+            const origHTML = copyBtn.innerHTML;
+            copyBtn.innerHTML = `<svg class="i s12"><use href="#check" /></svg>已复制`;
+            setTimeout(() => copyBtn.innerHTML = origHTML, 1600);
+            return;
+          }
+        });
+
         // 侧栏会话切换处理
         const defaultTranscriptHTML = transcript ? transcript.innerHTML : '';
 
@@ -849,16 +1631,16 @@
           if (sessionTitle) sessionTitle.textContent = title;
           if (sessionContext) {
             const data = generalTranscripts[title];
-            const stats = data ? data.stats : '3 轮对谈 · 3 位模型协同 · 5.4k tokens';
-            const mName = data ? data.model : 'DeepSeek V4';
-            const mAv = data ? data.av : 'D';
+            const stats = data ? data.stats : '3 轮对谈 · 5 个工具执行 · 6.8k tokens';
+            const mName = data ? data.model : 'Sonnet 4.6';
+            const mAv = data ? data.av : 'C';
 
-            sessionContext.innerHTML = `<span class="chip conv-chip"><svg class="i s14"><use href="#chat" /></svg>随笔对谈</span><span class="context-dot">·</span><span class="u-tag"><span class="u-av">${user[0]}</span>${user}${client ? `<span class="client-pill">${client}</span>` : ''}</span><span class="context-dot">·</span><span class="conv-stats-desc" id="conv-stats">${stats}</span><span class="grow"></span><button class="chip" id="context-model-chip" title="切换当前聚焦模型"><span class="av av-${mAv.toLowerCase()}">${mAv}</span>${mName}<svg class="i s12"><use href="#chevd" /></svg></button><button class="chip ml" title="题跋导出">题跋导出</button><button class="chip" title="清空墨迹">清墨</button>`;
+            sessionContext.innerHTML = `<span class="chip conv-chip"><svg class="i s14"><use href="#chat" /></svg><span id="context-label">项目会话</span></span><span class="context-dot">·</span><button class="chip scope-chip" data-action="scope" style="display:none"><svg class="i"><use href="#folder" /></svg><span id="scope-label">piwin</span></button><button class="chip branch-chip" data-action="branch" style="display:none"><svg class="i"><use href="#branch" /></svg>main<svg class="i s12"><use href="#chevd" /></svg></button><span class="u-tag"><span class="u-av">${user[0]}</span>${user}${client ? `<span class="client-pill">${client}</span>` : ''}</span><span class="context-dot">·</span><span id="context-detail" style="display:none">~/Developer/piwin</span><span class="conv-stats-desc" id="conv-stats">${stats}</span><span class="grow"></span><button class="chip" id="context-model-chip" title="切换当前聚焦模型"><span class="av av-${mAv.toLowerCase()}">${mAv}</span>${mName}<svg class="i s12"><use href="#chevd" /></svg></button><button class="chip ml" title="题跋导出">题跋导出</button><button class="chip" title="清空墨迹">清墨</button>`;
             setFocusModel(mName, mAv);
           }
 
           if (transcript) {
-            if (title === '手写简单 Agent 实现引导' || !generalTranscripts[title]) {
+            if (title === 'UI 增量重构与转录调用链设计' || title === '手写简单 Agent 实现引导' || !generalTranscripts[title]) {
               transcript.innerHTML = defaultTranscriptHTML;
             } else {
               transcript.innerHTML = generalTranscripts[title].turns;

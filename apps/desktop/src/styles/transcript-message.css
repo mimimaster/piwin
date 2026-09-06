@@ -363,15 +363,34 @@
   border-radius: var(--r-control);
 }
 
-/* Sent-message capsules — proto-01 `.atts` / `.att`. Inkstone refines paint. */
-.atts {
+/* Sent-message capsules — proto-01 `.atts` / `.att`. Inkstone refines paint.
+   Beat `.message-attachments.is-user-attachments` wrap so the preview fold
+   can sit under the chip row instead of beside it. */
+.atts,
+.atts.message-attachments.is-user-attachments,
+.role-user .atts.message-attachments {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  gap: 0;
+  width: 100%;
+  margin-top: 8px;
+  margin-bottom: 0;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.atts-chips {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
-  margin-top: 8px;
+  min-width: 0;
+  max-width: 100%;
 }
 
-.atts .message-context-refs {
+.atts .message-context-refs,
+.atts-chips .message-context-refs {
   display: contents;
 }
 
@@ -389,6 +408,69 @@
   white-space: nowrap;
   max-width: 100%;
   min-width: 0;
+}
+
+button.att {
+  appearance: none;
+  margin: 0;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+button.att:hover {
+  color: var(--t1, var(--text-1));
+  background: var(--s2, var(--surface-3));
+}
+
+button.att:focus-visible {
+  outline: 2px solid var(--azure, var(--focus-ring, Highlight));
+  outline-offset: 1px;
+}
+
+.att-image-preview-slot {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 240ms ease-out;
+  overflow: hidden;
+  width: 100%;
+  min-width: 0;
+}
+
+.att-image-preview-slot[data-open='true'] {
+  grid-template-rows: 1fr;
+}
+
+.att-image-preview {
+  min-height: 0;
+  overflow: hidden;
+  padding-top: 8px;
+}
+
+.message-attachments.is-user-attachments .att-image-preview .media-preview-container,
+.message-attachments.is-user-attachments .att-image-preview .media-preview-image-button,
+.role-user .message-attachments .att-image-preview .media-preview-container,
+.role-user .message-attachments .att-image-preview .media-preview-image-button {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+}
+
+.message-attachments.is-user-attachments .att-image-preview .media-preview-image,
+.role-user .message-attachments .att-image-preview .media-preview-image {
+  width: auto;
+  height: auto;
+  max-width: min(100%, 420px);
+  max-height: 280px;
+  object-fit: contain;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .att-image-preview-slot {
+    transition: none;
+  }
 }
 
 .att .th {

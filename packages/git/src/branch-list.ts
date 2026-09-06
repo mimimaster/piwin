@@ -1,6 +1,8 @@
 /**
  * List local branches for the checkout picker (session branch chip).
- * Remote-tracking refs are intentionally omitted to keep the UI small.
+ * Remote-tracking refs are omitted, and local branches already merged into
+ * the default tip (and behind it) are dropped so leftover PR branches do
+ * not clutter the menu after they land.
  */
 import type {
   GitBranchList,
@@ -11,6 +13,7 @@ import { runGitCommand } from './git-command-runner.js';
 import { annotateBranchesWithWorktreeOccupancy, listGitWorktrees } from './worktree-list.js';
 
 const FIELD_SEP = '\x1f';
+const FETCH_CAP = 200;
 
 export type ReadGitBranchListOptions = {
   repository: GitRepositoryIdentity;
@@ -45,6 +48,33 @@ export function parseGitBranchListOutput(stdout: string): GitBranchListEntry[] {
   return branches;
 }
 
+/**
+ * Drop leftover local branches that are already contained by the default tip
+ * and no longer point at that tip. Keep the current checkout, occupied
+ * worktree branches, unmerged work, and freshly created same-tip branches.
+ */
+export function excludeStaleMergedBranches(
+  branches: readonly GitBranchListEntry[],
+  mergedNames: ReadonlySet<string>,
+  mergeTipShortHash: string | null,
+): GitBranchListEntry[] {
+  if (!mergeTipShortHash || mergedNames.size === 0) {
+    return [...branches];
+  }
+  return branches.filter((branch) => {
+    if (branch.current) {
+      return true;
+    }
+    if (branch.checkedOutWorktreePath) {
+      return true;
+    }
+    if (!mergedNames.has(branch.name)) {
+      return true;
+    }
+    return branch.shortHash === mergeTipShortHash;
+  });
+}
+
 export async function readGitBranchList(
   options: ReadGitBranchListOptions,
 ): Promise<GitBranchList> {
@@ -57,12 +87,12 @@ export async function readGitBranchList(
     };
   }
 
-  const limit = Math.max(1, Math.min(options.limit ?? 80, 200));
+  const limit = Math.max(1, Math.min(options.limit ?? 80, FETCH_CAP));
   const result = await runGitCommand({
     cwd: options.repository.rootPath,
     args: [
       'for-each-ref',
-      `--count=${limit + 1}`,
+      `--count=${FETCH_CAP + 1}`,
       '--sort=-committerdate',
       `--format=%(refname:short)${FIELD_SEP}%(objectname:short)${FIELD_SEP}%(HEAD)`,
       'refs/heads/',
@@ -80,18 +110,62 @@ export async function readGitBranchList(
   }
 
   const parsed = parseGitBranchListOutput(result.stdout);
-  const truncated = parsed.length > limit;
-  const branches = truncated ? parsed.slice(0, limit) : parsed;
   const worktrees = await listGitWorktrees(options.repository);
   const annotated = annotateBranchesWithWorktreeOccupancy(
-    branches,
+    parsed,
     worktrees.worktrees,
     options.repository.rootPath,
   );
+  const mergeTip = await resolveCheckoutPickerMergeTip(options.repository.rootPath);
+  const visible = excludeStaleMergedBranches(
+    annotated,
+    mergeTip.mergedNames,
+    mergeTip.shortHash,
+  );
+  const truncated = visible.length > limit || parsed.length > FETCH_CAP;
+  const branches = truncated ? visible.slice(0, limit) : visible;
   return {
     repository: options.repository,
-    branches: annotated,
+    branches,
     truncated,
-    totalBranches: truncated ? parsed.length : branches.length,
+    totalBranches: truncated ? visible.length : branches.length,
   };
+}
+
+async function resolveCheckoutPickerMergeTip(cwd: string): Promise<{
+  mergedNames: Set<string>;
+  shortHash: string | null;
+}> {
+  const originHead = await runGitCommand({
+    cwd,
+    args: ['symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD'],
+    allowFailure: true,
+  });
+  const tip =
+    originHead.exitCode === 0 && originHead.stdout.trim().length > 0
+      ? originHead.stdout.trim()
+      : 'HEAD';
+
+  const hashResult = await runGitCommand({
+    cwd,
+    args: ['rev-parse', '--short', tip],
+    allowFailure: true,
+  });
+  const shortHash = hashResult.exitCode === 0 ? hashResult.stdout.trim() || null : null;
+
+  const mergedResult = await runGitCommand({
+    cwd,
+    args: ['for-each-ref', '--format=%(refname:short)', `--merged=${tip}`, 'refs/heads/'],
+    allowFailure: true,
+  });
+  const mergedNames = new Set<string>();
+  if (mergedResult.exitCode === 0) {
+    for (const rawLine of mergedResult.stdout.split('\n')) {
+      const name = rawLine.replace(/\r$/, '').trim();
+      if (name) {
+        mergedNames.add(name);
+      }
+    }
+  }
+  return { mergedNames, shortHash };
 }

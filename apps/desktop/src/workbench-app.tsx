@@ -17,10 +17,6 @@ import { useWorkbenchShellChrome } from './hooks/use-workbench-shell-chrome';
 import { useWorkbenchAppModel } from './hooks/use-workbench-app-model';
 import { installRendererSelfHeal } from './renderer-self-heal';
 import { WorkspaceShell } from './workspace-shell';
-import { StageHeader } from './stage-header';
-import { ConversationTreeHeaderPopover } from './conversation-tree-popover';
-import { resolveWorkbenchSessionTitle } from './workbench-chrome-assembly';
-import { projectLabel } from './project-display-name';
 import { WorkbenchInspector } from './workbench-inspector';
 import { SessionContextRow } from './session-context-row';
 import {
@@ -298,22 +294,6 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
   const mediaStudioOpen =
     activeSubPage === 'library' || activeSubPage === 'images' || activeSubPage === 'videos';
   const studioOpen = mediaStudioOpen || activeSubPage === 'flashcards';
-  const subPageTitle = mediaStudioOpen
-    ? desktopLocale === 'zh-CN'
-      ? '资料库'
-      : 'Library'
-    : activeSubPage === 'flashcards'
-      ? desktopLocale === 'zh-CN'
-        ? '闪卡'
-        : 'Flashcards'
-      : null;
-  const stageSessionTitle =
-    subPageTitle ??
-    resolveWorkbenchSessionTitle({
-      projectPath: state.projectPath,
-      projectLabel: state.projectPath ? projectLabel(state.projectPath, recentProjects) : null,
-      sessionName: activeSessionName,
-    });
   const [mediaLibraryEpoch, setMediaLibraryEpoch] = useState(0);
   const wasStreamingRef = useRef(false);
   useEffect(() => {
@@ -472,37 +452,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       shell={shell}
                     />
                   }
-                  stageHeader={
-                    inkstoneStage ? (
-                      <StageHeader
-                        title={stageSessionTitle}
-                        runState={runStatus}
-                        sessionTreeControl={
-                          state.activeSessionId && !subPageTitle ? (
-                            <ConversationTreeHeaderPopover
-                              branchPoints={branchPoints}
-                              disabled={state.streaming === true}
-                              onSwitch={(headMessageId) => {
-                                void switchBranch(headMessageId);
-                              }}
-                              locale={desktopLocale}
-                            />
-                          ) : undefined
-                        }
-                        permissionMode={effectiveRunMode}
-                        onOpenPermissions={() => openSettingsSection('permissions')}
-                        origin={activeSessionOrigin}
-                        onReturnToRoot={
-                          activeSessionOrigin?.kind === 'fork'
-                            ? () => void handleResumeSession(activeSessionOrigin.rootSessionId)
-                            : undefined
-                        }
-                        trailing={sessionContextRow}
-                        locale={desktopLocale}
-                        onStop={handleAbort}
-                      />
-                    ) : undefined
-                  }
+                  stageHeader={undefined}
                   sessionContext={inkstoneStage ? null : sessionContextRow}
                   titlebar={
                     <WorkbenchContextBar
@@ -534,6 +484,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                         void retryTurn(messageId, { keepPrevious: false });
                       }}
                       onOpenSessionSearch={openSessionSearch}
+                      trailing={sessionContextRow}
                       isInkstone={
                         activeTheme.id === 'piwin-inkstone-paper' ||
                         activeTheme.id === 'piwin-inkstone-ink' ||
@@ -557,7 +508,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                           primaryPane={primaryPane}
                           primarySessionName={
                             activeSessionName ||
-                            (desktopLocale === 'zh-CN' ? '新 Chat' : 'New Chat')
+                            (desktopLocale === 'zh-CN' ? '素笺' : 'Clean Slate')
                           }
                           sessions={
                             state.activeScope.kind === 'general'

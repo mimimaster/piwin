@@ -7,19 +7,7 @@
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .stage-header {
-  display: flex !important;
-  align-items: center !important;
-  height: var(--card-header-height, 30px) !important;
-  min-height: var(--card-header-height, 30px) !important;
-  max-height: var(--card-header-height, 30px) !important;
-  padding: 0 10px !important;
-  gap: 4px !important;
-  min-width: 0 !important;
-  border-bottom: 1px solid var(--l1) !important;
-  background: transparent !important;
-  box-sizing: border-box !important;
-  flex: none !important;
-  z-index: 4;
+  display: none !important;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .stage-header .title {

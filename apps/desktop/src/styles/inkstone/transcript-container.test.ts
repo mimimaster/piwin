@@ -38,4 +38,13 @@ describe('Inkstone transcript container query', () => {
   it('keeps marginalia meta lines from wrapping into a vertical stack', () => {
     expect(css).toMatch(/\.chat-marginalia > span \{\s*white-space: nowrap;/);
   });
+
+  it('points the assembly fold chevron right when collapsed and down when open', () => {
+    expect(css).toMatch(
+      /\.fw\.assembly-summary > \.cap \.chev \{[\s\S]*?transform: rotate\(-90deg\);/,
+    );
+    expect(css).toMatch(
+      /\.fw\.assembly-summary\.open > \[data-fold\]\.cap \.chev \{[\s\S]*?transform: rotate\(0deg\);/,
+    );
+  });
 });

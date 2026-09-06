@@ -163,6 +163,9 @@ describe('MessageEditCard carry-through send', () => {
       '[data-testid="open-branch-btn"]',
     );
     expect(branchBtn?.getAttribute('aria-label')).toBe('Open branch');
+    expect(branchBtn?.className.split(/\s+/)).toEqual(
+      expect.arrayContaining(['btn', 'sm', 'pri']),
+    );
     act(() => {
       branchBtn?.click();
     });

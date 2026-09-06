@@ -159,7 +159,8 @@ describe('TurnWorkDisclosure', () => {
     );
     expect(trigger?.textContent).toBe('已工作 41s · 5 个工具 · 2 个文件 · 1 次失败');
     expect(trigger?.querySelector('.fail')?.textContent).toBe('1 次失败');
-    expect(trigger?.querySelector('svg.i')).not.toBeNull();
-    expect(trigger?.querySelector('svg.chev')).not.toBeNull();
+    expect(trigger?.querySelector('.work-fold-bulb')).not.toBeNull();
+    expect(trigger?.querySelector('.work-fold-brain')).toBeNull();
+    expect(trigger?.querySelector('svg.chev')?.innerHTML).toContain('M6 4l4 4-4 4');
   });
 });

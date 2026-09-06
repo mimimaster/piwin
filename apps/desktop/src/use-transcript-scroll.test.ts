@@ -165,9 +165,14 @@ describe('shouldDetachFollowTailFromScrollDelta', () => {
 });
 
 describe('shouldDetachFollowTailFromWheelDelta', () => {
-  it('treats negative deltaY as history navigation', () => {
-    expect(shouldDetachFollowTailFromWheelDelta(-12)).toBe(true);
-    expect(shouldDetachFollowTailFromWheelDelta(12)).toBe(false);
-    expect(shouldDetachFollowTailFromWheelDelta(0)).toBe(false);
+  it('treats negative deltaY as history navigation only when the transcript overflows', () => {
+    expect(shouldDetachFollowTailFromWheelDelta({ deltaY: -12, overflowing: true })).toBe(true);
+    expect(shouldDetachFollowTailFromWheelDelta({ deltaY: 12, overflowing: true })).toBe(false);
+    expect(shouldDetachFollowTailFromWheelDelta({ deltaY: 0, overflowing: true })).toBe(false);
+  });
+
+  it('ignores wheel gestures on a fitted transcript', () => {
+    expect(shouldDetachFollowTailFromWheelDelta({ deltaY: -80, overflowing: false })).toBe(false);
+    expect(shouldDetachFollowTailFromWheelDelta({ deltaY: 80, overflowing: false })).toBe(false);
   });
 });

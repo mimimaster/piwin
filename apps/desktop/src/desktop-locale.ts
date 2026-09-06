@@ -242,6 +242,8 @@ export type DesktopCopy = {
     branchOccupiedAction: string;
     branchOccupiedToast: (folderName: string) => string;
     branchOccupiedUnreachable: (path: string) => string;
+    branchCheckoutBlockedByLocalChanges: string;
+    branchCheckoutFailed: string;
     runtimeTargetGroupLabel: string;
     runtimeLocalLabel: string;
     runtimeLocalTooltip: string;
@@ -832,6 +834,9 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       branchOccupiedAction: '去那里工作',
       branchOccupiedToast: (folderName) => `该分支已在工作区「${folderName}」检出`,
       branchOccupiedUnreachable: (path) => `该工作区路径不可用：${path}`,
+      branchCheckoutBlockedByLocalChanges:
+        '工作区有未提交更改，无法切换分支。请先提交或贮藏后再试。',
+      branchCheckoutFailed: '无法切换分支。',
       runtimeTargetGroupLabel: '运行位置',
       runtimeLocalLabel: '本机',
       runtimeLocalTooltip: '在本机运行（This Mac）',
@@ -1180,6 +1185,9 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       branchOccupiedAction: 'Work there',
       branchOccupiedToast: (folderName) => `This branch is already checked out in “${folderName}”`,
       branchOccupiedUnreachable: (path) => `Workspace path is unavailable: ${path}`,
+      branchCheckoutBlockedByLocalChanges:
+        'Uncommitted changes would be overwritten. Commit or stash them, then try again.',
+      branchCheckoutFailed: 'Could not switch branches.',
       runtimeTargetGroupLabel: 'Run location',
       runtimeLocalLabel: 'This Mac',
       runtimeLocalTooltip: 'This Mac (local)',

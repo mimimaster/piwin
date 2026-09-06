@@ -178,6 +178,26 @@ function clipHeaderSummary(text: string): string {
 }
 
 /**
+ * Collapsed chain chip text (proto `.tr code` / `.mq`).
+ * Drop a leading `cd <abs> &&` so the chip shows the real verb, then clip
+ * hard — CSS ellipsis caps width, but long strings still inflate layout.
+ */
+export function formatChainPreviewChip(text: string, maxChars = 48): string {
+  let compact = text.replace(/\s+/g, ' ').trim();
+  if (!compact) {
+    return compact;
+  }
+  const stripped = compact.replace(/^cd\s+(?:"[^"]+"|'[^']+'|\S+)\s*(?:&&|;)\s*/i, '');
+  if (stripped) {
+    compact = stripped;
+  }
+  if (compact.length <= maxChars) {
+    return compact;
+  }
+  return `${compact.slice(0, Math.max(1, maxChars - 1))}…`;
+}
+
+/**
  * Collapsed MCP head: tool identity, plus a short arg snippet (query/prompt)
  * when one exists. Never dump raw JSON into the title row.
  */

@@ -216,7 +216,7 @@ export function MessageEditCard(props: MessageEditCardProps): ReactElement {
           {sendAsRetry && props.onOpenBranch ? (
             <button
               type="button"
-              className="btn sm"
+              className="btn sm pri"
               onClick={() => {
                 const text = editTextRef.current.trim();
                 if (text || props.hasCarryContent === true) {

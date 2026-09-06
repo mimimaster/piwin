@@ -2,7 +2,27 @@ import { describe, expect, it } from 'vitest';
 import {
   buildStableArtifactRevealFrames,
   buildStreamableArtifactPreview,
+  projectHtmlSourceForStreamRoot,
 } from './streamable-preview.js';
+
+describe('projectHtmlSourceForStreamRoot', () => {
+  it('flattens a full HTML document into styles plus body markup', () => {
+    const source = [
+      '<!DOCTYPE html>',
+      '<html lang="zh-CN"><head><style>.sky{color:blue}</style></head>',
+      '<body><div class="sky">鹈鹕</div><script>window.ready=1</script></body>',
+      '</html>',
+    ].join('');
+    expect(projectHtmlSourceForStreamRoot(source)).toBe(
+      '<style>.sky{color:blue}</style><div class="sky">鹈鹕</div><script>window.ready=1</script>',
+    );
+  });
+
+  it('leaves fragment sources unchanged', () => {
+    const source = '<style>.a{}</style><section>Hi</section>';
+    expect(projectHtmlSourceForStreamRoot(source)).toBe(source);
+  });
+});
 
 describe('buildStreamableArtifactPreview', () => {
   it('strips incomplete script tails', () => {

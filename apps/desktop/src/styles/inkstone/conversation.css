@@ -53,12 +53,13 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   padding-left: 0;
 }
 
-/* Inkstone identity is inline — do not indent the colophon for a missing avatar rail. */
+/* Inkstone identity is in marginalia/inline — do not indent colophon, error card, or action dock for deck's missing 44px avatar rail. */
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
   .chat-thread.is-conversation
   .chat-message-row.role-assistant
-  .turn-colophon {
-  padding-left: 0;
+  :is(.turn-colophon, .turn-error-card, .assistant-response-actions) {
+  margin-left: 0 !important;
+  padding-left: 0 !important;
 }
 
 /* Action controls remain keyboard reachable and no longer mask the final
@@ -106,13 +107,23 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .atts,
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .atts.message-attachments.is-user-attachments {
   display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  flex-wrap: nowrap;
+  width: 100%;
   margin-top: 8px;
   margin-bottom: 0;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .atts .message-context-refs {
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .atts-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .atts .message-context-refs,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .atts-chips .message-context-refs {
   display: contents;
 }
 
@@ -130,6 +141,23 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   white-space: nowrap;
   max-width: 100%;
   min-width: 0;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) button.att:hover {
+  color: var(--t1);
+  background: var(--s2);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) button.att:focus-visible {
+  outline: 2px solid var(--azure);
+  outline-offset: 1px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .message-attachments.is-user-attachments
+  .att-image-preview
+  .media-preview-image {
+  border-radius: 6px;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .att .th {

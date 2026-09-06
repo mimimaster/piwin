@@ -116,7 +116,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .empty-stage-landing-row:hover,
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .empty-stage-landing-row:focus-visible {
-  background: var(--s2);
+  background: var(--s3);
   color: var(--t1);
   outline: none;
 }

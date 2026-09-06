@@ -122,6 +122,24 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
       padding 240ms ease-out;
   }
 
+  /* C1 — CSS grid-row fold for smooth 240ms expand/collapse (proto-07 spec).
+     Containers use grid-template-rows: 0fr → 1fr instead of display toggling. */
+  .inkstone-fold-body {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 240ms ease-out;
+    overflow: hidden;
+  }
+  .is-open > .inkstone-fold-body,
+  .open > .inkstone-fold-body,
+  [data-open='true'] > .inkstone-fold-body {
+    grid-template-rows: 1fr;
+  }
+  .inkstone-fold-body > * {
+    min-height: 0;
+    overflow: hidden;
+  }
+
   /* S11.3 — permission-bar seal uses the same stamp as the gate 印. */
   .permission-bar-seal.is-stamping {
     animation: stamp 160ms var(--spring) both;
@@ -135,34 +153,22 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   }
 }
 
+/* C2 — comprehensive reduced-motion: disable both animation AND transition,
+   matching proto-08 mobile's correct approach. */
 @media (prefers-reduced-motion: reduce) {
   html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) {
-    .grind,
-    .tr.draw,
-    .tr.draw .node,
-    .slab::before,
-    .slab.is-streaming::before,
-    .slab.is-queued-edit::before,
-    .seal.is-stamping,
-    .permission-bar-seal.is-stamping,
-    .work-h .lamp,
-    .turn-work-details-summary .lamp,
-    .has-stream-caret::after,
-    .caret {
-      animation: none;
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
     }
 
     .seal.is-stamping,
     .permission-bar-seal.is-stamping {
       opacity: 1;
       transform: rotate(-1.5deg);
-    }
-
-    .grind,
-    .gen .bar i,
-    .work-h .lamp,
-    .turn-work-details-summary .lamp {
-      opacity: 1;
     }
   }
 }

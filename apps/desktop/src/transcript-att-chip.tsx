@@ -41,14 +41,21 @@ export function transcriptAttFromMedia(attachment: MediaAttachmentRef): Transcri
   };
 }
 
-export function TranscriptAttChip(props: TranscriptAttModel & { title?: string }): ReactElement {
-  return (
-    <span
-      className={`att att-${props.variant}`}
-      data-testid="transcript-att-chip"
-      data-att-variant={props.variant}
-      {...(props.title ? { title: props.title } : {})}
-    >
+export function isTranscriptMediaPreviewable(attachment: MediaAttachmentRef): boolean {
+  const mime = attachment.mimeType.toLowerCase();
+  return mime.startsWith('image/') || mime.startsWith('video/');
+}
+
+export function TranscriptAttChip(
+  props: TranscriptAttModel & {
+    title?: string;
+    expanded?: boolean;
+    onToggle?: () => void;
+  },
+): ReactElement {
+  const className = `att att-${props.variant}`;
+  const body = (
+    <>
       {props.variant === 'file' ? (
         <span className="att-ic" aria-hidden>
           <IconFile width={12} height={12} />
@@ -56,6 +63,32 @@ export function TranscriptAttChip(props: TranscriptAttModel & { title?: string }
       ) : null}
       {props.variant === 'image' ? <span className="th" aria-hidden /> : null}
       <span className="att-text">{props.text}</span>
-    </span>
+    </>
   );
+  const testProps = {
+    className,
+    'data-testid': 'transcript-att-chip',
+    'data-att-variant': props.variant,
+    ...(props.title ? { title: props.title } : {}),
+  };
+
+  if (props.onToggle) {
+    return (
+      <button
+        type="button"
+        {...testProps}
+        aria-expanded={props.expanded === true}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          props.onToggle?.();
+        }}
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        {body}
+      </button>
+    );
+  }
+
+  return <span {...testProps}>{body}</span>;
 }
