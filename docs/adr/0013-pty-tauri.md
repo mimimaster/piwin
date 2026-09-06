@@ -30,9 +30,11 @@ Product Depth locked decision **L4** (user 2026-07-21): **Tauri for PTY**.
 4. **Terminal availability is a desktop capability**, not a host capability flag.
    - Host `capabilities.pty` describes only a real host-owned PTY surface, if one is added by a future ADR.
    - Do **not** treat host `capabilities.pty === false` as proof that the Tauri interactive Terminal is unavailable.
+   - Do **not** hide or refuse Tauri Terminal because Desktop is attached to a remote Host. Attachment is a Host transport choice; it is not a terminal capability flag.
    - Runtime Refactor Phase 1 deletes the Node `PtyHost` piped-shell preview rather than maintaining a second terminal-like product path.
 5. **CLI** does not require full xterm; optional later thin spawn is out of this ADR’s desktop path.
 6. Do **not** add Electron solely for terminal.
+7. **Host-owned PTY byte streams over the remote protocol are a separate design** (ipc R10 `allowPtyRemote`). That flag does not gate Desktop Tauri PTY. When the local sidecar is not running, `pty_open` verifies the cwd exists locally instead of calling `project/authorize-terminal`.
 
 ## Architecture
 

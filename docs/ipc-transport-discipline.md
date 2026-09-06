@@ -110,7 +110,7 @@ resolved secret values, including inside error messages.
 
 | Exception | Scope | Why |
 |-----------|-------|-----|
-| PTY byte streams (ADR 0013) | Tauri commands/events, not JSONL | Raw terminal I/O is a desktop capability, deliberately outside the host protocol. A remote host does **not** get PTY via this path; remote PTY would need its own design. |
+| PTY byte streams (ADR 0013) | Tauri commands/events, not JSONL | Raw terminal I/O is a **desktop** capability, deliberately outside the host protocol. Attaching Desktop to a remote Host does **not** disable Tauri PTY. Host-owned PTY streams over the remote protocol would need their own design (`allowPtyRemote`). |
 | `host-log` event | Tauri bridge only | Operational logging of the sidecar itself, not protocol data. |
 
 Do not add new exceptions without an ADR.

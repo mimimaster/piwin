@@ -6,7 +6,6 @@ export type RemoteUnavailableFeature =
   | 'browser'
   | 'files'
   | 'review'
-  | 'terminal'
   | 'notes'
   | 'flashcards';
 
@@ -17,7 +16,6 @@ const FEATURE_LABELS: Record<
   browser: { en: 'Browser workbench', zh: '浏览器工作台' },
   files: { en: 'Host file browser', zh: 'Host 文件浏览器' },
   review: { en: 'Git review', zh: 'Git 审查' },
-  terminal: { en: 'Interactive terminal', zh: '交互终端' },
   notes: { en: 'Notes library', zh: '笔记库' },
   flashcards: { en: 'Flashcards', zh: '闪卡' },
 };

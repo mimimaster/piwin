@@ -124,7 +124,10 @@ fn default_shell() -> String {
     })
 }
 
-/// Open an interactive PTY only after host project trust authorization (PSR D3).
+/// Open an interactive PTY.
+/// Sidecar Host authorizes trusted cwd when present (PSR D3). Attach-only /
+/// remote Host has no sidecar; Desktop still spawns a local shell after a
+/// directory check because interactive PTY is a desktop capability (ADR 0013).
 #[tauri::command]
 pub async fn pty_open(
     app: AppHandle,
@@ -142,32 +145,9 @@ pub async fn pty_open(
     let project = project_path
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| requested_cwd.clone());
+        .unwrap_or_default();
 
-    // Authoritative trust check via host; do not trust renderer-side state alone.
-    let authorize_command = json!({
-        "type": "project/authorize-terminal",
-        "projectPath": project,
-        "cwd": requested_cwd,
-    });
-    let authorize_response = host_request(host, authorize_command, Some(8_000)).await?;
-    let success = authorize_response
-        .get("success")
-        .and_then(|value| value.as_bool())
-        .unwrap_or(false);
-    if !success {
-        let error = authorize_response
-            .get("error")
-            .and_then(|value| value.as_str())
-            .unwrap_or("terminal authorization failed");
-        return Err(error.to_string());
-    }
-    let authorized_cwd = authorize_response
-        .get("data")
-        .and_then(|data| data.get("cwd"))
-        .and_then(|value| value.as_str())
-        .unwrap_or(&requested_cwd)
-        .to_string();
+    let authorized_cwd = authorize_pty_cwd(host, requested_cwd, project).await?;
     if !std::path::Path::new(&authorized_cwd).is_dir() {
         return Err(format!("cwd is not a directory: {authorized_cwd}"));
     }
@@ -180,6 +160,51 @@ pub async fn pty_open(
     })
     .await
     .map_err(|error| format!("pty_open worker failed: {error}"))?
+}
+
+/// Local sidecar: Host trust is authoritative (PSR D3). Attach-only / remote
+/// Host: the sidecar is not running; Desktop PTY is still a local capability.
+async fn authorize_pty_cwd(
+    host: State<'_, HostBridgeState>,
+    requested_cwd: String,
+    project: String,
+) -> Result<String, String> {
+    let authorize_command = json!({
+        "type": "project/authorize-terminal",
+        "projectPath": project,
+        "cwd": requested_cwd,
+    });
+    let authorize_response = match host_request(host, authorize_command, Some(8_000)).await {
+        Ok(response) => response,
+        Err(error) if sidecar_is_absent(&error) => {
+            if !std::path::Path::new(&requested_cwd).is_dir() {
+                return Err(format!("cwd is not a directory: {requested_cwd}"));
+            }
+            return Ok(requested_cwd);
+        }
+        Err(error) => return Err(error),
+    };
+    let success = authorize_response
+        .get("success")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
+    if !success {
+        let error = authorize_response
+            .get("error")
+            .and_then(|value| value.as_str())
+            .unwrap_or("terminal authorization failed");
+        return Err(error.to_string());
+    }
+    Ok(authorize_response
+        .get("data")
+        .and_then(|data| data.get("cwd"))
+        .and_then(|value| value.as_str())
+        .unwrap_or(&requested_cwd)
+        .to_string())
+}
+
+fn sidecar_is_absent(error: &str) -> bool {
+    error.contains("host process is not running")
 }
 
 fn pty_open_blocking(
