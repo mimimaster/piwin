@@ -1,10 +1,12 @@
 /**
  * In-place composer for editing a user message per docs/design/inkstone/proto-01-transcript.html.
  */
-import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import type { TranscriptBranchPoint } from '@piwin/contracts';
+import { formatComposerModelKey } from './composer-model-selection-policy';
 import { useDesktopLocale } from './desktop-locale-context';
 import type { ComposerDockProps } from './composer-dock';
+import { ThinkingEffortControl, toThinkingEffortModels } from './ThinkingEffortControl';
 
 export type MessageEditCardProps = {
   messageId: string;
@@ -12,6 +14,8 @@ export type MessageEditCardProps = {
   composerCard?: ComposerDockProps | undefined;
   onCancel: () => void;
   onResend: (text: string) => void;
+  /** Unchanged current-turn: keep the old reply and send a prompt sibling. */
+  onOpenBranch?: ((text: string) => void) | undefined;
   interventionEdit?: boolean | undefined;
   /** Original turn still has media/refs shown read-only above this card. */
   hasCarryContent?: boolean | undefined;
@@ -153,6 +157,36 @@ export function MessageEditCard(props: MessageEditCardProps): ReactElement {
     hints.push(branchHint);
   }
 
+  // Retry/resend reads the composer model. Show the same picker here so the
+  // user can switch before sending. Intervention edits patch the current run
+  // and do not start a new turn, so they keep the text-only footer.
+  const composerCard = props.composerCard;
+  const thinkingModels = useMemo(
+    () => (composerCard ? toThinkingEffortModels(composerCard.modelOptions) : []),
+    [composerCard],
+  );
+  const selectedModel = composerCard?.modelOptions.find(
+    (model) =>
+      formatComposerModelKey(model.providerId, model.modelId) === composerCard.selectedModelKey,
+  );
+  const modelPicker =
+    composerCard !== undefined && props.interventionEdit !== true ? (
+      <ThinkingEffortControl
+        disabled={false}
+        modelLabel={
+          selectedModel?.label ??
+          composerCard.selectedModelLabel ??
+          (isChinese ? '模型' : 'Model')
+        }
+        ultraEnabled={composerCard.ultraThinkingEnabled ?? false}
+        value={composerCard.thinkingLevel ?? 'off'}
+        onChange={(level) => composerCard.onThinkingLevelChange?.(level)}
+        models={thinkingModels}
+        selectedModelKey={composerCard.selectedModelKey}
+        onSelectModel={composerCard.onSelectModel}
+      />
+    ) : null;
+
   return (
     <div
       ref={cardRef}
@@ -170,6 +204,7 @@ export function MessageEditCard(props: MessageEditCardProps): ReactElement {
       <div className="efoot">
         <span>{hints.join(' · ')}</span>
         <span className="acts ml">
+          {modelPicker}
           <button
             type="button"
             className="btn sm"
@@ -178,6 +213,28 @@ export function MessageEditCard(props: MessageEditCardProps): ReactElement {
           >
             {cancelLabel}
           </button>
+          {sendAsRetry && props.onOpenBranch ? (
+            <button
+              type="button"
+              className="btn sm"
+              onClick={() => {
+                const text = editTextRef.current.trim();
+                if (text || props.hasCarryContent === true) {
+                  props.onOpenBranch?.(text);
+                }
+              }}
+              disabled={!canSend}
+              title={
+                isChinese
+                  ? '保留当前回答，另开一条分支'
+                  : 'Keep this reply and open a branch'
+              }
+              aria-label={isChinese ? '开分支' : 'Open branch'}
+              data-testid="open-branch-btn"
+            >
+              {isChinese ? '开分支' : 'Open branch'}
+            </button>
+          ) : null}
           <button
             type="button"
             className="btn sm pri"

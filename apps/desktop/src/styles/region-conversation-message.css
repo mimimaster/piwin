@@ -471,8 +471,14 @@ html[data-theme-visual-style='ink-wash']
 
 .message-branch-switcher-label {
   min-width: 2.2em;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
   text-align: center;
   font-variant-numeric: tabular-nums;
+  cursor: pointer;
 }
 
 .message-branch-switcher-btn {

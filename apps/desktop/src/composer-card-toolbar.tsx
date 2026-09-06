@@ -111,6 +111,21 @@ export function ComposerCardToolbar({
           onSelectModel={props.onSelectModel}
         />
 
+        {/* proto-02: icon-only voice entry after the model chip, not beside Send. */}
+        <LiveComposerButton
+          enabled={true}
+          canStart={props.live?.canStart === true}
+          starting={props.live?.starting === true}
+          call={props.live?.call ?? null}
+          error={props.live?.error ?? null}
+          missing={props.live?.missing ?? []}
+          isChinese={locale === 'zh-CN'}
+          onStart={props.live?.onStart ?? (() => undefined)}
+          onEnd={props.live?.onEnd ?? (() => undefined)}
+        />
+      </div>
+
+      <div className="composer-v2-toolbar-right">
         {/* Run Mode pill (ADR 0024) */}
         {props.isConversationSession !== true && props.onRunModeChange && props.runModePreset ? (
           <RunModeControl
@@ -144,21 +159,6 @@ export function ComposerCardToolbar({
               : {})}
           />
         ) : null}
-
-      </div>
-
-      <div className="composer-v2-toolbar-right">
-        <LiveComposerButton
-          enabled={true}
-          canStart={props.live?.canStart === true}
-          starting={props.live?.starting === true}
-          call={props.live?.call ?? null}
-          error={props.live?.error ?? null}
-          missing={props.live?.missing ?? []}
-          isChinese={locale === 'zh-CN'}
-          onStart={props.live?.onStart ?? (() => undefined)}
-          onEnd={props.live?.onEnd ?? (() => undefined)}
-        />
 
         {showSpeechInput ? (
           <>

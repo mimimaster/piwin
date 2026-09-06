@@ -1166,6 +1166,47 @@ describe('ConversationResponseContent', () => {
     expect(container.querySelector('[data-testid="code-fence-streaming"]')).toBeNull();
   });
 
+  it('folds a closed Canvas fence to the launcher when the run id is still live', async () => {
+    const message: ChatMessageUi = {
+      id: 'm-pelican-canvas',
+      role: 'assistant',
+      text: [
+        '```artifact-html title="2D 鹈鹕骑自行车动画 (Pelican on a Bicycle)" surface="canvas"',
+        '<!DOCTYPE html>',
+        '<html lang="zh-CN"><body><main>骑行</main></body></html>',
+        '```',
+      ].join('\n'),
+      thinking: '已思考',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      runId: 'run-1',
+    };
+    const { container } = renderContent(
+      <ConversationResponseContent
+        message={message}
+        sessionId="session-mtpu6ibz-doig3ng2"
+        messageIndex={0}
+        showStreamingCaret={false}
+        activeTheme={null}
+        artifactThemeKey="default"
+        runRecordsById={{}}
+        activeRunId="run-1"
+        locale="zh-CN"
+        artifactPreviewEnabled
+        onOpenArtifactCanvas={() => {}}
+      />,
+    );
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[data-testid="artifact-canvas-launcher"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="artifact-canvas-download-source"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="code-fence-streaming"]')).toBeNull();
+    expect(container.querySelector('.artifact-frame')).toBeNull();
+  });
+
   it('keeps completed Canvas fences as a transcript launcher, not an inline frame', async () => {
     const message: ChatMessageUi = {
       id: 'm-canvas',

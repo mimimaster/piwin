@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 function tauriConvertFileSrc(): ((path: string) => string) | null {
   if (typeof window === 'undefined') {
@@ -39,6 +39,9 @@ export function useLocalMediaSrc(): (localPath: string, fallbackUrl: string) => 
     };
   }, [convert]);
 
-  return (localPath: string, fallbackUrl: string) =>
-    convert !== null ? convert(localPath) : fallbackUrl;
+  return useCallback(
+    (localPath: string, fallbackUrl: string) =>
+      convert !== null ? convert(localPath) : fallbackUrl,
+    [convert],
+  );
 }

@@ -41,6 +41,7 @@ html[data-theme-id='piwin-inkstone-paper'] {
   --crimson: #9c2e3d;
   --crimson-wash: rgba(156, 46, 61, 0.1);
   --azure: #3a7797;
+  --azure-wash: rgba(58, 119, 151, 0.12);
   --code: #efece4;
 
   /* The slab — the one deliberately dark object on the page (03-composer.md).
@@ -99,6 +100,7 @@ html[data-theme-id='piwin-inkstone-ink'] {
   --crimson: #d95f6e;
   --crimson-wash: rgba(217, 95, 110, 0.14);
   --azure: #6ba4c3;
+  --azure-wash: rgba(107, 164, 195, 0.14);
   --code: #0f0e0c;
 
   --slab: #0e0d0b;

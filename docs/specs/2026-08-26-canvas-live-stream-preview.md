@@ -9,15 +9,16 @@
 ## 1. Product
 
 When a live assistant reply declares `surface="canvas"`, open the right Canvas
-immediately. The transcript keeps streaming the HTML source. The Canvas panel
-renders the same growing source through the existing Inline `stream-preview`
-pipeline (one sandbox iframe, throttled DOM reconcile). Completion commits
-that iframe to interactive; it does not remount.
+immediately. The transcript keeps dumping the growing HTML source while the
+fence is open. The Canvas panel renders the same growing source through the
+existing Inline `stream-preview` pipeline (one sandbox iframe, throttled DOM
+reconcile). When the closing fence arrives, the transcript folds to the Canvas
+launcher; the panel commits that iframe to interactive and does not remount.
 
 This is the owner’s requested split:
 
 ```text
-left  = source (already true for Canvas fences while streaming)
+left  = source while fence open → launcher once closed
 right = Canvas panel, opened as soon as the opening fence is Canvas
 ```
 
@@ -65,8 +66,11 @@ Fence controllers must not call `onOpenArtifactCanvas` while rendering. That
 is a render-time side effect and would fight the existing one-shot reveal
 state machine.
 
-The transcript path for Canvas stays source-only while streaming (existing
-`SourceCodeBlock`). The launcher still appears on completion.
+The transcript path for Canvas dumps `SourceCodeBlock` while the fence is
+still open, then folds to `ArtifactCanvasLauncher` once the closing fence
+arrives (including when `renderingPhase` is still stuck on streaming).
+Capability-off, unbound, and blocked fences stay on `SourceCodeBlock`. The
+transcript never mounts the Canvas iframe.
 
 ## 5. Pipeline
 
@@ -173,7 +177,8 @@ reason to delay.
 | `artifact-canvas-panel.tsx` | `stream-preview` when `streaming` |
 | ADRs 0005, 0029 + `docs/artifact-research.md` | match shipped behavior |
 
-`ArtifactFenceController` streaming Canvas branch stays source-only.
+`ArtifactFenceController` dumps source while the Canvas fence is open and
+folds to the launcher once the fence is closed.
 
 ## 12. Tests
 
@@ -185,4 +190,5 @@ reason to delay.
 - Blocked Canvas → no target while live or complete.
 - Error after live reveal → no second reveal.
 - Panel: `streaming: true` materializes `mode: 'stream-preview'`.
-- MarkdownView: Canvas fence still has no transcript iframe while streaming.
+- MarkdownView: open Canvas fence stays source-only while streaming; closed
+  fence folds to the launcher (including stuck streaming phase); no transcript iframe.

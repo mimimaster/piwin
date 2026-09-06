@@ -43,10 +43,13 @@ pre-fills the editor so the user decides whether to branch.
    empty attempt is deleted (`truncateFrom` on its subtree) before the retry;
    a deliberate "try another answer" on a completed turn passes `true` and
    keeps the previous response as a sibling.
-4. **`branchFromMessageId` narrows to genuine prompt edits.** Clients send it
-   only when the turn's text, attachments, or context refs actually changed.
-   Unchanged content is a retry, not a branch. Host rejects a prompt that
-   carries both fields.
+4. **`branchFromMessageId` is an explicit exploration write.** The edit-card
+   **重试** button (unchanged current turn, including a model switch) is
+   repair: `retryUserMessageId` with `keepPreviousAttempt: false`. The
+   **开分支** button sends `branchFromMessageId` even when the text is
+   unchanged, so the old reply stays as a sibling. Changed text still
+   branches via **发送新版本**. Host rejects a prompt that carries both
+   `branchFromMessageId` and `retryUserMessageId`.
 5. **Revert names one thing only: `session/truncate-from`.** The user-bubble
    revert icon is removed; that affordance becomes "edit". Destructive
    truncation is the only action allowed to be called Revert.

@@ -249,32 +249,47 @@ describe('LibraryWorkspaceView', () => {
     expect(fake.calls.filter((command) => command.type === 'media/read')).toEqual([]);
   });
 
-  it('opens the lightbox with image details when a card is clicked', async () => {
+  it('opens the inspector drawer when a card is clicked', async () => {
     render({ request: makeMediaListRequester([makeLibraryItem()]).request });
     await flushLibrary();
 
-    const card = container.querySelector<HTMLDivElement>('[data-testid="image-card-asset-1"]');
+    expect(container.querySelector('[data-testid="library-inspector-drawer"]')).toBeNull();
+
+    const card = container.querySelector<HTMLButtonElement>('[data-testid="image-card-asset-1"]');
     expect(card).not.toBeNull();
     act(() => {
-      card?.focus();
       card?.click();
     });
     await flush(2);
 
-    expect(document.body.textContent).toContain('图片详情');
-    expect(document.body.textContent).toContain('flux');
-    expect(document.body.textContent).not.toContain('填入输入框');
-    expect(document.body.textContent).not.toContain('Use in composer');
-    expect(container.querySelector('[role="dialog"][aria-modal="true"]')).not.toBeNull();
-    expect(container.querySelector('.lib-canvas .vault-look-back')).not.toBeNull();
-    expect(document.activeElement?.classList.contains('media-lightbox-close')).toBe(true);
+    expect(container.querySelector('[data-testid="library-inspector-drawer"]')).not.toBeNull();
+    expect(container.textContent).toContain('资产检查器');
+    expect(container.textContent).toContain('flux');
+    expect(container.querySelector('[data-testid="images-lightbox"]')).toBeNull();
 
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     });
     await flush(2);
+    expect(container.querySelector('[data-testid="library-inspector-drawer"]')).toBeNull();
     expect(container.querySelector('[data-testid="images-lightbox"]')).toBeNull();
-    expect(document.activeElement).toBe(card);
+    expect(container.querySelector('[data-testid="image-card-asset-1"]')).not.toBeNull();
+  });
+
+  it('opens the lightbox from the card theater control', async () => {
+    render({ request: makeMediaListRequester([makeLibraryItem()]).request });
+    await flushLibrary();
+
+    const theaterBtn = container.querySelector<HTMLElement>('.lib-card-theater-btn');
+    expect(theaterBtn).not.toBeNull();
+    act(() => {
+      theaterBtn?.click();
+    });
+    await flush(2);
+
+    expect(container.querySelector('[data-testid="images-lightbox"]')).not.toBeNull();
+    expect(document.body.textContent).toContain('图片详情');
+    expect(document.body.textContent).toContain('flux');
   });
 
   it('shows an empty library when the vault has no images', async () => {
@@ -447,7 +462,7 @@ describe('LibraryWorkspaceView videos tab', () => {
     expect(container.textContent).toContain('No videos yet');
   });
 
-  it('opens the theater modal with video details', async () => {
+  it('opens the inspector drawer when a video card is clicked', async () => {
     render({
       request: makeMediaListRequester([
         makeLibraryItem({
@@ -466,10 +481,12 @@ describe('LibraryWorkspaceView videos tab', () => {
     act(() => {
       card?.click();
     });
+    await flush(2);
 
-    expect(document.body.textContent).toContain('Video details');
-    expect(document.body.textContent).toContain('kling');
-    expect(container.querySelector('video')?.autoplay).toBe(false);
+    expect(container.querySelector('[data-testid="library-inspector-drawer"]')).not.toBeNull();
+    expect(container.textContent).toContain('Asset Inspector');
+    expect(container.textContent).toContain('kling');
+    expect(container.querySelector('[data-testid="videos-theater"]')).toBeNull();
   });
 });
 

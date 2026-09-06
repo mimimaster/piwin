@@ -3,6 +3,7 @@ import { Button } from '@piwin/ui-kit';
 import { CollapsibleContentBlock } from './collapsible-content-block.js';
 import { computeDiffLineNumbers } from './diff-line-numbers.js';
 import { parseUnifiedDiff } from './diff-view.js';
+import { downloadTextFile } from './artifact-source-export.js';
 import { normalizeLanguage, TokenSpans, useHighlight, type TokenLine } from './syntax-highlight.js';
 
 const SHELL_LANGUAGES = new Set([
@@ -183,8 +184,11 @@ export function SourceCodeBlock(props: {
             {props.language || (props.isShell ? 'bash' : 'code')}
           </span>
         </div>
-        {props.previewAction || !props.streaming ? (
+        {props.previewAction || props.source.length > 0 ? (
           <div className="md-code-header-actions">
+            {props.source.length > 0 ? (
+              <DownloadCodeButton language={props.language} source={props.source} />
+            ) : null}
             {!props.streaming ? <CopyCodeButton text={props.source} /> : null}
             {props.previewAction}
           </div>
@@ -211,6 +215,43 @@ export function SourceCodeBlock(props: {
         </p>
       ) : null}
     </div>
+  );
+}
+
+function codeExportExtension(language: string): string {
+  const token = language.trim().toLowerCase();
+  if (token === 'artifact-html' || token === 'html' || token === 'htm') return 'html';
+  if (token === 'svg') return 'svg';
+  if (/^[a-z0-9]+$/.test(token)) return token;
+  return 'txt';
+}
+
+function codeExportMimeType(extension: string): string {
+  if (extension === 'html') return 'text/html;charset=utf-8';
+  if (extension === 'svg') return 'image/svg+xml;charset=utf-8';
+  if (extension === 'json') return 'application/json;charset=utf-8';
+  if (extension === 'css') return 'text/css;charset=utf-8';
+  return 'text/plain;charset=utf-8';
+}
+
+/** Save original model source. Never srcdoc or theme-repaired renderSource. */
+function DownloadCodeButton(props: { language: string; source: string }): ReactElement {
+  return (
+    <Button
+      variant="ghost"
+      size="compact"
+      data-testid="code-download-button"
+      onClick={() => {
+        const extension = codeExportExtension(props.language);
+        downloadTextFile({
+          text: props.source,
+          fileName: `code.${extension}`,
+          mimeType: codeExportMimeType(extension),
+        });
+      }}
+    >
+      Download
+    </Button>
   );
 }
 

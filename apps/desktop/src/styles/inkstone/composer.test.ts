@@ -45,4 +45,10 @@ describe('Inkstone composer.css context capsules', () => {
       /\.slab:is\(:focus-within[\s\S]{0,80}0 0 0 1px var\(--(?:iris|zhu)\)/,
     );
   });
+
+  it('pins toolbar icon buttons to proto-02 .sb-chip.ic, including Mantine --ai-size', () => {
+    expect(composer).toMatch(
+      /\.composer-v2-icon-btn \{[\s\S]*?width: 28px;[\s\S]*?height: 26px;[\s\S]*?--ai-size: 26px;/,
+    );
+  });
 });

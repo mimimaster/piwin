@@ -256,7 +256,10 @@ html[data-theme-id='piwin-inkstone-paper'] .slab .composer-v2-icon-btn,
 html[data-theme-id='piwin-inkstone-ink'] .slab .composer-v2-icon-btn {
   width: 28px;
   height: 26px;
+  min-width: 28px;
+  min-height: 26px;
   padding: 0;
+  --ai-size: 26px;
   justify-content: center;
   display: inline-grid;
   place-items: center;
@@ -363,6 +366,5 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   .slab .run-mode-trigger,
   .slab .orchestration-scheme-trigger { color: var(--slab-ph); padding-inline: 6px; }
   .slab :is(.run-mode-trigger, .orchestration-scheme-trigger) :is(span, svg) { color: inherit; }
-  .slab .composer-v2-toolbar-right .live-composer-button { color: var(--slab-ph); }
 }
 .thinking-effort-avatar { display: none; }

@@ -198,6 +198,7 @@ export function MediaLibraryWorkspace(props: MediaLibraryWorkspaceProps): ReactE
       if (event.key === 'Escape') {
         if (lightboxId !== null) setLightboxId(null);
         else if (isBatchMode) setIsBatchMode(false);
+        else if (inspectorOpen) setInspectorOpen(false);
         else props.onClose();
       } else if (event.key === 'k' && (event.metaKey || event.ctrlKey)) {
         event.preventDefault();
@@ -206,7 +207,7 @@ export function MediaLibraryWorkspace(props: MediaLibraryWorkspaceProps): ReactE
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [lightboxId, isBatchMode, props.onClose]);
+  }, [lightboxId, isBatchMode, inspectorOpen, props.onClose]);
 
   const copyPrompt = useCallback(
     (text: string, id: string) => {
@@ -288,6 +289,11 @@ export function MediaLibraryWorkspace(props: MediaLibraryWorkspaceProps): ReactE
     },
     [currentLightboxIndex, visibleItems],
   );
+
+  const openInspectorFor = useCallback((itemKey: string) => {
+    setActiveAssetId(itemKey);
+    setInspectorOpen(true);
+  }, []);
 
   const emptyTitle =
     kind === 'video'
@@ -600,8 +606,7 @@ export function MediaLibraryWorkspace(props: MediaLibraryWorkspaceProps): ReactE
                         openLabel={t('Open file', '打开文件')}
                         deleteLabel={t('Delete', '删除')}
                         onOpen={() => {
-                          setActiveAssetId(itemKey);
-                          setLightboxId(itemKey);
+                          openInspectorFor(itemKey);
                         }}
                         onDelete={() => deleteItem(item)}
                       />
@@ -624,10 +629,7 @@ export function MediaLibraryWorkspace(props: MediaLibraryWorkspaceProps): ReactE
                       isSelected={isSelected}
                       onToggleSelect={() => toggleSelect(itemKey)}
                       isActive={isActive}
-                      onOpen={() => {
-                        setActiveAssetId(itemKey);
-                        setLightboxId(itemKey);
-                      }}
+                      onOpen={() => openInspectorFor(itemKey)}
                       onOpenLightbox={() => setLightboxId(itemKey)}
                       onCopyPrompt={() =>
                         copyPrompt(item.prompt ?? item.name ?? item.assetId, item.assetId)

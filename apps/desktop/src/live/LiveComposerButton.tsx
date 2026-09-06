@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { Button } from '@piwin/ui-kit';
+import { IconButton } from '@piwin/ui-kit';
 import { liveMissingLabel } from './use-live-call.js';
 import type { LiveCallView, LiveReadyMissing } from '@piwin/contracts';
 import { IconMic } from '../shell-icons.js';
@@ -16,65 +16,54 @@ export type LiveComposerButtonProps = {
   onEnd: () => void;
 };
 
+function liveComposerButtonCopy(props: LiveComposerButtonProps): { label: string; title: string } {
+  if (props.call) {
+    const connected = props.isChinese
+      ? 'piwin Live 已连接；通话控制位于顶部'
+      : 'piwin Live is connected; controls are at the top';
+    return { label: connected, title: connected };
+  }
+  if (props.starting) {
+    const cancel = props.isChinese ? '取消 piwin Live 连接' : 'Cancel piwin Live connection';
+    return { label: cancel, title: cancel };
+  }
+  if (props.error) {
+    const retry = props.isChinese ? '重试 Live' : 'Retry Live';
+    return { label: retry, title: retry };
+  }
+  const start = props.isChinese ? '开始 piwin Live' : 'Start piwin Live';
+  if (!props.canStart) {
+    return { label: start, title: liveMissingLabel(props.missing, props.isChinese) };
+  }
+  return { label: start, title: start };
+}
+
 export function LiveComposerButton(props: LiveComposerButtonProps): ReactElement {
   const active = Boolean(props.call) || props.starting;
   const canRetry = props.error !== null;
-  const label = props.starting
-    ? props.isChinese
-      ? '连接中'
-      : 'Connecting'
-    : canRetry
-      ? props.isChinese
-        ? '重试 Live'
-        : 'Retry Live'
-      : 'Live';
-  const hint =
-    !props.call && !props.starting && !props.error && !props.canStart
-      ? liveMissingLabel(props.missing, props.isChinese)
-      : null;
+  const copy = liveComposerButtonCopy(props);
 
   return (
-    <>
-      <Button
-        size="compact"
-        variant={active ? 'primary' : 'ghost'}
-        className={`composer-live-btn${active ? ' live-active' : ''}`}
-        data-testid="composer-live-btn"
-        aria-pressed={active}
-        disabled={!props.enabled}
-        title={
-          props.call
-            ? props.isChinese
-              ? 'piwin Live 已连接；通话控制位于顶部'
-              : 'piwin Live is connected; controls are at the top'
-            : props.starting
-              ? props.isChinese
-                ? '取消 piwin Live 连接'
-                : 'Cancel piwin Live connection'
-              : props.isChinese
-                ? '开始 piwin Live'
-                : 'Start piwin Live'
+    <IconButton
+      className={`composer-v2-icon-btn composer-live-btn${active ? ' active' : ''}`}
+      data-testid="composer-live-btn"
+      label={copy.label}
+      title={copy.title}
+      aria-pressed={active}
+      disabled={!props.enabled}
+      onClick={() => {
+        if (props.starting) {
+          props.onEnd();
+          return;
         }
-        onClick={() => {
-          if (props.starting) {
-            props.onEnd();
-            return;
-          }
-          if (props.call) {
-            document.getElementById('piwin-live-panel')?.focus();
-            return;
-          }
-          if (props.canStart || canRetry) props.onStart();
-        }}
-      >
-        <IconMic size={15} aria-hidden="true" />
-        {label}
-      </Button>
-      {hint ? (
-        <span className="composer-speech-status" data-testid="composer-live-hint">
-          {hint}
-        </span>
-      ) : null}
-    </>
+        if (props.call) {
+          document.getElementById('piwin-live-panel')?.focus();
+          return;
+        }
+        if (props.canStart || canRetry) props.onStart();
+      }}
+    >
+      <IconMic />
+    </IconButton>
   );
 }

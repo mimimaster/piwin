@@ -47,6 +47,7 @@ import {
 } from './prompt-history';
 import type { ComposerDockProps } from './composer-dock-types';
 import { ComposerCardToolbar } from './composer-card-toolbar';
+import { toThinkingEffortModels } from './ThinkingEffortControl';
 
 function getAgentPlaceholder(
   mode: AgentModeId,
@@ -129,17 +130,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   const selectedModelSupportsImage = selectedModel?.supportsImage === true;
   const showTextOnlyImageWarning =
     hasImageAttachment && !selectedModelSupportsImage && props.visionDelegationEnabled !== true;
-  const thinkingModels = props.modelOptions.map((model) => ({
-    key: `${model.providerId}::${model.modelId}`,
-    label: model.label,
-    providerId: model.providerId,
-    ...(model.source !== undefined ? { source: model.source } : {}),
-    ...(model.protocol !== undefined ? { protocol: model.protocol } : {}),
-    ...(model.thinkingLevels !== undefined ? { thinkingLevels: model.thinkingLevels } : {}),
-    ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
-    ...(model.supportsImage ? { supportsImage: true } : {}),
-    ...(model.supportsImageGeneration ? { supportsImageGeneration: true } : {}),
-  }));
+  const thinkingModels = toThinkingEffortModels(props.modelOptions);
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   /**

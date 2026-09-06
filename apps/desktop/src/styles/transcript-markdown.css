@@ -353,6 +353,13 @@
   gap: var(--s-3);
 }
 
+.md-code-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex: none;
+}
+
 .md-code-shell-icon {
   display: inline-flex;
   align-items: center;

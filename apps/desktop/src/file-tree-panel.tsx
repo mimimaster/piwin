@@ -29,10 +29,10 @@ import type {
   ProjectListDirData,
   ProjectReadFileData,
   PromptContextRef,
+  ThemeManifest,
 } from '@piwin/contracts';
 import {
   Button,
-  EmptyState,
   FileTypeIcon,
   IconButton,
   Notice,
@@ -41,6 +41,7 @@ import {
 import { IconClose, IconRefresh, IconSearch } from './shell-icons';
 import { CodePreviewView } from './code-preview-view';
 import { PreviewUnavailable } from './PreviewUnavailable';
+import { FilePanelEmptyFallback } from './file-panel-empty-fallback.js';
 import {
   classifyFileTreePreviewUnavailable,
   FILE_TREE_IMAGE_PREVIEW_MAX_BYTES,
@@ -107,9 +108,13 @@ export type FileTreePanelProps = {
    */
   onOpenHtmlInBrowser?: (absolutePath: string, relativePath: string) => void;
   /** Desktop locale for locale-aware UI strings. */
-  locale?: DesktopLocale;
+  locale?: DesktopLocale | undefined;
+  /** Active appearance theme for theme-adaptive styling. */
+  activeTheme?: ThemeManifest | undefined;
+  /** Optional callback to trigger workspace folder selection. */
+  onOpenWorkspace?: (() => void) | undefined;
   /** Host filesystem style. Required when `projectPath` is an opaque remote id. */
-  pathStyle?: HostPathStyle;
+  pathStyle?: HostPathStyle | undefined;
 };
 
 type FilePreviewState = {
@@ -644,13 +649,10 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
   if (!props.projectPath) {
     return (
       <div className="file-tree-panel" data-testid="file-tree-panel">
-        <EmptyState
-          title={locale === 'zh-CN' ? '暂无文件' : 'No files'}
-          description={
-            locale === 'zh-CN'
-              ? '生成或打开文件后，可以在这里浏览和预览。'
-              : 'Generated or opened files can be browsed and previewed here.'
-          }
+        <FilePanelEmptyFallback
+          locale={locale}
+          activeTheme={props.activeTheme}
+          onOpenWorkspace={props.onOpenWorkspace}
         />
       </div>
     );
@@ -902,7 +904,9 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
             onKeyDown={handleTreeKeyDown}
           >
             {rootNodes.length === 0 ? (
-              <li className="muted file-tree-empty">Empty directory</li>
+              <li className="muted file-tree-empty">
+                {locale === 'zh-CN' ? '空目录' : 'Empty directory'}
+              </li>
             ) : (
               filterTreeNodes(rootNodes, filterQuery).map((node) => (
                 <FileTreeNodeView

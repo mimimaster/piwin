@@ -187,6 +187,14 @@ html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-session-tree-tri
   cursor: pointer;
 }
 
+html[data-theme-id='piwin-inkstone-paper'] .stage-header .context-session-tree-trigger[data-has-branches='true'],
+html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-session-tree-trigger[data-has-branches='true'] {
+  width: auto;
+  min-width: 22px;
+  padding: 0 4px;
+  gap: 2px;
+}
+
 html[data-theme-id='piwin-inkstone-paper'] .stage-header .context-session-tree-trigger:hover,
 html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-session-tree-trigger:hover {
   background: var(--s3);
@@ -194,8 +202,14 @@ html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-session-tree-tri
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .stage-header .context-session-tree-label,
-html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-session-tree-label,
+html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-session-tree-label {
+  display: none;
+}
+
 html[data-theme-id='piwin-inkstone-paper'] .stage-header .context-session-tree-count,
 html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-session-tree-count {
-  display: none;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  font-size: 10px;
 }

@@ -90,6 +90,7 @@ export type WorkbenchInspectorProps = {
   requestGit: HostRequestAdapters['requestGit'];
   requestPty: HostRequestAdapters['requestPty'];
   projectPath: string | null;
+  onOpenWorkspace?: (() => void) | undefined;
   /** Chat falls back to the General workspace so generated files still preview. */
   fileBrowseRoot?: string | null;
   projectTrusted: boolean;
@@ -254,6 +255,9 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
               <DeferredFileTreePanel
                 projectPath={fileBrowseRoot ?? projectPath}
                 request={requestFileTree}
+                locale={locale}
+                activeTheme={activeTheme}
+                {...(props.onOpenWorkspace ? { onOpenWorkspace: props.onOpenWorkspace } : {})}
                 {...(hostPathStyle === undefined ? {} : { pathStyle: hostPathStyle })}
                 onAddContextRef={(ref) => {
                   const result = addContextRef(ref);
@@ -291,7 +295,6 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
                       },
                     }
                   : {})}
-                locale={locale}
               />
             ) : (
               <RemoteUnavailableSurface feature="files" locale={locale} />
