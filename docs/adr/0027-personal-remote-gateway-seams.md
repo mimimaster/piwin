@@ -119,9 +119,10 @@ session?").
 - No second agent loop. A remote client is another `HostClient` over a
   different transport; it sends `HostCommand` and receives `HostPush` like the
   desktop renderer.
-- No PTY over remote by default. `allowPtyRemote` defaults to `false`; remote
-  PTY is a follow-up (ipc-transport-discipline R10 sanctioned-exception table
-  already notes "remote PTY would need its own design").
+- `allowPtyRemote` defaults to `false` and only means Host-multiplexed PTY
+  **byte streams** over the remote protocol (ipc R10). Desktop Tauri interactive
+  Terminal stays a local desktop capability (ADR 0013) and is not gated on
+  remote transport.
 
 ## Consequences
 

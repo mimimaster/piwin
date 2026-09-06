@@ -49,6 +49,10 @@ import {
   DeferredSideChatPanel,
   DeferredTerminalDock,
 } from './deferred-desktop-surfaces';
+import {
+  resolveInteractiveTerminalCwd,
+  resolveInteractiveTerminalProjectPath,
+} from './interactive-terminal-binding';
 
 type InspectorShell = {
   closeOverlay: () => void;
@@ -177,6 +181,11 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
     shell.openInspector(tab);
   });
   const hostPathStyle = hostClient.getRemoteCapabilities()?.pathStyle;
+  const terminalProjectPath = resolveInteractiveTerminalProjectPath(projectPath);
+  const terminalSpawnCwd = resolveInteractiveTerminalCwd({
+    preferredCwd: terminalCwd,
+    projectPath,
+  });
 
   return (
       <>
@@ -409,20 +418,16 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
             )
           }
           terminalContent={
-            hostClient.getTransport() !== 'remote' && hostClient.supportsCommand('pty/open') ? (
-              <DeferredTerminalDock
-                projectPath={projectPath}
-                projectTrusted={projectTrusted}
-                ptyOutput={ptyOutput}
-                onClearPtyOutput={() => setPtyOutput([])}
-                currentCwd={terminalCwd}
-                onCwdChange={handleTerminalCwdChange}
-                recentDirs={terminalRecentDirs}
-                request={requestPty}
-              />
-            ) : (
-              <RemoteUnavailableSurface feature="terminal" locale={locale} />
-            )
+            <DeferredTerminalDock
+              projectPath={terminalProjectPath}
+              projectTrusted={projectTrusted}
+              ptyOutput={ptyOutput}
+              onClearPtyOutput={() => setPtyOutput([])}
+              currentCwd={terminalSpawnCwd || terminalCwd}
+              onCwdChange={handleTerminalCwdChange}
+              recentDirs={terminalRecentDirs}
+              request={requestPty}
+            />
           }
           reviewContent={
             <WorkbenchReviewSurface

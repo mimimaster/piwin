@@ -10,6 +10,10 @@
 import { useCallback, useEffect, useState, type Dispatch, type RefObject, type SetStateAction } from 'react';
 import type { PtyOutputLine } from '../terminal-dock';
 import { saveDesktopPreferences, type DesktopPreferences } from '../ui-preferences';
+import {
+  isDesktopTerminalFilesystemPath,
+  resolveInteractiveTerminalCwd,
+} from '../interactive-terminal-binding';
 
 export type UseTerminalPanelStateInput = {
   projectPath: string | null | undefined;
@@ -39,7 +43,10 @@ export function useTerminalPanelState(
   // Terminal working directory state.
   // Initialized from saved preference, then falls back to project path or home.
   const [terminalCwd, setTerminalCwd] = useState<string>(() => {
-    return preferences.terminalLastCwd || projectPath || '';
+    return resolveInteractiveTerminalCwd({
+      preferredCwd: preferences.terminalLastCwd || '',
+      projectPath,
+    });
   });
   const [terminalRecentDirs, setTerminalRecentDirs] = useState<string[]>(() => {
     return preferences.terminalRecentDirs || [];
@@ -73,8 +80,12 @@ export function useTerminalPanelState(
 
   // Sync terminal CWD with the project path when a project is opened.
   useEffect(() => {
-    if (projectPath && !preferences.terminalLastCwd) {
-      setTerminalCwd(projectPath);
+    const nextProjectCwd =
+      typeof projectPath === 'string' && isDesktopTerminalFilesystemPath(projectPath)
+        ? projectPath.trim()
+        : '';
+    if (nextProjectCwd && !isDesktopTerminalFilesystemPath(preferences.terminalLastCwd)) {
+      setTerminalCwd(nextProjectCwd);
     }
   }, [projectPath, preferences.terminalLastCwd]);
 
@@ -103,7 +114,10 @@ export function useTerminalPanelState(
 
   const handleTerminalCwdChange = useCallback(
     (cwd: string) => {
-      const resolved = cwd || projectPath || '';
+      const resolved = resolveInteractiveTerminalCwd({
+        preferredCwd: cwd,
+        projectPath,
+      });
       setTerminalCwd(resolved);
 
       // Update recent directories.
