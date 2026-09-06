@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 // @vitest-environment happy-dom
 import type { HostResponse, ProjectRecord } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
@@ -9,6 +12,11 @@ import { DesktopLocaleProvider } from './desktop-locale-context';
 import { SessionContextRow } from './session-context-row';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+const shellCss = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), 'styles/inkstone/shell.css'),
+  'utf8',
+);
 
 const projects: ProjectRecord[] = [
   {
@@ -102,5 +110,11 @@ describe('SessionContextRow', () => {
     expect(row?.textContent).toContain('piwin');
     expect(row?.querySelector('.context-detail')).toBeNull();
     expect(row?.textContent).not.toContain('/Users/test/piwin');
+  });
+
+  it('keeps chips without a full-bleed session-context bar', () => {
+    expect(shellCss).toMatch(
+      /\.chat-column > \.session-context \{\s*display: none;/,
+    );
   });
 });

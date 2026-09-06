@@ -12,6 +12,7 @@
  *       {modeBadge}
  *       {originBadge}
  *     </div>
+ *     {trailing}  <!-- project · branch chips on the right -->
  *     {status}
  *   </header>
  */
@@ -28,6 +29,9 @@ export type StageHeaderProps = {
   onOpenPermissions?: (() => void) | undefined;
   origin?: ProductSessionOrigin | null | undefined;
   onReturnToRoot?: (() => void) | undefined;
+  /** Right-side chrome (project · branch chips). Keeps the transcript taller
+   *  than a separate session-context row. */
+  trailing?: ReactNode | undefined;
   locale?: 'zh-CN' | 'en' | undefined;
   onStop?: (() => void) | undefined;
 };
@@ -126,6 +130,11 @@ export function StageHeader(props: StageHeaderProps): ReactElement {
           </button>
         ) : null}
       </div>
+      {props.trailing ? (
+        <div className="stage-header-trailing" data-testid="stage-header-trailing">
+          {props.trailing}
+        </div>
+      ) : null}
       {props.runState && props.runState.kind !== 'idle' ? (
         <div className="status stage-header-status" role="status">
           <span className="muted">{props.runState.label}</span>

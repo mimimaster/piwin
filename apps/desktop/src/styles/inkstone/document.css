@@ -9,6 +9,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     --transcript-top-pad: 26px;
   }
   .markdown {
+    font-family: var(--sans);
     font-size: var(--chat-font-size);
     line-height: 1.72;
     color: var(--t1);
@@ -28,8 +29,9 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   .markdown h2 {
     font-size: 1.1em;
   }
+  /* proto-01 `.prose h3` is 15px at the 14.5px reading size; scale with the user measure. */
   .markdown :is(h3, h4, h5, h6) {
-    font-size: 1.03em;
+    font-size: calc(var(--chat-font-size) * 15 / 14.5);
   }
   .markdown > :first-child {
     margin-top: 0;
@@ -85,6 +87,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   .markdown .md-code-line-num {
     color: var(--t4);
     padding-right: 14px;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
   }
   .markdown .md-table-wrapper {
     background: var(--s3);
@@ -92,16 +96,19 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     border-radius: 8px;
   }
   .markdown .md-table {
-    font-size: 12.5px;
+    font-size: 13px;
     line-height: 1.6;
   }
   .markdown .md-table th {
     background: var(--s1);
-    font: 500 11.5px var(--sans);
-    padding: 7px 10px;
+    font: 600 10.5px var(--sans);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--t3);
+    padding: 6px 8px;
   }
   .markdown .md-table td {
-    padding: 7px 10px;
+    padding: 6px 8px;
   }
   .markdown .md-table tbody tr:nth-child(even) {
     background: transparent;
@@ -110,8 +117,9 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     background: transparent;
     border-left: 1.5px solid var(--l3);
     border-radius: 0;
-    padding: 2px 0 2px 14px;
+    padding: 2px 0 2px 12px;
     color: var(--t2);
+    font-size: 13.5px;
     font-style: normal;
   }
   .markdown .md-mermaid {

@@ -16,6 +16,9 @@ import { InkLineNode } from './ink-line-node';
 import { formatSessionRelativeTime } from './session-relative-time';
 import { sessionRowIsWorking, type SessionRowRunPhase } from './session-row-working';
 
+/** proto-03 `.i.s12` inside `.ib.s22` hit targets. */
+const SESSION_ACTION_ICON_PX = 12;
+
 /**
  * Right-side status slot. `waiting-you` and `background` keep their existing,
  * more elaborate treatments (rounded square via InkLineNode; three-dot wave)
@@ -305,7 +308,7 @@ export function SessionRowItem({
                 onTogglePin?.(session.id, isPinned);
               }}
             >
-              <IconPin width={17} height={17} />
+              <IconPin width={SESSION_ACTION_ICON_PX} height={SESSION_ACTION_ICON_PX} />
             </button>
             <button
               type="button"
@@ -318,7 +321,7 @@ export function SessionRowItem({
                 onUnarchiveSession?.(session.id);
               }}
             >
-              <IconUnarchive width={17} height={17} />
+              <IconUnarchive width={SESSION_ACTION_ICON_PX} height={SESSION_ACTION_ICON_PX} />
             </button>
             <button
               type="button"
@@ -331,7 +334,7 @@ export function SessionRowItem({
                 onDeleteSession?.(session.id);
               }}
             >
-              <IconTrash width={17} height={17} />
+              <IconTrash width={SESSION_ACTION_ICON_PX} height={SESSION_ACTION_ICON_PX} />
             </button>
           </>
         ) : (
@@ -348,7 +351,7 @@ export function SessionRowItem({
                 onOpenSessionMenu(session.id, rect.right - 8, rect.bottom + 4);
               }}
             >
-              <IconMoreVertical width={17} height={17} />
+              <IconMoreVertical width={SESSION_ACTION_ICON_PX} height={SESSION_ACTION_ICON_PX} />
             </button>
             <button
               type="button"
@@ -365,7 +368,7 @@ export function SessionRowItem({
                 onTogglePin?.(session.id, isPinned);
               }}
             >
-              <IconPin width={17} height={17} />
+              <IconPin width={SESSION_ACTION_ICON_PX} height={SESSION_ACTION_ICON_PX} />
             </button>
             <button
               type="button"
@@ -378,7 +381,7 @@ export function SessionRowItem({
                 onArchiveSession?.(session.id);
               }}
             >
-              <IconArchive width={17} height={17} />
+              <IconArchive width={SESSION_ACTION_ICON_PX} height={SESSION_ACTION_ICON_PX} />
             </button>
           </>
         )}

@@ -38,7 +38,7 @@ import {
 } from './shell-icons';
 import { getDesktopCopy, type DesktopLocale } from './desktop-locale';
 
-const SIDEBAR_SESSION_ROW_ESTIMATE_PX = 31;
+const SIDEBAR_SESSION_ROW_ESTIMATE_PX = 28;
 const SIDEBAR_SECTION_ROW_ESTIMATE_PX = 22;
 const SIDEBAR_FOLDER_ROW_ESTIMATE_PX = 26;
 const SIDEBAR_HINT_ROW_ESTIMATE_PX = 22;

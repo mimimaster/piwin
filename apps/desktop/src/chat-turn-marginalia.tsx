@@ -199,11 +199,6 @@ export function resolveTurnMarginalia(
   const label = modelId.length > 0 ? shortModelLabel(modelId) : 'piwin';
   const avatar = resolveModelAvatarInitial(modelId, model?.providerId, options?.themeId);
 
-  const tokens =
-    options?.contextUsage?.totalTokens ??
-    options?.contextUsage?.completionTokens ??
-    options?.contextUsage?.promptTokens;
-
   const durationMs =
     options?.elapsedMs !== undefined
       ? options.elapsedMs
@@ -213,17 +208,16 @@ export function resolveTurnMarginalia(
 
   const totalTools = messages.reduce((acc, m) => acc + (m.tools?.length ?? 0), 0);
 
+  // Tokens live in the turn colophon (`.colo-meta`), not the rail — model is
+  // already `.who`, and repeating "13k" next to "Opus 5" at the foot reads as
+  // duplicate chrome.
   let usage: string | null = null;
-  if (tokens !== undefined && durationMs !== undefined && durationMs > 0) {
-    usage = `${formatTokensK(tokens)} · ${formatDurationSeconds(durationMs)}`;
-  } else if (durationMs !== undefined && durationMs > 0 && totalTools > 0) {
+  if (durationMs !== undefined && durationMs > 0 && totalTools > 0) {
     usage = `${formatDurationSeconds(durationMs)} · ${totalTools} 工具`;
   } else if (durationMs !== undefined && durationMs > 0) {
     usage = formatDurationSeconds(durationMs);
   } else if (totalTools > 0) {
     usage = `${totalTools} 工具`;
-  } else if (tokens !== undefined) {
-    usage = formatTokensK(tokens);
   }
 
   return {
@@ -280,29 +274,23 @@ export function ChatTurnHead(props: { data: TurnMarginaliaData }): ReactElement 
   );
 }
 
-/** proto-00 `.colo-meta`: "Sonnet 4.6 · 本轮消耗 1.8k tokens" */
+/** proto-00 `.colo-meta` at the foot of a reply — tokens only.
+ *  Model already lives in the left rail (`.who`); repeating it here as a lone
+ *  "Opus 5" pill is duplicate chrome. When usage is unknown, return null. */
 export function buildAssistantColophonMeta(input: {
   message: ChatMessageUi;
   locale: 'zh-CN' | 'en';
   contextUsage?: ContextUsageSnapshot | null | undefined;
 }): string | null {
-  const modelId = input.message.model?.modelId;
-  const label = modelId && modelId.length > 0 ? shortModelLabel(modelId) : null;
   const tokens =
     input.contextUsage?.totalTokens ??
     input.contextUsage?.completionTokens ??
     input.contextUsage?.promptTokens;
 
-  if (label && typeof tokens === 'number' && tokens > 0) {
-    return input.locale === 'zh-CN'
-      ? `${label} · 本轮消耗 ${formatTokensK(tokens)} tokens`
-      : `${label} · ${formatTokensK(tokens)} tokens this turn`;
-  }
-  if (label) return label;
-  if (typeof tokens === 'number' && tokens > 0) {
-    return input.locale === 'zh-CN'
-      ? `本轮消耗 ${formatTokensK(tokens)} tokens`
-      : `${formatTokensK(tokens)} tokens this turn`;
-  }
-  return null;
+  if (typeof tokens !== 'number' || tokens <= 0) return null;
+
+  const amount = formatTokensK(tokens);
+  return input.locale === 'zh-CN'
+    ? `本轮消耗 ${amount} tokens`
+    : `${amount} tokens this turn`;
 }

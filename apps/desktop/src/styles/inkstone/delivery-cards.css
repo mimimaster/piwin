@@ -426,14 +426,19 @@ html[data-theme-id='piwin-inkstone-ink'] .cf {
    the card's own padding rather than stacking the old nested insets. */
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) {
   .walkthrough-card-header { padding: 0; gap: 7px; }
-  .walkthrough-card-title { font: 500 13px var(--serif); }
+  .walkthrough-card-title { font: 600 13.5px var(--sans); color: var(--t1); }
   .walkthrough-card-mode { display: none; }
   .walkthrough-card-model { margin-left: auto; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .walkthrough-card .doc-artifact-body { padding: 0; }
   .walkthrough-card .doc-artifact-excerpt-box { padding: 8px 0 0; }
   .walkthrough-card .doc-artifact-excerpt-label { display: none; }
-  .walkthrough-card .doc-artifact-excerpt-text { font: 12.5px/1.6 var(--sans); color: var(--t2); }
+  .walkthrough-card .doc-artifact-excerpt-text { font: 13.5px/1.65 var(--sans); color: var(--t2); }
   .walkthrough-card-footer { border-top: 1px solid var(--l1); padding-top: 8px; }
   .walkthrough-card-footer .walkthrough-btn { height: 24px; padding: 0 8px; font: 11.5px var(--sans); border-radius: 5px; }
-  .walkthrough-footer-meta { margin-left: auto; font: 11px var(--mono); color: var(--t4); }
+  .walkthrough-footer-meta {
+    margin-left: auto;
+    font: 11px var(--mono);
+    color: var(--t4);
+    font-variant-numeric: tabular-nums;
+  }
 }

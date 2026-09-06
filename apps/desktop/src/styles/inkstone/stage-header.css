@@ -97,7 +97,64 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   display: flex;
   align-items: center;
   gap: 6px;
+  margin-left: 6px;
+  flex: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .stage-header:not(:has(.stage-header-trailing))
+  .status {
   margin-left: auto;
+}
+
+/* Project · branch chips sit at the header's trailing edge so the transcript
+   does not lose a second chrome row (no session-context bar / mask). */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .stage-header-trailing {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  flex: none;
+  min-width: 0;
+  max-width: min(42%, 280px);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .stage-header-trailing
+  .session-context {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border: 0;
+  color: var(--t3);
+  font: 10px/1.2 var(--mono);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .stage-header-trailing
+  .session-context
+  :is(.chip, .composer-context-link) {
+  font: 11px/1 var(--sans);
+  height: 22px;
+  max-width: 100%;
+  padding: 0 5px;
+  border-radius: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .stage-header-trailing
+  .session-context
+  svg {
+  width: 14px !important;
+  height: 14px !important;
   flex: none;
 }
 

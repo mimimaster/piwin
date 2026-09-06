@@ -88,4 +88,17 @@ describe('StageHeader', () => {
     expect(markup).toContain('data-testid="stage-origin-badge"');
     expect(markup).toContain('分支');
   });
+
+  it('renders trailing project/branch chrome on the right', () => {
+    const markup = renderToStaticMarkup(
+      <StageHeader
+        title="Project Session"
+        trailing={<span data-testid="fake-chips">piwin · main</span>}
+      />,
+    );
+
+    expect(markup).toContain('data-testid="stage-header-trailing"');
+    expect(markup).toContain('data-testid="fake-chips"');
+    expect(markup).toContain('piwin · main');
+  });
 });

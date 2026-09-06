@@ -13,7 +13,7 @@ import { SessionLineagePopover } from './session-lineage-popover';
 export type AssistantResponseActionsProps = {
   messageId: string;
   messageText?: string;
-  /** Left meta for proto-00 `.colo-meta` (e.g. "Sonnet 4.6 · 本轮消耗 1.8k tokens"). */
+  /** Left meta for `.colo-meta` — tokens only (e.g. "本轮消耗 1.8k tokens"). */
   colophonMeta?: string | null;
   showFork: boolean;
   showRegenerate?: boolean;
