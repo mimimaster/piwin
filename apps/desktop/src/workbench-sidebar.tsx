@@ -3,7 +3,7 @@
  * Host commands stay with App; this file owns archived hydration fan-out,
  * new-general-session sequencing, and capability-gated ProjectSessionSidebar props.
  */
-import type { Dispatch, ReactElement, SetStateAction } from 'react';
+import { useMemo, type Dispatch, type ReactElement, type SetStateAction } from 'react';
 import type { HostStatusData, ProjectRecord, SessionListOrder } from '@piwin/contracts';
 import type { ChatUiAction, ChatUiState, SessionListItemUi } from './chat-reducer';
 import { prefetchSettingsPanel } from './deferred-desktop-surfaces';
@@ -33,6 +33,9 @@ export type WorkbenchSidebarHydrateSessions = (
 type SidebarShell = {
   closeOverlay: () => void;
 };
+
+/** Stable empty marker set so an empty permission queue does not churn memoized props. */
+const EMPTY_SESSION_ID_MARKERS: Record<string, true> = {};
 
 export type WorkbenchSidebarProps = {
   state: ChatUiState;
@@ -115,6 +118,20 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
     backendServiceSessionIds,
     shell,
   } = props;
+
+  // Ink-line node "waiting-you" state: any session with a queued permission
+  // prompt, foreground or background. Derived rather than reducer-tracked —
+  // `permissionQueue` is already the single source of truth for this.
+  const waitingPermissionSessionIds = useMemo(() => {
+    if (state.permissionQueue.length === 0) {
+      return EMPTY_SESSION_ID_MARKERS;
+    }
+    const ids: Record<string, true> = {};
+    for (const prompt of state.permissionQueue) {
+      ids[prompt.sessionId] = true;
+    }
+    return ids;
+  }, [state.permissionQueue]);
 
   return (
     <ProjectSessionSidebar
@@ -210,10 +227,6 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
       onOpenVideos={props.onOpenVideos}
       onOpenFlashcards={props.onOpenFlashcards}
       generalActive={state.activeScope.kind === 'general'}
-      onSelectGeneral={() => {
-        dispatch({ type: 'project/clear' });
-        void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
-      }}
       isOverlayPresentation={isOverlayPresentation}
       onCloseOverlay={() => shell.closeOverlay()}
       locale={locale}
@@ -225,6 +238,8 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
       runPhase={state.runPhase}
       backendServiceSessionIds={backendServiceSessionIds}
       completedAttentionSessionIds={state.completedAttentionSessionIds}
+      failedAttentionSessionIds={state.failedAttentionSessionIds}
+      waitingPermissionSessionIds={waitingPermissionSessionIds}
       onDismissCompletedAttention={(sessionId) => {
         dispatch({ type: 'session/attention-dismiss', sessionId });
       }}

@@ -10,6 +10,7 @@ import {
   PIWIN_APPEARANCE_BONE,
   PIWIN_APPEARANCE_DARK,
   PIWIN_APPEARANCE_INK_WASH,
+  PIWIN_APPEARANCE_INKSTONE_PAPER,
   PIWIN_APPEARANCE_LIGHT,
   PIWIN_APPEARANCE_OBSIDIAN,
   applyAppearanceToDocument,
@@ -34,6 +35,8 @@ import type { AppearanceThemeSettings } from './ui-preferences';
  * Three families:
  *   Deck     --void / --surface-N / --text-N / --line-N / --iris* / signals
  *   Depth    --elev-1..4
+ *   Slab     --slab* — composer-scoped roles, ambient-valued by default;
+ *            Inkstone strips the inline set so tokens.css owns proto hex
  *   Legacy   pre-Deck names mapped onto Deck roles (retire with their region)
  */
 const DOCUMENTED_APPEARANCE_VARIABLES = [
@@ -117,6 +120,16 @@ const DOCUMENTED_APPEARANCE_VARIABLES = [
   '--shadow-overlay',
   '--sidebar',
   '--sky',
+  '--slab',
+  '--slab-active',
+  '--slab-chip',
+  '--slab-hover',
+  '--slab-line',
+  '--slab-placeholder',
+  '--slab-raised',
+  '--slab-text',
+  '--slab-text-2',
+  '--slab-text-3',
   '--space-1',
   '--space-2',
   '--space-3',
@@ -282,6 +295,18 @@ describe('applyAppearanceToDocument', () => {
         expect(read(alias), `${manifest.id} ${alias}`).toBe('');
       }
     }
+  });
+
+  it('leaves Inkstone slab tokens to the stylesheet, not Deck surface-3', () => {
+    applyAppearanceToDocument(PIWIN_APPEARANCE_OBSIDIAN);
+    expect(read('--slab')).toBe(read('--surface-3'));
+
+    applyAppearanceToDocument(PIWIN_APPEARANCE_INKSTONE_PAPER);
+    expect(read('--slab')).toBe('');
+    expect(read('--slab-placeholder')).toBe('');
+
+    applyAppearanceToDocument(PIWIN_APPEARANCE_OBSIDIAN);
+    expect(read('--slab')).toBe(read('--surface-3'));
   });
 
   it('strips inline geometry variables written by older builds', () => {
@@ -463,7 +488,7 @@ describe('theme identity and migration', () => {
   it('resolves retired ids to their replacement manifest', () => {
     expect(resolveBuiltinAppearance('piwin-dark')).toBe(PIWIN_APPEARANCE_OBSIDIAN);
     expect(resolveBuiltinAppearance('piwin-orange-white')).toBe(PIWIN_APPEARANCE_BONE);
-    expect(resolveBuiltinAppearance(undefined)).toBe(PIWIN_APPEARANCE_OBSIDIAN);
+    expect(resolveBuiltinAppearance(undefined)).toBe(PIWIN_APPEARANCE_INKSTONE_PAPER);
   });
 
   it('recognises built-in ids including retired ones', () => {
@@ -477,6 +502,8 @@ describe('theme identity and migration', () => {
     expect(isAppearanceFaceId('piwin-dark')).toBe(true);
     expect(isAppearanceFaceId('piwin-bone')).toBe(true);
     expect(isAppearanceFaceId('piwin-light')).toBe(true);
+    expect(isAppearanceFaceId('piwin-inkstone-paper')).toBe(true);
+    expect(isAppearanceFaceId('piwin-inkstone-ink')).toBe(true);
     expect(isAppearanceFaceId('piwin-dark-appearance')).toBe(true);
     expect(isAppearanceFaceId('piwin-ink-wash')).toBe(false);
     expect(isAppearanceFaceId('community-nord')).toBe(false);

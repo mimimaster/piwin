@@ -20,6 +20,12 @@ import { alpha, mix } from './color.js';
 import { resolveDeckTokens } from './deck-derive.js';
 import { FONT_MONO } from './deck-palette.js';
 
+const INKSTONE_THEME_IDS = new Set(['piwin-inkstone-paper', 'piwin-inkstone-ink']);
+/** Matches docs/design/inkstone/proto-00-shell.html `.app { --sans / --mono }`. */
+const INKSTONE_FONT_SANS =
+  'Inter, "PingFang SC", "Noto Sans SC", -apple-system, system-ui, sans-serif';
+const INKSTONE_FONT_MONO = '"JetBrains Mono", "SF Mono", Menlo, Consolas, monospace';
+
 type Vars = Record<string, string>;
 
 /**
@@ -159,6 +165,34 @@ function deckVariables(d: ThemeDeckTokens, isLight: boolean): Vars {
 
     '--hover': alpha(stroke, isLight ? 0.04 : 0.045),
     '--active': alpha(stroke, isLight ? 0.07 : 0.075),
+
+    /*
+     * Composer "slab" — the one deliberately dark object on the page
+     * (Inkstone increment 2 §5, prototype `proto-02-composer.html`). Each
+     * variable defaults to the exact ambient role it substitutes inside the
+     * composer card (text1..4, surface3/4, line1, hover, active), so every
+     * non-Inkstone theme (Obsidian, Bone, ink-wash) renders byte-identical to
+     * before this was introduced. That guarantee outranks the prototype's
+     * neutral `data-slab=paper` mapping, which points `--slab-chip`→s1 and
+     * `--slab-line`→l2 while the app's own chip fill / shelf divider sit on
+     * surface-3 / line-1 — so the defaults follow the app. Inkstone faces
+     * drop these inline values in `applyAppearanceToDocument` so
+     * `styles/inkstone/tokens.css` can own the prototype dark hex
+     * (`--slab` / `--slab-t` / `--slab-ph`). There the prototype's own
+     * two-tier scheme collapses `--slab-text-2`/`--slab-text-3` onto the
+     * placeholder value, since Deck's four text tiers don't all have a
+     * slab-legible equivalent to distinguish.
+     */
+    '--slab': d.surface3,
+    '--slab-text': d.text1,
+    '--slab-text-2': d.text2,
+    '--slab-text-3': d.text3,
+    '--slab-placeholder': d.text4,
+    '--slab-chip': d.surface3,
+    '--slab-line': d.line1,
+    '--slab-raised': d.surface4,
+    '--slab-hover': alpha(stroke, isLight ? 0.04 : 0.045),
+    '--slab-active': alpha(stroke, isLight ? 0.07 : 0.075),
   };
 }
 
@@ -296,6 +330,24 @@ function legacyVariables(d: ThemeDeckTokens, theme: ThemeManifest, isLight: bool
   };
 }
 
+/**
+ * Slab tokens Inkstone owns in `styles/inkstone/tokens.css`.
+ * Deck defaults (`--slab` → surface-3, etc.) are written inline first; if they
+ * stay, they beat the stylesheet and the paper face loses the dark slab.
+ */
+const INKSTONE_STYLESHEET_SLAB_VARS = [
+  '--slab',
+  '--slab-text',
+  '--slab-text-2',
+  '--slab-text-3',
+  '--slab-placeholder',
+  '--slab-chip',
+  '--slab-line',
+  '--slab-raised',
+  '--slab-hover',
+  '--slab-active',
+] as const;
+
 /** Geometry the runtime must never write; older builds set these inline. */
 const GEOMETRY_VARIABLES = [
   '--topbar-height',
@@ -342,5 +394,16 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   root.dataset.themeMode = theme.mode;
   root.dataset.themeVisualStyle = theme.visualStyle ?? 'flat';
   root.style.colorScheme = theme.mode;
-  root.style.fontFamily = theme.tokens.font;
+  if (INKSTONE_THEME_IDS.has(theme.id)) {
+    for (const name of INKSTONE_STYLESHEET_SLAB_VARS) {
+      root.style.removeProperty(name);
+    }
+    root.style.setProperty('--font', INKSTONE_FONT_SANS);
+    root.style.setProperty('--font-sans', INKSTONE_FONT_SANS);
+    root.style.setProperty('--font-mono', INKSTONE_FONT_MONO);
+    root.style.setProperty('--mono', INKSTONE_FONT_MONO);
+    root.style.fontFamily = INKSTONE_FONT_SANS;
+  } else {
+    root.style.fontFamily = theme.tokens.font;
+  }
 }

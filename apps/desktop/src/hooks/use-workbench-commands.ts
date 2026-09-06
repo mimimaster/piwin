@@ -56,6 +56,7 @@ export function useWorkbenchCommands(args: UseWorkbenchCommandsArgs) {
 
   const handleToggleAppearance = useCallback((): void => {
     const plan = planAppearanceToggle({
+      themeId: activeTheme.id,
       visualStyle: activeTheme.visualStyle,
       mode: activeTheme.mode,
       preferences,
@@ -74,6 +75,7 @@ export function useWorkbenchCommands(args: UseWorkbenchCommandsArgs) {
     saveDesktopPreferences(plan.nextPreferences);
     onThemeApplied(buildAppearanceTheme(plan.nextMode, plan.nextThemeSettings));
   }, [
+    activeTheme.id,
     activeTheme.mode,
     activeTheme.visualStyle,
     desktopLocale,

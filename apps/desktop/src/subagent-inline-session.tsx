@@ -109,6 +109,12 @@ export function SubagentInlineSession(): ReactElement | null {
         {...(panel.artifactMaxBytes !== undefined
           ? { artifactMaxBytes: panel.artifactMaxBytes }
           : {})}
+        {...(panel.artifactBlockExternalScripts !== undefined
+          ? { artifactBlockExternalScripts: panel.artifactBlockExternalScripts }
+          : {})}
+        {...(panel.artifactBlockExternalResources !== undefined
+          ? { artifactBlockExternalResources: panel.artifactBlockExternalResources }
+          : {})}
         {...(panel.onPermission ? { onPermission: panel.onPermission } : {})}
         {...(panel.showThinking !== undefined ? { showThinking: panel.showThinking } : {})}
       />

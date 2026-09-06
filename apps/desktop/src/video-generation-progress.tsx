@@ -1,77 +1,26 @@
 import type { ReactElement } from 'react';
 import type { ToolCardUi } from './chat-reducer';
-import { IconCheck, IconClose, IconVideo } from './shell-icons';
-import { getBehaviorActivitySpec } from './behavior-activity.js';
+import { MediaGenerationCard } from './media-generation-card.js';
 
 export function VideoGenerationProgress(props: {
   locale?: 'zh-CN' | 'en';
   status?: ToolCardUi['status'];
+  tool?: ToolCardUi;
+  onCancel?: (() => void) | undefined;
+  onRetry?: (() => void) | undefined;
+  onOpen?: (() => void) | undefined;
+  onOpenLibrary?: (() => void) | undefined;
 }): ReactElement {
-  const isChinese = props.locale !== 'en';
-  const status = props.status ?? 'running';
-  const isRunning = status === 'running';
-  const isCompleted = status === 'done';
-  const title = isRunning
-    ? isChinese
-      ? '正在生成视频'
-      : 'Generating video'
-    : isCompleted
-      ? isChinese
-        ? '视频生成完成'
-        : 'Video generated'
-      : isChinese
-        ? '视频生成失败'
-        : 'Video generation failed';
-  const detail = isRunning
-    ? isChinese
-      ? '视频任务完成后会显示播放器'
-      : 'The video player will appear when the task is ready'
-    : isCompleted
-      ? isChinese
-        ? '生成结果已返回'
-        : 'The generated result is ready'
-      : isChinese
-        ? '生成接口返回错误，可以重试'
-        : 'The generation request failed; try again';
-
   return (
-    <div
-      className={`image-generation-progress video-generation-progress status-${status}`}
-      data-testid="video-generation-progress"
-      data-activity-id="video"
-      data-activity-animation={getBehaviorActivitySpec('video').animation}
-      data-tool-status={status}
-      role="status"
-      aria-live="polite"
-    >
-      <div
-        className="image-generation-progress-art video-generation-progress-art"
-        aria-hidden="true"
-      >
-        {isRunning ? (
-          <IconVideo className="image-generation-progress-spark" />
-        ) : (
-          <span className="image-generation-progress-status-icon">
-            {isCompleted ? <IconCheck /> : <IconClose />}
-          </span>
-        )}
-      </div>
-      <div className="image-generation-progress-copy">
-        <div className="image-generation-progress-title-row">
-          <strong>
-            {title}
-            {isRunning ? (
-              <span className="image-generation-progress-dots" aria-hidden="true">
-                …
-              </span>
-            ) : null}
-          </strong>
-        </div>
-        <span>{detail}</span>
-      </div>
-      {isRunning ? (
-        <span className="image-generation-progress-pulse" aria-hidden="true" />
-      ) : null}
-    </div>
+    <MediaGenerationCard
+      kind="video"
+      {...(props.locale !== undefined ? { locale: props.locale } : {})}
+      {...(props.status !== undefined ? { status: props.status } : {})}
+      {...(props.tool !== undefined ? { tool: props.tool } : {})}
+      {...(props.onCancel !== undefined ? { onCancel: props.onCancel } : {})}
+      {...(props.onRetry !== undefined ? { onRetry: props.onRetry } : {})}
+      {...(props.onOpen !== undefined ? { onOpen: props.onOpen } : {})}
+      {...(props.onOpenLibrary !== undefined ? { onOpenLibrary: props.onOpenLibrary } : {})}
+    />
   );
 }

@@ -59,10 +59,9 @@ describe('MessageAttachments', () => {
 
     const refsBox = container.querySelector('[data-testid="message-context-refs"]');
     expect(refsBox).not.toBeNull();
-    const chip = container.querySelector('[data-testid="composer-context-chip"]');
-    expect(chip).not.toBeNull();
-    expect(container.textContent).toContain('integration.test.ts:10-25');
-    expect(container.textContent).toContain('selection');
+    const chip = container.querySelector('[data-testid="transcript-att-chip"]');
+    expect(chip?.getAttribute('data-att-variant')).toBe('mention');
+    expect(container.textContent).toContain('@ integration.test.ts');
   });
 
   it('renders both context refs and media attachments together', () => {
@@ -95,7 +94,13 @@ describe('MessageAttachments', () => {
     container = rendered.container;
 
     expect(container.querySelector('[data-testid="message-context-refs"]')).not.toBeNull();
-    expect(container.textContent).toContain('index.ts:1-5');
+    expect(container.textContent).toContain('index.ts');
+    expect(container.textContent).toContain('screen.png');
+    const variants = [...container.querySelectorAll('[data-testid="transcript-att-chip"]')].map(
+      (node) => node.getAttribute('data-att-variant'),
+    );
+    expect(variants).toContain('file');
+    expect(variants).toContain('image');
     expect(container.querySelector('[data-testid="message-attachments"]')).not.toBeNull();
   });
 });

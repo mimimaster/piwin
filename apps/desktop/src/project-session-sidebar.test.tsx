@@ -555,6 +555,62 @@ it('dismisses the completion marker on checkmark click without opening the sessi
   expect(onResumeSession).not.toHaveBeenCalled();
 });
 
+it('shows the waiting-you ink-line node in preference to working and service indicators', () => {
+  const sessions = createMockSessions(1);
+  const { container } = renderSidebar({
+    filteredSessions: sessions,
+    workingSessionIds: { 'session-1': true },
+    backendServiceSessionIds: { 'session-1': true },
+    waitingPermissionSessionIds: { 'session-1': true },
+  });
+
+  const item = container.querySelector<HTMLButtonElement>('[data-session-id="session-1"]');
+  expect(item?.getAttribute('data-waiting-permission')).toBe('true');
+  const node = container.querySelector('[data-testid="ink-line-node"]');
+  expect(node).not.toBeNull();
+  expect(node?.getAttribute('data-kind')).toBe('waiting-you');
+  expect(container.querySelector('[data-testid="session-working-indicator"]')).toBeNull();
+  expect(container.querySelector('[data-testid="session-service-indicator"]')).toBeNull();
+  expect(container.querySelector('.session-item-time')).toBeNull();
+});
+
+it('shows a failed marker and replaces the session timestamp', () => {
+  const sessions = createMockSessions(1);
+  const { container } = renderSidebar({
+    filteredSessions: sessions,
+    failedAttentionSessionIds: { 'session-1': true },
+  });
+
+  const item = container.querySelector<HTMLButtonElement>('[data-session-id="session-1"]');
+  expect(item?.getAttribute('data-failed')).toBe('true');
+  expect(container.querySelector('[data-testid="session-failed-dismiss"]')).not.toBeNull();
+  expect(container.querySelector('.session-item-time')).toBeNull();
+  // Mutually exclusive with the completed marker.
+  expect(container.querySelector('[data-testid="session-completed-dismiss"]')).toBeNull();
+});
+
+it('dismisses the failed marker on click without opening the session', () => {
+  const sessions = createMockSessions(1);
+  const onResumeSession = vi.fn();
+  const onDismissCompletedAttention = vi.fn();
+  const { container } = renderSidebar({
+    filteredSessions: sessions,
+    failedAttentionSessionIds: { 'session-1': true },
+    onResumeSession,
+    onDismissCompletedAttention,
+  });
+
+  const dismiss = container.querySelector<HTMLButtonElement>(
+    '[data-testid="session-failed-dismiss"]',
+  );
+  expect(dismiss).not.toBeNull();
+  act(() => {
+    dismiss?.click();
+  });
+  expect(onDismissCompletedAttention).toHaveBeenCalledWith('session-1');
+  expect(onResumeSession).not.toHaveBeenCalled();
+});
+
 it('archived row shows pin, unarchive, and delete actions', () => {
   const sessions: SessionListItemUi[] = [
     {
@@ -617,6 +673,8 @@ it('opens customize menu with ordering, group by, and archived filter', () => {
   });
   expect(toggledArchived).toBe(true);
 });
+
+
 
 describe('ProjectSessionSidebar project row behavior', () => {
   it('opens a project context menu and removes the selected project from the sidebar', () => {
@@ -870,6 +928,8 @@ describe('ProjectSessionSidebar project row behavior', () => {
   });
 });
 
+
+
 describe('ProjectSessionSidebar virtualization gate', () => {
   let originalResizeObserver: typeof ResizeObserver | undefined;
   let geometrySpy: ReturnType<typeof vi.spyOn> | null = null;
@@ -1010,6 +1070,8 @@ describe('ProjectSessionSidebar virtualization gate', () => {
   });
 });
 
+
+
 describe('ProjectSessionSidebar settings prefetch', () => {
   it('wires settings intent prefetch on the settings button', () => {
     const onPrefetchSettings = vi.fn();
@@ -1066,5 +1128,176 @@ describe('ProjectSessionSidebar repo grouping', () => {
     );
     expect(names.some((text) => text?.includes('piwin') && text.includes('main'))).toBe(true);
     expect(names.some((text) => text?.includes('piwin-cc') && text.includes('plan/x'))).toBe(true);
+  });
+});
+
+describe('ProjectSessionSidebar Inkstone layout and grouping', () => {
+  it('renders sb-top and shelf footer with library, flashcards, settings, and host status', () => {
+    const onNewSession = vi.fn();
+    const onOpenSessionSearch = vi.fn();
+    const onOpenLibrary = vi.fn();
+    const onOpenFlashcards = vi.fn();
+    const onOpenSettings = vi.fn();
+
+    const { container } = renderSidebar({
+      onNewSession,
+      onOpenSessionSearch,
+      onOpenLibrary,
+      onOpenFlashcards,
+      onOpenSettings,
+      hostMock: false,
+      hostReady: true,
+      transportLabel: '本机 Host · 8787',
+    });
+
+    expect(container.querySelector('[data-testid="sidebar-sb-top"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="sidebar-shelf"]')).not.toBeNull();
+
+    const searchBtn = container.querySelector<HTMLButtonElement>('[data-testid="session-search-btn-sb-top"]');
+    expect(searchBtn).not.toBeNull();
+    act(() => searchBtn?.click());
+    expect(onOpenSessionSearch).toHaveBeenCalledTimes(1);
+
+    const newBtn = container.querySelector<HTMLButtonElement>('[data-testid="new-session-btn-sb-top"]');
+    expect(newBtn).not.toBeNull();
+    act(() => newBtn?.click());
+    expect(onNewSession).toHaveBeenCalledTimes(1);
+
+    const libBtn = container.querySelector<HTMLButtonElement>('[data-testid="sidebar-library-shelf-btn"]');
+    expect(libBtn).not.toBeNull();
+    act(() => libBtn?.click());
+    expect(onOpenLibrary).toHaveBeenCalledTimes(1);
+
+    const cardsBtn = container.querySelector<HTMLButtonElement>('[data-testid="sidebar-flashcards-shelf-btn"]');
+    expect(cardsBtn).not.toBeNull();
+    act(() => cardsBtn?.click());
+    expect(onOpenFlashcards).toHaveBeenCalledTimes(1);
+
+    const settingsBtn = container.querySelector<HTMLButtonElement>('[data-testid="settings-open-shelf-btn"]');
+    expect(settingsBtn).not.toBeNull();
+    act(() => settingsBtn?.click());
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
+
+    expect(container.querySelector('[data-testid="sidebar-host-status"]')).toBeNull();
+  });
+
+  it('renders time group headers when sessions span multiple days', () => {
+    const now = new Date();
+    const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+    const sessions: SessionListItemUi[] = [
+      {
+        id: 's-today',
+        name: 'Today Chat',
+        updatedAt: now.toISOString(),
+        isPinned: false,
+        isArchived: false,
+      },
+      {
+        id: 's-week',
+        name: 'Week Ago Chat',
+        updatedAt: threeDaysAgo.toISOString(),
+        isPinned: false,
+        isArchived: false,
+      },
+    ];
+
+    const { container } = renderSidebar({
+      generalSessions: sessions,
+      filteredSessions: [],
+    });
+
+    const timeGroups = container.querySelectorAll('[data-testid="sidebar-time-group"]');
+    expect(timeGroups.length).toBeGreaterThan(0);
+  });
+
+  it('renders pinned section header and project subtitle for pinned project sessions', () => {
+    const projectPinned = {
+      id: 'proj-pin-1',
+      name: 'Coding Agent Prompt Engi...',
+      updatedAt: new Date(Date.now() - 4 * 86400000).toISOString(),
+      isPinned: true,
+      isArchived: false,
+    };
+    const generalPinned = {
+      id: 'gen-pin-1',
+      name: 'Live Voice Reconnect',
+      updatedAt: new Date(Date.now() - 3 * 86400000).toISOString(),
+      isPinned: true,
+      isArchived: false,
+    };
+    const generalNormal = {
+      id: 'gen-norm-1',
+      name: 'Song typeface in CJK',
+      updatedAt: new Date(Date.now() - 86400000).toISOString(),
+      isPinned: false,
+      isArchived: false,
+    };
+
+    const { container } = renderSidebar({
+      locale: 'zh-CN',
+      recentProjects: [
+        {
+          path: '/Users/test/piwin',
+          displayName: 'piwin',
+          trust: 'trusted',
+          lastOpenedAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      projectSessionsByPath: {
+        '/Users/test/piwin': [projectPinned],
+      },
+      generalSessions: [generalPinned, generalNormal],
+      filteredSessions: [],
+    });
+
+    // Pinned section header exists with count 2
+    const pinnedToggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="pinned-section-toggle"]',
+    );
+    expect(pinnedToggle).not.toBeNull();
+    expect(container.querySelector('[data-testid="pinned-section-title"]')?.textContent).toBe('置顶');
+    expect(container.querySelector('[data-testid="pinned-section-count"]')?.textContent).toBe('2');
+
+    // Project subtitle is displayed for the project session
+    const projectSubtitles = container.querySelectorAll(
+      '[data-testid="session-project-subtitle"]',
+    );
+    expect(projectSubtitles).toHaveLength(1);
+    expect(projectSubtitles[0]?.textContent).toBe('piwin');
+
+    // Clicking pinned toggle collapses the pinned sessions
+    act(() => pinnedToggle?.click());
+    expect(container.querySelectorAll('[data-testid="session-project-subtitle"]')).toHaveLength(0);
+  });
+
+  it('does not render pinned section when there are no pinned sessions', () => {
+    const { container } = renderSidebar({
+      locale: 'zh-CN',
+      recentProjects: [
+        {
+          path: '/Users/test/piwin',
+          displayName: 'piwin',
+          trust: 'trusted',
+          lastOpenedAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      projectSessionsByPath: {
+        '/Users/test/piwin': [],
+      },
+      generalSessions: [
+        {
+          id: 'gen-1',
+          name: 'Regular Chat',
+          updatedAt: new Date().toISOString(),
+          isPinned: false,
+          isArchived: false,
+        },
+      ],
+      filteredSessions: [],
+    });
+
+    expect(container.querySelector('[data-testid="pinned-section-toggle"]')).toBeNull();
   });
 });

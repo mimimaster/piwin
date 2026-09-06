@@ -4,7 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, useRef, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import type { ArtifactFrameMode } from '@piwin/artifact';
+import { resolveArtifactViewportFrameHeight, type ArtifactFrameMode } from '@piwin/artifact';
 import { useArtifactFrameBridge } from './artifact-frame-bridge.js';
 import type { ArtifactSandboxView } from './artifact-frame-stream.js';
 import { subscribeNativeArtifactBridge } from './artifact-native-bridge.js';
@@ -88,6 +88,7 @@ describe('useArtifactFrameBridge recovery', () => {
     container.remove();
     vi.useRealTimers();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
   });
 
@@ -216,5 +217,38 @@ describe('useArtifactFrameBridge recovery', () => {
     });
     expect(state?.dataset['status']).not.toBe('ready');
     expect(state?.dataset['height']).not.toBe('999');
+  });
+
+  it('keeps overflow chrome bounded when a later measurement becomes smaller', async () => {
+    const iframe = await renderBridge('interactive');
+    for (const [revision, height] of [20_000, 8_000].entries()) {
+      act(() =>
+        window.dispatchEvent(
+          new MessageEvent('message', {
+            source: iframe.contentWindow,
+            data: {
+              type: 'piwin-artifact:size',
+              channelId: 'height-bridge-test',
+              height,
+              viewportHeight: 600,
+              revision,
+            },
+          }),
+        ),
+      );
+    }
+    expect(container.querySelector('output')?.dataset.height).toBe(
+      String(resolveArtifactViewportFrameHeight(window.innerHeight)),
+    );
+  });
+
+  it('resizes viewport chrome with the window', async () => {
+    vi.stubGlobal('innerHeight', 840);
+    act(() => root.render(<BridgeHarness mode="interactive" frameMode="inline-viewport" />));
+    expect(container.querySelector('output')?.dataset.height).toBe('605');
+    vi.stubGlobal('innerHeight', 600);
+    act(() => window.dispatchEvent(new Event('resize')));
+    expect(container.querySelector('output')?.dataset.height).toBe('432');
+    vi.unstubAllGlobals();
   });
 });

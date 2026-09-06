@@ -122,3 +122,29 @@ Ink-wash remains a theme *package*, not a built-in.
   as a wireframe.
 - **Required `deck` field on `ThemeManifest`.** Rejected: it would invalidate
   every installed theme package.
+
+---
+
+## Amendment (2026-09-05) — Inkstone (砚) as Default Product UI
+
+### Context
+
+While Deck successfully established a unified depth model and token ramp,
+user research and product direction converged on **Inkstone (砚)**
+(`docs/design/inkstone/01-inkstone-theme.md`, `proto-00-shell.html`…`proto-07-components.html`)
+as the full visual signature of piwin:
+- Default face is light **Paper** (`piwin-inkstone-paper`), with deep-night **Ink** (`piwin-inkstone-ink`) as its full dark counterpart.
+- Semantic signals: **朱** (vermillion) for user action/focus/gates, **灯** (warm lamp) for agent running, **砚** (dark slab composer) as the signature object.
+- Deck (`piwin-obsidian` / `piwin-bone`) steps back to an alternative theme; Inkstone Paper becomes the default cold-start appearance for new installs and system defaults.
+
+### Decision
+
+1. `piwin-inkstone-paper` is the default appearance across Host bootstrap, desktop startup, and settings fallbacks.
+2. All existing contract invariants (no raw Pi in apps, tokens in `@piwin/contracts`, 1000-line limit per file) remain strictly binding.
+3. Non-Inkstone themes (Obsidian, Bone, ink-wash) retain their exact existing Deck visual behavior via scoped isolation.
+4. Default appearance colors resolve to the authored Inkstone manifest (including its id, visual style and depth tokens). Only customized colors produce a derived appearance manifest. Stored, unmodified pre-Deck and Bone/Obsidian default color triples migrate to the corresponding Paper/Ink defaults; explicitly selected library themes and customized triples are preserved.
+5. Paper and Ink are product appearance faces and support the titlebar and Settings light/dark controls. A visual-style theme package outside those product faces can still own its appearance and lock those controls.
+6. Inkstone structural styles load after the legacy region styles. The full-window titlebar retains its tools when the inspector opens; general Chat uses the same quiet bylines and aligned paper cards as the Agent document. These changes stay scoped to the two Inkstone theme ids.
+
+7. The September 5 structural follow-up adopts the prototype's 16px optical icons in the shared icon system, a model/mode/orchestration composer group, and ui-kit keyboard tabs with independently owned inspector panels. These shared primitives and the 640/720/840px readable-width choices also apply to alternative themes; Inkstone-specific surfaces and document styling remain scoped.
+8. Appearance settings present the light/dark faces as visual previews with secondary expandable color editing. Settings theme rules belong to the deferred settings stylesheet, after its legacy region imports. Message memo policy, prop contracts, theme controls, theme catalog, and icon families are separate modules. See `docs/plans/2026-09-05-inkstone-structure-rebuild.md` for implementation and validation.

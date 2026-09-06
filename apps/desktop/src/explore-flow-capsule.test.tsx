@@ -76,7 +76,7 @@ describe('ExploreFlowCapsule', () => {
 
     const capsule = container.querySelector('[data-testid="explore-flow-capsule"]');
     expect(capsule?.getAttribute('data-expanded')).toBe('false');
-    expect(container.textContent).toContain('已探索 2 个文件');
+    expect(container.textContent).toContain('探索了 2 个文件');
     expect(container.querySelector('[data-testid="explore-flow-body"]')).toBeNull();
 
     act(() => {
@@ -132,7 +132,7 @@ describe('ExploreFlowCapsule', () => {
         .querySelector('[data-testid="explore-flow-capsule"]')
         ?.getAttribute('data-expanded'),
     ).toBe('false');
-    expect(container.textContent).toContain('已探索 2 个文件');
+    expect(container.textContent).toContain('探索了 2 个文件');
   });
 
   it('keeps already-emitted tool cards mounted when a live group grows', () => {

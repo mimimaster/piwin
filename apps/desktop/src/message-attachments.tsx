@@ -1,9 +1,13 @@
 import type { ReactElement } from 'react';
 import type { PromptContextRef } from '@piwin/contracts';
 import type { ChatMessageUi } from './chat-reducer';
-import { ContextRefChip } from './context-ref-chip';
 import { MediaPreview } from './MediaPreview';
 import { WebElementChip } from './WebElementChip';
+import {
+  TranscriptAttChip,
+  transcriptAttFromContextRef,
+  transcriptAttFromMedia,
+} from './transcript-att-chip';
 
 export function MessageAttachments(props: {
   attachments: ChatMessageUi['attachments'];
@@ -18,13 +22,44 @@ export function MessageAttachments(props: {
   const isAssistant = props.role === 'assistant' || !props.role;
   const count = attachments.length;
 
-  const layoutClass = isUser
-    ? 'is-user-attachments'
-    : count === 1
-      ? 'is-hero-single'
-      : count === 2
-        ? 'is-pair-grid'
-        : 'is-gallery-grid';
+  if (isUser) {
+    return (
+      <div
+        className="atts message-attachments is-user-attachments"
+        data-testid="message-attachments"
+        data-attachment-count={count}
+        data-attachment-role="user"
+      >
+        {contextRefs.length > 0 ? (
+          <div className="message-context-refs" data-testid="message-context-refs">
+            {contextRefs.map((ref, index) => {
+              const model = transcriptAttFromContextRef(ref);
+              return (
+                <TranscriptAttChip
+                  key={`ctx-ref-${index}-${ref.kind}`}
+                  variant={model.variant}
+                  text={model.text}
+                />
+              );
+            })}
+          </div>
+        ) : null}
+        {attachments.map((attachment) =>
+          attachment.kind === 'web-element' ? (
+            <WebElementChip key={attachment.id} attachment={attachment} />
+          ) : (
+            <TranscriptAttChip
+              key={attachment.id}
+              {...transcriptAttFromMedia(attachment)}
+            />
+          ),
+        )}
+      </div>
+    );
+  }
+
+  const layoutClass =
+    count === 1 ? 'is-hero-single' : count === 2 ? 'is-pair-grid' : 'is-gallery-grid';
 
   return (
     <div
@@ -35,12 +70,16 @@ export function MessageAttachments(props: {
     >
       {contextRefs.length > 0 ? (
         <div className="message-context-refs" data-testid="message-context-refs">
-          {contextRefs.map((ref, index) => (
-            <ContextRefChip
-              key={`ctx-ref-${index}-${ref.kind}`}
-              item={{ ref, label: 'label' in ref && typeof ref.label === 'string' ? ref.label : '' }}
-            />
-          ))}
+          {contextRefs.map((ref, index) => {
+            const model = transcriptAttFromContextRef(ref);
+            return (
+              <TranscriptAttChip
+                key={`ctx-ref-${index}-${ref.kind}`}
+                variant={model.variant}
+                text={model.text}
+              />
+            );
+          })}
         </div>
       ) : null}
       {attachments.map((attachment) =>

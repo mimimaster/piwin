@@ -83,4 +83,16 @@ describe('right-panel-memory multi-tab', () => {
     writeStoredRightPanelView('home', storage);
     expect(readStoredRightPanelView(storage)).toBe('home');
   });
+
+  it('round-trips notes and side chat tabs', () => {
+    const storage = memoryStorage();
+    writeStoredRightPanelState(
+      { openTabs: ['notes', 'sideChat'], activeTab: 'notes' },
+      storage,
+    );
+    expect(readStoredRightPanelState(storage)).toEqual({
+      openTabs: ['notes', 'sideChat'],
+      activeTab: 'notes',
+    });
+  });
 });

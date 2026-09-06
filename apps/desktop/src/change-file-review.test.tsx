@@ -126,4 +126,33 @@ describe('ChangeFileReview', () => {
 
     expect(container.textContent).toContain('Binary file — no text diff');
   });
+
+  it('renders unified diff only — no split mode toggle (proto-04 b09)', async () => {
+    const request = vi.fn(async () => createResponse('git/diff-file', { diff: sampleFileDiff }));
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChangeFileReview
+            projectPath="/workspace"
+            relativePath="src/App.tsx"
+            status="modified"
+            additions={2}
+            deletions={1}
+            request={request}
+            onBack={vi.fn()}
+            locale="zh-CN"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(container.querySelector('[data-testid="change-file-diff-mode"]')).toBeNull();
+    expect(container.querySelector('.diff-unified')).not.toBeNull();
+    expect(container.querySelector('.diff-split')).toBeNull();
+  });
 });

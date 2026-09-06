@@ -170,6 +170,8 @@
   border-bottom: 1px solid var(--line-1);
   background: transparent;
   flex-shrink: 0;
+  overflow: hidden;
+  gap: var(--s-4);
 }
 
 .doc-preview-title-group {
@@ -177,6 +179,8 @@
   align-items: center;
   gap: var(--s-4);
   min-width: 0;
+  flex: 1;
+  overflow: hidden;
 }
 
 .doc-preview-title {
@@ -185,6 +189,23 @@
   color: var(--text-1);
   letter-spacing: var(--tracking-tight);
   margin: 0;
+  min-width: 0;
+  flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doc-preview-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex: 0 0 auto;
+}
+
+.doc-preview-chip {
+  font-size: var(--fs-micro);
+  color: var(--text-4);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -194,6 +215,7 @@
   display: flex;
   align-items: center;
   gap: var(--s-2);
+  flex-shrink: 0;
 }
 
 /* The document body is a page, so it sits on surface-1 rather than the void.

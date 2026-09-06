@@ -1026,7 +1026,7 @@ describe('remote queued-turn projection', () => {
 });
 
 describe('remote transcript tool projection', () => {
-  it('keeps slim tool cards and drops host paths from tool output', () => {
+  it('keeps slim tool cards and preserves host paths in tool output', () => {
     const projected = projectRemoteResponse(
       { type: 'session/messages', sessionId: 'session-1' },
       {
@@ -1086,7 +1086,6 @@ describe('remote transcript tool projection', () => {
     if (!projected.success) {
       throw new Error(projected.error);
     }
-    expect(JSON.stringify(projected.data)).not.toContain('/Users/private');
     expect(projected.data).toMatchObject({
       messages: [
         {
@@ -1097,12 +1096,13 @@ describe('remote transcript tool projection', () => {
               toolName: 'read',
               status: 'done',
               runId: 'run-1',
+              output: 'contents of /Users/private/.piwin/secret.txt',
               presentation: {
                 kind: 'filesystem',
                 title: 'Read',
                 actionVerb: 'Read',
                 summary: 'a.ts',
-                targetPaths: ['a.ts'],
+                targetPaths: ['/Users/private/Projects/example/src/a.ts'],
               },
             },
             {
@@ -1113,8 +1113,8 @@ describe('remote transcript tool projection', () => {
                 kind: 'shell',
                 title: 'bash',
                 actionVerb: 'Ran command',
-                command: 'cat [host-path]',
-                summary: 'cat [host-path]',
+                command: 'cat /Users/private/secret.txt',
+                summary: 'cat /Users/private/secret.txt',
               },
             },
           ],
@@ -1242,6 +1242,37 @@ describe('remote activity/summary projection', () => {
 });
 
 describe('projectRemotePush session index', () => {
+  it('keeps absolute Host paths on live tool presentation and args', () => {
+    const projected = projectRemotePush({
+      type: 'event',
+      sessionId: 'session-1',
+      event: {
+        type: 'tool/start',
+        toolCallId: 'call-1',
+        toolName: 'bash',
+        args: { path: '/Users/me/Developer/piwin/docs' },
+        presentation: {
+          kind: 'shell',
+          title: '命令',
+          command: 'ls /Users/me/Developer/piwin/docs /Users/me/Developer/piwin/docs 2>/dev/null | tail -20',
+          summary: 'ls /Users/me/Developer/piwin/docs',
+        },
+      },
+    });
+    const serialized = JSON.stringify(projected);
+    expect(serialized).toContain('/Users/me/Developer/piwin/docs');
+    expect(serialized).not.toContain('[host-path]');
+    expect(projected).toMatchObject({
+      event: {
+        args: { path: '/Users/me/Developer/piwin/docs' },
+        presentation: {
+          command:
+            'ls /Users/me/Developer/piwin/docs /Users/me/Developer/piwin/docs 2>/dev/null | tail -20',
+        },
+      },
+    });
+  });
+
   it('projects index-updated session scope to an opaque projectId instead of [host-path]', () => {
     const projected = projectRemotePush({
       type: 'session/index-updated',

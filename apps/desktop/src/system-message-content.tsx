@@ -1,5 +1,5 @@
 import { useMemo, type ReactElement } from 'react';
-import { FileTypeIcon } from '@piwin/ui-kit';
+import { IconFile } from './shell-icons.js';
 import { formatFilePillPath } from './activity-timeline';
 import { PathChip } from './path-chip';
 import { splitSystemFileReferences, type SystemFileTextPart } from './system-file-references';
@@ -34,11 +34,11 @@ function SystemFileReferenceView(props: {
 
   return (
     <span
-      className="system-file-reference"
+      className="pc system-file-reference static"
       data-testid="system-file-reference"
       title={resolved.absolutePath}
     >
-      <FileTypeIcon filePathOrExt={reference.path} />
+      <IconFile className="i s12" />
       <span>{reference.label}</span>
     </span>
   );

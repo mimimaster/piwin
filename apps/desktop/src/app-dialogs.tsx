@@ -1,7 +1,7 @@
 /**
  * Modal stack for workspace trust, rename, session menu, delete, and continue-in-project.
- * Permission prompts are now rendered inline by GateCard in the chat thread
- * (Task 12); the modal branch has been removed.
+ * Permission prompts are now rendered inline by PermissionBar in the chat
+ * thread; the modal branch has been removed.
  */
 import type { ReactElement } from 'react';
 import type {
@@ -161,7 +161,7 @@ export function AppDialogs(props: AppDialogsProps): ReactElement {
 
       {props.trustDialogOpen && props.projectPath ? (
         <Dialog
-          label="Trust this project?"
+          label={isChinese ? '信任此项目？' : 'Trust this project?'}
           open
           testId="trust-dialog"
           onOpenChange={(open) => {
@@ -170,22 +170,22 @@ export function AppDialogs(props: AppDialogsProps): ReactElement {
             }
           }}
         >
-          <h3>Trust this project?</h3>
+          <h3>{isChinese ? '信任此项目？' : 'Trust this project?'}</h3>
           <p className="muted">
-            Allow the agent to run tools in:
+            {isChinese ? '允许 Agent 在此项目运行工具：' : 'Allow the agent to run tools in:'}
             <br />
             <code>{props.projectPath}</code>
           </p>
           <div className="modal-actions">
             <Button data-testid="trust-deny-btn" onClick={() => props.onTrustProject(false)}>
-              Not now
+              {isChinese ? '稍后再说' : 'Not now'}
             </Button>
             <Button
               variant="primary"
               data-testid="trust-confirm-btn"
               onClick={() => props.onTrustProject(true)}
             >
-              Trust project
+              {isChinese ? '信任此项目' : 'Trust project'}
             </Button>
           </div>
         </Dialog>
@@ -222,7 +222,7 @@ export function AppDialogs(props: AppDialogsProps): ReactElement {
 
       {props.renameDraft ? (
         <Dialog
-          label="Rename agent"
+          label={isChinese ? '重命名会话' : 'Rename agent'}
           open
           onOpenChange={(open) => {
             if (!open) {
@@ -231,9 +231,9 @@ export function AppDialogs(props: AppDialogsProps): ReactElement {
           }}
           testId="session-rename-dialog"
         >
-          <h3>Rename agent</h3>
+          <h3>{isChinese ? '重命名会话' : 'Rename agent'}</h3>
           <div className="session-rename-form">
-            <Field label="Name" required>
+            <Field label={isChinese ? '名称' : 'Name'} required>
               <input
                 id="session-rename-input"
                 data-testid="session-rename-input"
@@ -259,7 +259,9 @@ export function AppDialogs(props: AppDialogsProps): ReactElement {
               />
             </Field>
             <div className="modal-actions">
-              <Button onClick={() => props.onRenameDraftChange(null)}>Cancel</Button>
+              <Button onClick={() => props.onRenameDraftChange(null)}>
+                {isChinese ? '取消' : 'Cancel'}
+              </Button>
               <Button
                 variant="primary"
                 data-testid="session-rename-save"
@@ -272,7 +274,7 @@ export function AppDialogs(props: AppDialogsProps): ReactElement {
                   props.onRenameDraftChange(null);
                 }}
               >
-                Save
+                {isChinese ? '保存' : 'Save'}
               </Button>
             </div>
           </div>
@@ -325,12 +327,16 @@ export function AppDialogs(props: AppDialogsProps): ReactElement {
       <ConfirmDialog
         open={Boolean(props.deleteConfirm)}
         onOpenChange={props.onDeleteOpenChange}
-        title="Delete permanently?"
-        description="Transcript files will be removed. This cannot be undone."
+        title={isChinese ? '彻底删除会话' : 'Delete permanently?'}
+        description={
+          isChinese
+            ? `确定要彻底删除会话「${props.deleteConfirm?.sessionName ?? ''}」吗？此操作不可撤销，所有对话记录将被永久删除。`
+            : 'Transcript files will be removed. This cannot be undone.'
+        }
         {...(props.deleteConfirm?.sessionName
           ? { affectedObject: props.deleteConfirm.sessionName }
           : {})}
-        confirmLabel="Delete permanently"
+        confirmLabel={isChinese ? '彻底删除' : 'Delete permanently'}
         tone="danger"
         busy={props.deleteBusy}
         testId="session-delete-confirm"

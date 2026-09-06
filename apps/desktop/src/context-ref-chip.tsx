@@ -120,7 +120,7 @@ export function ContextRefChip({ item, onRemove }: ContextRefChipProps): ReactEl
   const itemLabel = item.label || caption.title;
   return (
     <div
-      className={`composer-v2-attachment-chip composer-v2-doc-comment-chip composer-v2-context-chip${error ? ' is-error' : ''}`}
+      className={`ref composer-v2-attachment-chip composer-v2-doc-comment-chip composer-v2-context-chip${error ? ' is-error' : ''}`}
       data-testid="composer-context-chip"
       data-context-kind={item.ref.kind}
       data-shelf-chip=""

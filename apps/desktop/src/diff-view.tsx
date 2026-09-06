@@ -330,7 +330,7 @@ export function DiffView(props: DiffViewProps): ReactElement {
         </pre>
       ) : (
         <div className="diff-split">
-          <div className="diff-split-col" aria-label="Original">
+          <div className="diff-split-col" aria-label={props.locale === 'zh-CN' ? '原文' : 'Original'}>
             {splitRows.map((row, rowIndex) => (
               <div key={`l-${rowIndex}`} className={`diff-line kind-${row.left?.kind ?? 'empty'}`}>
                 <span className="diff-text">
@@ -343,7 +343,7 @@ export function DiffView(props: DiffViewProps): ReactElement {
               </div>
             ))}
           </div>
-          <div className="diff-split-col" aria-label="Modified">
+          <div className="diff-split-col" aria-label={props.locale === 'zh-CN' ? '修改后' : 'Modified'}>
             {splitRows.map((row, rowIndex) => (
               <div key={`r-${rowIndex}`} className={`diff-line kind-${row.right?.kind ?? 'empty'}`}>
                 <span className="diff-text">

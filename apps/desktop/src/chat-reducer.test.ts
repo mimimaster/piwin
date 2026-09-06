@@ -704,6 +704,71 @@ describe('chatUiReducer', () => {
     expect(state.activeSessionId).toBe('s2');
   });
 
+  it('marks a failed attention marker (not a completed one) for a background failure', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, { type: 'user/send', text: 'run in background' });
+    state = chatUiReducer(state, { type: 'run/accepted', runId: 'run-1' });
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's2' });
+
+    state = chatUiReducer(state, {
+      type: 'run/terminal',
+      run: makeRun('run-1', {
+        status: 'failed',
+        endedAt: '2026-07-24T00:00:01.000Z',
+        terminalCode: 'failed',
+        error: 'boom',
+      }),
+    });
+
+    expect(state.workingSessionIds).toEqual({});
+    expect(state.failedAttentionSessionIds).toEqual({ s1: true });
+    expect(state.completedAttentionSessionIds).toEqual({});
+  });
+
+  it('clears a failed attention marker when the user opens that session', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, { type: 'user/send', text: 'finish this' });
+    state = chatUiReducer(state, { type: 'run/accepted', runId: 'run-1' });
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's2' });
+    state = chatUiReducer(state, {
+      type: 'run/terminal',
+      run: makeRun('run-1', {
+        status: 'failed',
+        endedAt: '2026-07-24T00:00:01.000Z',
+        terminalCode: 'failed',
+        error: 'boom',
+      }),
+    });
+    expect(state.failedAttentionSessionIds).toEqual({ s1: true });
+
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    expect(state.failedAttentionSessionIds).toEqual({});
+  });
+
+  it('clears a failed attention marker when the user dismisses it', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, { type: 'user/send', text: 'finish this' });
+    state = chatUiReducer(state, { type: 'run/accepted', runId: 'run-1' });
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's2' });
+    state = chatUiReducer(state, {
+      type: 'run/terminal',
+      run: makeRun('run-1', {
+        status: 'failed',
+        endedAt: '2026-07-24T00:00:01.000Z',
+        terminalCode: 'failed',
+        error: 'boom',
+      }),
+    });
+    expect(state.failedAttentionSessionIds).toEqual({ s1: true });
+
+    state = chatUiReducer(state, { type: 'session/attention-dismiss', sessionId: 's1' });
+    expect(state.failedAttentionSessionIds).toEqual({});
+    expect(state.activeSessionId).toBe('s2');
+  });
+
   it('does not treat a live session handle as an active run while restoring history', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
@@ -748,7 +813,7 @@ describe('chatUiReducer', () => {
     expect(state.workingSessionIds).toEqual({ s1: true });
   });
 
-  it('cold resume keeps previous rows while awaiting and ignores stream until load-messages', () => {
+  it('cold resume keeps a stable empty placeholder and ignores stream until load-messages', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
     state = chatUiReducer(state, {
@@ -774,8 +839,8 @@ describe('chatUiReducer', () => {
     });
     expect(state.activeSessionId).toBe('s2');
     expect(state.awaitingTranscript).toBe(true);
-    // Cold: keep previous rows under loading banner (no empty flash).
-    expect(state.messages[0]?.text).toBe('hello from s1');
+    expect(state.transcriptOwnerSessionId).toBe('s2');
+    expect(state.messages).toEqual([]);
     expect(state.warmSessionCache.byId.s1?.messages[0]?.text).toBe('hello from s1');
 
     // Stream events for the new session must not append onto the painted rows.
@@ -784,8 +849,7 @@ describe('chatUiReducer', () => {
       sessionId: 's2',
       event: { type: 'message/start', messageId: 'a-new', role: 'assistant' },
     });
-    expect(state.messages).toHaveLength(1);
-    expect(state.messages[0]?.id).toBe('u1');
+    expect(state.messages).toEqual([]);
 
     state = chatUiReducer(state, {
       type: 'session/load-messages',

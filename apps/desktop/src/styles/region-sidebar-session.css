@@ -179,6 +179,56 @@
   white-space: nowrap;
 }
 
+/* Subtitle for pinned project sessions */
+.session-row .session-item.has-project-subtitle {
+  min-height: 48px;
+  padding-top: var(--s-1);
+  padding-bottom: var(--s-1);
+}
+
+.session-item-body.has-project-subtitle {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1px;
+}
+
+.session-item-project-subtitle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  line-height: var(--lh-tight);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-item-project-icon {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  color: var(--text-4);
+}
+
+.session-item:hover .session-item-project-icon,
+.session-row:hover .session-item-project-icon {
+  color: var(--text-3);
+}
+
+.session-item-project-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-item.has-project-subtitle .session-item-time {
+  top: 15px;
+  transform: none;
+}
+
 /* Time yields to the hover action cluster. */
 .session-row:not(.session-row--working):hover .session-item-time,
 .session-row:not(.session-row--working):focus-within .session-item-time {
@@ -362,6 +412,45 @@
   display: block;
   stroke-width: 2.5;
   pointer-events: none;
+}
+
+/* Same slot/geometry as the completed mark; coral instead of mint so a failed
+   turn reads as a different outcome, not a variation on "done" (Inkstone
+   six-state vocabulary — see ink-line-node.css). */
+.session-item-failed-mark,
+.session-item-failed-dismiss {
+  position: absolute;
+  top: 50%;
+  right: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--coral) 20%, transparent);
+  cursor: pointer;
+  z-index: 2;
+  transition: background-color var(--t-1) var(--ease-out);
+}
+
+.session-item-failed-dismiss:hover,
+.session-item-failed-dismiss:focus-visible {
+  background: color-mix(in srgb, var(--coral) 32%, transparent);
+  outline: none;
+}
+
+/* The waiting-you node sits in the same right-side slot as the working dot
+   and the service wave; it wins the priority order (session-node-status.ts)
+   so only one of the three is ever mounted at a time. */
+.session-item-activity--waiting-you {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ── Hover actions ────────────────────────────────────────────────────── */

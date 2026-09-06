@@ -2,6 +2,8 @@ import type { SessionListOrder, SessionScope } from '@piwin/contracts';
 import type { SessionListItemUi } from './chat-reducer';
 import type { DraftSessionItemUi } from './draft-session';
 import { draftSessionMatchesQuery, sortDraftSessions } from './draft-session';
+import { projectDisplayName } from './project-display-name.js';
+import { groupSessionsByRecency } from './session-groups.js';
 import { hiddenSessionCount, type SessionListScopeState } from './session-list-scope';
 import { sessionScopeKey } from './session-scope-key';
 import {
@@ -12,10 +14,16 @@ import {
 export type { SidebarProjectRef } from './sidebar-repo-groups';
 
 export type SidebarTreeRow =
-  | { kind: 'section-header'; sectionId: 'projects' | 'conversations'; key: string }
+  | { kind: 'section-header'; sectionId: 'pinned' | 'projects' | 'conversations'; key: string }
   | {
       kind: 'repo-group';
       gitRepositoryId: string;
+      title: string;
+      key: string;
+    }
+  | {
+      kind: 'time-group';
+      id: string;
       title: string;
       key: string;
     }
@@ -31,6 +39,7 @@ export type SidebarTreeRow =
       kind: 'session';
       scope: SessionScope;
       session: SessionListItemUi | DraftSessionItemUi;
+      projectSubtitle?: string;
       key: string;
     }
   | {
@@ -54,6 +63,7 @@ export type SidebarTreeRowsInput = {
   draftSessions?: readonly DraftSessionItemUi[];
   sessionSearch: string;
   sessionListOrder: SessionListOrder;
+  pinnedSectionExpanded?: boolean;
   projectsSectionExpanded: boolean;
   conversationsSectionExpanded: boolean;
   collapsedProjects: Record<string, boolean>;
@@ -63,6 +73,7 @@ export type SidebarTreeRowsInput = {
   activeProjectSessions?: SessionListItemUi[];
   revealSessionId?: string | null;
   revealDraftId?: string | null;
+  groupBy?: 'time' | 'none';
 };
 
 export function sidebarTreeRowKey(row: SidebarTreeRow): string {
@@ -124,17 +135,60 @@ export function resolveSidebarProjectCollapsed(input: {
   return input.projectPath !== input.activeProjectPath;
 }
 
+/**
+ * Sessions to paint under a project folder.
+ *
+ * Prefer the live active list when it has rows. If that list is still empty
+ * after the folder becomes active, keep the already-hydrated cache so child
+ * rows do not unmount. Search keeps the live (already filtered) list even
+ * when empty so misses stay misses.
+ */
+export function resolveProjectFolderSessions(input: {
+  projectPath: string;
+  projectSessionsByPath: Readonly<Record<string, SessionListItemUi[]>>;
+  activeProjectPath?: string | null;
+  activeProjectSessions?: readonly SessionListItemUi[];
+  searching?: boolean;
+}): readonly SessionListItemUi[] {
+  const cached = input.projectSessionsByPath[input.projectPath] ?? [];
+  if (input.activeProjectPath !== input.projectPath || input.activeProjectSessions === undefined) {
+    return cached;
+  }
+  if (
+    input.activeProjectSessions.length === 0 &&
+    cached.length > 0 &&
+    input.searching !== true
+  ) {
+    return cached;
+  }
+  return input.activeProjectSessions;
+}
+
 export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRow[] {
   const searching = input.sessionSearch.trim().length > 0;
   const drafts = input.draftSessions ?? [];
-  const rows: SidebarTreeRow[] = [
-    { kind: 'section-header', sectionId: 'projects', key: 'section:projects' },
-  ];
+  const rows: SidebarTreeRow[] = [];
 
+  const pinnedRows = collectPinnedSessionRows(input, searching);
+  if (pinnedRows.length > 0) {
+    rows.push({
+      kind: 'section-header',
+      sectionId: 'pinned',
+      key: 'section:pinned',
+    });
+    const showPinned = searching || (input.pinnedSectionExpanded ?? true);
+    if (showPinned) {
+      rows.push(...pinnedRows);
+    }
+  }
+
+  rows.push({ kind: 'section-header', sectionId: 'projects', key: 'section:projects' });
+
+  const unpinnedGeneralSessions = input.generalSessions.filter((s) => s.isPinned !== true);
   const generalMerged = mergeScopeRows(
     { kind: 'general' },
     drafts,
-    input.generalSessions,
+    unpinnedGeneralSessions,
     input.sessionSearch,
     input.sessionListOrder,
   );
@@ -169,7 +223,28 @@ export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRo
   });
 
   if (showConversations) {
-    rows.push(...generalMerged);
+    if (input.groupBy === 'time' && !searching && generalMerged.length > 0) {
+      const sessionList = generalMerged.map((row) => row.session);
+      const groups = groupSessionsByRecency(sessionList);
+      for (const group of groups) {
+        if (group.id !== 'pinned' && groups.length > 1) {
+          rows.push({
+            kind: 'time-group',
+            id: group.id,
+            title: group.label,
+            key: `time-group:general:${group.id}`,
+          });
+        }
+        for (const session of group.sessions) {
+          const match = generalMerged.find((r) => r.session.id === session.id);
+          if (match) {
+            rows.push(match);
+          }
+        }
+      }
+    } else {
+      rows.push(...generalMerged);
+    }
     appendScopeHints(rows, {
       scope: { kind: 'general' },
       merged: generalMerged,
@@ -182,6 +257,117 @@ export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRo
   return rows;
 }
 
+export function collectPinnedSessionRows(
+  input: Pick<
+    SidebarTreeRowsInput,
+    | 'generalSessions'
+    | 'recentProjects'
+    | 'activeProjectPath'
+    | 'activeProjectSessions'
+    | 'projectSessionsByPath'
+    | 'sessionSearch'
+    | 'sessionListOrder'
+  >,
+  searching = false,
+): Extract<SidebarTreeRow, { kind: 'session' }>[] {
+  const seenIds = new Set<string>();
+  const query = searching ? input.sessionSearch.trim().toLowerCase() : '';
+  const matchesSearch = (s: SessionListItemUi): boolean => {
+    if (!query) return true;
+    const haystack = `${s.name} ${s.lastPreview ?? ''}`.toLowerCase();
+    return haystack.includes(query);
+  };
+
+  const pinnedItems: {
+    session: SessionListItemUi;
+    scope: SessionScope;
+    projectSubtitle?: string;
+  }[] = [];
+
+  for (const project of input.recentProjects) {
+    const rawSessions = resolveProjectFolderSessions({
+      projectPath: project.path,
+      projectSessionsByPath: input.projectSessionsByPath,
+      ...(input.activeProjectPath !== undefined
+        ? { activeProjectPath: input.activeProjectPath }
+        : {}),
+      ...(input.activeProjectSessions !== undefined
+        ? { activeProjectSessions: input.activeProjectSessions }
+        : {}),
+      searching,
+    });
+    const projectSubtitle = project.displayName ?? projectDisplayName(project.path);
+    for (const session of rawSessions) {
+      if (session.isPinned === true && matchesSearch(session) && !seenIds.has(session.id)) {
+        seenIds.add(session.id);
+        pinnedItems.push({
+          session,
+          scope: { kind: 'project', projectPath: project.path },
+          projectSubtitle,
+        });
+      }
+    }
+  }
+
+  if (
+    input.activeProjectPath &&
+    input.activeProjectSessions &&
+    !input.recentProjects.some((p) => p.path === input.activeProjectPath)
+  ) {
+    const projectSubtitle = projectDisplayName(input.activeProjectPath);
+    for (const session of input.activeProjectSessions) {
+      if (session.isPinned === true && matchesSearch(session) && !seenIds.has(session.id)) {
+        seenIds.add(session.id);
+        pinnedItems.push({
+          session,
+          scope: { kind: 'project', projectPath: input.activeProjectPath },
+          projectSubtitle,
+        });
+      }
+    }
+  }
+
+  for (const session of input.generalSessions) {
+    if (session.isPinned === true && matchesSearch(session) && !seenIds.has(session.id)) {
+      seenIds.add(session.id);
+      pinnedItems.push({
+        session,
+        scope: { kind: 'general' },
+      });
+    }
+  }
+
+  if (input.sessionListOrder === 'alphabetical') {
+    pinnedItems.sort((left, right) => {
+      const byName = left.session.name.localeCompare(right.session.name);
+      return byName !== 0 ? byName : left.session.id.localeCompare(right.session.id);
+    });
+  } else {
+    pinnedItems.sort((left, right) => {
+      const byPinnedAt = (right.session.pinnedAt ?? '').localeCompare(left.session.pinnedAt ?? '');
+      if (byPinnedAt !== 0) {
+        return byPinnedAt;
+      }
+      const leftTime = left.session.updatedAt ? Date.parse(left.session.updatedAt) : Number.POSITIVE_INFINITY;
+      const rightTime = right.session.updatedAt ? Date.parse(right.session.updatedAt) : Number.POSITIVE_INFINITY;
+      const leftSafe = Number.isFinite(leftTime) ? leftTime : 0;
+      const rightSafe = Number.isFinite(rightTime) ? rightTime : 0;
+      if (rightSafe !== leftSafe) {
+        return rightSafe - leftSafe;
+      }
+      return left.session.id.localeCompare(right.session.id);
+    });
+  }
+
+  return pinnedItems.map(({ session, scope, projectSubtitle }) => ({
+    kind: 'session',
+    scope,
+    session,
+    ...(projectSubtitle ? { projectSubtitle } : {}),
+    key: `session:pinned:${session.id}`,
+  }));
+}
+
 function appendProjectFolderRows(
   rows: SidebarTreeRow[],
   input: SidebarTreeRowsInput,
@@ -191,10 +377,16 @@ function appendProjectFolderRows(
   grouped: boolean,
 ): void {
   const scope: SessionScope = { kind: 'project', projectPath: project.path };
-  const hostSessions =
-    input.activeProjectPath === project.path && input.activeProjectSessions !== undefined
-      ? input.activeProjectSessions
-      : (input.projectSessionsByPath[project.path] ?? []);
+  const rawSessions = resolveProjectFolderSessions({
+    projectPath: project.path,
+    projectSessionsByPath: input.projectSessionsByPath,
+    ...(input.activeProjectPath !== undefined ? { activeProjectPath: input.activeProjectPath } : {}),
+    ...(input.activeProjectSessions !== undefined
+      ? { activeProjectSessions: input.activeProjectSessions }
+      : {}),
+    searching,
+  });
+  const hostSessions = rawSessions.filter((s) => s.isPinned !== true);
   const merged = mergeScopeRows(
     scope,
     drafts,

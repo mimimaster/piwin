@@ -169,6 +169,7 @@ export class BrowserUserHasControlError extends BrowserSessionError {
 // ---------------------------------------------------------------------------
 
 const HTTP_URL_RE = /^https?:\/\//i;
+const FILE_URL_RE = /^file:\/\//i;
 /** Playwright aria refs look like `e5`; anything else is treated as a CSS selector. */
 const ARIA_REF_RE = /^e\d+$/i;
 const MAX_MIRROR_LEASE_ID_CHARS = 128;
@@ -176,13 +177,29 @@ const MAX_RELEASED_MIRROR_LEASES = 256;
 const MAX_INPUT_EVENTS = 64;
 
 export function assertHttpUrl(url: string): void {
+  assertNavigableUrl(url);
+}
+
+/**
+ * Agent tools stay on http(s). User-initiated panel navigation may also open
+ * a local `file:` HTML page in the workbench Chromium.
+ */
+export function assertNavigableUrl(url: string, options?: { allowFile?: boolean }): void {
   const trimmed = url.trim();
   if (trimmed === '') {
     throw new NavigateError('navigate requires a non-empty URL');
   }
-  if (!HTTP_URL_RE.test(trimmed)) {
-    throw new NavigateError(`navigate only supports http(s) URLs, got: ${url}`);
+  if (HTTP_URL_RE.test(trimmed)) {
+    return;
   }
+  if (options?.allowFile === true && FILE_URL_RE.test(trimmed)) {
+    return;
+  }
+  throw new NavigateError(
+    options?.allowFile === true
+      ? `navigate only supports http(s) or file URLs, got: ${url}`
+      : `navigate only supports http(s) URLs, got: ${url}`,
+  );
 }
 
 function toLocator(target: string): string {
@@ -632,12 +649,12 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
 
     navigate: (url, options) =>
       withAbort(async () => {
+        assertNavigableUrl(url, { allowFile: options?.actor === 'user' });
         assertActor(
           options?.actor ?? 'agent',
           options?.actor === 'user' ? 'user-write' : 'agent-write',
           options?.runId,
         );
-        assertHttpUrl(url);
         const activePage = await getPage();
         await activePage.goto(url);
         await emitState();

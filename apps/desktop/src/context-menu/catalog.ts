@@ -170,6 +170,7 @@ export function buildContextMenuItems(
 ): ContextMenuItemSpec[] {
   const labels = labelsFor(caps.locale);
   const noProject = !caps.hasProject;
+  const dormantHint = caps.locale === 'zh-CN' ? '现状禁用' : 'unavailable';
 
   switch (target.surface) {
     case 'file-tree-file':
@@ -177,8 +178,14 @@ export function buildContextMenuItems(
         item('add-to-chat', labels, { disabled: noProject }),
         item('ask-about', labels, { disabled: noProject }),
         sep(),
-        item('open', labels, { disabled: noProject || !caps.applyAvailable }),
-        ...(caps.canReveal && !noProject ? [item('reveal', labels)] : []),
+        item('open', labels, {
+          disabled: noProject || !caps.applyAvailable,
+          disabledHint: dormantHint,
+        }),
+        item('reveal', labels, {
+          disabled: noProject || !caps.canReveal,
+          disabledHint: dormantHint,
+        }),
         sep(),
         item('copy-relative-path', labels, { disabled: noProject }),
         item('copy-absolute-path', labels, { disabled: noProject }),
@@ -203,7 +210,10 @@ export function buildContextMenuItems(
         item('add-to-chat', labels, { disabled: noProject }),
         item('ask-about', labels, { disabled: noProject }),
         sep(),
-        ...(caps.canReveal && !noProject ? [item('reveal', labels)] : []),
+        item('reveal', labels, {
+          disabled: noProject || !caps.canReveal,
+          disabledHint: dormantHint,
+        }),
         item('copy-relative-path', labels, { disabled: noProject }),
         item('copy-absolute-path', labels, { disabled: noProject }),
       ]);

@@ -1,6 +1,6 @@
 import { useState, type ReactElement } from 'react';
 import type { ContextSummaryPush } from '@piwin/contracts';
-import { Button, Surface } from '@piwin/ui-kit';
+import { IconChevronDown } from './shell-icons';
 
 export function resolveAssemblySummaryForUserMessage(input: {
   messageId: string;
@@ -50,6 +50,10 @@ function trustOriginLabel(origin: ContextSummaryPush['contributions'][number]['t
   }
 }
 
+function isUntrustedOrigin(origin: ContextSummaryPush['contributions'][number]['trustOrigin']): boolean {
+  return origin === 'external-web' || origin === 'mcp' || origin === 'tool';
+}
+
 export function AssemblySummaryCapsule(props: {
   summary?: ContextSummaryPush;
   preparing?: boolean;
@@ -59,10 +63,12 @@ export function AssemblySummaryCapsule(props: {
   const zh = props.locale === 'zh-CN';
   if (props.summary === undefined) {
     return (
-      <div className="assembly-summary" data-testid="assembly-summary-capsule">
-        <div className="assembly-summary-pill is-preparing">
-          <span className="assembly-summary-kicker">{zh ? '正在装配' : 'Preparing assembly'}</span>
-          <span>{zh ? '收集本轮 Host 注入…' : 'Collecting this turn’s Host injections…'}</span>
+      <div className="fw assembly-summary" data-testid="assembly-summary-capsule">
+        <div className="cap is-preparing">
+          <span className="lamp" aria-hidden="true" />
+          <span>
+            {zh ? '正在装配 · 收集本轮 Host 注入…' : 'Preparing assembly · collecting Host injections…'}
+          </span>
         </div>
       </div>
     );
@@ -87,47 +93,49 @@ export function AssemblySummaryCapsule(props: {
     .slice(0, 4)
     .map((item) => item.displayPath ?? item.label)
     .join(' · ');
+  const title = `${coverageLabel} · ${tokenLabel}${labels.length > 0 ? ` · ${labels}` : ''}`;
 
   return (
-    <div className="assembly-summary" data-testid="assembly-summary-capsule">
+    <div
+      className={`fw assembly-summary${open ? ' open' : ''}`}
+      data-testid="assembly-summary-capsule"
+    >
       <button
         type="button"
-        className="assembly-summary-pill"
+        className="cap"
+        data-fold=""
+        data-testid="assembly-summary-toggle"
+        aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
       >
-        <span className="assembly-summary-kicker">{coverageLabel}</span>
-        <span>
-          {tokenLabel}
-          {labels.length > 0 ? ` · ${labels}` : ''}
-        </span>
+        <i aria-hidden="true" />
+        <span>{title}</span>
+        <IconChevronDown className="chev i s12" aria-hidden="true" />
       </button>
       {open ? (
-        <Surface className="assembly-summary-detail" tone="inset">
-          <p className="assembly-summary-note">
+        <div className="cap-d fb assembly-summary-detail" data-testid="assembly-summary-detail">
+          <p>
             {zh
               ? '以下是 Host 装配层收集的内容，不是模型最终收到的请求。'
               : 'This is Host assembly, not the payload the model ultimately received.'}
           </p>
-          <ul className="assembly-summary-list">
+          <ul>
             {props.summary.contributions.map((item) => (
               <li key={item.id}>
-                <strong>{item.displayPath ?? item.label}</strong>
-                <span>
-                  {` · ${trustOriginLabel(item.trustOrigin, zh)}`}
-                  {item.estimatedTokens === undefined
-                    ? ''
-                    : zh
-                      ? ` · 约 ${item.estimatedTokens} tokens`
-                      : ` · ~${item.estimatedTokens} tokens`}
+                <b>{item.displayPath ?? item.label}</b>
+                <span className={isUntrustedOrigin(item.trustOrigin) ? 'src warn' : 'src'}>
+                  {trustOriginLabel(item.trustOrigin, zh)}
                 </span>
+                {item.estimatedTokens === undefined ? null : (
+                  <span className="ml">
+                    {zh ? `约 ${item.estimatedTokens}` : `~${item.estimatedTokens}`}
+                  </span>
+                )}
                 {item.preview ? <pre>{item.preview}</pre> : null}
               </li>
             ))}
           </ul>
-          <Button variant="ghost" size="compact" onClick={() => setOpen(false)}>
-            {zh ? '收起' : 'Close'}
-          </Button>
-        </Surface>
+        </div>
       ) : null}
     </div>
   );

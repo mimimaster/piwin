@@ -7,8 +7,8 @@ import {
 } from './transcript-page-cache';
 import {
   getWarmSessionSnapshot,
-  putWarmSessionSnapshot,
   removeWarmSessionSnapshot,
+  stashOwnedTranscript,
 } from './session-warm-cache';
 import type { ChatUiAction, ChatUiState } from './chat-ui-types';
 import {
@@ -29,6 +29,7 @@ import {
   mapTranscriptMessagesToUi,
   mergeRefreshedTailWithLiveMessages,
   preserveAssistantModelSnapshots,
+  reuseUnchangedTranscriptMessages,
 } from './chat-reducer-transcript';
 import { contextUsageForLoadMessages, contextUsageForSessionSet } from './chat-reducer-context';
 import { applyContextTelemetry } from './context-telemetry-reducer';
@@ -78,6 +79,7 @@ export function reduceChatSession(
       return {
         ...state,
         activeScope: action.scope,
+        warmSessionCache: stashOwnedTranscript(state.warmSessionCache, state),
         // Switching scope clears the visible session list; hydrate reloads it.
         sessions: [],
         // Keep the live session identity so composer snapshots see A→B, not
@@ -112,13 +114,31 @@ export function reduceChatSession(
         walkthroughsByMessageId: {},
         ...CLEARED_SUBAGENT_UI,
       };
-    case 'project/set':
+    case 'project/set': {
+      const warmSessionCache = action.keepActiveSession
+        ? state.warmSessionCache
+        : stashOwnedTranscript(state.warmSessionCache, state);
+      if (action.keepActiveSession === true) {
+        return {
+          ...state,
+          activeScope: { kind: 'project', projectPath: action.path },
+          projectPath: action.path,
+          projectTrusted: action.trusted,
+          trustDialogOpen: !action.trusted,
+          // Keep the already-painted folder rows. Wiping this list makes the
+          // sidebar swap onto an empty live source, unmount every session
+          // row, then remount after hydrate — the first-click jitter.
+          sessions: state.projectSessionsByPath[action.path] ?? [],
+          warmSessionCache,
+        };
+      }
       return {
         ...state,
         activeScope: { kind: 'project', projectPath: action.path },
         projectPath: action.path,
         projectTrusted: action.trusted,
         trustDialogOpen: !action.trusted,
+        warmSessionCache,
         // A project owns its own history. Do not leave another project's rows,
         // transcript, or selected session as the send target while this project's
         // index is loading. Composer snapshots park the previous owner separately.
@@ -156,13 +176,29 @@ export function reduceChatSession(
         // scope must not surface another session's children or live streams.
         ...CLEARED_SUBAGENT_UI,
       };
-    case 'project/clear':
+    }
+    case 'project/clear': {
+      const warmSessionCache = action.keepActiveSession
+        ? state.warmSessionCache
+        : stashOwnedTranscript(state.warmSessionCache, state);
+      if (action.keepActiveSession === true) {
+        return {
+          ...state,
+          activeScope: { kind: 'general' },
+          projectPath: null,
+          projectTrusted: false,
+          trustDialogOpen: false,
+          sessions: state.generalSessions,
+          warmSessionCache,
+        };
+      }
       return {
         ...state,
         activeScope: { kind: 'general' },
         projectPath: null,
         projectTrusted: false,
         trustDialogOpen: false,
+        warmSessionCache,
         activeSessionId: null,
         sessions: [],
         transcriptOwnerSessionId: null,
@@ -195,6 +231,7 @@ export function reduceChatSession(
         walkthroughsByMessageId: {},
         ...CLEARED_SUBAGENT_UI,
       };
+    }
     case 'project/trust-dialog':
       return { ...state, trustDialogOpen: action.open };
     case 'project/trusted':
@@ -222,19 +259,10 @@ export function reduceChatSession(
         state.activeSessionId !== null && state.activeSessionId !== action.sessionId;
       const preserveCompactionUi = state.activeSessionId === action.sessionId;
 
-      // Stash the session we leave into the inactive warm LRU (message JSON only).
-      let warmSessionCache = state.warmSessionCache;
-      if (switchingAway && state.messages.length > 0 && state.activeSessionId) {
-        warmSessionCache = putWarmSessionSnapshot(warmSessionCache, {
-          sessionId: state.activeSessionId,
-          messages: state.messages,
-          transcriptWindow: state.transcriptWindow,
-          outline: state.outline,
-          runRecordsById: state.runRecordsById,
-          walkthroughsByMessageId: state.walkthroughsByMessageId,
-          contextUsage: state.contextUsage,
-        });
-      }
+      // Stash the painted owner, never the destination id we have not loaded.
+      let warmSessionCache = switchingAway
+        ? stashOwnedTranscript(state.warmSessionCache, state)
+        : state.warmSessionCache;
 
       const warmHit =
         switchingAway || state.activeSessionId === null
@@ -248,16 +276,13 @@ export function reduceChatSession(
 
       // Paint policy while Host resume is in flight:
       // 1) warm hit → that session's rows (correct id)
-      // 2) cold + awaiting → keep previous rows under a loading banner (no empty flash)
-      // 3) else → empty
+      // 2) same session → keep the already-owned rows
+      // 3) cold → empty placeholder (never remount the previous session)
       // Stream events stay ignored while awaitingTranscript is true.
-      const keepPreviousWhileLoading = !warmHit && awaitingTranscript && state.messages.length > 0;
-      // Owner follows the painted rows: new session for fresh/warm paint,
-      // the previous owner while old rows stay visible under the loading banner.
-      const transcriptOwnerSessionId =
-        keepPreviousWhileLoading && switchingAway
-          ? (state.transcriptOwnerSessionId ?? state.activeSessionId)
-          : action.sessionId;
+      const stayOnSession = state.activeSessionId === action.sessionId;
+      const transcriptOwnerSessionId = preserveOptimisticDraftSend
+        ? (state.transcriptOwnerSessionId ?? action.sessionId)
+        : action.sessionId;
 
       return {
         ...state,
@@ -268,12 +293,12 @@ export function reduceChatSession(
           ? state.messages
           : warmHit
             ? warmHit.messages
-            : keepPreviousWhileLoading
+            : stayOnSession
               ? state.messages
               : [],
         transcriptWindow: warmHit
           ? warmHit.transcriptWindow
-          : keepPreviousWhileLoading
+          : stayOnSession
             ? state.transcriptWindow
             : null,
         historyView: null,
@@ -295,7 +320,7 @@ export function reduceChatSession(
         lastTerminalRunId: null,
         streaming: preserveOptimisticDraftSend ? true : false,
         activeSkill: preserveOptimisticDraftSend ? state.activeSkill : null,
-        outline: warmHit ? warmHit.outline : keepPreviousWhileLoading ? state.outline : [],
+        outline: warmHit ? warmHit.outline : stayOnSession ? state.outline : [],
         activeSessionArchived: false,
         awaitingTranscript,
         transcriptOwnerSessionId,
@@ -317,17 +342,16 @@ export function reduceChatSession(
         lastAcceptedSequenceByRun: {},
         runRecordsById: warmHit
           ? warmHit.runRecordsById
-          : keepPreviousWhileLoading
+          : stayOnSession
             ? state.runRecordsById
             : {},
         walkthroughsByMessageId: warmHit
           ? warmHit.walkthroughsByMessageId
-          : keepPreviousWhileLoading
+          : stayOnSession
             ? state.walkthroughsByMessageId
             : {},
         contextUsage: contextUsageForSessionSet({
           warmHit,
-          keepPreviousWhileLoading,
           activeSessionId: state.activeSessionId,
           nextSessionId: action.sessionId,
           current: state.contextUsage,
@@ -344,6 +368,10 @@ export function reduceChatSession(
           : state.workingSessionIds,
         completedAttentionSessionIds: removeSessionIdMarker(
           state.completedAttentionSessionIds,
+          action.sessionId,
+        ),
+        failedAttentionSessionIds: removeSessionIdMarker(
+          state.failedAttentionSessionIds,
           action.sessionId,
         ),
       };
@@ -365,9 +393,12 @@ export function reduceChatSession(
         mapTranscriptMessagesToUi(action.messages),
         state.messages,
       );
-      const candidateMessages = action.preserveActiveTail
-        ? mergeRefreshedTailWithLiveMessages(refreshedMessages, state.messages, state.streaming)
-        : refreshedMessages;
+      const candidateMessages = reuseUnchangedTranscriptMessages(
+        state.messages,
+        action.preserveActiveTail
+          ? mergeRefreshedTailWithLiveMessages(refreshedMessages, state.messages, state.streaming)
+          : refreshedMessages,
+      );
       const bounded = retainBoundedTranscriptWindow(
         candidateMessages,
         collectRetainedTranscriptMessageIds(candidateMessages, state.streaming),

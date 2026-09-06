@@ -20,6 +20,8 @@ export type AnalyzeArtifactFenceOptions = {
   id?: string;
   htmlUiModeEnabled?: boolean;
   maxBytes?: number;
+  blockExternalScripts?: boolean;
+  blockExternalResources?: boolean;
   iframePolicy?: ArtifactIframePolicy;
   mode?: ArtifactRenderMode;
   allowIncompleteSource?: boolean;
@@ -71,6 +73,14 @@ export function analyzeArtifactFence(
     descriptor.source,
     options.iframePolicy,
     options.maxBytes,
+    {
+      ...(options.blockExternalScripts !== undefined
+        ? { blockExternalScripts: options.blockExternalScripts }
+        : {}),
+      ...(options.blockExternalResources !== undefined
+        ? { blockExternalResources: options.blockExternalResources }
+        : {}),
+    },
   );
   const reason = capabilities.blockReason;
   if (reason !== null) {

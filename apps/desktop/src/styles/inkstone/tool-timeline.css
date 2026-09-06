@@ -1,0 +1,475 @@
+/* S5.4: Work fold (.work-h) with bulb/lamp/square three-state header */
+html[data-theme-id='piwin-inkstone-paper'] .work,
+html[data-theme-id='piwin-inkstone-ink'] .work,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-details,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-details {
+  margin: 2px 0 4px;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .work-h,
+html[data-theme-id='piwin-inkstone-ink'] .work-h,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-disclosure-trigger,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-disclosure-trigger,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-details-summary,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-details-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 var(--row-pad);
+  margin-left: calc(-1 * var(--row-pad));
+  width: calc(100% + var(--row-pad) * 2);
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--t2);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  box-sizing: border-box;
+  background: transparent;
+  border: 0;
+  font-family: inherit;
+  text-align: left;
+  line-height: 1.4;
+  outline: none;
+  transition: background var(--t-1) var(--ease-out);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .work-h:hover,
+html[data-theme-id='piwin-inkstone-ink'] .work-h:hover,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-disclosure-trigger:hover,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-disclosure-trigger:hover,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-details-summary:hover,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-details-summary:hover {
+  background: var(--s3);
+}
+
+/* Hide Deck RadialBellow/brain icons in Inkstone */
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-details-summary .turn-summary-radial-bellow,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-details-summary .turn-summary-radial-bellow,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-details-summary .turn-summary-active-animation,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-details-summary .turn-summary-active-animation,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-details-summary .turn-summary-brain-icon,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-details-summary .turn-summary-brain-icon {
+  display: none !important;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .work-h .lamp,
+html[data-theme-id='piwin-inkstone-ink'] .work-h .lamp,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-details-summary .lamp,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-details-summary .lamp {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--lamp);
+  box-shadow: 0 0 8px 2px var(--lamp-glow);
+  animation: breath 2.4s ease-in-out infinite;
+  flex: none;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .work-h .sq,
+html[data-theme-id='piwin-inkstone-ink'] .work-h .sq,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-details-summary .sq,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-details-summary .sq {
+  width: 8px;
+  height: 8px;
+  border-radius: 1px;
+  background: var(--zhu);
+  flex: none;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .work-h code,
+html[data-theme-id='piwin-inkstone-ink'] .work-h code,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-details-summary code,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-details-summary code,
+html[data-theme-id='piwin-inkstone-paper'] .tr code,
+html[data-theme-id='piwin-inkstone-ink'] .tr code,
+html[data-theme-id='piwin-inkstone-paper'] .tool-call-file-pill,
+html[data-theme-id='piwin-inkstone-ink'] .tool-call-file-pill,
+html[data-theme-id='piwin-inkstone-paper'] .tool-call-preview,
+html[data-theme-id='piwin-inkstone-ink'] .tool-call-preview {
+  font: 11.5px var(--mono);
+  color: var(--t1);
+  background: var(--code);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .work-h b,
+html[data-theme-id='piwin-inkstone-ink'] .work-h b,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-disclosure-trigger b,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-disclosure-trigger b,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-details-label b,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-details-label b {
+  color: var(--t1);
+  font-weight: 500;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .work-h .fail,
+html[data-theme-id='piwin-inkstone-ink'] .work-h .fail,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-disclosure .fail,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-disclosure .fail {
+  color: var(--crimson);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .work-h .i,
+html[data-theme-id='piwin-inkstone-ink'] .work-h .i,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-disclosure .i,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-disclosure .i {
+  color: var(--t3);
+  flex: none;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .work-h .chev,
+html[data-theme-id='piwin-inkstone-ink'] .work-h .chev,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-disclosure .chev,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-disclosure .chev {
+  margin-left: auto;
+  color: var(--t4);
+  transition: transform 0.24s ease-out;
+  flex: none;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .work-h.is-open .chev,
+html[data-theme-id='piwin-inkstone-ink'] .work-h.is-open .chev,
+html[data-theme-id='piwin-inkstone-paper'] .turn-work-disclosure.is-open .chev,
+html[data-theme-id='piwin-inkstone-ink'] .turn-work-disclosure.is-open .chev,
+html[data-theme-id='piwin-inkstone-paper'] .fw.open > [data-fold] .chev,
+html[data-theme-id='piwin-inkstone-ink'] .fw.open > [data-fold] .chev {
+  transform: rotate(180deg);
+}
+
+/* Thinking body */
+html[data-theme-id='piwin-inkstone-paper'] .think,
+html[data-theme-id='piwin-inkstone-ink'] .think,
+html[data-theme-id='piwin-inkstone-paper'] .turn-thinking,
+html[data-theme-id='piwin-inkstone-ink'] .turn-thinking {
+  margin: 2px 0 8px var(--row-in);
+  padding-left: 10px;
+  border-left: 1.5px solid var(--l2);
+  color: var(--t2);
+  font-size: 12.5px;
+  line-height: 1.6;
+  max-width: 600px;
+  background: transparent;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .turn-thinking pre,
+html[data-theme-id='piwin-inkstone-ink'] .turn-thinking pre,
+html[data-theme-id='piwin-inkstone-paper'] .think pre,
+html[data-theme-id='piwin-inkstone-ink'] .think pre {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--t2);
+  white-space: pre-wrap;
+  background: transparent;
+}
+
+/* S5.5: Tool chain (.tr) and nodes on the ink line */
+html[data-theme-id='piwin-inkstone-paper'] .thread,
+html[data-theme-id='piwin-inkstone-ink'] .thread,
+html[data-theme-id='piwin-inkstone-paper'] .turn-tool-sequence,
+html[data-theme-id='piwin-inkstone-ink'] .turn-tool-sequence {
+  position: relative;
+  padding-left: calc(var(--row-in) - var(--row-pad));
+  margin-left: 0;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .thread::before,
+html[data-theme-id='piwin-inkstone-ink'] .thread::before,
+html[data-theme-id='piwin-inkstone-paper'] .turn-tool-sequence::before,
+html[data-theme-id='piwin-inkstone-ink'] .turn-tool-sequence::before {
+  content: '';
+  position: absolute;
+  left: var(--line-x);
+  top: 8px;
+  bottom: 8px;
+  width: 1.5px;
+  border-radius: 1px;
+  background: var(--l3);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .thread.az::before,
+html[data-theme-id='piwin-inkstone-ink'] .thread.az::before {
+  background: var(--azure);
+  opacity: 0.5;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .tr,
+html[data-theme-id='piwin-inkstone-ink'] .tr,
+html[data-theme-id='piwin-inkstone-paper'] .tool-call-card,
+html[data-theme-id='piwin-inkstone-ink'] .tool-call-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  height: 28px;
+  padding: 0 var(--row-pad);
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--t2);
+  white-space: nowrap;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  transition: background var(--t-1) var(--ease-out);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .tool-call-card.is-expanded,
+html[data-theme-id='piwin-inkstone-ink'] .tool-call-card.is-expanded,
+html[data-theme-id='piwin-inkstone-paper'] .tool-batch-capsule.is-expanded,
+html[data-theme-id='piwin-inkstone-ink'] .tool-batch-capsule.is-expanded {
+  height: auto;
+  flex-direction: column;
+  align-items: stretch;
+  white-space: normal;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .tr.sub,
+html[data-theme-id='piwin-inkstone-ink'] .tr.sub {
+  padding-left: 14px;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .tr:hover,
+html[data-theme-id='piwin-inkstone-ink'] .tr:hover,
+html[data-theme-id='piwin-inkstone-paper'] .tool-call-card:hover,
+html[data-theme-id='piwin-inkstone-ink'] .tool-call-card:hover {
+  background: var(--s3);
+  box-shadow: var(--sh1);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .tr b,
+html[data-theme-id='piwin-inkstone-ink'] .tr b,
+html[data-theme-id='piwin-inkstone-paper'] .tool-call-card .tool-call-name,
+html[data-theme-id='piwin-inkstone-ink'] .tool-call-card .tool-call-name {
+  color: var(--t1);
+  font-weight: 600;
+}
+
+/* S5.5: Six-state status nodes */
+html[data-theme-id='piwin-inkstone-paper'] .node,
+html[data-theme-id='piwin-inkstone-ink'] .node,
+html[data-theme-id='piwin-inkstone-paper'] .tool-status-dot,
+html[data-theme-id='piwin-inkstone-ink'] .tool-status-dot {
+  position: absolute;
+  left: -18px;
+  top: 50%;
+  margin-top: -4.5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--s2);
+  border: 1.5px solid var(--l3);
+  z-index: 1;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .node.done,
+html[data-theme-id='piwin-inkstone-ink'] .node.done,
+html[data-theme-id='piwin-inkstone-paper'] .tool-status-dot[data-kind='success'],
+html[data-theme-id='piwin-inkstone-ink'] .tool-status-dot[data-kind='success'],
+html[data-theme-id='piwin-inkstone-paper'] .tool-status-dot.status-done,
+html[data-theme-id='piwin-inkstone-ink'] .tool-status-dot.status-done {
+  background: var(--pine);
+  border-color: var(--pine);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .node.fail,
+html[data-theme-id='piwin-inkstone-ink'] .node.fail,
+html[data-theme-id='piwin-inkstone-paper'] .tool-status-dot[data-kind='failed'],
+html[data-theme-id='piwin-inkstone-ink'] .tool-status-dot[data-kind='failed'],
+html[data-theme-id='piwin-inkstone-paper'] .tool-status-dot.status-error,
+html[data-theme-id='piwin-inkstone-ink'] .tool-status-dot.status-error {
+  background: var(--crimson);
+  border-color: var(--crimson);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .node.wait,
+html[data-theme-id='piwin-inkstone-ink'] .node.wait,
+html[data-theme-id='piwin-inkstone-paper'] .tool-status-dot[data-kind='waiting-you'],
+html[data-theme-id='piwin-inkstone-ink'] .tool-status-dot[data-kind='waiting-you'] {
+  background: var(--zhu);
+  border-color: var(--zhu);
+  border-radius: 1px;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .node.run,
+html[data-theme-id='piwin-inkstone-ink'] .node.run,
+html[data-theme-id='piwin-inkstone-paper'] .tool-status-dot[data-kind='running'],
+html[data-theme-id='piwin-inkstone-ink'] .tool-status-dot[data-kind='running'],
+html[data-theme-id='piwin-inkstone-paper'] .tool-status-dot.status-running,
+html[data-theme-id='piwin-inkstone-ink'] .tool-status-dot.status-running {
+  background: var(--lamp);
+  border-color: var(--lamp);
+  box-shadow: 0 0 0 3px var(--lamp-wash);
+  animation: breath 2.4s ease-in-out infinite;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .tr.fail b,
+html[data-theme-id='piwin-inkstone-ink'] .tr.fail b,
+html[data-theme-id='piwin-inkstone-paper'] .tr.fail .meta,
+html[data-theme-id='piwin-inkstone-ink'] .tr.fail .meta,
+html[data-theme-id='piwin-inkstone-paper'] .tool-call-card.fail .tool-call-action-verb,
+html[data-theme-id='piwin-inkstone-ink'] .tool-call-card.fail .tool-call-action-verb,
+html[data-theme-id='piwin-inkstone-paper'] .tool-call-card.fail .meta,
+html[data-theme-id='piwin-inkstone-ink'] .tool-call-card.fail .meta {
+  color: var(--crimson);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .node.bg,
+html[data-theme-id='piwin-inkstone-ink'] .node.bg,
+html[data-theme-id='piwin-inkstone-paper'] .tool-status-dot[data-kind='background'],
+html[data-theme-id='piwin-inkstone-ink'] .tool-status-dot[data-kind='background'] {
+  background: var(--azure);
+  border-color: var(--azure);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .node.sm,
+html[data-theme-id='piwin-inkstone-ink'] .node.sm {
+  width: 7px;
+  height: 7px;
+  margin-top: -3.5px;
+  left: -17px;
+}
+
+
+/* A single ink line is the structure. Remove the older nested card/icon
+   shell so the action, path and elapsed time share one 28px baseline. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) {
+  .turn-tool-sequence { gap: 0; }
+  .tool-call-card.tr { display: block; padding: 0; height: auto; overflow: visible; animation: none; }
+  .tool-call-card .tool-call-summary {
+    display: flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 var(--row-pad);
+    gap: 8px;
+    line-height: 28px;
+    position: relative;
+    white-space: nowrap;
+  }
+  .tool-call-card .tool-call-kind-icon { display: none; }
+  .tool-call-card .tool-call-action-verb {
+    color: var(--t1);
+    font: 600 12.5px var(--sans);
+  }
+  .tool-call-card .tool-call-preview,
+  .tool-call-card .tool-call-file-pill {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    border: 0;
+    box-shadow: none;
+  }
+  .tool-call-card .meta,
+  .tr .meta {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    font: 11.5px var(--mono);
+    color: var(--t4);
+    font-variant-numeric: tabular-nums;
+    flex: none;
+  }
+  .tool-call-card .tool-call-duration {
+    font: 11.5px var(--mono);
+    color: inherit;
+    margin-left: 0;
+  }
+  .tool-call-card .plus,
+  .tool-call-card .add { color: var(--pine); }
+  .tool-call-card .minus,
+  .tool-call-card .del { color: var(--crimson); }
+  .tool-call-card .tool-call-summary > :is(.tool-call-ok, .tool-call-done, .tool-call-err, .tool-status-dot) { display: none; }
+  .tool-call-card .tool-call-body,
+  .tb {
+    margin: 2px 0 6px var(--row-pad);
+    padding: 10px 12px;
+    border-radius: 6px;
+    background: var(--code);
+    box-shadow: var(--sh1);
+    border: 0;
+    font: 11.5px/1.6 var(--mono);
+    color: var(--t2);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .tb.err,
+  .tool-call-card.fail .tool-call-body { color: var(--crimson); }
+  .tool-call-card .tool-call-body pre { font: inherit; background: transparent; color: inherit; }
+  .tool-call-summary > .node { left: -18px; top: 14px; }
+  .tool-call-summary > .node.sm { left: -17px; }
+  .tool-call-summary .seal.mini { width: 17px; height: 17px; flex: none; }
+  .tool-call-chevron-hit {
+    opacity: 1;
+    color: var(--t4);
+    margin-left: 0;
+  }
+  .explore-flow-capsule.tr,
+  .tool-batch-capsule.tr {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    height: auto;
+    min-height: 28px;
+    padding: 0;
+    align-items: stretch;
+  }
+  .explore-flow-capsule .tool-batch-header,
+  .tool-batch-capsule .tool-batch-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 28px;
+    padding: 0 var(--row-pad);
+    width: 100%;
+    flex: 0 0 auto;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    font: inherit;
+    color: inherit;
+  }
+  .explore-flow-capsule .tool-batch-body,
+  .tool-batch-capsule .tool-batch-body {
+    width: 100%;
+    flex: 0 0 auto;
+  }
+  /* The thread already draws the ink line; a second track inside the
+     expanded batch makes the header look nested under a child rail. */
+  .thread .tool-batch-timeline-track {
+    display: none;
+  }
+  .explore-flow-capsule .tool-batch-title,
+  .tool-batch-capsule .tool-batch-title {
+    color: var(--t1);
+    font: 600 12.5px var(--sans);
+  }
+  .explore-flow-capsule .tool-batch-icon-wrapper,
+  .tool-batch-capsule .tool-batch-icon-wrapper {
+    color: var(--t3);
+    width: 14px;
+    height: 14px;
+  }
+  .explore-flow-capsule .tool-batch-meta,
+  .tool-batch-capsule .tool-batch-meta {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    font: 11.5px var(--mono);
+    color: var(--t4);
+  }
+  .explore-flow-capsule .node,
+  .tool-batch-capsule > .node {
+    left: -18px;
+    top: 14px;
+  }
+  .turn-work-details .tool-batch-capsule { background: transparent; box-shadow: none; border: 0; border-radius: 6px; }
+  .turn-work-details .tool-batch-items { padding: 2px 0 4px; margin-left: 0; border: 0; }
+}

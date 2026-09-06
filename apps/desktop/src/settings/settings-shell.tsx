@@ -359,8 +359,8 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
             aria-label={copy.titlebar.dragWindow}
           />
         </div>
-        <aside className="settings-nav">
-          <div className="settings-search-container">
+        <aside className="settings-nav shell-nav">
+          <div className="settings-search-container shell-search">
             <svg
               className="settings-search-icon"
               width="14"
@@ -396,7 +396,7 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
               if (groupSections.length === 0) return null;
               return (
                 <div key={group.id} className="settings-nav-group">
-                  <div className="settings-nav-group-label">
+                  <div className="settings-nav-group-label shell-grp">
                     {translator.settings[group.labelKey]}
                   </div>
                   {groupSections.map((item) => (
@@ -404,7 +404,9 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
                       key={item.id}
                       type="button"
                       className={
-                        activeSection === item.id ? 'settings-nav-item active' : 'settings-nav-item'
+                        activeSection === item.id
+                          ? 'settings-nav-item shell-item active on'
+                          : 'settings-nav-item shell-item'
                       }
                       onClick={() => onSelectSection(item.id)}
                       aria-current={activeSection === item.id ? 'page' : undefined}

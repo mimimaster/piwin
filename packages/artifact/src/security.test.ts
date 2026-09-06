@@ -67,6 +67,36 @@ describe('classifyArtifactSecurity', () => {
     expect(result.blockReason).toBe('blocked-external-resource');
   });
 
+  it('allows external images when resource blocking is off', () => {
+    const result = classifyArtifactSecurity(
+      '<img src="https://cdn.example.com/chart.png" />',
+      undefined,
+      undefined,
+      { blockExternalResources: false, blockExternalScripts: true },
+    );
+    expect(result.canRender).toBe(true);
+  });
+
+  it('still blocks scripts when only resource blocking is off', () => {
+    const result = classifyArtifactSecurity(
+      '<script src="https://cdn.example.com/chart.js"></script>',
+      undefined,
+      undefined,
+      { blockExternalResources: false, blockExternalScripts: true },
+    );
+    expect(result.blockReason).toBe('blocked-external-resource');
+  });
+
+  it('allows scripts when both policy flags are off', () => {
+    const result = classifyArtifactSecurity(
+      '<script src="https://cdn.example.com/chart.js"></script>',
+      undefined,
+      undefined,
+      { blockExternalResources: false, blockExternalScripts: false },
+    );
+    expect(result.canRender).toBe(true);
+  });
+
   it('allows youtube embed under default allowlist', () => {
     const result = classifyArtifactSecurity(
       '<iframe src="https://www.youtube.com/embed/YE7VzlLtp-4"></iframe>',

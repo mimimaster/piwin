@@ -66,7 +66,8 @@ describe('PermissionBar', () => {
     expect(title?.textContent).toContain('bash:ls');
   });
 
-  it('fires allow-session with rememberScope "session"', () => {
+  it('fires allow-session with rememberScope "session" after the seal-stamp flourish', () => {
+    vi.useFakeTimers();
     const onPermission = vi.fn();
     act(() =>
       root.render(<Harness prompt={basePrompt} projectPath="/repo" onPermission={onPermission} />),
@@ -76,7 +77,48 @@ describe('PermissionBar', () => {
     );
     expect(btn).not.toBeNull();
     act(() => btn?.click());
+    // The stamp animation holds the decision briefly before it fires.
+    expect(onPermission).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(200));
     expect(onPermission).toHaveBeenCalledWith('allow', 'session');
+    vi.useRealTimers();
+  });
+
+  it('grants allow-session on Enter and denies on Escape (seal keyboard contract)', () => {
+    vi.useFakeTimers();
+    const onPermission = vi.fn();
+    act(() =>
+      root.render(<Harness prompt={basePrompt} projectPath="/repo" onPermission={onPermission} />),
+    );
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    act(() => vi.advanceTimersByTime(200));
+    expect(onPermission).toHaveBeenCalledWith('allow', 'session');
+    onPermission.mockClear();
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(onPermission).toHaveBeenCalledWith('deny');
+    vi.useRealTimers();
+  });
+
+  it('does not treat Enter/Escape as a decision while an editable field has focus', () => {
+    vi.useFakeTimers();
+    const onPermission = vi.fn();
+    act(() =>
+      root.render(<Harness prompt={basePrompt} projectPath="/repo" onPermission={onPermission} />),
+    );
+    const input = document.createElement('textarea');
+    document.body.appendChild(input);
+    input.focus();
+    act(() => {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    act(() => vi.advanceTimersByTime(200));
+    expect(onPermission).not.toHaveBeenCalled();
+    input.remove();
+    vi.useRealTimers();
   });
 
   it('fires allow-once with rememberScope "once"', () => {

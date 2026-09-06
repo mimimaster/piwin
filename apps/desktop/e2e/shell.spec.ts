@@ -18,7 +18,6 @@ async function waitForHostReady(page: Page): Promise<void> {
  */
 async function openTrustedSession(page: Page, projectPath: string): Promise<void> {
   await page.getByTestId('open-workspace-btn').click();
-  await page.getByRole('menuitem', { name: /打开工作区文件夹|open workspace folder/i }).click();
   await page.getByTestId('project-path-input').fill(projectPath);
   await page.getByTestId('open-project-btn').click();
   // Project open enters draft mode. The first prompt lazily creates and names

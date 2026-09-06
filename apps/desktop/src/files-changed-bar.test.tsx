@@ -83,6 +83,7 @@ describe('FilesChangedBar DOM rendering', () => {
     });
 
     expect(container.textContent).toContain('2 个文件已更改');
+    expect(container.querySelectorAll('.files-changed-bar-chip').length).toBe(2);
 
     const toggle = container.querySelector('[data-testid="files-changed-bar-toggle"]');
     expect(toggle).not.toBeNull();

@@ -14,9 +14,9 @@ export function FlashcardRateBar(props: {
 }): ReactElement {
   if (props.rated !== null) {
     return (
-      <div className="fc-quiet-footer fc-quiet-rated-bar chat-flashcard-done-badge">
-        <span className="fc-quiet-rated-msg">{props.copy.rated(props.rated)}</span>
-        <button type="button" className="fc-quiet-change-btn" onClick={props.onChange}>
+      <div className="rate chat-flashcard-done-badge">
+        <span className="m">{props.copy.rated(props.rated)}</span>
+        <button type="button" className="btn sm" onClick={props.onChange}>
           {props.copy.change}
         </button>
       </div>
@@ -24,23 +24,19 @@ export function FlashcardRateBar(props: {
   }
 
   return (
-    <div
-      className="fc-quiet-footer chat-flashcard-rate-section"
-      data-testid="chat-flashcard-rate-section"
-    >
-      <div className="fc-quiet-rating-bar">
-        {RATE_ORDER.map((rating, index) => (
-          <button
-            key={rating}
-            type="button"
-            className={`fc-quiet-rate-btn btn-${rating}`}
-            onClick={() => props.onRate(rating)}
-          >
-            <span className="fc-rate-key">{index + 1}</span>
-            <span>{flashcardRateLabel(props.copy, rating)}</span>
-          </button>
-        ))}
-      </div>
+    <div className="rate chat-flashcard-rate-section" data-testid="chat-flashcard-rate-section">
+      {RATE_ORDER.map((rating, index) => (
+        <button
+          key={rating}
+          type="button"
+          className={`btn sm btn-${rating}`}
+          onClick={() => props.onRate(rating)}
+        >
+          <span className="bd">{index + 1}</span>
+          {flashcardRateLabel(props.copy, rating)}
+        </button>
+      ))}
+      <span className="m">{props.copy.rateHint}</span>
     </div>
   );
 }

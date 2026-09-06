@@ -1,0 +1,66 @@
+/* Shared six-state status node (Inkstone increment 7 §2 row 06). One node
+   language for both the sidebar session tree and the transcript tool chain:
+   a color/shape pair means the same thing everywhere it appears.
+
+   pending      — hollow ring, nothing has happened yet
+   success      — filled mint, settled/completed
+   running      — filled ember, breathes in phase with every other liveness dot
+   waiting-you  — filled iris rounded-square, the only non-circular node
+   background   — filled sky, active but not in the foreground
+   failed       — filled coral, terminated in error
+
+   Uses the shared `breath` keyframe/`--breath` duration from tokens.css so
+   this node pulses in phase with the sidebar working dot and the tool-status
+   dot rather than inventing a second rhythm. */
+
+.ink-line-node {
+  display: inline-block;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--text-4);
+}
+
+.ink-line-node--default {
+  width: 8px;
+  height: 8px;
+}
+
+.ink-line-node--compact {
+  width: 6px;
+  height: 6px;
+}
+
+.ink-line-node--pending {
+  background: transparent;
+  border: 1.5px solid var(--line-3);
+}
+
+.ink-line-node--success {
+  background: var(--mint);
+}
+
+.ink-line-node--running {
+  background: var(--ember);
+  animation: breath var(--breath) var(--ease-in-out) infinite;
+}
+
+.ink-line-node--background {
+  background: var(--sky);
+}
+
+.ink-line-node--failed {
+  background: var(--coral);
+}
+
+/* The one deliberately non-circular node: a blocked decision reads as a
+   different category of thing, not just a different color. */
+.ink-line-node--waiting-you {
+  border-radius: 2px;
+  background: var(--iris);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ink-line-node--running {
+    animation: none;
+  }
+}

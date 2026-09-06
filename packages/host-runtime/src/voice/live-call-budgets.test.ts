@@ -21,6 +21,7 @@ describe('Live sliding-window budgets', () => {
     expect(budget.tryConsume(0)).toBe(true);
     expect(budget.tryConsume(1)).toBe(true);
     expect(budget.tryConsume(2)).toBe(false);
+    expect(budget.remaining(2)).toBe(0);
   });
 
   it('resets start attempts after an explicit reset', () => {

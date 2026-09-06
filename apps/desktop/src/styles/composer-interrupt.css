@@ -202,6 +202,50 @@
   box-shadow: var(--elev-2);
 }
 
+/* ── Seal-stamp confirmation ──────────────────────────────────────
+   Enter (or clicking Allow) plays a short stamp flourish before the
+   decision fires, so the approval reads as a deliberate mark rather than
+   a button just disappearing. `--ease-spring` is the shared Deck spring
+   easing already declared in tokens.css. */
+.permission-bar-seal.is-stamping {
+  animation: permission-bar-stamp 160ms var(--ease-spring) both;
+}
+
+@keyframes permission-bar-stamp {
+  0% {
+    transform: scale(0.88) rotate(-6deg);
+    opacity: 0.6;
+  }
+  60% {
+    transform: scale(1.05) rotate(1deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .permission-bar-seal.is-stamping {
+    animation: none;
+  }
+}
+
+.permission-bar-kbd-hint {
+  margin: var(--s-3) 0 0;
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+}
+
+.permission-bar-kbd-hint kbd {
+  font-family: var(--font-mono);
+  background: var(--surface-4);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-chip);
+  padding: 1px 5px;
+  font-size: var(--fs-micro);
+}
+
 .permission-bar-btn-allow-once {
   background: var(--iris-wash) !important;
   color: var(--iris-lift) !important;
@@ -322,4 +366,135 @@
 
 .permission-bar-btn-allow-session {
   font-weight: 600;
+}
+
+/* ─── Plan execution gate (.intr) fallback for non-inkstone themes ─── */
+
+.intr {
+  --intr-s1: var(--surface-1, #f0ece4);
+  --intr-s2: var(--surface-2, #f8f6f0);
+  --intr-s3: var(--surface-3, #fffdf8);
+  --intr-s4: var(--surface-4, #fff);
+  --intr-t1: var(--text-1, #1d1b17);
+  --intr-t2: var(--text-2, #5a554d);
+  --intr-t3: var(--text-3, #726b61);
+  --intr-t4: var(--text-4, #8f887d);
+  --intr-zhu: var(--iris, #c6412a);
+  --intr-zhu-wash: color-mix(in srgb, var(--intr-zhu) 12%, transparent);
+  --intr-on-zhu: #fff;
+  --intr-sh1: 0 1px 2px rgba(60, 45, 20, 0.06), 0 0 0 1px var(--line-1, rgba(0, 0, 0, 0.08));
+  --intr-sh2: 0 2px 8px -2px rgba(60, 45, 20, 0.12), 0 0 0 1px var(--line-1, rgba(0, 0, 0, 0.08));
+
+  position: relative;
+  background: var(--s3, var(--intr-s3));
+  box-shadow: var(--sh2, var(--intr-sh2));
+  border-radius: var(--r-panel, 8px);
+  padding: var(--card-y, 12px) var(--card-x, 14px);
+  border: 0;
+  animation: agent-interruption-slide-in var(--t-2, 0.2s) var(--ease-out, ease-out);
+}
+
+.intr.plan-execution-gate {
+  width: var(--chat-max, 720px);
+  max-width: calc(100% - 32px);
+  margin: 0 auto 8px;
+}
+
+.intr h3 {
+  font-size: var(--fs-body, 15px);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--t1, var(--intr-t1));
+  margin: 8px 0 2px;
+}
+
+.intr .desc {
+  font-size: var(--fs-chrome, 12.5px);
+  color: var(--t2, var(--intr-t2));
+  line-height: 1.5;
+}
+
+.intr .choices {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.intr .choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px 0 6px;
+  border-radius: var(--r-control, 6px);
+  background: var(--s2, var(--intr-s2));
+  box-shadow: var(--sh1, var(--intr-sh1));
+  font-size: var(--fs-chrome, 12.5px);
+  color: var(--t1, var(--intr-t1));
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background-color var(--t-2, 0.15s) var(--ease-out, ease-out), box-shadow var(--t-2, 0.15s) var(--ease-out, ease-out);
+}
+
+.intr .choice:hover {
+  background: var(--s4, var(--intr-s4));
+}
+
+.intr .choice:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.intr .choice:focus-visible {
+  outline: 2px solid var(--zhu, var(--intr-zhu));
+  outline-offset: 1px;
+}
+
+.intr .bd {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--r-chip, 4px);
+  display: inline-grid;
+  place-items: center;
+  font: 600 11px var(--font-mono, monospace);
+  background: var(--s1, var(--intr-s1));
+  color: var(--t2, var(--intr-t2));
+  flex: none;
+}
+
+.intr .choice.rec .bd {
+  background: var(--zhu, var(--intr-zhu));
+  color: var(--on-zhu, var(--intr-on-zhu));
+}
+
+.intr .kb {
+  margin-top: 8px;
+  font: 11px var(--font-mono, monospace);
+  color: var(--t4, var(--intr-t4));
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font: 600 10.5px var(--sans, sans-serif);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.pill i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.pill.zhu-p {
+  background: var(--zhu-wash, var(--intr-zhu-wash));
+  color: var(--zhu, var(--intr-zhu));
 }

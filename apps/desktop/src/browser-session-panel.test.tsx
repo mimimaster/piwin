@@ -449,7 +449,7 @@ describe('BrowserSessionPanel', () => {
     expect(queryByTestId('browser-session-pick-pending')).toBeNull();
     const errorEl = queryByTestId('browser-session-pick-error');
     expect(errorEl).not.toBeNull();
-    expect(errorEl?.textContent).toContain('Could not resolve element');
+    expect(errorEl?.textContent).toContain('无法解析该元素');
     expect(onAddWebElement).not.toHaveBeenCalled();
   });
 
@@ -511,7 +511,7 @@ describe('BrowserSessionPanel', () => {
     expect(pickAtSpy).toHaveBeenCalledTimes(1);
     expect(queryByTestId('browser-session-pick-pending')).toBeNull();
     expect(queryByTestId('browser-session-pick-error')?.textContent).toContain(
-      'Could not resolve element',
+      '无法解析该元素',
     );
   });
 
@@ -585,7 +585,7 @@ describe('BrowserSessionPanel', () => {
     });
     const button = queryByTestId('browser-session-give-back') as HTMLButtonElement;
     expect(button).not.toBeNull();
-    expect(button.textContent).toBe('Release');
+    expect(button.textContent).toBe('释放');
     await act(async () => {
       button.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
     });
@@ -606,6 +606,6 @@ describe('BrowserSessionPanel', () => {
         });
       }
     });
-    expect(queryByTestId('browser-session-give-back')?.textContent).toBe('Give back');
+    expect(queryByTestId('browser-session-give-back')?.textContent).toBe('交还');
   });
 });

@@ -13,7 +13,7 @@ import { parseToolCitations } from './tool-citations';
 import { DiffCard, type DiffCardRequest } from './diff-card';
 import { CollapsibleContentBlock } from './collapsible-content-block';
 import { TokenSpans, useHighlight } from './syntax-highlight';
-import { IconChevronDown, IconMore } from './shell-icons';
+import { IconChevronDown, IconFile, IconMore } from './shell-icons';
 import { toolCallKindIcon } from './tool-call-kind-icon';
 import {
   extractCommandDescription,
@@ -43,7 +43,9 @@ import {
 import { recoverToolArgsFromInputPreview } from './tool-call-arg-recovery';
 import { toolOutputDuplicatesError } from './tool-output-duplicates-error.js';
 import { useToolEditDiffStats } from './use-tool-edit-diff-stats';
+import { inkLineNodeClass, toolStatusToNodeStatus } from './session-node-status.js';
 import { DesktopHealthToolCard } from './health-tool-card.js';
+import { shouldShowApprovedSeal } from './tool-approved-seal.js';
 
 
 export type ToolCallCardProps = {
@@ -77,6 +79,10 @@ export type ToolCallCardProps = {
   onOpenDocument?: ((input: DocumentOpenInput) => void) | undefined;
   /** Locale for the stable behavior label. */
   locale?: 'zh-CN' | 'en';
+  /** Compact sub-row on the same ink line (explore/batch children). */
+  inkLineSubrow?: boolean | undefined;
+  /** Show the 17px approved seal on auto-authorized rows (S5.8). */
+  showApprovedSeal?: boolean | undefined;
 };
 
 export type DocumentOpenInput = {
@@ -129,33 +135,31 @@ function ToolPathLinkList(props: {
   return (
     <div className="tool-call-paths" data-testid={props.testId}>
       {props.prefix ? <span className="tool-call-paths-prefix">{props.prefix}</span> : null}
-      {props.paths.map((filePath, index) => {
+      {props.paths.map((filePath) => {
         const resolved = resolveToolOpenPath(filePath, props.projectPath);
-        const separator = index > 0 ? <span key={`sep-${filePath}`}> · </span> : null;
         if (!canOpen) {
           return (
-            <span key={filePath}>
-              {separator}
-              {filePath}
+            <span key={filePath} className="pc tool-call-path-link static" title={resolved.absolutePath}>
+              <IconFile className="i s12" />
+              <span>{filePath}</span>
             </span>
           );
         }
         return (
-          <span key={filePath}>
-            {separator}
-            <button
-              type="button"
-              className="tool-call-path-link"
-              title={resolved.absolutePath}
-              data-testid="tool-call-path-link"
-              data-full-path={resolved.absolutePath}
-              onClick={() => {
-                openResolvedToolPath(filePath, props.projectPath, props.onOpenFile);
-              }}
-            >
-              {filePath}
-            </button>
-          </span>
+          <button
+            key={filePath}
+            type="button"
+            className="pc tool-call-path-link"
+            title={resolved.absolutePath}
+            data-testid="tool-call-path-link"
+            data-full-path={resolved.absolutePath}
+            onClick={() => {
+              openResolvedToolPath(filePath, props.projectPath, props.onOpenFile);
+            }}
+          >
+            <IconFile className="i s12" />
+            <span>{filePath}</span>
+          </button>
         );
       })}
     </div>
@@ -176,53 +180,76 @@ function ToolDocumentTargetList(props: {
   const canOpen = Boolean(props.onOpenDocument);
   return (
     <div className="tool-call-doc-targets" data-testid={props.testId}>
-      {props.targets.map((target, index) => {
+      {props.targets.map((target) => {
         const label = target.displayRef;
-        const separator = index > 0 ? <span key={`sep-${target.displayRef}`}> · </span> : null;
         if (!canOpen) {
           return (
-            <span key={target.displayRef}>
-              {separator}
-              {label}
+            <span key={target.displayRef} className="pc tool-call-doc-target-link static" title={label}>
+              <IconFile className="i s12" />
+              <span>{label}</span>
             </span>
           );
         }
         return (
-          <span key={target.displayRef}>
-            {separator}
-            <button
-              type="button"
-              className="tool-call-doc-target-link"
-              data-testid="tool-call-doc-target"
-              data-target-ref={label}
-              title={label}
-              onClick={() => {
-                const title =
-                  target.kind === 'skill'
-                    ? target.skillId
-                    : target.kind === 'media'
-                      ? target.displayRef
-                      : target.relativePath.split(/[\\/]/).pop() || target.relativePath;
-                props.onOpenDocument?.({
-                  title,
-                  target,
-                  toolCallId: props.toolCallId,
-                });
-              }}
-            >
-              {label}
-            </button>
-          </span>
+          <button
+            key={target.displayRef}
+            type="button"
+            className="pc tool-call-doc-target-link"
+            data-testid="tool-call-doc-target"
+            data-target-ref={label}
+            title={label}
+            onClick={() => {
+              const title =
+                target.kind === 'skill'
+                  ? target.skillId
+                  : target.kind === 'media'
+                    ? target.displayRef
+                    : target.relativePath.split(/[\\/]/).pop() || target.relativePath;
+              props.onOpenDocument?.({
+                title,
+                target,
+                toolCallId: props.toolCallId,
+              });
+            }}
+          >
+            <IconFile className="i s12" />
+            <span>{label}</span>
+          </button>
         );
       })}
     </div>
   );
 }
 
-export function ToolStatusDot(props: { status: ToolCardUi['status'] }): ReactElement {
+/**
+ * `data-kind` carries the shared six-state vocabulary (session-node-status.ts)
+ * so this dot and the sidebar's InkLineNode are provably the same language,
+ * not just coincidentally matching colors. Visual treatment (size, color,
+ * breath) stays on the existing `.tool-status-dot`/`.status-*` classes —
+ * unchanged, since it already renders identically to the shared node states.
+ */
+export function ToolStatusDot(props: {
+  status: ToolCardUi['status'];
+  /** Prototype ink-line node (`.node` / `.node.sm`). */
+  inkLine?: boolean | undefined;
+  small?: boolean | undefined;
+}): ReactElement {
+  const kind = toolStatusToNodeStatus(props.status);
+  const protoClass = inkLineNodeClass(kind);
+  if (props.inkLine === true) {
+    return (
+      <span
+        className={`node${props.small === true ? ' sm' : ''}${protoClass ? ` ${protoClass}` : ''} tool-status-dot status-${props.status}`}
+        data-kind={kind}
+        title={props.status}
+        aria-label={props.status}
+      />
+    );
+  }
   return (
     <span
       className={`tool-status-dot status-${props.status}`}
+      data-kind={kind}
       title={props.status}
       aria-label={props.status}
     />
@@ -537,11 +564,17 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     );
   }
 
+  const inkNodeKind = toolStatusToNodeStatus(tool.status);
+  const inkNodeClass = inkLineNodeClass(inkNodeKind);
+  const showApprovedSeal =
+    props.showApprovedSeal !== false && shouldShowApprovedSeal(tool);
   const card = (
     <div
-      className={`tool-call-card density-${density} status-${tool.status}${
+      className={`tr tool-call-card density-${density} status-${tool.status}${
         expanded ? ' is-expanded' : ''
-      }${isFetchStyle ? ' is-fetch-style' : ''}`}
+      }${isFetchStyle ? ' is-fetch-style' : ''}${props.inkLineSubrow === true ? ' sub' : ''}${
+        tool.status === 'error' ? ' fail' : ''
+      }`}
       data-testid="tool-call-card"
       data-tool-name={tool.toolName}
       data-tool-kind={kind}
@@ -570,8 +603,13 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
         aria-label={`${displayActionVerb} ${headerSummary || displayName} ${tool.status}`}
         tabIndex={0}
       >
+        <span
+          className={`node${props.inkLineSubrow === true ? ' sm' : ''}${inkNodeClass ? ` ${inkNodeClass}` : ''}`}
+          data-kind={inkNodeKind}
+          aria-hidden="true"
+        />
         {toolCallKindIcon(kind, tool.toolName, rawActionVerb, baseBehaviorId)}
-        <span className={`tool-call-action-verb ${behaviorClassName}`}>{displayActionVerb}</span>
+        <b className={`tool-call-action-verb ${behaviorClassName}`}>{displayActionVerb}</b>
         {showFilePill && pillLabel ? (
           <span
             className={`tool-call-file-pill${canOpenPath ? ' is-link' : ''}`}
@@ -586,73 +624,94 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
             ) : null}
           </span>
         ) : null}
-        {diffStats && (diffStats.added > 0 || diffStats.removed > 0) ? (
-          <span className="tool-call-diff-stats" data-testid="tool-call-diff-stats">
-            {diffStats.added > 0 ? <span className="add">+{diffStats.added}</span> : null}
-            {diffStats.removed > 0 ? <span className="del">-{diffStats.removed}</span> : null}
-          </span>
-        ) : null}
-        {tool.presentation?.countTag && !previewText ? (
+        {previewText ? (
+          <code className={previewClassName}>
+            {previewText}
+            {tool.presentation?.countTag ? (
+              <span className="tool-call-count-inline" data-testid="tool-call-count-inline">
+                {' · '}
+                {tool.presentation.countTag}
+              </span>
+            ) : null}
+          </code>
+        ) : tool.presentation?.countTag ? (
           <span className="tool-call-count-tag">{tool.presentation.countTag}</span>
         ) : null}
-        {truncationCopy ? (
-          <span
-            className="tool-call-truncated-tag"
-            data-testid="tool-call-output-truncated"
-            aria-label={truncationCopy.ariaLabel}
-            title={truncationCopy.notice}
-          >
-            {truncationCopy.summary}
-          </span>
-        ) : null}
-        <span className={previewClassName}>
-          {previewText}
-          {/* Result counts trail the query ("搜索 foo · 15 matches"), never lead it. */}
-          {tool.presentation?.countTag && previewText ? (
-            <span className="tool-call-count-inline" data-testid="tool-call-count-inline">
-              {' · '}
-              {tool.presentation.countTag}
-            </span>
-          ) : null}
-        </span>
         {tool.status === 'done' ? (
-          <span className="tool-call-ok" aria-label="done" data-testid="tool-call-ok" />
+          <span
+            className="tool-call-ok"
+            data-kind="success"
+            aria-label="done"
+            data-testid="tool-call-ok"
+          />
         ) : tool.status === 'error' ? (
-          <span className="tool-call-err" aria-label="error" data-testid="tool-call-err" />
+          <span
+            className="tool-call-err"
+            data-kind="failed"
+            aria-label="error"
+            data-testid="tool-call-err"
+          />
         ) : (
           <ToolStatusDot status={tool.status} />
         )}
-        {typeof tool.presentation?.durationMs === 'number' ? (
-          <span className="tool-call-duration" data-testid="tool-call-duration">
-            {formatToolDuration(tool.presentation.durationMs)}
-          </span>
-        ) : tool.status === 'running' ? (
-          <span className="tool-call-duration tool-call-duration-live">…</span>
-        ) : null}
-        {hasBody ? (
-          <span
-            className="tool-call-chevron-hit"
-            role="button"
-            tabIndex={0}
-            aria-label={expanded ? 'Collapse' : 'Expand'}
-            onClick={(event) => {
-              event.stopPropagation();
-              toggleExpanded();
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault();
+        <span className="meta tool-call-meta">
+          {diffStats && (diffStats.added > 0 || diffStats.removed > 0) ? (
+            <span className="pm tool-call-diff-stats" data-testid="tool-call-diff-stats">
+              {diffStats.added > 0 ? <span className="plus add">+{diffStats.added}</span> : null}
+              {diffStats.removed > 0 ? (
+                <span className="minus del">−{diffStats.removed}</span>
+              ) : null}
+            </span>
+          ) : null}
+          {truncationCopy ? (
+            <span
+              className="tool-call-truncated-tag"
+              data-testid="tool-call-output-truncated"
+              aria-label={truncationCopy.ariaLabel}
+              title={truncationCopy.notice}
+            >
+              {truncationCopy.summary}
+            </span>
+          ) : null}
+          {showApprovedSeal ? (
+            <span className="seal mini" title="已批准 · 允许一次" data-testid="tool-approved-seal">
+              允
+            </span>
+          ) : null}
+          {typeof tool.presentation?.durationMs === 'number' ? (
+            <span className="tool-call-duration" data-testid="tool-call-duration">
+              {formatToolDuration(tool.presentation.durationMs)}
+            </span>
+          ) : tool.status === 'running' ? (
+            <span className="tool-call-duration tool-call-duration-live">…</span>
+          ) : null}
+          {hasBody ? (
+            <span
+              className="tool-call-chevron-hit chev"
+              role="button"
+              tabIndex={0}
+              aria-label={expanded ? 'Collapse' : 'Expand'}
+              onClick={(event) => {
                 event.stopPropagation();
                 toggleExpanded();
-              }
-            }}
-          >
-            <IconChevronDown className={expanded ? 'tool-call-chevron open' : 'tool-call-chevron'} />
-          </span>
-        ) : null}
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  toggleExpanded();
+                }
+              }}
+            >
+              <IconChevronDown
+                className={expanded ? 'tool-call-chevron open' : 'tool-call-chevron'}
+              />
+            </span>
+          ) : null}
+        </span>
       </div>
       {expanded && hasBody ? (
-        <div className="tool-call-body">
+        <div className={`tool-call-body tb${tool.status === 'error' ? ' err' : ''}`}>
           {truncationCopy ? (
             <div
               className="tool-call-output-notice"

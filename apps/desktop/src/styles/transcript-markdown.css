@@ -596,11 +596,22 @@
   border-radius: var(--r-card);
   background: var(--void);
   box-shadow: inset 0 0 0 1px var(--line-1);
+  /* Horizontal scroll is a fallback only. A classic scrollbar here is 14px of
+     layout height; if the SVG is within 1px of the content box, that bar
+     appears/disappears every frame and the transcript shakes. */
   overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .md-mermaid svg {
-  max-width: 100%;
+  /* Mermaid emits width="100%" plus an inline max-width in px. The attribute
+     sizes against the parent, the inline max-width wins over stylesheet
+     max-width:100%, and subpixel overflow then toggles the scrollbar above.
+     `width: auto` uses the viewBox; `!important` on max-width caps wide
+     diagrams without stretching skinny ones. */
+  display: block;
+  width: auto !important;
+  max-width: 100% !important;
   height: auto;
 }
 

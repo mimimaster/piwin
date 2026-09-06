@@ -46,7 +46,7 @@ describe('conversation-branch helpers', () => {
   it('walks adjacent sibling heads and labels ‹n/m› from the active index', () => {
     expect(adjacentSiblingHead(point, -1)).toBe('u2-a');
     expect(adjacentSiblingHead(point, 1)).toBeUndefined();
-    expect(formatBranchSwitcherLabel(point)).toBe('2/2');
+    expect(formatBranchSwitcherLabel(point)).toBe('2 / 2');
   });
 
   it('clips the target and everything after it', () => {

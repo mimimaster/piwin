@@ -52,6 +52,7 @@ describe('ContextRefChip', () => {
 
     const chip = container.querySelector('[data-testid="composer-context-chip"]');
     expect(chip).not.toBeNull();
+    expect(chip?.classList.contains('ref')).toBe(true);
     expect(chip?.getAttribute('data-context-kind')).toBe('file');
     expect(chip?.textContent).toContain('a.ts');
     expect(chip?.textContent).toContain('file');

@@ -1103,14 +1103,14 @@ describe('ComposerDock host status', () => {
     root = rendered.root;
     container = rendered.container;
 
-    const knowledgeItem = container.querySelector(
-      '[data-testid="slash-item-cmd:knowledge"]',
+    const flashcardsItem = container.querySelector(
+      '[data-testid="slash-item-cmd:flashcards"]',
     ) as HTMLButtonElement;
-    expect(knowledgeItem).not.toBeNull();
+    expect(flashcardsItem).not.toBeNull();
     act(() => {
-      knowledgeItem.click();
+      flashcardsItem.click();
     });
-    expect(onComposerChange).toHaveBeenCalledWith('/knowledge');
+    expect(onComposerChange).toHaveBeenCalledWith('/flashcards');
 
     act(() => {
       rendered.root.render(
@@ -1118,7 +1118,7 @@ describe('ComposerDock host status', () => {
           <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
             <ComposerDock
               {...baseProps}
-              composer="/knowledge"
+              composer="/flashcards"
               onComposerChange={onComposerChange}
               onSend={vi.fn()}
             />
@@ -1654,5 +1654,24 @@ describe('ComposerDock host status', () => {
       chip?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     expect(onAgentModeChange).toHaveBeenCalledWith('agent');
+  });
+
+  it('renders Inkstone .slab card structure and keyboard hint line', () => {
+    const rendered = renderDock(<ComposerDock {...baseProps} />);
+    root = rendered.root;
+    container = rendered.container;
+
+    const card = container.querySelector('[data-testid="composer-card"]');
+    expect(card?.classList.contains('slab')).toBe(true);
+
+    const textarea = container.querySelector('[data-testid="composer-input"]');
+    expect(textarea?.classList.contains('ta')).toBe(true);
+
+    const toolbar = container.querySelector('.composer-v2-toolbar');
+    expect(toolbar?.classList.contains('bar')).toBe(true);
+
+    const hint = container.querySelector('[data-testid="composer-hint"]');
+    expect(hint).not.toBeNull();
+    expect(hint?.textContent).toContain('Enter');
   });
 });

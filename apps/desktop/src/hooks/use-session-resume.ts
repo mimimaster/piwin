@@ -130,10 +130,19 @@ export function useSessionResume(input: {
         quiet?: boolean;
         /** Caller already ran project/open for `scope`. Skip a second activation. */
         projectAlreadyActivated?: boolean;
+        /** Reconnect / cold-restore / other explicit refresh. */
+        refresh?: boolean;
       },
     ): Promise<void> => {
       if (shouldBlockRemoteHostGesture(hostClient)) {
         dispatchNotification(pushInfo(hostReconnectNotice(locale)));
+        return;
+      }
+      if (
+        context?.refresh !== true &&
+        state.activeSessionId === sessionId &&
+        (state.awaitingTranscript || state.transcriptOwnerSessionId === sessionId)
+      ) {
         return;
       }
       syncHostInstance();
@@ -167,6 +176,17 @@ export function useSessionResume(input: {
           : (state.generalSessions.find((session) => session.id === sessionId) ??
             state.sessions.find((session) => session.id === sessionId));
 
+      if (isSessionBodyOffloaded(existingListItem?.storage)) {
+        const storage = existingListItem?.storage;
+        if (storage) {
+          setColdRestorePrompt({ sessionId, storage });
+        }
+        return;
+      }
+
+      if (!ticketMatches()) return;
+      dispatch({ type: 'session/set', sessionId, awaitTranscript: true });
+
       if (
         knownProjectPath &&
         context?.projectAlreadyActivated !== true &&
@@ -183,12 +203,22 @@ export function useSessionResume(input: {
           return;
         }
         if (!activation.trusted) {
-          dispatch({ type: 'project/set', path: activation.path, trusted: false });
+          dispatch({
+            type: 'project/set',
+            path: activation.path,
+            trusted: false,
+            keepActiveSession: true,
+          });
           dispatchNotification(pushError('Project is not trusted on the Host.'));
           return;
         }
-        dispatch({ type: 'project/set', path: activation.path, trusted: true });
-        await hydrateSessions(activation.path);
+        dispatch({
+          type: 'project/set',
+          path: activation.path,
+          trusted: true,
+          keepActiveSession: true,
+        });
+        void hydrateSessions(activation.path);
         void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
       }
       if (
@@ -198,20 +228,9 @@ export function useSessionResume(input: {
         context?.projectAlreadyActivated !== true
       ) {
         if (!ticketMatches()) return;
-        dispatch({ type: 'project/clear' });
-        await hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
+        dispatch({ type: 'project/clear', keepActiveSession: true });
+        void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
       }
-
-      if (isSessionBodyOffloaded(existingListItem?.storage)) {
-        const storage = existingListItem?.storage;
-        if (storage) {
-          setColdRestorePrompt({ sessionId, storage });
-        }
-        return;
-      }
-
-      if (!ticketMatches()) return;
-      dispatch({ type: 'session/set', sessionId, awaitTranscript: true });
       const resumed = await hostClient.request({
         type: 'session/resume',
         sessionId,
@@ -260,8 +279,13 @@ export function useSessionResume(input: {
         );
         if (!ticketMatches()) return;
         if (activation.ok && activation.trusted) {
-          dispatch({ type: 'project/set', path: activation.path, trusted: true });
-          await hydrateSessions(activation.path, {
+          dispatch({
+            type: 'project/set',
+            path: activation.path,
+            trusted: true,
+            keepActiveSession: true,
+          });
+          void hydrateSessions(activation.path, {
             includeArchived: showArchivedSessions,
           });
           void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
@@ -278,8 +302,8 @@ export function useSessionResume(input: {
         !resumedProjectPath
       ) {
         if (!ticketMatches()) return;
-        dispatch({ type: 'project/clear' });
-        await hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
+        dispatch({ type: 'project/clear', keepActiveSession: true });
+        void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
       }
       if (!ticketMatches()) return;
       if (data.scope || data.name || data.model || data.thinkingLevel !== undefined) {
@@ -408,9 +432,12 @@ export function useSessionResume(input: {
       resolveSessionScopeHint,
       showArchivedSessions,
       state.activeScope,
+      state.activeSessionId,
+      state.awaitingTranscript,
       state.generalSessions,
       state.projectSessionsByPath,
       state.sessions,
+      state.transcriptOwnerSessionId,
       syncHostInstance,
     ],
   );
@@ -447,7 +474,7 @@ export function useSessionResume(input: {
         dispatch({ type: 'session/update', session: next });
       }
       setColdRestorePrompt(null);
-      await handleResumeSession(sessionId);
+      await handleResumeSession(sessionId, { refresh: true });
     },
     [
       coldRestorePrompt,

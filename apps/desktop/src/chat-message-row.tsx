@@ -2,30 +2,7 @@
  * Single chat message row wrapper (Agent vs Conversation, user vs assistant vs system).
  */
 import { memo, type ReactElement } from 'react';
-import type {
-  ContextSummaryPush,
-  ContextUsageSnapshot,
-  ModelProviderConfig,
-  ModelRef,
-  ProductSessionLineageView,
-  SessionSummary,
-  TranscriptBranchPoint,
-  SubagentInvocation,
-  ThemeManifest,
-  WalkthroughArtifact,
-} from '@piwin/contracts';
-import type { ArtifactActionMessage } from '@piwin/artifact';
-import type { ArtifactCanvasTarget } from './artifact-canvas-model';
-import type {
-  ChatMessageUi,
-  PermissionPromptUi,
-  RunRecordUi,
-  SkillActivityView,
-  SubagentStreamState,
-  ToolCardUi,
-} from './chat-reducer';
-import type { SubagentInspectorSelection } from './subagent-activity-model';
-import { exploreFlowRolesEqual, type ExploreFlowRole } from './explore-flow';
+import { pickArtifactFenceSecurity } from './artifact-fence-security';
 import { isAssistantContentEmpty } from './assistant-message-content';
 import { MarkdownView } from './MarkdownView';
 import { CitationCards } from './CitationCards';
@@ -35,167 +12,36 @@ import { MessageBranchSwitcher } from './message-branch-switcher.js';
 import { mapThemeToArtifactVariables } from './artifact-theme-map';
 import { SubagentActivitySlot } from './subagent-activity-card';
 import { TurnWorkDetails } from './turn-work-details';
-import type { DocumentOpenInput } from './tool-call-card';
 import { AssemblySummaryCapsule } from './assembly-summary-capsule';
 import { WalkthroughAction } from './walkthrough-action';
-import { ChatTurnFilesSummary, type FilesChangedBarRequest } from './chat-turn-files-summary';
+import { ChatTurnFilesSummary } from './chat-turn-files-summary';
 import { ImageGenerationProgress } from './image-generation-progress';
 import { VideoGenerationProgress } from './video-generation-progress';
 import {
   getGenerationStatus,
+  getGenerationTool,
   shouldRenderGenerationProgress,
 } from './generation-tool-kind.js';
 import { ConversationResponseContent } from './conversation-response-content.js';
 import { extractFlashcardRecords } from './flashcard-result-extract.js';
 import { FlashcardResultProjection } from './FlashcardResultProjection.js';
-import type { AgentLocatorAnimation, ToolCallDensity, WorkDetailsExpanded } from './ui-preferences';
-import type { ComposerDockProps } from './composer-dock';
-import type { DiffCardRequest } from './diff-card';
 import { AssistantResponseActions } from './assistant-response-actions';
+import { buildAssistantColophonMeta } from './chat-turn-marginalia';
 import { buildConversationTurnUsageChip } from './conversation-message-header';
 import { shouldHideConversationAssistantRow } from './conversation-turn-chrome';
 
 import { UserMessageContent } from './conversation-user-message';
-import type { ModelOption } from './model-options';
 import { SystemMessageContent } from './system-message-content';
 import { resolveAssistantRenderingPhase } from './streaming-caret';
 import { useDesktopContextMenu, type ContextMenuTarget } from './context-menu';
-import type { DocCardSequenceRequest } from './DocCardSequenceView';
 import { MessageEditCard } from './chat-message-edit-card';
 import { TurnErrorCard } from './turn-error-card';
 import { MessageBubbleContextMenu } from './message-bubble-context-menu';
 import { resolveTurnErrorMessage } from './turn-error-presentation';
 
-export type ChatMessageRowProps = {
-  message: ChatMessageUi;
-  sessionId?: string;
-  messageIndex: number;
-  showStreamingCaret: boolean;
-  /** Quiet workbench: entrance animation for messages that arrived after mount. */
-  isNew: boolean;
-  /** Tool-reported changed paths from the containing turn for system summaries. */
-  knownFilePaths?: readonly string[] | undefined;
-  streaming: boolean;
-  /** CM-10: source session for the message context menu ref. */
-  activeSessionId: string | null;
-  editingMessageId: string | null;
-  lastUserMessageId: string | null;
-  activeTheme: ThemeManifest | null;
-  artifactThemeKey: string | number;
-  runRecordsById: Record<string, RunRecordUi>;
-  /** Keyed Run projection for this row; avoids whole-map memo invalidation. */
-  runRecord?: RunRecordUi;
-  activeRunId: string | null;
-  activeSkill: SkillActivityView | null;
-  agentLocatorAnimation?: AgentLocatorAnimation;
-  permissionPrompt: PermissionPromptUi | null;
-  workDetailsExpanded: WorkDetailsExpanded;
-  toolDensity: ToolCallDensity;
-  showThinking: boolean;
-  /** Cross-message explore-flow role (anchor capsule / suppressed member). */
-  exploreRole?: ExploreFlowRole;
-  /** Project root forwarded to tool cards → DiffCard. */
-  projectPath?: string | null;
-  /** Host git request adapter forwarded to tool cards → DiffCard. */
-  toolDiffRequest?: DiffCardRequest;
-  filesChangedRequest?: FilesChangedBarRequest;
-  onReviewChanges?: () => void;
-  onEdit: (messageId: string) => void;
-  onCancelEdit: () => void;
-  onEditResend: (messageId: string, text: string) => void;
-  onRetry: (messageId: string) => void;
-  onRetryTurn?: (userMessageId: string, options: { keepPrevious: boolean }) => void;
-  branchPoints?: TranscriptBranchPoint[];
-  onSwitchBranch?: (headMessageId: string) => void;
-  onInterventionEdit?: (messageId: string, text: string) => void | Promise<void>;
-  onInterventionCancel?: (messageId: string) => void | Promise<void>;
-  onFeedback?: ((message: string, level: 'info' | 'success' | 'error') => void) | undefined;
-  /** Open the read-only subagent session inspector for a transcript card. */
-  onInspectSubagent: ((selection: SubagentInspectorSelection) => void) | undefined;
-  docCardRequest?: DocCardSequenceRequest;
-  subagentChildren?: Record<string, SessionSummary>;
-  subagentInvocations?: Record<string, SubagentInvocation>;
-  subagentStreams?: Record<string, SubagentStreamState>;
-  onArtifactAction?: (action: ArtifactActionMessage) => void;
-  onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
-  /** Artifact capability. Always forwarded as a boolean. */
-  artifactPreviewEnabled: boolean;
-  /** When true, MarkdownView displays source code first for artifact blocks. */
-  artifactCodeFirst?: boolean;
-  /** Security byte cap forwarded to analyzeArtifactFence. */
-  artifactMaxBytes?: number;
-  /** Callback when clicking a search result file or file link. */
-  onOpenFile?: ((absolutePath: string, relativePath?: string) => void) | undefined;
-  /** Open an edited file's diff in the right inspector. */
-  onOpenDiff?: ((absolutePath: string, relativePath?: string) => void) | undefined;
-  /** Callback when clicking a markdown document link or plan document chip. */
-  onOpenDocument?: ((input: DocumentOpenInput) => void) | undefined;
-  /** Locale used by all run activity components. */
-  locale?: 'zh-CN' | 'en';
-  /** Global composer card props so the edit mode matches the bottom composer. */
-  composerCard: ComposerDockProps;
-  /** Walkthrough artifacts keyed by owning assistant messageId. */
-  walkthroughsByMessageId?: Record<string, WalkthroughArtifact>;
-  /** Whether the Generate Walkthrough action is enabled. */
-  walkthroughEnabled?: boolean;
-  /** Whether auto-generation is active (hides the manual Generate button). */
-  walkthroughAutoGenerate?: boolean;
-  /** Pre-computed eligibility for the Generate button (computed by parent). */
-  walkthroughEligible?: boolean;
-  /** Generate a walkthrough for a message; force overwrites an existing artifact. */
-  onGenerateWalkthrough?:
-    ((messageId: string, force?: boolean) => void | Promise<void>) | undefined;
-  /** Cancel an in-flight walkthrough generation. */
-  onCancelWalkthrough?:
-    ((messageId: string, generationId?: string) => void | Promise<void>) | undefined;
-  /** SF-03: Duplicate the entire session. */
-  /** SF-03: Fork from a specific assistant response. */
-  onForkFromMessage?: ((messageId: string) => void | Promise<void>) | undefined;
-  /** SF-03: Open the lineage / branch list for a message. */
-  onOpenForks?: ((messageId: string) => void) | undefined;
-  /** SF-03: Map of messageId → direct fork count (for badge display). */
-  forkCountsByMessageId?: Record<string, number>;
-  /** SF-04: Product lineage projection for the active session. */
-  sessionLineage?: ProductSessionLineageView | null;
-  /** SF-04: Navigate to another product session from the lineage tree. */
-  onOpenSession?: ((sessionId: string) => void) | undefined;
-  /** SF-03: Whether derived-session actions are disabled. */
-  derivedActionsDisabled?: boolean;
-  /** SF-03: True only for the last assistant message in a turn group. */
-  isLastAssistantInTurn?: boolean;
-  /** SF-04: True only for the newest completed assistant response. */
-  isLatestAssistantResponse?: boolean;
-  /** Assembly capsule for this user row, if Host recorded one. */
-  assemblySummary?: ContextSummaryPush;
-  isConversationSession?: boolean;
-  onResolveFlashcards?: (
-    itemIds: string[],
-  ) => Promise<import('@piwin/contracts').FlashcardReviewCard[]>;
-  /** Flashcard create tools from the whole turn; shown on the last assistant row. */
-  turnFlashcardTools?: readonly ToolCardUi[];
-  livePromptModel?: ModelRef | null;
-  modelOptions?: readonly ModelOption[];
-  configProviders?: readonly ModelProviderConfig[];
-  contextUsage?: ContextUsageSnapshot | null;
-  onRegenerate?: (() => void) | undefined;
-  /** Conversation only: identity header on the first visible assistant in the turn. */
-  showConversationHeader?: boolean;
-  /** Conversation only: turn usage chip on that identity header. */
-  showConversationTurnUsage?: boolean;
-};
-
-function areFilePathListsEqual(
-  left: readonly string[] | undefined,
-  right: readonly string[] | undefined,
-): boolean {
-  if (left === right) {
-    return true;
-  }
-  if (!left || !right || left.length !== right.length) {
-    return false;
-  }
-  return left.every((path, index) => path === right[index]);
-}
+export type { ChatMessageRowProps } from './chat-message-row-types.js';
+import type { ChatMessageRowProps } from './chat-message-row-types.js';
+import { areChatMessageRowPropsEqual } from './chat-message-row-memo.js';
 
 export const ChatMessageRow = memo(
   function ChatMessageRow(props: ChatMessageRowProps): ReactElement | null {
@@ -212,6 +58,10 @@ export const ChatMessageRow = memo(
       message.role === 'assistant' ? getGenerationStatus(message, 'image') : null;
     const videoGenerationStatus =
       message.role === 'assistant' ? getGenerationStatus(message, 'video') : null;
+    const imageGenerationTool =
+      message.role === 'assistant' ? getGenerationTool(message, 'image') : null;
+    const videoGenerationTool =
+      message.role === 'assistant' ? getGenerationTool(message, 'video') : null;
     const contextMenu = useDesktopContextMenu();
     if (message.subagentActivity) {
       if (props.isConversationSession === true) {
@@ -395,9 +245,7 @@ export const ChatMessageRow = memo(
               // clear used to drop livePromptModel and hide the provider avatar.
               isStreaming={props.streaming === true && message.status === 'streaming'}
               artifactPreviewEnabled={props.artifactPreviewEnabled}
-              {...(props.artifactMaxBytes !== undefined
-                ? { artifactMaxBytes: props.artifactMaxBytes }
-                : {})}
+              {...pickArtifactFenceSecurity(props)}
               {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
               {...(props.onOpenArtifactCanvas
                 ? { onOpenArtifactCanvas: props.onOpenArtifactCanvas }
@@ -410,6 +258,8 @@ export const ChatMessageRow = memo(
                 : {})}
               {...(props.onOpenFile ? { onOpenFile: props.onOpenFile } : {})}
               {...(props.onOpenDiff ? { onOpenDiff: props.onOpenDiff } : {})}
+              {...(props.exploreRole !== undefined ? { exploreRole: props.exploreRole } : {})}
+              {...(props.showThinking !== undefined ? { showThinking: props.showThinking } : {})}
             />
           ) : (
             <TurnWorkDetails
@@ -423,6 +273,7 @@ export const ChatMessageRow = memo(
               permissionPrompt={
                 props.isLastAssistantInTurn === true ? props.permissionPrompt : null
               }
+              {...(props.onPermission !== undefined ? { onPermission: props.onPermission } : {})}
               workDetailsExpanded={props.workDetailsExpanded}
               toolDensity={props.toolDensity}
               showThinking={props.showThinking}
@@ -464,9 +315,7 @@ export const ChatMessageRow = memo(
                   locale={props.locale ?? 'zh-CN'}
                   artifactPreviewEnabled={props.artifactPreviewEnabled}
                   artifactCodeFirst={props.artifactCodeFirst ?? false}
-                  {...(props.artifactMaxBytes !== undefined
-                    ? { artifactMaxBytes: props.artifactMaxBytes }
-                    : {})}
+                  {...pickArtifactFenceSecurity(props)}
                   {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
                   {...(props.sessionId
                     ? { artifactOrigin: { sessionId: props.sessionId, messageId: message.id } }
@@ -494,6 +343,7 @@ export const ChatMessageRow = memo(
           <ImageGenerationProgress
             locale={props.locale ?? 'zh-CN'}
             status={imageGenerationStatus}
+            {...(imageGenerationTool ? { tool: imageGenerationTool } : {})}
           />
         ) : null}
         {videoGenerationStatus &&
@@ -501,6 +351,7 @@ export const ChatMessageRow = memo(
           <VideoGenerationProgress
             locale={props.locale ?? 'zh-CN'}
             status={videoGenerationStatus}
+            {...(videoGenerationTool ? { tool: videoGenerationTool } : {})}
           />
         ) : null}
         {message.role === 'assistant' || isEditingThis ? (
@@ -537,6 +388,8 @@ export const ChatMessageRow = memo(
             }}
             interventionEdit={canEditPendingIntervention}
             currentTurn={props.lastUserMessageId === message.id}
+            branchPoint={findActiveBranchPoint(props.branchPoints ?? [], message.id)}
+            {...(props.locale !== undefined ? { locale: props.locale } : {})}
           />
         ) : message.role === 'assistant' ? null : (
           <UserMessageContent
@@ -637,15 +490,19 @@ export const ChatMessageRow = memo(
         props.isLastAssistantInTurn === true &&
         (props.onForkFromMessage ||
           message.text ||
-          (props.isConversationSession === true &&
-            props.isLatestAssistantResponse === true &&
+          (props.isLatestAssistantResponse === true &&
             props.onRegenerate !== undefined)) ? (
           <AssistantResponseActions
             messageId={message.id}
             messageText={message.text}
+            colophonMeta={buildAssistantColophonMeta({
+              message,
+              locale: props.locale ?? 'zh-CN',
+              contextUsage:
+                props.isLatestAssistantResponse === true ? props.contextUsage : null,
+            })}
             showFork={props.isLastAssistantInTurn === true && props.onForkFromMessage !== undefined}
             showRegenerate={
-              props.isConversationSession === true &&
               props.isLatestAssistantResponse === true &&
               props.onRegenerate !== undefined
             }
@@ -670,14 +527,12 @@ export const ChatMessageRow = memo(
     // the menu (retry/fork are capability-gated off); subagent cards are
     // handled by the early return above.
     const showPreparingCapsule =
-      props.isConversationSession !== true &&
       isUserMessage &&
       props.assemblySummary === undefined &&
       props.streaming === true &&
       props.activeRunId != null &&
       props.lastUserMessageId === message.id;
     const capsule =
-      props.isConversationSession !== true &&
       isUserMessage &&
       (props.assemblySummary !== undefined || showPreparingCapsule) ? (
         <AssemblySummaryCapsule
@@ -710,97 +565,5 @@ export const ChatMessageRow = memo(
       </>
     );
   },
-  (previous, next) => {
-    const isActionableUserMessage = previous.message.role === 'user';
-    // composerCard only mounts for the row being edited; ignore identity churn elsewhere.
-    const isEditingThisRow =
-      previous.editingMessageId === previous.message.id ||
-      next.editingMessageId === next.message.id;
-    const callbackPropsAreStable =
-      previous.onFeedback === next.onFeedback &&
-      (isActionableUserMessage
-        ? previous.onEdit === next.onEdit &&
-          previous.onCancelEdit === next.onCancelEdit &&
-          previous.onEditResend === next.onEditResend &&
-          previous.onRetry === next.onRetry &&
-          previous.onRetryTurn === next.onRetryTurn &&
-          previous.onSwitchBranch === next.onSwitchBranch &&
-          previous.branchPoints === next.branchPoints &&
-          previous.onInterventionEdit === next.onInterventionEdit &&
-          previous.onInterventionCancel === next.onInterventionCancel &&
-          (!isEditingThisRow || previous.composerCard === next.composerCard)
-        : previous.message.subagentActivity
-          ? previous.onInspectSubagent === next.onInspectSubagent
-          : true);
-    // Global streaming only disables actions on user rows and the turn's last
-    // assistant. Historical assistants should not re-render on every send.
-    const rowUsesStreamingFlag =
-      previous.message.role === 'user' ||
-      next.message.role === 'user' ||
-      previous.isLastAssistantInTurn === true ||
-      next.isLastAssistantInTurn === true;
-    const streamingIsStable = !rowUsesStreamingFlag || previous.streaming === next.streaming;
-    return (
-      previous.message === next.message &&
-      previous.sessionId === next.sessionId &&
-      previous.messageIndex === next.messageIndex &&
-      previous.showStreamingCaret === next.showStreamingCaret &&
-      streamingIsStable &&
-      previous.activeSessionId === next.activeSessionId &&
-      previous.editingMessageId === next.editingMessageId &&
-      previous.lastUserMessageId === next.lastUserMessageId &&
-      previous.activeTheme === next.activeTheme &&
-      areFilePathListsEqual(previous.knownFilePaths, next.knownFilePaths) &&
-      previous.artifactThemeKey === next.artifactThemeKey &&
-      previous.runRecord === next.runRecord &&
-      previous.activeRunId === next.activeRunId &&
-      previous.activeSkill === next.activeSkill &&
-      previous.agentLocatorAnimation === next.agentLocatorAnimation &&
-      previous.permissionPrompt === next.permissionPrompt &&
-      previous.workDetailsExpanded === next.workDetailsExpanded &&
-      previous.toolDensity === next.toolDensity &&
-      previous.showThinking === next.showThinking &&
-      exploreFlowRolesEqual(previous.exploreRole, next.exploreRole) &&
-      previous.projectPath === next.projectPath &&
-      previous.toolDiffRequest === next.toolDiffRequest &&
-      previous.locale === next.locale &&
-      previous.onArtifactAction === next.onArtifactAction &&
-      previous.onOpenArtifactCanvas === next.onOpenArtifactCanvas &&
-      previous.onOpenDocument === next.onOpenDocument &&
-      previous.onOpenFile === next.onOpenFile &&
-      previous.onOpenDiff === next.onOpenDiff &&
-      previous.subagentChildren === next.subagentChildren &&
-      previous.subagentInvocations === next.subagentInvocations &&
-      previous.subagentStreams === next.subagentStreams &&
-      previous.filesChangedRequest === next.filesChangedRequest &&
-      previous.onReviewChanges === next.onReviewChanges &&
-      previous.walkthroughsByMessageId === next.walkthroughsByMessageId &&
-      previous.walkthroughEnabled === next.walkthroughEnabled &&
-      previous.walkthroughAutoGenerate === next.walkthroughAutoGenerate &&
-      previous.walkthroughEligible === next.walkthroughEligible &&
-      previous.onGenerateWalkthrough === next.onGenerateWalkthrough &&
-      previous.onCancelWalkthrough === next.onCancelWalkthrough &&
-      previous.onForkFromMessage === next.onForkFromMessage &&
-      previous.onOpenForks === next.onOpenForks &&
-      previous.forkCountsByMessageId === next.forkCountsByMessageId &&
-      previous.sessionLineage === next.sessionLineage &&
-      previous.onOpenSession === next.onOpenSession &&
-      previous.derivedActionsDisabled === next.derivedActionsDisabled &&
-      previous.isLastAssistantInTurn === next.isLastAssistantInTurn &&
-      previous.turnFlashcardTools === next.turnFlashcardTools &&
-      previous.isLatestAssistantResponse === next.isLatestAssistantResponse &&
-      previous.assemblySummary === next.assemblySummary &&
-      previous.isConversationSession === next.isConversationSession &&
-      previous.showConversationHeader === next.showConversationHeader &&
-      previous.showConversationTurnUsage === next.showConversationTurnUsage &&
-      previous.onResolveFlashcards === next.onResolveFlashcards &&
-      previous.onRegenerate === next.onRegenerate &&
-      previous.onRetryTurn === next.onRetryTurn &&
-      previous.livePromptModel === next.livePromptModel &&
-      previous.contextUsage === next.contextUsage &&
-      previous.modelOptions === next.modelOptions &&
-      previous.configProviders === next.configProviders &&
-      callbackPropsAreStable
-    );
-  },
+  areChatMessageRowPropsEqual,
 );

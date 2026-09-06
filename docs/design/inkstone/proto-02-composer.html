@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inkstone（砚）· 增量 2 · 作曲器全状态</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:#e6e1d7;overflow:hidden}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-align:inherit}
+u{text-decoration:none;cursor:pointer}u:hover{text-decoration:underline}
+.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.s12{width:12px;height:12px}.s14{width:14px;height:14px}
+.ml{margin-left:auto}.grow{flex:1}
+.app{--sans:Inter,"PingFang SC","Noto Sans SC",-apple-system,system-ui,sans-serif;--serif:"Noto Serif SC","Songti SC","STSong","Source Han Serif SC","Source Serif 4",Georgia,serif;--mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;--spring:cubic-bezier(.34,1.4,.64,1);height:100dvh;width:100%;display:grid;grid-template-rows:28px minmax(0,1fr);background:var(--void);color:var(--t1);font:13.5px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+.app[data-face=paper]{color-scheme:light;--void:#e6e1d7;--s1:#f0ece4;--s2:#f8f6f0;--s3:#fffdf8;--s4:#fff;--t1:#1d1b17;--t2:#5a554d;--t3:#726b61;--t4:#8f887d;--l1:rgba(29,27,23,.06);--l2:rgba(29,27,23,.11);--l3:rgba(29,27,23,.2);--zhu:#c6412a;--zhu-lift:#d4553d;--on-zhu:#fff7f0;--zhu-wash:rgba(198,65,42,.1);--lamp:#b8801f;--lamp-glow:rgba(184,128,31,.4);--lamp-wash:rgba(184,128,31,.14);--pine:#3d7c5e;--pine-wash:rgba(61,124,94,.12);--ochre:#94611a;--ochre-wash:rgba(148,97,26,.12);--crimson:#9c2e3d;--crimson-wash:rgba(156,46,61,.1);--azure:#3a7797;--azure-wash:rgba(58,119,151,.12);--code:#efece4;--slab:#1f1c18;--slab-t:#efe9df;--slab-ph:#8d857a;--slab-chip:rgba(255,255,255,.07);--slab-line:rgba(255,255,255,.1);--sh1:0 1px 2px rgba(60,45,20,.06),0 0 0 1px var(--l2);--sh2:0 2px 8px -2px rgba(60,45,20,.12),0 0 0 1px var(--l2);--sh3:0 14px 34px -12px rgba(50,35,15,.3),0 0 0 1px var(--l3)}
+.app[data-face=ink]{color-scheme:dark;--void:#0b0a09;--s1:#141210;--s2:#191714;--s3:#201d19;--s4:#2a2621;--t1:#ebe5da;--t2:#a59d92;--t3:#8b8378;--t4:#6a6259;--l1:rgba(235,229,218,.06);--l2:rgba(235,229,218,.1);--l3:rgba(235,229,218,.17);--zhu:#e25a3d;--zhu-lift:#f07054;--on-zhu:#1c0b07;--zhu-wash:rgba(226,90,61,.14);--lamp:#e7b352;--lamp-glow:rgba(231,179,82,.35);--lamp-wash:rgba(231,179,82,.12);--pine:#5fad85;--pine-wash:rgba(95,173,133,.14);--ochre:#c88f3c;--ochre-wash:rgba(200,143,60,.14);--crimson:#d95f6e;--crimson-wash:rgba(217,95,110,.14);--azure:#6ba4c3;--azure-wash:rgba(107,164,195,.14);--code:#0f0e0c;--slab:#0e0d0b;--slab-t:#ebe5da;--slab-ph:#6f685f;--slab-chip:rgba(235,229,218,.07);--slab-line:rgba(235,229,218,.1);--sh1:inset 0 1px 0 rgba(255,255,255,.04),0 0 0 1px rgba(0,0,0,.6);--sh2:inset 0 1px 0 rgba(255,255,255,.04),0 0 0 1px rgba(0,0,0,.6),0 2px 8px -2px rgba(0,0,0,.5);--sh3:inset 0 1px 0 rgba(255,255,255,.06),0 0 0 1px rgba(0,0,0,.7),0 14px 34px -10px rgba(0,0,0,.7)}
+.app[data-slab=paper]{--slab:var(--s3);--slab-t:var(--t1);--slab-ph:var(--t4);--slab-chip:var(--s1);--slab-line:var(--l2)}
+.proto{display:flex;align-items:center;gap:10px;padding:0 12px;font:11px var(--mono);color:var(--t3);border-bottom:1px dashed var(--l2);white-space:nowrap;overflow:hidden}
+.proto .pt{color:var(--t1);margin-right:8px}.proto .pl{color:var(--t4)}.proto .pn{margin-left:auto;color:var(--t4)}
+.seg{display:inline-flex;border:1px solid var(--l2);border-radius:5px;overflow:hidden;flex:none}
+.seg button{font:11px var(--mono);padding:3px 8px;color:var(--t3)}.seg button.on{background:var(--s3);color:var(--t1)}
+.body{display:grid;grid-template-columns:232px minmax(0,1fr);gap:8px;padding:0 8px 8px;min-height:0}
+.panel{background:var(--s1);border-radius:12px;box-shadow:var(--sh2);min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.idx-h{padding:12px 12px 4px;font:500 15px var(--serif);color:var(--t1)}
+.idx-h small{display:block;font:11px var(--mono);color:var(--t4);margin-top:2px;white-space:normal;line-height:1.5}
+.idx-scroll{flex:1;overflow:auto;min-height:0;padding:0 6px 8px}
+.ig{display:flex;align-items:center;gap:6px;height:22px;padding:0 8px;margin-top:8px;font:600 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--t3)}
+.ir{display:flex;align-items:center;gap:8px;height:26px;padding:0 8px;border-radius:6px;font-size:12.5px;color:var(--t2);white-space:nowrap;overflow:hidden;width:100%}
+.ir:hover{background:var(--s2);color:var(--t1)}.ir.on{background:var(--s3);box-shadow:var(--sh1);color:var(--t1)}
+.n{font:11px var(--mono);color:var(--t4);font-variant-numeric:tabular-nums}
+.ir .n{width:18px;flex:none}
+.stage{background:var(--s2);position:relative;container-type:inline-size;display:flex;flex-direction:column}
+.stage::after{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;opacity:.035;mix-blend-mode:multiply;background:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>") 0 0/200px 200px}
+.app[data-face=ink] .stage::after{mix-blend-mode:screen;opacity:.02}
+.scroll{--measure:720px;--card-x:14px;--card-y:12px;--surf-x:12px;--surf-y:10px;flex:1;overflow:auto;min-height:0;padding:16px 28px 12px;scroll-behavior:smooth}
+.scroll::-webkit-scrollbar,.idx-scroll::-webkit-scrollbar{width:8px}
+.scroll::-webkit-scrollbar-thumb,.idx-scroll::-webkit-scrollbar-thumb{background:var(--l2);border-radius:4px}
+.st{display:flex;align-items:baseline;gap:10px;width:100%;max-width:var(--measure);margin:26px auto 14px}
+.st:first-child{margin-top:6px}
+.st h2{font:500 20px/1.3 var(--serif);color:var(--t1)}
+.st .sn{font:11px var(--mono);color:var(--t4)}
+.blk{width:100%;max-width:var(--measure);margin:0 auto 22px;scroll-margin-top:14px;position:relative}
+.app[data-notes=on] .blk::after{content:attr(data-n);position:absolute;right:-40px;top:0;width:24px;height:20px;border-radius:3px;background:var(--s3);box-shadow:var(--sh1);font:600 10.5px/20px var(--mono);text-align:center;color:var(--t3);pointer-events:none}
+.app[data-notes=on] .blk.flash::after{background:var(--zhu);color:var(--on-zhu);box-shadow:none}
+.exh-h{font:600 15px/1.3 var(--sans);color:var(--t1);margin-bottom:2px}
+.exh-d{font-size:12.5px;color:var(--t3);margin-bottom:10px;max-width:560px}
+.exh-d code{font:11.5px var(--mono);background:var(--code);color:var(--t1);padding:1px 5px;border-radius:3px}
+.card{position:relative;background:var(--s3);box-shadow:var(--sh1);border-radius:8px;padding:var(--card-y) var(--card-x)}
+.card+.card{margin-top:8px}
+.row-cmp{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;border-radius:6px;color:var(--t2);font-size:12.5px;white-space:nowrap}
+.chip:hover{background:var(--s2);color:var(--t1)}
+.ib{width:26px;height:26px;border-radius:6px;display:inline-grid;place-items:center;color:var(--t3);flex:none}
+.ib:hover{background:var(--s2);color:var(--t1)}.ib.s22{width:22px;height:22px}
+.btn{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 10px;border-radius:6px;font-size:12.5px;color:var(--t2);white-space:nowrap;flex:none}
+.btn:hover{background:var(--s2);color:var(--t1)}
+.btn.pri{background:var(--zhu);color:var(--on-zhu)}.btn.pri:hover{background:var(--zhu-lift);color:var(--on-zhu)}
+.btn.sm{height:22px;padding:0 7px;font-size:11.5px}
+.av{width:18px;height:18px;border-radius:50%;background:var(--s1);box-shadow:var(--sh1);font:600 10.5px/18px var(--serif);text-align:center;color:var(--t1);display:inline-block;flex:none}
+.lamp{width:7px;height:7px;border-radius:50%;background:var(--lamp);box-shadow:0 0 8px 2px var(--lamp-glow);animation:breath 2.4s ease-in-out infinite;flex:none}
+.grind{width:11px;height:11px;border-radius:50%;border:1.5px solid var(--l3);border-top-color:var(--lamp);animation:grind 1.4s linear infinite;flex:none}
+/* ── 石板（作曲器主体） ── */
+.dock-wrap{padding:14px 28px 16px;background:linear-gradient(to bottom,transparent,var(--s2) 30%);position:relative;z-index:2;flex:none}
+.dock-in{max-width:var(--measure);margin:0 auto}
+.qedit{display:flex;align-items:center;gap:8px;height:30px;margin:0 4px 6px;padding:0 10px;border-radius:6px;background:var(--zhu-wash);box-shadow:var(--sh1);font-size:12px;color:var(--t1)}
+.qedit .qi{color:var(--zhu);flex:none}
+.qedit .qn{font:600 11px var(--mono);color:var(--zhu);flex:none}
+.qedit .qt{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.qedit .qh{font:11px var(--mono);color:var(--t3);flex:none}
+.queued{display:flex;align-items:center;gap:8px;height:30px;margin:0 4px 6px;padding:0 10px;border-radius:6px;background:var(--s3);box-shadow:var(--sh1);font-size:12px;color:var(--t2)}
+.queued .qm{font:11px var(--mono);color:var(--t3);flex:none}
+.queued b{color:var(--t1);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.queued .ln{margin-left:auto;display:flex;gap:10px;font-size:11.5px;color:var(--t3);flex:none}
+.slab{background:var(--slab);color:var(--slab-t);border-radius:12px;box-shadow:var(--sh3);position:relative;overflow:hidden}
+.slab::before{content:"";position:absolute;left:0;right:0;top:0;height:1px;background:var(--slab-line)}
+.app[data-state=streaming] .slab::before,.app[data-state=queued] .slab::before{background:linear-gradient(90deg,transparent 0,var(--lamp) 45%,var(--lamp-glow) 55%,transparent 100%);background-size:200% 100%;animation:sheen 4.8s linear infinite}
+.refs{display:flex;gap:6px;padding:10px 12px 0;flex-wrap:wrap}
+.ref{display:inline-flex;align-items:center;height:22px;padding:0 7px;border-radius:3px;background:var(--slab-chip);font:11.5px var(--mono);color:var(--slab-t)}
+.shelf-row{display:flex;gap:6px;padding:10px 12px 0;flex-wrap:wrap}
+.satt{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 8px 0 3px;border-radius:6px;background:var(--slab-chip);font:12px var(--sans);color:var(--slab-t);white-space:nowrap}
+.satt .th{width:20px;height:20px;border-radius:3px;background:linear-gradient(135deg,var(--azure),var(--pine));flex:none}
+.satt .rm{width:16px;height:16px;border-radius:50%;display:grid;place-items:center;color:var(--slab-ph);flex:none}.satt .rm:hover{color:var(--slab-t)}
+.satt.fail{background:var(--crimson-wash);color:var(--crimson)}
+.ta{display:block;width:100%;min-height:56px;padding:10px 14px 2px;background:transparent;border:0;color:var(--slab-t);font:14.5px/1.6 var(--sans);resize:none;outline:0}
+.ta::placeholder{color:var(--slab-ph)}
+.bar{display:flex;align-items:center;gap:2px;padding:4px 8px 8px}
+.sb-chip{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 8px;border-radius:6px;color:var(--slab-ph);font-size:12.5px;white-space:nowrap}
+.sb-chip:hover{background:var(--slab-chip);color:var(--slab-t)}.sb-chip.on{color:var(--slab-t)}
+.sb-chip.ic{width:28px;padding:0;justify-content:center}
+.sb-chip .av{background:var(--slab-chip);color:var(--slab-t);box-shadow:none;width:16px;height:16px;line-height:16px;font-size:9.5px}
+.dot{color:var(--slab-ph)}
+.goal-chip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 6px 0 10px;border-radius:999px;background:var(--zhu-wash);color:var(--zhu);font:600 11.5px var(--sans)}
+.goal-chip .i{width:12px;height:12px;color:var(--zhu)}
+.ring{width:18px;height:18px;border-radius:50%;margin:0 8px 0 4px;background:conic-gradient(var(--slab-t) 37%,var(--slab-chip) 0);-webkit-mask:radial-gradient(farthest-side,transparent 58%,#000 60%);mask:radial-gradient(farthest-side,transparent 58%,#000 60%);flex:none}
+.send{width:32px;height:32px;border-radius:50%;background:var(--zhu);color:var(--on-zhu);display:grid;place-items:center;flex:none;position:relative}
+.send:hover{background:var(--zhu-lift)}
+.send .ic-pause,.send .ic-continue,.send .ic-queue,.send .ic-retry{display:none}
+.app[data-state=streaming] .send,.app[data-state=queued] .send{background:var(--slab-chip);color:var(--slab-t);box-shadow:0 0 0 2px var(--lamp);animation:breath 2.4s ease-in-out infinite}
+.app[data-state=streaming] .send .ic-send,.app[data-state=queued] .send .ic-send{display:none}
+.app[data-state=streaming] .send .ic-pause{display:block}
+.app[data-state=queued] .send .ic-queue{display:block}
+.app[data-state=pausing] .send{background:var(--slab-chip);color:var(--slab-ph);opacity:.6}
+.app[data-state=pausing] .send .ic-send{display:none}.app[data-state=pausing] .send .ic-pause{display:block}
+.app[data-state=paused] .send .ic-send{display:none}.app[data-state=paused] .send .ic-continue{display:block}
+.app[data-state=qedit] .send{background:var(--pine)}
+.hint{display:flex;gap:14px;justify-content:center;margin-top:8px;font:11px var(--mono);color:var(--t4);flex-wrap:wrap}
+[data-hint]{display:none}.app[data-state=idle] [data-hint~=idle],.app[data-state=draft] [data-hint~=draft],.app[data-state=streaming] [data-hint~=streaming],.app[data-state=queued] [data-hint~=queued],.app[data-state=pausing] [data-hint~=pausing],.app[data-state=paused] [data-hint~=paused],.app[data-state=qedit] [data-hint~=qedit]{display:inline}
+[data-only]{display:none}.app[data-state=idle] [data-only~=idle],.app[data-state=draft] [data-only~=draft],.app[data-state=streaming] [data-only~=streaming],.app[data-state=queued] [data-only~=queued],.app[data-state=pausing] [data-only~=pausing],.app[data-state=paused] [data-only~=paused],.app[data-state=qedit] [data-only~=qedit]{display:flex}
+[data-only-i]{display:none}.app[data-state=idle] [data-only-i~=idle],.app[data-state=draft] [data-only-i~=draft],.app[data-state=streaming] [data-only-i~=streaming],.app[data-state=queued] [data-only-i~=queued],.app[data-state=pausing] [data-only-i~=pausing],.app[data-state=paused] [data-only-i~=paused],.app[data-state=qedit] [data-only-i~=qedit]{display:inline-flex}
+/* ── 弹层 / 菜单静态展台 ── */
+.trigrow{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.trigrow .lbl{font:11px var(--mono);color:var(--t4)}
+.pop-trig{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 9px;border-radius:6px;background:var(--s2);box-shadow:var(--sh1);font-size:12.5px;color:var(--t1);white-space:nowrap}
+.pop-trig .chv{width:9px;height:9px;color:var(--t4)}
+.pop{background:var(--s4);box-shadow:var(--sh3);border-radius:12px;padding:8px;max-width:340px}
+.pop-cap{font:600 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:6px 8px 4px}
+.pop-item{display:flex;align-items:center;gap:8px;height:32px;padding:0 8px;border-radius:6px;font-size:12.5px;color:var(--t1);width:100%}
+.pop-item:hover{background:var(--s2)}
+.pop-item.sel{background:var(--zhu-wash);color:var(--zhu)}
+.pop-item .desc{margin-left:auto;font-size:11px;color:var(--t4);text-align:right;max-width:150px;overflow:hidden;text-overflow:ellipsis}
+.pop-opt{display:block;padding:7px 8px;border-radius:8px;width:100%}
+.pop-opt:hover{background:var(--s2)}
+.pop-opt.sel{background:var(--s2);box-shadow:inset 0 0 0 1px var(--l2)}
+.pop-opt .ol{font-weight:500;font-size:12.5px;color:var(--t1);display:flex;align-items:center;gap:6px}
+.pop-opt .ol .warn{color:var(--zhu);font-size:11px}
+.pop-opt .od{font-size:11px;color:var(--t3);margin-top:2px}
+.pop-sep{height:1px;background:var(--l1);margin:4px 0}
+.pop-foot{display:flex;justify-content:space-between;gap:4px;padding:6px 8px 2px}
+.pop-foot button{font-size:11.5px;color:var(--t2);padding:4px 6px;border-radius:4px}
+.pop-foot button:hover{background:var(--s2);color:var(--t1)}
+.at-menu,.slash-menu{background:var(--s4);box-shadow:var(--sh3);border-radius:12px;padding:6px;max-width:380px}
+.at-sec-t,.slash-sec-t{font:600 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:8px 8px 2px}
+.at-item,.slash-item{display:flex;flex-direction:column;gap:1px;padding:6px 8px;border-radius:6px;width:100%}
+.at-item:hover,.slash-item:hover{background:var(--s2)}
+.at-item.sel,.slash-item.sel{background:var(--zhu-wash)}
+.at-item .r,.slash-item .r{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--t1);font-weight:500}
+.at-item .r .i,.slash-item .r .i{color:var(--t3)}
+.at-item .bdg{font:10px var(--mono);color:var(--t3);background:var(--s1);padding:0 5px;border-radius:3px;margin-left:4px}
+.at-item .d,.slash-item .d{font-size:11px;color:var(--t3);padding-left:22px}
+.slash-item.off .r{color:var(--t4)}.slash-item.off .d{color:var(--t4)}
+.ring-pop{background:var(--s4);box-shadow:var(--sh3);border-radius:12px;padding:12px;max-width:280px}
+.ring-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.ring-h strong{font-size:13px;color:var(--t1)}
+.ring-sum{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.pill-ctx{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;font:600 11px var(--sans)}
+.pill-ctx.ok{background:var(--pine-wash);color:var(--pine)}.pill-ctx.warn{background:var(--lamp-wash);color:var(--lamp)}.pill-ctx.crit{background:var(--crimson-wash);color:var(--crimson)}
+.ring-note{font-size:11.5px;color:var(--t3);margin-top:4px;line-height:1.5}
+.railchip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:6px;background:var(--s3);box-shadow:var(--sh1);font-size:12px;color:var(--t2);white-space:nowrap}
+.railchip .i{color:var(--t3)}
+.railchip b{color:var(--t1);font-weight:500}
+.railchip.run{color:var(--pine)}.railchip.run .i{color:var(--pine)}
+.kbd{display:inline-flex;align-items:center;height:20px;padding:0 6px;border-radius:4px;background:var(--s1);box-shadow:var(--sh1);font:11px var(--mono);color:var(--t2)}
+.kbtable{width:100%;border-collapse:collapse;font-size:12.5px}
+.kbtable th{font:600 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--t3);text-align:left;padding:6px 8px;border-bottom:1px solid var(--l2)}
+.kbtable td{padding:7px 8px;border-bottom:1px solid var(--l1);vertical-align:top;color:var(--t2)}
+.kbtable td:first-child{white-space:nowrap}
+.modal-mock{background:var(--s4);box-shadow:var(--sh3);border-radius:12px;overflow:hidden}
+.mm-h{display:flex;align-items:center;justify-content:space-between;height:38px;padding:0 12px;border-bottom:1px solid var(--l1)}
+.mm-h .tt{font:500 13.5px var(--sans);color:var(--t1)}
+.mm-h .st{font:11px var(--mono);color:var(--t4);margin-left:8px}
+.mm-b{padding:14px;min-height:120px;font:14.5px/1.7 var(--sans);color:var(--t1)}
+.mm-f{display:flex;align-items:center;justify-content:space-between;height:40px;padding:0 12px;border-top:1px solid var(--l1)}
+.mm-f .h{font:11px var(--mono);color:var(--t4)}
+@keyframes breath{0%,100%{opacity:.6}50%{opacity:1}}
+@keyframes grind{to{transform:rotate(360deg)}}
+@keyframes sheen{from{background-position:200% 0}to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs>
+<symbol id="search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></symbol>
+<symbol id="plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></symbol>
+<symbol id="chevd" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></symbol>
+<symbol id="chevr" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></symbol>
+<symbol id="copy" viewBox="0 0 16 16"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M3 10.5V4a1.5 1.5 0 0 1 1.5-1.5H10.5"/></symbol>
+<symbol id="refresh" viewBox="0 0 16 16"><path d="M13 8A5 5 0 1 1 11.6 4.5M13.5 2.5v3h-3"/></symbol>
+<symbol id="file" viewBox="0 0 16 16"><path d="M4 2h5l3 3v9H4zM9 2v3h3"/></symbol>
+<symbol id="close" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+<symbol id="mic" viewBox="0 0 16 16"><rect x="6" y="2" width="4" height="8" rx="2"/><path d="M3.5 8a4.5 4.5 0 0 0 9 0M8 12.5V14"/></symbol>
+<symbol id="up" viewBox="0 0 16 16"><path d="M8 13V3M4 7l4-4 4 4"/></symbol>
+<symbol id="pause" viewBox="0 0 16 16"><path d="M6 4v8M10 4v8" stroke-width="2"/></symbol>
+<symbol id="image" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="1.5"/><circle cx="6" cy="7" r="1.2"/><path d="M14 11l-3.5-3.5L5 13"/></symbol>
+<symbol id="cards" viewBox="0 0 16 16"><rect x="3" y="4.5" width="8.5" height="9" rx="1.5"/><path d="M6 4.5V3.5A1.5 1.5 0 0 1 7.5 2h4A1.5 1.5 0 0 1 13 3.5V10"/></symbol>
+<symbol id="edit" viewBox="0 0 16 16"><path d="M11.5 2.5l2 2L6 12H4v-2z"/></symbol>
+<symbol id="check" viewBox="0 0 16 16"><path d="M3 8.5l3.2 3L13 4.5"/></symbol>
+<symbol id="branch" viewBox="0 0 16 16"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5.5" r="1.5"/><path d="M4.5 5v6M11.5 7c0 2.5-3 3-7 3.5"/></symbol>
+<symbol id="folder" viewBox="0 0 16 16"><path d="M2 5.5A1.5 1.5 0 0 1 3.5 4H6l1.5 1.5h5A1.5 1.5 0 0 1 14 7v4.5A1.5 1.5 0 0 1 12.5 13h-9A1.5 1.5 0 0 1 2 11.5z"/></symbol>
+<symbol id="expand" viewBox="0 0 16 16"><path d="M9.5 2H14v4.5M6.5 14H2V9.5M14 2L9 7M2 14l5-5"/></symbol>
+<symbol id="spark" viewBox="0 0 16 16"><path d="M8 2l1.4 4.6L14 8l-4.6 1.4L8 14l-1.4-4.6L2 8l4.6-1.4z"/></symbol>
+<symbol id="server" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="4" rx="1"/><rect x="2" y="9" width="12" height="4" rx="1"/><circle cx="4.5" cy="5" r=".6" fill="currentColor" stroke="none"/><circle cx="4.5" cy="11" r=".6" fill="currentColor" stroke="none"/></symbol>
+<symbol id="target" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/><circle cx="8" cy="8" r=".6" fill="currentColor" stroke="none"/></symbol>
+<symbol id="at" viewBox="0 0 16 16"><circle cx="8" cy="8.5" r="3"/><path d="M11 8.5V6a5 5 0 1 0-1.6 8.4"/></symbol>
+<symbol id="slash" viewBox="0 0 16 16"><path d="M10.5 3L5.5 13"/></symbol>
+<symbol id="chat" viewBox="0 0 16 16"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h9A1.5 1.5 0 0 1 14 4.5v5A1.5 1.5 0 0 1 12.5 11H8l-3 2.5V11H3.5A1.5 1.5 0 0 1 2 9.5z"/></symbol>
+<symbol id="paperclip" viewBox="0 0 16 16"><path d="M10.5 4.5l-5 5a2 2 0 1 0 2.8 2.8l5-5a3.2 3.2 0 1 0-4.6-4.6l-5 5"/></symbol>
+<symbol id="doc" viewBox="0 0 16 16"><path d="M4 2h5l3 3v9H4zM9 2v3h3M6 8h4M6 11h4"/></symbol>
+</defs></svg>
+
+<div class="app" id="app" data-face="paper" data-state="idle" data-notes="on">
+<div class="proto">
+ <span class="pt">Inkstone（砚）· 增量 2 · 作曲器全状态</span>
+ <span class="pl">面</span><span class="seg"><button class="on" data-set="face" data-v="paper">纸</button><button data-set="face" data-v="ink">墨</button></span>
+ <span class="pl">石板</span><span class="seg"><button class="on" data-set="slab" data-v="ink">砚</button><button data-set="slab" data-v="paper">纸</button></span>
+ <span class="pl">状态</span><span class="seg" id="stateseg">
+  <button class="on" data-set="state" data-v="idle">空闲</button><button data-set="state" data-v="draft">草稿</button><button data-set="state" data-v="streaming">流式</button><button data-set="state" data-v="queued">已排队</button><button data-set="state" data-v="pausing">暂停中</button><button data-set="state" data-v="paused">已暂停</button><button data-set="state" data-v="qedit">队列编辑</button>
+ </span>
+ <span class="pl">标注</span><span class="seg"><button class="on" data-set="notes" data-v="on">开</button><button data-set="notes" data-v="off">关</button></span>
+ <span class="pn">石板随「状态」变化 · 键盘契约见 03 号块</span>
+</div>
+
+<div class="body">
+ <aside class="panel">
+  <div class="idx-h">作曲器全状态<small>16 块 · 点击跳转 · 石板是唯一的活体展台，其余为静态展台</small></div>
+  <div class="idx-scroll">
+   <div class="ig">一 · 状态机</div>
+   <button class="ir on" data-go="b01"><span class="n">01</span>石板七态</button>
+   <button class="ir" data-go="b02"><span class="n">02</span>主动作圆钮四态</button>
+   <button class="ir" data-go="b03"><span class="n">03</span>键盘契约速查</button>
+   <div class="ig">二 · 输入区</div>
+   <button class="ir" data-go="b04"><span class="n">04</span>附件架</button>
+   <button class="ir" data-go="b05"><span class="n">05</span>上下文引用 · 上下文轨</button>
+   <button class="ir" data-go="b06"><span class="n">06</span>@ 菜单</button>
+   <button class="ir" data-go="b07"><span class="n">07</span>/ 菜单</button>
+   <button class="ir" data-go="b08"><span class="n">08</span>队列编辑横幅</button>
+   <button class="ir" data-go="b09"><span class="n">09</span>全屏编辑器</button>
+   <div class="ig">三 · 工具条</div>
+   <button class="ir" data-go="b10"><span class="n">10</span>+ 菜单</button>
+   <button class="ir" data-go="b11"><span class="n">11</span>模型 · 思考强度弹层</button>
+   <button class="ir" data-go="b12"><span class="n">12</span>运行模式弹层</button>
+   <button class="ir" data-go="b13"><span class="n">13</span>编排方案弹层</button>
+   <button class="ir" data-go="b14"><span class="n">14</span>语音 · Live 条</button>
+   <button class="ir" data-go="b15"><span class="n">15</span>Goal 模式芯片</button>
+   <button class="ir" data-go="b16"><span class="n">16</span>上下文用量环</button>
+  </div>
+ </aside>
+
+ <main class="panel stage">
+  <div class="scroll" id="scroll">
+
+   <div class="st" id="s1"><h2>一 · 状态机</h2><span class="sn">01–03 · 石板是唯一活体展台，顶栏「状态」驱动</span></div>
+
+   <div class="blk" id="b01" data-n="01">
+    <div class="exh-h">石板七态</div>
+    <div class="exh-d">石板（<code>composer-card.tsx</code> + <code>composer-run-actions.tsx</code>）在同一块深色物件里流转七种状态；下方展台随顶栏「状态」实时变化，其余块保持静态。</div>
+    <div class="card" style="background:transparent;box-shadow:none;padding:0">
+     <div class="row-cmp" style="margin-bottom:8px">
+      <span class="chip" data-only="idle" style="display:flex"><b style="color:var(--t1)">空闲</b> — 占位符，主键为发送（禁用，无内容）</span>
+      <span class="chip" data-only="draft" style="display:flex"><b style="color:var(--t1)">草稿</b> — 有文本，主键为发送</span>
+      <span class="chip" data-only="streaming" style="display:flex"><b style="color:var(--t1)">流式</b> — 主键为暂停，石板顶缘灯沿横移</span>
+      <span class="chip" data-only="queued" style="display:flex"><b style="color:var(--t1)">已排队</b> — 流式中已有草稿，主键变「加入后续队列」</span>
+      <span class="chip" data-only="pausing" style="display:flex"><b style="color:var(--t1)">暂停中</b> — 主键禁用，文案「正在暂停…」</span>
+      <span class="chip" data-only="paused" style="display:flex"><b style="color:var(--t1)">已暂停</b> — 无草稿时主键变「继续运行」</span>
+      <span class="chip" data-only="qedit" style="display:flex"><b style="color:var(--t1)">队列编辑</b> — 横幅置顶，主键变「保存修改」（松色）</span>
+     </div>
+    </div>
+   </div>
+
+   <div class="blk" id="b02" data-n="02">
+    <div class="exh-h">主动作圆钮四态速查</div>
+    <div class="exh-d">同一枚圆钮承载全部主动作（<code>ComposerActionSlot</code>）：发送 → 暂停 → 继续；有草稿时优先排队；仅失败附件时变重试。</div>
+    <div class="card">
+     <div class="row-cmp"><span class="send" style="position:static"><svg class="i ic-send" style="display:block"><use href="#up"/></svg></span><b>发送</b><span style="color:var(--t3);font-size:12.5px">idle / draft / paused+草稿 — Enter</span></div>
+    </div>
+    <div class="card">
+     <div class="row-cmp"><span class="send" style="position:static;background:var(--zhu-wash);color:var(--zhu)"><svg class="i" style="display:block"><use href="#pause"/></svg></span><b>暂停</b><span style="color:var(--t3);font-size:12.5px">streaming 且无草稿 — 灯色光环呼吸</span></div>
+    </div>
+    <div class="card">
+     <div class="row-cmp"><span class="send" style="position:static;background:var(--s1);color:var(--t2)"><svg class="i" style="display:block"><use href="#up"/></svg></span><b>加入后续队列</b><span style="color:var(--t3);font-size:12.5px">streaming 且有草稿 — Enter 排队，⌘Enter 仍走转向</span></div>
+    </div>
+    <div class="card">
+     <div class="row-cmp"><span class="send" style="position:static;background:var(--pine-wash);color:var(--pine)"><svg class="i" style="display:block"><use href="#up"/></svg></span><b>继续运行</b><span style="color:var(--t3);font-size:12.5px">paused 且无草稿 — 从检查点继续</span></div>
+    </div>
+    <div class="card">
+     <div class="row-cmp"><span class="send" style="position:static;background:var(--crimson-wash);color:var(--crimson)"><svg class="i" style="display:block"><use href="#refresh"/></svg></span><b>重试附件</b><span style="color:var(--t3);font-size:12.5px">仅剩失败附件、无可发送文本时</span></div>
+    </div>
+   </div>
+
+   <div class="blk" id="b03" data-n="03">
+    <div class="exh-h">键盘契约速查</div>
+    <div class="exh-d">承 Deck 的键盘语义，只换皮不换契约（<code>composer-card.tsx</code> IME 组合守卫 + <code>lastCompositionEndRef</code> 100ms 去抖窗口）。</div>
+    <div class="card">
+     <table class="kbtable">
+      <tr><th>按键</th><th>空闲 / 草稿</th><th>流式</th><th>队列编辑</th></tr>
+      <tr><td><span class="kbd">Enter</span></td><td>发送</td><td>加入后续队列（有草稿）</td><td>保存回队列</td></tr>
+      <tr><td><span class="kbd">⇧Enter</span></td><td>换行</td><td>换行</td><td>换行</td></tr>
+      <tr><td><span class="kbd">⌘Enter</span></td><td>—</td><td>转向当前任务（绕开 IME 守卫）</td><td>—</td></tr>
+      <tr><td><span class="kbd">Esc</span></td><td>关闭 @ / / 菜单</td><td>关闭菜单</td><td>取消编辑，消息留在队列原状</td></tr>
+      <tr><td>IME 组合中</td><td>抑制发送；组合结束 100ms 内仍抑制</td><td>同左；⌘Enter 不受影响</td><td>同左</td></tr>
+     </table>
+    </div>
+   </div>
+
+   <div class="st" id="s2"><h2>二 · 输入区</h2><span class="sn">04–09 · 石板上沿到全屏编辑器</span></div>
+
+   <div class="blk" id="b04" data-n="04">
+    <div class="exh-h">附件架</div>
+    <div class="exh-d"><code>composer-attachment-shelf.tsx</code>：文件 / 图片 / GIF / 网页元素 / 文档评论；上传中显示「正在准备…」，失败态给重试与移除。</div>
+    <div class="card">
+     <div class="row-cmp" style="gap:6px">
+      <span class="satt" style="background:var(--s2);color:var(--t1)"><span class="th"></span>composer-dock.test.tsx<span class="rm"><svg class="i s12"><use href="#close"/></svg></span></span>
+      <span class="satt" style="background:var(--s2);color:var(--t1)"><span class="th"></span>截图 2026-09-03.png<span class="rm"><svg class="i s12"><use href="#close"/></svg></span></span>
+      <span class="satt" style="background:var(--s2);color:var(--t1)"><span class="th"></span>demo.gif<span class="ib s22" style="width:auto;height:auto;padding:0 4px;color:var(--t3);font:10px var(--mono)">GIF</span><span class="rm"><svg class="i s12"><use href="#close"/></svg></span></span>
+      <span class="satt" style="background:var(--s2);color:var(--t1)"><svg class="i s12" style="margin-left:4px"><use href="#doc"/></svg>02-transcript-anatomy.md<span class="dot" style="margin:0 2px">·</span><svg class="i s12"><use href="#chat"/></svg>3<span class="rm"><svg class="i s12"><use href="#close"/></svg></span></span>
+     </div>
+     <div class="row-cmp" style="margin-top:8px">
+      <span class="satt fail">上传失败 · composer-run-actions.png</span>
+      <span style="font-size:11.5px;color:var(--t3)">网络似乎断开了 —</span>
+      <button class="btn sm">重试附件</button><button class="btn sm">重试附件</button>
+     </div>
+    </div>
+   </div>
+
+   <div class="blk" id="b05" data-n="05">
+    <div class="exh-h">上下文引用胶囊 · 上下文轨</div>
+    <div class="exh-d">引用胶囊（<code>context-ref-chip.tsx</code>）贴着石板；上下文轨（<code>composer-context-rail.tsx</code>）浮在石板之上，仅在会话起始（<code>layoutMode=centered</code>）出现：项目 / 分支 / 运行目标三枚芯片。</div>
+    <div class="card">
+     <div class="row-cmp" style="margin-bottom:10px">
+      <span class="railchip"><svg class="i s12"><use href="#folder"/></svg><b>piwin</b></span>
+      <span class="railchip"><svg class="i s12"><use href="#branch"/></svg><b>feat/composer-queue</b></span>
+      <span class="railchip run"><svg class="i s12"><use href="#server"/></svg>本机 Host · 8787</span>
+     </div>
+     <div class="row-cmp" style="gap:6px">
+      <span class="ref" style="background:var(--s1);color:var(--t1)">@ composer-card.tsx</span>
+      <span class="ref" style="background:var(--s1);color:var(--t1)">@ AGENTS.md §3.3</span>
+     </div>
+    </div>
+   </div>
+
+   <div class="blk" id="b06" data-n="06">
+    <div class="exh-h">@ 菜单</div>
+    <div class="exh-d"><code>at/at-menu.tsx</code> + <code>at-match.ts</code>：四组固定顺序 —— 系统上下文 · Git 上下文 · MCP Server · 工作区文件；空结果显示「没有匹配的上下文」。</div>
+    <div class="at-menu">
+     <div class="at-sec-t">系统上下文</div>
+     <div class="at-item sel"><span class="r"><svg class="i s14"><use href="#doc"/></svg>已打开的编辑器</span><span class="d">当前在 Desktop 里打开的文件</span></div>
+     <div class="at-item"><span class="r"><svg class="i s14"><use href="#file"/></svg>选中的终端输出</span><span class="d">zsh 页签当前选区</span></div>
+     <div class="at-sec-t">Git 上下文</div>
+     <div class="at-item"><span class="r"><svg class="i s14"><use href="#branch"/></svg>working diff<span class="bdg">git</span></span><span class="d">未提交的改动</span></div>
+     <div class="at-sec-t">MCP Server</div>
+     <div class="at-item"><span class="r"><svg class="i s14"><use href="#server"/></svg>notion · search_pages<span class="bdg">mcp</span></span><span class="d">运行中</span></div>
+     <div class="at-sec-t">工作区文件</div>
+     <div class="at-item"><span class="r"><svg class="i s14"><use href="#file"/></svg>composer-card.tsx</span><span class="d">apps/desktop/src/composer-card.tsx</span></div>
+     <div class="at-item"><span class="r"><svg class="i s14"><use href="#folder"/></svg>at/</span><span class="d">apps/desktop/src/at/</span></div>
+    </div>
+   </div>
+
+   <div class="blk" id="b07" data-n="07">
+    <div class="exh-h">/ 菜单</div>
+    <div class="exh-d"><code>slash/slash-catalog.ts</code>：命令 → 模式 → 技能三段；不可用项显示灰置理由（如「先信任项目」）；<code>Goal</code> 只能从这里进入。</div>
+    <div class="slash-menu">
+     <div class="slash-sec-t">命令</div>
+     <div class="slash-item sel"><span class="r"><svg class="i s14"><use href="#slash"/></svg>compact<span class="bdg">summarize · compress</span></span><span class="d">压缩较早上下文以释放窗口（Pi compaction）</span></div>
+     <div class="slash-item off"><span class="r"><svg class="i s14"><use href="#slash"/></svg>scheme</span><span class="d">先信任项目</span></div>
+     <div class="slash-sec-t">模式</div>
+     <div class="slash-item"><span class="r"><svg class="i s14"><use href="#target"/></svg>goal</span><span class="d">设定目标与验收标准，自主运行直到交付或受阻</span></div>
+     <div class="slash-item"><span class="r"><svg class="i s14"><use href="#chevr"/></svg>agent</span><span class="d">默认 Agent 模式</span></div>
+     <div class="slash-sec-t">技能</div>
+     <div class="slash-item"><span class="r"><svg class="i s14"><use href="#spark"/></svg>karpathy-guidelines</span><span class="d">代码评审风格指南</span></div>
+     <div class="slash-item off"><span class="r"><svg class="i s14"><use href="#spark"/></svg>writing-plans</span><span class="d">在 设置 › 技能 里启用这个技能</span></div>
+    </div>
+   </div>
+
+   <div class="blk" id="b08" data-n="08">
+    <div class="exh-h">队列编辑横幅</div>
+    <div class="exh-d"><code>composer-queued-edit-banner.tsx</code>：在队列里的后续消息被点开编辑时置顶显示，取代普通「已排队」纸条；石板此时也是「队列编辑」态（见 01 号块）。</div>
+    <div class="card" style="background:var(--zhu-wash);padding:0;box-shadow:none">
+     <div class="qedit" style="margin:0"><svg class="i s14 qi"><use href="#edit"/></svg><span class="qn">2</span><span class="qt">再补一个 IME 组合期间不触发排队的测试</span><span class="qh">改文字、加图片 · ↵ 保存 · Esc 取消</span><span class="rm ib s22" style="color:var(--t3)"><svg class="i s12"><use href="#close"/></svg></span></div>
+    </div>
+   </div>
+
+   <div class="blk" id="b09" data-n="09">
+    <div class="exh-h">全屏编辑器</div>
+    <div class="exh-d"><code>ComposerModalEditor.tsx</code>：长提示词 / 代码片段的扩展编辑；⌘Enter 应用并关闭，Esc 取消；页脚统计行数 · 字符 · 估算 tokens。</div>
+    <div class="modal-mock">
+     <div class="mm-h"><span class="tt">扩展提示词编辑器<span class="st">6 行 · 214 字符 · ~54 tokens</span></span><button class="ib s22"><svg class="i s14"><use href="#close"/></svg></button></div>
+     <div class="mm-b">把作曲器运行中的 Enter 改成排队，⌘Enter 保持介入；补回归测试，别动侧栏。<br><br>验收：composer-dock.test.tsx 新增用例全部通过，typecheck 无回归。</div>
+     <div class="mm-f"><span class="h">⌘Enter / Ctrl+Enter 保存</span><span class="row-cmp"><button class="btn sm">取消</button><button class="btn sm pri">应用到提示词</button></span></div>
+    </div>
+   </div>
+
+   <div class="st" id="s3"><h2>三 · 工具条</h2><span class="sn">10–16 · 左起附件与模型，右起模式与用量</span></div>
+
+   <div class="blk" id="b10" data-n="10">
+    <div class="exh-h">+ 菜单</div>
+    <div class="exh-d"><code>composer-plus-menu.tsx</code>：附件在最上；Skills / MCP 只在 Agent 会话出现（对话式 Chat 隐藏）。</div>
+    <div class="trigrow"><span class="lbl">触发</span><span class="pop-trig"><svg class="i s14"><use href="#plus"/></svg></span></div>
+    <div class="pop" style="max-width:260px">
+     <div class="pop-cap">附件</div>
+     <div class="pop-item"><svg class="i s14"><use href="#file"/></svg>添加文件</div>
+     <div class="pop-item"><svg class="i s14"><use href="#image"/></svg>添加图片</div>
+     <div class="pop-item"><svg class="i s14"><use href="#cards"/></svg>知识卡片</div>
+     <div class="pop-sep"></div>
+     <div class="pop-cap">技能与 MCP</div>
+     <div class="pop-item"><svg class="i s14"><use href="#spark"/></svg>技能<span class="desc">3 个已启用</span><svg class="i s12"><use href="#chevr"/></svg></div>
+     <div class="pop-item"><svg class="i s14"><use href="#server"/></svg>MCP Servers<span class="desc">2 个运行中</span><svg class="i s12"><use href="#chevr"/></svg></div>
+    </div>
+   </div>
+
+   <div class="blk" id="b11" data-n="11">
+    <div class="exh-h">模型 · 思考强度弹层</div>
+    <div class="exh-d"><code>ThinkingEffortControl.tsx</code>：一枚复合胶囊（模型 · 思考强度），弹层里思考强度在上、模型搜索列表在下。</div>
+    <div class="trigrow"><span class="lbl">触发</span><span class="pop-trig">Sonnet 4.6<span class="dot">·</span>中<svg class="i s12 chv"><use href="#chevd"/></svg></span></div>
+    <div class="pop">
+     <div class="pop-cap">思考</div>
+     <div class="row-cmp" style="gap:4px;padding:0 8px 8px">
+      <button class="pop-trig" style="background:var(--s1)">关</button><button class="pop-trig" style="background:var(--s1)">低</button><button class="pop-trig sel" style="background:var(--zhu-wash);color:var(--zhu)">中</button><button class="pop-trig" style="background:var(--s1)">高</button><button class="pop-trig" style="background:var(--s1)">极高</button>
+     </div>
+     <div class="pop-cap">模型</div>
+     <div class="pop-item sel">claude-sonnet-4-6<span class="desc">Anthropic · 推理</span></div>
+     <div class="pop-item">gpt-5.4<span class="desc">OpenAI · 视觉</span></div>
+     <div class="pop-item">deepseek-v4-flash<span class="desc">DeepSeek</span></div>
+    </div>
+   </div>
+
+   <div class="blk" id="b12" data-n="12">
+    <div class="exh-h">运行模式弹层</div>
+    <div class="exh-d"><code>RunModeControl.tsx</code>（ADR 0024）：Auto / Ask / YOLO 三态，YOLO 在未信任项目里锁定；「设为默认」写回 <code>config.permissions.preset</code>。</div>
+    <div class="trigrow"><span class="lbl">触发</span><span class="pop-trig">自动<svg class="i s12 chv"><use href="#chevd"/></svg></span></div>
+    <div class="pop">
+     <div class="pop-cap">运行模式</div>
+     <div class="pop-opt sel"><div class="ol">自动</div><div class="od">沙箱内自动执行；离开项目或出网时询问</div></div>
+     <div class="pop-opt"><div class="ol">每次询问</div><div class="od">几乎每个工具都确认（仍在沙箱内）</div></div>
+     <div class="pop-opt"><div class="ol">放行<span class="warn">⚠</span></div><div class="od">关闭沙箱，跳过常规确认。危险操作仍会拦截。</div></div>
+     <div class="pop-foot"><button>设为默认</button><button>管理规则…</button></div>
+    </div>
+   </div>
+
+   <div class="blk" id="b13" data-n="13">
+    <div class="exh-h">编排方案弹层</div>
+    <div class="exh-d"><code>OrchestrationSchemeControl.tsx</code>：常驻工具条的模式选择器（不是功能开关）。默认「自由」= 不注入方案提示，仍可自主委派；选中方案后随本会话保持，直到切换会话。</div>
+    <div class="trigrow"><span class="lbl">触发</span><span class="pop-trig">编排<span class="dot">·</span>自由<svg class="i s12 chv"><use href="#chevd"/></svg></span></div>
+    <div class="pop">
+     <div class="pop-cap">编排方案</div>
+     <div class="pop-opt sel"><div class="ol">自由</div><div class="od">自由对话 — 不注入方案提示；仍可自主委派</div></div>
+     <div class="pop-opt"><div class="ol">Ultra Code</div><div class="od">Reviewer 双通道；委派子代理并行验证</div></div>
+     <div class="pop-sep"></div>
+     <div class="pop-opt"><div class="ol">禁用委派</div><div class="od">本轮不向模型提供 Reviewer / 子代理工具</div></div>
+     <div class="pop-foot"><button>管理方案…</button></div>
+    </div>
+   </div>
+
+   <div class="blk" id="b14" data-n="14">
+    <div class="exh-h">语音 · Live 条</div>
+    <div class="exh-d"><code>live/LiveComposerButton.tsx</code> + <code>live/LiveBar.tsx</code>：工具条上的语音入口；开始通话后舞台顶部浮出 Live 条，覆盖普通输入。</div>
+    <div class="card">
+     <div class="row-cmp"><button class="sb-chip" style="background:var(--s2);color:var(--t1)"><svg class="i s14"><use href="#mic"/></svg>语音输入</button><span style="color:var(--t3);font-size:12.5px">工具条常驻入口 · 听写转文字</span></div>
+    </div>
+    <div class="card" style="background:var(--slab);color:var(--slab-t);box-shadow:var(--sh3)">
+     <div class="row-cmp"><span class="lamp"></span><b style="color:var(--slab-t)">Live 通话中</b><span style="color:var(--slab-ph);font-size:12px">重连预算 00:42</span><button class="btn sm" style="color:var(--slab-t);background:var(--slab-chip)" >结束通话</button></div>
+    </div>
+   </div>
+
+   <div class="blk" id="b15" data-n="15">
+    <div class="exh-h">Goal 模式芯片</div>
+    <div class="exh-d"><code>goal/GoalModeChip.tsx</code>：唯一常驻标记——Goal 只能通过 <code>/goal</code> 进入，从没有工具条选择器；这枚芯片是唯一退出口。</div>
+    <div class="card">
+     <div class="row-cmp"><span class="goal-chip"><svg class="i"><use href="#target"/></svg>Goal<svg class="i" style="width:10px;height:10px"><use href="#close"/></svg></span><span style="color:var(--t3);font-size:12.5px">点击退出，回到 Agent · 流式中禁用</span></div>
+    </div>
+   </div>
+
+   <div class="blk" id="b16" data-n="16">
+    <div class="exh-h">上下文用量环</div>
+    <div class="exh-d"><code>context-usage-ring.tsx</code>：环形仅渲染选择器算好的视图模型，自身不做占用率计算；三档色调 ok / warn（≥70%）/ critical（≥90%）。</div>
+    <div class="trigrow"><span class="lbl">触发</span><span class="ring" style="margin:0"></span></div>
+    <div class="ring-pop">
+     <div class="ring-h"><strong>上下文用量</strong><button class="ib s22"><svg class="i s14"><use href="#close"/></svg></button></div>
+     <div class="ring-sum"><span class="pill-ctx warn">37% 已用</span><span style="font-size:11.5px;color:var(--t3)">约 74k / 200k tokens</span></div>
+     <div class="ring-note">缓存命中率 82% · 上一轮命中 61k tokens</div>
+     <div class="ring-note" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--l1)">接近上限时会自动建议 <code style="background:var(--s1)">/compact</code>。</div>
+     <div class="pop-foot" style="padding:8px 0 0"><button>模型设置…</button></div>
+    </div>
+   </div>
+
+  </div>
+ </main>
+</div>
+
+<div class="dock-wrap">
+ <div class="dock-in">
+  <div class="qedit" data-only="qedit"><svg class="i s14 qi"><use href="#edit"/></svg><span class="qn">2</span><span class="qt">再补一个 IME 组合期间不触发排队的测试</span><span class="qh">↵ 保存 · Esc 取消</span></div>
+  <div class="queued" data-only="queued"><span class="qm">已排队 1</span><b>再补一个 IME 组合期间不触发排队的测试</b><span class="ln"><u>编辑</u><u>撤回</u></span></div>
+  <div class="slab">
+   <div class="refs" data-only="draft queued qedit"><span class="ref">@ composer-card.tsx</span><span class="ref">@ AGENTS.md §3.3</span></div>
+   <div class="shelf-row" data-only="draft"><span class="satt"><span class="th"></span>composer-dock.test.tsx<span class="rm"><svg class="i s12"><use href="#close"/></svg></span></span></div>
+   <textarea class="ta" rows="2" id="ta"
+     data-only="idle draft streaming pausing paused"
+     data-ph-idle="问点什么，或 @ 引用文件、/ 调用技能…"
+     data-ph-draft="问点什么，或 @ 引用文件、/ 调用技能…"
+     data-ph-streaming="加入下一轮 (Enter) · 当前步骤后调整方向 (⌘↵)"
+     data-ph-pausing="正在暂停…"
+     data-ph-paused="继续运行，或改写这一轮…"
+     placeholder="问点什么，或 @ 引用文件、/ 调用技能…"></textarea>
+   <textarea class="ta" rows="3" data-only="qedit" placeholder="修改这条后续消息，或粘贴图片…">再补一个 IME 组合期间不触发排队的测试</textarea>
+   <div class="bar">
+    <button class="sb-chip ic" title="附件 · 技能 · MCP"><svg class="i"><use href="#plus"/></svg></button>
+    <button class="sb-chip on"><span class="av">C</span>Sonnet 4.6<span class="dot">·</span>思考 中<svg class="i s12"><use href="#chevd"/></svg></button>
+    <button class="sb-chip ic" title="语音"><svg class="i"><use href="#mic"/></svg></button>
+    <span class="grow"></span>
+    <span data-only="idle draft streaming queued pausing paused"><button class="sb-chip">Auto<svg class="i s12"><use href="#chevd"/></svg></button></span>
+    <span data-only="idle draft streaming queued pausing paused"><button class="sb-chip">编排 · 自由<svg class="i s12"><use href="#chevd"/></svg></button></span>
+    <span class="ring" title="上下文 37%" data-only="idle draft streaming queued pausing paused"></span>
+    <button class="send" title="发送 (Enter)">
+     <svg class="i ic-send"><use href="#up"/></svg>
+     <svg class="i ic-pause"><use href="#pause"/></svg>
+     <svg class="i ic-queue"><use href="#up"/></svg>
+     <svg class="i ic-continue"><use href="#up"/></svg>
+    </button>
+   </div>
+  </div>
+  <div class="hint">
+   <span data-hint="idle draft">Enter 发送</span>
+   <span data-hint="idle draft">⇧Enter 换行</span>
+   <span data-hint="streaming queued">运行中 Enter 排队</span>
+   <span data-hint="streaming queued pausing">⌘Enter 介入</span>
+   <span data-hint="pausing">正在暂停…</span>
+   <span data-hint="paused">Enter 从检查点继续</span>
+   <span data-hint="qedit">Enter 保存回队列 · Esc 取消</span>
+  </div>
+ </div>
+</div>
+</div>
+
+<script>
+(function(){
+var app=document.getElementById('app');
+var each=function(list,fn){Array.prototype.forEach.call(list,fn)};
+function setSeg(k,v){each(document.querySelectorAll('[data-set="'+k+'"]'),function(b){b.classList.toggle('on',b.getAttribute('data-v')===v)})}
+function syncTextarea(){
+  var ta=document.getElementById('ta');if(!ta)return;
+  var st=app.getAttribute('data-state');
+  var ph=ta.getAttribute('data-ph-'+st);
+  if(ph)ta.placeholder=ph;
+  ta.value = (st==='draft'||st==='queued') ? '把作曲器运行中的 Enter 改成排队，⌘Enter 保持介入' : '';
+}
+each(document.querySelectorAll('[data-set]'),function(b){
+  b.addEventListener('click',function(){
+    var k=b.getAttribute('data-set'),v=b.getAttribute('data-v');
+    app.setAttribute('data-'+k,v);
+    setSeg(k,v);
+    if(k==='state')syncTextarea();
+  });
+});
+syncTextarea();
+
+/* 索引跳转 + 标注闪烁（与 proto-01 同一套） */
+function go(id){var el=document.getElementById(id);if(!el)return;el.scrollIntoView({block:'start'});el.classList.add('flash');setTimeout(function(){el.classList.remove('flash')},1200);each(document.querySelectorAll('.ir'),function(x){x.classList.toggle('on',x.getAttribute('data-go')===id)})}
+each(document.querySelectorAll('.ir'),function(b){b.addEventListener('click',function(){go(b.getAttribute('data-go'))})});
+})();
+</script>
+</body>
+</html>

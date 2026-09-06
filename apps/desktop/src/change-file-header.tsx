@@ -5,6 +5,7 @@ import {
   formatDisplayPathParts,
   resolveChangeStatusInfo,
 } from './truncate-relative-path';
+import type { DiffViewMode } from './diff-view';
 
 export type ChangeFileHeaderProps = {
   relativePath: string;
@@ -14,6 +15,8 @@ export type ChangeFileHeaderProps = {
   deletions?: number | undefined;
   locale?: 'zh-CN' | 'en' | undefined;
   onBack: () => void;
+  diffMode?: DiffViewMode;
+  onDiffModeChange?: (mode: DiffViewMode) => void;
 };
 
 export function ChangeFileHeader(props: ChangeFileHeaderProps): ReactElement {
@@ -67,13 +70,36 @@ export function ChangeFileHeader(props: ChangeFileHeaderProps): ReactElement {
           <span
             className={`change-file-status-badge status-${props.status}`}
             data-testid="change-file-status-badge"
+            title={statusInfo.label}
           >
-            {statusInfo.label}
+            {statusInfo.shortCode}
           </span>
         ) : null}
       </div>
 
       <div className="change-file-header-actions">
+        {props.diffMode !== undefined && props.onDiffModeChange ? (
+          <div className="subtab change-file-diff-mode" role="group" data-testid="change-file-diff-mode">
+            <button
+              type="button"
+              className={props.diffMode === 'unified' ? 'on' : undefined}
+              data-testid="change-file-diff-mode-unified"
+              aria-pressed={props.diffMode === 'unified'}
+              onClick={() => props.onDiffModeChange?.('unified')}
+            >
+              {isZh ? '统一' : 'Unified'}
+            </button>
+            <button
+              type="button"
+              className={props.diffMode === 'split' ? 'on' : undefined}
+              data-testid="change-file-diff-mode-split"
+              aria-pressed={props.diffMode === 'split'}
+              onClick={() => props.onDiffModeChange?.('split')}
+            >
+              {isZh ? '并排' : 'Split'}
+            </button>
+          </div>
+        ) : null}
         <DropdownMenu
           trigger={
             <IconButton

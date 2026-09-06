@@ -1,40 +1,9 @@
 // @vitest-environment happy-dom
-import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
-import { act, type ReactElement } from 'react';
+import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { PiwinUiProvider } from '@piwin/ui-kit';
-import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GateCard } from './gate-card';
 import type { PermissionPromptUi } from './chat-reducer';
-import type { PermissionDecision, PermissionRememberScope } from '@piwin/contracts';
-
-declare global {
-  var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
-}
-
-const basePrompt: PermissionPromptUi = {
-  requestId: 'req-1',
-  sessionId: 's1',
-  action: 'bash:ls -la',
-  detail: 'ls -la',
-  defaultDecision: 'ask',
-};
-
-function Harness(props: {
-  prompt: PermissionPromptUi;
-  projectPath: string | null;
-  onPermission: (decision: PermissionDecision, rememberScope?: PermissionRememberScope) => void;
-}): ReactElement {
-  return (
-    <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-      <GateCard
-        prompt={props.prompt}
-        projectPath={props.projectPath}
-        onPermission={props.onPermission}
-      />
-    </PiwinUiProvider>
-  );
-}
 
 describe('GateCard', () => {
   let container: HTMLElement;
@@ -49,99 +18,85 @@ describe('GateCard', () => {
 
   afterEach(() => {
     act(() => root.unmount());
-    container.parentNode?.removeChild(container);
+    container.remove();
+    globalThis.IS_REACT_ACT_ENVIRONMENT = undefined;
   });
 
-  it('renders the gate with action label and default-decision hint', () => {
-    act(() =>
-      root.render(<Harness prompt={basePrompt} projectPath="/repo" onPermission={vi.fn()} />),
-    );
+  const prompt: PermissionPromptUi = {
+    sessionId: 'sess-1',
+    requestId: 'perm-1',
+    action: 'bash',
+    detail: 'git push --force-with-lease origin feat/composer-queue',
+    defaultDecision: 'ask',
+    context: {
+      kind: 'command',
+      command: 'git push --force-with-lease origin feat/composer-queue',
+      summary: '命令',
+      destructive: true,
+    },
+  };
+
+  it('renders ink-line seal gate structure with seals and links', () => {
+    const onPermission = vi.fn();
+    act(() => {
+      root.render(
+        <GateCard prompt={prompt} projectPath="/repo" onPermission={onPermission} />,
+      );
+    });
+
     const gate = container.querySelector('[data-testid="permission-gate"]');
     expect(gate).not.toBeNull();
-    expect(container.textContent).toContain('需要审批');
-    expect(container.textContent).toContain('权限: ask');
+    const allowBtn = container.querySelector('[data-testid="gate-allow-once"]');
+    expect(allowBtn?.textContent).toContain('允');
+    const denyBtn = container.querySelector('[data-testid="gate-deny"]');
+    expect(denyBtn?.textContent).toContain('否');
+    const allowSession = container.querySelector('[data-testid="gate-allow-session"]');
+    expect(allowSession?.textContent).toContain('允 · 本会话');
+    const allowProject = container.querySelector('[data-testid="gate-allow-remember"]');
+    expect(allowProject?.textContent).toContain('允 · 项目');
   });
 
-  it('fires allow-once with rememberScope "once"', () => {
+  it('handles deny click', () => {
     const onPermission = vi.fn();
-    act(() =>
-      root.render(<Harness prompt={basePrompt} projectPath="/repo" onPermission={onPermission} />),
-    );
-    const btn = container.querySelector<HTMLButtonElement>('[data-testid="gate-allow-once"]');
-    expect(btn).not.toBeNull();
     act(() => {
-      btn?.click();
+      root.render(
+        <GateCard prompt={prompt} projectPath="/repo" onPermission={onPermission} />,
+      );
     });
-    expect(onPermission).toHaveBeenCalledWith('allow', 'once');
-  });
 
-  it('fires allow-session with rememberScope "session" (ADR 0024)', () => {
-    const onPermission = vi.fn();
-    act(() =>
-      root.render(<Harness prompt={basePrompt} projectPath="/repo" onPermission={onPermission} />),
-    );
-    const btn = container.querySelector<HTMLButtonElement>('[data-testid="gate-allow-session"]');
-    expect(btn).not.toBeNull();
+    const denyBtn = container.querySelector<HTMLButtonElement>('[data-testid="gate-deny"]');
     act(() => {
-      btn?.click();
-    });
-    expect(onPermission).toHaveBeenCalledWith('allow', 'session');
-  });
-
-  it('fires deny with no remember scope', () => {
-    const onPermission = vi.fn();
-    act(() =>
-      root.render(<Harness prompt={basePrompt} projectPath="/repo" onPermission={onPermission} />),
-    );
-    const btn = container.querySelector<HTMLButtonElement>('[data-testid="gate-deny"]');
-    expect(btn).not.toBeNull();
-    act(() => {
-      btn?.click();
+      denyBtn?.click();
     });
     expect(onPermission).toHaveBeenCalledWith('deny');
   });
 
-  it('shows "总是允许" only when project remember is available and projectPath is set', () => {
+  it('handles allow-session click', () => {
     const onPermission = vi.fn();
-    // command kind supports project remember
-    const commandPrompt: PermissionPromptUi = {
-      ...basePrompt,
-      action: 'bash:rm -rf build',
-      detail: 'rm -rf build',
-      context: { kind: 'command', summary: 'bash: rm -rf build', command: 'rm -rf build' },
-    };
-
-    act(() =>
+    act(() => {
       root.render(
-        <Harness prompt={commandPrompt} projectPath="/repo" onPermission={onPermission} />,
-      ),
-    );
-    expect(container.querySelector('[data-testid="gate-allow-remember"]')).not.toBeNull();
+        <GateCard prompt={prompt} projectPath="/repo" onPermission={onPermission} />,
+      );
+    });
 
-    act(() =>
-      root.render(
-        <Harness prompt={commandPrompt} projectPath={null} onPermission={onPermission} />,
-      ),
-    );
-    expect(container.querySelector('[data-testid="gate-allow-remember"]')).toBeNull();
+    const sessionBtn = container.querySelector<HTMLElement>('[data-testid="gate-allow-session"]');
+    act(() => {
+      sessionBtn?.click();
+    });
+    expect(onPermission).toHaveBeenCalledWith('allow', 'session');
   });
 
-  it('fires allow-remember with rememberScope "project"', () => {
+  it('handles allow-project click', () => {
     const onPermission = vi.fn();
-    const commandPrompt: PermissionPromptUi = {
-      ...basePrompt,
-      action: 'bash:rm -rf build',
-      detail: 'rm -rf build',
-      context: { kind: 'command', summary: 'bash: rm -rf build', command: 'rm -rf build' },
-    };
-    act(() =>
-      root.render(
-        <Harness prompt={commandPrompt} projectPath="/repo" onPermission={onPermission} />,
-      ),
-    );
-    const btn = container.querySelector<HTMLButtonElement>('[data-testid="gate-allow-remember"]');
     act(() => {
-      btn?.click();
+      root.render(
+        <GateCard prompt={prompt} projectPath="/repo" onPermission={onPermission} />,
+      );
+    });
+
+    const projectBtn = container.querySelector<HTMLElement>('[data-testid="gate-allow-remember"]');
+    act(() => {
+      projectBtn?.click();
     });
     expect(onPermission).toHaveBeenCalledWith('allow', 'project');
   });

@@ -40,13 +40,16 @@ export type ConversationPaneHeaderProps = {
   onCreateSession?: (paneId: string) => void;
 };
 
+const ICON_PX = 12;
+
 export function ConversationPaneHeader(props: ConversationPaneHeaderProps): ReactElement {
   const isChinese = props.locale === 'zh-CN';
   const availableSessions = props.sessions ?? [];
+  const isPrimary = !props.closable;
 
   return (
     <header
-      className="conversation-pane-header"
+      className="conversation-pane-header pane-h"
       onDoubleClick={(event) => {
         if (
           (event.target as HTMLElement).closest(
@@ -83,7 +86,11 @@ export function ConversationPaneHeader(props: ConversationPaneHeaderProps): Reac
               data-prevent-zoom="true"
             >
               <span className="conversation-pane-title-text">{props.title}</span>
-              <IconChevronDown width={12} height={12} className="conversation-pane-title-arrow" />
+              <IconChevronDown
+                width={ICON_PX}
+                height={ICON_PX}
+                className="conversation-pane-title-arrow"
+              />
             </button>
           }
         >
@@ -121,54 +128,59 @@ export function ConversationPaneHeader(props: ConversationPaneHeaderProps): Reac
           {props.title}
         </span>
       )}
-      <span className="conversation-pane-active-label">
-        {props.active ? (isChinese ? '当前' : 'Active') : null}
-      </span>
+      {props.active ? (
+        <span className="conversation-pane-active-label">{isChinese ? '当前' : 'Active'}</span>
+      ) : null}
       <div
         className="conversation-pane-actions"
         onClick={(e) => e.stopPropagation()}
         onDoubleClick={(e) => e.stopPropagation()}
       >
-        <DropdownMenu
-          modal={false}
-          align="end"
-          label={isChinese ? 'Chat 布局' : 'Chat layout'}
-          trigger={
-            <IconButton label={isChinese ? 'Chat 布局' : 'Chat layout'}>
-              <IconPanelLeft width={15} height={15} />
-            </IconButton>
-          }
-        >
-          <DropdownMenuLabel>{isChinese ? '布局预设' : 'Layout presets'}</DropdownMenuLabel>
-          {([1, 2, 4, 8] as const).map((count) => (
-            <DropdownMenuItem key={count} onSelect={() => props.onApplyPreset(count)}>
-              {isChinese ? `${count} 个 Chat` : `${count} Chat${count === 1 ? '' : 's'}`}
+        {isPrimary ? (
+          <DropdownMenu
+            modal={false}
+            align="end"
+            label={isChinese ? 'Chat 布局' : 'Chat layout'}
+            trigger={
+              <IconButton label={isChinese ? 'Chat 布局' : 'Chat layout'}>
+                <IconPanelLeft width={ICON_PX} height={ICON_PX} />
+              </IconButton>
+            }
+          >
+            <DropdownMenuLabel>{isChinese ? '布局预设' : 'Layout presets'}</DropdownMenuLabel>
+            {([1, 2, 4, 8] as const).map((count) => (
+              <DropdownMenuItem key={count} onSelect={() => props.onApplyPreset(count)}>
+                {isChinese ? `${count} 个 Chat` : `${count} Chat${count === 1 ? '' : 's'}`}
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => props.onSplit(props.paneId, 'row')} shortcut="⌘D">
+              {isChinese ? '向右拆分' : 'Split right'}
             </DropdownMenuItem>
-          ))}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => props.onSplit(props.paneId, 'row')} shortcut="⌘D">
-            {isChinese ? '向右拆分' : 'Split right'}
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => props.onSplit(props.paneId, 'column')} shortcut="⇧⌘D">
-            {isChinese ? '向下拆分' : 'Split down'}
-          </DropdownMenuItem>
-        </DropdownMenu>
-        <IconButton
-          label={isChinese ? '向右拆分' : 'Split right'}
-          className="is-split-action"
-          onClick={() => props.onSplit(props.paneId, 'row')}
-          disabled={props.splitDisabled}
-        >
-          <IconPanelRight width={15} height={15} />
-        </IconButton>
-        <IconButton
-          label={isChinese ? '向下拆分' : 'Split down'}
-          className="is-split-action"
-          onClick={() => props.onSplit(props.paneId, 'column')}
-          disabled={props.splitDisabled}
-        >
-          <IconArrowDown width={15} height={15} />
-        </IconButton>
+            <DropdownMenuItem onSelect={() => props.onSplit(props.paneId, 'column')} shortcut="⇧⌘D">
+              {isChinese ? '向下拆分' : 'Split down'}
+            </DropdownMenuItem>
+          </DropdownMenu>
+        ) : (
+          <>
+            <IconButton
+              label={isChinese ? '向右拆分' : 'Split right'}
+              className="is-split-action"
+              onClick={() => props.onSplit(props.paneId, 'row')}
+              disabled={props.splitDisabled}
+            >
+              <IconPanelRight width={ICON_PX} height={ICON_PX} />
+            </IconButton>
+            <IconButton
+              label={isChinese ? '向下拆分' : 'Split down'}
+              className="is-split-action"
+              onClick={() => props.onSplit(props.paneId, 'column')}
+              disabled={props.splitDisabled}
+            >
+              <IconArrowDown width={ICON_PX} height={ICON_PX} />
+            </IconButton>
+          </>
+        )}
         <IconButton
           label={
             props.maximized
@@ -182,9 +194,9 @@ export function ConversationPaneHeader(props: ConversationPaneHeaderProps): Reac
           onClick={() => props.onToggleMaximized(props.paneId)}
         >
           {props.maximized ? (
-            <IconCompress width={15} height={15} />
+            <IconCompress width={ICON_PX} height={ICON_PX} />
           ) : (
-            <IconExpand width={15} height={15} />
+            <IconExpand width={ICON_PX} height={ICON_PX} />
           )}
         </IconButton>
         {props.closable ? (
@@ -192,7 +204,7 @@ export function ConversationPaneHeader(props: ConversationPaneHeaderProps): Reac
             label={isChinese ? '关闭窗格' : 'Close pane'}
             onClick={() => props.onClose(props.paneId)}
           >
-            <IconClose width={15} height={15} />
+            <IconClose width={ICON_PX} height={ICON_PX} />
           </IconButton>
         ) : null}
       </div>

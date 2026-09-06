@@ -108,10 +108,15 @@ describe('ConversationPaneWorkspace', () => {
     expect(workspace?.dataset.paneCount).toBe('2');
     expect(workspace?.classList.contains('is-single-pane')).toBe(false);
     expect(container?.querySelectorAll('[data-pane-id]')).toHaveLength(2);
-    expect(
-      container?.querySelector<HTMLButtonElement>('[aria-label="Split right"]'),
-    ).not.toBeNull();
+    const primaryPane = container?.querySelector('[data-pane-id="conversation-pane-primary"]');
+    const secondaryPane = container?.querySelectorAll<HTMLElement>('[data-pane-id]')[1];
+    expect(primaryPane?.querySelector('[aria-label="Chat layout"]')).not.toBeNull();
+    expect(primaryPane?.querySelector('[aria-label="Close pane"]')).toBeNull();
+    expect(secondaryPane?.querySelector('[aria-label="Split right"]')).not.toBeNull();
+    expect(secondaryPane?.querySelector('[aria-label="Close pane"]')).not.toBeNull();
+    expect(container?.querySelector('[data-testid="conversation-pane-presets"]')).not.toBeNull();
     expect(container?.textContent).toContain('Open a Chat here');
+    expect(container?.textContent).toContain('2 Chats');
 
     const separator = container?.querySelector<HTMLElement>('[role="separator"]');
     expect(separator?.getAttribute('aria-orientation')).toBe('vertical');
@@ -183,6 +188,25 @@ describe('ConversationPaneWorkspace', () => {
       container?.querySelector<HTMLElement>('[data-testid="conversation-pane-workspace"]')?.dataset
         .paneCount,
     ).toBe('1');
+  });
+
+  it('applies a layout preset from the chip bar', () => {
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd', metaKey: true }));
+    });
+    const presets = container?.querySelectorAll<HTMLButtonElement>('.conversation-pane-preset') ?? [];
+    const four = Array.from(presets).find((button) => button.textContent === '4 Chats');
+    expect(four).toBeDefined();
+    act(() => {
+      four?.click();
+    });
+    expect(
+      container?.querySelector<HTMLElement>('[data-testid="conversation-pane-workspace"]')?.dataset
+        .paneCount,
+    ).toBe('4');
+    expect(container?.querySelector('.conversation-pane-preset.is-active')?.textContent).toBe(
+      '4 Chats',
+    );
   });
 
   it('toggles maximized pane when double clicking header', () => {

@@ -26,7 +26,7 @@ describe('resolveStartupAppearance', () => {
   it('rebuilds from Appearance prefs when no last theme is stored', () => {
     localStorage.setItem('piwin.desktop.appearanceMode', 'dark');
     const theme = resolveStartupAppearance();
-    expect(theme.id).toBe('piwin-dark-appearance');
+    expect(theme.id).toBe('piwin-inkstone-ink');
     expect(theme.mode).toBe('dark');
   });
 
@@ -46,14 +46,14 @@ describe('resolveStartupAppearance', () => {
     localStorage.setItem('piwin.desktop.lastThemeId', 'community-nord');
     localStorage.setItem('piwin.desktop.appearanceMode', 'light');
     const theme = resolveStartupAppearance();
-    expect(theme.id).toBe('piwin-light-appearance');
+    expect(theme.id).toBe('piwin-inkstone-paper');
   });
 
   it('falls back to Appearance prefs for appearance-derived theme ids', () => {
     localStorage.setItem('piwin.desktop.lastThemeId', 'piwin-dark-appearance');
     localStorage.setItem('piwin.desktop.appearanceMode', 'dark');
     const theme = resolveStartupAppearance();
-    expect(theme.id).toBe('piwin-dark-appearance');
+    expect(theme.id).toBe('piwin-inkstone-ink');
   });
 });
 

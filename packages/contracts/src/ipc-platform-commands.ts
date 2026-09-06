@@ -23,6 +23,7 @@ import type {
   GitCheckoutInput,
   GitCommitInput,
   GitStageInput,
+  GitStashInput,
   GitUnstageInput,
 } from './git.js';
 import type {
@@ -261,6 +262,7 @@ export type PlatformHostCommand =
   | { id?: string; type: 'git/commit'; input: GitCommitInput }
   | { id?: string; type: 'git/branch-create'; input: GitBranchCreateInput }
   | { id?: string; type: 'git/checkout'; input: GitCheckoutInput }
+  | { id?: string; type: 'git/stash'; input: GitStashInput }
   | { id?: string; type: 'theme/list' }
   | { id?: string; type: 'theme/get-active' }
   | { id?: string; type: 'theme/set-active'; themeId: string }

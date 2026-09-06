@@ -6,20 +6,42 @@ import {
   IconArchive,
   IconCheck,
   IconDocument,
+  IconFolder,
   IconMoreVertical,
   IconPin,
   IconTrash,
   IconUnarchive,
 } from './shell-icons';
+import { InkLineNode } from './ink-line-node';
 import { formatSessionRelativeTime } from './session-relative-time';
 import { sessionRowIsWorking, type SessionRowRunPhase } from './session-row-working';
 
+/**
+ * Right-side status slot. `waiting-you` and `background` keep their existing,
+ * more elaborate treatments (rounded square via InkLineNode; three-dot wave)
+ * since those already carry specific meaning; plain `running` renders through
+ * the shared ink-line node so the sidebar dot and the tool-chain dot draw
+ * from one vocabulary (Inkstone increment 7 §2 row 06).
+ */
 function SessionActivityIndicator(props: {
   isWorking: boolean;
   hasActiveBackendService: boolean;
+  isWaitingOnPermission: boolean;
   workingLabel: string;
   backendServiceLabel: string;
+  waitingOnYouLabel: string;
 }): ReactElement | null {
+  if (props.isWaitingOnPermission) {
+    return (
+      <span
+        className="session-item-activity session-item-activity--waiting-you"
+        data-testid="session-waiting-indicator"
+      >
+        <InkLineNode kind="waiting-you" label={props.waitingOnYouLabel} size="compact" />
+      </span>
+    );
+  }
+
   if (props.hasActiveBackendService) {
     return (
       <span
@@ -58,6 +80,8 @@ export function SessionRowItem({
   runPhase,
   backendServiceSessionIds,
   completedAttentionSessionIds,
+  failedAttentionSessionIds,
+  waitingPermissionSessionIds,
   onDismissCompletedAttention,
   onTogglePin,
   onArchiveSession,
@@ -67,6 +91,7 @@ export function SessionRowItem({
   activeDraftId,
   isContextActive,
   copy,
+  projectSubtitle,
 }: {
   session: SessionListItemUi | DraftSessionItemUi;
   activeSessionId: string | null;
@@ -80,10 +105,13 @@ export function SessionRowItem({
   activeDraftId?: string | null | undefined;
   isContextActive?: boolean | undefined;
   copy: DesktopCopy['sidebar'];
+  projectSubtitle?: string | undefined;
   workingSessionIds?: Record<string, true> | undefined;
   runPhase?: SessionRowRunPhase | undefined;
   backendServiceSessionIds?: Record<string, true> | undefined;
   completedAttentionSessionIds?: Record<string, true> | undefined;
+  failedAttentionSessionIds?: Record<string, true> | undefined;
+  waitingPermissionSessionIds?: Record<string, true> | undefined;
   onDismissCompletedAttention?: ((sessionId: string) => void) | undefined;
 }): ReactElement {
   const isDraft = 'isDraft' in session && session.isDraft === true;
@@ -100,9 +128,13 @@ export function SessionRowItem({
   });
   const hasActiveBackendService =
     !isDraft && backendServiceSessionIds != null && session.id in backendServiceSessionIds;
-  const hasActiveSessionWork = isWorking || hasActiveBackendService;
+  const isWaitingOnPermission =
+    !isDraft && waitingPermissionSessionIds != null && session.id in waitingPermissionSessionIds;
+  const hasActiveSessionWork = isWorking || hasActiveBackendService || isWaitingOnPermission;
   const hasCompletedAttention =
     !isDraft && completedAttentionSessionIds != null && session.id in completedAttentionSessionIds;
+  const hasFailedAttention =
+    !isDraft && failedAttentionSessionIds != null && session.id in failedAttentionSessionIds;
 
   return (
     <div
@@ -111,6 +143,7 @@ export function SessionRowItem({
         'session-row',
         ...(hasActiveSessionWork ? ['session-row--working'] : []),
         ...(hasCompletedAttention ? ['session-row--completed'] : []),
+        ...(hasFailedAttention ? ['session-row--failed'] : []),
         ...(isDraft ? ['session-row--draft'] : []),
       ].join(' ')}
     >
@@ -123,10 +156,12 @@ export function SessionRowItem({
         data-storage={storageState ?? 'local'}
         data-draft={isDraft ? 'true' : 'false'}
         data-completed={hasCompletedAttention ? 'true' : 'false'}
+        data-failed={hasFailedAttention ? 'true' : 'false'}
+        data-waiting-permission={isWaitingOnPermission ? 'true' : 'false'}
         data-context-active={isContextActive ? 'true' : 'false'}
         aria-current={isActive ? 'page' : undefined}
         aria-label={isDraft ? `${session.name} (draft)` : session.name}
-        className={
+        className={[
           isActive
             ? isWorking
               ? 'session-item active working'
@@ -135,8 +170,9 @@ export function SessionRowItem({
               ? 'session-item working'
               : isContextActive
                 ? 'session-item context-active'
-                : 'session-item'
-        }
+                : 'session-item',
+          ...(projectSubtitle ? ['has-project-subtitle'] : []),
+        ].join(' ')}
         onClick={() => (isDraft ? onResumeDraft?.(session.id) : onResumeSession(session.id))}
         onContextMenu={(event) => {
           if (isDraft) return;
@@ -144,7 +180,13 @@ export function SessionRowItem({
           onOpenSessionMenu(session.id, event.clientX, event.clientY);
         }}
       >
-        <span className="session-item-body">
+        <span
+          className={
+            projectSubtitle
+              ? 'session-item-body has-project-subtitle'
+              : 'session-item-body'
+          }
+        >
           <span className="session-item-name">
             {isDraft ? <span className="session-draft-mark" aria-hidden /> : null}
             {isArchived ? (
@@ -177,14 +219,27 @@ export function SessionRowItem({
             ) : null}
             <span className="session-item-title-text">{session.name}</span>
           </span>
+          {projectSubtitle ? (
+            <span className="session-item-project-subtitle" data-testid="session-project-subtitle">
+              <IconFolder width={12} height={12} className="session-item-project-icon" />
+              <span className="session-item-project-name">{projectSubtitle}</span>
+            </span>
+          ) : null}
         </span>
         <SessionActivityIndicator
           isWorking={isWorking}
           hasActiveBackendService={hasActiveBackendService}
+          isWaitingOnPermission={isWaitingOnPermission}
           workingLabel={copy.working}
           backendServiceLabel={copy.backendServiceActive}
+          waitingOnYouLabel={copy.waitingOnYou}
         />
-        {session.updatedAt && !isWorking && !hasActiveBackendService && !hasCompletedAttention ? (
+        {session.updatedAt &&
+        !isWorking &&
+        !hasActiveBackendService &&
+        !isWaitingOnPermission &&
+        !hasCompletedAttention &&
+        !hasFailedAttention ? (
           <span className="session-item-time" aria-label={session.updatedAt}>
             {formatSessionRelativeTime(session.updatedAt)}
           </span>
@@ -206,6 +261,22 @@ export function SessionRowItem({
           <span data-testid="session-completed-indicator" aria-hidden>
             <IconCheck width={12} height={12} />
           </span>
+        </button>
+      ) : null}
+      {hasFailedAttention && !hasActiveSessionWork ? (
+        <button
+          type="button"
+          className="session-item-failed-mark session-item-failed-dismiss"
+          data-testid="session-failed-dismiss"
+          aria-label={copy.dismissFailed}
+          title={copy.dismissFailed}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onDismissCompletedAttention?.(session.id);
+          }}
+        >
+          <InkLineNode kind="failed" label={copy.failedAttention} size="compact" />
         </button>
       ) : null}
       <div

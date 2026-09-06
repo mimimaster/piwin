@@ -97,9 +97,12 @@ export type DesktopCopy = {
     archived: string;
     working: string;
     backendServiceActive: string;
+    waitingOnYou: string;
     completed: string;
     /** Click the green check to clear the completion attention marker. */
     dismissCompleted: string;
+    dismissFailed: string;
+    failedAttention: string;
     pinSession: string;
     unpinSession: string;
     restoreSession: string;
@@ -128,8 +131,6 @@ export type DesktopCopy = {
     flatList: string;
     filters: string;
     openWorkspaceFolder: string;
-    openWorkspaceFolderAction: string;
-    generalChat: string;
     newConversationInProject: (projectName: string) => string;
     removeProjectFromSidebar: string;
     collapseProjects: string;
@@ -137,6 +138,9 @@ export type DesktopCopy = {
     collapseProject: string;
     expandProject: string;
     olderSessionsHidden: (count: number) => string;
+    pinned: string;
+    collapsePinned: string;
+    expandPinned: string;
     conversations: string;
     collapseConversations: string;
     expandConversations: string;
@@ -675,8 +679,11 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       archived: '已归档',
       working: '会话正在工作',
       backendServiceActive: '后台服务运行中',
+      waitingOnYou: '等待你的确认',
       completed: '会话已完成',
       dismissCompleted: '会话已完成 · 点击确认',
+      dismissFailed: '关闭失败提示',
+      failedAttention: '会话运行失败',
       pinSession: '置顶会话',
       unpinSession: '取消置顶',
       restoreSession: '恢复会话',
@@ -705,8 +712,6 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       flatList: '无分组列表',
       filters: '筛选',
       openWorkspaceFolder: '打开工作区文件夹',
-      openWorkspaceFolderAction: '打开工作区文件夹…',
-      generalChat: '通用 Chat（快速开始）',
       newConversationInProject: (projectName) => `在 ${projectName} 中新建会话`,
       removeProjectFromSidebar: '从侧栏移除项目',
       collapseProjects: '收起项目列表',
@@ -714,7 +719,10 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       collapseProject: '收起项目',
       expandProject: '展开项目',
       olderSessionsHidden: (count) => `还有 ${count} 个更早的会话，用搜索查找`,
-      conversations: '会话',
+      pinned: '置顶',
+      collapsePinned: '收起置顶列表',
+      expandPinned: '展开置顶列表',
+      conversations: '对话',
       collapseConversations: '收起会话列表',
       expandConversations: '展开会话列表',
       noGeneralConversations: '暂无通用会话',
@@ -1012,8 +1020,11 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       archived: 'Archived',
       working: 'Session is working',
       backendServiceActive: 'Backend service is active',
+      waitingOnYou: 'Waiting for your confirmation',
       completed: 'Session completed',
       dismissCompleted: 'Session completed · click to dismiss',
+      dismissFailed: 'Dismiss failure notice',
+      failedAttention: 'Session failed',
       pinSession: 'Pin session',
       unpinSession: 'Unpin session',
       restoreSession: 'Restore session',
@@ -1042,8 +1053,6 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       flatList: 'Flat list',
       filters: 'Filters',
       openWorkspaceFolder: 'Open workspace folder',
-      openWorkspaceFolderAction: 'Open Workspace Folder…',
-      generalChat: 'General Chat (Quick Start)',
       newConversationInProject: (projectName) => `New conversation in ${projectName}`,
       removeProjectFromSidebar: 'Remove from sidebar',
       collapseProjects: 'Collapse project list',
@@ -1052,6 +1061,9 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       expandProject: 'Expand project',
       olderSessionsHidden: (count) =>
         `${count} older session${count === 1 ? '' : 's'} hidden; use search to find them`,
+      pinned: 'Pinned',
+      collapsePinned: 'Collapse pinned list',
+      expandPinned: 'Expand pinned list',
       conversations: 'Conversations',
       collapseConversations: 'Collapse conversation list',
       expandConversations: 'Expand conversation list',

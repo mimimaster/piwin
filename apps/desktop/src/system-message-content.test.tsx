@@ -47,7 +47,8 @@ describe('SystemMessageContent', () => {
     expect(links).toHaveLength(2);
     expect(links[0]?.textContent).toContain('src/app.ts');
     expect(links[0]?.querySelector('svg')).not.toBeNull();
-    expect(links[0]?.className).toBe('system-file-link');
+    expect(links[0]?.className).toContain('system-file-link');
+    expect(links[0]?.className).toContain('pc');
 
     act(() => links[0]?.click());
     expect(onOpenFile).toHaveBeenCalledWith('/workspace/src/app.ts', 'src/app.ts');

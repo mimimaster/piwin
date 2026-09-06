@@ -19,6 +19,7 @@ export function ProduceStage(props: {
   projectPath?: string | null | undefined;
   onSeeCards: () => void;
   onConfigureEmbedding?: (() => void) | undefined;
+  onOpenSession?: ((sessionId: string) => void) | undefined;
 }): ReactElement {
   const { produce } = props;
   const isZh = props.locale === 'zh-CN';
@@ -138,9 +139,9 @@ export function ProduceStage(props: {
               resultKind={produce.view.resultKind}
               created={produce.createdCount}
               skipped={produce.generationJob?.skipped}
-              sessionId={undefined}
+              sessionId={produce.generationJob?.sessionId}
               error={produce.generationJob?.error}
-              onOpenSession={undefined}
+              onOpenSession={props.onOpenSession}
               onGenerateAgain={() => void produce.startGenerate()}
               onDismiss={props.onSeeCards}
               onBrowseLibrary={props.onSeeCards}

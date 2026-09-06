@@ -269,10 +269,17 @@ export function applyRunRecord(
     // immediately before `run/terminal`; derive the sidebar cue here so both
     // delivery forms have identical completion behavior. The active session
     // is already visible, so only a background session needs the cue.
+    // Completed and failed route to separate markers (Inkstone six-state
+    // vocabulary distinguishes success from failed); each clears the other so
+    // a session never shows both a mint checkmark and a coral node at once.
     completedAttentionSessionIds:
-      (outcome === 'completed' || outcome === 'failed') && state.activeSessionId !== run.sessionId
+      outcome === 'completed' && state.activeSessionId !== run.sessionId
         ? { ...state.completedAttentionSessionIds, [run.sessionId]: true }
         : removeSessionIdMarker(state.completedAttentionSessionIds, run.sessionId),
+    failedAttentionSessionIds:
+      outcome === 'failed' && state.activeSessionId !== run.sessionId
+        ? { ...state.failedAttentionSessionIds, [run.sessionId]: true }
+        : removeSessionIdMarker(state.failedAttentionSessionIds, run.sessionId),
   };
 }
 
@@ -346,6 +353,9 @@ export function reduceChatRun(state: ChatUiState, action: ChatUiRunAction): Chat
         completedAttentionSessionIds: state.activeSessionId
           ? removeSessionIdMarker(state.completedAttentionSessionIds, state.activeSessionId)
           : state.completedAttentionSessionIds,
+        failedAttentionSessionIds: state.activeSessionId
+          ? removeSessionIdMarker(state.failedAttentionSessionIds, state.activeSessionId)
+          : state.failedAttentionSessionIds,
       });
     }
     case 'user/steer': {
@@ -525,20 +535,22 @@ export function reduceChatRun(state: ChatUiState, action: ChatUiRunAction): Chat
           return state;
         }
         const nextWorking = removeWorkingSessionId(state.workingSessionIds, action.run.sessionId);
-        // Only completed / failed turns leave a sticky "done" marker. Cancelled
-        // and interrupted runs already communicate stop intent and should not
-        // keep demanding attention in the sidebar.
-        const shouldMarkCompletedAttention =
-          action.run.status === 'completed' || action.run.status === 'failed';
+        // Only completed / failed turns leave a sticky "done" marker.
+        // Cancelled and interrupted runs already communicate stop intent and
+        // should not keep demanding attention in the sidebar. Completed and
+        // failed route to separate markers so the sidebar node can tell them
+        // apart (Inkstone six-state vocabulary).
         return {
           ...state,
           workingSessionIds: nextWorking,
-          completedAttentionSessionIds: shouldMarkCompletedAttention
-            ? {
-                ...state.completedAttentionSessionIds,
-                [action.run.sessionId]: true,
-              }
-            : removeSessionIdMarker(state.completedAttentionSessionIds, action.run.sessionId),
+          completedAttentionSessionIds:
+            action.run.status === 'completed'
+              ? { ...state.completedAttentionSessionIds, [action.run.sessionId]: true }
+              : removeSessionIdMarker(state.completedAttentionSessionIds, action.run.sessionId),
+          failedAttentionSessionIds:
+            action.run.status === 'failed'
+              ? { ...state.failedAttentionSessionIds, [action.run.sessionId]: true }
+              : removeSessionIdMarker(state.failedAttentionSessionIds, action.run.sessionId),
         };
       }
       {

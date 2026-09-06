@@ -51,7 +51,7 @@ describe('ChangeFileHeader', () => {
     expect(container.querySelector('.change-file-path-name')?.textContent).toBe('GoalRunControl.tsx');
     expect(container.querySelector('.change-file-stats .add')?.textContent).toBe('+54');
     expect(container.querySelector('.change-file-stats .del')).toBeNull();
-    expect(container.querySelector('[data-testid="change-file-status-badge"]')?.textContent).toBe('新增');
+    expect(container.querySelector('[data-testid="change-file-status-badge"]')?.textContent).toBe('A');
 
     const backBtn = container.querySelector<HTMLButtonElement>('[data-testid="change-file-back"]');
     expect(backBtn).not.toBeNull();
@@ -82,6 +82,6 @@ describe('ChangeFileHeader', () => {
     expect(container.querySelector('.change-file-path-dir')?.textContent).toBe('src/');
     expect(container.querySelector('.change-file-path-name')?.textContent).toBe('utils.ts');
     expect(container.querySelector('.change-file-stats .del')?.textContent).toBe('−12');
-    expect(container.querySelector('[data-testid="change-file-status-badge"]')?.textContent).toBe('Deleted');
+    expect(container.querySelector('[data-testid="change-file-status-badge"]')?.textContent).toBe('D');
   });
 });

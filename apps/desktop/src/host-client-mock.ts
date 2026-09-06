@@ -1,4 +1,5 @@
 import { deriveDefaultNameFromMessage } from '@piwin/session/derive-default-name';
+import { installMockRendererHarness } from './e2e/mock-renderer-harness.js';
 import {
   appendMockTranscriptMessage,
   visibleMockTranscript,
@@ -21,6 +22,7 @@ import {
   mockQueuedInputFingerprint,
   validateMockQueuedTurnInput,
   waitForMockAbort,
+  type MockBuiltinThemeId,
 } from './host-client-mock-helpers.js';
 import type {
   AgentEvent,
@@ -79,8 +81,7 @@ export class MockHostBackend {
   mockDisabledExtensionIds = new Set<string>();
   mockBundledExtensionsInstalled = true;
   mockDisabledPromptIds = new Set<string>();
-  mockActiveThemeId: 'piwin-obsidian' | 'piwin-bone' | 'piwin-ink-wash' =
-    'piwin-obsidian';
+  mockActiveThemeId: MockBuiltinThemeId = 'piwin-obsidian';
   mockJobs = new Map<string, import('@piwin/contracts').JobRecord>();
   mockJobLogs = new Map<string, string>();
   mockPtys = new Map<string, { projectPath: string }>();
@@ -167,36 +168,8 @@ export class MockHostBackend {
     this.contextTelemetry.clear();
   }
 
-  /** Playwright-only seed + request counters. Off unless the page query asks. */
   installE2eHarness(): void {
-    if (typeof window === 'undefined') {
-      return;
-    }
-    const params = new URLSearchParams(window.location.search);
-    const seedCount = Number(params.get('e2eSeedSessions'));
-    if (Number.isSafeInteger(seedCount) && seedCount > 0) {
-      const now = Date.parse('2026-08-13T00:00:00.000Z');
-      for (let index = 0; index < seedCount; index += 1) {
-        const sessionId = `e2e-session-${index + 1}`;
-        this.sessions.set(sessionId, {
-          projectPath: '',
-          scope: { kind: 'general' },
-          workingDirectory: 'general',
-          events: [],
-          transcript: [],
-          name: `E2E Session ${String(index + 1).padStart(3, '0')}`,
-          nameSource: 'user',
-          updatedAt: new Date(now - index * 60_000).toISOString(),
-        });
-      }
-    }
-    if (params.get('e2eHostDiagnostics') === '1') {
-      (
-        window as Window & {
-          __PIWIN_E2E_HOST_STATS__?: { sessionList: number; sessionListPage: number };
-        }
-      ).__PIWIN_E2E_HOST_STATS__ = this.e2eCommandCounts;
-    }
+    installMockRendererHarness(this);
   }
 
   mockSessionSummary(

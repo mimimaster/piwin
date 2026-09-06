@@ -1,0 +1,148 @@
+import { expect, test, type Page } from '@playwright/test';
+
+async function boot(page: Page, path = '/'): Promise<void> {
+  await page.goto(path);
+  await page.getByRole('button', { name: '使用本机', exact: true }).click();
+  await expect(page.getByTestId('agent-mode-pill')).toHaveText('mock');
+  await expect(page.getByTestId('composer-input')).toBeVisible();
+}
+
+async function switchToPaper(page: Page): Promise<void> {
+  if (await page.locator('html').getAttribute('data-theme-id') === 'piwin-inkstone-ink') {
+    await page.getByRole('button', { name: '切换到浅色主题', exact: true }).click();
+  }
+  await expect(page.locator('html')).toHaveAttribute('data-theme-id', 'piwin-inkstone-paper');
+}
+
+async function assertShellGeometry(page: Page): Promise<void> {
+  const shell = page.getByTestId('app-shell');
+  await expect(shell).toHaveCSS('row-gap', '0px');
+  await expect(page.locator('.workspace')).toHaveCSS('border-radius', '12px');
+  // The titleband owns the window-top row; the three panels start below it.
+  await expect(page.locator('.chat-column')).toHaveCSS('padding-top', '0px');
+  await expect(page.getByTestId('composer-input')).toHaveCSS('min-height', '48px');
+  await expect(page.locator('.slab')).toHaveCSS('border-radius', '12px');
+  const title = await page.getByTestId('workspace-context-header').boundingBox();
+  const workspace = await page.locator('.workspace').boundingBox();
+  expect(title).not.toBeNull();
+  expect(workspace).not.toBeNull();
+  if (!title || !workspace) throw new Error('Missing shell panels');
+  expect(workspace.y).toBe(title.y + title.height);
+  expect(title.height).toBe(34);
+}
+
+test('default startup, paper/ink flips and empty slab retain prototype geometry', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await boot(page);
+  await switchToPaper(page);
+  await assertShellGeometry(page);
+  await expect(page.locator('.slab')).toHaveCSS('background-color', 'rgb(31, 28, 24)');
+  await page.getByRole('button', { name: '切换到深色主题', exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme-id', 'piwin-inkstone-ink');
+  await expect(page.locator('.slab')).toHaveCSS('background-color', 'rgb(14, 13, 11)');
+  await assertShellGeometry(page);
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme-id', 'piwin-inkstone-ink');
+});
+
+test('general Chat uses aligned paper cards and menus escape the composer', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await boot(page);
+  await switchToPaper(page);
+  await page.getByTestId('composer-input').fill('Inkstone layout check');
+  await page.getByTestId('send-btn').click();
+  await expect(page.getByTestId('conversation-response')).toContainText('piwin desktop mock reply');
+  const prompt = page.locator('.user-message-bubble');
+  await expect(prompt).toHaveCSS('border-radius', '8px');
+  await expect(page.locator('.conversation-response')).toHaveCSS('padding-left', '0px');
+  const promptBox = await prompt.boundingBox();
+  const responseBox = await page.getByTestId('conversation-response').boundingBox();
+  expect(promptBox).not.toBeNull();
+  expect(responseBox).not.toBeNull();
+  if (!promptBox || !responseBox) throw new Error('Missing conversation content');
+  expect(Math.abs(promptBox.x - responseBox.x)).toBeLessThan(2);
+  await page.getByTestId('composer-plus-btn').click();
+  await expect(page.getByRole('menu', { name: '添加文件和上下文' })).toBeVisible();
+  await expect(page.locator('.slab')).toHaveCSS('overflow', 'visible');
+});
+
+test('inspector does not remove the full-window titlebar tools', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await boot(page);
+  await switchToPaper(page);
+  await page.getByTestId('open-workspace-btn').click();
+  await page.getByTestId('project-path-input').fill('/tmp/inkstone-parity');
+  await page.getByTestId('open-project-btn').click();
+  await expect(page.getByTestId('workspace-path-dialog')).toHaveCount(0);
+  await page.getByTestId('workspace-context-header').getByTestId('right-panel-open-btn').click();
+  await expect(page.getByRole('complementary', { name: '工作区面板' })).toBeVisible();
+  await expect(page.getByTestId('titlebar-theme-toggle')).toBeVisible();
+  await expect(page.getByTestId('titlebar-search-btn')).toBeVisible();
+  await assertShellGeometry(page);
+  await page.setViewportSize({ width: 1000, height: 760 });
+  await expect(page.getByTestId('composer-input')).toBeVisible();
+  const bodyWidth = await page.locator('body').evaluate((element) => element.scrollWidth);
+  expect(bodyWidth).toBeLessThanOrEqual(1000);
+});
+
+test('appearance settings stay readable and the product mode controls work', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await boot(page);
+  await switchToPaper(page);
+  await page.getByRole('button', { name: '设置', exact: true }).click();
+  await expect(page.getByTestId('settings-appearance')).toBeVisible();
+  const content = await page.locator('.settings-main-content').boundingBox();
+  expect(content).not.toBeNull();
+  expect(content?.width).toBeLessThanOrEqual(840);
+  const paper = page.getByTestId('light-theme-preview');
+  const ink = page.getByTestId('dark-theme-preview');
+  const paperBox = await paper.boundingBox();
+  const inkBox = await ink.boundingBox();
+  expect(paperBox?.y).toBe(inkBox?.y);
+  await expect(page.getByTestId('light-theme-background')).not.toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('inkstone-appearance-paper.png') });
+  await ink.click();
+  await expect(ink).toHaveAttribute('aria-pressed', 'true');
+  await page.screenshot({ path: testInfo.outputPath('inkstone-appearance-ink.png') });
+  await page.locator('.appearance-color-disclosure').first().getByText('自定义配色', { exact: true }).click();
+  await expect(page.getByTestId('light-theme-background')).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-theme-id', 'piwin-inkstone-ink');
+  await page.getByText('Narrow', { exact: true }).click();
+  await page.getByRole('button', { name: '返回工作区', exact: true }).click();
+  await expect(page.getByTestId('composer-input')).toBeVisible();
+  await expect(page.locator('.slab')).toHaveCSS('width', '640px');
+});
+
+
+test('prototype Agent scene keeps body, process, composer and keyboard tabs aligned', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await boot(page, '/?e2eInkstone=1');
+  await switchToPaper(page);
+  await page.getByTestId('open-workspace-btn').click();
+  await page.getByTestId('project-path-input').fill('/mock/piwin');
+  await page.getByTestId('open-project-btn').click();
+  await page.getByRole('button', { name: 'Composer 忙会话队列', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '已改为排队语义' })).toBeVisible();
+  await page.getByTestId('workspace-context-header').getByTestId('right-panel-open-btn').click();
+  await page.getByRole('button', { name: '文件', exact: true }).click();
+  const fileTab = page.getByRole('tab', { name: '文件', exact: true });
+  await expect(fileTab).toHaveAttribute('aria-selected', 'true');
+  await expect(fileTab).toHaveAttribute('aria-controls', 'inspector-panel-files');
+  await page.getByRole('button', { name: '打开面板', exact: true }).click();
+  await page.getByRole('menuitem', { name: '变更', exact: true }).click();
+  await fileTab.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('tab', { name: /^变更/ })).toHaveAttribute('aria-selected', 'true');
+  await page.getByTestId('turn-work-details-summary').click();
+  const body = page.locator('.turn-work-details > .markdown');
+  await expect(body).toHaveCSS('font-size', '14.5px');
+  await expect(page.locator('.slab')).toHaveCSS('width', '720px');
+  const bodyBox = await body.boundingBox();
+  const composerBox = await page.locator('.slab').boundingBox();
+  expect(bodyBox?.x).toBe(composerBox?.x);
+  // Read from the start of the fixture, independent of the normal follow-tail position.
+  await page.locator('.chat-stream').evaluate(element => { element.scrollTop = 0; });
+  await page.screenshot({ path: testInfo.outputPath('inkstone-agent-paper.png') });
+  await page.getByRole('button', { name: '切换到深色主题', exact: true }).click();
+  await page.screenshot({ path: testInfo.outputPath('inkstone-agent-ink.png') });
+});

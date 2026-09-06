@@ -47,6 +47,8 @@ export type StreamdownRendererOptions = {
   artifactPreviewEnabled: boolean;
   artifactCodeFirst: boolean;
   artifactMaxBytes: number | undefined;
+  artifactBlockExternalScripts: boolean | undefined;
+  artifactBlockExternalResources: boolean | undefined;
   locale: 'zh-CN' | 'en';
   onOpenDocument: ((doc: MarkdownDocumentReference) => void) | undefined;
   projectPath: string | null | undefined;
@@ -198,6 +200,12 @@ export function createStreamdownComponents(optionsRef: {
     }
     if (options.artifactMaxBytes !== undefined) {
       fenceProps.artifactMaxBytes = options.artifactMaxBytes;
+    }
+    if (options.artifactBlockExternalScripts !== undefined) {
+      fenceProps.artifactBlockExternalScripts = options.artifactBlockExternalScripts;
+    }
+    if (options.artifactBlockExternalResources !== undefined) {
+      fenceProps.artifactBlockExternalResources = options.artifactBlockExternalResources;
     }
     // Stable React key (owi __displayKey): never include source body.
     const fenceKey =

@@ -1,13 +1,10 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   encodeTokensToCompact,
   type HighlightWorkerRequest,
   type HighlightWorkerResponse,
 } from './highlight-protocol';
-import {
-  HighlightClient,
-  type HighlightWorkerPort,
-} from './highlight-client';
+import { HighlightClient, type HighlightWorkerPort } from './highlight-client';
 
 function createFakeWorker(options?: {
   delayMs?: number;
@@ -130,5 +127,38 @@ describe('HighlightClient', () => {
     ];
     client.cancelAll();
     await expect(Promise.all(pending)).rejects.toThrow(/cancelled/i);
+  });
+
+  it('rejects pending and queued work when the worker crashes', async () => {
+    const port = createFakeWorker({ delayMs: 30 });
+    port.terminate = vi.fn();
+    const client = createClient(port);
+    const pending = ['one', 'two', 'three'].map((code) =>
+      client.highlight({
+        code,
+        language: 'typescript',
+        theme: 'github-dark',
+      }),
+    );
+    port.onerror?.(new Event('error'));
+    await expect(Promise.all(pending)).rejects.toThrow('worker failed');
+    expect(port.terminate).toHaveBeenCalledOnce();
+  });
+
+  it('recovers request capacity after synchronous worker creation fails', async () => {
+    const createWorker = vi
+      .fn()
+      .mockImplementationOnce(() => {
+        throw new Error('worker blocked');
+      })
+      .mockReturnValue(createFakeWorker());
+    const client = new HighlightClient({ createWorker, maxInFlight: 1 });
+    clients.push(client);
+    await expect(
+      client.highlight({ code: 'one', language: 'typescript', theme: 'github-dark' }),
+    ).rejects.toThrow('worker blocked');
+    await expect(
+      client.highlight({ code: 'two', language: 'typescript', theme: 'github-dark' }),
+    ).resolves.toMatchObject([[{ content: 'two' }]]);
   });
 });

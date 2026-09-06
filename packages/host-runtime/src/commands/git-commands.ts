@@ -21,6 +21,7 @@ const TYPES = new Set<HostCommand['type']>([
   'git/commit',
   'git/branch-create',
   'git/checkout',
+  'git/stash',
 ]);
 
 export function isGitCommand(
@@ -172,6 +173,19 @@ export async function handleGitCommand(
           return withGitWriteGate(context.workspaceWriteGate, projectPath.path, requestId, command.type, async () => {
             const result = await git.checkout({ ...command.input, projectPath: projectPath.path });
             return ok(requestId, 'git/checkout', { result });
+          });
+        }
+        case 'git/stash': {
+          const projectPath = await resolveGitProjectPath(
+            command.input.projectPath,
+            context.piwinRoot,
+            requestId,
+            command.type,
+          );
+          if (!projectPath.ok) return projectPath.response;
+          return withGitWriteGate(context.workspaceWriteGate, projectPath.path, requestId, command.type, async () => {
+            const result = await git.stash({ ...command.input, projectPath: projectPath.path });
+            return ok(requestId, 'git/stash', { result });
           });
         }
     default:

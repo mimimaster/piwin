@@ -14,6 +14,7 @@ import { useDesktopLocale } from '../../desktop-locale-context';
 import { FieldRow } from '../field-row';
 import { PageTitle } from '../page-title';
 import { useSettings } from '../settings-context';
+import { RememberedPermissionsSection } from '../../RememberedPermissionsSection';
 import { PermissionRulesEditor } from './permission-rules-editor';
 
 const PRESET_ORDER: readonly PermissionPreset[] = ['auto', 'ask', 'yolo'];
@@ -21,7 +22,7 @@ const PRESET_ORDER: readonly PermissionPreset[] = ['auto', 'ask', 'yolo'];
 export function PermissionsPage(): ReactElement {
   const { locale } = useDesktopLocale();
   const isChinese = locale === 'zh-CN';
-  const { config, projectPath, projectTrusted, saveConfig, saving } = useSettings();
+  const { config, projectPath, projectTrusted, saveConfig, saving, request } = useSettings();
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const currentPreset: PermissionPreset = resolvePermissionPreset(config?.permissions);
@@ -84,7 +85,7 @@ export function PermissionsPage(): ReactElement {
                   <button
                     key={preset}
                     type="button"
-                    className={`permission-mode-pill ${isActive ? 'is-active' : ''} mode-${preset}`}
+                    className={`permission-mode-pill perm-pill ${isActive ? 'is-active sel' : ''} mode-${preset}`}
                     onClick={() => void handlePresetChange(preset)}
                     disabled={!canEditPreset}
                   >
@@ -253,6 +254,11 @@ export function PermissionsPage(): ReactElement {
         </div>
       ) : null}
 
+      <RememberedPermissionsSection
+        projectPath={projectPath}
+        request={(command) => request(command)}
+      />
+
       <PermissionRulesEditor />
 
       {saveError ? (
@@ -266,13 +272,13 @@ export function PermissionsPage(): ReactElement {
   );
 }
 
-function presetLabel(preset: PermissionPreset, isChinese: boolean): string {
+function presetLabel(preset: PermissionPreset, _isChinese: boolean): string {
   switch (preset) {
     case 'auto':
-      return isChinese ? 'Auto（自动）' : 'Auto';
+      return 'Auto';
     case 'ask':
-      return isChinese ? 'Ask（每次询问）' : 'Ask';
+      return 'Ask';
     case 'yolo':
-      return isChinese ? 'YOLO（放行）' : 'YOLO';
+      return 'YOLO';
   }
 }

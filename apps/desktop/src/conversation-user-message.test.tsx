@@ -50,28 +50,33 @@ describe('UserMessageContent context chips', () => {
     container = host;
   }
 
-  it('renders the selection capsule inside the quote box within the user bubble in Conversation mode', () => {
+  it('renders the selection capsule as a proto @ att under the text in Conversation mode', () => {
     render(
       <UserMessageContent message={message} onRetry={vi.fn()} locale="zh-CN" isConversationSession={true} />,
     );
     const chips = container?.querySelector('[data-testid="message-context-refs"]');
+    const att = container?.querySelector('[data-testid="transcript-att-chip"]');
     const quoteBox = container?.querySelector('[data-testid="user-message-quote-box"]');
     const bubble = container?.querySelector('[data-testid="user-message-collapsible-body"]');
     expect(chips).not.toBeNull();
-    expect(chips?.textContent).toContain('visible title');
-    expect(quoteBox?.contains(chips as Node)).toBe(true);
+    expect(att?.getAttribute('data-att-variant')).toBe('mention');
+    expect(att?.textContent).toContain('@ visible title');
+    expect(quoteBox).toBeNull();
+    expect(bubble?.contains(chips as Node)).toBe(true);
     expect(bubble?.textContent).toContain('look at this');
   });
 
-  it('renders context chips directly in Agent mode without quote box', () => {
+  it('renders context chips as proto atts in Agent mode', () => {
     render(
       <UserMessageContent message={message} onRetry={vi.fn()} locale="zh-CN" isConversationSession={false} />,
     );
     const chips = container?.querySelector('[data-testid="message-context-refs"]');
+    const att = container?.querySelector('[data-testid="transcript-att-chip"]');
     const quoteBox = container?.querySelector('[data-testid="user-message-quote-box"]');
     const bubble = container?.querySelector('[data-testid="user-message-collapsible-body"]');
     expect(chips).not.toBeNull();
-    expect(chips?.textContent).toContain('visible title');
+    expect(att?.getAttribute('data-att-variant')).toBe('mention');
+    expect(att?.textContent).toContain('@ visible title');
     expect(quoteBox).toBeNull();
     expect(bubble?.textContent).toContain('look at this');
   });
@@ -113,6 +118,25 @@ describe('UserMessageContent context chips', () => {
     expect(footer?.querySelector('[data-testid="user-message-time"]')).not.toBeNull();
     expect(footer?.querySelector('[data-testid="message-copy-btn"]')).not.toBeNull();
     expect(footer?.querySelector('[data-testid="message-edit-btn"]')).not.toBeNull();
+  });
+
+  it('puts the proto fork foot under the paper card, not inside the bubble', () => {
+    render(
+      <UserMessageContent
+        message={message}
+        onRetry={vi.fn()}
+        locale="zh-CN"
+        isConversationSession={true}
+        branchSwitcher={<span data-testid="message-branch-switcher">‹ 2 / 3 ›</span>}
+      />,
+    );
+    const foot = container?.querySelector('[data-testid="user-message-fork-foot"]');
+    const bubble = container?.querySelector('[data-testid="user-message-collapsible-body"]');
+    expect(foot).not.toBeNull();
+    expect(foot?.classList.contains('ufoot')).toBe(true);
+    expect(foot?.textContent).toContain('分叉的提问');
+    expect(foot?.textContent).toContain('‹ 2 / 3 ›');
+    expect(bubble?.contains(foot as Node)).toBe(false);
   });
 
   it('renders a voice handover as a task card instead of a typed bubble', () => {

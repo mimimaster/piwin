@@ -38,7 +38,7 @@ export type MediaLibraryWorkspaceProps = {
   refreshToken?: number;
 };
 
-type ActiveKind = 'all' | 'image' | 'video' | 'favorite';
+type ActiveKind = 'all' | 'image' | 'video' | 'file' | 'favorite';
 
 const KIND_TABS: Array<{
   id: ActiveKind;
@@ -47,8 +47,16 @@ const KIND_TABS: Array<{
 }> = [
   { id: 'image', en: 'Images', zh: '图片' },
   { id: 'video', en: 'Videos', zh: '视频' },
+  { id: 'file', en: 'Files', zh: '文件' },
   { id: 'favorite', en: 'Favorites', zh: '收藏' },
 ];
+
+function kindFromInitial(kind: MediaLibraryFilter): ActiveKind {
+  if (kind === 'video' || kind === 'file') {
+    return kind;
+  }
+  return 'image';
+}
 
 const INSPIRATIONS = [
   {
@@ -102,9 +110,7 @@ export function MediaLibraryWorkspace(props: MediaLibraryWorkspaceProps): ReactE
   const isZh = props.locale === 'zh-CN';
   const t = (en: string, zh: string) => (isZh ? zh : en);
 
-  const [kind, setKind] = useState<ActiveKind>(
-    props.initialKind === 'video' ? 'video' : 'image',
-  );
+  const [kind, setKind] = useState<ActiveKind>(kindFromInitial(props.initialKind));
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [search, setSearch] = useState('');
   const [modelFilter, setModelFilter] = useState('all');
@@ -122,11 +128,11 @@ export function MediaLibraryWorkspace(props: MediaLibraryWorkspaceProps): ReactE
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    setKind(props.initialKind === 'video' ? 'video' : 'image');
+    setKind(kindFromInitial(props.initialKind));
   }, [props.initialKind]);
 
   const queryKind: MediaLibraryFilter =
-    kind === 'video' ? 'video' : kind === 'image' ? 'image' : 'all';
+    kind === 'favorite' ? 'all' : kind === 'all' ? 'all' : kind;
 
   const library = useMediaLibrary({
     kind: queryKind,
@@ -286,16 +292,20 @@ export function MediaLibraryWorkspace(props: MediaLibraryWorkspaceProps): ReactE
   const emptyTitle =
     kind === 'video'
       ? t('No videos yet', '还没有视频')
-      : kind === 'favorite'
-        ? t('No favorites yet', '暂无收藏素材')
-        : t('No images yet', '还没有图片');
+      : kind === 'file'
+        ? t('No files yet', '还没有文件')
+        : kind === 'favorite'
+          ? t('No favorites yet', '暂无收藏素材')
+          : t('No images yet', '还没有图片');
 
   const emptyDetail =
     kind === 'video'
       ? t('Videos generated in chat land here.', '会话里生成的视频会出现在这里。在对话中输入提示词让 AI 创作。')
-      : kind === 'favorite'
-        ? t('Star assets to save them in your favorites.', '点击素材卡片上的星标即可收藏。')
-        : t('Images generated in chat land here.', '会话里生成的图片会出现在这里。在对话中输入提示词让 AI 为你生成作品。');
+      : kind === 'file'
+        ? t('Documents and other files land here.', '文档和其他文件会出现在这里。')
+        : kind === 'favorite'
+          ? t('Star assets to save them in your favorites.', '点击素材卡片上的星标即可收藏。')
+          : t('Images generated in chat land here.', '会话里生成的图片会出现在这里。在对话中输入提示词让 AI 为你生成作品。');
 
   return (
     <div className="vault-stage lib-page" data-testid="library-workspace">
@@ -403,7 +413,15 @@ export function MediaLibraryWorkspace(props: MediaLibraryWorkspaceProps): ReactE
                     key={tab.id}
                     type="button"
                     className={`lib-segmented-tab${active ? ' is-active' : ''}`}
-                    data-testid={`library-tab-${tab.id === 'image' ? 'images' : tab.id === 'video' ? 'videos' : 'favorites'}`}
+                    data-testid={`library-tab-${
+                      tab.id === 'image'
+                        ? 'images'
+                        : tab.id === 'video'
+                          ? 'videos'
+                          : tab.id === 'file'
+                            ? 'files'
+                            : 'favorites'
+                    }`}
                     aria-pressed={active}
                     onClick={() => setKind(tab.id)}
                   >

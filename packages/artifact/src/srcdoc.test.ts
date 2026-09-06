@@ -66,7 +66,8 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(srcdoc).toContain('height === lastReportedHeight');
     expect(srcdoc).not.toContain("window.addEventListener('resize', scheduleHeight)");
     expect(srcdoc).not.toContain("root.querySelector('canvas, video')");
-    expect(srcdoc).not.toContain('MutationObserver');
+    expect(srcdoc).toContain('window.MutationObserver(scheduleHeight)');
+    expect(srcdoc).toContain('readHeight(node.scrollHeight)');
     expect(srcdoc).not.toContain('scheduleMeasureLadder');
   });
 
@@ -83,7 +84,7 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(srcdoc).not.toContain("window.removeEventListener('message', onRenderCommand)");
     expect(srcdoc).toContain('scheduleHeight();');
     expect(srcdoc).toContain('activateFinalScripts(root)');
-    expect(srcdoc).not.toContain('MutationObserver');
+    expect(srcdoc).toContain('contentObserver.disconnect()');
   });
 
   it('keeps Inline content in natural flow without a document scrollport', () => {
@@ -444,6 +445,28 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(session.nativeMessages).toEqual(session.messages);
   });
 
+  it('tracks overflowing child mutations and releases their observer on viewport promotion', () => {
+    const root = createMeasuredRoot(58);
+    root.scrollHeight = 354;
+    const session = runBridgeSession(root);
+    expect(session.messages.at(-1)).toMatchObject({ height: 354 });
+    root.scrollHeight = 704;
+    session.mutate();
+    expect(session.messages.at(-1)).toMatchObject({ height: 704 });
+    root.scrollHeight = 154;
+    session.mutate();
+    expect(session.messages.at(-1)).toMatchObject({ height: 154 });
+    session.dispatchRenderCommand({
+      type: 'piwin-artifact:stream-update',
+      channelId: 'test-channel',
+      revision: 1,
+      source: '<div>viewport</div>',
+      frameMode: 'inline-viewport',
+      final: true,
+    });
+    expect(session.contentObserverCount()).toBe(0);
+  });
+
   it('reports body height when the fragment root is absent', () => {
     const session = runBridgeSession(null, { bodyHeight: 512 });
     expect(session.messages.at(-1)).toMatchObject({ height: 512, revision: 0 });
@@ -458,6 +481,7 @@ describe('buildHtmlArtifactSrcdoc', () => {
 
 type MeasuredRoot = {
   height: number;
+  scrollHeight?: number;
   getBoundingClientRect: () => { height: number };
 };
 
@@ -491,6 +515,8 @@ function runBridgeSession(
   nativeMessages: SizeMessage[];
   documentElement: { attributes: Record<string, string> };
   observerCount: () => number;
+  contentObserverCount: () => number;
+  mutate: () => void;
   listenerCount: () => number;
   scriptActivateCount: () => number;
   observeWithoutFlush: () => void;
@@ -501,6 +527,7 @@ function runBridgeSession(
   const messages: SizeMessage[] = [];
   const nativeMessages: SizeMessage[] = [];
   const resizeCallbacks = new Set<() => void>();
+  const mutationCallbacks = new Set<() => void>();
   const animationCallbacks: Array<() => void> = [];
   const messageListeners: Array<(event: { data: unknown }) => void> = [];
   const documentElement = {
@@ -532,6 +559,15 @@ function runBridgeSession(
         resizeCallbacks.delete(this.callback);
       }
     },
+    MutationObserver: class {
+      constructor(private callback: () => void) {}
+      observe(): void {
+        mutationCallbacks.add(this.callback);
+      }
+      disconnect(): void {
+        mutationCallbacks.delete(this.callback);
+      }
+    },
     webkit: undefined as
       | {
           messageHandlers: {
@@ -558,6 +594,9 @@ function runBridgeSession(
       ? null
       : {
           ...root,
+          get scrollHeight() {
+            return root.scrollHeight;
+          },
           firstChild: null as unknown,
           querySelectorAll: (selector: string) =>
             selector === 'script'
@@ -633,6 +672,11 @@ function runBridgeSession(
     nativeMessages,
     documentElement,
     observerCount: () => resizeCallbacks.size,
+    contentObserverCount: () => mutationCallbacks.size,
+    mutate: (): void => {
+      for (const callback of mutationCallbacks) callback();
+      flushAnimationFrames();
+    },
     listenerCount: () => messageListeners.length,
     scriptActivateCount: () => scriptActivations,
     observeWithoutFlush: (): void => {

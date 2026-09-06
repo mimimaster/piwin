@@ -15,15 +15,27 @@ import { createMockSessionTranscriptPage } from './mock-session-transcript-page'
 import {
   PIWIN_APPEARANCE_BONE,
   PIWIN_APPEARANCE_INK_WASH,
+  PIWIN_APPEARANCE_INKSTONE_INK,
+  PIWIN_APPEARANCE_INKSTONE_PAPER,
   PIWIN_APPEARANCE_OBSIDIAN,
   migrateThemeId,
 } from './appearance-tokens';
 
-export type MockBuiltinThemeId = 'piwin-obsidian' | 'piwin-bone' | 'piwin-ink-wash';
+export type MockBuiltinThemeId =
+  | 'piwin-obsidian'
+  | 'piwin-bone'
+  | 'piwin-ink-wash'
+  | 'piwin-inkstone-paper'
+  | 'piwin-inkstone-ink';
 
 export function resolveMockThemeId(themeId: string): MockBuiltinThemeId {
   const migrated = migrateThemeId(themeId);
-  if (migrated === 'piwin-bone' || migrated === 'piwin-ink-wash') {
+  if (
+    migrated === 'piwin-bone' ||
+    migrated === 'piwin-ink-wash' ||
+    migrated === 'piwin-inkstone-paper' ||
+    migrated === 'piwin-inkstone-ink'
+  ) {
     return migrated;
   }
   return 'piwin-obsidian';
@@ -35,6 +47,10 @@ export function mockThemeManifest(themeId: MockBuiltinThemeId): ThemeManifest {
       return PIWIN_APPEARANCE_BONE;
     case 'piwin-ink-wash':
       return PIWIN_APPEARANCE_INK_WASH;
+    case 'piwin-inkstone-paper':
+      return PIWIN_APPEARANCE_INKSTONE_PAPER;
+    case 'piwin-inkstone-ink':
+      return PIWIN_APPEARANCE_INKSTONE_INK;
     default:
       return PIWIN_APPEARANCE_OBSIDIAN;
   }

@@ -35,14 +35,14 @@ describe('listArchivedHydrationRequests', () => {
 });
 
 describe('resolveWorkbenchSessionTitle', () => {
-  it('prefixes a project label when a workspace is open', () => {
+  it('keeps the document title independent of the project chip', () => {
     expect(
       resolveWorkbenchSessionTitle({
         projectPath: '/repo',
         projectLabel: 'repo',
         sessionName: 'Fix auth',
       }),
-    ).toBe('repo / Fix auth');
+    ).toBe('Fix auth');
     expect(
       resolveWorkbenchSessionTitle({
         projectPath: null,

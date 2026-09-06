@@ -352,8 +352,9 @@ describe('chatUiReducer subagent hydration', () => {
       sessionId: 's2',
       awaitTranscript: true,
     });
-    // Cold s2: keep s1 rows under loading (no empty vignette flash).
-    expect(state.messages.some((message) => message.text.includes('from s1'))).toBe(true);
+    // Cold s2: empty placeholder; s1 is only in the warm cache.
+    expect(state.messages.some((message) => message.text.includes('from s1'))).toBe(false);
+    expect(state.transcriptOwnerSessionId).toBe('s2');
     expect(state.warmSessionCache.byId.s1?.messages[0]?.text).toContain('from s1');
     expect(state.awaitingTranscript).toBe(true);
 
@@ -417,7 +418,7 @@ describe('chatUiReducer subagent hydration', () => {
     });
     expect(state.transcriptOwnerSessionId).toBe('session-a');
 
-    // Cold switch to B: old rows stay painted, owner must remain A.
+    // Cold switch to B: placeholder only, owner follows the selected session.
     state = chatUiReducer(state, {
       type: 'session/set',
       sessionId: 'session-b',
@@ -425,8 +426,9 @@ describe('chatUiReducer subagent hydration', () => {
     });
     expect(state.activeSessionId).toBe('session-b');
     expect(state.awaitingTranscript).toBe(true);
-    expect(state.messages.map((message) => message.id)).toEqual(['a-1']);
-    expect(state.transcriptOwnerSessionId).toBe('session-a');
+    expect(state.messages.map((message) => message.id)).toEqual([]);
+    expect(state.transcriptOwnerSessionId).toBe('session-b');
+    expect(state.warmSessionCache.byId['session-a']?.messages[0]?.id).toBe('a-1');
 
     // B's transcript commits: owner flips to B.
     state = chatUiReducer(state, {

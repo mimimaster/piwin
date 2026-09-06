@@ -115,6 +115,10 @@ describe('RightPanel multi-tab', () => {
     expect(container.querySelector('[data-testid="right-panel-home-cards"]')).toBeNull();
     expect(container.querySelector('[data-testid="right-panel-home-branches"]')).toBeNull();
     expect(container.querySelector('[data-testid="terminal-body"]')).toBeNull();
+    expect(container.querySelector('[data-testid="right-panel-home-notes"]')).toBeNull();
+    expect(container.querySelector('[data-testid="right-panel-home-sideChat"]')).toBeNull();
+    expect(container.querySelector('.insp-h')).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid^="right-panel-home-"]').length).toBe(4);
   });
 
   it('opens the shell-requested tab when the active tab changes as the panel expands', () => {
@@ -207,7 +211,9 @@ describe('RightPanel multi-tab', () => {
       addBtn?.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
     });
     expect(document.querySelector('[data-testid="right-panel-plus-menu"]')).not.toBeNull();
-    expect(document.querySelector('[data-testid="right-panel-plus-cards"]')).toBeNull();
+    expect(document.querySelector('[data-testid="right-panel-plus-cards"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="right-panel-plus-notes"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="right-panel-plus-sideChat"]')).not.toBeNull();
     expect(document.querySelector('[data-testid="right-panel-plus-branches"]')).toBeNull();
 
     const filesBtn = document.querySelector<HTMLElement>('[data-testid="right-panel-plus-files"]');

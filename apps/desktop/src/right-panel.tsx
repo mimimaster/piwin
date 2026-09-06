@@ -2,21 +2,22 @@
  * Right workspace panel — multi-tab like Cursor's side window.
  *
  * - 2x2 home grid: Files / Terminal / Browser / Changes
- * - + opens a section picker popover limited to the same four tabs
+ * - + opens notes / cards / side chat plus the four home tabs
  * - Drag left edge to resize; double-click resets width
  * - Mount only the active surface; preserve an open terminal as the explicit
  *   PTY-authority exception
  */
 
 import { useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
-import { IconClose, IconExpand, IconPanelRight } from './shell-icons';
+import { IconExpand } from './shell-icons';
 import { getDesktopCopy } from './desktop-locale';
 import type { DesktopLocale } from './desktop-locale';
-import { IconButton } from '@piwin/ui-kit';
+import { IconButton, IconClose } from '@piwin/ui-kit';
 import { readStoredRightPanelState, writeStoredRightPanelState } from './right-panel-memory';
-import { sectionLabel, sectionIcon, type RightPanelTab } from './right-panel-sections';
+import { sectionLabel, type RightPanelTab } from './right-panel-sections';
 import { RightPanelPlusMenu } from './right-panel-plus-menu';
 import { RightPanelHome } from './right-panel-home';
+import { RightPanelTabs } from './right-panel-tabs.js';
 import { RIGHT_PANEL_MAX_WIDTH_PX, RIGHT_PANEL_MIN_WIDTH_PX } from './right-panel-width';
 import { WindowDragRegion, handleNativeWindowDragMouseDown } from './native-window-drag';
 import { DeferredSurfaceBoundary } from './deferred-desktop-surfaces';
@@ -254,9 +255,8 @@ export function RightPanel(props: RightPanelProps): ReactElement {
 
       {/* Cursor-style tab strip */}
       <div
-        className="right-panel-tabstrip right-panel-titlebar-box"
+        className="right-panel-tabstrip right-panel-titlebar-box insp-h"
         data-testid="right-panel-tabstrip"
-        role="tablist"
         data-tauri-drag-region
         onMouseDown={handleNativeWindowDragMouseDown}
       >
@@ -269,60 +269,12 @@ export function RightPanel(props: RightPanelProps): ReactElement {
           active={pickerOpen}
         />
 
-        <div className="right-panel-tabs" data-no-window-drag>
-          {openTabs.map((tab) => {
-            const isActive = tab === active;
-            const label = sectionLabel(tab, locale);
-            return (
-              <div
-                key={tab}
-                className={isActive ? 'right-panel-tab active' : 'right-panel-tab'}
-                role="tab"
-                aria-selected={isActive}
-                data-testid={`right-panel-open-tab-${tab}`}
-              >
-                <button
-                  type="button"
-                  className="right-panel-tab-main"
-                  onClick={() => {
-                    props.onTabChange(tab);
-                    setPickerOpen(false);
-                    if (tab === 'terminal') props.onTerminalAttentionClear?.();
-                  }}
-                >
-                  <span className="right-panel-tab-icon" aria-hidden>
-                    {sectionIcon(tab)}
-                  </span>
-                  <span className="right-panel-tab-label">{label}</span>
-                  {tab === 'terminal' && runningJobCount > 0 ? (
-                    <span className="right-panel-tab-badge">{runningJobCount}</span>
-                  ) : null}
-                  {tab === 'terminal' && terminalAttention ? (
-                    <span className="right-panel-tab-attention" aria-hidden />
-                  ) : null}
-                  {tab === 'review' && changesCount > 0 ? (
-                    <span className="right-panel-tab-badge">{changesCount}</span>
-                  ) : null}
-                  {tab === 'cards' && cardsDueCount !== undefined && cardsDueCount > 0 ? (
-                    <span className="right-panel-tab-badge">{cardsDueCount}</span>
-                  ) : null}
-                </button>
-                <button
-                  type="button"
-                  className="right-panel-tab-close"
-                  aria-label={locale === 'zh-CN' ? `关闭 ${label}` : `Close ${label}`}
-                  data-testid={`right-panel-close-tab-${tab}`}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    closeTab(tab);
-                  }}
-                >
-                  <IconClose width={12} height={12} />
-                </button>
-              </div>
-            );
-          })}
-        </div>
+        <RightPanelTabs
+          tabs={openTabs} active={active} locale={locale}
+          changesCount={changesCount} runningJobCount={runningJobCount}
+          cardsDueCount={cardsDueCount} terminalAttention={terminalAttention}
+          onSelect={openTab} onClose={closeTab}
+        />
 
         <WindowDragRegion
           className="right-panel-titlebar-drag"
@@ -330,9 +282,9 @@ export function RightPanel(props: RightPanelProps): ReactElement {
           aria-label={getDesktopCopy(locale).titlebar.dragWindow}
         />
 
-        <div className="right-panel-actions" data-no-window-drag>
+        <div className="right-panel-actions insp-actions" data-no-window-drag>
           <IconButton
-            className={`right-panel-action-btn${props.isExpanded ? ' active' : ''}`}
+            className={`right-panel-action-btn ib${props.isExpanded ? ' active' : ''}`}
             data-testid="right-panel-expand-btn"
             label={
               props.isExpanded
@@ -365,16 +317,23 @@ export function RightPanel(props: RightPanelProps): ReactElement {
           </IconButton>
 
           <IconButton
-            className="right-panel-action-btn active"
+            className="right-panel-action-btn ib"
             data-testid="right-panel-open-btn"
-            label={getDesktopCopy(locale).titlebar.collapseWorkspacePanel}
-            title={getDesktopCopy(locale).titlebar.collapseWorkspacePanel}
-            aria-pressed={true}
+            label={locale === 'zh-CN' ? '关闭工作区面板' : 'Close workspace panel'}
+            title={locale === 'zh-CN' ? '关闭工作区面板' : 'Close workspace panel'}
             onClick={props.onClose}
           >
-            <IconPanelRight />
+            <IconClose width={14} height={14} />
           </IconButton>
         </div>
+      </div>
+
+      {/* Proto-00 .tool-context: which session these tools follow. The tab
+          strip keeps the expand/close controls, so this row is label-only and
+          stays hidden outside the Inkstone themes. */}
+      <div className="right-panel-tool-context tool-context" data-testid="right-panel-tool-context">
+        <span className="follow-dot" aria-hidden />
+        <span className="tool-scope">{locale === 'zh-CN' ? '本次会话' : 'This session'}</span>
       </div>
 
       {openTabs.length === 0 ? (

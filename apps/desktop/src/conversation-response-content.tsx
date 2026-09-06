@@ -7,6 +7,7 @@ import type {
   ModelRef,
   ThemeManifest,
 } from '@piwin/contracts';
+import { pickArtifactFenceSecurity } from './artifact-fence-security';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model';
 import type { ChatMessageUi, RunRecordUi, ToolCardUi } from './chat-reducer';
 import type { ModelOption } from './model-options';
@@ -19,6 +20,7 @@ import {
   resolveModelDisplayName,
 } from './conversation-message-identity';
 import { CitationCards } from './CitationCards';
+import { InkstoneMessageIdentity } from './inkstone-message-identity.js';
 import { ImageGenerationProgress } from './image-generation-progress';
 import { MessageAttachments } from './message-attachments';
 import { extractFlashcardItemIdsFromText } from './resolve-conversation-flashcards.js';
@@ -35,8 +37,11 @@ import { buildTurnPresentation } from './run-presentation.js';
 import { runtimeStatusText } from './run-activity-strings.js';
 import { conversationActivityLabel } from './conversation-activity.js';
 import { TurnToolGroup } from './turn-tool-group.js';
+import { ExploreFlowCapsule } from './explore-flow-capsule.js';
+import type { ExploreFlowRole } from './explore-flow.js';
 import {
   getGenerationStatus,
+  getGenerationTool,
   resolveGenerationToolKind,
   shouldRenderGenerationProgress,
 } from './generation-tool-kind.js';
@@ -70,6 +75,8 @@ export function ConversationResponseContent(props: {
   artifactPreviewEnabled: boolean;
   artifactCodeFirst?: boolean;
   artifactMaxBytes?: number;
+  artifactBlockExternalScripts?: boolean;
+  artifactBlockExternalResources?: boolean;
   onArtifactAction?: (action: ArtifactActionMessage) => void;
   onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
   onOpenDocument?: ((input: DocumentOpenInput) => void) | undefined;
@@ -89,6 +96,9 @@ export function ConversationResponseContent(props: {
   showHeader?: boolean;
   /** Supplementary panes bypass ChatMessageRow, so they opt into media chrome here. */
   renderMediaChrome?: boolean;
+  /** Cross-message explore-flow role (anchor capsule / suppressed member). */
+  exploreRole?: ExploreFlowRole;
+  showThinking?: boolean;
 }): ReactElement {
   const { message, locale } = props;
   const presentation = buildTurnPresentation({
@@ -102,7 +112,15 @@ export function ConversationResponseContent(props: {
   const [thinkingIntent, setThinkingIntent] = useState<'automatic' | 'user-open' | 'user-closed'>(
     'automatic',
   );
-  const hasThinking = message.thinking.trim().length > 0;
+  const exploreRole = props.exploreRole;
+  const isFlowAnchor = exploreRole?.kind === 'anchor';
+  const isFlowMember = exploreRole?.kind === 'member';
+  const isFoldThought = exploreRole?.kind === 'fold-thought';
+  const hasThinking =
+    message.thinking.trim().length > 0 &&
+    !isFlowMember &&
+    !isFoldThought &&
+    !(isFlowAnchor && message.text.trim().length === 0);
   const liveStreaming = props.isStreaming === true;
   // Keep reasoning visible for the whole live bubble. Turn presentation marks
   // thinking inactive as soon as a caption or tool appears, which hid grok
@@ -168,11 +186,14 @@ export function ConversationResponseContent(props: {
     props.renderExtractedFlashcards,
   ]);
   const displayCards = extractedCards.length > 0 ? extractedCards : resolvedCards;
-  const conversationTools = message.tools.filter(
-    (tool) => resolveGenerationToolKind(tool) === null,
-  );
+  const conversationTools =
+    isFlowAnchor || isFlowMember
+      ? []
+      : message.tools.filter((tool) => resolveGenerationToolKind(tool) === null);
   const imageGenerationStatus = getGenerationStatus(message, 'image');
   const videoGenerationStatus = getGenerationStatus(message, 'video');
+  const imageGenerationTool = getGenerationTool(message, 'image');
+  const videoGenerationTool = getGenerationTool(message, 'video');
   const resolvedModel = resolveConversationMessageModel({
     message,
     livePromptModel: props.livePromptModel ?? null,
@@ -201,6 +222,7 @@ export function ConversationResponseContent(props: {
       className={`conversation-response${showHeader ? '' : ' is-continuation'}`}
       data-testid="conversation-response"
     >
+      {showHeader ? <InkstoneMessageIdentity message={message} locale={locale} /> : null}
       {showHeader ? (
         <ConversationMessageHeader
           message={message}
@@ -349,9 +371,7 @@ export function ConversationResponseContent(props: {
           {...(props.artifactCodeFirst !== undefined
             ? { artifactCodeFirst: props.artifactCodeFirst }
             : {})}
-          {...(props.artifactMaxBytes !== undefined
-            ? { artifactMaxBytes: props.artifactMaxBytes }
-            : {})}
+          {...pickArtifactFenceSecurity(props)}
           {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
           {...(props.sessionId
             ? { artifactOrigin: { sessionId: props.sessionId, messageId: message.id } }
@@ -364,7 +384,22 @@ export function ConversationResponseContent(props: {
         />
       ) : null}
 
-      {conversationTools.length > 0 ? (
+      {isFlowAnchor && exploreRole?.kind === 'anchor' ? (
+        <div className="thread turn-tool-sequence">
+          <ExploreFlowCapsule
+            group={exploreRole.group}
+            locale={locale}
+            {...(props.showThinking !== undefined ? { showThinking: props.showThinking } : {})}
+            {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
+            {...(props.toolDiffRequest !== undefined ? { request: props.toolDiffRequest } : {})}
+            {...(props.onOpenFile !== undefined ? { onOpenFile: props.onOpenFile } : {})}
+            {...(props.onOpenDiff !== undefined ? { onOpenDiff: props.onOpenDiff } : {})}
+            {...(props.onOpenDocument !== undefined
+              ? { onOpenDocument: props.onOpenDocument }
+              : {})}
+          />
+        </div>
+      ) : conversationTools.length > 0 ? (
         <TurnToolGroup
           tools={conversationTools}
           density={props.toolDensity ?? 'compact'}
@@ -390,12 +425,20 @@ export function ConversationResponseContent(props: {
       {renderMediaChrome &&
       imageGenerationStatus &&
       shouldRenderGenerationProgress(imageGenerationStatus, message.attachments) ? (
-        <ImageGenerationProgress locale={locale} status={imageGenerationStatus} />
+        <ImageGenerationProgress
+          locale={locale}
+          status={imageGenerationStatus}
+          {...(imageGenerationTool ? { tool: imageGenerationTool } : {})}
+        />
       ) : null}
       {renderMediaChrome &&
       videoGenerationStatus &&
       shouldRenderGenerationProgress(videoGenerationStatus, message.attachments) ? (
-        <VideoGenerationProgress locale={locale} status={videoGenerationStatus} />
+        <VideoGenerationProgress
+          locale={locale}
+          status={videoGenerationStatus}
+          {...(videoGenerationTool ? { tool: videoGenerationTool } : {})}
+        />
       ) : null}
       {renderMediaChrome ? (
         <MessageAttachments

@@ -70,7 +70,7 @@ export function SubagentActivityCard(props: SubagentActivityCardProps): ReactEle
   return (
     <button
       type="button"
-      className="subagent-activity-card"
+      className="card line az subagent-activity-card"
       data-testid="subagent-activity-card"
       data-state={activity.state}
       data-activity-id={activityId}
@@ -93,8 +93,8 @@ export function SubagentActivityCard(props: SubagentActivityCardProps): ReactEle
         <span className={`subagent-activity-state state-${activity.state}`}>
           {isChinese
             ? {
-                started: '已启动',
-                running: '工作中',
+                started: '已开始',
+                running: '运行中',
                 completed: '已完成',
                 failed: '失败',
                 cancelled: '已取消',

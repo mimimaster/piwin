@@ -1,0 +1,343 @@
+/* Inkstone composer (.slab) per docs/design/inkstone/proto-02-composer.html
+   Dark slab signature object with .refs, textarea .ta, action bar .bar,
+   sb-chip controls, context ring, circular send button, and keyboard hint. */
+
+html[data-theme-id='piwin-inkstone-paper'] .slab,
+html[data-theme-id='piwin-inkstone-ink'] .slab {
+  background: var(--slab);
+  color: var(--slab-t);
+  border-radius: 12px;
+  box-shadow: var(--sh3);
+  position: relative;
+  /* Slash/mention menus are anchored children and must escape the slab. */
+  overflow: visible;
+  border: 0;
+}
+
+html[data-slab='paper'] .slab,
+[data-slab='paper'] .slab {
+  --slab: var(--s3);
+  --slab-t: var(--t1);
+  --slab-ph: var(--t4);
+  --slab-chip: var(--s1);
+  --slab-line: var(--l2);
+  /* App aliases must follow the proto remap — otherwise chips keep the dark-slab
+     cream (`--slab-text: #efe9df`) on a paper slab and blow out. */
+  --slab-text: var(--t1);
+  --slab-text-2: var(--t4);
+  --slab-text-3: var(--t4);
+  --slab-placeholder: var(--t4);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .chat-column-empty .composer-dock.layout-centered .slab {
+  border-radius: 12px;
+  box-shadow: var(--sh3);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .chat-column-empty .composer-dock.layout-centered .slab .composer-v2-input-area {
+  padding: 10px 14px 2px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .chat-column-empty .composer-dock.layout-centered .slab .ta {
+  min-height: 48px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .chat-column-empty .composer-dock.layout-centered .slab .bar {
+  padding: 4px 8px 8px;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .slab::before,
+html[data-theme-id='piwin-inkstone-ink'] .slab::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: var(--slab-line);
+  z-index: 2;
+}
+
+/* Sheen animation for streaming and queued runs (S6.3) */
+html[data-theme-id='piwin-inkstone-paper'] .app-shell[data-state='running'] .slab::before,
+html[data-theme-id='piwin-inkstone-ink'] .app-shell[data-state='running'] .slab::before,
+html[data-theme-id='piwin-inkstone-paper'] .slab.is-streaming::before,
+html[data-theme-id='piwin-inkstone-ink'] .slab.is-streaming::before,
+html[data-theme-id='piwin-inkstone-paper'] .slab.is-queued-edit::before,
+html[data-theme-id='piwin-inkstone-ink'] .slab.is-queued-edit::before {
+  background: linear-gradient(
+    90deg,
+    transparent 0,
+    var(--lamp) 45%,
+    var(--lamp-glow) 55%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: sheen 4.8s linear infinite;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .slab .refs,
+html[data-theme-id='piwin-inkstone-ink'] .slab .refs,
+html[data-theme-id='piwin-inkstone-paper'] .slab .composer-attachment-shelf-chips,
+html[data-theme-id='piwin-inkstone-ink'] .slab .composer-attachment-shelf-chips {
+  display: flex;
+  gap: 6px;
+  padding: 10px 12px 0;
+  flex-wrap: wrap;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .slab .composer-attachment-shelf,
+html[data-theme-id='piwin-inkstone-ink'] .slab .composer-attachment-shelf {
+  border-bottom: 0;
+  background: transparent;
+}
+
+/* Verbatim proto-00 `.ref` — do not use iris-wash / iris-lift / --slab-text here.
+   Those Deck leftovers read as blown-out reddish-grey on both slab faces. */
+html[data-theme-id='piwin-inkstone-paper'] .slab .ref,
+html[data-theme-id='piwin-inkstone-ink'] .slab .ref,
+html[data-theme-id='piwin-inkstone-paper'] .slab .composer-v2-context-chip,
+html[data-theme-id='piwin-inkstone-ink'] .slab .composer-v2-context-chip,
+html[data-theme-id='piwin-inkstone-paper'] .slab .composer-v2-doc-comment-chip,
+html[data-theme-id='piwin-inkstone-ink'] .slab .composer-v2-doc-comment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 3px;
+  background: var(--slab-chip);
+  box-shadow: none;
+  border: 0;
+  font: 11.5px var(--mono);
+  font-weight: 400;
+  color: var(--slab-t);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .slab
+  :is(.ref, .composer-v2-context-chip, .composer-v2-doc-comment-chip)
+  :is(
+    .doc-comment-chip-icon,
+    .chip-text,
+    .doc-comment-chip-title,
+    .doc-comment-chip-dot,
+    .doc-comment-chip-count,
+    .doc-comment-chip-remove
+  ) {
+  color: var(--slab-t);
+  font: inherit;
+  font-weight: 400;
+  opacity: 1;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .slab
+  .composer-v2-context-chip.is-error {
+  background: var(--crimson-wash);
+  color: var(--crimson);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .slab
+  .composer-v2-context-chip.is-error
+  :is(.doc-comment-chip-icon, .chip-text, .doc-comment-chip-dot, .doc-comment-chip-count) {
+  color: var(--crimson);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .slab .composer-v2-input-area,
+html[data-theme-id='piwin-inkstone-ink'] .slab .composer-v2-input-area {
+  padding: 10px 14px 2px;
+  background: transparent;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .slab .ta,
+html[data-theme-id='piwin-inkstone-ink'] .slab .ta,
+html[data-theme-id='piwin-inkstone-paper'] .slab .composer-v2-textarea,
+html[data-theme-id='piwin-inkstone-ink'] .slab .composer-v2-textarea {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--slab-t);
+  font: 14.5px / 1.6 var(--sans);
+  resize: none;
+  outline: 0;
+  box-shadow: none;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .slab .ta::placeholder,
+html[data-theme-id='piwin-inkstone-ink'] .slab .ta::placeholder,
+html[data-theme-id='piwin-inkstone-paper'] .slab .composer-v2-textarea::placeholder,
+html[data-theme-id='piwin-inkstone-ink'] .slab .composer-v2-textarea::placeholder {
+  color: var(--slab-ph);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .slab .bar,
+html[data-theme-id='piwin-inkstone-ink'] .slab .bar,
+html[data-theme-id='piwin-inkstone-paper'] .slab .composer-v2-toolbar,
+html[data-theme-id='piwin-inkstone-ink'] .slab .composer-v2-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px 8px;
+  background: transparent;
+  border: 0;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .slab .sb-chip,
+html[data-theme-id='piwin-inkstone-ink'] .slab .sb-chip,
+html[data-theme-id='piwin-inkstone-paper'] .slab .thinking-effort-trigger,
+html[data-theme-id='piwin-inkstone-ink'] .slab .thinking-effort-trigger,
+html[data-theme-id='piwin-inkstone-paper'] .slab .run-mode-trigger,
+html[data-theme-id='piwin-inkstone-ink'] .slab .run-mode-trigger,
+html[data-theme-id='piwin-inkstone-paper'] .slab .orchestration-scheme-trigger,
+html[data-theme-id='piwin-inkstone-ink'] .slab .orchestration-scheme-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: var(--slab-ph);
+  font-size: 12.5px;
+  font-family: var(--sans);
+  white-space: nowrap;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transition: background var(--t-1) var(--ease-out), color var(--t-1) var(--ease-out);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .slab .sb-chip:hover,
+html[data-theme-id='piwin-inkstone-ink'] .slab .sb-chip:hover,
+html[data-theme-id='piwin-inkstone-paper'] .slab .thinking-effort-trigger:hover,
+html[data-theme-id='piwin-inkstone-ink'] .slab .thinking-effort-trigger:hover,
+html[data-theme-id='piwin-inkstone-paper'] .slab .run-mode-trigger:hover,
+html[data-theme-id='piwin-inkstone-ink'] .slab .run-mode-trigger:hover,
+html[data-theme-id='piwin-inkstone-paper'] .slab .orchestration-scheme-trigger:hover,
+html[data-theme-id='piwin-inkstone-ink'] .slab .orchestration-scheme-trigger:hover {
+  background: var(--slab-chip);
+  color: var(--slab-t);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .slab .sb-chip.on,
+html[data-theme-id='piwin-inkstone-ink'] .slab .sb-chip.on {
+  color: var(--slab-t);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .slab .sb-chip.ic,
+html[data-theme-id='piwin-inkstone-ink'] .slab .sb-chip.ic,
+html[data-theme-id='piwin-inkstone-paper'] .slab .composer-v2-icon-btn,
+html[data-theme-id='piwin-inkstone-ink'] .slab .composer-v2-icon-btn {
+  width: 28px;
+  height: 26px;
+  padding: 0;
+  justify-content: center;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--slab-ph);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .slab .composer-v2-icon-btn:hover,
+html[data-theme-id='piwin-inkstone-ink'] .slab .composer-v2-icon-btn:hover {
+  background: var(--slab-chip);
+  color: var(--slab-t);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .slab .send,
+html[data-theme-id='piwin-inkstone-ink'] .slab .send,
+html[data-theme-id='piwin-inkstone-paper'] .slab .composer-v2-send-btn,
+html[data-theme-id='piwin-inkstone-ink'] .slab .composer-v2-send-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--zhu);
+  color: var(--on-zhu);
+  display: grid;
+  place-items: center;
+  flex: none;
+  position: relative;
+  border: 0;
+  cursor: pointer;
+  transition: background var(--t-1) var(--ease-out), transform var(--t-1) var(--ease-out);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .slab .send:hover:not(:disabled),
+html[data-theme-id='piwin-inkstone-ink'] .slab .send:hover:not(:disabled),
+html[data-theme-id='piwin-inkstone-paper'] .slab .composer-v2-send-btn:hover:not(:disabled),
+html[data-theme-id='piwin-inkstone-ink'] .slab .composer-v2-send-btn:hover:not(:disabled) {
+  background: var(--zhu-lift);
+}
+
+/* Streaming / Queued send button morphs to slab-chip with lamp halo (S6.2) */
+html[data-theme-id='piwin-inkstone-paper'] .app-shell[data-state='running'] .slab .composer-v2-send-btn,
+html[data-theme-id='piwin-inkstone-ink'] .app-shell[data-state='running'] .slab .composer-v2-send-btn,
+html[data-theme-id='piwin-inkstone-paper'] .slab.is-streaming .composer-v2-send-btn,
+html[data-theme-id='piwin-inkstone-ink'] .slab.is-streaming .composer-v2-send-btn {
+  background: var(--slab-chip);
+  color: var(--slab-t);
+  box-shadow: 0 0 0 2px var(--lamp);
+  animation: breath 2.4s ease-in-out infinite;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .slab .ring,
+html[data-theme-id='piwin-inkstone-ink'] .slab .ring {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  margin: 0 8px 0 4px;
+  background: conic-gradient(var(--slab-t) 37%, var(--slab-chip) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent 58%, #000 60%);
+  mask: radial-gradient(farthest-side, transparent 58%, #000 60%);
+  flex: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .chat-column-empty .composer-dock.layout-centered .composer-context-rail {
+  margin-bottom: 6px;
+}
+
+/* S6.10: Bottom keyboard hint line */
+html[data-theme-id='piwin-inkstone-paper'] .composer-hint,
+html[data-theme-id='piwin-inkstone-ink'] .composer-hint {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  margin-top: 6px;
+  font: 11px var(--mono);
+  color: var(--t4);
+  flex-wrap: wrap;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) {
+  .composer-dock { padding: 8px 28px 12px; }
+  .composer-v2-toolbar { justify-content: space-between; }
+  .composer-v2-toolbar-left { gap: 2px; flex: 1 1 auto; min-width: 0; }
+  .composer-v2-toolbar-right { gap: 2px; flex: 0 0 auto; margin-left: 6px; }
+  .slab .thinking-effort-trigger { color: var(--slab-t); max-width: 260px; }
+  .slab .thinking-effort-avatar {
+    display: inline-grid;
+    place-items: center;
+    width: 16px;
+    height: 16px;
+    flex: none;
+    border-radius: 4px;
+    font: 500 10px var(--serif);
+    background: var(--slab-chip);
+    color: var(--slab-t);
+  }
+  .slab .thinking-effort-model { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .slab .thinking-effort-value { color: var(--slab-t); opacity: .75; }
+  .slab .thinking-effort-chevron { display: block; margin-left: 2px; opacity: .7; }
+  .slab .run-mode-trigger,
+  .slab .orchestration-scheme-trigger { color: var(--slab-ph); padding-inline: 6px; }
+  .slab :is(.run-mode-trigger, .orchestration-scheme-trigger) :is(span, svg) { color: inherit; }
+  .slab .composer-v2-toolbar-right .live-composer-button { color: var(--slab-ph); }
+}
+.thinking-effort-avatar { display: none; }

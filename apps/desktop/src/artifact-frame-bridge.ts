@@ -105,6 +105,7 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
   latestRef.current = input;
   const readyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heightRef = useRef(input.bootstrapHeight);
+  const overflowRef = useRef(false);
   const lastRevisionRef = useRef(-1);
   const lastPostSeqRef = useRef(-1);
   const statusRef = useRef<ArtifactBridgeStatus>(initialStatus);
@@ -204,7 +205,10 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
     const rawHeight = message.height;
     setContentHeight(rawHeight);
     clearReadyTimer();
-    if (shouldEnterArtifactInlineOverflow(rawHeight)) {
+    // Frame modes only advance. Once the iframe owns scrolling, later
+    // measurements must not turn its chrome back into a tall flow block.
+    if (overflowRef.current || shouldEnterArtifactInlineOverflow(rawHeight)) {
+      overflowRef.current = true;
       const chromeHeight = resolveViewportFrameHeight(current);
       const grew = chromeHeight > heightRef.current;
       heightRef.current = chromeHeight;
@@ -258,6 +262,7 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
         : 'ready',
     );
     if (!hostOwnsViewport(input.frameMode)) {
+      overflowRef.current = false;
       setOverflowsInlineFlow(false);
       setContentHeight(input.bootstrapHeight);
     }
@@ -300,6 +305,29 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
     requestMeasurement,
     updateStatus,
   ]);
+
+  useLayoutEffect(() => {
+    if (!input.enabled || input.presentation === 'canvas') return;
+    if (!hostOwnsViewport(input.frameMode) && !overflowsInlineFlow) return;
+    const updateViewport = (): void => {
+      const current = latestRef.current;
+      const nextHeight = resolveViewportFrameHeight(current);
+      const grew = nextHeight > heightRef.current;
+      heightRef.current = nextHeight;
+      setHeight(nextHeight);
+      if (grew) current.onContentGrew?.();
+    };
+    updateViewport();
+    const pane = input.iframeRef.current?.closest('.conversation-pane-session');
+    const observer =
+      pane && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateViewport) : null;
+    if (pane) observer?.observe(pane);
+    window.addEventListener('resize', updateViewport);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', updateViewport);
+    };
+  }, [input.enabled, input.frameMode, input.presentation, input.iframeRef, overflowsInlineFlow]);
 
   return { height, contentHeight, overflowsInlineFlow, status, onIframeLoad, retryMeasurement };
 }

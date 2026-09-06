@@ -156,7 +156,8 @@ export type GitMutationKind =
   | 'unstage'
   | 'commit'
   | 'branch-create'
-  | 'checkout';
+  | 'checkout'
+  | 'stash';
 
 export type GitMutationResult = {
   kind: GitMutationKind;
@@ -192,4 +193,9 @@ export type GitBranchCreateInput = {
 export type GitCheckoutInput = {
   projectPath: string;
   ref: string;
+};
+
+export type GitStashInput = {
+  projectPath: string;
+  message?: string;
 };

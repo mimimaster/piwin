@@ -40,6 +40,8 @@ import {
   pasteToInsertText,
 } from './browser-workbench-ime';
 import { viewportFromDisplay } from './browser-workbench-pointer';
+import { useDesktopLocale } from './desktop-locale-context';
+import type { DesktopLocale } from './desktop-locale';
 
 export type BrowserSessionPanelProps = {
   hostClient: HostClient;
@@ -54,12 +56,61 @@ type FrameState = {
 
 type HighlightBox = { x: number; y: number; width: number; height: number };
 
-const PICK_FAILED_MESSAGE = 'Could not resolve element. Please try again.';
-const MIRROR_START_FAILED_MESSAGE = 'Could not start the browser mirror.';
-const MIRROR_STOP_FAILED_MESSAGE = 'Could not stop the browser mirror.';
+function browserCopy(locale: DesktopLocale) {
+  if (locale === 'zh-CN') {
+    return {
+      agentUsing: 'Agent 正在使用浏览器',
+      takeOver: '接管',
+      youHaveControl: '你有控制权',
+      giveBack: '交还',
+      release: '释放',
+      pickOn: '取元素中',
+      pickOff: '取元素',
+      pickDisabled: 'Agent 占用浏览器时无法取元素',
+      pickExit: '退出取元素',
+      pickEnter: '点选一个元素作为上下文',
+      pickPending: '正在解析元素…',
+      pickFailed: '无法解析该元素，请再试一次。',
+      mirrorStartFailed: '无法启动浏览器镜像。',
+      mirrorStopFailed: '无法停止浏览器镜像。',
+      urlPlaceholder: '输入网址或 localhost:3000',
+      go: '前往',
+      reload: '重载',
+      navigate: '导航',
+      starting: '正在启动浏览器会话…',
+      clearHighlight: '清除高亮',
+      frameAlt: '浏览器会话',
+    };
+  }
+  return {
+    agentUsing: 'Agent is using the browser',
+    takeOver: 'Take over',
+    youHaveControl: 'You have control',
+    giveBack: 'Give back',
+    release: 'Release',
+    pickOn: 'Pick mode: ON',
+    pickOff: 'Pick element',
+    pickDisabled: 'Pick disabled while the agent has the browser',
+    pickExit: 'Exit pick mode',
+    pickEnter: 'Pick an element to attach',
+    pickPending: 'Resolving element…',
+    pickFailed: 'Could not resolve element. Please try again.',
+    mirrorStartFailed: 'Could not start the browser mirror.',
+    mirrorStopFailed: 'Could not stop the browser mirror.',
+    urlPlaceholder: 'Enter URL or localhost:3000',
+    go: 'Go',
+    reload: 'Reload',
+    navigate: 'Navigate',
+    starting: 'Starting browser session…',
+    clearHighlight: 'Clear highlight',
+    frameAlt: 'Browser session',
+  };
+}
 
 export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactElement {
   const { hostClient, onAddWebElement } = props;
+  const { locale } = useDesktopLocale();
+  const copy = browserCopy(locale);
   const [frame, setFrame] = useState<FrameState>({ src: '', viewportWidth: 0, viewportHeight: 0 });
   const [urlInput, setUrlInput] = useState('');
   const [title, setTitle] = useState('');
@@ -125,10 +176,10 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
     void hostClient
       .browserStart(mirrorLeaseId)
       .then((response) => {
-        if (!cancelled && !response.success) setMirrorError(MIRROR_START_FAILED_MESSAGE);
+        if (!cancelled && !response.success) setMirrorError(copy.mirrorStartFailed);
       })
       .catch(() => {
-        if (!cancelled) setMirrorError(MIRROR_START_FAILED_MESSAGE);
+        if (!cancelled) setMirrorError(copy.mirrorStartFailed);
       });
 
     return () => {
@@ -137,10 +188,10 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
       void hostClient
         .browserStop(mirrorLeaseId)
         .then((response) => {
-          if (!response.success) setMirrorError(MIRROR_STOP_FAILED_MESSAGE);
+          if (!response.success) setMirrorError(copy.mirrorStopFailed);
         })
         .catch(() => {
-          setMirrorError(MIRROR_STOP_FAILED_MESSAGE);
+          setMirrorError(copy.mirrorStopFailed);
         });
     };
   }, [hostClient, onAddWebElement]);
@@ -262,12 +313,12 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
           const response = await hostClient.browserPickAt(viewport.x, viewport.y);
           setPickPending(false);
           if (!response.success) {
-            setPickError(PICK_FAILED_MESSAGE);
+            setPickError(copy.pickFailed);
             console.error('[browser-session] pick-at failed:', response.error);
           }
         } catch (error) {
           setPickPending(false);
-          setPickError(PICK_FAILED_MESSAGE);
+          setPickError(copy.pickFailed);
           console.error('[browser-session] pick-at failed:', error);
         }
         return;
@@ -391,30 +442,30 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
               void handleNavigate();
             }
           }}
-          placeholder="Enter URL or localhost:3000"
+          placeholder={copy.urlPlaceholder}
           spellCheck={false}
         />
-        <button type="submit" className="browser-session-go-btn" data-testid="browser-session-go-btn" aria-label="Navigate" disabled={agentOwns}>
-          Go
+        <button type="submit" className="browser-session-go-btn" data-testid="browser-session-go-btn" aria-label={copy.navigate} disabled={agentOwns}>
+          {copy.go}
         </button>
-        <button type="button" className="browser-session-refresh-btn" onClick={() => void handleNavigate()} aria-label="Reload" title="Reload" disabled={agentOwns}>
+        <button type="button" className="browser-session-refresh-btn" onClick={() => void handleNavigate()} aria-label={copy.reload} title={copy.reload} disabled={agentOwns}>
           <IconRefresh width={14} height={14} />
         </button>
       </form>
 
       {agentOwns ? (
-        <div className="browser-session-banner" data-testid="browser-session-agent-banner">
-          <span>Agent is using the browser</span>
+        <div className="browser-session-banner br-banner agent" data-testid="browser-session-agent-banner">
+          <span>{copy.agentUsing}</span>
           <button type="button" data-testid="browser-session-take-over" onClick={() => void hostClient.browserLock('user')}>
-            Take over
+            {copy.takeOver}
           </button>
         </div>
       ) : null}
       {owner === 'user' ? (
-        <div className="browser-session-banner user" data-testid="browser-session-user-banner">
-          <span>You have control</span>
+        <div className="browser-session-banner br-banner user" data-testid="browser-session-user-banner">
+          <span>{copy.youHaveControl}</span>
           <button type="button" data-testid="browser-session-give-back" onClick={() => void hostClient.browserUnlock('user')}>
-            {agentWantsLock ? 'Give back' : 'Release'}
+            {agentWantsLock ? copy.giveBack : copy.release}
           </button>
         </div>
       ) : null}
@@ -422,17 +473,17 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
       <div className="browser-session-toolbar">
         <button
           type="button"
-          className={`browser-session-pick-toggle${pickMode ? ' active' : ''}`}
+          className={`browser-session-pick-toggle br-toggle${pickMode ? ' active act' : ''}`}
           data-testid="browser-session-pick-toggle"
           onClick={() => setPickMode((current) => !current)}
           disabled={agentOwns}
-          title={agentOwns ? 'Pick disabled while the agent has the browser' : pickMode ? 'Exit pick mode' : 'Pick an element to attach'}
+          title={agentOwns ? copy.pickDisabled : pickMode ? copy.pickExit : copy.pickEnter}
         >
-          {pickMode ? 'Pick mode: ON' : 'Pick element'}
+          {pickMode ? copy.pickOn : copy.pickOff}
         </button>
         {pickPending ? (
           <span className="browser-session-pick-pending" data-testid="browser-session-pick-pending">
-            Resolving element…
+            {copy.pickPending}
           </span>
         ) : null}
         {pickError ? (
@@ -446,7 +497,7 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
           </span>
         ) : null}
         {highlight ? (
-          <button type="button" className="browser-session-clear-highlight" onClick={() => setHighlight(null)} aria-label="Clear highlight">
+          <button type="button" className="browser-session-clear-highlight" onClick={() => setHighlight(null)} aria-label={copy.clearHighlight}>
             <IconClose width={12} height={12} />
           </button>
         ) : null}
@@ -459,7 +510,7 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
             className={`browser-session-frame${pickMode ? ' pick-mode' : ''}`}
             data-testid="browser-session-frame"
             src={frame.src}
-            alt={title || urlInput || 'Browser session'}
+            alt={title || urlInput || copy.frameAlt}
             onClick={handleImageClick}
             onDoubleClick={handleDoubleClick}
             onContextMenu={handleContextMenu}
@@ -470,7 +521,7 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
         ) : (
           <div className="browser-session-frame-placeholder">
             <IconBrowser width={32} height={32} />
-            <span>Starting browser session…</span>
+            <span>{copy.starting}</span>
           </div>
         )}
         {!pickMode && !agentOwns ? (

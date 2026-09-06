@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inkstone（砚）· 增量 7 · 动效与组件规范</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:#e6e1d7;overflow:hidden}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-align:inherit}
+u{text-decoration:none;cursor:pointer}u:hover{text-decoration:underline}
+.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.s12{width:12px;height:12px}.s14{width:14px;height:14px}
+.ml{margin-left:auto}.grow{flex:1}
+.app{--sans:Inter,"PingFang SC","Noto Sans SC",-apple-system,system-ui,sans-serif;--serif:"Noto Serif SC","Songti SC","STSong","Source Han Serif SC","Source Serif 4",Georgia,serif;--mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;--spring:cubic-bezier(.34,1.4,.64,1);height:100dvh;width:100%;display:grid;grid-template-rows:28px minmax(0,1fr);background:var(--void);color:var(--t1);font:13.5px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+.app[data-face=paper]{color-scheme:light;--void:#e6e1d7;--s1:#f0ece4;--s2:#f8f6f0;--s3:#fffdf8;--s4:#fff;--t1:#1d1b17;--t2:#5a554d;--t3:#726b61;--t4:#8f887d;--l1:rgba(29,27,23,.06);--l2:rgba(29,27,23,.11);--l3:rgba(29,27,23,.2);--zhu:#c6412a;--zhu-lift:#d4553d;--zhu-press:#a53420;--on-zhu:#fff7f0;--zhu-wash:rgba(198,65,42,.1);--lamp:#b8801f;--lamp-glow:rgba(184,128,31,.4);--lamp-wash:rgba(184,128,31,.14);--pine:#3d7c5e;--pine-wash:rgba(61,124,94,.12);--ochre:#94611a;--ochre-wash:rgba(148,97,26,.12);--crimson:#9c2e3d;--crimson-wash:rgba(156,46,61,.1);--azure:#3a7797;--azure-wash:rgba(58,119,151,.12);--code:#efece4;--slab:#1f1c18;--slab-t:#efe9df;--slab-ph:#8d857a;--slab-chip:rgba(255,255,255,.07);--slab-line:rgba(255,255,255,.1);--sh1:0 1px 2px rgba(60,45,20,.06),0 0 0 1px var(--l2);--sh2:0 2px 8px -2px rgba(60,45,20,.12),0 0 0 1px var(--l2);--sh3:0 14px 34px -12px rgba(50,35,15,.3),0 0 0 1px var(--l3)}
+.app[data-face=ink]{color-scheme:dark;--void:#0b0a09;--s1:#141210;--s2:#191714;--s3:#201d19;--s4:#2a2621;--t1:#ebe5da;--t2:#a59d92;--t3:#8b8378;--t4:#6a6259;--l1:rgba(235,229,218,.06);--l2:rgba(235,229,218,.1);--l3:rgba(235,229,218,.17);--zhu:#e25a3d;--zhu-lift:#f07054;--zhu-press:#c94a2f;--on-zhu:#1c0b07;--zhu-wash:rgba(226,90,61,.14);--lamp:#e7b352;--lamp-glow:rgba(231,179,82,.35);--lamp-wash:rgba(231,179,82,.12);--pine:#5fad85;--pine-wash:rgba(95,173,133,.14);--ochre:#c88f3c;--ochre-wash:rgba(200,143,60,.14);--crimson:#d95f6e;--crimson-wash:rgba(217,95,110,.14);--azure:#6ba4c3;--azure-wash:rgba(107,164,195,.14);--code:#0f0e0c;--slab:#0e0d0b;--slab-t:#ebe5da;--slab-ph:#6f685f;--slab-chip:rgba(235,229,218,.07);--slab-line:rgba(235,229,218,.1);--sh1:inset 0 1px 0 rgba(255,255,255,.04),0 0 0 1px rgba(0,0,0,.6);--sh2:inset 0 1px 0 rgba(255,255,255,.04),0 0 0 1px rgba(0,0,0,.6),0 2px 8px -2px rgba(0,0,0,.5);--sh3:inset 0 1px 0 rgba(255,255,255,.06),0 0 0 1px rgba(0,0,0,.7),0 14px 34px -10px rgba(0,0,0,.7)}
+.proto{display:flex;align-items:center;gap:10px;padding:0 12px;font:11px var(--mono);color:var(--t3);border-bottom:1px dashed var(--l2);white-space:nowrap;overflow:hidden}
+.proto .pt{color:var(--t1);margin-right:8px}.proto .pl{color:var(--t4)}.proto .pn{margin-left:auto;color:var(--t4)}
+.seg{display:inline-flex;border:1px solid var(--l2);border-radius:5px;overflow:hidden;flex:none}
+.seg button{font:11px var(--mono);padding:3px 8px;color:var(--t3)}.seg button.on{background:var(--s3);color:var(--t1)}
+.body{display:grid;grid-template-columns:232px minmax(0,1fr);gap:8px;padding:0 8px 8px;min-height:0}
+.panel{background:var(--s1);border-radius:12px;box-shadow:var(--sh2);min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.idx-h{padding:12px 12px 4px;font:500 15px var(--serif);color:var(--t1)}
+.idx-h small{display:block;font:11px var(--mono);color:var(--t4);margin-top:2px;white-space:normal;line-height:1.5}
+.idx-scroll{flex:1;overflow:auto;min-height:0;padding:0 6px 8px}
+.ig{display:flex;align-items:center;gap:6px;height:22px;padding:0 8px;margin-top:8px;font:600 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--t3)}
+.ir{display:flex;align-items:center;gap:8px;height:26px;padding:0 8px;border-radius:6px;font-size:12.5px;color:var(--t2);white-space:nowrap;overflow:hidden;width:100%}
+.ir:hover{background:var(--s2);color:var(--t1)}.ir.on{background:var(--s3);box-shadow:var(--sh1);color:var(--t1)}
+.n{font:11px var(--mono);color:var(--t4);font-variant-numeric:tabular-nums}
+.ir .n{width:18px;flex:none}
+.stage{background:var(--s2);position:relative;container-type:inline-size;display:flex;flex-direction:column}
+.stage::after{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;opacity:.035;mix-blend-mode:multiply;background:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>") 0 0/200px 200px}
+.app[data-face=ink] .stage::after{mix-blend-mode:screen;opacity:.02}
+.scroll{--measure:840px;--card-x:14px;--card-y:12px;flex:1;overflow:auto;min-height:0;padding:16px 28px 24px;scroll-behavior:smooth}
+.scroll::-webkit-scrollbar,.idx-scroll::-webkit-scrollbar{width:8px}
+.scroll::-webkit-scrollbar-thumb,.idx-scroll::-webkit-scrollbar-thumb{background:var(--l2);border-radius:4px}
+.st{display:flex;align-items:baseline;gap:10px;width:100%;max-width:var(--measure);margin:26px auto 14px}
+.st:first-child{margin-top:6px}
+.st h2{font:500 20px/1.3 var(--serif);color:var(--t1)}
+.st .sn{font:11px var(--mono);color:var(--t4)}
+.blk{width:100%;max-width:var(--measure);margin:0 auto 22px;scroll-margin-top:14px;position:relative}
+.app[data-notes=on] .blk::after{content:attr(data-n);position:absolute;right:-40px;top:0;width:24px;height:20px;border-radius:3px;background:var(--s3);box-shadow:var(--sh1);font:600 10.5px/20px var(--mono);text-align:center;color:var(--t3);pointer-events:none}
+.app[data-notes=on] .blk.flash::after{background:var(--zhu);color:var(--on-zhu);box-shadow:none}
+.exh-h{font:600 15px/1.3 var(--sans);color:var(--t1);margin-bottom:2px}
+.exh-d{font-size:12.5px;color:var(--t3);margin-bottom:10px;max-width:780px}
+.exh-d code{font:11.5px var(--mono);background:var(--code);color:var(--t1);padding:1px 5px;border-radius:3px}
+.exh-d b.warn{color:var(--zhu);font-weight:600}
+.card{position:relative;background:var(--s3);box-shadow:var(--sh1);border-radius:8px;padding:var(--card-y) var(--card-x)}
+.card+.card{margin-top:8px}
+.row-cmp{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 12px;border-radius:6px;font-size:12.5px;color:var(--t2);white-space:nowrap;flex:none}
+.btn:hover{background:var(--s2);color:var(--t1)}
+.btn.pri{background:var(--zhu);color:var(--on-zhu)}.btn.pri:hover{background:var(--zhu-lift)}.btn.pri:active{background:var(--zhu-press)}
+.btn.dan{color:var(--crimson)}.btn.dan:hover{background:var(--crimson-wash)}
+.btn.sm{height:24px;padding:0 9px;font-size:11.5px}
+.btn[disabled]{opacity:.4;cursor:default;pointer-events:none}
+.btn:focus-visible{outline:2px solid var(--zhu);outline-offset:2px}
+.ib{width:28px;height:28px;border-radius:6px;display:inline-grid;place-items:center;color:var(--t3);flex:none}
+.ib:hover{background:var(--s2);color:var(--t1)}
+.ib:focus-visible{outline:2px solid var(--zhu);outline-offset:2px}
+.chip{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 9px;border-radius:6px;color:var(--t2);font-size:12.5px;background:var(--s1)}
+.chip.on{background:var(--zhu-wash);color:var(--zhu)}
+.badge-dormant{display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:3px;background:var(--ochre-wash);color:var(--ochre);font:10px var(--mono);flex:none}
+/* ── 动效词汇 ── */
+.motion-row{display:flex;align-items:center;gap:16px;padding:12px 0;border-bottom:1px solid var(--l1)}
+.motion-row:last-child{border-bottom:0}
+.motion-label{width:110px;flex:none}
+.motion-label b{display:block;font-size:12.5px;color:var(--t1)}
+.motion-label span{font:10.5px var(--mono);color:var(--t4)}
+.motion-demo{width:120px;height:44px;display:flex;align-items:center;justify-content:center;background:var(--s1);border-radius:8px;flex:none}
+.motion-desc{font-size:11.5px;color:var(--t3);flex:1}
+.demo-lamp{width:9px;height:9px;border-radius:50%;background:var(--lamp);box-shadow:0 0 8px 2px var(--lamp-glow);animation:breath 2.4s ease-in-out infinite}
+.demo-grind{width:16px;height:16px;border-radius:50%;border:2px solid var(--l3);border-top-color:var(--lamp);animation:grind 1.4s linear infinite}
+.demo-seal{width:32px;height:32px;border-radius:4px;background:var(--zhu);color:var(--on-zhu);font:600 15px/1 var(--serif);display:grid;place-items:center;cursor:pointer}
+.demo-seal.stamping{animation:stamp .16s var(--spring) both}
+.demo-sheen-slab{width:90px;height:32px;border-radius:6px;background:var(--slab);position:relative;overflow:hidden}
+.demo-sheen-slab::before{content:"";position:absolute;left:0;right:0;top:0;height:1px;background:linear-gradient(90deg,transparent 0,var(--lamp) 45%,var(--lamp-glow) 55%,transparent 100%);background-size:200% 100%;animation:sheen 4.8s linear infinite}
+.demo-thread{position:relative;width:80px;height:32px}
+.demo-thread .ln{position:absolute;left:8px;top:2px;bottom:2px;width:1.5px;background:var(--l3)}
+.demo-thread .nd{position:absolute;left:4px;top:11px;width:9px;height:9px;border-radius:50%;background:var(--lamp);border:1.5px solid var(--lamp);box-shadow:0 0 0 3px var(--lamp-wash);opacity:0}
+.demo-thread.play .nd{animation:nodein .22s ease-out both;animation-delay:200ms;opacity:1}
+.demo-fold{width:90px;background:var(--s3);box-shadow:var(--sh1);border-radius:6px;overflow:hidden}
+.demo-fold-h{height:26px;display:flex;align-items:center;padding:0 8px;font-size:11px;cursor:pointer}
+.demo-fold-b{max-height:0;overflow:hidden;transition:max-height .24s ease-out;font-size:10.5px;color:var(--t3);padding:0 8px}
+.demo-fold.open .demo-fold-b{max-height:40px;padding-bottom:6px}
+.t-demo{width:40px;height:24px;background:var(--s3);box-shadow:var(--sh1);border-radius:6px;transition:transform .15s}
+.t-demo:hover{transform:scale(1.08)}
+/* ── 组件样例表 ── */
+.comp-row{display:grid;grid-template-columns:120px 1fr;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--l1)}
+.comp-row:last-child{border-bottom:0}
+.comp-label{font:11px var(--mono);color:var(--t4)}
+.seal{width:32px;height:32px;border-radius:4px;background:var(--zhu);color:var(--on-zhu);font:600 15px/1 var(--serif);display:grid;place-items:center;position:relative;transform:rotate(-1.5deg);box-shadow:0 1px 0 rgba(0,0,0,.18),inset 0 0 0 1px rgba(255,255,255,.35)}
+.seal.ghost{background:transparent;color:var(--t2);box-shadow:inset 0 0 0 1.5px var(--l3);transform:none}
+.av{width:22px;height:22px;border-radius:50%;background:var(--s1);box-shadow:var(--sh1);font:600 11px/22px var(--serif);text-align:center;color:var(--t1);display:inline-block;flex:none}
+.node-demo{width:10px;height:10px;border-radius:50%;border:1.5px solid var(--l3);display:inline-block}
+.node-demo.done{background:var(--pine);border-color:var(--pine)}
+.node-demo.run{background:var(--lamp);border-color:var(--lamp);box-shadow:0 0 0 3px var(--lamp-wash);animation:breath 2.4s ease-in-out infinite}
+.node-demo.wait{border-radius:2px;background:var(--zhu);border-color:var(--zhu)}
+.node-demo.bg{background:var(--azure);border-color:var(--azure)}
+.node-demo.fail{background:var(--crimson);border-color:var(--crimson)}
+.switch{width:30px;height:18px;border-radius:9px;background:var(--l2);position:relative;flex:none;display:inline-block}
+.switch.on{background:var(--zhu)}
+.switch::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--s4);box-shadow:var(--sh1)}
+.switch.on::after{left:14px}
+.field-demo{height:28px;border:0;background:var(--s1);box-shadow:var(--sh1);border-radius:6px;padding:0 8px;color:var(--t1);font:12.5px var(--sans);outline:0;width:140px}
+/* ── 反馈矩阵 ── */
+.fb-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.fb-tbl th{text-align:left;padding:6px 8px;color:var(--t3);font:600 10px var(--sans);letter-spacing:.05em;text-transform:uppercase;border-bottom:1px solid var(--l2)}
+.fb-tbl td{padding:7px 8px;border-bottom:1px solid var(--l1);color:var(--t2);vertical-align:top}
+.toast-demo{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 12px;border-radius:8px;background:var(--s4);box-shadow:var(--sh2);font-size:12px;color:var(--t1);border-left:3px solid var(--pine)}
+.banner-demo{display:flex;align-items:center;gap:8px;height:30px;padding:0 12px;border-radius:6px;background:var(--lamp-wash);color:var(--t1);font-size:12px}
+/* ── a11y ── */
+.a11y-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.a11y-tbl th{text-align:left;padding:6px 8px;color:var(--t3);font:600 10px var(--sans);border-bottom:1px solid var(--l2)}
+.a11y-tbl td{padding:7px 8px;border-bottom:1px solid var(--l1);color:var(--t2)}
+.a11y-tbl .ok{color:var(--pine);font-weight:600}
+/* ── token 映射 ── */
+.tok-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+.tok-sw{display:flex;align-items:center;gap:6px;height:30px;padding:0 8px;border-radius:6px;background:var(--s1);font:11px var(--mono);color:var(--t2)}
+.tok-sw i{width:14px;height:14px;border-radius:3px;flex:none;box-shadow:0 0 0 1px var(--l2)}
+/* ── 切片 ── */
+.slice-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.slice-tbl th{text-align:left;padding:6px 8px;color:var(--t3);font:600 10px var(--sans);border-bottom:1px solid var(--l2)}
+.slice-tbl td{padding:6px 8px;border-bottom:1px solid var(--l1);color:var(--t2)}
+.slice-tbl td:first-child{font:600 11px var(--mono);color:var(--t1);white-space:nowrap}
+@keyframes breath{0%,100%{opacity:.6}50%{opacity:1}}
+@keyframes grind{to{transform:rotate(360deg)}}
+@keyframes sheen{from{background-position:200% 0}to{background-position:-200% 0}}
+@keyframes stamp{0%{transform:scale(.88) rotate(-7deg);opacity:.5}60%{transform:scale(1.05) rotate(-1deg);opacity:1}100%{transform:scale(1) rotate(-1.5deg)}}
+@keyframes nodein{from{transform:scale(.3);opacity:0}to{transform:scale(1);opacity:1}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs>
+<symbol id="plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></symbol>
+<symbol id="close" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+<symbol id="check" viewBox="0 0 16 16"><path d="M3 8.5l3.2 3L13 4.5"/></symbol>
+<symbol id="alert" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5M8 11v.01"/></symbol>
+<symbol id="fork" viewBox="0 0 16 16"><circle cx="8" cy="3" r="1.5"/><circle cx="4" cy="13" r="1.5"/><circle cx="12" cy="13" r="1.5"/><path d="M8 4.5v2c0 1.5-4 1.5-4 5M8 6.5c0 1.5 4 1.5 4 5"/></symbol>
+</defs></svg>
+
+<div class="app" id="app" data-face="paper" data-notes="on">
+<div class="proto">
+ <span class="pt">Inkstone（砚）· 增量 7 · 动效与组件规范</span>
+ <span class="pl">面</span><span class="seg"><button class="on" data-set="face" data-v="paper">纸</button><button data-set="face" data-v="ink">墨</button></span>
+ <span class="pl">标注</span><span class="seg"><button class="on" data-set="notes" data-v="on">开</button><button data-set="notes" data-v="off">关</button></span>
+ <span class="pn">收官增量 · 横向汇总增量 0–6 已确立的规范，多数动效可点击试放</span>
+</div>
+
+<div class="body">
+ <aside class="panel">
+  <div class="idx-h">动效与组件规范<small>18 块 · 点击跳转 · 对应 08-motion-and-components.md §1–§6</small></div>
+  <div class="idx-scroll">
+   <div class="ig">一 · 动效词汇</div>
+   <button class="ir on" data-go="b01"><span class="n">01</span>呼吸 · 研墨</button>
+   <button class="ir" data-go="b02"><span class="n">02</span>盖印 · 灯沿</button>
+   <button class="ir" data-go="b03"><span class="n">03</span>下描 · 折叠 · t-1..t-4</button>
+   <div class="ig">二 · 组件样例表</div>
+   <button class="ir" data-go="b04"><span class="n">04</span>按钮四态</button>
+   <button class="ir" data-go="b05"><span class="n">05</span>印 · 头像 · 芯片</button>
+   <button class="ir" data-go="b06"><span class="n">06</span>墨线节点六态</button>
+   <button class="ir" data-go="b07"><span class="n">07</span>开关 · 输入框</button>
+   <div class="ig">三 · 反馈矩阵</div>
+   <button class="ir" data-go="b08"><span class="n">08</span>横幅 vs 吐司 vs 门 vs 状态</button>
+   <button class="ir" data-go="b09"><span class="n">09</span>选用速查表</button>
+   <div class="ig">四 · 可访问性</div>
+   <button class="ir" data-go="b10"><span class="n">10</span>焦点环（已达标现状）</button>
+   <button class="ir" data-go="b11"><span class="n">11</span>动效降级（已达标现状）</button>
+   <button class="ir" data-go="b12"><span class="n">12</span>播报角色（已达标现状）</button>
+   <button class="ir" data-go="b13"><span class="n">13</span>双语排版细则</button>
+   <div class="ig">五 · Token 映射</div>
+   <button class="ir" data-go="b14"><span class="n">14</span>语义色板总览</button>
+   <button class="ir" data-go="b15"><span class="n">15</span>本增量修正的一处历史数字</button>
+   <div class="ig">六 · 实施切片建议</div>
+   <button class="ir" data-go="b16"><span class="n">16</span>切片顺序与包归属</button>
+   <button class="ir" data-go="b17"><span class="n">17</span>孤儿代码处置建议</button>
+   <button class="ir" data-go="b18"><span class="n">18</span>七个增量收尾总览</button>
+  </div>
+ </aside>
+
+ <main class="panel stage">
+  <div class="scroll" id="scroll">
+
+   <div class="st" id="s1"><h2>一 · 动效词汇</h2><span class="sn">01–03 · 承 `01-inkstone-theme.md §7`，这里给每个词汇配上可看的样例</span></div>
+
+   <div class="blk" id="b01" data-n="01">
+    <div class="exh-h">呼吸 · 研墨</div>
+    <div class="exh-d">「呼吸」（2.4s ease-in-out 循环，全局同相）用在所有"在跑"的灯点：折叠头灯点、墨线运行中节点、暂停键光环。「研墨」（1.4s linear 单弧旋转）替代传统 shimmer 骨架，用在准备上下文/正在思考。</div>
+    <div class="motion-row">
+     <div class="motion-label"><b>呼吸 breath</b><span>2.4s ease-in-out</span></div>
+     <div class="motion-demo"><span class="demo-lamp"></span></div>
+     <div class="motion-desc">全局同相——同一屏里所有"在跑"的灯点必须同步呼吸，不能各自错拍</div>
+    </div>
+    <div class="motion-row">
+     <div class="motion-label"><b>研墨 grind</b><span>1.4s linear</span></div>
+     <div class="motion-demo"><span class="demo-grind"></span></div>
+     <div class="motion-desc">替代 shimmer 骨架屏；用在装配上下文、思考中、压缩活动等"准备中"语境</div>
+    </div>
+   </div>
+
+   <div class="blk" id="b02" data-n="02">
+    <div class="exh-h">盖印 · 灯沿</div>
+    <div class="exh-d">「盖印」（160ms spring：scale .88→1，−4°回正）是权限门批准的唯一签名动效，完成后工具行末尾留 17px 小印。「灯沿」（4.8s linear 渐变横移）只用在运行中的石板顶缘，是唯一允许横向移动的光效。</div>
+    <div class="motion-row">
+     <div class="motion-label"><b>盖印 stamp</b><span>160ms spring</span></div>
+     <div class="motion-demo"><button class="demo-seal" id="sealBtn">允</button></div>
+     <div class="motion-desc">点击试放 — 权限门唯一批准动效，Enter 键触发同一个动画</div>
+    </div>
+    <div class="motion-row">
+     <div class="motion-label"><b>灯沿 sheen</b><span>4.8s linear</span></div>
+     <div class="motion-demo"><div class="demo-sheen-slab"></div></div>
+     <div class="motion-desc">运行中的作曲器石板顶缘专属；不用在其它任何卡片或面板上</div>
+    </div>
+   </div>
+
+   <div class="blk" id="b03" data-n="03">
+    <div class="exh-h">下描 · 折叠 · t-1..t-4</div>
+    <div class="exh-d">「下描」（240ms ease-out）是新工具行进入墨线时的入场：线段自上向下描出，节点后到 200ms。「折叠」（240ms ease-out 高度）用于工作折叠、分区展开收起。t-1..t-4（90/150/240/380ms）是承 Deck 的悬停/弹层/抽屉/面板四档节奏，本主题不新增节奏值。</div>
+    <div class="motion-row">
+     <div class="motion-label"><b>下描 draw</b><span>240ms + 200ms 延迟</span></div>
+     <div class="motion-demo"><div class="demo-thread" id="threadDemo"><div class="ln"></div><div class="nd"></div></div></div>
+     <div class="motion-desc"><u id="threadPlay">点击试放</u> — 线段先描出，节点延迟 200ms 后到，不是同时出现</div>
+    </div>
+    <div class="motion-row">
+     <div class="motion-label"><b>折叠 fold</b><span>240ms ease-out</span></div>
+     <div class="motion-demo"><div class="demo-fold" id="foldDemo"><div class="demo-fold-h">点击展开</div><div class="demo-fold-b">折叠内容在这里，高度过渡</div></div></div>
+     <div class="motion-desc">工作折叠头、探索胶囊、装配胶囊统一用这一个节奏</div>
+    </div>
+    <div class="motion-row">
+     <div class="motion-label"><b>t-1..t-4</b><span>90/150/240/380ms</span></div>
+     <div class="motion-demo"><div class="t-demo"></div></div>
+     <div class="motion-desc">悬停 90ms · 弹层 150ms · 抽屉 240ms · 面板 380ms（承 Deck，未新增新节奏）</div>
+    </div>
+   </div>
+
+   <div class="st" id="s2"><h2>二 · 组件样例表</h2><span class="sn">04–07 · 每个原件的完整状态集，供实施阶段直接对照</span></div>
+
+   <div class="blk" id="b04" data-n="04">
+    <div class="exh-h">按钮四态</div>
+    <div class="exh-d">Ghost 默认；主按钮 = 朱底 + on-zhu；危险 = 绛字 ghost，确认时绛底。四态：默认/悬停/按下/禁用——禁用统一用 40% 透明度而不是变灰，保留色彩身份。</div>
+    <div class="comp-row"><span class="comp-label">ghost</span><div class="row-cmp"><button class="btn">默认</button><button class="btn" disabled>禁用</button></div></div>
+    <div class="comp-row"><span class="comp-label">primary</span><div class="row-cmp"><button class="btn pri">发送</button><button class="btn pri" disabled>发送</button></div></div>
+    <div class="comp-row"><span class="comp-label">danger</span><div class="row-cmp"><button class="btn dan">删除</button><button class="btn dan" disabled>删除</button></div></div>
+    <div class="comp-row"><span class="comp-label">icon</span><div class="row-cmp"><button class="ib"><svg class="i s14"><use href="#fork"/></svg></button><button class="ib"><svg class="i s14"><use href="#close"/></svg></button></div></div>
+   </div>
+
+   <div class="blk" id="b05" data-n="05">
+    <div class="exh-h">印 · 头像 · 芯片</div>
+    <div class="exh-d">印章（seal）：36×36 权限门规格 / 17×17 mini 规格（已批准小印）；空印（ghost）用于「否」。头像统一取模型/用户名的首字母，宋体显示。芯片选中态统一朱洗，不用边框粗细区分。</div>
+    <div class="comp-row"><span class="comp-label">seal</span><div class="row-cmp"><span class="seal">允</span><span class="seal ghost">否</span></div></div>
+    <div class="comp-row"><span class="comp-label">avatar</span><div class="row-cmp"><span class="av">C</span><span class="av">你</span></div></div>
+    <div class="comp-row"><span class="comp-label">chip</span><div class="row-cmp"><span class="chip">默认</span><span class="chip on">选中</span></div></div>
+   </div>
+
+   <div class="blk" id="b06" data-n="06">
+    <div class="exh-h">墨线节点六态</div>
+    <div class="exh-d">贯穿侧栏项目树与转录工具链的同一套节点语言：空心=待、松=成、灯=跑（呼吸）、朱方=等你、青=后台、绛=失败。六种颜色各自只对应一个语义，不跨场景复用。</div>
+    <div class="comp-row"><span class="comp-label">待</span><div class="row-cmp"><span class="node-demo"></span><span style="font-size:11.5px;color:var(--t3)">空心圆，静止</span></div></div>
+    <div class="comp-row"><span class="comp-label">成</span><div class="row-cmp"><span class="node-demo done"></span></div></div>
+    <div class="comp-row"><span class="comp-label">跑</span><div class="row-cmp"><span class="node-demo run"></span></div></div>
+    <div class="comp-row"><span class="comp-label">等你</span><div class="row-cmp"><span class="node-demo wait"></span><span style="font-size:11.5px;color:var(--t3)">唯一方形节点</span></div></div>
+    <div class="comp-row"><span class="comp-label">后台</span><div class="row-cmp"><span class="node-demo bg"></span></div></div>
+    <div class="comp-row"><span class="comp-label">失败</span><div class="row-cmp"><span class="node-demo fail"></span></div></div>
+   </div>
+
+   <div class="blk" id="b07" data-n="07">
+    <div class="exh-h">开关 · 输入框</div>
+    <div class="exh-d">开关统一朱色表示"开"，不用绿色（绿/松色留给"完成/新增"语义，避免和"启用"混淆）。输入框统一 6px 圆角 + sh1 内阴影，焦点态外扩 2px 朱色描边（见 §四 可访问性）。</div>
+    <div class="comp-row"><span class="comp-label">switch</span><div class="row-cmp"><span class="switch"></span><span class="switch on"></span></div></div>
+    <div class="comp-row"><span class="comp-label">input</span><div class="row-cmp"><input class="field-demo" placeholder="占位文字…"><input class="field-demo" value="已填写内容"></div></div>
+   </div>
+
+   <div class="st" id="s3"><h2>三 · 反馈矩阵</h2><span class="sn">08–09 · 四种反馈载体各管一件事，不越界</span></div>
+
+   <div class="blk" id="b08" data-n="08">
+    <div class="exh-h">横幅 vs 吐司 vs 门 vs 状态</div>
+    <div class="exh-d">四种反馈载体在现产品里已经分工明确（Host 重连横幅、错误横幅、Toast 队列、权限门、标题带状态），本主题只换皮不改分工：</div>
+    <table class="fb-tbl">
+     <tr><th>载体</th><th>位置</th><th>触发</th><th>动作数</th><th>持续时间</th></tr>
+     <tr><td>横幅 Banner</td><td>作曲器/舞台上方常驻条</td><td>连接问题、信任提示等需要持续关注的状态</td><td>1–2 个</td><td>直到状态解除</td></tr>
+     <tr><td>吐司 Toast</td><td>右下角堆叠</td><td>一次性结果通知（保存成功、复习完成等）</td><td>0–1 个</td><td>数秒自动消失</td></tr>
+     <tr><td>门 Gate</td><td>墨线上的印卡</td><td>需要你决定才能继续（权限、计划执行方式）</td><td>2–4 个</td><td>直到你决定</td></tr>
+     <tr><td>状态 Status</td><td>标题带/侧栏行内联文字</td><td>背景性的持续状态（运行中/等待批准）</td><td>0 个（纯展示）</td><td>随实际状态变化</td></tr>
+    </table>
+    <div class="row-cmp" style="margin-top:10px">
+     <div class="banner-demo"><span class="demo-lamp"></span>正在重新连接 Host…</div>
+     <div class="toast-demo"><svg class="i s14" style="color:var(--pine)"><use href="#check"/></svg>笔记已保存</div>
+    </div>
+   </div>
+
+   <div class="blk" id="b09" data-n="09">
+    <div class="exh-h">选用速查表</div>
+    <div class="exh-d">增量 6 发现 Live 条与宠物气泡都不走这四种标准载体，是各自独立的浮动/系统窗口反馈——这是刻意的例外（它们需要在应用窗口失焦时依然可见），不是需要收编进统一矩阵的疏漏。</div>
+    <table class="fb-tbl">
+     <tr><th>如果…</th><th>就用</th></tr>
+     <tr><td>用户必须做出选择才能继续</td><td>门（Gate）</td></tr>
+     <tr><td>状态会自己变化，只是想让用户知道</td><td>状态（Status）</td></tr>
+     <tr><td>一次性动作的结果，几秒后不再重要</td><td>吐司（Toast）</td></tr>
+     <tr><td>问题会持续存在直到被解决</td><td>横幅（Banner）</td></tr>
+     <tr><td>反馈需要在应用失焦时也可见（语音通话、后台任务）</td><td class="badge-dormant" style="height:auto;padding:4px 8px">独立浮窗（Live 条/宠物气泡），不进四件套</td></tr>
+    </table>
+   </div>
+
+   <div class="st" id="s4"><h2>四 · 可访问性</h2><span class="sn">10–13 · Deck 已经建立的基线，Inkstone 承接、不倒退</span></div>
+
+   <div class="blk" id="b10" data-n="10">
+    <div class="exh-h">焦点环（已达标现状）</div>
+    <div class="exh-d">检查了 <code>base.css</code> 与全部区域样式文件：<code>:focus-visible</code> 统一 2px 朱色（iris）描边 + 2px 偏移，鼠标点击不触发（<code>:focus:not(:focus-visible)</code> 归零），这个约定已经铺满全应用的按钮/输入/链接/树节点。<b>这是需要保留的现状</b>，Inkstone 只需要把描边色从 iris 换成朱色，规则本身不变。</div>
+    <table class="a11y-tbl">
+     <tr><th>项目</th><th>现状</th></tr>
+     <tr><td>全局 <code>:focus-visible</code> 规则</td><td class="ok">✓ 已覆盖 base.css + 30+ 区域样式文件</td></tr>
+     <tr><td>鼠标点击不触发描边</td><td class="ok">✓ <code>:focus:not(:focus-visible)</code></td></tr>
+     <tr><td>Inkstone 需要做的</td><td>把描边色从 <code>--iris</code> 换成 <code>--zhu</code>，规则结构不变</td></tr>
+    </table>
+   </div>
+
+   <div class="blk" id="b11" data-n="11">
+    <div class="exh-h">动效降级（已达标现状）</div>
+    <div class="exh-d">检查了全部 CSS 文件：<code>prefers-reduced-motion:reduce</code> 覆盖了几乎每一处 <code>@keyframes</code> 动画（呼吸/研墨/灯沿/撕卡/分区展开等），策略统一是"氛围性循环动画归零，保留静态实色状态"（<code>base.css</code> 注释原话）。<b>这是需要保留的现状</b>。</div>
+    <table class="a11y-tbl">
+     <tr><th>项目</th><th>现状</th></tr>
+     <tr><td><code>prefers-reduced-motion</code> 覆盖率</td><td class="ok">✓ 30+ 样式文件各自声明覆盖</td></tr>
+     <tr><td>降级策略</td><td class="ok">✓ 循环动画归零，保留状态颜色/文字，不是全局禁用动效</td></tr>
+     <tr><td>Inkstone 需要做的</td><td>新增的呼吸/研墨/灯沿/盖印/下描全部沿用同一策略，盖印可退化为淡入</td></tr>
+    </table>
+   </div>
+
+   <div class="blk" id="b12" data-n="12">
+    <div class="exh-h">播报角色（已达标现状）</div>
+    <div class="exh-d">检查了转录、终端、侧聊、笔记、用量、归档等几十处异步反馈：<code>role="status"</code>/<code>role="alert"</code>/<code>aria-live="polite"</code> 的使用已经相当系统——运行中状态用 <code>status</code>+<code>polite</code>，错误用 <code>alert</code>，长流式内容（转录、侧聊、PTY 输出）用 <code>role="log"</code>+<code>polite</code>。<b>这是需要保留的现状</b>，新增的组件（作曲器七态、检视器十页签、宠物气泡等）延用同一套角色分配规则。</div>
+    <table class="a11y-tbl">
+     <tr><th>场景</th><th>角色</th></tr>
+     <tr><td>运行中/加载中状态</td><td class="ok"><code>role="status"</code> + <code>aria-live="polite"</code></td></tr>
+     <tr><td>错误/失败</td><td class="ok"><code>role="alert"</code></td></tr>
+     <tr><td>持续追加的流式内容（转录/终端/侧聊）</td><td class="ok"><code>role="log"</code> + <code>aria-live="polite"</code></td></tr>
+    </table>
+   </div>
+
+   <div class="blk" id="b13" data-n="13">
+    <div class="exh-h">双语排版细则</div>
+    <div class="exh-d">中文优先，路径/命令/标识符保持原文；数字等宽（tabular-nums）用在 token 计数、时长、行号、计数器；宋体只用于显示级标题、空态、对话框标题——正文与控件始终无衬线，避免中西文混排时衬线体在小字号下的可读性问题。</div>
+    <div class="row-cmp"><span style="font:14.5px var(--sans)">正文用无衬线：把作曲器运行中的 Enter 改成排队</span></div>
+    <div class="row-cmp" style="margin-top:6px"><span style="font:500 18px var(--serif)">显示级标题用宋体：继续上次</span></div>
+   </div>
+
+   <div class="st" id="s5"><h2>五 · Token 映射</h2><span class="sn">14–15 · 完整映射见 `01-inkstone-theme.md §11`，这里做总览与一处历史修正</span></div>
+
+   <div class="blk" id="b14" data-n="14">
+    <div class="exh-h">语义色板总览</div>
+    <div class="exh-d">六个语义色 + 石板签名色，纸/墨双面共 14 个核心变量，完整定义见增量 0 的 <code>01-inkstone-theme.md §3</code>；Deck→Inkstone 的对应关系见该文档 §11（Iris→朱、Ember→灯、Mint→松、Amber 拆分为朱/赭、Coral→绛、Sky→青）。这里只做视觉总览，不重复定义。</div>
+    <div class="tok-grid">
+     <div class="tok-sw"><i style="background:var(--zhu)"></i>朱 zhu</div>
+     <div class="tok-sw"><i style="background:var(--lamp)"></i>灯 lamp</div>
+     <div class="tok-sw"><i style="background:var(--pine)"></i>松 pine</div>
+     <div class="tok-sw"><i style="background:var(--ochre)"></i>赭 ochre</div>
+     <div class="tok-sw"><i style="background:var(--crimson)"></i>绛 crimson</div>
+     <div class="tok-sw"><i style="background:var(--azure)"></i>青 azure</div>
+     <div class="tok-sw"><i style="background:var(--slab)"></i>石板 slab</div>
+    </div>
+   </div>
+
+   <div class="blk" id="b15" data-n="15">
+    <div class="exh-h">本增量修正的一处历史数字</div>
+    <div class="exh-d"><b class="warn">修正</b>：`01-inkstone-theme.md §5` 写的「检视器 304（240–720 可拖）」与增量 4 核实的真实实现（默认 280px，可拖 200–1600px）不一致——这处数字在增量 0 主题规范定稿时就沿用了旧文档的说法，一直没有随增量 4 的调研更新。本增量在这里正式标注，`01-inkstone-theme.md` 后续应同步改成 280 / 200–1600。</div>
+    <div class="row-cmp"><span class="chip">theme.md §5 写：304（240–720）</span><svg class="i s14" style="color:var(--t4)"><use href="#alert"/></svg><span class="chip on">实际：默认 280（200–1600）</span></div>
+   </div>
+
+   <div class="st" id="s6"><h2>六 · 实施切片建议</h2><span class="sn">16–18 · 给负责人一份可执行的落地顺序，收官七个增量</span></div>
+
+   <div class="blk" id="b16" data-n="16">
+    <div class="exh-h">切片顺序与包归属</div>
+    <div class="exh-d">按 AGENTS.md §4 的包所有权对照表，把七个增量的视觉改动映射到真实要改的文件/包，建议的实施顺序遵循"底层 token 先行、外围面板收尾"：</div>
+    <table class="slice-tbl">
+     <tr><th>顺序</th><th>切片</th><th>涉及包/文件</th><th>依据增量</th></tr>
+     <tr><td>1</td><td>token 与基础件</td><td><code>apps/desktop/src/styles/tokens.css</code> + 主题变量表</td><td>0</td></tr>
+     <tr><td>2</td><td>外壳骨架</td><td>标题带/侧栏/deck 布局 CSS</td><td>0, 3</td></tr>
+     <tr><td>3</td><td>转录行与工具链</td><td><code>tool-call-card.tsx</code> 等换皮，逻辑不动</td><td>1</td></tr>
+     <tr><td>4</td><td>权限门</td><td><code>gate-card.tsx</code> + <code>permission-bar.tsx</code> 合并展示</td><td>1</td></tr>
+     <tr><td>5</td><td>作曲器</td><td><code>composer-card.tsx</code> 及其子组件换皮</td><td>2</td></tr>
+     <tr><td>6</td><td>导航与入口</td><td>侧栏/命令面板/多窗格</td><td>3</td></tr>
+     <tr><td>7</td><td>检视器</td><td>10 个页签逐个换皮</td><td>4</td></tr>
+     <tr><td>8</td><td>设置</td><td>13 节逐个换皮，优先处理孤儿代码清理</td><td>5</td></tr>
+     <tr><td>9</td><td>子页与伴随物</td><td>知识卡片工作台/资料库/宠物/Live</td><td>6</td></tr>
+    </table>
+   </div>
+
+   <div class="blk" id="b17" data-n="17">
+    <div class="exh-h">孤儿代码处置建议</div>
+    <div class="exh-d">七个增量累计发现的孤儿代码与断链有十余处（完整清单分散在各增量说明的"孤儿代码"章节）。视觉重做不应该背着这些包袱走——建议在动手换皮前，先让负责人对每一项做一次"删除 / 补入口 / 保留观察"的三选一决定，避免重设计完成后这些死代码继续占用维护成本。</div>
+    <table class="slice-tbl">
+     <tr><th>类别</th><th>代表项</th><th>建议动作</th></tr>
+     <tr><td>纯孤儿组件</td><td><code>RememberedPermissionsSection</code>、<code>HostLogPanel</code>、4 个旧设置页面</td><td>确认后直接删除，减少认知负担</td></tr>
+     <tr><td>断链</td><td><code>produce-stage.tsx</code> 复习会话回调硬编码 undefined</td><td>补一行接线即可修复，成本很低</td></tr>
+     <tr><td>已被收编</td><td><code>/knowledge</code> 等 5 个入口合并到同一目的地</td><td>视为既成事实，考虑精简重复的 slash 命令</td></tr>
+     <tr><td>未接线的设计意图</td><td>并排差异视图、MCP 测试连接、可视化规则编辑器</td><td>纳入本轮或下一轮实施范围，而非继续搁置</td></tr>
+    </table>
+   </div>
+
+   <div class="blk" id="b18" data-n="18">
+    <div class="exh-h">七个增量收尾总览</div>
+    <div class="exh-d">Inkstone 重设计的七个增量到此全部交付：外壳、转录、作曲器、导航、检视器、设置、子页——覆盖了 <code>00-scope-inventory.md</code> 盘点出的全部产品面。每个增量都独立可看、独立可确认；本增量把动效词汇、组件规范、反馈矩阵、可访问性基线、token 映射与实施顺序汇总成一份收尾文档，供负责人在批准视觉方向后直接转给实施团队使用。</div>
+    <table class="slice-tbl">
+     <tr><th>增量</th><th>主题</th><th>状态</th></tr>
+     <tr><td>0</td><td>外壳原型</td><td class="ok" style="color:var(--pine)">已交付</td></tr>
+     <tr><td>1</td><td>转录全解剖</td><td class="ok" style="color:var(--pine)">已交付</td></tr>
+     <tr><td>2</td><td>作曲器全状态</td><td class="ok" style="color:var(--pine)">已交付</td></tr>
+     <tr><td>3</td><td>导航与入口</td><td class="ok" style="color:var(--pine)">已交付</td></tr>
+     <tr><td>4</td><td>检视器</td><td class="ok" style="color:var(--pine)">已交付</td></tr>
+     <tr><td>5</td><td>设置</td><td class="ok" style="color:var(--pine)">已交付</td></tr>
+     <tr><td>6</td><td>子页与伴随物</td><td class="ok" style="color:var(--pine)">已交付</td></tr>
+     <tr><td>7</td><td>动效与组件规范</td><td class="ok" style="color:var(--zhu)">本增量</td></tr>
+    </table>
+   </div>
+
+  </div>
+ </main>
+</div>
+</div>
+
+<script>
+(function(){
+var app=document.getElementById('app');
+var each=function(list,fn){Array.prototype.forEach.call(list,fn)};
+function setSeg(k,v){each(document.querySelectorAll('[data-set="'+k+'"]'),function(b){b.classList.toggle('on',b.getAttribute('data-v')===v)})}
+each(document.querySelectorAll('[data-set]'),function(b){b.addEventListener('click',function(){var k=b.getAttribute('data-set'),v=b.getAttribute('data-v');app.setAttribute('data-'+k,v);setSeg(k,v)})});
+function go(id){var el=document.getElementById(id);if(!el)return;el.scrollIntoView({block:'start'});el.classList.add('flash');setTimeout(function(){el.classList.remove('flash')},1200);each(document.querySelectorAll('.ir'),function(x){x.classList.toggle('on',x.getAttribute('data-go')===id)})}
+each(document.querySelectorAll('.ir'),function(b){b.addEventListener('click',function(){go(b.getAttribute('data-go'))})});
+
+/* 盖印试放 */
+var sealBtn=document.getElementById('sealBtn');
+sealBtn.addEventListener('click',function(){sealBtn.classList.add('stamping');setTimeout(function(){sealBtn.classList.remove('stamping')},420)});
+
+/* 下描试放 */
+var threadDemo=document.getElementById('threadDemo'),threadPlay=document.getElementById('threadPlay');
+threadPlay.addEventListener('click',function(){threadDemo.classList.remove('play');void threadDemo.offsetWidth;threadDemo.classList.add('play')});
+
+/* 折叠试放 */
+var foldDemo=document.getElementById('foldDemo');
+foldDemo.querySelector('.demo-fold-h').addEventListener('click',function(){foldDemo.classList.toggle('open')});
+})();
+</script>
+</body>
+</html>

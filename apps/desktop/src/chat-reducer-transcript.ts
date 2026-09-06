@@ -239,6 +239,57 @@ export function mergeRefreshedTailWithLiveMessages(
  * Keep a generation-time model already painted on a live row when a later
  * transcript page omits it. Incoming snapshots still win.
  */
+function transcriptRowFidelityKey(message: ChatMessageUi): string {
+  const tools = message.tools
+    .map((tool) => `${tool.toolCallId}:${tool.status}:${tool.output}`)
+    .join(',');
+  const attachments = message.attachments.map((attachment) => attachment.id).join(',');
+  const model = message.model ? `${message.model.providerId}:${message.model.modelId}` : '';
+  return [
+    message.id,
+    message.role,
+    message.status,
+    message.text,
+    message.thinking,
+    tools,
+    attachments,
+    model,
+    message.error ?? '',
+    message.failure?.code ?? '',
+    message.runId ?? '',
+  ].join('\0');
+}
+
+/**
+ * Warm resume should keep object identity when Host returns the same rows.
+ * Compare status/tools/attachments/model, not just visible text.
+ */
+export function reuseUnchangedTranscriptMessages(
+  current: readonly ChatMessageUi[],
+  incoming: readonly ChatMessageUi[],
+): ChatMessageUi[] {
+  if (current.length === 0 || incoming.length === 0) {
+    return [...incoming];
+  }
+  const currentById = new Map(current.map((message) => [message.id, message]));
+  let reusedInOrder = incoming.length === current.length;
+  const next = incoming.map((message, index) => {
+    const existing = currentById.get(message.id);
+    if (existing && transcriptRowFidelityKey(existing) === transcriptRowFidelityKey(message)) {
+      if (current[index] !== existing) {
+        reusedInOrder = false;
+      }
+      return existing;
+    }
+    reusedInOrder = false;
+    return message;
+  });
+  if (reusedInOrder) {
+    return current as ChatMessageUi[];
+  }
+  return next;
+}
+
 export function preserveAssistantModelSnapshots(
   incoming: readonly ChatMessageUi[],
   current: readonly ChatMessageUi[],

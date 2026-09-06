@@ -10,6 +10,7 @@ import type { HostClient } from '../host-client';
 import type { DocumentOpenInput } from '../tool-call-card';
 import type { RightPanelTab } from '../right-panel';
 import type { ExtensionUiRequestState } from './use-host-bootstrap';
+import { tryOpenHtmlDocumentInBrowser } from '../open-html-in-browser.js';
 
 const ARTIFACT_CANVAS_MIN_PANEL_WIDTH_PX = 560;
 
@@ -75,9 +76,22 @@ export function useWorkbenchSessionGestures(args: UseWorkbenchSessionGesturesArg
   const handleOpenDocument = useCallback(
     (doc: DocumentOpenInput, target?: 'stage' | 'inspector') => {
       inspectorFileDiff.clear();
+      if (
+        tryOpenHtmlDocumentInBrowser({
+          doc,
+          projectPath: state.projectPath,
+          canNavigate: hostClient.supportsCommand('browser/navigate'),
+          openInspector,
+          navigate: (url) => {
+            void hostClient.browserNavigate(url);
+          },
+        })
+      ) {
+        return;
+      }
       openDocumentBase(doc, target);
     },
-    [inspectorFileDiff, openDocumentBase],
+    [hostClient, inspectorFileDiff, openDocumentBase, openInspector, state.projectPath],
   );
   const handleOpenDiff = useCallback(
     (absolutePath: string, relativePath?: string) => {

@@ -125,6 +125,50 @@ describe('buildExploreFlowRoles', () => {
     expect(roles.size).toBe(0);
   });
 
+  it('starts a new run on narration plus explore tools and merges following steps', () => {
+    const roles = buildExploreFlowRoles([
+      assistantStep('m1', {
+        text: '我先查一下实时语音和会话绑定。',
+        thinking: 'look up the binder',
+        tools: [grepTool('t1'), readTool('t2', 'docs/voice.md')],
+      }),
+      assistantStep('m2', { tools: [grepTool('t3'), grepTool('t4'), readTool('t5', 'src/live.ts')] }),
+    ]);
+
+    const anchor = roles.get('m1');
+    expect(anchor?.kind).toBe('anchor');
+    if (anchor?.kind !== 'anchor') return;
+    expect(roles.get('m2')).toEqual({ kind: 'member', anchorMessageId: 'm1' });
+    expect(anchor.group.items.map((item) => item.kind)).toEqual([
+      'tool',
+      'tool',
+      'tool',
+      'tool',
+      'tool',
+    ]);
+    expect(anchor.group.toolCount).toBe(5);
+    expect(anchor.group.searchCount).toBe(3);
+    expect(anchor.group.thoughtCount).toBe(0);
+  });
+
+  it('does not join a narration opener onto a preceding silent explore run', () => {
+    const roles = buildExploreFlowRoles([
+      assistantStep('m1', { tools: [readTool('t1', 'src/a.ts'), readTool('t2', 'src/b.ts')] }),
+      assistantStep('m2', {
+        text: '再确认一下 Desktop 焦点会话。',
+        tools: [grepTool('t3'), readTool('t4', 'src/c.ts')],
+      }),
+    ]);
+
+    expect(roles.get('m1')?.kind).toBe('anchor');
+    expect(roles.get('m2')?.kind).toBe('anchor');
+    const first = roles.get('m1');
+    const second = roles.get('m2');
+    if (first?.kind !== 'anchor' || second?.kind !== 'anchor') return;
+    expect(first.group.toolCount).toBe(2);
+    expect(second.group.toolCount).toBe(2);
+  });
+
   it('breaks the run on answer text, edits, and user messages', () => {
     const roles = buildExploreFlowRoles([
       assistantStep('m1', { tools: [readTool('t1', 'src/a.ts')] }),

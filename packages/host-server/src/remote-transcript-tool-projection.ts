@@ -63,11 +63,11 @@ function projectRemoteToolPresentation(value: unknown): ToolPresentation | undef
   copyBoundedRedactedString(record, 'countTag', presentation, 'countTag', 64);
   copyBoundedRedactedString(record, 'startedAt', presentation, 'startedAt', 128);
   copyBoundedRedactedString(record, 'endedAt', presentation, 'endedAt', 128);
-  const targetPaths = projectRemotePathBasenames(record.targetPaths);
+  const targetPaths = projectRemotePaths(record.targetPaths);
   if (targetPaths !== undefined) {
     presentation.targetPaths = targetPaths;
   }
-  const changedPaths = projectRemotePathBasenames(record.changedPaths);
+  const changedPaths = projectRemotePaths(record.changedPaths);
   if (changedPaths !== undefined) {
     presentation.changedPaths = changedPaths;
   }
@@ -117,26 +117,21 @@ function copyBoundedRedactedString<T>(
   }
 }
 
-function projectRemotePathBasenames(value: unknown): string[] | undefined {
+function projectRemotePaths(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) {
     return undefined;
   }
-  const names: string[] = [];
+  const paths: string[] = [];
   for (const item of value) {
     if (typeof item !== 'string' || item.length === 0) {
       continue;
     }
-    const segments = item.split(/[\\/]/).filter((segment) => segment.length > 0 && segment !== '.');
-    const base = segments[segments.length - 1];
-    if (base === undefined || base === '..' || base.includes('..')) {
-      continue;
-    }
-    names.push(boundedString(base, 256));
-    if (names.length >= 24) {
+    paths.push(boundedString(item, 16_384));
+    if (paths.length >= 24) {
       break;
     }
   }
-  return names.length > 0 ? names : undefined;
+  return paths.length > 0 ? paths : undefined;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {

@@ -98,6 +98,9 @@ describe('ChangesPanel', () => {
       if (command.type === 'git/diff-summary') {
         return createResponse(command.type, { summary: sampleDiffSummary });
       }
+      if (command.type === 'git/diff-file') {
+        return createResponse(command.type, { diff: sampleFileDiff });
+      }
       return {
         id: 'unexpected-response',
         type: 'response',
@@ -119,10 +122,13 @@ describe('ChangesPanel', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    expect(container.querySelector('[data-testid="changes-count"]')?.textContent).toContain('2');
+    expect(container.querySelector('[data-testid="changes-list"]')?.getAttribute('data-changes-count')).toBe('2');
     expect(container.textContent).toContain('App.tsx');
     expect(container.textContent).toContain('src/');
     expect(container.textContent).toContain('README.md');
+    expect(container.textContent).toContain('已暂存');
+    expect(container.textContent).toContain('暂存全部');
+    expect(container.querySelector('.changes-sec-h')).toBeNull();
 
     const appDir = container.querySelector('.changes-path-dir');
     expect(appDir?.textContent).toBe('src/');
@@ -140,6 +146,9 @@ describe('ChangesPanel', () => {
       }
       if (command.type === 'git/diff-summary') {
         return createResponse(command.type, { summary: sampleDiffSummary });
+      }
+      if (command.type === 'git/diff-file') {
+        return createResponse(command.type, { diff: sampleFileDiff });
       }
       return {
         id: 'unexpected-response',
@@ -232,15 +241,15 @@ describe('ChangesPanel', () => {
     // Does NOT call the legacy onOpenFile (which would switch to Document tab)
     expect(onOpenFile).not.toHaveBeenCalled();
 
-    // Renders the in-tab file review surface
+    // List stays up; the selected file's diff sits under it.
+    expect(container.querySelector('[data-testid="changes-list"]')).not.toBeNull();
     const review = container.querySelector('[data-testid="change-file-review"]');
     expect(review).not.toBeNull();
     expect(container.querySelector('[data-testid="change-file-header"]')).not.toBeNull();
     expect(container.textContent).toContain('src/');
     expect(container.textContent).toContain('App.tsx');
-    expect(container.querySelector('[data-testid="change-file-status-badge"]')?.textContent).toBe('修改');
+    expect(container.querySelector('[data-testid="change-file-status-badge"]')?.textContent).toBe('M');
 
-    // Click Back button restores list
     const backBtn = container.querySelector<HTMLButtonElement>('[data-testid="change-file-back"]');
     expect(backBtn).not.toBeNull();
     act(() => {

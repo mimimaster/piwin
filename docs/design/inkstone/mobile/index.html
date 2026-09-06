@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-CN" data-face="paper">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f8f6f0">
+<title>Inkstone · 随身砚 — piwin 移动端原型</title>
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="layout.css">
+<link rel="stylesheet" href="surfaces.css">
+<script src="foundation.js" defer></script>
+<script src="pages.js" defer></script>
+<script src="workspace.js" defer></script>
+<script src="sheets.js" defer></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs>
+<symbol id="panel" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M6 3v10"/></symbol>
+<symbol id="panelr" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M10 3v10"/></symbol>
+<symbol id="folder" viewBox="0 0 16 16"><path d="M2 5.5A1.5 1.5 0 0 1 3.5 4H6l1.5 1.5h5A1.5 1.5 0 0 1 14 7v4.5A1.5 1.5 0 0 1 12.5 13h-9A1.5 1.5 0 0 1 2 11.5z"/></symbol>
+<symbol id="folderp" viewBox="0 0 16 16"><path d="M2 5.5A1.5 1.5 0 0 1 3.5 4H6l1.5 1.5h5A1.5 1.5 0 0 1 14 7v4.5A1.5 1.5 0 0 1 12.5 13h-9A1.5 1.5 0 0 1 2 11.5zM8 7.5v3M6.5 9h3"/></symbol>
+<symbol id="branch" viewBox="0 0 16 16"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="5.5" r="1.5"/><path d="M4.5 5v6M11.5 7c0 2.5-3 3-7 3.5"/></symbol>
+<symbol id="search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></symbol>
+<symbol id="plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></symbol>
+<symbol id="chevd" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></symbol>
+<symbol id="chevr" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4"/></symbol>
+<symbol id="more" viewBox="0 0 16 16"><path d="M8 3.5v.01M8 8v.01M8 12.5v.01" stroke-width="2.2"/></symbol>
+<symbol id="pin" viewBox="0 0 16 16"><path d="M8 14V9.5M4.5 9.5h7L10 5.5V3H6v2.5z"/></symbol>
+<symbol id="archive" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="3" rx="1"/><path d="M3 6v6.5A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5V6M6.5 9h3"/></symbol>
+<symbol id="copy" viewBox="0 0 16 16"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M3 10.5V4a1.5 1.5 0 0 1 1.5-1.5H10.5"/></symbol>
+<symbol id="fork" viewBox="0 0 16 16"><circle cx="8" cy="3" r="1.5"/><circle cx="4" cy="13" r="1.5"/><circle cx="12" cy="13" r="1.5"/><path d="M8 4.5v2c0 1.5-4 1.5-4 5M8 6.5c0 1.5 4 1.5 4 5"/></symbol>
+<symbol id="refresh" viewBox="0 0 16 16"><path d="M13 8A5 5 0 1 1 11.6 4.5M13.5 2.5v3h-3"/></symbol>
+<symbol id="file" viewBox="0 0 16 16"><path d="M4 2h5l3 3v9H4zM9 2v3h3"/></symbol>
+<symbol id="term" viewBox="0 0 16 16"><path d="M3 4l4 4-4 4M8.5 12h4.5"/></symbol>
+<symbol id="globe" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M2 8h12M8 2c2.5 3 2.5 9 0 12M8 2c-2.5 3-2.5 9 0 12"/></symbol>
+<symbol id="expand" viewBox="0 0 16 16"><path d="M9.5 2H14v4.5M6.5 14H2V9.5M14 2L9 7M2 14l5-5"/></symbol>
+<symbol id="close" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+<symbol id="mic" viewBox="0 0 16 16"><rect x="6" y="2" width="4" height="8" rx="2"/><path d="M3.5 8a4.5 4.5 0 0 0 9 0M8 12.5V14"/></symbol>
+<symbol id="up" viewBox="0 0 16 16"><path d="M8 13V3M4 7l4-4 4 4"/></symbol>
+<symbol id="pause" viewBox="0 0 16 16"><path d="M6 4v8M10 4v8" stroke-width="2"/></symbol>
+<symbol id="image" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="1.5"/><circle cx="6" cy="7" r="1.2"/><path d="M14 11l-3.5-3.5L5 13"/></symbol>
+<symbol id="cards" viewBox="0 0 16 16"><rect x="3" y="4.5" width="8.5" height="9" rx="1.5"/><path d="M6 4.5V3.5A1.5 1.5 0 0 1 7.5 2h4A1.5 1.5 0 0 1 13 3.5V10"/></symbol>
+<symbol id="gear" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></symbol>
+<symbol id="sliders" viewBox="0 0 16 16"><path d="M2 4h12M2 8h12M2 12h12"/><circle cx="10" cy="4" r="1.5"/><circle cx="5" cy="8" r="1.5"/><circle cx="11" cy="12" r="1.5"/></symbol>
+<symbol id="bulb" viewBox="0 0 16 16"><path d="M8 2.5A4.2 4.2 0 0 0 3.8 6.7c0 1.7 1 2.6 1.7 3.4.4.5.5.9.5 1.4h4c0-.5.1-.9.5-1.4.7-.8 1.7-1.7 1.7-3.4A4.2 4.2 0 0 0 8 2.5zM6.5 13.5h3"/></symbol>
+<symbol id="git" viewBox="0 0 16 16"><circle cx="8" cy="4" r="1.6"/><circle cx="8" cy="12" r="1.6"/><path d="M8 5.6v4.8"/></symbol>
+</defs></svg>
+<div class="exhibition">
+  <aside class="exhibit-nav">
+    <a class="wordmark" href="#sessions"><span class="brand-seal">砚</span><b>piwin</b><span class="edition">MOBILE / 01</span></a>
+    <div class="exhibit-intro"><div class="eyebrow">INKSTONE · 随身砚</div><h1>把书案，<br>带在身边。</h1><p>纸上的思路，掌中的继续。<br>同一台 Host，同一份工作。</p></div>
+    <nav id="scene-nav" aria-label="原型场景"></nav>
+    <div class="exhibit-bottom"><div class="face-switch" aria-label="原型主题"><button data-action="theme" data-value="paper" aria-pressed="true">纸 · Paper</button><button data-action="theme" data-value="ink" aria-pressed="false">墨 · Ink</button></div><p>可交互设计原型 · 所有数据均为演示<br>2026.09 · 基于 Inkstone Desktop</p></div>
+  </aside>
+  <main class="specimen">
+    <div class="specimen-label"><span id="scene-number">01 / 10</span><span id="scene-caption">会话 · 从这里继续</span><button data-action="compact" aria-label="切换手机宽度">390 ↔ 360</button></div>
+    <div class="device" id="device">
+      <div class="phone-status"><span>9:41</span><div class="status-hardware"><span class="signal-bars">▂▄▆</span><span class="wifi">⌁</span><span class="battery"></span></div></div>
+      <div id="phone" class="phone"></div>
+      <div class="home-indicator" aria-hidden="true"></div>
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+      <dialog id="sheet" aria-labelledby="sheet-title"><div id="sheet-content"></div></dialog>
+    </div>
+    <div class="specimen-footer"><span class="small-dot"></span>点击手机内的控件，体验完整动线<span class="mono">1 : 1</span></div>
+  </main>
+  <aside class="exhibit-notes" id="scene-notes"></aside>
+</div>
+<noscript>请启用 JavaScript 以体验交互原型。</noscript>
+</body></html>

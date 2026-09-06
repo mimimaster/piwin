@@ -58,6 +58,8 @@ export type SubagentInspectorPanelData = {
   | 'onOpenArtifactCanvas'
   | 'artifactPreviewEnabled'
   | 'artifactMaxBytes'
+  | 'artifactBlockExternalScripts'
+  | 'artifactBlockExternalResources'
   | 'onPermission'
 >;
 

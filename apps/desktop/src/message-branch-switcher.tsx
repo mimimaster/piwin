@@ -24,7 +24,7 @@ export function MessageBranchSwitcher(props: MessageBranchSwitcherProps): ReactE
   const nextHead = adjacentSiblingHead(point, 1);
   const label = formatBranchSwitcherLabel(point);
   return (
-    <div className="message-branch-switcher" data-testid="message-branch-switcher">
+    <div className="bsw message-branch-switcher" data-testid="message-branch-switcher">
       <IconButton
         label={isChinese ? '上一个分支' : 'Previous branch'}
         className="message-branch-switcher-btn"

@@ -1,7 +1,9 @@
-/** Redact Host filesystem roots in strings that still need to cross the wire. */
+/**
+ * Formerly stripped Host filesystem roots (`/Users/…`, `/home/…`, Windows
+ * drive letters) down to `[host-path]`. Product decision: remote clients see
+ * the real Host paths in tool cards / commands / errors. Secrets stay on the
+ * separate REMOTE_SECRET_KEYS path; media still maps to `remote-asset:` refs.
+ */
 export function redactRemoteHostPaths(value: string): string {
-  return value.replace(
-    /(?:\/Users\/|\/home\/|\b[A-Za-z]:[\\/])[^\s'"`]+/g,
-    '[host-path]',
-  );
+  return value;
 }

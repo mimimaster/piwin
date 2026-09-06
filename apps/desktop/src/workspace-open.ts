@@ -1,6 +1,7 @@
 /**
- * Open-workspace entry: the Desktop shell uses the OS folder dialog.
- * The in-app Host browser is only for runtimes that cannot call that dialog.
+ * Open-workspace entry: prefer the in-app Host browser (Inkstone Miller
+ * columns) whenever `host/list-dir` is available. The OS folder dialog is
+ * only a fallback for desktop shells that cannot list Host directories.
  */
 import { isDesktopShellRuntime, pickProjectDirectory } from './pick-project-directory.js';
 
@@ -39,7 +40,11 @@ export function workspacePickerDefaultPath(input: WorkspacePickerDefaultPathInpu
 export function shouldPromptHostBrowser(input: {
   desktopShell: boolean;
   hostFilesystemRemote?: boolean;
+  hostListDirAvailable?: boolean;
 }): boolean {
+  if (input.hostListDirAvailable === true) {
+    return true;
+  }
   return !input.desktopShell || input.hostFilesystemRemote === true;
 }
 
@@ -50,6 +55,8 @@ export async function pickOrPromptWorkspaceFolder(input: {
   title: string;
   /** Host disk is not this computer; open the Host folder window. */
   hostFilesystemRemote?: boolean;
+  /** Host can list directories — use the in-app picker instead of the OS dialog. */
+  hostListDirAvailable?: boolean;
 }): Promise<WorkspaceOpenResult> {
   if (
     shouldPromptHostBrowser({
@@ -57,6 +64,9 @@ export async function pickOrPromptWorkspaceFolder(input: {
       ...(input.hostFilesystemRemote === undefined
         ? {}
         : { hostFilesystemRemote: input.hostFilesystemRemote }),
+      ...(input.hostListDirAvailable === undefined
+        ? {}
+        : { hostListDirAvailable: input.hostListDirAvailable }),
     })
   ) {
     return { kind: 'dialog' };

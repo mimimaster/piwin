@@ -44,6 +44,14 @@ export type ArtifactConfig = {
   };
   /** Security byte cap for artifact evaluation. */
   maxBytes: number;
+  /**
+   * When true (default), an external `<script src>` blocks render.
+   * Ignored when {@link blockExternalResources} is also true — that already
+   * covers scripts.
+   */
+  blockExternalScripts?: boolean;
+  /** When true (default), any external resource blocks render. */
+  blockExternalResources?: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -83,6 +91,8 @@ export function createDefaultArtifactConfig(): ArtifactConfig {
       customPrompt: '',
     },
     maxBytes: DEFAULT_MAX_ARTIFACT_BYTES,
+    blockExternalScripts: true,
+    blockExternalResources: true,
   };
 }
 

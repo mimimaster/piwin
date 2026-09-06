@@ -58,4 +58,41 @@ describe('background session Run delivery', () => {
       expect(state.messages).toBe(visibleMessages);
     },
   );
+
+  it.each(['run/updated', 'run/terminal'] as const)(
+    'routes a background failure to failedAttentionSessionIds (not the completed marker) on %s',
+    (type) => {
+      let state = createInitialChatUiState();
+      const buffer = createStreamEventBuffer({
+        dispatch: (action) => {
+          state = chatUiReducer(state, action);
+        },
+      });
+      const run: ExecutionRunRecord = {
+        runId: 'run-a',
+        rootRunId: 'run-a',
+        sessionId: 'session-a',
+        kind: 'session-turn',
+        status: 'running',
+      };
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 'session-a' });
+      buffer.pushAction(run.sessionId, { type: 'run/updated', run });
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 'session-b' });
+      state = chatUiReducer(state, { type: 'user/send', text: 'Keep working in B' });
+      state = chatUiReducer(state, { type: 'run/accepted', runId: 'run-b' });
+
+      const push: RunHostPush = { type, run: { ...run, status: 'failed', error: 'boom' } };
+      if (
+        hostPushPassesLiveFilter(classifyHostPushAudience(push), {
+          sessionIds: new Set(['session-b']),
+        })
+      ) {
+        buffer.pushAction(run.sessionId, push);
+      }
+
+      expect(state.failedAttentionSessionIds).toEqual({ 'session-a': true });
+      expect(state.completedAttentionSessionIds).toEqual({});
+      expect(state.activeSessionId).toBe('session-b');
+    },
+  );
 });

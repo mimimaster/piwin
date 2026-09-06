@@ -1,21 +1,20 @@
 /**
  * SF-03: Persistent action footer for completed assistant responses.
  *
- * Fork only. Whole-session Duplicate used to sit here too (SF-D4), but under
- * the newest response "the whole session" and "up to this response" are the
- * same messages, so it read as a fork that forgot to record its lineage. It
- * keeps its real entry points in the session menu, where the scope picker
- * ("continue in project") makes the copy mean something.
+ * Inkstone proto-00: `.turn-colophon` with `.colo-meta` on the left and
+ * `.acts-f` icon buttons on the right (dashed top rule).
  */
 import { useState, type ReactElement } from 'react';
 import type { ProductSessionLineageView } from '@piwin/contracts';
-import { IconCheck, IconCopy, IconGit, IconRefresh } from '@piwin/ui-kit';
+import { IconCheck, IconCopy, IconFork, IconRefresh } from '@piwin/ui-kit';
 import { writeTextToSystemClipboard } from './desktop-clipboard';
 import { SessionLineagePopover } from './session-lineage-popover';
 
 export type AssistantResponseActionsProps = {
   messageId: string;
   messageText?: string;
+  /** Left meta for proto-00 `.colo-meta` (e.g. "Sonnet 4.6 · 本轮消耗 1.8k tokens"). */
+  colophonMeta?: string | null;
   showFork: boolean;
   showRegenerate?: boolean;
   /** Number of direct forks from this response (0 = no count badge). */
@@ -33,6 +32,8 @@ export type AssistantResponseActionsProps = {
   locale: 'zh-CN' | 'en';
 };
 
+const ICON = { width: 16, height: 16, stroke: 1.6 } as const;
+
 export function AssistantResponseActions(
   props: AssistantResponseActionsProps,
 ): ReactElement | null {
@@ -43,9 +44,10 @@ export function AssistantResponseActions(
 
   if (!props.showFork && !props.showRegenerate && !hasCopyText) return null;
 
-  const copyLabel = props.locale === 'zh-CN' ? '复制消息内容' : 'Copy message';
-  const regenerateLabel = props.locale === 'zh-CN' ? '另生成一版' : 'Try another answer';
-  const forkLabel = props.locale === 'zh-CN' ? '分叉会话' : 'Fork Chat';
+  const copyLabel = props.locale === 'zh-CN' ? '复制' : 'Copy';
+  const forkLabel = props.locale === 'zh-CN' ? '从这里分叉' : 'Fork from here';
+  const regenerateLabel = props.locale === 'zh-CN' ? '重新生成' : 'Regenerate';
+  const meta = props.colophonMeta?.trim() || null;
 
   async function handleCopyText(): Promise<void> {
     const textToCopy = props.messageText?.trim();
@@ -71,49 +73,50 @@ export function AssistantResponseActions(
   }
 
   return (
-    <div className="assistant-response-actions" data-testid="assistant-response-actions">
-      <div className="assistant-response-action-group">
+    <div
+      className="turn-colophon"
+      data-st="idle"
+      data-testid="assistant-response-actions"
+    >
+      <span className="colo-meta">{meta ?? ''}</span>
+      <div className="acts-f">
         {hasCopyText ? (
           <button
             type="button"
-            className="msg-action-btn"
+            className="ib"
             onClick={() => void handleCopyText()}
             disabled={props.disabled}
             title={copyLabel}
             aria-label={copyLabel}
             data-testid="response-copy-btn"
           >
-            {copiedText ? (
-              <IconCheck width={17} height={17} stroke={1.8} />
-            ) : (
-              <IconCopy width={17} height={17} stroke={1.8} />
-            )}
-          </button>
-        ) : null}
-        {props.showRegenerate && props.onRegenerate ? (
-          <button
-            type="button"
-            className="msg-action-btn"
-            onClick={props.onRegenerate}
-            disabled={props.disabled}
-            title={regenerateLabel}
-            aria-label={regenerateLabel}
-            data-testid="response-regenerate-btn"
-          >
-            <IconRefresh width={17} height={17} stroke={1.8} />
+            {copiedText ? <IconCheck {...ICON} /> : <IconCopy {...ICON} />}
           </button>
         ) : null}
         {props.showFork ? (
           <button
             type="button"
-            className="msg-action-btn"
+            className="ib"
             onClick={() => void handleFork()}
             disabled={props.disabled || forkBusy}
             title={forkLabel}
             aria-label={forkLabel}
             data-testid="response-fork-btn"
           >
-            <IconGit width={17} height={17} stroke={1.8} />
+            <IconFork {...ICON} />
+          </button>
+        ) : null}
+        {props.showRegenerate && props.onRegenerate ? (
+          <button
+            type="button"
+            className="ib"
+            onClick={props.onRegenerate}
+            disabled={props.disabled}
+            title={regenerateLabel}
+            aria-label={regenerateLabel}
+            data-testid="response-regenerate-btn"
+          >
+            <IconRefresh {...ICON} />
           </button>
         ) : null}
         {props.lineage && props.onOpenSession ? (
@@ -126,6 +129,15 @@ export function AssistantResponseActions(
             {...(props.onOpenForks ? { onOpenForks: props.onOpenForks } : {})}
             locale={props.locale}
           />
+        ) : props.directForkCount > 0 ? (
+          <span className="fk" data-testid="response-fork-count">
+            {props.directForkCount}
+            {props.locale === 'zh-CN'
+              ? ' 个分叉'
+              : props.directForkCount === 1
+                ? ' fork'
+                : ' forks'}
+          </span>
         ) : null}
       </div>
     </div>

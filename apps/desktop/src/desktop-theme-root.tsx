@@ -9,6 +9,7 @@ import { PiwinUiProvider } from '@piwin/ui-kit';
 import { App } from './App';
 import { AppErrorBoundary } from './AppErrorBoundary';
 import { ArtifactGallery } from './e2e/artifact-gallery';
+import { InkstoneChainGallery } from './e2e/inkstone-chain-gallery';
 import { PrimitiveGallery } from './e2e/primitive-gallery';
 import { LiveSpikePanel } from './live-spike/LiveSpikePanel';
 import {
@@ -28,6 +29,7 @@ import { loadDesktopPreferences } from './ui-preferences';
  */
 const E2E_PRIMITIVE_GALLERY_HASH = '#/e2e/primitives';
 const E2E_ARTIFACT_GALLERY_HASH = '#/e2e/artifacts';
+const E2E_INKSTONE_CHAIN_HASH = '#/e2e/inkstone-chain';
 const LIVE_SPIKE_HASH = '#/live-spike';
 
 function isE2eFixtureRoute(prefix: string): boolean {
@@ -44,6 +46,10 @@ function isPrimitiveGalleryRoute(): boolean {
 
 function isArtifactGalleryRoute(): boolean {
   return isE2eFixtureRoute(E2E_ARTIFACT_GALLERY_HASH);
+}
+
+function isInkstoneChainGalleryRoute(): boolean {
+  return isE2eFixtureRoute(E2E_INKSTONE_CHAIN_HASH);
 }
 
 /** R1 only: explicit env flag + hash. Production builds strip the flag. */
@@ -112,6 +118,8 @@ export function DesktopThemeRoot() {
           <PrimitiveGallery onApplyTheme={applyResolvedTheme} />
         ) : isArtifactGalleryRoute() ? (
           <ArtifactGallery />
+        ) : isInkstoneChainGalleryRoute() ? (
+          <InkstoneChainGallery />
         ) : (
           <App activeTheme={activeTheme} onThemeApplied={applyResolvedTheme} />
         )}

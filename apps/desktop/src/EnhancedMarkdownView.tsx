@@ -341,7 +341,7 @@ function createEnhancedStreamdownComponents(
         return (
           <PathChip
             fullPath={source.trim()}
-            showIcon={false}
+            showIcon={true}
             onOpen={() => options.onOpenFile?.(source.trim())}
           />
         );
@@ -401,7 +401,7 @@ function createEnhancedStreamdownComponents(
         <PathChip
           fullPath={url}
           label={label}
-          showIcon={false}
+          showIcon={true}
           onOpen={() => options.onOpenFile?.(url)}
         />
       );

@@ -4,7 +4,7 @@ import {
   type HighlightWorkerRequest,
   type HighlightWorkerResponse,
   type TokenLine,
-} from './highlight-protocol';
+} from './highlight-protocol.js';
 
 export type HighlightWorkerPort = {
   postMessage: (request: HighlightWorkerRequest) => void;
@@ -17,6 +17,8 @@ export type HighlightWorkerPort = {
     listener: (event: MessageEvent<HighlightWorkerResponse>) => void,
   ) => void;
   terminate?: () => void;
+  onerror?: ((event: Event) => void) | null;
+  onmessageerror?: ((event: Event) => void) | null;
 };
 
 export type HighlightClientOptions = {
@@ -64,6 +66,8 @@ export class HighlightClient {
     if (!this.worker) {
       this.worker = this.createWorker();
       this.worker.addEventListener('message', this.messageHandler);
+      this.worker.onerror = this.handleWorkerError;
+      this.worker.onmessageerror = this.handleWorkerError;
     }
     return this.worker;
   }
@@ -94,9 +98,21 @@ export class HighlightClient {
   private dispatchRequest(entry: PendingEntry): void {
     this.inFlight += 1;
     this.pending.set(entry.request.requestId, entry);
-    const worker = this.ensureWorker();
-    worker.postMessage(entry.request);
+    try {
+      const worker = this.ensureWorker();
+      worker.postMessage(entry.request);
+    } catch (error: unknown) {
+      this.pending.delete(entry.request.requestId);
+      this.inFlight -= 1;
+      entry.reject(error instanceof Error ? error : new Error(String(error)));
+      this.drainQueue();
+    }
   }
+
+  private readonly handleWorkerError = (): void => {
+    this.cancelAll(new Error('Syntax highlight worker failed'));
+    this.releaseWorker();
+  };
 
   private handleMessage(response: HighlightWorkerResponse): void {
     const entry = this.pending.get(response.requestId);
@@ -129,8 +145,7 @@ export class HighlightClient {
     }
   }
 
-  public cancelAll(): void {
-    const error = new Error('Highlight request cancelled');
+  public cancelAll(error = new Error('Highlight request cancelled')): void {
     for (const entry of this.queue) {
       entry.reject(error);
     }
@@ -145,8 +160,14 @@ export class HighlightClient {
 
   public dispose(): void {
     this.cancelAll();
+    this.releaseWorker();
+  }
+
+  private releaseWorker(): void {
     if (this.worker) {
       this.worker.removeEventListener('message', this.messageHandler);
+      this.worker.onerror = null;
+      this.worker.onmessageerror = null;
       this.worker.terminate?.();
       this.worker = null;
     }

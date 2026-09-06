@@ -28,6 +28,8 @@ export type MarkdownCodeFenceProps = {
   artifactPreviewEnabled: boolean;
   artifactCodeFirst?: boolean;
   artifactMaxBytes?: number;
+  artifactBlockExternalScripts?: boolean;
+  artifactBlockExternalResources?: boolean;
   locale: 'zh-CN' | 'en';
 };
 

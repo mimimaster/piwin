@@ -1,6 +1,6 @@
 /**
  * Write-boundary confirm for conversation-tree switch (ADR 0055 Stage 5).
- * Two options only — worktree upgrade waits on SF-06.
+ * Continue / cancel, plus stash-then-switch when the caller wires it.
  */
 import { Button, Dialog } from '@piwin/ui-kit';
 import type { WorkspaceWrites } from '@piwin/contracts';
@@ -16,6 +16,8 @@ export type BranchSwitchConfirmDialogProps = {
   offPathWrites: WorkspaceWrites | null;
   onCancel: () => void;
   onConfirm: () => void;
+  /** Stash workspace writes then switch (ADR 0055 SF-06). Hidden for retry discard. */
+  onStashThenSwitch?: () => void;
 };
 
 export function BranchSwitchConfirmDialog(
@@ -83,6 +85,14 @@ export function BranchSwitchConfirmDialog(
             <Button data-testid="branch-switch-cancel" onClick={props.onCancel}>
               {isChinese ? '取消' : 'Cancel'}
             </Button>
+            {!discard && props.onStashThenSwitch ? (
+              <Button
+                data-testid="branch-switch-stash"
+                onClick={props.onStashThenSwitch}
+              >
+                {isChinese ? '先暂存再切换' : 'Stash then switch'}
+              </Button>
+            ) : null}
             <Button
               className="revert-continue-btn"
               data-testid="branch-switch-continue"

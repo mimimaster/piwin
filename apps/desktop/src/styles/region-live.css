@@ -106,6 +106,16 @@
   padding-right: 2px;
 }
 
+.live-bar-label {
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-1, #f4f4f5);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
 .live-bar-error-copy {
   max-width: min(28rem, 55vw);
   padding-block: 8px;

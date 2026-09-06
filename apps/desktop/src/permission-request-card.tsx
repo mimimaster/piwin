@@ -15,8 +15,9 @@ export type PermissionRequestCardProps = {
 
 /**
  * Per-kind fact table (command / file-write / git / network / mcp / unknown).
- * Extracted so the inline GateCard can reuse the same rendering inside its
- * gate-cmd region without duplicating the per-kind branching.
+ * Extracted so the inline permission presentations (PermissionBar, the
+ * request dialog) can share one rendering without duplicating the per-kind
+ * branching.
  */
 export function PermissionFacts(props: {
   action: string;

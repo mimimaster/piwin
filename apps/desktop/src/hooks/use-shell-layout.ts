@@ -154,12 +154,16 @@ export function useShellLayout() {
 
   const openFlashcards = useCallback(() => {
     rememberTrigger();
-    setNavigation((current) => pushShellRoute(current, { kind: 'flashcards' }));
+    setNavigation((current) => pushShellRoute(current, { kind: 'flashcards', entry: 'gallery' }));
+  }, [rememberTrigger]);
+  const openFlashcardsWiki = useCallback(() => {
+    rememberTrigger();
+    setNavigation((current) => pushShellRoute(current, { kind: 'flashcards', entry: 'wiki' }));
   }, [rememberTrigger]);
 
   const openKnowledge = useCallback(() => {
     rememberTrigger();
-    setNavigation((current) => pushShellRoute(current, { kind: 'flashcards' }));
+    setNavigation((current) => pushShellRoute(current, { kind: 'flashcards', entry: 'gallery' }));
   }, [rememberTrigger]);
 
   const openSettings = useCallback(
@@ -290,6 +294,9 @@ export function useShellLayout() {
     openImages,
     openVideos,
     openFlashcards,
+    openFlashcardsWiki,
+    flashcardsEntry:
+      activeRoute.kind === 'flashcards' ? (activeRoute.entry ?? 'gallery') : 'gallery',
     openKnowledge,
     closeSubPage,
     openSettings,

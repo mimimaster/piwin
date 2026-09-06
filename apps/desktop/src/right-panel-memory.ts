@@ -29,7 +29,9 @@ const ALLOWED_KINDS: RightPanelTabKind[] = [
   'terminal',
   'review',
   'browser',
+  'notes',
   'cards',
+  'sideChat',
   'docPreview',
 ];
 

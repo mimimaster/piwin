@@ -353,6 +353,42 @@ export function McpPanel(props: McpPanelProps) {
     [props.request],
   );
 
+  const handleTestConnectionFromEditor = useCallback(
+    async (
+      serverId: string,
+      config: McpServerConfig,
+    ): Promise<{ ok: boolean; message: string }> => {
+      const currentDocument = documentRef.current;
+      const nextServers = { ...currentDocument.mcpServers, [serverId]: config };
+      const ok = await saveDocument({ mcpServers: nextServers });
+      if (!ok) {
+        return {
+          ok: false,
+          message: isChinese ? '保存服务器配置失败。' : 'Failed to save server config.',
+        };
+      }
+      const response = await props.request({ type: 'mcp/start', serverId });
+      if (!response.success) {
+        return {
+          ok: false,
+          message: response.error ?? (isChinese ? '连接失败。' : 'Connection failed.'),
+        };
+      }
+      const data = response.data as { health?: McpServerHealth };
+      if (data.health) {
+        const health = data.health;
+        setHealthById((current) => ({ ...current, [health.serverId]: health }));
+      }
+      return {
+        ok: true,
+        message: isChinese ? `已连接到 ${serverId}` : `Connected to ${serverId}`,
+      };
+    },
+    // saveDocument closes over documentRef; request + locale are the inputs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isChinese, props.request],
+  );
+
   async function handleToggleServer(serverId: string, enable: boolean): Promise<void> {
     const server = document.mcpServers[serverId];
     if (!server) return;
@@ -859,6 +895,7 @@ export function McpPanel(props: McpPanelProps) {
         onValidateRaw={handleValidateRawFromEditor}
         onSaveRaw={handleSaveRawFromEditor}
         onPreviewTools={handlePreviewToolsFromEditor}
+        onTestConnection={handleTestConnectionFromEditor}
         onTogglePinned={handleTogglePinned}
       />
     </>

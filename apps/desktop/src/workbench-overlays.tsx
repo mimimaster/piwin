@@ -36,7 +36,6 @@ import {
   type SessionNamedDraft,
   type SessionRenameDraft,
 } from './hooks/use-session-list-chrome';
-import { isRemoteDesktopTransport } from './remote-session-hydrate';
 import { collectSessionsForLookup } from './session-list-lookup';
 import { SessionColdRestoreDialog } from './session-cold-restore-dialog';
 import { SessionSearchDialog } from './session-search-dialog';
@@ -101,6 +100,7 @@ export type WorkbenchOverlaysProps = {
   pendingSwitchConfirm: { targetMessageId: string; offPathWrites: WorkspaceWrites } | null;
   cancelSwitchBranch: () => void;
   confirmSwitchBranch: () => void;
+  stashThenSwitchBranch?: () => void;
   pendingRetryDiscard: { userMessageId: string; offPathWrites: WorkspaceWrites } | null;
   cancelRetryDiscard: () => void;
   confirmRetryDiscard: () => void;
@@ -160,24 +160,20 @@ export function WorkbenchOverlays(props: WorkbenchOverlaysProps): ReactElement {
           }
         }}
         onBrowseProject={() => void props.onBrowseProject()}
-        {...(isRemoteDesktopTransport(props.hostClient.getTransport())
+        {...(props.hostClient.supportsCommand('host/list-dir')
           ? {
               hostWorkspacePicker: true,
               ...(hostOsFamily === undefined ? {} : { hostOsFamily }),
-              ...(props.hostClient.supportsCommand('host/list-dir')
-                ? {
-                    onListHostDirectory: async (path?: string): Promise<HostListDirData> => {
-                      const response = await props.hostClient.request({
-                        type: 'host/list-dir',
-                        ...(path && path.trim().length > 0 ? { path: path.trim() } : {}),
-                      });
-                      if (!response.success) {
-                        throw new Error(response.error);
-                      }
-                      return response.data as HostListDirData;
-                    },
-                  }
-                : {}),
+              onListHostDirectory: async (path?: string): Promise<HostListDirData> => {
+                const response = await props.hostClient.request({
+                  type: 'host/list-dir',
+                  ...(path && path.trim().length > 0 ? { path: path.trim() } : {}),
+                });
+                if (!response.success) {
+                  throw new Error(response.error);
+                }
+                return response.data as HostListDirData;
+              },
             }
           : {})}
         projectPath={props.state.projectPath}
@@ -294,6 +290,9 @@ export function WorkbenchOverlays(props: WorkbenchOverlaysProps): ReactElement {
         offPathWrites={props.pendingSwitchConfirm?.offPathWrites ?? null}
         onCancel={props.cancelSwitchBranch}
         onConfirm={props.confirmSwitchBranch}
+        {...(props.stashThenSwitchBranch
+          ? { onStashThenSwitch: props.stashThenSwitchBranch }
+          : {})}
       />
 
       <BranchSwitchConfirmDialog

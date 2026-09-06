@@ -19,6 +19,15 @@ const GIT_STATUS_LETTER: Record<GitFileStatusCode, string> = {
   unknown: '?',
 };
 
+function gitStatusToneClass(status: GitFileStatusCode): string {
+  const letter = GIT_STATUS_LETTER[status];
+  if (letter === 'M') return 'm';
+  if (letter === 'A' || letter === 'U') return 'a';
+  if (letter === 'D' || letter === 'C') return 'd';
+  if (letter === 'R') return 'r';
+  return '';
+}
+
 export type FileTreeNodeViewProps = {
   node: FileTreeNodeState;
   depth: number;
@@ -88,7 +97,7 @@ export function FileTreeNodeView(props: FileTreeNodeViewProps): ReactElement {
       <span className="file-tree-name">{node.entry.name}</span>
       {status ? (
         <span
-          className={`file-tree-git file-tree-git--${status}`}
+          className={`file-tree-git file-tree-git--${status} gs ${gitStatusToneClass(status)}`.trim()}
           data-testid={`file-tree-git-${node.entry.relativePath}`}
           title={status}
         >

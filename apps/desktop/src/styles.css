@@ -16,6 +16,7 @@
 @import './styles/region-sidebar.css';
 @import './styles/region-sidebar-tree.css';
 @import './styles/region-sidebar-session.css';
+@import './styles/ink-line-node.css';
 @import './styles/shell-ink-wash.css';
 @import './styles/region-context-bar.css';
 @import './styles/region-composer.css';
@@ -80,6 +81,26 @@
 @import './styles/host-workspace-picker.css';
 @import './styles/subagent-session-inspector.css';
 @import './styles/goal.css';
+@import './styles/inkstone-overrides.css';
+/* Theme refinements follow the base regions. Equal-specificity legacy rules
+   must not reclaim Inkstone geometry after the theme has set it. */
+@import './styles/inkstone/tokens.css';
+@import './styles/inkstone/shell.css';
+@import './styles/inkstone/titlebar.css';
+@import './styles/inkstone/stage-header.css';
+@import './styles/inkstone/sidebar.css';
+@import './styles/inkstone/composer.css';
+@import './styles/inkstone/transcript.css';
+@import './styles/inkstone/tool-timeline.css';
+@import './styles/inkstone/permission-gates.css';
+@import './styles/inkstone/delivery-cards.css';
+@import './styles/inkstone/document.css';
+@import './styles/inkstone/conversation.css';
+@import './styles/inkstone/inspector.css';
+@import './styles/inkstone/inspector-changes.css';
+@import './styles/inkstone/navigation.css';
+@import './styles/inkstone/subpages.css';
+@import './styles/inkstone/motion.css';
 /* Memory-governor degradation overlay. Cross-cutting override layer, not a
    region: keyed off html[data-memory-pressure] and must import last so its
    !important strips beat every region sheet above. */

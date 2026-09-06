@@ -21,6 +21,7 @@ import {
   useDesktopContextMenu,
   type ContextMenuTarget,
 } from './context-menu';
+import { IconFile } from './shell-icons.js';
 
 /**
  * Same request signature injected into ChangesPanel (changes-panel.tsx:38).
@@ -125,7 +126,10 @@ export function DiffCard(props: {
       data-testid="diff-card"
     >
       <div className="diff-head">
-        <span className="file">{props.path}</span>
+        <span className="pc file" title={props.path}>
+          <IconFile className="i s12" />
+          <span>{props.path}</span>
+        </span>
         <span className="stat num">
           {stats.adds > 0 && <span className="add">+{stats.adds}</span>}
           {stats.dels > 0 && <span className="del">−{stats.dels}</span>}

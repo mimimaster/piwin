@@ -65,6 +65,8 @@ type MarkdownViewProps = {
   artifactCodeFirst?: boolean;
   /** Security byte cap forwarded to analyzeArtifactFence when heavy path runs. */
   artifactMaxBytes?: number;
+  artifactBlockExternalScripts?: boolean;
+  artifactBlockExternalResources?: boolean;
   /** Locale for Artifact frame copy (recycled preview placeholder). */
   locale?: 'zh-CN' | 'en';
   /** Callback when user clicks a markdown document link or plan document chip. */
@@ -154,6 +156,8 @@ export function MarkdownView({
   showStreamingCaret = true,
   artifactCodeFirst = false,
   artifactMaxBytes,
+  artifactBlockExternalScripts,
+  artifactBlockExternalResources,
   locale = 'en',
   onOpenDocument,
   projectPath = null,
@@ -208,6 +212,8 @@ export function MarkdownView({
     artifactPreviewEnabled,
     artifactCodeFirst,
     artifactMaxBytes,
+    artifactBlockExternalScripts,
+    artifactBlockExternalResources,
     locale,
     ordinalByProjectedStartOffset: artifactProjection.ordinalByProjectedStartOffset,
     fences: artifactProjection.fences,
@@ -226,6 +232,8 @@ export function MarkdownView({
     artifactPreviewEnabled,
     artifactCodeFirst,
     artifactMaxBytes,
+    artifactBlockExternalScripts,
+    artifactBlockExternalResources,
     locale,
     ordinalByProjectedStartOffset: artifactProjection.ordinalByProjectedStartOffset,
     fences: artifactProjection.fences,
@@ -242,7 +250,7 @@ export function MarkdownView({
   return (
     <MarkdownRenderingPhaseProvider phase={phase}>
       <Streamdown
-        className={shouldShowStreamingCaret ? 'markdown has-stream-caret' : 'markdown'}
+        className={shouldShowStreamingCaret ? 'prose markdown has-stream-caret' : 'prose markdown'}
         // Live tokens stay on Streamdown's streaming tree. `static` skips remend
         // and re-parses a finished document on every delta. The animate object
         // only disables startTransition; isAnimating stays false so word spans

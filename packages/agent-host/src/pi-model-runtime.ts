@@ -33,9 +33,15 @@ export type PiModelCompat = {
  * native request shape without changing the product protocol or affecting
  * Anthropic/Google registrations.
  *
- * Grok in particular: Pi disables OpenAI `reasoning_effort` / developer-role
- * / store on `api.x.ai`. The same fields on a CPA gateway make grok-4.6's
- * reasoning channel repeat the last thought until the turn finally stops.
+ * Grok: keep `store` and developer-role off (same as Pi on `api.x.ai`). Do
+ * **not** disable `reasoning_effort`. Pi only writes that field when
+ * `compat.supportsReasoningEffort === true`. CPA and similar chat→Responses
+ * gateways hard-default `reasoning.effort` to `medium` when the client omits
+ * it, so a global `false` made the UI thinking level a no-op.
+ *
+ * If a specific gateway still loops the reasoning channel when effort is
+ * present, narrow that in the gateway/response path — do not drop the UI
+ * effort for every grok OpenAI-compat model.
  */
 const DEEPSEEK_MODEL_ID_PREFIX = 'deepseek';
 const GROK_MODEL_ID_PREFIX = 'grok';
@@ -51,7 +57,7 @@ const DEEPSEEK_OPENAI_COMPAT: PiModelCompat = {
 const GROK_OPENAI_COMPAT: PiModelCompat = {
   supportsStore: false,
   supportsDeveloperRole: false,
-  supportsReasoningEffort: false,
+  supportsReasoningEffort: true,
 };
 
 function openaiCompatModelName(modelId: string): string {

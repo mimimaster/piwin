@@ -1,0 +1,182 @@
+/* General Chat shares the prototype's document measure and square paper
+   cards. Keep these refinements separate from Agent tool/permission anatomy. */
+.inkstone-message-identity {
+  display: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .inkstone-message-identity,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .chat-stage .inkstone-message-identity .chat-turn-head {
+  display: flex;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .user-message-wrapper.is-conversation {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  justify-content: flex-start;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .user-message-wrapper.is-conversation .user-message-main {
+  width: 100%;
+  align-items: stretch;
+  gap: 0;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .chat-thread.is-conversation
+  .assembly-summary {
+  width: 100%;
+  align-self: stretch;
+  text-align: left;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .user-message-wrapper.is-conversation .user-message-bubble {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--s3);
+  box-shadow: var(--sh1);
+  font-size: 14.5px;
+  line-height: 1.72;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .user-message-wrapper.is-conversation .user-message-avatar,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .conversation-response > .conversation-message-header {
+  display: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .conversation-response,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .chat-thread.is-conversation .turn-work-disclosure {
+  padding-left: 0;
+}
+
+/* Inkstone identity is inline — do not indent the colophon for a missing avatar rail. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .chat-thread.is-conversation
+  .chat-message-row.role-assistant
+  .turn-colophon {
+  padding-left: 0;
+}
+
+/* Action controls remain keyboard reachable and no longer mask the final
+   words of a short prompt. They reveal on hover/focus in the normal flow. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .user-message-wrapper.is-conversation .user-message-footer {
+  position: static;
+  padding: 6px 0 0;
+  min-height: 24px;
+  background: transparent;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .user-message-wrapper.is-conversation .user-message-footer > .user-message-time {
+  display: none;
+}
+
+/* Conversation has inline bylines, so it needs no invisible 160px author
+   rail. Its paper card and composer both use the same centered measure. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .chat-thread.is-conversation :is(.chat-turn-group, .turn, .chat-turn) {
+  --gut: 0px;
+}
+
+/* proto-01 `.atts` / `.att` — history capsules on the paper user card */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .atts,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .atts.message-attachments.is-user-attachments {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  margin-bottom: 0;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .atts .message-context-refs {
+  display: contents;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .att {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 3px;
+  background: var(--s1);
+  box-shadow: var(--sh1);
+  font: 11.5px var(--mono);
+  color: var(--t2);
+  white-space: nowrap;
+  max-width: 100%;
+  min-width: 0;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .att .th {
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+  background: linear-gradient(135deg, var(--azure), var(--pine));
+  margin-left: -3px;
+  flex: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .att .att-ic,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .att .att-ic svg {
+  color: var(--t2);
+  flex: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .att .att-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* proto-01 `.ufoot` / `.bsw` — forked prompt sits under the paper card */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ufoot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font: 11px var(--mono);
+  color: var(--t4);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ufoot .bsw,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ufoot .message-branch-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 20px;
+  margin: 0;
+  padding: 0 2px;
+  border-radius: 3px;
+  background: var(--s3);
+  box-shadow: var(--sh1);
+  font: 11px var(--mono);
+  color: var(--t2);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ufoot .bsw button,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ufoot .message-branch-switcher-btn {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  box-shadow: none;
+  color: var(--t3);
+  font-size: 13px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ufoot .bsw button:hover:not(:disabled),
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ufoot .message-branch-switcher-btn:hover:not(:disabled) {
+  background: var(--s1);
+  color: var(--t1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ufoot .message-branch-switcher-label {
+  padding: 0 4px;
+  color: var(--t2);
+  font-variant-numeric: tabular-nums;
+}

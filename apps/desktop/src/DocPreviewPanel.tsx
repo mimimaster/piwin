@@ -15,7 +15,6 @@ import { EnhancedMarkdownView, type LineCommentItem } from './EnhancedMarkdownVi
 import { CodePreviewView } from './code-preview-view';
 import type { DesktopLocale } from './desktop-locale';
 import type { DocumentProvenance } from './active-document';
-import { provenanceLabel } from './active-document';
 import type { ArtifactThemeVariables } from '@piwin/artifact';
 import { MarkupPreviewView, markupPreviewKind } from './markup-preview-view';
 import { PreviewUnavailable } from './PreviewUnavailable';
@@ -104,8 +103,14 @@ export function DocPreviewPanel({
     `# ${displayTitle}\n\n*${locale === 'zh-CN' ? '暂无文档内容' : 'No document content available'}*`;
 
   const targetPath = filePath || (title && title.includes('.') ? title : `${displayTitle}.md`);
+  const tooltipPath = displayRef || filePath || rawTitle;
   const commentCount = comments.length;
   const markupKind = markupPreviewKind(targetPath);
+  const showSkillChip = Boolean(skillId);
+  const showReadOnlyChip = readOnly || provenance === 'trusted-config';
+  const showLoadingChip = status === 'loading';
+  const showCommentBadge = commentCount > 0;
+  const showMeta = showSkillChip || showReadOnlyChip || showLoadingChip || showCommentBadge;
 
   const canCopyExport = status === 'ready' && Boolean(content);
 
@@ -150,46 +155,38 @@ export function DocPreviewPanel({
 
   return (
     <div className="doc-preview-panel" data-testid="doc-preview-panel">
-      <header className="doc-preview-header">
+      <header className="doc-preview-header doc-h">
         <div className="doc-preview-title-group">
           <FileTypeIcon filePathOrExt={targetPath} />
-          <div className="doc-preview-title-stack">
-            <h2 className="doc-preview-title">{displayTitle}</h2>
+          <h2 className="doc-preview-title" title={tooltipPath}>
+            {displayTitle}
+          </h2>
+          {showMeta ? (
             <div className="doc-preview-meta" data-testid="doc-preview-meta">
-              {skillId ? (
+              {showSkillChip ? (
                 <span className="doc-preview-chip" data-testid="doc-preview-skill-id">
                   Skill · {skillId}
                   {skillSource ? ` · ${skillSource}` : ''}
                 </span>
               ) : null}
-              {displayRef && displayRef !== displayTitle ? (
-                <span className="doc-preview-chip" title={displayRef}>
-                  {displayRef}
-                </span>
-              ) : null}
-              {provenance ? (
-                <span className="doc-preview-chip" data-testid="doc-preview-provenance">
-                  {provenanceLabel(provenance, locale === 'en' ? 'en' : 'zh-CN')}
-                </span>
-              ) : null}
-              {readOnly || provenance === 'trusted-config' ? (
+              {showReadOnlyChip ? (
                 <span className="doc-preview-chip" data-testid="doc-preview-readonly">
                   {locale === 'zh-CN' ? '项目外 · 只读' : 'Outside project · read-only'}
                 </span>
               ) : null}
-              {status === 'loading' ? (
+              {showLoadingChip ? (
                 <span className="doc-preview-chip" data-testid="doc-preview-loading">
                   {locale === 'zh-CN' ? '加载中…' : 'Loading…'}
                 </span>
               ) : null}
-              {commentCount > 0 ? (
+              {showCommentBadge ? (
                 <span className="doc-comment-badge">
                   · {commentCount}
                   <IconChat width={12} height={12} />
                 </span>
               ) : null}
             </div>
-          </div>
+          ) : null}
         </div>
         <div className="doc-preview-actions">
           {onClose ? (

@@ -13,6 +13,7 @@ import type { ExploreFlowGroup, ExploreFlowItem } from './explore-flow';
 import { ToolCallCard, ToolStatusDot, type DocumentOpenInput } from './tool-call-card';
 import { ActionMarquee } from './action-marquee';
 import { formatActiveToolLabel, formatExploreCapsuleTitle } from './tool-batch-capsule';
+import { inkLineNodeClass, toolStatusToNodeStatus } from './session-node-status.js';
 import {
   IconAlertCircle,
   IconBrain,
@@ -67,7 +68,12 @@ function ThoughtFlowRow(props: {
 }): ReactElement {
   const [open, setOpen] = useState(false);
   return (
-    <div className={`explore-thought${props.item.live ? ' is-live' : ''}`}>
+    <div className={`tr sub explore-thought${props.item.live ? ' is-live' : ''}`}>
+      <span
+        className={`node sm ${props.item.live ? 'run' : 'done'}`}
+        data-kind={props.item.live ? 'running' : 'success'}
+        aria-hidden="true"
+      />
       <button
         type="button"
         className="explore-thought-row"
@@ -138,15 +144,23 @@ export function ExploreFlowCapsule(props: ExploreFlowCapsuleProps): ReactElement
       ? group.items.filter((item) => item.kind !== 'thought')
       : group.items;
 
+  const headerStatus = hasError ? 'error' : group.isLive ? 'running' : 'done';
+  const headerNodeKind = toolStatusToNodeStatus(headerStatus);
+  const headerNodeClass = inkLineNodeClass(headerNodeKind);
   return (
     <div
-      className={`tool-batch-capsule explore-flow-capsule${
+      className={`tr tool-batch-capsule explore-flow-capsule${
         expanded ? ' is-expanded' : ' is-collapsed'
-      }${hasError ? ' has-error' : ''}${group.isLive ? ' is-running' : ''}`}
+      }${hasError ? ' has-error fail' : ''}${group.isLive ? ' is-running' : ''}`}
       data-testid="explore-flow-capsule"
       data-expanded={expanded ? 'true' : 'false'}
       data-live={group.isLive ? 'true' : 'false'}
     >
+      <span
+        className={`node${headerNodeClass ? ` ${headerNodeClass}` : ''}`}
+        data-kind={headerNodeKind}
+        aria-hidden="true"
+      />
       <button
         type="button"
         className="tool-batch-header"
@@ -218,6 +232,7 @@ export function ExploreFlowCapsule(props: ExploreFlowCapsuleProps): ReactElement
                   tool={item.tool}
                   density="compact"
                   expandWhileRunning={false}
+                  inkLineSubrow
                   {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
                   {...(props.request !== undefined ? { request: props.request } : {})}
                   {...(props.onOpenFile !== undefined ? { onOpenFile: props.onOpenFile } : {})}

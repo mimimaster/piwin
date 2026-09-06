@@ -4,6 +4,7 @@
  */
 import type { ThemeManifest } from '@piwin/contracts';
 import type { DesktopLocale } from './desktop-locale';
+import { isThemeAppearanceLocked } from './appearance-tokens.js';
 import {
   DEFAULT_DARK_THEME_SETTINGS,
   DEFAULT_LIGHT_THEME_SETTINGS,
@@ -27,11 +28,15 @@ export function appearanceToggleBlockedNotice(locale: DesktopLocale): string {
 }
 
 export function planAppearanceToggle(input: {
+  themeId?: string;
   visualStyle: ThemeManifest['visualStyle'];
   mode: ThemeManifest['mode'];
   preferences: DesktopPreferences;
 }): AppearanceTogglePlan {
-  if (input.visualStyle !== undefined) {
+  if (isThemeAppearanceLocked({
+    id: input.themeId ?? '',
+    ...(input.visualStyle === undefined ? {} : { visualStyle: input.visualStyle }),
+  })) {
     return { kind: 'blocked-by-theme-package' };
   }
   const nextMode = input.mode === 'light' ? 'dark' : 'light';

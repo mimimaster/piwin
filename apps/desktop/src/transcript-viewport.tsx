@@ -12,20 +12,16 @@
  * Scroll metrics come from `useTranscriptScroll` (ResizeObserver + activity),
  * not mount/unmount of the floating track.
  *
- * Older history loads invisibly when the user is near the top, including when
- * the current page is too short to create a scrollbar.
+ * Older history loads invisibly when the user has left the tail and is near
+ * the top. Follow-tail opens do not auto-page.
  */
 import type { CSSProperties, ReactElement, ReactNode } from 'react';
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import type { ChatMessageUi } from './chat-reducer';
 import type { SessionUserMessageAnchor, SessionUserMessageIndexData } from '@piwin/contracts';
-import { isNearBottom, useTranscriptScroll } from './use-transcript-scroll';
+import { useTranscriptScroll } from './use-transcript-scroll';
 import { HistoryTicksDrawer } from './history-ticks-drawer';
 import { TranscriptScrollProvider } from './transcript-scroll-port';
-import {
-  readTranscriptScrollPosition,
-  rememberTranscriptScrollPosition,
-} from './transcript-scroll-memory';
 
 /** Load the next older page when within this many px of the transcript top. */
 const TRANSCRIPT_TOP_AUTO_LOAD_PX = 120;
@@ -59,28 +55,31 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
   const trackRef = useRef<HTMLDivElement | null>(null);
   const draggingRef = useRef(false);
   const loadInFlightRef = useRef(false);
+  const openedSessionPinRef = useRef<{ sessionId: string; pinned: boolean } | null>(null);
 
   useLayoutEffect(() => {
-    const sessionId = props.sessionId;
-    if (!sessionId) {
+    // Sidebar / ordinary session switches start at the live tail. History
+    // ticks and search still jump via the message scroller, not this memory.
+    if (!props.sessionId) {
       return;
     }
-    const rememberedPosition = readTranscriptScrollPosition(sessionId);
-    if (rememberedPosition) {
-      scroll.restorePosition(rememberedPosition);
+    const previous = openedSessionPinRef.current;
+    if (previous?.sessionId !== props.sessionId) {
+      openedSessionPinRef.current = {
+        sessionId: props.sessionId,
+        pinned: props.messageCount > 0,
+      };
+      scroll.jumpToLatest();
+      return;
     }
-    const scrollElementRef = scroll.containerRef;
-    return () => {
-      const element = scrollElementRef.current;
-      if (!element) {
-        return;
-      }
-      rememberTranscriptScrollPosition(sessionId, {
-        scrollTop: element.scrollTop,
-        followTail: isNearBottom(element),
-      });
-    };
-  }, [props.sessionId, scroll.containerRef, scroll.restorePosition]);
+    // Cold resume paints an empty placeholder first. Re-pin once the first
+    // page arrives, otherwise the virtualizer stays on the estimated bottom
+    // of a short list — the middle of the real transcript.
+    if (!previous.pinned && props.messageCount > 0) {
+      openedSessionPinRef.current = { sessionId: props.sessionId, pinned: true };
+      scroll.jumpToLatest();
+    }
+  }, [props.messageCount, props.sessionId, scroll.jumpToLatest]);
 
   // Floating scrollbar geometry: thumb height = ratio * track height,
   // thumb top = progress * (track height - thumb height).
@@ -155,7 +154,12 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
   }, [props.historyLoading, props.onLoadOlder, scroll.containerRef]);
 
   const maybeAutoLoadOlder = useCallback((): void => {
-    if (!props.canLoadOlder || props.historyLoading || !props.onLoadOlder) {
+    if (
+      !props.canLoadOlder ||
+      props.historyLoading ||
+      !props.onLoadOlder ||
+      scroll.isFollowingTail()
+    ) {
       return;
     }
     const container = scroll.containerRef.current;
@@ -175,6 +179,7 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
     props.historyLoading,
     props.onLoadOlder,
     scroll.containerRef,
+    scroll.isFollowingTail,
   ]);
 
   // After each successful older page (messageCount grows), continue if the
@@ -194,12 +199,14 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
     maybeAutoLoadOlder();
   }, [maybeAutoLoadOlder, scroll]);
 
-  // const locale = props.locale ?? 'zh-CN';
-  // const handleJumpToLatest = useCallback((): void => {
-  //   props.onReturnToLatest?.();
-  //   scroll.jumpToLatest();
-  // }, [props.onReturnToLatest, scroll]);
-  // const showJumpToLatest = props.historyViewActive === true || scroll.showJumpToLatest;
+  const locale = props.locale ?? 'zh-CN';
+  const handleJumpToLatest = useCallback((): void => {
+    props.onReturnToLatest?.();
+    scroll.jumpToLatest();
+  }, [props.onReturnToLatest, scroll]);
+  const showJumpToLatest =
+    props.messageCount > 0 &&
+    (props.historyViewActive === true || scroll.showJumpToLatest);
 
   return (
         <TranscriptScrollProvider
@@ -232,7 +239,6 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
         >
           {props.children}
         </div>
-        {/*
         {showJumpToLatest ? (
           <button
             type="button"
@@ -258,7 +264,6 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
                 : 'Jump to latest'}
           </button>
         ) : null}
-        */}
         {/* Always mounted: visibility via isOverflowing avoids mount thrash. */}
         <div
           className={

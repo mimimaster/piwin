@@ -17,6 +17,8 @@
 @import './settings-provider-connection.css';
 @import './settings-misc-pages.css';
 @import './settings-ink-wash.css';
+@import './inkstone/settings.css';
+@import './inkstone/appearance.css';
 
 .appearance-theme-library-note {
   margin: var(--s-5) 0 0;

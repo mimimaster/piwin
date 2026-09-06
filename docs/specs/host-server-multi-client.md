@@ -160,8 +160,9 @@ enforce its policy at command and push boundaries.
 - Provider keys and resolved secrets never enter Gateway logs or client pushes.
 - TLS is required for non-loopback connections unless the transport's private
   security boundary is explicitly documented and still uses application auth.
-- Host paths are opaque Host facts. Remote clients use project/session/asset IDs,
-  relative paths under Host-approved roots, or bounded content responses.
+- Host filesystem paths may cross the wire for authenticated clients (tool
+  cards, commands, errors). Secrets stay redacted. Media attachments still use
+  opaque `remote-asset:<id>` refs; session index continues to use project IDs.
 
 ## 7. Target package boundaries
 

@@ -431,6 +431,7 @@ export async function handleMockWorkspaceCommands(
       case 'git/unstage':
       case 'git/commit':
       case 'git/branch-create':
+      case 'git/stash':
         return {
           id,
           type: 'response',

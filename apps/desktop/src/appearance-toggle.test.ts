@@ -24,6 +24,19 @@ const preferences: DesktopPreferences = {
 };
 
 describe('planAppearanceToggle', () => {
+  it.each([
+    ['piwin-inkstone-paper', 'light', 'dark'],
+    ['piwin-inkstone-ink', 'dark', 'light'],
+  ] as const)('switches the %s product face directly', (themeId, mode, nextMode) => {
+    expect(planAppearanceToggle({ themeId, mode, visualStyle: 'paper', preferences }))
+      .toMatchObject({ kind: 'apply', nextMode });
+  });
+
+  it('keeps an installed paper theme under its own appearance authority', () => {
+    expect(planAppearanceToggle({
+      themeId: 'community-paper', mode: 'light', visualStyle: 'paper', preferences,
+    })).toEqual({ kind: 'blocked-by-theme-package' });
+  });
   it('blocks the flip when a theme package owns appearance', () => {
     expect(
       planAppearanceToggle({

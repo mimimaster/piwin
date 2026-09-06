@@ -39,7 +39,7 @@ test('ink-wash empty canvas loads optional art and keeps execution surfaces imag
   await expect(page.getByTestId('ink-wash-empty-session')).toBeVisible();
   await expect(
     page.locator(
-      '[data-testid="run-activity-slot"] img, [data-testid="tool-call-card"] img, [data-testid="permission-gate"] img, pre img, code img',
+      '[data-testid="run-activity-slot"] img, [data-testid="tool-call-card"] img, [data-testid="permission-bar"] img, pre img, code img',
     ),
   ).toHaveCount(0);
   await expect(page.getByTestId('app-shell')).toHaveScreenshot('ink-empty-shell-1280.png', {

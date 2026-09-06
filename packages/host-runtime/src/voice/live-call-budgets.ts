@@ -12,13 +12,22 @@ export class SlidingWindowBudget {
   ) {}
 
   tryConsume(now = Date.now()): boolean {
+    this.prune(now);
+    if (this.stamps.length >= this.max) return false;
+    this.stamps.push(now);
+    return true;
+  }
+
+  remaining(now = Date.now()): number {
+    this.prune(now);
+    return Math.max(0, this.max - this.stamps.length);
+  }
+
+  private prune(now: number): void {
     const cutoff = now - this.windowMs;
     while (this.stamps[0] !== undefined && this.stamps[0] <= cutoff) {
       this.stamps.shift();
     }
-    if (this.stamps.length >= this.max) return false;
-    this.stamps.push(now);
-    return true;
   }
 
   reset(): void {

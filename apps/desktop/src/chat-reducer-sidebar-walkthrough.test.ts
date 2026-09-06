@@ -381,6 +381,58 @@ describe('chatUiReducer sidebar', () => {
       expect(state.sessions).toEqual([]);
     });
 
+    it('keepActiveSession project/set keeps cached folder sessions so the sidebar does not wipe', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, {
+        type: 'session/hydrate-project',
+        projectPath: '/dest',
+        sessions: [
+          { id: 'd1', name: 'Dest 1' },
+          { id: 'd2', name: 'Dest 2' },
+        ],
+      });
+      state = chatUiReducer(state, {
+        type: 'session/set',
+        sessionId: 'd1',
+        awaitTranscript: true,
+      });
+      state = chatUiReducer(state, {
+        type: 'project/set',
+        path: '/dest',
+        trusted: true,
+        keepActiveSession: true,
+      });
+      expect(state.activeSessionId).toBe('d1');
+      expect(state.sessions.map((item) => item.id)).toEqual(['d1', 'd2']);
+      expect(state.projectSessionsByPath['/dest']?.map((item) => item.id)).toEqual(['d1', 'd2']);
+    });
+
+    it('keepActiveSession project/clear keeps general sessions as the live list', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, {
+        type: 'session/hydrate-general',
+        sessions: [
+          { id: 'g1', name: 'G1' },
+          { id: 'g2', name: 'G2' },
+        ],
+      });
+      state = chatUiReducer(state, {
+        type: 'project/set',
+        path: '/proj',
+        trusted: true,
+        keepActiveSession: true,
+      });
+      state = chatUiReducer(state, {
+        type: 'session/set',
+        sessionId: 'g1',
+        awaitTranscript: true,
+      });
+      state = chatUiReducer(state, { type: 'project/clear', keepActiveSession: true });
+      expect(state.activeSessionId).toBe('g1');
+      expect(state.sessions.map((item) => item.id)).toEqual(['g1', 'g2']);
+      expect(state.generalSessions.map((item) => item.id)).toEqual(['g1', 'g2']);
+    });
+
     it('session/clear-active enters draft mode (null activeSessionId, cleared messages)', () => {
       let state = createInitialChatUiState();
       state = chatUiReducer(state, {

@@ -52,20 +52,23 @@ async function userScrollIframeToBottom(
   page: Page,
   css: string,
 ): Promise<{ overflowY: string; htmlOverflowY: string; scrollTop: number }> {
-  return page.frameLocator(css).locator('body').evaluate((body) => {
-    const html = document.documentElement;
-    const bodyOverflowY = getComputedStyle(body).overflowY;
-    const scrolling =
-      bodyOverflowY === 'auto' || bodyOverflowY === 'scroll'
-        ? body
-        : (document.scrollingElement ?? html);
-    scrolling.scrollTop = scrolling.scrollHeight;
-    return {
-      overflowY: getComputedStyle(scrolling).overflowY,
-      htmlOverflowY: getComputedStyle(html).overflowY,
-      scrollTop: scrolling.scrollTop,
-    };
-  });
+  return page
+    .frameLocator(css)
+    .locator('body')
+    .evaluate((body) => {
+      const html = document.documentElement;
+      const bodyOverflowY = getComputedStyle(body).overflowY;
+      const scrolling =
+        bodyOverflowY === 'auto' || bodyOverflowY === 'scroll'
+          ? body
+          : (document.scrollingElement ?? html);
+      scrolling.scrollTop = scrolling.scrollHeight;
+      return {
+        overflowY: getComputedStyle(scrolling).overflowY,
+        htmlOverflowY: getComputedStyle(html).overflowY,
+        scrollTop: scrolling.scrollTop,
+      };
+    });
 }
 
 async function markerIntersectsIframeViewport(
@@ -240,7 +243,10 @@ test('explicit Canvas hosts a canvas-sized stage whose last marker is reachable'
   const section = await openFixture(page, 'explicit-canvas');
   const stage = section.getByTestId('artifact-gallery-canvas-stage');
   await expect(stage).toBeVisible();
-  await expect(stage.getByTestId('artifact-frame')).toHaveAttribute('data-artifact-layout', 'canvas');
+  await expect(stage.getByTestId('artifact-frame')).toHaveAttribute(
+    'data-artifact-layout',
+    'canvas',
+  );
   const css = iframeCss('explicit-canvas', true);
   await expect(page.locator(css)).toBeVisible({ timeout: 15_000 });
   await userScrollIframeToBottom(page, css);
@@ -252,7 +258,9 @@ test('explicit Canvas hosts a canvas-sized stage whose last marker is reachable'
 test('streaming gallery records a stable channel across deltas', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 840 });
   await page.goto(`${GALLERY}?id=streaming`);
-  const section = page.locator('[data-testid="artifact-gallery-case"][data-fixture-id="streaming"]');
+  const section = page.locator(
+    '[data-testid="artifact-gallery-case"][data-fixture-id="streaming"]',
+  );
   await expect(section).toBeVisible();
   const live = section.getByTestId('artifact-stream-live');
   await expect(live).toBeVisible();
@@ -264,4 +272,49 @@ test('streaming gallery records a stable channel across deltas', async ({ page }
   );
   await section.getByTestId('artifact-gallery-stream-next').click();
   await expect(section.getByText(ARTIFACT_TRAILING_MARKDOWN, { exact: true })).toBeVisible();
+});
+
+test('viewport height follows window resizing', async ({ page }) => {
+  const section = await openFixture(page, 'viewport-100vh');
+  await waitForInlineViewport(section);
+  const stage = section.locator('.artifact-iframe-stage');
+  await page.setViewportSize({ width: 1280, height: 600 });
+  await expect(stage).toHaveCSS('height', '432px');
+});
+
+test('viewport height follows its conversation pane without a window resize', async ({ page }) => {
+  await page.goto(`${GALLERY}?id=viewport-100vh&pane=1`);
+  const stage = page.locator('.artifact-iframe-stage');
+  await expect(stage).toHaveCSS('height', '360px');
+  await page.getByTestId('artifact-gallery').evaluate((node) => {
+    node.style.height = '700px';
+  });
+  await expect(stage).toHaveCSS('height', '504px');
+  await page.getByTestId('artifact-gallery').evaluate((node) => {
+    node.style.height = '280px';
+  });
+  await expect(stage).toHaveCSS('height', '280px');
+});
+
+test('flow includes visible overflow and remeasures it after interaction', async ({ page }) => {
+  const section = await openFixture(page, 'script-fragment');
+  const iframe = await waitForSandboxFrame(section);
+  const frame = page.frameLocator(iframeCss('script-fragment', false));
+  await frame.locator('.piwin-artifact-root').evaluate((root) => {
+    root.innerHTML =
+      '<div style="height:50px;overflow:visible"><div id="growing-content" style="height:350px">Visible overflow</div></div>';
+  });
+  await expect
+    .poll(async () => (await iframe.boundingBox())?.height ?? 0)
+    .toBeGreaterThanOrEqual(350);
+  await frame.locator('#growing-content').evaluate((node) => {
+    (node as HTMLElement).style.height = '700px';
+  });
+  await expect
+    .poll(async () => (await iframe.boundingBox())?.height ?? 0)
+    .toBeGreaterThanOrEqual(700);
+  await frame.locator('#growing-content').evaluate((node) => {
+    (node as HTMLElement).style.height = '150px';
+  });
+  await expect.poll(async () => (await iframe.boundingBox())?.height ?? 0).toBeLessThan(200);
 });

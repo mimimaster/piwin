@@ -414,6 +414,10 @@ export function reduceChatSessionList(
           state.completedAttentionSessionIds,
           action.sessionId,
         ),
+        failedAttentionSessionIds: removeSessionIdMarker(
+          state.failedAttentionSessionIds,
+          action.sessionId,
+        ),
         workingSessionIds: removeWorkingSessionId(state.workingSessionIds, action.sessionId),
         contextTelemetry: activeRemoved
           ? applyContextTelemetry(state.contextTelemetry, { type: 'select', sessionId: null })
@@ -503,6 +507,10 @@ export function reduceChatSessionList(
         ...state,
         completedAttentionSessionIds: removeSessionIdMarker(
           state.completedAttentionSessionIds,
+          action.sessionId,
+        ),
+        failedAttentionSessionIds: removeSessionIdMarker(
+          state.failedAttentionSessionIds,
           action.sessionId,
         ),
       };

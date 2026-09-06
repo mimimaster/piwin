@@ -28,7 +28,7 @@ export function adjacentSiblingHead(
 }
 
 export function formatBranchSwitcherLabel(point: TranscriptBranchPoint): string {
-  return `${point.activeIndex + 1}/${point.siblings.length}`;
+  return `${point.activeIndex + 1} / ${point.siblings.length}`;
 }
 
 /** Extra prompt-edit siblings. Answer versions and Fork Chat sessions are not counted. */

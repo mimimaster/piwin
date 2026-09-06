@@ -42,12 +42,13 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
   };
 
   it('renders front face with question, deck, and tags', () => {
-    renderView(<FlashcardView card={sampleCard} locale="zh-CN" />);
+    renderView(<FlashcardStackView cards={[sampleCard]} locale="zh-CN" />);
 
     expect(container.textContent).toContain('什么是光合作用？');
-    expect(container.textContent).toContain('生物');
-    expect(container.textContent).toContain('#植物学');
-    expect(container.textContent).toContain('翻看解答');
+    expect(container.textContent).toContain('生成了 1 张知识卡片');
+    expect(container.textContent).toContain('牌组 生物');
+    expect(container.textContent).toContain('植物学');
+    expect(container.textContent).toContain('点击翻转');
   });
 
   function renderView(node: ReactElement): void {
@@ -66,24 +67,22 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
   it('manages is-flipping transient state and cleans up after animation timer', () => {
     renderView(<FlashcardView card={sampleCard} locale="zh-CN" />);
 
-    const frame = container.querySelector('.fc-quiet-frame');
+    const frame = container.querySelector('.flip');
     expect(frame).not.toBeNull();
-    expect(frame?.classList.contains('is-flipped')).toBe(false);
+    expect(frame?.classList.contains('is-back')).toBe(false);
     expect(frame?.classList.contains('is-flipping')).toBe(false);
 
     flipCard();
 
-    expect(frame?.classList.contains('is-flipped')).toBe(true);
+    expect(frame?.classList.contains('is-back')).toBe(true);
     expect(frame?.classList.contains('is-flipping')).toBe(true);
 
-    // Advance timer past animation duration (550ms)
     act(() => {
-      vi.advanceTimersByTime(600);
+      vi.advanceTimersByTime(450);
     });
 
-    // is-flipping must be removed so WebKit releases temporary will-change GPU allocation
     expect(frame?.classList.contains('is-flipping')).toBe(false);
-    expect(frame?.classList.contains('is-flipped')).toBe(true);
+    expect(frame?.classList.contains('is-back')).toBe(true);
   });
 
   it('supports keyboard navigation for flip and FSRS rating', () => {
@@ -98,10 +97,9 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
       />,
     );
 
-    const cardContainer = container.querySelector('.fc-quiet-card-container');
+    const cardContainer = container.querySelector('.fc-card');
     expect(cardContainer).not.toBeNull();
 
-    // Press Space to flip
     act(() => {
       cardContainer?.dispatchEvent(
         new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }),
@@ -110,14 +108,13 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
 
     expect(container.textContent).toContain('植物利用光能');
 
-    // Press '3' to rate 'good' (记住了)
     act(() => {
       cardContainer?.dispatchEvent(
         new KeyboardEvent('keydown', { key: '3', bubbles: true, cancelable: true }),
       );
     });
 
-    expect(container.textContent).toContain('已记录：记住了');
+    expect(container.textContent).toContain('已记录：记得');
     expect(capturedAction).toEqual({
       type: 'piwin-artifact:action',
       channelId: 'card-test-1',
@@ -143,23 +140,20 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
 
     renderView(<FlashcardStackView cards={[sampleCard, card2]} locale="zh-CN" />);
 
-    // Top quiet navigation is present
-    expect(container.textContent).toContain('卡片 (2)');
+    expect(container.textContent).toContain('生成了 2 张知识卡片');
+    expect(container.textContent).toContain('1 / 2');
     expect(container.textContent).toContain('什么是光合作用？');
-    // Card 2 is NOT mounted in DOM (memory saving)
     expect(container.textContent).not.toContain('牛顿第一运动定律');
 
-    // Click next button
-    const nextBtn = container.querySelector('button[title="下一张"]');
-    expect(nextBtn).not.toBeNull();
-
+    const goodBtn = container.querySelector('.rate .btn-good');
+    expect(goodBtn).not.toBeNull();
     act(() => {
-      nextBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      goodBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    // Card 2 is now mounted and Card 1 is cleanly unmounted from memory
     expect(container.textContent).toContain('牛顿第一运动定律');
     expect(container.textContent).not.toContain('什么是光合作用？');
+    expect(container.textContent).toContain('2 / 2');
   });
 
   it('treats one cloze item as a single physical card, even if FSRS faces are passed in', () => {
@@ -183,7 +177,7 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
 
     renderView(<FlashcardStackView cards={[clozeC1, clozeC2]} locale="zh-CN" />);
 
-    expect(container.textContent).not.toContain('卡片 (2)');
+    expect(container.textContent).toContain('生成了 1 张知识卡片');
     expect(container.querySelectorAll('[data-testid="chat-flashcard"]')).toHaveLength(1);
   });
 
@@ -213,12 +207,10 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
 
     flipCard();
 
-    // Unmount while flip animation timer is still pending
     act(() => {
       root.unmount();
     });
 
-    // Advancing timers should not throw or cause dangling setState
     expect(() => {
       act(() => {
         vi.advanceTimersByTime(1000);
@@ -252,40 +244,39 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
   it('does not flip the card when selecting text with a DOM Range', () => {
     renderView(<FlashcardView card={sampleCard} locale="zh-CN" />);
 
-    const frame = container.querySelector('.fc-quiet-frame');
-    const front = container.querySelector('.fc-quiet-front .fc-quiet-body');
-    expect(frame?.classList.contains('is-flipped')).toBe(false);
+    const frame = container.querySelector('.flip');
+    const front = container.querySelector('.face.front .q');
+    expect(frame?.classList.contains('is-back')).toBe(false);
     expect(front).not.toBeNull();
 
     act(() => {
       selectRangeOnCardFace(front!, 0, 4);
+      frame?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
     });
 
-    expect(frame?.classList.contains('is-flipped')).toBe(false);
+    expect(frame?.classList.contains('is-back')).toBe(false);
     expect(window.getSelection()?.toString().trim().length).toBeGreaterThan(0);
   });
 
-  it('does not flip the card when clicking text on the card face', () => {
+  it('flips the card when clicking the flip surface', () => {
     renderView(<FlashcardView card={sampleCard} locale="zh-CN" />);
 
-    const frame = container.querySelector('.fc-quiet-frame');
-    const front = container.querySelector('.fc-quiet-front .fc-quiet-body');
-    expect(frame?.classList.contains('is-flipped')).toBe(false);
-    expect(front).not.toBeNull();
+    const frame = container.querySelector('.flip');
+    expect(frame?.classList.contains('is-back')).toBe(false);
 
     act(() => {
-      front?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      frame?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
     });
 
-    expect(frame?.classList.contains('is-flipped')).toBe(false);
+    expect(frame?.classList.contains('is-back')).toBe(true);
   });
 
   it('flips the card when Space is pressed while the card is focused', () => {
     renderView(<FlashcardView card={sampleCard} locale="zh-CN" />);
 
-    const cardContainer = container.querySelector('.fc-quiet-card-container');
-    const frame = container.querySelector('.fc-quiet-frame');
-    expect(frame?.classList.contains('is-flipped')).toBe(false);
+    const cardContainer = container.querySelector('.fc-card');
+    const frame = container.querySelector('.flip');
+    expect(frame?.classList.contains('is-back')).toBe(false);
 
     act(() => {
       (cardContainer as HTMLElement | null)?.focus();
@@ -294,6 +285,6 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
       );
     });
 
-    expect(frame?.classList.contains('is-flipped')).toBe(true);
+    expect(frame?.classList.contains('is-back')).toBe(true);
   });
 });

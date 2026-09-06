@@ -46,7 +46,7 @@ export type ShellRoute =
   | { kind: 'library' }
   | { kind: 'images' }
   | { kind: 'videos' }
-  | { kind: 'flashcards' }
+  | { kind: 'flashcards'; entry?: 'gallery' | 'wiki' }
   /** @deprecated Legacy overlay. `resolveShellSubPage` maps this to flashcards. */
   | { kind: 'knowledge' }
   | { kind: 'settings'; section: ShellSettingsSection };
@@ -100,6 +100,9 @@ function routesEqual(left: ShellRoute, right: ShellRoute): boolean {
   }
   if (left.kind === 'settings' && right.kind === 'settings') {
     return left.section === right.section;
+  }
+  if (left.kind === 'flashcards' && right.kind === 'flashcards') {
+    return (left.entry ?? 'gallery') === (right.entry ?? 'gallery');
   }
   return true;
 }

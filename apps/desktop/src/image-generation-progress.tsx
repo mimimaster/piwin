@@ -1,74 +1,26 @@
 import type { ReactElement } from 'react';
 import type { ToolCardUi } from './chat-reducer';
-import { IconCheck, IconClose, IconImage } from './shell-icons';
-import { getBehaviorActivitySpec } from './behavior-activity.js';
+import { MediaGenerationCard } from './media-generation-card.js';
 
 export function ImageGenerationProgress(props: {
   locale?: 'zh-CN' | 'en';
   status?: ToolCardUi['status'];
+  tool?: ToolCardUi;
+  onCancel?: (() => void) | undefined;
+  onRetry?: (() => void) | undefined;
+  onOpen?: (() => void) | undefined;
+  onOpenLibrary?: (() => void) | undefined;
 }): ReactElement {
-  const isChinese = props.locale !== 'en';
-  const status = props.status ?? 'running';
-  const isRunning = status === 'running';
-  const isCompleted = status === 'done';
-  const title = isRunning
-    ? isChinese
-      ? '正在生成图片'
-      : 'Generating image'
-    : isCompleted
-      ? isChinese
-        ? '图片生成完成'
-        : 'Image generated'
-      : isChinese
-        ? '图片生成失败'
-        : 'Image generation failed';
-  const detail = isRunning
-    ? isChinese
-      ? '接口返回后会显示最终图片'
-      : 'The final image will appear when ready'
-    : isCompleted
-      ? isChinese
-        ? '生成结果已返回'
-        : 'The generated result is ready'
-      : isChinese
-        ? '生成接口返回错误，可以重试'
-        : 'The generation request failed; try again';
-
   return (
-    <div
-      className={`image-generation-progress status-${status}`}
-      data-testid="image-generation-progress"
-      data-activity-id="image"
-      data-activity-animation={getBehaviorActivitySpec('image').animation}
-      data-tool-status={status}
-      role="status"
-      aria-live="polite"
-    >
-      <div className="image-generation-progress-art" aria-hidden="true">
-        {isRunning ? (
-          <IconImage className="image-generation-progress-spark" />
-        ) : (
-          <span className="image-generation-progress-status-icon">
-            {isCompleted ? <IconCheck /> : <IconClose />}
-          </span>
-        )}
-      </div>
-      <div className="image-generation-progress-copy">
-        <div className="image-generation-progress-title-row">
-          <strong>
-            {title}
-            {isRunning ? (
-              <span className="image-generation-progress-dots" aria-hidden="true">
-                …
-              </span>
-            ) : null}
-          </strong>
-        </div>
-        <span>{detail}</span>
-      </div>
-      {isRunning ? (
-        <span className="image-generation-progress-pulse" aria-hidden="true" />
-      ) : null}
-    </div>
+    <MediaGenerationCard
+      kind="image"
+      {...(props.locale !== undefined ? { locale: props.locale } : {})}
+      {...(props.status !== undefined ? { status: props.status } : {})}
+      {...(props.tool !== undefined ? { tool: props.tool } : {})}
+      {...(props.onCancel !== undefined ? { onCancel: props.onCancel } : {})}
+      {...(props.onRetry !== undefined ? { onRetry: props.onRetry } : {})}
+      {...(props.onOpen !== undefined ? { onOpen: props.onOpen } : {})}
+      {...(props.onOpenLibrary !== undefined ? { onOpenLibrary: props.onOpenLibrary } : {})}
+    />
   );
 }

@@ -42,6 +42,7 @@ export type SessionRowMenuProps = {
   canDuplicate?: boolean;
   canForkChat?: boolean;
   canContinueInProject?: boolean;
+  locale?: string;
   /** Screen position for fixed menu (from contextmenu / button). */
   position: { x: number; y: number };
   onAction: (action: SessionRowMenuAction) => void;
@@ -141,6 +142,7 @@ export function SessionRowMenu(props: SessionRowMenuProps): ReactElement {
     ...(props.canDuplicate === false ? { canDuplicate: false } : {}),
     ...(props.canForkChat === false ? { canForkChat: false } : {}),
     ...(props.canContinueInProject === false ? { canContinueInProject: false } : {}),
+    ...(props.locale ? { locale: props.locale } : {}),
   });
 
   return (

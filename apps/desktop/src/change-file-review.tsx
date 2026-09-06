@@ -30,6 +30,7 @@ type FileDiffState =
 export function ChangeFileReview(props: ChangeFileReviewProps): ReactElement {
   const isZh = props.locale === 'zh-CN';
   const [state, setState] = useState<FileDiffState>({ kind: 'loading' });
+  // proto-04 b09: DiffView supports split, but Changes never wires a mode toggle.
 
   useEffect(() => {
     let cancelled = false;

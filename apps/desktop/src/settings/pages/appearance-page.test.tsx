@@ -207,15 +207,15 @@ describe('AppearancePage', () => {
     expect(contextValue.request).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'theme/set-active',
-        themeId: 'piwin-light',
+        themeId: 'piwin-inkstone-paper',
       }),
     );
     expect(contextValue.onThemeApplied).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: 'piwin-light-appearance',
+        id: 'piwin-inkstone-paper',
         mode: 'light',
         tokens: expect.objectContaining({
-          bg: DEFAULT_LIGHT_THEME_SETTINGS.background,
+          bg: DEFAULT_LIGHT_THEME_SETTINGS.background.toLowerCase(),
         }),
       }),
     );
@@ -254,7 +254,7 @@ describe('AppearancePage', () => {
     expect(contextValue.request).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'theme/set-active',
-        themeId: 'piwin-dark',
+        themeId: 'piwin-inkstone-ink',
       }),
     );
     expect(contextValue.onThemeApplied).toHaveBeenCalledWith(
@@ -342,7 +342,7 @@ describe('AppearancePage', () => {
     );
     expect(contextValue.onThemeApplied).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: 'piwin-light-appearance',
+        id: 'piwin-inkstone-paper',
         mode: 'light',
       }),
     );

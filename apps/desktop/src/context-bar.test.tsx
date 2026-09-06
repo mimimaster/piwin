@@ -304,7 +304,7 @@ describe('ContextBar', () => {
     expect(onToggleAppearance).toHaveBeenCalledTimes(1);
   });
 
-  it('hides work-panel toggle when isConversationSession is true', () => {
+  it('supports work-panel toggle even when isConversationSession is true', () => {
     const onToggleWorkPanel = vi.fn();
     renderContextBar(
       createBaseProps({
@@ -315,7 +315,7 @@ describe('ContextBar', () => {
       root,
     );
 
-    expect(container.querySelector('[data-testid="right-panel-open-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="right-panel-open-btn"]')).not.toBeNull();
   });
 
   it('shows Conversation activity copy and hides Agent actions', () => {

@@ -58,6 +58,30 @@ describe('BranchSwitchConfirmDialog', () => {
     expect(onCancel).toHaveBeenCalledOnce();
   });
 
+  it('shows stash-then-switch when the handler is wired', () => {
+    const onStashThenSwitch = vi.fn();
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <BranchSwitchConfirmDialog
+            open
+            locale="zh-CN"
+            offPathWrites={{ files: ['src/app.ts'], hasUnknownWrites: false }}
+            onCancel={() => undefined}
+            onConfirm={() => undefined}
+            onStashThenSwitch={onStashThenSwitch}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+    const stash = document.querySelector('[data-testid="branch-switch-stash"]') as HTMLButtonElement;
+    expect(stash?.textContent).toContain('先暂存再切换');
+    act(() => {
+      stash.click();
+    });
+    expect(onStashThenSwitch).toHaveBeenCalledOnce();
+  });
+
   it('names a retry discard separately from a branch switch', () => {
     act(() => {
       root.render(
