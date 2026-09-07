@@ -174,7 +174,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     color: var(--t3);
   }
   .chat-thread .turn-thinking .markdown {
-    font-size: 12.5px;
+    font-size: 12px;
+    line-height: 1.58;
     color: var(--t2);
   }
   .user-message-wrapper.is-conversation .user-message-bubble {
