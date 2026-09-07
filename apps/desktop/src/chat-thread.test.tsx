@@ -958,15 +958,37 @@ describe('ChatThread render isolation (E1)', () => {
     });
 
     expect(container.querySelector('[data-testid="work-folded-thinking"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="work-folded-thinking"]')?.textContent).toContain(
-      'I should verify the result before answering.',
-    );
+    expect(
+      container.querySelector(
+        '[data-testid="work-folded-thinking"] [data-testid="turn-work-details-summary"]',
+      ),
+    ).not.toBeNull();
+    // Initially collapsed because workDetailsExpanded is 'collapsed'
+    expect(container.querySelector('[data-testid="turn-thinking"]')).toBeNull();
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="work-folded-thinking"] [data-testid="turn-work-details-summary"]',
+        )
+        ?.click();
+    });
+
     expect(container.querySelector('[data-testid="turn-thinking"]')?.textContent).toContain(
       'I should verify the result before answering.',
     );
     expect(container.querySelector('#msg-a-work-thinking-answer .markdown')?.textContent).toContain(
       'The project is ready.',
     );
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="work-folded-thinking"] [data-testid="turn-work-details-summary"]',
+        )
+        ?.click();
+    });
+    expect(container.querySelector('[data-testid="turn-thinking"]')).toBeNull();
 
     act(() => {
       container
@@ -977,6 +999,60 @@ describe('ChatThread render isolation (E1)', () => {
     expect(container.querySelector('#msg-a-work-thinking-answer .markdown')?.textContent).toContain(
       'The project is ready.',
     );
+  });
+
+  it('suppresses duplicate thinking when intermediate message already has matching thought', () => {
+    const userMessage = createUserMessage('u-dup-thinking', 'Check proxy');
+    const workMessage: ChatMessageUi = {
+      id: 'a-dup-thinking-step',
+      role: 'assistant',
+      text: 'Checking proxy status first.',
+      thinking:
+        'The user is asking why we used 192.168.1.100 instead of 127.0.0.1 for the cursor proxy, whether it is because of TUN interception, and whether we added direct connection rules.',
+      tools: [{ toolCallId: 'tool-dup-thinking', toolName: 'bash', status: 'done', output: '' }],
+      attachments: [],
+      status: 'done',
+      runId: 'run-dup-thinking',
+    };
+    const answerMessage: ChatMessageUi = {
+      id: 'a-dup-thinking-answer',
+      role: 'assistant',
+      text: 'Direct rules exist but are insufficient.',
+      thinking:
+        'The user is asking why we used 192.168.1.100 instead of 127.0.0.1, whether TUN intercepted it, and whether we added DIRECT rules.',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      runId: 'run-dup-thinking',
+    };
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThreadHarness
+            messages={[userMessage, workMessage, answerMessage]}
+            streaming={false}
+            editingMessageId={null}
+            lastUserMessageId={userMessage.id}
+            activeTheme={null}
+            artifactThemeKey={0}
+            workDetailsExpanded="always"
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onInspectSubagent={undefined}
+            composerCard={composerCard}
+            locale="zh-CN"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="turn-work-disclosure"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="work-folded-thinking"]')).toBeNull();
+    expect(container.querySelectorAll('[data-testid="turn-work-details-summary"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-testid="turn-thinking"]')).toHaveLength(1);
   });
 
   it('renders every response segment in causal order without a Run summary', () => {

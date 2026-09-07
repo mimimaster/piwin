@@ -73,8 +73,6 @@ export type TurnWorkDetailsProps = {
   subagentInvocations?: Record<string, SubagentInvocation>;
   subagentStreams?: Record<string, SubagentStreamState>;
   onInspectSubagent?: (selection: SubagentInspectorSelection) => void;
-  /** Folded thinking under an outer 已工作 header — proto shows `.think` only. */
-  hideFoldHeader?: boolean;
   planExecutionGate?: {
     plan: SessionPlan;
     onExecute: (mode: PlanExecutionMode) => void | Promise<void>;
@@ -115,7 +113,6 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
     'automatic',
   );
   const thinkingOpen =
-    props.hideFoldHeader === true ||
     thinkingIntent === 'user-open' ||
     (thinkingIntent === 'automatic' && defaultOpen);
   const tools = presentation.workItems
@@ -158,8 +155,7 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
       ? fileNameFromDetail(permissionItem.detail)
       : undefined;
   const showFoldHeader =
-    props.hideFoldHeader !== true &&
-    (hasThinking || foldState === 'running' || foldState === 'waiting');
+    hasThinking || foldState === 'running' || foldState === 'waiting';
   const hasVisibleWork =
     isFlowAnchor ||
     hasThinking ||
@@ -251,7 +247,7 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
             : undefined}
         </WorkFoldHeader>
       ) : null}
-      {hasThinking && thinkingItem?.kind === 'thinking' && (thinkingOpen || props.hideFoldHeader) ? (
+      {hasThinking && thinkingItem?.kind === 'thinking' && thinkingOpen ? (
         <div className="turn-work-details-body">
           <div
             className={`think turn-thinking${thinkingIsStreaming ? ' is-streaming' : ''}`}
