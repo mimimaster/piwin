@@ -144,10 +144,14 @@ html[data-theme-id='piwin-inkstone-paper'] .shelf,
 html[data-theme-id='piwin-inkstone-ink'] .shelf {
   margin-top: auto;
   border-top: 1px solid var(--l1);
-  padding: 6px 8px 8px;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  height: 34px;
+  min-height: 34px;
+  max-height: 34px;
+  gap: 2px;
   flex: none;
   background: transparent;
   box-sizing: border-box;
@@ -155,19 +159,28 @@ html[data-theme-id='piwin-inkstone-ink'] .shelf {
 
 html[data-theme-id='piwin-inkstone-paper'] .shelf button,
 html[data-theme-id='piwin-inkstone-ink'] .shelf button {
-  display: flex;
-  flex-direction: column;
+  display: inline-flex;
+  flex-direction: row;
   align-items: center;
-  gap: 3px;
-  padding: 6px 0;
-  border-radius: 6px;
+  gap: 5px;
+  padding: 3px 7px;
+  height: 26px;
+  border-radius: 5px;
   color: var(--t3);
-  font-size: 11px;
+  font-size: 11.5px;
   font-family: var(--sans);
   border: 0;
   background: transparent;
   cursor: pointer;
+  white-space: nowrap;
   transition: background var(--t-1) var(--ease-out), color var(--t-1) var(--ease-out);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .shelf button svg,
+html[data-theme-id='piwin-inkstone-ink'] .shelf button svg {
+  width: 14px !important;
+  height: 14px !important;
+  flex: none;
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .shelf button:hover,
@@ -189,7 +202,7 @@ html[data-theme-id='piwin-inkstone-ink'] .sidebar-folder-tree {
   flex: 1;
   overflow: auto;
   min-height: 0;
-  padding: 0 6px 4px;
+  padding: 0 6px 12px;
   margin-right: 0;
   gap: 0;
 }
@@ -542,12 +555,12 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--general-session .session-row .session-item {
   display: flex;
-  flex-direction: column;
-  align-items: stretch !important;
-  justify-content: center;
-  min-height: 44px;
-  height: 44px;
-  padding: 5px 84px 5px 8px !important;
+  align-items: center !important;
+  justify-content: flex-start;
+  min-height: 28px;
+  height: 28px;
+  max-height: 28px;
+  padding: 0 84px 0 8px !important;
   border-radius: 6px;
   font-size: 12.5px;
   font-family: var(--sans);
@@ -564,7 +577,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--general-session .session-row .session-item.has-preview {
-  gap: 2px;
+  gap: 0;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--general-session .session-row .session-item:hover {
@@ -576,8 +589,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   box-shadow: var(--sh1) !important;
   color: var(--t1) !important;
   /* E1 — proto-00 朱砂 active indicator stripe */
-  border-left: 3px solid var(--zhu) !important;
-  padding-left: 5px !important;
+  border-left: 2px solid var(--zhu) !important;
+  padding-left: 6px !important;
   border-top-left-radius: 2px !important;
   border-bottom-left-radius: 2px !important;
 }
@@ -587,10 +600,9 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   min-width: 0;
   width: 100%;
   display: flex;
-  flex-direction: column;
-  align-items: stretch !important;
-  justify-content: center;
-  gap: 2px;
+  align-items: center !important;
+  justify-content: flex-start;
+  gap: 0;
   padding-right: 0;
   overflow: hidden;
   text-align: left !important;
@@ -605,7 +617,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 12.5px;
-  line-height: 1.35;
+  line-height: 1;
   font-weight: 500;
   color: var(--t1);
   padding-right: 0;
@@ -628,26 +640,10 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--general-session .session-item-preview {
-  display: block;
-  font-size: 11px;
-  line-height: 1.3;
-  font-family: var(--sans);
-  color: var(--t3);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding-left: 1px;
-  width: 100%;
-  box-sizing: border-box;
-  text-align: left !important;
+  display: none !important;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--general-session .session-row .session-item:hover .session-item-preview,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--general-session .session-row .session-item.active .session-item-preview {
-  color: var(--t2);
-}
-
-/* Both timestamp and action buttons are vertically centered in the 44px card */
+/* Both timestamp and action buttons are vertically centered in the 28px row */
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--general-session .session-item-time {
   position: absolute;
   right: 8px;
@@ -674,8 +670,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--general-session .session-action-btn {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   border-radius: 4px;
 }
 
@@ -701,15 +697,16 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .host,
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-host {
-  grid-column: 1 / -1;
-  display: flex;
+  margin-left: auto;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font: 11px var(--mono);
+  gap: 5px;
+  font: 10.5px var(--mono);
   color: var(--t4);
-  padding: 5px 6px 0;
-  margin-top: 4px;
-  border-top: 1px solid var(--l1);
+  padding: 2px 6px;
+  margin-top: 0;
+  border: 0;
+  white-space: nowrap;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-host-dot {
