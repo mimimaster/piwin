@@ -305,4 +305,6 @@ loopback `connectOverCDP` shipped under
 [`docs/plans/2026-09-07-browser-cdp-completeness.md`](../plans/2026-09-07-browser-cdp-completeness.md).
 Chrome daily-session autoConnect remains an experiment. Dispatched writes are
 never auto-replayed after recovery. Host detach of an attached CDP session
-must not `context.close()` the user's browser.
+must not `context.close()` the user's browser. Live headed + loopback CDP
+smoke on `79318f5c`:
+[`docs/evidence/2026-09-08-host-browser-smoke-79318f5c.md`](../evidence/2026-09-08-host-browser-smoke-79318f5c.md).
