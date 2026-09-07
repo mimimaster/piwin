@@ -723,7 +723,10 @@ explicit loopback `PiwinConfig.browser.cdpEndpoint` via Playwright
 surface drives that page. Detaching does not close the external browser.
 `web_fetch` `fetchFallback: 'browser'` is a **different** Chromium (ADR 0058):
 one-shot `renderPageHtml`, no profile, no panel pushes, then the same Readability
-extract. Chrome daily-session autoConnect is not shipped.
+extract. Chrome daily-session autoConnect is not shipped. Live headed Host
+Chromium and loopback `connectOverCDP` (throwaway Chrome, Host dispose does not
+kill it) were recorded on `79318f5c` in
+[`docs/evidence/2026-09-08-host-browser-smoke-79318f5c.md`](./evidence/2026-09-08-host-browser-smoke-79318f5c.md).
 
 - **Workbench** — the desktop `BrowserSessionPanel` is an interactive mirror of
   the same Chromium: Playwright `page.screencast` JPEG frames (~12 fps) falling
