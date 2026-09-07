@@ -305,7 +305,7 @@ export function SidebarTreeRowView(props: SidebarTreeRowViewProps): ReactElement
 
   if (row.kind === 'section-header' && row.sectionId === 'conversations') {
     return (
-      <div className="sidebar-section-label sidebar-section-label-row tree-header-row">
+      <div className="sidebar-section-label sidebar-section-label-row tree-header-row sidebar-section-label-row--conversations">
         <button
           type="button"
           className="sidebar-section-toggle"
