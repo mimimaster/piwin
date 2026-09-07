@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { BROWSER_VIEWPORT_MIN_PX, clampBrowserViewport } from './viewport.js';
+import {
+  BROWSER_DEFAULT_VIEWPORT_HEIGHT,
+  BROWSER_DEFAULT_VIEWPORT_WIDTH,
+} from '@piwin/contracts';
+import {
+  BROWSER_FOLLOW_VIEWPORT_MIN_HEIGHT,
+  BROWSER_FOLLOW_VIEWPORT_MIN_WIDTH,
+  BROWSER_VIEWPORT_MIN_PX,
+  clampBrowserViewport,
+  resolveBrowserViewport,
+} from './viewport.js';
 
 describe('clampBrowserViewport', () => {
   it('keeps a panel-sized viewport under the dimension cap', () => {
@@ -20,5 +30,129 @@ describe('clampBrowserViewport', () => {
   it('returns null for non-finite or empty measurements', () => {
     expect(clampBrowserViewport(0, 800, 1280)).toBeNull();
     expect(clampBrowserViewport(Number.NaN, 800, 1280)).toBeNull();
+  });
+});
+
+describe('resolveBrowserViewport', () => {
+  it('keeps a 40×40 panel at 1280×800 in fixed mode', () => {
+    expect(
+      resolveBrowserViewport({
+        mode: 'fixed',
+        panelWidth: 40,
+        panelHeight: 40,
+        maxDimension: 1280,
+      }),
+    ).toEqual({
+      width: BROWSER_DEFAULT_VIEWPORT_WIDTH,
+      height: BROWSER_DEFAULT_VIEWPORT_HEIGHT,
+    });
+  });
+
+  it('defaults to fixed 1280×800 when mode is omitted', () => {
+    expect(
+      resolveBrowserViewport({
+        panelWidth: 40,
+        panelHeight: 40,
+        maxDimension: 1280,
+      }),
+    ).toEqual({ width: 1280, height: 800 });
+  });
+
+  it('honors an explicit fixed size and still ignores the panel', () => {
+    expect(
+      resolveBrowserViewport({
+        mode: 'fixed',
+        width: 1024,
+        height: 768,
+        panelWidth: 40,
+        panelHeight: 40,
+        maxDimension: 1280,
+      }),
+    ).toEqual({ width: 1024, height: 768 });
+  });
+
+  it('raises a 40×40 follow panel to at least 1024×640', () => {
+    const next = resolveBrowserViewport({
+      mode: 'follow',
+      panelWidth: 40,
+      panelHeight: 40,
+      maxDimension: 1280,
+    });
+    expect(next).toEqual({ width: 1024, height: 1024 });
+    expect(next?.width).toBeGreaterThanOrEqual(BROWSER_FOLLOW_VIEWPORT_MIN_WIDTH);
+    expect(next?.height).toBeGreaterThanOrEqual(BROWSER_FOLLOW_VIEWPORT_MIN_HEIGHT);
+  });
+
+  it('preserves follow-panel aspect while scaling to the max edge', () => {
+    expect(
+      resolveBrowserViewport({
+        mode: 'follow',
+        panelWidth: 1600,
+        panelHeight: 1000,
+        maxDimension: 1280,
+      }),
+    ).toEqual({ width: 1280, height: 800 });
+  });
+
+  it('never exceeds maxDimension after the follow min floor', () => {
+    const next = resolveBrowserViewport({
+      mode: 'follow',
+      panelWidth: 40,
+      panelHeight: 4000,
+      maxDimension: 1280,
+    });
+    expect(next).not.toBeNull();
+    expect(Math.max(next?.width ?? 0, next?.height ?? 0)).toBeLessThanOrEqual(1280);
+  });
+
+  it('ignores hidden follow measurements', () => {
+    expect(
+      resolveBrowserViewport({
+        mode: 'follow',
+        panelWidth: 0,
+        panelHeight: 800,
+        maxDimension: 1280,
+      }),
+    ).toBeNull();
+    expect(
+      resolveBrowserViewport({
+        mode: 'follow',
+        panelWidth: Number.NaN,
+        panelHeight: 800,
+        maxDimension: 1280,
+      }),
+    ).toBeNull();
+  });
+
+  it('honors mobile and custom sizes without the desktop min', () => {
+    expect(
+      resolveBrowserViewport({
+        mode: 'mobile',
+        width: 390,
+        height: 844,
+        panelWidth: 40,
+        panelHeight: 40,
+        maxDimension: 1280,
+      }),
+    ).toEqual({ width: 390, height: 844 });
+    expect(
+      resolveBrowserViewport({
+        mode: 'custom',
+        width: 1440,
+        height: 900,
+        maxDimension: 1280,
+      }),
+    ).toEqual({ width: 1280, height: 800 });
+  });
+
+  it('returns null when mobile/custom omit an explicit size', () => {
+    expect(
+      resolveBrowserViewport({
+        mode: 'mobile',
+        panelWidth: 800,
+        panelHeight: 600,
+        maxDimension: 1280,
+      }),
+    ).toBeNull();
   });
 });

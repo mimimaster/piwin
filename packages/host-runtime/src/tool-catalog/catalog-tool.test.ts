@@ -7,6 +7,8 @@ import { buildHostToolboxDescriptor } from './catalog-tool.js';
 const TYPICAL_HOST_TARGETS = [
   'browser_click',
   'browser_navigate',
+  'browser_reload',
+  'browser_status',
   'flashcard_create',
   'image_gen',
   'note_search',

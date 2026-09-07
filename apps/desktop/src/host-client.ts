@@ -924,6 +924,11 @@ export class HostClient {
     });
   }
 
+  /** Rebuild the Host-owned runtime in place. Does not mint a new mirror lease. */
+  async browserRestart(): Promise<HostResponse> {
+    return this.request({ type: 'browser/restart' });
+  }
+
   async browserInput(events: BrowserInputEvent[]): Promise<HostResponse> {
     return this.request({ type: 'browser/input', events });
   }

@@ -727,6 +727,25 @@ export async function handleMockWorkspaceCommands(
       case 'browser/stop':
         host.mockBrowserUrl = null;
         return { id, type: 'response', command: 'browser/stop', success: true, data: null };
+      case 'browser/restart': {
+        const url = host.mockBrowserUrl ?? 'about:blank';
+        host.emitPush({
+          type: 'browser/state',
+          url,
+          title: url,
+          lifecycle: 'ready',
+          mirror: 'streaming',
+          generation: 1,
+          ts: Date.now(),
+        });
+        return {
+          id,
+          type: 'response',
+          command: 'browser/restart',
+          success: true,
+          data: { pageStateLost: true, generation: 1 },
+        };
+      }
       case 'browser/input':
         return { id, type: 'response', command: 'browser/input', success: true, data: null };
       case 'browser/lock': {

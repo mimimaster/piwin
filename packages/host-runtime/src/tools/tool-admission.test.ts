@@ -382,6 +382,9 @@ describe('host tool admission composition', () => {
       'browser:snapshot',
       'browser:find',
       'browser:wait',
+      'browser:status',
+      'browser:console',
+      'browser:network',
       'notes:note_list',
       'notes:note_search',
       'notes:note_read',
@@ -416,6 +419,8 @@ describe('host tool admission composition', () => {
                 ? { kind: 'file-write', path: '/tmp/a' }
                 : action === 'network:web_fetch' || action === 'browser:navigate'
                   ? { kind: 'web-fetch', host: 'example.com' }
+                  : action === 'browser:upload'
+                    ? { kind: 'file-write', path: '/tmp/a' }
                   : action === 'network:web_search'
                     ? { kind: 'web-search' }
                     : { kind: 'tool', action },

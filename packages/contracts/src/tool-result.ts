@@ -25,6 +25,12 @@ export type ToolResultDetails = Record<string, unknown> & {
   reason?: string;
   /** Bounded Health card projection — never a second full series. */
   health?: HealthToolCardSummary;
+  /** Browser write/observe dispatch stage when the result is not a clean success. */
+  outcome?: 'not-started' | 'unknown';
+  /** Whether Host already attempted a bounded runtime recovery. */
+  recovery?: 'none' | 'recovered' | 'failed';
+  pageStateLost?: boolean;
+  nextAction?: string;
 };
 
 /**
@@ -63,7 +69,13 @@ export type ToolResultErrorCode =
   | 'subagent-unavailable-fallback-main'
   | 'subagent-delegation-disabled'
   | 'mcp-failed'
-  | 'browser-user-has-control';
+  | 'browser-user-has-control'
+  | 'browser-runtime-gone'
+  | 'browser-unavailable'
+  | 'browser-stale-target'
+  | 'browser-action-failed'
+  | 'browser-operation-interrupted'
+  | 'browser-agent-has-control';
 
 export type ToolResult =
   | {

@@ -8,8 +8,8 @@
  * mirrors the agent's Chromium instance.
  */
 import type { HostCommand, HostPush, HostResponse } from '@piwin/contracts';
-import { BrowserSessionError, BrowserUserHasControlError } from '@piwin/browser';
 import type { BrowserSession } from '@piwin/browser';
+import { mapBrowserToolError, sanitizeBrowserErrorMessage } from '../browser-tool-errors.js';
 import { fail, ok } from '../response-helpers.js';
 import type { HostCommandContext } from './host-command-context.js';
 
@@ -19,6 +19,7 @@ const TYPES = new Set<HostCommand['type']>([
   'browser/pick-at',
   'browser/screenshot',
   'browser/stop',
+  'browser/restart',
   'browser/input',
   'browser/lock',
   'browser/unlock',
@@ -30,13 +31,15 @@ function failFromBrowserError(
   command: string,
   error: unknown,
 ): HostResponse {
-  const message =
-    error instanceof BrowserUserHasControlError || error instanceof BrowserSessionError
-      ? error.message
-      : error instanceof Error
-        ? error.message
-        : 'browser command failed';
-  return fail(requestId, command, message);
+  const mapped = mapBrowserToolError(error);
+  if (mapped) {
+    return fail(requestId, command, mapped.message, {
+      code: mapped.code,
+      ...(mapped.retryable !== undefined ? { retryable: mapped.retryable } : {}),
+      ...(mapped.details !== undefined ? { data: mapped.details } : {}),
+    });
+  }
+  return fail(requestId, command, sanitizeBrowserErrorMessage(error));
 }
 
 export function isBrowserCommand(command: HostCommand): boolean {
@@ -66,8 +69,12 @@ export async function handleBrowserCommand(
     case 'browser/start': {
       // Opening the panel acquires the mirror lease: launch Chromium if needed
       // and begin the bounded frame stream.
-      const state = await session.start(command.leaseId);
-      return ok(requestId, 'browser/start', { state });
+      try {
+        const state = await session.start(command.leaseId);
+        return ok(requestId, 'browser/start', { state });
+      } catch (error) {
+        return failFromBrowserError(requestId, command.type, error);
+      }
     }
 
     case 'browser/navigate': {
@@ -91,17 +98,35 @@ export async function handleBrowserCommand(
     }
 
     case 'browser/screenshot': {
-      const screenshot = await session.screenshot(command.path);
-      return ok(requestId, 'browser/screenshot', {
-        width: screenshot.width,
-        height: screenshot.height,
-        ...(screenshot.path !== undefined ? { path: screenshot.path } : {}),
-      });
+      try {
+        const screenshot = await session.screenshot(command.path);
+        return ok(requestId, 'browser/screenshot', {
+          width: screenshot.width,
+          height: screenshot.height,
+          ...(screenshot.path !== undefined ? { path: screenshot.path } : {}),
+        });
+      } catch (error) {
+        return failFromBrowserError(requestId, command.type, error);
+      }
     }
 
     case 'browser/stop': {
-      await session.stop(command.leaseId);
-      return ok(requestId, 'browser/stop', { stopped: true });
+      try {
+        await session.stop(command.leaseId);
+        return ok(requestId, 'browser/stop', { stopped: true });
+      } catch (error) {
+        return failFromBrowserError(requestId, command.type, error);
+      }
+    }
+
+    case 'browser/restart': {
+      // Panel-initiated: same user actor as navigate. Does not mint a new lease.
+      try {
+        const result = await session.restart({ actor: 'user' });
+        return ok(requestId, 'browser/restart', result);
+      } catch (error) {
+        return failFromBrowserError(requestId, command.type, error);
+      }
     }
 
     case 'browser/input': {

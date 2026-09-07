@@ -58,4 +58,45 @@ describe('createExclusiveQueue', () => {
     const after = await runExclusive(async () => 'ok');
     expect(after).toBe('ok');
   });
+
+  it('does not start an operation aborted while queued', async () => {
+    const { runExclusive } = createExclusiveQueue();
+    const gate = deferred<void>();
+    const started = deferred<void>();
+
+    const first = runExclusive(async () => {
+      started.resolve();
+      await gate.promise;
+      return 'first';
+    });
+    await started.promise;
+
+    const abort = new AbortController();
+    let ran = false;
+    const second = runExclusive(async () => {
+      ran = true;
+      return 'second';
+    }, abort.signal);
+
+    abort.abort();
+    gate.resolve();
+    await first;
+    await expect(second).rejects.toThrow('aborted');
+    expect(ran).toBe(false);
+  });
+
+  it('rejects immediately when the signal is already aborted', async () => {
+    const { runExclusive } = createExclusiveQueue();
+    const abort = new AbortController();
+    abort.abort();
+    let ran = false;
+    await expect(
+      runExclusive(async () => {
+        ran = true;
+        return 'nope';
+      }, abort.signal),
+    ).rejects.toThrow('aborted');
+    expect(ran).toBe(false);
+    expect(await runExclusive(async () => 'ok')).toBe('ok');
+  });
 });

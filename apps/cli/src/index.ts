@@ -481,7 +481,7 @@ async function commandDoctor(args: string[] = []): Promise<void> {
       console.log(`- browser chromium: available (${browserStatus.path ?? 'unknown path'})`);
     } else {
       console.log(
-        `- browser chromium: MISSING (${browserStatus.hint ?? 'run pnpm --dir apps/desktop e2e:install'})`,
+        `- browser chromium: MISSING${browserStatus.reason ? ` (${browserStatus.reason})` : ''} (${browserStatus.hint ?? 'install Playwright Chromium'})`,
       );
     }
   } catch (error) {

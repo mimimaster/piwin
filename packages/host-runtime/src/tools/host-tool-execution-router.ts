@@ -15,7 +15,8 @@ import type {
   ToolResult,
   ToolResultErrorCode,
 } from '@piwin/contracts';
-import { formatError,  toolDisabledResult } from '@piwin/contracts';
+import { formatError, toolDisabledResult } from '@piwin/contracts';
+import { mapBrowserToolError } from '../browser-tool-errors.js';
 import { resolveHostToolAdmission, type HostToolAdmission } from './tool-admission.js';
 import { validateCanonicalArguments } from './canonical-tool-args.js';
 import { toolFamilyIndex } from './tool-family-index.js';
@@ -319,6 +320,8 @@ function mapExecutorError(
       details: { reason: 'timeout', maxDurationMs },
     };
   }
+  const mapped = mapBrowserToolError(error);
+  if (mapped) return mapped;
   return { ok: false, code: 'execution-failed', message: formatError(error) };
 }
 

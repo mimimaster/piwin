@@ -1,7 +1,31 @@
+/**
+ * Host CSS viewport policy (completeness plan §6.1).
+ * Default is a fixed 1280×800 page; panel ResizeObserver boxes must not
+ * shrink Playwright. `clampBrowserViewport` stays for legacy callers.
+ */
+import {
+  BROWSER_DEFAULT_VIEWPORT_HEIGHT,
+  BROWSER_DEFAULT_VIEWPORT_WIDTH,
+  type BrowserViewportMode,
+} from '@piwin/contracts';
+
 /** Smallest Playwright viewport we will request for the workbench mirror. */
 export const BROWSER_VIEWPORT_MIN_PX = 200;
 
+/** Follow-mode desktop floor. Not applied to fixed / mobile / custom. */
+export const BROWSER_FOLLOW_VIEWPORT_MIN_WIDTH = 1024;
+export const BROWSER_FOLLOW_VIEWPORT_MIN_HEIGHT = 640;
+
 export type BrowserViewportSize = { width: number; height: number };
+
+export type ResolveBrowserViewportInput = {
+  mode?: BrowserViewportMode;
+  panelWidth?: number;
+  panelHeight?: number;
+  maxDimension?: number;
+  width?: number;
+  height?: number;
+};
 
 /**
  * Map a panel CSS box onto a Playwright viewport.
@@ -33,4 +57,115 @@ export function clampBrowserViewport(
   }
 
   return { width: nextWidth, height: nextHeight };
+}
+
+/**
+ * Resolve the Host CSS viewport for a mode.
+ * `fixed` (default) ignores tiny/hidden panels so a 40×40 ResizeObserver
+ * cannot collapse Chromium to 200×200.
+ */
+export function resolveBrowserViewport(
+  input: ResolveBrowserViewportInput,
+): BrowserViewportSize | null {
+  const mode = input.mode ?? 'fixed';
+  const maxDimension = input.maxDimension ?? BROWSER_DEFAULT_VIEWPORT_WIDTH;
+  if (!Number.isFinite(maxDimension) || maxDimension < 1) {
+    return null;
+  }
+
+  if (mode === 'follow') {
+    return resolveFollowViewport(input.panelWidth, input.panelHeight, maxDimension);
+  }
+  if (mode === 'mobile' || mode === 'custom') {
+    return fitExplicitSize(input.width, input.height, maxDimension);
+  }
+  return resolveFixedViewport(input.width, input.height, maxDimension);
+}
+
+function resolveFixedViewport(
+  width: number | undefined,
+  height: number | undefined,
+  maxDimension: number,
+): BrowserViewportSize {
+  const explicit = fitExplicitSize(width, height, maxDimension);
+  if (explicit) return explicit;
+  return fitWithinMaxDimension(
+    BROWSER_DEFAULT_VIEWPORT_WIDTH,
+    BROWSER_DEFAULT_VIEWPORT_HEIGHT,
+    maxDimension,
+  );
+}
+
+function resolveFollowViewport(
+  panelWidth: number | undefined,
+  panelHeight: number | undefined,
+  maxDimension: number,
+): BrowserViewportSize | null {
+  if (
+    panelWidth === undefined ||
+    panelHeight === undefined ||
+    !Number.isFinite(panelWidth) ||
+    !Number.isFinite(panelHeight) ||
+    panelWidth < 1 ||
+    panelHeight < 1
+  ) {
+    return null;
+  }
+
+  let width = panelWidth;
+  let height = panelHeight;
+  // Raise to the desktop floor without distorting the panel aspect ratio.
+  const upScale = Math.max(
+    1,
+    BROWSER_FOLLOW_VIEWPORT_MIN_WIDTH / width,
+    BROWSER_FOLLOW_VIEWPORT_MIN_HEIGHT / height,
+  );
+  width *= upScale;
+  height *= upScale;
+  return fitWithinMaxDimension(width, height, maxDimension);
+}
+
+function fitExplicitSize(
+  width: number | undefined,
+  height: number | undefined,
+  maxDimension: number,
+): BrowserViewportSize | null {
+  if (
+    width === undefined ||
+    height === undefined ||
+    !Number.isFinite(width) ||
+    !Number.isFinite(height) ||
+    width < 1 ||
+    height < 1
+  ) {
+    return null;
+  }
+  return fitWithinMaxDimension(width, height, maxDimension);
+}
+
+/**
+ * Scale so the longest edge is at most `maxDimension`. Rounding is clamped
+ * afterward so a 0.5px bump cannot exceed the cap.
+ */
+function fitWithinMaxDimension(
+  width: number,
+  height: number,
+  maxDimension: number,
+): BrowserViewportSize {
+  const longest = Math.max(width, height);
+  let nextWidth = width;
+  let nextHeight = height;
+  if (longest > maxDimension) {
+    const scale = maxDimension / longest;
+    nextWidth = width * scale;
+    nextHeight = height * scale;
+  }
+  nextWidth = Math.round(nextWidth);
+  nextHeight = Math.round(nextHeight);
+  if (nextWidth > maxDimension) nextWidth = maxDimension;
+  if (nextHeight > maxDimension) nextHeight = maxDimension;
+  return {
+    width: Math.max(1, nextWidth),
+    height: Math.max(1, nextHeight),
+  };
 }

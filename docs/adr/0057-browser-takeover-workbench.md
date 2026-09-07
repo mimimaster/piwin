@@ -136,6 +136,12 @@ Do not grow the session file past the 1000-line cap.
   navigate.
 - Headless bot-blocking remains; headed/stealth stays a follow-up.
 
+### 2026-09-07 completeness amendment
+
+Mirror primary path is Playwright 1.61 public `page.screencast.start({ onFrame })`
+with screenshot fallback. Screencast-only death does not restart Chromium.
+See [`docs/plans/2026-09-07-browser-cdp-completeness.md`](../plans/2026-09-07-browser-cdp-completeness.md).
+
 ## References
 
 - [ADR 0020 — Agent-controllable browser session](./0020-browser-session.md)

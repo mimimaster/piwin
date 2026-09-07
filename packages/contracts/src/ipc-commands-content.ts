@@ -318,6 +318,7 @@ export type HostContentCommand =
   | { id?: string; type: 'browser/pick-at'; x: number; y: number }
   | { id?: string; type: 'browser/screenshot'; path?: string }
   | { id?: string; type: 'browser/stop'; leaseId?: string }
+  | { id?: string; type: 'browser/restart' }
   | { id?: string; type: 'browser/input'; events: BrowserInputEvent[] }
   | { id?: string; type: 'browser/lock'; owner: 'agent' | 'user' }
   | { id?: string; type: 'browser/unlock'; owner: 'agent' | 'user' }
