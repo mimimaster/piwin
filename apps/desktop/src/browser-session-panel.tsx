@@ -18,28 +18,22 @@ import {
   type ReactElement,
   type WheelEvent,
 } from 'react';
-import type {
-  BrowserController,
-  BrowserInputEvent,
-  HostServerMessage,
-  WebElementPickResult,
-} from '@piwin/contracts';
+import type { BrowserInputEvent, WebElementPickResult } from '@piwin/contracts';
 import type { HostClient } from './host-client';
 import { normalizeUrl } from './normalize-url';
 import { IconBrowser, IconClose, IconRefresh } from './shell-icons';
+import { BrowserConsoleDrawer } from './browser-console-drawer';
 import {
-  BrowserConsoleDrawer,
-  capConsoleLines,
-  capNetworkLines,
-  type BrowserConsoleLine,
-  type BrowserNetworkLine,
-} from './browser-console-drawer';
+  useBrowserSessionLease,
+  type BrowserHighlightBox,
+} from './browser-session-lease';
+import { resolveBrowserRuntimeStatus } from './browser-runtime-status';
 import {
   compositionEndToInsertText,
   keyEventToBrowserInput,
   pasteToInsertText,
 } from './browser-workbench-ime';
-import { viewportFromDisplay } from './browser-workbench-pointer';
+import { displayRectFromViewport, viewportFromDisplay } from './browser-workbench-pointer';
 import { useDesktopLocale } from './desktop-locale-context';
 import type { DesktopLocale } from './desktop-locale';
 
@@ -47,14 +41,6 @@ export type BrowserSessionPanelProps = {
   hostClient: HostClient;
   onAddWebElement: (pick: WebElementPickResult) => void;
 };
-
-type FrameState = {
-  src: string;
-  viewportWidth: number;
-  viewportHeight: number;
-};
-
-type HighlightBox = { x: number; y: number; width: number; height: number };
 
 function browserCopy(locale: DesktopLocale) {
   if (locale === 'zh-CN') {
@@ -111,18 +97,31 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
   const { hostClient, onAddWebElement } = props;
   const { locale } = useDesktopLocale();
   const copy = browserCopy(locale);
-  const [frame, setFrame] = useState<FrameState>({ src: '', viewportWidth: 0, viewportHeight: 0 });
-  const [urlInput, setUrlInput] = useState('');
-  const [title, setTitle] = useState('');
+  const {
+    frame,
+    urlInput,
+    setUrlInput,
+    title,
+    highlight,
+    setHighlight,
+    pickPending,
+    setPickPending,
+    pickError,
+    setPickError,
+    mirrorError,
+    owner,
+    agentWantsLock,
+    consoleLines,
+    networkLines,
+    lifecycle,
+    mirror,
+  } = useBrowserSessionLease({
+    hostClient,
+    onAddWebElement,
+    mirrorStartFailed: copy.mirrorStartFailed,
+    mirrorStopFailed: copy.mirrorStopFailed,
+  });
   const [pickMode, setPickMode] = useState(false);
-  const [highlight, setHighlight] = useState<HighlightBox | null>(null);
-  const [pickPending, setPickPending] = useState(false);
-  const [pickError, setPickError] = useState<string | null>(null);
-  const [mirrorError, setMirrorError] = useState<string | null>(null);
-  const [owner, setOwner] = useState<BrowserController>('idle');
-  const [agentWantsLock, setAgentWantsLock] = useState(false);
-  const [consoleLines, setConsoleLines] = useState<BrowserConsoleLine[]>([]);
-  const [networkLines, setNetworkLines] = useState<BrowserNetworkLine[]>([]);
 
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -130,71 +129,12 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
   const pendingMoveRef = useRef<{ x: number; y: number } | null>(null);
   const moveRafRef = useRef<number | null>(null);
   const agentOwns = owner === 'agent';
-
-  useEffect(() => {
-    let cancelled = false;
-    const mirrorLeaseId = crypto.randomUUID();
-    const unsubscribe = hostClient.subscribe((message: HostServerMessage) => {
-      if (cancelled) return;
-      if (message.type === 'browser/frame') {
-        setFrame({
-          src: message.dataUrl,
-          viewportWidth: message.width,
-          viewportHeight: message.height,
-        });
-      } else if (message.type === 'browser/state') {
-        setUrlInput(message.url ?? '');
-        setTitle(message.title ?? '');
-      } else if (message.type === 'browser/picked') {
-        setPickPending(false);
-        setPickError(null);
-        setHighlight(message.result.boundingRect);
-        onAddWebElement(message.result);
-      } else if (message.type === 'browser/controller') {
-        setOwner(message.owner);
-        setAgentWantsLock(message.agentWantsLock === true);
-      } else if (message.type === 'browser/console') {
-        setConsoleLines((current) =>
-          capConsoleLines([...current, { level: message.level, text: message.text, ts: message.ts }]),
-        );
-      } else if (message.type === 'browser/network') {
-        setNetworkLines((current) =>
-          capNetworkLines([
-            ...current,
-            {
-              method: message.method,
-              url: message.url,
-              status: message.status,
-              duration: message.duration,
-              ts: message.ts,
-            },
-          ]),
-        );
-      }
-    });
-
-    void hostClient
-      .browserStart(mirrorLeaseId)
-      .then((response) => {
-        if (!cancelled && !response.success) setMirrorError(copy.mirrorStartFailed);
-      })
-      .catch(() => {
-        if (!cancelled) setMirrorError(copy.mirrorStartFailed);
-      });
-
-    return () => {
-      cancelled = true;
-      unsubscribe();
-      void hostClient
-        .browserStop(mirrorLeaseId)
-        .then((response) => {
-          if (!response.success) setMirrorError(copy.mirrorStopFailed);
-        })
-        .catch(() => {
-          setMirrorError(copy.mirrorStopFailed);
-        });
-    };
-  }, [hostClient, onAddWebElement]);
+  const runtimeStatus = resolveBrowserRuntimeStatus(locale, {
+    lifecycle,
+    mirror,
+    mirrorError,
+  });
+  const interactEnabled = !agentOwns && runtimeStatus.interactEnabled;
 
   useEffect(() => {
     return () => {
@@ -248,10 +188,10 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
 
   const sendInput = useCallback(
     (events: BrowserInputEvent[]): void => {
-      if (agentOwns || events.length === 0) return;
+      if (!interactEnabled || events.length === 0) return;
       void hostClient.browserInput(events);
     },
-    [agentOwns, hostClient],
+    [interactEnabled, hostClient],
   );
 
   const viewportFromMouse = useCallback(
@@ -291,18 +231,18 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
   const handleNavigate = useCallback(
     async (event?: FormEvent): Promise<void> => {
       event?.preventDefault();
-      if (agentOwns) return;
+      if (!interactEnabled) return;
       const normalized = normalizeUrl(urlInput);
       if (!normalized) return;
       setUrlInput(normalized);
       await hostClient.browserNavigate(normalized);
     },
-    [agentOwns, hostClient, urlInput],
+    [interactEnabled, hostClient, urlInput],
   );
 
   const handleImageClick = useCallback(
     async (event: MouseEvent<HTMLImageElement>): Promise<void> => {
-      if (agentOwns) return;
+      if (!interactEnabled) return;
       const viewport = viewportFromMouse(event);
       if (!viewport) return;
       if (pickMode) {
@@ -326,34 +266,34 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
       sendClick(viewport, 'left');
       imeRef.current?.focus();
     },
-    [agentOwns, pickMode, viewportFromMouse, hostClient, sendClick],
+    [interactEnabled, pickMode, viewportFromMouse, hostClient, sendClick],
   );
 
   const handleDoubleClick = useCallback(
     (event: MouseEvent<HTMLImageElement>): void => {
-      if (agentOwns || pickMode) return;
+      if (!interactEnabled || pickMode) return;
       event.preventDefault();
       const viewport = viewportFromMouse(event);
       if (!viewport) return;
       sendClick(viewport, 'left', 2);
     },
-    [agentOwns, pickMode, viewportFromMouse, sendClick],
+    [interactEnabled, pickMode, viewportFromMouse, sendClick],
   );
 
   const handleContextMenu = useCallback(
     (event: MouseEvent<HTMLImageElement>): void => {
-      if (agentOwns || pickMode) return;
+      if (!interactEnabled || pickMode) return;
       event.preventDefault();
       const viewport = viewportFromMouse(event);
       if (!viewport) return;
       sendClick(viewport, 'right');
     },
-    [agentOwns, pickMode, viewportFromMouse, sendClick],
+    [interactEnabled, pickMode, viewportFromMouse, sendClick],
   );
 
   const handleMouseMove = useCallback(
     (event: MouseEvent<HTMLImageElement>): void => {
-      if (agentOwns || pickMode) return;
+      if (!interactEnabled || pickMode) return;
       const viewport = viewportFromMouse(event);
       if (!viewport) return;
       pendingMoveRef.current = viewport;
@@ -365,12 +305,12 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
         if (next) sendInput([{ type: 'mouse', action: 'move', x: next.x, y: next.y }]);
       });
     },
-    [agentOwns, pickMode, viewportFromMouse, sendInput],
+    [interactEnabled, pickMode, viewportFromMouse, sendInput],
   );
 
   const handleWheel = useCallback(
     (event: WheelEvent<HTMLImageElement>): void => {
-      if (agentOwns || pickMode) return;
+      if (!interactEnabled || pickMode) return;
       event.preventDefault();
       const viewport = viewportFromMouse(event);
       if (!viewport) return;
@@ -385,7 +325,7 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
         },
       ]);
     },
-    [agentOwns, pickMode, viewportFromMouse, sendInput],
+    [interactEnabled, pickMode, viewportFromMouse, sendInput],
   );
 
   const handleImeKey = useCallback(
@@ -405,15 +345,18 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
     [sendInput],
   );
 
-  let overlay: HighlightBox | null = null;
+  let overlay: BrowserHighlightBox | null = null;
   if (highlight && imgRef.current && frame.viewportWidth > 0) {
-    const scale = imgRef.current.clientWidth / frame.viewportWidth;
-    overlay = {
-      x: highlight.x * scale,
-      y: highlight.y * scale,
-      width: highlight.width * scale,
-      height: highlight.height * scale,
-    };
+    overlay = displayRectFromViewport({
+      viewportX: highlight.x,
+      viewportY: highlight.y,
+      viewportBoxWidth: highlight.width,
+      viewportBoxHeight: highlight.height,
+      displayWidth: imgRef.current.clientWidth,
+      displayHeight: imgRef.current.clientHeight,
+      viewportWidth: frame.viewportWidth,
+      viewportHeight: frame.viewportHeight,
+    });
   }
   let overlayOffsetX = 0;
   let overlayOffsetY = 0;
@@ -433,7 +376,7 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
           data-testid="browser-session-url-input"
           type="text"
           value={urlInput}
-          disabled={agentOwns}
+          disabled={!interactEnabled}
           onChange={(event) => setUrlInput(event.target.value)}
           onPaste={(event: ClipboardEvent<HTMLInputElement>) => event.stopPropagation()}
           onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
@@ -445,10 +388,10 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
           placeholder={copy.urlPlaceholder}
           spellCheck={false}
         />
-        <button type="submit" className="browser-session-go-btn" data-testid="browser-session-go-btn" aria-label={copy.navigate} disabled={agentOwns}>
+        <button type="submit" className="browser-session-go-btn" data-testid="browser-session-go-btn" aria-label={copy.navigate} disabled={!interactEnabled}>
           {copy.go}
         </button>
-        <button type="button" className="browser-session-refresh-btn" onClick={() => void handleNavigate()} aria-label={copy.reload} title={copy.reload} disabled={agentOwns}>
+        <button type="button" className="browser-session-refresh-btn" onClick={() => void handleNavigate()} aria-label={copy.reload} title={copy.reload} disabled={!interactEnabled}>
           <IconRefresh width={14} height={14} />
         </button>
       </form>
@@ -469,6 +412,18 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
           </button>
         </div>
       ) : null}
+      {runtimeStatus.showBanner ? (
+        <div className="browser-session-banner br-banner" data-testid="browser-session-runtime-banner">
+          <span>{runtimeStatus.message}</span>
+          <button
+            type="button"
+            data-testid="browser-session-restart"
+            onClick={() => void hostClient.browserRestart()}
+          >
+            {runtimeStatus.restartLabel}
+          </button>
+        </div>
+      ) : null}
 
       <div className="browser-session-toolbar">
         <button
@@ -476,8 +431,8 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
           className={`browser-session-pick-toggle br-toggle${pickMode ? ' active act' : ''}`}
           data-testid="browser-session-pick-toggle"
           onClick={() => setPickMode((current) => !current)}
-          disabled={agentOwns}
-          title={agentOwns ? copy.pickDisabled : pickMode ? copy.pickExit : copy.pickEnter}
+          disabled={!interactEnabled}
+          title={!interactEnabled ? copy.pickDisabled : pickMode ? copy.pickExit : copy.pickEnter}
         >
           {pickMode ? copy.pickOn : copy.pickOff}
         </button>
@@ -507,8 +462,9 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
         {frame.src ? (
           <img
             ref={imgRef}
-            className={`browser-session-frame${pickMode ? ' pick-mode' : ''}`}
+            className={`browser-session-frame${pickMode ? ' pick-mode' : ''}${runtimeStatus.interactEnabled ? '' : ' stale'}`}
             data-testid="browser-session-frame"
+            data-stale={runtimeStatus.interactEnabled ? 'false' : 'true'}
             src={frame.src}
             alt={title || urlInput || copy.frameAlt}
             onClick={handleImageClick}
@@ -524,7 +480,7 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
             <span>{copy.starting}</span>
           </div>
         )}
-        {!pickMode && !agentOwns ? (
+        {!pickMode && interactEnabled ? (
           <textarea
             ref={imeRef}
             className="browser-session-ime"

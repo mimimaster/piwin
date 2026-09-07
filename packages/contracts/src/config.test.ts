@@ -137,6 +137,28 @@ describe('THINKING_LEVEL_OPTIONS', () => {
   });
 });
 
+describe('PiwinConfig.browser', () => {
+  it('accepts headed and an explicit CDP endpoint', () => {
+    const config: PiwinConfig = {
+      hostMode: 'sdk',
+      providers: [],
+      media: { maxPasteBytes: 0, allowedMimeTypes: [] },
+      artifact: {
+        enabled: true,
+        triggerMode: 'automatic',
+        decisionPrompt: { mode: 'default', customPrompt: '' },
+        maxBytes: 0,
+      },
+      browser: {
+        headless: false,
+        cdpEndpoint: 'http://127.0.0.1:9222',
+      },
+    };
+    expect(config.browser?.headless).toBe(false);
+    expect(config.browser?.cdpEndpoint).toBe('http://127.0.0.1:9222');
+  });
+});
+
 describe('PiwinConfig.imageGeneration', () => {
   it('accepts an imageGeneration default model', () => {
     const config: PiwinConfig = {

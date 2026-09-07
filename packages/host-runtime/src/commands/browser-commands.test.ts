@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { HostCommand, HostPush, WebElementPickResult } from '@piwin/contracts';
 import type { BrowserSession } from '@piwin/browser';
+import {
+  BrowserRuntimeGoneError,
+  BrowserSessionError,
+  BrowserUserHasControlError,
+} from '@piwin/browser';
 import { handleBrowserCommand, isBrowserCommand } from './browser-commands.js';
 import type { HostCommandContext } from './host-command-context.js';
 
@@ -12,6 +17,32 @@ function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSess
     navigate: async (url) => {},
     snapshot: async () => [],
     click: async () => {},
+    hover: async () => {},
+    selectOption: async () => {},
+    setChecked: async () => {},
+    uploadFiles: async () => {},
+    listTabs: async () => [],
+    newTab: async () => ({
+      pageId: 'p-1-1',
+      url: 'about:blank',
+      title: '',
+      kind: 'page',
+      active: true,
+    }),
+    selectTab: async (pageId) => ({
+      pageId,
+      url: 'http://localhost:3000',
+      title: 'Test',
+      kind: 'page',
+      active: true,
+    }),
+    closeTab: async () => {},
+    handleDialog: async () => ({ pageId: 'p-1-1', type: 'alert', message: '', timedOut: false }),
+    pendingDialog: () => undefined,
+    queryConsole: () => [],
+    queryNetwork: () => [],
+    queryDownloads: () => [],
+    ownership: () => 'owned',
     type: async () => {},
     fillForm: async () => {},
     scroll: async () => {},
@@ -25,6 +56,18 @@ function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSess
     forward: async () => {},
     find: async () => ({ count: 0 }),
     wait: async () => {},
+    waitFor: async () => {},
+    reload: async () => {},
+    pressKey: async () => {},
+    queryViewport: () => ({ width: 1280, height: 800 }),
+    applyViewport: async (size) => size,
+    status: () => ({
+      lifecycle: 'stopped' as const,
+      generation: 0,
+      pageStateLost: false,
+      recoveryCount: 0,
+    }),
+    restart: async () => ({ pageStateLost: true, generation: 1 }),
     pickElementAt: async (x, y) => ({
       url: 'http://localhost:3000',
       selector: 'button',
@@ -99,6 +142,7 @@ describe('isBrowserCommand', () => {
     expect(isBrowserCommand({ type: 'browser/pick-at', x: 1, y: 2 })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/screenshot' })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/stop' })).toBe(true);
+    expect(isBrowserCommand({ type: 'browser/restart' })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/input', events: [] })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/lock', owner: 'user' })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/unlock', owner: 'user' })).toBe(true);
@@ -220,6 +264,23 @@ describe('handleBrowserCommand', () => {
     expect(result).toMatchObject({ type: 'response', command: 'browser/stop', success: true });
   });
 
+  it('browser/restart delegates to session.restart without a new lease', async () => {
+    const restart = vi.fn().mockResolvedValue({ pageStateLost: true, generation: 2, pageId: 'p2' });
+    const session = createMockSession({ restart });
+    const result = await handleBrowserCommand(
+      { type: 'browser/restart' },
+      'req-1',
+      createContext(session),
+    );
+    expect(restart).toHaveBeenCalledWith({ actor: 'user' });
+    expect(result).toMatchObject({
+      type: 'response',
+      command: 'browser/restart',
+      success: true,
+      data: { pageStateLost: true, generation: 2, pageId: 'p2' },
+    });
+  });
+
   it('browser/navigate serializes through the session mutex', async () => {
     const order: string[] = [];
     let releaseNavigate: () => void = () => {};
@@ -315,5 +376,65 @@ describe('handleBrowserCommand', () => {
       command: 'browser/resize',
       data: { viewport: { width: 640, height: 900 } },
     });
+  });
+
+  it('maps BrowserUserHasControlError onto a stable problem code', async () => {
+    const session = createMockSession({
+      navigate: async () => {
+        throw new BrowserUserHasControlError('The user has the browser.');
+      },
+    });
+    const result = await handleBrowserCommand(
+      { type: 'browser/navigate', url: 'https://example.com' },
+      'req-1',
+      createContext(session),
+    );
+    expect(result).toMatchObject({
+      success: false,
+      command: 'browser/navigate',
+      error: 'The user has the browser.',
+      problem: { code: 'browser-user-has-control', retryable: false },
+    });
+  });
+
+  it('maps agent-has-control when the agent owns the page', async () => {
+    const session = createMockSession({
+      dispatchInput: async () => {
+        throw new BrowserSessionError('The agent is using the browser.');
+      },
+    });
+    const result = await handleBrowserCommand(
+      { type: 'browser/input', events: [{ type: 'insertText', text: 'hi' }] },
+      'req-1',
+      createContext(session),
+    );
+    expect(result).toMatchObject({
+      success: false,
+      command: 'browser/input',
+      problem: { code: 'browser-agent-has-control', retryable: false },
+    });
+  });
+
+  it('strips Playwright Call log from IPC error messages', async () => {
+    const session = createMockSession({
+      start: async () => {
+        throw new BrowserRuntimeGoneError(
+          'browser context is gone\nCall log:\n  - waiting for page\nCookie: sid=secret',
+        );
+      },
+    });
+    const result = await handleBrowserCommand(
+      { type: 'browser/start', leaseId: 'panel-1' },
+      'req-1',
+      createContext(session),
+    );
+    expect(result).toMatchObject({
+      success: false,
+      command: 'browser/start',
+      error: 'browser context is gone',
+      problem: { code: 'browser-runtime-gone', retryable: true },
+    });
+    expect(result && 'error' in result ? result.error : '').not.toContain('Call log');
+    expect(result && 'error' in result ? result.error : '').not.toContain('secret');
   });
 });

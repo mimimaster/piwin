@@ -57,6 +57,77 @@ export type BrowserInputEvent =
 /** Stable tool / session error when the human holds the workbench. */
 export const BROWSER_USER_HAS_CONTROL = 'browser-user-has-control';
 
+export const BROWSER_RUNTIME_GONE = 'browser-runtime-gone';
+export const BROWSER_UNAVAILABLE = 'browser-unavailable';
+export const BROWSER_STALE_TARGET = 'browser-stale-target';
+export const BROWSER_ACTION_FAILED = 'browser-action-failed';
+export const BROWSER_OPERATION_INTERRUPTED = 'browser-operation-interrupted';
+export const BROWSER_AGENT_HAS_CONTROL = 'browser-agent-has-control';
+
+export type BrowserLifecycle =
+  | 'stopped'
+  | 'starting'
+  | 'ready'
+  | 'recovering'
+  | 'failed'
+  | 'disposed';
+
+export type BrowserMirrorMode = 'off' | 'streaming' | 'degraded';
+
+export type BrowserViewportMode = 'fixed' | 'follow' | 'mobile' | 'custom';
+
+export const BROWSER_DEFAULT_VIEWPORT_WIDTH = 1280;
+export const BROWSER_DEFAULT_VIEWPORT_HEIGHT = 800;
+
+export type BrowserViewportConfig = {
+  mode: BrowserViewportMode;
+  width: number;
+  height: number;
+};
+
+export type BrowserRuntimeFailure = {
+  code: string;
+  reason?: string;
+};
+
+/**
+ * Host-normalized browser runtime snapshot (completeness plan §4.1).
+ * Control ownership stays on `browser/controller`; this is connection health.
+ */
+export type BrowserRuntimeState = {
+  lifecycle: BrowserLifecycle;
+  mirror: BrowserMirrorMode;
+  generation: number;
+  viewport: BrowserViewportConfig;
+  recoveryCount: number;
+  pageId?: string;
+  documentRevision?: number;
+  controllerRevision?: number;
+  lastFailure?: BrowserRuntimeFailure;
+};
+
+export type BrowserToolOutcome = 'not-started' | 'unknown';
+export type BrowserRecoveryStatus = 'none' | 'recovered' | 'failed';
+
+/**
+ * `browser/state` payload. `url`/`title` remain for existing panels.
+ * Lifecycle fields are optional so older emitters stay valid.
+ */
+export type BrowserStatePush = {
+  type: 'browser/state';
+  ts: number;
+  url?: string;
+  title?: string;
+  lifecycle?: BrowserLifecycle;
+  mirror?: BrowserMirrorMode;
+  generation?: number;
+  pageId?: string;
+  documentRevision?: number;
+  controllerRevision?: number;
+  viewport?: BrowserViewportConfig;
+  recoveryCount?: number;
+};
+
 export type BrowserControllerPush = {
   type: 'browser/controller';
   owner: BrowserController;

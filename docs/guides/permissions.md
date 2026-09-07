@@ -5,8 +5,8 @@
 | Status | Living document |
 | Related | [ADR 0019](../adr/0019-permission-rule-engine.md), [ADR 0024](../adr/0024-run-modes-and-sandbox.md), [ADR 0033](../adr/0033-mcp-supervisor-architecture.md), [Architecture §3.4](../architecture.md#34-permission-system) |
 
-piwin gates the tools an agent can run — bash commands, file writes, and network
-fetches — through a host-owned permission system built on
+piwin gates the tools an agent can run — bash commands, file writes, network
+fetches, and agent browser navigation — through a host-owned permission system built on
 two orthogonal axes:
 
 1. **Run Mode** (ADR 0024) — a user-facing preset that collapses the sandbox
@@ -94,6 +94,27 @@ match wins).
 Bundled safety defaults (deny for pipe-to-shell, secret file writes, etc.; ask
 for `sudo`, `rm -rf`, force-push) always apply and cannot be allowed away by
 lower layers.
+
+## Browser navigation
+
+Agent `browser_navigate` (and `browser_reload`, which reuses the same action) is
+host-gated separately from `web_fetch`:
+
+- **Loopback** (`localhost`, `127.0.0.1`, `::1`) is allowed by default so local
+  dev servers can be previewed.
+- Other private / link-local / cloud-metadata hosts default to **ask** (SSRF).
+- Public hosts default to **ask**, or **allow** in `bypass`.
+- Agent tools only accept `http:` / `https:`. User URL-bar navigation may open
+  `file:` pages; that is not a `browser_navigate` permission.
+- v1 matches existing **`web-fetch` hostGlob** rules. There is no separate
+  `browser` rule kind yet.
+
+Other `browser_*` writes (click, hover, select, check, type, lock, restart,
+viewport set, tabs new/select/close, dialog) follow the
+interaction policy: `ask-all` prompts, otherwise allow. `browser_upload` is
+gated as a file-write on the Host path. Read tools
+(`snapshot`, `find`, `wait`, `wait_for`, `status`, viewport query, tabs list,
+console, network) are read-only.
 
 ### File format
 

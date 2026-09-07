@@ -69,6 +69,7 @@ const SUBJECT_REQUIRED_ACTIONS = new Set<string>([
   'notes:note_delete',
   'browser:navigate',
   'browser:screenshot',
+  'browser:upload',
 ]);
 
 export function evaluateHostToolPolicy(input: {
@@ -253,10 +254,51 @@ export function evaluateHostToolDomainPolicy(input: {
     case 'browser:back':
     case 'browser:forward':
     case 'browser:lock':
+    case 'browser:restart':
+    case 'browser:dialog':
       return {
         decision: input.mode === 'ask-all' ? 'ask' : 'allow',
         reason: input.mode === 'ask-all' ? 'ask-all-browser-interaction' : 'browser-interaction',
       };
+    case 'browser:tabs': {
+      const action = input.args.action;
+      if (action === 'list' || action === undefined) {
+        return { decision: 'allow', reason: 'browser-tabs-list' };
+      }
+      if (action === 'new' && typeof input.args.url === 'string' && input.args.url.trim() !== '') {
+        return evaluateBrowserNavigatePermission(input.args.url, input.rules, input.mode);
+      }
+      return {
+        decision: input.mode === 'ask-all' ? 'ask' : 'allow',
+        reason: input.mode === 'ask-all' ? 'ask-all-browser-interaction' : 'browser-tabs-write',
+      };
+    }
+    case 'browser:upload':
+      if (input.subject?.kind === 'file-write') {
+        return evaluateFileWritePermission({
+          absPath: input.subject.path,
+          projectRoot: input.projectRoot,
+          mode: input.mode,
+          rules: input.rules,
+        });
+      }
+      return {
+        decision: input.mode === 'ask-all' ? 'ask' : 'allow',
+        reason: input.mode === 'ask-all' ? 'ask-all-browser-upload' : 'browser-upload',
+      };
+    case 'browser:viewport': {
+      const isSet =
+        input.args.action === 'set' ||
+        typeof input.args.width === 'number' ||
+        typeof input.args.height === 'number';
+      if (!isSet) {
+        return { decision: 'allow', reason: 'browser-viewport-query' };
+      }
+      return {
+        decision: input.mode === 'ask-all' ? 'ask' : 'allow',
+        reason: input.mode === 'ask-all' ? 'ask-all-browser-interaction' : 'browser-viewport-set',
+      };
+    }
     case 'filesystem:read':
     case 'filesystem:list':
     case 'process:list':
@@ -264,6 +306,9 @@ export function evaluateHostToolDomainPolicy(input: {
     case 'browser:snapshot':
     case 'browser:find':
     case 'browser:wait':
+    case 'browser:status':
+    case 'browser:console':
+    case 'browser:network':
     case 'flashcards:list':
     case 'artifact:instructions':
     case 'toolbox:route':

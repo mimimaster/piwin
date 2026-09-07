@@ -7,13 +7,13 @@ import type {
 } from '@piwin/contracts';
 import { isHostToolPermissionAction } from '@piwin/contracts';
 import type { BrowserSession } from '@piwin/browser';
-import { BrowserUserHasControlError } from '@piwin/browser';
 import {
-  createBrowserToolDefinitions,
-  evaluateBrowserNavigatePermission,
-} from './browser-tools.js';
+  BrowserRuntimeGoneError,
+  BrowserStaleTargetError,
+  BrowserUserHasControlError,
+} from '@piwin/browser';
+import { createBrowserToolDefinitions } from './browser-tools.js';
 import { createBundledRuleSet } from './permission-defaults.js';
-import type { PermissionRuleSet } from '@piwin/contracts';
 import { createHostToolAdmission } from './tools/tool-admission.js';
 import { HostToolExecutionRouter } from './tools/host-tool-execution-router.js';
 import { toolFamilyIndex } from './tools/tool-family-index.js';
@@ -38,6 +38,67 @@ function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSess
     click: async (target, options) => {
       calls.push({ method: 'click', args: [target, options] });
     },
+    hover: async (target, options) => {
+      calls.push({ method: 'hover', args: [target, options] });
+    },
+    selectOption: async (target, values, options) => {
+      calls.push({ method: 'selectOption', args: [target, values, options] });
+    },
+    setChecked: async (target, checked, options) => {
+      calls.push({ method: 'setChecked', args: [target, checked, options] });
+    },
+    uploadFiles: async (target, files, options) => {
+      calls.push({ method: 'uploadFiles', args: [target, files, options] });
+    },
+    listTabs: async (options) => {
+      calls.push({ method: 'listTabs', args: [options] });
+      return [{ pageId: 'p-1-1', url: 'http://localhost:3000', title: 'Test', kind: 'page' as const, active: true }];
+    },
+    newTab: async (url, options) => {
+      calls.push({ method: 'newTab', args: [url, options] });
+      return {
+        pageId: 'p-1-2',
+        url: url ?? 'about:blank',
+        title: '',
+        kind: 'page' as const,
+        active: true,
+      };
+    },
+    selectTab: async (pageId, options) => {
+      calls.push({ method: 'selectTab', args: [pageId, options] });
+      return { pageId, url: 'http://localhost:3000', title: 'Test', kind: 'page' as const, active: true };
+    },
+    closeTab: async (pageId, options) => {
+      calls.push({ method: 'closeTab', args: [pageId, options] });
+    },
+    handleDialog: async (action, promptText, options) => {
+      calls.push({ method: 'handleDialog', args: [action, promptText, options] });
+      return { pageId: 'p-1-1', type: 'alert', message: 'hi', timedOut: false };
+    },
+    pendingDialog: () => undefined,
+    queryConsole: (limit) => {
+      calls.push({ method: 'queryConsole', args: [limit] });
+      return [{ level: 'log' as const, text: 'hello', url: 'http://localhost:3000', ts: 1 }];
+    },
+    queryNetwork: (limit) => {
+      calls.push({ method: 'queryNetwork', args: [limit] });
+      return [
+        {
+          method: 'GET',
+          url: 'http://localhost:3000/x',
+          status: 200,
+          resourceType: 'xhr',
+          duration: 1,
+          failed: false,
+          ts: 1,
+        },
+      ];
+    },
+    queryDownloads: (limit) => {
+      calls.push({ method: 'queryDownloads', args: [limit] });
+      return [{ filename: 'a.txt', path: '/tmp/a.txt', url: 'http://localhost/a.txt', ts: 1 }];
+    },
+    ownership: () => 'owned' as const,
     type: async (target, text, options) => {
       calls.push({ method: 'type', args: [target, text, options] });
     },
@@ -68,6 +129,39 @@ function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSess
     },
     wait: async (ms, options) => {
       calls.push({ method: 'wait', args: [ms, options] });
+    },
+    waitFor: async (condition, options) => {
+      calls.push({ method: 'waitFor', args: [condition, options] });
+    },
+    reload: async (options) => {
+      calls.push({ method: 'reload', args: [options] });
+    },
+    pressKey: async (key, options) => {
+      calls.push({ method: 'pressKey', args: [key, options] });
+    },
+    queryViewport: () => {
+      calls.push({ method: 'queryViewport', args: [] });
+      return { width: 1280, height: 800 };
+    },
+    applyViewport: async (size, options) => {
+      calls.push({ method: 'applyViewport', args: [size, options] });
+      return size;
+    },
+    status: () => {
+      calls.push({ method: 'status', args: [] });
+      return {
+        lifecycle: 'ready' as const,
+        generation: 1,
+        pageId: 'p-1-1',
+        pageStateLost: false,
+        recoveryCount: 0,
+        url: 'http://localhost:3000',
+        title: 'Test',
+      };
+    },
+    restart: async (options) => {
+      calls.push({ method: 'restart', args: [options] });
+      return { pageStateLost: true, generation: 2, pageId: 'p-2-1' };
     },
     pickElementAt: async (x, y, options) => {
       calls.push({ method: 'pickElementAt', args: [x, y, options] });
@@ -166,21 +260,42 @@ describe('createBrowserToolDefinitions — schema golden', () => {
   const session = createMockSession();
   const tools = createBrowserToolDefinitions(session);
 
-  it('registers all 12 browser tools', () => {
+  it('registers all 26 browser tools', () => {
     expect(tools.map((t) => t.descriptor.name).sort()).toEqual([
       'browser_back',
       'browser_click',
+      'browser_console',
+      'browser_dialog',
       'browser_fill_form',
       'browser_find',
       'browser_forward',
+      'browser_hover',
       'browser_lock',
       'browser_navigate',
+      'browser_network',
+      'browser_press_key',
+      'browser_reload',
+      'browser_restart',
       'browser_screenshot',
       'browser_scroll',
+      'browser_select_option',
+      'browser_set_checked',
       'browser_snapshot',
+      'browser_status',
+      'browser_tabs',
       'browser_type',
+      'browser_upload',
+      'browser_viewport',
       'browser_wait',
+      'browser_wait_for',
     ]);
+  });
+
+  it('browser_lock describes action=unlock and does not register browser_unlock', () => {
+    const lock = tools.find((t) => t.descriptor.name === 'browser_lock');
+    if (!lock) throw new Error('browser_lock missing');
+    expect(lock.descriptor.description).toContain('action=unlock');
+    expect(tools.some((t) => t.descriptor.name === 'browser_unlock')).toBe(false);
   });
 
   it('browser_navigate has url param required', () => {
@@ -276,6 +391,23 @@ describe('createBrowserToolDefinitions — execute paths', () => {
       ok: false,
       code: 'browser-user-has-control',
       retryable: false,
+    });
+  });
+
+  it('browser_click returns browser-runtime-gone when Chromium is gone', async () => {
+    const session = createMockSession({
+      click: async () => {
+        throw new BrowserRuntimeGoneError('browser context is gone');
+      },
+    });
+    const tools = createBrowserToolDefinitions(session);
+    const click = tools.find((t) => t.descriptor.name === 'browser_click');
+    if (!click) throw new Error('browser_click missing');
+    const result = await executeTool(click, { ref: 'e5' });
+    expect(result).toMatchObject({
+      ok: false,
+      code: 'browser-runtime-gone',
+      retryable: true,
     });
   });
 
@@ -502,119 +634,104 @@ describe('createBrowserToolDefinitions — execute paths', () => {
     const raw = outputOf(await executeTool(wait, { ms: 100 }));
     expect((JSON.parse(raw) as { ms: number }).ms).toBe(100);
   });
-});
 
-describe('evaluateBrowserNavigatePermission', () => {
-  it('denies empty url', () => {
-    expect(evaluateBrowserNavigatePermission('')).toEqual({
-      decision: 'deny',
-      reason: 'empty-url',
+  it('browser_status reads session.status without start/navigate', async () => {
+    const start = vi.fn(async () => ({ url: 'http://localhost:3000', title: 'Test' }));
+    const navigate = vi.fn(async () => {});
+    const session = createMockSession({ start, navigate });
+    const tools = createBrowserToolDefinitions(session);
+    const tool = tools.find((t) => t.descriptor.name === 'browser_status');
+    if (!tool) throw new Error('browser_status missing');
+    const raw = outputOf(await executeTool(tool, {}));
+    const result = JSON.parse(raw) as { lifecycle: string; generation: number };
+    expect(result.lifecycle).toBe('ready');
+    expect(result.generation).toBe(1);
+    expect(start).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('browser_restart reports pageStateLost', async () => {
+    const session = createMockSession();
+    const tools = createBrowserToolDefinitions(session);
+    const tool = tools.find((t) => t.descriptor.name === 'browser_restart');
+    if (!tool) throw new Error('browser_restart missing');
+    const result = await executeTool(tool, {});
+    if (!result.ok) throw new Error(result.message);
+    expect(JSON.parse(result.output)).toMatchObject({ ok: true, pageStateLost: true });
+    expect(result.details?.pageStateLost).toBe(true);
+  });
+
+  it('browser_restart fails when the user owns the page', async () => {
+    const session = createMockSession({
+      restart: async () => {
+        throw new BrowserUserHasControlError('The user has the browser.');
+      },
+    });
+    const tools = createBrowserToolDefinitions(session);
+    const tool = tools.find((t) => t.descriptor.name === 'browser_restart');
+    if (!tool) throw new Error('browser_restart missing');
+    const result = await executeTool(tool, {});
+    expect(result).toMatchObject({ ok: false, code: 'browser-user-has-control' });
+  });
+
+  it('browser_press_key delegates a valid key', async () => {
+    const session = createMockSession();
+    const tools = createBrowserToolDefinitions(session);
+    const tool = tools.find((t) => t.descriptor.name === 'browser_press_key');
+    if (!tool) throw new Error('browser_press_key missing');
+    const raw = outputOf(await executeTool(tool, { key: 'Enter' }));
+    expect((JSON.parse(raw) as { key: string }).key).toBe('Enter');
+  });
+
+  it('browser_wait_for rejects two conditions', async () => {
+    const session = createMockSession();
+    const tools = createBrowserToolDefinitions(session);
+    const tool = tools.find((t) => t.descriptor.name === 'browser_wait_for');
+    if (!tool) throw new Error('browser_wait_for missing');
+    const prepare = tool.prepareArgs;
+    if (!prepare) throw new Error('browser_wait_for prepareArgs missing');
+    const prepared = await prepare(
+      { text: 'Hello', url: 'https://example.com' },
+      {
+        sessionId: 'session-1',
+        runtimeGenerationId: 'generation-1',
+        runId: 'run-1',
+        toolName: 'browser_wait_for',
+      },
+      new AbortController().signal,
+    );
+    expect(prepared).toMatchObject({
+      ok: false,
+      result: { ok: false, code: 'invalid-input' },
     });
   });
 
-  it('denies invalid url', () => {
-    expect(evaluateBrowserNavigatePermission('not-a-url')).toEqual({
-      decision: 'deny',
-      reason: 'invalid-url',
+  it('browser_viewport query does not write', async () => {
+    const applyViewport = vi.fn(async (size: { width: number; height: number }) => size);
+    const session = createMockSession({ applyViewport });
+    const tools = createBrowserToolDefinitions(session);
+    const tool = tools.find((t) => t.descriptor.name === 'browser_viewport');
+    if (!tool) throw new Error('browser_viewport missing');
+    const raw = outputOf(await executeTool(tool, { action: 'query' }));
+    expect(JSON.parse(raw)).toEqual({ width: 1280, height: 800 });
+    expect(applyViewport).not.toHaveBeenCalled();
+  });
+
+  it('browser_click maps overlay intercept to browser-action-failed', async () => {
+    const session = createMockSession({
+      click: async () => {
+        throw new Error('<div> intercepts pointer events');
+      },
     });
-  });
-
-  it('denies non-http schemes', () => {
-    expect(evaluateBrowserNavigatePermission('file:///etc/passwd').decision).toBe('deny');
-    expect(evaluateBrowserNavigatePermission('javascript:alert(1)').decision).toBe('deny');
-  });
-
-  it('allows loopback localhost by default', () => {
-    const result = evaluateBrowserNavigatePermission('http://localhost:3000');
-    expect(result.decision).toBe('allow');
-    expect(result.reason).toBe('loopback-allowed');
-  });
-
-  it('allows 127.0.0.1 by default', () => {
-    expect(evaluateBrowserNavigatePermission('http://127.0.0.1:8080').decision).toBe('allow');
-  });
-
-  it('allows ::1 by default', () => {
-    expect(evaluateBrowserNavigatePermission('http://[::1]:8080').decision).toBe('allow');
-    expect(evaluateBrowserNavigatePermission('http://[::ffff:7f00:1]:8080').decision).toBe('allow');
-  });
-
-  it('allows *.localhost by default', () => {
-    expect(evaluateBrowserNavigatePermission('http://api.localhost:3000').decision).toBe('allow');
-  });
-
-  it('asks for private 10.x range', () => {
-    const result = evaluateBrowserNavigatePermission('http://10.0.0.1');
-    expect(result.decision).toBe('ask');
-    expect(result.reason).toContain('private-or-local');
-  });
-
-  it('asks for 192.168.x range', () => {
-    expect(evaluateBrowserNavigatePermission('http://192.168.1.1').decision).toBe('ask');
-  });
-
-  it('asks for 172.16.x range', () => {
-    expect(evaluateBrowserNavigatePermission('http://172.16.0.1').decision).toBe('ask');
-  });
-
-  it('asks for link-local 169.254.169.254 (cloud metadata)', () => {
-    const result = evaluateBrowserNavigatePermission('http://169.254.169.254/latest/meta-data/');
-    expect(result.decision).toBe('ask');
-    expect(result.reason).toContain('private-or-local');
-  });
-
-  it('asks for fd00::/8 ULA', () => {
-    expect(evaluateBrowserNavigatePermission('http://[fd12::1]').decision).toBe('ask');
-  });
-
-  it('asks for fe80::/10 link-local', () => {
-    expect(evaluateBrowserNavigatePermission('http://[fe80::1]').decision).toBe('ask');
-  });
-
-  it('asks for public hosts by default', () => {
-    const result = evaluateBrowserNavigatePermission('https://example.com');
-    expect(result.decision).toBe('ask');
-    expect(result.reason).toBe('navigate:example.com');
-  });
-
-  it('consults rule engine before defaults (allow rule)', () => {
-    const rules: PermissionRuleSet = {
-      deny: [],
-      ask: [],
-      allow: [
-        {
-          target: { kind: 'web-fetch', hostGlob: 'example.com' },
-          decision: 'allow',
-          reason: 'rule-allow',
-        },
-      ],
-    };
-    const result = evaluateBrowserNavigatePermission('https://example.com', rules);
-    expect(result.decision).toBe('allow');
-    expect(result.reason).toBe('rule-allow');
-  });
-
-  it('consults rule engine before defaults (deny rule overrides loopback)', () => {
-    const rules: PermissionRuleSet = {
-      deny: [
-        {
-          target: { kind: 'web-fetch', hostGlob: 'localhost' },
-          decision: 'deny',
-          reason: 'rule-deny',
-        },
-      ],
-      ask: [],
-      allow: [],
-    };
-    const result = evaluateBrowserNavigatePermission('http://localhost:3000', rules);
-    expect(result.decision).toBe('deny');
-    expect(result.reason).toBe('rule-deny');
-  });
-
-  it('falls through to defaults when no rule matches', () => {
-    const rules = createBundledRuleSet();
-    const result = evaluateBrowserNavigatePermission('http://localhost:3000', rules);
-    expect(result.decision).toBe('allow');
+    const tools = createBrowserToolDefinitions(session);
+    const click = tools.find((t) => t.descriptor.name === 'browser_click');
+    if (!click) throw new Error('browser_click missing');
+    const result = await executeTool(click, { ref: 'e5' });
+    expect(result).toMatchObject({
+      ok: false,
+      code: 'browser-action-failed',
+      details: { reason: 'overlay' },
+    });
   });
 });
 
@@ -674,6 +791,106 @@ describe('browser_navigate permission gate', () => {
     if (!nav) throw new Error('browser_navigate missing');
     const raw = outputOf(await executeThroughAdmission(nav, { url: 'http://127.0.0.1:4000' }));
     expect((JSON.parse(raw) as { ok: boolean }).ok).toBe(true);
+  });
+});
+
+describe('browser_reload permission from currentState', () => {
+  it('binds permission subject from currentState when the model omits url', async () => {
+    const session = createMockSession({
+      currentState: () => ({ url: 'https://example.com/page', title: 'Example' }),
+      status: () => ({
+        lifecycle: 'ready',
+        generation: 1,
+        pageId: 'p-1-1',
+        pageStateLost: false,
+        recoveryCount: 0,
+        url: 'https://example.com/page',
+      }),
+    });
+    const requestPermission = vi.fn().mockResolvedValue('allow' as const);
+    const tools = createBrowserToolDefinitions(session);
+    const tool = tools.find((t) => t.descriptor.name === 'browser_reload');
+    if (!tool) throw new Error('browser_reload missing');
+    await executeThroughAdmission(tool, {}, requestPermission);
+    expect(requestPermission).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'browser:navigate',
+        detail: expect.stringContaining('https://example.com/page'),
+      }),
+    );
+  });
+
+  it('ignores a model-supplied url for authorization', async () => {
+    const session = createMockSession({
+      currentState: () => ({ url: 'https://example.com/page', title: 'Example' }),
+      status: () => ({
+        lifecycle: 'ready',
+        generation: 1,
+        pageId: 'p-1-1',
+        pageStateLost: false,
+        recoveryCount: 0,
+        url: 'https://example.com/page',
+      }),
+    });
+    const requestPermission = vi.fn().mockResolvedValue('allow' as const);
+    const tools = createBrowserToolDefinitions(session);
+    const tool = tools.find((t) => t.descriptor.name === 'browser_reload');
+    if (!tool) throw new Error('browser_reload missing');
+    await executeThroughAdmission(tool, { url: 'https://evil.example/' }, requestPermission);
+    expect(requestPermission).toHaveBeenCalledWith(
+      expect.objectContaining({
+        detail: expect.stringContaining('https://example.com/page'),
+      }),
+    );
+    expect(requestPermission.mock.calls[0]?.[0]?.detail).not.toContain('evil.example');
+  });
+
+  it('returns stale-target when the URL changes after approval', async () => {
+    let url = 'https://example.com/page';
+    const session = createMockSession({
+      currentState: () => ({ url, title: 'Example' }),
+      status: () => ({
+        lifecycle: 'ready',
+        generation: 1,
+        pageId: 'p-1-1',
+        pageStateLost: false,
+        recoveryCount: 0,
+        url,
+      }),
+      reload: async (options) => {
+        if (options?.expectedUrl !== undefined && options.expectedUrl !== url) {
+          throw new BrowserStaleTargetError('page URL changed after permission', {
+            pageStateLost: false,
+          });
+        }
+      },
+    });
+    const requestPermission = vi.fn().mockImplementation(async () => {
+      url = 'https://other.example/';
+      return 'allow' as const;
+    });
+    const tools = createBrowserToolDefinitions(session);
+    const tool = tools.find((t) => t.descriptor.name === 'browser_reload');
+    if (!tool) throw new Error('browser_reload missing');
+    const result = await executeThroughAdmission(tool, {}, requestPermission);
+    expect(result).toMatchObject({ ok: false, code: 'browser-stale-target' });
+  });
+
+  it('returns invalid-input when there is no current page URL', async () => {
+    const session = createMockSession({
+      currentState: () => ({}),
+      status: () => ({
+        lifecycle: 'stopped',
+        generation: 0,
+        pageStateLost: false,
+        recoveryCount: 0,
+      }),
+    });
+    const tools = createBrowserToolDefinitions(session);
+    const tool = tools.find((t) => t.descriptor.name === 'browser_reload');
+    if (!tool) throw new Error('browser_reload missing');
+    const result = await executeThroughAdmission(tool, {});
+    expect(result).toMatchObject({ ok: false, code: 'invalid-input' });
   });
 });
 

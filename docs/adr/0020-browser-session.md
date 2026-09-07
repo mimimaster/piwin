@@ -295,3 +295,14 @@ The visual panel is desktop-only; CLI degradation is intentional and documented
   (second document / CSP). Headed OS window stays a later escape hatch.
 - Persistent browser sessions across app restarts (save/restore profile) —
   out of scope for v1.
+
+### 2026-09-07 completeness amendment
+
+Workbench recovery, default 1280×800 CSS viewport, public `page.screencast`
+mirror, extra `browser_*` tools (including hover/select/check, tabs/dialog,
+upload, console/network query), Host-owned headed launch, and explicit
+loopback `connectOverCDP` shipped under
+[`docs/plans/2026-09-07-browser-cdp-completeness.md`](../plans/2026-09-07-browser-cdp-completeness.md).
+Chrome daily-session autoConnect remains an experiment. Dispatched writes are
+never auto-replayed after recovery. Host detach of an attached CDP session
+must not `context.close()` the user's browser.

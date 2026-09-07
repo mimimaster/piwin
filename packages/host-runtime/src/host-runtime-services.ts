@@ -4,10 +4,16 @@
  */
 
 import { join } from 'node:path';
-import type { AgentEvent, JobController } from '@piwin/contracts';
+import {
+  BROWSER_DEFAULT_VIEWPORT_HEIGHT,
+  BROWSER_DEFAULT_VIEWPORT_WIDTH,
+  formatError,
+  isRunTerminal,
+  type AgentEvent,
+  type JobController,
+} from '@piwin/contracts';
 import { AgentWorkerSupervisor } from '@piwin/agent-host';
 import { guardWorkerAcquire } from './worker-pool-policy.js';
-import { formatError, isRunTerminal } from '@piwin/contracts';
 import { createMcpLifecycleManager, type McpLifecycleManager } from '@piwin/mcp';
 import { type JobRegistryEvent } from '@piwin/process';
 import {
@@ -602,7 +608,20 @@ export async function ensureBrowserSession(
   if (!deps.browserSessionInit) {
     deps.browserSessionInit = (async () => {
       const { createBrowserSession } = await import('@piwin/browser');
-      const session = createBrowserSession();
+      const rootDir = getPiwinRoot(deps.options.piwinRoot);
+      const config = await loadPiwinConfig(rootDir);
+      // Host-owned CSS viewport is fixed 1280×800; the panel only scales display.
+      const session = createBrowserSession({
+        viewport: {
+          width: BROWSER_DEFAULT_VIEWPORT_WIDTH,
+          height: BROWSER_DEFAULT_VIEWPORT_HEIGHT,
+        },
+        headless: config.browser?.headless !== false,
+        captureConsoleAndNetwork: true,
+        ...(config.browser?.cdpEndpoint !== undefined
+          ? { cdpEndpoint: config.browser.cdpEndpoint }
+          : {}),
+      });
       deps.browserSessionUnsubscribe = session.subscribe((event) => deps.push(event));
       deps.browserSession = session;
       return session;

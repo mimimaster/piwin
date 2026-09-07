@@ -1,8 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BROWSER_ACTION_FAILED,
+  BROWSER_AGENT_HAS_CONTROL,
+  BROWSER_DEFAULT_VIEWPORT_HEIGHT,
+  BROWSER_DEFAULT_VIEWPORT_WIDTH,
+  BROWSER_OPERATION_INTERRUPTED,
+  BROWSER_RUNTIME_GONE,
+  BROWSER_STALE_TARGET,
+  BROWSER_UNAVAILABLE,
   BROWSER_USER_HAS_CONTROL,
   formatTextModelWebElementInjection,
+  type BrowserRuntimeState,
 } from './browser.js';
+import { isHostToolPermissionAction } from './tool-registration.js';
 
 describe('formatTextModelWebElementInjection', () => {
   it('formats url selector and bounded text', () => {
@@ -52,5 +62,46 @@ describe('formatTextModelWebElementInjection', () => {
 describe('browser workbench contracts (ADR 0057)', () => {
   it('exports a stable user-has-control error code', () => {
     expect(BROWSER_USER_HAS_CONTROL).toBe('browser-user-has-control');
+  });
+});
+
+describe('browser runtime contracts (completeness plan §4)', () => {
+  it('exports distinct failure codes', () => {
+    const codes = [
+      BROWSER_RUNTIME_GONE,
+      BROWSER_UNAVAILABLE,
+      BROWSER_STALE_TARGET,
+      BROWSER_ACTION_FAILED,
+      BROWSER_OPERATION_INTERRUPTED,
+      BROWSER_AGENT_HAS_CONTROL,
+      BROWSER_USER_HAS_CONTROL,
+    ];
+    expect(new Set(codes).size).toBe(codes.length);
+  });
+
+  it('defaults the logical viewport to 1280x800', () => {
+    expect(BROWSER_DEFAULT_VIEWPORT_WIDTH).toBe(1280);
+    expect(BROWSER_DEFAULT_VIEWPORT_HEIGHT).toBe(800);
+  });
+
+  it('accepts a stopped runtime snapshot without optional identity', () => {
+    const state: BrowserRuntimeState = {
+      lifecycle: 'stopped',
+      mirror: 'off',
+      generation: 0,
+      viewport: {
+        mode: 'fixed',
+        width: BROWSER_DEFAULT_VIEWPORT_WIDTH,
+        height: BROWSER_DEFAULT_VIEWPORT_HEIGHT,
+      },
+      recoveryCount: 0,
+    };
+    expect(state.pageId).toBeUndefined();
+  });
+
+  it('registers status restart and viewport permission actions', () => {
+    expect(isHostToolPermissionAction('browser:status')).toBe(true);
+    expect(isHostToolPermissionAction('browser:restart')).toBe(true);
+    expect(isHostToolPermissionAction('browser:viewport')).toBe(true);
   });
 });

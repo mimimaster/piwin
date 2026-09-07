@@ -2,86 +2,210 @@ import { describe, expect, it, vi } from 'vitest';
 import { startScreencast } from './screencast.js';
 import type { Page } from 'playwright-core';
 
-function createCdp() {
-  const listeners = new Map<string, (payload: unknown) => void>();
+type OnFrame = (frame: {
+  data: Buffer;
+  timestamp: number;
+  viewportWidth: number;
+  viewportHeight: number;
+}) => void;
+
+function createCapturingPage() {
+  let onFrame: OnFrame | undefined;
+  const start = vi.fn(async (startOptions?: { onFrame?: OnFrame }) => {
+    onFrame = startOptions?.onFrame;
+    return { [Symbol.dispose](): void {} };
+  });
+  const screencast = {
+    start,
+    stop: vi.fn().mockResolvedValue(undefined),
+  };
   return {
-    on: vi.fn((event: string, listener: (payload: unknown) => void) => {
-      listeners.set(event, listener);
-    }),
-    send: vi.fn().mockResolvedValue(undefined),
-    detach: vi.fn().mockResolvedValue(undefined),
-    emit(event: string, payload: unknown) {
-      listeners.get(event)?.(payload);
+    page: { screencast } as unknown as Page,
+    screencast,
+    emit(frame: {
+      data: Buffer;
+      timestamp: number;
+      viewportWidth: number;
+      viewportHeight: number;
+    }): void {
+      onFrame?.(frame);
     },
   };
 }
 
 describe('startScreencast', () => {
-  it('starts JPEG screencast, emits CSS viewport frames, and acks every frame', async () => {
-    const cdp = createCdp();
-    const page = {
-      context: () => ({ newCDPSession: vi.fn().mockResolvedValue(cdp) }),
-    } as unknown as Page;
-    const emit = vi.fn();
-    const handle = await startScreencast(page, { maxDimension: 1280, emit });
-
-    expect(cdp.send).toHaveBeenCalledWith(
-      'Page.startScreencast',
-      expect.objectContaining({ format: 'jpeg', maxWidth: 1280, maxHeight: 1280 }),
-    );
-
-    cdp.emit('Page.screencastFrame', {
-      data: 'abc',
-      sessionId: 7,
-      metadata: { deviceWidth: 1024, deviceHeight: 768 },
+  it('starts JPEG screencast and emits CSS viewport frames from onFrame', async () => {
+    const { page, screencast, emit } = createCapturingPage();
+    const emitted: unknown[] = [];
+    const handle = await startScreencast(page, {
+      maxDimension: 1280,
+      emit: (frame) => emitted.push(frame),
     });
 
-    expect(emit).toHaveBeenCalledWith(
+    expect(screencast.start).toHaveBeenCalledWith(
       expect.objectContaining({
-        dataUrl: 'data:image/jpeg;base64,abc',
+        quality: 55,
+        size: { width: 1280, height: 1280 },
+      }),
+    );
+    expect(screencast.start.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({ onFrame: expect.any(Function) }),
+    );
+
+    emit({
+      data: Buffer.from('abc'),
+      timestamp: 1,
+      viewportWidth: 1024,
+      viewportHeight: 768,
+    });
+
+    expect(emitted).toEqual([
+      expect.objectContaining({
+        dataUrl: `data:image/jpeg;base64,${Buffer.from('abc').toString('base64')}`,
         width: 1024,
         height: 768,
       }),
-    );
-    expect(cdp.send).toHaveBeenCalledWith('Page.screencastFrameAck', { sessionId: 7 });
+    ]);
 
     await handle.stop();
-    expect(cdp.send).toHaveBeenCalledWith('Page.stopScreencast');
-    expect(cdp.detach).toHaveBeenCalled();
+    expect(screencast.stop).toHaveBeenCalledTimes(1);
   });
 
-  it('acks even when emit throws', async () => {
-    const cdp = createCdp();
-    const page = {
-      context: () => ({ newCDPSession: vi.fn().mockResolvedValue(cdp) }),
-    } as unknown as Page;
+  it('uses viewportWidth/Height rather than JPEG byte size', async () => {
+    const { page, emit } = createCapturingPage();
+    const emitted: Array<{ width: number; height: number }> = [];
+    const handle = await startScreencast(page, {
+      maxDimension: 1280,
+      emit: (frame) => emitted.push({ width: frame.width, height: frame.height }),
+    });
+
+    emit({
+      data: Buffer.from([0xff, 0xd8, 0xff]),
+      timestamp: 1,
+      viewportWidth: 800,
+      viewportHeight: 600,
+    });
+
+    expect(emitted).toEqual([{ width: 800, height: 600 }]);
+    await handle.stop();
+  });
+
+  it('drops frames faster than the fps cap', async () => {
+    const { page, emit } = createCapturingPage();
+    let clock = 0;
+    const emitted: number[] = [];
+    const handle = await startScreencast(page, {
+      maxDimension: 1280,
+      maxFps: 10,
+      now: () => clock,
+      emit: (frame) => emitted.push(frame.ts),
+    });
+
+    const sample = {
+      data: Buffer.from('x'),
+      timestamp: 0,
+      viewportWidth: 1280,
+      viewportHeight: 800,
+    };
+    emit(sample);
+    clock = 50;
+    emit(sample);
+    clock = 99;
+    emit(sample);
+    clock = 100;
+    emit(sample);
+
+    expect(emitted).toEqual([0, 100]);
+    await handle.stop();
+  });
+
+  it('does not throw from onFrame when emit throws', async () => {
+    const { page, emit } = createCapturingPage();
     const handle = await startScreencast(page, {
       maxDimension: 800,
       emit: () => {
         throw new Error('subscriber failed');
       },
     });
-    cdp.emit('Page.screencastFrame', {
-      data: 'x',
-      sessionId: 1,
-      metadata: { deviceWidth: 800, deviceHeight: 600 },
-    });
-    expect(cdp.send).toHaveBeenCalledWith('Page.screencastFrameAck', { sessionId: 1 });
+    expect(() =>
+      emit({
+        data: Buffer.from('x'),
+        timestamp: 1,
+        viewportWidth: 800,
+        viewportHeight: 600,
+      }),
+    ).not.toThrow();
     await handle.stop();
   });
 
-  it('detaches when startScreencast fails', async () => {
-    const cdp = createCdp();
-    cdp.send.mockImplementation((method: string) => {
-      if (method === 'Page.startScreencast') return Promise.reject(new Error('cdp denied'));
-      return Promise.resolve(undefined);
+  it('calls page.screencast.stop and ignores later frames', async () => {
+    const { page, screencast, emit } = createCapturingPage();
+    const emitted: unknown[] = [];
+    const handle = await startScreencast(page, {
+      maxDimension: 1280,
+      emit: (frame) => emitted.push(frame),
     });
-    const page = {
-      context: () => ({ newCDPSession: vi.fn().mockResolvedValue(cdp) }),
-    } as unknown as Page;
+    await handle.stop();
+    emit({
+      data: Buffer.from('late'),
+      timestamp: 2,
+      viewportWidth: 1280,
+      viewportHeight: 800,
+    });
+    expect(emitted).toHaveLength(0);
+    expect(screencast.stop).toHaveBeenCalledTimes(1);
+    await handle.stop();
+    expect(screencast.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it('rebuilds once when start throws leftover already-started, then succeeds', async () => {
+    let attempts = 0;
+    let onFrame: OnFrame | undefined;
+    const start = vi.fn(async (startOptions?: { onFrame?: OnFrame }) => {
+      attempts += 1;
+      onFrame = startOptions?.onFrame;
+      if (attempts === 1) throw new Error('Screencast is already started');
+      return { [Symbol.dispose](): void {} };
+    });
+    const screencast = {
+      start,
+      stop: vi.fn().mockResolvedValue(undefined),
+    };
+    const page = { screencast } as unknown as Page;
+    const emitted: unknown[] = [];
+    const handle = await startScreencast(page, {
+      maxDimension: 1280,
+      emit: (frame) => emitted.push(frame),
+    });
+    expect(start).toHaveBeenCalledTimes(2);
+    expect(screencast.stop).toHaveBeenCalled();
+    onFrame?.({
+      data: Buffer.from('ok'),
+      timestamp: 1,
+      viewportWidth: 1280,
+      viewportHeight: 800,
+    });
+    expect(emitted).toHaveLength(1);
+    await handle.stop();
+  });
+
+  it('throws the original error after one failed rebuild', async () => {
+    const start = vi.fn().mockRejectedValue(new Error('screencast denied'));
+    const stop = vi.fn().mockResolvedValue(undefined);
+    const page = { screencast: { start, stop } } as unknown as Page;
     await expect(startScreencast(page, { maxDimension: 1280, emit: vi.fn() })).rejects.toThrow(
-      'cdp denied',
+      'screencast denied',
     );
-    expect(cdp.detach).toHaveBeenCalled();
+    expect(start).toHaveBeenCalledTimes(2);
+    expect(stop).toHaveBeenCalled();
+  });
+
+  it('does not open a CDP session', async () => {
+    const { page } = createCapturingPage();
+    const context = vi.fn();
+    (page as unknown as { context: typeof context }).context = context;
+    const handle = await startScreencast(page, { maxDimension: 1280, emit: vi.fn() });
+    expect(context).not.toHaveBeenCalled();
+    await handle.stop();
   });
 });

@@ -6,7 +6,7 @@ vi.mock('playwright-core', () => ({
   chromium: { executablePath: executablePathMock },
 }));
 
-import { getBrowserInstallStatus } from './install-status.js';
+import { classifyBrowserLaunchError, getBrowserInstallStatus } from './install-status.js';
 
 describe('getBrowserInstallStatus', () => {
   it('reports available with a path when the executable exists on disk', () => {
@@ -22,6 +22,7 @@ describe('getBrowserInstallStatus', () => {
     const status = getBrowserInstallStatus();
     expect(status.available).toBe(false);
     expect(status.hint).toContain('pnpm --dir apps/desktop e2e:install');
+    expect(status.reason).toBe('binary-missing');
   });
 
   it('falls back to a hint when the executable path cannot be resolved', () => {
@@ -31,5 +32,24 @@ describe('getBrowserInstallStatus', () => {
     const status = getBrowserInstallStatus();
     expect(status.available).toBe(false);
     expect(status.hint).toContain('pnpm --dir apps/desktop e2e:install');
+    expect(status.reason).toBe('binary-missing');
+  });
+});
+
+describe('classifyBrowserLaunchError', () => {
+  it('detects a profile already in use', () => {
+    expect(classifyBrowserLaunchError(new Error('Profile is already in use'))).toBe(
+      'profile-in-use',
+    );
+  });
+
+  it('detects a missing executable', () => {
+    expect(classifyBrowserLaunchError(new Error("browserType.launch: Executable doesn't exist"))).toBe(
+      'binary-missing',
+    );
+  });
+
+  it('falls back to startup-failed', () => {
+    expect(classifyBrowserLaunchError(new Error('Target closed'))).toBe('startup-failed');
   });
 });

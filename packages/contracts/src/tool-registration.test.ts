@@ -13,6 +13,14 @@ describe('HOST_TOOL_PERMISSION_ACTIONS', () => {
     expect(isHostToolPermissionAction('planning:write')).toBe(false);
     expect(isHostToolPermissionAction('notes:mutate')).toBe(false);
     expect(isHostToolPermissionAction('browser:lock')).toBe(true);
+    expect(isHostToolPermissionAction('browser:status')).toBe(true);
+    expect(isHostToolPermissionAction('browser:restart')).toBe(true);
+    expect(isHostToolPermissionAction('browser:viewport')).toBe(true);
+    expect(isHostToolPermissionAction('browser:tabs')).toBe(true);
+    expect(isHostToolPermissionAction('browser:dialog')).toBe(true);
+    expect(isHostToolPermissionAction('browser:upload')).toBe(true);
+    expect(isHostToolPermissionAction('browser:console')).toBe(true);
+    expect(isHostToolPermissionAction('browser:network')).toBe(true);
     expect(isHostToolPermissionAction('browser:interact')).toBe(false);
     expect(new Set(HOST_TOOL_PERMISSION_ACTIONS).size).toBe(HOST_TOOL_PERMISSION_ACTIONS.length);
   });

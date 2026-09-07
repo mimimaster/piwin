@@ -1,7 +1,9 @@
 /**
- * Chrome DevTools screencast for the desktop workbench (ADR 0057).
- * JPEG frames are emitted with CSS viewport width/height from CDP metadata.
- * Every frame must be acked or Chrome stops sending.
+ * Playwright public page.screencast for the workbench mirror.
+ * Frames are delivered only via start({ onFrame }); 1.61.1 does not implement
+ * .on('screencastFrame'). Playwright owns CDP acks — do not also call
+ * Page.startScreencast. Width/height are CSS viewport from onFrame, not JPEG
+ * pixel size. Emit is capped so Chrome's ~50 fps stream does not flood Host.
  */
 import type { Page } from 'playwright-core';
 
@@ -16,104 +18,107 @@ export type ScreencastHandle = {
   stop(): Promise<void>;
 };
 
-type CdpSession = {
-  on(event: string, listener: (payload: unknown) => void): void;
-  send(method: string, params?: Record<string, unknown>): Promise<unknown>;
-  detach(): Promise<void>;
+const DEFAULT_QUALITY = 55;
+const DEFAULT_MAX_FPS = 12;
+
+type PublicScreencast = {
+  start(options: {
+    onFrame: (frame: {
+      data: Buffer;
+      timestamp: number;
+      viewportWidth: number;
+      viewportHeight: number;
+    }) => void;
+    size: { width: number; height: number };
+    quality: number;
+  }): Promise<unknown>;
+  stop(): Promise<void>;
 };
 
-function readScreencastFrame(payload: unknown): {
-  data: string;
-  sessionId: number;
-  deviceWidth: number;
-  deviceHeight: number;
-} | null {
-  if (typeof payload !== 'object' || payload === null) return null;
-  const record = payload as Record<string, unknown>;
-  if (typeof record.data !== 'string' || typeof record.sessionId !== 'number') {
-    return null;
+function getPublicScreencast(page: Page): PublicScreencast {
+  const candidate: unknown = page.screencast;
+  if (typeof candidate !== 'object' || candidate === null) {
+    throw new Error('page.screencast.start is unavailable');
   }
-  const metadata =
-    typeof record.metadata === 'object' && record.metadata !== null
-      ? (record.metadata as Record<string, unknown>)
-      : {};
-  const deviceWidth = typeof metadata.deviceWidth === 'number' ? metadata.deviceWidth : 0;
-  const deviceHeight = typeof metadata.deviceHeight === 'number' ? metadata.deviceHeight : 0;
-  if (deviceWidth <= 0 || deviceHeight <= 0) return null;
-  return { data: record.data, sessionId: record.sessionId, deviceWidth, deviceHeight };
+  const screencast = candidate as { start?: unknown; stop?: unknown };
+  if (typeof screencast.start !== 'function' || typeof screencast.stop !== 'function') {
+    throw new Error('page.screencast.start is unavailable');
+  }
+  return candidate as PublicScreencast;
+}
+
+async function stopQuietly(screencast: PublicScreencast): Promise<void> {
+  try {
+    await screencast.stop();
+  } catch {
+    // Not running, or the page/context is already gone.
+  }
 }
 
 export async function startScreencast(
   page: Page,
   options: {
     maxDimension: number;
-    quality?: number;
     emit: (frame: ScreencastFrame) => void;
+    quality?: number;
+    maxFps?: number;
+    now?: () => number;
   },
 ): Promise<ScreencastHandle> {
-  const quality = options.quality ?? 55;
-  const cdp = (await page.context().newCDPSession(page)) as unknown as CdpSession;
+  const screencast = getPublicScreencast(page);
+  const quality = options.quality ?? DEFAULT_QUALITY;
+  const minIntervalMs = Math.round(1000 / (options.maxFps ?? DEFAULT_MAX_FPS));
+  const now = options.now ?? Date.now;
   let stopped = false;
+  let lastEmit = -Infinity;
 
-  cdp.on('Page.screencastFrame', (payload) => {
-    const frame = readScreencastFrame(payload);
-    const sessionId =
-      frame?.sessionId ??
-      (typeof payload === 'object' &&
-      payload !== null &&
-      typeof (payload as { sessionId?: unknown }).sessionId === 'number'
-        ? (payload as { sessionId: number }).sessionId
-        : undefined);
-    if (frame && !stopped) {
-      try {
-        options.emit({
-          dataUrl: `data:image/jpeg;base64,${frame.data}`,
-          width: frame.deviceWidth,
-          height: frame.deviceHeight,
-          ts: Date.now(),
-        });
-      } catch {
-        // Emit is best-effort; ack still required so Chrome keeps sending.
-      }
+  const handleFrame = (frame: {
+    data: Buffer;
+    timestamp: number;
+    viewportWidth: number;
+    viewportHeight: number;
+  }): void => {
+    if (stopped) return;
+    if (frame.viewportWidth <= 0 || frame.viewportHeight <= 0) return;
+    const ts = now();
+    if (ts - lastEmit < minIntervalMs) return;
+    lastEmit = ts;
+    try {
+      options.emit({
+        dataUrl: `data:image/jpeg;base64,${Buffer.from(frame.data).toString('base64')}`,
+        width: frame.viewportWidth,
+        height: frame.viewportHeight,
+        ts,
+      });
+    } catch {
+      // Emit is best-effort. onFrame must not throw so Playwright can ack.
     }
-    if (sessionId !== undefined) {
-      void cdp.send('Page.screencastFrameAck', { sessionId }).catch(() => undefined);
-    }
-  });
+  };
+
+  const startOptions = {
+    onFrame: handleFrame,
+    size: { width: options.maxDimension, height: options.maxDimension },
+    quality,
+  };
 
   try {
-    await cdp.send('Page.startScreencast', {
-      format: 'jpeg',
-      quality,
-      maxWidth: options.maxDimension,
-      maxHeight: options.maxDimension,
-    });
+    await screencast.start(startOptions);
   } catch (error) {
+    // Client sets _started before the channel call; stop leftover then rebuild once.
+    await stopQuietly(screencast);
     try {
-      await cdp.detach();
-    } catch (detachError) {
-      throw new AggregateError(
-        [error, detachError],
-        'screencast start and CDP detach both failed',
-      );
+      await screencast.start(startOptions);
+    } catch {
+      await stopQuietly(screencast);
+      throw error;
     }
-    throw error;
   }
 
   return {
     async stop(): Promise<void> {
       if (stopped) return;
       stopped = true;
-      try {
-        await cdp.send('Page.stopScreencast');
-      } catch {
-        // Page may already be closed; detach still runs.
-      }
-      try {
-        await cdp.detach();
-      } catch {
-        // Detach after context close is expected.
-      }
+      await stopQuietly(screencast);
     },
   };
 }

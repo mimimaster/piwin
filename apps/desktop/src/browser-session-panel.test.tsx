@@ -608,4 +608,115 @@ describe('BrowserSessionPanel', () => {
     });
     expect(queryByTestId('browser-session-give-back')?.textContent).toBe('交还');
   });
+
+  function emitHostPush(client: HostClient, message: HostPush): void {
+    const listeners = (client as unknown as { listeners: Set<(m: unknown) => void> }).listeners;
+    act(() => {
+      for (const listener of listeners) {
+        listener(message);
+      }
+    });
+  }
+
+  function stubFrameClickTarget(img: HTMLImageElement): void {
+    stubImgMetrics(img, 800, 600);
+    img.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      right: 800,
+      bottom: 600,
+      width: 800,
+      height: 600,
+      x: 0,
+      y: 0,
+      toJSON: () => '',
+    });
+  }
+
+  it('disables pointer, IME, and pick while the runtime is recovering', async () => {
+    const client = createMockHostClient();
+    const inputSpy = vi.spyOn(client, 'browserInput');
+    const pickAtSpy = vi.spyOn(client, 'browserPickAt');
+    renderPanel({ hostClient: client });
+    emitHostPush(client, {
+      type: 'browser/frame',
+      dataUrl: 'data:image/png;base64,AAAA',
+      width: 800,
+      height: 600,
+      ts: Date.now(),
+    });
+    emitHostPush(client, {
+      type: 'browser/state',
+      lifecycle: 'recovering',
+      mirror: 'off',
+      generation: 1,
+      pageId: 'page-1',
+      ts: Date.now(),
+    });
+
+    const banner = queryByTestId('browser-session-runtime-banner');
+    expect(banner).not.toBeNull();
+    expect(banner?.textContent).toContain('正在恢复');
+    expect(queryByTestId('browser-session-restart')).not.toBeNull();
+    expect((queryByTestId('browser-session-pick-toggle') as HTMLButtonElement).disabled).toBe(true);
+    expect((queryByTestId('browser-session-url-input') as HTMLInputElement).disabled).toBe(true);
+    expect((queryByTestId('browser-session-go-btn') as HTMLButtonElement).disabled).toBe(true);
+    expect(queryByTestId('browser-session-ime')).toBeNull();
+
+    const img = queryByTestId('browser-session-frame') as HTMLImageElement;
+    expect(img.classList.contains('stale')).toBe(true);
+    stubFrameClickTarget(img);
+    await act(async () => {
+      img.dispatchEvent(
+        new window.MouseEvent('click', {
+          bubbles: true,
+          cancelable: true,
+          clientX: 40,
+          clientY: 20,
+        }),
+      );
+    });
+    expect(inputSpy).not.toHaveBeenCalled();
+    expect(pickAtSpy).not.toHaveBeenCalled();
+  });
+
+  it('Restart calls hostClient.browserRestart', async () => {
+    const client = createMockHostClient();
+    const restartSpy = vi.spyOn(client, 'browserRestart');
+    renderPanel({ hostClient: client });
+    emitHostPush(client, {
+      type: 'browser/state',
+      lifecycle: 'failed',
+      mirror: 'off',
+      generation: 1,
+      ts: Date.now(),
+    });
+    const button = queryByTestId('browser-session-restart') as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+    await act(async () => {
+      button.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    });
+    expect(restartSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears the mirror error when Host reports ready streaming', async () => {
+    const client = createMockHostClient();
+    vi.spyOn(client, 'browserStart').mockRejectedValue(new Error('nope'));
+    renderPanel({ hostClient: client });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(queryByTestId('browser-session-mirror-error')).not.toBeNull();
+    expect(queryByTestId('browser-session-runtime-banner')).not.toBeNull();
+
+    emitHostPush(client, {
+      type: 'browser/state',
+      lifecycle: 'ready',
+      mirror: 'streaming',
+      generation: 1,
+      ts: Date.now(),
+    });
+    expect(queryByTestId('browser-session-mirror-error')).toBeNull();
+    expect(queryByTestId('browser-session-runtime-banner')).toBeNull();
+  });
 });

@@ -68,6 +68,7 @@ import {
   normalizeKnowledgeConfig,
   normalizeNotesKnowledgeExtras,
 } from './config-store-knowledge.js';
+import { normalizeBrowserWorkbenchConfig } from './config-store-browser.js';
 import {
   isBlockingValidationIssue,
   sanitizeProvidersForSave,
@@ -290,6 +291,10 @@ export function normalizePiwinConfig(value: unknown): PiwinConfig {
   const replyWriter = normalizeReplyWriterConfig(record.replyWriter);
   if (replyWriter) {
     normalized.replyWriter = replyWriter;
+  }
+  const browser = normalizeBrowserWorkbenchConfig(record.browser);
+  if (browser) {
+    normalized.browser = browser;
   }
   return normalized;
 }

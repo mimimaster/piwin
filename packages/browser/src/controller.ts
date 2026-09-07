@@ -3,10 +3,13 @@
  *
  * Agent write tools acquire `agent` only from `idle`. The human takes the page
  * with `takeOver()`; agent acquire while `user` owns the page always fails.
- * The first writer run owns the lock (`holderRunId`); later writes do not steal
- * it. No Playwright, timers, or I/O — unit-test the transition table here.
+ * The first writer run owns the lock (`holderRunId`). A different runId cannot
+ * acquire or steal it (`browser-agent-has-control`); the same run, or a later
+ * write that omits runId, still succeeds. Failed acquire never clears the holder.
+ * No Playwright, timers, or I/O — unit-test the transition table here.
  */
 import {
+  BROWSER_AGENT_HAS_CONTROL,
   BROWSER_USER_HAS_CONTROL,
   type BrowserController,
 } from '@piwin/contracts';
@@ -20,7 +23,7 @@ export type AcquireResult =
   | { ok: true; state: BrowserControllerState; changed: boolean }
   | {
       ok: false;
-      code: typeof BROWSER_USER_HAS_CONTROL | 'browser-agent-has-control';
+      code: typeof BROWSER_USER_HAS_CONTROL | typeof BROWSER_AGENT_HAS_CONTROL;
       state: BrowserControllerState;
     };
 
@@ -63,7 +66,7 @@ export function createBrowserController(): BrowserControllerHandle {
     acquire(owner, runId) {
       if (owner === 'user') {
         if (state.owner === 'agent') {
-          return { ok: false, code: 'browser-agent-has-control', state: copy(state) };
+          return { ok: false, code: BROWSER_AGENT_HAS_CONTROL, state: copy(state) };
         }
         const changed = state.owner !== 'user';
         state.owner = 'user';
@@ -71,6 +74,15 @@ export function createBrowserController(): BrowserControllerHandle {
       }
       if (state.owner === 'user') {
         return { ok: false, code: BROWSER_USER_HAS_CONTROL, state: copy(state) };
+      }
+      if (
+        state.owner === 'agent' &&
+        holderRunId !== undefined &&
+        typeof runId === 'string' &&
+        runId.length > 0 &&
+        runId !== holderRunId
+      ) {
+        return { ok: false, code: BROWSER_AGENT_HAS_CONTROL, state: copy(state) };
       }
       const changed = state.owner !== 'agent' || !state.agentWantsLock;
       if (state.owner !== 'agent' && typeof runId === 'string' && runId.length > 0) {

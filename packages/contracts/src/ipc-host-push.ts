@@ -8,7 +8,11 @@ import type {
   SessionSummary,
 } from './host.js';
 import type { ExtensionUiKind } from './extension-ui.js';
-import type { BrowserControllerPush, WebElementPickResult } from './browser.js';
+import type {
+  BrowserControllerPush,
+  BrowserStatePush,
+  WebElementPickResult,
+} from './browser.js';
 import type { ContextSummaryPush } from './model-context.js';
 import type { SessionContextSnapshot } from './context-telemetry.js';
 import type { ExtensionDeploymentRecord, ExtensionSummary } from './extensions.js';
@@ -178,7 +182,7 @@ export type HostPushVariant =
   // Playwright viewportSize), not JPEG bitmap px. The panel maps clicks
   // against these values vs img.clientWidth — never img.naturalWidth.
   | { type: 'browser/frame'; dataUrl: string; width: number; height: number; ts: number }
-  | { type: 'browser/state'; url?: string; title?: string; ts: number }
+  | BrowserStatePush
   | { type: 'browser/picked'; result: WebElementPickResult }
   | {
       type: 'browser/console';

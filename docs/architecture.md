@@ -715,27 +715,45 @@ session. See
 ## 8. Browser Session
 
 A host-owned, Playwright-driven browser session (`@piwin/browser`, ADR 0020) that
-owns **one** headless Chromium shared by the agent and the desktop panel — "what
-the user sees == what the agent controls". `web_fetch` `fetchFallback: 'browser'`
-is a **different** Chromium (ADR 0058): one-shot `renderPageHtml`, no profile,
-no panel pushes, then the same Readability extract.
+owns **one** Chromium (default headless; `PiwinConfig.browser.headless=false` for
+a Host-owned headed window) shared by the agent and the desktop panel — "what
+the user sees == what the agent controls". Host can instead attach to an
+explicit loopback `PiwinConfig.browser.cdpEndpoint` via Playwright
+`connectOverCDP`; after `browser_tabs` select, the same snapshot/click/type/mirror
+surface drives that page. Detaching does not close the external browser.
+`web_fetch` `fetchFallback: 'browser'` is a **different** Chromium (ADR 0058):
+one-shot `renderPageHtml`, no profile, no panel pushes, then the same Readability
+extract. Chrome daily-session autoConnect is not shipped.
 
 - **Workbench** — the desktop `BrowserSessionPanel` is an interactive mirror of
-  the same Chromium: CDP `Page.startScreencast` (~12–15 fps, JPEG) falling back
-  to screenshot frames, plus pointer/IME forwarding (`browser/input`). Default
-  mode is Interact; pick remains a modifier that attaches a composer chip.
+  the same Chromium: Playwright `page.screencast` JPEG frames (~12 fps) falling
+  back to screenshot frames, plus pointer/IME forwarding (`browser/input`).
+  Default mode is Interact; pick remains a modifier that attaches a composer chip.
   Desktop opens the right-sidebar Browser tab when the agent acquires the page
-  or navigates, and the Playwright viewport tracks the panel box.
+  or navigates. The Host CSS viewport defaults to **1280×800**; the panel scales
+  with `object-fit: contain` and does not shrink the page to the inspector box.
 - **Controller lock** — `idle | user | agent` (ADR 0057). Write tools auto-acquire
   `agent` from idle. The human takes over explicitly; the agent never auto-steals.
   If the user holds the page, write tools return `browser-user-has-control`.
+  A second Run cannot steal an agent lock (`browser-agent-has-control`).
   Streaming a coding turn is **not** the lock. The run that first acquired
   `agent` releases that claim when it terminals; other runs do not.
+  Chromium death is recovered once per fault (page vs context/browser); dispatched
+  writes are not replayed. Closing the panel does not kill a run that still holds
+  the claim.
 - **Agent tools** — `browser_navigate` / `browser_snapshot` / `browser_click` /
   `browser_type` / `browser_fill_form` / `browser_scroll` / `browser_screenshot` /
   `browser_find` / `browser_back` / `browser_forward` / `browser_wait` /
-  `browser_lock` are first-class model-visible tools (not `piwin_toolbox`
-  targets), registered by `@piwin/host-runtime` (`browser-tools.ts`). Snapshots
+  `browser_lock` / `browser_status` / `browser_restart` / `browser_reload` /
+  `browser_press_key` / `browser_wait_for` / `browser_viewport` /
+  `browser_hover` / `browser_select_option` / `browser_set_checked` /
+  `browser_tabs` / `browser_dialog` / `browser_upload` / `browser_console` /
+  `browser_network` are first-class
+  model-visible tools (not `piwin_toolbox` targets), registered by
+  `@piwin/host-runtime`. Tabs keep a stable `pageId`; popups are listed and not
+  auto-selected. Dialogs accept/dismiss with a timeout instead of hanging.
+  Uploads take Host-accessible paths through file permission; downloads persist
+  as Host file refs. Console/network query a bounded ring buffer. Snapshots
   use the **same ref grammar as `@playwright/mcp`**: `locator('html').ariaSnapshot({
   mode: 'ai', boxes: true })` emits `[ref=eN]` + `[box=x,y,w,h]` annotations, and
   refs resolve via `locator('aria-ref=e5')`. The snapshot output is **not** parseable

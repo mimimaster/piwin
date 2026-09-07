@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BROWSER_USER_HAS_CONTROL } from '@piwin/contracts';
+import { BROWSER_AGENT_HAS_CONTROL, BROWSER_USER_HAS_CONTROL } from '@piwin/contracts';
 import { createBrowserController } from './controller.js';
 
 describe('createBrowserController', () => {
@@ -142,5 +142,27 @@ describe('createBrowserController', () => {
       agentWantsLock: false,
     });
     expect(controller.giveBack()).toEqual({ owner: 'idle', agentWantsLock: false });
+  });
+
+  it('rejects a different agent run while the holder still owns the lock', () => {
+    const controller = createBrowserController();
+    const first = controller.acquire('agent', 'run-A');
+    expect(first.ok).toBe(true);
+    expect(controller.holderRunId()).toBe('run-A');
+
+    const second = controller.acquire('agent', 'run-B');
+    expect(second.ok).toBe(false);
+    if (second.ok) throw new Error('expected acquire to fail');
+    expect(second.code).toBe(BROWSER_AGENT_HAS_CONTROL);
+    expect(controller.holderRunId()).toBe('run-A');
+    expect(controller.snapshot()).toEqual({ owner: 'agent', agentWantsLock: true });
+  });
+
+  it('allows the holder run to acquire again and later writes without runId', () => {
+    const controller = createBrowserController();
+    controller.acquire('agent', 'run-A');
+    expect(controller.acquire('agent', 'run-A')).toMatchObject({ ok: true, changed: false });
+    expect(controller.acquire('agent')).toMatchObject({ ok: true });
+    expect(controller.holderRunId()).toBe('run-A');
   });
 });

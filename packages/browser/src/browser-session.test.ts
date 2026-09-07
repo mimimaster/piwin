@@ -55,6 +55,11 @@ function buildPage() {
     goBack: vi.fn().mockResolvedValue(null),
     goForward: vi.fn().mockResolvedValue(null),
     context: vi.fn(),
+    isClosed: vi.fn().mockReturnValue(false),
+    screencast: {
+      start: vi.fn().mockRejectedValue(new Error('screencast unavailable')),
+      stop: vi.fn().mockResolvedValue(undefined),
+    },
   };
 }
 
@@ -71,6 +76,8 @@ function installWorkingBrowser() {
   page.context.mockReturnValue(context);
   const browser = {
     close: vi.fn().mockResolvedValue(undefined),
+    isConnected: vi.fn().mockReturnValue(true),
+    on: vi.fn(),
   };
   launchMock.mockResolvedValue({ ...context, browser: () => browser });
   return { page, context, browser };
@@ -94,8 +101,14 @@ describe('createBrowserSession navigation validation', () => {
     const session = createBrowserSession();
     await session.navigate('https://example.com/path?q=1');
     await session.navigate('http://localhost:1420/');
-    expect(page.goto).toHaveBeenNthCalledWith(1, 'https://example.com/path?q=1');
-    expect(page.goto).toHaveBeenNthCalledWith(2, 'http://localhost:1420/');
+    expect(page.goto).toHaveBeenNthCalledWith(1, 'https://example.com/path?q=1', {
+      timeout: 15_000,
+      waitUntil: 'domcontentloaded',
+    });
+    expect(page.goto).toHaveBeenNthCalledWith(2, 'http://localhost:1420/', {
+      timeout: 15_000,
+      waitUntil: 'domcontentloaded',
+    });
   });
 
   it('allows file URLs only for the user actor', async () => {
@@ -108,7 +121,10 @@ describe('createBrowserSession navigation validation', () => {
     const userSession = createBrowserSession();
     const { page } = installWorkingBrowser();
     await userSession.navigate('file:///tmp/index.html', { actor: 'user' });
-    expect(page.goto).toHaveBeenCalledWith('file:///tmp/index.html');
+    expect(page.goto).toHaveBeenCalledWith('file:///tmp/index.html', {
+      timeout: 15_000,
+      waitUntil: 'domcontentloaded',
+    });
   });
 });
 
@@ -242,10 +258,11 @@ describe('subscribe / frames', () => {
       expect(events.some((e) => (e as { type: string }).type === 'browser/frame')).toBe(true);
     });
 
-    const stateEvent = events.find((e) => (e as { type: string }).type === 'browser/state') as {
-      url?: string;
-      title?: string;
-    };
+    const stateEvent = events.find(
+      (event) =>
+        (event as { type: string }).type === 'browser/state' &&
+        (event as { url?: string }).url === 'https://example.com',
+    ) as { url?: string; title?: string };
     expect(stateEvent.url).toBe('https://example.com');
     expect(stateEvent.title).toBe('Example');
 
@@ -324,6 +341,42 @@ describe('session operations', () => {
 
     // Without this, a reused signal would accumulate a stale listener per wait.
     expect(removeSpy).toHaveBeenCalled();
+  });
+
+  it('does not run a click that was aborted while queued behind another exclusive op', async () => {
+    const { page } = installWorkingBrowser();
+    const session = createBrowserSession();
+    const gate = deferred<void>();
+    const started = deferred<void>();
+
+    const first = session.runExclusive(async () => {
+      started.resolve();
+      await gate.promise;
+    });
+    await started.promise;
+
+    const abort = new AbortController();
+    const clicking = session.click('e1', { signal: abort.signal });
+    abort.abort();
+    gate.resolve();
+    await first;
+
+    await expect(clicking).rejects.toThrow('aborted');
+    expect(page.locator).not.toHaveBeenCalled();
+  });
+
+  it('lets stop acquire the mutex in under 500ms while wait(5000) is sleeping', async () => {
+    installWorkingBrowser();
+    const session = createBrowserSession();
+    const abort = new AbortController();
+    const waiting = session.wait(5000, { signal: abort.signal });
+
+    const startedAt = Date.now();
+    await session.stop();
+    expect(Date.now() - startedAt).toBeLessThan(500);
+
+    abort.abort();
+    await expect(waiting).rejects.toThrow('aborted');
   });
 
   it('screenshot writes a file when a path is given', async () => {
@@ -548,17 +601,118 @@ describe('workbench controller and input (ADR 0057)', () => {
     expect(session.controllerState()).toEqual({ owner: 'idle', agentWantsLock: false });
   });
 
-  it('falls back to screenshot frames when CDP screencast cannot start', async () => {
+  it('emits lifecycle generation and pageId on browser/state', async () => {
+    installWorkingBrowser();
+    const session = createBrowserSession();
+    const states: Array<Record<string, unknown>> = [];
+    session.subscribe((event) => {
+      if (event.type === 'browser/state') states.push(event);
+    });
+    await session.start('panel');
+    const ready = states.find((event) => event['lifecycle'] === 'ready');
+    expect(ready).toMatchObject({
+      type: 'browser/state',
+      lifecycle: 'ready',
+      generation: 1,
+      url: 'https://example.com',
+      title: 'Example',
+    });
+    expect(typeof ready?.['pageId']).toBe('string');
+    await session.stop('panel');
+  });
+
+  it('opens a blank page after the current page dies without adopting another tab', async () => {
+    const { page, context } = installWorkingBrowser();
+    const other = buildPage();
+    const blank = buildPage();
+    context.pages.mockReturnValue([page, other]);
+    context.newPage.mockResolvedValue(blank);
+    const session = createBrowserSession();
+
+    await session.navigate('https://example.com/first');
+    expect(page.goto).toHaveBeenCalledWith('https://example.com/first', {
+      timeout: 15_000,
+      waitUntil: 'domcontentloaded',
+    });
+
+    page.isClosed.mockReturnValue(true);
+    await session.navigate('https://example.com/after-page-death');
+
+    expect(launchMock).toHaveBeenCalledTimes(1);
+    expect(context.newPage).toHaveBeenCalledTimes(1);
+    expect(blank.goto).toHaveBeenCalledWith('https://example.com/after-page-death', {
+      timeout: 15_000,
+      waitUntil: 'domcontentloaded',
+    });
+    expect(other.goto).not.toHaveBeenCalled();
+  });
+
+  it('relaunches after the browser disconnects', async () => {
+    const first = installWorkingBrowser();
+    const session = createBrowserSession();
+    await session.navigate('https://example.com/first');
+    first.page.isClosed.mockReturnValue(true);
+    first.browser.isConnected.mockReturnValue(false);
+
+    const second = installWorkingBrowser();
+    await session.navigate('https://example.com/recovered');
+
+    expect(launchMock).toHaveBeenCalledTimes(2);
+    expect(second.page.goto).toHaveBeenCalledWith('https://example.com/recovered', {
+      timeout: 15_000,
+      waitUntil: 'domcontentloaded',
+    });
+  });
+
+  it('does not relaunch or replay navigate when a CDP session closes on a live page', async () => {
+    const { page, browser } = installWorkingBrowser();
+    const session = createBrowserSession();
+    page.goto.mockRejectedValueOnce(
+      new Error(
+        'CDP session closed. This usually means the browser process exited unexpectedly.',
+      ),
+    );
+
+    await expect(session.navigate('https://example.com')).rejects.toThrow(/CDP session closed/);
+    expect(launchMock).toHaveBeenCalledTimes(1);
+    expect(page.goto).toHaveBeenCalledTimes(1);
+    expect(browser.isConnected()).toBe(true);
+    expect(page.isClosed()).toBe(false);
+
+    await session.navigate('https://example.com');
+    expect(launchMock).toHaveBeenCalledTimes(1);
+    expect(page.goto).toHaveBeenCalledTimes(2);
+  });
+
+  it('falls back to screenshot frames when public screencast cannot start', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     installWorkingBrowser();
     const session = createBrowserSession();
     await expect(session.start('panel')).resolves.toEqual(expect.any(Object));
     expect(warn).toHaveBeenCalledWith(
       '[browser] screencast failed; falling back to screenshot frames',
-      'cdp unavailable',
+      'screencast unavailable',
     );
     await session.stop('panel');
     warn.mockRestore();
+  });
+
+  it('does not take screenshot frames while public screencast is live', async () => {
+    const { page } = installWorkingBrowser();
+    page.screencast.start.mockImplementation(async () => ({
+      [Symbol.dispose](): void {},
+    }));
+    const session = createBrowserSession();
+    const events: unknown[] = [];
+    const unsubscribe = session.subscribe((event) => events.push(event));
+    await session.start('panel');
+    expect(page.screencast.start).toHaveBeenCalled();
+    await session.navigate('https://example.com/next');
+    expect(page.screenshot).not.toHaveBeenCalled();
+    expect(page.screencast.start).toHaveBeenCalledTimes(1);
+    unsubscribe();
+    await session.stop('panel');
+    expect(page.screencast.stop).toHaveBeenCalled();
   });
 
   it('attaches console listeners when a mirror lease is acquired', async () => {
@@ -583,7 +737,7 @@ describe('workbench controller and input (ADR 0057)', () => {
   });
 
   it('returns the page to the agent if a run still wants the lock when the panel closes', async () => {
-    installWorkingBrowser();
+    const { context } = installWorkingBrowser();
     const session = createBrowserSession();
     await session.start('panel');
     await session.click('e1');
@@ -591,5 +745,33 @@ describe('workbench controller and input (ADR 0057)', () => {
     expect(session.controllerState()).toEqual({ owner: 'user', agentWantsLock: true });
     await session.stop('panel');
     expect(session.controllerState()).toEqual({ owner: 'agent', agentWantsLock: true });
+    expect(context.close).not.toHaveBeenCalled();
+  });
+});
+
+describe('mirror lease vs agent claim', () => {
+  it('keeps Chromium when the last lease stops while the agent holds the lock', async () => {
+    const { context, page } = installWorkingBrowser();
+    const session = createBrowserSession();
+    await session.start('panel');
+    await session.click('e1');
+    expect(session.controllerState()).toEqual({ owner: 'agent', agentWantsLock: true });
+    await session.stop('panel');
+    expect(context.close).not.toHaveBeenCalled();
+    expect(session.controllerState()).toEqual({ owner: 'agent', agentWantsLock: true });
+    await session.navigate('https://example.com/after-panel-close');
+    expect(launchMock).toHaveBeenCalledTimes(1);
+    expect(page.goto).toHaveBeenCalledWith('https://example.com/after-panel-close', {
+      timeout: 15_000,
+      waitUntil: 'domcontentloaded',
+    });
+  });
+
+  it('releases Chromium when the last lease stops with no agent claim', async () => {
+    const { context } = installWorkingBrowser();
+    const session = createBrowserSession();
+    await session.start('panel');
+    await session.stop('panel');
+    expect(context.close).toHaveBeenCalledTimes(1);
   });
 });

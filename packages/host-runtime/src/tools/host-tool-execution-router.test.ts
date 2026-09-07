@@ -175,6 +175,26 @@ describe('HostToolExecutionRouter', () => {
     }
   });
 
+  it('maps thrown browser runtime-gone errors onto the stable tool code', async () => {
+    const router = new HostToolExecutionRouter({
+      tools: [
+        tool('fragile', async () => {
+          const error = new Error('browser context is gone');
+          error.name = 'BrowserRuntimeGoneError';
+          throw error;
+        }),
+      ],
+      admission: createPermissiveToolAdmission(),
+    });
+    const result = await runTool(router, 'fragile', {});
+    expect(result).toMatchObject({
+      ok: false,
+      code: 'browser-runtime-gone',
+      retryable: true,
+      message: 'browser context is gone',
+    });
+  });
+
   it('reports aborted when the signal aborts during execution', async () => {
     const controller = new AbortController();
     const router = new HostToolExecutionRouter({

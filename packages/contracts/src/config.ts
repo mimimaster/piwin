@@ -707,6 +707,23 @@ export type PiwinConfig = {
   execution?: ExecutionConfig;
   /** Personal remote gateway (ADR 0027). Default off; W4 future. */
   remote?: RemoteConfig;
+  /**
+   * Host-owned browser workbench (ADR 0020). Omitted means headless Chromium
+   * with the default profile. `cdpEndpoint` is an explicit loopback Playwright
+   * `connectOverCDP` target; Chrome daily-session autoConnect is not this field.
+   */
+  browser?: BrowserWorkbenchConfig;
+};
+
+/** Host browser workbench launch/connect options under `PiwinConfig.browser`. */
+export type BrowserWorkbenchConfig = {
+  /** Default true. Headed Chromium is still Host-owned. */
+  headless?: boolean;
+  /**
+   * Explicit loopback CDP HTTP/WebSocket endpoint (e.g. `http://127.0.0.1:9222`).
+   * Host disconnects without closing the external browser.
+   */
+  cdpEndpoint?: string;
 };
 
 export function createDefaultCompactionConfig(): CompactionConfig {
