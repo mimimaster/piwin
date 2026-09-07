@@ -135,19 +135,26 @@ html[data-theme-id='piwin-inkstone-ink'] .turn-work-disclosure .chev {
 }
 
 /* S5.4.1: Thinking Draft Box (墨晕内省笺) */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .turn-work-details-body,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .conversation-thinking-body {
+  margin-left: calc(-1 * var(--row-pad));
+  width: calc(100% + var(--row-pad) * 2);
+  overflow: visible;
+}
+
 html[data-theme-id='piwin-inkstone-paper'] .think,
 html[data-theme-id='piwin-inkstone-ink'] .think,
 html[data-theme-id='piwin-inkstone-paper'] .turn-thinking,
 html[data-theme-id='piwin-inkstone-ink'] .turn-thinking {
   position: relative;
-  margin: 6px 0 10px calc(-1 * var(--row-pad));
-  width: calc(100% + var(--row-pad) * 2);
+  margin: 6px 0 10px 0;
+  width: 100%;
   max-width: none;
   box-sizing: border-box;
   padding: 12px 16px 14px 18px;
   border-radius: 8px;
-  border: 1px solid var(--l1);
-  background: var(--s2);
+  border: 1px solid var(--l2);
+  background: var(--s3);
   box-shadow: var(--sh1);
   overflow: hidden;
   color: var(--t2);
@@ -167,9 +174,11 @@ html[data-theme-id='piwin-inkstone-ink'] .turn-thinking::before {
   top: 0;
   bottom: 0;
   left: 0;
-  width: 2.5px;
+  width: 3px;
   background: var(--zhu);
-  opacity: 0.85;
+  z-index: 2;
+  border-top-left-radius: 7px;
+  border-bottom-left-radius: 7px;
   transition: opacity var(--t-1) var(--ease-out), background var(--t-1) var(--ease-out);
 }
 
@@ -206,6 +215,7 @@ html[data-theme-id='piwin-inkstone-ink'] .think pre {
   padding: 0;
   border: 0;
   font: inherit;
+  font-family: var(--mono);
   font-size: inherit;
   line-height: inherit;
   color: inherit;
