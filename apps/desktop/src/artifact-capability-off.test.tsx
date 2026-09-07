@@ -225,6 +225,12 @@ describe('artifact capability off (workbench / subagent / history)', () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
     resetArtifactInitQueueForTests();
     resetArtifactLiveHostRegistryForTests();
+    Object.defineProperties(HTMLDivElement.prototype, {
+      offsetHeight: { configurable: true, writable: true, value: 640 },
+      offsetWidth: { configurable: true, writable: true, value: 900 },
+      clientHeight: { configurable: true, writable: true, value: 640 },
+      scrollHeight: { configurable: true, writable: true, value: 1200 },
+    });
   });
 
   afterEach(() => {
@@ -236,6 +242,10 @@ describe('artifact capability off (workbench / subagent / history)', () => {
       });
       render.container.remove();
     }
+    Reflect.deleteProperty(HTMLDivElement.prototype, 'offsetHeight');
+    Reflect.deleteProperty(HTMLDivElement.prototype, 'offsetWidth');
+    Reflect.deleteProperty(HTMLDivElement.prototype, 'clientHeight');
+    Reflect.deleteProperty(HTMLDivElement.prototype, 'scrollHeight');
     resetArtifactInitQueueForTests();
     resetArtifactLiveHostRegistryForTests();
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;

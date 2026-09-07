@@ -666,7 +666,7 @@ describe('ToolCallCard openable file paths', () => {
     expect(container.textContent).not.toContain('无输出');
   });
 
-  it('opens an edit file pill through onOpenDiff instead of expanding inline', async () => {
+  it('expands an edit file pill inline and opens full diff through diff-open-all button', async () => {
     const onOpenFile = vi.fn();
     const onOpenDiff = vi.fn();
     const editTool: ToolCardUi = {
@@ -715,12 +715,30 @@ describe('ToolCallCard openable file paths', () => {
       container.querySelector<HTMLElement>('[data-testid="tool-call-file-pill"]')?.click();
     });
 
-    expect(onOpenDiff).toHaveBeenCalledWith('/workspace/src/foo.ts', 'src/foo.ts');
-    expect(onOpenFile).not.toHaveBeenCalled();
+    // Pill click expands inline dropdown instead of jumping to inspector
+    expect(onOpenDiff).not.toHaveBeenCalled();
     expect(container.querySelector('[data-testid="tool-call-card"]')?.classList.contains('is-expanded')).toBe(
-      false,
+      true,
     );
-    expect(container.querySelector('[data-testid="diff-card"]')).toBeNull();
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(request).toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="diff-card"]')).not.toBeNull();
+
+    // Clicking '全部差异 ↗' in the inline DiffCard header triggers onOpenDiff
+    act(() => {
+      container.querySelector<HTMLElement>('[data-testid="diff-open-all"]')?.click();
+    });
+    expect(onOpenDiff).toHaveBeenCalledWith('/workspace/src/foo.ts', 'src/foo.ts');
+
+    // Clicking '打开' in the inline DiffCard header triggers onOpenFile
+    act(() => {
+      container.querySelector<HTMLElement>('[data-testid="diff-open-file"]')?.click();
+    });
+    expect(onOpenFile).toHaveBeenCalledWith('/workspace/src/foo.ts', 'src/foo.ts');
   });
 
   it('recovers a write path from inputPreview JSON so click can show a diff', async () => {

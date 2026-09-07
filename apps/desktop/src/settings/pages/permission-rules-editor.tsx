@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import type { HostCommand, HostResponse, PermissionRulesFile } from '@piwin/contracts';
 import { Button, Notice } from '@piwin/ui-kit';
+import { IconClose } from '../../shell-icons.js';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { PageTitle } from '../page-title';
 import { useSettings } from '../settings-context';
@@ -194,7 +195,7 @@ export function PermissionRulesEditor(): ReactElement | null {
                     onClick={() => applyRules(rowsToFile(rows.filter((item) => item.id !== row.id)))}
                     disabled={saving}
                   >
-                    ×
+                    <IconClose />
                   </Button>
                 </div>
               ))}

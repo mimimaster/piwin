@@ -335,7 +335,7 @@ describe('Flashcard study workbench', () => {
     expect(fake.calls.filter((command) => command.type === 'flashcards/study/pause')).toHaveLength(1);
 
     act(() => {
-      container.querySelector<HTMLButtonElement>('[data-testid="flashcard-tile-seq_os"] .fcws-tile-face')?.click();
+      container.querySelector<HTMLButtonElement>('[data-testid="flashcard-open-seq_os"]')?.click();
     });
     await flush(16);
     expect(fake.calls.filter((command) => command.type === 'flashcards/study/resume')).toHaveLength(1);

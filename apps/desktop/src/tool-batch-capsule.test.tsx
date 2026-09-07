@@ -86,7 +86,7 @@ describe('ToolBatchCapsule', () => {
     const capsule = container.querySelector('[data-testid="tool-batch-capsule"]');
     expect(capsule).not.toBeNull();
     expect(capsule?.getAttribute('data-expanded')).toBe('false');
-    expect(container.textContent).toContain('检索了 3 处代码');
+    expect(container.textContent).toContain('搜索了 3 处代码');
     expect(container.querySelector('[data-testid="tool-batch-body"]')).toBeNull();
   });
 

@@ -200,14 +200,13 @@ export function ExploreFlowCapsule(props: ExploreFlowCapsuleProps): ReactElement
           <ChainIconSearch className="tool-batch-kind-icon" />
         </span>
 
-        <div className="tool-batch-title-group">
+        <div className="tool-batch-title-group" data-testid="explore-flow-title">
           {(() => {
             const parts = exploreFlowTitleParts(group, isChinese);
             return (
               <>
                 <b
                   className={`tool-batch-title${group.isLive ? ' behavior-explore-active' : ''}`}
-                  data-testid="explore-flow-title"
                 >
                   {parts.lead}
                 </b>
