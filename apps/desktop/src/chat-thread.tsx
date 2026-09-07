@@ -38,6 +38,7 @@ import { resolveConversationTurnChrome } from './conversation-turn-chrome';
 import { projectTurnWorkDisclosure } from './turn-work-disclosure-model.js';
 import { TurnWorkDisclosure } from './turn-work-disclosure.js';
 import { TurnWorkDetails } from './turn-work-details.js';
+import { isDuplicateThinking } from './thinking-dedup.js';
 import { CompactionActivity } from './compaction-activity.js';
 import {
   ChatTurnHead,
@@ -532,12 +533,25 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                     ? () => props.onRetryTurn?.(precedingUser.id, { keepPrevious: true })
                     : undefined;
                 const exploreRole = exploreRolesByMessageId.get(message.id);
+                const priorThinking = turn.items
+                  .slice(0, itemIndex)
+                  .filter(
+                    (item) =>
+                      item.message.role === 'assistant' &&
+                      item.message.thinking.trim().length > 0,
+                  )
+                  .map((item) => item.message.thinking);
+                const isThinkingDuplicate =
+                  message.role === 'assistant' &&
+                  message.thinking.trim().length > 0 &&
+                  isDuplicateThinking(message.thinking, priorThinking);
                 const moveFinalThinkingIntoWork =
                   !conversationSession &&
                   workDisclosureProjection !== null &&
                   itemIndex === workDisclosureProjection.endIndex + 1 &&
                   message.role === 'assistant' &&
                   message.thinking.trim().length > 0 &&
+                  !isThinkingDuplicate &&
                   props.showThinking !== false &&
                   exploreRole === undefined;
                 const effectiveMessage =
@@ -618,7 +632,11 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                     {...(props.onPermission !== undefined ? { onPermission: props.onPermission } : {})}
                     workDetailsExpanded={props.workDetailsExpanded ?? 'auto'}
                     toolDensity={props.toolDensity ?? 'comfortable'}
-                    showThinking={moveFinalThinkingIntoWork ? false : props.showThinking !== false}
+                    showThinking={
+                      isThinkingDuplicate || moveFinalThinkingIntoWork
+                        ? false
+                        : props.showThinking !== false
+                    }
                     {...(props.projectPath !== undefined
                       ? { projectPath: props.projectPath }
                       : {})}
@@ -735,10 +753,9 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                         runRecordsById={props.runRecordsById ?? {}}
                         activeRunId={null}
                         permissionPrompt={null}
-                        workDetailsExpanded="always"
+                        workDetailsExpanded={props.workDetailsExpanded ?? 'auto'}
                         toolDensity={props.toolDensity ?? 'comfortable'}
                         showThinking
-                        hideFoldHeader
                         locale={props.locale ?? 'zh-CN'}
                       />
                     </div>
