@@ -6,8 +6,8 @@ html[data-theme-id='piwin-inkstone-ink'] .prose {
   color: var(--t1);
 }
 
-html[data-theme-id='piwin-inkstone-paper'] .has-stream-caret::after,
-html[data-theme-id='piwin-inkstone-ink'] .has-stream-caret::after,
+html[data-theme-id='piwin-inkstone-paper'] .markdown.has-stream-caret > :last-child::after,
+html[data-theme-id='piwin-inkstone-ink'] .markdown.has-stream-caret > :last-child::after,
 html[data-theme-id='piwin-inkstone-paper'] .caret,
 html[data-theme-id='piwin-inkstone-ink'] .caret {
   content: '';
@@ -17,7 +17,13 @@ html[data-theme-id='piwin-inkstone-ink'] .caret {
   background: var(--lamp);
   vertical-align: -2px;
   margin-left: 2px;
+  border-radius: 1px;
   animation: breath 1s ease-in-out infinite;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .has-stream-caret::after,
+html[data-theme-id='piwin-inkstone-ink'] .has-stream-caret::after {
+  content: none;
 }
 
 /* S5.13: Diff card (.dc) */
