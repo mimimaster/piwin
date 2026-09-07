@@ -280,24 +280,59 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-status {
   display: inline-flex !important;
   align-items: center !important;
-  gap: 5px !important;
-  height: 20px !important;
-  max-height: 20px !important;
-  padding: 0 7px !important;
-  border-radius: 4px !important;
-  border: 1px solid var(--l2) !important;
-  background: var(--s3) !important;
+  gap: 6px !important;
+  height: 24px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
   box-shadow: none !important;
   outline: none !important;
-  font: 500 10.5px/1 var(--mono) !important;
-  color: var(--t2) !important;
-  margin-left: 4px !important;
+  margin-left: 6px !important;
   box-sizing: border-box !important;
   flex: none;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-status[data-kind='idle']:not(:has(button)) {
-  display: none !important;
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-status .pl {
+  font: 11px var(--mono);
+  color: var(--t4);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-status .seg {
+  display: inline-flex;
+  border: 1px solid var(--l2);
+  border-radius: 5px;
+  overflow: hidden;
+  flex: none;
+  background: var(--s1);
+  box-sizing: border-box;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-status .seg button {
+  font: 11px var(--mono);
+  padding: 2px 8px;
+  color: var(--t3);
+  border: 0;
+  background: transparent;
+  cursor: default;
+  line-height: 18px;
+  height: 20px;
+  white-space: nowrap;
+  transition: background var(--t-1) var(--ease-out), color var(--t-1) var(--ease-out);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-status .seg button.on {
+  background: var(--s3);
+  color: var(--t1);
+  box-shadow: var(--sh1);
+  font-weight: 500;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-status .seg button.on.is-waiting {
+  color: var(--zhu);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-status .seg button.is-clickable {
+  cursor: pointer;
 }
 
 /* ── Buttons and icons (proto `.ib` + `.i.s14`) ─────────────────────── */

@@ -123,9 +123,9 @@ describe('ContextBar', () => {
     expect(statusRegions).toHaveLength(1);
     expect(statusRegions[0]?.getAttribute('data-kind')).toBe('idle');
     expect(container.querySelector('[data-testid="workspace-context-header"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="run-status-stop"]')).toBeNull();
-    expect(container.querySelector('[data-testid="run-status-stopping"]')).toBeNull();
-    expect(container.querySelector('.context-bar-status-label')).toBeNull();
+    expect(container.querySelector('[data-testid="status-seg-idle"]')?.classList.contains('on')).toBe(true);
+    expect(container.querySelector('[data-testid="status-seg-running"]')?.classList.contains('on')).toBe(false);
+    expect(container.querySelector('[data-testid="status-seg-waiting"]')?.classList.contains('on')).toBe(false);
     expect(container.textContent).toContain('Session Alpha');
     expect(container.textContent).toContain('Project');
   });
@@ -159,35 +159,43 @@ describe('ContextBar', () => {
     );
   });
 
-  it('formats elapsed time over one minute as "1m 15s"', () => {
-    renderContextBar(
-      createBaseProps({ runState: { ...createWorkingRunStatus(), elapsedMs: 75_000 } }),
-      root,
-    );
-
-    expect(container.querySelector('.context-bar-elapsed')?.textContent).toBe('1m 15s');
-  });
-
-  it('shows stop when primary run can be stopped', () => {
-    const onStop = vi.fn();
-    renderContextBar(createBaseProps({ runState: createWorkingRunStatus(), onStop }), root);
+  it('highlights the running segment during active work', () => {
+    renderContextBar(createBaseProps({ runState: createWorkingRunStatus() }), root);
 
     const statusRegions = container.querySelectorAll('[data-testid="run-status-strip"]');
     expect(statusRegions).toHaveLength(1);
     expect(statusRegions[0]?.getAttribute('data-kind')).toBe('working');
-    expect(container.textContent).toContain('Running read_file');
-    expect(container.textContent).toContain('12s');
+    expect(container.querySelector('[data-testid="status-seg-running"]')?.classList.contains('on')).toBe(true);
+    expect(container.querySelector('[data-testid="status-seg-idle"]')?.classList.contains('on')).toBe(false);
+  });
 
-    const stopButton = container.querySelector<HTMLButtonElement>(
-      '[data-testid="run-status-stop"]',
+  it('highlights the waiting segment and supports reviewing permission', () => {
+    const onReviewPermission = vi.fn();
+    renderContextBar(
+      createBaseProps({
+        runState: {
+          kind: 'waiting-permission',
+          label: 'Waiting for approval',
+          summary: 'Reviewing permission request',
+          completedToolCount: 0,
+          runningJobCount: 0,
+          elapsedMs: 0,
+          canStop: false,
+          primaryAction: 'review-permission',
+        },
+        onReviewPermission,
+      }),
+      root,
     );
-    expect(stopButton).not.toBeNull();
-    expect(stopButton?.textContent).toMatch(/Stop/i);
 
+    const waitingBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="status-seg-waiting"]',
+    );
+    expect(waitingBtn?.classList.contains('on')).toBe(true);
     act(() => {
-      stopButton?.click();
+      waitingBtn?.click();
     });
-    expect(onStop).toHaveBeenCalledTimes(1);
+    expect(onReviewPermission).toHaveBeenCalledTimes(1);
   });
 
   it('shows retry when failed and onRetry is provided', () => {
@@ -198,11 +206,10 @@ describe('ContextBar', () => {
     expect(
       container.querySelector('[data-testid="run-status-strip"]')?.getAttribute('data-kind'),
     ).toBe('failed');
-    expect(container.querySelector('.context-bar-phase-dot.is-error')).not.toBeNull();
-    expect(container.querySelector('[data-testid="run-status-stop"]')).toBeNull();
+    expect(container.querySelector('[data-testid="status-seg-idle"]')?.classList.contains('on')).toBe(true);
 
     const retryButton = Array.from(container.querySelectorAll('button')).find((button) =>
-      /Retry/i.test(button.textContent ?? ''),
+      /Retry|重试/i.test(button.textContent ?? ''),
     );
     expect(retryButton).toBeDefined();
 
@@ -216,22 +223,19 @@ describe('ContextBar', () => {
     renderContextBar(createBaseProps({ runState: createFailedRunStatus() }), root);
 
     const retryButton = Array.from(container.querySelectorAll('button')).find((button) =>
-      /Retry/i.test(button.textContent ?? ''),
+      /Retry|重试/i.test(button.textContent ?? ''),
     );
     expect(retryButton).toBeUndefined();
   });
 
-  it('shows stopping label and hides stop while stopping', () => {
+  it('highlights running segment during stopping transition', () => {
     renderContextBar(createBaseProps({ runState: createStoppingRunStatus() }), root);
 
     expect(container.querySelectorAll('[data-testid="run-status-strip"]')).toHaveLength(1);
     expect(
       container.querySelector('[data-testid="run-status-strip"]')?.getAttribute('data-kind'),
     ).toBe('stopping');
-    expect(container.querySelector('[data-testid="run-status-stop"]')).toBeNull();
-    const stoppingLabel = container.querySelector('[data-testid="run-status-stopping"]');
-    expect(stoppingLabel).not.toBeNull();
-    expect(stoppingLabel?.textContent).toMatch(/Stopping/i);
+    expect(container.querySelector('[data-testid="status-seg-running"]')?.classList.contains('on')).toBe(true);
   });
 
   it('does not host the work-panel toggle until shell chrome props are provided', () => {
@@ -318,7 +322,7 @@ describe('ContextBar', () => {
     expect(container.querySelector('[data-testid="right-panel-open-btn"]')).not.toBeNull();
   });
 
-  it('shows Conversation activity copy and hides Agent actions', () => {
+  it('shows running segment and hides Agent actions', () => {
     renderContextBar(
       createBaseProps({
         runState: createWorkingRunStatus(),
@@ -328,9 +332,7 @@ describe('ContextBar', () => {
       root,
     );
 
-    expect(container.querySelector('[data-testid="conversation-activity"]')?.textContent).toBe(
-      'Running tool…',
-    );
+    expect(container.querySelector('[data-testid="status-seg-running"]')?.classList.contains('on')).toBe(true);
     expect(container.textContent).not.toContain('read_file');
     expect(container.textContent).not.toContain('Activity');
     expect(container.querySelector('[data-testid="context-bar-mode-badge"]')).not.toBeNull();
