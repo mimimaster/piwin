@@ -54,12 +54,16 @@ type DiffState =
   | { kind: 'error'; message: string }
   | { kind: 'ready'; fileDiff: GitFileDiff };
 
-export function DiffCard(props: {
+export type DiffCardProps = {
   projectPath: string;
   path: string;
   request: DiffCardRequest;
   onReview?: (path: string, ok: boolean) => void;
-}): ReactElement {
+  onOpenFile?: (path: string) => void;
+  onOpenDiff?: (absolutePath: string, relativePath?: string) => void;
+};
+
+export function DiffCard(props: DiffCardProps): ReactElement {
   const [state, setState] = useState<DiffState>({ kind: 'loading' });
   const [verdict, setVerdict] = useState<'accepted' | 'rejected' | null>(null);
   const contextMenu = useDesktopContextMenu();
@@ -108,6 +112,21 @@ export function DiffCard(props: {
   const tokenMap = useHighlightLines(contentTexts, sourceLang);
   const stats = diffLineStats(patch);
 
+  // Extract first hunk tag e.g. @@ 85,7 @@
+  const firstHunkTag = useMemo(() => {
+    const hunkLine = lines.find((l) => l.kind === 'hunk');
+    if (!hunkLine) return null;
+    const match = hunkLine.text.match(/@@\s*[-+0-9, ]+\s*@@/);
+    return match ? match[0] : null;
+  }, [lines]);
+
+  const fileName = useMemo(() => {
+    const segments = props.path.split('/');
+    return segments[segments.length - 1] || props.path;
+  }, [props.path]);
+
+  const totalChanges = stats.adds + stats.dels;
+
   // CM-12: diff-row surface menu on the whole card.
   const diffTarget: ContextMenuTarget | null =
     contextMenu && patch.trim().length > 0
@@ -122,46 +141,65 @@ export function DiffCard(props: {
 
   const card = (
     <div
-      className={`diff-card${verdict === 'accepted' ? ' accepted' : ''}`}
+      className={`diff-card dc${verdict === 'accepted' ? ' accepted' : ''}`}
       data-testid="diff-card"
     >
-      <div className="diff-head">
+      <div className="diff-head dc-h" data-testid="diff-head">
         <span className="pc file" title={props.path}>
           <IconFile className="i s12" />
-          <span>{props.path}</span>
+          <span>{fileName}</span>
         </span>
-        <span className="stat num">
-          {stats.adds > 0 && <span className="add">+{stats.adds}</span>}
-          {stats.dels > 0 && <span className="del">−{stats.dels}</span>}
+        <span className="pm stat num" data-testid="diff-stats">
+          {stats.adds > 0 && <span className="plus add">+{stats.adds}</span>}
+          {stats.adds > 0 && stats.dels > 0 && ' '}
+          {stats.dels > 0 && <span className="minus del">−{stats.dels}</span>}
         </span>
-        {verdict === null && state.kind === 'ready' ? (
-          <div className="diff-actions">
+        {firstHunkTag ? (
+          <>
+            <span className="sep">·</span>
+            <span className="hunk">{firstHunkTag}</span>
+          </>
+        ) : null}
+        <span className="acts ml">
+          {props.onOpenFile ? (
             <button
               type="button"
-              className="btn"
+              className="btn sm"
+              data-testid="diff-open-file"
+              onClick={() => props.onOpenFile?.(props.path)}
+            >
+              打开
+            </button>
+          ) : null}
+          {verdict === null ? (
+            <button
+              type="button"
+              className="btn sm"
+              data-testid="diff-rollback"
               onClick={() => {
                 setVerdict('rejected');
                 props.onReview?.(props.path, false);
               }}
             >
-              拒绝
+              回滚
             </button>
+          ) : null}
+          {props.onOpenDiff ? (
             <button
               type="button"
-              className="btn primary"
+              className="btn sm"
+              data-testid="diff-open-all"
               onClick={() => {
-                setVerdict('accepted');
-                props.onReview?.(props.path, true);
+                const abs = props.path.startsWith('/')
+                  ? props.path
+                  : `${props.projectPath.replace(/\/+$/, '')}/${props.path}`;
+                props.onOpenDiff?.(abs, props.path);
               }}
             >
-              接受
+              全部差异 ↗
             </button>
-          </div>
-        ) : verdict !== null ? (
-          <span className={`review-badge ${verdict}`}>
-            {verdict === 'accepted' ? '已接受' : '已拒绝'}
-          </span>
-        ) : null}
+          ) : null}
+        </span>
       </div>
       {state.kind === 'loading' && (
         <div className="tool-body">
@@ -180,37 +218,89 @@ export function DiffCard(props: {
       )}
       {state.kind === 'ready' && !state.fileDiff.isBinary && (
         <CollapsibleContentBlock maxCollapsedHeight={140} defaultCollapsed={true}>
-          <div className="diff-body">
+          <div className="diff-body dc-b">
             {lines.map((line, originalIndex) => {
-              if (line.kind === 'meta' || line.kind === 'hunk') return null;
+              if (line.kind === 'meta') return null;
+              if (line.kind === 'hunk') {
+                return (
+                  <div key={originalIndex} className="dl hk">
+                    <span className="ln" />
+                    <span className="ln-text dl-text">{line.text}</span>
+                  </div>
+                );
+              }
               const nums = lineNumbers[originalIndex];
               const tokens: TokenLine | null = tokenMap?.get(originalIndex) ?? null;
+              const lineNum =
+                line.kind === 'del'
+                  ? (nums?.old ?? '')
+                  : (nums?.new ?? nums?.old ?? '');
+              const prefix = line.kind === 'add' ? '+' : line.kind === 'del' ? '-' : ' ';
+              const lineClass =
+                line.kind === 'add' ? 'dl a ln add' : line.kind === 'del' ? 'dl d ln del' : 'dl ln ctx';
               return (
-                <div
-                  key={originalIndex}
-                  className={`ln ${line.kind === 'add' ? 'add' : line.kind === 'del' ? 'del' : 'ctx'}`}
-                >
-                  <span className="g old" aria-hidden>
-                    {nums?.old ?? ''}
+                <div key={originalIndex} className={lineClass}>
+                  <span className="g old ln" aria-hidden>
+                    {lineNum}
                   </span>
-                  <span className="g new" aria-hidden>
-                    {nums?.new ?? ''}
-                  </span>
-                  <span className="ln-text">
+                  <span className="ln-text dl-text">
+                    <span className="dl-prefix" aria-hidden>{prefix} </span>
                     {tokens ? <TokenSpans tokens={tokens} /> : line.text}
                   </span>
                 </div>
               );
             })}
             {state.fileDiff.truncated && (
-              <div className="ln ctx">
-                <span className="g old" />
-                <span className="g new" />
-                <span className="ln-text">diff 过长已截断</span>
+              <div className="dl hk ln ctx">
+                <span className="g old ln" />
+                <span className="ln-text dl-text">diff 过长已截断</span>
               </div>
             )}
           </div>
         </CollapsibleContentBlock>
+      )}
+      {state.kind === 'ready' && !state.fileDiff.isBinary && (
+        <div className="diff-footer dc-f" data-testid="diff-footer">
+          <span>
+            {verdict === 'accepted'
+              ? `${totalChanges} 处修改 · 已接受`
+              : verdict === 'rejected'
+                ? `${totalChanges} 处修改 · 已回滚此文件`
+                : `${totalChanges} 处修改 · 已写入磁盘 · 拒绝 = 回滚此文件`}
+          </span>
+          <span className="acts ml">
+            {verdict === null ? (
+              <>
+                <button
+                  type="button"
+                  className="btn sm dan"
+                  data-verdict="no"
+                  onClick={() => {
+                    setVerdict('rejected');
+                    props.onReview?.(props.path, false);
+                  }}
+                >
+                  拒绝
+                </button>
+                <button
+                  type="button"
+                  className="btn sm pri"
+                  data-verdict="ok"
+                  onClick={() => {
+                    setVerdict('accepted');
+                    props.onReview?.(props.path, true);
+                  }}
+                >
+                  接受
+                </button>
+              </>
+            ) : verdict === 'accepted' ? (
+              <span className="vd ok review-badge accepted">✓ 已接受</span>
+            ) : (
+              <span className="vd no review-badge rejected">已拒绝 · 已回滚</span>
+            )}
+          </span>
+        </div>
       )}
     </div>
   );

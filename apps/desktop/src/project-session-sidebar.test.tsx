@@ -1105,7 +1105,7 @@ describe('ProjectSessionSidebar virtualization gate', () => {
       if (tree) {
         Object.defineProperty(tree, 'scrollTop', {
           configurable: true,
-          value: 40_000,
+          value: 50_000,
           writable: true,
         });
         tree.dispatchEvent(new Event('scroll'));

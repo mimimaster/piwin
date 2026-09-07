@@ -170,21 +170,30 @@ html[data-theme-id='piwin-inkstone-ink'] .thread,
 html[data-theme-id='piwin-inkstone-paper'] .turn-tool-sequence,
 html[data-theme-id='piwin-inkstone-ink'] .turn-tool-sequence {
   position: relative;
-  /* Icons live in the row flex now; no left gutter for a spine/nodes. */
-  padding-left: 0;
+  padding-left: 22px;
   margin-left: 0;
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .thread::before,
 html[data-theme-id='piwin-inkstone-ink'] .thread::before,
 html[data-theme-id='piwin-inkstone-paper'] .turn-tool-sequence::before,
-html[data-theme-id='piwin-inkstone-ink'] .turn-tool-sequence::before,
+html[data-theme-id='piwin-inkstone-ink'] .turn-tool-sequence::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 10px;
+  bottom: 10px;
+  width: 1.5px;
+  border-radius: 1px;
+  background: var(--l3);
+  pointer-events: none;
+  z-index: 0;
+}
+
 html[data-theme-id='piwin-inkstone-paper'] .thread.az::before,
 html[data-theme-id='piwin-inkstone-ink'] .thread.az::before {
-  /* Kind icons replaced the status balls; the ink spine through the glyphs
-     reads as noise, so drop the rail line. */
-  display: none !important;
-  content: none !important;
+  background: var(--azure);
+  opacity: 0.5;
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .tr,
@@ -239,18 +248,17 @@ html[data-theme-id='piwin-inkstone-ink'] .tool-call-card .tool-call-name {
   font-weight: 600;
 }
 
-/* S5.5: Six-state status nodes — smaller ink dots when a row still uses them
-   (explore header fallback). Tool rows use kind icons on the rail instead. */
+/* S5.5: Six-state status nodes — ink dots positioned on the timeline spine (left: 8px) */
 html[data-theme-id='piwin-inkstone-paper'] .node,
 html[data-theme-id='piwin-inkstone-ink'] .node,
 html[data-theme-id='piwin-inkstone-paper'] .tool-status-dot,
 html[data-theme-id='piwin-inkstone-ink'] .tool-status-dot {
   position: absolute;
-  left: -16px;
+  left: -18px;
   top: 50%;
-  margin-top: -3px;
-  width: 6px;
-  height: 6px;
+  margin-top: -4.5px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   background: var(--s2);
   border: 1.5px solid var(--l3);
@@ -283,7 +291,8 @@ html[data-theme-id='piwin-inkstone-paper'] .tool-status-dot[data-kind='waiting-y
 html[data-theme-id='piwin-inkstone-ink'] .tool-status-dot[data-kind='waiting-you'] {
   background: var(--zhu);
   border-color: var(--zhu);
-  border-radius: 1px;
+  border-radius: 2px;
+  box-shadow: 0 0 0 3px var(--zhu-wash);
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .node.run,
@@ -319,10 +328,10 @@ html[data-theme-id='piwin-inkstone-ink'] .tool-status-dot[data-kind='background'
 
 html[data-theme-id='piwin-inkstone-paper'] .node.sm,
 html[data-theme-id='piwin-inkstone-ink'] .node.sm {
-  width: 5px;
-  height: 5px;
-  margin-top: -2.5px;
-  left: -15.5px;
+  width: 7px;
+  height: 7px;
+  margin-top: -3.5px;
+  left: -17px;
 }
 
 
@@ -427,7 +436,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   .tool-call-card .add { color: var(--pine); }
   .tool-call-card .minus,
   .tool-call-card .del { color: var(--crimson); }
-  .tool-call-card .tool-call-summary > :is(.tool-call-ok, .tool-call-done, .tool-call-err, .tool-status-dot) { display: none; }
+  .tool-call-card .tool-call-summary > :is(.tool-call-ok, .tool-call-done, .tool-call-err, .tool-status-dot:not(.node)) { display: none; }
   .tool-call-card .tool-call-body,
   .tb {
     margin: 2px 0 6px var(--row-pad);
@@ -444,11 +453,189 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   .tb.err,
   .tool-call-card.fail .tool-call-body { color: var(--crimson); }
   .tool-call-card .tool-call-body pre { font: inherit; background: transparent; color: inherit; }
-  /* Kind icon is the rail marker now (no status ball, no spine). Keep it in
-     flex flow so it shares align-items:center with the verb — absolute
-     left:-21px was for sitting on the old ink line and drifted by parent. */
+
+  /* S5.13: Inline Diff Card (.dc / .diff-card) matching proto-01 */
+  .tool-call-card .tool-call-body:has(.diff-card),
+  .tool-call-card .tool-call-body:has(.dc) {
+    background: transparent;
+    padding: 0;
+    margin: 0;
+    box-shadow: none;
+    white-space: normal;
+    word-break: normal;
+  }
+  .dc,
+  .diff-card {
+    margin: 4px 0 8px var(--row-pad);
+    border-radius: 8px;
+    background: var(--s3);
+    box-shadow: var(--sh1);
+    overflow: hidden;
+    border: 0;
+  }
+  .dc-h,
+  .diff-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 32px;
+    padding: 0 10px;
+    border-bottom: 1px solid var(--l1);
+    font: 11.5px var(--mono);
+    color: var(--t3);
+    white-space: nowrap;
+  }
+  .dc-h > .pc,
+  .diff-head > .pc {
+    flex: 0 1 auto;
+    min-width: 3.5em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11.5px;
+    color: var(--t1);
+    font-weight: 500;
+  }
+  .dc-h > .pm,
+  .diff-head > .pm,
+  .dc-h > .acts,
+  .diff-head .acts {
+    flex: none;
+  }
+  .dc-h > .hunk,
+  .dc-h > .sep,
+  .diff-head .hunk,
+  .diff-head .sep {
+    flex: none;
+    overflow: hidden;
+    color: var(--t4);
+    font-size: 11px;
+  }
+  .dc-b,
+  .diff-card .diff-body {
+    font: 11.5px/1.75 var(--mono);
+    background: var(--code);
+    padding: 4px 0;
+    overflow-x: auto;
+  }
+  .dl {
+    display: flex;
+    gap: 10px;
+    padding: 0 10px;
+    white-space: pre;
+    color: var(--t2);
+    overflow: hidden;
+    line-height: 1.75;
+    font-size: 11.5px;
+  }
+  .dl.a {
+    background: var(--pine-wash);
+    color: var(--t1);
+  }
+  .dl.d {
+    background: var(--crimson-wash);
+    color: var(--t1);
+  }
+  .dl.hk {
+    color: var(--t4);
+    background: var(--s1);
+    font-size: 11px;
+  }
+  .dl .ln,
+  .dl .g {
+    width: 24px;
+    text-align: right;
+    color: var(--t4);
+    flex: none;
+    user-select: none;
+    font-variant-numeric: tabular-nums;
+  }
+  .dl .dl-prefix {
+    user-select: none;
+    color: var(--t4);
+    margin-right: 2px;
+  }
+  .dl.a .dl-prefix { color: var(--pine); }
+  .dl.d .dl-prefix { color: var(--crimson); }
+  .dc-f,
+  .diff-card .diff-footer {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 36px;
+    padding: 0 10px;
+    border-top: 1px solid var(--l1);
+    font: 11.5px var(--mono);
+    color: var(--t4);
+  }
+  .vd {
+    font: 11.5px var(--mono);
+    padding-left: 4px;
+    font-weight: 500;
+  }
+  .vd.ok { color: var(--pine); }
+  .vd.no { color: var(--crimson); }
+  .dc-h .btn.sm,
+  .dc-f .btn.sm {
+    height: 22px;
+    padding: 0 7px;
+    font-size: 11.5px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border: 0;
+    cursor: pointer;
+    color: var(--t2);
+    background: transparent;
+    transition: background var(--t-fast) ease, color var(--t-fast) ease;
+  }
+  .dc-h .btn.sm:hover,
+  .dc-f .btn.sm:hover {
+    background: var(--s2);
+    color: var(--t1);
+  }
+  .dc-f .btn.pri {
+    background: var(--zhu);
+    color: var(--on-zhu, #ffffff);
+    font-weight: 500;
+  }
+  .dc-f .btn.pri:hover {
+    background: var(--zhu-lift, #c0392b);
+    color: var(--on-zhu, #ffffff);
+  }
+  .dc-f .btn.dan {
+    color: var(--crimson);
+  }
+  .dc-f .btn.dan:hover {
+    background: var(--crimson-wash);
+    color: var(--crimson);
+  }
+
+  /* S5.5: The status .node sits on the left spine (-18px). The kind icon sits
+     in the row flex flow to designate the tool semantic type in calm neutral ink
+     (--t3) by default, turning crimson on error and warm lamp on running. */
   .tool-call-card .tool-call-summary > .node {
-    display: none;
+    display: block !important;
+    position: absolute;
+    left: -18px;
+    top: 50%;
+    margin-top: -4.5px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    z-index: 1;
+  }
+  .tool-call-card .tool-call-summary > .node.sm,
+  .tool-call-card.sub .tool-call-summary > .node {
+    left: -17px;
+    top: 50%;
+    margin-top: -3.5px;
+    width: 7px;
+    height: 7px;
   }
   .tool-call-card .tool-call-kind-icon {
     display: block !important;
@@ -459,7 +646,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     width: 14px;
     height: 14px;
     flex: none;
-    color: var(--pine);
+    color: var(--t3);
     stroke-width: 1.5;
   }
   .tool-call-card.sub .tool-call-kind-icon {
@@ -503,6 +690,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     height: 28px;
     min-height: 28px;
     padding: 0 var(--row-pad);
+    border-radius: 6px;
     width: 100%;
     flex: 0 0 auto;
     background: transparent;
@@ -510,6 +698,19 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     box-shadow: none;
     font: 12.5px var(--sans);
     color: var(--t2);
+    cursor: pointer;
+    transition: background var(--t-1) var(--ease-out);
+  }
+  .explore-flow-capsule .tool-batch-header:hover,
+  .tool-batch-capsule .tool-batch-header:hover,
+  .tool-call-card .tool-call-summary:hover {
+    background: var(--s3);
+    box-shadow: var(--sh1);
+  }
+  .tool-call-card.is-expanded:hover,
+  .tool-batch-capsule.is-expanded:hover {
+    background: transparent;
+    box-shadow: none;
   }
   .explore-flow-capsule .tool-batch-body,
   .tool-batch-capsule .tool-batch-body {
@@ -552,10 +753,18 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     font-variant-numeric: tabular-nums;
     flex: none;
   }
-  /* Capsule / explore: kind icon in the header flex row (same as tool rows). */
+  /* Capsule / explore: status .node sits on the spine at the 28px header baseline. */
   .explore-flow-capsule > .node,
   .tool-batch-capsule > .node {
-    display: none;
+    display: block !important;
+    position: absolute;
+    left: -18px;
+    top: 14px;
+    margin-top: -4.5px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    z-index: 1;
   }
   .explore-flow-capsule .tool-batch-icon-wrapper,
   .tool-batch-capsule .tool-batch-icon-wrapper {
@@ -565,16 +774,19 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     margin: 0;
     width: 14px;
     height: 14px;
-    color: var(--pine);
+    color: var(--t3);
     flex: none;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
   }
   .explore-flow-capsule.fail .tool-batch-icon-wrapper,
-  .tool-batch-capsule.has-error .tool-batch-icon-wrapper {
+  .tool-batch-capsule.has-error .tool-batch-icon-wrapper,
+  .tool-batch-capsule.fail .tool-batch-icon-wrapper {
     color: var(--crimson);
   }
-  .explore-flow-capsule.is-running .tool-batch-icon-wrapper {
+  .explore-flow-capsule.is-running .tool-batch-icon-wrapper,
+  .tool-batch-capsule.is-running .tool-batch-icon-wrapper {
     color: var(--lamp);
   }
   .explore-flow-capsule .tool-batch-kind-icon,
@@ -586,8 +798,20 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   .tool-batch-body .tool-call-card .tool-call-kind-icon {
     display: block !important;
   }
-  .turn-work-details .tool-batch-capsule { background: transparent; box-shadow: none; border: 0; border-radius: 6px; }
-  .turn-work-details .tool-batch-items { padding: 0; margin-left: 0; border: 0; }
+  .tool-batch-capsule,
+  .explore-flow-capsule,
+  .turn-work-details .tool-batch-capsule {
+    background: transparent;
+    box-shadow: none;
+    border: 0;
+    border-radius: 6px;
+  }
+  .tool-batch-items,
+  .turn-work-details .tool-batch-items {
+    padding: 0;
+    margin-left: 0;
+    border: 0;
+  }
 
   /* Proto thought row: brain icon + label + meta「思考」 on the same 28px .tr. */
   .explore-thought.tr {

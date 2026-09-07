@@ -35,7 +35,7 @@ import {
   buildMcpToolCatalogEntries,
   resolveMcpServerRuntimeUiStatus,
 } from './mcp-visibility-model.js';
-import { IconPin } from './shell-icons';
+import { IconPin, IconChevronDown, IconChevronRight } from './shell-icons';
 import { getBehaviorActivitySpec } from './behavior-activity.js';
 
 export type McpPanelProps = {
@@ -756,7 +756,7 @@ export function McpPanel(props: McpPanelProps) {
                                 </span>
                               ) : null}
                               <span className="mcp-server-expand-chevron" aria-hidden>
-                                {expanded ? '▾' : '▸'}
+                                {expanded ? <IconChevronDown /> : <IconChevronRight />}
                               </span>
                             </div>
                             <div className="mcp-server-card-meta">

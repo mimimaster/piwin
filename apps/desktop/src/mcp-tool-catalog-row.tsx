@@ -3,7 +3,7 @@
  */
 import { useState, type ReactElement } from 'react';
 import { Button, IconButton } from '@piwin/ui-kit';
-import { IconPin } from './shell-icons.js';
+import { IconPin, IconChevronDown, IconChevronRight } from './shell-icons.js';
 import {
   listMcpSchemaProperties,
   type McpToolCatalogEntry,
@@ -121,7 +121,7 @@ export function McpToolCatalogRow(props: McpToolCatalogRowProps): ReactElement {
           <code className="mcp-tool-selector muted">{entry.selector}</code>
         </button>
         <span className="mcp-tool-catalog-chevron" aria-hidden>
-          {expanded ? '▾' : '▸'}
+          {expanded ? <IconChevronDown /> : <IconChevronRight />}
         </span>
       </div>
       {expanded ? (

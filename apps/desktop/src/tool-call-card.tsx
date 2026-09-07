@@ -519,18 +519,13 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
 
   function activateSummary(): void {
     const path = primaryTargetPath;
-    if (isEditTool && path) {
-      if (props.onOpenDiff) {
-        const resolved = resolveToolOpenPath(path, props.projectPath);
-        props.onOpenDiff(resolved.absolutePath, resolved.relativePath);
-        return;
-      }
-      if (props.onOpenFile) {
-        openResolvedToolPath(path, props.projectPath, props.onOpenFile);
-        return;
-      }
-      if (canRenderDiffCard) {
+    if (isEditTool) {
+      if (canRenderDiffCard || hasBody) {
         toggleExpanded();
+        return;
+      }
+      if (path && props.onOpenFile) {
+        openResolvedToolPath(path, props.projectPath, props.onOpenFile);
         return;
       }
     }
@@ -613,7 +608,7 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
         />
         {toolCallKindIcon(kind, tool.toolName, rawActionVerb, baseBehaviorId)}
         <b className={`tool-call-action-verb ${behaviorClassName}`}>{displayActionVerb}</b>
-        {!expanded && showFilePill && displayPillLabel ? (
+        {((!expanded && showFilePill) || (isEditTool && showFilePill)) && displayPillLabel ? (
           <code
             className={`tool-call-file-pill${canOpenPath ? ' is-link' : ''}`}
             data-testid="tool-call-file-pill"
@@ -731,14 +726,29 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
             </div>
           ) : null}
           {canRenderDiffCard
-            ? changedPaths.map((path) => (
-                <DiffCard
-                  key={path}
-                  projectPath={props.projectPath as string}
-                  path={path}
-                  request={props.request as DiffCardRequest}
-                />
-              ))
+            ? changedPaths.map((path) => {
+                const resolved = resolveToolOpenPath(path, props.projectPath);
+                return (
+                  <DiffCard
+                    key={path}
+                    projectPath={props.projectPath as string}
+                    path={resolved.relativePath}
+                    request={props.request as DiffCardRequest}
+                    {...(props.onOpenFile
+                      ? {
+                          onOpenFile: () =>
+                            openResolvedToolPath(path, props.projectPath, props.onOpenFile),
+                        }
+                      : {})}
+                    {...(props.onOpenDiff
+                      ? {
+                          onOpenDiff: () =>
+                            props.onOpenDiff!(resolved.absolutePath, resolved.relativePath),
+                        }
+                      : {})}
+                  />
+                );
+              })
             : null}
           {tool.presentation?.documentTargets && tool.presentation.documentTargets.length > 0 ? (
             <ToolDocumentTargetList
