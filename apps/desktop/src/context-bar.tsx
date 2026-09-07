@@ -18,11 +18,6 @@ import { Button, IconButton, IconGit } from '@piwin/ui-kit';
 import type { PermissionPreset } from '@piwin/contracts';
 import type { ProductSessionOrigin } from '@piwin/contracts';
 import type { RunStatusView } from './run-status.js';
-import { RunActivityInline } from './RunActivityInline.js';
-import {
-  conversationActivityLabel,
-  resolveConversationActivityKind,
-} from './conversation-activity.js';
 import { getDesktopCopy, type DesktopLocale } from './desktop-locale';
 import {
   IconChevronLeft,
@@ -91,38 +86,6 @@ function modeBadgeLabel(preset: PermissionPreset): string {
   }
 }
 
-function formatElapsed(elapsedMs: number): string {
-  const elapsedSeconds = Math.floor(elapsedMs / 1000);
-  if (elapsedSeconds < 60) {
-    return `${elapsedSeconds}s`;
-  }
-  const minutes = Math.floor(elapsedSeconds / 60);
-  return `${minutes}m ${elapsedSeconds % 60}s`;
-}
-
-function phaseDotClass(kind: RunStatusView['kind']): string {
-  switch (kind) {
-    case 'preparing':
-    case 'connecting-model':
-    case 'waiting-first-token':
-    case 'working':
-    case 'planning':
-    case 'compacting':
-    case 'stopping':
-      return 'context-bar-phase-dot is-running';
-    case 'waiting-permission':
-      return 'context-bar-phase-dot is-warning';
-    case 'failed':
-      return 'context-bar-phase-dot is-error';
-    case 'complete':
-      return 'context-bar-phase-dot is-complete';
-    case 'stopped':
-    case 'idle':
-    default:
-      return 'context-bar-phase-dot';
-  }
-}
-
 /** Proto-00 shell state vocabulary: the titleband carries lamp (running) and
  *  zhu square (waiting) signals keyed off this three-value mapping. */
 function shellStateKind(kind: RunStatusView['kind']): 'idle' | 'running' | 'waiting' {
@@ -144,13 +107,17 @@ function shellStateKind(kind: RunStatusView['kind']): 'idle' | 'running' | 'wait
 
 export function ContextBar(props: ContextBarProps): ReactElement {
   const { session, runState } = props;
-  const elapsedText = runState.elapsedMs !== undefined ? formatElapsed(runState.elapsedMs) : null;
   const locale = props.locale ?? 'zh-CN';
   const isChinese = locale === 'zh-CN';
   const copy = getDesktopCopy(locale);
   const titlebarCopy = copy.titlebar;
   const mode = props.permissionMode ?? null;
   const shellState = shellStateKind(runState.kind);
+  const isWaiting =
+    shellState === 'waiting' ||
+    runState.primaryAction === 'review-permission';
+  const isRunning = !isWaiting && shellState === 'running';
+  const isIdle = !isWaiting && !isRunning;
   const canGoBack = props.canGoBack === true;
   const canGoForward = props.canGoForward === true;
   const workPanelOpen = props.workPanelOpen === true;
@@ -321,81 +288,38 @@ export function ContextBar(props: ContextBarProps): ReactElement {
         aria-atomic="true"
         aria-label={runState.kind !== 'idle' ? runState.label : undefined}
       >
-        {runState.kind !== 'idle' ? (
-          <i className={phaseDotClass(runState.kind)} aria-hidden />
-        ) : null}
-        {runState.kind !== 'idle' ? (
-          props.isConversationSession ? (
-            <span className="run-activity-inline" data-testid="conversation-activity">
-              {conversationActivityLabel(
-                resolveConversationActivityKind({
-                  runState,
-                  streaming: runState.kind !== 'complete' && runState.kind !== 'stopped' && runState.kind !== 'failed',
-                  ...(runState.activeToolName
-                    ? {
-                        tools: [
-                          {
-                            toolCallId: 'context-bar-active',
-                            toolName: runState.activeToolName,
-                            status: 'running',
-                            output: '',
-                          },
-                        ],
-                      }
-                    : {}),
-                }) ?? 'thinking',
-                locale === 'en' ? 'en' : 'zh-CN',
-              )}
-            </span>
-          ) : (
-            <RunActivityInline
-              runState={runState}
-              {...(props.locale ? { locale: props.locale } : {})}
-            />
-          )
-        ) : null}
-        {elapsedText !== null ? (
-          <span className="context-bar-elapsed muted" aria-hidden>
-            {elapsedText}
-          </span>
-        ) : null}
-
-        {runState.primaryAction === 'view-activity' && !props.isConversationSession ? (
-          <Button size="compact" onClick={props.onViewActivity}>
-            Activity
-          </Button>
-        ) : null}
-        {runState.primaryAction === 'review-permission' && !props.isConversationSession ? (
-          <Button size="compact" variant="primary" onClick={props.onReviewPermission}>
-            Review request
-          </Button>
-        ) : null}
-        {runState.primaryAction === 'view-plan' && !props.isConversationSession ? (
-          <Button size="compact" onClick={props.onViewPlan}>
-            View plan
-          </Button>
-        ) : null}
-        {runState.kind === 'compacting' ? (
-          <Button size="compact" onClick={props.onCancelCompact}>
-            Cancel
-          </Button>
-        ) : null}
-        {runState.canStop ? (
-          <Button size="compact" data-testid="run-status-stop" onClick={props.onStop}>
-            Stop
-          </Button>
-        ) : null}
-        {runState.kind === 'stopping' ? (
-          <span className="muted" data-testid="run-status-stopping">
-            Stopping…
-          </span>
-        ) : null}
+        <span className="pl">{isChinese ? '状态' : 'Status'}</span>
+        <span className="seg" data-testid="run-status-seg">
+          <button
+            type="button"
+            className={isIdle ? 'on' : ''}
+            data-testid="status-seg-idle"
+          >
+            {isChinese ? '就绪' : 'Ready'}
+          </button>
+          <button
+            type="button"
+            className={isRunning ? 'on' : ''}
+            data-testid="status-seg-running"
+          >
+            {isChinese ? '运行中' : 'Running'}
+          </button>
+          <button
+            type="button"
+            className={`${isWaiting ? 'on is-waiting' : ''}${isWaiting ? ' is-clickable' : ''}`}
+            data-testid="status-seg-waiting"
+            onClick={isWaiting ? props.onReviewPermission : undefined}
+            title={isWaiting ? (isChinese ? '点击审查请求' : 'Review request') : undefined}
+          >
+            {isChinese ? '等待批准' : 'Waiting'}
+          </button>
+        </span>
         {runState.primaryAction === 'retry' && props.onRetry !== undefined ? (
           <Button size="compact" onClick={props.onRetry}>
-            Retry
+            {isChinese ? '重试' : 'Retry'}
           </Button>
         ) : null}
-        </div>
+      </div>
       </>
       ) : null}
 
