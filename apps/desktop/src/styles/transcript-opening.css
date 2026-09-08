@@ -1,0 +1,18 @@
+/* Keep the actual transcript laid out while its first-open position settles. */
+.transcript-viewport.is-opening > :not(.transcript-opening-state) {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.transcript-opening-state {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text-3);
+  font-size: 13px;
+  pointer-events: none;
+}

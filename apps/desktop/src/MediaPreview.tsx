@@ -200,6 +200,9 @@ export function MediaPreview(props: {
   const [fullUrl, setFullUrl] = useState<string | null>(
     props.lightboxUrl ?? props.previewUrl ?? null,
   );
+  const [mediaLoading, setMediaLoading] = useState(
+    !props.previewUrl && !props.lightboxUrl,
+  );
   const [loadFailed, setLoadFailed] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -221,11 +224,13 @@ export function MediaPreview(props: {
     setLoadFailed(false);
     setLightboxOpen(false);
     if (isFileCard) {
+      setMediaLoading(false);
       setThumbUrl(null);
       setFullUrl(null);
       return;
     }
     if (props.previewUrl) {
+      setMediaLoading(false);
       setThumbUrl(props.previewUrl);
       setFullUrl(props.lightboxUrl ?? props.previewUrl);
       return;
@@ -233,10 +238,12 @@ export function MediaPreview(props: {
     // Composer chip still encoding: do not resolve pending:// and do not
     // put the original File URL on the 48px <img>.
     if (props.lightboxUrl) {
+      setMediaLoading(false);
       setThumbUrl(null);
       setFullUrl(props.lightboxUrl);
       return;
     }
+    setMediaLoading(true);
     let cancelled = false;
     let ownedThumb: string | null = null;
     const assetId = mediaPreviewAssetId(props.attachment.path, props.attachment.id);
@@ -258,6 +265,7 @@ export function MediaPreview(props: {
       setFullUrl(resolved.fullUrl);
       setThumbUrl(resolved.thumbUrl);
       setLoadFailed(false);
+      setMediaLoading(false);
       ownedThumb = resolved.ownedThumb;
     })();
     return () => {
@@ -328,6 +336,10 @@ export function MediaPreview(props: {
         </span>
       </div>
     );
+  }
+
+  if (mediaLoading) {
+    return <span data-media-preview-loading="true" aria-hidden="true" />;
   }
 
   if (!thumbUrl || loadFailed) {
