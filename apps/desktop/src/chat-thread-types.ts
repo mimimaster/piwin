@@ -165,7 +165,7 @@ export type ChatThreadProps = {
   configProviders?: readonly ModelProviderConfig[];
   /** Session last turn context usage snapshot for turn usage chip. */
   contextUsage?: ContextUsageSnapshot | null;
-  /** Draft/approved plan waiting on the creating turn's call chain. */
+  /** Draft/approved plan; the execution gate stays on the creating turn only. */
   sessionPlan?: SessionPlan | null;
   onPlanExecute?: (mode: PlanExecutionMode) => void | Promise<void>;
 };

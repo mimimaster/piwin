@@ -655,9 +655,9 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
     offline: 'piwin 已断开',
     betaFeature: 'Beta 功能',
     knowledgeCenter: '知识中心',
-    extensionDeploymentRolledBack: '扩展部署已回滚',
-    extensionDeploymentRestartRequired: '扩展部署需要重启 Host 才能完成应用',
-    extensionDeploymentSuperseded: '该次扩展部署已被更新的扩展配置覆盖',
+    extensionDeploymentRolledBack: '扩展部署已回滚。',
+    extensionDeploymentRestartRequired: '扩展部署已保存，但需重启 Host 后才能完全生效。',
+    extensionDeploymentSuperseded: '该次扩展部署已被更新的扩展配置覆盖。',
     titlebar: {
       collapseSidebar: '收起左边栏',
       expandSidebar: '展开左边栏',
@@ -999,11 +999,11 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
     offline: 'piwin disconnected',
     betaFeature: 'Beta feature',
     knowledgeCenter: 'Knowledge Center',
-    extensionDeploymentRolledBack: 'Extension deployment rolled back',
+    extensionDeploymentRolledBack: 'The extension deployment has been rolled back.',
     extensionDeploymentRestartRequired:
-      'Extension deployment needs a session restart to finish applying',
+      'The extension deployment has been saved, but the Host must be restarted before it can take full effect.',
     extensionDeploymentSuperseded:
-      'This extension deployment was superseded by a newer extension configuration',
+      'This extension deployment was superseded by a newer extension configuration.',
     titlebar: {
       collapseSidebar: 'Collapse sidebar',
       expandSidebar: 'Expand sidebar',

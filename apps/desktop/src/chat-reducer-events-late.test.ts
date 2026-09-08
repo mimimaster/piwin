@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  chatUiReducer,
-  createInitialChatUiState,
-  mapTranscriptMessagesToUi,
-} from './chat-reducer';
+import { chatUiReducer, createInitialChatUiState, mapTranscriptMessagesToUi } from './chat-reducer';
 import { makeRun } from './chat-reducer-test-harness';
 
 describe('chatUiReducer events (late stream)', () => {

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import type { HostResponse, RememberedPermission } from '@piwin/contracts';
 import { Button, Collapse, Notice, EmptyState, Spinner } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
+import { permissionRevokedEffectMessage } from './settings-effect-copy.js';
 
 export type RememberedPermissionsSectionProps = {
   projectPath: string | null;
@@ -70,11 +71,7 @@ export function RememberedPermissionsSection(
     }
     const data = response.data as { permissions?: RememberedPermission[] };
     setPermissions(data.permissions ?? []);
-    setInfo(
-      isChinese
-        ? '已撤销 — 下次匹配的工具调用将再次询问。'
-        : 'Revoked — the next matching tool call will ask again.',
-    );
+    setInfo(permissionRevokedEffectMessage(locale));
   }
 
   return (

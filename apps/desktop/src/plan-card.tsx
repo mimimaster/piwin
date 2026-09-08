@@ -1,9 +1,11 @@
 /**
- * Plan display helpers shared by the composer-adjacent todo tray and inspector.
+ * Plan display helpers shared by the transcript execution gate, the
+ * composer-adjacent todo tray, and the inspector.
  * Live progress UI lives in plan-todo-tray.tsx (Claude Code placement).
  */
 import type { ReactElement } from 'react';
 import type { PlanStepStatus, SessionPlan } from '@piwin/contracts';
+import type { DocumentOpenInput } from './tool-call-card.js';
 
 export type PlanStepVisual = 'done' | 'run' | 'pending' | 'skipped';
 
@@ -19,6 +21,15 @@ export function formatPlanMarkdown(plan: SessionPlan): string {
       return `### ${tag} Step ${index + 1}: ${step.title}\n- Status: \`${step.status}\`${step.detail ? `\n- Detail: ${step.detail}` : ''}`;
     }),
   ].join('\n');
+}
+
+/** Build the virtual document target shared by plan surfaces and the inspector. */
+export function planDocumentOpenInput(plan: SessionPlan): DocumentOpenInput {
+  return {
+    title: plan.title || 'Implementation Plan',
+    path: `plans/${plan.sessionId}.md`,
+    content: formatPlanMarkdown(plan),
+  };
 }
 
 /** Maps contract step status to the V7 visual state machine (.step.done/.run/.skipped). */

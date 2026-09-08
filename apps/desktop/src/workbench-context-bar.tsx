@@ -130,6 +130,7 @@ export function WorkbenchContextBar(props: WorkbenchContextBarProps): ReactEleme
                 disabled={streaming === true}
                 onSwitch={onSwitchBranch}
                 locale={locale}
+                isConversationSession={!subPageTitle && state.activeScope.kind === 'general'}
               />
             ),
           }

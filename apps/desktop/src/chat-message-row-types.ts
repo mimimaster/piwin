@@ -50,6 +50,8 @@ export type ChatMessageRowProps = {
   activeSessionId: string | null;
   editingMessageId: string | null;
   lastUserMessageId: string | null;
+  /** User prompt that opened this assistant's turn; retry/error card must use this, not the thread tail. */
+  turnUserMessageId?: string | null;
   activeTheme: ThemeManifest | null;
   artifactThemeKey: string | number;
   runRecordsById: Record<string, RunRecordUi>;
@@ -148,6 +150,8 @@ export type ChatMessageRowProps = {
   ) => Promise<import('@piwin/contracts').FlashcardReviewCard[]>;
   /** Flashcard create tools from the whole turn; shown on the last assistant row. */
   turnFlashcardTools?: readonly ToolCardUi[];
+  /** All tool calls from the whole turn; summarized on the last assistant row. */
+  turnTools?: readonly ToolCardUi[];
   livePromptModel?: ModelRef | null;
   modelOptions?: readonly ModelOption[];
   configProviders?: readonly ModelProviderConfig[];
@@ -161,5 +165,7 @@ export type ChatMessageRowProps = {
   planExecutionGate?: {
     plan: SessionPlan;
     onExecute: (mode: PlanExecutionMode) => void | Promise<void>;
+    /** False once a later assistant turn exists — the card is transcript, not a live overlay. */
+    captureKeyboard?: boolean;
   };
 };

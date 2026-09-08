@@ -57,6 +57,7 @@ describe('TranscriptViewport session scroll recovery', () => {
       canLoadOlder?: boolean;
       onLoadOlder?: () => Promise<void>;
       historyViewActive?: boolean;
+      awaitingTranscript?: boolean;
       onReturnToLatest?: () => void;
       liveTurnId?: string;
       messageCount?: number;
@@ -74,6 +75,7 @@ describe('TranscriptViewport session scroll recovery', () => {
             locale="en"
             canLoadOlder={options.canLoadOlder === true}
             historyViewActive={options.historyViewActive === true}
+            awaitingTranscript={options.awaitingTranscript === true}
             liveTurnId={options.liveTurnId ?? null}
             {...(options.onLoadOlder ? { onLoadOlder: options.onLoadOlder } : {})}
             {...(options.onReturnToLatest ? { onReturnToLatest: options.onReturnToLatest } : {})}
@@ -84,6 +86,14 @@ describe('TranscriptViewport session scroll recovery', () => {
       );
       await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
     });
+  }
+
+  async function finishOpening(): Promise<void> {
+    // User gestures only begin once the covered initial layout is revealed.
+    await act(async () => {
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 350));
+    });
+    expect(container.querySelector('[data-testid="transcript-opening-state"]')).toBeNull();
   }
 
   it('opens at the latest tail after switching sessions', async () => {
@@ -107,6 +117,7 @@ describe('TranscriptViewport session scroll recovery', () => {
 
   it('follows a growing tail but stays stable through 100 updates after scroll-away', async () => {
     await renderSession('live-session', { activitySignal: 'delta-0', scrollHeight: 1_000 });
+    await finishOpening();
     const scrollElement = container.querySelector<HTMLDivElement>('.chat-stream');
     if (!scrollElement) {
       throw new Error('Expected the live transcript scroll element');
@@ -231,6 +242,42 @@ describe('TranscriptViewport session scroll recovery', () => {
     expect(onReturnToLatest).toHaveBeenCalledOnce();
   });
 
+  it('does not cover or pin a history view while its transcript is awaiting data', async () => {
+    await renderSession('history-awaiting-session', {
+      historyViewActive: true,
+      awaitingTranscript: true,
+      scrollHeight: 1_000,
+    });
+
+    const scrollElement = container.querySelector<HTMLDivElement>('.chat-stream');
+    if (!scrollElement) {
+      throw new Error('Expected transcript scroll element');
+    }
+    expect(container.querySelector('[data-testid="transcript-opening-state"]')).toBeNull();
+    expect(scrollElement.scrollTop).toBe(0);
+  });
+
+  it('does not stick to the live tail when an existing viewport enters history mode', async () => {
+    await renderSession('history-toggle-session', {
+      activitySignal: 'live-idle',
+      scrollHeight: 1_000,
+    });
+    await finishOpening();
+    const scrollElement = container.querySelector<HTMLDivElement>('.chat-stream');
+    if (!scrollElement) {
+      throw new Error('Expected transcript scroll element');
+    }
+    scrollElement.scrollTop = 240;
+
+    await renderSession('history-toggle-session', {
+      activitySignal: 'history-view',
+      historyViewActive: true,
+      scrollHeight: 1_000,
+    });
+
+    expect(scrollElement.scrollTop).toBe(240);
+  });
+
   it('loads an older page invisibly and preserves the visible scroll anchor', async () => {
     const onLoadOlder = vi.fn(async () => {
       const scrollElement = container.querySelector<HTMLDivElement>('.chat-stream');
@@ -245,6 +292,7 @@ describe('TranscriptViewport session scroll recovery', () => {
       canLoadOlder: true,
       onLoadOlder,
     });
+    await finishOpening();
     const scrollElement = container.querySelector<HTMLDivElement>('.chat-stream');
     if (!scrollElement) throw new Error('Expected transcript scroll element');
     expect(container.querySelector('[data-testid="transcript-history-page-control"]')).toBeNull();

@@ -18,6 +18,10 @@ import type { DocumentProvenance } from './active-document';
 import type { ArtifactThemeVariables } from '@piwin/artifact';
 import { MarkupPreviewView, markupPreviewKind } from './markup-preview-view';
 import { PreviewUnavailable } from './PreviewUnavailable';
+import {
+  isOpaqueRemoteProjectId,
+  remoteProjectFilesystemRoot,
+} from './remote-session-hydrate.js';
 
 /** Markdown / plaintext files render through the enhanced Markdown viewer.
  *  HTML/SVG render visually. Everything else renders as code with line numbers. */
@@ -27,6 +31,20 @@ function isMarkdownPath(path: string): boolean {
   const extMatch = /\.([a-zA-Z0-9]+)$/.exec(path);
   const ext = extMatch && extMatch[1] ? extMatch[1].toLowerCase() : '';
   return ext === '' || MARKDOWN_EXTENSIONS.has(ext);
+}
+
+/** Expand `project-<hash>/rel` to a Host absolute path when the root is known. */
+export function resolveCopiedDocumentPath(rawPath: string): string {
+  const raw = rawPath.trim();
+  if (!raw) return raw;
+  const normalized = raw.replace(/\\/g, '/');
+  const slash = normalized.indexOf('/');
+  if (slash <= 0) return raw;
+  const head = normalized.slice(0, slash);
+  const rest = normalized.slice(slash + 1);
+  if (!isOpaqueRemoteProjectId(head) || !rest) return raw;
+  const root = remoteProjectFilesystemRoot(head);
+  return root ? `${root}/${rest}` : raw;
 }
 
 export type SessionDocItem = {
@@ -126,7 +144,7 @@ export function DocPreviewPanel({
   }
 
   function handleCopyPath(): void {
-    const pathText = filePath || `${displayTitle}.md`;
+    const pathText = resolveCopiedDocumentPath(filePath || `${displayTitle}.md`);
     void (async () => {
       try {
         await navigator.clipboard.writeText(pathText);

@@ -36,6 +36,14 @@
   display: flex;
   align-items: center;
   border-radius: var(--r-control);
+  /* Extra trailing room when a completed/failed seal owns the right edge, so
+     hover actions clear it instead of cross-fading on top (archive∩check). */
+  --session-status-seal-clearance: 0px;
+}
+
+.session-row--completed,
+.session-row--failed {
+  --session-status-seal-clearance: 26px;
 }
 
 .session-row .session-item {
@@ -47,8 +55,10 @@
      timestamp and the action buttons are both absolutely positioned, so only
      this padding bounds the title -- and swapping it on hover re-truncated the
      title's ellipsis in the same frame the actions appeared. 108px clears the
-     widest occupant: 4 x 22px buttons + 3 x 2px gaps at right: var(--s-2). */
-  padding-right: 108px;
+     widest occupant: 4 x 22px buttons + 3 x 2px gaps at right: var(--s-2).
+     Completed/failed add --session-status-seal-clearance so the seal and the
+     shifted action cluster both stay outside the title. */
+  padding-right: calc(108px + var(--session-status-seal-clearance));
   border: none;
   border-radius: var(--r-control);
   background: transparent;
@@ -380,10 +390,14 @@
   }
 }
 
+/* Working pulse yields to hover actions. Completed/failed seals stay — they are
+   dismissible affordances, and actions clear to their left via
+   --session-status-seal-clearance rather than stacking in the same pixels. */
 .session-row--working:hover .session-item-activity,
 .session-row--working:focus-within .session-item-activity {
   opacity: 0;
   visibility: hidden;
+  pointer-events: none;
 }
 
 /* Sibling of .session-item (not nested) so click can dismiss without opening. */
@@ -406,7 +420,10 @@
   color: var(--mint);
   cursor: pointer;
   z-index: 2;
-  transition: background-color var(--t-1) var(--ease-out);
+  transition:
+    opacity var(--t-1) var(--ease-out),
+    visibility var(--t-1) var(--ease-out),
+    background-color var(--t-1) var(--ease-out);
 }
 
 .session-item-completed-dismiss:hover,
@@ -442,7 +459,10 @@
   background: color-mix(in srgb, var(--coral) 20%, transparent);
   cursor: pointer;
   z-index: 2;
-  transition: background-color var(--t-1) var(--ease-out);
+  transition:
+    opacity var(--t-1) var(--ease-out),
+    visibility var(--t-1) var(--ease-out),
+    background-color var(--t-1) var(--ease-out);
 }
 
 .session-item-failed-dismiss:hover,
@@ -464,7 +484,7 @@
 
 .session-row-actions {
   position: absolute;
-  right: var(--s-2);
+  right: calc(var(--s-2) + var(--session-status-seal-clearance));
   top: 50%;
   transform: translateY(-50%);
   display: flex;
@@ -515,22 +535,6 @@
   pointer-events: auto;
 }
 
-/* Shaded selected row: close stays up so the session can be deleted without
-   opening the overflow menu. Status marks keep the slot at rest. */
-.session-row--active .session-close-btn {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-}
-
-.session-row--working:not(:hover):not(:focus-within) .session-close-btn,
-.session-row--completed:not(:hover):not(:focus-within) .session-close-btn,
-.session-row--failed:not(:hover):not(:focus-within) .session-close-btn {
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-}
-
 .session-action-btn:hover,
 .session-action-btn:focus-visible {
   color: var(--text-1);
@@ -543,9 +547,7 @@
 }
 
 .session-action-btn.session-delete-btn:hover,
-.session-action-btn.session-delete-btn:focus-visible,
-.session-action-btn.session-close-btn:hover,
-.session-action-btn.session-close-btn:focus-visible {
+.session-action-btn.session-delete-btn:focus-visible {
   color: var(--coral);
   background: color-mix(in srgb, var(--coral) 14%, transparent);
 }

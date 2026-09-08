@@ -6,7 +6,6 @@
   flex-direction: column;
   gap: var(--s-6);
 }
-
 .oauth-accounts {
   display: flex;
   flex-direction: column;
@@ -176,7 +175,8 @@
 }
 
 @keyframes oauth-dot-pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
     transform: scale(1);
   }
@@ -191,8 +191,12 @@
 }
 
 @keyframes oauth-dot-spin {
-  0% { transform: rotate(0deg) translateX(2px) rotate(0deg); }
-  100% { transform: rotate(360deg) translateX(2px) rotate(-360deg); }
+  0% {
+    transform: rotate(0deg) translateX(2px) rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg) translateX(2px) rotate(-360deg);
+  }
 }
 
 .oauth-collision-notice {
@@ -457,6 +461,318 @@
   color: var(--text-3);
   font-size: var(--fs-chrome);
   line-height: 1.5;
+}
+
+/* ── Quota Drawer & Meter Styles ───────────────────────────────────────── */
+
+.oauth-drawer-caret {
+  transition: transform var(--t-2) var(--ease-out);
+}
+
+.oauth-drawer-caret.is-open {
+  transform: rotate(180deg);
+}
+
+.oauth-quota-drawer {
+  margin-top: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px dashed color-mix(in srgb, var(--mint) 30%, var(--line-1));
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  animation: oauth-drawer-expand 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.oauth-quota-drawer.is-loading,
+.oauth-quota-drawer.is-empty {
+  padding: var(--s-3) 0;
+}
+
+.oauth-quota-loading-state,
+.oauth-quota-empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border-radius: var(--r-control);
+  background: var(--surface-1);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+}
+
+.oauth-quota-meta-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-control);
+  background: var(--surface-1);
+  border: 1px solid var(--line-1);
+}
+
+.oauth-quota-account-id {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-2);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oauth-quota-plan-tags {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.oauth-quota-plan-badge {
+  padding: 2px 7px;
+  border-radius: var(--r-pill);
+  font-size: 10.5px;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--iris) 15%, transparent);
+  color: var(--iris);
+  border: 1px solid color-mix(in srgb, var(--iris) 30%, transparent);
+}
+
+.oauth-quota-renewal-text {
+  font-size: 10.5px;
+  color: var(--text-4);
+}
+
+/* ── Active Resets Box ────────────────────────────────────────────────── */
+
+.oauth-quota-resets-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--amber) 8%, var(--surface-1));
+  border: 1px solid color-mix(in srgb, var(--amber) 25%, transparent);
+}
+
+.oauth-quota-resets-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.oauth-quota-resets-title {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--amber);
+}
+
+.oauth-quota-resets-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.oauth-quota-resets-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.oauth-quota-reset-slot-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--void) 30%, transparent);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-3);
+}
+
+.oauth-quota-reset-slot-time {
+  color: var(--text-2);
+}
+
+.oauth-quota-resets-action {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--s-1);
+}
+
+/* ── Groups & Windows ─────────────────────────────────────────────────── */
+
+.oauth-quota-groups-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.oauth-quota-group-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-control);
+  background: var(--surface-1);
+  border: 1px solid var(--line-1);
+}
+
+.oauth-quota-group-header {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border-bottom: 1px solid var(--line-1);
+  padding-bottom: 4px;
+}
+
+.oauth-quota-group-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+.oauth-quota-group-desc {
+  font-size: 10px;
+  color: var(--text-4);
+}
+
+.oauth-quota-windows-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.oauth-quota-window-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.oauth-quota-window-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11.5px;
+}
+
+.oauth-quota-window-label {
+  color: var(--text-2);
+  font-weight: 500;
+}
+
+.oauth-quota-window-val {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.oauth-quota-window-val.is-mint {
+  color: var(--mint);
+}
+.oauth-quota-window-val.is-amber {
+  color: var(--amber);
+}
+.oauth-quota-window-val.is-coral {
+  color: var(--coral);
+}
+.oauth-quota-window-val.is-neutral {
+  color: var(--text-4);
+}
+
+.oauth-quota-progress-track {
+  width: 100%;
+  height: 5px;
+  border-radius: var(--r-pill);
+  background: var(--line-2);
+  overflow: hidden;
+}
+
+.oauth-quota-progress-bar {
+  height: 100%;
+  border-radius: var(--r-pill);
+  transition: width var(--t-3) var(--ease-out);
+}
+
+.oauth-quota-progress-bar.is-mint {
+  background: var(--mint);
+}
+.oauth-quota-progress-bar.is-amber {
+  background: var(--amber);
+}
+.oauth-quota-progress-bar.is-coral {
+  background: var(--coral);
+}
+.oauth-quota-progress-bar.is-neutral {
+  background: var(--text-4);
+}
+
+.oauth-quota-window-bottom {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--text-4);
+  justify-content: flex-end;
+}
+
+/* ── PAYG Card ────────────────────────────────────────────────────────── */
+
+.oauth-quota-payg-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-control);
+  background: var(--surface-1);
+  border: 1px solid var(--line-1);
+  font-size: 11px;
+}
+
+.oauth-quota-payg-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.oauth-quota-payg-label {
+  color: var(--text-3);
+}
+
+.oauth-quota-payg-status.is-enabled {
+  color: var(--mint);
+  font-weight: 600;
+}
+
+.oauth-quota-payg-status.is-disabled {
+  color: var(--text-4);
+}
+
+.oauth-quota-payg-usage {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-3);
+}
+
+.oauth-quota-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.oauth-quota-updated-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--text-4);
 }
 
 @media (max-width: 720px) {

@@ -194,7 +194,7 @@ export function shouldAnnounceExtensionDeploymentFailure(
  * Normalize a `theme/get-active` response into the manifest the root theme
  * owner should apply. Built-in piwin ids resolve to the desktop-owned
  * manifest (a stale host copy must not override desktop tokens); failures
- * fall back to built-in dark. Pure so the bootstrap theme path is testable
+ * fall back to Inkstone's dark face. Pure so the bootstrap theme path is testable
  * without a HostClient stream.
  */
 /** Remote shells admit on hello; local sidecar admits on host/status. */
@@ -744,10 +744,10 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
       if (hostClient.supportsCommand('theme/get-active')) {
         const themeResponse = await hostClient.request({ type: 'theme/get-active' });
         // DesktopThemeRoot already applied Appearance prefs at mount. Only push
-        // library / installed packages from the host; Obsidian, Bone, and the
+        // library / installed packages from the host; Inkstone faces and the
         // three-color Appearance overrides must not stomp the user's mode
         // (that was a second theme flash). Retired ids are migrated first —
-        // resolveDesktopAppearance rewrites piwin-dark → piwin-obsidian, so a
+        // resolveDesktopAppearance rewrites retired defaults to Inkstone, so a
         // literal id check against the old names would miss and re-apply.
         const bootstrappedTheme = resolveThemeBootstrapResponse(themeResponse);
         if (!isAppearanceFaceId(bootstrappedTheme.id)) {

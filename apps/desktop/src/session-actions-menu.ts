@@ -145,11 +145,5 @@ export function sessionActionItems(options: {
       label: isChinese ? '归档' : 'Archive',
       testId: 'session-menu-archive',
     },
-    {
-      action: 'delete',
-      label: isChinese ? '删除' : 'Delete',
-      danger: true,
-      testId: 'session-menu-delete',
-    },
   ];
 }

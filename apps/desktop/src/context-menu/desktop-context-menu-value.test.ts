@@ -94,7 +94,7 @@ describe('buildDesktopContextMenuCaps', () => {
       }),
     ).toMatchObject({
       hasProject: true,
-      canReveal: false,
+      canReveal: true,
       sideChatAvailable: false,
       applyAvailable: true,
       openChangedFilesAvailable: true,

@@ -546,12 +546,6 @@ describe('ToolCallCard openable file paths', () => {
     });
 
     const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
-    expect(card?.classList.contains('is-expanded')).toBe(false);
-    expect(container.querySelector('[data-testid="diff-card"]')).toBeNull();
-
-    act(() => {
-      card?.querySelector<HTMLElement>('.tool-call-summary')?.click();
-    });
     expect(card?.classList.contains('is-expanded')).toBe(true);
 
     await act(async () => {
@@ -559,6 +553,13 @@ describe('ToolCallCard openable file paths', () => {
     });
     expect(request).toHaveBeenCalled();
     expect(container.querySelector('[data-testid="diff-card"]')).not.toBeNull();
+
+    // Clicking summary collapses the DiffCard
+    act(() => {
+      card?.querySelector<HTMLElement>('.tool-call-summary')?.click();
+    });
+    expect(card?.classList.contains('is-expanded')).toBe(false);
+    expect(container.querySelector('[data-testid="diff-card"]')).toBeNull();
   });
 
   it('never renders a DiffCard or review buttons when a write/edit tool errors', async () => {
@@ -711,12 +712,7 @@ describe('ToolCallCard openable file paths', () => {
       );
     });
 
-    act(() => {
-      container.querySelector<HTMLElement>('[data-testid="tool-call-file-pill"]')?.click();
-    });
-
-    // Pill click expands inline dropdown instead of jumping to inspector
-    expect(onOpenDiff).not.toHaveBeenCalled();
+    // With canRenderDiffCard true, the edit tool is already auto-expanded
     expect(container.querySelector('[data-testid="tool-call-card"]')?.classList.contains('is-expanded')).toBe(
       true,
     );
@@ -781,15 +777,17 @@ describe('ToolCallCard openable file paths', () => {
     );
     expect(container.querySelector('[data-testid="tool-call-diff-stats"]')?.textContent).toContain('+1');
 
-    act(() => {
-      container.querySelector<HTMLElement>('.tool-call-summary')?.click();
-    });
-
     await act(async () => {
       await Promise.resolve();
     });
     expect(request).toHaveBeenCalled();
     expect(container.querySelector('[data-testid="diff-card"]')).not.toBeNull();
+
+    // Clicking summary collapses the DiffCard
+    act(() => {
+      container.querySelector<HTMLElement>('.tool-call-summary')?.click();
+    });
+    expect(container.querySelector('[data-testid="tool-call-card"]')?.classList.contains('is-expanded')).toBe(false);
   });
 });
 

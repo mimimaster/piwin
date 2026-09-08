@@ -8,6 +8,7 @@ import { validateThemeManifest } from './validate-manifest.js';
 import { resolveBundledAssetsRoot } from './bundled-assets-root.js';
 
 const BUNDLED_THEME_IDS = new Set([
+  'piwin-inkstone',
   'piwin-dark',
   'piwin-light',
   'piwin-orange-white',
@@ -16,18 +17,34 @@ const BUNDLED_THEME_IDS = new Set([
   'piwin-inkstone-ink',
 ]);
 
-/**
- * Desktop Deck faces keep new ids (`piwin-obsidian` / `piwin-bone`). Host still
- * ships the pre-Deck directories. Map before any `themes/<id>/theme.json` read
- * so `theme/set-active` does not ENOENT a folder that never existed on disk.
- */
-const DECK_FACE_ON_DISK_IDS: Record<string, string> = {
-  'piwin-obsidian': 'piwin-dark',
-  'piwin-bone': 'piwin-light',
+const HIDDEN_THEME_IDS = new Set([
+  'piwin-dark',
+  'piwin-light',
+  'piwin-orange-white',
+  'piwin-obsidian',
+  'piwin-bone',
+  'piwin-inkstone-paper',
+  'piwin-inkstone-ink',
+]);
+
+const THEME_ID_ALIASES: Record<string, string> = {
+  'piwin-dark': 'piwin-inkstone',
+  'piwin-obsidian': 'piwin-inkstone',
+  'piwin-light': 'piwin-inkstone',
+  'piwin-bone': 'piwin-inkstone',
+  'piwin-orange-white': 'piwin-inkstone',
+  'piwin-inkstone-paper': 'piwin-inkstone',
+  'piwin-inkstone-ink': 'piwin-inkstone',
 };
 
+const DEFAULT_ACTIVE_THEME_ID = 'piwin-inkstone';
+
 export function resolveOnDiskThemeId(themeId: string): string {
-  return DECK_FACE_ON_DISK_IDS[themeId] ?? themeId;
+  return THEME_ID_ALIASES[themeId] ?? themeId;
+}
+
+function normalizeThemeId(themeId: string): string {
+  return THEME_ID_ALIASES[themeId] ?? themeId;
 }
 
 export class ThemeNotFoundError extends Error {
@@ -54,12 +71,12 @@ export async function loadThemePreference(piwinRoot: string): Promise<ThemePrefe
     const raw = await readFile(getThemePreferencePath(piwinRoot), 'utf8');
     const parsed = JSON.parse(raw) as { activeThemeId?: string };
     if (typeof parsed.activeThemeId === 'string' && parsed.activeThemeId.trim()) {
-      return { activeThemeId: parsed.activeThemeId.trim() };
+      return { activeThemeId: normalizeThemeId(parsed.activeThemeId.trim()) };
     }
   } catch {
     // default
   }
-  return { activeThemeId: 'piwin-inkstone-paper' };
+  return { activeThemeId: DEFAULT_ACTIVE_THEME_ID };
 }
 
 export async function saveThemePreference(
@@ -68,7 +85,11 @@ export async function saveThemePreference(
 ): Promise<void> {
   const path = getThemePreferencePath(piwinRoot);
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify(preference, null, 2)}\n`, 'utf8');
+  await writeFile(
+    path,
+    `${JSON.stringify({ activeThemeId: normalizeThemeId(preference.activeThemeId) }, null, 2)}\n`,
+    'utf8',
+  );
 }
 
 export async function ensureBundledThemesInstalled(
@@ -152,6 +173,7 @@ export async function listThemes(piwinRoot: string): Promise<{
     const manifestPath = join(themePath, 'theme.json');
     try {
       if (!(await stat(themePath)).isDirectory()) continue;
+      if (HIDDEN_THEME_IDS.has(entry)) continue;
       const raw = await readFile(manifestPath, 'utf8');
       const validated = validateThemeManifest(JSON.parse(raw));
       if (!validated.ok) continue;
@@ -205,7 +227,7 @@ export async function getActiveTheme(piwinRoot: string): Promise<ThemeManifest> 
   try {
     return await loadThemeManifest(piwinRoot, preference.activeThemeId);
   } catch {
-    return loadThemeManifest(piwinRoot, 'piwin-dark');
+    return loadThemeManifest(piwinRoot, DEFAULT_ACTIVE_THEME_ID);
   }
 }
 

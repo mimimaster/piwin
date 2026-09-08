@@ -431,17 +431,19 @@ export const ChatMessageRow = memo(
             {...(props.locale ? { locale: props.locale } : {})}
           />
         )}
-        <ChatTurnFilesSummary
-          role={message.role}
-          tools={message.tools}
-          {...(props.isConversationSession !== undefined
-            ? { isConversationSession: props.isConversationSession }
-            : {})}
-          {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
-          {...(props.filesChangedRequest !== undefined ? { request: props.filesChangedRequest } : {})}
-          {...(props.onReviewChanges !== undefined ? { onReview: props.onReviewChanges } : {})}
-          {...(props.locale ? { locale: props.locale } : {})}
-        />
+        {props.isLastAssistantInTurn === true ? (
+          <ChatTurnFilesSummary
+            role={message.role}
+            tools={props.turnTools ?? message.tools}
+            {...(props.isConversationSession !== undefined
+              ? { isConversationSession: props.isConversationSession }
+              : {})}
+            {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
+            {...(props.filesChangedRequest !== undefined ? { request: props.filesChangedRequest } : {})}
+            {...(props.onReviewChanges !== undefined ? { onReview: props.onReviewChanges } : {})}
+            {...(props.locale ? { locale: props.locale } : {})}
+          />
+        ) : null}
         {props.isConversationSession !== true &&
         message.role === 'assistant' &&
         props.isLastAssistantInTurn === true &&
@@ -464,12 +466,13 @@ export const ChatMessageRow = memo(
             {...(message.failure === undefined ? {} : { failure: message.failure })}
             locale={props.locale}
             onRetry={() => {
-              if (props.lastUserMessageId && props.onRetryTurn) {
-                props.onRetryTurn(props.lastUserMessageId, { keepPrevious: false });
+              const retryUserMessageId = props.turnUserMessageId ?? props.lastUserMessageId;
+              if (retryUserMessageId && props.onRetryTurn) {
+                props.onRetryTurn(retryUserMessageId, { keepPrevious: false });
               } else if (props.onRegenerate) {
                 props.onRegenerate();
-              } else if (props.lastUserMessageId) {
-                props.onRetry(props.lastUserMessageId);
+              } else if (retryUserMessageId) {
+                props.onRetry(retryUserMessageId);
               }
             }}
             onFeedback={props.onFeedback}

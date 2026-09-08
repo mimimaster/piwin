@@ -19,7 +19,7 @@ import type {
   PermissionPreset,
   WorkspaceWrites,
 } from '@piwin/contracts';
-import { toModelRef } from '@piwin/contracts';
+import { readExplicitSkillIntent, toModelRef } from '@piwin/contracts';
 import type { TranscriptBranchPoint } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
 import type { ChatMessageUi, ChatUiAction } from '../chat-reducer';
@@ -102,6 +102,11 @@ export function useBranchActions(args: UseBranchActionsArgs) {
     keepPrevious: boolean;
     offPathWrites: WorkspaceWrites;
   } | null>(null);
+  const [pendingBranchLeaves, setPendingBranchLeaves] = useState<{
+    messageId: string;
+    text: string;
+    offPathWrites: WorkspaceWrites;
+  } | null>(null);
 
   const refreshBranchPoints = useCallback(
     async (sessionId: string): Promise<void> => {
@@ -125,6 +130,7 @@ export function useBranchActions(args: UseBranchActionsArgs) {
     // Pending confirmations name a message id in the session we just left.
     setPendingSwitchConfirm(null);
     setPendingRetryDiscard(null);
+    setPendingBranchLeaves(null);
     setPendingTruncate(null);
     if (!activeSessionId) {
       return;
@@ -214,7 +220,11 @@ export function useBranchActions(args: UseBranchActionsArgs) {
   );
 
   const branchResend = useCallback(
-    async (messageId: string, nextText: string): Promise<void> => {
+    async (
+      messageId: string,
+      nextText: string,
+      options?: { confirm?: boolean },
+    ): Promise<void> => {
       if (!activeSessionId) {
         dispatchNotification(pushError('No active session to branch.'));
         return;
@@ -246,27 +256,13 @@ export function useBranchActions(args: UseBranchActionsArgs) {
         return;
       }
 
-      const clipped = clipMessagesBeforeId(visible, messageId);
-      if (clipped) {
-        dispatch({
-          type: 'session/branch-switched',
-          sessionId: activeSessionId,
-          clipBeforeMessageId: messageId,
-        });
-      }
       setEditingMessageId(null);
       const resendClientMessageId = crypto.randomUUID();
       // The edit card only lets the user change the text; attachments and
       // context refs on the original turn are shown read-only above it and
       // must survive the resend — otherwise "edit this turn" silently drops
       // them from the optimistic bubble and the Host-persisted prompt.
-      dispatch({
-        type: 'user/send',
-        text,
-        clientMessageId: resendClientMessageId,
-        ...(attachments.length > 0 ? { attachments } : {}),
-        ...(contextRefs && contextRefs.length > 0 ? { contextRefs } : {}),
-      });
+      const skillIntent = readExplicitSkillIntent(text);
       const input = buildBranchPromptInput({
         text,
         branchFromMessageId: messageId,
@@ -280,11 +276,13 @@ export function useBranchActions(args: UseBranchActionsArgs) {
         ...(permissionPreset !== undefined ? { permissionPreset } : {}),
         ...(orchestrationSchemeId !== undefined ? { orchestrationSchemeId } : {}),
         ...(delegationDisabled !== undefined ? { delegationDisabled } : {}),
+        ...(skillIntent ? { skillId: skillIntent.skillId } : {}),
       });
       const response = await requestPromptWithForeground({
-        request: (command, options) => hostClient.request(command, options),
+        request: (command, requestOptions) => hostClient.request(command, requestOptions),
         sessionId: activeSessionId,
         input,
+        ...(options?.confirm === true ? { confirm: true } : {}),
         createIdempotencyKey: createGestureIdempotencyKey,
         ...(confirmForegroundReplace ? { confirmReplace: confirmForegroundReplace } : {}),
         ...(typeof hostClient.supportsForegroundAdmission === 'function'
@@ -292,7 +290,13 @@ export function useBranchActions(args: UseBranchActionsArgs) {
           : {}),
       });
       if (!response.success) {
-        dispatch({ type: 'user/send-rollback', clientMessageId: resendClientMessageId });
+        // No optimistic clip/send yet — write-boundary refusal must leave the
+        // visible route unchanged (same invariant as retryTurn).
+        const writes = readRouteLeavesWrites(response);
+        if (writes && options?.confirm !== true) {
+          setPendingBranchLeaves({ messageId, text, offPathWrites: writes });
+          return;
+        }
         await reloadTranscript(activeSessionId);
         const problem = readForegroundProblem(response);
         if (problem) {
@@ -302,6 +306,22 @@ export function useBranchActions(args: UseBranchActionsArgs) {
         }
         return;
       }
+      // Clip + optimistic bubble only after Host accepts.
+      if (clipMessagesBeforeId(visible, messageId)) {
+        dispatch({
+          type: 'session/branch-switched',
+          sessionId: activeSessionId,
+          clipBeforeMessageId: messageId,
+        });
+      }
+      dispatch({
+        type: 'user/send',
+        text,
+        clientMessageId: resendClientMessageId,
+        ...(attachments.length > 0 ? { attachments } : {}),
+        ...(contextRefs && contextRefs.length > 0 ? { contextRefs } : {}),
+      });
+      setPendingBranchLeaves(null);
       const accepted = response.data as { runId?: string; acceptedAt?: string };
       if (typeof accepted.runId === 'string') {
         dispatch({
@@ -550,6 +570,15 @@ export function useBranchActions(args: UseBranchActionsArgs) {
       }
     },
     cancelRetryDiscard: () => setPendingRetryDiscard(null),
+    pendingBranchLeaves,
+    confirmBranchLeaves: () => {
+      if (pendingBranchLeaves) {
+        void branchResend(pendingBranchLeaves.messageId, pendingBranchLeaves.text, {
+          confirm: true,
+        });
+      }
+    },
+    cancelBranchLeaves: () => setPendingBranchLeaves(null),
   };
 }
 
@@ -566,6 +595,7 @@ export function buildBranchPromptInput(input: {
   permissionPreset?: PermissionPreset;
   orchestrationSchemeId?: string;
   delegationDisabled?: boolean;
+  skillId?: string;
 }): PromptInput {
   const prompt: PromptInput = {
     text: input.text,
@@ -573,6 +603,9 @@ export function buildBranchPromptInput(input: {
     clientMessageId: input.clientMessageId,
     branchFromMessageId: input.branchFromMessageId,
   };
+  if (input.skillId) {
+    prompt.skillId = input.skillId;
+  }
   if (input.permissionPreset) {
     prompt.permissionPreset = input.permissionPreset;
   }
@@ -651,12 +684,20 @@ export function buildRetryPromptInput(input: {
   return prompt;
 }
 
-export function readRetryDiscardsWrites(response: HostResponse): WorkspaceWrites | undefined {
+const ROUTE_LEAVES_WRITE_CODES = new Set(['retry-discards-writes', 'branch-leaves-writes']);
+
+/** Shared Host refusal when leaving a route that wrote workspace files. */
+export function readRouteLeavesWrites(response: HostResponse): WorkspaceWrites | undefined {
   if (response.success) {
     return undefined;
   }
   const problem = response.problem;
-  if (problem?.code !== 'retry-discards-writes' || !problem.data || typeof problem.data !== 'object') {
+  if (
+    problem?.code === undefined ||
+    !ROUTE_LEAVES_WRITE_CODES.has(problem.code) ||
+    !problem.data ||
+    typeof problem.data !== 'object'
+  ) {
     return undefined;
   }
   const data = problem.data as WorkspaceWrites;
@@ -664,6 +705,11 @@ export function readRetryDiscardsWrites(response: HostResponse): WorkspaceWrites
     return undefined;
   }
   return data;
+}
+
+/** @deprecated Prefer readRouteLeavesWrites — same payload for retry and branch. */
+export function readRetryDiscardsWrites(response: HostResponse): WorkspaceWrites | undefined {
+  return readRouteLeavesWrites(response);
 }
 
 /** Narrow Host request used by tests — keep the command shape explicit. */

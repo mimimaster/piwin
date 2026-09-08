@@ -952,7 +952,7 @@ describe('ComposerDock host status', () => {
     expect(onSend).toHaveBeenCalledWith('/compact');
   });
 
-  it('executes a partial slash token on one Enter (skill)', () => {
+  it('completes a partial slash skill on Enter without sending', () => {
     const onSend = vi.fn();
     const onComposerChange = vi.fn();
     const rendered = renderDock(
@@ -974,9 +974,35 @@ describe('ComposerDock host status', () => {
         new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
       );
     });
-    expect(onComposerChange).toHaveBeenCalledWith('/create-skill');
+    expect(onComposerChange).toHaveBeenCalledWith('/create-skill ');
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it('sends a slash skill on Enter when args already follow the token', () => {
+    const onSend = vi.fn();
+    const onComposerChange = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        composer="/cre write a search skill"
+        onComposerChange={onComposerChange}
+        onSend={onSend}
+        menuSkills={[{ id: 'create-skill', name: 'create-skill', enabled: true }]}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(container.querySelector('[data-testid="composer-slash-menu"]')).not.toBeNull();
+    const input = container.querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]');
+    act(() => {
+      input?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(onComposerChange).toHaveBeenCalledWith('/create-skill write a search skill');
     expect(onSend).toHaveBeenCalledTimes(1);
-    expect(onSend).toHaveBeenCalledWith('/create-skill');
+    expect(onSend).toHaveBeenCalledWith('/create-skill write a search skill');
   });
 
   it('does not send on Tab after selecting a partial slash token', () => {
@@ -1058,6 +1084,31 @@ describe('ComposerDock host status', () => {
         {...baseProps}
         paused
         composer="/compact"
+        onSend={onSend}
+        onResume={onResume}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const input = container.querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]');
+    act(() => {
+      input?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(onSend).toHaveBeenCalledTimes(1);
+    expect(onResume).not.toHaveBeenCalled();
+  });
+
+  it('sends a drafted prompt on Enter while paused instead of swallowing the key', () => {
+    const onSend = vi.fn();
+    const onResume = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        paused
+        composer="先别继续，解释刚才的错误"
         onSend={onSend}
         onResume={onResume}
       />,

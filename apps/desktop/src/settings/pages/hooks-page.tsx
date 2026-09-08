@@ -12,6 +12,10 @@ import type {
 } from '@piwin/contracts';
 import { Button, IconButton, Notice, Select, Spinner, Switch, TextInput } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
+import {
+  hooksArmedEffectMessage,
+  hooksSavedEffectMessage,
+} from '../../settings-effect-copy.js';
 import { FieldRow } from '../field-row';
 import { PageTitle } from '../page-title';
 import { settingsHostSupportsCommand, useSettings } from '../settings-context';
@@ -63,6 +67,7 @@ export function HooksPage(): ReactElement {
   const [extensions, setExtensions] = useState<ExtensionSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [draftEvent, setDraftEvent] = useState<HookEventName>('turn_end');
   const [draftActionType, setDraftActionType] = useState<'shell' | 'http'>('shell');
   const [draftCommand, setDraftCommand] = useState('');
@@ -105,6 +110,7 @@ export function HooksPage(): ReactElement {
   async function persistHooks(next: HookDefinition[]): Promise<boolean> {
     setSaving(true);
     setError(null);
+    setInfo(null);
     const response = await requestAutomation({ type: 'hooks/set', hooks: next });
     setSaving(false);
     if (!response.success) {
@@ -112,11 +118,14 @@ export function HooksPage(): ReactElement {
       return false;
     }
     setHooks(next);
+    setInfo(hooksSavedEffectMessage(locale, armed));
     return true;
   }
 
   async function armHooks(checked: boolean): Promise<void> {
     if (!config) return;
+    setError(null);
+    setInfo(null);
     const previous = config.automation;
     const automation: AutomationConfig = { hooksEnabled: checked };
     if (checked || previous?.enabled === true) {
@@ -128,7 +137,10 @@ export function HooksPage(): ReactElement {
       automation.cronEnabled = previous.cronEnabled;
     }
     const next: PiwinConfig = { ...config, automation };
-    await saveConfig(next);
+    const ok = await saveConfig(next);
+    if (ok) {
+      setInfo(hooksArmedEffectMessage(locale, checked));
+    }
   }
 
   async function handleAdd(): Promise<void> {
@@ -174,6 +186,11 @@ export function HooksPage(): ReactElement {
       />
 
       {error ? <Notice tone="error">{error}</Notice> : null}
+      {info ? (
+        <Notice tone="info" testId="settings-hooks-info">
+          {info}
+        </Notice>
+      ) : null}
 
       <div className="settings-section settings-section-card">
         <FieldRow
@@ -194,8 +211,8 @@ export function HooksPage(): ReactElement {
         {!armed && hooks.length > 0 ? (
           <Notice tone="warning">
             {isChinese
-              ? '钩子已保存但尚未启用，到达所选时机时不会执行。'
-              : 'Hooks are saved but not enabled. They will not run at the selected moments.'}
+              ? '钩子配置已保存，但事件钩子尚未启用，因此不会在选定时机执行。'
+              : 'Hook configuration has been saved, but event hooks are not enabled, so they will not run at the selected moments.'}
           </Notice>
         ) : null}
       </div>

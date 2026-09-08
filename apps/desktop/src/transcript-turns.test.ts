@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { ChatMessageUi } from './chat-reducer';
-import { groupTranscriptTurns, indexTranscriptTurnsByMessageId } from './transcript-turns';
+import {
+  groupTranscriptTurns,
+  indexTranscriptTurnsByMessageId,
+  turnUserMessageId,
+} from './transcript-turns';
 
 function message(id: string, role: ChatMessageUi['role']): ChatMessageUi {
   return {
@@ -48,4 +52,19 @@ describe('transcript turn grouping', () => {
     ]);
   });
 
+  it('returns the user prompt that opened the turn, not a later user', () => {
+    const turns = groupTranscriptTurns([
+      message('user-1', 'user'),
+      message('assistant-1', 'assistant'),
+      message('user-2', 'user'),
+      message('assistant-2', 'assistant'),
+    ]);
+    const firstTurn = turns[0];
+    const secondTurn = turns[1];
+    if (!firstTurn || !secondTurn) {
+      throw new Error('expected two turns');
+    }
+    expect(turnUserMessageId(firstTurn)).toBe('user-1');
+    expect(turnUserMessageId(secondTurn)).toBe('user-2');
+  });
 });

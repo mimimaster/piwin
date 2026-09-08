@@ -155,4 +155,75 @@ describe('UserMessageContent context chips', () => {
     expect(container?.querySelector('.voice-handover-card-brief')?.textContent).toBe('搜索近期资料');
     expect(container?.querySelector('[data-testid="user-message-avatar"]')).toBeNull();
   });
+
+  it('renders slash message with gradient ribbon and command header in Conversation mode', () => {
+    const slashMsg: ChatMessageUi = {
+      ...message,
+      id: 'u-slash-1',
+      text: '/RuiC-card-skill 在重新生成',
+    };
+    render(
+      <UserMessageContent
+        message={slashMsg}
+        onRetry={vi.fn()}
+        locale="zh-CN"
+        isConversationSession={true}
+      />,
+    );
+    const containerEl = container?.querySelector('[data-testid="user-message-slash-container"]');
+    const ribbon = container?.querySelector('[data-testid="user-message-slash-ribbon"]');
+    const header = container?.querySelector('[data-testid="user-message-slash-header"]');
+    const content = container?.querySelector('[data-testid="user-message-slash-content"]');
+
+    expect(containerEl).not.toBeNull();
+    expect(ribbon).not.toBeNull();
+    expect(header?.textContent).toBe('/RuiC-card-skill');
+    expect(content?.textContent).toBe('在重新生成');
+  });
+
+  it('renders slash message with gradient ribbon and command header in Agent mode', () => {
+    const goalMsg: ChatMessageUi = {
+      ...message,
+      id: 'u-slash-2',
+      text: '/goal 把所有超时测试修好',
+    };
+    render(
+      <UserMessageContent
+        message={goalMsg}
+        onRetry={vi.fn()}
+        locale="zh-CN"
+        isConversationSession={false}
+      />,
+    );
+    const containerEl = container?.querySelector('[data-testid="user-message-slash-container"]');
+    const ribbon = container?.querySelector('[data-testid="user-message-slash-ribbon"]');
+    const header = container?.querySelector('[data-testid="user-message-slash-header"]');
+    const content = container?.querySelector('[data-testid="user-message-slash-content"]');
+
+    expect(containerEl).not.toBeNull();
+    expect(ribbon).not.toBeNull();
+    expect(header?.textContent).toBe('/goal');
+    expect(content?.textContent).toBe('把所有超时测试修好');
+  });
+
+  it('renders bare slash command without trailing empty content in Conversation mode', () => {
+    const compactMsg: ChatMessageUi = {
+      ...message,
+      id: 'u-slash-3',
+      text: '/compact',
+    };
+    render(
+      <UserMessageContent
+        message={compactMsg}
+        onRetry={vi.fn()}
+        locale="zh-CN"
+        isConversationSession={true}
+      />,
+    );
+    const header = container?.querySelector('[data-testid="user-message-slash-header"]');
+    const content = container?.querySelector('[data-testid="user-message-slash-content"]');
+
+    expect(header?.textContent).toBe('/compact');
+    expect(content).toBeNull();
+  });
 });

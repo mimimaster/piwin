@@ -213,6 +213,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
           id: skill.id,
           name: skill.name,
           enabled: skill.enabled,
+          ...(skill.source ? { source: skill.source } : {}),
         })),
         compactionSupported: props.compactionSupported !== false,
         streaming: isStreamingRun,
@@ -403,10 +404,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     setSlashMenuForcedClosed(true);
   }
 
-  /**
-   * Enter semantics: perform the selected item now. Modes switch in place;
-   * commands/skills keep any user-typed args after the token and send.
-   */
+  /** Enter performs selected items; bare skills complete, others send. */
   function executeSlashItem(item: SlashItem): void {
     if (!activeSlashToken) {
       return;
@@ -423,6 +421,15 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       props.onComposerChange(next);
       focusCaret(activeSlashToken.startIndex);
       setSlashMenuForcedClosed(true);
+      return;
+    }
+    if (item.kind === 'skill') {
+      const suffix = props.composer.slice(activeSlashToken.endIndex);
+      if (suffix.trim().length === 0) {
+        completeSlashItem(item);
+        return;
+      }
+      executeSlashItemSend(item, suffix);
       return;
     }
     executeSlashItemSend(item, props.composer.slice(activeSlashToken.endIndex));
@@ -578,7 +585,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
         const selected = slashItems[slashSelectedIndex];
         if (selected && (selected.available || isReservedSlashExecuteName(selected.name))) {
-          // One Enter performs the selected item: no fill-then-Enter dance.
+          // Bare skills complete like click/Tab; other items perform on Enter.
           event.preventDefault();
           executeSlashItem(selected);
           return;
@@ -714,9 +721,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !event.shiftKey) {
       event.preventDefault();
       const reserved = isReservedComposerSlashCommand(props.composer);
-      if (isPaused && !reserved) {
-        return;
-      }
+      // Paused + draft is a new message; empty Continue stays on the circle.
       if (isStreamingRun && !queuedEdit && !reserved) {
         if (props.composer.trim().length > 0) {
           triggerSteer();
@@ -740,9 +745,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     ) {
       event.preventDefault();
       const reserved = isReservedComposerSlashCommand(props.composer);
-      if (isPaused && !reserved) {
-        return;
-      }
+      // Paused + draft sends the new message instead of silently no-oping.
       if (canKeyboardSend || reserved) {
         triggerSend();
       }

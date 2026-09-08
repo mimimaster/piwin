@@ -413,14 +413,8 @@ it('renders local drafts first with a hollow mark and restores the selected draf
   expect(container.querySelectorAll('.session-draft-mark')).toHaveLength(2);
   expect(container.querySelector('[data-session-id="draft-new"]')?.className).toContain('active');
   expect(container.querySelector('.session-row--draft .session-row-actions--draft')).not.toBeNull();
-  expect(
-    container.querySelector('.session-row--draft [data-testid="session-close-btn"]'),
-  ).toBeNull();
-  expect(
-    container.querySelector(
-      '[data-session-id="real-session"]',
-    )?.parentElement?.querySelector('[data-testid="session-close-btn"]'),
-  ).not.toBeNull();
+  expect(container.querySelector('[data-testid="session-close-btn"]')).toBeNull();
+  expect(container.querySelector('[data-testid="session-delete-btn"]')).toBeNull();
 
   (sessionItems[0] as HTMLButtonElement).click();
   expect(onResumeDraft).toHaveBeenCalledWith('draft-new');
@@ -491,13 +485,13 @@ it('keeps the three session actions available when the session is idle', () => {
   expect(container.querySelector('[data-testid="session-menu-btn"]')).not.toBeNull();
   expect(container.querySelector('[data-testid="session-pin-btn"]')).not.toBeNull();
   expect(container.querySelector('[data-testid="session-archive-btn"]')).not.toBeNull();
-  expect(container.querySelector('[data-testid="session-close-btn"]')).not.toBeNull();
+  expect(container.querySelector('[data-testid="session-close-btn"]')).toBeNull();
+  expect(container.querySelector('[data-testid="session-delete-btn"]')).toBeNull();
   expect(container.querySelector('[data-testid="session-working-indicator"]')).toBeNull();
   for (const testId of [
     'session-menu-btn',
     'session-pin-btn',
     'session-archive-btn',
-    'session-close-btn',
   ] as const) {
     const icon = container.querySelector(`[data-testid="${testId}"] svg`);
     expect(icon?.getAttribute('width'), testId).toBe('12');
@@ -505,26 +499,18 @@ it('keeps the three session actions available when the session is idle', () => {
   }
 });
 
-it('lets the shaded selected row delete from the close control without opening the session', () => {
+it('does not let a selected live session delete from the row', () => {
   const onDeleteSession = vi.fn();
-  const onResumeSession = vi.fn();
   const { container } = renderSidebar({
     filteredSessions: createMockSessions(1),
     activeSessionId: 'session-1',
     onDeleteSession,
-    onResumeSession,
   });
 
   expect(container.querySelector('.session-row--active')).not.toBeNull();
-  const close = container.querySelector<HTMLButtonElement>('[data-testid="session-close-btn"]');
-  expect(close).not.toBeNull();
-  expect(close?.getAttribute('aria-label')).toBe('Delete session permanently');
-
-  act(() => {
-    close?.click();
-  });
-  expect(onDeleteSession).toHaveBeenCalledWith('session-1');
-  expect(onResumeSession).not.toHaveBeenCalled();
+  expect(container.querySelector('[data-testid="session-close-btn"]')).toBeNull();
+  expect(container.querySelector('[data-testid="session-delete-btn"]')).toBeNull();
+  expect(onDeleteSession).not.toHaveBeenCalled();
 });
 
 it('renders the three-dot service indicator in preference to the working spinner', () => {
@@ -608,6 +594,30 @@ it('shows a completion marker and replaces the session timestamp', () => {
   expect(container.querySelector('.session-item-time')).toBeNull();
 });
 
+it('keeps the completion seal as a sibling of hover actions on completed rows', () => {
+  const sessions = createMockSessions(1);
+  const { container } = renderSidebar({
+    filteredSessions: sessions,
+    completedAttentionSessionIds: { 'session-1': true },
+  });
+
+  const row = container.querySelector<HTMLElement>('.session-row--completed');
+  const seal = container.querySelector<HTMLElement>('[data-testid="session-completed-dismiss"]');
+  const actions = container.querySelector<HTMLElement>('.session-row-actions');
+  const archive = container.querySelector<HTMLElement>('[data-testid="session-archive-btn"]');
+  expect(row).not.toBeNull();
+  expect(seal).not.toBeNull();
+  expect(actions).not.toBeNull();
+  expect(archive).not.toBeNull();
+  // Seal and actions are siblings under the row (not nested). Layout CSS keeps
+  // actions left of the seal via --session-status-seal-clearance so archive
+  // never paints over the mint check.
+  expect(row?.contains(seal)).toBe(true);
+  expect(row?.contains(actions)).toBe(true);
+  expect(seal?.contains(archive)).toBe(false);
+  expect(actions?.contains(archive)).toBe(true);
+});
+
 it('dismisses the completion marker on checkmark click without opening the session', () => {
   const sessions = createMockSessions(1);
   const onResumeSession = vi.fn();
@@ -687,6 +697,8 @@ it('dismisses the failed marker on click without opening the session', () => {
 });
 
 it('archived row shows pin, unarchive, and delete actions', () => {
+  const onDeleteSession = vi.fn();
+  const onResumeSession = vi.fn();
   const sessions: SessionListItemUi[] = [
     {
       id: 'archived-2',
@@ -699,14 +711,25 @@ it('archived row shows pin, unarchive, and delete actions', () => {
   const { container } = renderSidebar({
     filteredSessions: sessions,
     showArchivedSessions: true,
+    onDeleteSession,
+    onResumeSession,
   });
 
   expect(container.querySelector('[data-testid="session-pin-btn"]')).not.toBeNull();
   expect(container.querySelector('[data-testid="session-unarchive-btn"]')).not.toBeNull();
-  expect(container.querySelector('[data-testid="session-delete-btn"]')).not.toBeNull();
+  const deleteBtn = container.querySelector<HTMLButtonElement>(
+    '[data-testid="session-delete-btn"]',
+  );
+  expect(deleteBtn).not.toBeNull();
   expect(container.querySelector('[data-testid="session-close-btn"]')).toBeNull();
   expect(container.querySelector('[data-testid="session-menu-btn"]')).toBeNull();
   expect(container.querySelector('[data-testid="session-archive-btn"]')).toBeNull();
+
+  act(() => {
+    deleteBtn?.click();
+  });
+  expect(onDeleteSession).toHaveBeenCalledWith('archived-2');
+  expect(onResumeSession).not.toHaveBeenCalled();
 });
 
 it('opens customize menu with ordering, group by, and archived filter', () => {

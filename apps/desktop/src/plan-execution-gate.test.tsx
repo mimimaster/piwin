@@ -72,7 +72,7 @@ describe('canShowPlanExecutionGate', () => {
     ).toBe(false);
   });
 
-  it('stays on the call chain while the user keeps chatting', () => {
+  it('can still render on the creating turn while the user keeps chatting', () => {
     expect(
       canShowPlanExecutionGate({
         plan: draftPlan(),
@@ -207,13 +207,26 @@ describe('findPlanExecutionGateMessageId', () => {
     ).toBe('a2');
   });
 
-  it('falls back to the latest assistant when no create tool is in the transcript', () => {
+  it('stays on the creating message after later turns, never the latest assistant', () => {
+    expect(
+      findPlanExecutionGateMessageId([
+        assistantMessage('create', [
+          { toolCallId: 't1', toolName: 'piwin_plan_create', status: 'done', output: '' },
+        ]),
+        assistantMessage('follow-up', [
+          { toolCallId: 't2', toolName: 'piwin_plan_set_step', status: 'running', output: '' },
+        ]),
+      ]),
+    ).toBe('create');
+  });
+
+  it('does not attach to later turns when the creating tool is absent', () => {
     expect(
       findPlanExecutionGateMessageId([
         assistantMessage('a1'),
         assistantMessage('a2'),
       ]),
-    ).toBe('a2');
+    ).toBeNull();
   });
 
   it('matches routed plan_create aliases', () => {
@@ -322,6 +335,46 @@ describe('PlanExecutionGate', () => {
     container.remove();
   });
 
+  it('opens the matching plan document when the card is clicked', () => {
+    const onExecute = vi.fn();
+    const onOpenDocument = vi.fn();
+    const { container, root } = renderNode(
+      <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => undefined}>
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <PlanExecutionGate
+            plan={draftPlan()}
+            onExecute={onExecute}
+            onOpenDocument={onOpenDocument}
+          />
+        </PiwinUiProvider>
+      </DesktopLocaleProvider>,
+    );
+    const gate = container.querySelector<HTMLElement>('[data-testid="plan-execution-gate"]');
+    expect(gate).not.toBeNull();
+    expect(gate?.getAttribute('data-document-openable')).toBe('true');
+
+    act(() => gate?.click());
+
+    expect(onOpenDocument).toHaveBeenCalledTimes(1);
+    expect(onOpenDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Add auth',
+        path: 'plans/s1.md',
+        content: expect.stringContaining('# Implementation Plan: Add auth'),
+      }),
+    );
+    expect(onExecute).not.toHaveBeenCalled();
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="plan-mode-inline"]')?.click();
+    });
+    expect(onExecute).toHaveBeenCalledWith('inline');
+    expect(onOpenDocument).toHaveBeenCalledTimes(1);
+
+    act(() => root.unmount());
+    container.remove();
+  });
+
   it('matches proto-01-transcript.html DOM elements, classes, and step metrics', () => {
     const protoPlan = draftPlan({
       title: '作曲器排队语义',
@@ -417,6 +470,30 @@ describe('PlanExecutionGate', () => {
     act(() => root.unmount());
     container.remove();
   });
+
+  it('does not capture A/B once the card is historical transcript', () => {
+    const onExecute = vi.fn();
+    const { container, root } = renderNode(
+      <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => undefined}>
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <PlanExecutionGate
+            plan={draftPlan()}
+            onExecute={onExecute}
+            captureKeyboard={false}
+          />
+        </PiwinUiProvider>
+      </DesktopLocaleProvider>,
+    );
+
+    expect(container.querySelector('.kb')).toBeNull();
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
+    });
+    expect(onExecute).not.toHaveBeenCalled();
+
+    act(() => root.unmount());
+    container.remove();
+  });
 });
 
 describe('PlanExecutionGate on the call chain', () => {
@@ -432,6 +509,7 @@ describe('PlanExecutionGate on the call chain', () => {
   });
 
   it('renders after the turn tool group and hides plan-create rows', () => {
+    const onOpenDocument = vi.fn();
     const message = assistantMessage('a1', [
       { toolCallId: 't1', toolName: 'bash', status: 'done', output: 'ok' },
       { toolCallId: 't2', toolName: 'piwin_plan_create', status: 'done', output: 'draft' },
@@ -445,16 +523,22 @@ describe('PlanExecutionGate on the call chain', () => {
             activeRunId={null}
             permissionPrompt={null}
             workDetailsExpanded="always"
+            onOpenDocument={onOpenDocument}
             planExecutionGate={{ plan: draftPlan(), onExecute: () => undefined }}
           />
         </PiwinUiProvider>
       </DesktopLocaleProvider>,
     );
     const group = container.querySelector('[data-testid="turn-tool-group"]');
-    const gate = container.querySelector('[data-testid="plan-execution-gate"]');
+    const gate = container.querySelector<HTMLElement>('[data-testid="plan-execution-gate"]');
     expect(group).not.toBeNull();
     expect(gate).not.toBeNull();
     expect(group && gate && group.compareDocumentPosition(gate) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(gate?.closest('[data-testid="turn-work-details"]')).toBeNull();
+    act(() => gate?.click());
+    expect(onOpenDocument).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'plans/s1.md' }),
+    );
     expect(container.querySelector('[data-tool-name="piwin_plan_create"]')).toBeNull();
     act(() => root.unmount());
     container.remove();

@@ -293,64 +293,6 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const expandWhileRunning = props.expandWhileRunning !== false;
   const terminalMustCollapse = props.collapseWhenTerminal === true && tool.status !== 'running';
   const hasExpandableBody = toolHasExpandableBody(tool);
-  const autoExpand = terminalMustCollapse
-    ? false
-    : (props.defaultExpanded ??
-      ((tool.status === 'running' && expandWhileRunning && hasExpandableBody) ||
-        tool.status === 'error' ||
-        (density === 'detailed' && hasExpandableBody)));
-  const [internalExpanded, setInternalExpanded] = useState(autoExpand);
-  const disclosureIntentRef = useRef<'automatic' | 'user-open' | 'user-closed'>('automatic');
-  const expanded = props.expanded ?? internalExpanded;
-
-  useEffect(() => {
-    if (props.expanded !== undefined) {
-      return;
-    }
-    if (disclosureIntentRef.current !== 'automatic') {
-      return;
-    }
-    if (tool.status === 'running') {
-      setInternalExpanded(expandWhileRunning && toolHasExpandableBody(tool));
-    } else if (props.collapseWhenTerminal === true) {
-      setInternalExpanded(false);
-    } else if (tool.status === 'error') {
-      setInternalExpanded(true);
-    } else if (tool.status === 'done' && (density !== 'detailed' || !toolHasExpandableBody(tool))) {
-      setInternalExpanded(false);
-    } else if (density === 'compact') {
-      setInternalExpanded(false);
-    } else if (density === 'detailed' && toolHasExpandableBody(tool)) {
-      setInternalExpanded(true);
-    }
-  }, [
-    tool.status,
-    tool.output,
-    density,
-    props.collapseWhenTerminal,
-    props.defaultExpanded,
-    props.expanded,
-    expandWhileRunning,
-  ]);
-
-  function toggleExpanded(): void {
-    const nextExpanded = !expanded;
-    disclosureIntentRef.current = nextExpanded ? 'user-open' : 'user-closed';
-    if (props.expanded === undefined) {
-      setInternalExpanded(nextExpanded);
-    }
-    props.onExpandedChange?.(nextExpanded);
-  }
-
-  const displayOutput = tool.presentation?.output?.text ?? tool.output;
-  const outputTruncation = tool.presentation?.output?.truncation;
-  const outputTruncated =
-    tool.presentation?.output?.truncated === true || outputTruncation !== undefined;
-  // Prefer the structured error row; hide the body pre when it only repeats that text.
-  const bodyOutput = toolOutputDuplicatesError(displayOutput, tool.presentation?.error)
-    ? undefined
-    : displayOutput;
-  const citations = parseToolCitations(tool.toolName, displayOutput);
   const displayName = tool.presentation?.title ?? tool.toolName;
   const kind = tool.presentation?.kind ?? 'unknown';
   const recoveredArgs = recoverToolArgsFromInputPreview(tool.presentation?.inputPreview);
@@ -377,6 +319,68 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     hasChangedPaths &&
     Boolean(props.projectPath) &&
     Boolean(props.request);
+  const autoExpand = terminalMustCollapse
+    ? false
+    : (props.defaultExpanded ??
+      ((tool.status === 'running' && expandWhileRunning && hasExpandableBody) ||
+        tool.status === 'error' ||
+        canRenderDiffCard ||
+        (density === 'detailed' && hasExpandableBody)));
+  const [internalExpanded, setInternalExpanded] = useState(autoExpand);
+  const disclosureIntentRef = useRef<'automatic' | 'user-open' | 'user-closed'>('automatic');
+  const expanded = props.expanded ?? internalExpanded;
+
+  useEffect(() => {
+    if (props.expanded !== undefined) {
+      return;
+    }
+    if (disclosureIntentRef.current !== 'automatic') {
+      return;
+    }
+    if (tool.status === 'running') {
+      setInternalExpanded(expandWhileRunning && toolHasExpandableBody(tool));
+    } else if (props.collapseWhenTerminal === true) {
+      setInternalExpanded(false);
+    } else if (tool.status === 'error') {
+      setInternalExpanded(true);
+    } else if (canRenderDiffCard) {
+      setInternalExpanded(true);
+    } else if (tool.status === 'done' && (density !== 'detailed' || !toolHasExpandableBody(tool))) {
+      setInternalExpanded(false);
+    } else if (density === 'compact') {
+      setInternalExpanded(false);
+    } else if (density === 'detailed' && toolHasExpandableBody(tool)) {
+      setInternalExpanded(true);
+    }
+  }, [
+    tool.status,
+    tool.output,
+    density,
+    props.collapseWhenTerminal,
+    props.defaultExpanded,
+    props.expanded,
+    expandWhileRunning,
+    canRenderDiffCard,
+  ]);
+
+  function toggleExpanded(): void {
+    const nextExpanded = !expanded;
+    disclosureIntentRef.current = nextExpanded ? 'user-open' : 'user-closed';
+    if (props.expanded === undefined) {
+      setInternalExpanded(nextExpanded);
+    }
+    props.onExpandedChange?.(nextExpanded);
+  }
+
+  const displayOutput = tool.presentation?.output?.text ?? tool.output;
+  const outputTruncation = tool.presentation?.output?.truncation;
+  const outputTruncated =
+    tool.presentation?.output?.truncated === true || outputTruncation !== undefined;
+  // Prefer the structured error row; hide the body pre when it only repeats that text.
+  const bodyOutput = toolOutputDuplicatesError(displayOutput, tool.presentation?.error)
+    ? undefined
+    : displayOutput;
+  const citations = parseToolCitations(tool.toolName, displayOutput);
   const rawActionVerb = tool.presentation?.actionVerb ?? kindVerb(kind, tool.toolName);
   const baseBehaviorId = resolveToolBehaviorId({
     kind,
@@ -758,7 +762,9 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
               testId="tool-call-doc-targets"
             />
           ) : null}
-          {tool.presentation?.targetPaths && tool.presentation.targetPaths.length > 0 ? (
+          {tool.presentation?.targetPaths &&
+          tool.presentation.targetPaths.length > 0 &&
+          !canRenderDiffCard ? (
             <ToolPathLinkList
               paths={tool.presentation.targetPaths}
               projectPath={props.projectPath}

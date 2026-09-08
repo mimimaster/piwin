@@ -73,7 +73,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 
 /* Badge aligns with proto-00-shell .tab .b (mono 10.5px on s2/s1) */
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .itab .right-panel-tab-badge {
-  font: 10.5px / 16px var(--mono);
+  font: 11px / 16px var(--mono);
   background: var(--s2);
   color: var(--t3);
   padding: 0 5px;
@@ -100,7 +100,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .itab .right-panel-tab-badge,
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .itab .b {
-  font: 10.5px/16px var(--mono);
+  font: 11px/16px var(--mono);
   background: var(--s2);
   color: var(--t3);
   padding: 0 5px;
@@ -158,7 +158,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .right-panel-home .eyebrow {
   display: block;
-  font: 10px var(--mono);
+  font: 11px var(--mono);
   letter-spacing: 0.08em;
   color: var(--t4);
   margin: 8px 4px 10px;
@@ -258,7 +258,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .file-tree-git.gs,
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .gs {
   margin-left: auto;
-  font: 600 10px var(--mono);
+  font: 600 11px var(--mono);
   width: 14px;
   text-align: center;
   flex: none;

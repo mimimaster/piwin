@@ -5,6 +5,10 @@
  */
 import type { ToolCardUi } from './chat-reducer';
 import { resolveToolBehaviorId } from './behavior-activity.js';
+import {
+  isOpaqueRemoteProjectId,
+  resolveProjectFilesystemRoot,
+} from './remote-session-hydrate.js';
 
 export type TimelineSegment =
   { kind: 'tool'; tool: ToolCardUi } | { kind: 'explore'; tools: ToolCardUi[]; fileCount: number };
@@ -353,11 +357,18 @@ export function formatFilePillPath(
   let clean = filePath.trim();
   let absolutePath = clean;
   let relativePath = clean;
+  const filesystemRoot = resolveProjectFilesystemRoot(projectPath);
 
-  if (projectPath && clean.startsWith(projectPath)) {
+  if (filesystemRoot && clean.startsWith(filesystemRoot)) {
+    relativePath = clean.slice(filesystemRoot.length).replace(/^[\\/]+/, '');
+  } else if (
+    projectPath &&
+    isOpaqueRemoteProjectId(projectPath) &&
+    clean.startsWith(projectPath)
+  ) {
     relativePath = clean.slice(projectPath.length).replace(/^[\\/]+/, '');
-  } else if (projectPath && !clean.startsWith('/') && !clean.includes(':')) {
-    absolutePath = `${projectPath.replace(/[\\/]+$/, '')}/${clean}`;
+  } else if (filesystemRoot && !clean.startsWith('/') && !/^[A-Za-z]:[\\/]/.test(clean)) {
+    absolutePath = `${filesystemRoot}/${clean.replace(/^\.\//, '')}`;
   }
 
   let display = relativePath;

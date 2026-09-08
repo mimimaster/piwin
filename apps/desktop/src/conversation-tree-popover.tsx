@@ -10,6 +10,8 @@ export type ConversationTreeHeaderPopoverProps = {
   disabled?: boolean;
   onSwitch: (headMessageId: string) => void;
   locale: 'zh-CN' | 'en';
+  /** Project/Agent sessions get disk-honesty copy in the panel. */
+  isConversationSession?: boolean;
 };
 
 /** Persistent in-session tree entry beside the active session title (ADR 0055). */
@@ -63,7 +65,13 @@ export function ConversationTreeHeaderPopover(
           <div>
             <strong>{isChinese ? '会话树' : 'Session tree'}</strong>
             <span className="session-lineage-popover-subtitle">
-              {isChinese ? '在这条会话的分岔之间切换' : 'Switch branches in this conversation'}
+              {props.isConversationSession === false
+                ? isChinese
+                  ? '切换的是对话路线，不会自动还原工作区文件'
+                  : 'Switches the chat path; workspace files are not reverted'
+                : isChinese
+                  ? '在这条会话的分岔之间切换'
+                  : 'Switch branches in this conversation'}
             </span>
           </div>
           <span>
@@ -88,6 +96,9 @@ export function ConversationTreeHeaderPopover(
             setOpen(false);
           }}
           locale={props.locale}
+          {...(props.isConversationSession === false
+            ? { isConversationSession: false }
+            : {})}
         />
       </div>
     </Popover>

@@ -81,7 +81,7 @@ export class MockHostBackend {
   mockDisabledExtensionIds = new Set<string>();
   mockBundledExtensionsInstalled = true;
   mockDisabledPromptIds = new Set<string>();
-  mockActiveThemeId: MockBuiltinThemeId = 'piwin-obsidian';
+  mockActiveThemeId: MockBuiltinThemeId = 'piwin-inkstone';
   mockJobs = new Map<string, import('@piwin/contracts').JobRecord>();
   mockJobLogs = new Map<string, string>();
   mockPtys = new Map<string, { projectPath: string }>();

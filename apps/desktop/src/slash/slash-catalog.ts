@@ -1,6 +1,7 @@
 /**
  * Build slash catalog from static commands, agent modes, and skills list.
  */
+import type { SkillSource } from '@piwin/contracts';
 import { AGENT_MODES, type AgentModeId } from '../agent-mode';
 import type { SlashItem } from './slash-types';
 
@@ -9,7 +10,18 @@ export type SlashSkillInput = {
   name: string;
   description?: string;
   enabled: boolean;
+  /** When set, Conversation slash hides project-local skills (ADR 0016). */
+  source?: SkillSource;
 };
+
+/** Sources allowed in Conversation slash (not project-local). */
+export function isConversationSlashSkillSource(source: SkillSource | undefined): boolean {
+  if (source === undefined) {
+    // Legacy callers without source keep listing (tests / older menus).
+    return true;
+  }
+  return source !== 'project';
+}
 
 export type BuildSlashCatalogOptions = {
   skills: SlashSkillInput[];
@@ -209,6 +221,11 @@ export function buildSlashCatalog(options: BuildSlashCatalogOptions): SlashItem[
 
   // --- Skills (skip names reserved by commands/modes) ---
   for (const skill of options.skills) {
+    // Conversation: explicit /skill is Host-injected for user-level skills only.
+    // Project-local skills stay out of the menu (ADR 0016).
+    if (conversationChat && !isConversationSlashSkillSource(skill.source)) {
+      continue;
+    }
     const token = skill.name.trim() || skill.id;
     const lower = token.toLowerCase();
     if (RESERVED_SLASH_COMMAND_NAMES.has(lower)) {

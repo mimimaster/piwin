@@ -64,7 +64,7 @@ html:is(
 
   .settings-nav-group-label,
   .shell-grp {
-    font: 600 10px var(--sans);
+    font: 600 11px var(--sans);
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--t3);
@@ -290,7 +290,7 @@ html:is(
   }
 
   .rules-visual-tier {
-    font: 600 10px var(--sans);
+    font: 600 11px var(--sans);
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--t3);

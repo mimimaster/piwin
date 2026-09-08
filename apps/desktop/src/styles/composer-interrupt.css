@@ -401,6 +401,23 @@
   box-sizing: border-box;
 }
 
+.intr.plan-execution-gate[data-document-openable='true'] {
+  cursor: pointer;
+  transition:
+    background-color var(--t-2, 0.15s) var(--ease-out, ease-out),
+    box-shadow var(--t-2, 0.15s) var(--ease-out, ease-out);
+}
+
+.intr.plan-execution-gate[data-document-openable='true']:hover {
+  background: var(--s4, var(--intr-s4));
+  box-shadow: var(--sh3, var(--intr-sh2));
+}
+
+.intr.plan-execution-gate[data-document-openable='true']:focus-visible {
+  outline: 2px solid var(--zhu, var(--intr-zhu));
+  outline-offset: 2px;
+}
+
 .intr h3 {
   font-size: var(--fs-body, 15px);
   font-weight: 600;

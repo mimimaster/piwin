@@ -42,6 +42,7 @@ import { sessionScopeKey } from './session-scope-key';
 import { resolveEntityScope } from './session-entities';
 import { shouldBindSessionToSecondaryPane } from './conversation-pane-bind';
 import { WorkbenchSubpageStage } from './workbench-subpage-stage';
+import { isInkstoneThemeId } from './appearance-tokens';
 
 export type AppProps = {
   /** Resolved active manifest owned by DesktopThemeRoot. */
@@ -224,6 +225,9 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     pendingRetryDiscard,
     confirmRetryDiscard,
     cancelRetryDiscard,
+    pendingBranchLeaves,
+    confirmBranchLeaves,
+    cancelBranchLeaves,
     handleSessionListOrderChange,
     handleSettingsOpenSubagentSession,
     recentProjects,
@@ -329,8 +333,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
       />
     ) : null;
   const inkstoneStage =
-    activeTheme.id === 'piwin-inkstone-paper' ||
-    activeTheme.id === 'piwin-inkstone-ink' ||
+    isInkstoneThemeId(activeTheme.id) ||
     activeTheme.visualStyle === 'paper';
 
   useConversationPaneSubscriptions({
@@ -486,8 +489,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       onOpenSessionSearch={openSessionSearch}
                       trailing={sessionContextRow}
                       isInkstone={
-                        activeTheme.id === 'piwin-inkstone-paper' ||
-                        activeTheme.id === 'piwin-inkstone-ink' ||
+                        isInkstoneThemeId(activeTheme.id) ||
                         activeTheme.visualStyle === 'paper'
                       }
                     />
@@ -738,6 +740,9 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                   pendingRetryDiscard={pendingRetryDiscard}
                   cancelRetryDiscard={cancelRetryDiscard}
                   confirmRetryDiscard={confirmRetryDiscard}
+                  pendingBranchLeaves={pendingBranchLeaves}
+                  cancelBranchLeaves={cancelBranchLeaves}
+                  confirmBranchLeaves={confirmBranchLeaves}
                 />
               </div>
               <WorkbenchSubpageStage

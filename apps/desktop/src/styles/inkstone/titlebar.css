@@ -9,7 +9,9 @@ html[data-theme-id='piwin-inkstone-ink'] .context-bar {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 0 8px !important;
+  /* Shell already insets the grid by 8px (deck padding). Extra bar padding
+     would push .proto-nav past the sidebar's right edge below. */
+  padding: 0 !important;
   color: var(--t2);
   font-size: 12px;
   font-family: var(--sans);
@@ -41,9 +43,11 @@ html[data-theme-id='piwin-inkstone-ink'] .context-bar .traffic {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  /* Clear the real macOS Overlay lights (wider than the 52px fake dots), then
+     a small gap before the sidebar toggle so the glyph sits past the green.
+     Parent .proto-nav already centres this strip with the toggle on one line. */
   margin-right: 8px;
-  /* Native traffic lights sit in this clearance; keep width stable. */
-  min-width: 52px;
+  min-width: 56px;
   height: 100%;
 }
 
@@ -437,7 +441,10 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) :is(.tb, .proto, .context-bar) .seg button {
-  /* Proto layout `.proto .seg button`: mono 10px / pad 2px 7px. */
+  /* Proto layout `.proto .seg button`: mono 10px / pad 2px 7px.
+     Floor exemption: single-glyph toggles (砚/纸/墨) sized for the 20px seg
+     pill — 11px overflows the pill. Mono at 10px stays legible (uniform
+     strokes); the 11px floor targets serif hairlines, not mono. */
   font: 500 10px/1 var(--mono);
   padding: 0 7px;
   height: 100%;

@@ -54,7 +54,7 @@ function basename(path: string): string {
  * Error tools are skipped; non-error tools prefer host changedPaths, falling
  * back to targetPaths for write-like tools.
  */
-export function collectMessageChangedFiles(tools: ToolCardUi[]): MessageChangedFile[] {
+export function collectMessageChangedFiles(tools: readonly ToolCardUi[]): MessageChangedFile[] {
   const seen = new Set<string>();
   const files: MessageChangedFile[] = [];
 
@@ -147,7 +147,7 @@ export function matchChangedFileStats(
 }
 
 export function deriveFallbackStatsForTools(
-  tools: ToolCardUi[],
+  tools: readonly ToolCardUi[],
   files: MessageChangedFile[],
   existingStats?: MessageChangedFileStats | null,
 ): MessageChangedFileStats {

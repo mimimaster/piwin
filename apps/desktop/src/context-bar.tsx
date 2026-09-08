@@ -14,7 +14,7 @@
  *   - "rail-chats-btn" / "right-panel-open-btn" / titlebar-*
  */
 import { useState, type ReactElement, type ReactNode } from 'react';
-import { Button, IconButton, IconGit } from '@piwin/ui-kit';
+import { IconButton, IconGit } from '@piwin/ui-kit';
 import type { PermissionPreset } from '@piwin/contracts';
 import type { ProductSessionOrigin } from '@piwin/contracts';
 import type { RunStatusView } from './run-status.js';
@@ -75,17 +75,6 @@ export type ContextBarProps = {
   trailing?: ReactNode | undefined;
 };
 
-function modeBadgeLabel(preset: PermissionPreset): string {
-  switch (preset) {
-    case 'auto':
-      return 'Auto';
-    case 'ask':
-      return 'Ask';
-    case 'yolo':
-      return 'YOLO';
-  }
-}
-
 /** Proto-00 shell state vocabulary: the titleband carries lamp (running) and
  *  zhu square (waiting) signals keyed off this three-value mapping. */
 function shellStateKind(kind: RunStatusView['kind']): 'idle' | 'running' | 'waiting' {
@@ -111,13 +100,7 @@ export function ContextBar(props: ContextBarProps): ReactElement {
   const isChinese = locale === 'zh-CN';
   const copy = getDesktopCopy(locale);
   const titlebarCopy = copy.titlebar;
-  const mode = props.permissionMode ?? null;
   const shellState = shellStateKind(runState.kind);
-  const isWaiting =
-    shellState === 'waiting' ||
-    runState.primaryAction === 'review-permission';
-  const isRunning = !isWaiting && shellState === 'running';
-  const isIdle = !isWaiting && !isRunning;
   const canGoBack = props.canGoBack === true;
   const canGoForward = props.canGoForward === true;
   const workPanelOpen = props.workPanelOpen === true;
@@ -215,112 +198,49 @@ export function ContextBar(props: ContextBarProps): ReactElement {
       </div>
 
       {!props.hideIdentity ? (
-        <>
-          <div className="context-bar-identity title">
-        {shellState === 'running' ? <span className="lamp" aria-hidden /> : null}
-        {shellState === 'waiting' ? <span className="sq" aria-hidden /> : null}
-        <span className="context-bar-title tt" title={session.title}>
-          {session.title}
-        </span>
-        {props.sessionTreeControl ? (
-          <span className="context-bar-session-tree-slot" data-no-window-drag>
-            {props.sessionTreeControl}
+        <div className="context-bar-identity title">
+          {shellState === 'running' ? <span className="lamp" aria-hidden /> : null}
+          {shellState === 'waiting' ? <span className="sq" aria-hidden /> : null}
+          <span className="context-bar-title tt" title={session.title}>
+            {session.title}
           </span>
-        ) : null}
-        <span className="context-bar-scope-pill">{session.scopeLabel}</span>
-        {mode ? (
-          <button
-            type="button"
-            className={
-              mode === 'yolo' ? 'context-bar-mode-badge is-warning' : 'context-bar-mode-badge'
-            }
-            data-testid="context-bar-mode-badge"
-            data-mode={mode}
-            title={
-              isChinese
-                ? '运行模式 — 点击打开权限设置'
-                : 'Run mode — click to open Permissions settings'
-            }
-            onClick={props.onOpenPermissions}
-          >
-            {modeBadgeLabel(mode)}
-          </button>
-        ) : null}
-        {props.origin ? (
-          <button
-            type="button"
-            className="context-bar-origin-badge"
-            data-testid="context-bar-origin-badge"
-            data-origin-kind={props.origin.kind}
-            title={
-              props.origin.kind === 'fork'
-                ? isChinese
-                  ? `从「${props.origin.sourceSessionNameSnapshot ?? '源会话'}」分叉`
-                  : `Forked from "${props.origin.sourceSessionNameSnapshot ?? 'source session'}"`
-                : isChinese
-                  ? `复制自「${props.origin.sourceSessionNameSnapshot ?? '源会话'}」`
-                  : `Duplicated from "${props.origin.sourceSessionNameSnapshot ?? 'source session'}"`
-            }
-            onClick={props.onReturnToRoot}
-          >
-            <IconGit width={12} height={12} stroke={1.8} />
-            <span>
-              {props.origin.kind === 'fork'
-                ? isChinese
-                  ? '分支'
-                  : 'Branch'
-                : isChinese
-                  ? '副本'
-                  : 'Duplicate'}
+          {props.sessionTreeControl ? (
+            <span className="context-bar-session-tree-slot" data-no-window-drag>
+              {props.sessionTreeControl}
             </span>
-          </button>
-        ) : null}
-        {props.trailing}
-      </div>
-
-      <div
-        className="context-bar-status status"
-        data-no-window-drag
-        data-testid="run-status-strip"
-        data-kind={runState.kind}
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-        aria-label={runState.kind !== 'idle' ? runState.label : undefined}
-      >
-        <span className="pl">{isChinese ? '状态' : 'Status'}</span>
-        <span className="seg" data-testid="run-status-seg">
-          <button
-            type="button"
-            className={isIdle ? 'on' : ''}
-            data-testid="status-seg-idle"
-          >
-            {isChinese ? '就绪' : 'Ready'}
-          </button>
-          <button
-            type="button"
-            className={isRunning ? 'on' : ''}
-            data-testid="status-seg-running"
-          >
-            {isChinese ? '运行中' : 'Running'}
-          </button>
-          <button
-            type="button"
-            className={`${isWaiting ? 'on is-waiting' : ''}${isWaiting ? ' is-clickable' : ''}`}
-            data-testid="status-seg-waiting"
-            onClick={isWaiting ? props.onReviewPermission : undefined}
-            title={isWaiting ? (isChinese ? '点击审查请求' : 'Review request') : undefined}
-          >
-            {isChinese ? '等待批准' : 'Waiting'}
-          </button>
-        </span>
-        {runState.primaryAction === 'retry' && props.onRetry !== undefined ? (
-          <Button size="compact" onClick={props.onRetry}>
-            {isChinese ? '重试' : 'Retry'}
-          </Button>
-        ) : null}
-      </div>
-      </>
+          ) : null}
+          <span className="context-bar-scope-pill">{session.scopeLabel}</span>
+          {props.origin ? (
+            <button
+              type="button"
+              className="context-bar-origin-badge"
+              data-testid="context-bar-origin-badge"
+              data-origin-kind={props.origin.kind}
+              title={
+                props.origin.kind === 'fork'
+                  ? isChinese
+                    ? `从「${props.origin.sourceSessionNameSnapshot ?? '源会话'}」分叉`
+                    : `Forked from "${props.origin.sourceSessionNameSnapshot ?? 'source session'}"`
+                  : isChinese
+                    ? `复制自「${props.origin.sourceSessionNameSnapshot ?? '源会话'}」`
+                    : `Duplicated from "${props.origin.sourceSessionNameSnapshot ?? 'source session'}"`
+              }
+              onClick={props.onReturnToRoot}
+            >
+              <IconGit width={12} height={12} stroke={1.8} />
+              <span>
+                {props.origin.kind === 'fork'
+                  ? isChinese
+                    ? '分支'
+                    : 'Branch'
+                  : isChinese
+                    ? '副本'
+                    : 'Duplicate'}
+              </span>
+            </button>
+          ) : null}
+          {props.trailing}
+        </div>
       ) : null}
 
       <WindowDragRegion

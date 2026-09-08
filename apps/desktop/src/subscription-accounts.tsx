@@ -4,15 +4,18 @@ import type {
   AuthStatusData,
   HostCommand,
   SubscriptionAccount,
+  SubscriptionAccountQuota,
   V1SubscriptionProviderId,
 } from '@piwin/contracts';
 import { remoteCommandRequiresIdempotencyKey, V1_SUBSCRIPTION_PROVIDER_IDS } from '@piwin/contracts';
 import { Button } from '@piwin/ui-kit';
 import {
   AlertCircle,
+  ChevronDown,
   Info,
   KeyRound,
   LogOut,
+  RefreshCw,
 } from 'lucide-react';
 import { readDesktopClientPrincipalId } from './desktop-client-principal.js';
 import { createGestureIdempotencyKey } from './gesture-idempotency.js';
@@ -21,6 +24,7 @@ import { ProviderIcon } from './provider-icons.js';
 import { useSettings } from './settings/settings-context.js';
 import { useConfirmDialog } from './use-confirm-dialog.js';
 import { InlineAuthPromptForm, readAuthPromptOpenUrl, type ProviderCardMeta } from './auth-prompt-form.js';
+import { SubscriptionQuotaDrawer } from './subscription-quota-drawer.js';
 import { openExternalUrl } from './open-external-url.js';
 
 const CARD_COPY: Record<V1SubscriptionProviderId, ProviderCardMeta> = {
@@ -81,8 +85,96 @@ export function SubscriptionAccountsPanel(): ReactElement {
   const [accounts, setAccounts] = useState<SubscriptionAccount[]>([]);
   const [activeLogin, setActiveLogin] = useState<ActiveLoginStatus | undefined>();
   const [respondValue, setRespondValue] = useState('');
+  const [quotas, setQuotas] = useState<Map<string, SubscriptionAccountQuota>>(new Map());
+  const [expandedQuotaIds, setExpandedQuotaIds] = useState<Set<string>>(new Set());
+  const [loadingQuotaIds, setLoadingQuotaIds] = useState<Set<string>>(new Set());
+  const [resettingQuotaIds, setResettingQuotaIds] = useState<Set<string>>(new Set());
   const confirmDialog = useConfirmDialog();
   const ownerDeviceId = readDesktopClientPrincipalId();
+
+  const fetchQuota = useCallback(
+    async (providerId: string, forceRefresh = false) => {
+      if (!hostClient?.request) return;
+      setLoadingQuotaIds((prev) => new Set(prev).add(providerId));
+      try {
+        const response = await hostClient.request({
+          type: 'auth/quota',
+          input: { providerId, forceRefresh },
+        });
+        if (response.success && response.data && typeof response.data === 'object') {
+          const data = response.data as { quota?: SubscriptionAccountQuota };
+          if (data.quota) {
+            setQuotas((prev) => new Map(prev).set(providerId, data.quota!));
+          }
+        } else if (!response.success && response.error) {
+          setError?.(response.error);
+        }
+      } finally {
+        setLoadingQuotaIds((prev) => {
+          const next = new Set(prev);
+          next.delete(providerId);
+          return next;
+        });
+      }
+    },
+    [hostClient, setError],
+  );
+
+  const triggerResetQuota = useCallback(
+    async (providerId: string) => {
+      if (!hostClient?.request) return;
+      const ok = await confirmDialog.confirm({
+        title: isChinese ? '重置额度' : 'Reset Quota',
+        description: isChinese
+          ? '确定立即消耗一次主动重置额度机会吗？'
+          : 'Are you sure you want to consume an active reset token now?',
+        confirmLabel: isChinese ? '确认重置' : 'Reset',
+        cancelLabel: isChinese ? '取消' : 'Cancel',
+      });
+      if (!ok) return;
+
+      setResettingQuotaIds((prev) => new Set(prev).add(providerId));
+      try {
+        const response = await hostClient.request({
+          type: 'auth/reset-quota',
+          input: { providerId },
+        });
+        if (response.success && response.data && typeof response.data === 'object') {
+          const data = response.data as { quota?: SubscriptionAccountQuota; message?: string };
+          if (data.quota) {
+            setQuotas((prev) => new Map(prev).set(providerId, data.quota!));
+          }
+          setInfo?.(data.message ?? (isChinese ? '额度重置成功' : 'Quota reset successfully'));
+        } else if (!response.success && response.error) {
+          setError?.(response.error);
+        }
+      } finally {
+        setResettingQuotaIds((prev) => {
+          const next = new Set(prev);
+          next.delete(providerId);
+          return next;
+        });
+      }
+    },
+    [confirmDialog, hostClient, isChinese, setError, setInfo],
+  );
+
+  const toggleQuotaDrawer = useCallback(
+    (providerId: string) => {
+      setExpandedQuotaIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(providerId)) {
+          next.delete(providerId);
+        } else {
+          next.add(providerId);
+          void fetchQuota(providerId, false);
+        }
+        return next;
+      });
+    },
+    [fetchQuota],
+  );
+
   const refresh = useCallback(async () => {
     if (!hostClient?.request) {
       return;
@@ -101,6 +193,9 @@ export function SubscriptionAccountsPanel(): ReactElement {
     return hostClient?.subscribe((message) => {
       if (message.type === 'auth/updated') {
         setAccounts(message.accounts.filter((account) => account.surface === 'v1'));
+      }
+      if (message.type === 'auth/quota-updated' && message.quota) {
+        setQuotas((prev) => new Map(prev).set(message.quota.providerId, message.quota));
       }
       if (message.type === 'auth/prompt') {
         setActiveLogin((current) => {
@@ -299,17 +394,65 @@ export function SubscriptionAccountsPanel(): ReactElement {
                       {isChinese ? '取消连接' : 'Cancel'}
                     </Button>
                   ) : (
-                    <Button
-                      variant="secondary"
-                      size="compact"
-                      onClick={() => void startLogout(providerId)}
-                    >
-                      <LogOut size={13} />
-                      <span>{isChinese ? '退出登录' : 'Sign out'}</span>
-                    </Button>
+                    <>
+                      {/* Active Reset Quota Action (if available) */}
+                      {quotas.get(providerId)?.activeResets?.canTriggerReset && (
+                        <Button
+                          variant="secondary"
+                          size="compact"
+                          onClick={() => void triggerResetQuota(providerId)}
+                          disabled={resettingQuotaIds.has(providerId) || loadingQuotaIds.has(providerId)}
+                          data-testid={`subscription-quota-reset-${providerId}`}
+                        >
+                          <RefreshCw size={12} className={resettingQuotaIds.has(providerId) ? 'is-spinning' : ''} />
+                          <span>{isChinese ? '重置额度' : 'Reset'}</span>
+                        </Button>
+                      )}
+
+                      {/* Quota Drawer Toggle & Refresh Button */}
+                      <Button
+                        variant="secondary"
+                        size="compact"
+                        onClick={() => toggleQuotaDrawer(providerId)}
+                        disabled={loadingQuotaIds.has(providerId)}
+                        data-testid={`subscription-quota-toggle-${providerId}`}
+                        className="oauth-quota-toggle-btn"
+                      >
+                        <RefreshCw
+                          size={12}
+                          className={loadingQuotaIds.has(providerId) ? 'is-spinning' : ''}
+                        />
+                        <span>{isChinese ? '刷新额度' : 'Quota'}</span>
+                        <ChevronDown
+                          size={12}
+                          className={`oauth-drawer-caret${expandedQuotaIds.has(providerId) ? ' is-open' : ''}`}
+                        />
+                      </Button>
+
+                      <Button
+                        variant="secondary"
+                        size="compact"
+                        onClick={() => void startLogout(providerId)}
+                      >
+                        <LogOut size={13} />
+                        <span>{isChinese ? '退出登录' : 'Sign out'}</span>
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
+
+              {/* Expandable Quota Drawer for Connected Accounts */}
+              {isConnected && expandedQuotaIds.has(providerId) && (
+                <SubscriptionQuotaDrawer
+                  quota={quotas.get(providerId)}
+                  loading={loadingQuotaIds.has(providerId)}
+                  isChinese={isChinese}
+                  onRefresh={() => void fetchQuota(providerId, true)}
+                  onReset={() => void triggerResetQuota(providerId)}
+                  isResetting={resettingQuotaIds.has(providerId)}
+                />
+              )}
 
               {/* Inline Embedded Form when logging in (no modal popup!) */}
               {isLoggingIn && (

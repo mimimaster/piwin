@@ -148,7 +148,7 @@ html[data-theme-id='piwin-inkstone-ink'] .fav {
   border-radius: 3px;
   display: grid;
   place-items: center;
-  font: 600 9px var(--mono);
+  font: 600 11px var(--mono);
   background: var(--s1);
   box-shadow: var(--sh1);
   color: var(--t2);

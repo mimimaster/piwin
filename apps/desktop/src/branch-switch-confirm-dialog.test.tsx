@@ -103,6 +103,28 @@ describe('BranchSwitchConfirmDialog', () => {
     expect(dialog?.textContent).not.toContain('Switch anyway');
   });
 
+  it('names an edit/open-branch leave separately from a branch switch', () => {
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <BranchSwitchConfirmDialog
+            open
+            locale="en"
+            intent="leave-branch"
+            offPathWrites={{ files: ['src/app.ts'], hasUnknownWrites: false }}
+            onCancel={() => undefined}
+            onConfirm={() => undefined}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+    const dialog = document.querySelector('[data-testid="branch-switch-confirm"]');
+    expect(dialog?.textContent).toContain('Edit will leave this attempt');
+    expect(dialog?.textContent).toContain('Edit anyway');
+    expect(dialog?.textContent).not.toContain('Switch anyway');
+    expect(dialog?.textContent).not.toContain('Switch branch');
+  });
+
   it('renders nothing when closed', () => {
     act(() => {
       root.render(

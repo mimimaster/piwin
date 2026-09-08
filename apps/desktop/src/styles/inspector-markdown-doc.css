@@ -382,6 +382,12 @@
   margin: 0;
 }
 
+.doc-preview-body .md-table th,
+.doc-preview-body .md-table td {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
 .doc-preview-body .md-table thead th {
   background: var(--hover);
   font-weight: 600;

@@ -16,6 +16,11 @@ import {
   TextInput,
 } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
+import {
+  extensionEnabledEffectMessage,
+  extensionInstalledEffectMessage,
+  extensionSyncedAndApplyRequestedMessage,
+} from './settings-effect-copy.js';
 import { PageTitle } from './settings/page-title';
 
 export type ExtensionsPanelProps = {
@@ -100,12 +105,8 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
       setError(applyResponse.error);
       return;
     }
-    setInfo(
-      isChinese
-        ? '已从磁盘同步扩展，并请求应用到当前会话。'
-        : 'Synced extensions from disk and requested apply on the current session.',
-    );
-  }, [isChinese, projectPath, props.sessionId, requestExtensions]);
+    setInfo(extensionSyncedAndApplyRequestedMessage(locale));
+  }, [locale, projectPath, props.sessionId, requestExtensions]);
 
   useEffect(() => {
     void loadExtensions();
@@ -136,11 +137,7 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
       setError(response.error);
       return;
     }
-    setInfo(
-      isChinese
-        ? `已${extension.enabled ? '关闭' : '开启'}扩展：${extension.name}`
-        : `${extension.enabled ? 'Disabled' : 'Enabled'} extension: ${extension.name}`,
-    );
+    setInfo(extensionEnabledEffectMessage(locale, extension.name, false));
     setExtensions((prev) =>
       prev.map((e) => (e.id === extension.id ? { ...e, enabled: !e.enabled } : e)),
     );
@@ -155,11 +152,7 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
         void loadExtensions();
         return;
       }
-      setInfo(
-        isChinese
-          ? `已在当前 Run 结束后应用扩展：${extension.name}`
-          : `Extension will apply after the current run: ${extension.name}`,
-      );
+      setInfo(extensionEnabledEffectMessage(locale, extension.name, true));
     }
   }
 
@@ -179,9 +172,7 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
       return;
     }
     const data = response.data as ExtensionsInstallData;
-    setInfo(
-      isChinese ? `已安装扩展到：${data.targetPath}` : `Installed extension to: ${data.targetPath}`,
-    );
+    setInfo(extensionInstalledEffectMessage(locale, data.targetPath));
     setInstallPath('');
     setInstallName('');
     void loadExtensions();
@@ -203,11 +194,7 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
       return;
     }
     const data = response.data as ExtensionsInstallData;
-    setInfo(
-      isChinese
-        ? `已从 Git 安装扩展到：${data.targetPath}`
-        : `Installed extension from Git to: ${data.targetPath}`,
-    );
+    setInfo(extensionInstalledEffectMessage(locale, data.targetPath));
     setInstallGitUrl('');
     setInstallName('');
     void loadExtensions();

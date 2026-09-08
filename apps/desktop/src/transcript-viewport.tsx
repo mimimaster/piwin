@@ -22,6 +22,8 @@ import type { SessionUserMessageAnchor, SessionUserMessageIndexData } from '@piw
 import { useTranscriptScroll } from './use-transcript-scroll';
 import { HistoryTicksDrawer } from './history-ticks-drawer';
 import { TranscriptScrollProvider } from './transcript-scroll-port';
+import { useTranscriptReveal } from './use-transcript-reveal.js';
+import './styles/transcript-opening.css';
 
 /** Load the next older page when within this many px of the transcript top. */
 const TRANSCRIPT_TOP_AUTO_LOAD_PX = 120;
@@ -36,6 +38,7 @@ export type TranscriptViewportProps = {
   historyViewActive?: boolean;
   onReturnToLatest?: () => void;
   sessionId?: string;
+  awaitingTranscript?: boolean;
   canLoadOlder?: boolean;
   historyLoading?: boolean;
   onLoadOlder?: () => Promise<void>;
@@ -50,6 +53,15 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
     messageCount: props.messageCount,
     activitySignal: props.activitySignal,
     liveTurnId: props.liveTurnId ?? null,
+    historyViewActive: props.historyViewActive === true,
+  });
+  const opening = useTranscriptReveal({
+    ...(props.sessionId ? { sessionId: props.sessionId } : {}),
+    messageCount: props.messageCount,
+    awaitingTranscript: props.awaitingTranscript === true,
+    historyViewActive: props.historyViewActive === true,
+    scrollElementRef: scroll.containerRef,
+    jumpToLatest: scroll.jumpToLatest,
   });
 
   const trackRef = useRef<HTMLDivElement | null>(null);
@@ -58,6 +70,10 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
   const openedSessionPinRef = useRef<{ sessionId: string; pinned: boolean } | null>(null);
 
   useLayoutEffect(() => {
+    if (props.historyViewActive) {
+      scroll.detachFromTail();
+      return;
+    }
     // Sidebar / ordinary session switches start at the live tail. History
     // ticks and search still jump via the message scroller, not this memory.
     if (!props.sessionId) {
@@ -79,7 +95,7 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
       openedSessionPinRef.current = { sessionId: props.sessionId, pinned: true };
       scroll.jumpToLatest();
     }
-  }, [props.messageCount, props.sessionId, scroll.jumpToLatest]);
+  }, [props.historyViewActive, props.messageCount, props.sessionId, scroll.detachFromTail, scroll.jumpToLatest]);
 
   // Floating scrollbar geometry: thumb height = ratio * track height,
   // thumb top = progress * (track height - thumb height).
@@ -215,7 +231,47 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
       notifyContentGrew={scroll.notifyContentGrew}
       detachFromTail={scroll.detachFromTail}
     >
-      <div className="transcript-viewport">
+      <div className={`transcript-viewport${opening ? ' is-opening' : ''}`}>
+        {opening || (props.awaitingTranscript && !props.historyViewActive) ? (
+          <div className="transcript-opening-state" data-testid="transcript-opening-state" role="status">
+            <div className="transcript-opening-container">
+              <div className="transcript-opening-banner">
+                <span aria-hidden="true" className="transcript-opening-spinner" />
+                <span data-testid={props.awaitingTranscript ? 'transcript-awaiting-banner' : undefined}>
+                  {props.messageCount > 0
+                    ? locale === 'zh-CN'
+                      ? `转录定位中 · 共 ${props.messageCount} 条消息`
+                      : `Anchoring transcript · ${props.messageCount} messages`
+                    : locale === 'zh-CN'
+                      ? '正在打开会话…'
+                      : 'Opening conversation…'}
+                </span>
+              </div>
+              <div className="transcript-opening-skeleton" aria-hidden="true">
+                <div className="transcript-skeleton-turn is-user">
+                  <div className="transcript-skeleton-body">
+                    <div className="transcript-skeleton-bar w-80 ml-auto" />
+                    <div className="transcript-skeleton-bar w-60 ml-auto" />
+                  </div>
+                  <div className="transcript-skeleton-avatar is-user" />
+                </div>
+                <div className="transcript-skeleton-turn is-assistant">
+                  <div className="transcript-skeleton-avatar is-assistant" />
+                  <div className="transcript-skeleton-body">
+                    <div className="transcript-skeleton-card">
+                      <div className="transcript-skeleton-tool-header">
+                        <span className="transcript-skeleton-tool-dot" />
+                        <div className="transcript-skeleton-bar w-40" />
+                      </div>
+                      <div className="transcript-skeleton-bar w-100" />
+                      <div className="transcript-skeleton-bar w-80" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
         <HistoryTicksDrawer
           messages={props.messages}
           historyIndex={props.historyIndex}
@@ -225,6 +281,8 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
           className="chat-stream"
           data-testid="chat-stream"
           ref={scroll.containerRef}
+          aria-hidden={opening}
+          inert={opening}
           style={
             {
               '--transcript-current-response-min-height': `${scroll.currentResponseMinHeight}px`,
@@ -235,7 +293,7 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
           aria-label="Conversation"
           aria-relevant="additions"
           aria-live="off"
-          aria-busy={props.activitySignal.includes('streaming')}
+          aria-busy={opening || props.activitySignal.includes('streaming')}
         >
           {props.children}
         </div>

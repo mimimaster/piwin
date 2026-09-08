@@ -2,6 +2,7 @@
  * Dispatch a context-menu action against Desktop callbacks (CM §9.6).
  */
 import type { PromptContextRef } from '@piwin/contracts';
+import { resolveProjectFilesystemRoot } from '../remote-session-hydrate.js';
 import { PRESET_TEMPLATES, type PresetTemplateId } from './presets.js';
 import {
   copyAsRefText,
@@ -55,8 +56,9 @@ function pathFields(
     return { absolutePath: target.absolutePath, relativePath: target.relativePath };
   }
   if (target.surface === 'diff-row') {
+    const root = resolveProjectFilesystemRoot(target.projectPath);
     return {
-      absolutePath: `${target.projectPath}/${target.relativePath}`.replace(/\/+/g, '/'),
+      absolutePath: `${root}/${target.relativePath}`.replace(/\/+/g, '/'),
       relativePath: target.relativePath,
     };
   }

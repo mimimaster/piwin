@@ -520,8 +520,6 @@ export type ChatUiAction =
       transcriptPage?: SessionTranscriptPageInfo;
       outline?: SessionOutlineNode[];
       contextUsage?: ContextUsageSnapshot | null;
-      /** Whether the host has a live handle; this is not a run-status signal. */
-      live?: boolean;
       /** Merge a stale-tail refresh without replacing the active local turn. */
       preserveActiveTail?: boolean;
       /** Active Host pause checkpoint restored with the transcript. */

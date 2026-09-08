@@ -5,7 +5,6 @@ import type { DesktopCopy } from './desktop-locale';
 import {
   IconArchive,
   IconCheck,
-  IconClose,
   IconDocument,
   IconFolder,
   IconMoreVertical,
@@ -453,21 +452,6 @@ export function SessionRowItem({
             >
               <IconArchive width={SESSION_ACTION_ICON_PX} height={SESSION_ACTION_ICON_PX} />
             </button>
-            {isDraft ? null : (
-              <button
-                type="button"
-                className="session-action-btn session-close-btn"
-                data-testid="session-close-btn"
-                title={copy.deleteSessionPermanently}
-                aria-label={copy.deleteSessionPermanently}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onDeleteSession?.(session.id);
-                }}
-              >
-                <IconClose width={SESSION_ACTION_ICON_PX} height={SESSION_ACTION_ICON_PX} />
-              </button>
-            )}
           </>
         )}
       </div>

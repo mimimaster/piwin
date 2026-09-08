@@ -144,18 +144,18 @@ describe('TurnToolGroup causal tool sequence', () => {
     expect(container.querySelector('[data-testid="tool-batch-capsule"]')).toBeNull();
     const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
     expect(card).not.toBeNull();
-    expect(card?.classList.contains('is-expanded')).toBe(false);
-    expect(container.querySelector('[data-testid="diff-card"]')).toBeNull();
-
-    act(() => {
-      card?.querySelector<HTMLElement>('.tool-call-summary')?.click();
-    });
     expect(card?.classList.contains('is-expanded')).toBe(true);
 
     await act(async () => {
       await Promise.resolve();
     });
     expect(container.querySelector('[data-testid="diff-card"]')).not.toBeNull();
+
+    act(() => {
+      card?.querySelector<HTMLElement>('.tool-call-summary')?.click();
+    });
+    expect(card?.classList.contains('is-expanded')).toBe(false);
+    expect(container.querySelector('[data-testid="diff-card"]')).toBeNull();
   });
 
   it('keeps a running tool container mounted while its output streams', () => {

@@ -6,8 +6,14 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { PromptContextRef } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
 import type { AddContextRefResult } from '../hooks/use-composer-context-refs';
+import { revealLocalFileInFolder } from '../local-file-actions.js';
+import {
+  canRevealInLocalFileManager,
+  revealDisabledHint,
+} from '../local-file-reveal-policy.js';
 import type { NotificationAction } from '../notification-queue';
 import type { RightPanelTab } from '../right-panel';
+import { resolveProjectFilesystemRoot } from '../remote-session-hydrate.js';
 import type { DocumentOpenInput } from '../tool-call-card';
 import type { DesktopLocale } from '../desktop-locale';
 import type { DesktopContextMenuValue } from './desktop-context-menu-context.js';
@@ -59,9 +65,12 @@ export function buildDesktopContextMenuCaps(input: {
   applySupported: boolean;
   openChangedFilesSupported: boolean;
 }): ContextMenuCapabilities {
+  const projectRoot = resolveProjectFilesystemRoot(input.projectPath);
+  const canReveal = Boolean(projectRoot) && canRevealInLocalFileManager(projectRoot);
   return {
     hasProject: Boolean(input.projectPath),
-    canReveal: false,
+    canReveal,
+    ...(canReveal ? {} : { revealDisabledHint: revealDisabledHint(input.locale) }),
     sideChatAvailable: Boolean(input.activeSessionId && input.hostReady && input.sideChatSupported),
     applyAvailable: input.applySupported,
     openChangedFilesAvailable: Boolean(input.projectPath && input.openChangedFilesSupported),
@@ -110,8 +119,27 @@ export function createDesktopContextMenuValue(
       const title = fileNameFromPath(relativePath || absolutePath);
       deps.handleOpenDocument({ title, path: relativePath || absolutePath });
     },
-    revealPath: (_absolutePath) => {
-      notify('Reveal in file manager is not available in this build', 'info');
+    revealPath: (absolutePath) => {
+      void revealLocalFileInFolder(absolutePath).then((result) => {
+        if (result.ok) return;
+        if (result.reason === 'not-desktop') {
+          notify(
+            deps.locale === 'zh-CN'
+              ? '当前是浏览器预览，无法打开 Finder。请用桌面窗口。'
+              : 'Show in Finder needs the desktop window, not the browser preview.',
+            'error',
+          );
+          return;
+        }
+        if (result.reason === 'not-local') {
+          notify(revealDisabledHint(deps.locale), 'info');
+          return;
+        }
+        notify(
+          deps.locale === 'zh-CN' ? '无法在文件管理器中打开' : 'Could not show in file manager',
+          'error',
+        );
+      });
     },
     copyText: (value) => {
       void navigator.clipboard.writeText(value).catch(() => {

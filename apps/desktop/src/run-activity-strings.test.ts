@@ -17,7 +17,28 @@ const en = (overrides: Partial<RunActivityInput> = {}): RunActivityInput => ({
 describe('buildBasePhrases', () => {
   it('uses the reference copy for waiting-first-token en', () => {
     const phrases = buildBasePhrases(en());
-    expect(phrases).toEqual(['Thinking…']);
+    expect(phrases[0]).toBe('Thinking…');
+    expect(phrases).toEqual([
+      'Thinking…',
+      'Parsing context and instructions…',
+      'Planning execution path…',
+      'Formulating response…',
+    ]);
+  });
+
+  it('rotates connecting-model phrases in both locales', () => {
+    expect(buildBasePhrases({ kind: 'connecting-model', locale: 'zh-CN' })).toEqual([
+      '连接模型…',
+      '建立会话通道…',
+      '校验运行上下文…',
+      '等待模型响应…',
+    ]);
+    expect(buildBasePhrases({ kind: 'connecting-model', locale: 'en' })).toEqual([
+      'Connecting to model…',
+      'Opening session channel…',
+      'Verifying runtime context…',
+      'Waiting for model response…',
+    ]);
   });
 
   it('falls back to the active tool name when structured detail is unavailable', () => {
@@ -48,9 +69,14 @@ describe('buildBasePhrases', () => {
     expect(phrases[0]).toBe('读取 packages/pet/src/index.ts');
   });
 
-  it('uses the reference planning status instead of the internal plan step', () => {
+  it('uses the reference planning status with rotating phrases', () => {
     const phrases = buildBasePhrases(en({ kind: 'planning', planStep: 'Add auth' }));
-    expect(phrases).toEqual(['Planning']);
+    expect(phrases[0]).toBe('Planning');
+    expect(phrases).toEqual([
+      'Planning',
+      'Breaking down task steps…',
+      'Evaluating dependencies…',
+    ]);
   });
 
   it('localizes to zh-CN', () => {
@@ -95,7 +121,13 @@ describe('buildTakingTooLongPhrases', () => {
 
   it('keeps the reference thinking copy for waiting-first-token', () => {
     const phrases = buildTakingTooLongPhrases(en());
-    expect(phrases).toEqual(['Thinking…']);
+    expect(phrases[0]).toBe('Thinking…');
+    expect(phrases).toEqual([
+      'Thinking…',
+      'Parsing context and instructions…',
+      'Planning execution path…',
+      'Formulating response…',
+    ]);
   });
 
   it('keeps preparing carousel when the wait exceeds the timeout threshold', () => {
@@ -110,6 +142,6 @@ describe('buildTakingTooLongPhrases', () => {
 describe('buildActivityPhrases', () => {
   it('does not replace the reference status after the timeout threshold', () => {
     const phrases = buildActivityPhrases(en({ elapsedMs: 20_000 }));
-    expect(phrases).toEqual(['Thinking…']);
+    expect(phrases[0]).toBe('Thinking…');
   });
 });

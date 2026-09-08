@@ -569,7 +569,7 @@ describe('ChatThread render isolation (E1)', () => {
   // ————————————————————————————————————————————————————————————————
   // Run activity wiring
   // ————————————————————————————————————————————————————————————————
-  it('does not pretend the model is connecting before Host accepts the run', () => {
+  it('renders default dynamic carousel run-activity immediately on user send while streaming', () => {
     const userMessage = createUserMessage('u-pending', 'with images');
     act(() => {
       root.render(
@@ -594,8 +594,8 @@ describe('ChatThread render isolation (E1)', () => {
       );
     });
 
-    expect(container.querySelector('[data-testid="run-activity-slot"]')).toBeNull();
-    expect(container.textContent).not.toContain('Connecting to model…');
+    expect(container.querySelector('[data-testid="run-activity-slot"]')).not.toBeNull();
+    expect(container.textContent).toContain('Connecting to model…');
     expect(container.querySelector('[data-testid="assembly-summary-capsule"]')).toBeNull();
   });
 
@@ -660,7 +660,7 @@ describe('ChatThread render isolation (E1)', () => {
     expect(slot?.closest('[data-testid="current-response-turn"]')).not.toBeNull();
   });
 
-  it('keeps run-activity slot through the empty assistant lifecycle, then drops it on first token', () => {
+  it('hands off run-activity slot to turn-waiting-line upon assistant arrival without duplicating locators', () => {
     const userMessage = createUserMessage('u2', 'Hello');
     const renderWith = (messages: ChatMessageUi[]): void => {
       act(() => {
@@ -689,15 +689,20 @@ describe('ChatThread render isolation (E1)', () => {
 
     renderWith([userMessage]);
     expect(container.querySelector('[data-testid="run-activity-slot"]')).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid="agent-locator"]')).toHaveLength(1);
 
-    // A model that hides its reasoning opens this bubble and then stays silent;
-    // the locator has to survive or the turn looks frozen.
+    // When the streaming assistant bubble arrives before the first token,
+    // the waiting indicator is rendered inside TurnWorkDetails (turn-waiting-line),
+    // and run-activity-slot is dropped so there is exactly one locator.
     const pendingAssistant = createStreamingAssistant('a1');
     renderWith([userMessage, pendingAssistant]);
-    expect(container.querySelector('[data-testid="run-activity-slot"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="run-activity-slot"]')).toBeNull();
+    expect(container.querySelector('[data-testid="turn-waiting-line"]')).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid="agent-locator"]')).toHaveLength(1);
 
     renderWith([userMessage, { ...pendingAssistant, text: 'Here we go' }]);
     expect(container.querySelector('[data-testid="run-activity-slot"]')).toBeNull();
+    expect(container.querySelector('[data-testid="turn-waiting-line"]')).toBeNull();
   });
 
   it('drops the run-activity slot once the pending assistant lifecycle runs a tool', () => {
@@ -3194,6 +3199,24 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
     });
 
     expect(onRetryTurn).toHaveBeenCalledWith('u-1', { keepPrevious: true });
+  });
+
+  it('hides regenerate on project sessions', () => {
+    const onRetryTurn = vi.fn();
+    const u1 = createUserMessage('u-1', 'implement auth');
+    const a1: ChatMessageUi = {
+      id: 'a-1',
+      role: 'assistant',
+      text: 'done',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+    };
+
+    renderConversation([u1, a1], { onRetryTurn, isConversationSession: false });
+
+    expect(container.querySelector('[data-testid="response-regenerate-btn"]')).toBeNull();
   });
 
   it('retries a failed turn without keeping the previous attempt', () => {

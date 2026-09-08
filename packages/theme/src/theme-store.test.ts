@@ -20,13 +20,21 @@ afterEach(async () => {
 });
 
 describe('bundled theme store', () => {
-  it('installs and lists the ink-wash theme as a bundled theme', async () => {
+  it('lists Inkstone as the default theme and keeps Ink Wash as an alternative', async () => {
     const root = await mkdtemp(join(tmpdir(), 'piwin-theme-store-'));
     temporaryRoots.push(root);
 
     const listed = await listThemes(root);
     const ink = listed.themes.find((theme) => theme.id === 'piwin-ink-wash');
+    const inkstone = listed.themes.find((theme) => theme.id === 'piwin-inkstone');
 
+    expect(listed.activeThemeId).toBe('piwin-inkstone');
+    expect(inkstone).toMatchObject({
+      id: 'piwin-inkstone',
+      name: 'Inkstone',
+      source: 'bundled',
+      active: true,
+    });
     expect(ink).toMatchObject({
       id: 'piwin-ink-wash',
       name: '砚夜泼墨',
@@ -34,6 +42,17 @@ describe('bundled theme store', () => {
       source: 'bundled',
       active: false,
     });
+    for (const hiddenThemeId of [
+      'piwin-inkstone-paper',
+      'piwin-inkstone-ink',
+      'piwin-dark',
+      'piwin-light',
+      'piwin-orange-white',
+      'piwin-obsidian',
+      'piwin-bone',
+    ]) {
+      expect(listed.themes.some((theme) => theme.id === hiddenThemeId)).toBe(false);
+    }
     expect(ink?.path).toBe(join(getThemesDir(root), 'piwin-ink-wash'));
 
     const manifest = await loadThemeManifest(root, 'piwin-ink-wash');
@@ -41,30 +60,27 @@ describe('bundled theme store', () => {
     expect(manifest.artifact?.accent).toBe('#9bb2b8');
   });
 
-  it('loads Deck face ids from the pre-Deck bundled directories', async () => {
+  it('migrates retired face ids to the single Inkstone package', async () => {
     const root = await mkdtemp(join(tmpdir(), 'piwin-theme-store-'));
     temporaryRoots.push(root);
 
-    expect(resolveOnDiskThemeId('piwin-obsidian')).toBe('piwin-dark');
-    expect(resolveOnDiskThemeId('piwin-bone')).toBe('piwin-light');
+    expect(resolveOnDiskThemeId('piwin-obsidian')).toBe('piwin-inkstone');
+    expect(resolveOnDiskThemeId('piwin-bone')).toBe('piwin-inkstone');
+    expect(resolveOnDiskThemeId('piwin-inkstone-paper')).toBe('piwin-inkstone');
     expect(resolveOnDiskThemeId('piwin-ink-wash')).toBe('piwin-ink-wash');
 
     const obsidian = await loadThemeManifest(root, 'piwin-obsidian');
-    const dark = await loadThemeManifest(root, 'piwin-dark');
-    expect(obsidian.id).toBe(dark.id);
-    expect(obsidian.tokens).toEqual(dark.tokens);
+    expect(obsidian.id).toBe('piwin-inkstone');
 
     const bone = await loadThemeManifest(root, 'piwin-bone');
-    const light = await loadThemeManifest(root, 'piwin-light');
-    expect(bone.id).toBe(light.id);
-    expect(bone.tokens).toEqual(light.tokens);
+    expect(bone.id).toBe('piwin-inkstone');
 
     const activated = await setActiveTheme(root, 'piwin-obsidian');
-    expect(activated.id).toBe('piwin-dark');
+    expect(activated.id).toBe('piwin-inkstone');
     const preference = JSON.parse(await readFile(join(root, 'theme.json'), 'utf8')) as {
       activeThemeId: string;
     };
-    expect(preference.activeThemeId).toBe('piwin-dark');
+    expect(preference.activeThemeId).toBe('piwin-inkstone');
   });
 
   it('refuses unknown theme ids without leaking a filesystem path', async () => {

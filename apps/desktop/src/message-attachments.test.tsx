@@ -104,7 +104,7 @@ describe('MessageAttachments', () => {
     expect(container.querySelector('[data-testid="message-attachments"]')).not.toBeNull();
   });
 
-  it('expands an image capsule downward into a media preview and collapses on second click', () => {
+  it('expands an image capsule downward into a media preview and collapses on second click', async () => {
     const attachments: MediaAttachmentRef[] = [
       {
         id: 'att-1',
@@ -132,8 +132,11 @@ describe('MessageAttachments', () => {
     expect(slot?.getAttribute('data-open')).toBe('false');
     expect(container.querySelector('[data-testid="media-preview-container"]')).toBeNull();
 
-    act(() => {
+    await act(async () => {
       chip?.click();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
     });
     expect(chip?.getAttribute('aria-expanded')).toBe('true');
     expect(slot?.getAttribute('data-open')).toBe('true');
@@ -142,7 +145,7 @@ describe('MessageAttachments', () => {
         container.querySelector('.media-preview-fallback'),
     ).not.toBeNull();
 
-    act(() => {
+    await act(async () => {
       chip?.click();
     });
     expect(chip?.getAttribute('aria-expanded')).toBe('false');

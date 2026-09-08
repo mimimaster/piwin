@@ -279,9 +279,10 @@
   top: 0;
   left: 0;
   width: 100%;
-  /* Absolute slots share one stacking context. If measure lags (pause → error
-     row → new query), overflowing markdown from the previous turn paints on
-     top of the live spit-out. Clip to the reserved box; measure must grow it. */
+  box-sizing: border-box;
+  /* Height is set inline to virtualItem.size. Clip only works once the slot
+     height is locked; without it, absolute siblings share Y and paint on top
+     of each other while measure lags. */
   overflow: hidden;
   /* Cards paint their edge as an *outside* 1px ring (`--sh1` / `--elev-1`).
      When the inspector squeezes the stage so `--chat-max` is 100%, that ring
@@ -289,6 +290,17 @@
      1px inline pad keeps the ring inside the padding edge without letting
      sibling turns paint into each other. */
   padding-inline: 1px;
+}
+
+/* While a local fold (assembly summary) is open, let the panel paint until
+   the virtualizer remasures the turn body — otherwise overflow:hidden clips
+   the expanded detail mid-panel. */
+.transcript-turn-window-item:has(.assembly-summary.open) {
+  overflow: visible;
+}
+
+.transcript-turn-window-item-body {
+  width: 100%;
 }
 
 @media (max-width: 820px) {

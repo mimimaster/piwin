@@ -486,3 +486,37 @@ html[data-theme-visual-style='ink-wash']
   height: 22px;
   font-size: var(--fs-body);
 }
+
+/* Slash invocation (Scheme H - Gradient Ribbon) */
+.user-message-slash-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.user-message-slash-ribbon {
+  height: 2px;
+  margin-top: calc(-1 * var(--card-y, 12px));
+  margin-left: calc(-1 * var(--card-x, 14px));
+  margin-right: calc(-1 * var(--card-x, 14px));
+  margin-bottom: 8px;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  pointer-events: none;
+}
+
+.user-message-slash-header {
+  font-family: var(--font-mono, var(--mono, monospace));
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--t3, var(--text-3, #726b61));
+  user-select: none;
+  margin-bottom: 2px;
+}
+
+.user-message-slash-content {
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+  word-break: break-word;
+}

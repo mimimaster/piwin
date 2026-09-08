@@ -383,11 +383,19 @@ export function reduceChatSession(
       if (state.activeSessionId === null || state.activeSessionId !== action.sessionId) {
         return state;
       }
-      // Session hydration can race the foreground-run admission query. A
-      // Host-confirmed active Run is authoritative for the composer, so a
-      // transcript read must not turn Stop back into Send while replacing
-      // the visible history.
-      const preserveRunProjection = action.preserveActiveTail || state.activeRunId !== null;
+      // Message tail and run chrome use related but not identical gates:
+      // - Merge local rows whenever a turn is live (streaming and/or activeRunId)
+      //   or the caller opts in. Otherwise a stale Host page wipes the optimistic
+      //   user bubble while the sidebar keeps spinning.
+      // - Run chrome stays only for a Host-confirmed run id (or explicit opt-in).
+      //   Bare leftover `streaming` without activeRunId must yield to hydration
+      //   so a completed page can clear a stuck spinner.
+      const preserveMessageTail =
+        action.preserveActiveTail === true ||
+        state.streaming === true ||
+        state.activeRunId !== null;
+      const preserveRunProjection =
+        action.preserveActiveTail === true || state.activeRunId !== null;
       const hasConfirmedActiveRun = state.activeRunId !== null;
       const refreshedMessages = preserveAssistantModelSnapshots(
         mapTranscriptMessagesToUi(action.messages),
@@ -395,7 +403,7 @@ export function reduceChatSession(
       );
       const candidateMessages = reuseUnchangedTranscriptMessages(
         state.messages,
-        action.preserveActiveTail
+        preserveMessageTail
           ? mergeRefreshedTailWithLiveMessages(refreshedMessages, state.messages, state.streaming)
           : refreshedMessages,
       );
@@ -460,9 +468,8 @@ export function reduceChatSession(
         // before load-messages) already clears it, and a walkthrough/list
         // response may resolve before load-messages is dispatched — clearing
         // here would wipe the freshly-hydrated map.
-        // `live` means the session handle can accept a future prompt, not that
-        // a prompt is currently running. Drop a leftover sidebar spinner unless
-        // this hydration is keeping a confirmed or still-streaming run.
+        // Drop a leftover sidebar spinner unless this hydration is keeping a
+        // confirmed or still-streaming run.
         workingSessionIds:
           hasConfirmedActiveRun || (preserveRunProjection && state.streaming)
             ? { ...state.workingSessionIds, [action.sessionId]: true }

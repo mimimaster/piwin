@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
@@ -78,6 +78,25 @@ describe('PlanTodoTray', () => {
     });
     const { container, root } = renderTray(<PlanTodoTray plan={plan} onAbort={() => undefined} />);
     expect(container.querySelector('[data-testid="plan-abort"]')).toBeTruthy();
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('opens the plan document with the session virtual path', () => {
+    const onOpenDocument = vi.fn();
+    const { container, root } = renderTray(
+      <PlanTodoTray plan={draftPlan()} onOpenDocument={onOpenDocument} />,
+    );
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="plan-todo-tray-doc"]')?.click();
+    });
+    expect(onOpenDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Add auth',
+        path: 'plans/s1.md',
+        content: expect.stringContaining('# Implementation Plan: Add auth'),
+      }),
+    );
     act(() => root.unmount());
     container.remove();
   });

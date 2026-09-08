@@ -25,6 +25,8 @@ import {
 } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
 import { PageTitle } from './settings/page-title';
+import { skillInstalledEffectMessage } from './settings-effect-copy.js';
+import { notifySkillsChanged } from './skills-changed.js';
 
 export type SkillsPanelProps = {
   projectPath: string | null;
@@ -156,6 +158,7 @@ export function SkillsPanel(props: SkillsPanelProps) {
         : `${skill.enabled ? 'Disabled' : 'Enabled'} skill: ${skill.name}`,
     );
     setSkills((prev) => prev.map((s) => (s.id === skill.id ? { ...s, enabled: !s.enabled } : s)));
+    notifySkillsChanged();
   }
 
   async function handleInstallLocal() {
@@ -176,10 +179,11 @@ export function SkillsPanel(props: SkillsPanelProps) {
     }
     const data = response.data as SkillsInstallData;
     setInfo(
-      isChinese ? `已安装技能到：${data.targetPath}` : `Installed skill to: ${data.targetPath}`,
+      skillInstalledEffectMessage(locale, data.skillId, data.targetPath),
     );
     setInstallPath('');
     setInstallName('');
+    notifySkillsChanged();
     void loadSkills();
   }
 
@@ -208,14 +212,13 @@ export function SkillsPanel(props: SkillsPanelProps) {
     }
     const data = response.data as SkillsInstallData;
     setInfo(
-      isChinese
-        ? `已从 Git 安装技能到：${data.targetPath}`
-        : `Installed skill from Git to: ${data.targetPath}`,
+      skillInstalledEffectMessage(locale, data.skillId, data.targetPath),
     );
     setInstallGitUrl('');
     setInstallGitRef('');
     setInstallGitSubdir('');
     setInstallName('');
+    notifySkillsChanged();
     void loadSkills();
   }
 
@@ -233,8 +236,10 @@ export function SkillsPanel(props: SkillsPanelProps) {
       setError(response.error);
       return;
     }
-    setInfo(isChinese ? `已安装：${entry.name}` : `Installed: ${entry.name}`);
+    const data = response.data as SkillsInstallData;
+    setInfo(skillInstalledEffectMessage(locale, data.skillId || entry.name));
     setMainTab('installed');
+    notifySkillsChanged();
     void loadSkills();
   }
 

@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   fileNameFromLocalPath,
   parentDirectoryOf,
@@ -7,8 +7,16 @@ import {
   revealLocalFileInFolder,
   saveLocalFileAs,
 } from './local-file-actions.js';
+import {
+  clearRemoteProjectRootsForTests,
+  rememberRemoteProjectRoot,
+} from './remote-session-hydrate.js';
 
 describe('resolveLocalFileAbsolutePath', () => {
+  afterEach(() => {
+    clearRemoteProjectRootsForTests();
+  });
+
   it('keeps absolute paths', () => {
     expect(resolveLocalFileAbsolutePath('/Users/me/a.zip')).toBe('/Users/me/a.zip');
     expect(resolveLocalFileAbsolutePath('C:\\Users\\me\\a.zip')).toBe('C:\\Users\\me\\a.zip');
@@ -23,6 +31,16 @@ describe('resolveLocalFileAbsolutePath', () => {
 
   it('strips file: scheme', () => {
     expect(resolveLocalFileAbsolutePath('file:///Users/me/a.zip')).toBe('/Users/me/a.zip');
+  });
+
+  it('expands an opaque remote project id through the remembered Host root', () => {
+    rememberRemoteProjectRoot('project-3f3cd6fe3b1082e864080402', '/Users/me/piwin');
+    expect(
+      resolveLocalFileAbsolutePath(
+        'docs/design/inkstone/proto-v3-mobile.html',
+        'project-3f3cd6fe3b1082e864080402',
+      ),
+    ).toBe('/Users/me/piwin/docs/design/inkstone/proto-v3-mobile.html');
   });
 });
 

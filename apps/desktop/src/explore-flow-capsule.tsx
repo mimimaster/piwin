@@ -12,7 +12,11 @@ import type { DiffCardRequest } from './diff-card';
 import type { ExploreFlowGroup, ExploreFlowItem } from './explore-flow';
 import { ToolCallCard, ToolStatusDot, type DocumentOpenInput } from './tool-call-card';
 import { ActionMarquee } from './action-marquee';
-import { formatActiveToolLabel, formatExploreCapsuleTitle } from './tool-batch-capsule';
+import {
+  formatActiveToolLabel,
+  formatExploreCapsuleTitle,
+  exploreFlowTitleParts,
+} from './tool-batch-capsule';
 import { inkLineNodeClass, toolStatusToNodeStatus } from './session-node-status.js';
 import {
   IconAlertCircle,
@@ -20,6 +24,8 @@ import {
   IconChevronDown,
 } from './shell-icons';
 import { ChainIconSearch } from './inkstone-chain-icons.js';
+
+export { exploreFlowTitleParts } from './tool-batch-capsule';
 
 export type ExploreFlowCapsuleProps = {
   group: ExploreFlowGroup;
@@ -47,31 +53,6 @@ export function exploreFlowTitle(group: ExploreFlowGroup, isChinese: boolean): s
     live: group.isLive,
     isChinese,
   });
-}
-
-/** Proto: `<b>探索了 N 个文件</b><span>· M 次搜索</span>` — bold lead, quiet rest. */
-export function exploreFlowTitleParts(
-  group: ExploreFlowGroup,
-  isChinese: boolean,
-): { lead: string; rest: string | null } {
-  if (group.isLive) {
-    return { lead: exploreFlowTitle(group, isChinese), rest: null };
-  }
-  const files = group.fileCount;
-  const searches = group.searchCount;
-  if (isChinese) {
-    if (files > 0 && searches > 0) {
-      return { lead: `探索了 ${files} 个文件`, rest: ` · ${searches} 次搜索` };
-    }
-    return { lead: exploreFlowTitle(group, isChinese), rest: null };
-  }
-  if (files > 0 && searches > 0) {
-    return {
-      lead: `Explored ${files} file${files === 1 ? '' : 's'}`,
-      rest: ` · ${searches} search${searches === 1 ? '' : 'es'}`,
-    };
-  }
-  return { lead: exploreFlowTitle(group, isChinese), rest: null };
 }
 
 function thoughtLabel(

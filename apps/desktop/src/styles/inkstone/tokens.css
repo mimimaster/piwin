@@ -23,18 +23,18 @@ html[data-theme-id='piwin-inkstone-paper'] {
   --s4: #fff;
   --t1: #1d1b17;
   --t2: #5a554d;
-  --t3: #726b61;
-  --t4: #8f887d;
+  --t3: #655e53;
+  --t4: #696256;
   --l1: rgba(29, 27, 23, 0.06);
   --l2: rgba(29, 27, 23, 0.11);
   --l3: rgba(29, 27, 23, 0.2);
-  --zhu: #c6412a;
+  --zhu: #b03a24;
   --zhu-lift: #d4553d;
   --on-zhu: #fff7f0;
   --zhu-wash: rgba(198, 65, 42, 0.1);
-  --lamp: #b8801f;
+  --lamp: #8a5f0c;
   --lamp-glow: rgba(184, 128, 31, 0.4);
-  --lamp-wash: rgba(184, 128, 31, 0.14);
+  --lamp-wash: rgba(138, 95, 12, 0.14);
   --pine: #3d7c5e;
   --pine-wash: rgba(61, 124, 94, 0.12);
   --ochre: #94611a;
@@ -82,8 +82,8 @@ html[data-theme-id='piwin-inkstone-ink'] {
   --s4: #2a2621;
   --t1: #ebe5da;
   --t2: #a59d92;
-  --t3: #8b8378;
-  --t4: #6a6259;
+  --t3: #968d81;
+  --t4: #8d857a;
   --l1: rgba(235, 229, 218, 0.06);
   --l2: rgba(235, 229, 218, 0.1);
   --l3: rgba(235, 229, 218, 0.17);
@@ -143,7 +143,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   --chat-line-height: 1.72;
   --fs-ui: 12.5px;
   --fs-meta: 11.5px;
-  --fs-micro: 10.5px;
+  --fs-micro: 11px;
   /* Mono line-height: explicit value avoids CJK mixed-script jitter
      when JetBrains Mono ascenders differ from PingFang SC. */
   --mono-lh: 1.4;

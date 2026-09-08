@@ -25,6 +25,20 @@ describe('sessionActionItems', () => {
     expect(items.some((item) => item.action === 'continue-in-project')).toBe(false);
   });
 
+  it('does not offer delete on live sessions; archived sessions keep permanent delete', () => {
+    const live = sessionActionItems({ isPinned: false, isArchived: false });
+    expect(live.some((item) => item.action === 'delete')).toBe(false);
+    expect(live.some((item) => item.action === 'archive')).toBe(true);
+
+    const archived = sessionActionItems({ isPinned: false, isArchived: true });
+    expect(archived).toContainEqual({
+      action: 'delete',
+      label: 'Delete permanently',
+      danger: true,
+      testId: 'session-menu-delete',
+    });
+  });
+
   it('offers restore-from-pack instead of unarchive/delete for offloaded sessions', () => {
     const items = sessionActionItems({
       isPinned: false,
@@ -48,7 +62,6 @@ describe('sessionActionItems', () => {
       'copy-id',
       'fork-chat',
       'archive',
-      'delete',
     ]);
   });
 
@@ -71,9 +84,10 @@ describe('sessionActionItems', () => {
     const items = sessionActionItems({ isPinned: false, isArchived: false, locale: 'zh-CN' });
     const pin = items.find((i) => i.action === 'pin');
     const fork = items.find((i) => i.action === 'fork-chat');
-    const del = items.find((i) => i.action === 'delete');
+    const archive = items.find((i) => i.action === 'archive');
     expect(pin?.label).toBe('置顶');
     expect(fork?.label).toBe('分叉');
-    expect(del?.label).toBe('删除');
+    expect(archive?.label).toBe('归档');
+    expect(items.some((item) => item.action === 'delete')).toBe(false);
   });
 });
