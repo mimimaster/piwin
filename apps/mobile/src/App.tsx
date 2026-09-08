@@ -9,12 +9,9 @@ import { useMobileHost } from './hooks/use-mobile-host.js';
 import { ConnectionSurface } from './surfaces/connection/ConnectionSurface.js';
 
 /**
- * Inkstone shell (visual truth: docs/design/inkstone/proto-08-mobile.html).
+ * Inkstone mobile shell.
  *
- * While no Host connection is ready (or the user opens connection settings), the
- * proven ConnectionSurface handles endpoint/credential vault/pairing. Once ready,
- * the Inkstone pages run on live host data; screens without a wired feature still
- * render prototype data and say so.
+ * ConnectionSurface handles host pairing & endpoint configuration.
  */
 export function App(): ReactElement {
   const host = useMobileHost();
@@ -42,9 +39,11 @@ export function App(): ReactElement {
               credentialPersistError={host.credentialPersistError}
               isNativeVault={host.isNativeVault}
               onRetryCredentialPersist={() => void host.retryCredentialPersist()}
-              onConnect={() => {
-                void host.handleConnect().then(() => {
-                  setShowConnectionConfig(false);
+              onConnect={(input) => {
+                void host.handleConnect(input).then((connected) => {
+                  if (connected) {
+                    setShowConnectionConfig(false);
+                  }
                 });
               }}
               onDisconnect={() => void host.handleDisconnect()}

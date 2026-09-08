@@ -160,6 +160,8 @@
   padding: 8px 10px;
   border: 1px solid var(--border);
   text-align: left;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .mobile-table-wrapper th {
