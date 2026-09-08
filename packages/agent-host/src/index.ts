@@ -65,6 +65,16 @@ export {
   isOauthProviderAuth,
   shouldRegisterCompiledProvider,
 } from './subscription-auth.js';
+export {
+  fetchSubscriptionQuota,
+  resetSubscriptionQuota,
+  normalizeCodexUsagePayload,
+  normalizeGrokUsagePayload,
+  normalizeModelGroupsPayload,
+  readOAuthMaterialFromAuthFile,
+  formatFriendlyTimeAgoOrUntil,
+  deriveColorTone,
+} from './subscription-quota-fetcher.js';
 export type {
   HostAuthEvent,
   HostAuthInteraction,
@@ -75,6 +85,11 @@ export type {
   SubscriptionLoginOutcome,
   SubscriptionLogoutOutcome,
 } from './subscription-auth.js';
+export type {
+  StoredOAuthMaterial,
+  FetchSubscriptionQuotaOptions,
+  ResetSubscriptionQuotaOptions,
+} from './subscription-quota-fetcher.js';
 
 export {
   BLUEPRINT_PROTOCOL_VERSION,

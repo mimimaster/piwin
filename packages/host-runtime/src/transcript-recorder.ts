@@ -193,6 +193,7 @@ export function createTranscriptRecorder(options: {
               ...(input.voiceCallId ? { voiceCallId: input.voiceCallId } : {}),
             }
           : {}),
+        ...(input.skillId ? { skillId: input.skillId } : {}),
       };
       if (input.attachments && input.attachments.length > 0) {
         // Transcript persistence keeps the path-backed media-compatible

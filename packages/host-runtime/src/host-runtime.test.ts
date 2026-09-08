@@ -2350,16 +2350,19 @@ describe('HostRuntime', () => {
     expect(response.success).toBe(true);
     if (!response.success) throw new Error(response.error);
     const runId = (response.data as { runId: string }).runId;
-    await vi.waitFor(() => {
-      expect(
-        pushes.some(
-          (push) =>
-            push.type === 'run/terminal' &&
-            push.run.runId === runId &&
-            push.run.status === 'failed',
-        ),
-      ).toBe(true);
-    });
+    await vi.waitFor(
+      () => {
+        expect(
+          pushes.some(
+            (push) =>
+              push.type === 'run/terminal' &&
+              push.run.runId === runId &&
+              push.run.status === 'failed',
+          ),
+        ).toBe(true);
+      },
+      { timeout: 5_000 },
+    );
     expect(
       pushes.some(
         (push) =>

@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>加强版 P0 执行报告 · 项目会话树写边界</title>
+  <style>
+    :root {
+      --void: #e6e1d7;
+      --s1: #f0ece4;
+      --s2: #f8f6f0;
+      --s3: #fffdf8;
+      --s4: #fff;
+      --t1: #1d1b17;
+      --t2: #5a554d;
+      --t3: #726b61;
+      --t4: #8f887d;
+      --l1: rgba(29, 27, 23, 0.08);
+      --l2: rgba(29, 27, 23, 0.14);
+      --zhu: #c6412a;
+      --zhu-wash: rgba(198, 65, 42, 0.1);
+      --pine: #3d7c5e;
+      --pine-wash: rgba(61, 124, 94, 0.12);
+      --lamp: #b8801f;
+      --lamp-wash: rgba(184, 128, 31, 0.14);
+      --sans: Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
+      --serif: "Noto Serif SC", "Songti SC", "STSong", Georgia, serif;
+      --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--void); color: var(--t1); font: 15px/1.65 var(--sans); }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 48px 28px 96px; }
+    h1 { font: 600 32px/1.25 var(--serif); letter-spacing: -0.02em; margin: 0 0 8px; }
+    .lede { color: var(--t2); font-size: 16px; margin: 0 0 28px; max-width: 42em; }
+    h2 { font: 600 20px/1.3 var(--serif); margin: 44px 0 12px; }
+    h3 { font: 600 14px/1.4 var(--sans); margin: 24px 0 8px; letter-spacing: 0.02em; }
+    p { margin: 0 0 12px; color: var(--t2); }
+    strong { color: var(--t1); font-weight: 600; }
+    code { font-family: var(--mono); font-size: 12px; background: var(--s1); padding: 1px 5px; border-radius: 4px; color: var(--t1); }
+    a { color: var(--zhu); text-decoration: none; border-bottom: 1px solid rgba(198, 65, 42, 0.35); }
+    a:hover { border-bottom-color: var(--zhu); }
+    .kicker { font: 600 11px/1 var(--sans); letter-spacing: 0.12em; text-transform: uppercase; color: var(--zhu); margin-bottom: 10px; }
+    .meta { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 0 0 28px; color: var(--t3); font-size: 13px; }
+    .meta span { display: inline-flex; align-items: center; gap: 6px; }
+    .card { background: var(--s3); border-radius: 12px; box-shadow: 0 1px 0 rgba(0,0,0,0.04), 0 8px 24px rgba(29,27,23,0.05); padding: 20px 22px; margin: 16px 0; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+    @media (max-width: 720px) {
+      .grid2, .grid3 { grid-template-columns: 1fr; }
+    }
+    .col { background: var(--s4); border-radius: 10px; padding: 16px 18px; border: 1px solid var(--l1); }
+    .col h3 { margin-top: 0; }
+    .ok { border-color: transparent; background: var(--pine-wash); }
+    .warn { border-color: transparent; background: var(--lamp-wash); }
+    .bad { border-color: transparent; background: var(--zhu-wash); }
+    ul, ol { margin: 0 0 12px; padding: 0 0 0 18px; color: var(--t2); }
+    li { margin: 0 0 6px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 8px 0 16px; }
+    th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--l1); vertical-align: top; }
+    th { color: var(--t3); font-weight: 600; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; background: var(--s2); }
+    .tag { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--s1); color: var(--t2); margin-right: 4px; white-space: nowrap; }
+    .tag.zhu { background: var(--zhu-wash); color: var(--zhu); }
+    .tag.pine { background: var(--pine-wash); color: var(--pine); }
+    .tag.lamp { background: var(--lamp-wash); color: var(--lamp); }
+    .status { font-weight: 600; }
+    .status.done { color: var(--pine); }
+    .status.out { color: var(--t3); }
+    hr { border: 0; border-top: 1px solid var(--l1); margin: 40px 0; }
+    .foot { color: var(--t4); font-size: 12px; }
+    .toc { background: var(--s4); border: 1px solid var(--l1); border-radius: 10px; padding: 14px 18px; margin: 0 0 28px; }
+    .toc ol { margin: 0; padding-left: 20px; }
+    .toc a { color: var(--t2); border-bottom: none; }
+    .toc a:hover { color: var(--zhu); }
+    .path { font-family: var(--mono); font-size: 12px; color: var(--t3); }
+    .verdict {
+      display: flex; gap: 16px; align-items: flex-start;
+      background: var(--pine-wash); border-radius: 12px; padding: 18px 20px; margin: 20px 0;
+    }
+    .verdict .mark {
+      flex: 0 0 auto; width: 42px; height: 42px; border-radius: 50%;
+      background: var(--pine); color: #f4fff8; font: 700 18px/42px var(--sans); text-align: center;
+    }
+    .verdict p { margin: 0; color: var(--t1); }
+    .verdict .sub { margin-top: 6px; color: var(--t2); font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="kicker">执行报告 · Execution Report</div>
+    <h1>加强版 P0 执行报告<br />项目会话树写边界诚实性</h1>
+    <p class="lede">
+      本报告记录「项目会话树」修订计划中<strong>加强版 P0</strong>的交付范围、实现要点、对抗性评审补丁与验证结论。
+      本轮目标解释为完成加强版 P0，而非整条 P0→P3 路线图。
+    </p>
+
+    <div class="meta">
+      <span><span class="tag pine">状态 · 已落地</span></span>
+      <span>日期 · 2026-09-08</span>
+      <span>上游 · <a href="./session-tree-project-plan-revised.md">修订计划</a> / <a href="../specs/2026-09-08-session-tree-project-review.md">评审</a></span>
+      <span>产品原则 · 对话路线 ≠ 工作区文件；磁盘不随叶子自动回滚</span>
+    </div>
+
+    <div class="verdict">
+      <div class="mark">✓</div>
+      <div>
+        <p><strong>结论：加强版 P0 可收尾。</strong></p>
+        <p class="sub">四项验收标准均已满足；对抗性评审指出的三处缺陷已修复并回归通过。P1（整树导航）、简化版 P3（关联会话 + worktree）、有门槛 P2（热导航）明确不在本轮范围。</p>
+      </div>
+    </div>
+
+    <nav class="toc" aria-label="目录">
+      <strong style="display:block;margin-bottom:8px;color:var(--t1);font-size:13px;">目录</strong>
+      <ol>
+        <li><a href="#s1">背景与目标解释</a></li>
+        <li><a href="#s2">验收标准达成情况</a></li>
+        <li><a href="#s3">交付内容</a></li>
+        <li><a href="#s4">对抗性评审补丁</a></li>
+        <li><a href="#s5">验证与证据</a></li>
+        <li><a href="#s6">非目标与后续阶段</a></li>
+        <li><a href="#s7">主要变更面</a></li>
+        <li><a href="#s8">收尾建议</a></li>
+      </ol>
+    </nav>
+
+    <!-- 1 -->
+    <h2 id="s1">1. 背景与目标解释</h2>
+    <div class="card">
+      <p>
+        普通对话（Conversation）中，同会话切换提问路线已可用。项目 / Agent 会话复用同一套控件，但在会改写工作区文件的环境中，
+        「对话变了什么、磁盘会不会变、已发生的副作用是否被掩盖」此前解释不一致，容易误导。
+      </p>
+      <p style="margin-bottom:0;">
+        产品负责人确认开工后，执行目标锁定为修订计划中的<strong>加强版 P0</strong>：统一探索入口的写边界确认、可恢复校准、失败重试证据保留，以及项目会话「再生成」门控。
+        目标文案「完整执行」按计划 Risks 节解释为<strong>完整加强版 P0</strong>，而非全路线图。
+      </p>
+    </div>
+
+    <div class="grid3">
+      <div class="col ok">
+        <h3>分层（保持）</h3>
+        <ul>
+          <li>对话路线 · 历史与模型上下文</li>
+          <li>工作副本 · 仓库文件隔离</li>
+          <li>文件撤销 · 可验证恢复（独立能力）</li>
+        </ul>
+      </div>
+      <div class="col">
+        <h3>本轮焦点</h3>
+        <ul>
+          <li>入口级上下文与文件状态可解释</li>
+          <li>离开有写入的尝试须确认</li>
+          <li>取消不改变当前路线</li>
+        </ul>
+      </div>
+      <div class="col warn">
+        <h3>明确不做</h3>
+        <ul>
+          <li>整树预览 / 从节点继续（P1）</li>
+          <li>关联会话 + worktree（P3）</li>
+          <li>热 Pi <code>branch()</code>（P2）</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 2 -->
+    <h2 id="s2">2. 验收标准达成情况</h2>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:4em;">编号</th>
+          <th>标准</th>
+          <th style="width:6em;">结果</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>AC-1</td>
+          <td>
+            凡离开当前尝试且观察到工作区写入的探索入口（切换兄弟路线、编辑 / 开分支再发、丢弃式重试）须先拒绝并要求确认；取消后活跃路线不变。
+          </td>
+          <td><span class="status done">已达成</span></td>
+        </tr>
+        <tr>
+          <td>AC-2</td>
+          <td>
+            项目 / Agent 会话不暴露成功轮 keep-previous「再生成」；Conversation 仍可；失败轮无 keep-previous 重试仍可用。
+          </td>
+          <td><span class="status done">已达成</span></td>
+        </tr>
+        <tr>
+          <td>AC-3</td>
+          <td>
+            确认离开后，待校准在 Host 进程重启后仍可恢复；仅在下一次 prompt 成功注入后消费。
+          </td>
+          <td><span class="status done">已达成</span></td>
+        </tr>
+        <tr>
+          <td>AC-4</td>
+          <td>
+            丢弃式重试删除失败尝试后，写入证据仍可查询（不随唯一助手行一并消失）。
+          </td>
+          <td><span class="status done">已达成</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- 3 -->
+    <h2 id="s3">3. 交付内容</h2>
+
+    <h3>3.1 Host：统一离开写边界</h3>
+    <div class="card">
+      <ul>
+        <li>
+          <code>session/prompt</code> 的编辑分支（<code>branchFromMessageId</code>）与丢弃重试（<code>retryUserMessageId</code>）在未确认时分别以
+          <code>branch-leaves-writes</code> / <code>retry-discards-writes</code> 拒绝，并附结构化 <code>WorkspaceWrites</code>。
+        </li>
+        <li><code>session/branch-switch</code> 继续使用既有 needs-confirmation 路径；确认后排队校准。</li>
+        <li>
+          离路 <code>branchFromMessageId</code> 对 <code>listAbandonedAssistantRows(targetId)</code> 求放弃写入（与 switch 对齐），避免父节点仍在活跃路径时误得空列表。
+        </li>
+      </ul>
+    </div>
+
+    <h3>3.2 可恢复校准</h3>
+    <div class="card">
+      <ul>
+        <li>待校准写入会话目录 <code>pending-branch-calibration.json</code>（原子写），进程内 Map 仅作缓存。</li>
+        <li><code>injectBranchCalibrationOnce</code>：先注入模型可见块，成功后再清除 Map 与磁盘文件。</li>
+        <li>切换、编辑分支、丢弃重试（带写入）确认后均调用 <code>queuePendingBranchCalibration</code>。</li>
+      </ul>
+      <p class="path" style="margin:8px 0 0;">路径 · ~/.piwin/sessions/&lt;sessionId&gt;/pending-branch-calibration.json</p>
+    </div>
+
+    <h3>3.3 丢弃重试证据</h3>
+    <div class="card">
+      <ul>
+        <li>在 <code>truncateFrom</code> 之前，将观察到的写入合并到用户消息元数据字段 <code>discardedAttemptWrites</code>。</li>
+        <li>合约 <code>SessionTranscriptMessage</code> 与 transcript store 行映射已同步；证据可经 <code>getMessage</code> 查询。</li>
+      </ul>
+    </div>
+
+    <h3>3.4 Desktop：确认流与再生成门控</h3>
+    <div class="card">
+      <ul>
+        <li>编辑 / 开分支拒绝后弹出确认卡；意图 <code>intent="leave-branch"</code>（「编辑会离开当前尝试…」），不再套用「切换分支」文案。</li>
+        <li><code>branchResend</code> 与 <code>retryTurn</code> 对齐：Host 接受前不裁剪 transcript、不乐观 <code>user/send</code>；写边界拒绝时可见路线不变。</li>
+        <li>项目会话隐藏 keep-previous 再生成；Conversation 保留；失败重试仍走 <code>keepPrevious: false</code>。</li>
+      </ul>
+    </div>
+
+    <!-- 4 -->
+    <h2 id="s4">4. 对抗性评审补丁</h2>
+    <p>首轮交付后，对抗性评审指出三处缺口；均已修复并纳入回归。</p>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:5em;">级别</th>
+          <th>问题</th>
+          <th>处理</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="tag zhu">高</span></td>
+          <td>离路 <code>branchFromMessageId</code> 对 <code>parentId</code> 求放弃行，父在活跃路径时得到 <code>[]</code>，漏拦写边界。</td>
+          <td>改为 <code>listAbandonedAssistantRows(targetId)</code>；新增 host-runtime 用例。</td>
+        </tr>
+        <tr>
+          <td><span class="tag zhu">高</span></td>
+          <td>编辑离开确认框复用「切换分支」文案，语义错误。</td>
+          <td>新增 <code>leave-branch</code> 意图与中英文案；overlay 接线。</td>
+        </tr>
+        <tr>
+          <td><span class="tag lamp">缺口</span></td>
+          <td><code>branchResend</code> 在 Host 接受前乐观裁剪，拒绝时可见路线已变。</td>
+          <td>裁剪与乐观发送延后至接受后；补充 use-branch-actions 测试。</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- 5 -->
+    <h2 id="s5">5. 验证与证据</h2>
+    <p>按目标计划 Verification plan 执行门控测试（vitest，驱动真实 rebase / branch-switch / Desktop 接线路径）。末次完整回归结果如下。</p>
+    <table>
+      <thead>
+        <tr>
+          <th>证据项</th>
+          <th>覆盖</th>
+          <th>结果</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>p0-rebase-branch</code></td>
+          <td><code>session-prompt-rebase</code>、<code>session-branch-write-boundary</code>（含离路分支）</td>
+          <td><span class="status done">通过</span>（11 tests）</td>
+        </tr>
+        <tr>
+          <td><code>p0-calibration-persist</code></td>
+          <td><code>branch-calibration</code>（磁盘恢复、单次注入、清除）</td>
+          <td><span class="status done">通过</span>（4 tests）</td>
+        </tr>
+        <tr>
+          <td><code>p0-retry-evidence</code></td>
+          <td>丢弃重试后 <code>discardedAttemptWrites</code> 可查</td>
+          <td><span class="status done">通过</span></td>
+        </tr>
+        <tr>
+          <td><code>p0-regenerate-gate</code></td>
+          <td>ChatThread 项目隐藏 / Conversation 显示再生成</td>
+          <td><span class="status done">通过</span>（3 tests）</td>
+        </tr>
+        <tr>
+          <td><code>p0-regression</code></td>
+          <td>上述 host 套件 + <code>use-branch-actions</code> + 确认对话框 + 再生成门控</td>
+          <td><span class="status done">通过</span>（host 15 + desktop 22 + regen 3）</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="card">
+      <p style="margin:0;">
+        <strong>说明：</strong>本轮以自动化单测 / 集成测为门控证据。未将 Desktop 实机手工冒烟或目标会话
+        <code>session-mts9a2f4-y5wlzhl0</code> 的端到端实机复盘列为完成条件；若产品侧需要实机签收，可另开验收清单。
+      </p>
+    </div>
+
+    <!-- 6 -->
+    <h2 id="s6">6. 非目标与后续阶段</h2>
+    <div class="grid2">
+      <div class="col">
+        <h3>本轮 Non-goals</h3>
+        <ul>
+          <li>完整节点导航（预览 / 从此继续 Host API）</li>
+          <li>关联新会话 + 固定 worktree 并行探索</li>
+          <li>热 Pi <code>navigateTree</code> / <code>branch()</code> 常驻</li>
+          <li>以 Pi JSONL 为产品权威</li>
+          <li>自动文件还原 / 完整 turn-undo</li>
+          <li>分叉 / Git 入口全面更名或视觉重设计</li>
+        </ul>
+      </div>
+      <div class="col warn">
+        <h3>建议下一阶段</h3>
+        <ul>
+          <li>默认顺序：<strong>简化版 P3</strong>（关联会话 + worktree）</li>
+          <li>若近期最强反馈是「找不到旧回复」：可先做<strong>收敛版 P1</strong></li>
+          <li>有门槛的 P2：须先有冷热切换性能与保真数据</li>
+        </ul>
+        <p style="margin:8px 0 0;font-size:13px;">依据 · 修订计划 §3</p>
+      </div>
+    </div>
+
+    <!-- 7 -->
+    <h2 id="s7">7. 主要变更面</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>层级</th>
+          <th>模块</th>
+          <th>要点</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>合约</td>
+          <td><code>packages/contracts</code> · <code>session-transcript.ts</code></td>
+          <td><code>discardedAttemptWrites</code></td>
+        </tr>
+        <tr>
+          <td>会话存储</td>
+          <td><code>packages/session</code> · transcript metadata / rows</td>
+          <td>元数据读写与行映射</td>
+        </tr>
+        <tr>
+          <td>Host</td>
+          <td><code>session-prompt-rebase</code>、<code>branch-calibration</code>、<code>session-branch-commands</code>、<code>paths</code></td>
+          <td>写边界、持久校准、路径助手</td>
+        </tr>
+        <tr>
+          <td>Desktop</td>
+          <td><code>use-branch-actions</code>、<code>branch-switch-confirm-dialog</code>、<code>workbench-overlays</code>、<code>chat-thread</code></td>
+          <td>确认意图、延迟裁剪、再生成门控</td>
+        </tr>
+        <tr>
+          <td>文档</td>
+          <td><code>docs/design/session-tree-project-plan-revised.md</code></td>
+          <td>状态标为加强版 P0 已落地</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="path">核心实现 diff（相对当前 HEAD 工作区，约 +358 / −54，不含测试文件统计时的完整量）。变更尚未单独成 commit，收尾时需按仓库规范整理。</p>
+
+    <!-- 8 -->
+    <h2 id="s8">8. 收尾建议</h2>
+    <div class="card">
+      <ol>
+        <li><strong>范围签收：</strong>确认「加强版 P0 完成」即本轮目标；全路线图另立项。</li>
+        <li><strong>工程收口：</strong>按关注点拆分小 commit（Host 写边界与校准 / Desktop 确认流 / 合约与 store / 文档），避免与无关工作区改动混提。</li>
+        <li><strong>可选实机签收：</strong>在项目会话上走一遍：切换有写入的兄弟路线 → 取消 / 确认；编辑再发 → 确认文案与路线不变；丢弃重试后检查 <code>discardedAttemptWrites</code>；重启 Host 后下一次 prompt 仍见校准块且仅一次。</li>
+        <li><strong>下一刀选型：</strong>产品根据近期反馈在「简化版 P3」与「收敛版 P1」之间二选一优先。</li>
+      </ol>
+    </div>
+
+    <hr />
+    <p class="foot">
+      文档位置 · <code>docs/design/session-tree-p0-execution-report.html</code><br />
+      关联 · <a href="./session-tree-project-plan-revised.md">修订落地计划</a> ·
+      <a href="./session-tree-project-proposal.md">原提案</a> ·
+      <a href="../specs/2026-09-08-session-tree-project-review.md">2026-09-08 评审</a> ·
+      <a href="./session-tree-now.html">代码现状说明</a>
+    </p>
+  </div>
+</body>
+</html>

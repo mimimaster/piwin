@@ -34,7 +34,8 @@ function legacyMessageToInput(message: SessionTranscriptMessage): TranscriptStor
     message.failure !== undefined ||
     message.subagentActivity !== undefined ||
     message.searchEvidence !== undefined ||
-    message.docCardSequence !== undefined;
+    message.docCardSequence !== undefined ||
+    message.skillId !== undefined;
   return {
     id: message.id,
     runtimeGenerationId: LEGACY_IMPORT_GENERATION,
@@ -75,6 +76,7 @@ function legacyMessageToInput(message: SessionTranscriptMessage): TranscriptStor
             ...(message.docCardSequence !== undefined
               ? { docCardSequence: message.docCardSequence }
               : {}),
+            ...(message.skillId !== undefined ? { skillId: message.skillId } : {}),
           },
         }
       : {}),

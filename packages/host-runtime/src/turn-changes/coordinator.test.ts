@@ -273,6 +273,8 @@ describe('createTurnChangeCoordinator', () => {
       workspaceId: 'ws-tool',
       rootPath: workspaceRoot,
       kind: 'tool',
+      mode: 'exclusive',
+      wait: true,
       runId: 'run-1',
     });
     expect(tool.ok).toBe(true);
@@ -280,12 +282,16 @@ describe('createTurnChangeCoordinator', () => {
       workspaceId: 'ws-git',
       rootPath: generalWorkspace,
       kind: 'git',
+      mode: 'exclusive',
+      wait: false,
     });
     expect(git).toEqual({ ok: false, reason: 'workspace-busy' });
     const integration = await runtime.gate.tryAcquire({
       workspaceId: 'ws-int',
       rootPath: generalWorkspace,
       kind: 'integration',
+      mode: 'exclusive',
+      wait: false,
     });
     expect(integration).toEqual({ ok: false, reason: 'workspace-busy' });
     if (tool.ok) {

@@ -176,7 +176,7 @@ describe('git checkout', () => {
 });
 
 describe('git mutation workspace write gate', () => {
-  it('fails git/stage with workspace-busy when the workspace lease is held', async () => {
+  it('waits to git/stage until the workspace lease is released', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-git-busy-'));
     const projectPath = join(rootDir, 'workspace');
     await mkdir(projectPath, { recursive: true });
@@ -188,6 +188,8 @@ describe('git mutation workspace write gate', () => {
       workspaceId: 'ws-busy',
       rootPath: projectPath,
       kind: 'tool',
+      mode: 'exclusive',
+      wait: true,
     });
     expect(held.ok).toBe(true);
 
@@ -195,24 +197,23 @@ describe('git mutation workspace write gate', () => {
       piwinRoot: rootDir,
       workspaceWriteGate: gate,
     } as HostCommandContext;
-    const staged = await handleGitCommand(
+    let finished = false;
+    const stagedPromise = handleGitCommand(
       { type: 'git/stage', input: { projectPath, paths: ['README.md'] } },
-      'stage-busy',
+      'stage-wait',
       context,
-    );
-    expect(staged).toMatchObject({
-      success: false,
+    ).then((staged) => {
+      finished = true;
+      return staged;
     });
-    expect(String(staged && 'error' in staged ? staged.error : '')).toMatch(/workspace-busy/);
-
+    await new Promise((resolve) => {
+      setTimeout(resolve, 20);
+    });
+    expect(finished).toBe(false);
     if (held.ok) {
       held.lease.release();
     }
-    const afterRelease = await handleGitCommand(
-      { type: 'git/stage', input: { projectPath, paths: ['README.md'] } },
-      'stage-free',
-      context,
-    );
+    const afterRelease = await stagedPromise;
     expect(afterRelease?.success).toBe(true);
   });
 
@@ -227,6 +228,8 @@ describe('git mutation workspace write gate', () => {
       workspaceId: 'ws-read',
       rootPath: projectPath,
       kind: 'integration',
+      mode: 'exclusive',
+      wait: true,
     });
     expect(held.ok).toBe(true);
 

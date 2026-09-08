@@ -366,6 +366,9 @@ export function createSubagentIntegrationCoordinator(
           workspaceId: parentRepoPath,
           rootPath: parentRepoPath,
           kind: 'integration',
+          mode: 'exclusive',
+          wait: true,
+          ...(control.signal ? { signal: control.signal } : {}),
         });
         if (!acquired.ok) {
           await retain(worktreePath, acquired.reason);
@@ -377,6 +380,10 @@ export function createSubagentIntegrationCoordinator(
           };
         }
         writeLease = acquired.lease;
+      }
+
+      if (control.signal?.aborted) {
+        throw new IntegrationQueueCancelledError();
       }
 
       // The current Git adapter is a one-shot operation. Until the durable

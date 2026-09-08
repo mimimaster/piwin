@@ -467,13 +467,15 @@ describe('SubagentIntegrationCoordinator', () => {
     });
   });
 
-  it('fails integration with workspace-busy and does not write parent files', async () => {
+  it('waits for the workspace lease before integrating parent files', async () => {
     const parentRepoPath = await mkdtemp(join(tmpdir(), 'piwin-int-busy-'));
     const gate = createWorkspaceWriteGate();
     const held = await gate.tryAcquire({
       workspaceId: 'ws-parent',
       rootPath: parentRepoPath,
       kind: 'tool',
+      mode: 'exclusive',
+      wait: true,
     });
     expect(held.ok).toBe(true);
     const integrateWorktree = vi.fn(createSuccessIntegration(['game.js']));
@@ -484,22 +486,24 @@ describe('SubagentIntegrationCoordinator', () => {
       workspaceWriteGate: gate,
     });
 
-    const result = await coordinator.integrate(
+    let finished = false;
+    const pending = coordinator.integrate(
       createTaskResult('task-busy'),
       createWorktreeLease(join(parentRepoPath, 'worktree'), parentRepoPath),
-    );
-
-    expect(result.integrationStatus).toBe('failed');
-    expect(result.error).toMatch(/workspace-busy/);
+    ).then((result) => {
+      finished = true;
+      return result;
+    });
+    await new Promise((resolve) => {
+      setTimeout(resolve, 20);
+    });
+    expect(finished).toBe(false);
     expect(integrateWorktree).not.toHaveBeenCalled();
     if (held.ok) {
       held.lease.release();
     }
 
-    const afterRelease = await coordinator.integrate(
-      createTaskResult('task-free'),
-      createWorktreeLease(join(parentRepoPath, 'worktree-2'), parentRepoPath),
-    );
+    const afterRelease = await pending;
     expect(afterRelease.integrationStatus).toBe('applied');
     expect(integrateWorktree).toHaveBeenCalledTimes(1);
     await rm(parentRepoPath, { recursive: true, force: true });
@@ -535,6 +539,8 @@ describe('SubagentIntegrationCoordinator', () => {
       workspaceId: 'ws-parent',
       rootPath: parentRepoPath,
       kind: 'git',
+      mode: 'exclusive',
+      wait: false,
     });
     expect(overlapping).toEqual({ ok: false, reason: 'workspace-busy' });
     releaseApply.resolve();

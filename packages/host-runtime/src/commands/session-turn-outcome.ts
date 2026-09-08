@@ -94,9 +94,7 @@ async function persistStructuredFailureIfNeeded(
   runId: string,
   failure: AgentFailure,
 ): Promise<void> {
-  if (context.hasRunAgentErrorEvidence(runId)) {
-    return;
-  }
+  const alreadyPushedEvidence = context.hasRunAgentErrorEvidence(runId);
   const errorEvent = {
     type: 'error' as const,
     message: failure.message,
@@ -115,11 +113,39 @@ async function persistStructuredFailureIfNeeded(
         level: 'warn',
         message: `transcript failure evidence persist failed: ${formatError(error)}`,
       });
+      await persistSyntheticFailureRow(context, sessionId, runId, failure);
     }
+  } else {
+    await persistSyntheticFailureRow(context, sessionId, runId, failure);
   }
-  context.push({
-    type: 'event',
-    sessionId,
-    event: errorEvent,
-  });
+  if (!alreadyPushedEvidence) {
+    context.push({
+      type: 'event',
+      sessionId,
+      event: errorEvent,
+    });
+  }
+}
+
+async function persistSyntheticFailureRow(
+  context: SessionLiveContext,
+  sessionId: string,
+  runId: string,
+  failure: AgentFailure,
+): Promise<void> {
+  try {
+    const store = await context.getTranscriptStore(sessionId);
+    await store.ensureFailedRunAssistant({
+      runId,
+      updatedAt: new Date().toISOString(),
+      terminalMessage: failure.message,
+      failure,
+    });
+  } catch (error) {
+    context.push({
+      type: 'host/log',
+      level: 'warn',
+      message: `synthetic failure row persist failed: ${formatError(error)}`,
+    });
+  }
 }

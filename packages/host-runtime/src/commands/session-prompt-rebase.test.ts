@@ -70,6 +70,15 @@ describe('rebaseForPromptTree (ADR 0064)', () => {
       expect(confirmed).toBeNull();
       expect(await store.getActiveLeaf()).toBe('u2');
       expect(await store.getMessage('a2')).toBeUndefined();
+      // Evidence survives on the user row after the assistant sibling is gone.
+      expect((await store.getMessage('u2'))?.discardedAttemptWrites).toEqual({
+        files: ['src/app.ts'],
+        hasUnknownWrites: false,
+      });
+      expect(context.pendingBranchCalibrationBySession.get(sessionId)).toEqual({
+        files: ['src/app.ts'],
+        hasUnknownWrites: false,
+      });
     } finally {
       store.close();
     }
@@ -144,6 +153,77 @@ describe('rebaseForPromptTree (ADR 0064)', () => {
       );
       expect(result).toBeNull();
       expect(await store.getActiveLeaf()).toBe('u2');
+    } finally {
+      store.close();
+    }
+  });
+
+  it('refuses an unconfirmed branch that would leave workspace writes', async () => {
+    const { store, context, sessionId } = await openRetryFixture('branch-writes', {
+      withWrites: true,
+    });
+    try {
+      const blocked = await rebaseForPromptTree(
+        context,
+        prompt(sessionId, { branchFromMessageId: 'u2', text: '/vanta who' }),
+        undefined,
+      );
+      expect(blocked?.success).toBe(false);
+      if (blocked?.success !== false) {
+        throw new Error('expected refusal');
+      }
+      expect(blocked.error).toContain('branch-leaves-writes');
+      expect(blocked.problem).toEqual({
+        code: 'branch-leaves-writes',
+        data: { files: ['src/app.ts'], hasUnknownWrites: false },
+      });
+      expect(await store.getActiveLeaf()).toBe('a2');
+      expect(context.disposeLiveSession).not.toHaveBeenCalled();
+
+      const confirmed = await rebaseForPromptTree(
+        context,
+        prompt(sessionId, { branchFromMessageId: 'u2', text: '/vanta who' }, { confirm: true }),
+        undefined,
+      );
+      expect(confirmed).toBeNull();
+      // Branch rebases onto the parent of u2 (a1), so the next append is a sibling of u2.
+      expect(await store.getActiveLeaf()).toBe('a1');
+      expect(context.pendingBranchCalibrationBySession.get(sessionId)).toEqual({
+        files: ['src/app.ts'],
+        hasUnknownWrites: false,
+      });
+    } finally {
+      store.close();
+    }
+  });
+
+  it('refuses an off-path branchFromMessageId that would abandon active-path writes', async () => {
+    const { store, context, sessionId } = await openRetryFixture('branch-off-path', {
+      withWrites: true,
+    });
+    try {
+      // Fork a sibling under a1 while the active leaf stays on the write path (a2).
+      await store.rebaseActiveLeaf('a1');
+      await append(store, 'u2-alt', 'user', 'other direction');
+      await store.switchActiveBranch('u2');
+      expect(await store.getActiveLeaf()).toBe('a2');
+
+      const blocked = await rebaseForPromptTree(
+        context,
+        prompt(sessionId, { branchFromMessageId: 'u2-alt', text: 'retry other' }),
+        undefined,
+      );
+      expect(blocked?.success).toBe(false);
+      if (blocked?.success !== false) {
+        throw new Error('expected refusal');
+      }
+      expect(blocked.error).toContain('branch-leaves-writes');
+      expect(blocked.problem).toEqual({
+        code: 'branch-leaves-writes',
+        data: { files: ['src/app.ts'], hasUnknownWrites: false },
+      });
+      expect(await store.getActiveLeaf()).toBe('a2');
+      expect(context.disposeLiveSession).not.toHaveBeenCalled();
     } finally {
       store.close();
     }
@@ -227,13 +307,18 @@ async function openRetryFixture(
     await append(store, 'a2', 'assistant', 'second answer');
   }
   const disposeLiveSession = vi.fn(async () => undefined);
+  const pendingBranchCalibrationBySession = new Map();
   const context = {
     piwinRoot: rootDir,
     getTranscriptStore: async () => store,
     getForegroundRun: () => (options?.foreground === true ? { runId: 'run-1' } : undefined),
     disposeLiveSession,
     push: () => undefined,
-  } as unknown as SessionLiveContext & { disposeLiveSession: ReturnType<typeof vi.fn> };
+    pendingBranchCalibrationBySession,
+  } as unknown as SessionLiveContext & {
+    disposeLiveSession: ReturnType<typeof vi.fn>;
+    pendingBranchCalibrationBySession: Map<string, unknown>;
+  };
   return { store, context, sessionId };
 }
 

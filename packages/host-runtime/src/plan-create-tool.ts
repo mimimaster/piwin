@@ -20,8 +20,8 @@ import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
 import {
   classifyPlanComplexity,
   isWithinPlanSizeLimits,
-  loadSessionPlan,
-  saveSessionPlan,
+  PlanMutationError,
+  updateSessionPlan,
   validateSessionPlan,
 } from '@piwin/session';
 
@@ -217,53 +217,62 @@ export function createPlanCreateTool(options: PlanCreateToolOptions): HostToolRe
       const skillId = skillIdRaw || undefined;
 
       // Refuse to clobber an executing plan.
-      const existing = await loadSessionPlan(options.planPath);
-      if (existing && (existing.status === 'executing' || existing.status === 'approved')) {
-        return invalidPlanInput(
-          `a plan is already ${existing.status}; clear or complete it before creating a new one`,
-        );
-      }
-
       const complexityInput = { steps, ...(independentSteps ? { independentSteps } : {}) };
       if (!isWithinPlanSizeLimits(complexityInput)) {
         return invalidPlanInput('plan exceeds size limits');
       }
       const complexity: PlanComplexity = classifyPlanComplexity(complexityInput);
 
-      const now = new Date().toISOString();
-      const plan: SessionPlan = {
-        id: existing?.id ?? `plan-${Date.now().toString(36)}`,
-        sessionId: options.sessionId,
-        projectPath: options.projectPath,
-        status: 'draft',
-        title,
-        goal,
-        steps,
-        revision: existing ? existing.revision + 1 : 0,
-        createdAt: existing?.createdAt ?? now,
-        updatedAt: now,
-        source,
-        complexity,
-        ...(independentSteps ? { independentSteps } : {}),
-        ...(source === 'skill' && skillId ? { skillId } : {}),
-      };
-
-      const validated = validateSessionPlan(plan);
-      if (!validated.ok) {
-        return invalidPlanInput(
-          validated.issues.map((issue) => `${issue.path}: ${issue.message}`).join('; '),
-        );
+      let created: SessionPlan | null;
+      try {
+        created = await updateSessionPlan(options.planPath, (existing) => {
+          if (existing && (existing.status === 'executing' || existing.status === 'approved')) {
+            throw new PlanMutationError(
+              `a plan is already ${existing.status}; clear or complete it before creating a new one`,
+            );
+          }
+          const now = new Date().toISOString();
+          const plan: SessionPlan = {
+            id: existing?.id ?? `plan-${Date.now().toString(36)}`,
+            sessionId: options.sessionId,
+            projectPath: options.projectPath,
+            status: 'draft',
+            title,
+            goal,
+            steps,
+            revision: existing ? existing.revision + 1 : 0,
+            createdAt: existing?.createdAt ?? now,
+            updatedAt: now,
+            source,
+            complexity,
+            ...(independentSteps ? { independentSteps } : {}),
+            ...(source === 'skill' && skillId ? { skillId } : {}),
+          };
+          const validated = validateSessionPlan(plan);
+          if (!validated.ok) {
+            throw new PlanMutationError(
+              validated.issues.map((issue) => `${issue.path}: ${issue.message}`).join('; '),
+            );
+          }
+          return validated.plan;
+        });
+      } catch (error) {
+        if (error instanceof PlanMutationError) {
+          return invalidPlanInput(error.message);
+        }
+        throw error;
       }
-
-      await saveSessionPlan(options.planPath, validated.plan);
-      options.onUpdated?.(validated.plan);
+      if (!created) {
+        return invalidPlanInput('failed to persist draft plan');
+      }
+      options.onUpdated?.(created);
       return {
         ok: true,
         output: `draft plan created with ${steps.length} steps (complexity=${complexity}); awaiting user approval`,
         details: {
-          planId: validated.plan.id,
-          revision: validated.plan.revision,
-          status: validated.plan.status,
+          planId: created.id,
+          revision: created.revision,
+          status: created.status,
         },
       };
     },

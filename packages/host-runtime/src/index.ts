@@ -70,6 +70,7 @@ export {
   getPiwinSessionTranscriptPath,
   getPiwinSessionModelContextDatabasePath,
   getPiwinSessionWalkthroughDir,
+  getPiwinSessionPendingBranchCalibrationPath,
   getPiwinSessionWalkthroughPath,
   getPiwinSessionWalkthroughMdPath,
 } from './paths.js';
@@ -321,6 +322,8 @@ export type {
 } from './turn-changes/coordinator.js';
 export { createWorkspaceWriteGate } from './turn-changes/workspace-write-gate.js';
 export type {
+  WorkspaceWriteAcquireInput,
+  WorkspaceWriteAcquireResult,
   WorkspaceWriteGate,
   WorkspaceWriteLease,
 } from './turn-changes/workspace-write-gate.js';
@@ -363,3 +366,5 @@ export {
   redactPersistedMessage,
 } from './persisted-error-redaction.js';
 export type { PersistedFailureContext } from './persisted-error-redaction.js';
+export { SubscriptionQuotaService } from './subscription-quota-service.js';
+export type { SubscriptionQuotaServiceOptions } from './subscription-quota-service.js';

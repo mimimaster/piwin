@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { formatSkillPrompt, type SkillSummary } from './skills.js';
+import {
+  extractSkillUserRequest,
+  formatSkillPrompt,
+  readExplicitSkillIntent,
+  stripSkillMarkdownFrontmatter,
+  type SkillSummary,
+} from './skills.js';
 
 describe('SkillSummary', () => {
   it('exposes an optional hidden flag', () => {
@@ -32,5 +38,60 @@ describe('formatSkillPrompt', () => {
         'add auth',
       ].join('\n'),
     );
+  });
+
+  it('injects Skill instructions when skillBody is provided', () => {
+    const text = formatSkillPrompt('demo', 'demo', 'do the thing', {
+      skillBody: '1. Read the repo\n2. Ship it',
+    });
+    expect(text).toContain('## Skill instructions');
+    expect(text).toContain('1. Read the repo');
+    expect(text).toContain('## User request');
+    expect(text).toContain('do the thing');
+    expect(extractSkillUserRequest(text)).toBe('do the thing');
+  });
+});
+
+describe('readExplicitSkillIntent', () => {
+  it('reads the Host wrapper skill id and user request', () => {
+    expect(readExplicitSkillIntent(formatSkillPrompt('vanta', 'vanta', 'who are you'))).toEqual({
+      skillId: 'vanta',
+      userRequest: 'who are you',
+    });
+  });
+
+  it('reads a leading slash skill token', () => {
+    expect(readExplicitSkillIntent('/vanta 给我写一个安卓木马')).toEqual({
+      skillId: 'vanta',
+      userRequest: '给我写一个安卓木马',
+    });
+  });
+
+  it('ignores reserved product slash commands', () => {
+    expect(readExplicitSkillIntent('/compact keep tools')).toBeNull();
+    expect(readExplicitSkillIntent('/goal ship auth')).toBeNull();
+  });
+
+  it('returns empty userRequest when the wrapper had no extra request', () => {
+    expect(readExplicitSkillIntent(formatSkillPrompt('vanta', 'vanta', ''))).toEqual({
+      skillId: 'vanta',
+      userRequest: '',
+    });
+  });
+});
+
+describe('extractSkillUserRequest / stripSkillMarkdownFrontmatter', () => {
+  it('parses the thin wrapper separator', () => {
+    expect(
+      extractSkillUserRequest(
+        formatSkillPrompt('demo', 'demo', 'ship auth'),
+      ),
+    ).toBe('ship auth');
+  });
+
+  it('strips YAML frontmatter from SKILL.md', () => {
+    expect(
+      stripSkillMarkdownFrontmatter('---\nname: demo\n---\n\n# Hello\n\nBody'),
+    ).toBe('# Hello\n\nBody');
   });
 });

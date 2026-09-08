@@ -2,6 +2,7 @@ import type { HostCommand, HostResponse } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
 import { fail, ok } from '../response-helpers.js';
 import { SubscriptionAuthService } from '../subscription-auth-service.js';
+import { SubscriptionQuotaService } from '../subscription-quota-service.js';
 import type { HostCommandContext } from './host-command-context.js';
 
 const TYPES = new Set<HostCommand['type']>([
@@ -11,9 +12,12 @@ const TYPES = new Set<HostCommand['type']>([
   'auth/cancel',
   'auth/claim',
   'auth/logout',
+  'auth/quota',
+  'auth/reset-quota',
 ]);
 
 const services = new Map<string, SubscriptionAuthService>();
+const quotaServices = new Map<string, SubscriptionQuotaService>();
 
 export function getSubscriptionAuthService(
   context: Pick<HostCommandContext, 'piwinRoot' | 'push' | 'subscriptionAuth'>,
@@ -33,6 +37,27 @@ export function getSubscriptionAuthService(
   );
   created.bindPush(context.push);
   services.set(key, created);
+  return created;
+}
+
+export function getSubscriptionQuotaService(
+  context: Pick<HostCommandContext, 'piwinRoot' | 'push' | 'subscriptionQuota'>,
+): SubscriptionQuotaService {
+  if (context.subscriptionQuota) {
+    context.subscriptionQuota.bindPush(context.push);
+    return context.subscriptionQuota;
+  }
+  const key = context.piwinRoot ?? '';
+  const existing = quotaServices.get(key);
+  if (existing) {
+    existing.bindPush(context.push);
+    return existing;
+  }
+  const created = new SubscriptionQuotaService(
+    context.piwinRoot !== undefined ? { piwinRoot: context.piwinRoot } : {},
+  );
+  created.bindPush(context.push);
+  quotaServices.set(key, created);
   return created;
 }
 
@@ -103,6 +128,23 @@ export async function handleAuthCommand(
           return fail(requestId, command.type, result.error, { code: result.code });
         }
         return ok(requestId, command.type, {});
+      }
+      case 'auth/quota': {
+        const quotaService = getSubscriptionQuotaService(context);
+        const quota = await quotaService.getQuota(command.input.providerId, {
+          ...(command.input.forceRefresh !== undefined ? { forceRefresh: command.input.forceRefresh } : {}),
+        });
+        return ok(requestId, command.type, { quota });
+      }
+      case 'auth/reset-quota': {
+        const quotaService = getSubscriptionQuotaService(context);
+        const result = await quotaService.resetQuota(command.input.providerId);
+        if (!result.ok) {
+          return fail(requestId, command.type, result.message ?? 'Quota reset failed', {
+            code: 'quota-reset-failed',
+          });
+        }
+        return ok(requestId, command.type, result);
       }
       default:
         return null;

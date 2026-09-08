@@ -46,6 +46,7 @@ import {
   SESSION_TRANSCRIPT_WINDOW_DEFAULT_BEFORE_ITEMS,
   formatError,
   isPauseContinueUtterance,
+  readExplicitSkillIntent,
   wrapLiveDelegationForAgent,
   DEFAULT_PERMISSION_PRESET,
   resolvePermissionPreset,
@@ -121,6 +122,7 @@ import {
 } from '../session-scope.js';
 import { repairLegacySessionNames } from '../session-name-repair.js';
 import { findEnabledModel } from '../provider-helpers.js';
+import { activateSkillForPrompt } from './activate-skill-for-prompt.js';
 import type { SessionLiveContext } from './session-live-context.js';
 import { shouldInjectLiveWorkPreamble } from '../voice/live-work-preamble.js';
 
@@ -258,7 +260,30 @@ function promptInputFromStoredUser(
   } else {
     delete next.contextRefs;
   }
+  const storedSkillId = stored.skillId?.trim();
+  if (storedSkillId) {
+    next.skillId = storedSkillId;
+  } else {
+    delete next.skillId;
+  }
   return next;
+}
+
+/** Structured skillId first; then stored row; then explicit `/skill` or wrapper text. */
+export function resolvePromptSkillId(input: {
+  skillId?: string;
+  text: string;
+  storedSkillId?: string;
+}): string | undefined {
+  const fromInput = input.skillId?.trim();
+  if (fromInput) {
+    return fromInput;
+  }
+  const fromStored = input.storedSkillId?.trim();
+  if (fromStored) {
+    return fromStored;
+  }
+  return readExplicitSkillIntent(input.text)?.skillId;
 }
 
 export async function preparePromptInput(
@@ -284,9 +309,9 @@ export async function preparePromptInput(
   const retryUserMessageId = command.input.retryUserMessageId?.trim();
   let promptSource = command.input;
   if (retryUserMessageId) {
-    const stored = await context.getTranscriptStore(command.sessionId).then((store) =>
-      store.getMessage(retryUserMessageId),
-    );
+    const stored = await context
+      .getTranscriptStore(command.sessionId)
+      .then((store) => store.getMessage(retryUserMessageId));
     if (stored === undefined || stored.role !== 'user') {
       throw new Error(`retry-target-not-found: ${retryUserMessageId}`);
     }
@@ -355,6 +380,45 @@ export async function preparePromptInput(
   });
   collectPreparedAttachmentContributions(assembly, promptSource, preparedFromHost);
   throwIfPromptPreparationAborted(context, run.runId);
+
+  if (!conversationChat) {
+    // Explicit slash/mention Skill activation (Agent Skills Tier-2): inject
+    // the SKILL.md body into the model-facing prompt. Transcript keeps the
+    // client text recorded above; discovery catalog remains separate.
+    const skillId = resolvePromptSkillId({
+      ...(promptSource.skillId ? { skillId: promptSource.skillId } : {}),
+      text: promptSource.text,
+    });
+    if (skillId) {
+      const rootDir = getPiwinRoot(context.piwinRoot);
+      const indexPath = getPiwinSessionIndexPath(rootDir);
+      const sessionRecord = await getSessionRecord(indexPath, command.sessionId);
+      const scope = sessionRecord ? scopeFromIndexRecord(sessionRecord) : undefined;
+      const projectPath = scope?.kind === 'project' ? scope.projectPath : undefined;
+      const activated = await activateSkillForPrompt({
+        text: promptInput.text,
+        skillId,
+        ...(context.piwinRoot ? { piwinRoot: context.piwinRoot } : {}),
+        ...(projectPath ? { projectPath } : {}),
+      });
+      throwIfPromptPreparationAborted(context, run.runId);
+      if (activated.ok) {
+        promptInput.text = activated.text;
+        assembly.add({
+          kind: 'skill',
+          label: `Skill · ${activated.skillName}`,
+          trustOrigin: 'piwin',
+          text: activated.skillBody,
+        });
+      } else {
+        context.push({
+          type: 'host/log',
+          level: 'warn',
+          message: `skill activation failed (${skillId}): ${activated.reason}`,
+        });
+      }
+    }
+  }
 
   // CHT-303: conversations never delegate. Agent sessions still honor an
   // explicit disabled flag; everything else stays auto.
@@ -609,7 +673,16 @@ async function applyAgentPromptContext(
   }
 
   const planPath = getPiwinSessionPlanPath(getPiwinRoot(context.piwinRoot), command.sessionId);
-  const activePlan = await loadSessionPlan(planPath);
+  let activePlan: Awaited<ReturnType<typeof loadSessionPlan>> = null;
+  try {
+    activePlan = await loadSessionPlan(planPath);
+  } catch (error) {
+    context.push({
+      type: 'host/log',
+      level: 'warn',
+      message: `session plan load failed: ${formatError(error)}`,
+    });
+  }
   throwIfPromptPreparationAborted(context, run.runId);
   if (activePlan && (activePlan.status === 'approved' || activePlan.status === 'executing')) {
     const planText = formatPlanForModelContext(activePlan);
@@ -774,7 +847,6 @@ export function recoverModelFromTranscript(
   }
   return undefined;
 }
-
 
 export function listKnownChatModelKeys(config: PiwinConfig): string[] {
   return (config.providers ?? [])

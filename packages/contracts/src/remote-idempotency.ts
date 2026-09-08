@@ -24,6 +24,7 @@ export const REMOTE_IDEMPOTENT_MUTATION_TYPES = [
   'flashcards/study/claim',
   'flashcards/study/checkpoint',
   'flashcards/study/next',
+  'flashcards/study/goto',
   'flashcards/study/rate',
   'flashcards/study/undo',
   'flashcards/study/pause',

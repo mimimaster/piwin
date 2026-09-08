@@ -447,6 +447,7 @@ function projectRemoteMediaListData(data: unknown): {
 
 function projectProjectMutation(data: unknown): {
   projectId: string;
+  path?: string;
   trusted: boolean;
   trust: 'trusted' | 'untrusted';
 } {
@@ -461,6 +462,7 @@ function projectProjectMutation(data: unknown): {
   const trusted = record?.trusted === true || record?.trust === 'trusted';
   return {
     projectId,
+    ...(hostPath.length > 0 && !isRemoteProjectId(hostPath) ? { path: hostPath } : {}),
     trusted,
     trust: trusted ? 'trusted' : 'untrusted',
   };
@@ -487,6 +489,7 @@ function projectProjects(data: unknown): RemoteProjectSummary[] {
     const summary: RemoteProjectSummary = {
       projectId: createRemoteProjectId(record.path),
       displayName,
+      path: record.path,
       trust,
     };
     if (typeof record.lastOpenedAt === 'string') {

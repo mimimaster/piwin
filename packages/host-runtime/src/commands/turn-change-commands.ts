@@ -100,27 +100,67 @@ async function runDirection(
   if (!version) {
     return { ok: false, code: 'stale-revision', message: 'change version not found' };
   }
-  const planned = planUndoRedo({
-    direction: input.direction,
-    files: version.files.map((file) => ({
-      relativePath: file.relativePath,
-      beforeSha: file.beforeSha,
-      afterSha: file.afterSha,
-      beforeExists: file.beforeSha !== null,
-      afterExists: file.afterSha !== null,
-    })),
+
+  const acquired = await runtime.gate.tryAcquire({
+    workspaceId: workspace.workspaceId,
+    rootPath: workspace.rootPath,
+    kind: 'undo',
+    mode: 'exclusive',
+    wait: false,
   });
-  const ran = await runTurnChangeOperation({
-    workspaceRoot: workspace.rootPath,
-    store: runtime.store,
-    objectStore: runtime.objectStore,
-    principal: input.principal,
-    idempotencyKey: input.idempotencyKey,
-    requestHash: `${input.direction}:${input.changeSetId}:${String(input.expectedRevision)}`,
-    changeSetId: input.changeSetId,
-    kind: input.direction,
-    expectedRevision: input.expectedRevision,
-    files: planned,
-  });
-  return { ok: true, data: { operationId: ran.operationId, status: ran.status } };
+  if (!acquired.ok) {
+    return { ok: false, code: acquired.reason, message: acquired.reason };
+  }
+
+  try {
+    const latest = runtime.store.getAttempt(input.changeSetId);
+    if (!latest) {
+      return { ok: false, code: 'not-found', message: 'change set not found' };
+    }
+    if (latest.captureState === 'incomplete') {
+      return { ok: false, code: 'capture-incomplete', message: 'capture is incomplete' };
+    }
+    if (latest.captureState === 'expired') {
+      return { ok: false, code: 'data-expired', message: 'change set expired' };
+    }
+    if (input.direction === 'undo' && latest.disposition !== 'applied') {
+      return { ok: false, code: 'direction-unavailable', message: 'undo is not available' };
+    }
+    if (input.direction === 'redo' && latest.disposition !== 'undone') {
+      return { ok: false, code: 'direction-unavailable', message: 'redo is not available' };
+    }
+
+    const currentVersion = runtime.store.getChangeVersion(
+      input.changeSetId,
+      input.expectedRevision,
+    );
+    if (!currentVersion) {
+      return { ok: false, code: 'stale-revision', message: 'change version not found' };
+    }
+    const planned = planUndoRedo({
+      direction: input.direction,
+      files: currentVersion.files.map((file) => ({
+        relativePath: file.relativePath,
+        beforeSha: file.beforeSha,
+        afterSha: file.afterSha,
+        beforeExists: file.beforeSha !== null,
+        afterExists: file.afterSha !== null,
+      })),
+    });
+    const ran = await runTurnChangeOperation({
+      workspaceRoot: workspace.rootPath,
+      store: runtime.store,
+      objectStore: runtime.objectStore,
+      principal: input.principal,
+      idempotencyKey: input.idempotencyKey,
+      requestHash: `${input.direction}:${input.changeSetId}:${String(input.expectedRevision)}`,
+      changeSetId: input.changeSetId,
+      kind: input.direction,
+      expectedRevision: input.expectedRevision,
+      files: planned,
+    });
+    return { ok: true, data: { operationId: ran.operationId, status: ran.status } };
+  } finally {
+    acquired.lease.release();
+  }
 }

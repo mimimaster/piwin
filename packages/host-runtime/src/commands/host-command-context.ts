@@ -131,6 +131,8 @@ export type HostCommandContext = {
   clearSessionPermissionOverride: (sessionId: string) => void;
   /** Injected Host-owned subscription OAuth service (tests + HostRuntime). */
   subscriptionAuth?: import('../subscription-auth-service.js').SubscriptionAuthService;
+  /** Injected Host-owned subscription Quota service (tests + HostRuntime). */
+  subscriptionQuota?: import('../subscription-quota-service.js').SubscriptionQuotaService;
   /** pairedDeviceId ?? stable clientId. */
   devicePrincipalId?: string;
   /** Remote Hosts force Codex device-code (no Host loopback). */

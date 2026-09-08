@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>会话树 · 代码现状</title>
+  <style>
+    :root {
+      --void: #e6e1d7;
+      --s1: #f0ece4;
+      --s2: #f8f6f0;
+      --s3: #fffdf8;
+      --s4: #fff;
+      --t1: #1d1b17;
+      --t2: #5a554d;
+      --t3: #726b61;
+      --t4: #8f887d;
+      --l1: rgba(29, 27, 23, 0.08);
+      --l2: rgba(29, 27, 23, 0.14);
+      --zhu: #c6412a;
+      --zhu-wash: rgba(198, 65, 42, 0.1);
+      --pine: #3d7c5e;
+      --pine-wash: rgba(61, 124, 94, 0.12);
+      --lamp: #b8801f;
+      --lamp-wash: rgba(184, 128, 31, 0.14);
+      --sans: Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
+      --serif: "Noto Serif SC", "Songti SC", "STSong", Georgia, serif;
+      --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--void); color: var(--t1); font: 15px/1.65 var(--sans); }
+    .wrap { max-width: 880px; margin: 0 auto; padding: 48px 28px 96px; }
+    h1 { font: 600 34px/1.2 var(--serif); letter-spacing: -0.02em; margin: 0 0 8px; }
+    .lede { color: var(--t2); font-size: 16px; margin: 0 0 36px; max-width: 40em; }
+    h2 { font: 600 20px/1.3 var(--serif); margin: 48px 0 12px; }
+    h3 { font: 600 14px/1.4 var(--sans); margin: 28px 0 8px; letter-spacing: 0.02em; }
+    p { margin: 0 0 12px; color: var(--t2); }
+    strong { color: var(--t1); font-weight: 600; }
+    code { font-family: var(--mono); font-size: 12px; background: var(--s1); padding: 1px 5px; border-radius: 4px; color: var(--t1); }
+    .kicker { font: 600 11px/1 var(--sans); letter-spacing: 0.12em; text-transform: uppercase; color: var(--zhu); margin-bottom: 10px; }
+    .card { background: var(--s3); border-radius: 12px; box-shadow: 0 1px 0 rgba(0,0,0,0.04), 0 8px 24px rgba(29,27,23,0.05); padding: 20px 22px; margin: 16px 0; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 720px) { .grid2 { grid-template-columns: 1fr; } }
+    .col { background: var(--s4); border-radius: 10px; padding: 16px 18px; border: 1px solid var(--l1); }
+    .col h3 { margin-top: 0; }
+    .ok { border-color: transparent; background: var(--pine-wash); }
+    .warn { border-color: transparent; background: var(--lamp-wash); }
+    .bad { border-color: transparent; background: var(--zhu-wash); }
+    ul { margin: 0; padding: 0 0 0 18px; color: var(--t2); }
+    li { margin: 0 0 6px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--l1); vertical-align: top; }
+    th { color: var(--t3); font-weight: 600; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+    .tag { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--s1); color: var(--t2); margin-right: 4px; }
+    .tag.zhu { background: var(--zhu-wash); color: var(--zhu); }
+    .tag.pine { background: var(--pine-wash); color: var(--pine); }
+    .tag.lamp { background: var(--lamp-wash); color: var(--lamp); }
+    .mock { font: 12.5px/1.45 var(--sans); background: var(--s2); border-radius: 8px; padding: 12px 14px; color: var(--t1); }
+    .mock .row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+    .mock .pill { background: var(--s4); border-radius: 6px; padding: 3px 8px; box-shadow: 0 1px 0 var(--l1); }
+    .mock .muted { color: var(--t3); }
+    .num { display: inline-flex; width: 22px; height: 22px; border-radius: 50%; background: var(--zhu); color: #fff7f0; font: 600 12px/22px var(--sans); justify-content: center; margin-right: 8px; vertical-align: middle; }
+    .do { counter-reset: do; }
+    .do li { list-style: none; margin: 0 0 14px; padding-left: 0; }
+    .do { padding-left: 0; }
+    hr { border: 0; border-top: 1px solid var(--l1); margin: 40px 0; }
+    .foot { color: var(--t4); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="kicker">代码现状 · 不是 ADR</div>
+    <h1>会话树现在是什么，<br />项目会话差在哪</h1>
+    <p class="lede">
+      Conversation（普通对话）里这套已经好用：改一句提问、发出去、旁边出现 ‹2/2›，点一下就能回来。
+      项目会话用的是<strong>同一套控件</strong>。不是没做，是同一套东西被放进会改文件的环境里，文案和一两个按钮没跟着变。
+    </p>
+
+    <div class="card">
+      <strong>先记住一件事。</strong>
+      Host 不区分 Conversation / 项目。树、切叶、<code>‹n/m›</code>、编辑重发，两边走同一条命令。
+      Desktop 顶栏只要有 <code>activeSessionId</code> 就会挂「会话树」。
+      所以你在 Conversation 里觉得顺手，项目里那套控件其实都在。
+    </div>
+
+    <h2>1. 屏幕上现在有什么</h2>
+    <p>打开任意一条会话，跟树有关的入口一共五个。Conversation 和项目全有，只是项目多一个 Git 芯片。</p>
+
+    <div class="mock" style="margin: 16px 0 20px;">
+      <div class="row muted">顶栏</div>
+      <div class="row">
+        <span class="pill">会话树 <b>0</b></span>
+        <span class="muted">← 随时在，没分岔也显示</span>
+      </div>
+      <div class="row muted" style="margin-top:12px;">用户气泡（分叉之后）</div>
+      <div class="row">
+        <span class="pill">‹ 2 / 2 ›</span>
+        <span class="muted">· 分叉的提问 · 双击就地编辑</span>
+      </div>
+      <div class="row muted" style="margin-top:12px;">助手气泡底下</div>
+      <div class="row">
+        <span class="pill">‹ 1 / 2 ›</span>
+        <span class="pill">从这里分叉</span>
+        <span class="pill">重新生成</span>
+        <span class="muted">项目里也有「重新生成」</span>
+      </div>
+      <div class="row muted" style="margin-top:12px;">编辑卡片</div>
+      <div class="row">
+        <span class="pill">取消</span>
+        <span class="pill">开分支</span>
+        <span class="pill">重试 / 发送新版本</span>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>入口</th>
+          <th>代码实际做什么</th>
+          <th>Conversation</th>
+          <th>项目</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>顶栏「会话树」</td>
+          <td>列出本会话里的分叉点，点一行就切活跃路径。主区永远只画当前这一路。</td>
+          <td><span class="tag pine">有</span></td>
+          <td><span class="tag pine">有，同一组件</span></td>
+        </tr>
+        <tr>
+          <td>气泡上的 ‹n/m›</td>
+          <td>提问分叉画在用户气泡脚；回答版本画在助手气泡下。点 ‹ › 切相邻，点数字打开这一处的列表。</td>
+          <td><span class="tag pine">有</span></td>
+          <td><span class="tag pine">有</span></td>
+        </tr>
+        <tr>
+          <td>双击编辑 → 发送新版本</td>
+          <td>改了字：新开一条提问兄弟，旧路留着。</td>
+          <td><span class="tag pine">这就是主用法</span></td>
+          <td><span class="tag pine">同样能用</span></td>
+        </tr>
+        <tr>
+          <td>编辑卡片「开分支」</td>
+          <td>字没改也强制分叉，保留当前回答。</td>
+          <td><span class="tag pine">有</span></td>
+          <td><span class="tag pine">有</span></td>
+        </tr>
+        <tr>
+          <td>当前轮、字没改 → 重试</td>
+          <td>不当成分叉。失败卡「重试」也是这条：丢掉这次尝试，再跑一遍。</td>
+          <td><span class="tag pine">有</span></td>
+          <td><span class="tag pine">有</span></td>
+        </tr>
+        <tr>
+          <td>助手「重新生成」</td>
+          <td>代码里只要有 <code>onRetryTurn</code> 就会挂上，<strong>没有判断是不是 Conversation</strong>。会把上一版回答留成兄弟。</td>
+          <td><span class="tag lamp">无害</span> 换个说法</td>
+          <td><span class="tag zhu">有害</span> 工具已经改过文件</td>
+        </tr>
+        <tr>
+          <td>「从这里分叉」</td>
+          <td>另开一条<strong>新会话</strong>（Fork Chat），不是会话树里的叶。</td>
+          <td><span class="tag pine">有</span></td>
+          <td><span class="tag lamp">有，共享同一工作区</span></td>
+        </tr>
+        <tr>
+          <td>切叶确认框</td>
+          <td>被弃那路写过文件才弹。「继续切换 / 先暂存再切换 / 取消」。磁盘不回滚。</td>
+          <td>几乎不弹（没写文件）</td>
+          <td>会弹。文案已经说「磁盘不会跟随」</td>
+        </tr>
+        <tr>
+          <td>Composer Git 芯片</td>
+          <td>换 git 分支 / 打开别的 worktree 项目。</td>
+          <td><span class="tag">没有</span>（没有 projectPath）</td>
+          <td><span class="tag lamp">有</span> 也叫 branch，跟会话树无关</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>2. 为什么 Conversation 用起来顺</h2>
+    <div class="grid2">
+      <div class="col ok">
+        <h3>手势短</h3>
+        <p>改提问 → 发送新版本 → ‹2/2› 出现。想回来就点一下。空态那句话就是在教这个：「改写某一轮的提问后发送，会在这里留下一个分叉。」</p>
+      </div>
+      <div class="col ok">
+        <h3>分叉没有代价</h3>
+        <p>对话里几乎不写盘。切叶等于换一页聊天记录。没有 Git 芯片抢「branch」这个词，也没有工具循环把主区撑满。</p>
+      </div>
+    </div>
+    <p style="margin-top:14px;">
+      所以 Conversation 的会话树已经是成品：<strong>同一条会话里试另一种问法</strong>。
+      项目会话不需要另做一棵树，把这套手势留着就对了。
+    </p>
+
+    <h2>3. 项目里实际别扭的，是这几处代码</h2>
+    <p>不是「项目不能用树」。是同一套 UI 在会改文件的会话里，有三个地方会让人误会。</p>
+
+    <h3>① 「重新生成」两边都挂着</h3>
+    <p>
+      <code>chat-thread.tsx</code> 里：最新助手气泡 + 有 <code>onRetryTurn</code> → 就给「重新生成」。
+      <strong>没有看 <code>isConversationSession</code>。</strong>
+      Conversation 里这就是再答一遍，没事。
+      项目里上一轮可能已经改了一堆文件，再生成一版只换对话、不撤磁盘，‹n/m› 却看起来像「回到没改文件之前」。
+    </p>
+
+    <h3>② 顶栏文案还是聊天语气</h3>
+    <p>
+      副标题写的是「在这条会话的分岔之间切换」。空态只教改提问。
+      确认框其实已经写了「磁盘不会跟随」——但那是写过文件、你已经要点切的时候才看到。
+      空态和顶栏没提前说。
+    </p>
+
+    <h3>③ 三个都像「分叉」</h3>
+    <p>
+      会话树 / ‹n/m› = 本会话对话叶。<br />
+      「从这里分叉」= 新开一条会话，项目下默认还是同一工作区。<br />
+      Git 芯片 = 换代码分支 / worktree，可能再开一条项目会话。<br />
+      Conversation 里你几乎只碰到第一个，所以不乱。项目里三个并排。
+    </p>
+
+    <h2>4. 建议（按 Conversation 已经验证过的手势来）</h2>
+    <p>不要给项目重做一棵树。把 Conversation 那套原样留下，只改项目里会骗人的边。</p>
+
+    <div class="card">
+      <ol class="do">
+        <li>
+          <span class="num">1</span>
+          <strong>项目会话拿掉「重新生成」。这是最小、最值的一刀。</strong><br />
+          失败仍然用错误卡「重试」（丢掉这次尝试）。
+          想换方案：编辑提问 → 发送新版本 / 开分支。这就是 Conversation 已经教会用户的路。
+        </li>
+        <li>
+          <span class="num">2</span>
+          <strong>项目顶栏加一句实话，空态同步改。</strong><br />
+          例如：「分叉的是对话，不是代码。切换不会还原工作区。」
+          控件不用改，确认框那句话提前说就行。
+        </li>
+        <li>
+          <span class="num">3</span>
+          <strong>别让三个入口抢同一个词。</strong><br />
+          会话树继续叫会话树，副标题用「对话分岔」。
+          「从这里分叉」可改成「开新会话」（它本来就是）。
+          Git 芯片继续管 git，不要画进会话树。
+        </li>
+        <li>
+          <span class="num">4</span>
+          <strong>「先暂存再切换」可以留，但别假装是隔离。</strong><br />
+          它是同一仓库的 <code>git stash</code>，不是新工作区。
+        </li>
+        <li>
+          <span class="num">5</span>
+          <strong>worktree / 文件倒带先不要塞进这棵树。</strong><br />
+          并行隔离已经有 Git 芯片（换 checkout = 新会话）。
+          撤 agent 改过的文件如果以后做，做成单独动作，不要做成「切 ‹n/m›」。
+        </li>
+      </ol>
+    </div>
+
+    <h2>5. 项目里理想的一条路（还是现在这些按钮）</h2>
+    <div class="grid2">
+      <div class="col">
+        <h3>想换问法，旧路还要</h3>
+        <p>双击提问 → 改字 → <strong>发送新版本</strong>。出现 ‹2/2›。回来点一下。</p>
+      </div>
+      <div class="col">
+        <h3>字没改，但想留着这版回答</h3>
+        <p>编辑卡片上的 <strong>开分支</strong>。</p>
+      </div>
+      <div class="col">
+        <h3>这轮工具挂了，同样提示再跑</h3>
+        <p>错误卡 <strong>重试</strong>。不是分叉。</p>
+      </div>
+      <div class="col">
+        <h3>要干净平行实验（另一份磁盘）</h3>
+        <p>别用会话树。用 Git 芯片去另一个 worktree，或以后的隔离 Fork。那是另一条会话。</p>
+      </div>
+    </div>
+
+    <hr />
+    <p class="foot">
+      依据：<code>conversation-tree-popover.tsx</code>、<code>branch-points-panel.tsx</code>、<code>message-branch-switcher.tsx</code>、<code>chat-message-edit-card.tsx</code>、<code>chat-thread.tsx</code>（<code>onRegenerate</code> 未按会话类型关掉）、<code>assistant-response-actions.tsx</code>、<code>branch-switch-confirm-dialog.tsx</code>、<code>workbench-context-bar.tsx</code>（有 session 就挂树）。
+    </p>
+  </div>
+</body>
+</html>

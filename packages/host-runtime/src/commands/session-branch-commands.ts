@@ -24,6 +24,7 @@ import { rejectUnavailableSessionBody } from '../session-body-guard.js';
 import { sessionBusyResponse } from '../session-body-gate.js';
 import { createSessionMessageResponse } from '../session-message-response.js';
 import { indexRecordToSummary } from '../session-summary-map.js';
+import { queuePendingBranchCalibration } from './branch-calibration.js';
 import type { SessionLiveContext } from './session-live-context.js';
 
 /** Matches the outline preview bound; enough for a one-line switcher label. */
@@ -151,7 +152,7 @@ export async function handleSessionBranchCommand(
       record.updatedAt = new Date().toISOString();
       await upsertSessionRecord(indexPath, record);
       if (offPathWrites !== null) {
-        context.pendingBranchCalibrationBySession.set(command.sessionId, offPathWrites);
+        await queuePendingBranchCalibration(context, command.sessionId, offPathWrites);
       }
       await pushBranchUpdated(context, command.sessionId, liveStore);
       // Leaf write and occupancy invalidate are consecutive store ops, not one

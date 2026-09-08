@@ -12,6 +12,12 @@ function fakePort(): SubscriptionAuthPort {
     login: async () => ({ kind: 'ok' }),
     logout: async () => ({ kind: 'ok' }),
     refreshProvider: async () => undefined,
+    fetchQuota: async (id) => ({
+      providerId: id,
+      groups: [],
+      lastUpdated: new Date().toISOString(),
+    }),
+    resetQuota: async () => ({ ok: true }),
     dispose: () => undefined,
   };
 }
@@ -30,6 +36,12 @@ function loggedInXaiPort(): SubscriptionAuthPort {
     login: async () => ({ kind: 'ok' }),
     logout: async () => ({ kind: 'ok' }),
     refreshProvider: async () => undefined,
+    fetchQuota: async (id) => ({
+      providerId: id,
+      groups: [],
+      lastUpdated: new Date().toISOString(),
+    }),
+    resetQuota: async () => ({ ok: true }),
     dispose: () => undefined,
   };
 }
