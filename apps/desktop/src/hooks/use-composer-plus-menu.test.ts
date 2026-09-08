@@ -7,10 +7,12 @@ describe('mapComposerMenuSkills', () => {
       mapComposerMenuSkills([
         { id: 'search' },
         { id: 'browser', name: 'Browser', enabled: false },
+        { id: 'proj', name: 'proj', enabled: true, source: 'project' },
       ]),
     ).toEqual([
       { id: 'search', name: 'search', enabled: true },
       { id: 'browser', name: 'Browser', enabled: false },
+      { id: 'proj', name: 'proj', enabled: true, source: 'project' },
     ]);
   });
 });

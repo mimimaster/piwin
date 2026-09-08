@@ -18,7 +18,7 @@ describe('Inkstone tool-call timeline spine and row layout', () => {
 
   it('keeps proto .tr padding and positions status nodes on the ink spine', () => {
     expect(css).toMatch(
-      /\.turn-work-details \.tool-call-card\.density-compact \.tool-call-summary \{[\s\S]*?padding: 0 var\(--row-pad\);/,
+      /\.turn-work-details \.tool-call-card\.density-compact \.tool-call-summary \{[\s\S]*?padding: 0 var\(--row-pad\) 0 4px;/,
     );
     expect(css).toMatch(
       /\.tool-call-card \.tool-call-summary > \.node \{[\s\S]*?display: block !important;[\s\S]*?position: absolute;[\s\S]*?left: -18px;[\s\S]*?width: 9px;[\s\S]*?height: 9px;/,

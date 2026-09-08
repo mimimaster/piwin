@@ -47,10 +47,20 @@ describe('useRunActivityPhrases', () => {
   });
 
   it('does not rotate a single runtime status into unrelated copy', () => {
-    const input: RunActivityInput = { kind: 'waiting-first-token', locale: 'en' };
+    const input: RunActivityInput = { kind: 'stopping', locale: 'en' };
     act(() => root.render(createElement(TestHarness, { input })));
     act(() => vi.advanceTimersByTime(1800));
+    expect(container.textContent).toBe('Stopping…');
+  });
+
+  it('rotates through the phrase bank when multiple phrases exist', () => {
+    const input: RunActivityInput = { kind: 'waiting-first-token', locale: 'en' };
+    act(() => root.render(createElement(TestHarness, { input })));
     expect(container.textContent).toBe('Thinking…');
+    act(() => vi.advanceTimersByTime(1800));
+    expect(container.textContent).toBe('Parsing context and instructions…');
+    act(() => vi.advanceTimersByTime(1800));
+    expect(container.textContent).toBe('Planning execution path…');
   });
 
   it('does not rotate phrases when reduced motion is enabled', () => {
@@ -61,10 +71,9 @@ describe('useRunActivityPhrases', () => {
     expect(container.textContent).toBe('Thinking…');
   });
 
-  it('keeps the exact status after 15s elapsed', () => {
+  it('keeps the first status phrase initially after 15s elapsed', () => {
     const input: RunActivityInput = { kind: 'waiting-first-token', locale: 'en', elapsedMs: 0 };
     act(() => root.render(createElement(TestHarness, { input })));
-    act(() => vi.advanceTimersByTime(15000));
     expect(container.textContent).toBe('Thinking…');
   });
 

@@ -448,6 +448,18 @@
 
 .tree-folder-add-btn {
   flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  color: var(--text-3);
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -458,10 +470,22 @@
 }
 
 .tree-folder-summary:hover .tree-folder-add-btn,
+.tree-folder-summary:focus-within .tree-folder-add-btn,
 .tree-folder-add-btn:focus-visible {
-  opacity: 1;
+  opacity: 0.7;
   visibility: visible;
   pointer-events: auto;
+}
+
+.tree-folder-add-btn:hover {
+  opacity: 1;
+  color: var(--text-1);
+  background: var(--hover);
+}
+
+.tree-folder-add-btn svg {
+  width: 12px;
+  height: 12px;
 }
 
 /* ── The thread line ──────────────────────────────────────────────────

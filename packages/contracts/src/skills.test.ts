@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { formatSkillPrompt, type SkillSummary } from './skills.js';
+import {
+  extractSkillUserRequest,
+  formatSkillPrompt,
+  stripSkillMarkdownFrontmatter,
+  type SkillSummary,
+} from './skills.js';
 
 describe('SkillSummary', () => {
   it('exposes an optional hidden flag', () => {
@@ -32,5 +37,32 @@ describe('formatSkillPrompt', () => {
         'add auth',
       ].join('\n'),
     );
+  });
+
+  it('injects Skill instructions when skillBody is provided', () => {
+    const text = formatSkillPrompt('demo', 'demo', 'do the thing', {
+      skillBody: '1. Read the repo\n2. Ship it',
+    });
+    expect(text).toContain('## Skill instructions');
+    expect(text).toContain('1. Read the repo');
+    expect(text).toContain('## User request');
+    expect(text).toContain('do the thing');
+    expect(extractSkillUserRequest(text)).toBe('do the thing');
+  });
+});
+
+describe('extractSkillUserRequest / stripSkillMarkdownFrontmatter', () => {
+  it('parses the thin wrapper separator', () => {
+    expect(
+      extractSkillUserRequest(
+        formatSkillPrompt('demo', 'demo', 'ship auth'),
+      ),
+    ).toBe('ship auth');
+  });
+
+  it('strips YAML frontmatter from SKILL.md', () => {
+    expect(
+      stripSkillMarkdownFrontmatter('---\nname: demo\n---\n\n# Hello\n\nBody'),
+    ).toBe('# Hello\n\nBody');
   });
 });

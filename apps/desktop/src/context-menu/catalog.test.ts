@@ -130,7 +130,7 @@ describe('buildContextMenuItems', () => {
     expect(actionIds(target, { ...baseCaps, canReveal: true })).toContain('reveal');
   });
 
-  it('path-chip offers Save As and Reveal when caps allow', () => {
+  it('path-chip offers Save As and always lists Reveal (disabled when remote)', () => {
     const target: ContextMenuTarget = {
       surface: 'path-chip',
       projectPath: '/p',
@@ -143,6 +143,15 @@ describe('buildContextMenuItems', () => {
     ).toEqual(
       expect.arrayContaining(['open', 'save-as', 'copy-absolute-path', 'reveal']),
     );
+    const remote = buildContextMenuItems(target, {
+      ...baseCaps,
+      canSaveAs: true,
+      canReveal: false,
+      revealDisabledHint: 'file is on the remote Host — copy absolute path',
+    });
+    const reveal = remote.find((item) => item.type === 'item' && item.id === 'reveal');
+    expect(reveal && reveal.type === 'item' && reveal.disabled).toBe(true);
+    expect(reveal && reveal.type === 'item' && reveal.label).toContain('remote Host');
   });
 
   it('localizes labels through en/zh tables while keeping stable action ids', () => {

@@ -173,7 +173,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
       <div className="transcript-stage">
         <TranscriptViewport
           key={activeSessionId ?? 'no-session'}
-          awaitingTranscript={state.awaitingTranscript}
+        awaitingTranscript={state.awaitingTranscript}
         messageCount={visibleMessages.length}
         activitySignal={historyViewActive ? 'history-view' : activitySignal}
         messages={visibleMessages}
@@ -259,6 +259,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
             onFeedback={onFeedback}
             onArtifactAction={onArtifactAction}
             onOpenArtifactCanvas={onOpenArtifactCanvas}
+            onOpenDocument={onOpenDocument}
             {...(hostClient.supportsCommand('project/read-file')
               ? {
                   onOpenFile: (absolutePath: string, relativePath?: string) => {
@@ -272,7 +273,6 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
                       'inspector',
                     );
                   },
-                  onOpenDocument,
                 }
               : {})}
             onOpenDiff={onOpenDiff}
@@ -340,16 +340,7 @@ export function WorkbenchPermissionBar(
     sessionPlan && shouldShowPlanTodoTray({ plan: sessionPlan, isConversationSession }) ? (
       <PlanTodoTray
         plan={sessionPlan}
-        {...(onOpenDocument
-          ? {
-              onOpenDocument: (doc) =>
-                onOpenDocument({
-                  title: doc.title,
-                  path: doc.title,
-                  ...(doc.content !== undefined ? { content: doc.content } : {}),
-                }),
-            }
-          : {})}
+        {...(onOpenDocument ? { onOpenDocument } : {})}
         {...(onPlanAbort ? { onAbort: onPlanAbort } : {})}
       />
     ) : null;

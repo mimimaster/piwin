@@ -5,6 +5,7 @@
  */
 
 import { type ReactElement, type ReactNode } from 'react';
+import type { SkillSource } from '@piwin/contracts';
 import {
   DropdownMenu,
   DropdownMenuItem,
@@ -21,6 +22,8 @@ export type ComposerSkillOption = {
   id: string;
   name: string;
   enabled: boolean;
+  /** SkillSource from Host list — used to hide project skills in Conversation. */
+  source?: SkillSource;
 };
 
 export type ComposerMcpOption = {

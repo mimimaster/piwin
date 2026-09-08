@@ -222,3 +222,83 @@ export function normalizeCompactCustomInstructions(args: string): string | undef
 export function applySkillToPrompt(skillName: string, skillId: string, args: string): string {
   return formatSkillPrompt(skillName, skillId, args);
 }
+
+export type SlashMessageDisplay = {
+  isSlash: boolean;
+  commandName?: string;
+  mainText: string;
+  tagText?: string;
+  category?: 'skill' | 'mode' | 'command' | 'scheme' | 'knowledge';
+  colorVar?: string;
+  fullLabel?: string;
+};
+
+/**
+ * Parse leading slash command in user messages for Scheme H gradient ribbon and header rendering.
+ */
+export function parseSlashMessageDisplay(text: string): SlashMessageDisplay {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('/')) {
+    return { isSlash: false, mainText: text };
+  }
+
+  const match = /^\/([^\s]+)(?:\s+([\s\S]*))?$/.exec(trimmed);
+  if (!match) {
+    return { isSlash: false, mainText: text };
+  }
+
+  const command = match[1] ?? '';
+  const args = (match[2] ?? '').trim();
+  const lowerCommand = command.toLowerCase();
+
+  if (!command) {
+    return { isSlash: false, mainText: text };
+  }
+
+  let category: 'skill' | 'mode' | 'command' | 'scheme' | 'knowledge' = 'skill';
+  let colorVar = 'var(--iris, #6b52a1)';
+  let tagText = `SKILL:${command}`;
+  let fullLabel = `Skill: ${command}`;
+
+  if (MODE_NAMES.has(lowerCommand) || ['explore', 'ask', 'code'].includes(lowerCommand)) {
+    category = 'mode';
+    colorVar = 'var(--lamp, #b8801f)';
+    tagText = `MODE:${command.toUpperCase()}`;
+    fullLabel = `Mode: ${command}`;
+  } else if (
+    COMMAND_ALIASES[lowerCommand] !== undefined ||
+    ['clear', 'help', 'branch', 'fork', 'model', 'auth', 'exit'].includes(lowerCommand)
+  ) {
+    category = 'command';
+    colorVar = 'var(--azure, #3a7797)';
+    tagText = `CMD:${command.toUpperCase()}`;
+    fullLabel = `Command: ${command}`;
+  } else if (
+    lowerCommand === 'scheme' ||
+    lowerCommand === 'ultra-code' ||
+    lowerCommand === 'template' ||
+    lowerCommand === 'prompt'
+  ) {
+    category = 'scheme';
+    colorVar = 'var(--zhu, #c6412a)';
+    tagText = `SCHEME:${command.toUpperCase()}`;
+    fullLabel = `Scheme: ${command}`;
+  } else if (
+    ['knowledge', 'doccards', 'flashcards', 'cards', 'wiki', 'notes'].includes(lowerCommand)
+  ) {
+    category = 'knowledge';
+    colorVar = 'var(--azure, #3a7797)';
+    tagText = `KNOWLEDGE:${command.toUpperCase()}`;
+    fullLabel = `Knowledge: ${command}`;
+  }
+
+  return {
+    isSlash: true,
+    commandName: command,
+    mainText: args,
+    tagText,
+    category,
+    colorVar,
+    fullLabel,
+  };
+}

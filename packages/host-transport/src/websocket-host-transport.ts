@@ -26,6 +26,8 @@ export type WebSocketHostTransportOptions = {
   webSocketFactory?: WebSocketFactory;
   connectTimeoutMs?: number;
   autoReconnect?: boolean;
+  /** Retry only after a successful Host handshake when set to false. */
+  autoReconnectBeforeHandshake?: boolean;
   reconnectMinDelayMs?: number;
   reconnectMaxDelayMs?: number;
   heartbeatIntervalMs?: number;
@@ -47,6 +49,7 @@ export class WebSocketHostTransport implements HostTransport {
   private readonly webSocketFactory: WebSocketFactory;
   private readonly connectTimeoutMs: number;
   private readonly autoReconnect: boolean;
+  private readonly autoReconnectBeforeHandshake: boolean;
   private readonly reconnectMinDelayMs: number;
   private readonly reconnectMaxDelayMs: number;
   private readonly heartbeatIntervalMs: number;
@@ -56,6 +59,7 @@ export class WebSocketHostTransport implements HostTransport {
   private state: HostTransportState = { kind: 'idle' };
   private lastSeq = 0;
   private hostHello: HostHello | undefined;
+  private handshakeError: string | undefined;
   private helloPromise:
     | {
         promise: Promise<HostHello>;
@@ -105,6 +109,7 @@ export class WebSocketHostTransport implements HostTransport {
     this.webSocketFactory = options.webSocketFactory ?? createDefaultWebSocket;
     this.connectTimeoutMs = options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
     this.autoReconnect = options.autoReconnect ?? false;
+    this.autoReconnectBeforeHandshake = options.autoReconnectBeforeHandshake ?? true;
     this.reconnectMinDelayMs = options.reconnectMinDelayMs ?? DEFAULT_RECONNECT_MIN_DELAY_MS;
     this.reconnectMaxDelayMs = options.reconnectMaxDelayMs ?? DEFAULT_RECONNECT_MAX_DELAY_MS;
     this.heartbeatIntervalMs = options.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS;
@@ -137,6 +142,7 @@ export class WebSocketHostTransport implements HostTransport {
     this.cancelReconnect();
     this.reconnectAttempt = 0;
     this.hostHello = undefined;
+    this.handshakeError = undefined;
     this.publishState({ kind: 'connecting' });
     return this.openSocket(true);
   }
@@ -172,6 +178,9 @@ export class WebSocketHostTransport implements HostTransport {
   private openSocket(waitForHello: true): Promise<HostHello>;
   private openSocket(waitForHello: false): void;
   private openSocket(waitForHello: boolean): Promise<HostHello> | undefined {
+    if (waitForHello) {
+      this.handshakeError = undefined;
+    }
     if (waitForHello) {
       if (this.helloPromise === undefined) {
         this.createHelloPromise();
@@ -261,6 +270,9 @@ export class WebSocketHostTransport implements HostTransport {
       if (message.type === 'response' && message.requestId === this.heartbeatRequestId) {
         return;
       }
+      if (message.type === 'error' && this.hostHello === undefined) {
+        this.handshakeError = message.message;
+      }
       if (message.type === 'host/hello') {
         this.hostHello = message;
         this.reconnectAttempt = 0;
@@ -307,8 +319,9 @@ export class WebSocketHostTransport implements HostTransport {
     }
     this.socket = undefined;
     this.clearHeartbeat();
-    const reason =
+    const closeReason =
       event.reason.length > 0 ? event.reason : `WebSocket closed (${event.code})`;
+    const reason = this.handshakeError ?? closeReason;
     const fatal = FATAL_CLOSE_CODES.has(event.code);
     const error = new Error(
       fatal
@@ -320,7 +333,7 @@ export class WebSocketHostTransport implements HostTransport {
       return;
     }
     this.publishState({ kind: fatal ? 'error' : 'closed', reason });
-    if (fatal || !this.autoReconnect) {
+    if (fatal || !this.canAutoReconnect()) {
       this.failHello(error);
       return;
     }
@@ -331,7 +344,7 @@ export class WebSocketHostTransport implements HostTransport {
   private abandonAttempt(error: Error, fatal: boolean): void {
     this.disposeSocket();
     this.publishState({ kind: 'error', reason: error.message });
-    if (fatal || !this.autoReconnect || this.closing) {
+    if (fatal || !this.canAutoReconnect() || this.closing) {
       this.failHello(error);
       return;
     }
@@ -409,6 +422,13 @@ export class WebSocketHostTransport implements HostTransport {
       const handshake = this.openSocket(true);
       void handshake.catch(() => undefined);
     }, delay);
+  }
+
+  private canAutoReconnect(): boolean {
+    return (
+      this.autoReconnect &&
+      (this.autoReconnectBeforeHandshake || this.hostHello !== undefined)
+    );
   }
 
   private cancelReconnect(): void {

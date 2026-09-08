@@ -381,9 +381,14 @@
 }
 
 .session-row--working:hover .session-item-activity,
-.session-row--working:focus-within .session-item-activity {
+.session-row--working:focus-within .session-item-activity,
+.session-row:hover .session-item-completed-mark,
+.session-row:focus-within .session-item-completed-mark,
+.session-row:hover .session-item-failed-mark,
+.session-row:focus-within .session-item-failed-mark {
   opacity: 0;
   visibility: hidden;
+  pointer-events: none;
 }
 
 /* Sibling of .session-item (not nested) so click can dismiss without opening. */
@@ -406,7 +411,10 @@
   color: var(--mint);
   cursor: pointer;
   z-index: 2;
-  transition: background-color var(--t-1) var(--ease-out);
+  transition:
+    opacity var(--t-1) var(--ease-out),
+    visibility var(--t-1) var(--ease-out),
+    background-color var(--t-1) var(--ease-out);
 }
 
 .session-item-completed-dismiss:hover,
@@ -442,7 +450,10 @@
   background: color-mix(in srgb, var(--coral) 20%, transparent);
   cursor: pointer;
   z-index: 2;
-  transition: background-color var(--t-1) var(--ease-out);
+  transition:
+    opacity var(--t-1) var(--ease-out),
+    visibility var(--t-1) var(--ease-out),
+    background-color var(--t-1) var(--ease-out);
 }
 
 .session-item-failed-dismiss:hover,
@@ -515,22 +526,6 @@
   pointer-events: auto;
 }
 
-/* Shaded selected row: close stays up so the session can be deleted without
-   opening the overflow menu. Status marks keep the slot at rest. */
-.session-row--active .session-close-btn {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-}
-
-.session-row--working:not(:hover):not(:focus-within) .session-close-btn,
-.session-row--completed:not(:hover):not(:focus-within) .session-close-btn,
-.session-row--failed:not(:hover):not(:focus-within) .session-close-btn {
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-}
-
 .session-action-btn:hover,
 .session-action-btn:focus-visible {
   color: var(--text-1);
@@ -543,9 +538,7 @@
 }
 
 .session-action-btn.session-delete-btn:hover,
-.session-action-btn.session-delete-btn:focus-visible,
-.session-action-btn.session-close-btn:hover,
-.session-action-btn.session-close-btn:focus-visible {
+.session-action-btn.session-delete-btn:focus-visible {
   color: var(--coral);
   background: color-mix(in srgb, var(--coral) 14%, transparent);
 }

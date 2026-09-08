@@ -289,18 +289,71 @@ html[data-theme-id='piwin-inkstone-ink'] .tool-call-card {
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .tool-call-card.is-expanded,
-html[data-theme-id='piwin-inkstone-ink'] .tool-call-card.is-expanded,
-html[data-theme-id='piwin-inkstone-paper'] .tool-batch-capsule.is-expanded,
-html[data-theme-id='piwin-inkstone-ink'] .tool-batch-capsule.is-expanded {
+html[data-theme-id='piwin-inkstone-ink'] .tool-call-card.is-expanded {
   height: auto;
   flex-direction: column;
   align-items: stretch;
   white-space: normal;
 }
 
+html[data-theme-id='piwin-inkstone-paper'] .tool-batch-capsule,
+html[data-theme-id='piwin-inkstone-ink'] .tool-batch-capsule,
+html[data-theme-id='piwin-inkstone-paper'] .explore-flow-capsule,
+html[data-theme-id='piwin-inkstone-ink'] .explore-flow-capsule {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  min-height: 28px;
+  padding: 0;
+  align-items: stretch;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  overflow: visible;
+  white-space: normal;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .tool-batch-capsule:hover,
+html[data-theme-id='piwin-inkstone-ink'] .tool-batch-capsule:hover,
+html[data-theme-id='piwin-inkstone-paper'] .explore-flow-capsule:hover,
+html[data-theme-id='piwin-inkstone-ink'] .explore-flow-capsule:hover {
+  background: transparent;
+  box-shadow: none;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .tool-batch-header,
+html[data-theme-id='piwin-inkstone-ink'] .tool-batch-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 var(--row-pad) 0 4px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--t2);
+  white-space: nowrap;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  cursor: pointer;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+  transition: background var(--t-1) var(--ease-out);
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .tool-batch-header:hover,
+html[data-theme-id='piwin-inkstone-ink'] .tool-batch-header:hover {
+  background: var(--s3);
+  box-shadow: var(--sh1);
+}
+
 html[data-theme-id='piwin-inkstone-paper'] .tr.sub,
 html[data-theme-id='piwin-inkstone-ink'] .tr.sub {
-  padding-left: 14px;
+  padding-left: 4px;
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .tr:hover,
@@ -428,7 +481,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     align-items: center;
     height: 28px;
     min-height: 28px;
-    padding: 0 var(--row-pad);
+    padding: 0 var(--row-pad) 0 4px;
     gap: 8px;
     line-height: 28px;
     position: relative;
@@ -438,10 +491,10 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     color: var(--t2);
     background: transparent;
   }
-  /* Proto `.tr.sub { padding-left: 14px }` — nested explore/grep rows. */
+  /* Nested explore/grep rows keep consistent 4px left-pad close to spine node. */
   .tool-call-card.sub .tool-call-summary,
   .turn-work-details .tool-call-card.sub.density-compact .tool-call-summary {
-    padding-left: 14px;
+    padding-left: 4px;
   }
   .tool-call-card .tool-call-action-verb,
   .turn-work-details .tool-call-card .tool-call-action-verb {
@@ -741,88 +794,11 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     color: var(--t4);
     margin-left: 0;
   }
-  .explore-flow-capsule.tr,
-  .tool-batch-capsule.tr {
-    display: flex;
-    flex-direction: column;
-    flex-wrap: nowrap;
-    height: auto;
-    min-height: 28px;
-    padding: 0;
-    align-items: stretch;
-    font-size: 12.5px;
-    color: var(--t2);
-  }
-  .explore-flow-capsule .tool-batch-header,
-  .tool-batch-capsule .tool-batch-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    height: 28px;
-    min-height: 28px;
-    padding: 0 var(--row-pad);
-    border-radius: 6px;
-    width: 100%;
-    flex: 0 0 auto;
-    background: transparent;
-    border: 0;
-    box-shadow: none;
-    font: 12.5px var(--sans);
-    color: var(--t2);
-    cursor: pointer;
-    transition: background var(--t-1) var(--ease-out);
-  }
-  .explore-flow-capsule .tool-batch-header:hover,
-  .tool-batch-capsule .tool-batch-header:hover,
-  .tool-call-card .tool-call-summary:hover {
-    background: var(--s3);
-    box-shadow: var(--sh1);
-  }
-  .tool-call-card.is-expanded:hover,
-  .tool-batch-capsule.is-expanded:hover {
-    background: transparent;
-    box-shadow: none;
-  }
-  .explore-flow-capsule .tool-batch-body,
-  .tool-batch-capsule .tool-batch-body {
-    width: 100%;
-    flex: 0 0 auto;
-  }
   /* The thread already draws the ink line; a second track inside the
      expanded batch makes the header look nested under a child rail. */
   .thread .tool-batch-timeline-track,
   .turn-tool-sequence .tool-batch-timeline-track {
     display: none;
-  }
-  .explore-flow-capsule .tool-batch-title-group,
-  .tool-batch-capsule .tool-batch-title-group {
-    display: inline-flex;
-    align-items: center;
-    gap: 0;
-    min-width: 0;
-    overflow: hidden;
-  }
-  .explore-flow-capsule .tool-batch-title,
-  .tool-batch-capsule .tool-batch-title {
-    color: var(--t1);
-    font: 600 12.5px / 1.5 var(--sans);
-  }
-  .explore-flow-capsule .tool-batch-title-rest,
-  .tool-batch-capsule .tool-batch-title-rest {
-    color: var(--t2);
-    font: 400 12.5px / 1.5 var(--sans);
-    margin-left: 0;
-  }
-  .explore-flow-capsule .tool-batch-meta,
-  .tool-batch-capsule .tool-batch-meta {
-    margin-left: auto;
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    font: 11.5px var(--mono);
-    color: var(--t4);
-    font-variant-numeric: tabular-nums;
-    flex: none;
   }
   /* Capsule / explore: status .node sits on the spine at the 28px header baseline. */
   .explore-flow-capsule > .node,
@@ -876,6 +852,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     box-shadow: none;
     border: 0;
     border-radius: 6px;
+    overflow: visible;
   }
   .tool-batch-items,
   .turn-work-details .tool-batch-items {
@@ -902,7 +879,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     gap: 8px;
     height: 28px;
     min-height: 28px;
-    padding: 0 var(--row-pad) 0 14px;
+    padding: 0 var(--row-pad) 0 4px;
     width: 100%;
     margin: 0;
     border: 0;
@@ -918,7 +895,15 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     color: var(--t2);
   }
   .explore-thought-row > .node {
-    display: none;
+    display: block !important;
+    position: absolute;
+    left: -17px;
+    top: 50%;
+    margin-top: -3.5px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    z-index: 1;
   }
   .explore-thought-icon {
     position: static;

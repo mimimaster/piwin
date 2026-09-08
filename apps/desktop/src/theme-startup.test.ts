@@ -36,10 +36,16 @@ describe('resolveStartupAppearance', () => {
     expect(theme).toBe(PIWIN_APPEARANCE_INK_WASH);
   });
 
-  it('pre-paints Bone from a retired library theme id still sitting in lastThemeId', () => {
+  it('migrates a retired default face into Inkstone', () => {
     localStorage.setItem('piwin.desktop.lastThemeId', 'piwin-light');
     const theme = resolveStartupAppearance();
     expect(theme).toBe(PIWIN_APPEARANCE_LIGHT);
+  });
+
+  it('lets the selected system mode choose Inkstone paper or ink on cold start', () => {
+    localStorage.setItem('piwin.desktop.lastThemeId', 'piwin-inkstone-ink');
+    localStorage.setItem('piwin.desktop.appearanceMode', 'light');
+    expect(resolveStartupAppearance()).toBe(PIWIN_APPEARANCE_LIGHT);
   });
 
   it('falls back to Appearance prefs for unknown / custom theme ids', () => {

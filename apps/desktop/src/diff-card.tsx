@@ -21,6 +21,7 @@ import {
   useDesktopContextMenu,
   type ContextMenuTarget,
 } from './context-menu';
+import { resolveProjectEntryAbsolutePath } from './file-tree-path.js';
 import { IconFile } from './shell-icons.js';
 
 /**
@@ -192,7 +193,7 @@ export function DiffCard(props: DiffCardProps): ReactElement {
               onClick={() => {
                 const abs = props.path.startsWith('/')
                   ? props.path
-                  : `${props.projectPath.replace(/\/+$/, '')}/${props.path}`;
+                  : resolveProjectEntryAbsolutePath(props.projectPath, props.path);
                 props.onOpenDiff?.(abs, props.path);
               }}
             >

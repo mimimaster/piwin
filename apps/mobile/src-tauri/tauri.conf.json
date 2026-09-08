@@ -32,6 +32,7 @@
   },
   "bundle": {
     "iOS": {
+      "template": "src-tauri/ios-project.yml",
       "infoPlist": "Info.plist"
     }
   }

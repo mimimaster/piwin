@@ -52,6 +52,8 @@ export type ModelContextContributionKind =
   | 'files-touched'
   | 'product-history'
   | 'runtime-observed'
+  /** Explicit slash/mention Skill activation (SKILL.md body). */
+  | 'skill'
   | 'other';
 
 export type ModelContextRedactionState = 'none' | 'path' | 'body' | 'full';

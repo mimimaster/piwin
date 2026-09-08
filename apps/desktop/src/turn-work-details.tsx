@@ -155,8 +155,10 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
       ? fileNameFromDetail(permissionItem.detail)
       : undefined;
   const showFoldHeader =
-    hasThinking || foldState === 'running' || foldState === 'waiting';
-  const hasVisibleWork =
+    hasThinking ||
+    (foldState === 'running' && (callChainTools.length > 0 || hasThinking)) ||
+    foldState === 'waiting';
+  const hasWorkDetails =
     isFlowAnchor ||
     hasThinking ||
     callChainTools.length > 0 ||
@@ -164,18 +166,23 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
     presentation.outcome !== undefined ||
     Boolean(presentation.terminalMessage) ||
     Boolean(permissionItem) ||
-    Boolean(props.activeSkill && presentation.isActive) ||
-    Boolean(props.planExecutionGate);
+    Boolean(props.activeSkill && presentation.isActive);
 
   const planGate = props.planExecutionGate ? (
     <PlanExecutionGate
       plan={props.planExecutionGate.plan}
       onExecute={props.planExecutionGate.onExecute}
+      {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
     />
   ) : null;
 
-  if (!hasVisibleWork) {
-    return <>{props.children}</>;
+  if (!hasWorkDetails) {
+    return (
+      <>
+        {props.children}
+        {planGate}
+      </>
+    );
   }
 
   const exploreCapsule =
@@ -196,7 +203,7 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
       </div>
     ) : null;
 
-  return (
+  const workDetails = (
     <div
       className={`work turn-work-details${presentation.hasFailure ? ' has-failure' : ''}${
         foldState === 'running' ? ' is-active' : ''
@@ -329,12 +336,17 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
           : {})}
       />
 
-      {planGate}
-
       {presentation.terminalMessage ? (
         <div className="turn-terminal-message muted">{presentation.terminalMessage}</div>
       ) : null}
     </div>
+  );
+
+  return (
+    <>
+      {workDetails}
+      {planGate}
+    </>
   );
 }
 

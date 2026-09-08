@@ -48,7 +48,10 @@ import {
 } from '../health/native-healthkit.js';
 import {
   createMobileHostClient,
+  formatMobileHostConnectionError,
   getDefaultHostEndpoint,
+  normalizeMobileHostEndpoint,
+  type MobileHostConnectionInput,
 } from '../mobile-host-connection.js';
 import {
   readMobileDeviceCredential,
@@ -63,11 +66,7 @@ import {
   toError,
 } from '../mobile-host-helpers.js';
 import {
-  applyConfiguredModels,
-  applyHostStatus,
-  readArtifactEnabled,
   readPauseCheckpointId,
-  readProjects,
   readRemoteMediaAsset,
   readRunId,
   readSessions,
@@ -85,6 +84,7 @@ import {
   requestActivitySummary,
   shouldRefreshActivitySummary,
 } from '../mobile-activity-summary.js';
+import { createMobileRemoteReadModelRefresher } from './mobile-host-read-model.js';
 import {
   handleRemotePush,
   readSessionMessages,
@@ -155,9 +155,11 @@ export function useMobileHost() {
   const activeSessionRef = useRef<string | undefined>(undefined);
   const selectionGenerationRef = useRef(0);
   const initialConnectInFlightRef = useRef(false);
+  const connectAttemptRef = useRef(0);
   const unsubscribeRef = useRef<Array<() => void>>([]);
   const vaultRef = useRef<MobileDeviceCredentialVault>(createMobileVault());
   const deviceCredentialRef = useRef<TrustedDeviceCredential | undefined>(undefined);
+  const deviceCredentialEndpointRef = useRef<string | undefined>(undefined);
   const activityRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const healthRuntimeRef = useRef<MobileClientToolRuntime | undefined>(undefined);
   const healthPreferencesRef = useRef<ClientToolPreferenceStore>(createLocalClientToolPreferenceStore());
@@ -167,8 +169,18 @@ export function useMobileHost() {
   >(undefined);
 
   useEffect(() => {
-    void handleConnect();
+    let active = true;
+    void (async (): Promise<void> => {
+      const savedEndpoint = getDefaultHostEndpoint();
+      const savedCredential = await readMobileDeviceCredential(vaultRef.current, savedEndpoint);
+      if (!active || savedCredential === undefined) return;
+      deviceCredentialRef.current = savedCredential;
+      deviceCredentialEndpointRef.current = savedEndpoint;
+      await handleConnect();
+    })();
     return () => {
+      active = false;
+      connectAttemptRef.current += 1;
       disposeClient(clientRef, unsubscribeRef, activityRefreshTimerRef, healthRuntimeRef);
     };
   }, []);
@@ -209,76 +221,61 @@ export function useMobileHost() {
     }, ACTIVITY_SUMMARY_REFRESH_DEBOUNCE_MS);
   };
 
-  const refreshRemoteReadModel = async (client: HostClient): Promise<void> => {
+  const refreshRemoteReadModel = createMobileRemoteReadModelRefresher({
+    clientRef,
+    activeSessionRef,
+    setHostStatus,
+    setErrorMessage,
+    setProjects,
+    setSessions,
+    setConfiguredModels,
+    setDefaultProviderId,
+    setDefaultModelId,
+    setActivityItems,
+    setArtifactEnabled,
+    setActiveSessionId,
+    setMessages,
+    setPausedCheckpointId,
+    beginSessionForeground,
+  });
+
+  const handleConnect = async (input?: MobileHostConnectionInput): Promise<boolean> => {
+    const connectionInput =
+      input ??
+      ({
+        endpoint,
+        authToken,
+        pairingToken,
+        ...(expectedHostInstanceId === undefined ? {} : { expectedHostInstanceId }),
+      } satisfies MobileHostConnectionInput);
+    const attemptId = connectAttemptRef.current + 1;
+    connectAttemptRef.current = attemptId;
+
+    let normalizedEndpoint: string;
     try {
-      const [statusResponse, projectsResponse, sessionsResponse, modelsResponse, activitySummary] =
-        await Promise.all([
-          client.request({ type: 'host/status' }),
-          client.request({ type: 'project/list' }),
-          client.request(mobileSessionListCommand()),
-          client.request({ type: 'models/configured' }),
-          requestActivitySummary(client),
-        ]);
-      if (clientRef.current !== client) {
-        return;
-      }
-      applyHostStatus(statusResponse, setHostStatus, setErrorMessage);
-      setProjects(readProjects(projectsResponse));
-      const sessionList = readSessions(sessionsResponse);
-      setSessions(sessionList);
-      applyConfiguredModels(modelsResponse, setConfiguredModels, setDefaultProviderId, setDefaultModelId);
-      setActivityItems(activitySummary.items);
-      try {
-        const settingsResponse = await client.request({ type: 'settings/get' });
-        if (clientRef.current === client) {
-          setArtifactEnabled(readArtifactEnabled(settingsResponse));
-        }
-      } catch {
-        if (clientRef.current === client) {
-          setArtifactEnabled(true);
-        }
-      }
-
-      let targetSessionId = activeSessionRef.current;
-      if (targetSessionId === undefined && sessionList.length > 0 && sessionList[0] !== undefined) {
-        targetSessionId = sessionList[0].sessionId;
-        activeSessionRef.current = targetSessionId;
-        setActiveSessionId(targetSessionId);
-      }
-
-      if (targetSessionId !== undefined) {
-        const resumeResponse = await client.request({ type: 'session/resume', sessionId: targetSessionId });
-        if (clientRef.current === client && resumeResponse.success) {
-          setMessages(readSessionMessages(resumeResponse));
-          setPausedCheckpointId(readPauseCheckpointId(resumeResponse.data));
-        }
-        if (clientRef.current === client) {
-          await beginSessionForeground(client, targetSessionId);
-        }
-      }
+      normalizedEndpoint = normalizeMobileHostEndpoint(connectionInput.endpoint);
     } catch (error) {
-      if (clientRef.current === client) {
-        setErrorMessage(toError(error, '刷新 Host 状态失败。').message);
-      }
-    }
-  };
-
-  const handleConnect = async (): Promise<void> => {
-    const normalizedEndpoint = endpoint.trim();
-    if (normalizedEndpoint.length === 0) {
-      setErrorMessage('请输入 Host 的 WebSocket 地址。');
-      return;
+      setErrorMessage(formatMobileHostConnectionError(error));
+      return false;
     }
 
-    const pairing = pairingToken.trim();
-    const door = authToken.trim();
+    const pairing = connectionInput.pairingToken.trim();
+    const door = connectionInput.authToken.trim();
     if (pairing.length > 0 && door.length > 0) {
       setErrorMessage('请只填写配对令牌或 Host 口令其中一项。');
-      return;
+      return false;
+    }
+
+    if (input !== undefined) {
+      setEndpoint(normalizedEndpoint);
+      setAuthToken(connectionInput.authToken);
+      setPairingToken(connectionInput.pairingToken);
+      setExpectedHostInstanceId(connectionInput.expectedHostInstanceId);
     }
 
     disposeClient(clientRef, unsubscribeRef, activityRefreshTimerRef, healthRuntimeRef);
     setErrorMessage(undefined);
+    setCredentialPersistError(false);
     setPendingReplaceRunId(undefined);
     setHostStatus(undefined);
     setArtifactEnabled(true);
@@ -292,6 +289,10 @@ export function useMobileHost() {
     setPausedCheckpointId(undefined);
     setAttachments([]);
 
+    if (deviceCredentialEndpointRef.current !== normalizedEndpoint) {
+      deviceCredentialRef.current = undefined;
+      deviceCredentialEndpointRef.current = normalizedEndpoint;
+    }
     if (deviceCredentialRef.current === undefined) {
       deviceCredentialRef.current = await readMobileDeviceCredential(
         vaultRef.current,
@@ -299,7 +300,14 @@ export function useMobileHost() {
       );
     }
 
+    if (attemptId !== connectAttemptRef.current) {
+      return false;
+    }
+
     const nativeAvailable = await healthkitIsAvailable();
+    if (attemptId !== connectAttemptRef.current) {
+      return false;
+    }
     setHealthNativeAvailable(nativeAvailable);
     const production = import.meta.env.PROD === true;
     const allowFakeHealth = import.meta.env.DEV === true;
@@ -323,7 +331,11 @@ export function useMobileHost() {
               ? { deviceCredential: deviceCredentialRef.current }
               : {}),
         onIssuedDeviceCredential: async (issued) => {
+          if (attemptId !== connectAttemptRef.current) {
+            return;
+          }
           deviceCredentialRef.current = issued;
+          deviceCredentialEndpointRef.current = normalizedEndpoint;
           try {
             await vaultRef.current.write(normalizedEndpoint, issued);
             setCredentialPersistError(false);
@@ -364,14 +376,17 @@ export function useMobileHost() {
 
     try {
       await client.connect();
+      if (attemptId !== connectAttemptRef.current || clientRef.current !== client) {
+        return false;
+      }
       if (pairing.length > 0) {
         setPairingToken('');
       }
       const connectedInstanceId = client.getCursor().hostInstanceId;
       if (
-        expectedHostInstanceId !== undefined &&
+        connectionInput.expectedHostInstanceId !== undefined &&
         connectedInstanceId !== undefined &&
-        expectedHostInstanceId !== connectedInstanceId
+        connectionInput.expectedHostInstanceId !== connectedInstanceId
       ) {
         setErrorMessage('Host 实例标识与配对码不一致。设备凭证仍然有效；若连错机器请重新扫码。');
       }
@@ -410,10 +425,17 @@ export function useMobileHost() {
         },
       });
       await advertiseMobileHealthRuntime(healthRuntimeRef.current);
+      return true;
     } catch (error) {
-      setErrorMessage(toError(error, '连接 Host 失败。').message);
+      if (attemptId !== connectAttemptRef.current) {
+        return false;
+      }
+      setErrorMessage(formatMobileHostConnectionError(error));
+      return false;
     } finally {
-      initialConnectInFlightRef.current = false;
+      if (attemptId === connectAttemptRef.current) {
+        initialConnectInFlightRef.current = false;
+      }
     }
   };
 
@@ -425,6 +447,8 @@ export function useMobileHost() {
       // Clearing the local vault must not block disconnect.
     }
     deviceCredentialRef.current = undefined;
+    deviceCredentialEndpointRef.current = undefined;
+    connectAttemptRef.current += 1;
     setCredentialPersistError(false);
     setPendingReplaceRunId(undefined);
     disposeClient(clientRef, unsubscribeRef, activityRefreshTimerRef, healthRuntimeRef);

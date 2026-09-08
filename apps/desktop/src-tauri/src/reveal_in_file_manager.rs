@@ -11,6 +11,16 @@ pub fn reveal_in_file_manager(path: String) -> Result<(), String> {
     reveal_path(&path)
 }
 
+/// True when `path` exists on this Desktop machine (not the remote Host).
+#[tauri::command]
+pub fn path_exists_locally(path: String) -> bool {
+    let trimmed = path.trim();
+    if trimmed.is_empty() || trimmed.contains('\0') {
+        return false;
+    }
+    Path::new(trimmed).exists()
+}
+
 fn reveal_path(path: &str) -> Result<(), String> {
     let trimmed = path.trim();
     if trimmed.is_empty() || trimmed.contains('\0') {

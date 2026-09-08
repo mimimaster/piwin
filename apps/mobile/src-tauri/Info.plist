@@ -8,7 +8,11 @@
   <string>Piwin uses the microphone for hold-to-talk messages and Live voice calls.</string>
   <key>NSSpeechRecognitionUsageDescription</key>
   <string>Piwin converts your held speech into text on this device, then sends that text to your Host.</string>
+  <key>NSLocalNetworkUsageDescription</key>
+  <string>Piwin connects to your Piwin Host on your private network so you can use the app on this device.</string>
   <key>NSHealthShareUsageDescription</key>
   <string>Piwin reads the Apple Health categories you select and sends those summaries to your configured Piwin Host for chat analysis. Piwin never writes to Apple Health.</string>
+  <key>NSHealthUpdateUsageDescription</key>
+  <string>Piwin uses Apple Health data only to provide the health summaries you request in chat. Piwin does not write or modify Apple Health data.</string>
 </dict>
 </plist>
