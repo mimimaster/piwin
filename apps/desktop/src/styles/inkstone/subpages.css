@@ -226,7 +226,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .vault-card-open {
-  font: 10px var(--mono);
+  font: 11px var(--mono);
   color: var(--zhu);
 }
 
@@ -291,7 +291,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .pet-bubble-status-label {
-  font: 600 10px var(--mono);
+  font: 600 11px var(--mono);
   color: var(--lamp);
   text-transform: none;
 }
@@ -302,7 +302,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .pet-bubble-detail {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--t3);
 }
 

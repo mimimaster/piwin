@@ -1,7 +1,7 @@
 import type { AgentEvent } from '@piwin/contracts';
 import { mergeSearchEvidence } from '@piwin/contracts';
 import { createBoundedTextAccumulator } from './bounded-text-accumulator';
-import { markLatestAssistantFailure } from './run-failure-message';
+import { ensureFailedRunAssistant, markLatestAssistantFailure } from './run-failure-message';
 import type {
   ChatMessageUi,
   ChatUiAction,
@@ -630,7 +630,14 @@ export function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiSt
         );
         return {
           ...state,
-          messages: failureProjection.messages,
+          messages: failureProjection.stamped
+            ? failureProjection.messages
+            : ensureFailedRunAssistant(
+                state.messages,
+                targetRunId,
+                errorMessage,
+                event.failure === undefined ? undefined : { failure: event.failure },
+              ),
         };
       }
     default:

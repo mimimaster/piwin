@@ -11,6 +11,10 @@ export type TranscriptTurn = {
   lastAssistantMessageId: string | null;
 };
 
+/** User prompt that opened this turn, if the turn started with a user row. */
+export function turnUserMessageId(turn: TranscriptTurn): string | null {
+  return turn.items.find((item) => item.message.role === 'user')?.message.id ?? null;
+}
 /**
  * Group one user prompt and its following assistant activity into a render unit.
  * Turn-level units keep virtualization from splitting coupled work details and

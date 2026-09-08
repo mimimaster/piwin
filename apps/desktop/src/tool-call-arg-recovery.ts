@@ -13,6 +13,12 @@ const INPUT_PREVIEW_PATH_KEYS = [
   'target',
   'target_file',
   'targetFile',
+  'target_path',
+  'targetPath',
+  'TargetFile',
+  'TargetPath',
+  'AbsolutePath',
+  'absolutePath',
 ] as const;
 
 export type RecoveredToolArgs = {

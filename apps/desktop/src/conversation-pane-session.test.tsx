@@ -84,7 +84,6 @@ class FakeHostClient {
         success: true,
         data: {
           sessionId: command.sessionId,
-          live: true,
           scope: { kind: 'general' },
           name: 'Auxiliary Chat',
           messages: [

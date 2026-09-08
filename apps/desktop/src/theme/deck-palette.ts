@@ -87,7 +87,8 @@ const BONE_DECK: ThemeDeckTokens = {
 
   ember: '#dd6318',
   // Mint and amber carry status *text* ("3 additions", "needs your input"), so
-  // on paper they have to clear 4.5:1 rather than the 3:1 a dot would need.
+  // Text tokens clear WCAG AA 4.5:1 on every paper surface (see
+  // styles/inkstone/contrast.test.ts which guards the pairing matrix).
   // The published Bone values sat at 2.7:1 — brighter than the field but not
   // readable on it. Ember, sky, and coral already clear 3:1 and are only ever
   // dots, washes, and rules, so they keep their authored hue.
@@ -181,19 +182,19 @@ const INKSTONE_PAPER_DECK: ThemeDeckTokens = {
 
   text1: '#1d1b17',
   text2: '#5a554d',
-  text3: '#726b61',
-  text4: '#8f887d',
+  text3: '#655e53',
+  text4: '#696256',
 
   line1: 'rgba(29, 27, 23, 0.06)',
   line2: 'rgba(29, 27, 23, 0.11)',
   line3: 'rgba(29, 27, 23, 0.2)',
 
-  iris: '#c6412a',
+  iris: '#b03a24',
   irisLift: '#d4553d',
   irisPress: '#a53420',
   onIris: '#fff7f0',
 
-  ember: '#b8801f',
+  ember: '#8a5f0c',
   mint: '#3d7c5e',
   amber: '#94611a',
   coral: '#9c2e3d',
@@ -216,8 +217,8 @@ const INKSTONE_INK_DECK: ThemeDeckTokens = {
 
   text1: '#ebe5da',
   text2: '#a59d92',
-  text3: '#8b8378',
-  text4: '#6a6259',
+  text3: '#968d81',
+  text4: '#8d857a',
 
   line1: 'rgba(235, 229, 218, 0.06)',
   line2: 'rgba(235, 229, 218, 0.1)',

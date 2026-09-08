@@ -165,6 +165,7 @@ export function SidebarTreeRowView(props: SidebarTreeRowViewProps): ReactElement
             trigger={
               <IconButton
                 className="sidebar-icon-btn"
+                size="xs"
                 label={sidebarCopy.displayOptions}
                 title={sidebarCopy.displayOptions}
                 data-testid="display-options-btn"
@@ -290,6 +291,7 @@ export function SidebarTreeRowView(props: SidebarTreeRowViewProps): ReactElement
           </DropdownMenu>
           <IconButton
             className="sidebar-icon-btn"
+            size="xs"
             label={sidebarCopy.openWorkspaceFolder}
             data-testid="open-workspace-btn"
             title={props.projectPath ?? sidebarCopy.openWorkspaceFolder}
@@ -331,12 +333,13 @@ export function SidebarTreeRowView(props: SidebarTreeRowViewProps): ReactElement
         <div className="sidebar-section-label-actions">
           <IconButton
             className="sidebar-icon-btn"
+            size="xs"
             label={props.newConversationLabel}
             title={props.newConversationLabel}
             data-testid="general-workspace-btn"
             onClick={() => props.onNewGeneralSession()}
           >
-            <IconPlus width={14} height={14} />
+            <IconPlus width={13} height={13} />
           </IconButton>
         </div>
       </div>
@@ -438,6 +441,7 @@ export function SidebarTreeRowView(props: SidebarTreeRowViewProps): ReactElement
           </button>
           <IconButton
             className="sidebar-icon-btn tree-folder-add-btn"
+            size="xs"
             label={sidebarCopy.newConversationInProject(displayName)}
             title={sidebarCopy.newConversationInProject(displayName)}
             onClick={(event) => {
@@ -445,7 +449,7 @@ export function SidebarTreeRowView(props: SidebarTreeRowViewProps): ReactElement
               props.onNewSession({ scope: projectScope });
             }}
           >
-            <IconPlus width={14} height={14} />
+            <IconPlus width={12} height={12} />
           </IconButton>
         </div>
       </ContextMenu>

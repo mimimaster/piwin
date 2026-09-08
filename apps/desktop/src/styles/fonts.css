@@ -1,0 +1,6 @@
+/* Self-hosted font faces — see the per-family files below. */
+
+@import './fonts-inter.css';
+@import './fonts-jetbrains-mono.css';
+@import './fonts-noto-serif-sc-500.css';
+@import './fonts-noto-serif-sc-600.css';

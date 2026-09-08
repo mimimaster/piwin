@@ -802,10 +802,9 @@ describe('FileTreePanel context menu (CM-05)', () => {
     expect(menuItem('context-menu-open')).not.toBeNull();
     expect(menuItem('context-menu-copy-relative-path')).not.toBeNull();
     expect(menuItem('context-menu-copy-absolute-path')).not.toBeNull();
-    // Reveal stays in the catalog as a disabled item until the OS hook is wired.
     const reveal = menuItem('context-menu-reveal');
     expect(reveal).not.toBeNull();
-    expect(reveal?.getAttribute('aria-disabled')).toBe('true');
+    expect(reveal?.getAttribute('aria-disabled')).not.toBe('true');
   });
 
   it('Add to Chat on a file row emits a file ref', async () => {

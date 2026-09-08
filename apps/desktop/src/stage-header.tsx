@@ -56,7 +56,6 @@ function shellStateKind(kind?: RunStatusView['kind']): 'idle' | 'running' | 'wai
 export function StageHeader(props: StageHeaderProps): ReactElement {
   const shellState = shellStateKind(props.runState?.kind);
   const isChinese = (props.locale ?? 'zh-CN') === 'zh-CN';
-  const mode = props.permissionMode ?? null;
 
   return (
     <header className="tb stage-header" data-testid="stage-header" data-state={shellState}>
@@ -72,24 +71,6 @@ export function StageHeader(props: StageHeaderProps): ReactElement {
         </span>
         {props.sessionTreeControl ? (
           <span className="context-bar-session-tree-slot">{props.sessionTreeControl}</span>
-        ) : null}
-        {mode ? (
-          <button
-            type="button"
-            className={
-              mode === 'yolo' ? 'context-bar-mode-badge is-warning' : 'context-bar-mode-badge'
-            }
-            data-testid="stage-mode-badge"
-            data-mode={mode}
-            title={
-              isChinese
-                ? '运行模式 — 点击打开权限设置'
-                : 'Run mode — click to open Permissions settings'
-            }
-            onClick={props.onOpenPermissions}
-          >
-            {mode === 'auto' ? 'Auto' : mode === 'ask' ? 'Ask' : 'YOLO'}
-          </button>
         ) : null}
         {props.origin ? (
           <button
@@ -124,16 +105,6 @@ export function StageHeader(props: StageHeaderProps): ReactElement {
       {props.trailing ? (
         <div className="stage-header-trailing" data-testid="stage-header-trailing">
           {props.trailing}
-        </div>
-      ) : null}
-      {props.runState && props.runState.kind !== 'idle' ? (
-        <div className="status stage-header-status" role="status">
-          <span className="muted">{props.runState.label}</span>
-          {props.onStop && props.runState.canStop ? (
-            <button type="button" className="chip" onClick={props.onStop}>
-              {isChinese ? '停止' : 'Stop'}
-            </button>
-          ) : null}
         </div>
       ) : null}
     </header>

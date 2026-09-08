@@ -441,6 +441,12 @@
   text-align: left;
 }
 
+.md-table th,
+.md-table td {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
 .md-table th {
   padding: var(--s-4) var(--s-5);
   font-weight: 600;

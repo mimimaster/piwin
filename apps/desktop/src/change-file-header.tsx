@@ -1,6 +1,7 @@
 import { type ReactElement } from 'react';
 import { DropdownMenu, DropdownMenuItem, FileTypeIcon, IconButton } from '@piwin/ui-kit';
 import { IconArrowLeft, IconCopy, IconLink, IconMore } from './shell-icons';
+import { resolveProjectFilesystemRoot } from './remote-session-hydrate.js';
 import {
   formatDisplayPathParts,
   resolveChangeStatusInfo,
@@ -26,8 +27,9 @@ export function ChangeFileHeader(props: ChangeFileHeaderProps): ReactElement {
   const adds = props.additions ?? 0;
   const dels = props.deletions ?? 0;
 
-  const absolutePath = props.projectPath
-    ? `${props.projectPath.replace(/[\\/]+$/, '')}/${props.relativePath}`
+  const filesystemRoot = resolveProjectFilesystemRoot(props.projectPath);
+  const absolutePath = filesystemRoot
+    ? `${filesystemRoot}/${props.relativePath}`
     : props.relativePath;
 
   function handleCopyRelative(): void {

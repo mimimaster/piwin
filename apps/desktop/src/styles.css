@@ -2,6 +2,7 @@
    tokens (geometry/z-layers) → base resets → shared primitives → one file
    per region. Each class is styled in exactly one file; import order is no
    longer semantically significant between region files. */
+@import './styles/fonts.css';
 @import './styles/tokens.css';
 @import './styles/base.css';
 /* ui-kit primitive contract (structural + state rules for .piwin- / .ui-

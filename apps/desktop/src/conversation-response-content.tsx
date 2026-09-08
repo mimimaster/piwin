@@ -35,7 +35,7 @@ import { IconBrain, IconChevronRight } from './shell-icons';
 import { behaviorTextClass, getBehaviorActivitySpec } from './behavior-activity.js';
 import { buildTurnPresentation } from './run-presentation.js';
 import { runtimeStatusText } from './run-activity-strings.js';
-import { conversationActivityLabel } from './conversation-activity.js';
+import { useRunActivityPhrases } from './run-activity-hooks.js';
 import { TurnToolGroup } from './turn-tool-group.js';
 import { ExploreFlowCapsule } from './explore-flow-capsule.js';
 import type { ExploreFlowRole } from './explore-flow.js';
@@ -241,31 +241,7 @@ export function ConversationResponseContent(props: {
         />
       ) : null}
       {isAwaitingFirstToken ? (
-        <div className="conversation-thinking-wrapper is-open" data-testid="conversation-activity">
-          <div
-            className="turn-work-details-summary conversation-thinking-summary"
-            data-activity-id="thinking"
-            data-tool-status="running"
-          >
-            <span
-              className="turn-summary-active-animation"
-              data-testid="conversation-thinking-active-animation"
-              aria-hidden="true"
-            >
-              <RadialBellow
-                size="sm"
-                label={conversationActivityLabel('thinking', locale)}
-                testId="conversation-thinking-radial-bellow"
-              />
-            </span>
-            <span
-              className="turn-work-details-label turn-work-details-label--running agent-locator-copy--shimmer"
-              data-testid="conversation-activity-copy"
-            >
-              {conversationActivityLabel('thinking', locale)}
-            </span>
-          </div>
-        </div>
+        <ConversationAwaitingFirstToken locale={locale} />
       ) : null}
       {hasThinking ? (
         <div
@@ -488,4 +464,38 @@ function formatArgumentCharCount(count: number): string | undefined {
     return `${thousands.toFixed(1).replace(/\.0$/, '')}k`;
   }
   return `${Math.round(thousands)}k`;
+}
+
+function ConversationAwaitingFirstToken(props: { locale: 'zh-CN' | 'en' }): ReactElement {
+  const { currentPhrase } = useRunActivityPhrases({
+    kind: 'waiting-first-token',
+    locale: props.locale,
+  });
+  return (
+    <div className="conversation-thinking-wrapper is-open" data-testid="conversation-activity">
+      <div
+        className="turn-work-details-summary conversation-thinking-summary"
+        data-activity-id="thinking"
+        data-tool-status="running"
+      >
+        <span
+          className="turn-summary-active-animation"
+          data-testid="conversation-thinking-active-animation"
+          aria-hidden="true"
+        >
+          <RadialBellow
+            size="sm"
+            label={currentPhrase}
+            testId="conversation-thinking-radial-bellow"
+          />
+        </span>
+        <span
+          className="turn-work-details-label turn-work-details-label--running agent-locator-copy--shimmer"
+          data-testid="conversation-activity-copy"
+        >
+          {currentPhrase}
+        </span>
+      </div>
+    </div>
+  );
 }

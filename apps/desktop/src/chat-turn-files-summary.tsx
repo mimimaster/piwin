@@ -2,7 +2,7 @@
  * Mount gate for the per-assistant-message FilesChangedBar in chat rows.
  */
 import type { ReactElement } from 'react';
-import type { ChatMessageUi } from './chat-reducer';
+import type { ChatMessageUi, ToolCardUi } from './chat-reducer';
 import {
   FilesChangedBar,
   type FilesChangedBarRequest,
@@ -13,7 +13,7 @@ export type { FilesChangedBarRequest };
 export type ChatTurnFilesSummaryProps = {
   isConversationSession?: boolean;
   role: ChatMessageUi['role'];
-  tools: ChatMessageUi['tools'];
+  tools: readonly ToolCardUi[];
   projectPath?: string | null;
   request?: FilesChangedBarRequest;
   onReview?: () => void;

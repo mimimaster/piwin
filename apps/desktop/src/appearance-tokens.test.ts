@@ -10,7 +10,9 @@ import {
   PIWIN_APPEARANCE_BONE,
   PIWIN_APPEARANCE_DARK,
   PIWIN_APPEARANCE_INK_WASH,
+  PIWIN_APPEARANCE_INKSTONE_INK,
   PIWIN_APPEARANCE_INKSTONE_PAPER,
+  PIWIN_INKSTONE_THEME_ID,
   PIWIN_APPEARANCE_LIGHT,
   PIWIN_APPEARANCE_OBSIDIAN,
   applyAppearanceToDocument,
@@ -19,6 +21,7 @@ import {
   deriveDeckTokens,
   isAppearanceFaceId,
   isBuiltinAppearanceId,
+  isInkstoneThemeId,
   migrateThemeId,
   resolveBuiltinAppearance,
   toHostCatalogThemeId,
@@ -487,14 +490,16 @@ describe('theme identity and migration', () => {
   });
 
   it('aliases the mode-named exports onto the Deck built-ins', () => {
-    expect(PIWIN_APPEARANCE_DARK).toBe(PIWIN_APPEARANCE_OBSIDIAN);
-    expect(PIWIN_APPEARANCE_LIGHT).toBe(PIWIN_APPEARANCE_BONE);
+    expect(PIWIN_APPEARANCE_DARK).toBe(PIWIN_APPEARANCE_INKSTONE_INK);
+    expect(PIWIN_APPEARANCE_LIGHT).toBe(PIWIN_APPEARANCE_INKSTONE_PAPER);
   });
 
   it('migrates retired theme ids so existing installs still resolve', () => {
-    expect(migrateThemeId('piwin-dark')).toBe('piwin-obsidian');
-    expect(migrateThemeId('piwin-light')).toBe('piwin-bone');
-    expect(migrateThemeId('piwin-orange-white')).toBe('piwin-bone');
+    expect(migrateThemeId('piwin-dark')).toBe('piwin-inkstone-ink');
+    expect(migrateThemeId('piwin-obsidian')).toBe('piwin-inkstone-ink');
+    expect(migrateThemeId('piwin-light')).toBe('piwin-inkstone-paper');
+    expect(migrateThemeId('piwin-bone')).toBe('piwin-inkstone-paper');
+    expect(migrateThemeId('piwin-orange-white')).toBe('piwin-inkstone-paper');
     expect(migrateThemeId('piwin-ink-wash')).toBe('piwin-ink-wash');
     expect(migrateThemeId('some-installed-theme')).toBe('some-installed-theme');
   });
@@ -507,14 +512,18 @@ describe('theme identity and migration', () => {
   });
 
   it('resolves retired ids to their replacement manifest', () => {
-    expect(resolveBuiltinAppearance('piwin-dark')).toBe(PIWIN_APPEARANCE_OBSIDIAN);
-    expect(resolveBuiltinAppearance('piwin-orange-white')).toBe(PIWIN_APPEARANCE_BONE);
+    expect(resolveBuiltinAppearance('piwin-dark')).toBe(PIWIN_APPEARANCE_INKSTONE_INK);
+    expect(resolveBuiltinAppearance('piwin-orange-white')).toBe(PIWIN_APPEARANCE_INKSTONE_PAPER);
+    expect(resolveBuiltinAppearance(PIWIN_INKSTONE_THEME_ID, 'dark')).toBe(
+      PIWIN_APPEARANCE_INKSTONE_INK,
+    );
     expect(resolveBuiltinAppearance(undefined)).toBe(PIWIN_APPEARANCE_INKSTONE_PAPER);
   });
 
   it('recognises built-in ids including retired ones', () => {
     expect(isBuiltinAppearanceId('piwin-obsidian')).toBe(true);
     expect(isBuiltinAppearanceId('piwin-light')).toBe(true);
+    expect(isBuiltinAppearanceId(PIWIN_INKSTONE_THEME_ID)).toBe(true);
     expect(isBuiltinAppearanceId('installed-theme')).toBe(false);
   });
 
@@ -525,14 +534,17 @@ describe('theme identity and migration', () => {
     expect(isAppearanceFaceId('piwin-light')).toBe(true);
     expect(isAppearanceFaceId('piwin-inkstone-paper')).toBe(true);
     expect(isAppearanceFaceId('piwin-inkstone-ink')).toBe(true);
+    expect(isAppearanceFaceId(PIWIN_INKSTONE_THEME_ID)).toBe(true);
     expect(isAppearanceFaceId('piwin-dark-appearance')).toBe(true);
     expect(isAppearanceFaceId('piwin-ink-wash')).toBe(false);
     expect(isAppearanceFaceId('community-nord')).toBe(false);
+    expect(isInkstoneThemeId('piwin-dark-appearance')).toBe(true);
+    expect(isInkstoneThemeId('piwin-ink-wash')).toBe(false);
   });
 
   it('prefers the desktop manifest for built-ins and passes installed themes through', () => {
     const stale: ThemeManifest = { ...PIWIN_APPEARANCE_OBSIDIAN, version: '0.0.1' };
-    expect(resolveDesktopAppearance(stale)).toBe(PIWIN_APPEARANCE_OBSIDIAN);
+    expect(resolveDesktopAppearance(stale)).toBe(PIWIN_APPEARANCE_INKSTONE_INK);
 
     const installed: ThemeManifest = { ...PIWIN_APPEARANCE_INK_WASH, id: 'installed-theme' };
     expect(resolveDesktopAppearance(installed)).toBe(installed);

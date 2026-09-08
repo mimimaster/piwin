@@ -1,16 +1,24 @@
 /**
  * Call-chain plan execution picker (proto-01 #13).
  *
- * Draft/approved SessionPlans sit on the assistant turn that created them —
- * after that turn's tool sequence, not above the composer. The composer stays
- * free so the user can ignore the plan and keep working. Conversation
- * (general scope) never shows this gate.
+ * Emitted once, on the assistant message that ran `piwin_plan_create`. After
+ * that it is ordinary transcript: later turns must not re-home it. Missing
+ * create tool means no gate — never fall back to "latest assistant". The
+ * composer stays free so the user can ignore the plan and keep working.
+ * Conversation (general scope) never shows this gate.
  */
-import { useEffect, useRef, type ReactElement } from 'react';
+import {
+  useEffect,
+  useRef,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactElement,
+} from 'react';
 import type { PlanExecutionMode, SessionPlan } from '@piwin/contracts';
 import { getBehaviorActivitySpec } from './behavior-activity.js';
 import type { ChatMessageUi, ToolCardUi } from './chat-ui-types.js';
 import { useDesktopLocale } from './desktop-locale-context';
+import { planDocumentOpenInput } from './plan-card.js';
+import type { DocumentOpenInput } from './tool-call-card.js';
 
 export type PlanExecutionGateVisibility = {
   plan: SessionPlan | null | undefined;
@@ -39,18 +47,16 @@ export function isPlanCreateTool(tool: Pick<ToolCardUi, 'toolName' | 'presentati
   });
 }
 
-/** Assistant message that owns the gate: the one that created the plan, else the latest. */
+/** Assistant message that created the plan. Null if that turn is not in the transcript. */
 export function findPlanExecutionGateMessageId(
   messages: readonly Pick<ChatMessageUi, 'id' | 'role' | 'tools'>[],
 ): string | null {
-  let lastAssistantId: string | null = null;
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
     if (!message || message.role !== 'assistant') continue;
-    if (lastAssistantId === null) lastAssistantId = message.id;
     if (message.tools.some((tool) => isPlanCreateTool(tool))) return message.id;
   }
-  return lastAssistantId;
+  return null;
 }
 
 function countIndependentSteps(plan: Pick<SessionPlan, 'steps' | 'independentSteps'>): number {
@@ -72,7 +78,10 @@ export function recommendedPlanExecutionMode(
 export type PlanExecutionGateProps = {
   plan: SessionPlan;
   onExecute: (mode: PlanExecutionMode) => void | Promise<void>;
+  onOpenDocument?: (input: DocumentOpenInput) => void;
   actionInProgress?: boolean;
+  /** Global A/B shortcuts — only while this card is still the latest assistant turn. */
+  captureKeyboard?: boolean;
 };
 
 type GateCopy = {
@@ -120,9 +129,10 @@ export function formatPlanDescription(
 }
 
 export function PlanExecutionGate(props: PlanExecutionGateProps): ReactElement {
-  const { plan, onExecute, actionInProgress = false } = props;
+  const { plan, onExecute, onOpenDocument, actionInProgress = false } = props;
   const { locale } = useDesktopLocale();
   const copy = locale === 'en' ? COPY_EN : COPY_ZH;
+  const captureKeyboard = props.captureKeyboard !== false;
   const recommended = recommendedPlanExecutionMode(plan);
   const modes: Array<{ mode: PlanExecutionMode; badge: string; label: string }> =
     recommended === 'subagent-driven'
@@ -139,6 +149,7 @@ export function PlanExecutionGate(props: PlanExecutionGateProps): ReactElement {
   onExecuteRef.current = onExecute;
 
   useEffect(() => {
+    if (!captureKeyboard) return;
     function isEditableTarget(target: EventTarget | null): boolean {
       if (!(target instanceof HTMLElement)) return false;
       return (
@@ -166,9 +177,20 @@ export function PlanExecutionGate(props: PlanExecutionGateProps): ReactElement {
 
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [actionInProgress, modes]);
+  }, [actionInProgress, captureKeyboard, modes]);
 
   const description = formatPlanDescription(plan, locale);
+
+  function handleOpenDocument(): void {
+    onOpenDocument?.(planDocumentOpenInput(plan));
+  }
+
+  function handleOpenDocumentKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {
+    if (event.target !== event.currentTarget) return;
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    handleOpenDocument();
+  }
 
   return (
     <div
@@ -178,6 +200,16 @@ export function PlanExecutionGate(props: PlanExecutionGateProps): ReactElement {
       data-activity-animation={getBehaviorActivitySpec('plan').animation}
       data-tool-status="idle"
       aria-label={copy.status}
+      {...(onOpenDocument
+        ? {
+            role: 'button' as const,
+            tabIndex: 0,
+            title: locale === 'en' ? 'Open plan document' : '点击查看计划文档',
+            'data-document-openable': 'true',
+            onClick: handleOpenDocument,
+            onKeyDown: handleOpenDocumentKeyDown,
+          }
+        : {})}
     >
       <span className="pill zhu-p">
         <i />
@@ -196,7 +228,10 @@ export function PlanExecutionGate(props: PlanExecutionGateProps): ReactElement {
               data-testid={entry.mode === 'inline' ? 'plan-mode-inline' : 'plan-mode-subagent'}
               data-recommended={isRecommended ? 'true' : 'false'}
               disabled={actionInProgress}
-              onClick={() => void onExecute(entry.mode)}
+              onClick={(event) => {
+                event.stopPropagation();
+                void onExecute(entry.mode);
+              }}
             >
               <span className="bd">{entry.badge}</span>
               {isRecommended ? `${copy.recommended} · ${entry.label}` : entry.label}
@@ -204,8 +239,7 @@ export function PlanExecutionGate(props: PlanExecutionGateProps): ReactElement {
           );
         })}
       </div>
-      <div className="kb">{copy.kb}</div>
+      {captureKeyboard ? <div className="kb">{copy.kb}</div> : null}
     </div>
   );
 }
-

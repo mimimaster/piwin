@@ -24,7 +24,8 @@ class FakeHostClient {
   request(command: HostCommand): Promise<HostResponse> {
     this.requests.push(command);
     if (command.type === 'session/foreground-run') {
-      if (this.foregroundRunResponse?.kind === 'fail') {
+      const scripted = this.foregroundRunResponses?.shift() ?? this.foregroundRunResponse;
+      if (scripted?.kind === 'fail') {
         return Promise.resolve({
           type: 'response',
           command: command.type,
@@ -32,7 +33,6 @@ class FakeHostClient {
           error: 'host unavailable',
         });
       }
-      const scripted = this.foregroundRunResponses?.shift() ?? this.foregroundRunResponse;
       const run = scripted?.kind === 'run' ? scripted.run : null;
       return Promise.resolve({
         type: 'response',
@@ -182,7 +182,7 @@ describe('useRunReconcile', () => {
     container.remove();
   });
 
-  it('on a sequence gap with no registry run, clears stale streaming state', async () => {
+  it('on a sequence gap before ACK, ignores a null Host run instead of wiping the optimistic turn', async () => {
     const fake = new FakeHostClient();
     fake.scriptForegroundRun({ kind: 'run', run: null });
     const actions: ChatUiAction[] = [];
@@ -192,6 +192,30 @@ describe('useRunReconcile', () => {
     const { root, container } = mountProbe(fake as unknown as HostClient, dispatch, {
       activeSessionId: 'session-1',
       activeRunId: null,
+      runLive: true,
+    });
+    await waitForAdmission(actions, 'ready');
+    const actionCountAfterAdmit = actions.length;
+
+    await act(async () => {
+      fake.emitGap();
+    });
+
+    expect(actions.slice(actionCountAfterAdmit).map((action) => action.type)).toEqual([]);
+    root.unmount();
+    container.remove();
+  });
+
+  it('on a sequence gap with a known run id and no Host run, clears stale streaming state', async () => {
+    const fake = new FakeHostClient();
+    fake.scriptForegroundRun({ kind: 'run', run: null });
+    const actions: ChatUiAction[] = [];
+    const dispatch = (action: ChatUiAction): void => {
+      actions.push(action);
+    };
+    const { root, container } = mountProbe(fake as unknown as HostClient, dispatch, {
+      activeSessionId: 'session-1',
+      activeRunId: 'run-1',
       runLive: true,
     });
     await waitForAdmission(actions, 'ready');
@@ -403,6 +427,86 @@ describe('useRunReconcile', () => {
         action.type === 'foreground/admission' ? action.admission : undefined,
       ),
     ).toEqual(['reconciling', 'unknown']);
+    root.unmount();
+    container.remove();
+  });
+
+  it('retries a failed admit while Host is ready so Send is not stuck until session switch', async () => {
+    vi.useFakeTimers();
+    try {
+      const fake = new FakeHostClient();
+      // Mount runs selection-admit and hostReady-admit; both fail while Host is
+      // up and must stay in reconciling (not sticky unknown), then backoff.
+      fake.scriptForegroundRun({ kind: 'fail' });
+      const actions: ChatUiAction[] = [];
+      let admission: 'unknown' | 'reconciling' | 'ready' = 'reconciling';
+      const dispatch = (action: ChatUiAction): void => {
+        actions.push(action);
+        if (action.type === 'foreground/admission') {
+          admission = action.admission;
+        }
+      };
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      const root = createRoot(container);
+      function StatefulProbe(props: {
+        admission: 'unknown' | 'reconciling' | 'ready';
+      }): null {
+        useRunReconcile({
+          hostClient: fake as unknown as HostClient,
+          dispatch,
+          activeSessionId: 'session-1',
+          activeRunId: null,
+          runLive: false,
+          hostReady: true,
+          foregroundAdmission: props.admission,
+        });
+        return null;
+      }
+      act(() => {
+        root.render(<StatefulProbe admission={admission} />);
+      });
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(admission).toBe('reconciling');
+      expect(admission).not.toBe('unknown');
+      act(() => {
+        root.render(<StatefulProbe admission={admission} />);
+      });
+
+      fake.scriptForegroundRun({ kind: 'run', run: null });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(400);
+      });
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(admission).toBe('ready');
+      expect(actions.map((action) => action.type)).toContain('run/stale-clear');
+      root.unmount();
+      container.remove();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not clear a live projection when admission finds no Host run yet', async () => {
+    const fake = new FakeHostClient();
+    fake.scriptForegroundRun({ kind: 'run', run: null });
+    const actions: ChatUiAction[] = [];
+    const { root, container } = mountProbe(fake as unknown as HostClient, (action) => {
+      actions.push(action);
+    }, {
+      activeSessionId: 'session-1',
+      activeRunId: 'run-1',
+      runLive: true,
+      foregroundAdmission: 'reconciling',
+    });
+    await waitForAdmission(actions, 'ready');
+    expect(actions.map((action) => action.type)).not.toContain('run/stale-clear');
     root.unmount();
     container.remove();
   });

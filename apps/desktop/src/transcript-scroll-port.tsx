@@ -2,8 +2,10 @@ import {
   createContext,
   useCallback,
   useContext,
+  useLayoutEffect,
   useMemo,
   useRef,
+  useState,
   type ReactElement,
   type ReactNode,
   type RefObject,
@@ -14,6 +16,8 @@ export type TranscriptMessageScroller = (messageId: string) => boolean;
 export type TranscriptScrollPort = {
   sessionId: string | null;
   scrollElementRef: RefObject<HTMLDivElement | null>;
+  /** Reactive mount notification; a ref assignment alone does not rerender consumers. */
+  scrollElement: HTMLDivElement | null;
   registerMessageScroller: (scroller: TranscriptMessageScroller) => () => void;
   scrollToMessage: TranscriptMessageScroller;
   /** Stop follow-tail before a history jump so ResizeObserver sticks cannot yank back. */
@@ -36,6 +40,13 @@ export function TranscriptScrollProvider(props: {
   detachFromTail?: () => void;
   children: ReactNode;
 }): ReactElement {
+  const [scrollElement, setScrollElement] = useState(props.scrollElementRef.current);
+  useLayoutEffect(() => {
+    // The scroll root's ref attaches after its children's layout effects.
+    // Publish it before paint so a cold-mounted virtualizer can subscribe and
+    // measure without relying on a later resize, activity update, or timer.
+    setScrollElement(props.scrollElementRef.current);
+  }, [props.scrollElementRef]);
   const messageScrollerRef = useRef<TranscriptMessageScroller | null>(null);
   const notifyContentGrewRef = useRef(props.notifyContentGrew);
   notifyContentGrewRef.current = props.notifyContentGrew;
@@ -68,6 +79,7 @@ export function TranscriptScrollProvider(props: {
     () => ({
       sessionId: props.sessionId,
       scrollElementRef: props.scrollElementRef,
+      scrollElement,
       registerMessageScroller,
       scrollToMessage,
       detachFromTail,
@@ -76,6 +88,7 @@ export function TranscriptScrollProvider(props: {
     [
       props.sessionId,
       props.scrollElementRef,
+      scrollElement,
       registerMessageScroller,
       scrollToMessage,
       detachFromTail,

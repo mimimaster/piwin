@@ -65,6 +65,12 @@ import {
 import { loadExpandedPaths, saveExpandedPaths } from './file-tree-expand-memory';
 import type { DesktopLocale } from './desktop-locale';
 import { resolveProjectEntryAbsolutePath } from './file-tree-path';
+import { revealLocalFileInFolder } from './local-file-actions.js';
+import {
+  canRevealInLocalFileManager,
+  revealDisabledHint,
+} from './local-file-reveal-policy.js';
+import { resolveProjectFilesystemRoot } from './remote-session-hydrate.js';
 import { PIWIN_PATH_MIME } from './workspace-path-drag';
 import type { ContextMenuDispatchers } from './context-menu';
 import { FileTreeNodeView } from './file-tree-node-view';
@@ -475,8 +481,12 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
       void openFilePreview(relativePath);
       props.onOpenFile?.(absolutePath, relativePath);
     },
-    revealPath: (_absolutePath) => {
-      // Tauri reveal lands with CM-05 polish; copy path remains available.
+    revealPath: (absolutePath) => {
+      void revealLocalFileInFolder(absolutePath).then((result) => {
+        if (result.ok) return;
+        // Browser preview / mock: no Finder. Failures stay quiet in the tree —
+        // PathChip surfaces a toast; the tree already has copy-absolute-path.
+      });
     },
     copyText: (value) => {
       void navigator.clipboard.writeText(value).catch(() => undefined);
@@ -488,9 +498,15 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
     notify: () => undefined,
   };
 
+  const projectRoot = resolveProjectFilesystemRoot(props.projectPath);
+  const canRevealInFileManager =
+    Boolean(projectRoot) && canRevealInLocalFileManager(projectRoot);
   const contextMenuCaps = {
     hasProject: Boolean(props.projectPath),
-    canReveal: false,
+    canReveal: canRevealInFileManager,
+    ...(canRevealInFileManager
+      ? {}
+      : { revealDisabledHint: revealDisabledHint(locale === 'zh-CN' ? 'zh-CN' : 'en') }),
     sideChatAvailable: false,
     applyAvailable: false,
     canSendPreset: false,

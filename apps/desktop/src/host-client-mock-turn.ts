@@ -1,9 +1,8 @@
 import {
   appendMockTranscriptMessage,
+  applyMockBranchPrompt,
   applyMockRetryPrompt,
-  ensureMockTree,
   listMockBranchPoints,
-  rebaseMockLeaf,
 } from './host-client-mock-tree.js';
 import { emitMockAssemblySummary } from './host-client-mock-assembly.js';
 import type { MockHostBackend } from './host-client-mock.js';
@@ -134,29 +133,22 @@ export async function handleMockTurnCommands(
             branchPointCount: listMockBranchPoints(session).length,
           });
         } else if (command.input.branchFromMessageId !== undefined) {
-          const target = session.transcript.find(
-            (message) => message.id === command.input.branchFromMessageId,
-          );
-          if (target === undefined) {
+          const branched = applyMockBranchPrompt(session, {
+            branchFromMessageId: command.input.branchFromMessageId,
+            confirm: command.confirm === true,
+          });
+          if (!branched.ok) {
             return {
               id,
               type: 'response',
               command: 'session/prompt',
               success: false,
-              error: `branch-target-not-found: ${command.input.branchFromMessageId}`,
+              error: branched.error,
+              ...(branched.writes
+                ? { problem: { code: 'branch-leaves-writes', data: branched.writes } }
+                : {}),
             };
           }
-          if (target.role !== 'user') {
-            return {
-              id,
-              type: 'response',
-              command: 'session/prompt',
-              success: false,
-              error: `branch-target-not-user: ${command.input.branchFromMessageId}`,
-            };
-          }
-          ensureMockTree(session);
-          rebaseMockLeaf(session, session.parentById?.[target.id] ?? null);
           host.emitPush({
             type: 'session/branch-updated',
             sessionId: command.sessionId,

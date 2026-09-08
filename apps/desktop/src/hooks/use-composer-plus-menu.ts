@@ -3,19 +3,32 @@
  * refresh those lists without dragging Host request plumbing through the shell.
  */
 import { useCallback, useEffect, useState } from 'react';
+import type { SkillSource } from '@piwin/contracts';
 import type { ComposerPlusSubmenu } from '../composer-plus-menu';
 import type { HostClient } from '../host-client';
+import { SKILLS_CHANGED_EVENT } from '../skills-changed.js';
 
-export type ComposerMenuSkill = { id: string; name: string; enabled: boolean };
+export type ComposerMenuSkill = {
+  id: string;
+  name: string;
+  enabled: boolean;
+  source?: SkillSource;
+};
 export type ComposerMenuMcp = { id: string; name: string; running: boolean };
 
 export function mapComposerMenuSkills(
-  skills: ReadonlyArray<{ id: string; name?: string; enabled?: boolean }>,
+  skills: ReadonlyArray<{
+    id: string;
+    name?: string;
+    enabled?: boolean;
+    source?: SkillSource;
+  }>,
 ): ComposerMenuSkill[] {
   return skills.map((skill) => ({
     id: skill.id,
     name: skill.name ?? skill.id,
     enabled: skill.enabled !== false,
+    ...(skill.source ? { source: skill.source } : {}),
   }));
 }
 
@@ -50,7 +63,12 @@ export function useComposerPlusMenu(args: UseComposerPlusMenuArgs) {
     } as never);
     if (skillsResponse.success && skillsResponse.data) {
       const data = skillsResponse.data as {
-        skills?: Array<{ id: string; name?: string; enabled?: boolean }>;
+        skills?: Array<{
+          id: string;
+          name?: string;
+          enabled?: boolean;
+          source?: SkillSource;
+        }>;
       };
       setMenuSkills(mapComposerMenuSkills(data.skills ?? []));
     }
@@ -73,6 +91,16 @@ export function useComposerPlusMenu(args: UseComposerPlusMenuArgs) {
     }
     void refreshComposerMenus();
   }, [hostReady, refreshComposerMenus]);
+
+  useEffect(() => {
+    const onSkillsChanged = (): void => {
+      void refreshComposerMenus();
+    };
+    window.addEventListener(SKILLS_CHANGED_EVENT, onSkillsChanged);
+    return () => {
+      window.removeEventListener(SKILLS_CHANGED_EVENT, onSkillsChanged);
+    };
+  }, [refreshComposerMenus]);
 
   return {
     plusMenuOpen,

@@ -171,18 +171,9 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
         <HostReconnectBanner locale={locale} />
       ) : null}
       <div className="transcript-stage">
-        {state.awaitingTranscript ? (
-          <div
-            className="transcript-awaiting-banner"
-            data-testid="transcript-awaiting-banner"
-            role="status"
-            aria-live="polite"
-          >
-            {locale === 'zh-CN' ? '正在加载会话…' : 'Loading session…'}
-          </div>
-        ) : null}
         <TranscriptViewport
           key={activeSessionId ?? 'no-session'}
+        awaitingTranscript={state.awaitingTranscript}
         messageCount={visibleMessages.length}
         activitySignal={historyViewActive ? 'history-view' : activitySignal}
         messages={visibleMessages}
@@ -268,6 +259,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
             onFeedback={onFeedback}
             onArtifactAction={onArtifactAction}
             onOpenArtifactCanvas={onOpenArtifactCanvas}
+            onOpenDocument={onOpenDocument}
             {...(hostClient.supportsCommand('project/read-file')
               ? {
                   onOpenFile: (absolutePath: string, relativePath?: string) => {
@@ -281,7 +273,6 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
                       'inspector',
                     );
                   },
-                  onOpenDocument,
                 }
               : {})}
             onOpenDiff={onOpenDiff}
@@ -349,16 +340,7 @@ export function WorkbenchPermissionBar(
     sessionPlan && shouldShowPlanTodoTray({ plan: sessionPlan, isConversationSession }) ? (
       <PlanTodoTray
         plan={sessionPlan}
-        {...(onOpenDocument
-          ? {
-              onOpenDocument: (doc) =>
-                onOpenDocument({
-                  title: doc.title,
-                  path: doc.title,
-                  ...(doc.content !== undefined ? { content: doc.content } : {}),
-                }),
-            }
-          : {})}
+        {...(onOpenDocument ? { onOpenDocument } : {})}
         {...(onPlanAbort ? { onAbort: onPlanAbort } : {})}
       />
     ) : null;

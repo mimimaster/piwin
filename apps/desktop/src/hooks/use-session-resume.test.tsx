@@ -36,7 +36,6 @@ function chatState(): ChatUiState {
 function resumeSuccessData(sessionId: string) {
   return {
     sessionId,
-    live: true,
     scope: { kind: 'general' as const },
     name: 'Old session',
     model: oldModel,
@@ -207,7 +206,6 @@ describe('useSessionResume continue-in-project', () => {
   function projectResumeData(sessionId: string) {
     return {
       sessionId,
-      live: false,
       scope: { kind: 'project' as const, projectPath },
       name: 'Continued session',
       messages: [

@@ -39,7 +39,7 @@ html[data-theme-id='piwin-inkstone-ink'] .gate::before {
 
 html[data-theme-id='piwin-inkstone-paper'] .gate .mic,
 html[data-theme-id='piwin-inkstone-ink'] .gate .mic {
-  font: 600 10.5px var(--sans);
+  font: 600 11px var(--sans);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--zhu);
@@ -152,7 +152,7 @@ html[data-theme-id='piwin-inkstone-paper'] .seal.mini,
 html[data-theme-id='piwin-inkstone-ink'] .seal.mini {
   width: 17px;
   height: 17px;
-  font-size: 9px;
+  font-size: 11px;
   border-radius: 2px;
   transform: rotate(-3deg);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
@@ -190,7 +190,7 @@ html[data-theme-id='piwin-inkstone-ink'] .seal.mini::after {
 }
 
 /* S5.9: Plan execution gate (.intr) — verbatim from proto-01-transcript.html
-   lines 244–252 + pill 81–84. Solo card above the composer; never stacked
+   lines 244–252 + pill 81–84. Solo card in the transcript; never stacked
    under the live todo tray for draft/approved plans. */
 html[data-theme-id='piwin-inkstone-paper'] .intr,
 html[data-theme-id='piwin-inkstone-ink'] .intr {
@@ -356,7 +356,7 @@ html[data-theme-id='piwin-inkstone-ink'] .intr .pill {
   padding: 0 8px;
   border-radius: 999px;
   border: 0;
-  font: 600 10.5px var(--sans);
+  font: 600 11px var(--sans);
   letter-spacing: 0.04em;
   white-space: nowrap;
 }
@@ -375,4 +375,3 @@ html[data-theme-id='piwin-inkstone-ink'] .intr .pill.zhu-p {
   background: var(--zhu-wash);
   color: var(--zhu);
 }
-

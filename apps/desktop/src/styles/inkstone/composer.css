@@ -335,7 +335,7 @@ html[data-theme-id='piwin-inkstone-ink'] .composer-hint {
   gap: 14px;
   justify-content: center;
   margin-top: 8px;
-  font: 10px var(--mono);
+  font: 11px var(--mono);
   color: var(--t4);
   flex-wrap: wrap;
 }
@@ -356,7 +356,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     height: 16px;
     flex: none;
     border-radius: 4px;
-    font: 500 10px var(--serif);
+    font: 500 11px var(--serif);
     background: var(--slab-chip);
     color: var(--slab-t);
   }

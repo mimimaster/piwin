@@ -57,11 +57,11 @@ function createContextValue(
         data: {
           themes: [
             {
-              id: 'piwin-dark',
-              name: 'Noir',
-              version: '6.4.0',
-              mode: 'dark' as const,
-              path: '/themes/piwin-dark',
+              id: 'piwin-inkstone',
+              name: 'Inkstone',
+              version: '2.0.0',
+              mode: 'light' as const,
+              path: '/themes/piwin-inkstone',
               source: 'bundled' as const,
               active: true,
             },
@@ -75,7 +75,7 @@ function createContextValue(
               active: false,
             },
           ],
-          activeThemeId: 'piwin-dark',
+          activeThemeId: 'piwin-inkstone',
         },
       };
     }
@@ -83,7 +83,7 @@ function createContextValue(
       const theme: ThemeManifest =
         cmd.themeId === 'piwin-ink-wash'
           ? PIWIN_APPEARANCE_INK_WASH
-          : cmd.themeId === 'piwin-bone' || cmd.themeId === 'piwin-light'
+          : cmd.themeId === 'piwin-inkstone-paper' || cmd.themeId === 'piwin-light'
             ? PIWIN_APPEARANCE_LIGHT
             : PIWIN_APPEARANCE_DARK;
       return {
@@ -178,12 +178,21 @@ describe('AppearancePage', () => {
 
     const themeSelect = container.querySelector('[data-testid="theme-library-select"]');
     expect(themeSelect).not.toBeNull();
+    expect((themeSelect as HTMLSelectElement | null)?.value).toBe('piwin-inkstone');
+    expect(
+      [...(themeSelect as HTMLSelectElement).options].some((option) => option.value === 'system'),
+    ).toBe(false);
 
     const modeControl = container.querySelector('[data-testid="appearance-mode-control"]');
     expect(modeControl).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid="inkstone-theme-preview"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-testid="light-theme-preview"]')).toHaveLength(0);
+    expect(container.querySelectorAll('[data-testid="dark-theme-preview"]')).toHaveLength(0);
+    expect(modeControl?.textContent).toContain('纸面');
+    expect(modeControl?.textContent).toContain('墨面');
   });
 
-  it('switches from ink-wash back to system and restores light appearance when preferences are light', async () => {
+  it('switches from ink-wash back to Inkstone and restores light appearance', async () => {
     const preferences = createPreferences({ appearanceMode: 'light' });
     const contextValue = createContextValue({
       activeTheme: PIWIN_APPEARANCE_INK_WASH,
@@ -200,7 +209,7 @@ describe('AppearancePage', () => {
     expect(select.value).toBe('piwin-ink-wash');
 
     await act(async () => {
-      select.value = 'system';
+      select.value = 'piwin-inkstone';
       select.dispatchEvent(new Event('change', { bubbles: true }));
     });
 
@@ -219,10 +228,10 @@ describe('AppearancePage', () => {
         }),
       }),
     );
-    expect(contextValue.setInfo).toHaveBeenCalledWith('已恢复系统外观。', 'success');
+    expect(contextValue.setInfo).toHaveBeenCalledWith('已切换到 Inkstone。', 'success');
   });
 
-  it('switches from ink-wash back to system and applies custom dark settings when preferences are dark', async () => {
+  it('switches from ink-wash back to Inkstone and applies custom dark settings', async () => {
     const customDarkSettings = {
       preset: 'default' as const,
       background: '#090A0F',
@@ -247,7 +256,7 @@ describe('AppearancePage', () => {
     if (!select) return;
 
     await act(async () => {
-      select.value = 'system';
+      select.value = 'piwin-inkstone';
       select.dispatchEvent(new Event('change', { bubbles: true }));
     });
 
@@ -270,7 +279,7 @@ describe('AppearancePage', () => {
     );
   });
 
-  it('switches from system to ink-wash correctly', async () => {
+  it('switches from Inkstone to ink-wash correctly', async () => {
     const contextValue = createContextValue({
       activeTheme: PIWIN_APPEARANCE_DARK,
     });
@@ -282,7 +291,7 @@ describe('AppearancePage', () => {
     );
     expect(select).not.toBeNull();
     if (!select) return;
-    expect(select.value).toBe('system');
+    expect(select.value).toBe('piwin-inkstone');
 
     await act(async () => {
       select.value = 'piwin-ink-wash';
@@ -313,7 +322,7 @@ describe('AppearancePage', () => {
     if (!select) return;
 
     await act(async () => {
-      select.value = 'system';
+      select.value = 'piwin-inkstone';
       select.dispatchEvent(new Event('change', { bubbles: true }));
     });
 
@@ -369,7 +378,7 @@ describe('AppearancePage', () => {
     expect(contextValue.onThemeApplied).not.toHaveBeenCalled();
   });
 
-  it('does not surface raw Host ENOENT when restoring system appearance', async () => {
+  it('does not surface raw Host ENOENT when selecting Inkstone', async () => {
     const contextValue = createContextValue({
       activeTheme: PIWIN_APPEARANCE_INK_WASH,
       preferences: createPreferences({ appearanceMode: 'light' }),
@@ -402,7 +411,7 @@ describe('AppearancePage', () => {
     if (!select) return;
 
     await act(async () => {
-      select.value = 'system';
+      select.value = 'piwin-inkstone';
       select.dispatchEvent(new Event('change', { bubbles: true }));
     });
 

@@ -11,14 +11,16 @@ import { inkLineNodeClass, toolStatusToNodeStatus } from './session-node-status.
 import type { ToolClusterKind, BatchClusterSummary } from './tool-group-clustering';
 import { ActionMarquee } from './action-marquee';
 import {
-  IconChevronDown,
-  IconFile,
-  IconSearch,
-  IconTerminal,
-  IconBrowser,
-  IconMore,
   IconAlertCircle,
+  IconChevronDown,
 } from './shell-icons';
+import {
+  ChainIconSearch,
+  ChainIconRead,
+  ChainIconShell,
+  ChainIconWeb,
+  ChainIconTool,
+} from './inkstone-chain-icons.js';
 
 export type ToolBatchCapsuleProps = {
   clusterKind: ToolClusterKind;
@@ -45,15 +47,15 @@ function getClusterIcon(kind: ToolClusterKind): ReactElement {
   switch (kind) {
     case 'explore':
     case 'search':
-      return <IconSearch className="tool-batch-kind-icon" />;
+      return <ChainIconSearch className="tool-batch-kind-icon" />;
     case 'read':
-      return <IconFile className="tool-batch-kind-icon" />;
+      return <ChainIconRead className="tool-batch-kind-icon" />;
     case 'command':
-      return <IconTerminal className="tool-batch-kind-icon" />;
+      return <ChainIconShell className="tool-batch-kind-icon" />;
     case 'web':
-      return <IconBrowser className="tool-batch-kind-icon" />;
+      return <ChainIconWeb className="tool-batch-kind-icon" />;
     default:
-      return <IconMore className="tool-batch-kind-icon" />;
+      return <ChainIconTool className="tool-batch-kind-icon" />;
   }
 }
 
@@ -121,6 +123,66 @@ export function formatExploreCapsuleTitle(input: {
   if (files > 0) return `Explored ${files} file${files === 1 ? '' : 's'}`;
   if (searches > 0) return `Searched ${searches} location${searches === 1 ? '' : 's'}`;
   return `Explored ${input.totalCount} items`;
+}
+
+/** Proto: `<b>探索了 N 个文件</b><span>· M 次搜索</span>` — bold lead, quiet rest. */
+export function exploreFlowTitleParts(
+  group: {
+    fileCount: number;
+    searchCount: number;
+    totalCount?: number;
+    toolCount?: number;
+    isLive?: boolean;
+  },
+  isChinese: boolean,
+): { lead: string; rest: string | null } {
+  const isLive = Boolean(group.isLive);
+  const totalCount = group.totalCount ?? group.toolCount ?? 0;
+  if (isLive) {
+    return {
+      lead: formatExploreCapsuleTitle({
+        fileCount: group.fileCount,
+        searchCount: group.searchCount,
+        totalCount,
+        live: true,
+        isChinese,
+      }),
+      rest: null,
+    };
+  }
+  const files = group.fileCount;
+  const searches = group.searchCount;
+  if (isChinese) {
+    if (files > 0 && searches > 0) {
+      return { lead: `探索了 ${files} 个文件`, rest: ` · ${searches} 次搜索` };
+    }
+    return {
+      lead: formatExploreCapsuleTitle({
+        fileCount: files,
+        searchCount: searches,
+        totalCount,
+        live: false,
+        isChinese,
+      }),
+      rest: null,
+    };
+  }
+  if (files > 0 && searches > 0) {
+    return {
+      lead: `Explored ${files} file${files === 1 ? '' : 's'}`,
+      rest: ` · ${searches} search${searches === 1 ? '' : 'es'}`,
+    };
+  }
+  return {
+    lead: formatExploreCapsuleTitle({
+      fileCount: files,
+      searchCount: searches,
+      totalCount,
+      live: false,
+      isChinese,
+    }),
+    rest: null,
+  };
 }
 
 function getBatchTitle(
@@ -205,9 +267,27 @@ export function ToolBatchCapsule(props: ToolBatchCapsuleProps): ReactElement {
     setInternalExpanded(nextExpanded);
   }
 
-  const defaultTitle = summary.hasRunning
-    ? getRunningBatchTitle(props.clusterKind, summary, isChinese)
-    : getBatchTitle(props.clusterKind, summary, isChinese);
+  const isExploreLike =
+    props.clusterKind === 'explore' ||
+    props.clusterKind === 'read' ||
+    props.clusterKind === 'search';
+
+  const parts = isExploreLike
+    ? exploreFlowTitleParts(
+        {
+          fileCount: summary.fileCount ?? 0,
+          searchCount: summary.searchCount ?? 0,
+          totalCount: summary.totalCount,
+          isLive: Boolean(summary.hasRunning),
+        },
+        isChinese,
+      )
+    : {
+        lead: summary.hasRunning
+          ? getRunningBatchTitle(props.clusterKind, summary, isChinese)
+          : getBatchTitle(props.clusterKind, summary, isChinese),
+        rest: null,
+      };
 
   const activeLabel = summary.activeTool
     ? formatActiveToolLabel(summary.activeTool, isChinese)
@@ -241,8 +321,13 @@ export function ToolBatchCapsule(props: ToolBatchCapsuleProps): ReactElement {
           {getClusterIcon(props.clusterKind)}
         </span>
 
-        <div className="tool-batch-title-group">
-          <span className="tool-batch-title">{defaultTitle}</span>
+        <div className="tool-batch-title-group" data-testid="tool-batch-title">
+          <b
+            className={`tool-batch-title${summary.hasRunning ? ' behavior-explore-active' : ''}`}
+          >
+            {parts.lead}
+          </b>
+          {parts.rest ? <span className="tool-batch-title-rest">{parts.rest}</span> : null}
           {summary.hasRunning && activeLabel ? (
             <ActionMarquee
               className="tool-batch-marquee"
@@ -251,7 +336,7 @@ export function ToolBatchCapsule(props: ToolBatchCapsuleProps): ReactElement {
           ) : null}
         </div>
 
-        <div className="tool-batch-meta">
+        <div className="tool-batch-meta meta">
           {summary.hasRunning ? (
             <span className="tool-batch-status-running" aria-label="running">
               <ToolStatusDot status="running" />
@@ -269,16 +354,23 @@ export function ToolBatchCapsule(props: ToolBatchCapsuleProps): ReactElement {
             </span>
           ) : null}
 
-          {typeof summary.totalDurationMs === 'number' ? (
+          {!summary.hasRunning ? (
             <span className="tool-call-duration" data-testid="tool-batch-duration">
-              {formatDuration(summary.totalDurationMs)}
+              {isExploreLike
+                ? isChinese
+                  ? `${summary.totalCount} 工具`
+                  : `${summary.totalCount} tools`
+                : ''}
+              {typeof summary.totalDurationMs === 'number'
+                ? `${isExploreLike ? ' · ' : ''}${formatDuration(summary.totalDurationMs)}`
+                : ''}
             </span>
-          ) : summary.hasRunning ? (
+          ) : (
             <span className="tool-call-duration tool-call-duration-live">…</span>
-          ) : null}
+          )}
 
           <IconChevronDown
-            className={expanded ? 'tool-batch-chevron open' : 'tool-batch-chevron'}
+            className={`i s12 chev tool-batch-chevron${expanded ? ' open' : ''}`}
             aria-hidden="true"
           />
         </div>

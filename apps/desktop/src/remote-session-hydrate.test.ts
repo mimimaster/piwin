@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest';
 import type { HostCommand } from '@piwin/contracts';
 import {
   activateProjectOnHost,
+  clearRemoteProjectRootsForTests,
   hydrationSessionApplyActions,
   isOpaqueRemoteProjectId,
   isRemoteDesktopTransport,
   mapListedProjects,
   mapListedSessionItems,
   mergeRecentProjects,
+  remoteProjectFilesystemRoot,
   sessionCreateInputForTransport,
   sessionListCommandForTransport,
   sessionUpdateFromIndexPush,
@@ -188,7 +190,8 @@ describe('mapListedProjects', () => {
     ]);
   });
 
-  it('prefers opaque projectId when a Host path is also present', () => {
+  it('keeps opaque projectId as the record key and remembers the Host path for joins', () => {
+    clearRemoteProjectRootsForTests();
     const listed = mapListedProjects({
       projects: [
         {
@@ -201,6 +204,9 @@ describe('mapListedProjects', () => {
     });
     expect(listed[0]?.path).toBe('project-bbbbbbbbbbbbbbbbbbbbbbbb');
     expect(listed[0]?.path).not.toContain('/');
+    expect(remoteProjectFilesystemRoot('project-bbbbbbbbbbbbbbbbbbbbbbbb')).toBe(
+      '/Users/me/piwin',
+    );
   });
 
   it('keeps local ProjectRecord paths', () => {

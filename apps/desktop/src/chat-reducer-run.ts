@@ -1,5 +1,5 @@
 import type { ExecutionRunRecord, SessionTranscriptMessage } from '@piwin/contracts';
-import { markLatestAssistantFailure } from './run-failure-message';
+import { ensureFailedRunAssistant } from './run-failure-message';
 import type { ChatMessageUi, ChatUiAction, ChatUiState, RunRecordUi } from './chat-ui-types';
 import {
   applyBackgroundSessionTurnWorkingMarker,
@@ -188,53 +188,12 @@ export function applyRunRecord(
     );
   }
   if (errorMessage !== undefined) {
-    const failureProjection = markLatestAssistantFailure(
+    messages = ensureFailedRunAssistant(
       state.messages,
       run.runId,
       errorMessage,
-      false,
-      true,
       run.failure === undefined ? undefined : { failure: run.failure },
     );
-    messages = failureProjection.messages;
-    if (!failureProjection.stamped) {
-      let lastAssistantIndex = -1;
-      for (let index = messages.length - 1; index >= 0; index -= 1) {
-        if (messages[index]?.role === 'assistant') {
-          lastAssistantIndex = index;
-          break;
-        }
-      }
-      if (lastAssistantIndex >= 0) {
-        messages = messages.map((message, index) =>
-          index === lastAssistantIndex
-            ? {
-                ...message,
-                status: 'error' as const,
-                error: message.error ?? errorMessage,
-                ...(message.runId === undefined ? { runId: run.runId } : {}),
-                ...(run.failure === undefined ? {} : { failure: run.failure }),
-              }
-            : message,
-        );
-      } else {
-        messages = [
-          ...messages,
-          {
-            id: `piw-m-error-${run.runId}`,
-            role: 'assistant',
-            text: '',
-            thinking: '',
-            tools: [],
-            attachments: [],
-            status: 'error',
-            error: errorMessage,
-            runId: run.runId,
-            ...(run.failure === undefined ? {} : { failure: run.failure }),
-          },
-        ];
-      }
-    }
   }
   return {
     ...state,

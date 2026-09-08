@@ -11,6 +11,7 @@ import { AppErrorBoundary } from './AppErrorBoundary';
 import { ArtifactGallery } from './e2e/artifact-gallery';
 import { InkstoneChainGallery } from './e2e/inkstone-chain-gallery';
 import { PrimitiveGallery } from './e2e/primitive-gallery';
+import { TranscriptScrollGallery } from './e2e/transcript-scroll-gallery';
 import { LiveSpikePanel } from './live-spike/LiveSpikePanel';
 import {
   buildAppearanceTheme,
@@ -120,6 +121,8 @@ export function DesktopThemeRoot() {
           <ArtifactGallery />
         ) : isInkstoneChainGalleryRoute() ? (
           <InkstoneChainGallery />
+        ) : isE2eFixtureRoute('#/e2e/transcript-scroll') ? (
+          <TranscriptScrollGallery />
         ) : (
           <App activeTheme={activeTheme} onThemeApplied={applyResolvedTheme} />
         )}

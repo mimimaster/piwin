@@ -115,6 +115,32 @@ describe('buildBranchPromptInput', () => {
     });
     expect(input.permissionPreset).toBe('ask');
   });
+
+  it('carries skillId when the edited text still names a skill', () => {
+    const input = buildBranchPromptInput({
+      text: '/vanta who are you',
+      branchFromMessageId: 'u2',
+      clientMessageId: 'client-1',
+      agentMode: 'agent',
+      selectedModelKey: 'openai::gpt',
+      modelOptions: [],
+      skillId: 'vanta',
+    });
+    expect(input.skillId).toBe('vanta');
+    expect(input.text).toBe('/vanta who are you');
+  });
+
+  it('omits skillId when the edited text dropped the skill', () => {
+    const input = buildBranchPromptInput({
+      text: 'plain follow-up',
+      branchFromMessageId: 'u2',
+      clientMessageId: 'client-1',
+      agentMode: 'agent',
+      selectedModelKey: 'openai::gpt',
+      modelOptions: [],
+    });
+    expect(input.skillId).toBeUndefined();
+  });
 });
 
 describe('buildRetryPromptInput', () => {
@@ -418,6 +444,96 @@ describe('branchResend (Edit this turn / revert)', () => {
 
     expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'user/send' }));
     expect(sent.some((command) => command.type === 'session/prompt')).toBe(false);
+  });
+
+  it('opens the leave-writes card without clipping the route, then clips only after confirm', async () => {
+    const messages: ChatMessageUi[] = [
+      {
+        id: 'u1',
+        role: 'user',
+        text: 'original text',
+        thinking: '',
+        tools: [],
+        attachments: [],
+        status: 'done',
+      },
+      {
+        id: 'a1',
+        role: 'assistant',
+        text: 'wrote files',
+        thinking: '',
+        tools: [],
+        attachments: [],
+        status: 'done',
+      },
+    ];
+    const sent: HostCommand[] = [];
+    const dispatch = vi.fn();
+    const hostClient = {
+      request: async (command: HostCommand): Promise<HostResponse> => {
+        sent.push(command);
+        if (command.type === 'session/prompt' && command.confirm !== true) {
+          return {
+            id: 'r1',
+            type: 'response',
+            command: 'session/prompt',
+            success: false,
+            error: 'branch-leaves-writes: src/app.ts',
+            problem: {
+              code: 'branch-leaves-writes',
+              data: { files: ['src/app.ts'], hasUnknownWrites: false },
+            },
+          };
+        }
+        if (command.type === 'session/prompt') {
+          return response({ runId: 'run-2' });
+        }
+        return response({ sessionId: 's1', branchPoints: [] });
+      },
+      subscribe: () => () => undefined,
+    };
+    const actions = renderBranchActions(hostClient, {
+      visibleMessages: messages,
+      dispatch,
+    });
+
+    await act(async () => {
+      await actions.current?.branchResend('u1', 'edited text');
+    });
+    expect(actions.current?.pendingBranchLeaves).toEqual({
+      messageId: 'u1',
+      text: 'edited text',
+      offPathWrites: { files: ['src/app.ts'], hasUnknownWrites: false },
+    });
+    // Refusal must not change the visible route (no clip, no optimistic send).
+    expect(dispatch).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'session/branch-switched' }),
+    );
+    expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'user/send' }));
+    expect(dispatch).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'user/send-rollback' }),
+    );
+
+    await act(async () => {
+      actions.current?.confirmBranchLeaves();
+    });
+    const confirmed = sent.filter(
+      (command): command is Extract<HostCommand, { type: 'session/prompt' }> =>
+        command.type === 'session/prompt',
+    ).at(-1);
+    expect(confirmed?.confirm).toBe(true);
+    expect(confirmed?.input.branchFromMessageId).toBe('u1');
+    expect(confirmed?.input.text).toBe('edited text');
+    expect(actions.current?.pendingBranchLeaves).toBeNull();
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'session/branch-switched',
+        clipBeforeMessageId: 'u1',
+      }),
+    );
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'user/send', text: 'edited text' }),
+    );
   });
 });
 

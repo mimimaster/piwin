@@ -8,7 +8,10 @@
  * http(s)/mailto/tel only.
  */
 
+import { rememberLocalRootPresence } from './local-file-reveal-policy.js';
+import { resolveProjectFilesystemRoot } from './remote-session-hydrate.js';
 import { isTauriRuntime } from './tauri-pty.js';
+import { looksLikeFilesystemWorkspacePath } from './workspace-open.js';
 
 export function fileNameFromLocalPath(path: string): string {
   const trimmed = path.replace(/[\\/]+$/, '');
@@ -30,7 +33,8 @@ export function parentDirectoryOf(path: string): string {
 
 /**
  * Resolve a chip path to an absolute filesystem path when possible.
- * Relative paths join `projectPath` when provided.
+ * Relative paths join `projectPath` when provided. Opaque remote project ids
+ * are expanded via the remembered Host root from `project/list`.
  */
 export function resolveLocalFileAbsolutePath(
   path: string,
@@ -46,7 +50,7 @@ export function resolveLocalFileAbsolutePath(
   if (clean.startsWith('~/')) {
     return clean; // expand is Host-side; chip still copies the literal
   }
-  const root = (projectPath ?? '').trim().replace(/[\\/]+$/, '');
+  const root = resolveProjectFilesystemRoot(projectPath);
   if (!root) {
     return clean;
   }
@@ -188,7 +192,33 @@ export async function saveLocalFileAs(
 
 export type RevealLocalFileResult =
   | { ok: true }
-  | { ok: false; reason: 'not-desktop' | 'failed' };
+  | { ok: false; reason: 'not-desktop' | 'failed' | 'not-local' };
+
+/**
+ * Probe whether a Host filesystem root exists on this Desktop machine.
+ * Used so remote Reveal is only offered for same-machine / shared-disk roots.
+ */
+export async function probeLocalFilesystemRoot(rootPath: string): Promise<boolean> {
+  const root = rootPath.trim().replace(/[\\/]+$/, '');
+  if (!looksLikeFilesystemWorkspacePath(root)) {
+    rememberLocalRootPresence(root, 'absent');
+    return false;
+  }
+  rememberLocalRootPresence(root, 'unknown');
+  if (!isTauriRuntime()) {
+    rememberLocalRootPresence(root, 'absent');
+    return false;
+  }
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    const exists = await invoke<boolean>('path_exists_locally', { path: root });
+    rememberLocalRootPresence(root, exists ? 'present' : 'absent');
+    return exists;
+  } catch {
+    rememberLocalRootPresence(root, 'absent');
+    return false;
+  }
+}
 
 /**
  * Reveal the file in the OS file manager (Finder selects the file on macOS).
@@ -202,6 +232,17 @@ export async function revealLocalFileInFolder(
   }
   try {
     const { invoke } = await import('@tauri-apps/api/core');
+    const exists = await invoke<boolean>('path_exists_locally', { path: absolutePath });
+    if (!exists) {
+      const parent = parentDirectoryOf(absolutePath);
+      const parentExists =
+        parent !== absolutePath
+          ? await invoke<boolean>('path_exists_locally', { path: parent })
+          : false;
+      if (!parentExists) {
+        return { ok: false, reason: 'not-local' };
+      }
+    }
     await invoke('reveal_in_file_manager', { path: absolutePath });
     return { ok: true };
   } catch {

@@ -80,7 +80,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .stage-header .status {
-  font: 10px var(--mono);
+  font: 11px var(--mono);
   color: var(--t3);
   display: flex;
   align-items: center;
@@ -120,7 +120,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   background: transparent;
   border: 0;
   color: var(--t3);
-  font: 10px/1.2 var(--mono);
+  font: 11px/1.2 var(--mono);
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
@@ -149,7 +149,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .stage-header .context-bar-mode-badge,
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .stage-header .context-bar-origin-badge {
   font-family: var(--sans);
-  font-size: 10px;
+  font-size: 11px;
   padding: 1px 6px;
   border-radius: 4px;
 }
@@ -199,5 +199,5 @@ html[data-theme-id='piwin-inkstone-ink'] .stage-header .context-session-tree-cou
   min-width: 14px;
   height: 14px;
   padding: 0 3px;
-  font-size: 10px;
+  font-size: 11px;
 }

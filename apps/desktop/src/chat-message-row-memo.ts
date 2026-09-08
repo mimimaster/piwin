@@ -56,6 +56,7 @@ export function areChatMessageRowPropsEqual(
     previous.activeSessionId === next.activeSessionId &&
     previous.editingMessageId === next.editingMessageId &&
     previous.lastUserMessageId === next.lastUserMessageId &&
+    previous.turnUserMessageId === next.turnUserMessageId &&
     previous.activeTheme === next.activeTheme &&
     areFilePathListsEqual(previous.knownFilePaths, next.knownFilePaths) &&
     previous.artifactThemeKey === next.artifactThemeKey &&
@@ -95,6 +96,7 @@ export function areChatMessageRowPropsEqual(
     previous.derivedActionsDisabled === next.derivedActionsDisabled &&
     previous.isLastAssistantInTurn === next.isLastAssistantInTurn &&
     previous.turnFlashcardTools === next.turnFlashcardTools &&
+    previous.turnTools === next.turnTools &&
     previous.isLatestAssistantResponse === next.isLatestAssistantResponse &&
     previous.assemblySummary === next.assemblySummary &&
     previous.isConversationSession === next.isConversationSession &&

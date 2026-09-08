@@ -11,10 +11,11 @@ import type { PermissionPreset } from '@piwin/contracts';
 import { resolvePermissionPreset, resolvePreset } from '@piwin/contracts';
 import { Notice, Select } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
+import { RememberedPermissionsSection } from '../../RememberedPermissionsSection';
+import { permissionModeSavedEffectMessage } from '../../settings-effect-copy.js';
 import { FieldRow } from '../field-row';
 import { PageTitle } from '../page-title';
 import { useSettings } from '../settings-context';
-import { RememberedPermissionsSection } from '../../RememberedPermissionsSection';
 import { PermissionRulesEditor } from './permission-rules-editor';
 
 const PRESET_ORDER: readonly PermissionPreset[] = ['auto', 'ask', 'yolo'];
@@ -24,6 +25,7 @@ export function PermissionsPage(): ReactElement {
   const isChinese = locale === 'zh-CN';
   const { config, projectPath, projectTrusted, saveConfig, saving, request } = useSettings();
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveInfo, setSaveInfo] = useState<string | null>(null);
 
   const currentPreset: PermissionPreset = resolvePermissionPreset(config?.permissions);
   const canEditPreset = !saving && config !== null;
@@ -33,6 +35,7 @@ export function PermissionsPage(): ReactElement {
   async function handlePresetChange(next: PermissionPreset): Promise<void> {
     if (!config) return;
     setSaveError(null);
+    setSaveInfo(null);
     const resolved = resolvePreset(next);
     const ok = await saveConfig({
       ...config,
@@ -40,7 +43,9 @@ export function PermissionsPage(): ReactElement {
     });
     if (!ok) {
       setSaveError(isChinese ? '保存运行模式失败。' : 'Failed to save Run Mode.');
+      return;
     }
+    setSaveInfo(permissionModeSavedEffectMessage(locale));
   }
 
   return (
@@ -261,6 +266,13 @@ export function PermissionsPage(): ReactElement {
 
       <PermissionRulesEditor />
 
+      {saveInfo ? (
+        <div className="settings-section">
+          <Notice tone="info" testId="settings-permission-save-info">
+            {saveInfo}
+          </Notice>
+        </div>
+      ) : null}
       {saveError ? (
         <div className="settings-section">
           <Notice tone="error" testId="settings-permission-save-error">

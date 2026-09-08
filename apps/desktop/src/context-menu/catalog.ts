@@ -171,6 +171,7 @@ export function buildContextMenuItems(
   const labels = labelsFor(caps.locale);
   const noProject = !caps.hasProject;
   const dormantHint = caps.locale === 'zh-CN' ? '现状禁用' : 'unavailable';
+  const revealHint = caps.revealDisabledHint ?? dormantHint;
 
   switch (target.surface) {
     case 'file-tree-file':
@@ -184,7 +185,7 @@ export function buildContextMenuItems(
         }),
         item('reveal', labels, {
           disabled: noProject || !caps.canReveal,
-          disabledHint: dormantHint,
+          disabledHint: revealHint,
         }),
         sep(),
         item('copy-relative-path', labels, { disabled: noProject }),
@@ -212,7 +213,7 @@ export function buildContextMenuItems(
         sep(),
         item('reveal', labels, {
           disabled: noProject || !caps.canReveal,
-          disabledHint: dormantHint,
+          disabledHint: revealHint,
         }),
         item('copy-relative-path', labels, { disabled: noProject }),
         item('copy-absolute-path', labels, { disabled: noProject }),
@@ -225,7 +226,12 @@ export function buildContextMenuItems(
         sep(),
         item('copy-relative-path', labels, { disabled: noProject }),
         item('copy-absolute-path', labels),
-        ...(caps.canReveal ? [item('reveal', labels)] : []),
+        // Keep Reveal visible when disabled so remote users see the hint
+        // instead of a missing action.
+        item('reveal', labels, {
+          disabled: !caps.canReveal,
+          ...(caps.canReveal ? {} : { disabledHint: revealHint }),
+        }),
       ]);
     case 'selection': {
       const cannotSendPreset = !caps.canSendPreset;

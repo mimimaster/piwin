@@ -128,6 +128,26 @@ describe('resolveTurnErrorMessage', () => {
         locale: 'en',
       }),
     ).toBeNull();
+    expect(
+      resolveTurnErrorMessage({
+        messageStatus: 'done',
+        messageError: 'Unexpected non-whitespace character after JSON',
+        runOutcome: 'completed',
+        runTerminalMessage: undefined,
+        isLastAssistantInTurn: true,
+        locale: 'zh-CN',
+      }),
+    ).toBeNull();
+    expect(
+      resolveTurnErrorMessage({
+        messageStatus: 'error',
+        messageError: 'Unexpected non-whitespace character after JSON',
+        runOutcome: 'failed',
+        runTerminalMessage: 'Unexpected non-whitespace character after JSON',
+        isLastAssistantInTurn: true,
+        locale: 'zh-CN',
+      }),
+    ).toBe('Unexpected non-whitespace character after JSON');
   });
 
   it('hides leftover evidence after a completed or cancelled Run', () => {

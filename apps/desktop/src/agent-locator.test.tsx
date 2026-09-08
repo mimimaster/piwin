@@ -74,6 +74,25 @@ describe('AgentLocator', () => {
     ).toBe(true);
   });
 
+  it('rotates connecting-model and waiting-first-token phrases with shimmer copy', () => {
+    render(<AgentLocator input={{ kind: 'connecting-model', locale: 'zh-CN' }} />);
+    const locator = container.querySelector('[data-testid="agent-locator"]');
+    const copy = container.querySelector('[data-testid="agent-locator-copy"]');
+    expect(locator?.getAttribute('data-kind')).toBe('connecting-model');
+    expect(locator?.getAttribute('data-phrase-count')).toBe('4');
+    expect(copy?.classList.contains('agent-locator-copy--shimmer')).toBe(true);
+    expect(copy?.textContent).toBe('连接模型…');
+
+    render(<AgentLocator input={{ kind: 'waiting-first-token', locale: 'zh-CN' }} />);
+    expect(container.querySelector('[data-testid="agent-locator"]')?.getAttribute('data-phrase-count')).toBe('4');
+    expect(container.querySelector('[data-testid="agent-locator-copy"]')?.textContent).toBe('正在思考…');
+    expect(
+      container.querySelector('[data-testid="agent-locator-copy"]')?.classList.contains(
+        'agent-locator-copy--shimmer',
+      ),
+    ).toBe(true);
+  });
+
   it('renders a loading Skill context chip separately from the run locator', () => {
     render(
       <SkillActivityChip

@@ -92,7 +92,7 @@ describe('StageHeader', () => {
     expect(markup).not.toContain('class="lamp"');
   });
 
-  it('renders permission mode badge and origin badge', () => {
+  it('renders origin badge and omits mode badge', () => {
     const markup = renderToStaticMarkup(
       <StageHeader
         title="Branched Session"
@@ -101,8 +101,7 @@ describe('StageHeader', () => {
       />,
     );
 
-    expect(markup).toContain('data-testid="stage-mode-badge"');
-    expect(markup).toContain('YOLO');
+    expect(markup).not.toContain('data-testid="stage-mode-badge"');
     expect(markup).toContain('data-testid="stage-origin-badge"');
     expect(markup).toContain('分支');
   });

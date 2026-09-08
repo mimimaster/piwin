@@ -20,6 +20,8 @@ export type BranchPointsPanelProps = {
   disabled?: boolean;
   onSwitch: (headMessageId: string) => void;
   locale: DesktopLocale;
+  /** When false, empty-state copy mentions workspace files. */
+  isConversationSession?: boolean;
 };
 
 export function BranchPointsPanel(props: BranchPointsPanelProps): ReactElement {
@@ -29,9 +31,13 @@ export function BranchPointsPanel(props: BranchPointsPanelProps): ReactElement {
     return (
       <div className="branch-points-panel" data-testid="branch-points-panel">
         <p className="right-panel-empty muted" data-testid="branch-points-empty">
-          {isZh
-            ? '改写某一轮的提问后发送，会在这里留下一个分叉。主对话区始终只显示当前这一路。'
-            : 'Edit a sent prompt and change the text, then send: a fork appears here. The transcript always shows the active path.'}
+          {props.isConversationSession === false
+            ? isZh
+              ? '改写提问后发送会留下一条新对话路线。主区只显示当前这一路；切换路线不会自动还原工作区文件。'
+              : 'Edit a prompt and send to open a new chat path. The transcript shows the active path only; switching does not revert workspace files.'
+            : isZh
+              ? '改写某一轮的提问后发送，会在这里留下一个分叉。主对话区始终只显示当前这一路。'
+              : 'Edit a sent prompt and change the text, then send: a fork appears here. The transcript always shows the active path.'}
         </p>
       </div>
     );

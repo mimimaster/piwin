@@ -96,25 +96,45 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     font-variant-numeric: tabular-nums;
     font-feature-settings: 'tnum' 1;
   }
+  /* Booktabs (书口线): no card, no vertical rules — a top and bottom hairline
+     with a lighter head rule. Numbers align on tabular figures. */
   .markdown .md-table-wrapper {
-    background: var(--s3);
-    box-shadow: var(--sh1);
-    border-radius: 8px;
+    background: transparent;
+    box-shadow: none;
+    border-radius: 0;
+    border-top: 1px solid var(--l2);
+    border-bottom: 1px solid var(--l2);
+    margin: 14px 0 16px;
   }
   .markdown .md-table {
-    font-size: 13px;
-    line-height: 1.6;
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+  .markdown .md-table th,
+  .markdown .md-table td {
+    overflow-wrap: normal;
+    word-break: normal;
   }
   .markdown .md-table th {
-    background: var(--s1);
-    font: 600 10.5px var(--sans);
-    letter-spacing: 0.08em;
+    background: transparent;
+    font: 500 11px var(--mono);
+    letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--t3);
-    padding: 6px 8px;
+    text-align: left;
+    padding: 9px 12px 8px;
+    border-bottom: 1px solid var(--l1);
+    white-space: nowrap;
   }
   .markdown .md-table td {
-    padding: 6px 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--l1);
+    color: var(--t1);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+  .markdown .md-table tbody tr:last-child td {
+    border-bottom: 0;
   }
   .markdown .md-table tbody tr:nth-child(even) {
     background: transparent;

@@ -91,7 +91,7 @@ export function gitDiffSummaryCacheSizeForTests(): number {
 }
 
 export type FilesChangedBarProps = {
-  tools: ToolCardUi[];
+  tools: readonly ToolCardUi[];
   /** When false, hide the bar even if tools have paths (e.g. still streaming with no writes). */
   visible?: boolean;
   projectPath?: string | null;

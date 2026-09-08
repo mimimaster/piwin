@@ -20,6 +20,7 @@ import {
 } from '@piwin/contracts';
 import { Button, SegmentedControl, Switch } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
+import { settingsSavedWithEffect } from '../../settings-effect-copy.js';
 import { FieldRow } from '../field-row';
 import { useSettings } from '../settings-context';
 
@@ -92,9 +93,7 @@ export function ArtifactPage(): ReactElement {
     };
     if (await saveConfig(next)) {
       setInfo(
-        isZh
-          ? '已保存 Artifact 设置。新会话生效。'
-          : 'Artifact settings saved. New sessions will use the updated configuration.',
+        settingsSavedWithEffect(locale, 'next-session', isZh ? 'Artifact 设置' : 'Artifact settings'),
         'success',
       );
       setEditing(false);

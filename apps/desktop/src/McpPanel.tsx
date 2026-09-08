@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDesktopLocale } from './desktop-locale-context';
+import { mcpConfigSavedEffectMessage } from './settings-effect-copy.js';
 import { useConfirmDialog } from './use-confirm-dialog';
 import {
   Button,
@@ -166,7 +167,7 @@ export function McpPanel(props: McpPanelProps) {
     updateDocument(data.document);
     showUiNotification({
       tone: 'success',
-      message: isChinese ? `已保存 ${data.path}` : `Saved ${data.path}`,
+      message: mcpConfigSavedEffectMessage(locale, data.path),
       autoClose: 3500,
     });
     return true;
@@ -436,8 +437,7 @@ export function McpPanel(props: McpPanelProps) {
       };
     },
     // saveDocument closes over documentRef; request + locale are the inputs.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isChinese, props.request],
+    [isChinese, locale, props.request],
   );
 
   async function handleToggleServer(serverId: string, enable: boolean): Promise<void> {

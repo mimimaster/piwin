@@ -1,6 +1,7 @@
-import { useState, type ReactElement } from 'react';
+import { useLayoutEffect, useRef, useState, type ReactElement } from 'react';
 import type { ContextSummaryPush } from '@piwin/contracts';
 import { IconChevronDown } from './shell-icons';
+import { requestTranscriptTurnMeasure } from './transcript-turn-measure.js';
 
 export function resolveAssemblySummaryForUserMessage(input: {
   messageId: string;
@@ -60,7 +61,16 @@ export function AssemblySummaryCapsule(props: {
   locale: 'zh-CN' | 'en';
 }): ReactElement {
   const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const zh = props.locale === 'zh-CN';
+
+  // Local expand is invisible to turnsStructureKey; force the virtualizer to
+  // re-read this turn body so overflow:hidden on the slot cannot clip the panel.
+  useLayoutEffect(() => {
+    const turnBody = rootRef.current?.closest('.transcript-turn-window-item-body');
+    requestTranscriptTurnMeasure(turnBody instanceof HTMLElement ? turnBody : null);
+  }, [open]);
+
   if (props.summary === undefined) {
     return (
       <div className="fw assembly-summary" data-testid="assembly-summary-capsule">
@@ -97,6 +107,7 @@ export function AssemblySummaryCapsule(props: {
 
   return (
     <div
+      ref={rootRef}
       className={`fw assembly-summary${open ? ' open' : ''}`}
       data-testid="assembly-summary-capsule"
     >

@@ -323,3 +323,40 @@ export function applyMockRetryPrompt(
   rebaseMockLeaf(session, target.id);
   return { ok: true, user: target };
 }
+
+export function applyMockBranchPrompt(
+  session: MockTranscriptTreeHost,
+  input: {
+    branchFromMessageId: string;
+    confirm: boolean;
+  },
+):
+  | { ok: true; parentId: string | null }
+  | { ok: false; error: string; writes?: WorkspaceWrites } {
+  const target = session.transcript.find((message) => message.id === input.branchFromMessageId);
+  if (target === undefined) {
+    return { ok: false, error: `branch-target-not-found: ${input.branchFromMessageId}` };
+  }
+  if (target.role !== 'user') {
+    return { ok: false, error: `branch-target-not-user: ${input.branchFromMessageId}` };
+  }
+  ensureMockTree(session);
+  const parentId = session.parentById?.[target.id] ?? null;
+  const path = visibleMockTranscript(session);
+  const index = path.findIndex((message) => message.id === target.id);
+  if (index !== -1) {
+    const after = path.slice(index + 1);
+    const writes = collectWorkspaceWritesFromMessages(
+      after.filter((message) => message.role === 'assistant'),
+    );
+    if (writes !== null && !input.confirm) {
+      return {
+        ok: false,
+        error: `branch-leaves-writes: ${writes.files.join(', ')}`,
+        writes,
+      };
+    }
+  }
+  rebaseMockLeaf(session, parentId);
+  return { ok: true, parentId };
+}
