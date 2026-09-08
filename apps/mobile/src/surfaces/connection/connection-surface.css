@@ -1,0 +1,580 @@
+/* ═══════════════════════════════════════════════════════════════
+   Piwin Mobile Connection Surface — Inkstone Native Aesthetic
+   ═══════════════════════════════════════════════════════════════ */
+
+.connection-surface {
+  padding: 12px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.connection-surface-inner {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0 auto;
+}
+
+/* ── Brand Header ── */
+.connection-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 6px 12px 2px;
+}
+
+.connection-header .brand-seal {
+  width: 36px;
+  height: 38px;
+  font-size: 22px;
+  margin-bottom: 10px;
+  box-shadow: var(--sh1);
+  transition: transform 0.2s ease;
+}
+
+.connection-header .brand-seal:active {
+  transform: scale(0.96) rotate(-2deg);
+}
+
+.connection-header h1 {
+  font: 600 22px/1.3 var(--serif);
+  color: var(--t1);
+  letter-spacing: -0.01em;
+  margin: 0 0 5px;
+}
+
+.connection-header p {
+  color: var(--t3);
+  font-size: 12.5px;
+  line-height: 1.5;
+  max-width: 320px;
+  margin: 0;
+}
+
+/* ── Segmented Mode Switcher ── */
+.connection-segmented-nav {
+  display: flex;
+  background: var(--s1);
+  padding: 3px;
+  border-radius: 9px;
+  border: 1px solid var(--l2);
+  width: 100%;
+  gap: 3px;
+}
+
+.connection-segmented-nav button {
+  flex: 1;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--t3);
+  border-radius: 6px;
+  transition: all 0.18s ease;
+}
+
+.connection-segmented-nav button.active {
+  background: var(--s3);
+  color: var(--t1);
+  box-shadow: var(--sh1);
+}
+
+/* ── Main Inset Card ── */
+.connection-card {
+  background: var(--s3);
+  border: 1px solid var(--l2);
+  border-radius: 16px;
+  padding: 18px 16px;
+  box-shadow: var(--sh2);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+}
+
+/* ── Form Controls & Inputs Polish ── */
+.manual-config-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+.form-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-field-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--t1);
+}
+
+.form-field-hint {
+  font-size: 11.5px;
+  color: var(--t3);
+  line-height: 1.45;
+  margin-top: 1px;
+}
+
+.form-field-hint.warning {
+  color: var(--ochre);
+  background: var(--lamp-wash);
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--lamp) 25%, transparent);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.form-field-hint.warning .icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+/* Force unified input styles for both TextInput and PasswordInput */
+.connection-surface .mantine-TextInput-root,
+.connection-surface .mantine-PasswordInput-root {
+  width: 100%;
+}
+
+.connection-surface .mantine-TextInput-wrapper,
+.connection-surface .mantine-PasswordInput-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.connection-surface .mantine-TextInput-input,
+.connection-surface .mantine-PasswordInput-input,
+.connection-surface .piwin-text-input-field,
+.connection-surface .piwin-password-input-shell {
+  background-color: var(--s2) !important;
+  color: var(--t1) !important;
+  border: 1px solid var(--l2) !important;
+  border-radius: 9px !important;
+  font-family: var(--mono) !important;
+  font-size: 14px !important;
+  min-height: 46px !important;
+  box-shadow: none !important;
+  outline: none !important;
+  padding: 10px 14px !important;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease !important;
+}
+
+.connection-surface .mantine-PasswordInput-input,
+.connection-surface .piwin-password-input-shell {
+  display: flex !important;
+  align-items: center !important;
+}
+
+.connection-surface .mantine-PasswordInput-innerInput,
+.connection-surface .piwin-password-input-field {
+  background: transparent !important;
+  border: none !important;
+  color: var(--t1) !important;
+  box-shadow: none !important;
+  outline: none !important;
+  padding: 0 !important;
+  min-height: auto !important;
+  font-family: var(--mono) !important;
+  font-size: 14px !important;
+  height: 100% !important;
+}
+
+/* Focus states — clean Inkstone vermilion wash ring */
+.connection-surface .mantine-TextInput-input:focus,
+.connection-surface .mantine-PasswordInput-input:focus-within,
+.connection-surface .piwin-text-input-field:focus,
+.connection-surface .piwin-password-input-shell:focus-within {
+  border-color: var(--zhu) !important;
+  box-shadow: 0 0 0 3px var(--zhu-wash) !important;
+  outline: none !important;
+}
+
+/* Placeholder colors */
+.connection-surface .mantine-TextInput-input::placeholder,
+.connection-surface .mantine-PasswordInput-innerInput::placeholder,
+.connection-surface .piwin-text-input-field::placeholder,
+.connection-surface .piwin-password-input-field::placeholder {
+  color: var(--t4) !important;
+  opacity: 1 !important;
+  font-family: var(--sans) !important;
+  font-size: 13.5px !important;
+}
+
+/* Password visibility toggle button */
+.connection-surface .mantine-PasswordInput-visibilityToggle {
+  color: var(--t3) !important;
+  border: none !important;
+  background: transparent !important;
+}
+
+.connection-surface .mantine-PasswordInput-visibilityToggle:hover {
+  color: var(--t1) !important;
+  background: transparent !important;
+}
+
+.advanced-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 2px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--t3);
+  border-top: 1px solid var(--l1);
+  margin-top: 2px;
+}
+
+.advanced-toggle-btn:hover {
+  color: var(--t1);
+}
+
+.advanced-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--s1);
+  border-radius: 9px;
+  border: 1px solid var(--l1);
+}
+
+.connect-submit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: var(--zhu);
+  color: var(--on-zhu);
+  font-size: 14.5px;
+  font-weight: 600;
+  margin-top: 2px;
+  box-shadow: 0 2px 8px var(--zhu-wash);
+  transition: all 0.15s ease;
+}
+
+.connect-submit-btn:disabled {
+  background: var(--s1);
+  color: var(--t4);
+  border: 1px solid var(--l2);
+  box-shadow: none;
+}
+
+/* ── Quick Pairing Mode ── */
+.quick-pair-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hero-scan-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 50px;
+  width: 100%;
+  padding: 12px 18px;
+  border-radius: 11px;
+  background: var(--zhu);
+  color: var(--on-zhu);
+  font-size: 15px;
+  font-weight: 600;
+  box-shadow: 0 4px 14px var(--zhu-wash);
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+.hero-scan-btn:hover:not(:disabled) {
+  background: var(--zhu-lift);
+}
+
+.hero-scan-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.hero-scan-btn .icon {
+  width: 19px;
+  height: 19px;
+}
+
+.secondary-paste-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: var(--s1);
+  border: 1px solid var(--l2);
+  color: var(--t1);
+  font-size: 13.5px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.secondary-paste-btn:active:not(:disabled) {
+  background: var(--s2);
+  transform: scale(0.98);
+}
+
+.pair-guide-steps {
+  background: var(--s1);
+  border: 1px solid var(--l1);
+  border-radius: 11px;
+  padding: 13px 13px 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.pair-guide-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--t2);
+  letter-spacing: 0.02em;
+}
+
+.pair-guide-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pair-guide-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--t2);
+  line-height: 1.5;
+}
+
+.step-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--l3);
+  color: var(--s3);
+  font: 700 10px var(--mono);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.step-badge.highlight {
+  background: var(--zhu);
+  color: var(--on-zhu);
+}
+
+.pair-guide-footer {
+  border-top: 1px dashed var(--l2);
+  padding-top: 8px;
+  font-size: 11.5px;
+  color: var(--t3);
+  line-height: 1.5;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── Connected State Card ── */
+.connected-pane {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  padding: 6px 0 2px;
+}
+
+.connected-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--pine-wash);
+  border: 1px solid color-mix(in srgb, var(--pine) 35%, transparent);
+  color: var(--pine);
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.connected-host-details {
+  background: var(--s1);
+  border: 1px solid var(--l2);
+  border-radius: 11px;
+  padding: 12px 14px;
+  width: 100%;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.connected-host-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.connected-host-label {
+  color: var(--t3);
+}
+
+.connected-host-val {
+  color: var(--t1);
+  font-family: var(--mono);
+  font-weight: 500;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connected-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  width: 100%;
+}
+
+.enter-app-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
+  width: 100%;
+  border-radius: 10px;
+  background: var(--zhu);
+  color: var(--on-zhu);
+  font-size: 14.5px;
+  font-weight: 600;
+  box-shadow: 0 3px 12px var(--zhu-wash);
+}
+
+.disconnect-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  width: 100%;
+  border-radius: 10px;
+  background: var(--s1);
+  border: 1px solid var(--l2);
+  color: var(--crimson);
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+/* ── Feedback & Diagnostic Banners ── */
+.diagnostic-box {
+  border-radius: 12px;
+  padding: 12px 14px;
+  width: 100%;
+  font-size: 12.5px;
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: var(--sh1);
+}
+
+.diagnostic-box.error {
+  background: var(--crimson-wash);
+  border: 1px solid color-mix(in srgb, var(--crimson) 35%, transparent);
+  color: var(--t1);
+}
+
+.diagnostic-box.warning {
+  background: var(--lamp-wash);
+  border: 1px solid color-mix(in srgb, var(--lamp) 35%, transparent);
+  color: var(--t1);
+}
+
+.diagnostic-box-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+}
+
+.diagnostic-box-head.error {
+  color: var(--crimson);
+}
+
+.diagnostic-box-head.warning {
+  color: var(--ochre);
+}
+
+.diagnostic-tips-list {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--t2);
+  font-size: 11.5px;
+}
+
+.diagnostic-action-btn {
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--s3);
+  border: 1px solid var(--l2);
+  color: var(--t1);
+}
+
+/* ── Footer Security & Keychain Note ── */
+.connection-security-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--t4);
+  font-size: 11.5px;
+  text-align: center;
+  padding: 0 10px;
+}
+
+.connection-security-note .icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
