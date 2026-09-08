@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, type ReactElement, type RefObject } from 'react';
+import { act, useRef, type ReactElement, type RefObject } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TranscriptScrollProvider } from './transcript-scroll-port';
@@ -7,8 +7,10 @@ import {
   createTranscriptRangeExtractor,
   shouldVirtualizeTranscript,
   TRANSCRIPT_VIRTUALIZATION_THRESHOLD,
+  TRANSCRIPT_TURN_GAP_PX,
   TranscriptTurnList,
   buildTranscriptTurnsStructureKey,
+  buildTranscriptStreamingMeasureKey,
   transcriptVirtualizerMeasurePolicy,
 } from './transcript-turn-list';
 import { groupTranscriptTurns, type TranscriptTurn } from './transcript-turns';
@@ -96,9 +98,12 @@ describe('transcript turn window', () => {
       .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
       .mockImplementation(function getTestBounds(this: HTMLElement): DOMRect {
         const turnId = this.dataset.turnId;
-        const height = this.classList.contains('transcript-turn-window-item')
+        // Measure the inner body (natural height). Outer slots are height-locked.
+        const height = this.classList.contains('transcript-turn-window-item-body')
           ? ((turnId ? turnHeightOverrides.get(turnId) : undefined) ?? 120)
-          : 0;
+          : this.classList.contains('transcript-turn-window-item')
+            ? Number.parseFloat(this.style.height || '0') || 0
+            : 0;
         return {
           top: 0,
           right: 900,
@@ -134,6 +139,27 @@ describe('transcript turn window', () => {
 
     expect(container.querySelectorAll('[data-testid="rendered-turn"]')).toHaveLength(10);
     expect(container.querySelector('[data-testid="transcript-turn-window"]')).toBeNull();
+  });
+
+  it('renders before the first frame when the scroll root mounts with the transcript', () => {
+    function OpeningTranscript(): ReactElement {
+      const scrollElementRef = useRef<HTMLDivElement | null>(null);
+      return (
+        <TranscriptScrollProvider sessionId="session-first-commit" scrollElementRef={scrollElementRef}>
+          <div ref={(element) => {
+            scrollElementRef.current = element;
+            if (element) Object.defineProperties(element, {
+              offsetHeight: { configurable: true, value: 640 },
+              offsetWidth: { configurable: true, value: 900 },
+            });
+          }}>
+            <TranscriptTurnList turns={createTurns(2)} pinnedMessageId={null} renderTurn={renderTurn} />
+          </div>
+        </TranscriptScrollProvider>
+      );
+    }
+    act(() => root.render(<OpeningTranscript />));
+    expect(container.querySelectorAll('[data-testid="rendered-turn"]')).toHaveLength(2);
   });
 
   it('windows a short heavy transcript instead of mounting every turn', async () => {
@@ -253,6 +279,54 @@ describe('transcript turn window', () => {
     expect(Number.parseFloat(turnWindow?.style.height ?? '0')).toBeGreaterThan(6_000);
   });
 
+  it('locks each absolute slot to its virtual size so neighbors cannot paint over each other', async () => {
+    const turns = createTurns(8);
+    for (const [index, turn] of turns.entries()) {
+      turnHeightOverrides.set(turn.id, 200 + index * 40);
+    }
+    const scrollElementRef: RefObject<HTMLDivElement | null> = { current: container };
+    Object.defineProperties(container, {
+      offsetHeight: { configurable: true, writable: true, value: 640 },
+      offsetWidth: { configurable: true, writable: true, value: 900 },
+      clientHeight: { configurable: true, writable: true, value: 640 },
+      scrollHeight: { configurable: true, writable: true, value: 4_000 },
+      scrollTop: { configurable: true, writable: true, value: 3_200 },
+    });
+
+    await act(async () => {
+      root.render(
+        <TranscriptScrollProvider sessionId="session-slot-lock" scrollElementRef={scrollElementRef}>
+          <TranscriptTurnList turns={turns} pinnedMessageId={null} streaming renderTurn={renderTurn} />
+        </TranscriptScrollProvider>,
+      );
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    });
+
+    const slots = [
+      ...container.querySelectorAll<HTMLElement>('[data-testid="transcript-turn-window-item"]'),
+    ];
+    expect(slots.length).toBeGreaterThan(1);
+    const placed = slots.map((slot) => {
+      const height = Number.parseFloat(slot.style.height || '0');
+      const match = /translateY\((-?\d+(?:\.\d+)?)px\)/.exec(slot.style.transform);
+      const start = match ? Number.parseFloat(match[1] ?? '0') : Number.NaN;
+      return { height, start, end: start + height };
+    });
+    for (const slot of placed) {
+      expect(slot.height).toBeGreaterThan(0);
+      expect(Number.isFinite(slot.start)).toBe(true);
+    }
+    const ordered = [...placed].sort((left, right) => left.start - right.start);
+    for (let index = 1; index < ordered.length; index += 1) {
+      const previous = ordered[index - 1];
+      const current = ordered[index];
+      if (!previous || !current) continue;
+      // Next slot must start at/after previous end (+ gap). Overlap = 字叠字.
+      expect(current.start).toBeGreaterThanOrEqual(previous.end + TRANSCRIPT_TURN_GAP_PX - 0.5);
+    }
+  });
+
   it('keeps an edited historical turn mounted and focused while the tail changes', async () => {
     const scrollElementRef: RefObject<HTMLDivElement | null> = { current: container };
     Object.defineProperties(container, {
@@ -288,6 +362,50 @@ describe('transcript turn window', () => {
     expect(document.activeElement?.getAttribute('data-testid')).toBe('editor-user-25');
     expect(container.querySelector('[data-testid="editor-user-25"]')).not.toBeNull();
   });
+
+  it('preserves exact mounted heights when another message changes structure', async () => {
+    const turns = createTurns(2);
+    turnHeightOverrides.set('turn-user-0', 6_000);
+    turnHeightOverrides.set('turn-user-1', 900);
+    const scrollElementRef: RefObject<HTMLDivElement | null> = { current: container };
+    Object.defineProperties(container, {
+      offsetHeight: { configurable: true, value: 640 },
+      offsetWidth: { configurable: true, value: 900 },
+      clientHeight: { configurable: true, value: 640 },
+    });
+    const committedHeights: string[] = [];
+    const notifyContentGrew = (): void => {
+      committedHeights.push(
+        container.querySelector<HTMLElement>('.transcript-turn-window')?.style.height ?? '',
+      );
+    };
+    const render = (nextTurns: TranscriptTurn[]): void => {
+      root.render(
+        <TranscriptScrollProvider sessionId="session-stable-measure" scrollElementRef={scrollElementRef}
+          notifyContentGrew={notifyContentGrew}>
+          <TranscriptTurnList turns={nextTurns} pinnedMessageId={null} renderTurn={renderTurn} />
+        </TranscriptScrollProvider>,
+      );
+    };
+    await act(async () => render(turns));
+
+    // A restored pause/error or tool status changes structure, but the already
+    // measured historical body has not resized and emits no new observer event.
+    await act(async () => render(turns.map((turn) => ({
+      ...turn,
+      items: turn.items.map((item) => ({
+        ...item,
+        message: { ...item.message, status: 'streaming' },
+      })),
+    }))));
+
+    const slots = container.querySelectorAll<HTMLElement>('.transcript-turn-window-item');
+    expect(slots[0]?.style.height).toBe('6000px');
+    expect(slots[1]?.style.height).toBe('900px');
+    expect(container.querySelector<HTMLElement>('.transcript-turn-window')?.style.height)
+      .toBe('6920px');
+    expect(committedHeights.at(-1)).toBe('6920px');
+  });
 });
 
 describe('transcript virtualization policy', () => {
@@ -298,8 +416,7 @@ describe('transcript virtualization policy', () => {
     expect(shouldVirtualizeTranscript(12)).toBe(true);
     expect(shouldVirtualizeTranscript(20)).toBe(true);
     expect(shouldVirtualizeTranscript(21)).toBe(true);
-    expect(shouldVirtualizeTranscript(200, { streaming: true })).toBe(true);
-    expect(shouldVirtualizeTranscript(200, { streaming: false })).toBe(true);
+    expect(shouldVirtualizeTranscript(200)).toBe(true);
     expect(TRANSCRIPT_VIRTUALIZATION_THRESHOLD).toBe(0);
   });
 
@@ -308,6 +425,26 @@ describe('transcript virtualization policy', () => {
     expect(extractRange({ startIndex: 4, endIndex: 6, overscan: 1, count: 50 })).toEqual([
       3, 4, 5, 6, 7, 30, 47, 48, 49,
     ]);
+  });
+});
+
+describe('transcript streaming measure key', () => {
+  it('stays empty while idle and changes when live text grows', () => {
+    const turns = createTurns(2);
+    expect(buildTranscriptStreamingMeasureKey(turns, false)).toBe('');
+    const idle = buildTranscriptStreamingMeasureKey(turns, true);
+    const grown: TranscriptTurn[] = turns.map((turn, index) =>
+      index === turns.length - 1
+        ? {
+            ...turn,
+            items: turn.items.map((item) => ({
+              ...item,
+              message: { ...item.message, text: `${item.message.text} more tokens` },
+            })),
+          }
+        : turn,
+    );
+    expect(buildTranscriptStreamingMeasureKey(grown, true)).not.toBe(idle);
   });
 });
 

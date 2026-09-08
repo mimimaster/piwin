@@ -641,12 +641,29 @@ Paste image
 
 The durable transcript remains Host/session state; mounted React/WebKit nodes
 are only a bounded projection of that state. Desktop groups messages into
-stable turn units and keeps the simple full-render path through 40 turns. Above
-that threshold one dynamic-height virtualizer mounts only the visible range
-plus four-turn overscan. TranscriptViewport, follow-tail, History Ticks, and the
+stable turn units. Non-empty transcripts use one dynamic-height virtualizer
+that mounts the visible range plus two-turn overscan and the newest three turns.
+TranscriptViewport, follow-tail, History Ticks, and the
 virtualizer share one scroll-element port. Scroll offsets and measured turn
 heights are bounded presentation caches per session and are cleared when that
 session is deleted.
+
+Ordinary session opens start at the latest tail. Structure/stream updates
+remeasure mounted turn bodies without clearing the virtualizer's exact size
+cache; unchanged bodies may never emit another resize event. After measured
+slot heights commit, the viewport corrects follow-tail in a layout effect
+before paint. User scroll-away and explicit history jumps still take priority.
+The shared scroll port publishes its mounted element through React state in
+a layout effect; a ref assignment alone cannot wake a newly mounted list.
+
+First-open presentation covers the transcript with an `Opening conversation…`
+state while the mounted content lays out. After the snapshot arrives it waits
+at least 300 ms, then reveals at the tail after 180 ms of stable geometry/DOM
+with measured tail slots and loaded inline media. A 1600 ms layout deadline
+performs a final tail pin and reveals even if a preview remains pending; network
+waiting is separate. The guard runs once per opened viewport and never covers
+ordinary subsequent updates, blank new sessions, or explicit history views.
+The content stays laid out but hidden and inert during preparation.
 
 Heavy content has independent retention bounds:
 

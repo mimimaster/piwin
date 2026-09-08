@@ -171,18 +171,9 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
         <HostReconnectBanner locale={locale} />
       ) : null}
       <div className="transcript-stage">
-        {state.awaitingTranscript ? (
-          <div
-            className="transcript-awaiting-banner"
-            data-testid="transcript-awaiting-banner"
-            role="status"
-            aria-live="polite"
-          >
-            {locale === 'zh-CN' ? '正在加载会话…' : 'Loading session…'}
-          </div>
-        ) : null}
         <TranscriptViewport
           key={activeSessionId ?? 'no-session'}
+          awaitingTranscript={state.awaitingTranscript}
         messageCount={visibleMessages.length}
         activitySignal={historyViewActive ? 'history-view' : activitySignal}
         messages={visibleMessages}

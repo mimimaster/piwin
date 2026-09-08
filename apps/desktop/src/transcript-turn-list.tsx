@@ -18,11 +18,15 @@ import {
   TRANSCRIPT_TURN_ESTIMATED_HEIGHT_PX,
 } from './transcript-turn-height';
 import { indexTranscriptTurnsByMessageId, type TranscriptTurn } from './transcript-turns';
+import {
+  TRANSCRIPT_TURN_MEASURE_EVENT,
+  type TranscriptTurnMeasureDetail,
+} from './transcript-turn-measure.js';
 
 /** Virtualize any non-empty transcript. Off-screen history must not mount. */
 export const TRANSCRIPT_VIRTUALIZATION_THRESHOLD = 0;
 export { TRANSCRIPT_TURN_ESTIMATED_HEIGHT_PX };
-const TRANSCRIPT_TURN_GAP_PX = 20;
+export const TRANSCRIPT_TURN_GAP_PX = 20;
 const TRANSCRIPT_TURN_OVERSCAN = 2;
 /** Always keep the newest N items/turns mounted so the live call chain never unmounts. */
 const TRANSCRIPT_LIVE_TAIL_PIN_COUNT = 3;
@@ -33,6 +37,9 @@ const TRANSCRIPT_LIVE_TAIL_PIN_COUNT = 3;
  * ResizeObserver → rAF measure therefore never runs while tokens (or a
  * pause/error row) change height, so the next turn is placed on top of the
  * previous markdown.
+ *
+ * Slot height is locked to the virtualizer size cache (see render); measure the
+ * inner body, not the locked outer shell.
  */
 export function transcriptVirtualizerMeasurePolicy(streaming: boolean): {
   useAnimationFrameWithResizeObserver: false;
@@ -52,6 +59,7 @@ function transcriptTurnItemStructureKey(turn: TranscriptTurn): string {
         message.tools?.map((tool) => `${tool.toolCallId}:${tool.status}`).join(',') ?? '';
       const failureCode = message.failure?.code ?? '';
       const errorSig = message.error ?? '';
+      // Structure only — token growth is handled by buildTranscriptStreamingMeasureKey.
       return [message.id, message.status, toolSig, errorSig, failureCode].join(':');
     })
     .join(';');
@@ -64,11 +72,41 @@ export function buildTranscriptTurnsStructureKey(turns: readonly TranscriptTurn[
     .join('|');
 }
 
-export function shouldVirtualizeTranscript(
-  turnCount: number,
-  options?: { streaming?: boolean },
-): boolean {
-  void options;
+/**
+ * Live-tail content fingerprint. Includes text length so streaming growth
+ * forces a remasure; structure key alone intentionally does not.
+ */
+export function buildTranscriptStreamingMeasureKey(
+  turns: readonly TranscriptTurn[],
+  streaming: boolean,
+): string {
+  if (!streaming || turns.length === 0) {
+    return '';
+  }
+  const tail = turns.slice(-TRANSCRIPT_LIVE_TAIL_PIN_COUNT);
+  return tail
+    .map((turn) => {
+      const body = turn.items
+        .map((item) => {
+          const message = item.message;
+          const textLen = message.text?.length ?? 0;
+          const thinkingLen = message.thinking?.length ?? 0;
+          const toolSig =
+            message.tools
+              ?.map(
+                (tool) =>
+                  `${tool.toolCallId}:${tool.status}:${(tool.output ?? '').length}`,
+              )
+              .join(',') ?? '';
+          return `${message.id}:${message.status}:${textLen}:${thinkingLen}:${toolSig}`;
+        })
+        .join(';');
+      return `${turn.id}:${body}`;
+    })
+    .join('|');
+}
+
+export function shouldVirtualizeTranscript(turnCount: number): boolean {
   return turnCount > TRANSCRIPT_VIRTUALIZATION_THRESHOLD;
 }
 
@@ -143,9 +181,7 @@ function useVirtualizedMessageJump(
 
 export function TranscriptTurnList(props: TranscriptTurnListProps): ReactElement {
   const scrollPort = useTranscriptScrollPort();
-  const virtualize = shouldVirtualizeTranscript(props.turns.length, {
-    streaming: props.streaming === true,
-  });
+  const virtualize = shouldVirtualizeTranscript(props.turns.length);
 
   useEffect(() => {
     if (!scrollPort || virtualize) {
@@ -203,7 +239,7 @@ function VirtualizedTranscriptTurns(
     [props.scrollPort.sessionId, props.turns],
   );
   const measureElement = useCallback(
-    (element: HTMLDivElement) => {
+    (element: HTMLElement) => {
       const rawHeight = Math.max(element.offsetHeight, element.getBoundingClientRect().height);
       const normalized = normalizeTranscriptTurnHeight(rawHeight);
       const turnId = element.dataset.turnId;
@@ -217,9 +253,9 @@ function VirtualizedTranscriptTurns(
   );
 
   const measurePolicy = transcriptVirtualizerMeasurePolicy(props.streaming === true);
-  const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
+  const virtualizer = useVirtualizer<HTMLDivElement, HTMLElement>({
     count: props.turns.length,
-    getScrollElement: () => props.scrollPort.scrollElementRef.current,
+    getScrollElement: () => props.scrollPort.scrollElement,
     estimateSize,
     getItemKey,
     gap: TRANSCRIPT_TURN_GAP_PX,
@@ -235,10 +271,56 @@ function VirtualizedTranscriptTurns(
     () => buildTranscriptTurnsStructureKey(props.turns),
     [props.turns],
   );
+  const measureMountedTurns = useCallback((): void => {
+    // measure() clears every exact size and falls back to estimates. Mounted
+    // bodies may not resize afterward, so ResizeObserver cannot repair that
+    // reset. Re-read only mounted bodies and retain off-screen measurements.
+    for (const element of virtualizer.elementsCache.values()) {
+      virtualizer.measureElement(element);
+    }
+  }, [virtualizer]);
   useLayoutEffect(() => {
-    virtualizer.measure();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- structural key only
-  }, [turnsStructureKey]);
+    measureMountedTurns();
+  }, [measureMountedTurns, turnsStructureKey]);
+
+  const streamingMeasureKey = useMemo(
+    () => buildTranscriptStreamingMeasureKey(props.turns, props.streaming === true),
+    [props.streaming, props.turns],
+  );
+  useLayoutEffect(() => {
+    if (streamingMeasureKey.length === 0) {
+      return;
+    }
+    // Coalesce to one remasure per animation frame — token floods must not
+    // sync-layout thrash, but each frame of growth must still lift neighbors.
+    let cancelled = false;
+    const frame = window.requestAnimationFrame(() => {
+      if (!cancelled) {
+        measureMountedTurns();
+      }
+    });
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(frame);
+    };
+  }, [measureMountedTurns, streamingMeasureKey]);
+
+  useEffect(() => {
+    const onTurnMeasure = (event: Event): void => {
+      const detail = (event as CustomEvent<TranscriptTurnMeasureDetail>).detail;
+      const target = detail?.element;
+      if (target instanceof HTMLElement) {
+        virtualizer.measureElement(target);
+      } else {
+        measureMountedTurns();
+      }
+      props.scrollPort.notifyContentGrew();
+    };
+    document.addEventListener(TRANSCRIPT_TURN_MEASURE_EVENT, onTurnMeasure);
+    return () => {
+      document.removeEventListener(TRANSCRIPT_TURN_MEASURE_EVENT, onTurnMeasure);
+    };
+  }, [measureMountedTurns, props.scrollPort, virtualizer]);
 
   useLayoutEffect(() => {
     const listElement = listRef.current;
@@ -268,18 +350,25 @@ function VirtualizedTranscriptTurns(
       resizeObserver?.disconnect();
       window.removeEventListener('resize', measureScrollMargin);
     };
-  }, [props.scrollPort.scrollElementRef]);
+  }, [props.scrollPort.scrollElement, props.scrollPort.scrollElementRef]);
 
   useVirtualizedMessageJump(props.scrollPort, turnIndexByMessageId, virtualizer);
 
   const virtualItems = virtualizer.getVirtualItems();
+  const totalSize = virtualizer.getTotalSize();
+  useLayoutEffect(() => {
+    // The DOM now contains the measured slot heights. Correct the following
+    // viewport before paint, rather than showing the old bottom until a root
+    // ResizeObserver / animation frame eventually notices the new list size.
+    props.scrollPort.notifyContentGrew();
+  }, [props.scrollPort, totalSize]);
   return (
     <div
       ref={listRef}
       className="transcript-turn-window"
       data-testid="transcript-turn-window"
       data-transcript-turn-count={props.turns.length}
-      style={{ height: virtualizer.getTotalSize() }}
+      style={{ height: totalSize }}
     >
       {virtualItems.map((virtualItem) => {
         const turn = props.turns[virtualItem.index];
@@ -289,13 +378,25 @@ function VirtualizedTranscriptTurns(
         return (
           <div
             key={virtualItem.key}
-            ref={virtualizer.measureElement}
             className="transcript-turn-window-item"
-            data-index={virtualItem.index}
-            data-turn-id={turn.id}
-            style={{ transform: `translateY(${virtualItem.start - scrollMargin}px)` }}
+            data-testid="transcript-turn-window-item"
+            style={{
+              height: `${virtualItem.size}px`,
+              transform: `translateY(${virtualItem.start - scrollMargin}px)`,
+            }}
           >
-            {props.renderTurn(turn)}
+            {/*
+              Measure the inner body (natural height). The outer slot is locked
+              to virtualItem.size so under-measure cannot paint over neighbors.
+            */}
+            <div
+              ref={virtualizer.measureElement}
+              className="transcript-turn-window-item-body"
+              data-index={virtualItem.index}
+              data-turn-id={turn.id}
+            >
+              {props.renderTurn(turn)}
+            </div>
           </div>
         );
       })}

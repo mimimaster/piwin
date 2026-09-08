@@ -129,21 +129,25 @@ export function useTranscriptScroll(options: {
   activitySignal: string;
   /** A newly submitted turn re-enters follow-tail even after history reading. */
   liveTurnId?: string | null;
+  /** Explicit history opens are positioned by their anchor, not the live tail. */
+  historyViewActive?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const followTailRef = useRef(true);
+  const historyViewActiveRef = useRef(options.historyViewActive === true);
+  historyViewActiveRef.current = options.historyViewActive === true;
+  const followTailRef = useRef(options.historyViewActive !== true);
   /**
    * User explicitly navigated into history. Blocks all stick-to-bottom until
    * jump-to-latest or the viewport returns near the tail.
    */
-  const userDetachedRef = useRef(false);
+  const userDetachedRef = useRef(options.historyViewActive === true);
   /** True while we own scrollTop writes; soft-blocks followTail clear on onScroll. */
   const programmaticScrollRef = useRef(false);
   const stickFramesRef = useRef<number[]>([]);
   const previousLiveTurnIdRef = useRef<string | null>(null);
   /** Last observed scroll geometry — distinguishes user scroll from growth. */
   const lastScrollGeometryRef = useRef({ scrollTop: 0, scrollHeight: 0 });
-  const [followTail, setFollowTailState] = useState(true);
+  const [followTail, setFollowTailState] = useState(options.historyViewActive !== true);
   const [scrollProgress, setScrollProgress] = useState(1);
   const [scrollRatio, setScrollRatio] = useState(1);
   const [currentResponseMinHeight, setCurrentResponseMinHeight] = useState(0);
@@ -177,6 +181,10 @@ export function useTranscriptScroll(options: {
     setFollowTailState(false);
   }, [cancelScheduledSticks]);
 
+  useLayoutEffect(() => {
+    if (options.historyViewActive) detachFromTail();
+  }, [options.historyViewActive, detachFromTail]);
+
   /**
    * Ignore only the synchronous scroll event from our own scrollTop write.
    * Cleared on microtask so a real user scroll in the same frame still works.
@@ -190,7 +198,7 @@ export function useTranscriptScroll(options: {
 
   const stickToBottomIfFollowing = useCallback(() => {
     const element = containerRef.current;
-    if (!element || !followTailRef.current || userDetachedRef.current) {
+    if (!element || !followTailRef.current || userDetachedRef.current || historyViewActiveRef.current) {
       return;
     }
     beginProgrammaticScroll();
@@ -209,7 +217,7 @@ export function useTranscriptScroll(options: {
    * no-op and leaves the viewport on older turns.
    */
   const stickToBottomAcrossFrames = useCallback(() => {
-    if (!followTailRef.current || userDetachedRef.current) {
+    if (!followTailRef.current || userDetachedRef.current || historyViewActiveRef.current) {
       return;
     }
     cancelScheduledSticks();
