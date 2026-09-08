@@ -5,6 +5,11 @@ Status: **Accepted** · Branch `feat/ui-deck` · Prototype: [`deck-shell-proposa
 Supersedes the visual layer of [Quiet Workbench](./desktop-foundations.md). Architecture
 rules in `AGENTS.md` §1–§3 are unchanged: this is a presentation-layer change only.
 
+Current product identity is the single **Inkstone** theme (`piwin-inkstone`),
+whose paper and ink faces are selected by appearance mode. The Obsidian/Bone
+ramps below are retained as legacy Deck compatibility references, not as
+separate entries in the user-facing theme library.
+
 ---
 
 ## 1. Intent
@@ -36,7 +41,8 @@ warmer signal means "the machine is working".
 
 ## 2. Color
 
-Two faces on one geometry. `Obsidian` is the default.
+Two faces on one geometry. Inkstone is the product default; the Obsidian and
+Bone ramps below document the legacy Deck palette.
 
 ### Roles
 

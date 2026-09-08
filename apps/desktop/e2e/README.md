@@ -87,7 +87,7 @@ exception so agents and review tooling can inspect expected images.
 | `primitive gallery dark @1280` | E2E fixture route, dark | `primitive-gallery-dark-1280-darwin.png` | shared primitive state matrix | repo owner |
 | `primitive gallery light @1280` | E2E fixture route, light applied via root callback | `primitive-gallery-light-1280-darwin.png` | theme/provider convergence | repo owner |
 | `primitive portal light @1280` | gallery menu portal open, light | `primitive-portal-light-1280-darwin.png` | portal surface + focus contract | repo owner |
-| `settings appearance light @1280` | Settings → Appearance after `piwin-light` apply | `settings-appearance-light-1280-darwin.png` | real product theme flow | repo owner |
+| `settings appearance paper @1280` | Settings → Appearance with Inkstone paper face | `settings-appearance-paper-1280-darwin.png` | real product theme flow | repo owner |
 
 ### Updating baselines
 

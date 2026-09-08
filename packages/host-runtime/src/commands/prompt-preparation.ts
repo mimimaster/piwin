@@ -121,6 +121,7 @@ import {
 } from '../session-scope.js';
 import { repairLegacySessionNames } from '../session-name-repair.js';
 import { findEnabledModel } from '../provider-helpers.js';
+import { activateSkillForPrompt } from './activate-skill-for-prompt.js';
 import type { SessionLiveContext } from './session-live-context.js';
 import { shouldInjectLiveWorkPreamble } from '../voice/live-work-preamble.js';
 
@@ -355,6 +356,41 @@ export async function preparePromptInput(
   });
   collectPreparedAttachmentContributions(assembly, promptSource, preparedFromHost);
   throwIfPromptPreparationAborted(context, run.runId);
+
+  // Explicit slash/mention Skill activation (Agent Skills Tier-2): inject the
+  // SKILL.md body into the model-facing prompt. Transcript keeps the client
+  // text recorded above; discovery catalog remains separate.
+  const skillId = promptSource.skillId?.trim();
+  if (skillId) {
+    const rootDir = getPiwinRoot(context.piwinRoot);
+    const indexPath = getPiwinSessionIndexPath(rootDir);
+    const sessionRecord = await getSessionRecord(indexPath, command.sessionId);
+    const scope = sessionRecord ? scopeFromIndexRecord(sessionRecord) : undefined;
+    const projectPath =
+      scope?.kind === 'project' ? scope.projectPath : undefined;
+    const activated = await activateSkillForPrompt({
+      text: promptInput.text,
+      skillId,
+      ...(context.piwinRoot ? { piwinRoot: context.piwinRoot } : {}),
+      ...(projectPath ? { projectPath } : {}),
+    });
+    throwIfPromptPreparationAborted(context, run.runId);
+    if (activated.ok) {
+      promptInput.text = activated.text;
+      assembly.add({
+        kind: 'skill',
+        label: `Skill · ${activated.skillName}`,
+        trustOrigin: 'piwin',
+        text: activated.skillBody,
+      });
+    } else {
+      context.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `skill activation failed (${skillId}): ${activated.reason}`,
+      });
+    }
+  }
 
   // CHT-303: conversations never delegate. Agent sessions still honor an
   // explicit disabled flag; everything else stays auto.

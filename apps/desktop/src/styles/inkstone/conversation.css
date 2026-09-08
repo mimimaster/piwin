@@ -41,6 +41,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   grid-template-columns: minmax(0, 1fr) auto;
   column-gap: 8px;
   align-items: end;
+  overflow: hidden;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .user-message-wrapper.is-conversation .user-message-avatar,

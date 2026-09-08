@@ -7,14 +7,13 @@ import type {
 import type { SubagentStreamState, ToolCardUi } from './chat-reducer';
 import type { SubagentInspectorSelection } from './subagent-activity-model';
 import { normalizeExecutionStatus } from './subagent-activity-model';
-import { ActivitySvgIcon } from './RunActivitySvgIcons.js';
 import {
   getBehaviorActivitySpec,
   type BehaviorActivityId,
 } from './behavior-activity.js';
 import type { ModelOption } from './model-options';
 import { SubagentIdentityChips } from './subagent-identity-chip';
-import { IconChevronDown } from './shell-icons';
+import { IconChevronDown, IconCheck, IconClose } from './shell-icons';
 
 export type SubagentInvocationBlockProps = {
   tool: ToolCardUi;
@@ -128,24 +127,53 @@ function latestActivity(
     (props.locale === 'zh-CN' ? '工作中' : 'Working');
 }
 
-function statusKind(
-  status: InvocationStatus,
-): 'preparing' | 'working' | 'complete' | 'failed' | 'stopping' {
-  switch (status) {
-    case 'starting':
-    case 'queued':
-      return 'preparing';
-    case 'running':
-      return 'working';
-    case 'completed':
-      return 'complete';
-    case 'needs-integration':
-      return 'stopping';
-    case 'failed':
-      return 'failed';
-    case 'cancelled':
-      return 'stopping';
+const ROLE_CHAR_MAP: Record<string, string> = {
+  reviewer: '审',
+  review: '审',
+  scout: '探',
+  research: '探',
+  search: '搜',
+  tester: '测',
+  test: '测',
+  coder: '编',
+  code: '编',
+  engineer: '工',
+  developer: '发',
+  architect: '构',
+  planner: '划',
+  plan: '计',
+  writer: '文',
+  docs: '档',
+  critic: '评',
+  debugger: '调',
+  fixer: '修',
+  optimizer: '优',
+  analyst: '析',
+};
+
+export function resolveSubagentSealChar(
+  role?: string,
+  title?: string,
+  locale: 'zh-CN' | 'en' = 'zh-CN',
+): string {
+  const cleanRole = role?.trim().toLowerCase();
+  if (cleanRole && cleanRole in ROLE_CHAR_MAP) {
+    return ROLE_CHAR_MAP[cleanRole]!;
   }
+  const roleChinese = role?.match(/[\u4e00-\u9fa5]/);
+  if (roleChinese?.[0]) return roleChinese[0];
+
+  const titleChinese = title?.match(/[\u4e00-\u9fa5]/);
+  if (titleChinese?.[0]) return titleChinese[0];
+
+  if (cleanRole && cleanRole.length > 0) {
+    return cleanRole[0]!.toUpperCase();
+  }
+  if (title && title.trim().length > 0) {
+    return title.trim()[0]!.toUpperCase();
+  }
+
+  return locale === 'zh-CN' ? '子' : 'S';
 }
 
 function behaviorIdForStatus(status: InvocationStatus): BehaviorActivityId {
@@ -184,6 +212,8 @@ export function SubagentInvocationBlock(
   const canInspect = props.child !== undefined && props.onInspect !== undefined;
   const expanded = props.expanded === true;
   const behaviorId = behaviorIdForStatus(status);
+  const sealChar = resolveSubagentSealChar(role, title, props.locale);
+
   const toggleInspector = (): void => {
     if (!props.child || !props.onInspect) return;
     props.onInspect({
@@ -197,7 +227,7 @@ export function SubagentInvocationBlock(
   return (
     <button
       type="button"
-      className="subagent-invocation-block"
+      className="subagent-invocation-block subagent-seal-card"
       data-testid="subagent-invocation-block"
       data-status={status}
       data-child-session-id={props.child?.id}
@@ -211,10 +241,38 @@ export function SubagentInvocationBlock(
       aria-expanded={expanded}
       aria-label={`${title}: ${latestActivity(props, status)}`}
     >
-      <ActivitySvgIcon kind={statusKind(status)} className="subagent-invocation-icon" />
+      <span
+        className={`subagent-seal subagent-seal-${status}`}
+        data-status={status}
+        data-testid="subagent-seal"
+        aria-hidden="true"
+      >
+        {sealChar}
+      </span>
       <span className="subagent-invocation-copy">
         <span className="subagent-invocation-heading">
           <span className="subagent-invocation-title">{title}</span>
+          {status === 'completed' ? (
+            <span className="subagent-status-pill pill-completed">
+              <IconCheck width={12} height={12} aria-hidden="true" />
+              <span>{props.locale === 'zh-CN' ? '已完成' : 'Completed'}</span>
+            </span>
+          ) : status === 'failed' ? (
+            <span className="subagent-status-pill pill-failed">
+              <IconClose width={12} height={12} aria-hidden="true" />
+              <span>{props.locale === 'zh-CN' ? '失败' : 'Failed'}</span>
+            </span>
+          ) : status === 'needs-integration' ? (
+            <span className="subagent-status-pill pill-warning">
+              <span>{props.locale === 'zh-CN' ? '待处理' : 'Attention'}</span>
+            </span>
+          ) : null}
+        </span>
+        <span className="subagent-invocation-activity" role="status" aria-live="polite">
+          {isActive ? <span className="subagent-grind-spinner" aria-hidden="true" /> : null}
+          <span className="subagent-activity-text">{latestActivity(props, status)}</span>
+        </span>
+        <span className="subagent-invocation-tags">
           <SubagentIdentityChips
             locale={props.locale}
             showModelPlaceholder
@@ -223,9 +281,6 @@ export function SubagentInvocationBlock(
             {...(model ? { model } : {})}
             {...(props.modelOptions ? { modelOptions: props.modelOptions } : {})}
           />
-        </span>
-        <span className="subagent-invocation-activity" role="status" aria-live="polite">
-          {latestActivity(props, status)}
         </span>
       </span>
       {canInspect ? (

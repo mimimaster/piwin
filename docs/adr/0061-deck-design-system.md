@@ -148,3 +148,27 @@ as the full visual signature of piwin:
 
 7. The September 5 structural follow-up adopts the prototype's 16px optical icons in the shared icon system, a model/mode/orchestration composer group, and ui-kit keyboard tabs with independently owned inspector panels. These shared primitives and the 640/720/840px readable-width choices also apply to alternative themes; Inkstone-specific surfaces and document styling remain scoped.
 8. Appearance settings present the light/dark faces as visual previews with secondary expandable color editing. Settings theme rules belong to the deferred settings stylesheet, after its legacy region imports. Message memo policy, prop contracts, theme controls, theme catalog, and icon families are separate modules. See `docs/plans/2026-09-05-inkstone-structure-rebuild.md` for implementation and validation.
+
+## Amendment (2026-09-08) — One Inkstone Theme, Two Faces
+
+### Context
+
+The previous amendment treated Paper and Inkstone Ink as separate selectable
+theme ids. That made the theme library describe a visual mode as if it were a
+different product theme, and it left the retired Deck/default entries visible
+to users during upgrades.
+
+### Decision
+
+1. Inkstone is the sole built-in product theme identity: `piwin-inkstone`.
+2. Paper and Ink are Inkstone faces selected by the existing appearance mode:
+   system, paper/day, or ink/night. The settings page renders one Inkstone
+   card and one Inkstone library entry.
+3. Host theme storage and `theme/list` expose the canonical Inkstone package;
+   the old default, Deck, and face ids remain read-compatible aliases but are
+   hidden from the catalog and normalized on activation.
+4. Ink Wash remains an independent optional theme package. It is the only
+   bundled alternative shown beside Inkstone.
+
+This keeps the product vocabulary aligned with the visual model while making
+upgrades safe for existing `~/.piwin` theme preferences.

@@ -19,6 +19,7 @@ import type {
 } from '@piwin/contracts';
 import { isThinkingLevel, parseSessionStorageInfo } from '@piwin/contracts';
 import type { ChatUiAction, SessionListItemUi } from './chat-reducer';
+import { clearLocalRootPresenceForTests } from './local-file-reveal-policy.js';
 import { MAX_RECENT_PROJECTS } from './record-budget';
 
 export type DesktopHostTransport = 'mock' | 'live' | 'remote';
@@ -32,6 +33,71 @@ export function isRemoteDesktopTransport(
 /** Host-issued remote project id (`project-` + 24 hex). Never a filesystem path. */
 export function isOpaqueRemoteProjectId(value: string): boolean {
   return /^project-[a-f0-9]{24}$/.test(value);
+}
+
+function looksLikeHostFilesystemPath(value: string): boolean {
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || isOpaqueRemoteProjectId(trimmed)) {
+    return false;
+  }
+  return (
+    trimmed.startsWith('/') ||
+    /^[A-Za-z]:[\\/]/.test(trimmed) ||
+    trimmed.startsWith('\\\\')
+  );
+}
+
+/** Opaque projectId → Host filesystem root (for copy-absolute-path / reveal joins). */
+const remoteProjectRootsById = new Map<string, string>();
+
+export function rememberRemoteProjectRoot(projectId: string, filesystemPath: string): void {
+  if (!isOpaqueRemoteProjectId(projectId) || !looksLikeHostFilesystemPath(filesystemPath)) {
+    return;
+  }
+  const root = filesystemPath.replace(/[\\/]+$/, '');
+  remoteProjectRootsById.set(projectId, root);
+  // Fire-and-forget: remote Reveal stays off until Desktop confirms the root
+  // exists on this machine (policy A — same-machine / shared disk only).
+  void import('./local-file-actions.js')
+    .then((mod) => mod.probeLocalFilesystemRoot(root))
+    .catch(() => undefined);
+}
+
+export function rememberRemoteProjectRootsFromList(listData: unknown): void {
+  const record = isRecord(listData) ? listData : undefined;
+  const projects = Array.isArray(record?.projects) ? record.projects : [];
+  for (const project of projects) {
+    if (!isRecord(project)) continue;
+    const id = typeof project.projectId === 'string' ? project.projectId.trim() : '';
+    const hostPath = typeof project.path === 'string' ? project.path.trim() : '';
+    if (id.length > 0 && hostPath.length > 0) {
+      rememberRemoteProjectRoot(id, hostPath);
+    }
+  }
+}
+
+/** Host filesystem root for an opaque projectId, when known from list/open. */
+export function remoteProjectFilesystemRoot(projectId: string): string | null {
+  if (!isOpaqueRemoteProjectId(projectId)) {
+    return looksLikeHostFilesystemPath(projectId) ? projectId.replace(/[\\/]+$/, '') : null;
+  }
+  return remoteProjectRootsById.get(projectId) ?? null;
+}
+
+/**
+ * Resolve a Desktop project key (opaque id or filesystem path) to the Host
+ * root used for absolute path joins. Falls back to the key itself.
+ */
+export function resolveProjectFilesystemRoot(projectPath: string | null | undefined): string {
+  const key = (projectPath ?? '').trim();
+  if (!key) return '';
+  return remoteProjectFilesystemRoot(key) ?? key.replace(/[\\/]+$/, '');
+}
+
+/** Test seam: clear remembered remote roots. */
+export function clearRemoteProjectRootsForTests(): void {
+  remoteProjectRootsById.clear();
+  clearLocalRootPresenceForTests();
 }
 
 export type ProjectActivationResult =
@@ -54,6 +120,7 @@ export async function activateProjectOnHost(
       if (!listed.success) {
         return { ok: false, error: listed.error };
       }
+      rememberRemoteProjectRootsFromList(listed.data);
       const record = mapListedProjects(listed.data).find((project) => project.path === projectKey);
       let trusted = record?.trust === 'trusted';
       if (!trusted && options?.autoTrust !== false) {
@@ -92,6 +159,15 @@ export async function activateProjectOnHost(
         ok: false,
         error: 'Host did not return a project id for this workspace.',
       };
+    }
+    const hostPath =
+      typeof openPayload.path === 'string' && looksLikeHostFilesystemPath(openPayload.path)
+        ? openPayload.path
+        : looksLikeHostFilesystemPath(projectKey)
+          ? projectKey
+          : null;
+    if (hostPath) {
+      rememberRemoteProjectRoot(projectId, hostPath);
     }
     let trusted = openPayload.trusted === true || openPayload.trust === 'trusted';
     if (!trusted && options?.autoTrust !== false) {
@@ -449,7 +525,13 @@ function mapListedProject(value: unknown): ProjectRecord | undefined {
   }
   const gitFields = readListedGitWorkspaceFields(value);
   const projectId = typeof value.projectId === 'string' ? value.projectId.trim() : '';
+  const listedPath = typeof value.path === 'string' ? value.path.trim() : '';
+  // Remote list identity stays on opaque projectId (Host command key). The
+  // filesystem root is remembered separately for absolute path joins.
   if (projectId.length > 0) {
+    if (looksLikeHostFilesystemPath(listedPath)) {
+      rememberRemoteProjectRoot(projectId, listedPath);
+    }
     const displayName =
       typeof value.displayName === 'string' && value.displayName.trim().length > 0
         ? value.displayName
@@ -463,10 +545,10 @@ function mapListedProject(value: unknown): ProjectRecord | undefined {
       ...gitFields,
     };
   }
-  if (typeof value.path === 'string' && value.path.trim().length > 0) {
+  if (listedPath.length > 0) {
     const trust = value.trust === 'trusted' ? 'trusted' : 'untrusted';
     return {
-      path: value.path,
+      path: listedPath,
       trust,
       lastOpenedAt: typeof value.lastOpenedAt === 'string' ? value.lastOpenedAt : '',
       createdAt: typeof value.createdAt === 'string' ? value.createdAt : '',

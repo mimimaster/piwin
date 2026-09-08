@@ -45,28 +45,43 @@ export const RUNTIME_STATUS_PHRASES: Readonly<
     en: ['Preparing context…', 'Gathering conversation memory…', 'Loading workspace…'],
   },
   'connecting-model': {
-    zh: [RUNTIME_STATUS_COPY['connecting-model'].zh],
-    en: [RUNTIME_STATUS_COPY['connecting-model'].en],
+    zh: ['连接模型…', '建立会话通道…', '校验运行上下文…', '等待模型响应…'],
+    en: [
+      'Connecting to model…',
+      'Opening session channel…',
+      'Verifying runtime context…',
+      'Waiting for model response…',
+    ],
   },
   'waiting-first-token': {
-    zh: [RUNTIME_STATUS_COPY['waiting-first-token'].zh],
-    en: [RUNTIME_STATUS_COPY['waiting-first-token'].en],
+    zh: ['正在思考…', '解析上下文与指令…', '规划执行路径…', '构思回复方案…'],
+    en: [
+      'Thinking…',
+      'Parsing context and instructions…',
+      'Planning execution path…',
+      'Formulating response…',
+    ],
   },
   working: {
-    zh: [RUNTIME_STATUS_COPY.working.zh],
-    en: [RUNTIME_STATUS_COPY.working.en],
+    zh: ['正在处理…', '执行任务中…', '整理分析结果…'],
+    en: ['Working…', 'Executing tasks…', 'Organizing results…'],
   },
   stopping: {
     zh: [RUNTIME_STATUS_COPY.stopping.zh],
     en: [RUNTIME_STATUS_COPY.stopping.en],
   },
   thinking: {
-    zh: [RUNTIME_STATUS_COPY.thinking.zh],
-    en: [RUNTIME_STATUS_COPY.thinking.en],
+    zh: ['思考中', '深度推演中…', '梳理逻辑脉络…', '权衡解决方案…'],
+    en: [
+      'Thinking',
+      'Reasoning in depth…',
+      'Analyzing logic structure…',
+      'Evaluating possible solutions…',
+    ],
   },
   planning: {
-    zh: [RUNTIME_STATUS_COPY.planning.zh],
-    en: [RUNTIME_STATUS_COPY.planning.en],
+    zh: ['制定计划中', '拆解任务步骤…', '评估依赖与风险…'],
+    en: ['Planning', 'Breaking down task steps…', 'Evaluating dependencies…'],
   },
   asking: {
     zh: [RUNTIME_STATUS_COPY.asking.zh],

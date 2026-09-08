@@ -3,11 +3,10 @@
  */
 import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 
-import { RadialBellow } from '@piwin/ui-kit';
 import { pickArtifactFenceSecurity } from './artifact-fence-security';
 import type { ChatMessageUi } from './chat-reducer';
 import { RunActivitySlot } from './RunActivitySlot.js';
-import { isAssistantContentEmpty } from './assistant-message-content.js';
+import { AgentLocator } from './agent-locator.js';
 
 import {
   deriveGoalSessionView,
@@ -18,10 +17,7 @@ import {
 import { focusComposerInput } from './context-menu/desktop-context-menu-value';
 import { resolveAssemblySummaryForUserMessage } from './assembly-summary-capsule';
 import { isWalkthroughEligible } from './walkthrough-action';
-import {
-  conversationActivityLabel,
-  resolveConversationActivityKind,
-} from './conversation-activity.js';
+import { resolveConversationActivityKind } from './conversation-activity.js';
 import { TranscriptTurnList } from './transcript-turn-list';
 import { groupTranscriptTurns } from './transcript-turns';
 import { buildExploreFlowRoles } from './explore-flow';
@@ -223,30 +219,14 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
     return currentResponseTurnId;
   }, [currentResponseTurnId, props.compactionActivity, turnGroups]);
   const transcriptTail = transcriptMessages[transcriptMessages.length - 1];
-  // Providers open the assistant lifecycle before the first token, and a model
-  // that reasons without streaming its reasoning keeps that bubble empty for
-  // the whole think. Without this the locator would hand off to nothing and the
-  // turn would look frozen behind a bare model header.
-  const tailAwaitsFirstOutput =
-    transcriptTail !== undefined &&
-    transcriptTail.status === 'streaming' &&
-    isAssistantContentEmpty(transcriptTail);
   const conversationSession = props.isConversationSession === true;
   const effectiveTail = chatMessages[chatMessages.length - 1];
-  const effectiveTailAwaitsFirstOutput =
-    effectiveTail !== undefined &&
-    effectiveTail.status === 'streaming' &&
-    isAssistantContentEmpty(effectiveTail);
   const showRunActivity =
     props.streaming &&
-    props.activeRunId != null &&
     !props.permissionPrompt &&
     (conversationSession
-      ? chatMessages.length === 0 ||
-        (effectiveTail?.role === 'user' && !effectiveTailAwaitsFirstOutput)
-      : transcriptMessages.length === 0 ||
-        transcriptTail?.role === 'user' ||
-        tailAwaitsFirstOutput);
+      ? chatMessages.length === 0 || effectiveTail?.role === 'user'
+      : transcriptMessages.length === 0 || transcriptTail?.role === 'user');
   const conversationActivityKind = conversationSession
     ? resolveConversationActivityKind({
         streaming: props.streaming,
@@ -256,37 +236,26 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
   const runActivitySlot = showRunActivity ? (
     conversationSession ? (
       conversationActivityKind ? (
-        <div className="chat-run-activity-line" data-testid="conversation-activity">
+        <div key="conversation-activity-slot" className="chat-run-activity-line" data-testid="conversation-activity">
           <div className="agent-locator-stack">
-            <div
-              className="agent-locator"
-              role="status"
-              aria-live="polite"
-              data-testid="conversation-agent-locator"
-              data-activity-id={conversationActivityKind}
-            >
-              <span className="agent-locator-visual" aria-hidden="true">
-                <RadialBellow
-                  size="sm"
-                  label={conversationActivityLabel(
-                    conversationActivityKind,
-                    props.locale ?? 'zh-CN',
-                  )}
-                  testId="conversation-locator-radial-bellow"
-                />
-              </span>
-              <span
-                className="agent-locator-copy agent-locator-copy--shimmer"
-                data-testid="conversation-activity-copy"
-              >
-                {conversationActivityLabel(conversationActivityKind, props.locale ?? 'zh-CN')}
-              </span>
-            </div>
+            <AgentLocator
+              input={{
+                kind:
+                  conversationActivityKind === 'stopping'
+                    ? 'stopping'
+                    : conversationActivityKind === 'thinking'
+                      ? 'waiting-first-token'
+                      : 'working',
+                locale: props.locale ?? 'zh-CN',
+              }}
+              {...(props.agentLocatorAnimation ? { animation: props.agentLocatorAnimation } : {})}
+            />
           </div>
         </div>
       ) : null
     ) : (
       <RunActivitySlot
+        key="agent-run-activity-slot"
         activeRunId={props.activeRunId ?? null}
         runRecordsById={props.runRecordsById ?? {}}
         {...(activeToolName ? { activeToolName } : {})}

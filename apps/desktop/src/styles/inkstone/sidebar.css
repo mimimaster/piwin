@@ -525,9 +525,12 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   gap: 4px;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-section-label-actions .sidebar-icon-btn {
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-section-label-actions .sidebar-icon-btn,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-add-btn {
   width: 20px;
   height: 20px;
+  min-width: 20px;
+  min-height: 20px;
   border-radius: 4px;
   color: var(--t3);
   display: grid;
@@ -535,11 +538,13 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   background: transparent;
   border: 0;
   padding: 0;
+  box-shadow: none;
   cursor: pointer;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-section-label-actions .sidebar-icon-btn:hover {
-  background: var(--s2);
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-section-label-actions .sidebar-icon-btn:hover,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-add-btn:hover {
+  background: var(--s3);
   color: var(--t1);
 }
 
@@ -675,11 +680,6 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   border-radius: 4px;
 }
 
-/* Hide the close (x) button on general sessions: non-archived sessions can only be archived, not deleted directly */
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--general-session .session-close-btn {
-  display: none !important;
-}
-
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-tree-row--general-session .session-item-activity {
   top: 50%;
   transform: translateY(-50%);
@@ -740,9 +740,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .session-action-btn.session-delete-btn:hover,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .session-action-btn.session-delete-btn:focus-visible,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .session-action-btn.session-close-btn:hover,
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .session-action-btn.session-close-btn:focus-visible {
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .session-action-btn.session-delete-btn:focus-visible {
   color: var(--zhu);
   background: var(--zhu-wash);
 }

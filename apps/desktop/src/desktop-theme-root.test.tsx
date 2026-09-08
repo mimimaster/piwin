@@ -108,11 +108,11 @@ describe('DesktopThemeRoot', () => {
     });
 
     const documentRoot = document.documentElement;
-    expect(documentRoot.dataset.themeId).toBe('piwin-bone');
+    expect(documentRoot.dataset.themeId).toBe('piwin-inkstone-paper');
     expect(documentRoot.dataset.themeMode).toBe('light');
     // `bg` is the Deck field the panels float on, projected as --void.
     expect(documentRoot.style.getPropertyValue('--void')).toBe(PIWIN_APPEARANCE_LIGHT.tokens.bg);
-    expect(localStorage.getItem('piwin.desktop.lastThemeId')).toBe('piwin-bone');
+    expect(localStorage.getItem('piwin.desktop.lastThemeId')).toBe('piwin-inkstone-paper');
 
     // App receives the exact same resolved manifest projected to the document.
     const rerendered = capturedProps as unknown as AppProps;

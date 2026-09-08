@@ -2,8 +2,9 @@
  * Cold-start theme resolution for the first paint.
  *
  * Host is the long-term authority (`theme/get-active`), but connecting is
- * async. Without a local last-theme cache the shell always paints Obsidian
- * first, then jumps to Bone / ink-wash / custom once Host responds — FOUC.
+ * async. Without a local last-theme cache the shell would otherwise paint a
+ * legacy face first, then jump to Inkstone / ink-wash / custom once Host
+ * responds — FOUC.
  *
  * Strategy:
  * 1. If we remember a product built-in library theme id, project it immediately
@@ -16,6 +17,7 @@ import type { ThemeManifest } from '@piwin/contracts';
 import {
   buildAppearanceTheme,
   isBuiltinAppearanceId,
+  isInkstoneThemeId,
   migrateThemeId,
   resolveBuiltinAppearance,
   resolveSystemThemeMode,
@@ -34,12 +36,16 @@ function resolvePreferredThemeMode(appearanceMode: AppearanceMode): 'light' | 'd
 /** Resolve the best theme for pre-React and DesktopThemeRoot initial state. */
 export function resolveStartupAppearance(): ThemeManifest {
   const lastThemeId = loadLastThemeId();
+  const preferences = loadDesktopPreferences();
+  const activeMode = resolvePreferredThemeMode(preferences.appearanceMode);
+  if (lastThemeId !== null && isInkstoneThemeId(lastThemeId)) {
+    const themeSettings = activeMode === 'light' ? preferences.lightTheme : preferences.darkTheme;
+    return buildAppearanceTheme(activeMode, themeSettings);
+  }
   if (lastThemeId !== null && isBuiltinAppearanceId(lastThemeId)) {
     return resolveBuiltinAppearance(lastThemeId);
   }
 
-  const preferences = loadDesktopPreferences();
-  const activeMode = resolvePreferredThemeMode(preferences.appearanceMode);
   const themeSettings = activeMode === 'light' ? preferences.lightTheme : preferences.darkTheme;
   return buildAppearanceTheme(activeMode, themeSettings);
 }

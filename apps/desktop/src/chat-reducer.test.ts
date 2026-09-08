@@ -516,7 +516,6 @@ describe('chatUiReducer', () => {
           status: 'done',
         },
       ],
-      live: true,
     });
 
     expect(state.workingSessionIds).toEqual({});
@@ -776,7 +775,6 @@ describe('chatUiReducer', () => {
       type: 'session/load-messages',
       sessionId: 's1',
       messages: [],
-      live: true,
     });
 
     expect(state.workingSessionIds).toEqual({});
@@ -803,7 +801,6 @@ describe('chatUiReducer', () => {
           status: 'done',
         },
       ],
-      live: true,
     });
 
     expect(state.activeRunId).toBe('run-live');
@@ -811,6 +808,71 @@ describe('chatUiReducer', () => {
     expect(state.streaming).toBe(true);
     expect(state.activeRunPhase).toBe('waiting-first-token');
     expect(state.workingSessionIds).toEqual({ s1: true });
+  });
+
+  it('keeps the optimistic user bubble when a live load omits it from the Host page', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, {
+      type: 'user/send',
+      text: '检查一下',
+      clientMessageId: 'client-user-1',
+    });
+    state = chatUiReducer(state, {
+      type: 'run/accepted',
+      runId: 'run-1',
+      sessionId: 's1',
+    });
+    expect(state.messages.some((message) => message.id === 'client-user-1')).toBe(true);
+    expect(state.streaming).toBe(true);
+    expect(state.activeRunId).toBe('run-1');
+
+    // Stale Host page from catch-up before the prompt is durable — must not
+    // wipe the optimistic bubble while keeping the sidebar spinner.
+    state = chatUiReducer(state, {
+      type: 'session/load-messages',
+      sessionId: 's1',
+      messages: [
+        {
+          id: 'older-user',
+          role: 'user',
+          text: 'previous turn',
+          createdAt: '2026-08-25T00:00:00.000Z',
+          status: 'done',
+        },
+      ],
+    });
+
+    expect(state.messages.some((message) => message.id === 'client-user-1')).toBe(true);
+    expect(state.messages.some((message) => message.text === '检查一下')).toBe(true);
+    expect(state.streaming).toBe(true);
+    expect(state.activeRunId).toBe('run-1');
+    expect(state.workingSessionIds).toEqual({ s1: true });
+  });
+
+  it('keeps paint-first optimistic bubble across a pre-ACK empty Host load', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, {
+      type: 'user/send',
+      text: 'just painted',
+      clientMessageId: 'client-pre-ack',
+    });
+    expect(state.streaming).toBe(true);
+    expect(state.activeRunId).toBeNull();
+
+    state = chatUiReducer(state, {
+      type: 'session/load-messages',
+      sessionId: 's1',
+      messages: [],
+    });
+
+    // Bubble must survive; bare streaming without a run id yields to hydration.
+    expect(state.messages).toEqual([
+      expect.objectContaining({ id: 'client-pre-ack', text: 'just painted' }),
+    ]);
+    expect(state.streaming).toBe(false);
+    expect(state.workingSessionIds).toEqual({});
   });
 
   it('cold resume keeps a stable empty placeholder and ignores stream until load-messages', () => {

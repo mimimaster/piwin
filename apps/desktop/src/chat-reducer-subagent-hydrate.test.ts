@@ -369,7 +369,6 @@ describe('chatUiReducer subagent hydration', () => {
           createdAt: new Date(0).toISOString(),
         } as never,
       ],
-      live: false,
     });
     expect(state.messages.some((message) => message.text.includes('from s2'))).toBe(true);
 

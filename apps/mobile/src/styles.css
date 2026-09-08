@@ -16,52 +16,7 @@
    Piwin Mobile Core Entry Stylesheet (Deck Architecture)
    ═══════════════════════════════════════════════════════════════ */
 
-/* ── Connection Surface ── */
-.connection-surface {
-  padding: 24px 16px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 0;
-  flex: 1;
-}
-
-.connection-surface .empty-state {
-  padding: 32px 20px;
-  border-radius: var(--radius-lg);
-  background: var(--surface-1);
-  border: 1px solid var(--line-2);
-  box-shadow: var(--elev-3);
-  max-width: 440px;
-  width: 100%;
-}
-
-.connection-actions {
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-  flex-wrap: wrap;
-  margin-top: 14px;
-}
-
-.mobile-connection-form {
-  width: 100%;
-  max-width: 380px;
-  margin: 18px auto 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  text-align: left;
-}
-
-.mobile-empty-detail {
-  color: var(--text-2);
-  font-size: 12.5px;
-  line-height: 1.5;
-  text-align: center;
-  margin: 8px 0 0;
-}
+@import './surfaces/connection/connection-surface.css';
 
 .mobile-slice-card {
   border: 1px solid var(--line-2);

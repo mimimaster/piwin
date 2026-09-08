@@ -1,7 +1,16 @@
-import { useState, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 import type { HostClientState } from '@piwin/host-client';
-import { Button, EmptyState, Notice, PasswordInput, TextInput } from '@piwin/ui-kit';
-import { scanPairingQrCode } from '../../services/barcode-pairing.js';
+import {
+  parsePairingString,
+  scanPairingQrCode,
+  type ParsedPairingData,
+} from '../../services/barcode-pairing.js';
+import type { MobileHostConnectionInput } from '../../mobile-host-connection.js';
+import { ConnectionHeader } from './ConnectionHeader.js';
+import { QuickPairPane } from './QuickPairPane.js';
+import { ManualConfigPane } from './ManualConfigPane.js';
+import { ConnectedPane } from './ConnectedPane.js';
+import { DiagnosticBanners } from './DiagnosticBanners.js';
 
 export type ConnectionSurfaceProps = {
   endpoint: string;
@@ -16,10 +25,12 @@ export type ConnectionSurfaceProps = {
   credentialPersistError: boolean;
   isNativeVault: boolean;
   onRetryCredentialPersist: () => void;
-  onConnect: () => void;
+  onConnect: (input?: MobileHostConnectionInput) => void;
   onDisconnect: () => void;
   onBackToApp?: (() => void) | undefined;
 };
+
+type ActiveMode = 'quick' | 'manual';
 
 export function ConnectionSurface({
   endpoint,
@@ -38,29 +49,45 @@ export function ConnectionSurface({
   onDisconnect,
   onBackToApp,
 }: ConnectionSurfaceProps): ReactElement {
+  const [activeMode, setActiveMode] = useState<ActiveMode>('quick');
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState<string | undefined>();
+  const [pasteFeedback, setPasteFeedback] = useState<string | undefined>();
+  const surfaceRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    if (surfaceRef.current) {
+      surfaceRef.current.scrollTop = 0;
+    }
+  }, []);
 
   const isConnected = connectionState.kind === 'ready';
   const isConnecting = connectionState.kind === 'connecting';
 
+  const applyPairingData = (parsed: ParsedPairingData): MobileHostConnectionInput => {
+    const input: MobileHostConnectionInput = {
+      endpoint: parsed.endpoint,
+      authToken: parsed.authToken ?? '',
+      pairingToken: parsed.pairingToken ?? '',
+      ...(parsed.hostInstanceId === undefined
+        ? {}
+        : { expectedHostInstanceId: parsed.hostInstanceId }),
+    };
+    setEndpoint(input.endpoint);
+    setAuthToken(input.authToken);
+    setPairingToken(input.pairingToken);
+    setExpectedHostInstanceId(parsed.hostInstanceId);
+    return input;
+  };
+
   const handleScanQr = async () => {
     setIsScanning(true);
     setScanError(undefined);
+    setPasteFeedback(undefined);
     try {
       const parsed = await scanPairingQrCode();
-      setEndpoint(parsed.endpoint);
-      setExpectedHostInstanceId(parsed.hostInstanceId);
-      if (parsed.pairingToken !== undefined) {
-        setPairingToken(parsed.pairingToken);
-        setAuthToken('');
-      } else if (parsed.authToken !== undefined) {
-        setAuthToken(parsed.authToken);
-        setPairingToken('');
-      }
-      setTimeout(() => {
-        onConnect();
-      }, 50);
+      onConnect(applyPairingData(parsed));
     } catch (err) {
       setScanError(err instanceof Error ? err.message : '相机扫码失败。');
     } finally {
@@ -68,113 +95,168 @@ export function ConnectionSurface({
     }
   };
 
-  return (
-    <div className="mobile-surface-container connection-surface">
-      <EmptyState
-        title={isConnected ? 'Host 已连接' : '连接你的 Piwin Host'}
-        description="手机只负责观察和控制，Node、Pi、MCP、Skill 以及项目文件都留在 Host 上。"
-        action={
-          <div className="connection-actions">
-            {isConnected ? (
-              <>
-                <Button variant="secondary" onClick={onDisconnect}>
-                  退出此设备
-                </Button>
-                {onBackToApp !== undefined ? (
-                  <Button variant="primary" onClick={onBackToApp}>
-                    进入 Cockpit
-                  </Button>
-                ) : null}
-              </>
-            ) : (
-              <>
-                <Button
-                  variant="primary"
-                  onClick={onConnect}
-                  disabled={isConnecting || isScanning}
-                >
-                  {isConnecting ? '连接中…' : '连接 Host'}
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => void handleScanQr()}
-                  disabled={isConnecting || isScanning}
-                >
-                  {isScanning ? '正在扫码…' : '📷 扫码配对'}
-                </Button>
-              </>
-            )}
-          </div>
+  const handlePasteFromClipboard = async () => {
+    setScanError(undefined);
+    setPasteFeedback(undefined);
+    try {
+      if (typeof navigator === 'undefined' || !navigator.clipboard?.readText) {
+        throw new Error('当前环境不支持直接读取剪贴板，请手动粘贴。');
+      }
+      const text = (await navigator.clipboard.readText()).trim();
+      if (!text) {
+        setPasteFeedback('剪贴板为空，请先在电脑端复制配对码。');
+        return;
+      }
+      try {
+        const parsed = parsePairingString(text);
+        onConnect(applyPairingData(parsed));
+      } catch {
+        if (text.length > 8 && !text.includes(' ') && !text.includes('\n')) {
+          setPairingToken(text);
+          setAuthToken('');
+          setActiveMode('manual');
+          setPasteFeedback('已填入配对码，请确认 Host 地址后点击连接。');
+        } else {
+          setPasteFeedback('剪贴板中未识别到有效配对码。');
         }
-      >
-        <div className="mobile-connection-form">
-          <TextInput
-            label="Host WebSocket 地址"
-            value={endpoint}
-            onChange={(event) => setEndpoint(event.currentTarget.value)}
-            placeholder="ws://127.0.0.1:8787"
-            disabled={isConnected}
-            testId="mobile-host-endpoint"
-          />
-          <PasswordInput
-            label="配对令牌"
-            value={pairingToken}
-            onChange={(event) => {
-              setPairingToken(event.currentTarget.value);
-              if (event.currentTarget.value.trim().length > 0) {
-                setAuthToken('');
-              }
-            }}
-            placeholder="扫码或粘贴一次性 pairingToken"
-            disabled={isConnected}
-            testId="mobile-host-pairing-token"
-          />
-          <PasswordInput
-            label="Host 口令"
-            value={authToken}
-            onChange={(event) => {
-              setAuthToken(event.currentTarget.value);
-              if (event.currentTarget.value.trim().length > 0) {
-                setPairingToken('');
-              }
-            }}
-            placeholder="开发/LAN 回退，不要当设备凭证保存"
-            disabled={isConnected}
-            testId="mobile-host-token"
-          />
-          <p className="mobile-empty-detail">
+      }
+    } catch (err) {
+      setPasteFeedback(err instanceof Error ? err.message : '读取剪贴板失败。');
+    }
+  };
+
+  const handlePairingTokenChange = (value: string): void => {
+    const trimmed = value.trim();
+    const looksLikePairingPayload =
+      trimmed.startsWith('{') ||
+      trimmed.startsWith('piwin://') ||
+      trimmed.startsWith('http://') ||
+      trimmed.startsWith('https://') ||
+      trimmed.startsWith('ws://') ||
+      trimmed.startsWith('wss://');
+    if (looksLikePairingPayload) {
+      try {
+        applyPairingData(parsePairingString(value));
+        return;
+      } catch {
+        // Keep the pasted value visible so the user can correct it or retry.
+      }
+    }
+    setPairingToken(value);
+    if (trimmed.length > 0) {
+      setAuthToken('');
+    }
+  };
+
+  return (
+    <div ref={surfaceRef} className="mobile-surface-container connection-surface">
+      <div className="connection-surface-inner">
+        {/* Brand Header */}
+        <ConnectionHeader isConnected={isConnected} />
+
+        {/* Connected Card */}
+        {isConnected ? (
+          <div className="connection-card">
+            <ConnectedPane
+              endpoint={endpoint}
+              isNativeVault={isNativeVault}
+              onBackToApp={onBackToApp}
+              onDisconnect={onDisconnect}
+            />
+          </div>
+        ) : (
+          <>
+            {/* Mode Switcher */}
+            <div
+              className="connection-segmented-nav"
+              role="tablist"
+              aria-label="连接方式"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeMode === 'quick'}
+                className={activeMode === 'quick' ? 'active' : ''}
+                onClick={() => setActiveMode('quick')}
+                data-testid="mobile-tab-quick"
+              >
+                扫码配对
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeMode === 'manual'}
+                className={activeMode === 'manual' ? 'active' : ''}
+                onClick={() => setActiveMode('manual')}
+                data-testid="mobile-tab-manual"
+              >
+                手动配置
+              </button>
+            </div>
+
+            {/* Main Inset Card */}
+            <div className="connection-card">
+              {activeMode === 'quick' ? (
+                <QuickPairPane
+                  isScanning={isScanning}
+                  isConnecting={isConnecting}
+                  onScanQr={() => void handleScanQr()}
+                  onPasteFromClipboard={() => void handlePasteFromClipboard()}
+                />
+              ) : (
+                <ManualConfigPane
+                  endpoint={endpoint}
+                  setEndpoint={setEndpoint}
+                  pairingToken={pairingToken}
+                  onPairingTokenChange={handlePairingTokenChange}
+                  authToken={authToken}
+                  setAuthToken={setAuthToken}
+                  setPairingToken={setPairingToken}
+                  isConnected={isConnected}
+                  isConnecting={isConnecting}
+                  isScanning={isScanning}
+                  onConnect={() => onConnect()}
+                />
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Diagnostic & Error Banners */}
+        <DiagnosticBanners
+          pasteFeedback={pasteFeedback}
+          onDismissPasteFeedback={() => setPasteFeedback(undefined)}
+          scanError={scanError}
+          onDismissScanError={() => setScanError(undefined)}
+          credentialPersistError={credentialPersistError}
+          onRetryCredentialPersist={onRetryCredentialPersist}
+          errorMessage={errorMessage}
+          isConnecting={isConnecting}
+          onRetryConnect={() => onConnect()}
+        />
+
+        {/* Security / Device Storage Footer */}
+        <footer className="connection-security-note">
+          <svg
+            className="icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+          <span>
             {isNativeVault
-              ? '配对成功后设备密钥写入本机 Keychain；退出此设备只清本地，不会在 Host 上吊销。'
-              : '浏览器预览把设备密钥留在内存里，刷新后需要重新配对。'}
-          </p>
-        </div>
-      </EmptyState>
-
-      {scanError !== undefined ? (
-        <Notice tone="warning" title="扫码提示">
-          {scanError}
-        </Notice>
-      ) : null}
-
-      {credentialPersistError ? (
-        <Notice
-          tone="warning"
-          title="Keychain 写入失败"
-          action={
-            <Button variant="secondary" onClick={onRetryCredentialPersist}>
-              重试保存
-            </Button>
-          }
-        >
-          已颁发的设备密钥仍在本次会话内存中。请重试写入，不要重新扫码。
-        </Notice>
-      ) : null}
-
-      {errorMessage !== undefined ? (
-        <Notice tone="error" title="Host 连接异常" testId="mobile-host-error">
-          {errorMessage}
-        </Notice>
-      ) : null}
+              ? '凭据加密保存在本机钥匙串；断开仅清除本地授权。'
+              : '网页预览环境下凭据仅驻留内存，刷新需重新配对。'}
+          </span>
+        </footer>
+      </div>
     </div>
   );
 }

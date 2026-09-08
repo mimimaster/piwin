@@ -9,7 +9,9 @@ html[data-theme-id='piwin-inkstone-ink'] .context-bar {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 0 8px !important;
+  /* Shell already insets the grid by 8px (deck padding). Extra bar padding
+     would push .proto-nav past the sidebar's right edge below. */
+  padding: 0 !important;
   color: var(--t2);
   font-size: 12px;
   font-family: var(--sans);

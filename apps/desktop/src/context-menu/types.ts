@@ -106,6 +106,8 @@ export type ContextMenuTarget =
 export type ContextMenuCapabilities = {
   hasProject: boolean;
   canReveal: boolean;
+  /** Shown on a disabled Reveal item (e.g. remote Host disk). */
+  revealDisabledHint?: string;
   /** PathChip / file-tree: offer Save As when a local read channel exists. */
   canSaveAs?: boolean;
   sideChatAvailable: boolean;

@@ -11,6 +11,11 @@
       "import": "./src/index.ts",
       "default": "./src/index.ts"
     },
+    "./bundled/piwin-inkstone": {
+      "types": "./bundled/piwin-inkstone/theme.json",
+      "import": "./bundled/piwin-inkstone/theme.json",
+      "default": "./bundled/piwin-inkstone/theme.json"
+    },
     "./bundled/piwin-ink-wash": {
       "types": "./bundled/piwin-ink-wash/theme.json",
       "import": "./bundled/piwin-ink-wash/theme.json",

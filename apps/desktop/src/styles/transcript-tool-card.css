@@ -833,15 +833,11 @@
   color: var(--text-2);
 }
 
-/* Top-level chain rows lead with a 13px kind icon so thinking / explore /
-   command / read rows share one left rhythm. Rows nested inside a capsule
-   body drop the icon — the timeline rail already anchors them. */
 .turn-work-details .tool-call-card .tool-call-kind-icon {
   color: var(--text-4);
   width: 13px;
   height: 13px;
 }
-
 .tool-batch-body .tool-call-card:not(.is-expanded) .tool-call-kind-icon {
   display: none;
 }
@@ -850,13 +846,11 @@
   color: var(--text-2);
   cursor: pointer;
 }
-
 .turn-work-details .tool-call-card .tool-call-action-verb {
   color: var(--text-4);
   font-size: var(--fs-chrome);
   font-weight: 400;
 }
-
 .turn-work-details .tool-call-card .tool-call-file-pill {
   background: transparent;
   padding: 0;
@@ -864,76 +858,113 @@
   color: var(--text-3);
 }
 
-/* ── Tool batch capsule ───────────────────────────────────────────────
-   Not a boxed card: the header reads as one more chain row. Failures are
-   highlighted on specific failed tool rows and error summary counters rather
-   than tinting the entire container surface. */
-
+/* ── Tool batch capsule ─────────────────────────────────────────────── */
 .tool-batch-capsule {
+  position: relative;
   display: flex;
   flex-direction: column;
   border-radius: var(--r-chip);
   background: transparent;
   border: none;
   margin: 1px 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .tool-batch-header {
   display: flex;
   align-items: center;
-  gap: var(--s-3);
+  gap: 8px;
   width: 100%;
   min-width: 0;
-  min-height: 22px;
-  padding: 1px var(--s-2);
+  min-height: 28px;
+  height: 28px;
+  padding: 0 var(--row-pad, 8px) 0 4px;
   border: none;
-  border-radius: var(--r-chip);
+  border-radius: 6px;
   background: transparent;
   cursor: pointer;
   text-align: left;
-  font-size: var(--fs-chrome);
-  color: var(--text-3);
-  line-height: var(--lh-normal);
+  font: 12.5px var(--sans, inherit);
+  color: var(--t2, var(--text-3));
+  line-height: 1.5;
   user-select: none;
-  transition:
-    background-color var(--t-1) var(--ease-out),
-    color var(--t-1) var(--ease-out);
+  white-space: nowrap;
+  box-sizing: border-box;
+  transition: background-color var(--t-1) var(--ease-out), color var(--t-1) var(--ease-out);
 }
 
 .tool-batch-header:hover {
-  background: var(--hover);
-  color: var(--text-1);
+  background: var(--s3, var(--hover));
+  box-shadow: var(--sh1, none);
+  color: var(--t1, var(--text-1));
 }
 
 .tool-batch-icon-wrapper {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-  color: var(--text-4);
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--t3, var(--text-4));
 }
 
-.tool-batch-kind-icon {
-  width: 13px;
-  height: 13px;
-}
+.tool-batch-kind-icon { width: 14px; height: 14px; }
 
 .tool-batch-title-group {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+  display: inline-flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: baseline;
+  gap: 0;
   min-width: 0;
   max-width: 100%;
-  flex-shrink: 1;
+  flex: 0 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .tool-batch-title {
-  font-weight: 500;
-  color: inherit;
+  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--t1, var(--text-1));
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+.tool-batch-title-rest {
+  font-weight: 400;
+  font-size: 12.5px;
+  color: var(--t2, var(--text-2));
+  margin-left: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 0 1 auto;
+}
+
+.explore-flow-capsule > .node,
+.tool-batch-capsule > .node {
+  display: block !important;
+  position: absolute;
+  left: -18px;
+  top: 14px;
+  margin-top: -4.5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  z-index: 1;
+}
+
+.tool-batch-meta {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font: 11.5px var(--mono, monospace);
+  color: var(--t4, var(--text-4));
+  font-variant-numeric: tabular-nums;
+  flex: none;
+  white-space: nowrap;
 }
 
 /* Ambient loops are liveness, not decoration: drop them, keep the layout. */

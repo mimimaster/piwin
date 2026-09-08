@@ -1,7 +1,7 @@
 /**
  * Claude Code-style live plan list: composer-adjacent, mutates in place.
  * Shown only while a plan is in flight — draft/approved wait on
- * PlanExecutionGate (proto-01 #13, on the creating turn's call chain).
+ * PlanExecutionGate (proto-01 #13, after the creating turn's tool sequence).
  * Tool rows for piwin_plan_* stay out of the call chain (see TurnToolGroup).
  */
 import { useState, type MouseEvent, type ReactElement } from 'react';
@@ -9,11 +9,12 @@ import type { SessionPlan } from '@piwin/contracts';
 import { getBehaviorActivitySpec } from './behavior-activity.js';
 import { useDesktopLocale } from './desktop-locale-context.js';
 import { compactPlanSteps } from './plan-todo-model.js';
-import { formatPlanMarkdown, planStepVisual, StepIcon } from './plan-card.js';
+import { planDocumentOpenInput, planStepVisual, StepIcon } from './plan-card.js';
+import type { DocumentOpenInput } from './tool-call-card.js';
 
 export type PlanTodoTrayProps = {
   plan: SessionPlan;
-  onOpenDocument?: ((doc: { title: string; content?: string }) => void) | undefined;
+  onOpenDocument?: ((doc: DocumentOpenInput) => void) | undefined;
   onAbort?: () => void | Promise<void>;
   actionInProgress?: boolean;
 };
@@ -39,10 +40,7 @@ export function PlanTodoTray({
   function handleOpenDoc(event: MouseEvent): void {
     event.stopPropagation();
     if (!onOpenDocument) return;
-    onOpenDocument({
-      title: plan.title || 'Implementation Plan',
-      content: formatPlanMarkdown(plan),
-    });
+    onOpenDocument(planDocumentOpenInput(plan));
   }
 
   async function handleAbort(): Promise<void> {

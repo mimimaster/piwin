@@ -70,9 +70,10 @@
   gap: var(--s-3);
   margin-left: auto;
   min-width: 0;
-  flex-shrink: 0;
+  flex: none;
   font-size: var(--fs-mono);
   color: var(--text-4);
+  white-space: nowrap;
 }
 
 .tool-batch-status-running {

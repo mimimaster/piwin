@@ -213,6 +213,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
           id: skill.id,
           name: skill.name,
           enabled: skill.enabled,
+          ...(skill.source ? { source: skill.source } : {}),
         })),
         compactionSupported: props.compactionSupported !== false,
         streaming: isStreamingRun,
@@ -404,8 +405,11 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   }
 
   /**
-   * Enter semantics: perform the selected item now. Modes switch in place;
-   * commands/skills keep any user-typed args after the token and send.
+   * Enter semantics: perform the selected item now.
+   * - Modes switch in place (or send when args follow the token).
+   * - Skills with no args complete like click/Tab so the user can type a
+   *   real prompt; skills with typed args after the token still send.
+   * - Reserved commands / other execute items send immediately.
    */
   function executeSlashItem(item: SlashItem): void {
     if (!activeSlashToken) {
@@ -423,6 +427,15 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       props.onComposerChange(next);
       focusCaret(activeSlashToken.startIndex);
       setSlashMenuForcedClosed(true);
+      return;
+    }
+    if (item.kind === 'skill') {
+      const suffix = props.composer.slice(activeSlashToken.endIndex);
+      if (suffix.trim().length === 0) {
+        completeSlashItem(item);
+        return;
+      }
+      executeSlashItemSend(item, suffix);
       return;
     }
     executeSlashItemSend(item, props.composer.slice(activeSlashToken.endIndex));
@@ -578,7 +591,8 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
         const selected = slashItems[slashSelectedIndex];
         if (selected && (selected.available || isReservedSlashExecuteName(selected.name))) {
-          // One Enter performs the selected item: no fill-then-Enter dance.
+          // Skills without args complete only (same as click/Tab). Reserved
+          // commands, modes, and skills-with-args still perform on one Enter.
           event.preventDefault();
           executeSlashItem(selected);
           return;
@@ -714,9 +728,8 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !event.shiftKey) {
       event.preventDefault();
       const reserved = isReservedComposerSlashCommand(props.composer);
-      if (isPaused && !reserved) {
-        return;
-      }
+      // Paused + empty Continue is a button action. Paused + draft is an
+      // ordinary new message (same as the Send circle); never swallow ⌘Enter.
       if (isStreamingRun && !queuedEdit && !reserved) {
         if (props.composer.trim().length > 0) {
           triggerSteer();
@@ -740,9 +753,8 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     ) {
       event.preventDefault();
       const reserved = isReservedComposerSlashCommand(props.composer);
-      if (isPaused && !reserved) {
-        return;
-      }
+      // Paused empty state keeps Continue on the circle; Enter with a draft
+      // must send the new message, not silently no-op.
       if (canKeyboardSend || reserved) {
         triggerSend();
       }

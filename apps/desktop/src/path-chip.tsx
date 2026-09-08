@@ -14,6 +14,11 @@ import {
   saveLocalFileAs,
 } from './local-file-actions.js';
 import { useLocalFileActions } from './local-file-actions-context.js';
+import {
+  canRevealInLocalFileManager,
+  revealDisabledHint,
+} from './local-file-reveal-policy.js';
+import { resolveProjectFilesystemRoot } from './remote-session-hydrate.js';
 
 export type PathChipProps = {
   fullPath: string;
@@ -39,12 +44,18 @@ function relativePathFromFull(fullPath: string, projectPath: string | undefined)
   if (!projectPath) {
     return fullPath;
   }
-  const normalizedRoot = projectPath.replace(/\/+$/, '');
-  if (fullPath === normalizedRoot) {
+  const normalizedRoot = resolveProjectFilesystemRoot(projectPath);
+  if (!normalizedRoot) {
+    return fullPath;
+  }
+  if (fullPath === normalizedRoot || fullPath === projectPath) {
     return '';
   }
   if (fullPath.startsWith(`${normalizedRoot}/`)) {
     return fullPath.slice(normalizedRoot.length + 1);
+  }
+  if (fullPath.startsWith(`${projectPath}/`)) {
+    return fullPath.slice(projectPath.length + 1);
   }
   return fullPath;
 }
@@ -109,6 +120,10 @@ export function PathChip({
             );
             return;
           }
+          if (result.reason === 'not-local') {
+            notify?.(revealDisabledHint(locale === 'zh-CN' ? 'zh-CN' : 'en'), 'info');
+            return;
+          }
           notify?.(
             locale === 'zh-CN' ? '无法在文件管理器中打开' : 'Could not show in file manager',
             'error',
@@ -167,9 +182,13 @@ export function PathChip({
     [addContextRef, locale, localFileActions, notify, onOpen],
   );
 
+  const canReveal = canActOnDisk && canRevealInLocalFileManager(absolutePath);
   const caps = {
     hasProject: hasProjectContext,
-    canReveal: canActOnDisk,
+    canReveal,
+    ...(canReveal
+      ? {}
+      : { revealDisabledHint: revealDisabledHint(locale === 'zh-CN' ? 'zh-CN' : 'en') }),
     canSaveAs: canActOnDisk,
     sideChatAvailable: false,
     applyAvailable: true,

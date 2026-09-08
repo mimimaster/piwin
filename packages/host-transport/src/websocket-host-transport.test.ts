@@ -170,6 +170,42 @@ describe('WebSocketHostTransport', () => {
     await transport.close();
   });
 
+  it('fails the initial dial instead of looping when pre-handshake reconnect is disabled', async () => {
+    const sockets: FakeSocket[] = [];
+    const transport = new WebSocketHostTransport({
+      endpoint: 'ws://test-host',
+      autoReconnect: true,
+      autoReconnectBeforeHandshake: false,
+      reconnectMinDelayMs: 1,
+      reconnectMaxDelayMs: 2,
+      createHello: (lastSeq) => ({
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'mobile',
+        clientVersion: 'test',
+        clientId: 'client-no-initial-loop',
+        lastSeq,
+      }),
+      webSocketFactory: () => {
+        const socket = new FakeSocket();
+        sockets.push(socket);
+        return socket;
+      },
+    });
+
+    const connection = transport.connect();
+    const socket = sockets[0];
+    if (socket === undefined) {
+      throw new Error('Expected the first fake socket');
+    }
+    socket.emitClose(1006, 'connection refused');
+
+    await expect(connection).rejects.toThrow('connection refused');
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(sockets).toHaveLength(1);
+    await transport.close();
+  });
+
   it('retries after a connect timeout until hello arrives when autoReconnect is on', async () => {
     vi.useFakeTimers();
     const sockets: FakeSocket[] = [];
@@ -247,6 +283,34 @@ describe('WebSocketHostTransport', () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(sockets).toHaveLength(1);
     expect(states.at(-1)?.kind).toBe('error');
+    await transport.close();
+  });
+
+  it('preserves the Host handshake error when the socket closes', async () => {
+    const socket = new FakeSocket();
+    const transport = new WebSocketHostTransport({
+      endpoint: 'ws://test-host',
+      createHello: () => ({
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'mobile',
+        clientVersion: 'test',
+        clientId: 'client-handshake-error',
+        lastSeq: 0,
+      }),
+      webSocketFactory: () => socket,
+    });
+
+    const connection = transport.connect();
+    socket.emitOpen();
+    socket.emitMessage({
+      type: 'error',
+      code: 'authentication-required',
+      message: 'Pairing token is invalid or expired',
+    });
+    socket.emitClose(4004, 'Authentication failed');
+
+    await expect(connection).rejects.toThrow('Pairing token is invalid or expired');
     await transport.close();
   });
 

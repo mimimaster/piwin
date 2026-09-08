@@ -1,7 +1,12 @@
 /** Appearance preferences; theme catalog and preview controls own their views. */
 import type { ReactElement } from 'react';
 import { Button, SegmentedControl, Switch } from '@piwin/ui-kit';
-import { buildAppearanceTheme, isThemeAppearanceLocked, resolveSystemThemeMode } from '../../appearance-tokens.js';
+import {
+  buildAppearanceTheme,
+  isInkstoneThemeId,
+  isThemeAppearanceLocked,
+  resolveSystemThemeMode,
+} from '../../appearance-tokens.js';
 import { getDesktopCopy } from '../../desktop-locale.js';
 import { useDesktopLocale } from '../../desktop-locale-context.js';
 import { DEFAULT_DARK_THEME_SETTINGS, DEFAULT_LIGHT_THEME_SETTINGS, saveDesktopPreferences, type AppearanceMode, type AppearanceThemeSettings, type DesktopPreferences, type ConversationWidth, type ToolCallDensity } from '../../ui-preferences.js';
@@ -82,40 +87,41 @@ export function AppearancePage(): ReactElement {
     <div className="settings-card appearance-page" data-testid="settings-appearance">
       <section className="settings-section settings-section-card appearance-mode-card">
         <div className="appearance-mode-copy">
-          <h3>{locale === 'zh-CN' ? '纸与墨' : 'Paper & Ink'}</h3>
-          <p>{locale === 'zh-CN' ? '一张纸，一块砚。选择你的工作台。' : 'One page, one inkstone. Make the workspace yours.'}</p>
+          <h3>Inkstone</h3>
+          <p>
+            {locale === 'zh-CN'
+              ? '同一个主题，白天是纸，黑夜是墨。'
+              : 'One theme: paper by day, ink by night.'}
+          </p>
         </div>
         <div className="appearance-mode-control">
           <AppearanceModeControl
             value={preferences.appearanceMode}
             onChange={handleAppearanceModeChange}
             copy={copy}
+            locale={locale}
           />
         </div>
       </section>
 
       <div className="appearance-face-grid">
-      <ThemeSettingsCard
-        mode="light"
-        locale={locale}
-        selected={activeTheme.mode === 'light'}
-        disabled={themePackageActive}
-        onSelect={() => handleAppearanceModeChange('light')}
-        settings={getAppearanceThemeSettings(preferences, 'light')}
-        copy={copy}
-        onChange={(key, value) => handleThemeColorChange('light', key, value)}
-      />
-      <ThemeSettingsCard
-        mode="dark"
-        locale={locale}
-        selected={activeTheme.mode === 'dark'}
-        disabled={themePackageActive}
-        onSelect={() => handleAppearanceModeChange('dark')}
-        settings={getAppearanceThemeSettings(preferences, 'dark')}
-        copy={copy}
-        onChange={(key, value) => handleThemeColorChange('dark', key, value)}
-      />
-
+        <ThemeSettingsCard
+          mode={activeTheme.mode === 'light' ? 'light' : 'dark'}
+          locale={locale}
+          selected={isInkstoneThemeId(activeTheme.id)}
+          disabled={themePackageActive}
+          onSelect={() =>
+            handleAppearanceModeChange(activeTheme.mode === 'light' ? 'light' : 'dark')
+          }
+          settings={getAppearanceThemeSettings(
+            preferences,
+            activeTheme.mode === 'light' ? 'light' : 'dark',
+          )}
+          copy={copy}
+          onChange={(key, value) =>
+            handleThemeColorChange(activeTheme.mode === 'light' ? 'light' : 'dark', key, value)
+          }
+        />
       </div>
       {themeLibraryAvailable ? <ThemeLibraryCard /> : null}
       <section className="settings-section settings-section-card">

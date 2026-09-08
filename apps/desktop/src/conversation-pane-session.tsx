@@ -123,19 +123,29 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
     onSessionDeletedRef.current = props.onSessionDeleted;
   }, [props.onNameChange, props.onSessionDeleted]);
 
+  const foregroundHydrateGenerationRef = useRef(0);
   const hydrateForegroundRun = useCallback(
     async (isCancelled?: () => boolean): Promise<void> => {
       if (isCancelled?.()) return;
+      const generation = foregroundHydrateGenerationRef.current + 1;
+      foregroundHydrateGenerationRef.current = generation;
       dispatch({ type: 'foreground/admission', admission: 'reconciling' });
       const runIdAtStart = stateRef.current.activeRunId;
+      const stillCurrent = (): boolean =>
+        !isCancelled?.() && foregroundHydrateGenerationRef.current === generation;
       try {
         const response = await props.hostClient.request({
           type: 'session/foreground-run',
           sessionId: props.sessionId,
         });
-        if (isCancelled?.()) return;
+        if (!stillCurrent()) return;
         if (!response.success) {
-          dispatch({ type: 'foreground/admission', admission: 'unknown' });
+          // Host-up failures stay reconciling (main shell backoff owns retry).
+          // Host-down parks at unknown until hello/ready returns.
+          dispatch({
+            type: 'foreground/admission',
+            admission: props.hostClient.isReady() ? 'reconciling' : 'unknown',
+          });
           return;
         }
         const run = readRun(response.data);
@@ -150,7 +160,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
             type: 'session/messages',
             sessionId: props.sessionId,
           });
-          if (isCancelled?.()) return;
+          if (!stillCurrent()) return;
           if (messagesResponse.success) {
             const data = messagesResponse.data as
               { messages?: SessionTranscriptMessage[] } | undefined;
@@ -159,14 +169,20 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
                 type: 'session/load-messages',
                 sessionId: props.sessionId,
                 messages: data.messages,
+                preserveActiveTail: true,
               });
             }
           }
           dispatch({ type: 'run/stale-clear', sessionId: props.sessionId });
         }
+        if (!stillCurrent()) return;
         dispatch({ type: 'foreground/admission', admission: 'ready' });
       } catch {
-        dispatch({ type: 'foreground/admission', admission: 'unknown' });
+        if (!stillCurrent()) return;
+        dispatch({
+          type: 'foreground/admission',
+          admission: props.hostClient.isReady() ? 'reconciling' : 'unknown',
+        });
       }
     },
     [props.hostClient, props.sessionId],
@@ -223,7 +239,6 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
           ...(data.transcriptPage ? { transcriptPage: data.transcriptPage } : {}),
           ...(data.outline ? { outline: data.outline } : {}),
           ...(data.contextUsage !== undefined ? { contextUsage: data.contextUsage } : {}),
-          live: data.live,
           ...(data.pauseCheckpoint ? { pauseCheckpoint: data.pauseCheckpoint } : {}),
         });
         const snapshot = parseSessionContextSnapshot(data.contextSnapshot);

@@ -1,6 +1,13 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import { Select } from '@piwin/ui-kit';
-import { buildAppearanceTheme, resolveSystemThemeMode, toHostCatalogThemeId } from '../../appearance-tokens.js';
+import {
+  buildAppearanceTheme,
+  isInkstoneThemeId,
+  PIWIN_INKSTONE_THEME_ID,
+  resolveInkstoneFaceThemeId,
+  resolveSystemThemeMode,
+  toHostCatalogThemeId,
+} from '../../appearance-tokens.js';
 import { getDesktopCopy } from '../../desktop-locale.js';
 import { useDesktopLocale } from '../../desktop-locale-context.js';
 import { PageTitle } from '../page-title.js';
@@ -39,20 +46,19 @@ export function ThemeLibraryCard(): ReactElement {
     };
   }, [request]);
 
-  const LIBRARY_THEME_IDS = ['piwin-ink-wash', 'piwin-inkstone-paper', 'piwin-inkstone-ink'] as const;
-  const selectValue = LIBRARY_THEME_IDS.includes(activeTheme.id as (typeof LIBRARY_THEME_IDS)[number])
-    ? activeTheme.id
-    : 'system';
+  const selectValue =
+    activeTheme.id === 'piwin-ink-wash'
+      ? 'piwin-ink-wash'
+      : isInkstoneThemeId(activeTheme.id)
+        ? PIWIN_INKSTONE_THEME_ID
+        : 'current';
   const LIBRARY_THEME_LABELS: Record<string, { zh: string; en: string }> = {
     'piwin-ink-wash': { zh: '砚夜泼墨', en: 'Ink Wash' },
-    'piwin-inkstone-paper': { zh: 'Inkstone · 纸', en: 'Inkstone · Paper' },
-    'piwin-inkstone-ink': { zh: 'Inkstone · 墨', en: 'Inkstone · Ink' },
+    [PIWIN_INKSTONE_THEME_ID]: { zh: 'Inkstone', en: 'Inkstone' },
   };
   const activeLabel =
-    selectValue === 'system'
-      ? isChinese
-        ? '系统'
-        : 'System'
+    selectValue === 'current'
+      ? activeTheme.name
       : isChinese
         ? LIBRARY_THEME_LABELS[selectValue]?.zh ?? selectValue
         : LIBRARY_THEME_LABELS[selectValue]?.en ?? selectValue;
@@ -61,13 +67,13 @@ export function ThemeLibraryCard(): ReactElement {
     if (targetValue === selectValue) {
       return;
     }
-    if (targetValue === 'system') {
+    if (targetValue === PIWIN_INKSTONE_THEME_ID) {
       const activeMode =
         preferences.appearanceMode === 'system'
           ? resolveSystemThemeMode()
           : preferences.appearanceMode;
       const baseThemeId = toHostCatalogThemeId(
-        activeMode === 'light' ? 'piwin-inkstone-paper' : 'piwin-inkstone-ink',
+        resolveInkstoneFaceThemeId(activeMode),
       );
       const response = await request({ type: 'theme/set-active', themeId: baseThemeId });
       if (!response.success) {
@@ -77,10 +83,7 @@ export function ThemeLibraryCard(): ReactElement {
       onThemeApplied(
         buildAppearanceTheme(activeMode, getAppearanceThemeSettings(preferences, activeMode)),
       );
-      setInfo(
-        isChinese ? '已恢复系统外观。' : 'Switched to system appearance.',
-        'success',
-      );
+      setInfo(isChinese ? '已切换到 Inkstone。' : 'Switched to Inkstone.', 'success');
       return;
     }
     const response = await request({
@@ -112,16 +115,24 @@ export function ThemeLibraryCard(): ReactElement {
           value={selectValue}
           onChange={(event) => void handleThemeChange(event.currentTarget.value)}
           data={[
-            { value: 'system', label: isChinese ? '系统 · system' : 'System · system' },
-            { value: 'piwin-ink-wash', label: isChinese ? '砚夜泼墨 · dark' : 'Ink Wash · dark' },
             {
-              value: 'piwin-inkstone-paper',
-              label: isChinese ? 'Inkstone · 纸 · light' : 'Inkstone · Paper · light',
+              value: 'piwin-ink-wash',
+              label: isChinese ? '砚夜泼墨 · dark' : 'Ink Wash · dark',
             },
             {
-              value: 'piwin-inkstone-ink',
-              label: isChinese ? 'Inkstone · 墨 · dark' : 'Inkstone · Ink · dark',
+              value: PIWIN_INKSTONE_THEME_ID,
+              label: isChinese ? 'Inkstone · 纸 / 墨' : 'Inkstone · Paper / Ink',
             },
+            ...(selectValue === 'current'
+              ? [
+                  {
+                    value: 'current',
+                    label: isChinese
+                      ? `${activeTheme.name} · 当前`
+                      : `${activeTheme.name} · Current`,
+                  },
+                ]
+              : []),
           ]}
           aria-label={copy.themeLibrary}
           disabled={loading}
@@ -131,4 +142,3 @@ export function ThemeLibraryCard(): ReactElement {
     </section>
   );
 }
-

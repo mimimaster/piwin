@@ -25,6 +25,21 @@ import {
 } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
 import { PageTitle } from './settings/page-title';
+import { notifySkillsChanged } from './skills-changed.js';
+
+function skillInstallReadyMessage(input: {
+  skillId: string;
+  isChinese: boolean;
+  detail?: string;
+}): string {
+  const slash = `/${input.skillId}`;
+  if (input.isChinese) {
+    const detail = input.detail ? `（${input.detail}）` : '';
+    return `已安装 ${input.skillId}${detail}。可立即用 ${slash} 调用，无需重启。`;
+  }
+  const detail = input.detail ? ` (${input.detail})` : '';
+  return `Installed ${input.skillId}${detail}. Use ${slash} now — no restart needed.`;
+}
 
 export type SkillsPanelProps = {
   projectPath: string | null;
@@ -156,6 +171,7 @@ export function SkillsPanel(props: SkillsPanelProps) {
         : `${skill.enabled ? 'Disabled' : 'Enabled'} skill: ${skill.name}`,
     );
     setSkills((prev) => prev.map((s) => (s.id === skill.id ? { ...s, enabled: !s.enabled } : s)));
+    notifySkillsChanged();
   }
 
   async function handleInstallLocal() {
@@ -176,10 +192,15 @@ export function SkillsPanel(props: SkillsPanelProps) {
     }
     const data = response.data as SkillsInstallData;
     setInfo(
-      isChinese ? `已安装技能到：${data.targetPath}` : `Installed skill to: ${data.targetPath}`,
+      skillInstallReadyMessage({
+        skillId: data.skillId,
+        isChinese,
+        detail: data.targetPath,
+      }),
     );
     setInstallPath('');
     setInstallName('');
+    notifySkillsChanged();
     void loadSkills();
   }
 
@@ -208,14 +229,17 @@ export function SkillsPanel(props: SkillsPanelProps) {
     }
     const data = response.data as SkillsInstallData;
     setInfo(
-      isChinese
-        ? `已从 Git 安装技能到：${data.targetPath}`
-        : `Installed skill from Git to: ${data.targetPath}`,
+      skillInstallReadyMessage({
+        skillId: data.skillId,
+        isChinese,
+        detail: data.targetPath,
+      }),
     );
     setInstallGitUrl('');
     setInstallGitRef('');
     setInstallGitSubdir('');
     setInstallName('');
+    notifySkillsChanged();
     void loadSkills();
   }
 
@@ -233,8 +257,15 @@ export function SkillsPanel(props: SkillsPanelProps) {
       setError(response.error);
       return;
     }
-    setInfo(isChinese ? `已安装：${entry.name}` : `Installed: ${entry.name}`);
+    const data = response.data as SkillsInstallData;
+    setInfo(
+      skillInstallReadyMessage({
+        skillId: data.skillId || entry.name,
+        isChinese,
+      }),
+    );
     setMainTab('installed');
+    notifySkillsChanged();
     void loadSkills();
   }
 

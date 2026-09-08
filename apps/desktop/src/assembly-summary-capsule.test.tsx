@@ -64,6 +64,12 @@ describe('AssemblySummaryCapsule', () => {
   });
 
   it('renders a left-aligned collapsed header that expands on click', () => {
+    const measureEvents: Event[] = [];
+    const onMeasure = (event: Event): void => {
+      measureEvents.push(event);
+    };
+    document.addEventListener('piwin:transcript-turn-measure', onMeasure);
+
     act(() => {
       root.render(<AssemblySummaryCapsule summary={summary()} locale="zh-CN" />);
     });
@@ -81,6 +87,7 @@ describe('AssemblySummaryCapsule', () => {
     expect(capsule?.classList.contains('open')).toBe(false);
     expect(container.querySelector('[data-testid="assembly-summary-detail"]')).toBeNull();
 
+    const measureCountBeforeToggle = measureEvents.length;
     act(() => {
       toggle?.click();
     });
@@ -92,6 +99,9 @@ describe('AssemblySummaryCapsule', () => {
     expect(detail?.textContent).toContain('Host 装配层收集的内容');
     expect(detail?.textContent).toContain('User');
     expect(detail?.textContent).toContain('Agent mode agent');
+    expect(measureEvents.length).toBeGreaterThan(measureCountBeforeToggle);
+
+    document.removeEventListener('piwin:transcript-turn-measure', onMeasure);
   });
 
   it('does not make the preparing row a toggle', () => {

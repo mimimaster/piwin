@@ -97,6 +97,23 @@ describe('buildSlashCatalog — Conversation chat', () => {
     expect(writingPlans?.available).toBe(true);
   });
 
+  it('hides project-local skills in Conversation slash', () => {
+    const catalog = buildSlashCatalog({
+      skills: [
+        { id: 'user-skill', name: 'user-skill', enabled: true, source: 'user' },
+        { id: 'proj-skill', name: 'proj-skill', enabled: true, source: 'project' },
+        { id: 'bundled-skill', name: 'bundled-skill', enabled: true, source: 'bundled' },
+      ],
+      hasActiveSession: true,
+      projectTrusted: true,
+      requireProjectTrust: false,
+      conversationChat: true,
+    });
+    expect(catalog.map((item) => item.id)).toContain('skill:user-skill');
+    expect(catalog.map((item) => item.id)).toContain('skill:bundled-skill');
+    expect(catalog.map((item) => item.id)).not.toContain('skill:proj-skill');
+  });
+
   it('keeps /goal available before a session exists', () => {
     const catalog = buildSlashCatalog({
       skills: [],

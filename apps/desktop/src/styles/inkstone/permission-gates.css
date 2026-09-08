@@ -190,7 +190,7 @@ html[data-theme-id='piwin-inkstone-ink'] .seal.mini::after {
 }
 
 /* S5.9: Plan execution gate (.intr) — verbatim from proto-01-transcript.html
-   lines 244–252 + pill 81–84. Solo card above the composer; never stacked
+   lines 244–252 + pill 81–84. Solo card in the transcript; never stacked
    under the live todo tray for draft/approved plans. */
 html[data-theme-id='piwin-inkstone-paper'] .intr,
 html[data-theme-id='piwin-inkstone-ink'] .intr {
@@ -375,4 +375,3 @@ html[data-theme-id='piwin-inkstone-ink'] .intr .pill.zhu-p {
   background: var(--zhu-wash);
   color: var(--zhu);
 }
-

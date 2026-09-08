@@ -251,7 +251,6 @@ export function useSessionResume(input: {
           type: 'session/load-messages',
           sessionId,
           messages: [],
-          live: false,
         });
         return;
       }
@@ -393,7 +392,6 @@ export function useSessionResume(input: {
             messages: listedData.messages,
             outline,
             contextUsage: data.contextUsage ?? null,
-            live: data.live,
             ...(data.pauseCheckpoint ? { pauseCheckpoint: data.pauseCheckpoint } : {}),
           });
           await hydrateQueuedTurns(sessionId, ticketMatches);
@@ -416,7 +414,6 @@ export function useSessionResume(input: {
         ...(data.transcriptPage ? { transcriptPage: data.transcriptPage } : {}),
         outline,
         contextUsage: data.contextUsage ?? null,
-        live: data.live,
         ...(data.pauseCheckpoint ? { pauseCheckpoint: data.pauseCheckpoint } : {}),
       });
       await hydrateQueuedTurns(sessionId, ticketMatches);

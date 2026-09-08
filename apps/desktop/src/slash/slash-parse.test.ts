@@ -6,6 +6,7 @@ import {
   isReservedSlashExecuteName,
   normalizeCompactCustomInstructions,
   parseComposerSlashSubmit,
+  parseSlashMessageDisplay,
   replaceActiveSlashToken,
   runReservedComposerSlashCommand,
 } from './slash-parse';
@@ -235,5 +236,70 @@ it('parses /knowledge, /flashcards, and /notes as knowledge submits', () => {
     subTab: 'wiki',
     name: 'wiki',
     args: '',
+  });
+});
+
+describe('parseSlashMessageDisplay', () => {
+  it('parses skill slash invocation with args', () => {
+    const result = parseSlashMessageDisplay('/RuiC-card-skill 在重新生成');
+    expect(result).toEqual({
+      isSlash: true,
+      commandName: 'RuiC-card-skill',
+      mainText: '在重新生成',
+      tagText: 'SKILL:RuiC-card-skill',
+      category: 'skill',
+      colorVar: 'var(--iris, #6b52a1)',
+      fullLabel: 'Skill: RuiC-card-skill',
+    });
+  });
+
+  it('parses mode slash invocation (/goal)', () => {
+    const result = parseSlashMessageDisplay('/goal 跑通所有测试');
+    expect(result).toEqual({
+      isSlash: true,
+      commandName: 'goal',
+      mainText: '跑通所有测试',
+      tagText: 'MODE:GOAL',
+      category: 'mode',
+      colorVar: 'var(--lamp, #b8801f)',
+      fullLabel: 'Mode: goal',
+    });
+  });
+
+  it('parses bare command slash invocation (/compact)', () => {
+    const result = parseSlashMessageDisplay('/compact');
+    expect(result).toEqual({
+      isSlash: true,
+      commandName: 'compact',
+      mainText: '',
+      tagText: 'CMD:COMPACT',
+      category: 'command',
+      colorVar: 'var(--azure, #3a7797)',
+      fullLabel: 'Command: compact',
+    });
+  });
+
+  it('parses scheme slash invocation (/scheme ultra-code)', () => {
+    const result = parseSlashMessageDisplay('/scheme ultra-code 优化代码');
+    expect(result).toEqual({
+      isSlash: true,
+      commandName: 'scheme',
+      mainText: 'ultra-code 优化代码',
+      tagText: 'SCHEME:SCHEME',
+      category: 'scheme',
+      colorVar: 'var(--zhu, #c6412a)',
+      fullLabel: 'Scheme: scheme',
+    });
+  });
+
+  it('returns non-slash for normal messages', () => {
+    expect(parseSlashMessageDisplay('hello world')).toEqual({
+      isSlash: false,
+      mainText: 'hello world',
+    });
+    expect(parseSlashMessageDisplay('a / b')).toEqual({
+      isSlash: false,
+      mainText: 'a / b',
+    });
   });
 });

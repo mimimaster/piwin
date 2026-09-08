@@ -2,6 +2,7 @@ import {
   mockThemeManifest,
   resolveMockThemeId,
 } from './host-client-mock-helpers.js';
+import { isInkstoneThemeId, PIWIN_INKSTONE_THEME_ID } from './appearance-tokens.js';
 import type { MockHostBackend } from './host-client-mock.js';
 import type {
   HostCommand,
@@ -28,24 +29,6 @@ export async function handleMockCatalogCommands(
             activeThemeId,
             themes: [
               {
-                id: 'piwin-obsidian',
-                name: 'Obsidian',
-                version: '1.0.0',
-                mode: 'dark',
-                path: '/mock/themes/piwin-obsidian',
-                source: 'bundled',
-                active: activeThemeId === 'piwin-obsidian',
-              },
-              {
-                id: 'piwin-bone',
-                name: 'Bone',
-                version: '1.0.0',
-                mode: 'light',
-                path: '/mock/themes/piwin-bone',
-                source: 'bundled',
-                active: activeThemeId === 'piwin-bone',
-              },
-              {
                 id: 'piwin-ink-wash',
                 name: '砚夜泼墨',
                 version: '1.0.0',
@@ -55,22 +38,13 @@ export async function handleMockCatalogCommands(
                 active: activeThemeId === 'piwin-ink-wash',
               },
               {
-                id: 'piwin-inkstone-paper',
-                name: 'Inkstone · 纸',
-                version: '1.0.0',
-                mode: 'light',
-                path: '/mock/themes/piwin-inkstone-paper',
+                id: PIWIN_INKSTONE_THEME_ID,
+                name: 'Inkstone',
+                version: '2.0.0',
+                mode: activeThemeId === 'piwin-inkstone-ink' ? 'dark' : 'light',
+                path: '/mock/themes/piwin-inkstone',
                 source: 'bundled',
-                active: activeThemeId === 'piwin-inkstone-paper',
-              },
-              {
-                id: 'piwin-inkstone-ink',
-                name: 'Inkstone · 墨',
-                version: '1.0.0',
-                mode: 'dark',
-                path: '/mock/themes/piwin-inkstone-ink',
-                source: 'bundled',
-                active: activeThemeId === 'piwin-inkstone-ink',
+                active: isInkstoneThemeId(activeThemeId),
               },
             ],
           },
@@ -853,4 +827,3 @@ export async function handleMockCatalogCommands(
       return null;
   }
 }
-

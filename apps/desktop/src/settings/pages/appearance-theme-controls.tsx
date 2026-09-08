@@ -20,15 +20,21 @@ function isHexColor(value: string): boolean {
   return /^#[0-9a-fA-F]{6}$/.test(value);
 }
 
-function getModeLabel(mode: AppearanceMode, copy: DesktopCopy['appearance']): string {
+function getModeLabel(
+  mode: AppearanceMode,
+  copy: DesktopCopy['appearance'],
+  locale: 'zh-CN' | 'en',
+): string {
   if (mode === 'system') return copy.system;
-  return mode === 'light' ? copy.light : copy.dark;
+  if (locale === 'zh-CN') return mode === 'light' ? '纸面' : '墨面';
+  return mode === 'light' ? 'Paper' : 'Ink';
 }
 
 export function AppearanceModeControl(props: {
   value: AppearanceMode;
   onChange: (mode: AppearanceMode) => void;
   copy: DesktopCopy['appearance'];
+  locale: 'zh-CN' | 'en';
 }): ReactElement {
   return (
     <SegmentedControl
@@ -40,7 +46,7 @@ export function AppearanceModeControl(props: {
         label: (
           <span className="appearance-mode-option">
             {mode === 'system' ? <IconLaptop /> : mode === 'light' ? <IconSun /> : <IconMoon />}
-            {getModeLabel(mode, props.copy)}
+            {getModeLabel(mode, props.copy, props.locale)}
           </span>
         ),
       }))}
@@ -82,54 +88,72 @@ export function ThemeSettingsCard(props: {
   copy: DesktopCopy['appearance'];
   onChange: (key: ThemeColorKey, value: string) => void;
 }): ReactElement {
-  const title = props.mode === 'light' ? props.copy.lightTheme : props.copy.darkTheme;
-  const prefix = props.mode === 'light' ? 'light' : 'dark';
+  const title = 'Inkstone';
+  const prefix = 'inkstone';
+  const faceLabel =
+    props.locale === 'zh-CN'
+      ? props.mode === 'light'
+        ? '纸'
+        : '墨'
+      : props.mode === 'light'
+        ? 'Paper'
+        : 'Ink';
+  const faceDescription =
+    props.mode === 'light' ? '白天纸面 · 温润明亮' : '黑夜墨面 · 安静专注';
 
   return (
     <section className="settings-section settings-section-card appearance-theme-card">
-      <Button variant="ghost" className="appearance-face-preview" onClick={props.onSelect}
-        disabled={props.disabled} aria-pressed={props.selected}
-        aria-label={props.locale === 'zh-CN' ? `使用${props.mode === 'light' ? '纸' : '墨'}面` : `Use ${title}`}
-        data-testid={`${prefix}-theme-preview`}>
+      <Button
+        variant="ghost"
+        className="appearance-face-preview"
+        onClick={props.onSelect}
+        disabled={props.disabled}
+        aria-pressed={props.selected}
+        aria-label={props.locale === 'zh-CN' ? '使用 Inkstone 主题' : 'Use the Inkstone theme'}
+        data-testid={`${prefix}-theme-preview`}
+      >
         <AppearanceThemePreview mode={props.mode} settings={props.settings} />
         <span className="appearance-face-caption">
-          <strong>{props.locale === 'zh-CN' ? (props.mode === 'light' ? '纸' : '墨') : title}</strong>
-          <span>{props.locale === 'zh-CN' ? (props.mode === 'light' ? '温润纸面 · 明亮工作台' : '深夜书案 · 安静专注') : (props.mode === 'light' ? 'A warm, light workspace' : 'A quiet, dark workspace')}</span>
+          <strong>{title}</strong>
+          <span>
+            {props.locale === 'zh-CN'
+              ? faceDescription
+              : `Inkstone · ${props.mode === 'light' ? 'Paper by day' : 'Ink by night'}`}
+          </span>
           <span className="appearance-face-selection" aria-hidden="true" />
         </span>
       </Button>
       <details className="appearance-color-disclosure">
         <summary>{props.locale === 'zh-CN' ? '自定义配色' : 'Customize colors'}</summary>
-      <div className="appearance-theme-setting-row">
-        <span>{props.copy.preset}</span>
-        <Select
-          value={props.settings.preset}
-          onChange={() => undefined}
-          data={[{ value: 'default', label: 'Default' }]}
-          aria-label={`${title} ${props.copy.preset}`}
-          testId={`${prefix}-theme-preset`}
+        <div className="appearance-theme-setting-row">
+          <span>{props.copy.preset}</span>
+          <Select
+            value={props.settings.preset}
+            onChange={() => undefined}
+            data={[{ value: 'default', label: 'Default' }]}
+            aria-label={`${title} ${faceLabel} ${props.copy.preset}`}
+            testId={`${prefix}-theme-preset`}
+          />
+        </div>
+        <ThemeColorRow
+          label={props.copy.background}
+          value={props.settings.background}
+          testId={`${prefix}-theme-background`}
+          onChange={(value) => props.onChange('background', value)}
         />
-      </div>
-      <ThemeColorRow
-        label={props.copy.background}
-        value={props.settings.background}
-        testId={`${prefix}-theme-background`}
-        onChange={(value) => props.onChange('background', value)}
-      />
-      <ThemeColorRow
-        label={props.copy.foreground}
-        value={props.settings.foreground}
-        testId={`${prefix}-theme-foreground`}
-        onChange={(value) => props.onChange('foreground', value)}
-      />
-      <ThemeColorRow
-        label={props.copy.accent}
-        value={props.settings.accent}
-        testId={`${prefix}-theme-accent`}
-        onChange={(value) => props.onChange('accent', value)}
-      />
+        <ThemeColorRow
+          label={props.copy.foreground}
+          value={props.settings.foreground}
+          testId={`${prefix}-theme-foreground`}
+          onChange={(value) => props.onChange('foreground', value)}
+        />
+        <ThemeColorRow
+          label={props.copy.accent}
+          value={props.settings.accent}
+          testId={`${prefix}-theme-accent`}
+          onChange={(value) => props.onChange('accent', value)}
+        />
       </details>
     </section>
   );
 }
-

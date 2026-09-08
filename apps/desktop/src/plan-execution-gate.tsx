@@ -2,15 +2,23 @@
  * Call-chain plan execution picker (proto-01 #13).
  *
  * Draft/approved SessionPlans sit on the assistant turn that created them —
- * after that turn's tool sequence, not above the composer. The composer stays
- * free so the user can ignore the plan and keep working. Conversation
- * (general scope) never shows this gate.
+ * after that turn's tool sequence, not above the composer. The gate stays
+ * outside the collapsible work/thinking details so the decision cannot be
+ * buried. The composer stays free so the user can ignore the plan and keep
+ * working. Conversation (general scope) never shows this gate.
  */
-import { useEffect, useRef, type ReactElement } from 'react';
+import {
+  useEffect,
+  useRef,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactElement,
+} from 'react';
 import type { PlanExecutionMode, SessionPlan } from '@piwin/contracts';
 import { getBehaviorActivitySpec } from './behavior-activity.js';
 import type { ChatMessageUi, ToolCardUi } from './chat-ui-types.js';
 import { useDesktopLocale } from './desktop-locale-context';
+import { planDocumentOpenInput } from './plan-card.js';
+import type { DocumentOpenInput } from './tool-call-card.js';
 
 export type PlanExecutionGateVisibility = {
   plan: SessionPlan | null | undefined;
@@ -72,6 +80,7 @@ export function recommendedPlanExecutionMode(
 export type PlanExecutionGateProps = {
   plan: SessionPlan;
   onExecute: (mode: PlanExecutionMode) => void | Promise<void>;
+  onOpenDocument?: (input: DocumentOpenInput) => void;
   actionInProgress?: boolean;
 };
 
@@ -120,7 +129,7 @@ export function formatPlanDescription(
 }
 
 export function PlanExecutionGate(props: PlanExecutionGateProps): ReactElement {
-  const { plan, onExecute, actionInProgress = false } = props;
+  const { plan, onExecute, onOpenDocument, actionInProgress = false } = props;
   const { locale } = useDesktopLocale();
   const copy = locale === 'en' ? COPY_EN : COPY_ZH;
   const recommended = recommendedPlanExecutionMode(plan);
@@ -170,6 +179,17 @@ export function PlanExecutionGate(props: PlanExecutionGateProps): ReactElement {
 
   const description = formatPlanDescription(plan, locale);
 
+  function handleOpenDocument(): void {
+    onOpenDocument?.(planDocumentOpenInput(plan));
+  }
+
+  function handleOpenDocumentKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {
+    if (event.target !== event.currentTarget) return;
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    handleOpenDocument();
+  }
+
   return (
     <div
       className="intr plan-execution-gate"
@@ -178,6 +198,16 @@ export function PlanExecutionGate(props: PlanExecutionGateProps): ReactElement {
       data-activity-animation={getBehaviorActivitySpec('plan').animation}
       data-tool-status="idle"
       aria-label={copy.status}
+      {...(onOpenDocument
+        ? {
+            role: 'button' as const,
+            tabIndex: 0,
+            title: locale === 'en' ? 'Open plan document' : '点击查看计划文档',
+            'data-document-openable': 'true',
+            onClick: handleOpenDocument,
+            onKeyDown: handleOpenDocumentKeyDown,
+          }
+        : {})}
     >
       <span className="pill zhu-p">
         <i />
@@ -196,7 +226,10 @@ export function PlanExecutionGate(props: PlanExecutionGateProps): ReactElement {
               data-testid={entry.mode === 'inline' ? 'plan-mode-inline' : 'plan-mode-subagent'}
               data-recommended={isRecommended ? 'true' : 'false'}
               disabled={actionInProgress}
-              onClick={() => void onExecute(entry.mode)}
+              onClick={(event) => {
+                event.stopPropagation();
+                void onExecute(entry.mode);
+              }}
             >
               <span className="bd">{entry.badge}</span>
               {isRecommended ? `${copy.recommended} · ${entry.label}` : entry.label}
@@ -208,4 +241,3 @@ export function PlanExecutionGate(props: PlanExecutionGateProps): ReactElement {
     </div>
   );
 }
-

@@ -10,8 +10,40 @@ import { MessageAttachments } from './message-attachments';
 import { IconCheck, IconClose, IconCopy, IconEdit } from './shell-icons';
 import { VoiceHandoverCard } from './voice-handover-card.js';
 import { InkstoneMessageIdentity } from './inkstone-message-identity.js';
+import { parseSlashMessageDisplay } from './slash/slash-parse.js';
 
 export const USER_MESSAGE_COLLAPSE_THRESHOLD = 78;
+
+export function UserMessageText(props: { text: string }): ReactElement {
+  const parsed = parseSlashMessageDisplay(props.text);
+  if (!parsed.isSlash || !parsed.commandName) {
+    return <>{props.text}</>;
+  }
+
+  return (
+    <div className="user-message-slash-container" data-testid="user-message-slash-container">
+      <div
+        className="user-message-slash-ribbon"
+        data-testid="user-message-slash-ribbon"
+        style={{
+          background: `linear-gradient(90deg, ${parsed.colorVar ?? 'var(--iris, #6b52a1)'} 0%, transparent 60%)`,
+        }}
+      />
+      <div
+        className="user-message-slash-header"
+        data-testid="user-message-slash-header"
+        title={parsed.fullLabel}
+      >
+        /{parsed.commandName}
+      </div>
+      {parsed.mainText ? (
+        <div className="user-message-slash-content" data-testid="user-message-slash-content">
+          {parsed.mainText}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export type UserMessageContentProps = {
   message: ChatMessageUi;
@@ -169,7 +201,7 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
           >
             {message.text ? (
               <div ref={textRef} className="user-message-text message-text">
-                {message.text}
+                <UserMessageText text={message.text} />
               </div>
             ) : null}
             <MessageAttachments
@@ -293,7 +325,7 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
       >
         {message.text ? (
           <div ref={textRef} className="message-text">
-            {message.text}
+            <UserMessageText text={message.text} />
           </div>
         ) : null}
         <MessageAttachments
