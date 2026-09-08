@@ -138,18 +138,27 @@ export type AuthUpdatedData = {
   accounts: SubscriptionAccount[];
 };
 
+import type {
+  AuthQuotaInput,
+  AuthResetQuotaInput,
+  SubscriptionAccountQuota,
+} from './subscription-quota.js';
+
 export type SubscriptionAuthCommand =
   | { id?: string; type: 'auth/status' }
   | { id?: string; type: 'auth/login'; input: AuthLoginInput }
   | { id?: string; type: 'auth/respond'; input: AuthRespondInput }
   | { id?: string; type: 'auth/cancel'; loginId: string; ownerDeviceId?: string }
   | { id?: string; type: 'auth/claim'; input: AuthClaimInput }
-  | { id?: string; type: 'auth/logout'; input: AuthLogoutInput };
+  | { id?: string; type: 'auth/logout'; input: AuthLogoutInput }
+  | { id?: string; type: 'auth/quota'; input: AuthQuotaInput }
+  | { id?: string; type: 'auth/reset-quota'; input: AuthResetQuotaInput };
 
 export type SubscriptionAuthPush =
   | { type: 'auth/prompt'; prompt: AuthPromptPayload }
   | { type: 'auth/updated'; accounts: SubscriptionAccount[] }
-  | { type: 'auth/login-finished'; result: AuthLoginFinishedData };
+  | { type: 'auth/login-finished'; result: AuthLoginFinishedData }
+  | { type: 'auth/quota-updated'; quota: SubscriptionAccountQuota };
 
 export const AUTH_PROBLEM_CODES = [
   'unsupported-subscription-provider',

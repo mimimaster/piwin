@@ -108,8 +108,10 @@ export type TranscriptStoreMessageInput = {
     docCardSequence?: SessionTranscriptMessage['docCardSequence'];
     replyWriter?: SessionTranscriptMessage['replyWriter'];
     workspaceWrites?: SessionTranscriptMessage['workspaceWrites'];
+    discardedAttemptWrites?: SessionTranscriptMessage['discardedAttemptWrites'];
     promptSource?: SessionTranscriptMessage['source'];
     voiceCallId?: string;
+    skillId?: string;
   };
 };
 
@@ -238,6 +240,17 @@ export type SessionTranscriptStore = {
     terminalMessage?: string;
     failure?: SessionTranscriptMessage['failure'];
   }): Promise<SessionTranscriptMessage[]>;
+  /**
+   * Guarantee a failed session-turn has an assistant row on this run.
+   * Patches the latest same-run assistant when one exists; otherwise inserts
+   * a Host-authored error bubble. Idempotent per runId.
+   */
+  ensureFailedRunAssistant(input: {
+    runId: string;
+    updatedAt: string;
+    terminalMessage: string;
+    failure: NonNullable<SessionTranscriptMessage['failure']>;
+  }): Promise<SessionTranscriptMessage>;
   /** Read one row by normalized id without scanning the transcript. */
   getMessage(id: string): Promise<SessionTranscriptMessage | undefined>;
   /** Oldest persisted message with the requested role. */

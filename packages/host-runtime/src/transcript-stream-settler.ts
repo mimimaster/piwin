@@ -59,5 +59,15 @@ export async function finalizeRunTranscriptArtifacts(
     input.interventionReason,
     new Date().toISOString(),
   );
+  if (input.outcome === 'failed' && input.failure) {
+    const ensured = await store.ensureFailedRunAssistant({
+      runId: input.runId,
+      updatedAt: new Date().toISOString(),
+      terminalMessage: input.terminalMessage ?? input.failure.message,
+      failure: input.failure,
+    });
+    const withoutDuplicate = settled.filter((message) => message.id !== ensured.id);
+    return { settled: [...withoutDuplicate, ensured], expired };
+  }
   return { settled, expired };
 }

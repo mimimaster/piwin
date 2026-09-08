@@ -84,6 +84,11 @@ export type SessionTranscriptMessage = {
    */
   contextRefs?: PromptContextRef[];
   /**
+   * Explicit Skill selected for this user turn (`PromptInput.skillId`).
+   * Absent on assistant rows and on user rows written before this field.
+   */
+  skillId?: string;
+  /**
    * How this user row entered the transcript. Omitted on assistant rows
    * and on user rows written before this field existed.
    */
@@ -125,6 +130,12 @@ export type SessionTranscriptMessage = {
    * Absent on user rows and on turns that only read.
    */
   workspaceWrites?: import('./workspace-writes.js').WorkspaceWrites;
+  /**
+   * Writes observed on a discarded retry attempt for this user turn.
+   * Kept on the user row so evidence survives `truncateFrom` of the
+   * failed assistant sibling (strengthened P0 write-boundary honesty).
+   */
+  discardedAttemptWrites?: import('./workspace-writes.js').WorkspaceWrites;
 };
 
 export type SessionTranscriptDocument = {

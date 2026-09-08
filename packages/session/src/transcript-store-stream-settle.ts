@@ -18,8 +18,8 @@ export type SettleStreamingMessagesInput = {
 
 export function createTranscriptStreamSettleOps(
   core: TranscriptStoreCore,
-): Pick<SessionTranscriptStore, 'settleStreamingMessages'> {
-  const { db, ensureOpen, bumpRevision } = core;
+): Pick<SessionTranscriptStore, 'settleStreamingMessages' | 'ensureFailedRunAssistant'> {
+  const { db, ensureOpen, bumpRevision, insertMessageRow } = core;
 
   return {
     async settleStreamingMessages(input) {
@@ -79,6 +79,83 @@ export function createTranscriptStreamSettleOps(
         bumpRevision(rows.length);
         db.exec('COMMIT');
         return settled;
+      } catch (error) {
+        rollback(db);
+        throw error;
+      }
+    },
+    async ensureFailedRunAssistant(input) {
+      ensureOpen();
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        const latest = db
+          .prepare(
+            `SELECT * FROM transcript_message
+             WHERE role = 'assistant' AND run_id = ?
+             ORDER BY sequence DESC
+             LIMIT 1`,
+          )
+          .get(input.runId) as MessageRow | undefined;
+        const metadataInput = {
+          updatedAt: input.updatedAt,
+          outcome: 'failed' as const,
+          terminalMessage: input.terminalMessage,
+          failure: input.failure,
+        };
+        if (latest !== undefined) {
+          const metadata = mergeSettledMetadata(latest.metadata_json, metadataInput);
+          db.prepare(
+            `UPDATE transcript_message SET status = 'error', metadata_json = ? WHERE id = ?`,
+          ).run(JSON.stringify(metadata), latest.id);
+          bumpRevision(1);
+          db.exec('COMMIT');
+          return rowToMessage({
+            ...latest,
+            status: 'error',
+            metadata_json: JSON.stringify(metadata),
+          });
+        }
+        const failureId = `piw-m-error-${input.runId}`;
+        const existingSynthetic = db
+          .prepare('SELECT * FROM transcript_message WHERE id = ?')
+          .get(failureId) as MessageRow | undefined;
+        if (existingSynthetic !== undefined) {
+          const metadata = mergeSettledMetadata(existingSynthetic.metadata_json, metadataInput);
+          db.prepare(
+            `UPDATE transcript_message SET status = 'error', metadata_json = ? WHERE id = ?`,
+          ).run(JSON.stringify(metadata), existingSynthetic.id);
+          bumpRevision(1);
+          db.exec('COMMIT');
+          return rowToMessage({
+            ...existingSynthetic,
+            status: 'error',
+            metadata_json: JSON.stringify(metadata),
+          });
+        }
+        insertMessageRow({
+          id: failureId,
+          runtimeGenerationId: 'host-runtime-failure',
+          backendMessageId: failureId,
+          role: 'assistant',
+          text: '',
+          thinking: '',
+          status: 'error',
+          createdAt: input.updatedAt,
+          runId: input.runId,
+          tools: [],
+          metadata: {
+            failure: input.failure,
+            outcome: 'failed',
+            terminalMessage: input.terminalMessage,
+            endedAt: input.updatedAt,
+          },
+        });
+        bumpRevision(1);
+        db.exec('COMMIT');
+        const inserted = db
+          .prepare('SELECT * FROM transcript_message WHERE id = ?')
+          .get(failureId) as MessageRow;
+        return rowToMessage(inserted);
       } catch (error) {
         rollback(db);
         throw error;

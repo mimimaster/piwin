@@ -262,7 +262,17 @@ export {
 
 export { validateSessionPlan } from './validate-plan.js';
 export type { PlanValidationIssue, PlanValidationResult } from './validate-plan.js';
-export { loadSessionPlan, saveSessionPlan, clearSessionPlan } from './plan-store.js';
+export {
+  loadSessionPlan,
+  saveSessionPlan,
+  updateSessionPlan,
+  clearSessionPlan,
+  PlanMutationError,
+  PlanRevisionConflictError,
+  PlanAlreadyExistsError,
+  inspectSessionPlan,
+} from './plan-store.js';
+export type { SessionPlanInspection } from './plan-store.js';
 export {
   classifyPlanComplexity,
   isWithinPlanSizeLimits,

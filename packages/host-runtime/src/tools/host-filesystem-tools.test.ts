@@ -261,13 +261,15 @@ describe('buildHostFilesystemTools', () => {
     }
   });
 
-  it('fails write_file with workspace-busy when the workspace lease is held', async () => {
+  it('waits to write_file until an exclusive workspace lease is released', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'piwin-fs-busy-'));
     const gate = createWorkspaceWriteGate();
     const held = await gate.tryAcquire({
       workspaceId: 'ws-fs',
       rootPath: cwd,
       kind: 'git',
+      mode: 'exclusive',
+      wait: true,
     });
     expect(held.ok).toBe(true);
     const tools = buildHostFilesystemTools({
@@ -276,17 +278,42 @@ describe('buildHostFilesystemTools', () => {
     });
     const writeTool = requireTool(tools, 'write_file');
     const target = join(cwd, 'blocked.txt');
-    const result = await executeTool(writeTool, { path: target, content: 'nope' });
-    expect(result).toMatchObject({
-      ok: false,
-      code: 'execution-failed',
-      message: expect.stringMatching(/workspace-busy/),
+    let finished = false;
+    const pending = executeTool(writeTool, { path: target, content: 'yes' }).then((result) => {
+      finished = true;
+      return result;
     });
+    await new Promise((resolve) => {
+      setTimeout(resolve, 20);
+    });
+    expect(finished).toBe(false);
     if (held.ok) {
       held.lease.release();
     }
-    const after = await executeTool(writeTool, { path: target, content: 'yes' });
+    const after = await pending;
     expect(after.ok).toBe(true);
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  it('writes different files concurrently and serializes the same file', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'piwin-fs-parallel-'));
+    const gate = createWorkspaceWriteGate();
+    const tools = buildHostFilesystemTools({
+      cwd,
+      workspaceWrite: { gate, workspaceId: 'ws-fs', rootPath: cwd },
+    });
+    const writeTool = requireTool(tools, 'write_file');
+    const [left, right] = await Promise.all([
+      executeTool(writeTool, { path: join(cwd, 'a.ts'), content: 'a' }),
+      executeTool(writeTool, { path: join(cwd, 'b.ts'), content: 'b' }),
+    ]);
+    expect(left.ok).toBe(true);
+    expect(right.ok).toBe(true);
+
+    const first = await executeTool(writeTool, { path: join(cwd, 'same.ts'), content: 'one' });
+    const second = await executeTool(writeTool, { path: join(cwd, 'same.ts'), content: 'two' });
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
     await rm(cwd, { recursive: true, force: true });
   });
 });

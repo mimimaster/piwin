@@ -63,6 +63,19 @@ Scope of this ADR:
 Prefer one thin seam over a new subsystem. Restore the same SessionPlan with
 `plan/get` on session open rather than inventing parallel todo state.
 
+### 4. Execution choice stays visible and opens the plan document
+
+- The draft/approved `PlanExecutionGate` is rendered after the creating turn's
+  tool sequence and outside the collapsible thinking/work-details container.
+- It is a one-shot call-chain card: pin it to the assistant message that ran
+  `piwin_plan_create`. Later turns must not re-home it onto the latest
+  assistant. If that create tool is not in the transcript, do not show the gate.
+- Clicking the card opens the existing right-side document preview with the
+  current `SessionPlan` rendered as Markdown at the virtual path
+  `plans/<sessionId>.md`; it does not require a Host file read.
+- The A/B execution controls stop event propagation, so choosing an execution
+  mode never opens the document preview.
+
 ## Consequences
 
 - Model `piwin_plan_set_step` updates become live on the composer-adjacent
@@ -72,6 +85,9 @@ Prefer one thin seam over a new subsystem. Restore the same SessionPlan with
   cached under their own session and never replace the active PlanCard.
 - Draft Process carries `expectedRevision + approveDraft` so Host atomically
   approves and starts execution without a client-side approval race.
+- The execution decision is no longer hidden by a collapsed thinking section,
+  and the same plan can be inspected in the right-side document preview before
+  choosing how to run it.
 - Stock pure RPC (no custom tools) still cannot run plan tools (ADR 0008);
   progress there remains IPC `plan/*` only.
 - Subagent-driven execution is intentionally not part of this decision; when

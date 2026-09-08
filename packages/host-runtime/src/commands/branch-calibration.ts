@@ -2,13 +2,22 @@
  * One-shot workspace calibration after a conversation-tree switch (ADR 0055).
  * Disk does not follow the leaf — tell the next prompt what the abandoned
  * branch wrote and what git currently sees.
+ *
+ * Pending calibration is durable under the session dir so a Host restart
+ * before the next prompt still injects once, then clears the file.
  */
 
+import { mkdir, readFile, rm } from 'node:fs/promises';
 import type { PromptInput, WorkspaceWrites } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
 import { probeGitRepository, readGitDiffSummary, readGitStatus } from '@piwin/git';
-import { getSessionRecord } from '@piwin/session';
-import { getPiwinRoot, getPiwinSessionIndexPath } from '../paths.js';
+import { getSessionRecord, writeTextFileAtomic } from '@piwin/session';
+import {
+  getPiwinRoot,
+  getPiwinSessionDir,
+  getPiwinSessionIndexPath,
+  getPiwinSessionPendingBranchCalibrationPath,
+} from '../paths.js';
 import type { SessionLiveContext } from './session-live-context.js';
 
 const MAX_CALIBRATION_FILES = 40;
@@ -75,16 +84,104 @@ export async function readWorkspaceCalibrationSnapshot(projectPath: string): Pro
   return lines.join('\n').slice(0, MAX_CALIBRATION_CHARS);
 }
 
+/** Queue calibration in memory and on disk until the next prompt consumes it. */
+export async function queuePendingBranchCalibration(
+  context: SessionLiveContext,
+  sessionId: string,
+  writes: WorkspaceWrites,
+): Promise<void> {
+  context.pendingBranchCalibrationBySession.set(sessionId, writes);
+  const rootDir = getPiwinRoot(context.piwinRoot);
+  const filePath = getPiwinSessionPendingBranchCalibrationPath(rootDir, sessionId);
+  await mkdir(getPiwinSessionDir(rootDir, sessionId), { recursive: true });
+  await writeTextFileAtomic(filePath, `${JSON.stringify(writes)}\n`);
+}
+
+export async function loadPendingBranchCalibration(
+  context: SessionLiveContext,
+  sessionId: string,
+): Promise<WorkspaceWrites | undefined> {
+  const cached = context.pendingBranchCalibrationBySession.get(sessionId);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const fromDisk = await readPendingBranchCalibrationFile(context, sessionId);
+  if (fromDisk !== undefined) {
+    context.pendingBranchCalibrationBySession.set(sessionId, fromDisk);
+  }
+  return fromDisk;
+}
+
+export async function clearPendingBranchCalibration(
+  context: SessionLiveContext,
+  sessionId: string,
+): Promise<void> {
+  context.pendingBranchCalibrationBySession.delete(sessionId);
+  const filePath = getPiwinSessionPendingBranchCalibrationPath(
+    getPiwinRoot(context.piwinRoot),
+    sessionId,
+  );
+  await rm(filePath, { force: true });
+}
+
+async function readPendingBranchCalibrationFile(
+  context: SessionLiveContext,
+  sessionId: string,
+): Promise<WorkspaceWrites | undefined> {
+  const filePath = getPiwinSessionPendingBranchCalibrationPath(
+    getPiwinRoot(context.piwinRoot),
+    sessionId,
+  );
+  try {
+    const raw = await readFile(filePath, 'utf8');
+    const parsed = JSON.parse(raw) as unknown;
+    if (!isWorkspaceWrites(parsed)) {
+      return undefined;
+    }
+    return parsed;
+  } catch (error) {
+    if (isNotFound(error)) {
+      return undefined;
+    }
+    context.push({
+      type: 'host/log',
+      level: 'warn',
+      message: `pending branch calibration read failed: ${formatError(error)}`,
+    });
+    return undefined;
+  }
+}
+
+function isWorkspaceWrites(value: unknown): value is WorkspaceWrites {
+  if (value === null || typeof value !== 'object') {
+    return false;
+  }
+  const record = value as { files?: unknown; hasUnknownWrites?: unknown };
+  return (
+    Array.isArray(record.files) &&
+    record.files.every((file) => typeof file === 'string') &&
+    typeof record.hasUnknownWrites === 'boolean'
+  );
+}
+
+function isNotFound(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: unknown }).code === 'ENOENT'
+  );
+}
+
 export async function injectBranchCalibrationOnce(
   context: SessionLiveContext,
   sessionId: string,
   promptInput: PromptInput,
 ): Promise<void> {
-  const writes = context.pendingBranchCalibrationBySession.get(sessionId);
+  const writes = await loadPendingBranchCalibration(context, sessionId);
   if (writes === undefined) {
     return;
   }
-  context.pendingBranchCalibrationBySession.delete(sessionId);
   // The abandoned-file list is the half the model cannot re-derive on its own,
   // so a failing git probe degrades the block instead of dropping it.
   let snapshot = '';
@@ -105,4 +202,6 @@ export async function injectBranchCalibrationOnce(
     });
   }
   promptInput.text = `${formatBranchCalibrationBlock(writes, snapshot)}\n\n${promptInput.text}`;
+  // Consume only after a successful inject so a Host restart still replays once.
+  await clearPendingBranchCalibration(context, sessionId);
 }

@@ -130,7 +130,7 @@ async function assertInsideWorkspace(rootReal: string, candidateAbs: string): Pr
   }
 }
 
-async function canonicalizeForContainment(candidateAbs: string): Promise<string> {
+export async function canonicalizeForContainment(candidateAbs: string): Promise<string> {
   const resolved = resolve(candidateAbs);
   try {
     return await realpath(resolved);
@@ -158,6 +158,68 @@ async function canonicalizeForContainment(candidateAbs: string): Promise<string>
       }
     }
   }
+}
+
+export type FileLockKeyFailure = 'enotdir' | 'eacces' | 'eloop' | 'invalid';
+
+/**
+ * Canonical lock identity for a target file. Missing files use the realpath of
+ * the nearest existing ancestor plus the missing suffix, so directory symlink
+ * aliases share one key. ENOTDIR on a non-directory ancestor is a hard failure.
+ */
+export async function resolveFileLockKey(
+  absolutePath: string,
+): Promise<{ ok: true; key: string } | { ok: false; reason: FileLockKeyFailure }> {
+  const resolved = resolve(absolutePath);
+  try {
+    return { ok: true, key: await realpath(resolved) };
+  } catch (error) {
+    const mapped = mapLockKeyError(error);
+    if (mapped !== 'enoent') {
+      return { ok: false, reason: mapped };
+    }
+  }
+
+  const missing: string[] = [];
+  let current = resolved;
+  while (true) {
+    const parent = dirname(current);
+    const name = basename(current);
+    if (parent === current) {
+      return { ok: true, key: resolve(current, ...missing, name) };
+    }
+    missing.unshift(name);
+    current = parent;
+    try {
+      const ancestorReal = await realpath(current);
+      const ancestorStats = await lstat(ancestorReal);
+      if (!ancestorStats.isDirectory()) {
+        return { ok: false, reason: 'enotdir' };
+      }
+      return { ok: true, key: resolve(ancestorReal, ...missing) };
+    } catch (error) {
+      const mapped = mapLockKeyError(error);
+      if (mapped !== 'enoent') {
+        return { ok: false, reason: mapped };
+      }
+    }
+  }
+}
+
+function mapLockKeyError(error: unknown): FileLockKeyFailure | 'enoent' {
+  if (errorHasCode(error, 'ENOENT')) {
+    return 'enoent';
+  }
+  if (errorHasCode(error, 'ENOTDIR')) {
+    return 'enotdir';
+  }
+  if (errorHasCode(error, 'EACCES')) {
+    return 'eacces';
+  }
+  if (errorHasCode(error, 'ELOOP')) {
+    return 'eloop';
+  }
+  return 'invalid';
 }
 
 function errorHasCode(error: unknown, code: string): boolean {

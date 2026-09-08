@@ -217,6 +217,8 @@ export function classifyHostPush(push: HostPushVariant): HostPushPolicy {
       };
     case 'auth/updated':
       return projection(deliveryKey('auth', 'accounts'));
+    case 'auth/quota-updated':
+      return projection(deliveryKey('auth', 'quota', push.quota.providerId));
     case 'voice/live-updated':
       return {
         kind: 'projection',

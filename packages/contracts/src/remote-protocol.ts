@@ -274,6 +274,11 @@ export type RemoteHostStatusData = {
 export type RemoteProjectSummary = {
   projectId: string;
   displayName: string;
+  /**
+   * Host filesystem root. Remote shells need this for copy-absolute-path /
+   * reveal; command addressing still accepts `projectId` via bindProjectLocator.
+   */
+  path?: string;
   trust?: 'trusted' | 'untrusted' | 'unknown';
   lastOpenedAt?: string;
   /** Opaque shared-repo id. Same for worktrees of one git repository. */

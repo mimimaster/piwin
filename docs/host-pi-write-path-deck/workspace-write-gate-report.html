@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workspace 写锁改动报告</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --muted: #555;
+    --bg: #f7f7f5;
+    --card: #fff;
+    --line: #ddd;
+    --blue: #0b57d0;
+    --blue-bg: #e8f0fe;
+    --green: #0d7a4f;
+    --green-bg: #e6f4ee;
+    --red: #b3261e;
+    --red-bg: #fce8e6;
+    --ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--ui);
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.55;
+    padding: 40px 20px 80px;
+  }
+  main { max-width: 820px; margin: 0 auto; }
+  .kicker { font-size: 12px; color: var(--muted); letter-spacing: 0.04em; margin-bottom: 8px; }
+  h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+  .lead { color: var(--muted); margin-bottom: 28px; }
+  h2 { font-size: 16px; margin: 28px 0 12px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin-bottom: 12px;
+  }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 700px) { .pair { grid-template-columns: 1fr; } }
+  .fail { background: var(--red-bg); }
+  .ok { background: var(--green-bg); }
+  .note { background: var(--blue-bg); }
+  .label { font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+  .fail .label { color: var(--red); }
+  .ok .label { color: var(--green); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; }
+  code { font-size: 12.5px; background: #eee; padding: 1px 5px; border-radius: 4px; }
+  ul { padding-left: 18px; }
+  li { margin: 4px 0; }
+  .muted { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <p class="kicker">2026-09-08 · ADR 0069</p>
+  <h1>Workspace 写锁改动报告</h1>
+  <p class="lead">修的是 Host 写盘锁，不是进程分工。Worker 仍然只读；写文件、bash、Git、合入还是 Host 执行。</p>
+
+  <h2>1. 改了什么现象</h2>
+  <div class="pair">
+    <div class="card fail">
+      <div class="label">之前</div>
+      <p>一轮里并行写 3 个不同文件，后两个立刻失败：<code>workspace-busy</code>。长 bash、Git、合入也会把别的写打掉。</p>
+    </div>
+    <div class="card ok">
+      <div class="label">现在</div>
+      <p>不同文件可以一起写。同一文件排队。bash / Git / 合入会等，不再对模型报 busy。只有撤销撞锁才立刻 busy。</p>
+    </div>
+  </div>
+
+  <h2>2. 现在每类操作怎么锁</h2>
+  <div class="card">
+    <table>
+      <thead>
+        <tr><th>操作</th><th>锁</th><th>撞车时</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>write_file</code> / <code>delete_file</code></td>
+          <td>工作区共享 + 该文件独占</td>
+          <td>等待。不同文件并行</td>
+        </tr>
+        <tr>
+          <td><code>bash</code> / <code>run_bash</code></td>
+          <td>整仓独占</td>
+          <td>等待</td>
+        </tr>
+        <tr>
+          <td>Git 写、子代理合入父仓</td>
+          <td>整仓独占</td>
+          <td>等待（合入仍先走自己的仓库队列）</td>
+        </tr>
+        <tr>
+          <td>undo / redo</td>
+          <td>整仓独占</td>
+          <td>立刻 <code>workspace-busy</code>，不排队</td>
+        </tr>
+        <tr>
+          <td>读文件、列目录、Git 查询</td>
+          <td>不加锁</td>
+          <td>—</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>3. 顺手补上的洞</h2>
+  <div class="card">
+    <ul>
+      <li>父子项目根互斥：<code>/repo</code> 和 <code>/repo/packages/foo</code> 不能同时独占。</li>
+      <li>新文件走目录软链接（<code>real/new.ts</code> 和 <code>alias/new.ts</code>）锁同一把。</li>
+      <li>undo 真正接到这把锁上；以前类型里有、实现没取锁。</li>
+      <li>等待可取消（Run 的 AbortSignal）。Git 命令这条 IPC 仍不能从客户端取消。</li>
+    </ul>
+  </div>
+
+  <h2>4. 动了哪些代码</h2>
+  <div class="card">
+    <table>
+      <thead>
+        <tr><th>位置</th><th>做什么</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>packages/git</code> path-policy</td>
+          <td>公开文件身份：<code>resolveFileLockKey</code></td>
+        </tr>
+        <tr>
+          <td><code>workspace-write-gate.ts</code></td>
+          <td>fail-fast 整仓锁 → 公平 FIFO + 共享/独占</td>
+        </tr>
+        <tr>
+          <td>文件系统工具 / bash</td>
+          <td>写删走文件锁；bash 走整仓独占</td>
+        </tr>
+        <tr>
+          <td>Git 命令、integrate、undo</td>
+          <td>按上表接线</td>
+        </tr>
+        <tr>
+          <td>ADR 0069、ADR 0030</td>
+          <td>记下决策；合入改为等待而不是立刻失败</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>5. 验证</h2>
+  <div class="card">
+    <p><code>path-policy</code> 18 项、<code>host-runtime</code> 锁相关 55 项通过，含 undo 持久化。</p>
+    <p class="muted" style="margin-top:8px;">全包 typecheck 仍会被既有的 <code>plan-commands.ts</code> 错误挡住，与本次无关。</p>
+  </div>
+
+  <h2>6. 这次没做</h2>
+  <div class="card note">
+    <ul>
+      <li>不让 Worker 自己写盘。</li>
+      <li>不改 <code>plan.json</code>。</li>
+      <li>不在独立 worktree 上跑测试来给 bash 让路。</li>
+      <li>不上跨进程 flock、内容 hash 冲突检测、多文件 patch 主编辑面。</li>
+    </ul>
+  </div>
+</main>
+</body>
+</html>

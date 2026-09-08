@@ -187,6 +187,7 @@ export function createUserTranscriptMessage(input: {
   attachments?: MediaAttachmentRef[];
   source?: SessionTranscriptMessage['source'];
   voiceCallId?: string;
+  skillId?: string;
 }): SessionTranscriptMessage {
   const message: SessionTranscriptMessage = {
     id: input.id,
@@ -200,6 +201,7 @@ export function createUserTranscriptMessage(input: {
   }
   if (input.source !== undefined) message.source = input.source;
   if (input.voiceCallId !== undefined) message.voiceCallId = input.voiceCallId;
+  if (input.skillId !== undefined) message.skillId = input.skillId;
   return message;
 }
 

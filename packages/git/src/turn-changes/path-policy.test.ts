@@ -4,7 +4,12 @@ import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { assertWritableTurnChangeFile, resolveTurnChangePath } from './path-policy.js';
+import {
+  assertWritableTurnChangeFile,
+  canonicalizeForContainment,
+  resolveFileLockKey,
+  resolveTurnChangePath,
+} from './path-policy.js';
 
 const temporaryDirectories: string[] = [];
 
@@ -227,5 +232,66 @@ describe('resolveTurnChangePath / assertWritableTurnChangeFile', () => {
     await expect(
       assertWritableTurnChangeFile({ workspaceRoot: root, relativePath: 'pipe.fifo' }),
     ).rejects.toThrow(/unsupported/);
+  });
+});
+
+describe('resolveFileLockKey', () => {
+  afterEach(async () => {
+    await Promise.all(
+      temporaryDirectories
+        .splice(0)
+        .map((directory) => rm(directory, { recursive: true, force: true })),
+    );
+  });
+
+  it('uses realpath for an existing file', async () => {
+    const root = await createTempDir('piwin-lock-key-');
+    const filePath = join(root, 'a.ts');
+    await writeFile(filePath, 'ok\n');
+    const result = await resolveFileLockKey(filePath);
+    expect(result).toEqual({ ok: true, key: await canonicalizeForContainment(filePath) });
+  });
+
+  it('shares one key for a missing file reached via a directory symlink', async () => {
+    const root = await createTempDir('piwin-lock-key-alias-');
+    const realDir = join(root, 'real');
+    const aliasDir = join(root, 'alias');
+    await mkdir(realDir);
+    await symlink(realDir, aliasDir);
+
+    const viaReal = await resolveFileLockKey(join(realDir, 'new.ts'));
+    const viaAlias = await resolveFileLockKey(join(aliasDir, 'new.ts'));
+    expect(viaReal).toEqual(viaAlias);
+    expect(viaReal.ok).toBe(true);
+    if (viaReal.ok) {
+      expect(viaReal.key).toBe(join(await canonicalizeForContainment(realDir), 'new.ts'));
+    }
+
+    await writeFile(join(realDir, 'new.ts'), 'created\n');
+    const afterCreate = await resolveFileLockKey(join(aliasDir, 'new.ts'));
+    expect(afterCreate).toEqual(viaReal);
+  });
+
+  it('fails when an ancestor is not a directory', async () => {
+    const root = await createTempDir('piwin-lock-key-enotdir-');
+    const filePath = join(root, 'file.ts');
+    await writeFile(filePath, 'not-a-dir\n');
+    const result = await resolveFileLockKey(join(filePath, 'nested.ts'));
+    expect(result).toEqual({ ok: false, reason: 'enotdir' });
+  });
+
+  it('does not treat an unrelated prefix directory as the same ancestor', async () => {
+    const parent = await createTempDir('piwin-lock-key-prefix-');
+    const repo = join(parent, 'repo');
+    const other = join(parent, 'repo-other');
+    await mkdir(repo);
+    await mkdir(other);
+    const left = await resolveFileLockKey(join(repo, 'a.ts'));
+    const right = await resolveFileLockKey(join(other, 'a.ts'));
+    expect(left.ok).toBe(true);
+    expect(right.ok).toBe(true);
+    if (left.ok && right.ok) {
+      expect(left.key).not.toBe(right.key);
+    }
   });
 });

@@ -9,7 +9,9 @@ import {
   clearSessionPlan,
   getSessionRecord,
   loadSessionPlan,
-  saveSessionPlan,
+  PlanMutationError,
+  PlanRevisionConflictError,
+  updateSessionPlan,
   validateSessionPlan,
 } from '@piwin/session';
 import { fail, ok } from '../response-helpers.js';
@@ -50,6 +52,52 @@ function planAbortIntentKey(planPath: string, planId: string): string {
   return `${planPath}:${planId}`;
 }
 
+class StalePlanExecutionError extends Error {
+  readonly name = 'StalePlanExecutionError';
+}
+
+function requireAdmittedExecution(
+  current: SessionPlan | null,
+  admittedPlanId: string,
+  planRunId: string,
+): { plan: SessionPlan; execution: NonNullable<SessionPlan['execution']> } {
+  const execution = current?.execution;
+  if (
+    current === null ||
+    current.id !== admittedPlanId ||
+    execution === undefined ||
+    execution.runId !== planRunId
+  ) {
+    throw new StalePlanExecutionError(
+      `stale plan execution ${planRunId} for ${admittedPlanId}`,
+    );
+  }
+  return { plan: current, execution };
+}
+
+async function mutateSessionPlanOrFail(
+  planPath: string,
+  requestId: string | undefined,
+  commandType: HostCommand['type'],
+  mutator: (current: SessionPlan | null) => SessionPlan | null,
+): Promise<{ ok: true; plan: SessionPlan } | { ok: false; response: HostResponse }> {
+  try {
+    const plan = await updateSessionPlan(planPath, mutator);
+    if (!plan) {
+      return { ok: false, response: fail(requestId, commandType, 'No plan for session') };
+    }
+    return { ok: true, plan };
+  } catch (error) {
+    if (error instanceof PlanMutationError) {
+      return { ok: false, response: fail(requestId, commandType, error.message) };
+    }
+    if (error instanceof PlanRevisionConflictError) {
+      return { ok: false, response: fail(requestId, commandType, error.message) };
+    }
+    throw error;
+  }
+}
+
 export function isPlanCommand(command: HostCommand): boolean {
   return TYPES.has(command.type);
 }
@@ -84,17 +132,29 @@ export async function handlePlanCommand(
         );
       }
       const now = new Date().toISOString();
-      const previous = await loadSessionPlan(getPiwinSessionPlanPath(rootDir, command.sessionId));
-      const plan = {
-        ...validated.plan,
-        sessionId: command.sessionId,
-        projectPath: existing.projectPath,
-        id: previous?.id ?? validated.plan.id,
-        createdAt: previous?.createdAt ?? validated.plan.createdAt ?? now,
-        updatedAt: now,
-        revision: previous ? previous.revision + 1 : validated.plan.revision,
-      };
-      await saveSessionPlan(getPiwinSessionPlanPath(rootDir, command.sessionId), plan);
+      const mutated = await mutateSessionPlanOrFail(
+        getPiwinSessionPlanPath(rootDir, command.sessionId),
+        requestId,
+        'plan/set',
+        (previous) => {
+          if (previous !== null && validated.plan.revision !== previous.revision) {
+            throw new PlanRevisionConflictError(
+              `plan revision mismatch: requested ${validated.plan.revision} but session has ${previous.revision}`,
+            );
+          }
+          return {
+            ...validated.plan,
+            sessionId: command.sessionId,
+            projectPath: existing.projectPath,
+            id: previous?.id ?? validated.plan.id,
+            createdAt: previous?.createdAt ?? validated.plan.createdAt ?? now,
+            updatedAt: now,
+            revision: previous?.revision ?? validated.plan.revision,
+          };
+        },
+      );
+      if (!mutated.ok) return mutated.response;
+      const plan = mutated.plan;
       context.push({ type: 'plan/updated', sessionId: command.sessionId, plan });
       return ok(requestId, 'plan/set', { plan });
     }
@@ -107,64 +167,79 @@ export async function handlePlanCommand(
     case 'plan/approve': {
       const rootDir = getPiwinRoot(context.piwinRoot);
       const planPath = getPiwinSessionPlanPath(rootDir, command.sessionId);
-      const plan = await loadSessionPlan(planPath);
-      if (!plan) {
-        return fail(requestId, 'plan/approve', 'No plan for session');
-      }
-      if (plan.status !== 'draft' && plan.status !== 'approved') {
-        return fail(requestId, 'plan/approve', `Cannot approve plan in status ${plan.status}`);
-      }
-      const approved = {
-        ...plan,
-        status: 'approved' as const,
-        revision: plan.revision + 1,
-        updatedAt: new Date().toISOString(),
-      };
-      await saveSessionPlan(planPath, approved);
+      const mutated = await mutateSessionPlanOrFail(planPath, requestId, 'plan/approve', (plan) => {
+        if (!plan) throw new PlanMutationError('No plan for session');
+        if (plan.status !== 'draft' && plan.status !== 'approved') {
+          throw new PlanMutationError(`Cannot approve plan in status ${plan.status}`);
+        }
+        return {
+          ...plan,
+          status: 'approved' as const,
+          revision: plan.revision + 1,
+          updatedAt: new Date().toISOString(),
+        };
+      });
+      if (!mutated.ok) return mutated.response;
+      const approved = mutated.plan;
       context.push({ type: 'plan/updated', sessionId: command.sessionId, plan: approved });
       return ok(requestId, 'plan/approve', { plan: approved });
     }
     case 'plan/update-step': {
       const rootDir = getPiwinRoot(context.piwinRoot);
       const planPath = getPiwinSessionPlanPath(rootDir, command.sessionId);
-      const plan = await loadSessionPlan(planPath);
-      if (!plan) {
-        return fail(requestId, 'plan/update-step', 'No plan for session');
-      }
-      const result = applyPlanStepUpdate({
-        plan,
-        stepId: command.stepId,
-        status: command.status,
-        ...(typeof command.detail === 'string' ? { detail: command.detail } : {}),
-      });
-      if (!result.ok) {
-        return fail(requestId, 'plan/update-step', result.error);
-      }
-      await saveSessionPlan(planPath, result.plan);
-      context.push({ type: 'plan/updated', sessionId: command.sessionId, plan: result.plan });
-      if (result.plan.status !== plan.status) {
+      const previousStatusHolder: { status?: SessionPlan['status'] } = {};
+      const mutated = await mutateSessionPlanOrFail(
+        planPath,
+        requestId,
+        'plan/update-step',
+        (plan) => {
+          if (!plan) throw new PlanMutationError('No plan for session');
+          previousStatusHolder.status = plan.status;
+          const result = applyPlanStepUpdate({
+            plan,
+            stepId: command.stepId,
+            status: command.status,
+            ...(typeof command.detail === 'string' ? { detail: command.detail } : {}),
+          });
+          if (!result.ok) {
+            throw new PlanMutationError(result.error);
+          }
+          return result.plan;
+        },
+      );
+      if (!mutated.ok) return mutated.response;
+      context.push({ type: 'plan/updated', sessionId: command.sessionId, plan: mutated.plan });
+      if (
+        previousStatusHolder.status !== undefined &&
+        mutated.plan.status !== previousStatusHolder.status
+      ) {
         context.push({
           type: 'host/log',
           level: 'info',
-          message: `plan ${command.sessionId} status ${plan.status} → ${result.plan.status}`,
+          message: `plan ${command.sessionId} status ${previousStatusHolder.status} → ${mutated.plan.status}`,
         });
       }
-      return ok(requestId, 'plan/update-step', { plan: result.plan });
+      return ok(requestId, 'plan/update-step', { plan: mutated.plan });
     }
     case 'plan/set-status': {
       const rootDir = getPiwinRoot(context.piwinRoot);
       const planPath = getPiwinSessionPlanPath(rootDir, command.sessionId);
-      const plan = await loadSessionPlan(planPath);
-      if (!plan) {
-        return fail(requestId, 'plan/set-status', 'No plan for session');
-      }
-      const result = applyPlanStatus({ plan, status: command.status });
-      if (!result.ok) {
-        return fail(requestId, 'plan/set-status', result.error);
-      }
-      await saveSessionPlan(planPath, result.plan);
-      context.push({ type: 'plan/updated', sessionId: command.sessionId, plan: result.plan });
-      return ok(requestId, 'plan/set-status', { plan: result.plan });
+      const mutated = await mutateSessionPlanOrFail(
+        planPath,
+        requestId,
+        'plan/set-status',
+        (plan) => {
+          if (!plan) throw new PlanMutationError('No plan for session');
+          const result = applyPlanStatus({ plan, status: command.status });
+          if (!result.ok) {
+            throw new PlanMutationError(result.error);
+          }
+          return result.plan;
+        },
+      );
+      if (!mutated.ok) return mutated.response;
+      context.push({ type: 'plan/updated', sessionId: command.sessionId, plan: mutated.plan });
+      return ok(requestId, 'plan/set-status', { plan: mutated.plan });
     }
     case 'plan/execute': {
       return handlePlanExecute(command, requestId, context);
@@ -246,14 +321,59 @@ async function handlePlanExecute(
     ...createExecutionState(plan, command.request.mode),
     runId: planRun.runId,
   };
-  const executingPlan: SessionPlan = {
-    ...plan,
-    status: 'executing',
-    execution: state,
-    revision: plan.revision + 1,
-    updatedAt: new Date().toISOString(),
-  };
-  await saveSessionPlan(planPath, executingPlan);
+  let started: Awaited<ReturnType<typeof mutateSessionPlanOrFail>>;
+  try {
+    started = await mutateSessionPlanOrFail(planPath, requestId, 'plan/execute', (current) => {
+      if (!current) throw new PlanMutationError('No plan for session');
+      if (current.id !== command.request.planId) {
+        throw new PlanMutationError(
+          `plan id mismatch: requested ${command.request.planId} but session has ${current.id}`,
+        );
+      }
+      if (
+        command.request.expectedRevision !== undefined &&
+        current.revision !== command.request.expectedRevision
+      ) {
+        throw new PlanRevisionConflictError(
+          `plan revision mismatch: requested ${command.request.expectedRevision} but session has ${current.revision}`,
+        );
+      }
+      const canApproveDraft = current.status === 'draft' && command.request.approveDraft === true;
+      if (current.status !== 'approved' && current.status !== 'executing' && !canApproveDraft) {
+        throw new PlanMutationError(
+          `plan must be approved before execution or explicitly approved atomically (current status: ${current.status})`,
+        );
+      }
+      if (
+        current.execution &&
+        (current.execution.status === 'running' || current.execution.status === 'queued')
+      ) {
+        throw new PlanMutationError(
+          `plan is already ${current.execution.status} with mode ${current.execution.mode}`,
+        );
+      }
+      state = {
+        ...createExecutionState(current, command.request.mode),
+        runId: planRun.runId,
+      };
+      return {
+        ...current,
+        status: 'executing',
+        execution: state,
+        updatedAt: new Date().toISOString(),
+      };
+    });
+  } catch (error) {
+    const message = formatError(error);
+    context.planExecution?.finishPlanRun?.(planRun.runId, 'failed', message);
+    return fail(requestId, 'plan/execute', message);
+  }
+  if (!started.ok) {
+    const errorMsg = 'error' in started.response ? started.response.error : undefined;
+    context.planExecution?.finishPlanRun?.(planRun.runId, 'failed', errorMsg);
+    return started.response;
+  }
+  const executingPlan = started.plan;
   context.push({ type: 'plan/updated', sessionId: command.request.sessionId, plan: executingPlan });
   context.push({ type: 'plan/execution-updated', state });
 
@@ -261,7 +381,7 @@ async function handlePlanExecute(
   // observes progress via plan/updated and plan/execution-updated pushes.
   void runPlanExecution(
     command.request.sessionId,
-    plan,
+    executingPlan,
     command.request.mode,
     seam,
     context,
@@ -300,82 +420,143 @@ async function runPlanExecution(
   let state: PlanExecutionState = { ...createExecutionState(plan, mode), runId: planRunId };
 
   const markRunning = async (currentStepId?: string): Promise<PlanExecutionState> => {
-    const current = await loadSessionPlan(planPath);
-    if (!current || !current.execution) return state;
-    if (
-      current.execution.status === 'aborted' ||
-      activePlanAbortIntents.has(planAbortIntentKey(planPath, current.id))
-    ) {
-      throw new Error('plan execution aborted');
-    }
-    state = { ...state, status: 'running', ...(currentStepId ? { currentStepId } : {}) };
-    const updated: SessionPlan = {
-      ...current,
-      execution: state,
-      updatedAt: new Date().toISOString(),
-    };
-    await saveSessionPlan(planPath, updated);
+    const updated = await updateSessionPlan(planPath, (current) => {
+      const admitted = requireAdmittedExecution(current, plan.id, planRunId);
+      const currentExecution = admitted.execution;
+      if (
+        currentExecution.status === 'aborted' ||
+        currentExecution.status === 'completed' ||
+        currentExecution.status === 'failed' ||
+        activePlanAbortIntents.has(planAbortIntentKey(planPath, plan.id))
+      ) {
+        throw new StalePlanExecutionError(`plan execution ${planRunId} is no longer running`);
+      }
+      state = {
+        ...currentExecution,
+        status: 'running',
+        ...(currentStepId ? { currentStepId } : {}),
+      };
+      return {
+        ...admitted.plan,
+        execution: state,
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    if (!updated?.execution) return state;
+    state = updated.execution;
     context.push({ type: 'plan/updated', sessionId, plan: updated });
     context.push({ type: 'plan/execution-updated', state });
     return state;
   };
 
   const markFailed = async (error: string): Promise<void> => {
-    const current = await loadSessionPlan(planPath);
-    if (!current) return;
-    if (
-      current.execution?.status === 'aborted' ||
-      activePlanAbortIntents.has(planAbortIntentKey(planPath, current.id))
-    ) {
-      context.planExecution?.finishPlanRun?.(planRunId, 'cancelled');
-      return;
+    try {
+      let cancelled = false;
+      const updated = await updateSessionPlan(planPath, (current) => {
+        const admitted = requireAdmittedExecution(current, plan.id, planRunId);
+        const currentExecution = admitted.execution;
+        if (
+          currentExecution.status === 'aborted' ||
+          currentExecution.status === 'completed' ||
+          currentExecution.status === 'failed' ||
+          activePlanAbortIntents.has(planAbortIntentKey(planPath, plan.id))
+        ) {
+          cancelled = true;
+          return null;
+        }
+        state = failExecutionState(currentExecution, error);
+        return recoverPlanAfterExecutionFailure(admitted.plan, state);
+      });
+      if (cancelled) {
+        context.planExecution?.finishPlanRun?.(planRunId, 'cancelled');
+        return;
+      }
+      if (!updated) {
+        context.planExecution?.finishPlanRun?.(planRunId, 'failed', error);
+        return;
+      }
+      if (updated.execution) {
+        state = updated.execution;
+      }
+      context.push({ type: 'plan/updated', sessionId, plan: updated });
+      context.push({ type: 'plan/execution-updated', state });
+      context.planExecution?.finishPlanRun?.(planRunId, 'failed', error);
+    } catch (caught) {
+      if (caught instanceof StalePlanExecutionError) {
+        context.planExecution?.finishPlanRun?.(planRunId, 'cancelled');
+        return;
+      }
+      context.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `plan markFailed persist failed: ${formatError(caught)}`,
+      });
+      context.planExecution?.finishPlanRun?.(planRunId, 'failed', error);
     }
-    state = failExecutionState(state, error);
-    const updated = recoverPlanAfterExecutionFailure(current, state);
-    await saveSessionPlan(planPath, updated);
-    context.push({ type: 'plan/updated', sessionId, plan: updated });
-    context.push({ type: 'plan/execution-updated', state });
-    context.planExecution?.finishPlanRun?.(planRunId, 'failed', error);
   };
 
-  const markCompleted = async (finalAssistantMessageId: string): Promise<void> => {
-    const current = await loadSessionPlan(planPath);
-    if (!current) return;
-    if (
-      current.execution?.status === 'aborted' ||
-      activePlanAbortIntents.has(planAbortIntentKey(planPath, current.id))
-    ) {
+  const settleByStepTerminals = async (
+    finalAssistantMessageId: string,
+    incompleteMessage: string,
+  ): Promise<void> => {
+    let cancelled = false;
+    let completed = false;
+    const updated = await updateSessionPlan(planPath, (current) => {
+      const admitted = requireAdmittedExecution(current, plan.id, planRunId);
+      const currentExecution = admitted.execution;
+      if (
+        currentExecution.status === 'aborted' ||
+        currentExecution.status === 'completed' ||
+        currentExecution.status === 'failed' ||
+        activePlanAbortIntents.has(planAbortIntentKey(planPath, plan.id))
+      ) {
+        cancelled = true;
+        return null;
+      }
+      const allTerminal =
+        admitted.plan.steps.length > 0 &&
+        admitted.plan.steps.every((step) => step.status === 'done' || step.status === 'skipped');
+      if (allTerminal) {
+        completed = true;
+        const completedState = completeExecutionState(currentExecution);
+        const summary = buildPlanSummary({
+          plan: { ...admitted.plan, execution: completedState },
+          mode,
+          mergedChildSessionIds: completedState.childSessionIds,
+          verificationResult: `Final assistant verification completed in message ${finalAssistantMessageId}`,
+        });
+        state = { ...completedState, summary };
+        return {
+          ...admitted.plan,
+          status: 'done',
+          execution: state,
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      state = failExecutionState(currentExecution, incompleteMessage);
+      return recoverPlanAfterExecutionFailure(admitted.plan, state);
+    });
+    if (cancelled) {
       context.planExecution?.finishPlanRun?.(planRunId, 'cancelled');
       return;
     }
-    const completedState = completeExecutionState(state);
-    const summary = buildPlanSummary({
-      plan: { ...current, execution: completedState },
-      mode,
-      mergedChildSessionIds: completedState.childSessionIds,
-      verificationResult: `Final assistant verification completed in message ${finalAssistantMessageId}`,
-    });
-    state = { ...completedState, summary };
-    const finalPlan: SessionPlan = {
-      ...current,
-      status: 'done',
-      execution: state,
-      revision: current.revision + 1,
-      updatedAt: new Date().toISOString(),
-    };
-    await saveSessionPlan(planPath, finalPlan);
-    context.push({ type: 'plan/updated', sessionId, plan: finalPlan });
+    if (!updated) return;
+    if (updated.execution) {
+      state = updated.execution;
+    }
+    context.push({ type: 'plan/updated', sessionId, plan: updated });
     context.push({ type: 'plan/execution-updated', state });
-    context.planExecution?.finishPlanRun?.(planRunId, 'completed');
-
-    // Walkthrough is always generated when a plan completes.
-    // Find the final assistant message and trigger generation.
-    await triggerPlanCompletionWalkthrough(
-      sessionId,
-      finalPlan,
-      finalAssistantMessageId,
-      context,
-    );
+    if (completed) {
+      context.planExecution?.finishPlanRun?.(planRunId, 'completed');
+      await triggerPlanCompletionWalkthrough(
+        sessionId,
+        updated,
+        finalAssistantMessageId,
+        context,
+      );
+      return;
+    }
+    context.planExecution?.finishPlanRun?.(planRunId, 'failed', incompleteMessage);
   };
 
   try {
@@ -383,15 +564,10 @@ async function runPlanExecution(
       await markRunning();
       const directive = buildInlineDirective(plan);
       const completion = await seam.promptSession(sessionId, directive.promptText, planRunId);
-      const latest = await loadSessionPlan(planPath);
-      if (
-        latest &&
-        latest.steps.every((step) => step.status === 'done' || step.status === 'skipped')
-      ) {
-        await markCompleted(completion.finalAssistantMessageId);
-      } else {
-        await markFailed('inline execution ended before all plan steps reached a terminal status');
-      }
+      await settleByStepTerminals(
+        completion.finalAssistantMessageId,
+        'inline execution ended before all plan steps reached a terminal status',
+      );
       return;
     }
 
@@ -403,15 +579,10 @@ async function runPlanExecution(
       await markRunning();
       const directive = buildInlineDirective(plan);
       const completion = await seam.promptSession(sessionId, directive.promptText, planRunId);
-      const latest = await loadSessionPlan(planPath);
-      if (
-        latest &&
-        latest.steps.every((step) => step.status === 'done' || step.status === 'skipped')
-      ) {
-        await markCompleted(completion.finalAssistantMessageId);
-      } else {
-        await markFailed('inline execution ended before all plan steps reached a terminal status');
-      }
+      await settleByStepTerminals(
+        completion.finalAssistantMessageId,
+        'inline execution ended before all plan steps reached a terminal status',
+      );
       return;
     }
 
@@ -437,22 +608,35 @@ async function runPlanExecution(
         childIds.push(result.childSessionId);
       }
     }
-    state = { ...state, childSessionIds: [...state.childSessionIds, ...childIds] };
-    const withChildren = await loadSessionPlan(planPath);
-    if (withChildren) {
-      const updated: SessionPlan = {
-        ...withChildren,
-        execution: state,
+    let executionAlreadyClosed = false;
+    const updated = await updateSessionPlan(planPath, (current) => {
+      const admitted = requireAdmittedExecution(current, plan.id, planRunId);
+      const currentExecution = admitted.execution;
+      if (
+        currentExecution.status === 'aborted' ||
+        currentExecution.status === 'completed' ||
+        currentExecution.status === 'failed'
+      ) {
+        executionAlreadyClosed = true;
+        return null;
+      }
+      return {
+        ...admitted.plan,
+        execution: {
+          ...currentExecution,
+          childSessionIds: [...new Set([...currentExecution.childSessionIds, ...childIds])],
+        },
         updatedAt: new Date().toISOString(),
       };
-      await saveSessionPlan(planPath, updated);
+    });
+    if (updated?.execution) {
+      state = updated.execution;
       context.push({ type: 'plan/updated', sessionId, plan: updated });
       context.push({ type: 'plan/execution-updated', state });
     }
 
-    if (batchResult.status === 'cancelled') {
-      // plan/abort owns the terminal plan transition. Do not let the async
-      // execution owner overwrite an abandoned plan with a synthetic error.
+    if (executionAlreadyClosed || batchResult.status === 'cancelled') {
+      // plan/abort (or another closer) owns the terminal plan transition.
       context.planExecution?.finishPlanRun?.(planRunId, 'cancelled');
       return;
     }
@@ -465,19 +649,26 @@ async function runPlanExecution(
     await markRunning();
     const verifyDirective = buildSubagentVerificationDirective(plan, batchResult.results);
     const completion = await seam.promptSession(sessionId, verifyDirective.promptText, planRunId);
-
-    const latest = await loadSessionPlan(planPath);
-    if (
-      latest &&
-      latest.steps.every((step) => step.status === 'done' || step.status === 'skipped')
-    ) {
-      await markCompleted(completion.finalAssistantMessageId);
-    } else {
-      await markFailed('verification ended before all plan steps reached a terminal status');
-    }
+    await settleByStepTerminals(
+      completion.finalAssistantMessageId,
+      'verification ended before all plan steps reached a terminal status',
+    );
   } catch (error) {
+    if (error instanceof StalePlanExecutionError) {
+      context.planExecution?.finishPlanRun?.(planRunId, 'cancelled');
+      return;
+    }
     const message = formatError(error);
-    await markFailed(message);
+    try {
+      await markFailed(message);
+    } catch (persistError) {
+      context.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `plan execution failed and persist also failed: ${formatError(persistError)}`,
+      });
+      context.planExecution?.finishPlanRun?.(planRunId, 'failed', message);
+    }
   }
 }
 
@@ -598,19 +789,37 @@ async function handlePlanAbort(
       );
     }
     const abortedState = abortExecutionState(plan.execution);
-    const abortedPlan: SessionPlan = {
-      ...plan,
-      status: 'abandoned',
-      execution: abortedState,
-      revision: plan.revision + 1,
-      updatedAt: new Date().toISOString(),
-    };
-    await saveSessionPlan(planPath, abortedPlan);
+    const aborted = await mutateSessionPlanOrFail(planPath, requestId, 'plan/abort', (current) => {
+      if (!current) throw new PlanMutationError('No plan for session');
+      if (current.id !== command.planId) {
+        throw new PlanMutationError(
+          `plan id mismatch: requested ${command.planId} but session has ${current.id}`,
+        );
+      }
+      if (
+        !current.execution ||
+        (current.execution.status !== 'running' && current.execution.status !== 'queued')
+      ) {
+        throw new PlanMutationError(
+          `plan is not running (status: ${current.execution?.status ?? 'none'})`,
+        );
+      }
+      return {
+        ...current,
+        status: 'abandoned',
+        execution: abortExecutionState(current.execution),
+        revision: current.revision + 1,
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    if (!aborted.ok) return aborted.response;
+    const abortedPlan = aborted.plan;
+    const abortedExecution = abortedPlan.execution ?? abortedState;
     context.push({ type: 'plan/updated', sessionId: command.sessionId, plan: abortedPlan });
-    context.push({ type: 'plan/execution-updated', state: abortedState });
+    context.push({ type: 'plan/execution-updated', state: abortedExecution });
     const seam = context.planExecution;
     if (seam) {
-      seam.cancelPlanRun?.(plan.execution.runId ?? '');
+      seam.cancelPlanRun?.(abortedExecution.runId ?? plan.execution.runId ?? '');
       // Abort the parent turn if inline/verify is running.
       try {
         await seam.abortSession(command.sessionId);

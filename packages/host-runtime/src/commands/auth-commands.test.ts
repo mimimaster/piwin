@@ -28,6 +28,12 @@ function fakePort(): {
         return { kind: 'ok' };
       },
       refreshProvider: async () => undefined,
+      fetchQuota: async (id) => ({
+        providerId: id,
+        groups: [],
+        lastUpdated: new Date().toISOString(),
+      }),
+      resetQuota: async () => ({ ok: true }),
       dispose: () => undefined,
     },
   };
@@ -160,6 +166,12 @@ describe('auth commands', () => {
       login: async () => ({ kind: 'ok' }),
       logout: async () => ({ kind: 'ok' }),
       refreshProvider: async () => undefined,
+      fetchQuota: async (id) => ({
+        providerId: id,
+        groups: [],
+        lastUpdated: new Date().toISOString(),
+      }),
+      resetQuota: async () => ({ ok: true }),
       dispose: () => undefined,
     };
     const service = new SubscriptionAuthService(

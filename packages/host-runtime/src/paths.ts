@@ -163,6 +163,14 @@ export function getPiwinSessionPlanPath(rootDir: string, sessionId: string): str
   return join(getPiwinSessionDir(rootDir, sessionId), 'plan.json');
 }
 
+/** Durable one-shot branch calibration queued until the next prompt consumes it. */
+export function getPiwinSessionPendingBranchCalibrationPath(
+  rootDir: string,
+  sessionId: string,
+): string {
+  return join(getPiwinSessionDir(rootDir, sessionId), 'pending-branch-calibration.json');
+}
+
 /**
  * Directory holding persisted Walkthrough artifacts for a session
  * (spec §7.2): `~/.piwin/sessions/<sessionId>/walkthroughs/`. Validates

@@ -47,6 +47,7 @@ export function classifyHostPushAudience(push: HostPushVariant): HostPushAudienc
     case 'auth/login-finished':
       return { kind: 'inbox' };
     case 'auth/updated':
+    case 'auth/quota-updated':
       return { kind: 'global' };
     case 'voice/live-updated':
       return { kind: 'global' };

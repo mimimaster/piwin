@@ -3,7 +3,15 @@
  * Apps and host-runtime never import Pi packages.
  */
 import { join } from 'node:path';
-import { isV1SubscriptionProviderId, type AuthPromptOption } from '@piwin/contracts';
+import {
+  isV1SubscriptionProviderId,
+  type AuthPromptOption,
+  type SubscriptionAccountQuota,
+} from '@piwin/contracts';
+import {
+  fetchSubscriptionQuota,
+  resetSubscriptionQuota,
+} from './subscription-quota-fetcher.js';
 
 export type SubscriptionCredentialType = 'oauth' | 'api_key';
 
@@ -61,6 +69,10 @@ export type SubscriptionAuthPort = {
   login: (providerId: string, interaction: HostAuthInteraction) => Promise<SubscriptionLoginOutcome>;
   logout: (providerId: string) => Promise<SubscriptionLogoutOutcome>;
   refreshProvider: (providerId: string) => Promise<void>;
+  fetchQuota: (providerId: string) => Promise<SubscriptionAccountQuota>;
+  resetQuota: (
+    providerId: string,
+  ) => Promise<{ ok: boolean; message?: string; quota?: SubscriptionAccountQuota }>;
   dispose: () => void;
 };
 
@@ -213,6 +225,12 @@ export async function createSubscriptionAuthPort(
       if (errors.length > 0) {
         throw Object.assign(new Error(errors.join('; ')), { code: 'credential-sync-failed' });
       }
+    },
+    async fetchQuota(providerId) {
+      return fetchSubscriptionQuota({ authPath: options.authPath, providerId });
+    },
+    async resetQuota(providerId) {
+      return resetSubscriptionQuota({ authPath: options.authPath, providerId });
     },
     dispose() {
       // Pi ModelRuntime has no dispose; Host owns one instance for the process.

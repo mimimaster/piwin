@@ -188,8 +188,9 @@ export function createStoreTranscriptRecorder(options: {
     const failure = input.failure ?? normalizeAgentFailure(undefined, input.errorMessage);
     const existingId =
       input.messageId ??
-      (input.runId !== undefined ? (assistantIdsByRunId.get(input.runId) ?? null) : null) ??
-      lastAssistantId;
+      (input.runId !== undefined
+        ? (assistantIdsByRunId.get(input.runId) ?? null)
+        : lastAssistantId);
     if (existingId !== null) {
       pendingEmptyMessageIds.delete(existingId);
       const updated = await mutateActive(
@@ -336,11 +337,16 @@ export function createStoreTranscriptRecorder(options: {
         createdAt: new Date().toISOString(),
         ...(attachments !== undefined && attachments.length > 0 ? { attachments } : {}),
         ...(contextRefs !== undefined ? { contextRefs } : {}),
-        ...(input.source === 'voice-delegation'
+        ...(input.source === 'voice-delegation' || input.skillId
           ? {
               metadata: {
-                promptSource: 'voice-delegation' as const,
-                ...(input.voiceCallId ? { voiceCallId: input.voiceCallId } : {}),
+                ...(input.source === 'voice-delegation'
+                  ? {
+                      promptSource: 'voice-delegation' as const,
+                      ...(input.voiceCallId ? { voiceCallId: input.voiceCallId } : {}),
+                    }
+                  : {}),
+                ...(input.skillId ? { skillId: input.skillId } : {}),
               },
             }
           : {}),

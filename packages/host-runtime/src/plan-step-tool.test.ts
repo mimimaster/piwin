@@ -100,4 +100,28 @@ describe('createPlanStepTool', () => {
     expect(pushed).toBeDefined();
     expect(pushed?.steps.find((step) => step.id === '1')?.status).toBe('done');
   });
+
+  it('updates a plan file that has leftover bytes after valid JSON', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-plan-tool-trailing-'));
+    const planPath = join(rootDir, 'plan.json');
+    await mkdir(rootDir, { recursive: true });
+    const now = new Date().toISOString();
+    const body = JSON.stringify({
+      id: 'p1',
+      sessionId: 's1',
+      projectPath: '/tmp',
+      status: 'executing',
+      title: 'T',
+      goal: 'G',
+      steps: [{ id: '1', title: 'A', status: 'pending' }],
+      revision: 1,
+      createdAt: now,
+      updatedAt: now,
+      source: 'user',
+    });
+    await writeFile(planPath, `${body}\nleftover-from-shorter-write"\n`, 'utf8');
+    const tool = createPlanStepTool({ sessionId: 's1', planPath });
+    const result = await executeTool(tool, { stepId: '1', status: 'done' });
+    expect(outputOf(result)).toContain('done');
+  });
 });

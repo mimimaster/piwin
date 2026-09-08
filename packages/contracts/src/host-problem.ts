@@ -63,6 +63,12 @@ export type RetryDiscardsWritesProblem = {
   data: import('./workspace-writes.js').WorkspaceWrites;
 };
 
+/** Edit/open-branch leaving the active attempt that wrote workspace files. */
+export type BranchLeavesWritesProblem = {
+  code: 'branch-leaves-writes';
+  data: import('./workspace-writes.js').WorkspaceWrites;
+};
+
 export type SessionBusyProblem = {
   code: 'session-busy';
   data: { sessionId: string; reason: 'body-job' | 'foreground-run' };

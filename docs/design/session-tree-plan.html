@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>项目会话树方案 · 对照 Pi</title>
+  <style>
+    :root {
+      --void: #e6e1d7; --s1: #f0ece4; --s2: #f8f6f0; --s3: #fffdf8; --s4: #fff;
+      --t1: #1d1b17; --t2: #5a554d; --t3: #726b61; --t4: #8f887d;
+      --l1: rgba(29,27,23,.08); --zhu: #c6412a; --zhu-wash: rgba(198,65,42,.1);
+      --pine: #3d7c5e; --pine-wash: rgba(61,124,94,.12); --lamp: #b8801f; --lamp-wash: rgba(184,128,31,.14);
+      --sans: Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
+      --serif: "Noto Serif SC", "Songti SC", Georgia, serif;
+      --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--void); color: var(--t1); font: 15px/1.7 var(--sans); }
+    .wrap { max-width: 860px; margin: 0 auto; padding: 48px 28px 100px; }
+    h1 { font: 600 32px/1.25 var(--serif); margin: 0 0 10px; letter-spacing: -.02em; }
+    h2 { font: 600 20px/1.3 var(--serif); margin: 44px 0 12px; }
+    h3 { font: 600 14px/1.4 var(--sans); margin: 22px 0 8px; }
+    p, li { color: var(--t2); }
+    p { margin: 0 0 12px; }
+    strong { color: var(--t1); }
+    .kicker { font: 600 11px/1 var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--zhu); margin-bottom: 10px; }
+    .lede { font-size: 16px; max-width: 42em; margin-bottom: 28px; }
+    .card { background: var(--s3); border-radius: 12px; padding: 18px 20px; margin: 14px 0; box-shadow: 0 1px 0 rgba(0,0,0,.04), 0 8px 24px rgba(29,27,23,.05); }
+    .callout { border-left: 3px solid var(--zhu); padding-left: 14px; margin: 16px 0; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 720px) { .grid2 { grid-template-columns: 1fr; } }
+    .col { background: var(--s4); border: 1px solid var(--l1); border-radius: 10px; padding: 14px 16px; }
+    .col h3 { margin-top: 0; }
+    .ok { background: var(--pine-wash); border-color: transparent; }
+    .warn { background: var(--lamp-wash); border-color: transparent; }
+    .bad { background: var(--zhu-wash); border-color: transparent; }
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 12px 0 20px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--l1); vertical-align: top; }
+    th { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--t3); }
+    code { font: 12px/1.4 var(--mono); background: var(--s1); padding: 1px 5px; border-radius: 4px; }
+    pre.tree { background: var(--s2); border-radius: 8px; padding: 14px 16px; font: 12.5px/1.45 var(--mono); color: var(--t1); overflow: auto; }
+    .num { display: inline-flex; width: 22px; height: 22px; border-radius: 50%; background: var(--zhu); color: #fff7f0; font: 600 12px/22px var(--sans); justify-content: center; margin-right: 8px; }
+    ol.steps { padding-left: 0; list-style: none; }
+    ol.steps li { margin: 0 0 16px; }
+    .foot { color: var(--t4); font-size: 12px; margin-top: 40px; }
+    hr { border: 0; border-top: 1px solid var(--l1); margin: 36px 0; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="kicker">第二轮调研 · 以 Pi 会话树为参照</div>
+    <h1>项目会话里的「树」，<br />应该怎么做</h1>
+    <p class="lede">
+      上一版建议只盯着「改文案、藏按钮」，确实浅了。这次对照的是 Pi 自己的会话树（<code>/tree</code>），以及 piwin 现在实际怎么接 Pi。下面用普通话说清楚：Pi 是什么、我们差在哪、项目会话该怎么分阶段做。
+    </p>
+
+    <div class="card callout">
+      <strong>先纠正一个误会。</strong>
+      Pi 的会话树<strong>也不会</strong>在切换分支时把磁盘文件改回去。它管的是「对话记忆往哪长」；文件列表只是告诉模型「你离开的那条路改过哪些文件」。
+      所以正确目标不是「做成会回滚磁盘的树」，而是：<strong>把 Pi 那种在同一条会话里试另一条路的能力，完整接到项目工作上</strong>——包括上下文怎么切、离开旧路时怎么交代、以及（另外一层）要不要给新路单独工作区。
+    </div>
+
+    <h2>一、Pi 的会话树到底是什么</h2>
+    <p>
+      依据已安装的 <code>@earendil-works/pi-coding-agent@0.84.2</code> 文档（<code>docs/sessions.md</code>、<code>session-format.md</code>、<code>compaction.md</code>）和 <code>SessionManager</code> 接口。
+    </p>
+
+    <p>Pi 把<strong>一整场会话存成一棵树</strong>（JSONL 文件）。每条记录有父亲；当前站在哪条路上，由「叶子指针」决定。历史只追加、不改写、不删除。</p>
+
+    <pre class="tree">你: 帮我改登录
+ └─ 助手: 方案 A …
+     ├─ 你: 继续做 A …     ← 当前叶子
+     │   └─ 助手: …
+     └─ 你: 改做方案 B …   ← 另一条兄弟路
+         └─ 助手: …</pre>
+
+    <table>
+      <thead>
+        <tr><th>Pi 里的动作</th><th>普通含义</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>/tree</code></td>
+          <td>在<strong>同一场会话</strong>里跳到任意历史节点，从那里继续。不新开文件。</td>
+        </tr>
+        <tr>
+          <td>在树里点一条「用户消息」</td>
+          <td>叶子退到它的上一条；编辑器填回那句话；你改完再发 = 开出一条新兄弟路。</td>
+        </tr>
+        <tr>
+          <td>在树里点助手 / 工具结果</td>
+          <td>叶子移到那里，从该点接着聊。</td>
+        </tr>
+        <tr>
+          <td>离开旧路时的「分支摘要」</td>
+          <td>可选：让模型总结你刚离开的那条路，并记下对话里出现过的读写文件清单，塞进新路的上下文。<strong>不回滚磁盘。</strong></td>
+        </tr>
+        <tr>
+          <td><code>/fork</code> / <code>/clone</code></td>
+          <td>另存成<strong>新的会话文件</strong>（新开一场），不是同文件里切叶子。</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>
+      一句话：Pi 的树 = <strong>同一会话文件里的多条对话路线 + 可选「离开时交代一下」</strong>。
+      它不是 Git，也不是文件时光机。
+    </p>
+
+    <h2>二、piwin 现在实际怎么做（对照 Pi）</h2>
+
+    <div class="grid2">
+      <div class="col ok">
+        <h3>已经像 Pi 的部分</h3>
+        <ul>
+          <li>产品库里也有父子关系，能分叉、能切回。</li>
+          <li>改提问再发 = 开兄弟路（接近 Pi 点用户消息再编辑）。</li>
+          <li>切走时若写过文件会警告，并在下一轮提示里塞文件清单 + git 快照（接近「分支摘要」的意图，但是 Host 写的，不是 Pi 的 LLM 摘要）。</li>
+          <li>普通对话里这套已经好用。</li>
+        </ul>
+      </div>
+      <div class="col bad">
+        <h3>和 Pi 差得很远的部分</h3>
+        <ul>
+          <li>界面只是「分叉点列表」，不是 Pi 那种能点进工具步骤、助手节点的完整树。</li>
+          <li>每次切叶子：把正在跑的 Pi <strong>整场扔掉</strong>，再按当前路<strong>线性重放</strong>进一块空白内存。Pi 自带的 <code>branch()</code> 根本没用上。</li>
+          <li>没有「离开旧路时要不要摘要」的交互。</li>
+          <li>没有标签书签、没有从任意助手节点接着干的完整导航。</li>
+          <li>项目里文件仍共享一份工作区——Pi 也是这样，但 Pi 至少会用分支摘要把「旧路改过啥」说清楚。</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <strong>技术事实（给自己对齐）：</strong>
+      <code>createSeededPiSessionManager</code> 只用 <code>SessionManager.inMemory()</code>，按活跃路径 <code>appendMessage</code>。
+      从不调用 <code>branch</code> / <code>branchWithSummary</code> / <code>getTree</code>，也不打开 Pi 的 JSONL 文件。
+      所以：**产品侧有树，Pi 运行时永远是一条直线。**
+    </div>
+
+    <p>
+      这就是为什么「只改文案」不够：
+      普通对话不依赖完整树也能爽；
+      <strong>写代码的项目会话，需要的是 Pi 那种「在同一场里换路线、换上下文、离开时交代文件」的工作方式</strong>，而不只是顶栏多一个列表。
+    </p>
+
+    <h2>三、三条可选路线</h2>
+
+    <h3>路线 A — 继续只用产品库的树，但把体验对齐 Pi 的 <code>/tree</code></h3>
+    <div class="col warn" style="margin-bottom:12px;">
+      <p><strong>做什么：</strong>不接 Pi 的会话文件。界面和流程向 Pi 靠：完整路径树、点用户消息=编辑再发、点助手=从那里继续、切走时可选「摘要旧路」、文件警告保留。</p>
+      <p><strong>优点：</strong>不碰「恢复 Pi 会话文件会静默出错」的老风险；改动集中在产品层。</p>
+      <p><strong>缺点：</strong>每次切换仍要拆掉 Pi、重放一整路，又慢又容易丢「只活在内存里」的中间状态。</p>
+    </div>
+
+    <h3>路线 B — 产品库仍是权威，但热会话里让 Pi 真正用树</h3>
+    <div class="col ok" style="margin-bottom:12px;">
+      <p><strong>做什么：</strong>会话还在内存时，切叶子调用 Pi 的 <code>branch()</code>（必要时 <code>branchWithSummary</code>），不要每次拆掉重播。进程挂了再按产品库重放。</p>
+      <p><strong>优点：</strong>认真用上 Pi 的树能力；冷启动仍走产品库，不赌「恢复 Pi 文件」。</p>
+      <p><strong>缺点：</strong>要维护「产品消息 id ↔ Pi 条目 id」的映射，做不好会两边不一致。</p>
+    </div>
+
+    <h3>路线 C — 探索时绑定独立工作区（和 Pi 树正交，但项目必需）</h3>
+    <div class="col ok" style="margin-bottom:12px;">
+      <p><strong>做什么：</strong>「换方案」时可选：仍用当前目录，或开一份独立工作副本（git worktree），并和这条对话路线绑在一起。切换对话路线时，若绑了工作副本，就一起切过去。</p>
+      <p><strong>优点：</strong>解决「对话换了、代码还是上一方案」——这是写代码场景的真痛点。Pi 自己也不解决磁盘，必须产品补这一层。</p>
+      <p><strong>缺点：</strong>工作副本有成本（依赖、环境）；不能默认每次改提问都开一份。</p>
+    </div>
+
+    <h3>不推荐当默认的：直接拿 Pi 的 JSONL 当产品真相</h3>
+    <p>
+      可以以后做技术试验，但不应先押宝。历史判断是：直接恢复 Pi 会话文件，看起来像恢复了，工具/进程状态可能已经不对，而且双模式（SDK/RPC）没验证过。产品记录仍应在 <code>~/.piwin</code>。
+    </p>
+
+    <h2>四、推荐方案（项目会话）</h2>
+
+    <div class="card callout">
+      <strong>推荐：路线 B + 路线 C，分阶段做；路线 A 的体验目标并进。</strong><br />
+      普通对话可以继续用现在的轻量分叉。
+      项目会话要对齐 Pi 的工作方式：同一场里换路线、离开时交代、需要隔离时才给独立工作区。
+    </div>
+
+    <h3>用户最终应感受到什么（项目）</h3>
+    <ol class="steps">
+      <li>
+        <span class="num">1</span>
+        <strong>同一条项目会话里试另一条实现路线</strong>——像 Pi 的 <code>/tree</code>，不是动不动新开一场聊天。
+      </li>
+      <li>
+        <span class="num">2</span>
+        <strong>从任意一问一答跳回去再改</strong>——点提问可改写重发；点某次助手结果可从那里接着干。
+      </li>
+      <li>
+        <span class="num">3</span>
+        <strong>离开旧路时被问一句：要不要总结旧路（含改过哪些文件）</strong>——对齐 Pi 的分支摘要；同时保留现在的磁盘警告。
+      </li>
+      <li>
+        <span class="num">4</span>
+        <strong>旧路已经大改文件时，明确提供「用独立工作区开这条新路」</strong>——默认不要静默隔离；用户点了才开。
+      </li>
+      <li>
+        <span class="num">5</span>
+        <strong>失败重试 ≠ 开新路线</strong>——挂了就原地再跑；不要和「换方案」混成一个按钮。
+      </li>
+    </ol>
+
+    <h3>分阶段落地</h3>
+    <table>
+      <thead>
+        <tr><th>阶段</th><th>交付</th><th>目的</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>P0 · 行为对齐</strong></td>
+          <td>
+            项目里把「重新生成」从「换方案」里拆开（失败用重试；换方案走编辑/开分支）。
+            顶栏/空态写清：分叉的是对话路线。
+            切走时提供可选「摘要旧路」（先用现成文件清单 + git 快照，再迭代成真正的模型摘要）。
+          </td>
+          <td>先让项目会话的手势和 Pi 一致，不再误导。</td>
+        </tr>
+        <tr>
+          <td><strong>P1 · 完整树导航</strong></td>
+          <td>
+            会话树从「分叉点列表」升级到接近 Pi 的路径树：能看到关键助手节点，能跳到节点继续。
+            （仍以产品库为权威。）
+          </td>
+          <td>补上 Pi <code>/tree</code> 里「点哪里就从哪里继续」的能力。</td>
+        </tr>
+        <tr>
+          <td><strong>P2 · 热切换用 Pi.branch</strong></td>
+          <td>
+            会话仍活着时，切叶子走 <code>SessionManager.branch</code>，避免整场拆掉重放。
+            进程死后仍从产品库恢复。
+          </td>
+          <td>认真接上 Pi 运行时的树，而不是只仿一个 UI。</td>
+        </tr>
+        <tr>
+          <td><strong>P3 · 可选独立工作区</strong></td>
+          <td>
+            「开新路线」在写过文件时可绑 git worktree；切换路线时若已绑定则一起切换。
+            与现有 Git 芯片打通，但入口在「探索」手势上。
+          </td>
+          <td>补上 Pi 不管的磁盘隔离。</td>
+        </tr>
+        <tr>
+          <td><strong>试验轨</strong></td>
+          <td>Pi JSONL 是否可作辅助存储：单独打样，证明杀进程恢复无静默错误后再谈。</td>
+          <td>不阻塞上面四步。</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>五、和「只改文案」那版有什么不同</h2>
+    <div class="grid2">
+      <div class="col bad">
+        <h3>上一版</h3>
+        <p>假定产品树已经够了，项目只要少骗人。</p>
+        <p>建议停在：藏重新生成、改副标题。</p>
+      </div>
+      <div class="col ok">
+        <h3>这一版</h3>
+        <p>以 Pi 的 <code>/tree</code> 为产品参照：同场换路、节点导航、离开时摘要、（另层）可选工作区。</p>
+        <p>承认：现在只是「产品库有树 + Pi 每次重放直线」，项目场景不够。</p>
+      </div>
+    </div>
+
+    <h2>六、建议你怎么拍板</h2>
+    <div class="card">
+      <p>若同意推荐，请确认这三句话：</p>
+      <ol>
+        <li>项目会话的树，要对齐 Pi 的「同场换路线」，不是只对齐普通聊天的「换个说法」。</li>
+        <li>磁盘隔离是附加层（P3），不是树的定义；但项目探索在「已写文件」时应能一键要隔离。</li>
+        <li>先做 P0→P1→P2；Pi 会话文件当真相留给试验，不挡主线。</li>
+      </ol>
+      <p style="margin-bottom:0;">确认后，下一刀可以从 <strong>P0</strong> 开工（行为拆分 + 离开旧路的交代），同时开 P1 的树导航设计。</p>
+    </div>
+
+    <hr />
+    <p class="foot">
+      主要依据：Pi <code>docs/sessions.md</code>（Branching with /tree）、<code>docs/compaction.md</code>（Branch Summarization）、
+      <code>SessionManager.branch / branchWithSummary / getTree</code>；
+      piwin <code>packages/agent-host/src/seeded-pi-session.ts</code>（仅 inMemory 线性重放）；
+      以及产品侧会话树切换时拆掉 live 会话再按路径重放的实现。
+    </p>
+  </div>
+</body>
+</html>

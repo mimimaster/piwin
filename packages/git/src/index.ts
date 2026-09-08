@@ -33,8 +33,17 @@ export type { ComposedFileAction, ComposeCoverage } from './turn-changes/compose
 
 export { diffTurnChangeObjects } from './turn-changes/content-diff.js';
 
-export { resolveTurnChangePath, assertWritableTurnChangeFile } from './turn-changes/path-policy.js';
-export type { TurnChangePathKind, ResolvedTurnChangePath } from './turn-changes/path-policy.js';
+export {
+  resolveTurnChangePath,
+  assertWritableTurnChangeFile,
+  canonicalizeForContainment,
+  resolveFileLockKey,
+} from './turn-changes/path-policy.js';
+export type {
+  TurnChangePathKind,
+  ResolvedTurnChangePath,
+  FileLockKeyFailure,
+} from './turn-changes/path-policy.js';
 
 export { writeTurnChangeFile, deleteTurnChangeFile } from './turn-changes/file-writer.js';
 export type { TurnChangeWriteReceipt } from './turn-changes/file-writer.js';

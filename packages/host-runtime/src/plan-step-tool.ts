@@ -11,8 +11,8 @@ import type {
 import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
 import {
   applyPlanStepUpdate,
-  loadSessionPlan,
-  saveSessionPlan,
+  PlanMutationError,
+  updateSessionPlan,
   MAX_PLAN_STEP_NOTE_CHARS,
 } from '@piwin/session';
 
@@ -70,34 +70,46 @@ export function createPlanStepTool(options: PlanStepToolOptions): HostToolRegist
         return invalidPlanInput(`invalid status ${statusRaw}`);
       }
       const status = statusRaw as PlanStepStatus;
-      const plan = await loadSessionPlan(options.planPath);
+      const detail =
+        typeof args.note === 'string' ? args.note.slice(0, MAX_PLAN_STEP_NOTE_CHARS) : undefined;
+      let plan;
+      try {
+        plan = await updateSessionPlan(options.planPath, (current) => {
+          if (!current) {
+            throw new PlanMutationError('no plan for this session');
+          }
+          if (current.status !== 'approved' && current.status !== 'executing') {
+            throw new PlanMutationError(
+              `plan status is ${current.status}; only approved|executing allow tool updates`,
+            );
+          }
+          const result = applyPlanStepUpdate({
+            plan: current,
+            stepId,
+            status,
+            ...(detail !== undefined ? { detail } : {}),
+          });
+          if (!result.ok) {
+            throw new PlanMutationError(result.error);
+          }
+          return result.plan;
+        });
+      } catch (error) {
+        if (error instanceof PlanMutationError) {
+          return invalidPlanInput(error.message);
+        }
+        throw error;
+      }
       if (!plan) {
         return invalidPlanInput('no plan for this session');
       }
-      if (plan.status !== 'approved' && plan.status !== 'executing') {
-        return invalidPlanInput(
-          `plan status is ${plan.status}; only approved|executing allow tool updates`,
-        );
-      }
-      const detail =
-        typeof args.note === 'string' ? args.note.slice(0, MAX_PLAN_STEP_NOTE_CHARS) : undefined;
-      const result = applyPlanStepUpdate({
-        plan,
-        stepId,
-        status,
-        ...(detail !== undefined ? { detail } : {}),
-      });
-      if (!result.ok) {
-        return invalidPlanInput(result.error);
-      }
-      await saveSessionPlan(options.planPath, result.plan);
-      options.onUpdated?.(result.plan);
+      options.onUpdated?.(plan);
       return {
         ok: true,
-        output: `step ${stepId} → ${status}; plan status ${result.plan.status} (rev ${result.plan.revision})`,
+        output: `step ${stepId} → ${status}; plan status ${plan.status} (rev ${plan.revision})`,
         details: {
-          planId: result.plan.id,
-          revision: result.plan.revision,
+          planId: plan.id,
+          revision: plan.revision,
           stepId,
           status,
         },

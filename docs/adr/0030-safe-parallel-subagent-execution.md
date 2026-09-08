@@ -136,8 +136,8 @@ second Run terminal state.
 
 Settled worktree children freeze S0/S1 against `lease.baseCommit` into Host
 turn-change storage when `turnChangeRuntime` is present. Automatic integrate
-still serializes per repository and respects the workspace write gate when
-that runtime exists.
+still serializes per repository and waits on the workspace write gate
+(exclusive, queued) when that runtime exists. See [ADR 0069](./0069-workspace-write-gate.md).
 
 ### No automatic retry
 

@@ -214,6 +214,8 @@ async function withGitWriteGate(
     workspaceId: projectPath,
     rootPath: projectPath,
     kind: 'git',
+    mode: 'exclusive',
+    wait: true,
   });
   if (!acquired.ok) {
     return fail(requestId, commandType, acquired.reason);

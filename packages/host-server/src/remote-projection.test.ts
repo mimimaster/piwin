@@ -429,7 +429,7 @@ describe('remote session/list projection', () => {
     });
   });
 
-  it('projects project/open onto an opaque projectId and drops the Host path', () => {
+  it('projects project/open onto an opaque projectId and keeps the Host path for absolute joins', () => {
     const projected = projectRemoteResponse(
       { type: 'project/open', path: '/home/host/work/app' },
       {
@@ -453,15 +453,15 @@ describe('remote session/list projection', () => {
     if (!projected.success) {
       throw new Error(projected.error);
     }
-    expect(JSON.stringify(projected.data)).not.toContain('/home/host');
     expect(projected.data).toEqual({
       projectId: 'project-aaaaaaaaaaaaaaaaaaaaaaaa',
+      path: '/home/host/work/app',
       trusted: true,
       trust: 'trusted',
     });
   });
 
-  it('keeps opaque gitRepositoryId on project/list and drops Host paths', () => {
+  it('keeps Host path and opaque gitRepositoryId on project/list', () => {
     const projected = projectRemoteResponse(
       { type: 'project/list' },
       {
@@ -493,10 +493,10 @@ describe('remote session/list projection', () => {
     if (!projected.success) {
       throw new Error(projected.error);
     }
-    expect(JSON.stringify(projected.data)).not.toContain('/home/host');
     expect(projected.data).toMatchObject({
       projects: [
         {
+          path: '/home/host/work/app',
           displayName: 'app',
           gitRepositoryId: 'abcd1234abcd1234',
           isPrimaryWorktree: true,

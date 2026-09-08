@@ -27,6 +27,7 @@ import {
   type TurnChangeWriteReceipt,
 } from '@piwin/git';
 import type { WorkspaceWriteGate } from '../turn-changes/workspace-write-gate.js';
+import { runWithWorkspaceWriteGate } from './run-with-workspace-write-gate.js';
 
 const execAsync = promisify(exec);
 const utf8 = new TextEncoder();
@@ -126,24 +127,32 @@ export function buildHostFilesystemTools(
     },
     prepareArgs: (rawArguments, _context, signal) =>
       prepareResolvedPath(rawArguments, resolvePath, signal, { required: true }),
-    async execute(args, _signal, context) {
-      return runWithOptionalToolGate(workspaceWrite, context.runId, async () => {
-        const filePath = String(args.path ?? '');
-        if (!turnChange) {
-          const dir = join(filePath, '..');
-          await mkdir(dir, { recursive: true });
-          await writeFile(filePath, String(args.content ?? ''), 'utf-8');
+    async execute(args, signal, context) {
+      const filePath = String(args.path ?? '');
+      return runWithWorkspaceWriteGate({
+        workspaceWrite,
+        runId: context.runId,
+        signal,
+        mode: 'shared',
+        wait: true,
+        filePath,
+        run: async () => {
+          if (!turnChange) {
+            const dir = join(filePath, '..');
+            await mkdir(dir, { recursive: true });
+            await writeFile(filePath, String(args.content ?? ''), 'utf-8');
+            return { ok: true, output: `Wrote ${filePath}` };
+          }
+          const relativePath = toTurnChangeRelativePath(filePath, turnChange.workspaceRoot);
+          const receipt = await writeTurnChangeFile({
+            workspaceRoot: turnChange.workspaceRoot,
+            relativePath,
+            bytes: utf8.encode(String(args.content ?? '')),
+            store: turnChange.store,
+          });
+          turnChange.onReceipt?.(receipt);
           return { ok: true, output: `Wrote ${filePath}` };
-        }
-        const relativePath = toTurnChangeRelativePath(filePath, turnChange.workspaceRoot);
-        const receipt = await writeTurnChangeFile({
-          workspaceRoot: turnChange.workspaceRoot,
-          relativePath,
-          bytes: utf8.encode(String(args.content ?? '')),
-          store: turnChange.store,
-        });
-        turnChange.onReceipt?.(receipt);
-        return { ok: true, output: `Wrote ${filePath}` };
+        },
       });
     },
   };
@@ -177,21 +186,29 @@ export function buildHostFilesystemTools(
     },
     prepareArgs: (rawArguments, _context, signal) =>
       prepareResolvedPath(rawArguments, resolvePath, signal, { required: true }),
-    async execute(args, _signal, context) {
-      return runWithOptionalToolGate(workspaceWrite, context.runId, async () => {
-        const filePath = String(args.path ?? '');
-        if (!turnChange) {
-          await unlink(filePath);
+    async execute(args, signal, context) {
+      const filePath = String(args.path ?? '');
+      return runWithWorkspaceWriteGate({
+        workspaceWrite,
+        runId: context.runId,
+        signal,
+        mode: 'shared',
+        wait: true,
+        filePath,
+        run: async () => {
+          if (!turnChange) {
+            await unlink(filePath);
+            return { ok: true, output: `Deleted ${filePath}` };
+          }
+          const relativePath = toTurnChangeRelativePath(filePath, turnChange.workspaceRoot);
+          const receipt = await deleteTurnChangeFile({
+            workspaceRoot: turnChange.workspaceRoot,
+            relativePath,
+            store: turnChange.store,
+          });
+          turnChange.onReceipt?.(receipt);
           return { ok: true, output: `Deleted ${filePath}` };
-        }
-        const relativePath = toTurnChangeRelativePath(filePath, turnChange.workspaceRoot);
-        const receipt = await deleteTurnChangeFile({
-          workspaceRoot: turnChange.workspaceRoot,
-          relativePath,
-          store: turnChange.store,
-        });
-        turnChange.onReceipt?.(receipt);
-        return { ok: true, output: `Deleted ${filePath}` };
+        },
       });
     },
   };
@@ -262,16 +279,23 @@ export function buildHostFilesystemTools(
     fileEffect: { kind: 'uncontained' },
     prepareArgs: (rawArguments, _context, signal) => prepareBashArgs(rawArguments, signal),
     async execute(args, signal, context) {
-      return runWithOptionalToolGate(workspaceWrite, context.runId, async () => {
-        const command = String(args.command ?? '');
-        const timeout = typeof args.timeout === 'number' ? args.timeout : 30000;
-        const { stdout, stderr } = await execAsync(command, {
-          cwd,
-          timeout,
-          ...(signal ? { signal } : {}),
-          maxBuffer: 1024 * 1024,
-        });
-        return { ok: true, output: stdout + (stderr ? `\n[stderr]\n${stderr}` : '') };
+      return runWithWorkspaceWriteGate({
+        workspaceWrite,
+        runId: context.runId,
+        signal,
+        mode: 'exclusive',
+        wait: true,
+        run: async () => {
+          const command = String(args.command ?? '');
+          const timeout = typeof args.timeout === 'number' ? args.timeout : 30000;
+          const { stdout, stderr } = await execAsync(command, {
+            cwd,
+            timeout,
+            ...(signal ? { signal } : {}),
+            maxBuffer: 1024 * 1024,
+          });
+          return { ok: true, output: stdout + (stderr ? `\n[stderr]\n${stderr}` : '') };
+        },
       });
     },
   };
@@ -302,45 +326,28 @@ export function buildHostFilesystemTools(
     fileEffect: { kind: 'uncontained' },
     prepareArgs: (rawArguments, _context, signal) => prepareBashArgs(rawArguments, signal),
     async execute(args, signal, context) {
-      return runWithOptionalToolGate(workspaceWrite, context.runId, async () => {
-        const command = String(args.command ?? '');
-        const timeout = typeof args.timeout === 'number' ? args.timeout : 30000;
-        const { stdout, stderr } = await execAsync(command, {
-          cwd,
-          timeout,
-          ...(signal ? { signal } : {}),
-          maxBuffer: 1024 * 1024,
-        });
-        return { ok: true, output: stdout + (stderr ? `\n[stderr]\n${stderr}` : '') };
+      return runWithWorkspaceWriteGate({
+        workspaceWrite,
+        runId: context.runId,
+        signal,
+        mode: 'exclusive',
+        wait: true,
+        run: async () => {
+          const command = String(args.command ?? '');
+          const timeout = typeof args.timeout === 'number' ? args.timeout : 30000;
+          const { stdout, stderr } = await execAsync(command, {
+            cwd,
+            timeout,
+            ...(signal ? { signal } : {}),
+            maxBuffer: 1024 * 1024,
+          });
+          return { ok: true, output: stdout + (stderr ? `\n[stderr]\n${stderr}` : '') };
+        },
       });
     },
   };
 
   return [readFileTool, writeFileTool, deleteFileTool, listDirectoryTool, bashTool, runBashTool];
-}
-
-async function runWithOptionalToolGate(
-  workspaceWrite: BuildHostFilesystemToolsOptions['workspaceWrite'],
-  runId: string,
-  run: () => Promise<ToolResult>,
-): Promise<ToolResult> {
-  if (!workspaceWrite) {
-    return run();
-  }
-  const acquired = await workspaceWrite.gate.tryAcquire({
-    workspaceId: workspaceWrite.workspaceId,
-    rootPath: workspaceWrite.rootPath,
-    kind: 'tool',
-    runId,
-  });
-  if (!acquired.ok) {
-    return { ok: false, code: 'execution-failed', message: acquired.reason };
-  }
-  try {
-    return await run();
-  } finally {
-    acquired.lease.release();
-  }
 }
 
 function toTurnChangeRelativePath(absolutePath: string, workspaceRoot: string): string {
