@@ -472,10 +472,14 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  /* Top-aligned per docs/design/inkstone/proto-04-inspector.html: the tool
+     launcher sits right under the tabstrip, not centered in the column. */
+  justify-content: flex-start;
+  padding-top: var(--s-6, 24px);
   flex: 1;
   min-height: 0;
-  padding: var(--s-7);
+  padding-inline: var(--s-7);
+  padding-bottom: var(--s-7);
   overflow: auto;
 }
 
