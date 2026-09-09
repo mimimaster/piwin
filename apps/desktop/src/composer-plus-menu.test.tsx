@@ -99,7 +99,7 @@ describe('ComposerPlusMenu', () => {
     expect(document.querySelector('[data-testid="plus-menu-mode-ask"]')).toBeNull();
     expect(document.querySelector('[data-testid="plus-menu-image"]')).toBeNull();
     expect(document.querySelector('[data-testid="plus-menu-orchestration"]')).toBeNull();
-    expect(menu?.textContent).toContain('Skills & MCP');
+    expect(menu?.textContent).toContain('技能与 MCP');
   });
 
   it('exposes separate file and image attachment actions when wired', () => {
@@ -140,12 +140,12 @@ describe('ComposerPlusMenu', () => {
   it('shows empty copy when no skills or servers exist', () => {
     render(createBaseProps({ submenu: 'skills', skills: [] }), root);
     expect(document.querySelector('[aria-label="Skills"]')?.textContent).toContain(
-      'No skills loaded',
+      '未加载任何技能',
     );
 
     render(createBaseProps({ submenu: 'mcp', mcpServers: [] }), root);
     expect(document.querySelector('[aria-label="MCP Servers"]')?.textContent).toContain(
-      'No servers configured',
+      '未配置任何服务器',
     );
   });
 
@@ -153,7 +153,7 @@ describe('ComposerPlusMenu', () => {
     const onOpenKnowledge = vi.fn();
     const onOpenCardsPanel = vi.fn();
     render(createBaseProps({ onOpenKnowledge, onOpenCardsPanel }), root);
-    expect(document.body.textContent).toContain('Flashcards');
+    expect(document.body.textContent).toContain('闪卡');
     expect(document.body.textContent).not.toContain('Knowledge Center');
     clickItem('plus-menu-open-flashcards');
     expect(onOpenCardsPanel).toHaveBeenCalledTimes(1);

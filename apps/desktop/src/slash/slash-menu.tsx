@@ -5,6 +5,18 @@ import { useEffect, useRef, type ReactElement } from 'react';
 import { groupSlashItems } from './slash-match';
 import { isReservedSlashExecuteName } from './slash-parse';
 import type { SlashItem } from './slash-types';
+import { useDesktopLocale } from '../desktop-locale-context';
+
+const GROUP_LABEL_ZH: Record<string, string> = {
+  Command: '命令',
+  Mode: '模式',
+  Skill: '技能',
+};
+
+function localizeGroupLabel(label: string, isZh: boolean): string {
+  if (!isZh) return label;
+  return GROUP_LABEL_ZH[label] ?? label;
+}
 
 export type SlashMenuProps = {
   open: boolean;
@@ -16,6 +28,8 @@ export type SlashMenuProps = {
 };
 
 export function SlashMenu(props: SlashMenuProps): ReactElement | null {
+  const { locale } = useDesktopLocale();
+  const isZh = locale === 'zh-CN';
   const rootRef = useRef<HTMLDivElement | null>(null);
   const selectedRef = useRef<HTMLButtonElement | null>(null);
 
@@ -54,7 +68,7 @@ export function SlashMenu(props: SlashMenuProps): ReactElement | null {
         aria-label="Slash commands"
       >
         <div className="slash-menu">
-          <div className="slash-menu-empty muted">No matches</div>
+          <div className="slash-menu-empty muted">{isZh ? '没有匹配项' : 'No matches'}</div>
         </div>
       </div>
     );
@@ -73,7 +87,9 @@ export function SlashMenu(props: SlashMenuProps): ReactElement | null {
       <div className="slash-menu">
         {sections.map((section) => (
           <div key={section.groupLabel} className="slash-menu-section">
-            <div className="slash-menu-section-title muted">{section.groupLabel}</div>
+            <div className="slash-menu-section-title muted">
+              {localizeGroupLabel(section.groupLabel, isZh)}
+            </div>
             {section.items.map((item) => {
               flatIndex += 1;
               const index = flatIndex;
@@ -100,7 +116,9 @@ export function SlashMenu(props: SlashMenuProps): ReactElement | null {
                 >
                   <span className="slash-menu-name">/{item.name}</span>
                   <span className="slash-menu-label">{item.label}</span>
-                  <span className="slash-menu-badge muted">{item.groupLabel}</span>
+                  <span className="slash-menu-badge muted">
+                    {localizeGroupLabel(item.groupLabel, isZh)}
+                  </span>
                 </button>
               );
             })}

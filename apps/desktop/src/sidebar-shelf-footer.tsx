@@ -74,6 +74,9 @@ export function SidebarShelfFooter(props: SidebarShelfFooterProps) {
         </div>
       </footer>
 
+      {/* Deck-era footer: CSS shows this instead of .sidebar-shelf for any
+          non-Inkstone theme (see styles/inkstone/sidebar.css). Kept for that
+          fallback; not reachable under the shipped Inkstone theme. */}
       <div className="sidebar-footer">
         <div className="sidebar-footer-fade" aria-hidden="true" />
         <button
@@ -95,10 +98,13 @@ export function SidebarShelfFooter(props: SidebarShelfFooterProps) {
           <IconSettings />
           <span className="sidebar-footer-label">{props.settingsTitle}</span>
         </button>
-        <span className="sr-only" data-testid="agent-mode-pill">
-          {props.hostMock ? 'mock' : 'live'}
-        </span>
       </div>
+
+      {/* Not theme-scoped: the mock/live sentinel e2e waits on must stay in
+          the DOM regardless of which footer above is CSS-visible. */}
+      <span className="sr-only" data-testid="agent-mode-pill">
+        {props.hostMock ? 'mock' : 'live'}
+      </span>
     </>
   );
 }
