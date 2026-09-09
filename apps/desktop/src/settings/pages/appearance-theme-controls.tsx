@@ -16,6 +16,18 @@ export function getAppearanceThemeSettings(
     : (preferences.darkTheme ?? DEFAULT_DARK_THEME_SETTINGS);
 }
 
+export function appearanceColorsMatchDefault(
+  settings: AppearanceThemeSettings,
+  mode: ThemeMode,
+): boolean {
+  const defaults = mode === 'light' ? DEFAULT_LIGHT_THEME_SETTINGS : DEFAULT_DARK_THEME_SETTINGS;
+  return (
+    settings.background.toUpperCase() === defaults.background.toUpperCase() &&
+    settings.foreground.toUpperCase() === defaults.foreground.toUpperCase() &&
+    settings.accent.toUpperCase() === defaults.accent.toUpperCase()
+  );
+}
+
 function isHexColor(value: string): boolean {
   return /^#[0-9a-fA-F]{6}$/.test(value);
 }
@@ -87,6 +99,7 @@ export function ThemeSettingsCard(props: {
   settings: AppearanceThemeSettings;
   copy: DesktopCopy['appearance'];
   onChange: (key: ThemeColorKey, value: string) => void;
+  onResetToDefault: () => void;
 }): ReactElement {
   const title = 'Inkstone';
   const prefix = 'inkstone';
@@ -100,6 +113,8 @@ export function ThemeSettingsCard(props: {
         : 'Ink';
   const faceDescription =
     props.mode === 'light' ? '白天纸面 · 温润明亮' : '黑夜墨面 · 安静专注';
+  const usingDefault = appearanceColorsMatchDefault(props.settings, props.mode);
+  const customLabel = props.locale === 'zh-CN' ? '自定义' : 'Custom';
 
   return (
     <section className="settings-section settings-section-card appearance-theme-card">
@@ -128,9 +143,16 @@ export function ThemeSettingsCard(props: {
         <div className="appearance-theme-setting-row">
           <span>{props.copy.preset}</span>
           <Select
-            value={props.settings.preset}
-            onChange={() => undefined}
-            data={[{ value: 'default', label: 'Default' }]}
+            value={usingDefault ? 'default' : 'custom'}
+            onChange={(event) => {
+              if (event.currentTarget.value === 'default') {
+                props.onResetToDefault();
+              }
+            }}
+            data={[
+              { value: 'default', label: 'Default' },
+              ...(usingDefault ? [] : [{ value: 'custom', label: customLabel }]),
+            ]}
             aria-label={`${title} ${faceLabel} ${props.copy.preset}`}
             testId={`${prefix}-theme-preset`}
           />

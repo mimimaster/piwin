@@ -43,11 +43,10 @@ html[data-theme-id='piwin-inkstone-ink'] .context-bar .traffic {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  /* Clear the real macOS Overlay lights (wider than the 52px fake dots), then
-     a small gap before the sidebar toggle so the glyph sits past the green.
-     Parent .proto-nav already centres this strip with the toggle on one line. */
-  margin-right: 8px;
-  min-width: 56px;
+  /* Clear the real Overlay lights, then a gap so the sidebar toggle sits
+     past the green. proto-nav align-items:center shares the light centreline. */
+  margin-right: 10px;
+  min-width: 60px;
   height: 100%;
 }
 
@@ -94,13 +93,15 @@ html[data-theme-id='piwin-inkstone-paper'] .context-bar .context-bar-leading,
 html[data-theme-id='piwin-inkstone-ink'] .context-bar .context-bar-leading {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 4px;
+  /* Hold the chrome cluster to the sidebar column so the session title
+     starts on the stage — left-aligned with the conversation panel. */
   width: var(--sidebar-width, 240px) !important;
   min-width: var(--sidebar-width, 240px) !important;
   max-width: var(--sidebar-width, 240px) !important;
   box-sizing: border-box !important;
   flex: none;
-  /* Kill Deck's min-width calc that stretched the leading cluster. */
   margin: 0 !important;
   padding: 0 !important;
 }
@@ -113,7 +114,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .proto-nav-spacer {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-history {
@@ -121,6 +123,29 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   align-items: center;
   gap: 2px;
   flex: none;
+  margin-left: auto;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-sessions-toggle.ib {
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  min-height: 24px !important;
+  /* Overlay traffic lights sit on tauri y:18; the 30px band centres CSS
+     chrome ~1px higher. Nudge so the light centreline bisects the glyph. */
+  position: relative;
+  top: 1px;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-sessions-toggle.ib:hover,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-sessions-toggle.ib.active,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-sessions-toggle.ib[aria-pressed='true'],
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-sessions-toggle.ib[aria-expanded='true'] {
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--t1) !important;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar > .context-bar-drag {
@@ -137,7 +162,9 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   flex: 0 1 auto;
   min-width: 0;
   max-width: calc(100% - 340px);
-  margin: 0 0 0 6px !important;
+  /* Context-bar flex gap is 4px; another 4px reaches the 8px deck column
+     so the title left-aligns with the conversation panel. */
+  margin: 0 0 0 4px !important;
   padding: 0 !important;
   overflow: visible;
 }
@@ -398,6 +425,11 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   height: 14px !important;
   flex: none;
   stroke-width: 1.6;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-sessions-toggle svg {
+  width: 16px !important;
+  height: 16px !important;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-history .ib svg,

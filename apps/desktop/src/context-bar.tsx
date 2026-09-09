@@ -165,7 +165,7 @@ export function ContextBar(props: ContextBarProps): ReactElement {
             aria-expanded={props.sessionsExpanded === true}
             onClick={props.onToggleSessions}
           >
-            <IconPanelLeft width={14} height={14} stroke={1.6} />
+            <IconPanelLeft width={16} height={16} stroke={1.6} />
           </IconButton>
         ) : null}
 

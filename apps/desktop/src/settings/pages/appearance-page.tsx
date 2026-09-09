@@ -47,13 +47,7 @@ export function AppearancePage(): ReactElement {
     );
   }
 
-  function handleThemeColorChange(mode: 'light' | 'dark', key: ThemeColorKey, value: string): void {
-    if (themePackageActive) return;
-    const currentThemeSettings = getAppearanceThemeSettings(preferences, mode);
-    const nextThemeSettings: AppearanceThemeSettings = {
-      ...currentThemeSettings,
-      [key]: value,
-    };
+  function applyFaceTheme(mode: 'light' | 'dark', nextThemeSettings: AppearanceThemeSettings): void {
     const nextPreferences: DesktopPreferences = {
       ...preferences,
       ...(mode === 'light' ? { lightTheme: nextThemeSettings } : { darkTheme: nextThemeSettings }),
@@ -63,6 +57,20 @@ export function AppearancePage(): ReactElement {
     if (activeTheme.mode === mode) {
       onThemeApplied(buildAppearanceTheme(mode, nextThemeSettings));
     }
+  }
+
+  function handleThemeColorChange(mode: 'light' | 'dark', key: ThemeColorKey, value: string): void {
+    if (themePackageActive) return;
+    const currentThemeSettings = getAppearanceThemeSettings(preferences, mode);
+    applyFaceTheme(mode, { ...currentThemeSettings, [key]: value });
+  }
+
+  function handleResetFaceDefault(mode: 'light' | 'dark'): void {
+    if (themePackageActive) return;
+    applyFaceTheme(
+      mode,
+      mode === 'light' ? { ...DEFAULT_LIGHT_THEME_SETTINGS } : { ...DEFAULT_DARK_THEME_SETTINGS },
+    );
   }
 
   function resetAppearanceDefaults(): void {
@@ -120,6 +128,9 @@ export function AppearancePage(): ReactElement {
           copy={copy}
           onChange={(key, value) =>
             handleThemeColorChange(activeTheme.mode === 'light' ? 'light' : 'dark', key, value)
+          }
+          onResetToDefault={() =>
+            handleResetFaceDefault(activeTheme.mode === 'light' ? 'light' : 'dark')
           }
         />
       </div>

@@ -62,6 +62,16 @@ function isLiveSpikeRoute(): boolean {
   return hash === LIVE_SPIKE_HASH || hash.startsWith(`${LIVE_SPIKE_HASH}?`);
 }
 
+function themePaintEquals(left: ThemeManifest, right: ThemeManifest): boolean {
+  return (
+    left.id === right.id &&
+    left.mode === right.mode &&
+    left.tokens.bg.toLowerCase() === right.tokens.bg.toLowerCase() &&
+    left.tokens.text.toLowerCase() === right.tokens.text.toLowerCase() &&
+    left.tokens.accent.toLowerCase() === right.tokens.accent.toLowerCase()
+  );
+}
+
 export function DesktopThemeRoot() {
   // Same resolver as main.tsx pre-paint so React's first commit matches the
   // document tokens already on <html> (no Noir → ink-wash jump).
@@ -69,21 +79,17 @@ export function DesktopThemeRoot() {
 
   const applyResolvedTheme = useCallback((candidateTheme: ThemeManifest) => {
     const resolvedTheme = resolveDesktopAppearance(candidateTheme);
-    // Host bootstrap re-sends the active theme after connect. If we already
-    // pre-painted the same id, skip the switch freeze — otherwise the user
-    // still sees a one-frame "flash" even when colors match.
-    if (isDocumentThemeId(resolvedTheme.id)) {
-      rememberAppliedTheme(resolvedTheme);
-      setActiveTheme((previous) => (previous.id === resolvedTheme.id ? previous : resolvedTheme));
-      return;
+    const sameSheet = isDocumentThemeId(resolvedTheme.id);
+    // Same structural face (paper/ink) can still carry new Appearance colors.
+    // Always paint tokens. Skip the switch freeze so a hex tweak does not
+    // flash the whole shell; skip React state when paint is unchanged so
+    // Host re-sending the same library theme stays a no-op.
+    if (!sameSheet) {
+      beginThemeSwitch();
     }
-    // Apply document tokens before the state update so CSS and Mantine never
-    // present mismatched themes within one commit. Freeze transitions so the
-    // whole shell does not smear color/geometry for 120–200ms.
-    beginThemeSwitch();
     applyAppearanceToDocument(resolvedTheme);
     rememberAppliedTheme(resolvedTheme);
-    setActiveTheme(resolvedTheme);
+    setActiveTheme((previous) => (themePaintEquals(previous, resolvedTheme) ? previous : resolvedTheme));
   }, []);
 
   // Guard: a future caller that sets root state without the callback still

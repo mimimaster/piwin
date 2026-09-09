@@ -84,6 +84,20 @@ const LEGACY_DARK_APPEARANCE: AppearanceThemeSettings = {
   accent: '#007ACC',
 };
 
+/**
+ * Inkstone paper defaults before the contrast pass retinted iris
+ * `#c6412a` → `#b03a24`. A stored triple with the old accent is still the
+ * product face, not a custom overlay — treating it as custom writes
+ * `piwin-light-appearance` and drops every `data-theme-id='piwin-inkstone-*'`
+ * titleband rule (proto-nav width, spacer, traffic clearance).
+ */
+const RETIRED_INKSTONE_PAPER_APPEARANCE: AppearanceThemeSettings = {
+  preset: 'default',
+  background: '#E6E1D7',
+  foreground: '#1D1B17',
+  accent: '#C6412A',
+};
+
 function normalizeAppearanceTheme(settings: AppearanceThemeSettings): AppearanceThemeSettings {
   return {
     preset: settings.preset,
@@ -114,7 +128,13 @@ export function migrateStoredAppearanceTheme(
   const deckDefault = appearanceDefaults(
     mode === 'light' ? PIWIN_APPEARANCE_BONE : PIWIN_APPEARANCE_OBSIDIAN,
   );
-  if (appearanceThemesEqual(normalized, legacy) || appearanceThemesEqual(normalized, deckDefault)) {
+  const retiredInkstonePaper =
+    mode === 'light' && appearanceThemesEqual(normalized, RETIRED_INKSTONE_PAPER_APPEARANCE);
+  if (
+    appearanceThemesEqual(normalized, legacy) ||
+    appearanceThemesEqual(normalized, deckDefault) ||
+    retiredInkstonePaper
+  ) {
     return mode === 'light'
       ? { ...DEFAULT_LIGHT_THEME_SETTINGS }
       : { ...DEFAULT_DARK_THEME_SETTINGS };

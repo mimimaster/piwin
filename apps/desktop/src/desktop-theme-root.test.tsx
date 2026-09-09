@@ -12,6 +12,7 @@ import {
   PIWIN_APPEARANCE_INK_WASH,
   PIWIN_APPEARANCE_LIGHT,
   applyAppearanceToDocument,
+  buildAppearanceTheme,
 } from './appearance-tokens';
 import { PIWIN_APPEARANCE_INKSTONE_INK } from './theme/deck-palette';
 import { DEFAULT_DARK_THEME_SETTINGS } from './ui-preferences';
@@ -138,6 +139,32 @@ describe('DesktopThemeRoot', () => {
     // Same id → keep prior React state reference (no second switch cycle).
     expect(rerendered.activeTheme).toBe(firstTheme);
     expect(document.documentElement.dataset.themeId).toBe('piwin-ink-wash');
+  });
+
+  it('paints new Appearance colors immediately while keeping the Inkstone face id', () => {
+    act(() => {
+      root.render(<DesktopThemeRoot />);
+    });
+    const props = capturedProps as unknown as AppProps;
+
+    act(() => {
+      props.onThemeApplied(PIWIN_APPEARANCE_LIGHT);
+    });
+    expect(document.documentElement.dataset.themeId).toBe('piwin-inkstone-paper');
+
+    const custom = buildAppearanceTheme('light', {
+      preset: 'default',
+      background: '#AA7942',
+      foreground: '#1D1B17',
+      accent: '#C6412A',
+    });
+    act(() => {
+      props.onThemeApplied(custom);
+    });
+
+    expect(document.documentElement.dataset.themeId).toBe('piwin-inkstone-paper');
+    expect(document.documentElement.style.getPropertyValue('--void').toLowerCase()).toBe('#aa7942');
+    expect(document.documentElement.style.getPropertyValue('--iris').toLowerCase()).toBe('#c6412a');
   });
 
   it('resolves stale built-in manifests to the desktop-owned appearance', () => {

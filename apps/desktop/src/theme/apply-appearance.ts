@@ -21,6 +21,24 @@ import { resolveDeckTokens } from './deck-derive.js';
 import { FONT_MONO } from './deck-palette.js';
 
 const INKSTONE_THEME_IDS = new Set(['piwin-inkstone-paper', 'piwin-inkstone-ink']);
+const INKSTONE_DOCUMENT_THEME_IDS = new Set([
+  ...INKSTONE_THEME_IDS,
+  'piwin-inkstone',
+  'piwin-light-appearance',
+  'piwin-dark-appearance',
+]);
+
+/** Structural Inkstone CSS keys off paper/ink, not the Appearance overlay id. */
+export function inkstoneDocumentThemeId(
+  themeId: string,
+  mode: ThemeManifest['mode'],
+): string {
+  if (!INKSTONE_DOCUMENT_THEME_IDS.has(themeId)) {
+    return themeId;
+  }
+  return mode === 'dark' ? 'piwin-inkstone-ink' : 'piwin-inkstone-paper';
+}
+
 /** Latin first, then system sans, then CJK. PingFang before -apple-system
  *  makes Inter-missing machines render Latin with PingFang's Western glyphs. */
 const INKSTONE_FONT_SANS =
@@ -392,11 +410,11 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   }
   applyInkWashAssets(root, theme);
 
-  root.dataset.themeId = theme.id;
+  root.dataset.themeId = inkstoneDocumentThemeId(theme.id, theme.mode);
   root.dataset.themeMode = theme.mode;
   root.dataset.themeVisualStyle = theme.visualStyle ?? 'flat';
   root.style.colorScheme = theme.mode;
-  if (INKSTONE_THEME_IDS.has(theme.id)) {
+  if (INKSTONE_DOCUMENT_THEME_IDS.has(theme.id)) {
     for (const name of INKSTONE_STYLESHEET_SLAB_VARS) {
       root.style.removeProperty(name);
     }
