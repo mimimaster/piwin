@@ -95,4 +95,32 @@ describe('turnPresentationToActivityInput', () => {
     expect(input.detail).toBe('apps/desktop/src/App.tsx');
     expect(input.actionVerb).toBe('Read');
   });
+
+  it('uses waiting-first-token phrases when the empty turn already reports streaming', () => {
+    const presentation = {
+      runId: 'r-empty',
+      phaseHistory: [{ phase: 'streaming' as const, at: 1 }],
+      isWaitingForModel: true,
+      isActive: true,
+      hasFailure: false,
+      answerStarted: false,
+      workItems: [],
+      summaryLabel: '',
+      toolCallCount: 0,
+    } as unknown as import('./run-presentation.js').TurnPresentation;
+
+    const message = {
+      id: 'm-empty',
+      role: 'assistant' as const,
+      text: '',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'streaming' as const,
+      runId: 'r-empty',
+    };
+
+    const input = turnPresentationToActivityInput(presentation, message, 'zh-CN');
+    expect(input.kind).toBe('waiting-first-token');
+  });
 });

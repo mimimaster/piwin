@@ -11,6 +11,7 @@ import {
 } from '@piwin/contracts';
 import { agentFailureFromPiEvent } from './pi-agent-failure.js';
 import { asRecord, readString, readUpstreamErrorMessage } from './pi-event-read.js';
+import { isProviderOutputTruncation } from './pi-output-truncation.js';
 
 export type PiPromptOutcomeTracker = {
   observe(raw: unknown): void;
@@ -76,10 +77,13 @@ export function createPiPromptOutcomeTracker(): PiPromptOutcomeTracker {
 
     finalize(): AgentPromptOutcome {
       if (latestStopReason !== undefined) {
-        const failure =
-          latestSources.length > 0 ? agentFailureFromPiEvent(...latestSources) : undefined;
         const message =
           latestSources.length > 0 ? readUpstreamErrorMessage(...latestSources) : undefined;
+        if (isProviderOutputTruncation(latestStopReason, message)) {
+          return completedAgentPromptOutcome('length');
+        }
+        const failure =
+          latestSources.length > 0 ? agentFailureFromPiEvent(...latestSources) : undefined;
         return mapNativeStopReason(
           latestStopReason,
           failure === undefined && message === undefined

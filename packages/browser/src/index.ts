@@ -54,6 +54,14 @@ export {
   BROWSER_FOLLOW_VIEWPORT_MIN_WIDTH,
   BROWSER_FOLLOW_VIEWPORT_MIN_HEIGHT,
 } from './viewport.js';
+export {
+  clampBrowserDeviceScaleFactor,
+  resolveBrowserScreencastSize,
+  BROWSER_DEFAULT_DEVICE_SCALE_FACTOR,
+  BROWSER_SCREENCAST_MAX_PX,
+  BROWSER_SCREENCAST_QUALITY,
+  BROWSER_SCREENSHOT_QUALITY,
+} from './screencast-size.js';
 export type { BrowserViewportSize, ResolveBrowserViewportInput } from './viewport.js';
 export { getBrowserInstallStatus, classifyBrowserLaunchError } from './install-status.js';
 export type { BrowserInstallStatus, BrowserInstallFailureReason } from './install-status.js';

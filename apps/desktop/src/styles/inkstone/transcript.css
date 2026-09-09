@@ -798,6 +798,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   cursor: pointer;
   white-space: nowrap;
   max-width: 100%;
+  min-width: 0;
   text-decoration: none;
   border: 0;
   box-sizing: border-box;
@@ -844,5 +845,25 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 .tool-call-path-link span,
 .tool-call-doc-target-link span {
   color: inherit !important;
+}
+
+.pc .chip-text,
+.md-doc-chip .chip-text {
+  display: inline-flex;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.pc .chip-dir,
+.md-doc-chip .chip-dir {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--t3, var(--text-3, #726b61)) !important;
+}
+
+.pc .chip-file,
+.md-doc-chip .chip-file {
+  flex: none;
 }
 

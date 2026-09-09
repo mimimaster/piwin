@@ -47,6 +47,7 @@ const DEFAULT_LAUNCH_TIMEOUT_MS = 15_000;
 export type BrowserPersistentLaunchOptions = {
   headless: boolean;
   viewport: { width: number; height: number };
+  deviceScaleFactor?: number;
   userAgent?: string;
 };
 
@@ -61,6 +62,8 @@ export type BrowserRuntimeOptions = {
   userAgent?: string;
   requestedViewport: { width: number; height: number };
   maxDimension: number;
+  /** Host-owned launch only. Attached CDP keeps the remote page DPR. */
+  deviceScaleFactor?: number;
   captureConsoleAndNetwork: boolean;
   /** Test seam / bound; product default is 15s. */
   launchTimeoutMs?: number;
@@ -102,6 +105,8 @@ export type BrowserRuntime = {
   ownership(): BrowserOwnership;
   ensureConnected(): Promise<void>;
   listTabs(): Promise<BrowserTabInfo[]>;
+  /** Bound pages only; does not launch or attach. */
+  listBoundTabs(): Promise<BrowserTabInfo[]>;
   newTab(url?: string): Promise<BrowserTabInfo>;
   selectTab(pageId: string): Promise<BrowserTabInfo>;
   closeTab(pageId: string): Promise<void>;
@@ -148,6 +153,9 @@ export function createBrowserRuntime(
     allocatePageId: () => {
       pageSeq += 1;
       return `p-${generation}-${pageSeq}`;
+    },
+    onDialogChange: () => {
+      void hooks.emitState();
     },
     ...(options.dialogTimeoutMs !== undefined ? { dialogTimeoutMs: options.dialogTimeoutMs } : {}),
   });
@@ -360,6 +368,9 @@ export function createBrowserRuntime(
         launched = await launchPersistentContext(options.profileDir, {
           headless: options.headless,
           viewport,
+          ...(options.deviceScaleFactor !== undefined
+            ? { deviceScaleFactor: options.deviceScaleFactor }
+            : {}),
           ...(options.userAgent !== undefined ? { userAgent: options.userAgent } : {}),
         });
       } catch (error) {
@@ -887,6 +898,7 @@ export function createBrowserRuntime(
       await ensureConnected();
       return pages.list(pageId);
     },
+    listBoundTabs: () => pages.list(pageId),
     newTab: async (url) => {
       const targetUrl = typeof url === 'string' && url.trim() !== '' ? url.trim() : undefined;
       if (targetUrl !== undefined) {

@@ -24,6 +24,12 @@ export async function rebaseForPromptTree(
 ): Promise<HostResponse | null> {
   const branchId = command.input.branchFromMessageId?.trim() || undefined;
   const retryId = command.input.retryUserMessageId?.trim() || undefined;
+  if (command.input.source === 'continuation') {
+    if (branchId !== undefined || retryId !== undefined) {
+      return fail(requestId, 'session/prompt', 'continuation-and-repair-conflict');
+    }
+    return null;
+  }
   if (branchId !== undefined && retryId !== undefined) {
     return fail(requestId, 'session/prompt', 'retry-and-branch-conflict');
   }

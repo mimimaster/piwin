@@ -31,6 +31,14 @@ describe('detectExternalArtifactResources', () => {
     );
   });
 
+  it('does not treat data-piwin-media images as external http', () => {
+    expect(
+      detectExternalArtifactResources(
+        '<img src="https://cdn.example.com/x.png" data-piwin-media="aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee">',
+      ),
+    ).toEqual([]);
+  });
+
   it('ignores data/blob images', () => {
     expect(
       detectExternalArtifactResources(`

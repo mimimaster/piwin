@@ -556,7 +556,24 @@ Subscription chat: Pi capabilities. No channel `nativeSearchAdapter`. If not nat
 
 ### 21.13 Usage UI
 
-Tokens yes. No CPA-style remaining quota for Plus/Grok. Cost column may be “—” for subscription rows.
+Tokens yes. Cost column may be “—” for subscription rows. Remaining **subscription** quota (5h / weekly / product mix) is **not** the usage ledger; it is the OAuth card quota drawer in §22.
+
+---
+
+## 22. Settings → OAuth quota drawer
+
+`auth/quota` / `auth/reset-quota` read the same OAuth material as login (`~/.pi/agent/auth.json`). Host refreshes an expired access token once via Pi `ModelRuntime.refresh`, then calls the vendor endpoint. Failures become `quota.error` (drawer copy + Retry). Do not invent percentages when the vendor is unreachable.
+
+| Provider | Endpoint | Auth | What we show |
+|---|---|---|---|
+| ChatGPT Codex | `GET https://chatgpt.com/backend-api/wham/usage` + `…/wham/rate-limit-reset-credits` | Bearer + `ChatGPT-Account-Id` | 5h / weekly `used_percent`, `additional_rate_limits[]` (nested `rate_limit.primary_window`), banked resets |
+| Codex reset | `POST …/wham/rate-limit-reset-credits/consume` `{ idempotency_key }` | same | Consumes the next available reset credit |
+| Grok / SuperGrok | `GET https://cli-chat-proxy.grok.com/v1/billing?format=credits` + `/v1/settings` | Bearer + `X-XAI-Token-Auth: xai-grok-cli` | `config.creditUsagePercent`, `productUsage` (GrokBuild / Imagine / Tasks), PAYG `onDemandCap.val`, plan from `subscription_tier_display`. Not `api.x.ai/v1/api-key`. |
+| Claude | `GET https://api.anthropic.com/api/oauth/usage` | Bearer + `anthropic-beta: oauth-2025-04-20` | `five_hour` / `seven_day` / scoped weekly `utilization`, extra usage |
+| GitHub Copilot | `GET https://api.github.com/copilot_internal/user` | GitHub OAuth Bearer | `quota_snapshots` remaining % + plan |
+| Kimi Code | `GET https://api.kimi.com/coding/v1/usages` (fallback `.ai`) | Bearer | weekly `usage.limit/used/remaining` + 5h `limits[]` (`duration: 300 TIME_UNIT_MINUTE`) |
+
+These routes are undocumented vendor surfaces that Codex CLI / Grok Build / Claude Code / VS Code Copilot already call. Parsers must be defensive: missing windows stay omitted; HTTP 401 after refresh → 重新登录.
 
 ### 21.14 Proxy / mainland network
 

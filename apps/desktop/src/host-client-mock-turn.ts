@@ -95,6 +95,19 @@ export async function handleMockTurnCommands(
           }
         }
         if (
+          command.input.source === 'continuation' &&
+          (command.input.branchFromMessageId !== undefined ||
+            command.input.retryUserMessageId !== undefined)
+        ) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/prompt',
+            success: false,
+            error: 'continuation-and-repair-conflict',
+          };
+        }
+        if (
           command.input.branchFromMessageId !== undefined &&
           command.input.retryUserMessageId !== undefined
         ) {
@@ -159,7 +172,8 @@ export async function handleMockTurnCommands(
         if (
           retryUser === undefined &&
           command.input.source !== 'resume' &&
-          command.input.source !== 'queued-turn'
+          command.input.source !== 'queued-turn' &&
+          command.input.source !== 'continuation'
         ) {
           appendMockTranscriptMessage(session, userMessage);
         }

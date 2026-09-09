@@ -147,6 +147,12 @@ describe('isBrowserCommand', () => {
     expect(isBrowserCommand({ type: 'browser/lock', owner: 'user' })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/unlock', owner: 'user' })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/resize', width: 640, height: 900 })).toBe(true);
+    expect(isBrowserCommand({ type: 'browser/back' })).toBe(true);
+    expect(isBrowserCommand({ type: 'browser/forward' })).toBe(true);
+    expect(isBrowserCommand({ type: 'browser/new-tab' })).toBe(true);
+    expect(isBrowserCommand({ type: 'browser/select-tab', pageId: 'p-1' })).toBe(true);
+    expect(isBrowserCommand({ type: 'browser/close-tab', pageId: 'p-1' })).toBe(true);
+    expect(isBrowserCommand({ type: 'browser/dialog', action: 'accept' })).toBe(true);
   });
 
   it('rejects non-browser commands', () => {
@@ -360,6 +366,14 @@ describe('handleBrowserCommand', () => {
     );
     expect(giveBack).toHaveBeenCalled();
     expect(result).toMatchObject({ success: true, command: 'browser/unlock' });
+  });
+
+  it('browser/back is a user-initiated history write', async () => {
+    const back = vi.fn().mockResolvedValue(undefined);
+    const session = createMockSession({ back });
+    const result = await handleBrowserCommand({ type: 'browser/back' }, 'req-1', createContext(session));
+    expect(back).toHaveBeenCalledWith({ actor: 'user' });
+    expect(result).toMatchObject({ success: true, command: 'browser/back' });
   });
 
   it('browser/resize maps the panel box onto the Playwright viewport', async () => {

@@ -30,6 +30,8 @@ import type {
   PlanStatus,
   PlanStepStatus,
   SessionPlan,
+  SessionPlanVersion,
+  SessionPlanWriteExpectation,
 } from './plan.js';
 import type { PlanExecutionRequest } from './plan-execution.js';
 import type { PtyOpenInput } from './pty.js';
@@ -278,8 +280,19 @@ export type PlatformHostCommand =
   | { id?: string; type: 'pet/cancel'; requestId: string }
   | { id?: string; type: 'pet/delete'; petId: string }
   | { id?: string; type: 'plan/get'; sessionId: string }
-  | { id?: string; type: 'plan/set'; sessionId: string; plan: SessionPlan }
-  | { id?: string; type: 'plan/clear'; sessionId: string }
+  | {
+      id?: string;
+      type: 'plan/set';
+      sessionId: string;
+      plan: SessionPlan;
+      expected: SessionPlanWriteExpectation;
+    }
+  | {
+      id?: string;
+      type: 'plan/clear';
+      sessionId: string;
+      expected: SessionPlanVersion;
+    }
   | { id?: string; type: 'plan/approve'; sessionId: string }
   | {
       id?: string;
@@ -432,6 +445,17 @@ export type PlatformHostCommand =
   | { id?: string; type: 'browser/lock'; owner: 'agent' | 'user' }
   | { id?: string; type: 'browser/unlock'; owner: 'agent' | 'user' }
   | { id?: string; type: 'browser/resize'; width: number; height: number }
+  | { id?: string; type: 'browser/back' }
+  | { id?: string; type: 'browser/forward' }
+  | { id?: string; type: 'browser/new-tab'; url?: string }
+  | { id?: string; type: 'browser/select-tab'; pageId: string }
+  | { id?: string; type: 'browser/close-tab'; pageId: string }
+  | {
+      id?: string;
+      type: 'browser/dialog';
+      action: 'accept' | 'dismiss';
+      promptText?: string;
+    }
   | {
       id?: string;
       type: 'walkthrough/list';

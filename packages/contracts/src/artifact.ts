@@ -109,16 +109,20 @@ export function createDefaultArtifactConfig(): ArtifactConfig {
  * Users can replace this via `decisionPrompt.mode = 'custom'`.
  */
 export const DEFAULT_ARTIFACT_DECISION_PROMPT = [
-  '[piwin-prompt-meta kind="artifact:decision" version="6" applies="artifacts-enabled"]',
+  '[piwin-prompt-meta kind="artifact:decision" version="8" applies="artifacts-enabled"]',
   '<artifact-decision-policy name="piwin-proactive-surfaces">',
   '## Decision Criteria',
   "Choose the presentation that makes the user's information easiest to scan, understand, search, copy, compare, and reuse.",
   'Proactively use Artifacts for structured or information-dense content even without an explicit UI request. Prefer a compact interactive or visually grouped Artifact over a long Markdown wall of text.',
   '',
+  'The Canvas trigger is **user intent**, not response shape or length. Ask: would the user benefit from viewing this as its own workspace beside the conversation, in the right-side Canvas panel? If yes, declare `surface="canvas"`.',
+  'MUST use Canvas when the primary deliverable is a standalone analytical artifact: architecture reviews, plan reviews, code-base or design reviews, security audits, delivery reports, findings write-ups, quantitative breakdowns, timelines, or large comparison tables. If you catch yourself about to dump a Markdown wall or a large Markdown table as the answer, stop and emit Canvas instead.',
+  '',
   '### 1. Ordinary Markdown (Default for simple text)',
   '- Short answers (1–2 paragraphs), direct code explanations, debugging, or simple snippets.',
   '- When the user explicitly requests plain text, Markdown, source code, raw HTML, or a code snippet.',
-  '- When the user asks to explain, debug, teach, or review code and no interactive presentation is useful.',
+  '- When the user asks to explain, debug, teach, or comment on a specific code snippet and no interactive presentation is useful.',
+  '- When the user asked to fix code, implement a change, or produce a patch/PR — the code is the deliverable, not a Canvas.',
   '- When a small list or simple table is clearer than an Artifact.',
   '',
   '### 2. Inline Artifact (`artifact-html` without surface attr)',
@@ -131,8 +135,10 @@ export const DEFAULT_ARTIFACT_DECISION_PROMPT = [
   'If the answer is between a long Markdown block and a compact searchable Artifact, choose the Artifact.',
   '',
   '### 3. Canvas Artifact (`artifact-html` with `surface="canvas"`)',
+  'Canvas is the right-side workspace panel. It auto-opens. Use it for work the user will read or operate as a document/workspace, not as a chat bubble.',
   '- Full app/page prototypes, multi-step flows with local state, interactive tools/calculators, or dashboards requiring a dedicated wide workspace.',
   '- A coordinated workspace or result that should remain beside the conversation, or a layout whose utility requires sustained width.',
+  '- Standalone reports and reviews (MUST): architecture / plan / design / code-base reviews, audits, delivery reports, findings. Design a scannable hierarchy — status, grouped findings, comparisons — not a Markdown document pasted into a single `<pre>` or article. Ordinary in-thread comments on a specific snippet stay Markdown.',
   'Declare Canvas explicitly with `surface="canvas"`. A completed Canvas opens the right workspace automatically; do not ask the user to click a second launcher before using it.',
   '</artifact-decision-policy>',
 ].join('\n');
@@ -166,7 +172,7 @@ export function formatArtifactProtocol(): string {
   const canvasOpen = `\`\`\`${CANONICAL_ARTIFACT_LANGUAGE} title="Short descriptive title" surface="canvas"`;
   const svgOpen = '```svg title="Short descriptive title"';
   return [
-    '[piwin-prompt-meta kind="artifact:runtime" version="8" applies="artifacts-enabled"]',
+    '[piwin-prompt-meta kind="artifact:runtime" version="9" applies="artifacts-enabled"]',
     '## HTML Artifact Runtime Contract',
     '',
     '### Success',
@@ -196,6 +202,8 @@ export function formatArtifactProtocol(): string {
     '- Inline layout is a 360–760px chat column; fluid grids; not a full-page landing. Inline grows with its content: no page-level or nested vertical scroll regions; let the conversation own vertical scrolling; never add horizontal scrolling to Inline. No viewport-filling height (`100vh`/`100%`) or page-level overflow on html/body/outer wrapper for Inline.',
     '- **Canvas Viewport**: The Canvas iframe is the design viewport. Root layout (and the primary stage) uses `width: 100%` and `height: 100%` / `100dvh` of that iframe. Do not lock a phone/poster width or an `aspect-ratio` that letterboxes empty bars; extra panel width is scene/layout space. If the UI needs a wide workspace or horizontal scrolling, declare `surface="canvas"`.',
     '- Repeated cards/items are siblings — no card-in-card.',
+    '- Session vault images: `<img data-piwin-media="<mediaId>" alt="short label">`. Never `data:image`, never local filesystem paths, never markdown images for vault assets.',
+    '- If the user only needs to pick among generated images, the attachment cards are enough — do not wrap them in a second HTML copy.',
     '',
     '### Streaming & Progressive Enhancement',
     '- **CSS First**: Emit complete `<style>` blocks before any visible HTML markup.',

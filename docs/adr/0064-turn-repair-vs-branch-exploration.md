@@ -75,3 +75,21 @@ pre-fills the editor so the user decides whether to branch.
   confirm must not flash the transcript first.
 - “Try another answer” (`keepPreviousAttempt: true`) is Conversation-only.
   Project / Agent sessions keep error-card retry and do not expose regenerate.
+
+## Amendment (2026-09-08): Continue is repair that keeps work
+
+Decision 3 is narrowed. An empty failed/aborted bubble still has no retention
+value and error-card **重试** still sends `retryUserMessageId` with
+`keepPreviousAttempt: false`.
+
+A turn that already has tool results, generated media, or assistant text is
+not empty. The primary repair gesture is **继续**: `PromptInput.source:
+'continuation'`. Host does not rebase, truncate, or append a user row. It
+injects a model-facing instruction to finish from current transcript state.
+Explicit **从头再来** remains the wipe-retry.
+
+Truncation (`agentStopReason: length`, including Gemini/CPA `max_tokens`) is
+completion, not failure. Desktop shows a non-error chip plus **继续**.
+
+`keepPreviousAttempt: true` is still Conversation-only "try another answer"
+and still does not put the previous attempt on the next model path.

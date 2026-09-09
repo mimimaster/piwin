@@ -302,6 +302,188 @@ html:is(
     color: var(--t3);
     margin: 12px 0 6px;
   }
+
+  /* ── OAuth Settings inkstone polish ───────────────────────────── */
+  .oauth-hero-banner {
+    background: var(--s3);
+    box-shadow: var(--sh1);
+    border: 0;
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+
+  .oauth-hero-description {
+    color: var(--t2);
+    font: 12.5px/1.65 var(--sans);
+  }
+
+  .oauth-hero-tip-item {
+    background: var(--s2);
+    box-shadow: var(--sh1);
+    border: 0;
+    color: var(--t3);
+    font: 11px/1.4 var(--sans);
+  }
+
+  .oauth-hero-tip-dot {
+    background: var(--pine);
+  }
+
+  .oauth-accounts-header-title {
+    font: 600 11.5px var(--sans);
+    letter-spacing: 0.04em;
+    color: var(--t3);
+  }
+
+  .oauth-accounts-header-count {
+    background: var(--s3);
+    box-shadow: var(--sh1);
+    color: var(--t2);
+    font: 11px var(--mono);
+  }
+
+  .oauth-accounts-stat-badge {
+    background: var(--s3);
+    box-shadow: var(--sh1);
+    border: 0;
+    color: var(--t3);
+    font: 11px var(--sans);
+  }
+
+  .oauth-account-list,
+  .oauth-account-grid {
+    gap: 10px;
+  }
+
+  .oauth-account-card,
+  .oauth-account-row {
+    background: var(--s3);
+    box-shadow: var(--sh1);
+    border: 0;
+    border-radius: 8px;
+  }
+
+  .oauth-account-card:hover,
+  .oauth-account-row:hover {
+    box-shadow: var(--sh2);
+    background: var(--s4);
+  }
+
+  .oauth-account-card.is-logged-in {
+    box-shadow: var(--sh1);
+  }
+
+  .oauth-account-card.is-logged-in::before {
+    background: var(--pine);
+  }
+
+  .oauth-account-mark {
+    background: var(--s2);
+    box-shadow: var(--sh1);
+    border: 0;
+    border-radius: 8px;
+  }
+
+  .oauth-brand-title {
+    font: 600 13.5px var(--sans);
+    color: var(--t1);
+  }
+
+  .oauth-brand-tagline {
+    font: 11.5px var(--sans);
+    color: var(--t3);
+  }
+
+  .oauth-status-badge.is-logged-in {
+    background: var(--pine-wash);
+    color: var(--pine);
+    border: 0;
+  }
+
+  .oauth-status-badge.is-logged-out {
+    background: var(--s2);
+    color: var(--t4);
+    border: 0;
+  }
+
+  .oauth-accounts-notice {
+    background: var(--s3);
+    box-shadow: var(--sh1);
+    border: 0;
+    border-radius: 8px;
+  }
+
+  .oauth-accounts-footnote {
+    color: var(--t3);
+    font: 11.5px/1.5 var(--sans);
+  }
+
+  /* Quota Drawer in Inkstone */
+  .oauth-quota-drawer {
+    background: var(--s2);
+    border: 0;
+    border-radius: 8px;
+    box-shadow: inset 0 1px 3px rgba(60, 45, 20, 0.05);
+  }
+
+  .oauth-quota-meta-bar,
+  .oauth-quota-group-card,
+  .oauth-quota-payg-card {
+    background: var(--s3);
+    box-shadow: var(--sh1);
+    border: 0;
+    border-radius: 6px;
+  }
+
+  .oauth-quota-window-item {
+    background: var(--s2);
+    border: 0;
+  }
+
+  .oauth-quota-progress-track {
+    background: var(--s1);
+  }
+
+  .oauth-quota-progress-bar.is-mint {
+    background: var(--pine);
+  }
+
+  .oauth-quota-progress-bar.is-amber {
+    background: var(--lamp);
+  }
+
+  .oauth-quota-progress-bar.is-coral {
+    background: var(--crimson);
+  }
+
+  .oauth-quota-plan-badge {
+    background: var(--zhu-wash);
+    color: var(--zhu);
+    border: 0;
+  }
+
+  .oauth-quota-capability-tag {
+    background: var(--s3);
+    box-shadow: var(--sh1);
+    border: 0;
+    color: var(--t2);
+  }
+
+  .oauth-quota-recheck-btn {
+    background: var(--s3);
+    box-shadow: var(--sh1);
+    border: 0;
+    color: var(--t2);
+  }
+
+  .oauth-quota-recheck-btn:hover:not(:disabled) {
+    background: var(--s4);
+    color: var(--t1);
+  }
+
+  .oauth-quota-toggle-btn.is-open {
+    background: var(--s2);
+  }
 }
 
 html[data-theme-id='piwin-inkstone-ink'] .settings-main::after {

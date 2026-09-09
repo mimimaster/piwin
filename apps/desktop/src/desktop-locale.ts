@@ -112,6 +112,7 @@ export type DesktopCopy = {
     deleteSessionPermanently: string;
     sessionActions: string;
     projects: string;
+    noRepo: string;
     recentProjects: string;
     noRecentProjects: string;
     allProjects: string;
@@ -696,6 +697,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       deleteSessionPermanently: '永久删除会话',
       sessionActions: '会话操作',
       projects: '项目',
+      noRepo: 'No Repo',
       recentProjects: '最近项目',
       noRecentProjects: '暂无最近项目',
       allProjects: '全部项目',
@@ -1042,6 +1044,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       deleteSessionPermanently: 'Delete session permanently',
       sessionActions: 'Session actions',
       projects: 'Projects',
+      noRepo: 'No Repo',
       recentProjects: 'Recent projects',
       noRecentProjects: 'No recent projects',
       allProjects: 'All projects',

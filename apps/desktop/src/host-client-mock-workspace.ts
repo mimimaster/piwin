@@ -785,6 +785,65 @@ export async function handleMockWorkspaceCommands(
           success: true,
           data: { viewport: { width: command.width, height: command.height } },
         };
+      case 'browser/back':
+        return { id, type: 'response', command: 'browser/back', success: true, data: { ok: true } };
+      case 'browser/forward':
+        return {
+          id,
+          type: 'response',
+          command: 'browser/forward',
+          success: true,
+          data: { ok: true },
+        };
+      case 'browser/new-tab':
+        return {
+          id,
+          type: 'response',
+          command: 'browser/new-tab',
+          success: true,
+          data: {
+            tab: {
+              pageId: 'p-mock-1',
+              url: command.url ?? 'about:blank',
+              title: '',
+              kind: 'page',
+              active: true,
+            },
+          },
+        };
+      case 'browser/select-tab':
+        return {
+          id,
+          type: 'response',
+          command: 'browser/select-tab',
+          success: true,
+          data: {
+            tab: {
+              pageId: command.pageId,
+              url: 'about:blank',
+              title: '',
+              kind: 'page',
+              active: true,
+            },
+          },
+        };
+      case 'browser/close-tab':
+        return { id, type: 'response', command: 'browser/close-tab', success: true, data: { ok: true } };
+      case 'browser/dialog':
+        return {
+          id,
+          type: 'response',
+          command: 'browser/dialog',
+          success: true,
+          data: {
+            dialog: {
+              pageId: 'p-mock-1',
+              type: 'alert',
+              message: '',
+              timedOut: false,
+            },
+          },
+        };
 
       // --- Walkthrough commands (spec §12) ---------------------------------
     default:

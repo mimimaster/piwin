@@ -49,6 +49,7 @@ function createMirror(page: Page, options?: { lease?: boolean }) {
     maxFps: 4,
     getPage: async () => page,
     hasActiveMirrorLease: () => lease,
+    resolveDeviceScaleFactor: async () => 2,
     subscribers,
   });
   return {
@@ -70,8 +71,8 @@ describe('createBrowserMirror', () => {
     expect(raw.screencast.start).toHaveBeenCalledTimes(1);
     expect(raw.screencast.start).toHaveBeenCalledWith(
       expect.objectContaining({
-        quality: 55,
-        size: { width: 1280, height: 1280 },
+        quality: 80,
+        size: { width: 2560, height: 1600 },
         onFrame: expect.any(Function),
       }),
     );
@@ -119,7 +120,7 @@ describe('createBrowserMirror', () => {
     );
 
     await mirror.frameLoop.requestFrame();
-    expect(raw.screenshot).toHaveBeenCalledWith({ type: 'jpeg', quality: 70 });
+    expect(raw.screenshot).toHaveBeenCalledWith({ type: 'jpeg', quality: 80 });
     expect(events.some((event) => event.type === 'browser/frame')).toBe(true);
 
     mirror.frameLoop.stop();
@@ -138,6 +139,27 @@ describe('createBrowserMirror', () => {
 
     await mirror.frameLoop.requestFrame();
     expect(raw.screenshot).toHaveBeenCalled();
+    mirror.frameLoop.stop();
+  });
+
+  it('restarts screencast when the CSS viewport changes', async () => {
+    const { page, raw } = createPage();
+    const { mirror } = createMirror(page);
+    await mirror.startMirrorFrames(page);
+    expect(raw.screencast.start).toHaveBeenCalledTimes(1);
+
+    raw.viewportSize.mockReturnValue({ width: 1024, height: 768 });
+    await mirror.startMirrorFrames(page);
+
+    expect(raw.screencast.stop).toHaveBeenCalled();
+    expect(raw.screencast.start).toHaveBeenCalledTimes(2);
+    expect(raw.screencast.start).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        quality: 80,
+        size: { width: 2048, height: 1536 },
+      }),
+    );
+    await mirror.stopScreencast();
     mirror.frameLoop.stop();
   });
 

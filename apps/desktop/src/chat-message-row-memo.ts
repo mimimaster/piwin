@@ -105,6 +105,7 @@ export function areChatMessageRowPropsEqual(
     previous.onResolveFlashcards === next.onResolveFlashcards &&
     previous.onRegenerate === next.onRegenerate &&
     previous.onRetryTurn === next.onRetryTurn &&
+    previous.onContinueTurn === next.onContinueTurn &&
     previous.livePromptModel === next.livePromptModel &&
     previous.contextUsage === next.contextUsage &&
     previous.modelOptions === next.modelOptions &&

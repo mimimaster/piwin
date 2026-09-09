@@ -1,7 +1,5 @@
-import { randomUUID } from 'node:crypto';
-import { link, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { setTimeout as delay } from 'node:timers/promises';
 import {
   parseSessionStorageInfo,
   type SessionIndexDocument,
@@ -18,98 +16,7 @@ import {
 import { isLegacyInternalSessionName, isPlaceholderSessionName } from './session-display-name.js';
 import { isPrimarySessionRecord } from './session-list-visibility.js';
 import { writeTextFileAtomic } from './atomic-text-file.js';
-
-/** Serializes read-modify-write cycles per index file (single-writer). */
-const indexWriteQueues = new Map<string, Promise<unknown>>();
-const INDEX_LOCK_WAIT_MILLISECONDS = 10_000;
-
-/**
- * Run a mutation against the index file behind a per-file lock so concurrent
- * mutations (e.g. auto-naming two sessions at once) never clobber each
- * other's writes. The queue entry swallows rejection so a failed operation
- * does not poison later ones; callers still observe the original error via
- * the returned promise.
- */
-function withIndexWriteLock<T>(filePath: string, operation: () => Promise<T>): Promise<T> {
-  const previous = indexWriteQueues.get(filePath) ?? Promise.resolve();
-  const runWithFileLock = async (): Promise<T> => {
-    const releaseFileLock = await acquireIndexFileLock(filePath);
-    try {
-      return await operation();
-    } finally {
-      await releaseFileLock();
-    }
-  };
-  const next = previous.then(runWithFileLock, runWithFileLock);
-  indexWriteQueues.set(
-    filePath,
-    next.then(
-      () => undefined,
-      () => undefined,
-    ),
-  );
-  return next;
-}
-
-async function acquireIndexFileLock(filePath: string): Promise<() => Promise<void>> {
-  const lockPath = `${filePath}.lock`;
-  await mkdir(dirname(filePath), { recursive: true });
-  const deadline = Date.now() + INDEX_LOCK_WAIT_MILLISECONDS;
-  while (Date.now() < deadline) {
-    const temporaryLockPath = `${lockPath}.${process.pid}.${randomUUID()}.tmp`;
-    try {
-      await writeFile(
-        temporaryLockPath,
-        `${JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() })}\n`,
-        'utf8',
-      );
-      await link(temporaryLockPath, lockPath);
-      await rm(temporaryLockPath, { force: true });
-      return async () => {
-        await rm(lockPath, { force: true });
-      };
-    } catch (error) {
-      await rm(temporaryLockPath, { force: true });
-      if (!isAlreadyExists(error)) {
-        throw error;
-      }
-      if (await removeDeadIndexLock(lockPath)) {
-        continue;
-      }
-      await delay(25);
-    }
-  }
-  throw new Error(`Timed out waiting for session index lock: ${lockPath}`);
-}
-
-async function removeDeadIndexLock(lockPath: string): Promise<boolean> {
-  try {
-    const parsed = JSON.parse(await readFile(lockPath, 'utf8')) as { pid?: unknown };
-    if (typeof parsed.pid === 'number' && isProcessAlive(parsed.pid)) {
-      return false;
-    }
-  } catch (error) {
-    if (isNotFound(error)) {
-      return false;
-    }
-  }
-  await rm(lockPath, { force: true });
-  return true;
-}
-
-function isProcessAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return (
-      typeof error === 'object' &&
-      error !== null &&
-      'code' in error &&
-      (error as { code?: string }).code === 'EPERM'
-    );
-  }
-}
+import { withFileWriteLock as withIndexWriteLock } from './file-write-lock.js';
 
 function emptyDoc(): SessionIndexDocument {
   return { version: 2, sessions: [] };
@@ -796,14 +703,5 @@ function isNotFound(error: unknown): boolean {
     typeof error === 'object' &&
     'code' in error &&
     (error as { code?: string }).code === 'ENOENT',
-  );
-}
-
-function isAlreadyExists(error: unknown): boolean {
-  return Boolean(
-    error &&
-    typeof error === 'object' &&
-    'code' in error &&
-    (error as { code?: string }).code === 'EEXIST',
   );
 }

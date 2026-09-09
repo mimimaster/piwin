@@ -66,6 +66,9 @@ type InspectorResize = {
   isResizing: boolean;
   onResizePointerDown: (event: React.PointerEvent<HTMLElement>) => void;
   setWidthPx: (widthPx: number) => void;
+  isFullWidth: boolean;
+  setFullWidth: (next: boolean) => void;
+  toggleFullWidth: () => void;
 };
 
 export type WorkbenchInspectorProps = {
@@ -203,7 +206,10 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
         <RightPanel
           open={rightPanelOpen}
           onOpen={() => shell.openInspector(rightPanelTab)}
-          onClose={() => shell.closeOverlay()}
+          onClose={() => {
+            rightPanelResize.setFullWidth(false);
+            shell.closeOverlay();
+          }}
           activeTab={rightPanelTab}
           onTabChange={(tab) => {
             shell.setInspectorTab(tab);
@@ -214,13 +220,24 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
           panelWidthPx={rightPanelResize.widthPx}
           isResizing={rightPanelResize.isResizing}
           onResizePointerDown={rightPanelResize.onResizePointerDown}
-          onResizeReset={() => rightPanelResize.setWidthPx(RIGHT_PANEL_DEFAULT_WIDTH_PX)}
-          isExpanded={rightPanelResize.widthPx > 450}
-          onToggleExpand={() =>
-            rightPanelResize.setWidthPx(
-              rightPanelResize.widthPx > 450 ? RIGHT_PANEL_DEFAULT_WIDTH_PX : 600,
-            )
+          onResizeReset={() => {
+            rightPanelResize.setFullWidth(false);
+            rightPanelResize.setWidthPx(RIGHT_PANEL_DEFAULT_WIDTH_PX);
+          }}
+          isExpanded={
+            isOverlayPresentation
+              ? rightPanelResize.widthPx > 450
+              : rightPanelResize.isFullWidth
           }
+          onToggleExpand={() => {
+            if (isOverlayPresentation) {
+              rightPanelResize.setWidthPx(
+                rightPanelResize.widthPx > 450 ? RIGHT_PANEL_DEFAULT_WIDTH_PX : 600,
+              );
+              return;
+            }
+            rightPanelResize.toggleFullWidth();
+          }}
           isOverlayPresentation={isOverlayPresentation}
           runningJobCount={runningJobCount}
           terminalAttention={terminalAttention}

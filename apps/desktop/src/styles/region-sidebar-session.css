@@ -193,6 +193,34 @@
   display: none;
 }
 
+/* Double-line layout and serif title for general conversations with preview snippet */
+.sidebar-tree-row--general-session .session-row .session-item.has-preview {
+  min-height: 48px;
+  padding-top: var(--s-1);
+  padding-bottom: var(--s-1);
+}
+
+.sidebar-tree-row--general-session .session-item-body.has-preview {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+}
+
+.sidebar-tree-row--general-session .session-item.has-preview .session-item-time {
+  top: 14px;
+  transform: none;
+}
+
+.sidebar-tree-row--general-session .session-row--has-preview .session-row-actions {
+  top: 10px;
+  transform: none;
+}
+
+.sidebar-tree-row--general-session .session-item-title-text {
+  font-family: var(--serif, serif);
+}
+
 /* Subtitle for pinned project sessions */
 .session-row .session-item.has-project-subtitle {
   min-height: 48px;

@@ -521,7 +521,7 @@ export class QueuedTurnController {
     if (Buffer.byteLength(input.text, 'utf8') > QUEUED_TURN_MAX_TEXT_BYTES) {
       return 'queued-turn-bounds-exceeded: text exceeds 64 KiB';
     }
-    if (input.source === 'resume' || input.resumeCheckpointId !== undefined) {
+    if (input.source === 'resume' || input.source === 'continuation' || input.resumeCheckpointId !== undefined) {
       return 'queued-turn-input-invalid: resume prompts cannot be queued';
     }
     try {

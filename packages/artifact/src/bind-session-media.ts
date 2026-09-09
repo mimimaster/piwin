@@ -1,0 +1,62 @@
+/**
+ * Bind session-vault images into Artifact HTML at materialize time.
+ * Stored descriptor source keeps `data-piwin-media`; only renderSource/srcdoc
+ * receive blob: URLs. The iframe never fetches file: or Host HTTP.
+ */
+
+const IMG_TAG_PATTERN = /<img\b[^>]*>/gi;
+const MEDIA_ID_ATTR_PATTERN = /\bdata-piwin-media\s*=\s*(["'])([^"']*)\1/i;
+const SRC_ATTR_PATTERN = /\s*\bsrc\s*=\s*(["'])(?:(?!\1).)*\1/i;
+const BINDABLE_MEDIA_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isBindableArtifactMediaId(value: string): boolean {
+  return BINDABLE_MEDIA_ID_PATTERN.test(value.trim());
+}
+
+export function isArtifactMediaObjectUrl(value: string): boolean {
+  return value.startsWith('blob:') && !/[\s<>"']/.test(value);
+}
+
+export function listArtifactSessionMediaIds(source: string): string[] {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  IMG_TAG_PATTERN.lastIndex = 0;
+  for (const match of source.matchAll(IMG_TAG_PATTERN)) {
+    const mediaId = readMediaIdAttribute(match[0] ?? '');
+    if (mediaId === undefined || seen.has(mediaId)) {
+      continue;
+    }
+    seen.add(mediaId);
+    ids.push(mediaId);
+  }
+  return ids;
+}
+
+export function bindArtifactSessionMedia(
+  source: string,
+  mediaObjectUrls: ReadonlyMap<string, string> = new Map(),
+): string {
+  IMG_TAG_PATTERN.lastIndex = 0;
+  return source.replace(IMG_TAG_PATTERN, (tag) => {
+    const mediaId = readMediaIdAttribute(tag);
+    if (mediaId === undefined) {
+      return tag;
+    }
+    const withoutSrc = tag.replace(SRC_ATTR_PATTERN, '');
+    const boundUrl = mediaObjectUrls.get(mediaId);
+    if (boundUrl === undefined || !isArtifactMediaObjectUrl(boundUrl)) {
+      return withoutSrc;
+    }
+    return withoutSrc.replace(/^<img\b/i, `<img src="${boundUrl}"`);
+  });
+}
+
+function readMediaIdAttribute(tag: string): string | undefined {
+  const match = MEDIA_ID_ATTR_PATTERN.exec(tag);
+  const mediaId = match?.[2]?.trim();
+  if (mediaId === undefined || !isBindableArtifactMediaId(mediaId)) {
+    return undefined;
+  }
+  return mediaId;
+}

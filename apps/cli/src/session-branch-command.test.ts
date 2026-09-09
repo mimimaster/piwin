@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { HostCommand, HostResponse, SessionBranchListData } from '@piwin/contracts';
-import { runSessionBranches, runSessionRetry, runSessionSwitch } from './session-branch-command.js';
+import { runSessionBranches, runSessionContinue,
+  runSessionRetry, runSessionSwitch } from './session-branch-command.js';
 
 function ok(command: HostCommand['type'], data: unknown): HostResponse {
   return { type: 'response', command, success: true, data };
@@ -97,6 +98,18 @@ describe('session branch CLI', () => {
       input: { text: '', retryUserMessageId: 'u1', keepPreviousAttempt: true },
     });
     expect(lines[0]).toContain('run run-1');
+  });
+
+  it('sends session/prompt with source continuation', async () => {
+    const handleCommand = vi.fn(async () => ok('session/prompt', { runId: 'run-2' }));
+    const lines: string[] = [];
+    await runSessionContinue({ handleCommand }, 's1', (line) => lines.push(line));
+    expect(handleCommand).toHaveBeenCalledWith({
+      type: 'session/prompt',
+      sessionId: 's1',
+      input: { text: '', source: 'continuation' },
+    });
+    expect(lines[0]).toContain('run run-2');
   });
 
   it('prints run-active and switched outcomes', async () => {

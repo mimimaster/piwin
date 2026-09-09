@@ -184,14 +184,18 @@
   height: 10px;
   flex-shrink: 0;
   color: transparent;
+  opacity: 0;
   transition:
     transform var(--t-2) var(--ease-out),
-    color var(--t-1) var(--ease-out);
+    color var(--t-1) var(--ease-out),
+    opacity var(--t-1) var(--ease-out);
 }
 
 .explore-thought-row:hover .explore-thought-chevron,
-.explore-thought-chevron.open {
+.explore-thought-chevron.open,
+.explore-thought.is-open .explore-thought-chevron {
   color: var(--text-4);
+  opacity: 1;
 }
 
 .explore-thought-chevron.open {
@@ -563,11 +567,19 @@
 }
 
 .turn-work-disclosure-trigger .chev,
-.turn-work-disclosure-chevron {
+.turn-work-disclosure-chevron,
+.work-h .chev {
   display: inline-flex;
   flex: none;
   margin-left: auto;
   color: var(--t4, var(--text-4));
+  opacity: 0;
+  transition: opacity var(--t-1) var(--ease-out);
+}
+
+:is(.turn-work-disclosure-trigger, .turn-work-disclosure):is(:hover, .is-open) :is(.chev, .turn-work-disclosure-chevron),
+:is(.work-h:hover, .work-h.is-open, .work.is-open > .work-h) .chev {
+  opacity: 1;
 }
 
 .turn-work-details-summary {
@@ -657,8 +669,17 @@
 
 .turn-work-details-chevron {
   display: inline-flex;
-  transition: transform var(--t-3) var(--ease-out);
+  transition:
+    transform var(--t-3) var(--ease-out),
+    opacity var(--t-1) var(--ease-out);
   color: var(--text-4);
+  opacity: 0;
+}
+
+.turn-work-details-summary:hover .turn-work-details-chevron,
+.turn-work-details-chevron.is-open,
+.turn-work-details.is-open .turn-work-details-chevron {
+  opacity: 1;
 }
 
 .turn-work-details-chevron svg {

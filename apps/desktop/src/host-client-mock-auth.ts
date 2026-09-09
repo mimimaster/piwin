@@ -1,4 +1,4 @@
-import type { HostCommand, HostResponse, SubscriptionAccount } from '@piwin/contracts';
+import type { HostCommand, HostResponse, SubscriptionAccount, SubscriptionAccountQuota } from '@piwin/contracts';
 import { V1_SUBSCRIPTION_PROVIDER_IDS } from '@piwin/contracts';
 
 type MockAuthState = {
@@ -25,6 +25,28 @@ function v1Accounts(state: MockAuthState): SubscriptionAccount[] {
   }));
 }
 
+function mockQuota(providerId: string): SubscriptionAccountQuota {
+  return {
+    providerId,
+    planType: 'Mock',
+    groups: [
+      {
+        windows: [
+          {
+            id: 'weekly',
+            label: '周限额',
+            type: 'used',
+            percentage: 12,
+            valueText: '已用 12%',
+            colorTone: 'mint',
+          },
+        ],
+      },
+    ],
+    lastUpdated: new Date().toISOString(),
+  };
+}
+
 export function handleMockAuthCommand(
   owner: object,
   command: HostCommand,
@@ -36,7 +58,9 @@ export function handleMockAuthCommand(
     command.type !== 'auth/respond' &&
     command.type !== 'auth/cancel' &&
     command.type !== 'auth/claim' &&
-    command.type !== 'auth/logout'
+    command.type !== 'auth/logout' &&
+    command.type !== 'auth/quota' &&
+    command.type !== 'auth/reset-quota'
   ) {
     return null;
   }
@@ -51,6 +75,25 @@ export function handleMockAuthCommand(
   if (command.type === 'auth/logout') {
     state.accounts.set(command.input.providerId, 'logged-out');
     return { id, type: 'response', command: command.type, success: true, data: {} };
+  }
+  if (command.type === 'auth/quota') {
+    return {
+      id,
+      type: 'response',
+      command: command.type,
+      success: true,
+      data: { quota: mockQuota(command.input.providerId) },
+    };
+  }
+  if (command.type === 'auth/reset-quota') {
+    const quota = mockQuota(command.input.providerId);
+    return {
+      id,
+      type: 'response',
+      command: command.type,
+      success: true,
+      data: { ok: true, quota, message: '额度已重置成功' },
+    };
   }
   return { id, type: 'response', command: command.type, success: true, data: {} };
 }

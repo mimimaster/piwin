@@ -170,6 +170,9 @@ export type PromptCommand = Extract<HostCommand, { type: 'session/prompt' }>;
 export const RESUME_CONTINUATION_PROMPT =
   'Continue the interrupted task from the current transcript and tool state. First inspect what has already been completed and any partial output; do not repeat successful side effects. Then continue only the unfinished work and report what remains.';
 
+export const TURN_CONTINUATION_PROMPT =
+  'The previous attempt ended before the deliverable was finished (truncated output or a provider failure after work already landed). Continue from the current transcript and tool state. First inspect what has already been completed, including generated mediaIds and partial artifacts. Do not repeat successful side effects. Do not regenerate media already produced. Do not embed image bytes, markdown images, or filesystem paths. Finish only the unfinished work.';
+
 export function resolveResumePromptText(userText: string | undefined): string {
   if (userText === undefined || isPauseContinueUtterance(userText)) {
     return RESUME_CONTINUATION_PROMPT;
@@ -319,7 +322,7 @@ export async function preparePromptInput(
     promptSource = promptInputFromStoredUser(stored, command.input);
   } else if (command.input.source === 'queued-turn') {
     userMessageId = command.input.clientMessageId?.trim() || undefined;
-  } else if (command.input.source !== 'resume') {
+  } else if (command.input.source !== 'resume' && command.input.source !== 'continuation') {
     userMessageId = command.input.clientMessageId?.trim() || randomUUID();
     try {
       await context.recordUserPrompt(command.sessionId, {
@@ -359,11 +362,13 @@ export async function preparePromptInput(
   const promptInput: PromptInput = {
     ...preparedFromHost,
     text:
-      promptSource.source === 'voice-delegation'
-        ? wrapLiveDelegationForAgent(preparedFromHost.text, {
-            firstForCall: shouldInjectLiveWorkPreamble(promptSource.voiceCallId),
-          })
-        : preparedFromHost.text,
+      promptSource.source === 'continuation'
+        ? TURN_CONTINUATION_PROMPT
+        : promptSource.source === 'voice-delegation'
+          ? wrapLiveDelegationForAgent(preparedFromHost.text, {
+              firstForCall: shouldInjectLiveWorkPreamble(promptSource.voiceCallId),
+            })
+          : preparedFromHost.text,
     ...(preparedFromHost.attachments ? { attachments: [...preparedFromHost.attachments] } : {}),
   };
   if (retryUserMessageId !== undefined && userMessageId !== undefined) {
@@ -372,12 +377,21 @@ export async function preparePromptInput(
     // newly submitted prompt; otherwise the retry is sent twice after reload.
     promptInput.clientMessageId = userMessageId;
   }
-  assembly.add({
-    kind: 'user',
-    label: 'User',
-    trustOrigin: 'user',
-    text: promptSource.text,
-  });
+  if (command.input.source === 'continuation') {
+    assembly.add({
+      kind: 'user',
+      label: 'Continue',
+      trustOrigin: 'piwin',
+      text: TURN_CONTINUATION_PROMPT,
+    });
+  } else {
+    assembly.add({
+      kind: 'user',
+      label: 'User',
+      trustOrigin: 'user',
+      text: promptSource.text,
+    });
+  }
   collectPreparedAttachmentContributions(assembly, promptSource, preparedFromHost);
   throwIfPromptPreparationAborted(context, run.runId);
 
@@ -513,7 +527,9 @@ export async function preparePromptInput(
 
   // ADR 0026: concisePrompt injection retired with walkthrough generation.
   throwIfPromptPreparationAborted(context, run.runId);
-  context.sessionLastPromptText.set(command.sessionId, promptSource.text);
+  if (command.input.source !== 'continuation') {
+    context.sessionLastPromptText.set(command.sessionId, promptSource.text);
+  }
   if (promptInput.model === undefined && desired?.desiredModel !== undefined) {
     promptInput.model = desired.desiredModel;
   }
@@ -551,7 +567,8 @@ export function shouldPreserveSessionPermissionOverride(
   return (
     input.source === 'voice-delegation' ||
     input.source === 'queued-turn' ||
-    input.source === 'resume'
+    input.source === 'resume' ||
+    input.source === 'continuation'
   );
 }
 

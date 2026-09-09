@@ -1,14 +1,25 @@
 /**
  * Host IPC handlers: plan.
  */
-import type { HostCommand, HostResponse, PlanExecutionState, SessionPlan } from '@piwin/contracts';
-import { formatError } from '@piwin/contracts';
+import type {
+  HostCommand,
+  HostResponse,
+  PlanExecutionState,
+  SessionPlan,
+  SessionPlanWriteExpectation,
+} from '@piwin/contracts';
+import {
+  formatError,
+  isSessionPlanVersion,
+  isSessionPlanWriteExpectation,
+} from '@piwin/contracts';
 import {
   applyPlanStatus,
   applyPlanStepUpdate,
   clearSessionPlan,
   getSessionRecord,
   loadSessionPlan,
+  PlanAlreadyExistsError,
   PlanMutationError,
   PlanRevisionConflictError,
   updateSessionPlan,
@@ -80,9 +91,10 @@ async function mutateSessionPlanOrFail(
   requestId: string | undefined,
   commandType: HostCommand['type'],
   mutator: (current: SessionPlan | null) => SessionPlan | null,
+  expected?: SessionPlanWriteExpectation,
 ): Promise<{ ok: true; plan: SessionPlan } | { ok: false; response: HostResponse }> {
   try {
-    const plan = await updateSessionPlan(planPath, mutator);
+    const plan = await updateSessionPlan(planPath, mutator, expected);
     if (!plan) {
       return { ok: false, response: fail(requestId, commandType, 'No plan for session') };
     }
@@ -92,6 +104,9 @@ async function mutateSessionPlanOrFail(
       return { ok: false, response: fail(requestId, commandType, error.message) };
     }
     if (error instanceof PlanRevisionConflictError) {
+      return { ok: false, response: fail(requestId, commandType, error.message) };
+    }
+    if (error instanceof PlanAlreadyExistsError) {
       return { ok: false, response: fail(requestId, commandType, error.message) };
     }
     throw error;
@@ -123,6 +138,13 @@ export async function handlePlanCommand(
       if (!existing) {
         return fail(requestId, 'plan/set', `Unknown session: ${command.sessionId}`);
       }
+      if (!isSessionPlanWriteExpectation(command.expected)) {
+        return fail(
+          requestId,
+          'plan/set',
+          'plan/set requires expected: null for create or { planId, revision } for update',
+        );
+      }
       const validated = validateSessionPlan(command.plan);
       if (!validated.ok) {
         return fail(
@@ -131,17 +153,22 @@ export async function handlePlanCommand(
           validated.issues.map((issue) => `${issue.path}: ${issue.message}`).join('; '),
         );
       }
+      if (
+        command.expected !== null &&
+        validated.plan.id !== command.expected.planId
+      ) {
+        return fail(
+          requestId,
+          'plan/set',
+          `plan id mismatch: expected ${command.expected.planId} but payload has ${validated.plan.id}`,
+        );
+      }
       const now = new Date().toISOString();
       const mutated = await mutateSessionPlanOrFail(
         getPiwinSessionPlanPath(rootDir, command.sessionId),
         requestId,
         'plan/set',
         (previous) => {
-          if (previous !== null && validated.plan.revision !== previous.revision) {
-            throw new PlanRevisionConflictError(
-              `plan revision mismatch: requested ${validated.plan.revision} but session has ${previous.revision}`,
-            );
-          }
           return {
             ...validated.plan,
             sessionId: command.sessionId,
@@ -149,9 +176,10 @@ export async function handlePlanCommand(
             id: previous?.id ?? validated.plan.id,
             createdAt: previous?.createdAt ?? validated.plan.createdAt ?? now,
             updatedAt: now,
-            revision: previous?.revision ?? validated.plan.revision,
+            ...(previous?.execution === undefined ? {} : { execution: previous.execution }),
           };
         },
+        command.expected,
       );
       if (!mutated.ok) return mutated.response;
       const plan = mutated.plan;
@@ -160,7 +188,24 @@ export async function handlePlanCommand(
     }
     case 'plan/clear': {
       const rootDir = getPiwinRoot(context.piwinRoot);
-      await clearSessionPlan(getPiwinSessionPlanPath(rootDir, command.sessionId));
+      if (!isSessionPlanVersion(command.expected)) {
+        return fail(
+          requestId,
+          'plan/clear',
+          'plan/clear requires expected: { planId, revision }',
+        );
+      }
+      try {
+        await clearSessionPlan(
+          getPiwinSessionPlanPath(rootDir, command.sessionId),
+          command.expected,
+        );
+      } catch (error) {
+        if (error instanceof PlanMutationError || error instanceof PlanRevisionConflictError) {
+          return fail(requestId, 'plan/clear', error.message);
+        }
+        throw error;
+      }
       context.push({ type: 'plan/updated', sessionId: command.sessionId, plan: null });
       return ok(requestId, 'plan/clear', { sessionId: command.sessionId });
     }

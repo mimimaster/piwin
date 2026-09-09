@@ -45,6 +45,8 @@ SVG:
 - Inline layout is a 360–760px chat column; fluid grids; not a full-page landing. Inline grows with its content: no page-level or nested vertical scroll regions; let the conversation own vertical scrolling; never add horizontal scrolling to Inline. No viewport-filling height (`100vh`/`100%`) or page-level overflow on html/body/outer wrapper for Inline.
 - **Canvas Viewport**: The Canvas iframe is the design viewport. Root layout (and the primary stage) uses `width: 100%` and `height: 100%` / `100dvh` of that iframe. Do not lock a phone/poster width or an `aspect-ratio` that letterboxes empty bars; extra panel width is scene/layout space. If the UI needs a wide workspace or horizontal scrolling, declare `surface="canvas"`.
 - Repeated cards/items are siblings — no card-in-card.
+- Session vault images: `<img data-piwin-media="<mediaId>" alt="short label">`. Never `data:image`, never local filesystem paths, never markdown images for vault assets.
+- If the user only needs to pick among generated images, the attachment cards are enough — do not wrap them in a second HTML copy.
 
 ### Streaming & Progressive Enhancement
 - **CSS First**: Emit complete `<style>` blocks before any visible HTML markup.
@@ -66,6 +68,10 @@ routing.
 > 第一屏直接呈现核心关系和可读结果，避免把普通文字拆成大量装饰卡片。
 > 控件必须改变有意义的结果；关键内容先写在静态 HTML 中，再增强交互。
 > 数据不足时标注假设，不捏造数值。内容较长本身不是进入 Canvas 的理由。
+>
+> 默认决策提示词 v8 已把这条写成 MUST：用户要的是 review / 报告 / 审计 /
+> 发现清单时，必须用 PiWin 右侧栏 Canvas（`surface="canvas"`），不要用
+> Markdown 长文顶替。针对具体代码片段的解释、改代码、出 PR 仍用 Markdown。
 
 这属于生成质量建议，尚未做模型对照验证，不自动覆盖用户已有决策提示词。
 

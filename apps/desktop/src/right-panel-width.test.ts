@@ -7,6 +7,11 @@ import {
   clampRightPanelWidthForViewport,
   loadRightPanelWidth,
   saveRightPanelWidth,
+  shouldEnterRightPanelFullWidth,
+  shouldExitRightPanelFullWidth,
+  splitViewMaxPanelWidth,
+  RIGHT_PANEL_FULL_WIDTH_HYSTERESIS_PX,
+  RIGHT_PANEL_STAGE_MIN_PX,
 } from './right-panel-width';
 
 function createMockStorage(): Storage {
@@ -71,6 +76,47 @@ describe('clampRightPanelWidthForViewport', () => {
         minStagePx: 280,
       }),
     ).toBe(RIGHT_PANEL_MIN_WIDTH_PX);
+  });
+});
+
+describe('right panel full-width snap', () => {
+  it('uses the split max as viewport minus reserved minus stage floor', () => {
+    expect(splitViewMaxPanelWidth(1280, 260)).toBe(1280 - 260 - RIGHT_PANEL_STAGE_MIN_PX);
+  });
+
+  it('enters full width only after the chat would drop below the stage floor', () => {
+    expect(
+      shouldEnterRightPanelFullWidth({
+        panelWidthPx: 600,
+        viewportWidth: 1280,
+        reservedChromePx: 260,
+      }),
+    ).toBe(false);
+    expect(
+      shouldEnterRightPanelFullWidth({
+        panelWidthPx: 1280 - 260 - RIGHT_PANEL_STAGE_MIN_PX + 1,
+        viewportWidth: 1280,
+        reservedChromePx: 260,
+      }),
+    ).toBe(true);
+  });
+
+  it('exits full width only after hysteresis past the stage floor', () => {
+    const atFloor = 1280 - 260 - RIGHT_PANEL_STAGE_MIN_PX;
+    expect(
+      shouldExitRightPanelFullWidth({
+        panelWidthPx: atFloor,
+        viewportWidth: 1280,
+        reservedChromePx: 260,
+      }),
+    ).toBe(false);
+    expect(
+      shouldExitRightPanelFullWidth({
+        panelWidthPx: atFloor - RIGHT_PANEL_FULL_WIDTH_HYSTERESIS_PX,
+        viewportWidth: 1280,
+        reservedChromePx: 260,
+      }),
+    ).toBe(true);
   });
 });
 

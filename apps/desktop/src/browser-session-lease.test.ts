@@ -80,6 +80,36 @@ describe('reduceBrowserHostPush', () => {
     expect(missing.title).toBe('');
   });
 
+  it('maps browser/state tabs, dialog, and CSS viewport', () => {
+    const next = reduceBrowserHostPush(EMPTY_BROWSER_SESSION_LEASE, {
+      type: 'browser/state',
+      ts: 1,
+      tabs: [
+        {
+          pageId: 'p-1',
+          url: 'http://localhost:3000',
+          title: 'App',
+          kind: 'page',
+          active: true,
+        },
+      ],
+      pendingDialog: { pageId: 'p-1', type: 'alert', message: 'hi', timedOut: false },
+      viewport: { mode: 'fixed', width: 1280, height: 800 },
+    });
+    expect(next.tabs).toHaveLength(1);
+    expect(next.pendingDialog?.message).toBe('hi');
+    expect(next.viewport).toEqual({ mode: 'fixed', width: 1280, height: 800 });
+
+    const cleared = reduceBrowserHostPush(next, {
+      type: 'browser/state',
+      ts: 2,
+      tabs: [],
+      pendingDialog: null,
+    });
+    expect(cleared.tabs).toEqual([]);
+    expect(cleared.pendingDialog).toBeNull();
+  });
+
   it('maps browser/state lifecycle, mirror, generation, and pageId', () => {
     const next = reduceBrowserHostPush(EMPTY_BROWSER_SESSION_LEASE, {
       type: 'browser/state',

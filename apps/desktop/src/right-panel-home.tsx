@@ -13,28 +13,31 @@ export type RightPanelHomeProps = {
 };
 
 export function RightPanelHome(props: RightPanelHomeProps): ReactElement {
-  const heading =
-    props.locale === 'zh-CN' ? '为这次对话添一件工具' : 'Add a tool to this conversation';
   return (
     <div className="right-panel-home blank-tool" data-testid="right-panel-home">
-      <span className="eyebrow">YOUR WORKSPACE</span>
-      <h3>{heading}</h3>
-      <div className="right-panel-home-grid home-grid" role="list">
+      <div className="right-panel-home-list" role="list">
         {SECTION_META.filter(isHomeLauncherSection).map((tab) => {
           const label = sectionLabel(tab.id, props.locale);
           return (
             <button
               key={tab.id}
               type="button"
-              className="right-panel-home-tile home-tile"
+              className="right-panel-home-row home-tile"
               data-testid={`right-panel-home-${tab.id}`}
               aria-label={label}
               onClick={() => props.onSelect(tab.id)}
             >
-              <span className="right-panel-home-icon" aria-hidden>
-                {tab.icon}
+              <span className="right-panel-home-row-left">
+                <span className="right-panel-home-icon" aria-hidden>
+                  {tab.icon}
+                </span>
+                <span className="right-panel-home-label">{label}</span>
               </span>
-              <span className="right-panel-home-label">{label}</span>
+              {tab.shortcut ? (
+                <kbd className="right-panel-home-shortcut" aria-hidden>
+                  {tab.shortcut}
+                </kbd>
+              ) : null}
             </button>
           );
         })}

@@ -19,6 +19,7 @@ const RUN_ID = 'run-fixture';
 const expectedOutcomes: Record<string, AgentPromptOutcome> = {
   'thinking-only-stop.json': { status: 'completed', stopReason: 'stop' },
   'text-stop.json': { status: 'completed', stopReason: 'stop' },
+  'max-tokens-truncation.json': { status: 'completed', stopReason: 'length' },
   'tool-then-stop.json': { status: 'completed', stopReason: 'stop' },
   'missing-finish.json': {
     status: 'failed',

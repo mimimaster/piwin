@@ -14,6 +14,7 @@ export type SettleStreamingMessagesInput = {
   outcome: SessionRunOutcome;
   terminalMessage?: string;
   failure?: SessionTranscriptMessage['failure'];
+  agentStopReason?: SessionTranscriptMessage['agentStopReason'];
 };
 
 export function createTranscriptStreamSettleOps(
@@ -179,6 +180,9 @@ function mergeSettledMetadata(
     endedAt: input.updatedAt,
     outcome: input.outcome,
   };
+  if (input.agentStopReason !== undefined) {
+    next.agentStopReason = input.agentStopReason;
+  }
   if (input.outcome === 'failed') {
     if (input.terminalMessage !== undefined) {
       next.terminalMessage = input.terminalMessage;

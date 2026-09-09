@@ -243,12 +243,14 @@ The visual panel is desktop-only; CLI degradation is intentional and documented
   reports missing chromium. Bundling a chromium binary for production desktop
   distribution is a **follow-up** (today the app assumes a dev machine or a
   prior playwright install).
-- **Frame stream cost**: capped at ~2–4 fps, JPEG, max dimension ~1280px, and
-  only emitted while the panel is visible. Screenshots never enter model context
-  as base64; only paths. **Known ceiling**: pushing every frame as a base64
-  data-URL over Tauri IPC (~400 KB/s at 4 fps) is fine for the MVP; a later
-  iteration can serve frames from a local HTTP endpoint in `@piwin/browser` and
-  have the panel `<img>` pull directly, bypassing the Rust bridge.
+- **Frame stream cost**: live mirror is JPEG via `page.screencast` (~12 fps,
+  quality 80). CSS viewport stays 1280×800; Host-owned Chromium launches at
+  `deviceScaleFactor: 2` and screencast `size` is CSS×DSF (default 2560×1600,
+  longest-edge cap 2560). `browser/frame` width/height remain CSS px. Screenshots
+  never enter model context as base64; only paths. **Known ceiling**: 2× JPEG
+  data-URLs over Tauri IPC; a later iteration can serve frames from a local HTTP
+  endpoint in `@piwin/browser` and have the panel `<img>` pull directly, bypassing
+  the Rust bridge. See [browser workbench fidelity](../specs/2026-09-09-browser-workbench-fidelity.md).
 - **Single shared service, leased process**: at most one Chromium runtime is
   active per Host. Mirror surfaces hold independent one-shot leases; releasing
   the final surface lease awaits process release, and later tools may relaunch.

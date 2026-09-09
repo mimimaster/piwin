@@ -3,7 +3,7 @@
  * Host next-turn queue: follow-up admission while streaming, and edit/
  * remove/send-now on queued turns.
  */
-import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
+import { useCallback, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import type {
   AgentModeId,
   PromptAttachment,
@@ -58,8 +58,20 @@ export function useComposerSteerQueue(params: UseComposerSteerQueueArgs) {
     refreshQueuedTurnQueue,
   } = params;
 
+  const queuedSubmissions = useRef(new Set<string>());
+
   const handleSteer = useCallback(
     async (overrideText?: string): Promise<boolean> => {
+      // Steer currently submits text/context only; preserve the whole draft
+      // instead of silently leaving its attachments for a later message.
+      if (pendingAttachmentsRef.current.length > 0) {
+        notifyError(
+          locale === 'zh-CN'
+            ? '带附件的消息请使用普通发送加入队列；文字和附件已保留。'
+            : 'Use Send to queue messages with attachments. Your text and attachments are preserved.',
+        );
+        return false;
+      }
       const text = (overrideText ?? composer).trim();
       const contextRefs = args.getPendingContextRefs?.() ?? [];
       if (!text && contextRefs.length === 0) {
@@ -143,7 +155,7 @@ export function useComposerSteerQueue(params: UseComposerSteerQueueArgs) {
         promptSubmissionInProgress.current = false;
       }
     },
-    [args, attachmentCopy, composer, notifyError],
+    [args, attachmentCopy, composer, locale, notifyError, pendingAttachmentsRef],
   );
 
   const handleFollowUp = useCallback((): void => {
@@ -269,43 +281,52 @@ export function useComposerSteerQueue(params: UseComposerSteerQueueArgs) {
         notifyError(attachmentCopy.steerUnavailable);
         return;
       }
-      const reserved = parseComposerSlashSubmit(target.input.text, []);
-      if (reserved.kind === 'command' && reserved.commandId === 'compact') {
-        await args.onCompact?.(normalizeCompactCustomInstructions(reserved.args));
-        return;
-      }
-      const command = {
-        type: 'run/intervention-submit',
-        sessionId,
-        runId: args.state.activeRunId,
-        interventionId: crypto.randomUUID(),
-        userMessageId: target.userMessageId,
-        input: instructionPayloadFromQueuedTurn(target.input),
-        adoptQueuedTurn: {
-          queuedTurnId: target.queuedTurnId,
-          expectedRevision: target.revision,
-        },
-      } as const;
-      let response = await args.hostClient.request(command);
-      if (!response.success && response.error.toLowerCase().includes('host request timed out')) {
-        // Conversion is atomic in the Host store; retrying the same identities
-        // replays the durable outcome instead of converting twice.
-        response = await args.hostClient.request(command);
-      }
-      if (!response.success) {
-        notifyError(hostFailureNotice(response, locale));
-        return;
-      }
-      const data = response.data as
-        { intervention?: RunInterventionRecord; queuedTurn?: QueuedTurnRecord } | undefined;
-      if (data?.queuedTurn) {
-        args.dispatch({ type: 'session/queued-turn-updated', queuedTurn: data.queuedTurn });
-      }
-      if (data?.intervention) {
-        args.dispatch({ type: 'run/intervention-updated', intervention: data.intervention });
+      const submissionKey = `${sessionId}:${messageId}`;
+      if (queuedSubmissions.current.has(submissionKey)) return;
+      queuedSubmissions.current.add(submissionKey);
+      try {
+        const reserved = parseComposerSlashSubmit(target.input.text, []);
+        if (reserved.kind === 'command' && reserved.commandId === 'compact') {
+          await args.onCompact?.(normalizeCompactCustomInstructions(reserved.args));
+          return;
+        }
+        const command = {
+          type: 'run/intervention-submit',
+          sessionId,
+          runId: args.state.activeRunId,
+          interventionId: crypto.randomUUID(),
+          userMessageId: target.userMessageId,
+          input: instructionPayloadFromQueuedTurn(target.input),
+          adoptQueuedTurn: {
+            queuedTurnId: target.queuedTurnId,
+            expectedRevision: target.revision,
+          },
+        } as const;
+        let response = await args.hostClient.request(command);
+        if (!response.success && response.error.toLowerCase().includes('host request timed out')) {
+          // Conversion is atomic in the Host store; retrying the same identities
+          // replays the durable outcome instead of converting twice.
+          response = await args.hostClient.request(command);
+        }
+        if (!response.success) {
+          notifyError(hostFailureNotice(response, locale));
+          return;
+        }
+        const data = response.data as
+          { intervention?: RunInterventionRecord; queuedTurn?: QueuedTurnRecord } | undefined;
+        if (data?.queuedTurn) {
+          args.dispatch({ type: 'session/queued-turn-updated', queuedTurn: data.queuedTurn });
+        }
+        if (data?.intervention) {
+          args.dispatch({ type: 'run/intervention-updated', intervention: data.intervention });
+        }
+      } catch (error) {
+        notifyError(formatError(error));
+      } finally {
+        queuedSubmissions.current.delete(submissionKey);
       }
     },
-    [args, attachmentCopy, notifyError],
+    [args, attachmentCopy, locale, notifyError],
   );
 
   const steerQueueMessages: SteerQueueMessage[] =

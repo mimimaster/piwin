@@ -60,6 +60,11 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
   if (rightPanelWidthRef.current !== rightPanelResize.widthPx) {
     rightPanelWidthRef.current = rightPanelResize.widthPx;
   }
+  useEffect(() => {
+    if (!rightPanelOpen) {
+      rightPanelResize.setFullWidth(false);
+    }
+  }, [rightPanelOpen, rightPanelResize.setFullWidth]);
   const [rightPanelView, setRightPanelView] = useState<'home' | 'detail'>('home');
   const revealDocPreview = useCallback(() => {
     const inspectorTab: RightPanelTab = 'docPreview';

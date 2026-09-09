@@ -42,6 +42,11 @@ export function useWorkbenchHostClient(): HostClient {
       currentTarget = nextTarget;
       const previous = hostClientRef.current;
       const next = createWorkbenchHostClient();
+      if (next.getTransport() === 'remote') {
+        void next.connect().catch((error: unknown) => {
+          console.warn('[piwin] remote Host switch failed', error);
+        });
+      }
       hostClientRef.current = next;
       setHostClient(next);
       if (previous !== null) {

@@ -62,7 +62,7 @@ export async function listenPetOverlayState(
 ): Promise<() => void> {
   try {
     const { listen } = await import('@tauri-apps/api/event');
-    return listen<PetOverlayStatePayload>(PET_OVERLAY_STATE_EVENT, (event) => {
+    return await listen<PetOverlayStatePayload>(PET_OVERLAY_STATE_EVENT, (event) => {
       if (event.payload?.pet) onPet(event.payload.pet);
     });
   } catch {
@@ -73,7 +73,7 @@ export async function listenPetOverlayState(
 export async function listenPetOverlayStateRequest(onRequest: () => void): Promise<() => void> {
   try {
     const { listen } = await import('@tauri-apps/api/event');
-    return listen(PET_OVERLAY_STATE_REQUEST_EVENT, () => {
+    return await listen(PET_OVERLAY_STATE_REQUEST_EVENT, () => {
       onRequest();
     });
   } catch {

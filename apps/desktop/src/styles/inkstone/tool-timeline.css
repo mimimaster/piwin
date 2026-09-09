@@ -125,13 +125,16 @@ html[data-theme-id='piwin-inkstone-ink'] .turn-work-disclosure .i {
   flex: none;
 }
 
-html[data-theme-id='piwin-inkstone-paper'] .work-h .chev,
-html[data-theme-id='piwin-inkstone-ink'] .work-h .chev,
-html[data-theme-id='piwin-inkstone-paper'] .turn-work-disclosure .chev,
-html[data-theme-id='piwin-inkstone-ink'] .turn-work-disclosure .chev {
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) :is(.work-h, .turn-work-disclosure) .chev {
   margin-left: auto;
   color: var(--t4);
   flex: none;
+  opacity: 0;
+  transition: opacity var(--t-1) var(--ease-out);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) :is(.work-h:hover, .work-h.is-open, .work.is-open > .work-h, .turn-work-disclosure:hover, .turn-work-disclosure.is-open) .chev {
+  opacity: 1;
 }
 
 /* S5.4.1: Thinking Draft Box (墨晕内省笺) */
@@ -803,9 +806,14 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   }
   .tool-call-summary .seal.mini { width: 17px; height: 17px; flex: none; }
   .tool-call-chevron-hit {
-    opacity: 1;
+    opacity: 0;
     color: var(--t4);
     margin-left: 0;
+    transition: opacity var(--t-1) var(--ease-out);
+  }
+  :is(.tool-call-card:hover, .tool-call-summary:hover, .tool-call-card.is-expanded) .tool-call-chevron-hit,
+  .tool-call-chevron-hit:focus-visible {
+    opacity: 1;
   }
   /* The thread already draws the ink line; a second track inside the
      expanded batch makes the header look nested under a child rail. */
@@ -951,7 +959,16 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     width: 12px;
     height: 12px;
     color: var(--t4);
+    opacity: 0;
     flex: none;
+    transition:
+      opacity var(--t-1) var(--ease-out),
+      transform var(--t-2) var(--ease-out);
+  }
+  .explore-thought-row:hover .explore-thought-chevron,
+  .explore-thought-chevron.open,
+  .explore-thought.is-open .explore-thought-chevron {
+    opacity: 1;
   }
   .explore-thought-chevron.open {
     transform: rotate(180deg);

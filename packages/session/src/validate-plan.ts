@@ -12,6 +12,7 @@ import type {
   PlanStepStatus,
   SessionPlan,
 } from '@piwin/contracts';
+import { Buffer } from 'node:buffer';
 import { MAX_PLAN_INDEPENDENT_STEPS, MAX_PLAN_JSON_BYTES, MAX_PLAN_STEPS } from '@piwin/contracts';
 
 const PLAN_STATUSES = new Set<PlanStatus>(['draft', 'approved', 'executing', 'done', 'abandoned']);
@@ -41,8 +42,11 @@ function asNonEmptyString(value: unknown): string | null {
 
 export function validateSessionPlan(value: unknown): PlanValidationResult {
   const issues: PlanValidationIssue[] = [];
-  const encoded = JSON.stringify(value ?? null);
-  if (encoded.length > MAX_PLAN_JSON_BYTES) {
+  const encoded = JSON.stringify(value ?? null, null, 2);
+  if (
+    encoded === undefined ||
+    Buffer.byteLength(`${encoded}\n`, 'utf8') > MAX_PLAN_JSON_BYTES
+  ) {
     return {
       ok: false,
       issues: [
@@ -82,8 +86,8 @@ export function validateSessionPlan(value: unknown): PlanValidationResult {
     issues.push({ path: 'source', message: 'invalid source' });
   }
   const revision = record.revision;
-  if (typeof revision !== 'number' || !Number.isFinite(revision) || revision < 0) {
-    issues.push({ path: 'revision', message: 'revision must be a non-negative number' });
+  if (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 0) {
+    issues.push({ path: 'revision', message: 'revision must be a non-negative integer' });
   }
   const createdAt = asNonEmptyString(record.createdAt);
   if (!createdAt) issues.push({ path: 'createdAt', message: 'createdAt is required' });

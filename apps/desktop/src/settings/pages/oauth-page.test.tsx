@@ -332,4 +332,63 @@ describe('OauthPage & SubscriptionAccountsPanel', () => {
     expect(drawer?.textContent).toContain('已用 37%');
     expect(drawer?.textContent).toContain('主动重置可用次数');
   });
+
+  it('shows vendor error text in the drawer instead of a settings toast', async () => {
+    const setError = vi.fn();
+    const mockRequest = vi.fn(async (command) => {
+      if (command.type === 'auth/status') {
+        return {
+          type: 'response' as const,
+          command: command.type,
+          success: true as const,
+          data: {
+            accounts: [{ providerId: 'xai', surface: 'v1', state: 'logged-in' }],
+          },
+        };
+      }
+      if (command.type === 'auth/quota') {
+        return {
+          type: 'response' as const,
+          command: command.type,
+          success: false as const,
+          error: 'Unhandled command',
+        };
+      }
+      return { type: 'response' as const, command: command.type, success: true as const, data: {} };
+    });
+
+    const hostClient = {
+      request: mockRequest,
+      subscribe: vi.fn(() => () => {}),
+      getTransport: () => 'local',
+    };
+
+    const contextValue = {
+      config: baseConfig(),
+      hostClient,
+      setError,
+      setInfo: vi.fn(),
+    } as unknown as SettingsContextValue;
+
+    await act(async () => {
+      root!.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => {}}>
+            <SettingsProvider value={contextValue}>
+              <OauthPage />
+            </SettingsProvider>
+          </DesktopLocaleProvider>
+        </PiwinUiProvider>,
+      );
+    });
+
+    const toggleBtn = container!.querySelector('[data-testid="subscription-quota-toggle-xai"]') as HTMLButtonElement;
+    await act(async () => {
+      toggleBtn.click();
+    });
+
+    expect(setError).not.toHaveBeenCalled();
+    const empty = container!.querySelector('[data-testid="subscription-quota-empty"]');
+    expect(empty?.textContent).toContain('Unhandled command');
+  });
 });

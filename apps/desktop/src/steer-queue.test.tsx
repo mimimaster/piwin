@@ -79,7 +79,7 @@ describe('SteerQueue', () => {
     expect(container.textContent).toContain('Then summarize the root cause');
   });
 
-  it('sends, opens composer edit, and removes individual queued messages', () => {
+  it('sends, opens composer edit, and removes individual queued messages', async () => {
     const onSendNow = vi.fn();
     const onEdit = vi.fn();
     const onRemove = vi.fn();
@@ -94,7 +94,7 @@ describe('SteerQueue', () => {
       ),
     );
 
-    act(() => {
+    await act(async () => {
       container
         .querySelector<HTMLButtonElement>('[data-testid="steer-queue-send-queued-1"]')
         ?.click();
@@ -188,4 +188,23 @@ describe('SteerQueue', () => {
 
     expect(container.querySelector('[data-testid="steer-queue"]')).toBeNull();
   });
+  it('disables row actions while send-now is pending and enables retry afterward', async () => {
+    let finish: () => void = () => { throw new Error('request not started'); };
+    const onSendNow = vi.fn(() => new Promise<void>((resolve) => { finish = resolve; }));
+    act(() => root.render(
+      <Harness messages={queueMessages} onSendNow={onSendNow} onEdit={vi.fn()} onRemove={vi.fn()} />,
+    ));
+    const send = container.querySelector<HTMLButtonElement>('[data-testid="steer-queue-send-queued-1"]');
+    if (!send) throw new Error('missing send button');
+    act(() => send.click());
+    expect(send.disabled).toBe(true);
+    expect(send.getAttribute('aria-busy')).toBe('true');
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="steer-queue-edit-button-queued-1"]')?.disabled).toBe(true);
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="steer-queue-remove-queued-1"]')?.disabled).toBe(true);
+    act(() => send.click());
+    expect(onSendNow).toHaveBeenCalledTimes(1);
+    await act(async () => finish());
+    expect(send.disabled).toBe(false);
+  });
+
 });

@@ -79,6 +79,24 @@ export type BrowserViewportMode = 'fixed' | 'follow' | 'mobile' | 'custom';
 export const BROWSER_DEFAULT_VIEWPORT_WIDTH = 1280;
 export const BROWSER_DEFAULT_VIEWPORT_HEIGHT = 800;
 
+export type BrowserPageKind = 'page' | 'popup';
+
+export type BrowserTabInfo = {
+  pageId: string;
+  url: string;
+  title: string;
+  kind: BrowserPageKind;
+  active: boolean;
+};
+
+export type BrowserDialogInfo = {
+  pageId: string;
+  type: string;
+  message: string;
+  defaultValue?: string;
+  timedOut: boolean;
+};
+
 export type BrowserViewportConfig = {
   mode: BrowserViewportMode;
   width: number;
@@ -126,6 +144,8 @@ export type BrowserStatePush = {
   controllerRevision?: number;
   viewport?: BrowserViewportConfig;
   recoveryCount?: number;
+  tabs?: BrowserTabInfo[];
+  pendingDialog?: BrowserDialogInfo | null;
 };
 
 export type BrowserControllerPush = {

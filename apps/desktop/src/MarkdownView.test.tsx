@@ -842,7 +842,7 @@ describe('MarkdownView file references', () => {
     cleanupMountedMarkdownRenders();
   });
 
-  it('collapses a full .md path to its file name', () => {
+  it('shows the directory on an absolute .md path chip', () => {
     const fullPath = '/Users/yorickjue/.piwin/workspace/自我介绍.md';
     const { container } = renderMarkdown(
       <MarkdownView
@@ -853,9 +853,11 @@ describe('MarkdownView file references', () => {
     );
     const chip = container.querySelector<HTMLElement>('.md-doc-chip');
     expect(chip).not.toBeNull();
-    expect(chip?.querySelector('.chip-text')?.textContent ?? chip?.textContent).toContain(
-      '自我介绍.md',
+    expect(chip?.querySelector('.chip-text')?.textContent).toBe(fullPath);
+    expect(chip?.querySelector('.chip-dir')?.textContent).toBe(
+      '/Users/yorickjue/.piwin/workspace/',
     );
+    expect(chip?.querySelector('.chip-file')?.textContent).toBe('自我介绍.md');
     expect(chip?.getAttribute('title')).toBe(fullPath);
     expect(chip?.getAttribute('data-full-path')).toBe(fullPath);
   });
@@ -880,7 +882,7 @@ describe('MarkdownView file references', () => {
     });
   });
 
-  it('collapses an inline code .md path to its file name', () => {
+  it('keeps the directory on an inline-code absolute path chip', () => {
     const fullPath = '/Users/yorickjue/project/README.md';
     const { container } = renderMarkdown(
       <MarkdownView
@@ -891,10 +893,33 @@ describe('MarkdownView file references', () => {
     );
     const chip = container.querySelector<HTMLElement>('.md-doc-chip');
     expect(chip).not.toBeNull();
-    expect(chip?.querySelector('.chip-text')?.textContent ?? chip?.textContent).toContain(
-      'README.md',
-    );
+    expect(chip?.querySelector('.chip-text')?.textContent).toBe(fullPath);
     expect(chip?.getAttribute('data-full-path')).toBe(fullPath);
+  });
+
+  it('shows a bare filename chip and a distinct absolute-path chip', () => {
+    const absolutePath =
+      '/Users/me/proj/docs/design/inkstone-icons/generated-icons.html';
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text={[
+          '文件：',
+          '`generated-icons.html`',
+          '',
+          '绝对路径：',
+          `\`${absolutePath}\``,
+        ].join('\n')}
+        renderingPhase="completed"
+        onOpenDocument={vi.fn()}
+      />,
+    );
+    const chips = [...container.querySelectorAll<HTMLElement>('.md-doc-chip')];
+    expect(chips).toHaveLength(2);
+    expect(chips[0]?.querySelector('.chip-text')?.textContent).toBe(
+      'generated-icons.html',
+    );
+    expect(chips[1]?.querySelector('.chip-text')?.textContent).toBe(absolutePath);
+    expect(chips[1]?.getAttribute('data-full-path')).toBe(absolutePath);
   });
 
   it('uses the link title for a .md document link', () => {

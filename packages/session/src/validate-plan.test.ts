@@ -21,6 +21,17 @@ describe('validateSessionPlan', () => {
     expect(result.ok).toBe(true);
   });
 
+  it('measures the serialized document in UTF-8 bytes', () => {
+    const result = validateSessionPlan({
+      ...sample,
+      title: '界'.repeat(32 * 1024),
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues[0]?.message).toContain('65536 bytes');
+    }
+  });
+
   it('rejects executable fields and missing goal', () => {
     expect(validateSessionPlan({ ...sample, js: 'x' }).ok).toBe(false);
     expect(validateSessionPlan({ ...sample, goal: '' }).ok).toBe(false);

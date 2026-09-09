@@ -11,6 +11,7 @@ import type {
 import type { ChatMessageUi } from '../chat-reducer.js';
 import {
   buildBranchPromptInput,
+  buildContinuePromptInput,
   buildRetryPromptInput,
   isBranchPromptCommand,
   useBranchActions,
@@ -167,6 +168,29 @@ describe('buildRetryPromptInput', () => {
   });
 });
 
+describe('buildContinuePromptInput', () => {
+  it('sends a Host-authored continuation without retry or branch fields', () => {
+    const input = buildContinuePromptInput({
+      selectedModelKey: 'openai::gpt',
+      modelOptions: [
+        {
+          providerId: 'openai',
+          protocol: 'openai-compatible',
+          modelId: 'gpt',
+          label: 'GPT',
+        },
+      ],
+    });
+    expect(input.source).toBe('continuation');
+    expect(input.text).toBe('');
+    expect(input.retryUserMessageId).toBeUndefined();
+    expect(input.branchFromMessageId).toBeUndefined();
+    expect(input.keepPreviousAttempt).toBeUndefined();
+    expect(input.agentMode).toBeUndefined();
+    expect(input.permissionPreset).toBeUndefined();
+  });
+});
+
 describe('retryTurn', () => {
   it('does not dispatch an optimistic user bubble', async () => {
     const originalMessage: ChatMessageUi = {
@@ -210,6 +234,48 @@ describe('retryTurn', () => {
     expect(promptCommand?.input.retryUserMessageId).toBe('u1');
     expect(promptCommand?.input.branchFromMessageId).toBeUndefined();
     expect(promptCommand?.input.text).toBe('');
+  });
+
+  it('continues without clipping the previous attempt', async () => {
+    const originalMessage: ChatMessageUi = {
+      id: 'u1',
+      role: 'user',
+      text: 'original text',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+    };
+    const sent: HostCommand[] = [];
+    const dispatch = vi.fn();
+    const hostClient = {
+      request: async (command: HostCommand): Promise<HostResponse> => {
+        sent.push(command);
+        if (command.type === 'session/prompt') {
+          return response({ runId: 'run-2' });
+        }
+        return response({ sessionId: 's1', branchPoints: [] });
+      },
+      subscribe: () => () => undefined,
+    };
+    const actions = renderBranchActions(hostClient, {
+      visibleMessages: [originalMessage],
+      dispatch,
+    });
+
+    await act(async () => {
+      await actions.current?.continueTurn();
+    });
+
+    expect(dispatch).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'session/branch-switched' }),
+    );
+    const promptCommand = sent.find(
+      (command): command is Extract<HostCommand, { type: 'session/prompt' }> =>
+        command.type === 'session/prompt',
+    );
+    expect(promptCommand?.input.source).toBe('continuation');
+    expect(promptCommand?.input.retryUserMessageId).toBeUndefined();
   });
 
   it('opens the write-discard card, then retries with confirm', async () => {

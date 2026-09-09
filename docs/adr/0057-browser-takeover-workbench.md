@@ -33,10 +33,11 @@ Playwright Chromium the Host already owns.
 ### 1. Interactive mirror = CDP screencast + input forwarding
 
 Keep one Host-owned Chromium. Replace the `page.screenshot()` interval with
-Chrome DevTools `Page.startScreencast` (JPEG, ack every frame, ~12–15 fps,
-size-capped). The panel still renders `browser/frame` (same push shape). User
-pointer/keyboard events are forwarded to that page via Playwright
-`page.mouse` / `page.keyboard` / `page.keyboard.insertText`.
+Chrome DevTools `Page.startScreencast` (JPEG quality 80, ack every frame,
+~12–15 fps, size = CSS viewport × deviceScaleFactor). The panel still renders
+`browser/frame` (same push shape; width/height are CSS). User pointer/keyboard
+events are forwarded to that page via Playwright `page.mouse` / `page.keyboard` /
+`page.keyboard.insertText`.
 
 Fallback: if CDP screencast cannot start, keep the existing screenshot loop so
 the panel never goes blank.

@@ -16,6 +16,10 @@ export type TurnErrorCardProps = {
   failure?: AgentFailure | undefined;
   locale?: string | undefined;
   onRetry?: (() => void) | undefined;
+  /** Keep the current path and ask the model to finish (work already landed). */
+  onContinue?: (() => void) | undefined;
+  /** Wipe the attempt and re-run the same user turn. */
+  onRestart?: (() => void) | undefined;
   onFeedback?: ((message: string, level: 'info' | 'success' | 'error') => void) | undefined;
 };
 
@@ -24,7 +28,7 @@ export type TurnErrorCardProps = {
  * title + shaded detail + retry/copy. No auth/quota special-case actions.
  */
 export function TurnErrorCard(props: TurnErrorCardProps): ReactElement | null {
-  const { error, failure, locale = 'zh-CN', onRetry, onFeedback } = props;
+  const { error, failure, locale = 'zh-CN', onRetry, onContinue, onRestart, onFeedback } = props;
   const [copied, setCopied] = useState(false);
   const contextMenu = useDesktopContextMenu();
 
@@ -87,7 +91,17 @@ export function TurnErrorCard(props: TurnErrorCardProps): ReactElement | null {
         </div>
 
         <div className="turn-error-actions">
-          {onRetry ? (
+          {onContinue ? (
+            <Button
+              variant="primary"
+              size="compact"
+              className="turn-error-retry-btn"
+              data-testid="turn-error-continue-btn"
+              onClick={onContinue}
+            >
+              {isChinese ? '继续' : 'Continue'}
+            </Button>
+          ) : onRetry ? (
             <Button
               variant="primary"
               size="compact"
@@ -96,6 +110,16 @@ export function TurnErrorCard(props: TurnErrorCardProps): ReactElement | null {
               onClick={onRetry}
             >
               {isChinese ? '重试' : 'Retry'}
+            </Button>
+          ) : null}
+          {onRestart ? (
+            <Button
+              variant="secondary"
+              size="compact"
+              data-testid="turn-error-restart-btn"
+              onClick={onRestart}
+            >
+              {isChinese ? '从头再来' : 'Start over'}
             </Button>
           ) : null}
           <Button

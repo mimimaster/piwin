@@ -3,27 +3,12 @@
  * Popups are registered, never silently adopted as the active page.
  */
 import type { BrowserContext, Dialog, Page } from 'playwright-core';
+import type { BrowserDialogInfo, BrowserPageKind, BrowserTabInfo } from '@piwin/contracts';
 import { BrowserSessionError, BrowserStaleTargetError } from './browser-errors.js';
 
 const DEFAULT_DIALOG_TIMEOUT_MS = 8_000;
 
-export type BrowserPageKind = 'page' | 'popup';
-
-export type BrowserTabInfo = {
-  pageId: string;
-  url: string;
-  title: string;
-  kind: BrowserPageKind;
-  active: boolean;
-};
-
-export type BrowserDialogInfo = {
-  pageId: string;
-  type: string;
-  message: string;
-  defaultValue?: string;
-  timedOut: boolean;
-};
+export type { BrowserDialogInfo, BrowserPageKind, BrowserTabInfo };
 
 type PageEntry = {
   pageId: string;
@@ -53,6 +38,7 @@ export type BrowserPageRegistry = {
 export function createBrowserPageRegistry(options: {
   allocatePageId: () => string;
   dialogTimeoutMs?: number;
+  onDialogChange?: () => void;
 }): BrowserPageRegistry {
   const byPage = new Map<Page, PageEntry>();
   const byId = new Map<string, PageEntry>();
@@ -161,9 +147,11 @@ export function createBrowserPageRegistry(options: {
             if (pending === undefined || pending.dialog !== dialog) return;
             pending.timedOut = true;
             void dialog.dismiss().catch(() => undefined);
+            options.onDialogChange?.();
           }, dialogTimeoutMs),
         };
         pending = info;
+        options.onDialogChange?.();
       });
     },
     pendingDialog() {
@@ -194,6 +182,7 @@ export function createBrowserPageRegistry(options: {
       } else {
         await current.dialog.dismiss();
       }
+      options.onDialogChange?.();
       return {
         pageId: current.pageId,
         type: current.type,

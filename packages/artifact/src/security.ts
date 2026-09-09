@@ -41,6 +41,18 @@ const EXTERNAL_RESOURCE_PATTERNS: Array<{
   },
 ];
 
+function htmlTagHasSessionMediaBind(source: string, matchIndex: number): boolean {
+  const tagStart = source.lastIndexOf('<', matchIndex);
+  if (tagStart < 0) {
+    return false;
+  }
+  const tagEnd = source.indexOf('>', matchIndex);
+  if (tagEnd < 0) {
+    return false;
+  }
+  return /\bdata-piwin-media\s*=/i.test(source.slice(tagStart, tagEnd + 1));
+}
+
 const PLACEHOLDER_ARTIFACT_SOURCE_PATTERN =
   /^(?:enter your code here\.{0,3}|todo|tbd|placeholder|\/\/\s*todo|<!--\s*(?:todo|placeholder|visible content here)\s*-->)$/i;
 
@@ -63,9 +75,17 @@ export function detectExternalArtifactResources(
     entry.pattern.lastIndex = 0;
     for (const match of source.matchAll(entry.pattern)) {
       const url = match[2] || match[3];
-      if (url) {
-        resources.push({ kind: entry.kind, url });
+      if (!url) {
+        continue;
       }
+      if (
+        entry.kind === 'image' &&
+        match.index !== undefined &&
+        htmlTagHasSessionMediaBind(source, match.index)
+      ) {
+        continue;
+      }
+      resources.push({ kind: entry.kind, url });
     }
   }
 

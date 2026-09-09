@@ -1,10 +1,12 @@
 import type {
   AgentFailure,
+  AgentPromptStopReason,
   RunInterventionRecord,
   RunInterventionTerminalReason,
   SessionRunOutcome,
   SessionTranscriptMessage,
 } from '@piwin/contracts';
+import { createUnknownAgentFailure } from '@piwin/contracts';
 import type { SessionTranscriptStore } from '@piwin/session';
 
 export const ORPHAN_STREAM_TERMINAL_MESSAGE =
@@ -17,6 +19,7 @@ export async function settleStreamingMessages(
     outcome: SessionRunOutcome;
     terminalMessage?: string;
     failure?: AgentFailure | null;
+    agentStopReason?: AgentPromptStopReason;
     updatedAt?: string;
   },
 ): Promise<SessionTranscriptMessage[]> {
@@ -26,6 +29,7 @@ export async function settleStreamingMessages(
     outcome: input.outcome,
     ...(input.terminalMessage !== undefined ? { terminalMessage: input.terminalMessage } : {}),
     ...(input.failure !== undefined ? { failure: input.failure } : {}),
+    ...(input.agentStopReason !== undefined ? { agentStopReason: input.agentStopReason } : {}),
   });
 }
 
@@ -46,25 +50,37 @@ export async function finalizeRunTranscriptArtifacts(
     interventionReason: RunInterventionTerminalReason;
     terminalMessage?: string;
     failure?: AgentFailure | null;
+    agentStopReason?: AgentPromptStopReason;
   },
 ): Promise<{ settled: SessionTranscriptMessage[]; expired: RunInterventionRecord[] }> {
+  const fallbackFailureMessage =
+    input.terminalMessage ?? `Run ${input.runId} failed before structured failure was recorded.`;
+  const failedFailure =
+    input.outcome === 'failed'
+      ? (input.failure ?? createUnknownAgentFailure(fallbackFailureMessage))
+      : undefined;
   const settled = await settleStreamingMessages(store, {
     runId: input.runId,
     outcome: input.outcome,
     ...(input.terminalMessage !== undefined ? { terminalMessage: input.terminalMessage } : {}),
-    ...(input.failure !== undefined ? { failure: input.failure } : {}),
+    ...(failedFailure !== undefined
+      ? { failure: failedFailure }
+      : input.failure !== undefined
+        ? { failure: input.failure }
+        : {}),
+    ...(input.agentStopReason !== undefined ? { agentStopReason: input.agentStopReason } : {}),
   });
   const expired = await store.expirePendingRunInterventions(
     input.runId,
     input.interventionReason,
     new Date().toISOString(),
   );
-  if (input.outcome === 'failed' && input.failure) {
+  if (failedFailure !== undefined) {
     const ensured = await store.ensureFailedRunAssistant({
       runId: input.runId,
       updatedAt: new Date().toISOString(),
-      terminalMessage: input.terminalMessage ?? input.failure.message,
-      failure: input.failure,
+      terminalMessage: input.terminalMessage ?? failedFailure.message,
+      failure: failedFailure,
     });
     const withoutDuplicate = settled.filter((message) => message.id !== ensured.id);
     return { settled: [...withoutDuplicate, ensured], expired };

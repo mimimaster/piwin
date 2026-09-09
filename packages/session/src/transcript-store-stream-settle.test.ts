@@ -136,6 +136,31 @@ describe('SessionTranscriptStore.settleStreamingMessages', () => {
     store.close();
   });
 
+  it('persists a completed length stop reason', async () => {
+    const store = await openStore('length');
+    await store.appendMessage({
+      id: 'a-len',
+      runtimeGenerationId: 'gen-1',
+      backendMessageId: 'a1',
+      role: 'assistant',
+      text: '<!DOCTYPE html>',
+      status: 'streaming',
+      runId: 'run-len',
+      createdAt: '2026-08-27T03:25:58.000Z',
+    });
+    await store.settleStreamingMessages({
+      runId: 'run-len',
+      updatedAt: '2026-08-27T03:41:00.000Z',
+      outcome: 'completed',
+      agentStopReason: 'length',
+    });
+    const message = await store.getMessage('a-len');
+    expect(message?.status).toBe('done');
+    expect(message?.outcome).toBe('completed');
+    expect(message?.agentStopReason).toBe('length');
+    store.close();
+  });
+
   it('clears intermediate failure evidence when the Run completes', async () => {
     const store = await openStore('complete-clears-failure');
     await store.appendMessage({

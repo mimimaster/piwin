@@ -94,4 +94,113 @@ describe('ExtensionsPanel refresh', () => {
       ),
     ).toBe(true);
   });
+
+  it('shows staged progress then a friendly error for a failed git install', async () => {
+    let resolveInstall: ((value: HostResponseLike) => void) | undefined;
+    const request = vi.fn(async (command: { type: string; source?: unknown }) => {
+      if (command.type === 'extensions/list') {
+        return {
+          type: 'response' as const,
+          command: 'extensions/list',
+          success: true as const,
+          data: { extensions: [] },
+        };
+      }
+      if (command.type === 'extensions/install') {
+        return new Promise<HostResponseLike>((resolve) => {
+          resolveInstall = resolve;
+        });
+      }
+      return { type: 'response' as const, command: command.type, success: true as const, data: {} };
+    });
+
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        (
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <DesktopLocaleProvider locale="en" onLocaleChange={() => {}}>
+              <ExtensionsPanel projectPath={null} request={request as never} variant="inline" />
+            </DesktopLocaleProvider>
+          </PiwinUiProvider>
+        ) as ReactElement,
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      (
+        container?.querySelector('[data-testid="extensions-install-toggle"]') as HTMLButtonElement
+      ).click();
+    });
+    const kindGit = Array.from(container.querySelectorAll('button')).find(
+      (node) => node.textContent === 'Git',
+    );
+    await act(async () => kindGit?.click());
+    const source = container.querySelector(
+      '.settings-toolbar--install input.piwin-text-input-field',
+    ) as HTMLInputElement;
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value',
+      )?.set;
+      setter?.call(source, 'https://example.com/repo');
+      source.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    await act(async () => {
+      (
+        container?.querySelector('[data-testid="extensions-install-submit"]') as HTMLButtonElement
+      ).click();
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('[data-testid="extensions-install-progress"]')).toBeTruthy();
+    expect(
+      (container.querySelector('[data-testid="extensions-install-submit"]') as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+
+    await act(async () => {
+      resolveInstall?.({
+        type: 'response',
+        command: 'extensions/install',
+        success: false,
+        error:
+          'git extension install failed: Extension directory must contain index.ts: /var/folders/xy/tmp/piwin-extension-git-AbC',
+      });
+      await Promise.resolve();
+    });
+
+    const notice = container.querySelector('[data-testid="extensions-install-error"]');
+    expect(notice).toBeTruthy();
+    expect(notice?.textContent).toContain('No extension entry point found');
+    // The human-readable message never surfaces the throwaway temp clone path;
+    // the raw string stays tucked inside the collapsed "Technical details".
+    expect(notice?.querySelector('.ui-notice-message')?.textContent).not.toContain('/var/folders/');
+    expect(notice?.querySelector('.ext-install-error-raw')?.textContent).toContain('/var/folders/');
+    expect(container.querySelector('[data-testid="extensions-install-progress"]')).toBeNull();
+
+    await act(async () => {
+      (
+        container?.querySelector(
+          '[data-testid="extensions-install-error-dismiss"]',
+        ) as HTMLButtonElement
+      ).click();
+    });
+    expect(container.querySelector('[data-testid="extensions-install-error"]')).toBeNull();
+  });
 });
+
+type HostResponseLike = {
+  type: 'response';
+  command: string;
+  success: boolean;
+  error?: string;
+  data?: unknown;
+};

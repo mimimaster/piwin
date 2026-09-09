@@ -27,7 +27,10 @@ describe('Inkstone titleband / sidebar seam', () => {
       /\.context-bar-sessions-toggle\.ib\s*\{[\s\S]{0,500}?top:\s*1px/,
     );
     expect(titlebar).toMatch(
-      /\.context-bar-sessions-toggle\.ib:hover[\s\S]{0,900}?background:\s*transparent\s*!important/,
+      /\.context-bar-sessions-toggle\.ib:hover[\s\S]{0,2000}?background:\s*transparent\s*!important/,
+    );
+    expect(titlebar).toMatch(
+      /\.context-bar-inspector-btn\.ib\.active[\s\S]{0,2000}?background:\s*transparent\s*!important/,
     );
   });
 

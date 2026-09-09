@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Implemented (single-Host T1–T6); T7 cross-process lock **not** claimed |
+| Status | Implemented (single-Host T1–T6); defensive same-machine plan lock added, not a distributed lock |
 | Date | 2026-09-08 |
 | Related | ADR 0002, ADR 0025, ADR 0040, [turn-error run-outcome gate](../specs/2026-08-30-turn-error-run-outcome-gate.md) |
 | Specification | [SessionPlan integrity](../specs/2026-09-08-session-plan-integrity.md) |
@@ -18,15 +18,16 @@ outcome was still `completed`. The user saw a silent dead turn with Host still
 connected.
 
 Existing Host locks (`owner.lock`, runtime leases, session-operations, session
-index) do not serialize `plan.json`. A process-local per-path queue plus atomic
-rename is the single-Host document contract. Cross-process mutex is a later
-hardening (T7) and must not be claimed from the racy index-lock recycler.
+index) did not serialize `plan.json`. The plan store now uses a per-path
+in-process queue plus a same-machine OS file lock and atomic rename. Root
+ownership remains the product-level single-Host authority; the file lock is only
+a cooperative defense for callers using the same storage protocol.
 
 ## Decision
 
 1. **Document mutation.** Every create/update/clear/heal/isolate for one
-   `plan.json` runs in a per-path Promise queue keyed by resolved absolute
-   path. Writes use `writeTextFileAtomic`. The store assigns
+   `plan.json` runs in a per-path in-process queue and same-machine OS file
+   lock keyed by resolved absolute path. Writes use `writeTextFileAtomic`. The store assigns
    `current.revision + 1` (or `0` on create). Mutators derive from lock-held
    current. `saveSessionPlan` is create-only. Whole-document replace compares
    expected revision against **current**, not against a pre-bumped snapshot.
@@ -55,5 +56,8 @@ hardening (T7) and must not be claimed from the racy index-lock recycler.
   onto a previous completed turn.
 - Packaged Desktop/Host must be rebuilt from this source; `processStartedAt`
   does not prove the new bundle is running.
-- T7 (cross-process `plan.json.lock` without racy auto-steal) remains open.
-  Independent-process tests are required before claiming that mutex.
+- The defensive `plan.json.lock` is cooperative and bounded to the same
+  machine; it is not a distributed lock or protection from writers that bypass
+  the storage protocol. The independent-process smoke verifies hold/release
+  ordering and read-modify-write preservation; broader crash/maintenance
+  recovery remains a separate hardening task.

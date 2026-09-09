@@ -116,9 +116,10 @@ describe('RightPanel multi-tab', () => {
     expect(container.querySelector('[data-testid="right-panel-home-branches"]')).toBeNull();
     expect(container.querySelector('[data-testid="terminal-body"]')).toBeNull();
     expect(container.querySelector('[data-testid="right-panel-home-notes"]')).toBeNull();
-    expect(container.querySelector('[data-testid="right-panel-home-sideChat"]')).toBeNull();
+    expect(container.querySelector('[data-testid="right-panel-home-sideChat"]')).not.toBeNull();
     expect(container.querySelector('.insp-h')).not.toBeNull();
-    expect(container.querySelectorAll('[data-testid^="right-panel-home-"]').length).toBe(4);
+    expect(container.querySelectorAll('[data-testid^="right-panel-home-"]').length).toBe(5);
+    expect(container.querySelectorAll('.right-panel-home-shortcut').length).toBe(5);
   });
 
   it('opens the shell-requested tab when the active tab changes as the panel expands', () => {
@@ -357,6 +358,8 @@ describe('RightPanel multi-tab', () => {
       expandBtn?.click();
     });
     expect(expandToggled).toBe(true);
+    expect(expandBtn?.getAttribute('aria-label') ?? expandBtn?.textContent).toBeTruthy();
+    expect(expandBtn?.getAttribute('title')).toBe('进入全屏');
 
     const tabstrip = container.querySelector('[data-testid="right-panel-tabstrip"]');
     const addBtn = tabstrip?.querySelector('[data-testid="right-panel-tab-add"]');
@@ -365,5 +368,21 @@ describe('RightPanel multi-tab', () => {
     expect(tabsContainer).not.toBeNull();
     // Verify + button comes before tabs container in DOM tree
     expect(tabstrip?.firstElementChild).toBe(addBtn);
+  });
+
+  it('labels the expand control as exit full screen when expanded', () => {
+    writeStoredRightPanelState({ openTabs: ['terminal'], activeTab: 'terminal' });
+    const rendered = renderPanel({
+      activeTab: 'terminal',
+      locale: 'en',
+      isExpanded: true,
+    });
+    root = rendered.root;
+    container = rendered.container;
+    const expandBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="right-panel-expand-btn"]',
+    );
+    expect(expandBtn?.getAttribute('title')).toBe('Exit full screen');
+    expect(expandBtn?.getAttribute('aria-pressed')).toBe('true');
   });
 });

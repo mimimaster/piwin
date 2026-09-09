@@ -196,8 +196,13 @@ export type PromptInput = {
    * even when an existing runtime still has the tool registered.
    */
   delegationMode?: 'auto' | 'disabled';
-  /** Internal Host continuation source; normal clients should omit this. */
-  source?: 'user' | 'resume' | 'queued-turn' | 'voice-delegation';
+  /**
+   * How this prompt entered the Host.
+   * `continuation` is Host-authored repair after truncation or a failed turn
+   * that already did work: no new user row, no rebase, no truncate.
+   * Mutually exclusive with `retryUserMessageId` and `branchFromMessageId`.
+   */
+  source?: 'user' | 'resume' | 'queued-turn' | 'voice-delegation' | 'continuation';
   /**
    * When `source` is `voice-delegation`, product Live call id (never upstream
    * provider event ids or audio metadata).

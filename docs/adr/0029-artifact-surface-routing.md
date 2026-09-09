@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-08-03; amended 2026-08-24; amended 2026-08-26; amended 2026-08-27; amended 2026-08-31)
+Accepted (2026-08-03; amended 2026-08-24; amended 2026-08-26; amended 2026-08-27; amended 2026-08-31; amended 2026-09-08)
 
 ## Context
 
@@ -94,22 +94,31 @@ auto-promote; the declared `surface` is the only routing input.
 The model-facing decision order is:
 
 1. The user explicitly requests Canvas/right-side interaction → **canvas**.
-2. The UI must return a result to the Composer → **canvas**.
-3. The UI is multi-step or must retain local workflow state → **canvas**.
-4. The primary deliverable is an interactive application/page prototype →
+2. The primary deliverable is a standalone analytical artifact the user will
+   read beside the conversation (architecture / plan / design / code-base
+   review, audit, delivery report, findings, quantitative breakdown, large
+   comparison table) → **canvas**. Trigger is user intent, not length. A
+   Markdown wall or large Markdown table as the answer is the wrong surface.
+3. The UI must return a result to the Composer → **canvas**.
+4. The UI is multi-step or must retain local workflow state → **canvas**.
+5. The primary deliverable is an interactive application/page prototype →
    **canvas**.
-5. The UI is a persistent, coordinated, detail-inspection workspace →
+6. The UI is a persistent, coordinated, detail-inspection workspace →
    **canvas**.
-6. Otherwise → **inline**.
+7. Otherwise → **inline**.
 
 The following are **not** Canvas criteria by themselves:
 
 - many words;
 - tall content;
-- a chart or table that can responsively reflow without horizontal scrolling;
+- a small table inside a short answer (a large table *as the deliverable* is
+  Canvas);
 - tabs, filtering, hover, animation, or a few buttons;
-- visually rich output;
+- visually rich output that is still a component in the transcript (a
+  standalone report *is* Canvas — richness alone is not);
 - content that remains readable in the supported Inline width range.
+- a code fix, patch, PR, or targeted debug of a specific snippet — the code
+  is the deliverable.
 
 ### 4. Interactive-prototype boundary
 
@@ -303,3 +312,10 @@ Canonical plan: `docs/plans/2026-08-24-artifact-rendering-convergence-execution-
 - ADR 0005 (Artifact sandbox, streaming preview, media/image policy)
 - Plan: `docs/plans/2026-08-24-artifact-rendering-convergence-execution-plan.md`
 - Earlier Canvas-shell notes: `docs/plans/2026-08-03-artifact-surface-routing-canvas-shell.md`
+
+## Amendment (2026-09-08): Canvas/Inline bind vault media at materialize time
+
+Inline and Canvas share one bind: `data-piwin-media` → session-scoped `blob:`
+at `materializeArtifact`. The sandbox CSP stays `img-src data: blob:`. The
+iframe does not fetch `file:` or Host HTTP. Unknown ids render as placeholders
+without a network src.

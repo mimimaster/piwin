@@ -107,7 +107,13 @@ describe('session chain phase 1', () => {
     });
 
     act(() => {
-      (container?.querySelector('.tree-folder-add-btn') as HTMLButtonElement | null)?.click();
+      const projectRow = container?.querySelector(
+        '[data-testid="repository-item"][data-project-path="/Users/test/project-a"]',
+      );
+      projectRow
+        ?.closest('.tree-folder-summary')
+        ?.querySelector<HTMLButtonElement>('.tree-folder-add-btn')
+        ?.click();
     });
 
     // Row + only names the project; opening happens inside start-new-session.

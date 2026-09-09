@@ -53,6 +53,31 @@ html[data-theme-id='piwin-inkstone-ink'] .app-shell[data-layout='desktop']:not(.
     'stage signal' !important;
 }
 
+/* Same !important weight as the split templates above. Without this, toggling
+   `.right-panel-full-width` hides `.workspace` while Inkstone still reserves a
+   stage column — an empty gap between sidebar and inspector. */
+html[data-theme-id='piwin-inkstone-paper'] .app-shell.has-right-panel.right-panel-full-width,
+html[data-theme-id='piwin-inkstone-ink'] .app-shell.has-right-panel.right-panel-full-width {
+  grid-template-columns: var(--sidebar-width, 240px) minmax(0, 1fr) !important;
+  grid-template-areas:
+    'tb tb'
+    'nav signal' !important;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .app-shell[data-layout='desktop']:not(.nav-open).has-right-panel.right-panel-full-width,
+html[data-theme-id='piwin-inkstone-ink'] .app-shell[data-layout='desktop']:not(.nav-open).has-right-panel.right-panel-full-width {
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-areas:
+    'tb'
+    'signal' !important;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .app-shell.right-panel-full-width:not(.nav-open)
+  > .context-bar {
+  display: flex;
+}
+
 html[data-theme-id='piwin-inkstone-paper'] .app-shell[data-layout='compact'],
 html[data-theme-id='piwin-inkstone-ink'] .app-shell[data-layout='compact'],
 html[data-theme-id='piwin-inkstone-paper'] .app-shell[data-layout='compact'].has-right-panel,

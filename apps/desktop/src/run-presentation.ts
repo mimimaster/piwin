@@ -88,16 +88,19 @@ export function buildTurnPresentation(input: BuildTurnPresentationInput): TurnPr
   }
 
   const latestPhase = runRecord?.phaseHistory[runRecord.phaseHistory.length - 1]?.phase;
+  // Keep a live waiting chrome for every empty active turn. Host often advances
+  // through `preparing` / early `streaming` before any thinking, tool, or answer
+  // token exists — gating only on a few early phases left Agent bubbles blank.
   const isWaitingForModel =
     isActive &&
     !answerStarted &&
     !message.thinking.trim() &&
     message.tools.length === 0 &&
     !permissionForThisTurn &&
-    (latestPhase === 'connecting-model' ||
-      latestPhase === 'waiting-first-token' ||
-      latestPhase === 'accepted' ||
-      latestPhase === undefined);
+    latestPhase !== 'tool-running' &&
+    latestPhase !== 'waiting-permission' &&
+    latestPhase !== 'pausing' &&
+    latestPhase !== 'cancelling';
 
   const phaseHistory: RunPhaseView[] = (runRecord?.phaseHistory ?? []).map((entry) => ({
     phase: entry.phase,

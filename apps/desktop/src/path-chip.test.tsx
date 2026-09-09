@@ -5,7 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { DesktopLocaleProvider } from './desktop-locale-context';
-import { PathChip } from './path-chip';
+import { PathChip, pathChipDisplayText } from './path-chip';
 import type { PromptContextRef } from '@piwin/contracts';
 import {
   DesktopContextMenuProvider,
@@ -46,6 +46,40 @@ function isMenuItemDisabled(element: HTMLElement | null): boolean {
     element.getAttribute('data-disabled') === 'true'
   );
 }
+
+describe('pathChipDisplayText', () => {
+  it('keeps an absolute path visible instead of collapsing to the file name', () => {
+    expect(
+      pathChipDisplayText(
+        '/Users/me/proj/docs/design/inkstone-icons/generated-icons.html',
+      ),
+    ).toBe('/Users/me/proj/docs/design/inkstone-icons/generated-icons.html');
+  });
+
+  it('keeps a relative directory prefix', () => {
+    expect(pathChipDisplayText('docs/design/generated-icons.html')).toBe(
+      'docs/design/generated-icons.html',
+    );
+  });
+
+  it('keeps a bare deliverable name', () => {
+    expect(pathChipDisplayText('generated-icons.html')).toBe('generated-icons.html');
+  });
+
+  it('ignores a label that is only the basename of a longer path', () => {
+    expect(
+      pathChipDisplayText('/Users/me/proj/generated-icons.html', 'generated-icons.html'),
+    ).toBe('/Users/me/proj/generated-icons.html');
+  });
+
+  it('keeps a custom link title', () => {
+    expect(pathChipDisplayText('/Users/me/proj/notes.md', 'My Notes')).toBe('My Notes');
+  });
+
+  it('strips a file: prefix so the filesystem path is readable', () => {
+    expect(pathChipDisplayText('file:///Users/me/out.zip')).toBe('/Users/me/out.zip');
+  });
+});
 
 describe('PathChip context menu (CM-06)', () => {
   let root: Root | null = null;

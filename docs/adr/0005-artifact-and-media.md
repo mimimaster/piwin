@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-07-19; amended 2026-08-24; amended 2026-08-26; amended 2026-09-04)
+Accepted (2026-07-19; amended 2026-08-24; amended 2026-08-26; amended 2026-09-04; amended 2026-09-08)
 
 ## Context
 
@@ -246,3 +246,15 @@ remain source-first during streaming.
 
 See the lead Decision for the live contract. Details: ADR 0029 and
 `docs/plans/2026-08-24-artifact-rendering-convergence-execution-plan.md`.
+
+## Amendment (2026-09-08): Artifact references session media by id
+
+Generated rasters live once, in `~/.piwin/media/<session>/`. An Artifact may
+reference them with `<img data-piwin-media="<mediaId>">`. `materializeArtifact`
+rewrites those tags to caller-supplied `blob:` URLs. Copy/export keep the
+attribute, never the pixels.
+
+`self-contained` means HTML/CSS/JS do not depend on the public network. It
+does not mean inlining PNG bytes as `data:image`. Base64 galleries still hit
+`blocked-too-large`. Text prompts still must not receive media bytes (the
+2026-08-01 native ImageContent rule for composer attachments is unchanged).

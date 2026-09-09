@@ -105,7 +105,12 @@ import {
   runSessionColdStorageStatus,
   formatDoctorColdStorageLines,
 } from './session-cold-storage-command.js';
-import { runSessionBranches, runSessionRetry, runSessionSwitch } from './session-branch-command.js';
+import {
+  runSessionBranches,
+  runSessionContinue,
+  runSessionRetry,
+  runSessionSwitch,
+} from './session-branch-command.js';
 import { runTurnRedo, runTurnUndo } from './turn-change-command.js';
 import { runSubagentResult, runSubagentResults } from './subagent-result-command.js';
 
@@ -131,6 +136,7 @@ Usage:
   piwin session export <id> --format md|html [--redact-tools] [--out <path>] [--mock]
   piwin session branches <sessionId> [--mock]
   piwin session switch <sessionId> <messageId> [--confirm] [--mock]
+  piwin session continue <sessionId> [--mock]
   piwin session retry <sessionId> <userMessageId> [--keep] [--confirm] [--mock]
   piwin session lifecycle plan [--mock]
   piwin session pack create <sessionId> --out <host-dir> [--pack-id <id>] [--mock]
@@ -1109,6 +1115,22 @@ async function commandSession(argv: string[]): Promise<void> {
       return;
     }
 
+    if (sub === 'continue') {
+      const sessionId = argv[2];
+      if (!sessionId) {
+        console.error('Usage: piwin session continue <sessionId> [--mock]');
+        process.exitCode = 1;
+        return;
+      }
+      try {
+        await runSessionContinue(runtime, sessionId, console.log);
+      } catch (error) {
+        console.error(formatError(error));
+        process.exitCode = 1;
+      }
+      return;
+    }
+
     if (sub === 'retry') {
       const sessionId = argv[2];
       const userMessageId = argv[3];
@@ -1593,6 +1615,8 @@ async function commandExtension(argv: string[]): Promise<void> {
     const localPath = readOption(argv, '--local');
     const gitUrl = readOption(argv, '--git');
     const name = readOption(argv, '--name');
+    const subdir = readOption(argv, '--subdir');
+    const ref = readOption(argv, '--ref');
     if (localPath) {
       const installOptions: Parameters<typeof installExtension>[0] = {
         piwinRoot: root,
@@ -1606,14 +1630,21 @@ async function commandExtension(argv: string[]): Promise<void> {
     if (gitUrl) {
       const installOptions: Parameters<typeof installExtension>[0] = {
         piwinRoot: root,
-        source: { kind: 'git', url: gitUrl },
+        source: {
+          kind: 'git',
+          url: gitUrl,
+          ...(subdir ? { subdir } : {}),
+          ...(ref ? { ref } : {}),
+        },
       };
       if (name) installOptions.name = name;
       const result = await installExtension(installOptions);
       console.log(`installed extension ${result.extensionId} -> ${result.targetPath}`);
       return;
     }
-    console.error('Usage: piwin extension install --local <file|dir> | --git <url> [--name <id>]');
+    console.error(
+      'Usage: piwin extension install --local <file|dir> | --git <url> [--subdir <path>] [--ref <branch|tag>] [--name <id>]',
+    );
     process.exitCode = 1;
     return;
   }

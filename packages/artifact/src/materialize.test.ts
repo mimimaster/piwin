@@ -58,6 +58,24 @@ describe('materializeArtifact', () => {
     expect(analysis.intent.descriptor.source).toContain('background: white');
   });
 
+  it('binds session media ids in render HTML without rewriting descriptor source', () => {
+    const mediaId = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+    const source = `<section><img data-piwin-media="${mediaId}" alt="icon"></section>`;
+    const analysis = analyze('artifact-html', source, { id: 'media-bind' });
+    expect(analysis.kind).toBe('intent');
+    if (analysis.kind !== 'intent') return;
+    const blobUrl = 'blob:http://localhost/media-1';
+    const plan = materializeArtifact(analysis.intent, {
+      mode: 'interactive',
+      mediaObjectUrls: new Map([[mediaId, blobUrl]]),
+    });
+    expect(plan.renderSource).toContain(`src="${blobUrl}"`);
+    expect(plan.renderSource).toContain(`data-piwin-media="${mediaId}"`);
+    expect(analysis.intent.descriptor.source).not.toContain('blob:');
+    expect(analysis.intent.descriptor.source).toContain(`data-piwin-media="${mediaId}"`);
+    expect(analysis.intent.descriptor.source).not.toContain(`src="${blobUrl}"`);
+  });
+
   it('hosts full-document stream-preview in a fragment root so updates can land', () => {
     const source = [
       '<!DOCTYPE html>',

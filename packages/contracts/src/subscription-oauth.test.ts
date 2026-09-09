@@ -42,9 +42,23 @@ describe('subscription oauth contracts', () => {
         verificationUri: 'https://example.test',
       },
     };
+    const quota: HostCommand = {
+      type: 'auth/quota',
+      input: { providerId: 'openai-codex', forceRefresh: true },
+    };
+    const quotaPush: HostPush = {
+      type: 'auth/quota-updated',
+      quota: {
+        providerId: 'openai-codex',
+        groups: [],
+        lastUpdated: new Date().toISOString(),
+      },
+    };
     expect(status.type).toBe('auth/status');
     expect(login.type).toBe('auth/login');
     expect(prompt.type).toBe('auth/prompt');
+    expect(quota.type).toBe('auth/quota');
+    expect(quotaPush.type).toBe('auth/quota-updated');
   });
 
   it('allocates unique provider ids and relocate ids', () => {

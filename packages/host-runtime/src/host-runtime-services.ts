@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import {
   BROWSER_DEFAULT_VIEWPORT_HEIGHT,
   BROWSER_DEFAULT_VIEWPORT_WIDTH,
+  sanitizeAgentFailure,
   formatError,
   isRunTerminal,
   type AgentEvent,
@@ -536,6 +537,12 @@ export async function cleanupAfterWorkerCrash(
               outcome: 'failed',
               interventionReason: 'worker-crash',
               terminalMessage: message,
+              failure: sanitizeAgentFailure({
+                code: 'backend-worker-crash',
+                origin: 'runtime',
+                message,
+                retriable: true,
+              }),
             }),
           );
         } catch (error) {

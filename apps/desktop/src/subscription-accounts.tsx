@@ -103,12 +103,31 @@ export function SubscriptionAccountsPanel(): ReactElement {
         });
         if (response.success && response.data && typeof response.data === 'object') {
           const data = response.data as { quota?: SubscriptionAccountQuota };
-          if (data.quota) {
-            setQuotas((prev) => new Map(prev).set(providerId, data.quota!));
+          const quota = data.quota;
+          if (quota) {
+            setQuotas((prev) => new Map(prev).set(providerId, quota));
+            return;
           }
-        } else if (!response.success && response.error) {
-          setError?.(response.error);
         }
+        setQuotas((prev) =>
+          new Map(prev).set(providerId, {
+            providerId,
+            groups: [],
+            lastUpdated: new Date().toISOString(),
+            error: !response.success
+              ? (response.error ?? (isChinese ? '读取额度失败' : 'Failed to read quota'))
+              : (isChinese ? '暂无可用额度数据' : 'No quota data available'),
+          }),
+        );
+      } catch (error) {
+        setQuotas((prev) =>
+          new Map(prev).set(providerId, {
+            providerId,
+            groups: [],
+            lastUpdated: new Date().toISOString(),
+            error: error instanceof Error ? error.message : (isChinese ? '读取额度失败' : 'Failed to read quota'),
+          }),
+        );
       } finally {
         setLoadingQuotaIds((prev) => {
           const next = new Set(prev);
@@ -117,7 +136,7 @@ export function SubscriptionAccountsPanel(): ReactElement {
         });
       }
     },
-    [hostClient, setError],
+    [hostClient, isChinese],
   );
 
   const triggerResetQuota = useCallback(
@@ -162,8 +181,9 @@ export function SubscriptionAccountsPanel(): ReactElement {
   const toggleQuotaDrawer = useCallback(
     (providerId: string) => {
       setExpandedQuotaIds((prev) => {
+        const alreadyOpen = prev.has(providerId);
         const next = new Set(prev);
-        if (next.has(providerId)) {
+        if (alreadyOpen) {
           next.delete(providerId);
         } else {
           next.add(providerId);
@@ -312,9 +332,33 @@ export function SubscriptionAccountsPanel(): ReactElement {
     }
   }, [prompt?.promptId]);
 
+  const connectedCount = V1_SUBSCRIPTION_PROVIDER_IDS.filter((id) => {
+    const acc = accounts.find((item) => item.providerId === id);
+    return acc?.state === 'logged-in';
+  }).length;
+
   return (
     <section className="oauth-accounts" data-testid="subscription-accounts">
-      <div className="oauth-account-grid">
+      <div className="oauth-accounts-header">
+        <div className="oauth-accounts-header-left">
+          <span className="oauth-accounts-header-title">
+            {isChinese ? '官方订阅平台' : 'Official Subscription Providers'}
+          </span>
+          <span className="oauth-accounts-header-count">{V1_SUBSCRIPTION_PROVIDER_IDS.length}</span>
+        </div>
+        <div className="oauth-accounts-header-right">
+          <span className="oauth-accounts-stat-badge">
+            <span className={`oauth-status-dot ${connectedCount > 0 ? 'is-pulse' : ''}`} />
+            <span>
+              {isChinese
+                ? `已连接 ${connectedCount} / ${V1_SUBSCRIPTION_PROVIDER_IDS.length}`
+                : `${connectedCount} of ${V1_SUBSCRIPTION_PROVIDER_IDS.length} connected`}
+            </span>
+          </span>
+        </div>
+      </div>
+
+      <div className="oauth-account-list oauth-account-grid">
         {V1_SUBSCRIPTION_PROVIDER_IDS.map((providerId) => {
           const account = accounts.find((item) => item.providerId === providerId);
           const copy = CARD_COPY[providerId];
@@ -324,18 +368,19 @@ export function SubscriptionAccountsPanel(): ReactElement {
             : (account?.state ?? 'logged-out');
           const isConnected = state === 'logged-in';
           const isExpanded = isLoggingIn;
+          const isExpandedQuota = isConnected && expandedQuotaIds.has(providerId);
 
           return (
             <article
               key={providerId}
-              className={`oauth-account-card is-${state}${isExpanded ? ' is-expanded' : ''}`}
+              className={`oauth-account-card oauth-account-row is-${state}${isExpanded ? ' is-expanded' : ''}${isExpandedQuota ? ' is-quota-open' : ''}`}
               data-testid={`subscription-account-${providerId}`}
             >
-              <div className="oauth-card-top">
-                <div className="oauth-card-header">
+              <div className="oauth-card-top oauth-row-top">
+                <div className="oauth-card-header oauth-row-header">
                   <div className="oauth-brand-wrapper">
                     <span className={`oauth-account-mark is-${providerId}`} aria-hidden="true">
-                      <ProviderIcon id={providerId} name={copy.title} size={36} />
+                      <ProviderIcon id={providerId} name={copy.title} size={32} />
                     </span>
                     <div className="oauth-brand-meta">
                       <div className="oauth-brand-title-row">
@@ -345,13 +390,88 @@ export function SubscriptionAccountsPanel(): ReactElement {
                     </div>
                   </div>
 
-                  <span
-                    className={`oauth-status-badge is-${state}`}
-                    data-testid={`subscription-account-state-${providerId}`}
-                  >
-                    <span className={`oauth-status-dot${isConnected ? ' is-pulse' : ''}${isLoggingIn ? ' is-spinning' : ''}`} />
-                    {isChinese ? STATE_LABEL[state].zh : STATE_LABEL[state].en}
-                  </span>
+                  <div className="oauth-row-controls">
+                    <span
+                      className={`oauth-status-badge is-${state}`}
+                      data-testid={`subscription-account-state-${providerId}`}
+                    >
+                      <span className={`oauth-status-dot${isConnected ? ' is-pulse' : ''}${isLoggingIn ? ' is-spinning' : ''}`} />
+                      {isChinese ? STATE_LABEL[state].zh : STATE_LABEL[state].en}
+                    </span>
+
+                    <div className="oauth-account-actions">
+                      {state === 'logged-out' || state === 'needs-reauth' ? (
+                        <Button
+                          variant="primary"
+                          size="compact"
+                          onClick={() => void startLogin(providerId, account?.collidingChannelId)}
+                        >
+                          <KeyRound size={13} />
+                          <span>{isChinese ? copy.login : copy.loginEn}</span>
+                        </Button>
+                      ) : isLoggingIn ? (
+                        <Button
+                          variant="secondary"
+                          size="compact"
+                          onClick={() =>
+                            activeLogin
+                              ? void send({
+                                  type: 'auth/cancel',
+                                  loginId: activeLogin.loginId,
+                                  ownerDeviceId,
+                                })
+                              : undefined
+                          }
+                        >
+                          {isChinese ? '取消连接' : 'Cancel'}
+                        </Button>
+                      ) : (
+                        <>
+                          {/* Active Reset Quota Action (if available) */}
+                          {quotas.get(providerId)?.activeResets?.canTriggerReset && (
+                            <Button
+                              variant="secondary"
+                              size="compact"
+                              onClick={() => void triggerResetQuota(providerId)}
+                              disabled={resettingQuotaIds.has(providerId) || loadingQuotaIds.has(providerId)}
+                              data-testid={`subscription-quota-reset-${providerId}`}
+                            >
+                              <RefreshCw size={12} className={resettingQuotaIds.has(providerId) ? 'is-spinning' : ''} />
+                              <span>{isChinese ? '重置额度' : 'Reset'}</span>
+                            </Button>
+                          )}
+
+                          {/* Quota Drawer Toggle Button */}
+                          <Button
+                            variant="secondary"
+                            size="compact"
+                            onClick={() => toggleQuotaDrawer(providerId)}
+                            disabled={loadingQuotaIds.has(providerId)}
+                            data-testid={`subscription-quota-toggle-${providerId}`}
+                            className={`oauth-quota-toggle-btn${isExpandedQuota ? ' is-open' : ''}`}
+                          >
+                            {loadingQuotaIds.has(providerId) ? (
+                              <RefreshCw size={12} className="is-spinning" />
+                            ) : null}
+                            <span>{isChinese ? '额度详情' : 'Quota'}</span>
+                            <ChevronDown
+                              size={12}
+                              className={`oauth-drawer-caret${isExpandedQuota ? ' is-open' : ''}`}
+                            />
+                          </Button>
+
+                          <Button
+                            variant="secondary"
+                            size="compact"
+                            onClick={() => void startLogout(providerId)}
+                          >
+                            <LogOut size={13} />
+                            <span>{isChinese ? '退出登录' : 'Sign out'}</span>
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 {account?.collidingChannelId ? (
@@ -366,84 +486,8 @@ export function SubscriptionAccountsPanel(): ReactElement {
                 ) : null}
               </div>
 
-              <div className="oauth-account-footer">
-                <div className="oauth-account-actions">
-                  {state === 'logged-out' || state === 'needs-reauth' ? (
-                    <Button
-                      variant="primary"
-                      size="compact"
-                      onClick={() => void startLogin(providerId, account?.collidingChannelId)}
-                    >
-                      <KeyRound size={13} />
-                      <span>{isChinese ? copy.login : copy.loginEn}</span>
-                    </Button>
-                  ) : isLoggingIn ? (
-                    <Button
-                      variant="secondary"
-                      size="compact"
-                      onClick={() =>
-                        activeLogin
-                          ? void send({
-                              type: 'auth/cancel',
-                              loginId: activeLogin.loginId,
-                              ownerDeviceId,
-                            })
-                          : undefined
-                      }
-                    >
-                      {isChinese ? '取消连接' : 'Cancel'}
-                    </Button>
-                  ) : (
-                    <>
-                      {/* Active Reset Quota Action (if available) */}
-                      {quotas.get(providerId)?.activeResets?.canTriggerReset && (
-                        <Button
-                          variant="secondary"
-                          size="compact"
-                          onClick={() => void triggerResetQuota(providerId)}
-                          disabled={resettingQuotaIds.has(providerId) || loadingQuotaIds.has(providerId)}
-                          data-testid={`subscription-quota-reset-${providerId}`}
-                        >
-                          <RefreshCw size={12} className={resettingQuotaIds.has(providerId) ? 'is-spinning' : ''} />
-                          <span>{isChinese ? '重置额度' : 'Reset'}</span>
-                        </Button>
-                      )}
-
-                      {/* Quota Drawer Toggle & Refresh Button */}
-                      <Button
-                        variant="secondary"
-                        size="compact"
-                        onClick={() => toggleQuotaDrawer(providerId)}
-                        disabled={loadingQuotaIds.has(providerId)}
-                        data-testid={`subscription-quota-toggle-${providerId}`}
-                        className="oauth-quota-toggle-btn"
-                      >
-                        <RefreshCw
-                          size={12}
-                          className={loadingQuotaIds.has(providerId) ? 'is-spinning' : ''}
-                        />
-                        <span>{isChinese ? '刷新额度' : 'Quota'}</span>
-                        <ChevronDown
-                          size={12}
-                          className={`oauth-drawer-caret${expandedQuotaIds.has(providerId) ? ' is-open' : ''}`}
-                        />
-                      </Button>
-
-                      <Button
-                        variant="secondary"
-                        size="compact"
-                        onClick={() => void startLogout(providerId)}
-                      >
-                        <LogOut size={13} />
-                        <span>{isChinese ? '退出登录' : 'Sign out'}</span>
-                      </Button>
-                    </>
-                  )}
-                </div>
-              </div>
-
               {/* Expandable Quota Drawer for Connected Accounts */}
-              {isConnected && expandedQuotaIds.has(providerId) && (
+              {isExpandedQuota && (
                 <SubscriptionQuotaDrawer
                   quota={quotas.get(providerId)}
                   loading={loadingQuotaIds.has(providerId)}
@@ -500,11 +544,11 @@ export function SubscriptionAccountsPanel(): ReactElement {
       </div>
 
       <div className="oauth-accounts-notice">
-        <Info size={14} className="oauth-notice-icon" />
+        <Info size={13} className="oauth-notice-icon" />
         <p className="oauth-accounts-footnote">
           {isChinese
-            ? '💡 提示：套餐凭证保存在 ~/.pi/agent/auth.json。登录后会在「模型配置」加入可操作的 Provider（参数、开关、默认模型）。图片/视频生成仍只用通道。'
-            : '💡 Tip: Subscription credentials stay in ~/.pi/agent/auth.json. Login adds an operable Provider in Models (params, toggles, default). Image/video generation still uses channels.'}
+            ? '提示：套餐凭证均独立加密托管于本地 ~/.pi/agent/auth.json。图片及视频生成仍优先采用通道与独立 API 密钥。'
+            : 'Tip: Subscription credentials are securely stored in ~/.pi/agent/auth.json. Image and video models continue to use dedicated channels.'}
         </p>
       </div>
       {confirmDialog.dialog}

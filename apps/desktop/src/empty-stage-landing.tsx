@@ -80,7 +80,14 @@ export function selectResumableSessions(
 export function EmptyStageLanding(props: EmptyStageLandingProps): ReactElement {
   const recentSessions = selectResumableSessions(props.sessions);
   const isChinese = props.locale === 'zh-CN';
-  const heading = isChinese ? '继续上次' : 'Pick up where you left off';
+  const heading =
+    recentSessions.length > 0
+      ? isChinese
+        ? '继续上次'
+        : 'Pick up where you left off'
+      : isChinese
+        ? '开始新对话'
+        : 'Start a new chat';
 
   return (
     <div className="empty-stage-landing" data-testid="empty-stage-landing">

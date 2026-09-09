@@ -7,6 +7,34 @@ export type PlanStatus = 'draft' | 'approved' | 'executing' | 'done' | 'abandone
 export type PlanSource = 'user' | 'assistant' | 'skill';
 export type PlanComplexity = 'short' | 'long';
 
+/** Identity and revision of the document a caller read before replacing it. */
+export type SessionPlanVersion = {
+  planId: string;
+  revision: number;
+};
+
+/** `null` means the caller expects the document not to exist yet. */
+export type SessionPlanWriteExpectation = SessionPlanVersion | null;
+
+export function isSessionPlanVersion(value: unknown): value is SessionPlanVersion {
+  if (typeof value !== 'object' || value === null) return false;
+  if (!('planId' in value) || !('revision' in value)) return false;
+  const record = value as { planId?: unknown; revision?: unknown };
+  return (
+    typeof record.planId === 'string' &&
+    record.planId.trim().length > 0 &&
+    typeof record.revision === 'number' &&
+    Number.isSafeInteger(record.revision) &&
+    record.revision >= 0
+  );
+}
+
+export function isSessionPlanWriteExpectation(
+  value: unknown,
+): value is SessionPlanWriteExpectation {
+  return value === null || isSessionPlanVersion(value);
+}
+
 export type PlanStep = {
   id: string;
   title: string;

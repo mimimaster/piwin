@@ -496,6 +496,7 @@
   cursor: pointer;
   white-space: nowrap;
   max-width: 100%;
+  min-width: 0;
   text-decoration: none;
   border: 0;
   box-sizing: border-box;
@@ -528,4 +529,24 @@
 .pc span,
 .pc .chip-text {
   color: inherit !important;
+}
+
+.md-doc-chip .chip-text,
+.pc .chip-text {
+  display: inline-flex;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.md-doc-chip .chip-dir,
+.pc .chip-dir {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--t3, var(--text-3, #726b61)) !important;
+}
+
+.md-doc-chip .chip-file,
+.pc .chip-file {
+  flex: none;
 }

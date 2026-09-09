@@ -26,7 +26,16 @@ export function turnPresentationToActivityInput(
   now = Date.now(),
 ): RunActivityInput {
   const latestPhase = presentation.phaseHistory[presentation.phaseHistory.length - 1]?.phase;
-  const kind = latestPhase ? sessionRunPhaseToActivityKind(latestPhase) : 'connecting-model';
+  let kind = latestPhase ? sessionRunPhaseToActivityKind(latestPhase) : 'connecting-model';
+  // Host may already report `streaming` while the bubble is still empty.
+  // Prefer the waiting-first-token phrase bank so the carousel stays in the
+  // "thinking / planning next step" register instead of generic "working".
+  if (
+    presentation.isWaitingForModel &&
+    (kind === 'working' || kind === 'idle' || kind === 'complete')
+  ) {
+    kind = 'waiting-first-token';
+  }
   const activeTool = message.tools.find((tool) => tool.status === 'running');
   const activeToolName = activeTool?.toolName;
   const activeToolDetail = activeTool

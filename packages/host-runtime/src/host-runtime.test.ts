@@ -2187,6 +2187,7 @@ describe('HostRuntime', () => {
       id: 'p2',
       type: 'plan/set',
       sessionId,
+      expected: null,
       plan,
     });
     expect(setResult.success).toBe(true);
@@ -2240,6 +2241,7 @@ describe('HostRuntime', () => {
     await runtime.handleCommand({
       type: 'plan/set',
       sessionId,
+      expected: null,
       plan: {
         id: 'p1',
         sessionId,
@@ -2279,6 +2281,7 @@ describe('HostRuntime', () => {
     await runtime.handleCommand({
       type: 'plan/set',
       sessionId,
+      expected: null,
       plan: {
         id: 'p-atomic',
         sessionId,
@@ -2395,6 +2398,7 @@ describe('HostRuntime', () => {
     await runtime.handleCommand({
       type: 'plan/set',
       sessionId,
+      expected: null,
       plan: {
         id: 'p1',
         sessionId,
@@ -2466,6 +2470,7 @@ describe('HostRuntime', () => {
     await runtime.handleCommand({
       type: 'plan/set',
       sessionId,
+      expected: null,
       plan: {
         id: 'p-busy',
         sessionId,
@@ -2566,6 +2571,7 @@ describe('HostRuntime', () => {
     await runtime.handleCommand({
       type: 'plan/set',
       sessionId,
+      expected: null,
       plan: {
         id: 'p-abort',
         sessionId,
@@ -2686,6 +2692,7 @@ describe('HostRuntime', () => {
     await runtime.handleCommand({
       type: 'plan/set',
       sessionId,
+      expected: null,
       plan: {
         id: 'p1',
         sessionId,

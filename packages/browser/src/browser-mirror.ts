@@ -8,12 +8,19 @@ import type { Page } from 'playwright-core';
 import { createFrameLoop, type FrameLoop } from './frames.js';
 import { startScreencast, type ScreencastHandle } from './screencast.js';
 import type { BrowserFramePush, BrowserSessionEvent } from './browser-session.js';
+import {
+  BROWSER_SCREENCAST_QUALITY,
+  BROWSER_SCREENSHOT_QUALITY,
+  resolveBrowserScreencastSize,
+  type BrowserScreencastSize,
+} from './screencast-size.js';
 
 export type BrowserMirrorDeps = {
   maxDimension: number;
   maxFps: number;
   getPage: () => Promise<Page>;
   hasActiveMirrorLease: () => boolean;
+  resolveDeviceScaleFactor: (page: Page) => Promise<number>;
   subscribers: Set<(event: BrowserSessionEvent) => void>;
 };
 
@@ -24,8 +31,13 @@ export type BrowserMirror = {
   stopScreencast(): Promise<void>;
 };
 
+function sameScreencastSize(left: BrowserScreencastSize, right: BrowserScreencastSize): boolean {
+  return left.width === right.width && left.height === right.height;
+}
+
 export function createBrowserMirror(deps: BrowserMirrorDeps): BrowserMirror {
   let screencastHandle: ScreencastHandle | undefined;
+  let liveSize: BrowserScreencastSize | undefined;
 
   function wantsFallbackFrames(): boolean {
     return (
@@ -38,6 +50,7 @@ export function createBrowserMirror(deps: BrowserMirrorDeps): BrowserMirror {
   async function clearScreencastHandle(): Promise<void> {
     const handle = screencastHandle;
     screencastHandle = undefined;
+    liveSize = undefined;
     if (handle !== undefined) await handle.stop();
   }
 
@@ -55,7 +68,10 @@ export function createBrowserMirror(deps: BrowserMirrorDeps): BrowserMirror {
   const frameLoop: FrameLoop = createFrameLoop({
     capture: async () => {
       const activePage = await deps.getPage();
-      const buffer = await activePage.screenshot({ type: 'jpeg', quality: 70 });
+      const buffer = await activePage.screenshot({
+        type: 'jpeg',
+        quality: BROWSER_SCREENSHOT_QUALITY,
+      });
       const viewport = activePage.viewportSize() ?? {
         width: deps.maxDimension,
         height: deps.maxDimension,
@@ -79,22 +95,39 @@ export function createBrowserMirror(deps: BrowserMirrorDeps): BrowserMirror {
   });
 
   async function startMirrorFrames(activePage: Page): Promise<void> {
-    if (screencastHandle !== undefined) {
+    const viewport = activePage.viewportSize() ?? {
+      width: deps.maxDimension,
+      height: deps.maxDimension,
+    };
+    const deviceScaleFactor = await deps.resolveDeviceScaleFactor(activePage);
+    const size = resolveBrowserScreencastSize({
+      width: viewport.width,
+      height: viewport.height,
+      deviceScaleFactor,
+    });
+    if (!size) return;
+    if (screencastHandle !== undefined && liveSize && sameScreencastSize(liveSize, size)) {
       frameLoop.stop();
       return;
+    }
+    if (screencastHandle !== undefined) {
+      await clearScreencastHandle();
     }
     frameLoop.stop();
     try {
       screencastHandle = await startScreencast(activePage, {
-        maxDimension: deps.maxDimension,
+        size,
+        quality: BROWSER_SCREENCAST_QUALITY,
         emit: (frame) => {
           if (!deps.hasActiveMirrorLease()) return;
           const event: BrowserFramePush = { type: 'browser/frame', ...frame };
           for (const listener of deps.subscribers) listener(event);
         },
       });
+      liveSize = size;
     } catch (error) {
       screencastHandle = undefined;
+      liveSize = undefined;
       console.warn(
         '[browser] screencast failed; falling back to screenshot frames',
         error instanceof Error ? error.message : error,

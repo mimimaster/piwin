@@ -5,8 +5,11 @@
 import { useCallback, useEffect, useReducer, useState } from 'react';
 import type {
   BrowserController,
+  BrowserDialogInfo,
   BrowserLifecycle,
   BrowserMirrorMode,
+  BrowserTabInfo,
+  BrowserViewportConfig,
   HostServerMessage,
   WebElementPickResult,
 } from '@piwin/contracts';
@@ -41,6 +44,9 @@ export type BrowserSessionLeaseState = {
   mirror: BrowserMirrorMode | undefined;
   generation: number | undefined;
   pageId: string | undefined;
+  tabs: BrowserTabInfo[];
+  pendingDialog: BrowserDialogInfo | null;
+  viewport: BrowserViewportConfig | undefined;
 };
 
 export type BrowserSessionLeaseClient = {
@@ -69,6 +75,9 @@ export type BrowserSessionLease = {
   mirror: BrowserMirrorMode | undefined;
   generation: number | undefined;
   pageId: string | undefined;
+  tabs: BrowserTabInfo[];
+  pendingDialog: BrowserDialogInfo | null;
+  viewport: BrowserViewportConfig | undefined;
 };
 
 export const EMPTY_BROWSER_SESSION_LEASE: BrowserSessionLeaseState = {
@@ -86,6 +95,9 @@ export const EMPTY_BROWSER_SESSION_LEASE: BrowserSessionLeaseState = {
   mirror: undefined,
   generation: undefined,
   pageId: undefined,
+  tabs: [],
+  pendingDialog: null,
+  viewport: undefined,
 };
 
 function browserTargetIdentityChanged(
@@ -131,6 +143,14 @@ export function reduceBrowserHostPush(
       mirror: message.mirror ?? state.mirror,
       generation,
       pageId,
+      tabs: message.tabs ?? (identityChanged ? [] : state.tabs),
+      pendingDialog:
+        message.pendingDialog === undefined
+          ? identityChanged
+            ? null
+            : state.pendingDialog
+          : message.pendingDialog,
+      viewport: message.viewport ?? state.viewport,
       ...(identityChanged
         ? {
             frame: { src: '', viewportWidth: 0, viewportHeight: 0 },
@@ -311,5 +331,8 @@ export function useBrowserSessionLease(input: {
     mirror: state.mirror,
     generation: state.generation,
     pageId: state.pageId,
+    tabs: state.tabs,
+    pendingDialog: state.pendingDialog,
+    viewport: state.viewport,
   };
 }

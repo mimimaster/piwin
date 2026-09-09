@@ -176,6 +176,13 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
         ? { onOpenWorkspace: () => void onOpenWorkspace() }
         : {})}
       onOpenProject={(path) => void onOpenProject(path)}
+      onOpenGeneral={() => {
+        if (state.activeScope.kind === 'general') {
+          return;
+        }
+        dispatch({ type: 'project/clear' });
+        void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
+      }}
       {...(hostClient.supportsCommand('project/remove')
         ? {
             onRemoveProject: (path: string) => void onRemoveProject(path),

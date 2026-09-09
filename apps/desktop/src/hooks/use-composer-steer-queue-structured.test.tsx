@@ -4,7 +4,13 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { HostClient } from '../host-client';
 import { useComposerMedia } from './use-composer-media';
-import { createInitialTestChatUiState, type ComposerMediaResult } from './composer-media-test-harness';
+import { createInitialTestChatUiState, type ComposerMediaResult, pasteImage } from './composer-media-test-harness';
+
+// Canvas decoding is unrelated to preserving the attachment draft.
+vi.mock('../media-preview-bitmap.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../media-preview-bitmap.js')>();
+  return { ...actual, beginComposerImagePreview: (file: File) => ({ lightboxUrl: URL.createObjectURL(file) }) };
+});
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -25,7 +31,7 @@ describe('queued-turn send-now with structured input', () => {
     container = null;
   });
 
-  it('converts a queued message that carries context refs into a Run intervention', async () => {
+  it('locks duplicate queued submissions until the structured intervention completes', async () => {
     container = document.createElement('div');
     document.body.append(container);
     root = createRoot(container);
@@ -107,7 +113,9 @@ describe('queued-turn send-now with structured input', () => {
     };
 
     await act(async () => {
-      await latest().handleSteerQueueSendNow('queued-1');
+      const first = latest().handleSteerQueueSendNow('queued-1');
+      const second = latest().handleSteerQueueSendNow('queued-1');
+      await Promise.all([first, second]);
     });
 
     expect(hostClient.request).toHaveBeenCalledTimes(1);
@@ -120,5 +128,48 @@ describe('queued-turn send-now with structured input', () => {
     expect(dispatch).not.toHaveBeenCalledWith(
       expect.objectContaining({ type: 'error' }),
     );
+    vi.mocked(hostClient.request).mockRejectedValueOnce(new Error('connection lost'));
+    await act(async () => {
+      await latest().handleSteerQueueSendNow('queued-1');
+      await latest().handleSteerQueueSendNow('queued-1');
+    });
+    expect(hostClient.request).toHaveBeenCalledTimes(3);
+
   });
+  it('preserves text and pasted attachments instead of submitting a partial intervention', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const request = vi.fn();
+    const dispatch = vi.fn();
+    let captured: ComposerMediaResult | undefined;
+    function Harness(): null {
+      captured = useComposerMedia({
+        hostClient: { request } as unknown as HostClient,
+        state: {
+          ...createInitialTestChatUiState(), activeSessionId: 'session-1',
+          activeRunId: 'run-1', runPhase: 'streaming', streaming: true,
+        },
+        dispatch, agentMode: 'agent',
+      });
+      return null;
+    }
+    act(() => root?.render(<Harness />));
+    const latest = (): ComposerMediaResult => {
+      if (!captured) throw new Error('hook not rendered');
+      return captured;
+    };
+    act(() => latest().setComposer('Use this screenshot'));
+    pasteImage(latest);
+    const attachments = latest().pendingAttachments;
+    expect(attachments).toHaveLength(1);
+    await act(async () => {
+      expect(await latest().handleSteer()).toBe(false);
+    });
+    expect(request).not.toHaveBeenCalled();
+    expect(latest().composer).toBe('Use this screenshot');
+    expect(latest().pendingAttachments).toEqual(attachments);
+    expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'user/steer' }));
+  });
+
 });
