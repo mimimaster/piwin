@@ -27,9 +27,13 @@ test('ink-wash empty canvas loads optional art and keeps execution surfaces imag
 }) => {
   await page.setViewportSize({ width: 1280, height: 840 });
   await page.goto('/');
+  const chooseSidecar = page.getByTestId('host-gate-choose-sidecar');
+  if (await chooseSidecar.isVisible()) {
+    await chooseSidecar.click();
+  }
   await expect(page.getByTestId('app-shell')).toBeVisible();
   await expect(page.getByTestId('agent-mode-pill')).toHaveText('mock');
-  await page.getByTestId('settings-open-btn').click();
+  await page.getByTestId('settings-open-shelf-btn').click();
   await page.getByTestId('settings-nav-appearance').click();
   await page.getByTestId('theme-library-select').selectOption('piwin-ink-wash');
 

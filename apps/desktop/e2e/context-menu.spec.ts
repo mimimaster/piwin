@@ -7,6 +7,10 @@ import { expect, test, type Page } from '@playwright/test';
  */
 
 async function waitForHostReady(page: Page): Promise<void> {
+  const chooseSidecar = page.getByTestId('host-gate-choose-sidecar');
+  if (await chooseSidecar.isVisible()) {
+    await chooseSidecar.click();
+  }
   await expect(page.getByTestId('app-shell')).toBeVisible();
   // This branch's StatusBar no longer exposes host-status-pill; shell ready is
   // proven by the workspace picker entry point being interactive.

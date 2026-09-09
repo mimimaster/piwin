@@ -6,6 +6,12 @@ import { expect, test, type Page } from '@playwright/test';
  */
 
 async function waitForHostReady(page: Page): Promise<void> {
+  // Fresh profile: '/' lands on the sidecar-vs-attach chooser before the
+  // shell itself. Click through it if present (see host-connect-wall.tsx).
+  const chooseSidecar = page.getByTestId('host-gate-choose-sidecar');
+  if (await chooseSidecar.isVisible()) {
+    await chooseSidecar.click();
+  }
   await expect(page.getByTestId('app-shell')).toBeVisible();
   // The compact sidebar no longer paints the legacy status/transport pills.
   // Wait on the shell-owned runtime sentinel and the mounted composer instead.
@@ -54,7 +60,7 @@ test.describe('desktop shell (vite + host mock)', () => {
     await page.goto('/');
     await waitForHostReady(page);
 
-    await page.getByTestId('settings-open-btn').click();
+    await page.getByTestId('settings-open-shelf-btn').click();
     await expect(page.getByTestId('settings-panel')).toBeVisible();
     await expect(page.getByTestId('settings-config-root')).toHaveAttribute('title', /配置根目录/);
 
@@ -71,7 +77,7 @@ test.describe('desktop shell (vite + host mock)', () => {
   }) => {
     await page.goto('/');
     await waitForHostReady(page);
-    await page.getByTestId('settings-open-btn').click();
+    await page.getByTestId('settings-open-shelf-btn').click();
 
     await page.getByTestId('settings-language-select').selectOption('en');
     await expect(page.getByTestId('settings-panel')).toHaveAttribute('aria-label', 'Settings');
@@ -79,9 +85,9 @@ test.describe('desktop shell (vite + host mock)', () => {
 
     await page.reload();
     await waitForHostReady(page);
-    await expect(page.getByTestId('settings-open-btn')).toHaveAttribute('aria-label', 'Settings');
+    await expect(page.getByTestId('settings-open-shelf-btn')).toHaveAttribute('aria-label', 'Settings');
 
-    await page.getByTestId('settings-open-btn').click();
+    await page.getByTestId('settings-open-shelf-btn').click();
     await expect(page.getByTestId('settings-language-select')).toHaveValue('en');
   });
 
@@ -89,7 +95,7 @@ test.describe('desktop shell (vite + host mock)', () => {
     await page.goto('/');
     await waitForHostReady(page);
 
-    await page.getByTestId('settings-open-btn').click();
+    await page.getByTestId('settings-open-shelf-btn').click();
     await expect(page.getByTestId('settings-panel')).toBeVisible();
     await page.getByTestId('settings-nav-extensions').click();
     await expect(page.getByTestId('extensions-panel')).toBeVisible();
@@ -114,7 +120,7 @@ test.describe('desktop shell (vite + host mock)', () => {
   test('Models settings can add a provider preset', async ({ page }) => {
     await page.goto('/');
     await waitForHostReady(page);
-    await page.getByTestId('settings-open-btn').click();
+    await page.getByTestId('settings-open-shelf-btn').click();
     await page.getByTestId('settings-nav-models').click();
     await expect(page.getByTestId('provider-settings')).toBeVisible();
     await page.getByTestId('provider-add-open').click();
@@ -129,7 +135,7 @@ test.describe('desktop shell (vite + host mock)', () => {
   test('Models settings can add Google Gemini protocol preset', async ({ page }) => {
     await page.goto('/');
     await waitForHostReady(page);
-    await page.getByTestId('settings-open-btn').click();
+    await page.getByTestId('settings-open-shelf-btn').click();
     await page.getByTestId('settings-nav-models').click();
     await expect(page.getByTestId('provider-settings')).toBeVisible();
     await page.getByTestId('provider-add-open').click();
@@ -397,7 +403,7 @@ test.describe('desktop shell (vite + host mock)', () => {
   test('MCP registry draft appears in configured list', async ({ page }) => {
     await page.goto('/');
     await waitForHostReady(page);
-    await page.getByTestId('settings-open-btn').click();
+    await page.getByTestId('settings-open-shelf-btn').click();
     // MCP panel triggers mcp/get on mount (not handled by mock).
     // Verify the settings nav button for tools/MCP is present.
     await expect(page.getByTestId('settings-nav-tools')).toBeVisible();
@@ -407,7 +413,7 @@ test.describe('desktop shell (vite + host mock)', () => {
   test('Settings Automation panel loads', async ({ page }) => {
     await page.goto('/');
     await waitForHostReady(page);
-    await page.getByTestId('settings-open-btn').click();
+    await page.getByTestId('settings-open-shelf-btn').click();
     await page
       .getByTestId('settings-panel')
       .getByRole('button', { name: /自动化/ })
@@ -425,7 +431,7 @@ test.describe('desktop shell (vite + host mock)', () => {
   test('Skills Store and MCP Registry tabs', async ({ page }) => {
     await page.goto('/');
     await waitForHostReady(page);
-    await page.getByTestId('settings-open-btn').click();
+    await page.getByTestId('settings-open-shelf-btn').click();
     // Skills panel triggers skills/list on mount (not handled by mock).
     // Verify the settings nav button is present; full panel requires real host.
     await expect(page.getByTestId('settings-nav-skills')).toBeVisible();
@@ -486,7 +492,7 @@ test.describe('desktop shell (vite + host mock)', () => {
     await page.goto('/');
     await waitForHostReady(page);
     await expect(page.getByTestId('shell-preview-pill')).toHaveCount(0);
-    await page.getByTestId('settings-open-btn').click();
+    await page.getByTestId('settings-open-shelf-btn').click();
     await expect(page.getByTestId('capability-matrix')).toBeVisible();
     await expect(page.getByTestId('capability-row-pty')).toContainText(
       /交互终端|Interactive terminal/,
@@ -500,7 +506,7 @@ test.describe('desktop shell (vite + host mock)', () => {
     await waitForHostReady(page);
     await openTrustedSession(page, '/tmp/piwin-e2e-remembered-perms');
 
-    await page.getByTestId('settings-open-btn').click();
+    await page.getByTestId('settings-open-shelf-btn').click();
     await expect(page.getByTestId('settings-panel')).toBeVisible();
     await expect(page.getByTestId('remembered-permissions')).toBeVisible();
     await expect(page.getByTestId('remembered-permission-row')).toBeVisible();
@@ -514,7 +520,7 @@ test.describe('desktop shell (vite + host mock)', () => {
     await waitForHostReady(page);
     await openTrustedSession(page, '/tmp/piwin-e2e-a11y-focus');
 
-    await page.getByTestId('settings-open-btn').click();
+    await page.getByTestId('settings-open-shelf-btn').click();
     await expect(page.getByTestId('settings-panel')).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('settings-panel')).toHaveCount(0);
@@ -528,7 +534,7 @@ test.describe('desktop shell (vite + host mock)', () => {
   test('automation panel shows host-required honesty banner', async ({ page }) => {
     await page.goto('/');
     await waitForHostReady(page);
-    await page.getByTestId('settings-open-btn').click();
+    await page.getByTestId('settings-open-shelf-btn').click();
     await page
       .getByTestId('settings-panel')
       .getByRole('button', { name: /自动化/ })
@@ -550,7 +556,7 @@ test.describe('desktop shell (vite + host mock)', () => {
     await expect(page.getByTestId('session-item')).toHaveCount(1);
     await expect(page.getByTestId('composer-input')).toBeEnabled();
 
-    await page.getByTestId('settings-open-btn').click();
+    await page.getByTestId('settings-open-shelf-btn').click();
     await expect(page.getByTestId('settings-panel')).toBeVisible();
     await page
       .getByTestId('settings-panel')

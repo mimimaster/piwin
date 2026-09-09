@@ -1,6 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 
 async function waitForHostReady(page: Page): Promise<void> {
+  const chooseSidecar = page.getByTestId('host-gate-choose-sidecar');
+  if (await chooseSidecar.isVisible()) {
+    await chooseSidecar.click();
+  }
   await expect(page.getByTestId('app-shell')).toBeVisible();
   await expect(page.getByTestId('agent-mode-pill')).toHaveText('mock');
   await expect(page.getByTestId('composer-input')).toBeVisible();
