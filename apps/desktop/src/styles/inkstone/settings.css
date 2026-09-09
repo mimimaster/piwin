@@ -27,8 +27,14 @@ html:is(
   }
 
   .settings-titlebar-title {
-    font: 500 15px var(--serif);
+    font: 500 13.5px/20px var(--serif);
     color: var(--t1);
+  }
+
+  .settings-back-button {
+    width: 22px;
+    height: 22px;
+    margin-right: 0;
   }
 
   .settings-nav {

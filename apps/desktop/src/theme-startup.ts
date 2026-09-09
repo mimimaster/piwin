@@ -16,6 +16,7 @@
 import type { ThemeManifest } from '@piwin/contracts';
 import {
   buildAppearanceTheme,
+  inkstoneDocumentThemeId,
   isBuiltinAppearanceId,
   isInkstoneThemeId,
   migrateThemeId,
@@ -68,7 +69,14 @@ export function isDocumentThemeId(themeId: string): boolean {
     return false;
   }
   const applied = document.documentElement.dataset.themeId;
-  return applied !== undefined && migrateThemeId(applied) === migrateThemeId(themeId);
+  if (applied === undefined) {
+    return false;
+  }
+  const mode = document.documentElement.dataset.themeMode === 'dark' ? 'dark' : 'light';
+  return (
+    inkstoneDocumentThemeId(migrateThemeId(applied), mode) ===
+    inkstoneDocumentThemeId(migrateThemeId(themeId), mode)
+  );
 }
 
 export function isStartupBuiltinThemeId(themeId: string): boolean {

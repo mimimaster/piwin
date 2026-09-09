@@ -324,6 +324,28 @@ describe('applyAppearanceToDocument', () => {
     }
   });
 
+  it('maps Appearance overlay ids onto Inkstone paper/ink so structural CSS matches', () => {
+    applyAppearanceToDocument(
+      buildAppearanceTheme('light', {
+        preset: 'default',
+        background: '#E6E1D7',
+        foreground: '#1D1B17',
+        accent: '#C6412A',
+      }),
+    );
+    expect(document.documentElement.dataset.themeId).toBe('piwin-inkstone-paper');
+
+    applyAppearanceToDocument(
+      buildAppearanceTheme('dark', {
+        preset: 'default',
+        background: '#0A0A12',
+        foreground: '#F2F2FF',
+        accent: '#FF4488',
+      }),
+    );
+    expect(document.documentElement.dataset.themeId).toBe('piwin-inkstone-ink');
+  });
+
   it('sets theme identity attributes for every built-in', () => {
     applyAppearanceToDocument(PIWIN_APPEARANCE_OBSIDIAN);
     expect(document.documentElement.dataset.themeMode).toBe('dark');

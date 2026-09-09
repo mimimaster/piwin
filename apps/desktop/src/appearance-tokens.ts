@@ -19,7 +19,11 @@ import {
   PIWIN_APPEARANCE_INKSTONE_PAPER,
 } from './theme/deck-palette';
 
-export { applyAppearanceToDocument, appearanceVariableNames } from './theme/apply-appearance';
+export {
+  applyAppearanceToDocument,
+  appearanceVariableNames,
+  inkstoneDocumentThemeId,
+} from './theme/apply-appearance';
 export { beginThemeSwitch } from './theme/theme-switch';
 export { deriveDeckTokens, resolveDeckTokens } from './theme/deck-derive';
 export {

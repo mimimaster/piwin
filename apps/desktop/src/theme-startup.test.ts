@@ -84,6 +84,12 @@ describe('rememberAppliedTheme / isDocumentThemeId', () => {
     expect(isDocumentThemeId('piwin-ink-wash')).toBe(false);
   });
 
+  it('treats Appearance overlay ids as the Inkstone face already on the document', () => {
+    applyAppearanceToDocument(PIWIN_APPEARANCE_LIGHT);
+    expect(isDocumentThemeId('piwin-light-appearance')).toBe(true);
+    expect(isDocumentThemeId('piwin-inkstone-paper')).toBe(true);
+  });
+
   it('classifies product library themes as startup-safe builtins', () => {
     expect(isStartupBuiltinThemeId('piwin-ink-wash')).toBe(true);
     expect(isStartupBuiltinThemeId('piwin-dark-appearance')).toBe(false);

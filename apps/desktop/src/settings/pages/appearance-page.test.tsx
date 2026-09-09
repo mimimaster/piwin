@@ -357,6 +357,52 @@ describe('AppearancePage', () => {
     );
   });
 
+  it('resets custom face colors to Inkstone defaults when Default is chosen', async () => {
+    const customLight = {
+      preset: 'default' as const,
+      background: '#AA7942',
+      foreground: '#1D1B17',
+      accent: '#C6412A',
+    };
+    const contextValue = createContextValue({
+      activeTheme: PIWIN_APPEARANCE_LIGHT,
+      preferences: createPreferences({ appearanceMode: 'light', lightTheme: customLight }),
+    });
+
+    await renderPage(contextValue);
+
+    const summary = container.querySelector('.appearance-color-disclosure summary');
+    expect(summary).not.toBeNull();
+    await act(async () => {
+      summary?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const select = container.querySelector<HTMLSelectElement>(
+      '[data-testid="inkstone-theme-preset"]',
+    );
+    expect(select).not.toBeNull();
+    if (!select) return;
+    expect(select.value).toBe('custom');
+
+    await act(async () => {
+      select.value = 'default';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    expect(contextValue.onPreferencesChange).toHaveBeenCalledWith(
+      expect.objectContaining({ lightTheme: DEFAULT_LIGHT_THEME_SETTINGS }),
+    );
+    expect(contextValue.onThemeApplied).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'piwin-inkstone-paper',
+        mode: 'light',
+        tokens: expect.objectContaining({
+          bg: DEFAULT_LIGHT_THEME_SETTINGS.background.toLowerCase(),
+        }),
+      }),
+    );
+  });
+
   it('blocks appearance mode changes when theme package is active', async () => {
     const contextValue = createContextValue({
       activeTheme: PIWIN_APPEARANCE_INK_WASH,

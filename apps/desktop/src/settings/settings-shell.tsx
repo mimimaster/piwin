@@ -349,7 +349,7 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
                 title={`${translator.settings.backToWorkspace} (Esc)`}
                 aria-label={translator.settings.backToWorkspace}
               >
-                <IconChevronLeft width={16} height={16} aria-hidden="true" />
+                <IconChevronLeft width={14} height={14} aria-hidden="true" />
                 <span className="sr-only">{translator.settings.backToWorkspace}</span>
               </button>
               <span className="settings-titlebar-title">{copy.settings}</span>

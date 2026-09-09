@@ -257,6 +257,20 @@ describe('appearance theme migration', () => {
     expect(migrated).toEqual(DEFAULT_DARK_THEME_SETTINGS);
   });
 
+  it('maps the pre-contrast Inkstone paper accent onto the current paper face', () => {
+    const migrated = migrateStoredAppearanceTheme(
+      {
+        preset: 'default',
+        background: '#E6E1D7',
+        foreground: '#1D1B17',
+        accent: '#C6412A',
+      },
+      'light',
+    );
+    expect(migrated).toEqual(DEFAULT_LIGHT_THEME_SETTINGS);
+    expect(migrated.accent).toBe('#B03A24');
+  });
+
   it('leaves custom accent colors alone', () => {
     const custom = {
       preset: 'default' as const,
