@@ -257,6 +257,29 @@ describe('SettingsShell', () => {
     ).toBe(true);
   });
 
+  it('finds controls from consolidated sections and enters their category', () => {
+    act(() => {
+      root.render(<ShellHarness initialSection="models" />);
+    });
+
+    const search = container.querySelector<HTMLInputElement>('.settings-search-input');
+    expect(search).not.toBeNull();
+    act(() => {
+      if (search) {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(search, 'font');
+        search.dispatchEvent(new Event('input', { bubbles: true }));
+        search.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+    expect(container.querySelector('[data-testid="settings-nav-general"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="settings-nav-models"]')).toBeNull();
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="settings-nav-general"]')?.click();
+    });
+    expect(container.querySelector('[data-testid="settings-general"]')).not.toBeNull();
+  });
+
   it('renders the models page with provider settings when config is loaded', async () => {
     const contextValue = createContextValue(vi.fn());
     contextValue.config = {

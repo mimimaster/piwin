@@ -78,6 +78,7 @@ export type ChatThreadProps = {
   onBranchResend?: (messageId: string, text: string) => void;
   /** Re-run the same user turn without creating a prompt sibling. */
   onRetryTurn?: (userMessageId: string, options: { keepPrevious: boolean }) => void;
+  onContinueTurn?: () => void;
   branchPoints?: TranscriptBranchPoint[];
   onSwitchBranch?: (headMessageId: string) => void;
   /** Edit a still-pending instruction without rewinding conversation history. */

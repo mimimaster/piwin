@@ -137,6 +137,39 @@ describe('TurnErrorCard', () => {
     );
   });
 
+  it('renders continue and start-over when work already landed', () => {
+    const onContinue = vi.fn();
+    const onRestart = vi.fn();
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <TurnErrorCard
+            messageId="m1"
+            error="Provider finish_reason: max_tokens"
+            onContinue={onContinue}
+            onRestart={onRestart}
+            locale="zh-CN"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const continueBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="turn-error-continue-btn"]',
+    );
+    const restartBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="turn-error-restart-btn"]',
+    );
+    expect(continueBtn?.textContent).toBe('继续');
+    expect(restartBtn?.textContent).toBe('从头再来');
+    expect(container.querySelector('[data-testid="turn-error-retry-btn"]')).toBeNull();
+    act(() => {
+      continueBtn?.click();
+    });
+    expect(onContinue).toHaveBeenCalledTimes(1);
+    expect(onRestart).not.toHaveBeenCalled();
+  });
+
   it('renders retry button and triggers onRetry callback', () => {
     const onRetry = vi.fn();
     act(() => {

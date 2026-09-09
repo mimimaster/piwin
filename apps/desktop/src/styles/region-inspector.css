@@ -56,6 +56,10 @@
   z-index: auto;
 }
 
+.app-shell.has-right-panel.right-panel-full-width > .right-panel.outward-column {
+  max-width: none;
+}
+
 /* Compact cannot reliably grow the window; panel is a fixed overlay drawer. */
 .app-shell[data-layout='compact'] > .right-panel.outward-column {
   position: fixed;
@@ -480,67 +484,91 @@
   display: none;
 }
 
+.right-panel-home-list,
 .right-panel-home-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--s-4);
-  width: min(100%, 230px);
-}
-
-.right-panel-home-tile {
   display: flex;
   flex-direction: column;
+  gap: 2px;
+  width: min(100%, 240px);
+  margin: 0 auto;
+}
+
+.right-panel-home-row {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  gap: var(--s-4);
-  aspect-ratio: 1;
-  padding: var(--s-6);
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 10px;
   border: 0;
-  border-radius: var(--r-card);
-  background: var(--surface-2);
-  color: var(--text-3);
-  font-size: var(--fs-chrome);
-  font-weight: 500;
+  border-radius: var(--r-control, 6px);
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--fs-chrome, 12px);
   cursor: pointer;
   transition:
-    background-color var(--t-2) var(--ease-out),
-    box-shadow var(--t-2) var(--ease-out),
-    color var(--t-2) var(--ease-out),
-    transform var(--t-2) var(--ease-out);
+    background-color var(--t-1, 0.15s) var(--ease-out),
+    color var(--t-1, 0.15s) var(--ease-out);
 }
 
-.right-panel-home-tile:hover {
-  background: var(--surface-3);
-  box-shadow: var(--elev-2);
+.right-panel-home-row:hover {
+  background: var(--surface-2);
   color: var(--text-1);
-  transform: translateY(-1px);
 }
 
-.right-panel-home-tile:active {
-  transform: scale(0.98);
+.right-panel-home-row:active {
+  transform: scale(0.99);
+}
+
+.right-panel-home-row-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 
 .right-panel-home-icon {
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
-  color: var(--text-4);
-  transition: color var(--t-2) var(--ease-out);
+  width: 16px;
+  height: 16px;
+  color: var(--text-3);
+  flex-shrink: 0;
+  transition: color var(--t-1, 0.15s) var(--ease-out);
 }
 
 .right-panel-home-icon svg {
-  width: 22px;
-  height: 22px;
+  width: 16px;
+  height: 16px;
 }
 
-.right-panel-home-tile:hover .right-panel-home-icon {
-  color: var(--iris-lift);
+.right-panel-home-row:hover .right-panel-home-icon {
+  color: var(--text-1);
 }
 
 .right-panel-home-label {
-  text-align: center;
+  font-size: 13px;
+  font-weight: 400;
   white-space: nowrap;
+}
+
+.right-panel-home-shortcut {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-1);
+  color: var(--text-3);
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+}
+
+.right-panel-home-row:hover .right-panel-home-shortcut {
+  background: var(--surface-3);
+  color: var(--text-2);
 }
 
 .right-panel-terminal {

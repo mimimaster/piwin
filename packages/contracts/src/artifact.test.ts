@@ -45,7 +45,7 @@ describe('canonical artifact language', () => {
 describe('default artifact decision prompt', () => {
   it('wraps the proactive decision policy in a metadata block', () => {
     expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
-      '[piwin-prompt-meta kind="artifact:decision" version="6" applies="artifacts-enabled"]',
+      '[piwin-prompt-meta kind="artifact:decision" version="8" applies="artifacts-enabled"]',
     );
     expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
       '<artifact-decision-policy name="piwin-proactive-surfaces">',
@@ -80,6 +80,11 @@ describe('default artifact decision prompt', () => {
     expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
       'Full app/page prototypes',
     );
+    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('Standalone reports');
+    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('architecture reviews');
+    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('MUST use Canvas');
+    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('user intent');
+    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain('Markdown table');
     expect(DEFAULT_ARTIFACT_DECISION_PROMPT).not.toContain('```artifact-html');
   });
 
@@ -105,7 +110,9 @@ describe('artifact protocol formatter', () => {
     expect(protocol).toContain('```artifact-html title="Short descriptive title" surface="canvas"');
     expect(protocol).toContain('surface="canvas"');
     expect(protocol).toContain('--piwin-artifact-');
-    expect(protocol).toContain('kind="artifact:runtime" version="8"');
+    expect(protocol).toContain('kind="artifact:runtime" version="9"');
+    expect(protocol).toContain('data-piwin-media');
+    expect(protocol).toContain('Never `data:image`');
     expect(protocol).toContain('Canvas Viewport');
     expect(protocol).toContain('Emit complete `<style>` blocks before any visible HTML markup');
     expect(protocol).toContain(

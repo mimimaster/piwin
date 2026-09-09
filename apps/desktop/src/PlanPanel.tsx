@@ -1,11 +1,22 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { HostResponse, PlanStepStatus, SessionPlan } from '@piwin/contracts';
+import type {
+  HostResponse,
+  PlanStepStatus,
+  SessionPlan,
+  SessionPlanVersion,
+  SessionPlanWriteExpectation,
+} from '@piwin/contracts';
 import { Button, Field, FieldCheckbox, Notice } from '@piwin/ui-kit';
 
 type PlanRequest =
   | { type: 'plan/get'; sessionId: string }
-  | { type: 'plan/set'; sessionId: string; plan: SessionPlan }
-  | { type: 'plan/clear'; sessionId: string }
+  | {
+      type: 'plan/set';
+      sessionId: string;
+      plan: SessionPlan;
+      expected: SessionPlanWriteExpectation;
+    }
+  | { type: 'plan/clear'; sessionId: string; expected: SessionPlanVersion }
   | { type: 'plan/approve'; sessionId: string }
   | {
       type: 'plan/update-step';
@@ -127,6 +138,10 @@ export function PlanPanel(props: PlanPanelProps) {
       type: 'plan/set',
       sessionId: props.sessionId,
       plan,
+      expected:
+        props.plan === null
+          ? null
+          : { planId: props.plan.id, revision: props.plan.revision },
     });
     setBusy(false);
     if (!response.success) {
@@ -152,9 +167,13 @@ export function PlanPanel(props: PlanPanelProps) {
   }
 
   async function handleClear(): Promise<void> {
-    if (!props.sessionId) return;
+    if (!props.sessionId || !props.plan) return;
     setBusy(true);
-    const response = await props.request({ type: 'plan/clear', sessionId: props.sessionId });
+    const response = await props.request({
+      type: 'plan/clear',
+      sessionId: props.sessionId,
+      expected: { planId: props.plan.id, revision: props.plan.revision },
+    });
     setBusy(false);
     if (!response.success) {
       setError(response.error);

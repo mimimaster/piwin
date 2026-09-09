@@ -1,0 +1,596 @@
+/* Settings → OAuth: Quota & Inline Auth Drawers styling.
+   Adhering to Deck Design System (Inset Panel pattern). */
+
+/* ── Quota Drawer (Inset Details Panel) ────────────────────────────────── */
+
+.oauth-quota-drawer {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: var(--r-card);
+  background: color-mix(in srgb, var(--surface-1) 85%, transparent);
+  border: 1px solid var(--line-1);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: oauth-drawer-expand 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.oauth-quota-drawer.is-loading,
+.oauth-quota-drawer.is-empty { padding: var(--s-3); }
+
+.oauth-quota-loading-state,
+.oauth-quota-empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border-radius: var(--r-control);
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+}
+
+/* ── Quota Meta Bar (Account + Plan) ──────────────────────────────────── */
+
+.oauth-quota-meta-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: 8px 12px;
+  border-radius: var(--r-control);
+  background: var(--surface-2);
+  border: 1px solid var(--line-1);
+}
+
+.oauth-quota-account-info {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.oauth-quota-account-id {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-2);
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oauth-quota-account-id.is-official {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--text-2);
+}
+
+.oauth-quota-account-icon {
+  flex: 0 0 auto;
+  color: var(--text-4);
+}
+
+.oauth-quota-plan-tags {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-shrink: 0;
+}
+
+.oauth-quota-plan-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2.5px 9px;
+  border-radius: var(--r-pill);
+  font-size: 11px;
+  font-weight: 650;
+  background: color-mix(in srgb, var(--iris) 15%, transparent);
+  color: var(--iris);
+  border: 1px solid color-mix(in srgb, var(--iris) 28%, transparent);
+}
+
+.oauth-quota-renewal-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-4);
+}
+
+/* ── Active Resets Box ────────────────────────────────────────────────── */
+
+.oauth-quota-resets-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--amber) 8%, var(--surface-2));
+  border: 1px solid color-mix(in srgb, var(--amber) 25%, transparent);
+}
+
+.oauth-quota-resets-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.oauth-quota-resets-title {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--amber);
+}
+
+.oauth-quota-resets-count {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.oauth-quota-resets-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.oauth-quota-reset-slot-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--surface-1) 80%, transparent);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-3);
+}
+
+.oauth-quota-reset-slot-time { color: var(--text-2); }
+
+.oauth-quota-resets-action {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--s-1);
+}
+
+/* ── Quota Windows & Groups ───────────────────────────────────────────── */
+
+.oauth-quota-groups-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.oauth-quota-group-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--r-control);
+  background: var(--surface-2);
+  border: 1px solid var(--line-1);
+}
+
+.oauth-quota-group-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-bottom: 1px solid var(--line-1);
+  padding-bottom: 6px;
+  margin-bottom: 2px;
+}
+
+.oauth-quota-group-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.oauth-quota-group-desc {
+  font-size: 10.5px;
+  color: var(--text-4);
+}
+
+.oauth-quota-windows-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.oauth-quota-window-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px 12px;
+  border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--surface-1) 60%, transparent);
+  border: 1px solid color-mix(in srgb, var(--line-1) 70%, transparent);
+}
+
+.oauth-quota-window-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.oauth-quota-window-label {
+  color: var(--text-2);
+  font-weight: 550;
+}
+
+.oauth-quota-window-val {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.oauth-quota-window-val.is-mint { color: var(--mint); }
+.oauth-quota-window-val.is-amber { color: var(--amber); }
+.oauth-quota-window-val.is-coral { color: var(--coral); }
+.oauth-quota-window-val.is-neutral { color: var(--text-4); }
+
+.oauth-quota-progress-track {
+  width: 100%;
+  height: 7px;
+  border-radius: var(--r-pill);
+  background: var(--line-2);
+  overflow: hidden;
+}
+
+.oauth-quota-progress-bar {
+  height: 100%;
+  border-radius: var(--r-pill);
+  transition: width var(--t-3) var(--ease-out);
+}
+
+.oauth-quota-progress-bar.is-mint {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--mint) 80%, transparent), var(--mint));
+}
+.oauth-quota-progress-bar.is-amber {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--amber) 80%, transparent), var(--amber));
+}
+.oauth-quota-progress-bar.is-coral {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--coral) 80%, transparent), var(--coral));
+}
+.oauth-quota-progress-bar.is-neutral { background: var(--text-4); }
+
+.oauth-quota-window-bottom {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-4);
+  justify-content: flex-start;
+  margin-top: 1px;
+}
+
+/* ── Capabilities Tags ────────────────────────────────────────────────── */
+
+.oauth-quota-capabilities {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 12px 10px;
+  border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--surface-1) 45%, transparent);
+  border: 1px solid color-mix(in srgb, var(--line-1) 50%, transparent);
+}
+
+.oauth-quota-capabilities-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-4);
+  letter-spacing: 0.03em;
+}
+
+.oauth-quota-capabilities-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.oauth-quota-capability-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  border: 1px solid var(--line-1);
+  font-size: 11.5px;
+  color: var(--text-2);
+  font-weight: 500;
+}
+
+/* ── PAYG Card ────────────────────────────────────────────────────────── */
+
+.oauth-quota-payg-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--s-3);
+  border-radius: var(--r-control);
+  background: var(--surface-2);
+  border: 1px solid var(--line-1);
+  font-size: 11.5px;
+}
+
+.oauth-quota-payg-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.oauth-quota-payg-label {
+  color: var(--text-3);
+  font-weight: 550;
+}
+
+.oauth-quota-payg-status.is-enabled {
+  color: var(--mint);
+  font-weight: 650;
+}
+
+.oauth-quota-payg-status.is-disabled {
+  color: var(--text-4);
+}
+
+.oauth-quota-payg-usage {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+/* ── Quota Footer ─────────────────────────────────────────────────────── */
+
+.oauth-quota-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--line-1);
+}
+
+.oauth-quota-updated-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-4);
+}
+
+.oauth-quota-updated-time {
+  font-family: var(--font-mono);
+  color: var(--text-3);
+}
+
+.oauth-quota-recheck-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: var(--r-control);
+  background: var(--surface-2);
+  border: 1px solid var(--line-1);
+  color: var(--text-2);
+  font-size: 11.5px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: all var(--t-1) var(--ease-out);
+}
+
+.oauth-quota-recheck-btn:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text-1);
+  border-color: var(--line-2);
+}
+
+/* ── Inline Auth Form Area (Drawer) ───────────────────────────────────── */
+
+.oauth-account-inline-drawer {
+  margin-top: var(--s-3);
+  padding: var(--s-4);
+  border-radius: var(--r-card);
+  background: var(--surface-1);
+  border: 1px solid color-mix(in srgb, var(--iris) 30%, var(--line-1));
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.03);
+  animation: oauth-drawer-expand 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes oauth-drawer-expand {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.oauth-inline-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.oauth-inline-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.oauth-inline-hint {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--text-4);
+  line-height: 1.45;
+}
+
+/* ── Device Code Section ──────────────────────────────────────────────── */
+
+.oauth-inline-device-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.oauth-inline-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.oauth-device-code-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--s-3) var(--s-4);
+  background: var(--void);
+  border-radius: var(--r-card);
+  border: 1px solid var(--line-2);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.oauth-device-code-value {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--text-1);
+  user-select: all;
+}
+
+.oauth-copy-btn { flex: 0 0 auto; }
+.oauth-icon-mint { color: var(--mint); }
+
+.oauth-timer-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
+  color: var(--amber);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+}
+
+/* ── Web OAuth URL Section ────────────────────────────────────────────── */
+
+.oauth-inline-url-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.oauth-inline-url-box {
+  padding: var(--s-3) var(--s-4);
+  background: var(--void);
+  border-radius: var(--r-control);
+  border: 1px solid var(--line-2);
+  max-height: 110px;
+  overflow-y: auto;
+}
+
+.oauth-auth-url {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-2);
+  word-break: break-all;
+  user-select: all;
+}
+
+.oauth-inline-url-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+/* ── Input & Callback Form ────────────────────────────────────────────── */
+
+.oauth-inline-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.oauth-inline-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.oauth-inline-input input {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+.oauth-inline-actions-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+  margin-top: var(--s-1);
+}
+
+.oauth-inline-waiting-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--iris);
+  font-weight: 500;
+  margin-left: auto;
+}
+
+.oauth-inline-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding-top: var(--s-2);
+}
+
+.oauth-inline-loading {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-2);
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+.oauth-inline-message-box {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3);
+  border-radius: var(--r-control);
+  background: var(--surface-2);
+  border: 1px solid var(--line-1);
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.oauth-inline-spinner {
+  animation: oauth-dot-spin 1.2s infinite linear;
+  color: var(--iris);
+}

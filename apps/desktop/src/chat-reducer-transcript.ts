@@ -415,6 +415,11 @@ export function buildRunRecordsFromTranscriptMessages(
         : existingRecord?.terminalMessage
           ? { terminalMessage: existingRecord.terminalMessage }
           : {}),
+      ...(message.agentStopReason !== undefined
+        ? { agentStopReason: message.agentStopReason }
+        : existingRecord?.agentStopReason !== undefined
+          ? { agentStopReason: existingRecord.agentStopReason }
+          : {}),
     };
   }
   return records;

@@ -5,7 +5,7 @@
  * below, so a queued turn can gain or lose images the same way a new prompt
  * does. A row being edited only offers the exit back out of that edit.
  */
-import type { ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import { IconButton } from '@piwin/ui-kit';
 import { IconArrowUp, IconClose, IconEdit, IconImage, IconTrash } from './shell-icons';
 import { getDesktopCopy } from './desktop-locale';
@@ -28,6 +28,22 @@ export type SteerQueueProps = {
 export function SteerQueue(props: SteerQueueProps): ReactElement | null {
   const { locale } = useDesktopLocale();
   const copy = getDesktopCopy(locale).composer;
+
+  const [submitting, setSubmitting] = useState<ReadonlySet<string>>(new Set());
+
+  async function sendNow(messageId: string): Promise<void> {
+    if (submitting.has(messageId)) return;
+    setSubmitting((current) => new Set(current).add(messageId));
+    try {
+      await props.onSendNow(messageId);
+    } finally {
+      setSubmitting((current) => {
+        const next = new Set(current);
+        next.delete(messageId);
+        return next;
+      });
+    }
+  }
 
   if (props.messages.length === 0) {
     return null;
@@ -52,6 +68,7 @@ export function SteerQueue(props: SteerQueueProps): ReactElement | null {
       <ol className="steer-queue-list">
         {props.messages.map((message, index) => {
           const isEditing = props.editingMessageId === message.id;
+          const isSubmitting = submitting.has(message.id);
           const attachmentCount = message.attachmentCount ?? 0;
           return (
             <li
@@ -67,7 +84,7 @@ export function SteerQueue(props: SteerQueueProps): ReactElement | null {
                 type="button"
                 className="steer-queue-item-content"
                 data-testid={`steer-queue-open-${message.id}`}
-                disabled={isEditing}
+                disabled={isEditing || isSubmitting}
                 title={isEditing ? undefined : copy.editQueuedMessageHint}
                 onClick={() => props.onEdit(message.id)}
               >
@@ -105,6 +122,7 @@ export function SteerQueue(props: SteerQueueProps): ReactElement | null {
                       className="steer-queue-action"
                       data-testid={`steer-queue-edit-button-${message.id}`}
                       label={copy.editQueuedMessage}
+                      disabled={isSubmitting}
                       title={copy.editQueuedMessageHint}
                       onClick={() => props.onEdit(message.id)}
                     >
@@ -115,7 +133,9 @@ export function SteerQueue(props: SteerQueueProps): ReactElement | null {
                       data-testid={`steer-queue-send-${message.id}`}
                       label={copy.steerQueuedMessage}
                       title={copy.steerQueuedMessage}
-                      onClick={() => void props.onSendNow(message.id)}
+                      disabled={isSubmitting}
+                      aria-busy={isSubmitting}
+                      onClick={() => void sendNow(message.id)}
                     >
                       <IconArrowUp />
                     </IconButton>
@@ -123,6 +143,7 @@ export function SteerQueue(props: SteerQueueProps): ReactElement | null {
                       className="steer-queue-action is-remove"
                       data-testid={`steer-queue-remove-${message.id}`}
                       label={copy.removeQueuedMessage}
+                      disabled={isSubmitting}
                       title={copy.removeQueuedMessage}
                       onClick={() => props.onRemove(message.id)}
                     >

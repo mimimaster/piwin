@@ -1,10 +1,10 @@
 # SessionPlan 文档完整性与失败可见性 — 评审修订执行计划
 
 日期：2026-09-08
-状态：**T1–T6 代码与针对性测试已落地（ADR 0070）；T7 跨进程锁未做；测试构建 smoke / 产品 Host 复测未做**。
+状态：**T1–T6 修复已接入；plan-store 另接入同机合作进程文件锁，并有独立 Node 进程持有/等待/读改写 smoke。定向测试与 Host smoke 绿；全仓 typecheck / architecture 与 bundle 产物哈希仍需最终记录。**
 配套规格：[SessionPlan 完整性规格](../specs/2026-09-08-session-plan-integrity.md)。
 
-> 本次交付是方案评审与修订，不是下列任务已实施。旧版的“已落地，不要重做”不再是验收依据：保留已有正确实现，按下面的反例补缺口。工作树有大量其他会话改动，实施时以当时 diff 为准。
+> 本页记录方案评审与当前实现状态。旧版的“已落地，不要重做”不再是验收依据：保留已有正确实现，按下面的反例补缺口。工作树有大量其他会话改动，实施时以当时 diff 为准。
 
 **结论：保留 JSON + 每路径锁内读改写 + atomic rename，以及 failed Run 自己的错误气泡。补上显式版本前置条件、执行身份校验和持久化终态收口。** 不需要迁移 plan 到 SQLite，也不需要新 Host 全局锁。
 
@@ -157,19 +157,19 @@ save(B) → 当前实现认为 revision 相等可以自增 → 磁盘 rev4 / ste
 
 | 任务 | 当前状态 | 完成依据 |
 |---|---|---|
-| T1 文档 mutation / CAS | 部分实现，有确定反例 | 同版本旧快照冲突；锁内更新不丢字段 |
+| T1 文档 mutation / CAS | 已补实现 | 独立 expected 版本、旧身份、同路径读改写与字节上限回归 |
 | T2 损坏读取与恢复 | 部分实现 | 原字节保留、可诊断、prompt 继续 |
 | T3 执行入场和回调 | 迁过 mutator，但身份/终态保护缺失 | handler 级交错测试 |
-| T4 failed Run 持久化收口 | 无 recorder 分支存在，其他分支仍漏 | SQLite 重开后可见且幂等 |
+| T4 failed Run 持久化收口 | 已补失败终态兜底 | 缺 structured failure 时仍生成本 Run 错误 assistant |
 | T5 Desktop 投影 | 基本气泡存在，隔离与乱序待补 | 旧 Run 不变、live retry 不误报 |
 | T6 集成、文档、构建验收 | 未完成 | 全局检查 + 测试构建 smoke |
-| T7 跨进程锁加固 | 未实现于 plan-store | 独立进程测试，不以 Promise.all 代替 |
+| T7 跨进程锁加固 | 已接入基础实现，完整恢复合同未验收 | 独立进程持有/等待/读改写 smoke；不宣称分布式锁 |
 
 ## T1 — 钉死文档 mutation 和 CAS
 
 **拥有：** session/plan-store、plan-store.test；如改变 Host 请求前置条件则先改 contracts。
 
-1. 保留每路径 Promise 队列与 `writeTextFileAtomic`。load 中的修复、update、create、clear、隔离必须走同一临界区。内部读取函数不再调用公开加锁函数，避免同路径重入死锁。
+1. 保留每路径进程内队列与 `writeTextFileAtomic`，并由同包文件锁扩展到合作进程。load 的修复、update、create、clear、隔离必须走同一临界区。内部读取函数不再调用公开加锁函数，避免同路径重入死锁。
 2. 路径使用 Host 生成的规范绝对路径；至少统一相对路径和 `..`。限制别名路径，不宣称解决任意符号链接/网络文件系统协同写。队列在最后一个任务结束后按 Promise 身份删除；任务失败不能毒化队列。
 3. `updateSessionPlan` 的 mutator 只使用锁内 current，不做异步工具调用、push、RunRegistry 操作或重入文档 API。`null` 明确表示 no-op，并返回当前文档；删除只能用 clear。调用方不得把“返回非 null”当作“刚才成功修改”。
 4. **存储层负责提交版本**：同一文档每次实际提交为 current.revision + 1；创建使用确定的初始版本。不要用 next.revision 大小判断调用方有没有过期。迁移 `applyPlanStepUpdate` 等现有自增逻辑，防止双增；revision 限为非负安全整数。
@@ -293,15 +293,15 @@ pnpm test:architecture
 
 如跨协议改了 contracts / 其他壳，追加这些包的测试；新增的针对性文件必须真正出现在测试结果中。区分本任务失败和工作树既有失败，不把已有 124 项绿当作最终验收。核对修改源文件行数与 public exports。
 
-## T7 — 独立加固跨进程文档锁
+## T7 — 独立加固跨进程文档锁（当前进度）
 
-**优先级 P2，依赖 T1；不阻塞 T1–T6 修复当前单 Host 事故。** 根配置仍只支持一个 Host authority；此项针对同机器上遵守锁协议的维护进程，不能支持多台机器共享 root。
+**优先级 P2，依赖 T1；不阻塞 T1–T6 修复当前单 Host 事故。** 根配置仍只支持一个 Host authority；此项针对同机器上遵守锁协议的维护进程，不能支持多台机器共享 root。当前源码已接入基础文件锁和独立进程持有/等待/读改写 smoke，但本节的完整异常恢复合同仍未完成。
 
-- index 的 per-path queue + 同目录原子占位思路可复用；不要原样提取 `removeDeadIndexLock`。普通 `read owner → rm(lockPath)` 和 `stat/token 再检查 → rm` 都仍有检查到删除的窗口。
-- 推荐第一版使用原子占位、持有者 token、有限等待、AbortSignal，**不自动抢占/删除陈旧锁**。异常退出留下的锁需要在确认相关 writer 全部停止后的显式维护流程清理；读取增强上下文超时仍按 T2 降级。这是明确的可用性取舍，不是假装已解决自动回收。
+- index 的 per-path queue + 同目录原子占位思路已抽成 `packages/session/src/file-write-lock.ts`；当前实现保留有限等待、持有者 token 和异常退出的 PID 回收，适用于短时 plan I/O。它不是跨机器分布式锁，也不能约束绕过 helper 的外部写者。
+- 当前基础 smoke 覆盖独立进程的持有/等待/释放和读改写不丢更新；异常退出、取消、维护恢复仍需独立协议和测试，不能把本 smoke 扩大解释为完整 T7 验收。
 - 若必须自动回收，另行给出可证明不会删除新持有者锁的协议及平台依据，再实施。不能靠 sleep、PID 判断或二次 stat 充当证明。
 - `.lock` 覆盖创建/更新/clear/恢复；临界区只做文档 I/O。释放操作只对仍属自己的锁执行；没有 writer/维护进程可以绕过同一协议删除别人的锁。
-- 如最终抽 `document-file-lock.ts`，index 迁移以独立 commit 保持其错误信息、等待期限和持有者语义；不能把自动回收行为变化伪装成纯搬迁。共享 helper 不需要成为跨包公共 API。
+- 共享 helper 保持在 `@piwin/session` 内部，不成为跨包公共 API；后续若改变回收语义，必须单独记录并补独立进程证据。
 
 **验收必须 spawn 独立 Node 进程，使用临时目录和通信 barrier：** 两 writer 的 RMW 不丢；存活持有者不可被抢；等待取消/超时不删对方锁；持有者退出后行为符合上述保守策略；维护清理后可再获取；clear/repair 与 writer 互斥。20 路同进程 Promise.all 仅验证队列，不验证此任务。
 

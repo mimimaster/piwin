@@ -24,18 +24,20 @@ export const SECTION_META: Array<{
   icon: ReactElement;
   labelEn: string;
   labelZh: string;
-  /** When true, the tab is reachable but not shown in the home grid or + menu. */
+  /** Optional keyboard shortcut string for display in launcher (e.g. ⌥⌘S). */
+  shortcut?: string;
+  /** When true, the tab is reachable but not shown in the home list or + menu. */
   hidden?: boolean;
-  /** Shown in the + menu, not the 2x2 home launcher. */
+  /** Shown in the + menu, not the default home launcher. */
   plusOnly?: boolean;
 }> = [
-  { id: 'files', icon: <IconFile />, labelEn: 'File', labelZh: '文件' },
-  { id: 'terminal', icon: <IconTerminal />, labelEn: 'zsh', labelZh: 'zsh' },
-  { id: 'review', icon: <IconGit />, labelEn: 'Changes', labelZh: '变更' },
-  { id: 'browser', icon: <IconBrowser />, labelEn: 'Browser', labelZh: '浏览器' },
+  { id: 'sideChat', icon: <IconSideChat />, labelEn: 'Side chat', labelZh: '侧聊', shortcut: '⌥⌘S' },
+  { id: 'browser', icon: <IconBrowser />, labelEn: 'Browser', labelZh: '浏览器', shortcut: '⌘T' },
+  { id: 'files', icon: <IconFile />, labelEn: 'Files', labelZh: '文件', shortcut: '⌘P' },
+  { id: 'terminal', icon: <IconTerminal />, labelEn: 'zsh', labelZh: 'zsh', shortcut: '⌘J' },
+  { id: 'review', icon: <IconGit />, labelEn: 'Changes', labelZh: '变更', shortcut: '⌥⌘G' },
   { id: 'notes', icon: <IconNote />, labelEn: 'Notes', labelZh: '笔记', plusOnly: true },
   { id: 'cards', icon: <IconCards />, labelEn: 'Flashcards', labelZh: '知识卡片', plusOnly: true },
-  { id: 'sideChat', icon: <IconSideChat />, labelEn: 'Side chat', labelZh: '侧聊', plusOnly: true },
   { id: 'canvas', icon: <IconDocument />, labelEn: 'Canvas', labelZh: '画布', hidden: true },
   { id: 'docPreview', icon: <IconDocument />, labelEn: 'Document', labelZh: '文档', hidden: true },
 ];

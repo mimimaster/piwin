@@ -10,6 +10,7 @@
  */
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import type { Page } from 'playwright-core';
 import type {
   BrowserControllerPush,
   BrowserInputEvent,
@@ -43,6 +44,10 @@ import type {
 } from './browser-observe.js';
 import type { BrowserDialogInfo, BrowserTabInfo } from './browser-pages.js';
 import {
+  BROWSER_DEFAULT_DEVICE_SCALE_FACTOR,
+  clampBrowserDeviceScaleFactor,
+} from './screencast-size.js';
+import {
   AbortOperationError,
   BrowserSessionError,
   BrowserUserHasControlError,
@@ -69,8 +74,10 @@ export type BrowserSessionOptions = {
   headless?: boolean;
   /** Requested viewport in CSS px; each dimension is capped to `maxDimension`. */
   viewport?: { width: number; height: number };
-  /** Cap for the largest frame/viewport dimension (~1280). */
+  /** Cap for the largest CSS viewport dimension (~1280). */
   maxDimension?: number;
+  /** Host-owned Chromium raster scale. Ignored for connectOverCDP. Default 2. */
+  deviceScaleFactor?: number;
   /** Frame stream ceiling in fps (default 4). */
   maxFps?: number;
   userAgent?: string;
@@ -224,6 +231,7 @@ const MAX_INPUT_EVENTS = 64;
 export function createBrowserSession(options: BrowserSessionOptions = {}): BrowserSession {
   const maxDimension = options.maxDimension ?? 1280;
   const requestedViewport = options.viewport ?? { width: 1280, height: 800 };
+  const deviceScaleFactor = options.deviceScaleFactor ?? BROWSER_DEFAULT_DEVICE_SCALE_FACTOR;
   const headless = options.headless ?? true;
   const maxFps = options.maxFps ?? 4;
   const profileDir = options.profileDir ?? join(homedir(), '.piwin', 'browser-profile');
@@ -245,6 +253,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
       profileDir,
       requestedViewport,
       maxDimension,
+      deviceScaleFactor,
       captureConsoleAndNetwork,
       ...(options.userAgent !== undefined ? { userAgent: options.userAgent } : {}),
       ...(options.cdpEndpoint !== undefined ? { cdpEndpoint: options.cdpEndpoint } : {}),
@@ -257,11 +266,22 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
     hooks,
     subscribers,
   );
+  async function resolveDeviceScaleFactor(page: Page): Promise<number> {
+    if (runtime.ownership() === 'owned') return deviceScaleFactor;
+    try {
+      const value: unknown = await page.evaluate('window.devicePixelRatio');
+      return clampBrowserDeviceScaleFactor(typeof value === 'number' ? value : Number(value));
+    } catch {
+      return 1;
+    }
+  }
+
   const mirror = createBrowserMirror({
     maxDimension,
     maxFps,
     getPage: () => runtime.getPage(),
     hasActiveMirrorLease: () => runtime.hasActiveMirrorLease(),
+    resolveDeviceScaleFactor,
     subscribers,
   });
 
@@ -284,11 +304,28 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
     const fencePageId = runtime.pageId();
     const activePage = runtime.peekPage();
 
-    const publish = (url?: string, title?: string): void => {
+    const publish = async (url?: string, title?: string): Promise<void> => {
       if (runtime.generation() !== fenceGeneration) return;
       if (runtime.pageId() !== fencePageId) return;
       const pageId = runtime.pageId();
       const ts = Date.now();
+      const active = runtime.peekPage();
+      const measured =
+        active !== undefined && typeof active.viewportSize === 'function'
+          ? active.viewportSize()
+          : undefined;
+      const viewportSize = measured ?? {
+        width: Math.min(requestedViewport.width, maxDimension),
+        height: Math.min(requestedViewport.height, maxDimension),
+      };
+      let tabs: BrowserTabInfo[] = [];
+      try {
+        tabs = await runtime.listBoundTabs();
+      } catch {
+        tabs = [];
+      }
+      if (runtime.generation() !== fenceGeneration) return;
+      const pendingDialog = runtime.pendingDialog();
       for (const listener of subscribers) {
         listener({
           type: 'browser/state',
@@ -299,24 +336,30 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
           mirror: currentMirrorMode(),
           generation: runtime.generation(),
           ...(pageId !== undefined ? { pageId } : {}),
+          viewport: {
+            mode: 'fixed',
+            width: viewportSize.width,
+            height: viewportSize.height,
+          },
+          tabs: tabs ?? [],
+          pendingDialog: pendingDialog ?? null,
         });
       }
     };
 
     if (activePage === undefined) {
-      publish(state.url, state.title);
-      return Promise.resolve();
+      return publish(state.url, state.title);
     }
     return Promise.all([activePage.url(), activePage.title()])
       .then(([url, title]) => {
         if (url !== '') state.url = url;
         state.title = title;
-        publish(state.url, state.title);
+        return publish(state.url, state.title);
       })
       .catch(() => {
         // URL/title read failed (e.g. during navigation teardown); keep last
         // url/title but still publish lifecycle so the panel is not stuck.
-        publish(state.url, state.title);
+        return publish(state.url, state.title);
       });
   }
   hooks.emitState = emitState;
@@ -352,6 +395,11 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
     pageId: () => runtime.pageId(),
     emitState,
     requestFrame: () => requestMirrorFrame(),
+    restartMirror: async () => {
+      const activePage = runtime.peekPage();
+      if (activePage === undefined || !runtime.hasActiveMirrorLease()) return;
+      await mirror.startMirrorFrames(activePage);
+    },
     assertActor,
     maxDimension,
   });
@@ -454,7 +502,9 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
     handleDialog: (action, promptText, options) =>
       withAbort(async () => {
         assertActor(options?.actor ?? 'agent', 'agent-write', options?.runId);
-        return runtime.handleDialog(action, promptText);
+        const result = await runtime.handleDialog(action, promptText);
+        await emitState();
+        return result;
       }, options?.signal),
     pendingDialog: () => runtime.pendingDialog(),
     queryConsole: (limit) => runtime.queryConsole(limit),

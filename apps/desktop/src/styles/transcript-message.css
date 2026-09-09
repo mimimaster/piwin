@@ -198,6 +198,10 @@
   background: var(--coral);
 }
 
+.turn-truncation-card .turn-error-card-inner::before {
+  background: var(--ink-3);
+}
+
 .turn-error-header {
   display: flex;
   align-items: center;

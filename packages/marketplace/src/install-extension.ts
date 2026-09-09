@@ -100,11 +100,40 @@ async function installExtensionFromGit(
       configuredEnabled: staged.record.configuredEnabled,
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`git extension install failed: ${message}`);
+    throw new Error(
+      `git extension install failed: ${describeGitInstallError(error, clonePath, options.source)}`,
+    );
   } finally {
     await rm(clonePath, { recursive: true, force: true }).catch(() => undefined);
   }
+}
+
+/**
+ * Turn a raw clone/stage failure into an actionable sentence. The clone lives in
+ * an OS temp directory whose path is meaningless to the user, so strip it, and
+ * translate the common structural failures into next steps.
+ */
+function describeGitInstallError(
+  error: unknown,
+  clonePath: string,
+  source: Extract<InstallSource, { kind: 'git' }>,
+): string {
+  const raw = (error instanceof Error ? error.message : String(error)).trim();
+  const message = raw.split(clonePath).join('the cloned repository');
+  const subdirHint = source.subdir
+    ? `The subdirectory "${source.subdir}" has no index.ts entry point.`
+    : 'The repository root has no index.ts entry point. If the extension lives in a subfolder, set the subdirectory (for example "extensions"). Extensions published only as npm packages cannot be installed from a Git URL.';
+  if (/must contain index\.ts/i.test(message)) return subdirHint;
+  if (/must be a \.ts module/i.test(message)) {
+    return 'The entry point must be a TypeScript (.ts) module. Point the subdirectory at the extension file or its package folder.';
+  }
+  if (/(not found|could not read|repository .* does not exist|authentication failed)/i.test(raw)) {
+    return `Could not clone ${source.url}. Check that the URL is correct and the repository is public.`;
+  }
+  if (/timed out|ETIMEDOUT/i.test(raw)) {
+    return `Cloning ${source.url} timed out. Check your network connection and try again.`;
+  }
+  return message;
 }
 
 async function readGitCommit(clonePath: string): Promise<string> {

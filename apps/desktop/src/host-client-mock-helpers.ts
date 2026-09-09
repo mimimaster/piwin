@@ -242,7 +242,7 @@ export function validateMockQueuedTurnInput(input: PromptInput): string | undefi
   if (byteLength(input.text) > QUEUED_TURN_MAX_TEXT_BYTES) {
     return 'queued-turn-bounds-exceeded: text exceeds 64 KiB';
   }
-  if (input.source === 'resume' || input.resumeCheckpointId !== undefined) {
+  if (input.source === 'resume' || input.source === 'continuation' || input.resumeCheckpointId !== undefined) {
     return 'queued-turn-input-invalid: resume prompts cannot be queued';
   }
   return undefined;

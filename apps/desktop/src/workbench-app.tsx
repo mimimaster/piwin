@@ -215,6 +215,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     switchBranch,
     branchResend,
     retryTurn,
+    continueTurn,
     pendingTruncate,
     confirmTruncateAfter,
     cancelTruncateAfter,
@@ -364,11 +365,16 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
               panel={subagentInspectorPanel}
             >
               <div
-                className={`app-shell workbench${rightPanelOpen ? ' has-right-panel' : ''}${navDrawerOpen ? ' nav-open' : ''}${settingsOpen ? ' settings-open' : ''}${studioOpen ? ' studio-open' : ''}${rightPanelResize.isResizing || sidebarResize.isResizing ? ' is-resizing-panels' : ''}`}
+                className={`app-shell workbench${rightPanelOpen ? ' has-right-panel' : ''}${navDrawerOpen ? ' nav-open' : ''}${settingsOpen ? ' settings-open' : ''}${studioOpen ? ' studio-open' : ''}${rightPanelResize.isResizing || sidebarResize.isResizing ? ' is-resizing-panels' : ''}${rightPanelOpen && layoutMode === 'desktop' && rightPanelResize.isFullWidth ? ' right-panel-full-width' : ''}`}
                 style={appShellStyle}
                 data-testid="app-shell"
                 data-layout={layoutMode}
                 data-right={rightPanelOpen ? 'expanded' : 'collapsed'}
+                data-right-panel-full-width={
+                  rightPanelOpen && layoutMode === 'desktop' && rightPanelResize.isFullWidth
+                    ? 'true'
+                    : 'false'
+                }
                 data-settings-open={settingsOpen ? 'true' : 'false'}
                 data-studio-open={studioOpen ? 'true' : 'false'}
               >
@@ -574,6 +580,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       onEditResend={handleEditAndResendMessage}
                       onRetry={handleRetryMessage}
                       onRetryTurn={retryTurn}
+                      onContinueTurn={continueTurn}
                       onBranchResend={branchResend}
                       onSwitchBranch={switchBranch}
                       onInterventionEdit={handleInterventionEdit}

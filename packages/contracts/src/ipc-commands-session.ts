@@ -1,5 +1,11 @@
 import type { CreateSessionInput, PromptInput, SessionScope } from './host.js';
-import type { PlanStatus, PlanStepStatus, SessionPlan } from './plan.js';
+import type {
+  PlanStatus,
+  PlanStepStatus,
+  SessionPlan,
+  SessionPlanVersion,
+  SessionPlanWriteExpectation,
+} from './plan.js';
 import type { PlanExecutionRequest } from './plan-execution.js';
 import type { PromptForegroundAdmission } from './prompt-admission.js';
 import type { UserInstructionPayload } from './run-intervention.js';
@@ -359,8 +365,19 @@ export type HostSessionCommand =
       refs?: import('./side-chat.js').SideChatContextRef[];
     }
   | { id?: string; type: 'plan/get'; sessionId: string }
-  | { id?: string; type: 'plan/set'; sessionId: string; plan: SessionPlan }
-  | { id?: string; type: 'plan/clear'; sessionId: string }
+  | {
+      id?: string;
+      type: 'plan/set';
+      sessionId: string;
+      plan: SessionPlan;
+      expected: SessionPlanWriteExpectation;
+    }
+  | {
+      id?: string;
+      type: 'plan/clear';
+      sessionId: string;
+      expected: SessionPlanVersion;
+    }
   | { id?: string; type: 'plan/approve'; sessionId: string }
   | {
       id?: string;

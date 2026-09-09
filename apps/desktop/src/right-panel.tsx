@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
-import { IconExpand } from './shell-icons';
+import { IconCompress, IconExpand } from './shell-icons';
 import { getDesktopCopy } from './desktop-locale';
 import type { DesktopLocale } from './desktop-locale';
 import { IconButton, IconClose } from '@piwin/ui-kit';
@@ -286,23 +286,24 @@ export function RightPanel(props: RightPanelProps): ReactElement {
           <IconButton
             className={`right-panel-action-btn ib${props.isExpanded ? ' active' : ''}`}
             data-testid="right-panel-expand-btn"
+            data-app-shell-workspace-layout-toggle="right-panel"
             label={
               props.isExpanded
                 ? locale === 'zh-CN'
-                  ? '还原面板宽度'
-                  : 'Restore panel width'
+                  ? '退出全屏'
+                  : 'Exit full screen'
                 : locale === 'zh-CN'
-                  ? '展开面板'
-                  : 'Expand panel'
+                  ? '进入全屏'
+                  : 'Enter full screen'
             }
             title={
               props.isExpanded
                 ? locale === 'zh-CN'
-                  ? '还原面板宽度'
-                  : 'Restore panel width'
+                  ? '退出全屏'
+                  : 'Exit full screen'
                 : locale === 'zh-CN'
-                  ? '展开面板'
-                  : 'Expand panel'
+                  ? '进入全屏'
+                  : 'Enter full screen'
             }
             aria-pressed={props.isExpanded ?? false}
             onClick={() => {
@@ -313,7 +314,7 @@ export function RightPanel(props: RightPanelProps): ReactElement {
               }
             }}
           >
-            <IconExpand />
+            {props.isExpanded ? <IconCompress /> : <IconExpand />}
           </IconButton>
 
           <IconButton

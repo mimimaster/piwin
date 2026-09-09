@@ -62,17 +62,58 @@ export async function handleMockOpsCommands(
         };
       }
       case 'plan/set': {
-        host.plans.set(command.sessionId, command.plan);
-        host.emitPush({ type: 'plan/updated', sessionId: command.sessionId, plan: command.plan });
+        const current = host.plans.get(command.sessionId);
+        const expectationMatches =
+          command.expected === null
+            ? current === undefined
+            : current !== undefined &&
+              current.id === command.expected.planId &&
+              current.revision === command.expected.revision;
+        if (!expectationMatches) {
+          return {
+            id,
+            type: 'response',
+            command: 'plan/set',
+            success: false,
+            error:
+              current === undefined
+                ? 'plan missing for expected update'
+                : `plan revision mismatch: expected ${
+                    command.expected === null ? 'absent' : command.expected.revision
+                  } but session has ${current.revision}`,
+          };
+        }
+        const plan = {
+          ...command.plan,
+          id: current?.id ?? command.plan.id,
+          revision: current?.revision === undefined ? 0 : current.revision + 1,
+          ...(current?.execution === undefined ? {} : { execution: current.execution }),
+        };
+        host.plans.set(command.sessionId, plan);
+        host.emitPush({ type: 'plan/updated', sessionId: command.sessionId, plan });
         return {
           id,
           type: 'response',
           command: 'plan/set',
           success: true,
-          data: { plan: command.plan },
+          data: { plan },
         };
       }
       case 'plan/clear': {
+        const current = host.plans.get(command.sessionId);
+        if (
+          current === undefined ||
+          current.id !== command.expected.planId ||
+          current.revision !== command.expected.revision
+        ) {
+          return {
+            id,
+            type: 'response',
+            command: 'plan/clear',
+            success: false,
+            error: current === undefined ? 'plan missing' : 'plan revision mismatch',
+          };
+        }
         host.plans.delete(command.sessionId);
         host.emitPush({ type: 'plan/updated', sessionId: command.sessionId, plan: null });
         return {
@@ -587,4 +628,3 @@ export async function handleMockOpsCommands(
       return null;
   }
 }
-

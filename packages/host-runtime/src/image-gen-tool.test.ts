@@ -627,6 +627,8 @@ describe('buildImageGenTool', () => {
       expect(parsed.paths).toBeUndefined();
       expect(result.output).not.toContain(mediaRoot);
       expect(parsed.notice).toMatch(/already rendered/i);
+      expect(parsed.notice).toContain('data-piwin-media');
+      expect(parsed.notice).toMatch(/data:image/i);
     } finally {
       vi.unstubAllGlobals();
     }

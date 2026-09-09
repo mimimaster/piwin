@@ -38,7 +38,7 @@ export function buildArtifactInstructionsTool(config: ArtifactConfig): HostToolR
     descriptor: {
       name: ARTIFACT_INSTRUCTIONS_TOOL_NAME,
       description:
-        'Artifact decision policy and HTML/SVG output contract are already in the system prompt. Do not call this tool; emit the Artifact fence directly.',
+        'Artifact decision policy and HTML/SVG output contract are already in the system prompt. Do not call this tool. For reviews, reports, audits, and other standalone analytical write-ups, emit artifact-html with surface="canvas" directly; do not dump a Markdown wall.',
       parameters: {
         type: 'object',
         properties: {},

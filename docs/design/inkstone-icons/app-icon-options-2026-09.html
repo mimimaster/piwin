@@ -1,0 +1,820 @@
+<!doctype html>
+<html lang="zh-CN" data-face="paper">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>piwin · Inkstone App Icon 选择</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --void: #e6e1d7;
+        --s1: #f0ece4;
+        --s2: #f8f6f0;
+        --s3: #fffdf8;
+        --t1: #1d1b17;
+        --t2: #5a554d;
+        --t3: #726b61;
+        --t4: #8f887d;
+        --line: rgba(29, 27, 23, 0.12);
+        --line-strong: rgba(29, 27, 23, 0.2);
+        --zhu: #c6412a;
+        --zhu-soft: rgba(198, 65, 42, 0.1);
+        --lamp: #b8801f;
+        --paper: #f8f6f0;
+        --ink: #1d1b17;
+        --shadow: 0 16px 40px rgba(54, 39, 18, 0.12), 0 0 0 1px var(--line);
+      }
+
+      :root[data-face='ink'] {
+        color-scheme: dark;
+        --void: #0b0a09;
+        --s1: #141210;
+        --s2: #191714;
+        --s3: #201d19;
+        --t1: #ebe5da;
+        --t2: #a59d92;
+        --t3: #8b8378;
+        --t4: #6a6259;
+        --line: rgba(235, 229, 218, 0.11);
+        --line-strong: rgba(235, 229, 218, 0.2);
+        --zhu: #e25a3d;
+        --zhu-soft: rgba(226, 90, 61, 0.14);
+        --lamp: #e7b352;
+        --paper: #f8f6f0;
+        --ink: #1d1b17;
+        --shadow: 0 18px 42px rgba(0, 0, 0, 0.35), 0 0 0 1px var(--line);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        min-width: 320px;
+        background: var(--void);
+      }
+
+      body {
+        min-height: 100vh;
+        margin: 0;
+        background: var(--void);
+        color: var(--t1);
+        font: 14px/1.55 -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB',
+          'Segoe UI', sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      button,
+      a {
+        font: inherit;
+      }
+
+      button {
+        color: inherit;
+        cursor: pointer;
+      }
+
+      .shell {
+        width: min(1180px, calc(100% - 40px));
+        margin: 0 auto;
+      }
+
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        border-bottom: 1px solid var(--line);
+        background: color-mix(in srgb, var(--void) 88%, transparent);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+      }
+
+      .topbar-inner {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-height: 68px;
+      }
+
+      .brand-seal {
+        display: grid;
+        flex: none;
+        width: 34px;
+        height: 36px;
+        place-items: center;
+        border-radius: 3px;
+        outline: 1px solid var(--paper);
+        outline-offset: -5px;
+        background: var(--zhu);
+        color: var(--paper);
+        font: 21px/1 'Songti SC', 'STSong', serif;
+        transform: rotate(-2deg);
+      }
+
+      .brand-copy {
+        min-width: 0;
+      }
+
+      .eyebrow {
+        color: var(--zhu);
+        font: 10px/1.5 'SF Mono', Menlo, Consolas, monospace;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      .brand-copy h1 {
+        font-size: 16px;
+        font-weight: 650;
+        letter-spacing: -0.02em;
+      }
+
+      .brand-copy p {
+        overflow: hidden;
+        color: var(--t3);
+        font-size: 11px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .topbar-tools {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-left: auto;
+      }
+
+      .text-button,
+      .download-link {
+        display: inline-flex;
+        align-items: center;
+        min-height: 32px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 0 11px;
+        background: var(--s1);
+        color: var(--t2);
+        font-size: 12px;
+        text-decoration: none;
+      }
+
+      .text-button:hover,
+      .download-link:hover {
+        border-color: var(--line-strong);
+        color: var(--t1);
+      }
+
+      main {
+        padding: 38px 0 86px;
+      }
+
+      .intro {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 26px;
+        align-items: end;
+        margin-bottom: 32px;
+      }
+
+      .intro h2 {
+        max-width: 760px;
+        margin-top: 6px;
+        font: 500 30px/1.25 'Songti SC', 'STSong', Georgia, serif;
+        letter-spacing: -0.02em;
+      }
+
+      .intro p {
+        max-width: 720px;
+        margin-top: 9px;
+        color: var(--t2);
+        font-size: 13px;
+      }
+
+      .brief {
+        display: grid;
+        min-width: 230px;
+        gap: 12px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 15px 16px;
+        background: var(--s2);
+        box-shadow: 0 2px 10px rgba(50, 35, 15, 0.04);
+      }
+
+      .brief-label {
+        color: var(--t3);
+        font-size: 11px;
+      }
+
+      .swatches {
+        display: flex;
+        gap: 7px;
+      }
+
+      .swatch {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--t2);
+        font-size: 11px;
+      }
+
+      .swatch i {
+        display: block;
+        width: 13px;
+        height: 13px;
+        border: 1px solid var(--line-strong);
+        border-radius: 50%;
+      }
+
+      .swatch.paper i {
+        background: #f8f6f0;
+      }
+
+      .swatch.ink i {
+        background: #1d1b17;
+      }
+
+      .swatch.zhu i {
+        background: #c6412a;
+      }
+
+      .brief-rule {
+        padding-top: 10px;
+        border-top: 1px dashed var(--line);
+        color: var(--t3);
+        font: 10px/1.5 'SF Mono', Menlo, Consolas, monospace;
+      }
+
+      .section-head {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        margin-bottom: 14px;
+      }
+
+      .section-head h2 {
+        font-size: 19px;
+        font-weight: 650;
+      }
+
+      .section-count {
+        color: var(--t4);
+        font: 11px 'SF Mono', Menlo, Consolas, monospace;
+      }
+
+      .selection-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 300px;
+        gap: 18px;
+        align-items: start;
+      }
+
+      .option-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .option-card {
+        position: relative;
+        display: block;
+        min-width: 0;
+        border: 1px solid var(--line);
+        border-radius: 13px;
+        padding: 11px;
+        background: var(--s2);
+        color: inherit;
+        text-align: left;
+        transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+      }
+
+      .option-card:hover {
+        border-color: var(--line-strong);
+        box-shadow: 0 6px 18px rgba(50, 35, 15, 0.06);
+        transform: translateY(-1px);
+      }
+
+      .option-card[aria-pressed='true'] {
+        border-color: var(--zhu);
+        box-shadow: 0 0 0 2px var(--zhu-soft), 0 8px 22px rgba(50, 35, 15, 0.08);
+      }
+
+      .option-card[aria-pressed='true']::after {
+        position: absolute;
+        top: 11px;
+        right: 11px;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--zhu);
+        content: '';
+      }
+
+      .icon-stage {
+        display: grid;
+        aspect-ratio: 1;
+        place-items: center;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: var(--s1);
+      }
+
+      .icon-stage img {
+        display: block;
+        width: 86%;
+        height: 86%;
+        border-radius: 22%;
+        object-fit: cover;
+      }
+
+      .option-meta {
+        padding: 11px 2px 1px;
+      }
+
+      .option-code {
+        color: var(--zhu);
+        font: 10px 'SF Mono', Menlo, Consolas, monospace;
+        letter-spacing: 0.08em;
+      }
+
+      .option-meta h3 {
+        margin-top: 3px;
+        font-size: 14px;
+        font-weight: 650;
+      }
+
+      .option-meta p {
+        min-height: 36px;
+        margin-top: 3px;
+        color: var(--t3);
+        font-size: 11px;
+        line-height: 1.45;
+      }
+
+      .palette {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-top: 9px;
+      }
+
+      .palette span {
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 2px 5px;
+        color: var(--t3);
+        font-size: 10px;
+      }
+
+      .selection-panel {
+        position: sticky;
+        top: 86px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 16px;
+        background: var(--s2);
+        box-shadow: var(--shadow);
+      }
+
+      .selection-status {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        color: var(--t3);
+        font: 10px 'SF Mono', Menlo, Consolas, monospace;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .selection-status i {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--zhu);
+      }
+
+      .selected-stage {
+        display: grid;
+        aspect-ratio: 1;
+        place-items: center;
+        margin-top: 13px;
+        overflow: hidden;
+        border-radius: 11px;
+        background: var(--s1);
+      }
+
+      .selected-stage img {
+        display: block;
+        width: 88%;
+        height: 88%;
+        border-radius: 22%;
+        object-fit: cover;
+      }
+
+      .selected-copy {
+        margin-top: 14px;
+      }
+
+      .selected-copy .tag {
+        color: var(--zhu);
+        font-size: 11px;
+      }
+
+      .selected-copy h2 {
+        margin-top: 2px;
+        font: 500 22px/1.35 'Songti SC', 'STSong', Georgia, serif;
+      }
+
+      .selected-copy p {
+        min-height: 42px;
+        margin-top: 5px;
+        color: var(--t2);
+        font-size: 12px;
+      }
+
+      .size-label {
+        margin-top: 16px;
+        color: var(--t3);
+        font: 10px 'SF Mono', Menlo, Consolas, monospace;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .size-row {
+        display: flex;
+        align-items: end;
+        gap: 14px;
+        min-height: 74px;
+        margin-top: 8px;
+      }
+
+      .size-check {
+        display: grid;
+        justify-items: center;
+        gap: 5px;
+        color: var(--t4);
+        font: 9px 'SF Mono', Menlo, Consolas, monospace;
+      }
+
+      .size-check img {
+        display: block;
+        width: var(--size);
+        height: var(--size);
+        border-radius: 22%;
+        object-fit: cover;
+      }
+
+      .selected-file {
+        display: block;
+        overflow: hidden;
+        margin-top: 15px;
+        color: var(--t4);
+        font: 10px/1.45 'SF Mono', Menlo, Consolas, monospace;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .panel-actions {
+        display: flex;
+        gap: 7px;
+        margin-top: 11px;
+      }
+
+      .primary-button {
+        flex: 1;
+        min-height: 34px;
+        border: 1px solid var(--zhu);
+        border-radius: 7px;
+        background: var(--zhu);
+        color: var(--paper);
+        font-size: 12px;
+      }
+
+      .primary-button:hover {
+        filter: brightness(1.06);
+      }
+
+      .download-link {
+        justify-content: center;
+        flex: 1;
+        min-height: 34px;
+        padding: 0 8px;
+        font-size: 11px;
+      }
+
+      .note {
+        margin-top: 20px;
+        color: var(--t4);
+        font-size: 11px;
+      }
+
+      footer {
+        margin-top: 40px;
+        padding-top: 16px;
+        border-top: 1px solid var(--line);
+        color: var(--t4);
+        font-size: 11px;
+      }
+
+      footer code {
+        color: var(--t3);
+        font-family: 'SF Mono', Menlo, Consolas, monospace;
+      }
+
+      @media (max-width: 920px) {
+        .option-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .selection-layout {
+          grid-template-columns: minmax(0, 1fr) 260px;
+        }
+      }
+
+      @media (max-width: 700px) {
+        .shell {
+          width: min(100% - 28px, 560px);
+        }
+
+        .topbar-tools .text-button {
+          width: 32px;
+          overflow: hidden;
+          padding: 0;
+          justify-content: center;
+          font-size: 0;
+        }
+
+        .topbar-tools .text-button::before {
+          content: '◐';
+          color: var(--t2);
+          font-size: 15px;
+        }
+
+        main {
+          padding-top: 28px;
+        }
+
+        .intro {
+          grid-template-columns: 1fr;
+          gap: 16px;
+        }
+
+        .intro h2 {
+          font-size: 26px;
+        }
+
+        .brief {
+          min-width: 0;
+        }
+
+        .selection-layout {
+          grid-template-columns: 1fr;
+        }
+
+        .selection-panel {
+          position: static;
+        }
+      }
+
+      @media (max-width: 430px) {
+        .option-grid {
+          grid-template-columns: 1fr 1fr;
+          gap: 9px;
+        }
+
+        .option-card {
+          padding: 8px;
+        }
+
+        .option-meta p {
+          min-height: 50px;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          scroll-behavior: auto !important;
+          transition: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="shell topbar-inner">
+        <span class="brand-seal" aria-hidden="true">砚</span>
+        <div class="brand-copy">
+          <div class="eyebrow">ImageGen · Inkstone · App Icon</div>
+          <h1>piwin 应用图标候选</h1>
+          <p>gen-v3 · 仅使用生成 PNG，未将图片转成 SVG</p>
+        </div>
+        <div class="topbar-tools">
+          <button class="text-button" id="face-switch" type="button">切换墨面</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="shell">
+      <section class="intro" aria-labelledby="intro-title">
+        <div>
+          <div class="eyebrow">Design review / 2026-09</div>
+          <h2 id="intro-title">按 Inkstone 的气质，重新看一轮 App Icon。</h2>
+          <p>
+            这组不是工具栏小图标，而是完整的应用图标：圆角方形 tile、玄墨 / 素宣 / 朱砂三色、砚台与终端工作的隐喻。点击任意方案，在右侧检查它缩到 32px 后是否仍然成立。
+          </p>
+        </div>
+        <aside class="brief" aria-label="设计约束">
+          <div class="brief-label">当前设计约束</div>
+          <div class="swatches">
+            <span class="swatch paper"><i></i>素宣</span>
+            <span class="swatch ink"><i></i>玄墨</span>
+            <span class="swatch zhu"><i></i>朱砂</span>
+          </div>
+          <div class="brief-rule">3 COLORS MAX · RASTER PNG · APP TILE</div>
+        </aside>
+      </section>
+
+      <section aria-labelledby="options-title">
+        <div class="section-head">
+          <div class="eyebrow">Candidates</div>
+          <h2 id="options-title">候选方案</h2>
+          <span class="section-count">6 options · click to select</span>
+        </div>
+
+        <div class="selection-layout">
+          <div class="option-grid" id="option-grid"></div>
+
+          <aside class="selection-panel" aria-live="polite">
+            <div class="selection-status"><i></i><span>当前选中</span><span id="selected-code">A</span></div>
+            <div class="selected-stage">
+              <img id="selected-image" src="gen-v3/app-icon-a-inkstone-cursor.png" alt="当前选中的应用图标" />
+            </div>
+            <div class="selected-copy">
+              <div class="tag" id="selected-tag">砚台 · 光标</div>
+              <h2 id="selected-name">砚心光标</h2>
+              <p id="selected-description">完整的砚面框体，中心只留一枚朱砂光标，最安静、最像工作台。</p>
+            </div>
+            <div class="size-label">Small-size check</div>
+            <div class="size-row" aria-label="小尺寸预览">
+              <div class="size-check"><img id="size-32" src="gen-v3/app-icon-a-inkstone-cursor.png" alt="32 像素预览" style="--size: 32px" /><span>32px</span></div>
+              <div class="size-check"><img id="size-48" src="gen-v3/app-icon-a-inkstone-cursor.png" alt="48 像素预览" style="--size: 48px" /><span>48px</span></div>
+              <div class="size-check"><img id="size-64" src="gen-v3/app-icon-a-inkstone-cursor.png" alt="64 像素预览" style="--size: 64px" /><span>64px</span></div>
+            </div>
+            <code class="selected-file" id="selected-file">gen-v3/app-icon-a-inkstone-cursor.png</code>
+            <div class="panel-actions">
+              <button class="primary-button" id="copy-path" type="button">复制相对路径</button>
+              <a class="download-link" id="open-png" href="gen-v3/app-icon-a-inkstone-cursor.png" target="_blank" rel="noreferrer">打开 PNG</a>
+            </div>
+            <p class="note" id="copy-note">候选只展示，不会自动接入产品。</p>
+          </aside>
+        </div>
+      </section>
+
+      <footer>
+        生成参考：<code>docs/design/inkstone-icons/gen-v2/*</code> · 产物目录：<code>docs/design/inkstone-icons/gen-v3/</code> · 本页为离线 HTML 选择稿。
+      </footer>
+    </main>
+
+    <script>
+      const options = [
+        {
+          code: 'A',
+          name: '砚心光标',
+          tag: '砚台 · 光标',
+          description: '完整的砚面框体，中心只留一枚朱砂光标，最安静、最像工作台。',
+          file: 'gen-v3/app-icon-a-inkstone-cursor.png',
+          palette: ['素宣', '玄墨', '朱砂'],
+        },
+        {
+          code: 'B',
+          name: '墨池涟漪',
+          tag: '墨池 · 思考',
+          description: '用一圈留白和一颗朱砂点表现思考在墨池里展开，辨识度偏抽象。',
+          file: 'gen-v3/app-icon-b-ink-pool.png',
+          palette: ['素宣', '玄墨', '朱砂'],
+        },
+        {
+          code: 'C',
+          name: '朱印三柱',
+          tag: '朱印 · Pi 意象',
+          description: '朱砂方印里压入三柱黑色骨架，保留 π 的暗示但不依赖文字。',
+          file: 'gen-v3/app-icon-c-seal-bridge.png',
+          palette: ['素宣', '朱砂', '玄墨'],
+        },
+        {
+          code: 'D',
+          name: '终端折锋',
+          tag: '终端 · 命令',
+          description: '黑色砚面里的一道素宣折锋和朱砂方块，产品属性最直接。',
+          file: 'gen-v3/app-icon-d-terminal-fold.png',
+          palette: ['素宣', '玄墨', '朱砂'],
+        },
+        {
+          code: 'E',
+          name: '垂露落墨',
+          tag: '笔锋 · 生成',
+          description: '极简悬针与落墨，像一次输入正在变成输出，动作感最强。',
+          file: 'gen-v3/app-icon-e-ink-drop.png',
+          palette: ['素宣', '玄墨', '朱砂'],
+        },
+        {
+          code: 'F',
+          name: '方砚留角',
+          tag: '方砚 · 留款',
+          description: '内外两层方砚结构，加一枚角落朱砂记号，稳重且容易缩小。',
+          file: 'gen-v3/app-icon-f-slate-corner.png',
+          palette: ['素宣', '玄墨', '朱砂'],
+        },
+      ];
+
+      const grid = document.getElementById('option-grid');
+      const selectedCode = document.getElementById('selected-code');
+      const selectedImage = document.getElementById('selected-image');
+      const selectedTag = document.getElementById('selected-tag');
+      const selectedName = document.getElementById('selected-name');
+      const selectedDescription = document.getElementById('selected-description');
+      const selectedFile = document.getElementById('selected-file');
+      const openPng = document.getElementById('open-png');
+      const copyPath = document.getElementById('copy-path');
+      const copyNote = document.getElementById('copy-note');
+      const sizePreviews = [
+        document.getElementById('size-32'),
+        document.getElementById('size-48'),
+        document.getElementById('size-64'),
+      ];
+
+      function renderOptions() {
+        grid.innerHTML = options
+          .map(
+            (option) => `
+              <button class="option-card" type="button" data-code="${option.code}" aria-pressed="false">
+                <span class="icon-stage"><img src="${option.file}" alt="${option.name} 应用图标" loading="lazy" /></span>
+                <span class="option-meta">
+                  <span class="option-code">OPTION ${option.code}</span>
+                  <h3>${option.name}</h3>
+                  <p>${option.description}</p>
+                  <span class="palette">${option.palette.map((color) => `<span>${color}</span>`).join('')}</span>
+                </span>
+              </button>
+            `,
+          )
+          .join('');
+
+        grid.querySelectorAll('[data-code]').forEach((card) => {
+          card.addEventListener('click', () => selectOption(card.dataset.code));
+        });
+      }
+
+      function selectOption(code) {
+        const option = options.find((candidate) => candidate.code === code);
+        if (!option) return;
+
+        grid.querySelectorAll('[data-code]').forEach((card) => {
+          card.setAttribute('aria-pressed', String(card.dataset.code === option.code));
+        });
+        selectedCode.textContent = option.code;
+        selectedImage.src = option.file;
+        selectedImage.alt = `${option.name} 应用图标`;
+        selectedTag.textContent = option.tag;
+        selectedName.textContent = option.name;
+        selectedDescription.textContent = option.description;
+        selectedFile.textContent = option.file;
+        openPng.href = option.file;
+        sizePreviews.forEach((preview) => {
+          preview.src = option.file;
+          preview.alt = `${option.name} 小尺寸预览`;
+        });
+        copyNote.textContent = '候选只展示，不会自动接入产品。';
+      }
+
+      copyPath.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(selectedFile.textContent);
+          copyNote.textContent = '相对路径已复制。';
+        } catch {
+          copyNote.textContent = '浏览器未允许自动复制，可直接选中上方路径。';
+        }
+      });
+
+      document.getElementById('face-switch').addEventListener('click', (event) => {
+        const root = document.documentElement;
+        const isInk = root.dataset.face === 'ink';
+        root.dataset.face = isInk ? 'paper' : 'ink';
+        event.currentTarget.textContent = isInk ? '切换墨面' : '切换纸面';
+      });
+
+      renderOptions();
+      selectOption('A');
+    </script>
+  </body>
+</html>

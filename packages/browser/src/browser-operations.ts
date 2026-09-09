@@ -9,6 +9,7 @@ import { parseAriaSnapshot } from './snapshot.js';
 import { pickElementAt } from './pick.js';
 import { dispatchBrowserInput } from './input.js';
 import { clampBrowserViewport } from './viewport.js';
+import { BROWSER_SCREENSHOT_QUALITY } from './screencast-size.js';
 import {
   AbortOperationError,
   BrowserSessionError,
@@ -124,6 +125,7 @@ export type BrowserOperationsDeps = {
   pageId: () => string | undefined;
   emitState: () => Promise<void>;
   requestFrame: () => Promise<void>;
+  restartMirror?: () => Promise<void>;
   assertActor: (actor: BrowserActor, reason: string, runId?: string) => void;
   maxDimension: number;
 };
@@ -311,7 +313,10 @@ export function createBrowserOperations(deps: BrowserOperationsDeps): BrowserOpe
 
     screenshot: async (path) => {
       const activePage = await getPage();
-      const buffer = await activePage.screenshot({ type: 'jpeg', quality: 70 });
+      const buffer = await activePage.screenshot({
+        type: 'jpeg',
+        quality: BROWSER_SCREENSHOT_QUALITY,
+      });
       const viewport = activePage.viewportSize() ?? { width: maxDimension, height: maxDimension };
       const result: ScreenshotResult = {
         dataUrl: `data:image/jpeg;base64,${buffer.toString('base64')}`,
@@ -474,7 +479,7 @@ export function createBrowserOperations(deps: BrowserOperationsDeps): BrowserOpe
           screenshotPath,
           await activePage.screenshot({
             type: 'jpeg',
-            quality: 70,
+            quality: BROWSER_SCREENSHOT_QUALITY,
             clip: { ...picked.boundingRect },
           }),
         );
@@ -503,6 +508,7 @@ export function createBrowserOperations(deps: BrowserOperationsDeps): BrowserOpe
         return next;
       }
       await activePage.setViewportSize(next);
+      if (deps.restartMirror) await deps.restartMirror();
       await requestFrame();
       return next;
     },

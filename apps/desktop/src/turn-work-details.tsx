@@ -21,6 +21,7 @@ import {
   type TurnPresentation,
 } from './run-presentation';
 import { turnPresentationToActivityInput } from './run-activity-mappers.js';
+import type { RunActivityInput } from './run-activity-types.js';
 import { runtimeStatusText } from './run-activity-strings.js';
 import { getBehaviorActivitySpec } from './behavior-activity.js';
 import { AgentLocator, SkillActivityChip } from './agent-locator.js';
@@ -100,6 +101,27 @@ function thinkingSummaryLabel(input: {
   return input.locale === 'zh-CN' ? '思考过程' : 'Thoughts';
 }
 
+/** Prefer thinking/planning carousel copy while the bubble is still empty. */
+function resolveWaitingActivityInput(
+  presentation: TurnPresentation,
+  message: ChatMessageUi,
+  locale: 'zh-CN' | 'en',
+): RunActivityInput {
+  const base = turnPresentationToActivityInput(presentation, message, locale);
+  if (
+    base.kind === 'stopping' ||
+    base.kind === 'waiting-permission' ||
+    base.kind === 'failed' ||
+    base.kind === 'compacting'
+  ) {
+    return base;
+  }
+  if (base.kind === 'preparing' || base.kind === 'connecting-model') {
+    return base;
+  }
+  return { ...base, kind: 'waiting-first-token' };
+}
+
 export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | null {
   const locale = props.locale ?? 'zh-CN';
   const presentation = buildTurnPresentation({
@@ -155,6 +177,18 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
     permissionItem?.kind === 'permission'
       ? fileNameFromDetail(permissionItem.detail)
       : undefined;
+  // Keep a rotating locator whenever the bubble has no visible work chrome.
+  // Long model waits often land here: Host is preparing/streaming, or reasoning
+  // arrived while `verboseAgentChat` hides thinking — without this the Inkstone
+  // turn shows only the avatar/name byline.
+  const showWaitingLocator =
+    presentation.isActive &&
+    !presentation.answerStarted &&
+    callChainTools.length === 0 &&
+    // Visible open thinking already fills the bubble; collapsed/hidden reasoning
+    // must still keep the carousel so long waits are not avatar-only.
+    !(hasThinking && thinkingOpen) &&
+    !permissionWaiting;
   const showFoldHeader =
     hasThinking ||
     (foldState === 'running' && (callChainTools.length > 0 || hasThinking)) ||
@@ -163,6 +197,7 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
     isFlowAnchor ||
     hasThinking ||
     callChainTools.length > 0 ||
+    showWaitingLocator ||
     presentation.isWaitingForModel ||
     presentation.outcome !== undefined ||
     Boolean(presentation.terminalMessage) ||
@@ -255,7 +290,12 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
                   ? { thoughtSeconds: presentation.thoughtSeconds }
                   : {}),
               })
-            : undefined}
+            : hasThinking && showWaitingLocator
+              ? // Quiet toggle only — live meaning lives in the carousel below.
+                locale === 'zh-CN'
+                  ? '思考过程'
+                  : 'Thoughts'
+              : undefined}
         </WorkFoldHeader>
       ) : null}
       {hasThinking && thinkingItem?.kind === 'thinking' && thinkingOpen ? (
@@ -269,14 +309,14 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
         </div>
       ) : null}
 
-      {presentation.isWaitingForModel && tools.length === 0 && !hasThinking ? (
+      {showWaitingLocator ? (
         <div className="turn-waiting-line" data-testid="turn-waiting-line">
           <div className="agent-locator-stack">
             {props.activeSkill ? (
               <SkillActivityChip skill={props.activeSkill} loading locale={locale} />
             ) : null}
             <AgentLocator
-              input={turnPresentationToActivityInput(presentation, props.message, locale)}
+              input={resolveWaitingActivityInput(presentation, props.message, locale)}
               {...(props.agentLocatorAnimation ? { animation: props.agentLocatorAnimation } : {})}
             />
           </div>

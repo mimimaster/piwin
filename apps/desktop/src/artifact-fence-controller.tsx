@@ -11,6 +11,7 @@ import { ArtifactInlinePreview } from './artifact-inline-preview.js';
 import { createArtifactCanvasTarget } from './artifact-canvas-model.js';
 import { isShellLanguage, SourceCodeBlock } from './markdown-code-block.js';
 import type { MarkdownCodeFenceProps } from './markdown-code-fence.js';
+import { useArtifactSessionMediaObjectUrls } from './artifact-session-media.js';
 
 /**
  * Bound-fence source/preview/Canvas controller.
@@ -88,15 +89,28 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     mountsInline &&
     !(liveFence && artifactCodeFirst);
 
+  const mediaObjectUrls = useArtifactSessionMediaObjectUrls({
+    source: props.source,
+    ...(props.artifactOrigin ? { originSessionId: props.artifactOrigin.sessionId } : {}),
+  });
+
   const plan = useMemo((): Extract<ArtifactRenderPlan, { kind: 'render' }> | null => {
     if (!willMountInlineFrame || analysis?.kind !== 'intent') return null;
     return materializeArtifact(analysis.intent, {
       mode: liveFence ? 'stream-preview' : 'interactive',
       source: props.source,
       presentation: 'inline',
+      mediaObjectUrls,
       ...(props.artifactTheme ? { theme: props.artifactTheme } : {}),
     });
-  }, [willMountInlineFrame, analysis, liveFence, props.source, props.artifactTheme]);
+  }, [
+    willMountInlineFrame,
+    analysis,
+    liveFence,
+    props.source,
+    props.artifactTheme,
+    mediaObjectUrls,
+  ]);
 
   if (boundFenceIndex === null || stickyFenceId === null || analysis === null) {
     return (

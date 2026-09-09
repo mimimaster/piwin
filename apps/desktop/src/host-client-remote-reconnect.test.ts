@@ -284,6 +284,25 @@ describe('HostClient remote reconnect', () => {
     await pending;
   });
 
+  it('waits for the initial remote hello before sending a request', async () => {
+    deferNextRemoteConnect = true;
+    const client = new HostClient({
+      transport: 'remote',
+      remoteTarget: { endpoint: 'ws://127.0.0.1:8787' },
+    });
+    const connecting = client.connect();
+    const pending = client.request({ type: 'host/status' });
+    const live = remotes[0];
+    expect(live).toBeDefined();
+    expect(live?.requests).toEqual([]);
+
+    live!.admitHelloWhileCatchingUp();
+
+    await connecting;
+    await expect(pending).resolves.toMatchObject({ success: true });
+    expect(live?.requests).toEqual(['host/status', 'host/status']);
+  });
+
   it('fails a click immediately while the socket is down', async () => {
     const client = new HostClient({
       transport: 'remote',

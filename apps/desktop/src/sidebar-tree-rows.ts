@@ -14,6 +14,7 @@ import {
 export type { SidebarProjectRef } from './sidebar-repo-groups';
 
 export type SidebarTreeRow =
+  | { kind: 'no-repo-folder'; key: string }
   | { kind: 'section-header'; sectionId: 'pinned' | 'projects' | 'conversations'; key: string }
   | {
       kind: 'repo-group';
@@ -222,6 +223,7 @@ export function buildSidebarTreeRows(input: SidebarTreeRowsInput): SidebarTreeRo
   const showConversations = searching || input.conversationsSectionExpanded;
 
   if (showProjects) {
+    rows.push({ kind: 'no-repo-folder', key: 'no-repo-folder' });
     for (const cluster of clusterProjectsByRepository(input.recentProjects)) {
       if (cluster.kind === 'group') {
         rows.push({

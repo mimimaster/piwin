@@ -664,7 +664,12 @@ export class HostClient {
   ): Promise<HostResponse> {
     try {
       const remote = this.getOrCreateRemoteClient();
-      const remoteState = remote.getState().kind;
+      let remoteState = remote.getState().kind;
+      const isRemoteDialing = remoteState === 'idle' || remoteState === 'connecting';
+      if (remote.getHostHello() === undefined && isRemoteDialing && this.pendingConnection) {
+        await this.pendingConnection;
+        remoteState = remote.getState().kind;
+      }
       // Package HostClient stays `connecting` until replay/done; the wire is
       // already admitted after hello, so commands must not wait on catch-up.
       if (

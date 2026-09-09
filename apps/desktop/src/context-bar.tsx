@@ -165,7 +165,7 @@ export function ContextBar(props: ContextBarProps): ReactElement {
             aria-expanded={props.sessionsExpanded === true}
             onClick={props.onToggleSessions}
           >
-            <IconPanelLeft width={16} height={16} stroke={1.6} />
+            <IconPanelLeft width={16} height={16} stroke={1.4} />
           </IconButton>
         ) : null}
 
@@ -291,7 +291,7 @@ export function ContextBar(props: ContextBarProps): ReactElement {
                 if (props.appearanceMode === 'dark') props.onToggleAppearance?.();
               }}
             >
-              {isChinese ? '纸' : 'Light'}
+              {isChinese ? '明' : 'Light'}
             </button>
             <button
               type="button"
@@ -324,7 +324,7 @@ export function ContextBar(props: ContextBarProps): ReactElement {
             aria-expanded={workPanelOpen}
             onClick={() => props.onToggleWorkPanel?.()}
           >
-            <IconPanelRight width={14} height={14} stroke={1.6} />
+            <IconPanelRight width={16} height={16} stroke={1.4} />
           </IconButton>
         ) : null}
       </div>

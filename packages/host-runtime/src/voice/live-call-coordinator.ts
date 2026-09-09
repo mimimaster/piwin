@@ -326,7 +326,7 @@ export class LiveCallCoordinator {
   notifyBoundSessionUserInput(input: {
     sessionId: string;
     text: string;
-    source?: 'user' | 'resume' | 'queued-turn' | 'voice-delegation';
+    source?: 'user' | 'resume' | 'queued-turn' | 'voice-delegation' | 'continuation';
   }): void {
     const slot = this.slot;
     if (!slot || slot.sessionId !== input.sessionId) return;

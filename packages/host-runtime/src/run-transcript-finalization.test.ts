@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { openSessionTranscriptStore } from '@piwin/session';
 import { HostRuntime } from './host-runtime.js';
 import { getPiwinSessionTranscriptDatabasePath } from './paths.js';
+import { finalizeRunTranscriptArtifacts } from './transcript-stream-settler.js';
 
 async function seedStreamingAssistant(options: {
   rootDir: string;
@@ -118,5 +119,51 @@ describe('run transcript finalization', () => {
     const repaired = await readAssistant(rootDir, sessionId, 'dispose-orphan');
     expect(repaired?.status).toBe('done');
     expect(repaired?.outcome).toBe('cancelled');
+  });
+
+  it('creates failure evidence when a failed run has no structured failure', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-failed-run-fallback-'));
+    const sessionId = 'session-failed-run-fallback';
+    const runId = 'run-failed-without-evidence';
+    const store = await openSessionTranscriptStore({
+      dbPath: getPiwinSessionTranscriptDatabasePath(rootDir, sessionId),
+      sessionId,
+      projectPath: '',
+    });
+    await store.appendMessage({
+      id: 'assistant-before-failure',
+      runtimeGenerationId: 'gen-old',
+      backendMessageId: 'a-old',
+      role: 'assistant',
+      text: 'completed before the failed run',
+      status: 'done',
+      runId: 'run-completed-before',
+      createdAt: '2026-09-08T09:25:41.000Z',
+      metadata: { outcome: 'completed' },
+    });
+
+    const finalized = await finalizeRunTranscriptArtifacts(store, {
+      runId,
+      outcome: 'failed',
+      interventionReason: 'run-ended',
+      terminalMessage: 'worker exited before reporting a structured failure',
+    });
+    const failure = await store.getMessage(`piw-m-error-${runId}`);
+    const previous = await store.getMessage('assistant-before-failure');
+    store.close();
+
+    expect(finalized.settled).toHaveLength(1);
+    expect(failure).toMatchObject({
+      role: 'assistant',
+      status: 'error',
+      runId,
+      outcome: 'failed',
+      failure: {
+        code: 'unknown-agent-failure',
+        origin: 'runtime',
+      },
+    });
+    expect(previous?.outcome).toBe('completed');
+    expect(previous?.failure).toBeUndefined();
   });
 });

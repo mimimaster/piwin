@@ -38,14 +38,14 @@ describe('startScreencast', () => {
     const { page, screencast, emit } = createCapturingPage();
     const emitted: unknown[] = [];
     const handle = await startScreencast(page, {
-      maxDimension: 1280,
+      size: { width: 2560, height: 1600 },
       emit: (frame) => emitted.push(frame),
     });
 
     expect(screencast.start).toHaveBeenCalledWith(
       expect.objectContaining({
-        quality: 55,
-        size: { width: 1280, height: 1280 },
+        quality: 80,
+        size: { width: 2560, height: 1600 },
       }),
     );
     expect(screencast.start.mock.calls[0]?.[0]).toEqual(
@@ -75,7 +75,7 @@ describe('startScreencast', () => {
     const { page, emit } = createCapturingPage();
     const emitted: Array<{ width: number; height: number }> = [];
     const handle = await startScreencast(page, {
-      maxDimension: 1280,
+      size: { width: 2560, height: 1600 },
       emit: (frame) => emitted.push({ width: frame.width, height: frame.height }),
     });
 
@@ -95,7 +95,7 @@ describe('startScreencast', () => {
     let clock = 0;
     const emitted: number[] = [];
     const handle = await startScreencast(page, {
-      maxDimension: 1280,
+      size: { width: 2560, height: 1600 },
       maxFps: 10,
       now: () => clock,
       emit: (frame) => emitted.push(frame.ts),
@@ -122,7 +122,7 @@ describe('startScreencast', () => {
   it('does not throw from onFrame when emit throws', async () => {
     const { page, emit } = createCapturingPage();
     const handle = await startScreencast(page, {
-      maxDimension: 800,
+      size: { width: 800, height: 600 },
       emit: () => {
         throw new Error('subscriber failed');
       },
@@ -142,7 +142,7 @@ describe('startScreencast', () => {
     const { page, screencast, emit } = createCapturingPage();
     const emitted: unknown[] = [];
     const handle = await startScreencast(page, {
-      maxDimension: 1280,
+      size: { width: 2560, height: 1600 },
       emit: (frame) => emitted.push(frame),
     });
     await handle.stop();
@@ -174,7 +174,7 @@ describe('startScreencast', () => {
     const page = { screencast } as unknown as Page;
     const emitted: unknown[] = [];
     const handle = await startScreencast(page, {
-      maxDimension: 1280,
+      size: { width: 2560, height: 1600 },
       emit: (frame) => emitted.push(frame),
     });
     expect(start).toHaveBeenCalledTimes(2);
@@ -193,7 +193,7 @@ describe('startScreencast', () => {
     const start = vi.fn().mockRejectedValue(new Error('screencast denied'));
     const stop = vi.fn().mockResolvedValue(undefined);
     const page = { screencast: { start, stop } } as unknown as Page;
-    await expect(startScreencast(page, { maxDimension: 1280, emit: vi.fn() })).rejects.toThrow(
+    await expect(startScreencast(page, { size: { width: 2560, height: 1600 }, emit: vi.fn() })).rejects.toThrow(
       'screencast denied',
     );
     expect(start).toHaveBeenCalledTimes(2);
@@ -204,7 +204,7 @@ describe('startScreencast', () => {
     const { page } = createCapturingPage();
     const context = vi.fn();
     (page as unknown as { context: typeof context }).context = context;
-    const handle = await startScreencast(page, { maxDimension: 1280, emit: vi.fn() });
+    const handle = await startScreencast(page, { size: { width: 2560, height: 1600 }, emit: vi.fn() });
     expect(context).not.toHaveBeenCalled();
     await handle.stop();
   });

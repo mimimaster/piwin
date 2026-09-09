@@ -11,7 +11,6 @@ import {
   useEffect,
   useRef,
   useState,
-  type ClipboardEvent,
   type FormEvent,
   type KeyboardEvent,
   type MouseEvent,
@@ -21,7 +20,8 @@ import {
 import type { BrowserInputEvent, WebElementPickResult } from '@piwin/contracts';
 import type { HostClient } from './host-client';
 import { normalizeUrl } from './normalize-url';
-import { IconBrowser, IconClose, IconRefresh } from './shell-icons';
+import { IconBrowser, IconClose } from './shell-icons';
+import { BrowserSessionChrome } from './browser-session-chrome';
 import { BrowserConsoleDrawer } from './browser-console-drawer';
 import {
   useBrowserSessionLease,
@@ -63,6 +63,12 @@ function browserCopy(locale: DesktopLocale) {
       go: '前往',
       reload: '重载',
       navigate: '导航',
+      back: '后退',
+      forward: '前进',
+      newTab: '新标签',
+      closeTab: '关闭标签',
+      acceptDialog: '接受',
+      dismissDialog: '取消',
       starting: '正在启动浏览器会话…',
       clearHighlight: '清除高亮',
       frameAlt: '浏览器会话',
@@ -87,6 +93,12 @@ function browserCopy(locale: DesktopLocale) {
     go: 'Go',
     reload: 'Reload',
     navigate: 'Navigate',
+    back: 'Back',
+    forward: 'Forward',
+    newTab: 'New tab',
+    closeTab: 'Close tab',
+    acceptDialog: 'Accept',
+    dismissDialog: 'Dismiss',
     starting: 'Starting browser session…',
     clearHighlight: 'Clear highlight',
     frameAlt: 'Browser session',
@@ -115,6 +127,9 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
     networkLines,
     lifecycle,
     mirror,
+    tabs,
+    pendingDialog,
+    viewport,
   } = useBrowserSessionLease({
     hostClient,
     onAddWebElement,
@@ -141,34 +156,6 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
       if (moveRafRef.current !== null) cancelAnimationFrame(moveRafRef.current);
     };
   }, []);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container || typeof ResizeObserver === 'undefined') return;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let lastWidth = 0;
-    let lastHeight = 0;
-    const observer = new ResizeObserver((entries) => {
-      const box = entries[0]?.contentRect;
-      if (!box) return;
-      const width = Math.round(box.width);
-      const height = Math.round(box.height);
-      if (timer !== null) clearTimeout(timer);
-      timer = setTimeout(() => {
-        timer = null;
-        if (width < 1 || height < 1) return;
-        if (width === lastWidth && height === lastHeight) return;
-        lastWidth = width;
-        lastHeight = height;
-        void hostClient.browserResize(width, height);
-      }, 80);
-    });
-    observer.observe(container);
-    return () => {
-      observer.disconnect();
-      if (timer !== null) clearTimeout(timer);
-    };
-  }, [hostClient]);
 
   const toViewport = useCallback(
     (displayX: number, displayY: number): { x: number; y: number } | null => {
@@ -369,32 +356,19 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
 
   return (
     <div className="browser-session-panel" data-testid="browser-session-panel">
-      <form className="browser-session-urlbar" onSubmit={handleNavigate}>
-        <IconBrowser width={14} height={14} className="browser-session-urlbar-icon" />
-        <input
-          className="browser-session-url-input"
-          data-testid="browser-session-url-input"
-          type="text"
-          value={urlInput}
-          disabled={!interactEnabled}
-          onChange={(event) => setUrlInput(event.target.value)}
-          onPaste={(event: ClipboardEvent<HTMLInputElement>) => event.stopPropagation()}
-          onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
-            if (event.key === 'Enter') {
-              event.preventDefault();
-              void handleNavigate();
-            }
-          }}
-          placeholder={copy.urlPlaceholder}
-          spellCheck={false}
-        />
-        <button type="submit" className="browser-session-go-btn" data-testid="browser-session-go-btn" aria-label={copy.navigate} disabled={!interactEnabled}>
-          {copy.go}
-        </button>
-        <button type="button" className="browser-session-refresh-btn" onClick={() => void handleNavigate()} aria-label={copy.reload} title={copy.reload} disabled={!interactEnabled}>
-          <IconRefresh width={14} height={14} />
-        </button>
-      </form>
+      <BrowserSessionChrome
+        hostClient={hostClient}
+        copy={copy}
+        urlInput={urlInput}
+        onUrlInput={setUrlInput}
+        onNavigate={() => {
+          void handleNavigate();
+        }}
+        interactEnabled={interactEnabled}
+        tabs={tabs}
+        pendingDialog={pendingDialog}
+        viewport={viewport}
+      />
 
       {agentOwns ? (
         <div className="browser-session-banner br-banner agent" data-testid="browser-session-agent-banner">

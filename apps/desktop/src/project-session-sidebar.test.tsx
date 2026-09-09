@@ -71,6 +71,7 @@ function renderSidebar(props: Partial<ProjectSessionSidebarProps> = {}): {
     settingsOpen: false,
     onOpenWorkspace: () => {},
     onOpenProject: () => {},
+    onOpenGeneral: () => {},
     onRemoveProject: () => {},
     onNewSession: () => {},
     onNewGeneralSession: () => {},
@@ -117,6 +118,32 @@ describe('ProjectSessionSidebar resident session lists', () => {
     expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(13);
     expect(container.textContent).toContain('Session Item 13');
     expect(container.querySelector('[data-testid="project-session-show-more"]')).toBeNull();
+  });
+
+  it('keeps Conversations visible independently of the No Repo entry and Projects', () => {
+    const onOpenGeneral = vi.fn();
+    const onNewGeneralSession = vi.fn();
+    const { container } = renderSidebar({
+      generalSessions: createMockSessions(9),
+      filteredSessions: [],
+      onOpenGeneral,
+      onNewGeneralSession,
+    });
+    const conversationToggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="conversations-section-toggle"]',
+    );
+    expect(conversationToggle?.getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelectorAll('.sidebar-tree-row--general-session')).toHaveLength(9);
+    act(() => container.querySelector<HTMLButtonElement>('[data-testid="no-repo-folder"]')?.click());
+    expect(onOpenGeneral).toHaveBeenCalledOnce();
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(9);
+    act(() => container.querySelector<HTMLButtonElement>('[data-testid="projects-section-toggle"]')?.click());
+    expect(container.querySelector('[data-testid="no-repo-folder"]')).toBeNull();
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(9);
+    act(() => container.querySelector<HTMLButtonElement>('[data-testid="general-workspace-btn"]')?.click());
+    expect(onNewGeneralSession).toHaveBeenCalledOnce();
+    act(() => conversationToggle?.click());
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(0);
   });
 
   it('displays a small project list without page controls', () => {
@@ -252,7 +279,7 @@ describe('ProjectSessionSidebar resident session lists', () => {
     // Every project remains rendered; only a project's child list folds.
     expect(container.querySelectorAll('[data-testid="repository-item"]')).toHaveLength(8);
     expect(container.querySelectorAll('[data-testid="project-fold-toggle"]')).toHaveLength(8);
-    expect(container.querySelectorAll('.tree-folder-icon')).toHaveLength(8);
+    expect(container.querySelectorAll('.tree-folder-icon')).toHaveLength(9);
     expect(container.querySelector('[data-testid="projects-section-title"]')).not.toBeNull();
   });
 
@@ -426,7 +453,7 @@ it('starts a project draft with the row scope and does not also open the project
   const { container } = renderSidebar({ onOpenProject, onNewSession });
 
   act(() => {
-    (container.querySelector('.tree-folder-add-btn') as HTMLButtonElement).click();
+    container.querySelector('[data-testid="repository-item"]')?.closest('.tree-folder-summary')?.querySelector<HTMLButtonElement>('.tree-folder-add-btn')?.click();
   });
 
   // Opening/switching is owned by handleStartNewSession; the row only names P.
@@ -1167,6 +1194,7 @@ describe('ProjectSessionSidebar virtualization gate', () => {
       expect(document.activeElement).toBe(search);
     }
   });
+
 });
 
 

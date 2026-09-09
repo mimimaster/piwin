@@ -323,6 +323,17 @@ export type HostContentCommand =
   | { id?: string; type: 'browser/lock'; owner: 'agent' | 'user' }
   | { id?: string; type: 'browser/unlock'; owner: 'agent' | 'user' }
   | { id?: string; type: 'browser/resize'; width: number; height: number }
+  | { id?: string; type: 'browser/back' }
+  | { id?: string; type: 'browser/forward' }
+  | { id?: string; type: 'browser/new-tab'; url?: string }
+  | { id?: string; type: 'browser/select-tab'; pageId: string }
+  | { id?: string; type: 'browser/close-tab'; pageId: string }
+  | {
+      id?: string;
+      type: 'browser/dialog';
+      action: 'accept' | 'dismiss';
+      promptText?: string;
+    }
   /** Plugin system: install / list / uninstall / registry / secrets. */
   | {
       id?: string;

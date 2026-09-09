@@ -60,6 +60,7 @@ export type SidebarTreeRowViewProps = {
   collapsedProjects: Record<string, boolean>;
   onToggleProjectCollapsed: (projectPath: string, nextCollapsed: boolean) => void;
   onRemoveProject?: ((path: string) => void) | undefined;
+  onOpenGeneral: () => void;
   onNewSession: (options?: {
     scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
   }) => void;
@@ -342,6 +343,26 @@ export function SidebarTreeRowView(props: SidebarTreeRowViewProps): ReactElement
             <IconPlus width={13} height={13} />
           </IconButton>
         </div>
+      </div>
+    );
+  }
+
+  if (row.kind === 'no-repo-folder') {
+    return (
+      <div className={`tree-folder-summary${props.projectPath === null ? ' active' : ''}`}>
+        <button type="button" className="tree-folder-toggle"
+          aria-label={sidebarCopy.noRepo} onClick={props.onOpenGeneral}>
+          <IconFolder className="tree-folder-icon" />
+        </button>
+        <button type="button" className="tree-folder-main"
+          data-testid="no-repo-folder" onClick={props.onOpenGeneral}>
+          <span className="tree-folder-title">{sidebarCopy.noRepo}</span>
+        </button>
+        <IconButton className="sidebar-icon-btn tree-folder-add-btn" size="xs"
+          data-testid="no-repo-add-btn" label={props.newConversationLabel}
+          onClick={props.onNewGeneralSession}>
+          <IconPlus />
+        </IconButton>
       </div>
     );
   }

@@ -127,10 +127,6 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-sessions-toggle.ib {
-  width: 24px !important;
-  height: 24px !important;
-  min-width: 24px !important;
-  min-height: 24px !important;
   /* Overlay traffic lights sit on tauri y:18; the 30px band centres CSS
      chrome ~1px higher. Nudge so the light centreline bisects the glyph. */
   position: relative;
@@ -142,7 +138,12 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-sessions-toggle.ib:hover,
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-sessions-toggle.ib.active,
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-sessions-toggle.ib[aria-pressed='true'],
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-sessions-toggle.ib[aria-expanded='true'] {
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-sessions-toggle.ib[aria-expanded='true'],
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-inspector-btn.ib,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-inspector-btn.ib:hover,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-inspector-btn.ib.active,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-inspector-btn.ib[aria-pressed='true'],
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-inspector-btn.ib[aria-expanded='true'] {
   background: transparent !important;
   box-shadow: none !important;
   color: var(--t1) !important;
@@ -427,9 +428,11 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   stroke-width: 1.6;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-sessions-toggle svg {
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-sessions-toggle svg,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-inspector-btn svg {
   width: 16px !important;
   height: 16px !important;
+  stroke-width: 1.4;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar .context-bar-history .ib svg,

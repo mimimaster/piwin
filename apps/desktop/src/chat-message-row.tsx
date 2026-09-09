@@ -36,8 +36,10 @@ import { resolveAssistantRenderingPhase } from './streaming-caret';
 import { useDesktopContextMenu, type ContextMenuTarget } from './context-menu';
 import { MessageEditCard } from './chat-message-edit-card';
 import { TurnErrorCard } from './turn-error-card';
+import { TurnTruncationCard } from './turn-truncation-card';
 import { MessageBubbleContextMenu } from './message-bubble-context-menu';
 import { resolveTurnErrorMessage } from './turn-error-presentation';
+import { turnAttemptHasRetainedWork } from './turn-attempt-work';
 
 export type { ChatMessageRowProps } from './chat-message-row-types.js';
 import type { ChatMessageRowProps } from './chat-message-row-types.js';
@@ -459,22 +461,43 @@ export const ChatMessageRow = memo(
             {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
           />
         ) : null}
+        {message.role === 'assistant' &&
+        props.isLastAssistantInTurn === true &&
+        props.runRecord?.outcome === 'completed' &&
+        props.runRecord?.agentStopReason === 'length' ? (
+          <TurnTruncationCard
+            {...(props.locale ? { locale: props.locale } : {})}
+            {...(props.onContinueTurn ? { onContinue: props.onContinueTurn } : {})}
+          />
+        ) : null}
         {message.role === 'assistant' && errorMessage !== null ? (
           <TurnErrorCard
             messageId={message.id}
             error={errorMessage}
             {...(message.failure === undefined ? {} : { failure: message.failure })}
             locale={props.locale}
-            onRetry={() => {
+            {...(() => {
               const retryUserMessageId = props.turnUserMessageId ?? props.lastUserMessageId;
-              if (retryUserMessageId && props.onRetryTurn) {
-                props.onRetryTurn(retryUserMessageId, { keepPrevious: false });
-              } else if (props.onRegenerate) {
-                props.onRegenerate();
-              } else if (retryUserMessageId) {
-                props.onRetry(retryUserMessageId);
+              const restart = (): void => {
+                if (retryUserMessageId && props.onRetryTurn) {
+                  props.onRetryTurn(retryUserMessageId, { keepPrevious: false });
+                } else if (props.onRegenerate) {
+                  props.onRegenerate();
+                } else if (retryUserMessageId) {
+                  props.onRetry(retryUserMessageId);
+                }
+              };
+              const retained = turnAttemptHasRetainedWork({
+                text: message.text,
+                tools: message.tools,
+                attachments: message.attachments,
+                ...(props.turnTools ? { turnTools: props.turnTools } : {}),
+              });
+              if (retained && props.onContinueTurn) {
+                return { onContinue: props.onContinueTurn, onRestart: restart };
               }
-            }}
+              return { onRetry: restart };
+            })()}
             onFeedback={props.onFeedback}
           />
         ) : null}

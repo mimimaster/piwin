@@ -6,6 +6,7 @@
  * pixel size. Emit is capped so Chrome's ~50 fps stream does not flood Host.
  */
 import type { Page } from 'playwright-core';
+import { BROWSER_SCREENCAST_QUALITY } from './screencast-size.js';
 
 export type ScreencastFrame = {
   dataUrl: string;
@@ -18,7 +19,6 @@ export type ScreencastHandle = {
   stop(): Promise<void>;
 };
 
-const DEFAULT_QUALITY = 55;
 const DEFAULT_MAX_FPS = 12;
 
 type PublicScreencast = {
@@ -58,7 +58,7 @@ async function stopQuietly(screencast: PublicScreencast): Promise<void> {
 export async function startScreencast(
   page: Page,
   options: {
-    maxDimension: number;
+    size: { width: number; height: number };
     emit: (frame: ScreencastFrame) => void;
     quality?: number;
     maxFps?: number;
@@ -66,7 +66,7 @@ export async function startScreencast(
   },
 ): Promise<ScreencastHandle> {
   const screencast = getPublicScreencast(page);
-  const quality = options.quality ?? DEFAULT_QUALITY;
+  const quality = options.quality ?? BROWSER_SCREENCAST_QUALITY;
   const minIntervalMs = Math.round(1000 / (options.maxFps ?? DEFAULT_MAX_FPS));
   const now = options.now ?? Date.now;
   let stopped = false;
@@ -97,7 +97,7 @@ export async function startScreencast(
 
   const startOptions = {
     onFrame: handleFrame,
-    size: { width: options.maxDimension, height: options.maxDimension },
+    size: options.size,
     quality,
   };
 

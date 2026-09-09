@@ -640,6 +640,9 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                     {...(props.onRetryTurn !== undefined
                       ? { onRetryTurn: props.onRetryTurn }
                       : {})}
+                    {...(props.onContinueTurn !== undefined
+                      ? { onContinueTurn: props.onContinueTurn }
+                      : {})}
                     branchPoints={props.branchPoints ?? []}
                     {...(props.onSwitchBranch !== undefined
                       ? { onSwitchBranch: props.onSwitchBranch }

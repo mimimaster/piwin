@@ -51,7 +51,9 @@
 | 编辑卡「重试」，文本/附件**未变**（含只换模型） | 新 user 兄弟 | **重试**：复用原 user 行，丢掉上一份回答 | `retryUserMessageId` |
 | 编辑卡「开分支」，文本未变 | （无此按钮） | **探索**：保留当前回答，新 user 兄弟 | `branchFromMessageId` |
 | 编辑卡「发送」，文本/附件**已变** | 新 user 兄弟 | 不变（真·提问分叉） | `branchFromMessageId` |
-| 错误卡 / 中断后「重试」 | 新 user 兄弟 | **重试**：删掉失败尝试再跑 | `retryUserMessageId`, `keepPreviousAttempt: false` |
+| 错误卡 / 中断后「重试」（空气泡） | 新 user 兄弟 | **重试**：删掉失败尝试再跑 | `retryUserMessageId`, `keepPreviousAttempt: false` |
+| 错误卡「继续」/ 截断条 | — | **继续**：不截断、不新建用户行 | `source: continuation` |
+| 错误卡「从头再来」 | — | 显式 wipe-retry | `retryUserMessageId`, `keepPreviousAttempt: false` |
 | 助手操作条「再生成」 | 新 user 兄弟 | **另生成一版**：保留旧回答作兄弟 | `retryUserMessageId`, `keepPreviousAttempt: true` |
 | 「删除此处及之后」 | truncate-from | 文案改「回到此处」，行为不变 | `session/truncate-from` |
 | Fork Chat | 新会话 | 不变 | `session/fork` |

@@ -260,19 +260,12 @@
   width: 13px;
   height: 13px;
   color: var(--text-4);
-  transition:
-    color var(--t-1) var(--ease-out),
-    transform var(--t-3) var(--ease-spring);
+  transition: color var(--t-1) var(--ease-out), transform var(--t-3) var(--ease-spring);
   flex-shrink: 0;
 }
 
-.tool-call-chevron.open {
-  transform: rotate(0deg);
-}
-
-.tool-call-card:not(.is-expanded) .tool-call-chevron {
-  transform: rotate(-90deg);
-}
+.tool-call-chevron.open { transform: rotate(0deg); }
+.tool-call-card:not(.is-expanded) .tool-call-chevron { transform: rotate(-90deg); }
 
 .tool-call-chevron-hit {
   display: inline-flex;
@@ -281,6 +274,13 @@
   margin-left: auto;
   padding: 2px;
   border-radius: var(--r-chip);
+  opacity: 0;
+  transition: opacity var(--t-1) var(--ease-out);
+}
+
+:is(.tool-call-card:hover, .tool-call-summary:hover, .tool-call-card.is-expanded) .tool-call-chevron-hit,
+.tool-call-chevron-hit:focus-visible {
+  opacity: 1;
 }
 
 .tool-call-chevron-hit:hover {

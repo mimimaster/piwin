@@ -861,7 +861,9 @@ Generate short video clips from text prompts or reference images (inputImagePath
 * **应用时机**：`config.artifact.enabled` 打开时，完整决策策略 + runtime 契约直接注入 system prompt。
 
 ##### 英文生产原版
-见 `DEFAULT_ARTIFACT_DECISION_PROMPT` 与 `formatArtifactProtocol()`。模型不再需要先调用 `artifact_instructions` 才能决定是否输出 Artifact。
+见 `DEFAULT_ARTIFACT_DECISION_PROMPT` 与 `formatArtifactProtocol()`（runtime 契约 **v9**）。
+会话 vault 图用 `<img data-piwin-media="<mediaId>">`，禁止 `data:image` / 本地路径 / markdown 图。
+模型不再需要先调用 `artifact_instructions` 才能决定是否输出 Artifact。
 
 ---
 

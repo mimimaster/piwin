@@ -32,6 +32,7 @@ function buildPage() {
     title: vi.fn().mockResolvedValue('Example'),
     goto: vi.fn().mockResolvedValue(null),
     viewportSize: vi.fn().mockReturnValue({ width: 1280, height: 800 }),
+    evaluate: vi.fn().mockResolvedValue(2),
     setViewportSize: vi.fn().mockResolvedValue(undefined),
     screenshot: vi.fn().mockResolvedValue(Buffer.from('jpegbytes')),
     locator: vi.fn().mockReturnValue({
@@ -151,7 +152,7 @@ describe('lazy launch', () => {
     expect(launchMock).toHaveBeenCalledTimes(1);
     expect(launchMock).toHaveBeenCalledWith(
       expect.any(String),
-      expect.objectContaining({ headless: true }),
+      expect.objectContaining({ headless: true, deviceScaleFactor: 2 }),
     );
     expect(page.locator).toHaveBeenNthCalledWith(1, 'aria-ref=e5');
     expect(page.locator).toHaveBeenNthCalledWith(2, 'button.submit');
@@ -384,7 +385,7 @@ describe('session operations', () => {
     const session = createBrowserSession();
     const result = await session.screenshot('/tmp/piwin-browser-test/shot.jpg');
     expect(result.path).toBe('/tmp/piwin-browser-test/shot.jpg');
-    expect(page.screenshot).toHaveBeenCalledWith({ type: 'jpeg', quality: 70 });
+    expect(page.screenshot).toHaveBeenCalledWith({ type: 'jpeg', quality: 80 });
   });
 
   it('closes the persistent context that owns Chromium', async () => {

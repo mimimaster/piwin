@@ -750,8 +750,10 @@ kill it) were recorded on `79318f5c` in
   back to screenshot frames, plus pointer/IME forwarding (`browser/input`).
   Default mode is Interact; pick remains a modifier that attaches a composer chip.
   Desktop opens the right-sidebar Browser tab when the agent acquires the page
-  or navigates. The Host CSS viewport defaults to **1280×800**; the panel scales
-  with `object-fit: contain` and does not shrink the page to the inspector box.
+  or navigates. The Host CSS viewport defaults to **1280×800**; Host-owned
+  Chromium rasters at deviceScaleFactor 2 and the screencast JPEG is CSS×DSF
+  (quality 80). The panel scales with `object-fit: contain` and does not shrink
+  the page to the inspector box.
 - **Controller lock** — `idle | user | agent` (ADR 0057). Write tools auto-acquire
   `agent` from idle. The human takes over explicitly; the agent never auto-steals.
   If the user holds the page, write tools return `browser-user-has-control`.

@@ -219,6 +219,49 @@ describe('buildTurnPresentation', () => {
     expect(presentation.summaryLabel).toBe('Connecting to model…');
   });
 
+  it('keeps waiting chrome while Host is preparing with an empty assistant bubble', () => {
+    const presentation = buildTurnPresentation({
+      message: assistantMessage({
+        status: 'streaming',
+        text: '',
+        runId: 'run-prepare',
+      }),
+      runRecordsById: {
+        'run-prepare': {
+          runId: 'run-prepare',
+          phaseHistory: [{ phase: 'preparing', at: 1 }],
+          startedAt: 1,
+          endedAt: null,
+        },
+      },
+      activeRunId: 'run-prepare',
+      permissionPrompt: null,
+    });
+    expect(presentation.isWaitingForModel).toBe(true);
+  });
+
+  it('keeps waiting chrome for early streaming before any visible token', () => {
+    const presentation = buildTurnPresentation({
+      message: assistantMessage({
+        status: 'streaming',
+        text: '',
+        thinking: '',
+        runId: 'run-stream-empty',
+      }),
+      runRecordsById: {
+        'run-stream-empty': {
+          runId: 'run-stream-empty',
+          phaseHistory: [{ phase: 'streaming', at: 1 }],
+          startedAt: 1,
+          endedAt: null,
+        },
+      },
+      activeRunId: 'run-stream-empty',
+      permissionPrompt: null,
+    });
+    expect(presentation.isWaitingForModel).toBe(true);
+  });
+
   it('uses Chinese completed summary when locale is zh-CN', () => {
     const presentation = buildTurnPresentation({
       message: assistantMessage({

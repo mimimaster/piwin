@@ -8,6 +8,9 @@ import {
   clampRightPanelWidthForViewport,
   loadRightPanelWidth,
   saveRightPanelWidth,
+  shouldEnterRightPanelFullWidth,
+  shouldExitRightPanelFullWidth,
+  RIGHT_PANEL_STAGE_MIN_PX,
 } from '../right-panel-width';
 
 /** Write the live width straight to the shell so drag does not wait on React. */
@@ -36,9 +39,13 @@ export type UseRightPanelResizeOptions = {
 export type UseRightPanelResizeResult = {
   widthPx: number;
   isResizing: boolean;
+  /** Desktop only: right panel covers the conversation (sidebar remains). */
+  isFullWidth: boolean;
   onResizePointerDown: (event: React.PointerEvent<HTMLElement>) => void;
   /** Apply a clamped width (e.g. double-click reset). */
   setWidthPx: (widthPx: number) => void;
+  setFullWidth: (next: boolean) => void;
+  toggleFullWidth: () => void;
 };
 
 export function useRightPanelResize(
@@ -47,7 +54,9 @@ export function useRightPanelResize(
   const sidebarWidthPx = options.sidebarWidthPx ?? 260;
   const [widthPx, setWidthState] = useState(() => loadRightPanelWidth());
   const [isResizing, setIsResizing] = useState(false);
+  const [isFullWidth, setFullWidthState] = useState(false);
   const widthRef = useRef(widthPx);
+  const fullWidthRef = useRef(false);
   const shellRef = useRef<HTMLElement | null>(null);
   const pendingFrameRef = useRef<number | null>(null);
   const pendingWidthRef = useRef<number | null>(null);
@@ -56,12 +65,17 @@ export function useRightPanelResize(
     pointerId: number;
     startX: number;
     startWidth: number;
+    startedFullWidth: boolean;
   } | null>(null);
   // Drag updates CSS only; React width state commits on pointer-up.
 
   useEffect(() => {
     widthRef.current = widthPx;
   }, [widthPx]);
+
+  useEffect(() => {
+    fullWidthRef.current = isFullWidth;
+  }, [isFullWidth]);
 
   useEffect(() => {
     liveWidthCommitRef.current = options.onLiveWidthCommit;
@@ -129,11 +143,34 @@ export function useRightPanelResize(
         reservedChromePx: reserved,
         // Keep the chat/composer column usable — below this the empty-state
         // composer card deforms when the right panel is dragged wide.
-        minStagePx: options.layoutMode === 'compact' ? 0 : 420,
+        minStagePx: options.layoutMode === 'compact' ? 0 : RIGHT_PANEL_STAGE_MIN_PX,
       });
     },
     [options.layoutMode, options.navDrawerOpen, sidebarWidthPx],
   );
+
+  const resolveReservedChromePx = useCallback((): number => {
+    return options.layoutMode === 'desktop' && options.navDrawerOpen ? sidebarWidthPx : 0;
+  }, [options.layoutMode, options.navDrawerOpen, sidebarWidthPx]);
+
+  const resolveViewportWidth = useCallback((): number => {
+    return typeof window !== 'undefined' ? window.innerWidth : 1280;
+  }, []);
+
+  const commitFullWidth = useCallback((next: boolean): void => {
+    if (options.layoutMode !== 'desktop') {
+      if (fullWidthRef.current) {
+        fullWidthRef.current = false;
+        setFullWidthState(false);
+      }
+      return;
+    }
+    if (fullWidthRef.current === next) {
+      return;
+    }
+    fullWidthRef.current = next;
+    setFullWidthState(next);
+  }, [options.layoutMode]);
 
   const setWidthPx = useCallback(
     (next: number) => {
@@ -148,6 +185,23 @@ export function useRightPanelResize(
     [flushPendingWidth, resolveClamp, writeLiveWidth],
   );
 
+  const setFullWidth = useCallback(
+    (next: boolean): void => {
+      commitFullWidth(next);
+    },
+    [commitFullWidth],
+  );
+
+  const toggleFullWidth = useCallback((): void => {
+    commitFullWidth(!fullWidthRef.current);
+  }, [commitFullWidth]);
+
+  useEffect(() => {
+    if (options.layoutMode === 'compact') {
+      commitFullWidth(false);
+    }
+  }, [commitFullWidth, options.layoutMode]);
+
   const onResizePointerDown = useCallback((event: React.PointerEvent<HTMLElement>) => {
     if (event.button !== 0) {
       return;
@@ -158,15 +212,21 @@ export function useRightPanelResize(
     target.setPointerCapture(event.pointerId);
     shellRef.current = target.closest<HTMLElement>('.app-shell') ?? findAppShell();
     pendingWidthRef.current = null;
+    const reserved = resolveReservedChromePx();
+    const viewport = resolveViewportWidth();
+    const startedFullWidth = fullWidthRef.current;
     dragRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
-      startWidth: widthRef.current,
+      startWidth: startedFullWidth
+        ? Math.max(widthRef.current, viewport - reserved)
+        : widthRef.current,
+      startedFullWidth,
     };
     setIsResizing(true);
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
-  }, []);
+  }, [resolveReservedChromePx, resolveViewportWidth]);
 
   useEffect(() => {
     if (!isResizing) {
@@ -180,7 +240,36 @@ export function useRightPanelResize(
       }
       // Dragging the left edge: move left → wider panel.
       const delta = drag.startX - event.clientX;
-      const next = resolveClamp(drag.startWidth + delta);
+      const candidate = drag.startWidth + delta;
+      const viewport = resolveViewportWidth();
+      const reserved = resolveReservedChromePx();
+      const desktop = options.layoutMode === 'desktop';
+      const snapInput = {
+        panelWidthPx: candidate,
+        viewportWidth: viewport,
+        reservedChromePx: reserved,
+      };
+
+      if (desktop && (drag.startedFullWidth || fullWidthRef.current)) {
+        if (shouldExitRightPanelFullWidth(snapInput)) {
+          const clamped = resolveClamp(candidate);
+          commitFullWidth(false);
+          if (clamped === widthRef.current) {
+            return;
+          }
+          widthRef.current = clamped;
+          scheduleLiveWidth(clamped);
+          liveWidthCommitRef.current?.(clamped);
+        }
+        return;
+      }
+
+      if (desktop && shouldEnterRightPanelFullWidth(snapInput)) {
+        commitFullWidth(true);
+        return;
+      }
+
+      const next = resolveClamp(candidate);
       if (next === widthRef.current) {
         return;
       }
@@ -211,7 +300,9 @@ export function useRightPanelResize(
       }, 60);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
-      saveRightPanelWidth(commit);
+      if (!fullWidthRef.current) {
+        saveRightPanelWidth(commit);
+      }
     }
 
     window.addEventListener('pointermove', onPointerMove);
@@ -226,11 +317,24 @@ export function useRightPanelResize(
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     };
-  }, [flushPendingWidth, isResizing, resolveClamp, scheduleLiveWidth, writeLiveWidth]);
+  }, [
+    commitFullWidth,
+    flushPendingWidth,
+    isResizing,
+    options.layoutMode,
+    resolveClamp,
+    resolveReservedChromePx,
+    resolveViewportWidth,
+    scheduleLiveWidth,
+    writeLiveWidth,
+  ]);
 
   // Re-clamp when viewport shrinks so the panel cannot cover the stage permanently.
   useEffect(() => {
     function onWindowResize(): void {
+      if (fullWidthRef.current) {
+        return;
+      }
       flushPendingWidth();
       const clamped = resolveClamp(widthRef.current);
       if (clamped !== widthRef.current) {
@@ -250,5 +354,8 @@ export function useRightPanelResize(
     isResizing,
     onResizePointerDown,
     setWidthPx,
+    isFullWidth,
+    setFullWidth,
+    toggleFullWidth,
   };
 }

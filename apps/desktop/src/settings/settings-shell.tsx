@@ -32,6 +32,7 @@ import {
   sectionsForGroup,
   type SettingsSectionId,
 } from './section-registry';
+import { matchesSettingsSearch } from './settings-search-index.js';
 import { SettingsProvider, type SettingsContextValue } from './settings-context';
 import { ensureSettingsLazyLoaded } from './settings-lazy-load';
 // Chromium Basic bundle: first-paint section only.
@@ -304,7 +305,7 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
       if (!query) return true;
       const label = translator.settings.nav[item.labelKey]?.toLowerCase() ?? '';
       const groupLabel = translator.settings[group.labelKey]?.toLowerCase() ?? '';
-      return label.includes(query) || groupLabel.includes(query) || item.id.includes(query);
+      return matchesSettingsSearch(query, item, [label, groupLabel]);
     }),
   );
 
@@ -391,9 +392,7 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
                 if (!query) return true;
                 const label = translator.settings.nav[item.labelKey]?.toLowerCase() ?? '';
                 const groupLabel = translator.settings[group.labelKey]?.toLowerCase() ?? '';
-                return (
-                  label.includes(query) || groupLabel.includes(query) || item.id.includes(query)
-                );
+                return matchesSettingsSearch(query, item, [label, groupLabel]);
               });
               if (groupSections.length === 0) return null;
               return (

@@ -44,6 +44,28 @@
   grid-template-areas: 'stage signal';
 }
 
+/* Codex content-full: sidebar + right panel; stage stays mounted but hidden. */
+.app-shell[data-layout='desktop'].has-right-panel.right-panel-full-width {
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  grid-template-areas: 'nav signal';
+}
+
+.app-shell[data-layout='desktop']:not(.nav-open).has-right-panel.right-panel-full-width {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'signal';
+}
+
+.app-shell.right-panel-full-width > .workspace {
+  display: none;
+}
+
+/* Deck titleband overlays columns; hide it when only the inspector remains
+   so it cannot sit on the panel tabstrip. Inkstone's titleband is a real
+   grid row (`tb`) and must stay visible — see inkstone/shell.css. */
+.app-shell.right-panel-full-width:not(.nav-open) > .context-bar {
+  display: none;
+}
+
 /* Compact collapses to a single stage column; the sidebar becomes a drawer. */
 .app-shell[data-layout='compact'],
 .app-shell[data-layout='compact'].has-right-panel {

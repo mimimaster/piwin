@@ -229,6 +229,53 @@ describe('rebaseForPromptTree (ADR 0064)', () => {
     }
   });
 
+  it('does not rebase or truncate a continuation prompt', async () => {
+    const { store, context, sessionId } = await openRetryFixture('continue');
+    try {
+      const result = await rebaseForPromptTree(
+        context,
+        prompt(sessionId, { source: 'continuation' }),
+        undefined,
+      );
+      expect(result).toBeNull();
+      expect(await store.getActiveLeaf()).toBe('a2');
+      expect(await store.getMessage('a2')).toBeDefined();
+      expect(context.disposeLiveSession).not.toHaveBeenCalled();
+    } finally {
+      store.close();
+    }
+  });
+
+  it('refuses continuation combined with retry or branch', async () => {
+    const { store, context, sessionId } = await openRetryFixture('continue-conflict');
+    try {
+      const withRetry = await rebaseForPromptTree(
+        context,
+        prompt(sessionId, { source: 'continuation', retryUserMessageId: 'u2' }),
+        undefined,
+      );
+      expect(withRetry?.success).toBe(false);
+      if (withRetry?.success !== false) {
+        throw new Error('expected retry conflict');
+      }
+      expect(withRetry.error).toContain('continuation-and-repair-conflict');
+
+      const withBranch = await rebaseForPromptTree(
+        context,
+        prompt(sessionId, { source: 'continuation', branchFromMessageId: 'u2' }),
+        undefined,
+      );
+      expect(withBranch?.success).toBe(false);
+      if (withBranch?.success !== false) {
+        throw new Error('expected branch conflict');
+      }
+      expect(withBranch.error).toContain('continuation-and-repair-conflict');
+      expect(context.disposeLiveSession).not.toHaveBeenCalled();
+    } finally {
+      store.close();
+    }
+  });
+
   it('refuses missing, non-user, and retry+branch targets', async () => {
     const { store, context, sessionId } = await openRetryFixture('refusals');
     try {

@@ -705,6 +705,145 @@ describe('ChatThread render isolation (E1)', () => {
     expect(container.querySelector('[data-testid="turn-waiting-line"]')).toBeNull();
   });
 
+  it('keeps turn-waiting-line while Host preparing/streaming with empty assistant content', () => {
+    const userMessage = createUserMessage('u-prepare', 'Hello');
+    const pendingAssistant: ChatMessageUi = {
+      ...createStreamingAssistant('a-prepare'),
+      runId: 'run-prepare',
+    };
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThreadHarness
+            messages={[userMessage, pendingAssistant]}
+            streaming={true}
+            activeRunId="run-prepare"
+            runRecordsById={{
+              'run-prepare': {
+                runId: 'run-prepare',
+                phaseHistory: [
+                  { phase: 'accepted', at: 1 },
+                  { phase: 'preparing', at: 2 },
+                ],
+                startedAt: 1,
+                endedAt: null,
+              },
+            }}
+            editingMessageId={null}
+            lastUserMessageId={userMessage.id}
+            activeTheme={null}
+            artifactThemeKey={0}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onInspectSubagent={undefined}
+            composerCard={composerCard}
+            locale="zh-CN"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="run-activity-slot"]')).toBeNull();
+    expect(container.querySelector('[data-testid="turn-waiting-line"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="agent-locator"]')?.textContent).toMatch(
+      /准备上下文|连接模型|正在思考|规划/,
+    );
+  });
+
+  it('keeps turn-waiting-line during long hidden reasoning (verboseAgentChat off)', () => {
+    const userMessage = createUserMessage('u-hidden-think', 'Hello');
+    const thinkingAssistant: ChatMessageUi = {
+      ...createStreamingAssistant('a-hidden-think'),
+      runId: 'run-hidden-think',
+      thinking: 'deep reasoning that is intentionally hidden from the transcript',
+    };
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThreadHarness
+            messages={[userMessage, thinkingAssistant]}
+            streaming={true}
+            activeRunId="run-hidden-think"
+            runRecordsById={{
+              'run-hidden-think': {
+                runId: 'run-hidden-think',
+                phaseHistory: [{ phase: 'streaming', at: 1 }],
+                startedAt: 1,
+                endedAt: null,
+              },
+            }}
+            editingMessageId={null}
+            lastUserMessageId={userMessage.id}
+            activeTheme={null}
+            artifactThemeKey={0}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onInspectSubagent={undefined}
+            composerCard={composerCard}
+            locale="zh-CN"
+            showThinking={false}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="turn-thinking"]')).toBeNull();
+    expect(container.querySelector('[data-testid="turn-waiting-line"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="agent-locator"]')?.textContent).toMatch(
+      /正在思考|解析上下文|规划执行|构思回复/,
+    );
+  });
+
+  it('keeps turn-waiting-line while live thinking is collapsed by default', () => {
+    const userMessage = createUserMessage('u-collapsed-think', 'Hello');
+    const thinkingAssistant: ChatMessageUi = {
+      ...createStreamingAssistant('a-collapsed-think'),
+      runId: 'run-collapsed-think',
+      thinking: 'long reasoning that stays collapsed in auto work-details mode',
+    };
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThreadHarness
+            messages={[userMessage, thinkingAssistant]}
+            streaming={true}
+            activeRunId="run-collapsed-think"
+            runRecordsById={{
+              'run-collapsed-think': {
+                runId: 'run-collapsed-think',
+                phaseHistory: [{ phase: 'streaming', at: 1 }],
+                startedAt: 1,
+                endedAt: null,
+              },
+            }}
+            editingMessageId={null}
+            lastUserMessageId={userMessage.id}
+            activeTheme={null}
+            artifactThemeKey={0}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onInspectSubagent={undefined}
+            composerCard={composerCard}
+            locale="zh-CN"
+            showThinking={true}
+            workDetailsExpanded="auto"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="turn-waiting-line"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="agent-locator"]')?.textContent).toMatch(
+      /正在思考|解析上下文|规划执行|构思回复/,
+    );
+  });
+
   it('drops the run-activity slot once the pending assistant lifecycle runs a tool', () => {
     const userMessage = createUserMessage('u2-tool', 'Hello');
     const toolAssistant: ChatMessageUi = {
@@ -3259,6 +3398,98 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
     });
 
     expect(onRetryTurn).toHaveBeenCalledWith('u-1', { keepPrevious: false });
+  });
+
+  it('continues a failed turn that already has tool work instead of wiping it', () => {
+    const onRetryTurn = vi.fn();
+    const onContinueTurn = vi.fn();
+    const u1 = createUserMessage('u-1', 'generate icons');
+    const a1: ChatMessageUi = {
+      id: 'a-1',
+      role: 'assistant',
+      text: '',
+      thinking: '',
+      tools: [
+        {
+          toolCallId: 'image-1',
+          toolName: 'image_gen',
+          status: 'done',
+          output: 'ok',
+        },
+      ],
+      attachments: [],
+      status: 'error',
+      error: 'Provider finish_reason: max_tokens',
+      runId: 'run-failed',
+    };
+
+    renderConversation([u1, a1], {
+      onRetryTurn,
+      onContinueTurn,
+      lastUserMessageId: 'u-1',
+      isConversationSession: false,
+      runRecordsById: {
+        'run-failed': {
+          runId: 'run-failed',
+          phaseHistory: [],
+          startedAt: 1,
+          endedAt: 2,
+          outcome: 'failed',
+          terminalMessage: 'Provider finish_reason: max_tokens',
+        },
+      },
+    });
+
+    const continueBtn = container.querySelector(
+      '[data-testid="turn-error-continue-btn"]',
+    ) as HTMLButtonElement | null;
+    expect(continueBtn).not.toBeNull();
+    act(() => {
+      continueBtn?.click();
+    });
+    expect(onContinueTurn).toHaveBeenCalledTimes(1);
+    expect(onRetryTurn).not.toHaveBeenCalled();
+  });
+
+  it('shows a truncation chip with continue on a completed length stop', () => {
+    const onContinueTurn = vi.fn();
+    const u1 = createUserMessage('u-1', 'canvas of icons');
+    const a1: ChatMessageUi = {
+      id: 'a-1',
+      role: 'assistant',
+      text: '<!DOCTYPE html>',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      runId: 'run-trunc',
+    };
+
+    renderConversation([u1, a1], {
+      onContinueTurn,
+      lastUserMessageId: 'u-1',
+      isConversationSession: false,
+      runRecordsById: {
+        'run-trunc': {
+          runId: 'run-trunc',
+          phaseHistory: [],
+          startedAt: 1,
+          endedAt: 2,
+          outcome: 'completed',
+          agentStopReason: 'length',
+        },
+      },
+    });
+
+    expect(container.querySelector('[data-testid="turn-error-card"]')).toBeNull();
+    const continueBtn = container.querySelector(
+      '[data-testid="turn-truncation-continue-btn"]',
+    ) as HTMLButtonElement | null;
+    expect(continueBtn).not.toBeNull();
+    act(() => {
+      continueBtn?.click();
+    });
+    expect(onContinueTurn).toHaveBeenCalledTimes(1);
   });
 
   it('renders the answer-version switcher on the active assistant sibling', () => {

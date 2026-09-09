@@ -79,44 +79,18 @@ describe('BrowserSessionPanel', () => {
     expect(queryByTestId('browser-session-frame')).toBeNull();
   });
 
-  it('fits the Host viewport to the frame container', async () => {
-    vi.useFakeTimers();
-    const observed: ResizeObserverCallback[] = [];
-    class FakeResizeObserver {
-      constructor(callback: ResizeObserverCallback) {
-        observed.push(callback);
-      }
-      observe(): void {}
-      disconnect(): void {}
-      unobserve(): void {}
-    }
-    const previousObserver = globalThis.ResizeObserver;
-    globalThis.ResizeObserver = FakeResizeObserver as unknown as typeof ResizeObserver;
-
-    try {
-      const client = createMockHostClient();
-      const resizeSpy = vi.spyOn(client, 'browserResize');
-      renderPanel({ hostClient: client });
-      expect(observed.length).toBeGreaterThan(0);
-
-      act(() => {
-        observed[0]?.(
-          [
-            {
-              contentRect: { width: 640, height: 900 },
-            } as ResizeObserverEntry,
-          ],
-          {} as ResizeObserver,
-        );
-      });
-      await act(async () => {
-        vi.advanceTimersByTime(80);
-      });
-      expect(resizeSpy).toHaveBeenCalledWith(640, 900);
-    } finally {
-      globalThis.ResizeObserver = previousObserver;
-      vi.useRealTimers();
-    }
+  it('keeps a fixed Host CSS viewport and exposes history controls', async () => {
+    const client = createMockHostClient();
+    const resizeSpy = vi.spyOn(client, 'browserResize');
+    const requestSpy = vi.spyOn(client, 'request');
+    renderPanel({ hostClient: client });
+    expect(queryByTestId('browser-session-back')).not.toBeNull();
+    expect(queryByTestId('browser-session-forward')).not.toBeNull();
+    expect(resizeSpy).not.toHaveBeenCalled();
+    await act(async () => {
+      queryByTestId('browser-session-back')?.click();
+    });
+    expect(requestSpy).toHaveBeenCalledWith({ type: 'browser/back' });
   });
 
   it('acquires Chromium on mount and releases it when the browser surface unmounts', () => {

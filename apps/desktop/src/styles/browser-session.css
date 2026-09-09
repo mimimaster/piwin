@@ -12,6 +12,57 @@
   background: var(--surface-1);
 }
 
+.browser-session-tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: var(--s-2) var(--s-4) 0;
+  flex-shrink: 0;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.browser-session-tab,
+.browser-session-tab-new {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: var(--h-xs);
+  padding: 0 var(--s-3);
+  border: 0;
+  border-radius: var(--r-control) var(--r-control) 0 0;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  flex-shrink: 0;
+  max-width: 160px;
+}
+
+.browser-session-tab.active {
+  background: var(--surface-2);
+  color: var(--text-1);
+}
+
+.browser-session-tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-micro);
+}
+
+.browser-session-tab-close {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  color: var(--text-3);
+}
+
+.browser-session-tab-new {
+  max-width: none;
+  padding: 0 var(--s-2);
+}
+
 .browser-session-urlbar {
   display: flex;
   align-items: center;
@@ -19,6 +70,31 @@
   padding: var(--s-3) var(--s-4);
   border-bottom: 1px solid var(--line-1);
   flex-shrink: 0;
+}
+
+.browser-session-nav-btn {
+  display: grid;
+  place-items: center;
+  width: var(--h-sm);
+  height: var(--h-sm);
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--text-1);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.browser-session-nav-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.browser-session-viewport {
+  flex-shrink: 0;
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
 }
 
 .browser-session-urlbar-icon {

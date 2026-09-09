@@ -31,7 +31,7 @@ function draft(id: string, name: string, scope: DraftSessionItemUi['scope']): Dr
 }
 
 function kinds(rows: SidebarTreeRow[]): string[] {
-  return rows.map((row) => {
+  return rows.filter((row) => row.kind !== 'no-repo-folder').map((row) => {
     if (row.kind === 'section-header') return `header:${row.sectionId}`;
     if (row.kind === 'repo-group') return `repo:${row.title}`;
     if (row.kind === 'project-folder') return `folder:${row.projectPath}:${row.collapsed}`;

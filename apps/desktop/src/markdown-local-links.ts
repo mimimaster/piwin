@@ -26,8 +26,8 @@ function stripAngleBrackets(href: string): string {
 }
 
 /**
- * Globs are not openable files. Chipping `~/.piwin/sessions/**` shows a folder
- * icon plus leftover `**` because PathChip labels with the last path segment.
+ * Globs are not openable files. Chipping `~/.piwin/sessions/**` is not an
+ * openable path (and the last segment is leftover `**`).
  */
 function containsGlobMeta(value: string): boolean {
   return value.includes('*') || value.includes('?');

@@ -227,10 +227,22 @@ export async function createSubscriptionAuthPort(
       }
     },
     async fetchQuota(providerId) {
-      return fetchSubscriptionQuota({ authPath: options.authPath, providerId });
+      return fetchSubscriptionQuota({
+        authPath: options.authPath,
+        providerId,
+        refreshCredentials: async () => {
+          await runtime.refresh({ providers: [providerId], allowNetwork: true });
+        },
+      });
     },
     async resetQuota(providerId) {
-      return resetSubscriptionQuota({ authPath: options.authPath, providerId });
+      return resetSubscriptionQuota({
+        authPath: options.authPath,
+        providerId,
+        refreshCredentials: async () => {
+          await runtime.refresh({ providers: [providerId], allowNetwork: true });
+        },
+      });
     },
     dispose() {
       // Pi ModelRuntime has no dispose; Host owns one instance for the process.

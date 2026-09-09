@@ -119,6 +119,11 @@ export function applyRunRecord(
       : previousRecord?.terminalMessage
         ? { terminalMessage: previousRecord.terminalMessage }
         : {}),
+    ...(run.agentStopReason !== undefined
+      ? { agentStopReason: run.agentStopReason }
+      : previousRecord?.agentStopReason !== undefined
+        ? { agentStopReason: previousRecord.agentStopReason }
+        : {}),
   };
   const records = { ...state.runRecordsById, [run.runId]: nextRecord };
 

@@ -81,6 +81,7 @@ export type WorkbenchTranscriptProps = {
   onEditResend: (messageId: string, text: string) => void;
   onRetry: (messageId: string) => void;
   onRetryTurn?: (userMessageId: string, options: { keepPrevious: boolean }) => void;
+  onContinueTurn?: () => void;
   onBranchResend: (messageId: string, text: string) => void;
   onSwitchBranch: (headMessageId: string) => void;
   onInterventionEdit: (messageId: string, text: string) => void | Promise<void>;
@@ -140,6 +141,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
     onEditResend,
     onRetry,
     onRetryTurn,
+    onContinueTurn,
     onBranchResend,
     onSwitchBranch,
     onInterventionEdit,
@@ -251,6 +253,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
             onEditResend={onEditResend}
             onRetry={onRetry}
             {...(onRetryTurn !== undefined ? { onRetryTurn } : {})}
+            {...(onContinueTurn !== undefined ? { onContinueTurn } : {})}
             onBranchResend={onBranchResend}
             branchPoints={branchPoints}
             onSwitchBranch={onSwitchBranch}

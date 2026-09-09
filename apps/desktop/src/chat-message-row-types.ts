@@ -77,6 +77,7 @@ export type ChatMessageRowProps = {
   onEditResend: (messageId: string, text: string) => void;
   onRetry: (messageId: string) => void;
   onRetryTurn?: (userMessageId: string, options: { keepPrevious: boolean }) => void;
+  onContinueTurn?: () => void;
   onBranchResend?: (messageId: string, text: string) => void;
   branchPoints?: TranscriptBranchPoint[];
   onSwitchBranch?: (headMessageId: string) => void;

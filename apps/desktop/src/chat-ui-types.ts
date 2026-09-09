@@ -215,6 +215,7 @@ export type RunRecordUi = {
   endedAt: number | null;
   outcome?: SessionRunOutcome;
   terminalMessage?: string;
+  agentStopReason?: ExecutionRunRecord['agentStopReason'];
 };
 
 export type PermissionPromptUi = {

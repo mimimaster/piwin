@@ -23,6 +23,7 @@ import { Button } from '@piwin/ui-kit';
 import { ArtifactFrame } from './ArtifactFrame';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model';
 import { useDesktopLocale } from './desktop-locale-context';
+import { useArtifactSessionMediaObjectUrls } from './artifact-session-media.js';
 
 export type ArtifactCanvasProposal = ComposerProposeTextActionPayload;
 
@@ -48,6 +49,10 @@ export function ArtifactCanvasPanel(props: ArtifactCanvasPanelProps): ReactEleme
   const { locale } = useDesktopLocale();
   const isZh = locale === 'zh-CN';
   const [pendingProposal, setPendingProposal] = useState<ArtifactCanvasProposal | null>(null);
+  const mediaObjectUrls = useArtifactSessionMediaObjectUrls({
+    source: activeTarget?.source ?? '',
+    ...(activeTarget ? { originSessionId: activeTarget.sessionId } : {}),
+  });
 
   const plan = useMemo(() => {
     if (!activeTarget) return null;
@@ -55,9 +60,10 @@ export function ArtifactCanvasPanel(props: ArtifactCanvasPanelProps): ReactEleme
       mode: activeTarget.streaming === true ? 'stream-preview' : 'interactive',
       source: activeTarget.source,
       presentation: 'canvas',
+      mediaObjectUrls,
       ...(props.artifactTheme ? { theme: props.artifactTheme } : {}),
     });
-  }, [activeTarget, props.artifactTheme]);
+  }, [activeTarget, props.artifactTheme, mediaObjectUrls]);
 
   function handleInsert(): void {
     if (pendingProposal && props.onInsertProposal) {

@@ -40,6 +40,37 @@ export function fileNameFromPath(path: string): string {
   return path.split(/[\\/]/).pop() || path;
 }
 
+/**
+ * Visible chip text: keep the directory the path was written with.
+ * `label` wins only when it is a real title, not the file basename.
+ */
+export function pathChipDisplayText(
+  fullPath: string,
+  label?: string | undefined,
+): string {
+  const visiblePath = resolveLocalFileAbsolutePath(fullPath) || fullPath.trim();
+  if (label) {
+    const trimmed = label.trim();
+    if (
+      trimmed &&
+      trimmed !== fileNameFromPath(fullPath) &&
+      trimmed !== fileNameFromPath(visiblePath)
+    ) {
+      return trimmed;
+    }
+  }
+  return visiblePath;
+}
+
+function chipPathParts(displayText: string): { dir: string; file: string } | null {
+  const file = fileNameFromPath(displayText);
+  if (!file || file === displayText) {
+    return null;
+  }
+  const dir = displayText.slice(0, displayText.length - file.length);
+  return dir ? { dir, file } : null;
+}
+
 function relativePathFromFull(fullPath: string, projectPath: string | undefined): string {
   if (!projectPath) {
     return fullPath;
@@ -79,7 +110,8 @@ export function PathChip({
   const { locale } = useDesktopLocale();
   const localFileActions = useLocalFileActions();
   const desktopMenu = useDesktopContextMenu();
-  const displayText = label ?? fileNameFromPath(fullPath);
+  const displayText = pathChipDisplayText(fullPath, label);
+  const displayParts = chipPathParts(displayText);
   const absolutePath = resolveLocalFileAbsolutePath(fullPath, projectPath);
   const resolvedRelative =
     relativePath ??
@@ -222,7 +254,16 @@ export function PathChip({
       }}
     >
       {showIcon ? icon : null}
-      <span className="chip-text">{displayText}</span>
+      <span className="chip-text">
+        {displayParts ? (
+          <>
+            <span className="chip-dir">{displayParts.dir}</span>
+            <span className="chip-file">{displayParts.file}</span>
+          </>
+        ) : (
+          displayText
+        )}
+      </span>
     </a>
   );
 

@@ -99,6 +99,8 @@ describe('artifact_instructions golden', () => {
     expect(tool.family).toBe('artifact');
     expect(tool.permissionSpec.readOnly).toBe(true);
     expect(tool.descriptor.description).toContain('already in the system prompt');
+    expect(tool.descriptor.description).toContain('surface="canvas"');
+    expect(tool.descriptor.description).toContain('reviews');
     expect(result.ok).toBe(true);
     if (!result.ok) {
       throw new Error(result.message);

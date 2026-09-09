@@ -114,3 +114,22 @@ export async function runSessionRetry(
       : `retry ${sessionId} ${userMessageId}`,
   );
 }
+
+export async function runSessionContinue(
+  client: SessionBranchHostClient,
+  sessionId: string,
+  print: (line: string) => void,
+): Promise<void> {
+  const response = await client.handleCommand({
+    type: 'session/prompt',
+    sessionId,
+    input: { text: '', source: 'continuation' },
+  });
+  if (!response.success) {
+    throw new Error(response.error);
+  }
+  const data = response.data as { runId?: string };
+  print(
+    data.runId ? `continue ${sessionId} → run ${data.runId}` : `continue ${sessionId}`,
+  );
+}

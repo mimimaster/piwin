@@ -55,8 +55,17 @@ function estimateSidebarTreeRowSize(row: SidebarTreeRow | undefined): number {
     case 'time-group':
       return SIDEBAR_HINT_ROW_ESTIMATE_PX;
     case 'project-folder':
+    case 'no-repo-folder':
       return SIDEBAR_FOLDER_ROW_ESTIMATE_PX;
     case 'session':
+      if (
+        row.scope.kind === 'general' &&
+        'lastPreview' in row.session &&
+        typeof row.session.lastPreview === 'string' &&
+        row.session.lastPreview.trim().length > 0
+      ) {
+        return 46;
+      }
       return SIDEBAR_SESSION_ROW_ESTIMATE_PX;
     case 'project-show-more':
       return SIDEBAR_FOLDER_ROW_ESTIMATE_PX;
@@ -100,6 +109,7 @@ export type ProjectSessionSidebarProps = {
   settingsOpen: boolean;
   onOpenWorkspace?: () => void;
   onOpenProject: (path: string) => void;
+  onOpenGeneral: () => void;
   onRemoveProject?: (path: string) => void;
   onNewSession: (options?: {
     scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
@@ -345,10 +355,15 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
 
       if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
         event.preventDefault();
-        const activeId =
-          document.activeElement instanceof HTMLElement
-            ? document.activeElement.getAttribute('data-session-id')
+        const activeElement = document.activeElement;
+        const activeSessionControl =
+          activeElement instanceof HTMLElement
+            ? activeElement.closest<HTMLElement>('[data-session-id]') ??
+              activeElement
+                .closest<HTMLElement>('.session-row')
+                ?.querySelector<HTMLElement>('[data-session-id]')
             : null;
+        const activeId = activeSessionControl?.getAttribute('data-session-id') ?? null;
         const currentPosition = sessionRowIndexes.findIndex((rowIndex) => {
           const row = treeRows[rowIndex];
           return row?.kind === 'session' && row.session.id === activeId;
@@ -390,7 +405,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
         pinnedCount={pinnedCount}
         projectsSectionExpanded={projectsSectionExpanded}
         onToggleProjectsSection={() => setProjectsSectionExpanded((expanded) => !expanded)}
-        recentProjectsCount={props.recentProjects.length}
+        recentProjectsCount={props.recentProjects.length + 1}
         recentProjects={props.recentProjects}
         projectPath={props.projectPath}
         filteredSessions={props.filteredSessions}
@@ -413,6 +428,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
           }));
         }}
         onRemoveProject={props.onRemoveProject}
+        onOpenGeneral={props.onOpenGeneral}
         onNewSession={props.onNewSession}
         onOpenWorkspace={props.onOpenWorkspace}
         sortBy={sortBy}

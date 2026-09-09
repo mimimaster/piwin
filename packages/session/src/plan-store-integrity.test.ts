@@ -8,6 +8,7 @@ import {
   loadSessionPlan,
   PlanAlreadyExistsError,
   PlanMutationError,
+  PlanRevisionConflictError,
   saveSessionPlan,
   updateSessionPlan,
 } from './plan-store.js';
@@ -121,6 +122,67 @@ describe('plan-store integrity', () => {
     if (rejected?.status === 'rejected') {
       expect(rejected.reason).toBeInstanceOf(PlanAlreadyExistsError);
     }
+  });
+
+  it('rejects a stale revision without applying the stale mutator', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'piwin-plan-stale-revision-'));
+    const filePath = join(directory, 'plan.json');
+    await saveSessionPlan(filePath, samplePlan());
+
+    const before = await loadSessionPlan(filePath);
+    if (!before) throw new Error('expected a plan');
+    const committed = await updateSessionPlan(
+      filePath,
+      (current) => (current ? { ...current, title: 'newer writer' } : null),
+      { planId: before.id, revision: before.revision },
+    );
+    expect(committed?.revision).toBe(before.revision + 1);
+
+    await expect(
+      updateSessionPlan(
+        filePath,
+        (current) => (current ? { ...current, title: 'stale writer' } : null),
+        { planId: before.id, revision: before.revision },
+      ),
+    ).rejects.toBeInstanceOf(PlanRevisionConflictError);
+    expect((await loadSessionPlan(filePath))?.title).toBe('newer writer');
+  });
+
+  it('rejects an old plan identity after clear and recreate', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'piwin-plan-stale-identity-'));
+    const filePath = join(directory, 'plan.json');
+    await saveSessionPlan(filePath, samplePlan());
+    const old = await loadSessionPlan(filePath);
+    if (!old) throw new Error('expected the original plan');
+
+    await clearSessionPlan(filePath, { planId: old.id, revision: old.revision });
+    await saveSessionPlan(filePath, { ...samplePlan(), id: 'new-plan' });
+
+    await expect(
+      updateSessionPlan(
+        filePath,
+        (current) => (current ? { ...current, title: 'stale resurrection' } : null),
+        { planId: old.id, revision: old.revision },
+      ),
+    ).rejects.toBeInstanceOf(PlanRevisionConflictError);
+    expect((await loadSessionPlan(filePath))?.id).toBe('new-plan');
+    expect((await loadSessionPlan(filePath))?.title).toBe('Ship feature');
+  });
+
+  it('rejects a stale clear and keeps the newer plan', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'piwin-plan-stale-clear-'));
+    const filePath = join(directory, 'plan.json');
+    await saveSessionPlan(filePath, samplePlan());
+    const before = await loadSessionPlan(filePath);
+    if (!before) throw new Error('expected a plan');
+    await updateSessionPlan(filePath, (current) =>
+      current ? { ...current, title: 'newer writer' } : null,
+    );
+
+    await expect(
+      clearSessionPlan(filePath, { planId: before.id, revision: before.revision }),
+    ).rejects.toBeInstanceOf(PlanRevisionConflictError);
+    expect(await loadSessionPlan(filePath)).not.toBeNull();
   });
 
   it('does not recreate a plan after clear from an old identity mutator', async () => {

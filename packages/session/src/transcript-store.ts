@@ -102,6 +102,7 @@ export type TranscriptStoreMessageInput = {
     outcome?: SessionTranscriptMessage['outcome'];
     terminalMessage?: string;
     failure?: SessionTranscriptMessage['failure'];
+    agentStopReason?: SessionTranscriptMessage['agentStopReason'];
     subagentActivity?: SessionTranscriptMessage['subagentActivity'];
     searchEvidence?: SessionTranscriptMessage['searchEvidence'];
     instructionDelivery?: SessionTranscriptMessage['instructionDelivery'];
@@ -239,6 +240,7 @@ export type SessionTranscriptStore = {
     outcome: SessionRunOutcome;
     terminalMessage?: string;
     failure?: SessionTranscriptMessage['failure'];
+    agentStopReason?: SessionTranscriptMessage['agentStopReason'];
   }): Promise<SessionTranscriptMessage[]>;
   /**
    * Guarantee a failed session-turn has an assistant row on this run.

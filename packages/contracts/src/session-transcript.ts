@@ -14,6 +14,7 @@ import type { QueuedTurnStatus } from './queued-turn.js';
 import type { RunInterventionStatus } from './run-intervention.js';
 import type { ReplyWriterAttribution } from './reply-writer.js';
 import type { AgentFailure } from './agent-failure.js';
+import type { AgentPromptStopReason } from './agent-prompt-outcome.js';
 
 /**
  * Reserved generation namespace for legacy transcript rows (ADR 0040 §9).
@@ -70,6 +71,8 @@ export type SessionTranscriptMessage = {
   terminalMessage?: string;
   /** Structured Agent failure for a terminal assistant row; null clears a prior value. */
   failure?: AgentFailure | null;
+  /** Native Agent stop reason stamped at Run terminalization. */
+  agentStopReason?: AgentPromptStopReason;
   thinking?: string;
   tools?: SessionToolCardView[];
   searchEvidence?: SearchEvidence;
@@ -92,7 +95,7 @@ export type SessionTranscriptMessage = {
    * How this user row entered the transcript. Omitted on assistant rows
    * and on user rows written before this field existed.
    */
-  source?: 'user' | 'resume' | 'queued-turn' | 'voice-delegation';
+  source?: 'user' | 'resume' | 'queued-turn' | 'voice-delegation' | 'continuation';
   /** Product Live call id when `source` is `voice-delegation`. */
   voiceCallId?: string;
   /** Host-owned delivery state for durable user instructions. */

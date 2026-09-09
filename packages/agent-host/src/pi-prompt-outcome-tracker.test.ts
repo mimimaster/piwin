@@ -45,6 +45,47 @@ describe('pi-prompt-outcome-tracker', () => {
     });
   });
 
+  it('maps Pi finish_reason max_tokens wrapping to completed length', () => {
+    expect(finalizeFixture('max-tokens-truncation.json')).toEqual({
+      status: 'completed',
+      stopReason: 'length',
+    });
+  });
+
+  it('maps uppercase MAX_TOKENS wrapping to completed length', () => {
+    const tracker = createPiPromptOutcomeTracker();
+    tracker.observe({ type: 'agent_start' });
+    tracker.observe({
+      type: 'message_end',
+      message: {
+        role: 'assistant',
+        stopReason: 'error',
+        errorMessage: 'Provider finish_reason: MAX_TOKENS',
+      },
+    });
+    expect(tracker.finalize()).toEqual({ status: 'completed', stopReason: 'length' });
+  });
+
+  it('maps a native max_tokens stopReason to completed length', () => {
+    const tracker = createPiPromptOutcomeTracker();
+    tracker.observe({ type: 'agent_start' });
+    tracker.observe({
+      type: 'message_end',
+      message: { role: 'assistant', stopReason: 'max_tokens' },
+    });
+    expect(tracker.finalize()).toEqual({ status: 'completed', stopReason: 'length' });
+  });
+
+  it('maps a native length stop as completed truncation', () => {
+    const tracker = createPiPromptOutcomeTracker();
+    tracker.observe({ type: 'agent_start' });
+    tracker.observe({
+      type: 'message_end',
+      message: { role: 'assistant', stopReason: 'length' },
+    });
+    expect(tracker.finalize()).toEqual({ status: 'completed', stopReason: 'length' });
+  });
+
   it('maps a 401 provider stop to authentication failure', () => {
     expect(finalizeFixture('provider-error.json')).toMatchObject({
       status: 'failed',

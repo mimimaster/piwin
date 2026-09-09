@@ -783,7 +783,7 @@ export function buildImageGenTool(options: ImageGenToolOptions): HostToolRegistr
         byteSize,
         ...(revisedPrompts.length > 0 ? { revisedPrompts } : {}),
         notice:
-          'The client UI already rendered these images as attachments. Do not embed markdown images or local file paths in your reply.',
+          'The client UI already rendered these images as attachments. Do not embed markdown images, local file paths, or data:image URLs. To show them in an Artifact, use <img data-piwin-media="<mediaId>" alt="..."> with a mediaId from this result. If the user only needs to pick among these images, the attachment cards are enough.',
       };
       return {
         ok: true,

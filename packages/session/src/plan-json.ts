@@ -3,12 +3,13 @@
  * truncated documents or depend on V8 SyntaxError English wording.
  */
 
-const MAX_PLAN_SCAN_CHARS = 64 * 1024;
+import { Buffer } from 'node:buffer';
+import { MAX_PLAN_JSON_BYTES } from '@piwin/contracts';
 
 export function extractLeadingJsonObject(
   raw: string,
 ): { json: string; trailingGarbage: boolean } | undefined {
-  if (raw.length > MAX_PLAN_SCAN_CHARS) {
+  if (Buffer.byteLength(raw, 'utf8') > MAX_PLAN_JSON_BYTES) {
     return undefined;
   }
   let index = 0;

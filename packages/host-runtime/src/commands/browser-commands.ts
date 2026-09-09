@@ -24,6 +24,12 @@ const TYPES = new Set<HostCommand['type']>([
   'browser/lock',
   'browser/unlock',
   'browser/resize',
+  'browser/back',
+  'browser/forward',
+  'browser/new-tab',
+  'browser/select-tab',
+  'browser/close-tab',
+  'browser/dialog',
 ]);
 
 function failFromBrowserError(
@@ -165,6 +171,62 @@ export async function handleBrowserCommand(
           height: command.height,
         });
         return ok(requestId, 'browser/resize', { viewport });
+      } catch (error) {
+        return failFromBrowserError(requestId, command.type, error);
+      }
+    }
+
+    case 'browser/back': {
+      try {
+        await session.back({ actor: 'user' });
+        return ok(requestId, 'browser/back', { ok: true });
+      } catch (error) {
+        return failFromBrowserError(requestId, command.type, error);
+      }
+    }
+
+    case 'browser/forward': {
+      try {
+        await session.forward({ actor: 'user' });
+        return ok(requestId, 'browser/forward', { ok: true });
+      } catch (error) {
+        return failFromBrowserError(requestId, command.type, error);
+      }
+    }
+
+    case 'browser/new-tab': {
+      try {
+        const tab = await session.newTab(command.url, { actor: 'user' });
+        return ok(requestId, 'browser/new-tab', { tab });
+      } catch (error) {
+        return failFromBrowserError(requestId, command.type, error);
+      }
+    }
+
+    case 'browser/select-tab': {
+      try {
+        const tab = await session.selectTab(command.pageId, { actor: 'user' });
+        return ok(requestId, 'browser/select-tab', { tab });
+      } catch (error) {
+        return failFromBrowserError(requestId, command.type, error);
+      }
+    }
+
+    case 'browser/close-tab': {
+      try {
+        await session.closeTab(command.pageId, { actor: 'user' });
+        return ok(requestId, 'browser/close-tab', { ok: true });
+      } catch (error) {
+        return failFromBrowserError(requestId, command.type, error);
+      }
+    }
+
+    case 'browser/dialog': {
+      try {
+        const dialog = await session.handleDialog(command.action, command.promptText, {
+          actor: 'user',
+        });
+        return ok(requestId, 'browser/dialog', { dialog });
       } catch (error) {
         return failFromBrowserError(requestId, command.type, error);
       }

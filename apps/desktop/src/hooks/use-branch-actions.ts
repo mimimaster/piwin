@@ -467,6 +467,73 @@ export function useBranchActions(args: UseBranchActionsArgs) {
     ],
   );
 
+
+  const continueTurn = useCallback(async (): Promise<void> => {
+    if (!activeSessionId) {
+      dispatchNotification(pushError('No active session to continue.'));
+      return;
+    }
+    if (streaming) {
+      dispatchNotification(
+        pushInfo('Wait for the current run to finish (or stop it) before continuing.'),
+      );
+      return;
+    }
+    if (!isGeneralScope && !projectTrusted) {
+      dispatch({ type: 'project/trust-dialog', open: true });
+      return;
+    }
+    setEditingMessageId(null);
+    const input = buildContinuePromptInput({
+      selectedModelKey,
+      modelOptions,
+      ...(thinkingLevel !== undefined ? { thinkingLevel } : {}),
+    });
+    const response = await requestPromptWithForeground({
+      request: (command, requestOptions) => hostClient.request(command, requestOptions),
+      sessionId: activeSessionId,
+      input,
+      createIdempotencyKey: createGestureIdempotencyKey,
+      ...(confirmForegroundReplace ? { confirmReplace: confirmForegroundReplace } : {}),
+      ...(typeof hostClient.supportsForegroundAdmission === 'function'
+        ? { remoteForegroundAdmission: hostClient.supportsForegroundAdmission() }
+        : {}),
+    });
+    if (!response.success) {
+      const problem = readForegroundProblem(response);
+      if (problem) {
+        dispatchNotification(pushError(foregroundMismatchNotice(problem, locale)));
+      } else {
+        dispatchNotification(pushError(response.error));
+      }
+      return;
+    }
+    const accepted = response.data as { runId?: string; acceptedAt?: string };
+    if (typeof accepted.runId === 'string') {
+      dispatch({
+        type: 'run/accepted',
+        runId: accepted.runId,
+        ...(accepted.acceptedAt ? { acceptedAt: accepted.acceptedAt } : {}),
+      });
+    }
+    void refreshBranchPoints(activeSessionId);
+  }, [
+    activeSessionId,
+    confirmForegroundReplace,
+    dispatch,
+    dispatchNotification,
+    hostClient,
+    isGeneralScope,
+    locale,
+    modelOptions,
+    projectTrusted,
+    refreshBranchPoints,
+    selectedModelKey,
+    setEditingMessageId,
+    streaming,
+    thinkingLevel,
+  ]);
+
   const requestTruncateAfter = useCallback(
     (messageId: string): void => {
       if (!activeSessionId) {
@@ -530,6 +597,7 @@ export function useBranchActions(args: UseBranchActionsArgs) {
     switchBranch,
     branchResend,
     retryTurn,
+    continueTurn,
     requestTruncateAfter,
     pendingTruncate,
     confirmTruncateAfter,
@@ -668,6 +736,31 @@ export function buildRetryPromptInput(input: {
   if (input.delegationDisabled) {
     prompt.delegationMode = 'disabled';
   }
+  const option = input.modelOptions.find(
+    (item) => `${item.providerId}::${item.modelId}` === input.selectedModelKey,
+  );
+  if (option) {
+    prompt.model = toModelRef({
+      providerId: option.providerId,
+      modelId: option.modelId,
+      ...(option.protocol !== undefined ? { protocol: option.protocol } : {}),
+    });
+    if (input.thinkingLevel && canUseThinkingLevel(option, input.thinkingLevel, true)) {
+      prompt.thinkingLevel = input.thinkingLevel;
+    }
+  }
+  return prompt;
+}
+
+export function buildContinuePromptInput(input: {
+  selectedModelKey: string;
+  modelOptions: ModelOption[];
+  thinkingLevel?: ThinkingLevel;
+}): PromptInput {
+  const prompt: PromptInput = {
+    text: '',
+    source: 'continuation',
+  };
   const option = input.modelOptions.find(
     (item) => `${item.providerId}::${item.modelId}` === input.selectedModelKey,
   );

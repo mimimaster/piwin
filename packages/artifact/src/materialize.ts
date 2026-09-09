@@ -12,6 +12,7 @@ import {
 } from './streamable-preview.js';
 import { createDefaultArtifactTheme } from './theme.js';
 import { applyArtifactThemeContract } from './theme-contract.js';
+import { bindArtifactSessionMedia } from './bind-session-media.js';
 import type {
   ArtifactFrameMode,
   ArtifactIframePolicy,
@@ -33,6 +34,11 @@ export type MaterializeArtifactOptions = {
    * without rewriting the stored intent.
    */
   presentation?: ArtifactSurface;
+  /**
+   * Session-vault object URLs keyed by mediaId. Only `blob:` values are
+   * written into render HTML. Descriptor source is never rewritten.
+   */
+  mediaObjectUrls?: ReadonlyMap<string, string>;
 };
 
 function frameModeFor(
@@ -76,6 +82,7 @@ export function materializeArtifact(
   if (contract.changed) {
     bodySource = contract.source;
   }
+  bodySource = bindArtifactSessionMedia(bodySource, options.mediaObjectUrls ?? new Map());
 
   const frameMode = frameModeFor(intent, presentation);
   const useStatic =
