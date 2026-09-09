@@ -7,8 +7,15 @@ import { expect, test, type Page } from '@playwright/test';
  */
 
 async function waitForHostReady(page: Page): Promise<void> {
+  const chooseSidecar = page.getByTestId('host-gate-choose-sidecar');
+  if (await chooseSidecar.isVisible()) {
+    await chooseSidecar.click();
+  }
   await expect(page.getByTestId('app-shell')).toBeVisible();
-  await expect(page.getByTestId('host-status-pill')).toContainText(/就绪|ready/i);
+  // host-status-pill was retired with the compact sidebar; the shell-owned
+  // runtime sentinel + mounted composer are the modern ready signal.
+  await expect(page.getByTestId('agent-mode-pill')).toHaveText('mock');
+  await expect(page.getByTestId('composer-input')).toBeVisible();
   // reducedMotion/colorScheme/DPR are fixed pre-navigation in playwright.config.ts.
 }
 
@@ -122,7 +129,7 @@ test.describe('visual regression baselines', () => {
     await page.setViewportSize({ width: 1280, height: 840 });
     await page.goto('/');
     await waitForHostReady(page);
-    await page.getByTestId('settings-open-btn').click();
+    await page.getByTestId('settings-open-shelf-btn').click();
     await expect(page.getByTestId('settings-panel')).toBeVisible();
     await expect(page.getByTestId('settings-panel')).toHaveScreenshot(
       'settings-general-1280.png',
@@ -169,7 +176,7 @@ test.describe('visual regression baselines', () => {
     await page.goto('/');
     await waitForHostReady(page);
     await ensureSidebarOpen(page);
-    await page.getByTestId('settings-open-btn').evaluate((node: HTMLElement) => node.click());
+    await page.getByTestId('settings-open-shelf-btn').evaluate((node: HTMLElement) => node.click());
     await expect(page.getByTestId('settings-panel')).toBeVisible();
     await expect(page.getByTestId('settings-panel')).toHaveScreenshot(
       'compact-settings-820.png',
@@ -260,7 +267,7 @@ test.describe('visual regression baselines', () => {
     await page.setViewportSize({ width: 1280, height: 840 });
     await page.goto('/');
     await waitForHostReady(page);
-    await page.getByTestId('settings-open-btn').click();
+    await page.getByTestId('settings-open-shelf-btn').click();
     await expect(page.getByTestId('settings-panel')).toBeVisible();
     await page.getByTestId('settings-nav-appearance').click();
 

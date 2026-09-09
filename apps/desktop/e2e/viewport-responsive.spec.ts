@@ -1,8 +1,15 @@
 import { expect, test, type Page } from '@playwright/test';
 
 async function waitForHostReady(page: Page): Promise<void> {
+  const chooseSidecar = page.getByTestId('host-gate-choose-sidecar');
+  if (await chooseSidecar.isVisible()) {
+    await chooseSidecar.click();
+  }
   await expect(page.getByTestId('app-shell')).toBeVisible();
-  await expect(page.getByTestId('host-status-pill')).toContainText(/就绪|ready/i);
+  // host-status-pill was retired with the compact sidebar; the shell-owned
+  // runtime sentinel + mounted composer are the modern ready signal.
+  await expect(page.getByTestId('agent-mode-pill')).toHaveText('mock');
+  await expect(page.getByTestId('composer-input')).toBeVisible();
 }
 
 async function openSettingsFromCompactShell(page: Page): Promise<void> {
@@ -23,7 +30,7 @@ async function openSettingsFromCompactShell(page: Page): Promise<void> {
     await page.getByTestId('rail-chats-btn').click();
   }
   await expect(shell).toHaveClass(/nav-open/);
-  const settingsBtn = page.getByTestId('settings-open-btn');
+  const settingsBtn = page.getByTestId('settings-open-shelf-btn');
   await expect(settingsBtn).toBeVisible();
   await settingsBtn.evaluate((node: HTMLElement) => node.click());
 }
@@ -112,7 +119,7 @@ test.describe('responsive viewport smoke', () => {
     await expect(page.getByTestId('session-search-input')).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('session-search-dialog')).toHaveCount(0);
-    await page.getByTestId('settings-open-btn').click();
+    await page.getByTestId('settings-open-shelf-btn').click();
     await expect(page.getByTestId('settings-panel')).toBeVisible();
     await page.keyboard.press('Escape');
   });

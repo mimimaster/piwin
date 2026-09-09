@@ -319,7 +319,7 @@ export function RightPanel(props: RightPanelProps): ReactElement {
 
           <IconButton
             className="right-panel-action-btn ib"
-            data-testid="right-panel-open-btn"
+            data-testid="right-panel-close-btn"
             label={locale === 'zh-CN' ? '关闭工作区面板' : 'Close workspace panel'}
             title={locale === 'zh-CN' ? '关闭工作区面板' : 'Close workspace panel'}
             onClick={props.onClose}
