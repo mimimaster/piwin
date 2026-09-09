@@ -503,6 +503,14 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   box-shadow: var(--sh1);
 }
 
+/* The input-slab (砚/纸) and appearance (明/墨) toggles are two independent
+   axes that happen to sit adjacent with the same pill styling — without a
+   gap they read as one four-button control. A little extra breathing room
+   marks the seam without needing a visible divider. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .context-bar [data-testid='titlebar-theme-toggle-group'] {
+  margin-left: 8px;
+}
+
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) :is(.tb, .context-bar, .stage-header) .context-bar-mode-badge {
   font: 600 10.5px/1 var(--mono) !important;
   height: 20px !important;
