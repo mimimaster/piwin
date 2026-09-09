@@ -434,7 +434,7 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
               disabled={!canSync}
               data-testid="side-chat-sync"
             >
-              {syncing ? 'Syncing…' : 'Sync'}
+              {syncing ? (locale === 'zh-CN' ? '同步中…' : 'Syncing…') : locale === 'zh-CN' ? '同步' : 'Sync'}
             </Button>
             <Button
               size="compact"
@@ -443,7 +443,7 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
               disabled={!sessionId}
               data-testid="side-chat-new"
             >
-              New
+              {locale === 'zh-CN' ? '新建' : 'New'}
             </Button>
           </>
         ) : (
@@ -454,7 +454,7 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
             disabled={!sessionId}
             data-testid="side-chat-new"
           >
-            New Side Chat
+            {locale === 'zh-CN' ? '新建侧聊' : 'New Side Chat'}
           </Button>
         )}
       </div>
@@ -464,9 +464,10 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
         <div className="side-chat-context-bar">
           <span className="side-chat-context-version">Context v{contextVersion}</span>
           <span className="side-chat-context-source">
-            Source: {sourceState}
+            {locale === 'zh-CN' ? '源会话：' : 'Source: '}
+            {sourceState}
           </span>
-          <span className="side-chat-mode">Read-only</span>
+          <span className="side-chat-mode">{locale === 'zh-CN' ? '只读' : 'Read-only'}</span>
         </div>
       )}
 
@@ -481,11 +482,17 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
       <div className="side-chat-messages" role="log" aria-live="polite">
         {messages.length === 0 && !assistantBuffer && !streaming ? (
           <div className="muted side-chat-empty">
-            {activeSideChatId
-              ? 'Ask a question about the current context. The side chat is read-only — it can search and read files but cannot modify them.'
-              : sessionId
-                ? 'Ask about the current session context. Sending will open a side chat.'
-                : 'Open a main session first, then ask about its context.'}
+            {locale === 'zh-CN'
+              ? activeSideChatId
+                ? '针对当前上下文提问。侧聊是只读的——可以搜索和读取文件，但不能修改它们。'
+                : sessionId
+                  ? '针对当前会话上下文提问，发送后会开启一个侧聊。'
+                  : '先打开一个主会话，再针对它的上下文提问。'
+              : activeSideChatId
+                ? 'Ask a question about the current context. The side chat is read-only — it can search and read files but cannot modify them.'
+                : sessionId
+                  ? 'Ask about the current session context. Sending will open a side chat.'
+                  : 'Open a main session first, then ask about its context.'}
           </div>
         ) : (
           <>
@@ -533,7 +540,9 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
           onChange={setInput}
           placeholder={
             sessionId
-              ? 'Ask about the context…'
+              ? locale === 'zh-CN'
+                ? '询问上下文…'
+                : 'Ask about the context…'
               : locale === 'zh-CN'
                 ? '先打开一个主会话'
                 : 'Open a main session first'

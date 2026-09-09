@@ -9,6 +9,7 @@ import type { ModelProviderConfig, ModelSource, ThinkingLevel } from '@piwin/con
 import { formatComposerModelKey } from './composer-model-selection-policy';
 import { IconClose, IconSearch, IconSpark } from './shell-icons';
 import { getSupportedThinkingLevels } from './model-thinking-policy';
+import { useDesktopLocale } from './desktop-locale-context';
 
 export type ThinkingEffortModelOption = {
   key: string;
@@ -72,6 +73,8 @@ export function ThinkingEffortControl({
   selectedModelKey = '',
   onSelectModel,
 }: ThinkingEffortControlProps): ReactElement {
+  const { locale } = useDesktopLocale();
+  const isZh = locale === 'zh-CN';
   const [open, setOpen] = useState(false);
   const [modelSearchQuery, setModelSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -93,7 +96,7 @@ export function ThinkingEffortControl({
   const levels = getSupportedThinkingLevels(selectedModel, ultraEnabled);
   const effectiveValue = levels.includes(value) ? value : (levels[0] ?? 'off');
   const shortModelLabel = shortenModelLabel(modelLabel);
-  const effortLabel = formatThinkingLabel(effectiveValue);
+  const effortLabel = formatThinkingLabel(effectiveValue, isZh);
   const isUltra = effectiveValue === 'ultra';
   const showThinking = levels.length > 0;
 
@@ -162,7 +165,7 @@ export function ThinkingEffortControl({
           /* Thinking / Reasoning Effort Section */
           <section className="thinking-effort-section">
             <header className="thinking-effort-section-title">
-              <span>Thinking</span>
+              <span>{isZh ? '思考' : 'Thinking'}</span>
               <span className="thinking-effort-active-tag">{effortLabel}</span>
             </header>
             <div
@@ -184,7 +187,7 @@ export function ThinkingEffortControl({
                     onClick={() => onChange(level)}
                     data-testid={`thinking-level-${level}`}
                   >
-                    {formatThinkingLabel(level)}
+                    {formatThinkingLabel(level, isZh)}
                   </button>
                 );
               })}
@@ -195,11 +198,11 @@ export function ThinkingEffortControl({
         {/* Model Selection Section */}
         <section className="thinking-effort-section">
           <header className="thinking-effort-section-title">
-            <span>Model Engine</span>
+            <span>{isZh ? '模型' : 'Model Engine'}</span>
           </header>
           {models.length === 0 ? (
             <div className="thinking-effort-model-empty" data-testid="thinking-model-empty">
-              {modelLabel || 'No models configured'}
+              {modelLabel || (isZh ? '未配置模型' : 'No models configured')}
             </div>
           ) : (
             <>
@@ -216,8 +219,8 @@ export function ThinkingEffortControl({
                       chooseModel(filteredModels[0].key);
                     }
                   }}
-                  placeholder="Search models…"
-                  aria-label="Search models"
+                  placeholder={isZh ? '搜索模型…' : 'Search models…'}
+                  aria-label={isZh ? '搜索模型' : 'Search models'}
                   data-testid="thinking-model-search-input"
                   disabled={disabled}
                   spellCheck={false}
@@ -333,7 +336,23 @@ export function ThinkingEffortControl({
   );
 }
 
-function formatThinkingLabel(level: ThinkingLevel): string {
+function formatThinkingLabel(level: ThinkingLevel, isZh: boolean): string {
+  if (isZh) {
+    switch (level) {
+      case 'off':
+        return '关';
+      case 'low':
+        return '低';
+      case 'medium':
+        return '中';
+      case 'high':
+        return '高';
+      case 'xhigh':
+        return '极高';
+      default:
+        return level;
+    }
+  }
   if (level === 'off') {
     return 'Off';
   }

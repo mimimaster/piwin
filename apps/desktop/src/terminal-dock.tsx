@@ -194,7 +194,7 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
     >
       <header className="terminal-dock-toolbar" data-testid="terminal-dock-toolbar">
         <div className="terminal-dock-title muted">
-          {activeSession?.name || (useInteractivePty ? 'zsh' : 'Shell')}
+          {activeSession?.name || (useInteractivePty ? 'zsh' : isZh ? '终端' : 'Shell')}
         </div>
 
         <div className="terminal-dock-toolbar-right">
@@ -360,7 +360,7 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
                       value={inputLine}
                       disabled={ptyStatus === 'starting'}
                       onChange={(event) => setInputLine(event.target.value)}
-                      placeholder="command + Enter"
+                      placeholder={isZh ? '命令 + Enter' : 'command + Enter'}
                       autoComplete="off"
                       spellCheck={false}
                     />
@@ -369,7 +369,7 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
                       data-testid="pty-send-btn"
                       disabled={ptyStatus === 'starting'}
                     >
-                      Send
+                      {isZh ? '发送' : 'Send'}
                     </Button>
                   </form>
                 </>

@@ -15,6 +15,7 @@ import {
   DropdownMenuSubTrigger,
 } from '@piwin/ui-kit';
 import { IconCards, IconFile, IconMcp, IconPaperclip, IconSkill } from './shell-icons';
+import { useDesktopLocale } from './desktop-locale-context';
 
 export type ComposerPlusSubmenu = 'none' | 'skills' | 'mcp' | 'knowledge';
 
@@ -54,6 +55,8 @@ export type ComposerPlusMenuProps = {
 };
 
 export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
+  const { locale } = useDesktopLocale();
+  const isZh = locale === 'zh-CN';
   return (
     <DropdownMenu
       open={props.open}
@@ -68,7 +71,9 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
       trigger={props.trigger}
     >
       {props.onAttachFile || props.onAttachImage ? (
-        <DropdownMenuLabel className="plus-menu-caption muted">Attachments</DropdownMenuLabel>
+        <DropdownMenuLabel className="plus-menu-caption muted">
+          {isZh ? '附件' : 'Attachments'}
+        </DropdownMenuLabel>
       ) : null}
 
       {props.onAttachFile ? (
@@ -76,7 +81,7 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
           <span className="plus-menu-icon">
             <IconFile width={16} height={16} />
           </span>
-          <span className="plus-menu-label">Attach file</span>
+          <span className="plus-menu-label">{isZh ? '添加文件' : 'Attach file'}</span>
         </DropdownMenuItem>
       ) : null}
 
@@ -85,7 +90,7 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
           <span className="plus-menu-icon">
             <IconPaperclip width={16} height={16} />
           </span>
-          <span className="plus-menu-label">Attach image</span>
+          <span className="plus-menu-label">{isZh ? '添加图片' : 'Attach image'}</span>
         </DropdownMenuItem>
       ) : null}
 
@@ -103,12 +108,14 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
           <span className="plus-menu-icon">
             <IconCards width={16} height={16} />
           </span>
-          <span className="plus-menu-label">Flashcards</span>
+          <span className="plus-menu-label">{isZh ? '闪卡' : 'Flashcards'}</span>
         </DropdownMenuItem>
       ) : null}
 
       {props.hideAgentExtras === true ? null : (
-        <DropdownMenuLabel className="plus-menu-caption muted">Skills & MCP</DropdownMenuLabel>
+        <DropdownMenuLabel className="plus-menu-caption muted">
+          {isZh ? '技能与 MCP' : 'Skills & MCP'}
+        </DropdownMenuLabel>
       )}
 
       {props.hideAgentExtras === true ? null : (
@@ -121,14 +128,16 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
               <span className="plus-menu-icon">
                 <IconSkill width={16} height={16} />
               </span>
-              <span className="plus-menu-label">Skills</span>
+              <span className="plus-menu-label">{isZh ? '技能' : 'Skills'}</span>
               <span className="plus-menu-chevron">›</span>
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent className="plus-submenu" label="Skills">
-              <DropdownMenuLabel className="plus-menu-caption muted">Skills</DropdownMenuLabel>
+              <DropdownMenuLabel className="plus-menu-caption muted">
+                {isZh ? '技能' : 'Skills'}
+              </DropdownMenuLabel>
               {props.skills.length === 0 ? (
                 <DropdownMenuLabel className="plus-menu-empty muted">
-                  No skills loaded
+                  {isZh ? '未加载任何技能' : 'No skills loaded'}
                 </DropdownMenuLabel>
               ) : (
                 props.skills.slice(0, 12).map((skill) => (
@@ -139,7 +148,7 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
                 ))
               )}
               <DropdownMenuItem onSelect={props.onOpenSkillsPanel} testId="plus-menu-manage-skills">
-                Manage skills…
+                {isZh ? '管理技能…' : 'Manage skills…'}
               </DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
@@ -159,7 +168,7 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
               <DropdownMenuLabel className="plus-menu-caption muted">MCP servers</DropdownMenuLabel>
               {props.mcpServers.length === 0 ? (
                 <DropdownMenuLabel className="plus-menu-empty muted">
-                  No servers configured
+                  {isZh ? '未配置任何服务器' : 'No servers configured'}
                 </DropdownMenuLabel>
               ) : (
                 props.mcpServers.map((server) => (
@@ -172,7 +181,7 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
                 ))
               )}
               <DropdownMenuItem onSelect={props.onOpenMcpPanel} testId="plus-menu-open-mcp">
-                Open MCP Settings
+                {isZh ? '打开 MCP 设置' : 'Open MCP Settings'}
               </DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuSub>

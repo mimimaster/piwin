@@ -194,7 +194,7 @@ describe('ThinkingEffortControl', () => {
 
     const trigger = queryTrigger();
     expect(trigger.querySelector('.thinking-effort-model')?.textContent).toBe('gpt-test');
-    expect(trigger.querySelector('.thinking-effort-value')?.textContent).toBe('Medium');
+    expect(trigger.querySelector('.thinking-effort-value')?.textContent).toBe('中');
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
     expect(queryPopover()).toBeNull();
   });
