@@ -79,7 +79,6 @@ describe('readExplicitSkillIntent', () => {
     });
   });
 });
-
 describe('extractSkillUserRequest / stripSkillMarkdownFrontmatter', () => {
   it('parses the thin wrapper separator', () => {
     expect(

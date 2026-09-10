@@ -407,7 +407,9 @@ function VirtualizedTranscriptTurns(
   const virtualItems = virtualizer.getVirtualItems();
   const totalSize = virtualizer.getTotalSize();
   useLayoutEffect(() => {
-    // Measured slot heights are in the DOM. Stick only if still following.
+    // The DOM now contains the measured slot heights. Correct the following
+    // viewport before paint, rather than showing the old bottom until a root
+    // ResizeObserver / animation frame eventually notices the new list size.
     props.scrollPort.notifyContentGrew();
   }, [props.scrollPort, totalSize]);
   return (

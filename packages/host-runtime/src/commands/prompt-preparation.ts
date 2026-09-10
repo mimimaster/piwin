@@ -400,42 +400,44 @@ export async function preparePromptInput(
   }
   throwIfPromptPreparationAborted(context, run.runId);
 
-  if (!conversationChat) {
-    // Explicit slash/mention Skill activation (Agent Skills Tier-2): inject
-    // the SKILL.md body into the model-facing prompt. Transcript keeps the
-    // client text recorded above; discovery catalog remains separate.
-    const skillId = resolvePromptSkillId({
-      ...(promptSource.skillId ? { skillId: promptSource.skillId } : {}),
-      text: promptSource.text,
+  // Explicit slash/mention Skill activation (Agent Skills Tier-2): inject the
+  // SKILL.md body into the model-facing prompt. Transcript keeps the client
+  // text recorded above; discovery catalog remains separate.
+  // Resolve structured input first, then the stored explicit intent captured
+  // by the slash parser. This keeps retries and queued turns deterministic
+  // while allowing Conversation / general sessions to activate a skill too.
+  const skillId = resolvePromptSkillId({
+    ...(promptSource.skillId ? { skillId: promptSource.skillId } : {}),
+    text: promptSource.text,
+  });
+  if (skillId) {
+    const rootDir = getPiwinRoot(context.piwinRoot);
+    const indexPath = getPiwinSessionIndexPath(rootDir);
+    const sessionRecord = await getSessionRecord(indexPath, command.sessionId);
+    const scope = sessionRecord ? scopeFromIndexRecord(sessionRecord) : undefined;
+    const projectPath =
+      scope?.kind === 'project' ? scope.projectPath : undefined;
+    const activated = await activateSkillForPrompt({
+      text: promptInput.text,
+      skillId,
+      ...(context.piwinRoot ? { piwinRoot: context.piwinRoot } : {}),
+      ...(projectPath ? { projectPath } : {}),
     });
-    if (skillId) {
-      const rootDir = getPiwinRoot(context.piwinRoot);
-      const indexPath = getPiwinSessionIndexPath(rootDir);
-      const sessionRecord = await getSessionRecord(indexPath, command.sessionId);
-      const scope = sessionRecord ? scopeFromIndexRecord(sessionRecord) : undefined;
-      const projectPath = scope?.kind === 'project' ? scope.projectPath : undefined;
-      const activated = await activateSkillForPrompt({
-        text: promptInput.text,
-        skillId,
-        ...(context.piwinRoot ? { piwinRoot: context.piwinRoot } : {}),
-        ...(projectPath ? { projectPath } : {}),
+    throwIfPromptPreparationAborted(context, run.runId);
+    if (activated.ok) {
+      promptInput.text = activated.text;
+      assembly.add({
+        kind: 'skill',
+        label: `Skill · ${activated.skillName}`,
+        trustOrigin: 'piwin',
+        text: activated.skillBody,
       });
-      throwIfPromptPreparationAborted(context, run.runId);
-      if (activated.ok) {
-        promptInput.text = activated.text;
-        assembly.add({
-          kind: 'skill',
-          label: `Skill · ${activated.skillName}`,
-          trustOrigin: 'piwin',
-          text: activated.skillBody,
-        });
-      } else {
-        context.push({
-          type: 'host/log',
-          level: 'warn',
-          message: `skill activation failed (${skillId}): ${activated.reason}`,
-        });
-      }
+    } else {
+      context.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `skill activation failed (${skillId}): ${activated.reason}`,
+      });
     }
   }
 

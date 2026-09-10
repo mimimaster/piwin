@@ -4,7 +4,7 @@
  * Slash / structured skillId means the harness activates the skill: load
  * SKILL.md and inject instructions into the model-facing prompt. Discovery
  * catalog (name+description) stays separate; this path does not require the
- * session ResourceLoader and is only used for agent-session prompts.
+ * session ResourceLoader (Conversation / general sessions included).
  */
 import {
   extractSkillUserRequest,

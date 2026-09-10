@@ -422,7 +422,11 @@
    dismissible affordances, and actions clear to their left via
    --session-status-seal-clearance rather than stacking in the same pixels. */
 .session-row--working:hover .session-item-activity,
-.session-row--working:focus-within .session-item-activity {
+.session-row--working:focus-within .session-item-activity,
+.session-row:hover .session-item-completed-mark,
+.session-row:focus-within .session-item-completed-mark,
+.session-row:hover .session-item-failed-mark,
+.session-row:focus-within .session-item-failed-mark {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;

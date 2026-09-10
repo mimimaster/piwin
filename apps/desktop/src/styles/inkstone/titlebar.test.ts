@@ -11,6 +11,7 @@ describe('Inkstone titleband / sidebar seam', () => {
   it('does not double the deck inset on the context bar', () => {
     // .app-shell already pads 0 8px 8px; another 8px on .context-bar indents
     // the lights/toggle cluster twice.
+    // .proto-nav past the sidebar panel's right edge.
     expect(shell).toMatch(/\.app-shell[\s\S]{0,400}?padding:\s*0 8px 8px\s*!important/);
     expect(titlebar).toMatch(/\.context-bar[\s\S]{0,300}?padding:\s*0\s*!important/);
     expect(titlebar).not.toMatch(/\.context-bar[\s\S]{0,300}?padding:\s*0 8px\s*!important/);
