@@ -6,6 +6,7 @@ import {
   IconChat,
   IconClock,
   IconDatabase,
+  IconCompress,
   IconExpand,
   IconFlame,
   IconFolderOpen,
@@ -35,6 +36,13 @@ describe('shared shell icons', () => {
     expect(markup).toContain('viewBox="0 0 24 24"');
     expect(markup).toContain('M16 4h4v4');
     expect(markup).not.toContain('M9.5 2H14');
+  });
+
+  it('renders IconCompress as the inset inverse of IconExpand', () => {
+    const markup = renderToStaticMarkup(createElement(IconCompress));
+    expect(markup).toContain('viewBox="0 0 24 24"');
+    expect(markup).toContain('M5 9h4V5');
+    expect(markup).not.toContain('M14.5 4.75');
   });
 
   it('preserves the shared outline defaults', () => {

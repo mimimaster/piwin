@@ -458,6 +458,9 @@ describe('RightPanel multi-tab', () => {
     );
     expect(expandBtn?.getAttribute('title')).toBe('Exit full screen');
     expect(expandBtn?.getAttribute('aria-pressed')).toBe('true');
+    const compressGlyph = expandBtn?.querySelector('svg');
+    expect(compressGlyph?.getAttribute('viewBox')).toBe('0 0 24 24');
+    expect(compressGlyph?.innerHTML).toContain('M5 9h4V5');
   });
 
   it('hides tool tabs while Side Chat owns the titlebar slot', () => {
