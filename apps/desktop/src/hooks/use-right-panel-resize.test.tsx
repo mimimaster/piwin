@@ -42,7 +42,11 @@ function createPointerDownEvent(
   } as unknown as ReactPointerEvent<HTMLElement>;
 }
 
-function renderHarness(onCollapseRequest?: () => void): ResizeHarness {
+function renderHarness(options?: {
+  onCollapseRequest?: () => void;
+  onExpandRequest?: () => void;
+  canEnterFullWidth?: boolean;
+}): ResizeHarness {
   const container = document.createElement('div');
   const shell = document.createElement('div');
   const handle = document.createElement('div');
@@ -57,7 +61,11 @@ function renderHarness(onCollapseRequest?: () => void): ResizeHarness {
     latest = useRightPanelResize({
       layoutMode: 'desktop',
       navDrawerOpen: false,
-      ...(onCollapseRequest ? { onCollapseRequest } : {}),
+      ...(options?.onCollapseRequest ? { onCollapseRequest: options.onCollapseRequest } : {}),
+      ...(options?.onExpandRequest ? { onExpandRequest: options.onExpandRequest } : {}),
+      ...(options?.canEnterFullWidth === undefined
+        ? {}
+        : { canEnterFullWidth: options.canEnterFullWidth }),
     });
     return null;
   }
@@ -194,7 +202,7 @@ describe('useRightPanelResize drag scheduling', () => {
 
   it('collapses when dragged past min width', () => {
     const onCollapseRequest = vi.fn();
-    const harness = renderHarness(onCollapseRequest);
+    const harness = renderHarness({ onCollapseRequest });
     const addEventListener = vi.spyOn(window, 'addEventListener');
 
     act(() => {
@@ -219,6 +227,83 @@ describe('useRightPanelResize drag scheduling', () => {
 
     expect(onCollapseRequest).toHaveBeenCalledTimes(1);
     expect(localStorage.getItem('piwin.desktop.rightPanelWidth')).toBe('280');
+    disposeHarness(harness);
+  });
+
+  it('does not let a stored width steal the stage on open', () => {
+    localStorage.setItem('piwin.desktop.rightPanelWidth', '1600');
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1280 });
+    const harness = renderHarness();
+    // nav closed: max panel = 1280 - 420 = 860
+    expect(harness.latest().widthPx).toBe(860);
+    expect(harness.latest().isFullWidth).toBe(false);
+    disposeHarness(harness);
+  });
+
+  it('does not cover the conversation when the inspector has no tool tabs', () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1280 });
+    const harness = renderHarness({ canEnterFullWidth: false });
+    const addEventListener = vi.spyOn(window, 'addEventListener');
+
+    act(() => {
+      harness.latest().onResizePointerDown(createPointerDownEvent(harness.handle, 10, 500));
+    });
+    const pointerMoveListener = addEventListener.mock.calls.find(
+      ([type]) => type === 'pointermove',
+    )?.[1];
+    const pointerUpListener = addEventListener.mock.calls.find(
+      ([type]) => type === 'pointerup',
+    )?.[1];
+    if (typeof pointerMoveListener !== 'function' || typeof pointerUpListener !== 'function') {
+      throw new Error('expected drag listeners');
+    }
+
+    act(() => {
+      pointerMoveListener(createPointerEvent('pointermove', 10, -100));
+      pointerUpListener(createPointerEvent('pointerup', 10, -100));
+      vi.runOnlyPendingTimers();
+    });
+
+    expect(harness.latest().isFullWidth).toBe(false);
+    expect(harness.latest().widthPx).toBe(860);
+    disposeHarness(harness);
+  });
+
+  it('expands when reverse-dragged past min width without pointer-up', () => {
+    const onCollapseRequest = vi.fn();
+    const onExpandRequest = vi.fn();
+    const harness = renderHarness({ onCollapseRequest, onExpandRequest });
+    const addEventListener = vi.spyOn(window, 'addEventListener');
+
+    act(() => {
+      harness.latest().onResizePointerDown(createPointerDownEvent(harness.handle, 11, 500));
+    });
+    const pointerMoveListener = addEventListener.mock.calls.find(
+      ([type]) => type === 'pointermove',
+    )?.[1];
+    if (typeof pointerMoveListener !== 'function') {
+      throw new Error('expected a pointermove listener');
+    }
+
+    act(() => {
+      // default width 280; clientX 620 → candidate 160, collapse
+      pointerMoveListener(createPointerEvent('pointermove', 11, 620));
+    });
+    expect(onCollapseRequest).toHaveBeenCalledTimes(1);
+    expect(onExpandRequest).not.toHaveBeenCalled();
+
+    act(() => {
+      // candidate 185: still in the 176–199 dead zone
+      pointerMoveListener(createPointerEvent('pointermove', 11, 595));
+    });
+    expect(onExpandRequest).not.toHaveBeenCalled();
+
+    act(() => {
+      // candidate 220: back past min width → expand, still holding
+      pointerMoveListener(createPointerEvent('pointermove', 11, 560));
+    });
+    expect(onExpandRequest).toHaveBeenCalledTimes(1);
+    expect(onCollapseRequest).toHaveBeenCalledTimes(1);
     disposeHarness(harness);
   });
 });

@@ -28,6 +28,10 @@ The left navigator uses the same overshoot in the other direction: drag its
 right edge left past min width (~24px more) → collapse the sidebar
 (`desktopSidebarCollapsed`). Last valid width is kept.
 
+Reverse-drag without releasing: after either panel has collapsed, dragging
+back to min width (200px) expands it again. Collapse still needs min−24;
+expand uses the min (24px hysteresis) so the two thresholds do not flicker.
+
 This is **not** Codex's three-state stepper (fullscreen content / split /
 fullscreen chat). piwin ships two states: split | content-full.
 
@@ -48,6 +52,13 @@ fullscreen chat). piwin ships two states: split | content-full.
 
 Last split width is kept in the resize hook and restored on exit. Full-width
 does not write that px value to `localStorage`.
+
+Opening the inspector is always split. A persisted wide `--right-panel-width`
+is viewport-clamped so the stage keeps `--stage-min` (420px). Full-width is
+only the expand control or drag overshoot past that floor.
+
+Empty inspector (tab strip has no tools) cannot cover the conversation.
+The `+` picker is hidden until at least one tool tab is open.
 
 ## Artifact reports
 

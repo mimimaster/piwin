@@ -50,6 +50,17 @@ export function shouldCollapseSidebar(
   return widthPx < SIDEBAR_MIN_WIDTH_PX - overshootPx;
 }
 
+/**
+ * Reverse of drag-to-collapse: after the navigator is hidden, dragging the
+ * splitter back to min width (24px hysteresis) expands it without pointer-up.
+ */
+export function shouldExpandSidebar(widthPx: number): boolean {
+  if (!Number.isFinite(widthPx)) {
+    return false;
+  }
+  return widthPx >= SIDEBAR_MIN_WIDTH_PX;
+}
+
 export function loadSidebarWidth(): number {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);

@@ -30,10 +30,16 @@ async function openTrustedSession(page: Page, projectPath: string): Promise<void
 }
 
 async function openFilesTab(page: Page): Promise<void> {
-  // Open the right panel, then add the Files tab via the plus menu.
+  // Empty inspector has no + picker (Codex). Open Files from the home list;
+  // if a tab is already open, fall back to the plus menu.
   await page.getByTestId('right-panel-open-btn').first().click();
-  await page.getByTestId('right-panel-tab-add').click();
-  await page.getByTestId('right-panel-plus-files').click();
+  const homeFiles = page.getByTestId('right-panel-home-files');
+  if (await homeFiles.isVisible()) {
+    await homeFiles.click();
+  } else {
+    await page.getByTestId('right-panel-tab-add').click();
+    await page.getByTestId('right-panel-plus-files').click();
+  }
   await expect(page.getByTestId('file-tree-panel')).toBeVisible();
   await expect(page.locator('button.file-tree-row[title="README.md"]')).toBeVisible();
 }

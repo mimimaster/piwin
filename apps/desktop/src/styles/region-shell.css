@@ -15,6 +15,7 @@
 
 .app-shell {
   --workspace-control-height: 30px;
+  --stage-min: 420px;
   height: 100%;
   display: grid;
   padding: 0 var(--deck-inset) var(--deck-inset);
@@ -30,7 +31,7 @@
 
 .app-shell.has-right-panel,
 .app-shell[data-layout='desktop'].has-right-panel {
-  grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--right-panel-width, 320px);
+  grid-template-columns: var(--sidebar-width) minmax(var(--stage-min), 1fr) minmax(0, var(--right-panel-width, 320px));
   grid-template-areas: 'nav stage signal';
 }
 
@@ -40,7 +41,7 @@
 }
 
 .app-shell[data-layout='desktop']:not(.nav-open).has-right-panel {
-  grid-template-columns: minmax(0, 1fr) var(--right-panel-width, 320px);
+  grid-template-columns: minmax(var(--stage-min), 1fr) minmax(0, var(--right-panel-width, 320px));
   grid-template-areas: 'stage signal';
 }
 

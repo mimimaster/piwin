@@ -267,14 +267,16 @@ export function RightPanel(props: RightPanelProps): ReactElement {
         data-tauri-drag-region
         onMouseDown={handleNativeWindowDragMouseDown}
       >
-        <RightPanelPlusMenu
-          open={pickerOpen}
-          onOpenChange={setPickerOpen}
-          locale={locale}
-          openTabs={openTabs}
-          onSelect={openTab}
-          active={pickerOpen}
-        />
+        {openTabs.length > 0 ? (
+          <RightPanelPlusMenu
+            open={pickerOpen}
+            onOpenChange={setPickerOpen}
+            locale={locale}
+            openTabs={openTabs}
+            onSelect={openTab}
+            active={pickerOpen}
+          />
+        ) : null}
 
         {toolTabs.length > 0 ? (
           <RightPanelTabs
@@ -329,6 +331,9 @@ export function RightPanel(props: RightPanelProps): ReactElement {
             }
             aria-pressed={props.isExpanded ?? false}
             onClick={() => {
+              if (openTabs.length === 0) {
+                return;
+              }
               if (props.onToggleExpand) {
                 props.onToggleExpand();
               } else {

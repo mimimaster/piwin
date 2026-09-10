@@ -9,6 +9,7 @@ import {
   loadSidebarWidth,
   saveSidebarWidth,
   shouldCollapseSidebar,
+  shouldExpandSidebar,
 } from '../sidebar-width';
 
 /** Write the live width straight to the shell so drag does not wait on React. */
@@ -31,6 +32,8 @@ export type UseSidebarResizeOptions = {
   rightPanelWidthPx?: number;
   /** Drag past min width: collapse the navigator. Last valid width is kept. */
   onCollapseRequest?: () => void;
+  /** Reverse-drag back to min width after collapse, without releasing. */
+  onExpandRequest?: () => void;
 };
 
 export type UseSidebarResizeResult = {
@@ -64,6 +67,11 @@ export function useSidebarResize(options: UseSidebarResizeOptions): UseSidebarRe
   useEffect(() => {
     collapseRequestRef.current = options.onCollapseRequest;
   }, [options.onCollapseRequest]);
+
+  const expandRequestRef = useRef(options.onExpandRequest);
+  useEffect(() => {
+    expandRequestRef.current = options.onExpandRequest;
+  }, [options.onExpandRequest]);
 
   const resolveShell = useCallback((): HTMLElement | null => {
     if (shellRef.current !== null) {
@@ -182,6 +190,17 @@ export function useSidebarResize(options: UseSidebarResizeOptions): UseSidebarRe
           saveSidebarWidth(widthRef.current);
           collapseRequestRef.current?.();
         }
+        return;
+      }
+      if (drag.collapsed) {
+        if (!shouldExpandSidebar(candidate)) {
+          return;
+        }
+        drag.collapsed = false;
+        const restored = resolveClamp(candidate);
+        widthRef.current = restored;
+        scheduleLiveWidth(restored);
+        expandRequestRef.current?.();
         return;
       }
       const next = resolveClamp(candidate);

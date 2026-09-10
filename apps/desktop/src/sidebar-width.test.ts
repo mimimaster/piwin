@@ -8,6 +8,7 @@ import {
   loadSidebarWidth,
   saveSidebarWidth,
   shouldCollapseSidebar,
+  shouldExpandSidebar,
   SIDEBAR_COLLAPSE_OVERSHOOT_PX,
 } from './sidebar-width';
 
@@ -78,6 +79,14 @@ describe('sidebar drag-to-collapse', () => {
     expect(
       shouldCollapseSidebar(SIDEBAR_MIN_WIDTH_PX - SIDEBAR_COLLAPSE_OVERSHOOT_PX - 1),
     ).toBe(true);
+  });
+});
+
+describe('sidebar reverse-drag expand', () => {
+  it('expands at min width and stays collapsed in the overshoot dead zone', () => {
+    expect(shouldExpandSidebar(SIDEBAR_MIN_WIDTH_PX - 1)).toBe(false);
+    expect(shouldExpandSidebar(SIDEBAR_MIN_WIDTH_PX)).toBe(true);
+    expect(shouldExpandSidebar(Number.NaN)).toBe(false);
   });
 });
 
