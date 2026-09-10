@@ -98,10 +98,10 @@ export const IconExpand = createIcon(
 
 export const IconCompress = createIcon(
   <>
-    <path d="M14.5 4.75v4.75h4.75" />
-    <path d="M9.5 19.25v-4.75H4.75" />
-    <path d="M19.6 4.4 14.5 9.5" />
-    <path d="M4.4 19.6 9.5 14.5" />
+    <path d="M5 9h4V5" />
+    <path d="M3 3l6 6" />
+    <path d="M19 15h-4v4" />
+    <path d="M21 21l-6-6" />
   </>,
 );
 
