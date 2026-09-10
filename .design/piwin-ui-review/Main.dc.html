@@ -1,0 +1,172 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #e6e1d7; font-family: Inter, -apple-system, "PingFang SC", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #1f6d84; } a:hover { color: #155b6e; }
+    .sheet { padding: 40px 44px; display: flex; flex-direction: column; gap: 28px; }
+    .h1 { font-family: "Noto Serif SC", "Songti SC", serif; font-weight: 600; font-size: 30px; color: #1d1b17; letter-spacing: 0.01em; }
+    .sub { font-size: 13px; line-height: 1.7; color: #57524a; max-width: 620px; }
+    .card { background: #fffdf8; border-radius: 14px; border: 1px solid rgba(29,27,23,0.07); box-shadow: 0 2px 10px -4px rgba(29,27,23,0.14); padding: 26px 28px; display: flex; flex-direction: column; gap: 18px; }
+    .cap { font-family: "Noto Serif SC", "Songti SC", serif; font-weight: 600; font-size: 17px; color: #1d1b17; }
+    .note { font-size: 12.5px; line-height: 1.68; color: #57524a; }
+    .chip { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+    .chip-now { background: rgba(168,50,31,0.10); color: #a8321f; }
+    .chip-new { background: rgba(31,109,132,0.11); color: #1f6d84; }
+    .mono { font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
+    .ramp { display: grid; grid-template-columns: 128px 1fr; gap: 10px 16px; align-items: center; }
+    .swatch { height: 30px; border-radius: 6px; display: flex; align-items: center; padding: 0 12px; font-size: 13px; }
+    .metaRow { display: flex; align-items: baseline; gap: 12px; }
+    .roleName { font-size: 12.5px; font-weight: 500; color: #1d1b17; }
+    .num { font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; font-size: 11.5px; color: #807a70; }
+    .bad { color: #a8321f; font-weight: 500; }
+    .good { color: #1f6d84; font-weight: 500; }
+    .ruler { position: relative; height: 58px; }
+    .rulerBar { position: absolute; inset: 0 0 26px 0; border-radius: 4px;
+      background: linear-gradient(90deg, #ff0000 0%, #ffff00 16.6%, #00ff00 33.3%, #00ffff 50%, #0000ff 66.6%, #ff00ff 83.3%, #ff0000 100%); opacity: 0.42; }
+    .pin { position: absolute; top: -6px; width: 2px; height: 26px; border-radius: 1px; }
+    .pinLbl { position: absolute; top: 22px; font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-size: 10.5px; white-space: nowrap; transform: translateX(-50%); }
+    .gapMark { position: absolute; top: -26px; font-size: 11px; font-weight: 600; white-space: nowrap; transform: translateX(-50%); }
+    .dot { width: 9px; height: 9px; border-radius: 999px; flex: 0 0 auto; }
+    .stateRow { display: flex; align-items: center; gap: 9px; }
+    .divider { height: 1px; background: rgba(29,27,23,0.07); }
+  </style>
+</helmet>
+<div class="sheet">
+
+  <div style="display: flex; flex-direction: column; gap: 10px">
+    <div class="h1">色阶与状态色</div>
+    <div class="sub">你说“对细节不满意”——细节没问题，是<strong style="font-weight:600;color:#1d1b17">底层的两把尺子塌了</strong>。文字四级色阶被压成一级，六个状态色挤进同一段色相。所以每个元素单看都对，放在一起就没有主次。下面的数字都是从运行中的 Inkstone 主题里量出来的。</div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex; align-items:baseline; gap:12px">
+      <div class="cap">一、文字色阶：四级只剩一级</div>
+      <div class="note">对比度按 WCAG 相对亮度算，底色为舞台面</div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:30px">
+
+      <div style="display:flex; flex-direction:column; gap:14px">
+        <div style="display:flex; align-items:center; gap:10px">
+          <span class="chip chip-now">现状</span>
+          <span class="note">墨面 · 底色 <span class="mono">#191714</span></span>
+        </div>
+        <div class="ramp">
+          <div class="metaRow"><span class="roleName">text-1</span></div>
+          <div class="swatch" style="background:#191714; color:#ebe5da"><span class="mono" style="font-size:11.5px">#ebe5da &nbsp; L* 89% &nbsp; 14.3:1</span></div>
+          <div class="metaRow"><span class="roleName">text-2</span></div>
+          <div class="swatch" style="background:#191714; color:#a59d92"><span class="mono" style="font-size:11.5px">#a59d92 &nbsp; L* 61% &nbsp; 6.7:1</span></div>
+          <div class="metaRow"><span class="roleName">text-3</span></div>
+          <div class="swatch" style="background:#191714; color:#968d81"><span class="mono" style="font-size:11.5px">#968d81 &nbsp; L* 55% &nbsp; 5.5:1</span></div>
+          <div class="metaRow"><span class="roleName">text-4</span></div>
+          <div class="swatch" style="background:#191714; color:#8d857a"><span class="mono" style="font-size:11.5px">#8d857a &nbsp; L* 52% &nbsp; 4.9:1</span></div>
+        </div>
+        <div class="note"><span class="bad">次要 / 弱化 / 禁用三级只差 9 个亮度点</span>，纸面更极端：text-3 <span class="mono">L* 36%</span> 与 text-4 <span class="mono">L* 37%</span> 相差 1 点，肉眼完全一样。Deck 规范原本的 Obsidian 色阶是 63 / 41 / 28——那才是能分层的。</div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:14px">
+        <div style="display:flex; align-items:center; gap:10px">
+          <span class="chip chip-new">建议</span>
+          <span class="note">拉开到 14 / 9 / 5.7 / 3.3</span>
+        </div>
+        <div class="ramp">
+          <div class="metaRow"><span class="roleName">text-1</span><span class="num">正文</span></div>
+          <div class="swatch" style="background:#191714; color:#ebe5da"><span class="mono" style="font-size:11.5px">#ebe5da &nbsp; L* 89% &nbsp; 14.3:1</span></div>
+          <div class="metaRow"><span class="roleName">text-2</span><span class="num">次要</span></div>
+          <div class="swatch" style="background:#191714; color:#c0b6a7"><span class="mono" style="font-size:11.5px">#c0b6a7 &nbsp; L* 70% &nbsp; 8.9:1</span></div>
+          <div class="metaRow"><span class="roleName">text-3</span><span class="num">弱化</span></div>
+          <div class="swatch" style="background:#191714; color:#9a9084"><span class="mono" style="font-size:11.5px">#9a9084 &nbsp; L* 56% &nbsp; 5.7:1</span></div>
+          <div class="metaRow"><span class="roleName">text-4</span><span class="num">禁用</span></div>
+          <div class="swatch" style="background:#191714; color:#6f6862"><span class="mono" style="font-size:11.5px">#6f6862 &nbsp; L* 41% &nbsp; 3.3:1</span></div>
+        </div>
+        <div class="note"><span class="good">每级之间至少 14 个亮度点</span>。禁用态第一次真的看起来是禁用的，而“弱化”仍在 4.5:1 之上，可以放心用在 token 数、时间戳这类信息上。纸面对应 <span class="mono">#1d1b17 / #57524a / #807a70 / #a8a29a</span>。</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex; align-items:baseline; gap:12px">
+      <div class="cap">二、状态色：六个角色挤在同一段色相</div>
+      <div class="note">横轴为色相 0–360°</div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:26px">
+
+      <div style="display:flex; flex-direction:column; gap:12px">
+        <div style="display:flex; align-items:center; gap:10px">
+          <span class="chip chip-now">现状</span>
+          <span class="note">四个角色落在 353°–41° 这 48° 的暖色楔形里</span>
+        </div>
+        <div class="ruler" style="margin-top:26px">
+          <div class="rulerBar"></div>
+          <div class="pin" style="left:706px; background:#d95f6e"></div>
+          <div class="pinLbl" style="left:706px; color:#a8321f">绛 353°</div>
+          <div class="pin" style="left:22px; background:#e25a3d"></div>
+          <div class="pinLbl" style="left:22px; color:#a8321f">朱 11°</div>
+          <div class="pin" style="left:72px; background:#c88f3c"></div>
+          <div class="pinLbl" style="left:86px; top:34px; color:#a8321f">琥珀 36°</div>
+          <div class="pin" style="left:78px; background:#e7b352"></div>
+          <div class="pinLbl" style="left:170px; top:34px; color:#a8321f">赭黄 39°</div>
+          <div class="pin" style="left:298px; background:#5fad85"></div>
+          <div class="pinLbl" style="left:298px; color:#57524a">苔 149°</div>
+          <div class="pin" style="left:402px; background:#6ba4c3"></div>
+          <div class="pinLbl" style="left:402px; color:#57524a">天青 201°</div>
+          <div class="gapMark" style="left:75px; color:#a8321f">↓ 相差 3°</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px 26px; margin-top:4px">
+          <div class="stateRow"><span class="dot" style="background:#e7b352"></span><span class="note"><strong style="font-weight:600;color:#1d1b17">正在运行</strong> 赭黄 39°</span></div>
+          <div class="stateRow"><span class="dot" style="background:#e25a3d"></span><span class="note"><strong style="font-weight:600;color:#1d1b17">可以操作 / 焦点</strong> 朱 11°</span></div>
+          <div class="stateRow"><span class="dot" style="background:#c88f3c"></span><span class="note"><strong style="font-weight:600;color:#1d1b17">等你确认</strong> 琥珀 36°</span></div>
+          <div class="stateRow"><span class="dot" style="background:#d95f6e"></span><span class="note"><strong style="font-weight:600;color:#1d1b17">失败</strong> 绛 353°</span></div>
+        </div>
+        <div class="note" style="margin-top:2px"><span class="bad">“正在运行”和“等你确认”相差 3° 色相</span>——这是两个最需要一眼分开的状态。<span class="bad">“可以操作”和“失败”相差 18°</span>——发送按钮和报错是同一个红。Deck 规范里 iris 本来是 <span class="mono">#6E5DFF</span>（246°），跟 ember 隔着 225°，“一个强调色、两种信号”才成立；Inkstone 把 iris 改成朱红之后，这条约定在代码里还在，在眼睛里已经没了。</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div style="display:flex; flex-direction:column; gap:12px">
+        <div style="display:flex; align-items:center; gap:10px">
+          <span class="chip chip-new">建议</span>
+          <span class="note">朱红留给“身份”，把“可操作”让给石青——朱与青本来就是一对</span>
+        </div>
+        <div class="ruler" style="margin-top:26px">
+          <div class="rulerBar"></div>
+          <div class="pin" style="left:700px; background:#e0697c"></div>
+          <div class="pinLbl" style="left:700px; color:#1f6d84">绛 350°</div>
+          <div class="pin" style="left:18px; background:#c8503a"></div>
+          <div class="pinLbl" style="left:18px; color:#1f6d84">朱 9°</div>
+          <div class="pin" style="left:82px; background:#e8b23f"></div>
+          <div class="pinLbl" style="left:82px; color:#1f6d84">赭黄 41°</div>
+          <div class="pin" style="left:298px; background:#5fad85"></div>
+          <div class="pinLbl" style="left:298px; color:#1f6d84">苔 149°</div>
+          <div class="pin" style="left:390px; background:#4a9bb5"></div>
+          <div class="pinLbl" style="left:390px; color:#1f6d84">石青 195°</div>
+          <div class="gapMark" style="left:344px; color:#1f6d84">最小间距 46°</div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px 26px; margin-top:4px">
+          <div class="stateRow"><span class="dot" style="background:#4a9bb5"></span><span class="note"><strong style="font-weight:600;color:#1d1b17">可以操作 / 焦点 / 选中</strong> 石青 <span class="mono">#4a9bb5</span> · 5.7:1</span></div>
+          <div class="stateRow"><span class="dot" style="background:#c8503a"></span><span class="note"><strong style="font-weight:600;color:#1d1b17">品牌 / 印章</strong> 朱 <span class="mono">#c8503a</span> — 只做身份，不做按钮</span></div>
+          <div class="stateRow"><span class="dot" style="background:#e8b23f"></span><span class="note"><strong style="font-weight:600;color:#1d1b17">正在运行</strong> 赭黄 <span class="mono">#e8b23f</span> — 唯一会呼吸的颜色</span></div>
+          <div class="stateRow"><span class="dot" style="background:#e0697c"></span><span class="note"><strong style="font-weight:600;color:#1d1b17">失败</strong> 绛 <span class="mono">#e0697c</span> · 5.5:1</span></div>
+          <div class="stateRow"><span class="dot" style="background:#5fad85"></span><span class="note"><strong style="font-weight:600;color:#1d1b17">完成 / 新增</strong> 苔 <span class="mono">#5fad85</span></span></div>
+          <div class="stateRow"><span class="dot" style="background:#4a9bb5; opacity:.55"></span><span class="note"><strong style="font-weight:600;color:#1d1b17">等你确认</strong> 收回 —— 它本质是个“可操作”，用石青 + 实心环</span></div>
+        </div>
+        <div class="note" style="margin-top:2px">六个角色减到五个：<span class="good">“等你确认”不该有自己的颜色</span>，它就是一次待办操作，跟发送按钮同源。这样“可操作”与“失败”隔开 <span class="mono">174°</span>，与“运行中”隔开 <span class="mono">154°</span>。改动面很小：<span class="mono">--iris</span> 一族换值、发送键与焦点环跟着走，朱红继续留在印章、主题选中和空态字号上——那也是它最好看的地方。</div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

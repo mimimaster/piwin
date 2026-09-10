@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 import type { ContextUsageSnapshot, ModelRef } from '@piwin/contracts';
 import type { ChatMessageUi } from './chat-reducer';
+import { ProviderIcon } from './provider-icons.js';
 
 /**
  * Inkstone turn marginalia (proto-01 §1 block 06).
@@ -122,6 +123,7 @@ export function resolveModelAvatarInitial(
   if (target.includes('deepseek')) return 'D';
   if (target.includes('qwen')) return 'Q';
   if (target.includes('openai') || target.includes('gpt') || target.includes('o1') || target.includes('o3')) return 'O';
+  if (target.includes('grok') || target.includes('xai')) return 'G';
   if (themeId && !themeId.includes('inkstone')) {
     return '智';
   }
@@ -148,6 +150,7 @@ export type TurnMarginaliaData = {
   clock: string;
   usage: string | null;
   status?: string | null;
+  model?: ModelRef | null | undefined;
 };
 
 export type ResolveTurnMarginaliaOptions = {
@@ -228,6 +231,7 @@ export function resolveTurnMarginalia(
     avatar,
     clock: formatTurnClock(assistantMsg?.createdAt ?? ''),
     usage,
+    ...(model ? { model } : {}),
     ...(options?.status ? { status: options.status } : {}),
   };
 }
@@ -235,12 +239,28 @@ export function resolveTurnMarginalia(
 export function ChatTurnMarginalia(props: { data: TurnMarginaliaData }): ReactElement {
   const { data } = props;
   const isAssistant = data.avatar !== null;
+  const modelRef = data.model ?? (data.fullModelId && data.fullModelId !== 'piwin' ? { providerId: '', modelId: data.fullModelId } : null);
+  const avatarContent = modelRef ? (
+    <ProviderIcon
+      id={modelRef.providerId || 'piwin'}
+      modelId={modelRef.modelId}
+      name={data.who}
+      size={22}
+      radius="50%"
+      className="turn-model-icon"
+    />
+  ) : (
+    data.avatar
+  );
+
   return (
     <aside
       className={`marg chat-marginalia ${isAssistant ? 'is-assistant' : 'is-user'}`}
       aria-hidden="true"
     >
-      {data.avatar !== null ? <div className="av">{data.avatar}</div> : null}
+      {data.avatar !== null ? (
+        <div className={`av${modelRef ? ' has-model-icon' : ''}`}>{avatarContent}</div>
+      ) : null}
       <span
         className={isAssistant ? 'who' : 'who is-user'}
         {...(data.fullModelId ? { title: data.fullModelId } : {})}
@@ -257,12 +277,28 @@ export function ChatTurnMarginalia(props: { data: TurnMarginaliaData }): ReactEl
 export function ChatTurnHead(props: { data: TurnMarginaliaData }): ReactElement {
   const { data } = props;
   const isAssistant = data.avatar !== null;
+  const modelRef = data.model ?? (data.fullModelId && data.fullModelId !== 'piwin' ? { providerId: '', modelId: data.fullModelId } : null);
+  const avatarContent = modelRef ? (
+    <ProviderIcon
+      id={modelRef.providerId || 'piwin'}
+      modelId={modelRef.modelId}
+      name={data.who}
+      size={18}
+      radius="50%"
+      className="turn-model-icon"
+    />
+  ) : (
+    data.avatar
+  );
+
   return (
     <div
       className={`head chat-turn-head ${isAssistant ? 'is-assistant' : 'is-user'}`}
       aria-hidden="true"
     >
-      {data.avatar !== null ? <span className="av">{data.avatar}</span> : null}
+      {data.avatar !== null ? (
+        <span className={`av${modelRef ? ' has-model-icon' : ''}`}>{avatarContent}</span>
+      ) : null}
       <span
         className={isAssistant ? 'who' : 'who is-user'}
         {...(data.fullModelId ? { title: data.fullModelId } : {})}

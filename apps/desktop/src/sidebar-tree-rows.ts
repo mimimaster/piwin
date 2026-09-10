@@ -527,18 +527,9 @@ function appendScopeHints(
     options.scope.kind === 'general'
       ? options.sessionListScopes.general
       : (options.sessionListScopes.projects[options.scope.projectPath] ?? null);
-  if (meta?.queryStatus === 'error') {
-    rows.push({
-      kind: 'query-error',
-      scope: options.scope,
-      key: `query-error:${scopeKey}`,
-      ...groupedFields,
-    });
-  }
+  // An empty or failed list stays quiet. "Could not load" with Retry is louder
+  // than the missing rows; reconnect / the next hydrate fills the tree.
   if (options.merged.length === 0 && options.allowEmptyHint) {
-    if (meta?.queryStatus === 'error') {
-      return;
-    }
     rows.push({
       kind: 'empty-hint',
       scope: options.scope,

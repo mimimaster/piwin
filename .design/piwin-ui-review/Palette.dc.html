@@ -1,0 +1,178 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #e6e1d7; font-family: Inter, -apple-system, "PingFang SC", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #1f6d84; } a:hover { color: #155b6e; }
+    .sheet { padding: 40px 44px; display: flex; flex-direction: column; gap: 22px; }
+    .h1 { font-family: "Noto Serif SC", "Songti SC", serif; font-weight: 600; font-size: 30px; color: #1d1b17; }
+    .sub { font-size: 13px; line-height: 1.7; color: #57524a; max-width: 760px; }
+    .cap { font-family: "Noto Serif SC", "Songti SC", serif; font-weight: 600; font-size: 15px; color: #1d1b17; }
+    .note { font-size: 12.5px; line-height: 1.68; color: #57524a; }
+    .chip { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+    .chip-now { background: rgba(168,50,31,0.10); color: #a8321f; }
+    .chip-new { background: rgba(31,109,132,0.11); color: #1f6d84; }
+    .mono { font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
+    .bad { color: #a8321f; font-weight: 500; }
+    .good { color: #1f6d84; font-weight: 500; }
+    .dlg { width: 480px; background: #fffdf8; border-radius: 18px; box-shadow: 0 24px 64px -12px rgba(29,27,23,.34), 0 0 0 1px rgba(29,27,23,.07); overflow: hidden; }
+    .sect { font-size: 11px; font-weight: 600; letter-spacing: .88px; color: #807a70; padding: 12px 20px 4px; }
+    .sectNew { font-size: 12px; font-weight: 600; color: #807a70; padding: 14px 18px 5px; }
+    .kbd { font-family: "JetBrains Mono", monospace; font-size: 11px; color: #807a70; background: rgba(29,27,23,.05); border-radius: 4px; padding: 2px 6px; }
+    .keyItem { display: flex; gap: 9px; align-items: flex-start; }
+    .keyNum { width: 16px; height: 16px; border-radius: 999px; font-family: "JetBrains Mono", monospace; font-size: 10px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; margin-top: 2px; }
+    .rowNew { display: grid; grid-template-columns: 20px 1fr auto; gap: 11px; align-items: center; padding: 7px 18px; }
+  </style>
+</helmet>
+<div class="sheet">
+
+  <div style="display:flex; flex-direction:column; gap:10px">
+    <div class="h1">命令面板</div>
+    <div class="sub">这一屏有<strong style="font-weight:600;color:#1d1b17">可以复现的排版故障</strong>，不是审美问题：实测面板里有 <span class="mono">6</span> 对文字互相压在一起（“请先打开工作区”压住“搜索会话”，重叠区 <span class="mono">50×9px</span>），每一行前面还挂着一个浏览器默认的 <span class="mono">○</span> 列表符号——内层 <span class="mono">&lt;ul&gt;</span> 的 <span class="mono">list-style-type</span> 是 <span class="mono">circle</span>，只有外层那一级被重置成了 <span class="mono">none</span>。</div>
+  </div>
+
+  <div style="display:flex; gap:34px; align-items:flex-start">
+
+    <div style="display:flex; flex-direction:column; gap:14px">
+      <div style="display:flex; align-items:center; gap:10px"><span class="chip chip-now">现状</span></div>
+      <div style="position:relative; width:480px">
+        <div style="position:absolute; right:-9px; top:52px; z-index:5"><span style="width:18px;height:18px;border-radius:999px;background:#a8321f;color:#fffdf8;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;box-shadow:0 1px 4px rgba(29,27,23,.3)">1</span></div>
+        <div style="position:absolute; right:-9px; top:158px; z-index:5"><span style="width:18px;height:18px;border-radius:999px;background:#a8321f;color:#fffdf8;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;box-shadow:0 1px 4px rgba(29,27,23,.3)">2</span></div>
+        <div style="position:absolute; left:-9px; top:212px; z-index:5"><span style="width:18px;height:18px;border-radius:999px;background:#a8321f;color:#fffdf8;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;box-shadow:0 1px 4px rgba(29,27,23,.3)">3</span></div>
+        <div class="dlg">
+
+        <div style="padding:22px 20px 0">
+          <div style="font-family:'Noto Serif SC',serif; font-weight:600; font-size:15px; color:#1d1b17">命令</div>
+          <div style="font-size:12.5px; color:#57524a; margin-top:12px">搜索命令</div>
+          <div style="margin-top:6px; height:34px; border-radius:7px; background:rgba(176,58,36,.05); border:1.5px solid #b03a24; display:flex; align-items:center; padding:0 11px; font-size:13px; color:#a8a29a">输入命令…</div>
+        </div>
+        <div style="height:1px; background:rgba(29,27,23,.07); margin:16px 0 0"></div>
+
+        <div class="sect">会话</div>
+        <div style="padding:0 20px 10px">
+          <div style="display:flex; align-items:center; gap:10px; padding:5px 0">
+            <span style="color:#a8a29a; font-size:11px">○</span>
+            <span style="color:#57524a; font-size:13px">+</span>
+            <span style="font-size:13px; color:#1d1b17">新建会话</span>
+          </div>
+          <div style="position:relative; height:34px">
+            <div style="position:absolute; left:0; top:0; font-size:12px; color:#a8a29a">请先打开工作区</div>
+            <div style="position:absolute; left:0; top:9px; display:flex; align-items:center; gap:10px">
+              <span style="color:#a8a29a; font-size:11px">○</span>
+              <span style="color:#57524a; font-size:12px">⌕</span>
+              <span style="font-size:13px; color:#1d1b17">搜索会话</span>
+            </div>
+            <div style="position:absolute; right:0; top:1px" class="mono"><span style="font-size:11px; color:#807a70">⇧⌘F</span></div>
+            <div style="position:absolute; right:0; top:16px" class="mono"><span style="font-size:11px; color:#807a70">⌘N</span></div>
+          </div>
+        </div>
+
+        <div class="sect">作曲器</div>
+        <div style="padding:0 20px 10px">
+          <div style="display:flex; align-items:center; gap:10px; padding:5px 0">
+            <span style="color:#a8a29a; font-size:11px">○</span>
+            <span style="color:#57524a; font-size:12px">▤</span>
+            <span style="font-size:13px; color:#1d1b17">聚焦作曲器</span>
+          </div>
+          <div style="position:relative; height:34px">
+            <div style="position:absolute; left:0; top:0; font-size:12px; color:#a8a29a">请先开始或选择一个会话</div>
+            <div style="position:absolute; left:0; top:9px; display:flex; align-items:center; gap:10px">
+              <span style="color:#a8a29a; font-size:11px">○</span>
+              <span style="color:#57524a; font-size:12px">■</span>
+              <span style="font-size:13px; color:#1d1b17">停止运行</span>
+            </div>
+            <div style="position:absolute; right:0; top:1px" class="mono"><span style="font-size:11px; color:#807a70">⌘.</span></div>
+            <div style="position:absolute; right:0; top:16px" class="mono"><span style="font-size:11px; color:#807a70">⌘L</span></div>
+          </div>
+        </div>
+
+        <div class="sect">检视器</div>
+        <div style="padding:0 20px 18px">
+          <div style="display:flex; align-items:center; gap:10px; padding:5px 0"><span style="color:#a8a29a; font-size:11px">○</span><span style="color:#57524a; font-size:12px">▣</span><span style="font-size:13px; color:#1d1b17">开关检视器</span><span style="flex:1 1 auto"></span><span class="mono" style="font-size:11px; color:#807a70">⇧⌘I</span></div>
+          <div style="display:flex; align-items:center; gap:10px; padding:5px 0"><span style="color:#a8a29a; font-size:11px">○</span><span style="color:#57524a; font-size:12px">❯</span><span style="font-size:13px; color:#1d1b17">打开终端</span><span style="flex:1 1 auto"></span><span class="mono" style="font-size:11px; color:#807a70">⌘J</span></div>
+        </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:14px">
+      <div style="display:flex; align-items:center; gap:10px"><span class="chip chip-new">建议</span></div>
+      <div style="position:relative; width:480px">
+        <div style="position:absolute; right:-9px; top:22px; z-index:5"><span style="width:18px;height:18px;border-radius:999px;background:#1f6d84;color:#fffdf8;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;box-shadow:0 1px 4px rgba(29,27,23,.3)">A</span></div>
+        <div style="position:absolute; right:-9px; top:150px; z-index:5"><span style="width:18px;height:18px;border-radius:999px;background:#1f6d84;color:#fffdf8;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;box-shadow:0 1px 4px rgba(29,27,23,.3)">B</span></div>
+        <div class="dlg">
+
+        <div style="display:flex; align-items:center; gap:11px; padding:16px 18px">
+          <span style="color:#807a70; font-size:14px">⌕</span>
+          <span style="font-size:16px; color:#a8a29a">输入命令，或搜索会话…</span>
+          <span style="flex:1 1 auto"></span>
+          <span class="kbd">esc</span>
+        </div>
+        <div style="height:1px; background:rgba(29,27,23,.07)"></div>
+
+        <div class="sectNew">会话</div>
+        <div style="padding-bottom:4px">
+          <div class="rowNew" style="background:rgba(31,109,132,.08); box-shadow:inset 2px 0 0 #1f6d84">
+            <span style="color:#1f6d84; font-size:13px; text-align:center">+</span>
+            <span style="font-size:14px; color:#1d1b17">新建会话</span>
+            <span class="kbd">⌘N</span>
+          </div>
+          <div class="rowNew">
+            <span style="color:#a8a29a; font-size:13px; text-align:center">⌕</span>
+            <span style="font-size:14px; color:#a8a29a">搜索会话</span>
+            <span style="font-size:12px; color:#a8a29a">需先打开工作区</span>
+          </div>
+        </div>
+
+        <div class="sectNew">作曲器</div>
+        <div style="padding-bottom:4px">
+          <div class="rowNew">
+            <span style="color:#57524a; font-size:13px; text-align:center">▤</span>
+            <span style="font-size:14px; color:#1d1b17">聚焦作曲器</span>
+            <span class="kbd">⌘L</span>
+          </div>
+          <div class="rowNew">
+            <span style="color:#a8a29a; font-size:13px; text-align:center">■</span>
+            <span style="font-size:14px; color:#a8a29a">停止运行</span>
+            <span style="font-size:12px; color:#a8a29a">需先选择会话</span>
+          </div>
+        </div>
+
+        <div class="sectNew">检视器</div>
+        <div style="padding-bottom:16px">
+          <div class="rowNew"><span style="color:#57524a; font-size:13px; text-align:center">▣</span><span style="font-size:14px; color:#1d1b17">开关检视器</span><span class="kbd">⇧⌘I</span></div>
+          <div class="rowNew"><span style="color:#57524a; font-size:13px; text-align:center">❯</span><span style="font-size:14px; color:#1d1b17">打开终端</span><span class="kbd">⌘J</span></div>
+        </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:20px; padding-top:38px">
+      <div style="display:flex; flex-direction:column; gap:11px">
+        <div class="cap" style="color:#a8321f">现状</div>
+        <div class="keyItem"><span class="keyNum" style="background:rgba(168,50,31,0.12); color:#a8321f">1</span><span class="note"><strong style="font-weight:600; color:#1d1b17">一个输入框，三层标签。</strong>标题“命令” + 字段标签“搜索命令” + 占位符“输入命令…”，说的是同一件事。<span class="mono">⌘K</span> 这种东西输入框本身就是标题。焦点态用了 <span class="mono">1.5px</span> 品牌红描边 + 红色底纹，一个文本框的分量给太重了。</span></div>
+        <div class="keyItem"><span class="keyNum" style="background:rgba(168,50,31,0.12); color:#a8321f">2</span><span class="note"><strong style="font-weight:600; color:#1d1b17">禁用原因和行标题叠在一起。</strong>禁用说明被绝对定位到了行的位置上，标题、原因、快捷键三者互相覆盖——面板里一共 <span class="mono">6</span> 对这样的重叠，两处快捷键也上下压在一起。</span></div>
+        <div class="keyItem"><span class="keyNum" style="background:rgba(168,50,31,0.12); color:#a8321f">3</span><span class="note"><strong style="font-weight:600; color:#1d1b17">每行前面的 <span class="mono">○</span> 是漏出来的列表符号。</strong>不是设计元素。内层 <span class="mono">&lt;ul&gt;</span> 没重置 <span class="mono">list-style</span>，一行 CSS 的事。</span></div>
+      </div>
+      <div style="height:1px; background:rgba(29,27,23,0.08)"></div>
+      <div style="display:flex; flex-direction:column; gap:11px">
+        <div class="cap" style="color:#1f6d84">建议</div>
+        <div class="keyItem"><span class="keyNum" style="background:rgba(31,109,132,0.12); color:#1f6d84">A</span><span class="note"><strong style="font-weight:600; color:#1d1b17">输入框即标题。</strong>去掉对话框标题和字段标签，<span class="mono">16px</span> 起手，右边一个 <span class="mono">esc</span>。焦点不靠描边，靠它本来就是唯一的输入焦点。</span></div>
+        <div class="keyItem"><span class="keyNum" style="background:rgba(31,109,132,0.12); color:#1f6d84">B</span><span class="note"><strong style="font-weight:600; color:#1d1b17">一行一个三列栅格：图标 / 名称 / 右侧槽位。</strong>右侧槽位<span class="good">要么放快捷键，要么放禁用原因，二者互斥</span>——不可能再重叠。禁用行整行降到 text-4，原因写“需先打开工作区”而不是命令式的“请先…”，因为它是状态说明不是指令。选中行用石青左规 + 淡底，替掉整行实心填充。</span></div>
+        <div class="keyItem"><span class="keyNum" style="background:rgba(31,109,132,0.12); color:#1f6d84">C</span><span class="note"><strong style="font-weight:600; color:#1d1b17">分节标签按中文排。</strong><span class="mono">12px / 600 / 字距 0</span>，不加大写字距。</span></div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

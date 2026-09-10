@@ -1,0 +1,168 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #e6e1d7; font-family: Inter, -apple-system, "PingFang SC", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #1f6d84; } a:hover { color: #155b6e; }
+    .sheet { padding: 40px 44px; display: flex; flex-direction: column; gap: 26px; }
+    .h1 { font-family: "Noto Serif SC", "Songti SC", serif; font-weight: 600; font-size: 30px; color: #1d1b17; }
+    .sub { font-size: 13px; line-height: 1.7; color: #57524a; max-width: 660px; }
+    .card { background: #fffdf8; border-radius: 14px; border: 1px solid rgba(29,27,23,0.07); box-shadow: 0 2px 10px -4px rgba(29,27,23,0.14); padding: 26px 28px; display: flex; flex-direction: column; gap: 18px; }
+    .cap { font-family: "Noto Serif SC", "Songti SC", serif; font-weight: 600; font-size: 17px; color: #1d1b17; }
+    .note { font-size: 12.5px; line-height: 1.68; color: #57524a; }
+    .chip { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+    .chip-now { background: rgba(168,50,31,0.10); color: #a8321f; }
+    .chip-new { background: rgba(31,109,132,0.11); color: #1f6d84; }
+    .mono { font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
+    .bad { color: #a8321f; font-weight: 500; }
+    .good { color: #1f6d84; font-weight: 500; }
+    .specRow { display: grid; grid-template-columns: 96px 1fr; gap: 14px; align-items: baseline; padding: 7px 0; }
+    .specTag { font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-size: 11px; color: #807a70; font-variant-numeric: tabular-nums; }
+    .divider { height: 1px; background: rgba(29,27,23,0.07); }
+    .tally { display: flex; flex-wrap: wrap; gap: 6px; }
+    .tallyPx { font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-size: 11.5px; height: 24px; display: inline-flex; align-items: center; padding: 0 8px; border-radius: 4px; }
+    .onScale { background: rgba(31,109,132,0.10); color: #1f6d84; }
+    .offScale { background: rgba(168,50,31,0.09); color: #a8321f; }
+    .rowMock { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border-radius: 7px; }
+  </style>
+</helmet>
+<div class="sheet">
+
+  <div style="display:flex; flex-direction:column; gap:10px">
+    <div class="h1">字阶与字面</div>
+    <div class="sub">设计文档第 5 节写着 “Four sizes only”。样式表里实际落了 <span class="mono">11</span> 个不同字号，其中 <span class="mono">286</span> 条 <span class="mono">font-size</span> 直接写死像素、绕过了 token（共 <span class="mono">1185</span> 条，占 24%）。最常用的字号是 <span class="mono">--fs-micro 10px</span>，被引用 <span class="mono">376</span> 次——它同时是全 app 里最小的字号和最高频的字号。</div>
+  </div>
+
+  <div style="display:grid; grid-template-columns: 1.05fr 1fr; gap:26px; align-items:start">
+
+    <div class="card">
+      <div class="cap">一、声明的字阶 vs 实际落地的字号</div>
+      <div style="display:flex; flex-direction:column; gap:9px">
+        <div style="display:flex; align-items:center; gap:10px">
+          <span class="chip chip-new">tokens.css 声明</span>
+          <span class="note">四级 + 一个标题级</span>
+        </div>
+        <div class="tally">
+          <span class="tallyPx onScale">10 micro</span>
+          <span class="tallyPx onScale">11.5 mono</span>
+          <span class="tallyPx onScale">12.5 chrome</span>
+          <span class="tallyPx onScale">13.5 body</span>
+          <span class="tallyPx onScale">15 title</span>
+          <span class="tallyPx onScale">14.5 chat</span>
+        </div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:9px">
+        <div style="display:flex; align-items:center; gap:10px">
+          <span class="chip chip-now">级联里实际出现</span>
+          <span class="note">写死的像素值，按出现次数排</span>
+        </div>
+        <div class="tally">
+          <span class="tallyPx offScale">11.5 ×52</span>
+          <span class="tallyPx offScale">11 ×46</span>
+          <span class="tallyPx offScale">12 ×45</span>
+          <span class="tallyPx offScale">12.5 ×43</span>
+          <span class="tallyPx offScale">13 ×16</span>
+          <span class="tallyPx offScale">14 ×13</span>
+          <span class="tallyPx offScale">10 ×13</span>
+          <span class="tallyPx offScale">13.5 ×12</span>
+          <span class="tallyPx offScale">14.5 ×7</span>
+          <span class="tallyPx offScale">10.5 ×6</span>
+          <span class="tallyPx offScale">9 ×4</span>
+          <span class="tallyPx offScale">9.5</span>
+          <span class="tallyPx offScale">8</span>
+          <span class="tallyPx offScale">17</span>
+          <span class="tallyPx offScale">18</span>
+          <span class="tallyPx offScale">20</span>
+          <span class="tallyPx offScale">22</span>
+          <span class="tallyPx offScale">28</span>
+        </div>
+      </div>
+      <div class="note"><span class="bad">10 / 10.5 / 11 / 11.5 / 12 / 12.5 / 13 / 13.5 / 14 / 14.5 挤在 4.5px 之内</span>——十个字号覆盖不到 5 个像素，等于没有层级；而 <span class="mono">.5px</span> 这种半像素值在中文字面上只会糊掉一层，换不到任何区分度。</div>
+      <div class="divider"></div>
+      <div style="display:flex; flex-direction:column; gap:9px">
+        <div style="display:flex; align-items:center; gap:10px">
+          <span class="chip chip-new">建议</span>
+          <span class="note">五级整像素，每级至少差 1px 且可辨</span>
+        </div>
+        <div class="tally">
+          <span class="tallyPx onScale">11 micro</span>
+          <span class="tallyPx onScale">12 mono</span>
+          <span class="tallyPx onScale">13 chrome</span>
+          <span class="tallyPx onScale">14 body</span>
+          <span class="tallyPx onScale">17 title</span>
+          <span class="tallyPx onScale">16 / 1.75 chat</span>
+        </div>
+        <div class="note">中文字面下沉不了到 10px：<span class="mono">--fs-micro</span> 抬到 <span class="mono">11px</span>，正文抬到 <span class="mono">16px/1.75</span>。全部整像素，配一条 lint 规则挡住新的写死值——这一条比任何视觉调整都更能一次性解决“看着不精致”。</div>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:26px">
+
+      <div class="card">
+        <div class="cap">二、同一个字符串，两套字面</div>
+        <div class="note">会话名在侧栏和标题栏各渲染一次，相隔约 40px：</div>
+        <div style="display:flex; flex-direction:column; gap:12px">
+          <div class="rowMock" style="background:#f0ece4; border:1px solid rgba(29,27,23,0.06)">
+            <span style="font-family:'Noto Serif SC','Songti SC',serif; font-weight:500; font-size:13px; letter-spacing:0.13px; color:#1d1b17">我有个关键问题，手机壳怎么拆</span>
+            <span class="specTag">侧栏 · Noto Serif SC 13 / 500</span>
+          </div>
+          <div class="rowMock" style="background:#f0ece4; border:1px solid rgba(29,27,23,0.06)">
+            <span style="font-family:Inter,'PingFang SC',sans-serif; font-weight:400; font-size:12px; color:#1d1b17">我有个关键问题，手机壳怎么拆</span>
+            <span class="specTag">标题栏 · Inter 12 / 400</span>
+          </div>
+        </div>
+        <div class="note"><span class="bad">同一句话、两种字面、两个字号、两种字重。</span>建议标题栏跟着侧栏走宋体 <span class="mono">14/500</span>——它是“这份文档的名字”，宋体是对的；Inter 留给界面控件。</div>
+      </div>
+
+      <div class="card">
+        <div class="cap">三、输入比阅读小一号</div>
+        <div style="display:flex; flex-direction:column; gap:10px">
+          <div style="display:flex; align-items:baseline; gap:14px">
+            <span class="specTag" style="width:104px; flex:0 0 auto">输入框 13.5px</span>
+            <span style="font-size:13.5px; color:#1d1b17">先把音量键那一侧从屏幕上向外滚开</span>
+          </div>
+          <div style="display:flex; align-items:baseline; gap:14px">
+            <span class="specTag" style="width:104px; flex:0 0 auto">正文 14.5px</span>
+            <span style="font-size:14.5px; line-height:1.68; color:#1d1b17">先把音量键那一侧从屏幕上向外滚开</span>
+          </div>
+          <div style="display:flex; align-items:baseline; gap:14px">
+            <span class="specTag good" style="width:104px; flex:0 0 auto">建议：都 16px</span>
+            <span style="font-size:16px; line-height:1.75; color:#1d1b17">先把音量键那一侧从屏幕上向外滚开</span>
+          </div>
+        </div>
+        <div class="note">你敲进去的字比读到的字小一号，这是“打字时手感发虚”的来源。输入框与正文用同一字号，所见即所得。</div>
+      </div>
+
+      <div class="card">
+        <div class="cap">四、微标签的字距是给拉丁文准备的</div>
+        <div style="display:flex; flex-direction:column; gap:10px">
+          <div style="display:flex; align-items:center; gap:18px">
+            <span style="font-size:11px; font-weight:600; letter-spacing:0.88px; color:#807a70">过去 7 天</span>
+            <span class="specTag">现状 · 11px / 600 / +0.88px</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:18px">
+            <span style="font-size:11px; font-weight:600; letter-spacing:0.88px; color:#807a70">WORKING TREE</span>
+            <span class="specTag">同一条规则用在拉丁文上——是对的</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:18px">
+            <span style="font-size:12px; font-weight:600; letter-spacing:0; color:#807a70">过去 7 天</span>
+            <span class="specTag good">建议 · 12px / 600 / 字距 0</span>
+          </div>
+        </div>
+        <div class="note">规范把“大写 + 加字距的微标签”定为签名式的界面语言，但实际出现的全是中文（项目 / 对话 / 昨天 / 应用 / 集成 / 系统）。<span class="bad">中文没有大写，加字距只会打散方块字的行气。</span>建议按语言分流：拉丁标签保留 <span class="mono">+0.09em</span> 大写，中文标签字距归零、字号 +1。</div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

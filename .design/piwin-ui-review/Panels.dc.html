@@ -1,0 +1,181 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #e6e1d7; font-family: Inter, -apple-system, "PingFang SC", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #1f6d84; } a:hover { color: #155b6e; }
+    .sheet { padding: 40px 44px; display: flex; flex-direction: column; gap: 24px; }
+    .h1 { font-family: "Noto Serif SC", "Songti SC", serif; font-weight: 600; font-size: 30px; color: #1d1b17; }
+    .sub { font-size: 13px; line-height: 1.7; color: #57524a; max-width: 800px; }
+    .cap { font-family: "Noto Serif SC", "Songti SC", serif; font-weight: 600; font-size: 15px; color: #1d1b17; }
+    .note { font-size: 12.5px; line-height: 1.68; color: #57524a; }
+    .chip { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+    .chip-now { background: rgba(168,50,31,0.10); color: #a8321f; }
+    .chip-new { background: rgba(31,109,132,0.11); color: #1f6d84; }
+    .mono { font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
+    .bad { color: #a8321f; font-weight: 500; }
+    .good { color: #1f6d84; font-weight: 500; }
+    .card { background: #fffdf8; border-radius: 14px; border: 1px solid rgba(29,27,23,0.07); box-shadow: 0 2px 10px -4px rgba(29,27,23,0.14); padding: 24px 26px; display: flex; flex-direction: column; gap: 16px; }
+    .panel { width: 296px; flex: 0 0 auto; background: #f0ece4; border-radius: 10px; position: relative; overflow: hidden; }
+    .pRow { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 7px; font-size: 12.5px; color: #1d1b17; }
+    .kbd { font-family: "JetBrains Mono", monospace; font-size: 11px; color: #807a70; background: rgba(29,27,23,.05); border-radius: 4px; padding: 2px 6px; }
+    .mRow { display: flex; align-items: center; gap: 9px; padding: 7px 10px; border-radius: 7px; }
+    .provIcon { width: 18px; height: 18px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-family: "JetBrains Mono", monospace; font-size: 9.5px; font-weight: 600; flex: 0 0 auto; }
+    .tagCap { font-family: "JetBrains Mono", monospace; font-size: 10px; height: 15px; padding: 0 5px; border-radius: 3px; display: inline-flex; align-items: center; background: rgba(29,27,23,.06); color: #57524a; }
+    .keyItem { display: flex; gap: 9px; align-items: flex-start; }
+    .keyNum { width: 16px; height: 16px; border-radius: 999px; font-family: "JetBrains Mono", monospace; font-size: 10px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; margin-top: 2px; }
+    .skelBar { background: rgba(29,27,23,.14); border-radius: 3px; height: 7px; }
+  </style>
+</helmet>
+<div class="sheet">
+
+  <div style="display:flex; flex-direction:column; gap:10px">
+    <div class="h1">面板与设置</div>
+    <div class="sub">剩下三处“细节”：右侧工作面板拿一整栏放了一个五行菜单；模型选择器把能力标签拼进了名字里然后截断；设置页用满屏骨架图预览唯一的一个主题。</div>
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:26px">
+
+    <!-- right panel -->
+    <div class="card">
+      <div class="cap">右侧工作面板</div>
+      <div style="display:flex; gap:22px; align-items:flex-start">
+        <div style="display:flex; flex-direction:column; gap:9px">
+          <span class="chip chip-now" style="align-self:flex-start">现状</span>
+          <div class="panel" style="height:330px">
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:9px 12px">
+              <span style="color:#57524a; font-size:14px">+</span><span style="color:#57524a; font-size:12px">⤢</span>
+            </div>
+            <div style="padding:14px 8px 0">
+              <div class="pRow"><span style="color:#807a70">◔</span>侧聊<span style="flex:1 1 auto"></span><span class="kbd">⌥⌘S</span></div>
+              <div class="pRow"><span style="color:#807a70">⊕</span>浏览器<span style="flex:1 1 auto"></span><span class="kbd">⌘T</span></div>
+              <div class="pRow"><span style="color:#807a70">▤</span>文件<span style="flex:1 1 auto"></span><span class="kbd">⌘P</span></div>
+              <div class="pRow"><span style="color:#807a70">❯</span>zsh<span style="flex:1 1 auto"></span><span class="kbd">⌘J</span></div>
+              <div class="pRow"><span style="color:#807a70">⑂</span>变更<span style="flex:1 1 auto"></span><span class="kbd">⌥⌘G</span></div>
+            </div>
+            <div style="position:absolute; left:8px; right:8px; top:232px; bottom:8px; border:1px dashed rgba(168,50,31,.35); border-radius:8px; display:flex; align-items:center; justify-content:center">
+              <span class="mono" style="font-size:10.5px; color:#a8321f">98px 空</span>
+            </div>
+          </div>
+        </div>
+        <div style="flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:11px; padding-top:30px">
+          <div class="keyItem"><span class="keyNum" style="background:rgba(168,50,31,0.12); color:#a8321f">1</span><span class="note"><strong style="font-weight:600; color:#1d1b17">一栏 296px 换来一个五行菜单。</strong>五行 × 40px = 200px 内容，占掉一整条 900px 高的栏。<span class="bad">这是个菜单，不是个面板</span>——它该是标题栏那个 <span class="mono">+</span> 的弹出层。</span></div>
+          <div class="keyItem"><span class="keyNum" style="background:rgba(168,50,31,0.12); color:#a8321f">2</span><span class="note"><strong style="font-weight:600; color:#1d1b17">“变更”空态只有一句灰字。</strong>“打开项目查看文件变更”贴在面板顶部（不是垂直居中），<span class="bad">而且没有一个“打开项目”的按钮</span>——它告诉你该做什么，却不给你做的地方。</span></div>
+          <div class="keyItem"><span class="keyNum" style="background:rgba(31,109,132,0.12); color:#1f6d84">A</span><span class="note"><strong style="font-weight:600; color:#1d1b17">建议：面板默认直接进“变更”。</strong>那是这个面板存在的理由。切换用顶部一排 tab（现在已经有了），入口菜单收进 <span class="mono">+</span> 弹层。空态给一句话 + 一个主按钮，垂直居中。</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- model picker -->
+    <div class="card">
+      <div class="cap">模型选择器</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px">
+        <div style="display:flex; flex-direction:column; gap:9px">
+          <span class="chip chip-now" style="align-self:flex-start">现状 · 310px</span>
+          <div style="background:#fffdf8; border-radius:10px; box-shadow:0 0 0 1px rgba(29,27,23,.08), 0 12px 28px -10px rgba(29,27,23,.28); padding:12px; width:280px">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:7px">
+              <span style="font-size:12px; color:#57524a">思考</span><span style="font-size:12px; color:#b03a24; font-weight:600">低</span>
+            </div>
+            <div style="display:flex; gap:2px; background:rgba(29,27,23,.05); border-radius:7px; padding:2px; margin-bottom:12px">
+              <span style="flex:1; text-align:center; font-size:11.5px; padding:4px 0; border-radius:5px; background:#b03a24; color:#fffdf8">低</span>
+              <span style="flex:1; text-align:center; font-size:11.5px; padding:4px 0; color:#57524a">中</span>
+              <span style="flex:1; text-align:center; font-size:11.5px; padding:4px 0; color:#57524a">高</span>
+              <span style="flex:1; text-align:center; font-size:11.5px; padding:4px 0; color:#57524a">极高</span>
+            </div>
+            <div style="height:28px; border-radius:7px; border:1.5px solid #b03a24; background:rgba(176,58,36,.05); display:flex; align-items:center; padding:0 9px; gap:6px; font-size:12px; color:#a8a29a; margin-bottom:8px">⌕ 搜索模型…</div>
+            <div class="mRow"><span style="color:#a8a29a">✦</span><div style="min-width:0"><div style="font-size:12.5px; color:#1d1b17; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">gemini-3.8-flash-high · vision · rea…</div><div class="mono" style="font-size:9.5px; color:#807a70; letter-spacing:.06em">CUSTOM-OPENAI</div></div></div>
+            <div class="mRow"><span style="color:#a8a29a">✦</span><div style="min-width:0"><div style="font-size:12.5px; color:#1d1b17; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">Claude Opus 5 · vision · reason</div><div class="mono" style="font-size:9.5px; color:#807a70; letter-spacing:.06em">CUSTOM-ANTHROPIC</div></div></div>
+            <div class="mRow" style="background:#b03a24"><span style="color:#fffdf8">✦</span><div style="min-width:0"><div style="font-size:12.5px; color:#fffdf8">Grok 4.6 · vision · reason</div><div style="font-size:10px; color:rgba(255,255,255,.75)">套餐</div></div><span style="flex:1 1 auto"></span><span style="color:#fffdf8; font-size:12px">✓</span></div>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:9px">
+          <span class="chip chip-new" style="align-self:flex-start">建议 · 340px</span>
+          <div style="background:#fffdf8; border-radius:10px; box-shadow:0 0 0 1px rgba(29,27,23,.08), 0 12px 28px -10px rgba(29,27,23,.28); padding:12px; width:300px">
+            <div style="font-size:12px; font-weight:600; color:#807a70; margin-bottom:7px">思考强度</div>
+            <div style="display:flex; gap:2px; background:rgba(29,27,23,.05); border-radius:7px; padding:2px; margin-bottom:12px">
+              <span style="flex:1; text-align:center; font-size:12px; padding:4px 0; border-radius:5px; background:#fffdf8; color:#1d1b17; box-shadow:inset 0 0 0 1px rgba(31,109,132,.35)">低</span>
+              <span style="flex:1; text-align:center; font-size:12px; padding:4px 0; color:#57524a">中</span>
+              <span style="flex:1; text-align:center; font-size:12px; padding:4px 0; color:#57524a">高</span>
+              <span style="flex:1; text-align:center; font-size:12px; padding:4px 0; color:#57524a">极高</span>
+            </div>
+            <div style="height:28px; border-radius:7px; background:#f0ece4; display:flex; align-items:center; padding:0 9px; gap:6px; font-size:12px; color:#807a70; margin-bottom:8px">⌕ 搜索模型…</div>
+            <div class="mRow"><span class="provIcon" style="background:#4a7f99; color:#fff">G</span><div style="min-width:0; flex:1 1 auto"><div style="font-size:13px; color:#1d1b17">gemini-3.8-flash-high</div><div style="display:flex; gap:3px; margin-top:3px"><span class="tagCap">视觉</span><span class="tagCap">推理</span></div></div></div>
+            <div class="mRow"><span class="provIcon" style="background:#c8503a; color:#fff">A</span><div style="min-width:0; flex:1 1 auto"><div style="font-size:13px; color:#1d1b17">Claude Opus 5</div><div style="display:flex; gap:3px; margin-top:3px"><span class="tagCap">视觉</span><span class="tagCap">推理</span></div></div></div>
+            <div class="mRow" style="background:rgba(31,109,132,.08); box-shadow:inset 2px 0 0 #1f6d84"><span class="provIcon" style="background:#1d1b17; color:#fff">X</span><div style="min-width:0; flex:1 1 auto"><div style="font-size:13px; color:#1d1b17">Grok 4.6</div><div style="display:flex; gap:3px; margin-top:3px"><span class="tagCap">视觉</span><span class="tagCap">推理</span><span class="tagCap" style="background:rgba(31,109,132,.14); color:#1f6d84">套餐</span></div></div><span style="color:#1f6d84; font-size:12px">✓</span></div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:11px">
+        <div class="keyItem"><span class="keyNum" style="background:rgba(168,50,31,0.12); color:#a8321f">3</span><span class="note"><strong style="font-weight:600; color:#1d1b17">能力标签被拼进名字然后截断。</strong><span class="mono">gemini-3.8-flash-high · vision · rea…</span>——最该看到的两个能力恰好被省略号吃掉。<span class="bad">它们是元数据，不是名字的一部分</span>，该做成独立的小标签，永不参与截断。</span></div>
+        <div class="keyItem"><span class="keyNum" style="background:rgba(168,50,31,0.12); color:#a8321f">4</span><span class="note"><strong style="font-weight:600; color:#1d1b17">所有模型共用一个 ✦ 图标</strong>，而仓库里已经装了 <span class="mono">modelicons</span>、也写了 <span class="mono">provider-icons.tsx</span>——这里没用上。副标题的语义还不统一：别的行写供应商（<span class="mono">CUSTOM-OPENAI</span>），选中行写计费方式（套餐）。</span></div>
+        <div class="keyItem"><span class="keyNum" style="background:rgba(168,50,31,0.12); color:#a8321f">5</span><span class="note"><strong style="font-weight:600; color:#1d1b17">一个 310px 的弹层里三处品牌红：</strong>“低”的字、分段控件的实心块、搜索框的描边，再加整行红底的选中态。<span class="good">建议选中态改成淡底 + 左规 + 勾</span>，红只留给危险操作。</span></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- settings -->
+  <div class="card">
+    <div class="cap">设置 → 外观与主题</div>
+    <div style="display:grid; grid-template-columns:auto 1fr; gap:26px; align-items:start">
+      <div style="display:flex; flex-direction:column; gap:9px">
+        <span class="chip chip-now" style="align-self:flex-start">现状</span>
+        <div style="width:400px; background:#f8f6f0; border-radius:10px; border:1px solid rgba(29,27,23,.07); padding:16px; position:relative">
+          <div style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:12px">
+            <div>
+              <div style="font-family:'Noto Serif SC',serif; font-weight:600; font-size:20px; color:#1d1b17">Inkstone</div>
+              <div style="font-size:11.5px; color:#57524a; margin-top:2px">同一个主题，白天是纸，黑夜是墨。</div>
+            </div>
+            <div style="display:flex; gap:2px; background:rgba(29,27,23,.05); border-radius:7px; padding:2px">
+              <span style="font-size:11px; padding:4px 7px; color:#57524a">跟随系统</span>
+              <span style="font-size:11px; padding:4px 7px; border-radius:5px; background:#b03a24; color:#fffdf8">纸面</span>
+              <span style="font-size:11px; padding:4px 7px; color:#57524a">墨面</span>
+            </div>
+          </div>
+          <div style="border:2px solid #b03a24; border-radius:8px; padding:10px; background:#f0ece4">
+            <div style="display:flex; gap:6px; margin-bottom:8px"><span style="width:7px;height:7px;border-radius:999px;background:rgba(29,27,23,.18)"></span><span style="width:7px;height:7px;border-radius:999px;background:rgba(29,27,23,.18)"></span><span style="width:7px;height:7px;border-radius:999px;background:rgba(29,27,23,.18)"></span><span style="flex:1 1 auto"></span><div class="skelBar" style="width:90px"></div><span style="flex:1 1 auto"></span></div>
+            <div style="display:flex; gap:7px; height:130px">
+              <div style="width:88px; background:#f5f2ea; border-radius:6px; padding:8px; display:flex; flex-direction:column; gap:7px">
+                <div style="display:flex; gap:5px"><div style="flex:1; height:14px; background:#fff; border-radius:4px"></div><div style="width:14px; height:14px; background:#b03a24; border-radius:4px"></div></div>
+                <div class="skelBar" style="width:50px"></div>
+                <div style="display:flex; gap:5px; align-items:center"><span style="width:8px;height:8px;border-radius:999px;background:#b03a24"></span><div class="skelBar" style="flex:1"></div></div>
+                <div class="skelBar" style="width:46px; margin-left:13px"></div>
+                <div class="skelBar" style="width:54px; margin-left:13px"></div>
+              </div>
+              <div style="flex:1; background:#fbf9f4; border-radius:6px; padding:8px; display:flex; flex-direction:column; gap:7px">
+                <div style="background:#fff; border-radius:5px; padding:7px"><div class="skelBar" style="width:100%; margin-bottom:4px"></div><div class="skelBar" style="width:60%"></div></div>
+                <div class="skelBar" style="width:80%"></div>
+                <div class="skelBar" style="width:88%"></div>
+                <div style="flex:1 1 auto"></div>
+                <div style="background:#1f1c18; border-radius:6px; padding:8px; display:flex; align-items:center"><div class="skelBar" style="width:70px; background:rgba(255,255,255,.2)"></div><span style="flex:1 1 auto"></span><span style="width:16px;height:16px;border-radius:999px;background:#b03a24"></span></div>
+              </div>
+              <div style="width:56px; background:#f5f2ea; border-radius:6px; padding:8px; display:flex; flex-direction:column; gap:6px"><div class="skelBar" style="width:28px"></div><div class="skelBar"></div><div class="skelBar" style="width:32px"></div></div>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-top:12px">
+            <div><div style="font-family:'Noto Serif SC',serif; font-weight:600; font-size:15px; color:#1d1b17">Inkstone</div><div style="font-size:11px; color:#57524a">白天纸面 · 温润明亮</div></div>
+            <span style="width:13px;height:13px;border-radius:999px;border:3px solid #b03a24"></span>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:11px; padding-top:30px">
+        <div class="keyItem"><span class="keyNum" style="background:rgba(168,50,31,0.12); color:#a8321f">6</span><span class="note"><strong style="font-weight:600; color:#1d1b17">一张 1180×580 的骨架图，为了预览唯一的一个主题。</strong>它几乎占满整个视口，里面全是灰条——<span class="bad">除了背景色，你从这张图里看不出主题长什么样</span>。而且它画的那条“带节点的会话线”，产品里根本没实现（见〈侧栏〉）：<span class="bad">预览图承诺了一个不存在的设计</span>。</span></div>
+        <div class="keyItem"><span class="keyNum" style="background:rgba(168,50,31,0.12); color:#a8321f">7</span><span class="note"><strong style="font-weight:600; color:#1d1b17">“Inkstone”在同一屏出现两次</strong>（大标题 + 卡片下方的单选行），描述也重复一遍。</span></div>
+        <div class="keyItem"><span class="keyNum" style="background:rgba(168,50,31,0.12); color:#a8321f">8</span><span class="note"><strong style="font-weight:600; color:#1d1b17">品牌红在这一屏承担了五种含义：</strong>激活的 tab、选中的主题、卡片选中框、单选点、“自定义配色”的折叠三角。<span class="bad">当一个颜色什么都表示时，它就什么都不表示了。</span></span></div>
+        <div class="keyItem"><span class="keyNum" style="background:rgba(31,109,132,0.12); color:#1f6d84">B</span><span class="note"><strong style="font-weight:600; color:#1d1b17">建议：预览缩到一张 320×200 的色卡</strong>——真实的舞台色、纸/墨两块、文字四级、五个状态色，加一行真实字号的示例文本。<span class="good">用真颜色，不用灰条</span>。腾出来的空间给“正文字号 / 行宽 / 对话宽度”这些真正会被调的项。名称只出现一次，选中态用石青。</span></div>
+        <div class="keyItem"><span class="keyNum" style="background:rgba(31,109,132,0.12); color:#1f6d84">C</span><span class="note">设置整页是全屏替换，退出只靠左上角那个看起来像标题的 <span class="mono">‹ 设置</span>（它的无障碍名其实是“返回工作区”）。<strong style="font-weight:600; color:#1d1b17">建议改成覆盖层</strong>，保留背后的会话，<span class="mono">⌘,</span> 开关、<span class="mono">esc</span> 关闭。</span></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

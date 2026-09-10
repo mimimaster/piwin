@@ -1,0 +1,157 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #e6e1d7; font-family: Inter, -apple-system, "PingFang SC", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #1f6d84; } a:hover { color: #155b6e; }
+    .sheet { padding: 40px 44px; display: flex; flex-direction: column; gap: 22px; }
+    .h1 { font-family: "Noto Serif SC", "Songti SC", serif; font-weight: 600; font-size: 30px; color: #1d1b17; }
+    .sub { font-size: 13px; line-height: 1.7; color: #57524a; max-width: 800px; }
+    .cap { font-family: "Noto Serif SC", "Songti SC", serif; font-weight: 600; font-size: 15px; color: #1d1b17; }
+    .note { font-size: 12.5px; line-height: 1.68; color: #57524a; }
+    .chip { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+    .chip-now { background: rgba(168,50,31,0.10); color: #a8321f; }
+    .chip-new { background: rgba(31,109,132,0.11); color: #1f6d84; }
+    .mono { font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
+    .bad { color: #a8321f; font-weight: 500; }
+    .good { color: #1f6d84; font-weight: 500; }
+    .win { border-radius: 12px; overflow: hidden; box-shadow: 0 4px 18px -6px rgba(29,27,23,0.22); border: 1px solid rgba(29,27,23,0.08); position: relative; display: flex; }
+    .winBar { position: absolute; top: 0; left: 0; right: 0; height: 30px; display: flex; align-items: center; padding: 0 12px; gap: 7px; z-index: 3; }
+    .light { width: 9px; height: 9px; border-radius: 999px; }
+    .stage { flex: 1 1 auto; background: #f8f6f0; position: relative; }
+    .sealSq { width: 34px; height: 34px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-family: "Noto Serif SC", serif; font-size: 17px; font-weight: 600; background: #c8503a; color: #fffdf8; }
+    .recRow { display: flex; align-items: center; padding: 7px 0; }
+    .recName { font-family: "Noto Serif SC", "Songti SC", serif; font-weight: 500; font-size: 14px; color: #1d1b17; }
+    .slab { border-radius: 14px; padding: 12px 14px 10px; display: flex; flex-direction: column; gap: 12px; }
+    .send { width: 30px; height: 30px; border-radius: 999px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex: 0 0 auto; }
+    .keyItem { display: flex; gap: 9px; align-items: flex-start; }
+    .keyNum { width: 16px; height: 16px; border-radius: 999px; font-family: "JetBrains Mono", monospace; font-size: 10px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; margin-top: 2px; }
+    .gapBand { position: absolute; height: 18px; border-left: 1px dashed rgba(168,50,31,.4); border-right: 1px dashed rgba(168,50,31,.4); }
+    .gapLbl { position: absolute; font-family: "JetBrains Mono", monospace; font-size: 10.5px; color: #a8321f; transform: translateX(-50%); }
+    .sbMini { width: 176px; flex: 0 0 auto; background: #f0ece4; padding: 38px 8px 8px; }
+    .sbRow { font-family: "Noto Serif SC", serif; font-size: 12px; color: #57524a; padding: 5px 7px; border-radius: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  </style>
+</helmet>
+<div class="sheet">
+
+  <div style="display:flex; flex-direction:column; gap:10px">
+    <div class="h1">新会话落地页</div>
+    <div class="sub">这是全 app 里最好看的一屏——朱红印章、宋体大字、干净的最近列表。问题只在<strong style="font-weight:600;color:#1d1b17">构图和标题</strong>：整块内容悬在窗口高度的 22%–58% 之间，底下留了 <span class="mono">390px</span> 空白；“继续上次”这个标题下面挂的是四个<em>不同</em>的会话；而这四条，左边侧栏此刻正原样显示着。</div>
+  </div>
+
+  <!-- current -->
+  <div style="display:flex; flex-direction:column; gap:12px">
+    <div style="display:flex; align-items:center; gap:10px"><span class="chip chip-now">现状</span><span class="cap">1512 × 945</span></div>
+    <div class="win" style="height:420px">
+      <div class="winBar" style="background:#f0ece4">
+        <span class="light" style="background:#e0697c"></span><span class="light" style="background:#e8b23f"></span><span class="light" style="background:#5fad85"></span>
+        <span style="margin-left:14px; font-size:11.5px; color:#57524a">素笺</span>
+      </div>
+      <div class="sbMini">
+        <div class="sbRow" style="background:#fffdf8">我有个关键问题，…</div>
+        <div class="sbRow">确认 /van 命令意图</div>
+        <div class="sbRow">制作玛奇玛闪光卡</div>
+        <div class="sbRow">GitHub 查找 Rui…</div>
+        <div class="sbRow">绘制鹈鹕骑行动画</div>
+      </div>
+      <div class="stage">
+        <div style="position:absolute; left:264px; top:52px; right:96px">
+          <div class="sealSq">砚</div>
+          <div style="font-family:'Noto Serif SC',serif; font-weight:600; font-size:29px; color:#1d1b17; margin-top:20px">继续上次</div>
+          <div style="margin-top:14px">
+            <div class="recRow"><span class="recName" style="font-size:13.5px">我有个关键问题，手机壳怎么拆</span><span style="flex:1 1 auto"></span><span class="mono" style="font-size:11px; color:#807a70">1d</span></div>
+            <div class="recRow"><span class="recName" style="font-size:13.5px">确认 /van 命令意图</span><span style="flex:1 1 auto"></span><span class="mono" style="font-size:11px; color:#807a70">2d</span></div>
+            <div class="recRow"><span class="recName" style="font-size:13.5px">制作玛奇玛闪光卡</span><span style="flex:1 1 auto"></span><span class="mono" style="font-size:11px; color:#807a70">2d</span></div>
+          </div>
+          <div class="slab" style="background:#1f1c18; margin-top:6px; box-shadow:0 12px 32px -8px rgba(0,0,0,.34)">
+            <div style="font-size:13.5px; color:#8d857a">问任何问题，或粘贴内容开始对话…</div>
+            <div style="display:flex; align-items:center; gap:8px">
+              <span style="color:#a59d92; font-size:14px">+</span>
+              <span style="height:24px; border-radius:999px; padding:0 9px; background:rgba(255,255,255,.06); color:#ebe5da; font-size:11.5px; display:flex; align-items:center; gap:5px">Grok 4.6 · 高 ⌄</span>
+              <span style="flex:1 1 auto"></span>
+              <span class="send" style="background:#e25a3d; color:#1c0b07">↑</span>
+            </div>
+          </div>
+        </div>
+        <div class="gapBand" style="left:474px; right:112px; top:192px"></div>
+        <div class="gapLbl" style="left:56%; top:172px">508px 没有内容</div>
+        <div style="position:absolute; left:264px; right:96px; bottom:0; top:342px; border-top:1px dashed rgba(168,50,31,.34)"></div>
+        <div class="gapLbl" style="left:52%; bottom:26px">下方 390px 空白</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- proposed -->
+  <div style="display:flex; flex-direction:column; gap:12px">
+    <div style="display:flex; align-items:center; gap:10px"><span class="chip chip-new">建议</span><span class="cap">同一屏，只改构图和文案</span></div>
+    <div class="win" style="height:420px">
+      <div class="winBar" style="background:#f0ece4">
+        <span class="light" style="background:#e0697c"></span><span class="light" style="background:#e8b23f"></span><span class="light" style="background:#5fad85"></span>
+        <span style="margin-left:14px; font-family:'Noto Serif SC',serif; font-size:13px; color:#57524a">新会话</span>
+      </div>
+      <div class="sbMini">
+        <div class="sbRow" style="background:#fffdf8; box-shadow:inset 2px 0 0 #4a9bb5">我有个关键问题，手机壳怎么拆</div>
+        <div class="sbRow">确认 /van 命令意图</div>
+        <div class="sbRow">制作玛奇玛闪光卡</div>
+        <div class="sbRow">GitHub 查找 RuiC-card skill</div>
+        <div class="sbRow">绘制鹈鹕骑行动画</div>
+      </div>
+      <div class="stage">
+        <div style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:660px">
+          <div style="display:flex; align-items:flex-end; gap:14px">
+            <div class="sealSq">砚</div>
+            <div style="font-family:'Noto Serif SC',serif; font-weight:600; font-size:28px; color:#1d1b17; line-height:1">今天做点什么</div>
+          </div>
+          <div class="slab" style="background:#ffffff; margin-top:20px; box-shadow:inset 0 1px 0 rgba(255,255,255,.9), 0 0 0 1px rgba(29,27,23,.09), 0 14px 34px -12px rgba(29,27,23,.22)">
+            <div style="font-size:16px; color:#807a70">问任何问题，或粘贴内容开始对话…</div>
+            <div style="display:flex; align-items:center; gap:8px">
+              <span style="color:#57524a; font-size:14px">+</span>
+              <span style="height:24px; border-radius:999px; padding:0 9px; background:#f0ece4; color:#1d1b17; font-size:11.5px; display:flex; align-items:center; gap:5px">Grok 4.6 · 高 ⌄</span>
+              <span style="flex:1 1 auto"></span>
+              <span class="send" style="background:#1f6d84; color:#fff">↑</span>
+            </div>
+          </div>
+          <div style="display:flex; align-items:baseline; gap:10px; margin-top:26px">
+            <span style="font-size:12px; font-weight:600; color:#807a70">最近</span>
+            <span style="flex:1 1 auto; height:1px; background:rgba(29,27,23,.08)"></span>
+            <span style="font-size:12px; color:#1f6d84">全部 48 →</span>
+          </div>
+          <div style="margin-top:4px; display:grid; grid-template-columns:1fr 1fr; gap:2px 26px">
+            <div class="recRow" style="gap:10px"><span style="width:5px;height:5px;border-radius:999px;background:#e8b23f;flex:0 0 auto"></span><span class="recName">我有个关键问题，手机壳怎么拆</span><span style="flex:1 1 auto"></span><span class="mono" style="font-size:11px; color:#807a70">1d</span></div>
+            <div class="recRow" style="gap:10px"><span style="width:5px;height:5px;border-radius:999px;background:rgba(29,27,23,.18);flex:0 0 auto"></span><span class="recName">制作玛奇玛闪光卡</span><span style="flex:1 1 auto"></span><span class="mono" style="font-size:11px; color:#807a70">2d</span></div>
+            <div class="recRow" style="gap:10px"><span style="width:5px;height:5px;border-radius:999px;background:rgba(29,27,23,.18);flex:0 0 auto"></span><span class="recName">确认 /van 命令意图</span><span style="flex:1 1 auto"></span><span class="mono" style="font-size:11px; color:#807a70">2d</span></div>
+            <div class="recRow" style="gap:10px"><span style="width:5px;height:5px;border-radius:999px;background:rgba(29,27,23,.18);flex:0 0 auto"></span><span class="recName">GitHub 查找 RuiC-card skill</span><span style="flex:1 1 auto"></span><span class="mono" style="font-size:11px; color:#807a70">2d</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:30px; background:#fffdf8; border-radius:14px; border:1px solid rgba(29,27,23,0.07); box-shadow:0 2px 10px -4px rgba(29,27,23,0.14); padding:24px 26px">
+    <div style="display:flex; flex-direction:column; gap:11px">
+      <div class="cap" style="color:#a8321f">现状</div>
+      <div class="keyItem"><span class="keyNum" style="background:rgba(168,50,31,0.12); color:#a8321f">1</span><span class="note"><strong style="font-weight:600; color:#1d1b17">“继续上次”名不副实。</strong>它下面是四个不同会话的列表，不是上一次那一个。要么标题改成“最近”，要么第一行真的做成“继续上次”的独立入口。</span></div>
+      <div class="keyItem"><span class="keyNum" style="background:rgba(168,50,31,0.12); color:#a8321f">2</span><span class="note"><strong style="font-weight:600; color:#1d1b17">最近列表和左侧栏内容完全重复</strong>，两份同样的四条并排显示，中间只隔 100px。</span></div>
+      <div class="keyItem"><span class="keyNum" style="background:rgba(168,50,31,0.12); color:#a8321f">3</span><span class="note"><strong style="font-weight:600; color:#1d1b17">行宽 700px，标题和日期之间 508px 什么都没有。</strong>眼睛没法把左端的名字和右端的“2d”连起来——典型的“过宽薄行”。</span></div>
+      <div class="keyItem"><span class="keyNum" style="background:rgba(168,50,31,0.12); color:#a8321f">4</span><span class="note"><strong style="font-weight:600; color:#1d1b17">输入框紧贴在列表下面，读作列表的第五行。</strong>整块内容既没居中也没顶对齐，浮在 22%–58% 之间；标题栏那句“素笺”作为会话名也不知所指。</span></div>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:11px">
+      <div class="cap" style="color:#1f6d84">建议</div>
+      <div class="keyItem"><span class="keyNum" style="background:rgba(31,109,132,0.12); color:#1f6d84">A</span><span class="note"><strong style="font-weight:600; color:#1d1b17">把输入框放到印章正下方，整组垂直居中。</strong>它是这一屏唯一要做的事，就该在视觉重心上。最近列表退到下面，从“主菜”变成“脚注”。</span></div>
+      <div class="keyItem"><span class="keyNum" style="background:rgba(31,109,132,0.12); color:#1f6d84">B</span><span class="note"><strong style="font-weight:600; color:#1d1b17">最近列表收窄到 660px 双列。</strong>名字和日期挨在一起，一眼能连上；运行中的会话带一颗赭黄点。右上角“全部 48 →”给出去处。</span></div>
+      <div class="keyItem"><span class="keyNum" style="background:rgba(31,109,132,0.12); color:#1f6d84">C</span><span class="note"><strong style="font-weight:600; color:#1d1b17">标题改成一句实话。</strong>“今天做点什么”对应的是下面的输入框；“最近”对应的是列表。标题栏里未开始的会话直接叫“新会话”。“素笺”留在设置里的主题名和印章上，那儿它很好。</span></div>
+      <div class="keyItem"><span class="keyNum" style="background:rgba(31,109,132,0.12); color:#1f6d84">D</span><span class="note">这一版<strong style="font-weight:600; color:#1d1b17">没有往空白里塞新东西</strong>——居中之后 390px 的空白自然就没了。如果你确实想让下半屏承载点内容，我觉得只有两个诚实的候选：<span class="good">最近打开的项目</span>和<span class="good">技能入口</span>。要不要加，你说。</span></div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

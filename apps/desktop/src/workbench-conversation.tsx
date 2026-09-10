@@ -103,6 +103,8 @@ export type WorkbenchTranscriptProps = {
   onPlanExecute?: (mode: PlanExecutionMode) => void | Promise<void>;
   /** Scope-matched sessions offered as resume targets on an empty stage. */
   scopeSessions: readonly SessionListItemUi[];
+  onOpenAllSessions?: () => void;
+  runningSessionIds?: Record<string, boolean | true>;
 };
 
 export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactElement {
@@ -305,6 +307,8 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
             locale={locale}
             sessions={scopeSessions}
             onResumeSession={(sessionId) => void onOpenSession(sessionId)}
+            {...(props.onOpenAllSessions ? { onOpenAllSessions: props.onOpenAllSessions } : {})}
+            {...(props.runningSessionIds ? { runningSessionIds: props.runningSessionIds } : {})}
           />
         )}
         </TranscriptViewport>

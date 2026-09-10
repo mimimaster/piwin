@@ -57,75 +57,131 @@
   height: auto;
   min-height: 0;
   overflow: visible;
-  /* Same gutter as `.chat-column-empty .composer-dock.layout-centered` so the
-     recent-session column and the prompt card share a left (and right) edge. */
   padding: 0 var(--chat-inline-pad);
 }
 
-/* ─── Empty-stage landing point ───────────────────────────────────────
-   Sits above the centred composer on a session with no turns. Deliberately
-   the quietest thing on the stage: a micro-label and ghost rows, so the
-   composer keeps the visual weight (see empty-stage-landing.tsx). */
+.chat-column-empty:has(.empty-stage-landing) .transcript-stage,
+.chat-column-empty:has(.empty-stage-landing) .transcript-viewport,
+.chat-column-empty:has(.empty-stage-landing) .chat-stream,
+.chat-column-empty .empty-stage-landing {
+  display: contents;
+}
 
-.empty-stage-landing {
-  width: var(--chat-max);
-  max-width: 100%;
-  margin: 0 auto;
-  padding: 0 0 var(--s-5);
+.chat-column-empty .empty-stage-welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: min(660px, 100%);
+  max-width: 660px;
+  margin: 0 auto 18px;
+  order: 1;
   box-sizing: border-box;
-  animation: deck-rise var(--t-4) var(--ease-out);
 }
 
-.empty-stage-welcome {
-  display: none;
+.chat-column-empty .empty-stage-welcome .seal {
+  margin-bottom: 18px;
 }
 
-.empty-stage-landing:not(:has(.empty-stage-landing-list)) {
-  display: none;
+.chat-column-empty .empty-stage-welcome h1 {
+  margin: 0;
+  text-align: left;
+}
+
+.chat-column-empty .composer-dock.layout-centered {
+  order: 2;
+  width: min(660px, 100%);
+  max-width: 660px;
+  margin: 0 auto;
+  padding: 0;
+}
+
+.chat-column-empty .composer-dock.layout-centered .composer-card-v2 {
+  width: 100%;
+}
+
+.chat-column-empty .empty-stage-landing-history {
+  display: flex;
+  flex-direction: column;
+  order: 3;
+  width: min(660px, 100%);
+  max-width: 660px;
+  margin: 20px auto 0;
+  box-sizing: border-box;
 }
 
 .empty-stage-landing-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--s-2);
-  padding: 0 var(--s-3);
+  gap: var(--s-3, 10px);
+  margin-top: var(--s-4, 16px);
+  margin-bottom: var(--s-2, 8px);
+  padding: 0;
 }
 
 .empty-stage-landing-label {
   margin: 0;
   padding: 0;
   color: var(--text-3);
-  font-size: var(--fs-micro);
-  font-weight: 500;
+  font-size: var(--fs-micro, 12px);
+  font-weight: 600;
   letter-spacing: var(--tracking-micro);
   text-transform: none;
+  flex: 0 0 auto;
+}
+
+.empty-stage-landing-divider {
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--border-subtle, rgba(255, 255, 255, 0.08));
+}
+
+.empty-stage-landing-all-link {
+  font-size: var(--fs-micro, 12px);
+  font-weight: 500;
+  color: var(--iris, var(--accent, #1f6d84));
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  flex: 0 0 auto;
+  text-decoration: none;
+  transition: opacity var(--t-1) var(--ease-out);
+}
+
+.empty-stage-landing-all-link:hover {
+  opacity: 0.8;
 }
 
 .empty-stage-landing-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-1, 4px) var(--s-5, 24px);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+@media (max-width: 600px) {
+  .empty-stage-landing-list {
+    grid-template-columns: 1fr;
+  }
+}
+
 .empty-stage-landing-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--s-4);
+  gap: var(--s-2, 8px);
   width: 100%;
-  min-height: 36px;
-  padding: var(--s-2) var(--s-3);
+  min-height: 32px;
+  padding: var(--s-1, 4px) var(--s-2, 8px);
   border: 0;
   border-radius: var(--r-control, 8px);
   background: transparent;
   color: var(--text-1);
   cursor: pointer;
   font: inherit;
-  font-size: 13.5px;
+  font-size: 13px;
   text-align: left;
   box-sizing: border-box;
   transition:
@@ -140,12 +196,26 @@
   outline: none;
 }
 
+.empty-stage-landing-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--border-subtle, rgba(255, 255, 255, 0.2));
+  flex: 0 0 auto;
+}
+
+.empty-stage-landing-dot.is-running {
+  background: var(--state-running, #e8b23f);
+  box-shadow: 0 0 6px rgba(232, 178, 63, 0.4);
+}
+
 .empty-stage-landing-title {
   min-width: 0;
+  flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13.5px;
+  font-size: 13px;
   color: var(--text-1);
 }
 
@@ -153,7 +223,7 @@
   flex: 0 0 auto;
   color: var(--text-4);
   font-family: var(--mono, var(--font-mono));
-  font-size: 12px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
 

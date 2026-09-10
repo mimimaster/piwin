@@ -17,6 +17,8 @@ export type EmptyStageLandingProps = {
   locale: DesktopLocale;
   sessions: readonly SessionListItemUi[];
   onResumeSession: (sessionId: string) => void;
+  onOpenAllSessions?: (() => void) | undefined;
+  runningSessionIds?: Record<string, boolean | true> | undefined;
 };
 
 function resolveSessionTitle(session: SessionListItemUi, locale: DesktopLocale): string {
@@ -80,14 +82,9 @@ export function selectResumableSessions(
 export function EmptyStageLanding(props: EmptyStageLandingProps): ReactElement {
   const recentSessions = selectResumableSessions(props.sessions);
   const isChinese = props.locale === 'zh-CN';
-  const heading =
-    recentSessions.length > 0
-      ? isChinese
-        ? '继续上次'
-        : 'Pick up where you left off'
-      : isChinese
-        ? '开始新对话'
-        : 'Start a new chat';
+  const heading = isChinese ? '研墨起笔' : 'Begin with Ink';
+  const totalCount =
+    props.sessions.filter((session) => !session.isArchived).length || props.sessions.length;
 
   return (
     <div className="empty-stage-landing" data-testid="empty-stage-landing">
@@ -96,33 +93,55 @@ export function EmptyStageLanding(props: EmptyStageLandingProps): ReactElement {
           砚
         </span>
         <h1>{heading}</h1>
-        {recentSessions.length === 0 ? (
-          <p>{isChinese ? '问任何问题。' : 'Ask anything.'}</p>
-        ) : null}
       </div>
       {recentSessions.length > 0 ? (
-        <ul className="empty-stage-landing-list">
-          {recentSessions.map((session) => {
-            const relativeTime = formatSessionRelativeTime(session.updatedAt);
-            const title = resolveSessionTitle(session, props.locale);
-            return (
-              <li key={session.id}>
-                <button
-                  type="button"
-                  className="empty-stage-landing-row"
-                  data-testid="empty-stage-landing-row"
-                  onClick={() => props.onResumeSession(session.id)}
-                  title={title}
-                >
-                  <span className="empty-stage-landing-title">{title}</span>
-                  {relativeTime ? (
-                    <span className="empty-stage-landing-time">{relativeTime}</span>
-                  ) : null}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+        <div className="empty-stage-landing-history" data-testid="empty-stage-landing-history">
+          <div className="empty-stage-landing-header">
+            <span className="empty-stage-landing-label">{isChinese ? '最近' : 'Recent'}</span>
+            <span className="empty-stage-landing-divider" aria-hidden="true" />
+            {props.onOpenAllSessions ? (
+              <button
+                type="button"
+                className="empty-stage-landing-all-link"
+                data-testid="empty-stage-landing-all"
+                onClick={props.onOpenAllSessions}
+              >
+                {isChinese ? `全部 ${totalCount} →` : `All ${totalCount} →`}
+              </button>
+            ) : (
+              <span className="empty-stage-landing-all-link" data-testid="empty-stage-landing-all">
+                {isChinese ? `全部 ${totalCount} →` : `All ${totalCount} →`}
+              </span>
+            )}
+          </div>
+          <ul className="empty-stage-landing-list">
+            {recentSessions.map((session) => {
+              const relativeTime = formatSessionRelativeTime(session.updatedAt);
+              const title = resolveSessionTitle(session, props.locale);
+              const isRunning = Boolean(props.runningSessionIds?.[session.id]);
+              return (
+                <li key={session.id}>
+                  <button
+                    type="button"
+                    className="empty-stage-landing-row"
+                    data-testid="empty-stage-landing-row"
+                    onClick={() => props.onResumeSession(session.id)}
+                    title={title}
+                  >
+                    <span
+                      className={`empty-stage-landing-dot${isRunning ? ' is-running' : ''}`}
+                      aria-hidden="true"
+                    />
+                    <span className="empty-stage-landing-title">{title}</span>
+                    {relativeTime ? (
+                      <span className="empty-stage-landing-time">{relativeTime}</span>
+                    ) : null}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       ) : null}
     </div>
   );

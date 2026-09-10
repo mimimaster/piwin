@@ -1,0 +1,185 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #e6e1d7; font-family: Inter, -apple-system, "PingFang SC", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #1f6d84; } a:hover { color: #155b6e; }
+    .sheet { padding: 40px 44px; display: flex; flex-direction: column; gap: 22px; }
+    .h1 { font-family: "Noto Serif SC", "Songti SC", serif; font-weight: 600; font-size: 30px; color: #1d1b17; }
+    .sub { font-size: 13px; line-height: 1.7; color: #57524a; max-width: 760px; }
+    .cap { font-family: "Noto Serif SC", "Songti SC", serif; font-weight: 600; font-size: 15px; color: #1d1b17; }
+    .note { font-size: 12.5px; line-height: 1.68; color: #57524a; }
+    .chip { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+    .chip-now { background: rgba(168,50,31,0.10); color: #a8321f; }
+    .chip-new { background: rgba(31,109,132,0.11); color: #1f6d84; }
+    .mono { font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
+    .bad { color: #a8321f; font-weight: 500; }
+    .good { color: #1f6d84; font-weight: 500; }
+    .faceBox { border-radius: 12px; padding: 22px 20px 20px; position: relative; overflow: hidden; }
+    .faceTag { font-size: 11px; font-weight: 600; letter-spacing: 0.88px; position: absolute; top: 10px; left: 14px; }
+    .slab { border-radius: 14px; padding: 12px 14px 10px; display: flex; flex-direction: column; gap: 12px; }
+    .slabBar { display: flex; align-items: center; gap: 8px; }
+    .pill { height: 26px; border-radius: 999px; padding: 0 9px; display: flex; align-items: center; gap: 6px; font-size: 12px; }
+    .send { width: 30px; height: 30px; border-radius: 999px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex: 0 0 auto; }
+    .keyItem { display: flex; gap: 9px; align-items: flex-start; }
+    .keyNum { width: 16px; height: 16px; border-radius: 999px; font-family: "JetBrains Mono", monospace; font-size: 10px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; margin-top: 2px; }
+    .aliasTable { display: grid; grid-template-columns: auto auto 1fr; gap: 5px 14px; align-items: center; }
+    .aliasName { font-family: "JetBrains Mono", monospace; font-size: 11.5px; color: #57524a; }
+    .aliasVal { font-family: "JetBrains Mono", monospace; font-size: 11.5px; color: #a8321f; }
+    .swatchMini { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(29,27,23,.14); }
+    .tbBtn { width: 26px; height: 22px; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-family: "Noto Serif SC", serif; font-size: 12px; }
+  </style>
+</helmet>
+<div class="sheet">
+
+  <div style="display:flex; flex-direction:column; gap:10px">
+    <div class="h1">输入石板</div>
+    <div class="sub">“砚”是整个产品最有性格的一块，但它<strong style="font-weight:600;color:#1d1b17">绕过了主题系统</strong>：<span class="mono">.slab.composer-card-v2</span> 把底色写死成 <span class="mono">#1f1c18</span>。纸面下它是奶油底上的一块黑石（对比 <span class="mono">15.7:1</span>），墨面下它和舞台面几乎同色（对比 <span class="mono">1.05:1</span>）——同一个写死值不可能同时服务两个面。而 <span class="mono">--composer</span> 这个 token 是有的（<span class="mono">#fffdf8</span> / <span class="mono">#201d19</span>），只是没人用。</div>
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:26px">
+
+    <!-- current -->
+    <div style="display:flex; flex-direction:column; gap:14px">
+      <div style="display:flex; align-items:center; gap:10px"><span class="chip chip-now">现状</span><span class="cap">写死 #1f1c18，两面同一个值</span></div>
+
+      <div class="faceBox" style="background:#f8f6f0; border:1px solid rgba(29,27,23,.08)">
+        <div class="faceTag" style="color:#807a70">纸面 PAPER · 舞台 #f8f6f0</div>
+        <div style="position:absolute; right:14px; top:10px; font-size:11px; color:#a8321f; font-weight:600">石板 / 舞台 对比 15.7:1</div>
+        <div style="font-size:14.5px; line-height:1.68; color:#1d1b17; opacity:.5; margin-bottom:14px; margin-top:6px">…包装盒内侧一般有安装图，盒上有官方视频二维码。</div>
+        <div class="slab" style="background:#1f1c18; box-shadow:0 12px 32px -8px rgba(0,0,0,.34)">
+          <div style="font-size:13.5px; color:#8d857a">问任何问题，或粘贴内容开始对话…</div>
+          <div class="slabBar">
+            <span style="color:#a59d92; font-size:15px">+</span>
+            <span class="pill" style="background:rgba(255,255,255,.06); color:#ebe5da"><span class="mono" style="font-size:10px; background:#e25a3d; color:#1c0b07; width:14px; height:14px; border-radius:3px; display:flex; align-items:center; justify-content:center">G</span>Grok 4.6 · 高 ⌄</span>
+            <span style="color:#a59d92; font-size:13px">◍</span>
+            <span style="flex:1 1 auto"></span>
+            <span style="width:6px; height:6px; border-radius:999px; background:#e25a3d; opacity:.5"></span>
+            <span class="send" style="background:#e25a3d; color:#1c0b07">↑</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="faceBox" style="background:#191714; border:1px solid rgba(235,229,218,.10)">
+        <div class="faceTag" style="color:#968d81">墨面 INK · 舞台 #191714</div>
+        <div style="font-size:14.5px; line-height:1.68; color:#ebe5da; opacity:.5; margin-bottom:14px; margin-top:6px">…包装盒内侧一般有安装图，盒上有官方视频二维码。</div>
+        <div class="slab" style="background:#1f1c18; box-shadow:0 12px 32px -8px rgba(0,0,0,.7)">
+          <div style="font-size:13.5px; color:#8d857a">问任何问题，或粘贴内容开始对话…</div>
+          <div class="slabBar">
+            <span style="color:#a59d92; font-size:15px">+</span>
+            <span class="pill" style="background:rgba(255,255,255,.06); color:#ebe5da"><span class="mono" style="font-size:10px; background:#e25a3d; color:#1c0b07; width:14px; height:14px; border-radius:3px; display:flex; align-items:center; justify-content:center">G</span>Grok 4.6 · 高 ⌄</span>
+            <span style="color:#a59d92; font-size:13px">◍</span>
+            <span style="flex:1 1 auto"></span>
+            <span style="width:14px; height:14px; border-radius:999px; border:1px solid rgba(235,229,218,.3)"></span>
+            <span class="send" style="background:#e25a3d; color:#1c0b07">↑</span>
+          </div>
+        </div>
+        <div style="position:absolute; right:14px; top:10px; font-size:11px; color:#e0697c; font-weight:600">石板 / 舞台 对比 1.05:1</div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:10px">
+        <div class="keyItem"><span class="keyNum" style="background:rgba(168,50,31,0.12); color:#a8321f">1</span><span class="note"><strong style="font-weight:600; color:#1d1b17">墨面下石板消失了。</strong>纸面它是主角，墨面它只剩一条发丝边——<span class="bad">产品最有辨识度的元素在一半的时间里不存在</span>。</span></div>
+        <div class="keyItem"><span class="keyNum" style="background:rgba(168,50,31,0.12); color:#a8321f">2</span><span class="note"><strong style="font-weight:600; color:#1d1b17">发送键旁那个点在两面权重不一样。</strong>纸面是几乎看不见的橙点，墨面变成一个明显的空心圆环——同一个上下文占用指示器，两种视觉重量。</span></div>
+      </div>
+    </div>
+
+    <!-- proposed -->
+    <div style="display:flex; flex-direction:column; gap:14px">
+      <div style="display:flex; align-items:center; gap:10px"><span class="chip chip-new">建议</span><span class="cap">石板的身份来自“抬升”，不是来自反色</span></div>
+
+      <div class="faceBox" style="background:#f5f2ea; border:1px solid rgba(29,27,23,.08)">
+        <div class="faceTag" style="color:#807a70">纸面 PAPER · 舞台 #f5f2ea</div>
+        <div style="position:absolute; right:14px; top:10px; font-size:11px; color:#1f6d84; font-weight:600">石板 / 舞台 对比 1.12:1 + 顶缘高光</div>
+        <div style="font-size:16px; line-height:1.75; color:#1d1b17; opacity:.5; margin-bottom:14px; margin-top:6px">…包装盒内侧一般有安装图，盒上有官方视频二维码。</div>
+        <div class="slab" style="background:#ffffff; box-shadow:inset 0 1px 0 rgba(255,255,255,.9), 0 0 0 1px rgba(29,27,23,.09), 0 14px 34px -12px rgba(29,27,23,.22)">
+          <div style="font-size:16px; color:#807a70">问任何问题，或粘贴内容开始对话…</div>
+          <div class="slabBar">
+            <span style="color:#57524a; font-size:15px">+</span>
+            <span class="pill" style="background:#f0ece4; color:#1d1b17"><span class="mono" style="font-size:10px; background:#1f6d84; color:#fff; width:14px; height:14px; border-radius:3px; display:flex; align-items:center; justify-content:center">G</span>Grok 4.6 · 高 ⌄</span>
+            <span style="color:#57524a; font-size:13px">◍</span>
+            <span style="flex:1 1 auto"></span>
+            <span class="mono" style="font-size:11px; color:#807a70">3.6k / 500k</span>
+            <span class="send" style="background:#1f6d84; color:#fff">↑</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="faceBox" style="background:#191714; border:1px solid rgba(235,229,218,.10)">
+        <div class="faceTag" style="color:#9a9084">墨面 INK · 舞台 #191714</div>
+        <div style="font-size:16px; line-height:1.75; color:#ebe5da; opacity:.5; margin-bottom:14px; margin-top:6px">…包装盒内侧一般有安装图，盒上有官方视频二维码。</div>
+        <div class="slab" style="background:#262218; box-shadow:inset 0 1px 0 rgba(255,255,255,.07), 0 0 0 1px rgba(0,0,0,.6), 0 14px 34px -12px rgba(0,0,0,.8)">
+          <div style="font-size:16px; color:#9a9084">问任何问题，或粘贴内容开始对话…</div>
+          <div class="slabBar">
+            <span style="color:#c0b6a7; font-size:15px">+</span>
+            <span class="pill" style="background:rgba(255,255,255,.055); color:#ebe5da"><span class="mono" style="font-size:10px; background:#4a9bb5; color:#0c1a1f; width:14px; height:14px; border-radius:3px; display:flex; align-items:center; justify-content:center">G</span>Grok 4.6 · 高 ⌄</span>
+            <span style="color:#c0b6a7; font-size:13px">◍</span>
+            <span style="flex:1 1 auto"></span>
+            <span class="mono" style="font-size:11px; color:#9a9084">3.6k / 500k</span>
+            <span class="send" style="background:#4a9bb5; color:#0c1a1f">↑</span>
+          </div>
+        </div>
+        <div style="position:absolute; right:14px; top:10px; font-size:11px; color:#5fad85; font-weight:600">石板 / 舞台 对比 1.13:1 + 顶缘高光</div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:10px">
+        <div class="keyItem"><span class="keyNum" style="background:rgba(31,109,132,0.12); color:#1f6d84">A</span><span class="note"><strong style="font-weight:600; color:#1d1b17">让石板读 <span class="mono">--composer</span>，两面各有自己的值。</strong>纸面 <span class="mono">#ffffff</span>、墨面 <span class="mono">#262218</span>，靠<span class="good">顶缘 1px 高光 + 外侧暗发丝 + 投影</span>（就是规范第 3 节的 <span class="mono">--elev-3</span>）来抬起——这本来就是文档写的做法，只是石板没走这条路。“砚”的质感留在纹理和印章上，而不是靠把界面反色。</span></div>
+        <div class="keyItem"><span class="keyNum" style="background:rgba(31,109,132,0.12); color:#1f6d84">B</span><span class="note"><strong style="font-weight:600; color:#1d1b17">那个神秘小圆点换成一句话。</strong><span class="mono">3.6k / 500k</span> 等宽数字，不需要悬停就知道自己用了多少。</span></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="display:grid; grid-template-columns:1.15fr 1fr; gap:26px; background:#fffdf8; border-radius:14px; border:1px solid rgba(29,27,23,0.07); box-shadow:0 2px 10px -4px rgba(29,27,23,0.14); padding:24px 26px">
+
+    <div style="display:flex; flex-direction:column; gap:12px">
+      <div class="cap">为什么“层级”看不出来：八个名字，一个颜色</div>
+      <div class="note">主题运行时往 <span class="mono">&lt;html&gt;</span> 上写了约 150 个 CSS 变量，其中这八个语义完全不同的表面全部解析成同一个值（墨面）：</div>
+      <div class="aliasTable">
+        <span class="aliasName">--panel</span><span class="aliasVal">#201d19</span><span class="swatchMini" style="background:#201d19"></span>
+        <span class="aliasName">--card</span><span class="aliasVal">#201d19</span><span class="swatchMini" style="background:#201d19"></span>
+        <span class="aliasName">--composer</span><span class="aliasVal">#201d19</span><span class="swatchMini" style="background:#201d19"></span>
+        <span class="aliasName">--user-bubble</span><span class="aliasVal">#201d19</span><span class="swatchMini" style="background:#201d19"></span>
+        <span class="aliasName">--control</span><span class="aliasVal">#201d19</span><span class="swatchMini" style="background:#201d19"></span>
+        <span class="aliasName">--surface</span><span class="aliasVal">#201d19</span><span class="swatchMini" style="background:#201d19"></span>
+        <span class="aliasName">--surface-inset</span><span class="aliasVal">#201d19</span><span class="swatchMini" style="background:#201d19"></span>
+        <span class="aliasName">--surface-overlay</span><span class="aliasVal">#201d19</span><span class="swatchMini" style="background:#201d19"></span>
+      </div>
+      <div class="note"><span class="bad">“抬起的卡片”“凹陷的输入”“用户气泡”在颜色上永远无法区分</span>，因为它们是同一个值的八个别名。而舞台到抬升层的对比只有 <span class="mono">1.06:1</span>——任何一处投影被裁掉或被覆盖，那块面就彻底贴平了。<br><br>建议：<span class="good">砍掉别名、只留 <span class="mono">--surface-1…4</span></span>，并把抬升层拉开到 <span class="mono">1.13:1</span>（墨面 <span class="mono">#262218</span>，纸面舞台降到 <span class="mono">#f5f2ea</span> 让白卡片浮起来）。样式表里还有 <span class="mono">620</span> 处写死的色值在绕过这套 token，同一批一起清。</div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:12px">
+      <div class="cap">标题栏：四个字管两套明暗</div>
+      <div style="display:flex; align-items:center; gap:14px; background:#f0ece4; border-radius:8px; padding:10px 12px">
+        <div style="display:flex; gap:2px; background:rgba(29,27,23,.05); border-radius:6px; padding:2px">
+          <div class="tbBtn" style="background:#fffdf8; color:#1d1b17">砚</div>
+          <div class="tbBtn" style="color:#807a70">纸</div>
+        </div>
+        <div style="display:flex; gap:2px; background:rgba(29,27,23,.05); border-radius:6px; padding:2px">
+          <div class="tbBtn" style="background:#fffdf8; color:#1d1b17">明</div>
+          <div class="tbBtn" style="color:#807a70">墨</div>
+        </div>
+        <span class="note" style="font-size:11.5px">现状</span>
+      </div>
+      <div class="note"><span class="bad">砚 / 纸 是石板的明暗，明 / 墨 是全局主题的明暗</span>——两条几乎同义的轴，四个单字按钮，字形还都很像。四个按钮都<span class="bad">没有 <span class="mono">aria-label</span>、没有 <span class="mono">aria-pressed</span></span>（只有 <span class="mono">title</span>），而紧挨着的右面板按钮是有 <span class="mono">aria-pressed</span> 的——同一排里两套规矩。</div>
+      <div style="display:flex; align-items:center; gap:14px; background:#f0ece4; border-radius:8px; padding:10px 12px">
+        <div style="display:flex; align-items:center; gap:7px; height:24px; padding:0 10px; border-radius:6px; background:#fffdf8; font-size:12.5px; color:#1d1b17">
+          <span style="font-family:'Noto Serif SC',serif">明</span><span style="color:#a8a29a">|</span><span style="font-family:'Noto Serif SC',serif; color:#807a70">墨</span>
+        </div>
+        <span class="note" style="font-size:11.5px"><span class="good">建议</span>：标题栏只留全局明暗一个开关</span>
+      </div>
+      <div class="note">石板的“砚 / 纸”是一次性口味设置，属于设置 → 外观；它不需要常驻在标题栏上，更不该和全局主题长得一样。留下的那个开关补上 <span class="mono">aria-label</span> 和 <span class="mono">aria-pressed</span>。顺带一提，<span class="mono">--signal-rail-width: 46px</span> 这个 token 还在 <span class="mono">tokens.css</span> 里，而规范第 7.2 节已经明确删掉了导航轨——可以清掉了。</div>
+    </div>
+
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>
