@@ -138,7 +138,10 @@ describe('TranscriptViewport session scroll recovery', () => {
     }
 
     expect(scrollElement.scrollTop).toBe(240);
-    expect(container.querySelector('[data-testid="jump-to-latest-btn"]')).not.toBeNull();
+    const jumpButton = container.querySelector('[data-testid="jump-to-latest-btn"]');
+    expect(jumpButton).not.toBeNull();
+    expect(jumpButton?.getAttribute('aria-label')).toBe('Jump to latest');
+    expect(jumpButton?.querySelector('svg')).not.toBeNull();
   });
 
   it('keeps follow-tail when a programmatic stick fires mid-growth', async () => {
@@ -237,7 +240,8 @@ describe('TranscriptViewport session scroll recovery', () => {
     });
 
     const button = container.querySelector<HTMLButtonElement>('[data-testid="jump-to-latest-btn"]');
-    expect(button?.textContent).toContain('Back to latest');
+    expect(button?.getAttribute('aria-label')).toBe('Return to latest messages');
+    expect(button?.querySelector('svg')).not.toBeNull();
     act(() => button?.click());
     expect(onReturnToLatest).toHaveBeenCalledOnce();
   });

@@ -23,10 +23,12 @@ import { useTranscriptScroll } from './use-transcript-scroll';
 import { HistoryTicksDrawer } from './history-ticks-drawer';
 import { TranscriptScrollProvider } from './transcript-scroll-port';
 import { useTranscriptReveal } from './use-transcript-reveal.js';
+import { IconArrowDown } from './shell-icons';
 import './styles/transcript-opening.css';
 
 /** Load the next older page when within this many px of the transcript top. */
 const TRANSCRIPT_TOP_AUTO_LOAD_PX = 120;
+const JUMP_TO_LATEST_ICON_PX = 16;
 
 export type TranscriptViewportProps = {
   messageCount: number;
@@ -223,6 +225,13 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
   const showJumpToLatest =
     props.messageCount > 0 &&
     (props.historyViewActive === true || scroll.showJumpToLatest);
+  const jumpToLatestLabel = props.historyViewActive
+    ? locale === 'zh-CN'
+      ? '返回最新消息'
+      : 'Return to latest messages'
+    : locale === 'zh-CN'
+      ? '跳到最新'
+      : 'Jump to latest';
 
   return (
         <TranscriptScrollProvider
@@ -307,23 +316,10 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
             className="jump-to-latest-btn"
             data-testid="jump-to-latest-btn"
             onClick={handleJumpToLatest}
-            aria-label={
-              props.historyViewActive
-                ? locale === 'zh-CN'
-                  ? '返回最新消息'
-                  : 'Return to latest messages'
-                : locale === 'zh-CN'
-                  ? '跳到最新'
-                  : 'Jump to latest'
-            }
+            aria-label={jumpToLatestLabel}
+            title={jumpToLatestLabel}
           >
-            {props.historyViewActive
-              ? locale === 'zh-CN'
-                ? '返回最新'
-                : 'Back to latest'
-              : locale === 'zh-CN'
-                ? '跳到最新'
-                : 'Jump to latest'}
+            <IconArrowDown width={JUMP_TO_LATEST_ICON_PX} height={JUMP_TO_LATEST_ICON_PX} />
           </button>
         ) : null}
         {/* Always mounted: visibility via isOverflowing avoids mount thrash. */}
