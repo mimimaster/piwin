@@ -89,9 +89,11 @@ export const IconListDots = createIcon(
 
 export const IconExpand = createIcon(
   <>
-    <path d="M9.5 2H14v4.5M6.5 14H2V9.5M14 2L9 7M2 14l5-5" />
+    <path d="M16 4h4v4" />
+    <path d="M14 10l6-6" />
+    <path d="M8 20H4v-4" />
+    <path d="M10 14l-6 6" />
   </>,
-  16,
 );
 
 export const IconCompress = createIcon(

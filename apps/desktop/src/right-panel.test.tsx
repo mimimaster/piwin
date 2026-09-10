@@ -406,6 +406,10 @@ describe('RightPanel multi-tab', () => {
     expect(expandToggled).toBe(true);
     expect(expandBtn?.getAttribute('aria-label') ?? expandBtn?.textContent).toBeTruthy();
     expect(expandBtn?.getAttribute('title')).toBe('进入全屏');
+    const expandGlyph = expandBtn?.querySelector('svg');
+    expect(expandGlyph?.getAttribute('viewBox')).toBe('0 0 24 24');
+    expect(expandGlyph?.getAttribute('width')).toBe('14');
+    expect(expandGlyph?.getAttribute('height')).toBe('14');
 
     const tabstrip = container.querySelector('[data-testid="right-panel-tabstrip"]');
     const addBtn = tabstrip?.querySelector('[data-testid="right-panel-tab-add"]');

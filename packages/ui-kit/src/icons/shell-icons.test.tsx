@@ -6,6 +6,7 @@ import {
   IconChat,
   IconClock,
   IconDatabase,
+  IconExpand,
   IconFlame,
   IconFolderOpen,
   IconMcp,
@@ -27,6 +28,13 @@ describe('shared shell icons', () => {
     const markup = renderToStaticMarkup(createElement(IconFolderOpen));
     expect(markup).toContain('stroke-width="1.6"');
     expect(markup.match(/<path /g)).toHaveLength(1);
+  });
+
+  it('renders IconExpand on the 24 grid with inset arrows', () => {
+    const markup = renderToStaticMarkup(createElement(IconExpand));
+    expect(markup).toContain('viewBox="0 0 24 24"');
+    expect(markup).toContain('M16 4h4v4');
+    expect(markup).not.toContain('M9.5 2H14');
   });
 
   it('preserves the shared outline defaults', () => {
