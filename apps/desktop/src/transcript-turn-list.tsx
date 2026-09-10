@@ -33,7 +33,11 @@ import {
 export const TRANSCRIPT_VIRTUALIZATION_THRESHOLD = 0;
 export { TRANSCRIPT_TURN_ESTIMATED_HEIGHT_PX };
 export const TRANSCRIPT_TURN_GAP_PX = 20;
-const TRANSCRIPT_TURN_OVERSCAN = 2;
+/**
+ * Keep enough off-screen turns mounted that first-measure (estimate → actual)
+ * happens above the fold. Overscan 2 let rows appear, remasure, then jump.
+ */
+const TRANSCRIPT_TURN_OVERSCAN = 8;
 /** Always keep the newest N items/turns mounted so the live call chain never unmounts. */
 const TRANSCRIPT_LIVE_TAIL_PIN_COUNT = 3;
 
@@ -65,8 +69,13 @@ type TranscriptVirtualizerScrollState = {
 };
 
 /**
- * Pin-to-end is `notifyContentGrew` only. This predicate may preserve in-place
- * reading; it must not restick the live tail after the user has left it.
+ * Pin-to-end is `notifyContentGrew` only. This predicate keeps the row the
+ * user is reading still — it must not restick the live tail.
+ *
+ * First measure (estimate → actual) of a row that was fully above the fold
+ * must shift scrollTop even while scrolling into history. Skipping that is
+ * the “pull-up chat jumps / refreshes” bug. A spanning / just-entering row
+ * is left alone so a near-tail flick is not yanked back.
  */
 export function shouldAdjustTranscriptScrollOnItemSizeChange(
   item: Pick<VirtualItem, 'key' | 'start' | 'size'>,
@@ -74,18 +83,19 @@ export function shouldAdjustTranscriptScrollOnItemSizeChange(
   instance: TranscriptVirtualizerScrollState,
   following: boolean,
 ): boolean {
+  const scrollOffset = (instance.scrollOffset ?? 0) + instance.scrollAdjustments;
+  const isFirstMeasure = !instance.itemSizeCache.has(item.key);
+  const previousEnd = item.start + item.size;
+  if (isFirstMeasure) {
+    if (following) {
+      return item.start < scrollOffset;
+    }
+    return previousEnd <= scrollOffset;
+  }
   if (instance.scrollDirection === 'backward') {
     return false;
   }
-  const scrollOffset = (instance.scrollOffset ?? 0) + instance.scrollAdjustments;
-  const isFirstMeasure = !instance.itemSizeCache.has(item.key);
-  if (!following && isFirstMeasure) {
-    return false;
-  }
-  if (isFirstMeasure) {
-    return item.start < scrollOffset;
-  }
-  return item.start + item.size <= scrollOffset;
+  return previousEnd <= scrollOffset;
 }
 
 function transcriptTurnItemStructureKey(turn: TranscriptTurn): string {
