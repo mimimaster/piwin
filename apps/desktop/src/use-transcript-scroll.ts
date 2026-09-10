@@ -1,20 +1,15 @@
 /**
- * Follow-tail / jump-to-latest scroll presentation state for the transcript.
- * Also exposes scrollProgress / scrollRatio for a floating scrollbar that
- * overlays the shell without taking layout space.
+ * Follow-tail / jump-to-latest for the transcript scrollport.
  *
- * Measurement contract:
- * - Metrics update on scroll, container/content resize, and activity growth.
- * - Never rely on onScroll alone: programmatic stick-to-bottom often does not
- *   fire a scroll event when already near the bottom, which previously left
- *   scrollRatio stuck at 1 and made the floating scrollbar flash in/out.
- * - Programmatic sticks must not clear followTail from layout thrash alone.
- * - User scroll-away (wheel up / trackpad / intentional scrollTop drop) must
- *   win over Artifact/virtualizer ResizeObserver sticks — otherwise history
- *   is unreachable while content keeps growing (reads as "can't scroll up").
- * - A fitted transcript (no overflow, no scrollbar) cannot leave the tail:
- *   wheel events still fire, but they are not history navigation. Jump-to-latest
- *   is a "reading older turns" control, same as Cursor / ChatGPT.
+ * One following bit (`followTailRef`). Pin-to-end writes happen only while it
+ * is true (`notifyContentGrew` / ResizeObserver / activity). Nested growers and
+ * the virtualizer read that bit from the scroll port — they do not restick the
+ * tail on their own.
+ *
+ * User history navigation (wheel up, or an upward scroll still inside the tail
+ * zone) clears following immediately. A fitted transcript cannot leave the tail.
+ * Metrics also update on resize and activity so the floating thumb does not
+ * depend on a scroll event that stick-to-bottom may not emit.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { TranscriptScrollPosition } from './transcript-scroll-memory';
@@ -28,8 +23,6 @@ const OVERFLOW_EPSILON = 0.002;
  * programmatic stick flag is still set (race with rAF stick frames).
  */
 const USER_SCROLL_AWAY_DELTA_PX = 8;
-/** Wheel deltaY < 0 (scroll content up / reveal history) detaches follow-tail. */
-const USER_WHEEL_AWAY_DELTA_Y = -2;
 
 export type TranscriptScrollState = {
   followTail: boolean;
@@ -72,18 +65,24 @@ export function shouldDetachFollowTailFromScrollDelta(options: {
   programmatic: boolean;
   nearBottom: boolean;
   scrollHeightDelta?: number;
+  overflowing?: boolean;
 }): boolean {
-  if (options.nearBottom) {
+  if (options.overflowing === false) {
     return false;
   }
+  // User-owned upward move in the tail zone is history intent, even when a
+  // hero image / virtualizer measure grew the document in the same frame.
+  if (!options.programmatic && options.scrollTopDelta < 0 && options.nearBottom) {
+    return true;
+  }
   const heightDelta = options.scrollHeightDelta ?? 0;
-  // Virtualizer / image / Artifact height corrections move scrollTop with
-  // content height. Layout, not a user history gesture. Wheel-away is
-  // handled separately by shouldDetachFollowTailFromWheelDelta.
   if (heightDelta > 0 && options.scrollTopDelta >= -heightDelta) {
     return false;
   }
   if (options.programmatic && heightDelta !== 0) {
+    return false;
+  }
+  if (options.nearBottom) {
     return false;
   }
   if (options.scrollTopDelta <= -USER_SCROLL_AWAY_DELTA_PX) {
@@ -108,7 +107,7 @@ export function shouldDetachFollowTailFromWheelDelta(options: {
   if (!options.overflowing) {
     return false;
   }
-  return options.deltaY <= USER_WHEEL_AWAY_DELTA_Y;
+  return options.deltaY < 0;
 }
 
 function readScrollMetrics(element: HTMLElement): {
@@ -288,6 +287,7 @@ export function useTranscriptScroll(options: {
         programmatic: programmaticScrollRef.current,
         nearBottom: metrics.nearBottom,
         scrollHeightDelta,
+        overflowing: isScrollOverflowing(metrics.ratio),
       })
     ) {
       detachFromTail();
@@ -313,6 +313,9 @@ export function useTranscriptScroll(options: {
     }
 
     if (metrics.nearBottom) {
+      if (userDetachedRef.current && (scrollTopDelta <= 0 || scrollHeightDelta !== 0)) {
+        return;
+      }
       userDetachedRef.current = false;
       setFollowTail(true);
       return;
@@ -372,10 +375,11 @@ export function useTranscriptScroll(options: {
       detachFromTail();
     };
 
-    // passive: true — we only observe intent, never preventDefault.
-    element.addEventListener('wheel', onWheel, { passive: true });
+    // Capture + passive: observe intent before nested surfaces stop
+    // propagation, and never preventDefault.
+    element.addEventListener('wheel', onWheel, { passive: true, capture: true });
     return () => {
-      element.removeEventListener('wheel', onWheel);
+      element.removeEventListener('wheel', onWheel, { capture: true });
     };
   }, [detachFromTail, options.messageCount, setFollowTail]);
 
@@ -475,6 +479,7 @@ export function useTranscriptScroll(options: {
     setFollowTail,
     detachFromTail,
     isFollowingTail,
+    beginProgrammaticScroll,
     restorePosition,
     /** Immediate follow-tail stick for nested growers (Artifact iframe height). */
     notifyContentGrew: stickToBottomAcrossFrames,

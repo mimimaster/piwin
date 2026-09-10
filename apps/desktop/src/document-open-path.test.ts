@@ -99,6 +99,17 @@ describe('planDocumentOpenPath', () => {
     expect(plan).not.toMatchObject({ kind: 'project' });
   });
 
+  it('classifies the local-dev config root (~/.piwin-test/skills) as a skill', () => {
+    const plan = planDocumentOpenPath({
+      path: '/Users/me/.piwin-test/skills/imagegen/SKILL.md',
+      projectPath: '/Users/me/Developer/CCursor',
+    });
+    expect(plan.kind).toBe('skill-legacy');
+    if (plan.kind === 'skill-legacy') {
+      expect(plan.skillIdHint).toBe('imagegen');
+    }
+  });
+
   it('classifies /tmp/outside.md as legacy-absolute even with an active project', () => {
     const plan = planDocumentOpenPath({
       path: '/tmp/outside.md',

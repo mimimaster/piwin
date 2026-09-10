@@ -4,6 +4,7 @@ mod memory_pressure;
 mod pet_overlay;
 mod pty_host;
 mod reveal_in_file_manager;
+mod save_user_file;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -176,6 +177,8 @@ pub fn run() {
             show_main_window,
             reveal_in_file_manager::reveal_in_file_manager,
             reveal_in_file_manager::path_exists_locally,
+            save_user_file::copy_local_file,
+            save_user_file::write_saved_file,
             memory_pressure::purge_webview_memory,
             memory_pressure::relaunch_webview_renderer
         ])

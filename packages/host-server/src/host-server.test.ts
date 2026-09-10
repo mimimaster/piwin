@@ -809,7 +809,13 @@ describe('HostServer', () => {
         }),
       ],
     });
-    expect(JSON.stringify(response.response.data)).not.toContain('/Users/private');
+    expect(response.response.data).toMatchObject({
+      projects: [
+        expect.objectContaining({
+          path: '/Users/private/Projects/example',
+        }),
+      ],
+    });
 
     socket.send(
       encodeHostWireMessage({

@@ -9,6 +9,10 @@ import type { TranscriptTurn } from './transcript-turns';
 
 /** Fallback when we know nothing about the turn (short assistant / user row). */
 export const TRANSCRIPT_TURN_ESTIMATED_HEIGHT_PX = 140;
+/** Single assistant image/video before measure. */
+const TRANSCRIPT_TURN_HERO_MEDIA_ESTIMATE_PX = 280;
+const TRANSCRIPT_TURN_PAIR_MEDIA_ESTIMATE_PX = 220;
+const TRANSCRIPT_TURN_GALLERY_ROW_ESTIMATE_PX = 200;
 
 /** Reject zero / sub-pixel noise. */
 export const TRANSCRIPT_TURN_MIN_HEIGHT_PX = 40;
@@ -45,6 +49,38 @@ export function normalizeTranscriptTurnEstimate(height: number): number | null {
  * Content-aware size guess before measure. Keeps short turns compact so the
  * scroll range is not inflated by hundreds of empty pixels per row.
  */
+function assistantVisualMediaCount(turn: TranscriptTurn): number {
+  let count = 0;
+  for (const item of turn.items) {
+    if (item.message.role !== 'assistant') {
+      continue;
+    }
+    for (const attachment of item.message.attachments) {
+      if (attachment.kind !== 'media') {
+        continue;
+      }
+      const mime = attachment.mimeType.toLowerCase();
+      if (mime.startsWith('image/') || mime.startsWith('video/')) {
+        count += 1;
+      }
+    }
+  }
+  return count;
+}
+
+function estimateAssistantMediaHeight(count: number): number {
+  if (count <= 0) {
+    return 0;
+  }
+  if (count === 1) {
+    return TRANSCRIPT_TURN_HERO_MEDIA_ESTIMATE_PX;
+  }
+  if (count === 2) {
+    return TRANSCRIPT_TURN_PAIR_MEDIA_ESTIMATE_PX;
+  }
+  return TRANSCRIPT_TURN_GALLERY_ROW_ESTIMATE_PX * Math.ceil(count / 2);
+}
+
 export function estimateTranscriptTurnHeight(turn: TranscriptTurn | undefined): number {
   if (turn === undefined) {
     return TRANSCRIPT_TURN_ESTIMATED_HEIGHT_PX;
@@ -60,6 +96,7 @@ export function estimateTranscriptTurnHeight(turn: TranscriptTurn | undefined): 
     const toolCount = item.message.tools?.length ?? 0;
     raw += 72 + Math.min(280, Math.ceil(textLength / 90) * 22) + toolCount * 36;
   }
+  raw += estimateAssistantMediaHeight(assistantVisualMediaCount(turn));
   return normalizeTranscriptTurnEstimate(raw) ?? TRANSCRIPT_TURN_ESTIMATED_HEIGHT_PX;
 }
 

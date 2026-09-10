@@ -91,12 +91,7 @@ function GeneralPreferencesSection(): ReactElement {
   return (
     <>
       <div className="settings-section settings-section-card" data-testid="settings-general-base">
-        <PageTitle
-          title={locale === 'zh-CN' ? '基础偏好' : 'General Preferences'}
-          description={
-            locale === 'zh-CN' ? '管理界面显示语言与基础配置。' : 'Manage display language and basic configuration.'
-          }
-        />
+        <PageTitle title={locale === 'zh-CN' ? '基础偏好' : 'General Preferences'} />
         <FieldRow label={copy.language} description={copy.languageDescription}>
           <Select
             value={locale}
@@ -187,8 +182,8 @@ function AnimationLocatorCard(): ReactElement {
         title={isChinese ? 'Agent 定位动效' : 'Agent locator animation'}
         description={
           isChinese
-            ? '运行中只显示一个轻量定位标记和动态文字；它会出现在对话区域底部或当前工作行。'
-            : 'While a run is active, show one lightweight marker and changing text in the transcript locator.'
+            ? '运行时在对话中显示的定位标记。'
+            : 'The marker shown in the transcript while a run is active.'
         }
       />
       <div className="animation-locator-config-row" style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 12 }}>

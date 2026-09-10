@@ -14,6 +14,7 @@ import {
   writeMediaLibraryMeta,
 } from '@piwin/media';
 import { isModelEnabled } from '@piwin/contracts';
+import { loadSubscriptionMediaAuth, providerUsesSubscriptionMedia } from './subscription-media-request.js';
 import type { SecretResolver } from './secret-resolver.js';
 import { findEnabledProvider, getEnabledProviders } from './provider-helpers.js';
 import { callVideoEndpoint } from './video-generation-adapters.js';
@@ -180,7 +181,15 @@ export function buildVideoGenTool(options: VideoGenToolOptions): HostToolRegistr
               mediaConfig.maxPasteBytes,
             )
           : undefined;
-      const apiKey = await secretResolver.resolveProviderSecret(provider);
+      const apiKey = providerUsesSubscriptionMedia(provider, 'video')
+        ? (
+            await loadSubscriptionMediaAuth(provider.id).catch((error: unknown) => {
+              throw new VideoGenConfigError(
+                error instanceof Error ? error.message : `video_gen: ${String(error)}`,
+              );
+            })
+          ).accessToken
+        : await secretResolver.resolveProviderSecret(provider);
       const durationSeconds = readFiniteNumber(args.durationSeconds);
       const aspectRatio = readStringArgument(args.aspectRatio);
       const size = readStringArgument(args.size);

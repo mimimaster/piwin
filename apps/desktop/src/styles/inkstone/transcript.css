@@ -204,8 +204,10 @@ html[data-theme-id='piwin-inkstone-ink'] .chat-turn-group .chat-marginalia {
   font: 11px var(--mono);
   color: var(--t4);
   text-align: right;
-  position: sticky;
-  top: 0;
+  /* Byline pinned to the top of its turn — it scrolls away with the message.
+     Not sticky: a virtualized turn with a tall body (open assembly capsule,
+     long reply) left the label stranded at the viewport top over unrelated
+     content long after its bubble had scrolled off. */
   align-self: start;
   box-sizing: border-box;
 }
@@ -224,8 +226,7 @@ html[data-theme-id='piwin-inkstone-ink'] .chat-turn-user .chat-marginalia {
   font: 11px var(--mono);
   color: var(--t4);
   text-align: left;
-  position: sticky;
-  top: 0;
+  /* See the assistant rail above — byline, not a sticky floater. */
   align-self: start;
   box-sizing: border-box;
 }
@@ -630,10 +631,12 @@ html[data-theme-id='piwin-inkstone-ink'] .cap-d li {
   display: flex;
   gap: 8px;
   align-items: baseline;
+  flex-wrap: nowrap;
   padding: 4px 0;
   border-top: 1px solid var(--l1);
   font: 11.5px var(--mono);
   color: var(--t3);
+  white-space: nowrap;
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .cap-d li b,
@@ -658,6 +661,7 @@ html[data-theme-id='piwin-inkstone-ink'] .cap-d li .src.warn {
 html[data-theme-id='piwin-inkstone-paper'] .cap-d li .ml,
 html[data-theme-id='piwin-inkstone-ink'] .cap-d li .ml {
   flex: none;
+  margin-left: auto;
   color: var(--t4);
 }
 

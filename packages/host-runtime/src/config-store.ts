@@ -1057,6 +1057,11 @@ function normalizeExtensionsConfig(value: unknown, defaults: ExtensionsConfig): 
   return {
     extraPaths: asStringArray(record.extraPaths) ?? defaults.extraPaths,
     disabledIds: asStringArray(record.disabledIds) ?? defaults.disabledIds,
+    ...(typeof record.agentInstall === 'boolean'
+      ? { agentInstall: record.agentInstall }
+      : defaults.agentInstall !== undefined
+        ? { agentInstall: defaults.agentInstall }
+        : {}),
   };
 }
 

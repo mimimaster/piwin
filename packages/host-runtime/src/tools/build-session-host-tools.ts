@@ -23,13 +23,17 @@ import { persistAndInspectBrowserScreenshot } from '../browser-screenshot-inspec
 import { primaryModelSupportsImage } from '../vision-delegation.js';
 import { buildNotesTools } from '../notes-tools.js';
 import { buildFlashcardTools } from '../flashcard-tools.js';
+import { buildExtensionTools, type ExtensionApplyOutcome } from '../extension-tools.js';
 import { createPlanCreateTool } from '../plan-create-tool.js';
 import { createPlanStepTool } from '../plan-step-tool.js';
 import { createSubagentRunTool, type SubagentRunSeam } from '../subagent-run-tool.js';
 import { buildImageGenTool } from '../image-gen-tool.js';
 import { buildVideoGenTool } from '../video-gen-tool.js';
 import { buildArtifactInstructionsTool } from '../artifact-instructions-tool.js';
-import { buildHostFilesystemTools, type BuildHostFilesystemToolsOptions } from './host-filesystem-tools.js';
+import {
+  buildHostFilesystemTools,
+  type BuildHostFilesystemToolsOptions,
+} from './host-filesystem-tools.js';
 import type { SecretResolver } from '../secret-resolver.js';
 import {
   createMcpGenerationSnapshot,
@@ -132,6 +136,12 @@ export type BuildSessionHostToolsOptions = {
 
   turnChange?: BuildHostFilesystemToolsOptions['turnChange'];
   workspaceWrite?: BuildHostFilesystemToolsOptions['workspaceWrite'];
+
+  /**
+   * Schedule `extensions/apply` for this session after `extension_install`
+   * stages + enables a revision. Absent → the extension tools are omitted.
+   */
+  applyExtensions?: (when: 'after-current-run') => Promise<ExtensionApplyOutcome>;
 };
 
 /**
@@ -290,6 +300,18 @@ export async function buildSessionHostTools(
       reportCompositionDiagnostic(options, 'flashcards', error);
       // Flashcard store unavailable — omit flashcard tools.
     }
+  }
+
+  // --- Pi Extension install/list tools (root sessions only) ---
+  if (options.applyExtensions && options.config?.extensions?.agentInstall !== false) {
+    const extensionTools = buildExtensionTools({
+      enabled: true,
+      piwinRoot: rootDir ?? options.piwinRoot ?? process.cwd(),
+      sessionId: options.sessionId,
+      ...(options.config?.extensions ? { extensionsConfig: options.config.extensions } : {}),
+      applyExtensions: options.applyExtensions,
+    });
+    tools.push(...extensionTools);
   }
 
   // --- MCP capability brief, gateway, and cached direct tools ---

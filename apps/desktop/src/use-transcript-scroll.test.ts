@@ -103,11 +103,43 @@ describe('shouldDetachFollowTailFromScrollDelta', () => {
         nearBottom: false,
       }),
     ).toBe(false);
+  });
+
+  it('detaches a tail-zone user scroll even when content grew in the same frame', () => {
     expect(
       shouldDetachFollowTailFromScrollDelta({
         scrollTopDelta: -40,
         programmatic: false,
         nearBottom: true,
+        scrollHeightDelta: 400,
+      }),
+    ).toBe(true);
+  });
+
+  it('detaches a user history gesture that is still inside the tail zone', () => {
+    expect(
+      shouldDetachFollowTailFromScrollDelta({
+        scrollTopDelta: -40,
+        programmatic: false,
+        nearBottom: true,
+      }),
+    ).toBe(true);
+    expect(
+      shouldDetachFollowTailFromScrollDelta({
+        scrollTopDelta: -1,
+        programmatic: false,
+        nearBottom: true,
+      }),
+    ).toBe(true);
+  });
+
+  it('does not treat a fitted transcript as a history gesture', () => {
+    expect(
+      shouldDetachFollowTailFromScrollDelta({
+        scrollTopDelta: -40,
+        programmatic: false,
+        nearBottom: true,
+        overflowing: false,
       }),
     ).toBe(false);
   });
@@ -167,6 +199,7 @@ describe('shouldDetachFollowTailFromScrollDelta', () => {
 describe('shouldDetachFollowTailFromWheelDelta', () => {
   it('treats negative deltaY as history navigation only when the transcript overflows', () => {
     expect(shouldDetachFollowTailFromWheelDelta({ deltaY: -12, overflowing: true })).toBe(true);
+    expect(shouldDetachFollowTailFromWheelDelta({ deltaY: -1, overflowing: true })).toBe(true);
     expect(shouldDetachFollowTailFromWheelDelta({ deltaY: 12, overflowing: true })).toBe(false);
     expect(shouldDetachFollowTailFromWheelDelta({ deltaY: 0, overflowing: true })).toBe(false);
   });

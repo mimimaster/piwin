@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactElement } from 'react';
 import {
   pickMediaThumbEdge,
   type HostCommand,
@@ -6,6 +6,8 @@ import {
   type MediaLibraryItem,
 } from '@piwin/contracts';
 import { LibraryMediaCard } from './library-media-card';
+import { MediaImageContextMenu } from '../../media-image-context-menu';
+import { buildLibraryMediaImageTarget } from '../../media-image-target';
 import { formatLibraryBytes, formatLibraryItemTitle, formatLibraryType } from './media-format';
 import { localThumbPathForItem } from './local-media-tile-src';
 import { createPlayableMediaObjectUrl } from '../../playable-media-url';
@@ -17,7 +19,8 @@ export type LazyMediaTileProps = {
   request: (command: HostCommand) => Promise<HostResponse>;
   locale: string;
   deleteLabel: string;
-  onOpen: () => void;
+  /** Receives the click so the caller can branch on ⌘/Ctrl/Shift. */
+  onOpen: (event?: ReactMouseEvent<HTMLButtonElement>) => void;
   onDelete: () => void;
   viewMode?: 'grid' | 'list';
   onCopyPrompt?: () => void;
@@ -25,12 +28,22 @@ export type LazyMediaTileProps = {
   copied?: boolean;
   favorite?: boolean;
   onToggleFavorite?: () => void;
-  isBatchMode?: boolean;
+  /** See {@link import('./library-media-card.js').LibraryMediaCardModel.selectionActive}. */
+  selectionActive?: boolean;
   isSelected?: boolean;
   onToggleSelect?: () => void;
   isActive?: boolean;
+  onFocus?: () => void;
   onRemix?: () => void;
   onOpenLightbox?: () => void;
+  onAfterAddToChat?: () => void;
+  favoriteLabel?: string;
+  favoritedLabel?: string;
+  selectLabel?: string;
+  remixLabel?: string;
+  fullscreenLabel?: string;
+  showModel?: boolean;
+  thumbFit?: 'cover' | 'contain';
 };
 
 /**
@@ -178,51 +191,79 @@ export function LazyMediaTile(props: LazyMediaTileProps): ReactElement {
     };
   }, []);
 
+  const card = (
+    <LibraryMediaCard
+      item={{
+        id: item.assetId,
+        testId: `${item.kind}-card-${item.assetId}`,
+        imageUrl: thumbUrl,
+        alt: item.prompt?.trim()
+          ? item.prompt
+          : item.kind === 'image'
+            ? (props.locale === 'zh-CN' ? '图像素材' : 'Image asset')
+            : (props.locale === 'zh-CN' ? '视频素材' : 'Video asset'),
+        name: formatLibraryItemTitle(item, props.locale),
+        typeLabel: formatLibraryType(item.mimeType),
+        size: formatLibraryBytes(item.byteSize),
+        showPlayOverlay: item.kind === 'video',
+        kind: item.kind,
+        prompt: item.prompt,
+        model: item.model,
+        createdAt: item.createdAt,
+        viewMode: props.viewMode,
+        favorite: props.favorite,
+        selectionActive: props.selectionActive,
+        isSelected: props.isSelected,
+        isActive: props.isActive,
+        showModel: props.showModel,
+        thumbFit: props.thumbFit,
+      }}
+      actions={{
+        onOpen: props.onOpen,
+        onFocus: props.onFocus,
+        onDelete: props.onDelete,
+        deleteLabel: props.deleteLabel,
+        onCopyPrompt: props.onCopyPrompt,
+        copyLabel: props.copyLabel,
+        copied: props.copied,
+        onToggleFavorite: props.onToggleFavorite,
+        favoriteLabel: props.favoriteLabel,
+        favoritedLabel: props.favoritedLabel,
+        selectLabel: props.selectLabel,
+        onToggleSelect: props.onToggleSelect,
+        onRemix: props.onRemix,
+        remixLabel: props.remixLabel,
+        onOpenLightbox: props.onOpenLightbox,
+        fullscreenLabel: props.fullscreenLabel,
+        onImageError: () => {
+          if (!localFailed) {
+            setLocalFailed(true);
+            setThumbUrl('');
+          }
+        },
+      }}
+    />
+  );
+
   return (
     <div ref={rootRef}>
-      <LibraryMediaCard
-        item={{
-          id: item.assetId,
-          testId: `${item.kind}-card-${item.assetId}`,
-          imageUrl: thumbUrl,
-          alt: item.prompt?.trim()
-            ? item.prompt
-            : item.kind === 'image'
-              ? '图像素材'
-              : '视频素材',
-          name: formatLibraryItemTitle(item, props.locale),
-          typeLabel: formatLibraryType(item.mimeType),
-          size: formatLibraryBytes(item.byteSize),
-          showPlayOverlay: item.kind === 'video',
-          kind: item.kind,
-          prompt: item.prompt,
-          model: item.model,
-          createdAt: item.createdAt,
-          viewMode: props.viewMode,
-          favorite: props.favorite,
-          isBatchMode: props.isBatchMode,
-          isSelected: props.isSelected,
-          isActive: props.isActive,
-        }}
-        actions={{
-          onOpen: props.onOpen,
-          onDelete: props.onDelete,
-          deleteLabel: props.deleteLabel,
-          onCopyPrompt: props.onCopyPrompt,
-          copyLabel: props.copyLabel,
-          copied: props.copied,
-          onToggleFavorite: props.onToggleFavorite,
-          onToggleSelect: props.onToggleSelect,
-          onRemix: props.onRemix,
-          onOpenLightbox: props.onOpenLightbox,
-          onImageError: () => {
-            if (!localFailed) {
-              setLocalFailed(true);
-              setThumbUrl('');
-            }
-          },
-        }}
-      />
+      {item.kind === 'image' ? (
+        <MediaImageContextMenu
+          target={buildLibraryMediaImageTarget(item)}
+          onOpen={props.onOpenLightbox ?? props.onOpen}
+          loadOriginalUrl={() =>
+            readLibraryMediaViaHost(
+              { request: (command) => requestRef.current(command) },
+              { sessionId: item.sessionId, assetId: item.assetId, variant: 'full' },
+            )
+          }
+          {...(props.onAfterAddToChat ? { onAfterAddToChat: props.onAfterAddToChat } : {})}
+        >
+          <div>{card}</div>
+        </MediaImageContextMenu>
+      ) : (
+        card
+      )}
     </div>
   );
 }

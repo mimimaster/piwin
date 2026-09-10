@@ -702,8 +702,8 @@ Optional renderer surfaces follow the same ownership rule:
   WebKit retain an unbounded diagnostics timeline;
 - the workspace is the sole full-stage backdrop-filter owner; nested stage
   regions do not allocate redundant full-size blur surfaces;
-- syntax highlighting imports Shiki only when a completed/static code block
-  first requests tokens.
+- syntax highlighting imports Shiki when a closed/stable code fence first
+  requests tokens (a still-open streaming fence stays plain).
 
 These are renderer safety invariants, not transcript truncation. History and
 recovery continue to use the Host-owned canonical state.

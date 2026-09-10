@@ -16,6 +16,11 @@ type HostRequestCall = {
   type: string;
   projectPath?: string;
   relativePath?: string;
+  skillId?: string;
+  legacyPath?: string;
+  sessionId?: string;
+  messageId?: string;
+  toolCallId?: string;
   input?: { sessionId?: string; assetId?: string; absolutePath?: string };
 };
 
@@ -149,6 +154,33 @@ function createHostClientFake(options?: {
           byteSize: 12,
           truncated: false,
           readOnly: true,
+        },
+      };
+    }
+    if (command.type === 'session/tool-output') {
+      return {
+        type: 'response' as const,
+        command,
+        success: true,
+        data: {
+          status: 'ready',
+          output: '# Image Generation\n\nSnapshot body.\n',
+          truncated: false,
+        },
+      };
+    }
+    if (command.type === 'skills/read') {
+      return {
+        type: 'response' as const,
+        command,
+        success: true,
+        data: {
+          status: 'ready',
+          skillId: command.skillId ?? 'imagegen',
+          name: command.skillId ?? 'imagegen',
+          displayRef: `skill:${command.skillId ?? 'imagegen'}`,
+          content: '# current skill\n',
+          provenance: 'current-resource',
         },
       };
     }
@@ -473,6 +505,54 @@ describe('useActiveDocument', () => {
     if (latest.activeDocument?.status === 'ready') {
       expect(latest.activeDocument.content).toBe('# local file\n');
       expect(latest.activeDocument.readOnly).toBe(true);
+    }
+  });
+
+  it('recovers a historical skill read from the tool snapshot before skills/read', async () => {
+    reveal = vi.fn();
+    const { client, request } = createHostClientFake();
+    renderHarness(client, { projectPath: '/Users/me/Developer/CCursor' });
+
+    await act(async () => {
+      latest.openDocument({
+        title: 'imagegen',
+        path: '/Users/me/.piwin-test/skills/imagegen/SKILL.md',
+        target: { kind: 'skill', skillId: 'imagegen', displayRef: 'skill:imagegen' },
+        messageId: 'piw-m-skill',
+        toolCallId: 'piw-t-skill',
+      });
+    });
+
+    expect(request.mock.calls.map((call) => call[0]?.type)).toEqual(['session/tool-output']);
+    expect(latest.activeDocument?.status).toBe('ready');
+    if (latest.activeDocument?.status === 'ready') {
+      expect(latest.activeDocument.content).toContain('Snapshot body');
+      expect(latest.activeDocument.provenance).toBe('tool-snapshot');
+    }
+  });
+
+  it('loads the current skill document when no tool snapshot identity is present', async () => {
+    reveal = vi.fn();
+    const { client, request } = createHostClientFake();
+    renderHarness(client, { projectPath: '/Users/me/Developer/CCursor' });
+
+    await act(async () => {
+      latest.openDocument({
+        title: 'SKILL.md',
+        path: '/Users/me/.piwin-test/skills/imagegen/SKILL.md',
+      });
+    });
+
+    expect(request.mock.calls.map((call) => call[0]?.type)).toEqual(['skills/read']);
+    expect(request.mock.calls[0]?.[0]).toMatchObject({
+      type: 'skills/read',
+      skillId: 'imagegen',
+      legacyPath: '/Users/me/.piwin-test/skills/imagegen/SKILL.md',
+    });
+    expect(latest.activeDocument?.status).toBe('ready');
+    if (latest.activeDocument?.status === 'ready') {
+      expect(latest.activeDocument.content).toBe('# current skill\n');
+      expect(latest.activeDocument.provenance).toBe('current-resource');
     }
   });
 });

@@ -698,6 +698,7 @@ function compileConversationToolPolicy(
     flashcardsEnabled: flashcardsEnabled && flashcardsAccess !== 'off',
     imageGenerationEnabled: !imagegenDisabled,
     videoGenerationEnabled: !videogenDisabled,
+    extensionInstall: config.extensions?.agentInstall !== false,
     ...(options.hostToolFamilyIndex
       ? { availableFamilies: new Set(options.hostToolFamilyIndex.keys()) }
       : {}),
@@ -909,6 +910,7 @@ function compileToolPolicy(
     imageGenerationEnabled: capabilityCeiling === undefined && !imagegenDisabled,
     videoGeneration: !videogenDisabled,
     videoGenerationEnabled: capabilityCeiling === undefined && !videogenDisabled,
+    extensionInstall: capabilityCeiling === undefined && config.extensions?.agentInstall !== false,
   });
 
   const resolvedPolicy = resolvedToolPolicy.policy;

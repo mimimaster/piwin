@@ -368,6 +368,30 @@ describe('RightPanel multi-tab', () => {
     expect(tabsContainer).not.toBeNull();
     // Verify + button comes before tabs container in DOM tree
     expect(tabstrip?.firstElementChild).toBe(addBtn);
+    expect(container.querySelector('[data-testid="right-panel-close-btn"]')).toBeNull();
+  });
+
+  it('keeps the panel close control only in overlay presentation', () => {
+    writeStoredRightPanelState({ openTabs: ['terminal'], activeTab: 'terminal' });
+    let closed = false;
+    const rendered = renderPanel({
+      activeTab: 'terminal',
+      isOverlayPresentation: true,
+      onClose: () => {
+        closed = true;
+      },
+    });
+    root = rendered.root;
+    container = rendered.container;
+
+    const closeBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="right-panel-close-btn"]',
+    );
+    expect(closeBtn).not.toBeNull();
+    act(() => {
+      closeBtn?.click();
+    });
+    expect(closed).toBe(true);
   });
 
   it('labels the expand control as exit full screen when expanded', () => {
@@ -384,5 +408,41 @@ describe('RightPanel multi-tab', () => {
     );
     expect(expandBtn?.getAttribute('title')).toBe('Exit full screen');
     expect(expandBtn?.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('hides tool tabs while Side Chat owns the titlebar slot', () => {
+    writeStoredRightPanelState({ openTabs: ['files', 'sideChat'], activeTab: 'sideChat' });
+    const rendered = renderPanel({
+      activeTab: 'sideChat',
+      sideChatContent: <div data-testid="side-chat-body">side</div>,
+    });
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(container.querySelector('[data-testid="right-panel-open-tab-sideChat"]')).toBeNull();
+    expect(container.querySelector('[data-testid="right-panel-open-tab-files"]')).toBeNull();
+    const tabstrip = container.querySelector('[data-testid="right-panel-tabstrip"]');
+    expect(tabstrip?.classList.contains('has-side-chat-tabs')).toBe(true);
+    const slot = container.querySelector('[data-testid="right-panel-side-chat-tabs-slot"]');
+    expect(slot).not.toBeNull();
+    expect(slot?.hasAttribute('hidden')).toBe(false);
+    expect(container.querySelector('[data-testid="side-chat-body"]')).not.toBeNull();
+  });
+
+  it('keeps the titlebar drag region after the side-chat slot so +/sync can pack to the tabs', () => {
+    writeStoredRightPanelState({ openTabs: ['sideChat'], activeTab: 'sideChat' });
+    const rendered = renderPanel({
+      activeTab: 'sideChat',
+      sideChatContent: <div data-testid="side-chat-body">side</div>,
+    });
+    root = rendered.root;
+    container = rendered.container;
+
+    const tabstrip = container.querySelector('[data-testid="right-panel-tabstrip"]');
+    const slot = container.querySelector('[data-testid="right-panel-side-chat-tabs-slot"]');
+    const drag = container.querySelector('[data-testid="right-panel-titlebar-drag"]');
+    expect(tabstrip && slot && drag).toBeTruthy();
+    const children = [...(tabstrip?.children ?? [])];
+    expect(children.indexOf(slot as Element)).toBeLessThan(children.indexOf(drag as Element));
   });
 });

@@ -248,4 +248,43 @@ describe('projectTranscriptMessagesForUi', () => {
     expect(tool?.presentation?.flashcard?.cards[0]?.front).toBe('Q');
     expect(flashcardPayload).not.toContain('artifactHtml');
   });
+
+  it('keeps logical documentTargets so historical skill reads can reopen Doc Preview', () => {
+    const messages: SessionTranscriptMessage[] = [
+      {
+        id: 'a-skill',
+        role: 'assistant',
+        text: 'done',
+        createdAt: '2026-09-06T00:00:00.000Z',
+        status: 'done',
+        tools: [
+          {
+            toolCallId: 'read-skill',
+            toolName: 'read',
+            status: 'done',
+            output: '# Image Generation\n',
+            presentation: {
+              kind: 'filesystem',
+              title: 'read',
+              actionVerb: 'Read',
+              targetPaths: ['/Users/me/.piwin-test/skills/imagegen/SKILL.md'],
+              documentTargets: [
+                { kind: 'skill', skillId: 'imagegen', displayRef: 'skill:imagegen' },
+              ],
+              output: { text: '# Image Generation\n' },
+            },
+          },
+        ],
+      },
+    ];
+    const tool = projectTranscriptMessagesForUi(messages)[0]?.tools?.[0];
+    expect(tool?.output).toBe('');
+    expect(tool?.presentation?.output).toBeUndefined();
+    expect(tool?.presentation?.targetPaths).toEqual([
+      '/Users/me/.piwin-test/skills/imagegen/SKILL.md',
+    ]);
+    expect(tool?.presentation?.documentTargets).toEqual([
+      { kind: 'skill', skillId: 'imagegen', displayRef: 'skill:imagegen' },
+    ]);
+  });
 });

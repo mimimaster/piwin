@@ -151,6 +151,48 @@
   box-shadow: var(--elev-1);
 }
 
+/* Collapsible "learn more" block: keep long explainer copy out of the default
+   view but one click away. */
+.settings-disclosure {
+  margin-top: var(--s-5);
+  border-top: 1px solid color-mix(in srgb, var(--line-soft, var(--line-1)) 50%, transparent);
+  padding-top: var(--s-5);
+}
+
+.settings-disclosure > summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--fs-chrome);
+  font-weight: 600;
+  color: var(--text-3);
+  user-select: none;
+}
+
+.settings-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-disclosure > summary::before {
+  content: '›';
+  display: inline-block;
+  margin-right: var(--s-3);
+  transition: transform var(--duration-fast, 120ms) var(--easing-standard, ease);
+}
+
+.settings-disclosure[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.settings-disclosure[open] > summary {
+  margin-bottom: var(--s-4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-disclosure > summary::before {
+    transition: none;
+  }
+}
+
 .settings-asr-card .settings-section-row {
   display: flex;
   align-items: center;

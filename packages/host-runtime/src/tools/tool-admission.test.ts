@@ -389,6 +389,7 @@ describe('host tool admission composition', () => {
       'notes:note_search',
       'notes:note_read',
       'flashcards:list',
+      'extensions:list',
       'artifact:instructions',
       'toolbox:route',
     ]);
@@ -421,9 +422,9 @@ describe('host tool admission composition', () => {
                   ? { kind: 'web-fetch', host: 'example.com' }
                   : action === 'browser:upload'
                     ? { kind: 'file-write', path: '/tmp/a' }
-                  : action === 'network:web_search'
-                    ? { kind: 'web-search' }
-                    : { kind: 'tool', action },
+                    : action === 'network:web_search'
+                      ? { kind: 'web-search' }
+                      : { kind: 'tool', action },
         },
         execute: async () => ({ ok: true, output: action }),
       };

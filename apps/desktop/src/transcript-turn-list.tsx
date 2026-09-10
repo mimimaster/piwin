@@ -8,7 +8,13 @@ import {
   useState,
   type ReactElement,
 } from 'react';
-import { defaultRangeExtractor, useVirtualizer, type Range } from '@tanstack/react-virtual';
+import {
+  defaultRangeExtractor,
+  elementScroll,
+  useVirtualizer,
+  type Range,
+  type VirtualItem,
+} from '@tanstack/react-virtual';
 import { useTranscriptScrollPort, type TranscriptScrollPort } from './transcript-scroll-port';
 import { scrollTranscriptToMessage } from './history-ticks-drawer';
 import { readTranscriptTurnHeight, rememberTranscriptTurnHeight } from './transcript-scroll-memory';
@@ -49,6 +55,37 @@ export function transcriptVirtualizerMeasurePolicy(streaming: boolean): {
     useAnimationFrameWithResizeObserver: false,
     useFlushSync: streaming,
   };
+}
+
+type TranscriptVirtualizerScrollState = {
+  scrollDirection: 'forward' | 'backward' | null;
+  scrollAdjustments: number;
+  scrollOffset: number | null;
+  itemSizeCache: ReadonlyMap<string | number | bigint, number>;
+};
+
+/**
+ * Pin-to-end is `notifyContentGrew` only. This predicate may preserve in-place
+ * reading; it must not restick the live tail after the user has left it.
+ */
+export function shouldAdjustTranscriptScrollOnItemSizeChange(
+  item: Pick<VirtualItem, 'key' | 'start' | 'size'>,
+  _delta: number,
+  instance: TranscriptVirtualizerScrollState,
+  following: boolean,
+): boolean {
+  if (instance.scrollDirection === 'backward') {
+    return false;
+  }
+  const scrollOffset = (instance.scrollOffset ?? 0) + instance.scrollAdjustments;
+  const isFirstMeasure = !instance.itemSizeCache.has(item.key);
+  if (!following && isFirstMeasure) {
+    return false;
+  }
+  if (isFirstMeasure) {
+    return item.start < scrollOffset;
+  }
+  return item.start + item.size <= scrollOffset;
 }
 
 function transcriptTurnItemStructureKey(turn: TranscriptTurn): string {
@@ -263,9 +300,22 @@ function VirtualizedTranscriptTurns(
     overscan: TRANSCRIPT_TURN_OVERSCAN,
     rangeExtractor,
     scrollMargin,
+    scrollToFn: (offset, options, instance) => {
+      if (options.adjustments) {
+        props.scrollPort.beginProgrammaticScroll();
+      }
+      elementScroll(offset, options, instance);
+    },
     useAnimationFrameWithResizeObserver: measurePolicy.useAnimationFrameWithResizeObserver,
     useFlushSync: measurePolicy.useFlushSync,
   });
+  virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, delta, instance) =>
+    shouldAdjustTranscriptScrollOnItemSizeChange(
+      item,
+      delta,
+      instance,
+      props.scrollPort.isFollowingTail(),
+    );
 
   const turnsStructureKey = useMemo(
     () => buildTranscriptTurnsStructureKey(props.turns),
@@ -357,9 +407,7 @@ function VirtualizedTranscriptTurns(
   const virtualItems = virtualizer.getVirtualItems();
   const totalSize = virtualizer.getTotalSize();
   useLayoutEffect(() => {
-    // The DOM now contains the measured slot heights. Correct the following
-    // viewport before paint, rather than showing the old bottom until a root
-    // ResizeObserver / animation frame eventually notices the new list size.
+    // Measured slot heights are in the DOM. Stick only if still following.
     props.scrollPort.notifyContentGrew();
   }, [props.scrollPort, totalSize]);
   return (

@@ -1,6 +1,6 @@
 /**
- * Per-session composer model/thinking for surfaces that reuse the compact
- * prompt card (side chat + supplementary conversation panes). Catalog comes
+ * Per-session composer model/thinking for side chat and supplementary
+ * conversation panes. Catalog comes
  * from secret-free `models/configured`; selection is restored from resume and
  * written back with `session/set-composer-profile`.
  */

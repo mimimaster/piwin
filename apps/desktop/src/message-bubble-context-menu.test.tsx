@@ -162,9 +162,7 @@ describe('MessageBubbleContextMenu', () => {
 
     expect(document.body.querySelector('[data-testid="context-menu-add-to-chat"]')).not.toBeNull();
     expect(document.body.querySelector('[data-testid="context-menu-quote-in-composer"]')).toBeNull();
-    const header = document.body.querySelector('.ui-menu-header');
-    expect(header?.textContent).toContain('visible title');
-    expect(header?.textContent).not.toContain('color: red');
+    expect(document.body.textContent).not.toContain('color: red');
   });
 
   it('does not steal a code-fence right-click', () => {

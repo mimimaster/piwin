@@ -275,8 +275,9 @@ html[data-theme-id='piwin-inkstone-ink'] .tree-folder-summary {
   transition: background var(--t-1) var(--ease-out);
 }
 
+/* Folders are navigation, not the selected leaf. proto-00/03 paint only
+   `.row.sel` (session); a filled folder pill competes with that row. */
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-summary.active {
-  background: var(--s2);
   color: var(--t1);
 }
 
@@ -333,6 +334,13 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   font: 500 12.5px var(--sans);
 }
 
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-main:hover,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-main:focus-visible,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-toggle:hover,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-toggle:focus-visible {
+  background: transparent;
+}
+
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-toggle,
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-folder-toggle-spacer {
   width: 14px;
@@ -364,7 +372,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .tree-time-group-title {
   display: inline-flex;
   align-items: center;
-  font: 600 10.5px var(--sans);
+  font: 600 11px var(--sans);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--t4);

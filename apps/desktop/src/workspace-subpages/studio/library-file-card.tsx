@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import type { MouseEvent as ReactMouseEvent, ReactElement } from 'react';
 import { IconDocument, IconFile, IconTrash } from '../../shell-icons';
 import { formatLibraryBytes, formatLibraryItemTitle, formatLibraryType } from './media-format';
 
@@ -16,23 +16,46 @@ type LibraryFileItem = {
 export function LibraryFileCard(props: {
   item: LibraryFileItem;
   locale: string;
-  onOpen: () => void;
+  /** Receives the click so the caller can branch on ⌘/Ctrl/Shift. */
+  onOpen: (event?: ReactMouseEvent<HTMLButtonElement>) => void;
+  onFocus?: (() => void) | undefined;
   onDelete: () => void;
   deleteLabel: string;
   openLabel: string;
+  isSelected?: boolean | undefined;
+  /** See {@link import('./library-media-card.js').LibraryMediaCardModel.selectionActive}. */
+  selectionActive?: boolean | undefined;
+  onToggleSelect?: (() => void) | undefined;
+  selectLabel?: string | undefined;
 }): ReactElement {
   const { item } = props;
   const name = formatLibraryItemTitle(item, props.locale);
   const isPdf = item.mimeType === 'application/pdf';
   const isList = item.viewMode === 'list';
+  const selectionClasses = `${props.isSelected ? ' is-selected' : ''}${props.selectionActive ? ' selection-active' : ''}`;
+
+  const checkbox = props.onToggleSelect ? (
+    <input
+      type="checkbox"
+      className={isList ? 'lib-batch-checkbox' : 'lib-card-batch-cb'}
+      checked={Boolean(props.isSelected)}
+      onChange={(e) => {
+        e.stopPropagation();
+        props.onToggleSelect?.();
+      }}
+      aria-label={props.selectLabel ?? 'Select item'}
+    />
+  ) : null;
 
   if (isList) {
     return (
-      <article className="lib-row-card lib-row-file">
+      <article className={`lib-row-card lib-row-file${selectionClasses}`}>
+        {checkbox}
         <button
           type="button"
           className="lib-row-open"
           onClick={props.onOpen}
+          onFocus={props.onFocus}
           aria-label={`${props.openLabel}: ${name}`}
           data-testid={`file-card-${item.assetId}`}
         >
@@ -67,11 +90,12 @@ export function LibraryFileCard(props: {
   }
 
   return (
-    <article className="lib-card lib-card-file">
+    <article className={`lib-card lib-card-file${selectionClasses}`}>
       <button
         type="button"
         className="lib-card-open"
         onClick={props.onOpen}
+        onFocus={props.onFocus}
         aria-label={`${props.openLabel}: ${name}`}
         data-testid={`file-card-${item.assetId}`}
       >
@@ -82,6 +106,7 @@ export function LibraryFileCard(props: {
           </span>
         </span>
       </button>
+      {checkbox ? <label className="lib-card-select">{checkbox}</label> : null}
       <div className="lib-card-foot">
         <button type="button" className="lib-card-info" onClick={props.onOpen}>
           <strong className="lib-card-title">{name}</strong>
@@ -111,4 +136,3 @@ function formatWhen(iso: string): string {
   if (Number.isNaN(date.getTime())) return iso || '';
   return date.toLocaleDateString();
 }
-

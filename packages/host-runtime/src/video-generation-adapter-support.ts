@@ -1,9 +1,11 @@
 import {
+  isSubscriptionProvider,
   lookupVideoGenerationRegistry,
   type ModelConfigEntry,
   type ModelProviderConfig,
   type VideoGenerationApiStyle,
 } from '@piwin/contracts';
+import { resolveSubscriptionMediaUrl } from './subscription-media-request.js';
 import {
   asRecord,
   readArray,
@@ -59,6 +61,13 @@ export function resolveVideoEndpoint(
   }
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   const resolvedPath = normalizedPath.replace('{model}', encodeURIComponent(model.id));
+  if (isSubscriptionProvider(provider)) {
+    const url = resolveSubscriptionMediaUrl(provider.id, 'video', resolvedPath);
+    if (url) return url;
+    throw new VideoGenConfigError(
+      `video_gen: subscription "${provider.id}" does not expose video generation`,
+    );
+  }
   return `${provider.baseUrl.replace(/\/+$/, '')}${resolvedPath}`;
 }
 
@@ -167,7 +176,14 @@ export function bearerHeaders(
   provider: ModelProviderConfig,
   apiKey: string,
 ): Record<string, string> {
-  return { ...provider.headers, authorization: `Bearer ${apiKey}` };
+  const headers: Record<string, string> = {
+    ...provider.headers,
+    authorization: `Bearer ${apiKey}`,
+  };
+  if (isSubscriptionProvider(provider) && provider.id === 'xai') {
+    headers['X-XAI-Token-Auth'] = 'xai-grok-cli';
+  }
+  return headers;
 }
 
 export function googleHeaders(

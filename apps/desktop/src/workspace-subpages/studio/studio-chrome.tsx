@@ -10,7 +10,7 @@ export type StudioTopbarProps = {
   onBack: () => void;
   locale?: DesktopLocale | undefined;
   kind: 'library' | 'flashcards';
-  /** `page` = title | search | primary. `bar` = compact toolbar. */
+  /** `page` uses an icon-only back control. Default keeps the back label. */
   layout?: 'bar' | 'page';
   titleCount?: number | undefined;
   searchPlaceholder?: string | undefined;
@@ -22,7 +22,7 @@ export type StudioTopbarProps = {
   primaryAction?: ReactNode | undefined;
 };
 
-/** Full-window page chrome: titleband, back, context, search, filters, actions. */
+/** Full-window page chrome: titleband (back + title) and optional library-style subbar. */
 export function StudioTopbar(props: StudioTopbarProps): ReactElement {
   const { locale: contextLocale } = useDesktopLocale();
   const locale = props.locale ?? contextLocale;
@@ -30,7 +30,7 @@ export function StudioTopbar(props: StudioTopbarProps): ReactElement {
   const t = (en: string, zh: string) => (isZh ? zh : en);
   const dragWindowLabel = getDesktopCopy(locale).titlebar.dragWindow;
   const title = props.kind === 'flashcards' ? t('Flashcards', '闪卡') : t('Library', '资料库');
-  const pageLayout = props.layout === 'page';
+  const iconBack = props.layout === 'page';
 
   const searchField =
     props.searchPlaceholder !== undefined ? (
@@ -58,15 +58,19 @@ export function StudioTopbar(props: StudioTopbarProps): ReactElement {
       </label>
     ) : null;
 
+  const hasSubbar = searchField !== null || props.filters !== undefined;
+  const toolbar =
+    props.primaryAction || props.actions ? (
+      <>
+        {props.primaryAction}
+        {props.actions}
+      </>
+    ) : null;
+
   return (
     <header className="studio-chrome">
-      <WindowDragRegion
-        className="vault-titleband"
-        data-testid="studio-topbar-drag"
-        aria-label={dragWindowLabel}
-      />
       <div
-        className={`vault-bar${pageLayout ? ' is-page' : ''}`}
+        className="vault-bar"
         data-testid="studio-topbar"
         data-tauri-drag-region
         onMouseDown={handleNativeWindowDragMouseDown}
@@ -74,13 +78,13 @@ export function StudioTopbar(props: StudioTopbarProps): ReactElement {
         <div className="vault-bar-leading" data-no-window-drag>
           <button
             type="button"
-            className={`vault-back${pageLayout ? ' is-icon' : ''}`}
+            className={`vault-back${iconBack ? ' is-icon' : ''}`}
             data-testid={props.testId}
             onClick={props.onBack}
             aria-label={props.backLabel}
           >
             <IconChevronLeft width={16} height={16} aria-hidden="true" />
-            {pageLayout ? null : <span>{props.backLabel}</span>}
+            {iconBack ? null : <span>{props.backLabel}</span>}
           </button>
           <span className="vault-bar-context">
             <span>{title}</span>
@@ -96,24 +100,25 @@ export function StudioTopbar(props: StudioTopbarProps): ReactElement {
           </span>
         </div>
 
-        {pageLayout ? (
-          <div className="vault-bar-search" data-no-window-drag>
-            {searchField}
+        {!hasSubbar && toolbar ? (
+          <div className="vault-bar-actions" data-no-window-drag>
+            {toolbar}
           </div>
         ) : null}
 
-        <div
-          className={pageLayout ? 'vault-bar-primary' : 'vault-bar-actions'}
-          data-no-window-drag
-        >
-          {pageLayout ? props.primaryAction : searchField}
-          {props.filters ? null : props.actions}
-        </div>
+        <WindowDragRegion
+          className="vault-titleband-drag"
+          data-testid="studio-topbar-drag"
+          aria-label={dragWindowLabel}
+        />
       </div>
-      {props.filters ? (
+      {hasSubbar ? (
         <div className="vault-filters" data-no-window-drag>
-          <div className="vault-filters-leading">{props.filters}</div>
-          {props.actions}
+          <div className="vault-filters-leading">
+            {props.filters}
+            {searchField}
+          </div>
+          {toolbar ? <div className="vault-filters-trailing">{toolbar}</div> : null}
         </div>
       ) : null}
     </header>

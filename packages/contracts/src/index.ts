@@ -14,6 +14,7 @@ export * from './config.js';
 export * from './model-catalog.js';
 export * from './configured-chat-models.js';
 export * from './subscription-oauth.js';
+export * from './subscription-surface-catalog.js';
 export * from './voice-live.js';
 export * from './live-intended-session.js';
 export * from './live-speakable-result.js';

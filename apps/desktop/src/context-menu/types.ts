@@ -2,6 +2,7 @@
  * Context menu surfaces / actions / targets (CM spec).
  * Desktop view model only; Host sees PromptContextRef after map-to-ref.
  */
+import type { MediaAttachmentRef } from '@piwin/contracts';
 import type { DesktopLocale } from '../desktop-locale.js';
 
 export type ContextMenuSurface =
@@ -15,7 +16,8 @@ export type ContextMenuSurface =
   | 'diff-row'
   | 'tool-card'
   | 'terminal-selection'
-  | 'error';
+  | 'error'
+  | 'media-image';
 
 export type ContextMenuActionId =
   | 'generate-flashcard'
@@ -32,6 +34,7 @@ export type ContextMenuActionId =
   | 'reveal'
   | 'save-as'
   | 'copy'
+  | 'copy-image'
   | 'copy-relative-path'
   | 'copy-absolute-path'
   | 'quote-in-composer'
@@ -101,15 +104,34 @@ export type ContextMenuTarget =
       label: string;
       relatedPath?: string;
       lineStart?: number;
+    }
+  | {
+      surface: 'media-image';
+      label: string;
+      fileName: string;
+      mimeType: string;
+      attachment: MediaAttachmentRef;
+      sessionId?: string;
+      assetId?: string;
+      /** Local vault path when this Desktop can see the file. */
+      absolutePath?: string;
+      /** Full-resolution URL already loaded. Never a grid thumb. */
+      srcUrl?: string;
+      /** Hide View when the lightbox is already open. */
+      inLightbox?: boolean;
     };
+
+export type MediaImageTarget = Extract<ContextMenuTarget, { surface: 'media-image' }>;
 
 export type ContextMenuCapabilities = {
   hasProject: boolean;
   canReveal: boolean;
   /** Shown on a disabled Reveal item (e.g. remote Host disk). */
   revealDisabledHint?: string;
-  /** PathChip / file-tree: offer Save As when a local read channel exists. */
+  /** PathChip / file-tree / media-image: offer Save As when a read channel exists. */
   canSaveAs?: boolean;
+  /** Composer can accept a vault image as a pending attachment. */
+  canAddMediaAttachment?: boolean;
   sideChatAvailable: boolean;
   applyAvailable: boolean;
   /** CM-15: "Open changed files" for message surfaces (turn has changed paths). */
@@ -129,6 +151,8 @@ export type ContextMenuItemSpec =
       testId: string;
       icon?: string;
       shortcut?: string;
+      /** Native tooltip; used to explain a disabled item without bloating its label. */
+      title?: string;
     }
   | { type: 'separator' }
   | {

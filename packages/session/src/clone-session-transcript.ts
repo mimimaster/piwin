@@ -89,17 +89,59 @@ export function cloneTranscriptMessage(
       return { ...ref };
     });
   }
-  if (message.runId) next.runId = message.runId;
-  if (message.phaseHistory) next.phaseHistory = message.phaseHistory.map((entry) => ({ ...entry }));
-  if (message.startedAt) next.startedAt = message.startedAt;
-  if (message.endedAt) next.endedAt = message.endedAt;
-  if (message.thinkingStartedAt) next.thinkingStartedAt = message.thinkingStartedAt;
-  if (message.thinkingEndedAt) next.thinkingEndedAt = message.thinkingEndedAt;
-  if (message.outcome) next.outcome = message.outcome;
-  if (message.terminalMessage) next.terminalMessage = message.terminalMessage;
+  if (message.runId !== undefined) next.runId = message.runId;
+  if (message.phaseHistory !== undefined) {
+    next.phaseHistory = message.phaseHistory.map((entry) => ({ ...entry }));
+  }
+  if (message.startedAt !== undefined) next.startedAt = message.startedAt;
+  if (message.endedAt !== undefined) next.endedAt = message.endedAt;
+  if (message.thinkingStartedAt !== undefined) next.thinkingStartedAt = message.thinkingStartedAt;
+  if (message.thinkingEndedAt !== undefined) next.thinkingEndedAt = message.thinkingEndedAt;
+  if (message.outcome !== undefined) next.outcome = message.outcome;
+  if (message.terminalMessage !== undefined) next.terminalMessage = message.terminalMessage;
   if (message.failure !== undefined) next.failure = message.failure;
-  if (message.model) next.model = message.model;
-  if (message.subagentActivity) next.subagentActivity = { ...message.subagentActivity };
+  if (message.agentStopReason !== undefined) next.agentStopReason = message.agentStopReason;
+  if (message.searchEvidence !== undefined) {
+    next.searchEvidence = {
+      ...(message.searchEvidence.query !== undefined
+        ? { query: message.searchEvidence.query }
+        : {}),
+      provenance: message.searchEvidence.provenance,
+      citations: message.searchEvidence.citations.map((citation) => ({ ...citation })),
+    };
+  }
+  if (message.source !== undefined) next.source = message.source;
+  if (message.voiceCallId !== undefined) next.voiceCallId = message.voiceCallId;
+  if (message.skillId !== undefined) next.skillId = message.skillId;
+  if (message.instructionDelivery !== undefined) {
+    next.instructionDelivery = { ...message.instructionDelivery };
+  }
+  if (message.model !== undefined) next.model = { ...message.model };
+  if (message.replyWriter !== undefined) {
+    next.replyWriter = {
+      ...message.replyWriter,
+      model: { ...message.replyWriter.model },
+    };
+  }
+  if (message.docCardSequence !== undefined) {
+    next.docCardSequence = {
+      ...message.docCardSequence,
+      cardIds: [...message.docCardSequence.cardIds],
+    };
+  }
+  if (message.workspaceWrites !== undefined) {
+    next.workspaceWrites = {
+      ...message.workspaceWrites,
+      files: [...message.workspaceWrites.files],
+    };
+  }
+  if (message.discardedAttemptWrites !== undefined) {
+    next.discardedAttemptWrites = {
+      ...message.discardedAttemptWrites,
+      files: [...message.discardedAttemptWrites.files],
+    };
+  }
+  if (message.subagentActivity !== undefined) next.subagentActivity = { ...message.subagentActivity };
   return next;
 }
 

@@ -118,7 +118,7 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
         language={props.language}
         source={props.source}
         isShell={isShellLanguage(props.language)}
-        streaming={streamMode}
+        streaming={liveFence}
       />
     );
   }
@@ -147,7 +147,7 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
         isShell={isShell}
         previewAction={previewToggle}
         defaultCollapsed={!artifactSourceExpanded}
-        {...(streamMode ? { streaming: true } : {})}
+        {...(liveFence ? { streaming: true } : {})}
       />
     </div>
   );
@@ -217,15 +217,12 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     );
   }
 
-  const streamingProps = streamMode ? ({ streaming: true } as const) : {};
-
   if (analysis.kind === 'code' || !props.artifactPreviewEnabled) {
     return (
       <SourceCodeBlock
         language={props.language}
         source={props.source}
         isShell={isShell}
-        {...streamingProps}
       />
     );
   }
@@ -238,7 +235,6 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
           source={props.source}
           isShell={isShell}
           blockedReason={analysis.reason}
-          {...streamingProps}
         />
       </div>
     );
@@ -254,7 +250,6 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
         language={props.language}
         source={props.source}
         isShell={isShell}
-        {...streamingProps}
       />
     );
   }

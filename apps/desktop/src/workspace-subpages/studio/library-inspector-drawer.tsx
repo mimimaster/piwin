@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react';
+import type { ReactElement } from 'react';
 import type { HostCommand, HostResponse, MediaLibraryItem } from '@piwin/contracts';
 import { Button } from '@piwin/ui-kit';
 import type { DesktopLocale } from '../../desktop-locale';
@@ -29,31 +29,10 @@ export type LibraryInspectorDrawerProps = {
   onRemix?: ((prompt: string) => void) | undefined;
 };
 
-// Decorative mock palettes — warm Inkstone-ish presets (not pixel-extracted).
-const DEFAULT_PALETTES: Record<string, string[]> = {
-  flux: ['#c6412a', '#3a7797', '#3d7c5e', '#94611a', '#726b61'],
-  midjourney: ['#1d1b17', '#3a7797', '#5fad85', '#c88f3c', '#8b8378'],
-  dalle: ['#141210', '#e25a3d', '#6ba4c3', '#94611a', '#a59d92'],
-  runway: ['#0b0a09', '#d95f6e', '#3d7c5e', '#b8801f', '#726b61'],
-  kling: ['#191714', '#3a7797', '#5fad85', '#c6412a', '#8f887d'],
-  default: ['#c6412a', '#3a7797', '#3d7c5e', '#94611a', '#726b61'],
-};
-
-function getPalette(model?: string): string[] {
-  const m = (model || '').toLowerCase();
-  if (m.includes('flux')) return DEFAULT_PALETTES.flux ?? DEFAULT_PALETTES.default!;
-  if (m.includes('midjourney') || m.includes('mj')) return DEFAULT_PALETTES.midjourney ?? DEFAULT_PALETTES.default!;
-  if (m.includes('dall')) return DEFAULT_PALETTES.dalle ?? DEFAULT_PALETTES.default!;
-  if (m.includes('runway')) return DEFAULT_PALETTES.runway ?? DEFAULT_PALETTES.default!;
-  if (m.includes('kling')) return DEFAULT_PALETTES.kling ?? DEFAULT_PALETTES.default!;
-  return DEFAULT_PALETTES.default!;
-}
-
 export function LibraryInspectorDrawer(props: LibraryInspectorDrawerProps): ReactElement | null {
   const { item, isOpen, onClose } = props;
   const isZh = props.locale === 'zh-CN';
   const t = (en: string, zh: string) => (isZh ? zh : en);
-  const [copiedColor, setCopiedColor] = useState<string | null>(null);
   const localSrc = item?.absolutePath ? props.resolveSrc(item.absolutePath, '') : '';
   const src = usePlayableLibrarySrc({
     item: item ?? { kind: 'file', mimeType: '', sessionId: '', assetId: '' },
@@ -67,13 +46,6 @@ export function LibraryInspectorDrawer(props: LibraryInspectorDrawerProps): Reac
   }
   const fileName = item.name?.trim() || item.assetId;
   const promptText = item.prompt?.trim() || fileName;
-  const palette = getPalette(item.model);
-
-  const copyColor = (hex: string) => {
-    void navigator.clipboard.writeText(hex).catch(() => undefined);
-    setCopiedColor(hex);
-    window.setTimeout(() => setCopiedColor((prev) => (prev === hex ? null : prev)), 1500);
-  };
 
   return (
     <aside
@@ -195,27 +167,6 @@ export function LibraryInspectorDrawer(props: LibraryInspectorDrawerProps): Reac
             </a>
           ) : null}
         </div>
-
-        {/* Palette Extraction */}
-        <section className="lib-inspector-section">
-          <span className="lib-inspector-sec-label">{t('Color Palette', '主题色板')}</span>
-          <div className="lib-inspector-palette-row">
-            {palette.map((color) => (
-              <button
-                key={color}
-                type="button"
-                className="lib-inspector-color-swatch"
-                style={{ backgroundColor: color }}
-                title={`${t('Copy color', '点击复制')} ${color}`}
-                onClick={() => copyColor(color)}
-              >
-                {copiedColor === color ? (
-                  <IconCheck width={12} height={12} color="#fff" aria-hidden="true" />
-                ) : null}
-              </button>
-            ))}
-          </div>
-        </section>
 
         {/* Technical Parameters */}
         <section className="lib-inspector-section">

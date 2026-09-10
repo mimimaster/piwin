@@ -13,6 +13,8 @@ export const TRANSCRIPT_SELECTION_NESTED_HOST_SELECTOR = [
   '[data-testid="code-fence-source"]',
   '[data-testid="code-fence-streaming"]',
   '[data-testid="tool-call-card"]',
+  '[data-testid="media-preview-container"]',
+  '[data-testid="media-image-context-menu"]',
 ].join(', ');
 
 const SKIPPED_SELECTION_TAGS = new Set(['STYLE', 'SCRIPT', 'NOSCRIPT', 'TEMPLATE']);

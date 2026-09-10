@@ -82,7 +82,7 @@ describe('AssemblySummaryCapsule', () => {
     expect(toggle).not.toBeNull();
     expect(toggle?.textContent).toContain('本轮装配内容');
     expect(toggle?.textContent).toContain('约 13 tokens');
-    expect(toggle?.textContent).toContain('User');
+    expect(toggle?.textContent).toContain('用户消息');
     expect(toggle?.getAttribute('aria-expanded')).toBe('false');
     expect(capsule?.classList.contains('open')).toBe(false);
     expect(container.querySelector('[data-testid="assembly-summary-detail"]')).toBeNull();
@@ -97,7 +97,7 @@ describe('AssemblySummaryCapsule', () => {
     const detail = container.querySelector('[data-testid="assembly-summary-detail"]');
     expect(detail).not.toBeNull();
     expect(detail?.textContent).toContain('Host 装配层收集的内容');
-    expect(detail?.textContent).toContain('User');
+    expect(detail?.textContent).toContain('用户消息');
     expect(detail?.textContent).toContain('Agent mode agent');
     expect(measureEvents.length).toBeGreaterThan(measureCountBeforeToggle);
 

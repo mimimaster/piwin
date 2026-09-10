@@ -51,6 +51,9 @@ export function slimToolPresentation(
   if (presentation.inputPreview !== undefined) slim.inputPreview = presentation.inputPreview;
   if (presentation.command !== undefined) slim.command = presentation.command;
   if (presentation.targetPaths !== undefined) slim.targetPaths = presentation.targetPaths;
+  if (presentation.documentTargets !== undefined) {
+    slim.documentTargets = presentation.documentTargets;
+  }
   if (presentation.startedAt !== undefined) slim.startedAt = presentation.startedAt;
   if (presentation.endedAt !== undefined) slim.endedAt = presentation.endedAt;
   if (presentation.durationMs !== undefined) slim.durationMs = presentation.durationMs;

@@ -55,19 +55,12 @@ export function PermissionsPage(): ReactElement {
           title={isChinese ? '运行模式' : 'Run mode'}
           description={
             isChinese
-              ? '控制代理运行工具时的询问频率与沙箱。规则文件与模式均在下一次会话生效。'
-              : 'Controls how often the agent asks before running tools, and the sandbox boundary. Rule files and mode apply on the next session.'
+              ? '规则与模式在下一次会话生效。'
+              : 'Rules and mode apply on the next session.'
           }
         />
 
-        <FieldRow
-          label={isChinese ? '当前模式' : 'Active mode'}
-          description={
-            isChinese
-              ? 'Auto — 沙箱内自动执行，低干扰；Ask — 几乎每次都确认；YOLO — 关闭沙箱，跳过常规确认。'
-              : 'Auto — low friction inside sandbox; Ask — confirm almost everything; YOLO — no sandbox, skip routine prompts.'
-          }
-        >
+        <FieldRow label={isChinese ? '当前模式' : 'Active mode'}>
           <div className="permission-mode-selector" data-testid="settings-permission-mode-group">
             <Select
               value={currentPreset}
@@ -103,18 +96,8 @@ export function PermissionsPage(): ReactElement {
           </div>
         </FieldRow>
 
-        <div
-          style={{
-            marginTop: 12,
-            paddingTop: 16,
-            borderTop: '1px solid color-mix(in srgb, var(--line-soft) 50%, transparent)',
-          }}
-        >
-          <h4
-            style={{ margin: '0 0 12px 0', fontSize: 13.5, fontWeight: 600, color: 'var(--text)' }}
-          >
-            {isChinese ? '模式机制说明' : 'Mode mechanics'}
-          </h4>
+        <details className="settings-disclosure permission-mode-mechanics">
+          <summary>{isChinese ? '模式机制说明' : 'How modes work'}</summary>
           <ul className="capability-matrix-list" data-testid="settings-permission-notes">
             <li className="capability-row available">
               <span className="capability-mark" aria-hidden>
@@ -198,7 +181,7 @@ export function PermissionsPage(): ReactElement {
               </span>
             </li>
           </ul>
-        </div>
+        </details>
       </div>
 
       {hasProject ? (

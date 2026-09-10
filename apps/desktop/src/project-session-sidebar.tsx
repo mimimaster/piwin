@@ -494,8 +494,8 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
           aria-valuenow={props.sidebarWidthPx}
           title={
             props.locale === 'zh-CN'
-              ? '拖动调整宽度，双击恢复默认'
-              : 'Drag to resize. Double-click to reset.'
+              ? '拖动调整宽度；拉到最窄后再拉可关闭。双击恢复默认'
+              : 'Drag to resize. Drag past the minimum to close. Double-click to reset.'
           }
           onPointerDown={props.onResizePointerDown}
           onDoubleClick={props.onResizeReset}

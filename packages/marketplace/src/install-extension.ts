@@ -1,6 +1,6 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { InstallSource } from '@piwin/contracts';
@@ -72,7 +72,8 @@ async function installExtensionFromGit(
   if (options.source.ref) {
     args.push('--branch', options.source.ref);
   }
-  args.push(options.source.url, clonePath);
+  // `--` keeps a URL that begins with `-` from being read as a git option.
+  args.push('--', options.source.url, clonePath);
   try {
     await execFileAsync('git', args, { timeout: 120_000 });
     const contentRoot = resolveCloneContentRoot(clonePath, options.source.subdir);
@@ -101,7 +102,7 @@ async function installExtensionFromGit(
     };
   } catch (error) {
     throw new Error(
-      `git extension install failed: ${describeGitInstallError(error, clonePath, options.source)}`,
+      `git extension install failed: ${await describeGitInstallError(error, clonePath, options.source)}`,
     );
   } finally {
     await rm(clonePath, { recursive: true, force: true }).catch(() => undefined);
@@ -111,19 +112,33 @@ async function installExtensionFromGit(
 /**
  * Turn a raw clone/stage failure into an actionable sentence. The clone lives in
  * an OS temp directory whose path is meaningless to the user, so strip it, and
- * translate the common structural failures into next steps.
+ * translate the common structural failures into next steps — including the
+ * common case where the repo is really an npm-distributed package that cannot
+ * be staged as plain files.
  */
-function describeGitInstallError(
+async function describeGitInstallError(
   error: unknown,
   clonePath: string,
   source: Extract<InstallSource, { kind: 'git' }>,
-): string {
+): Promise<string> {
   const raw = (error instanceof Error ? error.message : String(error)).trim();
   const message = raw.split(clonePath).join('the cloned repository');
-  const subdirHint = source.subdir
-    ? `The subdirectory "${source.subdir}" has no index.ts entry point.`
-    : 'The repository root has no index.ts entry point. If the extension lives in a subfolder, set the subdirectory (for example "extensions"). Extensions published only as npm packages cannot be installed from a Git URL.';
-  if (/must contain index\.ts/i.test(message)) return subdirHint;
+  const structural =
+    /must contain index\.ts/i.test(message) || /must be a \.ts module/i.test(message);
+  if (structural) {
+    const npmName = await readNpmPackageName(clonePath, source.subdir);
+    if (npmName) {
+      return (
+        `${npmName} is an npm-distributed package: it has dependencies and/or an install ` +
+        `step, so it cannot be staged from a Git URL. Install it with \`pi install npm:${npmName}\`.`
+      );
+    }
+  }
+  if (/must contain index\.ts/i.test(message)) {
+    return source.subdir
+      ? `The subdirectory "${source.subdir}" has no index.ts entry point.`
+      : 'The repository root has no index.ts entry point. If the extension lives in a subfolder, set the subdirectory (for example "extensions"). Extensions published only as npm packages cannot be installed from a Git URL.';
+  }
   if (/must be a \.ts module/i.test(message)) {
     return 'The entry point must be a TypeScript (.ts) module. Point the subdirectory at the extension file or its package folder.';
   }
@@ -134,6 +149,39 @@ function describeGitInstallError(
     return `Cloning ${source.url} timed out. Check your network connection and try again.`;
   }
   return message;
+}
+
+/**
+ * If the cloned repo's package.json looks like an npm-distributed package (has
+ * runtime dependencies or an install lifecycle script), return its package
+ * name so the caller can point the user at `pi install npm:<name>`.
+ */
+async function readNpmPackageName(
+  clonePath: string,
+  subdir: string | undefined,
+): Promise<string | null> {
+  for (const dir of subdir ? [join(clonePath, subdir), clonePath] : [clonePath]) {
+    try {
+      const parsed = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8')) as unknown;
+      if (!parsed || typeof parsed !== 'object') continue;
+      const pkg = parsed as Record<string, unknown>;
+      if (typeof pkg.name !== 'string' || !pkg.name) continue;
+      const deps = pkg.dependencies;
+      const hasDeps =
+        deps !== null && typeof deps === 'object' && Object.keys(deps as object).length > 0;
+      const scripts = pkg.scripts;
+      const hasInstallScript =
+        scripts !== null &&
+        typeof scripts === 'object' &&
+        ['preinstall', 'install', 'postinstall'].some(
+          (key) => typeof (scripts as Record<string, unknown>)[key] === 'string',
+        );
+      if (hasDeps || hasInstallScript) return pkg.name;
+    } catch {
+      // No/invalid package.json here — try the next candidate directory.
+    }
+  }
+  return null;
 }
 
 async function readGitCommit(clonePath: string): Promise<string> {

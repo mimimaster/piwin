@@ -11,6 +11,7 @@
     "shell:allow-open",
     "dialog:default",
     "dialog:allow-open",
+    "dialog:allow-save",
     "core:window:allow-inner-size",
     "core:window:allow-outer-size",
     "core:window:allow-scale-factor",

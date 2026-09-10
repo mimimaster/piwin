@@ -193,6 +193,46 @@ describe('dispatchContextMenuAction', () => {
     expect(dispatchers.notify).toHaveBeenCalledWith(expect.any(String), 'info');
   });
 
+  it('media-image save/copy/open/add route to media dispatchers', () => {
+    const mediaTarget: ContextMenuTarget = {
+      surface: 'media-image',
+      label: 'photo.png',
+      fileName: 'photo.png',
+      mimeType: 'image/png',
+      attachment: {
+        id: 'asset-1',
+        kind: 'media',
+        path: '/Users/me/.piwin/media/s1/asset-1.png',
+        mimeType: 'image/png',
+        byteSize: 12,
+        source: 'generated',
+      },
+      absolutePath: '/Users/me/.piwin/media/s1/asset-1.png',
+    };
+    const dispatchers = {
+      ...createDispatchers(),
+      saveMediaAs: vi.fn(),
+      copyImage: vi.fn(),
+      openMedia: vi.fn(),
+      addMediaAttachment: vi.fn(),
+    };
+    dispatchContextMenuAction('save-as', mediaTarget, dispatchers);
+    expect(dispatchers.saveMediaAs).toHaveBeenCalledWith(mediaTarget);
+    dispatchContextMenuAction('copy-image', mediaTarget, dispatchers);
+    expect(dispatchers.copyImage).toHaveBeenCalledWith(mediaTarget);
+    dispatchContextMenuAction('open', mediaTarget, dispatchers);
+    expect(dispatchers.openMedia).toHaveBeenCalledWith(mediaTarget);
+    expect(dispatchers.openPath).not.toHaveBeenCalled();
+    dispatchContextMenuAction('add-to-chat', mediaTarget, dispatchers);
+    expect(dispatchers.addMediaAttachment).toHaveBeenCalledWith(mediaTarget);
+    expect(dispatchers.addToChat).not.toHaveBeenCalled();
+    dispatchContextMenuAction('ask-about', mediaTarget, dispatchers);
+    expect(dispatchers.addMediaAttachment).toHaveBeenCalledTimes(2);
+    expect(dispatchers.focusComposer).toHaveBeenCalledTimes(1);
+    dispatchContextMenuAction('reveal', mediaTarget, dispatchers);
+    expect(dispatchers.revealPath).toHaveBeenCalledWith(mediaTarget.absolutePath);
+  });
+
   it('open-changed-files routes to the message dispatcher (CM-15)', () => {
     const dispatchers = createDispatchers();
     dispatchContextMenuAction('open-changed-files', messageTarget, dispatchers);

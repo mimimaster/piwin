@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { cloneTranscript, rewriteAttachmentPaths, collectAttachmentPaths } from './clone-session-transcript.js';
-import type { SessionTranscriptDocument } from '@piwin/contracts';
+import type { SessionTranscriptDocument, SessionTranscriptMessage } from '@piwin/contracts';
 
 function makeTestTranscript(): SessionTranscriptDocument {
   return {
@@ -53,6 +53,38 @@ describe('cloneTranscript', () => {
     };
     const { transcript } = cloneTranscript({ source, targetSessionId: 'target-1' });
     expect(transcript.messages[0]!.status).toBe('done');
+  });
+
+  it('preserves terminal metadata on cloned assistant rows', () => {
+    const sourceMessage: SessionTranscriptMessage = {
+      id: 'msg-terminal',
+      role: 'assistant',
+      text: 'Completed answer',
+      createdAt: '2026-01-01T00:00:00Z',
+      status: 'done',
+      outcome: 'completed',
+      endedAt: '2026-01-01T00:00:01Z',
+      agentStopReason: 'stop',
+      source: 'continuation',
+      voiceCallId: 'call-1',
+      skillId: 'writing-plans',
+      workspaceWrites: { files: ['src/main.ts'], hasUnknownWrites: false },
+    };
+    const source: SessionTranscriptDocument = {
+      ...makeTestTranscript(),
+      messages: [sourceMessage],
+    };
+
+    const { transcript } = cloneTranscript({ source, targetSessionId: 'target-1' });
+    expect(transcript.messages[0]).toMatchObject({
+      outcome: 'completed',
+      endedAt: '2026-01-01T00:00:01Z',
+      agentStopReason: 'stop',
+      source: 'continuation',
+      voiceCallId: 'call-1',
+      skillId: 'writing-plans',
+      workspaceWrites: { files: ['src/main.ts'], hasUnknownWrites: false },
+    });
   });
 
   it('preserves scope and workingDirectory', () => {

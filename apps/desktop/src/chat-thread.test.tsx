@@ -2292,7 +2292,7 @@ describe('ChatThread render isolation (E1)', () => {
     ).toBe('false');
     const liveHeader = container.querySelector('[data-testid="turn-work-details-summary"]');
     expect(liveHeader?.querySelector('.lamp')).not.toBeNull();
-    expect(liveHeader?.textContent).toContain('正在运行');
+    expect(liveHeader?.textContent).toContain('思考过程');
   });
 
   it('Goal strip separates Abort (cancel the run) from Leave Goal (exit the mode)', () => {

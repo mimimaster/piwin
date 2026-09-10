@@ -132,8 +132,12 @@ describe('auth commands', () => {
     expect(config.providers[0]).toMatchObject({
       id: 'openai-codex',
       source: 'subscription',
-      models: [{ id: 'gpt-5.4-codex', label: 'GPT-5.4 Codex' }],
     });
+    expect(config.providers[0]?.models[0]).toMatchObject({
+      id: 'gpt-5.4-codex',
+      label: 'GPT-5.4 Codex',
+    });
+    expect(config.providers[0]?.models.some((model) => model.id === 'gpt-image-2')).toBe(true);
     const merged = await service.mergeConfiguredModels({ models: [] });
     expect(merged.models).toEqual([
       {

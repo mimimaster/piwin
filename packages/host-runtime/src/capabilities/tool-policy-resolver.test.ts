@@ -138,6 +138,22 @@ describe('resolveToolPolicy', () => {
     expect(readOnly.enabledFamilies).not.toContain('flashcards-write');
   });
 
+  it('extension install is root-session only and gated on the exposure flag', () => {
+    const off = resolveToolPolicy(baseExposure({ extensionInstall: false }));
+    expect(off.enabledFamilies).not.toContain('extensions-write');
+
+    const on = resolveToolPolicy(baseExposure({ extensionInstall: true }));
+    expect(on.enabledFamilies).toContain('extensions-write');
+
+    const subagent = resolveToolPolicy(
+      baseExposure({ extensionInstall: true, capabilities: ['read', 'write'] }),
+    );
+    expect(subagent.enabledFamilies).not.toContain('extensions-write');
+
+    const untrusted = resolveToolPolicy(baseExposure({ extensionInstall: true, trusted: false }));
+    expect(untrusted.enabledFamilies).not.toContain('extensions-write');
+  });
+
   it('Artifact instructions are main-session only', () => {
     const unavailable = resolveToolPolicy(
       baseExposure({ artifact: true, availableFamilies: new Set() }),

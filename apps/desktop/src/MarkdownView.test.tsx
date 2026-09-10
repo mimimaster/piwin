@@ -630,7 +630,7 @@ describe('MarkdownView artifact preview policy', () => {
     const { container } = renderMarkdown(
       <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="streaming" artifactCodeFirst />,
     );
-    expect(container.querySelector('[data-testid="code-fence-streaming"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
     expect(container.querySelector('.artifact-frame')).toBeNull();
   });
 
@@ -1119,15 +1119,27 @@ describe('MarkdownView file references', () => {
     expect(markdown?.textContent).toBe('紧密衔接');
   });
 
-  it('defers code-fence syntax highlighting until streaming completes', () => {
-    const fence = '```ts\nconst answer = 42;\n```';
-    const streaming = renderMarkdown(<MarkdownView text={fence} renderingPhase="streaming" />);
+  it('highlights a closed code fence even while the message is still streaming', () => {
+    const closed = '```ts\nconst answer = 42;\n```';
+    const streamingClosed = renderMarkdown(
+      <MarkdownView text={closed} renderingPhase="streaming" />,
+    );
     expect(
-      streaming.container.querySelector('.md-code-content')?.getAttribute('data-syntax-highlight'),
-    ).toBe('deferred');
-    unmountMarkdown(streaming);
+      streamingClosed.container
+        .querySelector('.md-code-content')
+        ?.getAttribute('data-syntax-highlight'),
+    ).toBe('enabled');
+    unmountMarkdown(streamingClosed);
 
-    const completed = renderMarkdown(<MarkdownView text={fence} renderingPhase="completed" />);
+    const open = renderMarkdown(
+      <MarkdownView text={'```ts\nconst answer = 42;\n'} renderingPhase="streaming" />,
+    );
+    expect(
+      open.container.querySelector('.md-code-content')?.getAttribute('data-syntax-highlight'),
+    ).toBe('deferred');
+    unmountMarkdown(open);
+
+    const completed = renderMarkdown(<MarkdownView text={closed} renderingPhase="completed" />);
     expect(
       completed.container.querySelector('.md-code-content')?.getAttribute('data-syntax-highlight'),
     ).toBe('enabled');

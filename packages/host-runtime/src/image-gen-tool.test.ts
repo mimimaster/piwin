@@ -528,6 +528,86 @@ describe('callImageEndpoint', () => {
     ).rejects.toThrow(/provider returned no image data/i);
   });
 
+  it('posts Codex OAuth images to the Codex backend instead of oauth://', async () => {
+    const provider: OpenAiCompatibleProviderConfig = {
+      id: 'openai-codex',
+      protocol: 'openai-compatible',
+      name: 'ChatGPT Codex',
+      baseUrl: 'oauth://openai-codex',
+      source: 'subscription',
+      models: [
+        {
+          id: 'gpt-image-2',
+          capabilities: ['image-generation'],
+          routes: {
+            'image-generation': { path: '/codex/images/generations', apiStyle: 'openai' },
+          },
+        },
+      ],
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ data: [{ b64_json: base64(PNG_BYTES) }] }));
+    await callImageEndpoint(
+      provider,
+      imageModel(provider),
+      { prompt: 'a lantern' },
+      '',
+      undefined,
+      fetchMock as unknown as typeof fetch,
+      { accessToken: 'codex-token', accountId: 'acct-1' },
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://chatgpt.com/backend-api/codex/images/generations',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          authorization: 'Bearer codex-token',
+          'OpenAI-Beta': 'codex-1',
+          'ChatGPT-Account-Id': 'acct-1',
+        }),
+      }),
+    );
+  });
+
+  it('posts Grok Imagine images to api.x.ai with the CLI token header', async () => {
+    const provider: OpenAiCompatibleProviderConfig = {
+      id: 'xai',
+      protocol: 'openai-compatible',
+      name: 'Grok',
+      baseUrl: 'oauth://xai',
+      source: 'subscription',
+      models: [
+        {
+          id: 'grok-imagine-image-2.0',
+          capabilities: ['image-generation'],
+          routes: { 'image-generation': { path: '/images/generations', apiStyle: 'openai' } },
+        },
+      ],
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ data: [{ b64_json: base64(PNG_BYTES) }] }));
+    await callImageEndpoint(
+      provider,
+      imageModel(provider),
+      { prompt: 'a collie' },
+      '',
+      undefined,
+      fetchMock as unknown as typeof fetch,
+      { accessToken: 'grok-token' },
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.x.ai/v1/images/generations',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          authorization: 'Bearer grok-token',
+          'X-XAI-Token-Auth': 'xai-grok-cli',
+        }),
+      }),
+    );
+  });
+
   it('rejects anthropic-compatible with a clear unsupported error', async () => {
     const anthropic: ModelProviderConfig = {
       id: 'anthropic',

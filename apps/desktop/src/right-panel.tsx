@@ -18,6 +18,10 @@ import { sectionLabel, type RightPanelTab } from './right-panel-sections';
 import { RightPanelPlusMenu } from './right-panel-plus-menu';
 import { RightPanelHome } from './right-panel-home';
 import { RightPanelTabs } from './right-panel-tabs.js';
+import {
+  RIGHT_PANEL_SIDE_CHAT_TABS_SLOT_ID,
+  RightPanelChromeProvider,
+} from './right-panel-chrome.js';
 import { RIGHT_PANEL_MAX_WIDTH_PX, RIGHT_PANEL_MIN_WIDTH_PX } from './right-panel-width';
 import { WindowDragRegion, handleNativeWindowDragMouseDown } from './native-window-drag';
 import { DeferredSurfaceBoundary } from './deferred-desktop-surfaces';
@@ -213,6 +217,8 @@ export function RightPanel(props: RightPanelProps): ReactElement {
   const active =
     requested != null && openTabs.includes(requested) ? requested : (openTabs[0] ?? null);
   const mountedTabs = selectMountedRightPanelTabs(openTabs, active, props.open);
+  const sideChatTitlebar = active === 'sideChat';
+  const toolTabs = sideChatTitlebar ? [] : openTabs;
 
   const panelClass = [
     'right-panel',
@@ -224,6 +230,7 @@ export function RightPanel(props: RightPanelProps): ReactElement {
     .join(' ');
 
   return (
+    <RightPanelChromeProvider closeTab={closeTab}>
     <aside
       className={panelClass}
       data-testid="right-panel"
@@ -246,8 +253,8 @@ export function RightPanel(props: RightPanelProps): ReactElement {
         aria-valuenow={props.panelWidthPx}
         title={
           locale === 'zh-CN'
-            ? '拖动调整宽度，双击恢复默认'
-            : 'Drag to resize. Double-click to reset.'
+            ? '拖动调整宽度；拉到最窄后再拉可关闭。双击恢复默认'
+            : 'Drag to resize. Drag past the minimum to close. Double-click to reset.'
         }
         onPointerDown={props.onResizePointerDown}
         onDoubleClick={props.onResizeReset}
@@ -255,7 +262,7 @@ export function RightPanel(props: RightPanelProps): ReactElement {
 
       {/* Cursor-style tab strip */}
       <div
-        className="right-panel-tabstrip right-panel-titlebar-box insp-h"
+        className={`right-panel-tabstrip right-panel-titlebar-box insp-h${sideChatTitlebar ? ' has-side-chat-tabs' : ''}`}
         data-testid="right-panel-tabstrip"
         data-tauri-drag-region
         onMouseDown={handleNativeWindowDragMouseDown}
@@ -269,11 +276,26 @@ export function RightPanel(props: RightPanelProps): ReactElement {
           active={pickerOpen}
         />
 
-        <RightPanelTabs
-          tabs={openTabs} active={active} locale={locale}
-          changesCount={changesCount} runningJobCount={runningJobCount}
-          cardsDueCount={cardsDueCount} terminalAttention={terminalAttention}
-          onSelect={openTab} onClose={closeTab}
+        {toolTabs.length > 0 ? (
+          <RightPanelTabs
+            tabs={toolTabs}
+            active={sideChatTitlebar ? null : active}
+            locale={locale}
+            changesCount={changesCount}
+            runningJobCount={runningJobCount}
+            cardsDueCount={cardsDueCount}
+            terminalAttention={terminalAttention}
+            onSelect={openTab}
+            onClose={closeTab}
+          />
+        ) : null}
+
+        <div
+          id={RIGHT_PANEL_SIDE_CHAT_TABS_SLOT_ID}
+          className="right-panel-side-chat-tabs-slot"
+          data-testid="right-panel-side-chat-tabs-slot"
+          data-no-window-drag
+          hidden={!sideChatTitlebar}
         />
 
         <WindowDragRegion
@@ -317,21 +339,23 @@ export function RightPanel(props: RightPanelProps): ReactElement {
             {props.isExpanded ? <IconCompress /> : <IconExpand />}
           </IconButton>
 
-          <IconButton
-            className="right-panel-action-btn ib"
-            data-testid="right-panel-close-btn"
-            label={locale === 'zh-CN' ? '关闭工作区面板' : 'Close workspace panel'}
-            title={locale === 'zh-CN' ? '关闭工作区面板' : 'Close workspace panel'}
-            onClick={props.onClose}
-          >
-            <IconClose width={14} height={14} />
-          </IconButton>
+          {props.isOverlayPresentation ? (
+            <IconButton
+              className="right-panel-action-btn ib"
+              data-testid="right-panel-close-btn"
+              label={locale === 'zh-CN' ? '关闭工作区面板' : 'Close workspace panel'}
+              title={locale === 'zh-CN' ? '关闭工作区面板' : 'Close workspace panel'}
+              onClick={props.onClose}
+            >
+              <IconClose width={14} height={14} />
+            </IconButton>
+          ) : null}
         </div>
       </div>
 
       {/* Proto-00 .tool-context: which session these tools follow. The tab
-          strip keeps the expand/close controls, so this row is label-only and
-          stays hidden outside the Inkstone themes. */}
+          strip keeps expand (and overlay close) controls, so this row is
+          label-only and stays hidden outside the Inkstone themes. */}
       <div className="right-panel-tool-context tool-context" data-testid="right-panel-tool-context">
         <span className="follow-dot" aria-hidden />
         <span className="tool-scope">{locale === 'zh-CN' ? '本次会话' : 'This session'}</span>
@@ -386,5 +410,6 @@ export function RightPanel(props: RightPanelProps): ReactElement {
         </div>
       )}
     </aside>
+    </RightPanelChromeProvider>
   );
 }

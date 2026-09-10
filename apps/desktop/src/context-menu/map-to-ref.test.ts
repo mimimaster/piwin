@@ -97,4 +97,23 @@ describe('mapTargetToContextRef', () => {
       label: 'react.md:12',
     });
   });
+
+  it('does not map media-image to a PromptContextRef', () => {
+    expect(
+      mapTargetToContextRef({
+        surface: 'media-image',
+        label: 'photo.png',
+        fileName: 'photo.png',
+        mimeType: 'image/png',
+        attachment: {
+          id: 'asset-1',
+          kind: 'media',
+          path: '/Users/me/.piwin/media/s1/asset-1.png',
+          mimeType: 'image/png',
+          byteSize: 12,
+          source: 'generated',
+        },
+      }),
+    ).toBeNull();
+  });
 });

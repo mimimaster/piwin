@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import type { MouseEvent as ReactMouseEvent, ReactElement } from 'react';
 import {
   IconCheck,
   IconCopy,
@@ -23,14 +23,28 @@ export type LibraryMediaCardModel = {
   createdAt?: string | undefined;
   viewMode?: 'grid' | 'list' | undefined;
   favorite?: boolean | undefined;
-  isBatchMode?: boolean | undefined;
+  /**
+   * True once anything anywhere in the grid is selected — the checkbox then
+   * stays visible on every tile instead of only the one being hovered, so
+   * continuing to build a selection doesn't mean hunting for the corner.
+   * There is no separate "batch mode": selecting *is* the mode.
+   */
+  selectionActive?: boolean | undefined;
   isSelected?: boolean | undefined;
   isActive?: boolean | undefined;
   kind?: 'image' | 'video' | 'file' | undefined;
+  /** False when every visible tile shares one model — the badge is then pure noise. */
+  showModel?: boolean | undefined;
+  thumbFit?: 'cover' | 'contain' | undefined;
 };
 
 export type LibraryMediaCardActions = {
-  onOpen: () => void;
+  /**
+   * Receives the click so the caller can branch on ⌘/Ctrl/Shift. Optional
+   * because the right-click "Open" menu entry calls this with no event.
+   */
+  onOpen: (event?: ReactMouseEvent<HTMLButtonElement>) => void;
+  onFocus?: (() => void) | undefined;
   onDelete?: (() => void) | undefined;
   deleteLabel: string;
   onImageError?: (() => void) | undefined;
@@ -38,9 +52,14 @@ export type LibraryMediaCardActions = {
   copyLabel?: string | undefined;
   copied?: boolean | undefined;
   onToggleFavorite?: (() => void) | undefined;
+  favoriteLabel?: string | undefined;
+  favoritedLabel?: string | undefined;
+  selectLabel?: string | undefined;
   onToggleSelect?: (() => void) | undefined;
   onRemix?: (() => void) | undefined;
+  remixLabel?: string | undefined;
   onOpenLightbox?: (() => void) | undefined;
+  fullscreenLabel?: string | undefined;
 };
 
 function seekPosterFrame(video: HTMLVideoElement): void {
@@ -61,9 +80,9 @@ export function LibraryMediaCard(props: {
   if (isList) {
     return (
       <article
-        className={`lib-row-card${hasThumb ? '' : ' is-wait'}${item.isActive ? ' is-active' : ''}${isVideo ? ' is-video' : ''}`}
+        className={`lib-row-card${hasThumb ? '' : ' is-wait'}${item.isActive ? ' is-active' : ''}${isVideo ? ' is-video' : ''}${item.isSelected ? ' is-selected' : ''}${item.selectionActive ? ' selection-active' : ''}`}
       >
-        {item.isBatchMode ? (
+        {actions.onToggleSelect ? (
           <input
             type="checkbox"
             className="lib-batch-checkbox"
@@ -72,7 +91,7 @@ export function LibraryMediaCard(props: {
               e.stopPropagation();
               actions.onToggleSelect?.();
             }}
-            aria-label="Select item"
+            aria-label={actions.selectLabel ?? 'Select item'}
           />
         ) : null}
 
@@ -81,6 +100,7 @@ export function LibraryMediaCard(props: {
           className="lib-row-open"
           data-testid={item.testId}
           onClick={actions.onOpen}
+          onFocus={actions.onFocus}
           aria-label={item.alt}
         >
           <span className="lib-row-thumb">
@@ -135,8 +155,8 @@ export function LibraryMediaCard(props: {
                 e.stopPropagation();
                 actions.onToggleFavorite?.();
               }}
-              title={item.favorite ? 'Favorited' : 'Favorite'}
-              aria-label={item.favorite ? 'Favorited' : 'Favorite'}
+              title={item.favorite ? (actions.favoritedLabel ?? 'Favorited') : (actions.favoriteLabel ?? 'Favorite')}
+              aria-label={item.favorite ? (actions.favoritedLabel ?? 'Favorited') : (actions.favoriteLabel ?? 'Favorite')}
             >
               <IconStar width={14} height={14} aria-hidden="true" />
             </button>
@@ -177,13 +197,14 @@ export function LibraryMediaCard(props: {
 
   return (
     <article
-      className={`lib-card${hasThumb ? '' : ' is-wait'}${item.isActive ? ' is-active' : ''}${isVideo ? ' is-video' : ''}`}
+      className={`lib-card${hasThumb ? '' : ' is-wait'}${item.isActive ? ' is-active' : ''}${isVideo ? ' is-video' : ''}${item.isSelected ? ' is-selected' : ''}${item.selectionActive ? ' selection-active' : ''}`}
     >
       <button
         type="button"
         className="lib-card-open"
         data-testid={item.testId}
         onClick={actions.onOpen}
+        onFocus={actions.onFocus}
         aria-label={item.alt}
       >
         <span className="lib-card-thumb">
@@ -191,7 +212,7 @@ export function LibraryMediaCard(props: {
             isVideo ? (
               <video
                 src={item.imageUrl}
-                className="lib-card-img is-video"
+                className={`lib-card-img is-video${item.thumbFit === 'contain' ? ' is-contain' : ''}`}
                 preload="metadata"
                 muted
                 playsInline
@@ -209,7 +230,7 @@ export function LibraryMediaCard(props: {
               <img
                 src={item.imageUrl}
                 alt=""
-                className="lib-card-img"
+                className={`lib-card-img${item.thumbFit === 'contain' ? ' is-contain' : ''}`}
                 decoding="async"
                 loading="lazy"
                 onError={actions.onImageError}
@@ -219,8 +240,12 @@ export function LibraryMediaCard(props: {
             <span className="lib-card-wait" aria-hidden="true" />
           )}
 
-          {item.model ? (
-            <span className="lib-card-model-badge">{item.model}</span>
+          {/* Favourite has to read without hovering, but it does not need a
+              whole button's worth of chrome to do it. */}
+          {item.favorite ? (
+            <span className="lib-card-fav-flag" aria-hidden="true">
+              <IconStar width={13} height={13} />
+            </span>
           ) : null}
 
           {item.showPlayOverlay === true ? (
@@ -231,6 +256,9 @@ export function LibraryMediaCard(props: {
         </span>
 
         <span className="lib-card-overlay">
+          {item.model && item.showModel !== false ? (
+            <span className="lib-card-overlay-model">{item.model}</span>
+          ) : null}
           {item.prompt ? <span className="lib-card-overlay-prompt">{item.prompt}</span> : null}
           <span className="lib-card-overlay-foot">
             {actions.onOpenLightbox ? (
@@ -244,16 +272,19 @@ export function LibraryMediaCard(props: {
                 }}
               >
                 <IconExpand width={12} height={12} aria-hidden="true" />
-                <span>全屏</span>
+                <span>{actions.fullscreenLabel ?? 'Fullscreen'}</span>
               </span>
             ) : null}
           </span>
         </span>
       </button>
 
-      {/* Top right floating overlay bar */}
-      <div className="lib-card-overlay-bar">
-        {item.isBatchMode ? (
+      {/* Selection sits top-left, opposite the actions, so a selected card
+          never crowds its own toolbar. Always in the DOM — CSS reveals it on
+          hover, or on every tile at once as soon as any selection exists
+          (.selection-active below). */}
+      {actions.onToggleSelect ? (
+        <label className="lib-card-select">
           <input
             type="checkbox"
             className="lib-card-batch-cb"
@@ -262,9 +293,15 @@ export function LibraryMediaCard(props: {
               e.stopPropagation();
               actions.onToggleSelect?.();
             }}
-            aria-label="Select card"
+            aria-label={actions.selectLabel ?? 'Select card'}
           />
-        ) : actions.onToggleFavorite ? (
+        </label>
+      ) : null}
+
+      {/* Top-right chrome: one capsule, not four floating boxes. */}
+      <div className="lib-card-overlay-bar">
+        <div className="lib-card-toolbar">
+        {!actions.onToggleFavorite ? null : (
           <button
             type="button"
             className={`lib-card-hover-btn${item.favorite ? ' is-favorite' : ''}`}
@@ -272,12 +309,12 @@ export function LibraryMediaCard(props: {
               event.stopPropagation();
               actions.onToggleFavorite?.();
             }}
-            title={item.favorite ? 'Favorited' : 'Favorite'}
-            aria-label={item.favorite ? 'Favorited' : 'Favorite'}
+            title={item.favorite ? (actions.favoritedLabel ?? 'Favorited') : (actions.favoriteLabel ?? 'Favorite')}
+            aria-label={item.favorite ? (actions.favoritedLabel ?? 'Favorited') : (actions.favoriteLabel ?? 'Favorite')}
           >
             <IconStar width={13} height={13} aria-hidden="true" />
           </button>
-        ) : null}
+        )}
 
         {actions.onRemix && item.prompt ? (
           <button
@@ -287,8 +324,8 @@ export function LibraryMediaCard(props: {
               event.stopPropagation();
               actions.onRemix?.();
             }}
-            title="在会话中重绘 (Remix)"
-            aria-label="在会话中重绘 (Remix)"
+            title={actions.remixLabel ?? 'Remix in Chat'}
+            aria-label={actions.remixLabel ?? 'Remix in Chat'}
           >
             <IconSpark width={13} height={13} aria-hidden="true" />
           </button>
@@ -314,20 +351,24 @@ export function LibraryMediaCard(props: {
         ) : null}
 
         {actions.onDelete ? (
-          <button
-            type="button"
-            className="lib-card-hover-btn is-danger"
-            data-testid={`media-delete-${item.id}`}
-            onClick={(event) => {
-              event.stopPropagation();
-              actions.onDelete?.();
-            }}
-            title={actions.deleteLabel}
-            aria-label={actions.deleteLabel}
-          >
-            <IconTrash width={13} height={13} aria-hidden="true" />
-          </button>
+          <>
+            <span className="lib-card-toolbar-sep" aria-hidden="true" />
+            <button
+              type="button"
+              className="lib-card-hover-btn is-danger"
+              data-testid={`media-delete-${item.id}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                actions.onDelete?.();
+              }}
+              title={actions.deleteLabel}
+              aria-label={actions.deleteLabel}
+            >
+              <IconTrash width={13} height={13} aria-hidden="true" />
+            </button>
+          </>
         ) : null}
+        </div>
       </div>
     </article>
   );

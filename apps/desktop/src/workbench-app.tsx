@@ -4,7 +4,9 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { HostLogProvider } from './host-log-context';
 import { artifactFenceSecurityProps } from './artifact-fence-security';
-import type { ThemeManifest } from '@piwin/contracts';
+import type { MediaLibraryItem, ThemeManifest } from '@piwin/contracts';
+import { appendQuotedComposerText, focusComposerInput } from './context-menu/desktop-context-menu-value';
+import { mediaAttachmentFromLibraryItem } from './media-image-target';
 import { chatUiReducer, createInitialChatUiState } from './chat-reducer';
 import { useWorkbenchHostClient } from './use-workbench-host-client';
 import { MediaPreviewReadProvider } from './media-preview-read-context';
@@ -242,6 +244,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     draftSessions,
     activeDraftId,
     addWebElement,
+    addExistingMediaAttachment,
     handleSend,
     handleOpenDocument,
     handleOpenDiff,
@@ -307,6 +310,25 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     }
     wasStreamingRef.current = state.streaming;
   }, [state.streaming]);
+  /**
+   * Library "Remix in Chat" — attaches the asset (when there is one) and
+   * drops its prompt in as a starting draft, appended after whatever the
+   * user was already drafting rather than overwriting it.
+   */
+  const handleRemixToComposer = useCallback(
+    (input: { text: string; item?: MediaLibraryItem }) => {
+      if (input.item) {
+        addExistingMediaAttachment(mediaAttachmentFromLibraryItem(input.item));
+      }
+      const draft = input.text.trim();
+      if (draft) {
+        setComposer((current) => appendQuotedComposerText(current, draft));
+      }
+      closeSubPage();
+      window.setTimeout(() => focusComposerInput(), 0);
+    },
+    [addExistingMediaAttachment, setComposer, closeSubPage],
+  );
   const composerColumn = (
     <WorkbenchComposerColumn
       state={state}
@@ -759,6 +781,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                 request={(command) => hostClient.request(command)}
                 requestFlashcards={(command, options) => hostClient.request(command, options)}
                 refreshToken={mediaLibraryEpoch}
+                onRemixToComposer={handleRemixToComposer}
                 projectPath={state.projectPath}
                 onConfigureEmbedding={() => {
                   closeSubPage();

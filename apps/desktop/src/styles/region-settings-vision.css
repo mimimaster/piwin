@@ -1,59 +1,107 @@
-/* Region: settings -> vision delegation page. */
+/* Region: settings -> delegation pages (vision delegation, reply writer).
+   These pages now use the shared settings primitives (settings-section-card +
+   PageTitle + FieldRow), so what is left here is only the few pieces those
+   primitives do not cover: the unsaved marker, the card action footer, the
+   verbatim result well, and the collapsed advanced note. */
 
-.vision-settings-body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-7);
-  margin-top: var(--s-7);
-}
-
-.vision-settings-status {
+/* Only rendered when there is something unsaved — an always-on enabled/
+   disabled badge just restated the toggle sitting two rows below it.
+   Iris, not amber: deck-palette.ts reserves warm amber for "the agent is
+   running" and iris for "you can act here", and unsaved changes are waiting
+   on the user to press Save. */
+.settings-dirty-badge {
   display: inline-flex;
   align-items: center;
   min-height: var(--h-xs);
   padding: var(--s-1) var(--s-4);
-  border: 0;
   border-radius: var(--r-pill);
-  background: var(--hover);
-  color: var(--text-3);
+  background: color-mix(in srgb, var(--iris) 12%, transparent);
+  color: var(--iris);
   font-size: var(--fs-micro);
   font-weight: 650;
   letter-spacing: 0.01em;
+  white-space: nowrap;
 }
 
-.vision-settings-status--enabled {
-  background: color-mix(in srgb, var(--mint) 14%, transparent);
-  color: var(--mint);
+/* Actions sit under the last row, divided from it, primary action last —
+   the same shape the web-tools page already uses. */
+.settings-card-footer {
+  margin-top: var(--s-6);
+  padding-top: var(--s-6);
+  border-top: 1px solid var(--line-1);
 }
 
-.vision-settings-model-field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
-}
-
-.vision-settings-field-note,
-.vision-settings-note,
-.vision-settings-test-result {
-  margin: 0;
+/* Left-aligned caption sharing the footer with the right-aligned buttons. */
+.settings-card-footer .settings-note-line {
+  margin-right: auto;
   color: var(--text-3);
   font-size: var(--fs-chrome);
   line-height: var(--lh-relaxed);
 }
 
-.vision-settings-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-4);
-}
-
 /* Test output is raw model text, so it goes in a well — the same treatment
    every other verbatim payload in the product gets. */
-.vision-settings-test-result {
+.settings-result-well {
+  margin: var(--s-6) 0 0;
   padding: var(--s-5);
-  border: 0;
   border-radius: var(--r-control);
   background: var(--void);
   box-shadow: inset 0 0 0 1px var(--line-1);
+  color: var(--text-2);
+  font-size: var(--fs-chrome);
+  line-height: var(--lh-relaxed);
   white-space: pre-wrap;
+}
+
+/* An edge-case caveat that most people never need. Collapsed, it costs one
+   line instead of a paragraph competing with the controls above it. */
+.settings-note-details {
+  margin-top: var(--s-6);
+  padding: 0 var(--s-6);
+  border-radius: var(--r-control);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+}
+
+.settings-note-details > summary {
+  padding: var(--s-4) 0;
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.settings-note-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Disclosure caret, drawn rather than pulled from the icon set so the
+   summary stays a plain text row. */
+.settings-note-details > summary::before {
+  content: '';
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-right: var(--s-3);
+  border: solid currentColor;
+  border-width: 0 1.5px 1.5px 0;
+  transform: translateY(-1px) rotate(-45deg);
+  transition: transform var(--t-1) var(--ease-out);
+}
+
+.settings-note-details[open] > summary::before {
+  transform: translateY(-2px) rotate(45deg);
+}
+
+.settings-note-details > summary:hover {
+  color: var(--text-1);
+}
+
+.settings-note-details > p {
+  margin: 0;
+  padding: 0 0 var(--s-5) calc(5px + var(--s-3));
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+  line-height: var(--lh-relaxed);
 }

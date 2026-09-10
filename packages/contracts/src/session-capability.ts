@@ -35,6 +35,7 @@ export type SessionToolFamily =
   | 'notes-write'
   | 'flashcards-read'
   | 'flashcards-write'
+  | 'extensions-write'
   | 'artifact'
   | 'toolbox'
   | 'image-generation'

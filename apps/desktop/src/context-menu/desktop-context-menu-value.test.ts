@@ -1,5 +1,9 @@
 // @vitest-environment happy-dom
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  resetSideChatComposerSeedForTests,
+  takeSideChatComposerSeed,
+} from '../side-chat-composer-seed.js';
 import type { PromptContextRef } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
 import {
@@ -130,6 +134,10 @@ describe('buildDesktopContextMenuCaps', () => {
 });
 
 describe('createDesktopContextMenuValue', () => {
+  afterEach(() => {
+    resetSideChatComposerSeedForTests();
+  });
+
   it('notifies when the context-chip cap is hit', () => {
     const dispatchNotification = vi.fn();
     const value = createDesktopContextMenuValue(
@@ -164,6 +172,28 @@ describe('createDesktopContextMenuValue', () => {
     expect(hostClient.sideChatOpen).not.toHaveBeenCalled();
   });
 
+  it('exposes addMediaAttachment when the composer hook is wired', () => {
+    const addMediaAttachment = vi.fn();
+    const value = createDesktopContextMenuValue(createDeps({ addMediaAttachment }));
+    expect(value.caps.canAddMediaAttachment).toBe(true);
+    const attachment = {
+      id: 'asset-1',
+      kind: 'media' as const,
+      path: '/Users/me/.piwin/media/s1/a.png',
+      mimeType: 'image/png',
+      byteSize: 4,
+      source: 'generated' as const,
+    };
+    value.dispatchers.addMediaAttachment?.({
+      surface: 'media-image',
+      label: 'a.png',
+      fileName: 'a.png',
+      mimeType: 'image/png',
+      attachment,
+    });
+    expect(addMediaAttachment).toHaveBeenCalledWith(attachment);
+  });
+
   it('quotes into the composer without wiping existing text', () => {
     let next = 'draft';
     const setComposer: DesktopContextMenuValueDeps['setComposer'] = (value) => {
@@ -172,5 +202,28 @@ describe('createDesktopContextMenuValue', () => {
     const dispatchers = createDesktopContextMenuValue(createDeps({ setComposer })).dispatchers;
     dispatchers.quoteInComposer('hello');
     expect(next).toBe('draft\n\n> hello');
+  });
+
+  it('seeds the side-chat composer when opening from a quote', async () => {
+    const hostClient = fakeHost(['side-chat/open', 'project/read-file']);
+    vi.mocked(hostClient.sideChatOpen).mockResolvedValue({
+      type: 'response',
+      command: 'side-chat/open',
+      success: true,
+      data: { sideChatSessionId: 'side-new' },
+    });
+    const openInspector = vi.fn();
+    const value = createDesktopContextMenuValue(createDeps({ hostClient, openInspector }));
+    const refs: PromptContextRef[] = [
+      { kind: 'selection', snapshotText: 'quoted', label: 'quoted' },
+    ];
+    value.dispatchers.openSideChat({ refs });
+    await vi.waitFor(() => {
+      expect(openInspector).toHaveBeenCalledWith('sideChat');
+    });
+    expect(takeSideChatComposerSeed()).toEqual({
+      refs,
+      sideChatSessionId: 'side-new',
+    });
   });
 });

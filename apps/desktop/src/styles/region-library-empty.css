@@ -64,8 +64,8 @@
   padding: 0 20px;
   border: 0;
   border-radius: 12px;
-  /* Matches .lib-new-btn: iris is the product's only accent, so the primary
-     CTA cannot introduce a violet→pink ramp of its own. */
+  /* Iris is the product's only accent, so the primary CTA cannot introduce
+     a violet→pink ramp of its own. */
   background: var(--iris-fill, var(--iris));
   color: var(--on-iris);
   font-size: var(--fs-body);
@@ -190,9 +190,33 @@
   color: var(--on-iris);
   font-size: 12.5px;
   font-weight: 600;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--sh3, 0 14px 34px -12px rgba(50, 35, 15, 0.3));
   border: 1px solid var(--line-3);
   animation: lib-toast-in 200ms var(--ease-out);
+  transition: bottom 200ms var(--ease-out);
+}
+
+/* Both dock bottom-centre; step the toast up over the selection bar rather
+   than letting the two overlap. */
+.lib-toast-pill.is-lifted {
+  bottom: 78px;
+}
+
+.lib-toast-action {
+  margin-left: 4px;
+  padding: 3px 10px;
+  border: 1px solid color-mix(in srgb, var(--on-iris) 45%, transparent);
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--on-iris);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background var(--t-1) var(--ease-out);
+}
+
+.lib-toast-action:hover {
+  background: color-mix(in srgb, var(--on-iris) 18%, transparent);
 }
 
 @keyframes lib-toast-in {

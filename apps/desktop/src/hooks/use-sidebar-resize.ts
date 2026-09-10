@@ -8,6 +8,7 @@ import {
   clampSidebarWidthForViewport,
   loadSidebarWidth,
   saveSidebarWidth,
+  shouldCollapseSidebar,
 } from '../sidebar-width';
 
 /** Write the live width straight to the shell so drag does not wait on React. */
@@ -28,6 +29,8 @@ export type UseSidebarResizeOptions = {
   rightPanelOpen: boolean;
   /** Right panel CSS width in px. */
   rightPanelWidthPx?: number;
+  /** Drag past min width: collapse the navigator. Last valid width is kept. */
+  onCollapseRequest?: () => void;
 };
 
 export type UseSidebarResizeResult = {
@@ -49,12 +52,18 @@ export function useSidebarResize(options: UseSidebarResizeOptions): UseSidebarRe
     pointerId: number;
     startX: number;
     startWidth: number;
+    collapsed: boolean;
   } | null>(null);
   // Drag updates CSS only; React width state commits on pointer-up.
 
   useEffect(() => {
     widthRef.current = widthPx;
   }, [widthPx]);
+
+  const collapseRequestRef = useRef(options.onCollapseRequest);
+  useEffect(() => {
+    collapseRequestRef.current = options.onCollapseRequest;
+  }, [options.onCollapseRequest]);
 
   const resolveShell = useCallback((): HTMLElement | null => {
     if (shellRef.current !== null) {
@@ -147,6 +156,7 @@ export function useSidebarResize(options: UseSidebarResizeOptions): UseSidebarRe
       pointerId: event.pointerId,
       startX: event.clientX,
       startWidth: widthRef.current,
+      collapsed: false,
     };
     setIsResizing(true);
     document.body.style.cursor = 'col-resize';
@@ -165,7 +175,16 @@ export function useSidebarResize(options: UseSidebarResizeOptions): UseSidebarRe
       }
       // Dragging the right edge: move right → wider sidebar.
       const delta = event.clientX - drag.startX;
-      const next = resolveClamp(drag.startWidth + delta);
+      const candidate = drag.startWidth + delta;
+      if (shouldCollapseSidebar(candidate)) {
+        if (!drag.collapsed) {
+          drag.collapsed = true;
+          saveSidebarWidth(widthRef.current);
+          collapseRequestRef.current?.();
+        }
+        return;
+      }
+      const next = resolveClamp(candidate);
       if (next === widthRef.current) {
         return;
       }
@@ -190,7 +209,9 @@ export function useSidebarResize(options: UseSidebarResizeOptions): UseSidebarRe
       }, 60);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
-      saveSidebarWidth(commit);
+      if (!drag.collapsed) {
+        saveSidebarWidth(commit);
+      }
     }
 
     window.addEventListener('pointermove', onPointerMove);

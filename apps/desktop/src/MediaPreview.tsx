@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useMemo,
   useState,
   type KeyboardEvent,
   type MouseEvent,
@@ -10,6 +11,11 @@ import {
 import { createPortal } from 'react-dom';
 import { contentKindForMimeType, type MediaAttachmentRef } from '@piwin/contracts';
 import { useMediaPreviewRead } from './media-preview-read-context';
+import { MediaImageContextMenu } from './media-image-context-menu';
+import { buildMediaImageTarget } from './media-image-target';
+import { saveMediaImageAs } from './media-image-actions';
+import { copyImageToClipboard } from './copy-image-to-clipboard';
+import { useLocalFileActions } from './local-file-actions-context';
 import {
   mediaPreviewAssetId,
   resolveTranscriptPreviewUrls,
@@ -36,59 +42,6 @@ function isVideoMimeType(mimeType: string): boolean {
   return mimeType.toLowerCase().startsWith('video/');
 }
 
-async function copyImageToClipboard(srcUrl: string): Promise<boolean> {
-  if (typeof navigator === 'undefined' || !navigator.clipboard?.write) {
-    return false;
-  }
-  try {
-    const res = await fetch(srcUrl);
-    if (!res.ok) return false;
-    const blob = await res.blob();
-    if (blob.type === 'image/png') {
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-      return true;
-    }
-    if (typeof document !== 'undefined') {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve();
-        img.onerror = reject;
-        img.src = srcUrl;
-      });
-      const canvas = document.createElement('canvas');
-      canvas.width = img.naturalWidth || img.width;
-      canvas.height = img.naturalHeight || img.height;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(img, 0, 0);
-        const pngBlob = await new Promise<Blob | null>((resolve) =>
-          canvas.toBlob(resolve, 'image/png'),
-        );
-        if (pngBlob) {
-          await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
-          return true;
-        }
-      }
-    }
-  } catch (err) {
-    console.warn('[media-preview] copy image failed:', err);
-  }
-  return false;
-}
-
-function downloadMediaFile(srcUrl: string, fileName: string): void {
-  if (typeof document === 'undefined') return;
-  const link = document.createElement('a');
-  link.href = srcUrl;
-  link.download = fileName;
-  link.target = '_blank';
-  link.rel = 'noreferrer';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-}
-
 /**
  * Fullscreen lightbox for media thumbnails. Portaled to document.body so it is
  * not clipped by transcript overflow / collapsed message masks, and so click
@@ -100,6 +53,7 @@ export function MediaLightbox(props: {
   url: string;
   label: string;
   onClose: () => void;
+  imageMenu?: ((image: ReactElement) => ReactElement) | undefined;
 }): ReactElement | null {
   const titleId = useId();
 
@@ -148,6 +102,11 @@ export function MediaLightbox(props: {
         // Keep parent collapsible / message click handlers from seeing this.
         event.stopPropagation();
       }}
+      onContextMenu={(event) => {
+        // Portaled DOM is still a React child of the transcript bubble.
+        // Stop so the message menu does not steal the image right-click.
+        event.stopPropagation();
+      }}
     >
       <div
         className="media-lightbox-stage"
@@ -169,12 +128,19 @@ export function MediaLightbox(props: {
         >
           <IconClose width={18} height={18} />
         </button>
-        <img
-          className="media-lightbox-image"
-          src={props.url}
-          alt={props.label}
-          data-testid="media-lightbox-image"
-        />
+        {(() => {
+          const image = (
+            <div className="media-lightbox-image-hit">
+              <img
+                className="media-lightbox-image"
+                src={props.url}
+                alt={props.label}
+                data-testid="media-lightbox-image"
+              />
+            </div>
+          );
+          return props.imageMenu ? props.imageMenu(image) : image;
+        })()}
       </div>
     </div>,
     document.body,
@@ -196,6 +162,7 @@ export function MediaPreview(props: {
   const previewRead = useMediaPreviewRead();
   const sessionId = props.sessionId ?? previewRead.sessionId;
   const readMedia = props.readMedia ?? previewRead.readMedia;
+  const localFileActions = useLocalFileActions();
   const [thumbUrl, setThumbUrl] = useState<string | null>(props.previewUrl ?? null);
   const [fullUrl, setFullUrl] = useState<string | null>(
     props.lightboxUrl ?? props.previewUrl ?? null,
@@ -316,9 +283,23 @@ export function MediaPreview(props: {
     event.preventDefault();
     event.stopPropagation();
     const targetUrl = fullUrl ?? thumbUrl;
-    if (!targetUrl) return;
-    downloadMediaFile(targetUrl, fileLabel);
+    void saveMediaImageAs({
+      fileName: fileLabel,
+      ...(targetUrl ? { srcUrl: targetUrl } : {}),
+      ...(props.attachment.path ? { absolutePath: props.attachment.path } : {}),
+      ...(localFileActions?.saveAs ? { saveLocalPath: localFileActions.saveAs } : {}),
+    });
   }
+
+  const imageTarget = useMemo(
+    () =>
+      buildMediaImageTarget({
+        attachment: props.attachment,
+        sessionId,
+        srcUrl: fullUrl,
+      }),
+    [fullUrl, props.attachment, sessionId],
+  );
 
   if (isFileCard) {
     return (
@@ -339,7 +320,14 @@ export function MediaPreview(props: {
   }
 
   if (mediaLoading) {
-    return <span data-media-preview-loading="true" aria-hidden="true" />;
+    return (
+      <span
+        className={props.hero ? 'media-preview-loading is-hero' : 'media-preview-loading'}
+        data-media-preview-loading="true"
+        data-testid="media-preview-loading"
+        aria-hidden="true"
+      />
+    );
   }
 
   if (!thumbUrl || loadFailed) {
@@ -389,81 +377,108 @@ export function MediaPreview(props: {
   const showToolbar = !props.compact && isAssistant && !loadFailed && Boolean(thumbUrl);
 
   return (
-    <div
-      className={
-        props.compact
-          ? 'media-chip-container'
-          : `media-preview-container${props.hero ? ' is-hero' : ''}`
-      }
-      data-testid="media-preview-container"
-    >
-      <button
-        type="button"
-        className={
-          props.compact
-            ? 'media-chip-thumb-button'
-            : `media-preview-image-button${props.hero ? ' is-hero' : ''}`
-        }
-        onClick={openLightbox}
-        onMouseDown={(event) => event.stopPropagation()}
-        aria-label={`Preview ${fileLabel}`}
-        data-testid="media-preview-open"
+    <>
+      <MediaImageContextMenu
+        target={imageTarget}
+        onOpen={() => {
+          if (canOpenLightbox) {
+            setLightboxOpen(true);
+          }
+        }}
       >
-        <img
+        <div
           className={
             props.compact
-              ? 'media-chip-thumb'
-              : `media-preview-image${props.hero ? ' is-hero' : ''}`
+              ? 'media-chip-container'
+              : `media-preview-container${props.hero ? ' is-hero' : ''}`
           }
-          src={thumbUrl}
-          alt={fileLabel}
-          decoding="async"
-          draggable={false}
-          onError={() => setLoadFailed(true)}
-        />
-      </button>
-
-      {showToolbar ? (
-        <div
-          className="media-preview-toolbar"
-          role="toolbar"
-          aria-label={isChinese ? '图片操作' : 'Media actions'}
-          onClick={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
+          data-testid="media-preview-container"
         >
           <button
             type="button"
-            className={`media-preview-toolbar-btn${copied ? ' copied' : ''}`}
-            title={copied ? (isChinese ? '已复制' : 'Copied!') : isChinese ? '复制图片' : 'Copy image'}
-            aria-label={isChinese ? '复制图片' : 'Copy image'}
-            onClick={handleCopy}
-          >
-            {copied ? <IconCheck width={14} height={14} /> : <IconCopy width={14} height={14} />}
-          </button>
-          <button
-            type="button"
-            className="media-preview-toolbar-btn"
-            title={isChinese ? '下载图片' : 'Download image'}
-            aria-label={isChinese ? '下载图片' : 'Download image'}
-            onClick={handleDownload}
-          >
-            <IconDownload width={14} height={14} />
-          </button>
-          <button
-            type="button"
-            className="media-preview-toolbar-btn"
-            title={isChinese ? '全屏查看' : 'Fullscreen preview'}
-            aria-label={isChinese ? '全屏查看' : 'Fullscreen preview'}
+            className={
+              props.compact
+                ? 'media-chip-thumb-button'
+                : `media-preview-image-button${props.hero ? ' is-hero' : ''}`
+            }
             onClick={openLightbox}
+            onMouseDown={(event) => event.stopPropagation()}
+            aria-label={`Preview ${fileLabel}`}
+            data-testid="media-preview-open"
           >
-            <IconExpand width={14} height={14} />
+            <img
+              className={
+                props.compact
+                  ? 'media-chip-thumb'
+                  : `media-preview-image${props.hero ? ' is-hero' : ''}`
+              }
+              src={thumbUrl}
+              alt={fileLabel}
+              decoding="async"
+              draggable={false}
+              onError={() => setLoadFailed(true)}
+            />
           </button>
-        </div>
-      ) : null}
 
+          {showToolbar ? (
+            <div
+              className="media-preview-toolbar"
+              role="toolbar"
+              aria-label={isChinese ? '图片操作' : 'Media actions'}
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                className={`media-preview-toolbar-btn${copied ? ' copied' : ''}`}
+                title={copied ? (isChinese ? '已复制' : 'Copied!') : isChinese ? '复制图片' : 'Copy image'}
+                aria-label={isChinese ? '复制图片' : 'Copy image'}
+                onClick={handleCopy}
+              >
+                {copied ? <IconCheck width={14} height={14} /> : <IconCopy width={14} height={14} />}
+              </button>
+              <button
+                type="button"
+                className="media-preview-toolbar-btn"
+                title={isChinese ? '下载图片' : 'Download image'}
+                aria-label={isChinese ? '下载图片' : 'Download image'}
+                onClick={handleDownload}
+              >
+                <IconDownload width={14} height={14} />
+              </button>
+              <button
+                type="button"
+                className="media-preview-toolbar-btn"
+                title={isChinese ? '全屏查看' : 'Fullscreen preview'}
+                aria-label={isChinese ? '全屏查看' : 'Fullscreen preview'}
+                onClick={openLightbox}
+              >
+                <IconExpand width={14} height={14} />
+              </button>
+            </div>
+          ) : null}
+        </div>
+      </MediaImageContextMenu>
       {lightboxOpen && fullUrl ? (
-        <MediaLightbox open={lightboxOpen} url={fullUrl} label={fileLabel} onClose={closeLightbox} />
+        <MediaLightbox
+          open={lightboxOpen}
+          url={fullUrl}
+          label={fileLabel}
+          onClose={closeLightbox}
+          imageMenu={(image) => (
+            <MediaImageContextMenu
+              target={buildMediaImageTarget({
+                attachment: props.attachment,
+                sessionId,
+                srcUrl: fullUrl,
+                inLightbox: true,
+              })}
+            >
+              {image}
+            </MediaImageContextMenu>
+          )}
+        />
       ) : null}
-    </div>
+    </>
   );
 }

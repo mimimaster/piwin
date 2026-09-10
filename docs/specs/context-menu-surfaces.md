@@ -128,7 +128,8 @@ export type ContextMenuSurface =
   | 'diff-row'
   | 'tool-card'
   | 'terminal-selection'
-  | 'error';
+  | 'error'
+  | 'media-image';
 ```
 
 ### 5.2 Action ids
@@ -146,7 +147,9 @@ export type ContextMenuActionId =
   | 'fix-error'
   | 'open'
   | 'reveal'
+  | 'save-as'
   | 'copy'
+  | 'copy-image'
   | 'copy-relative-path'
   | 'copy-absolute-path'
   | 'quote-in-composer'
@@ -258,15 +261,11 @@ P1: `explain` (summarize directory). **Do not** ship New File.
 
 | Order | Action | Notes |
 |------:|--------|-------|
-| 1 | `ask-about` | primary |
-| 2 | `explain` | auto-send preset |
-| 3 | `fix` | auto-send preset |
+| 1 | `generate-flashcard` | auto-send preset |
+| 2 | `add-to-chat` | chip only |
+| 3 | `side-chat` | inherit main-session context; quote lands as a composer capsule |
 | — | separator | |
-| 4 | `add-to-chat` | chip only |
-| 5 | `side-chat` | if Side Chat available; else hide |
-| — | separator | |
-| 6 | `copy-as-ref` | `path#L-L` or label |
-| 7 | `copy` | selected text |
+| 4 | `copy` | selected text |
 
 Mapping: path + line range -> prefer `kind:'file'`; text only -> `kind:'selection'`.
 
@@ -280,6 +279,21 @@ Mapping: path + line range -> prefer `kind:'file'`; text only -> `kind:'selectio
 | 3 | `copy-relative-path` |
 | 4 | `copy-absolute-path` |
 | 5 | `reveal` |
+
+#### media-image (chat preview, lightbox, library tile)
+
+Vault images are not a `PromptContextRef`. Add to Chat attaches the existing `MediaAttachmentRef` to the composer (ready chip, no re-upload). Save As uses the original bytes (local path or `media/read` full), never a grid thumb.
+
+| Order | Action | When |
+|------:|--------|------|
+| 1 | `save-as` | local path, full URL, or Host `media/read` |
+| 2 | `copy-image` | pixels to clipboard (PNG) |
+| 3 | `open` | hide when already in the lightbox |
+| — | separator | |
+| 4 | `add-to-chat` | active session; composer takes the vault attachment |
+| 5 | `ask-about` | same + focus composer |
+| — | separator | |
+| 6 | `reveal` | local Desktop disk; disabled with hint when remote |
 
 ### 5.5 P1 menus
 

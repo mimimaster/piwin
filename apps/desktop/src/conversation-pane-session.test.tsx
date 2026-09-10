@@ -251,6 +251,11 @@ describe('ConversationPaneSession', () => {
 
     const textarea = container?.querySelector<HTMLTextAreaElement>('textarea');
     if (!textarea) throw new Error('pane composer missing');
+    const transcript = container?.querySelector<HTMLElement>(
+      '[data-testid="conversation-pane-transcript"]',
+    );
+    if (!transcript) throw new Error('pane transcript missing');
+    Object.defineProperty(transcript, 'clientWidth', { configurable: true, value: 640 });
     act(() => {
       const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
       if (!setter) throw new Error('textarea value setter missing');
@@ -267,7 +272,8 @@ describe('ConversationPaneSession', () => {
             (command) =>
               command.type === 'session/prompt' &&
               command.sessionId === 'session-aux' &&
-              command.input.text === 'Independent prompt',
+              command.input.text === 'Independent prompt' &&
+              command.input.inlineArtifactWidthPx === 640,
           ),
         ).toBe(true),
       );

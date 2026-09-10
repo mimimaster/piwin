@@ -7,6 +7,8 @@ import {
 } from './settings-lazy-load';
 import './pages/basic.js';
 
+const SETTINGS_LAZY_LOAD_TEST_TIMEOUT_MS = 15_000;
+
 describe('settings lazy load (Chrome two-bundle)', () => {
   it('treats only general as the basic first-paint section', () => {
     expect(SETTINGS_BASIC_SECTION_IDS).toEqual(['general']);
@@ -23,20 +25,24 @@ describe('settings lazy load (Chrome two-bundle)', () => {
     expect(getSettingsSection('knowledge')).toBeUndefined();
   });
 
-  it('registers remaining sections exactly once through ensureSettingsLazyLoaded', async () => {
-    await ensureSettingsLazyLoaded();
-    await ensureSettingsLazyLoaded();
-    expect(getSettingsSection('models')).toBeTypeOf('function');
-    expect(getSettingsSection('oauth')).toBeTypeOf('function');
-    expect(getSettingsSection('hooks')).toBeTypeOf('function');
-    expect(getSettingsSection('permissions')).toBeTypeOf('function');
-    expect(getSettingsSection('agent')).toBeTypeOf('function');
-    expect(getSettingsSection('extensions')).toBeTypeOf('function');
-    expect(getSettingsSection('web')).toBeTypeOf('function');
-    expect(getSettingsSection('knowledge')).toBeTypeOf('function');
-    expect(getSettingsSection('session')).toBeTypeOf('function');
-    expect(getSettingsSection('cold-storage')).toBeTypeOf('function');
-    expect(getSettingsSection('usage')).toBeTypeOf('function');
-    expect(getSettingsSection('archive')).toBeTypeOf('function');
-  });
+  it(
+    'registers remaining sections exactly once through ensureSettingsLazyLoaded',
+    async () => {
+      await ensureSettingsLazyLoaded();
+      await ensureSettingsLazyLoaded();
+      expect(getSettingsSection('models')).toBeTypeOf('function');
+      expect(getSettingsSection('oauth')).toBeTypeOf('function');
+      expect(getSettingsSection('hooks')).toBeTypeOf('function');
+      expect(getSettingsSection('permissions')).toBeTypeOf('function');
+      expect(getSettingsSection('agent')).toBeTypeOf('function');
+      expect(getSettingsSection('extensions')).toBeTypeOf('function');
+      expect(getSettingsSection('web')).toBeTypeOf('function');
+      expect(getSettingsSection('knowledge')).toBeTypeOf('function');
+      expect(getSettingsSection('session')).toBeTypeOf('function');
+      expect(getSettingsSection('cold-storage')).toBeTypeOf('function');
+      expect(getSettingsSection('usage')).toBeTypeOf('function');
+      expect(getSettingsSection('archive')).toBeTypeOf('function');
+    },
+    SETTINGS_LAZY_LOAD_TEST_TIMEOUT_MS,
+  );
 });

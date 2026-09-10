@@ -139,7 +139,7 @@ describe('WalkthroughCard', () => {
     expect(btn?.getAttribute('role')).toBe('button');
     expect(btn?.getAttribute('aria-label')).toBe('View as document');
     expect(btn?.querySelector('button')).toBeNull();
-    expect(container.querySelector('.walkthrough-card-footer')?.textContent).toContain('Open full document');
+    expect(container.querySelector('.walkthrough-card-footer')?.textContent).toContain('View as document');
     act(() => {
       btn?.click();
     });

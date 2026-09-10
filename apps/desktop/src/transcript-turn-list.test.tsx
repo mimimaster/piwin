@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TranscriptScrollProvider } from './transcript-scroll-port';
 import {
   createTranscriptRangeExtractor,
+  shouldAdjustTranscriptScrollOnItemSizeChange,
   shouldVirtualizeTranscript,
   TRANSCRIPT_VIRTUALIZATION_THRESHOLD,
   TRANSCRIPT_TURN_GAP_PX,
@@ -405,6 +406,88 @@ describe('transcript turn window', () => {
     expect(container.querySelector<HTMLElement>('.transcript-turn-window')?.style.height)
       .toBe('6920px');
     expect(committedHeights.at(-1)).toBe('6920px');
+  });
+});
+
+describe('shouldAdjustTranscriptScrollOnItemSizeChange', () => {
+  function createInstance(options: {
+    scrollDirection: 'forward' | 'backward' | null;
+    scrollOffset: number;
+    measuredKeys?: Array<string | number>;
+  }) {
+    const itemSizeCache = new Map<string | number | bigint, number>();
+    for (const key of options.measuredKeys ?? []) {
+      itemSizeCache.set(key, 140);
+    }
+    return {
+      scrollDirection: options.scrollDirection,
+      scrollAdjustments: 0,
+      scrollOffset: options.scrollOffset,
+      itemSizeCache,
+    };
+  }
+
+  it('does not compensate above-fold first measures while scrolling into history', () => {
+    expect(
+      shouldAdjustTranscriptScrollOnItemSizeChange(
+        { key: 'turn-older', start: 8_000, size: 140 },
+        1_860,
+        createInstance({ scrollDirection: 'backward', scrollOffset: 9_200 }),
+        false,
+      ),
+    ).toBe(false);
+  });
+
+  it('still compensates an above-fold first measure while following the tail', () => {
+    expect(
+      shouldAdjustTranscriptScrollOnItemSizeChange(
+        { key: 'turn-older', start: 8_000, size: 140 },
+        1_860,
+        createInstance({ scrollDirection: null, scrollOffset: 9_200 }),
+        true,
+      ),
+    ).toBe(true);
+  });
+
+  it('does not restick a first measure after the user has left the tail', () => {
+    expect(
+      shouldAdjustTranscriptScrollOnItemSizeChange(
+        { key: 'turn-image', start: 7_200, size: 140 },
+        304,
+        createInstance({ scrollDirection: null, scrollOffset: 8_800 }),
+        false,
+      ),
+    ).toBe(false);
+  });
+
+  it('preserves in-place reading when a history row above the fold remasures', () => {
+    expect(
+      shouldAdjustTranscriptScrollOnItemSizeChange(
+        { key: 'turn-older', start: 2_000, size: 140 },
+        80,
+        createInstance({
+          scrollDirection: null,
+          scrollOffset: 8_800,
+          measuredKeys: ['turn-older'],
+        }),
+        false,
+      ),
+    ).toBe(true);
+  });
+
+  it('does not shift a spanning remasure (live tail growth) while following', () => {
+    expect(
+      shouldAdjustTranscriptScrollOnItemSizeChange(
+        { key: 'turn-tail', start: 9_400, size: 600 },
+        80,
+        createInstance({
+          scrollDirection: null,
+          scrollOffset: 9_200,
+          measuredKeys: ['turn-tail'],
+        }),
+        true,
+      ),
+    ).toBe(false);
   });
 });
 

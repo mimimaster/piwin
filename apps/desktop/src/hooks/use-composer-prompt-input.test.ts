@@ -46,6 +46,21 @@ function readPromptInput(
 }
 
 describe('useComposerPromptInput permissionPreset', () => {
+  it('carries the active transcript width without changing the user text', () => {
+    const root = document.createElement('div');
+    root.dataset.artifactLayoutSession = 'width-session';
+    Object.defineProperty(root, 'clientWidth', { value: 680 });
+    document.body.append(root);
+    try {
+      const input = readPromptInput({
+        state: { ...createInitialChatUiState(), activeSessionId: 'width-session' },
+      });
+      expect(input.inlineArtifactWidthPx).toBe(680);
+      expect(input.text).toBe('edit the file');
+    } finally {
+      root.remove();
+    }
+  });
   it('sends composer Ask on project prompts so Host can gate tools', () => {
     const input = readPromptInput({ permissionPreset: 'ask' });
     expect(input.permissionPreset).toBe('ask');

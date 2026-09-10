@@ -215,6 +215,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     handlePickFiles: attachments.handlePickFiles,
     handlePickImageFiles: attachments.handlePickImageFiles,
     addWebElement: attachments.addWebElement,
+    addExistingMediaAttachment: attachments.addExistingMediaAttachment,
     handleSend,
     retryPendingAttachment: attachments.retryPendingAttachment,
     retryFailedAttachments: attachments.retryFailedAttachments,

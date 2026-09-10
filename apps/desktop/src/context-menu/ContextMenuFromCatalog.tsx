@@ -20,9 +20,12 @@ import {
   IconCode,
   IconCommentPlus,
   IconCopy,
+  IconDownload,
+  IconExpand,
   IconFile,
   IconFileDiff,
   IconFolder,
+  IconImage,
   IconLink,
   IconMore,
   IconRefresh,
@@ -77,6 +80,10 @@ function renderActionIcon(iconName: string | undefined): ReactNode {
       return <IconFolder width={14} height={14} />;
     case 'copy':
       return <IconCopy width={14} height={14} />;
+    case 'download':
+      return <IconDownload width={14} height={14} />;
+    case 'expand':
+      return <IconExpand width={14} height={14} />;
     case 'comment-plus':
       return <IconCommentPlus width={14} height={14} />;
     case 'refresh':
@@ -94,7 +101,31 @@ function renderActionIcon(iconName: string | undefined): ReactNode {
   }
 }
 
-function renderTargetHeader(target: ContextMenuTarget): ReactNode {
+const OPAQUE_ASSET_LABEL = /^(remote-asset:|asset:|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4})/i;
+
+/** A generated / remote image often has no real name — show a format word,
+ * never a bare `remote-asset:<uuid>`. */
+function mediaImageHeaderLabel(
+  label: string,
+  mimeType: string | undefined,
+  locale: ContextMenuCapabilities['locale'],
+): string {
+  const trimmed = label.trim();
+  if (trimmed && !OPAQUE_ASSET_LABEL.test(trimmed)) {
+    return trimmed;
+  }
+  const format = (mimeType?.split('/')[1] ?? '').split('+')[0]?.toUpperCase();
+  const known = format && /^[A-Z0-9]{2,5}$/.test(format) ? format : '';
+  if (locale === 'zh-CN') {
+    return known ? `${known} 图片` : '图片';
+  }
+  return known ? `${known} image` : 'Image';
+}
+
+function renderTargetHeader(
+  target: ContextMenuTarget,
+  locale: ContextMenuCapabilities['locale'],
+): ReactNode {
   let icon: ReactNode = null;
   let labelText = '';
 
@@ -108,16 +139,10 @@ function renderTargetHeader(target: ContextMenuTarget): ReactNode {
       icon = <IconFolder width={12} height={12} />;
       labelText = target.label;
       break;
-    case 'selection': {
-      icon = <IconCode width={12} height={12} />;
-      const len = target.selectedText.length;
-      if (target.lineStart !== undefined && target.lineEnd !== undefined) {
-        labelText = `${target.label} (L${target.lineStart}-${target.lineEnd})`;
-      } else {
-        labelText = target.label ? `${target.label} (${len} chars)` : `${len} chars selected`;
-      }
-      break;
-    }
+    case 'selection':
+      // Selection is already highlighted in the transcript; a header that
+      // repeats the snippet plus a char count is noise.
+      return null;
     case 'code-block':
       icon = <IconCode width={12} height={12} />;
       labelText = target.label || 'Code Block';
@@ -145,6 +170,10 @@ function renderTargetHeader(target: ContextMenuTarget): ReactNode {
     case 'error':
       icon = <IconAlertCircle width={12} height={12} />;
       labelText = target.label || target.title || 'Error';
+      break;
+    case 'media-image':
+      icon = <IconImage width={12} height={12} />;
+      labelText = mediaImageHeaderLabel(target.label, target.mimeType, locale);
       break;
     default:
       return null;
@@ -191,6 +220,7 @@ function renderItems(
         danger={entry.danger === true}
         {...(entry.icon ? { icon: renderActionIcon(entry.icon) } : {})}
         {...(entry.shortcut ? { shortcut: entry.shortcut } : {})}
+        {...(entry.title ? { title: entry.title } : {})}
         onSelect={() => dispatchContextMenuAction(entry.id, target, dispatchers)}
       >
         {entry.label}
@@ -211,7 +241,7 @@ function CatalogContent(props: {
   }
   return (
     <>
-      {renderTargetHeader(target)}
+      {renderTargetHeader(target, props.caps.locale)}
       {renderItems(buildContextMenuItems(target, props.caps), target, props.dispatchers)}
     </>
   );

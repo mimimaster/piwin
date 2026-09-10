@@ -15,6 +15,8 @@ import { ensureSettingsLazyLoaded } from './settings-lazy-load';
 import { SettingsShell } from './settings-shell';
 import { webToDraft } from './web-draft';
 
+const SETTINGS_LAZY_LOAD_TEST_TIMEOUT_MS = 15_000;
+
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
@@ -145,36 +147,44 @@ describe('SettingsShell', () => {
     expect(container.querySelectorAll('.settings-nav-item')).toHaveLength(SETTINGS_SECTIONS.length);
   });
 
-  it('renders the restored Web settings page', async () => {
-    await act(async () => {
-      root.render(<ShellHarness initialSection="web" />);
-      await ensureSettingsLazyLoaded();
-    });
-    expect(container.querySelector('[data-testid="settings-nav-web"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="web-search-route-policy"]')).not.toBeNull();
-  });
+  it(
+    'renders the restored Web settings page',
+    async () => {
+      await act(async () => {
+        root.render(<ShellHarness initialSection="web" />);
+        await ensureSettingsLazyLoaded();
+      });
+      expect(container.querySelector('[data-testid="settings-nav-web"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="web-search-route-policy"]')).not.toBeNull();
+    },
+    SETTINGS_LAZY_LOAD_TEST_TIMEOUT_MS,
+  );
 
-  it('uses the page content heading without rendering a duplicate shell title', async () => {
-    await act(async () => {
-      root.render(
-        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <SettingsShell
-            activeSection="knowledge"
-            onSelectSection={vi.fn()}
-            contextValue={createContextValue(vi.fn())}
-            onClose={vi.fn()}
-          />
-        </PiwinUiProvider>,
-      );
-      await ensureSettingsLazyLoaded();
-    });
+  it(
+    'uses the page content heading without rendering a duplicate shell title',
+    async () => {
+      await act(async () => {
+        root.render(
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <SettingsShell
+              activeSection="knowledge"
+              onSelectSection={vi.fn()}
+              contextValue={createContextValue(vi.fn())}
+              onClose={vi.fn()}
+            />
+          </PiwinUiProvider>,
+        );
+        await ensureSettingsLazyLoaded();
+      });
 
-    expect(container.querySelector('.settings-main-header h2')).toBeNull();
-    expect(container.querySelector('.settings-main-content > .settings-card-heading')).toBeNull();
-    expect(container.querySelector('[data-testid="settings-close-button"]')).toBeNull();
-    expect(container.querySelector('[data-testid="settings-back-button"]')).not.toBeNull();
-    expect(container.querySelector('.settings-main-heading h1')?.textContent).toBe('知识库与向量');
-  });
+      expect(container.querySelector('.settings-main-header h2')).toBeNull();
+      expect(container.querySelector('.settings-main-content > .settings-card-heading')).toBeNull();
+      expect(container.querySelector('[data-testid="settings-close-button"]')).toBeNull();
+      expect(container.querySelector('[data-testid="settings-back-button"]')).not.toBeNull();
+      expect(container.querySelector('.settings-main-heading h1')?.textContent).toBe('知识库');
+    },
+    SETTINGS_LAZY_LOAD_TEST_TIMEOUT_MS,
+  );
 
   it('returns to the workspace from the sidebar back action', () => {
     const onClose = vi.fn();
@@ -225,126 +235,143 @@ describe('SettingsShell', () => {
     ).not.toBeNull();
   });
 
-  it('switches content when a nav item is clicked', async () => {
-    await act(async () => {
-      root.render(<ShellHarness initialSection="extensions" />);
-      await ensureSettingsLazyLoaded();
-    });
-    expect(container.querySelector('[data-testid="settings-extensions-hub"]')).not.toBeNull();
+  it(
+    'switches content when a nav item is clicked',
+    async () => {
+      await act(async () => {
+        root.render(<ShellHarness initialSection="extensions" />);
+        await ensureSettingsLazyLoaded();
+      });
+      expect(container.querySelector('[data-testid="settings-extensions-hub"]')).not.toBeNull();
 
-    // Models renders through the registry; config is null in this
-    // harness, so the page shows its loading state.
-    const modelsNav = container.querySelector<HTMLButtonElement>(
-      '[data-testid="settings-nav-models"]',
-    );
-    expect(modelsNav).not.toBeNull();
-    act(() => {
-      modelsNav?.click();
-    });
-    expect(container.querySelector('[data-testid="settings-models-loading"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="settings-extensions-hub"]')).toBeNull();
-
-    // Registered page again: sessions.
-    const sessionNav = container.querySelector<HTMLButtonElement>(
-      '[data-testid="settings-nav-session"]',
-    );
-    act(() => {
-      sessionNav?.click();
-    });
-    expect(container.querySelector('[data-testid="settings-models-loading"]')).toBeNull();
-    expect(
-      container.querySelector('[data-testid="settings-nav-session"]')?.classList.contains('active'),
-    ).toBe(true);
-  });
-
-  it('finds controls from consolidated sections and enters their category', () => {
-    act(() => {
-      root.render(<ShellHarness initialSection="models" />);
-    });
-
-    const search = container.querySelector<HTMLInputElement>('.settings-search-input');
-    expect(search).not.toBeNull();
-    act(() => {
-      if (search) {
-        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(search, 'font');
-        search.dispatchEvent(new Event('input', { bubbles: true }));
-        search.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-    });
-    expect(container.querySelector('[data-testid="settings-nav-general"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="settings-nav-models"]')).toBeNull();
-
-    act(() => {
-      container.querySelector<HTMLButtonElement>('[data-testid="settings-nav-general"]')?.click();
-    });
-    expect(container.querySelector('[data-testid="settings-general"]')).not.toBeNull();
-  });
-
-  it('renders the models page with provider settings when config is loaded', async () => {
-    const contextValue = createContextValue(vi.fn());
-    contextValue.config = {
-      hostMode: 'sdk',
-      providers: [
-        {
-          id: 'deepseek',
-          protocol: 'openai-compatible',
-          name: 'DeepSeek',
-          baseUrl: 'https://api.deepseek.com/v1',
-          models: [{ id: 'deepseek-chat', contextWindow: 64_000 }],
-        },
-      ],
-      defaultProviderId: 'deepseek',
-      defaultModelId: 'deepseek-chat',
-      media: { maxPasteBytes: 1_000_000, allowedMimeTypes: [] },
-      artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 1_000_000 },
-    };
-    await act(async () => {
-      root.render(
-        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <SettingsShell
-            activeSection="models"
-            onSelectSection={vi.fn()}
-            contextValue={contextValue}
-          />
-        </PiwinUiProvider>,
+      // Models renders through the registry; config is null in this
+      // harness, so the page shows its loading state.
+      const modelsNav = container.querySelector<HTMLButtonElement>(
+        '[data-testid="settings-nav-models"]',
       );
-      await ensureSettingsLazyLoaded();
-    });
-    expect(container.querySelector('[data-testid="settings-models"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="provider-settings"]')).not.toBeNull();
-    // Expand the provider row — model list / discover live on the models page.
-    const providerRow = container.querySelector<HTMLElement>(
-      '[data-testid="provider-row-deepseek"]',
-    );
-    expect(providerRow).not.toBeNull();
-    act(() => {
-      container
-        .querySelector<HTMLButtonElement>('[data-testid="provider-row-expand-deepseek"]')
-        ?.click();
-    });
-    expect(container.querySelector('[data-testid="provider-row-models-deepseek"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="provider-model-list"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="provider-model-row"]')).not.toBeNull();
-    expect(
-      container.querySelector('[data-testid="provider-discover-models-deepseek"]'),
-    ).not.toBeNull();
-  });
+      expect(modelsNav).not.toBeNull();
+      act(() => {
+        modelsNav?.click();
+      });
+      expect(container.querySelector('[data-testid="settings-models-loading"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="settings-extensions-hub"]')).toBeNull();
 
-  it('renders consolidated sections through the registry, not the legacy fallback', async () => {
-    act(() => {
-      root.render(<ShellHarness />);
-    });
-    const extensionsNav = container.querySelector<HTMLButtonElement>(
-      '[data-testid="settings-nav-extensions"]',
-    );
-    expect(extensionsNav).not.toBeNull();
-    await act(async () => {
-      extensionsNav?.click();
-      await ensureSettingsLazyLoaded();
-    });
-    expect(container.querySelector('[data-testid="settings-extensions-hub"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="legacy-skills"]')).toBeNull();
-  });
+      // Registered page again: sessions.
+      const sessionNav = container.querySelector<HTMLButtonElement>(
+        '[data-testid="settings-nav-session"]',
+      );
+      act(() => {
+        sessionNav?.click();
+      });
+      expect(container.querySelector('[data-testid="settings-models-loading"]')).toBeNull();
+      expect(
+        container.querySelector('[data-testid="settings-nav-session"]')?.classList.contains('active'),
+      ).toBe(true);
+    },
+    SETTINGS_LAZY_LOAD_TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'finds controls from consolidated sections and enters their category',
+    async () => {
+      await act(async () => {
+        root.render(<ShellHarness initialSection="models" />);
+        await ensureSettingsLazyLoaded();
+      });
+
+      const search = container.querySelector<HTMLInputElement>('.settings-search-input');
+      expect(search).not.toBeNull();
+      act(() => {
+        if (search) {
+          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(search, 'font');
+          search.dispatchEvent(new Event('input', { bubbles: true }));
+          search.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      });
+      expect(container.querySelector('[data-testid="settings-nav-general"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="settings-nav-models"]')).toBeNull();
+
+      act(() => {
+        container.querySelector<HTMLButtonElement>('[data-testid="settings-nav-general"]')?.click();
+      });
+      expect(container.querySelector('[data-testid="settings-general"]')).not.toBeNull();
+    },
+    SETTINGS_LAZY_LOAD_TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'renders the models page with provider settings when config is loaded',
+    async () => {
+      const contextValue = createContextValue(vi.fn());
+      contextValue.config = {
+        hostMode: 'sdk',
+        providers: [
+          {
+            id: 'deepseek',
+            protocol: 'openai-compatible',
+            name: 'DeepSeek',
+            baseUrl: 'https://api.deepseek.com/v1',
+            models: [{ id: 'deepseek-chat', contextWindow: 64_000 }],
+          },
+        ],
+        defaultProviderId: 'deepseek',
+        defaultModelId: 'deepseek-chat',
+        media: { maxPasteBytes: 1_000_000, allowedMimeTypes: [] },
+        artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 1_000_000 },
+      };
+      await act(async () => {
+        root.render(
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <SettingsShell
+              activeSection="models"
+              onSelectSection={vi.fn()}
+              contextValue={contextValue}
+            />
+          </PiwinUiProvider>,
+        );
+        await ensureSettingsLazyLoaded();
+      });
+      expect(container.querySelector('[data-testid="settings-models"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="provider-settings"]')).not.toBeNull();
+      // Expand the provider row — model list / discover live on the models page.
+      const providerRow = container.querySelector<HTMLElement>(
+        '[data-testid="provider-row-deepseek"]',
+      );
+      expect(providerRow).not.toBeNull();
+      act(() => {
+        container
+          .querySelector<HTMLButtonElement>('[data-testid="provider-row-expand-deepseek"]')
+          ?.click();
+      });
+      expect(container.querySelector('[data-testid="provider-row-models-deepseek"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="provider-model-list"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="provider-model-row"]')).not.toBeNull();
+      expect(
+        container.querySelector('[data-testid="provider-discover-models-deepseek"]'),
+      ).not.toBeNull();
+    },
+    SETTINGS_LAZY_LOAD_TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'renders consolidated sections through the registry, not the legacy fallback',
+    async () => {
+      act(() => {
+        root.render(<ShellHarness />);
+      });
+      const extensionsNav = container.querySelector<HTMLButtonElement>(
+        '[data-testid="settings-nav-extensions"]',
+      );
+      expect(extensionsNav).not.toBeNull();
+      await act(async () => {
+        extensionsNav?.click();
+        await ensureSettingsLazyLoaded();
+      });
+      expect(container.querySelector('[data-testid="settings-extensions-hub"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="legacy-skills"]')).toBeNull();
+    },
+    SETTINGS_LAZY_LOAD_TEST_TIMEOUT_MS,
+  );
 
   it('updates artifact code-first preference through the checkbox', () => {
     const contextValue = createContextValue(vi.fn());

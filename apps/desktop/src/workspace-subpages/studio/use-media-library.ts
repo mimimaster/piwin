@@ -10,6 +10,7 @@ export type UseMediaLibraryArgs = {
   request: MediaLibraryRequest;
   query: string;
   refreshToken: number;
+  isZh?: boolean;
 };
 
 export type MediaLibraryState = {
@@ -58,7 +59,7 @@ export function useMediaLibrary(args: UseMediaLibraryArgs): MediaLibraryState {
             setItems([]);
             setTotal(0);
             setCursor(undefined);
-            setError(hostNeedsRestart(response.error));
+            setError(hostNeedsRestart(response.error, args.isZh === true));
             return;
           }
           const data = readListData(response.data);
@@ -83,7 +84,7 @@ export function useMediaLibrary(args: UseMediaLibraryArgs): MediaLibraryState {
     return () => {
       window.clearTimeout(handle);
     };
-  }, [args.kind, args.query, args.refreshToken]);
+  }, [args.kind, args.query, args.refreshToken, args.isZh]);
 
   const loadMore = useCallback(() => {
     if (!cursor || loading || loadingMore) {
@@ -106,7 +107,7 @@ export function useMediaLibrary(args: UseMediaLibraryArgs): MediaLibraryState {
           return;
         }
         if (!response.success) {
-          setError(hostNeedsRestart(response.error));
+          setError(hostNeedsRestart(response.error, args.isZh === true));
           return;
         }
         const data = readListData(response.data);
@@ -125,7 +126,7 @@ export function useMediaLibrary(args: UseMediaLibraryArgs): MediaLibraryState {
           setLoadingMore(false);
         }
       });
-  }, [args.kind, args.query, cursor, loading, loadingMore]);
+  }, [args.kind, args.query, args.isZh, cursor, loading, loadingMore]);
 
   const deleteAsset = useCallback(
     async (item: Pick<MediaLibraryItem, 'sessionId' | 'assetId'>): Promise<boolean> => {
@@ -135,7 +136,7 @@ export function useMediaLibrary(args: UseMediaLibraryArgs): MediaLibraryState {
           input: { sessionId: item.sessionId, assetId: item.assetId },
         });
         if (!response.success) {
-          setError(hostNeedsRestart(response.error));
+          setError(hostNeedsRestart(response.error, args.isZh === true));
           return false;
         }
         setItems((prev) =>
@@ -151,7 +152,7 @@ export function useMediaLibrary(args: UseMediaLibraryArgs): MediaLibraryState {
         return false;
       }
     },
-    [],
+    [args.isZh],
   );
 
   return {
@@ -166,15 +167,21 @@ export function useMediaLibrary(args: UseMediaLibraryArgs): MediaLibraryState {
   };
 }
 
-function hostNeedsRestart(error: string): string {
+function hostNeedsRestart(error: string, isZh: boolean): string {
   if (error === 'Unhandled command') {
-    return 'Host 还是旧进程。请完全退出桌面应用再打开，不要只刷新窗口。';
+    return isZh
+      ? 'Host 还是旧进程。请完全退出桌面应用再打开，不要只刷新窗口。'
+      : 'The Host is still the old process. Fully quit and reopen the desktop app — a window refresh is not enough.';
   }
   if (error === 'Remote command payload was rejected: media/list') {
-    return '远程 Host 还不支持资料库（media/list）。请更新并重启 Host，再重新连接。';
+    return isZh
+      ? '远程 Host 还不支持资料库（media/list）。请更新并重启 Host，再重新连接。'
+      : "The remote Host doesn't support the library yet (media/list). Update and restart the Host, then reconnect.";
   }
   if (error.startsWith('Remote command payload was rejected:')) {
-    return '远程 Host 拒绝了资料库请求。请更新 Host 到最新版本后重试。';
+    return isZh
+      ? '远程 Host 拒绝了资料库请求。请更新 Host 到最新版本后重试。'
+      : 'The remote Host rejected the library request. Update the Host to the latest version and retry.';
   }
   return error;
 }

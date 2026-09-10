@@ -81,6 +81,32 @@ describe('estimateTranscriptTurnHeight', () => {
     ])[0];
     expect(estimateTranscriptTurnHeight(long)).toBeGreaterThan(estimateTranscriptTurnHeight(short));
   });
+
+  it('reserves space for an assistant image so first-measure is not a 0→hero jump', () => {
+    const textOnly = groupTranscriptTurns([
+      userMessage('u1', 'hi'),
+      assistantMessage('a1', 'done'),
+    ])[0];
+    const withImage = groupTranscriptTurns([
+      userMessage('u2', 'hi'),
+      {
+        ...assistantMessage('a2', 'done'),
+        attachments: [
+          {
+            id: 'img-1',
+            kind: 'media',
+            path: '/tmp/wall.png',
+            mimeType: 'image/png',
+            byteSize: 2_000_000,
+            source: 'generated',
+          },
+        ],
+      },
+    ])[0];
+    expect(estimateTranscriptTurnHeight(withImage)).toBeGreaterThan(
+      estimateTranscriptTurnHeight(textOnly),
+    );
+  });
 });
 
 describe('resolveTranscriptTurnEstimate', () => {

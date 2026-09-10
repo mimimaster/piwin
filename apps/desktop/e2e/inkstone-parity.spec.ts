@@ -85,6 +85,51 @@ test('inspector does not remove the full-window titlebar tools', async ({ page }
   expect(bodyWidth).toBeLessThanOrEqual(1000);
 });
 
+test('settings panels sit flush under the titleband like the main shell', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await boot(page);
+  await switchToPaper(page);
+  const workspace = await page.locator('.workspace').boundingBox();
+  expect(workspace).not.toBeNull();
+  if (!workspace) throw new Error('Missing workspace');
+
+  await page.getByRole('button', { name: '设置', exact: true }).click();
+  await expect(page.getByTestId('settings-appearance')).toBeVisible();
+
+  const dialog = page.locator('.settings-modal-dialog');
+  await expect(dialog).toHaveCSS('row-gap', '0px');
+  await expect(dialog).toHaveCSS('column-gap', '8px');
+
+  const title = await page.getByTestId('settings-titlebar').boundingBox();
+  const nav = await page.locator('.settings-nav').boundingBox();
+  const main = await page.locator('.settings-main').boundingBox();
+  expect(title).not.toBeNull();
+  expect(nav).not.toBeNull();
+  expect(main).not.toBeNull();
+  if (!title || !nav || !main) throw new Error('Missing settings chrome');
+  expect(title.height).toBe(30);
+  expect(nav.y).toBe(title.y + title.height);
+  expect(main.y).toBe(title.y + title.height);
+  expect(nav.y).toBe(workspace.y);
+
+  for (const section of ['permissions', 'web'] as const) {
+    await page.getByTestId(`settings-nav-${section}`).click();
+    const navBox = await page.locator('.settings-nav').boundingBox();
+    const mainBox = await page.locator('.settings-main').boundingBox();
+    expect(navBox?.y).toBe(title.y + title.height);
+    expect(mainBox?.y).toBe(title.y + title.height);
+  }
+
+  await page.setViewportSize({ width: 700, height: 800 });
+  const compactNav = await page.locator('.settings-nav').boundingBox();
+  expect(compactNav).not.toBeNull();
+  if (!compactNav) throw new Error('Missing compact settings nav');
+  const compactTitle = await page.getByTestId('settings-titlebar').boundingBox();
+  expect(compactTitle).not.toBeNull();
+  if (!compactTitle) throw new Error('Missing compact settings titlebar');
+  expect(compactNav.y).toBe(compactTitle.y + compactTitle.height);
+});
+
 test('appearance settings stay readable and the product mode controls work', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await boot(page);

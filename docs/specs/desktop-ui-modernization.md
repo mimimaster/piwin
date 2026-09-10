@@ -243,7 +243,7 @@ Update `apps/desktop/src-tauri/tauri.conf.json` only after native validation det
 - `apps/desktop/src/App.tsx`: compose shell layout hook; render `ShellOverlayScrim` only when a narrow overlay is open; pass explicitly controlled open/close props to sidebar and inspector.
 - `apps/desktop/src/app-rail.tsx`: retain icon rail but add a clearly labelled Conversations/Session navigation trigger that reports `aria-expanded` and controls the sidebar overlay at narrow widths. Keep tooltips; add a compact visible label in the narrow rail menu if room permits.
 - `apps/desktop/src/project-session-sidebar.tsx`: accept `overlayOpen`, `onCloseOverlay`, and `isOverlayPresentation`; render an accessible Close navigation button only in overlay mode. Do not hide the session menu button solely on hover for the active row or keyboard focus.
-- `apps/desktop/src/right-panel.tsx`: accept overlay props; render an explicit close control in overlay mode; retain normal close button on wide layouts. The `tabpanel` must have an ID and `aria-labelledby` matching the selected tab.
+- `apps/desktop/src/right-panel.tsx`: accept overlay props; render an explicit close control in overlay mode only. Wide layouts collapse the inspector via the titleband toggle, not a duplicate panel close control. The `tabpanel` must have an ID and `aria-labelledby` matching the selected tab.
 - `apps/desktop/src/SettingsPanel.tsx`: render `main` landmark with heading association. At narrow widths, replace persistent left navigation with a section picker or horizontally scrollable tab-style selector. The displayed Escape affordance must correspond to actual close behavior.
 
 ### 6.4 Command palette and shortcuts

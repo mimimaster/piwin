@@ -31,12 +31,11 @@ export function ProjectTrustNotice(props: ProjectTrustNoticeProps): ReactElement
     >
       {isChinese ? (
         <>
-          在信任 <code>{props.projectPath}</code> 之前，Agent 工具和 Shell 预览会保持封锁。信任范围仅限此项目。
+          信任 <code>{props.projectPath}</code> 后才能运行 Agent 工具与 Shell。
         </>
       ) : (
         <>
-          Agent tools and Shell preview stay blocked until you trust{' '}
-          <code>{props.projectPath}</code>. Trust is project-scoped.
+          Trust <code>{props.projectPath}</code> to run Agent tools and Shell.
         </>
       )}
     </Notice>

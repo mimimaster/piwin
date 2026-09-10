@@ -309,6 +309,28 @@ Canonical plan: `docs/plans/2026-08-24-artifact-rendering-convergence-execution-
 
 ## References
 
+### Send-time Inline layout reference (2026-09-10)
+
+Desktop composer prompts may carry `PromptInput.inlineArtifactWidthPx`, measured
+from the sending session's mounted transcript column in CSS pixels. Host accepts
+only finite positive widths up to 16384, rounds the reference, and prepends a
+model-facing layout block when Artifact is enabled. Original user text stays
+unchanged in the transcript; the assembly ledger records this contribution.
+The numeric field is removed before backend execution. SDK and RPC share this
+Host preparation path.
+
+The width is advisory: fluid roots, wrapping table cells, container queries,
+360px readability and adaptation below that remain required. Dense wide tables
+use Canvas. The hint never requests generation or overrides explicit-only mode.
+Resizing does not request another generation; the next composer send remeasures.
+Duplicate visible views of a session use the narrowest measured column.
+
+CLI, Mobile, side-chat's separate send path, drafts sent without a mounted main
+transcript, and other callers without geometry retain the generic responsive
+contract. No guessed viewport size or persisted global/session layout setting
+is used. Queued prompts retain their advisory send-time snapshot. Runtime CSS
+and surface routing are unchanged. Automatic overflow repair is deferred.
+
 - ADR 0005 (Artifact sandbox, streaming preview, media/image policy)
 - Plan: `docs/plans/2026-08-24-artifact-rendering-convergence-execution-plan.md`
 - Earlier Canvas-shell notes: `docs/plans/2026-08-03-artifact-surface-routing-canvas-shell.md`

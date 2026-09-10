@@ -12,6 +12,10 @@ import type {
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
 import type { HostClient } from './host-client.js';
 import { SideChatPanel } from './side-chat-panel.js';
+import {
+  publishSideChatComposerSeed,
+  resetSideChatComposerSeedForTests,
+} from './side-chat-composer-seed.js';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -176,6 +180,15 @@ class FakeHostClient {
         data: { sessionId: command.sessionId, messages: [] },
       });
     }
+    if (command.type === 'session/archive') {
+      this.listed = this.listed.filter((session) => session.id !== command.sessionId);
+      return Promise.resolve({
+        type: 'response',
+        command: command.type,
+        success: true,
+        data: { sessionId: command.sessionId },
+      });
+    }
     if (command.type === 'session/prompt') {
       return Promise.resolve({
         type: 'response',
@@ -193,6 +206,14 @@ class FakeHostClient {
   }
 }
 
+function panelInput(container: HTMLElement): HTMLTextAreaElement | null {
+  return container.querySelector('[data-testid="side-chat-panel"] [data-testid="composer-input"]');
+}
+
+function panelSend(container: HTMLElement): HTMLButtonElement | null {
+  return container.querySelector('[data-testid="side-chat-panel"] [data-testid="send-btn"]');
+}
+
 describe('SideChatPanel', () => {
   let root: Root | null = null;
   let container: HTMLDivElement | null = null;
@@ -202,6 +223,7 @@ describe('SideChatPanel', () => {
     container?.remove();
     root = null;
     container = null;
+    resetSideChatComposerSeedForTests();
   });
 
   it('lets the user type and pick a model before a side chat exists', async () => {
@@ -218,17 +240,21 @@ describe('SideChatPanel', () => {
     });
     await act(async () => {
       await vi.waitFor(() => {
+        expect(panelInput(container!)?.disabled).toBe(false);
+        expect(container?.querySelector('[data-testid="side-chat-empty"]')).not.toBeNull();
         expect(
-          container?.querySelector<HTMLTextAreaElement>('[data-testid="side-chat-input"]')
-            ?.disabled,
-        ).toBe(false);
+          container?.querySelector('[data-testid="side-chat-tab-draft"]') ??
+            document.querySelector('[data-testid="side-chat-tab-draft"]'),
+        ).not.toBeNull();
       });
     });
 
-    const textarea = container.querySelector<HTMLTextAreaElement>('[data-testid="side-chat-input"]');
+    const textarea = panelInput(container!);
     expect(textarea).not.toBeNull();
     expect(textarea?.disabled).toBe(false);
     expect(container.querySelector('[data-testid="thinking-effort-trigger"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="composer-card"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="composer-plus-btn"]')).toBeNull();
 
     act(() => {
       const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
@@ -237,7 +263,7 @@ describe('SideChatPanel', () => {
       textarea.dispatchEvent(new InputEvent('input', { bubbles: true }));
     });
     act(() => {
-      container?.querySelector<HTMLButtonElement>('[data-testid="side-chat-send"]')?.click();
+      panelSend(container!)?.click();
     });
     await act(async () => {
       await vi.waitFor(() => {
@@ -274,8 +300,68 @@ describe('SideChatPanel', () => {
         ).toBe(true);
       });
     });
-    expect(container.querySelector<HTMLTextAreaElement>('[data-testid="side-chat-input"]')?.disabled).toBe(
-      false,
+    expect(panelInput(container!)?.disabled).toBe(false);
+    expect(container.querySelector('[data-testid="side-chat-tab-side-existing"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="side-chat-tab-draft"]')).toBeNull();
+  });
+
+  it('does not show a second plus or a sync control in the tab strip', async () => {
+    const host = new FakeHostClient();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => {
+      root?.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <SideChatPanel sessionId="main-1" hostClient={host as unknown as HostClient} />
+        </PiwinUiProvider>,
+      );
+    });
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(panelInput(container!)).not.toBeNull();
+      });
+    });
+    expect(container.querySelector('[data-testid="side-chat-new"]')).toBeNull();
+    expect(container.querySelector('[data-testid="side-chat-sync"]')).toBeNull();
+  });
+
+  it('shows a selection capsule on the side-chat composer when opened with a quote', async () => {
+    const host = new FakeHostClient();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => {
+      root?.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <SideChatPanel sessionId="main-1" hostClient={host as unknown as HostClient} />
+        </PiwinUiProvider>,
+      );
+    });
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(panelInput(container!)).not.toBeNull();
+      });
+    });
+    act(() => {
+      publishSideChatComposerSeed({
+        sideChatSessionId: 'side-quoted',
+        refs: [
+          {
+            kind: 'selection',
+            snapshotText: '想要基于选中文本调整壁纸',
+            label: '想要基于选中文本调整壁纸',
+          },
+        ],
+      });
+    });
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(container?.querySelector('[data-testid="composer-context-chip"]')).not.toBeNull();
+      });
+    });
+    expect(container.querySelector('[data-testid="composer-context-chip"]')?.textContent).toContain(
+      '想要基于选中文本调整壁纸',
     );
   });
 });

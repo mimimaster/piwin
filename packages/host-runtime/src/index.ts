@@ -143,6 +143,7 @@ export { buildNotesTools } from './notes-tools.js';
 export type { BuildNotesToolsOptions } from './notes-tools.js';
 export { resolveNotesEmbeddingApiKey, resolveKnowledgeHttpApiKey } from './notes-embedding-secret.js';
 export { buildFlashcardTools } from './flashcard-tools.js';
+export { buildExtensionTools, type BuildExtensionToolsOptions } from './extension-tools.js';
 export type { BuildFlashcardToolsOptions } from './flashcard-tools.js';
 
 export {

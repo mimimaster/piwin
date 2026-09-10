@@ -137,6 +137,47 @@ describe('subscription auth port', () => {
     ]);
   });
 
+  it('projects thinkingLevelMap keys when thinkingLevels is absent', async () => {
+    const port = await createSubscriptionAuthPort({
+      authPath: '/tmp/auth.json',
+      createRuntime: async () =>
+        ({
+          listCredentials: async () => [{ providerId: 'openai-codex', type: 'oauth' }],
+          isUsingSubscription: () => true,
+          getModels: () => [],
+          getAvailableModels: () => [
+            {
+              id: 'gpt-6-astra',
+              name: 'GPT-6 Astra',
+              reasoning: true,
+              thinkingLevelMap: {
+                off: null,
+                minimal: 'low',
+                low: 'low',
+                medium: 'medium',
+                high: 'high',
+                xhigh: 'xhigh',
+                max: 'max',
+              },
+              input: ['text', 'image'],
+            },
+          ],
+          login: async () => undefined,
+          logout: async () => undefined,
+          refresh: async () => undefined,
+        }) as never,
+    });
+    expect(port.getChatCatalog('openai-codex')).toEqual([
+      {
+        id: 'gpt-6-astra',
+        name: 'GPT-6 Astra',
+        reasoning: true,
+        thinkingLevels: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
+        input: ['text', 'image'],
+      },
+    ]);
+  });
+
   it('fails refresh when Pi returns errors without throwing', async () => {
     const port = await createSubscriptionAuthPort({
       authPath: '/tmp/auth.json',
