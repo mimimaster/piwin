@@ -154,10 +154,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .right-panel-home {
   padding: 20px;
   align-items: center;
-  /* Top-aligned per docs/design/inkstone/proto-04-inspector.html: the 2x2
-     launcher sits right under the tabstrip, not centered in the column. */
-  justify-content: flex-start;
-  padding-top: 24px;
+  justify-content: center;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .right-panel-home.blank-tool {

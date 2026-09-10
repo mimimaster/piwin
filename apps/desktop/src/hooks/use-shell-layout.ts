@@ -136,6 +136,15 @@ export function useShellLayout() {
     });
   }, [layoutMode, restoreFocus]);
 
+  const expandSessions = useCallback(() => {
+    if (layoutMode === 'desktop') {
+      setDesktopSidebarCollapsed(false);
+      return;
+    }
+    rememberTrigger();
+    setOverlay('sessions');
+  }, [layoutMode, rememberTrigger]);
+
   const toggleInspector = useCallback(
     (tab: RightPanelTab | null = null) => {
       setOverlay((current) => {
@@ -303,6 +312,7 @@ export function useShellLayout() {
     closeOverlay,
     toggleSessions,
     collapseSessions,
+    expandSessions,
     toggleInspector,
     setInspectorTab,
     openLibrary,

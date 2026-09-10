@@ -13,6 +13,7 @@ import {
   RIGHT_PANEL_FULL_WIDTH_HYSTERESIS_PX,
   RIGHT_PANEL_STAGE_MIN_PX,
   shouldCollapseRightPanel,
+  shouldExpandRightPanel,
   RIGHT_PANEL_COLLAPSE_OVERSHOOT_PX,
 } from './right-panel-width';
 
@@ -134,6 +135,14 @@ describe('right panel drag-to-collapse', () => {
     expect(
       shouldCollapseRightPanel(RIGHT_PANEL_MIN_WIDTH_PX - RIGHT_PANEL_COLLAPSE_OVERSHOOT_PX - 1),
     ).toBe(true);
+  });
+});
+
+describe('right panel reverse-drag expand', () => {
+  it('expands at min width and stays collapsed in the overshoot dead zone', () => {
+    expect(shouldExpandRightPanel(RIGHT_PANEL_MIN_WIDTH_PX - 1)).toBe(false);
+    expect(shouldExpandRightPanel(RIGHT_PANEL_MIN_WIDTH_PX)).toBe(true);
+    expect(shouldExpandRightPanel(Number.NaN)).toBe(false);
   });
 });
 

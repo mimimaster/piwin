@@ -47,17 +47,21 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
   } = shell;
   const isOverlayPresentation = layoutMode === 'compact';
   const rightPanelWidthRef = useRef(RIGHT_PANEL_DEFAULT_WIDTH_PX);
+  const [rightPanelView, setRightPanelView] = useState<'home' | 'detail'>('home');
   const sidebarResize = useSidebarResize({
     layoutMode,
     rightPanelOpen,
     rightPanelWidthPx: rightPanelWidthRef.current,
     onCollapseRequest: shell.collapseSessions,
+    onExpandRequest: shell.expandSessions,
   });
   const rightPanelResize = useRightPanelResize({
     layoutMode,
     navDrawerOpen,
     sidebarWidthPx: sidebarResize.widthPx,
     onCollapseRequest: shell.closeOverlay,
+    onExpandRequest: () => shell.openInspector(rightPanelTab),
+    canEnterFullWidth: rightPanelView === 'detail',
   });
   if (rightPanelWidthRef.current !== rightPanelResize.widthPx) {
     rightPanelWidthRef.current = rightPanelResize.widthPx;
@@ -67,7 +71,6 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
       rightPanelResize.setFullWidth(false);
     }
   }, [rightPanelOpen, rightPanelResize.setFullWidth]);
-  const [rightPanelView, setRightPanelView] = useState<'home' | 'detail'>('home');
   const revealDocPreview = useCallback(() => {
     const inspectorTab: RightPanelTab = 'docPreview';
     shell.setInspectorTab(inspectorTab);

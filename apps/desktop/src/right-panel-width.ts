@@ -99,6 +99,17 @@ export function shouldCollapseRightPanel(
   return widthPx < RIGHT_PANEL_MIN_WIDTH_PX - overshootPx;
 }
 
+/**
+ * Reverse of drag-to-collapse: after the panel is closed, dragging the
+ * splitter back to min width (24px hysteresis) reopens it without pointer-up.
+ */
+export function shouldExpandRightPanel(widthPx: number): boolean {
+  if (!Number.isFinite(widthPx)) {
+    return false;
+  }
+  return widthPx >= RIGHT_PANEL_MIN_WIDTH_PX;
+}
+
 export function loadRightPanelWidth(): number {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);

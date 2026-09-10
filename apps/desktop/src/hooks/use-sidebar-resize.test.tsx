@@ -42,7 +42,10 @@ function createPointerDownEvent(
   } as unknown as ReactPointerEvent<HTMLElement>;
 }
 
-function renderHarness(onCollapseRequest?: () => void): ResizeHarness {
+function renderHarness(options?: {
+  onCollapseRequest?: () => void;
+  onExpandRequest?: () => void;
+}): ResizeHarness {
   const container = document.createElement('div');
   const shell = document.createElement('div');
   const handle = document.createElement('div');
@@ -57,7 +60,8 @@ function renderHarness(onCollapseRequest?: () => void): ResizeHarness {
     latest = useSidebarResize({
       layoutMode: 'desktop',
       rightPanelOpen: false,
-      ...(onCollapseRequest ? { onCollapseRequest } : {}),
+      ...(options?.onCollapseRequest ? { onCollapseRequest: options.onCollapseRequest } : {}),
+      ...(options?.onExpandRequest ? { onExpandRequest: options.onExpandRequest } : {}),
     });
     return null;
   }
@@ -194,7 +198,7 @@ describe('useSidebarResize drag scheduling', () => {
 
   it('collapses when dragged past min width', () => {
     const onCollapseRequest = vi.fn();
-    const harness = renderHarness(onCollapseRequest);
+    const harness = renderHarness({ onCollapseRequest });
     const addEventListener = vi.spyOn(window, 'addEventListener');
 
     act(() => {
@@ -219,6 +223,44 @@ describe('useSidebarResize drag scheduling', () => {
 
     expect(onCollapseRequest).toHaveBeenCalledTimes(1);
     expect(localStorage.getItem('piwin.desktop.sidebarWidth')).toBe('240');
+    disposeHarness(harness);
+  });
+
+  it('expands when reverse-dragged past min width without pointer-up', () => {
+    const onCollapseRequest = vi.fn();
+    const onExpandRequest = vi.fn();
+    const harness = renderHarness({ onCollapseRequest, onExpandRequest });
+    const addEventListener = vi.spyOn(window, 'addEventListener');
+
+    act(() => {
+      harness.latest().onResizePointerDown(createPointerDownEvent(harness.handle, 11, 240));
+    });
+    const pointerMoveListener = addEventListener.mock.calls.find(
+      ([type]) => type === 'pointermove',
+    )?.[1];
+    if (typeof pointerMoveListener !== 'function') {
+      throw new Error('expected a pointermove listener');
+    }
+
+    act(() => {
+      // candidate 160: past min 200 by >24px → collapse
+      pointerMoveListener(createPointerEvent('pointermove', 11, 160));
+    });
+    expect(onCollapseRequest).toHaveBeenCalledTimes(1);
+    expect(onExpandRequest).not.toHaveBeenCalled();
+
+    act(() => {
+      // candidate 185: still in the 176–199 dead zone
+      pointerMoveListener(createPointerEvent('pointermove', 11, 185));
+    });
+    expect(onExpandRequest).not.toHaveBeenCalled();
+
+    act(() => {
+      // candidate 210: back to min width → expand, still holding
+      pointerMoveListener(createPointerEvent('pointermove', 11, 210));
+    });
+    expect(onExpandRequest).toHaveBeenCalledTimes(1);
+    expect(onCollapseRequest).toHaveBeenCalledTimes(1);
     disposeHarness(harness);
   });
 });

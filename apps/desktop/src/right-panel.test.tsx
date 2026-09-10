@@ -78,7 +78,7 @@ describe('RightPanel multi-tab', () => {
 
     expect(container.querySelector('[data-testid="right-panel-resize-handle"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="right-panel-tabstrip"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="right-panel-tab-add"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="right-panel-tab-add"]')).toBeNull();
   });
 
   it('shows the home launcher when the panel first expands without a requested tab', () => {
@@ -120,6 +120,52 @@ describe('RightPanel multi-tab', () => {
     expect(container.querySelector('.insp-h')).not.toBeNull();
     expect(container.querySelectorAll('[data-testid^="right-panel-home-"]').length).toBe(5);
     expect(container.querySelectorAll('.right-panel-home-shortcut').length).toBe(5);
+    expect(container.querySelector('[data-testid="right-panel-tab-add"]')).toBeNull();
+  });
+
+  it('shows the + picker only after a tool tab is open', () => {
+    writeStoredRightPanelState({ openTabs: [], activeTab: null });
+    let activeTab: RightPanelTab | null = null;
+    const rendered = renderPanel({
+      activeTab: null,
+      onTabChange: (tab) => {
+        activeTab = tab;
+      },
+    });
+    root = rendered.root;
+    container = rendered.container;
+    expect(container.querySelector('[data-testid="right-panel-tab-add"]')).toBeNull();
+
+    act(() => {
+      container?.querySelector<HTMLButtonElement>('[data-testid="right-panel-home-files"]')?.click();
+    });
+    expect(activeTab).toBe('files');
+
+    act(() => {
+      root?.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <RightPanel
+            open
+            onOpen={() => {}}
+            onClose={() => {}}
+            activeTab="files"
+            onTabChange={(tab) => {
+              activeTab = tab;
+            }}
+            panelWidthPx={320}
+            isResizing={false}
+            onResizePointerDown={() => {}}
+            onResizeReset={() => {}}
+            filesContent={<div data-testid="files-body">files</div>}
+            terminalContent={<div data-testid="terminal-body">terminal</div>}
+            reviewContent={<div data-testid="review-body">review</div>}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="right-panel-tab-add"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="files-body"]')).not.toBeNull();
   });
 
   it('opens the shell-requested tab when the active tab changes as the panel expands', () => {

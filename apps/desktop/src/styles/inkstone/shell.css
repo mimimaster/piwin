@@ -46,7 +46,7 @@ html[data-theme-id='piwin-inkstone-ink'] .app-shell {
 
 html[data-theme-id='piwin-inkstone-paper'] .app-shell.has-right-panel,
 html[data-theme-id='piwin-inkstone-ink'] .app-shell.has-right-panel {
-  grid-template-columns: var(--sidebar-width, 240px) minmax(0, 1fr) var(--right-panel-width, 360px) !important;
+  grid-template-columns: var(--sidebar-width, 240px) minmax(var(--stage-min, 420px), 1fr) minmax(0, var(--right-panel-width, 360px)) !important;
   grid-template-areas:
     'tb tb tb'
     'nav stage signal' !important;
@@ -62,7 +62,7 @@ html[data-theme-id='piwin-inkstone-ink'] .app-shell[data-layout='desktop']:not(.
 
 html[data-theme-id='piwin-inkstone-paper'] .app-shell[data-layout='desktop']:not(.nav-open).has-right-panel,
 html[data-theme-id='piwin-inkstone-ink'] .app-shell[data-layout='desktop']:not(.nav-open).has-right-panel {
-  grid-template-columns: minmax(0, 1fr) var(--right-panel-width, 360px) !important;
+  grid-template-columns: minmax(var(--stage-min, 420px), 1fr) minmax(0, var(--right-panel-width, 360px)) !important;
   grid-template-areas:
     'tb tb'
     'stage signal' !important;
