@@ -186,8 +186,13 @@
    carries hover and active. */
 .right-panel-actions .piwin-icon-button,
 .right-panel-action-btn {
-  width: var(--h-sm);
-  height: var(--h-sm);
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  min-height: 22px;
+  padding: 0 !important;
+  --ai-size: 22px;
+  --ai-icon-size: 14px;
   border-radius: var(--r-control);
   color: var(--text-4);
   display: grid;
@@ -195,13 +200,20 @@
   background: transparent !important;
   box-shadow: none !important;
   border: none !important;
+  overflow: visible;
 }
 
 .right-panel-titlebar-box .piwin-icon-button svg,
-.right-panel-action-btn svg,
 .right-panel-tab-add svg {
   width: 17px;
   height: 17px;
+  stroke-width: var(--icon-stroke);
+}
+
+.right-panel-titlebar-box .right-panel-actions .piwin-icon-button svg,
+.right-panel-titlebar-box .right-panel-action-btn svg {
+  width: 14px;
+  height: 14px;
   stroke-width: var(--icon-stroke);
 }
 
