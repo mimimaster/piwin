@@ -404,7 +404,13 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     setSlashMenuForcedClosed(true);
   }
 
-  /** Enter performs selected items; bare skills complete, others send. */
+  /**
+   * Enter semantics: perform the selected item now.
+   * - Modes switch in place (or send when args follow the token).
+   * - Skills with no args complete like click/Tab so the user can type a
+   *   real prompt; skills with typed args after the token still send.
+   * - Reserved commands / other execute items send immediately.
+   */
   function executeSlashItem(item: SlashItem): void {
     if (!activeSlashToken) {
       return;
@@ -585,7 +591,8 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
         const selected = slashItems[slashSelectedIndex];
         if (selected && (selected.available || isReservedSlashExecuteName(selected.name))) {
-          // Bare skills complete like click/Tab; other items perform on Enter.
+          // Skills without args complete only (same as click/Tab). Reserved
+          // commands, modes, and skills-with-args still perform on one Enter.
           event.preventDefault();
           executeSlashItem(selected);
           return;
@@ -721,7 +728,8 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !event.shiftKey) {
       event.preventDefault();
       const reserved = isReservedComposerSlashCommand(props.composer);
-      // Paused + draft is a new message; empty Continue stays on the circle.
+      // Paused + empty Continue is a button action. Paused + draft is an
+      // ordinary new message (same as the Send circle); never swallow ⌘Enter.
       if (isStreamingRun && !queuedEdit && !reserved) {
         if (props.composer.trim().length > 0) {
           triggerSteer();
@@ -745,7 +753,8 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     ) {
       event.preventDefault();
       const reserved = isReservedComposerSlashCommand(props.composer);
-      // Paused + draft sends the new message instead of silently no-oping.
+      // Paused empty state keeps Continue on the circle; Enter with a draft
+      // must send the new message, not silently no-op.
       if (canKeyboardSend || reserved) {
         triggerSend();
       }

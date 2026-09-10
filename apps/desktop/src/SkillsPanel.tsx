@@ -178,9 +178,7 @@ export function SkillsPanel(props: SkillsPanelProps) {
       return;
     }
     const data = response.data as SkillsInstallData;
-    setInfo(
-      skillInstalledEffectMessage(locale, data.skillId, data.targetPath),
-    );
+    setInfo(skillInstalledEffectMessage(locale, data.skillId, data.targetPath));
     setInstallPath('');
     setInstallName('');
     notifySkillsChanged();
@@ -211,9 +209,7 @@ export function SkillsPanel(props: SkillsPanelProps) {
       return;
     }
     const data = response.data as SkillsInstallData;
-    setInfo(
-      skillInstalledEffectMessage(locale, data.skillId, data.targetPath),
-    );
+    setInfo(skillInstalledEffectMessage(locale, data.skillId, data.targetPath));
     setInstallGitUrl('');
     setInstallGitRef('');
     setInstallGitSubdir('');

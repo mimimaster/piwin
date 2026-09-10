@@ -68,7 +68,6 @@ describe('activateSkillForPrompt', () => {
     expect(result.text).toContain('who are you');
     expect(result.text).not.toContain('/vanta who are you');
   });
-
   it('returns unavailable when the skill is missing', async () => {
     const piwinRoot = await mkdtemp(join(tmpdir(), 'piwin-skill-activate-miss-'));
     tempRoots.push(piwinRoot);

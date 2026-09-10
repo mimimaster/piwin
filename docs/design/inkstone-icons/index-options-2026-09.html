@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inkstone · 砚 — App Icon 方案集</title>
+<style>
+  :root {
+    --paper: #e6e1d7;
+    --xuan: #fffdf8;
+    --ink: #1d1b17;
+    --ink-bg: #141210;
+    --ink-surface: #201d19;
+    --ink-text: #ebe5da;
+    --verm: #c6412a;
+    --verm-dark: #e25a3d;
+    --muted: #5a554d;
+    --faint: #8f887d;
+    --line: rgba(29,27,23,.11);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: Inter, "PingFang SC", "Noto Sans SC", -apple-system, system-ui, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    padding: 40px 24px 80px;
+  }
+  .wrap { max-width: 1200px; margin: 0 auto; }
+
+  header { margin-bottom: 32px; }
+  h1 { font-size: 28px; font-weight: 700; letter-spacing: .02em; }
+  h1 .yan { color: var(--verm); }
+  .sub { font-size: 14px; color: var(--muted); margin-top: 8px; line-height: 1.7; max-width: 720px; }
+  .palette { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 12px; padding: 6px 14px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--xuan);
+  }
+  .chip .dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(0,0,0,.12); }
+
+  .sec {
+    font-size: 13px; font-weight: 700; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--faint);
+    margin: 40px 0 16px; display: flex; align-items: center; gap: 12px;
+  }
+  .sec::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+  .sec .tag {
+    font-size: 10px; font-weight: 600; letter-spacing: .05em;
+    padding: 3px 10px; border-radius: 999px;
+    background: rgba(198,65,42,.08); color: var(--verm);
+    border: 1px solid rgba(198,65,42,.2);
+    text-transform: none;
+  }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 18px; }
+
+  .card {
+    border: 1px solid var(--line); border-radius: 18px;
+    background: var(--xuan); overflow: hidden;
+    transition: transform .18s ease, box-shadow .18s ease;
+  }
+  .card:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(29,27,23,.12); }
+
+  .stage { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 24px 16px 16px; }
+  .tile { position: relative; cursor: pointer; flex-shrink: 0; }
+  .tile img, .tile svg { width: 108px; height: 108px; border-radius: 26px; display: block; box-shadow: 0 4px 14px rgba(29,27,23,.14); }
+  .tile .lb {
+    position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%);
+    font-size: 9px; font-weight: 600; letter-spacing: .06em;
+    padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+    background: var(--ink); color: var(--paper); opacity: 0;
+    transition: opacity .15s;
+  }
+  .tile:hover .lb { opacity: 1; }
+  .tile.copied .lb { opacity: 1; background: var(--verm); }
+
+  .meta { padding: 14px 16px 16px; border-top: 1px solid rgba(29,27,23,.07); }
+  .name { font-size: 15px; font-weight: 650; display: flex; align-items: baseline; justify-content: space-between; }
+  .num { font-size: 11px; color: var(--faint); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .desc { font-size: 12px; color: var(--muted); margin-top: 5px; line-height: 1.6; }
+  .colors { display: flex; gap: 5px; margin-top: 10px; align-items: center; }
+  .c { width: 16px; height: 16px; border-radius: 5px; border: 1px solid rgba(0,0,0,.10); }
+  .colors .cl { font-size: 10px; color: var(--faint); margin-left: 4px; }
+  .mini { display: flex; gap: 6px; align-items: center; margin-top: 12px; padding-top: 10px; border-top: 1px dashed rgba(29,27,23,.1); }
+  .mini img, .mini svg { width: 28px; height: 28px; border-radius: 8px; display: block; }
+  .mini .ml { font-size: 10px; color: var(--faint); margin-left: 4px; }
+
+  .note {
+    font-size: 13px; color: var(--muted);
+    background: rgba(198,65,42,.05); border: 1px solid rgba(198,65,42,.18);
+    border-radius: 14px; padding: 16px 20px; margin-top: 40px; line-height: 1.8;
+  }
+  .note b { color: var(--verm); }
+  .note code {
+    font-family: "SF Mono", Menlo, monospace; font-size: 11px;
+    background: rgba(29,27,23,.06); padding: 2px 6px; border-radius: 5px;
+  }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+    background: var(--ink); color: var(--paper); font-size: 13px;
+    padding: 10px 20px; border-radius: 999px; opacity: 0;
+    transition: transform .25s ease, opacity .25s ease; pointer-events: none;
+    z-index: 99;
+  }
+  .toast.on { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+  @media (max-width: 640px) {
+    body { padding: 24px 14px 60px; }
+    .tile img, .tile svg { width: 84px; height: 84px; border-radius: 20px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Inkstone · <span class="yan">砚</span> — App Icon 方案集</h1>
+    <p class="sub">
+      22 个方案，全部 ≤3 色，取自主题原生色板。<b>第一部分为 AI 生图</b>（质感底图，1024×1024，可直接导出），
+      <b>第二部分为手工 SVG</b>（可无限缩放、可随主题换色，纸/墨双预览）。点击生图可打开大图，点击 SVG 图标可复制源码。
+    </p>
+    <div class="palette">
+      <span class="chip"><span class="dot" style="background:#e6e1d7"></span>纸 #e6e1d7</span>
+      <span class="chip"><span class="dot" style="background:#1d1b17"></span>墨 #1d1b17</span>
+      <span class="chip"><span class="dot" style="background:#c6412a"></span>朱砂 #c6412a</span>
+      <span class="chip"><span class="dot" style="background:#fffdf8"></span>宣纸 #fffdf8</span>
+    </div>
+  </header>
+
+  <div class="sec">AI 生图方案 <span class="tag">image_gen · 1024×1024</span></div>
+  <div class="grid" id="gen-grid"></div>
+
+  <div class="sec">手工 SVG · A 砚台意象</div>
+  <div class="grid" id="g1"></div>
+
+  <div class="sec">手工 SVG · B 笔墨书写</div>
+  <div class="grid" id="g2"></div>
+
+  <div class="sec">手工 SVG · C 字符与符号</div>
+  <div class="grid" id="g3"></div>
+
+  <div class="sec">手工 SVG · D 抽象概念</div>
+  <div class="grid" id="g4"></div>
+
+  <div class="note">
+    <b>使用建议：</b><br>
+    · 生图方案中 <b>砚台·俯视 / 毛笔·垂滴</b> 最点题；<b>印章·π</b> 最有品牌辨识度（π = piwin）。<br>
+    · SVG 方案中 <b>01 / 02</b> 最点题；<b>09 / 10</b> 印章感最强；<b>15</b> 最强调对话属性。<br>
+    · 混合玩法：取生图做底板质感，再叠加手工 SVG 图形（如 seal-pi 底 + SVG π 字），可得到更精致的成品。<br>
+    · SVG 均为单色剪影逻辑，把前景色换成 <code>currentColor</code> 即可自动适配亮/暗模式。<br>
+    · 需要 PNG 时按 1024×1024 导出；SVG 复制源码后可存入 <code>apps/desktop/src-tauri/icons/</code>。
+  </div>
+
+</div>
+<div class="toast" id="toast">已复制 SVG 源码</div>
+
+<script>
+(function(){
+  var INK = '#1d1b17', PAPER = '#e6e1d7', VERM = '#c6412a', XUAN = '#fffdf8',
+      INKBG = '#141210', INKSURF = '#201d19', INKTXT = '#ebe5da', VERMD = '#e25a3d';
+
+  /* ---------- AI 生图方案 ---------- */
+  var GEN = [
+    { f:'gen/inkstone-slab.png', n:'砚台 · 俯视', d:'圆角方砚 + 内凹墨池，一点朱砂是研磨中的墨光。最点题的一张。', c:[PAPER,INK,VERM] },
+    { f:'gen/brush-drop.png',   n:'毛笔 · 垂滴', d:'毛笔垂直悬停，笔尖一点朱砂墨滴将落未落——agent 待命执笔。', c:[PAPER,INK,VERM] },
+    { f:'gen/seal-pi.png',      n:'印章 · π',   d:'朱砂印章 + 白文 π，piwin 的 π 与东方印鉴合体，品牌感最强。', c:[PAPER,VERM,XUAN] },
+    { f:'gen/ink-ripple.png',   n:'墨滴 · 涟漪', d:'一滴朱砂落入墨池激起涟漪——一次 prompt 的隐喻。', c:[PAPER,INK,VERM] },
+    { f:'gen/brush-stroke.png', n:'一笔 · 飞白', d:'一道竖墨带飞白质感，尾部朱砂收锋——最简书写符号。', c:[PAPER,INK,VERM] },
+    { f:'gen/terminal-ink.png', n:'终端 · 墨块', d:'墨块终端窗 + 朱砂光标，coding agent 的本体。', c:[PAPER,INK,VERM] }
+  ];
+
+  /* ---------- 手工 SVG 方案 ---------- */
+  function tile(inner, bg){ return '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" rx="16" fill="'+bg+'"/>'+inner+'</svg>'; }
+
+  var ICONS = [
+    // A 砚台意象
+    { n:'砚 · 墨池', d:'俯视砚台：圆角方砚 + 内凹墨池，一点朱砂是研磨中的墨光。', c:[INK,XUAN,VERM],
+      v:function(bg,fg,ac){ return '<rect x="10" y="14" width="44" height="36" rx="9" fill="none" stroke="'+fg+'" stroke-width="3.5"/><rect x="19" y="23" width="26" height="18" rx="6" fill="'+fg+'"/><circle cx="41" cy="25" r="3.2" fill="'+ac+'"/>'; }},
+    { n:'砚 · 盛墨', d:'实心墨池 + 池边一滴将落未落的朱砂墨滴。', c:[INK,XUAN,VERM],
+      v:function(bg,fg,ac){ return '<rect x="10" y="14" width="44" height="36" rx="9" fill="none" stroke="'+fg+'" stroke-width="3.5"/><path d="M19 29a13 13 0 0 0 26 0z" fill="'+fg+'" transform="translate(0,4)"/><path d="M41 20c2.2 3 3.4 4.8 3.4 6.4a3.4 3.4 0 1 1-6.8 0c0-1.6 1.2-3.4 3.4-6.4z" fill="'+ac+'"/>'; }},
+    { n:'砚 · 研墨', d:'墨锭斜倚墨池，研磨的动态瞬间。', c:[INK,XUAN,VERM],
+      v:function(bg,fg,ac){ return '<rect x="9" y="30" width="46" height="20" rx="9" fill="'+fg+'"/><rect x="24" y="12" width="9" height="26" rx="3" fill="'+fg+'" transform="rotate(18 28 38)"/><circle cx="44" cy="40" r="3" fill="'+ac+'"/>'; }},
+    { n:'砚 · 月牙池', d:'抄手砚剪影：墨池如月牙留白，极简两笔。', c:[INK,XUAN,VERM],
+      v:function(bg,fg,ac){ return '<rect x="10" y="13" width="44" height="38" rx="10" fill="'+fg+'"/><path d="M20 27a12 12 0 0 0 24 0c0 8-5 14-12 14s-12-6-12-14z" fill="'+bg+'"/><circle cx="41" cy="22" r="3" fill="'+ac+'"/>'; }},
+    // B 笔墨书写
+    { n:'笔 · 垂露', d:'毛笔垂直悬停，笔尖一点朱砂——agent 待命执笔。', c:[INK,XUAN,VERM],
+      v:function(bg,fg,ac){ return '<rect x="28.5" y="8" width="7" height="22" rx="3.5" fill="'+fg+'"/><path d="M32 30c5 4 7 8 7 12a7 7 0 1 1-14 0c0-4 2-8 7-12z" fill="'+fg+'"/><circle cx="32" cy="46" r="3" fill="'+ac+'"/>'; }},
+    { n:'笔 · 顿笔', d:'斜锋落笔，纸面留一道墨痕，印章式收笔点。', c:[INK,XUAN,VERM],
+      v:function(bg,fg,ac){ return '<rect x="30" y="6" width="7" height="24" rx="3.5" fill="'+fg+'" transform="rotate(24 33 18)"/><path d="M40 30c4 5 5 8 5 11a5.5 5.5 0 1 1-11 0c0-3 2-7 6-11z" fill="'+fg+'"/><path d="M14 50q12 5 24 0" stroke="'+fg+'" stroke-width="3.5" fill="none" stroke-linecap="round"/><circle cx="46" cy="50" r="3" fill="'+ac+'"/>'; }},
+    { n:'墨 · 一笔', d:'一笔竖墨带飞白，尾部朱砂收锋——最简书写符号。', c:[INK,XUAN,VERM],
+      v:function(bg,fg,ac){ return '<path d="M30 10q4 0 4 5v26q0 6-3 9-2 2-3 0-2-3-2-9V15q0-5 4-5z" fill="'+fg+'"/><path d="M40 14q3 10 0 22" stroke="'+fg+'" stroke-width="3" fill="none" stroke-linecap="round" opacity=".45"/><circle cx="42" cy="46" r="3.4" fill="'+ac+'"/>'; }},
+    { n:'墨 · 飞白三笔', d:'三道由粗到细的笔触，像代码行也像行书。', c:[INK,XUAN,VERM],
+      v:function(bg,fg,ac){ return '<path d="M14 18h30" stroke="'+fg+'" stroke-width="6" stroke-linecap="round"/><path d="M14 32h22" stroke="'+fg+'" stroke-width="5" stroke-linecap="round" opacity=".75"/><path d="M14 45h14" stroke="'+fg+'" stroke-width="4" stroke-linecap="round" opacity=".5"/><circle cx="47" cy="45" r="4" fill="'+ac+'"/>'; }},
+    // C 字符与符号
+    { n:'印 · π', d:'π 刻进朱砂印章——piwin 的 π 与东方印鉴合体。', c:[VERM,XUAN],
+      v:function(bg,fg,ac){ return '<rect x="12" y="12" width="40" height="40" rx="9" fill="'+ac+'"/><path d="M22 24h20M26 24v17M38 24v17" stroke="'+bg+'" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M22 24q10-3 20 0" stroke="'+bg+'" stroke-width="4" fill="none" stroke-linecap="round"/>'; }},
+    { n:'印 · 砚字章', d:'白文印章：一个"砚"的抽象篆意（石+见）。', c:[VERM,XUAN],
+      v:function(bg,fg,ac){ return '<rect x="12" y="12" width="40" height="40" rx="8" fill="'+ac+'"/><path d="M20 22h12M26 22v9M21 31h10" stroke="'+bg+'" stroke-width="3.4" stroke-linecap="round"/><path d="M37 21h7v11h-7zM37 32q3.5 8 7 9M37 32q-2 6-5 8" stroke="'+bg+'" stroke-width="3.4" fill="none" stroke-linecap="round"/>'; }},
+    { n:'符 · 终端墨块', d:'>_ 提示符落在墨块上——coding agent 的本体。', c:[INK,XUAN,VERM],
+      v:function(bg,fg,ac){ return '<rect x="10" y="13" width="44" height="38" rx="10" fill="'+fg+'"/><path d="M20 25l8 7-8 7" stroke="'+bg+'" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M32 40h10" stroke="'+ac+'" stroke-width="4" stroke-linecap="round"/>'; }},
+    { n:'符 · 命令行砚', d:'线框终端窗 + 朱砂光标，轻盈版。', c:[INK,XUAN,VERM],
+      v:function(bg,fg,ac){ return '<rect x="10" y="14" width="44" height="36" rx="9" fill="none" stroke="'+fg+'" stroke-width="3.5"/><path d="M20 26l7 6-7 6" stroke="'+fg+'" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><rect x="31" y="35" width="9" height="4" rx="2" fill="'+ac+'"/>'; }},
+    // D 抽象概念
+    { n:'涟 · 墨滴入池', d:'一滴朱砂落入墨池激起涟漪——一次 prompt 的隐喻。', c:[INK,XUAN,VERM],
+      v:function(bg,fg,ac){ return '<circle cx="32" cy="36" r="15" fill="none" stroke="'+fg+'" stroke-width="3.5"/><circle cx="32" cy="36" r="8" fill="none" stroke="'+fg+'" stroke-width="3" opacity=".5"/><path d="M32 12c3 4 4.6 6.5 4.6 8.8a4.6 4.6 0 1 1-9.2 0c0-2.3 1.6-4.8 4.6-8.8z" fill="'+ac+'"/>'; }},
+    { n:'层 · 纸叠', d:'三张纸层叠——会话/上下文/产出的堆叠。', c:[INK,XUAN,VERM],
+      v:function(bg,fg,ac){ return '<rect x="14" y="22" width="32" height="26" rx="6" fill="none" stroke="'+fg+'" stroke-width="3" opacity=".45" transform="translate(6 -8)"/><rect x="14" y="22" width="32" height="26" rx="6" fill="none" stroke="'+fg+'" stroke-width="3" opacity=".7" transform="translate(3 -4)"/><rect x="14" y="22" width="32" height="26" rx="6" fill="'+bg+'" stroke="'+fg+'" stroke-width="3.5"/><circle cx="38" cy="30" r="3" fill="'+ac+'"/>'; }},
+    { n:'言 · 对话墨泡', d:'对话气泡以墨块呈现，尾部一点朱砂。', c:[INK,XUAN,VERM],
+      v:function(bg,fg,ac){ return '<path d="M12 20a10 10 0 0 1 10-10h20a10 10 0 0 1 10 10v12a10 10 0 0 1-10 10H28l-9 8v-8a10 10 0 0 1-7-9.6z" fill="'+fg+'"/><circle cx="24" cy="26" r="2.6" fill="'+bg+'"/><circle cx="32" cy="26" r="2.6" fill="'+bg+'"/><circle cx="40" cy="26" r="2.6" fill="'+ac+'"/>'; }},
+    { n:'衡 · 阴阳墨', d:'方圆之间：半墨半纸，朱砂点居中——人机各半。', c:[INK,XUAN,VERM],
+      v:function(bg,fg,ac){ return '<circle cx="32" cy="32" r="20" fill="'+fg+'"/><path d="M32 12a20 20 0 0 1 0 40 10 10 0 0 1 0-20 10 10 0 0 0 0-20z" fill="'+bg+'"/><circle cx="32" cy="32" r="3.4" fill="'+ac+'"/>'; }}
+  ];
+
+  var groups = { g1:[0,1,2,3], g2:[4,5,6,7], g3:[8,9,10,11], g4:[12,13,14,15] };
+
+  function toast(msg){
+    var t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('on');
+    clearTimeout(t._h); t._h = setTimeout(function(){ t.classList.remove('on'); }, 1600);
+  }
+
+  /* 渲染生图区 */
+  var genHost = document.getElementById('gen-grid');
+  GEN.forEach(function(g, i){
+    var card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML =
+      '<div class="stage">' +
+        '<div class="tile" data-img="'+g.f+'"><img src="'+g.f+'" alt="'+g.n+'"><span class="lb">打开大图</span></div>' +
+      '</div>' +
+      '<div class="meta">' +
+        '<div class="name"><span>'+g.n+'</span><span class="num">G'+String(i+1).padStart(2,'0')+'</span></div>' +
+        '<div class="desc">'+g.d+'</div>' +
+        '<div class="colors">'+g.c.map(function(c){return '<span class="c" style="background:'+c+'" title="'+c+'"></span>';}).join('')+'<span class="cl">'+g.c.length+' 色</span></div>' +
+        '<div class="mini"><img src="'+g.f+'" alt=""><span class="ml">28px 小尺寸</span></div>' +
+      '</div>';
+    genHost.appendChild(card);
+  });
+
+  /* 渲染 SVG 区 */
+  Object.keys(groups).forEach(function(gid){
+    var host = document.getElementById(gid);
+    groups[gid].forEach(function(i){
+      var ic = ICONS[i];
+      var paperSvg = tile(ic.v(XUAN, INK, VERM), PAPER);
+      var inkSvg = tile(ic.v(INKSURF, INKTXT, VERMD), INKBG);
+      var card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML =
+        '<div class="stage">' +
+          '<div class="tile" data-svg="'+encodeURIComponent(paperSvg)+'">'+paperSvg+'<span class="lb">复制 SVG</span></div>' +
+          '<div class="tile" data-svg="'+encodeURIComponent(inkSvg)+'">'+inkSvg+'<span class="lb">复制 SVG</span></div>' +
+        '</div>' +
+        '<div class="meta">' +
+          '<div class="name"><span>'+ic.n+'</span><span class="num">'+String(i+1).padStart(2,'0')+'</span></div>' +
+          '<div class="desc">'+ic.d+'</div>' +
+          '<div class="colors">'+ic.c.map(function(c){return '<span class="c" style="background:'+c+'" title="'+c+'"></span>';}).join('')+'<span class="cl">'+ic.c.length+' 色</span></div>' +
+          '<div class="mini">'+paperSvg+inkSvg+'<span class="ml">28px 小尺寸</span></div>' +
+        '</div>';
+      host.appendChild(card);
+    });
+  });
+
+  /* 交互：复制 SVG / 打开大图 */
+  document.querySelectorAll('.tile').forEach(function(t){
+    t.addEventListener('click', function(){
+      if (t.dataset.svg) {
+        var svg = decodeURIComponent(t.dataset.svg);
+        if (navigator.clipboard) navigator.clipboard.writeText(svg).then(function(){ toast('已复制 SVG 源码'); });
+        t.classList.add('copied'); setTimeout(function(){ t.classList.remove('copied'); }, 600);
+      } else if (t.dataset.img) {
+        window.open(t.dataset.img, '_blank');
+      }
+    });
+  });
+})();
+</script>
+</body>
+</html>

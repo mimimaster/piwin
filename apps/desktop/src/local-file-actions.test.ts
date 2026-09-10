@@ -10,6 +10,10 @@ import {
   saveLocalFileAs,
   saveMediaUrlAs,
 } from './local-file-actions.js';
+import {
+  clearRemoteProjectRootsForTests,
+  rememberRemoteProjectRoot,
+} from './remote-session-hydrate.js';
 
 const dialogSave = vi.fn();
 const invokeMock = vi.fn();
@@ -21,10 +25,6 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: (command: string, args: unknown) => invokeMock(command, args),
 }));
-import {
-  clearRemoteProjectRootsForTests,
-  rememberRemoteProjectRoot,
-} from './remote-session-hydrate.js';
 
 describe('saveMediaUrlAs', () => {
   afterEach(() => {

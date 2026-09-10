@@ -19,13 +19,16 @@ describe('session row status seal vs hover actions', () => {
     expect(session).toMatch(
       /\.session-row-actions\s*\{[\s\S]*?right:\s*calc\(var\(--s-2\)\s*\+\s*var\(--session-status-seal-clearance\)\)/,
     );
-    // Working pulse still yields on hover; seals do not.
+    // Working pulse and terminal status seals yield on hover while the action
+    // cluster is visible; the clearance variable still reserves their resting
+    // slot so neither state can overlap.
     expect(session).toMatch(
       /\.session-row--working:hover\s+\.session-item-activity/,
     );
-    expect(session).not.toMatch(
+    expect(session).toMatch(
       /\.session-row:hover\s+\.session-item-completed-mark/,
     );
+    expect(session).toMatch(/\.session-row:hover\s+\.session-item-failed-mark/);
     expect(inkstoneSidebar).toMatch(
       /right:\s*calc\(6px\s*\+\s*var\(--session-status-seal-clearance/,
     );
