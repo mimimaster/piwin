@@ -342,36 +342,6 @@ html[data-theme-id='piwin-inkstone-ink'] .slab .ring {
   flex: none;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .slab .context-usage-ring {
-  width: auto;
-  min-width: 24px;
-  height: 24px;
-  padding: 0 6px;
-  margin: 0 4px;
-  border-radius: 4px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--slab-ph);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .slab .context-usage-token-text {
-  font-family: var(--mono);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  color: var(--slab-ph);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .slab .context-usage-ring:hover .context-usage-token-text {
-  color: var(--slab-t);
-}
-
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .slab
-  .context-usage-ring:has(.context-usage-token-text)
-  .context-usage-svg {
-  display: none;
-}
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .chat-column-empty .composer-dock.layout-centered .composer-context-rail {
   margin-bottom: 6px;

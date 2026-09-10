@@ -357,7 +357,6 @@ function legacyVariables(d: ThemeDeckTokens, theme: ThemeManifest, isLight: bool
  */
 const INKSTONE_STYLESHEET_SLAB_VARS = [
   '--slab',
-  '--composer',
   '--slab-text',
   '--slab-text-2',
   '--slab-text-3',

@@ -5,7 +5,6 @@ import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { IconButton, Popover } from '@piwin/ui-kit';
 import { IconClose } from './shell-icons';
 import { ConversationUsageDetails } from './conversation-usage-details.js';
-import { formatUsageTokenCount } from './conversation-usage-copy.js';
 import type { ContextRingViewModel } from './context-telemetry-selector.js';
 
 export type ContextUsageRingProps = {
@@ -36,13 +35,6 @@ export function ContextUsageRing(props: ContextUsageRingProps): ReactElement | n
   const circumference = 2 * Math.PI * 9;
   const dashOffset = circumference * (1 - view.arcRatio);
 
-  const tokenLabel =
-    !view.numericHidden &&
-    typeof view.tokensUsed === 'number' &&
-    typeof view.tokensLimit === 'number'
-      ? `${formatUsageTokenCount(view.tokensUsed)} / ${formatUsageTokenCount(view.tokensLimit)}`
-      : null;
-
   return (
     <div
       className="context-usage-ring-root"
@@ -66,17 +58,12 @@ export function ContextUsageRing(props: ContextUsageRingProps): ReactElement | n
             onFocus={() => setHovered(true)}
             onBlur={() => setHovered(false)}
           >
-            {tokenLabel ? (
-              <span className="context-usage-token-text mono" data-testid="context-usage-token-text">
-                {tokenLabel}
-              </span>
-            ) : null}
             {view.numericHidden ? (
               <span className="context-usage-ring-status" aria-hidden>
                 …
               </span>
             ) : (
-              <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden className="context-usage-svg">
+              <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
                 <circle
                   className="context-usage-ring-track"
                   cx="12"
