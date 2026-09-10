@@ -5,6 +5,10 @@
    retune can never drift the 砚. Structural stylesheets under styles/inkstone/
    write ONLY these names so prototype CSS ports over line-for-line.
 
+   Values are the prototype's, verbatim. If a contrast rule ever disagrees with
+   one, fix the rule -- an earlier port darkened --t3/--t4/--zhu/--lamp to pass a
+   blanket 4.5:1 sweep and flattened the ramp. See docs/design/inkstone/09-port-drift.md.
+
    Deck-role equivalents, for review only (not used by inkstone CSS):
    s1..4 ↔ surface-1..4 · t1..4 ↔ text-1..4 · l1..3 ↔ line-1..3 ·
    zhu ↔ iris (your hand) · lamp ↔ ember (the agent's hand) ·
@@ -23,8 +27,8 @@ html[data-theme-id='piwin-inkstone-paper'] {
   --s4: #fff;
   --t1: #1d1b17;
   --t2: #5a554d;
-  --t3: #655e53;
-  --t4: #696256;
+  --t3: #726b61;
+  --t4: #8f887d;
   --l1: rgba(29, 27, 23, 0.06);
   --l2: rgba(29, 27, 23, 0.11);
   --l3: rgba(29, 27, 23, 0.2);
@@ -32,9 +36,9 @@ html[data-theme-id='piwin-inkstone-paper'] {
   --zhu-lift: #d4553d;
   --on-zhu: #fff7f0;
   --zhu-wash: rgba(198, 65, 42, 0.1);
-  --lamp: #8a5f0c;
+  --lamp: #b8801f;
   --lamp-glow: rgba(184, 128, 31, 0.4);
-  --lamp-wash: rgba(138, 95, 12, 0.14);
+  --lamp-wash: rgba(184, 128, 31, 0.14);
   --pine: #3d7c5e;
   --pine-wash: rgba(61, 124, 94, 0.12);
   --ochre: #94611a;
@@ -49,11 +53,11 @@ html[data-theme-id='piwin-inkstone-paper'] {
      non-Inkstone themes never change, collapsing text-2/3 onto ph here. */
   --slab: #1f1c18;
   --slab-t: #efe9df;
-  --slab-ph: #9a928a;
+  --slab-ph: #8d857a;
   --slab-text: #efe9df;
-  --slab-text-2: #9a928a;
-  --slab-text-3: #9a928a;
-  --slab-placeholder: #9a928a;
+  --slab-text-2: #8d857a;
+  --slab-text-3: #8d857a;
+  --slab-placeholder: #8d857a;
   --slab-chip: rgba(255, 255, 255, 0.07);
   --slab-line: rgba(255, 255, 255, 0.1);
   /* No prototype source (static mockup has no interaction/drag states) —
@@ -82,8 +86,8 @@ html[data-theme-id='piwin-inkstone-ink'] {
   --s4: #2a2621;
   --t1: #ebe5da;
   --t2: #a59d92;
-  --t3: #968d81;
-  --t4: #8d857a;
+  --t3: #8b8378;
+  --t4: #6a6259;
   --l1: rgba(235, 229, 218, 0.06);
   --l2: rgba(235, 229, 218, 0.1);
   --l3: rgba(235, 229, 218, 0.17);
@@ -101,15 +105,15 @@ html[data-theme-id='piwin-inkstone-ink'] {
   --crimson-wash: rgba(217, 95, 110, 0.14);
   --azure: #6ba4c3;
   --azure-wash: rgba(107, 164, 195, 0.14);
-  --code: #15120f;
+  --code: #0f0e0c;
 
   --slab: #0e0d0b;
   --slab-t: #ebe5da;
-  --slab-ph: #7a7268;
+  --slab-ph: #6f685f;
   --slab-text: #ebe5da;
-  --slab-text-2: #7a7268;
-  --slab-text-3: #7a7268;
-  --slab-placeholder: #7a7268;
+  --slab-text-2: #6f685f;
+  --slab-text-3: #6f685f;
+  --slab-placeholder: #6f685f;
   --slab-chip: rgba(235, 229, 218, 0.07);
   --slab-line: rgba(235, 229, 218, 0.1);
   --slab-raised: rgba(235, 229, 218, 0.08);

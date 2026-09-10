@@ -161,7 +161,7 @@
 
 .session-item-time {
   position: absolute;
-  right: var(--s-5);
+  right: var(--s-2);
   top: 50%;
   transform: translateY(-50%);
   font-family: var(--mono, var(--font-mono));

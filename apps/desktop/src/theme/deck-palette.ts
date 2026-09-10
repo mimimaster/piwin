@@ -172,6 +172,11 @@ export const PIWIN_APPEARANCE_BONE: ThemeManifest = {
  * primary actions, focus, pending approval. Lamp (ember-role) is the agent's
  * hand — running work. Never mix the two: a warm-amber pixel always means "the
  * agent is running," a red pixel always means "you can act here."
+ *
+ * These values mirror styles/inkstone/tokens.css, which copies
+ * docs/design/inkstone/shell-foundation.css verbatim. The two layers name the
+ * same roles twice (--zhu/iris, --lamp/ember, --t1..4/text1..4); they must not
+ * disagree. See docs/design/inkstone/09-port-drift.md.
  */
 const INKSTONE_PAPER_DECK: ThemeDeckTokens = {
   void: '#e6e1d7',
@@ -182,8 +187,8 @@ const INKSTONE_PAPER_DECK: ThemeDeckTokens = {
 
   text1: '#1d1b17',
   text2: '#5a554d',
-  text3: '#655e53',
-  text4: '#696256',
+  text3: '#726b61',
+  text4: '#8f887d',
 
   line1: 'rgba(29, 27, 23, 0.06)',
   line2: 'rgba(29, 27, 23, 0.11)',
@@ -194,7 +199,7 @@ const INKSTONE_PAPER_DECK: ThemeDeckTokens = {
   irisPress: '#a53420',
   onIris: '#fff7f0',
 
-  ember: '#8a5f0c',
+  ember: '#b8801f',
   mint: '#3d7c5e',
   amber: '#94611a',
   coral: '#9c2e3d',
@@ -217,8 +222,8 @@ const INKSTONE_INK_DECK: ThemeDeckTokens = {
 
   text1: '#ebe5da',
   text2: '#a59d92',
-  text3: '#968d81',
-  text4: '#8d857a',
+  text3: '#8b8378',
+  text4: '#6a6259',
 
   line1: 'rgba(235, 229, 218, 0.06)',
   line2: 'rgba(235, 229, 218, 0.1)',
