@@ -261,12 +261,14 @@ html[data-theme-id='piwin-inkstone-ink'] .slab .composer-v2-icon-btn:hover {
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .slab .send,
-html[data-theme-id='piwin-inkstone-paper'] .slab .composer-v2-send-btn {
+html[data-theme-id='piwin-inkstone-ink'] .slab .send,
+html[data-theme-id='piwin-inkstone-paper'] .slab .composer-v2-send-btn,
+html[data-theme-id='piwin-inkstone-ink'] .slab .composer-v2-send-btn {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #1f6d84;
-  color: #ffffff;
+  background: var(--zhu);
+  color: var(--on-zhu);
   display: grid;
   place-items: center;
   flex: none;
@@ -277,29 +279,10 @@ html[data-theme-id='piwin-inkstone-paper'] .slab .composer-v2-send-btn {
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .slab .send:hover:not(:disabled),
-html[data-theme-id='piwin-inkstone-paper'] .slab .composer-v2-send-btn:hover:not(:disabled) {
-  background: #165669;
-}
-
-html[data-theme-id='piwin-inkstone-ink'] .slab .send,
-html[data-theme-id='piwin-inkstone-ink'] .slab .composer-v2-send-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: #4a9bb5;
-  color: #0c1a1f;
-  display: grid;
-  place-items: center;
-  flex: none;
-  position: relative;
-  border: 0;
-  cursor: pointer;
-  transition: background var(--t-1) var(--ease-out), transform var(--t-1) var(--ease-out);
-}
-
 html[data-theme-id='piwin-inkstone-ink'] .slab .send:hover:not(:disabled),
+html[data-theme-id='piwin-inkstone-paper'] .slab .composer-v2-send-btn:hover:not(:disabled),
 html[data-theme-id='piwin-inkstone-ink'] .slab .composer-v2-send-btn:hover:not(:disabled) {
-  background: #5bb0cb;
+  background: var(--zhu-lift);
 }
 
 /* Streaming / Queued send button morphs to slab-chip with lamp halo (S6.2) */
