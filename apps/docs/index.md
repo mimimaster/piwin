@@ -6,8 +6,8 @@ hero:
   text: "私有化 AI 智能体工作台"
   tagline: "私有化执行 · 轻量视觉委托 · 砚石宣纸书斋美学 · 无缝工具链生态"
   image:
-    src: /logo.svg
-    alt: Piwin 砚印 Logo
+    src: /logo.png
+    alt: Piwin 桌面端图标
   actions:
     - theme: brand
       text: 📖 进入 Docs 文档与指引
