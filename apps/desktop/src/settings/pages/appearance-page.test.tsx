@@ -185,7 +185,7 @@ describe('AppearancePage', () => {
 
     const modeControl = container.querySelector('[data-testid="appearance-mode-control"]');
     expect(modeControl).not.toBeNull();
-    expect(container.querySelectorAll('[data-testid="inkstone-theme-preview"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-testid="inkstone-theme-preview"]')).toHaveLength(0);
     expect(container.querySelectorAll('[data-testid="light-theme-preview"]')).toHaveLength(0);
     expect(container.querySelectorAll('[data-testid="dark-theme-preview"]')).toHaveLength(0);
     expect(modeControl?.textContent).toContain('纸面');
@@ -357,51 +357,6 @@ describe('AppearancePage', () => {
     );
   });
 
-  it('resets custom face colors to Inkstone defaults when Default is chosen', async () => {
-    const customLight = {
-      preset: 'default' as const,
-      background: '#AA7942',
-      foreground: '#1D1B17',
-      accent: '#C6412A',
-    };
-    const contextValue = createContextValue({
-      activeTheme: PIWIN_APPEARANCE_LIGHT,
-      preferences: createPreferences({ appearanceMode: 'light', lightTheme: customLight }),
-    });
-
-    await renderPage(contextValue);
-
-    const summary = container.querySelector('.appearance-color-disclosure summary');
-    expect(summary).not.toBeNull();
-    await act(async () => {
-      summary?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
-    const select = container.querySelector<HTMLSelectElement>(
-      '[data-testid="inkstone-theme-preset"]',
-    );
-    expect(select).not.toBeNull();
-    if (!select) return;
-    expect(select.value).toBe('custom');
-
-    await act(async () => {
-      select.value = 'default';
-      select.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-
-    expect(contextValue.onPreferencesChange).toHaveBeenCalledWith(
-      expect.objectContaining({ lightTheme: DEFAULT_LIGHT_THEME_SETTINGS }),
-    );
-    expect(contextValue.onThemeApplied).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'piwin-inkstone-paper',
-        mode: 'light',
-        tokens: expect.objectContaining({
-          bg: DEFAULT_LIGHT_THEME_SETTINGS.background.toLowerCase(),
-        }),
-      }),
-    );
-  });
 
   it('blocks appearance mode changes when theme package is active', async () => {
     const contextValue = createContextValue({
