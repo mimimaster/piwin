@@ -13,7 +13,7 @@
  *   - "run-status-strip" / "run-status-stop" / "run-status-stopping"
  *   - "rail-chats-btn" / "right-panel-open-btn" / titlebar-*
  */
-import { useState, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
 import { IconButton, IconGit } from '@piwin/ui-kit';
 import type { PermissionPreset } from '@piwin/contracts';
 import type { ProductSessionOrigin } from '@piwin/contracts';
@@ -114,6 +114,14 @@ export function ContextBar(props: ContextBarProps): ReactElement {
     (navigator.platform?.includes('Mac') || navigator.userAgent?.includes('Mac'));
 
   const [slab, setSlab] = useState<'ink' | 'paper'>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = window.localStorage?.getItem('piwin:slab-material');
+        if (stored === 'ink' || stored === 'paper') return stored;
+      } catch {
+        // ignore
+      }
+    }
     if (typeof document !== 'undefined') {
       return (document.documentElement.getAttribute('data-slab') as 'ink' | 'paper') || 'ink';
     }
@@ -122,6 +130,13 @@ export function ContextBar(props: ContextBarProps): ReactElement {
 
   const handleSetSlab = (nextSlab: 'ink' | 'paper') => {
     setSlab(nextSlab);
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage?.setItem('piwin:slab-material', nextSlab);
+      } catch {
+        // ignore
+      }
+    }
     if (typeof document !== 'undefined') {
       document.documentElement.setAttribute('data-slab', nextSlab);
       const app = document.getElementById('app');
@@ -130,6 +145,16 @@ export function ContextBar(props: ContextBarProps): ReactElement {
       }
     }
   };
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-slab', slab);
+      const app = document.getElementById('app');
+      if (app) {
+        app.setAttribute('data-slab', slab);
+      }
+    }
+  }, [slab]);
 
 
   return (
