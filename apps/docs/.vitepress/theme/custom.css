@@ -1,159 +1,613 @@
-/* Planora Theme - Clean Modern Slate & Royal Blue Aesthetic */
+/* Inkstone（砚）Theme Layer for VitePress
+   Faithful port of docs/design/inkstone design language:
+   - Paper (纸面 / Light) & Ink (墨面 / Dark) dual-face ramp
+   - Zhu (朱砂) primary cinnabar accents, Pine (松绿), Lamp (灯火), Ochre (赭石), Azure (天青), Crimson (胭脂)
+   - Songti / Noto Serif SC headings with literary dignity
+   - Booktabs (书口线) classical tables
+   - Subtle paper fiber & ink wash micro-texture
+*/
 
 :root {
-  --vp-c-brand-1: #2563eb;
-  --vp-c-brand-2: #1d4ed8;
-  --vp-c-brand-3: #1e40af;
-  --vp-c-brand-soft: rgba(37, 99, 235, 0.08);
+  /* Fonts */
+  --font-serif: "Noto Serif SC", "Songti SC", "STSong", "Source Han Serif SC", "Source Serif 4", Georgia, serif;
+  --vp-font-family-base: Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
+  --vp-font-family-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
-  --vp-font-family-base: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-  --vp-font-family-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  /* Inkstone Paper (纸面) Palette */
+  --void: #e6e1d7;
+  --s1: #f0ece4;
+  --s2: #f8f6f0;
+  --s3: #fffdf8;
+  --s4: #ffffff;
 
-  /* Light mode clean slate tones */
-  --vp-c-bg: #ffffff;
-  --vp-c-bg-alt: #f8fafc;
-  --vp-c-bg-elv: #ffffff;
-  --vp-c-bg-soft: #f1f5f9;
+  --t1: #1d1b17;
+  --t2: #5a554d;
+  --t3: #726b61;
+  --t4: #8f887d;
+
+  --l1: rgba(29, 27, 23, 0.06);
+  --l2: rgba(29, 27, 23, 0.11);
+  --l3: rgba(29, 27, 23, 0.2);
+
+  /* Accents */
+  --zhu: #c6412a;
+  --zhu-lift: #d4553d;
+  --zhu-press: #a53420;
+  --on-zhu: #fff7f0;
+  --zhu-wash: rgba(198, 65, 42, 0.09);
+
+  --lamp: #b8801f;
+  --lamp-glow: rgba(184, 128, 31, 0.4);
+  --lamp-wash: rgba(184, 128, 31, 0.12);
+
+  --pine: #3d7c5e;
+  --pine-wash: rgba(61, 124, 94, 0.11);
+
+  --ochre: #94611a;
+  --ochre-wash: rgba(148, 97, 26, 0.11);
+
+  --crimson: #9c2e3d;
+  --crimson-wash: rgba(156, 46, 61, 0.1);
+
+  --azure: #3a7797;
+  --azure-wash: rgba(58, 119, 151, 0.11);
+
+  --code: #efece4;
+  --slab: #1f1c18;
+
+  /* Shadows */
+  --sh1: 0 1px 2px rgba(60, 45, 20, 0.06), 0 0 0 1px var(--l2);
+  --sh2: 0 2px 8px -2px rgba(60, 45, 20, 0.12), 0 0 0 1px var(--l2);
+  --sh3: 0 14px 34px -12px rgba(50, 35, 15, 0.3), 0 0 0 1px var(--l3);
+
+  /* VitePress token mappings for Paper mode */
+  --vp-c-brand-1: var(--zhu);
+  --vp-c-brand-2: var(--zhu-lift);
+  --vp-c-brand-3: var(--zhu-press);
+  --vp-c-brand-soft: var(--zhu-wash);
+
+  --vp-c-bg: var(--s2);
+  --vp-c-bg-alt: var(--s1);
+  --vp-c-bg-elv: var(--s3);
+  --vp-c-bg-soft: var(--s1);
+
+  --vp-c-text-1: var(--t1);
+  --vp-c-text-2: var(--t2);
+  --vp-c-text-3: var(--t3);
+
+  --vp-c-divider: var(--l2);
+  --vp-c-border: var(--l2);
+  --vp-c-gutter: var(--l1);
+
+  --vp-code-bg: var(--code);
+  --vp-code-color: var(--t1);
 
   --vp-home-hero-name-color: transparent;
-  --vp-home-hero-name-background: -webkit-linear-gradient(135deg, #1e293b 30%, #2563eb 100%);
-  --vp-home-hero-image-filter: drop-shadow(0 12px 24px rgba(37, 99, 235, 0.18));
+  --vp-home-hero-name-background: -webkit-linear-gradient(135deg, #1d1b17 25%, #c6412a 100%);
+  --vp-home-hero-image-filter: drop-shadow(0 12px 28px rgba(198, 65, 42, 0.2));
 }
 
 .dark {
-  --vp-c-brand-1: #3b82f6;
-  --vp-c-brand-2: #60a5fa;
-  --vp-c-brand-3: #93c5fd;
-  --vp-c-brand-soft: rgba(59, 130, 246, 0.12);
+  /* Inkstone Ink (墨面) Palette */
+  --void: #0b0a09;
+  --s1: #141210;
+  --s2: #191714;
+  --s3: #201d19;
+  --s4: #2a2621;
 
-  /* Dark mode modern zinc/neutral palette */
-  --vp-c-bg: #09090b;
-  --vp-c-bg-alt: #121215;
-  --vp-c-bg-elv: #18181b;
-  --vp-c-bg-soft: #18181b;
-  --vp-c-divider: #27272a;
-  --vp-c-gutter: #18181b;
+  --t1: #ebe5da;
+  --t2: #a59d92;
+  --t3: #8b8378;
+  --t4: #6a6259;
 
-  --vp-home-hero-name-background: -webkit-linear-gradient(135deg, #f8fafc 40%, #60a5fa 100%);
-  --vp-home-hero-image-filter: drop-shadow(0 16px 32px rgba(59, 130, 246, 0.25));
+  --l1: rgba(235, 229, 218, 0.06);
+  --l2: rgba(235, 229, 218, 0.1);
+  --l3: rgba(235, 229, 218, 0.17);
+
+  /* Accents */
+  --zhu: #e25a3d;
+  --zhu-lift: #f07054;
+  --zhu-press: #c94a2f;
+  --on-zhu: #1c0b07;
+  --zhu-wash: rgba(226, 90, 61, 0.14);
+
+  --lamp: #e7b352;
+  --lamp-glow: rgba(231, 179, 82, 0.35);
+  --lamp-wash: rgba(231, 179, 82, 0.12);
+
+  --pine: #5fad85;
+  --pine-wash: rgba(95, 173, 133, 0.14);
+
+  --ochre: #c88f3c;
+  --ochre-wash: rgba(200, 143, 60, 0.14);
+
+  --crimson: #d95f6e;
+  --crimson-wash: rgba(217, 95, 110, 0.14);
+
+  --azure: #6ba4c3;
+  --azure-wash: rgba(107, 164, 195, 0.14);
+
+  --code: #0f0e0c;
+  --slab: #0e0d0b;
+
+  /* Shadows */
+  --sh1: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.6);
+  --sh2: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.6), 0 2px 8px -2px rgba(0, 0, 0, 0.5);
+  --sh3: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.7), 0 14px 34px -10px rgba(0, 0, 0, 0.7);
+
+  /* VitePress token mappings for Ink mode */
+  --vp-c-brand-1: var(--zhu);
+  --vp-c-brand-2: var(--zhu-lift);
+  --vp-c-brand-3: var(--zhu-press);
+  --vp-c-brand-soft: var(--zhu-wash);
+
+  --vp-c-bg: var(--s1);
+  --vp-c-bg-alt: var(--s2);
+  --vp-c-bg-elv: var(--s3);
+  --vp-c-bg-soft: var(--s2);
+
+  --vp-c-text-1: var(--t1);
+  --vp-c-text-2: var(--t2);
+  --vp-c-text-3: var(--t3);
+
+  --vp-c-divider: var(--l2);
+  --vp-c-border: var(--l2);
+  --vp-c-gutter: var(--l1);
+
+  --vp-code-bg: var(--code);
+  --vp-code-color: var(--t1);
+
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: -webkit-linear-gradient(135deg, #ebe5da 30%, #f07054 100%);
+  --vp-home-hero-image-filter: drop-shadow(0 16px 36px rgba(226, 90, 61, 0.26));
 }
 
-/* Base typography enhancements */
+/* 微细宣纸/墨韵触感噪点 (SVG Turbulence) */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.032;
+  mix-blend-mode: multiply;
+  background: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>") 0 0 / 200px 200px;
+}
+
+.dark body::before {
+  opacity: 0.018;
+  mix-blend-mode: screen;
+}
+
+/* 顶部导航栏 Navbar */
+.VPNav {
+  backdrop-filter: blur(12px) saturate(180%);
+  border-bottom: 1px solid var(--vp-c-divider);
+}
+
+.VPNavBarTitle .title {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  font-size: 1.1rem;
+}
+
+/* 标题族宋体/衬线美学 */
 .vp-doc h1 {
-  font-size: 2rem;
-  font-weight: 700;
-  letter-spacing: -0.025em;
+  font-family: var(--font-serif);
+  font-size: 2.1rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
   line-height: 1.25;
   margin-bottom: 1.25rem;
+  color: var(--vp-c-text-1);
 }
 
 .vp-doc h2 {
-  font-size: 1.4rem;
+  font-family: var(--font-serif);
+  font-size: 1.45rem;
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   margin-top: 2.25rem;
   border-top: 1px solid var(--vp-c-divider);
   padding-top: 1.5rem;
+  color: var(--vp-c-text-1);
 }
 
 .vp-doc h3 {
-  font-size: 1.15rem;
+  font-family: var(--font-serif);
+  font-size: 1.18rem;
   font-weight: 600;
-  letter-spacing: -0.01em;
-  margin-top: 1.5rem;
+  letter-spacing: -0.005em;
+  margin-top: 1.6rem;
+  color: var(--vp-c-text-1);
 }
 
-.vp-doc p {
-  line-height: 1.75;
+.vp-doc p,
+.vp-doc li {
+  line-height: 1.76;
+  color: var(--vp-c-text-1);
 }
 
-/* Polished Sidebar */
+/* 引用块 Blockquote */
+.vp-doc blockquote {
+  border-left: 2px solid var(--l3);
+  padding: 4px 0 4px 14px;
+  margin: 1.25rem 0;
+  color: var(--t2);
+  background: transparent;
+  font-style: normal;
+}
+
+/* 侧边栏 Sidebar */
+.VPSidebar {
+  border-right: 1px solid var(--vp-c-divider);
+}
+
 .VPSidebarItem.level-0 .text {
+  font-family: var(--vp-font-family-base);
   font-weight: 600;
-  font-size: 0.95rem;
-  letter-spacing: -0.01em;
+  font-size: 0.92rem;
+  letter-spacing: 0.04em;
+  color: var(--t2);
 }
 
 .VPSidebarItem.level-1 .text {
   font-size: 0.88rem;
 }
 
-.VPSidebarItem.is-active .text {
-  color: var(--vp-c-brand-1) !important;
+.VPSidebarItem.is-active > .item {
+  background: var(--zhu-wash);
+  border-radius: 6px;
+}
+
+.VPSidebarItem.is-active > .item .text {
+  color: var(--zhu) !important;
   font-weight: 600;
 }
 
-/* Modern Tag Badges */
-.tag-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 8px;
+.VPSidebarItem .item {
   border-radius: 6px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  line-height: 1.4;
-  margin-left: 6px;
-  vertical-align: middle;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-.tag-free {
-  background-color: rgba(16, 185, 129, 0.12);
-  color: #10b981;
-  border: 1px solid rgba(16, 185, 129, 0.2);
+.VPSidebarItem .item:hover {
+  background: var(--s1);
 }
 
-.dark .tag-free {
-  background-color: rgba(16, 185, 129, 0.15);
-  color: #34d399;
-  border-color: rgba(52, 211, 153, 0.25);
-}
-
-.tag-fast {
-  background-color: rgba(245, 158, 11, 0.12);
-  color: #d97706;
-  border: 1px solid rgba(245, 158, 11, 0.2);
-}
-
-.dark .tag-fast {
-  background-color: rgba(245, 158, 11, 0.15);
-  color: #fbbf24;
-  border-color: rgba(251, 191, 36, 0.25);
-}
-
-.tag-local {
-  background-color: rgba(59, 130, 246, 0.12);
-  color: #2563eb;
-  border: 1px solid rgba(59, 130, 246, 0.2);
-}
-
-.dark .tag-local {
-  background-color: rgba(59, 130, 246, 0.15);
-  color: #60a5fa;
-  border-color: rgba(96, 165, 250, 0.25);
-}
-
-/* Clean Tables */
+/* 古籍书口线表格 (Booktabs Table) */
 .vp-doc table {
   display: table;
   width: 100%;
   border-collapse: collapse;
-  margin: 1.25rem 0;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.vp-doc th, .vp-doc td {
-  padding: 10px 16px;
-  border: 1px solid var(--vp-c-divider);
+  margin: 1.5rem 0;
+  border-top: 1.5px solid var(--vp-c-divider);
+  border-bottom: 1.5px solid var(--vp-c-divider);
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
 }
 
 .vp-doc th {
-  background-color: var(--vp-c-bg-soft);
-  font-weight: 600;
+  background: transparent;
+  font: 600 11px var(--vp-font-family-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--t3);
   text-align: left;
+  padding: 10px 14px;
+  border-top: none;
+  border-bottom: 1px solid var(--vp-c-divider);
+  border-left: none;
+  border-right: none;
+  white-space: nowrap;
 }
 
-/* Callout adjustments */
-.custom-block.tip {
-  border-color: var(--vp-c-brand-1);
+.vp-doc td {
+  padding: 9px 14px;
+  border-top: none;
+  border-bottom: 1px solid var(--vp-c-gutter);
+  border-left: none;
+  border-right: none;
+  color: var(--t1);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.6;
 }
+
+.vp-doc tr:last-child td {
+  border-bottom: none;
+}
+
+.vp-doc tr:nth-child(2n) {
+  background: transparent;
+}
+
+.vp-doc tr:hover td {
+  background: var(--zhu-wash);
+}
+
+/* 代码与代码块 (Code Block & Inline Code) */
+.vp-doc :not(pre) > code {
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.88em;
+  background: var(--code);
+  color: var(--t1);
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--l1);
+}
+
+.vp-doc div[class*='language-'] {
+  border-radius: 8px;
+  box-shadow: var(--sh1);
+  border: 1px solid var(--l2);
+  margin: 1.25rem 0;
+}
+
+/* 标签徽章 (Tag Badges) */
+.tag-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-family: var(--vp-font-family-mono);
+  font-weight: 500;
+  line-height: 1.45;
+  margin-left: 6px;
+  vertical-align: middle;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 松绿标签 (免费 / 稳定) */
+.tag-free {
+  background-color: var(--pine-wash);
+  color: var(--pine);
+  border: 1px solid rgba(61, 124, 94, 0.25);
+}
+
+.dark .tag-free {
+  background-color: var(--pine-wash);
+  color: var(--pine);
+  border-color: rgba(95, 173, 133, 0.3);
+}
+
+/* 赭石/灯火标签 (极速 / 警觉) */
+.tag-fast {
+  background-color: var(--ochre-wash);
+  color: var(--ochre);
+  border: 1px solid rgba(148, 97, 26, 0.25);
+}
+
+.dark .tag-fast {
+  background-color: var(--ochre-wash);
+  color: var(--ochre);
+  border-color: rgba(200, 143, 60, 0.3);
+}
+
+/* 天青标签 (本地 / 专属) */
+.tag-local {
+  background-color: var(--azure-wash);
+  color: var(--azure);
+  border: 1px solid rgba(58, 119, 151, 0.25);
+}
+
+.dark .tag-local {
+  background-color: var(--azure-wash);
+  color: var(--azure);
+  border-color: rgba(107, 164, 195, 0.3);
+}
+
+/* 朱砂标签 (精选 / 首选) */
+.tag-zhu,
+.tag-brand {
+  background-color: var(--zhu-wash);
+  color: var(--zhu);
+  border: 1px solid rgba(198, 65, 42, 0.25);
+}
+
+.dark .tag-zhu,
+.dark .tag-brand {
+  background-color: var(--zhu-wash);
+  color: var(--zhu);
+  border-color: rgba(226, 90, 61, 0.3);
+}
+
+/* 提示盒与告警块 (Admonitions / Custom Blocks) */
+.custom-block {
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin: 1.25rem 0;
+  border: 1px solid transparent;
+}
+
+.custom-block .custom-block-title {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-bottom: 6px;
+}
+
+/* Tip: 松绿或朱砂 */
+.custom-block.tip {
+  background-color: var(--pine-wash);
+  border-left: 3px solid var(--pine);
+  border-color: var(--l2);
+  border-left-color: var(--pine);
+}
+
+.custom-block.tip .custom-block-title {
+  color: var(--pine);
+}
+
+/* Info: 天青 */
+.custom-block.info {
+  background-color: var(--azure-wash);
+  border: 1px solid var(--l2);
+  border-left: 3px solid var(--azure);
+}
+
+.custom-block.info .custom-block-title {
+  color: var(--azure);
+}
+
+/* Warning: 赭石 */
+.custom-block.warning {
+  background-color: var(--ochre-wash);
+  border: 1px solid var(--l2);
+  border-left: 3px solid var(--ochre);
+}
+
+.custom-block.warning .custom-block-title {
+  color: var(--ochre);
+}
+
+/* Danger: 胭脂 */
+.custom-block.danger {
+  background-color: var(--crimson-wash);
+  border: 1px solid var(--l2);
+  border-left: 3px solid var(--crimson);
+}
+
+.custom-block.danger .custom-block-title {
+  color: var(--crimson);
+}
+
+/* 首页 Hero 区域与组件 */
+.VPHero .name {
+  font-family: var(--font-serif);
+  letter-spacing: -0.02em;
+}
+
+.VPHero .tagline {
+  font-size: 1.15rem;
+  color: var(--t2);
+  line-height: 1.6;
+}
+
+/* Hero 按钮动效与印章感 */
+.VPButton.brand {
+  background: var(--zhu);
+  color: var(--on-zhu);
+  border-radius: 6px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.14);
+  font-weight: 500;
+  transition: background-color 0.16s ease, transform 0.14s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+.VPButton.brand:hover {
+  background: var(--zhu-lift);
+  color: var(--on-zhu);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px -2px rgba(198, 65, 42, 0.35);
+}
+
+.VPButton.brand:active {
+  background: var(--zhu-press);
+  transform: translateY(0);
+}
+
+.VPButton.alt {
+  background: var(--s2);
+  color: var(--t1);
+  border: 1px solid var(--l2);
+  border-radius: 6px;
+  box-shadow: var(--sh1);
+  transition: background-color 0.16s ease, transform 0.14s ease;
+}
+
+.VPButton.alt:hover {
+  background: var(--s3);
+  transform: translateY(-1px);
+}
+
+/* 特性卡片 Feature Cards */
+.VPFeature {
+  background: var(--vp-c-bg-elv) !important;
+  border: 1px solid var(--l2) !important;
+  border-radius: 10px !important;
+  box-shadow: var(--sh1);
+  transition: transform 0.18s cubic-bezier(0.34, 1.4, 0.64, 1), box-shadow 0.18s ease;
+}
+
+.VPFeature:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--sh2);
+}
+
+.VPFeature .title {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: 1.08rem;
+  color: var(--t1);
+}
+
+.VPFeature .details {
+  font-size: 0.88rem;
+  line-height: 1.65;
+  color: var(--t2);
+}
+
+.VPFeature .icon {
+  background-color: var(--zhu-wash) !important;
+  border-radius: 8px;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  font-size: 1.25rem;
+}
+
+/* 滚动条美化 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--l2);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--l3);
+}
+
+/* 正文链接与交互 */
+.vp-doc a {
+  color: var(--zhu);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.15s ease;
+}
+
+.vp-doc a:hover {
+  text-decoration: underline;
+  color: var(--zhu-lift);
+}
+
+/* 搜索弹窗 Inkstone 砚台质感 */
+.VPLocalSearchBox .modal {
+  background: var(--vp-c-bg-elv) !important;
+  border: 1px solid var(--l2) !important;
+  border-radius: 12px !important;
+  box-shadow: var(--sh3) !important;
+}
+
+.VPLocalSearchBox .search-input {
+  border-radius: 8px !important;
+  background: var(--s1) !important;
+  color: var(--t1) !important;
+}
+
+.VPLocalSearchBox .result.selected {
+  background: var(--zhu-wash) !important;
+  border-radius: 6px !important;
+}
+
