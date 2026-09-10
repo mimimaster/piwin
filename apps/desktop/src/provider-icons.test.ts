@@ -93,6 +93,20 @@ describe('ProviderIcon', () => {
     expect(glmProxy).toContain('data-provider-brand="Zhipu"');
   });
 
+  it('resolves Grok brand icon and applies custom circular radius', () => {
+    const grokIcon = renderToStaticMarkup(
+      createElement(ProviderIcon, {
+        id: 'xai',
+        modelId: 'grok-4.5',
+        size: 22,
+        radius: '50%',
+      }),
+    );
+    expect(grokIcon).toContain('data-provider-brand="Grok"');
+    expect(grokIcon).toContain('border-radius:50%');
+    expect(grokIcon).toContain('<svg');
+  });
+
   it('resolves official brand icons for OAuth subscription providers', () => {
     const kimi = renderToStaticMarkup(createElement(ProviderIcon, { id: 'kimi-coding' }));
     expect(kimi).toContain('data-provider-icon="kimi-coding"');

@@ -38,6 +38,7 @@ export type ProviderIconProps = {
   /** Model ID for fallback brand detection when provider ID is custom (e.g. OpenAI proxy / custom gateway). */
   modelId?: string;
   size?: number;
+  radius?: number | string;
   className?: string;
   style?: CSSProperties;
 };
@@ -134,15 +135,11 @@ const BRANDS: Record<string, BrandEntry> = {
 };
 
 function resolveBrand(id: string, modelId?: string): BrandEntry | null {
-  const direct = BRANDS[id];
-  if (direct) return direct;
-
-  const lower = id.toLowerCase();
-
-  // If modelId is provided (e.g. proxying gemini/claude via a custom endpoint or openai-compatible relay),
-  // check modelId first for specific brand matching before falling back to generic protocol marks.
+  // If modelId is provided (e.g. proxying gemini/claude via a custom endpoint or openai-compatible relay,
+  // or specific model like grok under xai/openrouter), check modelId first for specific brand matching.
   if (modelId) {
     const lowerModel = modelId.toLowerCase();
+    if (lowerModel.includes('grok')) return BRANDS.grok!;
     if (lowerModel.includes('gemini') || lowerModel.includes('google')) return BRANDS.gemini!;
     if (lowerModel.includes('claude') || lowerModel.includes('anthropic')) return BRANDS.claude ?? BRANDS.anthropic!;
     if (lowerModel.includes('deepseek')) return BRANDS.deepseek!;
@@ -155,8 +152,6 @@ function resolveBrand(id: string, modelId?: string): BrandEntry | null {
     }
     if (lowerModel.includes('kimi')) return BRANDS.kimi!;
     if (lowerModel.includes('moonshot')) return BRANDS.moonshot!;
-    if (lowerModel.includes('grok')) return BRANDS.grok!;
-    if (lowerModel.includes('xai')) return BRANDS.xai!;
     if (lowerModel.includes('copilot')) return BRANDS['github-copilot'] ?? BRANDS.copilot!;
     if (
       lowerModel.includes('zhipu') ||
@@ -183,7 +178,13 @@ function resolveBrand(id: string, modelId?: string): BrandEntry | null {
     ) {
       return BRANDS.openai!;
     }
+    if (lowerModel.includes('xai')) return BRANDS.xai!;
   }
+
+  const direct = BRANDS[id];
+  if (direct) return direct;
+
+  const lower = id.toLowerCase();
 
   // Protocol-style custom presets: custom-openai / custom-anthropic still
   // show the protocol brand mark (OAI protocol → OpenAI icon is correct).
@@ -243,7 +244,7 @@ function resolveBrand(id: string, modelId?: string): BrandEntry | null {
 export function ProviderIcon(props: ProviderIconProps): ReactElement {
   const size = props.size ?? 28;
   const brand = resolveBrand(props.id, props.modelId);
-  const radius = Math.max(8, Math.round(size * 0.29));
+  const radius = props.radius ?? Math.max(8, Math.round(size * 0.29));
   const className = ['provider-icon', props.className].filter(Boolean).join(' ');
 
   // Prefer modelicons Avatar (official brand chip).

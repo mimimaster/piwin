@@ -1,0 +1,191 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #e6e1d7; font-family: Inter, -apple-system, "PingFang SC", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #1f6d84; } a:hover { color: #155b6e; }
+    .sheet { padding: 40px 44px; display: flex; flex-direction: column; gap: 24px; }
+    .h1 { font-family: "Noto Serif SC", "Songti SC", serif; font-weight: 600; font-size: 30px; color: #1d1b17; }
+    .sub { font-size: 13px; line-height: 1.7; color: #57524a; }
+    .cap { font-family: "Noto Serif SC", "Songti SC", serif; font-weight: 600; font-size: 15px; color: #1d1b17; }
+    .note { font-size: 12.5px; line-height: 1.68; color: #57524a; }
+    .chip { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+    .chip-now { background: rgba(168,50,31,0.10); color: #a8321f; }
+    .chip-new { background: rgba(31,109,132,0.11); color: #1f6d84; }
+    .mono { font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
+    .bad { color: #a8321f; font-weight: 500; }
+    .good { color: #1f6d84; font-weight: 500; }
+
+    .barWrap { width: 246px; flex: 0 0 auto; position: relative; }
+    .bar { width: 246px; background: #f0ece4; border-radius: 12px; box-shadow: 0 2px 10px -4px rgba(29,27,23,0.16); overflow: hidden; position: relative; }
+    .barPad { padding: 10px 8px; }
+    .grpLbl { font-size: 11px; font-weight: 600; letter-spacing: 0.88px; color: #807a70; padding: 10px 8px 6px; }
+    .grpLblNew { font-size: 12px; font-weight: 600; letter-spacing: 0; color: #807a70; padding: 12px 8px 6px; }
+    .row { padding: 7px 8px; border-radius: 7px; display: flex; gap: 8px; align-items: flex-start; }
+    .tName { font-family: "Noto Serif SC", "Songti SC", serif; font-weight: 500; font-size: 13px; letter-spacing: 0.13px; color: #1d1b17; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tNameNew { font-family: "Noto Serif SC", "Songti SC", serif; font-weight: 500; font-size: 14px; color: #1d1b17; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.38; }
+    .tPrev { font-size: 11px; color: #655e53; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tTime { font-family: "JetBrains Mono", monospace; font-size: 11px; color: #696256; flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+    .searchRow { display: flex; gap: 6px; align-items: center; padding: 8px }
+    .searchBox { flex: 1 1 auto; height: 28px; background: #fffdf8; border: 1px solid rgba(29,27,23,0.10); border-radius: 7px; display: flex; align-items: center; gap: 6px; padding: 0 8px; font-size: 12.5px; color: #807a70; }
+    .plusBtn { width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center; color: #fffdf8; font-size: 15px; flex: 0 0 auto; }
+    .shelf { position: absolute; left: 8px; right: 8px; bottom: 8px; height: 30px; display: flex; align-items: center; gap: 2px; background: #f0ece4; }
+    .shelfBtn { height: 26px; padding: 0 8px; border-radius: 6px; display: flex; align-items: center; gap: 5px; font-size: 12px; color: #57524a; white-space: nowrap; flex: 0 0 auto; }
+    .flagDot { width: 16px; height: 16px; border-radius: 999px; color: #fffdf8; font-size: 10px; font-weight: 600; display: flex; align-items: center; justify-content: center; font-family: "JetBrains Mono", monospace; flex: 0 0 auto; box-shadow: 0 1px 4px rgba(29,27,23,0.3); }
+    .flag { position: absolute; z-index: 4; }
+    .keyItem { display: flex; gap: 9px; align-items: flex-start; }
+    .keyNum { width: 16px; height: 16px; border-radius: 999px; font-family: "JetBrains Mono", monospace; font-size: 10px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; margin-top: 2px; }
+    /* thread line */
+    .thread { position: relative; }
+    .threadLine { position: absolute; left: 12px; top: 16px; bottom: 16px; width: 1px; background: rgba(29,27,23,0.22); }
+    .node { width: 9px; height: 9px; border-radius: 999px; background: #f0ece4; border: 1.5px solid rgba(29,27,23,0.28); flex: 0 0 auto; margin-top: 4px; z-index: 1; }
+  </style>
+</helmet>
+<div class="sheet">
+
+  <div style="display:flex; flex-direction:column; gap:10px">
+    <div class="h1">侧栏</div>
+    <div class="sub">两个可以直接量出来的问题，和一个规范里写了但没实现的设计。</div>
+  </div>
+
+  <div style="display:flex; gap:34px; align-items:flex-start">
+
+    <!-- current -->
+    <div style="display:flex; flex-direction:column; gap:12px">
+      <div style="display:flex; align-items:center; gap:10px"><span class="chip chip-now">现状</span><span class="cap">246px</span></div>
+      <div class="barWrap"><div class="flag" style="right:-9px; top:284px"><span class="flagDot" style="background:#a8321f">1</span></div>
+        <div class="flag" style="right:-9px; bottom:14px"><span class="flagDot" style="background:#a8321f">2</span></div>
+        <div class="flag" style="right:-9px; top:14px"><span class="flagDot" style="background:#a8321f">3</span></div>
+        <div class="bar" style="height:600px">
+        <div class="searchRow">
+          <div class="searchBox"><span style="font-size:11px">⌕</span><span>搜索或跳转…</span><span style="flex:1 1 auto"></span><span class="mono" style="font-size:10.5px; color:#a8a29a">⌘K</span></div>
+          <div class="plusBtn" style="background:#c8503a">+</div>
+        </div>
+        <div class="grpLbl">项目 <span class="mono" style="letter-spacing:0">5</span></div>
+        <div class="barPad" style="padding-top:0">
+          <div class="row"><span style="color:#807a70; font-size:12px">▤</span><span class="tName" style="font-family:Inter; font-weight:600; font-size:13.5px">No Repo</span></div>
+          <div class="row"><span style="color:#807a70; font-size:12px">▤</span><span class="tName" style="font-family:Inter; font-size:13.5px">piwin</span><span class="mono" style="font-size:10.5px; color:#807a70; background:rgba(29,27,23,.05); padding:1px 5px; border-radius:4px">main</span></div>
+          <div class="row"><span style="color:#807a70; font-size:12px">▤</span><span class="tName" style="font-family:Inter; font-size:13.5px">未命名文件夹</span></div>
+        </div>
+        <div class="grpLbl" style="display:flex; align-items:center">对话 <span class="mono" style="letter-spacing:0; margin-left:6px">48</span><span style="flex:1 1 auto"></span><span style="color:#807a70; font-size:14px; letter-spacing:0">+</span></div>
+        <div class="grpLbl" style="padding-top:2px">昨天</div>
+        <div class="barPad" style="padding-top:0">
+          <div class="row" style="background:#fffdf8; box-shadow:0 1px 3px rgba(29,27,23,.07)">
+            <div style="flex:1 1 auto; min-width:0">
+              <div class="tName">我有个关键问题，…</div>
+              <div class="tPrev">“你网上查一下苹果碳纤…</div>
+            </div>
+            <span class="tTime">1d</span>
+          </div>
+        </div>
+        <div class="grpLbl" style="padding-top:2px">过去 7 天</div>
+        <div class="barPad" style="padding-top:0">
+          <div class="row"><div style="flex:1 1 auto; min-width:0"><div class="tName">确认 /van 命令意图</div><div class="tPrev">“/van”</div></div><span class="tTime">2d</span></div>
+          <div class="row"><div style="flex:1 1 auto; min-width:0"><div class="tName">制作玛奇玛闪光卡</div><div class="tPrev">“奇怪我还以为使用那个…</div></div><span class="tTime">2d</span></div>
+          <div class="row"><div style="flex:1 1 auto; min-width:0"><div class="tName">GitHub 查找 Rui…</div><div class="tPrev">“查一下，看有没有一个…</div></div><span class="tTime">2d</span></div>
+          <div class="row"><div style="flex:1 1 auto; min-width:0"><div class="tName">绘制鹈鹕骑行动画</div><div class="tPrev">“画一只2D的鹈鹕骑自…</div></div><span class="tTime">3d</span></div>
+        </div>
+
+        <div class="shelf">
+          <div class="shelfBtn">▣ 资料库</div>
+          <div class="shelfBtn">▤ 闪卡</div>
+          <div class="shelfBtn">✳ 设置</div>
+          <div class="shelfBtn" style="color:#5fad85">● remot</div>
+        </div>
+        <div style="position:absolute; right:0; bottom:8px; width:16px; height:30px; background:linear-gradient(90deg, rgba(240,236,228,0), #f0ece4 60%)"></div>
+        <div style="position:absolute; right:-2px; bottom:8px; width:2px; height:30px; background:rgba(168,50,31,.55)"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- proposed -->
+    <div style="display:flex; flex-direction:column; gap:12px">
+      <div style="display:flex; align-items:center; gap:10px"><span class="chip chip-new">建议</span><span class="cap">246px · 未加宽</span></div>
+      <div class="barWrap"><div class="flag" style="left:-9px; top:246px"><span class="flagDot" style="background:#1f6d84">A</span></div>
+        <div class="flag" style="right:-9px; top:398px"><span class="flagDot" style="background:#1f6d84">B</span></div>
+        <div class="flag" style="right:-9px; bottom:14px"><span class="flagDot" style="background:#1f6d84">C</span></div>
+        <div class="bar" style="height:600px">
+        <div class="searchRow">
+          <div class="searchBox"><span style="font-size:11px">⌕</span><span>搜索或跳转…</span><span style="flex:1 1 auto"></span><span class="mono" style="font-size:10.5px; color:#a8a29a">⌘K</span></div>
+          <div class="plusBtn" style="background:#1f6d84">+</div>
+        </div>
+        <div class="grpLblNew">项目 <span class="mono" style="letter-spacing:0">5</span></div>
+        <div class="barPad" style="padding-top:0">
+          <div class="row"><span style="color:#807a70; font-size:12px">▤</span><span class="tName" style="font-family:Inter; font-weight:600; font-size:13px">No Repo</span></div>
+          <div class="row"><span style="color:#807a70; font-size:12px">▤</span><span class="tName" style="font-family:Inter; font-size:13px">piwin</span><span class="mono" style="font-size:11px; color:#807a70; background:rgba(29,27,23,.05); padding:1px 5px; border-radius:4px">main</span></div>
+          <div class="row"><span style="color:#807a70; font-size:12px">▤</span><span class="tName" style="font-family:Inter; font-size:13px">未命名文件夹</span></div>
+        </div>
+        <div class="grpLblNew" style="display:flex; align-items:center">对话 <span class="mono" style="margin-left:6px">48</span><span style="flex:1 1 auto"></span><span style="color:#807a70; font-size:14px">+</span></div>
+        <div class="grpLblNew" style="padding-top:2px">昨天</div>
+        <div class="barPad" style="padding-top:0">
+          <div class="thread">
+            <div class="threadLine" style="background:linear-gradient(#e8b23f 0%, rgba(29,27,23,0.14) 70%)"></div>
+            <div class="row" style="gap:9px">
+              <span class="node" style="background:#e8b23f; border-color:#e8b23f; box-shadow:0 0 0 3px rgba(232,178,63,.22)"></span>
+              <div style="flex:1 1 auto; min-width:0; background:#fffdf8; box-shadow:inset 2px 0 0 #4a9bb5, 0 1px 3px rgba(29,27,23,.07); border-radius:7px; padding:5px 8px; margin:-5px -8px">
+                <div class="tNameNew">我有个关键问题，手机壳怎么拆</div>
+                <div style="display:flex; align-items:center; gap:6px; margin-top:3px">
+                  <span class="mono" style="font-size:11px; color:#8a6410">运行中</span>
+                  <span class="tTime" style="color:#807a70">1d</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="grpLblNew" style="padding-top:2px">过去 7 天</div>
+        <div class="barPad" style="padding-top:0">
+          <div class="thread">
+            <div class="threadLine"></div>
+            <div class="row" style="gap:9px"><span class="node"></span><div style="flex:1 1 auto; min-width:0"><div class="tNameNew">确认 /van 命令意图</div></div><span class="tTime">2d</span></div>
+            <div class="row" style="gap:9px"><span class="node"></span><div style="flex:1 1 auto; min-width:0"><div class="tNameNew">制作玛奇玛闪光卡</div></div><span class="tTime">2d</span></div>
+            <div class="row" style="gap:9px"><span class="node"></span><div style="flex:1 1 auto; min-width:0"><div class="tNameNew">GitHub 查找 RuiC-card skill</div></div><span class="tTime">2d</span></div>
+            <div class="row" style="gap:9px"><span class="node"></span><div style="flex:1 1 auto; min-width:0"><div class="tNameNew">绘制鹈鹕骑行动画</div></div><span class="tTime">3d</span></div>
+          </div>
+        </div>
+
+        <div class="shelf">
+          <div class="shelfBtn">▣ 资料库</div>
+          <div class="shelfBtn">▤ 闪卡</div>
+          <div class="shelfBtn">✳ 设置</div>
+          <span style="flex:1 1 auto"></span>
+          <div class="shelfBtn" style="padding:0 4px" title="已连接远端 Host"><span style="width:7px; height:7px; border-radius:999px; background:#5fad85; display:block"></span></div>
+        </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- notes -->
+    <div style="flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:22px; padding-top:38px">
+
+      <div style="display:flex; flex-direction:column; gap:11px">
+        <div class="cap" style="color:#a8321f">现状</div>
+        <div class="keyItem"><span class="keyNum" style="background:rgba(168,50,31,0.12); color:#a8321f">1</span><span class="note"><strong style="font-weight:600; color:#1d1b17">标题在 10 个汉字处就截断了</strong>，而同一屏的正文列左右各浪费 <span class="mono">264px</span>。<span class="bad">最长的字符串被塞进最窄的容器</span>，最宽的容器里放的是 40px 的模型名。</span></div>
+        <div class="keyItem"><span class="keyNum" style="background:rgba(168,50,31,0.12); color:#a8321f">2</span><span class="note"><strong style="font-weight:600; color:#1d1b17">底栏溢出 16px，“remote”被切掉。</strong>实测 <span class="mono">.sidebar-shelf</span> 的 <span class="mono">clientWidth 240</span> / <span class="mono">scrollWidth 256</span>——默认宽度下必然裁字，不是个别情况。同一块里还有一个 <span class="mono">0×0</span> 的重复“设置”按钮（<span class="mono">settings-open-btn</span>），无法点击但对读屏和 e2e 都可见，Playwright 点它会直接超时。</span></div>
+        <div class="keyItem"><span class="keyNum" style="background:rgba(168,50,31,0.12); color:#a8321f">3</span><span class="note"><strong style="font-weight:600; color:#1d1b17">四个不同的按钮都叫“素笺”。</strong>顶部新建、No Repo 新建、通用工作区各用同一个无障碍名，而项目树里的同类按钮却叫“在 piwin 中新建会话”。诗意留给印章、空态和主题名很好，<span class="bad">但导航控件需要确定性</span>。</span></div>
+      </div>
+
+      <div style="height:1px; background:rgba(29,27,23,0.08)"></div>
+
+      <div style="display:flex; flex-direction:column; gap:11px">
+        <div class="cap" style="color:#1f6d84">建议</div>
+        <div class="keyItem"><span class="keyNum" style="background:rgba(31,109,132,0.12); color:#1f6d84">A</span><span class="note"><strong style="font-weight:600; color:#1d1b17">把规范第 7 节的“会话线”真正做出来。</strong>Deck 文档写着：同组会话挂在一条竖发丝线上，一个会话一个节点，当前会话点亮、运行中的节点呼吸。<span class="good">设置页那张主题预览图里画的就是这个</span>——一条带红节点的线；但会话列表实际渲染的是文档说要“取代”的扁平高亮行。预览图承诺了产品没兑现的设计。</span></div>
+        <div class="keyItem"><span class="keyNum" style="background:rgba(31,109,132,0.12); color:#1f6d84">B</span><span class="note"><strong style="font-weight:600; color:#1d1b17">标题两行、去掉引文预览。</strong>同样 246px，标题从 10 字变成约 24 字，而且不再需要那条 11px 的引文——它是为了补偿标题截断才存在的。行高降下来后单行反而更省空间。当前会话保留石青左规 + 状态词。</span></div>
+        <div class="keyItem"><span class="keyNum" style="background:rgba(31,109,132,0.12); color:#1f6d84">C</span><span class="note"><strong style="font-weight:600; color:#1d1b17">底栏：连接状态收成一个圆点。</strong>“remote” 这个词本身不承载信息，绿点 + tooltip 就够，溢出问题一并消失。顺手删掉那个 <span class="mono">0×0</span> 的影子按钮，并把新建类按钮的无障碍名统一成“新建会话”。</span></div>
+        <div class="keyItem"><span class="keyNum" style="background:rgba(31,109,132,0.12); color:#1f6d84">D</span><span class="note"><strong style="font-weight:600; color:#1d1b17">列表虚拟化。</strong>现在 48 行会话连同 96 个悬停按钮全部挂在 DOM 上，最后一行的 <span class="mono">y</span> 到 <span class="mono">2553</span>（视口只有 945）。仓库里已经装了 <span class="mono">@tanstack/react-virtual</span>，会话列表没用上。</span></div>
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

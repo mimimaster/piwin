@@ -121,4 +121,92 @@ describe('EmptyStageLanding', () => {
     expect(container.querySelector('[data-testid="empty-stage-inkstone-seal"]')).not.toBeNull();
     expect(container.textContent).toContain('砚');
   });
+
+  it('renders the "研墨起笔" heading in Chinese and "Begin with Ink" in English', () => {
+    const zhContainer = document.createElement('div');
+    document.body.appendChild(zhContainer);
+    const zhRoot = createRoot(zhContainer);
+    mountedRoots.push({ root: zhRoot, container: zhContainer });
+    act(() => {
+      zhRoot.render(
+        <EmptyStageLanding
+          locale="zh-CN"
+          sessions={[session({ id: 'abc', name: 'Notes' })]}
+          onResumeSession={() => {}}
+        />,
+      );
+    });
+    expect(zhContainer.querySelector('h1')?.textContent).toBe('研墨起笔');
+
+    const enContainer = renderLanding([session({ id: 'abc', name: 'Notes' })]);
+    expect(enContainer.querySelector('h1')?.textContent).toBe('Begin with Ink');
+  });
+
+  it('renders the recent section header with divider and all-sessions button', () => {
+    const onOpenAll = vi.fn();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    mountedRoots.push({ root, container });
+    act(() => {
+      root.render(
+        <EmptyStageLanding
+          locale="zh-CN"
+          sessions={[
+            session({ id: '1', name: 'S1' }),
+            session({ id: '2', name: 'S2' }),
+          ]}
+          onResumeSession={() => {}}
+          onOpenAllSessions={onOpenAll}
+        />,
+      );
+    });
+
+    const header = container.querySelector('.empty-stage-landing-header');
+    expect(header).not.toBeNull();
+    expect(header?.textContent).toContain('最近');
+    expect(header?.textContent).toContain('全部 2 →');
+
+    const allButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="empty-stage-landing-all"]',
+    );
+    expect(allButton).not.toBeNull();
+    act(() => {
+      allButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(onOpenAll).toHaveBeenCalledOnce();
+  });
+
+  it('renders a running status dot for active sessions', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    mountedRoots.push({ root, container });
+    act(() => {
+      root.render(
+        <EmptyStageLanding
+          locale="zh-CN"
+          sessions={[
+            session({
+              id: 's-running',
+              name: 'Running task',
+              updatedAt: '2026-09-02T10:00:00.000Z',
+            }),
+            session({
+              id: 's-idle',
+              name: 'Idle task',
+              updatedAt: '2026-09-01T10:00:00.000Z',
+            }),
+          ]}
+          onResumeSession={() => {}}
+          runningSessionIds={{ 's-running': true }}
+        />,
+      );
+    });
+
+    const rows = container.querySelectorAll('[data-testid="empty-stage-landing-row"]');
+    expect(rows).toHaveLength(2);
+    expect(rows[0]?.querySelector('.empty-stage-landing-dot.is-running')).not.toBeNull();
+    expect(rows[1]?.querySelector('.empty-stage-landing-dot.is-running')).toBeNull();
+  });
 });

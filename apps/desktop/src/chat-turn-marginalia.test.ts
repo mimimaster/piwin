@@ -1,5 +1,9 @@
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import {
+  ChatTurnHead,
+  ChatTurnMarginalia,
   buildAssistantColophonMeta,
   formatDurationSeconds,
   formatTokensK,
@@ -168,5 +172,31 @@ describe('chat-turn-marginalia', () => {
         },
       }),
     ).toBe('13k tokens this turn');
+  });
+
+  it('renders official model icon in ChatTurnMarginalia and ChatTurnHead', () => {
+    const grokMsg: ChatMessageUi = {
+      id: 'msg-grok',
+      role: 'assistant',
+      text: 'hello from grok',
+      thinking: '',
+      tools: [{ toolCallId: 't1', toolName: 'read', status: 'done', output: '' }],
+      status: 'done',
+      createdAt: '2026-09-05T14:03:00.000Z',
+      attachments: [],
+      model: { providerId: 'xai', modelId: 'grok-4.5' },
+    };
+    const data = resolveTurnMarginalia([grokMsg]);
+    expect(data.model).toEqual({ providerId: 'xai', modelId: 'grok-4.5' });
+
+    const marginaliaHtml = renderToStaticMarkup(createElement(ChatTurnMarginalia, { data }));
+    expect(marginaliaHtml).toContain('turn-model-icon');
+    expect(marginaliaHtml).toContain('data-provider-brand="Grok"');
+    expect(marginaliaHtml).toContain('has-model-icon');
+
+    const headHtml = renderToStaticMarkup(createElement(ChatTurnHead, { data }));
+    expect(headHtml).toContain('turn-model-icon');
+    expect(headHtml).toContain('data-provider-brand="Grok"');
+    expect(headHtml).toContain('has-model-icon');
   });
 });

@@ -538,7 +538,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                           primaryPane={primaryPane}
                           primarySessionName={
                             activeSessionName ||
-                            (desktopLocale === 'zh-CN' ? '素笺' : 'Clean Slate')
+                            (desktopLocale === 'zh-CN' ? '新会话' : 'New Session')
                           }
                           sessions={
                             state.activeScope.kind === 'general'
@@ -580,6 +580,8 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                           ? state.generalSessions
                           : state.sessions
                       }
+                      onOpenAllSessions={openSessionSearch}
+                      runningSessionIds={backendServiceSessionIds}
                       modelOptions={modelOptions}
                       requestKnowledgeCenter={requestKnowledgeCenter}
                       resolveFlashcards={resolveConversationFlashcards}

@@ -98,6 +98,7 @@ html[data-theme-id='piwin-inkstone-paper'] .chat-turn-head .av {
   place-items: center;
   font-weight: 600;
   font-family: var(--serif);
+  overflow: hidden;
 }
 
 /* Wide-viewport marginalia swap (rail in, head out) per proto-01.
@@ -275,6 +276,24 @@ html[data-theme-id='piwin-inkstone-ink'] .chat-marginalia .av {
   font-weight: 600;
   font-family: var(--serif);
   margin-bottom: 2px;
+  overflow: hidden;
+}
+
+.chat-marginalia .av.has-model-icon,
+.chat-turn-head .av.has-model-icon,
+.head .av.has-model-icon,
+.marg .av.has-model-icon {
+  background: transparent;
+  box-shadow: none;
+}
+
+.chat-marginalia .av .turn-model-icon,
+.chat-turn-head .av .turn-model-icon,
+.head .av .turn-model-icon,
+.marg .av .turn-model-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* User card (.ucard) */

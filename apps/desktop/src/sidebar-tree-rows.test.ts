@@ -523,6 +523,55 @@ describe('buildSidebarTreeRows', () => {
     expect(kinds(expanded)).toContain('empty:general');
   });
 
+  it('does not put a load-failed chip in an empty conversations scope', () => {
+    const scopes = setSessionListScopeMeta(createSessionListScopeState(), { kind: 'general' }, {
+      totalCount: 0,
+      truncated: false,
+      queryStatus: 'error',
+      queryError: 'ENOENT',
+    });
+    const rows = buildSidebarTreeRows({
+      recentProjects: [],
+      projectSessionsByPath: {},
+      generalSessions: [],
+      sessionSearch: '',
+      sessionListOrder: 'updated',
+      projectsSectionExpanded: true,
+      conversationsSectionExpanded: true,
+      collapsedProjects: {},
+      sessionListScopes: scopes,
+    });
+    expect(kinds(rows)).not.toContain('query-error:general');
+    expect(kinds(rows)).toContain('empty:general');
+  });
+
+  it('does not put a load-failed chip under an empty project folder', () => {
+    const scopes = setSessionListScopeMeta(
+      createSessionListScopeState(),
+      { kind: 'project', projectPath: '/p' },
+      {
+        totalCount: 0,
+        truncated: false,
+        queryStatus: 'error',
+        queryError: 'ENOENT',
+      },
+    );
+    const rows = buildSidebarTreeRows({
+      recentProjects: [{ path: '/p' }],
+      projectSessionsByPath: { '/p': [] },
+      generalSessions: [session('g1', 'G')],
+      sessionSearch: '',
+      sessionListOrder: 'updated',
+      projectsSectionExpanded: true,
+      conversationsSectionExpanded: true,
+      collapsedProjects: {},
+      sessionListScopes: scopes,
+      activeProjectPath: '/p',
+    });
+    expect(kinds(rows)).not.toContain('query-error:project');
+    expect(kinds(rows).some((kind) => kind.startsWith('query-error:'))).toBe(false);
+  });
+
   it('does not show an empty hint under an expanded project folder', () => {
     const rows = buildSidebarTreeRows({
       recentProjects: [{ path: '/p' }],
