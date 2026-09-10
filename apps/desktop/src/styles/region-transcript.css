@@ -314,27 +314,28 @@
 }
 
 /* ─── Jump to latest ──────────────────────────────────────────────────
-   Viewport chrome, not transcript content: anchored to the viewport so it
-   stays in the gap above the composer while scrolling. */
+   Viewport chrome, not transcript content: anchored above the composer.
+   Center with a known box + negative margin — never `transform`. `deck-rise`
+   writes `transform` and would snap the control sideways on first paint. */
 
 .jump-to-latest-btn {
   position: absolute;
-  right: 50%;
+  left: 50%;
   bottom: var(--s-5);
-  transform: translateX(50%);
-  margin: 0;
-  display: block;
+  width: var(--h-md);
+  height: var(--h-md);
+  margin: 0 0 0 calc(var(--h-md) / -2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   z-index: 7;
   border: 0;
   background: var(--surface-4);
   color: var(--text-2);
   border-radius: var(--r-pill);
-  padding: var(--s-3) var(--s-6);
-  font-size: var(--fs-chrome);
-  font-weight: 500;
+  padding: 0;
   cursor: pointer;
   box-shadow: var(--elev-3);
-  animation: deck-rise var(--t-3) var(--ease-out);
   transition:
     color var(--t-1) var(--ease-out),
     background-color var(--t-1) var(--ease-out);
