@@ -311,6 +311,7 @@ export function RightPanel(props: RightPanelProps): ReactElement {
             className={`right-panel-action-btn ib${props.isExpanded ? ' active' : ''}`}
             data-testid="right-panel-expand-btn"
             data-app-shell-workspace-layout-toggle="right-panel"
+            size={22}
             label={
               props.isExpanded
                 ? locale === 'zh-CN'
@@ -341,7 +342,11 @@ export function RightPanel(props: RightPanelProps): ReactElement {
               }
             }}
           >
-            {props.isExpanded ? <IconCompress /> : <IconExpand />}
+            {props.isExpanded ? (
+              <IconCompress width={14} height={14} />
+            ) : (
+              <IconExpand width={14} height={14} />
+            )}
           </IconButton>
 
           {props.isOverlayPresentation ? (

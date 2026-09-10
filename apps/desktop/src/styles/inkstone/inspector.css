@@ -129,12 +129,24 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .right-panel-action-btn.ib {
   width: 22px;
   height: 22px;
+  min-width: 22px;
+  min-height: 22px;
+  padding: 0 !important;
+  --ai-size: 22px;
+  --ai-icon-size: 14px;
   border-radius: 6px;
   display: inline-grid;
   place-items: center;
   color: var(--t3) !important;
   background: transparent !important;
   box-shadow: none !important;
+  overflow: visible;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .insp-actions .ib svg,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .right-panel-action-btn.ib svg {
+  width: 14px !important;
+  height: 14px !important;
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .insp-actions .ib:hover,
@@ -718,12 +730,17 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     width: 22px !important;
     height: 22px !important;
     min-width: 22px !important;
+    min-height: 22px !important;
+    padding: 0 !important;
+    --ai-size: 22px;
+    --ai-icon-size: 14px;
     border-radius: 5px;
+    overflow: visible;
   }
   .right-panel .insp-actions svg,
   .right-panel .right-panel-actions svg {
-    width: 13px !important;
-    height: 13px !important;
+    width: 14px !important;
+    height: 14px !important;
   }
   /* Close sits over the trailing padding so inactive chips keep their label
      (proto `.cx` is opacity-only; a reserved 14px slot clips 「浏览器」). */

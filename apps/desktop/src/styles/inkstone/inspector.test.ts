@@ -24,6 +24,13 @@ describe('Inkstone inspector tab strip', () => {
     expect(inspector).toContain('--ai-icon-size: 12px');
   });
 
+  it('keeps the expand control on a 22px hit target with a 14px glyph', () => {
+    expect(inspector).toMatch(
+      /\.right-panel-action-btn\.ib[\s\S]*?--ai-size:\s*22px[\s\S]*?--ai-icon-size:\s*14px/,
+    );
+    expect(inspector).toMatch(/\.right-panel-action-btn\.ib svg[\s\S]*?width:\s*14px\s*!important/);
+  });
+
   it('paints a hover mask on the close chip', () => {
     expect(inspector).toMatch(
       /\.right-panel-tab-close:hover[\s\S]*?background:\s*color-mix\(in srgb, var\(--t1\) 10%, var\(--s3\)\)\s*!important/,
