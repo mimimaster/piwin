@@ -349,20 +349,6 @@
   cursor: pointer;
 }
 
-.context-usage-ring:has(.context-usage-token-text) {
-  width: auto;
-  min-width: 28px;
-  padding: 0 6px;
-  display: inline-flex;
-  gap: 4px;
-}
-
-.context-usage-token-text {
-  font-family: var(--font-mono, var(--mono));
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-}
 
 .context-usage-ring:hover,
 .context-usage-ring.open {
