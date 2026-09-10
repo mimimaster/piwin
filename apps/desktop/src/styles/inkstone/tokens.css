@@ -48,25 +48,27 @@ html[data-theme-id='piwin-inkstone-paper'] {
   --azure-wash: rgba(58, 119, 151, 0.12);
   --code: #efece4;
 
-  /* The slab / composer card — raised signature object per Composer.dc.html. */
-  --composer: #ffffff;
-  --slab: var(--composer);
-  --slab-t: #1d1b17;
-  --slab-ph: #807a70;
-  --slab-text: #1d1b17;
-  --slab-text-2: #57524a;
-  --slab-text-3: #807a70;
-  --slab-placeholder: #807a70;
-  --slab-chip: #f0ece4;
-  --slab-line: rgba(29, 27, 23, 0.09);
-  --slab-raised: #f8f6f0;
-  --slab-hover: rgba(29, 27, 23, 0.04);
-  --slab-active: rgba(29, 27, 23, 0.08);
+  /* The slab — the one deliberately dark object on the page (03-composer.md).
+     Two prototype tiers (t / ph); the app keeps a faithful four-tier set so
+     non-Inkstone themes never change, collapsing text-2/3 onto ph here. */
+  --slab: #1f1c18;
+  --slab-t: #efe9df;
+  --slab-ph: #8d857a;
+  --slab-text: #efe9df;
+  --slab-text-2: #8d857a;
+  --slab-text-3: #8d857a;
+  --slab-placeholder: #8d857a;
+  --slab-chip: rgba(255, 255, 255, 0.07);
+  --slab-line: rgba(255, 255, 255, 0.1);
+  /* No prototype source (static mockup has no interaction/drag states) —
+     same white-on-dark alpha family as --slab-chip/--slab-line. */
+  --slab-raised: rgba(255, 255, 255, 0.08);
+  --slab-hover: rgba(255, 255, 255, 0.06);
+  --slab-active: rgba(255, 255, 255, 0.1);
 
   --sh1: 0 1px 2px rgba(60, 45, 20, 0.06), 0 0 0 1px var(--l2);
   --sh2: 0 2px 8px -2px rgba(60, 45, 20, 0.12), 0 0 0 1px var(--l2);
-  --sh3: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 0 1px rgba(29, 27, 23, 0.09),
-    0 14px 34px -12px rgba(29, 27, 23, 0.22);
+  --sh3: 0 14px 34px -12px rgba(50, 35, 15, 0.3), 0 0 0 1px var(--l3);
 }
 
 /* Ink face: one step darker than the surrounding surfaces rather than
@@ -105,25 +107,24 @@ html[data-theme-id='piwin-inkstone-ink'] {
   --azure-wash: rgba(107, 164, 195, 0.14);
   --code: #0f0e0c;
 
-  --composer: #262218;
-  --slab: var(--composer);
+  --slab: #0e0d0b;
   --slab-t: #ebe5da;
-  --slab-ph: #9a9084;
+  --slab-ph: #6f685f;
   --slab-text: #ebe5da;
-  --slab-text-2: #c0b6a7;
-  --slab-text-3: #9a9084;
-  --slab-placeholder: #9a9084;
-  --slab-chip: rgba(255, 255, 255, 0.055);
+  --slab-text-2: #6f685f;
+  --slab-text-3: #6f685f;
+  --slab-placeholder: #6f685f;
+  --slab-chip: rgba(235, 229, 218, 0.07);
   --slab-line: rgba(235, 229, 218, 0.1);
-  --slab-raised: #2e2a1e;
+  --slab-raised: rgba(235, 229, 218, 0.08);
   --slab-hover: rgba(235, 229, 218, 0.06);
   --slab-active: rgba(235, 229, 218, 0.1);
 
   --sh1: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.6);
   --sh2: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.6),
     0 2px 8px -2px rgba(0, 0, 0, 0.5);
-  --sh3: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 0 0 1px rgba(0, 0, 0, 0.6),
-    0 14px 34px -12px rgba(0, 0, 0, 0.8);
+  --sh3: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.7),
+    0 14px 34px -10px rgba(0, 0, 0, 0.7);
 }
 
 /* Prototype `.app { font: 13.5px/1.5 var(--sans) }`. Deck `:root` uses 12.5px

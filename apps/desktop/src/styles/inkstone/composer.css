@@ -4,7 +4,7 @@
 
 html[data-theme-id='piwin-inkstone-paper'] .slab,
 html[data-theme-id='piwin-inkstone-ink'] .slab {
-  background: var(--composer, var(--slab));
+  background: var(--slab);
   color: var(--slab-t);
   border-radius: 10px;
   box-shadow: var(--sh3);
@@ -12,7 +12,6 @@ html[data-theme-id='piwin-inkstone-ink'] .slab {
   /* Slash/mention menus are anchored children and must escape the slab. */
   overflow: visible;
   border: 0;
-  --slab-text: var(--t1);
 }
 
 /* Kill Deck's `.composer-card-v2:focus-within` iris ring. On Inkstone elevation
@@ -20,6 +19,41 @@ html[data-theme-id='piwin-inkstone-ink'] .slab {
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
   .slab:is(:focus-within, :hover:focus-within) {
   box-shadow: var(--sh3);
+}
+
+/* Light face paper-slab mapping (remaps dark slab to cream paper card) */
+html[data-slab='paper'] .slab,
+[data-slab='paper'] .slab {
+  --slab: var(--s3);
+  --slab-t: var(--t1);
+  --slab-ph: var(--t4);
+  --slab-chip: var(--s1);
+  --slab-line: var(--l2);
+  /* App aliases must follow the proto remap — otherwise chips keep the dark-slab
+     cream (`--slab-text: #efe9df`) on a paper slab and blow out. */
+  --slab-text: var(--t1);
+  --slab-text-2: var(--t4);
+  --slab-text-3: var(--t4);
+  --slab-placeholder: var(--t4);
+}
+
+/* Dark face paper-slab mapping: elevates composer from stage #191714 with high legibility */
+html[data-theme-id='piwin-inkstone-ink'][data-slab='paper'] .slab,
+html[data-theme-id='piwin-inkstone-ink'] [data-slab='paper'] .slab {
+  --slab: #28241e;
+  --slab-t: #f0ebe1;
+  --slab-ph: #a89f92;
+  --slab-chip: rgba(255, 255, 255, 0.08);
+  --slab-line: rgba(235, 229, 218, 0.16);
+  --slab-text: #f0ebe1;
+  --slab-text-2: #c5bba8;
+  --slab-text-3: #a89f92;
+  --slab-placeholder: #a89f92;
+  --slab-raised: rgba(255, 255, 255, 0.1);
+  --slab-hover: rgba(255, 255, 255, 0.08);
+  --slab-active: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.5),
+    0 14px 34px -10px rgba(0, 0, 0, 0.75);
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .chat-column-empty .composer-dock.layout-centered .slab {
