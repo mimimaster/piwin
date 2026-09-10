@@ -3,17 +3,16 @@ import type { ReactElement } from 'react';
 import { Button, SegmentedControl, Switch } from '@piwin/ui-kit';
 import {
   buildAppearanceTheme,
-  isInkstoneThemeId,
   isThemeAppearanceLocked,
   resolveSystemThemeMode,
 } from '../../appearance-tokens.js';
 import { getDesktopCopy } from '../../desktop-locale.js';
 import { useDesktopLocale } from '../../desktop-locale-context.js';
-import { DEFAULT_DARK_THEME_SETTINGS, DEFAULT_LIGHT_THEME_SETTINGS, saveDesktopPreferences, type AppearanceMode, type AppearanceThemeSettings, type DesktopPreferences, type ConversationWidth, type ToolCallDensity } from '../../ui-preferences.js';
+import { DEFAULT_DARK_THEME_SETTINGS, DEFAULT_LIGHT_THEME_SETTINGS, saveDesktopPreferences, type AppearanceMode, type DesktopPreferences, type ConversationWidth, type ToolCallDensity } from '../../ui-preferences.js';
 import { FieldRow } from '../field-row.js';
 import { PageTitle } from '../page-title.js';
 import { settingsHostSupportsCommand, useSettings } from '../settings-context.js';
-import { AppearanceModeControl, ThemeSettingsCard, getAppearanceThemeSettings, type ThemeColorKey } from './appearance-theme-controls.js';
+import { AppearanceModeControl, getAppearanceThemeSettings } from './appearance-theme-controls.js';
 import { ThemeLibraryCard } from './appearance-theme-library.js';
 
 function updatePreference<K extends keyof DesktopPreferences>(
@@ -44,32 +43,6 @@ export function AppearancePage(): ReactElement {
     const activeMode = mode === 'system' ? resolveSystemThemeMode() : mode;
     onThemeApplied(
       buildAppearanceTheme(activeMode, getAppearanceThemeSettings(nextPreferences, activeMode)),
-    );
-  }
-
-  function applyFaceTheme(mode: 'light' | 'dark', nextThemeSettings: AppearanceThemeSettings): void {
-    const nextPreferences: DesktopPreferences = {
-      ...preferences,
-      ...(mode === 'light' ? { lightTheme: nextThemeSettings } : { darkTheme: nextThemeSettings }),
-    };
-    onPreferencesChange(nextPreferences);
-    saveDesktopPreferences(nextPreferences);
-    if (activeTheme.mode === mode) {
-      onThemeApplied(buildAppearanceTheme(mode, nextThemeSettings));
-    }
-  }
-
-  function handleThemeColorChange(mode: 'light' | 'dark', key: ThemeColorKey, value: string): void {
-    if (themePackageActive) return;
-    const currentThemeSettings = getAppearanceThemeSettings(preferences, mode);
-    applyFaceTheme(mode, { ...currentThemeSettings, [key]: value });
-  }
-
-  function handleResetFaceDefault(mode: 'light' | 'dark'): void {
-    if (themePackageActive) return;
-    applyFaceTheme(
-      mode,
-      mode === 'light' ? { ...DEFAULT_LIGHT_THEME_SETTINGS } : { ...DEFAULT_DARK_THEME_SETTINGS },
     );
   }
 
@@ -112,28 +85,6 @@ export function AppearancePage(): ReactElement {
         </div>
       </section>
 
-      <div className="appearance-face-grid">
-        <ThemeSettingsCard
-          mode={activeTheme.mode === 'light' ? 'light' : 'dark'}
-          locale={locale}
-          selected={isInkstoneThemeId(activeTheme.id)}
-          disabled={themePackageActive}
-          onSelect={() =>
-            handleAppearanceModeChange(activeTheme.mode === 'light' ? 'light' : 'dark')
-          }
-          settings={getAppearanceThemeSettings(
-            preferences,
-            activeTheme.mode === 'light' ? 'light' : 'dark',
-          )}
-          copy={copy}
-          onChange={(key, value) =>
-            handleThemeColorChange(activeTheme.mode === 'light' ? 'light' : 'dark', key, value)
-          }
-          onResetToDefault={() =>
-            handleResetFaceDefault(activeTheme.mode === 'light' ? 'light' : 'dark')
-          }
-        />
-      </div>
       {themeLibraryAvailable ? <ThemeLibraryCard /> : null}
       <section className="settings-section settings-section-card">
         <PageTitle title={copy.chatSettings} description={copy.chatSettingsDescription} />
