@@ -2,22 +2,25 @@ import { defineConfig } from 'vitepress';
 
 export default defineConfig({
   lang: 'zh-CN',
-  title: 'Planora',
-  description: '下一代 AI 智能体工作台与生产力生态',
+  title: 'Piwin Docs',
+  description: '私有化 AI 智能体工作台与生产力生态',
   cleanUrls: true,
   lastUpdated: true,
 
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
-    ['meta', { name: 'theme-color', content: '#2563eb' }],
+    ['link', { rel: 'preconnect', href: 'https://fonts.googleapis.com' }],
+    ['link', { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' }],
+    ['link', { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Noto+Serif+SC:wght@500;600;700&display=swap' }],
+    ['meta', { name: 'theme-color', content: '#c6412a' }],
     ['meta', { name: 'og:type', content: 'website' }],
-    ['meta', { name: 'og:title', content: 'Planora Docs - AI 智能体配置与生产力生态' }],
-    ['meta', { name: 'og:description', content: '纯静态、开箱即用的 AI 智能体配置与视觉委托指南' }],
+    ['meta', { name: 'og:title', content: 'Piwin Docs · 砚 - 私有化 AI 智能体工作台指引' }],
+    ['meta', { name: 'og:description', content: '遵循 Inkstone（砚）文人美学的私有化 AI 智能体工作台配置指南' }],
   ],
 
   themeConfig: {
     logo: '/logo.svg',
-    siteTitle: 'Planora',
+    siteTitle: 'Piwin · 砚',
 
     nav: [
       { text: '首页', link: '/' },
@@ -138,13 +141,13 @@ export default defineConfig({
 
     footer: {
       message: 'Released under the MIT License.',
-      copyright: 'Copyright © 2024-present Planora. All rights reserved.',
+      copyright: 'Copyright © 2024-present Piwin. All rights reserved.',
     },
 
-    darkModeSwitchLabel: '深浅模式',
-    lightModeSwitchTitle: '切换到浅色模式',
-    darkModeSwitchTitle: '切换到深色模式',
-    sidebarMenuLabel: '菜单',
+    darkModeSwitchLabel: '面（纸 / 墨）',
+    lightModeSwitchTitle: '切换至纸面（浅色）',
+    darkModeSwitchTitle: '切换至墨面（深色）',
+    sidebarMenuLabel: '目录',
     returnToTopLabel: '回到顶部',
   },
 });
