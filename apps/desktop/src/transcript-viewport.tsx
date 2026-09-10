@@ -69,6 +69,9 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
   const trackRef = useRef<HTMLDivElement | null>(null);
   const draggingRef = useRef(false);
   const loadInFlightRef = useRef(false);
+  const pendingHistoryAnchorRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(
+    null,
+  );
   const openedSessionPinRef = useRef<{ sessionId: string; pinned: boolean } | null>(null);
 
   useLayoutEffect(() => {
@@ -150,26 +153,43 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
     [scrollToTrackY],
   );
 
+  const restorePendingHistoryAnchor = useCallback((): boolean => {
+    const pending = pendingHistoryAnchorRef.current;
+    const container = scroll.containerRef.current;
+    if (!pending || !container) {
+      return false;
+    }
+    const delta = container.scrollHeight - pending.scrollHeight;
+    if (delta <= 0) {
+      return false;
+    }
+    scroll.beginProgrammaticScroll();
+    container.scrollTop = pending.scrollTop + delta;
+    pendingHistoryAnchorRef.current = null;
+    return true;
+  }, [scroll.beginProgrammaticScroll, scroll.containerRef]);
+
   const handleLoadOlder = useCallback(async (): Promise<void> => {
     const container = scroll.containerRef.current;
     if (!container || !props.onLoadOlder || props.historyLoading || loadInFlightRef.current) {
       return;
     }
     loadInFlightRef.current = true;
-    const previousScrollHeight = container.scrollHeight;
-    const previousScrollTop = container.scrollTop;
+    pendingHistoryAnchorRef.current = {
+      scrollHeight: container.scrollHeight,
+      scrollTop: container.scrollTop,
+    };
     try {
       await props.onLoadOlder();
-      window.requestAnimationFrame(() => {
-        const current = scroll.containerRef.current;
-        if (!current) return;
-        current.scrollTop =
-          previousScrollTop + Math.max(0, current.scrollHeight - previousScrollHeight);
-      });
+      if (!restorePendingHistoryAnchor()) {
+        window.requestAnimationFrame(() => {
+          restorePendingHistoryAnchor();
+        });
+      }
     } finally {
       loadInFlightRef.current = false;
     }
-  }, [props.historyLoading, props.onLoadOlder, scroll.containerRef]);
+  }, [props.historyLoading, props.onLoadOlder, restorePendingHistoryAnchor, scroll.containerRef]);
 
   const maybeAutoLoadOlder = useCallback((): void => {
     if (
@@ -211,6 +231,12 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
     props.messageCount,
     props.sessionId,
   ]);
+
+  // Restore the visible row before paint. rAF left one frame of the prepended
+  // page sitting at scrollTop 0 — the “history refresh” flash.
+  useLayoutEffect(() => {
+    restorePendingHistoryAnchor();
+  }, [props.messageCount, restorePendingHistoryAnchor]);
 
   const handleStreamScroll = useCallback((): void => {
     scroll.handleScroll();

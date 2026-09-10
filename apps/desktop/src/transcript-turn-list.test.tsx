@@ -164,7 +164,7 @@ describe('transcript turn window', () => {
   });
 
   it('windows a short heavy transcript instead of mounting every turn', async () => {
-    const turns = createTurns(12);
+    const turns = createTurns(24);
     for (const turn of turns) {
       rememberTranscriptTurnHeight('session-short-heavy', turn.id, 2_000);
     }
@@ -173,8 +173,8 @@ describe('transcript turn window', () => {
       offsetHeight: { configurable: true, writable: true, value: 640 },
       offsetWidth: { configurable: true, writable: true, value: 900 },
       clientHeight: { configurable: true, writable: true, value: 640 },
-      scrollHeight: { configurable: true, writable: true, value: 28_000 },
-      scrollTop: { configurable: true, writable: true, value: 27_000 },
+      scrollHeight: { configurable: true, writable: true, value: 56_000 },
+      scrollTop: { configurable: true, writable: true, value: 55_000 },
     });
 
     await act(async () => {
@@ -189,8 +189,8 @@ describe('transcript turn window', () => {
     expect(container.querySelector('[data-testid="transcript-turn-window"]')).not.toBeNull();
     const mountedCount = container.querySelectorAll('[data-testid="rendered-turn"]').length;
     expect(mountedCount).toBeGreaterThan(0);
-    expect(mountedCount).toBeLessThan(12);
-    expect(container.querySelector('#msg-user-11')).not.toBeNull();
+    expect(mountedCount).toBeLessThan(24);
+    expect(container.querySelector('#msg-user-23')).not.toBeNull();
   });
 
   it('bounds mounted rows during streaming while keeping live tail pinned', async () => {
@@ -427,7 +427,7 @@ describe('shouldAdjustTranscriptScrollOnItemSizeChange', () => {
     };
   }
 
-  it('does not compensate above-fold first measures while scrolling into history', () => {
+  it('compensates a fully above-fold first measure while scrolling into history', () => {
     expect(
       shouldAdjustTranscriptScrollOnItemSizeChange(
         { key: 'turn-older', start: 8_000, size: 140 },
@@ -435,7 +435,7 @@ describe('shouldAdjustTranscriptScrollOnItemSizeChange', () => {
         createInstance({ scrollDirection: 'backward', scrollOffset: 9_200 }),
         false,
       ),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it('still compensates an above-fold first measure while following the tail', () => {
@@ -449,15 +449,26 @@ describe('shouldAdjustTranscriptScrollOnItemSizeChange', () => {
     ).toBe(true);
   });
 
-  it('does not restick a first measure after the user has left the tail', () => {
+  it('does not restick a spanning first measure after the user has left the tail', () => {
     expect(
       shouldAdjustTranscriptScrollOnItemSizeChange(
-        { key: 'turn-image', start: 7_200, size: 140 },
+        { key: 'turn-image', start: 8_600, size: 400 },
         304,
         createInstance({ scrollDirection: null, scrollOffset: 8_800 }),
         false,
       ),
     ).toBe(false);
+  });
+
+  it('compensates a fully above-fold first measure after the user has left the tail', () => {
+    expect(
+      shouldAdjustTranscriptScrollOnItemSizeChange(
+        { key: 'turn-older', start: 7_200, size: 140 },
+        304,
+        createInstance({ scrollDirection: null, scrollOffset: 8_800 }),
+        false,
+      ),
+    ).toBe(true);
   });
 
   it('preserves in-place reading when a history row above the fold remasures', () => {
