@@ -13,7 +13,7 @@
  *   - "run-status-strip" / "run-status-stop" / "run-status-stopping"
  *   - "rail-chats-btn" / "right-panel-open-btn" / titlebar-*
  */
-import type { ReactElement, ReactNode } from 'react';
+import { useState, type ReactElement, type ReactNode } from 'react';
 import { IconButton, IconGit } from '@piwin/ui-kit';
 import type { PermissionPreset } from '@piwin/contracts';
 import type { ProductSessionOrigin } from '@piwin/contracts';
@@ -112,6 +112,24 @@ export function ContextBar(props: ContextBarProps): ReactElement {
     typeof window !== 'undefined' &&
     '__TAURI_INTERNALS__' in window &&
     (navigator.platform?.includes('Mac') || navigator.userAgent?.includes('Mac'));
+
+  const [slab, setSlab] = useState<'ink' | 'paper'>(() => {
+    if (typeof document !== 'undefined') {
+      return (document.documentElement.getAttribute('data-slab') as 'ink' | 'paper') || 'ink';
+    }
+    return 'ink';
+  });
+
+  const handleSetSlab = (nextSlab: 'ink' | 'paper') => {
+    setSlab(nextSlab);
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-slab', nextSlab);
+      const app = document.getElementById('app');
+      if (app) {
+        app.setAttribute('data-slab', nextSlab);
+      }
+    }
+  };
 
 
   return (
@@ -238,9 +256,32 @@ export function ContextBar(props: ContextBarProps): ReactElement {
         role="toolbar"
         aria-label={titlebarCopy.tools}
       >
+        <span className="seg ml" aria-label={isChinese ? '输入石板' : 'Input slab'}>
+          <button
+            type="button"
+            className={slab === 'ink' ? 'on' : ''}
+            title={isChinese ? '输入石板 · 砚' : 'Input slab: Ink'}
+            aria-label={isChinese ? '输入石板 · 砚' : 'Input slab: Ink'}
+            aria-pressed={slab === 'ink'}
+            onClick={() => handleSetSlab('ink')}
+          >
+            {isChinese ? '砚' : 'Ink'}
+          </button>
+          <button
+            type="button"
+            className={slab === 'paper' ? 'on' : ''}
+            title={isChinese ? '输入石板 · 纸' : 'Input slab: Paper'}
+            aria-label={isChinese ? '输入石板 · 纸' : 'Input slab: Paper'}
+            aria-pressed={slab === 'paper'}
+            onClick={() => handleSetSlab('paper')}
+          >
+            {isChinese ? '纸' : 'Paper'}
+          </button>
+        </span>
+
         {props.onToggleAppearance ? (
           <span
-            className="seg ml"
+            className="seg"
             aria-label={isChinese ? '外观' : 'Appearance'}
             data-testid="titlebar-theme-toggle-group"
           >
