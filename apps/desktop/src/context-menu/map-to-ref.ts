@@ -108,6 +108,8 @@ export function mapTargetToContextRef(target: ContextMenuTarget): PromptContextR
         detail: target.detail.slice(0, MAX_SELECTION_SNAPSHOT_CHARS),
         label: target.label,
       };
+    case 'media-image':
+      return null;
     default: {
       const exhaustive: never = target;
       void exhaustive;
@@ -133,6 +135,9 @@ export function copyAsRefText(target: ContextMenuTarget): string {
   }
   if (target.surface === 'diff-row') {
     return target.relativePath;
+  }
+  if (target.surface === 'media-image') {
+    return target.fileName;
   }
   return target.label;
 }

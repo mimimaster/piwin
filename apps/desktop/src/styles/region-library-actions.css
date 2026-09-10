@@ -1,0 +1,256 @@
+/* ── Library action surfaces ───────────────────────────────────────── */
+
+/* Menu checkmark column — an invisible same-size spacer on the unselected
+   item keeps its label aligned with the checked one instead of jumping left. */
+.lib-menu-check-spacer {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+}
+
+/* ── Floating Selection Dock ──────────────────────────────────────── */
+
+/* Docked to the bottom of the grid column instead of sitting in the scroll
+   flow. In flow it shoved every tile down on appear and snapped them back on
+   clear; sticky-at-top also put it in the page chrome's lane. Floating here
+   it costs no layout and stays reachable however far you have scrolled.
+   Elevation comes from the theme's own --sh3 — the old hardcoded
+   `0 8px 24px rgba(0,0,0,.4)` was tuned against a dark surface and read as a
+   photocopy drop-shadow once Inkstone's paper ground went light. */
+.lib-batch-bar {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 24;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 48px);
+  height: 42px;
+  padding: 0 8px 0 14px;
+  border: 1px solid var(--line-2);
+  border-radius: 14px;
+  background: var(--surface-4, var(--surface-3));
+  box-shadow: var(--sh3, 0 14px 34px -12px rgba(50, 35, 15, 0.3));
+  animation: lib-dock-rise 200ms var(--ease-out);
+}
+
+@keyframes lib-dock-rise {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.lib-batch-bar-count {
+  flex-shrink: 0;
+  color: var(--text-2);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.lib-batch-bar-count strong {
+  color: var(--text-1);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Select-all was a bare OS checkbox floating with no label — a text button
+   says what it does and needs no explaining. */
+.lib-batch-link {
+  flex-shrink: 0;
+  padding: 4px 2px;
+  border: 0;
+  background: transparent;
+  color: var(--iris);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.lib-batch-link:hover {
+  text-decoration: underline;
+}
+
+.lib-batch-bar-sep {
+  width: 1px;
+  height: 18px;
+  flex-shrink: 0;
+  background: var(--line-1);
+}
+
+.lib-batch-close {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: all var(--t-1) var(--ease-out);
+}
+
+.lib-batch-close:hover {
+  background: var(--hover);
+  color: var(--text-1);
+}
+
+.lib-batch-close:focus-visible,
+.lib-batch-link:focus-visible {
+  outline: 2px solid var(--iris);
+  outline-offset: 1px;
+}
+
+/* Borderless inside the dock: the capsule already provides the container,
+   so each action drawing its own box made five nested rectangles. */
+.lib-batch-act-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  flex-shrink: 0;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--t-1) var(--ease-out);
+}
+
+.lib-batch-act-btn:hover {
+  background: var(--hover);
+  color: var(--text-1);
+}
+
+/* Destructive reads destructive on approach, not at rest — a permanently
+   pink-filled button in a five-control row shouts before you have decided
+   anything. */
+.lib-batch-act-btn.is-danger {
+  color: var(--coral);
+}
+
+.lib-batch-act-btn.is-danger:hover {
+  background: color-mix(in srgb, var(--coral) 14%, transparent);
+  color: var(--coral);
+}
+
+.lib-batch-act-btn:focus-visible {
+  outline: 2px solid var(--iris);
+  outline-offset: 1px;
+}
+
+.lib-batch-act-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.lib-batch-act-btn:disabled:hover {
+  background: transparent;
+  color: var(--text-2);
+}
+
+/* ── Destructive Confirm ──────────────────────────────────────────── */
+
+.lib-confirm-back {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.55);
+  animation: lib-confirm-fade 140ms var(--ease-out);
+}
+
+.lib-confirm {
+  width: min(380px, 100%);
+  padding: 22px 24px 18px;
+  border: 1px solid var(--line-2);
+  border-radius: 16px;
+  background: var(--surface-3);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
+}
+
+.lib-confirm-title {
+  margin: 0 0 8px;
+  color: var(--text-1);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.lib-confirm-detail {
+  margin: 0 0 18px;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.lib-confirm-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* The dock wants quiet, borderless actions; a confirm dialog wants the
+   opposite — these two buttons are the whole point of the dialog, and the
+   one that commits an unrecoverable delete has to look like a button you
+   are about to press. Same base class, deliberately re-weighted here. */
+.lib-confirm-actions .lib-batch-act-btn {
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--line-2);
+  background: var(--surface-2);
+  color: var(--text-1);
+}
+
+.lib-confirm-actions .lib-batch-act-btn:hover {
+  background: var(--hover);
+}
+
+.lib-confirm-actions .lib-batch-act-btn.is-quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-3);
+}
+
+.lib-confirm-actions .lib-batch-act-btn.is-quiet:hover {
+  background: var(--hover);
+  color: var(--text-1);
+}
+
+.lib-confirm-actions .lib-batch-act-btn.is-danger {
+  border-color: var(--coral);
+  background: var(--coral);
+  color: var(--on-coral, #ffffff);
+  font-weight: 600;
+}
+
+.lib-confirm-actions .lib-batch-act-btn.is-danger:hover {
+  filter: brightness(1.08);
+  background: var(--coral);
+  color: var(--on-coral, #ffffff);
+}
+
+@keyframes lib-confirm-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

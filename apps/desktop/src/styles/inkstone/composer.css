@@ -328,18 +328,6 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   margin-bottom: 6px;
 }
 
-/* S6.10: Bottom keyboard hint line */
-html[data-theme-id='piwin-inkstone-paper'] .composer-hint,
-html[data-theme-id='piwin-inkstone-ink'] .composer-hint {
-  display: flex;
-  gap: 14px;
-  justify-content: center;
-  margin-top: 8px;
-  font: 11px var(--mono);
-  color: var(--t4);
-  flex-wrap: wrap;
-}
-
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) {
   .composer-dock {
     padding: 8px 28px 12px;

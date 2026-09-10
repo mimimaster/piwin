@@ -25,6 +25,29 @@ describe('modelCaps', () => {
     expect(modelCaps({ id: 'grok-imagine-video' }, true).map((cap) => cap.key)).toEqual(['video']);
   });
 
+  it('does not treat image/video generators as chat vision', () => {
+    expect(
+      modelCaps(
+        {
+          id: 'grok-imagine-image',
+          capabilities: ['image-generation'],
+          input: ['text', 'image'],
+        },
+        true,
+      ).map((cap) => cap.key),
+    ).toEqual(['image']);
+    expect(
+      modelCaps(
+        {
+          id: 'grok-imagine-video',
+          capabilities: ['video-generation'],
+          input: ['text', 'image'],
+        },
+        true,
+      ).map((cap) => cap.key),
+    ).toEqual(['video']);
+  });
+
   it('renders the native web search chip with localized labels', () => {
     const model: ModelConfigEntry = {
       id: 'search-model',

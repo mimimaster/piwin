@@ -10,6 +10,7 @@ import {
   saveRightPanelWidth,
   shouldEnterRightPanelFullWidth,
   shouldExitRightPanelFullWidth,
+  shouldCollapseRightPanel,
   RIGHT_PANEL_STAGE_MIN_PX,
 } from '../right-panel-width';
 
@@ -34,6 +35,8 @@ export type UseRightPanelResizeOptions = {
   sidebarWidthPx?: number;
   /** Called when width should also adjust the OS window (desktop open only). */
   onLiveWidthCommit?: (widthPx: number) => void;
+  /** Drag past min width: close the panel. Last valid width is kept. */
+  onCollapseRequest?: () => void;
 };
 
 export type UseRightPanelResizeResult = {
@@ -66,6 +69,7 @@ export function useRightPanelResize(
     startX: number;
     startWidth: number;
     startedFullWidth: boolean;
+    collapsed: boolean;
   } | null>(null);
   // Drag updates CSS only; React width state commits on pointer-up.
 
@@ -80,6 +84,11 @@ export function useRightPanelResize(
   useEffect(() => {
     liveWidthCommitRef.current = options.onLiveWidthCommit;
   }, [options.onLiveWidthCommit]);
+
+  const collapseRequestRef = useRef(options.onCollapseRequest);
+  useEffect(() => {
+    collapseRequestRef.current = options.onCollapseRequest;
+  }, [options.onCollapseRequest]);
 
   const resolveShell = useCallback((): HTMLElement | null => {
     if (shellRef.current !== null) {
@@ -222,6 +231,7 @@ export function useRightPanelResize(
         ? Math.max(widthRef.current, viewport - reserved)
         : widthRef.current,
       startedFullWidth,
+      collapsed: false,
     };
     setIsResizing(true);
     document.body.style.cursor = 'col-resize';
@@ -264,6 +274,17 @@ export function useRightPanelResize(
         return;
       }
 
+      if (shouldCollapseRightPanel(candidate)) {
+        if (!drag.collapsed) {
+          drag.collapsed = true;
+          commitFullWidth(false);
+          const keep = widthRef.current;
+          saveRightPanelWidth(keep);
+          collapseRequestRef.current?.();
+        }
+        return;
+      }
+
       if (desktop && shouldEnterRightPanelFullWidth(snapInput)) {
         commitFullWidth(true);
         return;
@@ -300,7 +321,7 @@ export function useRightPanelResize(
       }, 60);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
-      if (!fullWidthRef.current) {
+      if (!fullWidthRef.current && !drag.collapsed) {
         saveRightPanelWidth(commit);
       }
     }

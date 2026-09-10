@@ -52,6 +52,7 @@
 @import './styles/region-flashcards-workspace.css';
 @import './styles/region-studio-shell.css';
 @import './styles/region-library-workspace.css';
+@import './styles/region-library-actions.css';
 @import './styles/region-library-inspector.css';
 @import './styles/region-library-empty.css';
 @import './styles/region-media-lightbox.css';

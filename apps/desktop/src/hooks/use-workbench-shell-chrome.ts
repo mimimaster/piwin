@@ -51,11 +51,13 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
     layoutMode,
     rightPanelOpen,
     rightPanelWidthPx: rightPanelWidthRef.current,
+    onCollapseRequest: shell.collapseSessions,
   });
   const rightPanelResize = useRightPanelResize({
     layoutMode,
     navDrawerOpen,
     sidebarWidthPx: sidebarResize.widthPx,
+    onCollapseRequest: shell.closeOverlay,
   });
   if (rightPanelWidthRef.current !== rightPanelResize.widthPx) {
     rightPanelWidthRef.current = rightPanelResize.widthPx;

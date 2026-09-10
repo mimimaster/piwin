@@ -230,6 +230,8 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
       scrollElementRef={scroll.containerRef}
       notifyContentGrew={scroll.notifyContentGrew}
       detachFromTail={scroll.detachFromTail}
+      isFollowingTail={scroll.isFollowingTail}
+      beginProgrammaticScroll={scroll.beginProgrammaticScroll}
     >
       <div className={`transcript-viewport${opening ? ' is-opening' : ''}`}>
         {opening || (props.awaitingTranscript && !props.historyViewActive) ? (
@@ -280,6 +282,8 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
         <div
           className="chat-stream"
           data-testid="chat-stream"
+          data-artifact-layout-root="main"
+          data-artifact-layout-session={props.sessionId}
           ref={scroll.containerRef}
           aria-hidden={opening}
           inert={opening}

@@ -20,8 +20,12 @@ export type TranscriptScrollPort = {
   scrollElement: HTMLDivElement | null;
   registerMessageScroller: (scroller: TranscriptMessageScroller) => () => void;
   scrollToMessage: TranscriptMessageScroller;
+  /** True while the viewport is pinned to the live tail. */
+  isFollowingTail: () => boolean;
   /** Stop follow-tail before a history jump so ResizeObserver sticks cannot yank back. */
   detachFromTail: () => void;
+  /** Mark the next scroll event as layout-owned (virtualizer size compensation). */
+  beginProgrammaticScroll: () => void;
   /**
    * Nested content grew (e.g. Artifact iframe height bridge). Re-stick to the
    * live tail when follow-tail is active — without waiting for App-level
@@ -38,6 +42,8 @@ export function TranscriptScrollProvider(props: {
   /** Optional stick callback from useTranscriptScroll. */
   notifyContentGrew?: () => void;
   detachFromTail?: () => void;
+  isFollowingTail?: () => boolean;
+  beginProgrammaticScroll?: () => void;
   children: ReactNode;
 }): ReactElement {
   const [scrollElement, setScrollElement] = useState(props.scrollElementRef.current);
@@ -52,6 +58,10 @@ export function TranscriptScrollProvider(props: {
   notifyContentGrewRef.current = props.notifyContentGrew;
   const detachFromTailRef = useRef(props.detachFromTail);
   detachFromTailRef.current = props.detachFromTail;
+  const isFollowingTailRef = useRef(props.isFollowingTail);
+  isFollowingTailRef.current = props.isFollowingTail;
+  const beginProgrammaticScrollRef = useRef(props.beginProgrammaticScroll);
+  beginProgrammaticScrollRef.current = props.beginProgrammaticScroll;
 
   const registerMessageScroller = useCallback((scroller: TranscriptMessageScroller) => {
     messageScrollerRef.current = scroller;
@@ -64,6 +74,14 @@ export function TranscriptScrollProvider(props: {
 
   const detachFromTail = useCallback((): void => {
     detachFromTailRef.current?.();
+  }, []);
+
+  const isFollowingTail = useCallback((): boolean => {
+    return isFollowingTailRef.current?.() ?? true;
+  }, []);
+
+  const beginProgrammaticScroll = useCallback((): void => {
+    beginProgrammaticScrollRef.current?.();
   }, []);
 
   const scrollToMessage = useCallback((messageId: string): boolean => {
@@ -82,7 +100,9 @@ export function TranscriptScrollProvider(props: {
       scrollElement,
       registerMessageScroller,
       scrollToMessage,
+      isFollowingTail,
       detachFromTail,
+      beginProgrammaticScroll,
       notifyContentGrew,
     }),
     [
@@ -91,7 +111,9 @@ export function TranscriptScrollProvider(props: {
       scrollElement,
       registerMessageScroller,
       scrollToMessage,
+      isFollowingTail,
       detachFromTail,
+      beginProgrammaticScroll,
       notifyContentGrew,
     ],
   );

@@ -3,7 +3,12 @@
  * The row is operable (enable/disable models, defaults, params) but is not a
  * BYOK channel — compile still uses `{ auth: { kind: 'oauth' } }`.
  */
-import type { ModelConfigEntry, ModelProviderConfig, PiwinConfig } from '@piwin/contracts';
+import type {
+  ModelCapability,
+  ModelConfigEntry,
+  ModelProviderConfig,
+  PiwinConfig,
+} from '@piwin/contracts';
 import {
   DEFAULT_MODEL_CONTEXT_WINDOW,
   DEFAULT_MODEL_MAX_OUTPUT_TOKENS,
@@ -11,6 +16,8 @@ import {
   isSubscriptionProvider,
   isThinkingLevel,
   isV1SubscriptionProviderId,
+  modelSupportsCapability,
+  subscriptionSurfaceExtras,
   V1_SUBSCRIPTION_PROVIDER_META,
   type SubscriptionAccount,
   type V1SubscriptionProviderId,
@@ -20,11 +27,13 @@ import { isSubscriptionAccountUsable } from './resolve-chat-model.js';
 export type SubscriptionCatalogSeedModel = {
   id: string;
   name: string;
+  capabilities?: readonly ModelCapability[];
   reasoning?: boolean;
   thinkingLevels?: readonly string[];
   input?: readonly ('text' | 'image')[];
   contextWindow?: number;
   maxOutputTokens?: number;
+  routes?: ModelConfigEntry['routes'];
 };
 
 export function subscriptionOauthOrigin(providerId: string): string {
@@ -32,10 +41,12 @@ export function subscriptionOauthOrigin(providerId: string): string {
 }
 
 export function catalogModelToConfigEntry(model: SubscriptionCatalogSeedModel): ModelConfigEntry {
+  const capabilities: ModelCapability[] =
+    model.capabilities && model.capabilities.length > 0 ? [...model.capabilities] : ['chat'];
   const entry: ModelConfigEntry = {
     id: model.id,
     label: model.name,
-    capabilities: ['chat'],
+    capabilities,
   };
   if (typeof model.reasoning === 'boolean') {
     entry.reasoning = model.reasoning;
@@ -55,7 +66,26 @@ export function catalogModelToConfigEntry(model: SubscriptionCatalogSeedModel): 
   if (typeof model.maxOutputTokens === 'number') {
     entry.maxOutputTokens = model.maxOutputTokens;
   }
+  if (model.routes) {
+    entry.routes = model.routes;
+  }
   return entry;
+}
+
+export function mergeSubscriptionCatalog(
+  chat: readonly SubscriptionCatalogSeedModel[],
+  extras: readonly SubscriptionCatalogSeedModel[],
+): SubscriptionCatalogSeedModel[] {
+  const merged = [...chat];
+  const seen = new Set(chat.map((model) => model.id));
+  for (const extra of extras) {
+    if (seen.has(extra.id)) {
+      continue;
+    }
+    seen.add(extra.id);
+    merged.push(extra);
+  }
+  return merged;
 }
 
 export function upsertSubscriptionProvider(
@@ -67,7 +97,11 @@ export function upsertSubscriptionProvider(
   if (existing && isChannelProvider(existing)) {
     return config;
   }
-  const nextProvider = mergeSubscriptionProvider(providerId, catalog, existing);
+  const nextProvider = mergeSubscriptionProvider(
+    providerId,
+    mergeSubscriptionCatalog(catalog, subscriptionSurfaceExtras(providerId)),
+    existing,
+  );
   if (existing && subscriptionProvidersEqual(existing, nextProvider)) {
     return config;
   }
@@ -134,6 +168,13 @@ export function mergeSubscriptionCatalogModel(
   const merged: ModelConfigEntry = { ...catalog, ...previous, id: catalog.id };
   if (previous.input === undefined && catalog.input !== undefined) {
     merged.input = catalog.input;
+  } else if (
+    catalog.input === undefined &&
+    !modelSupportsCapability(catalog, 'chat') &&
+    (catalog.capabilities?.includes('image-generation') === true ||
+      catalog.capabilities?.includes('video-generation') === true)
+  ) {
+    delete merged.input;
   }
   if (previous.capabilities === undefined && catalog.capabilities !== undefined) {
     merged.capabilities = catalog.capabilities;
@@ -143,6 +184,9 @@ export function mergeSubscriptionCatalogModel(
   }
   if (previous.thinkingLevels === undefined && catalog.thinkingLevels !== undefined) {
     merged.thinkingLevels = catalog.thinkingLevels;
+  }
+  if (previous.routes === undefined && catalog.routes !== undefined) {
+    merged.routes = catalog.routes;
   }
   overlayCatalogLimits(merged, catalog);
   return merged;

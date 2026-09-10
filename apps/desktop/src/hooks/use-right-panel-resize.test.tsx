@@ -42,7 +42,7 @@ function createPointerDownEvent(
   } as unknown as ReactPointerEvent<HTMLElement>;
 }
 
-function renderHarness(): ResizeHarness {
+function renderHarness(onCollapseRequest?: () => void): ResizeHarness {
   const container = document.createElement('div');
   const shell = document.createElement('div');
   const handle = document.createElement('div');
@@ -54,7 +54,11 @@ function renderHarness(): ResizeHarness {
   let latest: UseRightPanelResizeResult | undefined;
 
   function HarnessComponent(): null {
-    latest = useRightPanelResize({ layoutMode: 'desktop', navDrawerOpen: false });
+    latest = useRightPanelResize({
+      layoutMode: 'desktop',
+      navDrawerOpen: false,
+      ...(onCollapseRequest ? { onCollapseRequest } : {}),
+    });
     return null;
   }
 
@@ -185,6 +189,36 @@ describe('useRightPanelResize drag scheduling', () => {
 
     expect(shell.style.getPropertyValue('--right-panel-width')).toBe('320px');
     expect(localStorage.getItem('piwin.desktop.rightPanelWidth')).toBe('320');
+    disposeHarness(harness);
+  });
+
+  it('collapses when dragged past min width', () => {
+    const onCollapseRequest = vi.fn();
+    const harness = renderHarness(onCollapseRequest);
+    const addEventListener = vi.spyOn(window, 'addEventListener');
+
+    act(() => {
+      harness.latest().onResizePointerDown(createPointerDownEvent(harness.handle, 9, 500));
+    });
+    const pointerMoveListener = addEventListener.mock.calls.find(
+      ([type]) => type === 'pointermove',
+    )?.[1];
+    const pointerUpListener = addEventListener.mock.calls.find(
+      ([type]) => type === 'pointerup',
+    )?.[1];
+    if (typeof pointerMoveListener !== 'function' || typeof pointerUpListener !== 'function') {
+      throw new Error('expected drag listeners');
+    }
+
+    act(() => {
+      // default width 280; clientX 620 → candidate 160, past min 200 by >24px
+      pointerMoveListener(createPointerEvent('pointermove', 9, 620));
+      pointerUpListener(createPointerEvent('pointerup', 9, 620));
+      vi.runOnlyPendingTimers();
+    });
+
+    expect(onCollapseRequest).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem('piwin.desktop.rightPanelWidth')).toBe('280');
     disposeHarness(harness);
   });
 });

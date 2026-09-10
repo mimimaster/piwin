@@ -6,8 +6,10 @@ import type { ChatMessageUi } from './chat-reducer';
  * Inkstone turn marginalia (proto-01 §1 block 06).
  *
  * One column-left rail per turn: who produced it, when, and what it cost.
- * Sticky inside the turn so it pins while that turn scrolls past. The inline
- * head is the same data for narrow stages. CSS shows the rail via
+ * A byline anchored to the top of its turn — it scrolls away with the message
+ * (not sticky: a tall virtualized turn stranded the label at the viewport top
+ * over unrelated content). The inline head is the same data for narrow stages.
+ * CSS shows the rail via
  * `@container transcript-stage (min-width: 1080px)` on `.chat-stage`
  * (proto-01 `.stage`), never on the scrollport — querying the scrollport
  * oscillates at the threshold.

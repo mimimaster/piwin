@@ -358,23 +358,23 @@ export function WebPage(): ReactElement {
   return (
     <>
     <div
-      className="settings-card"
+      className="settings-card web-hub-page"
       data-testid="settings-web-tools"
       data-dirty={isDirty ? 'true' : 'false'}
     >
-      <div className="settings-section settings-section-card">
-        <div className="settings-segmented-wrap" style={{ marginBottom: 28 }}>
-          <SegmentedControl
-            value={webToolsTab}
-            onChange={(value) => setWebToolsTab(value as 'search' | 'fetch')}
-            data={[
-              { value: 'search', label: zh ? '搜索' : 'Search' },
-              { value: 'fetch', label: 'Fetch' },
-            ]}
-            testId="web-tools-tab"
-          />
-        </div>
+      <div className="settings-segmented-wrap" style={{ marginBottom: 16 }}>
+        <SegmentedControl
+          value={webToolsTab}
+          onChange={(value) => setWebToolsTab(value as 'search' | 'fetch')}
+          data={[
+            { value: 'search', label: zh ? '搜索' : 'Search' },
+            { value: 'fetch', label: 'Fetch' },
+          ]}
+          testId="web-tools-tab"
+        />
+      </div>
 
+      <div className="settings-section settings-section-card">
         {webToolsTab === 'search' ? (
           <div className="web-tools-panel" data-testid="web-tools-search-panel">
             <Field
@@ -384,7 +384,6 @@ export function WebPage(): ReactElement {
                   ? '可选：只显示已启用且标记“模型内置搜索”的模型。选择后，web_search 会调用该模型的内置搜索。'
                   : 'Optional: only enabled models tagged Native search are listed. When selected, web_search uses that model’s provider-native search.'
               }
-              className="web-search-route-field"
             >
               <Select
                 value={modelRefKey(webDraft.searchDelegateModel)}
@@ -699,7 +698,6 @@ export function WebPage(): ReactElement {
                   ? '可选：使用轻量对话模型提取与问题相关的重点段落（约 4,000 字符）。未配置或提取失败时回退为读取页面头部内容。'
                   : 'Optional: a small chat model extracts about 4,000 characters relevant to the query. Missing or failed extraction falls back to the page head.'
               }
-              className="web-search-route-field"
             >
               <Select
                 value={modelRefKey(webDraft.fetchDelegateModel)}

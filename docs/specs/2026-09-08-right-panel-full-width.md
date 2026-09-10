@@ -18,6 +18,16 @@ Two triggers, one state:
 2. Drag the panel's left edge past the split maximum (chat already at 420px)
    → enter full width. Drag back, or the same button, restores split.
 
+Inverse overshoot (Codex `$j` close when size < min):
+
+3. Drag the splitter right until the panel is at min width (200px), then keep
+   dragging (~24px more) → collapse the right panel. Last valid split width
+   is kept for the next open. Compact drawer uses the same close overshoot.
+
+The left navigator uses the same overshoot in the other direction: drag its
+right edge left past min width (~24px more) → collapse the sidebar
+(`desktopSidebarCollapsed`). Last valid width is kept.
+
 This is **not** Codex's three-state stepper (fullscreen content / split /
 fullscreen chat). piwin ships two states: split | content-full.
 

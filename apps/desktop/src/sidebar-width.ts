@@ -6,6 +6,8 @@
 export const SIDEBAR_DEFAULT_WIDTH_PX = 240;
 export const SIDEBAR_MIN_WIDTH_PX = 200;
 export const SIDEBAR_MAX_WIDTH_PX = 420;
+/** Extra px past min width before drag-to-collapse fires. */
+export const SIDEBAR_COLLAPSE_OVERSHOOT_PX = 24;
 
 const STORAGE_KEY = 'piwin.desktop.sidebarWidth';
 
@@ -32,6 +34,20 @@ export function clampSidebarWidthForViewport(
   );
   const absolute = clampSidebarWidth(widthPx);
   return Math.min(absolute, maxFromViewport);
+}
+
+/**
+ * After the navigator is already at min width, keep dragging the splitter
+ * left (conversation grows) to collapse it.
+ */
+export function shouldCollapseSidebar(
+  widthPx: number,
+  overshootPx = SIDEBAR_COLLAPSE_OVERSHOOT_PX,
+): boolean {
+  if (!Number.isFinite(widthPx)) {
+    return false;
+  }
+  return widthPx < SIDEBAR_MIN_WIDTH_PX - overshootPx;
 }
 
 export function loadSidebarWidth(): number {

@@ -210,6 +210,11 @@ export type ComposerDockProps = {
    * Skills-MCP chrome. `/goal` stays available, as does its exit chip.
    */
   isConversationSession?: boolean;
+  /**
+   * Side chat (and other narrow columns) reuse ComposerCard but drop plus /
+   * Live / queue-follow-up. Streaming shows Stop (`onAbort`) instead of Pause.
+   */
+  embedded?: boolean;
   /** Override the Send control label (edit card: Retry vs Send new version). */
   sendAriaLabel?: string;
 };

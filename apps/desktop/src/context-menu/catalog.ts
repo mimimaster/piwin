@@ -26,6 +26,7 @@ const EN_LABELS: LabelTable = {
   reveal: 'Show in Folder',
   'save-as': 'Save As…',
   copy: 'Copy',
+  'copy-image': 'Copy Image',
   'copy-relative-path': 'Copy Relative Path',
   'copy-absolute-path': 'Copy Absolute Path',
   'quote-in-composer': 'Quote in Composer',
@@ -53,6 +54,7 @@ const ZH_LABELS: LabelTable = {
   reveal: '在文件管理器中显示',
   'save-as': '另存为…',
   copy: '复制',
+  'copy-image': '复制图片',
   'copy-relative-path': '复制相对路径',
   'copy-absolute-path': '复制完整路径',
   'quote-in-composer': '引用到输入框',
@@ -83,8 +85,9 @@ const ACTION_ICONS: Record<ContextMenuActionId, string> = {
   'fix-error': 'spark',
   open: 'file',
   reveal: 'folder',
-  'save-as': 'file',
+  'save-as': 'download',
   copy: 'copy',
+  'copy-image': 'copy',
   'copy-relative-path': 'copy',
   'copy-absolute-path': 'copy',
   'quote-in-composer': 'comment-plus',
@@ -121,18 +124,10 @@ function item(
     disabledHint?: string;
   },
 ): ContextMenuItemSpec {
-  const baseLabel = labels[id];
-  // zh prefers full-width parentheses for disabled suffixes.
-  const wrapHint = (hint: string): string =>
-    labels === ZH_LABELS ? `（${hint}）` : ` (${hint})`;
-  const label =
-    options?.disabled && options.disabledHint
-      ? `${baseLabel}${wrapHint(options.disabledHint)}`
-      : baseLabel;
   const spec: Extract<ContextMenuItemSpec, { type: 'item' }> = {
     type: 'item',
     id,
-    label,
+    label: labels[id],
     testId: `context-menu-${id}`,
     icon: options?.icon ?? ACTION_ICONS[id],
   };
@@ -140,6 +135,8 @@ function item(
   if (shortcut) spec.shortcut = shortcut;
   if (options?.disabled) spec.disabled = true;
   if (options?.danger) spec.danger = true;
+  // A disabled item keeps a clean label; the reason is a tooltip, not a suffix.
+  if (options?.disabled && options.disabledHint) spec.title = options.disabledHint;
   return spec;
 }
 
@@ -243,21 +240,9 @@ export function buildContextMenuItems(
           ...(cannotSendPreset ? { disabledHint } : {}),
         }),
         item('add-to-chat', labels),
-        item('ask-about', labels),
+        ...(caps.sideChatAvailable ? [item('side-chat', labels)] : []),
         sep(),
         item('copy', labels),
-        {
-          type: 'submenu' as const,
-          id: 'more',
-          label: submenuLabelsFor(caps.locale).more,
-          icon: 'more',
-          children: [
-            item('explain', labels),
-            item('fix', labels),
-            ...(caps.sideChatAvailable ? [item('side-chat', labels)] : []),
-            item('copy-as-ref', labels),
-          ],
-        },
       ]);
     }
     case 'code-block':
@@ -310,6 +295,34 @@ export function buildContextMenuItems(
         item('copy', labels),
         ...(caps.sideChatAvailable ? [item('side-chat', labels)] : []),
       ]);
+    case 'media-image': {
+      const cannotAdd = !caps.canAddMediaAttachment || !caps.canSendPreset;
+      const disabledHint = caps.locale === 'zh-CN' ? '会话未就绪' : 'requires an active chat';
+      const openLabel = caps.locale === 'zh-CN' ? '全屏查看' : 'View image';
+      const openItem = item('open', labels, { icon: 'expand' });
+      const labeledOpen =
+        openItem.type === 'item' ? { ...openItem, label: openLabel } : openItem;
+      return compact([
+        item('save-as', labels, {
+          disabled: caps.canSaveAs === false,
+        }),
+        item('copy-image', labels),
+        ...(target.inLightbox === true ? [] : [labeledOpen]),
+        sep(),
+        item('add-to-chat', labels, {
+          disabled: cannotAdd,
+          ...(cannotAdd ? { disabledHint } : {}),
+        }),
+        item('ask-about', labels, {
+          disabled: cannotAdd,
+          ...(cannotAdd ? { disabledHint } : {}),
+        }),
+        // Reveal-in-folder only when the file is actually on this machine.
+        // A generated / remote asset has no local location to open, so the
+        // row is dropped rather than shown as a disabled apology.
+        ...(caps.canReveal ? [sep(), item('reveal', labels)] : []),
+      ]);
+    }
     default: {
       const exhaustive: never = target;
       void exhaustive;

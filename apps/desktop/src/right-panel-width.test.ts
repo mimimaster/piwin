@@ -12,6 +12,8 @@ import {
   splitViewMaxPanelWidth,
   RIGHT_PANEL_FULL_WIDTH_HYSTERESIS_PX,
   RIGHT_PANEL_STAGE_MIN_PX,
+  shouldCollapseRightPanel,
+  RIGHT_PANEL_COLLAPSE_OVERSHOOT_PX,
 } from './right-panel-width';
 
 function createMockStorage(): Storage {
@@ -116,6 +118,21 @@ describe('right panel full-width snap', () => {
         viewportWidth: 1280,
         reservedChromePx: 260,
       }),
+    ).toBe(true);
+  });
+});
+
+describe('right panel drag-to-collapse', () => {
+  it('does not collapse at the min width', () => {
+    expect(shouldCollapseRightPanel(RIGHT_PANEL_MIN_WIDTH_PX)).toBe(false);
+    expect(shouldCollapseRightPanel(RIGHT_PANEL_MIN_WIDTH_PX - RIGHT_PANEL_COLLAPSE_OVERSHOOT_PX)).toBe(
+      false,
+    );
+  });
+
+  it('collapses only after overshooting past min', () => {
+    expect(
+      shouldCollapseRightPanel(RIGHT_PANEL_MIN_WIDTH_PX - RIGHT_PANEL_COLLAPSE_OVERSHOOT_PX - 1),
     ).toBe(true);
   });
 });

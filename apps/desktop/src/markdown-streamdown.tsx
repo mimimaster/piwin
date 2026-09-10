@@ -184,7 +184,6 @@ export function createStreamdownComponents(optionsRef: {
       source: record?.source ?? plainTextFromReactNode(children).replace(/\n$/, ''),
       htmlUiModeEnabled: options.htmlUiModeEnabled,
       fenceIndex: record?.ordinal ?? null,
-      fenceOpen: record?.open === true,
       renderingPhase: options.phase,
       initPriority:
         record === null ? options.initPriorityBase : options.initPriorityBase + record.ordinal,
@@ -193,6 +192,7 @@ export function createStreamdownComponents(optionsRef: {
       artifactCodeFirst: options.artifactCodeFirst,
       locale: options.locale,
     };
+    if (record) fenceProps.fenceOpen = record.open;
     if (options.artifactTheme) fenceProps.artifactTheme = options.artifactTheme;
     if (options.onArtifactAction) fenceProps.onArtifactAction = options.onArtifactAction;
     if (options.artifactOrigin) fenceProps.artifactOrigin = options.artifactOrigin;

@@ -122,6 +122,20 @@ export function useShellLayout() {
     });
   }, [layoutMode, rememberTrigger, restoreFocus]);
 
+  const collapseSessions = useCallback(() => {
+    if (layoutMode === 'desktop') {
+      setDesktopSidebarCollapsed(true);
+      return;
+    }
+    setOverlay((current) => {
+      if (current !== 'sessions') {
+        return current;
+      }
+      restoreFocus();
+      return 'none';
+    });
+  }, [layoutMode, restoreFocus]);
+
   const toggleInspector = useCallback(
     (tab: RightPanelTab | null = null) => {
       setOverlay((current) => {
@@ -288,6 +302,7 @@ export function useShellLayout() {
     openInspector,
     closeOverlay,
     toggleSessions,
+    collapseSessions,
     toggleInspector,
     setInspectorTab,
     openLibrary,

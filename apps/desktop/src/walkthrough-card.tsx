@@ -61,7 +61,6 @@ export function WalkthroughCard(props: WalkthroughCardProps): ReactElement {
   const titleLabel = isZh ? '走查报告' : 'Walkthrough';
   const loadingLabel = isZh ? '正在生成走查报告…' : 'Generating walkthrough…';
   const viewDocLabel = isZh ? '作为文档查看' : 'View as document';
-  const openFullLabel = isZh ? '打开完整文档' : 'Open full document';
   const regenerateLabel = isZh ? '重新生成' : 'Regenerate';
   const retryLabel = isZh ? '重试' : 'Retry';
 
@@ -123,7 +122,10 @@ export function WalkthroughCard(props: WalkthroughCardProps): ReactElement {
         title={viewDocLabel}
       >
         <span style={{ display: 'none' }}>{viewDocLabel}</span>
-        <div className="walkthrough-card-header">
+        <div
+          className="walkthrough-card-header"
+          title={`${modeLabel(artifact.mode)} · ${modelLabel(artifact)}`}
+        >
           <span className="doc-artifact-icon">
             <IconFile width={15} height={15} />
           </span>
@@ -131,8 +133,6 @@ export function WalkthroughCard(props: WalkthroughCardProps): ReactElement {
           <span className="walkthrough-card-status" data-testid={`walkthrough-status-${messageId}`}>
             {statusLabel}
           </span>
-          <span className="walkthrough-card-mode">{modeLabel(artifact.mode)}</span>
-          <span className="walkthrough-card-model">{modelLabel(artifact)}</span>
         </div>
 
         {artifact.status === 'generating' ? (
@@ -199,9 +199,6 @@ export function WalkthroughCard(props: WalkthroughCardProps): ReactElement {
           >
             {isZh ? '复制' : 'Copy'}
           </Button>
-          <span className="m walkthrough-footer-meta" aria-hidden="true">
-            {openFullLabel}
-          </span>
         </div>
       ) : null}
 

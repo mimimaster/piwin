@@ -2,7 +2,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { PiwinUiProvider } from '@piwin/ui-kit';
 import type { MediaAttachmentRef } from '@piwin/contracts';
+import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { MediaPreview } from './MediaPreview';
 import * as mediaUtils from './media-utils';
 import * as previewBitmap from './media-preview-bitmap';
@@ -121,6 +123,69 @@ describe('MediaPreview', () => {
     expect(lightboxImage?.alt).toBe('photo.png');
   });
 
+  it('opens a media-image context menu with Save As and Copy Image', () => {
+    const attachment: MediaAttachmentRef = {
+      id: 'image-menu',
+      kind: 'media',
+      path: '/Users/me/.piwin/media/session-1/photo.png',
+      mimeType: 'image/png',
+      byteSize: 2048,
+      source: 'generated',
+    };
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <MediaPreview attachment={attachment} previewUrl="asset://photo.png" />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const trigger = container.querySelector<HTMLElement>('[data-testid="media-preview-container"]');
+    expect(trigger).not.toBeNull();
+    act(() => {
+      trigger?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    });
+    expect(document.body.querySelector('[data-testid="context-menu-save-as"]')).not.toBeNull();
+    expect(document.body.querySelector('[data-testid="context-menu-copy-image"]')).not.toBeNull();
+    expect(document.body.querySelector('[data-testid="context-menu-open"]')).not.toBeNull();
+  });
+
+  it('opens the media-image menu from the expanded lightbox', () => {
+    const attachment: MediaAttachmentRef = {
+      id: 'image-lightbox-menu',
+      kind: 'media',
+      path: '/Users/me/.piwin/media/session-1/photo.png',
+      mimeType: 'image/png',
+      byteSize: 2048,
+      source: 'generated',
+    };
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <MediaPreview attachment={attachment} previewUrl="asset://photo.png" />
+        </PiwinUiProvider>,
+      );
+    });
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="media-preview-open"]')?.click();
+    });
+    const lightboxImage = document.querySelector<HTMLElement>(
+      '[data-testid="media-lightbox-image"]',
+    );
+    expect(lightboxImage).not.toBeNull();
+    act(() => {
+      lightboxImage?.dispatchEvent(
+        new MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
+      );
+    });
+    expect(document.body.querySelector('[data-testid="context-menu-save-as"]')).not.toBeNull();
+    expect(document.body.querySelector('[data-testid="context-menu-copy-image"]')).not.toBeNull();
+    expect(document.body.querySelector('[data-testid="context-menu-open"]')).toBeNull();
+  });
+
   it('renders text and document attachments as file cards', () => {
     const attachment: MediaAttachmentRef = {
       id: 'code-1',
@@ -225,6 +290,24 @@ describe('MediaPreview', () => {
       '[data-testid="media-lightbox-image"]',
     );
     expect(lightboxImage?.src).toContain('asset://photo.png');
+  });
+
+  it('reserves a hero frame while a generated image is still resolving', () => {
+    const attachment: MediaAttachmentRef = {
+      id: 'hero-pending',
+      kind: 'media',
+      path: '/tmp/piwin/media/session-1/wallpaper.png',
+      mimeType: 'image/png',
+      byteSize: 2_000_000,
+      source: 'generated',
+    };
+    act(() => {
+      root.render(<MediaPreview attachment={attachment} hero sessionId="session-1" />);
+    });
+    const placeholder = container.querySelector('[data-testid="media-preview-loading"]');
+    expect(placeholder).not.toBeNull();
+    expect(placeholder?.classList.contains('is-hero')).toBe(true);
+    expect(container.querySelector('.media-preview-image')).toBeNull();
   });
 
   it('downscales transcript asset URLs for the thumb only', async () => {

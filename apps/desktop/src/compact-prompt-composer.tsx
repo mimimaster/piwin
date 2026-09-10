@@ -1,5 +1,5 @@
 /**
- * Shared prompt card for side chat and supplementary conversation panes.
+ * Shared prompt card for supplementary conversation panes.
  * Reuses the main composer card + model picker chrome so those surfaces can
  * type, pick a model, and send without a second input design.
  */

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { projectConfiguredChatModels } from '@piwin/contracts';
 import { createDefaultPiwinConfig } from './config-store.js';
 import {
   catalogModelToConfigEntry,
@@ -12,23 +13,29 @@ describe('seed subscription provider', () => {
     const next = upsertSubscriptionProvider(config, 'openai-codex', [
       { id: 'gpt-5.4-codex', name: 'GPT-5.4 Codex', reasoning: true },
     ]);
-    expect(next.providers).toEqual([
-      {
-        id: 'openai-codex',
-        name: 'ChatGPT Codex',
-        protocol: 'openai-compatible',
-        baseUrl: 'oauth://openai-codex',
-        source: 'subscription',
-        models: [
-          {
-            id: 'gpt-5.4-codex',
-            label: 'GPT-5.4 Codex',
-            capabilities: ['chat'],
-            reasoning: true,
-          },
-        ],
-      },
+    expect(next.providers[0]).toMatchObject({
+      id: 'openai-codex',
+      name: 'ChatGPT Codex',
+      protocol: 'openai-compatible',
+      baseUrl: 'oauth://openai-codex',
+      source: 'subscription',
+    });
+    expect(next.providers[0]?.models[0]).toEqual({
+      id: 'gpt-5.4-codex',
+      label: 'GPT-5.4 Codex',
+      capabilities: ['chat'],
+      reasoning: true,
+    });
+    expect(next.providers[0]?.models.map((model) => model.id)).toEqual([
+      'gpt-5.4-codex',
+      'gpt-image-2',
+      'gpt-image-2.5-sunburst',
+      'gpt-image-2.5-flare',
     ]);
+    expect(next.providers[0]?.models.find((model) => model.id === 'gpt-image-2')).toMatchObject({
+      capabilities: ['image-generation'],
+      routes: { 'image-generation': { path: '/codex/images/generations', apiStyle: 'openai' } },
+    });
   });
 
   it('keeps user enable/params and does not overwrite a BYOK channel', () => {
@@ -47,7 +54,7 @@ describe('seed subscription provider', () => {
       { id: 'gpt-5.4-codex', name: 'GPT-5.4 Codex' },
       { id: 'gpt-5.4', name: 'GPT-5.4' },
     ]);
-    expect(merged.providers[0]?.models).toEqual([
+    expect(merged.providers[0]?.models.slice(0, 2)).toEqual([
       {
         id: 'gpt-5.4-codex',
         label: 'Codex',
@@ -57,6 +64,7 @@ describe('seed subscription provider', () => {
       },
       catalogModelToConfigEntry({ id: 'gpt-5.4', name: 'GPT-5.4' }),
     ]);
+    expect(merged.providers[0]?.models.some((model) => model.id === 'gpt-image-2')).toBe(true);
 
     const channel = createDefaultPiwinConfig();
     channel.providers = [
@@ -88,15 +96,15 @@ describe('seed subscription provider', () => {
     const merged = upsertSubscriptionProvider(config, 'xai', [
       { id: 'grok-4.6', name: 'Grok 4.6', contextWindow: 500_000, maxOutputTokens: 500_000 },
     ]);
-    expect(merged.providers[0]?.models).toEqual([
-      {
-        id: 'grok-4.6',
-        label: 'Grok 4.6',
-        capabilities: ['chat'],
-        contextWindow: 500_000,
-        maxOutputTokens: 500_000,
-      },
-    ]);
+    expect(merged.providers[0]?.models[0]).toEqual({
+      id: 'grok-4.6',
+      label: 'Grok 4.6',
+      capabilities: ['chat'],
+      contextWindow: 500_000,
+      maxOutputTokens: 500_000,
+    });
+    expect(merged.providers[0]?.models.map((model) => model.id)).toContain('grok-imagine-image-2.0');
+    expect(merged.providers[0]?.models.map((model) => model.id)).toContain('grok-imagine-video');
   });
 
   it('seeds every logged-in v1 account', () => {
@@ -111,5 +119,39 @@ describe('seed subscription provider', () => {
     );
     expect(next.providers.map((provider) => provider.id)).toEqual(['xai']);
     expect(next.providers[0]?.source).toBe('subscription');
+  });
+
+  it('drops leftover vision input from generation extras', () => {
+    const config = createDefaultPiwinConfig();
+    config.providers = [
+      {
+        id: 'xai',
+        name: 'Grok',
+        protocol: 'openai-compatible',
+        baseUrl: 'oauth://xai',
+        source: 'subscription',
+        models: [
+          {
+            id: 'grok-imagine-image',
+            label: 'Grok Imagine Image',
+            capabilities: ['image-generation'],
+            input: ['text', 'image'],
+          },
+        ],
+      },
+    ];
+    const merged = upsertSubscriptionProvider(config, 'xai', [{ id: 'grok-4.6', name: 'Grok 4.6' }]);
+    expect(merged.providers[0]?.models.find((model) => model.id === 'grok-imagine-image')?.input).toBe(
+      undefined,
+    );
+  });
+
+  it('keeps image extras off the chat picker', () => {
+    const next = upsertSubscriptionProvider(createDefaultPiwinConfig(), 'openai-codex', [
+      { id: 'gpt-5.4', name: 'GPT-5.4', reasoning: true },
+    ]);
+    expect(projectConfiguredChatModels(next).models.map((model) => model.modelId)).toEqual([
+      'gpt-5.4',
+    ]);
   });
 });

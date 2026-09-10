@@ -83,7 +83,7 @@ export function modelCaps(
       fg: '#2f5fd0',
     });
   }
-  if (model.input?.includes('image')) {
+  if (model.input?.includes('image') && modelSupportsCapability(model, 'chat')) {
     caps.push({
       key: 'vision',
       label: isChinese ? '视觉' : 'Vision',

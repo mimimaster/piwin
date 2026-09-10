@@ -272,6 +272,8 @@ export type ContextMenuItemProps = {
   testId?: string | undefined;
   icon?: ReactNode | undefined;
   shortcut?: string | undefined;
+  /** Native tooltip — e.g. why a disabled item is unavailable. */
+  title?: string | undefined;
 };
 
 export function ContextMenuItem(props: ContextMenuItemProps): ReactElement {
@@ -279,6 +281,7 @@ export function ContextMenuItem(props: ContextMenuItemProps): ReactElement {
     className: string;
     disabled?: boolean;
     'data-testid'?: string;
+    title?: string;
     onSelect: (event: Event) => void;
   } = {
     className: props.danger ? 'ui-menu-item danger' : 'ui-menu-item',
@@ -292,6 +295,7 @@ export function ContextMenuItem(props: ContextMenuItemProps): ReactElement {
   };
   if (props.disabled !== undefined) itemProps.disabled = props.disabled;
   if (props.testId !== undefined) itemProps['data-testid'] = props.testId;
+  if (props.title !== undefined) itemProps.title = props.title;
 
   return (
     <ContextMenuPrimitive.Item {...itemProps}>

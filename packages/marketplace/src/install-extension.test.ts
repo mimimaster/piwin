@@ -86,6 +86,22 @@ describe('installExtension git errors', () => {
     ).rejects.toThrow(/subdirectory "docs"/i);
   });
 
+  it('points at `pi install npm:` when the repo is an npm-distributed package', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'piwin-ext-npm-'));
+    const repo = await makeGitRepo({
+      'package.json': JSON.stringify({
+        name: '@injaneity/pi-computer-use',
+        dependencies: { typebox: '*' },
+        scripts: { postinstall: 'node scripts/setup.mjs' },
+      }),
+      'README.md': '# needs npm\n',
+    });
+
+    await expect(
+      installExtension({ piwinRoot: root, source: { kind: 'git', url: repo } }),
+    ).rejects.toThrow(/pi install npm:@injaneity\/pi-computer-use/);
+  });
+
   it('installs from a git subdirectory that has an index.ts', async () => {
     const root = await mkdtemp(join(tmpdir(), 'piwin-ext-gitsub-'));
     const repo = await makeGitRepo({

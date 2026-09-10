@@ -17,18 +17,15 @@
   border-bottom: 0;
 }
 
-.lib-page .vault-titleband {
-  height: var(--titleband-height);
-  min-height: var(--titleband-height);
-}
-
 .lib-page .vault-bar.is-page {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 56px;
-  min-height: 56px;
-  padding: 0 24px;
+  gap: var(--s-3);
+  height: var(--titleband-height);
+  min-height: var(--titleband-height);
+  padding: 0 var(--s-3) 0 calc(var(--traffic-light-clearance) - var(--deck-inset));
+  box-sizing: border-box;
   background: color-mix(in srgb, var(--surface-1) 95%, transparent);
   border-bottom: 1px solid var(--line-1);
 }
@@ -36,25 +33,26 @@
 .lib-page .vault-bar-leading {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--s-2);
 }
 
 .lib-page .vault-back.is-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 10px;
-  border: 1px solid var(--line-1);
-  background: var(--hover);
-  color: var(--text-3);
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-2);
   cursor: pointer;
   transition: all var(--t-1) var(--ease-out);
 }
 
 .lib-page .vault-back.is-icon:hover {
-  background: var(--active);
+  background: var(--hover);
   color: var(--text-1);
 }
 
@@ -72,41 +70,55 @@
   display: inline-flex;
   align-items: center;
   padding: 2px 8px;
-  border-radius: var(--r-pill);
-  background: color-mix(in srgb, var(--iris) 15%, transparent);
-  color: var(--iris-lift);
-  border: 1px solid color-mix(in srgb, var(--iris) 30%, transparent);
+  border-radius: var(--r-pill, 9999px);
+  background: var(--surface-3);
+  color: var(--text-3);
+  border: 1px solid var(--line-1);
   font-family: var(--font-mono);
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 500;
+  transition: all var(--t-1) var(--ease-out);
 }
 
-.lib-page .vault-bar-search {
-  flex: 1;
-  max-width: 420px;
-  margin: 0 16px;
+.lib-page .vault-bar-count.is-filtered {
+  background: color-mix(in srgb, var(--iris) 15%, transparent);
+  color: var(--iris-lift);
+  border-color: color-mix(in srgb, var(--iris) 30%, transparent);
 }
 
 .lib-page .vault-search {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 100%;
-  height: 34px;
-  min-height: 34px;
-  padding: 0 12px;
-  border-radius: 12px;
+  width: 180px;
+  min-width: 130px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 9px;
   border: 1px solid var(--line-1);
   background: var(--surface-3);
   color: var(--text-3);
-  transition: all var(--t-1) var(--ease-out);
+  outline: none !important;
+  transition:
+    width var(--t-2) var(--ease-out),
+    border-color var(--t-1) var(--ease-out),
+    background-color var(--t-1) var(--ease-out);
+}
+
+.lib-page .vault-search:hover {
+  background: var(--hover);
+  border-color: var(--line-2, var(--line-1));
+  color: var(--text-2);
 }
 
 .lib-page .vault-search:focus-within {
-  width: 100%;
-  border-color: color-mix(in srgb, var(--iris) 70%, transparent);
-  background: var(--surface-4);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--iris) 20%, transparent);
+  width: 220px;
+  border-color: var(--line-2) !important;
+  background: var(--hover);
+  color: var(--text-1);
+  box-shadow: none !important;
+  outline: none !important;
 }
 
 .lib-page .vault-search input {
@@ -135,66 +147,6 @@
   line-height: 1;
 }
 
-.lib-page .vault-bar-primary {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.lib-batch-toggle-btn {
-  display: inline-flex;
-  align-items: center;
-  height: 34px;
-  padding: 0 14px;
-  border: 1px solid var(--line-1);
-  border-radius: 12px;
-  background: var(--hover);
-  color: var(--text-2);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all var(--t-1) var(--ease-out);
-}
-
-.lib-batch-toggle-btn:hover {
-  background: var(--active);
-  color: var(--text-1);
-}
-
-.lib-batch-toggle-btn.is-active {
-  background: var(--iris);
-  border-color: var(--iris);
-  color: var(--on-iris);
-  font-weight: 600;
-  box-shadow: 0 0 12px color-mix(in srgb, var(--iris) 40%, transparent);
-}
-
-.lib-new-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 34px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: 12px;
-  /* One accent means "you can act" (Deck §2). The three-stop violet→pink ramp
-     and its glow were a second brand language competing with iris. */
-  background: var(--iris-fill, var(--iris));
-  color: var(--on-iris);
-  font-size: var(--fs-chrome);
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: var(--elev-2);
-  transition:
-    filter var(--t-1) var(--ease-out),
-    box-shadow var(--t-1) var(--ease-out);
-}
-
-.lib-new-btn:hover {
-  filter: brightness(1.06);
-  box-shadow: var(--elev-3);
-}
-
 /* ── Tier 2: Subbar Filter & Control Strip ──────────────────────────── */
 
 .lib-page .vault-filters {
@@ -212,6 +164,19 @@
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.lib-page .vault-filters-trailing {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lib-page .lib-toolbar-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--line-1);
+  margin: 0 2px;
 }
 
 .lib-segmented-tabs {
@@ -252,13 +217,16 @@
 }
 
 .lib-filter-pill-wrap {
+  position: relative;
   display: inline-flex;
   align-items: center;
 }
 
 .lib-filter-select {
+  appearance: none;
+  -webkit-appearance: none;
   height: 32px;
-  padding: 0 10px;
+  padding: 0 26px 0 11px;
   border: 1px solid var(--line-1);
   border-radius: 10px;
   background: var(--surface-3);
@@ -269,12 +237,31 @@
   outline: none;
   transition:
     border-color var(--t-1) var(--ease-out),
+    background-color var(--t-1) var(--ease-out),
     color var(--t-1) var(--ease-out);
 }
 
-.lib-filter-select:hover,
+.lib-filter-select:hover {
+  background-color: var(--hover);
+  border-color: var(--line-2, var(--line-1));
+  color: var(--text-1);
+}
+
 .lib-filter-select:focus {
   border-color: color-mix(in srgb, var(--iris) 50%, transparent);
+  color: var(--text-1);
+}
+
+.lib-filter-pill-wrap .lib-filter-chevron {
+  position: absolute;
+  right: 9px;
+  pointer-events: none;
+  color: var(--text-3);
+  transition: color var(--t-1) var(--ease-out);
+}
+
+.lib-filter-select:hover ~ .lib-filter-chevron,
+.lib-filter-select:focus ~ .lib-filter-chevron {
   color: var(--text-1);
 }
 
@@ -323,97 +310,77 @@
   overflow: hidden;
 }
 
+.lib-main {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.lib-thumb-fit-float {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  z-index: 11;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--line-1);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-3) 92%, transparent);
+  color: var(--text-2);
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  transition: all var(--t-1) var(--ease-out);
+}
+
+.lib-thumb-fit-float:hover {
+  color: var(--text-1);
+  background: var(--hover);
+}
+
+.lib-thumb-fit-float.is-active {
+  color: var(--text-1);
+  background: var(--active);
+}
+
+.lib-thumb-fit-float:focus-visible {
+  outline: 2px solid var(--iris);
+  outline-offset: 2px;
+}
+
 .lib-body {
   min-height: 0;
   flex: 1;
   overflow-y: auto;
   padding: 20px 28px 48px;
   scrollbar-gutter: stable;
+  transition: padding-bottom 200ms var(--ease-out);
 }
 
-/* ── Floating Batch Action Bar ────────────────────────────────────── */
-
-.lib-batch-bar {
-  position: sticky;
-  top: 0;
-  z-index: 12;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 20px;
-  padding: 10px 18px;
-  border: 1px solid color-mix(in srgb, var(--iris) 35%, transparent);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--surface-3) 95%, transparent);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  animation: lib-slide-down 200ms var(--ease-out);
+/* The dock floats over the grid, so the last row needs somewhere to scroll
+   to — otherwise the bottom tiles sit permanently underneath it. */
+.lib-body.has-dock {
+  padding-bottom: 92px;
 }
 
-@keyframes lib-slide-down {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+/* ── Date Groups ──────────────────────────────────────────────────── */
+
+.lib-date-group + .lib-date-group {
+  margin-top: 28px;
 }
 
-.lib-batch-bar-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--text-1);
-  font-size: 12.5px;
-}
-
-.lib-batch-bar-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.lib-batch-act-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 12px;
-  border: 1px solid var(--line-2);
-  border-radius: 8px;
-  background: var(--hover);
-  color: var(--text-2);
-  font-size: 11.5px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all var(--t-1) var(--ease-out);
-}
-
-.lib-batch-act-btn:hover {
-  background: var(--active);
-  color: var(--text-1);
-}
-
-.lib-batch-act-btn.is-danger {
-  border-color: color-mix(in srgb, var(--coral) 35%, transparent);
-  background: color-mix(in srgb, var(--coral) 15%, transparent);
-  color: var(--coral);
-}
-
-.lib-batch-act-btn.is-danger:hover {
-  background: var(--coral);
-  color: var(--on-coral, var(--text-1));
-}
-
-.lib-batch-act-btn.is-quiet {
-  border-color: transparent;
-  background: transparent;
+.lib-date-group-label {
+  margin: 0 0 12px;
   color: var(--text-3);
-}
-
-.lib-batch-act-btn.is-quiet:hover {
-  color: var(--text-1);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
 /* ── Grid View & Cards ────────────────────────────────────────────── */
@@ -494,38 +461,68 @@
   transform: scale(1.05);
 }
 
-.lib-card-model-badge {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  z-index: 2;
-  padding: 2px 8px;
-  border-radius: var(--r-pill);
-  background: rgba(0, 0, 0, 0.65);
-  color: #ffffff;
-  font-size: 10px;
-  font-family: var(--font-mono);
-  font-weight: 600;
-  border: 1px solid var(--line-3);
+/* "Show whole image" mode (the thumb-fit toggle): no cropping, letterboxed
+   against the thumb's own idle background instead. Hover zoom is dropped
+   here — scaling a contain-fit image would just push it past its own
+   letterbox bars and get clipped by the thumb's overflow:hidden, which
+   reintroduces the crop this mode exists to avoid. */
+.lib-card-img.is-contain {
+  object-fit: contain;
+  background: rgba(0, 0, 0, 0.4);
 }
+
+.lib-card:hover .lib-card-img.is-contain {
+  transform: none;
+}
+
+/* The model name used to float here as a pill and collide with the action
+   bar on the right; it now lives in the footer with the rest of the metadata.
+   The slot carries a single piece of state instead: favourited or not, with
+   no chrome around it, and it steps aside once the toolbar appears. */
+.lib-card-fav-flag {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  color: var(--amber);
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.75));
+  transition:
+    opacity 160ms var(--ease-out),
+    transform 160ms var(--ease-out);
+}
+
+/* Yield rules live with the checkbox that displaces it, further down. */
 
 .lib-card-play {
   position: absolute;
-  right: 8px;
-  bottom: 8px;
+  right: 10px;
+  bottom: 10px;
   z-index: 2;
   display: grid;
   width: 28px;
   height: 28px;
   place-items: center;
   border-radius: var(--r-pill);
-  background: rgba(0, 0, 0, 0.75);
+  background: rgba(12, 12, 14, 0.72);
   color: #ffffff;
-  border: 1px solid var(--line-3);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  transition: opacity 160ms var(--ease-out);
+}
+
+/* Both sit bottom-right; without this they overlap on video cards. */
+.lib-card:hover .lib-card-play,
+.lib-card:focus-within .lib-card-play {
+  opacity: 0;
 }
 
 /* ── Card Hover Overlay ───────────────────────────────────────────── */
 
+/* Hover chrome is one material used twice — a translucent ink capsule with a
+   hairline highlight — so the card gains a single layer instead of five
+   competing boxes. Deliberately no backdrop-filter: memory-degradation.css
+   documents why a per-card blur surface is the wrong trade in a 40-tile grid. */
 .lib-card-overlay {
   position: absolute;
   inset: 0;
@@ -534,25 +531,46 @@
   flex-direction: column;
   justify-content: flex-end;
   padding: 12px;
+  /* Shorter and lighter than before: the image is the content, and burying its
+     top two-thirds under a 0.9 scrim to caption it was the wrong bargain. */
   background: linear-gradient(
     to top,
-    rgba(0, 0, 0, 0.9) 0%,
-    rgba(0, 0, 0, 0.45) 55%,
-    transparent 100%
+    rgba(0, 0, 0, 0.82) 0%,
+    rgba(0, 0, 0, 0.34) 38%,
+    transparent 62%
   );
   opacity: 0;
   transition: opacity 180ms var(--ease-out);
   pointer-events: none;
 }
 
-.lib-card:hover .lib-card-overlay {
+.lib-card:hover .lib-card-overlay,
+.lib-card:focus-within .lib-card-overlay {
   opacity: 1;
+}
+
+/* Metadata, not a headline — it sits under the prompt in the reading order of
+   the eye even though it is above it. Mono at 10.5px per the floor note in
+   inkstone/tokens.test.ts: uniform strokes stay legible below the 11px floor. */
+.lib-card-overlay-model {
+  display: block;
+  overflow: hidden;
+  margin: 0 0 5px;
+  color: rgba(255, 255, 255, 0.58);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
 }
 
 .lib-card-overlay-prompt {
   display: -webkit-box;
   overflow: hidden;
-  margin: 0 0 8px;
+  margin: 0 0 10px;
   color: #ffffff;
   font-size: 11.5px;
   font-weight: 500;
@@ -564,6 +582,24 @@
   pointer-events: none;
 }
 
+/* Footer rises as the toolbar drops — two small counter-moves read as one
+   deliberate gesture rather than as chrome popping into place. */
+.lib-card-overlay-model,
+.lib-card-overlay-prompt,
+.lib-card-overlay-foot {
+  transform: translateY(6px);
+  transition: transform 200ms var(--ease-out);
+}
+
+.lib-card:hover .lib-card-overlay-model,
+.lib-card:hover .lib-card-overlay-prompt,
+.lib-card:hover .lib-card-overlay-foot,
+.lib-card:focus-within .lib-card-overlay-model,
+.lib-card:focus-within .lib-card-overlay-prompt,
+.lib-card:focus-within .lib-card-overlay-foot {
+  transform: translateY(0);
+}
+
 .lib-card-overlay-foot {
   display: flex;
   align-items: center;
@@ -571,57 +607,104 @@
   pointer-events: auto;
 }
 
+/* Was a filled accent button — the loudest mark on the card spent on its
+   least important action. Accent is reserved for state (active, favourited). */
 .lib-card-theater-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 9px;
-  border-radius: 6px;
-  background: var(--iris);
-  color: var(--on-iris);
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 9px;
+  background: rgba(12, 12, 14, 0.72);
+  color: #ffffff;
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--iris) 40%, transparent);
-  transition: background var(--t-1) var(--ease-out);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+  transition:
+    background var(--t-1) var(--ease-out),
+    border-color var(--t-1) var(--ease-out);
 }
 
 .lib-card-theater-btn:hover {
-  background: var(--iris);
+  background: rgba(28, 28, 32, 0.86);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.lib-card-theater-btn:focus-visible {
+  outline: 2px solid var(--iris);
+  outline-offset: 2px;
 }
 
 .lib-card-overlay-bar {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 10px;
+  right: 10px;
   z-index: 5;
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
+}
+
+/* One container, one border, one shadow. The buttons inside are bare.
+   Reveals on hover only — the quick actions inside it stay a per-card
+   affordance, independent of whether a selection is live elsewhere. */
+.lib-card-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 11px;
+  background: rgba(12, 12, 14, 0.72);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  transform: translateY(-4px);
+  transition:
+    opacity 180ms var(--ease-out),
+    transform 200ms var(--ease-out);
+}
+
+.lib-card:hover .lib-card-toolbar,
+.lib-card:focus-within .lib-card-toolbar {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Delete is fenced off from copy rather than sitting flush against it. */
+.lib-card-toolbar-sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 3px;
+  background: rgba(255, 255, 255, 0.16);
 }
 
 .lib-card-hover-btn {
   display: grid;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   place-items: center;
   padding: 0;
-  border: 1px solid var(--line-3);
+  border: 0;
   border-radius: 8px;
-  background: rgba(0, 0, 0, 0.65);
-  color: #ffffff;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.88);
   cursor: pointer;
-  transition: all var(--t-1) var(--ease-out);
+  transition:
+    background var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
 }
 
-/* Inverting to literal white/black read correctly over a dark thumbnail but
-   became white-on-white under Bone. Iris is the affordance signal and its
-   paired ink is theme-correct in both faces. */
 .lib-card-hover-btn:hover {
-  background: var(--iris);
-  border-color: var(--iris);
-  color: var(--on-iris);
-  transform: scale(1.08);
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+}
+
+.lib-card-hover-btn:focus-visible {
+  outline: 2px solid var(--iris);
+  outline-offset: 1px;
 }
 
 .lib-card-hover-btn.is-favorite {
@@ -630,16 +713,119 @@
 
 .lib-card-hover-btn.is-danger:hover {
   background: var(--coral);
-  border-color: var(--coral);
-  color: var(--on-coral, var(--text-1));
+  color: var(--on-coral, #ffffff);
 }
 
-.lib-card-batch-cb,
+/* Grid selection lives on the hover-chrome schedule: invisible at rest,
+   revealed by hovering THIS card, or on every card at once as soon as any
+   selection exists — so building a multi-select doesn't mean chasing the
+   cursor back to each thumbnail. Hidden also means non-interactive: an
+   invisible hit target left clickable is a trap, not an affordance. */
+.lib-card-select {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms var(--ease-out);
+}
+
+.lib-card:hover .lib-card-select,
+.lib-card:focus-within .lib-card-select,
+.lib-card.selection-active .lib-card-select,
+.lib-card.is-selected .lib-card-select {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* A native checkbox over photography is a bare white square that reads as a
+   rendering artifact. Drawn by hand it can carry the same ink-and-hairline
+   material as the rest of the card chrome and stay legible on any image. */
+.lib-card-batch-cb {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 6px;
+  background: rgba(12, 12, 14, 0.55);
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  transition:
+    background var(--t-1) var(--ease-out),
+    border-color var(--t-1) var(--ease-out);
+}
+
+.lib-card-batch-cb:hover {
+  border-color: #ffffff;
+  background: rgba(12, 12, 14, 0.72);
+}
+
+.lib-card-batch-cb:checked {
+  border-color: var(--iris);
+  background: var(--iris);
+}
+
+/* Hand-drawn tick: two borders on a rotated box, so it inherits the box's
+   colour and needs no icon font or SVG. */
+.lib-card-batch-cb:checked::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 6.5px;
+  width: 5px;
+  height: 9px;
+  border: solid var(--on-iris, #ffffff);
+  border-width: 0 2px 2px 0;
+  transform: rotate(43deg);
+}
+
+.lib-card-batch-cb:focus-visible {
+  outline: 2px solid var(--iris);
+  outline-offset: 2px;
+}
+
+/* The favourite star shares this corner — it yields while the checkbox is
+   up rather than the two stacking on the same 20 pixels. */
+.lib-card:hover .lib-card-fav-flag,
+.lib-card:focus-within .lib-card-fav-flag,
+.lib-card.selection-active .lib-card-fav-flag,
+.lib-card.is-selected .lib-card-fav-flag {
+  opacity: 0;
+  transform: scale(0.9);
+}
+
+/* List rows never hide their controls behind hover (dense rows, not photo
+   tiles) — the checkbox joins favorite/copy/delete in staying put. */
 .lib-batch-checkbox {
   width: 16px;
   height: 16px;
+  flex-shrink: 0;
   cursor: pointer;
   accent-color: var(--iris);
+}
+
+/* A selected card reads at a glance, not just via its tiny checkbox — but
+   the ring does that work alone. The iris wash that used to sit over the
+   thumbnail tinted the artwork itself: every selected image went muddy
+   brown, which is a poor trade for a signal the border already carries. */
+.lib-card.is-selected,
+.lib-row-card.is-selected {
+  border-color: var(--iris);
+}
+
+.lib-card.is-selected {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--iris) 55%, transparent);
+}
+
+.lib-row-card.is-selected {
+  background: color-mix(in srgb, var(--iris) 10%, transparent);
 }
 
 .lib-card-wait {

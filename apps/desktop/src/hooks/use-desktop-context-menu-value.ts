@@ -14,6 +14,7 @@ export function useDesktopContextMenuValue(
 ): DesktopContextMenuValue {
   const {
     addContextRef,
+    addMediaAttachment,
     dispatchNotification,
     handleForkSession,
     handleOpenDocument,
@@ -32,6 +33,7 @@ export function useDesktopContextMenuValue(
     () =>
       createDesktopContextMenuValue({
         addContextRef,
+        ...(addMediaAttachment ? { addMediaAttachment } : {}),
         dispatchNotification,
         handleForkSession,
         handleOpenDocument,
@@ -48,6 +50,7 @@ export function useDesktopContextMenuValue(
       }),
     [
       addContextRef,
+      addMediaAttachment,
       dispatchNotification,
       handleForkSession,
       handleOpenDocument,

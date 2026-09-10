@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import type { HostCommand, HostPush, HostResponse } from '@piwin/contracts';
+import type { HostCommand, HostPush, HostResponse, MediaLibraryItem } from '@piwin/contracts';
 import type { HostRequestOptions } from '@piwin/host-client';
 import type { DesktopLocale } from './desktop-locale';
 import { FlashcardsWorkspaceView, LibraryWorkspaceView } from './workspace-subpages';
@@ -18,6 +18,7 @@ export type WorkbenchSubpageStageProps = {
   hasStudyCapability?: () => boolean;
   flashcardsEntry?: 'gallery' | 'wiki';
   onOpenSession?: ((sessionId: string) => void) | undefined;
+  onRemixToComposer?: (input: { text: string; item?: MediaLibraryItem }) => void;
 };
 
 /**
@@ -41,6 +42,9 @@ export function WorkbenchSubpageStage(props: WorkbenchSubpageStageProps): ReactE
         locale={props.locale}
         initialKind={props.activeSubPage === 'videos' ? 'video' : 'image'}
         {...(props.refreshToken !== undefined ? { refreshToken: props.refreshToken } : {})}
+        {...(props.onRemixToComposer !== undefined
+          ? { onRemixToComposer: props.onRemixToComposer }
+          : {})}
       />
     );
   }

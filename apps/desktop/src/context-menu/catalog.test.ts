@@ -42,7 +42,7 @@ describe('buildContextMenuItems', () => {
     expect(add && add.type === 'item' && add.disabled).toBe(true);
   });
 
-  it('builds selection menu without quote-in-composer; explain/fix live under More', () => {
+  it('builds selection menu with side-chat on the root, without More', () => {
     const target: ContextMenuTarget = {
       surface: 'selection',
       selectedText: 'const x = 1',
@@ -50,17 +50,10 @@ describe('buildContextMenuItems', () => {
     };
     const items = buildContextMenuItems(target, baseCaps);
     const ids = actionIds(target);
-    expect(ids[0]).toBe('generate-flashcard');
-    expect(ids).toContain('ask-about');
+    expect(ids).toEqual(['generate-flashcard', 'add-to-chat', 'side-chat', 'copy']);
+    expect(ids).not.toContain('ask-about');
     expect(ids).not.toContain('quote-in-composer');
-    const more = items.find(
-      (item): item is Extract<typeof item, { type: 'submenu' }> =>
-        item.type === 'submenu' && item.id === 'more',
-    );
-    const childIds = more?.children
-      .filter((child): child is Extract<typeof child, { type: 'item' }> => child.type === 'item')
-      .map((child) => child.id);
-    expect(childIds).toEqual(expect.arrayContaining(['explain', 'fix']));
+    expect(items.some((item) => item.type === 'submenu')).toBe(false);
   });
 
   it('hides side-chat when unavailable', () => {
@@ -70,14 +63,8 @@ describe('buildContextMenuItems', () => {
       label: 'sel',
     };
     const items = buildContextMenuItems(target, { ...baseCaps, sideChatAvailable: false });
-    const more = items.find(
-      (item): item is Extract<typeof item, { type: 'submenu' }> =>
-        item.type === 'submenu' && item.id === 'more',
-    );
-    const childIds = more?.children
-      .filter((child): child is Extract<typeof child, { type: 'item' }> => child.type === 'item')
-      .map((child) => child.id);
-    expect(childIds).not.toContain('side-chat');
+    expect(actionIds(target, { ...baseCaps, sideChatAvailable: false })).not.toContain('side-chat');
+    expect(items.some((item) => item.type === 'submenu')).toBe(false);
   });
 
   it('disables generate-flashcard when preset send is unavailable', () => {
@@ -89,7 +76,9 @@ describe('buildContextMenuItems', () => {
     const enItems = buildContextMenuItems(target, { ...baseCaps, canSendPreset: false });
     const enGen = enItems.find((item) => item.type === 'item' && item.id === 'generate-flashcard');
     expect(enGen && enGen.type === 'item' && enGen.disabled).toBe(true);
-    expect(enGen && enGen.type === 'item' ? enGen.label : '').toContain('requires an active chat');
+    // The reason is a tooltip, not a suffix — the label stays clean.
+    expect(enGen && enGen.type === 'item' ? enGen.label : '').toBe('Generate flashcard');
+    expect(enGen && enGen.type === 'item' ? enGen.title : '').toContain('requires an active chat');
 
     const zhItems = buildContextMenuItems(target, {
       ...baseCaps,
@@ -98,8 +87,8 @@ describe('buildContextMenuItems', () => {
     });
     const zhGen = zhItems.find((item) => item.type === 'item' && item.id === 'generate-flashcard');
     expect(zhGen && zhGen.type === 'item' && zhGen.disabled).toBe(true);
-    expect(zhGen && zhGen.type === 'item' ? zhGen.label : '').toContain('会话未就绪');
-    expect(zhGen && zhGen.type === 'item' ? zhGen.label : '').toMatch(/（.*）/);
+    expect(zhGen && zhGen.type === 'item' ? zhGen.label : '').toBe('生成闪卡');
+    expect(zhGen && zhGen.type === 'item' ? zhGen.title : '').toBe('会话未就绪');
   });
 
   it('includes fork only when message capabilities allow', () => {
@@ -151,7 +140,8 @@ describe('buildContextMenuItems', () => {
     });
     const reveal = remote.find((item) => item.type === 'item' && item.id === 'reveal');
     expect(reveal && reveal.type === 'item' && reveal.disabled).toBe(true);
-    expect(reveal && reveal.type === 'item' && reveal.label).toContain('remote Host');
+    expect(reveal && reveal.type === 'item' && reveal.label).toBe('Show in Folder');
+    expect(reveal && reveal.type === 'item' && reveal.title).toContain('remote Host');
   });
 
   it('localizes labels through en/zh tables while keeping stable action ids', () => {
@@ -252,20 +242,81 @@ describe('buildContextMenuItems', () => {
     expect(structure).toEqual([
       'generate-flashcard',
       'add-to-chat',
-      'ask-about',
+      'side-chat',
       'separator',
       'copy',
-      'more',
     ]);
-    const more = items.find(
-      (item): item is Extract<typeof item, { type: 'submenu' }> =>
-        item.type === 'submenu' && item.id === 'more',
+  });
+
+  const mediaTarget: ContextMenuTarget = {
+    surface: 'media-image',
+    label: 'photo.png',
+    fileName: 'photo.png',
+    mimeType: 'image/png',
+    attachment: {
+      id: 'asset-1',
+      kind: 'media',
+      path: '/Users/me/.piwin/media/s1/asset-1.png',
+      mimeType: 'image/png',
+      byteSize: 12,
+      source: 'generated',
+    },
+    absolutePath: '/Users/me/.piwin/media/s1/asset-1.png',
+    assetId: 'asset-1',
+    sessionId: 's1',
+  };
+
+  it('orders media-image actions: save, copy, view, then add to chat', () => {
+    expect(actionIds(mediaTarget, { ...baseCaps, canSaveAs: true, canAddMediaAttachment: true })).toEqual([
+      'save-as',
+      'copy-image',
+      'open',
+      'add-to-chat',
+      'ask-about',
+      'reveal',
+    ]);
+  });
+
+  it('hides View on a media-image lightbox and localizes the remaining labels', () => {
+    const ids = actionIds(
+      { ...mediaTarget, inLightbox: true },
+      { ...baseCaps, canSaveAs: true, canAddMediaAttachment: true },
     );
-    expect(more).toBeDefined();
-    const childIds = more?.children
-      .filter((child): child is Extract<typeof child, { type: 'item' }> => child.type === 'item')
-      .map((child) => child.id);
-    expect(childIds).toEqual(['explain', 'fix', 'side-chat', 'copy-as-ref']);
+    expect(ids).not.toContain('open');
+    const zh = buildContextMenuItems(mediaTarget, {
+      ...baseCaps,
+      canSaveAs: true,
+      canAddMediaAttachment: true,
+      locale: 'zh-CN',
+    });
+    const save = zh.find((item) => item.type === 'item' && item.id === 'save-as');
+    const copy = zh.find((item) => item.type === 'item' && item.id === 'copy-image');
+    const open = zh.find((item) => item.type === 'item' && item.id === 'open');
+    expect(save && save.type === 'item' ? save.label : '').toBe('另存为…');
+    expect(copy && copy.type === 'item' ? copy.label : '').toBe('复制图片');
+    expect(open && open.type === 'item' ? open.label : '').toBe('全屏查看');
+  });
+
+  it('drops reveal from a media-image menu when the file is not on this machine', () => {
+    const ids = actionIds(mediaTarget, {
+      ...baseCaps,
+      canReveal: false,
+      canSaveAs: true,
+      canAddMediaAttachment: true,
+    });
+    expect(ids).not.toContain('reveal');
+    // Retrieval is still possible without a disabled "show in folder" row.
+    expect(ids).toContain('save-as');
+  });
+
+  it('disables media-image add-to-chat when the composer cannot take attachments', () => {
+    const items = buildContextMenuItems(mediaTarget, {
+      ...baseCaps,
+      canSaveAs: true,
+      canAddMediaAttachment: false,
+    });
+    const add = items.find((item) => item.type === 'item' && item.id === 'add-to-chat');
+    expect(add && add.type === 'item' && add.disabled).toBe(true);
   });
 
   it('localizes generate-flashcard labels in zh and en', () => {

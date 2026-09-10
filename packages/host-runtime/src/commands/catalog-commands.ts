@@ -363,6 +363,7 @@ export async function handleCatalogCommand(
         disabled.add(command.extensionId);
       }
       config.extensions = {
+        ...extensionsConfig,
         extraPaths: extensionsConfig.extraPaths,
         disabledIds: [...disabled],
       };

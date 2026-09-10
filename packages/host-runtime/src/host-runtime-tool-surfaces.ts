@@ -9,6 +9,7 @@ import type {
   ModelRef,
   PermissionMode,
 } from '@piwin/contracts';
+import { randomUUID } from 'node:crypto';
 import { formatError } from '@piwin/contracts';
 import { healthProviderDisclosure } from './health-turn-display.js';
 import { effectivePermissionMode } from './effective-permission-mode.js';
@@ -193,6 +194,30 @@ export async function composeSessionHostToolsForSession(
     getBrowserSession: () => deps.browserSession ?? undefined,
     getNotesServices: () => deps.getNotesServices(),
     getCardStore: () => deps.getCardStore(),
+    // Root sessions only: a subagent generation carries a childContext and must
+    // never be handed the extension install surface.
+    ...(childContext
+      ? {}
+      : {
+          applyExtensions: async (when: 'after-current-run') => {
+            const deploymentId = randomUUID();
+            const operation = deps.executeExtensionApply(
+              { type: 'extensions/apply', sessionId, when, deploymentId },
+              undefined,
+            );
+            deps.extensionDeploymentPromisesById.set(deploymentId, operation);
+            try {
+              const response = await operation;
+              return response.success
+                ? { ok: true as const, phase: 'scheduled' }
+                : { ok: false as const, error: response.error };
+            } finally {
+              if (deps.extensionDeploymentPromisesById.get(deploymentId) === operation) {
+                deps.extensionDeploymentPromisesById.delete(deploymentId);
+              }
+            }
+          },
+        }),
     onPlanUpdated: (plan) => {
       deps.push({ type: 'plan/updated', sessionId, plan });
     },

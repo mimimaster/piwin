@@ -329,13 +329,47 @@ export function languageFromPath(path: string): string {
   return normalizeLanguage(ext);
 }
 
+/**
+ * Inkstone token roles (proto-01 `.code .k/.s/.c/.fx`): keyword, string,
+ * comment, function. Mapped from the github-light/dark palettes Shiki emits
+ * so CSS variables can restyle them for paper/ink without a custom theme.
+ */
+export type SyntaxTokenKind = 'k' | 's' | 'c' | 'fx';
+
+const GITHUB_TOKEN_KIND: Record<string, SyntaxTokenKind> = {
+  '#D73A49': 'k',
+  '#005CC5': 'k',
+  '#F97583': 'k',
+  '#79B8FF': 'k',
+  '#032F62': 's',
+  '#22863A': 's',
+  '#9ECBFF': 's',
+  '#85E89D': 's',
+  '#DBEDFF': 's',
+  '#6F42C1': 'fx',
+  '#E36209': 'fx',
+  '#B392F0': 'fx',
+  '#FFAB70': 'fx',
+  '#6A737D': 'c',
+};
+
+export function tokenKindFromColor(color: string | undefined): SyntaxTokenKind | null {
+  if (!color) return null;
+  return GITHUB_TOKEN_KIND[color.toUpperCase()] ?? null;
+}
+
 /** Render a single line's tokens as colored spans. */
 export function TokenSpans({ tokens }: { tokens: TokenLine }): ReactNode {
-  return tokens.map((token, index) =>
-    createElement(
+  return tokens.map((token, index) => {
+    const kind = tokenKindFromColor(token.color);
+    return createElement(
       'span',
-      { key: index, style: token.color ? { color: token.color } : undefined },
+      {
+        key: index,
+        ...(kind ? { className: `md-tok md-tok-${kind}` } : {}),
+        style: !kind && token.color ? { color: token.color } : undefined,
+      },
       token.content,
-    ),
-  );
+    );
+  });
 }

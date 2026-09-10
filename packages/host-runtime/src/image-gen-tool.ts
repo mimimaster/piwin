@@ -1,5 +1,6 @@
 import {
   isModelEnabled,
+  isSubscriptionProvider,
   lookupImageGenerationRegistry,
   toMediaAttachmentRef,
 } from '@piwin/contracts';
@@ -16,6 +17,13 @@ import { createMediaService, writeMediaLibraryMeta } from '@piwin/media';
 import type { SecretResolver } from './secret-resolver.js';
 import { findEnabledProvider, getEnabledProviders } from './provider-helpers.js';
 import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
+import {
+  loadSubscriptionMediaAuth,
+  providerUsesSubscriptionMedia,
+  resolveSubscriptionMediaUrl,
+  subscriptionMediaHeaders,
+  type SubscriptionMediaAuth,
+} from './subscription-media-request.js';
 
 export class ImageGenConfigError extends Error {
   readonly name = 'ImageGenConfigError';
@@ -202,11 +210,17 @@ function resolveImagePath(
   style: ImageGenerationApiStyle,
 ): string {
   const route = model.routes?.['image-generation'];
-  const base = provider.baseUrl.replace(/\/+$/, '');
-  if (route?.path?.trim()) {
-    return `${base}${normalizeCustomImagePath(route.path.trim())}`;
+  const relative = route?.path?.trim()
+    ? normalizeCustomImagePath(route.path.trim())
+    : defaultImagePath(style, model.id);
+  if (isSubscriptionProvider(provider)) {
+    const url = resolveSubscriptionMediaUrl(provider.id, 'image', relative);
+    if (url) return url;
+    throw new ImageGenConfigError(
+      `image_gen: subscription "${provider.id}" does not expose image generation`,
+    );
   }
-  return `${base}${defaultImagePath(style, model.id)}`;
+  return `${provider.baseUrl.replace(/\/+$/, '')}${relative}`;
 }
 
 function resolveImageTimeout(model: {
@@ -522,7 +536,11 @@ function imageRequestCredentials(
   provider: ModelProviderConfig,
   style: ImageGenerationApiStyle,
   apiKey: string,
+  subscriptionAuth?: SubscriptionMediaAuth,
 ): Record<string, string> {
+  if (subscriptionAuth && isSubscriptionProvider(provider)) {
+    return subscriptionMediaHeaders(provider.id, subscriptionAuth);
+  }
   if (!apiKey) return {};
   if (style === 'openai') return { authorization: `Bearer ${apiKey}` };
   return provider.protocol === 'google-gemini'
@@ -538,6 +556,7 @@ export async function callImageEndpoint(
   apiKey: string,
   signal?: AbortSignal,
   fetchImpl: typeof fetch = fetch,
+  subscriptionAuth?: SubscriptionMediaAuth,
 ): Promise<GeneratedImage[]> {
   const prompt = args.prompt.trim();
   if (!prompt) throw new ImageGenConfigError('image_gen: prompt is required');
@@ -573,7 +592,10 @@ export async function callImageEndpoint(
 
   const response = await fetchImpl(endpoint, {
     method: 'POST',
-    headers: providerRequestHeaders(provider, imageRequestCredentials(provider, style, apiKey)),
+    headers: providerRequestHeaders(
+      provider,
+      imageRequestCredentials(provider, style, apiKey, subscriptionAuth),
+    ),
     body: JSON.stringify(body),
     signal: requestSignal,
   });
@@ -699,10 +721,17 @@ export function buildImageGenTool(options: ImageGenToolOptions): HostToolRegistr
         typeof args.model === 'string' ? args.model : undefined,
         typeof args.provider === 'string' ? args.provider : undefined,
       );
+      const subscriptionAuth = providerUsesSubscriptionMedia(provider, 'image')
+        ? await loadSubscriptionMediaAuth(provider.id).catch((error: unknown) => {
+            throw new ImageGenConfigError(
+              error instanceof Error ? error.message : `image_gen: ${String(error)}`,
+            );
+          })
+        : undefined;
       const apiKey =
-        provider.apiKeyRef?.trim() || provider.apiKeyEnv?.trim()
-          ? await secretResolver.resolveProviderSecret(provider)
-          : '';
+        subscriptionAuth || !(provider.apiKeyRef?.trim() || provider.apiKeyEnv?.trim())
+          ? ''
+          : await secretResolver.resolveProviderSecret(provider);
       const generated = await callImageEndpoint(
         provider,
         model,
@@ -714,6 +743,8 @@ export function buildImageGenTool(options: ImageGenToolOptions): HostToolRegistr
         },
         apiKey,
         signal,
+        fetch,
+        subscriptionAuth,
       );
 
       for (const image of generated) {

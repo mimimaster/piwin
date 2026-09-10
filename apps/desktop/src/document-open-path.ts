@@ -125,7 +125,8 @@ function looksLikeSkillPath(filePath: string): boolean {
     /\/skills\/[^/]+\/SKILL\.md$/i.test(normalized) ||
     /\/skills\/[^/]+\/?$/i.test(normalized) ||
     /\/host\/skills\//i.test(normalized) ||
-    /\.piwin\/skills\//i.test(normalized)
+    // Product config root is `~/.piwin`, but local/dev hosts use `~/.piwin-test`.
+    /(?:^|\/)\.piwin(?:-[^/]+)?\/skills\//i.test(normalized)
   );
 }
 

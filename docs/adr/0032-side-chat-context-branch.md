@@ -199,9 +199,8 @@ docs/specs/side-chat-session.md。实现完成后将本 ADR 状态改为 Accepte
 
 ### Desktop (apps/desktop)
 
-- `side-chat-panel.tsx`: Host-backed panel with picker, context bar
-  (version/source/read-only), send/stop composer, sync button, and
-  handoff (insert to main).
+- `side-chat-panel.tsx`: Host-backed panel with a side-chat tab strip, empty
+  state, reused ComposerCard (send/stop), sync, and handoff (insert to main).
 - `host-client.ts`: `sideChatOpen`, `sideChatList`, `sideChatSync` methods.
 - `App.tsx`: `SideChatPanel` wired with `hostClient` prop.
 - Typecheck passes.

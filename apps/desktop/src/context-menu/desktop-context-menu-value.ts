@@ -3,7 +3,7 @@
  * module builds the value DesktopContextMenuProvider consumes.
  */
 import type { Dispatch, SetStateAction } from 'react';
-import type { PromptContextRef } from '@piwin/contracts';
+import type { MediaAttachmentRef, PromptContextRef, SideChatOpenData } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
 import type { AddContextRefResult } from '../hooks/use-composer-context-refs';
 import { revealLocalFileInFolder } from '../local-file-actions.js';
@@ -19,6 +19,7 @@ import type { DesktopLocale } from '../desktop-locale';
 import type { DesktopContextMenuValue } from './desktop-context-menu-context.js';
 import type { ContextMenuDispatchers } from './dispatch.js';
 import type { ContextMenuCapabilities } from './types.js';
+import { publishSideChatComposerSeed } from '../side-chat-composer-seed.js';
 
 export type DesktopContextMenuValueDeps = {
   projectPath: string | null;
@@ -35,6 +36,7 @@ export type DesktopContextMenuValueDeps = {
   handleForkSession: (sessionId: string, messageId: string) => void | Promise<void>;
   setComposer: Dispatch<SetStateAction<string>>;
   openInspector: (tab?: RightPanelTab | null) => void;
+  addMediaAttachment?: (attachment: MediaAttachmentRef) => void;
 };
 
 export function quoteTextForComposer(text: string): string {
@@ -64,6 +66,7 @@ export function buildDesktopContextMenuCaps(input: {
   sideChatSupported: boolean;
   applySupported: boolean;
   openChangedFilesSupported: boolean;
+  canAddMediaAttachment?: boolean;
 }): ContextMenuCapabilities {
   const projectRoot = resolveProjectFilesystemRoot(input.projectPath);
   const canReveal = Boolean(projectRoot) && canRevealInLocalFileManager(projectRoot);
@@ -75,6 +78,7 @@ export function buildDesktopContextMenuCaps(input: {
     applyAvailable: input.applySupported,
     openChangedFilesAvailable: Boolean(input.projectPath && input.openChangedFilesSupported),
     canSendPreset: Boolean(input.activeSessionId && input.hostReady),
+    ...(input.canAddMediaAttachment === true ? { canAddMediaAttachment: true } : {}),
     locale: input.locale,
   };
 }
@@ -101,11 +105,19 @@ export function createDesktopContextMenuValue(
     sideChatSupported: deps.hostClient.supportsCommand('side-chat/open'),
     applySupported: deps.hostClient.supportsCommand('project/read-file'),
     openChangedFilesSupported: deps.hostClient.supportsCommand('project/read-file'),
+    ...(deps.addMediaAttachment ? { canAddMediaAttachment: true } : {}),
   });
   const dispatchers: ContextMenuDispatchers = {
     addToChat: (ref) => {
       addRef(ref);
     },
+    ...(deps.addMediaAttachment
+      ? {
+          addMediaAttachment: (target) => {
+            deps.addMediaAttachment?.(target.attachment);
+          },
+        }
+      : {}),
     focusComposer: () => {
       focusComposerInput();
     },
@@ -175,6 +187,11 @@ export function createDesktopContextMenuValue(
             notify(`Could not open side chat: ${response.error}`, 'error');
             return;
           }
+          const data = response.data as SideChatOpenData | undefined;
+          publishSideChatComposerSeed({
+            refs: input.refs ?? [],
+            ...(data?.sideChatSessionId ? { sideChatSessionId: data.sideChatSessionId } : {}),
+          });
           deps.openInspector('sideChat');
         });
     },

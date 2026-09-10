@@ -97,11 +97,7 @@ export function EmptyStageLanding(props: EmptyStageLandingProps): ReactElement {
         </span>
         <h1>{heading}</h1>
         {recentSessions.length === 0 ? (
-          <p>
-            {isChinese
-              ? '问任何问题，或从左侧开始一次新对话。'
-              : 'Ask anything, or start a new chat from the sidebar.'}
-          </p>
+          <p>{isChinese ? '问任何问题。' : 'Ask anything.'}</p>
         ) : null}
       </div>
       {recentSessions.length > 0 ? (

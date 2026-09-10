@@ -626,13 +626,14 @@
 
 .assembly-summary-detail li {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: var(--s-3);
   align-items: baseline;
   padding: var(--s-2) 0;
   border-top: 1px solid var(--line-1);
   font-size: var(--fs-mono);
   color: var(--text-3);
+  white-space: nowrap;
 }
 
 .assembly-summary-detail li b {
@@ -643,15 +644,18 @@
   text-overflow: ellipsis;
 }
 
-.assembly-summary-detail li pre {
-  flex: 1 0 100%;
-  margin: var(--s-2) 0 0;
-  max-height: 8em;
-  overflow: auto;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-size: var(--fs-micro);
-  color: var(--text-3);
+.assembly-summary-detail li .src {
+  flex: none;
+}
+
+.assembly-summary-detail li .src.warn {
+  color: var(--amber);
+}
+
+.assembly-summary-detail li .ml {
+  flex: none;
+  margin-left: auto;
+  color: var(--text-4);
 }
 
 /* ─── Entrance ────────────────────────────────────────────────────────

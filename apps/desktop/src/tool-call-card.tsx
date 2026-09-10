@@ -124,15 +124,45 @@ function openResolvedToolPath(
   onOpenFile(resolved.absolutePath, resolved.relativePath);
 }
 
+/**
+ * Prefer the logical document opener so historical skill reads can recover
+ * the persisted tool snapshot (messageId is filled in by the transcript row).
+ * Falls back to onOpenFile when Doc Preview is not wired.
+ */
+function openPathLikeToolDocument(input: {
+  filePath: string;
+  tool: ToolCardUi;
+  projectPath?: string | null | undefined;
+  onOpenDocument?: ((doc: DocumentOpenInput) => void) | undefined;
+}): boolean {
+  if (!input.onOpenDocument) {
+    return false;
+  }
+  const resolved = resolveToolOpenPath(input.filePath, input.projectPath);
+  const skillTarget = input.tool.presentation?.documentTargets?.find(
+    (target) => target.kind === 'skill',
+  );
+  const basename = resolved.absolutePath.split(/[\\/]/).pop() || resolved.absolutePath;
+  input.onOpenDocument({
+    title: skillTarget?.kind === 'skill' ? skillTarget.skillId : basename,
+    path: resolved.absolutePath,
+    ...(skillTarget ? { target: skillTarget } : {}),
+    toolCallId: input.tool.toolCallId,
+  });
+  return true;
+}
+
 /** Clickable path list for expanded tool body (targetPaths / changedPaths). */
 function ToolPathLinkList(props: {
   paths: string[];
   projectPath?: string | null | undefined;
   onOpenFile?: ((absolutePath: string, relativePath?: string) => void) | undefined;
+  onOpenDocument?: ((input: DocumentOpenInput) => void) | undefined;
+  toolCallId?: string | undefined;
   testId: string;
   prefix?: string | undefined;
 }): ReactElement {
-  const canOpen = Boolean(props.onOpenFile);
+  const canOpen = Boolean(props.onOpenDocument || props.onOpenFile);
   return (
     <div className="tool-call-paths" data-testid={props.testId}>
       {props.prefix ? <span className="tool-call-paths-prefix">{props.prefix}</span> : null}
@@ -155,6 +185,15 @@ function ToolPathLinkList(props: {
             data-testid="tool-call-path-link"
             data-full-path={resolved.absolutePath}
             onClick={() => {
+              if (props.onOpenDocument) {
+                const basename = resolved.absolutePath.split(/[\\/]/).pop() || resolved.absolutePath;
+                props.onOpenDocument({
+                  title: basename,
+                  path: resolved.absolutePath,
+                  ...(props.toolCallId ? { toolCallId: props.toolCallId } : {}),
+                });
+                return;
+              }
               openResolvedToolPath(filePath, props.projectPath, props.onOpenFile);
             }}
           >
@@ -454,7 +493,9 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const primaryOpenPath = primaryTargetPath
     ? resolveToolOpenPath(primaryTargetPath, props.projectPath)
     : null;
-  const canOpenPath = Boolean(primaryTargetPath && (props.onOpenFile || props.onOpenDiff));
+  const canOpenPath = Boolean(
+    primaryTargetPath && (props.onOpenDocument || props.onOpenFile || props.onOpenDiff),
+  );
   const diffStats = useToolEditDiffStats({
     enabled:
       isEditTool &&
@@ -533,9 +574,21 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
         return;
       }
     }
-    if (isPathLike && path && props.onOpenFile) {
-      openResolvedToolPath(path, props.projectPath, props.onOpenFile);
-      return;
+    if (isPathLike && path) {
+      if (
+        openPathLikeToolDocument({
+          filePath: path,
+          tool,
+          ...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {}),
+          ...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {}),
+        })
+      ) {
+        return;
+      }
+      if (props.onOpenFile) {
+        openResolvedToolPath(path, props.projectPath, props.onOpenFile);
+        return;
+      }
     }
     if (hasBody) {
       toggleExpanded();
@@ -769,6 +822,8 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
               paths={tool.presentation.targetPaths}
               projectPath={props.projectPath}
               onOpenFile={props.onOpenFile}
+              onOpenDocument={props.onOpenDocument}
+              toolCallId={tool.toolCallId}
               testId="tool-call-paths"
             />
           ) : null}
@@ -777,6 +832,8 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
               paths={changedPaths}
               projectPath={props.projectPath}
               onOpenFile={props.onOpenFile}
+              onOpenDocument={props.onOpenDocument}
+              toolCallId={tool.toolCallId}
               testId="tool-call-changed-paths"
               prefix="changed: "
             />

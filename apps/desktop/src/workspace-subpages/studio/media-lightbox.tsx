@@ -33,6 +33,12 @@ export type MediaLightboxProps = {
   onNext?: (() => void) | undefined;
   currentIndex?: number | undefined;
   totalCount?: number | undefined;
+  closeLabel?: string;
+  closeHint?: string;
+  prevLabel?: string;
+  prevHint?: string;
+  nextLabel?: string;
+  nextHint?: string;
 };
 
 /** In-page media viewer. Sits on the gallery, not over the page chrome. */
@@ -70,8 +76,8 @@ export function MediaLightbox(props: MediaLightboxProps): ReactElement {
           type="button"
           className="media-lightbox-close vault-look-close"
           onClick={onClose}
-          aria-label="Close"
-          title="Close (Esc)"
+          aria-label={props.closeLabel ?? 'Close'}
+          title={props.closeHint ?? 'Close (Esc)'}
         >
           <IconClose width={16} height={16} aria-hidden="true" />
         </button>
@@ -82,8 +88,8 @@ export function MediaLightbox(props: MediaLightboxProps): ReactElement {
               type="button"
               className="vault-look-nav is-prev"
               onClick={onPrev}
-              aria-label="Previous"
-              title="Previous (←)"
+              aria-label={props.prevLabel ?? 'Previous'}
+              title={props.prevHint ?? 'Previous (←)'}
             >
               <IconArrowLeft width={18} height={18} aria-hidden="true" />
             </button>
@@ -96,8 +102,8 @@ export function MediaLightbox(props: MediaLightboxProps): ReactElement {
               type="button"
               className="vault-look-nav is-next"
               onClick={onNext}
-              aria-label="Next"
-              title="Next (→)"
+              aria-label={props.nextLabel ?? 'Next'}
+              title={props.nextHint ?? 'Next (→)'}
             >
               <IconArrowRight width={18} height={18} aria-hidden="true" />
             </button>

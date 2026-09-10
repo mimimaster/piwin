@@ -35,16 +35,26 @@
   app-region: drag;
 }
 
+.vault-titleband-drag {
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-width: 24px;
+  min-height: 100%;
+  cursor: default;
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
 .vault-bar {
   position: relative;
   z-index: 5;
   display: flex;
-  height: 48px;
-  min-height: 48px;
+  height: var(--titleband-height);
+  min-height: var(--titleband-height);
   align-items: center;
-  justify-content: space-between;
   gap: var(--s-3);
-  padding: 0 var(--s-6);
+  box-sizing: border-box;
+  padding: 0 var(--s-3) 0 calc(var(--traffic-light-clearance) - var(--deck-inset));
   border-bottom: 1px solid var(--line-1);
   background: var(--surface-1);
 }
@@ -55,6 +65,7 @@
 .vault-bar a,
 .vault-bar [data-no-window-drag],
 .vault-bar-leading,
+.vault-bar-search,
 .vault-bar-actions,
 .vault-bar-primary,
 .vault-bar-tools,
@@ -65,10 +76,12 @@
 }
 
 .vault-bar-leading,
+.vault-bar-search,
 .vault-bar-actions,
 .vault-bar-primary,
 .vault-bar-tools {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: var(--s-2);
 }
@@ -106,8 +119,9 @@
 }
 
 .vault-back.is-icon {
-  width: 32px;
-  min-height: 32px;
+  width: 24px;
+  min-height: 24px;
+  height: 24px;
   justify-content: center;
   padding: 0;
 }
@@ -143,28 +157,35 @@
 
 .vault-filters {
   display: flex;
-  min-height: 44px;
+  height: 48px;
+  min-height: 48px;
   align-items: center;
   justify-content: space-between;
   gap: var(--s-3);
-  padding: 4px var(--s-6) 12px;
+  padding: 0 24px;
   background: var(--surface-1);
+  border-bottom: 1px solid var(--line-1);
 }
 
 .vault-bar.is-page + .vault-filters {
   padding: 0 32px 20px;
 }
 
-.vault-filters-leading {
+.vault-filters-leading,
+.vault-filters-trailing {
   display: flex;
   min-width: 0;
   align-items: center;
   gap: var(--s-3);
 }
 
+.vault-filters-trailing {
+  flex-shrink: 0;
+}
+
 .vault-back {
   display: inline-flex;
-  min-height: 32px;
+  min-height: 26px;
   align-items: center;
   gap: 4px;
   padding: 0 10px 0 6px;
@@ -184,7 +205,9 @@
 
 .vault-search {
   display: flex;
-  width: 190px;
+  box-sizing: border-box;
+  width: 180px;
+  height: 32px;
   min-height: 32px;
   align-items: center;
   gap: 6px;
@@ -199,9 +222,10 @@
 
 .vault-search:focus-within {
   width: 230px;
-  border-color: var(--iris);
+  border-color: var(--line-2, var(--line-1));
   background: var(--surface-1);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--iris) 15%, transparent);
+  box-shadow: none;
+  outline: none;
 }
 
 .vault-search input {
@@ -250,21 +274,21 @@
 }
 
 .vault-bar button:focus-visible,
-.vault-filters button:focus-visible,
-.vault-search:focus-within {
+.vault-filters button:focus-visible {
   outline: 2px solid var(--iris);
   outline-offset: 2px;
 }
 
 @media (max-width: 820px) {
-  .vault-bar,
   .vault-filters {
     padding-inline: 16px;
   }
   .vault-bar {
-    height: auto;
     flex-wrap: wrap;
-    padding-block: 8px;
+    height: auto;
+    min-height: var(--titleband-height);
+    padding-block: 6px;
+    padding-right: 16px;
   }
   .vault-bar.is-page {
     grid-template-columns: 1fr auto;
@@ -282,7 +306,7 @@
     padding-inline: 16px;
   }
   .vault-search {
-    width: 150px;
+    width: 140px;
   }
   .flashcards-main {
     padding-inline: 16px;

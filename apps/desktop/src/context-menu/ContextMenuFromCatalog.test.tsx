@@ -117,6 +117,7 @@ describe('ContextMenuFromCatalog submenu (CM-16)', () => {
 
     expect(document.body.querySelector('[data-testid="context-menu-add-to-chat"]')).not.toBeNull();
     expect(document.body.querySelector('[data-testid="context-menu-quote-in-composer"]')).toBeNull();
+    expect(document.body.querySelector('.ui-menu-header')).toBeNull();
   });
 
   it('keeps quote-in-composer when resolveTarget is the whole message', () => {
@@ -220,5 +221,46 @@ describe('ContextMenuFromCatalog submenu (CM-16)', () => {
     const addToChatItem = document.body.querySelector('[data-testid="context-menu-add-to-chat"]');
     expect(addToChatItem).not.toBeNull();
     expect(addToChatItem?.querySelector('.ui-menu-item-icon')).not.toBeNull();
+  });
+
+  it('shows a friendly header for a remote media asset instead of its raw ref', () => {
+    const mediaTarget: ContextMenuTarget = {
+      surface: 'media-image',
+      label: 'remote-asset:f01f236b-4924-44f3-8560-0771f8b83646',
+      fileName: 'remote-asset:f01f236b-4924-44f3-8560-0771f8b83646',
+      mimeType: 'image/png',
+      attachment: {
+        id: 'f01f236b',
+        kind: 'media',
+        path: 'remote-asset:f01f236b',
+        mimeType: 'image/png',
+        byteSize: 10,
+        source: 'generated',
+      },
+    };
+    const rendered = renderMenu(
+      <ContextMenuFromCatalog
+        testId="cm-media-header"
+        target={mediaTarget}
+        caps={{ ...caps, canReveal: false, locale: 'zh-CN' }}
+        dispatchers={noopDispatchers()}
+      >
+        <button type="button" data-testid="cm-trigger">
+          img
+        </button>
+      </ContextMenuFromCatalog>,
+    );
+    root = rendered.root;
+    container = rendered.container;
+    act(() => {
+      container
+        ?.querySelector('[data-testid="cm-trigger"]')
+        ?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    });
+
+    const header = document.body.querySelector('.ui-menu-header');
+    expect(header?.textContent).toBe('PNG 图片');
+    expect(header?.textContent).not.toContain('remote-asset');
+    expect(document.body.querySelector('[data-testid="context-menu-reveal"]')).toBeNull();
   });
 });

@@ -871,9 +871,8 @@ describe('FileTreePanel context menu (CM-05)', () => {
     expect(document.body.querySelector('[data-testid^="file-tree-context-"]')).toBeNull();
   });
 
-  it('selection menu on the code preview sends the Explain preset (CM-07)', async () => {
+  it('selection menu on the code preview uses the compact catalog (CM-07)', async () => {
     const onAddContextRef = vi.fn();
-    const onSendPreset = vi.fn();
     const request = vi.fn(async (cmd: FileTreeRequest): Promise<HostResponse> => {
       if (cmd.type === 'project/list-dir') {
         return okList([
@@ -907,7 +906,7 @@ describe('FileTreePanel context menu (CM-05)', () => {
       };
     });
 
-    renderTree(request, { onAddContextRef, onSendPreset });
+    renderTree(request, { onAddContextRef });
     await act(async () => {
       await Promise.resolve();
     });
@@ -949,35 +948,11 @@ describe('FileTreePanel context menu (CM-05)', () => {
         new MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
       );
     });
-    const moreItem = menuItem('context-menu-sub-more');
-    expect(moreItem).not.toBeNull();
-    act(() => {
-      moreItem?.click();
-    });
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    });
-    const explainItem = menuItem('context-menu-explain') as HTMLElement | null;
-    expect(explainItem).not.toBeNull();
-    act(() => {
-      explainItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
-    expect(onSendPreset).toHaveBeenCalledTimes(1);
-    const [text, refs] = onSendPreset.mock.calls[0] as [
-      string,
-      import('@piwin/contracts').PromptContextRef[],
-    ];
-    expect(text).toContain('Explain the attached context');
-    expect(refs).toEqual([
-      expect.objectContaining({
-        kind: 'file',
-        projectPath: '/proj',
-        relativePath: 'package.json',
-        lineStart: 1,
-        lineEnd: 1,
-      }),
-    ]);
-    expect(onAddContextRef).toHaveBeenCalledTimes(1);
+    expect(menuItem('context-menu-generate-flashcard')).not.toBeNull();
+    expect(menuItem('context-menu-add-to-chat')).not.toBeNull();
+    expect(menuItem('context-menu-copy')).not.toBeNull();
+    expect(menuItem('context-menu-sub-more')).toBeNull();
+    expect(menuItem('context-menu-generate-flashcard')?.getAttribute('aria-disabled')).toBe('true');
+    expect(onAddContextRef).not.toHaveBeenCalled();
   });
 });

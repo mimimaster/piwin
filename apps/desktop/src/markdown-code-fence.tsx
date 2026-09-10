@@ -19,9 +19,9 @@ export type MarkdownCodeFenceProps = {
   /** Canonical index ordinal. Null means this fence is not bound — render as ordinary code. */
   fenceIndex: number | null;
   /**
-   * Canonical index `open` flag. Canvas dumps source while the fence is still
-   * open; once closed it folds to the launcher even if renderingPhase is still
-   * stuck on streaming.
+   * Canonical index `open` flag. An open fence stays plain source; a closed
+   * fence highlights (and Canvas folds to the launcher) even if renderingPhase
+   * is still stuck on streaming.
    */
   fenceOpen?: boolean;
   renderingPhase: MarkdownRenderingPhase;
@@ -52,7 +52,11 @@ export function MarkdownCodeFence(props: MarkdownCodeFenceProps): ReactElement {
 }
 
 function FenceBody(props: MarkdownCodeFenceProps): ReactElement {
-  const streamMode = props.renderingPhase === 'streaming';
+  // Closed fences are stable even if the rest of the message is still
+  // streaming (or renderingPhase is stuck). Only the still-open fence stays
+  // plain so we do not rebuild token trees on every delta.
+  const liveGrowingFence =
+    props.renderingPhase === 'streaming' && props.fenceOpen !== false;
 
   if (isMermaidFenceLanguage(props.language)) {
     return <MermaidBlock source={props.source} />;
@@ -68,7 +72,7 @@ function FenceBody(props: MarkdownCodeFenceProps): ReactElement {
         language={props.language}
         source={props.source}
         isShell={isShellLanguage(props.language)}
-        streaming={streamMode}
+        streaming={liveGrowingFence}
       />
     );
   }

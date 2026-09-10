@@ -353,13 +353,3 @@
     animation: none;
   }
 }
-
-.composer-hint {
-  grid-column: 2;
-  margin-top: 0;
-  text-align: center;
-  font-size: var(--fs-micro);
-  color: var(--text-4);
-  user-select: none;
-  white-space: nowrap;
-}

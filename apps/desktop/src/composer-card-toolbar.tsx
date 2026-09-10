@@ -64,40 +64,41 @@ export function ComposerCardToolbar({
   return (
     <div className="bar composer-v2-toolbar">
       <div className="composer-v2-toolbar-left">
-        {/* Plus / attach button */}
-        <div className="plus-anchor">
-          <ComposerPlusMenu
-            trigger={
-              <IconButton
-                className={`composer-v2-icon-btn${props.plusMenuOpen ? ' active' : ''}`}
-                data-testid="composer-plus-btn"
-                title={copy.attachFiles}
-                label={copy.attachFiles}
-              >
-                <IconPlus />
-              </IconButton>
-            }
-            open={props.plusMenuOpen}
-            onOpenChange={(open) => {
-              props.onPlusMenuOpenChange(open);
-              props.onPlusSubmenuChange('none');
-              if (open) {
-                props.onRefreshComposerMenus();
+        {props.embedded === true ? null : (
+          <div className="plus-anchor">
+            <ComposerPlusMenu
+              trigger={
+                <IconButton
+                  className={`composer-v2-icon-btn${props.plusMenuOpen ? ' active' : ''}`}
+                  data-testid="composer-plus-btn"
+                  title={copy.attachFiles}
+                  label={copy.attachFiles}
+                >
+                  <IconPlus />
+                </IconButton>
               }
-            }}
-            submenu={props.plusSubmenu}
-            onSubmenu={props.onPlusSubmenuChange}
-            skills={props.menuSkills}
-            onOpenSkillsPanel={props.onOpenSkillsPanel}
-            mcpServers={props.menuMcp}
-            onOpenMcpPanel={props.onOpenMcpPanel}
-            onAttachFile={props.onAttachFile}
-            onAttachImage={props.onAttachImage}
-            onOpenKnowledge={props.onOpenKnowledge}
-            onOpenCardsPanel={props.onOpenCardsPanel}
-            hideAgentExtras={props.isConversationSession === true}
-          />
-        </div>
+              open={props.plusMenuOpen}
+              onOpenChange={(open) => {
+                props.onPlusMenuOpenChange(open);
+                props.onPlusSubmenuChange('none');
+                if (open) {
+                  props.onRefreshComposerMenus();
+                }
+              }}
+              submenu={props.plusSubmenu}
+              onSubmenu={props.onPlusSubmenuChange}
+              skills={props.menuSkills}
+              onOpenSkillsPanel={props.onOpenSkillsPanel}
+              mcpServers={props.menuMcp}
+              onOpenMcpPanel={props.onOpenMcpPanel}
+              onAttachFile={props.onAttachFile}
+              onAttachImage={props.onAttachImage}
+              onOpenKnowledge={props.onOpenKnowledge}
+              onOpenCardsPanel={props.onOpenCardsPanel}
+              hideAgentExtras={props.isConversationSession === true}
+            />
+          </div>
+        )}
 
         {/* Thinking effort / Model control */}
         <ThinkingEffortControl
@@ -111,18 +112,19 @@ export function ComposerCardToolbar({
           onSelectModel={props.onSelectModel}
         />
 
-        {/* proto-02: icon-only voice entry after the model chip, not beside Send. */}
-        <LiveComposerButton
-          enabled={true}
-          canStart={props.live?.canStart === true}
-          starting={props.live?.starting === true}
-          call={props.live?.call ?? null}
-          error={props.live?.error ?? null}
-          missing={props.live?.missing ?? []}
-          isChinese={locale === 'zh-CN'}
-          onStart={props.live?.onStart ?? (() => undefined)}
-          onEnd={props.live?.onEnd ?? (() => undefined)}
-        />
+        {props.embedded === true ? null : (
+          <LiveComposerButton
+            enabled={true}
+            canStart={props.live?.canStart === true}
+            starting={props.live?.starting === true}
+            call={props.live?.call ?? null}
+            error={props.live?.error ?? null}
+            missing={props.live?.missing ?? []}
+            isChinese={locale === 'zh-CN'}
+            onStart={props.live?.onStart ?? (() => undefined)}
+            onEnd={props.live?.onEnd ?? (() => undefined)}
+          />
+        )}
       </div>
 
       <div className="composer-v2-toolbar-right">
@@ -222,6 +224,7 @@ export function ComposerCardToolbar({
           isExtensionUiActive={isExtensionUiActive}
           onSend={triggerSend}
           onPause={props.onPause}
+          {...(props.embedded === true ? { embedded: true, onAbort: props.onAbort } : {})}
           {...(props.onResume ? { onResume: props.onResume } : {})}
           {...(props.mutationsEnabled === undefined && !reservedCommand
             ? {}

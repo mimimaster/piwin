@@ -72,6 +72,8 @@ export function ConversationPaneTranscript(props: ConversationPaneTranscriptProp
       aria-live="polite"
       aria-label={props.locale === 'zh-CN' ? 'Chat 消息' : 'Chat messages'}
       data-testid="conversation-pane-transcript"
+      data-artifact-layout-root="main"
+      data-artifact-layout-session={props.sessionId}
     >
       {props.state.awaitingTranscript ? (
         <div className="conversation-pane-loading" role="status">

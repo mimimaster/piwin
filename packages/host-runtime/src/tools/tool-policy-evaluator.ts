@@ -188,7 +188,9 @@ export function evaluateHostToolDomainPolicy(input: {
     case 'network:image-gen':
       return evaluateWebPermission(
         'web_fetch',
-        input.subject?.kind === 'web-fetch' ? `https://${input.subject.host}` : 'https://image.example',
+        input.subject?.kind === 'web-fetch'
+          ? `https://${input.subject.host}`
+          : 'https://image.example',
         input.rules,
         input.mode,
       );
@@ -198,7 +200,11 @@ export function evaluateHostToolDomainPolicy(input: {
     case 'process:stop':
       return evaluateProcessPermission(input.action, input.rules, input.mode);
     case 'browser:navigate':
-      return evaluateBrowserNavigatePermission(String(input.args.url ?? ''), input.rules, input.mode);
+      return evaluateBrowserNavigatePermission(
+        String(input.args.url ?? ''),
+        input.rules,
+        input.mode,
+      );
     case 'browser:screenshot':
       if (input.subject?.kind === 'file-write') {
         return evaluateFileWritePermission({
@@ -235,6 +241,13 @@ export function evaluateHostToolDomainPolicy(input: {
       return {
         decision: input.mode === 'bypass' ? 'allow' : 'ask',
         reason: `${input.action} mutation requires review`,
+      };
+    case 'extensions:install':
+      // Installing an extension loads new code into the agent runtime; always
+      // confirm with the user except under an explicit bypass mode.
+      return {
+        decision: input.mode === 'bypass' ? 'allow' : 'ask',
+        reason: input.mode === 'bypass' ? 'bypass-extension-install' : 'extension-install',
       };
     case 'planning:create':
     case 'planning:update':
@@ -310,6 +323,7 @@ export function evaluateHostToolDomainPolicy(input: {
     case 'browser:console':
     case 'browser:network':
     case 'flashcards:list':
+    case 'extensions:list':
     case 'artifact:instructions':
     case 'toolbox:route':
     case 'mcp:trusted':

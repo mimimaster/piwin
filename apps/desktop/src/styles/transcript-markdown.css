@@ -293,6 +293,21 @@
   white-space: pre;
 }
 
+/* Inkstone proto-01 `.code .k/.s/.c/.fx` — azure keywords, pine strings,
+   ochre functions, muted comments. Fallbacks keep non-Inkstone themes colored. */
+.md-tok-k {
+  color: var(--azure, #3a7797);
+}
+.md-tok-s {
+  color: var(--pine, #3d7c5e);
+}
+.md-tok-c {
+  color: var(--t4, var(--text-4, #6a737d));
+}
+.md-tok-fx {
+  color: var(--ochre, #94611a);
+}
+
 /* Same change semantics as the file tree, diff viewer and inline review
    lines: mint adds, coral deletes, text stays normal ink. */
 .md-code-line.diff-line-add {

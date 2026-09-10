@@ -539,17 +539,19 @@ Side Chat 是现有 Right Panel 的一个正常 tab：
 
 ### 10.2 Header
 
-Side Chat header 包含：
+Side Chat 会话 tab 占用右侧栏 **同一条** titlebar，不再在面板内另起一行：
 
 ~~~text
-[Side Chat picker] [New Side Chat +] [Sync context] [...]
-
-Context from: <main session name>
-Mode: Ask · Read-only
-Context: through <message/time> · Workspace: live
+[+] [Side chat ×] …                     [expand]
 ~~~
 
-Model/thinking 以 inherited badge 显示，v1 不打开独立 picker。
+- 打开 Side Chat 时，titlebar 只放会话 tab（其它工具 tab 收进左侧 `+`）；
+- 每个 tab 是当前 source session 的一条 Side Chat；
+- 新建侧聊走主会话引用 / 上下文菜单，不再在 titlebar 放第二个 `+`；
+- tab 上的 `×` 归档该 Side Chat；关掉最后一条（含草稿）即关掉 Side Chat 表面；
+- 没有 side session 时显示草稿 tab，发送时再 `side-chat/open`；
+- 创建时继承主会话上下文快照；不提供手动「同步」；
+- expand / close 仍由 Right Panel titlebar 拥有。
 
 ### 10.3 Side Chat picker
 
@@ -566,29 +568,20 @@ picker 只展示当前 source session 的 Side Chats：
 
 ### 10.4 Empty state
 
-无 Side Chat 时显示上下文说明和轻量建议：
-
-- 解释当前回复；
-- 分析这个错误；
-- 比较另一种实现方案；
-- 总结目前的风险。
-
-没有 active main session 时，New Side Chat disabled，并显示：
-先打开一个主会话，再创建 Side Chat。
+无消息时在列中居中显示 icon +「侧聊 / Side chat」标题 + 一行只读说明。
+底部 composer 始终可见。没有 active main session 时 Send 禁用，
+说明改为：先打开一个主会话，再针对它的上下文提问。
 
 ### 10.5 Composer
 
-Side Chat composer：
+Side Chat 直接复用主会话的 `ComposerCard`（同一块 slab），以
+`embedded` 收窄列宽并去掉主会话才有的能力：
 
-- 多行 textarea；
-- Send；
-- Stop；
-- context chip 展示和移除；
-- media image paste/drop 为 P1；
-- 没有 Agent/Plan mode selector；
-- 复用主 composer 的 model/thinking selector；
-- run 中禁用普通 Send，避免隐式 supersede；
-- 不支持 steer/follow-up。
+- 多行 textarea、model / thinking picker、Send；
+- 运行中显示 Stop（`session/abort`），不 Pause、不排队、不 steer；
+- 没有 Agent / Plan / plus / Live chrome；
+- 从主会话引用打开时，composer 显示与主会话相同的 context 胶囊；发送时带上 `contextRefs`；
+- `isConversationSession` 隐藏 Skills / MCP / Run Mode。
 
 ### 10.6 Transcript
 

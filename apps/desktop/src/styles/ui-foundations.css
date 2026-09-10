@@ -151,7 +151,20 @@ textarea:focus {
   display: block;
   width: 100%;
   max-width: min(540px, 100%);
+  min-height: 200px;
   border-radius: 12px;
+}
+
+.media-preview-loading {
+  display: block;
+}
+
+.media-preview-loading.is-hero {
+  width: 100%;
+  max-width: min(540px, 100%);
+  min-height: 200px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-2) 40%, var(--void));
 }
 
 .media-preview-image {
@@ -199,6 +212,7 @@ textarea:focus {
 .media-preview-image-button.is-hero {
   width: 100%;
   max-width: min(540px, 100%);
+  min-height: 200px;
   border-radius: 12px;
 }
 
@@ -279,7 +293,8 @@ textarea:focus {
 .media-lightbox-backdrop {
   position: fixed;
   inset: 0;
-  z-index: calc(var(--layer-dialog, 1000) + 20);
+  /* Sit above dialogs, below menus/toasts so right-click and Save As notices stay visible. */
+  z-index: calc(var(--layer-dialog, 70) + 1);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -297,6 +312,14 @@ textarea:focus {
   max-width: min(96vw, 1400px);
   max-height: min(92vh, 1200px);
   cursor: default;
+}
+
+.media-lightbox-image-hit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: min(96vw, 1400px);
+  max-height: min(92vh, 1200px);
 }
 
 .media-lightbox-image {

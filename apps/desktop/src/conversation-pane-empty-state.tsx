@@ -31,11 +31,6 @@ export function ConversationPaneEmptyState(props: ConversationPaneEmptyStateProp
               ? '在这里打开 Chat'
               : 'Open a Chat here'}
         </b>
-        <span>
-          {isChinese
-            ? '新建对话，或选择尚未显示的会话'
-            : 'Create a conversation, or pick one that is not already visible.'}
-        </span>
       </button>
     </div>
   );

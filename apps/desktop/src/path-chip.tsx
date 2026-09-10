@@ -11,6 +11,7 @@ import { useDesktopLocale } from './desktop-locale-context';
 import {
   revealLocalFileInFolder,
   resolveLocalFileAbsolutePath,
+  saveAsResultNotice,
   saveLocalFileAs,
 } from './local-file-actions.js';
 import { useLocalFileActions } from './local-file-actions-context.js';
@@ -166,24 +167,9 @@ export function PathChip({
         const save = localFileActions?.saveAs ?? ((target) => saveLocalFileAs(target));
         void save(path)
           .then((result) => {
-            if (result.kind === 'downloaded') {
-              notify?.(locale === 'zh-CN' ? '已开始另存为' : 'Save As started', 'success');
-              return;
-            }
-            if (result.kind === 'revealed-fallback') {
-              notify?.(
-                locale === 'zh-CN'
-                  ? '已复制完整路径并打开所在文件夹，请手动拷贝文件'
-                  : 'Path copied and folder opened — copy the file manually',
-                'info',
-              );
-              return;
-            }
-            if (result.kind === 'failed') {
-              notify?.(
-                locale === 'zh-CN' ? '另存为失败' : 'Save As failed',
-                'error',
-              );
+            const notice = saveAsResultNotice(result, locale);
+            if (notice) {
+              notify?.(notice.message, notice.level);
             }
           })
           .catch(() => {

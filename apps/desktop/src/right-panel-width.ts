@@ -10,6 +10,8 @@ export const RIGHT_PANEL_MAX_WIDTH_PX = 1600;
 export const RIGHT_PANEL_STAGE_MIN_PX = 420;
 /** Extra remaining-stage px required before drag exits full width. */
 export const RIGHT_PANEL_FULL_WIDTH_HYSTERESIS_PX = 24;
+/** Extra px past min width before drag-to-close fires. */
+export const RIGHT_PANEL_COLLAPSE_OVERSHOOT_PX = 24;
 
 const STORAGE_KEY = 'piwin.desktop.rightPanelWidth';
 
@@ -81,6 +83,20 @@ export function shouldExitRightPanelFullWidth(
   const minStagePx = input.minStagePx ?? RIGHT_PANEL_STAGE_MIN_PX;
   const hysteresisPx = input.hysteresisPx ?? RIGHT_PANEL_FULL_WIDTH_HYSTERESIS_PX;
   return remainingStagePx(input) >= minStagePx + hysteresisPx;
+}
+
+/**
+ * Inverse of full-width overshoot: after the panel is already at min width,
+ * keep dragging the splitter right (conversation grows) to collapse it.
+ */
+export function shouldCollapseRightPanel(
+  widthPx: number,
+  overshootPx = RIGHT_PANEL_COLLAPSE_OVERSHOOT_PX,
+): boolean {
+  if (!Number.isFinite(widthPx)) {
+    return false;
+  }
+  return widthPx < RIGHT_PANEL_MIN_WIDTH_PX - overshootPx;
 }
 
 export function loadRightPanelWidth(): number {

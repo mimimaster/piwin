@@ -126,6 +126,7 @@ export function useWorkbenchAppModel(args: UseWorkbenchAppModelArgs) {
     locale: chrome.desktopLocale,
     hostClient,
     addContextRef: composer.addContextRef,
+    addMediaAttachment: composer.addExistingMediaAttachment,
     dispatchNotification: host.dispatchNotification,
     handleOpenDocument,
     handleRetryMessage,

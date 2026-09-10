@@ -405,4 +405,21 @@ describe('TranscriptViewport session scroll recovery', () => {
     });
     expect(container.querySelector('[data-testid="jump-to-latest-btn"]')).not.toBeNull();
   });
+
+  it('does not restick after the first near-bottom history scroll', async () => {
+    await renderSession('near-bottom-scroll-session', { scrollHeight: 1_000 });
+    await finishOpening();
+    const scrollElement = container.querySelector<HTMLDivElement>('.chat-stream');
+    if (!scrollElement) {
+      throw new Error('Expected the overflowing transcript scroll element');
+    }
+    expect(scrollElement.scrollTop).toBe(1_000);
+
+    act(() => {
+      scrollElement.scrollTop = 960;
+      scrollElement.dispatchEvent(new Event('scroll'));
+    });
+    expect(scrollElement.scrollTop).toBe(960);
+    expect(container.querySelector('[data-testid="jump-to-latest-btn"]')).not.toBeNull();
+  });
 });

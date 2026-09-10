@@ -125,6 +125,7 @@ import { findEnabledModel } from '../provider-helpers.js';
 import { activateSkillForPrompt } from './activate-skill-for-prompt.js';
 import type { SessionLiveContext } from './session-live-context.js';
 import { shouldInjectLiveWorkPreamble } from '../voice/live-work-preamble.js';
+import { applyInlineArtifactLayout } from '../prompt/inline-artifact-layout.js';
 
 /** Build resolver deps with registered-project-root enforcement (security). */
 export function createResolveRefsDeps(context: SessionLiveContext): {
@@ -393,6 +394,10 @@ export async function preparePromptInput(
     });
   }
   collectPreparedAttachmentContributions(assembly, promptSource, preparedFromHost);
+  if (promptInput.inlineArtifactWidthPx !== undefined) {
+    const config = await context.loadConfig();
+    applyInlineArtifactLayout(promptInput, config.artifact?.enabled === true, assembly);
+  }
   throwIfPromptPreparationAborted(context, run.runId);
 
   if (!conversationChat) {

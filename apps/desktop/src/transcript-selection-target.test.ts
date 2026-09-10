@@ -4,6 +4,7 @@ import type { ContextMenuTarget } from './context-menu/types.js';
 import {
   computeTranscriptSelectionTarget,
   formatTranscriptSelectionLabel,
+  isTranscriptNestedHostTarget,
   looksLikeSerializedHtml,
   resolveBubbleContextMenuTarget,
   resolveCodeFenceContextMenuTarget,
@@ -223,5 +224,17 @@ describe('computeTranscriptSelectionTarget', () => {
     expect(looksLikeSerializedHtml('<div style="color:red">Hello</div>')).toBe(true);
     expect(stripSerializedHtml('<div style="color:red">Hello</div>')).toBe('Hello');
     expect(looksLikeSerializedHtml('use <div> as a wrapper')).toBe(false);
+  });
+});
+
+describe('isTranscriptNestedHostTarget', () => {
+  it('treats media previews as nested hosts so the bubble menu does not steal them', () => {
+    const host = document.createElement('div');
+    host.setAttribute('data-testid', 'media-preview-container');
+    const img = document.createElement('img');
+    host.appendChild(img);
+    document.body.appendChild(host);
+    expect(isTranscriptNestedHostTarget(img)).toBe(true);
+    host.remove();
   });
 });

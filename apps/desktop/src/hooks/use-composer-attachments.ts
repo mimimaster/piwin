@@ -746,6 +746,32 @@ export function useComposerAttachments(params: UseComposerAttachmentsArgs) {
    * Builds a WebElementAttachmentRef with conditional-spread optional
    * fields (exactOptionalPropertyTypes: no ref: undefined).
    */
+  const addExistingMediaAttachment = useCallback(
+    (attachment: PromptAttachment): void => {
+      if (attachment.kind !== 'media') {
+        return;
+      }
+      const already = pendingAttachmentsRef.current.some(
+        (item) => item.attachment.kind === 'media' && item.attachment.id === attachment.id,
+      );
+      if (already) {
+        return;
+      }
+      const next = [
+        ...pendingAttachmentsRef.current,
+        {
+          localId: attachment.id,
+          attachment,
+          previewUrl: '',
+          uploadStatus: 'ready' as const,
+        },
+      ];
+      pendingAttachmentsRef.current = next;
+      setPendingAttachments(next);
+    },
+    [pendingAttachmentsRef],
+  );
+
   const addWebElement = useCallback(
     (pick: WebElementPickResult): void => {
       const attachment: WebElementAttachmentRef = {
@@ -790,5 +816,6 @@ export function useComposerAttachments(params: UseComposerAttachmentsArgs) {
     handlePickFiles,
     handlePickImageFiles,
     addWebElement,
+    addExistingMediaAttachment,
   };
 }

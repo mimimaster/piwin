@@ -70,17 +70,105 @@
 
 /* Side Chat */
 
-.side-chat-header {
+.side-chat-tabstrip {
   display: flex;
   align-items: center;
-  gap: var(--s-3);
-  padding: var(--s-3) var(--s-4);
+  gap: var(--s-1);
+  min-width: 0;
+  min-height: var(--h-sm);
+  padding: 0;
+}
+
+.side-chat-tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.side-chat-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.side-chat-tab {
+  display: inline-flex;
+  align-items: center;
+  max-width: 168px;
+  height: var(--h-sm);
+  padding: 0 var(--s-1) 0 var(--s-2);
+  border-radius: var(--r-control);
+  color: var(--text-3);
   flex-shrink: 0;
 }
 
-.side-chat-picker {
+.side-chat-tab:hover {
+  color: var(--text-1);
+  background: var(--hover);
+}
+
+.side-chat-tab.is-active {
+  background: var(--surface-3);
+  color: var(--text-1);
+  box-shadow: var(--elev-1);
+}
+
+.side-chat-tab-main {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
   min-width: 0;
-  flex: 1 1 auto;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.side-chat-tab-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  opacity: 0.72;
+}
+
+.side-chat-tab.is-active .side-chat-tab-icon {
+  opacity: 1;
+}
+
+.side-chat-tab-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-chrome);
+}
+
+.side-chat-tab-close {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  margin-left: 1px;
+  color: var(--text-4);
+}
+
+.side-chat-tab-close:hover {
+  color: var(--text-1);
+  background: var(--active);
+}
+
+
+
+.side-chat-error {
+  flex-shrink: 0;
+  padding: var(--s-3) var(--s-5);
+  color: var(--text-1);
+  background: color-mix(in srgb, var(--danger) 14%, var(--surface-2));
+  font-size: var(--fs-chrome);
 }
 
 .side-chat-messages {
@@ -93,11 +181,52 @@
   gap: var(--s-5);
 }
 
-.side-chat-empty {
+.side-chat-messages:has(.side-chat-empty-state) {
+  padding: 0;
+}
+
+.side-chat-empty-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding: var(--s-8) var(--s-5);
+}
+
+.side-chat-empty-state .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-4);
+  max-width: 22rem;
   text-align: center;
-  padding: var(--s-8) var(--s-4);
-  color: var(--text-4);
+}
+
+.side-chat-empty-state .empty-state-visual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--text-3);
+}
+
+.side-chat-empty-state .empty-state-title {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: 600;
+  color: var(--text-1);
+  letter-spacing: var(--tracking-tight);
+}
+
+.side-chat-empty-state .empty-state-copy {
+  margin: 0;
   font-size: var(--fs-chrome);
+  color: var(--text-3);
+  line-height: var(--lh-normal);
 }
 
 .side-chat-message {
@@ -140,14 +269,41 @@
   transform-origin: center;
 }
 
+.side-chat-handoff {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 var(--s-5) var(--s-2);
+  flex-shrink: 0;
+}
+
 .side-chat-composer {
   display: block;
-  padding: var(--s-4);
-  border-top: 1px solid var(--line-1);
+  padding: var(--s-4) var(--s-5) var(--s-5);
   flex-shrink: 0;
   -webkit-app-region: no-drag;
   app-region: no-drag;
   pointer-events: auto;
+}
+
+.side-chat-composer .composer-card-v2 {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+  pointer-events: auto;
+}
+
+.side-chat-composer .composer-v2-input-area {
+  padding: var(--s-4) var(--s-5) var(--s-2);
+}
+
+.side-chat-composer .composer-v2-textarea {
+  min-height: 40px;
+}
+
+.side-chat-composer .composer-v2-toolbar {
+  padding: var(--s-1) var(--s-4) var(--s-3);
 }
 
 /* ── Enhanced Document Preview Panel ───────────────────────────────────── */

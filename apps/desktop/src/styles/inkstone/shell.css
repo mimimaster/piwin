@@ -10,12 +10,27 @@
      The titleband spans the window top with the centered serif title;
      panels start below it on one shared edge. */
 
-html[data-theme-id='piwin-inkstone-paper'] .app-shell,
-html[data-theme-id='piwin-inkstone-ink'] .app-shell {
-  /* Dense chrome: titleband + panel heads share one tight rhythm.
-     Proto's 42px panel heads read as empty air once real content is sparse. */
+/* Dense chrome: titleband + panel heads share one tight rhythm.
+   Proto's 42px panel heads read as empty air once real content is sparse.
+
+   These two are theme tokens, not properties of the shell grid, so they are
+   declared on the theme root. Scoped to `.app-shell` they were invisible to
+   every full-window surface — settings, the media library, studio subpages,
+   knowledge — because those render as *siblings* of `.app-shell`, not
+   children (workbench-app.tsx closes the shell before mounting them). Each
+   silently fell back to the 32px base while the shell next to it used 30px,
+   so their title bars sat two pixels lower than the window chrome they
+   butt against. `--card-header-height` had no base value at all, which is
+   why inkstone/inspector.css carries a literal `var(--card-header-height,
+   30px)` fallback at every use site. */
+html[data-theme-id='piwin-inkstone-paper'],
+html[data-theme-id='piwin-inkstone-ink'] {
   --titleband-height: 30px;
   --card-header-height: 30px;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .app-shell,
+html[data-theme-id='piwin-inkstone-ink'] .app-shell {
   --sidebar-width: 240px;
   --right-panel-width: 360px;
   padding: 0 8px 8px !important;

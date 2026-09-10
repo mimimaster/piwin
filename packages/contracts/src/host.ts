@@ -126,6 +126,8 @@ export type MediaAttachmentRef = {
 
 export type PromptInput = {
   text: string;
+  /** Sending shell's measured chat column, in CSS pixels; advisory, never a fixed layout. */
+  inlineArtifactWidthPx?: number;
   /**
    * Explicit installed Skill selected for this turn. This is structured Host
    * intent, not a value inferred from model-facing prompt text.

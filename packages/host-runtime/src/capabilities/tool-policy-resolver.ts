@@ -56,6 +56,11 @@ export type ToolExposureInput = {
   videoGenerationEnabled?: boolean;
   /** Root-session Apple Health tool; never enabled for child ceilings. */
   deviceHealth?: boolean;
+  /**
+   * Root-session Agent extension install/list tools; never enabled for child
+   * ceilings. Every install still passes a per-call permission prompt.
+   */
+  extensionInstall?: boolean;
 };
 
 /** Pi built-in tool names mapped from product capabilities (filesystem/shell). */
@@ -76,6 +81,7 @@ export const FAMILY_PI_BUILTIN_TOOLS: Readonly<Record<SessionToolFamily, readonl
   'notes-write': [],
   'flashcards-read': [],
   'flashcards-write': [],
+  'extensions-write': [],
   artifact: [],
   toolbox: [],
   'image-generation': [],
@@ -213,6 +219,11 @@ export function resolveToolPolicyDetails(input: ToolExposureInput): ResolvedTool
   }
   if (input.deviceHealth === true && capabilities === undefined) {
     enabledFamilies.add('device-health');
+  }
+  // Extension install: root sessions only, never a subagent ceiling, and only
+  // when the registration is present in this generation.
+  if (input.extensionInstall === true && capabilities === undefined && canMutate) {
+    enabledFamilies.add('extensions-write');
   }
 
   const effectiveFamilies = input.availableFamilies

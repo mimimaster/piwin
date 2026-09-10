@@ -96,6 +96,19 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
     font-variant-numeric: tabular-nums;
     font-feature-settings: 'tnum' 1;
   }
+  /* proto-01 `.code .k/.s/.c/.fx` */
+  .markdown .md-tok-k {
+    color: var(--azure);
+  }
+  .markdown .md-tok-s {
+    color: var(--pine);
+  }
+  .markdown .md-tok-c {
+    color: var(--t4);
+  }
+  .markdown .md-tok-fx {
+    color: var(--ochre);
+  }
   /* Booktabs (书口线): no card, no vertical rules — a top and bottom hairline
      with a lighter head rule. Numbers align on tabular figures. */
   .markdown .md-table-wrapper {

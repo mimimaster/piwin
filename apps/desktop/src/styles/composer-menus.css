@@ -123,6 +123,21 @@
   color: var(--text-4);
 }
 
+/* Enabled / online state as a dot instead of an "on" / "off" word. */
+.plus-menu-state-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--border-emphasis, var(--text-4));
+  opacity: 0.45;
+}
+
+.plus-menu-state-dot.is-on {
+  background: var(--mint);
+  opacity: 1;
+}
+
 /* MCP server on/off indicator inside the plus submenu. */
 .plus-menu-static .status-dot {
   font-family: var(--font-mono);

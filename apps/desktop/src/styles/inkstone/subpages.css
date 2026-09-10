@@ -236,12 +236,33 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   background: var(--s2) !important;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .lib-page .vault-bar.is-page {
-  height: 40px;
-  min-height: 40px;
-  padding: 0 12px;
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .vault-stage .vault-bar {
+  height: var(--titleband-height, 36px);
+  min-height: var(--titleband-height, 36px);
+  /* Settings titleband sits in a dialog already inset by --deck-inset; this
+     row is flush to the window, so it owes the full traffic-light clearance. */
+  padding: 0 var(--s-3) 0 var(--traffic-light-clearance);
   background: var(--s1);
   border-bottom: 1px solid var(--l1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .lib-page .vault-bar.is-page {
+  height: var(--titleband-height, 36px);
+  min-height: var(--titleband-height, 36px);
+  padding: 0 var(--s-3) 0 var(--traffic-light-clearance);
+  background: var(--s1);
+  border-bottom: 1px solid var(--l1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .lib-page .vault-back.is-icon {
+  border: 0;
+  background: transparent;
+  color: var(--t2);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .lib-page .vault-back.is-icon:hover {
+  background: var(--hover);
+  color: var(--t1);
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .lib-page .vault-bar-context {
@@ -485,6 +506,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 
 /* ── Library accents (proto-06 §10–12) ─────────────────────────────── */
 
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .vault-stage .vault-filters,
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .lib-page .vault-filters {
   height: 34px;
   min-height: 34px;
@@ -516,7 +538,6 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   font-weight: 500;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .lib-new-btn,
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .lib-cta-primary {
   height: 26px;
   padding: 0 10px;
@@ -527,7 +548,6 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   font-size: 12.5px;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .lib-new-btn:hover,
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .lib-cta-primary:hover {
   background: var(--zhu-lift);
   filter: none;
@@ -577,6 +597,15 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   border-color: var(--l3);
 }
 
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .lib-page .vault-search {
+  height: 30px;
+  background: var(--s2);
+  border: 1px solid var(--l1);
+  box-shadow: none;
+}
+
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .lib-page .vault-search:focus-within {
-  box-shadow: 0 0 0 1px var(--l2);
+  background: var(--s3);
+  border-color: var(--l2);
+  box-shadow: none;
 }

@@ -143,7 +143,19 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
                 props.skills.slice(0, 12).map((skill) => (
                   <DropdownMenuLabel key={skill.id} className="plus-menu-static">
                     <span className="plus-menu-label">{skill.name}</span>
-                    <span className="plus-menu-flag muted">{skill.enabled ? 'on' : 'off'}</span>
+                    <span
+                      className={`plus-menu-state-dot${skill.enabled ? ' is-on' : ''}`}
+                      role="img"
+                      aria-label={
+                        skill.enabled
+                          ? isZh
+                            ? '已启用'
+                            : 'enabled'
+                          : isZh
+                            ? '未启用'
+                            : 'disabled'
+                      }
+                    />
                   </DropdownMenuLabel>
                 ))
               )}
@@ -174,9 +186,19 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
                 props.mcpServers.map((server) => (
                   <DropdownMenuLabel key={server.id} className="plus-menu-static">
                     <span className="plus-menu-label">{server.name}</span>
-                    <span className={server.running ? 'status-dot ok' : 'status-dot'}>
-                      {server.running ? 'on' : 'off'}
-                    </span>
+                    <span
+                      className={`plus-menu-state-dot${server.running ? ' is-on' : ''}`}
+                      role="img"
+                      aria-label={
+                        server.running
+                          ? isZh
+                            ? '在线'
+                            : 'online'
+                          : isZh
+                            ? '离线'
+                            : 'offline'
+                      }
+                    />
                   </DropdownMenuLabel>
                 ))
               )}

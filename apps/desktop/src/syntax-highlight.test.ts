@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeLanguage, languageFromPath } from './syntax-highlight';
+import { isValidElement } from 'react';
+import {
+  normalizeLanguage,
+  languageFromPath,
+  tokenKindFromColor,
+  TokenSpans,
+} from './syntax-highlight';
 
 describe('normalizeLanguage', () => {
   it('maps common aliases to shiki language ids', () => {
@@ -34,12 +40,52 @@ describe('languageFromPath', () => {
   });
 });
 
-describe('highlightCode', () => {
-  it('highlights python and other languages', async () => {
-    const { highlightCode } = await import('./syntax-highlight');
-    const result = await highlightCode('from transformers import AutoModelForCausalLM\n# comment\nx = "hello"', 'python');
-    console.log('highlightCode result:', JSON.stringify(result));
-    expect(result.length).toBe(3);
+describe('tokenKindFromColor', () => {
+  it('maps github-light and github-dark palettes onto Inkstone token roles', () => {
+    expect(tokenKindFromColor('#D73A49')).toBe('k');
+    expect(tokenKindFromColor('#f97583')).toBe('k');
+    expect(tokenKindFromColor('#032F62')).toBe('s');
+    expect(tokenKindFromColor('#9ECBFF')).toBe('s');
+    expect(tokenKindFromColor('#6A737D')).toBe('c');
+    expect(tokenKindFromColor('#6F42C1')).toBe('fx');
+    expect(tokenKindFromColor('#B392F0')).toBe('fx');
+    expect(tokenKindFromColor('#24292E')).toBeNull();
+    expect(tokenKindFromColor(undefined)).toBeNull();
   });
 });
 
+describe('TokenSpans', () => {
+  it('paints mapped tokens with Inkstone classes instead of github hex', () => {
+    const nodes = TokenSpans({
+      tokens: [
+        { content: 'if', color: '#D73A49', offset: 0 },
+        { content: ' ', offset: 2 },
+      ],
+    });
+    const spans = Array.isArray(nodes) ? nodes : [nodes];
+    expect(isValidElement(spans[0])).toBe(true);
+    expect(isValidElement(spans[1])).toBe(true);
+    if (isValidElement<{ className?: string; style?: unknown }>(spans[0])) {
+      expect(spans[0].props.className).toBe('md-tok md-tok-k');
+      expect(spans[0].props.style).toBeUndefined();
+    }
+    if (isValidElement<{ className?: string; style?: unknown }>(spans[1])) {
+      expect(spans[1].props.className).toBeUndefined();
+    }
+  });
+});
+
+describe('highlightCode', () => {
+  it('highlights python and other languages', async () => {
+    const { highlightCode } = await import('./syntax-highlight');
+    const result = await highlightCode(
+      'from transformers import AutoModelForCausalLM\n# comment\nx = "hello"',
+      'python',
+    );
+    expect(result.length).toBe(3);
+    const comment = result[1]?.[0];
+    expect(tokenKindFromColor(comment?.color)).toBe('c');
+    const stringToken = result[2]?.find((token) => token.content.includes('hello'));
+    expect(tokenKindFromColor(stringToken?.color)).toBe('s');
+  });
+});

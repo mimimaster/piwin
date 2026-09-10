@@ -51,6 +51,20 @@ function trustOriginLabel(origin: ContextSummaryPush['contributions'][number]['t
   }
 }
 
+function contributionLabel(
+  item: ContextSummaryPush['contributions'][number],
+  zh: boolean,
+): string {
+  if (item.displayPath) {
+    return item.displayPath;
+  }
+  if (zh) {
+    if (item.label === 'User') return '用户消息';
+    if (item.label === 'Steer') return '转向消息';
+  }
+  return item.label;
+}
+
 function isUntrustedOrigin(origin: ContextSummaryPush['contributions'][number]['trustOrigin']): boolean {
   return origin === 'external-web' || origin === 'mcp' || origin === 'tool';
 }
@@ -101,7 +115,7 @@ export function AssemblySummaryCapsule(props: {
         : `~${props.summary.totalEstimatedTokens} tokens (estimate)`;
   const labels = props.summary.contributions
     .slice(0, 4)
-    .map((item) => item.displayPath ?? item.label)
+    .map((item) => contributionLabel(item, zh))
     .join(' · ');
   const title = `${coverageLabel} · ${tokenLabel}${labels.length > 0 ? ` · ${labels}` : ''}`;
 
@@ -133,7 +147,7 @@ export function AssemblySummaryCapsule(props: {
           <ul>
             {props.summary.contributions.map((item) => (
               <li key={item.id}>
-                <b>{item.displayPath ?? item.label}</b>
+                <b>{contributionLabel(item, zh)}</b>
                 <span className={isUntrustedOrigin(item.trustOrigin) ? 'src warn' : 'src'}>
                   {trustOriginLabel(item.trustOrigin, zh)}
                 </span>
@@ -142,7 +156,6 @@ export function AssemblySummaryCapsule(props: {
                     {zh ? `约 ${item.estimatedTokens}` : `~${item.estimatedTokens}`}
                   </span>
                 )}
-                {item.preview ? <pre>{item.preview}</pre> : null}
               </li>
             ))}
           </ul>

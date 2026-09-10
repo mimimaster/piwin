@@ -1732,7 +1732,7 @@ describe('ComposerDock host status', () => {
     expect(onAgentModeChange).toHaveBeenCalledWith('agent');
   });
 
-  it('renders Inkstone .slab card structure and keyboard hint line', () => {
+  it('renders Inkstone .slab card structure', () => {
     const rendered = renderDock(<ComposerDock {...baseProps} />);
     root = rendered.root;
     container = rendered.container;
@@ -1745,9 +1745,5 @@ describe('ComposerDock host status', () => {
 
     const toolbar = container.querySelector('.composer-v2-toolbar');
     expect(toolbar?.classList.contains('bar')).toBe(true);
-
-    const hint = container.querySelector('[data-testid="composer-hint"]');
-    expect(hint).not.toBeNull();
-    expect(hint?.textContent).toContain('Enter');
   });
 });

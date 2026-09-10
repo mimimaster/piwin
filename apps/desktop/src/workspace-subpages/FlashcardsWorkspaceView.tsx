@@ -299,59 +299,58 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
         onBack={() => (producing || wikiOpen ? setPage('gallery') : props.onClose())}
         {...(props.locale !== undefined ? { locale: props.locale } : {})}
         kind="flashcards"
-        {...(producing || wikiOpen ? {} : { titleCount: ws.cards.length })}
         {...(producing || wikiOpen
           ? {}
           : {
+              layout: 'page',
+              titleCount: ws.cards.length,
               searchPlaceholder: t('Search cards…', '搜索闪卡…'),
               searchValue: search,
               onSearchChange: setSearch,
               ...(deckFilters !== null ? { filters: deckFilters } : {}),
+              actions: (
+                <div className="vault-bar-tools">
+                  <Button
+                    variant="secondary"
+                    size="compact"
+                    data-testid="flashcards-open-wiki"
+                    onClick={() => setPage('wiki')}
+                  >
+                    <span>{t('Wiki', 'Wiki')}</span>
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="compact"
+                    data-testid="flashcards-study-due"
+                    onClick={() =>
+                      enterStudy(
+                        createStudyEntry({
+                          mode: 'scheduled',
+                          scope: scheduledScopeForDeck(selectedDeck),
+                        }),
+                        null,
+                      )
+                    }
+                  >
+                    <span>{studyCopy.due}</span>
+                    {dueCount > 0 ? (
+                      <span className="vault-chip-count">{studyCopy.dueDue(dueCount)}</span>
+                    ) : null}
+                    {newCount > 0 ? (
+                      <span className="vault-chip-count">{studyCopy.dueNew(newCount)}</span>
+                    ) : null}
+                  </Button>
+                  <Button variant="secondary" size="compact" onClick={() => setPage('produce')}>
+                    <IconSpark width={13} height={13} aria-hidden="true" />
+                    <span>{t('Produce', '出卡')}</span>
+                  </Button>
+                  <Button variant="primary" size="compact" onClick={() => setCreateOpen(true)}>
+                    <IconPlus width={13} height={13} aria-hidden="true" />
+                    <span>{t('Add card', '新增')}</span>
+                  </Button>
+                </div>
+              ),
             })}
-        actions={
-          producing ? (
-            <span className="vault-bar-context">{t('Produce', '出卡')}</span>
-          ) : wikiOpen ? (
-            <span className="vault-bar-context">{t('Wiki', 'Wiki')}</span>
-          ) : (
-            <div className="vault-bar-tools">
-              <Button
-                variant="secondary"
-                size="compact"
-                data-testid="flashcards-open-wiki"
-                onClick={() => setPage('wiki')}
-              >
-                <span>{t('Wiki', 'Wiki')}</span>
-              </Button>
-              <Button
-                variant="secondary"
-                size="compact"
-                data-testid="flashcards-study-due"
-                onClick={() =>
-                  enterStudy(
-                    createStudyEntry({
-                      mode: 'scheduled',
-                      scope: scheduledScopeForDeck(selectedDeck),
-                    }),
-                    null,
-                  )
-                }
-              >
-                <span>{studyCopy.due}</span>
-                {dueCount > 0 ? <span className="vault-chip-count">{studyCopy.dueDue(dueCount)}</span> : null}
-                {newCount > 0 ? <span className="vault-chip-count">{studyCopy.dueNew(newCount)}</span> : null}
-              </Button>
-              <Button variant="secondary" size="compact" onClick={() => setPage('produce')}>
-                <IconSpark width={13} height={13} aria-hidden="true" />
-                <span>{t('Produce', '出卡')}</span>
-              </Button>
-              <Button variant="primary" size="compact" onClick={() => setCreateOpen(true)}>
-                <IconPlus width={13} height={13} aria-hidden="true" />
-                <span>{t('Add card', '新增')}</span>
-              </Button>
-            </div>
-          )
-        }
       />
 
       {producing ? (

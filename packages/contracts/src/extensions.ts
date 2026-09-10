@@ -108,4 +108,11 @@ export type ExtensionsConfig = {
   extraPaths: string[];
   /** Disabled extension ids (basename without .ts). */
   disabledIds: string[];
+  /**
+   * Expose `extension_install` / `extension_list` to the Agent so a request in
+   * the conversation ("install extension X") can stage + hot-activate it.
+   * Every install still passes through a per-call permission prompt. Default
+   * true; set false to require the Settings panel for all installs.
+   */
+  agentInstall?: boolean;
 };

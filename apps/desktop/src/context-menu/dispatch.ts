@@ -9,7 +9,7 @@ import {
   mapTargetToContextRef,
   mapTargetToFlashcardContextRef,
 } from './map-to-ref.js';
-import type { ContextMenuActionId, ContextMenuTarget } from './types.js';
+import type { ContextMenuActionId, ContextMenuTarget, MediaImageTarget } from './types.js';
 
 export type ContextMenuDispatchers = {
   addToChat: (ref: PromptContextRef) => void;
@@ -19,6 +19,10 @@ export type ContextMenuDispatchers = {
   revealPath: (absolutePath: string) => void;
   /** Optional: Save As / download for path chips. */
   savePathAs?: (absolutePath: string) => void;
+  saveMediaAs?: (target: MediaImageTarget) => void;
+  copyImage?: (target: MediaImageTarget) => void;
+  openMedia?: (target: MediaImageTarget) => void;
+  addMediaAttachment?: (target: MediaImageTarget) => void;
   copyText: (text: string) => void;
   quoteInComposer: (text: string) => void;
   retryMessage: (messageId: string) => void;
@@ -113,6 +117,10 @@ export function dispatchContextMenuAction(
 ): void {
   switch (actionId) {
     case 'add-to-chat': {
+      if (target.surface === 'media-image') {
+        dispatchers.addMediaAttachment?.(target);
+        return;
+      }
       const refs = refsForTarget(target);
       if (refs.length === 0) {
         dispatchers.notify('Nothing to add to chat', 'error');
@@ -124,6 +132,11 @@ export function dispatchContextMenuAction(
       return;
     }
     case 'ask-about': {
+      if (target.surface === 'media-image') {
+        dispatchers.addMediaAttachment?.(target);
+        dispatchers.focusComposer();
+        return;
+      }
       const refs = refsForTarget(target);
       for (const ref of refs) {
         dispatchers.addToChat(ref);
@@ -155,6 +168,11 @@ export function dispatchContextMenuAction(
     case 'copy':
       void dispatchers.copyText(copyBody(target));
       return;
+    case 'copy-image':
+      if (target.surface === 'media-image') {
+        dispatchers.copyImage?.(target);
+      }
+      return;
     case 'copy-as-ref':
       void dispatchers.copyText(copyAsRefText(target));
       return;
@@ -169,16 +187,28 @@ export function dispatchContextMenuAction(
       return;
     }
     case 'open': {
+      if (target.surface === 'media-image') {
+        dispatchers.openMedia?.(target);
+        return;
+      }
       const paths = pathFields(target);
       if (paths) dispatchers.openPath(paths.absolutePath, paths.relativePath);
       return;
     }
     case 'reveal': {
+      if (target.surface === 'media-image') {
+        if (target.absolutePath) dispatchers.revealPath(target.absolutePath);
+        return;
+      }
       const paths = pathFields(target);
       if (paths) dispatchers.revealPath(paths.absolutePath);
       return;
     }
     case 'save-as': {
+      if (target.surface === 'media-image') {
+        dispatchers.saveMediaAs?.(target);
+        return;
+      }
       const paths = pathFields(target);
       if (paths) dispatchers.savePathAs?.(paths.absolutePath);
       return;

@@ -15,7 +15,9 @@ html:is(
   .settings-modal-dialog {
     background: transparent;
     grid-template-columns: 232px minmax(0, 1fr);
-    gap: 8px;
+    /* Same split as `.app-shell`: 8px between columns, none between titleband and panels. */
+    row-gap: 0;
+    column-gap: 8px;
     padding: 0 8px 8px;
   }
 

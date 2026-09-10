@@ -51,9 +51,10 @@ Do not reimplement PKCE, stuff tokens into `apiKeyRef`, or register OAuth models
 | Radius card | Pi helper that needs a gateway URL, not a consumer subscription. |
 | Antigravity | Not a Pi builtin. Do not invent cards. |
 | Multi-account round-robin | CPA. Pi is one credential per id. |
-| Subscription image/video/ASR | ADR 0056 channels. Grok Imagine stays on CPA. |
 | Mobile-initiated login | Consume accounts only; ignore `auth/prompt`. |
 | Becoming CPA | No `:8317`, no quota rotation, no Codex-as-Claude. |
+
+Native subscription cards seed **real extra surfaces** the OAuth can call (Codex Images, Grok Imagine image/video) onto the same provider row. They are tagged `image-generation` / `video-generation` and routed over HTTPS, not `oauth://`. This is not a CPA dump: no gpt-4o on Codex, no protocol disguise. ASR still stays on channels.
 | Account email in UI | Pi `listCredentials` is `{ providerId, type }` only. |
 
 ---
@@ -525,6 +526,8 @@ After Pi login it enables models itself. If a model is still “not supported”
 `login('oauth')` only (not api_key). Image/video remain CPA. Thinking/compat for grok **channels** stays `GROK_OPENAI_COMPAT`; native `xai` builtin is Pi’s problem, not our openai-completions wrapper.
 
 `GROK_OPENAI_COMPAT` keeps `store` / developer-role off. `supportsReasoningEffort` is **on** so OpenAI-compat grok channels (CPA) send `reasoning_effort` from the UI thinking level. Omitting it lets CPA hard-default upstream `reasoning.effort` to `medium`.
+
+Subscription image/video: Codex `gpt-image-2` (+ 2.5 sunburst/flare) POST `https://chatgpt.com/backend-api/codex/images/generations` with the Codex OAuth bearer. Grok Imagine POST `https://api.x.ai/v1/images/generations` and `/videos/generations` with the xAI OAuth bearer. Chat catalog is unchanged (Pi Responses models).
 
 ### 21.6 Thinking levels
 

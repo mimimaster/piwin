@@ -7,6 +7,8 @@ import {
   clampSidebarWidthForViewport,
   loadSidebarWidth,
   saveSidebarWidth,
+  shouldCollapseSidebar,
+  SIDEBAR_COLLAPSE_OVERSHOOT_PX,
 } from './sidebar-width';
 
 function createMockStorage(): Storage {
@@ -61,6 +63,21 @@ describe('clampSidebarWidthForViewport', () => {
         minStagePx: 280,
       }),
     ).toBe(340);
+  });
+});
+
+describe('sidebar drag-to-collapse', () => {
+  it('does not collapse at the min width', () => {
+    expect(shouldCollapseSidebar(SIDEBAR_MIN_WIDTH_PX)).toBe(false);
+    expect(
+      shouldCollapseSidebar(SIDEBAR_MIN_WIDTH_PX - SIDEBAR_COLLAPSE_OVERSHOOT_PX),
+    ).toBe(false);
+  });
+
+  it('collapses only after overshooting past min', () => {
+    expect(
+      shouldCollapseSidebar(SIDEBAR_MIN_WIDTH_PX - SIDEBAR_COLLAPSE_OVERSHOOT_PX - 1),
+    ).toBe(true);
   });
 });
 

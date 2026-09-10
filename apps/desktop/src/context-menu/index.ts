@@ -4,6 +4,7 @@ export type {
   ContextMenuItemSpec,
   ContextMenuSurface,
   ContextMenuTarget,
+  MediaImageTarget,
 } from './types.js';
 export { buildContextMenuItems } from './catalog.js';
 export { mapTargetToContextRef, copyAsRefText } from './map-to-ref.js';

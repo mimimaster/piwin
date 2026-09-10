@@ -45,6 +45,29 @@ describe('sendSideChatPrompt', () => {
       input: { text: 'hello', model: { providerId: 'openai', modelId: 'gpt-4o' } },
     });
   });
+
+  it('forwards quoted context refs on the prompt input', async () => {
+    const sent: Array<{ command: HostCommand }> = [];
+    const selection = {
+      kind: 'selection' as const,
+      snapshotText: 'quoted',
+      label: 'quoted',
+    };
+    await sendSideChatPrompt({
+      request: async (command) => {
+        sent.push({ command });
+        return { type: 'response', command: command.type, success: true, data: { runId: 'run-1' } };
+      },
+      sessionId: 'side-1',
+      text: 'explain this',
+      createIdempotencyKey: () => 'gesture-side-1',
+      contextRefs: [selection],
+    });
+    expect(sent[0]?.command).toMatchObject({
+      type: 'session/prompt',
+      input: { text: 'explain this', contextRefs: [selection] },
+    });
+  });
 });
 
 describe('abortSideChatRun', () => {

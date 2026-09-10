@@ -1,4 +1,10 @@
-import type { HostCommand, HostResponse, ModelRef, ThinkingLevel } from '@piwin/contracts';
+import type {
+  HostCommand,
+  HostResponse,
+  ModelRef,
+  PromptContextRef,
+  ThinkingLevel,
+} from '@piwin/contracts';
 import { requestPromptWithForeground } from './prompt-foreground.js';
 
 export type SideChatHostRequest = (
@@ -14,6 +20,7 @@ export async function sendSideChatPrompt(args: {
   remoteForegroundAdmission?: boolean;
   model?: ModelRef;
   thinkingLevel?: ThinkingLevel;
+  contextRefs?: PromptContextRef[];
 }): Promise<HostResponse> {
   return requestPromptWithForeground({
     request: args.request,
@@ -22,6 +29,7 @@ export async function sendSideChatPrompt(args: {
       text: args.text,
       ...(args.model ? { model: args.model } : {}),
       ...(args.thinkingLevel !== undefined ? { thinkingLevel: args.thinkingLevel } : {}),
+      ...(args.contextRefs && args.contextRefs.length > 0 ? { contextRefs: args.contextRefs } : {}),
     },
     allowReplaceConfirm: false,
     createIdempotencyKey: args.createIdempotencyKey,

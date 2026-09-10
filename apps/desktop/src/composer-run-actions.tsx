@@ -6,7 +6,7 @@
  * Live Send admits a Host queued turn. Cmd/Ctrl+Enter still steers.
  */
 import type { ReactElement } from 'react';
-import { IconPause, IconRefresh, IconSend } from './shell-icons';
+import { IconPause, IconRefresh, IconSend, IconStop } from './shell-icons';
 
 export type ComposerActionSlotCopy = {
   send: string;
@@ -34,6 +34,9 @@ export type ComposerActionSlotProps = {
   onSend: () => void;
   onPause: () => void;
   onResume?: () => void;
+  onAbort?: () => void;
+  /** Narrow columns: streaming is Stop, not Pause / queued Send. */
+  embedded?: boolean;
 };
 
 function mutationsOff(props: ComposerActionSlotProps): boolean {
@@ -92,6 +95,24 @@ function ComposerContinueButton(props: ComposerActionSlotProps): ReactElement {
   );
 }
 
+function ComposerStopButton(props: ComposerActionSlotProps): ReactElement {
+  const isAborting = props.runPhase === 'aborting';
+  const label = isAborting ? props.copy.stopping : props.copy.stop;
+  return (
+    <button
+      type="button"
+      className="composer-v2-stop-btn is-running"
+      data-testid="stop-btn"
+      disabled={isAborting}
+      onClick={() => props.onAbort?.()}
+      aria-label={label}
+      title={label}
+    >
+      <IconStop />
+    </button>
+  );
+}
+
 function ComposerPauseButton(props: ComposerActionSlotProps): ReactElement {
   const isPausing = props.runPhase === 'pausing';
   const isAborting = props.runPhase === 'aborting';
@@ -118,6 +139,9 @@ function ComposerPauseButton(props: ComposerActionSlotProps): ReactElement {
 }
 
 function renderPrimaryCircle(props: ComposerActionSlotProps): ReactElement {
+  if (props.embedded === true && props.isStreamingRun) {
+    return <ComposerStopButton {...props} />;
+  }
   if (props.isStreamingRun) {
     // Pause in flight, or Extension UI owning the textarea, keep Pause.
     if (isLiveControlPending(props) || props.isExtensionUiActive) {

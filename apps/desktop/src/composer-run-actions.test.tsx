@@ -69,6 +69,26 @@ describe('ComposerActionSlot', () => {
     expect(send.disabled).toBe(true);
   });
 
+  it('embedded live: one Stop, never Pause or queued Send', () => {
+    const onAbort = vi.fn();
+    const node = renderSlot({
+      ...idle,
+      isStreamingRun: true,
+      runPhase: 'streaming',
+      hasContent: true,
+      embedded: true,
+      onAbort,
+    });
+    expect(node.querySelectorAll(CIRCULAR).length).toBe(1);
+    expect(node.querySelector('[data-testid="pause-btn"]')).toBeNull();
+    expect(node.querySelector('[data-testid="send-btn"]')).toBeNull();
+    const stop = node.querySelector('[data-testid="stop-btn"]') as HTMLButtonElement;
+    act(() => {
+      stop.click();
+    });
+    expect(onAbort).toHaveBeenCalledTimes(1);
+  });
+
   it('live empty: one Pause, never a second Send or Stop circle', () => {
     const onPause = vi.fn();
     const node = renderSlot({

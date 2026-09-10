@@ -4,6 +4,7 @@
  */
 import { join } from 'node:path';
 import {
+  isThinkingLevel,
   isV1SubscriptionProviderId,
   type AuthPromptOption,
   type SubscriptionAccountQuota,
@@ -101,6 +102,7 @@ type PiCatalogModel = {
   name?: string;
   reasoning?: boolean;
   thinkingLevels?: readonly string[];
+  thinkingLevelMap?: Readonly<Record<string, string | null | undefined>>;
   input?: readonly ('text' | 'image')[];
   contextWindow?: number;
   maxTokens?: number;
@@ -305,6 +307,16 @@ function mapPrompt(prompt: PiAuthPrompt): HostAuthPrompt {
   return mapped;
 }
 
+function thinkingLevelsFromMap(
+  map: Readonly<Record<string, string | null | undefined>> | undefined,
+): readonly string[] | undefined {
+  if (!map || typeof map !== 'object') {
+    return undefined;
+  }
+  const levels = Object.keys(map).filter(isThinkingLevel);
+  return levels.length > 0 ? levels : undefined;
+}
+
 function mapCatalogModel(model: PiCatalogModel): SubscriptionCatalogModel {
   const mapped: SubscriptionCatalogModel = {
     id: model.id,
@@ -315,6 +327,11 @@ function mapCatalogModel(model: PiCatalogModel): SubscriptionCatalogModel {
   }
   if (Array.isArray(model.thinkingLevels) && model.thinkingLevels.length > 0) {
     mapped.thinkingLevels = model.thinkingLevels;
+  } else {
+    const fromMap = thinkingLevelsFromMap(model.thinkingLevelMap);
+    if (fromMap) {
+      mapped.thinkingLevels = fromMap;
+    }
   }
   if (Array.isArray(model.input) && model.input.length > 0) {
     mapped.input = model.input;

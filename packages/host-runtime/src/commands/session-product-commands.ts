@@ -46,6 +46,7 @@ import {
   copyModelContextLedger,
   readOrInsertUnknownContextState,
   seedDerivedSessionContextState,
+  type TranscriptStoreMessageInput,
 } from '@piwin/session';
 import { getSessionLineage, listAllSessionRecords } from '@piwin/session';
 import { cloneSessionMedia, cleanupFailedMediaClone } from '@piwin/media';
@@ -864,6 +865,35 @@ async function appendDerivedMessage(
   store: SessionTranscriptStore,
   message: SessionTranscriptMessage,
 ): Promise<void> {
+  const metadata: NonNullable<TranscriptStoreMessageInput['metadata']> = {
+    ...(message.phaseHistory !== undefined ? { phaseHistory: message.phaseHistory } : {}),
+    ...(message.startedAt !== undefined ? { startedAt: message.startedAt } : {}),
+    ...(message.endedAt !== undefined ? { endedAt: message.endedAt } : {}),
+    ...(message.thinkingStartedAt !== undefined
+      ? { thinkingStartedAt: message.thinkingStartedAt }
+      : {}),
+    ...(message.thinkingEndedAt !== undefined ? { thinkingEndedAt: message.thinkingEndedAt } : {}),
+    ...(message.outcome !== undefined ? { outcome: message.outcome } : {}),
+    ...(message.terminalMessage !== undefined ? { terminalMessage: message.terminalMessage } : {}),
+    ...(message.failure !== undefined ? { failure: message.failure } : {}),
+    ...(message.agentStopReason !== undefined ? { agentStopReason: message.agentStopReason } : {}),
+    ...(message.subagentActivity !== undefined
+      ? { subagentActivity: message.subagentActivity }
+      : {}),
+    ...(message.searchEvidence !== undefined ? { searchEvidence: message.searchEvidence } : {}),
+    ...(message.instructionDelivery !== undefined
+      ? { instructionDelivery: message.instructionDelivery }
+      : {}),
+    ...(message.docCardSequence !== undefined ? { docCardSequence: message.docCardSequence } : {}),
+    ...(message.replyWriter !== undefined ? { replyWriter: message.replyWriter } : {}),
+    ...(message.workspaceWrites !== undefined ? { workspaceWrites: message.workspaceWrites } : {}),
+    ...(message.discardedAttemptWrites !== undefined
+      ? { discardedAttemptWrites: message.discardedAttemptWrites }
+      : {}),
+    ...(message.source !== undefined ? { promptSource: message.source } : {}),
+    ...(message.voiceCallId !== undefined ? { voiceCallId: message.voiceCallId } : {}),
+    ...(message.skillId !== undefined ? { skillId: message.skillId } : {}),
+  };
   const result = await store.appendMessage({
     id: message.id,
     runtimeGenerationId: 'derived-copy-v1',
@@ -876,36 +906,9 @@ async function appendDerivedMessage(
     ...(message.runId !== undefined ? { runId: message.runId } : {}),
     ...(message.model !== undefined ? { model: message.model } : {}),
     ...(message.attachments !== undefined ? { attachments: message.attachments } : {}),
+    ...(message.contextRefs !== undefined ? { contextRefs: message.contextRefs } : {}),
     ...(message.tools !== undefined ? { tools: message.tools } : {}),
-    ...(message.phaseHistory !== undefined ||
-    message.startedAt !== undefined ||
-    message.endedAt !== undefined ||
-    message.thinkingStartedAt !== undefined ||
-    message.thinkingEndedAt !== undefined ||
-    message.outcome !== undefined ||
-    message.terminalMessage !== undefined ||
-    message.subagentActivity !== undefined
-      ? {
-          metadata: {
-            ...(message.phaseHistory !== undefined ? { phaseHistory: message.phaseHistory } : {}),
-            ...(message.startedAt !== undefined ? { startedAt: message.startedAt } : {}),
-            ...(message.endedAt !== undefined ? { endedAt: message.endedAt } : {}),
-            ...(message.thinkingStartedAt !== undefined
-              ? { thinkingStartedAt: message.thinkingStartedAt }
-              : {}),
-            ...(message.thinkingEndedAt !== undefined
-              ? { thinkingEndedAt: message.thinkingEndedAt }
-              : {}),
-            ...(message.outcome !== undefined ? { outcome: message.outcome } : {}),
-            ...(message.terminalMessage !== undefined
-              ? { terminalMessage: message.terminalMessage }
-              : {}),
-            ...(message.subagentActivity !== undefined
-              ? { subagentActivity: message.subagentActivity }
-              : {}),
-          },
-        }
-      : {}),
+    ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
   });
   if (!result.ok) {
     throw new Error(`Derived transcript identity collision: ${message.id}`);

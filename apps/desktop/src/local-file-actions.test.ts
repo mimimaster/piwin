@@ -5,12 +5,53 @@ import {
   parentDirectoryOf,
   resolveLocalFileAbsolutePath,
   revealLocalFileInFolder,
+  saveAsResultNotice,
+  saveBlobAs,
   saveLocalFileAs,
+  saveMediaUrlAs,
 } from './local-file-actions.js';
+
+const dialogSave = vi.fn();
+const invokeMock = vi.fn();
+
+vi.mock('@tauri-apps/plugin-dialog', () => ({
+  save: (options: unknown) => dialogSave(options),
+}));
+
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: (command: string, args: unknown) => invokeMock(command, args),
+}));
 import {
   clearRemoteProjectRootsForTests,
   rememberRemoteProjectRoot,
 } from './remote-session-hydrate.js';
+
+describe('saveMediaUrlAs', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete (globalThis as { showSaveFilePicker?: unknown }).showSaveFilePicker;
+  });
+
+  it('writes the fetched blob through the save picker when available', async () => {
+    const write = vi.fn(async () => undefined);
+    const close = vi.fn(async () => undefined);
+    const showSaveFilePicker = vi.fn(async () => ({
+      createWritable: async () => ({ write, close }),
+    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(new Uint8Array([1, 2, 3]), { status: 200 })),
+    );
+    (globalThis as unknown as { showSaveFilePicker: typeof showSaveFilePicker }).showSaveFilePicker =
+      showSaveFilePicker;
+
+    const result = await saveMediaUrlAs('blob:full', 'photo.png');
+    expect(result).toEqual({ kind: 'saved' });
+    expect(showSaveFilePicker).toHaveBeenCalledWith({ suggestedName: 'photo.png' });
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('resolveLocalFileAbsolutePath', () => {
   afterEach(() => {
@@ -60,6 +101,22 @@ describe('revealLocalFileInFolder', () => {
   });
 });
 
+describe('saveAsResultNotice', () => {
+  it('stays silent when the user cancels the picker', () => {
+    expect(saveAsResultNotice({ kind: 'cancelled' }, 'zh-CN')).toBeNull();
+  });
+
+  it('says saved after a chosen path, not that a download started', () => {
+    expect(saveAsResultNotice({ kind: 'saved' }, 'zh-CN')).toEqual({
+      message: '已保存',
+      level: 'success',
+    });
+    expect(saveAsResultNotice({ kind: 'downloaded' }, 'zh-CN')?.message).toBe(
+      '已保存到下载文件夹',
+    );
+  });
+});
+
 describe('fileNameFromLocalPath', () => {
   it('returns the basename', () => {
     expect(fileNameFromLocalPath('/Users/me/a.zip')).toBe('a.zip');
@@ -90,5 +147,46 @@ describe('saveLocalFileAs with Host reader', () => {
     expect(result).toEqual({ kind: 'downloaded' });
     expect(click).toHaveBeenCalled();
     vi.restoreAllMocks();
+  });
+});
+
+describe('save as native dialog', () => {
+  afterEach(() => {
+    dialogSave.mockReset();
+    invokeMock.mockReset();
+    delete (window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+  });
+
+  it('copies a local file to the path chosen in Save As', async () => {
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      value: {},
+      configurable: true,
+    });
+    dialogSave.mockResolvedValue('/Users/me/Desktop/photo.png');
+    invokeMock.mockResolvedValue(undefined);
+
+    const result = await saveLocalFileAs('/Users/me/.piwin/media/s1/photo.png');
+
+    expect(dialogSave).toHaveBeenCalledWith(
+      expect.objectContaining({ defaultPath: 'photo.png' }),
+    );
+    expect(invokeMock).toHaveBeenCalledWith('copy_local_file', {
+      source: '/Users/me/.piwin/media/s1/photo.png',
+      destination: '/Users/me/Desktop/photo.png',
+    });
+    expect(result).toEqual({ kind: 'saved' });
+  });
+
+  it('stays silent when the user cancels the native picker', async () => {
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      value: {},
+      configurable: true,
+    });
+    dialogSave.mockResolvedValue(null);
+
+    await expect(saveBlobAs(new Blob([new Uint8Array([1, 2, 3])]), 'photo.png')).resolves.toEqual({
+      kind: 'cancelled',
+    });
+    expect(invokeMock).not.toHaveBeenCalled();
   });
 });

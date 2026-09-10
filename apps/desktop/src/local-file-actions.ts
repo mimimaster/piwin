@@ -84,6 +84,63 @@ function triggerBlobDownload(blob: Blob, fileName: string): void {
   window.setTimeout(() => URL.revokeObjectURL(url), 2_000);
 }
 
+function extensionFilterFor(fileName: string): { name: string; extensions: string[] }[] | undefined {
+  const dot = fileName.lastIndexOf('.');
+  if (dot <= 0 || dot === fileName.length - 1) {
+    return undefined;
+  }
+  const ext = fileName.slice(dot + 1).toLowerCase();
+  if (!/^[a-z0-9]{1,8}$/.test(ext)) {
+    return undefined;
+  }
+  return [{ name: ext.toUpperCase(), extensions: [ext] }];
+}
+
+/**
+ * Native Save As path on Desktop. `null` = user cancelled.
+ * Throws when the dialog plugin is missing. Browser callers must not use this.
+ */
+export async function chooseSaveAsPath(fileName: string): Promise<string | null> {
+  const dialog = await import('@tauri-apps/plugin-dialog');
+  if (typeof dialog.save !== 'function') {
+    throw new Error('save dialog unavailable');
+  }
+  const filters = extensionFilterFor(fileName);
+  const selected = await dialog.save({
+    title: 'Save As',
+    defaultPath: fileName,
+    ...(filters ? { filters } : {}),
+  });
+  return selected;
+}
+
+async function copyLocalFileToPath(source: string, destination: string): Promise<boolean> {
+  if (!isTauriRuntime()) {
+    return false;
+  }
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('copy_local_file', { source, destination });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function writeBlobToPath(destination: string, blob: Blob): Promise<boolean> {
+  if (!isTauriRuntime()) {
+    return false;
+  }
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    await invoke('write_saved_file', { path: destination, contents: Array.from(bytes) });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function tryReadLocalFileBlob(absolutePath: string): Promise<Blob | null> {
   try {
     const { convertFileSrc } = await import('@tauri-apps/api/core');
@@ -107,7 +164,44 @@ function bytesToBlob(exported: ExportedLocalFileBytes): Blob {
   return new Blob([copy.buffer], { type: exported.mimeType || 'application/octet-stream' });
 }
 
-async function offerBlobDownload(blob: Blob, fileName: string): Promise<'downloaded' | 'cancelled'> {
+export async function saveBlobAs(
+  blob: Blob,
+  fileName: string,
+): Promise<SaveLocalFileAsResult> {
+  if (!isTauriRuntime()) {
+    return offerBrowserSave(blob, fileName);
+  }
+  try {
+    const dest = await chooseSaveAsPath(fileName);
+    if (dest === null) {
+      return { kind: 'cancelled' };
+    }
+    const written = await writeBlobToPath(dest, blob);
+    return { kind: written ? 'saved' : 'failed' };
+  } catch {
+    return { kind: 'failed' };
+  }
+}
+
+export async function saveMediaUrlAs(
+  srcUrl: string,
+  fileName: string,
+): Promise<SaveLocalFileAsResult> {
+  try {
+    const response = await fetch(srcUrl);
+    if (!response.ok) {
+      return { kind: 'failed' };
+    }
+    return saveBlobAs(await response.blob(), fileName);
+  } catch {
+    return { kind: 'failed' };
+  }
+}
+
+async function offerBrowserSave(
+  blob: Blob,
+  fileName: string,
+): Promise<SaveLocalFileAsResult> {
   const picker = (
     globalThis as unknown as {
       showSaveFilePicker?: (options: {
@@ -127,23 +221,58 @@ async function offerBlobDownload(blob: Blob, fileName: string): Promise<'downloa
       const writable = await handle.createWritable();
       await writable.write(blob);
       await writable.close();
-      return 'downloaded';
+      return { kind: 'saved' };
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
-        return 'cancelled';
+        return { kind: 'cancelled' };
       }
     }
   }
 
   triggerBlobDownload(blob, fileName);
-  return 'downloaded';
+  return { kind: 'downloaded' };
 }
 
 export type SaveLocalFileAsResult =
+  | { kind: 'saved' }
   | { kind: 'downloaded' }
   | { kind: 'cancelled' }
   | { kind: 'revealed-fallback' }
   | { kind: 'failed' };
+
+/** User-facing copy for a finished Save As. `null` = stay silent (cancel). */
+export function saveAsResultNotice(
+  result: SaveLocalFileAsResult,
+  locale: 'zh-CN' | 'en',
+): { message: string; level: 'success' | 'info' | 'error' } | null {
+  switch (result.kind) {
+    case 'saved':
+      return {
+        message: locale === 'zh-CN' ? '已保存' : 'Saved',
+        level: 'success',
+      };
+    case 'downloaded':
+      return {
+        message: locale === 'zh-CN' ? '已保存到下载文件夹' : 'Saved to Downloads',
+        level: 'success',
+      };
+    case 'cancelled':
+      return null;
+    case 'revealed-fallback':
+      return {
+        message:
+          locale === 'zh-CN'
+            ? '已复制完整路径并打开所在文件夹，请手动拷贝文件'
+            : 'Path copied and folder opened — copy the file manually',
+        level: 'info',
+      };
+    case 'failed':
+      return {
+        message: locale === 'zh-CN' ? '另存为失败' : 'Save As failed',
+        level: 'error',
+      };
+  }
+}
 
 export type SaveLocalFileAsOptions = {
   /** Host `preview/export-local-file` (or test double). */
@@ -159,26 +288,29 @@ export async function saveLocalFileAs(
   options?: SaveLocalFileAsOptions,
 ): Promise<SaveLocalFileAsResult> {
   const fileName = fileNameFromLocalPath(absolutePath);
-
-  const assetBlob = await tryReadLocalFileBlob(absolutePath);
-  if (assetBlob) {
-    const offered = await offerBlobDownload(assetBlob, fileName);
-    return { kind: offered };
+  if (isTauriRuntime()) {
+    try {
+      const dest = await chooseSaveAsPath(fileName);
+      if (dest === null) {
+        return { kind: 'cancelled' };
+      }
+      if (await copyLocalFileToPath(absolutePath, dest)) {
+        return { kind: 'saved' };
+      }
+      const nativeBlob = await readSourceBlob(absolutePath, options?.readBytes);
+      if (!nativeBlob) {
+        return { kind: 'failed' };
+      }
+      const written = await writeBlobToPath(dest, nativeBlob);
+      return { kind: written ? 'saved' : 'failed' };
+    } catch {
+      return { kind: 'failed' };
+    }
   }
 
-  if (options?.readBytes) {
-    try {
-      const exported = await options.readBytes(absolutePath);
-      if (exported) {
-        const offered = await offerBlobDownload(
-          bytesToBlob(exported),
-          exported.fileName || fileName,
-        );
-        return { kind: offered };
-      }
-    } catch {
-      // Fall through to reveal fallback.
-    }
+  const blob = await readSourceBlob(absolutePath, options?.readBytes);
+  if (blob) {
+    return offerBrowserSave(blob, fileName);
   }
 
   try {
@@ -188,6 +320,25 @@ export async function saveLocalFileAs(
   }
   const revealed = await revealLocalFileInFolder(absolutePath);
   return revealed.ok ? { kind: 'revealed-fallback' } : { kind: 'failed' };
+}
+
+async function readSourceBlob(
+  absolutePath: string,
+  readBytes: LocalFileBytesReader | undefined,
+): Promise<Blob | null> {
+  const assetBlob = await tryReadLocalFileBlob(absolutePath);
+  if (assetBlob) {
+    return assetBlob;
+  }
+  if (!readBytes) {
+    return null;
+  }
+  try {
+    const exported = await readBytes(absolutePath);
+    return exported ? bytesToBlob(exported) : null;
+  } catch {
+    return null;
+  }
 }
 
 export type RevealLocalFileResult =
