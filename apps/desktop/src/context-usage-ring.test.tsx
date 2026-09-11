@@ -250,6 +250,16 @@ describe('ContextUsageRing', () => {
     expect(popover?.textContent).not.toContain('MCP');
   });
 
+  it('renders detail rows in the view locale and states the status once', () => {
+    render({ view: capableView(eligibleSnapshot, { locale: 'zh-CN' }) }, root);
+    activateTrigger();
+    const text = queryPopover()?.textContent ?? '';
+    expect(text).toContain('上下文上限');
+    expect(text).not.toContain('Context limit');
+    expect(text).not.toContain('Confirmed');
+    expect(text.match(/已确认/g)).toHaveLength(1);
+  });
+
   it('T24: shows 120% text, 100% arc, and exceeds copy', () => {
     const view = capableView(
       makeContextSnapshot({
@@ -336,7 +346,9 @@ describe('ContextUsageRing', () => {
     const onOpenModelSettings = vi.fn();
     render({ view: capableView(eligibleSnapshot), onOpenModelSettings }, root);
     activateTrigger();
-    const link = document.querySelector<HTMLButtonElement>('.linkish-btn');
+    const link = document.querySelector<HTMLButtonElement>(
+      '[data-testid="context-usage-settings"]',
+    );
     act(() => {
       link?.click();
     });

@@ -3,8 +3,8 @@
  */
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { IconButton, Popover } from '@piwin/ui-kit';
-import { IconClose } from './shell-icons';
-import { ConversationUsageDetails } from './conversation-usage-details.js';
+import { IconChevronRight, IconClose } from './shell-icons';
+import { ConversationUsageDetails, contextUsageTone } from './conversation-usage-details.js';
 import type { ContextRingViewModel } from './context-telemetry-selector.js';
 
 export type ContextUsageRingProps = {
@@ -30,8 +30,7 @@ export function ContextUsageRing(props: ContextUsageRingProps): ReactElement | n
     return null;
   }
 
-  const tone =
-    (view.percentText ?? 0) >= 90 ? 'critical' : (view.percentText ?? 0) >= 70 ? 'warn' : 'ok';
+  const tone = contextUsageTone(view.percentText);
   const circumference = 2 * Math.PI * 9;
   const dashOffset = circumference * (1 - view.arcRatio);
 
@@ -90,48 +89,25 @@ export function ContextUsageRing(props: ContextUsageRingProps): ReactElement | n
         }
       >
         <header className="context-usage-popover-header">
-          <strong>{view.labels.title}</strong>
+          <strong className="context-usage-popover-title">{view.labels.title}</strong>
           <IconButton label={view.labels.close} onClick={() => setOpen(false)}>
             <IconClose width={14} height={14} />
           </IconButton>
         </header>
-        <div className="context-usage-popover-summary">
-          {view.numericHidden ? (
-            <span className="muted">{view.labels.status}</span>
-          ) : (
-            <>
-              <span className={`context-usage-pill tone-${tone}`}>{view.labels.percentFull}</span>
-              <span className="muted">{view.labels.hover}</span>
-            </>
-          )}
-        </div>
-        {view.labels.status ? (
-          <p className="muted" data-testid="context-usage-status">
-            {view.labels.status}
-          </p>
-        ) : null}
-        {view.labels.limitNote ? (
-          <p className="muted" data-testid="context-usage-limit-note">
-            {view.labels.limitNote}
-          </p>
-        ) : null}
-        {view.exceedsLimit ? (
-          <p className="muted" data-testid="context-usage-exceeds">
-            {view.labels.exceeds}
-          </p>
-        ) : null}
         <ConversationUsageDetails view={view} />
         {props.onOpenModelSettings ? (
-          <footer className="context-usage-popover-footer muted">
+          <footer className="context-usage-popover-footer">
             <button
               type="button"
-              className="linkish-btn"
+              className="context-usage-settings"
+              data-testid="context-usage-settings"
               onClick={() => {
                 setOpen(false);
                 props.onOpenModelSettings?.();
               }}
             >
-              {view.labels.settings}
+              <span>{view.labels.settings}</span>
+              <IconChevronRight width={12} height={12} />
             </button>
           </footer>
         ) : null}
