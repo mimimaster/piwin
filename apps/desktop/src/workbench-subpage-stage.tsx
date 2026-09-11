@@ -92,6 +92,7 @@ export function WorkbenchSubpageStage(props: WorkbenchSubpageStageProps): ReactE
         {...(props.flashcardsEntry ? { entry: props.flashcardsEntry } : {})}
         {...(props.flashcardsFolderPath ? { initialFolderPath: props.flashcardsFolderPath } : {})}
         {...(props.onOpenSession ? { onOpenSession: props.onOpenSession } : {})}
+        knowledgeSupported={props.knowledgeSupported === true}
       />
     );
   }

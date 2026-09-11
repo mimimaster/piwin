@@ -19,6 +19,7 @@ import {
   useFlashcardsProduce,
   type FlashcardsProduceCommand,
 } from './flashcards/use-flashcards-produce';
+import { useKnowledgeBases } from '../knowledge/use-knowledge-bases.js';
 import { CreateCardDialog } from './flashcards/workspace-dialogs';
 import { FlashcardGallery } from './flashcards/flashcard-gallery';
 import {
@@ -62,6 +63,8 @@ export type FlashcardsWorkspaceViewProps = {
   /** With `entry: 'produce'`, starts the produce flow on this folder. */
   initialFolderPath?: string | undefined;
   onOpenSession?: ((sessionId: string) => void) | undefined;
+  /** False on Hosts without `knowledge/*` — the document-folder picker shares that registry. */
+  knowledgeSupported?: boolean;
 };
 
 /** Flashcards home — tiled library; produce is a page jump into the folder loop. */
@@ -87,11 +90,34 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
   const [newCount, setNewCount] = useState(0);
   const [hostTooOld, setHostTooOld] = useState(false);
 
+  const knowledgeSupported = props.knowledgeSupported === true;
   const ws = useFlashcardsWorkspace(props.request);
+  const kb = useKnowledgeBases({
+    request: props.request,
+    ...(props.subscribePush ? { subscribePush: props.subscribePush } : {}),
+    enabled: knowledgeSupported,
+  });
+  const addKnowledgeFolder = useCallback(
+    async (folderPath: string, name?: string) => {
+      if (!knowledgeSupported) {
+        return {
+          ok: false as const,
+          error: t(
+            'Update the Host to pick document folders here.',
+            '更新 Host 后才能在这里选择文档文件夹。',
+          ),
+        };
+      }
+      return kb.addFolder(folderPath, name);
+    },
+    [kb, knowledgeSupported, t],
+  );
   const produce = useFlashcardsProduce({
     request: props.request,
     projectPath: props.projectPath,
     locale,
+    knowledgeFolders: kb.bases,
+    addKnowledgeFolder,
     onCardsChanged: () => {
       void ws.reload();
     },
@@ -130,8 +156,7 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
   useEffect(() => {
     if (props.entry !== 'produce') return;
     setPage('produce');
-    // Knowledge bases hand off a folder; it wins over the recent-folder default.
-    if (props.initialFolderPath) mountFolder(props.initialFolderPath);
+    if (props.initialFolderPath) void mountFolder(props.initialFolderPath);
   }, [mountFolder, props.entry, props.initialFolderPath]);
   const studyCopy = flashcardStudyCopy(locale);
 

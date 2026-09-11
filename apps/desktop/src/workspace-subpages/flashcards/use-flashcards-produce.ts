@@ -4,11 +4,12 @@ import type {
   GenerationJob,
   HostResponse,
   IngestionJob,
+  KnowledgeBaseSummary,
   PiwinConfig,
   ScannedDocFile,
   ScannedFileV2,
 } from '@piwin/contracts';
-import { loadRecentFolders, saveRecentFolder } from '../../doccards-recent-folders.js';
+import type { KnowledgeActionResult } from '../../knowledge/use-knowledge-bases.js';
 import { pickProjectDirectory } from '../../pick-project-directory.js';
 import { waitForDoccardsIndexJob } from '../../doccards-index-job.js';
 import { runDoccardsGenerate } from '../../doccards-generate-client.js';
@@ -41,15 +42,25 @@ export function useFlashcardsProduce(input: {
   request: FlashcardsProduceRequest;
   projectPath?: string | null | undefined;
   locale: 'zh-CN' | 'en';
+  /** The shared Knowledge Base folder list — flashcards picks from these, not a private list. */
+  knowledgeFolders: readonly KnowledgeBaseSummary[];
+  /** Registers a folder in the Knowledge Base registry; idempotent if already registered. */
+  addKnowledgeFolder: (
+    folderPath: string,
+    name?: string,
+  ) => Promise<KnowledgeActionResult<KnowledgeBaseSummary>>;
   onCardsChanged?: () => void;
 }) {
   const requestRef = useRef(input.request);
   requestRef.current = input.request;
   const onCardsChangedRef = useRef(input.onCardsChanged);
   onCardsChangedRef.current = input.onCardsChanged;
+  const knowledgeFoldersRef = useRef(input.knowledgeFolders);
+  knowledgeFoldersRef.current = input.knowledgeFolders;
+  const addKnowledgeFolderRef = useRef(input.addKnowledgeFolder);
+  addKnowledgeFolderRef.current = input.addKnowledgeFolder;
 
   const [selectedPath, setSelectedPath] = useState('');
-  const [mountedFolders, setMountedFolders] = useState<string[]>([]);
   const [folderCardCount, setFolderCardCount] = useState(0);
   const [scannedFiles, setScannedFiles] = useState<ScannedDocFile[]>([]);
   const [unsupportedFiles, setUnsupportedFiles] = useState<ScannedFileV2[]>([]);
@@ -70,9 +81,6 @@ export function useFlashcardsProduce(input: {
       const payload = (res.data as { config?: PiwinConfig }).config ?? (res.data as PiwinConfig);
       if (payload && typeof payload === 'object') setConfig(payload);
     });
-    const recent = loadRecentFolders();
-    setMountedFolders(recent);
-    if (recent[0]) setSelectedPath(recent[0]);
     return () => {
       active = false;
     };
@@ -115,20 +123,32 @@ export function useFlashcardsProduce(input: {
     if (selectedPath) void loadFolder(selectedPath);
   }, [selectedPath, loadFolder]);
 
-  const mountFolder = useCallback((folder: string) => {
-    saveRecentFolder(folder);
-    setMountedFolders((current) => [folder, ...current.filter((path) => path !== folder)]);
-    setSelectedPath(folder);
+  const mountFolder = useCallback(async (folder: string) => {
+    const trimmed = folder.trim();
+    if (!trimmed) return;
     setGenerationJob(null);
     setDismissedGenerationId(null);
     setActionError(null);
+    const alreadyRegistered = knowledgeFoldersRef.current.some(
+      (base) => base.kind === 'folder' && base.folderPath === trimmed,
+    );
+    if (!alreadyRegistered) {
+      setBusy(true);
+      const result = await addKnowledgeFolderRef.current(trimmed);
+      setBusy(false);
+      if (!result.ok) {
+        setActionError(result.error);
+        return;
+      }
+    }
+    setSelectedPath(trimmed);
   }, []);
 
   const pickFolder = useCallback(async () => {
     const picked = await pickProjectDirectory({
       title: input.locale === 'zh-CN' ? '选择文档文件夹' : 'Choose a document folder',
     });
-    if (picked) mountFolder(picked);
+    if (picked) await mountFolder(picked);
   }, [input.locale, mountFolder]);
 
   const startIndex = useCallback(async () => {
@@ -216,12 +236,16 @@ export function useFlashcardsProduce(input: {
   const createdCount = generationJob?.created ?? generationJob?.createdCardIds?.length ?? 0;
   const readyCount = readyRelativePaths(documents).size;
   const folders = useMemo(() => {
-    const items = [...mountedFolders];
+    const items = input.knowledgeFolders
+      .filter((base): base is KnowledgeBaseSummary & { folderPath: string } =>
+        base.kind === 'folder' && typeof base.folderPath === 'string',
+      )
+      .map((base) => base.folderPath);
     if (input.projectPath && !items.includes(input.projectPath)) {
       items.push(input.projectPath);
     }
     return items;
-  }, [input.projectPath, mountedFolders]);
+  }, [input.projectPath, input.knowledgeFolders]);
 
   return {
     selectedPath,
@@ -248,7 +272,9 @@ export function useFlashcardsProduce(input: {
     mountFolder,
     selectFolder: mountFolder,
     reloadFolder: () => (selectedPath ? loadFolder(selectedPath) : Promise.resolve()),
-    useProject: input.projectPath ? () => mountFolder(input.projectPath as string) : undefined,
+    useProject: input.projectPath
+      ? () => void mountFolder(input.projectPath as string)
+      : undefined,
     startIndex,
     startGenerate,
     forgetFolder,

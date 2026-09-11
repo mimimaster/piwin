@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import type { FlashcardModel, HostResponse } from '@piwin/contracts';
+import type { FlashcardModel, HostResponse, KnowledgeBaseSummary } from '@piwin/contracts';
 import { PIWIN_APPEARANCE_DARK } from '../appearance-tokens';
 import { DesktopLocaleProvider } from '../desktop-locale-context';
 import { FlashcardsWorkspaceView } from './index';
@@ -28,6 +28,7 @@ type FakeStore = {
     sequenceId?: string;
     position?: number;
   }>;
+  knowledgeBases?: KnowledgeBaseSummary[];
 };
 
 function makeFakeRequester(store: FakeStore): {
@@ -68,6 +69,24 @@ function makeFakeRequester(store: FakeStore): {
         }
         case 'config/get':
           return ok(command, { config: { providers: [] } });
+        case 'knowledge/bases/list':
+          return ok(command, { bases: store.knowledgeBases ?? [] });
+        case 'knowledge/bases/add': {
+          const addCmd = command as { folderPath: string; name?: string };
+          const base: KnowledgeBaseSummary = {
+            id: `folder:${addCmd.folderPath}`,
+            kind: 'folder',
+            name: addCmd.name ?? addCmd.folderPath.split('/').pop() ?? addCmd.folderPath,
+            folderPath: addCmd.folderPath,
+            state: 'not-indexed',
+            degraded: false,
+            documentCount: 0,
+            createdAt: 'now',
+          };
+          if (!store.knowledgeBases) store.knowledgeBases = [];
+          store.knowledgeBases.push(base);
+          return ok(command, { base });
+        }
         default:
           if (command.type.startsWith('flashcards/study/')) {
             return study.request(command);
@@ -264,7 +283,6 @@ describe('FlashcardsWorkspaceView', () => {
   }, 15000);
 
   it('jumps into the knowledge-center produce loop on the same page', async () => {
-    window.localStorage.removeItem('piwin.doccards.recent_folders');
     await renderWith(structuredClone(BASE_STORE));
 
     const produceBtn = findButton(container, '出卡');
@@ -278,6 +296,42 @@ describe('FlashcardsWorkspaceView', () => {
     expect(container.querySelector('[data-testid="knowledge-project-list"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="hero-pick-folder-btn"]')).not.toBeNull();
     expect(container.querySelector('.vault-sheet')).toBeNull();
+  });
+
+  it('populates produce folders from knowledge bases when knowledge is supported', async () => {
+    const store = structuredClone(BASE_STORE);
+    store.knowledgeBases = [
+      {
+        id: 'folder:docs',
+        kind: 'folder',
+        name: 'My Docs',
+        folderPath: '/path/to/docs',
+        state: 'ready',
+        degraded: false,
+        documentCount: 5,
+        createdAt: '2026-09-11T00:00:00.000Z',
+      },
+    ];
+    const fake = await renderWith(store, {
+      entry: 'produce',
+      knowledgeSupported: true,
+    });
+    await flush(4);
+
+    expect(fake.calls).toContainEqual(expect.objectContaining({ type: 'knowledge/bases/list' }));
+    expect(container.querySelector('[data-testid="flashcards-produce"]')).not.toBeNull();
+    expect(container.textContent).toContain('docs');
+  });
+
+  it('shows an error notice when mounting a folder on a Host without knowledge base support', async () => {
+    await renderWith(structuredClone(BASE_STORE), {
+      entry: 'produce',
+      initialFolderPath: '/path/to/new-folder',
+      knowledgeSupported: false,
+    });
+    await flush(4);
+
+    expect(container.textContent).toContain('更新 Host 后才能在这里选择文档文件夹。');
   });
 
   it('does not render an in-page workspace switcher', async () => {
