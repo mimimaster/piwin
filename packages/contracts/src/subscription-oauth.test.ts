@@ -42,6 +42,9 @@ describe('subscription oauth contracts', () => {
         verificationUri: 'https://example.test',
       },
     };
+    const detect: HostCommand = { type: 'pi-environment/detect' };
+    const preview: HostCommand = { type: 'pi-environment/preview' };
+    const apply: HostCommand = { type: 'pi-environment/apply' };
     const quota: HostCommand = {
       type: 'auth/quota',
       input: { providerId: 'openai-codex', forceRefresh: true },
@@ -56,6 +59,9 @@ describe('subscription oauth contracts', () => {
     };
     expect(status.type).toBe('auth/status');
     expect(login.type).toBe('auth/login');
+    expect(detect.type).toBe('pi-environment/detect');
+    expect(preview.type).toBe('pi-environment/preview');
+    expect(apply.type).toBe('pi-environment/apply');
     expect(prompt.type).toBe('auth/prompt');
     expect(quota.type).toBe('auth/quota');
     expect(quotaPush.type).toBe('auth/quota-updated');

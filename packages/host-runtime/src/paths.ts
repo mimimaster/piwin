@@ -32,6 +32,10 @@ function encodeMessageIdForFilename(messageId: string): string {
   return Buffer.from(messageId, 'utf8').toString('base64url');
 }
 
+export function getDefaultPiwinRoot(): string {
+  return join(homedir(), '.piwin');
+}
+
 export function getPiwinRoot(override?: string): string {
   if (override && override.trim().length > 0) {
     return override;
@@ -40,13 +44,22 @@ export function getPiwinRoot(override?: string): string {
   if (fromEnv && fromEnv.trim().length > 0) {
     return fromEnv;
   }
-  return join(homedir(), '.piwin');
+  return getDefaultPiwinRoot();
+}
+
+/** True when this Host uses the default product root, not test-host / custom PIWIN_ROOT. */
+export function isDefaultPiwinRoot(piwinRoot?: string, defaultProductRoot?: string): boolean {
+  return getPiwinRoot(piwinRoot) === (defaultProductRoot ?? getDefaultPiwinRoot());
 }
 
 /** Pi native agent dir (`~/.pi/agent`). Inventory is read-only from here. */
 export function getPiAgentDir(override?: string): string {
   if (override && override.trim().length > 0) {
     return override;
+  }
+  const fromEnv = process.env.PI_CODING_AGENT_DIR;
+  if (fromEnv && fromEnv.trim().length > 0) {
+    return fromEnv;
   }
   return join(homedir(), '.pi', 'agent');
 }

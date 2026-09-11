@@ -124,7 +124,7 @@ No tokens in config, JSONL, logs, diagnostics, journal, or remote projection.
 
 **One Host auth runtime** for login/status/logout. Session SDK/RPC `ModelRuntime.create()` for prompts only — they never `login()`/`logout()`.
 
-**Do not share with Pi CLI by default.** `pi` still reads `~/.pi/agent/auth.json`. Host login/logout only mutates `{PIWIN_ROOT}/pi-agent/auth.json`. The default `~/.piwin` root may copy the legacy Pi file once if the Host file is missing; test/custom roots never inherit it.
+**Do not share with Pi CLI by default.** `pi` still reads `~/.pi/agent/auth.json`. Host login/logout only mutates `{PIWIN_ROOT}/pi-agent/auth.json`. There is no silent boot copy. The default `~/.piwin` root may merge **missing** oauth keys from the Pi CLI home after an explicit Settings action (`pi-environment/apply`); test/custom roots never inherit it. Host ModelRuntime restores `{PIWIN_ROOT}/pi-agent/models-store.json` on create and refreshes logged-in providers with `allowNetwork: true` once (timeout, non-fatal). Session runtimes keep `refresh({ allowNetwork: false })`.
 
 **Watch Host `auth.json`** (CPA pattern: fs events, coalesce add/modify/delete per provider id, debounce). External edits of the Host file → `auth/updated`. If a **v1** oauth **disappears**, §7.4 (cancel matching Runs, teardown, then treat as logged-out). Anthropic oauth appearing/disappearing in the file does **not** change the product picker.
 

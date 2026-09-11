@@ -24,7 +24,7 @@ import { createSessionTranscriptStoreRegistry } from './session-transcript-store
 import { ProductAgentHost } from './product-agent-host.js';
 import { loadPiwinConfig } from './config-store.js';
 import { getPiwinProjectsPath, getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
-import { importLegacyPiSubscriptionAuthIfNeeded } from './import-legacy-pi-auth.js';
+import { ensureHostPiAgentDir } from './import-legacy-pi-auth.js';
 import { fail } from './response-helpers.js';
 import { RunRegistry } from './run-registry.js';
 import { handleSessionLiveCommand } from './commands/session-live-commands.js';
@@ -133,9 +133,7 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
     });
     deps.subscriptionAuth.bindPush((message) => deps.push(message));
     if (options.mock !== true) {
-      void importLegacyPiSubscriptionAuthIfNeeded({
-        ...(options.piwinRoot !== undefined ? { piwinRoot: options.piwinRoot } : {}),
-      })
+      void ensureHostPiAgentDir(options.piwinRoot)
         .then(() => {
           deps.subscriptionAuth?.startWatch();
           return deps.subscriptionAuth?.ensureLoggedInProviders();

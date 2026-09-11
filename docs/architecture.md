@@ -595,9 +595,10 @@ performed.
 Pi native paths remain under `~/.pi/agent/`. piwin maps:
 
 - sessions: prefer Pi session files; maintain index for UI
-- subscription OAuth: Host-owned `{PIWIN_ROOT}/pi-agent/auth.json` (not `~/.pi/agent/auth.json`)
-- skills: bundled + `~/.piwin/skills` + optional maps to other harness skill dirs. System skills (e.g. `imagegen`) use frontmatter `hidden: true` to stay out of the Skills panel/CLI while remaining loadable by Pi; the `imagegen` skill is toggled via `config.skills.disabledIds` (enables/disables both the skill and the `image_gen` host tool).
-- extensions: optional Pi extensions under `extensions/` shipped with piwin
+- subscription OAuth: Host-owned `{PIWIN_ROOT}/pi-agent/auth.json` (not `~/.pi/agent/auth.json`). Ingest is one-way: missing oauth keys from the Pi CLI home, default `~/.piwin` only, never a live-shared `auth.json`.
+- Host ModelRuntime catalog cache: `{PIWIN_ROOT}/pi-agent/models-store.json`. Online overlay refresh is Host-owned; do not copy the CLI cache.
+- skills: bundled + `~/.piwin/skills` + optional maps to other harness skill dirs. System skills (e.g. `imagegen`) use frontmatter `hidden: true` to stay out of the Skills panel/CLI while remaining loadable by Pi; the `imagegen` skill is toggled via `config.skills.disabledIds` (enables/disables both the skill and the `image_gen` host tool). Default product root also follows read-only `~/.pi/agent` skills (ADR 0060). test-host does not.
+- extensions: optional Pi extensions under `extensions/` shipped with piwin, plus read-only `pi-native` follow on the default product root. TUI-only packages are listed and not loaded into the Blueprint.
 
 `config.json` may retain the Desktop's per-next-turn composer profile (model
 and thinking effort) and last selected session. These are product settings,

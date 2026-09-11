@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import { useDesktopLocale } from '../../desktop-locale-context.js';
+import { PiEnvironmentIngestCard } from '../../pi-environment-ingest.js';
 import { SubscriptionAccountsPanel } from '../../subscription-accounts.js';
 
 /** Settings → OAuth. Accounts live in Host pi-agent/auth.json; channels stay under Models. */
@@ -27,6 +28,7 @@ export function OauthPage(): ReactElement {
           </div>
         </div>
       </div>
+      <PiEnvironmentIngestCard />
       <SubscriptionAccountsPanel />
     </div>
   );

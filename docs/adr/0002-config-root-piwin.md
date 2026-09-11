@@ -23,5 +23,11 @@ Product root is **`~/.piwin`**. Map/overlay Pi resources (sessions, skills, exte
 Subscription OAuth (`auth.json`) is Host-owned under `{PIWIN_ROOT}/pi-agent/`.
 Login/logout still uses Pi `ModelRuntime`; the file is no longer `~/.pi/agent/auth.json`.
 Pi-native skills/extensions/SYSTEM.md stay at `~/.pi/agent`.
-A one-time copy from the legacy Pi path runs only for the default `~/.piwin` root
-so test-host (`~/.piwin-test`) does not inherit production credentials.
+
+Ingest of a local Pi working environment is **one-way**. The Host file is not
+live-shared with `~/.pi/agent/auth.json` (no symlink, no runtime `authPath`
+pointing at the CLI file). Missing oauth keys may be merged into the Host file
+from the Pi CLI home only on the default product root (`~/.piwin`), after an
+explicit Settings action. test-host / custom `PIWIN_ROOT` never reads or copies
+production credentials. Host start still creates `{PIWIN_ROOT}/pi-agent` (0700)
+so login works with an empty store.

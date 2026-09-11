@@ -10,15 +10,22 @@ import type {
   SkillSummary,
   SkillsConfig,
 } from '@piwin/contracts';
+import { isExtensionBlueprintEligible } from '@piwin/contracts';
 import { scanSkills } from '@piwin/skills';
 import { scanExtensions } from './extension-scanner.js';
 import { loadPiNativeInventory } from './pi-package-inventory.js';
-import { getPiAgentDir } from './paths.js';
+import { getPiAgentDir, isDefaultPiwinRoot } from './paths.js';
 import { scanPrompts } from './prompt-scanner.js';
 
 export type LoadDiscoveredResourcesOptions = {
   piwinRoot: string;
+  /** Pi CLI inventory path. Session OAuth dir is `{PIWIN_ROOT}/pi-agent`, not this. */
   agentDir?: string;
+  /**
+   * Follow user-global `~/.pi/agent` packages. Defaults to the default product
+   * root only so test-host / custom PIWIN_ROOT stay isolated.
+   */
+  followPiNativeInventory?: boolean;
   projectPath?: string;
   extensionsConfig?: ExtensionsConfig;
   skillsConfig?: SkillsConfig;
@@ -39,6 +46,8 @@ export async function loadDiscoveredResources(
   const extensionsConfig = options.extensionsConfig;
   const skillsConfig = options.skillsConfig;
   const promptsConfig = options.promptsConfig;
+  const followPiNativeInventory =
+    options.followPiNativeInventory ?? isDefaultPiwinRoot(options.piwinRoot);
 
   const [piwinExtensions, piwinSkills, piwinPrompts, native] = await Promise.all([
     scanExtensions({
@@ -57,10 +66,15 @@ export async function loadDiscoveredResources(
       ...(projectPath ? { projectPath } : {}),
       ...(promptsConfig ? { promptsConfig } : {}),
     }),
-    loadPiNativeInventory({
-      agentDir: getPiAgentDir(options.agentDir),
-      ...(projectPath ? { projectPath } : {}),
-    }),
+    followPiNativeInventory || projectPath
+      ? loadPiNativeInventory({
+          ...(followPiNativeInventory
+            ? { agentDir: options.agentDir ?? getPiAgentDir() }
+            : {}),
+          includeUserGlobal: followPiNativeInventory,
+          ...(projectPath ? { projectPath } : {}),
+        })
+      : Promise.resolve({ extensions: [], skills: [], prompts: [], diagnostics: [] }),
   ]);
 
   const extensionDisabled = new Set(
@@ -72,11 +86,14 @@ export async function loadDiscoveredResources(
   return {
     extensions: [
       ...piwinExtensions,
-      ...native.extensions.map((item) => ({
-        ...item,
-        enabled: !extensionDisabled.has(item.id.toLowerCase()),
-        configuredEnabled: !extensionDisabled.has(item.id.toLowerCase()),
-      })),
+      ...native.extensions.map((item) => {
+        const userEnabled = !extensionDisabled.has(item.id.toLowerCase());
+        return {
+          ...item,
+          enabled: userEnabled && isExtensionBlueprintEligible(item.compatibility),
+          configuredEnabled: userEnabled,
+        };
+      }),
     ],
     skills: [
       ...piwinSkills,

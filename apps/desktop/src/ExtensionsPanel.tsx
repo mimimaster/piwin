@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
+  ExtensionCompatibilityTier,
   ExtensionSummary,
   ExtensionsInstallData,
   ExtensionsListData,
   HostResponse,
   InstallSource,
 } from '@piwin/contracts';
+import { isExtensionBlueprintEligible } from '@piwin/contracts';
 import {
   Button,
   Collapse,
@@ -400,6 +402,14 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
                   <div className="ext-list-title">
                     <strong>{extension.name}</strong>
                     <span className="pill muted">{extension.source}</span>
+                    {compatibilityLabel(extension.compatibility?.tier, isChinese) ? (
+                      <span
+                        className="pill muted"
+                        data-testid={`extension-compat-${extension.id}`}
+                      >
+                        {compatibilityLabel(extension.compatibility?.tier, isChinese)}
+                      </span>
+                    ) : null}
                     {extension.enabled ? (
                       <span className="pill ok">{isChinese ? '已启用' : 'on'}</span>
                     ) : null}
@@ -408,7 +418,11 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
                 </div>
                 <Switch
                   checked={extension.enabled}
-                  disabled={props.readOnly}
+                  disabled={
+                    props.readOnly ||
+                    (extension.compatibility !== undefined &&
+                      !isExtensionBlueprintEligible(extension.compatibility))
+                  }
                   onCheckedChange={() => void handleToggle(extension)}
                   aria-label={isChinese ? `启用 ${extension.name}` : `Enable ${extension.name}`}
                   data-testid={`extension-toggle-${extension.id}`}
@@ -604,4 +618,21 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
       </div>
     </div>
   );
+}
+
+function compatibilityLabel(
+  tier: ExtensionCompatibilityTier | undefined,
+  isChinese: boolean,
+): string | null {
+  switch (tier) {
+    case 'compatible':
+      return isChinese ? '可用' : 'compatible';
+    case 'degraded':
+    case 'incompatible':
+      return isChinese ? '仅 Pi 终端' : 'Pi TUI only';
+    case 'unverified':
+      return isChinese ? '未验证' : 'unverified';
+    default:
+      return null;
+  }
 }

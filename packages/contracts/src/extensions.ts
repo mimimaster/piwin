@@ -1,4 +1,5 @@
 /** Pi Extension registry contracts (product shell; Pi loads at session create). */
+import type { ExtensionCompatibility } from './extension-compatibility.js';
 
 export type ExtensionRevisionState = 'installed' | 'quarantined';
 
@@ -101,6 +102,8 @@ export type ExtensionSummary = {
   selectedRevision?: string;
   /** Pi `pi.on(event)` names detected from source without executing the module. */
   hookEvents?: string[];
+  /** Static Agent vs TUI scan. Only `compatible` is Blueprint-loaded by default. */
+  compatibility?: ExtensionCompatibility;
 };
 
 export type ExtensionsConfig = {

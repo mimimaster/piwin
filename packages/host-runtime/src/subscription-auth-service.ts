@@ -23,6 +23,7 @@ import {
 import {
   createSubscriptionAuthPort,
   defaultPiAuthPaths,
+  LIVE_CATALOG_REFRESH_TIMEOUT_MS,
   type HostAuthEvent,
   type HostAuthPrompt,
   type SubscriptionAuthPort,
@@ -64,6 +65,7 @@ type ActiveLogin = {
   ownerDeviceId: string;
   startedAt: string;
   preferLoopback: boolean;
+  openAuthUrlOnHost: boolean;
   abort: AbortController;
   currentPrompt?: AuthPromptPayload;
   authUrl?: AuthPromptPayload;
@@ -217,6 +219,22 @@ export class SubscriptionAuthService {
     await port.refreshProvider(providerId);
   }
 
+  /**
+   * Pull pi.dev overlay for logged-in subscription providers once.
+   * Failure keeps the builtin / models-store cache; Host start must not crash.
+   */
+  async refreshLiveCatalog(providers?: readonly string[]): Promise<void> {
+    try {
+      const port = await this.ensurePort();
+      await port.refreshLiveCatalog({
+        ...(providers !== undefined ? { providers } : {}),
+        signal: AbortSignal.timeout(LIVE_CATALOG_REFRESH_TIMEOUT_MS),
+      });
+    } catch {
+      // Keep builtin / Host models-store.json catalog.
+    }
+  }
+
   async status(): Promise<AuthStatusData> {
     const accounts = await this.readAccounts();
     const data: AuthStatusData = { accounts };
@@ -267,6 +285,7 @@ export class SubscriptionAuthService {
       ownerDeviceId: input.ownerDeviceId,
       startedAt: new Date(this.now()).toISOString(),
       preferLoopback: input.preferLoopback === true,
+      openAuthUrlOnHost: input.openAuthUrlOnHost !== false,
       abort,
       ...(newChannelId !== undefined ? { newChannelId } : {}),
     };
@@ -365,6 +384,7 @@ export class SubscriptionAuthService {
       this.syncErrorProviderIds.delete(providerId);
       this.needsReauthProviderIds.delete(providerId);
     }
+    await this.ensureLoggedInProviders();
     this.emitUpdated();
     return {};
   }
@@ -612,7 +632,7 @@ export class SubscriptionAuthService {
         : payload.kind === 'device_code'
           ? payload.verificationUri
           : undefined;
-    if (openUrl) {
+    if (openUrl && active.openAuthUrlOnHost) {
       console.log(`[piwin-host] auth/prompt ${payload.kind} opening ${openUrl}`);
       this.openAuthUrl?.(openUrl);
     }
@@ -727,6 +747,7 @@ export class SubscriptionAuthService {
 
   async ensureLoggedInProviders(): Promise<PiwinConfig> {
     const port = await this.ensurePort();
+    await this.refreshLiveCatalog();
     const accounts = await this.readAccounts();
     const config = await this.loadConfig();
     const next = ensureSubscriptionProviders(config, accounts, (providerId) =>

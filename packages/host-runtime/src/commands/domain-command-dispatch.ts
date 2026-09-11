@@ -32,6 +32,7 @@ import { handleFlashcardStudyCommand } from './flashcard-study-commands.js';
 import { handleSubagentCommand } from './subagent-commands.js';
 import { handleTurnChangeCommand } from './turn-change-commands.js';
 import { handleAuthCommand } from './auth-commands.js';
+import { handlePiEnvironmentCommand } from './pi-environment-commands.js';
 import { handleVoiceLiveCommand } from './voice-live-commands.js';
 import { handleSessionComposerProfileCommand } from './session-composer-profile-command.js';
 import { loadPiwinConfig } from '../config-store.js';
@@ -64,6 +65,9 @@ export async function dispatchDomainCommands(
   }
   const auth = await handleAuthCommand(command, requestId, context);
   if (auth) return auth;
+
+  const piEnvironment = await handlePiEnvironmentCommand(command, requestId, context);
+  if (piEnvironment) return piEnvironment;
 
   const voiceLive = await handleVoiceLiveCommand(command, requestId, context);
   if (voiceLive) return voiceLive;
