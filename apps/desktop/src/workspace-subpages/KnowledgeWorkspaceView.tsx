@@ -97,8 +97,8 @@ export function KnowledgeWorkspaceView(props: KnowledgeWorkspaceViewProps): Reac
       <EmptyState
         title={t('Update the Host to use knowledge bases', '更新 Host 后才能使用知识库')}
         description={t(
-          'The connected Host does not support knowledge bases yet. Flashcards and notes keep working as before.',
-          '当前连接的 Host 还不支持知识库。闪卡和笔记仍可照常使用。',
+          'The connected Host does not support knowledge bases yet. Flashcards and notes share this folder registry, so producing cards from a document folder needs it too.',
+          '当前连接的 Host 还不支持知识库。闪卡和笔记共用这份文件夹登记，从文档文件夹产卡也需要它。',
         )}
         visual={<IconBook width={28} height={28} aria-hidden="true" />}
         testId="knowledge-host-too-old"
