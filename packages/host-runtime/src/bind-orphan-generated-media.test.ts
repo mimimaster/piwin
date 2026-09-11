@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { SessionTranscriptMessage } from '@piwin/contracts';
-import { attachOrphansToTranscriptMessages } from './bind-orphan-generated-media.js';
+import { mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import {
+  attachOrphansToTranscriptMessages,
+  detachUserOwnedMediaFromAssistants,
+  listSessionGeneratedMedia,
+} from './bind-orphan-generated-media.js';
 
 function message(
   partial: Partial<SessionTranscriptMessage> &
@@ -87,5 +94,98 @@ describe('attachOrphansToTranscriptMessages', () => {
       },
     ]);
     expect(filled[0]?.attachments).toHaveLength(1);
+  });
+});
+
+describe('attachOrphansToTranscriptMessages page tail', () => {
+  it('does not dump an older unreferenced asset onto the latest assistant', () => {
+    const recentUser = message({
+      id: 'u-recent',
+      role: 'user',
+      createdAt: '2026-09-10T18:21:40.931Z',
+      text: '能不能直接验证session呢',
+    });
+    const recentAssistant = message({
+      id: 'a-recent',
+      role: 'assistant',
+      createdAt: '2026-09-10T18:22:40.759Z',
+      text: 'Session 本身：有效',
+    });
+    const filled = attachOrphansToTranscriptMessages([recentUser, recentAssistant], [
+      {
+        assetId: 'c4b1875b-c761-4847-9778-753f5f0daa0e',
+        createdAt: '2026-09-07T15:13:48.876Z',
+        mimeType: 'image/jpeg',
+        byteSize: 55106,
+        absolutePath:
+          '/Users/yorickjue/.piwin/media/session-x/c4b1875b-c761-4847-9778-753f5f0daa0e.jpg',
+        kind: 'image',
+      },
+    ]);
+
+    expect(filled[1]?.attachments).toBeUndefined();
+  });
+});
+
+describe('detachUserOwnedMediaFromAssistants', () => {
+  it('strips paste vault ids that were rewritten onto an assistant row', () => {
+    const assistant = message({
+      id: 'a-latest',
+      role: 'assistant',
+      createdAt: '2026-09-10T18:22:40.759Z',
+      attachments: [
+        {
+          id: 'c4b1875b-c761-4847-9778-753f5f0daa0e',
+          kind: 'media',
+          path: '/tmp/c4b1875b-c761-4847-9778-753f5f0daa0e.jpg',
+          mimeType: 'image/jpeg',
+          byteSize: 55106,
+          source: 'generated',
+          contentKind: 'image',
+        },
+      ],
+    });
+    const cleaned = detachUserOwnedMediaFromAssistants(
+      [assistant],
+      new Set(['c4b1875b-c761-4847-9778-753f5f0daa0e']),
+    );
+    expect(cleaned[0]?.attachments).toBeUndefined();
+  });
+});
+
+describe('listSessionGeneratedMedia', () => {
+  it('ignores paste screenshots and only returns generated vault files', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-orphan-media-'));
+    const pasteId = 'paste-aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa';
+    const generatedId = 'gen-bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb';
+    await writeFile(join(dir, `${pasteId}.jpg`), 'paste-bytes');
+    await writeFile(
+      join(dir, `${pasteId}.json`),
+      `${JSON.stringify({
+        source: 'paste',
+        kind: 'image',
+        createdAt: '2026-09-07T15:13:48.876Z',
+        name: 'Screenshot 2026-09-07 at 23-13-37.png',
+      })}\n`,
+    );
+    await writeFile(join(dir, `${generatedId}.png`), 'generated-bytes');
+    await writeFile(
+      join(dir, `${generatedId}.json`),
+      `${JSON.stringify({
+        source: 'generated',
+        kind: 'image',
+        createdAt: '2026-09-10T04:55:17.904Z',
+        prompt: 'foggy pier',
+      })}\n`,
+    );
+
+    const generated = await listSessionGeneratedMedia(dir);
+    expect(generated).toEqual([
+      expect.objectContaining({
+        assetId: generatedId,
+        mimeType: 'image/png',
+        kind: 'image',
+      }),
+    ]);
   });
 });
