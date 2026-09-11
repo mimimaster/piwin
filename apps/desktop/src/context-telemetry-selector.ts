@@ -60,6 +60,8 @@ export type ContextRingViewModel = {
   offline: boolean;
   capabilityMissing: boolean;
   lastRequest?: ContextRingLastRequest;
+  /** Locale the labels were built in; detail rows follow it. */
+  locale: ConversationUsageLocale;
 };
 
 export type SelectContextRingViewInput = {
@@ -111,6 +113,7 @@ export function selectContextRingView(input: SelectContextRingViewInput): Contex
   if (capabilityMissing) {
     return hiddenView({
       copy,
+      locale: input.locale,
       phase: 'capability-missing',
       capabilityMissing: true,
       lastRequest,
@@ -118,7 +121,7 @@ export function selectContextRingView(input: SelectContextRingViewInput): Contex
   }
 
   if (telemetry.selectedSessionId === null || snapshot === null) {
-    return hiddenView({ copy, phase: 'empty', lastRequest });
+    return hiddenView({ copy, locale: input.locale, phase: 'empty', lastRequest });
   }
 
   const compactPending = input.compactPendingOccupancy === true;
@@ -152,18 +155,18 @@ export function selectContextRingView(input: SelectContextRingViewInput): Contex
   const compacting = snapshot.phase === 'compacting' || input.compacting === true;
 
   if (emptyPhase || waitingWithoutResponse) {
-    return hiddenView({ copy, phase: snapshot.phase, lastRequest, offline });
+    return hiddenView({ copy, locale: input.locale, phase: snapshot.phase, lastRequest, offline });
   }
   if (snapshot.phase === 'invalidated' && known === null && !compactPending) {
-    return hiddenView({ copy, phase: snapshot.phase, lastRequest, offline });
+    return hiddenView({ copy, locale: input.locale, phase: snapshot.phase, lastRequest, offline });
   }
 
   if (!hasEvidence && !offline && !compactPending && !compacting) {
-    return hiddenView({ copy, phase: snapshot.phase, lastRequest, offline });
+    return hiddenView({ copy, locale: input.locale, phase: snapshot.phase, lastRequest, offline });
   }
 
   if (!known && !compactPending && !offline && !compacting && !derivedPendingMeasurement) {
-    return hiddenView({ copy, phase: snapshot.phase, lastRequest });
+    return hiddenView({ copy, locale: input.locale, phase: snapshot.phase, lastRequest });
   }
 
   const tokensUsed = known?.tokensUsed;
@@ -215,6 +218,7 @@ export function selectContextRingView(input: SelectContextRingViewInput): Contex
 
   return {
     visible: true,
+    locale: input.locale,
     numericHidden,
     ...(typeof tokensUsed === 'number' ? { tokensUsed } : {}),
     ...(displayLimit !== undefined ? { tokensLimit: displayLimit } : {}),
@@ -272,6 +276,7 @@ function isDerivedPendingMeasurement(snapshot: SessionContextSnapshot): boolean 
 
 function hiddenView(input: {
   copy: ContextUsageCopy;
+  locale: ConversationUsageLocale;
   phase: ContextRingViewModel['phase'];
   capabilityMissing?: boolean | undefined;
   lastRequest?: ContextRingLastRequest | undefined;
@@ -279,6 +284,7 @@ function hiddenView(input: {
 }): ContextRingViewModel {
   return {
     visible: false,
+    locale: input.locale,
     numericHidden: true,
     occupancySource: 'current',
     phase: input.phase,
