@@ -356,19 +356,29 @@
   color: var(--text-1);
 }
 
+/* A healthy ring stays ink-neutral so it never competes with the send button;
+   only warn / critical earn a signal colour (proto-02 `.ring` / `.pill-ctx`).
+   Slab variables fall back to ambient roles outside the composer slab. */
 .context-usage-ring-track {
-  stroke: var(--line-2);
+  stroke: color-mix(in srgb, var(--slab-text-3, var(--text-3)) 30%, transparent);
 }
 
 .context-usage-ring-progress {
-  stroke: var(--iris);
-  transition: stroke-dashoffset 0.25s ease;
+  stroke: var(--slab-text-2, var(--text-2));
+  transition:
+    stroke-dashoffset 0.25s ease,
+    stroke var(--t-2) var(--ease-out);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .context-usage-ring-progress {
     transition: none;
   }
+}
+
+.context-usage-ring:hover .context-usage-ring-progress,
+.context-usage-ring.open .context-usage-ring-progress {
+  stroke: var(--slab-text, var(--text-1));
 }
 
 .context-usage-ring.tone-warn .context-usage-ring-progress {
@@ -383,14 +393,18 @@
    sizes and skins the panel. Compound selector beats the later-imported
    .ui-popover-content base for the properties it overrides. */
 .ui-popover-content.context-usage-popover {
-  width: min(320px, 70vw);
-  max-height: min(70vh, 420px);
+  width: min(288px, calc(100vw - 24px));
+  max-height: min(72vh, 480px);
   overflow-y: auto;
-  padding: var(--s-5);
+  padding: 12px 14px 10px;
   border: 0;
   border-radius: var(--r-panel);
   background: var(--surface-4);
   box-shadow: var(--elev-4);
+  font-size: var(--fs-chrome);
+  font-variant-numeric: tabular-nums;
+  user-select: text;
+  -webkit-user-select: text;
   animation: context-usage-popover-in var(--t-2) var(--ease-out) both;
 }
 
@@ -415,38 +429,72 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--s-4);
+  gap: 8px;
+  margin: -2px -6px 12px 0;
 }
 
-.context-usage-popover-summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-4);
-  margin-bottom: var(--s-4);
-  font-size: var(--fs-chrome);
+.context-usage-popover-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-1);
 }
 
-.context-usage-pill {
-  display: inline-flex;
+.context-usage-details > :first-child {
+  margin-top: 0;
+}
+
+/* Overview: a quiet dial carries the ratio, the ledger beside it the numbers. */
+.context-usage-overview {
+  display: grid;
+  grid-template-columns: 60px minmax(0, 1fr);
   align-items: center;
-  height: 20px;
-  padding: 0 var(--s-4);
-  border-radius: var(--r-pill);
-  font-size: var(--fs-micro);
+  gap: 16px;
+}
+
+.context-usage-dial {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+}
+
+.context-usage-dial svg {
+  position: absolute;
+  inset: 0;
+}
+
+.context-usage-dial-track {
+  stroke: var(--line-2);
+}
+
+.context-usage-dial-progress {
+  stroke: var(--mint);
+  transition: stroke-dashoffset var(--t-3) var(--ease-out);
+}
+
+.context-usage-overview.tone-warn .context-usage-dial-progress {
+  stroke: var(--amber);
+}
+
+.context-usage-overview.tone-critical .context-usage-dial-progress {
+  stroke: var(--coral);
+}
+
+.context-usage-dial-value {
+  font-size: 14px;
   font-weight: 650;
-  background: var(--iris-wash);
-  color: var(--iris-lift);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--text-1);
 }
 
-.context-usage-pill.tone-warn {
-  background: color-mix(in srgb, var(--amber) 18%, transparent);
-  color: var(--amber);
-}
-
-.context-usage-pill.tone-critical {
-  background: color-mix(in srgb, var(--coral) 18%, transparent);
-  color: var(--coral);
+.context-usage-dial-value small {
+  margin-left: 1px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--text-3);
 }
 
 .context-usage-rows {
@@ -455,27 +503,233 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--s-3);
+  gap: 2px;
 }
 
 .context-usage-rows li {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--s-5);
-  font-size: var(--fs-chrome);
+  gap: 12px;
+  min-height: 20px;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .context-usage-row-label {
   display: inline-flex;
   align-items: center;
-  gap: var(--s-4);
+  gap: 8px;
+  min-width: 0;
+  color: var(--text-3);
+}
+
+.context-usage-row-value {
+  flex: none;
+  font-weight: 500;
+  color: var(--text-1);
+}
+
+.context-usage-rows li:is([data-row='occupied'], [data-row='total']) .context-usage-row-value {
+  font-weight: 650;
+}
+
+.context-usage-rows li:is([data-row='remaining'], [data-row='duration']) .context-usage-row-value {
+  color: var(--text-2);
+}
+
+/* One status line replaces the old pill + repeated quality paragraph. */
+.context-usage-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 6px;
+  row-gap: 2px;
+  margin: 12px 0 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-3);
+}
+
+.context-usage-status-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.25px var(--text-4);
+}
+
+.context-usage-status[data-state='measured'] .context-usage-status-dot {
+  background: var(--mint);
+  box-shadow: none;
+}
+
+.context-usage-status[data-state='estimated'] .context-usage-status-dot {
+  background: var(--amber);
+  box-shadow: none;
+}
+
+.context-usage-status[data-state='working'] .context-usage-status-dot {
+  background: var(--ember);
+  box-shadow: none;
+  animation: context-usage-status-pulse 1.4s var(--ease-in-out) infinite;
+}
+
+@keyframes context-usage-status-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.context-usage-status span + .context-usage-status-note::before {
+  content: '·';
+  margin-right: 6px;
+  color: var(--text-4);
+}
+
+.context-usage-note {
+  margin: 0 0 8px;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+.context-usage-alert {
+  margin: 8px 0 0;
+  padding: 5px 8px;
+  border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--coral) 12%, transparent);
+  color: var(--coral);
+  font-size: 11.5px;
+  font-weight: 550;
+  line-height: 1.4;
+}
+
+/* Last request: measured parts of the total, same palette as the usage page
+   (usage-panel.css `--usage-*`). */
+.context-usage-request {
+  --usage-input: var(--iris-lift);
+  --usage-cache-read: var(--sky);
+  --usage-cache-write: var(--amber);
+  --usage-output: var(--mint);
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-1);
+}
+
+.context-usage-request-title {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-3);
+}
+
+.context-usage-request-bar {
+  display: flex;
+  gap: 2px;
+  height: 5px;
+  margin-bottom: 10px;
+  border-radius: var(--r-pill);
+  overflow: hidden;
+}
+
+.context-usage-request-bar span {
+  flex-basis: 0;
+  min-width: 3px;
+}
+
+.context-usage-row-swatch {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+}
+
+.context-usage-request [data-tone='input'] {
+  background: var(--usage-input);
+}
+
+.context-usage-request [data-tone='cache-read'] {
+  background: var(--usage-cache-read);
+}
+
+.context-usage-request [data-tone='cache-write'] {
+  background: var(--usage-cache-write);
+}
+
+.context-usage-request [data-tone='output'] {
+  background: var(--usage-output);
+}
+
+.context-usage-rows li[data-row='total'] {
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line-1);
+}
+
+.context-usage-rows li[data-row='total'] .context-usage-row-label {
+  color: var(--text-2);
 }
 
 .context-usage-popover-footer {
-  margin-top: var(--s-5);
-  font-size: var(--fs-micro);
-  color: var(--text-3);
+  margin: 10px -8px 0;
+  padding-top: 6px;
+  border-top: 1px solid var(--line-1);
+}
+
+.context-usage-settings {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.context-usage-settings svg {
+  flex: none;
+  color: var(--text-4);
+  transition:
+    transform var(--t-2) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.context-usage-settings:hover {
+  background: var(--hover);
+  color: var(--text-1);
+}
+
+.context-usage-settings:hover svg {
+  color: var(--text-2);
+  transform: translateX(2px);
+}
+
+.context-usage-settings:focus-visible {
+  outline: 2px solid var(--iris-glow);
+  outline-offset: -2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .context-usage-dial-progress,
+  .context-usage-settings,
+  .context-usage-settings svg {
+    transition: none;
+  }
+
+  .context-usage-status[data-state='working'] .context-usage-status-dot {
+    animation: none;
+  }
 }
 
 .linkish-btn {

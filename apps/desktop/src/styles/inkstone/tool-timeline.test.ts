@@ -62,4 +62,13 @@ describe('Inkstone tool-call timeline spine and row layout', () => {
       /\.dc-f,[\s\S]*?\.diff-card \.diff-footer \{[\s\S]*?height: 36px;[\s\S]*?border-top: 1px solid var\(--l1\);/,
     );
   });
+
+  it('bounds thinking draft box in squeezed stage and expands only at >=960px', () => {
+    expect(css).toMatch(
+      /\.turn-work-details-body,\s*\n[^{]*\.conversation-thinking-body\s*\{[\s\S]*?margin-left:\s*0;[\s\S]*?width:\s*100%;/,
+    );
+    expect(css).toMatch(
+      /@container transcript-stage \(min-width: 960px\)[\s\S]*?\.turn-work-details-body,[\s\S]*?\.conversation-thinking-body\s*\{[\s\S]*?margin-left:\s*calc\(-1 \* var\(--row-pad\)\);[\s\S]*?width:\s*calc\(100% \+ var\(--row-pad\) \* 2\);/,
+    );
+  });
 });

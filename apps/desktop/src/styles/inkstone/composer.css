@@ -21,6 +21,11 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   box-shadow: var(--sh3);
 }
 
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .slab.is-streaming {
+  box-shadow: var(--sh3);
+}
+
 /* Light face paper-slab mapping (remaps dark slab to cream paper card) */
 html[data-slab='paper'] .slab,
 [data-slab='paper'] .slab {
@@ -98,21 +103,30 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   padding: 4px 8px 8px;
 }
 
-/* Sheen track (S6.3): idle stays invisible. Paper remap makes --slab-line a
-   visible grey hairline; even on dark slab the idle rim reads as dirt next to
-   --sh3's ring. Keep the ::before mounted so running/streaming/queued-edit can
-   paint the lamp sweep without layout thrash. */
+/* Perimeter orbit beam (replaces legacy 1px top sheen line):
+   idle stays invisible. When active (running / streaming / queued-edit),
+   a warm lamp beam smoothly orbits around the composer slab's perimeter. */
 html[data-theme-id='piwin-inkstone-paper'] .slab::before,
 html[data-theme-id='piwin-inkstone-ink'] .slab::before {
   content: '';
   position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 1px;
+  inset: -1.5px;
+  border-radius: inherit;
+  padding: 1.5px;
+  box-sizing: border-box;
   background: transparent;
   z-index: 2;
   pointer-events: none;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 240ms ease-out;
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .app-shell[data-state='running'] .slab::before,
@@ -121,15 +135,19 @@ html[data-theme-id='piwin-inkstone-paper'] .slab.is-streaming::before,
 html[data-theme-id='piwin-inkstone-ink'] .slab.is-streaming::before,
 html[data-theme-id='piwin-inkstone-paper'] .slab.is-queued-edit::before,
 html[data-theme-id='piwin-inkstone-ink'] .slab.is-queued-edit::before {
-  background: linear-gradient(
-    90deg,
-    transparent 0,
-    var(--lamp) 45%,
-    var(--lamp-glow) 55%,
-    transparent 100%
+  opacity: 1;
+  background: conic-gradient(
+    from var(--composer-beam-angle, 0deg),
+    transparent 0deg,
+    transparent 180deg,
+    var(--lamp-wash) 240deg,
+    var(--lamp) 310deg,
+    var(--lamp-glow) 345deg,
+    rgba(255, 255, 255, 0.95) 356deg,
+    transparent 360deg
   );
-  background-size: 200% 100%;
-  animation: sheen 4.8s linear infinite;
+  animation: orbit 3.2s linear infinite;
+  filter: drop-shadow(0 0 5px var(--lamp-glow));
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .slab .refs,

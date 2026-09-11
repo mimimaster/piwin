@@ -18,6 +18,7 @@ describe('Inkstone motion.css', () => {
     expect(motion).toMatch(/@keyframes sheen/);
     expect(motion).toMatch(/@keyframes stamp/);
     expect(motion).toMatch(/@keyframes draw/);
+    expect(motion).toMatch(/@keyframes orbit/);
     expect(motion).toContain('160ms var(--spring)');
     expect(motion).toContain('240ms ease-out');
     expect(motion).toContain('outline-color: var(--zhu)');

@@ -9,11 +9,11 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  padding-bottom: clamp(32px, 8vh, 80px);
+  padding-bottom: clamp(0px, 2vh, 16px);
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .chat-column-empty .chat-stage:has(.empty-stage-landing) {
-  padding-bottom: clamp(32px, 8vh, 80px);
+  padding-bottom: clamp(0px, 2vh, 16px);
 }
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .chat-column-empty:has(.empty-stage-landing) .transcript-stage,
@@ -29,7 +29,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   align-items: flex-start;
   width: min(660px, 100%);
   max-width: 660px;
-  margin: 0 auto 18px;
+  margin: 0 auto 28px;
   order: 1;
   box-sizing: border-box;
 }
@@ -94,7 +94,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   order: 3;
   width: min(660px, 100%);
   max-width: 660px;
-  margin: 20px auto 0;
+  margin: 16px auto 0;
   box-sizing: border-box;
 }
 
@@ -102,7 +102,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-top: 24px;
+  margin-top: 0;
   margin-bottom: 8px;
   padding: 0;
 }
