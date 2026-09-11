@@ -21,6 +21,8 @@ import {
   extensionInstalledEffectMessage,
   extensionSyncedAndApplyRequestedMessage,
 } from './settings-effect-copy.js';
+import { extensionCompatCopy } from './extension-compat-copy.js';
+import { ExtensionCompatNotice } from './extension-compat-notice.js';
 import { PageTitle } from './settings/page-title';
 
 export type ExtensionsPanelProps = {
@@ -60,6 +62,15 @@ function describeInstallError(raw: string, isChinese: boolean): FriendlyError {
   const text = raw.replace(/^git extension install failed:\s*/i, '').trim();
   const has = (pattern: RegExp) => pattern.test(text);
 
+  if (has(/pi install npm:/i)) {
+    return {
+      title: isChinese ? '这是 npm 包，不能从 Git 直接安装' : 'This is an npm package',
+      hint: isChinese
+        ? '该扩展需要 npm 安装步骤，不能从 Git 地址直接暂存。若它只给 Agent 加工具或钩子，可在终端运行提示的 pi install npm:…，然后回到此页点「刷新」。若它依赖 Pi 终端界面（自定义 UI、主题、快捷键），piwin 不支持。'
+        : 'This package needs an npm install step, so it cannot be staged from a Git URL. If it only adds Agent tools or hooks, run the suggested `pi install npm:…` command, then Refresh this page. Pi TUI plugins (custom UI, themes, keybindings) do not work in piwin.',
+      raw,
+    };
+  }
   if (has(/no index\.ts entry point|must contain index\.ts/i)) {
     return {
       title: isChinese ? '仓库里没有找到扩展入口' : 'No extension entry point found',
@@ -320,27 +331,24 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
   }
 
   const friendlyInstallError = installError ? describeInstallError(installError, isChinese) : null;
+  const compat = extensionCompatCopy(isChinese);
 
   return (
     <div className={props.variant === 'inline' ? 'settings-inline-manager' : 'modal-backdrop'}>
       <div
         className={props.variant === 'inline' ? 'settings-inline-content' : 'modal settings-modal'}
       >
-        {props.variant !== 'inline' ? (
-          <PageTitle
-            title={isChinese ? 'Pi 扩展' : 'Pi Extensions'}
-            description={
-              isChinese
-                ? '扩展 Agent 的核心能力，支持本地模块加载。'
-                : 'Extend core agent capabilities with local module loading.'
-            }
-            trailing={
-              <span className="muted" style={{ fontSize: '12.5px' }}>
-                {visible.length}/{extensions.length} {isChinese ? '已安装' : 'installed'}
-              </span>
-            }
-          />
-        ) : null}
+        <PageTitle
+          title={compat.pageTitle}
+          description={compat.pageDescription}
+          trailing={
+            <span className="muted" style={{ fontSize: '12.5px' }}>
+              {visible.length}/{extensions.length} {isChinese ? '已安装' : 'installed'}
+            </span>
+          }
+        />
+
+        <ExtensionCompatNotice isChinese={isChinese} />
 
         <div className="settings-toolbar" style={{ marginBottom: 16 }}>
           <TextInput
@@ -427,8 +435,8 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
                 <h4>{isChinese ? '手动安装' : 'Install Manually'}</h4>
                 <p>
                   {isChinese
-                    ? '从本地路径或 Git 仓库安装新的 Pi 扩展。'
-                    : 'Install a new Pi extension from a local path or Git repository.'}
+                    ? '从本地路径或 Git 仓库安装。依赖 Pi 终端界面的扩展装上也不会改 Desktop。'
+                    : 'Install from a local path or Git repository. Pi TUI-only extensions will not change Desktop.'}
                 </p>
               </div>
             </div>

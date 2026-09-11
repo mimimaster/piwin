@@ -58,6 +58,7 @@ import { collectRefArgs, buildCliContextRefs } from './context-ref-args.js';
 
 import { createHostServeDispatcher } from './host-serve-dispatcher.js';
 import { createCliExtensionUiRequestHandler } from './extension-ui-cli.js';
+import { EXTENSION_COMPAT_NOTE } from './extension-compat-note.js';
 import { createJsonlStdioTransport } from './host-serve-transport.js';
 import { createSidecarMobileAccess, interceptSidecarMobileAccess } from './mobile-access-serve.js';
 import { parsePermissionModeOverride } from './permission-mode-override.js';
@@ -468,6 +469,9 @@ async function commandDoctor(args: string[] = []): Promise<void> {
       `- extensions: ${discovered.extensions.length} (${enabledExtensions} enabled; extraPaths=${(config.extensions?.extraPaths ?? []).length})`,
     );
     console.log('- extensions security: third-party modules run with full process privileges');
+    console.log(
+      '- extensions surface: Agent tools/hooks/confirm-select-input-notify; Pi TUI UI, themes, keybindings, editor, and /reload are not supported',
+    );
     const enabledPrompts = discovered.prompts.filter((item) => item.enabled).length;
     console.log(
       `- prompts: ${discovered.prompts.length} (${enabledPrompts} enabled; extraPaths=${(config.prompts?.extraPaths ?? []).length})`,
@@ -1586,6 +1590,7 @@ async function commandExtension(argv: string[]): Promise<void> {
       ...(config.extensions ? { extensionsConfig: config.extensions } : {}),
     });
     const extensions = discovered.extensions;
+    console.log(EXTENSION_COMPAT_NOTE);
     if (extensions.length === 0) {
       console.log('(no extensions found under ~/.piwin/extensions or Pi packages)');
       return;
@@ -1624,6 +1629,7 @@ async function commandExtension(argv: string[]): Promise<void> {
       };
       if (name) installOptions.name = name;
       const result = await installExtension(installOptions);
+      console.log(EXTENSION_COMPAT_NOTE);
       console.log(`installed extension ${result.extensionId} -> ${result.targetPath}`);
       return;
     }
@@ -1639,6 +1645,7 @@ async function commandExtension(argv: string[]): Promise<void> {
       };
       if (name) installOptions.name = name;
       const result = await installExtension(installOptions);
+      console.log(EXTENSION_COMPAT_NOTE);
       console.log(`installed extension ${result.extensionId} -> ${result.targetPath}`);
       return;
     }

@@ -130,7 +130,8 @@ async function describeGitInstallError(
     if (npmName) {
       return (
         `${npmName} is an npm-distributed package: it has dependencies and/or an install ` +
-        `step, so it cannot be staged from a Git URL. Install it with \`pi install npm:${npmName}\`.`
+        `step, so it cannot be staged from a Git URL. Install it with \`pi install npm:${npmName}\`. ` +
+        'If that package is a Pi TUI plugin (custom UI, themes, keybindings), it will not work in piwin.'
       );
     }
   }

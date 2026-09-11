@@ -99,7 +99,7 @@ describe('installExtension git errors', () => {
 
     await expect(
       installExtension({ piwinRoot: root, source: { kind: 'git', url: repo } }),
-    ).rejects.toThrow(/pi install npm:@injaneity\/pi-computer-use/);
+    ).rejects.toThrow(/pi install npm:@injaneity\/pi-computer-use[\s\S]*Pi TUI plugin/);
   });
 
   it('installs from a git subdirectory that has an index.ts', async () => {

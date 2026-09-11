@@ -77,6 +77,10 @@ describe('ExtensionsPanel refresh', () => {
     });
     expect(request).toHaveBeenCalledWith({ type: 'extensions/list' });
     expect(request.mock.calls.some((call) => call[0]?.type === 'extensions/apply')).toBe(false);
+    const compat = container.querySelector('[data-testid="extensions-compat-notice"]');
+    expect(compat?.textContent).toContain('Pi extensions change the Agent, not the UI');
+    expect(compat?.textContent).toContain('confirm / select / input / notify');
+    expect(compat?.textContent).toContain('Pi TUI chrome');
 
     const refresh = container.querySelector('[data-testid="extensions-refresh"]');
     expect(refresh).toBeTruthy();
@@ -194,6 +198,74 @@ describe('ExtensionsPanel refresh', () => {
       ).click();
     });
     expect(container.querySelector('[data-testid="extensions-install-error"]')).toBeNull();
+  });
+
+  it('explains that npm-distributed Pi TUI packages will not work', async () => {
+    const request = vi.fn(async (command: { type: string }) => {
+      if (command.type === 'extensions/list') {
+        return {
+          type: 'response' as const,
+          command: 'extensions/list',
+          success: true as const,
+          data: { extensions: [] },
+        };
+      }
+      if (command.type === 'extensions/install') {
+        return {
+          type: 'response' as const,
+          command: 'extensions/install',
+          success: false as const,
+          error:
+            '@injaneity/pi-computer-use is an npm-distributed package. Install it with `pi install npm:@injaneity/pi-computer-use`.',
+        };
+      }
+      return { type: 'response' as const, command: command.type, success: true as const, data: {} };
+    });
+
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        (
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <DesktopLocaleProvider locale="en" onLocaleChange={() => {}}>
+              <ExtensionsPanel projectPath={null} request={request as never} variant="inline" />
+            </DesktopLocaleProvider>
+          </PiwinUiProvider>
+        ) as ReactElement,
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      (
+        container?.querySelector('[data-testid="extensions-install-toggle"]') as HTMLButtonElement
+      ).click();
+    });
+    const source = container.querySelector(
+      '.settings-toolbar--install input.piwin-text-input-field',
+    ) as HTMLInputElement;
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value',
+      )?.set;
+      setter?.call(source, '/tmp/ext');
+      source.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => {
+      (
+        container?.querySelector('[data-testid="extensions-install-submit"]') as HTMLButtonElement
+      ).click();
+      await Promise.resolve();
+    });
+
+    const notice = container.querySelector('[data-testid="extensions-install-error"]');
+    expect(notice?.textContent).toContain('This is an npm package');
+    expect(notice?.textContent).toContain('Pi TUI plugins');
   });
 });
 

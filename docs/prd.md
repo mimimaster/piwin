@@ -344,6 +344,7 @@ piwin host listen     # planned standalone Host Server entry point
 ~/.piwin/
   config.json            # Host-owned product config
   credentials/           # Host-owned; keychain-backed where possible
+  pi-agent/auth.json     # Host-owned Pi subscription OAuth (not ~/.pi/agent)
   sessions-index/       # projection over Pi sessions
   skills/               # or links into mapped Pi skills
   mcp.json

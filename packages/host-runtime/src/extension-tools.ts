@@ -61,7 +61,11 @@ function parseInstallSource(args: Record<string, unknown>): InstallSource | { er
     if (looksLikeNpmSpec) {
       const name = url.replace(/^npm:/i, '');
       return {
-        error: `"${name}" looks like an npm package, not a git repository. Tell the user to run \`pi install npm:${name}\` — this tool only installs from a git URL or a local path.`,
+        error:
+          `"${name}" looks like an npm package, not a git repository. Tell the user to run \`pi install npm:${name}\` ` +
+          'then Refresh Settings → Extensions if it is an Agent-runtime extension (tools/hooks). ' +
+          'Pi TUI plugins (custom UI, themes, keybindings) are not supported in piwin. ' +
+          'This tool only installs from a git URL or a local path.',
       };
     }
     const subdir = typeof args.subdir === 'string' ? args.subdir.trim() : '';
@@ -128,10 +132,13 @@ export function buildExtensionTools(options: BuildExtensionToolsOptions): HostTo
         description:
           'Install a Pi extension for the user, enable it, and activate it after this turn ' +
           '(new tools are available on the next turn; no restart). ' +
+          'piwin supports Agent Runtime extensions: extra tools, event hooks, and confirm/select/input/notify. ' +
+          'Pi TUI plugins (custom UI, widgets, themes, keybindings, editor, custom rendering, /reload) do not work. ' +
+          'Tell the user that boundary before claiming the extension will change the Desktop window. ' +
           'Sources: kind "git" (a repo whose entry is a root index.ts or a single self-contained .ts file; ' +
           'set "subdir" when it lives in a folder), or kind "local" (an absolute path). ' +
           'Packages that need `npm install` cannot be installed this way — the tool returns the ' +
-          '`pi install npm:<name>` command to give the user instead. ' +
+          '`pi install npm:<name>` command to give the user instead, plus the TUI-unsupported warning. ' +
           'The user approves every install in a permission prompt.',
         parameters: {
           type: 'object',
