@@ -155,6 +155,32 @@ describe('host problem copy', () => {
     ).toMatch(/无法插入斜杠命令/);
   });
 
+  it('maps a lost data-directory lock off the protocol string', () => {
+    expect(
+      hostFailureNotice(
+        {
+          type: 'response',
+          command: 'config/get',
+          success: false,
+          error: 'piwin root ownership unavailable: piwin root owner record is unavailable',
+        },
+        'zh-CN',
+      ),
+    ).toBe('Host 数据目录已失效，请重启 Host。');
+    expect(
+      hostFailureNotice(
+        {
+          type: 'response',
+          command: 'config/get',
+          success: false,
+          error: 'This Host lost its data directory lock. Restart the Host.',
+          problem: { code: 'piwin-root-lease-compromised', retryable: false },
+        },
+        'en',
+      ),
+    ).toBe('This Host lost its data directory lock. Restart the Host.');
+  });
+
   it('maps a dropped Host socket to reconnecting copy', () => {
     expect(
       hostFailureNotice(

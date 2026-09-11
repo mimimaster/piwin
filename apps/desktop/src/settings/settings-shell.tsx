@@ -19,7 +19,10 @@ import {
 import { Notice, Spinner } from '@piwin/ui-kit';
 import { getDesktopCopy } from '../desktop-locale';
 import { useDesktopLocale } from '../desktop-locale-context';
+import { openExternalUrl } from '../open-external-url.js';
 import { IconChevronLeft } from '../shell-icons';
+
+const DOCS_HOME_URL = 'https://docs.planora.chat';
 import {
   WindowDragRegion,
   handleNativeWindowDragMouseDown,
@@ -434,12 +437,47 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
             ) : null}
           </nav>
           <div className="settings-nav-footer">
-            <span className="settings-connection-dot" aria-hidden />
-            {contextValue.remoteSettingsReadOnly
-              ? translator.settings.remoteHostViewOnly
-              : contextValue.hostClient?.getTransport?.() === 'remote'
-                ? translator.settings.remoteSavedOnHost
-                : translator.settings.configuredLocally}
+            <button
+              type="button"
+              className="settings-docs-tab shell-item"
+              onClick={() => {
+                void openExternalUrl(DOCS_HOME_URL);
+              }}
+              data-testid="settings-nav-docs"
+              title={`Docs (${DOCS_HOME_URL})`}
+              aria-label="Docs"
+            >
+              <span className="settings-nav-icon" aria-hidden="true">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z" />
+                  <path d="M6.5 17H20" />
+                </svg>
+              </span>
+              <span className="settings-nav-label">Docs</span>
+              <svg
+                className="settings-docs-arrow"
+                width="10"
+                height="10"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M7 17 17 7M7 7h10v10" />
+              </svg>
+            </button>
           </div>
         </aside>
         <div className="settings-main" ref={mainScrollRef} data-testid="settings-main-scroll">

@@ -80,6 +80,7 @@ html:is(
   }
 
   .settings-nav-item,
+  .settings-docs-tab,
   .shell-item {
     display: flex;
     align-items: center;
@@ -91,9 +92,12 @@ html:is(
     color: var(--t2);
     background: transparent;
     box-shadow: none;
+    border: 0;
+    cursor: pointer;
   }
 
   .settings-nav-item:hover,
+  .settings-docs-tab:hover,
   .shell-item:hover {
     background: var(--s2);
     color: var(--t1);
@@ -113,9 +117,30 @@ html:is(
   }
 
   .settings-nav-footer {
-    font: 11px var(--mono);
+    padding: 4px 0 6px;
+    border-top: none;
+    margin-top: auto;
+  }
+
+  .settings-docs-tab:active {
+    background: var(--s3);
+  }
+
+  .settings-docs-tab .settings-nav-label {
+    flex: none;
+  }
+
+  .settings-docs-arrow {
+    width: 10px;
+    height: 10px;
     color: var(--t4);
-    padding: 8px 10px 10px;
+    margin-left: -2px;
+    transition: transform 0.15s ease, color 0.15s ease;
+  }
+
+  .settings-docs-tab:hover .settings-docs-arrow {
+    color: var(--t1);
+    transform: translate(1px, -1px);
   }
 
   .settings-main {

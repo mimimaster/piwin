@@ -313,10 +313,12 @@ html:not([data-theme-mode='light']) .settings-nav-mark-img--for-dark {
   text-transform: uppercase;
 }
 
-.settings-nav-item {
+.settings-nav-item,
+.settings-docs-tab {
   display: flex;
   align-items: center;
   gap: var(--s-4);
+  width: 100%;
   text-align: left;
   border: 0;
   border-radius: var(--r-control);
@@ -333,7 +335,8 @@ html:not([data-theme-mode='light']) .settings-nav-mark-img--for-dark {
     color var(--t-1) var(--ease-out);
 }
 
-.settings-nav-item:hover {
+.settings-nav-item:hover,
+.settings-docs-tab:hover {
   color: var(--text-1);
   background: var(--hover);
 }
@@ -376,19 +379,28 @@ html:not([data-theme-mode='light']) .settings-nav-mark-img--for-dark {
 .settings-nav-footer {
   display: flex;
   align-items: center;
-  gap: var(--s-3);
-  padding: var(--s-5) var(--s-4) 0;
-  padding-right: var(--s-6);
-  font-size: var(--fs-micro);
-  color: var(--text-4);
+  padding: var(--s-2) var(--s-5) 0 0;
+  margin-top: auto;
   border-top: none;
 }
 
-.settings-connection-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--mint);
+.settings-docs-tab .settings-nav-label {
+  flex: none;
+}
+
+.settings-docs-arrow {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 2px;
+  color: var(--text-4);
+  opacity: 0.7;
+  transition: transform var(--dur-fast), color var(--dur-fast), opacity var(--dur-fast);
+}
+
+.settings-docs-tab:hover .settings-docs-arrow {
+  color: var(--text-1);
+  opacity: 1;
+  transform: translate(1px, -1px);
 }
 
 /* ── Main content area ────────────────────────────────────────────────── */

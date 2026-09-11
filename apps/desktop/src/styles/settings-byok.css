@@ -157,6 +157,12 @@
   padding-bottom: var(--s-4);
 }
 
+.provider-category-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
 /* ── Provider row ─────────────────────────────────────────────────────── */
 
 .provider-row {

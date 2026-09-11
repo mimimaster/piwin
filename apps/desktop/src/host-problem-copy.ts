@@ -42,7 +42,25 @@ export function hostFailureNotice(response: HostResponse, locale: DesktopLocale)
       ? 'Host 还没确认这条操作。会话还在，再发一次；不要当成断线。'
       : 'The Host did not acknowledge that action in time. The session is still there — send again.';
   }
+  if (isPiwinRootLeaseError(response.error)) {
+    return piwinRootLeaseNotice(locale);
+  }
   return remoteAdmissionNotice(response.error, locale) ?? response.error;
+}
+
+function isPiwinRootLeaseError(error: string): boolean {
+  return (
+    error.includes('piwin root ownership') ||
+    error.includes('piwin root owner') ||
+    error.includes('piwin root lease') ||
+    error.includes('data directory lock')
+  );
+}
+
+function piwinRootLeaseNotice(locale: DesktopLocale): string {
+  return locale === 'zh-CN'
+    ? 'Host 数据目录已失效，请重启 Host。'
+    : 'This Host lost its data directory lock. Restart the Host.';
 }
 
 function remoteAdmissionNotice(error: string, locale: DesktopLocale): string | undefined {
@@ -93,6 +111,8 @@ export function hostProblemNotice(
       return translator.settings.todoConflict;
     case 'idempotency-conflict':
       return copy.composer.requestDuplicateKey;
+    case 'piwin-root-lease-compromised':
+      return piwinRootLeaseNotice(locale);
     default:
       return undefined;
   }

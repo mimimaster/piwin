@@ -125,11 +125,23 @@ export const SettingsPanel = memo(function SettingsPanel({
     if (message !== null && isRemoteCommandGapError(message)) {
       return;
     }
-    setErrorState(message);
-    if (message) {
+    const mapped =
+      message === null
+        ? null
+        : hostFailureNotice(
+            {
+              type: 'response',
+              command: 'config/get',
+              success: false,
+              error: message,
+            },
+            locale,
+          ) || message;
+    setErrorState(mapped);
+    if (mapped) {
       setInfoMessage(null);
     }
-  }, []);
+  }, [locale]);
 
   // Load once per Host connection. `seedConfig` updates after save must not
   // refetch and clobber the form (reranker/extras looked "unsaved").
