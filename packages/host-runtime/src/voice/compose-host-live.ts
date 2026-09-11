@@ -25,7 +25,8 @@ export function composeHostLive(deps: HostRuntimeKernel): void {
     ...(piwinRoot === undefined ? {} : { piwinRoot }),
     ...(deps.options.mock === true ? { mock: true } : {}),
     authReady: async () => deps.codexLiveAuthPresent,
-    resolveAuth: () => readOpenaiCodexLiveAuth(),
+    resolveAuth: () =>
+      readOpenaiCodexLiveAuth(piwinRoot === undefined ? {} : { piwinRoot }),
     getCoordinator: () => deps.liveCallCoordinator ?? null,
   });
   deps.liveSettings = composed.service;
@@ -38,6 +39,7 @@ export function composeHostLive(deps: HostRuntimeKernel): void {
       return record.model ?? deps.sessionModels.get(sessionId);
     },
     secrets: createSecretResolver(piwinRoot === undefined ? {} : { piwinRoot }),
+    ...(piwinRoot === undefined ? {} : { piwinRoot }),
   };
   const startupContext =
     deps.options.mock === true
@@ -81,7 +83,7 @@ export function composeHostLive(deps: HostRuntimeKernel): void {
     pushOwnerAction: (action) => deps.push(action),
   });
   deps.liveEnabledFromConfig = true;
-  void readOpenaiCodexLiveAuth().then((auth) => {
+  void readOpenaiCodexLiveAuth(piwinRoot === undefined ? {} : { piwinRoot }).then((auth) => {
     deps.codexLiveAuthPresent = auth !== null;
   }).catch(() => console.error('[piwin-live] initial authentication check failed'));
 }

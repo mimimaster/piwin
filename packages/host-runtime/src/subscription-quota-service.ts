@@ -12,7 +12,7 @@ import {
   defaultPiAuthPaths,
   type SubscriptionAuthPort,
 } from '@piwin/agent-host';
-import { getPiAgentDir } from './paths.js';
+import { resolveHostPiAgentDir } from './paths.js';
 
 export type SubscriptionQuotaServiceOptions = {
   piwinRoot?: string;
@@ -45,7 +45,12 @@ export class SubscriptionQuotaService {
       this.port = options.port;
       this.portFactory = async () => options.port!;
     } else {
-      const paths = defaultPiAuthPaths(getPiAgentDir(options.piAgentDir));
+      const paths = defaultPiAuthPaths(
+        resolveHostPiAgentDir({
+          ...(options.piwinRoot !== undefined ? { piwinRoot: options.piwinRoot } : {}),
+          ...(options.piAgentDir !== undefined ? { piAgentDir: options.piAgentDir } : {}),
+        }),
+      );
       this.portFactory = async () =>
         createSubscriptionAuthPort({
           authPath: paths.authPath,

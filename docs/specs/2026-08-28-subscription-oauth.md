@@ -22,7 +22,7 @@ piwin is a Host-first **agent**, not a proxy.
 
 | Layer | piwin | CPA (local reference) |
 |-------|-------|------------------------|
-| Upstream OAuth files | `~/.pi/agent/auth.json` (Pi, one credential per provider id) | `auth-dir` many `*_oauth_*.json` |
+| Upstream OAuth files | `{PIWIN_ROOT}/pi-agent/auth.json` (Host-owned Pi `auth.json`) | `auth-dir` many `*_oauth_*.json` |
 | Channels | `config.providers[]` BYOK | `openai-compatibility` + yaml API keys |
 | Downstream client keys | none (we are the client) | `api-keys:` on `:8317` |
 | Multi-account rotation | out of scope | `routing.strategy: round-robin` |
@@ -115,7 +115,7 @@ CPA docker-compose publishes `127.0.0.1:1455` and `54545` for **CPA’s** Codex/
 
 | What | Where | Owner |
 |------|-------|-------|
-| OAuth | `~/.pi/agent/auth.json` 0600 | Pi via one Host auth `ModelRuntime` / `CredentialStore` |
+| OAuth | `{PIWIN_ROOT}/pi-agent/auth.json` 0600 | Host-owned Pi `ModelRuntime` / `CredentialStore` |
 | Channel keys | `~/.piwin` keychain / `secrets/` | `SecretResolver` |
 | Channels | `config.providers[]` | settings/apply |
 | Default chat | `defaultProviderId` + `defaultModelId` | may be a v1 account; first login may seed |
@@ -124,9 +124,9 @@ No tokens in config, JSONL, logs, diagnostics, journal, or remote projection.
 
 **One Host auth runtime** for login/status/logout. Session SDK/RPC `ModelRuntime.create()` for prompts only — they never `login()`/`logout()`.
 
-**Share with Pi CLI:** same file. `auth/logout openai-codex` logs out `pi` for Codex too. Copy on the card.
+**Do not share with Pi CLI by default.** `pi` still reads `~/.pi/agent/auth.json`. Host login/logout only mutates `{PIWIN_ROOT}/pi-agent/auth.json`. The default `~/.piwin` root may copy the legacy Pi file once if the Host file is missing; test/custom roots never inherit it.
 
-**Watch `auth.json`** (CPA pattern: fs events, coalesce add/modify/delete per provider id, debounce). External Pi CLI changes → `auth/updated`. If a **v1** oauth **disappears**, §7.4 (cancel matching Runs, teardown, then treat as logged-out). Anthropic oauth appearing/disappearing in the file does **not** change the product picker.
+**Watch Host `auth.json`** (CPA pattern: fs events, coalesce add/modify/delete per provider id, debounce). External edits of the Host file → `auth/updated`. If a **v1** oauth **disappears**, §7.4 (cancel matching Runs, teardown, then treat as logged-out). Anthropic oauth appearing/disappearing in the file does **not** change the product picker.
 
 If `auth.json` is missing, Pi `ModelRuntime.create` may create an empty file; Host does not chmod it world-readable. If the file is corrupt, `auth/status` fails with mapped `auth-store-unreadable`; cards show logged-out; do not delete the file automatically.
 
@@ -565,7 +565,7 @@ Tokens yes. Cost column may be “—” for subscription rows. Remaining **subs
 
 ## 22. Settings → OAuth quota drawer
 
-`auth/quota` / `auth/reset-quota` read the same OAuth material as login (`~/.pi/agent/auth.json`). Host refreshes an expired access token once via Pi `ModelRuntime.refresh`, then calls the vendor endpoint. Failures become `quota.error` (drawer copy + Retry). Do not invent percentages when the vendor is unreachable.
+`auth/quota` / `auth/reset-quota` read the same OAuth material as login (`{PIWIN_ROOT}/pi-agent/auth.json`). Host refreshes an expired access token once via Pi `ModelRuntime.refresh`, then calls the vendor endpoint. Failures become `quota.error` (drawer copy + Retry). Do not invent percentages when the vendor is unreachable.
 
 | Provider | Endpoint | Auth | What we show |
 |---|---|---|---|

@@ -547,8 +547,8 @@ export function SubscriptionAccountsPanel(): ReactElement {
         <Info size={13} className="oauth-notice-icon" />
         <p className="oauth-accounts-footnote">
           {isChinese
-            ? '提示：套餐凭证均独立加密托管于本地 ~/.pi/agent/auth.json。图片及视频生成仍优先采用通道与独立 API 密钥。'
-            : 'Tip: Subscription credentials are securely stored in ~/.pi/agent/auth.json. Image and video models continue to use dedicated channels.'}
+            ? '提示：套餐凭证均独立加密托管于本地 ~/.piwin/pi-agent/auth.json。图片及视频生成仍优先采用通道与独立 API 密钥。'
+            : 'Tip: Subscription credentials are securely stored in ~/.piwin/pi-agent/auth.json. Image and video models continue to use dedicated channels.'}
         </p>
       </div>
       {confirmDialog.dialog}

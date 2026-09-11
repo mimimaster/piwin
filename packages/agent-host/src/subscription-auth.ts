@@ -4,7 +4,6 @@
  */
 import { join } from 'node:path';
 import {
-  isThinkingLevel,
   isV1SubscriptionProviderId,
   type AuthPromptOption,
   type SubscriptionAccountQuota,
@@ -13,6 +12,7 @@ import {
   fetchSubscriptionQuota,
   resetSubscriptionQuota,
 } from './subscription-quota-fetcher.js';
+import { thinkingLevelsFromPiMap } from './map-thinking-level.js';
 
 export type SubscriptionCredentialType = 'oauth' | 'api_key';
 
@@ -307,16 +307,6 @@ function mapPrompt(prompt: PiAuthPrompt): HostAuthPrompt {
   return mapped;
 }
 
-function thinkingLevelsFromMap(
-  map: Readonly<Record<string, string | null | undefined>> | undefined,
-): readonly string[] | undefined {
-  if (!map || typeof map !== 'object') {
-    return undefined;
-  }
-  const levels = Object.keys(map).filter(isThinkingLevel);
-  return levels.length > 0 ? levels : undefined;
-}
-
 function mapCatalogModel(model: PiCatalogModel): SubscriptionCatalogModel {
   const mapped: SubscriptionCatalogModel = {
     id: model.id,
@@ -328,7 +318,7 @@ function mapCatalogModel(model: PiCatalogModel): SubscriptionCatalogModel {
   if (Array.isArray(model.thinkingLevels) && model.thinkingLevels.length > 0) {
     mapped.thinkingLevels = model.thinkingLevels;
   } else {
-    const fromMap = thinkingLevelsFromMap(model.thinkingLevelMap);
+    const fromMap = thinkingLevelsFromPiMap(model.thinkingLevelMap);
     if (fromMap) {
       mapped.thinkingLevels = fromMap;
     }

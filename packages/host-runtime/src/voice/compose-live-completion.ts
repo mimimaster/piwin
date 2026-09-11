@@ -3,6 +3,7 @@ import { completeModelText } from '@piwin/agent-host';
 import { resolveChatModel, type ResolveChatModelAccounts } from '../resolve-chat-model.js';
 import { resolveDefaultModelRef, findEnabledProvider } from '../provider-helpers.js';
 import type { SecretResolver } from '../secret-resolver.js';
+import { getPiwinPiAgentDir } from '../paths.js';
 
 export type LiveSessionModelCompletionRequest = {
   sessionId: string;
@@ -33,6 +34,7 @@ export type ComposeLiveSessionCompletionInput = {
   resolveSessionModel: (sessionId: string) => Promise<ModelRef | undefined>;
   secrets: Pick<SecretResolver, 'resolveProviderSecret'>;
   complete?: typeof completeModelText;
+  piwinRoot?: string;
 };
 
 /** Shared tool-free completion used by intent review and startup summaries. */
@@ -71,6 +73,7 @@ export function createLiveSessionModelCompletion(
           {
             ...(provider ? { provider } : {}),
             ...(apiKey ? { apiKey } : {}),
+            agentDir: getPiwinPiAgentDir(input.piwinRoot),
           },
         );
       },

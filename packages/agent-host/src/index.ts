@@ -66,6 +66,11 @@ export {
   shouldRegisterCompiledProvider,
 } from './subscription-auth.js';
 export {
+  PIWIN_PI_AGENT_DIR_ENV,
+  PIWIN_PI_AGENT_DIRNAME,
+  resolvePiRuntimeAgentDir,
+} from './pi-runtime-agent-dir.js';
+export {
   fetchSubscriptionQuota,
   resetSubscriptionQuota,
   normalizeCodexUsagePayload,

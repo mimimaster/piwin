@@ -13,7 +13,6 @@
  * `piBuiltinToolNames` when present).
  */
 
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { readFile } from 'node:fs/promises';
 import type {
@@ -52,6 +51,7 @@ import {
   createSeededPiSettingsManager,
 } from '../seeded-pi-session.js';
 import { createPiwinSettingsManager } from '../pi-settings-manager.js';
+import { resolvePiRuntimeAgentDir } from '../pi-runtime-agent-dir.js';
 import {
   readPiAutoCompactionEnabled,
   setPiAutoCompactionEnabled,
@@ -90,8 +90,8 @@ export type WorkerPiSessionFactoryInput = {
 /** Options for the factory builder. */
 export type WorkerPiSessionFactoryOptions = {
   /**
-   * Pi agent directory (`~/.pi/agent`). Defaults to the standard location.
-   * The worker shares Pi native auth/models files but does NOT read piwin config.
+   * Host-owned Pi runtime dir (`{PIWIN_ROOT}/pi-agent`) for auth.json / models.json.
+   * Defaults from PIWIN_PI_AGENT_DIR or PIWIN_ROOT. The worker does NOT read piwin config.
    */
   agentDir?: string;
   /**
@@ -331,7 +331,7 @@ export function buildWorkerProviderRegistration(
 export function createWorkerPiSessionFactory(
   options: WorkerPiSessionFactoryOptions = {},
 ): (input: WorkerPiSessionFactoryInput) => Promise<WorkerPiSessionLike> {
-  const agentDir = options.agentDir ?? join(homedir(), '.pi', 'agent');
+  const agentDir = resolvePiRuntimeAgentDir(options.agentDir);
 
   return async (input) => {
     const piModule = options.piModule ?? (await import('@earendil-works/pi-coding-agent'));

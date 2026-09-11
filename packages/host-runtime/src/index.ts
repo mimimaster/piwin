@@ -53,6 +53,7 @@ export {
 } from './config-store.js';
 export {
   getPiAgentDir,
+  getPiwinPiAgentDir,
   getPiwinRoot,
   getPiwinConfigPath,
   getPiwinMediaDir,

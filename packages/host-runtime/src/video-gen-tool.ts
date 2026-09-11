@@ -183,11 +183,13 @@ export function buildVideoGenTool(options: VideoGenToolOptions): HostToolRegistr
           : undefined;
       const apiKey = providerUsesSubscriptionMedia(provider, 'video')
         ? (
-            await loadSubscriptionMediaAuth(provider.id).catch((error: unknown) => {
-              throw new VideoGenConfigError(
-                error instanceof Error ? error.message : `video_gen: ${String(error)}`,
-              );
-            })
+            await loadSubscriptionMediaAuth(provider.id, { piwinRoot: options.piwinRoot }).catch(
+              (error: unknown) => {
+                throw new VideoGenConfigError(
+                  error instanceof Error ? error.message : `video_gen: ${String(error)}`,
+                );
+              },
+            )
           ).accessToken
         : await secretResolver.resolveProviderSecret(provider);
       const durationSeconds = readFiniteNumber(args.durationSeconds);

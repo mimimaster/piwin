@@ -1,6 +1,5 @@
 /** Backend-only Pi SDK session creation from exact contracts and ports. */
 
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { AgentEvent, BackendPreparedPrompt } from '@piwin/contracts';
 import {
@@ -51,12 +50,13 @@ import {
   createRunInterventionStager,
   type PiRunInterventionSession,
 } from '../run-intervention-stager.js';
+import { resolvePiRuntimeAgentDir } from '../pi-runtime-agent-dir.js';
 
 /** Options for backend-only SDK session creation. */
 export type PiSdkBackendOptions = {
   /** Test seam for the Pi module; production dynamically imports Pi. */
   piModule?: Record<string, unknown>;
-  /** Pi-native agent directory. Product config is deliberately not read here. */
+  /** Host-owned Pi runtime dir (`{PIWIN_ROOT}/pi-agent`). Inventory stays at ~/.pi/agent. */
   agentDir?: string;
   /** Test seam for a pre-constructed provider runtime. */
   modelRuntime?: PiModelRuntime;
@@ -81,7 +81,7 @@ export async function createBackendSdkSession(
     throw new Error('createAgentSession export missing from @earendil-works/pi-coding-agent');
   }
 
-  const agentDir = options.agentDir ?? join(homedir(), '.pi', 'agent');
+  const agentDir = resolvePiRuntimeAgentDir(options.agentDir);
   const resourceLoader = await createBlueprintResourceLoader(
     serializableBlueprint,
     agentDir,

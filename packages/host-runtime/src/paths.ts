@@ -51,6 +51,23 @@ export function getPiAgentDir(override?: string): string {
   return join(homedir(), '.pi', 'agent');
 }
 
+/** Host-owned Pi runtime dir for subscription OAuth (`auth.json`) and catalog cache. */
+export function getPiwinPiAgentDir(piwinRoot?: string): string {
+  return join(getPiwinRoot(piwinRoot), 'pi-agent');
+}
+
+/** Auth/runtime dir. `piAgentDir` is a test override; production follows PIWIN_ROOT. */
+export function resolveHostPiAgentDir(options?: {
+  piwinRoot?: string;
+  piAgentDir?: string;
+}): string {
+  const override = options?.piAgentDir?.trim();
+  if (override) {
+    return override;
+  }
+  return getPiwinPiAgentDir(options?.piwinRoot);
+}
+
 export function getPiwinConfigPath(rootDir: string): string {
   return join(rootDir, 'config.json');
 }

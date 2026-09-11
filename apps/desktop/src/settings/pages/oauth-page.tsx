@@ -2,7 +2,7 @@ import type { ReactElement } from 'react';
 import { useDesktopLocale } from '../../desktop-locale-context.js';
 import { SubscriptionAccountsPanel } from '../../subscription-accounts.js';
 
-/** Settings → OAuth. Accounts live in Pi auth.json; channels stay under Models. */
+/** Settings → OAuth. Accounts live in Host pi-agent/auth.json; channels stay under Models. */
 export function OauthPage(): ReactElement {
   const { locale } = useDesktopLocale();
   const isChinese = locale === 'zh-CN';
@@ -18,7 +18,7 @@ export function OauthPage(): ReactElement {
           <div className="oauth-hero-tips">
             <span className="oauth-hero-tip-item">
               <span className="oauth-hero-tip-dot" />
-              {isChinese ? '凭证托管于 ~/.pi/agent/auth.json' : 'Credentials saved in ~/.pi/agent/auth.json'}
+              {isChinese ? '凭证托管于 ~/.piwin/pi-agent/auth.json' : 'Credentials saved in ~/.piwin/pi-agent/auth.json'}
             </span>
             <span className="oauth-hero-tip-item">
               <span className="oauth-hero-tip-dot" />

@@ -154,4 +154,32 @@ describe('seed subscription provider', () => {
       'gpt-5.4',
     ]);
   });
+
+  it('refreshes subscription thinkingLevels from the catalog', () => {
+    const config = createDefaultPiwinConfig();
+    config.providers = [
+      {
+        id: 'xai',
+        name: 'Grok',
+        protocol: 'openai-compatible',
+        baseUrl: 'oauth://xai',
+        source: 'subscription',
+        models: [
+          {
+            id: 'grok-4.5',
+            label: 'Grok 4.5',
+            thinkingLevels: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
+          },
+        ],
+      },
+    ];
+    const merged = upsertSubscriptionProvider(config, 'xai', [
+      { id: 'grok-4.5', name: 'Grok 4.5', thinkingLevels: ['low', 'medium', 'high'] },
+    ]);
+    expect(merged.providers[0]?.models.find((model) => model.id === 'grok-4.5')?.thinkingLevels).toEqual([
+      'low',
+      'medium',
+      'high',
+    ]);
+  });
 });

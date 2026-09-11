@@ -1,6 +1,6 @@
 /**
  * Pi-native subscription / vendor OAuth.
- * Accounts live in ~/.pi/agent/auth.json; channels stay in config.providers[].
+ * Accounts live in {PIWIN_ROOT}/pi-agent/auth.json; channels stay in config.providers[].
  * Allowlist is Pi subscription OAuth (isSubscription), not every Pi oauth helper.
  * OpenRouter is a BYOK key channel. Radius is a gateway helper. Antigravity is not in Pi.
  */

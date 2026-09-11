@@ -24,6 +24,10 @@ import {
   EXTENSION_REGISTRY_MUTATING_COMMANDS,
   TRANSCRIPT_STORE_LEASED_COMMANDS,
 } from './host-runtime-types.js';
+import { PiwinRootLeaseCompromisedError } from './piwin-root-lease.js';
+
+const ROOT_LEASE_UNAVAILABLE_ERROR =
+  'This Host lost its data directory lock. Restart the Host.';
 
 export async function handleCommand(
   deps: HostRuntimeKernel,
@@ -35,7 +39,10 @@ export async function handleCommand(
     return fail(
       typeof command.id === 'string' ? command.id : undefined,
       command.type,
-      `piwin root ownership unavailable: ${formatError(error)}`,
+      error instanceof PiwinRootLeaseCompromisedError
+        ? ROOT_LEASE_UNAVAILABLE_ERROR
+        : `piwin root ownership unavailable: ${formatError(error)}`,
+      { code: 'piwin-root-lease-compromised', retryable: false },
     );
   }
   if (TRANSCRIPT_STORE_LEASED_COMMANDS.has(command.type)) {

@@ -13,6 +13,8 @@ import {
   WORKER_POOL_FOREGROUND_RESERVE,
   WORKER_REPLACEMENT_HEADROOM,
   normalizeExecutionConfig,
+  resolveProviderCategory,
+  resolveModelCategory,
 } from './config.js';
 import type {
   ModelConfigEntry,
@@ -499,3 +501,29 @@ describe('SessionRuntimeRetentionConfig normalization (ADR 0040)', () => {
     });
   });
 });
+
+describe('resolveProviderCategory & resolveModelCategory', () => {
+  it('resolves explicit category when present', () => {
+    expect(resolveProviderCategory({ category: 'package' })).toBe('package');
+    expect(resolveProviderCategory({ category: 'custom' })).toBe('custom');
+    expect(resolveProviderCategory({ category: 'package', source: 'channel' })).toBe('package');
+    expect(resolveProviderCategory({ category: 'custom', source: 'subscription' })).toBe('custom');
+  });
+
+  it('falls back to source: subscription -> package, otherwise custom', () => {
+    expect(resolveProviderCategory({ source: 'subscription' })).toBe('package');
+    expect(resolveProviderCategory({ source: 'channel' })).toBe('custom');
+    expect(resolveProviderCategory({})).toBe('custom');
+  });
+
+  it('resolves model category with inheritance from provider', () => {
+    expect(resolveModelCategory({ category: 'package' })).toBe('package');
+    expect(resolveModelCategory({ category: 'custom' })).toBe('custom');
+    expect(resolveModelCategory({}, { category: 'package' })).toBe('package');
+    expect(resolveModelCategory({}, { source: 'subscription' })).toBe('package');
+    expect(resolveModelCategory({}, { category: 'custom' })).toBe('custom');
+    expect(resolveModelCategory({}, {})).toBe('custom');
+    expect(resolveModelCategory({})).toBe('custom');
+  });
+});
+

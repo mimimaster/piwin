@@ -12,6 +12,7 @@ mkdir -p "$PIWIN_ROOT"
 chmod 700 "$PIWIN_ROOT"
 
 echo "[start-test-host] PIWIN_ROOT=$PIWIN_ROOT"
+echo "[start-test-host] subscription auth=$PIWIN_ROOT/pi-agent/auth.json"
 echo "[start-test-host] listen=ws://${PIWIN_HOST_BIND}:${PIWIN_HOST_PORT}"
 echo "[start-test-host] production Desktop config remains at $HOME/.piwin"
 
