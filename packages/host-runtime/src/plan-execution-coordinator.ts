@@ -36,6 +36,7 @@ export function buildInlineDirective(plan: SessionPlan): InlineDirective {
       `[piwin-plan-execute:inline v2] Plan: ${plan.title}`,
       `Goal: ${plan.goal}`,
       '',
+      'Execute this plan directly in the current session. Do not spawn subagents or ask the user to choose an execution mode again.',
       'Success: complete each step against its acceptance criteria with verification evidence.',
       'Use piwin_plan_set_step (active → done/skipped); mark done only with a short verification note.',
       'Stop at blockers or failed checks; do not invent scope beyond this plan.',

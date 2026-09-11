@@ -17,6 +17,7 @@ import { projectBoundedHealthToolCardSummary } from '@piwin/contracts';
 import { attachFlashcardPresentation } from './flashcard-presentation.js';
 import { attachGoalPresentation } from './goal-presentation.js';
 import { attachKnowledgePresentation } from './knowledge-presentation.js';
+import { attachPlanPresentation } from './plan-presentation.js';
 
 function looksLikeCancelledToolOutput(text: string): boolean {
   const normalized = text.trim().toLowerCase();
@@ -367,7 +368,9 @@ export function buildToolPresentation(input: BuildToolPresentationInput): ToolPr
     ...(input.routedToolName !== undefined ? { routedToolName: input.routedToolName } : {}),
     ...(input.details !== undefined ? { details: input.details } : {}),
   };
-  return attachKnowledgePresentation(attachGoalPresentation(withFlashcard, detailsInput), detailsInput);
+  const withGoal = attachGoalPresentation(withFlashcard, detailsInput);
+  const withKnowledge = attachKnowledgePresentation(withGoal, detailsInput);
+  return attachPlanPresentation(withKnowledge, detailsInput);
 }
 
 function resolveActionFamily(toolName: string): ToolActionFamily {

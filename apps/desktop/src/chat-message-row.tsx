@@ -22,6 +22,7 @@ import {
   getGenerationTool,
   shouldRenderGenerationProgress,
 } from './generation-tool-kind.js';
+import { isPlanCreateTool } from './plan-execution-gate.js';
 import { ConversationResponseContent } from './conversation-response-content.js';
 import { extractFlashcardRecords } from './flashcard-result-extract.js';
 import { FlashcardResultProjection } from './FlashcardResultProjection.js';
@@ -74,6 +75,14 @@ export const ChatMessageRow = memo(
         citationsForRefs(knowledgeCitations, citedKnowledgeRefs(message.text, knowledgeCitations)),
       [knowledgeCitations, message.text],
     );
+    const hasPlanDisplay =
+      message.role === 'assistant' &&
+      message.tools.some(
+        (tool) =>
+          tool.status === 'done' &&
+          isPlanCreateTool(tool) &&
+          tool.presentation?.plan !== undefined,
+      );
     if (message.subagentActivity) {
       if (props.isConversationSession === true) {
         return null;
@@ -111,7 +120,8 @@ export const ChatMessageRow = memo(
       props.runRecord?.outcome !== 'failed' &&
       isAssistantContentEmpty(message) &&
       imageGenerationStatus === null &&
-      videoGenerationStatus === null
+      videoGenerationStatus === null &&
+      !hasPlanDisplay
     ) {
       return null;
     }
@@ -130,7 +140,8 @@ export const ChatMessageRow = memo(
       videoGenerationStatus === null &&
       props.runRecord?.outcome !== 'failed' &&
       !(props.isLastAssistantInTurn === true && props.permissionPrompt) &&
-      !(props.isLastAssistantInTurn === true && !props.streaming)
+      !(props.isLastAssistantInTurn === true && !props.streaming) &&
+      !hasPlanDisplay
     ) {
       return null;
     }
@@ -410,7 +421,6 @@ export const ChatMessageRow = memo(
               : {})}
             interventionEdit={canEditPendingIntervention}
             currentTurn={props.lastUserMessageId === message.id}
-            branchPoint={findActiveBranchPoint(props.branchPoints ?? [], message.id)}
             {...(props.locale !== undefined ? { locale: props.locale } : {})}
           />
         ) : message.role === 'assistant' ? null : (

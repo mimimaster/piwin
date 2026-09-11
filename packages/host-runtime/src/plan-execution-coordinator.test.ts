@@ -45,6 +45,7 @@ describe('buildInlineDirective', () => {
     expect(directive.promptText).toContain('[1] Design');
     expect(directive.promptText).toContain('[2] Implement');
     expect(directive.promptText).toContain('piwin_plan_set_step');
+    expect(directive.promptText).toContain('Do not spawn subagents');
   });
 });
 

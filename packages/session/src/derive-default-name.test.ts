@@ -162,3 +162,13 @@ describe('deriveSessionListName', () => {
     expect(deriveSessionListName({ text: '', attachmentNames: ['...'] })).toBe('Conversation');
   });
 });
+
+
+describe('plan execution action projection', () => {
+  it.each([['inline', '执行计划'], ['verify', '验证计划']])('keeps %s readable without leaking internal directives', (mode, label) => {
+    expect(extractUserFacingBody(`[piwin-plan-execute:${mode} v2] Plan: 移动布局\nGoal: internal goal\nSteps: internal steps`)).toBe(`${label}：移动布局`);
+  });
+  it('does not treat ordinary user text mentioning a marker as an execution action', () => {
+    expect(extractUserFacingBody('Explain this marker: [piwin-plan-execute:inline v2] Plan: demo')).toBe('Explain this marker:');
+  });
+});

@@ -3,7 +3,11 @@
  * heads; hydrate used to drop them and leave a bare localized verb.
  */
 import type { RemoteTranscriptTool, ToolPresentation } from '@piwin/contracts';
-import { isToolKind, projectBoundedHealthToolCardSummary } from '@piwin/contracts';
+import {
+  isToolKind,
+  parsePlanDisplayPayload,
+  projectBoundedHealthToolCardSummary,
+} from '@piwin/contracts';
 import { redactRemoteHostPaths } from './remote-redact.js';
 
 const MAX_REMOTE_TRANSCRIPT_TOOLS = 24;
@@ -100,6 +104,10 @@ function projectRemoteToolPresentation(value: unknown): ToolPresentation | undef
   const health = projectBoundedHealthToolCardSummary(record.health);
   if (health !== undefined) {
     presentation.health = health;
+  }
+  const plan = parsePlanDisplayPayload(record.plan);
+  if (plan !== null) {
+    presentation.plan = plan;
   }
   return presentation;
 }

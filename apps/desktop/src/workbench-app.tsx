@@ -88,6 +88,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     openImages,
     openVideos,
     openFlashcards,
+    openMarketplace,
     closeSubPage,
     flashcardsEntry,
     flashcardsFolderPath,
@@ -95,6 +96,8 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     openFlashcardsProduce,
     sessionListChrome,
     sessionListQuery,
+    sidebarMode,
+    setSidebarMode,
     editingMessageId,
     setEditingMessageId,
     preferences,
@@ -457,6 +460,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       onOpenVideos={openVideos}
                       onOpenFlashcards={openFlashcards}
                       onOpenKnowledge={openKnowledge}
+                      onOpenMarketplace={openMarketplace}
                       onOpenWorkspace={handleOpenWorkspaceClick}
                       onOpenProject={handleOpenProject}
                       onRemoveProject={handleRemoveProjectFromSidebar}
@@ -512,6 +516,8 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       sidebarResize={sidebarResize}
                       backendServiceSessionIds={backendServiceSessionIds}
                       shell={shell}
+                      sidebarMode={sidebarMode}
+                      onSidebarModeChange={setSidebarMode}
                     />
                   }
                   stageHeader={undefined}
@@ -519,6 +525,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                   titlebar={
                     <WorkbenchContextBar
                       state={state}
+                      sidebarMode={sidebarMode}
                       recentProjects={recentProjects}
                       activeSessionName={activeSessionName}
                       activeSessionOrigin={activeSessionOrigin}
@@ -597,6 +604,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       locale={desktopLocale}
                       hostClient={hostClient}
                       state={state}
+                      sidebarMode={sidebarMode}
                       visibleMessages={visibleTranscriptMessages}
                       visibleRunRecordsById={visibleRunRecordsById}
                       historyViewActive={historyViewActive}
@@ -651,13 +659,13 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       onForkFromMessage={handleForkSession}
                       onOpenSession={handleResumeSession}
                       onCompactAbort={handleCompactAbort}
-                      sessionPlan={sessionPlan}
                       onPlanExecute={handlePlanExecute}
                     />
                   }
                   permissionBar={
                     <WorkbenchPermissionBar
                       state={state}
+                      sidebarMode={sidebarMode}
                       extensionUiRequest={extensionUiRequest}
                       sessionPlan={sessionPlan}
                       onPlanAbort={handlePlanAbort}

@@ -10,6 +10,7 @@ import type {
   PermissionDecision,
   PermissionRememberScope,
   PiwinConfig,
+  PlanDisplayPayload,
   PlanExecutionMode,
   ProductSessionLineageView,
   SessionPlan,
@@ -41,6 +42,8 @@ import type { DocumentOpenInput } from './tool-call-card';
 import { TranscriptViewport, type TranscriptViewportProps } from './transcript-viewport';
 import type { DesktopPreferences } from './ui-preferences';
 import type { ExtensionUiRequestState } from './hooks/use-host-bootstrap';
+import { isConversationSessionChrome } from './is-conversation-session';
+import type { SidebarMode } from './sidebar-mode';
 
 export type WorkbenchTranscriptProps = {
   locale: DesktopLocale;
@@ -99,12 +102,15 @@ export type WorkbenchTranscriptProps = {
   onForkFromMessage: (sessionId: string, messageId: string) => void | Promise<void>;
   onOpenSession: (sessionId: string) => void | Promise<void>;
   onCompactAbort: () => void | Promise<void>;
-  sessionPlan?: SessionPlan | null;
-  onPlanExecute?: (mode: PlanExecutionMode) => void | Promise<void>;
+  onPlanExecute?: (
+    display: PlanDisplayPayload,
+    mode: PlanExecutionMode,
+  ) => void | Promise<void>;
   /** Scope-matched sessions offered as resume targets on an empty stage. */
   scopeSessions: readonly SessionListItemUi[];
   onOpenAllSessions?: () => void;
   runningSessionIds?: Record<string, boolean | true>;
+  sidebarMode: SidebarMode;
 };
 
 export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactElement {
@@ -160,11 +166,12 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
     onForkFromMessage,
     onOpenSession,
     onCompactAbort,
-    sessionPlan,
     onPlanExecute,
     scopeSessions,
+    sidebarMode,
   } = props;
   const activeSessionId = state.activeSessionId;
+  const isConversationSession = isConversationSessionChrome(state.activeScope, sidebarMode);
 
   return (
     <>
@@ -210,7 +217,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
             streaming={!historyViewActive && state.streaming}
             activeSessionId={activeSessionId}
             docCardRequest={requestKnowledgeCenter as never}
-            isConversationSession={state.activeScope.kind === 'general'}
+            isConversationSession={isConversationSession}
             onResolveFlashcards={resolveFlashcards}
             livePromptModel={state.pendingTurnModel}
             modelOptions={modelOptions}
@@ -299,7 +306,6 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
             forkCountsByMessageId={forkCountsByMessageId}
             onOpenSession={(sessionId: string) => void onOpenSession(sessionId)}
             derivedActionsDisabled={!activeSessionId || state.streaming || state.awaitingTranscript}
-            {...(sessionPlan ? { sessionPlan } : {})}
             {...(onPlanExecute ? { onPlanExecute } : {})}
           />
         ) : (
@@ -319,6 +325,7 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
 
 export type WorkbenchPermissionBarProps = {
   state: ChatUiState;
+  sidebarMode: SidebarMode;
   extensionUiRequest: ExtensionUiRequestState | null;
   sessionPlan?: SessionPlan | null;
   onPlanAbort?: () => void | Promise<void>;
@@ -335,6 +342,7 @@ export function WorkbenchPermissionBar(
 ): ReactElement | null {
   const {
     state,
+    sidebarMode,
     extensionUiRequest,
     sessionPlan,
     onPlanAbort,
@@ -342,7 +350,7 @@ export function WorkbenchPermissionBar(
     onPermission,
     onExtensionUiResolve,
   } = props;
-  const isConversationSession = state.activeScope.kind === 'general';
+  const isConversationSession = isConversationSessionChrome(state.activeScope, sidebarMode);
   const tray =
     sessionPlan && shouldShowPlanTodoTray({ plan: sessionPlan, isConversationSession }) ? (
       <PlanTodoTray

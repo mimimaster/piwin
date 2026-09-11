@@ -66,6 +66,7 @@ export * from './session-seed.js';
 export * from './session-origin.js';
 export * from './side-chat.js';
 export * from './plan.js';
+export * from './plan-display.js';
 export * from './plan-execution.js';
 export * from './usage.js';
 export * from './context-telemetry.js';

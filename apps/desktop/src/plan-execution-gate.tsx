@@ -1,19 +1,25 @@
 /**
- * Call-chain plan execution picker (proto-01 #13).
+ * Message-bound plan execution picker.
  *
- * Emitted once, on the assistant message that ran `piwin_plan_create`. After
- * that it is ordinary transcript: later turns must not re-home it. Missing
- * create tool means no gate — never fall back to "latest assistant". The
- * composer stays free so the user can ignore the plan and keep working.
- * Conversation (general scope) never shows this gate.
+ * Emitted once, below the answer in the turn that ran `piwin_plan_create`.
+ * The card is a projection of a completed plan-create tool result. It never
+ * owns plan state, waits for a Run, or blocks the composer. Buttons are wired
+ * by the caller to the ordinary prompt submission path.
  */
 import {
+  useCallback,
   useEffect,
   useRef,
+  useState,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactElement,
 } from 'react';
-import type { PlanExecutionMode, SessionPlan } from '@piwin/contracts';
+import {
+  parsePlanDisplayPayload,
+  type PlanDisplayPayload,
+  type PlanExecutionMode,
+  type SessionPlan,
+} from '@piwin/contracts';
 import { getBehaviorActivitySpec } from './behavior-activity.js';
 import type { ChatMessageUi, ToolCardUi } from './chat-ui-types.js';
 import { useDesktopLocale } from './desktop-locale-context';
@@ -23,10 +29,12 @@ import type { DocumentOpenInput } from './tool-call-card.js';
 export type PlanExecutionGateVisibility = {
   plan: SessionPlan | null | undefined;
   isConversationSession: boolean;
+  /** A plan is reviewable only after the producing turn has settled. */
+  streaming?: boolean;
 };
 
 export function canShowPlanExecutionGate(input: PlanExecutionGateVisibility): boolean {
-  if (input.isConversationSession) return false;
+  if (input.isConversationSession || input.streaming) return false;
   const plan = input.plan;
   if (!plan) return false;
   const executionStatus = plan.execution?.status;
@@ -54,7 +62,25 @@ export function findPlanExecutionGateMessageId(
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
     if (!message || message.role !== 'assistant') continue;
-    if (message.tools.some((tool) => isPlanCreateTool(tool))) return message.id;
+    if (
+      message.tools.some((tool) => isPlanCreateTool(tool) && tool.status === 'done')
+    ) {
+      return message.id;
+    }
+  }
+  return null;
+}
+
+/** Find the completed plan payload owned by this assistant message. */
+export function findPlanDisplayForMessage(
+  message: Pick<ChatMessageUi, 'role' | 'tools'>,
+): PlanDisplayPayload | null {
+  if (message.role !== 'assistant') return null;
+  for (let index = message.tools.length - 1; index >= 0; index -= 1) {
+    const tool = message.tools[index];
+    if (!tool || tool.status !== 'done' || !isPlanCreateTool(tool)) continue;
+    const plan = parsePlanDisplayPayload(tool.presentation?.plan);
+    if (plan) return plan;
   }
   return null;
 }
@@ -77,6 +103,10 @@ export function recommendedPlanExecutionMode(
 
 export type PlanExecutionGateProps = {
   plan: SessionPlan;
+  /** Durable Host path shown to the user and supplied to the next prompt. */
+  planPath?: string;
+  /** Logical path used when opening the read-only inspector document. */
+  displayPath?: string;
   onExecute: (mode: PlanExecutionMode) => void | Promise<void>;
   onOpenDocument?: (input: DocumentOpenInput) => void;
   actionInProgress?: boolean;
@@ -129,7 +159,17 @@ export function formatPlanDescription(
 }
 
 export function PlanExecutionGate(props: PlanExecutionGateProps): ReactElement {
-  const { plan, onExecute, onOpenDocument, actionInProgress = false } = props;
+  const {
+    plan,
+    planPath,
+    displayPath,
+    onExecute,
+    onOpenDocument,
+    actionInProgress = false,
+  } = props;
+  const [internalActionInProgress, setInternalActionInProgress] = useState(false);
+  const internalActionInProgressRef = useRef(false);
+  const busy = actionInProgress || internalActionInProgress;
   const { locale } = useDesktopLocale();
   const copy = locale === 'en' ? COPY_EN : COPY_ZH;
   const captureKeyboard = props.captureKeyboard !== false;
@@ -145,8 +185,23 @@ export function PlanExecutionGate(props: PlanExecutionGateProps): ReactElement {
           { mode: 'subagent-driven', badge: 'B', label: copy.subagent },
         ];
 
-  const onExecuteRef = useRef(onExecute);
-  onExecuteRef.current = onExecute;
+  const executeMode = useCallback(
+    async (mode: PlanExecutionMode): Promise<void> => {
+      if (busy || internalActionInProgressRef.current) return;
+      internalActionInProgressRef.current = true;
+      setInternalActionInProgress(true);
+      try {
+        const result = onExecute(mode);
+        if (result !== undefined) await result;
+      } finally {
+        internalActionInProgressRef.current = false;
+        setInternalActionInProgress(false);
+      }
+    },
+    [busy, onExecute],
+  );
+  const executeModeRef = useRef(executeMode);
+  executeModeRef.current = executeMode;
 
   useEffect(() => {
     if (!captureKeyboard) return;
@@ -160,29 +215,29 @@ export function PlanExecutionGate(props: PlanExecutionGateProps): ReactElement {
     }
 
     function onKeyDown(event: KeyboardEvent): void {
-      if (actionInProgress) return;
+      if (busy) return;
       if (isEditableTarget(event.target)) return;
       if (event.altKey || event.ctrlKey || event.metaKey) return;
       const key = event.key.toUpperCase();
       if (key === 'A') {
         event.preventDefault();
         const modeA = modes[0]?.mode;
-        if (modeA) void onExecuteRef.current(modeA);
+        if (modeA) void executeModeRef.current(modeA);
       } else if (key === 'B') {
         event.preventDefault();
         const modeB = modes[1]?.mode;
-        if (modeB) void onExecuteRef.current(modeB);
+        if (modeB) void executeModeRef.current(modeB);
       }
     }
 
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [actionInProgress, captureKeyboard, modes]);
+  }, [busy, captureKeyboard, modes]);
 
   const description = formatPlanDescription(plan, locale);
 
   function handleOpenDocument(): void {
-    onOpenDocument?.(planDocumentOpenInput(plan));
+    onOpenDocument?.(planDocumentOpenInput(plan, displayPath));
   }
 
   function handleOpenDocumentKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {
@@ -199,6 +254,7 @@ export function PlanExecutionGate(props: PlanExecutionGateProps): ReactElement {
       data-activity-id="plan"
       data-activity-animation={getBehaviorActivitySpec('plan').animation}
       data-tool-status="idle"
+      {...(planPath !== undefined ? { 'data-plan-path': planPath } : {})}
       aria-label={copy.status}
       {...(onOpenDocument
         ? {
@@ -217,6 +273,14 @@ export function PlanExecutionGate(props: PlanExecutionGateProps): ReactElement {
       </span>
       <h3>{copy.title}</h3>
       <div className="desc">{description}</div>
+      {planPath || displayPath ? (
+        <div className="plan-path" title={planPath ?? displayPath}>
+          {planPath ?? displayPath}
+        </div>
+      ) : null}
+      {plan.execution?.status === 'failed' && plan.execution.error ? (
+        <div role="alert">{plan.execution.error}</div>
+      ) : null}
       <div className="choices">
         {modes.map((entry) => {
           const isRecommended = entry.mode === recommended;
@@ -227,10 +291,10 @@ export function PlanExecutionGate(props: PlanExecutionGateProps): ReactElement {
               className={`choice${isRecommended ? ' rec' : ''}`}
               data-testid={entry.mode === 'inline' ? 'plan-mode-inline' : 'plan-mode-subagent'}
               data-recommended={isRecommended ? 'true' : 'false'}
-              disabled={actionInProgress}
+              disabled={busy}
               onClick={(event) => {
                 event.stopPropagation();
-                void onExecute(entry.mode);
+                void executeMode(entry.mode);
               }}
             >
               <span className="bd">{entry.badge}</span>

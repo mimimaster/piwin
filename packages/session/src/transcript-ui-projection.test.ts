@@ -287,4 +287,80 @@ describe('projectTranscriptMessagesForUi', () => {
       { kind: 'skill', skillId: 'imagegen', displayRef: 'skill:imagegen' },
     ]);
   });
+
+  it('preserves the message-bound plan display payload across hydrate slimming', () => {
+    const plan = {
+      id: 'plan-1',
+      sessionId: 'session-1',
+      projectPath: '/repo',
+      status: 'draft' as const,
+      title: 'Ship the fix',
+      goal: 'Make the flow reliable',
+      steps: [{ id: '1', title: 'Implement', status: 'pending' as const }],
+      revision: 0,
+      createdAt: '2026-09-11T00:00:00.000Z',
+      updatedAt: '2026-09-11T00:00:00.000Z',
+      source: 'assistant' as const,
+    };
+    const messages: SessionTranscriptMessage[] = [
+      {
+        id: 'a-plan',
+        role: 'assistant',
+        text: 'saved',
+        createdAt: '2026-09-11T00:00:00.000Z',
+        status: 'done',
+        tools: [
+          {
+            toolCallId: 'plan-call',
+            toolName: 'piwin_plan_create',
+            status: 'done',
+            output: 'saved',
+            presentation: {
+              kind: 'other',
+              title: 'piwin_plan_create',
+              plan: {
+                version: 1,
+                path: '/home/user/.piwin/sessions/session-1/plan.json',
+                displayPath: 'plans/session-1.md',
+                plan,
+              },
+            },
+          },
+        ],
+      },
+    ];
+    const tool = projectTranscriptMessagesForUi(messages)[0]?.tools?.[0];
+    expect(tool?.output).toBe('saved');
+    expect(tool?.presentation?.plan).toEqual({
+      version: 1,
+      path: '/home/user/.piwin/sessions/session-1/plan.json',
+      displayPath: 'plans/session-1.md',
+      plan,
+    });
+  });
+
+  it('keeps the plan tool text fallback when the structured display payload is absent', () => {
+    const path = '/home/user/.piwin/sessions/session-1/plan.json';
+    const messages: SessionTranscriptMessage[] = [
+      {
+        id: 'a-plan-fallback',
+        role: 'assistant',
+        text: 'saved',
+        createdAt: '2026-09-11T00:00:00.000Z',
+        status: 'done',
+        tools: [
+          {
+            toolCallId: 'plan-call',
+            toolName: 'piwin_plan_create',
+            status: 'done',
+            output: `draft plan saved at ${path}`,
+            presentation: { kind: 'other', title: 'piwin_plan_create' },
+          },
+        ],
+      },
+    ];
+
+    const tool = projectTranscriptMessagesForUi(messages)[0]?.tools?.[0];
+    expect(tool?.output).toContain(path);
+  });
 });

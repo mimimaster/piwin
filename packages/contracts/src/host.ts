@@ -517,6 +517,8 @@ export type ToolPresentation = {
   goal?: import('./goal.js').GoalDisplayPayload;
   /** Citations lifted from a `knowledge_search` / `knowledge_read` tool's details. */
   knowledge?: import('./knowledge-base.js').KnowledgeToolDetails;
+  /** Message-bound saved plan snapshot used by the Desktop plan card. */
+  plan?: import('./plan-display.js').PlanDisplayPayload;
   startedAt?: string;
   endedAt?: string;
   durationMs?: number;

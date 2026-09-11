@@ -76,7 +76,10 @@ export type TurnWorkDetailsProps = {
   onInspectSubagent?: (selection: SubagentInspectorSelection) => void;
   planExecutionGate?: {
     plan: SessionPlan;
+    planPath?: string;
+    displayPath?: string;
     onExecute: (mode: PlanExecutionMode) => void | Promise<void>;
+    actionInProgress?: boolean;
     captureKeyboard?: boolean;
   };
 };
@@ -207,7 +210,16 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
   const planGate = props.planExecutionGate ? (
     <PlanExecutionGate
       plan={props.planExecutionGate.plan}
+      {...(props.planExecutionGate.planPath !== undefined
+        ? { planPath: props.planExecutionGate.planPath }
+        : {})}
+      {...(props.planExecutionGate.displayPath !== undefined
+        ? { displayPath: props.planExecutionGate.displayPath }
+        : {})}
       onExecute={props.planExecutionGate.onExecute}
+      {...(props.planExecutionGate.actionInProgress !== undefined
+        ? { actionInProgress: props.planExecutionGate.actionInProgress }
+        : {})}
       {...(props.planExecutionGate.captureKeyboard !== undefined
         ? { captureKeyboard: props.planExecutionGate.captureKeyboard }
         : {})}

@@ -2,6 +2,7 @@
  * Scrollable assistant/user message list with edit/retry actions.
  */
 import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import type { PlanExecutionMode } from '@piwin/contracts';
 
 import { pickArtifactFenceSecurity } from './artifact-fence-security';
 import type { ChatMessageUi } from './chat-reducer';
@@ -41,10 +42,7 @@ import {
   ChatTurnMarginalia,
   resolveTurnMarginalia,
 } from './chat-turn-marginalia.js';
-import {
-  canShowPlanExecutionGate,
-  findPlanExecutionGateMessageId,
-} from './plan-execution-gate.js';
+import { findPlanDisplayForMessage } from './plan-execution-gate.js';
 
 /** Legacy helper retained for callers that still compute the old preference. */
 /** @deprecated Run Inspector disclosure is now explicitly user-owned. */
@@ -154,19 +152,6 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
         : effectiveMessages,
     [docCardSequence, effectiveMessages],
   );
-
-  const planExecutionGateMessageId = useMemo(() => {
-    if (!props.onPlanExecute || !props.sessionPlan) return null;
-    if (
-      !canShowPlanExecutionGate({
-        plan: props.sessionPlan,
-        isConversationSession: props.isConversationSession === true,
-      })
-    ) {
-      return null;
-    }
-    return findPlanExecutionGateMessageId(chatMessages);
-  }, [chatMessages, props.isConversationSession, props.onPlanExecute, props.sessionPlan]);
 
   const activeToolName = useMemo(() => {
     for (let i = transcriptMessages.length - 1; i >= 0; i--) {
@@ -408,6 +393,9 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
           const renderedAssistantItems: ReactElement[] = [];
 
           turn.items.forEach(({ message, messageIndex }, itemIndex) => {
+            const planDisplay = conversationSession
+              ? null
+              : findPlanDisplayForMessage(message);
             const isDisclosureWorkItem =
               workDisclosureProjection !== null &&
               itemIndex >= workDisclosureProjection.startIndex &&
@@ -458,7 +446,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                   }
                 />
               ) : null;
-            if (isDisclosureWorkItem && !workDisclosureOpen) {
+            if (isDisclosureWorkItem && !workDisclosureOpen && !planDisplay) {
               const collapsedNodes = [liftedIdentityHeader, disclosureTrigger].filter(
                 (node): node is ReactElement => node !== null,
               );
@@ -535,6 +523,22 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                   turnModel
                     ? { ...message, model: turnModel }
                     : message;
+                const planExecutionGate =
+                  planDisplay && props.onPlanExecute
+                    ? {
+                        plan: planDisplay.plan,
+                        planPath: planDisplay.path,
+                        displayPath: planDisplay.displayPath,
+                        onExecute: (mode: PlanExecutionMode) =>
+                          props.onPlanExecute?.(planDisplay, mode),
+                        actionInProgress:
+                          message.status === 'streaming' ||
+                          (props.streaming === true &&
+                            message.runId !== undefined &&
+                            message.runId === props.activeRunId),
+                        captureKeyboard: false,
+                      }
+                    : undefined;
                 const row = (
                   <ChatMessageRow
                     key={message.id}
@@ -574,20 +578,8 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                     {...(props.contextUsage !== undefined
                       ? { contextUsage: props.contextUsage }
                       : {})}
+                    {...(planExecutionGate ? { planExecutionGate } : {})}
                     {...(onRegenerate !== undefined ? { onRegenerate } : {})}
-                    {...(planExecutionGateMessageId === message.id &&
-                    props.sessionPlan &&
-                    props.onPlanExecute
-                      ? {
-                          planExecutionGate: {
-                            plan: props.sessionPlan,
-                            onExecute: props.onPlanExecute,
-                            captureKeyboard:
-                              latestAssistantMessageId !== null &&
-                              planExecutionGateMessageId === latestAssistantMessageId,
-                          },
-                        }
-                      : {})}
                     isNew={enteringIds.has(message.id)}
                     knownFilePaths={changedFilePathsByTurnId.get(turn.id) ?? []}
                     streaming={props.streaming}
