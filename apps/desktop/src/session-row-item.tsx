@@ -8,7 +8,7 @@ import {
   IconDocument,
   IconFolder,
   IconMoreVertical,
-  IconPin,
+  IconBookmark,
   IconTrash,
   IconUnarchive,
 } from './shell-icons';
@@ -278,7 +278,7 @@ export function SessionRowItem({
             ) : null}
             {isPinned ? (
               <span className="session-pin-mark" aria-hidden>
-                <IconPin width={12} height={12} />
+                <IconBookmark width={12} height={12} />
               </span>
             ) : null}
             <span className="session-item-title-text">{session.name}</span>
@@ -377,7 +377,7 @@ export function SessionRowItem({
                 onTogglePin?.(session.id, isPinned);
               }}
             >
-              <IconPin width={SESSION_ACTION_ICON_PX} height={SESSION_ACTION_ICON_PX} />
+              <IconBookmark width={SESSION_ACTION_ICON_PX} height={SESSION_ACTION_ICON_PX} />
             </button>
             <button
               type="button"
@@ -437,7 +437,7 @@ export function SessionRowItem({
                 onTogglePin?.(session.id, isPinned);
               }}
             >
-              <IconPin width={SESSION_ACTION_ICON_PX} height={SESSION_ACTION_ICON_PX} />
+              <IconBookmark width={SESSION_ACTION_ICON_PX} height={SESSION_ACTION_ICON_PX} />
             </button>
             <button
               type="button"

@@ -692,6 +692,54 @@ describe('buildSidebarTreeRows', () => {
     expect(notes?.grouped).toBe(false);
   });
 
+  it('nests a subdirectory project under its parent instead of a sibling worktree group', () => {
+    const rows = buildSidebarTreeRows({
+      recentProjects: [
+        {
+          path: '/Users/me/piwin/apps',
+          displayName: 'apps',
+          gitRepositoryId: 'repo1',
+          isPrimaryWorktree: true,
+          currentBranch: 'main',
+        },
+        {
+          path: '/Users/me/piwin',
+          displayName: 'piwin',
+          gitRepositoryId: 'repo1',
+          isPrimaryWorktree: true,
+          currentBranch: 'main',
+        },
+      ],
+      projectSessionsByPath: {
+        '/Users/me/piwin': [session('root-chat', 'Root')],
+        '/Users/me/piwin/apps': [session('apps-chat', 'Apps')],
+      },
+      generalSessions: [],
+      sessionSearch: '',
+      sessionListOrder: 'updated',
+      projectsSectionExpanded: true,
+      conversationsSectionExpanded: true,
+      collapsedProjects: { '/Users/me/piwin': false, '/Users/me/piwin/apps': false },
+      sessionListScopes: createSessionListScopeState(),
+      activeProjectPath: '/Users/me/piwin',
+    });
+    expect(kinds(rows)).toEqual([
+      'header:projects',
+      'folder:/Users/me/piwin:false',
+      'folder:/Users/me/piwin/apps:false',
+      'session:apps-chat',
+      'session:root-chat',
+      'header:conversations',
+      'empty:general',
+    ]);
+    expect(rows.some((row) => row.kind === 'repo-group')).toBe(false);
+    const appsFolder = rows.find(
+      (row): row is Extract<SidebarTreeRow, { kind: 'project-folder' }> =>
+        row.kind === 'project-folder' && row.projectPath === '/Users/me/piwin/apps',
+    );
+    expect(appsFolder?.grouped).toBe(true);
+  });
+
   it('marks clustered worktree sessions so the ink line can follow the folder', () => {
     const rows = buildSidebarTreeRows({
       recentProjects: [

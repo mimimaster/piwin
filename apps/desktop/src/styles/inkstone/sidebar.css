@@ -23,11 +23,70 @@ html[data-theme-id='piwin-inkstone-ink'] .app-shell[data-layout='compact'] > .si
 }
 
 /* Under Inkstone, hide the old stacked 4-row actions and old footer */
-html[data-theme-id='piwin-inkstone-paper'] .sidebar-primary-actions,
-html[data-theme-id='piwin-inkstone-ink'] .sidebar-primary-actions,
 html[data-theme-id='piwin-inkstone-paper'] .sidebar-footer,
 html[data-theme-id='piwin-inkstone-ink'] .sidebar-footer {
   display: none !important;
+}
+
+/* The destinations block. It already existed as .sidebar-primary-actions and
+   was simply hidden under Inkstone; the shelf carried the same entries as
+   icons instead. Icon-only works for actions you reach for daily — 资料库 and
+   闪卡 are not those, so they live here with words. 新建 and 搜索 stay hidden
+   because .sb-top above already owns them. See proto-09-sidebar.html. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .sidebar-primary-actions {
+  display: flex !important;
+  flex-direction: column;
+  gap: 1px;
+  padding: 2px 6px 6px;
+  border-bottom: 1px solid var(--l1);
+  flex: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .sidebar-primary-actions
+  :is([data-testid='new-session-btn'], [data-testid='session-search-btn']) {
+  display: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .sidebar-action-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font: 12.5px var(--sans);
+  color: var(--t2);
+  background: none;
+  border: 0;
+  width: 100%;
+  cursor: pointer;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .sidebar-action-row svg {
+  color: var(--t4);
+  flex: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .sidebar-action-row:hover {
+  background: var(--s2);
+  color: var(--t1);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .sidebar-action-row:hover svg {
+  color: var(--t2);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .sidebar-action-row.active {
+  background: var(--s3);
+  box-shadow: var(--sh1);
+  color: var(--t1);
 }
 
 /* Non-Inkstone themes hide the new .sb-top and .shelf */
@@ -52,9 +111,164 @@ html[data-theme-id='piwin-inkstone-ink'] :is(.sidebar-sb-top, .sb-top) {
   box-sizing: border-box !important;
 }
 
+/* Close the gap under the destinations block.
+   Between the last nav row and the first section title sat 36px, stacked from
+   four separators that did not know about each other: this block's 6px pad +
+   1px rule, .sidebar-top's 4px pad + 6px margin, and .sidebar-section-label's
+   12px top margin. The rule is the separator; everything else was doubling it.
+   The section label keeps its 12px where it earns it — between two sections
+   inside the list — and loses it only on the first row. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .sidebar-top {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  gap: 0;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .sidebar-tree-flow-item:first-child
+  .sidebar-section-label {
+  margin-top: 4px;
+}
+
+/* Reserve the scrollbar gutter in both panes. Conversations scroll (48 rows),
+   projects usually do not (5 folders), so without this the header's right edge
+   — and every row's — shifted by the scrollbar width on each switch. That jump
+   is most of what made the toggle feel like a different screen. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .sidebar-folder-tree {
+  scrollbar-gutter: stable;
+}
+
+/* The conversations header used to sit below the projects section and carried
+   a rule to divide them. It leads its own pane now, so the divider would be a
+   second line right under the destinations block's. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .sidebar-tree-flow-item:first-child
+  .sidebar-section-label-row--conversations {
+  margin-top: 4px;
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* The shelf keeps only what belongs on a status line: settings (bottom-left is
+   where every desktop app puts it) and the host indicator. 资料库 / 闪卡 moved
+   up to .sidebar-primary-actions, where they get words. Dropping the two
+   buttons also ends the overflow that clipped the transport label — the row
+   measured clientWidth 240 / scrollWidth 256 at the default sidebar width. */
 html[data-theme-id='piwin-inkstone-paper'] .sidebar-shelf,
 html[data-theme-id='piwin-inkstone-ink'] .sidebar-shelf {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .sidebar-shelf
+  :is([data-testid='sidebar-library-shelf-btn'], [data-testid='sidebar-flashcards-shelf-btn']) {
+  display: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .sidebar-shelf
+  .sidebar-host {
+  margin-left: auto;
+}
+
+/* ── Pane switch ─────────────────────────────────────────────────────────
+   A two-glyph segmented control, sized to the same 28px line as the search
+   field beside it. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .sidebar-mode {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--s2);
+  box-shadow: var(--sh1);
+  flex: none;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .sidebar-mode-btn {
+  width: 26px;
+  height: 24px;
+  border-radius: 5px;
   display: grid;
+  place-items: center;
+  color: var(--t3);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  transition:
+    color var(--t-1, 90ms) ease,
+    background var(--t-1, 90ms) ease;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .sidebar-mode-btn:hover {
+  color: var(--t2);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .sidebar-mode-btn.on {
+  background: var(--s4);
+  color: var(--t1);
+}
+
+/* ── Pin, as a bookmark ──────────────────────────────────────────────────
+   Rest is the outline ribbon the icon ships. Pinned fills it with vermilion
+   and drops it 3px longer, with one overshoot — the gesture is "press the
+   bookmark in". `d` is animatable in Chromium 98+ / Safari 17.4+; where it is
+   not, the icon still ships its own rest path, so the state still reads
+   through colour. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .session-pin-btn path {
+  transition:
+    d 200ms cubic-bezier(0.34, 1.4, 0.64, 1),
+    fill 160ms ease,
+    stroke 160ms ease;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .session-pin-btn.active {
+  color: var(--zhu);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .session-pin-btn.active path {
+  d: path('M4.5 2.5h7v12l-3.5-2.6-3.5 2.6z');
+  fill: var(--zhu);
+  stroke: var(--zhu);
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .session-pin-btn.active svg {
+  animation: inkstoneBookmarkDrop 260ms cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+@keyframes inkstoneBookmarkDrop {
+  0% {
+    transform: translateY(-1.5px);
+  }
+  55% {
+    transform: translateY(1.5px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+/* Both panes lead with the same header: title, count, then the row's actions.
+   Hiding the projects title made the two panes structurally different, so
+   switching read as a jump rather than a swap. Whatever is true of one header
+   has to be true of the other — that symmetry is what makes the toggle feel
+   like one sidebar with two contents. */
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
+  .sidebar-section-label-row
+  .sidebar-section-toggle {
+  flex: 1;
+  min-width: 0;
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .sb-top .search,

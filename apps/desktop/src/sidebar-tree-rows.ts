@@ -394,6 +394,56 @@ export function collectPinnedSessionRows(
   }));
 }
 
+function projectTreeContainsPath(
+  project: SidebarProjectRef,
+  targetPath: string | null | undefined,
+): boolean {
+  if (!targetPath) {
+    return false;
+  }
+  if (project.path === targetPath) {
+    return true;
+  }
+  return (project.nested ?? []).some((child) => projectTreeContainsPath(child, targetPath));
+}
+
+function nestedTreeHasReveal(
+  project: SidebarProjectRef,
+  input: SidebarTreeRowsInput,
+  drafts: readonly DraftSessionItemUi[],
+  searching: boolean,
+): boolean {
+  for (const child of project.nested ?? []) {
+    const childSessions = resolveProjectFolderSessions({
+      projectPath: child.path,
+      projectSessionsByPath: input.projectSessionsByPath,
+      ...(input.activeProjectPath !== undefined
+        ? { activeProjectPath: input.activeProjectPath }
+        : {}),
+      ...(input.activeProjectSessions !== undefined
+        ? { activeProjectSessions: input.activeProjectSessions }
+        : {}),
+      searching,
+    }).filter((session) => session.isPinned !== true);
+    const childRows = mergeScopeRows(
+      { kind: 'project', projectPath: child.path },
+      drafts,
+      childSessions,
+      input.sessionSearch,
+      input.sessionListOrder,
+    );
+    if (
+      revealIndexInRows(childRows, input.revealSessionId ?? null, input.revealDraftId ?? null) >= 0
+    ) {
+      return true;
+    }
+    if (nestedTreeHasReveal(child, input, drafts, searching)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function appendProjectFolderRows(
   rows: SidebarTreeRow[],
   input: SidebarTreeRowsInput,
@@ -433,7 +483,11 @@ function appendProjectFolderRows(
       ? { activeProjectPath: input.activeProjectPath }
       : {}),
     searching,
-    revealInside: selectedIndex >= 0,
+    revealInside:
+      selectedIndex >= 0 ||
+      (projectTreeContainsPath(project, input.activeProjectPath) &&
+        project.path !== input.activeProjectPath) ||
+      nestedTreeHasReveal(project, input, drafts, searching),
   });
   rows.push({
     kind: 'project-folder',
@@ -445,6 +499,9 @@ function appendProjectFolderRows(
   });
   if (collapsed) {
     return;
+  }
+  for (const child of project.nested ?? []) {
+    appendProjectFolderRows(rows, input, child, drafts, searching, true);
   }
   const visibleCount = Math.max(
     input.projectSessionVisibleCounts?.[project.path] ?? DEFAULT_PROJECT_SESSION_VISIBLE_COUNT,

@@ -8,6 +8,28 @@ import { ProjectSessionSidebar, type ProjectSessionSidebarProps } from './projec
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import type { SessionListItemUi } from './chat-reducer';
 import type { DraftSessionItemUi } from './draft-session';
+import { saveSidebarMode, type SidebarMode } from './sidebar-mode';
+
+/**
+ * The sidebar is two panes now (see sidebar-mode.ts). Each suite declares the
+ * pane it exercises; the component reads the remembered mode at mount.
+ */
+/**
+ * This file exercises the project half of the sidebar, so it opens there.
+ * Suites that assert on conversations call usePane('chat').
+ */
+beforeEach(() => {
+  saveSidebarMode('code');
+});
+
+/** Switch panes the way a user does. */
+function switchPane(container: HTMLElement, mode: SidebarMode): void {
+  act(() =>
+    container
+      .querySelector<HTMLButtonElement>(`[data-testid="sidebar-mode-${mode}"]`)
+      ?.click(),
+  );
+}
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -129,16 +151,23 @@ describe('ProjectSessionSidebar resident session lists', () => {
       onOpenGeneral,
       onNewGeneralSession,
     });
+    // The project pane owns No Repo; touching it must not disturb the
+    // conversation pane, which is where the nine general sessions live.
+    act(() => container.querySelector<HTMLButtonElement>('[data-testid="no-repo-folder"]')?.click());
+    expect(onOpenGeneral).toHaveBeenCalledOnce();
+    act(() =>
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="projects-section-toggle"]')
+        ?.click(),
+    );
+    expect(container.querySelector('[data-testid="no-repo-folder"]')).toBeNull();
+
+    switchPane(container, 'chat');
     const conversationToggle = container.querySelector<HTMLButtonElement>(
       '[data-testid="conversations-section-toggle"]',
     );
     expect(conversationToggle?.getAttribute('aria-expanded')).toBe('true');
     expect(container.querySelectorAll('.sidebar-tree-row--general-session')).toHaveLength(9);
-    act(() => container.querySelector<HTMLButtonElement>('[data-testid="no-repo-folder"]')?.click());
-    expect(onOpenGeneral).toHaveBeenCalledOnce();
-    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(9);
-    act(() => container.querySelector<HTMLButtonElement>('[data-testid="projects-section-toggle"]')?.click());
-    expect(container.querySelector('[data-testid="no-repo-folder"]')).toBeNull();
     expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(9);
     act(() => container.querySelector<HTMLButtonElement>('[data-testid="general-workspace-btn"]')?.click());
     expect(onNewGeneralSession).toHaveBeenCalledOnce();
@@ -164,7 +193,6 @@ describe('ProjectSessionSidebar resident session lists', () => {
     });
 
     expect(container.textContent).toContain('项目');
-    expect(container.textContent).toContain('会话');
     expect(container.querySelector('[data-testid="project-session-show-more"]')?.textContent).toBe(
       '显示更多',
     );
@@ -176,6 +204,9 @@ describe('ProjectSessionSidebar resident session lists', () => {
     expect(
       container.querySelector('[data-testid="display-options-btn"]')?.getAttribute('aria-label'),
     ).toBe('显示选项');
+
+    switchPane(container, 'chat');
+    expect(container.textContent).toContain('对话');
   });
 
   it('collapses and expands the Projects and Conversations sections independently', () => {
@@ -187,36 +218,44 @@ describe('ProjectSessionSidebar resident session lists', () => {
       generalSessions: createMockSessions(1),
     });
 
-    const projectsToggle = container.querySelector<HTMLButtonElement>(
-      '[data-testid="projects-section-toggle"]',
-    );
-    const conversationsToggle = container.querySelector<HTMLButtonElement>(
-      '[data-testid="conversations-section-toggle"]',
-    );
+    const projectsToggle = () =>
+      container.querySelector<HTMLButtonElement>('[data-testid="projects-section-toggle"]');
+    const conversationsToggle = () =>
+      container.querySelector<HTMLButtonElement>('[data-testid="conversations-section-toggle"]');
 
-    expect(projectsToggle?.getAttribute('aria-expanded')).toBe('true');
-    expect(conversationsToggle?.getAttribute('aria-expanded')).toBe('true');
+    expect(projectsToggle()?.getAttribute('aria-expanded')).toBe('true');
     expect(container.querySelector('[data-testid="repository-item"]')).not.toBeNull();
 
     act(() => {
-      projectsToggle?.click();
+      projectsToggle()?.click();
     });
-    expect(projectsToggle?.getAttribute('aria-expanded')).toBe('false');
+    expect(projectsToggle()?.getAttribute('aria-expanded')).toBe('false');
     expect(container.querySelector('[data-testid="repository-item"]')).toBeNull();
-    expect(conversationsToggle?.getAttribute('aria-expanded')).toBe('true');
 
+    // Each pane keeps its own fold state across a switch.
+    switchPane(container, 'chat');
+    expect(conversationsToggle()?.getAttribute('aria-expanded')).toBe('true');
     act(() => {
-      conversationsToggle?.click();
+      conversationsToggle()?.click();
     });
-    expect(projectsToggle?.getAttribute('aria-expanded')).toBe('false');
-    expect(conversationsToggle?.getAttribute('aria-expanded')).toBe('false');
+    expect(conversationsToggle()?.getAttribute('aria-expanded')).toBe('false');
 
+    switchPane(container, 'code');
+    expect(projectsToggle()?.getAttribute('aria-expanded')).toBe('false');
+    switchPane(container, 'chat');
+    expect(conversationsToggle()?.getAttribute('aria-expanded')).toBe('false');
+
+    // Re-expanding is likewise per pane.
     act(() => {
-      projectsToggle?.click();
-      conversationsToggle?.click();
+      conversationsToggle()?.click();
     });
-    expect(projectsToggle?.getAttribute('aria-expanded')).toBe('true');
-    expect(conversationsToggle?.getAttribute('aria-expanded')).toBe('true');
+    expect(conversationsToggle()?.getAttribute('aria-expanded')).toBe('true');
+
+    switchPane(container, 'code');
+    act(() => {
+      projectsToggle()?.click();
+    });
+    expect(projectsToggle()?.getAttribute('aria-expanded')).toBe('true');
     expect(container.querySelector('[data-testid="repository-item"]')).not.toBeNull();
   });
 
@@ -243,6 +282,7 @@ describe('ProjectSessionSidebar resident session lists', () => {
   });
 
   it('labels general-scope creation as Clean Slate', () => {
+    saveSidebarMode('chat');
     const { container, root } = renderSidebar({ generalActive: true });
 
     expect(container.querySelector('[data-testid="new-session-btn"]')?.textContent).toContain(
@@ -318,6 +358,7 @@ describe('ProjectSessionSidebar resident session lists', () => {
   });
 
   it('renders the full Conversations list without See all', () => {
+    saveSidebarMode('chat');
     const { container } = renderSidebar({
       generalSessions: createMockSessions(12),
     });
@@ -345,8 +386,14 @@ describe('ProjectSessionSidebar resident session lists', () => {
     );
     act(() => otherProjectRow?.click());
 
-    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(13);
+    // The two lists are separate panes now: the project pane caps each folder
+    // at five with a show-more, and the conversation pane owns its own list.
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(5);
     expect(container.querySelector('[data-testid="project-session-show-more"]')).not.toBeNull();
+
+    switchPane(container, 'chat');
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(8);
+    expect(container.querySelector('[data-testid="project-session-show-more"]')).toBeNull();
     expect(container.querySelector('[data-testid="general-session-pager"]')).toBeNull();
   });
 });
@@ -1131,6 +1178,7 @@ describe('ProjectSessionSidebar virtualization gate', () => {
   });
 
   it('mounts at most 80 session rows for a 1,035-session fixture', () => {
+    saveSidebarMode('chat');
     const sessions = createMockSessions(1_035);
     const onResume = vi.fn();
     const { container } = renderSidebar({
@@ -1391,6 +1439,7 @@ describe('ProjectSessionSidebar Inkstone layout and grouping', () => {
   });
 
   it('renders time group headers when sessions span multiple days', () => {
+    saveSidebarMode('chat');
     const now = new Date();
     const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
     const sessions: SessionListItemUi[] = [
