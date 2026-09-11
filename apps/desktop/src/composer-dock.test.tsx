@@ -444,7 +444,7 @@ describe('ComposerDock host status', () => {
     expect(handleResume).not.toHaveBeenCalled();
   });
 
-  it('hints that typed 继续 is a new send and can resume the checkpoint instead', () => {
+  it('resumes the checkpoint when paused and the draft is only 继续', () => {
     const handleSend = vi.fn();
     const handleResume = vi.fn();
     const handleComposerChange = vi.fn();
@@ -461,16 +461,46 @@ describe('ComposerDock host status', () => {
     root = rendered.root;
     container = rendered.container;
 
-    expect(container.querySelector('[data-testid="composer-pause-continue-hint"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="send-btn"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="resume-run-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="composer-pause-continue-hint"]')).toBeNull();
+    expect(container.querySelector('[data-testid="send-btn"]')).toBeNull();
+    const resume = container.querySelector(
+      '[data-testid="resume-run-btn"]',
+    ) as HTMLButtonElement;
+    expect(resume).not.toBeNull();
     expect(circularActionCount(container)).toBe(1);
 
-    const hintResume = container.querySelector(
-      '[data-testid="composer-pause-continue-hint-resume"]',
-    ) as HTMLButtonElement;
     act(() => {
-      hintResume.click();
+      resume.click();
+    });
+    expect(handleComposerChange).toHaveBeenCalledWith('');
+    expect(handleResume).toHaveBeenCalledOnce();
+    expect(handleSend).not.toHaveBeenCalled();
+  });
+
+  it('sends Enter on paused 继续 as resume, not a new turn', () => {
+    const handleSend = vi.fn();
+    const handleResume = vi.fn();
+    const handleComposerChange = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        paused
+        composer="continue"
+        onComposerChange={handleComposerChange}
+        onSend={handleSend}
+        onResume={handleResume}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const textarea = container.querySelector(
+      '[data-testid="composer-input"]',
+    ) as HTMLTextAreaElement;
+    act(() => {
+      textarea.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
     });
     expect(handleComposerChange).toHaveBeenCalledWith('');
     expect(handleResume).toHaveBeenCalledOnce();

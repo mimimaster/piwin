@@ -103,19 +103,42 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   padding: 4px 8px 8px;
 }
 
-/* Perimeter orbit beam (replaces legacy 1px top sheen line):
+/* Perimeter orbit beam:
    idle stays invisible. When active (running / streaming / queued-edit),
-   a warm lamp beam smoothly orbits around the composer slab's perimeter. */
-html[data-theme-id='piwin-inkstone-paper'] .slab::before,
-html[data-theme-id='piwin-inkstone-ink'] .slab::before {
-  content: '';
+   a subtle rail preserves the silhouette, while a radiant golden lamp beam
+   smoothly orbits around the composer slab's perimeter via CSS motion-path.
+   Uses dedicated high-contrast luminous gold (#eab308 -> #fffae5) to ensure
+   crisp clarity on the black slab under both light ("明") and dark ("墨") themes. */
+.composer-orbit-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 2;
+}
+
+.composer-orbit-rail {
+  position: absolute;
+  inset: -1.5px;
+  border-radius: inherit;
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 240ms ease-out;
+}
+
+html[data-slab='paper'] .composer-orbit-rail,
+[data-slab='paper'] .composer-orbit-rail {
+  border-color: var(--slab-line);
+}
+
+.composer-orbit-mask {
   position: absolute;
   inset: -1.5px;
   border-radius: inherit;
   padding: 1.5px;
   box-sizing: border-box;
-  background: transparent;
-  z-index: 2;
   pointer-events: none;
   -webkit-mask:
     linear-gradient(#fff 0 0) content-box,
@@ -129,6 +152,54 @@ html[data-theme-id='piwin-inkstone-ink'] .slab::before {
   transition: opacity 240ms ease-out;
 }
 
+.composer-orbit-beam {
+  position: absolute;
+  width: 170px;
+  height: 28px;
+  offset-path: rect(0 auto auto 0 round 10px);
+  offset-anchor: 50% 50%;
+  offset-rotate: auto;
+  animation: orbit 3.6s linear infinite;
+  animation-play-state: paused;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(234, 179, 8, 0.15) 20%,
+    #eab308 60%,
+    #fef08a 85%,
+    #fffae5 96%,
+    transparent 100%
+  );
+  filter: drop-shadow(0 0 4px rgba(234, 179, 8, 0.8));
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .slab::before,
+html[data-theme-id='piwin-inkstone-ink'] .slab::before {
+  content: '';
+  position: absolute;
+  inset: -1.5px;
+  border-radius: inherit;
+  padding: 1.5px;
+  box-sizing: border-box;
+  background: transparent;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 240ms ease-out;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .app-shell[data-state='running'] .composer-orbit-rail,
+html[data-theme-id='piwin-inkstone-ink'] .app-shell[data-state='running'] .composer-orbit-rail,
+html[data-theme-id='piwin-inkstone-paper'] .slab.is-streaming .composer-orbit-rail,
+html[data-theme-id='piwin-inkstone-ink'] .slab.is-streaming .composer-orbit-rail,
+html[data-theme-id='piwin-inkstone-paper'] .slab.is-queued-edit .composer-orbit-rail,
+html[data-theme-id='piwin-inkstone-ink'] .slab.is-queued-edit .composer-orbit-rail,
+html[data-theme-id='piwin-inkstone-paper'] .app-shell[data-state='running'] .composer-orbit-mask,
+html[data-theme-id='piwin-inkstone-ink'] .app-shell[data-state='running'] .composer-orbit-mask,
+html[data-theme-id='piwin-inkstone-paper'] .slab.is-streaming .composer-orbit-mask,
+html[data-theme-id='piwin-inkstone-ink'] .slab.is-streaming .composer-orbit-mask,
+html[data-theme-id='piwin-inkstone-paper'] .slab.is-queued-edit .composer-orbit-mask,
+html[data-theme-id='piwin-inkstone-ink'] .slab.is-queued-edit .composer-orbit-mask,
 html[data-theme-id='piwin-inkstone-paper'] .app-shell[data-state='running'] .slab::before,
 html[data-theme-id='piwin-inkstone-ink'] .app-shell[data-state='running'] .slab::before,
 html[data-theme-id='piwin-inkstone-paper'] .slab.is-streaming::before,
@@ -136,18 +207,16 @@ html[data-theme-id='piwin-inkstone-ink'] .slab.is-streaming::before,
 html[data-theme-id='piwin-inkstone-paper'] .slab.is-queued-edit::before,
 html[data-theme-id='piwin-inkstone-ink'] .slab.is-queued-edit::before {
   opacity: 1;
-  background: conic-gradient(
-    from var(--composer-beam-angle, 0deg),
-    transparent 0deg,
-    transparent 180deg,
-    var(--lamp-wash) 240deg,
-    var(--lamp) 310deg,
-    var(--lamp-glow) 345deg,
-    rgba(255, 255, 255, 0.95) 356deg,
-    transparent 360deg
-  );
-  animation: orbit 3.2s linear infinite;
-  filter: drop-shadow(0 0 5px var(--lamp-glow));
+  animation: orbit 3.6s linear infinite;
+}
+
+html[data-theme-id='piwin-inkstone-paper'] .app-shell[data-state='running'] .composer-orbit-beam,
+html[data-theme-id='piwin-inkstone-ink'] .app-shell[data-state='running'] .composer-orbit-beam,
+html[data-theme-id='piwin-inkstone-paper'] .slab.is-streaming .composer-orbit-beam,
+html[data-theme-id='piwin-inkstone-ink'] .slab.is-streaming .composer-orbit-beam,
+html[data-theme-id='piwin-inkstone-paper'] .slab.is-queued-edit .composer-orbit-beam,
+html[data-theme-id='piwin-inkstone-ink'] .slab.is-queued-edit .composer-orbit-beam {
+  animation-play-state: running;
 }
 
 html[data-theme-id='piwin-inkstone-paper'] .slab .refs,

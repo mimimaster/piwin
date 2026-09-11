@@ -5,6 +5,7 @@ import { useCallback, type Dispatch } from 'react';
 import { ORCHESTRATION_SCHEME_OFF_ID } from '@piwin/contracts';
 import type { ChatUiAction, ChatUiState } from '../chat-reducer';
 import type { HostClient } from '../host-client';
+import { isConversationSessionChrome } from '../is-conversation-session';
 import { useComposerContextRefs } from './use-composer-context-refs';
 import { useComposerMedia } from './use-composer-media';
 import { useComposerModelController } from './use-composer-model';
@@ -126,7 +127,7 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     onResetComposerTurnControls: resetComposerTurnControls,
     onAgentModeChange: setAgentMode,
     menuSkills,
-    conversationChat: state.activeScope.kind === 'general',
+    conversationChat: isConversationSessionChrome(state.activeScope, chrome.sidebarMode),
     onOpenKnowledge: handleOpenKnowledge,
     onOpenCardsPanel: handleOpenCardsPanel,
     onCompact: session.handleCompact,

@@ -432,6 +432,14 @@
   line-height: 1.5;
 }
 
+.intr .plan-path {
+  margin-top: 6px;
+  color: var(--t3, var(--intr-t3));
+  font: 11px var(--font-mono, monospace);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
 .intr .choices {
   display: flex;
   gap: 6px;

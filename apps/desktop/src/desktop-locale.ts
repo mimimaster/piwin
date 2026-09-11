@@ -213,8 +213,6 @@ export type DesktopCopy = {
     pausing: string;
     continueRun: string;
     discardPause: string;
-    pauseContinueHint: string;
-    pauseContinueHintAction: string;
     stop: string;
     stopping: string;
     stopJob: string;
@@ -803,8 +801,6 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       pausing: '正在暂停…',
       continueRun: '继续运行',
       discardPause: '放弃恢复',
-      pauseContinueHint: '输入「继续」会开新一轮，不会接上刚才暂停的任务。',
-      pauseContinueHintAction: '从检查点继续',
       stop: '停止',
       stopping: '正在停止…',
       stopJob: '停止程序',
@@ -1150,9 +1146,6 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       pausing: 'Pausing…',
       continueRun: 'Continue run',
       discardPause: 'Discard pause',
-      pauseContinueHint:
-        'Sending "continue" starts a new turn; it does not resume the paused checkpoint.',
-      pauseContinueHintAction: 'Resume checkpoint',
       stop: 'Stop',
       stopping: 'Stopping…',
       stopJob: 'Stop program',

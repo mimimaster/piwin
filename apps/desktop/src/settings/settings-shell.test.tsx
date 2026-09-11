@@ -244,7 +244,7 @@ describe('SettingsShell', () => {
         await ensureSettingsLazyLoaded();
       });
       expect(container.querySelector('[data-testid="settings-extensions-hub"]')).not.toBeNull();
-      expect(container.querySelector('[data-testid="extensions-compat-notice"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="extensions-compat-notice"]')).toBeNull();
 
       // Models renders through the registry; config is null in this
       // harness, so the page shows its loading state.
@@ -370,7 +370,7 @@ describe('SettingsShell', () => {
         await ensureSettingsLazyLoaded();
       });
       expect(container.querySelector('[data-testid="settings-extensions-hub"]')).not.toBeNull();
-      expect(container.querySelector('[data-testid="extensions-compat-notice"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="extensions-compat-notice"]')).toBeNull();
       expect(container.querySelector('[data-testid="legacy-skills"]')).toBeNull();
     },
     SETTINGS_LAZY_LOAD_TEST_TIMEOUT_MS,

@@ -88,9 +88,7 @@ describe('ExtensionsPanel refresh', () => {
     expect(request).toHaveBeenCalledWith({ type: 'extensions/list' });
     expect(request.mock.calls.some((call) => call[0]?.type === 'extensions/apply')).toBe(false);
     const compat = container.querySelector('[data-testid="extensions-compat-notice"]');
-    expect(compat?.textContent).toContain('Pi extensions change the Agent, not the UI');
-    expect(compat?.textContent).toContain('confirm / select / input / notify');
-    expect(compat?.textContent).toContain('Pi TUI chrome');
+    expect(compat).toBeNull();
     expect(container.querySelector('[data-testid="extension-compat-pi-build-ios-apps"]')?.textContent).toBe(
       'compatible',
     );

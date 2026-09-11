@@ -18,6 +18,7 @@ import { useRightPanelResize } from './use-right-panel-resize';
 import { useSessionListChrome } from './use-session-list-chrome';
 import { useSessionListQuery } from './use-session-list-query';
 import { useShellLayout } from './use-shell-layout';
+import { loadSidebarMode, saveSidebarMode, type SidebarMode } from '../sidebar-mode';
 import { useSidebarResize } from './use-sidebar-resize';
 import { useTerminalPanelState } from './use-terminal-panel-state';
 import type { RightPanelTab } from '../right-panel';
@@ -90,8 +91,8 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
     },
     [knowledgeOpen, shell],
   );
-  const activeSubPage = (shell.activeSubPage as 'chat' | 'library' | 'images' | 'videos' | 'flashcards' | 'knowledge' | null) ?? null;
-  const setActiveSubPage = useCallback((subPage: 'chat' | 'library' | 'images' | 'videos' | 'flashcards' | 'knowledge' | null) => {
+  const activeSubPage = (shell.activeSubPage as 'chat' | 'library' | 'images' | 'videos' | 'flashcards' | 'knowledge' | 'marketplace' | null) ?? null;
+  const setActiveSubPage = useCallback((subPage: 'chat' | 'library' | 'images' | 'videos' | 'flashcards' | 'knowledge' | 'marketplace' | null) => {
     if (!subPage || subPage === 'chat') {
       shell.closeSubPage?.();
     } else if (subPage === 'library') {
@@ -104,7 +105,12 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
       shell.openFlashcards?.();
     } else if (subPage === 'knowledge') {
       shell.openKnowledge?.();
+    } else if (subPage === 'marketplace') {
+      shell.openMarketplace?.();
     }
+  }, [shell]);
+  const openMarketplace = useCallback(() => {
+    shell.openMarketplace?.();
   }, [shell]);
   const openKnowledge = useCallback(() => {
     shell.openKnowledge?.();
@@ -148,6 +154,11 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
     rightPanelOpen && rightPanelTab === 'terminal' && rightPanelView === 'detail';
   const sessionListChrome = useSessionListChrome();
   const [agentMode, setAgentMode] = useState<AgentModeId>('agent');
+  const [sidebarMode, setSidebarModeState] = useState<SidebarMode>(() => loadSidebarMode());
+  const setSidebarMode = useCallback((mode: SidebarMode) => {
+    setSidebarModeState(mode);
+    saveSidebarMode(mode);
+  }, []);
   // Conversation-scoped UI memory. Reset on real session switches happens in
   // useComposerDrafts — first-send (draft → created session) must keep the pill.
   const [orchestrationSchemeId, setOrchestrationSchemeId] = useState<string>(
@@ -268,10 +279,13 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
     handleOpenCardsPanel,
     handleOpenKnowledge,
     openKnowledge,
+    openMarketplace,
     openFlashcardsProduce,
     flashcardsEntry: shell.flashcardsEntry ?? 'gallery',
     flashcardsFolderPath: shell.flashcardsFolderPath,
     sessionListChrome,
+    sidebarMode,
+    setSidebarMode,
     agentMode,
     setAgentMode,
     orchestrationSchemeId,

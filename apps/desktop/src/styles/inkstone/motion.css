@@ -10,9 +10,11 @@
 
 @keyframes orbit {
   0% {
+    offset-distance: 0%;
     --composer-beam-angle: 0deg;
   }
   100% {
+    offset-distance: 100%;
     --composer-beam-angle: 360deg;
   }
 }

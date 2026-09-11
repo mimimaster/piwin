@@ -7,8 +7,9 @@ import {
   type KeyboardEvent,
   type ReactElement,
 } from 'react';
-import { Button, Dialog } from '@piwin/ui-kit';
 import { isPauseContinueUtterance } from '@piwin/contracts';
+import { ComposerOrbitBeam } from './composer-orbit-beam';
+import { AttachmentFailureDialog } from './attachment-failure-dialog';
 import type { AgentModeId } from './agent-mode';
 import { isFailedMediaAttachment } from './media-utils';
 import { ComposerAttachmentShelf } from './composer-attachment-shelf';
@@ -33,7 +34,6 @@ import {
 } from './at';
 import { ComposerModalEditor } from './ComposerModalEditor';
 import { ComposerQueuedEditBanner } from './composer-queued-edit-banner';
-import { ComposerPauseContinueHint } from './composer-pause-continue-hint';
 import { getDesktopCopy } from './desktop-locale';
 import { useDesktopLocale } from './desktop-locale-context';
 import { KnowledgeMountChips } from './knowledge/KnowledgeMountChips.js';
@@ -112,6 +112,13 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     props.pendingAttachments.some((item) => !isFailedMediaAttachment(item)) ||
     (props.pendingContextRefs?.length ?? 0) > 0;
   const onlyFailedAttachments = failedAttachments.length > 0 && !hasSendableContentBesidesFailures;
+  // Paused + "继续"/"continue" (no attachments/refs) resumes the checkpoint.
+  const isPauseContinueDraft =
+    isPaused &&
+    isPauseContinueUtterance(props.composer) &&
+    props.pendingAttachments.length === 0 &&
+    (props.pendingContextRefs?.length ?? 0) === 0 &&
+    props.hasCarryContent !== true;
   // A queued turn may legitimately end up image-only, so Enter still saves it
   // when the text has been cleared but chips remain.
   const canKeyboardSend =
@@ -478,6 +485,13 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     props.onSend(overrideText);
   }
 
+  function triggerResumeCheckpoint(): void {
+    if (props.composer.trim().length > 0) {
+      props.onComposerChange('');
+    }
+    void props.onResume?.();
+  }
+
   function triggerSend(): void {
     if (isExtensionUiActive) {
       // Extension UI path is text-only and does not use media attachments.
@@ -490,6 +504,10 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       } else if (isExtensionUiInput) {
         props.onExtensionUiResolve?.({ value: '' });
       }
+      return;
+    }
+    if (isPauseContinueDraft && props.onResume) {
+      triggerResumeCheckpoint();
       return;
     }
     if (failedAttachments.length > 0 && !isReservedComposerSlashCommand(props.composer)) {
@@ -754,8 +772,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     ) {
       event.preventDefault();
       const reserved = isReservedComposerSlashCommand(props.composer);
-      // Paused empty state keeps Continue on the circle; Enter with a draft
-      // must send the new message, not silently no-op.
+      // Paused empty / continue-only → resume via triggerSend; a real draft sends.
       if (canKeyboardSend || reserved) {
         triggerSend();
       }
@@ -807,6 +824,8 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
         props.onDrop(event);
       }}
     >
+      <ComposerOrbitBeam />
+
       {/* Drop Zone Overlay */}
       {props.dropActive ? (
         <div className="composer-v2-drop-overlay">
@@ -823,20 +842,6 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
           hint={copy.queuedEditHint}
           cancelLabel={copy.cancelQueuedEdit}
           onCancel={() => props.onQueuedEditCancel?.()}
-        />
-      ) : null}
-
-      {isPaused &&
-      !queuedEdit &&
-      isPauseContinueUtterance(props.composer) &&
-      props.composer.trim().length > 0 ? (
-        <ComposerPauseContinueHint
-          hint={copy.pauseContinueHint}
-          actionLabel={copy.pauseContinueHintAction}
-          onResumeCheckpoint={() => {
-            props.onComposerChange('');
-            void props.onResume?.();
-          }}
         />
       ) : null}
 
@@ -943,6 +948,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
         isStreamingRun={isStreamingRun}
         isPaused={isPaused}
         hasContent={hasContent}
+        isPauseContinueDraft={isPauseContinueDraft}
         onlyFailedAttachments={onlyFailedAttachments}
         isExtensionUiActive={isExtensionUiActive}
         canComposeText={canComposeText}
@@ -951,6 +957,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
         thinkingModels={thinkingModels}
         selectedModel={selectedModel}
         triggerSend={triggerSend}
+        onResumeCheckpoint={triggerResumeCheckpoint}
       />
 
       {/* Expanded Modal Editor */}
@@ -965,47 +972,20 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       />
 
       {/* Phase 0: retry / send-rest / back confirmation for failed saves. */}
-      <Dialog
-        label={copy.attachmentFailureDialogTitle}
+      <AttachmentFailureDialog
         open={attachmentFailureDialogOpen}
         onOpenChange={setAttachmentFailureDialogOpen}
-        testId="composer-attachment-failure-dialog"
-      >
-        <h3>{copy.attachmentFailureDialogTitle}</h3>
-        <div className="ui-confirm-description muted">
-          {copy.attachmentFailureDialogBody(failedAttachments.length)}
-        </div>
-        <div className="modal-actions">
-          <Button
-            data-testid="attachment-failure-cancel"
-            onClick={() => setAttachmentFailureDialogOpen(false)}
-          >
-            {copy.attachmentFailureBack}
-          </Button>
-          <Button
-            data-testid="attachment-failure-send-rest"
-            onClick={() => {
-              setAttachmentFailureDialogOpen(false);
-              props.onDiscardFailedAttachments?.();
-              proceedSend();
-            }}
-          >
-            {copy.attachmentFailureSendRest}
-          </Button>
-          <Button
-            variant="primary"
-            data-testid="attachment-failure-retry-send"
-            autoFocus
-            onClick={() => {
-              setAttachmentFailureDialogOpen(false);
-              props.onRetryFailedAttachments?.();
-              proceedSend();
-            }}
-          >
-            {copy.attachmentFailureRetrySend}
-          </Button>
-        </div>
-      </Dialog>
+        failedCount={failedAttachments.length}
+        copy={copy}
+        onDiscardAndSend={() => {
+          props.onDiscardFailedAttachments?.();
+          proceedSend();
+        }}
+        onRetryAndSend={() => {
+          props.onRetryFailedAttachments?.();
+          proceedSend();
+        }}
+      />
     </div>
   );
 }

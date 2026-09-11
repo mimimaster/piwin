@@ -199,6 +199,7 @@ export function useWorkbenchAppModel(args: UseWorkbenchAppModelArgs) {
     hostClient,
     state,
     sessionPlan: host.sessionPlan,
+    sendPrompt: composer.handleSend,
     dispatch,
     dispatchNotification: host.dispatchNotification,
     setEditingMessageId: chrome.setEditingMessageId,

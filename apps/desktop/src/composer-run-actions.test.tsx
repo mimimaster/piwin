@@ -187,4 +187,25 @@ describe('ComposerActionSlot', () => {
     });
     expect(onSend).toHaveBeenCalledTimes(1);
   });
+
+  it('paused with continue-only draft: Continue, not Send', () => {
+    const onSend = vi.fn();
+    const onResume = vi.fn();
+    const node = renderSlot({
+      ...idle,
+      isPaused: true,
+      hasContent: true,
+      isPauseContinueDraft: true,
+      onSend,
+      onResume,
+    });
+    expect(node.querySelectorAll(CIRCULAR).length).toBe(1);
+    expect(node.querySelector('[data-testid="send-btn"]')).toBeNull();
+    const resume = node.querySelector('[data-testid="resume-run-btn"]') as HTMLButtonElement;
+    act(() => {
+      resume.click();
+    });
+    expect(onResume).toHaveBeenCalledTimes(1);
+    expect(onSend).not.toHaveBeenCalled();
+  });
 });

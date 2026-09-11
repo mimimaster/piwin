@@ -39,6 +39,7 @@ import {
   IconBook,
   IconCards,
   IconImage,
+  IconExtension,
   IconPlus,
   IconPaperPlane,
   IconSearch,
@@ -119,6 +120,9 @@ export type ProjectSessionSidebarProps = {
   onOpenWorkspace?: () => void;
   onOpenProject: (path: string) => void;
   onOpenGeneral: () => void;
+  /** Controlled pane: chat = Conversations, code = projects + No Repo. */
+  sidebarMode?: SidebarMode;
+  onSidebarModeChange?: (mode: SidebarMode) => void;
   onRemoveProject?: (path: string) => void;
   onNewSession: (options?: {
     scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
@@ -141,6 +145,7 @@ export type ProjectSessionSidebarProps = {
     | 'videos'
     | 'flashcards'
     | 'knowledge'
+    | 'marketplace'
     | null
     | undefined;
   onOpenLibrary?: (() => void) | undefined;
@@ -148,6 +153,7 @@ export type ProjectSessionSidebarProps = {
   onOpenVideos?: (() => void) | undefined;
   onOpenFlashcards?: (() => void) | undefined;
   onOpenKnowledge?: (() => void) | undefined;
+  onOpenMarketplace?: (() => void) | undefined;
   isOverlayPresentation?: boolean;
   onCloseOverlay?: () => void;
   locale?: DesktopLocale;
@@ -237,11 +243,18 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
     ],
   );
 
-  const [sidebarMode, setSidebarMode] = useState<SidebarMode>(() => loadSidebarMode());
-  const selectSidebarMode = useCallback((mode: SidebarMode) => {
-    setSidebarMode(mode);
-    saveSidebarMode(mode);
-  }, []);
+  const [localSidebarMode, setLocalSidebarMode] = useState<SidebarMode>(() => loadSidebarMode());
+  const sidebarMode = props.sidebarMode ?? localSidebarMode;
+  const selectSidebarMode = useCallback(
+    (mode: SidebarMode) => {
+      if (props.sidebarMode === undefined) {
+        setLocalSidebarMode(mode);
+        saveSidebarMode(mode);
+      }
+      props.onSidebarModeChange?.(mode);
+    },
+    [props.sidebarMode, props.onSidebarModeChange],
+  );
 
   const allTreeRows = useMemo(
     () =>
@@ -644,6 +657,18 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
           >
             <IconCards />
             <span>{sidebarCopy.flashcards}</span>
+          </button>
+
+          <button
+            type="button"
+            className={`sidebar-action-row${props.activeSubPage === 'marketplace' ? ' active' : ''}`}
+            data-testid="sidebar-marketplace-btn"
+            onClick={() => props.onOpenMarketplace?.()}
+            title={props.locale === 'en' ? 'Marketplace' : '扩展市场'}
+            aria-label={props.locale === 'en' ? 'Marketplace' : '扩展市场'}
+          >
+            <IconExtension />
+            <span>{props.locale === 'en' ? 'Marketplace' : '扩展市场'}</span>
           </button>
 
           <button

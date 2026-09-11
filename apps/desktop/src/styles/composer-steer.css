@@ -356,39 +356,3 @@
   color: var(--text-1);
   background: var(--hover);
 }
-
-.composer-pause-continue-hint {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  box-sizing: border-box;
-  padding: var(--s-2) var(--s-5);
-  min-height: 32px;
-  border-bottom: 1px solid color-mix(in srgb, var(--amber) 28%, var(--line-1));
-  background: color-mix(in srgb, var(--amber) 12%, var(--surface-3));
-  color: var(--text-1);
-  font-size: var(--fs-chrome);
-  line-height: 1.3;
-}
-
-.composer-pause-continue-hint-copy {
-  flex: 1 1 auto;
-  min-width: 0;
-  color: var(--text-2);
-}
-
-.composer-pause-continue-hint-action {
-  flex: 0 0 auto;
-  border: 0;
-  border-radius: var(--r-chip);
-  padding: 2px 8px;
-  background: var(--amber-wash, color-mix(in srgb, var(--amber) 18%, transparent));
-  color: var(--text-1);
-  font: inherit;
-  font-weight: 650;
-  cursor: pointer;
-}
-
-.composer-pause-continue-hint-action:hover {
-  background: color-mix(in srgb, var(--amber) 28%, transparent);
-}

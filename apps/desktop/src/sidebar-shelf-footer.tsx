@@ -9,6 +9,7 @@ export interface SidebarShelfFooterProps {
     | 'videos'
     | 'flashcards'
     | 'knowledge'
+    | 'marketplace'
     | null
     | undefined;
   onOpenLibrary?: (() => void) | undefined;

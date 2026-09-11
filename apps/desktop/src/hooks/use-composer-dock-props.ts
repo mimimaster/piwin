@@ -58,6 +58,8 @@ import {
   resolveComposerLayoutMode,
 } from '../composer-dock-assembly';
 import { desktopForegroundMutationsEnabled } from '../foreground-admission.js';
+import { isConversationSessionChrome } from '../is-conversation-session';
+import type { SidebarMode } from '../sidebar-mode';
 import { useAtWorkspaceFiles } from './use-at-workspace-files';
 
 export type UseComposerDockPropsArgs = {
@@ -146,6 +148,7 @@ export type UseComposerDockPropsArgs = {
   ensureSession: () => Promise<string | null>;
   /** Focused conversation pane session; Live follows this while a call is up. */
   liveSessionId: string | null;
+  sidebarMode: SidebarMode;
 };
 
 export function useComposerDockProps(args: UseComposerDockPropsArgs): {
@@ -233,6 +236,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
     onQueuedEditCancel,
     ensureSession,
     liveSessionId,
+    sidebarMode,
   } = args;
 
   const { locale } = useDesktopLocale();
@@ -526,7 +530,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       onDelegationDisabledChange: setDelegationDisabled,
       onOrchestrationSchemeChange: setOrchestrationSchemeId,
       onOpenOrchestrationSchemeSettings: handleOpenOrchestrationSchemeSettings,
-      isConversationSession: state.activeScope.kind === 'general',
+      isConversationSession: isConversationSessionChrome(state.activeScope, sidebarMode),
       ...(hostClient.supportsCommand('git/status')
         ? { branchRequest: requestGit as ComposerDockProps['branchRequest'] }
         : {}),
@@ -629,6 +633,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       speechConfigured,
       speechRequest,
       live,
+      sidebarMode,
       state.activeScope.kind,
       state.activeSessionId,
       state.foregroundAdmission,

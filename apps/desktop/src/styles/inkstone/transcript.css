@@ -1,7 +1,8 @@
 /* Inkstone transcript (.stage .scroll) per docs/design/inkstone/proto-01-transcript.html
-   Turn structure: margin rail .marg (>=1080px) + user card .ucard + assembly .cap
-   + work fold .work + ink-line tool chain .thread/.tr + permission gate .gate
-   + prose + diff .dc + files changed bar .fcb + action buttons. */
+   Turn structure: margin rail .marg (>=960px, 160px from 1080) + user card .ucard
+   + assembly .cap + work fold .work + ink-line tool chain .thread/.tr
+   + permission gate .gate + prose + diff .dc + files changed bar .fcb
+   + action buttons. */
 
 /* Stage geometry — proto-01 puts `container-type` on `.stage`. A container
    cannot query itself; querying the scrollport lets the 1080 rail swap change
@@ -23,7 +24,11 @@ html[data-theme-id='piwin-inkstone-ink'] .chat-stage {
   --surf-y: 10px;
   --line-x: 8px;
   --row-in: 30px;
-  --gut: clamp(0px, max(var(--mg), var(--rail)), calc((100% - 24rem) / 2));
+  /* Gutter is leftover after the shared --measure, never 24rem (384px). That
+     stand-in let the 160px rail open while 160+measure+160 still overflowed a
+     sidebar-squeezed project stage — transcript shrank, composer stayed on
+     --chat-max. */
+  --gut: max(0px, min(max(var(--mg), var(--rail)), calc((100% - var(--measure)) / 2)));
 }
 
 /* Deck locks the thread to `--chat-max`, which puts the 160px rail *inside*
@@ -101,18 +106,26 @@ html[data-theme-id='piwin-inkstone-paper'] .chat-turn-head .av {
   overflow: hidden;
 }
 
-/* Wide-viewport marginalia swap (rail in, head out) per proto-01.
+/* Wide-viewport marginalia swap (rail in, head out).
+   Desktop shows the side rail from 960 — a project stage with the sidebar
+   open, not proto's full-bleed 1080. Gut is leftover after --measure so
+   2×rail + measure cannot overflow a squeezed stage. Proto's 1080 only
+   widens the cap from 140 to 160.
+
    --mg / --gut MUST be set on *descendants* of `.chat-stage`. A size
    container cannot style itself, so writing `--mg` on `.chat-stage` inside
    `@container transcript-stage` never applied — rail showed at width 0,
    `.who` (overflow:hidden) vanished, and usage like "1 工具" wrapped into a
-   vertical stack. */
+   vertical stack.
+
+   Include `.composer-dock` so the dock inherits the same leftover gut as
+   the turn grid. */
 @container transcript-stage (min-width: 960px) {
   html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
     .chat-stage
-    :is(.chat-thread, .chat-turn, .turn) {
-    --mg: 140px;
-    --gut: clamp(0px, max(var(--mg), var(--rail)), calc((100% - 24rem) / 2));
+    :is(.chat-thread, .chat-turn, .turn, .composer-dock) {
+    --gut: max(0px, min(140px, calc((100% - var(--measure)) / 2)));
+    --mg: var(--gut);
   }
   html[data-theme-id='piwin-inkstone-paper'] .marg,
   html[data-theme-id='piwin-inkstone-ink'] .marg,
@@ -131,21 +144,9 @@ html[data-theme-id='piwin-inkstone-paper'] .chat-turn-head .av {
 @container transcript-stage (min-width: 1080px) {
   html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
     .chat-stage
-    :is(.chat-thread, .chat-turn, .turn) {
-    --mg: 160px;
-    --gut: clamp(0px, max(var(--mg), var(--rail)), calc((100% - 24rem) / 2));
-  }
-  html[data-theme-id='piwin-inkstone-paper'] .marg,
-  html[data-theme-id='piwin-inkstone-ink'] .marg,
-  html[data-theme-id='piwin-inkstone-paper'] .chat-marginalia,
-  html[data-theme-id='piwin-inkstone-ink'] .chat-marginalia {
-    display: flex !important;
-  }
-  html[data-theme-id='piwin-inkstone-paper'] .head,
-  html[data-theme-id='piwin-inkstone-ink'] .head,
-  html[data-theme-id='piwin-inkstone-paper'] .chat-turn-head,
-  html[data-theme-id='piwin-inkstone-ink'] .chat-turn-head {
-    display: none !important;
+    :is(.chat-thread, .chat-turn, .turn, .composer-dock) {
+    --gut: max(0px, min(160px, calc((100% - var(--measure)) / 2)));
+    --mg: var(--gut);
   }
 }
 
@@ -425,12 +426,6 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   white-space: nowrap;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot span:first-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-}
-
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .acts {
   display: inline-flex;
   gap: 2px;
@@ -438,13 +433,15 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   min-width: 0;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .thinking-effort-control {
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .thinking-effort-control,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .orchestration-scheme-control {
   flex: none;
   min-width: 0;
   margin-right: 4px;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .thinking-effort-trigger {
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .thinking-effort-trigger,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .orchestration-scheme-trigger {
   height: 22px;
   max-width: 200px;
   padding: 0 6px;
@@ -453,7 +450,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   font-size: 11.5px;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .thinking-effort-trigger:hover:not(:disabled) {
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .thinking-effort-trigger:hover:not(:disabled),
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .orchestration-scheme-trigger:hover:not(:disabled) {
   background: var(--s2);
   color: var(--t1);
 }
@@ -478,12 +476,22 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   font-size: 11.5px;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .thinking-effort-value {
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .thinking-effort-value,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .orchestration-scheme-prefix {
   color: var(--t3);
   font-size: 11.5px;
 }
 
-html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .thinking-effort-chevron {
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .orchestration-scheme-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--t2);
+  font-size: 11.5px;
+}
+
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .thinking-effort-chevron,
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .efoot .orchestration-scheme-chevron {
   display: block;
   margin-left: 2px;
   opacity: 0.7;

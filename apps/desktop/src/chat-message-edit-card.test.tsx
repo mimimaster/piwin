@@ -266,37 +266,13 @@ describe('MessageEditCard carry-through send', () => {
     expect(onCancel).toHaveBeenCalledTimes(2);
   });
 
-  it('displays branch hint when editing earlier message or branching', () => {
+  it('does not show keyboard shortcut or branch hints in the footer', () => {
     const rendered = renderCard(
       <MessageEditCard
         messageId="u1"
         initialText="text"
         locale="zh-CN"
         currentTurn={false}
-        branchPoint={{
-          anchorMessageId: 'p1',
-          activeIndex: 0,
-          siblings: [
-            {
-              headMessageId: 'u1',
-              role: 'user',
-              preview: '1',
-              leafPreview: '1',
-              messageCount: 1,
-              writesWorkspace: false,
-              updatedAt: '2026-09-05T14:02:00.000Z',
-            },
-            {
-              headMessageId: 'u2',
-              role: 'user',
-              preview: '2',
-              leafPreview: '2',
-              messageCount: 1,
-              writesWorkspace: false,
-              updatedAt: '2026-09-05T14:03:00.000Z',
-            },
-          ],
-        }}
         onCancel={vi.fn()}
         onResend={vi.fn()}
       />,
@@ -305,7 +281,7 @@ describe('MessageEditCard carry-through send', () => {
     container = rendered.container;
 
     const efoot = container.querySelector('.efoot');
-    expect(efoot?.textContent).toContain('将作为分支 3 / 3');
+    expect(efoot?.textContent).not.toMatch(/Enter|换行|Esc|将作为分支|shortcut/i);
   });
 
   it('renders the composer model picker on the edit footer', () => {
@@ -386,6 +362,137 @@ describe('MessageEditCard carry-through send', () => {
     container = rendered.container;
 
     expect(container.querySelector('[data-testid="thinking-effort-trigger"]')).toBeNull();
+  });
+
+  it('reuses the conversation orchestration scheme in the edit footer', () => {
+    const onOrchestrationSchemeChange = vi.fn();
+    const rendered = renderCard(
+      <MessageEditCard
+        messageId="u1"
+        initialText="retry me"
+        currentTurn
+        composerCard={{
+          ...composerCard,
+          orchestrationSchemeId: 'ultra-code',
+          orchestrationSchemeOptions: [
+            { id: 'off', name: 'Freehand', description: 'No scheme' },
+            { id: 'ultra-code', name: 'Ultra Code', description: 'Scout pack' },
+          ],
+          onOrchestrationSchemeChange,
+        }}
+        onCancel={vi.fn()}
+        onResend={vi.fn()}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-testid="orchestration-scheme-trigger"]',
+    );
+    expect(trigger).not.toBeNull();
+    expect(trigger?.getAttribute('data-scheme')).toBe('ultra-code');
+    expect(trigger?.textContent).toContain('Ultra Code');
+
+    act(() => {
+      trigger?.focus();
+      trigger?.click();
+    });
+    const option = document.querySelector<HTMLButtonElement>(
+      '[data-testid="orchestration-scheme-option-off"]',
+    );
+    expect(option).not.toBeNull();
+    act(() => {
+      option?.click();
+    });
+    expect(onOrchestrationSchemeChange).toHaveBeenCalledWith('off');
+  });
+
+  it('does not show the orchestration picker while editing a pending intervention', () => {
+    const rendered = renderCard(
+      <MessageEditCard
+        messageId="u1"
+        initialText="steer this"
+        interventionEdit
+        composerCard={{
+          ...composerCard,
+          orchestrationSchemeId: 'ultra-code',
+          orchestrationSchemeOptions: [
+            { id: 'off', name: 'Freehand', description: 'No scheme' },
+            { id: 'ultra-code', name: 'Ultra Code', description: 'Scout pack' },
+          ],
+          onOrchestrationSchemeChange: vi.fn(),
+        }}
+        onCancel={vi.fn()}
+        onResend={vi.fn()}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(container.querySelector('[data-testid="orchestration-scheme-trigger"]')).toBeNull();
+  });
+
+  it('does not show the orchestration picker in a Conversation session', () => {
+    const rendered = renderCard(
+      <MessageEditCard
+        messageId="u1"
+        initialText="retry me"
+        composerCard={{
+          ...composerCard,
+          isConversationSession: true,
+          orchestrationSchemeId: 'ultra-code',
+          orchestrationSchemeOptions: [
+            { id: 'off', name: 'Freehand', description: 'No scheme' },
+            { id: 'ultra-code', name: 'Ultra Code', description: 'Scout pack' },
+          ],
+          onOrchestrationSchemeChange: vi.fn(),
+        }}
+        onCancel={vi.fn()}
+        onResend={vi.fn()}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(container.querySelector('[data-testid="orchestration-scheme-trigger"]')).toBeNull();
+  });
+
+  it('does not cancel editing when using the orchestration popover', () => {
+    const onCancel = vi.fn();
+    const rendered = renderCard(
+      <MessageEditCard
+        messageId="u1"
+        initialText="retry me"
+        composerCard={{
+          ...composerCard,
+          orchestrationSchemeId: 'ultra-code',
+          orchestrationSchemeOptions: [
+            { id: 'off', name: 'Freehand', description: 'No scheme' },
+            { id: 'ultra-code', name: 'Ultra Code', description: 'Scout pack' },
+          ],
+          onOrchestrationSchemeChange: vi.fn(),
+        }}
+        onCancel={onCancel}
+        onResend={vi.fn()}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-testid="orchestration-scheme-trigger"]',
+    );
+    act(() => {
+      trigger?.focus();
+      trigger?.click();
+    });
+    const popover = document.querySelector('[data-testid="orchestration-scheme-popover"]');
+    expect(popover).not.toBeNull();
+    act(() => {
+      popover?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    });
+    expect(onCancel).not.toHaveBeenCalled();
   });
 
   it('does not cancel editing when using the model popover', () => {

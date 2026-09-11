@@ -98,6 +98,70 @@ describe('clusterProjectsByRepository', () => {
     ]);
   });
 
+  it('nests a same-checkout subdirectory when the parent path is a symlink alias', () => {
+    const clusters = clusterProjectsByRepository([
+      {
+        path: '/Users/me/piwin/apps',
+        displayName: 'apps',
+        gitRepositoryId: 'repo1',
+        isPrimaryWorktree: true,
+        currentBranch: 'main',
+        gitRootPath: '/Users/me/piwin',
+      },
+      {
+        path: '/Volumes/disk/piwin',
+        displayName: 'piwin',
+        gitRepositoryId: 'repo1',
+        isPrimaryWorktree: true,
+        currentBranch: 'main',
+        gitRootPath: '/Users/me/piwin',
+      },
+    ]);
+    expect(clusters).toEqual([
+      {
+        kind: 'solo',
+        project: {
+          path: '/Volumes/disk/piwin',
+          displayName: 'piwin',
+          gitRepositoryId: 'repo1',
+          isPrimaryWorktree: true,
+          currentBranch: 'main',
+          gitRootPath: '/Users/me/piwin',
+          nested: [
+            {
+              path: '/Users/me/piwin/apps',
+              displayName: 'apps',
+              gitRepositoryId: 'repo1',
+              isPrimaryWorktree: true,
+              currentBranch: 'main',
+              gitRootPath: '/Users/me/piwin',
+            },
+          ],
+        },
+      },
+    ]);
+  });
+
+  it('does not label same-checkout leftovers as linked worktrees', () => {
+    const clusters = clusterProjectsByRepository([
+      {
+        path: '/Users/me/piwin/apps',
+        displayName: 'apps',
+        gitRepositoryId: 'repo1',
+        isPrimaryWorktree: true,
+        gitRootPath: '/Users/me/piwin',
+      },
+      {
+        path: '/Users/me/piwin/packages',
+        displayName: 'packages',
+        gitRepositoryId: 'repo1',
+        isPrimaryWorktree: true,
+        gitRootPath: '/Users/me/piwin',
+      },
+    ]);
+    expect(clusters.map((cluster) => cluster.kind)).toEqual(['solo', 'solo']);
+  });
+
   it('leaves a single-worktree repo as a flat folder', () => {
     expect(
       clusterProjectsByRepository([

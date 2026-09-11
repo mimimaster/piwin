@@ -198,6 +198,11 @@ export function useShellLayout() {
     setNavigation((current) => pushShellRoute(current, { kind: 'knowledge' }));
   }, [rememberTrigger]);
 
+  const openMarketplace = useCallback(() => {
+    rememberTrigger();
+    setNavigation((current) => pushShellRoute(current, { kind: 'marketplace' }));
+  }, [rememberTrigger]);
+
   const openSettings = useCallback(
     (section: ShellSettingsSection = 'general') => {
       rememberTrigger();
@@ -333,6 +338,7 @@ export function useShellLayout() {
       activeRoute.kind === 'flashcards' ? (activeRoute.entry ?? 'gallery') : 'gallery',
     flashcardsFolderPath: activeRoute.kind === 'flashcards' ? activeRoute.folderPath : undefined,
     openKnowledge,
+    openMarketplace,
     closeSubPage,
     openSettings,
     closeSettings,

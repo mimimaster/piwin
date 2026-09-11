@@ -26,6 +26,7 @@ export type ComposerCardToolbarProps = {
   isStreamingRun: boolean;
   isPaused: boolean;
   hasContent: boolean;
+  isPauseContinueDraft?: boolean;
   onlyFailedAttachments: boolean;
   isExtensionUiActive: boolean;
   canComposeText: boolean;
@@ -42,6 +43,7 @@ export type ComposerCardToolbarProps = {
   }>;
   selectedModel: ComposerDockProps['modelOptions'][number] | undefined;
   triggerSend: () => void;
+  onResumeCheckpoint?: () => void;
 };
 
 export function ComposerCardToolbar({
@@ -51,6 +53,7 @@ export function ComposerCardToolbar({
   isStreamingRun,
   isPaused,
   hasContent,
+  isPauseContinueDraft = false,
   onlyFailedAttachments,
   isExtensionUiActive,
   canComposeText,
@@ -59,8 +62,10 @@ export function ComposerCardToolbar({
   thinkingModels,
   selectedModel,
   triggerSend,
+  onResumeCheckpoint,
 }: ComposerCardToolbarProps): ReactElement {
   const reservedCommand = isReservedComposerSlashCommand(props.composer);
+  const resumeHandler = onResumeCheckpoint ?? props.onResume;
   return (
     <div className="bar composer-v2-toolbar">
       <div className="composer-v2-toolbar-left">
@@ -220,12 +225,13 @@ export function ComposerCardToolbar({
           isStreamingRun={isStreamingRun}
           isPaused={isPaused}
           hasContent={hasContent}
+          isPauseContinueDraft={isPauseContinueDraft}
           onlyFailedAttachments={onlyFailedAttachments}
           isExtensionUiActive={isExtensionUiActive}
           onSend={triggerSend}
           onPause={props.onPause}
           {...(props.embedded === true ? { embedded: true, onAbort: props.onAbort } : {})}
-          {...(props.onResume ? { onResume: props.onResume } : {})}
+          {...(resumeHandler ? { onResume: resumeHandler } : {})}
           {...(props.mutationsEnabled === undefined && !reservedCommand
             ? {}
             : { mutationsEnabled: reservedCommand || props.mutationsEnabled !== false })}

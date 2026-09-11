@@ -868,12 +868,6 @@
   white-space: nowrap;
 }
 
-.efoot span:first-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-}
-
 .efoot .acts {
   display: inline-flex;
   gap: 2px;
@@ -881,13 +875,15 @@
   min-width: 0;
 }
 
-.efoot .thinking-effort-control {
+.efoot .thinking-effort-control,
+.efoot .orchestration-scheme-control {
   flex: none;
   min-width: 0;
   margin-right: 4px;
 }
 
-.efoot .thinking-effort-trigger {
+.efoot .thinking-effort-trigger,
+.efoot .orchestration-scheme-trigger {
   height: 22px;
   max-width: 200px;
   padding: 0 6px;

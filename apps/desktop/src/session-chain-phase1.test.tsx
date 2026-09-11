@@ -102,6 +102,8 @@ describe('session chain phase 1', () => {
       },
       backendServiceSessionIds: {},
       shell: { closeOverlay: () => {} },
+      sidebarMode: 'code',
+      onSidebarModeChange: () => {},
     };
 
     act(() => {

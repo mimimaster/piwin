@@ -9,10 +9,12 @@ export type StudioTopbarProps = {
   backLabel: string;
   onBack: () => void;
   locale?: DesktopLocale | undefined;
-  kind: 'library' | 'flashcards' | 'knowledge';
+  kind: 'library' | 'flashcards' | 'knowledge' | 'marketplace';
   /** `page` uses an icon-only back control. Default keeps the back label. */
   layout?: 'bar' | 'page';
   titleCount?: number | undefined;
+  customTitle?: string | undefined;
+  barActions?: ReactNode | undefined;
   searchPlaceholder?: string | undefined;
   searchTestId?: string | undefined;
   searchValue?: string | undefined;
@@ -30,11 +32,14 @@ export function StudioTopbar(props: StudioTopbarProps): ReactElement {
   const t = (en: string, zh: string) => (isZh ? zh : en);
   const dragWindowLabel = getDesktopCopy(locale).titlebar.dragWindow;
   const title =
-    props.kind === 'flashcards'
+    props.customTitle ??
+    (props.kind === 'flashcards'
       ? t('Flashcards', '闪卡')
       : props.kind === 'knowledge'
         ? t('Knowledge', '知识库')
-        : t('Library', '资料库');
+        : props.kind === 'marketplace'
+          ? t('Marketplace', '扩展市场')
+          : t('Library', '资料库'));
   const iconBack = props.layout === 'page';
 
   const searchField =
@@ -105,7 +110,11 @@ export function StudioTopbar(props: StudioTopbarProps): ReactElement {
           </span>
         </div>
 
-        {!hasSubbar && toolbar ? (
+        {props.barActions !== undefined ? (
+          <div className="vault-bar-actions" data-no-window-drag>
+            {props.barActions}
+          </div>
+        ) : !hasSubbar && toolbar ? (
           <div className="vault-bar-actions" data-no-window-drag>
             {toolbar}
           </div>

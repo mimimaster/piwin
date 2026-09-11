@@ -2,7 +2,8 @@
  * Composer action slot: exactly one circular control.
  *
  * Idle Send → live Pause (`session/pause`) → paused Continue.
- * A draft while live or paused uses ordinary Send; only empty Continue resumes.
+ * A real draft while live or paused uses ordinary Send.
+ * Paused empty, or a continue-only utterance (`继续` / `continue`), resumes.
  * Live Send admits a Host queued turn. Cmd/Ctrl+Enter still steers.
  */
 import type { ReactElement } from 'react';
@@ -28,6 +29,8 @@ export type ComposerActionSlotProps = {
   isStreamingRun: boolean;
   isPaused: boolean;
   hasContent: boolean;
+  /** Paused + continue-only text (no attachments): show Continue, not Send. */
+  isPauseContinueDraft?: boolean;
   onlyFailedAttachments: boolean;
   mutationsEnabled?: boolean;
   isExtensionUiActive: boolean;
@@ -152,7 +155,7 @@ function renderPrimaryCircle(props: ComposerActionSlotProps): ReactElement {
     }
     return <ComposerPauseButton {...props} />;
   }
-  if (props.isPaused && !props.hasContent) {
+  if (props.isPaused && (!props.hasContent || props.isPauseContinueDraft === true)) {
     return <ComposerContinueButton {...props} />;
   }
   if (props.onlyFailedAttachments) {

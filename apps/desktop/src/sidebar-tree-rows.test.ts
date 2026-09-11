@@ -740,6 +740,46 @@ describe('buildSidebarTreeRows', () => {
     expect(appsFolder?.grouped).toBe(true);
   });
 
+  it('nests a subdirectory when the remembered parent path is a symlink alias', () => {
+    const rows = buildSidebarTreeRows({
+      recentProjects: [
+        {
+          path: '/Users/me/piwin/apps',
+          displayName: 'apps',
+          gitRepositoryId: 'repo1',
+          isPrimaryWorktree: true,
+          currentBranch: 'main',
+          gitRootPath: '/Users/me/piwin',
+        },
+        {
+          path: '/Volumes/disk/piwin',
+          displayName: 'piwin',
+          gitRepositoryId: 'repo1',
+          isPrimaryWorktree: true,
+          currentBranch: 'main',
+          gitRootPath: '/Users/me/piwin',
+        },
+      ],
+      projectSessionsByPath: {},
+      generalSessions: [],
+      sessionSearch: '',
+      sessionListOrder: 'updated',
+      projectsSectionExpanded: true,
+      conversationsSectionExpanded: true,
+      collapsedProjects: { '/Volumes/disk/piwin': true, '/Users/me/piwin/apps': true },
+      sessionListScopes: createSessionListScopeState(),
+    });
+    expect(rows.some((row) => row.kind === 'repo-group')).toBe(false);
+    expect(
+      rows
+        .filter(
+          (row): row is Extract<SidebarTreeRow, { kind: 'project-folder' }> =>
+            row.kind === 'project-folder',
+        )
+        .map((row) => row.projectPath),
+    ).toEqual(['/Volumes/disk/piwin']);
+  });
+
   it('marks clustered worktree sessions so the ink line can follow the folder', () => {
     const rows = buildSidebarTreeRows({
       recentProjects: [

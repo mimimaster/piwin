@@ -102,7 +102,7 @@ export type ExtensionSummary = {
   selectedRevision?: string;
   /** Pi `pi.on(event)` names detected from source without executing the module. */
   hookEvents?: string[];
-  /** Static Agent vs TUI scan. Only `compatible` is Blueprint-loaded by default. */
+  /** Detailed 4-tier static Agent-vs-TUI compatibility report. */
   compatibility?: ExtensionCompatibility;
 };
 

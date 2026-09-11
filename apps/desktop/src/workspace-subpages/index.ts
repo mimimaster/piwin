@@ -1,3 +1,4 @@
-export * from './LibraryWorkspaceView';
-export * from './FlashcardsWorkspaceView';
-export * from './KnowledgeWorkspaceView';
+export * from './LibraryWorkspaceView.js';
+export * from './FlashcardsWorkspaceView.js';
+export * from './KnowledgeWorkspaceView.js';
+export * from './MarketplaceWorkspaceView.js';
