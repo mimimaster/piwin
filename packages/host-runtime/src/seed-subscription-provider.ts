@@ -117,14 +117,40 @@ export function ensureSubscriptionProviders(
   accounts: readonly SubscriptionAccount[],
   catalogFor: (providerId: string) => readonly SubscriptionCatalogSeedModel[],
 ): PiwinConfig {
+  const usable = new Set<string>();
   let next = config;
   for (const account of accounts) {
     if (!isSubscriptionAccountUsable(account) || !isV1SubscriptionProviderId(account.providerId)) {
       continue;
     }
+    usable.add(account.providerId);
     next = upsertSubscriptionProvider(next, account.providerId, catalogFor(account.providerId));
   }
-  return next;
+  return dropUnusableSubscriptionProviders(next, usable);
+}
+
+function dropUnusableSubscriptionProviders(
+  config: PiwinConfig,
+  usable: ReadonlySet<string>,
+): PiwinConfig {
+  const providers = config.providers.filter(
+    (provider) => !isSubscriptionProvider(provider) || usable.has(provider.id),
+  );
+  const dropped = providers.length !== config.providers.length;
+  const withProviders = dropped ? { ...config, providers } : config;
+  return withoutDanglingChatDefault(withProviders);
+}
+
+function withoutDanglingChatDefault(config: PiwinConfig): PiwinConfig {
+  const providerId = config.defaultProviderId;
+  if (providerId === undefined) {
+    return config;
+  }
+  if (config.providers.some((provider) => provider.id === providerId)) {
+    return config;
+  }
+  const { defaultProviderId: _provider, defaultModelId: _model, ...rest } = config;
+  return rest;
 }
 
 function mergeSubscriptionProvider(

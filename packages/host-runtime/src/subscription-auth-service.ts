@@ -382,6 +382,7 @@ export class SubscriptionAuthService {
       this.syncErrorProviderIds.delete(providerId);
       this.needsReauthProviderIds.delete(providerId);
     }
+    await this.ensureLoggedInProviders();
     this.emitUpdated();
     return {};
   }
