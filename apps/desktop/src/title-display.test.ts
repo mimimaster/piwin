@@ -22,6 +22,8 @@ describe('isPlaceholderSessionName', () => {
     expect(isPlaceholderSessionName('session-sdk-mscy')).toBe(true);
     expect(isPlaceholderSessionName('New chat')).toBe(true);
     expect(isPlaceholderSessionName('新会话')).toBe(true);
+    expect(isPlaceholderSessionName('素笺')).toBe(true);
+    expect(isPlaceholderSessionName('Clean Slate')).toBe(true);
     expect(isPlaceholderSessionName(undefined)).toBe(true);
   });
 

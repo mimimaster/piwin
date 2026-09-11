@@ -538,7 +538,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                           primaryPane={primaryPane}
                           primarySessionName={
                             activeSessionName ||
-                            (desktopLocale === 'zh-CN' ? '新会话' : 'New Session')
+                            (desktopLocale === 'zh-CN' ? '素笺' : 'Clean Slate')
                           }
                           sessions={
                             state.activeScope.kind === 'general'
