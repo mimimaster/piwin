@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { access, mkdir, mkdtemp, symlink, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, realpath, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -343,5 +343,101 @@ describe('project commands', () => {
     expect(linked?.isPrimaryWorktree).toBe(false);
     expect(linked?.gitRepositoryId).toBe(main?.gitRepositoryId);
     expect(main?.gitRepositoryId).toMatch(/^[a-f0-9]{16}$/);
+    expect(await realpath(main?.gitRootPath ?? '')).toBe(await realpath(projectPath));
+    expect(await realpath(linked?.gitRootPath ?? '')).toBe(await realpath(linkedPath));
+  });
+
+  it('reuses a registered checkout instead of remembering a subdirectory', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-project-open-nested-'));
+    const projectPath = join(rootDir, 'workspace');
+    const nestedPath = join(projectPath, 'apps');
+    await mkdir(nestedPath, { recursive: true });
+    await execFileAsync('git', ['init', '-b', 'main'], { cwd: projectPath });
+    await execFileAsync('git', ['config', 'user.email', 'piwin-test@example.com'], {
+      cwd: projectPath,
+    });
+    await execFileAsync('git', ['config', 'user.name', 'piwin test'], { cwd: projectPath });
+    await writeFile(join(projectPath, 'README.md'), 'hello\n', 'utf8');
+    await execFileAsync('git', ['add', 'README.md'], { cwd: projectPath });
+    await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: projectPath });
+
+    await handleProjectCommand({ type: 'project/open', path: projectPath }, 'open-root', rootDir);
+    const nestedOpen = await handleProjectCommand(
+      { type: 'project/open', path: nestedPath },
+      'open-nested',
+      rootDir,
+    );
+    expect(nestedOpen?.success).toBe(true);
+    expect(nestedOpen && 'data' in nestedOpen ? nestedOpen.data : null).toMatchObject({
+      path: projectPath,
+    });
+
+    const listed = await handleProjectCommand({ type: 'project/list' }, 'list-nested', rootDir);
+    const projects =
+      listed && 'data' in listed
+        ? ((listed.data as { projects: ProjectRecord[] }).projects ?? [])
+        : [];
+    expect(projects.map((project) => project.path)).toEqual([projectPath]);
+  });
+
+  it('remembers the git checkout root when the first open is a subdirectory', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-project-open-lift-'));
+    const projectPath = join(rootDir, 'workspace');
+    const nestedPath = join(projectPath, 'apps');
+    await mkdir(nestedPath, { recursive: true });
+    await execFileAsync('git', ['init', '-b', 'main'], { cwd: projectPath });
+    await execFileAsync('git', ['config', 'user.email', 'piwin-test@example.com'], {
+      cwd: projectPath,
+    });
+    await execFileAsync('git', ['config', 'user.name', 'piwin test'], { cwd: projectPath });
+    await writeFile(join(projectPath, 'README.md'), 'hello\n', 'utf8');
+    await execFileAsync('git', ['add', 'README.md'], { cwd: projectPath });
+    await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: projectPath });
+
+    const nestedOpen = await handleProjectCommand(
+      { type: 'project/open', path: nestedPath },
+      'open-nested-first',
+      rootDir,
+    );
+    const openedPath =
+      nestedOpen && 'data' in nestedOpen
+        ? ((nestedOpen.data as { path?: string }).path ?? '')
+        : '';
+    expect(await realpath(openedPath)).toBe(await realpath(projectPath));
+
+    const listed = await handleProjectCommand({ type: 'project/list' }, 'list-lifted', rootDir);
+    const projects =
+      listed && 'data' in listed
+        ? ((listed.data as { projects: ProjectRecord[] }).projects ?? [])
+        : [];
+    expect(projects).toHaveLength(1);
+    expect(await realpath(projects[0]?.path ?? '')).toBe(await realpath(projectPath));
+  });
+
+  it('still remembers a linked worktree as its own project', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-project-open-wt-'));
+    const projectPath = join(rootDir, 'workspace');
+    await mkdir(projectPath, { recursive: true });
+    await execFileAsync('git', ['init', '-b', 'main'], { cwd: projectPath });
+    await execFileAsync('git', ['config', 'user.email', 'piwin-test@example.com'], {
+      cwd: projectPath,
+    });
+    await execFileAsync('git', ['config', 'user.name', 'piwin test'], { cwd: projectPath });
+    await writeFile(join(projectPath, 'README.md'), 'hello\n', 'utf8');
+    await execFileAsync('git', ['add', 'README.md'], { cwd: projectPath });
+    await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: projectPath });
+    await execFileAsync('git', ['branch', 'feat/x'], { cwd: projectPath });
+    const linkedPath = join(rootDir, 'linked');
+    await execFileAsync('git', ['worktree', 'add', linkedPath, 'feat/x'], { cwd: projectPath });
+
+    await handleProjectCommand({ type: 'project/open', path: projectPath }, 'open-main', rootDir);
+    const linkedOpen = await handleProjectCommand(
+      { type: 'project/open', path: linkedPath },
+      'open-linked',
+      rootDir,
+    );
+    expect(linkedOpen && 'data' in linkedOpen ? linkedOpen.data : null).toMatchObject({
+      path: linkedPath,
+    });
   });
 });

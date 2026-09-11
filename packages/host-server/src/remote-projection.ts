@@ -505,6 +505,9 @@ function projectProjects(data: unknown): RemoteProjectSummary[] {
     if (typeof record.currentBranch === 'string' && record.currentBranch.length > 0) {
       summary.currentBranch = record.currentBranch;
     }
+    if (typeof record.gitRootPath === 'string' && record.gitRootPath.length > 0) {
+      summary.gitRootPath = record.gitRootPath;
+    }
     projected.push(summary);
   }
   return projected;

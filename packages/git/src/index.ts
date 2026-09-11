@@ -90,7 +90,12 @@ export {
 
 export { formatGitCheckoutFailure } from './checkout-failure.js';
 
-export { findTrustedSameRepositoryRoot, resolveGitCommonDir } from './same-repository.js';
+export {
+  findRegisteredGitWorktreeRoot,
+  findTrustedSameRepositoryRoot,
+  resolveGitCommonDir,
+  resolveOpenGitWorkspacePath,
+} from './same-repository.js';
 
 export {
   gitRepositoryIdFromCommonDir,

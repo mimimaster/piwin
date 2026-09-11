@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -52,6 +52,18 @@ describe('readGitWorkspaceListing', () => {
     expect(linked?.isPrimaryWorktree).toBe(false);
     expect(linked?.gitRepositoryId).toBe(primary?.gitRepositoryId);
     expect(primary?.gitRepositoryId).toHaveLength(16);
+    expect(await realpath(primary?.gitRootPath ?? '')).toBe(await realpath(projectPath));
+    expect(await realpath(linked?.gitRootPath ?? '')).toBe(await realpath(linkedPath));
+  });
+
+  it('reports the checkout root for a subdirectory of the primary worktree', async () => {
+    const projectPath = await createRepository();
+    const nestedPath = join(projectPath, 'apps');
+    await mkdir(nestedPath);
+    const nested = await readGitWorkspaceListing(nestedPath);
+    expect(await realpath(nested?.gitRootPath ?? '')).toBe(await realpath(projectPath));
+    expect(nested?.isPrimaryWorktree).toBe(true);
+    expect(nested?.gitRepositoryId).toBe((await readGitWorkspaceListing(projectPath))?.gitRepositoryId);
   });
 
   it('returns null for a non-git directory', async () => {

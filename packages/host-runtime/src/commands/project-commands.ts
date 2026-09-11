@@ -19,7 +19,7 @@ import {
   revokeRememberedPermission,
   setProjectTrust,
 } from '@piwin/project';
-import { findTrustedSameRepositoryRoot, readGitWorkspaceListing } from '@piwin/git';
+import { findTrustedSameRepositoryRoot, readGitWorkspaceListing, resolveOpenGitWorkspacePath } from '@piwin/git';
 import { fail, ok } from '../response-helpers.js';
 import { getPiwinGeneralWorkspacePath, getPiwinProjectsPath, getPiwinRoot } from '../paths.js';
 import { ensureGeneralWorkspace } from '../general-workspace.js';
@@ -65,19 +65,20 @@ export async function handleProjectCommand(
         return openPath.response;
       }
       const document = await loadProjectStore(projectsPath);
-      const absoluteOpenPath = path.resolve(openPath.path);
-      const existing = document.projects.find((item) => item.path === absoluteOpenPath);
+      const registeredPaths = document.projects.map((item) => item.path);
+      const targetPath = await resolveOpenGitWorkspacePath(openPath.path, registeredPaths);
+      const existing = document.projects.find((item) => item.path === path.resolve(targetPath));
       let project: ProjectRecord;
       if (existing) {
-        project = await openOrCreateProject(projectsPath, openPath.path);
+        project = await openOrCreateProject(projectsPath, targetPath);
       } else {
         const trustedPaths = document.projects
           .filter((item) => item.trust === 'trusted')
           .map((item) => item.path);
-        const inheritedFrom = await findTrustedSameRepositoryRoot(openPath.path, trustedPaths);
+        const inheritedFrom = await findTrustedSameRepositoryRoot(targetPath, trustedPaths);
         project = inheritedFrom
-          ? await openOrCreateProject(projectsPath, openPath.path, { trust: 'trusted' })
-          : await openOrCreateProject(projectsPath, openPath.path);
+          ? await openOrCreateProject(projectsPath, targetPath, { trust: 'trusted' })
+          : await openOrCreateProject(projectsPath, targetPath);
       }
       return ok(requestId, 'project/open', {
         path: project.path,
@@ -177,6 +178,7 @@ async function enrichProjectWithGitWorkspace(project: ProjectRecord): Promise<Pr
     ...project,
     gitRepositoryId: listing.gitRepositoryId,
     isPrimaryWorktree: listing.isPrimaryWorktree,
+    gitRootPath: listing.gitRootPath,
   };
   if (listing.currentBranch) {
     enriched.currentBranch = listing.currentBranch;
