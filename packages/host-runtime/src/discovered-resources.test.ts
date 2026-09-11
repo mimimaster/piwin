@@ -30,13 +30,23 @@ async function seedPiwinAndPi(): Promise<{ piwinRoot: string; agentDir: string }
     JSON.stringify({ packages: ['npm:shared'] }),
     'utf8',
   );
+  await mkdir(join(agentDir, 'extensions'), { recursive: true });
+  await writeFile(
+    join(agentDir, 'extensions', 'tui-only.ts'),
+    'ctx.ui.custom({});\nregisterTheme();\n',
+    'utf8',
+  );
   return { piwinRoot, agentDir };
 }
 
 describe('loadDiscoveredResources', () => {
   it('unions piwin and Pi inventories and keeps both ids visible for shadowing', async () => {
     const { piwinRoot, agentDir } = await seedPiwinAndPi();
-    const listed = await loadDiscoveredResources({ piwinRoot, agentDir });
+    const listed = await loadDiscoveredResources({
+      piwinRoot,
+      agentDir,
+      followPiNativeInventory: true,
+    });
     const hellos = listed.extensions.filter((item) => item.id === 'hello');
     expect(hellos.length).toBe(2);
     expect(hellos.map((item) => item.source)).toEqual(['user', 'pi-native']);
@@ -49,6 +59,7 @@ describe('loadDiscoveredResources', () => {
       agentDir,
       piwinRoot,
       scope: { kind: 'general' },
+      followPiNativeInventory: true,
     });
     const hellos = loaded.resourceCatalog.entries.filter(
       (entry) => entry.kind === 'extension' && entry.resourceId === 'hello',
@@ -66,9 +77,40 @@ describe('loadDiscoveredResources', () => {
     const listed = await loadDiscoveredResources({
       piwinRoot,
       agentDir,
+      followPiNativeInventory: true,
       extensionsConfig: { extraPaths: [], disabledIds: ['hello'] },
     });
-    const native = listed.extensions.find((item) => item.source === 'pi-native');
+    const native = listed.extensions.find((item) => item.source === 'pi-native' && item.id === 'hello');
     expect(native?.enabled).toBe(false);
+  });
+
+  it('lists TUI-only pi-native extensions as disabled and omits them from Blueprint paths', async () => {
+    const { piwinRoot, agentDir } = await seedPiwinAndPi();
+    const listed = await loadDiscoveredResources({
+      piwinRoot,
+      agentDir,
+      followPiNativeInventory: true,
+    });
+    const tui = listed.extensions.find((item) => item.id === 'tui-only');
+    expect(tui?.compatibility?.tier).toBe('incompatible');
+    expect(tui?.enabled).toBe(false);
+    const loaded = await createPiResourceLoader({
+      cwd: piwinRoot,
+      agentDir,
+      piwinRoot,
+      scope: { kind: 'general' },
+      followPiNativeInventory: true,
+    });
+    expect(loaded.extensionPaths.some((path) => path.includes('tui-only'))).toBe(false);
+  });
+
+  it('does not follow user-global Pi inventory for a custom piwinRoot', async () => {
+    const { piwinRoot, agentDir } = await seedPiwinAndPi();
+    const listed = await loadDiscoveredResources({
+      piwinRoot,
+      agentDir,
+    });
+    expect(listed.extensions.some((item) => item.source === 'pi-native')).toBe(false);
+    expect(listed.extensions.some((item) => item.id === 'tui-only')).toBe(false);
   });
 });

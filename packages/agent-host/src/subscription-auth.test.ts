@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   createSubscriptionAuthPort,
   shouldRegisterCompiledProvider,
+  SUBSCRIPTION_RUNTIME_CREATE_OPTIONS,
 } from './subscription-auth.js';
 
 describe('subscription auth port', () => {
@@ -269,5 +270,39 @@ describe('subscription auth port', () => {
       notify: () => undefined,
     });
     expect(seen).toHaveLength(1);
+  });
+
+  it('restores the Host catalog cache on create without a network round-trip', () => {
+    expect(SUBSCRIPTION_RUNTIME_CREATE_OPTIONS).toEqual({
+      refreshOnCreate: true,
+      allowModelNetwork: false,
+    });
+  });
+
+  it('refreshes logged-in providers with allowNetwork true so overlay models appear', async () => {
+    const refreshes: Array<{ providers?: string[]; allowNetwork: boolean }> = [];
+    let catalog = [{ id: 'builtin', name: 'Builtin' }];
+    const port = await createSubscriptionAuthPort({
+      authPath: '/tmp/auth.json',
+      createRuntime: async () =>
+        ({
+          listCredentials: async () => [{ providerId: 'openai-codex', type: 'oauth' }],
+          isUsingSubscription: () => true,
+          getModels: () => catalog,
+          getAvailableModels: () => catalog,
+          login: async () => undefined,
+          logout: async () => undefined,
+          refresh: async (options: { providers?: string[]; allowNetwork: boolean }) => {
+            refreshes.push(options);
+            if (options.allowNetwork) {
+              catalog = [{ id: 'overlay-model', name: 'Overlay' }];
+            }
+          },
+        }) as never,
+    });
+    expect(port.getChatCatalog('openai-codex')).toEqual([{ id: 'builtin', name: 'Builtin' }]);
+    await port.refreshLiveCatalog();
+    expect(refreshes).toEqual([{ providers: ['openai-codex'], allowNetwork: true }]);
+    expect(port.getChatCatalog('openai-codex')).toEqual([{ id: 'overlay-model', name: 'Overlay' }]);
   });
 });

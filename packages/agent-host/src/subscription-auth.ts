@@ -70,12 +70,24 @@ export type SubscriptionAuthPort = {
   login: (providerId: string, interaction: HostAuthInteraction) => Promise<SubscriptionLoginOutcome>;
   logout: (providerId: string) => Promise<SubscriptionLogoutOutcome>;
   refreshProvider: (providerId: string) => Promise<void>;
+  refreshLiveCatalog: (options?: {
+    providers?: readonly string[];
+    signal?: AbortSignal;
+  }) => Promise<void>;
   fetchQuota: (providerId: string) => Promise<SubscriptionAccountQuota>;
   resetQuota: (
     providerId: string,
   ) => Promise<{ ok: boolean; message?: string; quota?: SubscriptionAccountQuota }>;
   dispose: () => void;
 };
+
+/** Restore Host models-store.json without blocking boot on the network. */
+export const SUBSCRIPTION_RUNTIME_CREATE_OPTIONS = {
+  refreshOnCreate: true,
+  allowModelNetwork: false,
+} as const;
+
+export const LIVE_CATALOG_REFRESH_TIMEOUT_MS = 8_000;
 
 type PiAuthPrompt = {
   type: 'text' | 'secret' | 'select' | 'manual_code';
@@ -127,7 +139,11 @@ type PiModelRuntimeLike = {
     },
   ) => Promise<unknown>;
   logout: (providerId: string) => Promise<void>;
-  refresh: (options: { providers?: string[]; allowNetwork: boolean }) => Promise<unknown>;
+  refresh: (options: {
+    providers?: string[];
+    allowNetwork: boolean;
+    signal?: AbortSignal;
+  }) => Promise<unknown>;
 };
 
 export type CreateSubscriptionAuthPortOptions = {
@@ -228,6 +244,24 @@ export async function createSubscriptionAuthPort(
         throw Object.assign(new Error(errors.join('; ')), { code: 'credential-sync-failed' });
       }
     },
+    async refreshLiveCatalog(options) {
+      const listed = await runtime.listCredentials();
+      const providers = options?.providers
+        ? [...options.providers]
+        : listed.filter((entry) => entry.type === 'oauth').map((entry) => entry.providerId);
+      if (providers.length === 0) {
+        return;
+      }
+      const result = await runtime.refresh({
+        providers,
+        allowNetwork: true,
+        ...(options?.signal !== undefined ? { signal: options.signal } : {}),
+      });
+      const errors = readRefreshErrors(result);
+      if (errors.length > 0) {
+        throw Object.assign(new Error(errors.join('; ')), { code: 'credential-sync-failed' });
+      }
+    },
     async fetchQuota(providerId) {
       return fetchSubscriptionQuota({
         authPath: options.authPath,
@@ -279,8 +313,7 @@ async function createDefaultRuntime(
   return piModule.ModelRuntime.create({
     authPath,
     ...(modelsPath !== undefined ? { modelsPath } : {}),
-    refreshOnCreate: false,
-    allowModelNetwork: false,
+    ...SUBSCRIPTION_RUNTIME_CREATE_OPTIONS,
   });
 }
 

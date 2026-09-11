@@ -7,12 +7,16 @@ import { createHash } from 'node:crypto';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
 import {
+  isExtensionBlueprintEligible,
   normalizeResourceId,
   type ExtensionSummary,
   type PromptTemplateSummary,
   type SkillSummary,
 } from '@piwin/contracts';
-import { readExtensionHookEvents } from './detect-extension-hooks.js';
+import {
+  readExtensionCompatibility,
+  readExtensionHookEvents,
+} from './detect-extension-hooks.js';
 
 export type PiNativeInventoryDiagnostic = {
   code: 'invalid-settings' | 'unresolved' | 'empty-package';
@@ -28,8 +32,10 @@ export type PiNativeInventory = {
 };
 
 export type LoadPiNativeInventoryOptions = {
-  agentDir: string;
+  agentDir?: string;
   projectPath?: string;
+  /** When false, skip user-global ~/.pi/agent; project `.pi/` may still load. */
+  includeUserGlobal?: boolean;
 };
 
 type InventorySource = 'pi-native' | 'project';
@@ -58,17 +64,19 @@ export async function loadPiNativeInventory(
   const prompts: PromptTemplateSummary[] = [];
   const diagnostics: PiNativeInventoryDiagnostic[] = [];
 
-  await collectLooseAgentDir(options.agentDir, 'pi-native', extensions, skills, prompts);
-  await collectSettingsLayer({
-    settingsPath: join(options.agentDir, 'settings.json'),
-    settingsDir: options.agentDir,
-    storeRoot: options.agentDir,
-    source: 'pi-native',
-    extensions,
-    skills,
-    prompts,
-    diagnostics,
-  });
+  if (options.includeUserGlobal !== false && options.agentDir) {
+    await collectLooseAgentDir(options.agentDir, 'pi-native', extensions, skills, prompts);
+    await collectSettingsLayer({
+      settingsPath: join(options.agentDir, 'settings.json'),
+      settingsDir: options.agentDir,
+      storeRoot: options.agentDir,
+      source: 'pi-native',
+      extensions,
+      skills,
+      prompts,
+      diagnostics,
+    });
+  }
 
   const projectPath = options.projectPath?.trim();
   if (projectPath) {
@@ -550,16 +558,18 @@ async function buildExtension(
   const pathForLoader = directoryPath ?? entryPath;
   const contentRevision = await hashPath(pathForLoader);
   const hookEvents = await readExtensionHookEvents(entryPath);
+  const compatibility = await readExtensionCompatibility(entryPath);
   return {
     id: normalizeResourceId(name),
     name,
     description: await readExtensionDescription(entryPath),
     source,
     path: pathForLoader,
-    enabled: true,
+    enabled: isExtensionBlueprintEligible(compatibility),
     configuredEnabled: true,
     contentRevision,
     ...(hookEvents ? { hookEvents: [...hookEvents] } : {}),
+    compatibility,
   };
 }
 

@@ -50,6 +50,14 @@ describe('OauthPage & SubscriptionAccountsPanel', () => {
 
   it('renders all 5 subscription providers with brand icons and badges', async () => {
     const mockRequest = vi.fn(async (command) => {
+      if (command.type === 'pi-environment/detect') {
+        return {
+          type: 'response' as const,
+          command: command.type,
+          success: true as const,
+          data: { available: false },
+        };
+      }
       if (command.type === 'auth/status') {
         return {
           type: 'response' as const,
@@ -390,5 +398,97 @@ describe('OauthPage & SubscriptionAccountsPanel', () => {
     expect(setError).not.toHaveBeenCalled();
     const empty = container!.querySelector('[data-testid="subscription-quota-empty"]');
     expect(empty?.textContent).toContain('Unhandled command');
+  });
+
+  it('shows a recommended ingest button and applies after confirm', async () => {
+    const mockRequest = vi.fn(async (command) => {
+      if (command.type === 'pi-environment/detect') {
+        return {
+          type: 'response' as const,
+          command: command.type,
+          success: true as const,
+          data: { available: true, piAgentDir: '/home/user/.pi/agent' },
+        };
+      }
+      if (command.type === 'pi-environment/preview') {
+        return {
+          type: 'response' as const,
+          command: command.type,
+          success: true as const,
+          data: {
+            available: true,
+            sourcePath: '/home/user/.pi/agent',
+            missingProviderIds: ['openai-codex', 'xai'],
+            followedExtensionCount: 2,
+            followedSkillCount: 1,
+          },
+        };
+      }
+      if (command.type === 'pi-environment/apply') {
+        return {
+          type: 'response' as const,
+          command: command.type,
+          success: true as const,
+          data: {
+            ok: true,
+            skipped: false,
+            copiedProviderIds: ['openai-codex', 'xai'],
+          },
+        };
+      }
+      if (command.type === 'auth/status') {
+        return {
+          type: 'response' as const,
+          command: command.type,
+          success: true as const,
+          data: { accounts: [] },
+        };
+      }
+      return { type: 'response' as const, command: command.type, success: true as const, data: {} };
+    });
+    const hostClient = {
+      request: mockRequest,
+      subscribe: vi.fn(() => () => {}),
+      getTransport: () => 'local',
+    };
+    const setInfo = vi.fn();
+    const contextValue = {
+      config: baseConfig(),
+      hostClient,
+      setError: vi.fn(),
+      setInfo,
+    } as unknown as SettingsContextValue;
+
+    await act(async () => {
+      root!.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => {}}>
+            <SettingsProvider value={contextValue}>
+              <OauthPage />
+            </SettingsProvider>
+          </DesktopLocaleProvider>
+        </PiwinUiProvider>,
+      );
+    });
+
+    const button = container!.querySelector(
+      '[data-testid="pi-environment-ingest-button"]',
+    ) as HTMLButtonElement;
+    expect(button).toBeTruthy();
+    expect(button.textContent).toContain('接入本机 Pi 配置');
+    await act(async () => {
+      button.click();
+    });
+    const confirm = document.querySelector(
+      '[data-testid="confirm-dialog-confirm"]',
+    ) as HTMLButtonElement;
+    expect(confirm).toBeTruthy();
+    expect(document.body.textContent).toContain('openai-codex');
+    await act(async () => {
+      confirm.click();
+    });
+    expect(mockRequest.mock.calls.some((call) => (call[0] as { type?: string }).type === 'pi-environment/apply')).toBe(
+      true,
+    );
   });
 });

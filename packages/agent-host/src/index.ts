@@ -64,6 +64,8 @@ export {
   defaultPiAuthPaths,
   isOauthProviderAuth,
   shouldRegisterCompiledProvider,
+  SUBSCRIPTION_RUNTIME_CREATE_OPTIONS,
+  LIVE_CATALOG_REFRESH_TIMEOUT_MS,
 } from './subscription-auth.js';
 export {
   PIWIN_PI_AGENT_DIR_ENV,

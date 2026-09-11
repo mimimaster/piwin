@@ -29,6 +29,7 @@ export type CreatePiResourceLoaderOptions = {
   extraPromptPaths?: string[];
   disabledPromptIds?: string[];
   allowedSkillIds?: string[];
+  followPiNativeInventory?: boolean;
 };
 
 /**
@@ -61,7 +62,10 @@ export async function createPiResourceLoader(options: CreatePiResourceLoaderOpti
 
   const discovered = await loadDiscoveredResources({
     piwinRoot: options.piwinRoot,
-    agentDir: options.agentDir,
+    ...(options.followPiNativeInventory !== undefined
+      ? { followPiNativeInventory: options.followPiNativeInventory }
+      : {}),
+    ...(options.followPiNativeInventory === false ? {} : { agentDir: options.agentDir }),
     ...(projectLocalPath ? { projectPath: projectLocalPath } : {}),
     extensionsConfig: {
       extraPaths: options.extraExtensionPaths ?? [],

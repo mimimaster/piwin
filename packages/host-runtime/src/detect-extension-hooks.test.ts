@@ -3,7 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  classifyExtensionSource,
   detectExtensionHookEvents,
+  readExtensionCompatibility,
   readExtensionHookEvents,
 } from './detect-extension-hooks.js';
 
@@ -22,6 +24,69 @@ describe('detectExtensionHookEvents', () => {
 
   it('ignores comments that are not pi.on calls', () => {
     expect(detectExtensionHookEvents("const name = 'tool_call';\n// pi.on later")).toEqual([]);
+  });
+});
+
+describe('classifyExtensionSource', () => {
+  it('marks tools and dialogs as compatible', () => {
+    expect(
+      classifyExtensionSource(`
+        export default function (pi) {
+          pi.registerTool({ name: 'hello', execute: () => {} });
+          pi.on('tool_call', () => {});
+        }
+      `).tier,
+    ).toBe('compatible');
+    expect(
+      classifyExtensionSource(`
+        ctx.ui.confirm('ok');
+        ctx.ui.select('pick', []);
+        ctx.ui.input('name');
+        ctx.ui.notify('done');
+      `).tier,
+    ).toBe('compatible');
+  });
+
+  it('marks mixed agent + TUI as degraded and TUI-only as incompatible', () => {
+    expect(
+      classifyExtensionSource(`
+        pi.registerTool({ name: 'hello' });
+        ctx.ui.custom({ render() {} });
+      `).tier,
+    ).toBe('degraded');
+    expect(
+      classifyExtensionSource(`
+        pi.registerTheme({ name: 'dark' });
+        ctx.setHeader('status');
+      `).tier,
+    ).toBe('incompatible');
+  });
+});
+
+describe('readExtensionCompatibility', () => {
+  it('classifies fixture files without executing them', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-compat-scan-'));
+    const compatiblePath = join(rootDir, 'tools.ts');
+    const tuiPath = join(rootDir, 'theme.ts');
+    const mixedDir = join(rootDir, 'mixed');
+    await mkdir(mixedDir);
+    await writeFile(
+      compatiblePath,
+      "pi.on('tool_call', () => {});\npi.registerTool({ name: 'ok' });\n",
+      'utf8',
+    );
+    await writeFile(tuiPath, 'ctx.ui.custom({});\nregisterTheme();\n', 'utf8');
+    await writeFile(
+      join(mixedDir, 'index.ts'),
+      "pi.registerTool({ name: 'x' });\nctx.reload();\n",
+      'utf8',
+    );
+    expect(await readExtensionCompatibility(compatiblePath)).toEqual({ tier: 'compatible' });
+    expect(await readExtensionCompatibility(tuiPath)).toEqual({ tier: 'incompatible' });
+    expect(await readExtensionCompatibility(mixedDir)).toEqual({ tier: 'degraded' });
+    expect(await readExtensionCompatibility(join(rootDir, 'missing.ts'))).toEqual({
+      tier: 'unverified',
+    });
   });
 });
 

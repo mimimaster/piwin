@@ -96,6 +96,12 @@ describe('remoteHostSupportsCommand', () => {
     expect(FALLBACK_REMOTE_ALLOWED_COMMANDS).toContain('session/set-composer-profile');
   });
 
+  it('allows Pi environment ingest on the historical fallback ceiling', () => {
+    expect(FALLBACK_REMOTE_ALLOWED_COMMANDS).toContain('pi-environment/detect');
+    expect(FALLBACK_REMOTE_ALLOWED_COMMANDS).toContain('pi-environment/preview');
+    expect(FALLBACK_REMOTE_ALLOWED_COMMANDS).toContain('pi-environment/apply');
+  });
+
   it('trusts the advertised ceiling when present', () => {
     expect(remoteHostSupportsCommand(['host/ping', 'settings/get'], 'settings/get')).toBe(true);
     expect(remoteHostSupportsCommand(['host/ping'], 'host/status')).toBe(false);
