@@ -179,9 +179,10 @@ describe('AppearancePage', () => {
     const themeSelect = container.querySelector('[data-testid="theme-library-select"]');
     expect(themeSelect).not.toBeNull();
     expect((themeSelect as HTMLSelectElement | null)?.value).toBe('piwin-inkstone');
-    expect(
-      [...(themeSelect as HTMLSelectElement).options].some((option) => option.value === 'system'),
-    ).toBe(false);
+    const options = [...(themeSelect as HTMLSelectElement).options];
+    expect(options.some((option) => option.value === 'system')).toBe(false);
+    expect(options[0]?.value).toBe('piwin-inkstone');
+    expect(options[0]?.textContent).toBe('系统默认');
 
     const modeControl = container.querySelector('[data-testid="appearance-mode-control"]');
     expect(modeControl).not.toBeNull();
@@ -228,7 +229,7 @@ describe('AppearancePage', () => {
         }),
       }),
     );
-    expect(contextValue.setInfo).toHaveBeenCalledWith('已切换到 Inkstone。', 'success');
+    expect(contextValue.setInfo).toHaveBeenCalledWith('已恢复系统默认外观。', 'success');
   });
 
   it('switches from ink-wash back to Inkstone and applies custom dark settings', async () => {

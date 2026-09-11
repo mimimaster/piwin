@@ -572,6 +572,49 @@
   }
 }
 
+.ext-compat-notice {
+  margin: 0 0 var(--s-6);
+}
+
+.ext-compat-notice .ui-notice {
+  margin: 0;
+}
+
+.ext-compat-notice .ui-notice-message p {
+  margin: 0 0 var(--s-3);
+}
+
+.ext-compat-notice .ui-notice-message p:last-child {
+  margin-bottom: 0;
+}
+
+.ext-compat-details {
+  margin-top: var(--s-3);
+  font-size: var(--fs-chrome);
+  color: var(--text-3);
+}
+
+.ext-compat-details summary {
+  cursor: pointer;
+  user-select: none;
+  color: var(--text-2);
+}
+
+.ext-compat-heading {
+  margin: var(--s-4) 0 var(--s-2);
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.ext-compat-list {
+  margin: 0;
+  padding-left: 1.2em;
+}
+
+.ext-compat-list li + li {
+  margin-top: var(--s-1);
+}
+
 /* Install errors render inside the form (not the floating host) so they sit
    next to the field that produced them instead of covering the toolbar. */
 .ext-install-form .ui-notice {

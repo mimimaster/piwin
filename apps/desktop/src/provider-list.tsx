@@ -1,9 +1,10 @@
-import type {
-  ModelCatalogEntry,
-  ModelConfigEntry,
-  ModelDiscoveryResult,
-  ModelProviderConfig,
-  PiwinConfig,
+import {
+  resolveProviderCategory,
+  type ModelCatalogEntry,
+  type ModelConfigEntry,
+  type ModelDiscoveryResult,
+  type ModelProviderConfig,
+  type PiwinConfig,
 } from '@piwin/contracts';
 import { Button } from '@piwin/ui-kit';
 import type { ReactElement } from 'react';
@@ -95,6 +96,49 @@ export function ProviderList({
   const enabledLabel = isChinese ? '个已启用' : 'enabled';
   const modelLabel = isChinese ? '个模型' : 'models';
 
+  const packageProviders = filteredProviders.filter(
+    (provider) => resolveProviderCategory(provider) === 'package',
+  );
+  const customProviders = filteredProviders.filter(
+    (provider) => resolveProviderCategory(provider) === 'custom',
+  );
+
+  const renderProviderRow = (provider: ModelProviderConfig): ReactElement => {
+    const providerModelTestStatus: Record<string, ModelTestState> = {};
+    for (const model of provider.models) {
+      const key = `${provider.id}::${model.id}`;
+      const ts = modelTestStatus[key];
+      if (ts) providerModelTestStatus[model.id] = ts;
+    }
+    return (
+      <ProviderRow
+        key={provider.id}
+        provider={provider}
+        status={getProviderStatus(provider)}
+        isDefault={provider.id === config.defaultProviderId}
+        defaultModelId={
+          provider.id === config.defaultProviderId ? (config.defaultModelId ?? null) : null
+        }
+        isChinese={isChinese}
+        disabled={saving}
+        modelTestStatus={providerModelTestStatus}
+        testingModelId={
+          testingModelKey?.startsWith(`${provider.id}::`)
+            ? testingModelKey.slice(provider.id.length + 2)
+            : null
+        }
+        {...(searchCatalog ? { searchCatalog } : {})}
+        onOpen={() => onOpenProvider(provider)}
+        onToggle={() => onToggleProvider(provider.id)}
+        onUpdateModels={(models) => onUpdateProviderModels(provider.id, models)}
+        onTestModel={(modelId) => onTestProviderModel(provider.id, modelId)}
+        onSetDefaultModel={(modelId) => onSetDefaultModel(provider.id, modelId)}
+        onToggleModel={(modelId) => onToggleModel(provider.id, modelId)}
+        onDiscoverModels={onDiscoverProviderModels}
+      />
+    );
+  };
+
   return (
     <div className="provider-settings" data-testid="provider-settings">
       <div className="provider-list-toolbar">
@@ -147,65 +191,48 @@ export function ProviderList({
       </div>
 
       <div className="provider-list-scroll">
-        <div className="provider-list-count">
-          {isChinese
-            ? `已添加（${filteredProviders.length}）`
-            : `Added (${filteredProviders.length})`}
-        </div>
-        {filteredProviders.map((provider) => {
-          const providerModelTestStatus: Record<string, ModelTestState> = {};
-          for (const model of provider.models) {
-            const key = `${provider.id}::${model.id}`;
-            const ts = modelTestStatus[key];
-            if (ts) providerModelTestStatus[model.id] = ts;
-          }
-          return (
-            <ProviderRow
-              key={provider.id}
-              provider={provider}
-              status={getProviderStatus(provider)}
-              isDefault={provider.id === config.defaultProviderId}
-              defaultModelId={
-                provider.id === config.defaultProviderId ? (config.defaultModelId ?? null) : null
-              }
-              isChinese={isChinese}
-              disabled={saving}
-              modelTestStatus={providerModelTestStatus}
-              testingModelId={
-                testingModelKey?.startsWith(`${provider.id}::`)
-                  ? testingModelKey.slice(provider.id.length + 2)
-                  : null
-              }
-              {...(searchCatalog ? { searchCatalog } : {})}
-              onOpen={() => onOpenProvider(provider)}
-              onToggle={() => onToggleProvider(provider.id)}
-              onUpdateModels={(models) => onUpdateProviderModels(provider.id, models)}
-              onTestModel={(modelId) => onTestProviderModel(provider.id, modelId)}
-              onSetDefaultModel={(modelId) => onSetDefaultModel(provider.id, modelId)}
-              onToggleModel={(modelId) => onToggleModel(provider.id, modelId)}
-              onDiscoverModels={onDiscoverProviderModels}
-            />
-          );
-        })}
-        {filteredProviders.length === 0 && (
-          <div className="provider-empty" data-testid="provider-empty">
-            {query || filter !== 'all' ? copy.noMatchingProviders : copy.noProviders}
+        {packageProviders.length > 0 && (
+          <div className="provider-category-section" data-testid="provider-section-package">
+            <div className="provider-list-count">
+              {isChinese
+                ? `套餐（${packageProviders.length}）`
+                : `Packages (${packageProviders.length})`}
+            </div>
+            {packageProviders.map(renderProviderRow)}
           </div>
         )}
-        <button
-          type="button"
-          className="provider-add-block"
-          onClick={onAddOpen}
-          data-testid="provider-add-block"
-        >
-          <span className="provider-add-block-plus">
-            <IconPlus width={16} height={16} />
-          </span>
-          <div className="provider-add-block-text">
-            <b>{copy.addProvider}</b>
-            <span>{copy.addProviderHint}</span>
+
+        <div className="provider-category-section" data-testid="provider-section-custom">
+          <div className="provider-list-count">
+            {packageProviders.length > 0
+              ? isChinese
+                ? `自定义配置（${customProviders.length}）`
+                : `Custom (${customProviders.length})`
+              : isChinese
+                ? `已添加（${filteredProviders.length}）`
+                : `Added (${filteredProviders.length})`}
           </div>
-        </button>
+          {customProviders.map(renderProviderRow)}
+          {filteredProviders.length === 0 && (
+            <div className="provider-empty" data-testid="provider-empty">
+              {query || filter !== 'all' ? copy.noMatchingProviders : copy.noProviders}
+            </div>
+          )}
+          <button
+            type="button"
+            className="provider-add-block"
+            onClick={onAddOpen}
+            data-testid="provider-add-block"
+          >
+            <span className="provider-add-block-plus">
+              <IconPlus width={16} height={16} />
+            </span>
+            <div className="provider-add-block-text">
+              <b>{copy.addProvider}</b>
+              <span>{copy.addProviderHint}</span>
+            </div>
+          </button>
+        </div>
       </div>
     </div>
   );

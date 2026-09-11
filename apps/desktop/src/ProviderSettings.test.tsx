@@ -644,4 +644,37 @@ describe('ProviderSettings', () => {
     const gpt = openai?.models.find((m) => m.id === 'gpt-4.1');
     expect(gpt).toEqual(expect.objectContaining({ contextWindow: 256000 }));
   });
+
+  it('separates package and custom providers into vertical sections', () => {
+    const configWithPackage: PiwinConfig = {
+      ...makeConfig(),
+      providers: [
+        {
+          id: 'kimi-coding',
+          protocol: 'openai-compatible',
+          name: 'Kimi Coding',
+          source: 'subscription',
+          category: 'package',
+          baseUrl: 'oauth://kimi-coding',
+          models: [{ id: 'kimi-k1.5' }],
+        },
+        ...makeConfig().providers,
+      ],
+    };
+    const { container, root } = renderProviderSettings({
+      ...makeProps(),
+      config: configWithPackage,
+    });
+    instances.push({ container, root });
+
+    const packageSection = container.querySelector('[data-testid="provider-section-package"]');
+    const customSection = container.querySelector('[data-testid="provider-section-custom"]');
+
+    expect(packageSection).not.toBeNull();
+    expect(customSection).not.toBeNull();
+
+    expect(packageSection?.querySelector('[data-testid="provider-row-kimi-coding"]')).not.toBeNull();
+    expect(customSection?.querySelector('[data-testid="provider-row-openai"]')).not.toBeNull();
+    expect(customSection?.querySelector('[data-testid="provider-row-custom-local"]')).not.toBeNull();
+  });
 });

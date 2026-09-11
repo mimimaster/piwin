@@ -14,6 +14,7 @@ import type { SettingsContextValue } from './settings-context';
 import { ensureSettingsLazyLoaded } from './settings-lazy-load';
 import { SettingsShell } from './settings-shell';
 import { webToDraft } from './web-draft';
+import * as openExternalUrlModule from '../open-external-url.js';
 
 const SETTINGS_LAZY_LOAD_TEST_TIMEOUT_MS = 15_000;
 
@@ -243,6 +244,7 @@ describe('SettingsShell', () => {
         await ensureSettingsLazyLoaded();
       });
       expect(container.querySelector('[data-testid="settings-extensions-hub"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="extensions-compat-notice"]')).not.toBeNull();
 
       // Models renders through the registry; config is null in this
       // harness, so the page shows its loading state.
@@ -368,6 +370,7 @@ describe('SettingsShell', () => {
         await ensureSettingsLazyLoaded();
       });
       expect(container.querySelector('[data-testid="settings-extensions-hub"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="extensions-compat-notice"]')).not.toBeNull();
       expect(container.querySelector('[data-testid="legacy-skills"]')).toBeNull();
     },
     SETTINGS_LAZY_LOAD_TEST_TIMEOUT_MS,
@@ -429,5 +432,19 @@ describe('SettingsShell', () => {
     expect(contextValueOn.onPreferencesChange).toHaveBeenCalledWith(
       expect.objectContaining({ artifactCodeFirst: false }),
     );
+  });
+
+  it('renders the Docs external link tab in the nav footer and opens the docs URL when clicked', () => {
+    const openSpy = vi.spyOn(openExternalUrlModule, 'openExternalUrl').mockResolvedValue(true);
+    act(() => {
+      root.render(<ShellHarness />);
+    });
+    const docsTab = container.querySelector<HTMLButtonElement>('[data-testid="settings-nav-docs"]');
+    expect(docsTab).not.toBeNull();
+    expect(docsTab?.textContent).toContain('Docs');
+    act(() => {
+      docsTab?.click();
+    });
+    expect(openSpy).toHaveBeenCalledWith('https://docs.planora.chat');
   });
 });

@@ -53,8 +53,8 @@ export function ThemeLibraryCard(): ReactElement {
         ? PIWIN_INKSTONE_THEME_ID
         : 'current';
   const LIBRARY_THEME_LABELS: Record<string, { zh: string; en: string }> = {
+    [PIWIN_INKSTONE_THEME_ID]: { zh: '系统默认', en: 'System default' },
     'piwin-ink-wash': { zh: '砚夜泼墨', en: 'Ink Wash' },
-    [PIWIN_INKSTONE_THEME_ID]: { zh: 'Inkstone', en: 'Inkstone' },
   };
   const activeLabel =
     selectValue === 'current'
@@ -83,7 +83,7 @@ export function ThemeLibraryCard(): ReactElement {
       onThemeApplied(
         buildAppearanceTheme(activeMode, getAppearanceThemeSettings(preferences, activeMode)),
       );
-      setInfo(isChinese ? '已切换到 Inkstone。' : 'Switched to Inkstone.', 'success');
+      setInfo(isChinese ? '已恢复系统默认外观。' : 'Restored the system default appearance.', 'success');
       return;
     }
     const response = await request({
@@ -116,12 +116,12 @@ export function ThemeLibraryCard(): ReactElement {
           onChange={(event) => void handleThemeChange(event.currentTarget.value)}
           data={[
             {
-              value: 'piwin-ink-wash',
-              label: isChinese ? '砚夜泼墨 · dark' : 'Ink Wash · dark',
+              value: PIWIN_INKSTONE_THEME_ID,
+              label: isChinese ? '系统默认' : 'System default',
             },
             {
-              value: PIWIN_INKSTONE_THEME_ID,
-              label: isChinese ? 'Inkstone · 纸 / 墨' : 'Inkstone · Paper / Ink',
+              value: 'piwin-ink-wash',
+              label: isChinese ? '砚夜泼墨 · dark' : 'Ink Wash · dark',
             },
             ...(selectValue === 'current'
               ? [

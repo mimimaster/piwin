@@ -24,7 +24,8 @@ const SETTINGS_SEARCH_TERMS: Readonly<Record<SettingsSectionId, readonly string[
   ],
   extensions: [
     'extension', 'extensions', 'skill', 'skills', 'tool', 'tools', 'mcp', 'plugin', 'plugins',
-    'prompt', 'prompts', '扩展', '技能', '工具', '插件', '提示词',
+    'prompt', 'prompts', 'tui', 'compat', 'compatibility',
+    '扩展', '技能', '工具', '插件', '提示词', '兼容',
   ],
   web: ['web', 'search', 'fetch', 'source', 'delegate', '网络', '搜索', '提取', '来源', '委托'],
   knowledge: ['knowledge', 'embedding', 'reranker', 'parser', 'vector', '知识', '嵌入', '重排', '解析', '向量'],

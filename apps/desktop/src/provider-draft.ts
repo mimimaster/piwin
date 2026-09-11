@@ -3,7 +3,7 @@
  * and provider-connection components.
  */
 
-import type { ModelConfigEntry, ModelProviderConfig } from '@piwin/contracts';
+import type { ModelCategory, ModelConfigEntry, ModelProviderConfig, ModelSource } from '@piwin/contracts';
 import { isModelEnabled } from '@piwin/contracts';
 import type { ProviderProtocol } from './provider-presets.js';
 
@@ -20,6 +20,8 @@ export type ProviderDraft = {
   baseUrl: string;
   /** Active unless explicitly disabled. */
   enabled: boolean;
+  category?: ModelCategory;
+  source?: ModelSource;
   /** Raw API key entered for this provider. Empty means keep the saved key. */
   apiKeyInput: string;
   /** Legacy saved env var name from config (if any). */
@@ -65,6 +67,8 @@ export function providerToDraft(provider: ModelProviderConfig): ProviderDraft {
     name: provider.name,
     baseUrl: provider.baseUrl,
     enabled: provider.enabled !== false,
+    ...(provider.category ? { category: provider.category } : {}),
+    ...(provider.source ? { source: provider.source } : {}),
     apiKeyInput: '',
     // A provider is single-key. If an older config contains both fields,
     // keep the keychain ref as the authoritative source and drop the stale
@@ -85,6 +89,12 @@ export function draftToProvider(draft: ProviderDraft): ModelProviderConfig {
     enabled: draft.enabled,
     models: draft.models,
   };
+  if (draft.category) {
+    config.category = draft.category;
+  }
+  if (draft.source) {
+    config.source = draft.source;
+  }
   const headers = rowsToHeaders(draft.headerRows);
   if (headers) {
     config.headers = headers;
