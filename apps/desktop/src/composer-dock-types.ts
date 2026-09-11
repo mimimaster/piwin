@@ -161,8 +161,8 @@ export type ComposerDockProps = {
   runtimeRemoteHostLabel?: string;
   onSelectLocalRuntime?: () => void;
   onSelectAttachRuntime?: () => void;
-  /** Open the flashcards home (legacy Knowledge Center slash aliases). */
-  onOpenKnowledge?: ((subTab?: 'doccards' | 'cards' | 'wiki') => void) | undefined;
+  /** Open knowledge bases (`knowledge`) or the flashcards home (`doccards` / `cards`). */
+  onOpenKnowledge?: ((subTab?: 'doccards' | 'cards' | 'knowledge') => void) | undefined;
   /** Open the flashcards home from the plus menu. */
   onOpenCardsPanel?: (() => void) | undefined;
   /** True when the configured ASR provider/model is currently usable. */

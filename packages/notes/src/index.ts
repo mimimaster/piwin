@@ -4,7 +4,7 @@ export { openNoteIndex } from './note-index.js';
 export type { NoteIndex } from './note-index.js';
 export { searchNotes } from './search-notes.js';
 export type { SearchNotesOptions } from './search-notes.js';
-export { fuseHybridHits, DEFAULT_RRF_K } from './hybrid-search.js';
+export { fuseHybridHits, reciprocalRankFusion, DEFAULT_RRF_K } from './hybrid-search.js';
 export type { ChannelResults } from './hybrid-search.js';
 export { createEmbeddingProvider } from './embedding/create-provider.js';
 export type { CreateEmbeddingProviderOptions } from './embedding/create-provider.js';

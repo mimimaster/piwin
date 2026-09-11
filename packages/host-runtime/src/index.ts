@@ -63,6 +63,8 @@ export {
   getPiwinProjectsPath,
   getPiwinSessionIndexPath,
   getPiwinMcpConfigPath,
+  getPiwinKnowledgeDir,
+  getPiwinKnowledgeBasesPath,
   getPiwinSkillsDir,
   getPiwinExtensionsDir,
   getPiwinPromptsDir,

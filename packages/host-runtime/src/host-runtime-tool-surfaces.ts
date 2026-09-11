@@ -194,6 +194,8 @@ export async function composeSessionHostToolsForSession(
     getBrowserSession: () => deps.browserSession ?? undefined,
     getNotesServices: () => deps.getNotesServices(),
     getCardStore: () => deps.getCardStore(),
+    getFolderRag: () => deps.getFolderRag(),
+    isIndexing: (folderKey) => deps.doccardsIngestion.isRunning(folderKey),
     // Root sessions only: a subagent generation carries a childContext and must
     // never be handed the extension install surface.
     ...(childContext

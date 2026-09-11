@@ -187,8 +187,8 @@ describe('FlashcardsWorkspaceView', () => {
     expect(titlebar?.querySelector('[data-testid="flashcards-back-btn"]')).not.toBeNull();
     expect(titlebar?.querySelector('.vault-search')).toBeNull();
     expect(container.querySelector('.vault-filters .vault-search')).not.toBeNull();
-    expect(container.querySelector('[data-testid="flashcards-open-wiki"]')).not.toBeNull();
-    expect(titlebar?.querySelector('[data-testid="flashcards-open-wiki"]')).toBeNull();
+    // Search moved to the knowledge base page; the gallery no longer offers a Wiki door.
+    expect(container.querySelector('[data-testid="flashcards-open-wiki"]')).toBeNull();
     expect(
       container
         .querySelector('[data-testid="flashcards-back-btn"]')
@@ -310,18 +310,5 @@ describe('FlashcardsWorkspaceView', () => {
 
     expect(container.textContent).toContain('Special Question');
     expect(container.textContent).not.toContain('page table');
-  });
-
-  it('opens Wiki search from the gallery toolbar', async () => {
-    await renderWith(structuredClone(BASE_STORE));
-    const wikiBtn = container.querySelector<HTMLButtonElement>(
-      '[data-testid="flashcards-open-wiki"]',
-    );
-    expect(wikiBtn).not.toBeNull();
-    act(() => {
-      wikiBtn?.click();
-    });
-    await flush(2);
-    expect(container.querySelector('[data-testid="knowledge-wiki-view"]')).not.toBeNull();
   });
 });

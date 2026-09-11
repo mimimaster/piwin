@@ -94,6 +94,7 @@ export type DesktopCopy = {
     images: string;
     videos: string;
     flashcards: string;
+    knowledge: string;
     archived: string;
     working: string;
     backendServiceActive: string;
@@ -679,6 +680,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       images: '图片',
       videos: '视频',
       flashcards: '闪卡',
+      knowledge: '知识库',
       archived: '已归档',
       working: '会话正在工作',
       backendServiceActive: '后台服务运行中',
@@ -1021,6 +1023,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       images: 'Images',
       videos: 'Videos',
       flashcards: 'Flashcards',
+      knowledge: 'Knowledge',
       archived: 'Archived',
       working: 'Session is working',
       backendServiceActive: 'Backend service is active',

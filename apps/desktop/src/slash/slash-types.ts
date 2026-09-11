@@ -69,7 +69,8 @@ export type ParsedSlashSubmit =
     }
   | {
       kind: 'knowledge';
-      subTab: 'doccards' | 'cards' | 'wiki';
+      /** `knowledge` opens knowledge bases; `doccards` / `cards` open flashcards. */
+      subTab: 'doccards' | 'cards' | 'knowledge';
       name: string;
       args: string;
     }

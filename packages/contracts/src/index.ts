@@ -82,6 +82,7 @@ export * from './doc-card-surface.js';
 export * from './doc-rag.js';
 export * from './doc-rag-v2.js';
 export * from './knowledge.js';
+export * from './knowledge-base.js';
 export * from './subagent.js';
 export * from './subagent-profile.js';
 export * from './orchestration-scheme.js';

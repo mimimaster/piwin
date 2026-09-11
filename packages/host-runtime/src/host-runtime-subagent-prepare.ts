@@ -23,6 +23,7 @@ import type {
 import { resolveSubagentChildPrompt } from './subagent-lifecycle-service.js';
 import { resolveSubagentParentLocation } from './subagent-parent-scope.js';
 import { compileBlueprintForWorker } from './blueprint-compiler.js';
+import { loadMountedKnowledgeBaseNamesForSession } from './knowledge-system-prompt.js';
 import { isSubscriptionAccountUsable } from './resolve-chat-model.js';
 import type { SubagentRunSeam } from './subagent-run-tool.js';
 import type { SubagentRuntimeSnapshot, BackendPreparedPrompt } from '@piwin/contracts';
@@ -109,6 +110,10 @@ export async function prepareSubagentTask(
   // Compile the blueprint for the worker. The blueprint includes the
   // capability snapshot, model, thinking level, and resource manifest.
   const subscriptionAccounts = await deps.subscriptionAuth?.chatResolveInput();
+  const mountedKnowledgeBaseNames = await loadMountedKnowledgeBaseNamesForSession(
+    deps.options.piwinRoot,
+    input.childSessionId,
+  );
   const compiled = await compileBlueprintForWorker(createInput, {
     ...(deps.options.piwinRoot ? { piwinRoot: deps.options.piwinRoot } : {}),
     sessionId: input.childSessionId,
@@ -164,6 +169,7 @@ export async function prepareSubagentTask(
           },
         }
       : {}),
+    ...(mountedKnowledgeBaseNames.length > 0 ? { mountedKnowledgeBaseNames } : {}),
   });
   if (
     !deps.sessionHostToolPort?.restrictGeneration(

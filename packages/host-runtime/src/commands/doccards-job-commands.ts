@@ -20,11 +20,14 @@ export type DoccardsIngestionRegistry = {
   isRunning: (folderKey: string) => boolean;
 };
 
-export function createDoccardsIngestionRegistry(): DoccardsIngestionRegistry {
+export function createDoccardsIngestionRegistry(hooks?: {
+  onTerminal?: (job: IngestionJob) => void;
+}): DoccardsIngestionRegistry {
   const byFolder = new Map<string, IngestionJob>();
   const running = new Map<string, { abort: AbortController }>();
 
   function emit(push: ((message: HostPush) => void) | undefined, job: IngestionJob, terminal: boolean): void {
+    if (terminal) hooks?.onTerminal?.(job);
     if (!push) return;
     push(
       terminal
@@ -167,6 +170,7 @@ export function createDoccardsIngestionRegistry(): DoccardsIngestionRegistry {
       };
       byFolder.set(key, canceled);
       running.delete(key);
+      hooks?.onTerminal?.(canceled);
       return canceled;
     },
   };

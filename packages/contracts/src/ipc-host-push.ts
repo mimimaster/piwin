@@ -37,6 +37,7 @@ import type { SessionRuntimeStatus } from './session-runtime.js';
 import type { SubscriptionAuthPush } from './subscription-oauth.js';
 import type { LiveOwnerActionPush, LiveUpdatedPush } from './voice-live.js';
 import type { FlashcardStudyChangedPush } from './flashcard-study-events.js';
+import type { KnowledgeBasesChangedPush } from './knowledge-base.js';
 
 /**
  * ADR 0027: transport-level sequencing fields attached to every push when a
@@ -232,7 +233,8 @@ export type HostPushVariant =
   | SubscriptionAuthPush
   | LiveUpdatedPush
   | LiveOwnerActionPush
-  | FlashcardStudyChangedPush;
+  | FlashcardStudyChangedPush
+  | KnowledgeBasesChangedPush;
 
 /** ADR 0027: HostPush is the variant union plus optional transport sequencing. */
 export type HostPush = HostPushVariant & HostPushSequencing;

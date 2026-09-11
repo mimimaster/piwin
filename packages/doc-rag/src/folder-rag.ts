@@ -4,8 +4,8 @@
  * Index writes LanceDB only. Legacy sqlite / recursive chunker stay unused
  * on this path.
  */
-import { writeFile, readFile, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { writeFile, readFile, rm, stat } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 import type {
   ContextPack,
   EmbeddingProvider,
@@ -27,7 +27,9 @@ import { ingestSelectedFiles } from './indexing/ingestion-service.js';
 import { openFolderStateStore, type FolderStateStore } from './indexing/state-store.js';
 import {
   canonicalizeFolderPath,
+  canonicalizeFolderPathSync,
   folderKey,
+  getDocRagRoot,
   getLanceDbPath,
   getStateStorePath,
   getSourcePathSidecar,
@@ -254,6 +256,27 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
     }
   }
 
+  async function forgetFolder(folderPath: string): Promise<void> {
+    const trimmed = folderPath.trim();
+    if (!trimmed) {
+      throw new Error('folderPath is required');
+    }
+    const canonical = (await canonicalizeFolderPath(trimmed)) ?? canonicalizeFolderPathSync(trimmed);
+    const key = folderKey(canonical);
+    const lance = lanceCache.get(canonical);
+    if (lance) {
+      lanceCache.delete(canonical);
+      await lance.close();
+    }
+    const state = stateCache.get(canonical);
+    if (state) {
+      stateCache.delete(canonical);
+      state.close();
+    }
+    indexLocks.delete(canonical);
+    await rm(resolve(getDocRagRoot(piwinRoot), key), { recursive: true, force: true });
+  }
+
   return {
     get hasEmbeddingProvider() {
       return embeddingProvider !== undefined;
@@ -264,6 +287,7 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
     retrievePack,
     listDocuments,
     isIndexed,
+    forgetFolder,
     close: () => {
       for (const store of lanceCache.values()) {
         void store.close();

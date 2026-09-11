@@ -93,6 +93,7 @@ export async function handleMockHostCommands(
               marketplaceHub: true,
               automation: true,
               flashcardStudy: true,
+              knowledgeBases: true,
             }),
           },
         };

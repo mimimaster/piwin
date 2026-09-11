@@ -90,8 +90,8 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
     },
     [knowledgeOpen, shell],
   );
-  const activeSubPage = (shell.activeSubPage as 'chat' | 'library' | 'images' | 'videos' | 'flashcards' | null) ?? null;
-  const setActiveSubPage = useCallback((subPage: 'chat' | 'library' | 'images' | 'videos' | 'flashcards' | null) => {
+  const activeSubPage = (shell.activeSubPage as 'chat' | 'library' | 'images' | 'videos' | 'flashcards' | 'knowledge' | null) ?? null;
+  const setActiveSubPage = useCallback((subPage: 'chat' | 'library' | 'images' | 'videos' | 'flashcards' | 'knowledge' | null) => {
     if (!subPage || subPage === 'chat') {
       shell.closeSubPage?.();
     } else if (subPage === 'library') {
@@ -102,8 +102,19 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
       shell.openVideos?.();
     } else if (subPage === 'flashcards') {
       shell.openFlashcards?.();
+    } else if (subPage === 'knowledge') {
+      shell.openKnowledge?.();
     }
   }, [shell]);
+  const openKnowledge = useCallback(() => {
+    shell.openKnowledge?.();
+  }, [shell]);
+  const openFlashcardsProduce = useCallback(
+    (folderPath?: string) => {
+      shell.openFlashcardsProduce?.(folderPath);
+    },
+    [shell],
+  );
   const openLibrary = useCallback(() => {
     shell.openLibrary?.();
   }, [shell]);
@@ -123,9 +134,9 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
     shell.openFlashcards?.();
   }, [shell]);
   const handleOpenKnowledge = useCallback(
-    (subTab: 'doccards' | 'cards' | 'wiki' = 'doccards') => {
-      if (subTab === 'wiki') {
-        shell.openFlashcardsWiki?.();
+    (subTab: 'doccards' | 'cards' | 'knowledge' = 'doccards') => {
+      if (subTab === 'knowledge') {
+        shell.openKnowledge?.();
         return;
       }
       shell.openFlashcards?.();
@@ -256,7 +267,10 @@ export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
     closeSubPage,
     handleOpenCardsPanel,
     handleOpenKnowledge,
+    openKnowledge,
+    openFlashcardsProduce,
     flashcardsEntry: shell.flashcardsEntry ?? 'gallery',
+    flashcardsFolderPath: shell.flashcardsFolderPath,
     sessionListChrome,
     agentMode,
     setAgentMode,

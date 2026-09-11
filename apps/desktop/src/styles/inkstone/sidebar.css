@@ -152,8 +152,8 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
 }
 
 /* The shelf keeps only what belongs on a status line: settings (bottom-left is
-   where every desktop app puts it) and the host indicator. 资料库 / 闪卡 moved
-   up to .sidebar-primary-actions, where they get words. Dropping the two
+   where every desktop app puts it) and the host indicator. 资料库 / 闪卡 / 知识库
+   moved up to .sidebar-primary-actions, where they get words. Dropping those
    buttons also ends the overflow that clipped the transport label — the row
    measured clientWidth 240 / scrollWidth 256 at the default sidebar width. */
 html[data-theme-id='piwin-inkstone-paper'] .sidebar-shelf,
@@ -165,7 +165,11 @@ html[data-theme-id='piwin-inkstone-ink'] .sidebar-shelf {
 
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
   .sidebar-shelf
-  :is([data-testid='sidebar-library-shelf-btn'], [data-testid='sidebar-flashcards-shelf-btn']) {
+  :is(
+    [data-testid='sidebar-library-shelf-btn'],
+    [data-testid='sidebar-flashcards-shelf-btn'],
+    [data-testid='sidebar-knowledge-shelf-btn']
+  ) {
   display: none;
 }
 

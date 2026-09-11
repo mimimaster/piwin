@@ -9,7 +9,7 @@ export type StudioTopbarProps = {
   backLabel: string;
   onBack: () => void;
   locale?: DesktopLocale | undefined;
-  kind: 'library' | 'flashcards';
+  kind: 'library' | 'flashcards' | 'knowledge';
   /** `page` uses an icon-only back control. Default keeps the back label. */
   layout?: 'bar' | 'page';
   titleCount?: number | undefined;
@@ -29,7 +29,12 @@ export function StudioTopbar(props: StudioTopbarProps): ReactElement {
   const isZh = locale === 'zh-CN';
   const t = (en: string, zh: string) => (isZh ? zh : en);
   const dragWindowLabel = getDesktopCopy(locale).titlebar.dragWindow;
-  const title = props.kind === 'flashcards' ? t('Flashcards', '闪卡') : t('Library', '资料库');
+  const title =
+    props.kind === 'flashcards'
+      ? t('Flashcards', '闪卡')
+      : props.kind === 'knowledge'
+        ? t('Knowledge', '知识库')
+        : t('Library', '资料库');
   const iconBack = props.layout === 'page';
 
   const searchField =
@@ -94,7 +99,7 @@ export function StudioTopbar(props: StudioTopbarProps): ReactElement {
                   ? t(`${props.titleCount}`, `${props.titleCount} 张`)
                   : props.kind === 'library'
                     ? t(`${props.titleCount}`, `${props.titleCount} 项`)
-                    : props.titleCount}
+                    : t(`${props.titleCount}`, `${props.titleCount} 个`)}
               </span>
             ) : null}
           </span>

@@ -36,6 +36,7 @@ import {
 } from './sidebar-mode';
 import { Button } from '@piwin/ui-kit';
 import {
+  IconBook,
   IconCards,
   IconImage,
   IconPlus,
@@ -133,11 +134,20 @@ export type ProjectSessionSidebarProps = {
   onOpenSettings: () => void;
   /** Chromium-style intent prefetch of the Basic settings chunk. */
   onPrefetchSettings?: () => void;
-  activeSubPage?: 'chat' | 'library' | 'images' | 'videos' | 'flashcards' | null | undefined;
+  activeSubPage?:
+    | 'chat'
+    | 'library'
+    | 'images'
+    | 'videos'
+    | 'flashcards'
+    | 'knowledge'
+    | null
+    | undefined;
   onOpenLibrary?: (() => void) | undefined;
   onOpenImages?: (() => void) | undefined;
   onOpenVideos?: (() => void) | undefined;
   onOpenFlashcards?: (() => void) | undefined;
+  onOpenKnowledge?: (() => void) | undefined;
   isOverlayPresentation?: boolean;
   onCloseOverlay?: () => void;
   locale?: DesktopLocale;
@@ -638,6 +648,18 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
 
           <button
             type="button"
+            className={`sidebar-action-row${props.activeSubPage === 'knowledge' ? ' active' : ''}`}
+            data-testid="sidebar-knowledge-btn"
+            onClick={() => props.onOpenKnowledge?.()}
+            title={sidebarCopy.knowledge}
+            aria-label={sidebarCopy.knowledge}
+          >
+            <IconBook />
+            <span>{sidebarCopy.knowledge}</span>
+          </button>
+
+          <button
+            type="button"
             className="sidebar-action-row"
             data-testid="session-search-btn"
             onClick={props.onOpenSessionSearch}
@@ -712,6 +734,8 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
         onOpenLibrary={props.onOpenLibrary}
         onOpenImages={props.onOpenImages}
         onOpenFlashcards={props.onOpenFlashcards}
+        onOpenKnowledge={props.onOpenKnowledge}
+        knowledgeTitle={sidebarCopy.knowledge}
         settingsOpen={props.settingsOpen}
         onOpenSettings={props.onOpenSettings}
         onPrefetchSettings={props.onPrefetchSettings}

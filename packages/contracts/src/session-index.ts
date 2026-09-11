@@ -44,6 +44,8 @@ export type SessionIndexRecord = {
   model?: ModelRef;
   /** Last composer thinking level used with `model` for this session. */
   thinkingLevel?: ThinkingLevel;
+  /** Knowledge bases mounted on this session. Projected to `SessionSummary.knowledgeBaseIds`. */
+  knowledgeBaseIds?: string[];
   /** Optional path to Pi session file when known */
   piSessionFile?: string;
   /** Parent session when this is a product-layer sub-agent. */

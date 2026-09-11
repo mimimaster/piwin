@@ -56,6 +56,7 @@ export const RESERVED_SLASH_COMMAND_NAMES: ReadonlySet<string> = new Set([
   'scheme',
   'ultra-code',
   'knowledge',
+  'kb',
   'doccards',
   'flashcards',
   'cards',
@@ -126,39 +127,27 @@ export function buildSlashCatalog(options: BuildSlashCatalogOptions): SlashItem[
     items.push(compactItem);
   }
 
-  // --- Flashcards home + Wiki search (legacy tokens stay aliases) ---
+  // --- Flashcards home + knowledge bases (legacy tokens stay aliases) ---
   if (!conversationChat) {
     items.push({
       id: 'cmd:flashcards',
       kind: 'command',
       name: 'flashcards',
-      aliases: ['cards', 'knowledge', 'doccards'],
+      aliases: ['cards', 'doccards'],
       label: 'Flashcards',
       description: 'Open flashcards / 打开闪卡',
-      keywords: [
-        'flashcards',
-        'cards',
-        'knowledge',
-        'doccards',
-        'fsrs',
-        'review',
-        'anki',
-        '知识中心',
-        '闪卡',
-        '卡片',
-        '复习',
-      ],
+      keywords: ['flashcards', 'cards', 'doccards', 'fsrs', 'review', 'anki', '闪卡', '卡片', '复习'],
       groupLabel: 'Command',
       available: true,
     });
     items.push({
-      id: 'cmd:wiki',
+      id: 'cmd:knowledge',
       kind: 'command',
-      name: 'wiki',
-      aliases: ['notes'],
-      label: 'Wiki',
-      description: 'Search project notes / 检索项目笔记',
-      keywords: ['wiki', 'notes', 'repo', 'markdown', '笔记', '检索'],
+      name: 'knowledge',
+      aliases: ['kb', 'notes', 'wiki'],
+      label: 'Knowledge',
+      description: 'Open knowledge bases / 打开知识库',
+      keywords: ['knowledge', 'kb', 'rag', 'notes', 'wiki', 'search', '知识库', '笔记', '检索'],
       groupLabel: 'Command',
       available: true,
     });

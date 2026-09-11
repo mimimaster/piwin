@@ -15,6 +15,11 @@ import {
 } from './markdown-streamdown.js';
 import { escapeRawHtmlInMarkdown } from './markdown-html-escape.js';
 import { rewriteLocalFileMarkdownLinks } from './markdown-local-links.js';
+import {
+  EMPTY_KNOWLEDGE_CITATION_INDEX,
+  linkKnowledgeCitationMarkers,
+  type KnowledgeCitationIndex,
+} from './knowledge/knowledge-citations.js';
 import { MarkdownRenderingPhaseProvider } from './markdown-rendering-phase.js';
 
 export type { MarkdownRenderingPhase } from './markdown-code-fence.js';
@@ -73,6 +78,8 @@ type MarkdownViewProps = {
   onOpenDocument?: ((doc: { title: string; path?: string; content?: string }) => void) | undefined;
   /** Active project root — resolves relative path chips and enables Save As / Reveal. */
   projectPath?: string | null | undefined;
+  /** Knowledge citations retrieved in this turn; `[n]` markers that resolve become inline citations. */
+  knowledgeCitations?: KnowledgeCitationIndex | undefined;
 };
 
 const STREAMDOWN_PLUGINS = {
@@ -161,6 +168,7 @@ export function MarkdownView({
   locale = 'en',
   onOpenDocument,
   projectPath = null,
+  knowledgeCitations = EMPTY_KNOWLEDGE_CITATION_INDEX,
 }: MarkdownViewProps): ReactElement {
   const phase: MarkdownRenderingPhase = renderingPhase ?? 'completed';
   const streamMode = phase === 'streaming';
@@ -178,10 +186,12 @@ export function MarkdownView({
   const artifactProjection = useMemo(
     () =>
       projectArtifactMarkdownForRender(
-        escapeRawHtmlInMarkdown(rewriteLocalFileMarkdownLinks(text)),
+        escapeRawHtmlInMarkdown(
+          linkKnowledgeCitationMarkers(rewriteLocalFileMarkdownLinks(text), knowledgeCitations),
+        ),
         !streamMode,
       ),
-    [text, streamMode],
+    [text, streamMode, knowledgeCitations],
   );
   const streamdownText = artifactProjection.markdown;
   const shouldShowStreamingCaret = streamMode && showStreamingCaret && text.trim().length > 0;
@@ -219,6 +229,7 @@ export function MarkdownView({
     fences: artifactProjection.fences,
     onOpenDocument,
     projectPath,
+    knowledgeCitations,
   });
   streamdownRendererOptionsRef.current = {
     phase,
@@ -239,6 +250,7 @@ export function MarkdownView({
     fences: artifactProjection.fences,
     onOpenDocument,
     projectPath,
+    knowledgeCitations,
   };
   // Renderer component function identity must survive token and phase changes.
   // Current options are read from the ref when Streamdown invokes a renderer.

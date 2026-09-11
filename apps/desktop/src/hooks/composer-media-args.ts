@@ -87,8 +87,8 @@ export type UseComposerMediaArgs = {
   addContextRefFromDrop?: (payload: { absolutePath: string; relativePath: string }) => boolean;
   /** Conversation chat ignores orchestration; Agent/Goal and explicit `/skill` still apply. */
   conversationChat?: boolean;
-  /** Open the flashcards home on slash command submit (/knowledge, /notes). */
-  onOpenKnowledge?: (subTab?: 'doccards' | 'cards' | 'wiki') => void;
+  /** Slash submit: /knowledge, /kb, /notes open knowledge bases; /doccards opens flashcards. */
+  onOpenKnowledge?: (subTab?: 'doccards' | 'cards' | 'knowledge') => void;
   /** Open the right-panel Flashcards due queue (/flashcards). */
   onOpenCardsPanel?: () => void;
   /** Bump resume selection identity before leaving the active session for a draft. */

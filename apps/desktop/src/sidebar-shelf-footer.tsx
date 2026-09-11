@@ -1,11 +1,21 @@
 import type { DesktopLocale } from './desktop-locale';
-import { IconCards, IconImage, IconSettings } from './shell-icons';
+import { IconBook, IconCards, IconImage, IconSettings } from './shell-icons';
 
 export interface SidebarShelfFooterProps {
-  activeSubPage?: 'chat' | 'library' | 'images' | 'videos' | 'flashcards' | null | undefined;
+  activeSubPage?:
+    | 'chat'
+    | 'library'
+    | 'images'
+    | 'videos'
+    | 'flashcards'
+    | 'knowledge'
+    | null
+    | undefined;
   onOpenLibrary?: (() => void) | undefined;
   onOpenImages?: (() => void) | undefined;
   onOpenFlashcards?: (() => void) | undefined;
+  onOpenKnowledge?: (() => void) | undefined;
+  knowledgeTitle: string;
   settingsOpen: boolean;
   onOpenSettings: () => void;
   onPrefetchSettings?: (() => void) | undefined;
@@ -51,6 +61,18 @@ export function SidebarShelfFooter(props: SidebarShelfFooterProps) {
         >
           <IconCards width={16} height={16} />
           <span>{props.flashcardsTitle}</span>
+        </button>
+
+        <button
+          type="button"
+          className={`shelf-btn${props.activeSubPage === 'knowledge' ? ' active' : ''}`}
+          data-testid="sidebar-knowledge-shelf-btn"
+          onClick={() => props.onOpenKnowledge?.()}
+          title={props.knowledgeTitle}
+          aria-label={props.knowledgeTitle}
+        >
+          <IconBook width={16} height={16} />
+          <span>{props.knowledgeTitle}</span>
         </button>
 
         <button

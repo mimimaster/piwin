@@ -125,7 +125,7 @@ describe('buildSlashCatalog — Conversation chat', () => {
     expect(goal?.available).toBe(true);
   });
 
-  it('lists one flashcards command and a separate wiki command', () => {
+  it('lists one flashcards command and a separate knowledge command', () => {
     const catalog = buildSlashCatalog({
       skills: [],
       hasActiveSession: true,
@@ -134,9 +134,10 @@ describe('buildSlashCatalog — Conversation chat', () => {
     const flashcards = catalog.filter((item) => item.label === 'Flashcards');
     expect(flashcards).toHaveLength(1);
     expect(flashcards[0]?.id).toBe('cmd:flashcards');
-    expect(flashcards[0]?.aliases).toEqual(expect.arrayContaining(['knowledge', 'doccards', 'cards']));
-    expect(catalog.some((item) => item.id === 'cmd:wiki')).toBe(true);
-    expect(catalog.some((item) => item.id === 'cmd:knowledge')).toBe(false);
+    expect(flashcards[0]?.aliases).toEqual(expect.arrayContaining(['doccards', 'cards']));
+    const knowledge = catalog.find((item) => item.id === 'cmd:knowledge');
+    expect(knowledge?.aliases).toEqual(expect.arrayContaining(['kb', 'notes', 'wiki']));
+    expect(catalog.some((item) => item.id === 'cmd:wiki')).toBe(false);
     expect(catalog.some((item) => item.id === 'cmd:notes')).toBe(false);
   });
 

@@ -15,6 +15,7 @@ import { handleMockWorkspaceCommands } from './host-client-mock-workspace.js';
 import { handleMockCatalogCommands } from './host-client-mock-catalog.js';
 import { handleMockSettingsCommands } from './host-client-mock-settings.js';
 import { handleMockOpsCommands } from './host-client-mock-ops.js';
+import { handleMockKnowledgeCommands } from './host-client-mock-knowledge.js';
 import {
   byteLength,
   chunkText,
@@ -282,7 +283,8 @@ export class MockHostBackend {
       (await handleMockWorkspaceCommands(this, command, id)) ??
       (await handleMockCatalogCommands(this, command, id)) ??
       (await handleMockSettingsCommands(this, command, id)) ??
-      (await handleMockOpsCommands(this, command, id));
+      (await handleMockOpsCommands(this, command, id)) ??
+      (await handleMockKnowledgeCommands(this, command, id));
     if (dispatched) {
       return dispatched;
     }

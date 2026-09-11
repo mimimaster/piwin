@@ -13,6 +13,9 @@ import type {
   ScanFolderResult,
 } from '@piwin/contracts';
 
+/** Document row from the folder state store, including chunk counts. */
+export type FolderDocumentRecord = DocumentManifest & { chunkCount: number };
+
 /** Folder RAG orchestrator surface (spec §8.1). Lives in this package. */
 export type FolderRag = {
   /** True when an embedding provider was supplied at creation time. */
@@ -29,7 +32,9 @@ export type FolderRag = {
     query: string,
     options?: RetrieveOptions,
   ): Promise<ContextPack>;
-  listDocuments(folderPath: string): Promise<DocumentManifest[]>;
+  listDocuments(folderPath: string): Promise<FolderDocumentRecord[]>;
   isIndexed(folderPath: string): Promise<boolean>;
+  /** Close cached stores and delete `doc-rag/<folderKey>/`. */
+  forgetFolder(folderPath: string): Promise<void>;
   close(): void;
 };

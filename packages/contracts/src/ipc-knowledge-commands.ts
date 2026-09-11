@@ -7,6 +7,7 @@ import type {
 } from './flashcards.js';
 import type { FlashcardStudyHostCommand } from './flashcard-study-commands.js';
 import type { IndexFolderOptions, RetrieveOptions } from './doc-rag.js';
+import type { KnowledgeBaseHostCommand } from './knowledge-base.js';
 import type {
   NoteSearchQuery,
   NoteUpdateInput,
@@ -72,4 +73,6 @@ export type KnowledgeHostCommand =
     }
   | { id?: string; type: 'doccards/generation-status'; folderPath: string }
   | { id?: string; type: 'doccards/cancel-generation'; folderPath: string }
-  | FlashcardStudyHostCommand;
+  | FlashcardStudyHostCommand
+  /** Unified knowledge base registry, search, and session mounts. */
+  | KnowledgeBaseHostCommand;

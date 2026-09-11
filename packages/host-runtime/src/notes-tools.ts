@@ -33,6 +33,11 @@ export type BuildNotesToolsOptions = {
    * Used by the knowledge tool profile (doc-flashcards §10.2).
    */
   readOnly?: boolean;
+  /**
+   * When false, omit note_search / note_list / note_read so knowledge_* tools
+   * are the only retrieval surface.
+   */
+  includeReadTools?: boolean;
 };
 
 function notesPermissionSpec(
@@ -94,7 +99,14 @@ export function buildNotesTools(options: BuildNotesToolsOptions): HostToolRegist
           tool.descriptor.name === 'note_list' ||
           tool.descriptor.name === 'note_read',
       )
-    : bare;
+    : options.includeReadTools === false
+      ? bare.filter(
+          (tool) =>
+            tool.descriptor.name !== 'note_search' &&
+            tool.descriptor.name !== 'note_list' &&
+            tool.descriptor.name !== 'note_read',
+        )
+      : bare;
   return filtered;
 }
 

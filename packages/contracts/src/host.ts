@@ -324,6 +324,8 @@ export type SessionSummary = {
   model?: ModelRef;
   /** Last composer thinking level paired with `model`. */
   thinkingLevel?: ThinkingLevel;
+  /** Knowledge bases mounted on this session (`session/set-knowledge-bases`). Absent = none. */
+  knowledgeBaseIds?: string[];
   updatedAt: string;
   messageCount: number;
   /** Short last user/assistant preview for session list UI. */
@@ -513,6 +515,8 @@ export type ToolPresentation = {
   flashcard?: import('./flashcards.js').FlashcardDisplayPayload;
   /** Structured goal signal lifted from a `goal_*` tool's details. */
   goal?: import('./goal.js').GoalDisplayPayload;
+  /** Citations lifted from a `knowledge_search` / `knowledge_read` tool's details. */
+  knowledge?: import('./knowledge-base.js').KnowledgeToolDetails;
   startedAt?: string;
   endedAt?: string;
   durationMs?: number;

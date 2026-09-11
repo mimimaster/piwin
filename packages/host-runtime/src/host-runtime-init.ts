@@ -54,6 +54,9 @@ import type { HostRuntimeOptions } from './host-runtime-types.js';
 import { createSessionContextCoordinator } from './session-context-coordinator.js';
 import { recordFinalizedUsageToLedger } from './host-runtime-usage-ledger.js';
 import { notifyForegroundSessionTurnTerminal } from './host-runtime-services.js';
+import { createDoccardsIngestionRegistry } from './commands/doccards-job-commands.js';
+import { publishKnowledgeBasesChanged } from './commands/knowledge-base-commands.js';
+import { recoverKnowledgeBaseRegistry } from './knowledge-base-registry.js';
 
 export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRuntimeOptions): void {
   const rootOwnershipEnabled = options.rootOwnership?.enabled ?? process.env.NODE_ENV !== 'test';
@@ -77,6 +80,26 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
 
   try {
     deps.options = options;
+    deps.doccardsIngestion = createDoccardsIngestionRegistry({
+      onTerminal: () => {
+        void publishKnowledgeBasesChanged({
+          getNotesServices: () => deps.getNotesServices(),
+          getCardStore: () => deps.getCardStore(),
+          getFolderRag: () => deps.getFolderRag(),
+          loadConfig: () => loadPiwinConfig(deps.options.piwinRoot),
+          push: (message) => deps.push(message),
+          ingestionJobs: deps.doccardsIngestion,
+          ...(deps.options.piwinRoot !== undefined ? { piwinRoot: deps.options.piwinRoot } : {}),
+        });
+      },
+    });
+    void recoverKnowledgeBaseRegistry(deps.options.piwinRoot).catch((error: unknown) => {
+      deps.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `knowledge base recovery failed: ${formatError(error)}`,
+      });
+    });
     deps.extensionRevisionStore = createExtensionRevisionStore(getPiwinRoot(options.piwinRoot));
     deps.transcriptStores = createSessionTranscriptStoreRegistry({
       rootDir: getPiwinRoot(options.piwinRoot),

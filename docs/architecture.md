@@ -32,6 +32,7 @@
 │ Application services (no UI frameworks)                      │
 │  session · project · process · skills · mcp · browser        │
 │  git · artifact · media · tools-web · notes · flashcards     │
+│  knowledge (Host registry over notes + folder RAG)           │
 ├─────────────────────────────────────────────────────────────┤
 │ Pi boundary: @piwin/agent-host                               │
 │  PiSdkAdapter · Pi worker backend · Pi event/tool adapters   │
@@ -554,6 +555,7 @@ performed.
 | `@piwin/voice` | Live call domain + Codex Live adapter (Pi-free); Host owns call authority + upstream events; Desktop owns WebRTC media; auth via openai-codex OAuth (ADR 0065) |
 | `@piwin/flashcards` | Unique CardStore; FSRS review JSON; Host-owned study rounds / operation log / catalog (ADR 0018, 0054, 0066). Renderer-safe export: `@piwin/flashcards/study-sequence` |
 | `@piwin/notes` | Local markdown notes + FTS/optional vector RAG (ADR 0018) |
+| `@piwin/doc-rag` | Folder RAG indexes; registered as folder knowledge bases by Host |
 | `@piwin/marketplace` | Unified install sources |
 | `@piwin/ui-kit` | Shared UI primitives, including `FlashcardFace` / `TearDeckSurface` (existing `fcws-tear-off` 200ms; no Host/FS) |
 
@@ -577,7 +579,10 @@ performed.
   themes/
   pets/
   media/<session-id>/
+  knowledge/
+    bases.json               # Host-owned folder knowledge-base registry
   notes/                      # markdown notes (ADR 0018)
+  doc-rag/<folderKey>/        # folder RAG cache; rebuilt into the registry if lost
   flashcards/
     cards/                    # item markdown (unique CardStore)
     review/                   # FSRS ReviewState JSON; missing revision = 0

@@ -46,23 +46,22 @@ export type ShellRoute =
   | { kind: 'library' }
   | { kind: 'images' }
   | { kind: 'videos' }
-  | { kind: 'flashcards'; entry?: 'gallery' | 'wiki' }
-  /** @deprecated Legacy overlay. `resolveShellSubPage` maps this to flashcards. */
+  /** `produce` opens the folder ingestion / card production flow, optionally on `folderPath`. */
+  | { kind: 'flashcards'; entry?: 'gallery' | 'produce'; folderPath?: string }
+  /** Unified knowledge bases (notes library + ingested folders). */
   | { kind: 'knowledge' }
   | { kind: 'settings'; section: ShellSettingsSection };
 
-export type ShellWorkspaceSubPage = 'library' | 'images' | 'videos' | 'flashcards';
+export type ShellWorkspaceSubPage = 'library' | 'images' | 'videos' | 'flashcards' | 'knowledge';
 
-/** Flashcards is the only learning door. Old knowledge routes land there. */
 export function resolveShellSubPage(route: ShellRoute): ShellWorkspaceSubPage | null {
   switch (route.kind) {
     case 'library':
     case 'images':
     case 'videos':
     case 'flashcards':
-      return route.kind;
     case 'knowledge':
-      return 'flashcards';
+      return route.kind;
     default:
       return null;
   }
@@ -102,7 +101,10 @@ function routesEqual(left: ShellRoute, right: ShellRoute): boolean {
     return left.section === right.section;
   }
   if (left.kind === 'flashcards' && right.kind === 'flashcards') {
-    return (left.entry ?? 'gallery') === (right.entry ?? 'gallery');
+    return (
+      (left.entry ?? 'gallery') === (right.entry ?? 'gallery') &&
+      (left.folderPath ?? '') === (right.folderPath ?? '')
+    );
   }
   return true;
 }

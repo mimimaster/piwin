@@ -205,8 +205,14 @@ it('parses /scheme and /ultra-code as scheme selection', () => {
 it('parses /knowledge, /flashcards, and /notes as knowledge submits', () => {
   expect(parseComposerSlashSubmit('/knowledge', skills)).toEqual({
     kind: 'knowledge',
-    subTab: 'doccards',
+    subTab: 'knowledge',
     name: 'knowledge',
+    args: '',
+  });
+  expect(parseComposerSlashSubmit('/kb', skills)).toEqual({
+    kind: 'knowledge',
+    subTab: 'knowledge',
+    name: 'kb',
     args: '',
   });
   expect(parseComposerSlashSubmit('/doccards', skills)).toEqual({
@@ -227,13 +233,13 @@ it('parses /knowledge, /flashcards, and /notes as knowledge submits', () => {
   });
   expect(parseComposerSlashSubmit('/notes', skills)).toEqual({
     kind: 'knowledge',
-    subTab: 'wiki',
+    subTab: 'knowledge',
     name: 'notes',
     args: '',
   });
   expect(parseComposerSlashSubmit('/wiki', skills)).toEqual({
     kind: 'knowledge',
-    subTab: 'wiki',
+    subTab: 'knowledge',
     name: 'wiki',
     args: '',
   });

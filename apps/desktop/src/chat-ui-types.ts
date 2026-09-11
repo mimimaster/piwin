@@ -278,6 +278,8 @@ export type SessionListItemUi = {
   scope?: import('@piwin/contracts').SessionScope;
   /** Disk residency. Absent means local. */
   storage?: import('@piwin/contracts').SessionStorageInfo;
+  /** Knowledge bases mounted on this session. */
+  knowledgeBaseIds?: string[];
 };
 
 export type RunTerminalState =

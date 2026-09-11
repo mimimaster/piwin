@@ -36,6 +36,7 @@ import { ComposerQueuedEditBanner } from './composer-queued-edit-banner';
 import { ComposerPauseContinueHint } from './composer-pause-continue-hint';
 import { getDesktopCopy } from './desktop-locale';
 import { useDesktopLocale } from './desktop-locale-context';
+import { KnowledgeMountChips } from './knowledge/KnowledgeMountChips.js';
 import { useSpeechInput } from './hooks/use-speech-input.js';
 import { PromptHistoryMenu } from './prompt-history-menu';
 import {
@@ -838,6 +839,8 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
           }}
         />
       ) : null}
+
+      <KnowledgeMountChips locale={locale === 'en' ? 'en' : 'zh-CN'} />
 
       <ComposerAttachmentShelf
         copy={copy}

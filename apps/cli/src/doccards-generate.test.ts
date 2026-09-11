@@ -34,6 +34,7 @@ function createRag(chunks: Array<{ filePath: string; content: string }>): Folder
     })),
     listDocuments: vi.fn(async () => []),
     isIndexed: vi.fn(async () => true),
+    forgetFolder: vi.fn(async () => undefined),
     close: vi.fn(),
   };
 }
