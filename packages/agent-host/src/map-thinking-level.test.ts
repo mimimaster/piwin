@@ -3,6 +3,7 @@ import {
   buildThinkingLevelMap,
   mapThinkingLevelToApi,
   mapThinkingLevelToPi,
+  thinkingLevelsFromPiMap,
 } from './map-thinking-level.js';
 
 describe('mapThinkingLevelToApi', () => {
@@ -58,5 +59,56 @@ describe('buildThinkingLevelMap', () => {
   it('does not create a map when model levels are not explicitly configured', () => {
     expect(buildThinkingLevelMap(undefined, 'openai-compatible')).toBeUndefined();
     expect(buildThinkingLevelMap([], 'openai-compatible')).toBeUndefined();
+  });
+});
+
+describe('thinkingLevelsFromPiMap', () => {
+  it('drops null entries and keeps Grok-style supported levels only', () => {
+    expect(
+      thinkingLevelsFromPiMap({
+        off: null,
+        minimal: null,
+        low: 'low',
+        medium: 'medium',
+        high: 'high',
+        xhigh: null,
+        max: null,
+      }),
+    ).toEqual(['low', 'medium', 'high']);
+  });
+
+  it('keeps default mid-range levels for a sparse Codex-style map', () => {
+    expect(
+      thinkingLevelsFromPiMap({
+        xhigh: 'xhigh',
+        minimal: 'low',
+      }),
+    ).toEqual(['off', 'minimal', 'low', 'medium', 'high', 'xhigh']);
+  });
+
+  it('treats xhigh and max as opt-in even when other keys are present', () => {
+    expect(
+      thinkingLevelsFromPiMap({
+        off: 'off',
+        low: 'low',
+        medium: 'medium',
+        high: 'high',
+      }),
+    ).toEqual(['off', 'minimal', 'low', 'medium', 'high']);
+  });
+
+  it('returns undefined when the map is missing or empty of supported levels', () => {
+    expect(thinkingLevelsFromPiMap(undefined)).toBeUndefined();
+    expect(
+      thinkingLevelsFromPiMap({
+        off: null,
+        minimal: null,
+        low: null,
+        medium: null,
+        high: null,
+        xhigh: null,
+        max: null,
+      }),
+    ).toBeUndefined();
   });
 });
