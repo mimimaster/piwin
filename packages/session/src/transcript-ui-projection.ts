@@ -26,6 +26,8 @@ function isPreservedToolOutput(
     return (
       lower.includes('flashcard_create') ||
       lower.includes('flashcard_batch_create') ||
+      lower.includes('piwin_plan_create') ||
+      lower === 'plan_create' ||
       lower.startsWith('mcp__') ||
       lower.startsWith('mcp:') ||
       lower === 'mcp_gateway'
@@ -65,6 +67,7 @@ export function slimToolPresentation(
   if (presentation.countTag !== undefined) slim.countTag = presentation.countTag;
   if (presentation.flashcard !== undefined) slim.flashcard = presentation.flashcard;
   if (presentation.health !== undefined) slim.health = presentation.health;
+  if (presentation.plan !== undefined) slim.plan = presentation.plan;
   if (presentation.sensitivity !== undefined) slim.sensitivity = presentation.sensitivity;
   if (
     isPreservedToolOutput(

@@ -5,7 +5,7 @@
 
 import { randomUUID } from 'node:crypto';
 
-import { loadSessionPlan } from '@piwin/session';
+import { loadSessionPlan, PlanMutationError } from '@piwin/session';
 import type { SessionPlan } from '@piwin/contracts';
 import { loadPiwinConfig } from './config-store.js';
 import { getPiwinRoot, getPiwinSessionPlanPath } from './paths.js';
@@ -98,6 +98,11 @@ export async function buildDomainContext(
         deps.promptPlanSession(sessionId, text, parentRunId),
       abortSession: (sessionId) => deps.abortPlanSession(sessionId),
       startPlanRun: (sessionId, planId) => {
+        if (deps.runRegistry.getForegroundRun(sessionId)) {
+          throw new PlanMutationError(
+            '当前会话仍在运行，请等待本轮结束后再执行计划。',
+          );
+        }
         const generationId =
           deps.runtimeController.getStatus(sessionId).generationId ??
           `plan-generation-${randomUUID()}`;

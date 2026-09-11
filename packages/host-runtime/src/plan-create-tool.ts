@@ -45,7 +45,9 @@ export function createPlanCreateTool(options: PlanCreateToolOptions): HostToolRe
     descriptor: {
       name: 'piwin_plan_create',
       description:
-        'Create a durable SessionPlan blueprint before making multi-step edits. ' +
+        'Create a durable draft SessionPlan when the user requests a reviewable execution plan. ' +
+        'After creation, summarize the plan and END this turn so the user can choose inline or subagent execution. ' +
+        'Do not implement or spawn implementation subagents before approval. ' +
         'Decompose tasks into modular steps to maximize parallel subagent potential. ' +
         'Use dependsOn ONLY for genuine sequential blockers, and parallelGroup for concurrent tasks. ' +
         'Each step MUST specify affected components, explicit acceptance criteria, and a concrete verification command.',
@@ -266,13 +268,24 @@ export function createPlanCreateTool(options: PlanCreateToolOptions): HostToolRe
         return invalidPlanInput('failed to persist draft plan');
       }
       options.onUpdated?.(created);
+      const displayPath = `plans/${options.sessionId}.md`;
       return {
         ok: true,
-        output: `draft plan created with ${steps.length} steps (complexity=${complexity}); awaiting user approval`,
+        output:
+          `draft plan created with ${steps.length} steps (complexity=${complexity}); ` +
+          `saved at ${options.planPath}. Open in Piwin as ${displayPath}. ` +
+          'The user can choose inline or subagent execution from the plan card. ' +
+          'Summarize the plan and end this turn; do not execute or delegate it yet.',
         details: {
           planId: created.id,
           revision: created.revision,
           status: created.status,
+          planDisplay: {
+            version: 1 as const,
+            path: options.planPath,
+            displayPath,
+            plan: created,
+          },
         },
       };
     },

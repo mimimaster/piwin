@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
+import type { PlanDisplayPayload, SessionPlan } from '@piwin/contracts';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
 import type { ChatMessageUi, RunRecordUi } from './chat-reducer.js';
 import { ChatThread } from './chat-thread.js';
@@ -77,12 +78,14 @@ function renderThread(
     activeRunId?: string | null;
     runRecordsById?: Record<string, RunRecordUi>;
     isConversationSession?: boolean;
+    onPlanExecute?: (display: PlanDisplayPayload, mode: 'inline' | 'subagent-driven') => void;
   } = {},
 ): ReactElement {
   return (
     <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
       <ChatThread
         messages={messages}
+        {...(extras.onPlanExecute ? { onPlanExecute: extras.onPlanExecute } : {})}
         sessionId="disclosure-session"
         streaming={extras.streaming === true}
         editingMessageId={null}
@@ -131,6 +134,50 @@ describe('ChatThread completed work disclosure', () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
+  });
+
+  it('renders a plan card from the completed tool result and keeps it during streaming', () => {
+    const plan: SessionPlan = {
+      id: 'plan', sessionId: 'session-1', projectPath: '/tmp', status: 'draft',
+      title: 'Web 手机响应式适配', goal: 'Mobile layout',
+      steps: [{ id: 'one', title: 'Fix viewport', status: 'pending' }],
+      revision: 0, createdAt: '2026-09-11T09:37:29.150Z',
+      updatedAt: '2026-09-11T09:37:29.150Z', source: 'assistant',
+    };
+    const onPlanExecute = vi.fn();
+    const messages = [
+      message('user-plan', { role: 'user', text: '继续吧' }),
+      message('plan-create', { runId: 'run-plan', tools: [{
+        toolCallId: 'create', toolName: 'piwin_plan_create', status: 'done',
+        output: 'draft plan created', runId: 'run-plan',
+        presentation: {
+          kind: 'other',
+          title: 'piwin_plan_create',
+          plan: {
+            version: 1,
+            path: '/tmp/.piwin/sessions/session-1/plan.json',
+            displayPath: 'plans/session-1.md',
+            plan,
+          },
+        },
+      }] }),
+      message('plan-read', { runId: 'run-plan', tools: [{
+        toolCallId: 'read', toolName: 'read', status: 'done', output: 'source', runId: 'run-plan',
+      }] }),
+      message('plan-answer', { text: '实施计划已生成，请批准计划卡。', runId: 'run-plan' }),
+    ];
+    act(() => root.render(renderThread(messages, { onPlanExecute })));
+    expect(container.querySelectorAll('[data-testid="plan-execution-gate"]')).toHaveLength(1);
+    const gate = container.querySelector('[data-testid="plan-execution-gate"]');
+    expect(gate?.textContent).toContain(plan.title);
+    act(() => container.querySelector<HTMLButtonElement>('[data-testid="plan-mode-inline"]')?.click());
+    expect(onPlanExecute).toHaveBeenCalledWith(
+      expect.objectContaining({ path: '/tmp/.piwin/sessions/session-1/plan.json' }),
+      'inline',
+    );
+    act(() => root.render(renderThread(messages, { onPlanExecute, streaming: true, activeRunId: 'run-plan' })));
+    expect(container.querySelector('[data-testid="plan-execution-gate"]')).not.toBeNull();
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="plan-mode-inline"]')?.disabled).toBe(true);
   });
 
   it('unmounts completed work by default and restores the unchanged rows on demand', () => {

@@ -25,6 +25,8 @@ export type ToolResultDetails = Record<string, unknown> & {
   reason?: string;
   /** Bounded Health card projection — never a second full series. */
   health?: HealthToolCardSummary;
+  /** Versioned SessionPlan snapshot for the message-bound plan display. */
+  planDisplay?: import('./plan-display.js').PlanDisplayPayload;
   /** Browser write/observe dispatch stage when the result is not a clean success. */
   outcome?: 'not-started' | 'unknown';
   /** Whether Host already attempted a bounded runtime recovery. */

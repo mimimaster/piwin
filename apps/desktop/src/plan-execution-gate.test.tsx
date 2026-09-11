@@ -45,6 +45,10 @@ function draftPlan(overrides: Partial<SessionPlan> = {}): SessionPlan {
 }
 
 describe('canShowPlanExecutionGate', () => {
+  it('waits until the creating turn has finished', () => {
+    expect(canShowPlanExecutionGate({ plan: draftPlan(), isConversationSession: false, streaming: true })).toBe(false);
+  });
+
   it('shows for a draft plan in a project session', () => {
     expect(
       canShowPlanExecutionGate({
@@ -191,6 +195,12 @@ function assistantMessage(
 }
 
 describe('findPlanExecutionGateMessageId', () => {
+  it.each(['running', 'error'] as const)('does not offer execution for a %s create tool', (status) => {
+    expect(findPlanExecutionGateMessageId([
+      assistantMessage('create', [{ toolCallId: 'tool', toolName: 'piwin_plan_create', status, output: '' }]),
+    ])).toBeNull();
+  });
+
   it('pins the gate to the assistant message that created the plan', () => {
     expect(
       findPlanExecutionGateMessageId([
@@ -259,6 +269,22 @@ describe('PlanExecutionGate', () => {
 
   afterEach(() => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
+  });
+
+  it('shows the failed execution reason beside retry choices', () => {
+    const { container, root } = renderNode(
+      <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => undefined}>
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <PlanExecutionGate plan={draftPlan({ status: 'approved', execution: {
+            sessionId: 's1', planId: 'p1', mode: 'inline', status: 'failed',
+            childSessionIds: [], error: 'Verification failed',
+          } })} onExecute={() => undefined} />
+        </PiwinUiProvider>
+      </DesktopLocaleProvider>,
+    );
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe('Verification failed');
+    expect(container.querySelector('[data-testid="plan-mode-inline"]')).not.toBeNull();
+    act(() => root.unmount());
   });
 
   it('renders title, plan name, and both execution modes without a Process step', () => {
@@ -331,6 +357,41 @@ describe('PlanExecutionGate', () => {
       container.querySelector<HTMLButtonElement>('[data-testid="plan-mode-subagent"]')?.click();
     });
     expect(onExecute).toHaveBeenCalledWith('subagent-driven');
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('ignores a second click while the normal prompt handoff is pending', async () => {
+    let resolveHandoff: (() => void) | undefined;
+    const handoff = new Promise<void>((resolve) => {
+      resolveHandoff = resolve;
+    });
+    const onExecute = vi.fn(() => handoff);
+    const { container, root } = renderNode(
+      <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => undefined}>
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <PlanExecutionGate plan={draftPlan()} onExecute={onExecute} />
+        </PiwinUiProvider>
+      </DesktopLocaleProvider>,
+    );
+    const inlineButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="plan-mode-inline"]',
+    );
+    expect(inlineButton).not.toBeNull();
+
+    act(() => {
+      inlineButton?.click();
+      inlineButton?.click();
+    });
+    expect(onExecute).toHaveBeenCalledOnce();
+    expect(inlineButton?.disabled).toBe(true);
+
+    resolveHandoff?.();
+    await act(async () => {
+      await handoff;
+    });
+    expect(inlineButton?.disabled).toBe(false);
+
     act(() => root.unmount());
     container.remove();
   });
@@ -572,6 +633,7 @@ describe('WorkbenchPermissionBar plan execution gate', () => {
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
           <WorkbenchPermissionBar
             state={projectState()}
+            sidebarMode="code"
             extensionUiRequest={null}
             sessionPlan={draftPlan()}
             onPermission={() => undefined}
@@ -592,6 +654,7 @@ describe('WorkbenchPermissionBar plan execution gate', () => {
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
           <WorkbenchPermissionBar
             state={createInitialChatUiState()}
+            sidebarMode="chat"
             extensionUiRequest={null}
             sessionPlan={draftPlan()}
             onPermission={() => undefined}
@@ -622,6 +685,7 @@ describe('WorkbenchPermissionBar plan execution gate', () => {
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
           <WorkbenchPermissionBar
             state={state}
+            sidebarMode="code"
             extensionUiRequest={null}
             sessionPlan={draftPlan()}
             onPermission={() => undefined}
@@ -664,6 +728,7 @@ describe('WorkbenchPermissionBar plan execution gate', () => {
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
           <WorkbenchPermissionBar
             state={state}
+            sidebarMode="chat"
             extensionUiRequest={null}
             onPermission={onPermission}
             onExtensionUiResolve={() => undefined}
@@ -690,6 +755,7 @@ describe('WorkbenchPermissionBar plan execution gate', () => {
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
           <WorkbenchPermissionBar
             state={{ ...projectState(), streaming: true }}
+            sidebarMode="code"
             extensionUiRequest={null}
             sessionPlan={draftPlan({
               status: 'executing',
@@ -719,6 +785,7 @@ describe('WorkbenchPermissionBar plan execution gate', () => {
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
           <WorkbenchPermissionBar
             state={projectState()}
+            sidebarMode="code"
             extensionUiRequest={null}
             sessionPlan={draftPlan({
               status: 'executing',

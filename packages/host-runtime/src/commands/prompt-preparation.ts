@@ -38,6 +38,7 @@ import type {
   SessionResumeRunAcceptedData,
   SessionTranscriptPageData,
   SessionTranscriptMessage,
+  PlanExecutionMode,
 } from '@piwin/contracts';
 import {
   SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
@@ -90,7 +91,9 @@ import {
   upsertSessionRecord,
   readToolOutputSnapshot,
   openModelContextStore,
+  PlanMutationError,
   type SessionTranscriptStore,
+  updateSessionPlan,
 } from '@piwin/session';
 import { formatSideChatContextBlock, mergeSideChatContextIntoPrompt } from '@piwin/session';
 import { redactToolText } from '@piwin/agent-host';
@@ -126,6 +129,7 @@ import { activateSkillForPrompt } from './activate-skill-for-prompt.js';
 import type { SessionLiveContext } from './session-live-context.js';
 import { shouldInjectLiveWorkPreamble } from '../voice/live-work-preamble.js';
 import { applyInlineArtifactLayout } from '../prompt/inline-artifact-layout.js';
+import { resolveExplicitPlanExecutionMode } from './plan-execution-intent.js';
 
 /** Build resolver deps with registered-project-root enforcement (security). */
 export function createResolveRefsDeps(context: SessionLiveContext): {
@@ -415,8 +419,7 @@ export async function preparePromptInput(
     const indexPath = getPiwinSessionIndexPath(rootDir);
     const sessionRecord = await getSessionRecord(indexPath, command.sessionId);
     const scope = sessionRecord ? scopeFromIndexRecord(sessionRecord) : undefined;
-    const projectPath =
-      scope?.kind === 'project' ? scope.projectPath : undefined;
+    const projectPath = scope?.kind === 'project' ? scope.projectPath : undefined;
     const activated = await activateSkillForPrompt({
       text: promptInput.text,
       skillId,
@@ -529,7 +532,7 @@ export async function preparePromptInput(
   if (conversationChat) {
     context.clearSessionPermissionOverride(command.sessionId);
   } else {
-    await applyAgentPromptContext(context, command, run, assembly, promptInput);
+    await applyAgentPromptContext(context, command, run, assembly, promptInput, promptSource.text);
   }
 
   // ADR 0026: concisePrompt injection retired with walkthrough generation.
@@ -615,6 +618,7 @@ async function applyAgentPromptContext(
   run: ExecutionRunRecord,
   assembly: ModelPromptAssembly,
   promptInput: PromptInput,
+  promptText: string,
 ): Promise<void> {
   // Composer Run Mode (permissionPreset) is session-level and must override
   // config YOLO. Plan/Ask agent modes still raise the floor via resolvePreset.
@@ -708,8 +712,65 @@ async function applyAgentPromptContext(
     });
   }
   throwIfPromptPreparationAborted(context, run.runId);
+
+  // A user may choose a mode by replying in the composer instead of clicking
+  // the historical card. Treat that exact one-mode reply as the same approval
+  // transition, but keep the prompt path best-effort so a display affordance
+  // can never block the ordinary model turn.
+  const explicitPlanMode = resolveExplicitPlanExecutionMode(promptText);
+  let selectedPlanMode: PlanExecutionMode | undefined;
+  if (activePlan?.status === 'draft' && explicitPlanMode !== undefined) {
+    const draftPlanId = activePlan.id;
+    let approvedHere = false;
+    try {
+      const selectedPlan = await updateSessionPlan(planPath, (current) => {
+        if (current === null || current.id !== draftPlanId || current.status !== 'draft') {
+          return current;
+        }
+        approvedHere = true;
+        return {
+          ...current,
+          status: 'approved' as const,
+          updatedAt: new Date().toISOString(),
+        };
+      });
+      if (selectedPlan?.id === draftPlanId && selectedPlan.status === 'approved') {
+        activePlan = selectedPlan;
+        if (approvedHere) {
+          context.push({ type: 'plan/updated', sessionId: command.sessionId, plan: selectedPlan });
+        }
+        selectedPlanMode = explicitPlanMode;
+      }
+    } catch (error) {
+      const message = error instanceof PlanMutationError ? error.message : formatError(error);
+      context.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `explicit plan mode approval failed: ${message}`,
+      });
+    }
+  }
+
+  if (
+    selectedPlanMode === undefined &&
+    activePlan?.status === 'approved' &&
+    explicitPlanMode !== undefined
+  ) {
+    selectedPlanMode = explicitPlanMode;
+  }
+
   if (activePlan && (activePlan.status === 'approved' || activePlan.status === 'executing')) {
-    const planText = formatPlanForModelContext(activePlan);
+    const modeInstruction =
+      selectedPlanMode === 'subagent-driven'
+        ? 'Execution mode: delegate eligible plan steps to subagents, then summarize and verify their results.'
+        : selectedPlanMode === 'inline'
+          ? 'Execution mode: execute the plan directly in this session; do not spawn implementation subagents.'
+          : undefined;
+    const planText = [
+      formatPlanForModelContext(activePlan),
+      `Plan file: ${planPath}`,
+      ...(modeInstruction !== undefined ? [modeInstruction] : []),
+    ].join(String.fromCharCode(10));
     promptInput.text = `${planText}\n\n${promptInput.text}`;
     assembly.add({
       kind: 'active-plan',

@@ -7,8 +7,8 @@ import type {
   PermissionDecision,
   PermissionRememberScope,
   PlanExecutionMode,
+  PlanDisplayPayload,
   ProductSessionLineageView,
-  SessionPlan,
   SessionSummary,
   TranscriptBranchPoint,
   SubagentInvocation,
@@ -166,7 +166,9 @@ export type ChatThreadProps = {
   configProviders?: readonly ModelProviderConfig[];
   /** Session last turn context usage snapshot for turn usage chip. */
   contextUsage?: ContextUsageSnapshot | null;
-  /** Draft/approved plan; the execution gate stays on the creating turn only. */
-  sessionPlan?: SessionPlan | null;
-  onPlanExecute?: (mode: PlanExecutionMode) => void | Promise<void>;
+  /** Handle a message-bound plan card's choice as a normal next prompt. */
+  onPlanExecute?: (
+    display: PlanDisplayPayload,
+    mode: PlanExecutionMode,
+  ) => void | Promise<void>;
 };

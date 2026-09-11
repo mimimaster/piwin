@@ -24,10 +24,13 @@ export function formatPlanMarkdown(plan: SessionPlan): string {
 }
 
 /** Build the virtual document target shared by plan surfaces and the inspector. */
-export function planDocumentOpenInput(plan: SessionPlan): DocumentOpenInput {
+export function planDocumentOpenInput(
+  plan: SessionPlan,
+  displayPath?: string,
+): DocumentOpenInput {
   return {
     title: plan.title || 'Implementation Plan',
-    path: `plans/${plan.sessionId}.md`,
+    path: displayPath ?? `plans/${plan.sessionId}.md`,
     content: formatPlanMarkdown(plan),
   };
 }

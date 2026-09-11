@@ -23,6 +23,7 @@ export {
   boundToolOutput,
   redactToolText,
 } from './tool-presentation.js';
+export { attachPlanPresentation } from './plan-presentation.js';
 export { estimateMockUsage, mapUsageSnapshot } from './usage-map.js';
 export {
   enrichFromCatalog,

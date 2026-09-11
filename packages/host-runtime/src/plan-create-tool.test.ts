@@ -101,6 +101,14 @@ describe('createPlanCreateTool', () => {
       skillId: 'writing-plans',
     });
     expect(messageOf(result)).toContain('complexity=long');
+    expect(messageOf(result)).toContain(`saved at ${planPath}`);
+    if (!result.ok) throw new Error(result.message);
+    expect(result.details?.planDisplay).toMatchObject({
+      version: 1,
+      path: planPath,
+      displayPath: 'plans/s1.md',
+      plan: { id: expect.any(String), status: 'draft', sessionId: 's1' },
+    });
     const persisted = await readPlan(planPath);
     expect(persisted['status']).toBe('draft');
     expect(persisted['source']).toBe('skill');

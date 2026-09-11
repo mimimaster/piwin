@@ -71,6 +71,9 @@ export async function promptPlanSession(
     deps.handleCommand({
       type: 'session/prompt',
       sessionId,
+      // A plan handoff must never supersede another turn admitted after the
+      // plan was selected. Keep the foreground check atomic at prompt admission.
+      ...(parentRunId ? { foreground: { kind: 'if-idle' as const } } : {}),
       input: { text },
     });
   const result = parentRunId

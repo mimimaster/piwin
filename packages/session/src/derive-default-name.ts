@@ -100,6 +100,13 @@ export function extractUserFacingBody(text: string): string {
     return (currentMessageSection[currentMessageSection.length - 1] ?? '').trim();
   }
 
+  // Plan execution is a user-approved action whose durable input contains
+  // only a Host directive. Preserve a readable action for old and live rows.
+  const planAction = text.match(/^\[piwin-plan-execute:(inline|verify) v\d+\] Plan: ([^\n]+)/);
+  if (planAction) {
+    return `${planAction[1] === 'verify' ? '验证计划' : '执行计划'}：${planAction[2]?.trim() ?? ''}`;
+  }
+
   let cleaned = text;
   cleaned = cleaned.replace(PIWIN_BRACKET_BLOCK_PATTERN, ' ');
   cleaned = cleaned.replace(PIWIN_PROMPT_META_LINE_PATTERN, ' ');

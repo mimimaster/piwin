@@ -212,9 +212,10 @@ export function enrichMappedToolEvent(
     const seed = state.presentationSeedsByToolId.get(event.toolCallId);
     const accumulated = state.rawToolOutputById.get(event.toolCallId) ?? '';
     const rawResult = asRecord(raw.result);
+    const resultDetails = rawResult?.details ?? raw.details;
     const truncation =
       normalizeToolOutputTruncation(
-        rawResult?.details ?? raw.details,
+        resultDetails,
         seed?.effectiveArgs ?? readToolCallArgs(raw),
         seed?.effectiveToolName ?? toolName,
       ) ?? event.presentation?.output?.truncation;
@@ -239,6 +240,7 @@ export function enrichMappedToolEvent(
                   : {}),
                 isError: event.isError,
                 outputText: existingOutput,
+                ...(resultDetails !== undefined ? { details: resultDetails } : {}),
                 ...(truncation !== undefined ? { truncation } : {}),
                 ...(event.presentation?.exitCode !== undefined
                   ? { exitCode: event.presentation.exitCode }
@@ -259,6 +261,7 @@ export function enrichMappedToolEvent(
             ...(seed?.routedToolName !== undefined ? { routedToolName: seed.routedToolName } : {}),
             isError: event.isError,
             outputText: accumulated,
+            ...(resultDetails !== undefined ? { details: resultDetails } : {}),
             ...(truncation !== undefined ? { truncation } : {}),
           }),
         ),
@@ -269,10 +272,7 @@ export function enrichMappedToolEvent(
       ...(responseMessageId !== undefined ? { responseMessageId } : {}),
       ...(event.presentation !== undefined
         ? {
-            presentation: mergeSeededToolPresentation(
-              seed?.startPresentation,
-              event.presentation,
-            ),
+            presentation: mergeSeededToolPresentation(seed?.startPresentation, event.presentation),
           }
         : {}),
     };
