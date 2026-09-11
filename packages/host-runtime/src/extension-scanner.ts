@@ -3,13 +3,17 @@ import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import {
   createDefaultExtensionsConfig,
+  isExtensionBlueprintEligible,
   normalizeResourceId,
   type ExtensionSource,
   type ExtensionSummary,
   type ExtensionsConfig,
 } from '@piwin/contracts';
 import { createExtensionRevisionStore } from '@piwin/extensions';
-import { readExtensionHookEvents } from './detect-extension-hooks.js';
+import {
+  readExtensionCompatibility,
+  readExtensionHookEvents,
+} from './detect-extension-hooks.js';
 import { getPiwinExtensionsDir } from './paths.js';
 
 export type ScanExtensionsOptions = {
@@ -37,19 +41,22 @@ export async function scanExtensions(options: ScanExtensionsOptions): Promise<Ex
     if (!selected) continue;
     managedIds.add(record.id);
     const hookEvents = await readExtensionHookEvents(selected.entryPath);
+    const compatibility = await readExtensionCompatibility(selected.entryPath);
+    const compatible = isExtensionBlueprintEligible(compatibility);
     results.push({
       id: record.id,
       name: record.name,
       description: record.description,
       source: 'user',
       path: selected.entryPath,
-      enabled: record.configuredEnabled && selected.state === 'installed',
+      enabled: compatible && record.configuredEnabled && selected.state === 'installed',
       managed: true,
       contentRevision: selected.contentRevision,
       ...(selected.version ? { version: selected.version } : {}),
       configuredEnabled: record.configuredEnabled,
       ...(record.selectedRevision ? { selectedRevision: record.selectedRevision } : {}),
       ...(hookEvents ? { hookEvents: [...hookEvents] } : {}),
+      compatibility,
     });
   }
   const roots: Array<{ path: string; source: ExtensionSource }> = [
@@ -75,8 +82,13 @@ export async function scanExtensions(options: ScanExtensionsOptions): Promise<Ex
       if (extension.source === 'user' && managedIds.has(extension.id)) {
         continue;
       }
-      const enabled = !disabled.has(extension.id.toLowerCase());
-      results.push({ ...extension, enabled, configuredEnabled: enabled });
+      const userEnabled = !disabled.has(extension.id.toLowerCase());
+      const compatible = isExtensionBlueprintEligible(extension.compatibility);
+      results.push({
+        ...extension,
+        enabled: compatible && userEnabled,
+        configuredEnabled: userEnabled,
+      });
     }
   }
 
@@ -99,6 +111,9 @@ export function collectExtensionEntryPaths(options: {
   const seenIds = new Set<string>();
   for (const extension of options.discovered) {
     if (!extension.enabled || (!extension.managed && disabled.has(extension.id.toLowerCase()))) {
+      continue;
+    }
+    if (!isExtensionBlueprintEligible(extension.compatibility)) {
       continue;
     }
     const id = extension.id.toLowerCase();
@@ -204,15 +219,17 @@ async function buildExtensionSummary(
   const resolvedSource: ExtensionSource =
     source === 'user' && (await isBundledMarker(entryPath)) ? 'bundled' : source;
   const hookEvents = await readExtensionHookEvents(entryPath);
+  const compatibility = await readExtensionCompatibility(entryPath);
   return {
     id,
     name,
     description,
     source: resolvedSource,
     path: pathForLoader,
-    enabled: true,
+    enabled: isExtensionBlueprintEligible(compatibility),
     configuredEnabled: true,
     ...(hookEvents ? { hookEvents: [...hookEvents] } : {}),
+    compatibility,
   };
 }
 

@@ -12,6 +12,7 @@ function fakePort(): SubscriptionAuthPort {
     login: async () => ({ kind: 'ok' }),
     logout: async () => ({ kind: 'ok' }),
     refreshProvider: async () => undefined,
+    refreshLiveCatalog: async () => undefined,
     fetchQuota: async (id) => ({
       providerId: id,
       groups: [],
@@ -36,6 +37,7 @@ function loggedInXaiPort(): SubscriptionAuthPort {
     login: async () => ({ kind: 'ok' }),
     logout: async () => ({ kind: 'ok' }),
     refreshProvider: async () => undefined,
+    refreshLiveCatalog: async () => undefined,
     fetchQuota: async (id) => ({
       providerId: id,
       groups: [],
@@ -166,6 +168,57 @@ describe('SubscriptionAuthService', () => {
     );
     await service.refreshProvider('openai-codex');
     expect(refreshed).toEqual(['openai-codex']);
+  });
+
+  it('refreshes the live catalog with network after seeding logged-in providers', async () => {
+    const live: Array<{ providers?: readonly string[]; signal?: AbortSignal }> = [];
+    let catalog = [{ id: 'builtin', name: 'Builtin' }];
+    const port: SubscriptionAuthPort = {
+      ...fakePort(),
+      listCredentials: async () => [{ providerId: 'openai-codex', type: 'oauth' }],
+      isUsingSubscription: (id) => id === 'openai-codex',
+      getChatCatalog: () => catalog,
+      refreshLiveCatalog: async (options) => {
+        live.push(options ?? {});
+        catalog = [{ id: 'overlay-model', name: 'Overlay' }];
+      },
+    };
+    let saved: PiwinConfig | undefined;
+    const service = new SubscriptionAuthService(
+      { port },
+      {
+        loadConfig: async () => createDefaultPiwinConfig(),
+        saveConfig: async (config) => {
+          saved = config;
+        },
+      },
+    );
+    await service.ensureLoggedInProviders();
+    expect(live).toHaveLength(1);
+    expect(live[0]?.signal).toBeInstanceOf(AbortSignal);
+    expect(service.catalogModelIds('openai-codex')).toEqual(['overlay-model']);
+    expect(saved?.providers.some((provider) => provider.id === 'openai-codex')).toBe(true);
+  });
+
+  it('keeps the builtin catalog when live refresh fails', async () => {
+    const port: SubscriptionAuthPort = {
+      ...fakePort(),
+      listCredentials: async () => [{ providerId: 'openai-codex', type: 'oauth' }],
+      isUsingSubscription: (id) => id === 'openai-codex',
+      getChatCatalog: () => [{ id: 'builtin', name: 'Builtin' }],
+      refreshLiveCatalog: async () => {
+        throw new Error('pi.dev unreachable');
+      },
+    };
+    const service = new SubscriptionAuthService(
+      { port },
+      {
+        loadConfig: async () => createDefaultPiwinConfig(),
+        saveConfig: async () => undefined,
+      },
+    );
+    await expect(service.ensureLoggedInProviders()).resolves.toBeTruthy();
+    expect(service.catalogModelIds('openai-codex')).toEqual(['builtin']);
   });
 
   it('does not resurrect catalog models from a disabled subscription provider', async () => {

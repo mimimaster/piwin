@@ -1,7 +1,31 @@
 import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
+import type { ExtensionCompatibility } from '@piwin/contracts';
 
 const PI_ON_EVENT = /\bpi\.on\(\s*['"]([A-Za-z_][\w-]*)['"]/g;
+
+const TUI_PATTERNS: readonly RegExp[] = [
+  /\b(?:ctx\.)?ui\.custom\s*\(/,
+  /\bregisterTheme\b/,
+  /\bsetTheme\b/,
+  /\bregisterShortcut\b/,
+  /\bregisterKeybinding\b/,
+  /\bkeybinding\b/,
+  /\bsetEditorComponent\b/,
+  /\baddAutocompleteProvider\b/,
+  /\bonTerminalInput\b/,
+  /\b(?:ctx\.)?reload\s*\(/,
+  /\bsetWidget\b/,
+  /\bsetHeader\b/,
+  /\bsetFooter\b/,
+  /\bsetStatus\b/,
+];
+
+const AGENT_PATTERNS: readonly RegExp[] = [
+  /\b(?:pi\.)?registerTool\b/,
+  /\bpi\.on\s*\(/,
+  /\b(?:ctx\.)?ui\.(?:confirm|select|input|notify)\s*\(/,
+];
 
 /**
  * Static scan of Pi `pi.on('event')` registrations.
@@ -18,16 +42,42 @@ export function detectExtensionHookEvents(source: string): string[] {
   return [...events];
 }
 
+export function classifyExtensionSource(source: string): ExtensionCompatibility {
+  const hasTui = TUI_PATTERNS.some((pattern) => pattern.test(source));
+  const hasAgent = AGENT_PATTERNS.some((pattern) => pattern.test(source));
+  if (hasTui && hasAgent) {
+    return { tier: 'degraded' };
+  }
+  if (hasTui) {
+    return { tier: 'incompatible' };
+  }
+  return { tier: 'compatible' };
+}
+
 export async function readExtensionHookEvents(
   entryPath: string,
 ): Promise<readonly string[] | undefined> {
+  const source = await readExtensionEntrySource(entryPath);
+  if (source === undefined) {
+    return undefined;
+  }
+  const events = detectExtensionHookEvents(source);
+  return events.length > 0 ? events : undefined;
+}
+
+export async function readExtensionCompatibility(entryPath: string): Promise<ExtensionCompatibility> {
+  const source = await readExtensionEntrySource(entryPath);
+  if (source === undefined) {
+    return { tier: 'unverified' };
+  }
+  return classifyExtensionSource(source);
+}
+
+async function readExtensionEntrySource(entryPath: string): Promise<string | undefined> {
   const files = await resolveExtensionSourceFiles(entryPath);
   for (const file of files) {
     try {
-      const events = detectExtensionHookEvents(await readFile(file, 'utf8'));
-      if (events.length > 0) {
-        return events;
-      }
+      return await readFile(file, 'utf8');
     } catch {
       continue;
     }

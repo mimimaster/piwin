@@ -23,6 +23,7 @@ import {
 import {
   createSubscriptionAuthPort,
   defaultPiAuthPaths,
+  LIVE_CATALOG_REFRESH_TIMEOUT_MS,
   type HostAuthEvent,
   type HostAuthPrompt,
   type SubscriptionAuthPort,
@@ -215,6 +216,22 @@ export class SubscriptionAuthService {
   async refreshProvider(providerId: string): Promise<void> {
     const port = await this.ensurePort();
     await port.refreshProvider(providerId);
+  }
+
+  /**
+   * Pull pi.dev overlay for logged-in subscription providers once.
+   * Failure keeps the builtin / models-store cache; Host start must not crash.
+   */
+  async refreshLiveCatalog(providers?: readonly string[]): Promise<void> {
+    try {
+      const port = await this.ensurePort();
+      await port.refreshLiveCatalog({
+        ...(providers !== undefined ? { providers } : {}),
+        signal: AbortSignal.timeout(LIVE_CATALOG_REFRESH_TIMEOUT_MS),
+      });
+    } catch {
+      // Keep builtin / Host models-store.json catalog.
+    }
   }
 
   async status(): Promise<AuthStatusData> {
@@ -727,6 +744,7 @@ export class SubscriptionAuthService {
 
   async ensureLoggedInProviders(): Promise<PiwinConfig> {
     const port = await this.ensurePort();
+    await this.refreshLiveCatalog();
     const accounts = await this.readAccounts();
     const config = await this.loadConfig();
     const next = ensureSubscriptionProviders(config, accounts, (providerId) =>

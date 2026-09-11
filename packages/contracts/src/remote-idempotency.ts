@@ -11,6 +11,7 @@ export const REMOTE_IDEMPOTENT_MUTATION_TYPES = [
   'permission/resolve',
   'settings/apply',
   'auth/login',
+  'pi-environment/apply',
   'notes/write',
   'notes/update',
   'notes/delete',

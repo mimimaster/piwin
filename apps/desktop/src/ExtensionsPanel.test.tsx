@@ -36,6 +36,16 @@ describe('ExtensionsPanel refresh', () => {
                 source: 'pi-native',
                 path: '/pi/ext.ts',
                 enabled: true,
+                compatibility: { tier: 'compatible' },
+              },
+              {
+                id: 'tui-theme',
+                name: 'tui-theme',
+                description: 'theme',
+                source: 'pi-native',
+                path: '/pi/theme.ts',
+                enabled: false,
+                compatibility: { tier: 'incompatible' },
               },
             ],
           },
@@ -81,6 +91,12 @@ describe('ExtensionsPanel refresh', () => {
     expect(compat?.textContent).toContain('Pi extensions change the Agent, not the UI');
     expect(compat?.textContent).toContain('confirm / select / input / notify');
     expect(compat?.textContent).toContain('Pi TUI chrome');
+    expect(container.querySelector('[data-testid="extension-compat-pi-build-ios-apps"]')?.textContent).toBe(
+      'compatible',
+    );
+    expect(container.querySelector('[data-testid="extension-compat-tui-theme"]')?.textContent).toBe(
+      'Pi TUI only',
+    );
 
     const refresh = container.querySelector('[data-testid="extensions-refresh"]');
     expect(refresh).toBeTruthy();

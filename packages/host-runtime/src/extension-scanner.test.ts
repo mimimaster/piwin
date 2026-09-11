@@ -53,6 +53,30 @@ describe('extension-scanner', () => {
     expect(paths.some((path) => path.endsWith('drop.ts'))).toBe(false);
   });
 
+  it('lists TUI-only extensions as incompatible and omits them from entry paths', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-ext-tui-'));
+    const extensionsDir = join(rootDir, 'extensions');
+    await mkdir(extensionsDir, { recursive: true });
+    await writeFile(
+      join(extensionsDir, 'theme.ts'),
+      'export default function () { ctx.ui.custom({}); }\n',
+      'utf8',
+    );
+    await writeFile(
+      join(extensionsDir, 'tools.ts'),
+      "pi.on('tool_call', () => {});\nexport default function () {}\n",
+      'utf8',
+    );
+    const listed = await scanExtensions({ piwinRoot: rootDir });
+    expect(listed.find((item) => item.id === 'theme')?.compatibility?.tier).toBe('incompatible');
+    expect(listed.find((item) => item.id === 'theme')?.enabled).toBe(false);
+    expect(listed.find((item) => item.id === 'tools')?.compatibility?.tier).toBe('compatible');
+    expect(listed.find((item) => item.id === 'tools')?.enabled).toBe(true);
+    const paths = collectExtensionEntryPaths({ piwinRoot: rootDir, discovered: listed });
+    expect(paths.some((path) => path.endsWith('theme.ts'))).toBe(false);
+    expect(paths.some((path) => path.endsWith('tools.ts'))).toBe(true);
+  });
+
   it('installs bundled extensions once and marks bundled sources', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-ext-bundled-'));
     const installed = await ensureBundledExtensionsInstalled(rootDir);

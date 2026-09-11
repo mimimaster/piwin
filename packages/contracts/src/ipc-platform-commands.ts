@@ -54,6 +54,7 @@ import type {
   WaitForJobInput,
 } from './job.js';
 import type { SubscriptionAuthCommand } from './subscription-oauth.js';
+import type { PiEnvironmentHostCommand } from './pi-environment.js';
 import type {
   LiveApplySettingsInput,
   LiveEndInput,
@@ -70,6 +71,7 @@ import type { MediaReadCommandInput, MediaSaveCommandInput } from './ipc-media.j
 
 export type PlatformHostCommand =
   | SubscriptionAuthCommand
+  | PiEnvironmentHostCommand
   | { id?: string; type: 'host/ping' }
   | { id?: string; type: 'host/status' }
   | {
