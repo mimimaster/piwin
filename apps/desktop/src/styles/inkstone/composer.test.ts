@@ -35,6 +35,11 @@ describe('Inkstone composer.css context capsules', () => {
     expect(composer).toMatch(
       /\.slab\.is-streaming::before[\s\S]*?animation: orbit/,
     );
+    expect(composer).toContain('.composer-orbit-rail');
+    expect(composer).toContain('.composer-orbit-mask');
+    expect(composer).toContain('.composer-orbit-beam');
+    expect(composer).toMatch(/\.composer-orbit-beam[\s\S]*?offset-path:\s*rect\(/);
+    expect(composer).toMatch(/\.composer-orbit-beam[\s\S]*?animation:\s*orbit/);
   });
 
   it('keeps focus-within on --sh3 without a Deck iris/zhu ring', () => {

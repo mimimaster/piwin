@@ -58,8 +58,13 @@
   cursor: pointer;
   transform-origin: left center;
   transform: scaleX(1);
-  /* Color may ease; scale must snap so the peak sits on the pointer. */
-  transition: background-color var(--t-1) var(--ease-out);
+  /* Ease both color and width. The tooltip/selection state (which message is
+     "hovered") still updates the instant the pointer crosses a tick, so an
+     eased width never desyncs the preview — it only softens the wave's own
+     motion, which read as a choppy pop with no transition at all. */
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    transform var(--t-2) var(--ease-out);
 }
 
 .border-tick-line::before {

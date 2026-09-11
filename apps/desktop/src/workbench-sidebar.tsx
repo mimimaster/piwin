@@ -5,6 +5,7 @@
  */
 import { useMemo, type Dispatch, type ReactElement, type SetStateAction } from 'react';
 import type { HostStatusData, ProjectRecord, SessionListOrder } from '@piwin/contracts';
+import type { SidebarMode } from './sidebar-mode';
 import type { ChatUiAction, ChatUiState, SessionListItemUi } from './chat-reducer';
 import { prefetchSettingsPanel } from './deferred-desktop-surfaces';
 import type { DesktopLocale } from './desktop-locale';
@@ -60,6 +61,7 @@ export type WorkbenchSidebarProps = {
     | 'videos'
     | 'flashcards'
     | 'knowledge'
+    | 'marketplace'
     | null
     | undefined;
   onOpenLibrary?: () => void;
@@ -67,6 +69,7 @@ export type WorkbenchSidebarProps = {
   onOpenVideos?: () => void;
   onOpenFlashcards?: () => void;
   onOpenKnowledge?: () => void;
+  onOpenMarketplace?: () => void;
   onOpenWorkspace: () => void | Promise<void>;
   onOpenProject: (path: string) => void | Promise<void>;
   onRemoveProject: (path: string) => void | Promise<void>;
@@ -88,6 +91,8 @@ export type WorkbenchSidebarProps = {
   sidebarResize: UseSidebarResizeResult;
   backendServiceSessionIds: Record<string, true>;
   shell: SidebarShell;
+  sidebarMode: SidebarMode;
+  onSidebarModeChange: (mode: SidebarMode) => void;
 };
 
 export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
@@ -115,6 +120,8 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
     onResumeDraft,
     draftSessions,
     activeDraftId,
+    sidebarMode,
+    onSidebarModeChange,
     sessionMenu,
     onOpenSessionMenu,
     onSessionMenuAction,
@@ -185,7 +192,10 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
         ? { onOpenWorkspace: () => void onOpenWorkspace() }
         : {})}
       onOpenProject={(path) => void onOpenProject(path)}
+      sidebarMode={sidebarMode}
+      onSidebarModeChange={onSidebarModeChange}
       onOpenGeneral={() => {
+        onSidebarModeChange('code');
         if (state.activeScope.kind === 'general') {
           return;
         }
@@ -204,6 +214,7 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
           // general session. Awaiting hydrate before create avoids the
           // session/hydrate dispatch clobbering session/add, and the
           // explicit general scope avoids reading stale activeScope.
+          onSidebarModeChange('code');
           dispatch({ type: 'project/clear' });
           await hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
           await onNewSession({ scope: { kind: 'general' } });
@@ -243,6 +254,7 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
       onOpenVideos={props.onOpenVideos}
       onOpenFlashcards={props.onOpenFlashcards}
       onOpenKnowledge={props.onOpenKnowledge}
+      onOpenMarketplace={props.onOpenMarketplace}
       generalActive={state.activeScope.kind === 'general'}
       isOverlayPresentation={isOverlayPresentation}
       onCloseOverlay={() => shell.closeOverlay()}

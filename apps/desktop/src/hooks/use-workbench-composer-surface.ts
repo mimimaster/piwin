@@ -57,6 +57,7 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
     setDelegationDisabled,
     orchestrationSchemeId,
     setOrchestrationSchemeId,
+    sidebarMode,
     shell,
   } = chrome;
   const {
@@ -150,5 +151,6 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
     onQueuedEditCancel: composer.cancelQueuedTurnEdit,
     ensureSession: session.ensureSession,
     liveSessionId,
+    sidebarMode,
   });
 }

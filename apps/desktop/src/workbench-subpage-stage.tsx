@@ -12,10 +12,19 @@ import {
   FlashcardsWorkspaceView,
   KnowledgeWorkspaceView,
   LibraryWorkspaceView,
-} from './workspace-subpages';
+  MarketplaceWorkspaceView,
+} from './workspace-subpages/index.js';
 
 export type WorkbenchSubpageStageProps = {
-  activeSubPage: 'chat' | 'library' | 'images' | 'videos' | 'flashcards' | 'knowledge' | null;
+  activeSubPage:
+    | 'chat'
+    | 'library'
+    | 'images'
+    | 'videos'
+    | 'flashcards'
+    | 'knowledge'
+    | 'marketplace'
+    | null;
   locale: DesktopLocale;
   onClose: () => void;
   request: (command: HostCommand) => Promise<HostResponse>;
@@ -100,6 +109,17 @@ export function WorkbenchSubpageStage(props: WorkbenchSubpageStageProps): ReactE
         onSendToChat={(text) => props.onRemixToComposer?.({ text })}
         onOpenCitation={(citation) => props.onOpenKnowledgeCitation?.(citation)}
         onConfigureEmbedding={props.onConfigureEmbedding}
+      />
+    );
+  }
+
+  if (props.activeSubPage === 'marketplace') {
+    return (
+      <MarketplaceWorkspaceView
+        locale={props.locale}
+        onClose={props.onClose}
+        request={props.request}
+        projectPath={props.projectPath}
       />
     );
   }

@@ -50,9 +50,17 @@ export type ShellRoute =
   | { kind: 'flashcards'; entry?: 'gallery' | 'produce'; folderPath?: string }
   /** Unified knowledge bases (notes library + ingested folders). */
   | { kind: 'knowledge' }
+  /** Extensions & plugins marketplace. */
+  | { kind: 'marketplace' }
   | { kind: 'settings'; section: ShellSettingsSection };
 
-export type ShellWorkspaceSubPage = 'library' | 'images' | 'videos' | 'flashcards' | 'knowledge';
+export type ShellWorkspaceSubPage =
+  | 'library'
+  | 'images'
+  | 'videos'
+  | 'flashcards'
+  | 'knowledge'
+  | 'marketplace';
 
 export function resolveShellSubPage(route: ShellRoute): ShellWorkspaceSubPage | null {
   switch (route.kind) {
@@ -61,6 +69,7 @@ export function resolveShellSubPage(route: ShellRoute): ShellWorkspaceSubPage | 
     case 'videos':
     case 'flashcards':
     case 'knowledge':
+    case 'marketplace':
       return route.kind;
     default:
       return null;

@@ -6,6 +6,8 @@ export type SidebarProjectRef = {
   gitRepositoryId?: string;
   isPrimaryWorktree?: boolean;
   currentBranch?: string;
+  /** Git checkout root; same for a subdirectory of one worktree. */
+  gitRootPath?: string;
   /** Path-nested remembered projects that live inside this folder. */
   nested?: SidebarProjectRef[];
 };
@@ -30,6 +32,33 @@ export function isNestedProjectPath(innerPath: string, outerPath: string): boole
   return inner !== outer && inner.startsWith(`${outer}/`);
 }
 
+function gitCheckoutRoot(project: SidebarProjectRef): string | null {
+  return project.gitRootPath ? normalizeSidebarProjectPath(project.gitRootPath) : null;
+}
+
+/**
+ * True when `inner` is a subdirectory of the same git checkout as `outer`.
+ * `outer.path` may be a symlink alias of the checkout root, so string prefixes
+ * of the remembered paths are not enough.
+ */
+export function isSameCheckoutSubdirectory(
+  inner: SidebarProjectRef,
+  outer: SidebarProjectRef,
+): boolean {
+  const innerRoot = gitCheckoutRoot(inner);
+  const outerRoot = gitCheckoutRoot(outer);
+  if (!innerRoot || !outerRoot || innerRoot !== outerRoot) {
+    return false;
+  }
+  const innerUnderRoot = isNestedProjectPath(inner.path, innerRoot);
+  const outerUnderRoot = isNestedProjectPath(outer.path, outerRoot);
+  return innerUnderRoot && !outerUnderRoot;
+}
+
+function isNestedSidebarProject(inner: SidebarProjectRef, outer: SidebarProjectRef): boolean {
+  return isNestedProjectPath(inner.path, outer.path) || isSameCheckoutSubdirectory(inner, outer);
+}
+
 function longestContainingParent(
   project: SidebarProjectRef,
   projects: readonly SidebarProjectRef[],
@@ -40,7 +69,7 @@ function longestContainingParent(
     if (candidate.path === project.path) {
       continue;
     }
-    if (!isNestedProjectPath(project.path, candidate.path)) {
+    if (!isNestedSidebarProject(project, candidate)) {
       continue;
     }
     const length = normalizeSidebarProjectPath(candidate.path).length;
@@ -117,7 +146,7 @@ export function clusterProjectsByRepository(
     }
     const repoId = project.gitRepositoryId;
     const members = repoId ? (membersByRepo.get(repoId) ?? [project]) : [project];
-    if (!repoId || members.length < 2) {
+    if (!repoId || members.length < 2 || !hasDistinctGitCheckouts(members)) {
       clusters.push({ kind: 'solo', project });
       emitted.add(project.path);
       continue;
@@ -141,4 +170,14 @@ function orderRepoMembers(members: readonly SidebarProjectRef[]): SidebarProject
   const primary = members.filter((item) => item.isPrimaryWorktree === true);
   const linked = members.filter((item) => item.isPrimaryWorktree !== true);
   return [...primary, ...linked];
+}
+
+function checkoutKey(project: SidebarProjectRef): string {
+  return gitCheckoutRoot(project) ?? normalizeSidebarProjectPath(project.path);
+}
+
+/** Linked worktrees have different checkout roots; a subdirectory does not. */
+function hasDistinctGitCheckouts(members: readonly SidebarProjectRef[]): boolean {
+  const keys = new Set(members.map((member) => checkoutKey(member)));
+  return keys.size >= 2;
 }

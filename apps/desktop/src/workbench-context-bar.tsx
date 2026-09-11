@@ -22,6 +22,8 @@ import {
   resolveWorkbenchScopeLabel,
   resolveWorkbenchSessionTitle,
 } from './workbench-chrome-assembly';
+import { isConversationSessionChrome } from './is-conversation-session';
+import type { SidebarMode } from './sidebar-mode';
 
 type ContextBarShell = {
   toggleSessions: () => void;
@@ -35,6 +37,7 @@ type ContextBarShell = {
 
 export type WorkbenchContextBarProps = {
   state: ChatUiState;
+  sidebarMode: SidebarMode;
   recentProjects: readonly ProjectRecord[];
   activeSessionName: string;
   activeSessionOrigin: ProductSessionOrigin | null;
@@ -65,6 +68,7 @@ export type WorkbenchContextBarProps = {
 export function WorkbenchContextBar(props: WorkbenchContextBarProps): ReactElement {
   const {
     state,
+    sidebarMode,
     recentProjects,
     activeSessionName,
     activeSessionOrigin,
@@ -130,12 +134,16 @@ export function WorkbenchContextBar(props: WorkbenchContextBarProps): ReactEleme
                 disabled={streaming === true}
                 onSwitch={onSwitchBranch}
                 locale={locale}
-                isConversationSession={!subPageTitle && state.activeScope.kind === 'general'}
+                isConversationSession={
+                  !subPageTitle && isConversationSessionChrome(state.activeScope, sidebarMode)
+                }
               />
             ),
           }
         : {})}
-      isConversationSession={!subPageTitle && state.activeScope.kind === 'general'}
+      isConversationSession={
+        !subPageTitle && isConversationSessionChrome(state.activeScope, sidebarMode)
+      }
       runState={runStatus}
       onStop={() => void onStop()}
       onViewActivity={() => onOpenInspector('terminal')}

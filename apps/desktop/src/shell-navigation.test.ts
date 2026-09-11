@@ -81,6 +81,7 @@ describe('shell navigation stack', () => {
   it('routes knowledge bases to their own subpage', () => {
     expect(resolveShellSubPage({ kind: 'knowledge' })).toBe('knowledge');
     expect(resolveShellSubPage({ kind: 'flashcards' })).toBe('flashcards');
+    expect(resolveShellSubPage({ kind: 'marketplace' })).toBe('marketplace');
     expect(resolveShellSubPage({ kind: 'workspace' })).toBeNull();
   });
 

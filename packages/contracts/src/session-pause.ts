@@ -10,7 +10,10 @@ const PAUSE_CONTINUE_UTTERANCES = new Set([
   'go on',
 ]);
 
-/** True when the user is asking to continue a paused turn, not start a new one. */
+/**
+ * True when the user is asking to continue a paused turn, not start a new one.
+ * Desktop maps these (text-only, no attachments) to checkpoint resume.
+ */
 export function isPauseContinueUtterance(text: string): boolean {
   const normalized = text
     .trim()

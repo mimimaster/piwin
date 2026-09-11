@@ -2,10 +2,10 @@
  * In-place composer for editing a user message per docs/design/inkstone/proto-01-transcript.html.
  */
 import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
-import type { TranscriptBranchPoint } from '@piwin/contracts';
 import { formatComposerModelKey } from './composer-model-selection-policy';
 import { useDesktopLocale } from './desktop-locale-context';
 import type { ComposerDockProps } from './composer-dock';
+import { OrchestrationSchemeControl } from './OrchestrationSchemeControl';
 import { ThinkingEffortControl, toThinkingEffortModels } from './ThinkingEffortControl';
 
 export type MessageEditCardProps = {
@@ -21,7 +21,6 @@ export type MessageEditCardProps = {
   hasCarryContent?: boolean | undefined;
   /** Unchanged send on the current user turn is a retry (ADR 0064). */
   currentTurn?: boolean | undefined;
-  branchPoint?: TranscriptBranchPoint | undefined;
   locale?: 'zh-CN' | 'en' | undefined;
 };
 
@@ -136,30 +135,9 @@ export function MessageEditCard(props: MessageEditCardProps): ReactElement {
 
   const cancelLabel = isChinese ? '取消' : 'Cancel';
 
-  let branchHint: string | null = null;
-  if (!props.interventionEdit && !sendAsRetry) {
-    if (props.branchPoint) {
-      const total = props.branchPoint.siblings.length + 1;
-      branchHint = isChinese ? `将作为分支 ${total} / ${total}` : `Will branch as ${total} / ${total}`;
-    } else if (props.currentTurn === false || !unchanged) {
-      branchHint = isChinese ? '将作为分支 2 / 2' : 'Will branch as 2 / 2';
-    }
-  }
-
-  const hints = [
-    sendAsRetry
-      ? (isChinese ? 'Enter 重试' : 'Enter to retry')
-      : (isChinese ? 'Enter 发送新版本' : 'Enter to send new version'),
-    isChinese ? '⇧Enter 换行' : '⇧Enter newline',
-    isChinese ? 'Esc 取消' : 'Esc to cancel',
-  ];
-  if (branchHint) {
-    hints.push(branchHint);
-  }
-
-  // Retry/resend reads the composer model. Show the same picker here so the
-  // user can switch before sending. Intervention edits patch the current run
-  // and do not start a new turn, so they keep the text-only footer.
+  // Retry/resend reads the composer model and the conversation's last scheme.
+  // Show the same pickers here so the user can switch before sending.
+  // Intervention edits patch the current run and do not start a new turn.
   const composerCard = props.composerCard;
   const thinkingModels = useMemo(
     () => (composerCard ? toThinkingEffortModels(composerCard.modelOptions) : []),
@@ -186,6 +164,26 @@ export function MessageEditCard(props: MessageEditCardProps): ReactElement {
         onSelectModel={composerCard.onSelectModel}
       />
     ) : null;
+  const schemePicker =
+    composerCard !== undefined &&
+    props.interventionEdit !== true &&
+    composerCard.isConversationSession !== true &&
+    composerCard.onOrchestrationSchemeChange &&
+    composerCard.orchestrationSchemeOptions ? (
+      <OrchestrationSchemeControl
+        disabled={false}
+        value={composerCard.orchestrationSchemeId ?? 'off'}
+        options={composerCard.orchestrationSchemeOptions}
+        onChange={composerCard.onOrchestrationSchemeChange}
+        delegationDisabled={composerCard.delegationDisabled ?? false}
+        {...(composerCard.onDelegationDisabledChange
+          ? { onDelegationDisabledChange: composerCard.onDelegationDisabledChange }
+          : {})}
+        {...(composerCard.onOpenOrchestrationSchemeSettings
+          ? { onOpenSettings: composerCard.onOpenOrchestrationSchemeSettings }
+          : {})}
+      />
+    ) : null;
 
   return (
     <div
@@ -202,7 +200,7 @@ export function MessageEditCard(props: MessageEditCardProps): ReactElement {
         data-testid="message-edit-textarea"
       />
       <div className="efoot">
-        <span>{hints.join(' · ')}</span>
+        {schemePicker}
         <span className="acts ml">
           {modelPicker}
           <button
