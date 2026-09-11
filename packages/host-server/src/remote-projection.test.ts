@@ -685,6 +685,7 @@ describe('remote skills/read + tool-output projection', () => {
       trustedTextPreview: true,
       contextSummary: true,
       contextTelemetryVersion: 1,
+      knowledgeBases: true,
     });
   });
 

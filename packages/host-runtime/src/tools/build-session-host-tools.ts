@@ -22,6 +22,9 @@ import { createBrowserToolDefinitions } from '../browser-tools.js';
 import { persistAndInspectBrowserScreenshot } from '../browser-screenshot-inspect.js';
 import { primaryModelSupportsImage } from '../vision-delegation.js';
 import { buildNotesTools } from '../notes-tools.js';
+import { buildKnowledgeTools } from '../knowledge-tools.js';
+import type { FolderRag } from '@piwin/doc-rag';
+import { createDefaultPiwinConfig } from '../config-store.js';
 import { buildFlashcardTools } from '../flashcard-tools.js';
 import { buildExtensionTools, type ExtensionApplyOutcome } from '../extension-tools.js';
 import { createPlanCreateTool } from '../plan-create-tool.js';
@@ -101,6 +104,8 @@ export type BuildSessionHostToolsOptions = {
   getBrowserSession?: BrowserSessionProvider;
   getNotesServices?: NotesServicesProvider;
   getCardStore?: CardStoreProvider;
+  getFolderRag?: () => Promise<FolderRag>;
+  isIndexing?: (folderKey: string) => boolean;
 
   /** MCP lifecycle manager for catalog search/describe/call/status. */
   mcpManager?: McpLifecycleManager | null;
@@ -262,6 +267,22 @@ export async function buildSessionHostTools(
     tools.push(...browserTools);
   }
 
+  // --- Knowledge tools (replace note_search / note_list / note_read) ---
+  const registerKnowledgeTools = Boolean(options.getFolderRag);
+  if (registerKnowledgeTools && options.getFolderRag) {
+    tools.push(
+      ...buildKnowledgeTools({
+        sessionId: options.sessionId,
+        ...(options.piwinRoot !== undefined ? { piwinRoot: options.piwinRoot } : { piwinRoot: rootDir }),
+        getFolderRag: options.getFolderRag,
+        ...(options.getNotesServices ? { getNotesServices: options.getNotesServices } : {}),
+        loadConfig: async () => options.config ?? createDefaultPiwinConfig(),
+        ...(options.isIndexing ? { isIndexing: options.isIndexing } : {}),
+        ...(options.getCardStore ? { getCardStore: options.getCardStore } : {}),
+      }),
+    );
+  }
+
   // --- Notes tools ---
   if (options.getNotesServices && options.config?.notes?.enabled !== false) {
     try {
@@ -270,6 +291,7 @@ export async function buildSessionHostTools(
         store: notesServices.store,
         index: notesServices.index,
         enabled: true,
+        ...(registerKnowledgeTools ? { includeReadTools: false } : {}),
         ...(notesServices.searchOptions.embeddingProvider
           ? { embeddingProvider: notesServices.searchOptions.embeddingProvider }
           : {}),

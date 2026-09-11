@@ -53,11 +53,20 @@ export type WorkbenchSidebarProps = {
   setShowArchivedSessions: Dispatch<SetStateAction<boolean>>;
   hydrateSessions: WorkbenchSidebarHydrateSessions;
   settingsOpen: boolean;
-  activeSubPage?: 'chat' | 'library' | 'images' | 'videos' | 'flashcards' | null | undefined;
+  activeSubPage?:
+    | 'chat'
+    | 'library'
+    | 'images'
+    | 'videos'
+    | 'flashcards'
+    | 'knowledge'
+    | null
+    | undefined;
   onOpenLibrary?: () => void;
   onOpenImages?: () => void;
   onOpenVideos?: () => void;
   onOpenFlashcards?: () => void;
+  onOpenKnowledge?: () => void;
   onOpenWorkspace: () => void | Promise<void>;
   onOpenProject: (path: string) => void | Promise<void>;
   onRemoveProject: (path: string) => void | Promise<void>;
@@ -233,6 +242,7 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
       onOpenImages={props.onOpenImages}
       onOpenVideos={props.onOpenVideos}
       onOpenFlashcards={props.onOpenFlashcards}
+      onOpenKnowledge={props.onOpenKnowledge}
       generalActive={state.activeScope.kind === 'general'}
       isOverlayPresentation={isOverlayPresentation}
       onCloseOverlay={() => shell.closeOverlay()}

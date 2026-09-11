@@ -124,14 +124,14 @@ export function parseComposerSlashSubmit(
     return { kind: 'command', commandId, name, args };
   }
 
-  if (name === 'knowledge' || name === 'doccards') {
+  if (name === 'doccards') {
     return { kind: 'knowledge', subTab: 'doccards', name, args };
   }
   if (name === 'flashcards' || name === 'cards') {
     return { kind: 'cards-panel', name, args };
   }
-  if (name === 'notes' || name === 'wiki') {
-    return { kind: 'knowledge', subTab: 'wiki', name, args };
+  if (name === 'knowledge' || name === 'kb' || name === 'notes' || name === 'wiki') {
+    return { kind: 'knowledge', subTab: 'knowledge', name, args };
   }
 
   if (MODE_NAMES.has(name)) {

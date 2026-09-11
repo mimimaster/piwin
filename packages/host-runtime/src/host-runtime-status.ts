@@ -156,6 +156,7 @@ export function getStatus(deps: HostRuntimeKernel): HostStatusData {
       marketplaceHub: true,
       automation: true,
       flashcardStudy: true,
+      knowledgeBases: true,
       contextTelemetryVersion: 1,
     },
   };

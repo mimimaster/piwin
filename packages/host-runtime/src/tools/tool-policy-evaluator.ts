@@ -327,6 +327,11 @@ export function evaluateHostToolDomainPolicy(input: {
     case 'artifact:instructions':
     case 'toolbox:route':
     case 'mcp:trusted':
+    // knowledge_* tools always set readOnly: true, so evaluateHostToolPolicy
+    // short-circuits to allow before this domain evaluator ever runs.
+    case 'knowledge:knowledge_list':
+    case 'knowledge:knowledge_search':
+    case 'knowledge:knowledge_read':
       return { decision: 'deny', reason: 'unclassified-side-effect' };
     case 'device:health-read':
       return { decision: 'allow', reason: 'client-device-consent-enforced' };

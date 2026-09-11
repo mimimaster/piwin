@@ -74,6 +74,21 @@ describe('indexRecordToSummary', () => {
     expect(summary.subagentIntegrationStatus).toBe('applied');
   });
 
+  it('projects mounted knowledge base ids', () => {
+    const record: SessionIndexRecord = {
+      id: 's-kb',
+      projectPath: '/tmp/project',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messageCount: 1,
+      knowledgeBaseIds: ['notes', 'folder:0123456789abcdef'],
+    };
+    expect(indexRecordToSummary(record).knowledgeBaseIds).toEqual([
+      'notes',
+      'folder:0123456789abcdef',
+    ]);
+  });
+
   it('projects the durable parent invocation linkage', () => {
     const record: SessionIndexRecord = {
       id: 'child-linked',

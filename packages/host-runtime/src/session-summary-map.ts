@@ -41,6 +41,7 @@ export function indexRecordToSummary(
     | 'origin'
     | 'model'
     | 'thinkingLevel'
+    | 'knowledgeBaseIds'
     | 'storage'
   >,
 ): SessionSummary {
@@ -58,6 +59,9 @@ export function indexRecordToSummary(
   if (record.nameSource) summary.nameSource = record.nameSource;
   if (record.model) summary.model = record.model;
   if (record.thinkingLevel !== undefined) summary.thinkingLevel = record.thinkingLevel;
+  if (record.knowledgeBaseIds && record.knowledgeBaseIds.length > 0) {
+    summary.knowledgeBaseIds = record.knowledgeBaseIds;
+  }
   if (record.lastPreview) summary.lastPreview = record.lastPreview;
   if (record.parentSessionId) summary.parentSessionId = record.parentSessionId;
   if (typeof record.depth === 'number') summary.depth = record.depth;

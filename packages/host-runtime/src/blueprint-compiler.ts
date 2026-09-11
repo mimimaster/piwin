@@ -34,7 +34,7 @@ import type {
   EphemeralProviderSecret,
 } from '@piwin/contracts';
 import { modelSupportsCapability, normalizeResourceId } from '@piwin/contracts';
-import { DEFAULT_AGENT_MODE_SYSTEM_PROMPT } from '@piwin/contracts';
+import { DEFAULT_AGENT_MODE_SYSTEM_PROMPT, KNOWLEDGE_TOOL_NAMES } from '@piwin/contracts';
 import { listEnabledServers, loadMcpConfig } from '@piwin/mcp';
 import { resolveWebConfig } from '@piwin/tools-web';
 import { loadPiwinConfig } from './config-store.js';
@@ -73,6 +73,7 @@ import {
   shouldExposeExternalWebSearch,
 } from './capabilities/search-route-resolver.js';
 import { createBundledRuleSet } from './permission-defaults.js';
+import { formatMountedKnowledgeBasePrompt } from './knowledge-system-prompt.js';
 import { computePermissionRulesRevision } from './permission-rule-revision.js';
 import { createSettingsSnapshot } from './settings/settings-service.js';
 import { discoverContextManifest } from './context-manifest-discovery.js';
@@ -158,6 +159,8 @@ export type CompileBlueprintOptions = {
    * tests that don't exercise trust enforcement).
    */
   trustResolver?: (projectPath: string) => Promise<boolean>;
+  /** Display names of knowledge bases mounted on this session. */
+  mountedKnowledgeBaseNames?: string[];
 };
 
 export type DiscoverResourcesOptions = {
@@ -377,10 +380,14 @@ async function compileAgentCapabilityPlan(
       )
     : undefined;
 
+  const knowledgeAppendPrompt = formatMountedKnowledgeBasePrompt(
+    options.mountedKnowledgeBaseNames ?? [],
+  );
   const appendSystemPromptParts = [
     DEFAULT_AGENT_MODE_SYSTEM_PROMPT,
     artifactAppendPrompt,
     mcpAppendPrompt,
+    knowledgeAppendPrompt,
   ].filter((prompt): prompt is string => prompt !== undefined && prompt.trim().length > 0);
   const appendSystemPrompt =
     appendSystemPromptParts.length > 0 ? appendSystemPromptParts.join('\n\n') : undefined;
@@ -600,9 +607,14 @@ function compileConversationPlan(
     snapshot.tools.hostTools,
   );
 
-  const appendSystemPromptParts = [formatConversationSystemPrompt(), artifactAppendPrompt].filter(
-    (prompt): prompt is string => prompt !== undefined && prompt.trim().length > 0,
+  const knowledgeAppendPrompt = formatMountedKnowledgeBasePrompt(
+    options.mountedKnowledgeBaseNames ?? [],
   );
+  const appendSystemPromptParts = [
+    formatConversationSystemPrompt(),
+    artifactAppendPrompt,
+    knowledgeAppendPrompt,
+  ].filter((prompt): prompt is string => prompt !== undefined && prompt.trim().length > 0);
   const appendSystemPrompt =
     appendSystemPromptParts.length > 0 ? appendSystemPromptParts.join('\n\n') : undefined;
 
@@ -677,7 +689,7 @@ function compileConversationToolPolicy(
     process: 'off',
     browser: 'off',
     subagents: 'off',
-    notes: 'off',
+    notes: familyHasKnowledgeTools(options.hostToolFamilyIndex) ? 'agent-read' : 'off',
     flashcards: flashcardsAccess,
     artifact: config.artifact.enabled,
     availability: {
@@ -694,7 +706,7 @@ function compileConversationToolPolicy(
     shell: false,
     planning: false,
     delegate: false,
-    notesEnabled: false,
+    notesEnabled: familyHasKnowledgeTools(options.hostToolFamilyIndex),
     flashcardsEnabled: flashcardsEnabled && flashcardsAccess !== 'off',
     imageGenerationEnabled: !imagegenDisabled,
     videoGenerationEnabled: !videogenDisabled,
@@ -803,6 +815,19 @@ async function discoverResourcesDefault(
   return { skillPaths, extensionPaths, promptPaths, catalog: resourceCatalog };
 }
 
+function familyHasKnowledgeTools(
+  index: ReadonlyMap<SessionToolFamily, readonly string[]> | undefined,
+): boolean {
+  if (!index) return false;
+  const names = index.get('notes-read') ?? [];
+  return names.some(
+    (name) =>
+      name === KNOWLEDGE_TOOL_NAMES.list ||
+      name === KNOWLEDGE_TOOL_NAMES.search ||
+      name === KNOWLEDGE_TOOL_NAMES.read,
+  );
+}
+
 /**
  * Build tool policy from config + scope.
  * Maps product capability exposure to exact tool families + custom tool names.
@@ -876,7 +901,12 @@ function compileToolPolicy(
     process: 'agent',
     browser: 'agent',
     subagents: 'agent',
-    notes: config.notes?.enabled === false ? 'off' : 'agent-read-write',
+    notes:
+      config.notes?.enabled === false
+        ? familyHasKnowledgeTools(hostToolFamilyIndex)
+          ? 'agent-read'
+          : 'off'
+        : 'agent-read-write',
     flashcards:
       input.presentation?.kind === 'doccard-sequence'
         ? 'agent-read'
@@ -905,7 +935,9 @@ function compileToolPolicy(
     shell: true,
     planning: true,
     delegate: true,
-    notesEnabled: capabilityCeiling === undefined && config.notes?.enabled !== false,
+    notesEnabled:
+      capabilityCeiling === undefined &&
+      (config.notes?.enabled !== false || familyHasKnowledgeTools(hostToolFamilyIndex)),
     flashcardsEnabled: capabilityCeiling === undefined && config.flashcards?.enabled !== false,
     imageGenerationEnabled: capabilityCeiling === undefined && !imagegenDisabled,
     videoGeneration: !videogenDisabled,

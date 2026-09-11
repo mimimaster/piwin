@@ -27,6 +27,7 @@ import {
 import { createMockSessionHandle } from './mock-session.js';
 import { createTestFixtureSession } from './delayed-session-fixture.js';
 import { compileBlueprintForWorker } from './blueprint-compiler.js';
+import { loadMountedKnowledgeBaseNamesForSession } from './knowledge-system-prompt.js';
 import { loadPromptImages } from './prompt-images.js';
 import { loadPiwinConfig } from './config-store.js';
 import { createSettingsSnapshot } from './settings/settings-service.js';
@@ -388,6 +389,10 @@ export class ProductAgentHost implements AgentHost {
       );
 
       const subscription = await this.options.getSubscriptionCompileContext?.();
+      const mountedKnowledgeBaseNames = await loadMountedKnowledgeBaseNamesForSession(
+        this.options.piwinRoot,
+        sessionId,
+      );
       const compiled = await compileBlueprintForWorker(input, {
         ...(this.options.piwinRoot ? { piwinRoot: this.options.piwinRoot } : {}),
         sessionId,
@@ -409,6 +414,7 @@ export class ProductAgentHost implements AgentHost {
         allowInlineProviderSecrets: this.options.mode === 'sdk',
         allowWorkerProviderSecretBootstrap: this.options.mode === 'rpc',
         ...(this.options.trustResolver ? { trustResolver: this.options.trustResolver } : {}),
+        ...(mountedKnowledgeBaseNames.length > 0 ? { mountedKnowledgeBaseNames } : {}),
       });
       this.options.restrictToolSurface(
         sessionId,

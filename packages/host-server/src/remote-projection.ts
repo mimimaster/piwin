@@ -272,6 +272,7 @@ export function createRemoteCapabilities(
     activityHydration: true,
     liveSubscriptions: true,
     flashcardStudy: true,
+    knowledgeBases: true,
     hostListDir: true,
     homeDirectory: os.homedir(),
   };

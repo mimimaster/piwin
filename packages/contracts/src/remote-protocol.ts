@@ -230,6 +230,8 @@ export type RemoteCapabilitySummary = {
   liveSubscriptions?: boolean;
   /** Host exposes `flashcards/study/*`. Absent on old Hosts — shells show 需要更新 Host. */
   flashcardStudy?: boolean;
+  /** Host exposes `knowledge/*` bases, search, and session mounts. Absent on old Hosts. */
+  knowledgeBases?: boolean;
   /**
    * OS family of the Host process (`process.platform`). Shells use this for
    * Host-path placeholders and joins — never the client OS.

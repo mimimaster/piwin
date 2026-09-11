@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { NoteRecord, NoteSearchHit } from '@piwin/contracts';
-import { fuseHybridHits } from './hybrid-search.js';
+import { fuseHybridHits, reciprocalRankFusion } from './hybrid-search.js';
 import { cosineSimilarity } from './vector-math.js';
 
 function makeNote(id: string): NoteRecord {
@@ -56,6 +56,21 @@ describe('fuseHybridHits', () => {
 
   it('handles empty channels', () => {
     expect(fuseHybridHits({ fts: [], vector: [] })).toEqual([]);
+  });
+});
+
+describe('reciprocalRankFusion', () => {
+  it('sums 1/(k+rank) across lists and keeps first-list order ties by score', () => {
+    const scores = reciprocalRankFusion(
+      [
+        ['both', 'fts-only'],
+        ['vec-only', 'both'],
+      ],
+      { rrfK: 60 },
+    );
+    expect(scores.get('both')).toBeCloseTo(1 / 61 + 1 / 62, 10);
+    expect(scores.get('fts-only')).toBeCloseTo(1 / 62, 10);
+    expect(scores.get('vec-only')).toBeCloseTo(1 / 61, 10);
   });
 });
 

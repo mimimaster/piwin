@@ -1,7 +1,7 @@
 /**
  * Single chat message row wrapper (Agent vs Conversation, user vs assistant vs system).
  */
-import { memo, type ReactElement } from 'react';
+import { memo, useMemo, type ReactElement } from 'react';
 import { pickArtifactFenceSecurity } from './artifact-fence-security';
 import { isAssistantContentEmpty } from './assistant-message-content';
 import { MarkdownView } from './MarkdownView';
@@ -25,6 +25,9 @@ import {
 import { ConversationResponseContent } from './conversation-response-content.js';
 import { extractFlashcardRecords } from './flashcard-result-extract.js';
 import { FlashcardResultProjection } from './FlashcardResultProjection.js';
+import { collectKnowledgeCitations } from './knowledge/knowledge-citation-collect.js';
+import { citationsForRefs, citedKnowledgeRefs } from './knowledge/knowledge-citations.js';
+import { KnowledgeCitationSources } from './knowledge/KnowledgeCitationSources.js';
 import { AssistantResponseActions } from './assistant-response-actions';
 import { buildAssistantColophonMeta } from './chat-turn-marginalia';
 import { buildConversationTurnUsageChip } from './conversation-message-header';
@@ -65,6 +68,12 @@ export const ChatMessageRow = memo(
     const videoGenerationTool =
       message.role === 'assistant' ? getGenerationTool(message, 'video') : null;
     const contextMenu = useDesktopContextMenu();
+    const knowledgeCitations = useMemo(() => collectKnowledgeCitations(message), [message]);
+    const citedKnowledgeSources = useMemo(
+      () =>
+        citationsForRefs(knowledgeCitations, citedKnowledgeRefs(message.text, knowledgeCitations)),
+      [knowledgeCitations, message.text],
+    );
     if (message.subagentActivity) {
       if (props.isConversationSession === true) {
         return null;
@@ -330,11 +339,16 @@ export const ChatMessageRow = memo(
                     : {})}
                   {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
                   {...(props.projectPath ? { projectPath: props.projectPath } : {})}
+                  knowledgeCitations={knowledgeCitations}
                 />
               ) : null}
               {message.searchEvidence !== undefined ? (
                 <CitationCards evidence={message.searchEvidence} />
               ) : null}
+              <KnowledgeCitationSources
+                citations={citedKnowledgeSources}
+                locale={props.locale ?? 'zh-CN'}
+              />
               <FlashcardResultProjection
                 cards={extractFlashcardRecords(message)}
                 locale={props.locale ?? 'zh-CN'}

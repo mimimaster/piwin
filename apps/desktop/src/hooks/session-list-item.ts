@@ -24,6 +24,7 @@ export function summaryToListItem(
   if (session.thinkingLevel !== undefined) item.thinkingLevel = session.thinkingLevel;
   if (session.scope) item.scope = session.scope;
   if (session.storage && session.storage.state !== 'local') item.storage = session.storage;
+  if (session.knowledgeBaseIds) item.knowledgeBaseIds = session.knowledgeBaseIds;
   return item;
 }
 
@@ -47,5 +48,6 @@ export function mapSummariesToListItems(
       : {}),
     ...(session.scope ? { scope: session.scope } : {}),
     ...(session.storage && session.storage.state !== 'local' ? { storage: session.storage } : {}),
+    ...(session.knowledgeBaseIds ? { knowledgeBaseIds: session.knowledgeBaseIds } : {}),
   }));
 }

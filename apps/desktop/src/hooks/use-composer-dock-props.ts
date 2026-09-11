@@ -95,7 +95,7 @@ export type UseComposerDockPropsArgs = {
   menuMcp: ComposerDockProps['menuMcp'];
   refreshComposerMenus: () => void | Promise<void>;
   openSettingsSection: (section: ShellSettingsSection) => void;
-  onOpenKnowledge: (subTab?: 'doccards' | 'cards' | 'wiki') => void;
+  onOpenKnowledge: (subTab?: 'doccards' | 'cards' | 'knowledge') => void;
   onOpenCardsPanel: () => void;
   onPickFiles: () => void | Promise<void>;
   onPickImageFiles: () => void | Promise<void>;

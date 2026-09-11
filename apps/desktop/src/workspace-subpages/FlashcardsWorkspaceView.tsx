@@ -26,8 +26,6 @@ import {
   tileCards,
   tileMatchesQuery,
 } from './flashcards/group-flashcard-tiles';
-import { KnowledgeWikiView } from '../knowledge/KnowledgeWikiView';
-import type { DoccardsHostRequest } from '../knowledge/knowledge-host-request';
 import { ProduceStage } from './flashcards/produce-stage';
 import { FlashcardStudyRoute } from './flashcards/study/FlashcardStudyRoute';
 import { flashcardStudyCopy } from './flashcards/study/study-copy';
@@ -60,7 +58,9 @@ export type FlashcardsWorkspaceViewProps = {
   subscribePush?: (listener: (push: HostPush) => void) => () => void;
   subscribeConnected?: (listener: (connected: boolean) => void) => () => void;
   hasStudyCapability?: () => boolean;
-  entry?: 'gallery' | 'wiki';
+  entry?: 'gallery' | 'produce';
+  /** With `entry: 'produce'`, starts the produce flow on this folder. */
+  initialFolderPath?: string | undefined;
   onOpenSession?: ((sessionId: string) => void) | undefined;
 };
 
@@ -72,8 +72,8 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
 
   const [search, setSearch] = useState('');
   const [selectedDeck, setSelectedDeck] = useState<string>('all');
-  const [page, setPage] = useState<'gallery' | 'produce' | 'wiki'>(
-    props.entry === 'wiki' ? 'wiki' : 'gallery',
+  const [page, setPage] = useState<'gallery' | 'produce'>(
+    props.entry === 'produce' ? 'produce' : 'gallery',
   );
   const [study, setStudy] = useState<{
     entry: FlashcardStudyEntry;
@@ -124,14 +124,15 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
   }, [allGroupedTiles, selectedDeck, search]);
 
   const producing = page === 'produce';
-  const wikiOpen = page === 'wiki';
   const studying = study !== null;
 
+  const { mountFolder } = produce;
   useEffect(() => {
-    if (props.entry === 'wiki') {
-      setPage('wiki');
-    }
-  }, [props.entry]);
+    if (props.entry !== 'produce') return;
+    setPage('produce');
+    // Knowledge bases hand off a folder; it wins over the recent-folder default.
+    if (props.initialFolderPath) mountFolder(props.initialFolderPath);
+  }, [mountFolder, props.entry, props.initialFolderPath]);
   const studyCopy = flashcardStudyCopy(locale);
 
   const restoreLibrary = useCallback((context: FlashcardStudyReturnContext) => {
@@ -175,7 +176,7 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
       if (event.key !== 'Escape') return;
       if (studying) return;
       if (createOpen) return;
-      if (producing || wikiOpen) {
+      if (producing) {
         setPage('gallery');
         return;
       }
@@ -183,7 +184,7 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [createOpen, producing, props.onClose, studying, wikiOpen]);
+  }, [createOpen, producing, props.onClose, studying]);
 
   const requestRef = useRef(props.request);
   requestRef.current = props.request;
@@ -295,11 +296,11 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
     <div className="vault-stage" data-testid="flashcards-workspace">
       <StudioTopbar
         testId="flashcards-back-btn"
-        backLabel={producing || wikiOpen ? t('Back to cards', '返回卡库') : t('Back', '返回')}
-        onBack={() => (producing || wikiOpen ? setPage('gallery') : props.onClose())}
+        backLabel={producing ? t('Back to cards', '返回卡库') : t('Back', '返回')}
+        onBack={() => (producing ? setPage('gallery') : props.onClose())}
         {...(props.locale !== undefined ? { locale: props.locale } : {})}
         kind="flashcards"
-        {...(producing || wikiOpen
+        {...(producing
           ? {}
           : {
               layout: 'page',
@@ -310,14 +311,6 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
               ...(deckFilters !== null ? { filters: deckFilters } : {}),
               actions: (
                 <div className="vault-bar-tools">
-                  <Button
-                    variant="secondary"
-                    size="compact"
-                    data-testid="flashcards-open-wiki"
-                    onClick={() => setPage('wiki')}
-                  >
-                    <span>{t('Wiki', 'Wiki')}</span>
-                  </Button>
                   <Button
                     variant="secondary"
                     size="compact"
@@ -367,18 +360,6 @@ export function FlashcardsWorkspaceView(props: FlashcardsWorkspaceViewProps): Re
             : {})}
           {...(props.onOpenSession ? { onOpenSession: props.onOpenSession } : {})}
         />
-      ) : wikiOpen ? (
-        <main className="vault-main flashcards-main" id="vault-main">
-          <KnowledgeWikiView
-            folderPath={props.projectPath ?? produce.selectedPath ?? ''}
-            folderName={produce.selectedName || t('Workspace', '工作区')}
-            notes={[]}
-            request={props.request as DoccardsHostRequest}
-            {...(props.onConfigureEmbedding
-              ? { onConfigureEmbedding: props.onConfigureEmbedding }
-              : {})}
-          />
-        </main>
       ) : (
         <main className="vault-main flashcards-main" id="vault-main">
           {ws.error !== null && (

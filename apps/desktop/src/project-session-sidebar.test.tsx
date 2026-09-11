@@ -907,10 +907,16 @@ describe('ProjectSessionSidebar project row behavior', () => {
     expect(onOpenProject).not.toHaveBeenCalled();
   });
 
-  it('keeps the footer fade above settings and has no Knowledge Center door', () => {
-    const { container } = renderSidebar();
+  it('keeps the footer fade above settings and opens knowledge bases from the sidebar', () => {
+    const onOpenKnowledge = vi.fn();
+    const { container } = renderSidebar({ onOpenKnowledge });
     expect(container.querySelector('.sidebar-footer-fade')).not.toBeNull();
-    expect(container.querySelector('[data-testid="sidebar-knowledge-btn"]')).toBeNull();
+    const knowledgeButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="sidebar-knowledge-btn"]',
+    );
+    expect(knowledgeButton?.textContent).toContain('Knowledge');
+    act(() => knowledgeButton?.click());
+    expect(onOpenKnowledge).toHaveBeenCalledTimes(1);
     expect(container.querySelector('[data-testid="settings-open-btn"]')).not.toBeNull();
   });
 

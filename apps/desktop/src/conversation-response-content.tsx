@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { RadialBellow } from '@piwin/ui-kit';
 import type { ArtifactActionMessage } from '@piwin/artifact';
 import type {
@@ -26,6 +26,9 @@ import { MessageAttachments } from './message-attachments';
 import { extractFlashcardItemIdsFromText } from './resolve-conversation-flashcards.js';
 import { FlashcardResultProjection } from './FlashcardResultProjection';
 import { extractFlashcardRecords, getMessageTools } from './flashcard-result-extract.js';
+import { collectKnowledgeCitations } from './knowledge/knowledge-citation-collect.js';
+import { citationsForRefs, citedKnowledgeRefs } from './knowledge/knowledge-citations.js';
+import { KnowledgeCitationSources } from './knowledge/KnowledgeCitationSources.js';
 import { MarkdownView } from './MarkdownView';
 import { mapThemeToArtifactVariables } from './artifact-theme-map';
 import { resolveAssistantRenderingPhase } from './streaming-caret';
@@ -186,6 +189,14 @@ export function ConversationResponseContent(props: {
     props.renderExtractedFlashcards,
   ]);
   const displayCards = extractedCards.length > 0 ? extractedCards : resolvedCards;
+  const knowledgeCitations = useMemo(
+    () => collectKnowledgeCitations(message, props.sourceTools),
+    [message, props.sourceTools],
+  );
+  const citedKnowledgeSources = useMemo(
+    () => citationsForRefs(knowledgeCitations, citedKnowledgeRefs(message.text, knowledgeCitations)),
+    [knowledgeCitations, message.text],
+  );
   const conversationTools =
     isFlowAnchor || isFlowMember
       ? []
@@ -357,6 +368,7 @@ export function ConversationResponseContent(props: {
             : {})}
           {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
           {...(props.projectPath ? { projectPath: props.projectPath } : {})}
+          knowledgeCitations={knowledgeCitations}
         />
       ) : null}
 
@@ -388,6 +400,8 @@ export function ConversationResponseContent(props: {
           {...(props.onOpenDocument !== undefined ? { onOpenDocument: props.onOpenDocument } : {})}
         />
       ) : null}
+
+      <KnowledgeCitationSources citations={citedKnowledgeSources} locale={locale} />
 
       <FlashcardResultProjection
         cards={displayCards}

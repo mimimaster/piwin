@@ -26,6 +26,7 @@ import {
   type SearchNotesOptions,
 } from '@piwin/notes';
 import { fail, ok } from '../response-helpers.js';
+import { handleKnowledgeBaseCommand, publishKnowledgeBasesChanged } from './knowledge-base-commands.js';
 import type { CompleteJsonFn, DraftCardsFn } from '@piwin/doc-rag';
 import type { DoccardsIngestionRegistry } from './doccards-job-commands.js';
 import type { DoccardsGenerationRegistry } from './doccards-generation-jobs.js';
@@ -85,6 +86,13 @@ const TYPES = new Set<HostCommand['type']>([
   'doccards/generate',
   'doccards/generation-status',
   'doccards/cancel-generation',
+  'knowledge/bases/list',
+  'knowledge/bases/add',
+  'knowledge/bases/rename',
+  'knowledge/bases/remove',
+  'knowledge/search',
+  'knowledge/open-source',
+  'session/set-knowledge-bases',
 ]);
 
 /** One notes rebuild at a time for this Host process. */
@@ -103,6 +111,9 @@ export async function handleKnowledgeCommand(
   if (!context) {
     return fail(requestId, command.type, 'knowledge services are not available in this host mode');
   }
+
+  const knowledgeBase = await handleKnowledgeBaseCommand(command, requestId, context);
+  if (knowledgeBase) return knowledgeBase;
 
   switch (command.type) {
     case 'notes/list': {
@@ -126,12 +137,14 @@ export async function handleKnowledgeCommand(
     case 'notes/write': {
       const { store } = await context.getNotesServices();
       const record = await store.write(command.input);
+      await publishKnowledgeBasesChanged(context);
       return ok(requestId, 'notes/write', { record });
     }
     case 'notes/update': {
       const { store } = await context.getNotesServices();
       try {
         const record = await store.update(command.input);
+        await publishKnowledgeBasesChanged(context);
         return ok(requestId, 'notes/update', { record });
       } catch (error) {
         if (error instanceof NoteRevisionConflictError) {
@@ -152,6 +165,7 @@ export async function handleKnowledgeCommand(
       const { store } = await context.getNotesServices();
       try {
         const result = await store.delete(command.noteId, command.expectedContentHash);
+        await publishKnowledgeBasesChanged(context);
         return ok(requestId, 'notes/delete', result);
       } catch (error) {
         if (error instanceof NoteRevisionConflictError) {

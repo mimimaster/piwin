@@ -44,6 +44,9 @@ import { sessionScopeKey } from './session-scope-key';
 import { resolveEntityScope } from './session-entities';
 import { shouldBindSessionToSecondaryPane } from './conversation-pane-bind';
 import { WorkbenchSubpageStage } from './workbench-subpage-stage';
+import { useWorkbenchKnowledge } from './hooks/use-workbench-knowledge';
+import { KnowledgeCitationActionsProvider } from './knowledge/knowledge-citation-actions';
+import { KnowledgeMountsProvider } from './knowledge/knowledge-mounts-context';
 import { isInkstoneThemeId } from './appearance-tokens';
 
 export type AppProps = {
@@ -87,6 +90,9 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     openFlashcards,
     closeSubPage,
     flashcardsEntry,
+    flashcardsFolderPath,
+    openKnowledge,
+    openFlashcardsProduce,
     sessionListChrome,
     sessionListQuery,
     editingMessageId,
@@ -301,7 +307,29 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     pendingAttachments.length > 0;
   const mediaStudioOpen =
     activeSubPage === 'library' || activeSubPage === 'images' || activeSubPage === 'videos';
-  const studioOpen = mediaStudioOpen || activeSubPage === 'flashcards';
+  const studioOpen =
+    mediaStudioOpen || activeSubPage === 'flashcards' || activeSubPage === 'knowledge';
+  const knowledgeSupported = hostStatus?.capabilities.knowledgeBases === true;
+  const activeSessionListItem =
+    state.sessions.find((session) => session.id === state.activeSessionId) ??
+    state.generalSessions.find((session) => session.id === state.activeSessionId);
+  const reportKnowledgeError = useCallback(
+    (message: string) => {
+      dispatchNotification({ type: 'notify/push', notification: { level: 'error', message } });
+    },
+    [dispatchNotification],
+  );
+  const knowledge = useWorkbenchKnowledge({
+    hostClient,
+    supported: knowledgeSupported,
+    activeSessionId: state.activeSessionId,
+    sessionMountedIds: activeSessionListItem?.knowledgeBaseIds,
+    openKnowledge,
+    closeSubPage,
+    focusComposer: focusComposerInput,
+    openDocument: handleOpenDocument,
+    reportError: reportKnowledgeError,
+  });
   const [mediaLibraryEpoch, setMediaLibraryEpoch] = useState(0);
   const wasStreamingRef = useRef(false);
   useEffect(() => {
@@ -386,6 +414,8 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
               toggle={subagentInspectorToggle}
               panel={subagentInspectorPanel}
             >
+              <KnowledgeMountsProvider value={knowledgeSupported ? knowledge.mounts : null}>
+              <KnowledgeCitationActionsProvider value={knowledge.citationActions}>
               <div
                 className={`app-shell workbench${rightPanelOpen ? ' has-right-panel' : ''}${navDrawerOpen ? ' nav-open' : ''}${settingsOpen ? ' settings-open' : ''}${studioOpen ? ' studio-open' : ''}${rightPanelResize.isResizing || sidebarResize.isResizing ? ' is-resizing-panels' : ''}${rightPanelOpen && layoutMode === 'desktop' && rightPanelResize.isFullWidth ? ' right-panel-full-width' : ''}`}
                 style={appShellStyle}
@@ -426,6 +456,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                       onOpenImages={openImages}
                       onOpenVideos={openVideos}
                       onOpenFlashcards={openFlashcards}
+                      onOpenKnowledge={openKnowledge}
                       onOpenWorkspace={handleOpenWorkspaceClick}
                       onOpenProject={handleOpenProject}
                       onRemoveProject={handleRemoveProjectFromSidebar}
@@ -804,7 +835,13 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                   hostStatus?.capabilities.flashcardStudy === true
                 }
                 flashcardsEntry={flashcardsEntry}
+                flashcardsFolderPath={flashcardsFolderPath}
                 onOpenSession={handleResumeSession}
+                subscribeKnowledgePush={knowledge.subscribeKnowledgePush}
+                knowledgeSupported={knowledgeSupported}
+                onOpenIngest={openFlashcardsProduce}
+                onUseKnowledgeInChat={knowledge.useInChat}
+                onOpenKnowledgeCitation={knowledge.citationActions.openCitation}
               />
               <WorkbenchSettingsOverlay
                 settingsOpen={settingsOpen}
@@ -833,6 +870,8 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                 onSettingsSaved={handleSettingsSaved}
                 config={config}
               />
+              </KnowledgeCitationActionsProvider>
+              </KnowledgeMountsProvider>
             </SubagentInspectorProvider>
           </DesktopContextMenuProvider>
         </MediaPreviewReadProvider>

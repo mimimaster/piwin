@@ -151,6 +151,16 @@ describe('buildNotesTools', () => {
     expect(result).toMatchObject({ ok: false, code: 'permission-denied' });
   });
 
+  it('includeReadTools false keeps only write tools', async () => {
+    const { store, index } = await setup();
+    const tools = buildNotesTools({ store, index, enabled: true, includeReadTools: false });
+    expect(tools.map((tool) => tool.descriptor.name).sort()).toEqual([
+      'note_delete',
+      'note_update',
+      'note_write',
+    ]);
+  });
+
   it('readOnly mode returns only note_search, note_list, note_read', async () => {
     const { store, index } = await setup();
     const tools = buildNotesTools({ store, index, enabled: true, readOnly: true });

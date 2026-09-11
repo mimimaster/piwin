@@ -6,8 +6,9 @@
  * folder itself may be any absolute path — this is a deliberate, user-granted
  * escape from `~/.piwin/notes/`.
  */
+import { readdir, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { resolve, sep } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 
 /** Default piwin root: `~/.piwin`. */
 export function getDefaultPiwinRoot(): string {
@@ -39,6 +40,49 @@ export function getDocIndexPath(canonicalAbsPath: string, piwinRoot?: string): s
 /** `~/.piwin/doc-rag/<folder-key>/.source-path` sidecar (canonical path for cleanup/debug). */
 export function getSourcePathSidecar(canonicalAbsPath: string, piwinRoot?: string): string {
   return resolve(getDocRagRoot(piwinRoot), folderKey(canonicalAbsPath), '.source-path');
+}
+
+const FOLDER_KEY_DIR = /^[0-9a-f]{16}$/;
+
+/**
+ * Scan `doc-rag/<folderKey>/.source-path` sidecars so a lost registry can be
+ * rebuilt. Missing sidecar files are skipped; other IO errors surface.
+ */
+export async function listSourcePathSidecars(
+  piwinRoot?: string,
+): Promise<Array<{ folderKey: string; folderPath: string }>> {
+  const root = getDocRagRoot(piwinRoot);
+  let entries: Array<{ name: string; isDirectory: () => boolean }>;
+  try {
+    entries = await readdir(root, { withFileTypes: true });
+  } catch (error) {
+    if (isNotFoundError(error)) return [];
+    throw error;
+  }
+  const found: Array<{ folderKey: string; folderPath: string }> = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !FOLDER_KEY_DIR.test(entry.name)) continue;
+    try {
+      const text = await readFile(join(root, entry.name, '.source-path'), 'utf8');
+      const folderPath = text.trim();
+      if (folderPath.length > 0) {
+        found.push({ folderKey: entry.name, folderPath });
+      }
+    } catch (error) {
+      if (isNotFoundError(error)) continue;
+      throw error;
+    }
+  }
+  return found;
+}
+
+function isNotFoundError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: unknown }).code === 'ENOENT'
+  );
 }
 
 /** `~/.piwin/doc-rag/<folder-key>/lancedb`. */

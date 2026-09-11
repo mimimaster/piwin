@@ -110,6 +110,16 @@ export function getPiwinMcpConfigPath(rootDir: string): string {
   return join(rootDir, 'mcp.json');
 }
 
+/** Host-owned knowledge base registry directory (`<piwinRoot>/knowledge`). */
+export function getPiwinKnowledgeDir(rootDir: string): string {
+  return join(rootDir, 'knowledge');
+}
+
+/** Folder knowledge-base registry (`<piwinRoot>/knowledge/bases.json`). */
+export function getPiwinKnowledgeBasesPath(rootDir: string): string {
+  return join(getPiwinKnowledgeDir(rootDir), 'bases.json');
+}
+
 export function getPiwinSkillsDir(rootDir: string): string {
   return join(rootDir, 'skills');
 }

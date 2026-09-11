@@ -16,6 +16,7 @@ import {
 } from '@piwin/ui-kit';
 import { IconCards, IconFile, IconMcp, IconPaperclip, IconSkill } from './shell-icons';
 import { useDesktopLocale } from './desktop-locale-context';
+import { KnowledgeMountSubmenu } from './knowledge/KnowledgeMountSubmenu.js';
 
 export type ComposerPlusSubmenu = 'none' | 'skills' | 'mcp' | 'knowledge';
 
@@ -44,7 +45,7 @@ export type ComposerPlusMenuProps = {
   onOpenSkillsPanel: () => void;
   mcpServers: ComposerMcpOption[];
   onOpenMcpPanel: () => void;
-  onOpenKnowledge?: ((subTab?: 'doccards' | 'cards' | 'wiki') => void) | undefined;
+  onOpenKnowledge?: ((subTab?: 'doccards' | 'cards' | 'knowledge') => void) | undefined;
   onOpenCardsPanel?: (() => void) | undefined;
   /** Optional for isolated menu consumers that do not expose file uploads. */
   onAttachFile?: () => void;
@@ -111,6 +112,12 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
           <span className="plus-menu-label">{isZh ? '闪卡' : 'Flashcards'}</span>
         </DropdownMenuItem>
       ) : null}
+
+      <KnowledgeMountSubmenu
+        open={props.submenu === 'knowledge'}
+        onOpenChange={(open) => props.onSubmenu(open ? 'knowledge' : 'none')}
+        locale={isZh ? 'zh-CN' : 'en'}
+      />
 
       {props.hideAgentExtras === true ? null : (
         <DropdownMenuLabel className="plus-menu-caption muted">

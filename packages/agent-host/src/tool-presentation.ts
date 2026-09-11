@@ -16,6 +16,7 @@ import type {
 import { projectBoundedHealthToolCardSummary } from '@piwin/contracts';
 import { attachFlashcardPresentation } from './flashcard-presentation.js';
 import { attachGoalPresentation } from './goal-presentation.js';
+import { attachKnowledgePresentation } from './knowledge-presentation.js';
 
 function looksLikeCancelledToolOutput(text: string): boolean {
   const normalized = text.trim().toLowerCase();
@@ -361,11 +362,12 @@ export function buildToolPresentation(input: BuildToolPresentationInput): ToolPr
     ...(input.outputText !== undefined ? { outputText: input.outputText } : {}),
   });
 
-  return attachGoalPresentation(withFlashcard, {
+  const detailsInput = {
     toolName: input.toolName,
     ...(input.routedToolName !== undefined ? { routedToolName: input.routedToolName } : {}),
     ...(input.details !== undefined ? { details: input.details } : {}),
-  });
+  };
+  return attachKnowledgePresentation(attachGoalPresentation(withFlashcard, detailsInput), detailsInput);
 }
 
 function resolveActionFamily(toolName: string): ToolActionFamily {

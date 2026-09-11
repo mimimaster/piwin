@@ -78,22 +78,33 @@ describe('shell navigation stack', () => {
     expect(canGoShellForward(reopened)).toBe(false);
   });
 
-  it('maps the retired knowledge overlay onto the flashcards home', () => {
-    expect(resolveShellSubPage({ kind: 'knowledge' })).toBe('flashcards');
+  it('routes knowledge bases to their own subpage', () => {
+    expect(resolveShellSubPage({ kind: 'knowledge' })).toBe('knowledge');
     expect(resolveShellSubPage({ kind: 'flashcards' })).toBe('flashcards');
     expect(resolveShellSubPage({ kind: 'workspace' })).toBeNull();
   });
 
-  it('treats flashcards gallery and wiki as distinct stack entries', () => {
+  it('treats flashcards produce targets as distinct stack entries per folder', () => {
     const opened = pushShellRoute(createInitialShellNavigation(), {
       kind: 'flashcards',
       entry: 'gallery',
     });
-    const wiki = pushShellRoute(opened, { kind: 'flashcards', entry: 'wiki' });
-    expect(wiki.entries).toHaveLength(3);
-    expect(currentShellRoute(wiki)).toEqual({ kind: 'flashcards', entry: 'wiki' });
-    const sameWiki = pushShellRoute(wiki, { kind: 'flashcards', entry: 'wiki' });
-    expect(sameWiki).toBe(wiki);
+    const produce = pushShellRoute(opened, {
+      kind: 'flashcards',
+      entry: 'produce',
+      folderPath: '/docs/a',
+    });
+    expect(produce.entries).toHaveLength(3);
+    expect(pushShellRoute(produce, { kind: 'flashcards', entry: 'produce', folderPath: '/docs/a' })).toBe(
+      produce,
+    );
+    const other = pushShellRoute(produce, { kind: 'flashcards', entry: 'produce', folderPath: '/docs/b' });
+    expect(other.entries).toHaveLength(4);
+    expect(currentShellRoute(other)).toEqual({
+      kind: 'flashcards',
+      entry: 'produce',
+      folderPath: '/docs/b',
+    });
   });
 
   it('leaveSettingsRoute returns to workspace without inventing extra entries', () => {

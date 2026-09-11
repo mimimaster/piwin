@@ -74,6 +74,7 @@ import {
 } from './walkthrough-command.js';
 import { runAuthCommand } from './auth-command.js';
 import { bindStudyHostClient, runStudyCommand, type StudyHostClient } from './study-command.js';
+import { runKbCommand } from './kb-command.js';
 import {
   bindSideChatHostClient,
   type SideChatHostClient,
@@ -194,6 +195,10 @@ Usage:
   piwin doccards generate <folder> [--topic t] [--limit n]   (print generation prompt)
   piwin doccards rebind <oldPath> <newPath>
   piwin doccards forget <folder>
+  piwin kb list
+  piwin kb add <folder> [--name n]
+  piwin kb remove <id> [--delete-index]
+  piwin kb search <query> [--kb id ...] [--limit n]
   piwin cron list [--mock]
   piwin usage [--project <path> | --global] [--mock]
   piwin auth status | login <kimi-coding|openai-codex|anthropic|xai|github-copilot> | logout <id>
@@ -3531,6 +3536,10 @@ async function main(argv: string[]): Promise<void> {
   }
   if (command === 'doccards') {
     await commandDocCards(argv);
+    return;
+  }
+  if (command === 'kb') {
+    await runKbCommand(argv);
     return;
   }
   if (command === 'host' && argv[1] === 'serve') {

@@ -233,6 +233,9 @@ export function classifyHostPush(push: HostPushVariant): HostPushPolicy {
       };
     case 'flashcards/study/changed':
       return projection(deliveryKey('flashcards', 'study', push.roundId));
+    case 'knowledge/bases-changed':
+      // Full-list snapshot: only the latest one matters.
+      return projection(deliveryKey('knowledge', 'bases'));
     default:
       return assertNever(push);
   }

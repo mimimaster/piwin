@@ -33,6 +33,7 @@ describe('HostRuntime status capabilities', () => {
     expect(data.capabilities.subagentDeliveryV1).toBe(true);
     expect(data.capabilities.subagentResultReviewV1).toBe(true);
     expect(data.capabilities.turnChangeUndoV1).toBe(true);
+    expect(data.capabilities.knowledgeBases).toBe(true);
     await runtime.dispose();
   });
 
@@ -51,6 +52,7 @@ describe('HostRuntime status capabilities', () => {
     expect(data.capabilities.subagentDeliveryV1).toBe(true);
     expect(data.capabilities.subagentResultReviewV1).toBe(true);
     expect(data.capabilities.turnChangeUndoV1).toBe(true);
+    expect(data.capabilities.knowledgeBases).toBe(true);
     // mock:true still enables compaction capability flag
     expect(data.capabilities.compaction).toBe(true);
     expect(data.capabilities.extensions).toBe(true);

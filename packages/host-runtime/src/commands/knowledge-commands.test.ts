@@ -61,6 +61,10 @@ describe('knowledge command handlers', () => {
     expect(isKnowledgeCommand({ type: 'doccards/scan-folder', folderPath: '/tmp/docs' })).toBe(
       true,
     );
+    expect(isKnowledgeCommand({ type: 'knowledge/bases/list' })).toBe(true);
+    expect(isKnowledgeCommand({ type: 'session/set-knowledge-bases', sessionId: 's1', baseIds: [] })).toBe(
+      true,
+    );
     expect(isKnowledgeCommand({ type: 'host/ping' })).toBe(false);
     expect(isKnowledgeCommand({ type: 'flashcards/study/catalog', limit: 20 })).toBe(false);
   });

@@ -34,6 +34,11 @@ import {
   type MarkdownDocumentReference,
 } from './markdown-streamdown-nodes.js';
 import { createMarkdownInlineRenderers } from './markdown-inline-renderers.js';
+import { KnowledgeCitationMarker } from './knowledge/KnowledgeCitationMarker.js';
+import {
+  parseKnowledgeCitationHref,
+  type KnowledgeCitationIndex,
+} from './knowledge/knowledge-citations.js';
 
 export type StreamdownRendererOptions = {
   phase: MarkdownRenderingPhase;
@@ -52,6 +57,8 @@ export type StreamdownRendererOptions = {
   locale: 'zh-CN' | 'en';
   onOpenDocument: ((doc: MarkdownDocumentReference) => void) | undefined;
   projectPath: string | null | undefined;
+  /** Resolves `[n]` knowledge citation links to their retrieved passage. */
+  knowledgeCitations: KnowledgeCitationIndex | undefined;
   /** Canonical fence ordinal keyed by Streamdown `node.position.start.offset`. */
   ordinalByProjectedStartOffset: ReadonlyMap<number, number>;
   fences: readonly ArtifactFenceRecord[];
@@ -225,6 +232,15 @@ export function createStreamdownComponents(optionsRef: {
   }: StreamdownElementProps<'a'>): ReactElement => {
     const options = optionsRef.current;
     const url = href ?? '';
+    const citationRef = parseKnowledgeCitationHref(url);
+    if (citationRef !== null) {
+      const citation = options.knowledgeCitations?.get(citationRef);
+      return citation ? (
+        <KnowledgeCitationMarker citation={citation} locale={options.locale} />
+      ) : (
+        <>{`[${citationRef}]`}</>
+      );
+    }
     const label = plainTextFromReactNode(children).trim() || 'Document';
     const normalizedUrl = url.split('#', 1)[0]?.split('?', 1)[0]?.toLowerCase() ?? '';
     const isDocumentLink =

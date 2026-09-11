@@ -14,7 +14,7 @@ export type {
   OpenSourceResult,
   FlashcardGenerationParams,
 } from '@piwin/contracts';
-export type { FolderRag } from './doc-rag-types.js';
+export type { FolderRag, FolderDocumentRecord } from './doc-rag-types.js';
 
 export {
   createDefaultChunker,
@@ -67,6 +67,7 @@ export {
   getLanceDbPath,
   documentIdFor,
   getSourcePathSidecar,
+  listSourcePathSidecars,
   isSafeRelativePath,
   isPathConfined,
 } from './paths.js';
