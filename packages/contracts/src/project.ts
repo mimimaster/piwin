@@ -30,6 +30,12 @@ export type ProjectRecord = {
   isPrimaryWorktree?: boolean;
   /** Current branch, or a detached HEAD short label. */
   currentBranch?: string;
+  /**
+   * Git checkout root (`rev-parse --show-toplevel`). Same for a remembered
+   * subdirectory of one checkout; different for linked worktrees.
+   * Host-only listing enrichment.
+   */
+  gitRootPath?: string;
 };
 
 export type ProjectStoreDocument = {

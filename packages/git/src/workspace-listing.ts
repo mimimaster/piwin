@@ -10,6 +10,8 @@ export type GitWorkspaceListing = {
   gitRepositoryId: string;
   isPrimaryWorktree: boolean;
   currentBranch: string | null;
+  /** `git rev-parse --show-toplevel` for this path. */
+  gitRootPath: string;
 };
 
 export function gitRepositoryIdFromCommonDir(commonDir: string): string {
@@ -29,6 +31,7 @@ export async function readGitWorkspaceListing(
       gitRepositoryId: gitRepositoryIdFromCommonDir(identity.commonDir),
       isPrimaryWorktree: identity.isPrimaryWorktree === true,
       currentBranch,
+      gitRootPath: identity.rootPath,
     };
   } catch {
     return null;

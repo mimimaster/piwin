@@ -1,11 +1,15 @@
-import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { runGitCommand } from './git-command-runner.js';
 import { probeGitRepository } from './repository-probe.js';
-import { findTrustedSameRepositoryRoot } from './same-repository.js';
+import {
+  findRegisteredGitWorktreeRoot,
+  findTrustedSameRepositoryRoot,
+  resolveOpenGitWorkspacePath,
+} from './same-repository.js';
 import { readGitBranchList } from './branch-list.js';
 
 const temporaryDirectories: string[] = [];
@@ -55,6 +59,60 @@ describe('same-repository worktrees', () => {
 
     const foreign = await createRepository();
     expect(await findTrustedSameRepositoryRoot(linkedPath, [foreign])).toBeNull();
+  });
+
+  it('maps a subdirectory of a remembered checkout back to that checkout', async () => {
+    const projectPath = await createRepository();
+    const nestedPath = join(projectPath, 'apps');
+    await mkdir(nestedPath);
+
+    expect(await findRegisteredGitWorktreeRoot(nestedPath, [projectPath])).toBe(projectPath);
+    expect(await findRegisteredGitWorktreeRoot(projectPath, [projectPath])).toBe(projectPath);
+  });
+
+  it('does not map a linked worktree onto the primary checkout', async () => {
+    const projectPath = await createRepository();
+    await runGit(projectPath, ['branch', 'feat/x']);
+    const linkedPath = join(projectPath, '..', `linked-subdir-${Date.now()}`);
+    temporaryDirectories.push(linkedPath);
+    await runGit(projectPath, ['worktree', 'add', linkedPath, 'feat/x']);
+
+    expect(await findRegisteredGitWorktreeRoot(linkedPath, [projectPath])).toBeNull();
+    expect(await findRegisteredGitWorktreeRoot(linkedPath, [linkedPath])).toBe(linkedPath);
+  });
+
+  it('does not treat a remembered subdirectory as the checkout to reuse', async () => {
+    const projectPath = await createRepository();
+    const nestedPath = join(projectPath, 'apps');
+    await mkdir(nestedPath);
+
+    expect(await findRegisteredGitWorktreeRoot(nestedPath, [nestedPath])).toBeNull();
+    expect(await realpath(await resolveOpenGitWorkspacePath(nestedPath, [nestedPath]))).toBe(
+      await realpath(projectPath),
+    );
+  });
+
+  it('lifts an unregistered subdirectory to the git checkout root', async () => {
+    const projectPath = await createRepository();
+    const nestedPath = join(projectPath, 'apps');
+    await mkdir(nestedPath);
+
+    expect(await realpath(await resolveOpenGitWorkspacePath(nestedPath, []))).toBe(
+      await realpath(projectPath),
+    );
+  });
+
+  it('keeps a symlink to the checkout root instead of rewriting it', async () => {
+    const projectPath = await createRepository();
+    await mkdir(join(projectPath, 'apps'));
+    const aliasPath = join(projectPath, '..', `alias-${Date.now()}`);
+    temporaryDirectories.push(aliasPath);
+    await symlink(projectPath, aliasPath);
+
+    expect(await resolveOpenGitWorkspacePath(aliasPath, [])).toBe(resolve(aliasPath));
+    expect(await resolveOpenGitWorkspacePath(join(aliasPath, 'apps'), [aliasPath])).toBe(
+      resolve(aliasPath),
+    );
   });
 
   it('annotates branch-list occupancy for a linked worktree', async () => {

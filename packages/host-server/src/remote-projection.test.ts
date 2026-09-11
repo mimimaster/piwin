@@ -479,6 +479,7 @@ describe('remote session/list projection', () => {
               gitRepositoryId: 'abcd1234abcd1234',
               isPrimaryWorktree: true,
               currentBranch: 'main',
+              gitRootPath: '/home/host/work/app',
             },
           ],
         },
@@ -501,6 +502,7 @@ describe('remote session/list projection', () => {
           gitRepositoryId: 'abcd1234abcd1234',
           isPrimaryWorktree: true,
           currentBranch: 'main',
+          gitRootPath: '/home/host/work/app',
         },
       ],
     });
