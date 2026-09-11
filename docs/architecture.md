@@ -459,10 +459,9 @@ ResourceLoader path; ADR 0023). It calls only Pi-native `ctx.ui.select` /
 
 The product surface is Agent tools, event hooks, and those four dialogs. Pi
 TUI chrome (custom components, widgets, themes, keybindings, editor, custom
-rendering) and native `/reload` are not bridged — they no-op or error. Settings
-→ Extensions, `piwin extension list`, and
-[`docs/guides/pi-extensions.md`](guides/pi-extensions.md) state that boundary
-before install.
+rendering) and native `/reload` are not bridged — they no-op or error.
+[`docs/guides/pi-extensions.md`](guides/pi-extensions.md), `piwin extension list`,
+and `piwin doctor` state that boundary.
 
 ### 3.6 Runtime control and execution planes
 

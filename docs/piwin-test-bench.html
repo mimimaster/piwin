@@ -1,0 +1,2365 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>piwin · 功能测试台</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #f7f8f8;
+      --panel: #ffffff;
+      --sidebar: #f3f4f5;
+      --ink: #24292f;
+      --ink-2: #57606a;
+      --ink-3: #8c959f;
+      --line: #d0d7de;
+      --line-soft: #eaeef2;
+      --accent: #0969da;
+      --accent-soft: #ddf4ff;
+      --pass: #1a7f37;
+      --pass-soft: #dafbe1;
+      --fail: #cf222e;
+      --fail-soft: #ffebe9;
+      --skip: #9a6700;
+      --skip-soft: #fff8c5;
+      --blocked: #8250df;
+      --blocked-soft: #fbefff;
+      --todo: #656d76;
+      --todo-soft: #f6f8fa;
+      --warn: #9a6700;
+      --danger: #cf222e;
+      --radius: 8px;
+      --font: "IBM Plex Sans", "PingFang SC", "Hiragino Sans GB", sans-serif;
+      --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+      --sidebar-w: 280px;
+      --detail-w: 360px;
+      --header-h: 52px;
+      --filter-h: 44px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: var(--font);
+      color: var(--ink);
+      background: var(--bg);
+      font-size: 13.5px;
+      line-height: 1.45;
+      overflow: hidden;
+    }
+    button, input, select, textarea { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+    ::selection { background: #b6e3ff; }
+
+    .app {
+      display: grid;
+      grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+      grid-template-rows: var(--header-h) minmax(0, 1fr);
+      height: 100vh;
+      height: 100dvh;
+    }
+
+    /* —— Top bar —— */
+    .topbar {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 14px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+      z-index: 30;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: calc(var(--sidebar-w) - 14px);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+    .brand-mark {
+      width: 22px; height: 22px; border-radius: 6px;
+      background: linear-gradient(135deg, #0969da, #0550ae);
+      color: #fff; display: grid; place-items: center;
+      font-size: 11px; font-weight: 700;
+    }
+    .brand small { color: var(--ink-3); font-weight: 500; margin-left: 4px; }
+
+    .search-wrap {
+      flex: 1;
+      max-width: 420px;
+      position: relative;
+    }
+    .search-wrap svg {
+      position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+      color: var(--ink-3); pointer-events: none;
+    }
+    .search-wrap input {
+      width: 100%;
+      height: 32px;
+      padding: 0 12px 0 32px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--bg);
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .search-wrap input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(9,105,218,.15);
+      background: #fff;
+    }
+    .kbd {
+      position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+      font-family: var(--mono); font-size: 11px; color: var(--ink-3);
+      border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; height: 20px;
+      display: grid; place-items: center; background: #fff;
+    }
+
+    .top-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+    .btn {
+      height: 30px; padding: 0 10px; border-radius: 6px;
+      border: 1px solid var(--line); background: #fff;
+      color: var(--ink); display: inline-flex; align-items: center; gap: 6px;
+      transition: background .15s, border-color .15s;
+    }
+    .btn:hover { background: var(--bg); }
+    .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn.primary:hover { background: #0550ae; }
+    .btn.ghost { border-color: transparent; background: transparent; color: var(--ink-2); }
+    .btn.ghost:hover { background: var(--line-soft); color: var(--ink); }
+    .progress-pill {
+      display: flex; align-items: center; gap: 8px;
+      height: 30px; padding: 0 10px; border-radius: 999px;
+      background: var(--bg); border: 1px solid var(--line);
+      font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: 12.5px;
+    }
+    .mini-bar {
+      width: 72px; height: 6px; border-radius: 99px; background: #e6ebf0; overflow: hidden;
+    }
+    .mini-bar > i { display:block; height:100%; background: var(--pass); width:0%; transition: width .2s; }
+
+    /* —— Sidebar —— */
+    .sidebar {
+      background: var(--sidebar);
+      border-right: 1px solid var(--line);
+      display: flex; flex-direction: column; min-height: 0;
+    }
+    .side-section {
+      padding: 12px 10px 6px;
+      font-size: 11px; font-weight: 600; letter-spacing: .04em;
+      text-transform: uppercase; color: var(--ink-3);
+    }
+    .side-nav {
+      flex: 1; overflow: auto; padding: 0 8px 16px;
+      scrollbar-width: thin;
+    }
+    .nav-item {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+      text-align: left;
+      border: 0;
+      background: transparent;
+      border-radius: 6px;
+      padding: 7px 8px;
+      color: var(--ink-2);
+      margin-bottom: 1px;
+    }
+    .nav-item:hover { background: rgba(0,0,0,.04); color: var(--ink); }
+    .nav-item.active {
+      background: #fff;
+      color: var(--ink);
+      box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgba(27,31,35,.04);
+      font-weight: 550;
+    }
+    .nav-item .name {
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      font-size: 13px;
+    }
+    .nav-item .count {
+      font-family: var(--mono); font-size: 11px; color: var(--ink-3);
+    }
+    .nav-item .count.done { color: var(--pass); }
+    .side-stats {
+      border-top: 1px solid var(--line);
+      padding: 10px 12px 14px;
+      display: grid; gap: 6px;
+      background: color-mix(in srgb, var(--sidebar) 80%, #fff);
+    }
+    .stat-row {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 12px; color: var(--ink-2);
+    }
+    .stat-dot {
+      width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px;
+    }
+
+    /* —— Main —— */
+    .main {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) var(--detail-w);
+      min-width: 0; min-height: 0;
+      background: var(--panel);
+    }
+    .main.no-detail { grid-template-columns: 1fr; }
+    .main.no-detail .detail { display: none; }
+
+    .workspace { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid var(--line); }
+    .filters {
+      height: var(--filter-h);
+      display: flex; align-items: center; gap: 6px;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--line-soft);
+      background: #fafbfc;
+      overflow-x: auto;
+    }
+    .chip {
+      height: 26px; padding: 0 10px; border-radius: 999px;
+      border: 1px solid transparent; background: transparent;
+      color: var(--ink-2); font-size: 12.5px;
+      display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+    }
+    .chip:hover { background: #fff; border-color: var(--line); }
+    .chip[aria-pressed="true"] {
+      background: #fff; border-color: var(--line); color: var(--ink);
+      box-shadow: 0 1px 2px rgba(27,31,35,.06);
+      font-weight: 550;
+    }
+    .chip .n {
+      font-family: var(--mono); font-size: 11px; color: var(--ink-3);
+      background: var(--bg); border-radius: 999px; padding: 0 6px; height: 18px;
+      display: inline-grid; place-items: center;
+    }
+
+    .list-head {
+      display: grid;
+      grid-template-columns: 28px 92px minmax(0,1fr) 110px 72px;
+      gap: 8px;
+      padding: 8px 14px;
+      font-size: 11px; font-weight: 600; color: var(--ink-3);
+      text-transform: uppercase; letter-spacing: .03em;
+      border-bottom: 1px solid var(--line-soft);
+      background: #fff;
+    }
+    .list {
+      flex: 1; overflow: auto; scrollbar-width: thin;
+    }
+    .group-block { border-bottom: 1px solid var(--line-soft); }
+    .group-title {
+      position: sticky; top: 0; z-index: 5;
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 14px;
+      background: color-mix(in srgb, #f6f8fa 92%, #fff);
+      border-bottom: 1px solid var(--line-soft);
+      backdrop-filter: blur(8px);
+    }
+    .group-title button {
+      border: 0; background: transparent; padding: 0; color: var(--ink);
+      font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 6px;
+    }
+    .group-title .meta { margin-left: auto; color: var(--ink-3); font-family: var(--mono); font-size: 11px; }
+
+    .row {
+      display: grid;
+      grid-template-columns: 28px 92px minmax(0,1fr) 110px 72px;
+      gap: 8px;
+      align-items: center;
+      padding: 0 14px;
+      min-height: 40px;
+      border-bottom: 1px solid var(--line-soft);
+      cursor: pointer;
+      transition: background .12s;
+    }
+    .row:hover { background: #f6f8fa; }
+    .row.active { background: var(--accent-soft); }
+    .row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+    .row.hidden { display: none; }
+
+    .check {
+      width: 16px; height: 16px; border-radius: 4px;
+      border: 1.5px solid var(--line); background: #fff;
+      display: grid; place-items: center;
+    }
+    .row[data-status="pass"] .check {
+      background: var(--pass); border-color: var(--pass); color: #fff;
+    }
+    .status {
+      height: 22px; padding: 0 8px; border-radius: 999px;
+      font-size: 11.5px; font-weight: 550;
+      display: inline-flex; align-items: center; gap: 4px;
+      border: 1px solid transparent; width: fit-content;
+    }
+    .status.todo { background: var(--todo-soft); color: var(--todo); border-color: var(--line); }
+    .status.pass { background: var(--pass-soft); color: var(--pass); }
+    .status.fail { background: var(--fail-soft); color: var(--fail); }
+    .status.skip { background: var(--skip-soft); color: var(--skip); }
+    .status.blocked { background: var(--blocked-soft); color: var(--blocked); }
+
+    .label {
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      font-size: 13.5px;
+    }
+    .row[data-status="pass"] .label { color: var(--ink-2); }
+    .tags { display: flex; gap: 4px; flex-wrap: nowrap; overflow: hidden; }
+    .tag {
+      font-size: 11px; padding: 1px 6px; border-radius: 999px;
+      background: #eef2f5; color: var(--ink-2); white-space: nowrap;
+    }
+    .tag.warn { background: var(--skip-soft); color: var(--warn); }
+    .tag.bad { background: var(--fail-soft); color: var(--fail); }
+    .updated {
+      font-family: var(--mono); font-size: 11px; color: var(--ink-3); text-align: right;
+    }
+
+    /* —— Detail —— */
+    .detail {
+      display: flex; flex-direction: column; min-height: 0; background: #fff;
+    }
+    .detail-empty {
+      margin: auto; text-align: center; color: var(--ink-3); padding: 24px;
+    }
+    .detail-head {
+      padding: 14px 16px 10px; border-bottom: 1px solid var(--line-soft);
+    }
+    .detail-head .id {
+      font-family: var(--mono); font-size: 11px; color: var(--ink-3); margin-bottom: 6px;
+    }
+    .detail-head h2 {
+      margin: 0; font-size: 15px; line-height: 1.35; letter-spacing: -0.01em;
+    }
+    .detail-body { padding: 12px 16px; display: grid; gap: 14px; overflow: auto; flex: 1; }
+    .field label {
+      display: block; font-size: 11px; font-weight: 600; color: var(--ink-3);
+      text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px;
+    }
+    .status-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+    }
+    .status-grid button {
+      height: 32px; border-radius: 6px; border: 1px solid var(--line);
+      background: #fff; font-size: 12.5px; font-weight: 550;
+    }
+    .status-grid button:hover { background: var(--bg); }
+    .status-grid button.active.pass { background: var(--pass-soft); border-color: #4ac26b; color: var(--pass); }
+    .status-grid button.active.fail { background: var(--fail-soft); border-color: #ff8182; color: var(--fail); }
+    .status-grid button.active.skip { background: var(--skip-soft); border-color: #d4a72c; color: var(--skip); }
+    .status-grid button.active.blocked { background: var(--blocked-soft); border-color: #c297ff; color: var(--blocked); }
+    .status-grid button.active.todo { background: var(--todo-soft); border-color: var(--line); }
+
+    textarea.note {
+      width: 100%; min-height: 140px; resize: vertical;
+      border: 1px solid var(--line); border-radius: 8px;
+      padding: 10px 12px; background: var(--bg);
+      outline: none; line-height: 1.5;
+    }
+    textarea.note:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(9,105,218,.12);
+      background: #fff;
+    }
+    .detail-actions {
+      display: flex; gap: 6px; padding: 12px 16px; border-top: 1px solid var(--line-soft);
+    }
+
+    .empty-list {
+      padding: 48px 20px; text-align: center; color: var(--ink-3);
+    }
+
+    .toast {
+      position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+      background: #24292f; color: #fff; padding: 8px 14px; border-radius: 8px;
+      font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .2s;
+      z-index: 100;
+    }
+    .toast.show { opacity: 1; }
+
+    dialog {
+      border: 1px solid var(--line); border-radius: 12px; padding: 0;
+      width: min(420px, calc(100% - 24px)); box-shadow: 0 16px 48px rgba(0,0,0,.18);
+    }
+    dialog::backdrop { background: rgba(27,31,35,.4); }
+    .dlg { padding: 18px; display: grid; gap: 12px; }
+    .dlg h3 { margin: 0; font-size: 15px; }
+    .dlg p { margin: 0; color: var(--ink-2); }
+    .dlg-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+    /* —— 测试增强：排序 / 折叠 / 步骤勾选 / 批量 / 备份 —— */
+    .filters-spacer { flex: 1; min-width: 12px; }
+    .sort-select {
+      height: 26px; border: 1px solid var(--line); border-radius: 999px;
+      background: #fff; font-size: 12px; color: var(--ink-2); padding: 0 8px;
+      outline: none; flex: none;
+    }
+    .sort-select:focus { border-color: var(--accent); }
+    .chip.bulk { border: 1px dashed var(--line); flex: none; }
+    .chip.bulk:hover { border-style: solid; }
+    .chip.bulk:disabled { opacity: .45; cursor: default; }
+    .detail-actions { flex-wrap: wrap; }
+    .progress-pill { cursor: pointer; }
+    .progress-pill:hover { border-color: var(--accent); color: var(--accent); }
+    .group-chevron {
+      display: inline-block; width: 12px; transition: transform .15s;
+      color: var(--ink-3); font-size: 10px;
+    }
+    .group-block.collapsed .group-chevron { transform: rotate(-90deg); }
+    .step-item { display: flex; gap: 8px; align-items: flex-start; }
+    .step-check {
+      width: 18px; height: 18px; flex: none; padding: 0; margin-top: 1px;
+      border-radius: 4px; border: 1.5px solid var(--line); background: #fff;
+      color: #fff; display: grid; place-items: center; font-size: 11px; font-weight: 700;
+      transition: background .12s, border-color .12s;
+    }
+    .step-check:hover { border-color: var(--pass); }
+    .step-check.on { background: var(--pass); border-color: var(--pass); }
+    .step-meta { color: var(--pass); font-weight: 600; }
+    .tag.ok { background: var(--pass-soft); color: var(--pass); }
+    .help-list { display: grid; gap: 6px; margin: 0; padding-left: 18px; color: var(--ink-2); }
+    .help-list kbd {
+      font-family: var(--mono); font-size: 11px; background: var(--bg);
+      border: 1px solid var(--line); border-radius: 4px; padding: 0 5px;
+    }
+
+    @media (max-width: 980px) {
+      .app { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .brand { min-width: auto; }
+      .main { grid-template-columns: 1fr; }
+      .detail { position: fixed; inset: auto 0 0 0; height: 46vh; border-top: 1px solid var(--line); z-index: 40; }
+      .list-head, .row { grid-template-columns: 28px 84px minmax(0,1fr); }
+      .list-head .c-tags, .list-head .c-time, .row .tags, .row .updated { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">π</div>
+        <div>功能测试台 <small>2026-09-11</small></div>
+      </div>
+      <div class="search-wrap">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input id="search" type="search" placeholder="搜索用例、步骤、期望…" autocomplete="off" />
+        <span class="kbd">/</span>
+      </div>
+      <div class="progress-pill" id="progressPill" title="已通过 / 总数。点击可切换「只看未测」">
+        <span id="progressText">0 / 0</span>
+        <span class="mini-bar"><i id="progressBar"></i></span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="top-actions">
+        <button class="btn ghost" type="button" id="toggleDetail" title="切换详情栏">详情</button>
+        <button class="btn" type="button" id="reportBtn" title="导出 Markdown 测试报告">报告</button>
+        <button class="btn" type="button" id="exportBtn" title="导出进度 JSON（含全部状态与备注）">导出</button>
+        <button class="btn" type="button" id="importBtn" title="导入进度 JSON">导入</button>
+        <button class="btn ghost" type="button" id="restoreBtn" title="恢复最近一次自动备份">恢复</button>
+        <button class="btn" type="button" id="resetBtn" title="清空全部状态与备注">重置</button>
+      </div>
+    </header>
+
+    <aside class="sidebar">
+      <div class="side-section">分类</div>
+      <nav class="side-nav" id="sideNav"></nav>
+      <div class="side-stats" id="sideStats"></div>
+    </aside>
+
+    <section class="main" id="main">
+      <div class="workspace">
+        <div class="filters" id="filters" role="tablist" aria-label="状态筛选"></div>
+        <div class="list-head">
+          <span></span>
+          <span>状态</span>
+          <span>用例</span>
+          <span class="c-tags">标签</span>
+          <span class="c-time" style="text-align:right">更新</span>
+        </div>
+        <div class="list" id="list" tabindex="0" aria-label="用例列表"></div>
+      </div>
+      <aside class="detail" id="detail"></aside>
+    </section>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <dialog id="confirmDialog">
+    <div class="dlg">
+      <h3 id="confirmTitle">确认</h3>
+      <p id="confirmMsg"></p>
+      <div class="dlg-actions">
+        <button class="btn" type="button" id="confirmCancel">取消</button>
+        <button class="btn primary" type="button" id="confirmOk">确认</button>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="helpDialog">
+    <div class="dlg">
+      <h3>键盘快捷键</h3>
+      <p style="margin:0 0 10px;color:var(--ink-2);font-size:12.5px">2026-09-11 Desktop 主路径。Live / CLI 标了「可选」。进度存在本机 localStorage，与旧清单互不影响。</p>
+      <ul class="help-list">
+        <li><kbd>j</kbd>/<kbd>k</kbd> 或 <kbd>↑</kbd>/<kbd>↓</kbd> — 上一条 / 下一条用例</li>
+        <li><kbd>Enter</kbd>/<kbd>Space</kbd> — 切换 通过 / 未测</li>
+        <li><kbd>1</kbd>–<kbd>5</kbd> — 未测 / 通过 / 失败 / 跳过 / 阻塞</li>
+        <li><kbd>[</kbd>/<kbd>]</kbd> — 上一组 / 下一组</li>
+        <li><kbd>/</kbd> 搜索（含备注）· <kbd>Esc</kbd> 清空搜索</li>
+        <li>点击行内「状态徽章」循环切换状态；点步骤圆圈逐步打勾；分组标题可折叠</li>
+      </ul>
+      <div class="dlg-actions">
+        <button class="btn primary" type="button" id="helpClose">知道了</button>
+      </div>
+    </div>
+  </dialog>
+  <input id="importFile" type="file" accept="application/json,.json" hidden />
+
+<script>
+
+const STORAGE_KEY = "piwin.feature-test-bench.v1";
+const BACKUP_KEY = STORAGE_KEY + ".backup";
+
+const STATUSES = [
+  { id: "todo", label: "未测", short: "未测" },
+  { id: "pass", label: "通过", short: "通过" },
+  { id: "fail", label: "失败", short: "失败" },
+  { id: "skip", label: "跳过", short: "跳过" },
+  { id: "blocked", label: "阻塞", short: "阻塞" },
+];
+
+/**
+ * Desktop-first acceptance cases (2026-09-11).
+ * Optional surfaces are tagged 可选 / Live / CLI.
+ * Each item: id, title, steps[], expect, tags?
+ */
+const GROUPS = [
+  {
+    id: "start",
+    title: "启动与默认空间",
+    items: [
+      {
+        id: "start.launch",
+        title: "能正常打开桌面端并进入主界面",
+        steps: ["启动 Desktop", "等待主界面加载完成"],
+        expect: "看到侧栏、主对话区，无白屏/崩溃；Host 状态点可见",
+      },
+      {
+        id: "start.no-repo",
+        title: "启动默认落在 No Repo，而不是某个真实项目",
+        steps: ["完全退出后再打开 Desktop", "看 Projects 区最上方"],
+        expect: "No Repo 是固定默认空间；会话走 ~/.piwin/workspace 的 General 范围",
+      },
+      {
+        id: "start.no-repo-fixed",
+        title: "No Repo 不能删、不能当普通项目信任",
+        steps: ["右键或菜单尝试移除 No Repo", "看它是否出现在项目信任/记录里"],
+        expect: "不可移除；不是 ProjectRecord；不继承项目指令或项目权限",
+      },
+      {
+        id: "start.conversations",
+        title: "Conversations 独立于 No Repo，折叠项目栏不会藏会话",
+        steps: ["选中 No Repo", "折叠 Projects 区", "看 Conversations 是否还在"],
+        expect: "General 历史仍在 Conversations；不会复制到 No Repo 下面",
+      },
+      {
+        id: "start.open-project",
+        title: "能选择本地文件夹打开为项目",
+        steps: ["打开项目/选择文件夹", "选一个真实本地目录"],
+        expect: "该项目出现在侧栏，工作区绑定到所选路径",
+      },
+      {
+        id: "start.trust",
+        title: "未信任项目时危险操作被拦，信任后可继续",
+        steps: ["打开一个未信任项目", "尝试发一条会触发工具的消息", "再点信任"],
+        expect: "未信任时有清晰拦截；信任后会话可正常发送与使用工具",
+      },
+      {
+        id: "start.switch-project",
+        title: "能在最近项目与 No Repo 之间切换",
+        steps: ["打开一个真实项目", "再点回 No Repo", "再切回该项目"],
+        expect: "项目上下文切换正确；会话列表跟着范围变化，不串台",
+      },
+      {
+        id: "start.project-picker",
+        title: "全部项目列表可搜索并打开",
+        steps: ["打开全部项目入口", "输入关键词筛选", "点开目标项目"],
+        expect: "列表可搜、可点开，结果与本地项目一致",
+      },
+    ],
+  },
+  {
+    id: "session",
+    title: "会话管理",
+    items: [
+      {
+        id: "session.new-send",
+        title: "新建会话后能发消息并收到回复",
+        steps: ["点新建会话", "输入一句简单问题并发送", "等待回复结束"],
+        expect: "用户消息与助手回复都出现在对话里，流式过程可见",
+      },
+      {
+        id: "session.switch",
+        title: "切换会话时内容不会串台",
+        steps: ["准备两个有内容的会话", "来回切换"],
+        expect: "每次切换看到的是对应会话历史，不混消息",
+      },
+      {
+        id: "session.rename",
+        title: "能重命名会话且侧栏立即更新",
+        steps: ["对某会话重命名为可识别名字", "看侧栏标题"],
+        expect: "新名称立刻显示，刷新/重进后仍保留",
+      },
+      {
+        id: "session.pin",
+        title: "能置顶/取消置顶会话",
+        steps: ["置顶一个会话", "确认出现在置顶区", "再取消置顶"],
+        expect: "置顶区展示正确，取消后回到普通列表",
+      },
+      {
+        id: "session.search",
+        title: "会话搜索能找到目标会话",
+        steps: ["用已知标题关键词搜索", "点开结果"],
+        expect: "命中正确会话；无结果时有空态而不是报错",
+      },
+      {
+        id: "session.archive-delete",
+        title: "归档后默认隐藏，可从归档找回或彻底删除",
+        steps: ["归档一个会话", "确认主列表不再显示", "打开已归档列表", "可选：彻底删除并确认"],
+        expect: "归档像软删除；硬删除有确认，删后不可再打开",
+      },
+      {
+        id: "session.duplicate",
+        title: "复制整段会话得到独立副本",
+        steps: ["对有内容的会话执行复制/Duplicate", "在副本里再发一条消息"],
+        expect: "出现新会话且带原内容；之后两边互不影响",
+      },
+      {
+        id: "session.fork",
+        title: "从某条助手回复分叉出新会话（Fork Chat）",
+        steps: ["在已完成的助手消息上选分叉/Fork", "打开新会话"],
+        expect: "新会话保留分叉点之前的上下文，之后独立继续聊；这不是会话内 ‹n/m› 树",
+      },
+      {
+        id: "session.auto-title",
+        title: "新会话聊几轮后标题会自动变合理",
+        steps: ["新建会话并聊 1–2 轮具体话题", "看侧栏标题变化"],
+        expect: "标题从默认名变成与内容相关的名字（或明确保持默认的产品行为）",
+      },
+      {
+        id: "session.copy-export",
+        title: "能复制会话 ID / 转录，并能导出",
+        steps: ["打开会话行菜单", "复制 ID", "复制转录", "导出"],
+        expect: "剪贴板内容正确；导出文件可打开，不含密钥",
+      },
+      {
+        id: "session.continue-in-project",
+        title: "纯聊会话可「在项目中继续」",
+        steps: ["在 No Repo / Conversations 里打开一个会话", "选在项目中继续", "选一个已信任项目"],
+        expect: "出现绑定到该项目的后续路径；原 General 会话仍在",
+      },
+      {
+        id: "session.cold-restore",
+        title: "已卸载到冷存储的会话可恢复",
+        steps: ["找一个 offloaded 会话（或在设置里归档/卸载）", "从菜单/设置执行恢复"],
+        expect: "恢复后可打开历史并继续聊；缺 pack 时有明确说明而不是空白",
+        tags: ["可选"],
+      },
+    ],
+  },
+  {
+    id: "tree",
+    title: "会话树与回合修复",
+    items: [
+      {
+        id: "tree.sibling-nav",
+        title: "同层回复可用 ‹ n/m › 切换，不另开会话",
+        steps: ["在 Conversation 里对同一问做出两个不同回答（试另一答案）", "用 ‹ › 来回切"],
+        expect: "只改当前可见路径；侧栏仍是同一个会话，不是 Fork Chat",
+      },
+      {
+        id: "tree.header-list",
+        title: "标题栏「会话树」能列出分叉点并跳转",
+        steps: ["造至少一处分叉", "打开会话树列表", "点另一个分叉"],
+        expect: "列表是当前会话内的 fork 点；跳转后主路径消息跟着变",
+      },
+      {
+        id: "tree.edit-card",
+        title: "点用户气泡是编辑此轮，不会先截断历史",
+        steps: ["点用户消息编辑", "看是否出现编辑卡", "先取消"],
+        expect: "打开编辑卡；取消后原文不动，没有先删后面的回复",
+      },
+      {
+        id: "tree.retry-repair",
+        title: "编辑卡「重试」是修复：不复制用户问题",
+        steps: ["对刚失败或刚完成的一轮点重试（文案不变）", "看用户气泡数量"],
+        expect: "不会多出一条相同用户消息；失败/中止的尝试被替换，不是并排三个相同提问",
+      },
+      {
+        id: "tree.branch-explore",
+        title: "「开分支」会保留旧回答，作为兄弟路径",
+        steps: ["对已完成回答点开分支", "生成新回答", "用 ‹ n/m › 切回旧回答"],
+        expect: "旧回答还在；新回答是兄弟；这是探索，不是修复",
+      },
+      {
+        id: "tree.send-new-version",
+        title: "改了用户文案再发送，是新版本分支",
+        steps: ["编辑用户消息改几个字", "发送新版本"],
+        expect: "原提问与原回答仍可切回；新文案走新路径",
+      },
+      {
+        id: "tree.revert",
+        title: "「回到此处 / Revert」会删掉该点之后的子树",
+        steps: ["在有后续轮次的消息上选回到此处", "确认"],
+        expect: "有确认；之后的消息消失；这是破坏性截断，不是切分支",
+      },
+      {
+        id: "tree.try-another",
+        title: "「再试一个回答」只在 Conversation 出现",
+        steps: ["在 No Repo 纯聊对完成回答找再试", "再打开项目 Agent 会话看同一位置"],
+        expect: "纯聊可保留旧回答再生成；项目会话走错误卡重试，不把日常重试画成树",
+      },
+      {
+        id: "tree.failed-run-card",
+        title: "失败回合的错误卡钉在本轮，不涂到上一句已完成回复",
+        steps: ["制造一次明确失败（错误 key / 断网）", "看红卡挂在哪条助手消息"],
+        expect: "失败卡属于这次 run；上一轮成功回复不会突然变成失败",
+      },
+      {
+        id: "tree.truncate-continue",
+        title: "输出被截断是完成态：有「继续」，不是失败红卡",
+        steps: ["让模型写很长内容直到截断（或找一条已截断的）", "看助手底部"],
+        expect: "出现「输出被截断」和「继续」；没有 TurnErrorCard；点继续能接着写而不是重来",
+      },
+    ],
+  },
+  {
+    id: "chat",
+    title: "对话显示与交互",
+    items: [
+      {
+        id: "chat.markdown",
+        title: "助手回复的 Markdown 正常渲染",
+        steps: ["让模型输出标题、列表、代码块"],
+        expect: "格式正确；代码块可读，不会整段当纯文本糊在一起",
+      },
+      {
+        id: "chat.math-mermaid",
+        title: "公式和流程图能显示，坏内容不会搞崩页面",
+        steps: ["让模型输出一段 KaTeX 公式", "再输出一段 Mermaid", "故意要一段坏的 Mermaid"],
+        expect: "正常内容可渲染；坏内容软失败，页面仍可用",
+      },
+      {
+        id: "chat.thinking",
+        title: "思考/推理内容可展开折叠",
+        steps: ["用会出思考块的模型发问", "点开/收起思考区"],
+        expect: "思考区存在时可操作；不影响主回复阅读",
+      },
+      {
+        id: "chat.tools",
+        title: "工具调用过程看得见：进行中、完成、失败",
+        steps: ["发一条会读文件/跑命令的请求", "观察工具卡片", "再读一个不存在的文件"],
+        expect: "进行中有状态；完成后有结果摘要；失败有错误信息，可展开看详情",
+      },
+      {
+        id: "chat.permission",
+        title: "需要授权时弹出许可，可选允许/拒绝/记住",
+        steps: ["触发需要确认的操作（写文件/联网）", "分别试允许、拒绝、记住后再触发一次"],
+        expect: "弹卡清楚；拒绝后不执行；记住后同类操作不再反复打扰（按产品规则）",
+      },
+      {
+        id: "chat.long-thread",
+        title: "很长的对话仍可滚动浏览，界面不卡死",
+        steps: ["打开或造一个很长的会话", "上下滚动到头尾"],
+        expect: "消息可看完，无明显卡顿/空白错乱",
+      },
+      {
+        id: "chat.error",
+        title: "模型/网络出错时有可读错误，而不是空白",
+        steps: ["在无可用模型或断网时发送（或临时关掉 key）"],
+        expect: "对话区出现明确错误提示，可重试或改配置",
+      },
+      {
+        id: "chat.image-bubble",
+        title: "生成或粘贴的图片在聊天气泡里能预览",
+        steps: ["粘贴或让模型生成一张图", "点开气泡里的图"],
+        expect: "气泡可见图；点开可看大图；路径不会当正文 dump 进 prompt",
+      },
+    ],
+  },
+  {
+    id: "composer",
+    title: "输入框与发送控制",
+    items: [
+      {
+        id: "composer.send-pause-continue",
+        title: "发送→暂停→继续 主路径正确",
+        steps: ["发一条会跑一会儿的任务", "生成中点暂停", "输入框为空时点继续"],
+        expect: "暂停后当前回合停下；继续从检查点恢复，不是丢弃整段对话",
+      },
+      {
+        id: "composer.pause-then-new",
+        title: "暂停后输入新内容再发送，是开新一轮而不是继续",
+        steps: ["跑起来后点暂停", "在输入框打新问题并发送"],
+        expect: "作为新的用户消息发出；不会误当成「继续」",
+      },
+      {
+        id: "composer.stop",
+        title: "能中止正在进行的回复",
+        steps: ["发送后立刻停止/Abort（按钮或 ⌘.）"],
+        expect: "生成停下，界面回到可输入状态",
+      },
+      {
+        id: "composer.steer-queue",
+        title: "生成过程中追加指示或排队下一条",
+        steps: ["生成中输入补充要求并 Steer/发送排队", "看当前轮与后续轮如何处理"],
+        expect: "补充指示生效或进入队列；队列可看到，完成后按序执行",
+      },
+      {
+        id: "composer.queue-edit",
+        title: "排队中的消息可改文案、取消或调顺序",
+        steps: ["造至少两条排队消息", "编辑其中一条", "取消一条", "如有排序则调整"],
+        expect: "改动能反映到队列；取消后不再发送；顺序变化生效",
+      },
+      {
+        id: "composer.paste-image",
+        title: "粘贴图片进输入框，发送后模型侧能用到图",
+        steps: ["复制一张图粘贴到输入框", "确认出现缩略图", "带一句说明发送"],
+        expect: "缩略图可删；发送后聊天气泡可见图；助手能基于图回答（或明确说不支持视觉）",
+      },
+      {
+        id: "composer.drop-file",
+        title: "拖拽图片/文件进输入框",
+        steps: ["把本地图片或文件拖进输入区", "发送"],
+        expect: "出现附件预览；失败时有重试，不会静默丢附件",
+      },
+      {
+        id: "composer.mention",
+        title: "用 @ 引用文件后，引用会出现在输入区并可去掉",
+        steps: ["输入 @ 选一个项目文件", "确认输入区出现引用标签", "删掉该标签"],
+        expect: "引用标签清晰；删除后不再附带；发送时模型能拿到对应上下文",
+      },
+      {
+        id: "composer.model-thinking",
+        title: "能切换模型与思考强度",
+        steps: ["打开模型选择器换一个模型", "调整思考/推理档位", "各发一条短消息"],
+        expect: "选择被记住到当前会话；回复行为与所选配置相符",
+      },
+      {
+        id: "composer.goal-slash",
+        title: "Goal 只能用 /goal 进入，输入区出现退出芯片",
+        steps: ["确认工具栏没有 Goal 下拉", "输入 /goal 或 /goal 写一个目标", "看输入区芯片"],
+        expect: "没有模式选择器；Goal 武装后有退出芯片；点芯片回到 Agent",
+      },
+      {
+        id: "composer.orchestration",
+        title: "复杂任务编排：关闭 vs 开启 Ultra Code",
+        steps: ["先 /scheme off 发一个简单改代码请求", "再 /ultra-code 或 /scheme ultra-code 发一个可拆分任务"],
+        expect: "关闭时像普通单代理；开启后能看到子任务/编排迹象，结果仍回到当前会话可读",
+      },
+      {
+        id: "composer.branch-chip",
+        title: "项目会话里能看到当前 git 分支并切换",
+        steps: ["在项目会话看输入区附近的分支信息", "切换到另一本地分支并确认"],
+        expect: "显示当前分支；切换有确认；切换后状态更新（仅项目会话）",
+      },
+      {
+        id: "composer.context-ring",
+        title: "能看到上下文占用，点开有明细",
+        steps: ["打开有较长历史的会话", "看输入区旁占用指示", "点开详情"],
+        expect: "有占用比例/状态；明细可读；不会在无窗口信息时乱显示",
+      },
+    ],
+  },
+  {
+    id: "compact",
+    title: "上下文压缩",
+    items: [
+      {
+        id: "compact.manual",
+        title: "手动压缩：用 /compact 或界面入口主动压缩",
+        steps: ["打开一个上下文较大的会话", "确保当前没有在生成", "执行 compact", "看压缩过程与结果提示"],
+        expect: "有进行中状态；成功后占用下降或出现摘要说明；可关掉提示条",
+      },
+      {
+        id: "compact.gates",
+        title: "不该压缩时入口会禁用并说明原因",
+        steps: ["无会话时看入口", "生成过程中看入口", "压缩进行中再点一次"],
+        expect: "不可用时有原因（等生成结束/已在压缩等），不会重复开打或报错崩溃",
+      },
+      {
+        id: "compact.auto",
+        title: "自动压缩开关生效",
+        steps: ["在设置里打开/关闭自动压缩", "用足够长的对话逼近上限（或按文档触发条件）"],
+        expect: "开启时会自动触发压缩；关闭时只靠手动",
+      },
+      {
+        id: "compact.export",
+        title: "压缩导出：生成摘要文档且不改坏原会话",
+        steps: ["对当前会话做 compact-export/导出摘要", "打开原会话再看内容"],
+        expect: "得到可打开的 Markdown 摘要；原会话消息仍在",
+      },
+      {
+        id: "compact.replay-restart",
+        title: "压缩后重启应用，摘要仍在，不会把旧历史再灌一遍",
+        steps: ["成功 compact 一次", "完全退出再打开同一会话", "再发一条短消息"],
+        expect: "压缩卡片仍是活动记录而不是一条用户/助手消息；模型不再看到被摘要掉的原文全量",
+      },
+      {
+        id: "compact.replay-model-switch",
+        title: "压缩后换模型，占用指示可显示上次确认值，但不拿去乱触发",
+        steps: ["compact 成功后换一个模型", "看上下文环"],
+        expect: "可显示上次确认占用（只读/过期）；不会用过期数字去自动再压一次",
+      },
+    ],
+  },
+  {
+    id: "slash",
+    title: "斜杠命令",
+    items: [
+      {
+        id: "slash.menu",
+        title: "输入 / 弹出命令菜单，可键盘选择",
+        steps: ["在输入框键入 /", "上下选择并回车"],
+        expect: "菜单分组清楚（Command / Mode / Skill）；选中项正确填入或执行",
+      },
+      {
+        id: "slash.compact",
+        title: "/compact（及 summarize/compress 别名）在空闲会话可用",
+        steps: ["空闲时执行 /compact", "生成中再看该命令"],
+        expect: "空闲触发压缩；忙碌时灰态并说明原因",
+      },
+      {
+        id: "slash.flashcards",
+        title: "/flashcards、/cards、/knowledge、/doccards 都打开闪卡页",
+        steps: ["分别试这些斜杠"],
+        expect: "都进入同一个闪卡主页，而不是各开不同入口",
+      },
+      {
+        id: "slash.wiki",
+        title: "/wiki 与 /notes 打开项目笔记检索",
+        steps: ["在项目会话执行 /wiki 或 /notes", "搜一个已知笔记词"],
+        expect: "进入笔记/Wiki 检索而不是闪卡页",
+      },
+      {
+        id: "slash.scheme",
+        title: "/scheme 与 /ultra-code 能切换本轮编排",
+        steps: ["/scheme off", "再 /ultra-code 或 /scheme ultra-code"],
+        expect: "下一次发送带上对应 scheme；纯聊菜单里没有这两项",
+      },
+      {
+        id: "slash.skills",
+        title: "已启用技能会出现在 / 菜单并可触发",
+        steps: ["确认设置里某技能已启用", "用 /技能名 或菜单选中"],
+        expect: "菜单有该项；触发后按技能流程走；禁用技能不可用或提示去设置启用",
+      },
+      {
+        id: "slash.pure-chat",
+        title: "纯聊（No Repo）时斜杠菜单更精简",
+        steps: ["进入 No Repo 会话", "输入 / 看菜单"],
+        expect: "主要剩 compact / 模式 / 用户级技能；不出现 flashcards、wiki、scheme、ultra-code",
+      },
+    ],
+  },
+  {
+    id: "multipane",
+    title: "多对话窗格",
+    items: [
+      {
+        id: "pane.conversation-only",
+        title: "多窗格只存在于 Conversation，项目 Agent 仍是单工作台",
+        steps: ["在 No Repo 试拆分", "再打开项目会话看是否能拆成聊天窗格"],
+        expect: "纯聊可 1/2/4/8 窗格；项目会话保持单舞台，不把 Agent 塞进 Chat pane",
+      },
+      {
+        id: "pane.split-basic",
+        title: "可用 ⌘D / ⇧⌘D 拆出左右或上下窗格并各自聊",
+        steps: ["在纯聊按 ⌘D 拆右", "两边绑定不同会话或同会话", "分别发送"],
+        expect: "两边都可独立收发；停止只停当前窗格的 run",
+      },
+      {
+        id: "pane.presets",
+        title: "1/2/4/8 预设可切换，缩小只关视图不改会话",
+        steps: ["拆到至少 2 格", "用预设切到 4 再切回 2"],
+        expect: "主窗格始终在第一格；缩小时关掉的是视图，会话还在",
+      },
+      {
+        id: "pane.close-max",
+        title: "窗格可关闭、最大化、还原；主窗格不能关",
+        steps: ["最大化某一格", "还原", "关闭多余窗格", "试关主窗格"],
+        expect: "布局状态符合操作；不会把唯一窗格关到空白死局",
+      },
+      {
+        id: "pane.focus",
+        title: "键盘可在窗格间切换焦点",
+        steps: ["造 2+ 窗格", "用 ⌘[ ⌘] 或 ⌥⌘方向键切焦点并输入"],
+        expect: "焦点落在正确窗格，输入进对应输入框；Enter 发送，Shift+Enter 换行",
+      },
+      {
+        id: "pane.empty",
+        title: "空窗格可新建 Chat 或从下拉绑定未占用会话",
+        steps: ["拆出空窗格", "新建", "再从标题下拉绑已有会话"],
+        expect: "新建立即绑定；删除中的会话应留下空窗格而不是偷偷换绑",
+      },
+    ],
+  },
+  {
+    id: "models",
+    title: "模型与登录",
+    items: [
+      {
+        id: "models.add-provider",
+        title: "能添加模型供应商并填入密钥",
+        steps: ["打开设置 → 模型", "新增一个 OpenAI/Anthropic 兼容供应商", "保存密钥（环境变量或密钥引用）"],
+        expect: "保存成功；密钥不明文回显；列表能看到该供应商",
+      },
+      {
+        id: "models.discover-enable",
+        title: "能发现模型、启用后可在对话里选到",
+        steps: ["对供应商执行发现/刷新模型", "启用目标模型", "回对话选择器确认"],
+        expect: "模型出现在选择器；禁用后消失或不可选",
+      },
+      {
+        id: "models.test",
+        title: "「测试连接」能区分成功与失败",
+        steps: ["用正确密钥测一次", "用错误密钥再测一次"],
+        expect: "成功有明确成功态；失败有可读错误，不崩溃",
+      },
+      {
+        id: "models.oauth",
+        title: "订阅/OAuth 登录与退出",
+        steps: ["打开设置 → OAuth/账号", "对支持的账号执行登录", "再退出"],
+        expect: "登录态可见；退出后对应能力不可用或提示重新登录",
+      },
+      {
+        id: "models.image-vision",
+        title: "图像相关模型可配置（若产品启用）",
+        steps: ["在模型设置看图像/视觉相关项", "配置并做一次生成或识图"],
+        expect: "配置可保存；相关能力按启用状态工作",
+      },
+      {
+        id: "models.realtime-audio",
+        title: "标了 realtime-audio 的模型会出现在 Live 路由里",
+        steps: ["在模型设置启用一个 realtime-audio 模型", "打开 Live 设置看路由"],
+        expect: "Live 能选到该路由；未标记的聊天模型不会混进 Live",
+        tags: ["Live", "可选"],
+      },
+    ],
+  },
+  {
+    id: "perms",
+    title: "权限与写闸",
+    items: [
+      {
+        id: "perms.modes",
+        title: "权限模式 auto / 全部询问 / 绕过 切换生效",
+        steps: ["在设置切换三种模式", "各触发一次需权限的操作"],
+        expect: "ask-all 几乎都问；auto 按规则；bypass 少问或按文档行为（危险，测完改回）",
+      },
+      {
+        id: "perms.remember-manage",
+        title: "记住的授权可在设置里查看和撤销",
+        steps: ["对某操作点记住", "打开权限/记住管理", "撤销后再触发"],
+        expect: "列表能看到规则；撤销后会重新询问",
+      },
+      {
+        id: "perms.network",
+        title: "联网搜索/抓取的域名授权可记住",
+        steps: ["触发 web 搜索或抓取", "记住域名/搜索授权", "再触发同类请求"],
+        expect: "第二次不再重复追问（在记住范围内）",
+      },
+      {
+        id: "perms.write-gate",
+        title: "同一回合写不同文件应能并行，不必互相 workspace-busy",
+        steps: ["让代理在一轮里改两个不同文件", "观察是否一个成功一个立刻报忙"],
+        expect: "不同文件可在同一回合写入；长 shell / git 仍会串行等待",
+      },
+      {
+        id: "perms.undo-busy",
+        title: "写入进行中点撤销，应明确忙碌而不是写坏文件",
+        steps: ["让代理写一个较大改动", "进行中立刻撤销/undo"],
+        expect: "给出 workspace-busy 或等价说明；不会留下半截文件当成功",
+      },
+    ],
+  },
+  {
+    id: "right",
+    title: "右侧工作台",
+    items: [
+      {
+        id: "right.files",
+        title: "文件树能浏览并打开项目文件",
+        steps: ["打开右侧文件面板", "展开目录", "打开一个文件/预览"],
+        expect: "路径正确；打开结果符合预期",
+      },
+      {
+        id: "right.terminal",
+        title: "内置终端能输入命令并看到输出",
+        steps: ["打开终端面板", "执行 pwd 和一条简单命令"],
+        expect: "有真实交互终端体验，输出正确，工作目录与项目相关",
+      },
+      {
+        id: "right.changes",
+        title: "变更面板能看到 git 改动与 diff",
+        steps: ["在项目里改一个文件", "打开变更/Review", "点开文件看 diff"],
+        expect: "列出改动文件；diff 正确",
+      },
+      {
+        id: "right.git-commit",
+        title: "能从界面暂存并提交（无强制推送）",
+        steps: ["在变更面板 stage", "写 commit message 提交"],
+        expect: "提交成功；界面状态变干净；没有 force-push 入口",
+      },
+      {
+        id: "right.browser-open",
+        title: "浏览器面板能打开页面，代理操作有画面",
+        steps: ["打开 Browser 面板", "打开一个网址或让代理用浏览器工具"],
+        expect: "面板有画面；代理点击/导航能在镜像里看到",
+      },
+      {
+        id: "right.browser-takeover",
+        title: "能接管/交还浏览器，互不自动抢锁",
+        steps: ["让代理正在操作页面", "点 Take over 自己点一下", "再 Give back"],
+        expect: "接管后用户可点选输入；代理写工具会提示用户占着；交还后代理可继续；无关的编码回合不会冻住浏览器",
+      },
+      {
+        id: "right.plus-resize",
+        title: "加号可开面板，面板宽度可拖",
+        steps: ["用 + 打开/切换面板", "拖拽分隔条改宽度"],
+        expect: "面板列表正确（files/terminal/review/browser/notes/cards/canvas/sideChat）；宽度即时生效",
+      },
+      {
+        id: "right.full-width",
+        title: "右侧面板可铺满，只留侧栏+面板",
+        steps: ["打开任一右栏", "点进入全宽/把左缘拖过最大", "再退出全宽"],
+        expect: "对话列被盖住但状态还在；退出后回到分栏；不在重启后记住全宽",
+      },
+      {
+        id: "right.overshoot-close",
+        title: "拖过最小宽度会收起右栏或侧栏，再拖回来会打开",
+        steps: ["把右栏拖到最窄再往外拖一点", "把侧栏往左拖过最窄", "不松手再拖回来"],
+        expect: "越过阈值收起；反向拖回最小宽度会展开；下次打开仍是上次有效宽度",
+      },
+      {
+        id: "right.side-chat",
+        title: "侧聊：从主会话拉出旁路讨论",
+        steps: ["从消息菜单或右栏开 Side Chat", "在侧聊发几句", "再同步/回到主会话"],
+        expect: "侧聊独立可读；默认不改代码；与主会话关系清晰，不串内容",
+      },
+    ],
+  },
+  {
+    id: "ctxmenu",
+    title: "右键菜单",
+    items: [
+      {
+        id: "ctx.file-to-chat",
+        title: "在文件上「添加到对话 / 询问 / 解释 / 修复」",
+        steps: ["在文件树右键文件", "分别试添加到对话、询问、解释、修复"],
+        expect: "输入区带上文件上下文或自动发出对应意图提示",
+      },
+      {
+        id: "ctx.selection",
+        title: "划词后可解释、修复、生成测试、生成闪卡",
+        steps: ["在代码或文档里选一段文字", "右键试解释/修复/生成测试/生成闪卡"],
+        expect: "动作带上选区；生成闪卡应得到恰好一张卡并进闪卡库",
+      },
+      {
+        id: "ctx.message",
+        title: "消息上可复制、引用、分叉、回到此处、编辑此轮",
+        steps: ["对用户/助手消息打开菜单", "试引用到输入框、分叉、回到此处、编辑此轮"],
+        expect: "每项有明确结果；破坏性操作有确认",
+      },
+      {
+        id: "ctx.apply",
+        title: "「应用到文件」会确认后写回项目",
+        steps: ["在可应用的代码块/diff 上选应用到文件", "确认写入"],
+        expect: "有确认；写入后文件内容变化；取消则不写",
+      },
+      {
+        id: "ctx.paths",
+        title: "路径相关：打开、在文件夹显示、复制相对/绝对路径",
+        steps: ["对 path/文件入口试 Open / Show in Folder / 复制路径"],
+        expect: "系统行为正确，剪贴板内容正确",
+      },
+    ],
+  },
+  {
+    id: "artifact",
+    title: "Artifact 与生成媒体",
+    items: [
+      {
+        id: "artifact.html-preview",
+        title: "助手输出 HTML 产物时可预览，源码与预览可切换",
+        steps: ["让模型输出一个 html/artifact 代码块", "打开预览", "切换源码视图"],
+        expect: "沙箱预览可见；切换正常；外部危险资源默认被拦",
+      },
+      {
+        id: "artifact.export",
+        title: "能导出原始 HTML（不是包了一层的壳）",
+        steps: ["对产物执行导出/复制源码"],
+        expect: "得到模型原始内容，可在外部打开",
+      },
+      {
+        id: "artifact.playground",
+        title: "设置里的 Artifact 实验场可调试策略",
+        steps: ["打开设置 → Agent → Artifact/实验场", "改一项策略并预览"],
+        expect: "设置可保存；预览行为跟着变",
+      },
+      {
+        id: "artifact.generated-media",
+        title: "生成的图片进媒体库，不把 base64 塞进 Artifact HTML",
+        steps: ["让模型先生成图，再做页面/图标拼装"],
+        expect: "图出现在资料库；Artifact 过大时是策略拦截而不是整页崩溃；下一轮 prompt 不夹带像素",
+      },
+      {
+        id: "artifact.too-large",
+        title: "Artifact 过大时提示 blocked-too-large，对话仍可用",
+        steps: ["让模型输出超大 HTML/内联资源"],
+        expect: "有明确拦截原因；不是红卡崩溃；可继续发消息",
+      },
+    ],
+  },
+  {
+    id: "media",
+    title: "资料库 / 图片 / 视频",
+    items: [
+      {
+        id: "media.library",
+        title: "侧栏「资料库」进入整页，可在图片/视频间切",
+        steps: ["点侧栏资料库", "看是否整页", "在图片与视频间切换", "关闭返回"],
+        expect: "像闪卡一样整页；返回后会话还在",
+      },
+      {
+        id: "media.images-page",
+        title: "聊天生成或粘贴的图会出现在图片库",
+        steps: ["让助手生成一张图或粘贴发送一张", "打开图片库"],
+        expect: "新图出现在库中；可点开大图查看",
+      },
+      {
+        id: "media.videos-page",
+        title: "视频库能列出生成的视频，未配置时有说明",
+        steps: ["若已配置视频生成，生成一段短视频", "打开视频库"],
+        expect: "视频可列出、可播放；未配置时有清楚提示而非空白崩溃",
+        tags: ["可选"],
+      },
+    ],
+  },
+  {
+    id: "flashcards",
+    title: "闪卡：家、来源、出卡",
+    items: [
+      {
+        id: "fc.home",
+        title: "侧栏「闪卡」进入整页主页，关掉能回会话",
+        steps: ["点侧栏闪卡", "看是否整页（侧栏消失）", "关闭返回"],
+        expect: "像资料库一样整页；返回后会话还在",
+      },
+      {
+        id: "fc.source-panel",
+        title: "左侧来源栏能添加资料文件夹并看到入库状态",
+        steps: ["打开闪卡页", "添加或点一个资料文件夹", "看未入库/已入库状态"],
+        expect: "来源是一等公民；不是跳到另一个向导页才看出卡",
+      },
+      {
+        id: "fc.ingest-produce",
+        title: "入库有进度可取消；出卡不离开卡库，活瓷片边出边落",
+        steps: ["勾选文件入库", "看进度", "再出一套", "另测一次入库中取消"],
+        expect: "入库/出卡有进度；成功后卡进库；取消不留下脏半成品或有明确说明",
+      },
+      {
+        id: "fc.tile-flip",
+        title: "卡库瓷片可就地翻面预览，不计入复习进度",
+        steps: ["点一张瓷片翻面", "再翻回", "确认没有进入复习台"],
+        expect: "预览翻面；不写 Host 进度；只有「过一遍」才进复习",
+      },
+      {
+        id: "fc.manual-crud",
+        title: "能手动新建、编辑、删除单张卡",
+        steps: ["新建一张卡填正反面", "编辑文案", "删除它"],
+        expect: "库中立即反映；删除有确认",
+      },
+      {
+        id: "fc.sequence-group",
+        title: "成套卡在库里叠在一起，只露顶张",
+        steps: ["准备或生成一套多张卡", "在库里观察展示"],
+        expect: "同套聚合；点「过一遍」进入复习而不是散乱多张无关联",
+      },
+      {
+        id: "fc.chat-create",
+        title: "聊天里要生成闪卡，卡片当场可见并写入库",
+        steps: ["在对话里要求生成几张闪卡", "看消息内卡片", "回闪卡页确认同一批卡"],
+        expect: "消息内可翻看；闪卡页能找到同一份数据",
+      },
+      {
+        id: "fc.selection-one",
+        title: "划词「生成闪卡」只会得到一张卡",
+        steps: ["选一段文字", "右键生成闪卡", "只划词但不点生成再观察"],
+        expect: "点了才生成；结果恰好一张；仅划词不自动请求",
+      },
+      {
+        id: "fc.delete-set",
+        title: "能删整套卡，来源可忘掉文件夹",
+        steps: ["删整套并确认", "在来源行试忘掉此文件夹的卡并确认"],
+        expect: "整套成员一起消失；忘掉有确认，不会误清别的来源",
+      },
+    ],
+  },
+  {
+    id: "study-seq",
+    title: "闪卡：过一遍",
+    items: [
+      {
+        id: "study.seq-enter",
+        title: "点「过一遍」进入顺序复习，一套按原顺序",
+        steps: ["从库点单张或一套的过一遍"],
+        expect: "进入复习台；一套按原顺序，不随机打散",
+      },
+      {
+        id: "study.seq-click-flip",
+        title: "点卡片任意空白处可翻面；划词不翻",
+        steps: ["点卡面翻到答案", "再在卡上拖选一段文字"],
+        expect: "点击翻面；拖选文字不翻；点链接/按钮不翻",
+      },
+      {
+        id: "study.seq-flip-next",
+        title: "主按钮是「下一张」，有撕卡动画",
+        steps: ["翻到答案面", "点下一张", "观察下层露出"],
+        expect: "没有「暂停」按钮；有撕卡动效；不是普通翻页闪一下",
+      },
+      {
+        id: "study.seq-unrevealed",
+        title: "不翻面也能下一张，只算浏览不算答对",
+        steps: ["在问题面直接下一张直到结束"],
+        expect: "允许；完成页写已浏览数量，不宣称掌握",
+      },
+      {
+        id: "study.seq-end",
+        title: "最后一张是结束浏览，完成页信息正确",
+        steps: ["走到最后一张", "结束", "看完成页"],
+        expect: "文案正确；显示已浏览 N 张；如有「需再看」数量也正确",
+      },
+      {
+        id: "study.seq-needs-review",
+        title: "可标记「需再看」，不改到期复习算法",
+        steps: ["复习中标记再看", "结束后看小结", "回库看该卡到期信息是否被乱改"],
+        expect: "本轮记下标记；不把顺序浏览当成评分去改 FSRS 到期",
+      },
+      {
+        id: "study.seq-leave-resume",
+        title: "中途返回即保存，再进能续学",
+        steps: ["复习到一半返回卡库", "从入口继续未完成轮次"],
+        expect: "没有暂停按钮；进度还在；不会从头莫名清空（除非选了重新开始）",
+      },
+      {
+        id: "study.seq-undo",
+        title: "能撤销上一步复习操作",
+        steps: ["下一张或翻面后点撤销"],
+        expect: "回到上一步合理状态",
+      },
+    ],
+  },
+  {
+    id: "study-due",
+    title: "闪卡：今日复习",
+    items: [
+      {
+        id: "study.due-entry",
+        title: "「今日复习 · 到期 N」进入调度队列",
+        steps: ["打开今日复习", "看到期数量"],
+        expect: "数量清楚；进入后是评分模式而不是纯浏览",
+      },
+      {
+        id: "study.due-rate",
+        title: "未翻面前评分条灰掉，翻面后 again/hard/good/easy 可点并自动下一题",
+        steps: ["先看评分条是否可点", "揭晓答案", "选一个评分", "观察是否自动到下一题"],
+        expect: "翻面前不可评；成功自动撕下一题；失败留在当前答案面并提示",
+      },
+      {
+        id: "study.due-once",
+        title: "同一题本轮不能重复有效评分",
+        steps: ["对一题评分后设法再评"],
+        expect: "不会重复计入；或明确拒绝",
+      },
+      {
+        id: "study.due-summary",
+        title: "一轮结束后显示本轮复习题数",
+        steps: ["把一批评完"],
+        expect: "小结是处理数量，不是掌握率吹嘘；新一轮需再点入口",
+      },
+    ],
+  },
+  {
+    id: "skills-mcp",
+    title: "技能、MCP、扩展",
+    items: [
+      {
+        id: "ext.skills-toggle",
+        title: "设置里能启用/禁用技能，对话菜单跟着变",
+        steps: ["打开设置 → 扩展/技能", "禁用一个技能", "看 / 菜单", "再启用"],
+        expect: "禁用后菜单无该项；启用后恢复",
+      },
+      {
+        id: "ext.skills-install",
+        title: "能安装本地或 git 技能",
+        steps: ["从设置/面板安装一个技能源", "确认出现在列表"],
+        expect: "安装成功可启用；失败有错误信息",
+      },
+      {
+        id: "ext.mcp-lifecycle",
+        title: "MCP 服务器能添加、启动、停止并看健康状态",
+        steps: ["添加一个已知可用的 MCP", "启动", "看 tools 列表", "停止"],
+        expect: "状态真实；工具列表可预览；密钥不明文泄露",
+      },
+      {
+        id: "ext.mcp-json",
+        title: "MCP 支持表单与原始 JSON 两种编辑且会校验",
+        steps: ["用表单改一项", "再用 JSON 改", "故意写坏 JSON"],
+        expect: "合法可保存；非法被拦住并提示",
+      },
+      {
+        id: "ext.plugins-prompts",
+        title: "提示词模板与插件可列出/启停/安装卸载",
+        steps: ["打开 Prompts、Plugins 页签各做一次启停或安装"],
+        expect: "列表与状态正确；危险操作有确认",
+      },
+      {
+        id: "ext.pi-extensions",
+        title: "Pi 扩展（如 Goal）开关影响产品入口",
+        steps: ["关闭 Goal 相关扩展", "回对话看 /goal", "再打开"],
+        expect: "关闭后 /goal 不可用并提示去扩展页启用；打开后恢复",
+      },
+    ],
+  },
+  {
+    id: "agent-extra",
+    title: "Goal、子代理、计划、Walkthrough",
+    items: [
+      {
+        id: "agent.goal-strip",
+        title: "Goal 第一轮后出现粘性条，阶段跟工具走",
+        steps: ["/goal 写一个小目标并发送", "看 sticky strip 的 running/waiting/blocked/completed"],
+        expect: "阶段来自模型真正调用的 goal_* 工具；交付/阻塞/等待卡能读到结构化字段",
+      },
+      {
+        id: "agent.goal-abort-exit",
+        title: "中止当前 run 与退出 Goal 模式是两件事",
+        steps: ["Goal 跑起来后点中止", "再点芯片退出 Goal"],
+        expect: "中止只停这一轮；退出 Goal 才回到 Agent，两者不混",
+      },
+      {
+        id: "agent.subagent",
+        title: "复杂任务可起子代理，状态可看、可取消",
+        steps: ["触发会分子代理的任务（或开 ultra-code）", "打开子代理面板看进度", "必要时取消"],
+        expect: "子代理状态可见；结果回到主对话可读；取消后停干净",
+      },
+      {
+        id: "agent.plan",
+        title: "计划面板能看到步骤推进，失败步骤有标识",
+        steps: ["让助手做带计划的任务", "打开 Plan 相关面板", "如有失败步骤看标识"],
+        expect: "步骤状态更新；失败步骤可见；计划文件损坏时会话仍能继续发消息",
+      },
+      {
+        id: "agent.walkthrough",
+        title: "计划完成后自动生成 Walkthrough，绑在最后一条助手消息",
+        steps: ["完成一个带计划且有改动的任务", "看助手消息下的 Walkthrough 卡片", "确认没有手动「生成」按钮"],
+        expect: "计划完成才出报告；绑到该次执行的最终助手消息；设置里自定义提示词可影响内容",
+      },
+    ],
+  },
+  {
+    id: "web",
+    title: "联网搜索与抓取",
+    items: [
+      {
+        id: "web.search",
+        title: "助手调用网页搜索时，结果可点开来源",
+        steps: ["问一个需要近况的事实问题", "观察搜索卡片/引用"],
+        expect: "有来源链接或引用；失败时说明未配置/被拒",
+      },
+      {
+        id: "web.fetch",
+        title: "助手抓取某个 URL 能得到可读正文",
+        steps: ["给一个公开文档 URL 让它总结"],
+        expect: "能基于页面内容回答；超时/拦截有错误提示；必要时可走无头渲染回退",
+      },
+      {
+        id: "web.settings",
+        title: "设置里可开关搜索源与抓取策略",
+        steps: ["打开设置 → Web", "关掉搜索再让助手搜", "再打开"],
+        expect: "关闭后搜索不可用或明确失败；打开后恢复",
+      },
+    ],
+  },
+  {
+    id: "settings",
+    title: "设置页冒烟",
+    items: [
+      {
+        id: "settings.search",
+        title: "设置内搜索能跳到对应分区",
+        steps: ["打开设置", "搜「快捷键」或「MCP」", "点结果"],
+        expect: "跳到正确分区；旧深链（appearance/skills 等）会重定向到合并后的页",
+      },
+      {
+        id: "settings.general",
+        title: "通用：外观明暗、语言、快捷键页可打开保存",
+        steps: ["切换亮/暗色", "改一项外观或语言", "打开快捷键页浏览"],
+        expect: "立刻或重载后生效；无报错",
+      },
+      {
+        id: "settings.pets",
+        title: "桌宠可启用并跟随代理状态动",
+        steps: ["在通用/宠物里启用一个宠物", "发任务看动画", "再禁用"],
+        expect: "启用可见；状态有变化；禁用消失",
+      },
+      {
+        id: "settings.session-cold",
+        title: "会话运行与冷存储相关设置可看可改",
+        steps: ["打开 Session / Cold storage", "看归档策略、导出摘要等入口", "改一项可逆配置并保存"],
+        expect: "保存成功；危险操作有确认",
+      },
+      {
+        id: "settings.knowledge",
+        title: "知识库/向量设置可配置 embedding",
+        steps: ["打开 Knowledge 设置", "查看 embedding 配置项（不强制真连）"],
+        expect: "表单完整；密钥引用不明文；保存校验合理",
+      },
+      {
+        id: "settings.usage-archive",
+        title: "用量页与归档页能打开",
+        steps: ["打开 Usage", "打开 Archive"],
+        expect: "有数据或空态；不会报错白屏",
+      },
+      {
+        id: "settings.host-target",
+        title: "运行目标显示本机；远程未接时有说明",
+        steps: ["打开通用里的 Host/运行目标"],
+        expect: "本机可用；远程若未接显示灰态与「未连接」类说明",
+      },
+      {
+        id: "settings.mobile-access",
+        title: "移动访问相关设置可看（即使未接手机）",
+        steps: ["在通用里打开 Mobile access"],
+        expect: "有说明或配置项；不会因为没手机而崩溃",
+        tags: ["可选"],
+      },
+    ],
+  },
+  {
+    id: "live",
+    title: "语音 Live",
+    items: [
+      {
+        id: "live.call",
+        title: "能开始/挂断 Live，挂断不砍掉已在跑的任务",
+        steps: ["在已登录/已配 key 的前提下开始 Live", "让代理跑一个任务", "挂断语音"],
+        expect: "通话状态清楚；挂断后任务仍可继续",
+        tags: ["Live", "可选"],
+      },
+      {
+        id: "live.retarget",
+        title: "通话中切换工作会话会改绑，失败可见",
+        steps: ["Live 接通后切到另一个会话", "看绑定目标标识"],
+        expect: "成功改绑有短提示；空焦点保持旧绑；失败有可见错误，不悄悄 abort 已接纳的 Run",
+        tags: ["Live", "可选"],
+      },
+    ],
+  },
+  {
+    id: "palette",
+    title: "命令面板与快捷键",
+    items: [
+      {
+        id: "palette.open",
+        title: "命令面板能打开、搜索并执行",
+        steps: ["用快捷键打开命令面板", "搜「设置」或「新会话」并回车"],
+        expect: "列表可键盘选择；执行后面板关闭并完成对应动作",
+      },
+      {
+        id: "palette.panels",
+        title: "面板类命令能打开文件/终端/变更/浏览器",
+        steps: ["从命令面板分别打开文件树、终端、变更、浏览器"],
+        expect: "右栏切到对应 tab；重复切换符合产品行为",
+      },
+      {
+        id: "palette.shortcuts-page",
+        title: "设置 → 快捷键能看到目录且与真实按键一致",
+        steps: ["打开通用 → 快捷键", "对照一条已知快捷键实际按一次"],
+        expect: "目录与真实行为一致；冲突或不可用有说明",
+      },
+    ],
+  },
+  {
+    id: "resilience",
+    title: "稳定性与恢复",
+    items: [
+      {
+        id: "res.resume",
+        title: "重启应用后能回到项目并打开上次会话",
+        steps: ["记下一个会话", "完全退出 Desktop 再打开", "回到同范围同会话"],
+        expect: "历史还在，可继续聊",
+      },
+      {
+        id: "res.offline-error",
+        title: "断网时发送有友好错误",
+        steps: ["断网发送一条"],
+        expect: "提示网络/请求失败，界面可恢复",
+      },
+      {
+        id: "res.draft-media",
+        title: "附件上传失败可从草稿重试，不丢文件",
+        steps: ["粘贴图片后在未发送时制造失败（断网）", "恢复网络后重试发送"],
+        expect: "草稿还在；附件可重试；不会静默丢图",
+      },
+    ],
+  },
+  {
+    id: "cli",
+    title: "CLI 冒烟",
+    items: [
+      {
+        id: "cli.doctor",
+        title: "piwin doctor 能跑通并报告 Host/配置",
+        steps: ["在终端执行 piwin doctor"],
+        expect: "有可读状态；失败项可定位；不要把警告当崩溃",
+        tags: ["CLI", "可选"],
+      },
+      {
+        id: "cli.chat",
+        title: "piwin chat 能发一条并收回复（mock 或真模型）",
+        steps: ["piwin chat \"ping\" --mock 或对真实项目发一句"],
+        expect: "有助手输出或明确错误；退出码合理",
+        tags: ["CLI", "可选"],
+      },
+      {
+        id: "cli.session",
+        title: "session list / search / branches 与桌面看到的是同一套会话",
+        steps: ["piwin session list", "对已知标题 search", "对有分叉的会话 branches"],
+        expect: "ID/标题与 Desktop 对得上；branches 能列出分叉点",
+        tags: ["CLI", "可选"],
+      },
+      {
+        id: "cli.study",
+        title: "piwin study catalog 能列出闪卡，不要求动画",
+        steps: ["piwin study catalog"],
+        expect: "能列出卡/套；失败有可读错误。CLI 无撕卡动画是预期",
+        tags: ["CLI", "可选"],
+      },
+    ],
+  },
+];
+
+        /** @typedef {{status:string, note:string, updatedAt?:string}} ItemState */
+    /** @type {{items: Record<string, ItemState>, activeGroup:string|'all', selectedId:string|null, showDetail:boolean}} */
+    let state = loadState();
+    let filterStatus = "all";
+    let searchQuery = "";
+
+    const $ = (id) => document.getElementById(id);
+    const allItems = GROUPS.flatMap((g) => g.items.map((item) => ({
+      ...item,
+      label: item.title,
+      groupId: g.id,
+      groupTitle: g.title,
+    })));
+    const itemById = Object.fromEntries(allItems.map((i) => [i.id, i]));
+
+    function defaultItem() {
+      return { status: "todo", note: "", stepsChecked: [] };
+    }
+
+    /** 归一化持久化状态；新增字段全部为增量，旧进度/备注/标记原样保留。 */
+    function normalizeState(raw) {
+      const s = raw || {};
+      const items = {};
+      for (const [k, v] of Object.entries(s.items || {})) {
+        if (v && typeof v === "object") items[k] = v;
+      }
+      let activeGroup = s.activeGroup || "all";
+      if (activeGroup !== "all" && !GROUPS.some((g) => g.id === activeGroup)) activeGroup = "all";
+      return {
+        items,
+        activeGroup,
+        selectedId: s.selectedId || null,
+        showDetail: s.showDetail !== false,
+        collapsedGroups: Array.isArray(s.collapsedGroups) ? s.collapsedGroups : [],
+        sortMode: ["group", "todo-first", "recent"].includes(s.sortMode) ? s.sortMode : "group",
+      };
+    }
+
+    function loadState() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+        if (parsed && typeof parsed === "object") return normalizeState(parsed);
+      } catch {}
+      return normalizeState(null);
+    }
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function getItemState(id) {
+      const s = state.items[id];
+      return s && typeof s === "object" ? { ...defaultItem(), ...s } : defaultItem();
+    }
+
+    function setItemStatus(id, status) {
+      state.items[id] = { ...getItemState(id), status, updatedAt: new Date().toISOString() };
+      saveState();
+    }
+
+    function setItemNote(id, note) {
+      state.items[id] = { ...getItemState(id), note, updatedAt: new Date().toISOString() };
+      saveState();
+    }
+
+    function setItemSteps(id, checked) {
+      state.items[id] = { ...getItemState(id), stepsChecked: checked, updatedAt: new Date().toISOString() };
+      saveState();
+    }
+
+    function statusLabel(id) {
+      return STATUSES.find((s) => s.id === id)?.label || id;
+    }
+
+    function tagClass(tag) {
+      if (tag.includes("红") || tag.includes("未上线")) return "bad";
+      if (tag.includes("黄") || tag.includes("可选") || tag.includes("P1")) return "warn";
+      return "";
+    }
+
+    function formatTime(iso) {
+      if (!iso) return "—";
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return "—";
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      const hh = String(d.getHours()).padStart(2, "0");
+      const mi = String(d.getMinutes()).padStart(2, "0");
+      return `${mm}-${dd} ${hh}:${mi}`;
+    }
+
+    function counts() {
+      const c = { all: 0, todo: 0, pass: 0, fail: 0, skip: 0, blocked: 0 };
+      for (const item of allItems) {
+        const st = getItemState(item.id).status || "todo";
+        c.all += 1;
+        c[st] = (c[st] || 0) + 1;
+      }
+      return c;
+    }
+
+    function groupCounts(groupId) {
+      const items = groupId === "all" ? allItems : allItems.filter((i) => i.groupId === groupId);
+      let pass = 0;
+      for (const item of items) {
+        if (getItemState(item.id).status === "pass") pass += 1;
+      }
+      return { total: items.length, pass };
+    }
+
+    function matchesFilters(item) {
+      if (state.activeGroup !== "all" && item.groupId !== state.activeGroup) return false;
+      const st = getItemState(item.id).status || "todo";
+      if (filterStatus !== "all" && st !== filterStatus) return false;
+      if (searchQuery) {
+        const hay = `${item.title} ${item.id} ${(item.tags || []).join(" ")} ${item.groupTitle} ${(item.steps || []).join(" ")} ${item.expect || ""} ${getItemState(item.id).note || ""}`.toLowerCase();
+        if (!hay.includes(searchQuery)) return false;
+      }
+      return true;
+    }
+
+    function toast(msg) {
+      const el = $("toast");
+      el.textContent = msg;
+      el.classList.add("show");
+      clearTimeout(toast._t);
+      toast._t = setTimeout(() => el.classList.remove("show"), 1600);
+    }
+
+    function confirmAction(title, msg) {
+      const dialog = $("confirmDialog");
+      $("confirmTitle").textContent = title;
+      $("confirmMsg").textContent = msg;
+      dialog.showModal();
+      return new Promise((resolve) => {
+        const ok = $("confirmOk");
+        const cancel = $("confirmCancel");
+        let settled = false;
+        const finish = (v) => {
+          if (settled) return;
+          settled = true;
+          resolve(v);
+        };
+        dialog.addEventListener("close", () => finish(false), { once: true });
+        ok.onclick = () => { dialog.close(); finish(true); };
+        cancel.onclick = () => { dialog.close(); };
+      });
+    }
+
+    function renderSidebar() {
+      const nav = $("sideNav");
+      nav.innerHTML = "";
+
+      const allBtn = document.createElement("button");
+      allBtn.type = "button";
+      allBtn.className = `nav-item${state.activeGroup === "all" ? " active" : ""}`;
+      const ac = groupCounts("all");
+      allBtn.innerHTML = `<span class="name">全部用例</span><span class="count${ac.pass === ac.total ? " done" : ""}">${ac.pass}/${ac.total}</span>`;
+      allBtn.onclick = () => activateGroup("all");
+      nav.appendChild(allBtn);
+
+      for (const g of GROUPS) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = `nav-item${state.activeGroup === g.id ? " active" : ""}`;
+        const gc = groupCounts(g.id);
+        btn.innerHTML = `<span class="name" title="${escapeAttr(g.title)}">${escapeHtml(g.title)}</span><span class="count${gc.pass === gc.total && gc.total ? " done" : ""}">${gc.pass}/${gc.total}</span>`;
+        btn.onclick = () => activateGroup(g.id);
+        nav.appendChild(btn);
+      }
+
+      const c = counts();
+      $("sideStats").innerHTML = `
+        <div class="stat-row"><span><span class="stat-dot" style="background:var(--pass)"></span>通过</span><strong>${c.pass}</strong></div>
+        <div class="stat-row"><span><span class="stat-dot" style="background:var(--fail)"></span>失败</span><strong>${c.fail}</strong></div>
+        <div class="stat-row"><span><span class="stat-dot" style="background:var(--skip)"></span>跳过</span><strong>${c.skip}</strong></div>
+        <div class="stat-row"><span><span class="stat-dot" style="background:var(--blocked)"></span>阻塞</span><strong>${c.blocked}</strong></div>
+        <div class="stat-row"><span><span class="stat-dot" style="background:var(--line)"></span>未测</span><strong>${c.todo}</strong></div>
+      `;
+    }
+
+    function renderFilters() {
+      const c = counts();
+      const filters = [
+        { id: "all", label: "全部", n: c.all },
+        ...STATUSES.map((s) => ({ id: s.id, label: s.label, n: c[s.id] })),
+      ];
+      const visibleCount = allItems.filter(matchesFilters).length;
+      $("filters").innerHTML = filters.map((f) => `
+        <button type="button" class="chip" data-filter="${f.id}" aria-pressed="${filterStatus === f.id}">
+          ${f.label}<span class="n">${f.n}</span>
+        </button>
+      `).join("") + `
+        <span class="filters-spacer"></span>
+        <select id="sortSelect" class="sort-select" title="列表排序（组内生效）">
+          ${["group", "todo-first", "recent"].map((m) => `<option value="${m}"${state.sortMode === m ? " selected" : ""}>${{ group: "分组顺序", "todo-first": "未测优先", recent: "最近更新" }[m]}</option>`).join("")}
+        </select>
+        <button class="chip bulk" type="button" id="bulkPass" ${visibleCount ? "" : "disabled"}>批量通过 · ${visibleCount}</button>
+        <button class="chip bulk" type="button" id="bulkReset" ${visibleCount ? "" : "disabled"}>批量清空 · ${visibleCount}</button>
+      `;
+      $("filters").querySelectorAll("button[data-filter]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          filterStatus = btn.dataset.filter;
+          render();
+        });
+      });
+      $("sortSelect").addEventListener("change", (e) => {
+        state.sortMode = e.target.value;
+        saveState();
+        render();
+      });
+      $("bulkPass").addEventListener("click", () => bulkApply("pass"));
+      $("bulkReset").addEventListener("click", () => bulkApply("reset"));
+    }
+
+    function getStatusOf(id) {
+      return getItemState(id).status || "todo";
+    }
+
+    function sortVisible(items) {
+      if (state.sortMode === "group") return items;
+      const rank = { todo: 0, pass: 1, fail: 2, skip: 3, blocked: 4 };
+      const arr = items.slice();
+      if (state.sortMode === "todo-first") {
+        arr.sort((a, b) => rank[getStatusOf(a.id)] - rank[getStatusOf(b.id)]);
+      } else {
+        const t = (id) => {
+          const v = Date.parse(getItemState(id).updatedAt || "");
+          return Number.isFinite(v) ? v : 0;
+        };
+        arr.sort((a, b) => t(b.id) - t(a.id));
+      }
+      return arr;
+    }
+
+    function toggleCollapse(groupId) {
+      const idx = state.collapsedGroups.indexOf(groupId);
+      if (idx === -1) state.collapsedGroups.push(groupId);
+      else state.collapsedGroups.splice(idx, 1);
+      saveState();
+      render();
+    }
+
+    function makeRow(item) {
+      const st = getItemState(item.id);
+      const status = st.status || "todo";
+      const doneSteps = Array.isArray(st.stepsChecked) ? st.stepsChecked.length : 0;
+      const stepTag = doneSteps && item.steps && item.steps.length && doneSteps < item.steps.length
+        ? `<span class="tag ok" title="已确认 ${doneSteps}/${item.steps.length} 步">步骤 ${doneSteps}/${item.steps.length}</span>` : "";
+      const row = document.createElement("div");
+      row.className = `row${state.selectedId === item.id ? " active" : ""}`;
+      row.dataset.id = item.id;
+      row.dataset.status = status;
+      row.tabIndex = 0;
+      row.innerHTML = `
+        <span class="check" title="点击切换 通过/未测" aria-hidden="true">${status === "pass" ? "✓" : ""}</span>
+        <span class="status ${status}" title="点击循环切换：未测→通过→失败→跳过→阻塞">${STATUSES.find((s) => s.id === status)?.short || status}</span>
+        <span class="label" title="${escapeAttr(item.title)}">${escapeHtml(item.title)}</span>
+        <span class="tags">${(item.tags || []).map((t) => `<span class="tag ${tagClass(t)}">${escapeHtml(t)}</span>`).join("")}${stepTag}</span>
+        <span class="updated">${formatTime(st.updatedAt)}</span>
+      `;
+      row.addEventListener("click", (e) => {
+        if (e.target.closest(".check")) {
+          setItemStatus(item.id, status === "pass" ? "todo" : "pass");
+          state.selectedId = item.id;
+          saveState();
+          render();
+          return;
+        }
+        if (e.target.closest(".status")) {
+          cycleStatus(item.id);
+          return;
+        }
+        state.selectedId = item.id;
+        state.showDetail = true;
+        saveState();
+        render();
+      });
+      row.addEventListener("dblclick", () => {
+        const cur = getItemState(item.id).status || "todo";
+        setItemStatus(item.id, cur === "pass" ? "todo" : "pass");
+        render();
+      });
+      return row;
+    }
+
+    function cycleStatus(id) {
+      const order = ["todo", "pass", "fail", "skip", "blocked"];
+      const next = order[(order.indexOf(getStatusOf(id)) + 1) % order.length];
+      setItemStatus(id, next);
+      toast(`已标记「${statusLabel(next)}」`);
+    }
+
+    function renderList() {
+      const list = $("list");
+      const visible = allItems.filter(matchesFilters);
+
+      const c = counts();
+      const pct = c.all ? Math.round((c.pass / c.all) * 100) : 0;
+      $("progressText").textContent = `${c.pass} / ${c.all}`;
+      $("progressPct").textContent = `${pct}%`;
+      $("progressBar").style.width = `${pct}%`;
+
+      if (visible.length === 0) {
+        list.innerHTML = `<div class="empty-list">没有匹配的用例</div>`;
+        return;
+      }
+
+      const byGroup = new Map();
+      for (const item of visible) {
+        if (!byGroup.has(item.groupId)) byGroup.set(item.groupId, []);
+        byGroup.get(item.groupId).push(item);
+      }
+
+      const frag = document.createDocumentFragment();
+      for (const g of GROUPS) {
+        let items = byGroup.get(g.id);
+        if (!items?.length) continue;
+        items = sortVisible(items);
+        const gc = groupCounts(g.id);
+        const collapsed = state.collapsedGroups.includes(g.id);
+        const block = document.createElement("div");
+        block.className = `group-block${collapsed ? " collapsed" : ""}`;
+        const titleBtn = document.createElement("button");
+        titleBtn.type = "button";
+        titleBtn.title = collapsed ? "展开该分组" : "折叠该分组";
+        titleBtn.innerHTML = `<span class="group-chevron">▼</span>${escapeHtml(g.title)}`;
+        titleBtn.onclick = () => toggleCollapse(g.id);
+        const meta = document.createElement("span");
+        meta.className = "meta";
+        meta.textContent = collapsed ? `${gc.pass}/${gc.total} · ${items.length} 项已折叠` : `${gc.pass}/${gc.total}`;
+        const head = document.createElement("div");
+        head.className = "group-title";
+        head.append(titleBtn, meta);
+        block.appendChild(head);
+        if (!collapsed) {
+          for (const item of items) {
+            block.appendChild(makeRow(item));
+          }
+        }
+        frag.appendChild(block);
+      }
+      list.innerHTML = "";
+      list.appendChild(frag);
+
+      const active = list.querySelector(".row.active");
+      if (active) active.scrollIntoView({ block: "nearest" });
+    }
+
+    function renderDetail() {
+      const main = $("main");
+      main.classList.toggle("no-detail", !state.showDetail);
+      const detail = $("detail");
+      if (!state.showDetail) {
+        detail.innerHTML = "";
+        return;
+      }
+      const item = state.selectedId ? itemById[state.selectedId] : null;
+      if (!item) {
+        detail.innerHTML = `<div class="detail-empty">点左侧一条用例<br/>查看步骤与期望结果</div>`;
+        return;
+      }
+      const st = getItemState(item.id);
+      const checked = new Set((Array.isArray(st.stepsChecked) ? st.stepsChecked : []).filter((n) => Number.isInteger(n)));
+      const totalSteps = (item.steps || []).length;
+      const stepsHtml = (item.steps || []).map((s, i) => {
+        const on = checked.has(i);
+        return `<li class="step-item"><button type="button" class="step-check${on ? " on" : ""}" data-i="${i}" title="标记第 ${i + 1} 步已确认">${on ? "✓" : ""}</button><span>${escapeHtml(s)}</span></li>`;
+      }).join("");
+      detail.innerHTML = `
+        <div class="detail-head">
+          <div class="id">${escapeHtml(item.groupTitle)} · ${escapeHtml(item.id)}</div>
+          <h2>${escapeHtml(item.title)}</h2>
+        </div>
+        <div class="detail-body">
+          <div class="field">
+            <label>测试步骤${totalSteps ? ` · <span class="step-meta">${checked.size}/${totalSteps} 已确认</span>` : ""}</label>
+            <ol style="margin:0;padding-left:0;color:var(--ink-2);display:grid;gap:6px;list-style:none">${stepsHtml}</ol>
+          </div>
+          <div class="field">
+            <label>期望结果</label>
+            <div style="color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px">${escapeHtml(item.expect || "")}</div>
+          </div>
+          <div class="field">
+            <label>测试状态</label>
+            <div class="status-grid" id="statusGrid">
+              ${STATUSES.map((s) => `
+                <button type="button" data-status="${s.id}" class="${st.status === s.id ? `active ${s.id}` : ""}">${s.label}</button>
+              `).join("")}
+            </div>
+          </div>
+          ${(item.tags || []).length ? `<div class="field"><label>标签</label><div class="tags">${item.tags.map((t) => `<span class="tag ${tagClass(t)}">${escapeHtml(t)}</span>`).join("")}</div></div>` : ""}
+          <div class="field">
+            <label>我的备注</label>
+            <textarea class="note" id="noteInput" placeholder="实际结果、截图路径、bug 链接…">${escapeHtml(st.note || "")}</textarea>
+          </div>
+          <div class="field">
+            <label>最近更新</label>
+            <div style="font-family:var(--mono);color:var(--ink-3)">${formatTime(st.updatedAt)}</div>
+          </div>
+        </div>
+        <div class="detail-actions">
+          <button class="btn" type="button" id="markPass">标为通过</button>
+          <button class="btn" type="button" id="markFail">标为失败</button>
+          <button class="btn" type="button" id="copyCase">复制用例</button>
+          <button class="btn ghost" type="button" id="clearItem">清状态</button>
+        </div>
+      `;
+
+      detail.querySelectorAll(".step-check").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const i = Number(btn.dataset.i);
+          const cur = new Set((Array.isArray(st.stepsChecked) ? st.stepsChecked : []).filter((n) => Number.isInteger(n)));
+          if (cur.has(i)) cur.delete(i); else cur.add(i);
+          setItemSteps(item.id, [...cur].sort((a, b) => a - b));
+          render();
+        });
+      });
+      detail.querySelectorAll("#statusGrid button").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          setItemStatus(item.id, btn.dataset.status);
+          render();
+          toast(`已标记为「${statusLabel(btn.dataset.status)}」`);
+        });
+      });
+      const noteInput = detail.querySelector("#noteInput");
+      let noteTimer;
+      noteInput.addEventListener("input", () => {
+        clearTimeout(noteTimer);
+        noteTimer = setTimeout(() => {
+          setItemNote(item.id, noteInput.value);
+        }, 200);
+      });
+      $("markPass").onclick = () => { setItemStatus(item.id, "pass"); render(); toast("已通过"); };
+      $("markFail").onclick = () => { setItemStatus(item.id, "fail"); render(); toast("已失败"); };
+      $("copyCase").onclick = () => copyCaseText(item);
+      $("clearItem").onclick = () => {
+        state.items[item.id] = { status: "todo", note: "", stepsChecked: [], updatedAt: new Date().toISOString() };
+        saveState();
+        render();
+      };
+    }
+
+    function render() {
+      renderSidebar();
+      renderFilters();
+      renderList();
+      renderDetail();
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+      })[c]);
+    }
+    function escapeAttr(s) { return escapeHtml(s); }
+
+    $("search").addEventListener("input", (e) => {
+      searchQuery = e.target.value.trim().toLowerCase();
+      render();
+    });
+
+    $("toggleDetail").addEventListener("click", () => {
+      state.showDetail = !state.showDetail;
+      saveState();
+      render();
+    });
+
+    $("exportBtn").addEventListener("click", () => {
+      const blob = new Blob([JSON.stringify({
+        exportedAt: new Date().toISOString(),
+        storageKey: STORAGE_KEY,
+        state,
+        summary: counts(),
+      }, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `piwin-test-bench-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast("已导出进度");
+    });
+
+    $("importBtn").addEventListener("click", () => $("importFile").click());
+    $("importFile").addEventListener("change", async (e) => {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (!file) return;
+      try {
+        const data = JSON.parse(await file.text());
+        const incoming = data.state || data;
+        const ok = await confirmAction("导入进度", "导入会覆盖当前本机状态与备注，导入前会自动备份当前进度。");
+        if (!ok) return;
+        backupNow("导入前自动备份");
+        state = normalizeState(incoming);
+        saveState();
+        render();
+        toast("导入完成");
+      } catch {
+        alert("导入失败：JSON 无效");
+      }
+    });
+
+    $("resetBtn").addEventListener("click", async () => {
+      const ok = await confirmAction("重置全部", "清空所有测试状态与备注，不可恢复（会先自动备份当前进度）。");
+      if (!ok) return;
+      backupNow("重置前自动备份");
+      state.items = {};
+      state.selectedId = null;
+      saveState();
+      render();
+      toast("已重置");
+    });
+
+    $("reportBtn").addEventListener("click", exportReport);
+    $("restoreBtn").addEventListener("click", restoreBackup);
+    $("helpClose").addEventListener("click", () => $("helpDialog").close());
+    $("progressPill").addEventListener("click", () => {
+      filterStatus = filterStatus === "todo" ? "all" : "todo";
+      render();
+    });
+
+    function activateGroup(id) {
+      state.activeGroup = id;
+      const i = state.collapsedGroups.indexOf(id);
+      if (i !== -1) state.collapsedGroups.splice(i, 1);
+      saveState();
+      render();
+    }
+
+    function backupNow(reason) {
+      try {
+        localStorage.setItem(BACKUP_KEY, JSON.stringify({ at: new Date().toISOString(), reason, state }));
+      } catch {
+        toast("自动备份失败：浏览器存储空间不足");
+      }
+    }
+
+    function restoreBackup() {
+      const raw = localStorage.getItem(BACKUP_KEY);
+      if (!raw) {
+        toast("暂无自动备份");
+        return;
+      }
+      let bak;
+      try {
+        bak = JSON.parse(raw);
+      } catch {
+        toast("备份已损坏，无法恢复");
+        return;
+      }
+      confirmAction("恢复备份", `将覆盖当前进度，恢复为 ${formatTime(bak.at)} 的自动备份（原因：${bak.reason || "手动"}）。`).then((ok) => {
+        if (!ok) return;
+        state = normalizeState(bak.state || {});
+        saveState();
+        render();
+        toast("已恢复备份");
+      });
+    }
+
+    function bulkApply(mode) {
+      const targets = allItems.filter(matchesFilters);
+      if (!targets.length) {
+        toast("当前筛选下没有用例");
+        return;
+      }
+      const verb = mode === "reset" ? "清空状态与备注" : "标记为「通过」";
+      confirmAction(`批量${mode === "reset" ? "清空" : "通过"}`, `将对当前筛选下的 ${targets.length} 条用例${verb}。${mode === "reset" ? "现有标记会先自动备份。" : "建议先筛选出范围再执行。"}`).then((ok) => {
+        if (!ok) return;
+        if (mode === "reset") backupNow("批量清空前自动备份");
+        const now = new Date().toISOString();
+        for (const item of targets) {
+          state.items[item.id] = mode === "reset"
+            ? { status: "todo", note: "", stepsChecked: [], updatedAt: now }
+            : { ...getItemState(item.id), status: "pass", updatedAt: now };
+        }
+        saveState();
+        render();
+        toast(`已${mode === "reset" ? "清空" : "标记通过"} ${targets.length} 条`);
+      });
+    }
+
+    async function copyCaseText(item) {
+      const st = getItemState(item.id);
+      const lines = [
+        `【${statusLabel(st.status)}】${item.title}（${item.id}）`,
+        `分组：${item.groupTitle}`,
+        `步骤：`,
+        ...(item.steps || []).map((s, i) => `${i + 1}. ${s}`),
+        `期望：${item.expect || ""}`,
+      ];
+      if (st.note) lines.push(`备注：${st.note}`);
+      try {
+        await navigator.clipboard.writeText(lines.join("\n"));
+        toast("用例已复制到剪贴板");
+      } catch {
+        toast("复制失败：浏览器未授权剪贴板");
+      }
+    }
+
+    function exportReport() {
+      const c = counts();
+      const lines = [
+        "# piwin 功能测试报告（2026-09-11）",
+        "",
+        `- 生成时间：${new Date().toLocaleString("zh-CN")}`,
+        `- 汇总：通过 ${c.pass} · 失败 ${c.fail} · 跳过 ${c.skip} · 阻塞 ${c.blocked} · 未测 ${c.todo}（共 ${c.all}）`,
+        "",
+      ];
+      for (const g of GROUPS) {
+        lines.push(`## ${g.title}`, "", "| 状态 | 用例 | 备注 | 最近更新 |", "| --- | --- | --- | --- |");
+        for (const item of g.items) {
+          const st = getItemState(item.id);
+          const note = (st.note || "").replace(/\|/g, "\\|").replace(/\n+/g, "<br>");
+          lines.push(`| ${statusLabel(st.status)} | **[${item.id}]** ${item.title.replace(/\|/g, "\\|")} | ${note || ""} | ${formatTime(st.updatedAt)} |`);
+        }
+        lines.push("");
+      }
+      const blob = new Blob([lines.join("\n")], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `piwin-test-bench-report-${new Date().toISOString().slice(0, 10)}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast("报告已导出");
+    }
+
+    document.addEventListener("keydown", (e) => {
+      const tag = (e.target && e.target.tagName) || "";
+      const typing = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+      const onButton = tag === "BUTTON";
+
+      if (e.key === "/" && !typing) {
+        e.preventDefault();
+        $("search").focus();
+        $("search").select();
+        return;
+      }
+      if (e.key === "Escape") {
+        if (document.activeElement === $("search")) {
+          $("search").blur();
+          searchQuery = "";
+          $("search").value = "";
+          render();
+        }
+        return;
+      }
+      if (e.key === "?") {
+        $("helpDialog").showModal();
+        return;
+      }
+      if (typing) return;
+      if ((e.key === " " || e.key === "Enter") && onButton) return;
+
+      const groupIds = ["all", ...GROUPS.map((g) => g.id)];
+      if (e.key === "[") {
+        e.preventDefault();
+        const gi = Math.max(0, groupIds.indexOf(state.activeGroup) - 1);
+        activateGroup(groupIds[gi]);
+        return;
+      }
+      if (e.key === "]") {
+        e.preventDefault();
+        const cur = groupIds.indexOf(state.activeGroup);
+        const gi = Math.min(groupIds.length - 1, (cur === -1 ? 0 : cur) + 1);
+        activateGroup(groupIds[gi]);
+        return;
+      }
+
+      const visible = [...document.querySelectorAll(".row")];
+      if (!visible.length) return;
+      let idx = visible.findIndex((r) => r.dataset.id === state.selectedId);
+
+      if (e.key === "j" || e.key === "ArrowDown") {
+        e.preventDefault();
+        idx = Math.min(visible.length - 1, Math.max(0, idx) + (idx === -1 ? 0 : 1));
+        if (idx === -1) idx = 0;
+        state.selectedId = visible[idx].dataset.id;
+        state.showDetail = true;
+        saveState();
+        render();
+      } else if (e.key === "k" || e.key === "ArrowUp") {
+        e.preventDefault();
+        idx = Math.max(0, (idx === -1 ? 0 : idx) - 1);
+        state.selectedId = visible[idx].dataset.id;
+        state.showDetail = true;
+        saveState();
+        render();
+      } else if (e.key === " " || e.key === "Enter") {
+        e.preventDefault();
+        if (!state.selectedId) return;
+        const cur = getItemState(state.selectedId).status || "todo";
+        setItemStatus(state.selectedId, cur === "pass" ? "todo" : "pass");
+        render();
+      } else if (e.key === "1") { if (state.selectedId) { setItemStatus(state.selectedId, "todo"); render(); } }
+      else if (e.key === "2") { if (state.selectedId) { setItemStatus(state.selectedId, "pass"); render(); } }
+      else if (e.key === "3") { if (state.selectedId) { setItemStatus(state.selectedId, "fail"); render(); } }
+      else if (e.key === "4") { if (state.selectedId) { setItemStatus(state.selectedId, "skip"); render(); } }
+      else if (e.key === "5") { if (state.selectedId) { setItemStatus(state.selectedId, "blocked"); render(); } }
+    });
+
+    render();
+  </script>
+</body>
+</html>
