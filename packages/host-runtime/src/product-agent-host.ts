@@ -22,6 +22,7 @@ import {
   WorkerSessionBackend,
   type BackendSessionHandle,
   type PiSessionBackend,
+  PIWIN_PI_AGENT_DIR_ENV,
 } from '@piwin/agent-host';
 import { createMockSessionHandle } from './mock-session.js';
 import { createTestFixtureSession } from './delayed-session-fixture.js';
@@ -30,6 +31,7 @@ import { loadPromptImages } from './prompt-images.js';
 import { loadPiwinConfig } from './config-store.js';
 import { createSettingsSnapshot } from './settings/settings-service.js';
 import type { HostRuntimeTestFixture } from './host-runtime-types.js';
+import { getPiwinPiAgentDir } from './paths.js';
 
 export type ProductAgentHostToolRegistrationMode = 'active' | 'pending';
 
@@ -157,18 +159,23 @@ export class ProductAgentHost implements AgentHost {
     }
     this.options = options;
     this.mode = options.mode;
+    const piRuntimeAgentDir = getPiwinPiAgentDir(options.piwinRoot);
+    const workerAuthEnv = { [PIWIN_PI_AGENT_DIR_ENV]: piRuntimeAgentDir };
     this.ownedWorkerSupervisor =
       !options.mock && options.mode === 'rpc' && !options.workerSupervisor
-        ? new AgentWorkerSupervisor()
+        ? new AgentWorkerSupervisor({ worker: { env: workerAuthEnv } })
         : null;
     this.backend = options.mock
       ? null
       : options.mode === 'sdk'
-        ? new InProcessSdkSessionBackend()
+        ? new InProcessSdkSessionBackend({ agentDir: piRuntimeAgentDir })
         : new WorkerSessionBackend({
             supervisor:
-              options.workerSupervisor ?? this.ownedWorkerSupervisor ?? new AgentWorkerSupervisor(),
+              options.workerSupervisor ??
+              this.ownedWorkerSupervisor ??
+              new AgentWorkerSupervisor({ worker: { env: workerAuthEnv } }),
             disposeSupervisor: this.ownedWorkerSupervisor !== null,
+            worker: { env: workerAuthEnv },
           });
   }
 

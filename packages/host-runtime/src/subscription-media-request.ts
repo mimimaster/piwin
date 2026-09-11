@@ -2,10 +2,9 @@
  * Resolve the real HTTPS surface for subscription image/video calls.
  * Chat still compiles with `oauth://<id>`; media tools cannot POST there.
  */
-import { join } from 'node:path';
 import { isSubscriptionProvider, isV1SubscriptionProviderId } from '@piwin/contracts';
-import { readOAuthMaterialFromAuthFile } from '@piwin/agent-host';
-import { getPiAgentDir } from './paths.js';
+import { defaultPiAuthPaths, readOAuthMaterialFromAuthFile } from '@piwin/agent-host';
+import { resolveHostPiAgentDir } from './paths.js';
 
 export type SubscriptionMediaAuth = {
   accessToken: string;
@@ -71,9 +70,15 @@ export function subscriptionMediaHeaders(
 
 export async function loadSubscriptionMediaAuth(
   providerId: string,
-  options?: { authPath?: string },
+  options?: { authPath?: string; piwinRoot?: string },
 ): Promise<SubscriptionMediaAuth> {
-  const authPath = options?.authPath ?? join(getPiAgentDir(), 'auth.json');
+  const authPath =
+    options?.authPath ??
+    defaultPiAuthPaths(
+      resolveHostPiAgentDir({
+        ...(options?.piwinRoot !== undefined ? { piwinRoot: options.piwinRoot } : {}),
+      }),
+    ).authPath;
   const material = await readOAuthMaterialFromAuthFile(authPath, providerId);
   if (!material?.accessToken) {
     throw new Error(`未找到 ${providerId} 的 OAuth 凭据，请先登录套餐`);

@@ -29,7 +29,7 @@ import {
 } from '@piwin/agent-host';
 import { applySubscriptionSettings } from './apply-subscription-settings.js';
 import { loadPiwinConfig } from './config-store.js';
-import { getPiAgentDir, getPiwinRoot } from './paths.js';
+import { getPiwinRoot, resolveHostPiAgentDir } from './paths.js';
 import { rewriteChannelModelRefs } from './rewrite-channel-model-refs.js';
 import { buildSubscriptionAccounts } from './subscription-account-status.js';
 import { isSubscriptionAccountUsable } from './resolve-chat-model.js';
@@ -108,7 +108,10 @@ export class SubscriptionAuthService {
     createPort?: () => Promise<SubscriptionAuthPort>;
   } = {},
 ) {
-    const agentDir = getPiAgentDir(options.piAgentDir);
+    const agentDir = resolveHostPiAgentDir({
+      ...(options.piwinRoot !== undefined ? { piwinRoot: options.piwinRoot } : {}),
+      ...(options.piAgentDir !== undefined ? { piAgentDir: options.piAgentDir } : {}),
+    });
     const paths = defaultPiAuthPaths(agentDir);
     this.authPath = paths.authPath;
     this.now = options.now ?? Date.now;
@@ -418,7 +421,7 @@ export class SubscriptionAuthService {
             if (current['reasoning'] === undefined && typeof model.reasoning === 'boolean') {
               current['reasoning'] = model.reasoning;
             }
-            if (!current['thinkingLevels'] && Array.isArray(model.thinkingLevels) && model.thinkingLevels.length > 0) {
+            if (Array.isArray(model.thinkingLevels) && model.thinkingLevels.length > 0) {
               current['thinkingLevels'] = model.thinkingLevels;
             }
           }
@@ -471,7 +474,7 @@ export class SubscriptionAuthService {
       this.watchingParent = false;
       return;
     } catch {
-      // ~/.pi/agent may not exist until the first login.
+      // `{PIWIN_ROOT}/pi-agent` may not exist until the first login.
     }
     if (this.watcher) {
       return;

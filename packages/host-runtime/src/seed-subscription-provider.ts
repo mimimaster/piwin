@@ -46,6 +46,7 @@ export function catalogModelToConfigEntry(model: SubscriptionCatalogSeedModel): 
   const entry: ModelConfigEntry = {
     id: model.id,
     label: model.name,
+    category: 'package',
     capabilities,
   };
   if (typeof model.reasoning === 'boolean') {
@@ -149,6 +150,7 @@ function mergeSubscriptionProvider(
     protocol: 'openai-compatible',
     baseUrl: subscriptionOauthOrigin(providerId),
     source: 'subscription',
+    category: 'package',
     models,
   };
   if (existing?.enabled !== undefined) {
@@ -158,8 +160,9 @@ function mergeSubscriptionProvider(
 }
 
 /**
- * Keep user enable/label/thinking defaults, but take the plan's context window
- * when the saved value is missing or still the product 128K default.
+ * Keep user enable/label/selected thinking default. Take the catalog context
+ * window when the saved value is missing or still the product 128K default.
+ * Supported `thinkingLevels` refresh from the Pi catalog on merge.
  */
 export function mergeSubscriptionCatalogModel(
   catalog: ModelConfigEntry,
@@ -182,7 +185,9 @@ export function mergeSubscriptionCatalogModel(
   if (previous.reasoning === undefined && catalog.reasoning !== undefined) {
     merged.reasoning = catalog.reasoning;
   }
-  if (previous.thinkingLevels === undefined && catalog.thinkingLevels !== undefined) {
+  // Supported levels are Pi catalog capability, not a user default. Refresh
+  // them so a stale full-key dump cannot stick after the map projection fix.
+  if (catalog.thinkingLevels !== undefined) {
     merged.thinkingLevels = catalog.thinkingLevels;
   }
   if (previous.routes === undefined && catalog.routes !== undefined) {

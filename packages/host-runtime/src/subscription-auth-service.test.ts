@@ -208,4 +208,42 @@ describe('SubscriptionAuthService', () => {
       },
     ]);
   });
+
+  it('overlays catalog thinkingLevels onto already projected subscription models', async () => {
+    const port = loggedInXaiPort();
+    port.getChatCatalog = (providerId) =>
+      providerId === 'xai'
+        ? [
+            {
+              id: 'grok-4.5',
+              name: 'Grok 4.5',
+              reasoning: true,
+              thinkingLevels: ['low', 'medium', 'high'],
+            },
+          ]
+        : [];
+    const config: PiwinConfig = {
+      ...createDefaultPiwinConfig(),
+      providers: [grokSubscriptionProvider()],
+    };
+    const service = new SubscriptionAuthService(
+      { port },
+      { loadConfig: async () => config, saveConfig: async () => undefined },
+    );
+    const merged = await service.mergeConfiguredModels({
+      models: [
+        {
+          providerId: 'xai',
+          modelId: 'grok-4.5',
+          label: 'Grok 4.5',
+          thinkingLevels: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
+        },
+      ],
+    });
+    expect(merged.models.find((model) => model['modelId'] === 'grok-4.5')?.['thinkingLevels']).toEqual([
+      'low',
+      'medium',
+      'high',
+    ]);
+  });
 });

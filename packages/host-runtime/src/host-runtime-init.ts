@@ -24,6 +24,7 @@ import { createSessionTranscriptStoreRegistry } from './session-transcript-store
 import { ProductAgentHost } from './product-agent-host.js';
 import { loadPiwinConfig } from './config-store.js';
 import { getPiwinProjectsPath, getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
+import { importLegacyPiSubscriptionAuthIfNeeded } from './import-legacy-pi-auth.js';
 import { fail } from './response-helpers.js';
 import { RunRegistry } from './run-registry.js';
 import { handleSessionLiveCommand } from './commands/session-live-commands.js';
@@ -109,14 +110,20 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
     });
     deps.subscriptionAuth.bindPush((message) => deps.push(message));
     if (options.mock !== true) {
-      deps.subscriptionAuth.startWatch();
-      void deps.subscriptionAuth.ensureLoggedInProviders().catch((error: unknown) => {
-        deps.push({
-          type: 'host/log',
-          level: 'warn',
-          message: `[auth] failed to seed subscription providers: ${formatError(error)}`,
+      void importLegacyPiSubscriptionAuthIfNeeded({
+        ...(options.piwinRoot !== undefined ? { piwinRoot: options.piwinRoot } : {}),
+      })
+        .then(() => {
+          deps.subscriptionAuth?.startWatch();
+          return deps.subscriptionAuth?.ensureLoggedInProviders();
+        })
+        .catch((error: unknown) => {
+          deps.push({
+            type: 'host/log',
+            level: 'warn',
+            message: `[auth] failed to seed subscription providers: ${formatError(error)}`,
+          });
         });
-      });
     }
     const extensionRecovery = deps
       .recoverInterruptedExtensionDeployments()

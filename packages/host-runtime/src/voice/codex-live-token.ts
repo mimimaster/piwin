@@ -4,7 +4,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { defaultPiAuthPaths } from '@piwin/agent-host';
-import { getPiAgentDir } from '../paths.js';
+import { resolveHostPiAgentDir } from '../paths.js';
 
 export type CodexLiveAuthMaterial = {
   accessToken: string;
@@ -49,8 +49,16 @@ function parseStoredAccountId(record: unknown): string | undefined {
 export async function readOpenaiCodexLiveAuth(input?: {
   authPath?: string;
   piAgentDir?: string;
+  piwinRoot?: string;
 }): Promise<CodexLiveAuthMaterial | null> {
-  const authPath = input?.authPath ?? defaultPiAuthPaths(getPiAgentDir(input?.piAgentDir)).authPath;
+  const authPath =
+    input?.authPath ??
+    defaultPiAuthPaths(
+      resolveHostPiAgentDir({
+        ...(input?.piwinRoot !== undefined ? { piwinRoot: input.piwinRoot } : {}),
+        ...(input?.piAgentDir !== undefined ? { piAgentDir: input.piAgentDir } : {}),
+      }),
+    ).authPath;
   let raw: string;
   try {
     raw = await readFile(authPath, 'utf8');

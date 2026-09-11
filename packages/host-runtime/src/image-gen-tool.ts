@@ -722,7 +722,7 @@ export function buildImageGenTool(options: ImageGenToolOptions): HostToolRegistr
         typeof args.provider === 'string' ? args.provider : undefined,
       );
       const subscriptionAuth = providerUsesSubscriptionMedia(provider, 'image')
-        ? await loadSubscriptionMediaAuth(provider.id).catch((error: unknown) => {
+        ? await loadSubscriptionMediaAuth(provider.id, { piwinRoot: options.piwinRoot }).catch((error: unknown) => {
             throw new ImageGenConfigError(
               error instanceof Error ? error.message : `image_gen: ${String(error)}`,
             );

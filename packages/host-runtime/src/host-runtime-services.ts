@@ -13,7 +13,7 @@ import {
   type AgentEvent,
   type JobController,
 } from '@piwin/contracts';
-import { AgentWorkerSupervisor } from '@piwin/agent-host';
+import { AgentWorkerSupervisor, PIWIN_PI_AGENT_DIR_ENV } from '@piwin/agent-host';
 import { guardWorkerAcquire } from './worker-pool-policy.js';
 import { createMcpLifecycleManager, type McpLifecycleManager } from '@piwin/mcp';
 import { type JobRegistryEvent } from '@piwin/process';
@@ -30,7 +30,7 @@ import type { PetRuntimeSnapshot } from '@piwin/contracts';
 
 import { finalizeRunTranscriptArtifacts } from './transcript-stream-settler.js';
 import { loadPiwinConfig } from './config-store.js';
-import { getPiwinRoot } from './paths.js';
+import { getPiwinPiAgentDir, getPiwinRoot } from './paths.js';
 import { fail, ok } from './response-helpers.js';
 
 import type { HostRuntimeKernel } from './host-runtime-kernel.js';
@@ -396,12 +396,16 @@ export async function runCronJob(
 }
 
 export function createAgentWorkerSupervisor(deps: HostRuntimeKernel): AgentWorkerSupervisor {
+  const piRuntimeAgentDir = getPiwinPiAgentDir(deps.options.piwinRoot);
   return guardWorkerAcquire(
     new AgentWorkerSupervisor({
     settings: { maxActiveWorkers: deps.supervisorMax },
-    ...(deps.options.agentWorkerScript
-      ? { worker: { workerScript: deps.options.agentWorkerScript } }
-      : {}),
+    worker: {
+      env: { [PIWIN_PI_AGENT_DIR_ENV]: piRuntimeAgentDir },
+      ...(deps.options.agentWorkerScript
+        ? { workerScript: deps.options.agentWorkerScript }
+        : {}),
+    },
     onEvent: (sessionId, event) => {
       const childContext = deps.subagentSessionContexts.get(sessionId);
       if (!childContext) return;

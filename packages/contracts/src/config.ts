@@ -117,6 +117,8 @@ export type ModelRouteConfig = {
 export type ModelConfigEntry = {
   id: string;
   label?: string;
+  /** Categorization: 'package' (subscription / preset bundle model) or 'custom' (user custom model). */
+  category?: ModelCategory;
   /**
    * Model context window in tokens.
    * Used for usage ring / limit when host does not report tokensLimit.
@@ -175,10 +177,15 @@ export const DEFAULT_MODEL_MAX_OUTPUT_TOKENS = 8_192;
 /** Re-export the ordered thinking-level option set for consumers of this package. */
 export { THINKING_LEVEL_OPTIONS };
 
+/** Categorization for models and providers: 'package' (subscription / preset bundle) or 'custom' (BYOK / self-hosted). */
+export type ModelCategory = 'package' | 'custom';
+
 export type OpenAiCompatibleProviderConfig = {
   id: string;
   protocol: 'openai-compatible';
   name: string;
+  /** Categorization: 'package' (subscription / preset package) or 'custom' (BYOK / self-hosted). */
+  category?: ModelCategory;
   /** Omitted or `channel` is BYOK. `subscription` is a Models-page OAuth provider. */
   source?: ModelSource;
   baseUrl: string;
@@ -195,6 +202,8 @@ export type AnthropicCompatibleProviderConfig = {
   id: string;
   protocol: 'anthropic-compatible';
   name: string;
+  /** Categorization: 'package' (subscription / preset package) or 'custom' (BYOK / self-hosted). */
+  category?: ModelCategory;
   source?: ModelSource;
   baseUrl: string;
   apiKeyEnv?: string;
@@ -211,6 +220,8 @@ export type GoogleGeminiProviderConfig = {
   id: string;
   protocol: 'google-gemini';
   name: string;
+  /** Categorization: 'package' (subscription / preset package) or 'custom' (BYOK / self-hosted). */
+  category?: ModelCategory;
   source?: ModelSource;
   baseUrl: string;
   apiKeyEnv?: string;
@@ -239,6 +250,42 @@ export const DEFAULT_MODEL_ENABLED = true;
 /** A model is available unless explicitly disabled. */
 export function isModelEnabled(model: { enabled?: boolean }): boolean {
   return model.enabled !== false;
+}
+
+/**
+ * Resolves whether a provider belongs to 'package' (subscription / preset package)
+ * or 'custom' (BYOK / self-hosted).
+ *
+ * Precedence:
+ * 1. Explicit `category` ('package' | 'custom')
+ * 2. `source === 'subscription'` -> 'package'
+ * 3. Otherwise -> 'custom'
+ */
+export function resolveProviderCategory(provider: {
+  category?: ModelCategory;
+  source?: string;
+}): ModelCategory {
+  if (provider.category === 'package' || provider.category === 'custom') {
+    return provider.category;
+  }
+  return provider.source === 'subscription' ? 'package' : 'custom';
+}
+
+/**
+ * Resolves whether a model belongs to 'package' or 'custom'.
+ * If the model has an explicit category, uses it; otherwise inherits from the provider.
+ */
+export function resolveModelCategory(
+  model: { category?: ModelCategory },
+  provider?: { category?: ModelCategory; source?: string },
+): ModelCategory {
+  if (model.category === 'package' || model.category === 'custom') {
+    return model.category;
+  }
+  if (provider) {
+    return resolveProviderCategory(provider);
+  }
+  return 'custom';
 }
 
 /** Resolve one model's product capability with the legacy chat default. */

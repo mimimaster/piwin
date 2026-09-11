@@ -137,7 +137,7 @@ describe('subscription auth port', () => {
     ]);
   });
 
-  it('projects thinkingLevelMap keys when thinkingLevels is absent', async () => {
+  it('projects supported thinkingLevelMap entries when thinkingLevels is absent', async () => {
     const port = await createSubscriptionAuthPort({
       authPath: '/tmp/auth.json',
       createRuntime: async () =>
@@ -172,8 +172,47 @@ describe('subscription auth port', () => {
         id: 'gpt-6-astra',
         name: 'GPT-6 Astra',
         reasoning: true,
-        thinkingLevels: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
+        thinkingLevels: ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
         input: ['text', 'image'],
+      },
+    ]);
+  });
+
+  it('does not treat null thinkingLevelMap entries as UI options', async () => {
+    const port = await createSubscriptionAuthPort({
+      authPath: '/tmp/auth.json',
+      createRuntime: async () =>
+        ({
+          listCredentials: async () => [{ providerId: 'xai', type: 'oauth' }],
+          isUsingSubscription: () => true,
+          getModels: () => [],
+          getAvailableModels: () => [
+            {
+              id: 'grok-4.5',
+              name: 'Grok 4.5',
+              reasoning: true,
+              thinkingLevelMap: {
+                off: null,
+                minimal: null,
+                low: 'low',
+                medium: 'medium',
+                high: 'high',
+                xhigh: null,
+                max: null,
+              },
+            },
+          ],
+          login: async () => undefined,
+          logout: async () => undefined,
+          refresh: async () => undefined,
+        }) as never,
+    });
+    expect(port.getChatCatalog('xai')).toEqual([
+      {
+        id: 'grok-4.5',
+        name: 'Grok 4.5',
+        reasoning: true,
+        thinkingLevels: ['low', 'medium', 'high'],
       },
     ]);
   });

@@ -1,8 +1,8 @@
 /** One tool-free Pi completion, including native subscription authentication. */
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { ModelProviderConfig, ModelTextCompletionInput } from '@piwin/contracts';
 import { buildPiProviderRegistration } from './pi-model-runtime.js';
+import { resolvePiRuntimeAgentDir } from './pi-runtime-agent-dir.js';
 
 export class ModelTextCompletionError extends Error {
   constructor() {
@@ -17,7 +17,7 @@ export async function completeModelText(
 ): Promise<string> {
   input.signal.throwIfAborted();
   const { ModelRuntime } = await import('@earendil-works/pi-coding-agent');
-  const agentDir = options.agentDir ?? join(homedir(), '.pi', 'agent');
+  const agentDir = resolvePiRuntimeAgentDir(options.agentDir);
   const runtime = await ModelRuntime.create({
     authPath: join(agentDir, 'auth.json'),
     modelsPath: null,

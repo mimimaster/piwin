@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   getPiAgentDir,
+  getPiwinPiAgentDir,
   getPiwinConfigPath,
   getPiwinRoot,
   getPiwinSessionDir,
   getPiwinSessionMediaDir,
+  resolveHostPiAgentDir,
 } from './paths.js';
 
 describe('paths', () => {
@@ -14,6 +16,14 @@ describe('paths', () => {
 
   it('uses override Pi agent dir', () => {
     expect(getPiAgentDir('/tmp/pi-agent')).toBe('/tmp/pi-agent');
+  });
+
+  it('hosts Pi auth under the product root', () => {
+    expect(getPiwinPiAgentDir('/tmp/piwin-test')).toBe('/tmp/piwin-test/pi-agent');
+    expect(resolveHostPiAgentDir({ piwinRoot: '/tmp/piwin-test' })).toBe('/tmp/piwin-test/pi-agent');
+    expect(resolveHostPiAgentDir({ piwinRoot: '/tmp/piwin-test', piAgentDir: '/tmp/explicit' })).toBe(
+      '/tmp/explicit',
+    );
   });
 
   it('builds config path', () => {
