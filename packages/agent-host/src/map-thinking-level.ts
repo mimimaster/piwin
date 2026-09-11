@@ -1,4 +1,5 @@
 /** Pi's canonical thinking levels; `ultra` is a Piwin-only alias. */
+import { getSupportedThinkingLevels } from '@earendil-works/pi-ai';
 import type { ModelRef, ThinkingLevel } from '@piwin/contracts';
 
 export type PiThinkingLevel = Exclude<ThinkingLevel, 'ultra'>;
@@ -62,6 +63,33 @@ export function buildThinkingLevelMap(
     thinkingLevelMap[level] = supportedLevels.has(level) ? level : null;
   }
   return thinkingLevelMap;
+}
+
+/**
+ * Projects Pi's `thinkingLevelMap` into the UI option list using Pi's own
+ * `getSupportedThinkingLevels`. Desktop never sees the map, so this has to
+ * happen at the agent-host catalog boundary — Pi will not filter our chips.
+ *
+ * Catalog maps often list every canonical key, with `null` meaning
+ * unsupported. Taking `Object.keys(map)` would surface those as chips.
+ */
+export function thinkingLevelsFromPiMap(
+  map: Readonly<Record<string, string | null | undefined>> | undefined,
+): readonly PiThinkingLevel[] | undefined {
+  if (!map || typeof map !== 'object') {
+    return undefined;
+  }
+
+  // Pi's helper is typed on a full Model; catalog projection only has the map.
+  const catalogSlice = {
+    reasoning: true,
+    thinkingLevelMap: map,
+  } as unknown as Parameters<typeof getSupportedThinkingLevels>[0];
+  const allowedLevels = new Set<string>(PI_THINKING_LEVELS);
+  const levels = getSupportedThinkingLevels(catalogSlice).filter(
+    (level): level is PiThinkingLevel => allowedLevels.has(level),
+  );
+  return levels.length > 0 ? levels : undefined;
 }
 
 /**
