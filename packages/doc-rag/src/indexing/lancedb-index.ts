@@ -25,6 +25,7 @@ type LanceRow = {
   language: string;
   parser_id: string;
   chunker_id: string;
+  metadata: string;
   vector?: number[];
 };
 
@@ -59,6 +60,7 @@ function rowFromChunk(chunk: IndexedChunk): LanceRow {
     language: chunk.language ?? '',
     parser_id: chunk.parserId,
     chunker_id: chunk.chunkerId,
+    metadata: chunk.metadata ? JSON.stringify(chunk.metadata) : '',
   };
   if (chunk.vector && chunk.vector.length > 0) {
     row.vector = chunk.vector;
@@ -88,7 +90,32 @@ function chunkFromRow(row: LanceRow): IndexedChunk {
     chunkerId: row.chunker_id,
     chunkerVersion: '1',
     ...(row.vector && row.vector.length > 0 ? { vector: row.vector } : {}),
+    ...metadataFromRow(row.metadata),
   };
+}
+
+function metadataFromRow(value: string | undefined): { metadata: Record<string, unknown> } | Record<string, never> {
+  if (!value) return {};
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      return { metadata: parsed as Record<string, unknown> };
+    }
+    return {};
+  } catch {
+    return {};
+  }
+}
+
+async function ensureMetadataColumn(table: lancedb.Table): Promise<void> {
+  const schema = await table.schema();
+  const hasMetadata = schema.fields.some((field) => field.name === 'metadata');
+  if (hasMetadata) return;
+  // Tables created before chunk metadata existed have no `metadata` column;
+  // `table.add()` rejects rows with fields the table's Arrow schema doesn't
+  // know about, so widen the schema first. `''` matches rowFromChunk's own
+  // "no metadata" sentinel.
+  await table.addColumns([{ name: 'metadata', valueSql: "''" }]);
 }
 
 async function ensureFts(table: lancedb.Table): Promise<void> {
@@ -142,6 +169,7 @@ export async function openLanceDocIndex(uri: string): Promise<DocIndexStore> {
       if (!table) {
         table = await db.createTable(TABLE, rows);
       } else {
+        await ensureMetadataColumn(table);
         const documentIds = [...new Set(chunks.map((chunk) => chunk.documentId))];
         for (const documentId of documentIds) {
           await table.delete(`document_id = '${escapeLiteral(documentId)}'`);

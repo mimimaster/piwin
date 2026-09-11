@@ -52,7 +52,7 @@ import {
   shouldExposeExternalWebSearch,
 } from '../capabilities/search-route-resolver.js';
 import type { BrowserSession } from '@piwin/browser';
-import type { NoteStore, NoteIndex, SearchNotesOptions } from '@piwin/notes';
+import type { NoteStore } from '@piwin/notes';
 import type { CardStore } from '@piwin/flashcards';
 import type { JobController } from '@piwin/contracts';
 import type { ModelRef, PiwinConfig } from '@piwin/contracts';
@@ -77,8 +77,6 @@ import { createSessionFetchSpillStore } from '../fetch-spill-store.js';
  */
 export type NotesServicesProvider = () => Promise<{
   store: NoteStore;
-  index: NoteIndex;
-  searchOptions: SearchNotesOptions;
 }>;
 
 /** Lazy provider for the flashcard store. */
@@ -287,22 +285,19 @@ export async function buildSessionHostTools(
   if (options.getNotesServices && options.config?.notes?.enabled !== false) {
     try {
       const notesServices = await options.getNotesServices();
-      const notesTools = buildNotesTools({
-        store: notesServices.store,
-        index: notesServices.index,
-        enabled: true,
-        ...(registerKnowledgeTools ? { includeReadTools: false } : {}),
-        ...(notesServices.searchOptions.embeddingProvider
-          ? { embeddingProvider: notesServices.searchOptions.embeddingProvider }
-          : {}),
-        ...(notesServices.searchOptions.rerankProvider
-          ? { rerankProvider: notesServices.searchOptions.rerankProvider }
-          : {}),
-        ...(notesServices.searchOptions.rrfK !== undefined
-          ? { rrfK: notesServices.searchOptions.rrfK }
-          : {}),
-      });
-      tools.push(...notesTools);
+      if (options.getFolderRag) {
+        const rag = await options.getFolderRag();
+        const notesTools = buildNotesTools({
+          store: notesServices.store,
+          rag,
+          enabled: true,
+          ...(options.piwinRoot !== undefined
+            ? { piwinRoot: options.piwinRoot }
+            : { piwinRoot: rootDir }),
+          ...(registerKnowledgeTools ? { includeReadTools: false } : {}),
+        });
+        tools.push(...notesTools);
+      }
     } catch (error) {
       reportCompositionDiagnostic(options, 'notes', error);
       // Notes services unavailable — omit notes tools.

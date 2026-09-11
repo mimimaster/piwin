@@ -1,24 +1,26 @@
 /**
- * Multi-base knowledge retrieval: notes via searchNotes, folders via retrievePack,
- * then RRF merge. Mapping and merge are pure.
+ * Multi-base knowledge retrieval: every base goes through retrievePack,
+ * then RRF merge. Notes citations are shaped separately from folder ones.
  */
+import { basename } from 'node:path';
 import {
   KNOWLEDGE_SEARCH_DEFAULT_LIMIT,
   KNOWLEDGE_SEARCH_MAX_LIMIT,
+  NOTES_KNOWLEDGE_BASE_ID,
   type ContextPackSource,
   type KnowledgeBaseSummary,
   type KnowledgeCitation,
   type KnowledgeSearchResult,
   type KnowledgeSearchSkipReason,
-  type NoteSearchHit,
 } from '@piwin/contracts';
-import { DEFAULT_MAX_TOTAL_CHARS, type FolderRag } from '@piwin/doc-rag';
-import { reciprocalRankFusion, searchNotes } from '@piwin/notes';
+import { DEFAULT_MAX_TOTAL_CHARS, type FolderDocumentRecord, type FolderRag } from '@piwin/doc-rag';
+import { getNotesRoot, reciprocalRankFusion } from '@piwin/notes';
 import {
   isSearchableKnowledgeBaseState,
 } from './knowledge-base-state.js';
-import type { KnowledgeBaseRuntime, NotesServices } from './knowledge-base-service.js';
+import type { KnowledgeBaseRuntime } from './knowledge-base-service.js';
 import { listKnowledgeBaseSummaries } from './knowledge-base-service.js';
+import { getPiwinRoot } from './paths.js';
 
 export const KNOWLEDGE_SEARCH_MAX_TOTAL_CHARS = DEFAULT_MAX_TOTAL_CHARS;
 
@@ -48,22 +50,6 @@ export function citationIdentity(citation: Pick<
   ].join('\0');
 }
 
-export function mapNoteHitToCitation(
-  hit: NoteSearchHit,
-  base: Pick<KnowledgeBaseSummary, 'id' | 'name'>,
-): UnnumberedKnowledgeCitation {
-  const citation: UnnumberedKnowledgeCitation = {
-    baseId: base.id,
-    baseName: base.name,
-    kind: 'notes',
-    title: hit.note.title,
-    noteId: hit.note.id,
-    text: hit.snippet,
-    score: hit.score,
-  };
-  return citation;
-}
-
 export function mapContextPackSourceToCitation(
   source: ContextPackSource,
   base: Pick<KnowledgeBaseSummary, 'id' | 'name'>,
@@ -77,6 +63,34 @@ export function mapContextPackSourceToCitation(
     relativePath: source.relativePath,
     text: source.text,
   };
+  copySharedSourceFields(citation, source, score);
+  return citation;
+}
+
+export function mapContextPackSourceToNotesCitation(
+  source: ContextPackSource,
+  base: Pick<KnowledgeBaseSummary, 'id' | 'name'>,
+): UnnumberedKnowledgeCitation {
+  const score = source.rerankScore ?? source.retrievalScore;
+  const titleFromMeta = source.metadata?.title;
+  const citation: UnnumberedKnowledgeCitation = {
+    baseId: base.id,
+    baseName: base.name,
+    kind: 'notes',
+    title: typeof titleFromMeta === 'string' && titleFromMeta.length > 0 ? titleFromMeta : source.relativePath,
+    noteId: noteIdFromRelativePath(source.relativePath),
+    relativePath: source.relativePath,
+    text: source.text,
+  };
+  copySharedSourceFields(citation, source, score);
+  return citation;
+}
+
+function copySharedSourceFields(
+  citation: UnnumberedKnowledgeCitation,
+  source: ContextPackSource,
+  score: number | undefined,
+): void {
   if (source.headingPath && source.headingPath.length > 0) {
     citation.headingPath = source.headingPath;
   }
@@ -85,7 +99,26 @@ export function mapContextPackSourceToCitation(
   if (source.pageStart !== undefined) citation.pageStart = source.pageStart;
   if (source.pageEnd !== undefined) citation.pageEnd = source.pageEnd;
   if (score !== undefined) citation.score = score;
-  return citation;
+  if (source.metadata) citation.metadata = source.metadata;
+}
+
+export function noteIdFromRelativePath(relativePath: string): string {
+  const base = basename(relativePath);
+  return base.toLowerCase().endsWith('.md') ? base.slice(0, -3) : base;
+}
+
+export function relativePathsMatchingTags(
+  documents: readonly FolderDocumentRecord[],
+  tags: readonly string[],
+): string[] {
+  const wanted = new Set(tags);
+  return documents
+    .filter((document) => {
+      const raw = document.metadata?.tags;
+      if (!Array.isArray(raw)) return false;
+      return raw.some((tag) => typeof tag === 'string' && wanted.has(tag));
+    })
+    .map((document) => document.relativePath);
 }
 
 export function mergeRankedKnowledgeHits(
@@ -149,10 +182,11 @@ export function skipReasonForBase(
 
 export async function searchKnowledgeBases(
   runtime: KnowledgeBaseRuntime,
-  input: { query: string; baseIds?: string[]; limit?: number; startRef?: number },
+  input: { query: string; baseIds?: string[]; tags?: string[]; limit?: number; startRef?: number },
 ): Promise<KnowledgeSearchResult> {
   const query = input.query.trim();
   const limit = clampKnowledgeSearchLimit(input.limit);
+  const tags = input.tags?.filter((tag) => tag.trim().length > 0);
   const bases = await listKnowledgeBaseSummaries(runtime);
   const byId = new Map(bases.map((base) => [base.id, base]));
   const requested =
@@ -165,10 +199,26 @@ export async function searchKnowledgeBases(
   const perBase: RankedKnowledgeHits[] = [];
   const rag = await runtime.getFolderRag();
 
+  if (requested.includes(NOTES_KNOWLEDGE_BASE_ID)) {
+    const notes = byId.get(NOTES_KNOWLEDGE_BASE_ID);
+    const notesPath =
+      notes?.folderPath ?? getNotesRoot(getPiwinRoot(runtime.piwinRoot));
+    if (notes?.state !== 'missing') {
+      try {
+        await rag.indexFolder(notesPath);
+      } catch (error) {
+        console.warn(
+          `notes drift reindex failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+  }
+
   for (const baseId of requested) {
     const base = byId.get(baseId);
     const skip = skipReasonForBase(base);
-    if (skip && !(base?.kind === 'notes' && base.state === 'empty')) {
+    const notesNotIndexed = base?.kind === 'notes' && skip === 'not-indexed';
+    if (skip && !notesNotIndexed) {
       skipped.push(skipEntry(baseId, skip));
       continue;
     }
@@ -177,22 +227,10 @@ export async function searchKnowledgeBases(
       continue;
     }
     try {
-      if (base.kind === 'notes') {
-        if (!runtime.getNotesServices) {
-          skipped.push(skipEntry(baseId, 'error', 'Notes services are not available'));
-          continue;
-        }
-        const notes = await searchNotesBase(runtime, query, limit);
-        perBase.push({
-          baseId: base.id,
-          citations: notes.hits.map((hit) => mapNoteHitToCitation(hit, base)),
-        });
-        if (notes.degraded) degradedBaseIds.push(base.id);
-      } else {
-        const folder = await searchFolderBase(rag, base, query, limit);
-        perBase.push({ baseId: base.id, citations: folder.citations });
-        if (folder.degraded) degradedBaseIds.push(base.id);
-      }
+      const folder = await searchFolderBase(rag, base, query, limit, tags);
+      if (folder.emptyAllowlist) continue;
+      perBase.push({ baseId: base.id, citations: folder.citations });
+      if (folder.degraded) degradedBaseIds.push(base.id);
     } catch (error) {
       skipped.push({
         baseId,
@@ -220,37 +258,35 @@ function skipEntry(
   return message === undefined ? { baseId, reason } : { baseId, reason, message };
 }
 
-async function searchNotesBase(
-  runtime: KnowledgeBaseRuntime,
-  query: string,
-  limit: number,
-): Promise<{ hits: NoteSearchHit[]; degraded: boolean }> {
-  if (!runtime.getNotesServices) {
-    throw new Error('Notes services are not available');
-  }
-  const services: NotesServices = await runtime.getNotesServices();
-  const hits = await searchNotes(services.index, { query, limit }, services.searchOptions);
-  return {
-    hits,
-    degraded: services.searchOptions.embeddingProvider === undefined,
-  };
-}
-
 async function searchFolderBase(
   rag: FolderRag,
   base: KnowledgeBaseSummary,
   query: string,
   limit: number,
-): Promise<{ citations: UnnumberedKnowledgeCitation[]; degraded: boolean }> {
+  tags: string[] | undefined,
+): Promise<{ citations: UnnumberedKnowledgeCitation[]; degraded: boolean; emptyAllowlist: boolean }> {
   const folderPath = base.folderPath;
   if (!folderPath) {
     throw new Error(`Folder knowledge base ${base.id} has no folderPath`);
   }
-  const pack = await rag.retrievePack(folderPath, query, { limit });
+  let fileAllowlist: string[] | undefined;
+  if (tags && tags.length > 0) {
+    const documents = await rag.listDocuments(folderPath);
+    const allowed = relativePathsMatchingTags(documents, tags);
+    if (allowed.length === 0) {
+      return { citations: [], degraded: false, emptyAllowlist: true };
+    }
+    fileAllowlist = allowed;
+  }
+  const pack = await rag.retrievePack(folderPath, query, {
+    limit,
+    ...(fileAllowlist ? { fileAllowlist } : {}),
+  });
+  const mapper =
+    base.kind === 'notes' ? mapContextPackSourceToNotesCitation : mapContextPackSourceToCitation;
   return {
-    citations: pack.sources.map((source) => mapContextPackSourceToCitation(source, base)),
+    citations: pack.sources.map((source) => mapper(source, base)),
     degraded: pack.degraded || !rag.hasEmbeddingProvider,
+    emptyAllowlist: false,
   };
 }
-
-

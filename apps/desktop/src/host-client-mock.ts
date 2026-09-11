@@ -74,6 +74,7 @@ export class MockHostBackend {
       archivedAt?: string;
       origin?: ProductSessionOrigin;
       storage?: import('@piwin/contracts').SessionStorageInfo;
+      knowledgeBaseIds?: string[];
     }
   >();
   plans = new Map<string, import('@piwin/contracts').SessionPlan>();

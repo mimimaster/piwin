@@ -1,36 +1,23 @@
-import { describe, expect, it } from 'vitest';
-import type { ContextPackSource, NoteRecord, NoteSearchHit } from '@piwin/contracts';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
+import type { ContextPackSource } from '@piwin/contracts';
+import { createFolderRag } from '@piwin/doc-rag';
+import { createDefaultPiwinConfig } from './config-store.js';
+import {
+  addFolderKnowledgeBase,
+  type KnowledgeBaseRuntime,
+} from './knowledge-base-service.js';
 import {
   citationIdentity,
   clampKnowledgeSearchLimit,
   mapContextPackSourceToCitation,
-  mapNoteHitToCitation,
+  mapContextPackSourceToNotesCitation,
   mergeRankedKnowledgeHits,
+  searchKnowledgeBases,
   skipReasonForBase,
 } from './knowledge-retriever.js';
-
-function note(id: string, title: string): NoteRecord {
-  return {
-    id,
-    collection: 'default',
-    title,
-    content: `body of ${title}`,
-    createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: '2026-01-01T00:00:00.000Z',
-    relativePath: `default/${id}.md`,
-    contentHash: `hash-${id}`,
-  };
-}
-
-function noteHit(id: string, title: string, score: number, snippet: string): NoteSearchHit {
-  return {
-    note: note(id, title),
-    score,
-    snippet,
-    channels: ['fts'],
-    rank: { fts: 1 },
-  };
-}
 
 const folderSource: ContextPackSource = {
   chunkId: 'c1',
@@ -44,23 +31,15 @@ const folderSource: ContextPackSource = {
   retrievedBy: 'hybrid',
 };
 
-describe('citation mapping', () => {
-  it('maps note hits to noteId + title', () => {
-    const citation = mapNoteHitToCitation(noteHit('n1', 'FSRS', 0.5, 'review interval'), {
-      id: 'notes',
-      name: 'Notes',
-    });
-    expect(citation).toMatchObject({
-      baseId: 'notes',
-      kind: 'notes',
-      title: 'FSRS',
-      noteId: 'n1',
-      text: 'review interval',
-      score: 0.5,
-    });
-    expect(citation.relativePath).toBeUndefined();
-  });
+const cleanup: string[] = [];
 
+afterEach(async () => {
+  for (const dir of cleanup.splice(0)) {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+describe('citation mapping', () => {
   it('maps ContextPackSource fields onto a folder citation', () => {
     const citation = mapContextPackSourceToCitation(folderSource, {
       id: 'folder:0123456789abcdef',
@@ -78,14 +57,47 @@ describe('citation mapping', () => {
       score: 0.8,
     });
   });
+
+  it('derives noteId from the filename and prefers metadata.title', () => {
+    const citation = mapContextPackSourceToNotesCitation(
+      {
+        ...folderSource,
+        relativePath: 'work/note-abc.md',
+        metadata: { title: 'FSRS', tags: ['srs'] },
+      },
+      { id: 'notes', name: 'Notes' },
+    );
+    expect(citation).toMatchObject({
+      baseId: 'notes',
+      kind: 'notes',
+      title: 'FSRS',
+      noteId: 'note-abc',
+      relativePath: 'work/note-abc.md',
+      metadata: { title: 'FSRS', tags: ['srs'] },
+    });
+  });
+
+  it('falls back to relativePath when metadata title is missing', () => {
+    const citation = mapContextPackSourceToNotesCitation(
+      { ...folderSource, relativePath: 'inbox/stray.md' },
+      { id: 'notes', name: 'Notes' },
+    );
+    expect(citation.title).toBe('inbox/stray.md');
+    expect(citation.noteId).toBe('stray');
+  });
 });
 
 describe('mergeRankedKnowledgeHits', () => {
   it('fuses per-base lists with RRF and numbers refs from startRef', () => {
-    const notes = mapNoteHitToCitation(noteHit('n1', 'Notes hit', 1, 'from notes'), {
-      id: 'notes',
-      name: 'Notes',
-    });
+    const notes = mapContextPackSourceToNotesCitation(
+      {
+        ...folderSource,
+        relativePath: 'default/n1.md',
+        text: 'from notes',
+        metadata: { title: 'Notes hit' },
+      },
+      { id: 'notes', name: 'Notes' },
+    );
     const folder = mapContextPackSourceToCitation(folderSource, {
       id: 'folder:0123456789abcdef',
       name: 'Docs',
@@ -150,10 +162,62 @@ describe('skipReasonForBase', () => {
         id: 'notes',
         kind: 'notes',
         name: 'Notes',
-        state: 'empty',
+        state: 'not-indexed',
         degraded: false,
         documentCount: 0,
       }),
-    ).toBeNull();
+    ).toBe('not-indexed');
+  });
+});
+
+describe('tags pre-filter', () => {
+  it('returns a tagged match that ranks outside the unfiltered top-k', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'piwin-kb-tags-root-'));
+    const folder = await mkdtemp(join(tmpdir(), 'piwin-kb-tags-src-'));
+    cleanup.push(root, folder);
+    await mkdir(join(root, 'notes'), { recursive: true });
+    for (let i = 0; i < 8; i += 1) {
+      await writeFile(
+        join(folder, `popular-${i}.md`),
+        `# Popular ${i}\n\napple apple apple apple apple unique-${i}\n`,
+      );
+    }
+    await writeFile(
+      join(folder, 'rare.md'),
+      [
+        '---',
+        'title: "Rare apple"',
+        'tags: ["rare"]',
+        '---',
+        '',
+        '# Rare',
+        '',
+        'apple once.',
+      ].join('\n'),
+    );
+    const rag = createFolderRag({ piwinRoot: root });
+    await rag.indexFolder(folder);
+    const runtime: KnowledgeBaseRuntime = {
+      piwinRoot: root,
+      getFolderRag: async () => rag,
+      loadConfig: async () => createDefaultPiwinConfig(),
+    };
+    const added = await addFolderKnowledgeBase(runtime, folder, 'Docs');
+    const unfiltered = await searchKnowledgeBases(runtime, {
+      query: 'apple',
+      baseIds: [added.id],
+      limit: 3,
+    });
+    expect(unfiltered.citations.every((citation) => citation.relativePath !== 'rare.md')).toBe(
+      true,
+    );
+    const filtered = await searchKnowledgeBases(runtime, {
+      query: 'apple',
+      baseIds: [added.id],
+      tags: ['rare'],
+      limit: 3,
+    });
+    expect(filtered.citations.some((citation) => citation.relativePath === 'rare.md')).toBe(true);
+    rag.close();
   });
 });

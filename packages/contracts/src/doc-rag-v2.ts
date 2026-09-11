@@ -29,6 +29,13 @@ export type ParsedDocument = {
   title?: string;
   blocks: ParsedBlock[];
   parser: { id: string; version: string };
+  /**
+   * Frontmatter fields, when the parser strips a leading frontmatter block
+   * (e.g. markdown `---\n...\n---`) before producing `blocks`. `startLine`/
+   * `endLine` on every block still count from line 1 of the original file —
+   * stripping frontmatter for embedding never shifts the line-number contract.
+   */
+  metadata?: Record<string, unknown>;
 };
 
 export type DocChunkV2 = {
@@ -52,6 +59,8 @@ export type DocChunkV2 = {
   parserVersion: string;
   chunkerId: string;
   chunkerVersion: string;
+  /** Denormalized from the parent `ParsedDocument.metadata` so retrieval needs no extra lookup. */
+  metadata?: Record<string, unknown>;
 };
 
 export type ScannedFileV2 = {
@@ -86,6 +95,8 @@ export type DocumentManifest = {
   lastErrorCode?: string;
   lastErrorMessage?: string;
   indexedAt?: string;
+  /** Frontmatter fields parsed off this document, when the source had any. */
+  metadata?: Record<string, unknown>;
 };
 
 export type IngestionJobStatus =
@@ -176,6 +187,8 @@ export type ContextPackSource = {
   retrievalScore?: number;
   rerankScore?: number;
   retrievedBy: 'hybrid' | 'fts' | 'neighbor';
+  /** Frontmatter fields off the parent document, when the source had any. */
+  metadata?: Record<string, unknown>;
 };
 
 export type ContextPack = {

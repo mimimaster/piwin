@@ -86,14 +86,7 @@ export async function disposeHostRuntime(deps: HostRuntimeKernel): Promise<void>
   }
   deps.pendingPermissions.clear();
   deps.pendingExtensionUi.clear();
-  if (deps.notesServices) {
-    try {
-      deps.notesServices.index.close();
-    } catch {
-      // best-effort shutdown
-    }
-    deps.notesServices = null;
-  }
+  deps.notesServices = null;
   if (deps.folderRag) {
     try {
       deps.folderRag.close();

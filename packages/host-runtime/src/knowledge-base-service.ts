@@ -2,10 +2,11 @@
  * Knowledge-base registry operations + derived summaries.
  * Host-runtime owns this; commands and tools share it.
  */
-import { stat } from 'node:fs/promises';
+import { mkdir, stat } from 'node:fs/promises';
 import {
   NOTES_KNOWLEDGE_BASE_ID,
   parseKnowledgeBaseId,
+  type KnowledgeBaseKind,
   type KnowledgeBaseSummary,
   type PiwinConfig,
 } from '@piwin/contracts';
@@ -14,7 +15,7 @@ import {
   folderKey,
   type FolderRag,
 } from '@piwin/doc-rag';
-import type { NoteIndex, NoteStore, SearchNotesOptions } from '@piwin/notes';
+import { getNotesRoot, type NoteStore } from '@piwin/notes';
 import type { CardStore } from '@piwin/flashcards';
 import {
   defaultFolderBaseName,
@@ -26,17 +27,13 @@ import {
   saveKnowledgeBaseRegistry,
   type KnowledgeBaseRegistryRecord,
 } from './knowledge-base-registry.js';
-import {
-  deriveFolderKnowledgeBaseState,
-  deriveNotesKnowledgeBaseState,
-} from './knowledge-base-state.js';
+import { deriveFolderKnowledgeBaseState } from './knowledge-base-state.js';
+import { getPiwinRoot } from './paths.js';
 
 export const NOTES_KNOWLEDGE_BASE_NAME = 'Notes';
 
 export type NotesServices = {
   store: NoteStore;
-  index: NoteIndex;
-  searchOptions: SearchNotesOptions;
 };
 
 export type KnowledgeBaseRuntime = {
@@ -57,11 +54,27 @@ export async function listKnowledgeBaseSummaries(
   const notesEnabled = config.notes?.enabled !== false;
   const document = await loadKnowledgeBaseRegistry(runtime.piwinRoot);
   const folders = await Promise.all(
-    document.folders.map((record) => summarizeFolderBase(runtime, rag, record)),
+    document.folders.map((record) =>
+      summarizeBase(runtime, rag, {
+        id: folderRecordId(record),
+        kind: 'folder',
+        name: record.name,
+        folderPath: record.folderPath,
+        ...(record.lastUsedAt ? { lastUsedAt: record.lastUsedAt } : {}),
+        createdAt: record.createdAt,
+      }),
+    ),
   );
   const bases = [...folders];
-  if (notesEnabled && runtime.getNotesServices) {
-    bases.unshift(await summarizeNotesBase(runtime));
+  if (notesEnabled) {
+    bases.unshift(
+      await summarizeBase(runtime, rag, {
+        id: NOTES_KNOWLEDGE_BASE_ID,
+        kind: 'notes',
+        name: NOTES_KNOWLEDGE_BASE_NAME,
+        folderPath: getNotesRoot(getPiwinRoot(runtime.piwinRoot)),
+      }),
+    );
   }
   return sortKnowledgeBases(bases);
 }
@@ -86,7 +99,10 @@ export async function addFolderKnowledgeBase(
   await recoverKnowledgeBaseRegistry(runtime.piwinRoot);
   const document = await loadKnowledgeBaseRegistry(runtime.piwinRoot);
   const existing = findFolderRecord(document, canonical);
+  const reAddedKey = folderKey(canonical);
+  document.removed = document.removed.filter((item) => item.folderKey !== reAddedKey);
   if (existing) {
+    await saveKnowledgeBaseRegistry(runtime.piwinRoot, document);
     return summarizeFolderBase(runtime, await runtime.getFolderRag(), existing);
   }
   const now = new Date().toISOString();
@@ -147,6 +163,10 @@ export async function removeKnowledgeBase(
   }
   if (deleteIndex) {
     await deleteFolderIndex(runtime, record.folderPath);
+  } else {
+    const tombstoneKey = folderKey(record.folderPath);
+    document.removed = document.removed.filter((item) => item.folderKey !== tombstoneKey);
+    document.removed.push({ folderKey: tombstoneKey, removedAt: new Date().toISOString() });
   }
   document.folders = document.folders.filter((item) => item !== record);
   await saveKnowledgeBaseRegistry(runtime.piwinRoot, document);
@@ -206,16 +226,43 @@ export class KnowledgeBaseCommandError extends Error {
   override readonly name = 'KnowledgeBaseCommandError';
 }
 
+type SummarizableBase = {
+  id: string;
+  kind: KnowledgeBaseKind;
+  name: string;
+  folderPath: string;
+  lastUsedAt?: string;
+  createdAt?: string;
+};
+
 async function summarizeFolderBase(
   runtime: KnowledgeBaseRuntime,
   rag: FolderRag,
   record: KnowledgeBaseRegistryRecord,
 ): Promise<KnowledgeBaseSummary> {
-  const pathExists = await folderPathExists(record.folderPath);
-  const indexing = runtime.isIndexing?.(folderKey(record.folderPath)) === true;
+  return summarizeBase(runtime, rag, {
+    id: folderRecordId(record),
+    kind: 'folder',
+    name: record.name,
+    folderPath: record.folderPath,
+    ...(record.lastUsedAt ? { lastUsedAt: record.lastUsedAt } : {}),
+    createdAt: record.createdAt,
+  });
+}
+
+async function summarizeBase(
+  runtime: KnowledgeBaseRuntime,
+  rag: FolderRag,
+  base: SummarizableBase,
+): Promise<KnowledgeBaseSummary> {
+  if (base.kind === 'notes') {
+    await mkdir(base.folderPath, { recursive: true });
+  }
+  const pathExists = await folderPathExists(base.folderPath);
+  const indexing = runtime.isIndexing?.(folderKey(base.folderPath)) === true;
   const documents =
-    pathExists && (indexing || (await rag.isIndexed(record.folderPath)))
-      ? await rag.listDocuments(record.folderPath)
+    pathExists && (indexing || (await rag.isIndexed(base.folderPath)))
+      ? await rag.listDocuments(base.folderPath)
       : [];
   const derived = deriveFolderKnowledgeBaseState({
     pathExists,
@@ -223,16 +270,25 @@ async function summarizeFolderBase(
     hasEmbeddingProvider: rag.hasEmbeddingProvider,
     documents,
   });
+  if (base.kind === 'notes' && derived.state === 'not-indexed') {
+    // Notes has no manual ingest step, so "zero notes yet" must stay
+    // distinguishable from "folder with unpicked files" — the desktop copy
+    // for 'empty' ("ask the agent to take notes") vs 'not-indexed' ("pick
+    // files to ingest") depends on this.
+    derived.state = 'empty';
+  }
   const summary: KnowledgeBaseSummary = {
-    id: folderRecordId(record),
-    kind: 'folder',
-    name: record.name,
-    folderPath: record.folderPath,
+    id: base.id,
+    kind: base.kind,
+    name: base.name,
+    folderPath: base.folderPath,
     state: derived.state,
     degraded: derived.degraded,
     documentCount: derived.documentCount,
-    createdAt: record.createdAt,
   };
+  if (base.createdAt !== undefined) {
+    summary.createdAt = base.createdAt;
+  }
   if (derived.failedDocumentCount > 0) {
     summary.failedDocumentCount = derived.failedDocumentCount;
   }
@@ -242,30 +298,10 @@ async function summarizeFolderBase(
   if (derived.lastIndexedAt !== undefined) {
     summary.lastIndexedAt = derived.lastIndexedAt;
   }
-  if (record.lastUsedAt !== undefined) {
-    summary.lastUsedAt = record.lastUsedAt;
+  if (base.lastUsedAt !== undefined) {
+    summary.lastUsedAt = base.lastUsedAt;
   }
   return summary;
-}
-
-async function summarizeNotesBase(runtime: KnowledgeBaseRuntime): Promise<KnowledgeBaseSummary> {
-  if (!runtime.getNotesServices) {
-    throw new KnowledgeBaseCommandError('Notes services are not available');
-  }
-  const services = await runtime.getNotesServices();
-  const records = await services.store.list();
-  const derived = deriveNotesKnowledgeBaseState({
-    noteCount: records.length,
-    hasEmbeddingProvider: services.searchOptions.embeddingProvider !== undefined,
-  });
-  return {
-    id: NOTES_KNOWLEDGE_BASE_ID,
-    kind: 'notes',
-    name: NOTES_KNOWLEDGE_BASE_NAME,
-    state: derived.state,
-    degraded: derived.degraded,
-    documentCount: derived.documentCount,
-  };
 }
 
 async function folderPathExists(folderPath: string): Promise<boolean> {

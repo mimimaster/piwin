@@ -1,7 +1,7 @@
 /**
  * Composer model, context chips, and media/send stack.
  */
-import { useCallback, type Dispatch } from 'react';
+import { useCallback, type Dispatch, type MutableRefObject } from 'react';
 import { ORCHESTRATION_SCHEME_OFF_ID } from '@piwin/contracts';
 import type { ChatUiAction, ChatUiState } from '../chat-reducer';
 import type { HostClient } from '../host-client';
@@ -20,10 +20,20 @@ export type UseWorkbenchComposerRuntimeArgs = {
   chrome: WorkbenchShellChrome;
   host: WorkbenchHostRuntime;
   session: WorkbenchSessionRuntime;
+  /**
+   * Draft's pending knowledge-base mount choice, carried into session
+   * creation on first send. A ref (see `UseComposerMediaArgs.knowledgeMountsRef`)
+   * because `useWorkbenchKnowledge` is constructed after this hook chain each
+   * render and a plain value here would always be one render stale.
+   */
+  knowledgeMountsRef?: MutableRefObject<{
+    mountedIds: readonly string[];
+    clearDraft: () => void;
+  } | null>;
 };
 
 export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArgs) {
-  const { hostClient, state, dispatch, chrome, host, session } = args;
+  const { hostClient, state, dispatch, chrome, host, session, knowledgeMountsRef } = args;
   const {
     agentMode,
     setAgentMode,
@@ -134,6 +144,7 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     onAbort: session.handleAbort,
     onResumeRun: session.handleResumeRun,
     ensureSession: session.ensureSession,
+    ...(knowledgeMountsRef ? { knowledgeMountsRef } : {}),
     onNeedWorkspace: session.handleOpenWorkspaceClick,
     selectedModelKey,
     promptModel: currentPromptModelRef,

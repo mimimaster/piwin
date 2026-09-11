@@ -8,7 +8,7 @@ import {
   KNOWLEDGE_TOOL_NAMES,
 } from '@piwin/contracts';
 import { createFolderRag } from '@piwin/doc-rag';
-import { createNoteStore, openNoteIndex } from '@piwin/notes';
+import { createNoteStore } from '@piwin/notes';
 import { createDefaultPiwinConfig } from '../config-store.js';
 import { buildSessionHostTools } from './build-session-host-tools.js';
 
@@ -45,14 +45,13 @@ describe('buildSessionHostTools artifact_instructions', () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-kb-compose-'));
     const rag = createFolderRag({ piwinRoot: rootDir });
     const store = createNoteStore({ piwinRoot: rootDir });
-    const index = await openNoteIndex(store);
     try {
       const tools = await buildSessionHostTools({
         sessionId: 'session-kb',
         piwinRoot: rootDir,
         config: createDefaultPiwinConfig(),
         getFolderRag: async () => rag,
-        getNotesServices: async () => ({ store, index, searchOptions: {} }),
+        getNotesServices: async () => ({ store }),
       });
       const names = tools.map((tool) => tool.descriptor.name);
       expect(names).toEqual(
@@ -76,7 +75,6 @@ describe('buildSessionHostTools artifact_instructions', () => {
           .every((tool) => tool.permissionSpec.readOnly === true),
       ).toBe(true);
     } finally {
-      index.close();
       rag.close();
       await rm(rootDir, { recursive: true, force: true });
     }

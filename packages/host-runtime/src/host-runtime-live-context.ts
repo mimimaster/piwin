@@ -125,6 +125,8 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
     buildModelPromptInput: (input, signal) => deps.buildModelPromptInput(input, signal),
     validatePromptAttachments: (input) => deps.validatePromptAttachments(input),
     loadConfig: () => loadPiwinConfig(deps.options.piwinRoot),
+    getFolderRag: () => deps.getFolderRag(),
+    getNotesServices: () => deps.getNotesServices(),
     setRunOrchestrationScheme: (runId, scheme) => {
       if (scheme) {
         deps.runOrchestrationSchemes.set(runId, scheme);

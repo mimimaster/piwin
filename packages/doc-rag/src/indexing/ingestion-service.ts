@@ -122,7 +122,6 @@ export async function ingestSelectedFiles(input: {
         results.push({ relativePath, documentId, status: 'FAILED', chunkCount: 0, error: '0 valid chunks' });
         continue;
       }
-      await input.store.deleteByDocumentId(documentId);
       const indexed: IndexedChunk[] = [];
       if (input.embedding) {
         input.onProgress?.({
@@ -148,6 +147,7 @@ export async function ingestSelectedFiles(input: {
         currentFile: relativePath,
         stage: 'indexing',
       });
+      await input.store.deleteByDocumentId(documentId);
       await input.store.upsertChunks(indexed);
       input.state.upsert({
         documentId,
@@ -160,6 +160,7 @@ export async function ingestSelectedFiles(input: {
         status: 'READY',
         chunkCount: indexed.length,
         indexedAt: new Date().toISOString(),
+        ...(parsed.metadata ? { metadata: parsed.metadata } : {}),
       });
       results.push({ relativePath, documentId, status: 'READY', chunkCount: indexed.length });
     } catch (error) {

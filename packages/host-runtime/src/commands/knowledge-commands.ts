@@ -6,8 +6,10 @@
  * into application operations and response payloads.
  */
 
+import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { HostCommand, HostResponse, PiwinConfig } from '@piwin/contracts';
+import { NOTES_KNOWLEDGE_BASE_ID } from '@piwin/contracts';
 import {
   buildReviewQueue,
   displayCardsFromBatchResult,
@@ -16,17 +18,20 @@ import {
   type CardStore,
 } from '@piwin/flashcards';
 import { canonicalizeFolderPath, isPathConfined, type FolderRag } from '@piwin/doc-rag';
+import { NoteRevisionConflictError, getNotesRoot, type NoteStore } from '@piwin/notes';
+import { getPiwinRoot } from '../paths.js';
 import {
-  loadGoldenSet,
-  NoteRevisionConflictError,
-  runRecallEval,
-  searchNotes,
-  type NoteIndex,
-  type NoteStore,
-  type SearchNotesOptions,
-} from '@piwin/notes';
+  deleteNoteAndReindex,
+  updateNoteAndReindex,
+  writeNoteAndReindex,
+} from '../notes-write-service.js';
+import { searchKnowledgeBases } from '../knowledge-retriever.js';
 import { fail, ok } from '../response-helpers.js';
-import { handleKnowledgeBaseCommand, publishKnowledgeBasesChanged } from './knowledge-base-commands.js';
+import {
+  handleKnowledgeBaseCommand,
+  knowledgeRuntimeFromContext,
+  publishKnowledgeBasesChanged,
+} from './knowledge-base-commands.js';
 import type { CompleteJsonFn, DraftCardsFn } from '@piwin/doc-rag';
 import type { DoccardsIngestionRegistry } from './doccards-job-commands.js';
 import type { DoccardsGenerationRegistry } from './doccards-generation-jobs.js';
@@ -35,8 +40,6 @@ import type { HostPush } from '@piwin/contracts';
 export type KnowledgeCommandContext = {
   getNotesServices: () => Promise<{
     store: NoteStore;
-    index: NoteIndex;
-    searchOptions: SearchNotesOptions;
   }>;
   getCardStore: () => Promise<CardStore>;
   getFolderRag: () => Promise<FolderRag>;
@@ -130,22 +133,61 @@ export async function handleKnowledgeCommand(
       return ok(requestId, 'notes/read', { record });
     }
     case 'notes/search': {
-      const services = await context.getNotesServices();
-      const hits = await searchNotes(services.index, command.query, services.searchOptions);
-      return ok(requestId, 'notes/search', { hits });
+      const result = await searchKnowledgeBases(knowledgeRuntimeFromContext(context), {
+        query: command.query.query,
+        baseIds: [NOTES_KNOWLEDGE_BASE_ID],
+        ...(command.query.limit !== undefined ? { limit: command.query.limit } : {}),
+        ...(command.query.tags && command.query.tags.length > 0 ? { tags: command.query.tags } : {}),
+      });
+      return ok(requestId, 'notes/search', {
+        hits: result.citations.map((citation) => ({
+          note: {
+            id: citation.noteId ?? '',
+            // note-store.ts lays files out as `<collection>/<id>.md`, so the
+            // first relativePath segment is the real collection; fall back
+            // to 'default' for a legacy/external file with no subfolder.
+            collection: citation.relativePath?.includes('/')
+              ? citation.relativePath.split('/')[0]
+              : 'default',
+            title: citation.title,
+            content: citation.text,
+            createdAt: '',
+            updatedAt: '',
+            relativePath: citation.relativePath ?? '',
+            contentHash: '',
+            ...(typeof citation.metadata?.tags !== 'undefined' && Array.isArray(citation.metadata.tags)
+              ? {
+                  tags: citation.metadata.tags.filter((tag): tag is string => typeof tag === 'string'),
+                }
+              : {}),
+          },
+          score: citation.score ?? 0,
+          snippet: citation.text,
+          channels: ['fts'],
+          rank: {},
+        })),
+        citations: result.citations,
+        degradedBaseIds: result.degradedBaseIds,
+        skipped: result.skipped,
+      });
     }
     case 'notes/write': {
       const { store } = await context.getNotesServices();
-      const record = await store.write(command.input);
+      const rag = await context.getFolderRag();
+      const result = await writeNoteAndReindex(notesWriteDeps(context, store, rag), command.input);
       await publishKnowledgeBasesChanged(context);
-      return ok(requestId, 'notes/write', { record });
+      return ok(requestId, 'notes/write', result);
     }
     case 'notes/update': {
       const { store } = await context.getNotesServices();
+      const rag = await context.getFolderRag();
       try {
-        const record = await store.update(command.input);
+        const result = await updateNoteAndReindex(
+          notesWriteDeps(context, store, rag),
+          command.input,
+        );
         await publishKnowledgeBasesChanged(context);
-        return ok(requestId, 'notes/update', { record });
+        return ok(requestId, 'notes/update', result);
       } catch (error) {
         if (error instanceof NoteRevisionConflictError) {
           return fail(requestId, 'notes/update', 'notes-revision-conflict', {
@@ -163,8 +205,13 @@ export async function handleKnowledgeCommand(
     }
     case 'notes/delete': {
       const { store } = await context.getNotesServices();
+      const rag = await context.getFolderRag();
       try {
-        const result = await store.delete(command.noteId, command.expectedContentHash);
+        const result = await deleteNoteAndReindex(
+          notesWriteDeps(context, store, rag),
+          command.noteId,
+          command.expectedContentHash,
+        );
         await publishKnowledgeBasesChanged(context);
         return ok(requestId, 'notes/delete', result);
       } catch (error) {
@@ -183,9 +230,11 @@ export async function handleKnowledgeCommand(
       }
     }
     case 'notes/reindex': {
-      const { index } = await context.getNotesServices();
+      const rag = await context.getFolderRag();
+      const notesRoot = getNotesRoot(getPiwinRoot(context.piwinRoot));
+      await mkdir(notesRoot, { recursive: true });
       if (notesReindexInFlight === undefined) {
-        notesReindexInFlight = index.rebuild().finally(() => {
+        notesReindexInFlight = rag.indexFolder(notesRoot).finally(() => {
           notesReindexInFlight = undefined;
         });
       }
@@ -193,43 +242,14 @@ export async function handleKnowledgeCommand(
       return ok(requestId, 'notes/reindex', { rebuilt: true });
     }
     case 'notes/eval-run': {
-      const services = await context.getNotesServices();
-      const { cases, warnings } = await loadGoldenSet(services.store.getNotesRoot());
-      if (cases.length === 0) {
-        return fail(
-          requestId,
-          'notes/eval-run',
-          'Golden set empty. Pin cases first (piwin notes pin / search result pin).',
-        );
-      }
-      const k = command.k && command.k > 0 ? Math.floor(command.k) : 5;
-      const modes: Array<'fts' | 'vector' | 'hybrid'> = services.searchOptions.embeddingProvider
-        ? ['fts', 'vector', 'hybrid']
-        : ['fts'];
-      const reports = [];
-      for (const mode of modes) {
-        let degraded = false;
-        const report = await runRecallEval({
-          cases,
-          mode,
-          k,
-          search: async (query, limit, searchMode) =>
-            searchNotes(
-              services.index,
-              { query, limit, mode: searchMode },
-              { ...services.searchOptions, onWarning: () => (degraded = true) },
-            ),
-          wasDegraded: () => degraded,
-        });
-        services.index.saveEvalRun(report);
-        reports.push(report);
-      }
-      return ok(requestId, 'notes/eval-run', { reports, warnings });
+      return fail(
+        requestId,
+        'notes/eval-run',
+        'Notes recall eval against doc-rag is not ported yet. Use `piwin kb search` to inspect retrieval.',
+      );
     }
     case 'notes/eval-history': {
-      const { index } = await context.getNotesServices();
-      const runs = index.listEvalRuns();
-      return ok(requestId, 'notes/eval-history', { runs });
+      return ok(requestId, 'notes/eval-history', { runs: [] });
     }
     case 'flashcards/create': {
       const store = await context.getCardStore();
@@ -520,4 +540,16 @@ export async function handleKnowledgeCommand(
     default:
       return null;
   }
+}
+
+function notesWriteDeps(
+  context: KnowledgeCommandContext,
+  store: NoteStore,
+  rag: FolderRag,
+): { store: NoteStore; rag: FolderRag; piwinRoot?: string } {
+  return {
+    store,
+    rag,
+    ...(context.piwinRoot !== undefined ? { piwinRoot: context.piwinRoot } : {}),
+  };
 }

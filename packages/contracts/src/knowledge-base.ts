@@ -89,6 +89,11 @@ export type KnowledgeCitation = {
   pageEnd?: number;
   text: string;
   score?: number;
+  /**
+   * Frontmatter fields parsed off the source document (notes always carry
+   * `title`/`tags`; sources without frontmatter omit this entirely).
+   */
+  metadata?: Record<string, unknown>;
 };
 
 export type KnowledgeSearchSkipReason = 'unknown' | 'missing' | 'not-indexed' | 'indexing' | 'error';
@@ -104,7 +109,7 @@ export type KnowledgeSearchResult = {
 export const KNOWLEDGE_SEARCH_DEFAULT_LIMIT = 8;
 export const KNOWLEDGE_SEARCH_MAX_LIMIT = 30;
 
-/** Agent tool names. `note_search/list/read` are not registered alongside these. */
+/** Agent tool names. `note_search`/`note_read` are not registered alongside these; `note_list` (enumerate notes) still is. */
 export const KNOWLEDGE_TOOL_NAMES = {
   list: 'knowledge_list',
   search: 'knowledge_search',
@@ -159,7 +164,19 @@ export type KnowledgeBaseHostCommand =
   /** `deleteIndex` also drops `~/.piwin/doc-rag/<folderKey>/`. The notes base cannot be removed. */
   | { id?: string; type: 'knowledge/bases/remove'; baseId: string; deleteIndex: boolean }
   /** Omitted `baseIds` searches every `ready` / `partial` base. */
-  | { id?: string; type: 'knowledge/search'; query: string; baseIds?: string[]; limit?: number }
+  /**
+   * `tags` narrows the candidate set (frontmatter `metadata.tags` equality,
+   * any-of) *before* ranking and `limit` — never a post-hoc filter on results,
+   * or a match past the cut would come back as no results. Not a relevance signal.
+   */
+  | {
+      id?: string;
+      type: 'knowledge/search';
+      query: string;
+      baseIds?: string[];
+      tags?: string[];
+      limit?: number;
+    }
   | { id?: string; type: 'knowledge/open-source'; citation: KnowledgeCitation; openFile?: boolean }
   /** Replaces the session's mounted bases. Unknown ids are rejected. */
   | { id?: string; type: 'session/set-knowledge-bases'; sessionId: string; baseIds: string[] };

@@ -2,7 +2,7 @@
  * Workbench owners: host runtime, session hydrate/restore, composer, and
  * view gestures. Must not list hydrateSessions in cold-start effect deps.
  */
-import { useRef, type Dispatch, type SetStateAction } from 'react';
+import { useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import type { ThemeManifest } from '@piwin/contracts';
 import type { HostLogEntry } from '../HostLogPanel';
 import { useArtifactCanvasAutoReveal } from './use-artifact-canvas-auto-reveal';
@@ -30,6 +30,11 @@ export type UseWorkbenchAppModelArgs = {
   onThemeApplied: (theme: ThemeManifest) => void;
   setHostLogEntries: Dispatch<SetStateAction<HostLogEntry[]>>;
   liveSessionId: string | null;
+  /** See `UseComposerMediaArgs.knowledgeMountsRef` — pass-through, not read here. */
+  knowledgeMountsRef?: MutableRefObject<{
+    mountedIds: readonly string[];
+    clearDraft: () => void;
+  } | null>;
 };
 
 export function useWorkbenchAppModel(args: UseWorkbenchAppModelArgs) {
@@ -42,6 +47,7 @@ export function useWorkbenchAppModel(args: UseWorkbenchAppModelArgs) {
     onThemeApplied,
     setHostLogEntries,
     liveSessionId,
+    knowledgeMountsRef,
   } = args;
   const leaveActiveSessionRef = useRef<() => void>(() => undefined);
   const host = useWorkbenchHostRuntime({
@@ -70,6 +76,7 @@ export function useWorkbenchAppModel(args: UseWorkbenchAppModelArgs) {
     chrome,
     host,
     session,
+    ...(knowledgeMountsRef ? { knowledgeMountsRef } : {}),
   });
   const {
     handleOpenDocument,

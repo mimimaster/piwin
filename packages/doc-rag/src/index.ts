@@ -24,6 +24,7 @@ export {
 
 export { createFolderRag } from './folder-rag.js';
 export type { CreateFolderRagOptions } from './folder-rag.js';
+export type { IngestFileResult } from './indexing/ingestion-service.js';
 export { createParserRegistry } from './parsers/registry.js';
 export type { ParserRegistry } from './parsers/registry.js';
 export { createMarkdownParser } from './parsers/markdown-parser.js';

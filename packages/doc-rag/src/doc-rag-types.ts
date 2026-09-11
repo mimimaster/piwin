@@ -12,6 +12,7 @@ import type {
   RetrievedChunk,
   ScanFolderResult,
 } from '@piwin/contracts';
+import type { IngestFileResult } from './indexing/ingestion-service.js';
 
 /** Document row from the folder state store, including chunk counts. */
 export type FolderDocumentRecord = DocumentManifest & { chunkCount: number };
@@ -34,6 +35,10 @@ export type FolderRag = {
   ): Promise<ContextPack>;
   listDocuments(folderPath: string): Promise<FolderDocumentRecord[]>;
   isIndexed(folderPath: string): Promise<boolean>;
+  /** Parse, embed, and upsert a single file. Serialized with `indexFolder` via the per-folder lock. */
+  ingestFile(folderPath: string, relativePath: string): Promise<IngestFileResult>;
+  /** Drop one document's chunks and state row. No-op if the folder is already gone. */
+  forgetFile(folderPath: string, relativePath: string): Promise<void>;
   /** Close cached stores and delete `doc-rag/<folderKey>/`. */
   forgetFolder(folderPath: string): Promise<void>;
   close(): void;

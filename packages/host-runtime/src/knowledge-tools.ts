@@ -166,6 +166,11 @@ export function buildKnowledgeTools(options: BuildKnowledgeToolsOptions): HostTo
               items: { type: 'string' },
               description: 'Optional knowledge base ids to search',
             },
+            tags: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Optional frontmatter tags; any-of match, applied before ranking',
+            },
             limit: { type: 'number', description: 'Max citations, default 8' },
           },
           required: ['query'],
@@ -179,11 +184,13 @@ export function buildKnowledgeTools(options: BuildKnowledgeToolsOptions): HostTo
         const limit =
           typeof args.limit === 'number' ? clampKnowledgeSearchLimit(args.limit) : undefined;
         const requestedIds = parseStringArray(args.baseIds);
+        const tags = parseStringArray(args.tags);
         const scopedIds = await resolveSearchBaseIds(options, requestedIds);
         const searchStart = nextKnowledgeRefStart(context.runId);
         const result = await searchKnowledgeBases(options, {
           query,
           ...(scopedIds ? { baseIds: scopedIds } : {}),
+          ...(tags ? { tags } : {}),
           ...(limit !== undefined ? { limit } : {}),
           startRef: searchStart,
         });

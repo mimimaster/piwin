@@ -5,19 +5,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ContextPack, HostPush } from '@piwin/contracts';
 import { folderKnowledgeBaseId, NOTES_KNOWLEDGE_BASE_ID } from '@piwin/contracts';
 import { canonicalizeFolderPath, createFolderRag, folderKey, type FolderRag } from '@piwin/doc-rag';
-import { createNoteStore, openNoteIndex } from '@piwin/notes';
+import { createNoteStore } from '@piwin/notes';
 import { createSessionRecord, upsertSessionRecord } from '@piwin/session';
 import { createDefaultPiwinConfig } from '../config-store.js';
 import { getPiwinSessionIndexPath } from '../paths.js';
 import { handleKnowledgeCommand, type KnowledgeCommandContext } from './knowledge-commands.js';
 
 const cleanup: string[] = [];
-const openIndexes: Array<{ close: () => void }> = [];
 
 afterEach(async () => {
-  for (const index of openIndexes.splice(0)) {
-    index.close();
-  }
   for (const dir of cleanup.splice(0)) {
     await rm(dir, { recursive: true, force: true });
   }
@@ -30,14 +26,12 @@ async function setup() {
   cleanup.push(folder);
   await writeFile(join(folder, 'intro.md'), '# Intro\n\nSpaced repetition schedules reviews.\n');
   const store = createNoteStore({ piwinRoot: root });
-  const index = await openNoteIndex(store);
-  openIndexes.push(index);
   await store.write({ title: 'FSRS', content: 'Spaced repetition schedules reviews.' });
   const rag = createFolderRag({ piwinRoot: root });
   const pushes: HostPush[] = [];
   const context: KnowledgeCommandContext = {
     piwinRoot: root,
-    getNotesServices: async () => ({ store, index, searchOptions: {} }),
+    getNotesServices: async () => ({ store }),
     getCardStore: async () => {
       throw new Error('card store unused');
     },
@@ -47,7 +41,7 @@ async function setup() {
       pushes.push(message);
     },
   };
-  return { root, folder, rag, context, pushes, index };
+  return { root, folder, rag, context, pushes };
 }
 
 describe('knowledge base commands', () => {
@@ -123,6 +117,11 @@ describe('knowledge base commands', () => {
       success: true,
       data: { removed: true, baseId },
     });
+    const listed = await handleKnowledgeCommand({ type: 'knowledge/bases/list' }, 'r4', context);
+    const ids = (listed as { data: { bases: Array<{ id: string }> } }).data.bases.map(
+      (base) => base.id,
+    );
+    expect(ids).not.toContain(baseId);
     rag.close();
   });
 
@@ -289,11 +288,9 @@ describe('folder retrieve mapping via mocked rag', () => {
       close: () => undefined,
     } as unknown as FolderRag;
     const store = createNoteStore({ piwinRoot: root });
-    const index = await openNoteIndex(store);
-    openIndexes.push(index);
     const context: KnowledgeCommandContext = {
       piwinRoot: root,
-      getNotesServices: async () => ({ store, index, searchOptions: {} }),
+      getNotesServices: async () => ({ store }),
       getCardStore: async () => {
         throw new Error('unused');
       },

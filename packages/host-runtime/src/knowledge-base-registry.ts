@@ -5,8 +5,9 @@
 import { mkdir, readFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { writeTextFileAtomic } from '@piwin/session';
-import { folderKey, listSourcePathSidecars } from '@piwin/doc-rag';
+import { canonicalizeFolderPath, folderKey, listSourcePathSidecars } from '@piwin/doc-rag';
 import { folderKnowledgeBaseId } from '@piwin/contracts';
+import { getNotesRoot } from '@piwin/notes';
 import { getPiwinKnowledgeBasesPath, getPiwinRoot } from './paths.js';
 
 export const KNOWLEDGE_BASE_REGISTRY_VERSION = 1;
@@ -18,15 +19,21 @@ export type KnowledgeBaseRegistryRecord = {
   lastUsedAt?: string;
 };
 
+export type KnowledgeBaseRemovedRecord = {
+  folderKey: string;
+  removedAt: string;
+};
+
 export type KnowledgeBaseRegistryDocument = {
   version: number;
   folders: KnowledgeBaseRegistryRecord[];
+  removed: KnowledgeBaseRemovedRecord[];
 };
 
 const writeChains = new Map<string, Promise<void>>();
 
 function emptyDocument(): KnowledgeBaseRegistryDocument {
-  return { version: KNOWLEDGE_BASE_REGISTRY_VERSION, folders: [] };
+  return { version: KNOWLEDGE_BASE_REGISTRY_VERSION, folders: [], removed: [] };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -67,6 +74,9 @@ function parseDocument(raw: string, filePath: string): KnowledgeBaseRegistryDocu
   if (parsed.folders !== undefined && !Array.isArray(parsed.folders)) {
     throw new Error(`Knowledge base registry is corrupt: ${filePath}`);
   }
+  if (parsed.removed !== undefined && !Array.isArray(parsed.removed)) {
+    throw new Error(`Knowledge base registry is corrupt: ${filePath}`);
+  }
   const folders: KnowledgeBaseRegistryRecord[] = [];
   for (const item of parsed.folders ?? []) {
     const record = parseFolderRecord(item);
@@ -75,7 +85,22 @@ function parseDocument(raw: string, filePath: string): KnowledgeBaseRegistryDocu
     }
     folders.push(record);
   }
-  return { version: KNOWLEDGE_BASE_REGISTRY_VERSION, folders };
+  const removed: KnowledgeBaseRemovedRecord[] = [];
+  for (const item of parsed.removed ?? []) {
+    const record = parseRemovedRecord(item);
+    if (!record) {
+      throw new Error(`Knowledge base registry is corrupt: ${filePath}`);
+    }
+    removed.push(record);
+  }
+  return { version: KNOWLEDGE_BASE_REGISTRY_VERSION, folders, removed };
+}
+
+function parseRemovedRecord(value: unknown): KnowledgeBaseRemovedRecord | null {
+  if (!isRecord(value)) return null;
+  if (typeof value.folderKey !== 'string' || value.folderKey.trim().length === 0) return null;
+  if (typeof value.removedAt !== 'string' || value.removedAt.trim().length === 0) return null;
+  return { folderKey: value.folderKey.trim(), removedAt: value.removedAt };
 }
 
 export function knowledgeBaseRegistryPath(piwinRoot?: string): string {
@@ -108,7 +133,11 @@ export async function saveKnowledgeBaseRegistry(
     await writeTextFileAtomic(
       filePath,
       `${JSON.stringify(
-        { version: KNOWLEDGE_BASE_REGISTRY_VERSION, folders: document.folders },
+        {
+          version: KNOWLEDGE_BASE_REGISTRY_VERSION,
+          folders: document.folders,
+          removed: document.removed,
+        },
         null,
         2,
       )}\n`,
@@ -146,9 +175,13 @@ export async function recoverKnowledgeBaseRegistry(piwinRoot?: string): Promise<
   const sidecars = await listSourcePathSidecars(getPiwinRoot(piwinRoot));
   const knownPaths = new Set(document.folders.map((record) => record.folderPath));
   const knownIds = new Set(document.folders.map((record) => folderRecordId(record)));
+  const removedKeys = new Set(document.removed.map((record) => record.folderKey));
+  const notesKey = await notesFolderKey(piwinRoot);
   const now = new Date().toISOString();
   let changed = false;
   for (const sidecar of sidecars) {
+    if (removedKeys.has(sidecar.folderKey)) continue;
+    if (notesKey !== undefined && sidecar.folderKey === notesKey) continue;
     const id = folderKnowledgeBaseId(sidecar.folderKey);
     if (knownPaths.has(sidecar.folderPath) || knownIds.has(id)) continue;
     const name = defaultFolderBaseName(sidecar.folderPath);
@@ -165,6 +198,13 @@ export async function recoverKnowledgeBaseRegistry(piwinRoot?: string): Promise<
     await saveKnowledgeBaseRegistry(piwinRoot, document);
   }
   return changed;
+}
+
+export async function notesFolderKey(piwinRoot?: string): Promise<string | undefined> {
+  const notesRoot = getNotesRoot(getPiwinRoot(piwinRoot));
+  const canonical = await canonicalizeFolderPath(notesRoot);
+  if (!canonical) return undefined;
+  return folderKey(canonical);
 }
 
 export function defaultFolderBaseName(folderPath: string): string {

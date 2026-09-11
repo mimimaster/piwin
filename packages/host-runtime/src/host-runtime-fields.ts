@@ -231,8 +231,6 @@ export class HostRuntimeFields {
   folderRagKey: string | null = null;
   notesServices: {
     store: import('@piwin/notes').NoteStore;
-    index: import('@piwin/notes').NoteIndex;
-    searchOptions: import('@piwin/notes').SearchNotesOptions;
   } | null = null;
   /** Spec §12: per-session runtime generation/staleness registry. */
   runtimeController = undefined as unknown as SessionRuntimeController;

@@ -255,6 +255,9 @@ export async function handleMockSessionReadCommands(
           transcript: [],
           name: command.input.sessionName ?? '',
           updatedAt: new Date().toISOString(),
+          ...(command.input.knowledgeBaseIds && command.input.knowledgeBaseIds.length > 0
+            ? { knowledgeBaseIds: [...command.input.knowledgeBaseIds] }
+            : {}),
         });
         host.emitPush({ type: 'host/status', mode: host.getMode(), ready: true, mock: true });
         return {

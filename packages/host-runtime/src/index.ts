@@ -146,6 +146,12 @@ export type { SecretResolver, SecretResolveReport } from './secret-resolver.js';
 
 export { buildNotesTools } from './notes-tools.js';
 export type { BuildNotesToolsOptions } from './notes-tools.js';
+export {
+  writeNoteAndReindex,
+  updateNoteAndReindex,
+  deleteNoteAndReindex,
+} from './notes-write-service.js';
+export type { NotesWriteDeps } from './notes-write-service.js';
 export { resolveNotesEmbeddingApiKey, resolveKnowledgeHttpApiKey } from './notes-embedding-secret.js';
 export { buildFlashcardTools } from './flashcard-tools.js';
 export { buildExtensionTools, type BuildExtensionToolsOptions } from './extension-tools.js';

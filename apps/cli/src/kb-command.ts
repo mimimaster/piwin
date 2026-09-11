@@ -11,7 +11,7 @@ export const CLI_KB_USAGE = `Usage:
   piwin kb list [--mock]
   piwin kb add <folder> [--name n] [--mock]
   piwin kb remove <id> [--delete-index] [--mock]
-  piwin kb search <query> [--kb id ...] [--limit n] [--mock]`;
+  piwin kb search <query> [--kb id ...] [--tags t1,t2] [--limit n] [--mock]`;
 
 export type KbHostClient = {
   handleCommand: (command: HostCommand) => Promise<HostResponse>;
@@ -101,7 +101,14 @@ export async function runKbCommandWithClient(
     }
     const limitRaw = readOption(argv, '--limit');
     const limit = limitRaw ? Number(limitRaw) : undefined;
-    await runSearch(host, query, readRepeatableOption(argv, '--kb'), limit, log);
+    await runSearch(
+      host,
+      query,
+      readRepeatableOption(argv, '--kb'),
+      readRepeatableOption(argv, '--tags'),
+      limit,
+      log,
+    );
     return;
   }
   console.error(CLI_KB_USAGE);
@@ -114,7 +121,7 @@ function collectQuery(tokens: string[]): string {
     const token = tokens[i];
     if (!token) continue;
     if (token.startsWith('--')) {
-      if (token === '--kb' || token === '--limit' || token === '--name') {
+      if (token === '--kb' || token === '--limit' || token === '--name' || token === '--tags') {
         i += 1;
       }
       continue;
@@ -209,6 +216,7 @@ async function runSearch(
   host: KbHostClient,
   query: string,
   baseIds: string[],
+  tags: string[],
   limit: number | undefined,
   log: (line: string) => void,
 ): Promise<void> {
@@ -216,6 +224,7 @@ async function runSearch(
     type: 'knowledge/search',
     query,
     ...(baseIds.length > 0 ? { baseIds } : {}),
+    ...(tags.length > 0 ? { tags } : {}),
     ...(limit !== undefined && Number.isFinite(limit) ? { limit } : {}),
   });
   if (!response.success) {

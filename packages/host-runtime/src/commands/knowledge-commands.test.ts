@@ -4,7 +4,9 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FlashcardRecord } from '@piwin/contracts';
 import type { CardStore } from '@piwin/flashcards';
-import type { NoteIndex, NoteStore } from '@piwin/notes';
+import { createFolderRag, type FolderRag } from '@piwin/doc-rag';
+import { createNoteStore, type NoteStore } from '@piwin/notes';
+import { createDefaultPiwinConfig } from '../config-store.js';
 import type { KnowledgeCommandContext } from './knowledge-commands.js';
 import { handleKnowledgeCommand, isKnowledgeCommand } from './knowledge-commands.js';
 
@@ -12,8 +14,6 @@ function createContext(store: NoteStore): KnowledgeCommandContext {
   return {
     getNotesServices: async () => ({
       store,
-      index: {} as NoteIndex,
-      searchOptions: {},
     }),
     getCardStore: async () => {
       throw new Error('card store should not be called');
@@ -94,6 +94,47 @@ describe('knowledge command handlers', () => {
       type: 'response',
       command: 'notes/list',
       success: false,
+    });
+  });
+
+  describe('notes/search', () => {
+    let root: string;
+    let rag: FolderRag;
+
+    afterEach(async () => {
+      rag?.close();
+      if (root) await rm(root, { recursive: true, force: true });
+    });
+
+    it('reports the real collection from relativePath, not a hardcoded default', async () => {
+      root = await mkdtemp(join(tmpdir(), 'piwin-kc-search-'));
+      const store = createNoteStore({ piwinRoot: root });
+      rag = createFolderRag({ piwinRoot: root });
+      const note = await store.write({
+        title: 'Roadmap',
+        content: 'Q3 roadmap details.',
+        collection: 'work',
+      });
+      await rag.ingestFile(join(root, 'notes'), note.relativePath);
+      const context: KnowledgeCommandContext = {
+        piwinRoot: root,
+        getNotesServices: async () => ({ store }),
+        getFolderRag: async () => rag,
+        getCardStore: async () => {
+          throw new Error('card store should not be called');
+        },
+        loadConfig: async () => createDefaultPiwinConfig(),
+      };
+      const response = await handleKnowledgeCommand(
+        { type: 'notes/search', query: { query: 'roadmap' } },
+        'r1',
+        context,
+      );
+      if (!response) throw new Error('expected a response');
+      expect(response.success).toBe(true);
+      const data = (response as { data: { hits: Array<{ note: { collection: string } }> } }).data;
+      expect(data.hits.length).toBeGreaterThan(0);
+      expect(data.hits[0]?.note.collection).toBe('work');
     });
   });
 
