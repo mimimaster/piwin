@@ -12,6 +12,7 @@ function fakePort(): SubscriptionAuthPort {
     login: async () => ({ kind: 'ok' }),
     logout: async () => ({ kind: 'ok' }),
     refreshProvider: async () => undefined,
+    refreshLiveCatalog: async () => undefined,
     fetchQuota: async (id) => ({
       providerId: id,
       groups: [],
@@ -36,6 +37,7 @@ function loggedInXaiPort(): SubscriptionAuthPort {
     login: async () => ({ kind: 'ok' }),
     logout: async () => ({ kind: 'ok' }),
     refreshProvider: async () => undefined,
+    refreshLiveCatalog: async () => undefined,
     fetchQuota: async (id) => ({
       providerId: id,
       groups: [],
@@ -153,6 +155,35 @@ describe('SubscriptionAuthService', () => {
     expect(opened).toEqual(['https://chatgpt.com/connect']);
   });
 
+  it('does not open the auth URL on the Host when the Desktop will', async () => {
+    const opened: string[] = [];
+    const port = fakePort();
+    port.login = async (_providerId, interaction) => {
+      interaction.notify({
+        type: 'auth_url',
+        url: 'https://accounts.x.ai/sign-in',
+      });
+      interaction.notify({
+        type: 'device_code',
+        userCode: 'ABCD-EFGH',
+        verificationUri: 'https://accounts.x.ai/device',
+      });
+      return { kind: 'ok' };
+    };
+    const config: PiwinConfig = createDefaultPiwinConfig();
+    const service = new SubscriptionAuthService(
+      { port, openAuthUrl: (url) => opened.push(url) },
+      { loadConfig: async () => config, saveConfig: async () => undefined },
+    );
+    await service.login({
+      providerId: 'xai',
+      ownerDeviceId: 'desktop-1',
+      openAuthUrlOnHost: false,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(opened).toEqual([]);
+  });
+
   it('refreshProvider forwards to the auth port', async () => {
     const refreshed: string[] = [];
     const port = fakePort();
@@ -166,6 +197,57 @@ describe('SubscriptionAuthService', () => {
     );
     await service.refreshProvider('openai-codex');
     expect(refreshed).toEqual(['openai-codex']);
+  });
+
+  it('refreshes the live catalog with network after seeding logged-in providers', async () => {
+    const live: Array<{ providers?: readonly string[]; signal?: AbortSignal }> = [];
+    let catalog = [{ id: 'builtin', name: 'Builtin' }];
+    const port: SubscriptionAuthPort = {
+      ...fakePort(),
+      listCredentials: async () => [{ providerId: 'openai-codex', type: 'oauth' }],
+      isUsingSubscription: (id) => id === 'openai-codex',
+      getChatCatalog: () => catalog,
+      refreshLiveCatalog: async (options) => {
+        live.push(options ?? {});
+        catalog = [{ id: 'overlay-model', name: 'Overlay' }];
+      },
+    };
+    let saved: PiwinConfig | undefined;
+    const service = new SubscriptionAuthService(
+      { port },
+      {
+        loadConfig: async () => createDefaultPiwinConfig(),
+        saveConfig: async (config) => {
+          saved = config;
+        },
+      },
+    );
+    await service.ensureLoggedInProviders();
+    expect(live).toHaveLength(1);
+    expect(live[0]?.signal).toBeInstanceOf(AbortSignal);
+    expect(service.catalogModelIds('openai-codex')).toEqual(['overlay-model']);
+    expect(saved?.providers.some((provider) => provider.id === 'openai-codex')).toBe(true);
+  });
+
+  it('keeps the builtin catalog when live refresh fails', async () => {
+    const port: SubscriptionAuthPort = {
+      ...fakePort(),
+      listCredentials: async () => [{ providerId: 'openai-codex', type: 'oauth' }],
+      isUsingSubscription: (id) => id === 'openai-codex',
+      getChatCatalog: () => [{ id: 'builtin', name: 'Builtin' }],
+      refreshLiveCatalog: async () => {
+        throw new Error('pi.dev unreachable');
+      },
+    };
+    const service = new SubscriptionAuthService(
+      { port },
+      {
+        loadConfig: async () => createDefaultPiwinConfig(),
+        saveConfig: async () => undefined,
+      },
+    );
+    await expect(service.ensureLoggedInProviders()).resolves.toBeTruthy();
+    expect(service.catalogModelIds('openai-codex')).toEqual(['builtin']);
   });
 
   it('does not resurrect catalog models from a disabled subscription provider', async () => {
@@ -245,5 +327,43 @@ describe('SubscriptionAuthService', () => {
       'medium',
       'high',
     ]);
+  });
+
+  it('removes subscription providers from config on logout', async () => {
+    let credentials: Array<{ providerId: string; type: 'oauth' }> = [{ providerId: 'xai', type: 'oauth' }];
+    const port = loggedInXaiPort();
+    port.listCredentials = async () => credentials;
+    port.logout = async () => {
+      credentials = [];
+      return { kind: 'ok' };
+    };
+    let config: PiwinConfig = {
+      ...createDefaultPiwinConfig(),
+      defaultProviderId: 'xai',
+      defaultModelId: 'grok-4.6',
+      providers: [
+        grokSubscriptionProvider(),
+        {
+          id: 'custom-openai',
+          name: 'Local',
+          protocol: 'openai-compatible',
+          baseUrl: 'http://127.0.0.1:11434/v1',
+          models: [{ id: 'llama' }],
+        },
+      ],
+    };
+    const service = new SubscriptionAuthService(
+      { port },
+      {
+        loadConfig: async () => config,
+        saveConfig: async (next) => {
+          config = next;
+        },
+      },
+    );
+    await service.logout('xai');
+    expect(config.providers.map((provider) => provider.id)).toEqual(['custom-openai']);
+    expect(config.defaultProviderId).toBeUndefined();
+    expect(config.defaultModelId).toBeUndefined();
   });
 });

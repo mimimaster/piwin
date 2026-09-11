@@ -659,6 +659,10 @@ export function isSafeRemoteCommand(command: HostCommand): boolean {
             command.maxBytes >= 1024 &&
             command.maxBytes <= 512 * 1024))
       );
+    case 'pi-environment/detect':
+    case 'pi-environment/preview':
+    case 'pi-environment/apply':
+      return true;
     case 'extensions/list':
       return command.projectPath === undefined;
     case 'extensions/set_enabled':

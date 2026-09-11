@@ -49,6 +49,7 @@ describe('Quota Commands & SubscriptionQuotaService', () => {
       login: vi.fn(async () => ({ kind: 'ok' as const })),
       logout: vi.fn(async () => ({ kind: 'ok' as const })),
       refreshProvider: vi.fn(async () => {}),
+      refreshLiveCatalog: vi.fn(async () => {}),
       fetchQuota: vi.fn(async () => mockCodexQuota),
       resetQuota: vi.fn(async () => ({
         ok: true,

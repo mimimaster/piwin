@@ -54,6 +54,8 @@ export {
 export {
   getPiAgentDir,
   getPiwinPiAgentDir,
+  getDefaultPiwinRoot,
+  isDefaultPiwinRoot,
   getPiwinRoot,
   getPiwinConfigPath,
   getPiwinMediaDir,

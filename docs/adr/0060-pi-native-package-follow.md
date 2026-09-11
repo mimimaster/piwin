@@ -22,8 +22,10 @@ Manual install (`extensions/install`) stages into `~/.piwin/extensions/revisions
 3. **Keep Phase A.** Managed revisions, local/git install, `set_enabled`, `extensions/apply`, `scanExtensions` of `~/.piwin`, extraPaths, and shadow diagnostics stay. Do not add a second lifecycle (no bash `finally` coordinator, no `fs.watch`, no HostRuntime fingerprint store, no copy of Pi packages into revisions).
 4. **One merge seam.** A single host-runtime helper loads piwin scans + Pi-native entries and is used by both catalog list commands and `createPiResourceLoader`. Do not concat in two places.
 5. **Pi inventory is read-only `pi-native` (project packages are `project`).** Precedence remains `bundled → user → project → mapped → pi-native`. `defaultSources()` must allow `pi-native`. `packages[]` is never written by piwin install.
-6. **`pi-native` defaults to enabled.** Disable via existing `disabledIds`. Managed installs stay inactive until the user enables them (ADR 0047).
+6. **`pi-native` defaults to enabled** when the static scan is `compatible`. Disable via existing `disabledIds`. Managed installs stay inactive until the user enables them (ADR 0047). Do not silently write `disabledIds` for TUI-incompatible packages.
 7. **Loader flags stay off.** `noExtensions` / `noSkills` / `noPromptTemplates` remain. Host is still the only discovery authority.
+8. **test-host / non-default `PIWIN_ROOT` does not follow** user-global `~/.pi/agent`. Project `.pi/` packages may still load when the session project is trusted.
+9. **TUI-incompatible extensions are listed, not loaded.** Static scan (no module execute) classifies `compatible` / `degraded` / `incompatible` / `unverified`. Only `compatible` is `enabled` by default and included in `collectExtensionEntryPaths`.
 
 ## Consequences
 

@@ -8,9 +8,14 @@
 piwin loads Pi Extensions into the **Agent Runtime**. They are TypeScript
 modules. They are not Pi TUI plugins, and they do not restyle Desktop.
 
-Settings → Skills & Extensions → Extensions states this on first open. CLI
-prints the same boundary from `piwin extension list`, `piwin extension install`,
-and `piwin doctor`.
+This guide documents the compatibility boundary. Settings → Extensions labels
+each package (`compatible` / 仅 Pi 终端). CLI prints the summary from
+`piwin extension list`, `piwin extension install`, and `piwin doctor`.
+
+Static scan (no module execute) classifies extensions before Blueprint load.
+Only **compatible** packages (tools / hooks / confirm|select|input|notify) are
+enabled by default. Mixed TUI packages are **degraded** and TUI-only packages
+are **incompatible**: they stay in the list as 仅 Pi 终端 and are not loaded.
 
 ## What works
 

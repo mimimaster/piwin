@@ -282,6 +282,7 @@ export function SubscriptionAccountsPanel(): ReactElement {
         providerId,
         ownerDeviceId,
         preferLoopback: true,
+        openAuthUrlOnHost: false,
         ...(collidingChannelId ? { relocateChannelId: collidingChannelId } : {}),
       },
     });
