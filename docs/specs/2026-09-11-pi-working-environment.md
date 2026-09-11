@@ -2,7 +2,7 @@
 
 | 字段 | 值 |
 |------|------|
-| 状态 | Phase 1 implemented（2026-09-11） |
+| 状态 | Phase 1 implemented（2026-09-11；已做可行性核对，见 §17） |
 | 日期 | 2026-09-11 |
 | 性质 | 产品功能方案（不是模型名单补丁） |
 | 修订 | ADR 0002、ADR 0060、ADR 0010 / 0047、套餐 OAuth spec |
@@ -386,4 +386,3 @@ Host 启动时看这台机器是否存在可用的 Pi 家目录（`~/.pi/agent` 
 8. **test-host 今日仍跟随生产 `~/.pi/agent` 的包。** 凭证已经隔离，清单没有。要干净，得关非默认根的跟随。
 
 不采纳的方向：运行时 `authPath` 指回 `~/.pi/agent/auth.json`；把 Pi 包拷进 `~/.piwin/extensions/revisions`；后台 watch 用户 Pi 并改 `config.json`。
-

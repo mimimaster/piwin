@@ -61,3 +61,24 @@ a cooperative defense for callers using the same storage protocol.
   the storage protocol. The independent-process smoke verifies hold/release
   ordering and read-modify-write preservation; broader crash/maintenance
   recovery remains a separate hardening task.
+
+## 2026-09-11: Plan execution handoff (retired UI path)
+
+The earlier picker reserved a dedicated plan Run and called `plan/execute`.
+That path remains available to older callers and its document-integrity rules
+remain valid, but it is no longer the Desktop card's main handoff.
+
+## 2026-09-11: Plan display is message-bound and non-blocking
+
+The durable `SessionPlan` remains the Host source of truth. A successful
+`piwin_plan_create` result carries a versioned plan-display payload (durable
+path, logical display path, and the created snapshot). Agent events, transcript
+projection, remote projection, and Desktop history preserve that payload.
+
+Desktop renders the card from the completed tool result on its owning assistant
+message. It does not consult the current session plan or move the card to the
+composer. Opening the card uses the snapshot; choosing inline or subagent sends
+an ordinary user prompt after the Host rechecks the session and plan identity.
+The main card path no longer calls `plan/execute`, so a display failure cannot
+hold a model turn or create an empty UI message. The existing `plan/execute`
+command remains for compatibility with older callers and live progress UI.
