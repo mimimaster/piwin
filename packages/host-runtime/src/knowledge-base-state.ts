@@ -25,17 +25,6 @@ export type DerivedFolderKnowledgeBaseState = {
   lastIndexedAt?: string;
 };
 
-export type NotesKnowledgeBaseStateInput = {
-  noteCount: number;
-  hasEmbeddingProvider: boolean;
-};
-
-export type DerivedNotesKnowledgeBaseState = {
-  state: 'empty' | 'ready';
-  degraded: boolean;
-  documentCount: number;
-};
-
 export function deriveFolderKnowledgeBaseState(
   input: FolderKnowledgeBaseStateInput,
 ): DerivedFolderKnowledgeBaseState {
@@ -79,16 +68,6 @@ export function deriveFolderKnowledgeBaseState(
     derived.lastIndexedAt = lastIndexedAt;
   }
   return derived;
-}
-
-export function deriveNotesKnowledgeBaseState(
-  input: NotesKnowledgeBaseStateInput,
-): DerivedNotesKnowledgeBaseState {
-  return {
-    state: input.noteCount > 0 ? 'ready' : 'empty',
-    degraded: !input.hasEmbeddingProvider,
-    documentCount: input.noteCount,
-  };
 }
 
 export function isSearchableKnowledgeBaseState(state: KnowledgeBaseState): boolean {

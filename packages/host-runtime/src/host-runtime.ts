@@ -425,8 +425,6 @@ export class HostRuntime extends HostRuntimeFields {
 
   async getNotesServices(): Promise<{
     store: import('@piwin/notes').NoteStore;
-    index: import('@piwin/notes').NoteIndex;
-    searchOptions: import('@piwin/notes').SearchNotesOptions;
   }> {
     return getNotesServices(this.asKernel());
   }

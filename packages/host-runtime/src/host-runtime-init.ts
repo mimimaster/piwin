@@ -57,6 +57,8 @@ import { notifyForegroundSessionTurnTerminal } from './host-runtime-services.js'
 import { createDoccardsIngestionRegistry } from './commands/doccards-job-commands.js';
 import { publishKnowledgeBasesChanged } from './commands/knowledge-base-commands.js';
 import { recoverKnowledgeBaseRegistry } from './knowledge-base-registry.js';
+import { getNotesRoot } from '@piwin/notes';
+import { mkdir } from 'node:fs/promises';
 
 export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRuntimeOptions): void {
   const rootOwnershipEnabled = options.rootOwnership?.enabled ?? process.env.NODE_ENV !== 'test';
@@ -98,6 +100,20 @@ export function initializeHostRuntime(deps: HostRuntimeKernel, options: HostRunt
         type: 'host/log',
         level: 'warn',
         message: `knowledge base recovery failed: ${formatError(error)}`,
+      });
+    });
+    void (async () => {
+      const notesRoot = getNotesRoot(getPiwinRoot(deps.options.piwinRoot));
+      await mkdir(notesRoot, { recursive: true });
+      const rag = await deps.getFolderRag();
+      if (!(await rag.isIndexed(notesRoot))) {
+        await rag.indexFolder(notesRoot);
+      }
+    })().catch((error: unknown) => {
+      deps.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `notes knowledge backfill failed: ${formatError(error)}`,
       });
     });
     deps.extensionRevisionStore = createExtensionRevisionStore(getPiwinRoot(options.piwinRoot));

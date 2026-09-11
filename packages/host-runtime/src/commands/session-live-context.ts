@@ -128,6 +128,8 @@ export type SessionLiveContext = {
   host: AgentHost;
   /** Loads the full piwin config from disk. Used by preparePromptInput for walkthrough config. */
   loadConfig: () => Promise<PiwinConfig>;
+  getFolderRag?: () => Promise<import('@piwin/doc-rag').FolderRag>;
+  getNotesServices?: () => Promise<{ store: import('@piwin/notes').NoteStore }>;
   /** ORCH: bind resolved scheme to a run (turn-scoped). */
   setRunOrchestrationScheme: (
     runId: string,

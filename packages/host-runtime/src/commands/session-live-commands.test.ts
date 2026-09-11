@@ -17,6 +17,7 @@ import {
   type SessionTranscriptStore,
 } from '@piwin/session';
 import { openOrCreateProject } from '@piwin/project';
+import { createFolderRag, type FolderRag } from '@piwin/doc-rag';
 import {
   getPiwinProjectsPath,
   getPiwinRoot,
@@ -2371,6 +2372,70 @@ describe('session/create projectId binding', () => {
     });
     expect(disposed).toEqual([]);
     await rm(blockerDir, { recursive: true, force: true });
+  });
+});
+
+describe('session/create knowledgeBaseIds', () => {
+  it('persists requested ids on the durable record at creation, before any follow-up mount', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-create-kb-'));
+    let rag: FolderRag | undefined;
+    try {
+      rag = createFolderRag({ piwinRoot: rootDir });
+      const session = createDelayedSessionHandle();
+      const { context } = createControlContext(session);
+      context.piwinRoot = rootDir;
+      context.getFolderRag = async () => rag!;
+
+      const response = await handleSessionLiveCommand(
+        {
+          type: 'session/create',
+          input: { scope: { kind: 'general' }, knowledgeBaseIds: ['notes'] },
+        },
+        undefined,
+        context,
+      );
+
+      if (!response?.success) {
+        throw new Error(response?.error ?? 'session/create failed');
+      }
+      const sessionId = (response.data as { sessionId: string }).sessionId;
+      const record = await getSessionRecord(getPiwinSessionIndexPath(getPiwinRoot(rootDir)), sessionId);
+      expect(record?.knowledgeBaseIds).toEqual(['notes']);
+    } finally {
+      rag?.close();
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects creation with an unknown knowledge base id', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-create-kb-bad-'));
+    let rag: FolderRag | undefined;
+    try {
+      rag = createFolderRag({ piwinRoot: rootDir });
+      const session = createDelayedSessionHandle();
+      const { context } = createControlContext(session);
+      context.piwinRoot = rootDir;
+      context.getFolderRag = async () => rag!;
+
+      const response = await handleSessionLiveCommand(
+        {
+          type: 'session/create',
+          input: { scope: { kind: 'general' }, knowledgeBaseIds: ['folder:does-not-exist'] },
+        },
+        undefined,
+        context,
+      );
+
+      expect(response).not.toBeNull();
+      if (response === null) throw new Error('session/create returned no response');
+      expect(response.success).toBe(false);
+      if (!response.success) {
+        expect(response.error).toMatch(/Unknown knowledge base/);
+      }
+    } finally {
+      rag?.close();
+      await rm(rootDir, { recursive: true, force: true });
+    }
   });
 });
 

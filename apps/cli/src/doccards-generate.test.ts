@@ -34,6 +34,13 @@ function createRag(chunks: Array<{ filePath: string; content: string }>): Folder
     })),
     listDocuments: vi.fn(async () => []),
     isIndexed: vi.fn(async () => true),
+    ingestFile: vi.fn(async (_folderPath: string, relativePath: string) => ({
+      relativePath,
+      documentId: relativePath,
+      status: 'READY' as const,
+      chunkCount: 1,
+    })),
+    forgetFile: vi.fn(async () => undefined),
     forgetFolder: vi.fn(async () => undefined),
     close: vi.fn(),
   };

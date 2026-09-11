@@ -88,6 +88,10 @@ import { formatPlanForModelContext } from '../format-plan-context.js';
 import { createProductShellSession } from '../product-shell-session.js';
 import { createProductSessionId } from '../product-agent-host.js';
 import { persistDurableSessionRecord } from '../durable-session-record.js';
+import {
+  assertKnownKnowledgeBaseIds,
+  KnowledgeBaseCommandError,
+} from '../knowledge-base-service.js';
 import { createModelPromptAssembly, type ModelPromptAssembly } from '../model-context-assembly.js';
 import { persistAndPushAssembly } from '../model-context-record.js';
 import { resolvePromptContextRefs } from '../prompt/resolve-prompt-context-refs.js';
@@ -229,6 +233,28 @@ export async function handleSessionLiveCommand(
       }
       const rootDir = getPiwinRoot(context.piwinRoot);
       const indexPath = getPiwinSessionIndexPath(rootDir);
+      const requestedBaseIds = uniqueKnowledgeBaseIds(command.input.knowledgeBaseIds);
+      if (requestedBaseIds.length > 0) {
+        if (!context.getFolderRag) {
+          return fail(requestId, 'session/create', 'knowledge services are not available');
+        }
+        try {
+          await assertKnownKnowledgeBaseIds(
+            {
+              ...(context.piwinRoot !== undefined ? { piwinRoot: context.piwinRoot } : {}),
+              getFolderRag: context.getFolderRag,
+              ...(context.getNotesServices ? { getNotesServices: context.getNotesServices } : {}),
+              loadConfig: context.loadConfig,
+            },
+            requestedBaseIds,
+          );
+        } catch (error) {
+          if (error instanceof KnowledgeBaseCommandError) {
+            return fail(requestId, 'session/create', error.message);
+          }
+          throw error;
+        }
+      }
       let createdRecord;
       try {
         createdRecord = await persistDurableSessionRecord({
@@ -242,6 +268,7 @@ export async function handleSessionLiveCommand(
           ...(command.input.thinkingLevel !== undefined
             ? { thinkingLevel: command.input.thinkingLevel }
             : {}),
+          ...(requestedBaseIds.length > 0 ? { knowledgeBaseIds: requestedBaseIds } : {}),
         });
       } catch (error) {
         return fail(requestId, 'session/create', formatError(error));
@@ -896,4 +923,17 @@ export async function handleSessionLiveCommand(
     default:
       return null;
   }
+}
+
+function uniqueKnowledgeBaseIds(baseIds: readonly string[] | undefined): string[] {
+  if (!baseIds || baseIds.length === 0) return [];
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const id of baseIds) {
+    const trimmed = id.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    unique.push(trimmed);
+  }
+  return unique;
 }

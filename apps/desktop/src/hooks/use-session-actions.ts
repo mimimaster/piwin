@@ -209,6 +209,12 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       sessionName?: string;
       /** Create the Host session without selecting it in the primary workbench. */
       activate?: boolean;
+      /**
+       * Mount these knowledge bases at creation so the first prompt's system
+       * prompt already sees them — avoids the create → `session/set-knowledge-bases`
+       * race for the very first turn.
+       */
+      knowledgeBaseIds?: readonly string[];
     }): Promise<string | null> => {
       const requestedScope = options?.scope;
       const requestedProjectPath =
@@ -236,6 +242,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
           model?: ModelRef;
           thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
           sessionName?: string;
+          knowledgeBaseIds?: string[];
         };
 
         if (useGeneral) {
@@ -266,6 +273,9 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         }
         if (thinkingLevel) {
           createInput.thinkingLevel = thinkingLevel;
+        }
+        if (options?.knowledgeBaseIds && options.knowledgeBaseIds.length > 0) {
+          createInput.knowledgeBaseIds = [...options.knowledgeBaseIds];
         }
         const created = await hostClient.request(
           {

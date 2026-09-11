@@ -23,11 +23,12 @@ import { scanFolderFiles } from './scanner.js';
 import { adaptNotesEmbedding } from './embedding-adapter.js';
 import type { DocIndexStore } from './indexing/doc-index-store.js';
 import { openLanceDocIndex } from './indexing/lancedb-index.js';
-import { ingestSelectedFiles } from './indexing/ingestion-service.js';
+import { ingestSelectedFiles, type IngestFileResult } from './indexing/ingestion-service.js';
 import { openFolderStateStore, type FolderStateStore } from './indexing/state-store.js';
 import {
   canonicalizeFolderPath,
   canonicalizeFolderPathSync,
+  documentIdFor,
   folderKey,
   getDocRagRoot,
   getLanceDbPath,
@@ -121,7 +122,7 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
         const include = new Set(includeFiles);
         files = files.filter((file) => include.has(file.relativePath));
       }
-      if (files.length === 0) {
+      if (files.length === 0 && includeFiles) {
         throw new Error('NO_SUPPORTED_FILES');
       }
       const warnings: string[] = [];
@@ -158,16 +159,26 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
       }
       const lance = await getLance(canonical);
       const state = await getState(canonical);
-      const ingest = await ingestSelectedFiles({
-        canonicalPath: canonical,
-        relativePaths: acceptedPaths,
-        registry: parserRegistry,
-        store: lance,
-        state,
-        ...(embeddingProvider ? { embedding: adaptNotesEmbedding(embeddingProvider) } : {}),
-        ...(indexOptions?.signal ? { signal: indexOptions.signal } : {}),
-        ...(indexOptions?.onProgress ? { onProgress: indexOptions.onProgress } : {}),
-      });
+      const ingest =
+        acceptedPaths.length > 0
+          ? await ingestSelectedFiles({
+              canonicalPath: canonical,
+              relativePaths: acceptedPaths,
+              registry: parserRegistry,
+              store: lance,
+              state,
+              ...(embeddingProvider ? { embedding: adaptNotesEmbedding(embeddingProvider) } : {}),
+              ...(indexOptions?.signal ? { signal: indexOptions.signal } : {}),
+              ...(indexOptions?.onProgress ? { onProgress: indexOptions.onProgress } : {}),
+            })
+          : [];
+      if (!includeFiles) {
+        await removeOrphanDocuments(
+          lance,
+          state,
+          new Set(scanned.files.map((file) => file.relativePath)),
+        );
+      }
       const failed = ingest.filter((item) => item.status === 'FAILED');
       const skippedIngest = ingest.filter((item) => item.status === 'SKIPPED').length;
       return {
@@ -256,6 +267,50 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
     }
   }
 
+  async function assertRelativePath(canonical: string, relativePath: string): Promise<void> {
+    if (!isSafeRelativePath(relativePath) || !(await isPathConfined(canonical, relativePath))) {
+      throw new Error(`Invalid relative path: ${relativePath}`);
+    }
+  }
+
+  async function ingestFile(folderPath: string, relativePath: string): Promise<IngestFileResult> {
+    const canonical = await canonicalizeFolderPath(folderPath);
+    if (!canonical) {
+      throw new Error(`Folder not found: ${folderPath}`);
+    }
+    await assertRelativePath(canonical, relativePath);
+    return withIndexLock(canonical, async () => {
+      const lance = await getLance(canonical);
+      const state = await getState(canonical);
+      const ingest = await ingestSelectedFiles({
+        canonicalPath: canonical,
+        relativePaths: [relativePath],
+        registry: parserRegistry,
+        store: lance,
+        state,
+        ...(embeddingProvider ? { embedding: adaptNotesEmbedding(embeddingProvider) } : {}),
+      });
+      const result = ingest[0];
+      if (!result) {
+        throw new Error(`ingestFile produced no result for ${relativePath}`);
+      }
+      return result;
+    });
+  }
+
+  async function forgetFile(folderPath: string, relativePath: string): Promise<void> {
+    const canonical = await canonicalizeFolderPath(folderPath);
+    if (!canonical) return;
+    await assertRelativePath(canonical, relativePath);
+    await withIndexLock(canonical, async () => {
+      const lance = await getLance(canonical);
+      const state = await getState(canonical);
+      const documentId = documentIdFor(folderKey(canonical), relativePath);
+      await lance.deleteByDocumentId(documentId);
+      state.delete(documentId);
+    });
+  }
+
   async function forgetFolder(folderPath: string): Promise<void> {
     const trimmed = folderPath.trim();
     if (!trimmed) {
@@ -287,6 +342,8 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
     retrievePack,
     listDocuments,
     isIndexed,
+    ingestFile,
+    forgetFile,
     forgetFolder,
     close: () => {
       for (const store of lanceCache.values()) {
@@ -300,4 +357,16 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
       indexLocks.clear();
     },
   };
+}
+
+async function removeOrphanDocuments(
+  lance: DocIndexStore,
+  state: FolderStateStore,
+  livePaths: Set<string>,
+): Promise<void> {
+  for (const row of state.list()) {
+    if (livePaths.has(row.relativePath)) continue;
+    await lance.deleteByDocumentId(row.documentId);
+    state.delete(row.documentId);
+  }
 }

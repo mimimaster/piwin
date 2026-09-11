@@ -280,19 +280,30 @@ export function useComposerSend(params: UseComposerSendArgs) {
       // Creating the session activates it in the reducer, which normally runs
       // the draft-exit effect and clears the composer. handleSend sets
       // skipDraftSaveRef first, so the send path still clears.
+      const pendingMountedIds = args.knowledgeMountsRef?.current?.mountedIds;
+      const knowledgeBaseIds =
+        pendingMountedIds && pendingMountedIds.length > 0
+          ? { knowledgeBaseIds: pendingMountedIds }
+          : {};
       const sessionId = isGeneral
         ? await args.ensureSession({
             scope: { kind: 'general' },
             ...(sessionName !== undefined ? { sessionName } : {}),
+            ...knowledgeBaseIds,
           })
         : await args.ensureSession({
             scope: draftScope,
             projectPath: draftScope.projectPath,
             alreadyTrusted: true,
             ...(sessionName !== undefined ? { sessionName } : {}),
+            ...knowledgeBaseIds,
           });
       if (sessionId) {
         preserveComposerOnSessionActivationRef.current = true;
+        // The draft's mount choice now lives on the created session (or the
+        // create call failed to apply it, in which case retrying a stale
+        // draft value on the next new draft would be wrong either way).
+        args.knowledgeMountsRef?.current?.clearDraft();
       }
       return sessionId;
     },

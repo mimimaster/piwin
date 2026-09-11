@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   deriveFolderKnowledgeBaseState,
-  deriveNotesKnowledgeBaseState,
   isSearchableKnowledgeBaseState,
 } from './knowledge-base-state.js';
 
@@ -69,20 +68,6 @@ describe('deriveFolderKnowledgeBaseState', () => {
         documents: [{ status: 'DISCOVERED' }],
       }),
     ).toMatchObject({ state: 'not-indexed', documentCount: 0, chunkCount: 0 });
-  });
-});
-
-describe('deriveNotesKnowledgeBaseState', () => {
-  it('is empty with zero notes and degraded without embeddings', () => {
-    expect(
-      deriveNotesKnowledgeBaseState({ noteCount: 0, hasEmbeddingProvider: false }),
-    ).toEqual({ state: 'empty', degraded: true, documentCount: 0 });
-  });
-
-  it('is ready when notes exist', () => {
-    expect(
-      deriveNotesKnowledgeBaseState({ noteCount: 3, hasEmbeddingProvider: true }),
-    ).toEqual({ state: 'ready', degraded: false, documentCount: 3 });
   });
 });
 

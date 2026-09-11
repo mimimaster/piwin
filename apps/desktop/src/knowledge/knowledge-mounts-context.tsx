@@ -11,6 +11,8 @@ export type KnowledgeMountsValue = {
   toggle: (baseId: string) => void;
   mount: (baseId: string) => void;
   openManager: () => void;
+  /** Reset the draft's pending mount choice — used once it's been carried into `session/create`. */
+  clearDraft: () => void;
 };
 
 /** Composer "+" menu and chips read mounts here instead of through the composer prop chain. */

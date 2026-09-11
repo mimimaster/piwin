@@ -2,7 +2,8 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { folderKey, getSourcePathSidecar } from '@piwin/doc-rag';
+import { canonicalizeFolderPath, folderKey, getSourcePathSidecar } from '@piwin/doc-rag';
+import { getNotesRoot } from '@piwin/notes';
 import { folderKnowledgeBaseId } from '@piwin/contracts';
 import {
   defaultFolderBaseName,
@@ -29,7 +30,11 @@ async function tempRoot(): Promise<string> {
 describe('knowledge base registry', () => {
   it('loads an empty document when the file is missing', async () => {
     const root = await tempRoot();
-    await expect(loadKnowledgeBaseRegistry(root)).resolves.toEqual({ version: 1, folders: [] });
+    await expect(loadKnowledgeBaseRegistry(root)).resolves.toEqual({
+      version: 1,
+      folders: [],
+      removed: [],
+    });
   });
 
   it('round-trips name, canonical folderPath, createdAt, and lastUsedAt', async () => {
@@ -44,6 +49,7 @@ describe('knowledge base registry', () => {
           lastUsedAt: '2026-09-02T00:00:00.000Z',
         },
       ],
+      removed: [],
     });
     const loaded = await loadKnowledgeBaseRegistry(root);
     expect(loaded.folders).toEqual([
@@ -82,6 +88,30 @@ describe('knowledge base registry', () => {
     expect(await recoverKnowledgeBaseRegistry(root)).toBe(false);
     const second = await loadKnowledgeBaseRegistry(root);
     expect(second.folders).toHaveLength(2);
+  });
+
+  it('does not recover tombstoned folderKeys or the notes sidecar', async () => {
+    const root = await tempRoot();
+    const existing = await mkdtemp(join(tmpdir(), 'piwin-kb-tomb-'));
+    cleanup.push(existing);
+    await mkdir(join(root, 'doc-rag', folderKey(existing)), { recursive: true });
+    await writeFile(getSourcePathSidecar(existing, root), existing, 'utf8');
+
+    const notesRoot = getNotesRoot(root);
+    await mkdir(notesRoot, { recursive: true });
+    const notesCanonical = await canonicalizeFolderPath(notesRoot);
+    if (!notesCanonical) throw new Error('notes root missing');
+    await mkdir(join(root, 'doc-rag', folderKey(notesCanonical)), { recursive: true });
+    await writeFile(getSourcePathSidecar(notesCanonical, root), notesCanonical, 'utf8');
+
+    await saveKnowledgeBaseRegistry(root, {
+      version: 1,
+      folders: [],
+      removed: [{ folderKey: folderKey(existing), removedAt: '2026-09-01T00:00:00.000Z' }],
+    });
+    expect(await recoverKnowledgeBaseRegistry(root)).toBe(false);
+    const loaded = await loadKnowledgeBaseRegistry(root);
+    expect(loaded.folders).toEqual([]);
   });
 
   it('surfaces a corrupt registry instead of treating it as empty', async () => {

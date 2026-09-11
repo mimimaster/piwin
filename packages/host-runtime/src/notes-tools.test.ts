@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { HostToolRegistration, ToolResult } from '@piwin/contracts';
-import { createNoteStore, openNoteIndex, type NoteIndex } from '@piwin/notes';
+import { createFolderRag, type FolderRag } from '@piwin/doc-rag';
+import { createNoteStore, getNotesRoot } from '@piwin/notes';
 import { buildNotesTools } from './notes-tools.js';
 import { evaluateNotesPermission } from './permission-policy.js';
 import { createBundledRuleSet } from './permission-defaults.js';
@@ -11,7 +12,7 @@ import { createHostToolAdmission } from './tools/tool-admission.js';
 import { HostToolExecutionRouter } from './tools/host-tool-execution-router.js';
 
 let cleanupDirs: string[] = [];
-let openIndexes: NoteIndex[] = [];
+let openRags: FolderRag[] = [];
 
 async function executeTool(
   tool: HostToolRegistration,
@@ -56,8 +57,8 @@ function outputOf(result: ToolResult): string {
 }
 
 afterEach(async () => {
-  for (const index of openIndexes) index.close();
-  openIndexes = [];
+  for (const rag of openRags) rag.close();
+  openRags = [];
   for (const dir of cleanupDirs) await rm(dir, { recursive: true, force: true });
   cleanupDirs = [];
 });
@@ -66,26 +67,25 @@ async function setup() {
   const root = await mkdtemp(join(tmpdir(), 'piwin-notes-tools-'));
   cleanupDirs.push(root);
   const store = createNoteStore({ piwinRoot: root });
-  const index = await openNoteIndex(store);
-  openIndexes.push(index);
-  return { store, index };
+  const rag = createFolderRag({ piwinRoot: root });
+  openRags.push(rag);
+  return { store, rag, piwinRoot: root };
 }
 
 describe('buildNotesTools', () => {
   it('returns empty when disabled', async () => {
-    const { store, index } = await setup();
-    expect(buildNotesTools({ store, index, enabled: false })).toEqual([]);
+    const { store, rag } = await setup();
+    expect(buildNotesTools({ store, rag, enabled: false })).toEqual([]);
   });
 
-  it('registers note_* tools; write asks, search allows', async () => {
-    const { store, index } = await setup();
+  it('registers note_* tools; write asks and reindexes', async () => {
+    const { store, rag, piwinRoot } = await setup();
     const requestPermission = vi.fn(async () => 'allow' as const);
-    const tools = buildNotesTools({ store, index, enabled: true });
+    const tools = buildNotesTools({ store, rag, piwinRoot, enabled: true });
     expect(tools.map((tool) => tool.descriptor.name).sort()).toEqual([
       'note_delete',
       'note_list',
       'note_read',
-      'note_search',
       'note_update',
       'note_write',
     ]);
@@ -107,20 +107,21 @@ describe('buildNotesTools', () => {
     expect(requestPermission).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'notes:note_write' }),
     );
+    const listed = await rag.listDocuments(getNotesRoot(piwinRoot));
+    expect(listed.some((row) => row.relativePath.endsWith(`${written.id}.md`))).toBe(true);
 
-    const searchTool = tools.find((tool) => tool.descriptor.name === 'note_search');
-    if (!searchTool) throw new Error('note_search missing');
+    const listTool = tools.find((tool) => tool.descriptor.name === 'note_list');
+    if (!listTool) throw new Error('note_list missing');
     requestPermission.mockClear();
-    const hitsRaw = outputOf(await executeTool(searchTool, { query: '复习 调度' }));
-    const hits = JSON.parse(hitsRaw) as Array<{ id: string; snippet: string }>;
-    expect(hits.some((hit) => hit.id === written.id)).toBe(true);
-    // read path must not prompt
+    const listRaw = outputOf(await executeTool(listTool, {}));
+    const records = JSON.parse(listRaw) as Array<{ id: string }>;
+    expect(records.some((record) => record.id === written.id)).toBe(true);
     expect(requestPermission).not.toHaveBeenCalled();
   });
 
   it('rejects Notes writes sourced from health-sensitive tool results', async () => {
-    const { store, index } = await setup();
-    const tools = buildNotesTools({ store, index, enabled: true });
+    const { store, rag } = await setup();
+    const tools = buildNotesTools({ store, rag, enabled: true });
     const writeTool = tools.find((tool) => tool.descriptor.name === 'note_write');
     if (!writeTool) throw new Error('note_write missing');
     const result = await executeTool(writeTool, {
@@ -143,8 +144,8 @@ describe('buildNotesTools', () => {
   });
 
   it('denies mutating tools without a permission gate (non-interactive)', async () => {
-    const { store, index } = await setup();
-    const tools = buildNotesTools({ store, index, enabled: true });
+    const { store, rag } = await setup();
+    const tools = buildNotesTools({ store, rag, enabled: true });
     const deleteTool = tools.find((tool) => tool.descriptor.name === 'note_delete');
     if (!deleteTool) throw new Error('note_delete missing');
     const result = await executeThroughAdmission(deleteTool, { noteId: 'whatever' });
@@ -152,8 +153,8 @@ describe('buildNotesTools', () => {
   });
 
   it('includeReadTools false keeps only write tools', async () => {
-    const { store, index } = await setup();
-    const tools = buildNotesTools({ store, index, enabled: true, includeReadTools: false });
+    const { store, rag } = await setup();
+    const tools = buildNotesTools({ store, rag, enabled: true, includeReadTools: false });
     expect(tools.map((tool) => tool.descriptor.name).sort()).toEqual([
       'note_delete',
       'note_update',
@@ -161,13 +162,12 @@ describe('buildNotesTools', () => {
     ]);
   });
 
-  it('readOnly mode returns only note_search, note_list, note_read', async () => {
-    const { store, index } = await setup();
-    const tools = buildNotesTools({ store, index, enabled: true, readOnly: true });
+  it('readOnly mode returns only note_list, note_read', async () => {
+    const { store, rag } = await setup();
+    const tools = buildNotesTools({ store, rag, enabled: true, readOnly: true });
     expect(tools.map((t) => t.descriptor.name).sort()).toEqual([
       'note_list',
       'note_read',
-      'note_search',
     ]);
   });
 });

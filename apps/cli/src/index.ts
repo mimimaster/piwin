@@ -172,10 +172,10 @@ Usage:
   piwin plugin registry [--url <url>]
   piwin notes add <content> --title <t> [--collection c] [--tags a,b]
   piwin notes list [--collection c]
-  piwin notes search <query> [--collection c] [--limit n] [--search-mode auto|fts|vector|hybrid]
+  piwin notes search <query> [--limit n] [--tags t1,t2]
   piwin notes show <id> | delete <id> | reindex
   piwin notes pin <query> <noteId...>       (add golden eval case)
-  piwin notes eval [--k 5] [--verbose] | eval history
+  piwin notes eval   (deferred — retrieval now uses the knowledge engine)
   piwin cards add <front> --back <b> [--deck d] [--tags a,b]
   piwin cards list [--deck d] | decks | show <id> | delete <id>
   piwin cards due [--deck d]
@@ -1942,8 +1942,7 @@ async function commandNotes(argv: string[]): Promise<void> {
     return;
   }
 
-  const { createNoteStore, openNoteIndex, searchNotes, createEmbeddingProvider } =
-    await import('@piwin/notes');
+  const { createNoteStore, createEmbeddingProvider } = await import('@piwin/notes');
   const store = createNoteStore({ piwinRoot: root });
 
   if (sub === 'add') {
@@ -2007,73 +2006,62 @@ async function commandNotes(argv: string[]): Promise<void> {
       process.exitCode = 1;
       return;
     }
-    await store.delete(noteId);
-    console.log(`deleted ${noteId}`);
+    const { createFolderRag } = await import('@piwin/doc-rag');
+    const { deleteNoteAndReindex } = await import('@piwin/host-runtime');
+    const rag = createFolderRag({ piwinRoot: root });
+    try {
+      await deleteNoteAndReindex({ store, rag, piwinRoot: root }, noteId);
+      console.log(`deleted ${noteId}`);
+    } finally {
+      rag.close();
+    }
     return;
   }
 
-  if (sub === 'search' || sub === 'reindex') {
-    const index = await openNoteIndex(store);
-    try {
-      if (sub === 'reindex') {
-        await index.rebuild();
-        console.log('index rebuilt');
-        return;
-      }
-      const query = collectPositionals(argv.slice(2), ['--collection', '--limit', '--search-mode'])
-        .join(' ')
-        .trim();
-      if (!query) {
-        console.error(
-          'Usage: piwin notes search <query> [--collection c] [--limit n] [--search-mode m]',
-        );
-        process.exitCode = 1;
-        return;
-      }
-      const searchQuery: {
-        query: string;
-        collection?: string;
-        limit?: number;
-        mode?: 'auto' | 'fts' | 'vector' | 'hybrid';
-      } = { query };
-      const collection = readOption(argv, '--collection');
-      if (collection) searchQuery.collection = collection;
-      const limit = readOption(argv, '--limit');
-      if (limit) searchQuery.limit = Number(limit);
-      const searchMode = readOption(argv, '--search-mode');
-      if (
-        searchMode === 'auto' ||
-        searchMode === 'fts' ||
-        searchMode === 'vector' ||
-        searchMode === 'hybrid'
-      ) {
-        searchQuery.mode = searchMode;
-      }
-
-      const searchOptions: import('@piwin/notes').SearchNotesOptions = {};
-      if (config.notes?.embedding) {
-        const { resolveNotesEmbeddingApiKey } = await import('@piwin/host-runtime');
-        const apiKey = await resolveNotesEmbeddingApiKey(config.notes.embedding);
-        const provider = createEmbeddingProvider({
-          config: config.notes.embedding,
-          ...(apiKey ? { apiKey } : {}),
-        });
-        if (provider) searchOptions.embeddingProvider = provider;
-      }
-      if (typeof config.notes?.search?.rrfK === 'number') {
-        searchOptions.rrfK = config.notes.search.rrfK;
-      }
-
-      const hits = await searchNotes(index, searchQuery, searchOptions);
-      for (const hit of hits) {
-        console.log(
-          `${hit.note.id}\t[${hit.channels.join('+')}]\t${hit.score.toFixed(4)}\t${hit.note.title}\t${hit.snippet.replaceAll('\n', ' ').slice(0, 100)}`,
-        );
-      }
-      return;
-    } finally {
-      index.close();
+  if (sub === 'reindex') {
+    const { createFolderRag } = await import('@piwin/doc-rag');
+    const { getNotesRoot } = await import('@piwin/notes');
+    let embeddingProvider: import('@piwin/contracts').EmbeddingProvider | undefined;
+    if (config.notes?.embedding) {
+      const { resolveNotesEmbeddingApiKey } = await import('@piwin/host-runtime');
+      const apiKey = await resolveNotesEmbeddingApiKey(config.notes.embedding);
+      const provider = createEmbeddingProvider({
+        config: config.notes.embedding,
+        ...(apiKey ? { apiKey } : {}),
+      });
+      if (provider) embeddingProvider = provider;
     }
+    const rag = createFolderRag({
+      piwinRoot: root,
+      ...(embeddingProvider ? { embeddingProvider } : {}),
+    });
+    try {
+      const notesRoot = getNotesRoot(root);
+      await rag.indexFolder(notesRoot);
+      console.log('index rebuilt');
+    } finally {
+      rag.close();
+    }
+    return;
+  }
+
+  if (sub === 'search') {
+    const query = collectPositionals(argv.slice(2), ['--collection', '--limit', '--tags', '--kb'])
+      .join(' ')
+      .trim();
+    if (!query) {
+      console.error('Usage: piwin notes search <query> [--limit n] [--tags t1,t2]');
+      process.exitCode = 1;
+      return;
+    }
+    const searchArgv = ['kb', 'search', ...query.split(/\s+/).filter(Boolean), '--kb', 'notes'];
+    const limit = readOption(argv, '--limit');
+    if (limit) searchArgv.push('--limit', limit);
+    const tags = readOption(argv, '--tags');
+    if (tags) searchArgv.push('--tags', tags);
+    if (hasFlag(argv, '--mock')) searchArgv.push('--mock');
+    await runKbCommand(searchArgv);
+    return;
   }
 
   if (sub === 'pin') {
@@ -2095,88 +2083,11 @@ async function commandNotes(argv: string[]): Promise<void> {
   }
 
   if (sub === 'eval') {
-    const {
-      openNoteIndex: openIndex,
-      searchNotes: runSearch,
-      loadGoldenSet,
-      runRecallEval,
-    } = await import('@piwin/notes');
-    const index = await openIndex(store);
-    try {
-      if (argv[2] === 'history') {
-        const runs = index.listEvalRuns();
-        if (runs.length === 0) {
-          console.log('(no eval runs yet — run `piwin notes eval` first)');
-          return;
-        }
-        for (const run of runs) {
-          console.log(
-            `${run.runAt}\t${run.mode}\trecall@${run.k}=${run.recallAtK.toFixed(3)}\tmrr=${run.mrr.toFixed(3)}\tcases=${run.cases}`,
-          );
-        }
-        return;
-      }
-
-      const { cases, warnings } = await loadGoldenSet(store.getNotesRoot());
-      for (const warning of warnings) {
-        console.error(`[golden] ${warning}`);
-      }
-      if (cases.length === 0) {
-        console.error('Golden set empty. Add cases with: piwin notes pin <query> <noteId...>');
-        process.exitCode = 1;
-        return;
-      }
-
-      const searchOptions: import('@piwin/notes').SearchNotesOptions = {};
-      if (config.notes?.embedding) {
-        const { resolveNotesEmbeddingApiKey } = await import('@piwin/host-runtime');
-        const apiKey = await resolveNotesEmbeddingApiKey(config.notes.embedding);
-        const provider = createEmbeddingProvider({
-          config: config.notes.embedding,
-          ...(apiKey ? { apiKey } : {}),
-        });
-        if (provider) searchOptions.embeddingProvider = provider;
-      }
-      if (typeof config.notes?.search?.rrfK === 'number') {
-        searchOptions.rrfK = config.notes.search.rrfK;
-      }
-
-      const k = Number(readOption(argv, '--k')) || 5;
-      const verbose = hasFlag(argv, '--verbose');
-      const modes: Array<'fts' | 'vector' | 'hybrid'> = searchOptions.embeddingProvider
-        ? ['fts', 'vector', 'hybrid']
-        : ['fts'];
-
-      console.log(`eval: ${cases.length} case(s), k=${k}, modes=${modes.join(',')}`);
-      for (const mode of modes) {
-        let degraded = false;
-        const report = await runRecallEval({
-          cases,
-          mode,
-          k,
-          search: async (query, limit, searchMode) =>
-            runSearch(
-              index,
-              { query, limit, mode: searchMode },
-              { ...searchOptions, onWarning: () => (degraded = true) },
-            ),
-          wasDegraded: () => degraded,
-        });
-        index.saveEvalRun(report);
-        console.log(
-          `${mode.padEnd(7)}\trecall@${k}=${report.recallAtK.toFixed(3)}\tmrr=${report.mrr.toFixed(3)}${report.degraded ? '\t⚠ DEGRADED to fts (embedding failed) — numbers do not measure this mode' : ''}`,
-        );
-        if (verbose) {
-          for (const perCase of report.perCase) {
-            const status = perCase.hitRank === null ? 'MISS' : `rank ${perCase.hitRank}`;
-            console.log(`  ${status.padEnd(8)} ${perCase.query}`);
-          }
-        }
-      }
-      return;
-    } finally {
-      index.close();
-    }
+    console.error(
+      'Notes recall eval against doc-rag is not ported yet. Pin cases with `piwin notes pin`; inspect retrieval with `piwin notes search` / `piwin kb search`.',
+    );
+    process.exitCode = 1;
+    return;
   }
 
   console.error('Usage: piwin notes add|list|search|show|delete|reindex|pin|eval');

@@ -161,4 +161,68 @@ describe('folder-rag', () => {
     ]);
     rag.close();
   });
+
+  it('ingestFile indexes one path and forgetFile removes it', async () => {
+    await writeFile(join(sourceFolder, 'keep.md'), '# Keep\n\nKeep body.');
+    await writeFile(join(sourceFolder, 'drop.md'), '# Drop\n\nDrop body.');
+    const rag = createFolderRag({ piwinRoot });
+    const ingested = await rag.ingestFile(sourceFolder, 'drop.md');
+    expect(ingested.status).toBe('READY');
+    expect(ingested.chunkCount).toBeGreaterThan(0);
+    const listed = await rag.listDocuments(sourceFolder);
+    expect(listed.map((row) => row.relativePath)).toEqual(['drop.md']);
+    await rag.forgetFile(sourceFolder, 'drop.md');
+    expect(await rag.listDocuments(sourceFolder)).toEqual([]);
+    const pack = await rag.retrievePack(sourceFolder, 'Drop body');
+    expect(pack.sources).toEqual([]);
+    rag.close();
+  });
+
+  it('serializes ingestFile with indexFolder against the same table', async () => {
+    await writeFile(join(sourceFolder, 'a.md'), '# Alpha\n\nAlpha content here.');
+    await writeFile(join(sourceFolder, 'b.md'), '# Beta\n\nBeta content here.');
+    let inflight = 0;
+    let maxInflight = 0;
+    const rag = createFolderRag({
+      piwinRoot,
+      embeddingProvider: {
+        id: 'test',
+        model: 'test',
+        dimensions: 2,
+        embed: async (texts) => {
+          inflight += 1;
+          maxInflight = Math.max(maxInflight, inflight);
+          await new Promise((resolve) => setTimeout(resolve, 40));
+          inflight -= 1;
+          return texts.map(() => new Float32Array([1, 0]));
+        },
+      },
+    });
+    await Promise.all([
+      rag.indexFolder(sourceFolder),
+      rag.ingestFile(sourceFolder, 'a.md'),
+    ]);
+    expect(maxInflight).toBe(1);
+    rag.close();
+  });
+
+  it('indexFolder removes state rows whose files disappeared from disk', async () => {
+    await writeFile(join(sourceFolder, 'keep.md'), '# Keep\n\nKeep body.');
+    await writeFile(join(sourceFolder, 'gone.md'), '# Gone\n\nGone body.');
+    const rag = createFolderRag({ piwinRoot });
+    await rag.indexFolder(sourceFolder);
+    expect((await rag.listDocuments(sourceFolder)).map((row) => row.relativePath).sort()).toEqual([
+      'gone.md',
+      'keep.md',
+    ]);
+    await rm(join(sourceFolder, 'gone.md'));
+    await rag.indexFolder(sourceFolder);
+    expect((await rag.listDocuments(sourceFolder)).map((row) => row.relativePath)).toEqual([
+      'keep.md',
+    ]);
+    const pack = await rag.retrievePack(sourceFolder, 'Gone body');
+    expect(pack.sources.every((source) => source.relativePath !== 'gone.md')).toBe(true);
+    rag.close();
+  });
 });
+

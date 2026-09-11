@@ -3,38 +3,36 @@
  * Pure tool descriptors; permission gate wraps execute at registration.
  */
 import type {
-  EmbeddingProvider,
   HostToolPermissionSpec,
   HostToolRegistration,
-  NoteSearchQuery,
   NoteUpdateInput,
   NoteWriteInput,
   ToolResult,
 } from '@piwin/contracts';
 import { HEALTH_MODEL_OUTPUT_PREAMBLE, isHealthSensitiveToolResult } from '@piwin/contracts';
-import type { NoteIndex, NoteStore, SearchNotesOptions } from '@piwin/notes';
-import { searchNotes } from '@piwin/notes';
+import type { FolderRag } from '@piwin/doc-rag';
+import type { NoteStore } from '@piwin/notes';
 import type { NotesPermissionAction } from './permission-policy.js';
 import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
+import {
+  deleteNoteAndReindex,
+  updateNoteAndReindex,
+  writeNoteAndReindex,
+} from './notes-write-service.js';
 
 export type BuildNotesToolsOptions = {
   store: NoteStore;
-  index: NoteIndex;
+  rag: FolderRag;
+  piwinRoot?: string;
   /** When false, returns no tools. */
   enabled: boolean;
-  /** When set, note_search runs hybrid (FTS + vector RRF); absent = FTS-only. */
-  embeddingProvider?: EmbeddingProvider;
-  /** Optional LLM rerank stage (config.notes.rerank.enabled). */
-  rerankProvider?: import('@piwin/contracts').RerankProvider;
-  /** RRF constant override (config.notes.search.rrfK). */
-  rrfK?: number;
   /**
-   * When true, only return read-only tools (note_search, note_list, note_read).
+   * When true, only return read-only tools (note_list, note_read).
    * Used by the knowledge tool profile (doc-flashcards §10.2).
    */
   readOnly?: boolean;
   /**
-   * When false, omit note_search / note_list / note_read so knowledge_* tools
+   * When false, omit note_list / note_read so knowledge_* tools
    * are the only retrieval surface.
    */
   includeReadTools?: boolean;
@@ -81,28 +79,21 @@ export function buildNotesTools(options: BuildNotesToolsOptions): HostToolRegist
   if (!options.enabled) {
     return [];
   }
-  const searchOptions: SearchNotesOptions = {};
-  if (options.embeddingProvider) {
-    searchOptions.embeddingProvider = options.embeddingProvider;
-  }
-  if (options.rerankProvider) {
-    searchOptions.rerankProvider = options.rerankProvider;
-  }
-  if (options.rrfK !== undefined) {
-    searchOptions.rrfK = options.rrfK;
-  }
-  const bare = createNotesToolDefinitions(options.store, options.index, searchOptions);
+  const writeDeps = {
+    store: options.store,
+    rag: options.rag,
+    ...(options.piwinRoot !== undefined ? { piwinRoot: options.piwinRoot } : {}),
+  };
+  const bare = createNotesToolDefinitions(writeDeps);
   const filtered = options.readOnly
     ? bare.filter(
         (tool) =>
-          tool.descriptor.name === 'note_search' ||
           tool.descriptor.name === 'note_list' ||
           tool.descriptor.name === 'note_read',
       )
     : options.includeReadTools === false
       ? bare.filter(
           (tool) =>
-            tool.descriptor.name !== 'note_search' &&
             tool.descriptor.name !== 'note_list' &&
             tool.descriptor.name !== 'note_read',
         )
@@ -111,63 +102,10 @@ export function buildNotesTools(options: BuildNotesToolsOptions): HostToolRegist
 }
 
 function createNotesToolDefinitions(
-  store: NoteStore,
-  index: NoteIndex,
-  searchOptions: SearchNotesOptions,
+  deps: { store: NoteStore; rag: FolderRag; piwinRoot?: string },
 ): HostToolRegistration[] {
+  const store = deps.store;
   return [
-    {
-      descriptor: {
-        name: 'note_search',
-        description:
-          'Search the user personal notes library (hybrid full-text & semantic). ' +
-          'Returns ranked note hits with snippets, tags, and IDs. ' +
-          'RAG Grounding: Base answers strictly on returned snippets; cite Note Titles/IDs. ' +
-          'If information is missing, state not found without hallucinating.',
-        parameters: {
-          type: 'object',
-          properties: {
-            query: { type: 'string', description: 'Search query' },
-            collection: { type: 'string', description: 'Optional collection filter' },
-            tags: { type: 'array', items: { type: 'string' } },
-            limit: { type: 'number', description: 'Max hits, default 10' },
-          },
-          required: ['query'],
-        },
-      },
-      family: 'notes-read',
-      permissionSpec: notesPermissionSpec('note_search', false),
-      async execute(args) {
-        const query: NoteSearchQuery = { query: String(args.query ?? '') };
-        if (typeof args.collection === 'string' && args.collection) {
-          query.collection = args.collection;
-        }
-        if (Array.isArray(args.tags)) {
-          const tags = args.tags.filter((item): item is string => typeof item === 'string');
-          if (tags.length > 0) query.tags = tags;
-        }
-        if (typeof args.limit === 'number') query.limit = args.limit;
-        if (!query.query.trim()) return invalidNotesInput('query is required');
-        const hits = await searchNotes(index, query, searchOptions);
-        return {
-          ok: true,
-          output: JSON.stringify(
-            hits.map((hit) => ({
-              id: hit.note.id,
-              title: hit.note.title,
-              collection: hit.note.collection,
-              tags: hit.note.tags,
-              snippet: hit.snippet,
-              score: hit.score,
-              channels: hit.channels,
-            })),
-            null,
-            2,
-          ),
-          details: { count: hits.length },
-        };
-      },
-    },
     {
       descriptor: {
         name: 'note_list',
@@ -263,11 +201,18 @@ function createNotesToolDefinitions(
           const tags = args.tags.filter((item): item is string => typeof item === 'string');
           if (tags.length > 0) writeInput.tags = tags;
         }
-        const record = await store.write(writeInput);
+        const result = await writeNoteAndReindex(deps, writeInput);
+        const output = result.indexed
+          ? JSON.stringify(result.record, null, 2)
+          : `${JSON.stringify(result.record, null, 2)}\nIndexing failed: ${result.indexError ?? 'unknown error'}`;
         return {
           ok: true,
-          output: JSON.stringify(record, null, 2),
-          details: { noteId: record.id },
+          output,
+          details: {
+            noteId: result.record.id,
+            indexed: result.indexed,
+            ...(result.indexError !== undefined ? { indexError: result.indexError } : {}),
+          },
         };
       },
     },
@@ -300,8 +245,19 @@ function createNotesToolDefinitions(
         if (Array.isArray(args.tags)) {
           updateInput.tags = args.tags.filter((item): item is string => typeof item === 'string');
         }
-        const record = await store.update(updateInput);
-        return { ok: true, output: JSON.stringify(record, null, 2), details: { noteId } };
+        const result = await updateNoteAndReindex(deps, updateInput);
+        const output = result.indexed
+          ? JSON.stringify(result.record, null, 2)
+          : `${JSON.stringify(result.record, null, 2)}\nIndexing failed: ${result.indexError ?? 'unknown error'}`;
+        return {
+          ok: true,
+          output,
+          details: {
+            noteId,
+            indexed: result.indexed,
+            ...(result.indexError !== undefined ? { indexError: result.indexError } : {}),
+          },
+        };
       },
     },
     {
@@ -322,8 +278,19 @@ function createNotesToolDefinitions(
       async execute(args) {
         const noteId = String(args.noteId ?? '').trim();
         if (!noteId) return invalidNotesInput('noteId is required');
-        const result = await store.delete(noteId);
-        return { ok: true, output: JSON.stringify(result, null, 2), details: { noteId } };
+        const result = await deleteNoteAndReindex(deps, noteId);
+        const output = result.unindexed
+          ? JSON.stringify({ deleted: result.deleted, id: result.id }, null, 2)
+          : `${JSON.stringify({ deleted: result.deleted, id: result.id }, null, 2)}\nIndex cleanup failed: ${result.indexError ?? 'unknown error'}`;
+        return {
+          ok: true,
+          output,
+          details: {
+            noteId,
+            unindexed: result.unindexed,
+            ...(result.indexError !== undefined ? { indexError: result.indexError } : {}),
+          },
+        };
       },
     },
   ];

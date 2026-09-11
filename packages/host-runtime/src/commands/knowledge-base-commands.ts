@@ -100,6 +100,7 @@ export async function handleKnowledgeBaseCommand(
         const result = await searchKnowledgeBases(runtime, {
           query: command.query,
           ...(command.baseIds ? { baseIds: command.baseIds } : {}),
+          ...(command.tags ? { tags: command.tags } : {}),
           ...(command.limit !== undefined ? { limit: command.limit } : {}),
         });
         return ok(requestId, command.type, result);

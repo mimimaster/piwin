@@ -67,4 +67,17 @@ describe('chunkParsedDocument', () => {
     expect(chunks.length).toBeGreaterThan(1);
     expect(chunks.every((chunk) => chunk.tokenCount <= 1500)).toBe(true);
   });
+
+  it('copies parsed metadata onto every chunk', async () => {
+    const parsed = await createMarkdownParser().parse({
+      relativePath: 'default/note.md',
+      extension: '.md',
+      content: '---\ntitle: "Tagged"\ntags: ["x"]\n---\n\n# Heading\n\nBody text.\n',
+      documentId: 'doc-meta',
+    });
+    const chunks = await chunkParsedDocument({ parsed, folderKey: 'folder' });
+    expect(chunks.length).toBeGreaterThan(0);
+    expect(chunks.every((chunk) => chunk.metadata?.title === 'Tagged')).toBe(true);
+    expect(chunks.every((chunk) => Array.isArray(chunk.metadata?.tags))).toBe(true);
+  });
 });

@@ -264,6 +264,12 @@ export type CreateSessionInput = {
   runtimeSnapshot?: SubagentRuntimeSnapshot;
   /** Product-owned presentation seeded at create (Doc Cards sequence viewer). */
   presentation?: SessionPresentation;
+  /**
+   * Knowledge bases to mount at creation, so the first prompt's system-prompt
+   * compile already sees them — avoids the create → `session/set-knowledge-bases`
+   * race where the first turn ran before the follow-up mount landed.
+   */
+  knowledgeBaseIds?: string[];
 };
 
 export type SessionPresentation = {

@@ -39,8 +39,6 @@ import { subagentInvocationActivityFromEvent } from './subagent-invocation-activ
 
 export async function getNotesServices(deps: HostRuntimeKernel): Promise<{
   store: import('@piwin/notes').NoteStore;
-  index: import('@piwin/notes').NoteIndex;
-  searchOptions: import('@piwin/notes').SearchNotesOptions;
 }> {
   if (!deps.notesServices) {
     const rootDir = getPiwinRoot(deps.options.piwinRoot);
@@ -48,29 +46,9 @@ export async function getNotesServices(deps: HostRuntimeKernel): Promise<{
     if (config.notes?.enabled === false) {
       throw new Error('Notes are disabled (config.notes.enabled=false).');
     }
-    const { createNoteStore, openNoteIndex, createEmbeddingProvider } =
-      await import('@piwin/notes');
-    const { resolveNotesEmbeddingApiKey } = await import('./notes-embedding-secret.js');
+    const { createNoteStore } = await import('@piwin/notes');
     const store = createNoteStore({ piwinRoot: rootDir });
-    const index = await openNoteIndex(store);
-    const searchOptions: import('@piwin/notes').SearchNotesOptions = {};
-    if (config.notes?.embedding) {
-      const apiKey = await resolveNotesEmbeddingApiKey(config.notes.embedding);
-      const provider = createEmbeddingProvider({
-        config: config.notes.embedding,
-        ...(apiKey ? { apiKey } : {}),
-      });
-      if (provider) searchOptions.embeddingProvider = provider;
-    }
-    if (typeof config.notes?.search?.rrfK === 'number') {
-      searchOptions.rrfK = config.notes.search.rrfK;
-    }
-    const { buildNotesRerankProvider } = await import('./notes-rerank.js');
-    const rerank = await buildNotesRerankProvider(config);
-    if (rerank) {
-      searchOptions.rerankProvider = rerank;
-    }
-    deps.notesServices = { store, index, searchOptions };
+    deps.notesServices = { store };
   }
   return deps.notesServices;
 }

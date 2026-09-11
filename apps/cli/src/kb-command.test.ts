@@ -44,13 +44,27 @@ describe('runKbCommandWithClient', () => {
       if (command.type === 'knowledge/search') {
         expect(command.query).toBe('fsrs schedule');
         expect(command.baseIds).toEqual(['notes', 'folder:0123456789abcdef']);
+        expect(command.tags).toEqual(['srs', 'memory']);
         expect(command.limit).toBe(5);
         return ok('knowledge/search', { citations: [], degradedBaseIds: [], skipped: [] });
       }
       throw new Error(`unexpected ${command.type}`);
     });
     await runKbCommandWithClient(
-      ['kb', 'search', 'fsrs', 'schedule', '--kb', 'notes', '--kb', 'folder:0123456789abcdef', '--limit', '5'],
+      [
+        'kb',
+        'search',
+        'fsrs',
+        'schedule',
+        '--kb',
+        'notes',
+        '--kb',
+        'folder:0123456789abcdef',
+        '--tags',
+        'srs,memory',
+        '--limit',
+        '5',
+      ],
       { handleCommand, dispose: async () => undefined },
     );
     expect(handleCommand).toHaveBeenCalled();

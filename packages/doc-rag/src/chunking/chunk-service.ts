@@ -164,6 +164,7 @@ export async function chunkParsedDocument(input: ChunkDocumentInput): Promise<Do
       parserVersion: input.parsed.parser.version,
       chunkerId: isCode ? 'legacy-code-v1' : 'structure-recursive-v1',
       chunkerVersion: '1',
+      ...(input.parsed.metadata ? { metadata: input.parsed.metadata } : {}),
     };
   });
 

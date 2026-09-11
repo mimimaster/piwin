@@ -21,6 +21,7 @@ export function expandNeighbors(input: {
       text: chunk.content,
       ...(score !== undefined ? { retrievalScore: score } : {}),
       retrievedBy,
+      ...(chunk.metadata ? { metadata: chunk.metadata } : {}),
     });
   };
 

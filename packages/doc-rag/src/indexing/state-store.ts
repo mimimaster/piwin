@@ -16,6 +16,7 @@ export type FolderStateStore = {
   get(documentId: string): DocumentStateRow | undefined;
   list(): DocumentStateRow[];
   upsert(row: DocumentStateRow): void;
+  delete(documentId: string): void;
   close(): void;
 };
 
@@ -36,9 +37,11 @@ export async function openFolderStateStore(path: string): Promise<FolderStateSto
       chunk_count INTEGER NOT NULL DEFAULT 0,
       last_error_code TEXT,
       last_error_message TEXT,
-      indexed_at TEXT
+      indexed_at TEXT,
+      metadata TEXT
     );
   `);
+  ensureMetadataColumn(db);
 
   return {
     get(documentId) {
@@ -56,8 +59,8 @@ export async function openFolderStateStore(path: string): Promise<FolderStateSto
         `INSERT OR REPLACE INTO documents(
           document_id, folder_key, relative_path, extension, file_size,
           file_hash, config_hash, status, chunk_count,
-          last_error_code, last_error_message, indexed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          last_error_code, last_error_message, indexed_at, metadata
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         row.documentId,
         row.folderKey,
@@ -71,7 +74,11 @@ export async function openFolderStateStore(path: string): Promise<FolderStateSto
         row.lastErrorCode ?? null,
         row.lastErrorMessage ?? null,
         row.indexedAt ?? null,
+        row.metadata === undefined ? null : JSON.stringify(row.metadata),
       );
+    },
+    delete(documentId) {
+      db.prepare('DELETE FROM documents WHERE document_id = ?').run(documentId);
     },
     close() {
       db.close();
@@ -79,7 +86,27 @@ export async function openFolderStateStore(path: string): Promise<FolderStateSto
   };
 }
 
+function ensureMetadataColumn(db: DatabaseSync): void {
+  const columns = db.prepare('PRAGMA table_info(documents)').all() as Array<{ name?: unknown }>;
+  if (columns.some((column) => column.name === 'metadata')) return;
+  db.exec('ALTER TABLE documents ADD COLUMN metadata TEXT');
+}
+
+function parseMetadata(value: unknown): Record<string, unknown> | undefined {
+  if (typeof value !== 'string' || value.trim().length === 0) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function fromRow(row: Record<string, unknown>): DocumentStateRow {
+  const metadata = parseMetadata(row.metadata);
   return {
     documentId: String(row.document_id),
     folderKey: String(row.folder_key),
@@ -95,5 +122,6 @@ function fromRow(row: Record<string, unknown>): DocumentStateRow {
       ? { lastErrorMessage: row.last_error_message }
       : {}),
     ...(typeof row.indexed_at === 'string' ? { indexedAt: row.indexed_at } : {}),
+    ...(metadata ? { metadata } : {}),
   };
 }

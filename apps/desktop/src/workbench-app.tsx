@@ -156,6 +156,13 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
         primarySessionId: state.activeSessionId,
       })
     : state.activeSessionId;
+  // `useWorkbenchKnowledge` (below, needs `model`'s handlers) writes this ref
+  // each render; `handleSend`, wired up inside `model`, only reads it later at
+  // send time, so the construction-order mismatch never surfaces a stale value.
+  const knowledgeMountsRef = useRef<{
+    mountedIds: readonly string[];
+    clearDraft: () => void;
+  } | null>(null);
   const model = useWorkbenchAppModel({
     hostClient,
     state,
@@ -165,6 +172,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     onThemeApplied,
     setHostLogEntries,
     liveSessionId,
+    knowledgeMountsRef,
   });
   const {
     requestConfig,
@@ -333,6 +341,9 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     openDocument: handleOpenDocument,
     reportError: reportKnowledgeError,
   });
+  knowledgeMountsRef.current = knowledgeSupported
+    ? { mountedIds: knowledge.mounts.mountedIds, clearDraft: knowledge.mounts.clearDraft }
+    : null;
   const [mediaLibraryEpoch, setMediaLibraryEpoch] = useState(0);
   const wasStreamingRef = useRef(false);
   useEffect(() => {

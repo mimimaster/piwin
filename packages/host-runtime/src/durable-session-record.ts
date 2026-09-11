@@ -21,6 +21,7 @@ export type PersistDurableSessionInput = {
   lineage?: SessionLineage;
   model?: ModelRef;
   thinkingLevel?: ThinkingLevel;
+  knowledgeBaseIds?: string[];
 };
 
 /**
@@ -44,6 +45,9 @@ export async function persistDurableSessionRecord(
     }
     if (input.thinkingLevel !== undefined) {
       current.thinkingLevel = input.thinkingLevel;
+    }
+    if (input.knowledgeBaseIds && input.knowledgeBaseIds.length > 0) {
+      current.knowledgeBaseIds = input.knowledgeBaseIds;
     }
     await upsertSessionRecord(input.indexPath, current);
     return current;
@@ -71,6 +75,9 @@ export async function persistDurableSessionRecord(
     recordInput.thinkingLevel = input.thinkingLevel;
   }
   const record = createSessionRecord(recordInput);
+  if (input.knowledgeBaseIds && input.knowledgeBaseIds.length > 0) {
+    record.knowledgeBaseIds = input.knowledgeBaseIds;
+  }
   await upsertSessionRecord(input.indexPath, record);
   return record;
 }

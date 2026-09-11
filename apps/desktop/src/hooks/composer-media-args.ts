@@ -1,4 +1,4 @@
-import type { Dispatch } from 'react';
+import type { Dispatch, MutableRefObject } from 'react';
 import type {
   ForegroundRunMismatchProblem,
   PermissionPreset,
@@ -31,7 +31,19 @@ export type UseComposerMediaArgs = {
     alreadyTrusted?: boolean;
     scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
     sessionName?: string;
+    knowledgeBaseIds?: readonly string[];
   }) => Promise<string | null>;
+  /**
+   * The draft's pending knowledge-base mount choice, read at send time (a
+   * ref because this hook chain is constructed before `useWorkbenchKnowledge`
+   * exists each render — a plain value captured at construction would always
+   * be stale; `.current` is written after that hook runs, later in the same
+   * render, and read only inside `handleSend`, well after render finishes).
+   */
+  knowledgeMountsRef?: MutableRefObject<{
+    mountedIds: readonly string[];
+    clearDraft: () => void;
+  } | null>;
   /** When Send has no workspace, open the workspace picker (keep draft text). */
   onNeedWorkspace?: () => void | Promise<void>;
   /** Per-next-turn model key `providerId::modelId`. */

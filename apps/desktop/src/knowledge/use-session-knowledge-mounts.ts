@@ -20,9 +20,12 @@ function sameIds(left: readonly string[], right: readonly string[]): boolean {
 }
 
 /**
- * Mounted knowledge bases for the active conversation. Changes apply
- * optimistically until the Host's session index push catches up; a draft
- * without a session keeps its choice and applies it once the session exists.
+ * Mounted knowledge bases for the active conversation. Changes to an existing
+ * session apply optimistically until the Host's session index push catches
+ * up. A draft without a session yet just holds its choice locally — the
+ * composer send path reads it directly (see `knowledgeMountsRef`) and carries
+ * it into `session/create`, so it's live from the first prompt, not a
+ * follow-up write.
  */
 export function useSessionKnowledgeMounts(args: UseSessionKnowledgeMountsArgs): KnowledgeMountsValue {
   const { bases } = useKnowledgeBases({
@@ -69,17 +72,13 @@ export function useSessionKnowledgeMounts(args: UseSessionKnowledgeMountsArgs): 
     }
   }, [hostIds, pending, sessionId]);
 
-  const draftRef = useRef(draftIds);
-  draftRef.current = draftIds;
-  const hostIdsRef = useRef(hostIds);
-  hostIdsRef.current = hostIds;
-  useEffect(() => {
-    if (!sessionId || draftRef.current.length === 0) return;
-    const ids = draftRef.current;
-    setDraftIds([]);
-    // Never overwrite a conversation that already chose its own bases.
-    if ((hostIdsRef.current ?? []).length === 0) void commit(sessionId, ids);
-  }, [commit, sessionId]);
+  // No "apply draftIds once a session appears" effect: `session/create` now
+  // takes `knowledgeBaseIds` directly (see `ensureSession`/`use-composer-send.ts`),
+  // so a session is never created without its mount already attached — a
+  // follow-up `session/set-knowledge-bases` here would at best be a redundant
+  // write and at worst race the `session/index-updated` push this hook reads
+  // `hostIds` from.
+  const clearDraft = useCallback(() => setDraftIds([]), []);
 
   const setMounted = useCallback(
     (ids: string[]) => {
@@ -119,7 +118,8 @@ export function useSessionKnowledgeMounts(args: UseSessionKnowledgeMountsArgs): 
       toggle,
       mount,
       openManager: args.onOpenManager,
+      clearDraft,
     }),
-    [args.onOpenManager, args.supported, bases, error, mount, mountedIds, toggle],
+    [args.onOpenManager, args.supported, bases, clearDraft, error, mount, mountedIds, toggle],
   );
 }
